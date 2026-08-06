@@ -1,5 +1,5 @@
 {
-  "name": "myapp",
+  "name": "perolehan",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "setup": "npm run db:up && npm run db:migrate && npm run db:seed",
     "db:up": "docker compose up -d --wait",
     "db:down": "docker compose down",
@@ -36,6 +38,7 @@
     "prisma": "^7.9.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.8",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }

@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "myapp",
-  description: "Next.js + Prisma + Postgres starter",
+  title: "Perolehan",
+  description: "End-to-end procurement and contract administration",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

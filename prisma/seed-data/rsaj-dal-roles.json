@@ -1,0 +1,173 @@
+[
+  {
+    "code": "SH",
+    "nameEn": "Shareholders",
+    "nameMs": "Pemegang Saham",
+    "isCommittee": true,
+    "escalatesToCode": null,
+    "selfApprovalEscalatesToCode": null,
+    "sortOrder": -100
+  },
+  {
+    "code": "BOD",
+    "nameEn": "Board of Directors",
+    "nameMs": "Lembaga Pengarah",
+    "isCommittee": true,
+    "escalatesToCode": "SH",
+    "selfApprovalEscalatesToCode": "CM",
+    "sortOrder": -90
+  },
+  {
+    "code": "CM",
+    "nameEn": "Chairman",
+    "nameMs": "Pengerusi",
+    "isCommittee": false,
+    "escalatesToCode": "BOD",
+    "selfApprovalEscalatesToCode": null,
+    "sortOrder": -80
+  },
+  {
+    "code": "TBC",
+    "nameEn": "Tender Board Committee",
+    "nameMs": "Lembaga Tender",
+    "isCommittee": true,
+    "escalatesToCode": "BOD",
+    "selfApprovalEscalatesToCode": null,
+    "sortOrder": -70
+  },
+  {
+    "code": "CEO",
+    "nameEn": "Chief Executive Officer",
+    "nameMs": "Ketua Pegawai Eksekutif",
+    "isCommittee": false,
+    "escalatesToCode": "CM",
+    "selfApprovalEscalatesToCode": "CM",
+    "sortOrder": -60
+  },
+  {
+    "code": "FD",
+    "nameEn": "Functional Director",
+    "nameMs": "Pengarah Fungsian",
+    "isCommittee": false,
+    "escalatesToCode": "CEO",
+    "selfApprovalEscalatesToCode": "CEO",
+    "sortOrder": -50
+  },
+  {
+    "code": "HOD",
+    "nameEn": "Head of Division",
+    "nameMs": "Ketua Bahagian",
+    "isCommittee": false,
+    "escalatesToCode": "FD",
+    "selfApprovalEscalatesToCode": "FD",
+    "sortOrder": -40
+  },
+  {
+    "code": "HODEPT",
+    "nameEn": "Head of Department",
+    "nameMs": "Ketua Jabatan",
+    "isCommittee": false,
+    "escalatesToCode": "HOD",
+    "selfApprovalEscalatesToCode": "HOD",
+    "sortOrder": -30
+  },
+  {
+    "code": "QC",
+    "nameEn": "Quotation Committee",
+    "nameMs": "Jawatankuasa Sebut Harga",
+    "isCommittee": true,
+    "escalatesToCode": "CEO",
+    "selfApprovalEscalatesToCode": null,
+    "sortOrder": -55
+  },
+  {
+    "code": "VOC",
+    "nameEn": "Variation Orders Committee",
+    "nameMs": "Jawatankuasa Perubahan Kerja",
+    "isCommittee": true,
+    "escalatesToCode": "CEO",
+    "selfApprovalEscalatesToCode": null,
+    "sortOrder": -55
+  },
+  {
+    "code": "TOC",
+    "nameEn": "Tender Opening Committee",
+    "nameMs": "Jawatankuasa Pembuka Tender",
+    "isCommittee": true,
+    "escalatesToCode": "HOD",
+    "selfApprovalEscalatesToCode": null,
+    "sortOrder": -35
+  },
+  {
+    "code": "QOC",
+    "nameEn": "Quotation Opening Committee",
+    "nameMs": "Jawatankuasa Pembuka Sebut Harga",
+    "isCommittee": true,
+    "escalatesToCode": "HOD",
+    "selfApprovalEscalatesToCode": null,
+    "sortOrder": -35
+  },
+  {
+    "code": "TC",
+    "nameEn": "Technical Committee",
+    "nameMs": "Jawatankuasa Teknikal",
+    "isCommittee": true,
+    "escalatesToCode": "FD",
+    "selfApprovalEscalatesToCode": null,
+    "sortOrder": -45
+  },
+  {
+    "code": "TCAP",
+    "nameEn": "Technical & CAPEX Committee",
+    "nameMs": "Jawatankuasa Teknikal dan CAPEX",
+    "isCommittee": true,
+    "escalatesToCode": "FD",
+    "selfApprovalEscalatesToCode": null,
+    "sortOrder": -45
+  },
+  {
+    "code": "CP",
+    "nameEn": "Contract & Procurement",
+    "nameMs": "Kontrak & Perolehan",
+    "isCommittee": false,
+    "escalatesToCode": "HOD",
+    "selfApprovalEscalatesToCode": null,
+    "sortOrder": -32
+  },
+  {
+    "code": "FIN",
+    "nameEn": "Finance",
+    "nameMs": "Kewangan",
+    "isCommittee": false,
+    "escalatesToCode": "HOD",
+    "selfApprovalEscalatesToCode": null,
+    "sortOrder": -32
+  },
+  {
+    "code": "AD",
+    "nameEn": "Administration Division",
+    "nameMs": "Bahagian Pentadbiran",
+    "isCommittee": false,
+    "escalatesToCode": null,
+    "selfApprovalEscalatesToCode": null,
+    "sortOrder": -32
+  },
+  {
+    "code": "DOFA",
+    "nameEn": "Director of Finance & Admin",
+    "nameMs": "Pengarah Kewangan & Pentadbiran",
+    "isCommittee": false,
+    "escalatesToCode": "CEO",
+    "selfApprovalEscalatesToCode": null,
+    "sortOrder": -50
+  },
+  {
+    "code": "SO_PD",
+    "nameEn": "SO / Project Director",
+    "nameMs": "Pegawai Penguasa / Pengarah Projek",
+    "isCommittee": false,
+    "escalatesToCode": null,
+    "selfApprovalEscalatesToCode": null,
+    "sortOrder": 0
+  }
+]

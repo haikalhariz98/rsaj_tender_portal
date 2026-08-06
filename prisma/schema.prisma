@@ -1,5 +1,11 @@
-// Schema reference: https://pris.ly/d/prisma-schema
-// After editing, run `npm run db:migrate` to create and apply a migration.
+// Data model for the procurement portal.
+//
+// This first slice implements the DAL (Discretionary Authority Limits) configuration
+// described in the requirements specification §7.1 "DAL Configuration", plus the roles
+// and committees the approval resolver reads. Everything here is CONFIGURATION, never
+// code — §2.2: "Configuration data, versioned and effective-dated — never code."
+//
+// After editing, run `npm run db:migrate`.
 
 generator client {
   provider = "prisma-client"
@@ -10,13 +16,178 @@ datasource db {
   provider = "postgresql"
 }
 
-// Placeholder resource, wired end-to-end (schema -> API route -> page) to prove
-// the stack works. Replace it with the real domain model.
-model Item {
-  id        String   @id @default(cuid())
-  title     String
-  done      Boolean  @default(false)
-  createdAt DateTime @default(now())
+/// The DAL authority grammar. These eight codes are fixed by the manual, so unlike
+/// domains and methods they are an enum rather than tenant configuration.
+enum AuthorityAct {
+  P /// Propose
+  JP /// Jointly Propose
+  R /// Recommend
+  JR /// Jointly Recommend
+  MR /// Mandatory Recommendation
+  MJR /// Mandatory Joint Recommendation
+  A /// Approve
+  MA /// Mandatory Approval
+}
 
-  @@index([createdAt])
+/// A customer. RSAJ is the first, not the only one — every config table hangs off this
+/// so a second organisation is a seed, not a migration.
+model Organisation {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  nameMs    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  roles       AuthorityRole[]
+  dalVersions DalVersion[]
+}
+
+/// An office or committee that can hold authority. Referenced from rules by `code`
+/// rather than by foreign key, because rules are versioned independently of the
+/// org chart and a rule must keep citing a role code that has since been retired.
+model AuthorityRole {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code        String
+  nameEn      String
+  nameMs      String
+  isCommittee Boolean @default(false)
+
+  /// DAL §1.6: when the holder is absent, authority reverts UPWARD to this role.
+  /// It never passes down automatically, and may be re-delegated only on the absent
+  /// holder's recommendation.
+  escalatesToCode String?
+
+  /// No one may approve their own expenses or allocations. Where the actor is also
+  /// the approver, the approval escalates here and the actor is downgraded to
+  /// recommender.
+  selfApprovalEscalatesToCode String?
+
+  sortOrder Int @default(0)
+
+  @@unique([organisationId, code])
+}
+
+/// One issue of the DAL manual. Thresholds live here rather than in code because
+/// they change by Board resolution, and because spec decision D3 (whether RM300,000
+/// is `>` or `>=`) is unresolved — the product ships the toggle, the customer sets it.
+model DalVersion {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// e.g. "Issue A Rev 00 · 11 June 2021 · Fifth Revision"
+  label         String
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+
+  /// The value at which the quotation/tender regimes meet (RM300,000 at RSAJ).
+  boundaryValue Decimal @db.Decimal(18, 2)
+
+  /// Spec decision D3. When true, a value exactly equal to `boundaryValue` falls in
+  /// the LOWER band (quotation) — the `melebihi` / "exceeding" reading. When false it
+  /// falls in the upper band (tender) — the `>= RM300,000.00` flowchart reading.
+  /// Only the boundary value itself is affected; every other band edge is (min, max].
+  boundaryInclusive Boolean @default(true)
+
+  quotationFloor      Decimal @db.Decimal(18, 2)
+  tenderFloor         Decimal @db.Decimal(18, 2)
+  requisitionBoundary Decimal @db.Decimal(18, 2)
+
+  /// Window used by the anti-splitting control (§8.2).
+  splittingWindowDays Int    @default(30)
+  currency            String @default("MYR")
+
+  rules DalRule[]
+
+  @@unique([organisationId, label])
+  @@index([organisationId, effectiveFrom])
+}
+
+/// One authority row of the matrix. Every row carries the clause it came from, so a
+/// routing decision can always be traced back to the printed manual.
+model DalRule {
+  id           String     @id @default(cuid())
+  dalVersionId String
+  dalVersion   DalVersion @relation(fields: [dalVersionId], references: [id], onDelete: Cascade)
+
+  /// Stable business key within the version, e.g. "APP_OPEN_15K_300K".
+  ruleKey String
+
+  /// The matter being authorised, e.g. "requisition", "appointment", "vo", "payment".
+  /// A string rather than an enum: customers add matters without a schema change.
+  domain String
+
+  /// Sourcing method the row is confined to ("direct", "open_selective", "quotation",
+  /// "tender", "rental"). Null means the row applies whatever the method.
+  method String?
+
+  /// Extra discriminator for rows that differ only by circumstance.
+  cond String?
+
+  /// Band on the value of the matter itself. Semantics are (min, max] except at
+  /// `DalVersion.boundaryValue`, where `boundaryInclusive` decides.
+  minValue Decimal? @db.Decimal(18, 2)
+  maxValue Decimal? @db.Decimal(18, 2)
+
+  /// Band on a percentage — variation orders are authorised by % of contract sum.
+  pctMin Decimal? @db.Decimal(9, 4)
+  pctMax Decimal? @db.Decimal(9, 4)
+
+  /// Band on the PARENT CONTRACT's value, distinct from the matter's own value. A
+  /// RM94,912 variation on an RM11.9M contract is banded on both, independently.
+  contractValueMin Decimal? @db.Decimal(18, 2)
+  contractValueMax Decimal? @db.Decimal(18, 2)
+
+  labelEn String
+  labelMs String?
+
+  proposerCode String?
+  approverCode String?
+
+  committeeCode String?
+  committeeAct  AuthorityAct?
+
+  /// The row contains a step that cannot be delegated to anyone else.
+  nonDelegable Boolean @default(false)
+
+  /// Whether the APPROVAL step specifically is mandatory (act MA rather than A).
+  /// No row in the RSAJ matrix sets this; it is modelled because the resolver's
+  /// authority grammar distinguishes A from MA and the distinction is real.
+  approverMandatory Boolean @default(false)
+
+  /// True where the DAL has NO row for this matter and the routing shown is an
+  /// assumption rather than a documented rule. Three RSAJ rows are honest gaps:
+  /// signing the quotation award instrument, advance payment in the quotation
+  /// regime, and release of retention sums. Gaps are ranked last and warn loudly.
+  isGap   Boolean @default(false)
+  gapNote String?
+
+  note   String @default("")
+  /// Citation of the governing clause, e.g. "DAL_3143_2".
+  clause String
+
+  sortOrder Int @default(0)
+
+  recommenders DalRuleRecommender[]
+
+  @@unique([dalVersionId, ruleKey])
+  @@index([dalVersionId, domain, method])
+}
+
+/// A recommending step on a rule. Ordered, because "jointly recommend" pairs are
+/// recorded in a fixed sequence on the routing sheets.
+model DalRuleRecommender {
+  id        String  @id @default(cuid())
+  dalRuleId String
+  dalRule   DalRule @relation(fields: [dalRuleId], references: [id], onDelete: Cascade)
+
+  roleCode String
+  act      AuthorityAct
+  sequence Int          @default(0)
+
+  @@index([dalRuleId])
 }

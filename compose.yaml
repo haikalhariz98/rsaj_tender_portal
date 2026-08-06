@@ -1,22 +1,22 @@
 # The project name is pinned so the data volume keeps its identity even if the
 # directory is renamed. Rename it here and in package.json together.
-name: myapp
+name: perolehan
 
 services:
   db:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-myapp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-myapp}
-      POSTGRES_DB: ${POSTGRES_DB:-myapp}
+      POSTGRES_USER: ${POSTGRES_USER:-perolehan}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-perolehan}
+      POSTGRES_DB: ${POSTGRES_DB:-perolehan}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
       # `npm run db:up` waits on this before migrations run.
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-myapp} -d ${POSTGRES_DB:-myapp}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-perolehan} -d ${POSTGRES_DB:-perolehan}"]
       interval: 3s
       timeout: 5s
       retries: 20
