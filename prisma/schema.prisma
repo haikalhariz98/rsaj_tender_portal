@@ -29,6 +29,54 @@ enum AuthorityAct {
   MA /// Mandatory Approval
 }
 
+/// Where a configured fact came from. The specification is explicit that committee
+/// composition and quorum are, with two exceptions, "not defined anywhere in the
+/// corpus" (§5.2) — so the system must distinguish a rule it can cite from a practice
+/// it merely observed. A screen that shows both identically is lying.
+enum Provenance {
+  STATED /// Written in an Operation Manual, the DAL or a controlled form.
+  OBSERVED /// Seen in live practice — an evaluation template, a flowchart, a signed report.
+  ASSUMED /// Neither. A working default that requires sign-off.
+}
+
+/// What a body does when it sits. Not every gate is an approval: the PAAB committee
+/// consents to variations on funded assets, which is a precondition rather than a
+/// Ranhill SAJ authority.
+enum CommitteeAction {
+  APPROVES
+  RECOMMENDS
+  CONSENTS
+  DECIDES
+}
+
+enum CommitteePosition {
+  CHAIRMAN
+  DEPUTY_CHAIRMAN
+  MEMBER
+  SECRETARY
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  IN_PROGRESS
+  MINUTED
+  CANCELLED
+}
+
+/// Members vote in Malay on the controlled forms; the stored value matches the form.
+enum VoteChoice {
+  SETUJU
+  TIDAK_SETUJU
+  ABSTAIN
+}
+
+enum DecisionOutcome {
+  PENDING
+  CARRIED
+  NOT_CARRIED
+  DEFERRED
+}
+
 /// A customer. RSAJ is the first, not the only one — every config table hangs off this
 /// so a second organisation is a seed, not a migration.
 model Organisation {
@@ -41,6 +89,210 @@ model Organisation {
 
   roles       AuthorityRole[]
   dalVersions DalVersion[]
+  people      Person[]
+  committees  Committee[]
+}
+
+/// A human being. Identity, deliberately separate from authentication — a committee
+/// vote must be attributable long before anyone can log in, and people who never log
+/// in (external PAAB members) still sit on bodies.
+model Person {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  staffNo  String?
+  name     String
+  email    String?
+  jobTitle String?
+  /// False for a leaver. Never delete a person — decisions they voted on must keep
+  /// resolving to a name.
+  isActive Boolean @default(true)
+
+  roleAssignments  RoleAssignment[]
+  committeeSeats   CommitteeMember[]
+  meetingAttendance MeetingAttendance[]
+  votes            Vote[]
+
+  @@unique([organisationId, staffNo])
+  @@index([organisationId, name])
+}
+
+/// Who holds an authority office, and when. Effective-dated because the DAL resolves
+/// to an office ("Functional Director") and only this turns that into a signatory —
+/// and because re-opening a past decision must find the holder of the day.
+model RoleAssignment {
+  id       String @id @default(cuid())
+  personId String
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  /// Matches AuthorityRole.code.
+  roleCode String
+  /// Set where the office is held per department rather than organisation-wide.
+  scope    String?
+
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+
+  @@index([roleCode, effectiveFrom])
+  @@index([personId])
+}
+
+/// A committee, board or external body that gates a decision.
+model Committee {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// Matches AuthorityRole.code where the DAL routes to this body (TBC, QC, VOC…).
+  code    String
+  nameEn  String
+  nameMs  String?
+  mandate String
+
+  /// The clause or form establishing the body.
+  governingSource String
+
+  action CommitteeAction @default(RECOMMENDS)
+  /// True for bodies outside Ranhill SAJ, whose decision is a precondition rather
+  /// than an internal authority.
+  isExternal Boolean @default(false)
+
+  /// Null means the corpus states no quorum. That is not the same as zero, and the
+  /// system must never infer one — §5.2 records that the Tender Board's three
+  /// members is "the only stated quorum in the entire pre-award corpus".
+  quorum           Int?
+  quorumProvenance Provenance?
+
+  /// Whether the corpus states who sits on this body at all.
+  compositionProvenance Provenance?
+
+  /// Band the body's mandate applies to, where the DAL confines it.
+  valueScopeMin Decimal? @db.Decimal(18, 2)
+  valueScopeMax Decimal? @db.Decimal(18, 2)
+
+  notes String @default("")
+
+  members  CommitteeMember[]
+  meetings Meeting[]
+
+  @@unique([organisationId, code])
+}
+
+/// A seat on a committee. §5.2 is explicit for the Quotation Committee: "model as a
+/// role with an eligible-member pool, not fixed individuals" — so a seat may name an
+/// alternate who can occupy it when the substantive holder cannot.
+model CommitteeMember {
+  id          String    @id @default(cuid())
+  committeeId String
+  committee   Committee @relation(fields: [committeeId], references: [id], onDelete: Cascade)
+
+  /// A seat is held one of two ways, and exactly one must be set:
+  ///
+  ///  - ex officio, by whoever holds an office — `seatRoleCode`. This is how the
+  ///    corpus actually describes composition: the VOC is "chaired by the COO with
+  ///    the CFO as deputy", never by name. The holder resolves through
+  ///    RoleAssignment at the date of the sitting.
+  ///  - by named appointment — `personId`. Used where a person is appointed to the
+  ///    seat itself, as the Tender Opening Committee's two officers are.
+  personId String?
+  person   Person? @relation(fields: [personId], references: [id], onDelete: Restrict)
+  /// Matches AuthorityRole.code.
+  seatRoleCode String?
+  /// How the seat is described in the source — "Chief Operating Officer", "Head of
+  /// Quality Management Division". Many observed offices have no DAL role code
+  /// because the DAL never routes to them directly.
+  seatLabel String?
+
+  position   CommitteePosition @default(MEMBER)
+  /// True where this person is an alternate for the seat rather than its holder.
+  isAlternate Boolean          @default(false)
+  provenance  Provenance       @default(ASSUMED)
+
+  appointmentRef String?
+  effectiveFrom  DateTime
+  effectiveTo    DateTime?
+
+  @@index([committeeId, effectiveFrom])
+  @@index([personId])
+}
+
+/// A sitting of a committee.
+model Meeting {
+  id          String    @id @default(cuid())
+  committeeId String
+  committee   Committee @relation(fields: [committeeId], references: [id], onDelete: Cascade)
+
+  reference   String
+  meetingDate DateTime
+  agenda      String        @default("")
+  minutes     String        @default("")
+  status      MeetingStatus @default(SCHEDULED)
+
+  attendance MeetingAttendance[]
+  decisions  CommitteeDecision[]
+
+  @@unique([committeeId, reference])
+  @@index([committeeId, meetingDate])
+}
+
+/// Who was present. Quorum is counted from this, not from the membership list.
+model MeetingAttendance {
+  id        String  @id @default(cuid())
+  meetingId String
+  meeting   Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  personId  String
+  person    Person  @relation(fields: [personId], references: [id], onDelete: Restrict)
+
+  attended Boolean @default(true)
+  /// Set where this person sat in place of the substantive seat holder.
+  standingInFor String?
+
+  @@unique([meetingId, personId])
+}
+
+/// A matter put to a committee, and what it decided.
+model CommitteeDecision {
+  id        String  @id @default(cuid())
+  meetingId String
+  meeting   Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  /// What was decided on, e.g. "appointment", "vo" — matches DalRule.domain.
+  domain  String
+  subject String
+  /// Reference of the exercise, contract or variation the matter concerns.
+  matterRef String?
+  amount    Decimal? @db.Decimal(18, 2)
+
+  /// The authority act this decision discharges, from the DAL grammar. A mandatory
+  /// recommendation (MR/MJR) cannot be delegated or skipped.
+  act AuthorityAct @default(R)
+  /// The DAL rule that required this body to sit, so the decision cites its clause.
+  dalRuleKey String?
+
+  outcome      DecisionOutcome @default(PENDING)
+  decisionDate DateTime?
+
+  votes Vote[]
+
+  @@index([meetingId])
+}
+
+/// One member's vote. §7.2: "One sourcing exercise has many committee members each
+/// casting an individual vote — not one aggregate committee decision."
+model Vote {
+  id         String            @id @default(cuid())
+  decisionId String
+  decision   CommitteeDecision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+  personId   String
+  person     Person            @relation(fields: [personId], references: [id], onDelete: Restrict)
+
+  choice  VoteChoice
+  comment String     @default("")
+  votedAt DateTime   @default(now())
+
+  @@unique([decisionId, personId])
+  @@index([decisionId])
 }
 
 /// An office or committee that can hold authority. Referenced from rules by `code`

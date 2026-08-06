@@ -62,13 +62,15 @@ node scripts/extract-docx.mjs docs/requirements/<file>.docx
 
 ## What exists today
 
-The **DAL approval engine** — and nothing else from the spec yet.
+The **DAL approval engine** and the **committee module**. Nothing else from the spec yet.
 
 ```
-src/lib/dal/resolve.ts    pure resolver, no database — the shape to copy for new domains
-src/lib/dal/load.ts       loads the effective-dated matrix from Postgres
-src/lib/dal/types.ts      the authority grammar: P, JP, R, JR, MR, MJR, A, MA
-prisma/seed-data/         the RSAJ matrix as data: 92 rules, 19 roles, each citing its clause
+src/lib/dal/resolve.ts        pure resolver, no database — the shape to copy for new domains
+src/lib/dal/load.ts           loads the effective-dated matrix from Postgres
+src/lib/dal/types.ts          the authority grammar: P, JP, R, JR, MR, MJR, A, MA
+src/lib/committee/quorum.ts   pure quorum and vote arithmetic
+src/lib/committee/repo.ts     committee queries
+prisma/seed-data/             the RSAJ matrix as data: 92 rules, 19 roles, 9 committees
 ```
 
 Seeded and verified against the two worked examples the spec states in prose in §2.4:
@@ -76,9 +78,38 @@ Seeded and verified against the two worked examples the spec states in prose in 
 - RM180,000 works quotation → `APP_OPEN_15K_300K` → `HODEPT:P → HOD:R → QC:MR → CEO:A`
 - RM620,000 interim payment → `T16A_PAY_GT_500K` → `HODEPT:P → HOD:R → CEO:A`
 
-Next up, per §13.3: committees (membership, quorum, per-member SETUJU/TIDAK SETUJU votes),
-then requisition intake, then award. Those four must land together before anything is safe
-for a real transaction.
+Next up, per §13.3: requisition intake (PROC as the primary business key, five funding
+routes, budget check, anti-splitting), then award. Those must land with the two modules
+above before anything is safe for a real transaction.
+
+## The UI is ported, not designed
+
+`src/app/design-system.css` is the prototype's stylesheet, carried over as-is: 28 sections,
+72 tokens, 448 classes. **Build screens from those classes.** Do not write new component CSS
+and do not restyle with Tailwind utilities — the client has already approved this look.
+
+- It is deliberately **unlayered plain CSS**, so it beats Tailwind's layered utilities on any
+  class both define (`.table`, `.grid`, `.container`, `.row`). Never wrap it in `@layer`.
+- The prototype is **light-only** (`<meta name="color-scheme" content="light">`). There is no
+  dark theme; do not add `dark:` variants.
+- Useful vocabulary already there: `.card`, `.dl`/`.table`, `.pagehead`, `.stat`, `.chip`,
+  `.badge`, `.callout`, `.chain`/`.chain__act--MR` (approval chains), `.quorum__pip`,
+  `.vote__btn`, `.avatar`, `.empty`, `.field`/`.input`/`.select`, `.stack`, `.grid.g2..g6`.
+- Icons are inline SVG in `src/components/icons.tsx` — 24px grid, 1.75 stroke. Add to that
+  file rather than pulling in an icon package.
+
+## Provenance: the pattern to copy
+
+Committee composition and quorum are, per §5.2, *not defined anywhere in the corpus* for
+almost every body. So configuration records **where a fact came from** — `Provenance` is
+`STATED` (written in a manual, the DAL or a controlled form), `OBSERVED` (seen in practice —
+an evaluation template, a flowchart) or `ASSUMED`.
+
+A screen that renders a stated rule and an observed practice identically is lying. Only one
+committee in nine has a quorum stated anywhere: the Tender Board's three members. An unstated
+quorum is **not** a quorum of zero — `assessQuorum` returns `UNCONFIGURED`, a third state, and
+a sitting can never be certified quorate under it. Apply the same three-state honesty to any
+new rule whose source is silent.
 
 ## Rules that are not negotiable
 

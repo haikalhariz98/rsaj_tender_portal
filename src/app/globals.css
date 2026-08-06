@@ -1,26 +1,15 @@
 @import "tailwindcss";
 
+/* The client-approved design system, ported from the prototype.
+   Deliberately unlayered plain CSS: unlayered rules beat anything inside a
+   @layer, so where Tailwind and the design system define the same class
+   (.table, .grid, .container, .row) the design system wins regardless of
+   import order. Do not wrap this in @layer. */
+@import "./design-system.css";
+
+/* The prototype's stack asks for Inter first; next/font serves it locally. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  --font-sans:
+    var(--font-inter), Inter, "Segoe UI Variable", "Segoe UI", system-ui, -apple-system,
+    "Helvetica Neue", Arial, sans-serif;
 }

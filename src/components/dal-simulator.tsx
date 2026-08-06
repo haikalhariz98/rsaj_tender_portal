@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { AlertTriangle, ArrowRight, InfoIcon } from "@/components/icons";
+
 interface ChainStep {
   role: string;
   name: string;
@@ -22,6 +24,7 @@ interface Resolution {
   rule: { key: string; label: string; clause: string; isGap: boolean; note?: string } | null;
   regime: string | null;
   approver: string | null;
+  committee: string | null;
   nonDelegable: boolean;
   chain: ChainStep[];
   warnings: Warning[];
@@ -38,15 +41,12 @@ const ACT_LABEL: Record<string, string> = {
   MA: "Mandatory Approval",
 };
 
-const WARNING_STYLE: Record<Warning["level"], string> = {
-  info: "border-blue-300 bg-blue-50 text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200",
-  warn: "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200",
-  err: "border-red-300 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-200",
-  gap: "border-purple-300 bg-purple-50 text-purple-900 dark:border-purple-900 dark:bg-purple-950 dark:text-purple-200",
+const CALLOUT: Record<Warning["level"], string> = {
+  info: "callout--info",
+  warn: "callout--warn",
+  err: "callout--err",
+  gap: "callout--warn",
 };
-
-const field =
-  "w-full rounded-md border border-black/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-black/40 dark:border-white/20 dark:focus:border-white/50";
 
 export function DalSimulator({
   domains,
@@ -66,11 +66,13 @@ export function DalSimulator({
   const [absent, setAbsent] = useState("");
   const [funding, setFunding] = useState("");
 
-  // Answers are keyed by the query that produced them, so "is a request in flight"
-  // is derived by comparing keys rather than held as a second piece of state.
-  const [answer, setAnswer] = useState<{ key: string; result: Resolution | null; error: string | null } | null>(
-    null,
-  );
+  // Keyed by the query that produced it, so "is a request in flight" is derived
+  // rather than held as a second piece of state.
+  const [answer, setAnswer] = useState<{
+    key: string;
+    result: Resolution | null;
+    error: string | null;
+  } | null>(null);
 
   const params = new URLSearchParams({ domain });
   if (method) params.set("method", method);
@@ -104,176 +106,224 @@ export function DalSimulator({
   }, [key]);
 
   return (
-    <div className="flex flex-col gap-6">
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-black/60 dark:text-white/60">Matter</span>
-          <select value={domain} onChange={(e) => setDomain(e.target.value)} className={field}>
-            {domains.map((d) => (
-              <option key={d} value={d}>
-                {d.replace(/_/g, " ")}
-              </option>
-            ))}
-          </select>
-        </label>
+    <div className="grid" style={{ gridTemplateColumns: "minmax(0,340px) minmax(0,1fr)", gap: 24 }}>
+      <section className="card" style={{ alignSelf: "start" }}>
+        <div className="card__head">
+          <div className="card__titles">
+            <h2 className="h3">The matter</h2>
+            <div className="card__sub">What is being authorised</div>
+          </div>
+        </div>
+        <div className="card__body">
+          <div className="stack stack--md">
+            <label className="field">
+              <span className="field__lbl">Matter</span>
+              <select className="select" value={domain} onChange={(e) => setDomain(e.target.value)}>
+                {domains.map((d) => (
+                  <option key={d} value={d}>
+                    {d.replace(/_/g, " ")}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-black/60 dark:text-white/60">Method</span>
-          <select value={method} onChange={(e) => setMethod(e.target.value)} className={field}>
-            <option value="">(any)</option>
-            {methods.map((m) => (
-              <option key={m} value={m}>
-                {m.replace(/_/g, " ")}
-              </option>
-            ))}
-          </select>
-        </label>
+            <label className="field">
+              <span className="field__lbl">Sourcing method</span>
+              <select className="select" value={method} onChange={(e) => setMethod(e.target.value)}>
+                <option value="">Any</option>
+                {methods.map((m) => (
+                  <option key={m} value={m}>
+                    {m.replace(/_/g, " ")}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-black/60 dark:text-white/60">Value (RM)</span>
-          <input
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            inputMode="decimal"
-            className={field}
-          />
-        </label>
+            <label className="field">
+              <span className="field__lbl">Value</span>
+              <div className="inputwrap inputwrap--pre">
+                <span className="inputwrap__pre">RM</span>
+                <input
+                  className="input input--num"
+                  value={value}
+                  inputMode="decimal"
+                  onChange={(e) => setValue(e.target.value)}
+                />
+              </div>
+            </label>
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-black/60 dark:text-white/60">
-            Contract value (RM)
-          </span>
-          <input
-            value={contractValue}
-            onChange={(e) => setContractValue(e.target.value)}
-            inputMode="decimal"
-            placeholder="for variations and payments"
-            className={field}
-          />
-        </label>
+            <div className="grid g2" style={{ gap: 12 }}>
+              <label className="field">
+                <span className="field__lbl">Contract value</span>
+                <input
+                  className="input input--num input--sm"
+                  value={contractValue}
+                  inputMode="decimal"
+                  placeholder="optional"
+                  onChange={(e) => setContractValue(e.target.value)}
+                />
+                <span className="field__hint">For variations</span>
+              </label>
+              <label className="field">
+                <span className="field__lbl">Percentage</span>
+                <input
+                  className="input input--num input--sm"
+                  value={pct}
+                  inputMode="decimal"
+                  placeholder="optional"
+                  onChange={(e) => setPct(e.target.value)}
+                />
+                <span className="field__hint">Of contract sum</span>
+              </label>
+            </div>
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-black/60 dark:text-white/60">
-            Percentage of contract
-          </span>
-          <input
-            value={pct}
-            onChange={(e) => setPct(e.target.value)}
-            inputMode="decimal"
-            placeholder="for variation orders"
-            className={field}
-          />
-        </label>
+            <div className="divider" />
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-black/60 dark:text-white/60">Funding</span>
-          <select value={funding} onChange={(e) => setFunding(e.target.value)} className={field}>
-            <option value="">Internal</option>
-            <option value="government">Government</option>
-            <option value="developer">Developer</option>
-          </select>
-        </label>
+            <label className="field">
+              <span className="field__lbl">Funding route</span>
+              <select
+                className="select select--sm"
+                value={funding}
+                onChange={(e) => setFunding(e.target.value)}
+              >
+                <option value="">Internal</option>
+                <option value="government">Government</option>
+                <option value="developer">Developer</option>
+              </select>
+            </label>
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-black/60 dark:text-white/60">
-            Acting officer
-          </span>
-          <select value={actor} onChange={(e) => setActor(e.target.value)} className={field}>
-            <option value="">(not specified)</option>
-            {roles.map((r) => (
-              <option key={r.code} value={r.code}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </label>
+            <label className="field">
+              <span className="field__lbl">Acting officer</span>
+              <select
+                className="select select--sm"
+                value={actor}
+                onChange={(e) => setActor(e.target.value)}
+              >
+                <option value="">Not specified</option>
+                {roles.map((r) => (
+                  <option key={r.code} value={r.code}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+              <span className="field__hint">Nobody may approve their own matter</span>
+            </label>
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-black/60 dark:text-white/60">Absent</span>
-          <select value={absent} onChange={(e) => setAbsent(e.target.value)} className={field}>
-            <option value="">(nobody)</option>
-            {roles.map((r) => (
-              <option key={r.code} value={r.code}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </label>
+            <label className="field">
+              <span className="field__lbl">Absent</span>
+              <select
+                className="select select--sm"
+                value={absent}
+                onChange={(e) => setAbsent(e.target.value)}
+              >
+                <option value="">Nobody</option>
+                {roles.map((r) => (
+                  <option key={r.code} value={r.code}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+              <span className="field__hint">Authority reverts upward, never down</span>
+            </label>
+          </div>
+        </div>
       </section>
 
-      {error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          {error}
-        </p>
-      )}
+      <section className="stack" style={{ opacity: stale ? 0.6 : 1, transition: "opacity 150ms" }}>
+        {error && (
+          <div className="callout callout--err" role="alert">
+            <span className="callout__ico">
+              <AlertTriangle size={17} />
+            </span>
+            <div>{error}</div>
+          </div>
+        )}
 
-      {result && (
-        <section className={`flex flex-col gap-5 ${stale ? "opacity-60" : ""}`}>
-          {result.rule ? (
-            <div className="flex flex-col gap-1 border-l-2 border-black/20 pl-4 dark:border-white/20">
-              <p className="text-sm font-medium">{result.rule.label}</p>
-              <p className="font-mono text-xs text-black/50 dark:text-white/50">
-                {result.rule.key} · {result.rule.clause}
-                {result.regime ? ` · ${result.regime} regime` : ""}
+        {result?.rule && (
+          <div className="card card--accent">
+            <div className="card__body">
+              <div className="row wrap" style={{ gap: 10, marginBottom: 8 }}>
+                <span className="lbl">Authority row</span>
+                {result.regime && <span className="chip chip--brand">{result.regime} regime</span>}
+                {result.nonDelegable && <span className="chain__nd">non-delegable</span>}
+              </div>
+              <p className="h3" style={{ marginBottom: 6 }}>
+                {result.rule.label}
               </p>
+              <div className="row wrap xs dim" style={{ gap: 8 }}>
+                <span className="mono">{result.rule.key}</span>
+                <span className="sep">·</span>
+                <span className="mono">{result.rule.clause}</span>
+              </div>
               {result.rule.note && (
-                <p className="text-xs text-black/60 dark:text-white/60">{result.rule.note}</p>
+                <p className="sm dim" style={{ marginTop: 10 }}>
+                  {result.rule.note}
+                </p>
               )}
             </div>
-          ) : (
-            <p className="text-sm text-black/60 dark:text-white/60">No rule matched.</p>
-          )}
+          </div>
+        )}
 
-          {result.chain.length > 0 && (
-            <ol className="flex flex-col">
-              {result.chain.map((step, i) => (
-                <li key={`${step.role}-${step.act}-${i}`} className="flex items-start gap-3 py-2">
-                  <span className="mt-0.5 w-5 shrink-0 text-right font-mono text-xs text-black/40 dark:text-white/40">
-                    {i + 1}
-                  </span>
-                  <div className="flex flex-1 flex-col gap-0.5">
-                    <span className="text-sm">
-                      {step.name}
-                      {step.committee && (
-                        <span className="ml-2 rounded bg-black/5 px-1.5 py-0.5 text-xs dark:bg-white/10">
-                          committee
-                        </span>
-                      )}
-                      {step.nonDelegable && (
-                        <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                          non-delegable
-                        </span>
-                      )}
-                      {step.note === "downgraded" && (
-                        <span className="ml-2 rounded bg-black/5 px-1.5 py-0.5 text-xs dark:bg-white/10">
-                          downgraded
-                        </span>
-                      )}
-                    </span>
-                    <span className="text-xs text-black/50 dark:text-white/50">
-                      {ACT_LABEL[step.act] ?? step.act}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          )}
-
-          {result.warnings.length > 0 && (
-            <div className="flex flex-col gap-2">
-              {result.warnings.map((w, i) => (
-                <p
-                  key={`${w.code}-${i}`}
-                  className={`rounded-md border px-3 py-2 text-xs ${WARNING_STYLE[w.level]}`}
-                >
-                  {w.messageEn}
-                  {w.clause && <span className="ml-1 font-mono opacity-70">({w.clause})</span>}
-                </p>
-              ))}
+        {result && result.chain.length > 0 && (
+          <div className="card">
+            <div className="card__head">
+              <div className="card__titles">
+                <h2 className="h3">Approval chain</h2>
+                <div className="card__sub">{result.chain.length} steps, in order</div>
+              </div>
             </div>
-          )}
-        </section>
-      )}
+            <div className="card__body">
+              <div className="chain">
+                {result.chain.map((step, i) => (
+                  <div key={`${step.role}-${step.act}-${i}`} className="row" style={{ gap: 0 }}>
+                    <div className="chain__n" data-state={i === result.chain.length - 1 ? "current" : "done"}>
+                      <span className={`chain__act chain__act--${step.act}`}>{step.act}</span>
+                      <span className="col">
+                        <span className="chain__role">{step.name}</span>
+                        <span className="chain__meta">
+                          {ACT_LABEL[step.act] ?? step.act}
+                          {step.note === "downgraded" && " · downgraded"}
+                        </span>
+                      </span>
+                      {step.nonDelegable && <span className="chain__nd">ND</span>}
+                    </div>
+                    {i < result.chain.length - 1 && (
+                      <span className="chain__arrow">
+                        <ArrowRight size={16} />
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {result && result.chain.length === 0 && !error && (
+          <div className="card">
+            <div className="card__body">
+              <div className="empty empty--sm">
+                <div className="empty__t">No rule matched</div>
+                <p className="empty__d">
+                  Nothing in the authority matrix covers this combination.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {result?.warnings.map((w, i) => (
+          <div key={`${w.code}-${i}`} className={`callout ${CALLOUT[w.level]}`}>
+            <span className="callout__ico">
+              {w.level === "info" ? <InfoIcon size={17} /> : <AlertTriangle size={17} />}
+            </span>
+            <div>
+              {w.messageEn}
+              {w.clause && <span className="mono dim"> ({w.clause})</span>}
+            </div>
+          </div>
+        ))}
+      </section>
     </div>
   );
 }

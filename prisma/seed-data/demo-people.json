@@ -1,0 +1,27 @@
+{
+  "_comment": "FICTITIOUS example people, so the committee screens have content in development. These are not RSAJ staff. Delete this file and the demo block in seed.ts before any production deployment.",
+  "people": [
+    { "staffNo": "E-1041", "name": "Nurul Aisyah binti Rahim", "jobTitle": "Senior Manager, Contract & Procurement", "seat": "CHAIRMAN" },
+    { "staffNo": "E-1188", "name": "Tan Wei Ming", "jobTitle": "Manager, Finance", "seat": "DEPUTY_CHAIRMAN" },
+    { "staffNo": "E-1252", "name": "Mohd Faizal bin Othman", "jobTitle": "Engineer, Network & NRW", "seat": "MEMBER_1" },
+    { "staffNo": "E-1307", "name": "Kavitha Subramaniam", "jobTitle": "Executive, Quality Management", "seat": "MEMBER_2" }
+  ],
+  "meeting": {
+    "committeeCode": "QC",
+    "reference": "JKSH/2026/014",
+    "agenda": "Appointment recommendation — open quotation, Naik Taraf Paip Agihan Jalan Skudai Kiri.",
+    "decision": {
+      "domain": "appointment",
+      "subject": "Appointment — Naik Taraf Paip Agihan, Jalan Skudai Kiri (open quotation)",
+      "matterRef": "RSAJ/KP/Q(JB)/041/26",
+      "amount": 180000,
+      "act": "MR",
+      "dalRuleKey": "APP_OPEN_15K_300K"
+    },
+    "votes": [
+      { "staffNo": "E-1041", "choice": "SETUJU", "comment": "Lowest compliant quotation; financial test passed." },
+      { "staffNo": "E-1188", "choice": "SETUJU", "comment": "" },
+      { "staffNo": "E-1252", "choice": "SETUJU", "comment": "Technical capacity verified against CIDB grade." }
+    ]
+  }
+}

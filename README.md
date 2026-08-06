@@ -12,7 +12,8 @@ versioned configuration in the database, never code.
 
 ## Status
 
-The **DAL approval engine** is built, seeded and tested. Everything else in the
+The **DAL approval engine** and the **committee module** are built, seeded and tested, on the
+prototype's own design system. Everything else in the
 [requirements specification](#the-specification) is still to come — see [Roadmap](#roadmap).
 
 ## Getting started
@@ -78,6 +79,45 @@ tender regimes — different committee, different approver, different award inst
 Only the boundary value itself is affected; every other band edge stays `(min, max]`.
 Both readings are covered by tests.
 
+## The committee module
+
+Five bodies gate a DAL decision (`QC`, `TBC`, `VOC`, `TOC`, `QOC`); the specification
+describes nine in total. All nine are seeded with their mandate, governing clause and value
+scope.
+
+The design problem is that §5.2 records their composition and quorum as *"not defined
+anywhere in the corpus"* — with two exceptions. So configuration carries **provenance**:
+
+| | |
+| --- | --- |
+| `STATED` | Written in a manual, the DAL or a controlled form. The Tender Opening Committee's two officers; the Tender Board's quorum of three. |
+| `OBSERVED` | Seen in practice — an evaluation template, a flowchart. The Quotation and Variation Orders Committees. |
+| `ASSUMED` | Neither. Requires sign-off. |
+
+Only **one of nine** committees has a quorum stated anywhere. So quorum has three states, not
+two: `MET`, `NOT_MET`, and `UNCONFIGURED`. An unstated quorum is not a quorum of zero, and a
+sitting can never be certified quorate under one — a full room does not make it lawful.
+
+Other rules the module enforces, all in `src/lib/committee/quorum.ts` and covered by tests:
+
+- **Individual votes, never an aggregate.** §7.2: each member records `SETUJU` or
+  `TIDAK SETUJU` with a comment and a date.
+- **A mandatory recommendation needs everyone.** Where the DAL act is `MR` or `MJR` — as the
+  Quotation Committee's recommendation on a RM180,000 appointment is — every entitled member
+  must vote. A mandatory step half the body never saw is not a recommendation.
+- **A tie does not carry.** Nothing in the corpus gives the chair a casting vote, so the
+  system does not invent one.
+- **Seats can be ex officio.** The corpus describes composition by office ("chaired by the
+  COO with the CFO as deputy"), never by name, so a seat resolves through a role holder.
+
+## The interface
+
+`src/app/design-system.css` is the prototype's stylesheet ported as-is — 28 sections, 72
+tokens, 448 classes — so screens are assembled from components the client has already
+approved rather than designed afresh. It is unlayered plain CSS, which is what lets it win
+over Tailwind's layered utilities where both define a class. The prototype is light-only;
+there is no dark theme.
+
 ## Layout
 
 ```
@@ -117,8 +157,8 @@ into a system that cannot then award it compliantly has been misled.
 | Phase | Scope | State |
 | --- | --- | --- |
 | 1 | **DAL approval engine** | **done** |
-| 1 | Committees — membership, quorum, meetings, per-member votes, minutes | next |
-| 1 | Requisition intake, funding route, budget check | |
+| 1 | **Committees** — membership, quorum, meetings, per-member votes | **done** |
+| 1 | Requisition intake, funding route, budget check | next |
 | 1 | Award — Letter of Acceptance, Inden Kerja, securities register | |
 | 2 | Sourcing — documents, advertisement, bids, opening, evaluation | |
 | 3 | Vendor portal — registration, statutory documents, bid submission | |
