@@ -75,14 +75,22 @@ committed template. `DATABASE_URL` must live in `.env` — the Prisma CLI does n
 
 ## Renaming
 
-`myapp` appears in four places. Change them together:
+Drop the old volume **first**, while `compose.yaml` still says `myapp` — otherwise
+`down -v` targets the new project name, deletes nothing, and strands `myapp_db-data`
+on disk:
+
+```bash
+docker compose down -v
+```
+
+Then change all four places together:
 
 1. the directory name
 2. `name` in `package.json`
 3. `name:` in `compose.yaml` — pinned so the data volume survives a directory rename
 4. `POSTGRES_*` and `DATABASE_URL` in `.env` and `.env.example`
 
-Then `npm run db:reset` to recreate the volume under the new name.
+Finally `npm run setup` to recreate the volume under the new name.
 
 ## Making it yours
 
