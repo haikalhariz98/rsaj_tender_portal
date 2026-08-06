@@ -1,0 +1,22 @@
+// Schema reference: https://pris.ly/d/prisma-schema
+// After editing, run `npm run db:migrate` to create and apply a migration.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Placeholder resource, wired end-to-end (schema -> API route -> page) to prove
+// the stack works. Replace it with the real domain model.
+model Item {
+  id        String   @id @default(cuid())
+  title     String
+  done      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
