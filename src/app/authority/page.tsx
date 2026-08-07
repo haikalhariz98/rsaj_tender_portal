@@ -1,5 +1,4 @@
 import { AlertTriangle } from "@/components/icons";
-import { formatClause } from "@/lib/citation";
 import { matterLabel } from "@/lib/labels";
 import { loadMatrix, NoActiveDalVersionError } from "@/lib/dal/load";
 import { formatBand } from "@/lib/format";
@@ -87,21 +86,19 @@ export default async function AuthorityPage() {
               <div className="tablewrap">
                 <table className="table table--compact">
                   <colgroup>
-                    <col style={{ width: "30%" }} />
-                    <col style={{ width: "11%" }} />
-                    <col style={{ width: "16%" }} />
-                    <col style={{ width: "17%" }} />
+                    <col style={{ width: "38%" }} />
+                    <col style={{ width: "13%" }} />
+                    <col style={{ width: "19%" }} />
+                    <col style={{ width: "18%" }} />
                     <col style={{ width: "12%" }} />
-                    <col style={{ width: "14%" }} />
                   </colgroup>
                   <thead>
                     <tr>
-                      <th>Row</th>
+                      <th>Applies to</th>
                       <th>Method</th>
-                      <th>Band</th>
-                      <th>Approver</th>
+                      <th>Value</th>
+                      <th>Approved by</th>
                       <th>Committee</th>
-                      <th>Clause</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -115,6 +112,11 @@ export default async function AuthorityPage() {
                           <span className="sm" style={{ whiteSpace: "normal" }}>
                             {rule.labelEn}
                           </span>
+                          {rule.isGap && (
+                            <span className="badge badge--warn" style={{ marginLeft: 8 }}>
+                              Assumed
+                            </span>
+                          )}
                         </td>
                         <td className="sm dim">{rule.method?.replace(/_/g, " ") ?? "any"}</td>
                         <td className="sm dim">{formatBand(rule.minValue, rule.maxValue)}</td>
@@ -138,13 +140,6 @@ export default async function AuthorityPage() {
                             </span>
                           ) : (
                             <span className="dim">—</span>
-                          )}
-                        </td>
-                        <td className="xs dim">
-                          {rule.isGap ? (
-                            <span className="badge badge--warn">No clause</span>
-                          ) : (
-                            (formatClause(rule.clause) ?? "—")
                           )}
                         </td>
                       </tr>

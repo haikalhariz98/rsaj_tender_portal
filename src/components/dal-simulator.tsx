@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 
 import { AlertTriangle, ArrowRight, InfoIcon } from "@/components/icons";
-import { clauseOrGap, formatClause } from "@/lib/citation";
 
 interface ChainStep {
   role: string;
@@ -247,14 +246,7 @@ export function DalSimulator({
                 {result.regime && <span className="chip chip--brand">{result.regime} regime</span>}
                 {result.nonDelegable && <span className="chain__nd">non-delegable</span>}
               </div>
-              <p className="h3" style={{ marginBottom: 6 }}>
-                {result.rule.label}
-              </p>
-              {/* The governing authority, written the way an officer would cite it.
-                  The internal rule key stays in the API for audit and off the screen. */}
-              <p className="sm dim">
-                {clauseOrGap(result.rule.clause, result.rule.isGap)}
-              </p>
+              <p className="h3">{result.rule.label}</p>
             </div>
           </div>
         )}
@@ -312,10 +304,7 @@ export function DalSimulator({
             <span className="callout__ico">
               {w.level === "info" ? <InfoIcon size={17} /> : <AlertTriangle size={17} />}
             </span>
-            <div>
-              {w.messageEn}
-              {formatClause(w.clause) && <span className="dim"> ({formatClause(w.clause)})</span>}
-            </div>
+            <div>{w.messageEn}</div>
           </div>
         ))}
       </section>

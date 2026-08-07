@@ -4,7 +4,6 @@ import { AlertTriangle, InfoIcon } from "@/components/icons";
 import { DecisionPanel } from "@/components/committee/decision-panel";
 import { getCommittee, rulesRoutingTo } from "@/lib/committee/repo";
 import { assessQuorum } from "@/lib/committee/quorum";
-import { formatClause } from "@/lib/citation";
 import { matterLabel } from "@/lib/labels";
 import { avatarTone, formatBand, formatDate, initials } from "@/lib/format";
 
@@ -171,17 +170,15 @@ export default async function CommitteePage({ params }: PageProps<"/committees/[
               <div className="tablewrap">
                 <table className="table table--compact">
                   <colgroup>
-                    <col style={{ width: "14%" }} />
-                    <col style={{ width: "50%" }} />
-                    <col style={{ width: "12%" }} />
-                    <col style={{ width: "24%" }} />
+                    <col style={{ width: "20%" }} />
+                    <col style={{ width: "58%" }} />
+                    <col style={{ width: "22%" }} />
                   </colgroup>
                   <thead>
                     <tr>
                       <th>Matter</th>
-                      <th>Authority row</th>
+                      <th>Applies to</th>
                       <th>Acts as</th>
-                      <th>Clause</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -204,7 +201,6 @@ export default async function CommitteePage({ params }: PageProps<"/committees/[
                             </span>
                           )}
                         </td>
-                        <td className="xs dim">{formatClause(r.clause) ?? "—"}</td>
                       </tr>
                     ))}
                   </tbody>
