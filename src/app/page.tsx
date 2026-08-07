@@ -39,15 +39,13 @@ export default async function Home() {
               <h1 className="h1">Approval routing</h1>
             </div>
             <p className="pagehead__sub">
-              Who must propose, recommend and approve a matter — resolved from the authority
-              limits in force, never from a hard-coded rule. Every route cites its clause.
+              Who must propose, recommend and approve, for any matter and any value — worked out
+              from the authority limits currently in force.
             </p>
             <div className="pagehead__meta">
-              <span>{matrix.rules.length} authority rows</span>
-              <span className="sep">·</span>
               <span>{domains.length} matters</span>
               <span className="sep">·</span>
-              <span className="mono">{label}</span>
+              <span>{label}</span>
             </div>
           </div>
         </div>

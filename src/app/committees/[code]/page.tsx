@@ -4,6 +4,7 @@ import { AlertTriangle, InfoIcon } from "@/components/icons";
 import { DecisionPanel } from "@/components/committee/decision-panel";
 import { getCommittee, rulesRoutingTo } from "@/lib/committee/repo";
 import { assessQuorum } from "@/lib/committee/quorum";
+import { formatClause } from "@/lib/citation";
 import { avatarTone, formatBand, formatDate, initials } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +47,7 @@ export default async function CommitteePage({ params }: PageProps<"/committees/[
               <span className="sep">·</span>
               <span>{formatBand(committee.valueScopeMin, committee.valueScopeMax)}</span>
               <span className="sep">·</span>
-              <span className="mono">{committee.governingSource}</span>
+              <span>Under {committee.governingSource}</span>
             </div>
           </div>
         </div>
@@ -83,10 +84,10 @@ export default async function CommitteePage({ params }: PageProps<"/committees/[
             <div className="card__body">
               {seats.length === 0 ? (
                 <div className="empty empty--sm">
-                  <div className="empty__t">Composition is not defined</div>
+                  <div className="empty__t">No membership set</div>
                   <p className="empty__d">
-                    Neither the Operation Manuals nor the DAL state who sits on this body. RSAJ
-                    must supply the membership before it can record a decision.
+                    Nothing in the governing documents says who sits on this committee. Add its
+                    members before it can record a decision.
                   </p>
                 </div>
               ) : (
@@ -111,9 +112,11 @@ export default async function CommitteePage({ params }: PageProps<"/committees/[
                         </span>
                       </div>
                       {seat.provenance === "OBSERVED" && (
-                        <span className="badge badge--info">observed</span>
+                        <span className="badge badge--info">from practice</span>
                       )}
-                      {seat.provenance === "STATED" && <span className="badge badge--ok">stated</span>}
+                      {seat.provenance === "STATED" && (
+                        <span className="badge badge--ok">by policy</span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -151,11 +154,10 @@ export default async function CommitteePage({ params }: PageProps<"/committees/[
             <div className="card">
               <div className="card__body">
                 <div className="empty empty--sm">
-                  <div className="empty__t">No DAL row routes to this body</div>
+                  <div className="empty__t">Nothing routes here automatically</div>
                   <p className="empty__d">
-                    It is established by an Operation Manual clause rather than by the
-                    Discretionary Authority Limits, so no value band sends a matter here
-                    automatically.
+                    This committee is established by procedure rather than by an authority
+                    limit, so no value band sends a matter to it on its own.
                   </p>
                 </div>
               </div>
@@ -179,8 +181,9 @@ export default async function CommitteePage({ params }: PageProps<"/committees/[
                     </tr>
                   </thead>
                   <tbody>
-                    {rules.map((r) => (
-                      <tr key={r.ruleKey}>
+                    {/* Keyed by position so the internal rule key stays server-side. */}
+                    {rules.map((r, i) => (
+                      <tr key={i}>
                         <td className="sm">{r.domain.replace(/_/g, " ")}</td>
                         <td className="sm">{r.labelEn}</td>
                         <td>
@@ -197,7 +200,7 @@ export default async function CommitteePage({ params }: PageProps<"/committees/[
                             </span>
                           )}
                         </td>
-                        <td className="mono xs dim">{r.clause}</td>
+                        <td className="xs dim">{formatClause(r.clause) ?? "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -254,7 +257,6 @@ export default async function CommitteePage({ params }: PageProps<"/committees/[
                         matterRef: decision.matterRef,
                         amount: decision.amount,
                         act: decision.act,
-                        dalRuleKey: decision.dalRuleKey,
                         outcome: decision.outcome,
                       }}
                       quorum={committee.quorum}
@@ -283,11 +285,13 @@ export default async function CommitteePage({ params }: PageProps<"/committees/[
   );
 }
 
+/// How firm a configured fact is. Policy and practice are not the same authority, so
+/// they must not look the same on screen.
 function ProvenanceChip({ value }: { value: string | null }) {
-  if (value === "STATED") return <span className="chip chip--ok">Stated in the corpus</span>;
-  if (value === "OBSERVED") return <span className="chip chip--info">Observed practice</span>;
+  if (value === "STATED") return <span className="chip chip--ok">Set by policy</span>;
+  if (value === "OBSERVED") return <span className="chip chip--info">From current practice</span>;
   if (value === "ASSUMED") return <span className="chip chip--warn">Assumed</span>;
-  return <span className="chip chip--warn">Not defined</span>;
+  return <span className="chip chip--warn">Not set</span>;
 }
 
 function QuorumCard({ quorum, seats }: { quorum: number | null; seats: number }) {
@@ -301,10 +305,10 @@ function QuorumCard({ quorum, seats }: { quorum: number | null; seats: number })
         </span>
         <div>
           <div className="strong" style={{ marginBottom: 2 }}>
-            No quorum is stated
+            No quorum set
           </div>
-          A sitting of this body cannot be certified as quorate until RSAJ sets one. An
-          unstated quorum is not a quorum of zero — the system will not assume a number.
+          Sittings of this committee cannot be certified as quorate until one is set. A quorum
+          of zero is not assumed in its place.
         </div>
       </div>
     );

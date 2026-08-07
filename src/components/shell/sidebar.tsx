@@ -59,7 +59,7 @@ export function Sidebar({ organisation, dalLabel }: { organisation: string; dalL
 
       <div className="sb-foot">
         <span className="sb-foottext xs dim trunc" title={dalLabel ?? undefined}>
-          {dalLabel ? `DAL ${dalLabel}` : "No DAL version in effect"}
+          {dalLabel ? `Authority limits ${dalLabel}` : "No authority limits in effect"}
         </span>
       </div>
     </aside>

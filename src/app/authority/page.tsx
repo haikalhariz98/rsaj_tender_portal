@@ -1,4 +1,5 @@
 import { AlertTriangle } from "@/components/icons";
+import { formatClause } from "@/lib/citation";
 import { activeVersionLabel, loadMatrix, NoActiveDalVersionError } from "@/lib/dal/load";
 import { formatBand } from "@/lib/format";
 import { ORGANISATION_CODE } from "@/lib/org";
@@ -44,15 +45,17 @@ export default async function AuthorityPage() {
               <span className="badge badge--outline">{matrix.rules.length} rows</span>
             </div>
             <p className="pagehead__sub">
-              The Discretionary Authority Limits as configuration. Each row carries the clause it
-              was transcribed from, so any routing decision can be traced to the printed manual.
+              Who may authorise what, and up to which value. Every limit is traceable to the
+              clause that sets it.
             </p>
             <div className="pagehead__meta">
-              <span className="mono">{label}</span>
+              <span>{label}</span>
               <span className="sep">·</span>
               <span>
-                boundary {formatBandBoundary(matrix.policy.boundaryValue)},{" "}
-                {matrix.policy.boundaryInclusive ? "inclusive of the lower band" : "inclusive of the upper band"}
+                Quotation and tender meet at {formatBandBoundary(matrix.policy.boundaryValue)},
+                {matrix.policy.boundaryInclusive
+                  ? " which falls in the quotation regime"
+                  : " which falls in the tender regime"}
               </span>
             </div>
           </div>
@@ -66,10 +69,11 @@ export default async function AuthorityPage() {
           </span>
           <div>
             <div className="strong" style={{ marginBottom: 2 }}>
-              {gaps.length} rows are gaps, not rules
+              {gaps.length} matters have no authority limit set for them
             </div>
-            The manual contains no authority row for these matters. They resolve so that work is
-            not blocked, but the route shown is an assumption and is marked as one.
+            Nothing in the governing documents says who may authorise these. Work is still routed
+            so nothing stalls, but the route is an assumption and is flagged as one wherever it
+            appears.
           </div>
         </div>
       )}
@@ -107,15 +111,16 @@ export default async function AuthorityPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rules.map((rule) => (
-                      <tr key={rule.ruleKey}>
+                    {/* Keyed by position, not by the internal rule key: React keys are
+                        serialised into the page payload, and the internal identifier has
+                        no business leaving the server. The list is server-rendered in a
+                        fixed order and never reordered on the client. */}
+                    {rules.map((rule, i) => (
+                      <tr key={i}>
                         <td className="wrapcell">
-                          <div className="cellstack">
-                            <span className="cellstack__t" style={{ whiteSpace: "normal" }}>
-                              {rule.labelEn}
-                            </span>
-                            <span className="cellstack__s mono">{rule.ruleKey}</span>
-                          </div>
+                          <span className="sm" style={{ whiteSpace: "normal" }}>
+                            {rule.labelEn}
+                          </span>
                         </td>
                         <td className="sm dim">{rule.method?.replace(/_/g, " ") ?? "any"}</td>
                         <td className="sm dim">{formatBand(rule.minValue, rule.maxValue)}</td>
@@ -141,11 +146,11 @@ export default async function AuthorityPage() {
                             <span className="dim">—</span>
                           )}
                         </td>
-                        <td className="mono xs dim">
+                        <td className="xs dim">
                           {rule.isGap ? (
-                            <span className="badge badge--warn">gap</span>
+                            <span className="badge badge--warn">No clause</span>
                           ) : (
-                            rule.clause
+                            (formatClause(rule.clause) ?? "—")
                           )}
                         </td>
                       </tr>

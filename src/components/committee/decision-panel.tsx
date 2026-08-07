@@ -25,9 +25,17 @@ interface Decision {
   matterRef: string | null;
   amount: number | null;
   act: string;
-  dalRuleKey: string | null;
   outcome: string;
 }
+
+const ACT_LABEL: Record<string, string> = {
+  R: "Recommendation",
+  JR: "Joint recommendation",
+  MR: "Mandatory recommendation",
+  MJR: "Mandatory joint recommendation",
+  A: "Approval",
+  MA: "Mandatory approval",
+};
 
 const CHOICES: { value: VoteChoice; label: string }[] = [
   { value: "SETUJU", label: "Setuju" },
@@ -89,7 +97,9 @@ export function DecisionPanel({
   return (
     <div className="card__body" style={{ borderTop: "1px solid var(--line)" }}>
       <div className="row wrap" style={{ gap: 10, marginBottom: 4 }}>
-        <span className={`chain__act chain__act--${decision.act}`}>{decision.act}</span>
+        <span className={`chain__act chain__act--${decision.act}`} title={ACT_LABEL[decision.act]}>
+          {ACT_LABEL[decision.act] ?? decision.act}
+        </span>
         <span className="sm strong grow">{decision.subject}</span>
         {decision.amount != null && (
           <span className="sm strong num">{formatRM(decision.amount)}</span>
@@ -97,15 +107,9 @@ export function DecisionPanel({
       </div>
       <div className="row wrap xs dim" style={{ gap: 8, marginBottom: 16 }}>
         {decision.matterRef && <span className="mono">{decision.matterRef}</span>}
-        {decision.dalRuleKey && (
-          <>
-            <span className="sep">·</span>
-            <span className="mono">{decision.dalRuleKey}</span>
-          </>
-        )}
         {readiness.mandatory && (
           <>
-            <span className="sep">·</span>
+            {decision.matterRef && <span className="sep">·</span>}
             <span className="chain__nd">non-delegable</span>
           </>
         )}

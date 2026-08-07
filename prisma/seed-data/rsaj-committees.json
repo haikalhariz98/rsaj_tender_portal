@@ -11,7 +11,7 @@
     "compositionProvenance": "STATED",
     "valueScopeMin": 300000,
     "valueScopeMax": null,
-    "notes": "Composition is stated: exactly two appointed Ranhill SAJ Executive officers. Appointment mechanics are deferred to OM/KP/SP/002, which is not in the corpus. No independence requirement is stated, although in observed practice the two officers came from Accounts & Finance and Group IT, deliberately outside C&P. No quorum stated.",
+    "notes": "Two appointed Executive officers, set by policy. How they are appointed is governed by OM/KP/SP/002, which is not held here. No independence requirement is set, though in practice the two officers have come from Accounts & Finance and Group IT, deliberately outside Contract & Procurement. No quorum has been set.",
     "seats": [
       { "seatRoleCode": null, "position": "MEMBER", "provenance": "STATED", "label": "Appointed Executive officer (1 of 2)" },
       { "seatRoleCode": null, "position": "MEMBER", "provenance": "STATED", "label": "Appointed Executive officer (2 of 2)" }
@@ -44,7 +44,7 @@
     "compositionProvenance": "OBSERVED",
     "valueScopeMin": 15000,
     "valueScopeMax": 300000,
-    "notes": "Composition is observed only, from the evaluation template APPROVAL sheet: a Chairman, a Deputy Chairman and two member rows, each with alternates separated by '/'. §5.2 directs that this be modelled as a role with an eligible-member pool, not fixed individuals. No quorum stated. Each member signs SETUJU or TIDAK SETUJU with a date.",
+    "notes": "Membership is taken from current practice rather than policy: the evaluation approval sheet shows a Chairman, a Deputy Chairman and two members, each with named alternates. Seats are therefore held by an eligible pool rather than fixed individuals. No quorum has been set. Each member signs Setuju or Tidak Setuju with a date.",
     "seats": [
       { "seatRoleCode": null, "position": "CHAIRMAN", "provenance": "OBSERVED", "label": "Chairman" },
       { "seatRoleCode": null, "position": "DEPUTY_CHAIRMAN", "provenance": "OBSERVED", "label": "Deputy Chairman" },
@@ -64,7 +64,7 @@
     "compositionProvenance": "OBSERVED",
     "valueScopeMin": 300000,
     "valueScopeMax": null,
-    "notes": "Quorum of three members is the only stated quorum in the entire pre-award corpus. Composition is not stated: the DAL says 'as set out in the DAL and the TOR' and the TOR is not in the corpus. Observed: five members chaired by a Director, with the CEO, COO, CFO and Head of Quality Management Division as members.",
+    "notes": "A quorum of three members is set by policy — the only committee here with one. Membership is not: the terms of reference that would define it are not held here. In practice the board sits as five members chaired by a Director, with the CEO, COO, CFO and Head of Quality Management Division.",
     "seats": [
       { "seatRoleCode": "FD", "position": "CHAIRMAN", "provenance": "OBSERVED", "label": "Director (chair)" },
       { "seatRoleCode": "CEO", "position": "MEMBER", "provenance": "OBSERVED", "label": "Chief Executive Officer" },
@@ -85,7 +85,7 @@
     "compositionProvenance": "OBSERVED",
     "valueScopeMin": null,
     "valueScopeMax": null,
-    "notes": "Composition is observed and the two observations disagree. KP002 flowchart 6.3 names a Chairman of COO and CFO with members from Planning & Development, Production & M&E, Quality Management and Finance & Contract. The PAAB consent form prints a nine-member committee. Names are hard-coded on the template. No quorum stated. Under SK006 §7.6.1 as amended this body also approves EOT with no financial impact, which conflicts with the DAL — see decision D2.",
+    "notes": "Membership is taken from practice, and two sources disagree: the work-contract procedure shows a six-member committee chaired by the COO with the CFO as deputy, while the PAAB consent form prints nine names. No quorum has been set. This committee is also recorded as approving an extension of time with no financial impact, which the authority limits reserve to the Superintending Officer — that conflict is unresolved and needs a ruling.",
     "seats": [
       { "seatRoleCode": null, "position": "CHAIRMAN", "provenance": "OBSERVED", "label": "Chief Operating Officer" },
       { "seatRoleCode": null, "position": "DEPUTY_CHAIRMAN", "provenance": "OBSERVED", "label": "Chief Financial Officer" },
@@ -107,7 +107,7 @@
     "compositionProvenance": null,
     "valueScopeMin": null,
     "valueScopeMax": null,
-    "notes": "Composition, quorum, appointment authority, chair, output document and decision rule are all unstated. This body does not appear on the SK003 flowchart at all.",
+    "notes": "Membership, quorum, chair, appointment authority, output document and decision rule are all unset. This committee does not appear in the evaluation procedure flowchart at all.",
     "seats": []
   },
   {
@@ -137,7 +137,7 @@
     "compositionProvenance": null,
     "valueScopeMin": null,
     "valueScopeMax": null,
-    "notes": "Appears in no other document in the corpus. On Work contracts the same gate sits with the Tender Board (KP002 5.12.5); KP004 has no clause at all. Not referenced by any DAL authority row.",
+    "notes": "Applies to Service contracts only. On Work contracts the same approval sits with the Tender Board, and for Supply contracts no approval is defined at all. No authority limit routes to this committee.",
     "seats": []
   },
   {
@@ -153,7 +153,7 @@
     "compositionProvenance": "STATED",
     "valueScopeMin": null,
     "valueScopeMax": null,
-    "notes": "External to Ranhill SAJ. Its decision is a precondition, not a Ranhill SAJ approval — it consents rather than approves, which is why it carries no authority act in the DAL grammar. Nine members are named on the printed template.",
+    "notes": "External to Ranhill SAJ. Its consent is a precondition for a variation on a PAAB-funded asset, not a Ranhill SAJ approval, so it carries no authority limit of its own. Nine members are named on the consent form.",
     "seats": []
   }
 ]

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { AlertTriangle, ArrowRight, InfoIcon } from "@/components/icons";
+import { clauseOrGap, formatClause } from "@/lib/citation";
 
 interface ChainStep {
   role: string;
@@ -243,23 +244,17 @@ export function DalSimulator({
           <div className="card card--accent">
             <div className="card__body">
               <div className="row wrap" style={{ gap: 10, marginBottom: 8 }}>
-                <span className="lbl">Authority row</span>
                 {result.regime && <span className="chip chip--brand">{result.regime} regime</span>}
                 {result.nonDelegable && <span className="chain__nd">non-delegable</span>}
               </div>
               <p className="h3" style={{ marginBottom: 6 }}>
                 {result.rule.label}
               </p>
-              <div className="row wrap xs dim" style={{ gap: 8 }}>
-                <span className="mono">{result.rule.key}</span>
-                <span className="sep">·</span>
-                <span className="mono">{result.rule.clause}</span>
-              </div>
-              {result.rule.note && (
-                <p className="sm dim" style={{ marginTop: 10 }}>
-                  {result.rule.note}
-                </p>
-              )}
+              {/* The governing authority, written the way an officer would cite it.
+                  The internal rule key stays in the API for audit and off the screen. */}
+              <p className="sm dim">
+                {clauseOrGap(result.rule.clause, result.rule.isGap)}
+              </p>
             </div>
           </div>
         )}
@@ -319,7 +314,7 @@ export function DalSimulator({
             </span>
             <div>
               {w.messageEn}
-              {w.clause && <span className="mono dim"> ({w.clause})</span>}
+              {formatClause(w.clause) && <span className="dim"> ({formatClause(w.clause)})</span>}
             </div>
           </div>
         ))}

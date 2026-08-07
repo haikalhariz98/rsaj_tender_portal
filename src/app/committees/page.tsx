@@ -36,9 +36,8 @@ export default async function CommitteesPage() {
               <span className="badge badge--outline">{committees.length}</span>
             </div>
             <p className="pagehead__sub">
-              The bodies that gate a procurement decision. Composition and quorum are
-              configuration — where the governing documents state neither, this page says so
-              rather than inventing a default.
+              The bodies that must sit before a procurement decision can be made. Where a
+              membership or a quorum has not been set, it shows as unset rather than as a guess.
             </p>
           </div>
         </div>
@@ -59,7 +58,7 @@ export default async function CommitteesPage() {
 
         <div className="stat">
           <div className="stat__top">
-            <span className="stat__label">Quorum stated in the corpus</span>
+            <span className="stat__label">Quorum set</span>
             <span className="stat__ico stat__ico--warn">
               <AlertTriangle size={15} />
             </span>
@@ -73,18 +72,18 @@ export default async function CommitteesPage() {
           </div>
           <div className="stat__foot">
             <span className="stat__hint">
-              Only the Tender Board&rsquo;s three members is written down anywhere.
+              Only the Tender Board has one. The rest cannot be certified quorate.
             </span>
           </div>
         </div>
 
         <div className="stat">
           <div className="stat__top">
-            <span className="stat__label">Composition undefined</span>
+            <span className="stat__label">Membership not set</span>
           </div>
           <div className="stat__value">{compositionUnknown}</div>
           <div className="stat__foot">
-            <span className="stat__hint">Neither stated nor observed. RSAJ must supply.</span>
+            <span className="stat__hint">No members defined in policy or in practice.</span>
           </div>
         </div>
       </div>
@@ -168,7 +167,7 @@ function ProvenanceBadge({ value, seats }: { value: string | null; seats: number
   if (value === "STATED") {
     return (
       <span className="row" style={{ gap: 6 }}>
-        <span className="badge badge--ok">Stated</span>
+        <span className="badge badge--ok">By policy</span>
         <span className="xs dim">{seats} seats</span>
       </span>
     );
@@ -176,10 +175,10 @@ function ProvenanceBadge({ value, seats }: { value: string | null; seats: number
   if (value === "OBSERVED") {
     return (
       <span className="row" style={{ gap: 6 }}>
-        <span className="badge badge--info">Observed</span>
+        <span className="badge badge--info">From practice</span>
         <span className="xs dim">{seats} seats</span>
       </span>
     );
   }
-  return <span className="badge badge--warn">Undefined</span>;
+  return <span className="badge badge--warn">Not set</span>;
 }
