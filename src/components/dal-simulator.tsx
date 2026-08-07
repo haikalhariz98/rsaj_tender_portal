@@ -54,8 +54,8 @@ export function DalSimulator({
   methods,
   roles,
 }: {
-  domains: string[];
-  methods: string[];
+  domains: { code: string; label: string }[];
+  methods: { code: string; label: string }[];
   roles: { code: string; name: string }[];
 }) {
   const [domain, setDomain] = useState("payment");
@@ -121,8 +121,8 @@ export function DalSimulator({
               <span className="field__lbl">Matter</span>
               <select className="select" value={domain} onChange={(e) => setDomain(e.target.value)}>
                 {domains.map((d) => (
-                  <option key={d} value={d}>
-                    {d.replace(/_/g, " ")}
+                  <option key={d.code} value={d.code}>
+                    {d.label}
                   </option>
                 ))}
               </select>
@@ -133,8 +133,8 @@ export function DalSimulator({
               <select className="select" value={method} onChange={(e) => setMethod(e.target.value)}>
                 <option value="">Any</option>
                 {methods.map((m) => (
-                  <option key={m} value={m}>
-                    {m.replace(/_/g, " ")}
+                  <option key={m.code} value={m.code}>
+                    {m.label}
                   </option>
                 ))}
               </select>

@@ -1,0 +1,152 @@
+{
+  "_comment": "Sample operating records for Ranhill SAJ: officers, committee seats and sittings. Realistic Johor water-utility procurement, but not real transactions and not real people. Replace with a migration from live records before go-live.",
+
+  "people": [
+    { "staffNo": "E-1002", "name": "Dato' Sri Ahmad Zaki bin Haron", "jobTitle": "Chief Executive Officer", "roleCode": "CEO" },
+    { "staffNo": "E-1015", "name": "Lim Chee Keong", "jobTitle": "Chief Operating Officer" },
+    { "staffNo": "E-1023", "name": "Sharifah Nadia binti Syed Omar", "jobTitle": "Chief Financial Officer", "roleCode": "FD" },
+    { "staffNo": "E-1041", "name": "Ir. Mohd Faizal bin Othman", "jobTitle": "Head of Division, Planning & Development", "roleCode": "HOD" },
+    { "staffNo": "E-1058", "name": "Ir. Tan Wei Ming", "jobTitle": "Head of Division, Production & M&E" },
+    { "staffNo": "E-1064", "name": "Nurul Aisyah binti Rahim", "jobTitle": "Head of Division, Quality Management" },
+    { "staffNo": "E-1077", "name": "Kavitha Subramaniam", "jobTitle": "Head of Division, Finance & Contract" },
+    { "staffNo": "E-1090", "name": "Zulkifli bin Abdul Manaf", "jobTitle": "Head of Department, Contract & Procurement", "roleCode": "HODEPT" },
+    { "staffNo": "E-1103", "name": "Siti Mariam binti Yusof", "jobTitle": "Ketua Seksyen Pra Kontrak" },
+    { "staffNo": "E-1118", "name": "Ravindran a/l Muthusamy", "jobTitle": "Ketua Seksyen Pos Kontrak" },
+    { "staffNo": "E-1126", "name": "Chong Mei Ling", "jobTitle": "Senior Executive, Contract & Procurement" },
+    { "staffNo": "E-1134", "name": "Hafiz bin Ismail", "jobTitle": "Engineer, Network & NRW" }
+  ],
+
+  "seats": {
+    "QC": ["E-1090", "E-1077", "E-1103", "E-1134"],
+    "TBC": ["E-1041", "E-1002", "E-1015", "E-1023", "E-1064"],
+    "VOC": ["E-1015", "E-1023", "E-1041", "E-1058", "E-1064", "E-1077"]
+  },
+
+  "meetings": [
+    {
+      "committeeCode": "TBC",
+      "reference": "LT/2026/09",
+      "meetingDate": "2026-07-22T02:30:00Z",
+      "status": "MINUTED",
+      "agenda": "Award recommendation for open tender RSAJ/TA/109/2026 — Kerja-kerja Menaik Taraf Loji Rawatan Air Sungai Bekok, Fasa 2, Batu Pahat.",
+      "minutes": "The Board noted the evaluation report and the company estimate of RM4.42 million. The recommended tenderer was the lowest compliant offer at 5.4% below estimate, with a CIDB G7 registration current to March 2028. Award approved.",
+      "attendance": ["E-1041", "E-1002", "E-1015", "E-1023", "E-1064"],
+      "decisions": [
+        {
+          "domain": "appointment",
+          "subject": "Kerja-kerja Menaik Taraf Loji Rawatan Air Sungai Bekok, Fasa 2, Batu Pahat",
+          "matterRef": "RSAJ/TA/109/2026",
+          "amount": 4180000,
+          "act": "A",
+          "dalRuleKey": "APP_OPEN_GT_300K",
+          "outcome": "CARRIED",
+          "decisionDate": "2026-07-22T04:10:00Z",
+          "votes": [
+            { "staffNo": "E-1041", "choice": "SETUJU", "comment": "Lowest compliant offer; technical evaluation passed at 78%." },
+            { "staffNo": "E-1002", "choice": "SETUJU", "comment": "" },
+            { "staffNo": "E-1015", "choice": "SETUJU", "comment": "Programme of works acceptable against the plant shutdown window." },
+            { "staffNo": "E-1023", "choice": "SETUJU", "comment": "Within the approved CAPEX allocation." },
+            { "staffNo": "E-1064", "choice": "TIDAK_SETUJU", "comment": "Contractor's performance report for RSAJ/TA/071/2024 was graded Sederhana. Recommend closer supervision if awarded." }
+          ]
+        }
+      ]
+    },
+    {
+      "committeeCode": "QC",
+      "reference": "JKSH/2026/031",
+      "meetingDate": "2026-07-29T02:30:00Z",
+      "status": "MINUTED",
+      "agenda": "Appointment recommendation — open quotation RSAJ/KP/Q(JB)/031/26, Naik Taraf Paip Agihan Jalan Skudai Kiri, Johor Bahru.",
+      "minutes": "Three quotations received, one rejected for an expired CIDB registration. The recommended contractor met the capital test at 3% of the company estimate with materials drawn from the Ranhill SAJ store. Recommended to the Chief Executive Officer for approval.",
+      "attendance": ["E-1090", "E-1077", "E-1103", "E-1134"],
+      "decisions": [
+        {
+          "domain": "appointment",
+          "subject": "Naik Taraf Paip Agihan Jalan Skudai Kiri, Johor Bahru",
+          "matterRef": "RSAJ/KP/Q(JB)/031/26",
+          "amount": 178400,
+          "act": "MR",
+          "dalRuleKey": "APP_OPEN_15K_300K",
+          "outcome": "CARRIED",
+          "decisionDate": "2026-07-29T03:40:00Z",
+          "votes": [
+            { "staffNo": "E-1090", "choice": "SETUJU", "comment": "Lowest compliant quotation; financial test passed." },
+            { "staffNo": "E-1077", "choice": "SETUJU", "comment": "" },
+            { "staffNo": "E-1103", "choice": "SETUJU", "comment": "Price variance 4.1% below the company estimate — Kompetitif." },
+            { "staffNo": "E-1134", "choice": "SETUJU", "comment": "Technical capacity verified against CIDB grade G4." }
+          ]
+        }
+      ]
+    },
+    {
+      "committeeCode": "VOC",
+      "reference": "JKPK/2026/17",
+      "meetingDate": "2026-08-04T06:00:00Z",
+      "status": "IN_PROGRESS",
+      "agenda": "Variation order VO/T/018/2026 — additional piling to the intake chamber, LRA Sungai Bekok, against contract RSAJ/KP/T/07/2025.",
+      "attendance": ["E-1015", "E-1023", "E-1041", "E-1058", "E-1064", "E-1077"],
+      "decisions": [
+        {
+          "domain": "vo",
+          "subject": "VO/T/018/2026 — cerucuk tambahan pada ruang pengambilan, LRA Sungai Bekok",
+          "matterRef": "RSAJ/KP/T/07/2025",
+          "amount": 94912,
+          "contractValue": 11864000,
+          "pct": 0.8,
+          "act": "MR",
+          "dalRuleKey": "T7A_II",
+          "outcome": "PENDING",
+          "votes": [
+            { "staffNo": "E-1015", "choice": "SETUJU", "comment": "Ground conditions differ materially from the soil investigation report." },
+            { "staffNo": "E-1023", "choice": "SETUJU", "comment": "Cumulative variation remains under 2% of the contract sum." },
+            { "staffNo": "E-1041", "choice": "SETUJU", "comment": "" },
+            { "staffNo": "E-1058", "choice": "TIDAK_SETUJU", "comment": "Rates for the additional piling are not in the schedule; request a re-measure before recommending." }
+          ]
+        }
+      ]
+    },
+    {
+      "committeeCode": "QC",
+      "reference": "JKSH/2026/038",
+      "meetingDate": "2026-08-06T02:30:00Z",
+      "status": "IN_PROGRESS",
+      "agenda": "Appointment recommendation — open quotation RSAJ/KP/Q(JB)/038/26, Pembekalan dan Pemasangan Injap Kawalan Tekanan, Zon Pasir Gudang.",
+      "attendance": ["E-1090", "E-1077", "E-1103", "E-1134"],
+      "decisions": [
+        {
+          "domain": "appointment",
+          "subject": "Pembekalan dan Pemasangan Injap Kawalan Tekanan, Zon Pasir Gudang",
+          "matterRef": "RSAJ/KP/Q(JB)/038/26",
+          "amount": 246900,
+          "act": "MR",
+          "dalRuleKey": "APP_OPEN_15K_300K",
+          "outcome": "PENDING",
+          "votes": [
+            { "staffNo": "E-1090", "choice": "SETUJU", "comment": "Two compliant quotations; recommended offer is the lower." },
+            { "staffNo": "E-1077", "choice": "SETUJU", "comment": "" },
+            { "staffNo": "E-1103", "choice": "SETUJU", "comment": "Price 11.2% above the company estimate but within the Kompetitif band." }
+          ]
+        }
+      ]
+    },
+    {
+      "committeeCode": "TBC",
+      "reference": "LT/2026/10",
+      "meetingDate": "2026-08-12T02:30:00Z",
+      "status": "SCHEDULED",
+      "agenda": "Extension of contract period for term contract RSAJ/KP/T/02/2026 — Kerja-kerja Penyelenggaraan Rangkaian Paip, Daerah Kluang.",
+      "attendance": [],
+      "decisions": [
+        {
+          "domain": "contract_extension",
+          "subject": "Extension of contract period — Kerja-kerja Penyelenggaraan Rangkaian Paip, Daerah Kluang",
+          "matterRef": "RSAJ/KP/T/02/2026",
+          "amount": 1077508.6,
+          "act": "A",
+          "outcome": "PENDING",
+          "votes": []
+        }
+      ]
+    }
+  ]
+}

@@ -26,7 +26,7 @@ describe("quorum", () => {
     expect(result.state).toBe("UNCONFIGURED");
     expect(result.required).toBeNull();
     expect(result.shortfall).toBeNull();
-    expect(result.messageEn).toContain("No quorum is stated");
+    expect(result.messageEn).toContain("No quorum has been set");
   });
 
   it("does not treat a full room as quorate when the rule is unwritten", () => {
@@ -94,7 +94,7 @@ describe("recording a decision", () => {
     });
     expect(result.canRecord).toBe(false);
     expect(result.blockers).toContain("QUORUM_UNCONFIGURED");
-    expect(result.messageEn).toContain("no quorum is stated");
+    expect(result.messageEn).toContain("no quorum has been set");
   });
 
   // A mandatory recommendation is the DAL's strongest committee step: the Quotation

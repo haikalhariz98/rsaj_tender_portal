@@ -5,6 +5,7 @@ import { DecisionPanel } from "@/components/committee/decision-panel";
 import { getCommittee, rulesRoutingTo } from "@/lib/committee/repo";
 import { assessQuorum } from "@/lib/committee/quorum";
 import { formatClause } from "@/lib/citation";
+import { matterLabel } from "@/lib/labels";
 import { avatarTone, formatBand, formatDate, initials } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +48,10 @@ export default async function CommitteePage({ params }: PageProps<"/committees/[
               <span className="sep">·</span>
               <span>{formatBand(committee.valueScopeMin, committee.valueScopeMax)}</span>
               <span className="sep">·</span>
-              <span>Under {committee.governingSource}</span>
+              <span>
+                {seats.length > 0 ? `${seats.length} seats` : "No members"}
+                {committee.quorum != null ? `, quorum ${committee.quorum}` : ""}
+              </span>
             </div>
           </div>
         </div>
@@ -86,8 +90,8 @@ export default async function CommitteePage({ params }: PageProps<"/committees/[
                 <div className="empty empty--sm">
                   <div className="empty__t">No membership set</div>
                   <p className="empty__d">
-                    Nothing in the governing documents says who sits on this committee. Add its
-                    members before it can record a decision.
+                    Nobody has been appointed to this committee yet. Add its members before it
+                    can record a decision.
                   </p>
                 </div>
               ) : (
@@ -184,7 +188,7 @@ export default async function CommitteePage({ params }: PageProps<"/committees/[
                     {/* Keyed by position so the internal rule key stays server-side. */}
                     {rules.map((r, i) => (
                       <tr key={i}>
-                        <td className="sm">{r.domain.replace(/_/g, " ")}</td>
+                        <td className="sm">{matterLabel(r.domain)}</td>
                         <td className="sm">{r.labelEn}</td>
                         <td>
                           <span

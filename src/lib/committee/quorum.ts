@@ -40,8 +40,8 @@ export function assessQuorum({ quorum, present }: AssessQuorumInput): QuorumAsse
       present,
       shortfall: null,
       messageEn:
-        "No quorum is stated for this committee in the governing documents. " +
-        "The sitting cannot be certified as quorate until RSAJ sets one.",
+        "No quorum has been set for this committee. " +
+        "Sittings cannot be certified as quorate until one is.",
     };
   }
 
@@ -151,7 +151,7 @@ function describe(blockers: DecisionBlocker[], tally: VoteTally, mandatory: bool
       : `Not carried — ${tally.setuju} setuju, ${tally.tidakSetuju} tidak setuju.`;
   }
   if (blockers.includes("QUORUM_UNCONFIGURED")) {
-    return "Cannot be certified: no quorum is stated for this committee.";
+    return "Cannot be certified: no quorum has been set for this committee.";
   }
   if (blockers.includes("QUORUM_NOT_MET")) {
     return "Cannot be recorded: the sitting is not quorate.";

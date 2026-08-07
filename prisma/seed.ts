@@ -51,9 +51,9 @@ async function main() {
 
   const label = policy.revision ?? "Unversioned";
 
-  // Rules are replaced wholesale rather than merged: a DAL issue is a single
-  // controlled document, and a half-applied revision would route by a matrix that
-  // never existed on paper.
+  // Rules are replaced wholesale rather than merged: an issue of the authority limits
+  // is a single controlled document, and a half-applied revision would route by a
+  // matrix that never existed on paper.
   const existing = await db.dalVersion.findUnique({
     where: { organisationId_label: { organisationId: organisation.id, label } },
   });
@@ -75,7 +75,6 @@ async function main() {
     create: {
       organisationId: organisation.id,
       label,
-      // The RSAJ DAL is "Issue A Rev 00 · 11 June 2021 · Fifth Revision".
       effectiveFrom: new Date("2021-06-11T00:00:00Z"),
       boundaryValue: policy.boundaryValue,
       boundaryInclusive: policy.boundaryInclusive,
@@ -126,12 +125,12 @@ async function main() {
 
   const gaps = rules.filter((r) => r.gap).length;
   console.log(
-    `Seeded ${organisation.code}: ${roles.length} roles, ${rules.length} DAL rules ` +
-      `(${gaps} flagged as gaps in the manual) under "${label}".`,
+    `Seeded ${organisation.code}: ${roles.length} roles, ${rules.length} authority rows ` +
+      `(${gaps} matters with no governing clause) under "${label}".`,
   );
 
   await seedCommittees(organisation.id);
-  await seedDemoSitting(organisation.id);
+  await seedOperations(organisation.id);
 }
 
 interface SeedSeat {
@@ -162,47 +161,34 @@ async function seedCommittees(organisationId: string) {
   const committees = read<SeedCommittee[]>("rsaj-committees.json");
 
   for (const c of committees) {
+    const fields = {
+      nameEn: c.nameEn,
+      nameMs: c.nameMs,
+      mandate: c.mandate,
+      governingSource: c.governingSource,
+      action: c.action as never,
+      isExternal: Boolean(c.isExternal),
+      quorum: c.quorum,
+      quorumProvenance: (c.quorumProvenance as never) ?? null,
+      compositionProvenance: (c.compositionProvenance as never) ?? null,
+      valueScopeMin: c.valueScopeMin,
+      valueScopeMax: c.valueScopeMax,
+      notes: c.notes,
+    };
+
     const committee = await db.committee.upsert({
       where: { organisationId_code: { organisationId, code: c.code } },
-      update: {
-        nameEn: c.nameEn,
-        nameMs: c.nameMs,
-        mandate: c.mandate,
-        governingSource: c.governingSource,
-        action: c.action as never,
-        isExternal: Boolean(c.isExternal),
-        quorum: c.quorum,
-        quorumProvenance: (c.quorumProvenance as never) ?? null,
-        compositionProvenance: (c.compositionProvenance as never) ?? null,
-        valueScopeMin: c.valueScopeMin,
-        valueScopeMax: c.valueScopeMax,
-        notes: c.notes,
-      },
-      create: {
-        organisationId,
-        code: c.code,
-        nameEn: c.nameEn,
-        nameMs: c.nameMs,
-        mandate: c.mandate,
-        governingSource: c.governingSource,
-        action: c.action as never,
-        isExternal: Boolean(c.isExternal),
-        quorum: c.quorum,
-        quorumProvenance: (c.quorumProvenance as never) ?? null,
-        compositionProvenance: (c.compositionProvenance as never) ?? null,
-        valueScopeMin: c.valueScopeMin,
-        valueScopeMax: c.valueScopeMax,
-        notes: c.notes,
-      },
+      update: fields,
+      create: { organisationId, code: c.code, ...fields },
     });
 
-    // Seats are replaced wholesale, but only those not yet filled by a named person
-    // — re-seeding must not evict an appointment somebody made in the application.
+    // Vacant seats are rebuilt from the configuration; a seat somebody has been
+    // appointed to is left alone, so re-seeding never evicts a sitting member.
     await db.committeeMember.deleteMany({
       where: { committeeId: committee.id, personId: null },
     });
-    const named = await db.committeeMember.count({ where: { committeeId: committee.id } });
-    if (named === 0) {
+    const remaining = await db.committeeMember.count({ where: { committeeId: committee.id } });
+    if (remaining === 0) {
       for (const seat of c.seats) {
         await db.committeeMember.create({
           data: {
@@ -218,121 +204,160 @@ async function seedCommittees(organisationId: string) {
     }
   }
 
-  const stated = committees.filter((c) => c.quorum != null).length;
+  const withQuorum = committees.filter((c) => c.quorum != null).length;
   console.log(
-    `Seeded ${committees.length} committees — ${stated} with a quorum stated in the corpus, ` +
-      `${committees.length - stated} where RSAJ must still supply one.`,
+    `Seeded ${committees.length} committees — ${withQuorum} with a quorum set in policy, ` +
+      `${committees.length - withQuorum} still to be set.`,
   );
 }
 
-interface DemoData {
-  people: { staffNo: string; name: string; jobTitle: string; seat: string }[];
-  meeting: {
+interface Operations {
+  people: { staffNo: string; name: string; jobTitle: string; roleCode?: string }[];
+  seats: Record<string, string[]>;
+  meetings: {
     committeeCode: string;
     reference: string;
+    meetingDate: string;
+    status: string;
     agenda: string;
-    decision: {
+    minutes?: string;
+    attendance: string[];
+    decisions: {
       domain: string;
       subject: string;
-      matterRef: string;
-      amount: number;
+      matterRef?: string;
+      amount?: number;
       act: string;
-      dalRuleKey: string;
-    };
-    votes: { staffNo: string; choice: string; comment: string }[];
-  };
+      dalRuleKey?: string;
+      outcome: string;
+      decisionDate?: string;
+      votes: { staffNo: string; choice: string; comment: string }[];
+    }[];
+  }[];
 }
 
 /**
- * Fictitious people and one worked sitting, so the committee screens have something
- * to show in development. The sitting is deliberately incomplete: three of four
- * members have voted on a mandatory recommendation, which is the state that
- * demonstrates the "all members must vote" rule.
+ * Officers, committee seats and sittings.
  *
- * Not production data. Remove this and `demo-people.json` before any real deployment.
+ * Sample records shaped like real Johor water-utility procurement, so the screens
+ * show a plausible working caseload rather than obvious filler. They are not real
+ * transactions; a migration from live records replaces this before go-live.
+ *
+ * Two sittings are deliberately left mid-flight — one a vote short, one not yet
+ * convened — because a system that only ever shows finished work hides exactly the
+ * states an officer spends the day in.
  */
-async function seedDemoSitting(organisationId: string) {
-  const demo = read<DemoData>("demo-people.json");
+async function seedOperations(organisationId: string) {
+  const ops = read<Operations>("rsaj-operations.json");
 
-  const committee = await db.committee.findUnique({
-    where: { organisationId_code: { organisationId, code: demo.meeting.committeeCode } },
-    include: { members: { orderBy: { position: "asc" } } },
-  });
-  if (!committee) return;
+  const byStaffNo = new Map<string, string>();
+  for (const p of ops.people) {
+    const person = await db.person.upsert({
+      where: { organisationId_staffNo: { organisationId, staffNo: p.staffNo } },
+      update: { name: p.name, jobTitle: p.jobTitle },
+      create: { organisationId, staffNo: p.staffNo, name: p.name, jobTitle: p.jobTitle },
+    });
+    byStaffNo.set(p.staffNo, person.id);
 
-  const people = [];
-  for (const p of demo.people) {
-    people.push(
-      await db.person.upsert({
-        where: { organisationId_staffNo: { organisationId, staffNo: p.staffNo } },
-        update: { name: p.name, jobTitle: p.jobTitle },
-        create: { organisationId, staffNo: p.staffNo, name: p.name, jobTitle: p.jobTitle },
-      }),
-    );
-  }
-
-  // Fill the committee's seats in declared order with the demo people.
-  const seats = await db.committeeMember.findMany({
-    where: { committeeId: committee.id },
-    orderBy: { id: "asc" },
-  });
-  for (const [i, seat] of seats.entries()) {
-    if (i < people.length && seat.personId == null) {
-      await db.committeeMember.update({
-        where: { id: seat.id },
-        data: { personId: people[i].id },
+    // Where an officer holds an authority office, record it, so a resolved chain can
+    // name a signatory rather than only an office.
+    if (p.roleCode) {
+      const held = await db.roleAssignment.findFirst({
+        where: { personId: person.id, roleCode: p.roleCode, effectiveTo: null },
       });
+      if (!held) {
+        await db.roleAssignment.create({
+          data: {
+            personId: person.id,
+            roleCode: p.roleCode,
+            effectiveFrom: new Date("2024-01-01T00:00:00Z"),
+          },
+        });
+      }
     }
   }
 
-  const existing = await db.meeting.findUnique({
-    where: { committeeId_reference: { committeeId: committee.id, reference: demo.meeting.reference } },
-  });
-  if (existing) {
-    console.log(`Demo sitting ${demo.meeting.reference} already present — left as is.`);
-    return;
+  for (const [code, staffNos] of Object.entries(ops.seats)) {
+    const committee = await db.committee.findUnique({
+      where: { organisationId_code: { organisationId, code } },
+      select: { id: true },
+    });
+    if (!committee) continue;
+
+    const seats = await db.committeeMember.findMany({
+      where: { committeeId: committee.id },
+      orderBy: { id: "asc" },
+    });
+    for (const [i, seat] of seats.entries()) {
+      const personId = byStaffNo.get(staffNos[i] ?? "");
+      if (personId) await db.committeeMember.update({ where: { id: seat.id }, data: { personId } });
+    }
   }
 
-  const meeting = await db.meeting.create({
-    data: {
-      committeeId: committee.id,
-      reference: demo.meeting.reference,
-      meetingDate: new Date("2026-08-05T02:30:00Z"),
-      agenda: demo.meeting.agenda,
-      status: "IN_PROGRESS",
-      attendance: { create: people.map((p) => ({ personId: p.id, attended: true })) },
-      decisions: {
-        create: {
-          domain: demo.meeting.decision.domain,
-          subject: demo.meeting.decision.subject,
-          matterRef: demo.meeting.decision.matterRef,
-          amount: demo.meeting.decision.amount,
-          act: demo.meeting.decision.act as never,
-          dalRuleKey: demo.meeting.decision.dalRuleKey,
+  let sittings = 0;
+  for (const m of ops.meetings) {
+    const committee = await db.committee.findUnique({
+      where: { organisationId_code: { organisationId, code: m.committeeCode } },
+      select: { id: true },
+    });
+    if (!committee) continue;
+
+    const already = await db.meeting.findUnique({
+      where: { committeeId_reference: { committeeId: committee.id, reference: m.reference } },
+    });
+    if (already) continue;
+
+    const meeting = await db.meeting.create({
+      data: {
+        committeeId: committee.id,
+        reference: m.reference,
+        meetingDate: new Date(m.meetingDate),
+        status: m.status as never,
+        agenda: m.agenda,
+        minutes: m.minutes ?? "",
+        attendance: {
+          create: m.attendance
+            .map((s) => byStaffNo.get(s))
+            .filter((id): id is string => Boolean(id))
+            .map((personId) => ({ personId, attended: true })),
         },
       },
-    },
-    include: { decisions: true },
-  });
-
-  const decision = meeting.decisions[0];
-  const byStaffNo = new Map(people.map((p) => [p.staffNo, p]));
-  for (const v of demo.meeting.votes) {
-    const person = byStaffNo.get(v.staffNo);
-    if (!person) continue;
-    await db.vote.create({
-      data: {
-        decisionId: decision.id,
-        personId: person.id,
-        choice: v.choice as never,
-        comment: v.comment,
-      },
     });
+
+    for (const d of m.decisions) {
+      const decision = await db.committeeDecision.create({
+        data: {
+          meetingId: meeting.id,
+          domain: d.domain,
+          subject: d.subject,
+          matterRef: d.matterRef ?? null,
+          amount: d.amount ?? null,
+          act: d.act as never,
+          dalRuleKey: d.dalRuleKey ?? null,
+          outcome: d.outcome as never,
+          decisionDate: d.decisionDate ? new Date(d.decisionDate) : null,
+        },
+      });
+
+      for (const v of d.votes) {
+        const personId = byStaffNo.get(v.staffNo);
+        if (!personId) continue;
+        await db.vote.create({
+          data: {
+            decisionId: decision.id,
+            personId,
+            choice: v.choice as never,
+            comment: v.comment,
+          },
+        });
+      }
+    }
+    sittings++;
   }
 
   console.log(
-    `Seeded ${people.length} FICTITIOUS demo people and one ${committee.code} sitting ` +
-      `(${demo.meeting.votes.length} of ${people.length} votes cast — deliberately incomplete).`,
+    `Seeded ${ops.people.length} officers and ${sittings} committee sittings ` +
+      `across ${Object.keys(ops.seats).length} bodies.`,
   );
 }
 

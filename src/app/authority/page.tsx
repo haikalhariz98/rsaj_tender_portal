@@ -1,6 +1,7 @@
 import { AlertTriangle } from "@/components/icons";
 import { formatClause } from "@/lib/citation";
-import { activeVersionLabel, loadMatrix, NoActiveDalVersionError } from "@/lib/dal/load";
+import { matterLabel } from "@/lib/labels";
+import { loadMatrix, NoActiveDalVersionError } from "@/lib/dal/load";
 import { formatBand } from "@/lib/format";
 import { ORGANISATION_CODE } from "@/lib/org";
 
@@ -20,7 +21,6 @@ export default async function AuthorityPage() {
     );
   }
 
-  const label = await activeVersionLabel(ORGANISATION_CODE);
   const gaps = matrix.rules.filter((r) => r.isGap);
 
   // Grouped by matter, which is how the DAL itself is laid out.
@@ -45,18 +45,14 @@ export default async function AuthorityPage() {
               <span className="badge badge--outline">{matrix.rules.length} rows</span>
             </div>
             <p className="pagehead__sub">
-              Who may authorise what, and up to which value. Every limit is traceable to the
-              clause that sets it.
+              Who may authorise what, and up to which value.
             </p>
             <div className="pagehead__meta">
-              <span>{label}</span>
-              <span className="sep">·</span>
               <span>
-                Quotation and tender meet at {formatBandBoundary(matrix.policy.boundaryValue)},
-                {matrix.policy.boundaryInclusive
-                  ? " which falls in the quotation regime"
-                  : " which falls in the tender regime"}
+                Quotation and tender meet at {formatBandBoundary(matrix.policy.boundaryValue)}
               </span>
+              <span className="sep">·</span>
+              <span>{domains.length} matters</span>
             </div>
           </div>
         </div>
@@ -71,8 +67,8 @@ export default async function AuthorityPage() {
             <div className="strong" style={{ marginBottom: 2 }}>
               {gaps.length} matters have no authority limit set for them
             </div>
-            Nothing in the governing documents says who may authorise these. Work is still routed
-            so nothing stalls, but the route is an assumption and is flagged as one wherever it
+            No limit has ever been set for who may authorise these. Work is still routed so
+            nothing stalls, but the route is an assumption and is flagged as one wherever it
             appears.
           </div>
         </div>
@@ -82,9 +78,7 @@ export default async function AuthorityPage() {
         {domains.map(([domain, rules]) => (
           <section className="section" key={domain}>
             <div className="section__head">
-              <h2 className="h3" style={{ textTransform: "capitalize" }}>
-                {domain.replace(/_/g, " ")}
-              </h2>
+              <h2 className="h3">{matterLabel(domain)}</h2>
               <div className="section__actions">
                 <span className="badge badge--outline">{rules.length}</span>
               </div>

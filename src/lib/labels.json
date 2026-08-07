@@ -1,0 +1,118 @@
+{
+  "requisition": {
+    "en": "Requisition",
+    "ms": "Permohonan Perolehan"
+  },
+  "appointment": {
+    "en": "Appointment",
+    "ms": "Perlantikan"
+  },
+  "invitation": {
+    "en": "Invitation",
+    "ms": "Pelawaan"
+  },
+  "opening": {
+    "en": "Opening",
+    "ms": "Pembukaan"
+  },
+  "negotiation": {
+    "en": "Negotiation",
+    "ms": "Rundingan"
+  },
+  "name_approval": {
+    "en": "Approval of Name",
+    "ms": "Kelulusan Nama"
+  },
+  "signing": {
+    "en": "Signing of LoA / Contract",
+    "ms": "Menandatangani SST / Kontrak"
+  },
+  "conditions": {
+    "en": "Conditions of Contract",
+    "ms": "Syarat Kontrak"
+  },
+  "vo": {
+    "en": "Variation Order",
+    "ms": "Perubahan Kerja"
+  },
+  "remeasurement": {
+    "en": "Re-measurement",
+    "ms": "Pengukuran Semula"
+  },
+  "eot": {
+    "en": "Delay & Extension of Time",
+    "ms": "Kelambatan & Lanjutan Masa"
+  },
+  "contract_extension": {
+    "en": "Extension of Contract Period",
+    "ms": "Lanjutan Tempoh Kontrak"
+  },
+  "lad_waiver": {
+    "en": "Waiver of LAD / Penalty",
+    "ms": "Pengecualian LAD / Penalti"
+  },
+  "completion": {
+    "en": "Completion & LAD Events",
+    "ms": "Penyiapan & Peristiwa LAD"
+  },
+  "cmgd": {
+    "en": "Certificate of Making Good Defects",
+    "ms": "Perakuan Siap Memperbaiki Kecacatan"
+  },
+  "termination": {
+    "en": "Termination / Arbitration",
+    "ms": "Penamatan / Timbang Tara"
+  },
+  "assignment": {
+    "en": "Deed of Assignment & Factoring",
+    "ms": "Surat Ikatan Penyerahan Hak"
+  },
+  "payment": {
+    "en": "Interim Payment",
+    "ms": "Bayaran Interim"
+  },
+  "advance_payment": {
+    "en": "Advance Payment",
+    "ms": "Bayaran Pendahuluan"
+  },
+  "final_payment": {
+    "en": "Final Payment",
+    "ms": "Bayaran Muktamad"
+  },
+  "retention_release": {
+    "en": "Release of Retention Sums",
+    "ms": "Pelepasan Wang Tahanan"
+  },
+  "purchase_order": {
+    "en": "Issue of Purchase Order",
+    "ms": "Pengeluaran Pesanan Belian"
+  },
+  "indent": {
+    "en": "Issue / Signing of Indent",
+    "ms": "Pengeluaran / Menandatangani Inden"
+  },
+  "budget": {
+    "en": "Budget",
+    "ms": "Bajet"
+  },
+  "write_off": {
+    "en": "Write-off / Disposal",
+    "ms": "Hapus Kira / Pelupusan"
+  },
+  "revaluation": {
+    "en": "Revaluation of Fixed Assets",
+    "ms": "Penilaian Semula Aset Tetap"
+  },
+  "ex_gratia": {
+    "en": "Ex-gratia",
+    "ms": "Ex-gratia"
+  },
+  "settlement": {
+    "en": "Out of Court Settlement",
+    "ms": "Penyelesaian Luar Mahkamah"
+  },
+  "vehicle_rm": {
+    "en": "Vehicle Repair & Maintenance",
+    "ms": "Baik Pulih & Penyelenggaraan Kenderaan"
+  }
+}

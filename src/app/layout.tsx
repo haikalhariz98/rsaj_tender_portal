@@ -18,16 +18,19 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  // The DAL issue in force is shown in the sidebar on every screen — which
-  // authority version you are working under is never more than a glance away.
-  // The database may not be up yet on a first run, so this must not break the shell.
-  const dalLabel = await activeVersionLabel(ORGANISATION_CODE).catch(() => null);
+  // Only whether the application is configured at all, not which issue of the
+  // authority limits is in force — that belongs on a record, not in the furniture.
+  // The database may not be up on a first run, so this must not break the shell.
+  const configured = Boolean(await activeVersionLabel(ORGANISATION_CODE).catch(() => null));
 
   return (
     <html lang="en" className={inter.variable} style={{ colorScheme: "light" }}>
       <body>
         <div className="app">
-          <Sidebar organisation={ORGANISATION_NAME} dalLabel={dalLabel} />
+          <Sidebar
+            organisation={ORGANISATION_NAME}
+            department={configured ? "Jabatan Kontrak & Perolehan" : null}
+          />
           <div className="main">
             <Topbar organisation={ORGANISATION_NAME} />
             <main className="content">

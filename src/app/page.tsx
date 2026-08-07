@@ -1,5 +1,6 @@
 import { DalSimulator } from "@/components/dal-simulator";
-import { activeVersionLabel, loadMatrix, NoActiveDalVersionError } from "@/lib/dal/load";
+import { loadMatrix, NoActiveDalVersionError } from "@/lib/dal/load";
+import { matterLabel, methodLabel } from "@/lib/labels";
 import { ORGANISATION_CODE } from "@/lib/org";
 
 export const dynamic = "force-dynamic";
@@ -21,8 +22,9 @@ export default async function Home() {
     );
   }
 
-  const label = await activeVersionLabel(ORGANISATION_CODE);
-  const domains = [...new Set(matrix.rules.map((r) => r.domain))].sort();
+  const domains = [...new Set(matrix.rules.map((r) => r.domain))].sort((a, b) =>
+    matterLabel(a).localeCompare(matterLabel(b)),
+  );
   const methods = [
     ...new Set(matrix.rules.map((r) => r.method).filter((m): m is string => !!m)),
   ].sort();
@@ -39,19 +41,17 @@ export default async function Home() {
               <h1 className="h1">Approval routing</h1>
             </div>
             <p className="pagehead__sub">
-              Who must propose, recommend and approve, for any matter and any value — worked out
-              from the authority limits currently in force.
+              Who must propose, recommend and approve, for any matter and any value.
             </p>
-            <div className="pagehead__meta">
-              <span>{domains.length} matters</span>
-              <span className="sep">·</span>
-              <span>{label}</span>
-            </div>
           </div>
         </div>
       </div>
 
-      <DalSimulator domains={domains} methods={methods} roles={roles} />
+      <DalSimulator
+        domains={domains.map((code) => ({ code, label: matterLabel(code) }))}
+        methods={methods.map((code) => ({ code, label: methodLabel(code) }))}
+        roles={roles}
+      />
     </>
   );
 }

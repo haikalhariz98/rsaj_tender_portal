@@ -16,7 +16,15 @@ const NAV = [
   },
 ] as const;
 
-export function Sidebar({ organisation, dalLabel }: { organisation: string; dalLabel: string | null }) {
+export function Sidebar({
+  organisation,
+  department,
+}: {
+  organisation: string;
+  /// Null until the authority limits have been loaded, which is the only state in
+  /// which the application cannot route anything.
+  department: string | null;
+}) {
   const pathname = usePathname();
 
   return (
@@ -58,9 +66,7 @@ export function Sidebar({ organisation, dalLabel }: { organisation: string; dalL
       </nav>
 
       <div className="sb-foot">
-        <span className="sb-foottext xs dim trunc" title={dalLabel ?? undefined}>
-          {dalLabel ? `Authority limits ${dalLabel}` : "No authority limits in effect"}
-        </span>
+        <span className="sb-foottext xs dim trunc">{department ?? "Setup incomplete"}</span>
       </div>
     </aside>
   );
