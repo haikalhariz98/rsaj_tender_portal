@@ -7,6 +7,11 @@
    import order. Do not wrap this in @layer. */
 @import "./design-system.css";
 
+/* The prototype injects a second stylesheet from its JavaScript at runtime — the
+   Configuration layout, the sourcing route displays and much else live only there.
+   Extracted verbatim by scripts/extract-runtime-css.mjs. */
+@import "./design-system-runtime.css";
+
 /* The prototype's stack asks for Inter first; next/font serves it locally. */
 :root {
   --font-sans:

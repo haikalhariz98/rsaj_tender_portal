@@ -80,45 +80,50 @@ export function navFor(workspace: Workspace): NavGroup[] {
   return workspace === "supplier" ? SUPPLIER_NAV : STAFF_NAV;
 }
 
-/// Sections of the Configuration area, grouped as the prototype groups them.
-export const CONFIG_SECTIONS = [
-  {
-    group: "Money and authority",
-    items: [
-      {
-        href: "/configuration/approval-matrix",
-        label: "Approval matrix",
-        description: "Who proposes, who recommends and who approves, at every value.",
-        built: true,
-      },
-      {
-        href: "/configuration/committees",
-        label: "Committees",
-        description: "Membership, quorum and the decisions each body may take.",
-        built: true,
-      },
-      {
-        href: "/configuration/value-bands",
-        label: "Value bands",
-        description: "The thresholds that separate quotation from tender.",
-        built: false,
-      },
-    ],
-  },
+/// Sections of the Configuration area, in the prototype's own grouping and order.
+export const CONFIG_SECTIONS: {
+  group: string;
+  items: { href: string; label: string; description: string; icon: string; built?: boolean }[];
+}[] = [
   {
     group: "Structure",
     items: [
       {
         href: "/configuration/organisation",
         label: "Organisation",
-        description: "Divisions, departments and the offices that hold authority.",
-        built: false,
+        description: "Companies, divisions, departments, sections, cost centres and sites.",
+        icon: "building",
       },
       {
-        href: "/configuration/people",
-        label: "People and roles",
-        description: "Officers, the offices they hold and when they held them.",
-        built: false,
+        href: "/configuration/committees",
+        label: "Committees",
+        description: "Membership, quorum and the decisions each body may take.",
+        icon: "users",
+        built: true,
+      },
+      {
+        href: "/configuration/users",
+        label: "Users & roles",
+        description: "Officers, the offices they hold and what each may see.",
+        icon: "user",
+      },
+    ],
+  },
+  {
+    group: "Money and authority",
+    items: [
+      {
+        href: "/configuration/budget",
+        label: "Budget",
+        description: "Allocations, commitments and the balance a requirement is checked against.",
+        icon: "chart",
+      },
+      {
+        href: "/configuration/approval-matrix",
+        label: "Approval matrix",
+        description: "Who proposes, who recommends and who approves, at every value.",
+        icon: "sliders",
+        built: true,
       },
     ],
   },
@@ -126,17 +131,40 @@ export const CONFIG_SECTIONS = [
     group: "Records",
     items: [
       {
-        href: "/configuration/forms",
-        label: "Forms and certificates",
-        description: "Templates for the certificates and routing sheets the portal issues.",
-        built: false,
+        href: "/configuration/numbering",
+        label: "Numbering",
+        description: "How exercise, contract and certificate references are formed.",
+        icon: "grid",
       },
       {
-        href: "/configuration/numbering",
-        label: "Reference numbering",
-        description: "How exercise, contract and certificate references are formed.",
-        built: false,
+        href: "/configuration/documents",
+        label: "Documents",
+        description: "Classification, retention and controlled-copy rules.",
+        icon: "files",
+      },
+      {
+        href: "/configuration/templates",
+        label: "Templates",
+        description: "The certificates, letters and routing sheets the portal issues.",
+        icon: "files",
       },
     ],
   },
-] as const;
+  {
+    group: "System",
+    items: [
+      {
+        href: "/configuration/reference-data",
+        label: "Reference data",
+        description: "Sourcing methods, contract types, funding routes and code lists.",
+        icon: "globe",
+      },
+      {
+        href: "/configuration/notifications",
+        label: "Notifications",
+        description: "What the portal sends, to whom, and when it chases.",
+        icon: "inbox",
+      },
+    ],
+  },
+];

@@ -1,54 +1,89 @@
-// Run the prototype in jsdom so React actually renders, then dump the DOM.
-// Reading its source has produced screens that only approximate it; the rendered
-// markup is the thing to copy.
+// Run the prototype in jsdom so React renders for real, optionally click through to
+// a screen, then dump the DOM. Reading the bundle's source produces screens that
+// only approximate it; the rendered markup is the thing to copy.
+//
+//   node scripts/render-prototype.mjs <outDir> [name] ["Click Text" ...]
+//
+// Each click argument is matched against the visible text of buttons, links and
+// nav items, in order, with a settle pause between them.
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { JSDOM, VirtualConsole } from "jsdom";
 
-const OUT = process.argv[2];
-const FILE = join(process.env.USERPROFILE, "projects", "perolehan", "docs", "prototype", "RSAJ-Tender-Portal.html");
-
-const html = readFileSync(FILE, "utf8");
+const [outDir, name = "screen", ...clicks] = process.argv.slice(2);
+const FILE = join(
+  process.env.USERPROFILE,
+  "projects",
+  "perolehan",
+  "docs",
+  "prototype",
+  "RSAJ-Tender-Portal.html",
+);
 
 const virtualConsole = new VirtualConsole();
 const errors = [];
 virtualConsole.on("jsdomError", (e) => errors.push(e.message));
-virtualConsole.on("error", (...a) => errors.push(String(a[0])));
 
-const dom = new JSDOM(html, {
+const dom = new JSDOM(readFileSync(FILE, "utf8"), {
   runScripts: "dangerously",
   pretendToBeVisual: true,
   url: "http://localhost/",
   virtualConsole,
 });
 
-// Things the bundle may reach for that jsdom lacks.
 const { window } = dom;
-window.matchMedia ||= () => ({ matches: false, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+window.matchMedia ||= () => ({
+  matches: false,
+  addListener() {},
+  removeListener() {},
+  addEventListener() {},
+  removeEventListener() {},
+});
 window.scrollTo ||= () => {};
 window.HTMLElement.prototype.scrollIntoView ||= () => {};
-window.ResizeObserver ||= class { observe() {} unobserve() {} disconnect() {} };
-window.IntersectionObserver ||= class { observe() {} unobserve() {} disconnect() {} };
-if (!window.crypto?.randomUUID) {
-  window.crypto = { ...window.crypto, randomUUID: () => "00000000-0000-4000-8000-000000000000" };
+window.ResizeObserver ||= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
+window.IntersectionObserver ||= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
+
+const settle = (ms = 1200) => new Promise((r) => setTimeout(r, ms));
+await settle(4000);
+
+const CLICKABLE = "button, a, [role=button], .navitem, .subnav__i, .tab, .hoverrow, .stat--clickable";
+
+function clickByText(text) {
+  const wanted = text.toLowerCase();
+  const nodes = [...window.document.querySelectorAll(CLICKABLE)];
+  // Prefer the shortest match, so "Value bands" does not land on a card that merely
+  // mentions it in a paragraph.
+  const hits = nodes
+    .filter((n) => (n.textContent || "").toLowerCase().replace(/\s+/g, " ").includes(wanted))
+    .sort((a, b) => a.textContent.length - b.textContent.length);
+  if (!hits.length) return false;
+  hits[0].dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true }));
+  return true;
 }
 
-await new Promise((r) => setTimeout(r, 4000));
+for (const text of clicks) {
+  const ok = clickByText(text);
+  console.log(`click "${text}" : ${ok ? "hit" : "NOT FOUND"}`);
+  await settle();
+}
 
 const root = window.document.querySelector(".app") ?? window.document.body;
-mkdirSync(OUT, { recursive: true });
-writeFileSync(join(OUT, "rendered-dashboard.html"), root.outerHTML, "utf8");
+mkdirSync(outDir, { recursive: true });
+const out = join(outDir, `rendered-${name}.html`);
+writeFileSync(out, root.outerHTML, "utf8");
 
-console.log("rendered bytes :", root.outerHTML.length);
-console.log("has .sidebar   :", Boolean(window.document.querySelector(".sidebar")));
-console.log("has .topbar    :", Boolean(window.document.querySelector(".topbar")));
-console.log("nav items      :", window.document.querySelectorAll(".navitem").length);
-console.log("stat cards     :", window.document.querySelectorAll(".stat").length);
-console.log("cards          :", window.document.querySelectorAll(".card").length);
-console.log("tables         :", window.document.querySelectorAll("table").length);
-console.log("errors         :", errors.slice(0, 5).join(" | ") || "none");
-
-const navLabels = [...window.document.querySelectorAll(".navitem")].map((n) => n.textContent.trim());
-console.log("nav            :", navLabels.join(" | "));
+const heading = window.document.querySelector(".pagehead__title")?.textContent?.trim();
+console.log("wrote      :", out, `(${root.outerHTML.length} bytes)`);
+console.log("page title :", heading || "(none)");
+console.log("errors     :", errors.slice(0, 3).join(" | ") || "none");
 
 dom.window.close();

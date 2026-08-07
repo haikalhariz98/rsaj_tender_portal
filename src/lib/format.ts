@@ -20,6 +20,44 @@ export function formatBand(min: number | null, max: number | null): string {
   return `More than ${formatRM(min)} and up to ${formatRM(max)}`;
 }
 
+/// Ringgit shortened the way the bands are printed: RM 500, RM 50K, RM 3M.
+function compactRM(value: number): string {
+  if (Math.abs(value) >= 1_000_000) {
+    const m = value / 1_000_000;
+    return `RM ${Number.isInteger(m) ? m : m.toFixed(1)}M`;
+  }
+  if (Math.abs(value) >= 1_000) {
+    const k = value / 1_000;
+    return `RM ${Number.isInteger(k) ? k : k.toFixed(1)}K`;
+  }
+  return `RM ${value.toLocaleString("en-MY")}`;
+}
+
+/**
+ * A value band in the compact notation the matrix uses in tables:
+ *
+ *   ≤ RM 500        a ceiling with no floor
+ *   RM 500 – RM 50K a band with both
+ *   > RM 300K       a floor with no ceiling
+ *
+ * Long enough to read at a glance, short enough for a column. The prose form
+ * {@link formatBand} is for places with room to spell it out.
+ */
+export function formatValueBand(min: number | null, max: number | null): string {
+  if (min == null && max == null) return "Any value";
+  if (min == null) return `≤ ${compactRM(max!)}`;
+  if (max == null) return `> ${compactRM(min)}`;
+  return `${compactRM(min)} – ${compactRM(max)}`;
+}
+
+/// A percentage band, for variations: "≤ 20%", "20% – 50%", "> 50%".
+export function formatPercentBand(min: number | null, max: number | null): string | null {
+  if (min == null && max == null) return null;
+  if (min == null) return `≤ ${max}%`;
+  if (max == null) return `> ${min}%`;
+  return `${min}% – ${max}%`;
+}
+
 export function formatDate(value: Date | string | null | undefined): string {
   if (!value) return "—";
   const d = typeof value === "string" ? new Date(value) : value;
