@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType } from "react";
@@ -8,10 +9,10 @@ import {
   BuildingIcon,
   ChartIcon,
   FilesIcon,
-  GavelIcon,
   GlobeIcon,
   GridIcon,
   InboxIcon,
+  PanelLeftIcon,
   SlidersIcon,
   ToolsIcon,
 } from "@/components/icons";
@@ -28,36 +29,46 @@ const ICONS: Record<string, ComponentType<{ size?: number }>> = {
   inbox: InboxIcon,
 };
 
-export function Sidebar({ organisation, department }: { organisation: string; department: string | null }) {
+export function Sidebar({
+  organisation,
+  strapline,
+  counts,
+}: {
+  organisation: string;
+  strapline: string;
+  /// Outstanding-work counts keyed by href, shown as a badge on the nav item.
+  counts: Record<string, number>;
+}) {
   const pathname = usePathname();
   const workspace = workspaceFor(pathname);
   const groups = navFor(workspace);
 
-  // A section owns its subtree; the two workspace roots need an exact match so that
-  // /supplier/bids does not light up Home as well.
+  // Each section owns its subtree; the two workspace roots need an exact match so
+  // /supplier/bids does not light Home as well.
   const isActive = (href: string) =>
     href === "/" || href === "/supplier" ? pathname === href : pathname.startsWith(href);
 
   return (
-    <aside className="sidebar">
+    <nav className="sidebar">
       <div className="sb-brand">
         <span className="sb-mark">
-          <GavelIcon size={22} />
+          <Image src="/ranhill-saj.png" alt="" width={30} height={30} priority />
         </span>
-        <span className="sb-brandtext">
-          <span className="sb-name">Perolehan</span>
-          <span className="sb-sub">
+        <div className="sb-brandtext">
+          <div className="sb-name trunc">
             {workspace === "supplier" ? "Supplier portal" : organisation}
-          </span>
-        </span>
+          </div>
+          <div className="sb-sub trunc">{strapline}</div>
+        </div>
       </div>
 
-      <nav className="sb-nav" aria-label="Main">
+      <div className="sb-nav">
         {groups.map((group) => (
           <div key={group.label}>
             <div className="navgroup">{group.label}</div>
             {group.items.map((item) => {
               const Ico = ICONS[item.icon] ?? GridIcon;
+              const count = counts[item.href];
               return (
                 <Link
                   key={item.href}
@@ -68,20 +79,27 @@ export function Sidebar({ organisation, department }: { organisation: string; de
                   <span className="navitem__ico">
                     <Ico />
                   </span>
-                  <span className="navitem__label">{item.label}</span>
-                  {!item.built && <span className="navitem__badge">soon</span>}
+                  <span className="navitem__label trunc">{item.label}</span>
+                  {count ? (
+                    <span
+                      className={`navitem__badge${item.href === "/" ? " navitem__badge--alert" : ""}`}
+                    >
+                      {count}
+                    </span>
+                  ) : null}
                 </Link>
               );
             })}
           </div>
         ))}
-      </nav>
+      </div>
 
       <div className="sb-foot">
-        <span className="sb-foottext xs dim trunc">
-          {workspace === "supplier" ? "Supplier workspace" : (department ?? "Setup incomplete")}
-        </span>
+        <button type="button" className="iconbtn" aria-label="Collapse navigation" disabled>
+          <PanelLeftIcon size={17} />
+        </button>
+        <span className="sb-foottext xs faint trunc">{organisation} · Procurement</span>
       </div>
-    </aside>
+    </nav>
   );
 }

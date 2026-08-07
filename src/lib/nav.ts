@@ -20,6 +20,8 @@ export interface NavGroup {
   items: NavItem[];
 }
 
+/// Grouping matches the prototype exactly — note that Documents sits under Supply
+/// base, not Insight, and Insight holds Reports alone.
 export const STAFF_NAV: NavGroup[] = [
   {
     label: "Overview",
@@ -34,14 +36,14 @@ export const STAFF_NAV: NavGroup[] = [
   },
   {
     label: "Supply base",
-    items: [{ href: "/suppliers", label: "Suppliers", icon: "building" }],
+    items: [
+      { href: "/suppliers", label: "Suppliers", icon: "building" },
+      { href: "/documents", label: "Documents", icon: "files" },
+    ],
   },
   {
     label: "Insight",
-    items: [
-      { href: "/documents", label: "Documents", icon: "files" },
-      { href: "/reports", label: "Reports", icon: "chart" },
-    ],
+    items: [{ href: "/reports", label: "Reports", icon: "chart" }],
   },
   {
     label: "Administration",
