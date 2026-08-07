@@ -1,4 +1,7 @@
 -- CreateEnum
+CREATE TYPE "AuthorityAct" AS ENUM ('P', 'JP', 'R', 'JR', 'MR', 'MJR', 'A', 'MA');
+
+-- CreateEnum
 CREATE TYPE "Provenance" AS ENUM ('STATED', 'OBSERVED', 'ASSUMED');
 
 -- CreateEnum
@@ -15,6 +18,18 @@ CREATE TYPE "VoteChoice" AS ENUM ('SETUJU', 'TIDAK_SETUJU', 'ABSTAIN');
 
 -- CreateEnum
 CREATE TYPE "DecisionOutcome" AS ENUM ('PENDING', 'CARRIED', 'NOT_CARRIED', 'DEFERRED');
+
+-- CreateTable
+CREATE TABLE "Organisation" (
+    "id" TEXT NOT NULL,
+    "code" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "nameMs" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Organisation_pkey" PRIMARY KEY ("id")
+);
 
 -- CreateTable
 CREATE TABLE "Person" (
@@ -39,6 +54,81 @@ CREATE TABLE "RoleAssignment" (
     "effectiveTo" TIMESTAMP(3),
 
     CONSTRAINT "RoleAssignment_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "AuthorityRole" (
+    "id" TEXT NOT NULL,
+    "organisationId" TEXT NOT NULL,
+    "code" TEXT NOT NULL,
+    "nameEn" TEXT NOT NULL,
+    "nameMs" TEXT NOT NULL,
+    "isCommittee" BOOLEAN NOT NULL DEFAULT false,
+    "escalatesToCode" TEXT,
+    "selfApprovalEscalatesToCode" TEXT,
+    "sortOrder" INTEGER NOT NULL DEFAULT 0,
+
+    CONSTRAINT "AuthorityRole_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "AuthorityMatrix" (
+    "id" TEXT NOT NULL,
+    "organisationId" TEXT NOT NULL,
+    "label" TEXT NOT NULL,
+    "effectiveFrom" TIMESTAMP(3) NOT NULL,
+    "effectiveTo" TIMESTAMP(3),
+    "boundaryValue" DECIMAL(18,2) NOT NULL,
+    "boundaryInclusive" BOOLEAN NOT NULL DEFAULT true,
+    "quotationFloor" DECIMAL(18,2) NOT NULL,
+    "tenderFloor" DECIMAL(18,2) NOT NULL,
+    "requisitionBoundary" DECIMAL(18,2) NOT NULL,
+    "splittingWindowDays" INTEGER NOT NULL DEFAULT 30,
+    "currency" TEXT NOT NULL DEFAULT 'MYR',
+
+    CONSTRAINT "AuthorityMatrix_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "AuthorityRule" (
+    "id" TEXT NOT NULL,
+    "authorityMatrixId" TEXT NOT NULL,
+    "ruleKey" TEXT NOT NULL,
+    "domain" TEXT NOT NULL,
+    "method" TEXT,
+    "cond" TEXT,
+    "minValue" DECIMAL(18,2),
+    "maxValue" DECIMAL(18,2),
+    "pctMin" DECIMAL(9,4),
+    "pctMax" DECIMAL(9,4),
+    "contractValueMin" DECIMAL(18,2),
+    "contractValueMax" DECIMAL(18,2),
+    "labelEn" TEXT NOT NULL,
+    "labelMs" TEXT,
+    "proposerCode" TEXT,
+    "approverCode" TEXT,
+    "committeeCode" TEXT,
+    "committeeAct" "AuthorityAct",
+    "nonDelegable" BOOLEAN NOT NULL DEFAULT false,
+    "approverMandatory" BOOLEAN NOT NULL DEFAULT false,
+    "isGap" BOOLEAN NOT NULL DEFAULT false,
+    "gapNote" TEXT,
+    "note" TEXT NOT NULL DEFAULT '',
+    "clause" TEXT NOT NULL,
+    "sortOrder" INTEGER NOT NULL DEFAULT 0,
+
+    CONSTRAINT "AuthorityRule_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "AuthorityRuleStep" (
+    "id" TEXT NOT NULL,
+    "authorityRuleId" TEXT NOT NULL,
+    "roleCode" TEXT NOT NULL,
+    "act" "AuthorityAct" NOT NULL,
+    "sequence" INTEGER NOT NULL DEFAULT 0,
+
+    CONSTRAINT "AuthorityRuleStep_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -112,7 +202,7 @@ CREATE TABLE "CommitteeDecision" (
     "matterRef" TEXT,
     "amount" DECIMAL(18,2),
     "act" "AuthorityAct" NOT NULL DEFAULT 'R',
-    "dalRuleKey" TEXT,
+    "authorityRuleKey" TEXT,
     "outcome" "DecisionOutcome" NOT NULL DEFAULT 'PENDING',
     "decisionDate" TIMESTAMP(3),
 
@@ -132,6 +222,9 @@ CREATE TABLE "Vote" (
 );
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Organisation_code_key" ON "Organisation"("code");
+
+-- CreateIndex
 CREATE INDEX "Person_organisationId_name_idx" ON "Person"("organisationId", "name");
 
 -- CreateIndex
@@ -142,6 +235,24 @@ CREATE INDEX "RoleAssignment_roleCode_effectiveFrom_idx" ON "RoleAssignment"("ro
 
 -- CreateIndex
 CREATE INDEX "RoleAssignment_personId_idx" ON "RoleAssignment"("personId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "AuthorityRole_organisationId_code_key" ON "AuthorityRole"("organisationId", "code");
+
+-- CreateIndex
+CREATE INDEX "AuthorityMatrix_organisationId_effectiveFrom_idx" ON "AuthorityMatrix"("organisationId", "effectiveFrom");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "AuthorityMatrix_organisationId_label_key" ON "AuthorityMatrix"("organisationId", "label");
+
+-- CreateIndex
+CREATE INDEX "AuthorityRule_authorityMatrixId_domain_method_idx" ON "AuthorityRule"("authorityMatrixId", "domain", "method");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "AuthorityRule_authorityMatrixId_ruleKey_key" ON "AuthorityRule"("authorityMatrixId", "ruleKey");
+
+-- CreateIndex
+CREATE INDEX "AuthorityRuleStep_authorityRuleId_idx" ON "AuthorityRuleStep"("authorityRuleId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Committee_organisationId_code_key" ON "Committee"("organisationId", "code");
@@ -175,6 +286,18 @@ ALTER TABLE "Person" ADD CONSTRAINT "Person_organisationId_fkey" FOREIGN KEY ("o
 
 -- AddForeignKey
 ALTER TABLE "RoleAssignment" ADD CONSTRAINT "RoleAssignment_personId_fkey" FOREIGN KEY ("personId") REFERENCES "Person"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AuthorityRole" ADD CONSTRAINT "AuthorityRole_organisationId_fkey" FOREIGN KEY ("organisationId") REFERENCES "Organisation"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AuthorityMatrix" ADD CONSTRAINT "AuthorityMatrix_organisationId_fkey" FOREIGN KEY ("organisationId") REFERENCES "Organisation"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AuthorityRule" ADD CONSTRAINT "AuthorityRule_authorityMatrixId_fkey" FOREIGN KEY ("authorityMatrixId") REFERENCES "AuthorityMatrix"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AuthorityRuleStep" ADD CONSTRAINT "AuthorityRuleStep_authorityRuleId_fkey" FOREIGN KEY ("authorityRuleId") REFERENCES "AuthorityRule"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Committee" ADD CONSTRAINT "Committee_organisationId_fkey" FOREIGN KEY ("organisationId") REFERENCES "Organisation"("id") ON DELETE CASCADE ON UPDATE CASCADE;

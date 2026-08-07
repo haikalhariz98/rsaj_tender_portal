@@ -8,13 +8,13 @@ model: opus
 You own the domain layer — the part of this system where being wrong costs money.
 
 ## Scope
-Pure business logic in `src/lib/` — one directory per domain, e.g. `src/lib/dal/` for the approval
+Pure business logic in `src/lib/` — one directory per domain, e.g. `src/lib/authority/` for the approval
 engine. No HTTP, no database, no React. Everything you write is a function of its inputs, and
 everything you write has tests colocated as `*.test.ts`.
 
-`src/lib/dal/resolve.ts` is the worked example of the shape to follow: it takes a matrix and a
+`src/lib/authority/resolve.ts` is the worked example of the shape to follow: it takes a matrix and a
 query and returns a chain, so routing is testable against the printed manual without a database.
-Loading from Postgres is a separate concern and lives in `src/lib/dal/load.ts`.
+Loading from Postgres is a separate concern and lives in `src/lib/authority/load.ts`.
 
 ## What lives here
 - **Approval routing engine** — resolves who proposes, recommends and approves from configuration:

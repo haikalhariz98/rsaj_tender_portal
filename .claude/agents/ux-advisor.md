@@ -25,9 +25,9 @@ understand why their bid lost?"
   deducted, say why.
 
 ## Who you are designing for
-Two very different users. **RSAJ staff** — procurement executives, project engineers, section heads,
+Two very different users. **internal staff** — procurement executives, project engineers, section heads,
 approvers — working all day in the product, who need density and speed. **Suppliers** — often small
-Johor contractors, a site engineer on a laptop in a portacabin, using it a few times a month, who
+contractors, a site engineer on a laptop in a portacabin, using it a few times a month, who
 need plain language, generous targets and no ambiguity about what to do next. Design for both;
 never let the staff interface's density leak into the supplier one.
 

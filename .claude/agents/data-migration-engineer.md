@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Write, Edit, Bash
 model: sonnet
 ---
 
-You move RSAJ's existing procurement data into this platform.
+You move the organisation's existing procurement data into this platform.
 
 ## What you are migrating from
 Spreadsheets, scanned paper documents, a Windows file share, and IFS as the outgoing ERP — while

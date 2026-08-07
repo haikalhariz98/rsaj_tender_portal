@@ -5,12 +5,15 @@ import { ORGANISATION_CODE } from "@/lib/org";
  * What the application frame needs on every screen: who is signed in, and how much
  * work is outstanding behind each navigation item.
  *
- * Counts only appear for modules that exist. A badge of nought on an unbuilt module
- * would read as "nothing to do" rather than "nothing here yet".
+ * Counts only appear for modules that exist. A nought on an unbuilt module would
+ * read as "nothing to do" rather than "nothing here yet".
+ *
+ * The signed-in officer is a placeholder until authentication arrives; it resolves
+ * to whoever is on record, and to a generic label when nobody is.
  */
 export async function loadShell() {
   const fallback = {
-    user: { name: "Zulkifli bin Abdul Manaf", jobTitle: "Head of Department, C&P" },
+    user: { name: "Signed out", jobTitle: "No user configured" },
     counts: {} as Record<string, number>,
   };
 
@@ -21,9 +24,9 @@ export async function loadShell() {
     });
     if (!org) return fallback;
 
-    // Standing in for authentication: the office that raises most procurement work.
     const person = await db.person.findFirst({
-      where: { organisationId: org.id, staffNo: "E-1090" },
+      where: { organisationId: org.id, isActive: true },
+      orderBy: { name: "asc" },
       select: { name: true, jobTitle: true },
     });
 
@@ -35,9 +38,7 @@ export async function loadShell() {
     });
 
     return {
-      user: person
-        ? { name: person.name, jobTitle: person.jobTitle ?? "Officer" }
-        : fallback.user,
+      user: person ? { name: person.name, jobTitle: person.jobTitle ?? "Officer" } : fallback.user,
       counts: pending > 0 ? { "/": pending } : {},
     };
   } catch {

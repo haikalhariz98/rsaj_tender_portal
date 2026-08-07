@@ -8,7 +8,7 @@ model: sonnet
 You own `src/components/ui/` — the design system every screen is built from. Tokens live in
 `src/app/globals.css` as CSS custom properties exposed to Tailwind v4 via `@theme inline`.
 
-The prototype at `docs/prototype/RSAJ-Tender-Portal.html` carries a complete, already-designed
+The prototype at `docs/prototype/` (see AGENTS.md for the rendering tooling) carries a complete, already-designed
 system — 27 sections of CSS covering tables, status chips, approval chains, steppers, stat cards
 and print styles. Port from it rather than inventing; it is what the client has already approved.
 

@@ -6,5 +6,8 @@
  * matter of resolving this from the request rather than a schema change. That
  * resolution arrives with authentication.
  */
-export const ORGANISATION_CODE = process.env.ORGANISATION_CODE ?? "RSAJ";
-export const ORGANISATION_NAME = process.env.ORGANISATION_NAME ?? "Ranhill SAJ";
+export const ORGANISATION_CODE = process.env.ORGANISATION_CODE ?? "ORG";
+export const ORGANISATION_NAME = process.env.ORGANISATION_NAME ?? "Your organisation";
+
+/// Shown under the name in the sidebar. Blank is fine.
+export const ORGANISATION_STRAPLINE = process.env.ORGANISATION_STRAPLINE ?? "Procurement";

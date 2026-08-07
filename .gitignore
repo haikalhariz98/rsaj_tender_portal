@@ -34,9 +34,9 @@ yarn-error.log*
 .env*
 !.env.example
 
-# RSAJ source material — Operation Manuals, Board-approved authority limits and the
-# client prototype. Present locally so agents and contributors can read it; kept out of
-# git so a future `git push` cannot leak it. Remove this to commit it deliberately.
+# Customer source material: governing documents and prototypes. Present locally so
+# agents and contributors can read them; kept out of git so a push cannot leak them.
+# Remove this line to commit them deliberately.
 /docs/
 
 # vercel

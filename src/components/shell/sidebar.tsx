@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType } from "react";
@@ -9,6 +8,7 @@ import {
   BuildingIcon,
   ChartIcon,
   FilesIcon,
+  GavelIcon,
   GlobeIcon,
   GridIcon,
   InboxIcon,
@@ -51,8 +51,9 @@ export function Sidebar({
   return (
     <nav className="sidebar">
       <div className="sb-brand">
+        {/* Drop a logo at /public/logo.png and swap this for an <Image>. */}
         <span className="sb-mark">
-          <Image src="/ranhill-saj.png" alt="" width={30} height={30} priority />
+          <GavelIcon size={22} />
         </span>
         <div className="sb-brandtext">
           <div className="sb-name trunc">

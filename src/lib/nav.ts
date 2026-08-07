@@ -1,7 +1,7 @@
 /**
  * Navigation, taken from the approved prototype rather than invented.
  *
- * Two workspaces: Ranhill SAJ staff and the supplier-facing portal. The top bar
+ * Two workspaces: internal staff and the supplier-facing portal. The top bar
  * switches between them, which is why the supplier side lives under its own path
  * prefix — the workspace you are in is a property of where you are, not of a
  * setting held somewhere off-screen.

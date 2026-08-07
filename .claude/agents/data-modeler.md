@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Write, Edit, Bash
 model: opus
 ---
 
-You own the database for the RSAJ procurement platform.
+You own the database for this procurement platform.
 
 ## Scope
 Schema definition, migrations, seed data, indexes, constraints, row-level security policies, and

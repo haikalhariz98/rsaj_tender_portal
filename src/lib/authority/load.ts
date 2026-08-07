@@ -6,13 +6,13 @@ import type { AuthorityAct, Matrix, Rule } from "./types";
 const num = (value: { toString(): string } | null): number | null =>
   value == null ? null : Number(value.toString());
 
-export class NoActiveDalVersionError extends Error {
+export class NoActiveMatrixError extends Error {
   constructor(organisationCode: string) {
     super(
       `No DAL version is in effect for organisation "${organisationCode}". ` +
         `Seed one before resolving approvals.`,
     );
-    this.name = "NoActiveDalVersionError";
+    this.name = "NoActiveMatrixError";
   }
 }
 
@@ -28,9 +28,9 @@ export async function loadMatrix(organisationCode: string, asOf: Date = new Date
     where: { code: organisationCode },
     select: { id: true },
   });
-  if (!organisation) throw new NoActiveDalVersionError(organisationCode);
+  if (!organisation) throw new NoActiveMatrixError(organisationCode);
 
-  const version = await db.dalVersion.findFirst({
+  const version = await db.authorityMatrix.findFirst({
     where: {
       organisationId: organisation.id,
       effectiveFrom: { lte: asOf },
@@ -44,7 +44,7 @@ export async function loadMatrix(organisationCode: string, asOf: Date = new Date
       },
     },
   });
-  if (!version) throw new NoActiveDalVersionError(organisationCode);
+  if (!version) throw new NoActiveMatrixError(organisationCode);
 
   const roles = await db.authorityRole.findMany({
     where: { organisationId: organisation.id },
@@ -119,7 +119,7 @@ export async function activeVersionLabel(
   });
   if (!organisation) return null;
 
-  const version = await db.dalVersion.findFirst({
+  const version = await db.authorityMatrix.findFirst({
     where: {
       organisationId: organisation.id,
       effectiveFrom: { lte: asOf },

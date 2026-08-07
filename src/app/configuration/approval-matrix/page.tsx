@@ -1,12 +1,12 @@
 import { Accordion } from "@/components/accordion";
-import { DalSimulator } from "@/components/dal-simulator";
+import { AuthoritySimulator } from "@/components/authority-simulator";
 import { AlertTriangle, CheckIcon, InfoIcon, SlidersIcon } from "@/components/icons";
 import { RuleChain, type ChainStep } from "@/components/rule-chain";
-import { loadMatrix, NoActiveDalVersionError } from "@/lib/dal/load";
+import { loadMatrix, NoActiveMatrixError } from "@/lib/authority/load";
 import { formatPercentBand, formatValueBand } from "@/lib/format";
 import { matterLabel, methodLabel } from "@/lib/labels";
 import { ORGANISATION_CODE } from "@/lib/org";
-import type { Rule } from "@/lib/dal/types";
+import type { Rule } from "@/lib/authority/types";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,7 @@ export default async function ApprovalMatrixPage() {
   try {
     matrix = await loadMatrix(ORGANISATION_CODE);
   } catch (error) {
-    if (!(error instanceof NoActiveDalVersionError)) throw error;
+    if (!(error instanceof NoActiveMatrixError)) throw error;
     return (
       <div className="empty">
         <div className="empty__t">No approval matrix loaded</div>
@@ -116,7 +116,7 @@ export default async function ApprovalMatrixPage() {
                   {formatValueBand(matrix.policy.quotationFloor, matrix.policy.tenderFloor)}
                 </div>
                 <p className="xs dim" style={{ marginTop: 6 }}>
-                  Sebut harga. Quotation Committee recommends, the CEO approves.
+                  Quotation. Competitive, with a committee recommendation.
                 </p>
               </div>
               <div className="panel">
@@ -125,7 +125,7 @@ export default async function ApprovalMatrixPage() {
                   {formatValueBand(matrix.policy.tenderFloor, null)}
                 </div>
                 <p className="xs dim" style={{ marginTop: 6 }}>
-                  Tender. The Tender Board approves.
+                  Tender. Advertised, and approved by a board.
                 </p>
               </div>
             </div>
@@ -328,7 +328,7 @@ export default async function ApprovalMatrixPage() {
             </div>
           </div>
           <div className="card__body">
-            <DalSimulator
+            <AuthoritySimulator
               domains={[...byDomain.keys()]
                 .sort((a, b) => matterLabel(a).localeCompare(matterLabel(b)))
                 .map((code) => ({ code, label: matterLabel(code) }))}

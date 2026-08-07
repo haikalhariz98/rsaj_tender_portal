@@ -1,8 +1,8 @@
-import { loadMatrix, NoActiveDalVersionError } from "@/lib/dal/load";
-import { resolveApproval } from "@/lib/dal/resolve";
-import type { ResolveQuery } from "@/lib/dal/types";
+import { loadMatrix, NoActiveMatrixError } from "@/lib/authority/load";
+import { resolveApproval } from "@/lib/authority/resolve";
+import type { ResolveQuery } from "@/lib/authority/types";
 
-const DEFAULT_ORG = "RSAJ";
+import { ORGANISATION_CODE } from "@/lib/org";
 
 function numberOrNull(raw: string | null): number | null {
   if (raw == null || raw.trim() === "") return null;
@@ -13,7 +13,7 @@ function numberOrNull(raw: string | null): number | null {
 /**
  * Resolve the approval chain for a matter.
  *
- * GET /api/dal/resolve?domain=payment&method=tender&value=620000
+ * GET /api/authority/resolve?domain=payment&method=tender&value=620000
  *
  * The response always carries the rule key and its clause, so a caller can trace any
  * routing decision back to the printed manual.
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
   };
 
   try {
-    const matrix = await loadMatrix(params.get("org") ?? DEFAULT_ORG);
+    const matrix = await loadMatrix(params.get("org") ?? ORGANISATION_CODE);
     const result = resolveApproval(matrix, query);
 
     return Response.json({
@@ -70,7 +70,7 @@ export async function GET(request: Request) {
       warnings: result.warnings,
     });
   } catch (error) {
-    if (error instanceof NoActiveDalVersionError) {
+    if (error instanceof NoActiveMatrixError) {
       return Response.json({ error: error.message }, { status: 503 });
     }
     throw error;

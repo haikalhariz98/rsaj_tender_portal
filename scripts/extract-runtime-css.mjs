@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const src = readFileSync(
-  join(process.env.USERPROFILE, "projects", "perolehan", "docs", "prototype", "RSAJ-Tender-Portal.html"),
+  join(process.env.USERPROFILE, "projects", "perolehan", "docs", "prototype", process.env.PROTOTYPE ?? "prototype.html"),
   "utf8",
 );
 

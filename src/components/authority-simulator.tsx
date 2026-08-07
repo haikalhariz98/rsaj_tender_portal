@@ -48,7 +48,7 @@ const CALLOUT: Record<Warning["level"], string> = {
   gap: "callout--warn",
 };
 
-export function DalSimulator({
+export function AuthoritySimulator({
   domains,
   methods,
   roles,
@@ -91,7 +91,7 @@ export function DalSimulator({
   useEffect(() => {
     const controller = new AbortController();
 
-    fetch(`/api/dal/resolve?${key}`, { signal: controller.signal })
+    fetch(`/api/authority/resolve?${key}`, { signal: controller.signal })
       .then(async (res) => {
         const body = await res.json();
         if (!res.ok) throw new Error(body?.error ?? `Request failed (${res.status})`);

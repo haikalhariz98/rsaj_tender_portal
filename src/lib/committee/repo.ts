@@ -86,16 +86,16 @@ export async function rulesRoutingTo(committeeCode: string) {
   const id = await organisationId();
   if (!id) return [];
 
-  const version = await db.dalVersion.findFirst({
+  const version = await db.authorityMatrix.findFirst({
     where: { organisationId: id },
     orderBy: { effectiveFrom: "desc" },
     select: { id: true },
   });
   if (!version) return [];
 
-  const rules = await db.dalRule.findMany({
+  const rules = await db.authorityRule.findMany({
     where: {
-      dalVersionId: version.id,
+      authorityMatrixId: version.id,
       OR: [{ committeeCode }, { approverCode: committeeCode }],
     },
     orderBy: [{ domain: "asc" }, { sortOrder: "asc" }],

@@ -12,7 +12,7 @@ export function formatRM(value: number | null | undefined): string {
   );
 }
 
-/// A value band as the DAL states it, e.g. "More than RM15,000 and up to RM300,000".
+/// A value band spelled out, e.g. "More than RM15,000 and up to RM300,000".
 export function formatBand(min: number | null, max: number | null): string {
   if (min == null && max == null) return "Any value";
   if (min == null) return `Up to ${formatRM(max)}`;

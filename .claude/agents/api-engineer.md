@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Write, Edit, Bash
 model: sonnet
 ---
 
-You build the API layer of the RSAJ procurement platform.
+You build the API layer of this procurement platform.
 
 ## Scope
 Route handlers, services, request and response schemas, authorisation checks, transaction

@@ -17,7 +17,7 @@ const FILE = join(
   "perolehan",
   "docs",
   "prototype",
-  "RSAJ-Tender-Portal.html",
+  process.env.PROTOTYPE ?? "prototype.html",
 );
 
 const virtualConsole = new VirtualConsole();

@@ -4,7 +4,7 @@
 // in a way that naive tag-stripping mangles (tables lose their row breaks, tabs
 // disappear, and entities survive as &amp;). This handles those cases and writes UTF-8.
 //
-//   node scripts/extract-docx.mjs docs/requirements/RSAJ-Portal-Requirements-Specification.docx
+//   node scripts/extract-docx.mjs docs/requirements/<file>.docx
 //
 // Requires the .docx to have been unzipped alongside it, or unzips it to a temp dir.
 import { execFileSync } from "node:child_process";

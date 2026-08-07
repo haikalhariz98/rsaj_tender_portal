@@ -4,7 +4,7 @@ import { Inter } from "next/font/google";
 import { Sidebar } from "@/components/shell/sidebar";
 import { Topbar } from "@/components/shell/topbar";
 import { loadShell } from "@/lib/shell";
-import { ORGANISATION_NAME } from "@/lib/org";
+import { ORGANISATION_NAME, ORGANISATION_STRAPLINE } from "@/lib/org";
 import "./globals.css";
 
 const inter = Inter({
@@ -13,13 +13,12 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Perolehan — Ranhill SAJ",
+  title: "Perolehan",
   description: "Procurement and contract administration",
-  icons: { icon: "/ranhill-saj.png" },
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  // The shell must render even before the database is seeded, so this never throws.
+  // The shell must render before anything is configured, so this never throws.
   const shell = await loadShell();
 
   return (
@@ -28,7 +27,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <div className="app">
           <Sidebar
             organisation={ORGANISATION_NAME}
-            strapline="Procure to Pay · Johor"
+            strapline={ORGANISATION_STRAPLINE}
             counts={shell.counts}
           />
           <div className="main">
