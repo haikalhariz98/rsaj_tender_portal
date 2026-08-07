@@ -23,7 +23,9 @@ const ACTION_LABEL: Record<string, string> = {
   DECIDES: "Decides",
 };
 
-export default async function CommitteePage({ params }: PageProps<"/committees/[code]">) {
+export default async function CommitteePage({
+  params,
+}: PageProps<"/configuration/committees/[code]">) {
   const { code } = await params;
   const committee = await getCommittee(code);
   if (!committee) notFound();

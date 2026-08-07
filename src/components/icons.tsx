@@ -105,6 +105,73 @@ export const FileIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const GridIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3" y="3" width="7" height="7" rx="1.5" />
+    <rect x="14" y="3" width="7" height="7" rx="1.5" />
+    <rect x="3" y="14" width="7" height="7" rx="1.5" />
+    <rect x="14" y="14" width="7" height="7" rx="1.5" />
+  </Icon>
+);
+
+export const GlobeIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" />
+  </Icon>
+);
+
+export const ToolsIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M14.7 6.3a4 4 0 0 0 5 5l-9.4 9.4a2.1 2.1 0 0 1-3-3Z" />
+    <path d="m17.5 3.5 3 3" />
+  </Icon>
+);
+
+export const FilesIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M15 2H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V6Z" />
+    <path d="M14 2v5h5M3 7v13a2 2 0 0 0 2 2h11" />
+  </Icon>
+);
+
+export const ChartIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M3 3v17a1 1 0 0 0 1 1h17" />
+    <path d="M7 15l4-5 3 3 5-7" />
+  </Icon>
+);
+
+export const SlidersIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h10M18 18h2" />
+    <circle cx="16" cy="6" r="2" />
+    <circle cx="10" cy="12" r="2" />
+    <circle cx="16" cy="18" r="2" />
+  </Icon>
+);
+
+export const InboxIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M3 13h5l1.5 3h5L16 13h5" />
+    <path d="M5.4 5.5 3 13v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5l-2.4-7.5A2 2 0 0 0 16.7 4H7.3a2 2 0 0 0-1.9 1.5Z" />
+  </Icon>
+);
+
+export const SearchIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" />
+  </Icon>
+);
+
+export const ClockIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </Icon>
+);
+
 export const BuildingIcon = (p: IconProps) => (
   <Icon {...p}>
     <rect x="4" y="2" width="16" height="20" rx="2" />

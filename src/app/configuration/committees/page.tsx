@@ -142,7 +142,10 @@ export default async function CommitteesPage() {
                     <ProvenanceBadge value={c.compositionProvenance} seats={c.seatCount} />
                   </td>
                   <td className="right">
-                    <Link href={`/committees/${c.code}`} className="btn btn--sm btn--ghost">
+                    <Link
+                      href={`/configuration/committees/${c.code}`}
+                      className="btn btn--sm btn--ghost"
+                    >
                       Open
                       <ChevronRight size={14} />
                     </Link>
