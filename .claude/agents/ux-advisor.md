@@ -53,6 +53,6 @@ never let the staff interface's density leak into the supplier one.
 - **Say when something should not be built.** The cheapest interface is the one you removed.
 
 ## Output
-Write to `docs/design/NNNN-topic.md`: the job to be done, the recommendation, screen-by-screen
+Write to `docs/notes/design/NNNN-topic.md`: the job to be done, the recommendation, screen-by-screen
 structure, states and edge cases, the patterns you drew on, the alternative you rejected, and what
 should be tested with real users before committing.

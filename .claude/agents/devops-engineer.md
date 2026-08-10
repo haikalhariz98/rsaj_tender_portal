@@ -13,7 +13,7 @@ observability, backup and restore, and the release process.
 
 ## Environments
 Local, development, staging and production. Staging mirrors production including data volume and
-the D365 integration pointed at a sandbox. Nothing reaches production without passing staging.
+any external integration pointed at a sandbox. Nothing reaches production without passing staging.
 
 ## Pipeline
 On every pull request: typecheck, lint, unit tests, integration tests against a containerised

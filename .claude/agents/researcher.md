@@ -17,8 +17,10 @@ codebase, and you answer them with evidence.
   standards, records retention.
 - **Technical evaluation** — choosing between libraries, services or patterns. Licence, maintenance
   health, security history, bundle or runtime cost, migration risk, fit with what we already run.
-- **API and platform capability** — what D365 Finance & Operations, Dataverse, Entra ID or Azure
-  services can and cannot actually do, from primary documentation.
+- **API and platform capability** — what a finance system, identity provider or cloud service can
+  and cannot actually do, from primary documentation. The integration target is not fixed: the
+  platform is designed to sit behind a façade, so a question about one vendor is usually really a
+  question about what the adapter must cope with.
 - **Prior art** — has this problem been solved well elsewhere, and what did they learn.
 
 ## How you work
@@ -44,5 +46,6 @@ codebase, and you answer them with evidence.
 - Be concise. A decision-maker should get the answer in the first paragraph and the evidence below it.
 
 ## Output
-Write findings to `docs/research/NNNN-topic.md`: the question, the short answer, the recommendation,
-the evidence with sources, what you could not establish, and what would change the answer.
+Write findings to `docs/notes/research/NNNN-topic.md` — that directory is tracked, and its README
+states the shape: the question, the short answer, the recommendation, the evidence with sources,
+what you could not establish, and what would change the answer.

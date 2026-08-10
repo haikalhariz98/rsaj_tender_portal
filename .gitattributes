@@ -1,0 +1,26 @@
+# Store text as LF and check it out as LF everywhere, so the working tree matches
+# what is committed. Without this, Windows checkouts convert to CRLF and git warns
+# on every single `git add`.
+* text=auto eol=lf
+
+# Binary: never touch the bytes, never try to diff them.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.xlsx binary
+*.docx binary
+*.zip binary
+
+# Generated. Collapsed in diffs and excluded from language statistics.
+package-lock.json -diff linguist-generated
+src/generated/** linguist-generated
+
+# Ported verbatim from a prototype and regenerated rather than edited by hand.
+src/app/design-system.css linguist-vendored
+src/app/design-system-runtime.css linguist-vendored

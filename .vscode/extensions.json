@@ -1,0 +1,22 @@
+{
+  // Prompted on first open. Everything here is used by this repo — nothing
+  // speculative, so accepting all of them is safe.
+  "recommendations": [
+    // Formatting and correctness. ESLint is the only formatter configured; there is
+    // deliberately no Prettier, so lint rules are the single source of style.
+    "dbaeumer.vscode-eslint",
+    "editorconfig.editorconfig",
+
+    // Prisma schema: syntax, formatting and go-to-definition across models.
+    "prisma.prisma",
+
+    // Tailwind v4 keeps its config in CSS; the extension reads @theme from globals.css.
+    "bradlc.vscode-tailwindcss",
+
+    // Runs and debugs the vitest suite from the gutter.
+    "vitest.explorer",
+
+    // Postgres runs in compose; this gives container status and logs in the sidebar.
+    "ms-azuretools.vscode-containers"
+  ]
+}

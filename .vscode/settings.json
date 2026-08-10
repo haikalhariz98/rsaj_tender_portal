@@ -1,0 +1,67 @@
+{
+  // Use the TypeScript that ships with the repo, not the one bundled with the editor,
+  // so everyone type-checks against the same compiler as CI.
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "typescript.preferences.importModuleSpecifier": "non-relative",
+  "javascript.preferences.importModuleSpecifier": "non-relative",
+
+  // ESLint is the only style authority here — there is no Prettier. Fixing on save
+  // keeps the diff to the change you actually made.
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "eslint.useFlatConfig": true,
+  "eslint.validate": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
+
+  "editor.formatOnSave": false,
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+  // Git normalises to LF on commit (see .gitattributes); matching that here stops
+  // whole-file diffs caused by line endings alone.
+  "files.eol": "\n",
+
+  "[prisma]": {
+    "editor.defaultFormatter": "Prisma.prisma",
+    "editor.formatOnSave": true
+  },
+
+  // Generated output. Editing it is always a mistake, and searching it buries results.
+  "files.exclude": {
+    "**/.next": true,
+    "**/src/generated": true
+  },
+  "search.exclude": {
+    "**/.next": true,
+    "**/src/generated": true,
+    "**/node_modules": true,
+    "**/package-lock.json": true,
+    "**/docs/prototype": true,
+    "src/app/design-system.css": true,
+    "src/app/design-system-runtime.css": true
+  },
+  // Still openable, just read-only by default: both stylesheets are ported verbatim
+  // and are regenerated rather than edited.
+  "files.readonlyInclude": {
+    "src/app/design-system-runtime.css": true,
+    "src/generated/**": true
+  },
+
+  "files.associations": {
+    "*.css": "tailwindcss"
+  },
+  // The design system is plain CSS, so the linter's at-rule complaints are noise.
+  "css.lint.unknownAtRules": "ignore",
+
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.patterns": {
+    "package.json": "package-lock.json, .npmrc, .nvmrc",
+    "*.ts": "${capture}.test.ts",
+    "*.tsx": "${capture}.test.tsx",
+    "README.md": "AGENTS.md, CLAUDE.md, LICENSE*",
+    ".env.example": ".env, .env.*",
+    "compose.yaml": "Dockerfile*, .dockerignore"
+  },
+
+  "vitest.enable": true
+}

@@ -36,8 +36,9 @@ yarn-error.log*
 
 # Customer source material: governing documents and prototypes. Present locally so
 # agents and contributors can read them; kept out of git so a push cannot leak them.
-# Remove this line to commit them deliberately.
-/docs/
+# Everything else under docs/ — decisions, research, design notes — is tracked.
+/docs/prototype/
+/docs/requirements/
 
 # vercel
 .vercel

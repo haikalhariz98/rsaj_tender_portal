@@ -1,0 +1,102 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      // Ctrl+Shift+B. Waits for Postgres to report healthy before starting Next, so
+      // the first request never lands on a database that is still coming up.
+      "label": "dev",
+      "dependsOn": "db: up",
+      "type": "npm",
+      "script": "dev",
+      "isBackground": true,
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": {
+        "owner": "next",
+        "pattern": { "regexp": "^\\s*(.*)$", "message": 1 },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*Starting.*",
+          "endsPattern": ".*(Ready in|compiled successfully).*"
+        }
+      },
+      "presentation": { "group": "app", "panel": "dedicated" }
+    },
+    {
+      "label": "test: watch",
+      "type": "npm",
+      "script": "test:watch",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "group": "app", "panel": "dedicated" }
+    },
+    {
+      "label": "test",
+      "type": "npm",
+      "script": "test",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "typecheck",
+      "type": "npm",
+      "script": "typecheck",
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "lint",
+      "type": "npm",
+      "script": "lint",
+      "problemMatcher": ["$eslint-stylish"]
+    },
+    {
+      "label": "verify",
+      "dependsOn": ["typecheck", "lint", "test"],
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "detail": "What to run before committing."
+    },
+    {
+      "label": "db: up",
+      "type": "npm",
+      "script": "db:up",
+      "problemMatcher": []
+    },
+    {
+      "label": "db: down",
+      "type": "npm",
+      "script": "db:down",
+      "problemMatcher": []
+    },
+    {
+      // Destroys the volume. Named so it cannot be picked by accident.
+      "label": "db: reset (DESTROYS DATA)",
+      "type": "npm",
+      "script": "db:reset",
+      "problemMatcher": []
+    },
+    {
+      "label": "db: studio",
+      "type": "npm",
+      "script": "db:studio",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "group": "app", "panel": "dedicated" }
+    },
+    {
+      // prisma migrate dev asks for a name and there is no TTY in a task, so prompt
+      // for it here and pass it in.
+      "label": "db: migrate",
+      "type": "shell",
+      "command": "npx prisma migrate dev --name ${input:migrationName}",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "migrationName",
+      "type": "promptString",
+      "description": "Migration name, in snake_case",
+      "default": "change"
+    }
+  ]
+}
