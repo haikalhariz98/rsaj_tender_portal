@@ -18,7 +18,10 @@
     "db:generate": "prisma generate",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "demo:load": "tsx prisma/demo.ts load",
+    "demo:wipe": "tsx prisma/demo.ts wipe",
+    "compare": "node scripts/compare-screen.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
