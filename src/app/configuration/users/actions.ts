@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
-import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
+import { auditedCreate, auditedDelete, auditedUpdate } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import { periodsOverlap } from "@/lib/effective";
 import { ORGANISATION_CODE } from "@/lib/org";
@@ -136,6 +136,67 @@ export async function setPersonActive(_prev: FormState, data: FormData): Promise
   return { ok: true };
 }
 
+// ------------------------------------------------------------------- permissions
+
+/**
+ * Grant a capability to a role, or take it away.
+ *
+ * One cell of the permissions grid. Deliberately not a form: the grid is the editor,
+ * and a drawer between the click and the change would make setting thirty of them a
+ * chore nobody would finish.
+ *
+ * There is no reason field. A grant is reversible and visible on the grid itself; the
+ * audit entry records which way it went and when.
+ */
+export async function setGrant(
+  roleCode: string,
+  capabilityId: string,
+  granted: boolean,
+): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+
+  const capability = await db.capability.findFirst({
+    where: { id: capabilityId, organisationId: orgId },
+    select: { nameEn: true },
+  });
+  if (!capability) return { ok: false, message: "That capability is no longer configured." };
+
+  const role = await db.authorityRole.findFirst({
+    where: { organisationId: orgId, code: roleCode },
+    select: { nameEn: true },
+  });
+  if (!role) return { ok: false, message: "That role is no longer configured." };
+
+  const existing = await db.roleCapability.findUnique({
+    where: { capabilityId_roleCode: { capabilityId, roleCode } },
+    select: { id: true },
+  });
+  if (Boolean(existing) === granted) return { ok: true };
+
+  const ctx = {
+    organisationId: orgId,
+    entity: "RoleCapability",
+    entityLabel: `${role.nameEn} — ${capability.nameEn}`,
+    reason: "",
+  };
+
+  if (granted) {
+    await auditedCreate({ ...ctx }, { roleCode, capability: capability.nameEn }, (tx) =>
+      tx.roleCapability.create({ data: { capabilityId, roleCode } }),
+    );
+  } else {
+    await auditedDelete(
+      { ...ctx, entityId: existing!.id },
+      { roleCode, capability: capability.nameEn },
+      (tx) => tx.roleCapability.delete({ where: { id: existing!.id } }),
+    );
+  }
+
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
 // ----------------------------------------------------------------------- offices
 
 export async function saveOffice(_prev: FormState, data: FormData): Promise<FormState> {
@@ -162,12 +223,12 @@ export async function saveOffice(_prev: FormState, data: FormData): Promise<Form
   // Authority reverts upward, never to itself: an office escalating to itself would
   // leave an absent holder's matter with nowhere to go.
   if (escalatesToCode && escalatesToCode === code) {
-    r.reject("escalatesToCode", "An office cannot escalate to itself.");
+    r.reject("escalatesToCode", "A role cannot escalate to itself.");
   }
   if (selfApprovalEscalatesToCode && selfApprovalEscalatesToCode === code) {
     r.reject(
       "selfApprovalEscalatesToCode",
-      "Self-approval must escalate to a different office, or it is not an escalation.",
+      "Self-approval must escalate to a different role, or it is not an escalation.",
     );
   }
 
@@ -197,7 +258,7 @@ export async function saveOffice(_prev: FormState, data: FormData): Promise<Form
     );
   } else {
     const before = await db.authorityRole.findUnique({ where: { id } });
-    if (!before) return { ok: false, message: "That office no longer exists." };
+    if (!before) return { ok: false, message: "That role no longer exists." };
     await auditedUpdate({ ...ctx, entityId: id }, before, v, (tx) =>
       tx.authorityRole.update({ where: { id }, data: v }),
     );
@@ -216,8 +277,8 @@ export async function saveAssignment(_prev: FormState, data: FormData): Promise<
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
 
-  const personId = r.text("personId", "Officer", { required: true });
-  const roleCode = r.text("roleCode", "Office", { required: true });
+  const personId = r.text("personId", "Person", { required: true });
+  const roleCode = r.text("roleCode", "Role", { required: true });
   const scope = r.optionalText("scope");
   const effectiveFrom = r.date("effectiveFrom", "Held from", { required: true });
   const effectiveTo = r.date("effectiveTo", "Held to");
@@ -228,7 +289,7 @@ export async function saveAssignment(_prev: FormState, data: FormData): Promise<
       where: { id: personId, organisationId: orgId },
       select: { isActive: true, name: true },
     });
-    if (!person) r.reject("personId", "That officer is not on record.");
+    if (!person) r.reject("personId", "That person is not on record.");
     else if (!person.isActive) {
       r.reject("personId", `${person.name} is marked as having left. Reinstate them first.`);
     }

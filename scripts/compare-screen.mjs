@@ -21,10 +21,12 @@ import { JSDOM } from "jsdom";
 
 const args = process.argv.slice(2);
 const asJson = args.includes("--json");
-const [section, ourPath] = args.filter((a) => !a.startsWith("--"));
+const [section, ourPath, tab] = args.filter((a) => !a.startsWith("--"));
 
 if (!section || !ourPath) {
-  console.error('usage: node scripts/compare-screen.mjs "<Section>" <our-path> [--json]');
+  console.error(
+    'usage: node scripts/compare-screen.mjs "<Section>" <our-path> ["<Tab>"] [--json]',
+  );
   process.exit(2);
 }
 
@@ -42,7 +44,17 @@ if (/^[A-Za-z]:[\/]/.test(ourPath)) {
 }
 const OUR_PATH = ourPath.startsWith("/") ? ourPath : `/${ourPath}`;
 const OUT = "out";
-const slug = section.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const slugify = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const slug = slugify(section) + (tab ? `-${slugify(tab)}` : "");
+
+// Only the selected tab is in the markup, on either side. Without this a screen with
+// four tabs is compared on its first one and reported identical.
+if (tab && !/[?&]tab=/.test(OUR_PATH)) {
+  console.error(
+    `Comparing the "${tab}" tab needs our path to select it too — add ?tab=<id> to ${OUR_PATH}.`,
+  );
+  process.exit(2);
+}
 
 // ---------------------------------------------------------------- the two sources
 
@@ -54,7 +66,14 @@ function renderPrototype() {
   // so its output is captured and a miss is fatal here.
   const log = execFileSync(
     process.execPath,
-    ["scripts/render-prototype.mjs", OUT, `cmp-${slug}`, "Configuration", section],
+    [
+      "scripts/render-prototype.mjs",
+      OUT,
+      `cmp-${slug}`,
+      "Configuration",
+      section,
+      ...(tab ? [tab] : []),
+    ],
     { encoding: "utf8", env: process.env },
   );
   process.stdout.write(log);
@@ -98,10 +117,17 @@ function fingerprint(html) {
   // made "Name" and "Name▴" look like different columns.
   const headerText = (th) => text(th.querySelector(".th__t") ?? th).replace(/[▴▾]/g, "").trim();
 
-  const tables = all("table").map((t) => ({
-    columns: [...t.querySelectorAll("thead th")].map(headerText).filter(Boolean),
-    rows: t.querySelectorAll("tbody tr").length,
-  }));
+  const tables = all("table").map((t) => {
+    const columns = [...t.querySelectorAll("thead th")].map(headerText).filter(Boolean);
+    // A permissions matrix has one column per record, so its headings are data: the
+    // prototype's roles against ours would differ on every screen and say nothing.
+    // The fixed first column and the fact that the rest are roles is the structure.
+    const grid = t.classList.contains("cfg-grid");
+    return {
+      columns: grid ? [columns[0] ?? "", "(a column per role — data)"] : columns,
+      rows: t.querySelectorAll("tbody tr").length,
+    };
+  });
 
   // A control is a button or link that acts on the screen. Row-level buttons are
   // excluded: they repeat per record and say nothing about structure.
@@ -208,6 +234,16 @@ function compare(mine, theirs) {
   for (let i = 0; i < count; i++) {
     const a = mine.tables[i]?.columns ?? [];
     const b = theirs.tables[i]?.columns ?? [];
+
+    // The prototype is a click-through. Where it lists records it cannot edit, it has
+    // no actions column and we do. Reported rather than ignored.
+    const kept =
+      a.at(-1) === "Actions" && b.at(-1) !== "Actions" && a.slice(0, -1).join("|") === b.join("|");
+    if (kept) {
+      out.push(`  kept     table ${i + 1} columns — ours has an Actions column, by decision`);
+      continue;
+    }
+
     if (a.join("|") === b.join("|")) {
       out.push(`  ok       table ${i + 1} columns`);
       continue;

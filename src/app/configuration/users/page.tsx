@@ -15,8 +15,13 @@ export const dynamic = "force-dynamic";
  * different decomposition of the same data, and the fault callouts that sat above
  * them are gone with them.
  */
-export default async function UsersPage() {
+export default async function UsersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const on = new Date();
+  const { tab } = await searchParams;
   const [roster, grants, delegations] = await Promise.all([
     loadRoster(ORGANISATION_CODE),
     loadGrants(ORGANISATION_CODE),
@@ -58,6 +63,7 @@ export default async function UsersPage() {
       </div>
 
       <UsersTabs
+        initial={tab}
         people={roster.people}
         offices={roster.offices}
         holdings={holdings}

@@ -114,7 +114,7 @@ export function EditPerson({
   person: Person;
   offices: Office[];
   authorityLevels: string[];
-  /// What this person may do, through the offices they hold. Read-only here: it is
+  /// What this person may do, through the roles they hold. Read-only here: it is
   /// granted to the role on the Permissions tab, not to the person.
   capabilities: Capability[];
   delegations: Delegation[];
@@ -149,7 +149,7 @@ export function EditPerson({
           <DrawerSection label="Capabilities" count={capabilities.length}>
             {capabilities.length === 0 ? (
               <span className="xs dim">
-                None. Capabilities come from the offices they hold, and they hold none yet.
+                None. Capabilities come from the roles they hold, and they hold none yet.
               </span>
             ) : (
               <div className="row wrap" style={{ gap: 6 }}>
@@ -262,8 +262,8 @@ export function LeaverToggle({ person }: { person: Person }) {
       title={leaving ? `Mark ${person.name} as left` : `Reinstate ${person.name}`}
       description={
         leaving
-          ? "They stay on record. Decisions they signed keep resolving to their name, but no new office can be assigned to them."
-          : "They can hold an office again. Nothing that happened while they were marked as left is altered."
+          ? "They stay on record. Decisions they signed keep resolving to their name, but no new role can be assigned to them."
+          : "They can hold a role again. Nothing that happened while they were marked as left is altered."
       }
       fields={[
         { kind: "hidden", name: "id" },
@@ -294,7 +294,7 @@ function officeFields(editing: boolean, offices: Office[]): Field[] {
             label: "Code",
             required: true,
             mono: true,
-            hint: "What an approval rule routes to. Never shown on a screen.",
+            hint: "What an approval rule routes to.",
           },
         ] as Field[])),
     { kind: "text", name: "nameEn", label: "Name", required: true },
@@ -302,7 +302,7 @@ function officeFields(editing: boolean, offices: Office[]): Field[] {
     {
       kind: "switch",
       name: "isCommittee",
-      label: "This office is a committee rather than a person",
+      label: "This role is a committee rather than a person",
     },
     {
       kind: "select",
@@ -327,12 +327,12 @@ function officeFields(editing: boolean, offices: Office[]): Field[] {
 export function AddOffice({ offices }: { offices: Office[] }) {
   return (
     <RecordEditor
-      title="Add an office"
-      description="An office or committee that can hold authority."
+      title="Add a role"
+      description="A role or committee that can hold authority."
       fields={officeFields(false, offices)}
       action={saveOffice}
-      submitLabel="Add office"
-      trigger={{ label: "Add office", icon: true }}
+      submitLabel="Add role"
+      trigger={{ label: "Add role", icon: true }}
     />
   );
 }
@@ -366,7 +366,7 @@ function assignmentFields(people: Person[], offices: Office[]): Field[] {
     {
       kind: "select",
       name: "personId",
-      label: "Officer",
+      label: "Person",
       required: true,
       placeholder: "Choose",
       options: people.filter((p) => p.isActive).map((p) => ({ value: p.id, label: p.name })),
@@ -374,7 +374,7 @@ function assignmentFields(people: Person[], offices: Office[]): Field[] {
     {
       kind: "select",
       name: "roleCode",
-      label: "Office",
+      label: "Role",
       required: true,
       placeholder: "Choose",
       options: offices.map((o) => ({ value: o.code, label: o.nameEn })),
@@ -383,7 +383,7 @@ function assignmentFields(people: Person[], offices: Office[]): Field[] {
       kind: "text",
       name: "scope",
       label: "Scope",
-      hint: "Set where the office is held per department rather than organisation-wide.",
+      hint: "Set where the role is held per department rather than organisation-wide.",
     },
     { kind: "date", name: "effectiveFrom", label: "Held from", required: true },
     {
@@ -398,12 +398,12 @@ function assignmentFields(people: Person[], offices: Office[]): Field[] {
 export function AddAssignment({ people, offices }: { people: Person[]; offices: Office[] }) {
   return (
     <RecordEditor
-      title="Assign an office"
-      description="A rule routes to an office. Only an assignment turns it into a signatory."
+      title="Assign a role"
+      description="A rule routes to a role. Only an assignment turns it into a signatory."
       fields={assignmentFields(people, offices)}
       action={saveAssignment}
       submitLabel="Assign"
-      trigger={{ label: "Assign office", icon: true }}
+      trigger={{ label: "Assign role", icon: true }}
       size="sm"
     />
   );

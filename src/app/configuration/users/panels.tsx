@@ -1,5 +1,15 @@
 "use client";
 
+import { useState, useTransition } from "react";
+
+import {
+  AlertTriangle,
+  CheckIcon,
+  GridIcon,
+  SearchIcon,
+  ShieldIcon,
+  UserIcon,
+} from "@/components/icons";
 import { DataList, type Row } from "@/components/data-list";
 import { Tabs } from "@/components/tabs";
 import {
@@ -13,6 +23,7 @@ import {
 import { statusOf, type Delegation } from "@/lib/people/delegation";
 import type { Office, Person } from "@/lib/people/types";
 
+import { setGrant } from "./actions";
 import {
   AddAssignment,
   AddOffice,
@@ -41,9 +52,10 @@ export interface UsersData {
   delegations: Delegation[];
 }
 
-export function UsersTabs(data: UsersData) {
+export function UsersTabs({ initial, ...data }: UsersData & { initial?: string }) {
   return (
     <Tabs
+      initial={initial}
       tabs={[
         { id: "people", label: "People", panel: <PeoplePanel {...data} /> },
         { id: "roles", label: "Roles", panel: <RolesPanel {...data} /> },
@@ -87,6 +99,7 @@ function PeoplePanel({ people, offices, holdings, capabilities, grants, delegati
   return (
     <section className="card">
       <div className="card__head">
+        <UserIcon size={17} className="icon dim" />
         <div className="card__titles">
           <div className="h3 trunc">User register</div>
           <div className="card__sub trunc">Everyone on record, and how to reach them.</div>
@@ -102,7 +115,7 @@ function PeoplePanel({ people, offices, holdings, capabilities, grants, delegati
           exportName="people"
           searchPlaceholder="Search people"
           emptyTitle="Nobody on record"
-          emptyBody="Add an officer before assigning an office."
+          emptyBody="Add a person before assigning a role."
           views={[
             { id: "away", label: "Away" },
             { id: "left", label: "Left the organisation" },
@@ -183,6 +196,7 @@ function RolesPanel({ offices, people, holdings, grants }: UsersData) {
   return (
     <section className="card">
       <div className="card__head">
+        <ShieldIcon size={17} className="icon dim" />
         <div className="card__titles">
           <div className="h3 trunc">Roles</div>
           <div className="card__sub trunc">
@@ -226,8 +240,53 @@ function RolesPanel({ offices, people, holdings, grants }: UsersData) {
 // ------------------------------------------------------------------- Permissions
 
 function PermissionsPanel({ offices, capabilities, grants }: UsersData) {
-  const groups = byGroup(capabilities);
   const decided = decidedRoles(grants);
+  const [pending, startTransition] = useTransition();
+  const [problem, setProblem] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+
+  // Searching narrows the capabilities, not the roles. A group with nothing left in
+  // it goes too, rather than sitting there as an empty heading.
+  const needle = query.trim().toLowerCase();
+  const groups = byGroup(capabilities)
+    .map((g) => ({
+      ...g,
+      capabilities: needle
+        ? g.capabilities.filter((c) => c.nameEn.toLowerCase().includes(needle))
+        : g.capabilities,
+    }))
+    .filter((g) => g.capabilities.length > 0);
+
+  // A column per role that a person can actually hold in the portal. Committees are
+  // left out: nobody signs in as one, so a capability granted to it means nothing.
+  // The grid scrolls sideways with the capability column pinned, so a new role adds
+  // a column rather than breaking the layout.
+  const columns = offices.filter((o) => !o.isCommittee);
+
+  // A click has to land before the round trip, so a cell in flight is held here and
+  // read in preference to what the server last said. Once the reloaded grants agree
+  // with the override it is dropped, which happens during render — no effect, and
+  // nothing to get out of step.
+  const key = (roleCode: string, capabilityId: string) => `${roleCode}|${capabilityId}`;
+  const saved = new Set(grants.map((g) => key(g.roleCode, g.capabilityId)));
+  const [inFlight, setInFlight] = useState<Map<string, boolean>>(new Map());
+  const live = new Map([...inFlight].filter(([k, on]) => saved.has(k) !== on));
+
+  const toggle = (roleCode: string, capabilityId: string, on: boolean) => {
+    const k = key(roleCode, capabilityId);
+    setProblem(null);
+    setInFlight((m) => new Map(m).set(k, on));
+    startTransition(async () => {
+      const result = await setGrant(roleCode, capabilityId, on);
+      if (result.ok) return;
+      setProblem(result.message ?? "That change was not saved.");
+      setInFlight((m) => {
+        const next = new Map(m);
+        next.delete(k);
+        return next;
+      });
+    });
+  };
 
   if (capabilities.length === 0) {
     return (
@@ -253,6 +312,7 @@ function PermissionsPanel({ offices, capabilities, grants }: UsersData) {
   return (
     <section className="card">
       <div className="card__head">
+        <GridIcon size={17} className="icon dim" />
         <div className="card__titles">
           <div className="h3 trunc">Permissions</div>
           <div className="card__sub trunc">
@@ -260,43 +320,98 @@ function PermissionsPanel({ offices, capabilities, grants }: UsersData) {
             approval matrix.
           </div>
         </div>
+        <div className="row" style={{ gap: 6, flex: "0 0 auto" }}>
+          <div style={{ width: 240 }}>
+            <div className="searchinput">
+              <SearchIcon size={14} className="icon searchinput__ico" />
+              <input
+                className="input input--sm"
+                type="search"
+                placeholder="Search capabilities"
+                aria-label="Search capabilities"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
       </div>
       <div className="card__body card__body--flush">
-        <div className="tablewrap">
-          <table className="table cfg-grid">
+        {problem && (
+          <div className="callout callout--err" style={{ margin: "0 14px 10px" }}>
+            <span className="callout__ico">
+              <AlertTriangle size={17} />
+            </span>
+            <div className="grow">
+              <span className="sm">{problem}</span>
+            </div>
+          </div>
+        )}
+        <div className="cfg-gridwrap">
+          <table className="cfg-grid">
             <thead>
               <tr>
-                <th>Capability</th>
-                {offices.map((o) => (
-                  <th key={o.code}>{o.nameEn}</th>
+                <th scope="col">Capability</th>
+                {columns.map((o) => (
+                  <th key={o.code} scope="col" style={{ minWidth: 74 }}>
+                    {/* Bounded and truncated. A long role name left to wrap is what
+                        pushed the columns out of alignment. */}
+                    <span
+                      className="trunc"
+                      style={{ display: "block", maxWidth: 84, margin: "0 auto" }}
+                      title={o.nameEn}
+                    >
+                      {o.nameEn}
+                    </span>
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {groups.map((group) => (
-                <Fragment key={group.label} label={group.label} span={offices.length + 1}>
+                <GroupRows key={group.label} label={group.label} span={columns.length}>
                   {group.capabilities.map((capability) => (
                     <tr key={capability.id}>
-                      <td>{capability.nameEn}</td>
-                      {offices.map((o) => {
+                      <th scope="row">{capability.nameEn}</th>
+                      {columns.map((o) => {
+                        const k = key(o.code, capability.id);
+                        const on = live.get(k) ?? saved.has(k);
                         const state = capabilityState(grants, o.code, capability.id, decided);
+                        // Never decided is not the same as refused. The cell says so
+                        // rather than rendering an empty box that looks deliberate.
+                        const undecided = !on && state === "UNDECIDED";
                         return (
-                          <td key={o.code} className="cfg-cell">
-                            {state === "GRANTED" ? (
-                              <span className="chip chip--ok">Yes</span>
-                            ) : state === "WITHHELD" ? (
-                              <span className="dim">—</span>
-                            ) : (
-                              // Nobody has decided about this role. Rendering it as a
-                              // refusal would claim a decision that was never taken.
-                              <span className="xs dim">not set</span>
-                            )}
+                          <td key={o.code}>
+                            <button
+                              type="button"
+                              className="cfg-cell"
+                              data-on={on ? "true" : "false"}
+                              aria-pressed={on}
+                              disabled={pending}
+                              title={
+                                undecided
+                                  ? "Nobody has decided about this role yet"
+                                  : on
+                                    ? "Granted"
+                                    : "Not granted"
+                              }
+                              aria-label={`${capability.nameEn} — ${o.nameEn}`}
+                              onClick={() => toggle(o.code, capability.id, !on)}
+                            >
+                              {on ? (
+                                <CheckIcon size={13} strokeWidth={3} />
+                              ) : undecided ? (
+                                <span className="faint" aria-hidden="true">
+                                  ·
+                                </span>
+                              ) : null}
+                            </button>
                           </td>
                         );
                       })}
                     </tr>
                   ))}
-                </Fragment>
+                </GroupRows>
               ))}
             </tbody>
           </table>
@@ -306,7 +421,9 @@ function PermissionsPanel({ offices, capabilities, grants }: UsersData) {
   );
 }
 
-function Fragment({
+/// A group heading spanning the grid, then the capabilities in it. The heading is a
+/// row header with tinted filler cells, which is how the sample keeps it aligned.
+function GroupRows({
   label,
   span,
   children,
@@ -315,12 +432,26 @@ function Fragment({
   span: number;
   children: React.ReactNode;
 }) {
+  const tint = { background: "var(--n-050)" };
   return (
     <>
       <tr>
-        <td colSpan={span} className="lbl">
+        <th
+          scope="row"
+          style={{
+            ...tint,
+            fontWeight: 650,
+            fontSize: "11.5px",
+            textTransform: "uppercase",
+            letterSpacing: "0.04em",
+            color: "var(--ink-3)",
+          }}
+        >
           {label}
-        </td>
+        </th>
+        {Array.from({ length: span }, (_, i) => (
+          <td key={i} style={tint} />
+        ))}
       </tr>
       {children}
     </>
@@ -347,7 +478,7 @@ function DelegationPanel({ people, offices, delegations }: UsersData) {
         to: { kind: "person", name: nameOf(d.toPersonId) },
         what:
           d.capabilityCodes.length === 0
-            ? { kind: "badge", text: "The whole office", tone: "warn" }
+            ? { kind: "badge", text: "The whole role", tone: "warn" }
             : { kind: "badges", items: d.capabilityCodes },
         period: {
           kind: "stack",
@@ -386,7 +517,7 @@ function DelegationPanel({ people, offices, delegations }: UsersData) {
             exportName="delegations"
             searchPlaceholder="Search delegations"
             emptyTitle="Nothing is delegated"
-            emptyBody="Every office is exercised by whoever holds it."
+            emptyBody="Every role is exercised by whoever holds it."
             views={[
               { id: "inforce", label: "In force" },
               { id: "scheduled", label: "Scheduled" },

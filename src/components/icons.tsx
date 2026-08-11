@@ -146,8 +146,13 @@ export const CalendarIcon = (p: IconProps) => (
 
 export const UserIcon = (p: IconProps) => (
   <Icon {...p}>
-    <circle cx="12" cy="8" r="4" />
-    <path d="M4 21a8 8 0 0 1 16 0" />
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8" />
+  </Icon>
+);
+
+export const ShieldIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z" />
   </Icon>
 );
 
