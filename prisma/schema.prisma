@@ -45,6 +45,16 @@ enum Provenance {
 /// What a body does when it sits. Not every gate is an approval: an external funder
 /// may consent to a variation, which is a precondition rather than an authority of
 /// the organisation itself.
+/// The tiers a structure is described in. Which tiers a customer actually uses is
+/// their own arrangement — a small organisation may have no division at all — so the
+/// enum names the vocabulary and the data decides what exists.
+enum OrgUnitKind {
+  COMPANY
+  DIVISION
+  DEPARTMENT
+  SECTION
+}
+
 enum CommitteeAction {
   APPROVES
   RECOMMENDS
@@ -97,6 +107,11 @@ model Organisation {
   fundingRoutes   FundingRoute[]
   sourcingMethods SourcingMethod[]
   contractTypes   ContractType[]
+  orgUnits        OrgUnit[]
+  costCentres     CostCentre[]
+  accountCodes    AccountCode[]
+  sites           Site[]
+  codeFormats     CodeFormat[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -433,6 +448,141 @@ model Vote {
 
   @@unique([decisionId, personId])
   @@index([decisionId])
+}
+
+/// A unit of the organisation: a company, division, department or section.
+///
+/// Effective-dated, because a reorganisation is a revision and not an overwrite. A
+/// requisition raised last year was raised by the structure that existed then, and a
+/// screen that re-renders it under today's departments misreports who asked for it.
+model OrgUnit {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code   String
+  nameEn String
+  nameMs String?
+  kind   OrgUnitKind
+
+  /// The unit this one sits under, by code rather than by id: a restructure that
+  /// replaces a parent row should not orphan its children, and codes are what the
+  /// customer's own charts are drawn in. Null at the top of the structure.
+  parentCode String?
+
+  /// The cost centre a unit's own spending is charged to, where it holds one. Units
+  /// that hold no budget of their own leave this null.
+  costCentreCode String?
+
+  governingSource String     @default("")
+  provenance      Provenance @default(ASSUMED)
+  notes           String     @default("")
+  sortOrder       Int        @default(0)
+
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+
+  @@unique([organisationId, code, effectiveFrom])
+  @@index([organisationId, effectiveFrom])
+  @@index([organisationId, parentCode])
+}
+
+/// What spending is charged against.
+///
+/// The format varies by customer and is held as configuration rather than validated
+/// against a pattern in code — see `CodeFormat`.
+model CostCentre {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code   String
+  nameEn String
+  nameMs String?
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+  sortOrder  Int        @default(0)
+
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+
+  @@unique([organisationId, code, effectiveFrom])
+  @@index([organisationId, effectiveFrom])
+}
+
+/// A line of the chart of accounts. Paired with a cost centre, this is what a budget
+/// availability check is run against.
+model AccountCode {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code   String
+  nameEn String
+  nameMs String?
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+  sortOrder  Int        @default(0)
+
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+
+  @@unique([organisationId, code, effectiveFrom])
+  @@index([organisationId, effectiveFrom])
+}
+
+/// A place goods are delivered to or works are carried out at. Named on requisitions
+/// and on the certificates that follow them.
+model Site {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code    String
+  nameEn  String
+  nameMs  String?
+  address String @default("")
+
+  /// The unit responsible for the site, where one is.
+  orgUnitCode String?
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+  sortOrder  Int        @default(0)
+
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+
+  @@unique([organisationId, code, effectiveFrom])
+  @@index([organisationId, effectiveFrom])
+}
+
+/// The shape a reference code must take.
+///
+/// One customer's cost centre is five dot-separated segments and another's is not.
+/// A pattern compiled into the application is a hard-coded policy value in the same
+/// way a threshold is, so the pattern is configuration and carries an example and a
+/// description for the officer who has to satisfy it.
+model CodeFormat {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// What this format governs — `cost_centre`, `account_code`. A key, never rendered.
+  key String
+
+  /// A regular expression, anchored by the validator rather than by the author.
+  pattern String
+  /// Shown to the officer entering the value. A pattern nobody can read is not a
+  /// requirement anybody can meet.
+  example     String @default("")
+  description String @default("")
+
+  provenance Provenance @default(ASSUMED)
+
+  @@unique([organisationId, key])
 }
 
 /// How a matter is funded.

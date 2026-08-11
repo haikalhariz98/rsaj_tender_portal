@@ -93,6 +93,7 @@ export const CONFIG_SECTIONS: {
         label: "Organisation",
         description: "Companies, divisions, departments, sections, cost centres and sites.",
         icon: "building",
+        built: true,
       },
       {
         href: "/configuration/committees",
