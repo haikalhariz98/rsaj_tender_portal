@@ -107,6 +107,7 @@ export const CONFIG_SECTIONS: {
         label: "Users & roles",
         description: "Officers, the offices they hold and what each may see.",
         icon: "user",
+        built: true,
       },
     ],
   },

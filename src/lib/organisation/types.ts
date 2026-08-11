@@ -12,10 +12,10 @@ export type Provenance = "STATED" | "OBSERVED" | "ASSUMED";
 export type OrgUnitKind = "COMPANY" | "DIVISION" | "DEPARTMENT" | "SECTION";
 
 /// Everything in this module is in force over a period rather than simply present.
-export interface Effective {
-  effectiveFrom: Date;
-  effectiveTo: Date | null;
-}
+/// The rule for what "in force" means is shared, not restated here.
+import type { Effective } from "@/lib/effective";
+
+export type { Effective };
 
 export interface OrgUnit extends Effective {
   code: string;

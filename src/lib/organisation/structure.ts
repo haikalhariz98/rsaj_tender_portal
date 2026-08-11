@@ -5,6 +5,8 @@
  * Nothing here reads a database and nothing here repairs a structure it cannot draw.
  */
 
+import { activeOn } from "@/lib/effective";
+
 import type {
   CodeCheck,
   CodeFormat,
@@ -16,27 +18,9 @@ import type {
   UnitNode,
 } from "./types";
 
-/**
- * In force on a date: begun, and not yet ended.
- *
- * `effectiveTo` is exclusive, matching the authority matrix — a row ending on the
- * first of the month is not in force on the first. Two revisions of the same unit can
- * therefore abut without overlapping by a day.
- */
-export function inForceOn(entry: Effective, on: Date): boolean {
-  if (entry.effectiveFrom > on) return false;
-  return entry.effectiveTo == null || entry.effectiveTo > on;
-}
-
-export function activeOn<T extends Effective & { sortOrder: number }>(
-  entries: readonly T[],
-  on: Date,
-): T[] {
-  // Sorts on sortOrder alone and relies on Array.prototype.sort being stable, so
-  // whatever secondary order the loader supplied survives. See the same note in
-  // `src/lib/reference/vocabulary.ts`.
-  return entries.filter((e) => inForceOn(e, on)).sort((a, b) => a.sortOrder - b.sortOrder);
-}
+// Effective dating is shared: units, role assignments and authority matrices must
+// all agree on what "in force" means. Re-exported so existing callers keep working.
+export { activeOn, inForceOn } from "@/lib/effective";
 
 /**
  * Walk from a unit up to its root, as of a date.
