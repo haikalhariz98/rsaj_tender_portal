@@ -1,19 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 import {
   BellIcon,
-  BuildingIcon,
   ChevronDown,
   ChevronRight,
   HelpCircle,
   SearchIcon,
-  UserIcon,
 } from "@/components/icons";
 import { avatarTone, initials } from "@/lib/format";
-import { STAFF_NAV, SUPPLIER_NAV, workspaceFor } from "@/lib/nav";
+import { workspaceFor } from "@/lib/nav";
 
 /// Path segment to the label the breadcrumb should read. Anything unmapped is a
 /// record reference and is shown as it is.
@@ -40,7 +38,6 @@ export function Topbar({
   user: { name: string; jobTitle: string };
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const workspace = workspaceFor(pathname);
 
   const segments = pathname.split("/").filter(Boolean);
@@ -91,29 +88,8 @@ export function Topbar({
         <kbd className="kbd">Ctrl K</kbd>
       </button>
 
-      {/* Switching workspace navigates: which portal you are in decides what every
-          screen means, so it belongs in the URL rather than in hidden state. */}
-      <div className="personasw" role="group" aria-label="Switch workspace">
-        <span className="personasw__l">Viewing as</span>
-        <button
-          type="button"
-          className="personasw__b"
-          aria-pressed={workspace === "internal"}
-          onClick={() => router.push(STAFF_NAV[0].items[0].href)}
-        >
-          <BuildingIcon size={15} />
-          <span className="personasw__t">{organisation}</span>
-        </button>
-        <button
-          type="button"
-          className="personasw__b"
-          aria-pressed={workspace === "supplier"}
-          onClick={() => router.push(SUPPLIER_NAV[0].items[0].href)}
-        >
-          <UserIcon size={15} />
-          <span className="personasw__t">Supplier</span>
-        </button>
-      </div>
+      {/* The workspace switcher lives at the head of the sidebar, beside the name of
+          the workspace you are in. See docs/notes/design/0001-workspace-switcher.md. */}
 
       <div className="divider--v" />
 
