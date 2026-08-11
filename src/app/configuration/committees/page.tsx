@@ -36,8 +36,7 @@ export default async function CommitteesPage() {
               <span className="badge badge--outline">{committees.length}</span>
             </div>
             <p className="pagehead__sub">
-              The bodies that must sit before a procurement decision can be made. Where a
-              membership or a quorum has not been set, it shows as unset rather than as a guess.
+              Membership, quorum and the decisions each body may take.
             </p>
           </div>
         </div>

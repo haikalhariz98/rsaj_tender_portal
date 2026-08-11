@@ -49,7 +49,9 @@ export default async function Dashboard() {
   }
 
   const now = new Date();
-  const firstName = shell.user.name.split(/\s+/)[0];
+  // Greet by name only when there is a name. Splitting the old placeholder produced
+  // "Good afternoon, Signed".
+  const firstName = shell.user?.name.split(/\s+/)[0] ?? null;
   const waiting = data.queue.length;
   const overdue = data.queue.filter((q) => q.waitingDays > 14).length;
 
@@ -60,20 +62,24 @@ export default async function Dashboard() {
           <div className="pagehead__titles">
             <div className="pagehead__title">
               <h1 className="h1 trunc">
-                {greeting(now)}, {firstName}
+                {firstName ? `${greeting(now)}, ${firstName}` : greeting(now)}
               </h1>
             </div>
             <p className="pagehead__sub clamp2">
               {waiting === 0
-                ? "Nothing is waiting on you right now. Here is where everything stands."
+                ? "Nothing is waiting on you."
                 : `${waiting} ${waiting === 1 ? "item needs" : "items need"} you today.`}
             </p>
             <div className="pagehead__meta">
-              <span className="row">
-                <UserIcon size={14} />
-                {shell.user.jobTitle}
-              </span>
-              <span className="sep">·</span>
+              {shell.user && (
+                <>
+                  <span className="row">
+                    <UserIcon size={14} />
+                    {shell.user.jobTitle}
+                  </span>
+                  <span className="sep">·</span>
+                </>
+              )}
               <span className="row">
                 <CalendarIcon size={14} />
                 {formatDate(now)}

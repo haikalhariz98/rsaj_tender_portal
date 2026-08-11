@@ -9,9 +9,11 @@ import {
   ChevronRight,
   HelpCircle,
   SearchIcon,
+  UserIcon,
 } from "@/components/icons";
 import { avatarTone, initials } from "@/lib/format";
 import { workspaceFor } from "@/lib/nav";
+import type { ShellUser } from "@/lib/shell";
 
 /// Path segment to the label the breadcrumb should read. Anything unmapped is a
 /// record reference and is shown as it is.
@@ -35,7 +37,8 @@ export function Topbar({
   user,
 }: {
   organisation: string;
-  user: { name: string; jobTitle: string };
+  /// Null until authentication exists. Rendered as "not signed in", never as a person.
+  user: ShellUser | null;
 }) {
   const pathname = usePathname();
   const workspace = workspaceFor(pathname);
@@ -104,14 +107,25 @@ export function Topbar({
 
       <div className="divider--v" />
 
-      <button type="button" className="btn btn--ghost" disabled>
-        <span className={`avatar avatar--sm ${avatarTone(user.name)}`}>{initials(user.name)}</span>
-        <span className="col">
-          <span className="xs strong trunc">{user.name}</span>
-          <span className="xs dim trunc">{user.jobTitle}</span>
+      {/* No sign-in yet, so there is nobody to name. An avatar with initials and a
+          job title would assert an identity the system does not have. */}
+      {user ? (
+        <button type="button" className="btn btn--ghost" disabled>
+          <span className={`avatar avatar--sm ${avatarTone(user.name)}`}>{initials(user.name)}</span>
+          <span className="col">
+            <span className="xs strong trunc">{user.name}</span>
+            <span className="xs dim trunc">{user.jobTitle}</span>
+          </span>
+          <ChevronDown size={15} className="dim" />
+        </button>
+      ) : (
+        <span className="row" style={{ gap: 8 }}>
+          <span className="avatar avatar--sm avatar--muted">
+            <UserIcon size={14} />
+          </span>
+          <span className="xs dim trunc">Sign-in not built yet</span>
         </span>
-        <ChevronDown size={15} className="dim" />
-      </button>
+      )}
     </header>
   );
 }

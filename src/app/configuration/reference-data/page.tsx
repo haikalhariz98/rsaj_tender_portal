@@ -56,11 +56,7 @@ export default async function ReferenceDataPage() {
               {!readiness.complete && <span className="badge badge--warn">Incomplete</span>}
             </div>
             <p className="pagehead__sub">
-              The vocabulary the rest of the portal routes on. A funding route decides
-              whether this organisation procures at all; a sourcing method decides what is
-              assembled, who is approached and which body sits. Value thresholds are not
-              here — they belong to the approval matrix, and stating them twice is how the
-              two come to disagree.
+              Sourcing methods, contract types, funding routes and code lists.
             </p>
           </div>
         </div>
@@ -91,7 +87,7 @@ export default async function ReferenceDataPage() {
 
       <Section
         title="Funding routes"
-        blurb="Where the money comes from, and what that changes. Under some routes the organisation appoints nobody."
+        blurb="Where the money comes from. Under some routes the organisation appoints nobody."
         empty="No funding route has been set. Until one is, a matter cannot be classified and the approval matrix cannot say whether a funder's own rules apply."
         count={routes.length}
       >
@@ -148,7 +144,7 @@ export default async function ReferenceDataPage() {
 
       <Section
         title="Sourcing methods"
-        blurb="How suppliers are approached, and what each method implies downstream."
+        blurb="How suppliers are approached. Value bands live in the approval matrix, not here."
         empty="No sourcing method has been set. The approval matrix can still route on value, but nothing yet says how the market is approached."
         count={methods.length}
       >
@@ -194,7 +190,7 @@ export default async function ReferenceDataPage() {
 
       <Section
         title="Contract types"
-        blurb="What is being bought. The classification a long tail of later behaviour keys on."
+        blurb="What is being bought, and what later behaviour keys on."
         empty="No contract type has been set."
         count={types.length}
       >

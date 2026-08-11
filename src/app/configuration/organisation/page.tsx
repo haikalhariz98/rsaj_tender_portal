@@ -68,10 +68,7 @@ export default async function OrganisationPage() {
               )}
             </div>
             <p className="pagehead__sub">
-              The structure every other rule is written against, as it stands today.
-              Everything here is effective-dated: a reorganisation is a revision, so a
-              matter raised last year still shows the unit that raised it rather than
-              whichever department inherited the work.
+              Companies, divisions, departments, sections, cost centres and sites.
             </p>
           </div>
         </div>
@@ -155,7 +152,7 @@ export default async function OrganisationPage() {
 
       <Section
         title="Cost centres"
-        blurb="What spending is charged against. Paired with an account code, this is what a budget check is run on."
+        blurb="What spending is charged against, and what a budget check runs on."
         empty="No cost centre has been set."
         count={costCentres.length}
       >
@@ -183,7 +180,7 @@ export default async function OrganisationPage() {
 
       <Section
         title="Sites"
-        blurb="Places goods are delivered to and works carried out at, as named on requisitions and certificates."
+        blurb="Where goods are delivered and works carried out."
         empty="No site has been set."
         count={sites.length}
       >
@@ -224,7 +221,7 @@ export default async function OrganisationPage() {
 
       <Section
         title="Code formats"
-        blurb="The shape a reference code must take here. Held as configuration, because one customer's cost centre is not another's."
+        blurb="The shape a reference code must take here."
         empty="No code format has been set. Cost centres and account codes will be accepted as typed — the portal cannot say a code is well formed when nobody has said what well formed means."
         count={data.formats.length}
       >

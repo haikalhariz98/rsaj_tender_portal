@@ -1,6 +1,11 @@
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 
+export interface ShellUser {
+  name: string;
+  jobTitle: string;
+}
+
 /**
  * What the application frame needs on every screen: who is signed in, and how much
  * work is outstanding behind each navigation item.
@@ -8,12 +13,18 @@ import { ORGANISATION_CODE } from "@/lib/org";
  * Counts only appear for modules that exist. A nought on an unbuilt module would
  * read as "nothing to do" rather than "nothing here yet".
  *
- * The signed-in officer is a placeholder until authentication arrives; it resolves
- * to whoever is on record, and to a generic label when nobody is.
+ * `user` is null until authentication arrives, and callers must say so plainly. It
+ * used to fall back to a label reading "Signed out / No user configured", which the
+ * dashboard then greeted as a person — "Good afternoon, Signed". Worse, once officers
+ * exist this returned whichever name sorts first and presented them as the signed-in
+ * user: a guess wearing the shape of a fact.
  */
-export async function loadShell() {
+export async function loadShell(): Promise<{
+  user: ShellUser | null;
+  counts: Record<string, number>;
+}> {
   const fallback = {
-    user: { name: "Signed out", jobTitle: "No user configured" },
+    user: null,
     counts: {} as Record<string, number>,
   };
 
@@ -24,12 +35,6 @@ export async function loadShell() {
     });
     if (!org) return fallback;
 
-    const person = await db.person.findFirst({
-      where: { organisationId: org.id, isActive: true },
-      orderBy: { name: "asc" },
-      select: { name: true, jobTitle: true },
-    });
-
     const pending = await db.committeeDecision.count({
       where: {
         outcome: "PENDING",
@@ -38,7 +43,9 @@ export async function loadShell() {
     });
 
     return {
-      user: person ? { name: person.name, jobTitle: person.jobTitle ?? "Officer" } : fallback.user,
+      // Deliberately not "the first person on record". Nobody is signed in until
+      // sign-in exists, and naming an arbitrary officer would misattribute the screen.
+      user: null as ShellUser | null,
       counts: pending > 0 ? { "/": pending } : {},
     };
   } catch {
