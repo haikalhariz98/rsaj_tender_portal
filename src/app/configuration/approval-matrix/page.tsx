@@ -5,7 +5,7 @@ import { RuleChain, type ChainStep } from "@/components/rule-chain";
 import { loadMatrix, NoActiveMatrixError } from "@/lib/authority/load";
 import { formatPercentBand, formatValueBand } from "@/lib/format";
 import { matterLabel, methodLabel } from "@/lib/labels";
-import { ORGANISATION_CODE } from "@/lib/org";
+import { ORGANISATION_CODE, ORGANISATION_NAME } from "@/lib/org";
 import { loadReferenceData } from "@/lib/reference/load";
 import { activeOn } from "@/lib/reference/vocabulary";
 import type { Rule } from "@/lib/authority/types";
@@ -32,11 +32,37 @@ export default async function ApprovalMatrixPage() {
     matrix = await loadMatrix(ORGANISATION_CODE);
   } catch (error) {
     if (!(error instanceof NoActiveMatrixError)) throw error;
+    // The error's own wording names the organisation by code and tells the reader to
+    // seed one — useful in a log, wrong on a screen an officer is looking at.
     return (
-      <div className="empty">
-        <div className="empty__t">No approval matrix loaded</div>
-        <p className="empty__d">{error.message}</p>
-      </div>
+      <>
+        <div className="pagehead">
+          <div className="pagehead__top">
+            <div className="pagehead__titles">
+              <div className="pagehead__title">
+                <h1 className="h1">Approval matrix</h1>
+                <span className="badge badge--warn">Not set</span>
+              </div>
+              <p className="pagehead__sub">
+                Who proposes, who recommends and who approves, at every value.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card__body">
+            <div className="empty">
+              <div className="empty__t">No approval limits are in effect</div>
+              <p className="empty__d">
+                {ORGANISATION_NAME} has no set of authority limits in force today, so the
+                portal cannot say who approves anything. Nothing has been lost — none has
+                been entered yet.
+              </p>
+            </div>
+          </div>
+        </div>
+      </>
     );
   }
 

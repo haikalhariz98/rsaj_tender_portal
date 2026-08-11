@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ComponentType } from "react";
+import { Fragment, type ComponentType } from "react";
 
 import {
   BuildingIcon,
@@ -29,7 +29,14 @@ const ICONS: Record<string, ComponentType<{ size?: number }>> = {
   inbox: InboxIcon,
 };
 
-/// The section navigator that sits beside every Configuration screen.
+/**
+ * The section navigator that sits beside every Configuration screen.
+ *
+ * Group headings and their items are flat siblings of `.subnav`, as in the prototype.
+ * They must not be wrapped in a per-group element: below 1440px the stylesheet turns
+ * `.subnav` into a wrapping row of pills and hides the headings, and a wrapper would
+ * become a flex item of its own — one ragged column per group instead of one row.
+ */
 export function ConfigRail() {
   const pathname = usePathname();
 
@@ -39,7 +46,7 @@ export function ConfigRail() {
         <div className="card__body card__body--flush">
           <nav className="subnav" aria-label="Configuration sections">
             {CONFIG_SECTIONS.map((group) => (
-              <div key={group.group} className="subnav__group-wrap">
+              <Fragment key={group.group}>
                 <div className="subnav__group lbl">{group.group}</div>
                 {group.items.map((item) => {
                   const Ico = ICONS[item.icon] ?? GridIcon;
@@ -57,7 +64,7 @@ export function ConfigRail() {
                     </Link>
                   );
                 })}
-              </div>
+              </Fragment>
             ))}
           </nav>
         </div>
