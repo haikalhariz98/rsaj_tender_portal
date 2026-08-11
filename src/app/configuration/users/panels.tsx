@@ -347,9 +347,9 @@ function PermissionsPanel({ offices, capabilities, grants }: UsersData) {
           </div>
         </div>
       </div>
-      <div className="card__body card__body--flush">
+      <div className="card__body">
         {problem && (
-          <div className="callout callout--err" style={{ margin: "0 14px 10px" }}>
+          <div className="callout callout--err" style={{ marginBottom: 10 }}>
             <span className="callout__ico">
               <AlertTriangle size={17} />
             </span>
@@ -365,13 +365,9 @@ function PermissionsPanel({ offices, capabilities, grants }: UsersData) {
                 <th scope="col">Capability</th>
                 {columns.map((o) => (
                   <th key={o.code} scope="col" style={{ minWidth: 74 }}>
-                    {/* Bounded and truncated. A long role name left to wrap is what
+                    {/* Truncated rather than wrapped. A role name left to wrap is what
                         pushed the columns out of alignment. */}
-                    <span
-                      className="trunc"
-                      style={{ display: "block", maxWidth: 84, margin: "0 auto" }}
-                      title={o.nameEn}
-                    >
+                    <span className="trunc" style={{ display: "block" }} title={o.nameEn}>
                       {o.nameEn}
                     </span>
                   </th>
