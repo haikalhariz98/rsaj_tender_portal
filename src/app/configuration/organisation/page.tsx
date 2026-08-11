@@ -1,4 +1,12 @@
 import { AlertTriangle } from "@/components/icons";
+import {
+  AddCoded,
+  AddOrgUnit,
+  CloseRecord,
+  EditCoded,
+  EditCodeFormat,
+  EditOrgUnit,
+} from "./editors";
 import { loadOrganisationData } from "@/lib/organisation/load";
 import {
   activeOn,
@@ -40,6 +48,7 @@ export default async function OrganisationPage() {
   const { roots, detached, faults } = buildStructure(data.units, on);
   const rows = [...flatten(roots), ...flatten(detached)];
 
+  const activeUnits = activeOn(data.units, on);
   const costCentres = activeOn(data.costCentres, on);
   const accountCodes = activeOn(data.accountCodes, on);
   const sites = activeOn(data.sites, on);
@@ -119,14 +128,16 @@ export default async function OrganisationPage() {
         blurb="Units in force today, with their reporting lines."
         empty="No unit has been set. Until the structure exists, a requisition cannot say which department raised it and the approval matrix has nothing to route on."
         count={rows.length}
+        action={<AddOrgUnit units={activeUnits} centres={costCentres} />}
       >
         <table className="table">
           <colgroup>
-            <col style={{ width: "34%" }} />
-            <col style={{ width: "14%" }} />
-            <col style={{ width: "18%" }} />
+            <col style={{ width: "28%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "13%" }} />
+            <col style={{ width: "12%" }} />
             <col style={{ width: "20%" }} />
-            <col style={{ width: "14%" }} />
           </colgroup>
           <thead>
             <tr>
@@ -135,6 +146,7 @@ export default async function OrganisationPage() {
               <th>Cost centre</th>
               <th>In force from</th>
               <th>Source</th>
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -144,6 +156,8 @@ export default async function OrganisationPage() {
                 node={node}
                 detached={detachedCodes.has(node.unit.code)}
                 format={costCentreFormat}
+                units={activeUnits}
+                centres={costCentres}
               />
             ))}
           </tbody>
@@ -155,12 +169,14 @@ export default async function OrganisationPage() {
         blurb="Cost centres available for charging and budget checks."
         empty="No cost centre has been set."
         count={costCentres.length}
+        action={<AddCoded entity="CostCentre" />}
       >
         <CodeTable
           rows={costCentres}
           format={costCentreFormat}
           formatKey="cost_centre"
           heading="Cost centre"
+          entity="CostCentre"
         />
       </Section>
 
@@ -169,12 +185,14 @@ export default async function OrganisationPage() {
         blurb="Account codes used in budget checks."
         empty="No account code has been set."
         count={accountCodes.length}
+        action={<AddCoded entity="AccountCode" />}
       >
         <CodeTable
           rows={accountCodes}
           format={accountCodeFormat}
           formatKey="account_code"
           heading="Account code"
+          entity="AccountCode"
         />
       </Section>
 
@@ -183,13 +201,15 @@ export default async function OrganisationPage() {
         blurb="Sites named on requisitions and certificates."
         empty="No site has been set."
         count={sites.length}
+        action={<AddCoded entity="Site" units={activeUnits} />}
       >
         <table className="table">
           <colgroup>
-            <col style={{ width: "28%" }} />
-            <col style={{ width: "40%" }} />
-            <col style={{ width: "18%" }} />
-            <col style={{ width: "14%" }} />
+            <col style={{ width: "24%" }} />
+            <col style={{ width: "30%" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "19%" }} />
           </colgroup>
           <thead>
             <tr>
@@ -197,6 +217,7 @@ export default async function OrganisationPage() {
               <th>Address</th>
               <th>Responsible unit</th>
               <th>Source</th>
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -213,6 +234,14 @@ export default async function OrganisationPage() {
                 <td>
                   <ProvenanceChip value={s.provenance} source="" />
                 </td>
+                <td className="right">
+                  <span className="row" style={{ gap: 4, justifyContent: "flex-end" }}>
+                    <EditCoded entity="Site" id={s.id} row={s} units={activeUnits} />
+                    {s.effectiveTo == null && (
+                      <CloseRecord entity="Site" id={s.id} label={s.nameEn} />
+                    )}
+                  </span>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -224,6 +253,12 @@ export default async function OrganisationPage() {
         blurb="Required formats for cost centres and account codes."
         empty="No code format has been set. Cost centres and account codes will be accepted as typed — the portal cannot say a code is well formed when nobody has said what well formed means."
         count={data.formats.length}
+        action={
+          <span className="row" style={{ gap: 6 }}>
+            <EditCodeFormat formatKey="cost_centre" format={costCentreFormat ?? undefined} />
+            <EditCodeFormat formatKey="account_code" format={accountCodeFormat ?? undefined} />
+          </span>
+        }
       >
         <table className="table">
           <colgroup>
@@ -277,10 +312,14 @@ function UnitRow({
   node,
   detached,
   format,
+  units,
+  centres,
 }: {
-  node: UnitNode;
+  node: UnitNode & { unit: { id?: string } };
   detached: boolean;
   format: CodeFormat | null;
+  units: Parameters<typeof EditOrgUnit>[0]["units"];
+  centres: Parameters<typeof EditOrgUnit>[0]["centres"];
 }) {
   const { unit, depth } = node;
   const check = unit.costCentreCode ? checkCode(unit.costCentreCode, format) : null;
@@ -321,6 +360,14 @@ function UnitRow({
       <td>
         <ProvenanceChip value={unit.provenance} source={unit.governingSource} />
       </td>
+      <td className="right">
+        <span className="row" style={{ gap: 4, justifyContent: "flex-end" }}>
+          <EditOrgUnit unit={unit} id={unit.id!} units={units} centres={centres} />
+          {unit.effectiveTo == null && (
+            <CloseRecord entity="OrgUnit" id={unit.id!} label={unit.nameEn} />
+          )}
+        </span>
+      </td>
     </tr>
   );
 }
@@ -330,19 +377,22 @@ function CodeTable({
   format,
   formatKey,
   heading,
+  entity,
 }: {
-  rows: { code: string; nameEn: string; nameMs: string | null; provenance: Provenance }[];
+  rows: (Parameters<typeof EditCoded>[0]["row"] & { id: string })[];
   format: CodeFormat | null;
   formatKey: string;
   heading: string;
+  entity: "CostCentre" | "AccountCode";
 }) {
   return (
     <table className="table">
       <colgroup>
-        <col style={{ width: "22%" }} />
-        <col style={{ width: "44%" }} />
+        <col style={{ width: "18%" }} />
+        <col style={{ width: "34%" }} />
+        <col style={{ width: "15%" }} />
+        <col style={{ width: "13%" }} />
         <col style={{ width: "20%" }} />
-        <col style={{ width: "14%" }} />
       </colgroup>
       <thead>
         <tr>
@@ -350,6 +400,7 @@ function CodeTable({
           <th>Name</th>
           <th>Shape</th>
           <th>Source</th>
+          <th />
         </tr>
       </thead>
       <tbody>
@@ -369,6 +420,14 @@ function CodeTable({
               </td>
               <td>
                 <ProvenanceChip value={r.provenance} source="" />
+              </td>
+              <td className="right">
+                <span className="row" style={{ gap: 4, justifyContent: "flex-end" }}>
+                  <EditCoded entity={entity} id={r.id} row={r} />
+                  {r.effectiveTo == null && (
+                    <CloseRecord entity={entity} id={r.id} label={r.nameEn} />
+                  )}
+                </span>
               </td>
             </tr>
           );
@@ -433,12 +492,15 @@ function Section({
   blurb,
   empty,
   count,
+  action,
   children,
 }: {
   title: string;
   blurb: string;
   empty: string;
   count: number;
+  /// Present even on an empty section: that is where the first entry gets added.
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -446,6 +508,8 @@ function Section({
       <div className="section__head">
         <h2 className="h3">{title}</h2>
         {count > 0 && <span className="badge badge--outline">{count}</span>}
+        <div className="spacer" />
+        {action}
       </div>
       <p className="sm muted" style={{ margin: "0 0 12px" }}>
         {blurb}

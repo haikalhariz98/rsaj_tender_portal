@@ -17,12 +17,15 @@ import type {
  * `buildStructure` narrow to a date, and a matter re-rendered under the structure
  * that raised it needs the rows that have since been superseded.
  */
+/// The loader adds the row id the editors need; the pure types stay free of it.
+export type Stored<T> = T & { id: string };
+
 export interface OrganisationData {
-  units: OrgUnit[];
-  costCentres: CostCentre[];
-  accountCodes: AccountCode[];
-  sites: Site[];
-  formats: CodeFormat[];
+  units: Stored<OrgUnit>[];
+  costCentres: Stored<CostCentre>[];
+  accountCodes: Stored<AccountCode>[];
+  sites: Stored<Site>[];
+  formats: Stored<CodeFormat>[];
 }
 
 const EMPTY: OrganisationData = {
@@ -57,6 +60,7 @@ export async function loadOrganisationData(
 
   return {
     units: units.map((u) => ({
+      id: u.id,
       code: u.code,
       nameEn: u.nameEn,
       nameMs: u.nameMs,
@@ -71,6 +75,7 @@ export async function loadOrganisationData(
       effectiveTo: u.effectiveTo,
     })),
     costCentres: costCentres.map((c) => ({
+      id: c.id,
       code: c.code,
       nameEn: c.nameEn,
       nameMs: c.nameMs,
@@ -81,6 +86,7 @@ export async function loadOrganisationData(
       effectiveTo: c.effectiveTo,
     })),
     accountCodes: accountCodes.map((a) => ({
+      id: a.id,
       code: a.code,
       nameEn: a.nameEn,
       nameMs: a.nameMs,
@@ -91,6 +97,7 @@ export async function loadOrganisationData(
       effectiveTo: a.effectiveTo,
     })),
     sites: sites.map((s) => ({
+      id: s.id,
       code: s.code,
       nameEn: s.nameEn,
       nameMs: s.nameMs,
@@ -103,6 +110,7 @@ export async function loadOrganisationData(
       effectiveTo: s.effectiveTo,
     })),
     formats: formats.map((f) => ({
+      id: f.id,
       key: f.key,
       pattern: f.pattern,
       example: f.example,
