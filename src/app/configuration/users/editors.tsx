@@ -28,7 +28,7 @@ export function AddPerson() {
       action={savePerson}
       submitLabel="Add officer"
       trigger={{ label: "Add officer", icon: true }}
-      size=" modal--sm"
+      size="sm"
     />
   );
 }
@@ -40,7 +40,7 @@ export function EditPerson({ person }: { person: Person }) {
       fields={[{ kind: "hidden", name: "id" }, ...personFields]}
       action={savePerson}
       trigger={{ label: "Edit", className: "btn btn--sm btn--ghost" }}
-      size=" modal--sm"
+      size="sm"
       values={{
         id: person.id,
         name: person.name,
@@ -175,7 +175,7 @@ export function AddAssignment({ people, offices }: { people: Person[]; offices: 
       action={saveAssignment}
       submitLabel="Assign"
       trigger={{ label: "Assign office", icon: true }}
-      size=" modal--sm"
+      size="sm"
     />
   );
 }
@@ -195,7 +195,7 @@ export function EditAssignment({
       fields={[{ kind: "hidden", name: "id" }, ...assignmentFields(people, offices)]}
       action={saveAssignment}
       trigger={{ label: "Edit", className: "btn btn--sm btn--ghost" }}
-      size=" modal--sm"
+      size="sm"
       values={{
         id: assignment.id,
         personId: assignment.personId,
@@ -219,7 +219,7 @@ export function EndAssignment({ id, label }: { id: string; label: string }) {
       submitLabel="End it"
       destructive={{ reasonLabel: "Why is it ending?" }}
       trigger={{ label: "End", className: "btn btn--sm btn--ghost" }}
-      size=" modal--sm"
+      size="sm"
     />
   );
 }

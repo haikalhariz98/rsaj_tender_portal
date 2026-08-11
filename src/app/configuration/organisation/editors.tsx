@@ -88,7 +88,7 @@ export function AddOrgUnit({ units, centres }: { units: OrgUnit[]; centres: Cost
       action={saveOrgUnit}
       submitLabel="Add unit"
       trigger={{ label: "Add unit", icon: true }}
-      size=" modal--lg"
+      size="lg"
     />
   );
 }
@@ -110,7 +110,7 @@ export function EditOrgUnit({
       fields={[{ kind: "hidden", name: "id" }, ...unitFields(true, { units, centres })]}
       action={saveOrgUnit}
       trigger={{ label: "Edit", className: "btn btn--sm btn--ghost" }}
-      size=" modal--lg"
+      size="lg"
       values={{
         id,
         code: unit.code,
@@ -295,7 +295,7 @@ export function CloseRecord({
       submitLabel="Close"
       destructive={{ reasonLabel: "Why is it being closed?" }}
       trigger={{ label: "Close", className: "btn btn--sm btn--ghost" }}
-      size=" modal--sm"
+      size="sm"
     />
   );
 }

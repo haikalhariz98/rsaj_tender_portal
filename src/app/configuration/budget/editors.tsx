@@ -149,7 +149,7 @@ export function AddCommitment({ allocations }: { allocations: Allocation[] }) {
       action={saveCommitment}
       submitLabel="Record it"
       trigger={{ label: "Record commitment", icon: true }}
-      size=" modal--sm"
+      size="sm"
     />
   );
 }
@@ -165,7 +165,7 @@ export function ReleaseCommitment({ id, reference }: { id: string; reference: st
       submitLabel="Release"
       destructive={{ reasonLabel: "Why is it being released?" }}
       trigger={{ label: "Release", className: "btn btn--sm btn--ghost" }}
-      size=" modal--sm"
+      size="sm"
     />
   );
 }
@@ -181,7 +181,7 @@ export function EndAllocation({ id, label }: { id: string; label: string }) {
       submitLabel="End it"
       destructive={{ reasonLabel: "Why is it ending?" }}
       trigger={{ label: "End", className: "btn btn--sm btn--ghost" }}
-      size=" modal--sm"
+      size="sm"
     />
   );
 }

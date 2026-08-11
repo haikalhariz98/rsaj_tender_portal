@@ -71,7 +71,7 @@ export function RecordEditor({
   trigger,
   submitLabel = "Save",
   destructive,
-  size = "",
+  size = "md",
 }: {
   title: string;
   description?: string;
@@ -83,13 +83,14 @@ export function RecordEditor({
   submitLabel?: string;
   /// Requires a reason before the button enables. Used for deletion.
   destructive?: { reasonLabel: string };
-  size?: "" | " modal--sm" | " modal--lg";
+  /// Drawer width. The form opens from the right, as the prototype does.
+  size?: "sm" | "md" | "lg" | "xl";
 }) {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<FormState>(EMPTY_FORM_STATE);
   const [pending, startTransition] = useTransition();
   const [reason, setReason] = useState("");
-  const dialog = useRef<HTMLDivElement>(null);
+  const dialog = useRef<HTMLElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
 
   // A save that succeeded closes the form; one that failed stays open holding its
@@ -138,15 +139,25 @@ export function RecordEditor({
       </button>
 
       {open && (
-        <div className="scrim" onPointerDown={(e) => e.target === e.currentTarget && setOpen(false)}>
-          <div
-            className={`modal${size}`}
+        <div
+          className="scrim scrim--right"
+          onPointerDown={(e) => e.target === e.currentTarget && setOpen(false)}
+        >
+          <aside
+            className={`drawer${size === "md" ? "" : ` drawer--${size}`}`}
             role="dialog"
             aria-modal="true"
             aria-label={title}
             ref={dialog}
           >
-            <form action={submit}>
+            {/* The drawer is the flex column that .ov__body scrolls inside, but the
+                form sits between them — so it has to carry the column too. Without
+                this the body has no height to scroll within and long forms are cut
+                off with no scrollbar. */}
+            <form
+              action={submit}
+              style={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}
+            >
               <div className="ov__head">
                 <div className="grow" style={{ minWidth: 0 }}>
                   <div className="h2 trunc">{title}</div>
@@ -235,7 +246,7 @@ export function RecordEditor({
                 </button>
               </div>
             </form>
-          </div>
+          </aside>
         </div>
       )}
     </>

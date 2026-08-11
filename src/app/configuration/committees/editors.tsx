@@ -89,7 +89,7 @@ export function AddCommittee() {
       action={saveCommittee}
       submitLabel="Add committee"
       trigger={{ label: "Add committee", icon: true }}
-      size=" modal--lg"
+      size="lg"
     />
   );
 }
@@ -118,7 +118,7 @@ export function EditCommittee({ committee }: { committee: CommitteeValues }) {
       fields={[{ kind: "hidden", name: "id" }, ...committeeFields(true)]}
       action={saveCommittee}
       trigger={{ label: "Edit", className: "btn btn--sm btn--ghost" }}
-      size=" modal--lg"
+      size="lg"
       values={{
         id: committee.id,
         code: committee.code,
@@ -211,7 +211,7 @@ export function AddMember({
       action={saveMember}
       submitLabel="Add seat"
       trigger={{ label: "Add seat", icon: true }}
-      size=" modal--lg"
+      size="lg"
     />
   );
 }
@@ -245,7 +245,7 @@ export function EditMember({
       fields={[{ kind: "hidden", name: "id" }, ...memberFields(people, offices)]}
       action={saveMember}
       trigger={{ label: "Edit", className: "btn btn--sm btn--ghost" }}
-      size=" modal--lg"
+      size="lg"
       values={{
         id: member.id,
         committeeId: member.committeeId,
@@ -274,7 +274,7 @@ export function VacateSeat({ id, label }: { id: string; label: string }) {
       submitLabel="Vacate"
       destructive={{ reasonLabel: "Why is it being vacated?" }}
       trigger={{ label: "Vacate", className: "btn btn--sm btn--ghost" }}
-      size=" modal--sm"
+      size="sm"
     />
   );
 }

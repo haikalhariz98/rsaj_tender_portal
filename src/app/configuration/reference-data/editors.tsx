@@ -160,7 +160,7 @@ export function AddSourcingMethod() {
       action={saveSourcingMethod}
       submitLabel="Add method"
       trigger={{ label: "Add method", icon: true }}
-      size=" modal--lg"
+      size="lg"
     />
   );
 }
@@ -172,7 +172,7 @@ export function EditSourcingMethod({ method, id }: { method: SourcingMethod; id:
       fields={[{ kind: "hidden", name: "id" }, ...methodFields(true)]}
       action={saveSourcingMethod}
       trigger={{ label: "Edit", className: "btn btn--sm btn--ghost" }}
-      size=" modal--lg"
+      size="lg"
       values={{
         id,
         code: method.code,
@@ -205,7 +205,7 @@ export function AddContractType() {
       action={saveContractType}
       submitLabel="Add type"
       trigger={{ label: "Add type", icon: true }}
-      size=" modal--sm"
+      size="sm"
     />
   );
 }
@@ -217,7 +217,7 @@ export function EditContractType({ type, id }: { type: ContractType; id: string 
       fields={[{ kind: "hidden", name: "id" }, ...contractFields(true)]}
       action={saveContractType}
       trigger={{ label: "Edit", className: "btn btn--sm btn--ghost" }}
-      size=" modal--sm"
+      size="sm"
       values={{
         id,
         code: type.code,
@@ -255,7 +255,7 @@ export function RetireEntry({
       submitLabel="Retire"
       destructive={{ reasonLabel: "Why is it being retired?" }}
       trigger={{ label: "Retire", className: "btn btn--sm btn--ghost" }}
-      size=" modal--sm"
+      size="sm"
     />
   );
 }

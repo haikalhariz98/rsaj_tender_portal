@@ -74,7 +74,7 @@ export function AddMatrix() {
       action={saveMatrix}
       submitLabel="Add issue"
       trigger={{ label: "Add issue", icon: true }}
-      size=" modal--lg"
+      size="lg"
     />
   );
 }
@@ -101,7 +101,7 @@ export function EditMatrix({ matrix }: { matrix: MatrixValues }) {
       fields={[{ kind: "hidden", name: "id" }, ...matrixFields]}
       action={saveMatrix}
       trigger={{ label: "Edit thresholds", className: "btn btn--sm" }}
-      size=" modal--lg"
+      size="lg"
       values={{
         id: matrix.id,
         label: matrix.label,
@@ -223,7 +223,7 @@ export function AddRule({
       action={saveRule}
       submitLabel="Add rule"
       trigger={{ label: "Add rule", icon: true }}
-      size=" modal--lg"
+      size="lg"
     />
   );
 }
@@ -265,7 +265,7 @@ export function EditRule({
       fields={[{ kind: "hidden", name: "id" }, ...ruleFields(offices)]}
       action={saveRule}
       trigger={{ label: "Edit", className: "btn btn--sm btn--ghost" }}
-      size=" modal--lg"
+      size="lg"
       values={{
         id: rule.id,
         authorityMatrixId: matrixId,
@@ -327,7 +327,7 @@ export function AddRecommender({
       action={saveRecommender}
       submitLabel="Add recommender"
       trigger={{ label: "Add recommender", className: "btn btn--sm btn--ghost" }}
-      size=" modal--sm"
+      size="sm"
     />
   );
 }
