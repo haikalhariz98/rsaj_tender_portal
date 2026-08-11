@@ -121,6 +121,8 @@ model Organisation {
   sites             Site[]
   codeFormats       CodeFormat[]
   budgetAllocations BudgetAllocation[]
+  capabilities      Capability[]
+  delegations       Delegation[]
   numberingSeries   NumberingSeries[]
   documentClasses   DocumentClass[]
   documentTemplates DocumentTemplate[]
@@ -139,6 +141,19 @@ model Person {
   name     String
   email    String?
   jobTitle String?
+  /// Shown on the People list. A label rather than a link to OrgUnit, because the
+  /// prototype lists people whose department is recorded but whose unit is not.
+  department String?
+  telephone  String?
+
+  /// The office this person is presented as holding in the portal. Distinct from the
+  /// authority level, which is what the approval matrix routes on: a person may sit
+  /// at one authority level while doing a different job in the portal.
+  portalRoleCode String?
+
+  /// False while they are away. Cover is a Delegation; this is only the signal that
+  /// one is needed.
+  isAvailable Boolean @default(true)
   /// False for a leaver. Never delete a person — decisions they voted on must keep
   /// resolving to a name.
   isActive Boolean @default(true)
@@ -148,6 +163,8 @@ model Person {
   meetingAttendance MeetingAttendance[]
   votes             Vote[]
   auditEntries      AuditEntry[]
+  delegationsGiven  Delegation[] @relation("DelegationFrom")
+  delegationsTaken  Delegation[] @relation("DelegationTo")
 
   @@unique([organisationId, staffNo])
   @@index([organisationId, name])
@@ -187,6 +204,14 @@ model AuthorityRole {
   nameEn      String
   nameMs      String
   isCommittee Boolean @default(false)
+
+  /// Which workspace the role belongs to — the internal portal or the supplier one.
+  /// A label, since a customer may run more than two.
+  workspace String @default("")
+
+  /// What the role is worth in the delegated authority, as the customer names it.
+  /// Held apart from `code` because several roles can sit at one authority level.
+  authorityLevel String @default("")
 
   /// When the holder is absent, authority reverts UPWARD to this office. It never
   /// passes down automatically.
@@ -648,6 +673,98 @@ model NotificationRule {
   sortOrder  Int        @default(0)
 
   @@unique([organisationId, eventKey])
+}
+
+/// Something an office may DO, as distinct from what it approves.
+///
+/// Approval routing comes from the authority matrix and answers "who signs this
+/// matter at this value". A capability answers a different question — whether an
+/// office may raise a requisition, certify a payment, or configure the portal at all.
+/// Which capabilities exist is the customer's own arrangement, so they are rows.
+model Capability {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code   String
+  nameEn String
+  nameMs String?
+
+  /// How the permissions grid is grouped. A label, not an enum: a customer who
+  /// groups by division rather than by process should not need a migration.
+  groupLabel String @default("")
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+  sortOrder  Int        @default(0)
+
+  roles RoleCapability[]
+
+  @@unique([organisationId, code])
+  @@index([organisationId, sortOrder])
+}
+
+/// One tick in the permissions grid.
+///
+/// A row exists only where the office holds the capability. Absence therefore means
+/// "not granted", and an office with no rows at all means nobody has decided yet —
+/// which the screen must not render as a deliberate deny.
+model RoleCapability {
+  id String @id @default(cuid())
+
+  capabilityId String
+  capability   Capability @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+
+  /// Matches AuthorityRole.code, by code rather than key for the same reason rules do.
+  roleCode String
+
+  grantedOn DateTime @default(now())
+
+  @@unique([capabilityId, roleCode])
+  @@index([roleCode])
+}
+
+/// One officer standing in for another, for a period.
+///
+/// Not the same as escalation. AuthorityRole.escalatesToCode moves authority UPWARD
+/// when a holder cannot act, and applies to the office. A delegation is the holder's
+/// own act: they hand named capabilities to a named person for named dates, possibly
+/// under a ceiling. Recorded rather than inferred, because a decision signed under a
+/// delegation has to name the delegation that permitted it.
+model Delegation {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  fromPersonId String
+  fromPerson   Person @relation("DelegationFrom", fields: [fromPersonId], references: [id], onDelete: Restrict)
+  toPersonId   String
+  toPerson     Person @relation("DelegationTo", fields: [toPersonId], references: [id], onDelete: Restrict)
+
+  /// The office the authority is being delegated out of.
+  roleCode String
+
+  /// What is handed over, by Capability.code. Empty means the whole office, which is
+  /// a different and larger act — the screen says which.
+  capabilityCodes String[]
+
+  /// A ceiling on what may be approved under the delegation, where one is set. Null
+  /// means no ceiling was set, which is not the same as a ceiling of zero.
+  valueCeiling Decimal? @db.Decimal(18, 2)
+
+  reason String @default("")
+
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+
+  /// True where the delegate may not delegate onward. Some offices forbid it outright.
+  noSubDelegation Boolean @default(true)
+
+  provenance Provenance @default(ASSUMED)
+
+  @@index([organisationId, effectiveFrom])
+  @@index([fromPersonId])
+  @@index([toPersonId])
 }
 
 /// What changed, when, and — once there is anybody to name — who changed it.

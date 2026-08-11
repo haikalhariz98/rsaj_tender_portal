@@ -7,12 +7,8 @@ import { ChevronDown, ChevronRight, DownloadIcon, SearchIcon } from "@/component
 import { avatarTone, formatRM, initials } from "@/lib/format";
 
 /**
- * The list chrome around every table: a view selector, search, sort, row selection
- * and CSV export.
- *
- * The prototype also carried a comfortable/compact density switch. It was dropped:
- * it appeared above every list, applied to that list alone, and was not a setting
- * anyone was asking a procurement screen for. Rows render at the one height.
+ * The list chrome around every table: a view selector, search, sort, row selection,
+ * a density switch and CSV export.
  *
  * Cells are described as data rather than passed as rendered nodes, so a server
  * component can hand rows straight over and the client can still sort and search
@@ -147,6 +143,7 @@ export function DataList({
   emptyBody?: string;
   exportName?: string;
 }) {
+  const [compact, setCompact] = useState(false);
   const [view, setView] = useState("all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(null);
@@ -294,6 +291,24 @@ export function DataList({
         <div className="spacer" />
 
         <div className="dl__tools">
+          <div className="segmented" role="group" aria-label="Row density">
+            <button
+              type="button"
+              className="segmented__b"
+              aria-pressed={!compact}
+              onClick={() => setCompact(false)}
+            >
+              Comfortable
+            </button>
+            <button
+              type="button"
+              className="segmented__b"
+              aria-pressed={compact}
+              onClick={() => setCompact(true)}
+            >
+              Compact
+            </button>
+          </div>
           <button
             type="button"
             className="iconbtn iconbtn--bordered"
@@ -325,7 +340,7 @@ export function DataList({
         </div>
       ) : (
         <div className="tablewrap dl__scroll">
-          <table className="table">
+          <table className={`table${compact ? " table--compact" : ""}`}>
             <colgroup>
               <col className="sel" style={{ width: 42 }} />
               {columns.map((c) => (

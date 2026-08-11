@@ -77,6 +77,10 @@ async function wipe() {
   await db.costCentre.deleteMany({ where: demo });
   await db.orgUnit.deleteMany({ where: demo });
 
+  await db.delegation.deleteMany({ where: demo });
+  await db.roleCapability.deleteMany({ where: demo });
+  await db.capability.deleteMany({ where: demo });
+
   await db.roleAssignment.deleteMany({ where: demo });
   await db.authorityRole.deleteMany({ where: demo });
   await db.person.deleteMany({ where: demo });
@@ -143,23 +147,25 @@ async function load() {
   // ------------------------------------------------------------------- people
   await db.person.createMany({
     data: [
-      { id: `${P}p1`, organisationId, staffNo: "D001", name: "Aisyah Rahman", email: "aisyah.rahman@demo.invalid", jobTitle: "Chief Executive" },
-      { id: `${P}p2`, organisationId, staffNo: "D002", name: "Bala Krishnan", email: "bala.krishnan@demo.invalid", jobTitle: "Finance Director" },
-      { id: `${P}p3`, organisationId, staffNo: "D003", name: "Chen Wei Ling", email: "chen.weiling@demo.invalid", jobTitle: "Head of Contract & Procurement" },
-      { id: `${P}p4`, organisationId, staffNo: "D004", name: "Daniel Anak Jelani", email: "daniel.jelani@demo.invalid", jobTitle: "Procurement Executive" },
-      { id: `${P}p5`, organisationId, staffNo: "D005", name: "Eng Siew Mei", email: "siewmei.eng@demo.invalid", jobTitle: "Section Head, Pre-contract" },
-      { id: `${P}p6`, organisationId, staffNo: "D006", name: "Faridah Osman", email: "faridah.osman@demo.invalid", jobTitle: "Regional Manager, North", isActive: false },
+      { id: `${P}p1`, organisationId, staffNo: "D001", name: "Aisyah Rahman", email: "aisyah.rahman@demo.invalid", jobTitle: "Chief Executive", department: "Executive", telephone: "07-000 0001", portalRoleCode: "CEO" },
+      { id: `${P}p2`, organisationId, staffNo: "D002", name: "Bala Krishnan", email: "bala.krishnan@demo.invalid", jobTitle: "Finance Director", department: "Finance", telephone: "07-000 0002", portalRoleCode: "FD" },
+      { id: `${P}p3`, organisationId, staffNo: "D003", name: "Chen Wei Ling", email: "chen.weiling@demo.invalid", jobTitle: "Head of Contract & Procurement", department: "Contract & Procurement", telephone: "07-000 0003", portalRoleCode: "HOD_CP" },
+      { id: `${P}p4`, organisationId, staffNo: "D004", name: "Daniel Anak Jelani", email: "daniel.jelani@demo.invalid", jobTitle: "Procurement Executive", department: "Contract & Procurement", telephone: "07-000 0004", portalRoleCode: "CP_EXEC" },
+      { id: `${P}p5`, organisationId, staffNo: "D005", name: "Eng Siew Mei", email: "siewmei.eng@demo.invalid", jobTitle: "Section Head, Pre-contract", department: "Contract & Procurement", telephone: "07-000 0005", portalRoleCode: "SEC_PRE", isAvailable: false },
+      { id: `${P}p6`, organisationId, staffNo: "D006", name: "Faridah Osman", email: "faridah.osman@demo.invalid", jobTitle: "Regional Manager, North", department: "Northern Region", portalRoleCode: "REQUESTOR", isActive: false },
     ],
   });
 
   await db.authorityRole.createMany({
     data: [
-      { id: `${P}r1`, organisationId, code: "CEO", nameEn: "Chief Executive", nameMs: "Ketua Pegawai Eksekutif", escalatesToCode: "BOARD", sortOrder: 1 },
-      { id: `${P}r2`, organisationId, code: "FD", nameEn: "Finance Director", nameMs: "Pengarah Kewangan", escalatesToCode: "CEO", selfApprovalEscalatesToCode: "CEO", sortOrder: 2 },
-      { id: `${P}r3`, organisationId, code: "HOD_CP", nameEn: "Head of Contract & Procurement", nameMs: "Ketua Kontrak & Perolehan", escalatesToCode: "FD", selfApprovalEscalatesToCode: "FD", sortOrder: 3 },
-      { id: `${P}r4`, organisationId, code: "SEC_PRE", nameEn: "Section Head, Pre-contract", nameMs: "Ketua Seksyen Pra-kontrak", escalatesToCode: "HOD_CP", sortOrder: 4 },
-      { id: `${P}r5`, organisationId, code: "BOARD", nameEn: "Board of Directors", nameMs: "Lembaga Pengarah", isCommittee: true, sortOrder: 5 },
-      { id: `${P}r6`, organisationId, code: "TENDER_BOARD", nameEn: "Tender Board", nameMs: "Lembaga Tender", isCommittee: true, sortOrder: 6 },
+      { id: `${P}r1`, organisationId, code: "CEO", nameEn: "Chief Executive", nameMs: "Ketua Pegawai Eksekutif", workspace: "Internal", authorityLevel: "Chief Executive", escalatesToCode: "BOARD", sortOrder: 1 },
+      { id: `${P}r2`, organisationId, code: "FD", nameEn: "Finance Director", nameMs: "Pengarah Kewangan", workspace: "Internal", authorityLevel: "Functional Director", escalatesToCode: "CEO", selfApprovalEscalatesToCode: "CEO", sortOrder: 2 },
+      { id: `${P}r3`, organisationId, code: "HOD_CP", nameEn: "Head of Contract & Procurement", nameMs: "Ketua Kontrak & Perolehan", workspace: "Internal", authorityLevel: "Head of Department", escalatesToCode: "FD", selfApprovalEscalatesToCode: "FD", sortOrder: 3 },
+      { id: `${P}r4`, organisationId, code: "SEC_PRE", nameEn: "Section Head, Pre-contract", nameMs: "Ketua Seksyen Pra-kontrak", workspace: "Internal", authorityLevel: "Contract & Procurement", escalatesToCode: "HOD_CP", sortOrder: 4 },
+      { id: `${P}r5`, organisationId, code: "BOARD", nameEn: "Board of Directors", nameMs: "Lembaga Pengarah", isCommittee: true, workspace: "Internal", authorityLevel: "Board", sortOrder: 5 },
+      { id: `${P}r6`, organisationId, code: "TENDER_BOARD", nameEn: "Tender Board", nameMs: "Lembaga Tender", isCommittee: true, workspace: "Internal", authorityLevel: "Committee", sortOrder: 6 },
+      { id: `${P}r7`, organisationId, code: "CP_EXEC", nameEn: "Procurement Executive", nameMs: "Eksekutif Perolehan", workspace: "Internal", authorityLevel: "Contract & Procurement", escalatesToCode: "SEC_PRE", sortOrder: 7 },
+      { id: `${P}r8`, organisationId, code: "REQUESTOR", nameEn: "Requestor", nameMs: "Pemohon", workspace: "Internal", authorityLevel: "Head of Department", sortOrder: 8 },
     ],
   });
 
@@ -169,6 +175,112 @@ async function load() {
       { id: `${P}a2`, personId: `${P}p2`, roleCode: "FD", effectiveFrom: from },
       { id: `${P}a3`, personId: `${P}p3`, roleCode: "HOD_CP", effectiveFrom: from },
       { id: `${P}a4`, personId: `${P}p5`, roleCode: "SEC_PRE", effectiveFrom: from },
+    ],
+  });
+
+
+  // ------------------------------------------------------------- capabilities
+  // Deliberately uneven: a grid where every office holds everything teaches nobody
+  // anything, and hides the case where a capability is held by nobody at all.
+  await db.capability.createMany({
+    data: [
+      { id: `${P}cap1`, organisationId, code: "raise_requirement", nameEn: "Raise a requirement", groupLabel: "Sourcing", provenance: "STATED", sortOrder: 1 },
+      { id: `${P}cap2`, organisationId, code: "approve_requirement", nameEn: "Approve a requirement", groupLabel: "Sourcing", provenance: "STATED", sortOrder: 2 },
+      { id: `${P}cap3`, organisationId, code: "run_sourcing", nameEn: "Run a sourcing exercise", groupLabel: "Sourcing", provenance: "STATED", sortOrder: 3 },
+      { id: `${P}cap4`, organisationId, code: "open_bids", nameEn: "Open bids", groupLabel: "Sourcing", provenance: "STATED", sortOrder: 4 },
+      { id: `${P}cap5`, organisationId, code: "evaluate_bids", nameEn: "Evaluate bids", groupLabel: "Sourcing", provenance: "STATED", sortOrder: 5 },
+      { id: `${P}cap6`, organisationId, code: "recommend_award", nameEn: "Recommend an award", groupLabel: "Sourcing", provenance: "STATED", sortOrder: 6 },
+      { id: `${P}cap7`, organisationId, code: "approve_award", nameEn: "Approve an award", groupLabel: "Sourcing", provenance: "STATED", sortOrder: 7 },
+      { id: `${P}cap8`, organisationId, code: "sign_contract", nameEn: "Sign a contract", groupLabel: "Contracts and projects", provenance: "STATED", sortOrder: 8 },
+      { id: `${P}cap9`, organisationId, code: "issue_certificate", nameEn: "Issue a certificate", groupLabel: "Contracts and projects", provenance: "STATED", sortOrder: 9 },
+      { id: `${P}cap10`, organisationId, code: "certify_payment", nameEn: "Certify a payment", groupLabel: "Contracts and projects", provenance: "STATED", sortOrder: 10 },
+      { id: `${P}cap11`, organisationId, code: "approve_variation", nameEn: "Approve a variation order", groupLabel: "Contracts and projects", provenance: "STATED", sortOrder: 11 },
+      { id: `${P}cap12`, organisationId, code: "grant_eot", nameEn: "Grant an extension of time", groupLabel: "Contracts and projects", provenance: "STATED", sortOrder: 12 },
+      { id: `${P}cap13`, organisationId, code: "waive_damages", nameEn: "Waive delay damages", groupLabel: "Contracts and projects", provenance: "STATED", sortOrder: 13 },
+      { id: `${P}cap14`, organisationId, code: "terminate_contract", nameEn: "Terminate a contract", groupLabel: "Contracts and projects", provenance: "STATED", sortOrder: 14 },
+      { id: `${P}cap15`, organisationId, code: "register_supplier", nameEn: "Register a supplier", groupLabel: "Suppliers and documents", provenance: "STATED", sortOrder: 15 },
+      { id: `${P}cap16`, organisationId, code: "verify_documents", nameEn: "Verify supplier documents", groupLabel: "Suppliers and documents", provenance: "STATED", sortOrder: 16 },
+      { id: `${P}cap17`, organisationId, code: "suspend_supplier", nameEn: "Suspend a supplier", groupLabel: "Suppliers and documents", provenance: "STATED", sortOrder: 17 },
+      { id: `${P}cap18`, organisationId, code: "release_document", nameEn: "Release a controlled document", groupLabel: "Suppliers and documents", provenance: "STATED", sortOrder: 18 },
+      { id: `${P}cap19`, organisationId, code: "record_performance", nameEn: "Record contractor performance", groupLabel: "Suppliers and documents", provenance: "STATED", sortOrder: 19 },
+      { id: `${P}cap20`, organisationId, code: "configure_portal", nameEn: "Configure the portal", groupLabel: "System", provenance: "STATED", sortOrder: 20 },
+      { id: `${P}cap21`, organisationId, code: "manage_budget", nameEn: "Manage the budget", groupLabel: "System", provenance: "STATED", sortOrder: 21 },
+      { id: `${P}cap22`, organisationId, code: "manage_users", nameEn: "Manage users and roles", groupLabel: "System", provenance: "STATED", sortOrder: 22 },
+      { id: `${P}cap23`, organisationId, code: "delegate_authority", nameEn: "Delegate authority", groupLabel: "System", provenance: "STATED", sortOrder: 23 },
+      { id: `${P}cap24`, organisationId, code: "view_audit", nameEn: "View the audit trail", groupLabel: "System", provenance: "STATED", sortOrder: 24 },
+    ],
+  });
+
+  await db.roleCapability.createMany({
+    data: [
+      { id: `${P}rc1`, capabilityId: `${P}cap2`, roleCode: "CEO" },
+      { id: `${P}rc2`, capabilityId: `${P}cap7`, roleCode: "CEO" },
+      { id: `${P}rc3`, capabilityId: `${P}cap8`, roleCode: "CEO" },
+      { id: `${P}rc4`, capabilityId: `${P}cap11`, roleCode: "CEO" },
+      { id: `${P}rc5`, capabilityId: `${P}cap12`, roleCode: "CEO" },
+      { id: `${P}rc6`, capabilityId: `${P}cap13`, roleCode: "CEO" },
+      { id: `${P}rc7`, capabilityId: `${P}cap14`, roleCode: "CEO" },
+      { id: `${P}rc8`, capabilityId: `${P}cap23`, roleCode: "CEO" },
+      { id: `${P}rc9`, capabilityId: `${P}cap24`, roleCode: "CEO" },
+      { id: `${P}rc10`, capabilityId: `${P}cap2`, roleCode: "FD" },
+      { id: `${P}rc11`, capabilityId: `${P}cap6`, roleCode: "FD" },
+      { id: `${P}rc12`, capabilityId: `${P}cap7`, roleCode: "FD" },
+      { id: `${P}rc13`, capabilityId: `${P}cap8`, roleCode: "FD" },
+      { id: `${P}rc14`, capabilityId: `${P}cap10`, roleCode: "FD" },
+      { id: `${P}rc15`, capabilityId: `${P}cap11`, roleCode: "FD" },
+      { id: `${P}rc16`, capabilityId: `${P}cap21`, roleCode: "FD" },
+      { id: `${P}rc17`, capabilityId: `${P}cap23`, roleCode: "FD" },
+      { id: `${P}rc18`, capabilityId: `${P}cap24`, roleCode: "FD" },
+      { id: `${P}rc19`, capabilityId: `${P}cap1`, roleCode: "HOD_CP" },
+      { id: `${P}rc20`, capabilityId: `${P}cap2`, roleCode: "HOD_CP" },
+      { id: `${P}rc21`, capabilityId: `${P}cap3`, roleCode: "HOD_CP" },
+      { id: `${P}rc22`, capabilityId: `${P}cap4`, roleCode: "HOD_CP" },
+      { id: `${P}rc23`, capabilityId: `${P}cap5`, roleCode: "HOD_CP" },
+      { id: `${P}rc24`, capabilityId: `${P}cap6`, roleCode: "HOD_CP" },
+      { id: `${P}rc25`, capabilityId: `${P}cap9`, roleCode: "HOD_CP" },
+      { id: `${P}rc26`, capabilityId: `${P}cap15`, roleCode: "HOD_CP" },
+      { id: `${P}rc27`, capabilityId: `${P}cap16`, roleCode: "HOD_CP" },
+      { id: `${P}rc28`, capabilityId: `${P}cap19`, roleCode: "HOD_CP" },
+      { id: `${P}rc29`, capabilityId: `${P}cap24`, roleCode: "HOD_CP" },
+      { id: `${P}rc30`, capabilityId: `${P}cap1`, roleCode: "SEC_PRE" },
+      { id: `${P}rc31`, capabilityId: `${P}cap3`, roleCode: "SEC_PRE" },
+      { id: `${P}rc32`, capabilityId: `${P}cap4`, roleCode: "SEC_PRE" },
+      { id: `${P}rc33`, capabilityId: `${P}cap5`, roleCode: "SEC_PRE" },
+      { id: `${P}rc34`, capabilityId: `${P}cap9`, roleCode: "SEC_PRE" },
+      { id: `${P}rc35`, capabilityId: `${P}cap16`, roleCode: "SEC_PRE" },
+      { id: `${P}rc36`, capabilityId: `${P}cap1`, roleCode: "CP_EXEC" },
+      { id: `${P}rc37`, capabilityId: `${P}cap3`, roleCode: "CP_EXEC" },
+      { id: `${P}rc38`, capabilityId: `${P}cap5`, roleCode: "CP_EXEC" },
+      { id: `${P}rc39`, capabilityId: `${P}cap15`, roleCode: "CP_EXEC" },
+      { id: `${P}rc40`, capabilityId: `${P}cap16`, roleCode: "CP_EXEC" },
+      { id: `${P}rc41`, capabilityId: `${P}cap18`, roleCode: "CP_EXEC" },
+      { id: `${P}rc42`, capabilityId: `${P}cap1`, roleCode: "REQUESTOR" },
+      { id: `${P}rc43`, capabilityId: `${P}cap7`, roleCode: "TENDER_BOARD" },
+      { id: `${P}rc44`, capabilityId: `${P}cap7`, roleCode: "BOARD" },
+      { id: `${P}rc45`, capabilityId: `${P}cap14`, roleCode: "BOARD" },
+    ],
+  });
+
+  await db.delegation.createMany({
+    data: [
+      {
+        id: `${P}dg1`, organisationId,
+        fromPersonId: `${P}p5`, toPersonId: `${P}p4`, roleCode: "SEC_PRE",
+        capabilityCodes: ["run_sourcing", "open_bids"],
+        valueCeiling: "50000.00",
+        reason: "Annual leave",
+        effectiveFrom: day("2026-08-04"), effectiveTo: day("2026-08-18"),
+        provenance: "STATED",
+      },
+      {
+        // No ceiling set, which is not a ceiling of zero — the screen says so.
+        id: `${P}dg2`, organisationId,
+        fromPersonId: `${P}p2`, toPersonId: `${P}p3`, roleCode: "FD",
+        capabilityCodes: [],
+        reason: "Overseas conference",
+        effectiveFrom: day("2026-09-01"), effectiveTo: day("2026-09-08"),
+        provenance: "OBSERVED",
+      },
     ],
   });
 
