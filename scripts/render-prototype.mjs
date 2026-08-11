@@ -55,7 +55,9 @@ window.IntersectionObserver ||= class {
 const settle = (ms = 1200) => new Promise((r) => setTimeout(r, ms));
 await settle(4000);
 
-const CLICKABLE = "button, a, [role=button], .navitem, .subnav__i, .tab, .hoverrow, .stat--clickable";
+// `[data-clickable]` is how the prototype marks a table row that opens a record.
+const CLICKABLE =
+  "button, a, [role=button], [data-clickable], .navitem, .subnav__i, .tab, .hoverrow, .stat--clickable";
 
 function clickByText(text) {
   const wanted = text.toLowerCase();
@@ -76,7 +78,10 @@ for (const text of clicks) {
   await settle();
 }
 
-const root = window.document.querySelector(".app") ?? window.document.body;
+// A drawer or dialog is rendered outside .app, so dumping the app alone would lose
+// exactly the thing a click was meant to open.
+const overlay = window.document.querySelector("body > .scrim, body > .drawer, body > .modal");
+const root = overlay ? window.document.body : (window.document.querySelector(".app") ?? window.document.body);
 mkdirSync(outDir, { recursive: true });
 const out = join(outDir, `rendered-${name}.html`);
 writeFileSync(out, root.outerHTML, "utf8");

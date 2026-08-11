@@ -21,7 +21,8 @@
     "postinstall": "prisma generate",
     "demo:load": "tsx prisma/demo.ts load",
     "demo:wipe": "tsx prisma/demo.ts wipe",
-    "compare": "node scripts/compare-screen.mjs"
+    "compare": "node scripts/compare-screen.mjs",
+    "compare:drawer": "node scripts/compare-drawer.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",

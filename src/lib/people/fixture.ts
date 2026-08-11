@@ -16,9 +16,11 @@ const person = (id: string, name: string, isActive = true): Person => ({
   name,
   email: null,
   jobTitle: null,
+  jobTitleMs: null,
   department: null,
   telephone: null,
   portalRoleCode: null,
+  authorityLevel: null,
   isAvailable: true,
   isActive,
 });

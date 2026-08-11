@@ -2,11 +2,25 @@
 
 import { DataList, type Row } from "@/components/data-list";
 import { Tabs } from "@/components/tabs";
-import { byGroup, capabilityState, decidedRoles, type Capability, type Grant } from "@/lib/people/capabilities";
+import {
+  byGroup,
+  capabilitiesForRoles,
+  capabilityState,
+  decidedRoles,
+  type Capability,
+  type Grant,
+} from "@/lib/people/capabilities";
 import { statusOf, type Delegation } from "@/lib/people/delegation";
 import type { Office, Person } from "@/lib/people/types";
 
-import { AddAssignment, AddOffice, AddPerson, EditOffice, EditPerson } from "./editors";
+import {
+  AddAssignment,
+  AddOffice,
+  AddPerson,
+  EditOffice,
+  EditPerson,
+  LeaverToggle,
+} from "./editors";
 
 /**
  * The four tabs of Users & roles, in the prototype's own order and shape.
@@ -42,9 +56,14 @@ export function UsersTabs(data: UsersData) {
 
 // ------------------------------------------------------------------------ People
 
-function PeoplePanel({ people, offices }: UsersData) {
+function PeoplePanel({ people, offices, holdings, capabilities, grants, delegations }: UsersData) {
   const officeName = (code: string | null) =>
     code ? (offices.find((o) => o.code === code)?.nameEn ?? code) : "";
+  const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? "Not on record";
+
+  // The vocabulary of authority levels is whatever the customer has put on their
+  // roles. Never a list in code — a level nobody configured is not a level.
+  const authorityLevels = [...new Set(offices.map((o) => o.authorityLevel).filter(Boolean))].sort();
 
   const rows: Row[] = people.map((p) => ({
     id: p.id,
@@ -73,7 +92,7 @@ function PeoplePanel({ people, offices }: UsersData) {
           <div className="card__sub trunc">Everyone on record, and how to reach them.</div>
         </div>
         <div className="row">
-          <AddPerson />
+          <AddPerson offices={offices} authorityLevels={authorityLevels} />
         </div>
       </div>
       <div className="card__body card__body--flush">
@@ -102,7 +121,26 @@ function PeoplePanel({ people, offices }: UsersData) {
           rows={rows}
           actions={(id) => {
             const person = people.find((p) => p.id === id);
-            return person ? <EditPerson person={person} /> : null;
+            if (!person) return null;
+            const roleCodes = [
+              ...holdings.filter((h) => h.personId === id).map((h) => h.roleCode),
+              ...(person.portalRoleCode ? [person.portalRoleCode] : []),
+            ];
+            return (
+              <>
+                <EditPerson
+                  person={person}
+                  offices={offices}
+                  authorityLevels={authorityLevels}
+                  capabilities={capabilitiesForRoles(capabilities, grants, roleCodes)}
+                  delegations={delegations.filter(
+                    (d) => d.fromPersonId === id || d.toPersonId === id,
+                  )}
+                  nameOf={nameOf}
+                />
+                <LeaverToggle person={person} />
+              </>
+            );
           }}
         />
       </div>
@@ -152,6 +190,10 @@ function RolesPanel({ offices, people, holdings, grants }: UsersData) {
           </div>
         </div>
         <div className="row">
+          {/* The sample has no way to appoint anybody — its roles are already held.
+              Ours must: a rule routes to a role, and only an assignment turns that
+              into a signatory. */}
+          <AddAssignment people={people} offices={offices} />
           <AddOffice offices={offices} />
         </div>
       </div>
@@ -404,5 +446,3 @@ function DelegationPanel({ people, offices, delegations }: UsersData) {
     </div>
   );
 }
-
-export { AddAssignment };

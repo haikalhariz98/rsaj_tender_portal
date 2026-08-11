@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   byGroup,
+  capabilitiesForRoles,
   capabilityState,
   codesFor,
   countFor,
@@ -79,6 +80,39 @@ describe("capabilities nobody holds", () => {
 
   it("finds all of them when nothing is granted", () => {
     expect(unheldCapabilities(CAPS, []).map((c) => c.code)).toHaveLength(CAPS.length);
+  });
+});
+
+describe("what a person may do", () => {
+  it("unions the offices they hold", () => {
+    expect(capabilitiesForRoles(CAPS, GRANTS, ["HOD", "FD"]).map((c) => c.code)).toEqual([
+      "raise",
+      "approve",
+      "certify",
+    ]);
+  });
+
+  it("counts a capability twice held only once", () => {
+    // CLERK and HOD both grant "raise". Holding two offices is not two capabilities.
+    expect(capabilitiesForRoles(CAPS, GRANTS, ["CLERK", "HOD"]).map((c) => c.code)).toEqual([
+      "raise",
+      "approve",
+    ]);
+  });
+
+  it("returns nothing for someone holding no office", () => {
+    expect(capabilitiesForRoles(CAPS, GRANTS, [])).toEqual([]);
+  });
+
+  it("ignores an office nobody has granted anything", () => {
+    expect(capabilitiesForRoles(CAPS, GRANTS, ["NOBODY"])).toEqual([]);
+  });
+
+  it("lists them in configured order, not the order the offices came in", () => {
+    expect(capabilitiesForRoles(CAPS, GRANTS, ["FD", "CLERK"]).map((c) => c.code)).toEqual([
+      "raise",
+      "certify",
+    ]);
   });
 });
 

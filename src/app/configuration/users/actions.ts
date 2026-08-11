@@ -26,6 +26,13 @@ const NO_ORG: FormState = {
 
 // ------------------------------------------------------------------------ people
 
+/**
+ * Save a person.
+ *
+ * Only the fields this form posts are written. `staffNo` and `isActive` are not on
+ * the drawer, and an unchecked box posts nothing — so reading them here would clear
+ * a staff number and mark every edited person a leaver.
+ */
 export async function savePerson(_prev: FormState, data: FormData): Promise<FormState> {
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
@@ -33,25 +40,38 @@ export async function savePerson(_prev: FormState, data: FormData): Promise<Form
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
 
-  const staffNo = r.optionalText("staffNo");
-  if (staffNo) {
-    const clash = await db.person.findFirst({
-      where: { organisationId: orgId, staffNo, ...(id ? { NOT: { id } } : {}) },
-      select: { name: true },
-    });
-    if (clash) r.reject("staffNo", `That staff number already belongs to ${clash.name}.`);
-  }
-
   const v = {
     name: r.text("name", "Name", { required: true, max: 160 }),
-    staffNo,
-    email: r.optionalText("email"),
+    email: r.text("email", "Email", { required: true, max: 160 }),
     jobTitle: r.optionalText("jobTitle"),
-    isActive: r.bool("isActive"),
+    jobTitleMs: r.optionalText("jobTitleMs"),
+    portalRoleCode: r.optionalText("portalRoleCode"),
+    authorityLevel: r.optionalText("authorityLevel"),
+    department: r.optionalText("department"),
+    telephone: r.optionalText("telephone"),
+    // The switch reads "Currently away", so it is stored inverted. Naming the input
+    // after what it says beats a box whose label and value disagree.
+    isAvailable: !r.bool("isAway"),
   };
 
   if (v.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email)) {
     r.reject("email", "That does not look like an email address.");
+  }
+
+  if (v.email) {
+    const clash = await db.person.findFirst({
+      where: { organisationId: orgId, email: v.email, ...(id ? { NOT: { id } } : {}) },
+      select: { name: true },
+    });
+    if (clash) r.reject("email", `That address is already on record for ${clash.name}.`);
+  }
+
+  if (v.portalRoleCode) {
+    const role = await db.authorityRole.findFirst({
+      where: { organisationId: orgId, code: v.portalRoleCode },
+      select: { id: true },
+    });
+    if (!role) r.reject("portalRoleCode", "That role is no longer configured.");
   }
 
   const parsed = r.finish(v);
@@ -73,6 +93,44 @@ export async function savePerson(_prev: FormState, data: FormData): Promise<Form
       tx.person.update({ where: { id }, data: v }),
     );
   }
+
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/**
+ * Mark someone as having left, or put them back.
+ *
+ * Its own action rather than a field on the drawer: it is not an edit to their
+ * details, it stops every office they hold from resolving, and the sample's drawer
+ * has no control for it. A reason is required — nobody is signed in, so it is the
+ * only account of why.
+ */
+export async function setPersonActive(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+
+  const id = String(data.get("id") ?? "");
+  const reason = String(data.get("reason") ?? "").trim();
+  if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
+
+  const isActive = String(data.get("isActive") ?? "") !== "";
+
+  const before = await db.person.findFirst({
+    where: { id, organisationId: orgId },
+    select: { id: true, name: true, isActive: true },
+  });
+  if (!before) return { ok: false, message: "That person is no longer on record." };
+  if (before.isActive === isActive) {
+    return { ok: false, message: "Somebody has already changed that. Close and look again." };
+  }
+
+  await auditedUpdate(
+    { organisationId: orgId, entity: "Person", entityId: id, entityLabel: before.name, reason },
+    { isActive: before.isActive },
+    { isActive },
+    (tx) => tx.person.update({ where: { id }, data: { isActive } }),
+  );
 
   revalidatePath(PATH);
   return { ok: true };

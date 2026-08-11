@@ -464,7 +464,38 @@ export function DataList({
             </thead>
             <tbody>
               {paged.map((row) => (
-                <tr key={row.id} data-selected={selected.has(row.id) ? "true" : undefined}>
+                <tr
+                  key={row.id}
+                  data-selected={selected.has(row.id) ? "true" : undefined}
+                  // The prototype opens a record from anywhere in the row, not only
+                  // from the button at the end. The button is the one that owns the
+                  // drawer, so the row defers to it rather than holding its own copy
+                  // of when a record is open.
+                  data-clickable={actions ? "true" : undefined}
+                  tabIndex={actions ? 0 : undefined}
+                  onClick={
+                    actions
+                      ? (e) => {
+                          if ((e.target as HTMLElement).closest("button,a,input,label")) return;
+                          e.currentTarget
+                            .querySelector<HTMLButtonElement>(".rowactions button")
+                            ?.click();
+                        }
+                      : undefined
+                  }
+                  onKeyDown={
+                    actions
+                      ? (e) => {
+                          if (e.key !== "Enter" && e.key !== " ") return;
+                          if (e.target !== e.currentTarget) return;
+                          e.preventDefault();
+                          e.currentTarget
+                            .querySelector<HTMLButtonElement>(".rowactions button")
+                            ?.click();
+                        }
+                      : undefined
+                  }
+                >
                   {selectable && (
                     <td className="sel">
                       <label className="check">

@@ -151,6 +151,25 @@ export const UserIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const SaveIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2M17 21v-8H7v8M7 3v5h8" />
+  </Icon>
+);
+
+export const PencilIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z" />
+  </Icon>
+);
+
+/// Two arrows passing each other: one officer standing in for another.
+export const SwapIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M7 4 4 7l3 3M4 7h13a3 3 0 0 1 3 3M17 20l3-3-3-3M20 17H7a3 3 0 0 1-3-3" />
+  </Icon>
+);
+
 export const RowsWideIcon = (p: IconProps) => (
   <Icon {...p}>
     <rect x="3" y="4" width="18" height="7" rx="1" />

@@ -147,12 +147,12 @@ async function load() {
   // ------------------------------------------------------------------- people
   await db.person.createMany({
     data: [
-      { id: `${P}p1`, organisationId, staffNo: "D001", name: "Aisyah Rahman", email: "aisyah.rahman@demo.invalid", jobTitle: "Chief Executive", department: "Executive", telephone: "07-000 0001", portalRoleCode: "CEO" },
-      { id: `${P}p2`, organisationId, staffNo: "D002", name: "Bala Krishnan", email: "bala.krishnan@demo.invalid", jobTitle: "Finance Director", department: "Finance", telephone: "07-000 0002", portalRoleCode: "FD" },
-      { id: `${P}p3`, organisationId, staffNo: "D003", name: "Chen Wei Ling", email: "chen.weiling@demo.invalid", jobTitle: "Head of Contract & Procurement", department: "Contract & Procurement", telephone: "07-000 0003", portalRoleCode: "HOD_CP" },
-      { id: `${P}p4`, organisationId, staffNo: "D004", name: "Daniel Anak Jelani", email: "daniel.jelani@demo.invalid", jobTitle: "Procurement Executive", department: "Contract & Procurement", telephone: "07-000 0004", portalRoleCode: "CP_EXEC" },
-      { id: `${P}p5`, organisationId, staffNo: "D005", name: "Eng Siew Mei", email: "siewmei.eng@demo.invalid", jobTitle: "Section Head, Pre-contract", department: "Contract & Procurement", telephone: "07-000 0005", portalRoleCode: "SEC_PRE", isAvailable: false },
-      { id: `${P}p6`, organisationId, staffNo: "D006", name: "Faridah Osman", email: "faridah.osman@demo.invalid", jobTitle: "Regional Manager, North", department: "Northern Region", portalRoleCode: "REQUESTOR", isActive: false },
+      { id: `${P}p1`, organisationId, staffNo: "D001", name: "Aisyah Rahman", email: "aisyah.rahman@demo.invalid", jobTitle: "Chief Executive", jobTitleMs: "Ketua Pegawai Eksekutif", authorityLevel: "Chief Executive", department: "Executive", telephone: "07-000 0001", portalRoleCode: "CEO" },
+      { id: `${P}p2`, organisationId, staffNo: "D002", name: "Bala Krishnan", email: "bala.krishnan@demo.invalid", jobTitle: "Finance Director", jobTitleMs: "Pengarah Kewangan", authorityLevel: "Functional Director", department: "Finance", telephone: "07-000 0002", portalRoleCode: "FD" },
+      { id: `${P}p3`, organisationId, staffNo: "D003", name: "Chen Wei Ling", email: "chen.weiling@demo.invalid", jobTitle: "Head of Contract & Procurement", jobTitleMs: "Ketua Kontrak & Perolehan", authorityLevel: "Head of Department", department: "Contract & Procurement", telephone: "07-000 0003", portalRoleCode: "HOD_CP" },
+      { id: `${P}p4`, organisationId, staffNo: "D004", name: "Daniel Anak Jelani", email: "daniel.jelani@demo.invalid", jobTitle: "Procurement Executive", jobTitleMs: "Eksekutif Perolehan", authorityLevel: "Contract & Procurement", department: "Contract & Procurement", telephone: "07-000 0004", portalRoleCode: "CP_EXEC" },
+      { id: `${P}p5`, organisationId, staffNo: "D005", name: "Eng Siew Mei", email: "siewmei.eng@demo.invalid", jobTitle: "Section Head, Pre-contract", jobTitleMs: "Ketua Seksyen Pra-kontrak", authorityLevel: "Contract & Procurement", department: "Contract & Procurement", telephone: "07-000 0005", portalRoleCode: "SEC_PRE", isAvailable: false },
+      { id: `${P}p6`, organisationId, staffNo: "D006", name: "Faridah Osman", email: "faridah.osman@demo.invalid", jobTitle: "Regional Manager, North", jobTitleMs: "Pengurus Wilayah, Utara", authorityLevel: "Head of Department", department: "Northern Region", portalRoleCode: "REQUESTOR", isActive: false },
     ],
   });
 

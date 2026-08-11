@@ -84,6 +84,25 @@ export function countFor(grants: readonly Grant[], roleCode: string): number {
   return grants.filter((g) => g.roleCode === roleCode).length;
 }
 
+/**
+ * What a person may do, through every office they hold.
+ *
+ * The union across their offices, deduplicated: holding two offices that both grant
+ * the same capability is one capability, not two. Order follows the configured order
+ * so the drawer lists them the way the permissions grid does.
+ */
+export function capabilitiesForRoles(
+  capabilities: readonly Capability[],
+  grants: readonly Grant[],
+  roleCodes: readonly string[],
+): Capability[] {
+  const codes = new Set(roleCodes.filter(Boolean));
+  const held = new Set(grants.filter((g) => codes.has(g.roleCode)).map((g) => g.capabilityId));
+  return [...capabilities]
+    .filter((c) => held.has(c.id))
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.nameEn.localeCompare(b.nameEn));
+}
+
 /// The codes an office holds, for checking a delegation against them.
 export function codesFor(
   capabilities: readonly Capability[],

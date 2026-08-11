@@ -141,6 +141,9 @@ model Person {
   name     String
   email    String?
   jobTitle String?
+  /// The same job title as the customer writes it in Malay. Held rather than
+  /// translated: it is the title on the officer's own appointment letter.
+  jobTitleMs String?
   /// Shown on the People list. A label rather than a link to OrgUnit, because the
   /// prototype lists people whose department is recorded but whose unit is not.
   department String?
@@ -150,6 +153,12 @@ model Person {
   /// authority level, which is what the approval matrix routes on: a person may sit
   /// at one authority level while doing a different job in the portal.
   portalRoleCode String?
+
+  /// Where this person sits in the delegated authority. Recorded on the person as
+  /// well as on the role because the two genuinely differ: an officer can act at a
+  /// level their portal role does not imply. The vocabulary is whatever levels the
+  /// customer has put on their roles — never a list in code.
+  authorityLevel String?
 
   /// False while they are away. Cover is a Delegation; this is only the signal that
   /// one is needed.

@@ -16,11 +16,15 @@ export interface Person {
   name: string;
   email: string | null;
   jobTitle: string | null;
+  /// The same title in Malay, as written on the appointment letter.
+  jobTitleMs: string | null;
   department: string | null;
   telephone: string | null;
   /// The office this person is presented as holding in the portal, which is not
   /// necessarily the office the approval matrix routes to.
   portalRoleCode: string | null;
+  /// Where they sit in the delegated authority. Blank where nobody has said.
+  authorityLevel: string | null;
   /// False while they are away. Cover is a Delegation; this is only the signal.
   isAvailable: boolean;
   /// False for a leaver. A person is never deleted: decisions they voted on must keep

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 
-import { AlertTriangle, PlusIcon, XIcon } from "@/components/icons";
+import { AlertTriangle, PlusIcon, SaveIcon, XIcon } from "@/components/icons";
 
 /**
  * The form chrome around every configuration record.
@@ -65,7 +65,11 @@ export type SaveAction = (prev: FormState, data: FormData) => Promise<FormState>
 export function RecordEditor({
   title,
   description,
+  icon,
   fields,
+  columns = 1,
+  identity,
+  sections,
   action,
   values,
   trigger,
@@ -75,11 +79,21 @@ export function RecordEditor({
 }: {
   title: string;
   description?: string;
+  /// Shown left of the title, as the prototype's drawer head has it.
+  icon?: ReactNode;
   fields: Field[];
+  /// Two lays the inputs out in the prototype's `.grid.g2`; one keeps the stack.
+  columns?: 1 | 2;
+  /// Rendered above the fields — the avatar and email row on a person.
+  identity?: ReactNode;
+  /// Rendered below the fields. Read-only sections the record implies rather than
+  /// sets: what a role grants, who is covering. Composed by the caller so it can
+  /// match the sample's markup exactly instead of through an abstraction.
+  sections?: ReactNode;
   action: SaveAction;
   /// Current values, when editing. Absent means a new record and empty inputs.
   values?: Record<string, string | boolean | null>;
-  trigger: { label: string; className?: string; icon?: boolean };
+  trigger: { label: string; className?: string; icon?: boolean; iconOnly?: ReactNode };
   submitLabel?: string;
   /// Requires a reason before the button enables. Used for deletion.
   destructive?: { reasonLabel: string };
@@ -128,14 +142,16 @@ export function RecordEditor({
       <button
         type="button"
         ref={opener}
-        className={trigger.className ?? "btn btn--sm"}
+        className={trigger.className ?? (trigger.iconOnly ? "iconbtn iconbtn--sm" : "btn btn--sm")}
+        aria-label={trigger.iconOnly ? trigger.label : undefined}
+        title={trigger.iconOnly ? trigger.label : undefined}
         onClick={() => {
           setState(EMPTY_FORM_STATE);
           setOpen(true);
         }}
       >
         {trigger.icon && <PlusIcon size={15} />}
-        {trigger.label}
+        {trigger.iconOnly ?? trigger.label}
       </button>
 
       {open && (
@@ -159,8 +175,11 @@ export function RecordEditor({
               style={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}
             >
               <div className="ov__head">
+                {icon}
                 <div className="grow" style={{ minWidth: 0 }}>
-                  <div className="h2 trunc">{title}</div>
+                  <div className="row" style={{ gap: 8 }}>
+                    <div className="h2 trunc">{title}</div>
+                  </div>
                   {description && (
                     <div className="sm muted" style={{ marginTop: 2 }}>
                       {description}
@@ -178,7 +197,7 @@ export function RecordEditor({
               </div>
 
               <div className="ov__body">
-                <div className="stack stack--md">
+                <div className={columns === 2 ? "stack stack--lg" : "stack stack--md"}>
                   {state.message && (
                     <div className="callout callout--err">
                       <span className="callout__ico">
@@ -190,27 +209,42 @@ export function RecordEditor({
                     </div>
                   )}
 
-                  {fields.map((field) =>
-                    field.kind === "hidden" ? (
+                  {identity}
+                  {identity && <div className="divider" />}
+
+                  {/* Hidden inputs carry no layout, so they stay outside the grid —
+                      inside it each one would take a cell and offset the pairs. */}
+                  {fields
+                    .filter((f) => f.kind === "hidden")
+                    .map((field) => (
                       <input
                         key={field.name}
                         type="hidden"
                         name={field.name}
                         value={String(values?.[field.name] ?? "")}
                       />
-                    ) : field.kind === "note" ? (
-                      <p key={field.text} className="sm muted" style={{ margin: 0 }}>
-                        {field.text}
-                      </p>
-                    ) : (
-                      <FieldInput
-                        key={field.name}
-                        field={field}
-                        value={values?.[field.name] ?? null}
-                        error={state.errors?.[field.name]}
-                      />
-                    ),
-                  )}
+                    ))}
+
+                  <FieldSet columns={columns}>
+                    {fields
+                      .filter((f) => f.kind !== "hidden")
+                      .map((field) =>
+                        field.kind === "note" ? (
+                          <p key={field.text} className="sm muted" style={{ margin: 0 }}>
+                            {field.text}
+                          </p>
+                        ) : (
+                          <FieldInput
+                            key={field.name}
+                            field={field}
+                            value={values?.[field.name] ?? null}
+                            error={state.errors?.[field.name]}
+                          />
+                        ),
+                      )}
+                  </FieldSet>
+
+                  {sections}
 
                   {destructive && (
                     <label className="field">
@@ -234,6 +268,7 @@ export function RecordEditor({
               </div>
 
               <div className="ov__foot">
+                <div className="spacer" />
                 <button type="button" className="btn" onClick={() => setOpen(false)}>
                   Cancel
                 </button>
@@ -242,6 +277,7 @@ export function RecordEditor({
                   className={`btn ${destructive ? "btn--danger" : "btn--primary"}`}
                   disabled={pending || blocked}
                 >
+                  {!destructive && <SaveIcon size={15} />}
                   {pending ? "Saving…" : submitLabel}
                 </button>
               </div>
@@ -250,6 +286,21 @@ export function RecordEditor({
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * The inputs, laid out.
+ *
+ * One column stays a Fragment rather than a wrapper: the fields are direct children
+ * of `.stack`, and a div between them would swallow its gap.
+ */
+function FieldSet({ columns, children }: { columns: 1 | 2; children: ReactNode }) {
+  if (columns === 1) return <>{children}</>;
+  return (
+    <div className="grid g2" style={{ gap: 14 }}>
+      {children}
+    </div>
   );
 }
 
@@ -267,7 +318,12 @@ function FieldInput({
 
   const label = (
     <span className="field__lbl">
-      {field.label} {required && <span className="field__req">*</span>}
+      {field.label}
+      {required && (
+        <span className="field__req" aria-hidden="true">
+          *
+        </span>
+      )}
     </span>
   );
 
@@ -285,11 +341,15 @@ function FieldInput({
   );
 
   if (field.kind === "switch") {
+    // The sample's toggle: a track and knob, not a tick box.
     return (
-      <label className="check">
-        <input type="checkbox" name={field.name} defaultChecked={value === true} />
-        <span className="check__txt">
-          {field.label}
+      <label className="switch">
+        <input type="checkbox" role="switch" name={field.name} defaultChecked={value === true} />
+        <span className="switch__track">
+          <span className="switch__knob" />
+        </span>
+        <span style={{ minWidth: 0 }}>
+          <span className="check__txt">{field.label}</span>
           {hint && <span className="check__hint">{hint}</span>}
         </span>
       </label>
