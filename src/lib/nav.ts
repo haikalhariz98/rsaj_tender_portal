@@ -119,6 +119,7 @@ export const CONFIG_SECTIONS: {
         label: "Budget",
         description: "Allocations, commitments and the balance a requirement is checked against.",
         icon: "chart",
+        built: true,
       },
       {
         href: "/configuration/approval-matrix",

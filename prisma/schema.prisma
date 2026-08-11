@@ -118,8 +118,13 @@ model Organisation {
   auditEntries    AuditEntry[]
   costCentres     CostCentre[]
   accountCodes    AccountCode[]
-  sites           Site[]
-  codeFormats     CodeFormat[]
+  sites             Site[]
+  codeFormats       CodeFormat[]
+  budgetAllocations BudgetAllocation[]
+  numberingSeries   NumberingSeries[]
+  documentClasses   DocumentClass[]
+  documentTemplates DocumentTemplate[]
+  notificationRules NotificationRule[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -457,6 +462,192 @@ model Vote {
 
   @@unique([decisionId, personId])
   @@index([decisionId])
+}
+
+/// When a reference series starts counting again.
+enum NumberingReset {
+  NEVER
+  CALENDAR_YEAR
+  FINANCIAL_YEAR
+}
+
+/// Money set aside, against a cost centre and an account code.
+///
+/// A requisition is checked against this before it may proceed. The period is
+/// effective-dated rather than a bare year, because a customer's financial year is
+/// not necessarily the calendar's and a supplementary allocation arrives mid-period.
+model BudgetAllocation {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// Matches CostCentre.code and AccountCode.code. Held by code rather than by key
+  /// because both are effective-dated and an allocation must keep naming the pair it
+  /// was raised against.
+  costCentreCode  String
+  accountCodeCode String
+
+  /// What the customer calls this period — a financial year, a supplementary vote.
+  periodLabel String
+
+  amount Decimal @db.Decimal(18, 2)
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+  sortOrder  Int        @default(0)
+
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+
+  commitments BudgetCommitment[]
+
+  @@index([organisationId, effectiveFrom])
+  @@index([organisationId, costCentreCode, accountCodeCode])
+}
+
+/// Money already spoken for against an allocation.
+///
+/// Released rather than deleted: a commitment that was raised and then stood down is
+/// part of how the balance moved, and an audit that cannot show it is incomplete.
+model BudgetCommitment {
+  id           String           @id @default(cuid())
+  allocationId String
+  allocation   BudgetAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
+
+  /// The matter this was committed for, in the customer's own reference.
+  reference   String
+  description String  @default("")
+  amount      Decimal @db.Decimal(18, 2)
+
+  committedOn DateTime  @default(now())
+  releasedOn  DateTime?
+  releaseNote String    @default("")
+
+  @@index([allocationId])
+}
+
+/// How a reference is formed.
+///
+/// A reference is the primary business key of a matter, so it is configured rather
+/// than improvised. The pattern is written with tokens — {SERIAL}, {YEAR} — and the
+/// segments around them are the customer's own.
+model NumberingSeries {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// What this series numbers — `requisition`, `exercise`, `contract`, `certificate`.
+  key    String
+  nameEn String
+
+  /// Tokens available: {SERIAL}, {YEAR}, {SHORTYEAR}, {MONTH}. Everything else is
+  /// literal.
+  pattern String
+
+  /// How wide the serial is padded. 3 gives 001.
+  padding Int @default(3)
+
+  resetOn NumberingReset @default(CALENDAR_YEAR)
+  /// The month a financial year starts, where the reset follows one. 1 is January.
+  financialYearStartMonth Int @default(1)
+
+  /// The next serial to issue. Never decremented and never reused: a gap is recorded
+  /// rather than closed up.
+  nextSerial Int @default(1)
+  /// The period `nextSerial` belongs to, so a reset happens once rather than on every
+  /// allocation within the new period.
+  serialPeriod String @default("")
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+
+  @@unique([organisationId, key])
+}
+
+/// A kind of document, and what the organisation must do with it.
+model DocumentClass {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code   String
+  nameEn String
+  nameMs String?
+
+  /// Null means nobody has set a retention period. That is not the same as zero, and
+  /// the system must never dispose of a record on an assumption.
+  retentionMonths Int?
+
+  /// Whether issued copies are numbered and recalled.
+  controlledCopy Boolean @default(false)
+  /// Whether release outside the organisation needs approval.
+  releaseNeedsApproval Boolean @default(false)
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+  sortOrder  Int        @default(0)
+
+  templates DocumentTemplate[]
+
+  @@unique([organisationId, code])
+}
+
+/// A form the portal issues, and the printed original it has to stand next to.
+model DocumentTemplate {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code   String
+  nameEn String
+  nameMs String?
+
+  /// The code printed on the controlled form, and the revision it is at.
+  formCode     String    @default("")
+  revisionDate DateTime?
+
+  /// Whether the form carries both languages on one page.
+  bilingual Boolean @default(false)
+
+  documentClassId String?
+  documentClass   DocumentClass? @relation(fields: [documentClassId], references: [id], onDelete: SetNull)
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+  sortOrder  Int        @default(0)
+
+  @@unique([organisationId, code])
+}
+
+/// What the portal sends, to whom, and when it chases.
+model NotificationRule {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// The event that fires it — a configuration key, never rendered.
+  eventKey String
+  nameEn   String
+
+  /// Offices notified, by AuthorityRole.code. Named by office rather than by person
+  /// so a change of holder does not silently drop a mandatory recipient.
+  recipientRoleCodes String[]
+
+  /// Days before the due date to remind, largest first. Empty means it does not chase.
+  reminderOffsetDays Int[]
+
+  /// Where an unactioned step escalates.
+  escalatesToRoleCode String?
+
+  /// False where the organisation has decided this event notifies nobody. A rule that
+  /// is off is a recorded decision; a rule that is absent is an oversight.
+  isActive Boolean @default(true)
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+  sortOrder  Int        @default(0)
+
+  @@unique([organisationId, eventKey])
 }
 
 /// What changed, when, and — once there is anybody to name — who changed it.
