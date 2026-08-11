@@ -4,7 +4,7 @@ export default function SupplierProjectsPage() {
   return (
     <NotBuilt
       title="My Projects"
-      summary="Contracts a supplier holds, and what is owed on them."
+      summary="Contracts held, and the amounts outstanding on each."
       willInclude={[
         "Progress against the programme of works",
         "Interim claims and materials-on-site lists",

@@ -4,7 +4,7 @@ export default function TemplatesPage() {
   return (
     <NotBuilt
       title="Templates"
-      summary="The certificates, letters and routing sheets the portal issues. A generated form has to stand next to the printed one it replaces."
+      summary="The certificates, letters and routing sheets the portal issues."
       willInclude={[
         "The template behind each certificate and letter, with its form code and revision date",
         "Fidelity to the controlled printed form: field order, labels, page numbering, tick-box and strike-out conventions, and the signature block",

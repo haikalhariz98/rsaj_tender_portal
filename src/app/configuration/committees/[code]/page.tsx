@@ -133,7 +133,7 @@ export default async function CommitteePage({
             <div className="card__head">
               <div className="card__titles">
                 <h2 className="h3">Quorum</h2>
-                <div className="card__sub">Required for a sitting to decide</div>
+                <div className="card__sub">Required for a sitting to decide.</div>
               </div>
               <ProvenanceChip value={committee.quorumProvenance} />
             </div>

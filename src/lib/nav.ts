@@ -164,7 +164,7 @@ export const CONFIG_SECTIONS: {
       {
         href: "/configuration/notifications",
         label: "Notifications",
-        description: "What the portal sends, to whom, and when it chases.",
+        description: "What the portal sends, to whom, and when reminders are issued.",
         icon: "inbox",
       },
     ],

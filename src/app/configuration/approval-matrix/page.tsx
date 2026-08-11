@@ -137,7 +137,7 @@ export default async function ApprovalMatrixPage() {
             <div className="card__titles">
               <div className="h3 trunc">Value bands</div>
               <div className="card__sub trunc">
-                The thresholds every routing decision is measured against.
+                Thresholds applied to every routing decision.
               </div>
             </div>
           </div>
@@ -232,7 +232,7 @@ export default async function ApprovalMatrixPage() {
             <SlidersIcon size={17} />
             <div className="card__titles">
               <div className="h3 trunc">Routing rules</div>
-              <div className="card__sub trunc">Grouped by what is being decided.</div>
+              <div className="card__sub trunc">Rules grouped by decision type.</div>
             </div>
             <div className="row">
               <span className="badge badge--outline">{matrix.rules.length} rules</span>
@@ -365,7 +365,7 @@ export default async function ApprovalMatrixPage() {
             <div className="card__titles">
               <div className="h3 trunc">Simulator</div>
               <div className="card__sub trunc">
-                Enter a case and see the route it would follow today.
+                Resolve the approval route for a given case.
               </div>
             </div>
           </div>

@@ -4,7 +4,7 @@ export default function UsersPage() {
   return (
     <NotBuilt
       title="Users & roles"
-      summary="Officers, the offices they hold, and what each may see. A person is not a role, and a role is not a sign-in."
+      summary="Officers, the offices they hold and what each may see."
       willInclude={[
         "The register of people, held separately from sign-in — identity outlives any one account",
         "Offices and the assignments that fill them, effective-dated, so an acting appointment is a period rather than an edit",

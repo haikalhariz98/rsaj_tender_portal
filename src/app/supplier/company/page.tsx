@@ -4,7 +4,7 @@ export default function SupplierCompanyPage() {
   return (
     <NotBuilt
       title="Company"
-      summary="A supplier's own registration record."
+      summary="Registration details, supporting documents and standing."
       willInclude={[
         "Registration and the statutory document set: SSM, CIDB, MOF, SPAN and the rest",
         "Expiry monitoring, with reminders before a document lapses",

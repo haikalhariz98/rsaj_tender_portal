@@ -4,7 +4,7 @@ export default function SupplierHomePage() {
   return (
     <NotBuilt
       title="Supplier portal"
-      summary="What a registered contractor or supplier sees when they sign in."
+      summary="Opportunities, bids and contracts for a registered supplier."
       willInclude={[
         "Open opportunities they are eligible for, filtered by their grade and field code",
         "Their bids: documents purchased, briefings attended, addenda acknowledged, offers submitted",

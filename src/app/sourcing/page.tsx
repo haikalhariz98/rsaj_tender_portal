@@ -4,7 +4,7 @@ export default function SourcingPage() {
   return (
     <NotBuilt
       title="Sourcing"
-      summary="Every exercise from requisition to award — the pre-award process end to end."
+      summary="Sourcing exercises from requisition to award."
       willInclude={[
         "Planning: scope, bill of quantities and the company estimate, held under its own confidentiality",
         "Documents: assembly of the tender or quotation document and its appendix",

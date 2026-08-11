@@ -4,7 +4,7 @@ export default function NumberingPage() {
   return (
     <NotBuilt
       title="Numbering"
-      summary="How exercise, contract and certificate references are formed. A reference is a business key, so it is configured, never improvised."
+      summary="How exercise, contract and certificate references are formed."
       willInclude={[
         "Series definitions: the segments a reference is built from, their order, and the separator between them",
         "When a serial resets — by calendar year, by financial year, or never — and which date decides it",

@@ -4,7 +4,7 @@ export default function ProjectsPage() {
   return (
     <NotBuilt
       title="Projects"
-      summary="Contract administration after award, where the money actually moves."
+      summary="Contract administration after award: variations, certificates and payments."
       willInclude={[
         "Milestones and payments: valuation, interim certificates, retention, deductions and the payment waterfall",
         "Variations: the variation chain, percentage against contract sum, and committee recommendation",

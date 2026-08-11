@@ -4,7 +4,7 @@ export default function NotificationsPage() {
   return (
     <NotBuilt
       title="Notifications"
-      summary="What the portal sends, to whom, and when it chases. Silence is a decision too, and it should be a configured one."
+      summary="What the portal sends, to whom, and when reminders are issued."
       willInclude={[
         "The events that notify, and the recipients each one reaches — including mandatory copy recipients who are named by office rather than by person",
         "Reminder schedules ahead of an expiry or a deadline, and the severity each step carries",

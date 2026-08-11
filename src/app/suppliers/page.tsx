@@ -4,7 +4,7 @@ export default function SuppliersPage() {
   return (
     <NotBuilt
       title="Suppliers"
-      summary="The supply base: who may be invited, and how they have performed."
+      summary="Registered suppliers, their standing and their performance."
       willInclude={[
         "Registry: registered companies with their statutory documents and expiry dates",
         "Prequalification: eligibility against CIDB grade, MOF field code, SPAN permit and Bumiputera status",

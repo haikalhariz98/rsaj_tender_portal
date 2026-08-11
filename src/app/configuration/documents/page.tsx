@@ -4,7 +4,7 @@ export default function DocumentsPage() {
   return (
     <NotBuilt
       title="Documents"
-      summary="Classification, retention and controlled-copy rules — what a document is, who may hold it, and how long it must survive."
+      summary="Classification, retention and controlled-copy rules."
       willInclude={[
         "The classification each document carries, captured once and changed only through a controlled amendment",
         "Retention periods by class, and what happens at the end of one — a record kept for audit is not a record kept for convenience",

@@ -67,8 +67,8 @@ export default async function Dashboard() {
             </div>
             <p className="pagehead__sub clamp2">
               {waiting === 0
-                ? "Nothing is waiting on you."
-                : `${waiting} ${waiting === 1 ? "item needs" : "items need"} you today.`}
+                ? "No items are awaiting a decision."
+                : `${waiting} ${waiting === 1 ? "item is" : "items are"} awaiting a decision.`}
             </p>
             <div className="pagehead__meta">
               {shell.user && (
@@ -171,7 +171,7 @@ export default async function Dashboard() {
               <div className="card__titles">
                 <div className="h3 trunc">My approvals &amp; tasks</div>
                 <div className="card__sub trunc">
-                  Everything routed to a committee, oldest first.
+                  Matters routed to a committee, oldest first.
                 </div>
               </div>
               <div className="row">
@@ -250,7 +250,7 @@ export default async function Dashboard() {
               <ToolsIcon size={17} />
               <div className="card__titles">
                 <div className="h3 trunc">Project health</div>
-                <div className="card__sub trunc">Live contracts that most want attention</div>
+                <div className="card__sub trunc">Active contracts requiring attention.</div>
               </div>
             </div>
             <div className="card__body">
@@ -269,7 +269,7 @@ export default async function Dashboard() {
               <FilesIcon size={17} />
               <div className="card__titles">
                 <div className="h3 trunc">Documents awaiting my review</div>
-                <div className="card__sub trunc">Submitted by contractors, routed to you</div>
+                <div className="card__sub trunc">Submitted by contractors and awaiting review.</div>
               </div>
             </div>
             <div className="card__body">
@@ -289,7 +289,7 @@ export default async function Dashboard() {
               <GlobeIcon size={17} />
               <div className="card__titles">
                 <div className="h3 trunc">Sourcing pipeline</div>
-                <div className="card__sub trunc">Live events by stage</div>
+                <div className="card__sub trunc">Active sourcing events by stage.</div>
               </div>
             </div>
             <div className="card__body card__body--tight">
@@ -311,7 +311,7 @@ export default async function Dashboard() {
               <CalendarIcon size={17} />
               <div className="card__titles">
                 <div className="h3 trunc">Upcoming sittings</div>
-                <div className="card__sub trunc">Committees due to convene</div>
+                <div className="card__sub trunc">Committees scheduled to sit.</div>
               </div>
             </div>
             <div className="card__body card__body--tight">

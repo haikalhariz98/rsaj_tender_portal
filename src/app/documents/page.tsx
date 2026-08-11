@@ -4,7 +4,7 @@ export default function DocumentsPage() {
   return (
     <NotBuilt
       title="Documents"
-      summary="Every certificate, letter and routing sheet the portal issues, and every one it receives."
+      summary="Certificates, letters and routing sheets issued and received."
       willInclude={[
         "Library: the generated document register with versions and controlled copies",
         "Templates: the certificates and routing sheets, to printed-form fidelity, in Malay and English",

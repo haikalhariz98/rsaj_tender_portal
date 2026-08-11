@@ -116,7 +116,7 @@ export default async function OrganisationPage() {
 
       <Section
         title="Structure"
-        blurb="Companies, divisions, departments and sections, as in force today."
+        blurb="Units in force today, with their reporting lines."
         empty="No unit has been set. Until the structure exists, a requisition cannot say which department raised it and the approval matrix has nothing to route on."
         count={rows.length}
       >
@@ -152,7 +152,7 @@ export default async function OrganisationPage() {
 
       <Section
         title="Cost centres"
-        blurb="What spending is charged against, and what a budget check runs on."
+        blurb="Cost centres available for charging and budget checks."
         empty="No cost centre has been set."
         count={costCentres.length}
       >
@@ -166,7 +166,7 @@ export default async function OrganisationPage() {
 
       <Section
         title="Account codes"
-        blurb="The chart of accounts a requirement is checked against."
+        blurb="Account codes used in budget checks."
         empty="No account code has been set."
         count={accountCodes.length}
       >
@@ -180,7 +180,7 @@ export default async function OrganisationPage() {
 
       <Section
         title="Sites"
-        blurb="Where goods are delivered and works carried out."
+        blurb="Sites named on requisitions and certificates."
         empty="No site has been set."
         count={sites.length}
       >
@@ -221,7 +221,7 @@ export default async function OrganisationPage() {
 
       <Section
         title="Code formats"
-        blurb="The shape a reference code must take here."
+        blurb="Required formats for cost centres and account codes."
         empty="No code format has been set. Cost centres and account codes will be accepted as typed — the portal cannot say a code is well formed when nobody has said what well formed means."
         count={data.formats.length}
       >

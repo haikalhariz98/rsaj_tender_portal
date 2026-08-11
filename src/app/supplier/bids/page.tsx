@@ -4,7 +4,7 @@ export default function SupplierBidsPage() {
   return (
     <NotBuilt
       title="My Bids"
-      summary="Offers a supplier has prepared, submitted or withdrawn."
+      summary="Bids prepared, submitted or withdrawn."
       willInclude={[
         "Bid preparation against the mandatory document checklist",
         "Sealed submission before the closing time, with a server-side receipt",

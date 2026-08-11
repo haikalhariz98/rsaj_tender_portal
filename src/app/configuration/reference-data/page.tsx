@@ -87,7 +87,7 @@ export default async function ReferenceDataPage() {
 
       <Section
         title="Funding routes"
-        blurb="Where the money comes from. Under some routes the organisation appoints nobody."
+        blurb="Funding sources and the procurement each one permits."
         empty="No funding route has been set. Until one is, a matter cannot be classified and the approval matrix cannot say whether a funder's own rules apply."
         count={routes.length}
       >
@@ -144,7 +144,7 @@ export default async function ReferenceDataPage() {
 
       <Section
         title="Sourcing methods"
-        blurb="How suppliers are approached. Value bands live in the approval matrix, not here."
+        blurb="How suppliers are approached. Value bands are held in the approval matrix."
         empty="No sourcing method has been set. The approval matrix can still route on value, but nothing yet says how the market is approached."
         count={methods.length}
       >
@@ -190,7 +190,7 @@ export default async function ReferenceDataPage() {
 
       <Section
         title="Contract types"
-        blurb="What is being bought, and what later behaviour keys on."
+        blurb="Classification of what is being bought."
         empty="No contract type has been set."
         count={types.length}
       >

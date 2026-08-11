@@ -4,7 +4,7 @@ export default function ReportsPage() {
   return (
     <NotBuilt
       title="Reports"
-      summary="Where the numbers come from, and the evidence behind every decision."
+      summary="Reporting across sourcing, contracts and committee decisions."
       willInclude={[
         "Award cycle time, from advertisement to award",
         "Savings against the departmental estimate",

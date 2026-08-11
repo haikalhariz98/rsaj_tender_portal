@@ -115,7 +115,7 @@ export function AuthoritySimulator({
         <div className="card__head">
           <div className="card__titles">
             <h2 className="h3">The matter</h2>
-            <div className="card__sub">What is being authorised</div>
+            <div className="card__sub">What is being authorised.</div>
           </div>
         </div>
         <div className="card__body">
