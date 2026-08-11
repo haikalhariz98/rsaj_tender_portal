@@ -42,9 +42,13 @@ enum Provenance {
   ASSUMED /// Neither. A working default that needs sign-off.
 }
 
-/// What a body does when it sits. Not every gate is an approval: an external funder
-/// may consent to a variation, which is a precondition rather than an authority of
-/// the organisation itself.
+/// What a write did to a row.
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
 /// The tiers a structure is described in. Which tiers a customer actually uses is
 /// their own arrangement — a small organisation may have no division at all — so the
 /// enum names the vocabulary and the data decides what exists.
@@ -55,6 +59,9 @@ enum OrgUnitKind {
   SECTION
 }
 
+/// What a body does when it sits. Not every gate is an approval: an external funder
+/// may consent to a variation, which is a precondition rather than an authority of
+/// the organisation itself.
 enum CommitteeAction {
   APPROVES
   RECOMMENDS
@@ -108,6 +115,7 @@ model Organisation {
   sourcingMethods SourcingMethod[]
   contractTypes   ContractType[]
   orgUnits        OrgUnit[]
+  auditEntries    AuditEntry[]
   costCentres     CostCentre[]
   accountCodes    AccountCode[]
   sites           Site[]
@@ -134,6 +142,7 @@ model Person {
   committeeSeats    CommitteeMember[]
   meetingAttendance MeetingAttendance[]
   votes             Vote[]
+  auditEntries      AuditEntry[]
 
   @@unique([organisationId, staffNo])
   @@index([organisationId, name])
@@ -448,6 +457,46 @@ model Vote {
 
   @@unique([decisionId, personId])
   @@index([decisionId])
+}
+
+/// What changed, when, and — once there is anybody to name — who changed it.
+///
+/// Configuration is policy. A threshold that moves without a record of who moved it
+/// and why is the failure this product exists to prevent, so every write goes through
+/// here. `actorPersonId` is null while sign-in does not exist; `unattributed` says so
+/// explicitly, because a null that means "nobody was recorded" and a null that means
+/// "the record was lost" must not look alike on a screen.
+model AuditEntry {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// The model and row affected. Held as text rather than a relation: the row may be
+  /// gone, and the trail has to outlive it.
+  entity   String
+  entityId String
+  /// How the row read at the time, so a deleted entry is still legible.
+  entityLabel String
+
+  action AuditAction
+
+  /// Field-level before and after: [{ field, before, after }]. JSON because the shape
+  /// differs per entity and the trail must not need a migration to record a new one.
+  changes Json
+
+  /// Why the change was made. Required by the forms for a deletion.
+  reason String @default("")
+
+  /// Null until sign-in exists. Never inferred from whoever happens to be on record.
+  actorPersonId String?
+  actorPerson   Person? @relation(fields: [actorPersonId], references: [id], onDelete: Restrict)
+  /// True where no sign-in existed to attribute the change to.
+  unattributed Boolean @default(true)
+
+  at DateTime @default(now())
+
+  @@index([organisationId, at])
+  @@index([entity, entityId])
 }
 
 /// A unit of the organisation: a company, division, department or section.

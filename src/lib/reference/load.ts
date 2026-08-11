@@ -9,10 +9,14 @@ import type { ContractType, FundingRoute, Provenance, SourcingMethod } from "./t
  * force today and a matter re-rendering the route it was actually run under need the
  * same rows. `activeOn` in `vocabulary.ts` does the narrowing, at a date.
  */
+/// The loader adds the row id the editors need. The pure types stay free of it —
+/// nothing in `vocabulary.ts` should care what a row's primary key is.
+export type Stored<T> = T & { id: string };
+
 export interface ReferenceData {
-  fundingRoutes: FundingRoute[];
-  sourcingMethods: SourcingMethod[];
-  contractTypes: ContractType[];
+  fundingRoutes: Stored<FundingRoute>[];
+  sourcingMethods: Stored<SourcingMethod>[];
+  contractTypes: Stored<ContractType>[];
 }
 
 const EMPTY: ReferenceData = { fundingRoutes: [], sourcingMethods: [], contractTypes: [] };
@@ -37,6 +41,7 @@ export async function loadReferenceData(organisationCode: string): Promise<Refer
 
   return {
     fundingRoutes: fundingRoutes.map((r) => ({
+      id: r.id,
       code: r.code,
       nameEn: r.nameEn,
       nameMs: r.nameMs,
@@ -51,6 +56,7 @@ export async function loadReferenceData(organisationCode: string): Promise<Refer
       retiredOn: r.retiredOn,
     })),
     sourcingMethods: sourcingMethods.map((m) => ({
+      id: m.id,
       code: m.code,
       nameEn: m.nameEn,
       nameMs: m.nameMs,
@@ -70,6 +76,7 @@ export async function loadReferenceData(organisationCode: string): Promise<Refer
       retiredOn: m.retiredOn,
     })),
     contractTypes: contractTypes.map((c) => ({
+      id: c.id,
       code: c.code,
       nameEn: c.nameEn,
       nameMs: c.nameMs,

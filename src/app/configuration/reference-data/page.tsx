@@ -1,4 +1,13 @@
 import { AlertTriangle } from "@/components/icons";
+import {
+  AddContractType,
+  AddFundingRoute,
+  AddSourcingMethod,
+  EditContractType,
+  EditFundingRoute,
+  EditSourcingMethod,
+  RetireEntry,
+} from "./editors";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { loadReferenceData } from "@/lib/reference/load";
 import type { ListReadiness, Provenance, SourcingMethod } from "@/lib/reference/types";
@@ -90,14 +99,16 @@ export default async function ReferenceDataPage() {
         blurb="Funding sources and the procurement each one permits."
         empty="No funding route has been set. Until one is, a matter cannot be classified and the approval matrix cannot say whether a funder's own rules apply."
         count={routes.length}
+        action={<AddFundingRoute />}
       >
         <table className="table">
           <colgroup>
-            <col style={{ width: "26%" }} />
-            <col style={{ width: "18%" }} />
-            <col style={{ width: "16%" }} />
-            <col style={{ width: "26%" }} />
+            <col style={{ width: "22%" }} />
+            <col style={{ width: "15%" }} />
             <col style={{ width: "14%" }} />
+            <col style={{ width: "21%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "16%" }} />
           </colgroup>
           <thead>
             <tr>
@@ -106,6 +117,7 @@ export default async function ReferenceDataPage() {
               <th>Authority</th>
               <th>Triggered by</th>
               <th>Source</th>
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -135,6 +147,12 @@ export default async function ReferenceDataPage() {
                   <td>
                     <ProvenanceChip value={r.provenance} source={r.governingSource} />
                   </td>
+                  <td className="right">
+                    <span className="row" style={{ gap: 4, justifyContent: "flex-end" }}>
+                      <EditFundingRoute route={r} id={r.id} />
+                      <RetireEntry entity="FundingRoute" id={r.id} label={r.nameEn} />
+                    </span>
+                  </td>
                 </tr>
               );
             })}
@@ -147,14 +165,16 @@ export default async function ReferenceDataPage() {
         blurb="How suppliers are approached. Value bands are held in the approval matrix."
         empty="No sourcing method has been set. The approval matrix can still route on value, but nothing yet says how the market is approached."
         count={methods.length}
+        action={<AddSourcingMethod />}
       >
         <table className="table">
           <colgroup>
-            <col style={{ width: "24%" }} />
-            <col style={{ width: "18%" }} />
-            <col style={{ width: "24%" }} />
             <col style={{ width: "20%" }} />
-            <col style={{ width: "14%" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "20%" }} />
+            <col style={{ width: "17%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "16%" }} />
           </colgroup>
           <thead>
             <tr>
@@ -163,6 +183,7 @@ export default async function ReferenceDataPage() {
               <th>Approach</th>
               <th>Awards by</th>
               <th>Source</th>
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -182,6 +203,12 @@ export default async function ReferenceDataPage() {
                 <td>
                   <ProvenanceChip value={m.provenance} source={m.governingSource} />
                 </td>
+                <td className="right">
+                  <span className="row" style={{ gap: 4, justifyContent: "flex-end" }}>
+                    <EditSourcingMethod method={m} id={m.id} />
+                    <RetireEntry entity="SourcingMethod" id={m.id} label={m.nameEn} />
+                  </span>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -193,18 +220,21 @@ export default async function ReferenceDataPage() {
         blurb="Classification of what is being bought."
         empty="No contract type has been set."
         count={types.length}
+        action={<AddContractType />}
       >
         <table className="table">
           <colgroup>
-            <col style={{ width: "30%" }} />
-            <col style={{ width: "54%" }} />
+            <col style={{ width: "26%" }} />
+            <col style={{ width: "40%" }} />
             <col style={{ width: "16%" }} />
+            <col style={{ width: "18%" }} />
           </colgroup>
           <thead>
             <tr>
               <th>Type</th>
               <th>Notes</th>
               <th>Source</th>
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -219,6 +249,12 @@ export default async function ReferenceDataPage() {
                 <td className="sm dim">{c.notes || "—"}</td>
                 <td>
                   <ProvenanceChip value={c.provenance} source={c.governingSource} />
+                </td>
+                <td className="right">
+                  <span className="row" style={{ gap: 4, justifyContent: "flex-end" }}>
+                    <EditContractType type={c} id={c.id} />
+                    <RetireEntry entity="ContractType" id={c.id} label={c.nameEn} />
+                  </span>
                 </td>
               </tr>
             ))}
@@ -263,12 +299,16 @@ function Section({
   blurb,
   empty,
   count,
+  action,
   children,
 }: {
   title: string;
   blurb: string;
   empty: string;
   count: number;
+  /// The add button. Present even when the list is empty — an empty list is the one
+  /// place someone most needs to add the first entry.
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -276,6 +316,8 @@ function Section({
       <div className="section__head">
         <h2 className="h3">{title}</h2>
         {count > 0 && <span className="badge badge--outline">{count}</span>}
+        <div className="spacer" />
+        {action}
       </div>
       <p className="sm muted" style={{ margin: "0 0 12px" }}>
         {blurb}
