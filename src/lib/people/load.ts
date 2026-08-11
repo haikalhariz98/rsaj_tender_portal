@@ -150,6 +150,7 @@ export interface StoredDelegation {
   capabilityCodes: string[];
   valueCeiling: string | null;
   reason: string;
+  reasonMs: string;
   noSubDelegation: boolean;
   effectiveFrom: Date;
   effectiveTo: Date | null;
@@ -175,6 +176,7 @@ export async function loadDelegations(organisationCode: string): Promise<StoredD
     capabilityCodes: d.capabilityCodes,
     valueCeiling: d.valueCeiling?.toString() ?? null,
     reason: d.reason,
+    reasonMs: d.reasonMs,
     noSubDelegation: d.noSubDelegation,
     effectiveFrom: d.effectiveFrom,
     effectiveTo: d.effectiveTo,

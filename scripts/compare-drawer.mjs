@@ -14,11 +14,11 @@ import { readFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { JSDOM } from "jsdom";
 
-const [which, section, openBy] = process.argv.slice(2);
+const [which, section, openBy, tab] = process.argv.slice(2);
 
 if (!which || !section || !openBy) {
   console.error(
-    'usage: node scripts/compare-drawer.mjs <drawer> "<Section>" "<text that opens it>"',
+    'usage: node scripts/compare-drawer.mjs <drawer> "<Section>" "<text that opens it>" ["<Tab>"]',
   );
   process.exit(2);
 }
@@ -31,7 +31,17 @@ mkdirSync(OUT, { recursive: true });
 function theirs() {
   const log = execFileSync(
     process.execPath,
-    ["scripts/render-prototype.mjs", OUT, `drw-${which}`, "Configuration", section, openBy],
+    [
+      "scripts/render-prototype.mjs",
+      OUT,
+      `drw-${which}`,
+      "Configuration",
+      section,
+      // A record on a tab needs the tab opening first, or the click lands on
+      // whatever the first tab happens to show.
+      ...(tab ? [tab] : []),
+      openBy,
+    ],
     { encoding: "utf8", env: process.env },
   );
   if (/NOT FOUND/.test(log)) {
@@ -118,6 +128,62 @@ function fingerprint(html) {
 
 // ------------------------------------------------------------------------- diff
 
+/**
+ * Fields we have decided to differ on, and why.
+ *
+ * The prototype is a click-through with no records and no validation behind it, so
+ * some of its form is not a form. Every departure is listed here rather than quietly
+ * tolerated: an unexplained difference should still fail.
+ *
+ * `theirs: null` means the sample has no such field at all.
+ */
+const DECIDED_FIELDS = {
+  delegation: [
+    {
+      ours: "From [select, required]",
+      theirs: "From [select]",
+      why: "a delegation with nobody delegating is not a record",
+    },
+    {
+      ours: "To [select, required]",
+      theirs: "To [select]",
+      why: "a delegation with nobody receiving is not a record",
+    },
+    {
+      ours: "From [input, required]",
+      theirs: "From [input]",
+      why: "a delegation with no start has no period",
+    },
+    {
+      ours: "Delegating from [select, required]",
+      theirs: null,
+      why: "authority is held in a role; without it there is nothing to check the capabilities against",
+    },
+    {
+      ours: "Status [none]",
+      theirs: "Status [select]",
+      why: "read from the dates, never chosen — a status that can contradict its own period is a record an audit cannot survive",
+    },
+  ],
+};
+
+/// Pull the decided departures out of both sides, reporting each one.
+function settleDecided(which, mine, theirs, out) {
+  const decided = DECIDED_FIELDS[which] ?? [];
+  let a = [...mine];
+  let b = [...theirs];
+
+  for (const d of decided) {
+    const hasOurs = a.includes(d.ours);
+    const hasTheirs = d.theirs === null ? !b.includes(d.ours) : b.includes(d.theirs);
+    if (!hasOurs || !hasTheirs) continue;
+    a = a.filter((x) => x !== d.ours);
+    if (d.theirs !== null) b = b.filter((x) => x !== d.theirs);
+    out.push(`  kept     ${d.ours} — by decision: ${d.why}`);
+  }
+  return [a, b];
+}
+
 function diffLists(label, mine, theirsList, out) {
   if (mine.join("|") === theirsList.join("|")) {
     out.push(`  ok       ${label}`);
@@ -148,7 +214,8 @@ problems += diffValue("width", a.size, b.size, out);
 problems += diffValue("head", a.head, b.head, out);
 problems += diffValue("identity row", a.identity, b.identity, out);
 problems += diffValue("field columns", a.columns, b.columns, out);
-problems += diffLists("fields, in order", a.fields, b.fields, out);
+const [ourFields, theirFields] = settleDecided(which, a.fields, b.fields, out);
+problems += diffLists("fields, in order", ourFields, theirFields, out);
 problems += diffLists("section headings", a.sections, b.sections, out);
 problems += diffLists("switches", a.switches, b.switches, out);
 problems += diffValue("dividers", a.dividers, b.dividers, out);

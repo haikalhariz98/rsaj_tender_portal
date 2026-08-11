@@ -20,6 +20,8 @@ export interface Delegation extends Effective {
   /// Null means no ceiling was set. Not a ceiling of zero.
   valueCeiling: string | null;
   reason: string;
+  /// The same reason in Malay.
+  reasonMs: string;
   noSubDelegation: boolean;
 }
 

@@ -172,6 +172,7 @@ export function DataList({
   filters = [],
   rowAction,
   actions,
+  rowOpens = false,
   selectable = true,
   searchPlaceholder = "Search…",
   flat = false,
@@ -187,6 +188,9 @@ export function DataList({
   /// Arbitrary per-row controls, for screens whose row action opens an editor rather
   /// than navigating. Renders under an "Actions" header, as the prototype does.
   actions?: (id: string) => ReactNode;
+  /// Clicking anywhere in a row presses its first action. Only for a list whose
+  /// first action opens the record — never one that leads with a destructive one.
+  rowOpens?: boolean;
   /// The prototype's configuration lists carry no selection column. Opt out rather
   /// than always rendering one.
   selectable?: boolean;
@@ -470,11 +474,14 @@ export function DataList({
                   // The prototype opens a record from anywhere in the row, not only
                   // from the button at the end. The button is the one that owns the
                   // drawer, so the row defers to it rather than holding its own copy
-                  // of when a record is open.
-                  data-clickable={actions ? "true" : undefined}
-                  tabIndex={actions ? 0 : undefined}
+                  // of when a record is open — which means the first row action has
+                  // to be the one that opens the record, and asking for this
+                  // explicitly is how a list with a destructive first action does not
+                  // get it by accident.
+                  data-clickable={rowOpens ? "true" : undefined}
+                  tabIndex={rowOpens ? 0 : undefined}
                   onClick={
-                    actions
+                    rowOpens
                       ? (e) => {
                           if ((e.target as HTMLElement).closest("button,a,input,label")) return;
                           e.currentTarget
@@ -484,7 +491,7 @@ export function DataList({
                       : undefined
                   }
                   onKeyDown={
-                    actions
+                    rowOpens
                       ? (e) => {
                           if (e.key !== "Enter" && e.key !== " ") return;
                           if (e.target !== e.currentTarget) return;

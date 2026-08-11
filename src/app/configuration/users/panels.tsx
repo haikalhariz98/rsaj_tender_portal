@@ -8,6 +8,7 @@ import {
   GridIcon,
   SearchIcon,
   ShieldIcon,
+  SwapIcon,
   UserIcon,
 } from "@/components/icons";
 import { DataList, type Row } from "@/components/data-list";
@@ -26,8 +27,10 @@ import type { Office, Person } from "@/lib/people/types";
 import { setGrant } from "./actions";
 import {
   AddAssignment,
+  AddDelegation,
   AddOffice,
   AddPerson,
+  EditDelegation,
   EditOffice,
   EditPerson,
   LeaverToggle,
@@ -42,6 +45,13 @@ import {
  */
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
+
+/// How each delegation status reads. Derived from the period, never stored.
+const STATUS_LABEL = {
+  IN_FORCE: "In force",
+  SCHEDULED: "Scheduled",
+  ENDED: "Ended",
+} as const;
 
 export interface UsersData {
   people: Person[];
@@ -132,6 +142,7 @@ function PeoplePanel({ people, offices, holdings, capabilities, grants, delegati
             { key: "availability", label: "Availability", width: "12%" },
           ]}
           rows={rows}
+          rowOpens
           actions={(id) => {
             const person = people.find((p) => p.id === id);
             if (!person) return null;
@@ -460,7 +471,7 @@ function GroupRows({
 
 // -------------------------------------------------------------------- Delegation
 
-function DelegationPanel({ people, offices, delegations }: UsersData) {
+function DelegationPanel({ people, offices, delegations, capabilities }: UsersData) {
   const on = new Date();
   const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? "Not on record";
   const officeName = (code: string) => offices.find((o) => o.code === code)?.nameEn ?? code;
@@ -502,12 +513,16 @@ function DelegationPanel({ people, offices, delegations }: UsersData) {
     <div className="stack stack--lg">
       <section className="card">
         <div className="card__head">
+          <SwapIcon size={17} className="icon dim" />
           <div className="card__titles">
             <div className="h3 trunc">Delegation</div>
             <div className="card__sub trunc">
               One officer acting for another, for a period. Not the same as authority
               passing upward when a holder cannot act.
             </div>
+          </div>
+          <div className="row">
+            <AddDelegation people={people} offices={offices} capabilities={capabilities} />
           </div>
         </div>
         <div className="card__body card__body--flush">
@@ -532,6 +547,20 @@ function DelegationPanel({ people, offices, delegations }: UsersData) {
               { key: "status", label: "Status", width: "12%" },
             ]}
             rows={rows}
+            rowOpens
+            actions={(id) => {
+              const delegation = delegations.find((d) => d.id === id);
+              if (!delegation) return null;
+              return (
+                <EditDelegation
+                  delegation={delegation}
+                  people={people}
+                  offices={offices}
+                  capabilities={capabilities}
+                  status={STATUS_LABEL[statusOf(delegation, on)]}
+                />
+              );
+            }}
           />
         </div>
       </section>

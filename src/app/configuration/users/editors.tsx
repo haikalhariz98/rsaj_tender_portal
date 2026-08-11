@@ -1,4 +1,12 @@
-import { CheckIcon, HelpCircle, PencilIcon, SwapIcon, UserIcon, XIcon } from "@/components/icons";
+import {
+  CheckIcon,
+  HelpCircle,
+  InfoIcon,
+  PencilIcon,
+  SwapIcon,
+  UserIcon,
+  XIcon,
+} from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import type { Capability } from "@/lib/people/capabilities";
 import { statusOf, type Delegation } from "@/lib/people/delegation";
@@ -8,6 +16,7 @@ import { avatarTone, initials } from "@/lib/format";
 import {
   endAssignment,
   saveAssignment,
+  saveDelegation,
   saveOffice,
   savePerson,
   setPersonActive,
@@ -38,6 +47,7 @@ function personFields(offices: Office[], authorityLevels: string[]): Field[] {
       // choice, and saving a person nobody classified would silently make one — so
       // the unchosen option stays.
       placeholder: "Not set",
+      orphanLabel: "A role that is no longer configured",
       options: offices.map((o) => ({ value: o.code, label: o.nameEn })),
     },
     {
@@ -219,7 +229,6 @@ export function EditPerson({
         authorityLevel: person.authorityLevel,
         department: person.department,
         telephone: person.telephone,
-        isAway: !person.isAvailable,
       }}
     />
   );
@@ -432,6 +441,166 @@ export function EditAssignment({
         scope: assignment.scope,
         effectiveFrom: day(assignment.effectiveFrom),
         effectiveTo: day(assignment.effectiveTo),
+      }}
+    />
+  );
+}
+
+/**
+ * A delegation, in the sample's shape: who to whom, over what period, over which
+ * capabilities, and why — in both languages.
+ *
+ * Two deliberate departures from the sample, both because it is a click-through with
+ * no records behind it.
+ *
+ * The role is ours. Authority is held in a role, and a delegation hands over part of
+ * what that role may do; without it there is nothing to check the chosen capabilities
+ * against.
+ *
+ * The status is read, not chosen. The sample offers a select of Scheduled / In force
+ * / Ended, which can be set to disagree with the dates beside it. A delegation that
+ * says it is in force on a period that ended last week is the kind of record an audit
+ * cannot survive, so it is derived from the dates instead.
+ */
+function delegationFields(
+  people: Person[],
+  offices: Office[],
+  capabilities: Capability[],
+  status?: string,
+): Field[] {
+  const persons = people
+    .filter((p) => p.isActive)
+    .map((p) => ({ value: p.id, label: p.name }));
+
+  return [
+    {
+      kind: "select",
+      name: "fromPersonId",
+      label: "From",
+      required: true,
+      placeholder: "Choose",
+      options: persons,
+    },
+    {
+      kind: "select",
+      name: "toPersonId",
+      label: "To",
+      required: true,
+      placeholder: "Choose",
+      options: persons,
+    },
+    { kind: "date", name: "effectiveFrom", label: "From", required: true },
+    {
+      kind: "date",
+      name: "effectiveTo",
+      label: "To",
+      hint: "Leave empty and it runs until somebody ends it.",
+    },
+    {
+      kind: "select",
+      name: "roleCode",
+      label: "Delegating from",
+      required: true,
+      placeholder: "Choose",
+      hint: "The role whose authority is being handed over.",
+      orphanLabel: "A role that is no longer configured",
+      options: offices.map((o) => ({ value: o.code, label: o.nameEn })),
+    },
+    {
+      kind: "tokens",
+      name: "capabilityCodes",
+      label: "What is delegated",
+      placeholder: "Select…",
+      hint: "Leave it empty to hand over the whole role, which is a larger act.",
+      options: capabilities.map((c) => ({ value: c.code, label: c.nameEn })),
+    },
+    { kind: "text", name: "reason", label: "Reason (EN)" },
+    { kind: "text", name: "reasonMs", label: "Reason (BM)" },
+    {
+      kind: "readonly",
+      name: "status",
+      label: "Status",
+      text: status ?? "Set by the dates above",
+      hint: "Read from the period, never set by hand.",
+    },
+  ];
+}
+
+const DELEGATION_NOTE = (
+  <div className="callout callout--info">
+    <span className="callout__ico">
+      <InfoIcon size={16} />
+    </span>
+    <div className="grow" style={{ minWidth: 0 }}>
+      <span className="sm">
+        A delegation lapses on its end date without anyone having to withdraw it.
+      </span>
+    </div>
+  </div>
+);
+
+export function AddDelegation({
+  people,
+  offices,
+  capabilities,
+}: {
+  people: Person[];
+  offices: Office[];
+  capabilities: Capability[];
+}) {
+  return (
+    <RecordEditor
+      title="New delegation"
+      description="Delegation"
+      icon={<SwapIcon size={20} className="icon dim" style={{ marginTop: 2 }} />}
+      fields={delegationFields(people, offices, capabilities)}
+      columns={2}
+      sections={DELEGATION_NOTE}
+      action={saveDelegation}
+      submitLabel="Save"
+      trigger={{ label: "New delegation", icon: true }}
+      size="lg"
+    />
+  );
+}
+
+export function EditDelegation({
+  delegation,
+  people,
+  offices,
+  capabilities,
+  status,
+}: {
+  delegation: Delegation;
+  people: Person[];
+  offices: Office[];
+  capabilities: Capability[];
+  status: string;
+}) {
+  return (
+    <RecordEditor
+      title="Delegation"
+      description="Delegation"
+      icon={<SwapIcon size={20} className="icon dim" style={{ marginTop: 2 }} />}
+      fields={[
+        { kind: "hidden", name: "id" },
+        ...delegationFields(people, offices, capabilities, status),
+      ]}
+      columns={2}
+      sections={DELEGATION_NOTE}
+      action={saveDelegation}
+      trigger={{ label: "Edit", iconOnly: <PencilIcon size={14} /> }}
+      size="lg"
+      values={{
+        id: delegation.id,
+        fromPersonId: delegation.fromPersonId,
+        toPersonId: delegation.toPersonId,
+        effectiveFrom: day(delegation.effectiveFrom),
+        effectiveTo: day(delegation.effectiveTo),
+        roleCode: delegation.roleCode,
+        capabilityCodes: delegation.capabilityCodes.join(","),
+        reason: delegation.reason,
+        reasonMs: delegation.reasonMs,
       }}
     />
   );

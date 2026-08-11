@@ -6,6 +6,7 @@ import type { FormState } from "@/components/record-editor";
 import { auditedCreate, auditedDelete, auditedUpdate } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import { periodsOverlap } from "@/lib/effective";
+import { faultsIn, type Delegation, type DelegationFault } from "@/lib/people/delegation";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { checkPeriod, FormReader } from "@/lib/validate";
 
@@ -190,6 +191,149 @@ export async function setGrant(
       { ...ctx, entityId: existing!.id },
       { roleCode, capability: capability.nameEn },
       (tx) => tx.roleCapability.delete({ where: { id: existing!.id } }),
+    );
+  }
+
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+// -------------------------------------------------------------------- delegation
+
+/// Which field an entry fault belongs against, and what it says there.
+const DELEGATION_FAULTS: Record<DelegationFault, { field: string; message: string }> = {
+  TO_SELF: { field: "toPersonId", message: "Nobody delegates to themselves." },
+  ENDS_BEFORE_IT_STARTS: {
+    field: "effectiveTo",
+    message: "A delegation cannot end before it starts.",
+  },
+  OVERLAPS_EXISTING: {
+    field: "effectiveFrom",
+    message:
+      "They already have a delegation of this role over part of that period. End that one first.",
+  },
+  SUB_DELEGATION_FORBIDDEN: {
+    field: "fromPersonId",
+    message: "What they hold was delegated to them, and it may not be passed on again.",
+  },
+  CAPABILITY_NOT_HELD: {
+    field: "capabilityCodes",
+    message: "That role does not hold all of those capabilities, so it cannot delegate them.",
+  },
+};
+
+/**
+ * Save a delegation.
+ *
+ * Every refusal comes from `faultsIn` rather than from checks written here. A
+ * delegation that cannot be honoured is worse than none at all: the work stops and
+ * nobody is expecting it to.
+ */
+export async function saveDelegation(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+
+  const id = String(data.get("id") ?? "");
+  const r = new FormReader(data);
+
+  const fromPersonId = r.text("fromPersonId", "From", { required: true });
+  const toPersonId = r.text("toPersonId", "To", { required: true });
+  const roleCode = r.text("roleCode", "Delegating from", { required: true });
+  const effectiveFrom = r.date("effectiveFrom", "From", { required: true });
+  const effectiveTo = r.date("effectiveTo", "To");
+  const capabilityCodes = (r.optionalText("capabilityCodes") ?? "")
+    .split(",")
+    .map((c) => c.trim())
+    .filter(Boolean);
+
+  const v = {
+    fromPersonId,
+    toPersonId,
+    roleCode,
+    capabilityCodes,
+    reason: r.optionalText("reason") ?? "",
+    reasonMs: r.optionalText("reasonMs") ?? "",
+    effectiveFrom: effectiveFrom!,
+    effectiveTo,
+  };
+
+  const parsed = r.finish(v);
+  if (!parsed.ok) return { ok: false, errors: parsed.errors };
+
+  const [existing, held] = await Promise.all([
+    db.delegation.findMany({
+      where: { organisationId: orgId, ...(id ? { NOT: { id } } : {}) },
+    }),
+    db.capability.findMany({
+      where: { organisationId: orgId, roles: { some: { roleCode } } },
+      select: { code: true },
+    }),
+  ]);
+
+  const asDelegation = (row: {
+    id: string;
+    fromPersonId: string;
+    toPersonId: string;
+    roleCode: string;
+    capabilityCodes: string[];
+    valueCeiling: unknown;
+    reason: string;
+    reasonMs: string;
+    noSubDelegation: boolean;
+    effectiveFrom: Date;
+    effectiveTo: Date | null;
+  }): Delegation => ({
+    id: row.id,
+    fromPersonId: row.fromPersonId,
+    toPersonId: row.toPersonId,
+    roleCode: row.roleCode,
+    capabilityCodes: row.capabilityCodes,
+    valueCeiling: row.valueCeiling?.toString() ?? null,
+    reason: row.reason,
+    reasonMs: row.reasonMs,
+    noSubDelegation: row.noSubDelegation,
+    effectiveFrom: row.effectiveFrom,
+    effectiveTo: row.effectiveTo,
+  });
+
+  const proposed: Delegation = {
+    id: id || "proposed",
+    ...v,
+    valueCeiling: null,
+    noSubDelegation: true,
+  };
+
+  const faults = faultsIn(
+    proposed,
+    existing.map(asDelegation),
+    held.map((c) => c.code),
+  );
+  if (faults.length) {
+    const errors: Record<string, string> = {};
+    for (const fault of faults) {
+      const { field, message } = DELEGATION_FAULTS[fault];
+      errors[field] = message;
+    }
+    return { ok: false, errors };
+  }
+
+  const label = "Delegation";
+  const ctx = {
+    organisationId: orgId,
+    entity: "Delegation",
+    entityLabel: label,
+    reason: v.reason,
+  };
+
+  if (!id) {
+    await auditedCreate(ctx, v, (tx) =>
+      tx.delegation.create({ data: { organisationId: orgId, ...v } }),
+    );
+  } else {
+    const before = await db.delegation.findUnique({ where: { id } });
+    if (!before) return { ok: false, message: "That delegation no longer exists." };
+    await auditedUpdate({ ...ctx, entityId: id }, before, v, (tx) =>
+      tx.delegation.update({ where: { id }, data: v }),
     );
   }
 

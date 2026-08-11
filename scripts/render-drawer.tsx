@@ -56,15 +56,43 @@ async function main() {
   console.log(`wrote      : ${out} (${drawer.outerHTML.length} bytes)`);
 }
 
+const CAPABILITIES = [
+  { id: "c1", code: "C1", nameEn: "Do the first thing", nameMs: null, groupLabel: "A group", sortOrder: 1 },
+  { id: "c2", code: "C2", nameEn: "Do the second thing", nameMs: null, groupLabel: "A group", sortOrder: 2 },
+];
+
 async function build(which: string, React: typeof import("react")) {
-  if (which !== "person") throw new Error(`No drawer named "${which}" is wired up here yet.`);
-
-  const { EditPerson } = await import("../src/app/configuration/users/editors");
-
   const offices = [
     role("ONE", "First role", "Level one"),
     role("TWO", "Second role", "Level two"),
   ];
+
+  if (which === "delegation") {
+    const { EditDelegation } = await import("../src/app/configuration/users/editors");
+    return React.createElement(EditDelegation, {
+      delegation: {
+        id: "d1",
+        fromPersonId: "x1",
+        toPersonId: "x2",
+        roleCode: "ONE",
+        capabilityCodes: ["C1"],
+        valueCeiling: null,
+        reason: "A reason",
+        reasonMs: "Satu sebab",
+        noSubDelegation: true,
+        effectiveFrom: new Date("2026-01-01"),
+        effectiveTo: new Date("2026-02-01"),
+      },
+      people: [person("x1", "Sample Person"), person("x2", "Another Person")],
+      offices,
+      capabilities: CAPABILITIES,
+      status: "Ended",
+    });
+  }
+
+  if (which !== "person") throw new Error(`No drawer named "${which}" is wired up here yet.`);
+
+  const { EditPerson } = await import("../src/app/configuration/users/editors");
 
   return React.createElement(EditPerson, {
     person: {
@@ -83,10 +111,7 @@ async function build(which: string, React: typeof import("react")) {
     },
     offices,
     authorityLevels: ["Level one", "Level two"],
-    capabilities: [
-      { id: "c1", code: "C1", nameEn: "Do the first thing", nameMs: null, groupLabel: "A group", sortOrder: 1 },
-      { id: "c2", code: "C2", nameEn: "Do the second thing", nameMs: null, groupLabel: "A group", sortOrder: 2 },
-    ],
+    capabilities: CAPABILITIES,
     delegations: [
       {
         id: "d1",
@@ -96,6 +121,7 @@ async function build(which: string, React: typeof import("react")) {
         capabilityCodes: [],
         valueCeiling: null,
         reason: "",
+        reasonMs: "",
         noSubDelegation: false,
         effectiveFrom: new Date("2026-01-01"),
         effectiveTo: new Date("2026-02-01"),
@@ -103,6 +129,23 @@ async function build(which: string, React: typeof import("react")) {
     ],
     nameOf: (id: string) => (id === "x1" ? "Sample Person" : "Another Person"),
   });
+}
+
+function person(id: string, name: string) {
+  return {
+    id,
+    staffNo: null,
+    name,
+    email: `${id}@example.invalid`,
+    jobTitle: null,
+    jobTitleMs: null,
+    department: null,
+    telephone: null,
+    portalRoleCode: null,
+    authorityLevel: null,
+    isAvailable: true,
+    isActive: true,
+  };
 }
 
 function role(code: string, nameEn: string, authorityLevel: string) {

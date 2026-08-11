@@ -11,6 +11,7 @@ const d = (o: Partial<Delegation> & Pick<Delegation, "id">): Delegation => ({
   capabilityCodes: [],
   valueCeiling: null,
   reason: "",
+  reasonMs: "",
   noSubDelegation: true,
   effectiveFrom: new Date("2026-08-01"),
   effectiveTo: new Date("2026-08-20"),

@@ -762,6 +762,9 @@ model Delegation {
   valueCeiling Decimal? @db.Decimal(18, 2)
 
   reason String @default("")
+  /// The same reason in Malay. Recorded rather than translated: a delegation is the
+  /// kind of thing that gets read back in the language it was written in.
+  reasonMs String @default("")
 
   effectiveFrom DateTime
   effectiveTo   DateTime?

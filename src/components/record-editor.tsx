@@ -46,8 +46,23 @@ export type Field =
       options: { value: string; label: string }[];
       /// Shown as the unchosen option. Never pre-selects anything.
       placeholder?: string;
+      /// How a stored value that is no longer among the options reads. Without it the
+      /// value itself is shown, which is right where the value is already a label and
+      /// wrong where it is a code.
+      orphanLabel?: string;
     }
   | { kind: "switch"; name: string; label: string; hint?: string }
+  /// Several values at once, shown as removable tags. Posts them comma-separated.
+  | {
+      kind: "tokens";
+      name: string;
+      label: string;
+      hint?: string;
+      placeholder?: string;
+      options: { value: string; label: string }[];
+    }
+  /// Shown, never edited. A value the record implies rather than stores.
+  | { kind: "readonly"; name: string; label: string; hint?: string; text: string }
   /// Carried through the form without being shown — a row id, a record type.
   | { kind: "hidden"; name: string }
   | { kind: "note"; text: string };
@@ -290,6 +305,99 @@ export function RecordEditor({
 }
 
 /**
+ * Several values at once, as the sample's token field has them: chosen ones sit as
+ * removable tags inside the box, and what is left drops down below it.
+ *
+ * The values ride out on one hidden input, comma-separated, because a server action
+ * reading a form has no way to tell an absent multi-value from an empty one — and
+ * "nothing was delegated" and "the whole role was" are different acts here.
+ */
+function TokensInput({
+  field,
+  value,
+}: {
+  field: Extract<Field, { kind: "tokens" }>;
+  value: string;
+}) {
+  const [chosen, setChosen] = useState<string[]>(() =>
+    value ? value.split(",").filter(Boolean) : [],
+  );
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState("");
+
+  const labelOf = (v: string) => field.options.find((o) => o.value === v)?.label ?? v;
+  const needle = typed.trim().toLowerCase();
+  const available = field.options.filter(
+    (o) => !chosen.includes(o.value) && (!needle || o.label.toLowerCase().includes(needle)),
+  );
+
+  return (
+    <div className="combo">
+      <input type="hidden" name={field.name} value={chosen.join(",")} />
+      <div className="tokens" role="group" onClick={() => setOpen(true)}>
+        {chosen.map((v) => (
+          <span key={v} className="tag">
+            {labelOf(v)}
+            <button
+              type="button"
+              className="tag__x"
+              aria-label={`Remove ${labelOf(v)}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                setChosen((c) => c.filter((x) => x !== v));
+              }}
+            >
+              <XIcon size={11} />
+            </button>
+          </span>
+        ))}
+        <input
+          className="grow"
+          style={{
+            border: 0,
+            outline: "none",
+            minWidth: 90,
+            height: 26,
+            fontSize: "13.5px",
+            background: "transparent",
+          }}
+          placeholder={chosen.length ? "" : (field.placeholder ?? "Select…")}
+          value={typed}
+          onChange={(e) => {
+            setTyped(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 120)}
+        />
+      </div>
+      {open && (
+        <div className="combo__menu">
+          {available.length === 0 ? (
+            <div className="combo__empty">Nothing left to choose</div>
+          ) : (
+            available.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                className="combo__opt"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setChosen((c) => [...c, o.value]);
+                  setTyped("");
+                }}
+              >
+                {o.label}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * The inputs, laid out.
  *
  * One column stays a Fragment rather than a wrapper: the fields are direct children
@@ -356,12 +464,41 @@ function FieldInput({
     );
   }
 
+  if (field.kind === "readonly") {
+    return (
+      <div className="field">
+        {label}
+        <span className="sm" style={{ paddingTop: 6 }}>
+          {field.text}
+        </span>
+        {foot}
+      </div>
+    );
+  }
+
+  if (field.kind === "tokens") {
+    return (
+      <div className="field">
+        {label}
+        <TokensInput field={field} value={(value as string) ?? ""} />
+        {foot}
+      </div>
+    );
+  }
+
   if (field.kind === "select") {
+    const current = (value as string) ?? "";
+    // A stored value the options no longer offer would leave the select on its
+    // placeholder, and saving an untouched form would then clear it. Carrying it as
+    // its own option means the form can put back what it found.
+    const orphaned = current !== "" && !field.options.some((o) => o.value === current);
+
     return (
       <label className="field">
         {label}
-        <select className="select" name={field.name} defaultValue={(value as string) ?? ""}>
+        <select className="select" name={field.name} defaultValue={current}>
           <option value="">{field.placeholder ?? "Not set"}</option>
+          {orphaned && <option value={current}>{field.orphanLabel ?? current}</option>}
           {field.options.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
