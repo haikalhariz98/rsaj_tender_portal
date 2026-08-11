@@ -3,8 +3,11 @@ import { notFound } from "next/navigation";
 import { AlertTriangle, InfoIcon } from "@/components/icons";
 import { DecisionPanel } from "@/components/committee/decision-panel";
 import { getCommittee, rulesRoutingTo } from "@/lib/committee/repo";
+import { AddMember, EditMember, VacateSeat } from "../editors";
 import { assessQuorum } from "@/lib/committee/quorum";
 import { matterLabel } from "@/lib/labels";
+import { ORGANISATION_CODE } from "@/lib/org";
+import { loadRoster } from "@/lib/people/load";
 import { avatarTone, formatBand, formatDate, initials } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +35,9 @@ export default async function CommitteePage({
 
   const rules = await rulesRoutingTo(committee.code);
   const seats = committee.members.filter((m) => m.effectiveTo == null);
+  const roster = await loadRoster(ORGANISATION_CODE);
+  const people = roster.people.filter((p) => p.isActive).map((p) => ({ id: p.id, name: p.name }));
+  const offices = roster.offices.map((o) => ({ code: o.code, nameEn: o.nameEn }));
 
   return (
     <>
@@ -85,6 +91,7 @@ export default async function CommitteePage({
                 </div>
               </div>
               <ProvenanceChip value={committee.compositionProvenance} />
+              <AddMember committeeId={committee.id} people={people} offices={offices} />
             </div>
             <div className="card__body">
               {seats.length === 0 ? (
@@ -122,6 +129,11 @@ export default async function CommitteePage({
                       {seat.provenance === "STATED" && (
                         <span className="badge badge--ok">by policy</span>
                       )}
+                      <EditMember member={seat} people={people} offices={offices} />
+                      <VacateSeat
+                        id={seat.id}
+                        label={seat.person?.name ?? seat.seatLabel ?? "this seat"}
+                      />
                     </div>
                   ))}
                 </div>

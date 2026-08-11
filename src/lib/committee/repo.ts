@@ -22,6 +22,7 @@ export async function listCommittees() {
   });
 
   return committees.map((c) => ({
+    id: c.id,
     code: c.code,
     nameEn: c.nameEn,
     nameMs: c.nameMs,
@@ -34,6 +35,7 @@ export async function listCommittees() {
     compositionProvenance: c.compositionProvenance,
     valueScopeMin: num(c.valueScopeMin),
     valueScopeMax: num(c.valueScopeMax),
+    notes: c.notes,
     seatCount: c.members.length,
     filledCount: c.members.filter((m) => m.personId != null).length,
     meetingCount: c._count.meetings,

@@ -1,0 +1,241 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+
+import type { FormState } from "@/components/record-editor";
+import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
+import { db } from "@/lib/db";
+import { periodsOverlap } from "@/lib/effective";
+import { ORGANISATION_CODE } from "@/lib/org";
+import { checkPeriod, FormReader } from "@/lib/validate";
+
+const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
+const ACTIONS = ["APPROVES", "RECOMMENDS", "CONSENTS", "DECIDES"] as const;
+const POSITIONS = ["CHAIRMAN", "DEPUTY_CHAIRMAN", "MEMBER", "SECRETARY"] as const;
+const PATH = "/configuration/committees";
+
+async function organisationId(): Promise<string | null> {
+  const org = await db.organisation.findUnique({
+    where: { code: ORGANISATION_CODE },
+    select: { id: true },
+  });
+  return org?.id ?? null;
+}
+
+const NO_ORG: FormState = {
+  ok: false,
+  message: "No organisation is configured. Run npm run setup before adding records.",
+};
+
+export async function saveCommittee(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+
+  const id = String(data.get("id") ?? "");
+  const existing = await db.committee.findMany({
+    where: { organisationId: orgId },
+    select: { id: true, code: true },
+  });
+  const current = id ? existing.find((e) => e.id === id) : undefined;
+
+  const r = new FormReader(data);
+  const code = id
+    ? String(data.get("code") ?? "")
+    : r.code("code", "Code", {
+        taken: existing.filter((e) => e.code !== current?.code).map((e) => e.code),
+      });
+
+  // Null quorum means nobody has set one. That is not a quorum of zero, and
+  // assessQuorum will not certify a sitting under it — so the field stays optional
+  // and its provenance is only asked for once a number exists.
+  const quorum = r.int("quorum", "Quorum", { min: 1 });
+  const quorumProvenance = r.optionalText("quorumProvenance");
+  if (quorum != null && !quorumProvenance) {
+    r.reject("quorumProvenance", "Say where the quorum came from, or leave the quorum unset.");
+  }
+
+  const valueScopeMin = r.money("valueScopeMin", "Value scope from");
+  const valueScopeMax = r.money("valueScopeMax", "Value scope to");
+  if (valueScopeMin && valueScopeMax && Number(valueScopeMax) <= Number(valueScopeMin)) {
+    r.reject("valueScopeMax", "The upper bound must be above the lower.");
+  }
+
+  const v = {
+    code,
+    nameEn: r.text("nameEn", "Name", { required: true, max: 160 }),
+    nameMs: r.optionalText("nameMs"),
+    mandate: r.text("mandate", "Mandate", { required: true, max: 600 }),
+    governingSource: r.text("governingSource", "Source", { required: true, max: 240 }),
+    action: r.choice("action", "Acts by", ACTIONS, { required: true }),
+    isExternal: r.bool("isExternal"),
+    quorum,
+    quorumProvenance: quorum == null ? null : (quorumProvenance as "STATED" | null),
+    compositionProvenance: r.optionalText("compositionProvenance") as "STATED" | null,
+    valueScopeMin,
+    valueScopeMax,
+    notes: r.text("notes", "Notes", { max: 2000 }),
+  };
+
+  const parsed = r.finish(v);
+  if (!parsed.ok) return { ok: false, errors: parsed.errors };
+
+  const ctx = {
+    organisationId: orgId,
+    entity: "Committee",
+    entityLabel: v.nameEn,
+    reason: String(data.get("reason") ?? ""),
+  };
+  const write = { ...v, action: v.action! };
+
+  if (!id) {
+    await auditedCreate(ctx, v, (tx) =>
+      tx.committee.create({ data: { organisationId: orgId, ...write } }),
+    );
+  } else {
+    const before = await db.committee.findUnique({ where: { id } });
+    if (!before) return { ok: false, message: "That committee no longer exists." };
+    await auditedUpdate(
+      { ...ctx, entityId: id },
+      {
+        ...before,
+        valueScopeMin: before.valueScopeMin?.toString() ?? null,
+        valueScopeMax: before.valueScopeMax?.toString() ?? null,
+      },
+      v,
+      (tx) => tx.committee.update({ where: { id }, data: write }),
+    );
+  }
+
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/**
+ * A seat on a committee.
+ *
+ * Held one of two ways and exactly one must be set: ex officio by whoever holds an
+ * office, or by named appointment. A seat with neither cannot resolve to anybody at
+ * the sitting; a seat with both is two different rules for the same chair.
+ */
+export async function saveMember(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+
+  const id = String(data.get("id") ?? "");
+  const committeeId = String(data.get("committeeId") ?? "");
+
+  const r = new FormReader(data);
+  const personId = r.optionalText("personId");
+  const seatRoleCode = r.optionalText("seatRoleCode");
+  const seatLabel = r.optionalText("seatLabel");
+
+  if (!personId && !seatRoleCode) {
+    r.reject(
+      "seatRoleCode",
+      "A seat is held either by an office or by a named person. Choose one.",
+    );
+  }
+  if (personId && seatRoleCode) {
+    r.reject(
+      "seatRoleCode",
+      "A seat cannot be both ex officio and a named appointment. Clear one of them.",
+    );
+  }
+
+  const effectiveFrom = r.date("effectiveFrom", "Held from", { required: true });
+  const effectiveTo = r.date("effectiveTo", "Held to");
+  checkPeriod(r, effectiveFrom, effectiveTo);
+
+  const position = r.choice("position", "Position", POSITIONS, { required: true });
+  const isAlternate = r.bool("isAlternate");
+
+  // One chairman at a time. Two would make the minute unsignable.
+  if (position === "CHAIRMAN" && !isAlternate && effectiveFrom && !r.failed) {
+    const siblings = await db.committeeMember.findMany({
+      where: { committeeId, position: "CHAIRMAN", isAlternate: false, ...(id ? { NOT: { id } } : {}) },
+    });
+    const clash = siblings.find((s) => periodsOverlap(s, { effectiveFrom, effectiveTo }));
+    if (clash) {
+      r.reject("position", "This committee already has a chairman over part of that period.");
+    }
+  }
+
+  const v = {
+    committeeId,
+    personId,
+    seatRoleCode,
+    seatLabel,
+    position: position ?? "MEMBER",
+    isAlternate,
+    provenance: r.choice("provenance", "Provenance", PROVENANCE, { required: true }),
+    appointmentRef: r.optionalText("appointmentRef"),
+    effectiveFrom: effectiveFrom ?? new Date(),
+    effectiveTo,
+  };
+
+  const parsed = r.finish(v);
+  if (!parsed.ok) return { ok: false, errors: parsed.errors };
+
+  const committee = await db.committee.findFirst({
+    where: { id: committeeId, organisationId: orgId },
+    select: { code: true, nameEn: true },
+  });
+  if (!committee) return { ok: false, message: "That committee no longer exists." };
+
+  const write = { ...v, position: v.position, provenance: v.provenance! };
+  const ctx = {
+    organisationId: orgId,
+    entity: "CommitteeMember",
+    entityLabel: `${committee.nameEn} seat`,
+    reason: String(data.get("reason") ?? ""),
+  };
+
+  if (!id) {
+    await auditedCreate(ctx, v, (tx) => tx.committeeMember.create({ data: write }));
+  } else {
+    const before = await db.committeeMember.findUnique({ where: { id } });
+    if (!before) return { ok: false, message: "That seat no longer exists." };
+    await auditedUpdate({ ...ctx, entityId: id }, before, v, (tx) =>
+      tx.committeeMember.update({ where: { id }, data: write }),
+    );
+  }
+
+  revalidatePath(PATH);
+  revalidatePath(`${PATH}/${committee.code}`);
+  return { ok: true };
+}
+
+/// Vacating a seat ends its period. Votes already cast from it must keep resolving.
+export async function vacateSeat(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+
+  const id = String(data.get("id") ?? "");
+  const reason = String(data.get("reason") ?? "").trim();
+  if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
+
+  const before = await db.committeeMember.findUnique({
+    where: { id },
+    include: { committee: { select: { code: true, nameEn: true } } },
+  });
+  if (!before) return { ok: false, message: "That seat no longer exists." };
+  if (before.effectiveTo) return { ok: false, message: "That seat is already vacated." };
+
+  const effectiveTo = new Date();
+  await auditedUpdate(
+    {
+      organisationId: orgId,
+      entity: "CommitteeMember",
+      entityId: id,
+      entityLabel: `${before.committee.nameEn} seat`,
+      reason,
+    },
+    { effectiveTo: null },
+    { effectiveTo },
+    (tx) => tx.committeeMember.update({ where: { id }, data: { effectiveTo } }),
+  );
+
+  revalidatePath(PATH);
+  revalidatePath(`${PATH}/${before.committee.code}`);
+  return { ok: true };
+}

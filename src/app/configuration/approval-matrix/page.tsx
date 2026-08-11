@@ -2,12 +2,14 @@ import { Accordion } from "@/components/accordion";
 import { AuthoritySimulator } from "@/components/authority-simulator";
 import { AlertTriangle, CheckIcon, InfoIcon, SlidersIcon } from "@/components/icons";
 import { RuleChain, type ChainStep } from "@/components/rule-chain";
-import { loadMatrix, NoActiveMatrixError } from "@/lib/authority/load";
+import { loadMatrix, loadMatrixVersion, NoActiveMatrixError } from "@/lib/authority/load";
 import { formatPercentBand, formatValueBand } from "@/lib/format";
 import { matterLabel, methodLabel } from "@/lib/labels";
 import { ORGANISATION_CODE, ORGANISATION_NAME } from "@/lib/org";
 import { loadReferenceData } from "@/lib/reference/load";
 import { activeOn } from "@/lib/reference/vocabulary";
+import { loadRoster } from "@/lib/people/load";
+import { AddMatrix, AddRule, EditMatrix } from "./editors";
 import type { Rule } from "@/lib/authority/types";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +28,9 @@ export default async function ApprovalMatrixPage() {
   /// configured method has claimed.
   const methodName = (code: string) =>
     sourcingMethods.find((m) => m.authorityMethodKey === code)?.nameEn ?? methodLabel(code);
+
+  const roster = await loadRoster(ORGANISATION_CODE);
+  const offices = roster.offices.map((o) => ({ code: o.code, nameEn: o.nameEn }));
 
   let matrix;
   try {
@@ -59,12 +64,21 @@ export default async function ApprovalMatrixPage() {
                 portal cannot say who approves anything. Nothing has been lost — none has
                 been entered yet.
               </p>
+              <div className="empty__a">
+                <AddMatrix />
+              </div>
             </div>
           </div>
         </div>
       </>
     );
   }
+
+  const version = await loadMatrixVersion(ORGANISATION_CODE);
+  const matrixId = version?.id ?? "";
+  const matrixLabel = version?.label ?? "";
+  const matrixFrom = version?.effectiveFrom ?? new Date();
+  const matrixTo = version?.effectiveTo ?? null;
 
   const roleName = (code: string | null) =>
     code == null ? null : (matrix.roles[code]?.nameEn ?? code);
@@ -114,6 +128,24 @@ export default async function ApprovalMatrixPage() {
               <span className="sep">·</span>
               <span>{fixed} cannot be delegated</span>
             </div>
+          </div>
+          <div className="pagehead__actions">
+            <EditMatrix
+              matrix={{
+                id: matrixId,
+                label: matrixLabel,
+                effectiveFrom: matrixFrom,
+                effectiveTo: matrixTo,
+                boundaryValue: matrix.policy.boundaryValue,
+                boundaryInclusive: matrix.policy.boundaryInclusive,
+                quotationFloor: matrix.policy.quotationFloor,
+                tenderFloor: matrix.policy.tenderFloor,
+                requisitionBoundary: matrix.policy.requisitionBoundary,
+                splittingWindowDays: matrix.policy.splittingWindowDays,
+                currency: matrix.policy.currency,
+              }}
+            />
+            <AddRule matrixId={matrixId} offices={offices} />
           </div>
         </div>
       </div>

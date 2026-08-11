@@ -108,6 +108,31 @@ export async function loadMatrix(organisationCode: string, asOf: Date = new Date
   };
 }
 
+/**
+ * The issue itself — id, label and period.
+ *
+ * Kept apart from `loadMatrix`, which returns the pure `Matrix` the resolver works on.
+ * The resolver has no business knowing a row's primary key, but the screen that edits
+ * the thresholds does.
+ */
+export async function loadMatrixVersion(organisationCode: string, asOf: Date = new Date()) {
+  const organisation = await db.organisation.findUnique({
+    where: { code: organisationCode },
+    select: { id: true },
+  });
+  if (!organisation) return null;
+
+  return db.authorityMatrix.findFirst({
+    where: {
+      organisationId: organisation.id,
+      effectiveFrom: { lte: asOf },
+      OR: [{ effectiveTo: null }, { effectiveTo: { gt: asOf } }],
+    },
+    orderBy: { effectiveFrom: "desc" },
+    select: { id: true, label: true, effectiveFrom: true, effectiveTo: true },
+  });
+}
+
 /// Label of the DAL issue in force, for display and for stamping onto decisions.
 export async function activeVersionLabel(
   organisationCode: string,

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { AlertTriangle, ChevronRight } from "@/components/icons";
 import { listCommittees } from "@/lib/committee/repo";
+import { AddCommittee, EditCommittee } from "./editors";
 import { formatBand } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +40,9 @@ export default async function CommitteesPage() {
               Membership, quorum and the decisions each body may take.
             </p>
           </div>
+          <div className="pagehead__actions">
+            <AddCommittee />
+          </div>
         </div>
       </div>
 
@@ -71,7 +75,11 @@ export default async function CommitteesPage() {
           </div>
           <div className="stat__foot">
             <span className="stat__hint">
-              Only the Tender Board has one. The rest cannot be certified quorate.
+              {committees.length === 0
+                ? "No body is configured yet"
+                : quorumStated === committees.length
+                  ? "Every body can be certified quorate"
+                  : `${committees.length - quorumStated} cannot be certified quorate`}
             </span>
           </div>
         </div>
@@ -82,7 +90,11 @@ export default async function CommitteesPage() {
           </div>
           <div className="stat__value">{compositionUnknown}</div>
           <div className="stat__foot">
-            <span className="stat__hint">No members defined in policy or in practice.</span>
+            <span className="stat__hint">
+              {compositionUnknown === 0
+                ? "Every body's membership is traced to a source"
+                : "No members defined in policy or in practice"}
+            </span>
           </div>
         </div>
       </div>
@@ -97,6 +109,7 @@ export default async function CommitteesPage() {
               <col style={{ width: "14%" }} />
               <col style={{ width: "16%" }} />
               <col style={{ width: "8%" }} />
+              <col style={{ width: "10%" }} />
             </colgroup>
             <thead>
               <tr>
@@ -105,6 +118,7 @@ export default async function CommitteesPage() {
                 <th>Value scope</th>
                 <th>Quorum</th>
                 <th>Composition</th>
+                <th />
                 <th />
               </tr>
             </thead>
@@ -139,6 +153,9 @@ export default async function CommitteesPage() {
                   </td>
                   <td>
                     <ProvenanceBadge value={c.compositionProvenance} seats={c.seatCount} />
+                  </td>
+                  <td className="right">
+                    <EditCommittee committee={c} />
                   </td>
                   <td className="right">
                     <Link
