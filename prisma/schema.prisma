@@ -90,10 +90,13 @@ model Organisation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  roles      AuthorityRole[]
-  matrices   AuthorityMatrix[]
-  people     Person[]
-  committees Committee[]
+  roles           AuthorityRole[]
+  matrices        AuthorityMatrix[]
+  people          Person[]
+  committees      Committee[]
+  fundingRoutes   FundingRoute[]
+  sourcingMethods SourcingMethod[]
+  contractTypes   ContractType[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -430,4 +433,129 @@ model Vote {
 
   @@unique([decisionId, personId])
   @@index([decisionId])
+}
+
+/// How a matter is funded.
+///
+/// The master gate, and the one piece of reference data that changes whether the
+/// organisation procures at all: under some routes it appoints nobody and only
+/// verifies eligibility, inspects and accepts the asset. Which routes exist, and
+/// what each implies, is the customer's own arrangement with its funders — so a
+/// table, never a literal.
+model FundingRoute {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code   String
+  nameEn String
+  nameMs String?
+
+  /// False where the organisation does not run the procurement itself. Such a route
+  /// still produces a record — eligibility, inspection, acceptance — but no award.
+  organisationProcures Boolean @default(true)
+
+  /// True where an external body, not this organisation, decides the sourcing route.
+  /// The organisation still procures; it does not choose how.
+  routeDecidedExternally Boolean @default(false)
+
+  /// True where the funder's own guidelines override the approval matrix wherever the
+  /// two differ. The engine warns and does not silently re-route: what the external
+  /// rule set actually says is not something this system holds.
+  supersedesAuthority Boolean @default(false)
+
+  /// What starts a matter down this route, in the customer's own words.
+  trigger String @default("")
+
+  governingSource String     @default("")
+  provenance      Provenance @default(ASSUMED)
+  notes           String     @default("")
+  sortOrder       Int        @default(0)
+
+  /// Retired rather than deleted: a matter already routed under this entry must still
+  /// render the route it was actually run under.
+  retiredOn DateTime?
+
+  @@unique([organisationId, code])
+  @@index([organisationId, sortOrder])
+}
+
+/// How suppliers are approached for a matter.
+///
+/// A sourcing method is not a label. It decides what documents are assembled, whether
+/// the exercise is advertised or invited, which body sits on it, and what instrument
+/// awards it. Value bands are deliberately absent — those live in the authority
+/// matrix's policy, and restating them here would create a second place to get them
+/// wrong.
+model SourcingMethod {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code   String
+  nameEn String
+  nameMs String?
+
+  /// Which value regimes this method may be used in. A method available at any value
+  /// sets all three; one confined to a band sets only that band. The thresholds
+  /// themselves stay in the matrix policy.
+  availableInTender    Boolean @default(false)
+  availableInQuotation Boolean @default(false)
+  availableBelow       Boolean @default(false)
+
+  /// Whether the exercise is advertised openly, and whether named suppliers are
+  /// invited. Both may be false — a direct appointment does neither.
+  requiresAdvertisement Boolean @default(false)
+  invitesNamedSuppliers Boolean @default(false)
+
+  /// False where the method calls off an existing contract instead of sourcing afresh,
+  /// as a schedule of rates does. Such a matter has no bids and no evaluation.
+  requiresFreshSourcing Boolean @default(true)
+
+  /// The instrument that awards a matter sourced this way, as the customer names it.
+  awardInstrument String @default("")
+
+  /// The body that sits on matters sourced this way, matching Committee.code. Null
+  /// where the method routes to an individual office instead.
+  committeeCode String?
+
+  /// The value of AuthorityRule.method that bands the approval rows for this method.
+  /// Held explicitly because several methods commonly share one row.
+  authorityMethodKey String?
+
+  governingSource String     @default("")
+  provenance      Provenance @default(ASSUMED)
+  notes           String     @default("")
+  sortOrder       Int        @default(0)
+
+  retiredOn DateTime?
+
+  @@unique([organisationId, code])
+  @@index([organisationId, sortOrder])
+}
+
+/// What is being bought.
+///
+/// The classification drives a long tail of downstream behaviour — retention, defects
+/// liability, the certificates issued. Where no governing document defines it, the
+/// classification is reverse-engineered from the clauses that actually differ, which
+/// is precisely what `provenance` is for.
+model ContractType {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code   String
+  nameEn String
+  nameMs String?
+
+  governingSource String     @default("")
+  provenance      Provenance @default(ASSUMED)
+  notes           String     @default("")
+  sortOrder       Int        @default(0)
+
+  retiredOn DateTime?
+
+  @@unique([organisationId, code])
+  @@index([organisationId, sortOrder])
 }

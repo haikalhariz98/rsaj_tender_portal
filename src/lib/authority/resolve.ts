@@ -288,14 +288,14 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
     (step, i, all) => i === 0 || !(all[i - 1].roleCode === step.roleCode && all[i - 1].act === step.act),
   );
 
-  if (query.funding === "government" || query.funding === "developer") {
+  if (query.fundingSupersedesAuthority) {
     warnings.push({
       code: "GOV_OVERRIDE",
       level: "warn",
       messageEn:
-        "Government-funded: Government guidelines and directives SUPERSEDE the DAL where they conflict.",
+        "Externally funded: the funder's own guidelines and directives supersede these limits where they conflict.",
       messageMs:
-        "Dibiayai Kerajaan: garis panduan dan arahan Kerajaan MENGATASI DAL apabila bercanggah.",
+        "Dibiayai pihak luar: garis panduan dan arahan penyandang dana mengatasi had ini apabila bercanggah.",
       clause: "DAL_GOV",
     });
   }

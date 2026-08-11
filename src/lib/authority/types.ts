@@ -114,8 +114,13 @@ export interface ResolveQuery {
   absentRoleCodes?: string[];
   /// The role acting, for the self-approval rule.
   actorRoleCode?: string | null;
-  /// Funding source. Government and developer funding supersede the DAL.
+  /// The funding route this matter is on, as a configured code. Carried so a
+  /// resolution can say what it was decided under; the engine does not interpret it.
   funding?: string | null;
+  /// Whether that route's funder overrides these limits. Read from the configured
+  /// route rather than inferred from its code — which routes supersede is the
+  /// customer's arrangement with its funders, not a fact about the words used.
+  fundingSupersedesAuthority?: boolean;
 }
 
 export interface Resolution {

@@ -1,6 +1,8 @@
 import { loadMatrix, NoActiveMatrixError } from "@/lib/authority/load";
 import { resolveApproval } from "@/lib/authority/resolve";
 import type { ResolveQuery } from "@/lib/authority/types";
+import { loadReferenceData } from "@/lib/reference/load";
+import { findFundingRoute, fundingPosture, overridesAuthority } from "@/lib/reference/vocabulary";
 
 import { ORGANISATION_CODE } from "@/lib/org";
 
@@ -31,23 +33,38 @@ export async function GET(request: Request) {
     return Response.json({ error: "value must be a number" }, { status: 400 });
   }
 
-  const query: ResolveQuery = {
-    domain,
-    method: params.get("method"),
-    cond: params.get("cond"),
-    value: numberOrNull(rawValue),
-    pct: numberOrNull(params.get("pct")),
-    contractValue: numberOrNull(params.get("contractValue")),
-    absentRoleCodes: params.getAll("absent").filter(Boolean),
-    actorRoleCode: params.get("actor"),
-    funding: params.get("funding"),
-  };
+  const organisationCode = params.get("org") ?? ORGANISATION_CODE;
+  const fundingCode = params.get("funding");
 
   try {
-    const matrix = await loadMatrix(params.get("org") ?? ORGANISATION_CODE);
+    // Whether a funder overrides the matrix is configuration, so the route has to be
+    // looked up before the chain is resolved rather than inferred from its code.
+    const reference = await loadReferenceData(organisationCode);
+    const route = findFundingRoute(reference.fundingRoutes, fundingCode);
+
+    const query: ResolveQuery = {
+      domain,
+      method: params.get("method"),
+      cond: params.get("cond"),
+      value: numberOrNull(rawValue),
+      pct: numberOrNull(params.get("pct")),
+      contractValue: numberOrNull(params.get("contractValue")),
+      absentRoleCodes: params.getAll("absent").filter(Boolean),
+      actorRoleCode: params.get("actor"),
+      funding: fundingCode,
+      fundingSupersedesAuthority: overridesAuthority(route),
+    };
+
+    const matrix = await loadMatrix(organisationCode);
     const result = resolveApproval(matrix, query);
 
     return Response.json({
+      funding: route && {
+        code: route.code,
+        label: route.nameEn,
+        posture: fundingPosture(route),
+        supersedesAuthority: route.supersedesAuthority,
+      },
       rule: result.rule && {
         key: result.rule.ruleKey,
         label: result.rule.labelEn,

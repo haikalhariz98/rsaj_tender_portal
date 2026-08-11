@@ -52,10 +52,14 @@ export function AuthoritySimulator({
   domains,
   methods,
   roles,
+  fundingRoutes,
 }: {
   domains: { code: string; label: string }[];
   methods: { code: string; label: string }[];
   roles: { code: string; name: string }[];
+  /// Configured in Reference data. Empty until someone sets one, which is why the
+  /// select says so rather than offering a route the customer never agreed to.
+  fundingRoutes: { code: string; label: string }[];
 }) {
   const [domain, setDomain] = useState("payment");
   const [method, setMethod] = useState("tender");
@@ -185,11 +189,20 @@ export function AuthoritySimulator({
                 className="select select--sm"
                 value={funding}
                 onChange={(e) => setFunding(e.target.value)}
+                disabled={fundingRoutes.length === 0}
               >
-                <option value="">Internal</option>
-                <option value="government">Government</option>
-                <option value="developer">Developer</option>
+                <option value="">Not specified</option>
+                {fundingRoutes.map((r) => (
+                  <option key={r.code} value={r.code}>
+                    {r.label}
+                  </option>
+                ))}
               </select>
+              <span className="field__hint">
+                {fundingRoutes.length === 0
+                  ? "No funding route configured yet"
+                  : "Whether a funder overrides these limits is set per route"}
+              </span>
             </label>
 
             <label className="field">

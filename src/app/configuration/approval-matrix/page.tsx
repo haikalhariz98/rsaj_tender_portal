@@ -6,11 +6,27 @@ import { loadMatrix, NoActiveMatrixError } from "@/lib/authority/load";
 import { formatPercentBand, formatValueBand } from "@/lib/format";
 import { matterLabel, methodLabel } from "@/lib/labels";
 import { ORGANISATION_CODE } from "@/lib/org";
+import { loadReferenceData } from "@/lib/reference/load";
+import { activeOn } from "@/lib/reference/vocabulary";
 import type { Rule } from "@/lib/authority/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function ApprovalMatrixPage() {
+  // The vocabulary this customer has configured. Which funding routes override the
+  // matrix is a property of the route, not of its name.
+  const on = new Date();
+  const reference = await loadReferenceData(ORGANISATION_CODE);
+  const fundingRoutes = activeOn(reference.fundingRoutes, on);
+  const sourcingMethods = activeOn(reference.sourcingMethods, on);
+
+  /// A rule's `method` is an authority-matrix key, and `authorityMethodKey` is what
+  /// binds a configured sourcing method to it. Where the customer has named the
+  /// method, that name wins; the built-in wording is only a fallback for a key no
+  /// configured method has claimed.
+  const methodName = (code: string) =>
+    sourcingMethods.find((m) => m.authorityMethodKey === code)?.nameEn ?? methodLabel(code);
+
   let matrix;
   try {
     matrix = await loadMatrix(ORGANISATION_CODE);
@@ -254,7 +270,7 @@ export default async function ApprovalMatrixPage() {
                                 </td>
                                 <td>
                                   <span className="dim sm">
-                                    {rule.method ? methodLabel(rule.method) : "Any method"}
+                                    {rule.method ? methodName(rule.method) : "Any method"}
                                   </span>
                                 </td>
                                 <td className="wrapcell">
@@ -336,10 +352,11 @@ export default async function ApprovalMatrixPage() {
                 ...new Set(matrix.rules.map((r) => r.method).filter((m): m is string => !!m)),
               ]
                 .sort()
-                .map((code) => ({ code, label: methodLabel(code) }))}
+                .map((code) => ({ code, label: methodName(code) }))}
               roles={Object.values(matrix.roles)
                 .map((r) => ({ code: r.code, name: r.nameEn }))
                 .sort((a, b) => a.name.localeCompare(b.name))}
+              fundingRoutes={fundingRoutes.map((r) => ({ code: r.code, label: r.nameEn }))}
             />
           </div>
         </section>

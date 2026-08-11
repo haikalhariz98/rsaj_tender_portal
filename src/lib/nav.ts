@@ -158,6 +158,7 @@ export const CONFIG_SECTIONS: {
         label: "Reference data",
         description: "Sourcing methods, contract types, funding routes and code lists.",
         icon: "globe",
+        built: true,
       },
       {
         href: "/configuration/notifications",

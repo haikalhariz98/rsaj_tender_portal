@@ -222,25 +222,34 @@ describe("when nothing matches", () => {
 });
 
 describe("externally funded matters", () => {
+  const onFunding = (q: { funding?: string; fundingSupersedesAuthority?: boolean }) =>
+    resolveApproval(matrix, { domain: "payment", method: "tender", value: 620_000, ...q }).warnings;
+
   it("warns that the funder's directives supersede these limits", () => {
-    for (const funding of ["government", "developer"]) {
-      const result = resolveApproval(matrix, {
-        domain: "payment",
-        method: "tender",
-        value: 620_000,
-        funding,
-      });
-      expect(result.warnings.some((w) => w.code === "GOV_OVERRIDE")).toBe(true);
-    }
+    const warnings = onFunding({ funding: "anything", fundingSupersedesAuthority: true });
+    expect(warnings.some((w) => w.code === "GOV_OVERRIDE")).toBe(true);
   });
 
-  it("stays quiet for internally funded matters", () => {
-    const result = resolveApproval(matrix, {
-      domain: "payment",
-      method: "tender",
-      value: 620_000,
-      funding: "opex",
-    });
-    expect(result.warnings.some((w) => w.code === "GOV_OVERRIDE")).toBe(false);
+  it("stays quiet where the route does not supersede", () => {
+    const warnings = onFunding({ funding: "anything", fundingSupersedesAuthority: false });
+    expect(warnings.some((w) => w.code === "GOV_OVERRIDE")).toBe(false);
+  });
+
+  it("stays quiet when no funding route is given at all", () => {
+    expect(onFunding({}).some((w) => w.code === "GOV_OVERRIDE")).toBe(false);
+  });
+
+  it("takes the flag from configuration and never from the route's code", () => {
+    // The old engine matched the strings "government" and "developer". A customer whose
+    // routes are named otherwise would have been silently unwarned; one who names an
+    // internally funded route "government" would have been warned wrongly.
+    expect(
+      onFunding({ funding: "government" }).some((w) => w.code === "GOV_OVERRIDE"),
+    ).toBe(false);
+    expect(
+      onFunding({ funding: "opex", fundingSupersedesAuthority: true }).some(
+        (w) => w.code === "GOV_OVERRIDE",
+      ),
+    ).toBe(true);
   });
 });
