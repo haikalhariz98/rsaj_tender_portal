@@ -242,7 +242,7 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
   const effectiveFrom = r.date("effectiveFrom", "From", { required: true });
   const effectiveTo = r.date("effectiveTo", "To");
   const capabilityCodes = (r.optionalText("capabilityCodes") ?? "")
-    .split(",")
+    .split("\n")
     .map((c) => c.trim())
     .filter(Boolean);
 
@@ -353,12 +353,18 @@ export async function saveOffice(_prev: FormState, data: FormData): Promise<Form
     select: { id: true, code: true },
   });
   const current = id ? existing.find((e) => e.id === id) : undefined;
+  if (id && !current) return { ok: false, message: "That role no longer exists." };
 
   const r = new FormReader(data);
-  const code = id
-    ? String(data.get("code") ?? "")
+
+  // The code is set once and never edited: every approval rule routes to it. The
+  // drawer does not offer it, so it is read from the record rather than from the
+  // form — `data.get("code")` on a form that has no such field is null, and writing
+  // that would blank the thing the rules point at.
+  const code = current
+    ? current.code
     : r.code("code", "Code", {
-        taken: existing.filter((e) => e.code !== current?.code).map((e) => e.code),
+        taken: existing.map((e) => e.code),
       });
 
   const escalatesToCode = r.optionalText("escalatesToCode");

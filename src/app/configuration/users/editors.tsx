@@ -3,6 +3,7 @@ import {
   HelpCircle,
   InfoIcon,
   PencilIcon,
+  ShieldIcon,
   SwapIcon,
   UserIcon,
   XIcon,
@@ -281,7 +282,11 @@ export function LeaverToggle({ person }: { person: Person }) {
       values={{ id: person.id, isActive: leaving ? "" : "yes" }}
       action={setPersonActive}
       submitLabel={leaving ? "Mark as left" : "Reinstate"}
-      destructive={{ reasonLabel: leaving ? "Why are they leaving?" : "Why are they coming back?" }}
+      // Marking somebody as left stops every role they hold from resolving, so it
+      // asks why in red. Putting them back is not destructive, but it still asks —
+      // nobody is signed in, and the reason is the only account of either.
+      destructive={leaving ? { reasonLabel: "Why are they leaving?" } : undefined}
+      reason={leaving ? undefined : { label: "Why are they coming back?" }}
       trigger={{
         label: leaving ? "Mark as left" : "Reinstate",
         iconOnly: leaving ? <XIcon size={14} /> : <CheckIcon size={14} />,
@@ -338,10 +343,13 @@ export function AddOffice({ offices }: { offices: Office[] }) {
     <RecordEditor
       title="Add a role"
       description="A role or committee that can hold authority."
+      icon={<ShieldIcon size={20} className="icon dim" style={{ marginTop: 2 }} />}
       fields={officeFields(false, offices)}
+      columns={2}
       action={saveOffice}
       submitLabel="Add role"
       trigger={{ label: "Add role", icon: true }}
+      size="lg"
     />
   );
 }
@@ -349,13 +357,17 @@ export function AddOffice({ offices }: { offices: Office[] }) {
 export function EditOffice({ office, offices }: { office: Office; offices: Office[] }) {
   return (
     <RecordEditor
-      title={`Edit ${office.nameEn}`}
+      title={office.nameEn}
+      description={office.authorityLevel || undefined}
+      icon={<ShieldIcon size={20} className="icon dim" style={{ marginTop: 2 }} />}
       fields={[
         { kind: "hidden", name: "id" },
         ...officeFields(true, offices.filter((o) => o.code !== office.code)),
       ]}
+      columns={2}
       action={saveOffice}
-      trigger={{ label: "Edit", className: "btn btn--sm btn--ghost" }}
+      trigger={{ label: "Edit", iconOnly: <PencilIcon size={14} /> }}
+      size="lg"
       values={{
         id: office.id,
         code: office.code,
@@ -409,11 +421,13 @@ export function AddAssignment({ people, offices }: { people: Person[]; offices: 
     <RecordEditor
       title="Assign a role"
       description="A rule routes to a role. Only an assignment turns it into a signatory."
+      icon={<UserIcon size={20} className="icon dim" style={{ marginTop: 2 }} />}
       fields={assignmentFields(people, offices)}
+      columns={2}
       action={saveAssignment}
       submitLabel="Assign"
       trigger={{ label: "Assign role", icon: true }}
-      size="sm"
+      size="lg"
     />
   );
 }
@@ -429,11 +443,14 @@ export function EditAssignment({
 }) {
   return (
     <RecordEditor
-      title="Edit assignment"
+      title="Assignment"
+      description="Who holds a role, and when"
+      icon={<UserIcon size={20} className="icon dim" style={{ marginTop: 2 }} />}
       fields={[{ kind: "hidden", name: "id" }, ...assignmentFields(people, offices)]}
+      columns={2}
       action={saveAssignment}
-      trigger={{ label: "Edit", className: "btn btn--sm btn--ghost" }}
-      size="sm"
+      trigger={{ label: "Edit", iconOnly: <PencilIcon size={14} /> }}
+      size="lg"
       values={{
         id: assignment.id,
         personId: assignment.personId,
@@ -598,7 +615,7 @@ export function EditDelegation({
         effectiveFrom: day(delegation.effectiveFrom),
         effectiveTo: day(delegation.effectiveTo),
         roleCode: delegation.roleCode,
-        capabilityCodes: delegation.capabilityCodes.join(","),
+        capabilityCodes: delegation.capabilityCodes.join("\n"),
         reason: delegation.reason,
         reasonMs: delegation.reasonMs,
       }}

@@ -52,7 +52,7 @@ export type Field =
       orphanLabel?: string;
     }
   | { kind: "switch"; name: string; label: string; hint?: string }
-  /// Several values at once, shown as removable tags. Posts them comma-separated.
+  /// Several values at once, shown as removable tags.
   | {
       kind: "tokens";
       name: string;
@@ -90,6 +90,7 @@ export function RecordEditor({
   trigger,
   submitLabel = "Save",
   destructive,
+  reason: reasonAsked,
   size = "md",
 }: {
   title: string;
@@ -110,8 +111,11 @@ export function RecordEditor({
   values?: Record<string, string | boolean | null>;
   trigger: { label: string; className?: string; icon?: boolean; iconOnly?: ReactNode };
   submitLabel?: string;
-  /// Requires a reason before the button enables. Used for deletion.
+  /// Requires a reason before the button enables, and turns the button red. For an
+  /// act that takes something away.
   destructive?: { reasonLabel: string };
+  /// Requires a reason without the act being destructive.
+  reason?: { label: string };
   /// Drawer width. The form opens from the right, as the prototype does.
   size?: "sm" | "md" | "lg" | "xl";
 }) {
@@ -150,7 +154,10 @@ export function RecordEditor({
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
 
-  const blocked = destructive != null && reason.trim().length === 0;
+  // Nobody is signed in, so where a reason is asked for it is the only account of
+  // why the change was made, whichever direction the change goes.
+  const asksReason = destructive ? { label: destructive.reasonLabel } : reasonAsked;
+  const blocked = asksReason != null && reason.trim().length === 0;
 
   return (
     <>
@@ -261,10 +268,10 @@ export function RecordEditor({
 
                   {sections}
 
-                  {destructive && (
+                  {asksReason && (
                     <label className="field">
                       <span className="field__lbl">
-                        {destructive.reasonLabel} <span className="field__req">*</span>
+                        {asksReason.label} <span className="field__req">*</span>
                       </span>
                       <textarea
                         className="textarea"
@@ -308,7 +315,8 @@ export function RecordEditor({
  * Several values at once, as the sample's token field has them: chosen ones sit as
  * removable tags inside the box, and what is left drops down below it.
  *
- * The values ride out on one hidden input, comma-separated, because a server action
+ * The values ride out on one hidden input, newline-separated — a comma can appear in
+ * a customer's own code, a newline cannot — because a server action
  * reading a form has no way to tell an absent multi-value from an empty one — and
  * "nothing was delegated" and "the whole role was" are different acts here.
  */
@@ -320,7 +328,7 @@ function TokensInput({
   value: string;
 }) {
   const [chosen, setChosen] = useState<string[]>(() =>
-    value ? value.split(",").filter(Boolean) : [],
+    value ? value.split("\n").filter(Boolean) : [],
   );
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
@@ -333,7 +341,7 @@ function TokensInput({
 
   return (
     <div className="combo">
-      <input type="hidden" name={field.name} value={chosen.join(",")} />
+      <input type="hidden" name={field.name} value={chosen.join("\n")} />
       <div className="tokens" role="group" onClick={() => setOpen(true)}>
         {chosen.map((v) => (
           <span key={v} className="tag">
