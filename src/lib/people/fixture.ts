@@ -16,6 +16,10 @@ const person = (id: string, name: string, isActive = true): Person => ({
   name,
   email: null,
   jobTitle: null,
+  department: null,
+  telephone: null,
+  portalRoleCode: null,
+  isAvailable: true,
   isActive,
 });
 
@@ -25,6 +29,8 @@ const office = (code: string, sortOrder: number): Office => ({
   nameEn: code,
   nameMs: code,
   isCommittee: false,
+  workspace: "",
+  authorityLevel: "",
   escalatesToCode: null,
   selfApprovalEscalatesToCode: null,
   sortOrder,

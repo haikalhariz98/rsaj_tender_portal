@@ -89,8 +89,17 @@ function fingerprint(html) {
 
   const all = (sel) => [...root.querySelectorAll(sel)];
 
+  // The prototype puts the page head OUTSIDE .cfg-main and we put it inside, so the
+  // head is always read from the document. Scoping it to the main column reported a
+  // matching meta line as missing on every screen.
+  const head = doc.querySelector(".pagehead") ?? root;
+
+  // A sortable header carries a sort glyph inside the same th. Comparing raw text
+  // made "Name" and "Name▴" look like different columns.
+  const headerText = (th) => text(th.querySelector(".th__t") ?? th).replace(/[▴▾]/g, "").trim();
+
   const tables = all("table").map((t) => ({
-    columns: [...t.querySelectorAll("thead th")].map(text).filter(Boolean),
+    columns: [...t.querySelectorAll("thead th")].map(headerText).filter(Boolean),
     rows: t.querySelectorAll("tbody tr").length,
   }));
 
@@ -104,9 +113,14 @@ function fingerprint(html) {
     .filter(Boolean);
 
   return {
-    heading: text(root.querySelector(".pagehead__title")) || text(doc.querySelector(".pagehead__title")),
-    sub: text(root.querySelector(".pagehead__sub")),
-    meta: all(".pagehead__meta > *").map(text).filter((t) => t && t !== "·"),
+    heading: text(head.querySelector(".pagehead__title")),
+    sub: text(head.querySelector(".pagehead__sub")),
+    meta: [...head.querySelectorAll(".pagehead__meta > *")]
+      .map(text)
+      .filter((t) => t && t !== "·")
+      // Counts are data. "12 people" here and "7 people" there is the demo set being
+      // a different size, not a different screen.
+      .map((t) => t.replace(/[0-9]+/g, "N").replace(/(N [a-z]+?)s(?= |$)/g, "$1")),
     tabs: all(".tab, [role=tab]").map(text).filter(Boolean),
     stats: all(".stat__label").map(text),
     cards: all(".card__head .h3, .card__head .h2, .section__head .h3").map(text).filter(Boolean),
@@ -132,9 +146,38 @@ function fingerprint(html) {
 
 const list = (a) => (a.length ? a : ["(none)"]);
 
-function diffLists(label, mine, theirs, out) {
+/**
+ * Differences we have decided to keep.
+ *
+ * The prototype is a click-through with no write path; this product has CRUD, so its
+ * add and edit controls have no counterpart there. Listed rather than silently
+ * ignored, so the decision stays visible.
+ */
+const ALLOWED_EXTRA = [
+  /^Add /,
+  /^New /,
+  /^Edit$/,
+  /^Assign /,
+  /^Record /,
+  /^Retire$/,
+  /^Close$/,
+  /^End$/,
+  /^Release$/,
+  /^Vacate$/,
+  /^Set format$/,
+];
+
+const isAllowed = (label) => ALLOWED_EXTRA.some((re) => re.test(label));
+
+function diffLists(label, mine, theirs, out, allowExtra = false) {
   const missing = theirs.filter((t) => !mine.includes(t));
-  const extra = mine.filter((m) => !theirs.includes(m));
+  const extraAll = mine.filter((m) => !theirs.includes(m));
+  const allowed = allowExtra ? extraAll.filter(isAllowed) : [];
+  const extra = extraAll.filter((e) => !allowed.includes(e));
+
+  if (allowed.length) {
+    out.push(`  kept     ${label} — ours only, by decision: ${allowed.join(" | ")}`);
+  }
   if (!missing.length && !extra.length) {
     out.push(`  ok       ${label}`);
     return 0;
@@ -152,7 +195,7 @@ function compare(mine, theirs) {
   problems += diffLists("tabs", mine.tabs, theirs.tabs, out);
   problems += diffLists("stat tiles", mine.stats, theirs.stats, out);
   problems += diffLists("card / section headings", mine.cards, theirs.cards, out);
-  problems += diffLists("controls", mine.controls, theirs.controls, out);
+  problems += diffLists("controls", mine.controls, theirs.controls, out, true);
   problems += diffLists("list chrome", mine.chrome, theirs.chrome, out);
   problems += diffLists("page head meta", mine.meta, theirs.meta, out);
 

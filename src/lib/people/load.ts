@@ -62,6 +62,10 @@ export async function loadRoster(organisationCode: string): Promise<RosterData> 
       name: p.name,
       email: p.email,
       jobTitle: p.jobTitle,
+      department: p.department,
+      telephone: p.telephone,
+      portalRoleCode: p.portalRoleCode,
+      isAvailable: p.isAvailable,
       isActive: p.isActive,
     })),
     offices: offices.map((o) => ({
@@ -70,6 +74,8 @@ export async function loadRoster(organisationCode: string): Promise<RosterData> 
       nameEn: o.nameEn,
       nameMs: o.nameMs,
       isCommittee: o.isCommittee,
+      workspace: o.workspace,
+      authorityLevel: o.authorityLevel,
       escalatesToCode: o.escalatesToCode,
       selfApprovalEscalatesToCode: o.selfApprovalEscalatesToCode,
       sortOrder: o.sortOrder,
@@ -86,4 +92,89 @@ export async function loadRoster(organisationCode: string): Promise<RosterData> 
     ),
     routedToCodes: [...routed],
   };
+}
+
+/**
+ * The capability grid and the delegations, for the Permissions and Delegation tabs.
+ *
+ * Loaded apart from the roster because three of the four tabs do not need them, and
+ * the tab component renders only the selected panel.
+ */
+export interface GrantsData {
+  capabilities: {
+    id: string;
+    code: string;
+    nameEn: string;
+    nameMs: string | null;
+    groupLabel: string;
+    sortOrder: number;
+  }[];
+  grants: { capabilityId: string; roleCode: string }[];
+}
+
+export async function loadGrants(organisationCode: string): Promise<GrantsData> {
+  const organisation = await db.organisation.findUnique({
+    where: { code: organisationCode },
+    select: { id: true },
+  });
+  if (!organisation) return { capabilities: [], grants: [] };
+
+  const capabilities = await db.capability.findMany({
+    where: { organisationId: organisation.id },
+    orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }],
+    include: { roles: { select: { roleCode: true } } },
+  });
+
+  return {
+    capabilities: capabilities.map((c) => ({
+      id: c.id,
+      code: c.code,
+      nameEn: c.nameEn,
+      nameMs: c.nameMs,
+      groupLabel: c.groupLabel,
+      sortOrder: c.sortOrder,
+    })),
+    grants: capabilities.flatMap((c) =>
+      c.roles.map((r) => ({ capabilityId: c.id, roleCode: r.roleCode })),
+    ),
+  };
+}
+
+export interface StoredDelegation {
+  id: string;
+  fromPersonId: string;
+  toPersonId: string;
+  roleCode: string;
+  capabilityCodes: string[];
+  valueCeiling: string | null;
+  reason: string;
+  noSubDelegation: boolean;
+  effectiveFrom: Date;
+  effectiveTo: Date | null;
+}
+
+export async function loadDelegations(organisationCode: string): Promise<StoredDelegation[]> {
+  const organisation = await db.organisation.findUnique({
+    where: { code: organisationCode },
+    select: { id: true },
+  });
+  if (!organisation) return [];
+
+  const rows = await db.delegation.findMany({
+    where: { organisationId: organisation.id },
+    orderBy: { effectiveFrom: "desc" },
+  });
+
+  return rows.map((d) => ({
+    id: d.id,
+    fromPersonId: d.fromPersonId,
+    toPersonId: d.toPersonId,
+    roleCode: d.roleCode,
+    capabilityCodes: d.capabilityCodes,
+    valueCeiling: d.valueCeiling?.toString() ?? null,
+    reason: d.reason,
+    noSubDelegation: d.noSubDelegation,
+    effectiveFrom: d.effectiveFrom,
+    effectiveTo: d.effectiveTo,
+  }));
 }

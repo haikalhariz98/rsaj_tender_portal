@@ -16,6 +16,13 @@ export interface Person {
   name: string;
   email: string | null;
   jobTitle: string | null;
+  department: string | null;
+  telephone: string | null;
+  /// The office this person is presented as holding in the portal, which is not
+  /// necessarily the office the approval matrix routes to.
+  portalRoleCode: string | null;
+  /// False while they are away. Cover is a Delegation; this is only the signal.
+  isAvailable: boolean;
   /// False for a leaver. A person is never deleted: decisions they voted on must keep
   /// resolving to a name.
   isActive: boolean;
@@ -28,6 +35,8 @@ export interface Office {
   nameEn: string;
   nameMs: string;
   isCommittee: boolean;
+  workspace: string;
+  authorityLevel: string;
   escalatesToCode: string | null;
   selfApprovalEscalatesToCode: string | null;
   sortOrder: number;

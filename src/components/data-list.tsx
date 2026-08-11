@@ -1,9 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
-import { ChevronDown, ChevronRight, DownloadIcon, SearchIcon } from "@/components/icons";
+import {
+  ChevronDown,
+  ChevronRight,
+  DownloadIcon,
+  RowsTightIcon,
+  RowsWideIcon,
+  SearchIcon,
+} from "@/components/icons";
 import { avatarTone, formatRM, initials } from "@/lib/format";
 
 /**
@@ -21,7 +28,12 @@ export type Cell =
   | { kind: "badge"; text: string; tone?: "ok" | "warn" | "err" | "info" | "brand" }
   | { kind: "chip"; text: string; tone?: "ok" | "warn" | "err" | "info" | "brand" }
   | { kind: "person"; name: string; sub?: string }
-  | { kind: "link"; text: string; href: string; sub?: string };
+  | { kind: "link"; text: string; href: string; sub?: string }
+  /// An overlapping stack of avatars with a +N overflow, as the prototype shows for
+  /// who holds a role or who reviews a document.
+  | { kind: "avatars"; names: string[]; max?: number }
+  /// Several small badges in one cell, overflowing to +N.
+  | { kind: "badges"; items: string[]; max?: number };
 
 export interface Column {
   key: string;
@@ -75,6 +87,10 @@ function cellText(cell: Cell | undefined): string {
       return cell.name;
     case "link":
       return cell.text;
+    case "avatars":
+      return cell.names.join(" ");
+    case "badges":
+      return cell.items.join(" ");
   }
 }
 
@@ -116,6 +132,36 @@ function CellView({ cell }: { cell: Cell | undefined }) {
           {cell.sub && <span className="cellstack__s">{cell.sub}</span>}
         </div>
       );
+    case "avatars": {
+      if (cell.names.length === 0) return <span className="dim">-</span>;
+      const shownA = cell.names.slice(0, cell.max ?? 4);
+      const restA = cell.names.length - shownA.length;
+      return (
+        <span className="avatars">
+          {shownA.map((name) => (
+            <span key={name} className={`avatar avatar--xs ${avatarTone(name)}`} title={name}>
+              {initials(name)}
+            </span>
+          ))}
+          {restA > 0 && <span className="avatar avatar--xs avatar--muted">+{restA}</span>}
+        </span>
+      );
+    }
+    case "badges": {
+      if (cell.items.length === 0) return <span className="dim">-</span>;
+      const shownB = cell.items.slice(0, cell.max ?? 3);
+      const restB = cell.items.length - shownB.length;
+      return (
+        <span className="row" style={{ gap: 4, flexWrap: "wrap" }}>
+          {shownB.map((item) => (
+            <span key={item} className="badge">
+              {item}
+            </span>
+          ))}
+          {restB > 0 && <span className="badge badge--outline">+{restB}</span>}
+        </span>
+      );
+    }
   }
 }
 
@@ -125,6 +171,8 @@ export function DataList({
   views = [],
   filters = [],
   rowAction,
+  actions,
+  selectable = true,
   searchPlaceholder = "Search…",
   flat = false,
   emptyTitle = "Nothing here",
@@ -136,6 +184,12 @@ export function DataList({
   views?: View[];
   filters?: Filter[];
   rowAction?: RowAction;
+  /// Arbitrary per-row controls, for screens whose row action opens an editor rather
+  /// than navigating. Renders under an "Actions" header, as the prototype does.
+  actions?: (id: string) => ReactNode;
+  /// The prototype's configuration lists carry no selection column. Opt out rather
+  /// than always rendering one.
+  selectable?: boolean;
   searchPlaceholder?: string;
   /// True when the list sits inside a card that already provides the border.
   flat?: boolean;
@@ -144,6 +198,8 @@ export function DataList({
   exportName?: string;
 }) {
   const [compact, setCompact] = useState(false);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
   const [view, setView] = useState("all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(null);
@@ -184,7 +240,12 @@ export function DataList({
     return out;
   }, [rows, view, query, sort, chosen]);
 
-  const allSelected = visible.length > 0 && visible.every((r) => selected.has(r.id));
+  const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
+  const current = Math.min(page, pageCount - 1);
+  const start = current * pageSize;
+  const paged = visible.slice(start, start + pageSize);
+
+  const allSelected = paged.length > 0 && paged.every((r) => selected.has(r.id));
 
   function toggleSort(key: string) {
     setSort((s) =>
@@ -194,6 +255,7 @@ export function DataList({
 
   function exportCsv() {
     const header = columns.map((c) => c.label);
+    // The whole filtered list, not just the page being looked at.
     const lines = visible.map((r) => columns.map((c) => cellText(r.cells[c.key])));
     const csv = [header, ...lines]
       .map((cells) => cells.map((v) => `"${v.replace(/"/g, '""')}"`).join(","))
@@ -291,22 +353,28 @@ export function DataList({
         <div className="spacer" />
 
         <div className="dl__tools">
+          {/* Icon-only with the label in a title, as the prototype has it. Words here
+              would widen the bar and read as two more filters. */}
           <div className="segmented" role="group" aria-label="Row density">
             <button
               type="button"
               className="segmented__b"
               aria-pressed={!compact}
+              aria-label="Comfortable rows"
+              title="Comfortable rows"
               onClick={() => setCompact(false)}
             >
-              Comfortable
+              <RowsWideIcon size={14} />
             </button>
             <button
               type="button"
               className="segmented__b"
               aria-pressed={compact}
+              aria-label="Compact rows"
+              title="Compact rows"
               onClick={() => setCompact(true)}
             >
-              Compact
+              <RowsTightIcon size={14} />
             </button>
           </div>
           <button
@@ -342,26 +410,30 @@ export function DataList({
         <div className="tablewrap dl__scroll">
           <table className={`table${compact ? " table--compact" : ""}`}>
             <colgroup>
-              <col className="sel" style={{ width: 42 }} />
+              {selectable && <col className="sel" style={{ width: 42 }} />}
               {columns.map((c) => (
                 <col key={c.key} style={c.width ? { width: c.width } : undefined} />
               ))}
-              {rowAction && <col style={{ width: 52 }} />}
+              {(rowAction || actions) && <col style={{ width: 52 }} />}
             </colgroup>
             <thead>
               <tr>
-                <th className="sel">
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={allSelected}
-                      onChange={(e) =>
-                        setSelected(e.target.checked ? new Set(visible.map((r) => r.id)) : new Set())
-                      }
-                      aria-label="Select all rows"
-                    />
-                  </label>
-                </th>
+                {selectable && (
+                  <th className="sel">
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={(e) =>
+                          setSelected(
+                            e.target.checked ? new Set(paged.map((r) => r.id)) : new Set(),
+                          )
+                        }
+                        aria-label="Select all rows"
+                      />
+                    </label>
+                  </th>
+                )}
                 {columns.map((c) => (
                   <th
                     key={c.key}
@@ -387,39 +459,42 @@ export function DataList({
                     </span>
                   </th>
                 ))}
-                {rowAction && (
-                  <th>
-                    <span className="sr-only">Actions</span>
-                  </th>
-                )}
+                {(rowAction || actions) && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
-              {visible.map((row) => (
+              {paged.map((row) => (
                 <tr key={row.id} data-selected={selected.has(row.id) ? "true" : undefined}>
-                  <td className="sel">
-                    <label className="check">
-                      <input
-                        type="checkbox"
-                        checked={selected.has(row.id)}
-                        onChange={(e) =>
-                          setSelected((s) => {
-                            const next = new Set(s);
-                            if (e.target.checked) next.add(row.id);
-                            else next.delete(row.id);
-                            return next;
-                          })
-                        }
-                        aria-label={`Select ${cellText(row.cells[columns[0].key])}`}
-                      />
-                    </label>
-                  </td>
+                  {selectable && (
+                    <td className="sel">
+                      <label className="check">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(row.id)}
+                          onChange={(e) =>
+                            setSelected((s) => {
+                              const next = new Set(s);
+                              if (e.target.checked) next.add(row.id);
+                              else next.delete(row.id);
+                              return next;
+                            })
+                          }
+                          aria-label={`Select ${cellText(row.cells[columns[0].key])}`}
+                        />
+                      </label>
+                    </td>
+                  )}
                   {columns.map((c) => (
                     <td key={c.key} className={c.numeric ? "num" : undefined}>
                       <CellView cell={row.cells[c.key]} />
                     </td>
                   ))}
-                  {rowAction && (
+                  {actions && (
+                    <td>
+                      <div className="rowactions">{actions(row.id)}</div>
+                    </td>
+                  )}
+                  {rowAction && !actions && (
                     <td>
                       <div className="rowactions">
                         <Link
@@ -441,11 +516,63 @@ export function DataList({
       )}
 
       <div className="dl__foot">
-        <span>
-          {visible.length === rows.length
-            ? `${rows.length} ${rows.length === 1 ? "record" : "records"}`
-            : `${visible.length} of ${rows.length} records`}
+        <span className="num">
+          {visible.length === 0
+            ? "No records"
+            : `Showing ${start + 1}-${Math.min(start + pageSize, visible.length)} of ${visible.length}`}
         </span>
+        <div className="spacer" />
+        <label className="row" style={{ gap: 6 }}>
+          <span className="xs dim">Rows</span>
+          <select
+            className="select select--sm"
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setPage(0);
+            }}
+            style={{ width: "auto" }}
+          >
+            {[10, 25, 50].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+        {visible.length > 0 && (
+          <nav className="pager" aria-label="Pagination">
+            <button
+              type="button"
+              className="pager__b"
+              disabled={current === 0}
+              onClick={() => setPage(current - 1)}
+              aria-label="Previous page"
+            >
+              <ChevronRight size={14} style={{ transform: "rotate(180deg)" }} />
+            </button>
+            {Array.from({ length: pageCount }, (_, i) => (
+              <button
+                key={i}
+                type="button"
+                className="pager__b"
+                aria-current={i === current ? "page" : undefined}
+                onClick={() => setPage(i)}
+              >
+                {i + 1}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="pager__b"
+              disabled={current === pageCount - 1}
+              onClick={() => setPage(current + 1)}
+              aria-label="Next page"
+            >
+              <ChevronRight size={14} />
+            </button>
+          </nav>
+        )}
       </div>
     </div>
   );

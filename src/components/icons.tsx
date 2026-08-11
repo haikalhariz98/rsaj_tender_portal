@@ -151,6 +151,21 @@ export const UserIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const RowsWideIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3" y="4" width="18" height="7" rx="1" />
+    <rect x="3" y="13" width="18" height="7" rx="1" />
+  </Icon>
+);
+
+export const RowsTightIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3" y="4" width="18" height="4" rx="1" />
+    <rect x="3" y="10" width="18" height="4" rx="1" />
+    <rect x="3" y="16" width="18" height="4" rx="1" />
+  </Icon>
+);
+
 export const GridIcon = (p: IconProps) => (
   <Icon {...p}>
     <rect x="3" y="3" width="7" height="7" rx="1.5" />
