@@ -138,6 +138,13 @@ function fingerprint(html) {
  * `theirs: null` means the sample has no such field at all.
  */
 const DECIDED_FIELDS = {
+  "budget-code": [
+    {
+      ours: "Active period [input, required]",
+      theirs: "Active period [input]",
+      why: "a budget code with no start has no period, and every figure on the screen is read against one",
+    },
+  ],
   delegation: [
     {
       ours: "From [select, required]",

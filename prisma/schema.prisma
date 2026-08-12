@@ -121,6 +121,8 @@ model Organisation {
   sites             Site[]
   codeFormats       CodeFormat[]
   budgetAllocations BudgetAllocation[]
+  budgetCodes       BudgetCode[]
+  budgetSettings    BudgetSettings?
   capabilities      Capability[]
   delegations       Delegation[]
   numberingSeries   NumberingSeries[]
@@ -168,6 +170,7 @@ model Person {
   isActive Boolean @default(true)
 
   headOf            OrgUnit[]           @relation("OrgUnitHead")
+  budgetCodesHeld   BudgetCode[]        @relation("BudgetHolder")
   ownsCostCentres   CostCentre[]        @relation("CostCentreOwner")
   roleAssignments   RoleAssignment[]
   committeeSeats    CommitteeMember[]
@@ -912,6 +915,119 @@ model CostCentre {
 
   @@unique([organisationId, code, effectiveFrom])
   @@index([organisationId, effectiveFrom])
+}
+
+/// What a movement did to a budget code's money.
+///
+/// One ledger rather than a table per kind: the allocations tab reads the first four
+/// and the availability tab reads the last two, and a transfer is two rows that must
+/// balance. Splitting them would make that arithmetic cross tables.
+enum BudgetMovementKind {
+  ORIGINAL /// The allocation as first approved.
+  REVISION /// Added to or taken off the original, by decision.
+  TRANSFER_IN /// Moved in from another code.
+  TRANSFER_OUT /// Moved out to another code.
+  COMMITMENT /// Approved but not yet paid. Released without being spent, or realised.
+  ACTUAL_SPEND /// Paid.
+}
+
+/// A budget code — what a requirement is charged to.
+///
+/// Identity, kept apart from the money on it. The code is what the customer's finance
+/// system knows; what it is worth this year is a ledger of movements, because an
+/// allocation is revised and transferred and a single amount column cannot say by
+/// whom or when.
+model BudgetCode {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code          String
+  descriptionEn String
+  descriptionMs String?
+
+  /// Capital, Operating — the customer's own vocabulary, so a label rather than an
+  /// enum. A customer with a third kind must not need a migration.
+  type String @default("")
+
+  /// The unit that answers for it, by OrgUnit.code.
+  owningUnitCode String?
+
+  /// The line of the chart of accounts it posts to. Held as a code, like everywhere
+  /// else money is referenced, because account codes are effective-dated.
+  accountCode String @default("")
+
+  /// Who holds the budget. Null where nobody has been named, which is not nobody.
+  holderPersonId String?
+  holderPerson   Person? @relation("BudgetHolder", fields: [holderPersonId], references: [id], onDelete: SetNull)
+
+  /// False stops it being offered anywhere in the portal. Distinct from the period:
+  /// a code can be inside its dates and still withdrawn.
+  isActive Boolean @default(true)
+
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+
+  movements BudgetMovement[]
+
+  @@unique([organisationId, code])
+  @@index([organisationId, effectiveFrom])
+}
+
+/// One movement on a budget code.
+model BudgetMovement {
+  id           String     @id @default(cuid())
+  budgetCodeId String
+  budgetCode   BudgetCode @relation(fields: [budgetCodeId], references: [id], onDelete: Cascade)
+
+  kind BudgetMovementKind
+
+  /// The requisition, contract or instrument that caused it.
+  reference   String @default("")
+  description String @default("")
+
+  /// Always positive. The kind says which way it moves — a signed amount and a kind
+  /// that disagree is a ledger nobody can total.
+  amount Decimal @db.Decimal(18, 2)
+
+  occurredOn DateTime
+
+  /// Set when a commitment was released without being spent. A released commitment
+  /// stays on the ledger: it held budget for a time and the trail has to show it.
+  releasedOn  DateTime?
+  releaseNote String    @default("")
+
+  /// The code on the other side of a transfer, by code.
+  counterpartCode String?
+
+  @@index([budgetCodeId, kind])
+  @@index([budgetCodeId, occurredOn])
+}
+
+/// How this customer wants the budget check to behave.
+///
+/// Every field is nullable on purpose. A threshold nobody has set is not a threshold
+/// of zero, and a screen that renders the two the same way invents a policy.
+model BudgetSettings {
+  id             String       @id @default(cuid())
+  organisationId String       @unique
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// Whether an availability check stops a requirement or merely warns about it.
+  availabilityCheck String?
+
+  warningThresholdPercent        Int?
+  overCommitmentTolerancePercent Int?
+
+  /// Whether approving a requirement commits the budget there and then.
+  commitOnApproval Boolean?
+
+  /// Roles that may proceed past a failed check, by AuthorityRole.code.
+  overrideRoleCodes String[]
+
+  advanceRecoupmentRatePercent Int?
+  minimumInterimCertificate    Decimal? @db.Decimal(18, 2)
+  paymentTargetDays            Int?
 }
 
 /// A line of the chart of accounts. Paired with a cost centre, this is what a budget

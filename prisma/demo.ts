@@ -59,6 +59,9 @@ async function wipe() {
   await db.authorityRule.deleteMany({ where: demo });
   await db.authorityMatrix.deleteMany({ where: demo });
 
+  await db.budgetMovement.deleteMany({ where: demo });
+  await db.budgetCode.deleteMany({ where: demo });
+  await db.budgetSettings.deleteMany({ where: demo });
   await db.budgetCommitment.deleteMany({ where: demo });
   await db.budgetAllocation.deleteMany({ where: demo });
 
@@ -345,6 +348,51 @@ async function load() {
       { id: `${P}b1`, organisationId, costCentreCode: "CC-100", accountCodeCode: "6100100", periodLabel: "2026", amount: "500000.00", provenance: "STATED", sortOrder: 1, effectiveFrom: day("2026-01-01") },
       { id: `${P}b2`, organisationId, costCentreCode: "CC-200", accountCodeCode: "6200200", periodLabel: "2026", amount: "1250000.00", provenance: "STATED", sortOrder: 2, effectiveFrom: day("2026-01-01") },
       { id: `${P}b3`, organisationId, costCentreCode: "CC-300", accountCodeCode: "7300300", periodLabel: "2026", amount: "80000.00", provenance: "ASSUMED", sortOrder: 3, effectiveFrom: day("2026-01-01") },
+    ],
+  });
+
+  // Budget codes, and the ledger that says what each is worth. Invented figures.
+  await db.budgetSettings.create({
+    data: {
+      id: `${P}bs1`,
+      organisationId,
+      availabilityCheck: "blocking",
+      warningThresholdPercent: 85,
+      overCommitmentTolerancePercent: 5,
+      commitOnApproval: true,
+      overrideRoleCodes: ["FD", "CEO"],
+      advanceRecoupmentRatePercent: 25,
+      minimumInterimCertificate: "1000.00",
+      paymentTargetDays: 30,
+    },
+  });
+
+  await db.budgetCode.createMany({
+    data: [
+      { id: `${P}bcode1`, organisationId, code: "CAP26-001", descriptionEn: "Pipe replacement programme", descriptionMs: "Program penggantian paip", type: "Capital", owningUnitCode: "NTH", accountCode: "7300300", holderPersonId: `${P}p6`, effectiveFrom: day("2026-01-01"), effectiveTo: day("2027-01-01") },
+      { id: `${P}bcode2`, organisationId, code: "OPX26-014", descriptionEn: "Treatment chemicals", descriptionMs: "Bahan kimia rawatan", type: "Operating", owningUnitCode: "OPS", accountCode: "6100100", holderPersonId: `${P}p2`, effectiveFrom: day("2026-01-01"), effectiveTo: day("2027-01-01") },
+      { id: `${P}bcode3`, organisationId, code: "OPX26-022", descriptionEn: "Network maintenance", type: "Operating", owningUnitCode: "CP", accountCode: "6200200", effectiveFrom: day("2026-01-01"), effectiveTo: day("2027-01-01") },
+      { id: `${P}bcode4`, organisationId, code: "CAP25-009", descriptionEn: "Meter replacement, phase one", type: "Capital", owningUnitCode: "NTH", accountCode: "7300300", isActive: false, effectiveFrom: day("2025-01-01"), effectiveTo: day("2026-01-01") },
+    ],
+  });
+
+  await db.budgetMovement.createMany({
+    data: [
+      // A code well inside its budget.
+      { id: `${P}bm1`, budgetCodeId: `${P}bcode1`, kind: "ORIGINAL", amount: "8600000.00", occurredOn: day("2026-01-01"), reference: "BR26-001" },
+      { id: `${P}bm2`, budgetCodeId: `${P}bcode1`, kind: "ACTUAL_SPEND", amount: "5937100.00", occurredOn: day("2026-04-12"), reference: "PROC2026001648", description: "Certified progress payment" },
+      // One over the warning threshold, so the meter renders its warn tone.
+      { id: `${P}bm3`, budgetCodeId: `${P}bcode2`, kind: "ORIGINAL", amount: "1200000.00", occurredOn: day("2026-01-01"), reference: "BR26-014" },
+      { id: `${P}bm4`, budgetCodeId: `${P}bcode2`, kind: "REVISION", amount: "140000.00", occurredOn: day("2026-05-02"), reference: "BR26-118", description: "Approved uplift" },
+      { id: `${P}bm5`, budgetCodeId: `${P}bcode2`, kind: "COMMITMENT", amount: "700000.00", occurredOn: day("2026-03-01"), reference: "DEMO/REQ/0011" },
+      { id: `${P}bm6`, budgetCodeId: `${P}bcode2`, kind: "ACTUAL_SPEND", amount: "520000.00", occurredOn: day("2026-05-20"), reference: "PROC2026001702" },
+      // A transfer, so the allocation ledger has both sides.
+      { id: `${P}bm7`, budgetCodeId: `${P}bcode3`, kind: "ORIGINAL", amount: "640000.00", occurredOn: day("2026-01-01"), reference: "BR26-022" },
+      { id: `${P}bm8`, budgetCodeId: `${P}bcode3`, kind: "TRANSFER_OUT", amount: "95000.00", occurredOn: day("2026-06-01"), reference: "BT26-660", counterpartCode: "CAP26-001", description: "Moved to pipe replacement" },
+      { id: `${P}bm9`, budgetCodeId: `${P}bcode1`, kind: "TRANSFER_IN", amount: "95000.00", occurredOn: day("2026-06-01"), reference: "BT26-660", counterpartCode: "OPX26-022" },
+      // A commitment that was released without being spent.
+      { id: `${P}bm10`, budgetCodeId: `${P}bcode3`, kind: "COMMITMENT", amount: "60000.00", occurredOn: day("2026-02-10"), reference: "DEMO/REQ/0012", releasedOn: day("2026-04-01"), releaseNote: "Requirement withdrawn" },
+      // A code with no allocation at all, so "not set" renders rather than 0%.
     ],
   });
 

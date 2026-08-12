@@ -83,3 +83,25 @@ export function avatarTone(seed: string): string {
   for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) | 0;
   return `avatar--n${(Math.abs(hash) % 6) + 1}`;
 }
+
+/**
+ * Money at a glance, as the sample writes it in a table: "RM 8.60M", "RM 921.5K".
+ *
+ * Millions keep two decimals including a trailing zero; thousands keep one and drop
+ * it when it is zero. Compacting is for reading a column of figures against each
+ * other — never for a figure somebody has to reconcile, which is why the drawer
+ * shows the same number in full.
+ */
+export function formatCompactRM(sen: bigint): string {
+  const negative = sen < 0n;
+  const abs = negative ? -sen : sen;
+  const sign = negative ? "−" : "";
+  const ringgit = Number(abs) / 100;
+
+  if (ringgit >= 1_000_000) return `${sign}RM ${(ringgit / 1_000_000).toFixed(2)}M`;
+  if (ringgit >= 1_000) {
+    const thousands = (ringgit / 1_000).toFixed(1);
+    return `${sign}RM ${thousands.endsWith(".0") ? thousands.slice(0, -2) : thousands}K`;
+  }
+  return `${sign}RM ${ringgit.toFixed(0)}`;
+}

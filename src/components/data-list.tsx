@@ -33,7 +33,11 @@ export type Cell =
   /// who holds a role or who reviews a document.
   | { kind: "avatars"; names: string[]; max?: number }
   /// Several small badges in one cell, overflowing to +N.
-  | { kind: "badges"; items: string[]; max?: number };
+  | { kind: "badges"; items: string[]; max?: number }
+  /// A filled bar with the figure beside it, and a marker at the configured warning
+  /// threshold. Null percent renders as not set — a code with no allocation has not
+  /// used none of its budget, and a bar drawn at zero says it has.
+  | { kind: "meter"; percent: number | null; threshold: number | null };
 
 export interface Column {
   key: string;
@@ -91,6 +95,8 @@ function cellText(cell: Cell | undefined): string {
       return cell.names.join(" ");
     case "badges":
       return cell.items.join(" ");
+    case "meter":
+      return cell.percent == null ? "" : `${cell.percent}%`;
   }
 }
 
@@ -145,6 +151,25 @@ function CellView({ cell }: { cell: Cell | undefined }) {
           ))}
           {restA > 0 && <span className="avatar avatar--xs avatar--muted">+{restA}</span>}
         </span>
+      );
+    }
+    case "meter": {
+      if (cell.percent == null) return <span className="xs dim">Not set</span>;
+      const over = cell.threshold != null && cell.percent >= cell.threshold;
+      return (
+        <div className="cfg-meter">
+          <span className="cfg-meter__t">
+            <span
+              className="cfg-meter__f"
+              data-tone={over ? "warn" : ""}
+              style={{ width: `${Math.min(cell.percent, 100)}%` }}
+            />
+            {cell.threshold != null && (
+              <span className="cfg-meter__m" style={{ left: `${cell.threshold}%` }} />
+            )}
+          </span>
+          <span className="cfg-meter__v">{Math.round(cell.percent)}%</span>
+        </div>
       );
     }
     case "badges": {

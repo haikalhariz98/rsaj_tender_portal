@@ -90,6 +90,36 @@ async function build(which: string, React: typeof import("react")) {
     });
   }
 
+  if (which === "budget-code") {
+    const { EditBudgetCode } = await import("../src/app/configuration/budget/code-editors");
+    return React.createElement(EditBudgetCode, {
+      budgetCode: {
+        id: "bc1",
+        code: "SAMPLE-001",
+        descriptionEn: "A description",
+        descriptionMs: "Satu keterangan",
+        type: "Capital",
+        owningUnitCode: "ONE",
+        accountCode: "1-0000-000",
+        holderPersonId: "x1",
+        isActive: true,
+        effectiveFrom: new Date("2026-01-01"),
+        effectiveTo: new Date("2026-12-31"),
+      },
+      figures: {
+        allocated: 860000000n,
+        committed: 0n,
+        actualSpend: 593710000n,
+        available: 266290000n,
+        utilisation: 69.04,
+      },
+      threshold: 85,
+      units: [{ code: "ONE", nameEn: "First department" }],
+      people: [person("x1", "Sample Person")],
+      accountCodes: [{ code: "1-0000-000", nameEn: "An account line" }],
+    });
+  }
+
   if (which !== "person") throw new Error(`No drawer named "${which}" is wired up here yet.`);
 
   const { EditPerson } = await import("../src/app/configuration/users/editors");

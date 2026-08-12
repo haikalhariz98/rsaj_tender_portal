@@ -199,3 +199,73 @@ export async function endAllocation(_prev: FormState, data: FormData): Promise<F
   revalidatePath(PATH);
   return { ok: true };
 }
+
+// ------------------------------------------------------------------ budget codes
+
+/**
+ * Save a budget code.
+ *
+ * The money is not here. What a code is worth is its movement ledger, and a form
+ * that could set an allocation directly would be a second place for the same figure
+ * to live — the two would disagree the first time a revision was recorded.
+ */
+export async function saveBudgetCode(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+
+  const id = String(data.get("id") ?? "");
+  const r = new FormReader(data);
+
+  const existing = await db.budgetCode.findMany({
+    where: { organisationId: orgId },
+    select: { id: true, code: true },
+  });
+  const current = id ? existing.find((c) => c.id === id) : undefined;
+  if (id && !current) return { ok: false, message: "That budget code no longer exists." };
+
+  // Set once. Finance posts against it, and a code that changes underneath a posted
+  // transaction is a reconciliation nobody can complete.
+  const code = current
+    ? current.code
+    : r.code("code", "Code", { taken: existing.map((c) => c.code) });
+
+  const effectiveFrom = r.date("effectiveFrom", "Active period", { required: true });
+  const effectiveTo = r.date("effectiveTo", "Active period end");
+  checkPeriod(r, effectiveFrom, effectiveTo);
+
+  const v = {
+    descriptionEn: r.text("descriptionEn", "Description (EN)", { required: true, max: 200 }),
+    descriptionMs: r.optionalText("descriptionMs"),
+    type: r.optionalText("type") ?? "",
+    owningUnitCode: r.optionalText("owningUnitCode"),
+    accountCode: r.text("accountCode", "Account code", { required: true }),
+    holderPersonId: r.optionalText("holderPersonId"),
+    isActive: r.bool("isActive"),
+    effectiveFrom: effectiveFrom!,
+    effectiveTo,
+  };
+
+  const parsed = r.finish(v);
+  if (!parsed.ok) return { ok: false, errors: parsed.errors };
+
+  const ctx = {
+    organisationId: orgId,
+    entity: "BudgetCode",
+    entityLabel: `${code} — ${v.descriptionEn}`,
+    reason: String(data.get("reason") ?? ""),
+  };
+
+  if (!current) {
+    const row = { organisationId: orgId, code, ...v };
+    await auditedCreate(ctx, row, (tx) => tx.budgetCode.create({ data: row }));
+  } else {
+    const before = await db.budgetCode.findUnique({ where: { id: current.id } });
+    if (!before) return { ok: false, message: "That budget code no longer exists." };
+    await auditedUpdate({ ...ctx, entityId: current.id }, before, v, (tx) =>
+      tx.budgetCode.update({ where: { id: current.id }, data: v }),
+    );
+  }
+
+  revalidatePath(PATH);
+  return { ok: true };
+}
