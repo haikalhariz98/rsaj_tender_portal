@@ -103,12 +103,24 @@ async function load() {
 
   const from = day("2024-01-01");
 
+  // ------------------------------------------------------------------- people
+  await db.person.createMany({
+    data: [
+      { id: `${P}p1`, organisationId, staffNo: "D001", name: "Aisyah Rahman", email: "aisyah.rahman@demo.invalid", jobTitle: "Chief Executive", jobTitleMs: "Ketua Pegawai Eksekutif", authorityLevel: "Chief Executive", department: "Executive", telephone: "07-000 0001", portalRoleCode: "CEO" },
+      { id: `${P}p2`, organisationId, staffNo: "D002", name: "Bala Krishnan", email: "bala.krishnan@demo.invalid", jobTitle: "Finance Director", jobTitleMs: "Pengarah Kewangan", authorityLevel: "Functional Director", department: "Finance", telephone: "07-000 0002", portalRoleCode: "FD" },
+      { id: `${P}p3`, organisationId, staffNo: "D003", name: "Chen Wei Ling", email: "chen.weiling@demo.invalid", jobTitle: "Head of Contract & Procurement", jobTitleMs: "Ketua Kontrak & Perolehan", authorityLevel: "Head of Department", department: "Contract & Procurement", telephone: "07-000 0003", portalRoleCode: "HOD_CP" },
+      { id: `${P}p4`, organisationId, staffNo: "D004", name: "Daniel Anak Jelani", email: "daniel.jelani@demo.invalid", jobTitle: "Procurement Executive", jobTitleMs: "Eksekutif Perolehan", authorityLevel: "Contract & Procurement", department: "Contract & Procurement", telephone: "07-000 0004", portalRoleCode: "CP_EXEC" },
+      { id: `${P}p5`, organisationId, staffNo: "D005", name: "Eng Siew Mei", email: "siewmei.eng@demo.invalid", jobTitle: "Section Head, Pre-contract", jobTitleMs: "Ketua Seksyen Pra-kontrak", authorityLevel: "Contract & Procurement", department: "Contract & Procurement", telephone: "07-000 0005", portalRoleCode: "SEC_PRE", isAvailable: false },
+      { id: `${P}p6`, organisationId, staffNo: "D006", name: "Faridah Osman", email: "faridah.osman@demo.invalid", jobTitle: "Regional Manager, North", jobTitleMs: "Pengurus Wilayah, Utara", authorityLevel: "Head of Department", department: "Northern Region", portalRoleCode: "REQUESTOR", isActive: false },
+    ],
+  });
+
   // ---------------------------------------------------------------- structure
   await db.costCentre.createMany({
     data: [
-      { id: `${P}cc1`, organisationId, code: "CC-100", nameEn: "Head office overhead", provenance: "STATED", sortOrder: 1, effectiveFrom: from },
-      { id: `${P}cc2`, organisationId, code: "CC-200", nameEn: "Northern operations", provenance: "STATED", sortOrder: 2, effectiveFrom: from },
-      { id: `${P}cc3`, organisationId, code: "CC-300", nameEn: "Capital works", provenance: "OBSERVED", sortOrder: 3, effectiveFrom: from },
+      { id: `${P}cc1`, organisationId, code: "CC-100", nameEn: "Head office overhead", orgUnitCode: "CP", siteCode: "HQ", activity: "General overhead", ownerPersonId: `${P}p3`, provenance: "STATED", sortOrder: 1, effectiveFrom: from },
+      { id: `${P}cc2`, organisationId, code: "CC-200", nameEn: "Northern operations", orgUnitCode: "NTH", siteCode: "NTH-WKS", activity: "Operations", ownerPersonId: `${P}p6`, provenance: "STATED", sortOrder: 2, effectiveFrom: from },
+      { id: `${P}cc3`, organisationId, code: "CC-300", nameEn: "Capital works", orgUnitCode: "OPS", siteCode: "HQ", activity: "Capital works", provenance: "OBSERVED", sortOrder: 3, effectiveFrom: from },
     ],
   });
 
@@ -122,18 +134,18 @@ async function load() {
 
   await db.orgUnit.createMany({
     data: [
-      { id: `${P}u1`, organisationId, code: "GRP", nameEn: "Demo Utilities Berhad", kind: "COMPANY", provenance: "STATED", sortOrder: 1, effectiveFrom: from },
+      { id: `${P}u1`, organisationId, code: "GRP", nameEn: "Demo Utilities Berhad", nameMs: "Demo Utiliti Berhad", kind: "COMPANY", headPersonId: `${P}p1`, registrationNumber: "200001010001 (000001-D)", taxReference: "C 0000 0000 0000", telephone: "00-000 0000", financialYearStart: "01-01", address: "1 Demo Avenue, 00000 Demo City", operatingLicence: "Demo regulator — invented licence", provenance: "STATED", sortOrder: 1, effectiveFrom: from },
       { id: `${P}u2`, organisationId, code: "OPS", nameEn: "Operations Division", kind: "DIVISION", parentCode: "GRP", provenance: "STATED", sortOrder: 2, effectiveFrom: from },
-      { id: `${P}u3`, organisationId, code: "CP", nameEn: "Contract & Procurement", kind: "DEPARTMENT", parentCode: "OPS", costCentreCode: "CC-100", provenance: "STATED", sortOrder: 3, effectiveFrom: from },
+      { id: `${P}u3`, organisationId, code: "CP", nameEn: "Contract & Procurement", nameMs: "Kontrak & Perolehan", kind: "DEPARTMENT", parentCode: "OPS", costCentreCode: "CC-100", headPersonId: `${P}p3`, provenance: "STATED", sortOrder: 3, effectiveFrom: from },
       { id: `${P}u4`, organisationId, code: "CP-PRE", nameEn: "Pre-contract Section", kind: "SECTION", parentCode: "CP", costCentreCode: "CC-100", provenance: "OBSERVED", sortOrder: 4, effectiveFrom: from },
-      { id: `${P}u5`, organisationId, code: "NTH", nameEn: "Northern Region", kind: "DEPARTMENT", parentCode: "OPS", costCentreCode: "CC-200", provenance: "STATED", sortOrder: 5, effectiveFrom: from },
+      { id: `${P}u5`, organisationId, code: "NTH", nameEn: "Northern Region", kind: "DEPARTMENT", parentCode: "OPS", costCentreCode: "CC-200", headPersonId: `${P}p6`, provenance: "STATED", sortOrder: 5, effectiveFrom: from },
     ],
   });
 
   await db.site.createMany({
     data: [
-      { id: `${P}s1`, organisationId, code: "HQ", nameEn: "Head Office", address: "1 Demo Avenue", orgUnitCode: "GRP", provenance: "STATED", sortOrder: 1, effectiveFrom: from },
-      { id: `${P}s2`, organisationId, code: "NTH-WKS", nameEn: "Northern Works Depot", address: "12 Depot Road", orgUnitCode: "NTH", provenance: "OBSERVED", sortOrder: 2, effectiveFrom: from },
+      { id: `${P}s1`, organisationId, code: "HQ", nameEn: "Head Office", kind: "Office", town: "Demo City", district: "Demo Central", address: "1 Demo Avenue", orgUnitCode: "GRP", provenance: "STATED", sortOrder: 1, effectiveFrom: from },
+      { id: `${P}s2`, organisationId, code: "NTH-WKS", nameEn: "Northern Works Depot", kind: "Depot", town: "Demo North", district: "Demo North", address: "12 Depot Road", orgUnitCode: "NTH", provenance: "OBSERVED", sortOrder: 2, effectiveFrom: from },
     ],
   });
 
@@ -141,18 +153,6 @@ async function load() {
     data: [
       { id: `${P}f1`, organisationId, key: "cost_centre", pattern: "CC-\\d{3}", example: "CC-100", description: "CC, a hyphen, three digits.", provenance: "STATED" },
       { id: `${P}f2`, organisationId, key: "account_code", pattern: "\\d{7}", example: "6100100", description: "Seven digits.", provenance: "STATED" },
-    ],
-  });
-
-  // ------------------------------------------------------------------- people
-  await db.person.createMany({
-    data: [
-      { id: `${P}p1`, organisationId, staffNo: "D001", name: "Aisyah Rahman", email: "aisyah.rahman@demo.invalid", jobTitle: "Chief Executive", jobTitleMs: "Ketua Pegawai Eksekutif", authorityLevel: "Chief Executive", department: "Executive", telephone: "07-000 0001", portalRoleCode: "CEO" },
-      { id: `${P}p2`, organisationId, staffNo: "D002", name: "Bala Krishnan", email: "bala.krishnan@demo.invalid", jobTitle: "Finance Director", jobTitleMs: "Pengarah Kewangan", authorityLevel: "Functional Director", department: "Finance", telephone: "07-000 0002", portalRoleCode: "FD" },
-      { id: `${P}p3`, organisationId, staffNo: "D003", name: "Chen Wei Ling", email: "chen.weiling@demo.invalid", jobTitle: "Head of Contract & Procurement", jobTitleMs: "Ketua Kontrak & Perolehan", authorityLevel: "Head of Department", department: "Contract & Procurement", telephone: "07-000 0003", portalRoleCode: "HOD_CP" },
-      { id: `${P}p4`, organisationId, staffNo: "D004", name: "Daniel Anak Jelani", email: "daniel.jelani@demo.invalid", jobTitle: "Procurement Executive", jobTitleMs: "Eksekutif Perolehan", authorityLevel: "Contract & Procurement", department: "Contract & Procurement", telephone: "07-000 0004", portalRoleCode: "CP_EXEC" },
-      { id: `${P}p5`, organisationId, staffNo: "D005", name: "Eng Siew Mei", email: "siewmei.eng@demo.invalid", jobTitle: "Section Head, Pre-contract", jobTitleMs: "Ketua Seksyen Pra-kontrak", authorityLevel: "Contract & Procurement", department: "Contract & Procurement", telephone: "07-000 0005", portalRoleCode: "SEC_PRE", isAvailable: false },
-      { id: `${P}p6`, organisationId, staffNo: "D006", name: "Faridah Osman", email: "faridah.osman@demo.invalid", jobTitle: "Regional Manager, North", jobTitleMs: "Pengurus Wilayah, Utara", authorityLevel: "Head of Department", department: "Northern Region", portalRoleCode: "REQUESTOR", isActive: false },
     ],
   });
 

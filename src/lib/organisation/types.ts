@@ -24,6 +24,16 @@ export interface OrgUnit extends Effective {
   kind: OrgUnitKind;
   parentCode: string | null;
   costCentreCode: string | null;
+  /// Who heads it. Null where nobody has been named — which is not nobody.
+  headPersonId: string | null;
+  /// Carried by a company and left null by everything else.
+  registrationNumber: string | null;
+  taxReference: string | null;
+  telephone: string | null;
+  /// Month-day. The financial year turns every year, so no one year's date will do.
+  financialYearStart: string | null;
+  address: string;
+  operatingLicence: string | null;
   governingSource: string;
   provenance: Provenance;
   notes: string;
@@ -31,9 +41,15 @@ export interface OrgUnit extends Effective {
 }
 
 export interface CostCentre extends Effective {
+  /// What finance posts against. Authoritative — the parts below index it, they do
+  /// not compose it.
   code: string;
   nameEn: string;
   nameMs: string | null;
+  orgUnitCode: string | null;
+  siteCode: string | null;
+  activity: string;
+  ownerPersonId: string | null;
   provenance: Provenance;
   notes: string;
   sortOrder: number;
@@ -53,6 +69,9 @@ export interface Site extends Effective {
   nameEn: string;
   nameMs: string | null;
   address: string;
+  kind: string;
+  town: string;
+  district: string;
   orgUnitCode: string | null;
   provenance: Provenance;
   notes: string;

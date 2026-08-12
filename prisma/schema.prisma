@@ -167,6 +167,8 @@ model Person {
   /// resolving to a name.
   isActive Boolean @default(true)
 
+  headOf            OrgUnit[]           @relation("OrgUnitHead")
+  ownsCostCentres   CostCentre[]        @relation("CostCentreOwner")
   roleAssignments   RoleAssignment[]
   committeeSeats    CommitteeMember[]
   meetingAttendance MeetingAttendance[]
@@ -843,6 +845,23 @@ model OrgUnit {
   /// that hold no budget of their own leave this null.
   costCentreCode String?
 
+  /// Who heads the unit. A Person rather than a role: the structure screen names the
+  /// individual, and which role they hold is the roster's business.
+  headPersonId String?
+  headPerson   Person? @relation("OrgUnitHead", fields: [headPersonId], references: [id], onDelete: SetNull)
+
+  /// Held by a company and by nothing else. On the shared table because a company is
+  /// a unit — kind decides which of these a screen may ask for, and an edit to a
+  /// department must leave every one of them alone.
+  registrationNumber String?
+  taxReference       String?
+  telephone          String?
+  /// The day the financial year turns, as month-day. Not a date: it recurs every
+  /// year, and storing one year's instance invites reading it as a deadline.
+  financialYearStart String?
+  address            String  @default("")
+  operatingLicence   String?
+
   governingSource String     @default("")
   provenance      Provenance @default(ASSUMED)
   notes           String     @default("")
@@ -865,9 +884,24 @@ model CostCentre {
   organisationId String
   organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
 
+  /// The code finance actually posts against. Authoritative: the segments below are
+  /// how this system indexes and filters it, never how it is composed. Which
+  /// segments a customer's code carries, and in what order, is `CodeFormat`.
   code   String
   nameEn String
   nameMs String?
+
+  /// The unit whose spending it carries.
+  orgUnitCode String?
+  /// The site it belongs to, where the customer's cost centres name one.
+  siteCode String?
+  /// What the spending is for. A label rather than a list until a customer needs the
+  /// list — reference data is where that would live.
+  activity String @default("")
+
+  /// Who answers for it. Null where nobody has been named, which is not nobody.
+  ownerPersonId String?
+  ownerPerson   Person? @relation("CostCentreOwner", fields: [ownerPersonId], references: [id], onDelete: SetNull)
 
   provenance Provenance @default(ASSUMED)
   notes      String     @default("")
@@ -913,6 +947,12 @@ model Site {
   nameEn  String
   nameMs  String?
   address String @default("")
+
+  /// What sort of place it is — treatment plant, office, depot. A label, because the
+  /// list is the customer's and a new kind must not need a migration.
+  kind String @default("")
+  town     String @default("")
+  district String @default("")
 
   /// The unit responsible for the site, where one is.
   orgUnitCode String?

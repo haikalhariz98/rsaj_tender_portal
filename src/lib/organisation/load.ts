@@ -26,6 +26,9 @@ export interface OrganisationData {
   accountCodes: Stored<AccountCode>[];
   sites: Stored<Site>[];
   formats: Stored<CodeFormat>[];
+  /// Who can be named as heading a unit or owning a cost centre. Names, not the
+  /// roster: this screen renders people, it does not reason about their offices.
+  people: { id: string; name: string; isActive: boolean }[];
 }
 
 const EMPTY: OrganisationData = {
@@ -34,6 +37,7 @@ const EMPTY: OrganisationData = {
   accountCodes: [],
   sites: [],
   formats: [],
+  people: [],
 };
 
 export async function loadOrganisationData(
@@ -50,12 +54,17 @@ export async function loadOrganisationData(
   const where = { organisationId: organisation.id };
   const orderBy = [{ sortOrder: "asc" as const }, { nameEn: "asc" as const }];
 
-  const [units, costCentres, accountCodes, sites, formats] = await Promise.all([
+  const [units, costCentres, accountCodes, sites, formats, people] = await Promise.all([
     db.orgUnit.findMany({ where, orderBy }),
     db.costCentre.findMany({ where, orderBy }),
     db.accountCode.findMany({ where, orderBy }),
     db.site.findMany({ where, orderBy }),
     db.codeFormat.findMany({ where, orderBy: { key: "asc" } }),
+    db.person.findMany({
+      where,
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, isActive: true },
+    }),
   ]);
 
   return {
@@ -67,6 +76,13 @@ export async function loadOrganisationData(
       kind: u.kind as OrgUnitKind,
       parentCode: u.parentCode,
       costCentreCode: u.costCentreCode,
+      headPersonId: u.headPersonId,
+      registrationNumber: u.registrationNumber,
+      taxReference: u.taxReference,
+      telephone: u.telephone,
+      financialYearStart: u.financialYearStart,
+      address: u.address,
+      operatingLicence: u.operatingLicence,
       governingSource: u.governingSource,
       provenance: u.provenance as Provenance,
       notes: u.notes,
@@ -79,6 +95,10 @@ export async function loadOrganisationData(
       code: c.code,
       nameEn: c.nameEn,
       nameMs: c.nameMs,
+      orgUnitCode: c.orgUnitCode,
+      siteCode: c.siteCode,
+      activity: c.activity,
+      ownerPersonId: c.ownerPersonId,
       provenance: c.provenance as Provenance,
       notes: c.notes,
       sortOrder: c.sortOrder,
@@ -102,6 +122,9 @@ export async function loadOrganisationData(
       nameEn: s.nameEn,
       nameMs: s.nameMs,
       address: s.address,
+      kind: s.kind,
+      town: s.town,
+      district: s.district,
       orgUnitCode: s.orgUnitCode,
       provenance: s.provenance as Provenance,
       notes: s.notes,
@@ -117,5 +140,6 @@ export async function loadOrganisationData(
       description: f.description,
       provenance: f.provenance as Provenance,
     })),
+    people,
   };
 }

@@ -47,11 +47,13 @@ const OUT = "out";
 const slugify = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const slug = slugify(section) + (tab ? `-${slugify(tab)}` : "");
 
-// Only the selected tab is in the markup, on either side. Without this a screen with
-// four tabs is compared on its first one and reported identical.
-if (tab && !/[?&]tab=/.test(OUR_PATH)) {
+// Only the selected tab — or the selected record — is in the markup, on either side.
+// Without this a screen with four tabs is compared on its first one and reported
+// identical, and a screen whose form changes with the record selected is only ever
+// compared on whichever one it opens with.
+if (tab && !/[?&](tab|unit)=/.test(OUR_PATH)) {
   console.error(
-    `Comparing the "${tab}" tab needs our path to select it too — add ?tab=<id> to ${OUR_PATH}.`,
+    `Comparing "${tab}" needs our path to select it too — add ?tab=<id> or ?unit=<code> to ${OUR_PATH}.`,
   );
   process.exit(2);
 }
@@ -90,6 +92,25 @@ async function fetchOurs() {
   const res = await fetch(`${BASE}${OUR_PATH}`);
   if (!res.ok) throw new Error(`${BASE}${OUR_PATH} returned ${res.status}. Is npm run dev up?`);
   return res.text();
+}
+
+/**
+ * A count line with the data taken out of it.
+ *
+ * One company against two changes the word as well as the number, so each word is
+ * reduced to a singular stem. Done word by word rather than with one regex over the
+ * whole line, which would also eat the middle of a word that ends in s.
+ */
+function normaliseCount(line) {
+  return line
+    .replace(/[0-9]+/g, "N")
+    .split(" ")
+    .map((word) => {
+      if (word.endsWith("ies")) return word.slice(0, -3) + "y";
+      if (word.length > 1 && word.endsWith("s")) return word.slice(0, -1);
+      return word;
+    })
+    .join(" ");
 }
 
 // ------------------------------------------------------------------- fingerprint
@@ -144,12 +165,30 @@ function fingerprint(html) {
     meta: [...head.querySelectorAll(".pagehead__meta > *")]
       .map(text)
       .filter((t) => t && t !== "·")
-      // Counts are data. "12 people" here and "7 people" there is the demo set being
-      // a different size, not a different screen.
-      .map((t) => t.replace(/[0-9]+/g, "N").replace(/(N [a-z]+?)s(?= |$)/g, "$1")),
+      // Counts are data. "12 people" here and "7 people" there is the demo set
+      // being a different size, not a different screen.
+      .map(normaliseCount),
+    // Fields sitting in the screen itself rather than in a drawer. The unit form
+    // on Organisation is one, and it is a different form for a company than for a
+    // department — without this, half that screen is unverified and reads green.
+    fields: all(".field").map((f) => {
+      const control = f.querySelector("input, select, textarea");
+      const label = text(f.querySelector(".field__lbl")).replace(/\*$/, "").trim();
+      return `${label} [${control ? control.tagName.toLowerCase() : "none"}]`;
+    }),
     tabs: all(".tab, [role=tab]").map(text).filter(Boolean),
     stats: all(".stat__label").map(text),
-    cards: all(".card__head .h3, .card__head .h2, .section__head .h3").map(text).filter(Boolean),
+    // A card headed by a record's own name carries that record's code beside it.
+    // The heading is then data — the sample's company against ours — so what is
+    // compared is that the slot is there, not the name sitting in it.
+    cards: all(".card__head")
+      .map((h) =>
+        h.querySelector(".badge--brand")
+          ? "(a record, named by its own row)"
+          : text(h.querySelector(".h3") ?? h.querySelector(".h2")),
+      )
+      .filter(Boolean)
+      .concat(all(".section__head .h3").map(text).filter(Boolean)),
     tables,
     controls,
     chrome: [
@@ -221,6 +260,7 @@ function compare(mine, theirs) {
   problems += diffLists("tabs", mine.tabs, theirs.tabs, out);
   problems += diffLists("stat tiles", mine.stats, theirs.stats, out);
   problems += diffLists("card / section headings", mine.cards, theirs.cards, out);
+  problems += diffLists("fields in the screen", mine.fields, theirs.fields, out);
   problems += diffLists("controls", mine.controls, theirs.controls, out, true);
   problems += diffLists("list chrome", mine.chrome, theirs.chrome, out);
   problems += diffLists("page head meta", mine.meta, theirs.meta, out);
