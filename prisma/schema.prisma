@@ -122,6 +122,8 @@ model Organisation {
   codeFormats       CodeFormat[]
   budgetAllocations BudgetAllocation[]
   budgetCodes       BudgetCode[]
+  budgetPeriods     BudgetPeriod[]
+  budgetYears       BudgetYear[]
   budgetSettings    BudgetSettings?
   capabilities      Capability[]
   delegations       Delegation[]
@@ -929,6 +931,52 @@ enum BudgetMovementKind {
   TRANSFER_OUT /// Moved out to another code.
   COMMITMENT /// Approved but not yet paid. Released without being spent, or realised.
   ACTUAL_SPEND /// Paid.
+}
+
+/// One accounting period a budget year is divided into.
+///
+/// Open and closed are decisions somebody takes, so both are timestamps rather than a
+/// status word: a period nobody has opened yet is neither open nor closed, and a
+/// single boolean cannot hold that third state.
+model BudgetPeriod {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  year Int
+  /// The customer's own label for the period — P01, Q1, whatever they run.
+  code   String
+  nameEn String
+  nameMs String?
+
+  startsOn DateTime
+  endsOn   DateTime
+
+  /// When it was opened for posting. Null means nobody has opened it yet, which is
+  /// not the same as it having been closed.
+  openedOn DateTime?
+  /// When it was closed. Null while it is open, or before it was ever opened.
+  closedOn DateTime?
+
+  sortOrder Int @default(0)
+
+  @@unique([organisationId, year, code])
+  @@index([organisationId, year])
+}
+
+/// Settings that belong to a budget year rather than to one of its periods.
+model BudgetYear {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  year Int
+
+  /// Whether unspent allocation carries into the next year. Null where nobody has
+  /// decided — carrying nothing forward is a policy, and so is not carrying it.
+  rollUnspentForward Boolean?
+
+  @@unique([organisationId, year])
 }
 
 /// A budget code — what a requirement is charged to.

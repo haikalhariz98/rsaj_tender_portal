@@ -9,6 +9,7 @@ import { loadBudget } from "@/lib/budget/load";
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { checkPeriod, FormReader } from "@/lib/validate";
+import { refusalToClose, refusalToReopen, type Period } from "@/lib/budget/periods";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const PATH = "/configuration/budget";
@@ -268,4 +269,100 @@ export async function saveBudgetCode(_prev: FormState, data: FormData): Promise<
 
   revalidatePath(PATH);
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------- periods
+
+/**
+ * Open a period, or close it.
+ *
+ * Both are recorded as the moment the decision was taken rather than as a status
+ * word, so the trail can say when a year stopped accepting postings and the screen
+ * can tell a period nobody has opened from one somebody shut.
+ */
+export async function setPeriodOpen(periodId: string, open: boolean): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+
+  const before = await db.budgetPeriod.findFirst({
+    where: { id: periodId, organisationId: orgId },
+  });
+  if (!before) return { ok: false, message: "That period no longer exists." };
+
+  const now = new Date();
+  const after = open
+    ? { openedOn: before.openedOn ?? now, closedOn: null }
+    : { openedOn: before.openedOn, closedOn: now };
+
+  const refusal = open ? refusalToReopen(toPeriod(before)) : refusalToClose(toPeriod(before));
+  if (refusal === "ALREADY_OPEN") return { ok: false, message: "That period is already open." };
+  if (refusal === "ALREADY_CLOSED") return { ok: false, message: "That period is already closed." };
+  if (refusal === "NEVER_OPENED") {
+    return { ok: false, message: "That period was never opened, so there is nothing to close." };
+  }
+
+  await auditedUpdate(
+    {
+      organisationId: orgId,
+      entity: "BudgetPeriod",
+      entityId: periodId,
+      entityLabel: `${before.year} ${before.code} — ${before.nameEn}`,
+      reason: "",
+    },
+    { openedOn: before.openedOn, closedOn: before.closedOn },
+    after,
+    (tx) => tx.budgetPeriod.update({ where: { id: periodId }, data: after }),
+  );
+
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/// Whether unspent allocation carries into the next year, for one year.
+export async function setRollForward(year: number, on: boolean): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+
+  const before = await db.budgetYear.findUnique({
+    where: { organisationId_year: { organisationId: orgId, year } },
+  });
+
+  const ctx = {
+    organisationId: orgId,
+    entity: "BudgetYear",
+    entityLabel: String(year),
+    reason: "",
+  };
+
+  if (!before) {
+    const row = { organisationId: orgId, year, rollUnspentForward: on };
+    await auditedCreate(ctx, row, (tx) => tx.budgetYear.create({ data: row }));
+  } else {
+    await auditedUpdate(
+      { ...ctx, entityId: before.id },
+      { rollUnspentForward: before.rollUnspentForward },
+      { rollUnspentForward: on },
+      (tx) =>
+        tx.budgetYear.update({ where: { id: before.id }, data: { rollUnspentForward: on } }),
+    );
+  }
+
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/// The stored row as the pure module wants it.
+function toPeriod(row: {
+  id: string;
+  year: number;
+  code: string;
+  nameEn: string;
+  nameMs: string | null;
+  startsOn: Date;
+  endsOn: Date;
+  openedOn: Date | null;
+  closedOn: Date | null;
+  sortOrder: number;
+}): Period {
+  return row;
 }

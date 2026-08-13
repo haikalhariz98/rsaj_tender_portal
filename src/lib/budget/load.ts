@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 
 import type { Allocation, Commitment } from "./availability";
 import type { BudgetCode, Movement } from "./codes";
+import type { Period } from "./periods";
 
 export interface BudgetData {
   allocations: Allocation[];
@@ -137,5 +138,46 @@ export async function loadBudgetCodes(organisationCode: string): Promise<BudgetC
       minimumInterimCertificate: settings.minimumInterimCertificate?.toString() ?? null,
       paymentTargetDays: settings.paymentTargetDays,
     },
+  };
+}
+
+/// Budget periods and the per-year settings beside them.
+export interface PeriodData {
+  periods: Period[];
+  rollForwardByYear: Record<number, boolean | null>;
+}
+
+export async function loadBudgetPeriods(organisationCode: string): Promise<PeriodData> {
+  const organisation = await db.organisation.findUnique({
+    where: { code: organisationCode },
+    select: { id: true },
+  });
+  if (!organisation) return { periods: [], rollForwardByYear: {} };
+
+  const [periods, years] = await Promise.all([
+    db.budgetPeriod.findMany({
+      where: { organisationId: organisation.id },
+      orderBy: [{ year: "asc" }, { sortOrder: "asc" }],
+    }),
+    db.budgetYear.findMany({ where: { organisationId: organisation.id } }),
+  ]);
+
+  const rollForwardByYear: Record<number, boolean | null> = {};
+  for (const y of years) rollForwardByYear[y.year] = y.rollUnspentForward;
+
+  return {
+    periods: periods.map((p) => ({
+      id: p.id,
+      year: p.year,
+      code: p.code,
+      nameEn: p.nameEn,
+      nameMs: p.nameMs,
+      startsOn: p.startsOn,
+      endsOn: p.endsOn,
+      openedOn: p.openedOn,
+      closedOn: p.closedOn,
+      sortOrder: p.sortOrder,
+    })),
+    rollForwardByYear,
   };
 }

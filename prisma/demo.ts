@@ -59,6 +59,8 @@ async function wipe() {
   await db.authorityRule.deleteMany({ where: demo });
   await db.authorityMatrix.deleteMany({ where: demo });
 
+  await db.budgetPeriod.deleteMany({ where: demo });
+  await db.budgetYear.deleteMany({ where: demo });
   await db.budgetMovement.deleteMany({ where: demo });
   await db.budgetCode.deleteMany({ where: demo });
   await db.budgetSettings.deleteMany({ where: demo });
@@ -348,6 +350,56 @@ async function load() {
       { id: `${P}b1`, organisationId, costCentreCode: "CC-100", accountCodeCode: "6100100", periodLabel: "2026", amount: "500000.00", provenance: "STATED", sortOrder: 1, effectiveFrom: day("2026-01-01") },
       { id: `${P}b2`, organisationId, costCentreCode: "CC-200", accountCodeCode: "6200200", periodLabel: "2026", amount: "1250000.00", provenance: "STATED", sortOrder: 2, effectiveFrom: day("2026-01-01") },
       { id: `${P}b3`, organisationId, costCentreCode: "CC-300", accountCodeCode: "7300300", periodLabel: "2026", amount: "80000.00", provenance: "ASSUMED", sortOrder: 3, effectiveFrom: day("2026-01-01") },
+    ],
+  });
+
+  // Three budget years: one fully closed, one part-way through, one still planned.
+  await db.budgetPeriod.createMany({
+    data: [
+      { id: `${P}bp202501`, organisationId, year: 2025, code: "P01", nameEn: "January 2025", startsOn: day("2025-01-01"), endsOn: day("2025-02-01"), openedOn: day("2025-01-01"), closedOn: day("2025-02-01"), sortOrder: 1 },
+      { id: `${P}bp202502`, organisationId, year: 2025, code: "P02", nameEn: "February 2025", startsOn: day("2025-02-01"), endsOn: day("2025-03-01"), openedOn: day("2025-02-01"), closedOn: day("2025-03-01"), sortOrder: 2 },
+      { id: `${P}bp202503`, organisationId, year: 2025, code: "P03", nameEn: "March 2025", startsOn: day("2025-03-01"), endsOn: day("2025-04-01"), openedOn: day("2025-03-01"), closedOn: day("2025-04-01"), sortOrder: 3 },
+      { id: `${P}bp202504`, organisationId, year: 2025, code: "P04", nameEn: "April 2025", startsOn: day("2025-04-01"), endsOn: day("2025-05-01"), openedOn: day("2025-04-01"), closedOn: day("2025-05-01"), sortOrder: 4 },
+      { id: `${P}bp202505`, organisationId, year: 2025, code: "P05", nameEn: "May 2025", startsOn: day("2025-05-01"), endsOn: day("2025-06-01"), openedOn: day("2025-05-01"), closedOn: day("2025-06-01"), sortOrder: 5 },
+      { id: `${P}bp202506`, organisationId, year: 2025, code: "P06", nameEn: "June 2025", startsOn: day("2025-06-01"), endsOn: day("2025-07-01"), openedOn: day("2025-06-01"), closedOn: day("2025-07-01"), sortOrder: 6 },
+      { id: `${P}bp202507`, organisationId, year: 2025, code: "P07", nameEn: "July 2025", startsOn: day("2025-07-01"), endsOn: day("2025-08-01"), openedOn: day("2025-07-01"), closedOn: day("2025-08-01"), sortOrder: 7 },
+      { id: `${P}bp202508`, organisationId, year: 2025, code: "P08", nameEn: "August 2025", startsOn: day("2025-08-01"), endsOn: day("2025-09-01"), openedOn: day("2025-08-01"), closedOn: day("2025-09-01"), sortOrder: 8 },
+      { id: `${P}bp202509`, organisationId, year: 2025, code: "P09", nameEn: "September 2025", startsOn: day("2025-09-01"), endsOn: day("2025-10-01"), openedOn: day("2025-09-01"), closedOn: day("2025-10-01"), sortOrder: 9 },
+      { id: `${P}bp202510`, organisationId, year: 2025, code: "P10", nameEn: "October 2025", startsOn: day("2025-10-01"), endsOn: day("2025-11-01"), openedOn: day("2025-10-01"), closedOn: day("2025-11-01"), sortOrder: 10 },
+      { id: `${P}bp202511`, organisationId, year: 2025, code: "P11", nameEn: "November 2025", startsOn: day("2025-11-01"), endsOn: day("2025-12-01"), openedOn: day("2025-11-01"), closedOn: day("2025-12-01"), sortOrder: 11 },
+      { id: `${P}bp202512`, organisationId, year: 2025, code: "P12", nameEn: "December 2025", startsOn: day("2025-12-01"), endsOn: day("2026-01-01"), openedOn: day("2025-12-01"), closedOn: day("2026-01-01"), sortOrder: 12 },
+      { id: `${P}bp202601`, organisationId, year: 2026, code: "P01", nameEn: "January 2026", startsOn: day("2026-01-01"), endsOn: day("2026-02-01"), openedOn: day("2026-01-01"), closedOn: day("2026-02-01"), sortOrder: 1 },
+      { id: `${P}bp202602`, organisationId, year: 2026, code: "P02", nameEn: "February 2026", startsOn: day("2026-02-01"), endsOn: day("2026-03-01"), openedOn: day("2026-02-01"), closedOn: day("2026-03-01"), sortOrder: 2 },
+      { id: `${P}bp202603`, organisationId, year: 2026, code: "P03", nameEn: "March 2026", startsOn: day("2026-03-01"), endsOn: day("2026-04-01"), openedOn: day("2026-03-01"), closedOn: day("2026-04-01"), sortOrder: 3 },
+      { id: `${P}bp202604`, organisationId, year: 2026, code: "P04", nameEn: "April 2026", startsOn: day("2026-04-01"), endsOn: day("2026-05-01"), openedOn: day("2026-04-01"), closedOn: day("2026-05-01"), sortOrder: 4 },
+      { id: `${P}bp202605`, organisationId, year: 2026, code: "P05", nameEn: "May 2026", startsOn: day("2026-05-01"), endsOn: day("2026-06-01"), openedOn: day("2026-05-01"), closedOn: day("2026-06-01"), sortOrder: 5 },
+      { id: `${P}bp202606`, organisationId, year: 2026, code: "P06", nameEn: "June 2026", startsOn: day("2026-06-01"), endsOn: day("2026-07-01"), openedOn: day("2026-06-01"), closedOn: day("2026-07-01"), sortOrder: 6 },
+      { id: `${P}bp202607`, organisationId, year: 2026, code: "P07", nameEn: "July 2026", startsOn: day("2026-07-01"), endsOn: day("2026-08-01"), openedOn: day("2026-07-01"), closedOn: day("2026-08-01"), sortOrder: 7 },
+      { id: `${P}bp202608`, organisationId, year: 2026, code: "P08", nameEn: "August 2026", startsOn: day("2026-08-01"), endsOn: day("2026-09-01"), openedOn: day("2026-08-01"), closedOn: null, sortOrder: 8 },
+      { id: `${P}bp202609`, organisationId, year: 2026, code: "P09", nameEn: "September 2026", startsOn: day("2026-09-01"), endsOn: day("2026-10-01"), openedOn: null, closedOn: null, sortOrder: 9 },
+      { id: `${P}bp202610`, organisationId, year: 2026, code: "P10", nameEn: "October 2026", startsOn: day("2026-10-01"), endsOn: day("2026-11-01"), openedOn: null, closedOn: null, sortOrder: 10 },
+      { id: `${P}bp202611`, organisationId, year: 2026, code: "P11", nameEn: "November 2026", startsOn: day("2026-11-01"), endsOn: day("2026-12-01"), openedOn: null, closedOn: null, sortOrder: 11 },
+      { id: `${P}bp202612`, organisationId, year: 2026, code: "P12", nameEn: "December 2026", startsOn: day("2026-12-01"), endsOn: day("2027-01-01"), openedOn: null, closedOn: null, sortOrder: 12 },
+      { id: `${P}bp202701`, organisationId, year: 2027, code: "P01", nameEn: "January 2027", startsOn: day("2027-01-01"), endsOn: day("2027-02-01"), openedOn: null, closedOn: null, sortOrder: 1 },
+      { id: `${P}bp202702`, organisationId, year: 2027, code: "P02", nameEn: "February 2027", startsOn: day("2027-02-01"), endsOn: day("2027-03-01"), openedOn: null, closedOn: null, sortOrder: 2 },
+      { id: `${P}bp202703`, organisationId, year: 2027, code: "P03", nameEn: "March 2027", startsOn: day("2027-03-01"), endsOn: day("2027-04-01"), openedOn: null, closedOn: null, sortOrder: 3 },
+      { id: `${P}bp202704`, organisationId, year: 2027, code: "P04", nameEn: "April 2027", startsOn: day("2027-04-01"), endsOn: day("2027-05-01"), openedOn: null, closedOn: null, sortOrder: 4 },
+      { id: `${P}bp202705`, organisationId, year: 2027, code: "P05", nameEn: "May 2027", startsOn: day("2027-05-01"), endsOn: day("2027-06-01"), openedOn: null, closedOn: null, sortOrder: 5 },
+      { id: `${P}bp202706`, organisationId, year: 2027, code: "P06", nameEn: "June 2027", startsOn: day("2027-06-01"), endsOn: day("2027-07-01"), openedOn: null, closedOn: null, sortOrder: 6 },
+      { id: `${P}bp202707`, organisationId, year: 2027, code: "P07", nameEn: "July 2027", startsOn: day("2027-07-01"), endsOn: day("2027-08-01"), openedOn: null, closedOn: null, sortOrder: 7 },
+      { id: `${P}bp202708`, organisationId, year: 2027, code: "P08", nameEn: "August 2027", startsOn: day("2027-08-01"), endsOn: day("2027-09-01"), openedOn: null, closedOn: null, sortOrder: 8 },
+      { id: `${P}bp202709`, organisationId, year: 2027, code: "P09", nameEn: "September 2027", startsOn: day("2027-09-01"), endsOn: day("2027-10-01"), openedOn: null, closedOn: null, sortOrder: 9 },
+      { id: `${P}bp202710`, organisationId, year: 2027, code: "P10", nameEn: "October 2027", startsOn: day("2027-10-01"), endsOn: day("2027-11-01"), openedOn: null, closedOn: null, sortOrder: 10 },
+      { id: `${P}bp202711`, organisationId, year: 2027, code: "P11", nameEn: "November 2027", startsOn: day("2027-11-01"), endsOn: day("2027-12-01"), openedOn: null, closedOn: null, sortOrder: 11 },
+      { id: `${P}bp202712`, organisationId, year: 2027, code: "P12", nameEn: "December 2027", startsOn: day("2027-12-01"), endsOn: day("2028-01-01"), openedOn: null, closedOn: null, sortOrder: 12 },
+    ],
+  });
+
+  await db.budgetYear.createMany({
+    data: [
+      { id: `${P}by2025`, organisationId, year: 2025, rollUnspentForward: false },
+      { id: `${P}by2026`, organisationId, year: 2026, rollUnspentForward: true },
+      // 2027 deliberately absent, so the switch renders as not set rather than off.
     ],
   });
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { DataList, type Row } from "@/components/data-list";
 import { ChartIcon } from "@/components/icons";
 import { Tabs } from "@/components/tabs";
@@ -10,9 +12,11 @@ import {
   type Movement,
 } from "@/lib/budget/codes";
 import type { BudgetControls } from "@/lib/budget/load";
+import type { Period } from "@/lib/budget/periods";
 import { formatCompactRM } from "@/lib/format";
 
 import { AddBudgetCode, EditBudgetCode } from "./code-editors";
+import { PeriodsPanel } from "./periods-panel";
 
 /**
  * Budget, in the prototype's six tabs.
@@ -29,16 +33,43 @@ export interface BudgetPanelData {
   units: { code: string; nameEn: string }[];
   people: { id: string; name: string; isActive: boolean }[];
   accountCodes: { code: string; nameEn: string }[];
+  periods: Period[];
+  rollForwardByYear: Record<number, boolean | null>;
   on: Date;
 }
 
-export function BudgetTabs({ initial, ...data }: BudgetPanelData & { initial?: string }) {
+export function BudgetTabs({
+  initial,
+  initialYear,
+  ...data
+}: BudgetPanelData & { initial?: string; initialYear?: number }) {
+  // The selected year rides in the address bar beside the tab, so a year can be
+  // linked to and the screen comparator can read one other than the default.
+  const [year, setYear] = useState<number | null>(initialYear ?? null);
+  const selectYear = (y: number) => {
+    setYear(y);
+    const url = new URL(window.location.href);
+    url.searchParams.set("year", String(y));
+    window.history.replaceState(null, "", url);
+  };
+
   return (
     <Tabs
       initial={initial}
       tabs={[
         { id: "codes", label: "Budget codes", panel: <BudgetCodesPanel {...data} /> },
-        { id: "periods", label: "Periods", panel: <Pending what="Periods" /> },
+        {
+          id: "periods",
+          label: "Periods",
+          panel: (
+            <PeriodsPanel
+              periods={data.periods}
+              rollForwardByYear={data.rollForwardByYear}
+              year={year}
+              onYear={selectYear}
+            />
+          ),
+        },
         { id: "allocations", label: "Allocations", panel: <Pending what="Allocations" /> },
         {
           id: "availability",

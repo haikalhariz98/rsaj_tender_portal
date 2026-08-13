@@ -53,14 +53,20 @@ and do not restyle with Tailwind utilities.
   `.cfg-wrap`/`.cfg-rail`/`.cfg-main`, `.acc`, `.subnav`.
 - Icons are inline SVG in `src/components/icons.tsx`. Add there rather than pulling in
   an icon package.
-- Reusable: `DataList` (search, sort, filters, selection, density, CSV), `Accordion`,
-  `RuleChain`, `NotBuilt`.
 
-**If a screen must match a prototype, render the prototype and diff against it** —
-`scripts/render-prototype.mjs`, `outline.mjs`, `compare-shell.mjs`. Reading a
-prototype's source and rebuilding from fragments produces something plausible every
-time and the same thing never. Note that a prototype may inject a second stylesheet
-from its JavaScript; `extract-runtime-css.mjs` recovers it.
+**If a screen must match a prototype, render the prototype and diff against it.**
+`scripts/compare-screen.mjs "<Section>" <path> ["<Tab>"]` diffs a screen, and
+`scripts/compare-drawer.mjs <drawer> "<Section>" "<text that opens it>" ["<Tab>"]`
+diffs a form that only exists once something is clicked — neither side of which
+server markup contains. Both are built on `render-prototype.mjs`; `outline.mjs` and
+`compare-shell.mjs` remain for the shell. Reading a prototype's source and rebuilding
+from fragments produces something plausible every time and the same thing never. Note
+that a prototype may inject a second stylesheet from its JavaScript;
+`extract-runtime-css.mjs` recovers it.
+
+A deviation from the sample is recorded, not just made: `ALLOWED_EXTRA` in the screen
+comparator and `DECIDED_FIELDS` in the drawer comparator carry the reason, so an
+unexplained difference still fails.
 
 ## Provenance: the pattern to copy
 
@@ -71,17 +77,6 @@ renders a written rule and an observed habit identically overstates its own auth
 Apply the same three-state honesty to any rule whose source is silent. Quorum is the
 worked example: met, not met, and **not set** — an unset quorum is not a quorum of zero,
 and `assessQuorum` will not certify a sitting under one.
-
-## What exists
-
-```
-src/lib/authority/resolve.ts   the routing engine — pure, no database
-src/lib/authority/fixture.ts   synthetic matrix the tests run against
-src/lib/authority/load.ts      loads the effective-dated matrix from Postgres
-src/lib/committee/quorum.ts    quorum and vote arithmetic
-```
-
-44 tests. Everything else in the navigation is a placeholder that says so.
 
 ## Rules that are not negotiable
 

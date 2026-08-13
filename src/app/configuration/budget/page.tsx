@@ -1,6 +1,7 @@
 import { CalendarIcon, ChartIcon, ScaleIcon } from "@/components/icons";
 import { totalsAcross } from "@/lib/budget/codes";
-import { loadBudgetCodes } from "@/lib/budget/load";
+import { loadBudgetCodes, loadBudgetPeriods } from "@/lib/budget/load";
+import { defaultYear } from "@/lib/budget/periods";
 import { activeOn } from "@/lib/effective";
 import { formatCompactRM } from "@/lib/format";
 import { loadOrganisationData } from "@/lib/organisation/load";
@@ -19,14 +20,18 @@ export const dynamic = "force-dynamic";
 export default async function BudgetPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; year?: string }>;
 }) {
   const on = new Date();
-  const [{ tab }, budget, org] = await Promise.all([
+  const [{ tab, year: yearParam }, budget, periods, org] = await Promise.all([
     searchParams,
     loadBudgetCodes(ORGANISATION_CODE),
+    loadBudgetPeriods(ORGANISATION_CODE),
     loadOrganisationData(ORGANISATION_CODE),
   ]);
+
+  const asked = Number(yearParam);
+  const shownYear = Number.isInteger(asked) ? asked : defaultYear(periods.periods);
 
   const totals = totalsAcross(budget.codes, budget.movements, on);
   const year = String(on.getFullYear());
@@ -70,6 +75,7 @@ export default async function BudgetPage({
 
       <BudgetTabs
         initial={tab}
+        initialYear={shownYear ?? undefined}
         codes={budget.codes}
         movements={budget.movements}
         settings={budget.settings}
@@ -79,6 +85,8 @@ export default async function BudgetPage({
           code: a.code,
           nameEn: a.nameEn,
         }))}
+        periods={periods.periods}
+        rollForwardByYear={periods.rollForwardByYear}
         on={on}
       />
     </>

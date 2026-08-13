@@ -200,6 +200,7 @@ export function DataList({
   rowOpens = false,
   selectable = true,
   searchPlaceholder = "Search…",
+  searchable = true,
   flat = false,
   emptyTitle = "Nothing here",
   emptyBody,
@@ -220,6 +221,9 @@ export function DataList({
   /// than always rendering one.
   selectable?: boolean;
   searchPlaceholder?: string;
+  /// A short list a reader takes in at a glance needs no search box, and the sample
+  /// leaves it off those. Set false rather than passing an unused placeholder.
+  searchable?: boolean;
   /// True when the list sits inside a card that already provides the border.
   flat?: boolean;
   emptyTitle?: string;
@@ -317,18 +321,20 @@ export function DataList({
           </select>
         )}
 
-        <div className="searchinput">
-          <span className="searchinput__ico">
-            <SearchIcon size={15} />
-          </span>
-          <input
-            className="input input--sm"
-            value={query}
-            placeholder={searchPlaceholder}
-            onChange={(e) => setQuery(e.target.value)}
-            aria-label="Search this list"
-          />
-        </div>
+        {searchable && (
+          <div className="searchinput">
+            <span className="searchinput__ico">
+              <SearchIcon size={15} />
+            </span>
+            <input
+              className="input input--sm"
+              value={query}
+              placeholder={searchPlaceholder}
+              onChange={(e) => setQuery(e.target.value)}
+              aria-label="Search this list"
+            />
+          </div>
+        )}
 
         {filters.map((f) => (
           <div key={f.key} className="combo" style={{ flex: "none" }}>
