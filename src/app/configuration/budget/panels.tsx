@@ -20,6 +20,7 @@ import type { Figures } from "@/lib/budget/codes";
 import { AddBudgetCode, EditBudgetCode } from "./code-editors";
 import { PeriodsPanel } from "./periods-panel";
 import { AllocationDetails, TransferBetweenCodes } from "./allocation-overlays";
+import { AvailabilityPanel } from "./availability-panel";
 
 /**
  * Budget, in the prototype's six tabs.
@@ -81,7 +82,17 @@ export function BudgetTabs({
         {
           id: "availability",
           label: "Commitment and availability",
-          panel: <Pending what="Commitment and availability" />,
+          panel: (
+            <AvailabilityPanel
+              codes={data.codes}
+              movements={data.movements}
+              periods={data.periods}
+              settings={data.settings}
+              units={data.units}
+              year={year}
+              on={data.on}
+            />
+          ),
         },
         { id: "controls", label: "Controls", panel: <Pending what="Controls" /> },
         {

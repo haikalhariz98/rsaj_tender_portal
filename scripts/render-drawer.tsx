@@ -90,6 +90,48 @@ async function build(which: string, React: typeof import("react")) {
     });
   }
 
+  if (which === "movements") {
+    const { MovementsDrawer } = await import(
+      "../src/app/configuration/budget/movements-drawer"
+    );
+    return React.createElement(MovementsDrawer, {
+      budgetCode: {
+        id: "bc1",
+        code: "SAMPLE-001",
+        descriptionEn: "A description",
+        descriptionMs: null,
+        type: "Operating",
+        owningUnitCode: null,
+        accountCode: "1-0000-000",
+        holderPersonId: null,
+        isActive: true,
+        effectiveFrom: new Date("2026-01-01"),
+        effectiveTo: null,
+      },
+      figures: {
+        allocated: 1334100000n,
+        committed: 685690000n,
+        actualSpend: 499810000n,
+        available: 148600000n,
+        utilisation: 88.86,
+      },
+      rows: [
+        {
+          id: "r1",
+          reference: "PROC2026001648",
+          description: "",
+          kind: "COMMITMENT" as const,
+          amount: 222600000n,
+          occurredOn: new Date("2026-08-26"),
+          releasedOn: null,
+        },
+      ],
+      status: () => "Committed",
+      year: 2026,
+      threshold: 85,
+    });
+  }
+
   if (which === "allocation") {
     const { AllocationDetails } = await import(
       "../src/app/configuration/budget/allocation-overlays"
