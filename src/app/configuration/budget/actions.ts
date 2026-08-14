@@ -528,3 +528,116 @@ export async function transferBetweenCodes(_prev: FormState, data: FormData): Pr
   revalidatePath(PATH);
   return { ok: true };
 }
+
+// ---------------------------------------------------------------------- controls
+
+/**
+ * Save the budget controls.
+ *
+ * Every field is nullable and an empty box clears it. A threshold nobody has set is
+ * not a threshold of zero, and coercing a blank to a number here would invent the
+ * customer's policy for them.
+ */
+export async function saveBudgetControls(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+
+  const r = new FormReader(data);
+  const percent = (name: string, label: string, max: number) => {
+    const v = r.int(name, label, { min: 0 });
+    if (v != null && v > max) r.reject(name, `${label} cannot be more than ${max}%.`);
+    return v;
+  };
+
+  const minimum = r.money("minimumInterimCertificate", "Minimum interim certificate");
+
+  const v = {
+    availabilityCheck: r.optionalText("availabilityCheck"),
+    warningThresholdPercent: percent("warningThresholdPercent", "Warning threshold", 100),
+    overCommitmentTolerancePercent: percent(
+      "overCommitmentTolerancePercent",
+      "Over-commitment tolerance",
+      100,
+    ),
+    // A switch posts nothing when off, so this one really is two states rather than
+    // three — which is right: somebody has looked at the toggle either way.
+    commitOnApproval: r.bool("commitOnApproval"),
+    overrideRoleCodes: (r.optionalText("overrideRoleCodes") ?? "")
+      .split("\n")
+      .map((c) => c.trim())
+      .filter(Boolean),
+    advanceRecoupmentRatePercent: percent(
+      "advanceRecoupmentRatePercent",
+      "Advance recoupment rate",
+      100,
+    ),
+    minimumInterimCertificate: minimum,
+    paymentTargetDays: r.int("paymentTargetDays", "Payment target", { min: 0 }),
+  };
+
+  const parsed = r.finish(v);
+  if (!parsed.ok) return { ok: false, errors: parsed.errors };
+
+  const before = await db.budgetSettings.findUnique({ where: { organisationId: orgId } });
+  const ctx = {
+    organisationId: orgId,
+    entity: "BudgetSettings",
+    entityLabel: "Budget controls",
+    reason: "",
+  };
+
+  if (!before) {
+    await auditedCreate(ctx, v, (tx) =>
+      tx.budgetSettings.create({ data: { organisationId: orgId, ...v } }),
+    );
+  } else {
+    await auditedUpdate({ ...ctx, entityId: before.id }, before, v, (tx) =>
+      tx.budgetSettings.update({ where: { id: before.id }, data: v }),
+    );
+  }
+
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/**
+ * Put every control back to not set.
+ *
+ * The sample calls this "Restore defaults". This product ships no defaults — a
+ * threshold or a rate baked in here would be one customer's policy arriving as
+ * software — so what it restores is the unset state, and it says so.
+ */
+export async function clearBudgetControls(): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+
+  const before = await db.budgetSettings.findUnique({ where: { organisationId: orgId } });
+  if (!before) return { ok: true };
+
+  const cleared = {
+    availabilityCheck: null,
+    warningThresholdPercent: null,
+    overCommitmentTolerancePercent: null,
+    commitOnApproval: null,
+    overrideRoleCodes: [],
+    advanceRecoupmentRatePercent: null,
+    minimumInterimCertificate: null,
+    paymentTargetDays: null,
+  };
+
+  await auditedUpdate(
+    {
+      organisationId: orgId,
+      entity: "BudgetSettings",
+      entityId: before.id,
+      entityLabel: "Budget controls",
+      reason: "Cleared back to not set",
+    },
+    before,
+    cleared,
+    (tx) => tx.budgetSettings.update({ where: { id: before.id }, data: cleared }),
+  );
+
+  revalidatePath(PATH);
+  return { ok: true };
+}

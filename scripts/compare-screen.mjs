@@ -234,7 +234,29 @@ const ALLOWED_EXTRA = [
 
 const isAllowed = (label) => ALLOWED_EXTRA.some((re) => re.test(label));
 
+/**
+ * Controls we render differently from the sample, and why.
+ *
+ * A substitution rather than an extra: the sample has one control where we have
+ * another. Listed so an unexplained difference still fails.
+ */
+const DECIDED_CONTROLS = [
+  {
+    ours: "Clear these settings",
+    theirs: "Restore defaults",
+    why: "this product ships no defaults — a threshold or a rate baked in would be one customer's policy arriving as software — so the button says what it actually does",
+  },
+];
+
 function diffLists(label, mine, theirs, out, allowExtra = false) {
+  if (allowExtra) {
+    for (const d of DECIDED_CONTROLS) {
+      if (!mine.includes(d.ours) || !theirs.includes(d.theirs)) continue;
+      mine = mine.filter((m) => m !== d.ours);
+      theirs = theirs.filter((t) => t !== d.theirs);
+      out.push(`  kept     ${label} — "${d.ours}" for their "${d.theirs}": ${d.why}`);
+    }
+  }
   const missing = theirs.filter((t) => !mine.includes(t));
   const extraAll = mine.filter((m) => !theirs.includes(m));
   const allowed = allowExtra ? extraAll.filter(isAllowed) : [];

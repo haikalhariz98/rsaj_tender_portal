@@ -21,6 +21,7 @@ import { AddBudgetCode, EditBudgetCode } from "./code-editors";
 import { PeriodsPanel } from "./periods-panel";
 import { AllocationDetails, TransferBetweenCodes } from "./allocation-overlays";
 import { AvailabilityPanel } from "./availability-panel";
+import { ControlsPanel } from "./controls-panel";
 
 /**
  * Budget, in the prototype's six tabs.
@@ -37,6 +38,7 @@ export interface BudgetPanelData {
   units: { code: string; nameEn: string }[];
   people: { id: string; name: string; isActive: boolean }[];
   accountCodes: { code: string; nameEn: string }[];
+  roles: { code: string; nameEn: string }[];
   periods: Period[];
   rollForwardByYear: Record<number, boolean | null>;
   on: Date;
@@ -94,7 +96,19 @@ export function BudgetTabs({
             />
           ),
         },
-        { id: "controls", label: "Controls", panel: <Pending what="Controls" /> },
+        {
+          id: "controls",
+          label: "Controls",
+          panel: (
+            <ControlsPanel
+              settings={data.settings}
+              codes={data.codes}
+              movements={data.movements}
+              roles={data.roles}
+              on={data.on}
+            />
+          ),
+        },
         {
           id: "finance",
           label: "Finance & Operations",

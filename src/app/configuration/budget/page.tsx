@@ -5,6 +5,7 @@ import { defaultYear } from "@/lib/budget/periods";
 import { activeOn } from "@/lib/effective";
 import { formatCompactRM } from "@/lib/format";
 import { loadOrganisationData } from "@/lib/organisation/load";
+import { loadRoster } from "@/lib/people/load";
 import { ORGANISATION_CODE } from "@/lib/org";
 
 import { BudgetTabs } from "./panels";
@@ -23,11 +24,12 @@ export default async function BudgetPage({
   searchParams: Promise<{ tab?: string; year?: string }>;
 }) {
   const on = new Date();
-  const [{ tab, year: yearParam }, budget, periods, org] = await Promise.all([
+  const [{ tab, year: yearParam }, budget, periods, org, roster] = await Promise.all([
     searchParams,
     loadBudgetCodes(ORGANISATION_CODE),
     loadBudgetPeriods(ORGANISATION_CODE),
     loadOrganisationData(ORGANISATION_CODE),
+    loadRoster(ORGANISATION_CODE),
   ]);
 
   const asked = Number(yearParam);
@@ -85,6 +87,7 @@ export default async function BudgetPage({
           code: a.code,
           nameEn: a.nameEn,
         }))}
+        roles={roster.offices.map((o) => ({ code: o.code, nameEn: o.nameEn }))}
         periods={periods.periods}
         rollForwardByYear={periods.rollForwardByYear}
         on={on}
