@@ -12,6 +12,7 @@ import { ORGANISATION_CODE } from "@/lib/org";
 import { checkPeriod, FormReader } from "@/lib/validate";
 import { refusalToClose, refusalToReopen, type Period } from "@/lib/budget/periods";
 import { figuresFor, transferFaults, type Movement } from "@/lib/budget/codes";
+import { syncReadiness } from "@/lib/budget/finance";
 import { formatSen, parseSen, senToDecimalString } from "@/lib/money";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
@@ -636,6 +637,127 @@ export async function clearBudgetControls(): Promise<FormState> {
     before,
     cleared,
     (tx) => tx.budgetSettings.update({ where: { id: before.id }, data: cleared }),
+  );
+
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+// --------------------------------------------------------- finance & operations
+
+/// How and how often the portal reconciles with the customer's finance system.
+export async function saveFinanceSettings(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+
+  const r = new FormReader(data);
+  const v = {
+    direction: r.optionalText("direction"),
+    schedule: r.optionalText("schedule"),
+    varianceTolerance: r.money("varianceTolerance", "Variance tolerance"),
+  };
+
+  const parsed = r.finish(v);
+  if (!parsed.ok) return { ok: false, errors: parsed.errors };
+
+  const before = await db.financeIntegration.findUnique({ where: { organisationId: orgId } });
+  const ctx = {
+    organisationId: orgId,
+    entity: "FinanceIntegration",
+    entityLabel: "Finance & Operations",
+    reason: "",
+  };
+
+  if (!before) {
+    await auditedCreate(ctx, v, (tx) =>
+      tx.financeIntegration.create({ data: { organisationId: orgId, ...v } }),
+    );
+  } else {
+    await auditedUpdate({ ...ctx, entityId: before.id }, before, v, (tx) =>
+      tx.financeIntegration.update({ where: { id: before.id }, data: v }),
+    );
+  }
+
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/**
+ * Synchronise now.
+ *
+ * There is no adapter behind this yet, and it says so rather than stamping a time
+ * that would mean nothing. The attempt is still recorded: a run that could not
+ * happen is a fact about the integration, and the screen shows when it was last
+ * tried as readily as when it last worked.
+ */
+export async function synchroniseNow(): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+
+  const settings = await db.financeIntegration.findUnique({ where: { organisationId: orgId } });
+  const readiness = syncReadiness(settings?.direction);
+
+  const problem =
+    readiness === "NOT_CONFIGURED"
+      ? "No direction is configured, so there is nothing to synchronise in or out."
+      : "No finance system is connected to this deployment yet.";
+
+  const startedAt = new Date();
+  const row = {
+    organisationId: orgId,
+    startedAt,
+    finishedAt: startedAt,
+    direction: settings?.direction ?? "",
+    recordsIn: 0,
+    recordsOut: 0,
+    problem,
+  };
+
+  await auditedCreate(
+    {
+      organisationId: orgId,
+      entity: "FinanceSyncRun",
+      entityLabel: "Synchronisation attempt",
+      reason: problem,
+    },
+    row,
+    (tx) => tx.financeSyncRun.create({ data: row }),
+  );
+
+  revalidatePath(PATH);
+  return { ok: false, message: problem };
+}
+
+/**
+ * Accept the portal's figure for one variance.
+ *
+ * Settles the row without deleting it. That the two systems once disagreed, and who
+ * decided which side was right, is exactly what an audit asks about later.
+ */
+export async function acceptPortalFigure(varianceId: string): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+
+  const before = await db.financeVariance.findFirst({
+    where: { id: varianceId, organisationId: orgId },
+  });
+  if (!before) return { ok: false, message: "That variance is no longer on record." };
+  if (before.resolvedOn) return { ok: false, message: "That one has already been settled." };
+
+  const resolvedOn = new Date();
+  const after = { resolvedOn, resolvedNote: "The portal figure was accepted." };
+
+  await auditedUpdate(
+    {
+      organisationId: orgId,
+      entity: "FinanceVariance",
+      entityId: varianceId,
+      entityLabel: `${before.budgetCodeCode} — ${before.compares}`,
+      reason: after.resolvedNote,
+    },
+    { resolvedOn: before.resolvedOn, resolvedNote: before.resolvedNote },
+    after,
+    (tx) => tx.financeVariance.update({ where: { id: varianceId }, data: after }),
   );
 
   revalidatePath(PATH);

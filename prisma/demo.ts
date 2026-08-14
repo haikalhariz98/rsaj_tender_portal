@@ -59,6 +59,9 @@ async function wipe() {
   await db.authorityRule.deleteMany({ where: demo });
   await db.authorityMatrix.deleteMany({ where: demo });
 
+  await db.financeVariance.deleteMany({ where: demo });
+  await db.financeSyncRun.deleteMany({ where: demo });
+  await db.financeIntegration.deleteMany({ where: demo });
   await db.budgetPeriod.deleteMany({ where: demo });
   await db.budgetYear.deleteMany({ where: demo });
   await db.budgetMovement.deleteMany({ where: demo });
@@ -350,6 +353,29 @@ async function load() {
       { id: `${P}b1`, organisationId, costCentreCode: "CC-100", accountCodeCode: "6100100", periodLabel: "2026", amount: "500000.00", provenance: "STATED", sortOrder: 1, effectiveFrom: day("2026-01-01") },
       { id: `${P}b2`, organisationId, costCentreCode: "CC-200", accountCodeCode: "6200200", periodLabel: "2026", amount: "1250000.00", provenance: "STATED", sortOrder: 2, effectiveFrom: day("2026-01-01") },
       { id: `${P}b3`, organisationId, costCentreCode: "CC-300", accountCodeCode: "7300300", periodLabel: "2026", amount: "80000.00", provenance: "ASSUMED", sortOrder: 3, effectiveFrom: day("2026-01-01") },
+    ],
+  });
+
+  // A finance integration that is configured but has nothing behind it, and three
+  // codes the two sides disagree about. Invented figures.
+  await db.financeIntegration.create({
+    data: {
+      id: `${P}fi1`,
+      organisationId,
+      direction: "two_way",
+      schedule: "nightly",
+      varianceTolerance: "500.00",
+    },
+  });
+
+  await db.financeVariance.createMany({
+    data: [
+      // Note the difference is NOT the two shown figures subtracted once compacted:
+      // 2.35M less 2.30M reads as 50K but the real gap is 47K.
+      { id: `${P}fv1`, organisationId, budgetCodeCode: "CAP26-001", accountCode: "7300300", compares: "Allocation", portalAmount: "2350000.00", financeAmount: "2303000.00", reason: "Allocation revision not yet mirrored", lastSeenAt: day("2026-08-05") },
+      { id: `${P}fv2`, organisationId, budgetCodeCode: "OPX26-014", accountCode: "6100100", compares: "Commitment", portalAmount: "700000.00", financeAmount: "712000.00", reason: "", lastSeenAt: day("2026-08-09") },
+      // Inside the RM 500 tolerance, so it is listed but not counted as outstanding.
+      { id: `${P}fv3`, organisationId, budgetCodeCode: "OPX26-022", accountCode: "6200200", compares: "Payment", portalAmount: "120000.00", financeAmount: "120300.00", reason: "Rounding on a part payment", lastSeenAt: day("2026-08-11") },
     ],
   });
 

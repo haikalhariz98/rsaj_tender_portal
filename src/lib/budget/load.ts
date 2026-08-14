@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import type { Allocation, Commitment } from "./availability";
 import type { BudgetCode, Movement } from "./codes";
 import type { Period } from "./periods";
+import type { Variance } from "./finance";
 
 export interface BudgetData {
   allocations: Allocation[];
@@ -179,5 +180,69 @@ export async function loadBudgetPeriods(organisationCode: string): Promise<Perio
       sortOrder: p.sortOrder,
     })),
     rollForwardByYear,
+  };
+}
+
+/// The finance integration: its settings, its last run, and what still differs.
+export interface FinanceData {
+  direction: string | null;
+  schedule: string | null;
+  varianceTolerance: string | null;
+  lastRun: {
+    startedAt: Date;
+    finishedAt: Date | null;
+    direction: string;
+    recordsIn: number;
+    recordsOut: number;
+    problem: string;
+  } | null;
+  variances: Variance[];
+}
+
+export async function loadFinance(organisationCode: string): Promise<FinanceData> {
+  const organisation = await db.organisation.findUnique({
+    where: { code: organisationCode },
+    select: { id: true },
+  });
+  if (!organisation) {
+    return { direction: null, schedule: null, varianceTolerance: null, lastRun: null, variances: [] };
+  }
+
+  const [settings, run, variances] = await Promise.all([
+    db.financeIntegration.findUnique({ where: { organisationId: organisation.id } }),
+    db.financeSyncRun.findFirst({
+      where: { organisationId: organisation.id },
+      orderBy: { startedAt: "desc" },
+    }),
+    db.financeVariance.findMany({
+      where: { organisationId: organisation.id },
+      orderBy: { lastSeenAt: "desc" },
+    }),
+  ]);
+
+  return {
+    direction: settings?.direction ?? null,
+    schedule: settings?.schedule ?? null,
+    varianceTolerance: settings?.varianceTolerance?.toString() ?? null,
+    lastRun: run && {
+      startedAt: run.startedAt,
+      finishedAt: run.finishedAt,
+      direction: run.direction,
+      recordsIn: run.recordsIn,
+      recordsOut: run.recordsOut,
+      problem: run.problem,
+    },
+    variances: variances.map((v) => ({
+      id: v.id,
+      budgetCodeCode: v.budgetCodeCode,
+      accountCode: v.accountCode,
+      compares: v.compares,
+      portalAmount: v.portalAmount.toString(),
+      financeAmount: v.financeAmount.toString(),
+      reason: v.reason,
+      lastSeenAt: v.lastSeenAt,
+      resolvedOn: v.resolvedOn,
+      resolvedNote: v.resolvedNote,
+    })),
   };
 }

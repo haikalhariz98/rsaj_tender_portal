@@ -125,6 +125,9 @@ model Organisation {
   budgetPeriods     BudgetPeriod[]
   budgetYears       BudgetYear[]
   budgetSettings    BudgetSettings?
+  financeIntegration FinanceIntegration?
+  financeSyncRuns    FinanceSyncRun[]
+  financeVariances   FinanceVariance[]
   capabilities      Capability[]
   delegations       Delegation[]
   numberingSeries   NumberingSeries[]
@@ -1050,6 +1053,74 @@ model BudgetMovement {
 
   @@index([budgetCodeId, kind])
   @@index([budgetCodeId, occurredOn])
+}
+
+/// How the portal reconciles with the customer's finance system.
+///
+/// Named settings rather than a connection: this product is a standalone system of
+/// record that integrates behind a façade, so what is configured here is the
+/// arrangement, and the adapter that honours it arrives with the integration.
+model FinanceIntegration {
+  id             String       @id @default(cuid())
+  organisationId String       @unique
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// Which way records move. The customer's own arrangement, so a label.
+  direction String?
+  /// How often. Null where nobody has said, which is not the same as never.
+  schedule String?
+  /// How far apart the two sides may be before it counts as a variance.
+  varianceTolerance Decimal? @db.Decimal(18, 2)
+}
+
+/// One reconciliation run.
+model FinanceSyncRun {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  startedAt  DateTime
+  finishedAt DateTime?
+
+  direction  String @default("")
+  recordsIn  Int    @default(0)
+  recordsOut Int    @default(0)
+
+  /// What the run could not do, in its own words. Empty on a clean run.
+  problem String @default("")
+
+  @@index([organisationId, startedAt])
+}
+
+/// A budget code the two systems disagree about.
+///
+/// The difference is not stored: it is the two figures subtracted, and a column
+/// holding it could disagree with them. Kept after it is settled rather than
+/// deleted — that the two sides once differed is the thing an audit asks about.
+model FinanceVariance {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  budgetCodeCode String
+  accountCode    String @default("")
+
+  /// What is being compared — an allocation, a commitment, a payment.
+  compares String @default("")
+
+  portalAmount  Decimal @db.Decimal(18, 2)
+  financeAmount Decimal @db.Decimal(18, 2)
+
+  /// Why they differ, as far as anyone knows. Empty where nobody has said.
+  reason String @default("")
+
+  lastSeenAt DateTime
+
+  /// Set when somebody accepted one side's figure. The row stays.
+  resolvedOn   DateTime?
+  resolvedNote String    @default("")
+
+  @@index([organisationId, lastSeenAt])
 }
 
 /// How this customer wants the budget check to behave.

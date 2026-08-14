@@ -1,6 +1,6 @@
 import { CalendarIcon, ChartIcon, ScaleIcon } from "@/components/icons";
 import { totalsAcross } from "@/lib/budget/codes";
-import { loadBudgetCodes, loadBudgetPeriods } from "@/lib/budget/load";
+import { loadBudgetCodes, loadBudgetPeriods, loadFinance } from "@/lib/budget/load";
 import { defaultYear } from "@/lib/budget/periods";
 import { activeOn } from "@/lib/effective";
 import { formatCompactRM } from "@/lib/format";
@@ -24,12 +24,13 @@ export default async function BudgetPage({
   searchParams: Promise<{ tab?: string; year?: string }>;
 }) {
   const on = new Date();
-  const [{ tab, year: yearParam }, budget, periods, org, roster] = await Promise.all([
+  const [{ tab, year: yearParam }, budget, periods, org, roster, finance] = await Promise.all([
     searchParams,
     loadBudgetCodes(ORGANISATION_CODE),
     loadBudgetPeriods(ORGANISATION_CODE),
     loadOrganisationData(ORGANISATION_CODE),
     loadRoster(ORGANISATION_CODE),
+    loadFinance(ORGANISATION_CODE),
   ]);
 
   const asked = Number(yearParam);
@@ -88,6 +89,7 @@ export default async function BudgetPage({
           nameEn: a.nameEn,
         }))}
         roles={roster.offices.map((o) => ({ code: o.code, nameEn: o.nameEn }))}
+        finance={finance}
         periods={periods.periods}
         rollForwardByYear={periods.rollForwardByYear}
         on={on}

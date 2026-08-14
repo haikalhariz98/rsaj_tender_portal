@@ -14,6 +14,7 @@ import {
 } from "@/lib/budget/codes";
 import type { BudgetControls } from "@/lib/budget/load";
 import type { Period } from "@/lib/budget/periods";
+import type { FinanceData } from "@/lib/budget/load";
 import { formatCompactRM } from "@/lib/format";
 import type { Figures } from "@/lib/budget/codes";
 
@@ -22,13 +23,13 @@ import { PeriodsPanel } from "./periods-panel";
 import { AllocationDetails, TransferBetweenCodes } from "./allocation-overlays";
 import { AvailabilityPanel } from "./availability-panel";
 import { ControlsPanel } from "./controls-panel";
+import { FinancePanel } from "./finance-panel";
 
 /**
  * Budget, in the prototype's six tabs.
  *
- * Only the first is built. The rest say so rather than showing an approximation —
- * each is the size of a whole screen and every figure on them is arithmetic over the
- * same movement ledger, so half of one would be worse than none.
+ * Every figure on every one of them is arithmetic over the same movement ledger, so
+ * no two tabs can disagree about what a code is worth.
  */
 
 export interface BudgetPanelData {
@@ -39,6 +40,7 @@ export interface BudgetPanelData {
   people: { id: string; name: string; isActive: boolean }[];
   accountCodes: { code: string; nameEn: string }[];
   roles: { code: string; nameEn: string }[];
+  finance: FinanceData;
   periods: Period[];
   rollForwardByYear: Record<number, boolean | null>;
   on: Date;
@@ -112,33 +114,17 @@ export function BudgetTabs({
         {
           id: "finance",
           label: "Finance & Operations",
-          panel: <Pending what="Finance & Operations" />,
+          panel: (
+            <FinancePanel
+              finance={data.finance}
+              codes={data.codes}
+              movements={data.movements}
+              on={data.on}
+            />
+          ),
         },
       ]}
     />
-  );
-}
-
-/// A tab that is not built. NotBuilt renders a whole page with its own head, which
-/// inside a tab panel would put a second one on the screen.
-function Pending({ what }: { what: string }) {
-  return (
-    <section className="card">
-      <div className="card__head">
-        <div className="card__titles">
-          <div className="h3 trunc">{what}</div>
-        </div>
-      </div>
-      <div className="card__body">
-        <div className="empty">
-          <div className="empty__t">Not built yet</div>
-          <p className="empty__d">
-            Budget codes is, and the movement ledger under it is what this tab reads.
-            Anything shown here before that would be a figure nobody could stand behind.
-          </p>
-        </div>
-      </div>
-    </section>
   );
 }
 
