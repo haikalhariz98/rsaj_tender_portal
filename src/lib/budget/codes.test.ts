@@ -6,10 +6,12 @@ import {
   figuresFor,
   fitsWithin,
   ledgerFor,
+  ledgerLines,
   offerableOn,
   percentUsed,
   thresholdState,
   totalsAcross,
+  transferFaults,
   type BudgetCode,
   type Movement,
   type MovementKind,
@@ -207,5 +209,75 @@ describe("whether a charge fits", () => {
   it("lets a charge that exactly exhausts the balance through", () => {
     expect(fitsWithin(parseSen("100"), parseSen("100"))).toBe(true);
     expect(fitsWithin(parseSen("100"), parseSen("100.01"))).toBe(false);
+  });
+});
+
+describe("the allocation ledger, line by line", () => {
+  const write = (d: Date) => d.toISOString().slice(0, 10);
+
+  it("reads original, then what moved it, then the total", () => {
+    const lines = ledgerLines(
+      [
+        move("ORIGINAL", "12400000.00"),
+        move("TRANSFER_IN", "941000.00", {
+          occurredOn: new Date("2026-06-17"),
+          reference: "BT26-660",
+          counterpartCode: "CAP26-014",
+        }),
+      ],
+      "b1",
+      ON,
+      write,
+    );
+    expect(lines.map((l) => l.label)).toEqual([
+      "Original",
+      "Transferred in · CAP26-014",
+      "Current allocation",
+    ]);
+    expect(lines[1].note).toBe("BT26-660 · 2026-06-17");
+    expect(lines[1].adds).toBe(true);
+    expect(formatSen(lines[2].amount)).toBe("RM13,341,000.00");
+  });
+
+  it("leaves commitments and spend out — they do not change the allocation", () => {
+    const lines = ledgerLines(
+      [move("ORIGINAL", "100.00"), move("COMMITMENT", "50.00"), move("ACTUAL_SPEND", "20.00")],
+      "b1",
+      ON,
+      write,
+    );
+    expect(lines.map((l) => l.label)).toEqual(["Original", "Current allocation"]);
+  });
+
+  it("marks a transfer out as taking away", () => {
+    const lines = ledgerLines([move("TRANSFER_OUT", "95000.00")], "b1", ON, write);
+    expect(lines[0].adds).toBe(false);
+  });
+});
+
+describe("refusing a transfer", () => {
+  const AVAILABLE = parseSen("1000");
+
+  it("allows one the source can afford", () => {
+    expect(transferFaults("a", "b", parseSen("1000"), AVAILABLE)).toEqual([]);
+  });
+
+  it("refuses moving money to the same code", () => {
+    expect(transferFaults("a", "a", parseSen("10"), AVAILABLE)).toContain("SAME_CODE");
+  });
+
+  it("refuses nothing, and refuses a negative", () => {
+    expect(transferFaults("a", "b", parseSen("0"), AVAILABLE)).toContain("NOT_POSITIVE");
+  });
+
+  it("refuses more than the source has", () => {
+    expect(transferFaults("a", "b", parseSen("1000.01"), AVAILABLE)).toContain(
+      "MORE_THAN_AVAILABLE",
+    );
+  });
+
+  it("names a missing side", () => {
+    expect(transferFaults("", "b", parseSen("10"), AVAILABLE)).toContain("NO_SOURCE");
+    expect(transferFaults("a", "", parseSen("10"), AVAILABLE)).toContain("NO_DESTINATION");
   });
 });

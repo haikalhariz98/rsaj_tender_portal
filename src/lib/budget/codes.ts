@@ -187,3 +187,89 @@ export function totalsAcross(
 export function fitsWithin(available: Sen, amount: Sen): boolean {
   return compareSen(amount, available) <= 0;
 }
+
+/**
+ * One line of the allocation ledger, as the Allocations drawer reads it.
+ *
+ * The original, then every revision and transfer that moved it, then the total. A
+ * transfer names the code on the other side and the instrument that moved it, because
+ * "where did this money go" is the whole reason the ledger exists.
+ */
+export interface LedgerLine {
+  label: string;
+  /// The reference and date under the label, where there is one.
+  note: string | null;
+  amount: Sen;
+  /// True for a line that adds, false for one that takes away, null for the total.
+  adds: boolean | null;
+  kind: "ORIGINAL" | "MOVEMENT" | "TOTAL";
+}
+
+export function ledgerLines(
+  movements: readonly Movement[],
+  budgetCodeId: string,
+  on: Date,
+  writeDate: (d: Date) => string,
+): LedgerLine[] {
+  const mine = movementsFor(movements, budgetCodeId, on)
+    .filter((m) => m.kind !== "COMMITMENT" && m.kind !== "ACTUAL_SPEND")
+    .sort((a, b) => a.occurredOn.getTime() - b.occurredOn.getTime());
+
+  const lines: LedgerLine[] = [];
+  for (const m of mine) {
+    const adds = m.kind !== "TRANSFER_OUT";
+    const label =
+      m.kind === "ORIGINAL"
+        ? "Original"
+        : m.kind === "REVISION"
+          ? adds
+            ? "Revised up"
+            : "Revised down"
+          : m.kind === "TRANSFER_IN"
+            ? `Transferred in · ${m.counterpartCode ?? "another code"}`
+            : `Transferred out · ${m.counterpartCode ?? "another code"}`;
+
+    const note = [m.reference, writeDate(m.occurredOn)].filter(Boolean).join(" · ");
+
+    lines.push({
+      label,
+      note: m.kind === "ORIGINAL" ? null : note || null,
+      amount: senFromDecimal(m.amount),
+      adds,
+      kind: m.kind === "ORIGINAL" ? "ORIGINAL" : "MOVEMENT",
+    });
+  }
+
+  const { current } = ledgerFor(movements, budgetCodeId, on);
+  lines.push({ label: "Current allocation", note: null, amount: current, adds: null, kind: "TOTAL" });
+  return lines;
+}
+
+/**
+ * What is wrong with a proposed transfer between two codes.
+ *
+ * Refused rather than warned about: moving money a code does not have leaves the
+ * source negative, and the fix — revise it up first — is a decision with its own
+ * record.
+ */
+export type TransferFault =
+  | "SAME_CODE"
+  | "NOT_POSITIVE"
+  | "MORE_THAN_AVAILABLE"
+  | "NO_SOURCE"
+  | "NO_DESTINATION";
+
+export function transferFaults(
+  fromCodeId: string,
+  toCodeId: string,
+  amount: Sen,
+  availableOnSource: Sen,
+): TransferFault[] {
+  const faults: TransferFault[] = [];
+  if (!fromCodeId) faults.push("NO_SOURCE");
+  if (!toCodeId) faults.push("NO_DESTINATION");
+  if (fromCodeId && toCodeId && fromCodeId === toCodeId) faults.push("SAME_CODE");
+  if (amount <= 0n) faults.push("NOT_POSITIVE");
+  else if (!fitsWithin(availableOnSource, amount)) faults.push("MORE_THAN_AVAILABLE");
+  return faults;
+}

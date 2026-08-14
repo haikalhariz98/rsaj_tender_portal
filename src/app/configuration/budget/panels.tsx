@@ -7,6 +7,7 @@ import { ChartIcon } from "@/components/icons";
 import { Tabs } from "@/components/tabs";
 import {
   figuresFor,
+  ledgerFor,
   thresholdState,
   type BudgetCode,
   type Movement,
@@ -14,9 +15,11 @@ import {
 import type { BudgetControls } from "@/lib/budget/load";
 import type { Period } from "@/lib/budget/periods";
 import { formatCompactRM } from "@/lib/format";
+import type { Figures } from "@/lib/budget/codes";
 
 import { AddBudgetCode, EditBudgetCode } from "./code-editors";
 import { PeriodsPanel } from "./periods-panel";
+import { AllocationDetails, TransferBetweenCodes } from "./allocation-overlays";
 
 /**
  * Budget, in the prototype's six tabs.
@@ -70,7 +73,11 @@ export function BudgetTabs({
             />
           ),
         },
-        { id: "allocations", label: "Allocations", panel: <Pending what="Allocations" /> },
+        {
+          id: "allocations",
+          label: "Allocations",
+          panel: <AllocationsPanel {...data} year={year} />,
+        },
         {
           id: "availability",
           label: "Commitment and availability",
@@ -217,4 +224,111 @@ function BudgetCodesPanel({
       </div>
     </section>
   );
+}
+
+// ------------------------------------------------------------------- allocations
+
+/**
+ * What each code's allocation is made of.
+ *
+ * Original, revisions and transfers are read off the ledger and totalled here; the
+ * current allocation is their sum and is stored nowhere. A dash rather than a zero
+ * where a code has never been revised — nothing happened, which is not the same as
+ * something happening to the value of nought.
+ */
+function AllocationsPanel({
+  codes,
+  movements,
+  on,
+  year,
+}: BudgetPanelData & { year: number | null }) {
+  const figuresById: Record<string, Figures> = {};
+  for (const c of codes) figuresById[c.id] = figuresFor(movements, c.id, on);
+
+  const rows: Row[] = codes.map((c) => {
+    const l = ledgerFor(movements, c.id, on);
+    return {
+      id: c.id,
+      views: [
+        ...(l.revisions !== 0n ? ["revisions"] : []),
+        ...(l.transfers !== 0n ? ["transfers"] : []),
+      ],
+      search: [c.code, c.descriptionEn, c.type].filter(Boolean).join(" "),
+      sortKeys: {
+        original: Number(l.original),
+        revisions: Number(l.revisions),
+        transfers: Number(l.transfers),
+        current: Number(l.current),
+      },
+      cells: {
+        code: { kind: "stack", title: c.descriptionEn, sub: c.code, monoSub: true },
+        original: { kind: "text", text: formatCompactRM(l.original) },
+        revisions: signed(l.revisions),
+        transfers: signed(l.transfers),
+        current: { kind: "text", text: formatCompactRM(l.current) },
+        type: c.type ? { kind: "badge", text: c.type } : { kind: "text", text: "Not set", dim: true },
+      },
+    };
+  });
+
+  return (
+    <section className="card">
+      <div className="card__head">
+        <ChartIcon size={17} className="icon dim" />
+        <div className="card__titles">
+          <div className="h3 trunc">Allocations</div>
+          {year != null && <div className="card__sub trunc">{year}</div>}
+        </div>
+        <div className="row" style={{ gap: 6, flex: "0 0 auto" }}>
+          <TransferBetweenCodes codes={codes} figuresById={figuresById} />
+        </div>
+      </div>
+      <div className="card__body card__body--flush">
+        <DataList
+          flat
+          selectable={false}
+          rowOpens
+          exportName="allocations"
+          searchPlaceholder="Search budget codes"
+          emptyTitle="Nothing allocated"
+          emptyBody="An allocation starts with an original amount on a budget code."
+          views={[
+            { id: "revisions", label: "Revisions" },
+            { id: "transfers", label: "Transfers" },
+          ]}
+          filters={[{ key: "type", label: "Type" }]}
+          columns={[
+            { key: "code", label: "Budget code", width: "30%", sortable: true },
+            { key: "original", label: "Original", width: "16%", numeric: true, sortable: true },
+            { key: "revisions", label: "Revisions", width: "15%", numeric: true, sortable: true },
+            { key: "transfers", label: "Transfers", width: "15%", numeric: true, sortable: true },
+            {
+              key: "current",
+              label: "Current allocation",
+              width: "18%",
+              numeric: true,
+              sortable: true,
+            },
+          ]}
+          rows={rows}
+          actions={(id) => {
+            const c = codes.find((x) => x.id === id);
+            if (!c) return null;
+            return (
+              <AllocationDetails budgetCode={c} movements={movements} year={year} on={on} />
+            );
+          }}
+        />
+      </div>
+    </section>
+  );
+}
+
+/// A movement that never happened reads as a dash, not as nought.
+function signed(amount: bigint) {
+  if (amount === 0n) return { kind: "text" as const, text: "—", dim: true };
+  return {
+    kind: "text" as const,
+    text: `${amount > 0n ? "+" : ""}${formatCompactRM(amount)}`,
+  };
 }

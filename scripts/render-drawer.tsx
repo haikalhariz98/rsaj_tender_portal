@@ -90,6 +90,55 @@ async function build(which: string, React: typeof import("react")) {
     });
   }
 
+  if (which === "allocation") {
+    const { AllocationDetails } = await import(
+      "../src/app/configuration/budget/allocation-overlays"
+    );
+    return React.createElement(AllocationDetails, {
+      budgetCode: {
+        id: "bc1",
+        code: "SAMPLE-001",
+        descriptionEn: "A description",
+        descriptionMs: null,
+        type: "Operating",
+        owningUnitCode: null,
+        accountCode: "1-0000-000",
+        holderPersonId: null,
+        isActive: true,
+        effectiveFrom: new Date("2026-01-01"),
+        effectiveTo: null,
+      },
+      movements: [
+        {
+          id: "m1",
+          budgetCodeId: "bc1",
+          kind: "ORIGINAL" as const,
+          reference: "BR26-001",
+          description: "",
+          amount: "12400000.00",
+          occurredOn: new Date("2026-01-01"),
+          releasedOn: null,
+          releaseNote: "",
+          counterpartCode: null,
+        },
+        {
+          id: "m2",
+          budgetCodeId: "bc1",
+          kind: "TRANSFER_IN" as const,
+          reference: "BT26-660",
+          description: "",
+          amount: "941000.00",
+          occurredOn: new Date("2026-06-17"),
+          releasedOn: null,
+          releaseNote: "",
+          counterpartCode: "CAP26-014",
+        },
+      ],
+      year: 2026,
+      on: new Date("2026-12-31"),
+    });
+  }
+
   if (which === "budget-code") {
     const { EditBudgetCode } = await import("../src/app/configuration/budget/code-editors");
     return React.createElement(EditBudgetCode, {

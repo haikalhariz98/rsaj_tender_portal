@@ -3,13 +3,16 @@
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
-import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
+import { snapshotFields } from "@/lib/audit/diff";
+import { auditedCreate, auditedUpdate, writeAudit } from "@/lib/audit/record";
 import { allocationFor } from "@/lib/budget/availability";
 import { loadBudget } from "@/lib/budget/load";
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { checkPeriod, FormReader } from "@/lib/validate";
 import { refusalToClose, refusalToReopen, type Period } from "@/lib/budget/periods";
+import { figuresFor, transferFaults, type Movement } from "@/lib/budget/codes";
+import { formatSen, parseSen, senToDecimalString } from "@/lib/money";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const PATH = "/configuration/budget";
@@ -365,4 +368,163 @@ function toPeriod(row: {
   sortOrder: number;
 }): Period {
   return row;
+}
+
+// ------------------------------------------------------------------ allocations
+
+/// Revise an allocation up or down. A movement on the ledger, never an edit to a total.
+export async function addRevision(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+
+  const r = new FormReader(data);
+  const budgetCodeId = r.text("budgetCodeId", "Budget code", { required: true });
+  const direction = r.text("direction", "Direction", { required: true });
+  const amountText = r.money("amount", "Amount", { required: true });
+  const amount = amountText == null ? null : parseSen(amountText);
+  const reference = r.text("reference", "Reference", { required: true, max: 60 });
+  const description = r.optionalText("description");
+  const occurredOn = r.date("occurredOn", "Dated", { required: true });
+
+  if (amount != null && amount <= 0n) {
+    r.reject("amount", "A revision of nothing is not a revision. Enter what is being moved.");
+  }
+
+  const parsed = r.finish({ budgetCodeId, amount, reference, occurredOn });
+  if (!parsed.ok) return { ok: false, errors: parsed.errors };
+
+  const code = await db.budgetCode.findFirst({
+    where: { id: budgetCodeId, organisationId: orgId },
+    select: { code: true, descriptionEn: true },
+  });
+  if (!code) return { ok: false, message: "That budget code no longer exists." };
+
+  // Down is stored as a negative revision rather than as its own kind: the ledger
+  // sums revisions, and a second kind would have to be remembered everywhere it does.
+  const signed = direction === "down" ? `-${senToDecimalString(amount!)}` : senToDecimalString(amount!);
+
+  const row = {
+    budgetCodeId,
+    kind: "REVISION" as const,
+    reference,
+    description: description ?? "",
+    amount: signed,
+    occurredOn: occurredOn!,
+  };
+
+  await auditedCreate(
+    {
+      organisationId: orgId,
+      entity: "BudgetMovement",
+      entityLabel: `${code.code} — revision ${reference}`,
+      reason: description ?? "",
+    },
+    row,
+    (tx) => tx.budgetMovement.create({ data: row }),
+  );
+
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/**
+ * Move allocation from one code to another.
+ *
+ * Two rows in one transaction, each naming the other. A transfer recorded on one side
+ * only is money that vanished, and the pair is what lets either code's ledger answer
+ * where it went.
+ */
+export async function transferBetweenCodes(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+
+  const r = new FormReader(data);
+  const fromId = r.text("fromCodeId", "From code", { required: true });
+  const toId = r.text("toCodeId", "To code", { required: true });
+  const amountText = r.money("amount", "Amount", { required: true });
+  const amount = amountText == null ? null : parseSen(amountText);
+  const reference = r.optionalText("reference");
+  const occurredOn = r.date("occurredOn", "Dated", { required: true });
+
+  const parsed = r.finish({ fromId, toId, amount, occurredOn });
+  if (!parsed.ok) return { ok: false, errors: parsed.errors };
+
+  const [from, to] = await Promise.all([
+    db.budgetCode.findFirst({ where: { id: fromId, organisationId: orgId } }),
+    db.budgetCode.findFirst({ where: { id: toId, organisationId: orgId } }),
+  ]);
+  if (!from || !to) return { ok: false, message: "One of those codes no longer exists." };
+
+  const movements = await db.budgetMovement.findMany({ where: { budgetCodeId: fromId } });
+  const available = figuresFor(
+    movements.map((m) => ({
+      id: m.id,
+      budgetCodeId: m.budgetCodeId,
+      kind: m.kind as Movement["kind"],
+      reference: m.reference,
+      description: m.description,
+      amount: m.amount.toString(),
+      occurredOn: m.occurredOn,
+      releasedOn: m.releasedOn,
+      releaseNote: m.releaseNote,
+      counterpartCode: m.counterpartCode,
+    })),
+    fromId,
+    new Date(),
+  ).available;
+
+  const faults = transferFaults(fromId, toId, amount!, available);
+  if (faults.length) {
+    const errors: Record<string, string> = {};
+    for (const f of faults) {
+      if (f === "SAME_CODE") errors.toCodeId = "Choose a different code to move it to.";
+      if (f === "NOT_POSITIVE") errors.amount = "Enter what is being moved.";
+      if (f === "MORE_THAN_AVAILABLE") {
+        errors.amount = `${from.code} only has ${formatSen(available)} available. Revise it up first if the money is coming from somewhere else.`;
+      }
+    }
+    return { ok: false, errors };
+  }
+
+  const decimal = senToDecimalString(amount!);
+  const when = occurredOn!;
+
+  await db.$transaction(async (tx) => {
+    const out = await tx.budgetMovement.create({
+      data: {
+        budgetCodeId: fromId,
+        kind: "TRANSFER_OUT",
+        amount: decimal,
+        occurredOn: when,
+        reference: reference ?? "",
+        counterpartCode: to.code,
+      },
+    });
+    await tx.budgetMovement.create({
+      data: {
+        budgetCodeId: toId,
+        kind: "TRANSFER_IN",
+        amount: decimal,
+        occurredOn: when,
+        reference: reference ?? "",
+        counterpartCode: from.code,
+      },
+    });
+    await writeAudit(
+      tx,
+      {
+        organisationId: orgId,
+        entity: "BudgetMovement",
+        // The pair is one act; the outgoing side identifies it.
+        entityId: out.id,
+        entityLabel: `${from.code} → ${to.code}`,
+        reason: reference ?? "",
+      },
+      "CREATE",
+      snapshotFields({ from: from.code, to: to.code, amount: decimal, reference: reference ?? "" }),
+    );
+  });
+
+  revalidatePath(PATH);
+  return { ok: true };
 }
