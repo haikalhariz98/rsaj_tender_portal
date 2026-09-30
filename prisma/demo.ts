@@ -48,13 +48,37 @@ async function organisation() {
  * but relying on them would also delete rows that were not part of the demo if a real
  * record had been attached to a demo parent.
  */
+/**
+ * Audit entries of rows already gone (a withdrawn endorsement, a commitment that went
+ * with its budget code) that belonged to these requisitions, found by the reference
+ * their labels carry. Only the requisition layer's entities, and only these references.
+ */
+async function removeTrailByReference(organisationId: string, references: string[]): Promise<number> {
+  if (references.length === 0) return 0;
+  const gone = await db.auditEntry.deleteMany({
+    where: {
+      organisationId,
+      OR: [
+        {
+          entity: { in: ["RequisitionEndorsement", "RequisitionLine", "RequisitionBudgetCheck", "RequisitionSplitCheck", "ApprovalInstance", "ApprovalStep"] },
+          OR: references.map((ref) => ({ entityLabel: { startsWith: `${ref} ·` } })),
+        },
+        { entity: "BudgetMovement", OR: references.map((ref) => ({ entityLabel: { endsWith: ` for ${ref}` } })) },
+      ],
+    },
+  });
+  return gone.count;
+}
+
 async function wipe() {
   const org = await organisation();
   const demo = { id: { startsWith: P } };
 
   // A requisition raised on the demo (by a demo person, against a demo budget code or
-  // down a demo rule set) cannot outlive the demo rows it points at. Remove it and
-  // everything that hangs off it first, children before parents.
+  // down a demo rule set) cannot outlive the demo rows it points at. It is not demo
+  // data, so the wipe refuses and lists it (ruling BD-27). Only with
+  // --remove-dependents does it remove those records and their audit entries, and it
+  // says which.
   const demoRef = { startsWith: P };
   const hanging = await db.requisition.findMany({
     where: {
@@ -78,7 +102,17 @@ async function wipe() {
         { endorsements: { some: { personId: demoRef } } },
       ],
     },
-    select: { id: true, commitmentMovementId: true },
+    select: {
+      id: true,
+      reference: true,
+      title: true,
+      commitmentMovementId: true,
+      lines: { select: { id: true } },
+      endorsements: { select: { id: true } },
+      budgetChecks: { select: { id: true } },
+      splitChecks: { select: { id: true } },
+    },
+    orderBy: { reference: "asc" },
   });
   const hangingIds = hanging.map((r) => r.id);
   const hangingInstances = await db.approvalInstance.findMany({
@@ -90,8 +124,37 @@ async function wipe() {
         { requisitionId: null, OR: [{ authorityMatrixId: demoRef }, { overrideMatrixId: demoRef }] },
       ],
     },
-    select: { id: true },
+    select: { id: true, requisitionId: true, matrixLabel: true, steps: { select: { id: true } } },
   });
+  // Real committee matters linked to a demo requisition: the link would be cleared.
+  const linkedMatters = await db.committeeDecision.findMany({
+    where: { NOT: { id: demoRef }, requisitionId: demoRef },
+    select: { id: true, subject: true, matterRef: true },
+  });
+  const orphanRoutes = hangingInstances.filter((i) => i.requisitionId == null);
+
+  if (hanging.length || orphanRoutes.length || linkedMatters.length) {
+    const lines = [
+      ...hanging.map((r) => `  requisition ${r.reference} · ${r.title}`),
+      ...orphanRoutes.map((i) => `  approval route ${i.id} under ${i.matrixLabel ?? "a demo rule set"}`),
+      ...linkedMatters.map((m) => `  committee matter ${m.matterRef ?? m.subject} (link to a demo requisition)`),
+    ];
+    if (!REMOVE_DEPENDENTS) {
+      console.error(
+        [
+          "Refused: these records are not demo data, but point at demo records, so the demo cannot be removed under them:",
+          ...lines,
+          "Nothing was removed. Deal with them first, or run the wipe again with --remove-dependents",
+          "(npm run demo:wipe -- --remove-dependents) to remove the requisitions and routes above with their lines,",
+          "endorsements, checks, steps, commitments and audit entries, and clear the committee matters' links.",
+        ].join("\n"),
+      );
+      process.exitCode = 1;
+      return;
+    }
+    console.log(["--remove-dependents: removing these records, which point at demo records, with their audit entries:", ...lines].join("\n"));
+  }
+
   const hangingInstanceIds = hangingInstances.map((i) => i.id);
   const hangingMovementIds = hanging.flatMap((r) => (r.commitmentMovementId ? [r.commitmentMovementId] : []));
   const byReq = { requisitionId: { in: hangingIds } };
@@ -104,21 +167,55 @@ async function wipe() {
   await db.committeeDecision.updateMany({ where: byReq, data: { requisitionId: null } });
   await db.budgetMovement.deleteMany({ where: { id: { in: hangingMovementIds } } });
   await db.requisition.deleteMany({ where: { id: { in: hangingIds } } });
-  const hangingEntities = [...hangingIds, ...hangingInstanceIds, ...hangingMovementIds];
+  const hangingEntities = [
+    ...hangingIds,
+    ...hanging.flatMap((r) => [...r.lines, ...r.endorsements, ...r.budgetChecks, ...r.splitChecks].map((x) => x.id)),
+    ...hangingInstanceIds,
+    ...hangingInstances.flatMap((i) => i.steps.map((x) => x.id)),
+    ...hangingMovementIds,
+  ];
   if (hangingEntities.length) {
-    await db.auditEntry.deleteMany({ where: { organisationId: org.id, entityId: { in: hangingEntities } } });
-    console.log(`Removed ${hangingIds.length} requisition(s) raised against demo records.`);
+    const gone = await db.auditEntry.deleteMany({ where: { organisationId: org.id, entityId: { in: hangingEntities } } });
+    gone.count += await removeTrailByReference(org.id, hanging.map((r) => r.reference));
+    console.log(`Removed ${hanging.length} requisition(s), ${orphanRoutes.length} other route(s) and ${gone.count} audit entr${gone.count === 1 ? "y" : "ies"}.`);
   }
-  // A real committee decision may still point at a demo requisition.
-  await db.committeeDecision.updateMany({ where: { requisitionId: demoRef }, data: { requisitionId: null } });
+  if (linkedMatters.length) {
+    await db.committeeDecision.updateMany({ where: { id: { in: linkedMatters.map((m) => m.id) } }, data: { requisitionId: null } });
+    console.log(`Cleared ${linkedMatters.length} committee matter link(s) to demo requisitions.`);
+  }
 
-  // Demo requisitions next: an approval step may cite a committee decision.
-  await db.approvalStep.deleteMany({ where: demo });
-  await db.approvalInstance.deleteMany({ where: demo });
-  await db.requisitionSplitCheck.deleteMany({ where: demo });
-  await db.requisitionBudgetCheck.deleteMany({ where: demo });
-  await db.requisitionEndorsement.deleteMany({ where: demo });
-  await db.requisitionLine.deleteMany({ where: demo });
+  // Demo requisitions next: an approval step may cite a committee decision. What was
+  // recorded on a demo requisition through the screens (an endorsement, a check, a
+  // route) belongs to it, whatever its id: removed with it, with its audit entries.
+  const onDemo = { requisitionId: demoRef };
+  const recorded = await db.requisition.findMany({
+    where: { id: demoRef },
+    select: {
+      reference: true,
+      lines: { where: { NOT: { id: demoRef } }, select: { id: true } },
+      endorsements: { where: { NOT: { id: demoRef } }, select: { id: true } },
+      budgetChecks: { where: { NOT: { id: demoRef } }, select: { id: true } },
+      splitChecks: { where: { NOT: { id: demoRef } }, select: { id: true } },
+      approvalInstances: { select: { id: true, steps: { select: { id: true } } } },
+    },
+  });
+  const recordedIds = recorded
+    .flatMap((q) => [
+      ...q.lines, ...q.endorsements, ...q.budgetChecks, ...q.splitChecks,
+      ...q.approvalInstances, ...q.approvalInstances.flatMap((i) => i.steps),
+    ])
+    .map((x) => x.id)
+    .filter((x) => !x.startsWith(P));
+  await db.approvalStep.deleteMany({ where: { OR: [demo, { instance: onDemo }] } });
+  await db.approvalInstance.deleteMany({ where: { OR: [demo, onDemo] } });
+  await db.requisitionSplitCheck.deleteMany({ where: { OR: [demo, onDemo] } });
+  await db.requisitionBudgetCheck.deleteMany({ where: { OR: [demo, onDemo] } });
+  await db.requisitionEndorsement.deleteMany({ where: { OR: [demo, onDemo] } });
+  await db.requisitionLine.deleteMany({ where: { OR: [demo, onDemo] } });
+  if (recordedIds.length) await db.auditEntry.deleteMany({ where: { organisationId: org.id, entityId: { in: recordedIds } } });
+  // An endorsement withdrawn on a demo requisition is gone, but its trail is not: its
+  // entries are labelled with the requisition's reference.
+  await removeTrailByReference(org.id, recorded.map((q) => q.reference));
   await db.committeeDecision.updateMany({ where: demo, data: { requisitionId: null } });
   await db.requisition.deleteMany({ where: demo });
   await db.requisitionPolicy.deleteMany({ where: demo });
@@ -506,7 +603,7 @@ async function load() {
   // ------------------------------------------------------------ the authority
   await db.authorityMatrix.create({
     data: {
-      id: `${P}mx1`, organisationId, label: "Demo limits, revision 1", effectiveFrom: from,
+      id: `${P}mx1`, organisationId, label: "Demo limits, issue 1", effectiveFrom: from,
       boundaryValue: "300000", boundaryInclusive: true,
       quotationFloor: "15000", tenderFloor: "300000", requisitionBoundary: "50000",
       currency: "MYR", issuedAt: from,
@@ -1020,7 +1117,7 @@ async function loadRequisitions(organisationId: string, from: Date) {
   // Approval routes, with the rules they were judged under.
   const inst = <const E extends { value: string }>(rq: number, rule: number, ruleLabel: string, clause: string, opened: string, extra: E) => ({
     id: `${P}ai${rq}`, organisationId, matterKind: "REQUISITION" as const, requisitionId: `${P}rq${rq}`, domain: "requisition",
-    authorityMatrixId: `${P}mx1`, matrixLabel: "Demo limits, revision 1", ruleKey: `demo.requisition.${rule === 9 ? "over_budget" : rule - 4}`, ruleLabel, ruleClause: clause,
+    authorityMatrixId: `${P}mx1`, matrixLabel: "Demo limits, issue 1", ruleKey: `demo.requisition.${rule === 9 ? "over_budget" : rule - 4}`, ruleLabel, ruleClause: clause,
     boundaryValue: "300000", boundaryInclusive: true, ruleFollowsBoundarySwitch: false, boundaryOperator: null,
     budgetCheckId: `${P}bk${rq}`, splitCheckId: `${P}sp${rq}`, checkedAgainstMatrix: true, openedAt: day(opened), ...extra,
   });
@@ -1101,9 +1198,11 @@ async function snapshotMinuted(ids: string[]) {
 }
 
 const mode = process.argv[2];
+/// Opt-in: let the wipe remove non-demo records that point at demo records (BD-27).
+const REMOVE_DEPENDENTS = process.argv.slice(3).includes("--remove-dependents");
 
 if (mode !== "load" && mode !== "wipe") {
-  console.error("usage: tsx prisma/demo.ts <load|wipe>");
+  console.error("usage: tsx prisma/demo.ts <load|wipe> [--remove-dependents]");
   process.exit(2);
 }
 
