@@ -40,3 +40,18 @@ export function isTimeZone(name: string): boolean {
     return false;
   }
 }
+
+/// The hour (0–23) of `instant` in `timeZone`. Null judges it in UTC.
+export function hourIn(instant: Date, timeZone: string | null): number {
+  if (!timeZone) return instant.getUTCHours();
+  const h = new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone }).format(instant);
+  return Number(h) % 24;
+}
+
+/// How the prototype greets, by the hour in the organisation's zone.
+export function greetingAt(instant: Date, timeZone: string | null): string {
+  const hour = hourIn(instant, timeZone);
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}

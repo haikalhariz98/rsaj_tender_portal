@@ -31,3 +31,13 @@ describe("isTimeZone", () => {
     expect(isTimeZone("Malaysia Time")).toBe(false);
   });
 });
+
+describe("greetingAt", () => {
+  it("greets by the hour in the organisation's zone, or UTC when unset", async () => {
+    const { greetingAt, hourIn } = await import("./dates");
+    const instant = new Date("2026-03-01T23:30:00Z"); // 07:30 in Kuala Lumpur
+    expect(hourIn(instant, "Asia/Kuala_Lumpur")).toBe(7);
+    expect(greetingAt(instant, "Asia/Kuala_Lumpur")).toBe("Good morning");
+    expect(greetingAt(instant, null)).toBe("Good evening");
+  });
+});

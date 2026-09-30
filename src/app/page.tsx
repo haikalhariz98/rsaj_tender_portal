@@ -23,22 +23,10 @@ import { loadDashboard } from "@/lib/dashboard";
 import { formatDate, formatRM } from "@/lib/format";
 import { matterLabel } from "@/lib/labels";
 import { loadShell } from "@/lib/shell";
+import { greetingAt } from "@/lib/dates";
+import { organisationTimeZone } from "@/lib/org-time";
 
 export const dynamic = "force-dynamic";
-
-/// The prototype greets by time of day; Malaysia is UTC+8 wherever the server sits.
-function greeting(now: Date): string {
-  const hour = Number(
-    new Intl.DateTimeFormat("en-MY", {
-      hour: "numeric",
-      hour12: false,
-      timeZone: "Asia/Kuala_Lumpur",
-    }).format(now),
-  );
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
-}
 
 /// Modules the dashboard will report on once they exist. Listed rather than drawn as
 /// empty cards: three blank panels read as a broken screen, one honest list does not.
@@ -61,7 +49,7 @@ const COMING = [
 ];
 
 export default async function Dashboard() {
-  const [data, shell] = await Promise.all([loadDashboard(), loadShell()]);
+  const [data, shell, timeZone] = await Promise.all([loadDashboard(), loadShell(), organisationTimeZone()]);
 
   if (!data) {
     return (
@@ -84,7 +72,7 @@ export default async function Dashboard() {
   return (
     <>
       <PageHeader
-        title={firstName ? `${greeting(now)}, ${firstName}` : greeting(now)}
+        title={firstName ? `${greetingAt(now, timeZone)}, ${firstName}` : greetingAt(now, timeZone)}
         subtitle={
           waiting === 0
             ? "No items are awaiting a decision."

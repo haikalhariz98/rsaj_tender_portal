@@ -29,13 +29,6 @@ export async function organisationId(code = ORGANISATION_CODE): Promise<string |
   return org?.id ?? null;
 }
 
-/// The organisation's time zone and today in it. Null zone: judged in UTC.
-export async function organisationDay(client: Tx = db, now = new Date()) {
-  const org = await client.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { timeZone: true } });
-  const timeZone = org?.timeZone ?? null;
-  return { timeZone, today: dayIn(now, timeZone) };
-}
-
 export const SITTINGS_PAGE = 50;
 
 /// One page of the organisation's sittings, newest first, with what the list shows.
