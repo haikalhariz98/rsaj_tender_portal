@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { TEST_MATRIX } from "./fixture";
 import {
   approverAct,
+  boundaryFaultsAcross,
   boundaryRuleFault,
   committeeActOn,
   inBand,
@@ -445,5 +446,14 @@ describe("saving a rule at the boundary", () => {
       "BOUNDARY_SWITCH_DISAGREES",
     );
     expect(boundaryRuleFault(under, matrix.policy, [over])).toBeNull();
+  });
+});
+
+describe("re-checking an issue's rules at the boundary (code review, item 7)", () => {
+  it("finds a rule that a moved boundary puts an undecided edge on", () => {
+    const rules = matrix.rules.map((r) => (r.ruleKey === "PAY_LOW" ? { ...r, followsBoundarySwitch: null } : r));
+    expect(boundaryFaultsAcross(rules, matrix.policy)).toEqual([]);
+    const moved = boundaryFaultsAcross(rules, { boundaryValue: 100_000 });
+    expect(moved.map((x) => [x.rule.ruleKey, x.fault])).toEqual([["PAY_LOW", "BOUNDARY_SWITCH_UNDECIDED"]]);
   });
 });

@@ -50,6 +50,8 @@ export async function loadReferenceData(organisationCode: string): Promise<Refer
       supersedesAuthority: r.supersedesAuthority,
       requiresExternalAuthorityRef: r.requiresExternalAuthorityRef,
       externalAuthorityRefLabel: r.externalAuthorityRefLabel,
+      approvalCommitsBudget: r.approvalCommitsBudget,
+      approvalCommitsBudgetProvenance: r.approvalCommitsBudgetProvenance as Provenance | null,
       trigger: r.trigger,
       governingSource: r.governingSource,
       provenance: r.provenance as Provenance,

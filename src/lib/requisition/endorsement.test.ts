@@ -63,3 +63,11 @@ describe("whether the endorsements are complete", () => {
     expect(endorsementEntryFault(good[0], "SEC", ["SECTION"], UNITS, null)).toEqual({ code: "TIME_ZONE_UNSET" });
   });
 });
+
+describe("the requesting officer (code review, item 9)", () => {
+  it("may not endorse their own requisition", () => {
+    const e = { tier: "SECTION" as const, unitCode: "SEC", personId: "sh", endorsedOn: "2026-09-10" };
+    expect(endorsementEntryFault(e, "SEC", ["SECTION"], UNITS, today, "sh")).toEqual({ code: "REQUESTER" });
+    expect(endorsementEntryFault(e, "SEC", ["SECTION"], UNITS, today, "someone-else")).toBeNull();
+  });
+});

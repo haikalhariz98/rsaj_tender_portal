@@ -129,10 +129,6 @@ export function manualSnapshot(
 }
 
 /**
- * Whether a check is too old to submit on. `days` null: nobody has set a re-check
- * window, so a check never goes stale — and the screen says that is why.
- */
-/**
  * The organisation's day a check was made on. `checkedAt` is an instant: its UTC date
  * would make a check made early in the morning in the organisation's zone a day older
  * than it is. Only called once the zone is known.
@@ -141,6 +137,10 @@ export function checkedDay(checkedAt: Date, timeZone: string): string {
   return dayIn(checkedAt, timeZone);
 }
 
+/**
+ * Whether a check is too old to submit on. `days` null: nobody has set a re-check
+ * window, so a check never goes stale — and the screen says that is why.
+ */
 export function isStale(checkedOn: string, days: number | null, today: string): boolean {
   if (days == null) return false;
   return daysBetween(checkedOn, today) > days;
@@ -175,4 +175,57 @@ export function overBudgetDisposition(
     return { proceed: false, fault: controlNotSet ? "INVOCATION_REQUIRED" : "INSUFFICIENT_FUNDS", controlNotSet };
   }
   return { proceed: true, cond: "over_budget", controlNotSet, autoRouted: false };
+}
+
+/**
+ * The day a check's figures are as at: the day it is aged from (ruling on hand-entered
+ * checks). A ledger check is as at the organisation's day it ran; a hand-entered one
+ * is as at the date the finance system's figures were for, not the day they were typed.
+ */
+export function ageDay(check: { asAt: Date }): string {
+  return check.asAt.toISOString().slice(0, 10);
+}
+
+/**
+ * Whether the final approval may commit the budget (ruling Q2). Re-checked on the
+ * ledger under the budget code's lock at approval; if the requisition no longer fits,
+ * it is refused and goes back for a fresh check, which then routes it over budget. A
+ * requisition already on the over-budget route was approved to exceed: exempt.
+ */
+export function approvalBudgetFault(fresh: BudgetSnapshot, cond: string | null): "EXCEEDS_AT_APPROVAL" | null {
+  if (cond === "over_budget") return null;
+  return fresh.verdict === "WITHIN" ? null : "EXCEEDS_AT_APPROVAL";
+}
+
+export type ApprovalCommitment = "WRITE" | "SETTING_OFF" | "SETTING_NOT_SET" | "ROUTE_OFF" | "ROUTE_NOT_SET";
+
+/**
+ * Whether approval writes a commitment (ADR 0004, ruling BD-13): only where the budget
+ * settings commit on approval and the funding route commits the organisation's own
+ * budget. Either unset writes nothing, and says which.
+ */
+export function approvalCommitment(commitOnApproval: boolean | null, routeCommitsBudget: boolean | null): ApprovalCommitment {
+  if (commitOnApproval == null) return "SETTING_NOT_SET";
+  if (!commitOnApproval) return "SETTING_OFF";
+  if (routeCommitsBudget == null) return "ROUTE_NOT_SET";
+  return routeCommitsBudget ? "WRITE" : "ROUTE_OFF";
+}
+
+export type IntakeCommitment = "POST" | "ROUTE_OFF" | "HELD_IN_FINANCE" | "ROUTE_NOT_SET" | "NO_BUDGET_CODE";
+
+/**
+ * A requisition received already approved (ruling BD-10). Where the portal ledger is
+ * the budget check's source, a commitment the ledger does not hold overstates what is
+ * available, so it is posted — or the intake is refused where it cannot be. Where the
+ * finance system is the source, the commitment is held there and the screen says so.
+ */
+export function intakeCommitment(
+  source: BudgetCheckSource | null,
+  routeCommitsBudget: boolean | null,
+  hasBudgetCode: boolean,
+): IntakeCommitment {
+  if (source !== "PORTAL_LEDGER") return "HELD_IN_FINANCE";
+  if (routeCommitsBudget == null) return "ROUTE_NOT_SET";
+  if (!routeCommitsBudget) return "ROUTE_OFF";
+  return hasBudgetCode ? "POST" : "NO_BUDGET_CODE";
 }

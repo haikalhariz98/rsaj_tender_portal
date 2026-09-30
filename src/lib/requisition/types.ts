@@ -52,6 +52,8 @@ export interface RequisitionPolicy {
   budgetRecheckDays: number | null;
   endorsementTiers: OrgUnitKind[];
   erpReferenceRequired: boolean | null;
+  /// The office whose holder may justify a flagged split. Null blocks justification.
+  splitJustifyingRoleCode: string | null;
   provenance: Provenance | null;
 }
 
@@ -62,6 +64,7 @@ export const UNSET_POLICY: RequisitionPolicy = {
   budgetRecheckDays: null,
   endorsementTiers: [],
   erpReferenceRequired: null,
+  splitJustifyingRoleCode: null,
   provenance: null,
 };
 

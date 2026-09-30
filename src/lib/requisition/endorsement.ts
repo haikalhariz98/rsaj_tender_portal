@@ -55,6 +55,7 @@ export type EndorsementFault =
   | { code: "MISSING"; tier: OrgUnitKind }
   | { code: "NOT_HEAD"; tier: OrgUnitKind; personId: string }
   | { code: "FUTURE_DATE"; tier: OrgUnitKind }
+  | { code: "REQUESTER" }
   | { code: "TIME_ZONE_UNSET" };
 
 const dayDate = (d: string) => new Date(`${d}T00:00:00.000Z`);
@@ -75,8 +76,11 @@ export function endorsementEntryFault(
   tiers: readonly OrgUnitKind[],
   units: readonly OrgUnit[],
   today: string | null,
+  /// The requesting officer, who may not endorse their own requisition.
+  requesterId?: string,
 ): EndorsementFault | null {
   if (today == null) return { code: "TIME_ZONE_UNSET" };
+  if (requesterId && e.personId === requesterId) return { code: "REQUESTER" };
   if (tiers.length === 0) return { code: "NOT_SET" };
   if (e.endorsedOn > today) return { code: "FUTURE_DATE", tier: e.tier };
   const endorser = endorsersFor(unitCode, [e.tier], units, dayDate(e.endorsedOn))[0];

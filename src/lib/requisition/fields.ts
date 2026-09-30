@@ -37,6 +37,8 @@ export interface RequisitionDraft {
   /// A decimal string.
   estimatedValue: string | null;
   fundingRouteCode: string | null;
+  /// Optional: what is being bought. A splitting key where the policy relates on it.
+  contractTypeCode?: string | null;
   lines: DraftLine[];
 }
 
@@ -54,6 +56,7 @@ export interface Lookups {
   }[];
   people: readonly { id: string; isActive: boolean }[];
   fundingRoutes: readonly { code: string; retiredOn: Date | null }[];
+  contractTypes?: readonly { code: string; retiredOn: Date | null }[];
 }
 
 export type FieldFault =
@@ -179,6 +182,11 @@ export function requisitionFaults(
   if (given(draft.fundingRouteCode)) {
     const route = lookups.fundingRoutes.find((r) => r.code === draft.fundingRouteCode);
     if (!route || (route.retiredOn != null && route.retiredOn <= on)) faults.push({ field: "fundingRouteCode", code: "NOT_IN_FORCE" });
+  }
+
+  if (given(draft.contractTypeCode) && lookups.contractTypes) {
+    const ct = lookups.contractTypes.find((c) => c.code === draft.contractTypeCode);
+    if (!ct || (ct.retiredOn != null && ct.retiredOn <= on)) faults.push({ field: "contractTypeCode", code: "NOT_IN_FORCE" });
   }
 
   return faults;

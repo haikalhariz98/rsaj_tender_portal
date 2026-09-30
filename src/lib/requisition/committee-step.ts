@@ -39,3 +39,32 @@ export function committeeStepFrom(record: DecisionRecord | null): CommitteeStep 
 function cite(r: DecisionRecord): CommitteeStep["citation"] {
   return { committee: r.committee, meetingReference: r.meetingReference, meetingDate: r.meetingDate, outcome: r.outcome };
 }
+
+export type CitationFault =
+  | "NOT_THIS_REQUISITION"
+  | "NOT_A_REQUISITION_MATTER"
+  | "OTHER_COMMITTEE"
+  | "OTHER_ACT"
+  | "OTHER_AMOUNT"
+  | "ALREADY_CITED";
+
+/**
+ * Whether a committee matter may discharge a step (code review, item 1): a matter
+ * tabled as a requisition against this requisition, before the step's committee, for
+ * the act the step asks and the requisition's value (or no amount), and not already
+ * cited by another step — one decision discharges one step.
+ */
+export function committeeCitationFault(
+  matter: { requisitionId: string | null; matterKind: string | null; domain: string; act: string; amount: string | null; committeeCode: string; id: string },
+  step: { committeeCode: string | null; act: string },
+  requisition: { id: string; estimatedValue: string },
+  citedDecisionIds: readonly string[],
+): CitationFault | null {
+  if (matter.requisitionId !== requisition.id) return "NOT_THIS_REQUISITION";
+  if (matter.matterKind !== "REQUISITION" || matter.domain !== "requisition") return "NOT_A_REQUISITION_MATTER";
+  if (matter.committeeCode !== step.committeeCode) return "OTHER_COMMITTEE";
+  if (matter.act !== step.act) return "OTHER_ACT";
+  if (matter.amount != null && Number(matter.amount) !== Number(requisition.estimatedValue)) return "OTHER_AMOUNT";
+  if (citedDecisionIds.includes(matter.id)) return "ALREADY_CITED";
+  return null;
+}

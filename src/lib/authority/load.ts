@@ -1,3 +1,4 @@
+import type { Tx } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import type { AuthorityAct, Matrix, Rule } from "./types";
 import { issuedInForce } from "./issue";
@@ -41,8 +42,8 @@ export async function loadMatrix(
  * is issued (FR-REQ-006). Null is an answer, not an error: the matter then routes by
  * the organisation's own limits and says the funder's rules are not held.
  */
-export async function loadOverrideMatrix(organisationCode: string, fundingRouteCode: string, asOf: Date = new Date()) {
-  return loadIssue(organisationCode, asOf, undefined, fundingRouteCode);
+export async function loadOverrideMatrix(organisationCode: string, fundingRouteCode: string, asOf: Date = new Date(), client: Tx = db) {
+  return loadIssue(organisationCode, asOf, undefined, fundingRouteCode, client);
 }
 
 /// The issue in force (or the one asked for) with its id and label, and the pure
@@ -52,14 +53,16 @@ export async function loadIssue(
   asOf: Date,
   issueId: string | undefined,
   fundingRouteCode: string | null,
+  /// A write reads the rules inside its own locked transaction.
+  client: Tx = db,
 ): Promise<{ id: string; label: string; matrix: Matrix } | null> {
-  const organisation = await db.organisation.findUnique({
+  const organisation = await client.organisation.findUnique({
     where: { code: organisationCode },
     select: { id: true },
   });
   if (!organisation) return null;
 
-  const version = await db.authorityMatrix.findFirst({
+  const version = await client.authorityMatrix.findFirst({
     where: issueId
       ? { organisationId: organisation.id, id: issueId }
       : { organisationId: organisation.id, ...issuedInForce(asOf, fundingRouteCode) },
@@ -73,7 +76,7 @@ export async function loadIssue(
   });
   if (!version) return null;
 
-  const roles = await db.authorityRole.findMany({
+  const roles = await client.authorityRole.findMany({
     where: { organisationId: organisation.id },
     orderBy: { sortOrder: "asc" },
   });

@@ -1,3 +1,4 @@
+import type { Tx } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 
 import type { Roster } from "./roster";
@@ -21,28 +22,29 @@ export interface RosterData extends Roster {
 
 const EMPTY: RosterData = { people: [], offices: [], assignments: [], routedToCodes: [] };
 
-export async function loadRoster(organisationCode: string): Promise<RosterData> {
-  const organisation = await db.organisation.findUnique({
+/// `client` lets a write read the roster inside its own locked transaction.
+export async function loadRoster(organisationCode: string, client: Tx = db): Promise<RosterData> {
+  const organisation = await client.organisation.findUnique({
     where: { code: organisationCode },
     select: { id: true },
   });
   if (!organisation) return EMPTY;
 
   const [people, offices, rules, recommenders] = await Promise.all([
-    db.person.findMany({
+    client.person.findMany({
       where: { organisationId: organisation.id },
       orderBy: [{ isActive: "desc" }, { name: "asc" }],
       include: { roleAssignments: true },
     }),
-    db.authorityRole.findMany({
+    client.authorityRole.findMany({
       where: { organisationId: organisation.id },
       orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }],
     }),
-    db.authorityRule.findMany({
+    client.authorityRule.findMany({
       where: { authorityMatrix: { organisationId: organisation.id, ...issuedInForce(new Date()) } },
       select: { proposerCode: true, approverCode: true, committeeCode: true },
     }),
-    db.authorityRuleStep.findMany({
+    client.authorityRuleStep.findMany({
       where: {
         authorityRule: {
           authorityMatrix: { organisationId: organisation.id, ...issuedInForce(new Date()) },
@@ -161,14 +163,14 @@ export interface StoredDelegation {
   effectiveTo: Date | null;
 }
 
-export async function loadDelegations(organisationCode: string): Promise<StoredDelegation[]> {
-  const organisation = await db.organisation.findUnique({
+export async function loadDelegations(organisationCode: string, client: Tx = db): Promise<StoredDelegation[]> {
+  const organisation = await client.organisation.findUnique({
     where: { code: organisationCode },
     select: { id: true },
   });
   if (!organisation) return [];
 
-  const rows = await db.delegation.findMany({
+  const rows = await client.delegation.findMany({
     where: { organisationId: organisation.id },
     orderBy: { effectiveFrom: "desc" },
   });

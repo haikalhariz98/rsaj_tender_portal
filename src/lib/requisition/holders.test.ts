@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Delegation } from "@/lib/people/delegation";
 import type { Roster } from "@/lib/people/roster";
 
-import { deciderFaults, holdersFor, type DeciderContext } from "./holders";
+import { deciderFaults, holdersFor, requesterHoldsApprover, type DeciderContext } from "./holders";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
 const person = (id: string, isActive = true) => ({
@@ -85,5 +85,46 @@ describe("who may discharge a step (ruling OD-12)", () => {
   it("leaves a committee step to the committee, and waits for a time zone", () => {
     expect(deciderFaults({ ...step, committeeCode: "BOARD" }, ctx()).faults).toEqual(["COMMITTEE_STEP"]);
     expect(deciderFaults(step, ctx({ today: null })).faults).toEqual(["TIME_ZONE_UNSET"]);
+  });
+});
+
+describe("an endorser deciding a step (ruling BD-1)", () => {
+  const step = { committeeCode: null, nonDelegable: false, decision: "PENDING" };
+  const base = {
+    today: "2026-09-30", person: { id: "hodNth", isActive: true }, requesterId: "req", endorserIds: [] as string[], otherDeciderIds: [] as string[],
+    earlierDone: true, decidedOn: "2026-09-30", openedOn: "2026-09-20", value: 3_800_000n,
+  };
+
+  it("lets the department-tier endorser decide the Head of Department step they hold directly", () => {
+    const holders = holdersFor("DEPT_HEAD", PATH, ROSTER, [], "2026-09-30");
+    const r = deciderFaults(step, { ...base, holders, endorsements: [{ personId: "hodNth", unitCode: "NTH" }] });
+    expect(r.faults).toEqual([]);
+  });
+
+  it("refuses a section-head endorser deciding the Head of Department step as a delegate", () => {
+    const sectionDeleg = { ...delegation(), toPersonId: "sectionHead", valueCeiling: null };
+    const holders = holdersFor("DEPT_HEAD", PATH, ROSTER, [sectionDeleg], "2026-09-30");
+    const r = deciderFaults(step, { ...base, holders, person: { id: "sectionHead", isActive: true }, endorsements: [{ personId: "sectionHead", unitCode: "NTH-MNT" }] });
+    expect(r.faults).toContain("ENDORSED_IT");
+  });
+
+  it("refuses an endorser deciding another office's step", () => {
+    const holders = holdersFor("DIV_HEAD", PATH, ROSTER, [], "2026-09-30");
+    const r = deciderFaults(step, { ...base, holders, person: { id: "div", isActive: true }, endorsements: [{ personId: "div", unitCode: "NTH" }] });
+    expect(r.faults).toContain("ENDORSED_IT");
+  });
+
+  it("still refuses the requester, endorser or not", () => {
+    const holders = holdersFor("DEPT_HEAD", PATH, ROSTER, [], "2026-09-30");
+    const r = deciderFaults(step, { ...base, holders, requesterId: "hodNth", endorsements: [{ personId: "hodNth", unitCode: "NTH" }] });
+    expect(r.faults).toContain("SELF_APPROVAL");
+  });
+});
+
+describe("whether the requester is approving their own requisition (code review, item 9)", () => {
+  it("is scoped to the requisition's unit: a holder elsewhere is not", () => {
+    expect(requesterHoldsApprover("DEPT_HEAD", "hodNth", PATH, ROSTER, [], "2026-09-30")).toBe(true);
+    // hodOrg holds the office organisation-wide, but NTH has its own holder.
+    expect(requesterHoldsApprover("DEPT_HEAD", "hodOrg", PATH, ROSTER, [], "2026-09-30")).toBe(false);
   });
 });

@@ -77,7 +77,11 @@ export interface DeciderContext {
   holders: Holders;
   person: { id: string; isActive: boolean } | null;
   requesterId: string;
+  /// People who endorsed it, where the unit they endorsed for is not known: barred.
   endorserIds: readonly string[];
+  /// The endorsements, with the unit each endorsed for. A direct holder of this office
+  /// for that same unit may still decide (ruling BD-1).
+  endorsements?: readonly { personId: string; unitCode: string }[];
   /// People who have already discharged another step of this route.
   otherDeciderIds: readonly string[];
   /// Whether every earlier step is done.
@@ -123,7 +127,32 @@ export function deciderFaults(
     }
   }
   if (pid === ctx.requesterId) faults.push("SELF_APPROVAL");
-  if (ctx.endorserIds.includes(pid)) faults.push("ENDORSED_IT");
+  // Ruling BD-1: having endorsed does not disqualify a direct holder of the office tied
+  // to the tier they endorsed at — the office held for the unit they endorsed for. It
+  // still bars them from deciding any step as a delegate, or any other office.
+  const endorsedAt = (ctx.endorsements ?? []).filter((e) => e.personId === pid);
+  if (ctx.endorserIds.includes(pid) || endorsedAt.length > 0) {
+    const direct = ctx.holders.holderIds.includes(pid);
+    const tied = ctx.holders.scope != null && endorsedAt.some((e) => e.unitCode === ctx.holders.scope);
+    if (!(direct && tied)) faults.push("ENDORSED_IT");
+  }
   if (ctx.otherDeciderIds.includes(pid)) faults.push("ALREADY_DISCHARGED_A_STEP");
   return { faults, delegationId };
+}
+
+/**
+ * Whether the requester holds the approving office for their own requisition's unit
+ * on the day — the case the engine's self-approval rule escalates. Scoped to the
+ * unit's path: a head of another department holding the same office elsewhere is not
+ * approving their own matter.
+ */
+export function requesterHoldsApprover(
+  approverCode: string,
+  requesterId: string,
+  unitPath: readonly string[],
+  roster: Roster,
+  delegations: readonly Delegation[],
+  day: string,
+): boolean {
+  return holdersFor(approverCode, unitPath, roster, delegations, day).holderIds.includes(requesterId);
 }

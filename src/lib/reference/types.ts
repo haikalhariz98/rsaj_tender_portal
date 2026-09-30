@@ -21,6 +21,9 @@ export interface FundingRoute {
   /// recorded (FR-REQ-005), and what that authority is called.
   requiresExternalAuthorityRef?: boolean;
   externalAuthorityRefLabel?: string | null;
+  /// Whether approving a matter on this route commits the organisation's budget. Null: not set.
+  approvalCommitsBudget?: boolean | null;
+  approvalCommitsBudgetProvenance?: Provenance | null;
   trigger: string;
   governingSource: string;
   provenance: Provenance;

@@ -104,6 +104,7 @@ const FIELD_NAME: Record<string, string> = {
   dateRequired: "Date required",
   estimatedValue: "Estimated value",
   fundingRouteCode: "Funding route",
+  contractTypeCode: "Contract type",
   lines: "Line items",
   erpRequisitionNo: "Finance system requisition no.",
   erpNoteNo: "Requisition note no.",
@@ -180,6 +181,8 @@ export function endorsementFaultText(f: EndorsementFault, names: (id: string) =>
       return "An endorsement cannot be dated after today.";
     case "TIME_ZONE_UNSET":
       return "Set the organisation's time zone before recording endorsements.";
+    case "REQUESTER":
+      return "The requesting officer cannot endorse their own requisition.";
   }
 }
 
@@ -232,7 +235,7 @@ export const DECIDER_FAULT_TEXT: Record<DeciderFault, string> = {
   OVER_CEILING: "The requisition's value is above the ceiling of the delegation that person acts under.",
   SELF_APPROVAL: "That person raised this requisition. Nobody decides their own.",
   ENDORSED_IT:
-    "That person endorsed this requisition, and the ruling is that nobody decides a requisition they endorsed. A holder who did not endorse it, or a delegate, must decide this step.",
+    "That person endorsed this requisition. An endorser may decide only a step of the office they hold directly for the unit they endorsed for — never as a delegate, and never another office's step.",
   ALREADY_DISCHARGED_A_STEP: "That person has already decided another step of this route.",
   FUTURE_DATE: "A decision cannot be dated after today.",
   BEFORE_SUBMISSION: "A decision cannot be dated before the requisition was submitted.",

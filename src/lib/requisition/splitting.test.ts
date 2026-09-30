@@ -1,14 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import { REQ_MATRIX } from "./fixture";
-import { assessSplitting, financialYearOf, splitApprovalFault, splitStateLabel, type SplitPolicy, type SplitSubject } from "./splitting";
+import { assessSplitting, financialYearOf, justifierFaults, splitApprovalFault, splitStateLabel, type SplitPolicy, type SplitSubject } from "./splitting";
 
 const subject = (id: string, raisedOn: string, value: number, over: Partial<SplitSubject> = {}): SplitSubject => ({
   id, reference: id.toUpperCase(), status: "PENDING_APPROVAL", raisedOn, value,
   keys: { unit: "NTH", costCentre: "CC-200", accountCode: "6200200", budgetCode: "b5", contractType: null },
   ...over,
 });
-const POLICY: SplitPolicy = { windowDays: 45, matchOn: ["unit", "accountCode"], aggregateAcrossYear: null, financialYearStart: null };
+// An explicit "window only" (false): unset aggregation is itself NOT_SET (code review, item 3).
+const POLICY: SplitPolicy = { windowDays: 45, matchOn: ["unit", "accountCode"], aggregateAcrossYear: false, financialYearStart: null };
 const me = subject("a", "2026-09-10", 24_000);
 
 describe("the anti-splitting check (FR-REQ-015)", () => {
@@ -59,5 +60,45 @@ describe("the anti-splitting check (FR-REQ-015)", () => {
   it("reads a stored NOT_SET as not assessed, never as clear", () => {
     expect(splitStateLabel("NOT_SET").label).not.toBe(splitStateLabel("CLEAR").label);
     expect(splitStateLabel("NOT_SET").label).toMatch(/Not assessed/);
+  });
+});
+
+describe("what the splitting check cannot assess (code review, item 3)", () => {
+  it("is NOT_SET, never CLEAR, while year aggregation is unset", () => {
+    const r = assessSplitting(me, [], { ...POLICY, aggregateAcrossYear: null }, REQ_MATRIX);
+    expect(r).toMatchObject({ state: "NOT_SET", notSet: ["YEAR_AGGREGATION"] });
+  });
+
+  it("is NOT_SET, naming the key, where the requisition itself lacks a key it is matched on", () => {
+    const noCode = { ...me, keys: { ...me.keys, budgetCode: null } };
+    const r = assessSplitting(noCode, [subject("b", "2026-09-20", 24_000)], { ...POLICY, matchOn: ["unit", "budgetCode"] }, REQ_MATRIX);
+    expect(r).toMatchObject({ state: "NOT_SET", notSet: ["MISSING_KEY:budgetCode"] });
+  });
+
+  it("adds the related values in exact sen", () => {
+    const r = assessSplitting(subject("a", "2026-09-10", 0.1), [subject("b", "2026-09-11", 0.2)], POLICY, REQ_MATRIX);
+    expect(r.combinedValue).toBe(0.3);
+  });
+});
+
+describe("who may justify a flagged split (ruling Q3)", () => {
+  const base = { roleCode: "PROC_HEAD", person: { id: "j", isActive: true }, requesterId: "req", endorserIds: ["e1"], holderIds: ["j", "req", "e1"], on: "2026-09-30", today: "2026-09-30" };
+
+  it("accepts a holder of the justifying office", () => {
+    expect(justifierFaults(base)).toEqual([]);
+  });
+
+  it("is blocked while the justifying office is not set", () => {
+    expect(justifierFaults({ ...base, roleCode: null })).toEqual(["OFFICE_NOT_SET"]);
+  });
+
+  it("refuses the requester and any endorser, even holding the office", () => {
+    expect(justifierFaults({ ...base, person: { id: "req", isActive: true } })).toContain("REQUESTER");
+    expect(justifierFaults({ ...base, person: { id: "e1", isActive: true } })).toContain("ENDORSER");
+  });
+
+  it("refuses someone who does not hold the office, and a future date", () => {
+    expect(justifierFaults({ ...base, holderIds: [] })).toContain("NOT_HOLDER");
+    expect(justifierFaults({ ...base, on: "2026-10-01" })).toContain("FUTURE_DATE");
   });
 });

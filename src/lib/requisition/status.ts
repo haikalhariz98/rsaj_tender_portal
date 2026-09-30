@@ -21,7 +21,8 @@ export const TRANSITIONS: Record<RequisitionStatus, readonly RequisitionStatus[]
   REGISTERED: ["BUDGET_CHECKED", "OVER_BUDGET", "CANCELLED"],
   BUDGET_CHECKED: ["BUDGET_CHECKED", "PENDING_APPROVAL", "OVER_BUDGET", "CANCELLED"],
   OVER_BUDGET: ["OVER_BUDGET", "BUDGET_CHECKED", "PENDING_APPROVAL", "CANCELLED"],
-  PENDING_APPROVAL: ["APPROVED", "REJECTED", "RECALLED"],
+  // Over budget: returned at approval when the budget no longer covers it (ruling Q2).
+  PENDING_APPROVAL: ["APPROVED", "REJECTED", "RECALLED", "OVER_BUDGET"],
   REJECTED: ["DRAFT", "CLOSED"],
   RECALLED: ["DRAFT"],
   APPROVED: ["SOURCING"],

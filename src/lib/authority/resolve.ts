@@ -534,3 +534,17 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
     query,
   };
 }
+
+/**
+ * Every rule of an issue that fails the boundary check against `policy` — re-run
+ * whenever the issue is issued or its boundary moves, since a rule saved against the
+ * old boundary may now have an edge on the new one (code review, item 7).
+ */
+export function boundaryFaultsAcross(
+  rules: readonly Rule[],
+  policy: Pick<Policy, "boundaryValue">,
+): { rule: Rule; fault: BoundaryRuleFault }[] {
+  return rules
+    .map((rule) => ({ rule, fault: boundaryRuleFault(rule, policy, rules) }))
+    .filter((x): x is { rule: Rule; fault: BoundaryRuleFault } => x.fault != null);
+}

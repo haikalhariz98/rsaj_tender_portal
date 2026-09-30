@@ -38,6 +38,7 @@ export async function loadPolicy(organisationId: string, client: Tx = db): Promi
     budgetRecheckDays: row.budgetRecheckDays,
     endorsementTiers: row.endorsementTiers as OrgUnitKind[],
     erpReferenceRequired: row.erpReferenceRequired,
+    splitJustifyingRoleCode: row.splitJustifyingRoleCode,
     provenance: (row.provenance as Provenance | null) ?? null,
   };
 }
@@ -77,6 +78,7 @@ export async function loadLookups(organisationId: string, client: Tx = db) {
     budgetCodes,
     people,
     fundingRoutes: fundingRoutes.map((r) => ({ ...r, provenance: r.provenance as Provenance })),
+    contractTypes,
   };
   return {
     lookups,
@@ -109,7 +111,7 @@ const include = {
       steps: {
         orderBy: { sequence: "asc" as const },
         include: {
-          delegation: { select: { id: true, fromPerson: { select: { name: true } } } },
+          delegation: { select: { id: true, valueCeiling: true, fromPerson: { select: { name: true } } } },
           committeeDecision: {
             include: { meeting: { include: { committee: { select: { nameEn: true, code: true } } } }, votes: { include: { person: { select: { name: true } } } } },
           },
@@ -278,6 +280,7 @@ export function draftOf(req: RequisitionRow): RequisitionDraft {
     dateRequired: day(req.dateRequired),
     estimatedValue: req.estimatedValue.toString(),
     fundingRouteCode: req.fundingRouteCode,
+    contractTypeCode: req.contractTypeCode,
     lines: req.lines.map((x) => ({
       description: x.description,
       quantity: x.quantity?.toString() ?? null,
@@ -291,7 +294,7 @@ export function draftOf(req: RequisitionRow): RequisitionDraft {
 /// The choices the requisition form offers, in force on `on`. Units by name; business
 /// codes (cost centre, account, budget code) with their names.
 export async function formOptions(organisationId: string, on: Date) {
-  const { lookups, costCentres, accountCodes, sites } = await loadLookups(organisationId);
+  const { lookups, costCentres, accountCodes, sites, contractTypes } = await loadLookups(organisationId);
   const inForce = <T extends { effectiveFrom: Date; effectiveTo: Date | null }>(x: T) => x.effectiveFrom <= on && (x.effectiveTo == null || x.effectiveTo > on);
   const units = lookups.units.filter(inForce);
   return {
@@ -303,5 +306,44 @@ export async function formOptions(organisationId: string, on: Date) {
     budgetCodes: lookups.budgetCodes.filter((b) => b.isActive && inForce(b)).map((b) => ({ id: b.id, code: b.code, name: b.descriptionEn })),
     sites: sites.filter(inForce).map((x) => ({ code: x.code, name: x.nameEn })),
     fundingRoutes: lookups.fundingRoutes.filter((r) => r.retiredOn == null || r.retiredOn > on).map((r) => ({ code: r.code, name: r.nameEn })),
+    contractTypes: contractTypes.filter((c) => c.retiredOn == null || c.retiredOn > on).map((c) => ({ code: c.code, name: c.nameEn })),
   };
+}
+
+/**
+ * Link committee matters tabled as requisition matters before the requisition could be
+ * found by their reference (ADR 0002 backfill): when a requisition is received or its
+ * finance-system numbers recorded, an unlinked matter whose reference now names exactly
+ * this requisition is linked, audited. A reference that answers to more than one
+ * requisition is left alone. Returns how many were linked.
+ */
+export async function linkMatchingMatters(tx: Tx, organisationId: string, requisitionId: string): Promise<number> {
+  const req = await tx.requisition.findUnique({ where: { id: requisitionId }, select: { reference: true, erpRequisitionNo: true, erpNoteNo: true, status: true } });
+  if (!req) return 0;
+  const refs = [req.reference, req.erpRequisitionNo, req.erpNoteNo].filter((x): x is string => !!x);
+  const matters = await tx.committeeDecision.findMany({
+    where: { matterKind: "REQUISITION", requisitionId: null, matterRef: { in: refs }, meeting: { committee: { organisationId } } },
+    select: { id: true, matterRef: true, subject: true },
+  });
+  const { resolveMatterRef } = await import("./matter-link");
+  const { writeAudit } = await import("@/lib/audit/record");
+  let linked = 0;
+  for (const m of matters) {
+    const matches = await tx.requisition.findMany({
+      where: { organisationId, OR: [{ reference: m.matterRef! }, { erpRequisitionNo: m.matterRef! }, { erpNoteNo: m.matterRef! }] },
+      select: { id: true, status: true },
+      take: 2,
+    });
+    const r = resolveMatterRef(matches);
+    if (!r.ok || r.requisitionId !== requisitionId) continue;
+    await tx.committeeDecision.update({ where: { id: m.id }, data: { requisitionId } });
+    await writeAudit(
+      tx,
+      { organisationId, entity: "CommitteeDecision", entityId: m.id, entityLabel: m.subject, reason: `Linked to requisition ${req.reference} by its reference` },
+      "UPDATE",
+      [{ field: "requisition", before: null, after: req.reference }],
+    );
+    linked++;
+  }
+  return linked;
 }
