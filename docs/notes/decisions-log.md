@@ -6,7 +6,7 @@ decision · reason · spec ID.
 
 ## Where the build stopped
 
-Phase 1 started 2026-09-30. **6.10 committee sittings: accepted. 6.1 requisition: accepted (4d1b426).** Next: 6.3 method selection (in progress), then 6.11 award + registers — all three planned and ruled on (plans in docs/notes/plans/). Open follow-ups: numbering (series.ts) and budget periods (periods.ts) take the day from UTC; shared-UI polish items (users table at 390px, numbering pattern cells, template/notification chips, approval-matrix committee chip).
+Phase 1 started 2026-09-30. **6.10 committee sittings: accepted. 6.1 requisition: accepted (4d1b426). 6.3 method selection: accepted (cd9eca1).** Next: 6.11 award + registers (in progress; plan ruled, must be revised against built 6.1/6.3) — all three planned and ruled on (plans in docs/notes/plans/). Open follow-ups: 6.10 at 390px — card titles cut beside buttons, act chips break mid-word; act badges / avatar initials read like codes (6.1, 6.3); numbering (series.ts) and budget periods (periods.ts) take the day from UTC; shared-UI polish items (users table at 390px, numbering pattern cells, template/notification chips, approval-matrix committee chip).
 
 **Environment caveat for the founder.** This session ran on PostgreSQL 16 (no Docker) and
 could not download Prisma's native schema engine (binaries.prisma.sh is blocked by the
@@ -18,6 +18,10 @@ dev` on a normal machine against Postgres 17 and confirm it reports no drift.
 
 ## Decisions
 
+- 2026-09-30 · 6.3 · Method selection ACCEPTED at cd9eca1 (899 tests, typecheck and lint clean, demo wipe/load round trip clean, sibling check done). Carried within Phase 1 as logged: invitation gate (6.5), award refusal on an unresolved appointment, dossierFault and post-award lock (6.11), behaviour enforcement (6.4/6.12/6.13), consolidation of money display formatters. Spec: §6.3, §13.3.
+- 2026-09-30 · 6.3 · Carried to 6.10: at 390 on committee configuration, card titles cut beside their action button and act chips break mid-word. Spec: AGENTS.md UI.
+- 2026-09-30 · 6.3 · BD-21 amended and approved: CardHeader subtitles wrap in full (no clamp); phones have no hover to reveal clamped text. Spec: AGENTS.md UI.
+- 2026-09-30 · 6.3 · BD-16, BD-17, BD-24 send-backs closed at cd9eca1: matrix issue is a drift field and audited by label (audit-view.ts shared with demo); route tiebreak by id; terms bands in value order in lib, overlaps in a regime refused on save; all tested. Demo trail built with the actions' helpers. Spec: FR-MTD-001, 002, 008, AGENTS.md rules 2–3.
 - 2026-09-30 · 6.3 · Module SENT BACK (provisional): BD-16 issue/boundary audit gap and BD-24 value ordering. Accept on re-presentation subject to a clean code re-review, the demo trail corrections, a clean demo:wipe/load round trip after removing the UX reviewer's rows, and the BD-21 sibling check. Spec: §6.3, AGENTS.md rules 2–3.
 - 2026-09-30 · 6.3 · Demo audit rows accepted: invented, demo_-prefixed, wiped by prefix, "not signed" on person decisions. Condition: same shape as the actions write (add rq13/rq14 submission entries; dossier reference on the sx2 move), preferably built with the actions' audit helpers. Spec: AGENTS.md provenance.
 - 2026-09-30 · 6.3 · Cancelling the last live exercise does not return the requisition to Approved (§7.3.1 gives Sourcing In Progress no such exit); the "No live exercise" callout stands; way back / abandon added to the BD-1 question to RSAJ. Spec: §7.3.1, §7.3.2.
