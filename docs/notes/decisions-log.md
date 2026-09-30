@@ -6,7 +6,7 @@ decision · reason · spec ID.
 
 ## Where the build stopped
 
-Phase 1 started 2026-09-30. Module in progress: 6.10 committee meetings.
+Phase 1 started 2026-09-30. **6.10 committee sittings: accepted.** Next: 6.1 requisition (plan revised with rulings, ADRs 0003–0005 accepted), then 6.3 method selection, then 6.11 award + registers — all three planned and ruled on (plans in docs/notes/plans/). Open follow-ups: numbering (series.ts) and budget periods (periods.ts) take the day from UTC; shared-UI polish items (users table at 390px, numbering pattern cells, template/notification chips, approval-matrix committee chip).
 
 **Environment caveat for the founder.** This session ran on PostgreSQL 16 (no Docker) and
 could not download Prisma's native schema engine (binaries.prisma.sh is blocked by the
@@ -18,6 +18,7 @@ dev` on a normal machine against Postgres 17 and confirm it reports no drift.
 
 ## Decisions
 
+- 2026-09-30 · 6.10 · ACCEPTED at c2e55c8. Send-back closed (recusal voiding a vote refused and tested; alternateMayVoteForRecused snapshotted with the outcome and tested; unset snapshot values render "Not recorded"; ABSTAIN with malformed date → 400; dates.ts header fixed). 457 tests, typecheck and lint pass; no existing test weakened. Backfill of the new column from the committee's current value approved only because column and setting are unreleased and every value is null; not a precedent — future snapshot columns over released data backfill null. Spec: FR-CTE-004, 010.
 - 2026-09-30 · 6.10 · Acceptance SENT BACK: (1) a recusal by a holder whose seat already voted through an alternate makes that vote ineligible with no exit — refuse it, with a test (§8.6, FR-CTE-010); (2) Committee.alternateMayVoteForRecused read live and committee edits unguarded — snapshot with the outcome or guard the save, with a test; (3) decided matter shows unset counts as 0 and an unset rule as "deferred" — render "Not recorded". Small: ABSTAIN with malformed date 422 not 400 (§8.10); dates.ts header comment contradicts §9.5. Verified otherwise: 454 tests, typecheck, lint; no existing test changed; rulings implemented; deferred Musts logged. Spec: FR-CTE-004, 010.
 - 2026-09-30 · 6.10 · §9.1 approved as a deferral: attendance that would break a decided matter (a late arrival) is refused because per-matter presence is not built; the register may understate who attended. Required: the refusal says the arrival cannot be recorded yet and should go in the minutes. Per-matter presence deferred to a later 6.10 increment. Spec: FR-CTE-004.
 - 2026-09-30 · 6.10 · §9.2 approved: Committee.alternateMayVoteForRecused ships unset; the question arises whenever a recused holder's seat has an alternate in force; unset blocks only those matters; DEFERRED stays open; "Yes" refused on save until a per-matter stand-in is built (deferred). Spec: FR-CTE-010.
