@@ -1,5 +1,5 @@
 import { loadDelegations, loadGrants, loadRoster } from "@/lib/people/load";
-import { holdingsOn } from "@/lib/people/roster";
+import { holdingsOn, rosterFaults } from "@/lib/people/roster";
 import { inForce } from "@/lib/people/delegation";
 import { ORGANISATION_CODE } from "@/lib/org";
 
@@ -34,6 +34,11 @@ export default async function UsersPage({
     roleCode: h.assignment.roleCode,
   }));
   const live = inForce(delegations, on).length;
+  // In force or yet to begin: an assignment that has ended is history, not something
+  // to edit. Faults are reported, never repaired — who should hold a vacant office is
+  // the organisation's decision.
+  const assignments = roster.assignments.filter((a) => a.effectiveTo == null || a.effectiveTo > on);
+  const faults = rosterFaults(roster, on, roster.routedToCodes);
 
   return (
     <>
@@ -52,6 +57,8 @@ export default async function UsersPage({
         people={roster.people}
         offices={roster.offices}
         holdings={holdings}
+        assignments={assignments}
+        faults={faults}
         capabilities={grants.capabilities}
         grants={grants.grants}
         delegations={delegations}

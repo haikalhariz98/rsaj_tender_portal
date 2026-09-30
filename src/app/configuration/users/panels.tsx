@@ -12,6 +12,8 @@ import {
   UserIcon,
 } from "@/components/icons";
 import { DataList, type Row } from "@/components/data-list";
+import { Card, CardHeader } from "@/components/ui/card";
+import { Callout } from "@/components/ui/feedback";
 import { Tabs } from "@/components/tabs";
 import {
   byGroup,
@@ -22,11 +24,13 @@ import {
   type Grant,
 } from "@/lib/people/capabilities";
 import { statusOf, type Delegation } from "@/lib/people/delegation";
-import type { Office, Person } from "@/lib/people/types";
+import type { Assignment, Office, Person, RosterFault } from "@/lib/people/types";
 
 import { setGrant } from "./actions";
 import {
   AddAssignment,
+  EditAssignment,
+  EndAssignment,
   AddDelegation,
   AddOffice,
   AddPerson,
@@ -57,6 +61,9 @@ export interface UsersData {
   people: Person[];
   offices: Office[];
   holdings: { personId: string; roleCode: string }[];
+  /// Assignments in force or yet to begin, for editing and ending.
+  assignments: Assignment[];
+  faults: RosterFault[];
   capabilities: Capability[];
   grants: Grant[];
   delegations: Delegation[];
@@ -174,7 +181,112 @@ function PeoplePanel({ people, offices, holdings, capabilities, grants, delegati
 
 // ------------------------------------------------------------------------- Roles
 
-function RolesPanel({ offices, people, holdings, grants }: UsersData) {
+function RolesPanel(data: UsersData) {
+  return (
+    <div className="flex flex-col gap-5">
+      <RosterFaults {...data} />
+      <RolesList {...data} />
+      <AssignmentsList {...data} />
+    </div>
+  );
+}
+
+/// What stops a role resolving to a signatory. Listed, not repaired.
+function RosterFaults({ faults, offices }: UsersData) {
+  if (faults.length === 0) return null;
+  const name = (code: string) => offices.find((o) => o.code === code)?.nameEn ?? "An unknown role";
+  const blocking = faults.some(
+    (f) => f.kind === "INACTIVE_HOLDER" || f.kind === "OVERLAP" || (f.kind === "VACANT" && f.routedTo),
+  );
+  return (
+    <Callout
+      tone={blocking ? "err" : "warn"}
+      title={blocking ? "Some roles cannot resolve to a signatory" : "Some roles are not held"}
+    >
+      <ul className="mt-1 list-disc space-y-0.5 pl-5">
+        {faults.map((f, i) => (
+          <li key={i}>
+            {f.kind === "VACANT"
+              ? `${name(f.roleCode)} is not held${f.routedTo ? " — and an approval rule routes to it" : ""}.`
+              : f.kind === "INACTIVE_HOLDER"
+                ? `${name(f.roleCode)} is held by ${f.personName}, who has left. End the assignment below and assign someone else.`
+                : f.kind === "OVERLAP"
+                  ? `${name(f.roleCode)} is held by both ${f.personNames[0]} and ${f.personNames[1]} at the same time${f.scope ? ` (${f.scope})` : ""}.`
+                  : `${f.personName} holds a role that is no longer configured.`}
+          </li>
+        ))}
+      </ul>
+    </Callout>
+  );
+}
+
+function AssignmentsList({ assignments, people, offices }: UsersData) {
+  const on = new Date();
+  const rows: Row[] = assignments.map((a) => {
+    const person = people.find((p) => p.id === a.personId);
+    const office = offices.find((o) => o.code === a.roleCode);
+    const upcoming = a.effectiveFrom > on;
+    return {
+      id: a.id,
+      search: [person?.name, office?.nameEn, a.scope].filter(Boolean).join(" "),
+      cells: {
+        person: person
+          ? { kind: "person", name: person.name }
+          : { kind: "text", text: "Somebody no longer on record", dim: true },
+        role: { kind: "stack", title: office?.nameEn ?? "Role no longer configured", sub: a.scope ?? undefined },
+        period: {
+          kind: "text",
+          text: `${day(a.effectiveFrom)} — ${a.effectiveTo ? day(a.effectiveTo) : "open"}`,
+        },
+        status:
+          person && !person.isActive
+            ? { kind: "badge", text: "Holder has left", tone: "err" }
+            : upcoming
+              ? { kind: "badge", text: "Scheduled", tone: "info" }
+              : { kind: "badge", text: "In force", tone: "ok" },
+      },
+    };
+  });
+
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader
+        title="Assignments"
+        subtitle="Who holds each role, and for how long. Ending one keeps it on record."
+        divided={false}
+        actions={<AddAssignment people={people} offices={offices} />}
+      />
+      <DataList
+        flat
+        selectable={false}
+        exportName="assignments"
+        searchPlaceholder="Search assignments"
+        emptyTitle="Nobody holds a role"
+        emptyBody="A rule routes to a role; only an assignment turns it into somebody who can sign."
+        columns={[
+          { key: "person", label: "Person", width: "26%", sortable: true },
+          { key: "role", label: "Role", width: "28%", sortable: true },
+          { key: "period", label: "Period", width: "22%" },
+          { key: "status", label: "Status", width: "14%" },
+        ]}
+        rows={rows}
+        actions={(id) => {
+          const a = assignments.find((x) => x.id === id);
+          if (!a) return null;
+          const label = `${people.find((p) => p.id === a.personId)?.name ?? "this"}'s assignment`;
+          return (
+            <>
+              <EditAssignment assignment={a} people={people} offices={offices} />
+              <EndAssignment id={a.id} label={label} />
+            </>
+          );
+        }}
+      />
+    </Card>
+  );
+}
+
+function RolesList({ offices, people, holdings, grants }: UsersData) {
   const rows: Row[] = offices.map((o) => {
     const holders = holdings
       .filter((h) => h.roleCode === o.code)
@@ -215,10 +327,6 @@ function RolesPanel({ offices, people, holdings, grants }: UsersData) {
           </div>
         </div>
         <div className="row">
-          {/* The sample has no way to appoint anybody — its roles are already held.
-              Ours must: a rule routes to a role, and only an assignment turns that
-              into a signatory. */}
-          <AddAssignment people={people} offices={offices} />
           <AddOffice offices={offices} />
         </div>
       </div>

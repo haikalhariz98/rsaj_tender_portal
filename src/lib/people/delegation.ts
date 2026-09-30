@@ -66,17 +66,54 @@ export type DelegationFault =
   | "OVERLAPS_EXISTING"
   | "SUB_DELEGATION_FORBIDDEN"
   | "CAPABILITY_NOT_HELD"
-  | "ENDS_BEFORE_IT_STARTS";
+  | "OFFICE_UNDECIDED"
+  | "ENDS_BEFORE_IT_STARTS"
+  | "UNBOUNDED"
+  | "GRANTOR_DOES_NOT_HOLD"
+  | "MANDATORY_ACT";
 
+/**
+ * What the caller knows about the office being delegated, beyond its capabilities.
+ * Optional so a check that has not looked stays silent rather than guessing.
+ */
+export interface DelegationContext {
+  /// Whether the person delegating holds the office over the whole period.
+  grantorHoldsOffice?: boolean;
+  /// Whether an approval rule gives the office a mandatory act (MR, MJR, MA).
+  officeHasMandatoryActs?: boolean;
+}
+
+/**
+ * Not enforced here, because nothing on record can decide it: that the delegate is a
+ * direct line subordinate, and that the grant is made by the jobholder's superior
+ * (FR-APR-011). There are no reporting lines in the data and no sign-in to say who is
+ * granting. Both arrive with authentication; until then they are a known gap.
+ */
 export function faultsIn(
   proposed: Delegation,
   existing: readonly Delegation[],
   /// Capability codes the delegating office actually holds.
   heldByOffice: readonly string[],
+  context: DelegationContext = {},
 ): DelegationFault[] {
   const faults: DelegationFault[] = [];
 
   if (proposed.fromPersonId === proposed.toPersonId) faults.push("TO_SELF");
+
+  // Time-limited or task-limited, or it is not a delegation — it is a transfer of the
+  // office with no way back. No end date and the whole role is neither.
+  if (proposed.effectiveTo == null && proposed.capabilityCodes.length === 0) {
+    faults.push("UNBOUNDED");
+  }
+
+  if (context.grantorHoldsOffice === false) faults.push("GRANTOR_DOES_NOT_HOLD");
+
+  // A mandatory step cannot be delegated, skipped or substituted. Handing over the
+  // whole office would hand over that step with it; a listed subset of capabilities
+  // does not carry an approval act.
+  if (context.officeHasMandatoryActs && proposed.capabilityCodes.length === 0) {
+    faults.push("MANDATORY_ACT");
+  }
 
   if (proposed.effectiveTo && proposed.effectiveTo <= proposed.effectiveFrom) {
     faults.push("ENDS_BEFORE_IT_STARTS");
@@ -94,8 +131,14 @@ export function faultsIn(
   if (clash) faults.push("OVERLAPS_EXISTING");
 
   // Delegating something the office does not itself hold would manufacture authority.
-  const notHeld = proposed.capabilityCodes.filter((c) => !heldByOffice.includes(c));
-  if (heldByOffice.length > 0 && notHeld.length > 0) faults.push("CAPABILITY_NOT_HELD");
+  // Where nobody has decided what the office may do, that cannot be checked either —
+  // which is a reason to refuse, not to wave it through.
+  if (proposed.capabilityCodes.length > 0) {
+    if (heldByOffice.length === 0) faults.push("OFFICE_UNDECIDED");
+    else if (proposed.capabilityCodes.some((c) => !heldByOffice.includes(c))) {
+      faults.push("CAPABILITY_NOT_HELD");
+    }
+  }
 
   // Onward delegation from an office that forbids it.
   const upstream = existing.find(

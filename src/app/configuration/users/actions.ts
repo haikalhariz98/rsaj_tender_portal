@@ -220,6 +220,25 @@ const DELEGATION_FAULTS: Record<DelegationFault, { field: string; message: strin
     field: "capabilityCodes",
     message: "That role does not hold all of those capabilities, so it cannot delegate them.",
   },
+  OFFICE_UNDECIDED: {
+    field: "capabilityCodes",
+    message:
+      "Nobody has decided what this role may do, so its capabilities cannot be delegated yet. Set them on the Permissions tab first.",
+  },
+  UNBOUNDED: {
+    field: "effectiveTo",
+    message:
+      "A delegation must end on a date or cover named capabilities. Set an end date, or choose what is delegated.",
+  },
+  GRANTOR_DOES_NOT_HOLD: {
+    field: "fromPersonId",
+    message: "They do not hold this role over that whole period, so they cannot delegate it.",
+  },
+  MANDATORY_ACT: {
+    field: "capabilityCodes",
+    message:
+      "This role gives a mandatory recommendation or approval, which cannot be delegated. Choose the capabilities to delegate instead of the whole role.",
+  },
 };
 
 /**
@@ -260,7 +279,7 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
   const parsed = r.finish(v);
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
-  const [existing, held] = await Promise.all([
+  const [existing, held, grantorSpells, mandatory] = await Promise.all([
     db.delegation.findMany({
       where: { organisationId: orgId, ...(id ? { NOT: { id } } : {}) },
     }),
@@ -268,7 +287,34 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
       where: { organisationId: orgId, roles: { some: { roleCode } } },
       select: { code: true },
     }),
+    db.roleAssignment.findMany({
+      where: { personId: fromPersonId, roleCode, person: { organisationId: orgId } },
+      select: { effectiveFrom: true, effectiveTo: true },
+    }),
+    // Any rule in force that gives this office a mandatory act, as approver or as a
+    // recommender.
+    db.authorityRule.count({
+      where: {
+        authorityMatrix: {
+          organisationId: orgId,
+          effectiveFrom: { lte: new Date() },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }],
+        },
+        OR: [
+          { approverCode: roleCode, approverMandatory: true },
+          { recommenders: { some: { roleCode, act: { in: ["MR", "MJR", "MA"] } } } },
+        ],
+      },
+    }),
   ]);
+
+  // Holds the office across the whole delegation: some assignment begins by its start
+  // and runs at least to its end.
+  const grantorHoldsOffice = grantorSpells.some(
+    (s) =>
+      s.effectiveFrom <= v.effectiveFrom &&
+      (s.effectiveTo == null || (v.effectiveTo != null && s.effectiveTo >= v.effectiveTo)),
+  );
 
   const asDelegation = (row: {
     id: string;
@@ -307,6 +353,7 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
     proposed,
     existing.map(asDelegation),
     held.map((c) => c.code),
+    { grantorHoldsOffice, officeHasMandatoryActs: mandatory > 0 },
   );
   if (faults.length) {
     const errors: Record<string, string> = {};

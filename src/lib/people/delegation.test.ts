@@ -109,12 +109,32 @@ describe("faults refused at entry", () => {
     expect(faultsIn(onward, existing, held)).not.toContain("SUB_DELEGATION_FORBIDDEN");
   });
 
-  it("does not judge capabilities when the office's own grants are unknown", () => {
-    // An empty held list means nobody has configured the office's capabilities, which
-    // is not the same as the office holding none.
-    expect(faultsIn(d({ id: "new", capabilityCodes: ["anything"] }), [], [])).not.toContain(
-      "CAPABILITY_NOT_HELD",
+  it("refuses to delegate capabilities nobody has decided the office holds", () => {
+    // An empty held list means nobody has configured the office's capabilities. That is
+    // not the office holding none — but it is not proof it holds these, either.
+    const faults = faultsIn(d({ id: "new", capabilityCodes: ["anything"] }), [], []);
+    expect(faults).toContain("OFFICE_UNDECIDED");
+    expect(faults).not.toContain("CAPABILITY_NOT_HELD");
+  });
+
+  it("refuses a delegation limited neither in time nor in task", () => {
+    const open = d({ id: "new", effectiveTo: null, capabilityCodes: [] });
+    expect(faultsIn(open, [], held)).toContain("UNBOUNDED");
+    // Either limit is enough.
+    expect(faultsIn(d({ id: "new", effectiveTo: null, capabilityCodes: ["run_sourcing"] }), [], held)).not.toContain("UNBOUNDED");
+  });
+
+  it("refuses a delegation from somebody who does not hold the office", () => {
+    expect(faultsIn(d({ id: "new", capabilityCodes: ["run_sourcing"] }), [], held, { grantorHoldsOffice: false })).toContain(
+      "GRANTOR_DOES_NOT_HOLD",
     );
+  });
+
+  it("refuses to hand over a whole office that carries a mandatory act", () => {
+    const whole = d({ id: "new", capabilityCodes: [] });
+    expect(faultsIn(whole, [], held, { officeHasMandatoryActs: true })).toContain("MANDATORY_ACT");
+    const listed = d({ id: "new", capabilityCodes: ["run_sourcing"] });
+    expect(faultsIn(listed, [], held, { officeHasMandatoryActs: true })).not.toContain("MANDATORY_ACT");
   });
 
   it("reports every fault at once rather than the first", () => {

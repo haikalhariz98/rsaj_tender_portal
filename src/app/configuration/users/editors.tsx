@@ -8,6 +8,7 @@ import {
   UserIcon,
   XIcon,
 } from "@/components/icons";
+import { buttonClass } from "@/components/ui/button";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import type { Capability } from "@/lib/people/capabilities";
 import { statusOf, type Delegation } from "@/lib/people/delegation";
@@ -272,7 +273,7 @@ export function LeaverToggle({ person }: { person: Person }) {
       title={leaving ? `Mark ${person.name} as left` : `Reinstate ${person.name}`}
       description={
         leaving
-          ? "They stay on record. Decisions they signed keep resolving to their name, but no new role can be assigned to them."
+          ? "They stay on record, and decisions they signed keep resolving to their name. No new role can be assigned to them; roles they still hold are flagged on the Roles tab until each assignment is ended."
           : "They can hold a role again. Nothing that happened while they were marked as left is altered."
       }
       fields={[
@@ -282,8 +283,8 @@ export function LeaverToggle({ person }: { person: Person }) {
       values={{ id: person.id, isActive: leaving ? "" : "yes" }}
       action={setPersonActive}
       submitLabel={leaving ? "Mark as left" : "Reinstate"}
-      // Marking somebody as left stops every role they hold from resolving, so it
-      // asks why in red. Putting them back is not destructive, but it still asks —
+      // Marking somebody as left leaves every role they hold without a signatory, so
+      // it asks why in red. Putting them back is not destructive, but it still asks —
       // nobody is signed in, and the reason is the only account of either.
       destructive={leaving ? { reasonLabel: "Why are they leaving?" } : undefined}
       reason={leaving ? undefined : { label: "Why are they coming back?" }}
@@ -511,7 +512,7 @@ function delegationFields(
       kind: "date",
       name: "effectiveTo",
       label: "To",
-      hint: "Leave empty and it runs until somebody ends it.",
+      hint: "Required unless named capabilities are chosen below: a delegation is limited in time or in task. Set an earlier date to end one early.",
     },
     {
       kind: "select",
@@ -633,7 +634,7 @@ export function EndAssignment({ id, label }: { id: string; label: string }) {
       action={endAssignment}
       submitLabel="End it"
       destructive={{ reasonLabel: "Why is it ending?" }}
-      trigger={{ label: "End", className: "btn btn--sm btn--ghost" }}
+      trigger={{ label: "End", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
       size="sm"
     />
   );
