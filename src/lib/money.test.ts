@@ -9,6 +9,8 @@ import {
   percentOfSen,
   senToDecimalString,
   subtractSen,
+  compareAmounts,
+  senFromAmount,
 } from "./money";
 
 describe("parsing", () => {
@@ -111,5 +113,18 @@ describe("display", () => {
 
   it("takes the currency rather than assuming one", () => {
     expect(formatSen(parseSen("5.00"), "$")).toBe("$5.00");
+  });
+});
+
+describe("comparing amounts exactly", () => {
+  it("bridges a two-decimal band edge to sen without drift", () => {
+    expect(senFromAmount(300000.01)).toBe(30000001n);
+    expect(senFromAmount(0.1 + 0.2)).toBe(30n);
+  });
+
+  it("compares decimal strings exactly", () => {
+    expect(compareAmounts("300000.00", "300000")).toBe(0);
+    expect(compareAmounts("1,000,000.01", "1000000")).toBe(1);
+    expect(compareAmounts("15000", "300000")).toBe(-1);
   });
 });

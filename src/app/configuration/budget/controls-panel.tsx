@@ -8,7 +8,7 @@ import { type BudgetCode, type Movement } from "@/lib/budget/codes";
 import type { BudgetControls } from "@/lib/budget/load";
 import { OUTCOME_WORD, workedExample } from "@/lib/budget/controls";
 import { formatCompactRM } from "@/lib/format";
-import { senToDecimalString } from "@/lib/money";
+import { parseSen, senToDecimalString } from "@/lib/money";
 
 import { clearBudgetControls, saveBudgetControls } from "./actions";
 
@@ -290,7 +290,7 @@ export function ControlsPanel({
                     style={{ paddingLeft: 36 }}
                     defaultValue={
                       settings?.minimumInterimCertificate
-                        ? senToDecimalString(BigInt(Math.round(Number(settings.minimumInterimCertificate) * 100)))
+                        ? senToDecimalString(parseSen(settings.minimumInterimCertificate))
                         : ""
                     }
                   />

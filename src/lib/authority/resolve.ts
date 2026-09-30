@@ -10,6 +10,7 @@ import type {
   Rule,
 } from "./types";
 import { MANDATORY_ACTS } from "./types";
+import { senFromAmount } from "@/lib/money";
 
 /// Maximum upward hops when escalating past absent holders. Guards against a cycle
 /// in a mis-seeded escalation map.
@@ -33,11 +34,16 @@ export function inBand(
 ): boolean {
   if (value == null) return min == null && max == null;
 
+  // Compared in exact sen. Equality at the boundary is what decides which regime a
+  // matter falls in, and float equality is the wrong tool for that one comparison.
+  const v = senFromAmount(value);
+  const lo = min == null ? null : senFromAmount(min);
+  const hi = max == null ? null : senFromAmount(max);
   const flip = policy.boundaryInclusive === false;
-  const b = policy.boundaryValue;
+  const b = senFromAmount(policy.boundaryValue);
 
-  const lowerOk = min == null || (flip && min === b ? value >= min : value > min);
-  const upperOk = max == null || (flip && max === b ? value < max : value <= max);
+  const lowerOk = lo == null || (flip && lo === b ? v >= lo : v > lo);
+  const upperOk = hi == null || (flip && hi === b ? v < hi : v <= hi);
 
   return lowerOk && upperOk;
 }

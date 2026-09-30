@@ -7,6 +7,7 @@ import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import { periodsOverlap } from "@/lib/effective";
 import { ORGANISATION_CODE } from "@/lib/org";
+import { compareAmounts } from "@/lib/money";
 import { checkPeriod, FormReader } from "@/lib/validate";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
@@ -58,7 +59,7 @@ export async function saveCommittee(_prev: FormState, data: FormData): Promise<F
 
   const valueScopeMin = r.money("valueScopeMin", "Value scope from");
   const valueScopeMax = r.money("valueScopeMax", "Value scope to");
-  if (valueScopeMin && valueScopeMax && Number(valueScopeMax) <= Number(valueScopeMin)) {
+  if (valueScopeMin && valueScopeMax && compareAmounts(valueScopeMax, valueScopeMin) <= 0) {
     r.reject("valueScopeMax", "The upper bound must be above the lower.");
   }
 

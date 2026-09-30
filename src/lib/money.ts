@@ -47,6 +47,20 @@ export function senToDecimalString(sen: Sen): string {
   return `${negative ? "-" : ""}${whole}.${frac}`;
 }
 
+/**
+ * Bridge from a number already known to be a two-decimal amount — a band edge read
+ * from a Decimal column — to exact sen, for comparing. Never for arithmetic on money:
+ * that starts and stays in sen.
+ */
+export function senFromAmount(value: number): Sen {
+  return BigInt(Math.round(value * 100));
+}
+
+/// Two amounts written as decimal strings, compared exactly.
+export function compareAmounts(a: string, b: string): -1 | 0 | 1 {
+  return compareSen(parseSen(a), parseSen(b));
+}
+
 export function addSen(...values: Sen[]): Sen {
   return values.reduce((a, b) => a + b, 0n);
 }

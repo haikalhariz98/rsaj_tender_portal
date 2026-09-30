@@ -6,10 +6,20 @@ import { findFundingRoute, fundingPosture, overridesAuthority } from "@/lib/refe
 
 import { ORGANISATION_CODE } from "@/lib/org";
 
-function numberOrNull(raw: string | null): number | null {
+/// An amount: non-negative, at most two decimal places, no exponents. "1e6" or
+/// "10.005" is refused rather than read as a float and rounded into a band.
+function amountOrNull(raw: string | null): number | null | "bad" {
   if (raw == null || raw.trim() === "") return null;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : null;
+  const cleaned = raw.trim().replace(/,/g, "");
+  if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return "bad";
+  return Number(cleaned);
+}
+
+/// A percentage: non-negative, plain decimal.
+function percentOrNull(raw: string | null): number | null | "bad" {
+  if (raw == null || raw.trim() === "") return null;
+  if (!/^\d+(\.\d+)?$/.test(raw.trim())) return "bad";
+  return Number(raw.trim());
 }
 
 /**
@@ -28,9 +38,17 @@ export async function GET(request: Request) {
     return Response.json({ error: "domain is required" }, { status: 400 });
   }
 
-  const rawValue = params.get("value");
-  if (rawValue != null && rawValue.trim() !== "" && numberOrNull(rawValue) == null) {
-    return Response.json({ error: "value must be a number" }, { status: 400 });
+  const value = amountOrNull(params.get("value"));
+  const contractValue = amountOrNull(params.get("contractValue"));
+  const pct = percentOrNull(params.get("pct"));
+  if (value === "bad" || contractValue === "bad") {
+    return Response.json(
+      { error: "value and contractValue must be amounts, to at most two decimal places" },
+      { status: 400 },
+    );
+  }
+  if (pct === "bad") {
+    return Response.json({ error: "pct must be a non-negative number" }, { status: 400 });
   }
 
   const organisationCode = params.get("org") ?? ORGANISATION_CODE;
@@ -46,9 +64,9 @@ export async function GET(request: Request) {
       domain,
       method: params.get("method"),
       cond: params.get("cond"),
-      value: numberOrNull(rawValue),
-      pct: numberOrNull(params.get("pct")),
-      contractValue: numberOrNull(params.get("contractValue")),
+      value,
+      pct,
+      contractValue,
       absentRoleCodes: params.getAll("absent").filter(Boolean),
       actorRoleCode: params.get("actor"),
       funding: fundingCode,

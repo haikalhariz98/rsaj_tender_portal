@@ -7,6 +7,7 @@ import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
 import { rulesTiedWith } from "@/lib/authority/resolve";
 import type { Rule } from "@/lib/authority/types";
 import { db } from "@/lib/db";
+import { compareAmounts } from "@/lib/money";
 import { periodsOverlap } from "@/lib/effective";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { checkPeriod, FormReader } from "@/lib/validate";
@@ -54,12 +55,12 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
     required: true,
   });
 
-  if (quotationFloor && tenderFloor && Number(tenderFloor) <= Number(quotationFloor)) {
+  if (quotationFloor && tenderFloor && compareAmounts(tenderFloor, quotationFloor) <= 0) {
     r.reject("tenderFloor", "The tender floor must be above the quotation floor.");
   }
   // The boundary is where the two bands meet, so it has to be the tender floor. A
   // boundary elsewhere would leave a band of values belonging to neither regime.
-  if (boundaryValue && tenderFloor && Number(boundaryValue) !== Number(tenderFloor)) {
+  if (boundaryValue && tenderFloor && compareAmounts(boundaryValue, tenderFloor) !== 0) {
     r.reject(
       "boundaryValue",
       "The bands meet at the tender floor. Set this to the same figure, or move the floor.",
@@ -170,7 +171,7 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
 
   const minValue = r.money("minValue", "From value");
   const maxValue = r.money("maxValue", "To value");
-  if (minValue && maxValue && Number(maxValue) <= Number(minValue)) {
+  if (minValue && maxValue && compareAmounts(maxValue, minValue) <= 0) {
     r.reject("maxValue", "The upper bound must be above the lower.");
   }
 
