@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ComponentType } from "react";
 
 import {
+  AwardIcon,
   BuildingIcon,
   ChartIcon,
   CheckIcon,
@@ -15,6 +16,7 @@ import {
   GlobeIcon,
   GridIcon,
   InboxIcon,
+  ShieldIcon,
   SlidersIcon,
   ToolsIcon,
   UserIcon,
@@ -44,6 +46,8 @@ const ICONS: Record<string, ComponentType<{ size?: number }>> = {
   users: UsersIcon,
   user: UserIcon,
   clipboard: ClipboardIcon,
+  award: AwardIcon,
+  shield: ShieldIcon,
 };
 
 /// Configuration's sections in the sidebar's own shape. Inside Configuration the

@@ -98,7 +98,8 @@ export async function saveBudgetCheckSource(_prev: FormState, data: FormData): P
   return { ok: true };
 }
 
-const FORMAT_KEYS = ["erp_requisition_no", "erp_note_no"] as const;
+/// The finance system's numbers the portal consumes: the requisition's two, and the indent's (6.11).
+const FORMAT_KEYS = ["erp_requisition_no", "erp_note_no", "erp_indent_no"] as const;
 
 /**
  * The shape of one of the finance system's numbers, as a pattern with an example.
@@ -127,7 +128,7 @@ export async function saveErpFormat(_prev: FormState, data: FormData): Promise<F
   if (r.failed || !key) return { ok: false, errors: r.errors };
   await db.$transaction(async (tx) => {
     const before = await tx.codeFormat.findUnique({ where: { organisationId_key: { organisationId: org.id, key } } });
-    const label = key === "erp_requisition_no" ? "Finance system requisition no. format" : "Requisition note no. format";
+    const label = key === "erp_requisition_no" ? "Finance system requisition no. format" : key === "erp_note_no" ? "Requisition note no. format" : "Indent number format";
     if (!pattern) {
       if (!before) return;
       await tx.codeFormat.delete({ where: { id: before.id } });
@@ -148,5 +149,6 @@ export async function saveErpFormat(_prev: FormState, data: FormData): Promise<F
   });
   revalidatePath(PATH);
   revalidatePath("/requisitions");
+  revalidatePath("/configuration/awards");
   return { ok: true };
 }

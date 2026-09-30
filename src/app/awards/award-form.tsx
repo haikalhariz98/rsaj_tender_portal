@@ -1,0 +1,85 @@
+"use client";
+
+import { useState, useTransition } from "react";
+
+import { SaveIcon } from "@/components/icons";
+import type { FormState } from "@/components/record-editor";
+import { Button, ButtonLink } from "@/components/ui/button";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { Callout } from "@/components/ui/feedback";
+import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { formDataOf } from "@/components/ui/form-submit";
+import { KeyValues } from "@/components/ui/stat";
+
+import { createAward } from "./actions";
+
+/**
+ * Opening an award on an exercise in preparation. What typed is kept on a refused save;
+ * every rule is the action's. The exercise's classification is shown read-only: the
+ * award reads it and never copies it.
+ */
+export function AwardForm({ exercise, cancelHref }: { exercise: { id: string; facts: { label: string; value: string }[] }; cancelHref: string }) {
+  const [state, setState] = useState<FormState>({ ok: false });
+  const [pending, startTransition] = useTransition();
+  const [v, setV] = useState<Record<string, string>>({ completionUnit: "" });
+  const set = (k: string) => (e: { target: { value: string } }) => setV((x) => ({ ...x, [k]: e.target.value }));
+  const err = (k: string) => state.errors?.[k];
+  return (
+    <form onSubmit={(e) => { const data = formDataOf(e); startTransition(async () => setState(await createAward(state, data))); }} className="flex flex-col gap-6">
+      <input type="hidden" name="exerciseId" value={exercise.id} />
+      {state.message && <Callout tone="err">{state.message}</Callout>}
+      <Card>
+        <CardHeader title="The exercise" subtitle="As classified. The award reads these from the exercise's record." />
+        <CardBody>
+          <KeyValues columns={2} items={exercise.facts.map((f) => ({ label: f.label, value: f.value }))} />
+        </CardBody>
+      </Card>
+      <Card>
+        <CardHeader title="The awardee" subtitle="As registered. There is no supplier register yet: the name, number and address are kept as written." />
+        <CardBody className="grid gap-4 sm:grid-cols-2">
+          <Field label="Awardee" required htmlFor="awardeeName" error={err("awardeeName")}>
+            <Input id="awardeeName" name="awardeeName" value={v.awardeeName ?? ""} onChange={set("awardeeName")} />
+          </Field>
+          <Field label="Registration number" htmlFor="awardeeRegistrationNo" error={err("awardeeRegistrationNo")}>
+            <Input id="awardeeRegistrationNo" name="awardeeRegistrationNo" value={v.awardeeRegistrationNo ?? ""} onChange={set("awardeeRegistrationNo")} />
+          </Field>
+          <div className="sm:col-span-2">
+            <Field label="Address" htmlFor="awardeeAddress" error={err("awardeeAddress")}>
+              <Textarea id="awardeeAddress" name="awardeeAddress" rows={2} value={v.awardeeAddress ?? ""} onChange={set("awardeeAddress")} />
+            </Field>
+          </div>
+        </CardBody>
+      </Card>
+      <Card>
+        <CardHeader title="Value and period" subtitle="Within what the requisition's approval covers, and in the exercise's band." />
+        <CardBody className="grid gap-4 sm:grid-cols-2">
+          <Field label="Awarded value" required htmlFor="awardedValue" hint="In ringgit, to at most two decimal places." error={err("awardedValue")}>
+            <Input id="awardedValue" name="awardedValue" inputMode="decimal" value={v.awardedValue ?? ""} onChange={set("awardedValue")} />
+          </Field>
+          <Field label="Stated start date" htmlFor="startDate" hint="Can be set later, before issue." error={err("startDate")}>
+            <Input id="startDate" name="startDate" type="date" value={v.startDate ?? ""} onChange={set("startDate")} />
+          </Field>
+          <Field label="Completion period" required htmlFor="completionPeriod" error={err("completionPeriod")}>
+            <Input id="completionPeriod" name="completionPeriod" inputMode="numeric" value={v.completionPeriod ?? ""} onChange={set("completionPeriod")} />
+          </Field>
+          <Field label="Counted in" required htmlFor="completionUnit" error={err("completionUnit")}>
+            <Select id="completionUnit" name="completionUnit" value={v.completionUnit ?? ""} onChange={set("completionUnit")}>
+              <option value="">Choose</option>
+              <option value="DAYS">Days</option>
+              <option value="WEEKS">Weeks</option>
+              <option value="MONTHS">Months</option>
+            </Select>
+          </Field>
+        </CardBody>
+      </Card>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <ButtonLink href={cancelHref} variant="ghost" size="md">
+          Cancel
+        </ButtonLink>
+        <Button type="submit" variant="primary" size="md" disabled={pending} icon={<SaveIcon size={15} />}>
+          {pending ? "Saving…" : "Open the award"}
+        </Button>
+      </div>
+    </form>
+  );
+}

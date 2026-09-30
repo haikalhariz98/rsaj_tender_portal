@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { ClipboardIcon, ClockIcon, FileIcon, RouteIcon, ShieldIcon, SlidersIcon, UsersIcon } from "@/components/icons";
+import { AwardIcon, ClipboardIcon, ClockIcon, FileIcon, RouteIcon, ShieldIcon, SlidersIcon, UsersIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { ActBadge } from "@/components/ui/act";
@@ -53,6 +53,8 @@ import type { OrgUnit } from "@/lib/organisation/types";
 import { db } from "@/lib/db";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { holdersFor } from "@/lib/requisition/holders";
+import { AWARD_STATUS_LABEL, AWARD_STATUS_TONE, INSTRUMENT_SHORT } from "@/lib/award/labels";
+import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
 import { DECISION_LABEL, DECIDER_FAULT_TEXT, OPERATOR_LABEL } from "@/lib/requisition/labels";
 
 import {
@@ -89,13 +91,14 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const on = today ? dayToDate(today) : new Date();
   const draft = ex.status === "DRAFT";
 
-  const [{ issue, cfg, ctx }, history, people, roster, delegations, units] = await Promise.all([
+  const [{ issue, cfg, ctx }, history, people, roster, delegations, units, awards] = await Promise.all([
     evaluationContext(org, req, ex),
     exerciseHistory(l),
     db.person.findMany({ where: { organisationId: org.id }, orderBy: { name: "asc" }, select: { id: true, name: true, isActive: true } }),
     loadRoster(ORGANISATION_CODE),
     loadDelegations(ORGANISATION_CODE),
     db.orgUnit.findMany({ where: { organisationId: org.id } }),
+    db.award.findMany({ where: { exerciseId: ex.id }, orderBy: { createdAt: "desc" }, select: { id: true, reference: true, awardeeName: true, awardedValue: true, status: true, instrumentKind: true, cancelReason: true, contract: { select: { number: true } } } }),
   ]);
   const config = cfg.config;
   const method = config.methods.find((m) => m.code === ex.sourcingMethodCode) ?? null;
@@ -356,6 +359,13 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
         ]
       : []),
     {
+      id: "award",
+      label: "Award",
+      icon: <AwardIcon size={15} />,
+      count: awards.length || undefined,
+      panel: <AwardTab exerciseId={ex.id} status={ex.status} awards={awards} />,
+    },
+    {
       id: "access",
       label: "Access",
       icon: <ShieldIcon size={15} />,
@@ -451,6 +461,11 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
             {ex.cancelReason || "No reason recorded."} {CANCELLED_ASSUMPTION}
           </Callout>
         )}
+        {ex.classificationLockedAt && (
+          <Callout tone="info" title="Classification locked by its award">
+            Since {formatDate(ex.classificationLockedAt)} the contract type is fixed: it changes only by a controlled change, which arrives with the post-award modules.
+          </Callout>
+        )}
         {draft && !today && (
           <Callout tone="warn" title="The organisation's time zone is not set" action={<ButtonLink href="/configuration/organisation" size="sm">Set time zone</ButtonLink>}>
             Saving, reviewing and moving the exercise depend on today&apos;s date, which is not assumed to be UTC.
@@ -465,6 +480,59 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
 
       <Tabs initial={tab} label="Exercise" tabs={tabs} />
     </>
+  );
+}
+
+// --------------------------------------------------------------------- award
+
+function AwardTab({ exerciseId, status, awards }: { exerciseId: string; status: string; awards: { id: string; reference: string; awardeeName: string; awardedValue: { toString(): string }; status: string; instrumentKind: string; cancelReason: string; contract: { number: string } | null }[] }) {
+  const live = awards.find((a) => a.status !== "CANCELLED") ?? null;
+  const cancelled = awards.filter((a) => a.status === "CANCELLED");
+  return (
+    <div className="flex flex-col gap-6">
+      <Card>
+        <CardHeader icon={<AwardIcon size={17} />} title="The award" subtitle={live ? "Its approval, instrument, return and securities are on the award's own record." : "An award is opened once the exercise is in preparation, with its classification decided."} />
+        <CardBody>
+          {live ? (
+            <div className="flex flex-col gap-4">
+              <KeyValues
+                columns={2}
+                items={[
+                  { label: "Awardee", value: <Link href={`/awards/${live.id}`}>{live.awardeeName}</Link> },
+                  { label: "Reference", value: <span className="font-mono text-[13px]">{live.reference}</span> },
+                  { label: "Awarded value", value: <span className="tabular-nums">{money(live.awardedValue)}</span> },
+                  { label: "Instrument", value: INSTRUMENT_SHORT[live.instrumentKind as InstrumentKind] },
+                  { label: "Where it stands", value: <Badge tone={AWARD_STATUS_TONE[live.status as AwardStatus]}>{AWARD_STATUS_LABEL[live.status as AwardStatus]}</Badge> },
+                  { label: "Contract", value: live.contract ? <span className="font-mono text-[13px]">{live.contract.number}</span> : "Numbered when the instrument is issued" },
+                ]}
+              />
+              <div>
+                <ButtonLink href={`/awards/${live.id}`} variant="secondary" size="sm">Open the award</ButtonLink>
+              </div>
+            </div>
+          ) : status === "DOCUMENTS_IN_PREPARATION" ? (
+            <EmptyState size="sm" title="Not awarded yet" action={<ButtonLink href={`/awards/new?exercise=${exerciseId}`} size="sm" variant="primary">Start the award</ButtonLink>}>
+              Record the awardee and the awarded value; the award is then sent for the appointment&apos;s approval.
+            </EmptyState>
+          ) : (
+            <EmptyState size="sm" title="Not awarded">{status === "CANCELLED" ? "The exercise is cancelled." : "The exercise must move into preparation first."}</EmptyState>
+          )}
+        </CardBody>
+      </Card>
+      {cancelled.length > 0 && (
+        <Card className="overflow-hidden">
+          <CardHeader icon={<ClockIcon size={17} />} title="Cancelled awards" subtitle="Kept on record." />
+          <ul className="divide-y divide-line/70">
+            {cancelled.map((a) => (
+              <li key={a.id} className="flex flex-wrap items-center gap-2 px-5 py-3 text-[13px] sm:px-6">
+                <Link href={`/awards/${a.id}`} className="font-semibold">{a.awardeeName}</Link>
+                <span className="min-w-0 break-words text-ink-3">{`${a.reference} · ${a.cancelReason || "no reason recorded"}`}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+    </div>
   );
 }
 

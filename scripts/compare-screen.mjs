@@ -271,6 +271,19 @@ const ALLOWED_EXTRA = [
   /^Classification mappings$/,
   /^Mixed scope$/,
   /^Behaviours$/,
+  // 6.11 plan §6: cross-exercise work lists; the prototype has the award only as an
+  // exercise tab. The exercise's Award tab is the prototype's; the lists are not.
+  /^Awards$/,
+  /^Securities$/,
+  /^Award controls$/,
+  /^Start the award$/,
+  /^Send for approval$/,
+  /^Cite decision$/,
+  /^Lodge (security|policy)$/,
+  // Deliberately not reproduced (D4): the prototype's award tab states the bond as
+  // "{n}% of the accepted value", a hard-coded basis. The basis is decided per contract
+  // and never defaulted, so the bond is shown with its basis, or as not set.
+  /^The performance bond$/,
 ];
 
 const isAllowed = (label) => ALLOWED_EXTRA.some((re) => re.test(label));

@@ -290,3 +290,19 @@ export const ClipboardIcon = (p: IconProps) => (
     <path d="M9 12h6M9 16h4" />
   </Icon>
 );
+
+/// An award: a rosette with ribbons.
+export const AwardIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="9" r="6" />
+    <path d="M8.5 13.9 7 22l5-3 5 3-1.5-8.1" />
+  </Icon>
+);
+
+export const PrinterIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M6 9V3h12v6" />
+    <rect x="4" y="9" width="16" height="8" rx="2" />
+    <path d="M7 14h10v7H7z" />
+  </Icon>
+);

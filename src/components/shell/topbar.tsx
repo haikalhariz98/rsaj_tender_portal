@@ -111,7 +111,7 @@ export function Topbar({
   ];
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b border-line/60 bg-canvas/80 px-4 backdrop-blur-md sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-20 flex print:hidden h-16 items-center gap-2 border-b border-line/60 bg-canvas/80 px-4 backdrop-blur-md sm:px-6 lg:px-8">
       <button
         type="button"
         onClick={onMenu}

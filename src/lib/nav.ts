@@ -34,6 +34,10 @@ export const STAFF_NAV: NavGroup[] = [
       // Sourcing, not under it: a supervision-only matter never becomes sourcing (6.1).
       { href: "/requisitions", label: "Requisitions", icon: "clipboard", built: true },
       { href: "/sourcing", label: "Sourcing", icon: "globe", built: true },
+      // Not in the prototype, which has the award only as a tab of the exercise (6.11 plan §6).
+      // Cross-exercise work lists: what awaits approval, issue, return or a commitment number.
+      { href: "/awards", label: "Awards", icon: "award", built: true },
+      { href: "/securities", label: "Securities", icon: "shield", built: true },
       { href: "/projects", label: "Projects", icon: "tools" },
       // Not in the prototype, which shows committee votes only on each matter's own
       // record. Sittings run before those modules exist (ruling 5.1).
@@ -132,6 +136,13 @@ export const CONFIG_SECTIONS: {
         label: "Approval matrix",
         description: "Who proposes, who recommends and who approves, at every value.",
         icon: "sliders",
+        built: true,
+      },
+      {
+        href: "/configuration/awards",
+        label: "Award controls",
+        description: "Instruments, signatories' templates, distribution, letter variants, conditions, insurance and liability bands.",
+        icon: "award",
         built: true,
       },
       {

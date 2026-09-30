@@ -131,7 +131,7 @@ export function EditErpFormat({
   label,
   current,
 }: {
-  formatKey: "erp_requisition_no" | "erp_note_no";
+  formatKey: "erp_requisition_no" | "erp_note_no" | "erp_indent_no";
   label: string;
   current: { pattern: string; example: string; description: string; provenance: string } | null;
 }) {

@@ -37,7 +37,7 @@ export function AppShell({
 
   return (
     <div className="min-h-dvh">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-68 border-r border-line/70 bg-surface lg:block">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-68 border-r border-line/70 bg-surface lg:block print:hidden">
         <Sidebar organisation={organisation} strapline={strapline} counts={counts} />
       </aside>
 
@@ -60,14 +60,14 @@ export function AppShell({
         </div>
       )}
 
-      <div className="flex min-h-dvh min-w-0 flex-col lg:pl-68">
+      <div className="flex min-h-dvh min-w-0 flex-col lg:pl-68 print:pl-0">
         <Topbar
           organisation={organisation}
           user={user}
           hasAlerts={hasAlerts}
           onMenu={() => setOpen(true)}
         />
-        <main className="min-w-0 flex-1 px-4 pt-7 pb-16 sm:px-6 lg:px-8">
+        <main className="min-w-0 flex-1 px-4 pt-7 pb-16 sm:px-6 lg:px-8 print:p-0">
           <div className="mx-auto w-full max-w-[1400px]">{children}</div>
         </main>
       </div>
