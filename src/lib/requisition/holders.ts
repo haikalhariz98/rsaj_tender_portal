@@ -82,6 +82,10 @@ export interface DeciderContext {
   /// The endorsements, with the unit each endorsed for. A direct holder of this office
   /// for that same unit may still decide (ruling BD-1).
   endorsements?: readonly { personId: string; unitCode: string }[];
+  /// The root of the requisition's unit path (the company). An organisation-wide office
+  /// assignment, held for no unit, is tied only to an endorsement recorded for this
+  /// unit (ruling R1). Unknown: an org-wide holder who endorsed is barred.
+  rootUnitCode?: string | null;
   /// People who have already discharged another step of this route.
   otherDeciderIds: readonly string[];
   /// Whether every earlier step is done.
@@ -133,7 +137,10 @@ export function deciderFaults(
   const endorsedAt = (ctx.endorsements ?? []).filter((e) => e.personId === pid);
   if (ctx.endorserIds.includes(pid) || endorsedAt.length > 0) {
     const direct = ctx.holders.holderIds.includes(pid);
-    const tied = ctx.holders.scope != null && endorsedAt.some((e) => e.unitCode === ctx.holders.scope);
+    // The unit the office is held for: its scope, or for an organisation-wide
+    // assignment the root of the path (ruling R1) — never "any unit".
+    const heldFor = ctx.holders.scope ?? ctx.rootUnitCode ?? null;
+    const tied = heldFor != null && endorsedAt.some((e) => e.unitCode === heldFor);
     if (!(direct && tied)) faults.push("ENDORSED_IT");
   }
   if (ctx.otherDeciderIds.includes(pid)) faults.push("ALREADY_DISCHARGED_A_STEP");

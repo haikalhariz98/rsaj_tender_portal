@@ -69,16 +69,19 @@ export function formatDate(value: Date | string | null | undefined): string {
 /**
  * The organisation's calendar day an instant fell on, formatted as `formatDate` does.
  * For timestamps (when a check ran, a route opened, a change was made), so they read on
- * the same day as the days typed beside them. An unset zone reads the day in UTC.
+ * the same day as the days typed beside them. With the zone unset the day is read in
+ * UTC and says so (ruling BD-32): an unset zone is not UTC, so the day is marked
+ * rather than passed off as the organisation's.
  */
 export function formatOrgDay(instant: Date | null | undefined, timeZone: string | null): string {
   if (!instant) return "—";
-  return new Date(`${dayIn(instant, timeZone)}T00:00:00.000Z`).toLocaleDateString("en-MY", {
+  const day = new Date(`${dayIn(instant, timeZone)}T00:00:00.000Z`).toLocaleDateString("en-MY", {
     day: "2-digit",
     month: "short",
     year: "numeric",
     timeZone: "UTC",
   });
+  return timeZone ? day : `${day} (UTC — time zone not set)`;
 }
 
 /// Two initials for an avatar. Malaysian names often carry bin/binti/a/l — those are

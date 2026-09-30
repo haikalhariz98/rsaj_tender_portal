@@ -10,7 +10,7 @@
 
 import { regimeFor, resolveApproval } from "@/lib/authority/resolve";
 import type { Matrix } from "@/lib/authority/types";
-import { senFromAmount } from "@/lib/money";
+import { addSen, senToDecimalString, type Sen } from "@/lib/money";
 
 import { daysBetween, REQUISITION_DOMAIN, type RequisitionStatus, type SplitKey, type SplitState } from "./types";
 
@@ -20,7 +20,8 @@ export interface SplitSubject {
   status: RequisitionStatus;
   /// YYYY-MM-DD.
   raisedOn: string;
-  value: number;
+  /// Exact sen, converted once from the database's Decimal string (`parseSen`).
+  value: Sen;
   keys: Record<SplitKey, string | null>;
 }
 
@@ -39,10 +40,14 @@ export interface SplitAssessment {
   /// Why the check could not run, where it could not: a setting unset, or a key the
   /// requisition itself does not carry.
   notSet: NotSetReason[];
-  related: { id: string; reference: string; value: number }[];
-  combinedValue: number | null;
+  related: { id: string; reference: string; value: Sen }[];
+  /// Exact sen: the sum of this requisition and the related ones.
+  combinedValue: Sen | null;
   crossesBand: boolean | null;
 }
+
+/// Sen to the ringgit number the authority engine takes, through the exact decimal string.
+const amountOf = (sen: Sen) => Number(senToDecimalString(sen));
 
 const EXCLUDED: ReadonlySet<RequisitionStatus> = new Set(["CANCELLED", "REJECTED"]);
 
@@ -84,16 +89,18 @@ export function assessSplitting(
   if (related.length === 0) return { state: "CLEAR", notSet: [], related: [], combinedValue: null, crossesBand: null };
 
   // Summed in exact sen: this total decides whether the pieces would have gone to a
-  // higher band. Values arrive as two-decimal amounts; `senFromAmount` is the one bridge.
-  const combinedSen = related.reduce((n, o) => n + senFromAmount(o.value), senFromAmount(req.value));
-  const combinedValue = Number(combinedSen) / 100;
+  // higher band.
+  const combinedValue = addSen(req.value, ...related.map((o) => o.value));
   let crossesBand: boolean | null = null;
   if (matrix) {
-    const alone = resolveApproval(matrix, { domain: REQUISITION_DOMAIN, value: req.value });
-    const together = resolveApproval(matrix, { domain: REQUISITION_DOMAIN, value: combinedValue });
+    // The engine reads ringgit as a number: the one conversion, here, from the exact
+    // two-decimal string.
+    const alone = amountOf(req.value);
+    const together = amountOf(combinedValue);
     crossesBand =
-      (alone.rule?.ruleKey ?? null) !== (together.rule?.ruleKey ?? null) ||
-      regimeFor(req.value, matrix.policy) !== regimeFor(combinedValue, matrix.policy);
+      (resolveApproval(matrix, { domain: REQUISITION_DOMAIN, value: alone }).rule?.ruleKey ?? null) !==
+        (resolveApproval(matrix, { domain: REQUISITION_DOMAIN, value: together }).rule?.ruleKey ?? null) ||
+      regimeFor(alone, matrix.policy) !== regimeFor(together, matrix.policy);
   }
   return {
     state: "FLAGGED",
@@ -125,7 +132,7 @@ export function splitStateLabel(
   return { label: "Possible split", tone: "err" };
 }
 
-export type JustifierFault = "OFFICE_NOT_SET" | "TIME_ZONE_UNSET" | "REQUESTER" | "ENDORSER" | "NOT_HOLDER" | "INACTIVE" | "FUTURE_DATE";
+export type JustifierFault = "OFFICE_NOT_SET" | "TIME_ZONE_UNSET" | "REQUESTER" | "ENDORSER" | "NOT_HOLDER" | "DELEGATE" | "INACTIVE" | "FUTURE_DATE";
 
 /**
  * Who may justify a flagged split (ruling Q3): a holder of the justifying office the
@@ -137,7 +144,12 @@ export function justifierFaults(ctx: {
   person: { id: string; isActive: boolean } | null;
   requesterId: string;
   endorserIds: readonly string[];
+  /// Direct holders of the justifying office for the requisition's unit, on the day.
   holderIds: readonly string[];
+  /// People holding a delegation of it. Refused (ruling BD-26): only a direct holder
+  /// may justify, until a justification records the delegation and a ceiling rule is
+  /// decided. Named apart so the refusal can say why.
+  delegateIds?: readonly string[];
   on: string;
   today: string | null;
 }): JustifierFault[] {
@@ -148,7 +160,7 @@ export function justifierFaults(ctx: {
   if (!pid) return ["NOT_HOLDER"];
   if (pid === ctx.requesterId) faults.push("REQUESTER");
   if (ctx.endorserIds.includes(pid)) faults.push("ENDORSER");
-  if (!ctx.holderIds.includes(pid)) faults.push("NOT_HOLDER");
+  if (!ctx.holderIds.includes(pid)) faults.push(ctx.delegateIds?.includes(pid) ? "DELEGATE" : "NOT_HOLDER");
   if (!ctx.person!.isActive) faults.push("INACTIVE");
   if (ctx.on > ctx.today) faults.push("FUTURE_DATE");
   return faults;

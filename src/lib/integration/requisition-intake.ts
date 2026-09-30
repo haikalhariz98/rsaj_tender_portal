@@ -21,7 +21,12 @@ import type { ExternalRequisition } from "@/lib/requisition/intake";
 
 export type { ExternalRequisition };
 
-export type IntakeResult = { ok: true; id: string; reference: string } | { ok: false; message: string };
+export type IntakeResult = { ok: true; id: string; reference: string } | { ok: false; message?: string; errors?: Record<string, string> };
+
+/// What the settings in force say about this intake, read inside its transaction.
+export type IntakeTerms =
+  | { ok: true; funding: IntakeContext["funding"]; postCommitment: boolean }
+  | { ok: false; message?: string; errors?: Record<string, string> };
 
 export interface IntakeContext {
   organisationId: string;
@@ -32,6 +37,10 @@ export interface IntakeContext {
   /// Whether its commitment is posted to the portal ledger (ruling BD-10). The caller
   /// has already refused an intake that cannot be posted.
   postCommitment: boolean;
+  /// Where given, reads the controls, the funding route and the budget periods inside
+  /// the intake's own transaction and decides `funding` and `postCommitment` from them,
+  /// or refuses — so a setting changed meanwhile is never acted on stale (round 3, l).
+  terms?: (tx: Tx) => Promise<IntakeTerms>;
 }
 
 export interface RequisitionIntake {
@@ -42,7 +51,12 @@ const dec = (v: string | null) => (v == null || v.trim() === "" ? null : senToDe
 
 export const manualIntake: RequisitionIntake = {
   async receive(ctx, p) {
-    return db.$transaction(async (tx: Tx) => {
+    return db.$transaction(async (tx: Tx): Promise<IntakeResult> => {
+      if (ctx.terms) {
+        const t = await ctx.terms(tx);
+        if (!t.ok) return t;
+        ctx = { ...ctx, funding: t.funding, postCommitment: t.postCommitment };
+      }
       const on = dayToDate(ctx.today);
       const reference = await issueReference(tx, ctx.organisationId, "requisition", on);
       const req = await tx.requisition.create({

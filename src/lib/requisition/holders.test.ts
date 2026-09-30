@@ -128,3 +128,57 @@ describe("whether the requester is approving their own requisition (code review,
     expect(requesterHoldsApprover("DEPT_HEAD", "hodOrg", PATH, ROSTER, [], "2026-09-30")).toBe(false);
   });
 });
+
+describe("an endorser holding the office's delegation for the same unit (round 3, item j)", () => {
+  const step = { committeeCode: null, nonDelegable: false, decision: "PENDING" };
+  it("is refused: a delegate who endorsed for the very unit the office is held for", () => {
+    const holders = holdersFor("DEPT_HEAD", PATH, ROSTER, [delegation()], "2026-09-30");
+    expect(holders.scope).toBe("NTH");
+    const r = deciderFaults(step, {
+      today: "2026-09-30", holders, person: { id: "deputy", isActive: true }, requesterId: "req", endorserIds: [], otherDeciderIds: [],
+      earlierDone: true, decidedOn: "2026-09-30", openedOn: "2026-09-20", value: 3_800_000n,
+      endorsements: [{ personId: "deputy", unitCode: "NTH" }],
+    });
+    expect(r.faults).toContain("ENDORSED_IT");
+  });
+});
+
+describe("an endorser holding an organisation-wide office (ruling R1)", () => {
+  const step = { committeeCode: null, nonDelegable: false, decision: "PENDING" };
+  // The CEO office is held organisation-wide (no unit); GRP is the root of the path.
+  const roster: Roster = {
+    people: [person("ceo"), person("hod"), person("deputy")],
+    offices: [],
+    assignments: [assignment("c1", "ceo", "CEO", null), assignment("c2", "hod", "CEO", null)],
+  };
+  const base = {
+    today: "2026-09-30", requesterId: "req", endorserIds: [] as string[], otherDeciderIds: [] as string[],
+    earlierDone: true, decidedOn: "2026-09-30", openedOn: "2026-09-20", value: 3_800_000n, rootUnitCode: "GRP",
+  };
+
+  it("lets the company-tier endorser who holds the CEO office directly decide the CEO step", () => {
+    const holders = holdersFor("CEO", PATH, roster, [], "2026-09-30");
+    expect(holders.scope).toBeNull();
+    const r = deciderFaults(step, { ...base, holders, person: { id: "ceo", isActive: true }, endorsements: [{ personId: "ceo", unitCode: "GRP" }] });
+    expect(r.faults).toEqual([]);
+  });
+
+  it("refuses a department-tier endorser holding the organisation-wide office", () => {
+    const holders = holdersFor("CEO", PATH, roster, [], "2026-09-30");
+    const r = deciderFaults(step, { ...base, holders, person: { id: "hod", isActive: true }, endorsements: [{ personId: "hod", unitCode: "NTH" }] });
+    expect(r.faults).toContain("ENDORSED_IT");
+  });
+
+  it("refuses a delegate of the organisation-wide office who endorsed at the root", () => {
+    const d = { ...delegation(), fromPersonId: "ceo", toPersonId: "deputy", roleCode: "CEO" };
+    const holders = holdersFor("CEO", PATH, roster, [d], "2026-09-30");
+    const r = deciderFaults(step, { ...base, holders, person: { id: "deputy", isActive: true }, endorsements: [{ personId: "deputy", unitCode: "GRP" }] });
+    expect(r.faults).toContain("ENDORSED_IT");
+  });
+
+  it("bars an organisation-wide holder who endorsed when the root is not known", () => {
+    const holders = holdersFor("CEO", PATH, roster, [], "2026-09-30");
+    const r = deciderFaults(step, { ...base, rootUnitCode: null, holders, person: { id: "ceo", isActive: true }, endorsements: [{ personId: "ceo", unitCode: "GRP" }] });
+    expect(r.faults).toContain("ENDORSED_IT");
+  });
+});

@@ -9,7 +9,6 @@
  * are stored exactly as typed.
  */
 
-import { dayIn } from "@/lib/dates";
 import { inForceOn } from "@/lib/effective";
 import { figuresFor, type BudgetCode, type Movement } from "@/lib/budget/codes";
 import { addSen, compareSen, subtractSen, type Sen } from "@/lib/money";
@@ -129,15 +128,6 @@ export function manualSnapshot(
 }
 
 /**
- * The organisation's day a check was made on. `checkedAt` is an instant: its UTC date
- * would make a check made early in the morning in the organisation's zone a day older
- * than it is. Only called once the zone is known.
- */
-export function checkedDay(checkedAt: Date, timeZone: string): string {
-  return dayIn(checkedAt, timeZone);
-}
-
-/**
  * Whether a check is too old to submit on. `days` null: nobody has set a re-check
  * window, so a check never goes stale — and the screen says that is why.
  */
@@ -193,8 +183,31 @@ export function ageDay(check: { asAt: Date }): string {
  * requisition already on the over-budget route was approved to exceed: exempt.
  */
 export function approvalBudgetFault(fresh: BudgetSnapshot, cond: string | null): "EXCEEDS_AT_APPROVAL" | null {
-  if (cond === "over_budget") return null;
-  return fresh.verdict === "WITHIN" ? null : "EXCEEDS_AT_APPROVAL";
+  return approvalBudgetOutcome(fresh.verdict, cond) === "RETURN" ? "EXCEEDS_AT_APPROVAL" : null;
+}
+
+/**
+ * Whether the final approval re-checks the budget (code re-review, round 3): only
+ * where the portal ledger is the budget check's source. A check typed from the finance
+ * system cannot be re-run under a lock here, and an unset source runs no check.
+ */
+export function approvalRechecks(source: BudgetCheckSource | null): boolean {
+  return source === "PORTAL_LEDGER";
+}
+
+export type ApprovalBudgetOutcome = "OK" | "RETURN" | "NO_BUDGET" | "AMBIGUOUS";
+
+/**
+ * What the re-check at approval does, by its verdict. Only EXCEEDS returns the
+ * requisition to Over budget (ruling Q2), and not on the over-budget route, which was
+ * approved to exceed. NO_BUDGET and AMBIGUOUS are not "over budget": the approval is
+ * refused and nothing is written, on any route.
+ */
+export function approvalBudgetOutcome(verdict: BudgetVerdict, cond: string | null): ApprovalBudgetOutcome {
+  if (verdict === "NO_BUDGET") return "NO_BUDGET";
+  if (verdict === "AMBIGUOUS") return "AMBIGUOUS";
+  if (verdict === "EXCEEDS") return cond === "over_budget" ? "OK" : "RETURN";
+  return "OK";
 }
 
 export type ApprovalCommitment = "WRITE" | "SETTING_OFF" | "SETTING_NOT_SET" | "ROUTE_OFF" | "ROUTE_NOT_SET";
@@ -211,7 +224,7 @@ export function approvalCommitment(commitOnApproval: boolean | null, routeCommit
   return routeCommitsBudget ? "WRITE" : "ROUTE_OFF";
 }
 
-export type IntakeCommitment = "POST" | "ROUTE_OFF" | "HELD_IN_FINANCE" | "ROUTE_NOT_SET" | "NO_BUDGET_CODE";
+export type IntakeCommitment = "POST" | "ROUTE_OFF" | "HELD_IN_FINANCE" | "SOURCE_NOT_SET" | "ROUTE_NOT_SET" | "NO_BUDGET_CODE";
 
 /**
  * A requisition received already approved (ruling BD-10). Where the portal ledger is
@@ -224,8 +237,26 @@ export function intakeCommitment(
   routeCommitsBudget: boolean | null,
   hasBudgetCode: boolean,
 ): IntakeCommitment {
+  // Unset is not "the finance system": nobody has said where the budget is held, so
+  // intake is refused until the source is set (round 3, item h).
+  if (source == null) return "SOURCE_NOT_SET";
   if (source !== "PORTAL_LEDGER") return "HELD_IN_FINANCE";
   if (routeCommitsBudget == null) return "ROUTE_NOT_SET";
   if (!routeCommitsBudget) return "ROUTE_OFF";
   return hasBudgetCode ? "POST" : "NO_BUDGET_CODE";
+}
+
+export type UnpostedReason = "HELD_IN_FINANCE" | "ROUTE_OFF" | "SOURCE_NOT_SET" | "UNEXPLAINED";
+
+/**
+ * Why a received requisition has no commitment in the portal ledger, read from the
+ * settings in force (round 3, item h). Only the finance system as the source means
+ * "held in the finance system"; a route that does not commit the organisation's budget
+ * says so; an unset source is not the finance system.
+ */
+export function unpostedIntakeReason(source: BudgetCheckSource | null, routeCommitsBudget: boolean | null): UnpostedReason {
+  if (source == null) return "SOURCE_NOT_SET";
+  if (source === "MANUAL_ERP_ENTRY") return "HELD_IN_FINANCE";
+  if (routeCommitsBudget === false) return "ROUTE_OFF";
+  return "UNEXPLAINED";
 }

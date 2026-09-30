@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { REQ_MATRIX } from "./fixture";
+import { parseSen } from "@/lib/money";
+
 import { assessSplitting, financialYearOf, justifierFaults, splitApprovalFault, splitStateLabel, type SplitPolicy, type SplitSubject } from "./splitting";
 
-const subject = (id: string, raisedOn: string, value: number, over: Partial<SplitSubject> = {}): SplitSubject => ({
-  id, reference: id.toUpperCase(), status: "PENDING_APPROVAL", raisedOn, value,
+// Values are written in ringgit and held as exact sen, as the action converts them
+// (round 3, item f): parseSen of the decimal string, never a float.
+const subject = (id: string, raisedOn: string, value: number | string, over: Partial<SplitSubject> = {}): SplitSubject => ({
+  id, reference: id.toUpperCase(), status: "PENDING_APPROVAL", raisedOn, value: parseSen(String(value)),
   keys: { unit: "NTH", costCentre: "CC-200", accountCode: "6200200", budgetCode: "b5", contractType: null },
   ...over,
 });
@@ -22,7 +26,7 @@ describe("the anti-splitting check (FR-REQ-015)", () => {
     const r = assessSplitting(me, [subject("b", "2026-09-20", 24_000), subject("c", "2026-09-12", 1_000, { keys: { ...me.keys, unit: "CP" } })], POLICY, REQ_MATRIX);
     expect(r.state).toBe("FLAGGED");
     expect(r.related.map((x) => x.id)).toEqual(["b"]);
-    expect(r.combinedValue).toBe(48_000);
+    expect(r.combinedValue).toBe(parseSen("48000"));
     // RM24,000 and RM48,000 are both in the RM500–RM50,000 band.
     expect(r.crossesBand).toBe(false);
     const big = assessSplitting(subject("a", "2026-09-10", 30_000), [subject("b", "2026-09-20", 30_000)], POLICY, REQ_MATRIX);
@@ -77,7 +81,7 @@ describe("what the splitting check cannot assess (code review, item 3)", () => {
 
   it("adds the related values in exact sen", () => {
     const r = assessSplitting(subject("a", "2026-09-10", 0.1), [subject("b", "2026-09-11", 0.2)], POLICY, REQ_MATRIX);
-    expect(r.combinedValue).toBe(0.3);
+    expect(r.combinedValue).toBe(30n);
   });
 });
 
@@ -100,5 +104,44 @@ describe("who may justify a flagged split (ruling Q3)", () => {
   it("refuses someone who does not hold the office, and a future date", () => {
     expect(justifierFaults({ ...base, holderIds: [] })).toContain("NOT_HOLDER");
     expect(justifierFaults({ ...base, on: "2026-10-01" })).toContain("FUTURE_DATE");
+  });
+});
+
+describe("who may justify a possible split: direct holders only (ruling BD-26, round 3)", () => {
+  const base = {
+    roleCode: "HOD_CP",
+    person: { id: "h1", isActive: true },
+    requesterId: "req",
+    endorserIds: ["e1"],
+    holderIds: ["h1"],
+    delegateIds: ["d1"],
+    on: "2026-09-30",
+    today: "2026-09-30",
+  };
+  it("accepts a direct holder of the office", () => {
+    expect(justifierFaults(base)).toEqual([]);
+  });
+  it("refuses a delegate of the office, saying so", () => {
+    expect(justifierFaults({ ...base, person: { id: "d1", isActive: true } })).toEqual(["DELEGATE"]);
+  });
+  it("refuses someone who neither holds nor is delegated the office as a non-holder", () => {
+    expect(justifierFaults({ ...base, person: { id: "x", isActive: true } })).toEqual(["NOT_HOLDER"]);
+  });
+});
+
+describe("the combined value is exact sen end to end (round 3, item f)", () => {
+  it("sums values a float sum gets wrong", () => {
+    // As doubles, 0.1 + 0.2 is 0.30000000000000004 and these large amounts lose sen.
+    expect(0.1 + 0.2).not.toBe(0.3);
+    expect(90071992547409.93 + 0.01).not.toBe(90071992547409.94);
+    const r = assessSplitting(
+      subject("a", "2026-09-10", "90071992547409.93"),
+      [subject("b", "2026-09-11", "0.01"), subject("c", "2026-09-12", "0.1"), subject("d", "2026-09-13", "0.2")],
+      POLICY,
+      null,
+    );
+    expect(r.combinedValue).toBe(9007199254740993n + 1n + 10n + 20n);
+    expect(r.related.map((x) => x.value)).toEqual([1n, 10n, 20n]);
+    expect(typeof r.combinedValue).toBe("bigint");
   });
 });

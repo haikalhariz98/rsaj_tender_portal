@@ -9,6 +9,8 @@
  */
 
 import type { DecisionRecord } from "@/lib/committee/record";
+import { formatOrgDay } from "@/lib/format";
+import { compareAmounts } from "@/lib/money";
 
 import type { StepDecision } from "./types";
 
@@ -46,6 +48,7 @@ export type CitationFault =
   | "OTHER_COMMITTEE"
   | "OTHER_ACT"
   | "OTHER_AMOUNT"
+  | "CITED_ON_RETURNED_ROUTE"
   | "ALREADY_CITED";
 
 /**
@@ -59,12 +62,38 @@ export function committeeCitationFault(
   step: { committeeCode: string | null; act: string },
   requisition: { id: string; estimatedValue: string },
   citedDecisionIds: readonly string[],
+  /// Decisions cited on a route closed as returned at approval (ruling R2). They stay
+  /// with that route; the resubmitted route needs the matter tabled again.
+  citedOnReturnedRoute: readonly string[] = [],
 ): CitationFault | null {
   if (matter.requisitionId !== requisition.id) return "NOT_THIS_REQUISITION";
   if (matter.matterKind !== "REQUISITION" || matter.domain !== "requisition") return "NOT_A_REQUISITION_MATTER";
   if (matter.committeeCode !== step.committeeCode) return "OTHER_COMMITTEE";
   if (matter.act !== step.act) return "OTHER_ACT";
-  if (matter.amount != null && Number(matter.amount) !== Number(requisition.estimatedValue)) return "OTHER_AMOUNT";
+  // Exact, in sen: two amounts a float would call equal are not the same amount.
+  if (matter.amount != null && compareAmounts(matter.amount, requisition.estimatedValue) !== 0) return "OTHER_AMOUNT";
+  if (citedOnReturnedRoute.includes(matter.id)) return "CITED_ON_RETURNED_ROUTE";
   if (citedDecisionIds.includes(matter.id)) return "ALREADY_CITED";
   return null;
+}
+
+/**
+ * What a route closed as returned at approval says about the committee decisions cited
+ * on it (ruling R2): each stays with that route and cannot discharge the resubmitted
+ * one. Named from the step's snapshot — the committee as it read when cited, and the
+ * decision date. Empty for any other route.
+ */
+export function returnedRouteCitationNotes(route: {
+  returnedAtApproval: boolean;
+  steps: readonly { committeeDecisionId: string | null; decidedByName: string | null; roleLabel: string; decidedOn: Date | null }[];
+}): string[] {
+  if (!route.returnedAtApproval) return [];
+  return route.steps
+    .filter((s) => s.committeeDecisionId)
+    .map((s) => {
+      const committee = s.decidedByName?.trim() || s.roleLabel;
+      // A stored day (midnight UTC of the day recorded), read as that day.
+      const when = s.decidedOn ? ` of ${formatOrgDay(s.decidedOn, "UTC")}` : "";
+      return `The ${committee}'s decision${when} was cited on the returned route and cannot discharge this one; table the matter again.`;
+    });
 }

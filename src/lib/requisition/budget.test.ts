@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import type { BudgetCode, Movement } from "@/lib/budget/codes";
 
-import { ageDay, approvalBudgetFault, approvalCommitment, checkedDay, identityHolds, intakeCommitment, isStale, ledgerCheck, manualSnapshot, overBudgetDisposition, snapshotFromLedger, verdictFor } from "./budget";
+import { dayIn } from "@/lib/dates";
+
+import { ageDay, approvalBudgetFault, approvalBudgetOutcome, approvalCommitment, approvalRechecks, identityHolds, unpostedIntakeReason, intakeCommitment, isStale, ledgerCheck, manualSnapshot, overBudgetDisposition, snapshotFromLedger, verdictFor } from "./budget";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
 const code: BudgetCode = {
@@ -101,8 +103,9 @@ describe("the day a check was made", () => {
   it("is the organisation's day, not the UTC date", () => {
     // 07:00 on 1 October in Kuala Lumpur is still 30 September in UTC.
     const early = new Date("2026-09-30T23:00:00Z");
-    expect(checkedDay(early, "Asia/Kuala_Lumpur")).toBe("2026-10-01");
-    expect(isStale(checkedDay(early, "Asia/Kuala_Lumpur"), 14, "2026-10-15")).toBe(false);
+    // checkedDay was a bare alias of dayIn and is removed as dead (round 3, item l).
+    expect(dayIn(early, "Asia/Kuala_Lumpur")).toBe("2026-10-01");
+    expect(isStale(dayIn(early, "Asia/Kuala_Lumpur"), 14, "2026-10-15")).toBe(false);
     expect(isStale("2026-09-30", 14, "2026-10-15")).toBe(true);
   });
 });
@@ -152,7 +155,9 @@ describe("a requisition received already approved (ruling BD-10)", () => {
 
   it("says the commitment is held in the finance system where that is the source", () => {
     expect(intakeCommitment("MANUAL_ERP_ENTRY", true, true)).toBe("HELD_IN_FINANCE");
-    expect(intakeCommitment(null, true, true)).toBe("HELD_IN_FINANCE");
+    // Changed by the round-3 ruling (item h): an unset source is not the finance
+    // system. It was HELD_IN_FINANCE; it is now SOURCE_NOT_SET, and intake refuses.
+    expect(intakeCommitment(null, true, true)).toBe("SOURCE_NOT_SET");
   });
 });
 
@@ -161,5 +166,51 @@ describe("a hand-entered check's age (ruling on hand-entered staleness)", () => 
     const typedToday = { asAt: d("2026-09-10"), checkedAt: new Date("2026-09-30T02:00:00Z") };
     expect(ageDay(typedToday)).toBe("2026-09-10");
     expect(isStale(ageDay(typedToday), 14, "2026-09-30")).toBe(true);
+  });
+});
+
+describe("the budget re-check at the final approval, by source and verdict (round 3, item g)", () => {
+  it("re-checks only where the portal ledger is the source", () => {
+    expect(approvalRechecks("PORTAL_LEDGER")).toBe(true);
+    expect(approvalRechecks("MANUAL_ERP_ENTRY")).toBe(false);
+    expect(approvalRechecks(null)).toBe(false);
+  });
+  it("proceeds within budget", () => {
+    expect(approvalBudgetOutcome("WITHIN", null)).toBe("OK");
+  });
+  it("returns to Over budget only on EXCEEDS, and not on the over-budget route", () => {
+    expect(approvalBudgetOutcome("EXCEEDS", null)).toBe("RETURN");
+    expect(approvalBudgetOutcome("EXCEEDS", "over_budget")).toBe("OK");
+  });
+  it("refuses NO_BUDGET and AMBIGUOUS on any route, never as a return", () => {
+    expect(approvalBudgetOutcome("NO_BUDGET", null)).toBe("NO_BUDGET");
+    expect(approvalBudgetOutcome("AMBIGUOUS", null)).toBe("AMBIGUOUS");
+    expect(approvalBudgetOutcome("NO_BUDGET", "over_budget")).toBe("NO_BUDGET");
+    expect(approvalBudgetOutcome("AMBIGUOUS", "over_budget")).toBe("AMBIGUOUS");
+  });
+});
+
+describe("a received requisition's commitment, the added cases (round 3, item h)", () => {
+  it("refuses intake while the budget check source is unset, whatever the route", () => {
+    expect(intakeCommitment(null, false, true)).toBe("SOURCE_NOT_SET");
+    expect(intakeCommitment(null, null, false)).toBe("SOURCE_NOT_SET");
+  });
+  it("names a route that does not commit the organisation's budget apart from one held in finance", () => {
+    expect(intakeCommitment("PORTAL_LEDGER", false, true)).toBe("ROUTE_OFF");
+    expect(intakeCommitment("PORTAL_LEDGER", false, true)).not.toBe("HELD_IN_FINANCE");
+  });
+});
+
+describe("why a received requisition has no ledger commitment (round 3, item h)", () => {
+  it("is held in finance only where the finance system is the source", () => {
+    expect(unpostedIntakeReason("MANUAL_ERP_ENTRY", true)).toBe("HELD_IN_FINANCE");
+    expect(unpostedIntakeReason(null, true)).toBe("SOURCE_NOT_SET");
+  });
+  it("names a route that does not commit the organisation's budget", () => {
+    expect(unpostedIntakeReason("PORTAL_LEDGER", false)).toBe("ROUTE_OFF");
+  });
+  it("does not invent a reason the settings do not give", () => {
+    expect(unpostedIntakeReason("PORTAL_LEDGER", true)).toBe("UNEXPLAINED");
+    expect(unpostedIntakeReason("PORTAL_LEDGER", null)).toBe("UNEXPLAINED");
   });
 });

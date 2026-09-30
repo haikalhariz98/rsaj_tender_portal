@@ -103,6 +103,35 @@ export const SPLIT_KEY_LABEL: Record<SplitKey, string> = {
 
 export const DECISION_LABEL = { PENDING: "Pending", DONE: "Done", REJECTED: "Rejected" } as const;
 export const APPROVAL_STATUS_LABEL = { PENDING: "In progress", APPROVED: "Approved", REJECTED: "Rejected", RECALLED: "Recalled" } as const;
+
+/// The warning a route carries when its final approval was returned for budget (BD-24).
+export const RETURNED_AT_APPROVAL = "RETURNED_AT_APPROVAL";
+export const RETURNED_AT_APPROVAL_LABEL = "Returned at approval (budget)";
+
+/// Whether a route's stored warnings say it was closed by a budget return at approval.
+export function returnedAtApproval(warnings: unknown): boolean {
+  return Array.isArray(warnings) && warnings.some((w) => (w as { code?: unknown } | null)?.code === RETURNED_AT_APPROVAL);
+}
+
+/**
+ * The same, for a route's status as the audit trail recorded it: the trail entry of a
+ * budget return carries `returnedAtApproval`, so the History tab reads it as the
+ * record does. Only an entry that recorded the route closing RECALLED is affected.
+ */
+export function trailRouteStatusLabel(value: string, changes: readonly { field: string; after: string | null }[]): string {
+  const returned = value === "RECALLED" && changes.some((c) => c.field === "returnedAtApproval" && c.after != null && c.after !== "" && c.after !== "no" && c.after !== "false");
+  return returned ? RETURNED_AT_APPROVAL_LABEL : (APPROVAL_STATUS_LABEL[value as keyof typeof APPROVAL_STATUS_LABEL] ?? "Not recorded");
+}
+
+/**
+ * How an approval route's status reads wherever it is listed. A route closed by a
+ * budget return is stored RECALLED, but nobody recalled it: it reads "Returned at
+ * approval (budget)", never a bare "Recalled".
+ */
+export function approvalRouteLabel(status: keyof typeof APPROVAL_STATUS_LABEL | string, warnings: unknown): string {
+  if (status === "RECALLED" && returnedAtApproval(warnings)) return RETURNED_AT_APPROVAL_LABEL;
+  return APPROVAL_STATUS_LABEL[status as keyof typeof APPROVAL_STATUS_LABEL] ?? "Not recorded";
+}
 export const OPERATOR_LABEL = {
   GT: "Above the boundary — a value exactly on it stays in the lower band",
   GTE: "At or above the boundary — a value exactly on it moves to the upper band",
@@ -280,4 +309,19 @@ export const DECIDER_FAULT_TEXT: Record<DeciderFault, string> = {
   ALREADY_DISCHARGED_A_STEP: "That person has already decided another step of this route.",
   FUTURE_DATE: "A decision cannot be dated after today.",
   BEFORE_SUBMISSION: "A decision cannot be dated before the requisition was submitted.",
+};
+
+/// Why a received requisition's commitment is not in the portal ledger, as a title.
+export const UNPOSTED_TITLE: Record<"HELD_IN_FINANCE" | "ROUTE_OFF" | "SOURCE_NOT_SET" | "UNEXPLAINED", string> = {
+  HELD_IN_FINANCE: "Commitment held in the finance system, not posted in the portal ledger",
+  ROUTE_OFF: "This funding route does not commit the organisation's budget",
+  SOURCE_NOT_SET: "No commitment posted: where the budget check comes from is not set",
+  UNEXPLAINED: "No commitment posted in the portal ledger",
+};
+
+export const UNPOSTED_TEXT: Record<keyof typeof UNPOSTED_TITLE, string> = {
+  HELD_IN_FINANCE: "It was approved in the finance system, which holds its commitment. The portal's budget figures do not include it.",
+  ROUTE_OFF: "Approval on its funding route does not commit the organisation's own budget, so no commitment was posted for it.",
+  SOURCE_NOT_SET: "Nobody has said whether the budget is held in the portal ledger or the finance system, so the portal's figures may not include it. Set the source in Requisition controls.",
+  UNEXPLAINED: "The settings in force would post one, and none is on the ledger: it may have been received before they were set. The portal's figures do not include it.",
 };
