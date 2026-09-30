@@ -1,0 +1,105 @@
+import { describe, expect, it } from "vitest";
+
+import { appointmentPreview, invitationFault, resolveNameApproval, type FunderContext } from "./approval";
+import { SPEC_MATRIX, SPEC_METHODS } from "./fixture";
+import type { Method } from "./types";
+
+const ctx: FunderContext = { dal: SPEC_MATRIX, override: null, supersedes: false };
+const m = (code: string): Method => SPEC_METHODS.find((x) => x.code === code)!;
+const chain = (p: ReturnType<typeof appointmentPreview>) => p.chain.map((s) => `${s.roleCode}:${s.act}`);
+
+describe("direct appointment by value (§4.4, DAL §3.1.4.2 item 1)", () => {
+  const who = (v: number) => appointmentPreview(ctx, m("direct"), v);
+  it.each([
+    [500, "HOD"],
+    [500.01, "HODIV"],
+    [5_000, "HODIV"],
+    [5_000.01, "FD"],
+    [15_000, "FD"],
+    [15_000.01, "CEO"],
+    [300_000.01, "TBC"],
+    [3_000_000, "TBC"],
+    [3_000_000.01, "CHAIR"],
+    [5_000_000.01, "BOD"],
+  ])("RM%s is approved by %s", (v, approver) => {
+    expect(who(v).approverCode).toBe(approver);
+  });
+  it("the quotation band carries the Quotation Committee's mandatory recommendation", () => {
+    expect(chain(who(100_000))).toEqual(["QC:MR", "CEO:A"]);
+  });
+  it("above RM3M the Tender Board recommends and the Chairman approves; above RM5M the Board", () => {
+    expect(chain(who(4_000_000))).toEqual(["TBC:MR", "CHAIR:A"]);
+    expect(chain(who(6_000_000))).toEqual(["TBC:MR", "BOD:A"]);
+  });
+});
+
+describe("the D13 asymmetry is configuration, asserted and not fixed", () => {
+  it("an RM50M open tender stops at the Tender Board; an RM6M direct appointment goes to the Board", () => {
+    expect(appointmentPreview(ctx, m("open_tender"), 50_000_000).approverCode).toBe("TBC");
+    expect(appointmentPreview(ctx, m("direct"), 6_000_000).approverCode).toBe("BOD");
+  });
+});
+
+describe("approval of the name (FR-MTD-008)", () => {
+  it("selected tender: C&P proposes with a mandatory recommendation, Head of Division jointly recommends, FD recommends, CEO approves", () => {
+    const r = resolveNameApproval(ctx, m("selected_tender"), 420_000);
+    expect(r.nameState).toBe("RESOLVED");
+    expect(chain(r)).toEqual(["CP:P", "CP:MR", "HODIV:JR", "FD:R", "CEO:A"]);
+  });
+  it("selective quotation: Head of Department proposes and jointly recommends through C&P, Head of Division recommends, FD approves", () => {
+    const r = resolveNameApproval(ctx, m("selective_quotation"), 80_000);
+    expect(chain(r)).toEqual(["HOD:P", "HOD:JR", "HODIV:R", "FD:A"]);
+  });
+  it("is not asked of a method that does not require it", () => {
+    expect(resolveNameApproval(ctx, m("open_tender"), 420_000).nameState).toBe("NOT_REQUIRED");
+  });
+  it("a route with a committee step is refused with its exit, not left undischargeable", () => {
+    const withCommittee = {
+      ...SPEC_MATRIX,
+      rules: SPEC_MATRIX.rules.map((r) => (r.ruleKey === "NAME_QUOTATION" ? { ...r, recommenders: [...r.recommenders, { roleCode: "QC", act: "R" as const }] } : r)),
+    };
+    expect(resolveNameApproval({ ...ctx, dal: withCommittee }, m("selective_quotation"), 80_000).nameState).toBe("HAS_COMMITTEE_STEP");
+  });
+  it("no rule for the method's key is said, not guessed", () => {
+    const none = { ...SPEC_MATRIX, rules: SPEC_MATRIX.rules.filter((r) => r.domain !== "name_approval") };
+    expect(resolveNameApproval({ ...ctx, dal: none }, m("selected_tender"), 420_000).nameState).toBe("NO_RULE");
+  });
+});
+
+describe("the invitation gate on the name (built here, enforced by 6.5)", () => {
+  const d = new Date("2026-09-01");
+  it("a pending name approval stops invitation", () => {
+    expect(invitationFault(m("selected_tender"), [{ status: "PENDING", openedAt: d }])?.code).toBe("NAME_NOT_APPROVED");
+  });
+  it("none requested, or recalled, stops it too; refused stops it", () => {
+    expect(invitationFault(m("selected_tender"), [])?.code).toBe("NAME_NOT_REQUESTED");
+    expect(invitationFault(m("selected_tender"), [{ status: "RECALLED", openedAt: d }])?.code).toBe("NAME_NOT_REQUESTED");
+    expect(invitationFault(m("selected_tender"), [{ status: "REJECTED", openedAt: d }])?.code).toBe("NAME_REJECTED");
+  });
+  it("the latest route decides, and approval clears it", () => {
+    expect(invitationFault(m("selected_tender"), [{ status: "REJECTED", openedAt: d }, { status: "APPROVED", openedAt: new Date("2026-09-02") }])).toBeNull();
+    expect(invitationFault(m("open_tender"), [])).toBeNull();
+  });
+});
+
+describe("emergency works (FR-REQ-013)", () => {
+  it("RM12,000 routes as a direct appointment of RM12,000 does, with no post-approval step", () => {
+    const emergency = appointmentPreview(ctx, m("emergency"), 12_000);
+    const direct = appointmentPreview(ctx, m("direct"), 12_000);
+    expect(emergency.approverCode).toBe("FD");
+    expect(emergency.chain).toEqual(direct.chain);
+    expect(emergency.chain.at(-1)?.act).toBe("A");
+  });
+});
+
+describe("a method not tied to the matrix", () => {
+  it("says so rather than routing it anywhere", () => {
+    expect(appointmentPreview(ctx, m("call_off"), 12_000).state).toBe("NO_METHOD_KEY");
+    expect(appointmentPreview(ctx, null, 12_000).state).toBe("DEPENDS_ON_METHOD");
+  });
+  it("the specialist method names the technical committee (FR-REQ-014)", () => {
+    const p = appointmentPreview(ctx, m("specialist"), 40_000);
+    expect(p.committeeCode).toBe("TECH");
+    expect(m("specialist").requiresJustification).toBe(true);
+  });
+});
