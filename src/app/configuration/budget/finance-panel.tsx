@@ -1,5 +1,6 @@
 "use client";
 
+import { formDataOf } from "@/components/ui/form-submit";
 import { useState, useTransition, type ReactNode } from "react";
 
 import { DataList, type Row } from "@/components/data-list";
@@ -260,7 +261,8 @@ export function FinancePanel({
       </section>
 
       <form
-        action={(data) => {
+        onSubmit={(e) => {
+          const data = formDataOf(e);
           startTransition(async () => {
             const result = await saveFinanceSettings({ ok: false }, data);
             setState(result);

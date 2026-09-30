@@ -1,5 +1,6 @@
 "use client";
 
+import { formDataOf } from "@/components/ui/form-submit";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 
 import { AlertTriangle, PlusIcon, SaveIcon, XIcon } from "@/components/icons";
@@ -193,7 +194,7 @@ export function RecordEditor({
                 this the body has no height to scroll within and long forms are cut
                 off with no scrollbar. */}
             <form
-              action={submit}
+              onSubmit={(e) => submit(formDataOf(e))}
               style={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}
             >
               <div className="ov__head">

@@ -1,5 +1,6 @@
 "use client";
 
+import { formDataOf } from "@/components/ui/form-submit";
 import { useRef, useState, useTransition, type ReactNode } from "react";
 
 import { AlertTriangle, CheckIcon, GridIcon, SaveIcon, ShieldIcon, XIcon } from "@/components/icons";
@@ -63,7 +64,7 @@ export function ControlsPanel({
   };
 
   return (
-    <form action={submit} ref={formRef} onChange={() => setDirty(true)}>
+    <form onSubmit={(e) => submit(formDataOf(e))} ref={formRef} onChange={() => setDirty(true)}>
       <div className="stack stack--lg">
         <section className="card">
           <div className="card__head">

@@ -1,5 +1,6 @@
 "use client";
 
+import { formDataOf } from "@/components/ui/form-submit";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { AlertTriangle, ChartIcon, EyeIcon, PlusIcon, SaveIcon, XIcon } from "@/components/icons";
@@ -243,7 +244,7 @@ export function TransferBetweenCodes({
         <div className="scrim" onPointerDown={(e) => e.target === e.currentTarget && close()}>
           <div className="modal modal--md" role="dialog" aria-modal="true" aria-label="Transfer between codes">
             <form
-              action={submit}
+              onSubmit={(e) => submit(formDataOf(e))}
               style={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}
             >
               <div className="ov__head">
