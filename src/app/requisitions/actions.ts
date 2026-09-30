@@ -19,7 +19,7 @@ import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { officesHeldBy } from "@/lib/people/roster";
-import { isStale, overBudgetDisposition, type BudgetSnapshot } from "@/lib/requisition/budget";
+import { checkedDay, isStale, overBudgetDisposition, type BudgetSnapshot } from "@/lib/requisition/budget";
 import { committeeStepFrom } from "@/lib/requisition/committee-step";
 import { endorsementEntryFault, endorsementFaults } from "@/lib/requisition/endorsement";
 import { blocking, erpRefFaults, requisitionFaults, type DraftLine, type RequisitionDraft } from "@/lib/requisition/fields";
@@ -51,6 +51,7 @@ import { resolveRequisitionRoute } from "@/lib/requisition/route";
 import { assessSplitting, splitApprovalFault, type SplitSubject } from "@/lib/requisition/splitting";
 import { transitionFault, type TransitionContext } from "@/lib/requisition/status";
 import type { OrgUnitKind, RequisitionStatus } from "@/lib/requisition/types";
+import { ACT_LABEL } from "@/lib/labels";
 import { FormReader } from "@/lib/validate";
 
 /**
@@ -738,7 +739,7 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
     if (!last) return { ok: false, message: "Run the budget check before submitting." };
     let check: BudgetSnapshot & { budgetCodeCode: string | null } | null = null;
     let verdict = last.verdict;
-    if (isStale(storedDay(last.checkedAt), policy.budgetRecheckDays, todayStr)) {
+    if (isStale(checkedDay(last.checkedAt, l.org.timeZone!), policy.budgetRecheckDays, todayStr)) {
       if (controls.budgetCheckSource !== "PORTAL_LEDGER") {
         return {
           ok: false,
@@ -875,7 +876,7 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
       diffFields(null, {
         matrix: dal.label,
         rule: rule.labelEn,
-        route: resolved.resolution.chain.map((s) => `${roleLabel(s.roleCode)} (${s.act})`).join(" → "),
+        route: resolved.resolution.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "),
         overBudget: disposition.cond === "over_budget",
         fundingOverrideApplied: resolved.fundingOverrideApplied,
         splitState: split.state,

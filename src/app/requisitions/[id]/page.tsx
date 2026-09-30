@@ -24,7 +24,7 @@ import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { officesHeldBy } from "@/lib/people/roster";
-import { identityHolds, isStale, overBudgetDisposition, type BudgetSnapshot } from "@/lib/requisition/budget";
+import { checkedDay, identityHolds, isStale, overBudgetDisposition, type BudgetSnapshot } from "@/lib/requisition/budget";
 import { commitmentFault } from "@/lib/requisition/commitment";
 import { endorsementFaults, endorsersFor } from "@/lib/requisition/endorsement";
 import { blocking, requisitionFaults } from "@/lib/requisition/fields";
@@ -37,7 +37,9 @@ import {
   endorsementFaultText,
   fieldFaultText,
   fundingFaultText,
+  knownFieldName,
   OPERATOR_LABEL,
+  POSTURE_LABEL,
   SOURCE_LABEL,
   SPLIT_KEY_LABEL,
   STATUS_LABEL,
@@ -150,11 +152,11 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
 
   // Submission, as far as it can be judged before the lock: the same pure checks.
   let submitBlocker: string | null = null;
-  let overBudget: { invocation: boolean; controlNotSet: boolean; auto: boolean } | null = null;
+  let overBudget: { invocation: boolean; controlNotSet: boolean; auto: boolean; ifRechecked?: boolean } | null = null;
   let preview: ReturnType<typeof resolveRequisitionRoute> | null = null;
   let previewRoles: Record<string, { nameEn: string }> = {};
   if (PRE_SUBMIT.includes(r.status)) {
-    const stale = lastCheck && today ? isStale(storedDay(lastCheck.checkedAt), policy.budgetRecheckDays, today) : false;
+    const stale = lastCheck && today ? isStale(checkedDay(lastCheck.checkedAt, l.org.timeZone!), policy.budgetRecheckDays, today) : false;
     if (!today) submitBlocker = transitionFaultText({ code: "TIME_ZONE_UNSET" });
     else if (fieldFaults.length > 0) submitBlocker = fieldFaultText(fieldFaults[0]);
     else if (gate.faults.length > 0) submitBlocker = fundingFaultText(gate.faults[0]);
@@ -166,6 +168,12 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
         submitBlocker ??= d.fault === "NO_BUDGET" ? "No budget to check against on the budget code." : "The account is not the budget code's, so the budget line is unclear.";
       }
       if (lastCheck.verdict === "EXCEEDS") overBudget = { invocation: !d.proceed, controlNotSet: d.controlNotSet, auto: d.proceed };
+      // A stale check is re-run on submission and may then find it over budget: offer
+      // the invocation up front, so that refusal is never a dead end. It is ignored
+      // unless the fresh check is over budget.
+      else if (stale && controls.budgetCheckSource === "PORTAL_LEDGER" && controls.availabilityCheck !== "advisory") {
+        overBudget = { invocation: true, controlNotSet: controls.availabilityCheck !== "blocking", auto: false, ifRechecked: true };
+      }
     }
     const dal = await loadIssue(ORGANISATION_CODE, on, undefined, null);
     if (!dal) submitBlocker ??= "No approval matrix is in force.";
@@ -649,7 +657,7 @@ function BudgetPanel({
       approvedAccount: sen(c.approvedAccount),
       balanceAsAt: sen(c.balanceAsAt),
     } as BudgetSnapshot);
-  const stale = c && l.org.today ? isStale(storedDay(c.checkedAt), recheckDays, l.org.today) : false;
+  const stale = c && l.org.today ? isStale(checkedDay(c.checkedAt, l.org.timeZone!), recheckDays, l.org.today) : false;
   const settings: { label: string; value: React.ReactNode }[] = [
     {
       label: "Check source",
@@ -872,9 +880,9 @@ function ApprovalPanel({
                   label: "Funder's rules",
                   value: inst.fundingOverrideApplied
                     ? `Superseded the approval matrix: ${inst.overrideMatrixLabel ?? "a rule set no longer on file"}`
-                    : r.fundingSupersedesAuthority
+                    : warnings.some((w) => w.code === "GOV_OVERRIDE")
                       ? "The funder's rules supersede on this route, but none applied — see the warnings"
-                      : "Do not apply on this funding route",
+                      : "Did not apply when it was submitted",
                 },
                 {
                   label: "Over budget",
@@ -1209,6 +1217,7 @@ function HistoryPanel({
     if (field === "decision") return DECISION_LABEL[value as keyof typeof DECISION_LABEL] ?? value;
     if (field === "tier") return TIER_LABEL[value as OrgUnitKind] ?? value;
     if (field === "splitState") return splitStateLabel(value as "CLEAR").label;
+    if (field === "fundingPosture") return POSTURE_LABEL[value] ?? "Not recorded";
     if (field === "origin") return value === "EXTERNAL" ? "Received from the finance system" : "Raised in the portal";
     if (field === "act") return ACT_LABEL[value] ?? value;
     if (field === "cond") return condLabel(value);
@@ -1248,7 +1257,7 @@ function HistoryPanel({
                 <ul className="text-[12.5px] break-words text-ink-3">
                   {e.changes.map((ch) => (
                     <li key={ch.field}>
-                      {fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{read(ch.field, ch.before)} → </>}
+                      {knownFieldName(ch.field) ?? fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{read(ch.field, ch.before)} → </>}
                       <span className="text-ink-2">{read(ch.field, e.action === "DELETE" ? ch.before : ch.after)}</span>
                     </li>
                   ))}

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { BudgetCode, Movement } from "@/lib/budget/codes";
 
-import { identityHolds, isStale, ledgerCheck, manualSnapshot, overBudgetDisposition, snapshotFromLedger, verdictFor } from "./budget";
+import { checkedDay, identityHolds, isStale, ledgerCheck, manualSnapshot, overBudgetDisposition, snapshotFromLedger, verdictFor } from "./budget";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
 const code: BudgetCode = {
@@ -94,5 +94,15 @@ describe("over budget (FR-REQ-008, ruling OD-6)", () => {
 
   it("routes a requisition within budget by its band", () => {
     expect(overBudgetDisposition("WITHIN", null, false)).toMatchObject({ proceed: true, cond: null });
+  });
+});
+
+describe("the day a check was made", () => {
+  it("is the organisation's day, not the UTC date", () => {
+    // 07:00 on 1 October in Kuala Lumpur is still 30 September in UTC.
+    const early = new Date("2026-09-30T23:00:00Z");
+    expect(checkedDay(early, "Asia/Kuala_Lumpur")).toBe("2026-10-01");
+    expect(isStale(checkedDay(early, "Asia/Kuala_Lumpur"), 14, "2026-10-15")).toBe(false);
+    expect(isStale("2026-09-30", 14, "2026-10-15")).toBe(true);
   });
 });

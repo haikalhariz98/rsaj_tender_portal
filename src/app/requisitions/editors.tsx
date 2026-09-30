@@ -183,14 +183,16 @@ export function SubmitDrawer({
   id: string;
   blocker: string | null;
   /// Where the latest check is over budget: whether it needs the route invoked, and whether the control is set.
-  overBudget: { invocation: boolean; controlNotSet: boolean; auto: boolean } | null;
+  overBudget: { invocation: boolean; controlNotSet: boolean; auto: boolean; ifRechecked?: boolean } | null;
 }) {
   if (blocker) return <Blocked label="Submit for approval" reason={blocker} primary />;
   const fields: Field[] = [hidden("id")];
   if (overBudget?.invocation) {
     fields.push({
       kind: "note",
-      text: overBudget.controlNotSet
+      text: overBudget.ifRechecked
+        ? "The last budget check is stale and is re-run on submission. If the fresh check finds it over budget, it proceeds only if you invoke the over-budget route here; otherwise the switch is ignored."
+        : overBudget.controlNotSet
         ? "Over budget, and the availability check is not set. It proceeds only if you invoke the over-budget route, which sends it to the over-budget approvers — never the band route."
         : "Over budget, and the availability check blocks it. It proceeds only if you invoke the over-budget route, which sends it to the over-budget approvers.",
     });

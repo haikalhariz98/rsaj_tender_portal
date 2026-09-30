@@ -109,6 +109,17 @@ const FIELD_NAME: Record<string, string> = {
   erpNoteNo: "Requisition note no.",
 };
 
+/// A requisition field's own name where it has one, for the trail.
+export function knownFieldName(field: string): string | null {
+  return FIELD_NAME[field] ?? FIELD_NAME[field.replace(/Id$/, "Id").replace(/Code$/, "Code")] ?? null;
+}
+
+export const POSTURE_LABEL: Record<string, string> = {
+  PROCURES: "The organisation procures",
+  ROUTE_SET_EXTERNALLY: "An external body sets the route",
+  RECORDS_ONLY: "Records only: the organisation does not procure",
+};
+
 export function fieldName(field: string): string {
   const line = /^lines\.(\d+)\./.exec(field);
   if (line) return `Line ${Number(line[1]) + 1}`;

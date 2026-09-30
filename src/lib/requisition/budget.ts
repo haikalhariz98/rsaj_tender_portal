@@ -9,6 +9,7 @@
  * are stored exactly as typed.
  */
 
+import { dayIn } from "@/lib/dates";
 import { inForceOn } from "@/lib/effective";
 import { figuresFor, type BudgetCode, type Movement } from "@/lib/budget/codes";
 import { addSen, compareSen, subtractSen, type Sen } from "@/lib/money";
@@ -131,6 +132,15 @@ export function manualSnapshot(
  * Whether a check is too old to submit on. `days` null: nobody has set a re-check
  * window, so a check never goes stale — and the screen says that is why.
  */
+/**
+ * The organisation's day a check was made on. `checkedAt` is an instant: its UTC date
+ * would make a check made early in the morning in the organisation's zone a day older
+ * than it is. Only called once the zone is known.
+ */
+export function checkedDay(checkedAt: Date, timeZone: string): string {
+  return dayIn(checkedAt, timeZone);
+}
+
 export function isStale(checkedOn: string, days: number | null, today: string): boolean {
   if (days == null) return false;
   return daysBetween(checkedOn, today) > days;
