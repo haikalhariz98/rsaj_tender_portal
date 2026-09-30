@@ -52,6 +52,17 @@ async function wipe() {
   const org = await organisation();
   const demo = { id: { startsWith: P } };
 
+  // Requisitions first: an approval step may cite a committee decision.
+  await db.approvalStep.deleteMany({ where: demo });
+  await db.approvalInstance.deleteMany({ where: demo });
+  await db.requisitionSplitCheck.deleteMany({ where: demo });
+  await db.requisitionBudgetCheck.deleteMany({ where: demo });
+  await db.requisitionEndorsement.deleteMany({ where: demo });
+  await db.requisitionLine.deleteMany({ where: demo });
+  await db.committeeDecision.updateMany({ where: demo, data: { requisitionId: null } });
+  await db.requisition.deleteMany({ where: demo });
+  await db.requisitionPolicy.deleteMany({ where: demo });
+
   await db.vote.deleteMany({ where: demo });
   await db.decisionRecusal.deleteMany({ where: demo });
   // A matter may depend on another: clear the links before removing either.
@@ -478,6 +489,8 @@ async function load() {
       direction: "two_way",
       schedule: "nightly",
       varianceTolerance: "500.00",
+      // Invented, like every demo setting: requisition checks read the portal ledger.
+      budgetCheckSource: "PORTAL_LEDGER",
     },
   });
 
@@ -602,7 +615,7 @@ async function load() {
     data: [
       { id: `${P}fr1`, organisationId, code: "opex", nameEn: "Operating budget", trigger: "Approved requisition", governingSource: "Demo policy 3.1", provenance: "STATED", sortOrder: 1 },
       { id: `${P}fr2`, organisationId, code: "capex", nameEn: "Capital budget", trigger: "Capital allocation", governingSource: "Demo policy 3.2", provenance: "STATED", sortOrder: 2 },
-      { id: `${P}fr3`, organisationId, code: "funder_led", nameEn: "Funder sets the route", routeDecidedExternally: true, supersedesAuthority: true, trigger: "Funder's execution letter", provenance: "OBSERVED", sortOrder: 3 },
+      { id: `${P}fr3`, organisationId, code: "funder_led", nameEn: "Funder sets the route", routeDecidedExternally: true, supersedesAuthority: true, requiresExternalAuthorityRef: true, externalAuthorityRefLabel: "Funder execution letter", trigger: "Funder's execution letter", provenance: "OBSERVED", sortOrder: 3 },
       { id: `${P}fr4`, organisationId, code: "supervision", nameEn: "Supervision only", organisationProcures: false, supersedesAuthority: true, trigger: "Application by letter", provenance: "OBSERVED", sortOrder: 4 },
     ],
   });
@@ -659,10 +672,359 @@ async function load() {
   });
 
   // The minuted sitting carries the register frozen as it stood, as minuting writes it.
-  await snapshotMinuted([`${P}mt2`]);
+  await loadRequisitions(organisationId, from);
+
+  await snapshotMinuted([`${P}mt2`, `${P}mt5`]);
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
   console.log("Remove it with: npm run demo:wipe");
+}
+
+/**
+ * Requisitions (6.1): a department with a section, the requisition bands, the
+ * controls, and one requisition in each state worth seeing. Invented throughout.
+ *
+ * Every stored figure and snapshot is what the portal's own rules would have written
+ * on the day: budget checks are the ledger on their date, split checks the policy
+ * applied to the requisitions that existed then, routes the demo matrix resolved.
+ * The head of the Northern Region endorses at the department tier, and the ruling
+ * that nobody decides a requisition they endorsed means the department's approval
+ * step is decided by his deputy under a delegation — the conflict the plan records.
+ */
+async function loadRequisitions(organisationId: string, from: Date) {
+  const REQ = (n: number) => `DEMO/REQ/${String(n).padStart(4, "0")}/2026`;
+
+  await db.person.createMany({
+    data: [
+      { id: `${P}p9`, organisationId, staffNo: "D009", name: "Imran Hakim", email: "imran.hakim@demo.invalid", jobTitle: "Head, Northern Region", jobTitleMs: "Ketua Wilayah Utara", authorityLevel: "Head of Department", department: "Northern Region" },
+      { id: `${P}p10`, organisationId, staffNo: "D010", name: "Lim Kok Seng", email: "kokseng.lim@demo.invalid", jobTitle: "Section Head, Maintenance", jobTitleMs: "Ketua Seksyen Penyelenggaraan", authorityLevel: "Section", department: "Northern Region" },
+      { id: `${P}p11`, organisationId, staffNo: "D011", name: "Nurul Izzah Kamal", email: "nurul.izzah@demo.invalid", jobTitle: "Maintenance Engineer", jobTitleMs: "Jurutera Penyelenggaraan", authorityLevel: "Officer", department: "Northern Region" },
+      { id: `${P}p12`, organisationId, staffNo: "D012", name: "Suresh Pillai", email: "suresh.pillai@demo.invalid", jobTitle: "Deputy Head, Northern Region", jobTitleMs: "Timbalan Ketua Wilayah Utara", authorityLevel: "Head of Department", department: "Northern Region" },
+    ],
+  });
+
+  // The Northern Region's head changed in July; the section is new.
+  await db.orgUnit.update({ where: { id: `${P}u5` }, data: { effectiveTo: day("2026-07-01") } });
+  await db.orgUnit.createMany({
+    data: [
+      { id: `${P}u7`, organisationId, code: "NTH", nameEn: "Northern Region", kind: "DEPARTMENT", parentCode: "OPS", costCentreCode: "CC-200", headPersonId: `${P}p9`, provenance: "STATED", sortOrder: 5, effectiveFrom: day("2026-07-01") },
+      { id: `${P}u6`, organisationId, code: "NTH-MNT", nameEn: "Maintenance Section", nameMs: "Seksyen Penyelenggaraan", kind: "SECTION", parentCode: "NTH", costCentreCode: "CC-200", headPersonId: `${P}p10`, provenance: "OBSERVED", sortOrder: 6, effectiveFrom: from },
+    ],
+  });
+
+  await db.authorityRole.createMany({
+    data: [
+      { id: `${P}r9`, organisationId, code: "DEPT_HEAD", nameEn: "Head of Department", nameMs: "Ketua Jabatan", workspace: "Internal", authorityLevel: "Head of Department", escalatesToCode: "DIV_HEAD", sortOrder: 9 },
+      { id: `${P}r10`, organisationId, code: "DIV_HEAD", nameEn: "Head of Division", nameMs: "Ketua Bahagian", workspace: "Internal", authorityLevel: "Head of Division", escalatesToCode: "FD", sortOrder: 10 },
+    ],
+  });
+  await db.roleAssignment.createMany({
+    data: [
+      { id: `${P}a5`, personId: `${P}p6`, roleCode: "DEPT_HEAD", scope: "NTH", effectiveFrom: from, effectiveTo: day("2026-07-01") },
+      { id: `${P}a6`, personId: `${P}p9`, roleCode: "DEPT_HEAD", scope: "NTH", effectiveFrom: day("2026-07-01") },
+      { id: `${P}a7`, personId: `${P}p7`, roleCode: "DIV_HEAD", scope: "OPS", effectiveFrom: from },
+    ],
+  });
+  await db.delegation.createMany({
+    data: [
+      {
+        id: `${P}dg3`, organisationId, fromPersonId: `${P}p9`, toPersonId: `${P}p12`, roleCode: "DEPT_HEAD", capabilityCodes: [], valueCeiling: "50000.00",
+        reason: "The head endorses the region's requisitions, so his deputy decides the department's approval step",
+        effectiveFrom: day("2026-07-15"), effectiveTo: day("2027-01-01"), provenance: "ASSUMED",
+      },
+      {
+        id: `${P}dg4`, organisationId, fromPersonId: `${P}p6`, toPersonId: `${P}p12`, roleCode: "DEPT_HEAD", capabilityCodes: [], valueCeiling: "50000.00",
+        reason: "As above, under the previous head", effectiveFrom: day("2026-05-01"), effectiveTo: day("2026-06-01"), provenance: "ASSUMED",
+      },
+    ],
+  });
+
+  // The requisition bands, on the demo issue. They do not follow the boundary switch.
+  const band = { authorityMatrixId: `${P}mx1`, domain: "requisition", followsBoundarySwitch: false };
+  await db.authorityRule.createMany({
+    data: [
+      { id: `${P}rule5`, ...band, ruleKey: "demo.requisition.1", maxValue: "1000", labelEn: "Requisition, up to RM1,000", approverCode: "DEPT_HEAD", clause: "DEMO 3.1(a)", sortOrder: 5 },
+      { id: `${P}rule6`, ...band, ruleKey: "demo.requisition.2", minValue: "1000", maxValue: "40000", labelEn: "Requisition, RM1,000 to RM40,000", approverCode: "DIV_HEAD", clause: "DEMO 3.1(b)", sortOrder: 6 },
+      { id: `${P}rule7`, ...band, ruleKey: "demo.requisition.3", minValue: "40000", maxValue: "250000", labelEn: "Requisition, RM40,000 to RM250,000", proposerCode: "DEPT_HEAD", approverCode: "FD", clause: "DEMO 3.1(c)", sortOrder: 7 },
+      { id: `${P}rule8`, ...band, ruleKey: "demo.requisition.4", minValue: "250000", labelEn: "Requisition, above RM250,000", proposerCode: "DEPT_HEAD", approverCode: "CEO", clause: "DEMO 3.1(d)", sortOrder: 8 },
+      { id: `${P}rule9`, ...band, ruleKey: "demo.requisition.over_budget", cond: "over_budget", labelEn: "Requisition over budget", approverCode: "BOARD", committeeCode: "BOARD", committeeAct: "A", clause: "DEMO 3.2", sortOrder: 9 },
+    ],
+  });
+  await db.authorityRuleStep.createMany({
+    data: [
+      { id: `${P}st4`, authorityRuleId: `${P}rule6`, roleCode: "DEPT_HEAD", act: "R", sequence: 1 },
+      { id: `${P}st5`, authorityRuleId: `${P}rule7`, roleCode: "DIV_HEAD", act: "R", sequence: 1 },
+      { id: `${P}st6`, authorityRuleId: `${P}rule8`, roleCode: "DIV_HEAD", act: "R", sequence: 1 },
+      { id: `${P}st7`, authorityRuleId: `${P}rule8`, roleCode: "FD", act: "MR", sequence: 2 },
+      { id: `${P}st8`, authorityRuleId: `${P}rule9`, roleCode: "CEO", act: "MR", sequence: 1 },
+    ],
+  });
+
+  // A funder's rule set for the funder-led route, issued and empty (OQ-06).
+  await db.authorityMatrix.create({
+    data: {
+      id: `${P}mx2`, organisationId, label: "Demo funder's rules, issue 1", fundingRouteCode: "funder_led", effectiveFrom: day("2026-01-01"), issuedAt: day("2026-01-01"),
+      boundaryValue: "300000", boundaryInclusive: true, quotationFloor: "15000", tenderFloor: "300000", requisitionBoundary: "50000", currency: "MYR",
+    },
+  });
+
+  await db.codeFormat.createMany({
+    data: [
+      { id: `${P}f3`, organisationId, key: "erp_requisition_no", pattern: "XR\\d{10}", example: "XR2026000101", description: "XR and ten digits, running on across years.", provenance: "ASSUMED" },
+      { id: `${P}f4`, organisationId, key: "erp_note_no", pattern: "RN/\\d{4}/\\d{4}", example: "RN/2026/0101", description: "RN, the year, four digits.", provenance: "ASSUMED" },
+    ],
+  });
+  await db.requisitionPolicy.create({
+    data: {
+      id: `${P}rp1`, organisationId, splittingWindowDays: 45, splittingMatchOn: ["unit", "accountCode"], splittingAggregateAcrossYear: null,
+      budgetRecheckDays: 14, endorsementTiers: ["SECTION", "DEPARTMENT"], erpReferenceRequired: true, provenance: "ASSUMED",
+      notes: "Invented demo controls. Whether year aggregation applies is deliberately left unset.",
+    },
+  });
+  await db.numberingSeries.update({ where: { id: `${P}n1` }, data: { nextSerial: 25 } });
+
+  await db.budgetCode.createMany({
+    data: [
+      { id: `${P}bcode5`, organisationId, code: "OPX26-031", descriptionEn: "Northern network repairs", type: "Operating", owningUnitCode: "NTH", accountCode: "6200200", holderPersonId: `${P}p9`, effectiveFrom: day("2026-01-01"), effectiveTo: day("2027-01-01") },
+      { id: `${P}bcode6`, organisationId, code: "OPX26-040", descriptionEn: "Northern consumables", type: "Operating", owningUnitCode: "NTH", accountCode: "6100100", effectiveFrom: day("2026-01-01"), effectiveTo: day("2027-01-01") },
+      { id: `${P}bcode7`, organisationId, code: "CAP26-017", descriptionEn: "Northern standby power", type: "Capital", owningUnitCode: "NTH", accountCode: "7300300", effectiveFrom: day("2026-01-01"), effectiveTo: day("2027-01-01") },
+    ],
+  });
+  await db.budgetMovement.createMany({
+    data: [
+      { id: `${P}bm11`, budgetCodeId: `${P}bcode5`, kind: "ORIGINAL", amount: "120000.00", occurredOn: day("2026-01-01"), reference: "BR26-031" },
+      { id: `${P}bm15`, budgetCodeId: `${P}bcode5`, kind: "COMMITMENT", amount: "70000.00", occurredOn: day("2026-03-10"), reference: "DEMO/REQ/0009/2026", description: "Valve replacement" },
+      { id: `${P}bm16`, budgetCodeId: `${P}bcode6`, kind: "ORIGINAL", amount: "40000.00", occurredOn: day("2026-01-01"), reference: "BR26-040" },
+      { id: `${P}bm17`, budgetCodeId: `${P}bcode7`, kind: "ORIGINAL", amount: "45000.00", occurredOn: day("2026-01-01"), reference: "BR26-017" },
+      // Commitments written when rq7, rq9 and rq12 were approved.
+      { id: `${P}bm12`, budgetCodeId: `${P}bcode2`, kind: "COMMITMENT", amount: "18500.00", occurredOn: day("2026-08-20"), reference: REQ(19), description: "Chlorine dosing pump spares" },
+      { id: `${P}bm14`, budgetCodeId: `${P}bcode1`, kind: "COMMITMENT", amount: "800.00", occurredOn: day("2026-05-20"), reference: REQ(21), description: "Inspection of the developer's pipeline" },
+      { id: `${P}bm13`, budgetCodeId: `${P}bcode7`, kind: "COMMITMENT", amount: "62000.00", occurredOn: day("2026-08-27"), reference: REQ(24), description: "Standby generator, Bukit Demo pump house" },
+    ],
+  });
+
+  // The Board, which approves an over-budget requisition, and the sitting that did.
+  await db.committee.create({
+    data: {
+      id: `${P}c3`, organisationId, code: "BOARD", nameEn: "Board of Directors", nameMs: "Lembaga Pengarah", mandate: "Approves requisitions over budget.",
+      governingSource: "Demo constitution cl. 2", action: "APPROVES", quorum: 2, quorumProvenance: "ASSUMED", compositionProvenance: "ASSUMED",
+      secretariatRoleCode: "HOD_CP", votingRule: "SIMPLE_MAJORITY", votingRuleProvenance: "ASSUMED",
+    },
+  });
+  await db.committeeMember.createMany({
+    data: [
+      { id: `${P}m8`, committeeId: `${P}c3`, seatRoleCode: "CEO", position: "CHAIRMAN", provenance: "ASSUMED", effectiveFrom: from },
+      { id: `${P}m9`, committeeId: `${P}c3`, personId: `${P}p7`, position: "MEMBER", provenance: "ASSUMED", effectiveFrom: from },
+      { id: `${P}m10`, committeeId: `${P}c3`, personId: `${P}p3`, position: "SECRETARY", provenance: "ASSUMED", effectiveFrom: from },
+    ],
+  });
+  await db.meeting.create({
+    data: {
+      id: `${P}mt5`, committeeId: `${P}c3`, reference: "DEMO/BOD/3/2026", meetingDate: day("2026-08-27"), status: "MINUTED", minutedAt: day("2026-08-28"),
+      agenda: "Over-budget capital requisition for standby power.", minutes: "The Board considered the over-budget requisition for a standby generator with the Chief Executive's mandatory recommendation, and approved it.",
+    },
+  });
+  await db.meetingAttendance.createMany({
+    data: [
+      { id: `${P}at10`, meetingId: `${P}mt5`, personId: `${P}p1`, attended: true },
+      { id: `${P}at11`, meetingId: `${P}mt5`, personId: `${P}p7`, attended: true },
+      { id: `${P}at12`, meetingId: `${P}mt5`, personId: `${P}p3`, attended: true },
+    ],
+  });
+
+  // --------------------------------------------------------------- the requisitions
+  const base = {
+    organisationId, origin: "PORTAL" as const, requestingUnitCode: "NTH", sectionUnitCode: "NTH-MNT", requestingPersonId: `${P}p11`,
+    costCentreCode: "CC-200", placeOfDelivery: "Northern Works Depot", siteCode: "NTH-WKS",
+  };
+  const erp = (n: number) => ({ erpRequisitionNo: `XR2026000${n}`, erpNoteNo: `RN/2026/0${n}`, erpRefSource: "MANUAL" as const, erpRefRecordedAt: day("2026-06-01") });
+  const route = (code: string, posture: string, supersedes: boolean, sourcing = true) => ({
+    fundingRouteCode: code, fundingSupersedesAuthority: supersedes, sourcingPermitted: sourcing, fundingPosture: posture,
+  });
+  const reqs = [
+    { id: 1, n: 13, status: "DRAFT", title: "Pressure gauges for the northern reservoirs", value: "12000.00", account: "6200200", code: 5, raised: "2026-09-28", required: "2026-11-30", route: { fundingRouteCode: "opex" },
+      lines: [["Pressure gauge, 0–16 bar", "5000.00"], ["Installation", "4500.00"]], justification: "Gauges at three reservoirs read out of tolerance.", need: "Accurate readings for the night-flow survey." },
+    { id: 2, n: 14, status: "ENDORSED", title: "Road reinstatement after the Jalan Demo leak", value: "8400.00", account: "6200200", code: 5, raised: "2026-09-25", required: "2026-10-31", route: { fundingRouteCode: "opex" },
+      lines: [["Reinstatement, 40 square metres", "8400.00"]], justification: "The council requires reinstatement within 30 days.", need: "Reinstate the carriageway over the repaired main." },
+    { id: 3, n: 15, status: "PENDING_APPROVAL", title: "Replacement of the Bukit Demo booster pump", value: "38000.00", account: "6200200", code: 5, raised: "2026-07-20", required: "2026-10-15", route: route("opex", "PROCURES", false), erp: 131,
+      lines: [["Booster pump, 15 kW", "31000.00"], ["Removal and installation", "7000.00"]], justification: "The pump has failed twice this quarter.", need: "Restore pressure to the upper zone." },
+    { id: 4, n: 16, status: "PENDING_APPROVAL", title: "Treatment chemicals for the northern plants", value: "55000.00", account: "6100100", code: 6, raised: "2026-09-16", required: "2026-10-20", route: route("opex", "PROCURES", false), erp: 140,
+      lines: [["Aluminium sulphate, 20 tonnes", "41000.00"], ["Polymer, 2 tonnes", "14000.00"]], justification: "Raw water turbidity is up after the monsoon.", need: "Six weeks of treatment chemicals." },
+    { id: 5, n: 17, status: "PENDING_APPROVAL", title: "Valve exercising, zone A", value: "24000.00", account: "6200200", code: 5, raised: "2026-09-12", required: "2026-11-15", route: route("opex", "PROCURES", false), erp: 145,
+      lines: [["Valve exercising, 60 valves", "24000.00"]], justification: "Zone A valves were last exercised in 2023.", need: "Isolation that works when the next main bursts." },
+    { id: 6, n: 18, status: "ENDORSED", title: "Valve exercising, zone B", value: "24000.00", account: "6200200", code: 5, raised: "2026-09-22", required: "2026-11-30", route: { fundingRouteCode: "opex" },
+      lines: [["Valve exercising, 60 valves", "24000.00"]], justification: "Zone B valves were last exercised in 2023.", need: "Isolation that works when the next main bursts." },
+    { id: 7, n: 19, status: "APPROVED", title: "Chlorine dosing pump spares", value: "18500.00", account: "6100100", code: 2, raised: "2026-07-25", required: "2026-09-30", route: route("opex", "PROCURES", false), erp: 119,
+      lines: [["Diaphragm kits", "11000.00"], ["Check valves", "7500.00"]], justification: "Two dosing pumps are running without spares.", need: "Spares on the shelf for both plants." },
+    { id: 8, n: 20, status: "REGISTERED", title: "Rural supply extension, Kampung Demo", value: "120000.00", account: "7300300", code: 1, raised: "2026-09-18", required: "2027-03-31", route: { fundingRouteCode: "funder_led" }, erp: 158,
+      lines: [["Pipe laying, 1.2 km", "120000.00"]], justification: "The funder has approved the extension in principle.", need: "Treated water to 60 households." },
+    { id: 9, n: 21, status: "APPROVED", title: "Inspection of the developer's pipeline", value: "800.00", account: "7300300", code: 1, raised: "2026-05-10", required: "2026-06-15", route: route("supervision", "RECORDS_ONLY", true, false), erp: 108,
+      lines: [["Inspection and test witnessing", "800.00"]], justification: "A developer's pipeline is to be handed over.", need: "Inspect and witness the pressure test before acceptance." },
+    { id: 10, n: 22, status: "APPROVED", origin: "EXTERNAL", title: "Meter reading handsets", value: "15000.00", account: "6100100", code: null, raised: "2026-09-25", required: "2026-10-31", route: route("opex", "PROCURES", false), erp: 150,
+      lines: [["Handheld meter reading device", "15000.00"]], justification: "Received from the finance system.", need: "Replace failed handsets." },
+    { id: 11, n: 23, status: "CANCELLED", title: "Fencing at the Demo tank", value: "6000.00", account: "6200200", code: 5, raised: "2026-08-02", required: "2026-09-30", route: { fundingRouteCode: "opex" },
+      lines: [["Chain-link fencing", "6000.00"]], justification: "Vandalism at the tank site.", need: "Secure the site.", cancelReason: "The landowner has fenced the site at his own cost." },
+    { id: 12, n: 24, status: "APPROVED", title: "Standby generator, Bukit Demo pump house", value: "62000.00", account: "7300300", code: 7, raised: "2026-07-01", required: "2026-10-01", route: route("capex", "PROCURES", false), erp: 120,
+      lines: [["Standby generator, 100 kVA", "54000.00"], ["Changeover panel", "8000.00"]], justification: "Power cuts stop the pump house for hours at a time.", need: "Keep the upper zone supplied through outages." },
+  ] as const;
+
+  for (const r of reqs) {
+    const x = r as typeof r & { erp?: number; origin?: "EXTERNAL"; cancelReason?: string };
+    await db.requisition.create({
+      data: {
+        ...base,
+        id: `${P}rq${x.id}`,
+        reference: REQ(x.n),
+        origin: x.origin ?? "PORTAL",
+        ...(x.erp ? erp(x.erp) : {}),
+        title: x.title,
+        justification: x.justification,
+        needStatement: x.need,
+        accountCode: x.account,
+        budgetCodeId: x.code ? `${P}bcode${x.code}` : null,
+        dateRequired: day(x.required),
+        estimatedValue: x.value,
+        raisedOn: day(x.raised),
+        status: x.status,
+        cancelReason: x.cancelReason ?? "",
+        ...x.route,
+        ...(x.id === 7 ? { commitmentMovementId: `${P}bm12` } : x.id === 9 ? { commitmentMovementId: `${P}bm14` } : x.id === 12 ? { commitmentMovementId: `${P}bm13` } : {}),
+        lines: { create: x.lines.map(([description, amount], i) => ({ id: `${P}rq${x.id}l${i + 1}`, lineNo: i + 1, description, estimatedAmount: amount })) },
+      },
+    });
+  }
+
+  // Endorsements: the section head, then the department head, as they were on the day.
+  const endorse = (rq: number, sectionOn: string, deptOn: string, deptHead = `${P}p9`) => [
+    { id: `${P}en${rq}a`, requisitionId: `${P}rq${rq}`, tier: "SECTION" as const, unitCode: "NTH-MNT", personId: `${P}p10`, endorsedOn: day(sectionOn) },
+    { id: `${P}en${rq}b`, requisitionId: `${P}rq${rq}`, tier: "DEPARTMENT" as const, unitCode: "NTH", personId: deptHead, endorsedOn: day(deptOn) },
+  ];
+  await db.requisitionEndorsement.createMany({
+    data: [
+      ...endorse(2, "2026-09-26", "2026-09-27"),
+      ...endorse(3, "2026-07-21", "2026-07-22"),
+      ...endorse(4, "2026-09-16", "2026-09-17"),
+      ...endorse(5, "2026-09-13", "2026-09-14"),
+      ...endorse(6, "2026-09-23", "2026-09-24"),
+      ...endorse(7, "2026-07-26", "2026-07-27"),
+      ...endorse(8, "2026-09-19", "2026-09-20"),
+      ...endorse(9, "2026-05-11", "2026-05-12", `${P}p6`),
+      ...endorse(11, "2026-08-03", "2026-08-04"),
+      ...endorse(12, "2026-07-02", "2026-07-03"),
+    ],
+  });
+
+  // Budget checks: the ledger on their day (ADR 0004); rq10's as typed from the finance system.
+  const check = (rq: number, on: string, code: number | null, codeCode: string | null, requested: string, f: [string | null, string, string | null, string | null], verdict: "WITHIN" | "EXCEEDS", extra: object = {}) => ({
+    id: `${P}bk${rq}`, requisitionId: `${P}rq${rq}`, checkedAt: day(on), asAt: day(on), source: "PORTAL_LEDGER" as const,
+    budgetCodeId: code ? `${P}bcode${code}` : null, budgetCodeCode: codeCode, requestedAmount: requested,
+    actualBudget: f[0], balanceAsAt: f[1], approvedAccount: f[2], approvedAccountProvenance: "ASSUMED" as const, projectedBalance: f[3], verdict, ...extra,
+  });
+  await db.requisitionBudgetCheck.createMany({
+    data: [
+      check(3, "2026-07-27", 5, "OPX26-031", "38000.00", ["120000.00", "50000.00", "70000.00", "12000.00"], "WITHIN"),
+      check(4, "2026-09-18", 6, "OPX26-040", "55000.00", ["40000.00", "40000.00", "0.00", "-15000.00"], "EXCEEDS"),
+      check(5, "2026-09-24", 5, "OPX26-031", "24000.00", ["120000.00", "50000.00", "70000.00", "26000.00"], "WITHIN"),
+      check(7, "2026-08-12", 2, "OPX26-014", "18500.00", ["1340000.00", "120000.00", "1220000.00", "101500.00"], "WITHIN", { outcome: "COST_CENTRE_OUTSIDE_OWNER" }),
+      check(9, "2026-05-15", 1, "CAP26-001", "800.00", ["8600000.00", "2662900.00", "5937100.00", "2662100.00"], "WITHIN"),
+      check(12, "2026-07-04", 7, "CAP26-017", "62000.00", ["45000.00", "45000.00", "0.00", "-17000.00"], "EXCEEDS"),
+      // Typed from the finance system and stored as typed: its figures need not close.
+      { id: `${P}bk10`, requisitionId: `${P}rq10`, checkedAt: day("2026-09-25"), asAt: day("2026-09-22"), source: "MANUAL_ERP_ENTRY", requestedAmount: "15000.00",
+        actualBudget: "200000.00", balanceAsAt: "60000.00", approvedAccount: "150000.00", approvedAccountProvenance: "OBSERVED", projectedBalance: "45000.00", verdict: "WITHIN" },
+    ],
+  });
+
+  // Split checks, as the demo policy found them on submission.
+  const policySnap = { windowDays: 45, matchOn: ["unit", "accountCode"], aggregateAcrossYear: null, policyProvenance: "ASSUMED" as const };
+  await db.requisitionSplitCheck.createMany({
+    data: [
+      { id: `${P}sp3`, requisitionId: `${P}rq3`, checkedAt: day("2026-07-28"), state: "CLEAR", ...policySnap, relatedRequisitionIds: [], relatedReferences: [] },
+      { id: `${P}sp4`, requisitionId: `${P}rq4`, checkedAt: day("2026-09-18"), state: "CLEAR", ...policySnap, relatedRequisitionIds: [], relatedReferences: [] },
+      {
+        id: `${P}sp5`, requisitionId: `${P}rq5`, checkedAt: day("2026-09-24"), state: "FLAGGED", ...policySnap,
+        relatedRequisitionIds: [`${P}rq6`], relatedReferences: [REQ(18)], combinedValue: "48000.00", crossesBand: true,
+        overrideJustification: "Zones A and B are separate networks with separate contractors' access windows; the work cannot be let as one.",
+        overriddenByPersonId: `${P}p4`, overriddenOn: day("2026-09-25"), overriddenAt: day("2026-09-25"),
+      },
+      { id: `${P}sp7`, requisitionId: `${P}rq7`, checkedAt: day("2026-08-12"), state: "CLEAR", ...policySnap, relatedRequisitionIds: [], relatedReferences: [] },
+      // Submitted before the demo organisation set its splitting policy: not assessed, for ever.
+      { id: `${P}sp9`, requisitionId: `${P}rq9`, checkedAt: day("2026-05-15"), state: "NOT_SET", windowDays: null, matchOn: [], aggregateAcrossYear: null, relatedRequisitionIds: [], relatedReferences: [] },
+      { id: `${P}sp12`, requisitionId: `${P}rq12`, checkedAt: day("2026-07-05"), state: "CLEAR", ...policySnap, relatedRequisitionIds: [], relatedReferences: [] },
+    ],
+  });
+
+  // The Board's decision on rq12, tabled against it by the typed key.
+  await db.committeeDecision.create({
+    data: {
+      id: `${P}d7`, meetingId: `${P}mt5`, sequence: 1, domain: "requisition", subject: "Over-budget requisition: standby generator, Bukit Demo pump house",
+      matterKind: "REQUISITION", matterRef: REQ(24), requisitionId: `${P}rq12`, amount: "62000", act: "A", authorityRuleKey: "demo.requisition.over_budget",
+      tabledByPersonId: `${P}p3`, tabledAt: day("2026-08-25"), outcome: "CARRIED", decisionDate: day("2026-08-27"),
+      quorumRequired: 2, presentVoters: 2, recusedCount: 0, votingRule: "SIMPLE_MAJORITY", votingRuleProvenance: "ASSUMED",
+    },
+  });
+  await db.vote.createMany({
+    data: [
+      { id: `${P}v9`, decisionId: `${P}d7`, personId: `${P}p1`, choice: "SETUJU", votedAt: day("2026-08-27"), recordedAt: day("2026-08-27") },
+      { id: `${P}v10`, decisionId: `${P}d7`, personId: `${P}p7`, choice: "SETUJU", votedAt: day("2026-08-27"), recordedAt: day("2026-08-27") },
+    ],
+  });
+
+  // Approval routes, with the rules they were judged under.
+  const inst = <const E extends { value: string }>(rq: number, rule: number, ruleLabel: string, clause: string, opened: string, extra: E) => ({
+    id: `${P}ai${rq}`, organisationId, matterKind: "REQUISITION" as const, requisitionId: `${P}rq${rq}`, domain: "requisition",
+    authorityMatrixId: `${P}mx1`, matrixLabel: "Demo limits, revision 1", ruleKey: `demo.requisition.${rule === 9 ? "over_budget" : rule - 4}`, ruleLabel, ruleClause: clause,
+    boundaryValue: "300000", boundaryInclusive: true, ruleFollowsBoundarySwitch: false, boundaryOperator: null,
+    budgetCheckId: `${P}bk${rq}`, splitCheckId: `${P}sp${rq}`, checkedAgainstMatrix: true, openedAt: day(opened), ...extra,
+  });
+  const budgetBlocking = { availabilityCheck: "blocking" };
+  const noFunder = [{ code: "GOV_OVERRIDE", level: "warn", messageEn: "Externally funded, but no funder's rule set is issued for this funding route, so the approval matrix routed it. The funder's own guidelines may still prevail where they conflict. The clause behind this rule is not recorded in the approval matrix." }];
+  await db.approvalInstance.createMany({
+    data: [
+      inst(3, 6, "Requisition, RM1,000 to RM40,000", "DEMO 3.1(b)", "2026-07-28", { value: "38000.00", budgetVerdict: "WITHIN", splitState: "CLEAR", fundingRouteCode: "opex", ...budgetBlocking, status: "PENDING" }),
+      inst(4, 9, "Requisition over budget", "DEMO 3.2", "2026-09-18", {
+        value: "55000.00", cond: "over_budget", budgetVerdict: "EXCEEDS", overBudgetInvoked: true, splitState: "CLEAR", fundingRouteCode: "opex", ...budgetBlocking, status: "PENDING",
+      }),
+      inst(5, 6, "Requisition, RM1,000 to RM40,000", "DEMO 3.1(b)", "2026-09-24", { value: "24000.00", budgetVerdict: "WITHIN", splitState: "FLAGGED", fundingRouteCode: "opex", ...budgetBlocking, status: "PENDING" }),
+      inst(7, 6, "Requisition, RM1,000 to RM40,000", "DEMO 3.1(b)", "2026-08-12", {
+        value: "18500.00", budgetVerdict: "WITHIN", splitState: "CLEAR", fundingRouteCode: "opex", ...budgetBlocking, status: "APPROVED", closedAt: day("2026-08-20"), commitOnApproval: true,
+        warnings: [{ code: "COST_CENTRE_OUTSIDE_OWNER", level: "warn", messageEn: "The cost centre's unit is not the budget code's owning unit." }],
+      }),
+      inst(9, 5, "Requisition, up to RM1,000", "DEMO 3.1(a)", "2026-05-15", {
+        value: "800.00", budgetVerdict: "WITHIN", splitState: "NOT_SET", fundingRouteCode: "supervision", ...budgetBlocking, status: "APPROVED", closedAt: day("2026-05-20"), commitOnApproval: true, warnings: noFunder,
+      }),
+      inst(12, 9, "Requisition over budget", "DEMO 3.2", "2026-07-05", {
+        value: "62000.00", cond: "over_budget", budgetVerdict: "EXCEEDS", overBudgetInvoked: true, splitState: "CLEAR", fundingRouteCode: "capex", ...budgetBlocking,
+        status: "APPROVED", closedAt: day("2026-08-27"), commitOnApproval: true,
+      }),
+      {
+        id: `${P}ai10`, organisationId, matterKind: "REQUISITION", requisitionId: `${P}rq10`, domain: "requisition", value: "15000.00", fundingRouteCode: "opex",
+        budgetCheckId: `${P}bk10`, budgetVerdict: "WITHIN", checkedAgainstMatrix: false, status: "APPROVED", openedAt: day("2026-09-18"), closedAt: day("2026-09-22"),
+      },
+    ],
+  });
+  const step = <const E extends object>(rq: number, seq: number, roleCode: string | null, roleLabel: string, act: "P" | "R" | "MR" | "A", extra: E = {} as E) => ({
+    id: `${P}as${rq}_${seq}`, instanceId: `${P}ai${rq}`, sequence: seq, roleCode, roleLabel, act, sourceRuleKey: null, ...extra,
+  });
+  const byDeputy = (on: string, dg = `${P}dg3`) => ({ decision: "DONE" as const, decidedByPersonId: `${P}p12`, decidedByName: "Suresh Pillai", decidedOn: day(on), delegationId: dg, recordedAt: day(on) });
+  const done = (pid: string, name: string, on: string) => ({ decision: "DONE" as const, decidedByPersonId: pid, decidedByName: name, decidedOn: day(on), recordedAt: day(on) });
+  await db.approvalStep.createMany({
+    data: [
+      step(3, 1, "DEPT_HEAD", "Head of Department", "R", byDeputy("2026-08-03")),
+      step(3, 2, "DIV_HEAD", "Head of Division", "A"),
+      step(4, 1, "CEO", "Chief Executive", "MR", { nonDelegable: true }),
+      step(4, 2, "BOARD", "Board of Directors", "A", { committeeCode: "BOARD" }),
+      step(5, 1, "DEPT_HEAD", "Head of Department", "R"),
+      step(5, 2, "DIV_HEAD", "Head of Division", "A"),
+      step(7, 1, "DEPT_HEAD", "Head of Department", "R", byDeputy("2026-08-18")),
+      step(7, 2, "DIV_HEAD", "Head of Division", "A", done(`${P}p7`, "Gopal Nair", "2026-08-20")),
+      step(9, 1, "DEPT_HEAD", "Head of Department", "A", byDeputy("2026-05-20", `${P}dg4`)),
+      step(12, 1, "CEO", "Chief Executive", "MR", { nonDelegable: true, ...done(`${P}p1`, "Aisyah Rahman", "2026-08-24") }),
+      step(12, 2, "BOARD", "Board of Directors", "A", { committeeCode: "BOARD", decision: "DONE", decidedByName: "Board of Directors", decidedOn: day("2026-08-27"), committeeDecisionId: `${P}d7`, recordedAt: day("2026-08-28") }),
+      // As received from the finance system: named as it names them.
+      step(10, 1, null, "Head of Department", "R", { decision: "DONE", decidedByName: "Imran Hakim", decidedByPersonId: `${P}p9`, decidedOn: day("2026-09-18"), recordedAt: day("2026-09-25") }),
+      step(10, 2, null, "Head of Division", "A", { decision: "DONE", decidedByName: "G. Nair", decidedOn: day("2026-09-22"), recordedAt: day("2026-09-25") }),
+    ],
+  });
 }
 
 /// Freeze the register of a demo sitting loaded as already minuted, with the same
