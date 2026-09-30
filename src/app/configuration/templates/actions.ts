@@ -6,6 +6,7 @@ import type { FormState } from "@/components/record-editor";
 import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
+import { renderTemplate } from "@/lib/award/merge";
 import { FormReader } from "@/lib/validate";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
@@ -64,7 +65,18 @@ export async function saveTemplate(_prev: FormState, data: FormData): Promise<Fo
     provenance: r.choice("provenance", "Provenance", PROVENANCE, { required: true }),
     notes: r.text("notes", "Notes", { max: 2000 }),
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
+    // The body (ADR 0008): plain text with whitelisted merge fields. Empty is not configured.
+    bodyMs: r.text("bodyMs", "Text (Malay)", { max: 40000 }) || null,
+    bodyEn: r.text("bodyEn", "Text (English)", { max: 40000 }) || null,
+    primaryLanguage: r.choice("primaryLanguage", "Issued first in", ["MS", "EN"] as const),
   };
+  // Every merge field a body names must be one the portal fills: an unknown one is
+  // refused here, where it can be put right, rather than at issue.
+  for (const k of ["bodyMs", "bodyEn"] as const) {
+    const unknown = v[k] ? renderTemplate(v[k]!, {}).unknown : [];
+    if (unknown.length) r.reject(k, `The portal does not fill ${unknown.map((u) => `{{${u}}}`).join(", ")}. Use the merge fields listed below.`);
+  }
+  if (v.bodyMs && v.bodyEn && !v.primaryLanguage) r.reject("primaryLanguage", "With text in both languages, say which is issued first.");
 
   const parsed = r.finish(v);
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
@@ -78,14 +90,18 @@ export async function saveTemplate(_prev: FormState, data: FormData): Promise<Fo
   const write = { ...v, provenance: v.provenance! };
 
   if (!id) {
-    await auditedCreate(ctx, v, (tx) =>
-      tx.documentTemplate.create({ data: { organisationId: orgId, ...write } }),
+    const created = { ...write, bodyVersion: write.bodyMs || write.bodyEn ? 1 : 0 };
+    await auditedCreate(ctx, created, (tx) =>
+      tx.documentTemplate.create({ data: { organisationId: orgId, ...created } }),
     );
   } else {
     const before = await db.documentTemplate.findUnique({ where: { id } });
     if (!before) return { ok: false, message: "That template no longer exists." };
-    await auditedUpdate({ ...ctx, entityId: id }, before, v, (tx) =>
-      tx.documentTemplate.update({ where: { id }, data: write }),
+    // A changed body is a new version, so an issued document names the text it was made from.
+    const bodyChanged = (before.bodyMs ?? null) !== write.bodyMs || (before.bodyEn ?? null) !== write.bodyEn || (before.primaryLanguage ?? null) !== write.primaryLanguage;
+    const versioned = { ...write, bodyVersion: bodyChanged ? before.bodyVersion + 1 : before.bodyVersion };
+    await auditedUpdate({ ...ctx, entityId: id }, before, versioned, (tx) =>
+      tx.documentTemplate.update({ where: { id }, data: versioned }),
     );
   }
 

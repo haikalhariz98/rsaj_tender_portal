@@ -223,6 +223,7 @@ export async function saveContractType(_prev: FormState, data: FormData): Promis
     nameEn: r.text("nameEn", "Name", { required: true, max: 120 }),
     nameMs: r.optionalText("nameMs"),
     deliverableKind: r.choice("deliverableKind", "Default for", DELIVERABLE_KINDS),
+    contractSeriesKey: r.optionalText("contractSeriesKey"),
     governingSource: r.text("governingSource", "Source", { max: 240 }),
     provenance: r.choice("provenance", "Provenance", PROVENANCE, { required: true }),
     notes: r.text("notes", "Notes", { max: 2000 }),
@@ -237,6 +238,9 @@ export async function saveContractType(_prev: FormState, data: FormData): Promis
   return db.$transaction(async (tx): Promise<FormState> => {
     await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${orgId} FOR UPDATE`;
     const others = await tx.contractType.findMany({ where: { organisationId: orgId, OR: [{ retiredOn: null }, { retiredOn: { gt: new Date() } }], ...(id ? { NOT: { id } } : {}) } });
+    if (row.contractSeriesKey && !(await tx.numberingSeries.findFirst({ where: { organisationId: orgId, key: row.contractSeriesKey }, select: { id: true } }))) {
+      return { ok: false, errors: { contractSeriesKey: "No numbering series has that key. Add it under Configuration, Numbering first." } };
+    }
     const faults = contractTypeConfigFaults(row, others);
     if (faults.length) return { ok: false, errors: Object.fromEntries(faults.map((f) => [f.field, f.message])) };
     if (!id) {

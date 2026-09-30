@@ -98,12 +98,15 @@ export const FIX_AT: Record<string, { href: string; label: string }> = {
   TERMS_UNDECIDED: { href: "/configuration/approval-matrix", label: "Approval matrix" },
   CONTRACT_SERIES_NOT_SET: { href: "/configuration/reference-data", label: "Reference data" },
   TIME_ZONE_UNSET: { href: "/configuration/organisation", label: "Organisation" },
+  NO_ISSUE_IN_FORCE: { href: "/configuration/approval-matrix", label: "Approval matrix" },
 };
 
 /// The text of a finding from `src/lib/award` (and the method findings it passes through).
 export function awardFindingText(f: Finding): string {
   const d = f.data ?? {};
   switch (f.code) {
+    case "NO_ISSUE_IN_FORCE":
+      return "No approval matrix is in force, so the award's route and signatory cannot be judged. Issue one under Configuration, Approval matrix.";
     // instrument.ts
     case "REGIME_NOT_DETERMINED":
       return "The exercise's regime has not been determined, so no instrument can be chosen. Save the exercise under an issue of the limits in force.";

@@ -35,6 +35,11 @@ export interface DocumentTemplate {
   provenance: string;
   notes: string;
   sortOrder: number;
+  /// The body as configured (ADR 0008); null is not configured.
+  bodyMs: string | null;
+  bodyEn: string | null;
+  primaryLanguage: "MS" | "EN" | null;
+  bodyVersion: number;
 }
 
 export interface NotificationRule {
@@ -98,6 +103,10 @@ export async function loadTemplates(organisationCode: string): Promise<DocumentT
     provenance: r.provenance as string,
     notes: r.notes,
     sortOrder: r.sortOrder,
+    bodyMs: r.bodyMs,
+    bodyEn: r.bodyEn,
+    primaryLanguage: r.primaryLanguage as "MS" | "EN" | null,
+    bodyVersion: r.bodyVersion,
   }));
 }
 

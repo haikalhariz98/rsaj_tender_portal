@@ -310,6 +310,7 @@ export default async function ReferenceDataPage() {
                     const set = t ? behaviourProfile({ ...t }).filter((b) => b.value != null).length : 0;
                     return `${set} of 12 behaviours set${set < 12 ? " · the rest not set" : ""}`;
                   })()}
+                  <div className="text-[12.5px] text-ink-3">{(typeRow(c.code) as { contractSeriesKey?: string | null } | undefined)?.contractSeriesKey ? "Contract numbers: from its series" : "Contract numbers: series not set — its awards cannot be issued"}</div>
                   {c.notes && <div className="truncate text-[12.5px] text-ink-3">{c.notes}</div>}
                 </Td>
                 <Td>
@@ -318,7 +319,7 @@ export default async function ReferenceDataPage() {
                 <Td>
                   <RowActions>
                     <HistoryButton iconOnly entity="ContractType" entityId={c.id} label={c.nameEn} />
-                    <EditContractType type={{ ...c, deliverableKind: typeRow(c.code)?.deliverableKind ?? null }} id={c.id} />
+                    <EditContractType type={{ ...c, deliverableKind: typeRow(c.code)?.deliverableKind ?? null, contractSeriesKey: (typeRow(c.code) as { contractSeriesKey?: string | null } | undefined)?.contractSeriesKey ?? null }} id={c.id} />
                     {typeRow(c.code) && <ContractBehavioursDrawer id={c.id} name={c.nameEn} values={typeRow(c.code)!} offices={offices} />}
                     <RetireEntry entity="ContractType" id={c.id} label={c.nameEn} />
                   </RowActions>

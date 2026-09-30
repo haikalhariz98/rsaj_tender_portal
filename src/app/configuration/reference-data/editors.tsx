@@ -187,6 +187,13 @@ function contractFields(editing: boolean): Field[] {
       options: KIND_OPTIONS,
       hint: "An exercise whose scope is this deliverable takes this type unless someone chooses another, with a reason.",
     },
+    {
+      kind: "text",
+      name: "contractSeriesKey",
+      label: "Contract numbering series key",
+      mono: true,
+      hint: "The numbering series a contract of this type is numbered from when its award is issued. Not set: an award of this type cannot be issued.",
+    },
     { kind: "text", name: "governingSource", label: "Source document" },
     PROVENANCE_FIELD,
     { kind: "number", name: "sortOrder", label: "Order", min: 0 },
@@ -308,7 +315,7 @@ export function AddContractType() {
   );
 }
 
-export function EditContractType({ type, id }: { type: ContractType & { deliverableKind?: string | null }; id: string }) {
+export function EditContractType({ type, id }: { type: ContractType & { deliverableKind?: string | null; contractSeriesKey?: string | null }; id: string }) {
   return (
     <RecordEditor
       title={`Edit ${type.nameEn}`}
@@ -322,6 +329,7 @@ export function EditContractType({ type, id }: { type: ContractType & { delivera
         nameEn: type.nameEn,
         nameMs: type.nameMs,
         deliverableKind: type.deliverableKind ?? null,
+        contractSeriesKey: type.contractSeriesKey ?? null,
         governingSource: type.governingSource,
         provenance: type.provenance,
         sortOrder: num(type.sortOrder),

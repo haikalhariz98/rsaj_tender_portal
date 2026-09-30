@@ -395,6 +395,18 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
       if (!found.ok) r.reject("matterRef", MATTER_REF_TEXT[found.fault]);
       requisitionId = found.ok ? found.requisitionId : null;
     }
+    // An exercise matter links to its exercise the same way (6.11): by the exercise's
+    // portal reference, exactly one, and not a cancelled one.
+    let exerciseId: string | null = null;
+    let exerciseReference: string | null = null;
+    if (matterKind === "EXERCISE" && matterRef) {
+      const matches = await tx.sourcingExercise.findMany({ where: { organisationId: s.organisationId, reference: matterRef }, select: { id: true, status: true, reference: true }, take: 2 });
+      if (matches.length === 1 && matches[0].status !== "CANCELLED") {
+        exerciseId = matches[0].id;
+        exerciseReference = matches[0].reference;
+      } else if (matches.length === 1) r.reject("matterRef", "That exercise is cancelled, so nothing can be tabled against it.");
+      // No exercise has that reference: tabled as a manual matter, linked to no record, as before.
+    }
     if (dependsOnDecisionId) {
       const dep = await tx.committeeDecision.findFirst({
         where: { id: dependsOnDecisionId, meeting: { committee: { organisationId: s.organisationId } } },
@@ -410,10 +422,10 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
     const tabledAt = dayToDate(s.today!);
     const sequence = s.meeting.decisions.reduce((n, d) => Math.max(n, d.sequence), 0) + 1;
     const row = await tx.committeeDecision.create({
-      data: { meetingId, subject, domain, matterKind, matterRef, requisitionId, amount, act: act!, tabledByPersonId, tabledAt, dependsOnDecisionId, sequence },
+      data: { meetingId, subject, domain, matterKind, matterRef, requisitionId, exerciseId, amount, act: act!, tabledByPersonId, tabledAt, dependsOnDecisionId, sequence },
     });
     await audit(tx, s, "CommitteeDecision", row.id, subject, "CREATE",
-      diffFields(null, { ...v, linkedRequisition: requisitionReference, tabledBy: tabledByPersonId ? s.names[tabledByPersonId] : null, tabledAt, sequence }));
+      diffFields(null, { ...v, linkedRequisition: requisitionReference, linkedExercise: exerciseReference, tabledBy: tabledByPersonId ? s.names[tabledByPersonId] : null, tabledAt, sequence }));
     return { ok: true };
   });
 }

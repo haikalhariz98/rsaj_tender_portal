@@ -93,7 +93,7 @@ export default async function TemplatesPage() {
                     <CellStack
                       title={t.nameEn}
                       aside={t.bilingual ? <Badge outline>bilingual</Badge> : undefined}
-                      sub={t.nameMs ?? undefined}
+                      sub={[t.nameMs, t.bodyMs || t.bodyEn ? `Text: ${[t.bodyMs ? "Malay" : null, t.bodyEn ? "English" : null].filter(Boolean).join(" and ")}, version ${t.bodyVersion}` : "Text not configured"].filter(Boolean).join(" · ")}
                     />
                   </Td>
                   <Td className="truncate font-mono text-[12.5px] text-ink-2" title={t.formCode || undefined}>

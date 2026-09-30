@@ -1,0 +1,381 @@
+/**
+ * Awards and their configuration, loaded. Reads only; every rule is in the pure
+ * modules beside this, and `evaluateAward` judges what this reads.
+ *
+ * `withLockedAward` is how every write to an award reads: it locks the requisition,
+ * then the exercise (the order 6.3's writes take them in), then the award, and re-reads
+ * all three inside the write's own transaction — so the sum of the requisition's awards,
+ * the route and the gate are judged on the rows the write changes.
+ */
+
+import type { Tx } from "@/lib/audit/record";
+import { isRegisterSnapshot } from "@/lib/committee/assess-sitting";
+import { decisionRecord, type DecisionRecord } from "@/lib/committee/record";
+import { dayToDate, storedDay } from "@/lib/dates";
+import { db } from "@/lib/db";
+import { approvedRouteOf, evaluationContext, exerciseOrg, loadExercise, type ExerciseOrg, type LoadedExercise } from "@/lib/method/repo";
+import { isBandSnapshot } from "@/lib/method/snapshot";
+import { parseSen, senFromDecimal } from "@/lib/money";
+import { ORGANISATION_CODE, ORGANISATION_NAME } from "@/lib/org";
+import { pathTo } from "@/lib/organisation/structure";
+import type { OrgUnit } from "@/lib/organisation/types";
+import { loadDelegations, loadRoster } from "@/lib/people/load";
+import { holdersFor } from "@/lib/requisition/holders";
+import type { ApprovalStatus, RequisitionStatus, StepDecision } from "@/lib/requisition/types";
+import type { LiabilityBand } from "@/lib/securities/liability";
+import type { Requirement } from "@/lib/securities/insurance";
+
+import { absentOffices } from "./appointment";
+import type { Recipient } from "./distribution";
+import type { AwardFacts, RouteStepFact, TemplateRow } from "./evaluate";
+import { LIVE_STATUSES } from "./status";
+import { UNSET_AWARD_POLICY, type AwardPolicy, type AwardStatus, type DocumentLanguage, type InstrumentKind, type PeriodUnit, type Provenance } from "./types";
+import type { Variant } from "./variant";
+
+const dec = (v: { toString(): string } | null | undefined) => (v == null ? null : v.toString());
+const senOrNull = (v: { toString(): string } | null | undefined) => (v == null ? null : parseSen(v.toString()));
+const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
+
+const decisionInclude = { meeting: { include: { committee: { select: { code: true, nameEn: true } } } }, votes: { include: { person: { select: { name: true } } } } };
+
+export const awardInclude = {
+  documents: { orderBy: [{ kind: "asc" as const }, { version: "desc" as const }] },
+  distributions: { orderBy: { sortOrder: "asc" as const } },
+  awardReturn: { include: { receivedBy: { select: { id: true, name: true } } } },
+  conditions: { orderBy: { requiredBy: "asc" as const } },
+  contract: {
+    include: {
+      securities: { include: { issuer: { select: { id: true, name: true } }, verifiedBy: { select: { name: true } } }, orderBy: { lodgedOn: "asc" as const } },
+      policies: { include: { issuer: { select: { id: true, name: true } }, verifiedBy: { select: { name: true } } }, orderBy: { lodgedOn: "asc" as const } },
+      ownershipEvents: { orderBy: { on: "asc" as const } },
+    },
+  },
+  approvalInstances: {
+    orderBy: [{ openedAt: "desc" as const }, { createdAt: "desc" as const }, { id: "desc" as const }],
+    include: {
+      steps: {
+        orderBy: { sequence: "asc" as const },
+        include: { committeeDecision: { include: decisionInclude }, delegation: { select: { id: true, fromPerson: { select: { name: true } } } } },
+      },
+    },
+  },
+  signatoryPerson: { select: { id: true, name: true } },
+  variant: { select: { id: true, nameEn: true } },
+};
+
+/// A committee matter as the routing sheet may cite it: only through `decisionRecord()`.
+export function matterRecord(d: {
+  subject: string; matterRef: string | null; outcome: "PENDING" | "CARRIED" | "NOT_CARRIED" | "DEFERRED"; decisionDate: Date | null; quorumRequired: number | null; presentVoters: number | null; recusedCount: number | null;
+  votingRule: "SIMPLE_MAJORITY" | "UNANIMOUS" | null; votingRuleProvenance: string | null; outcomeNote: string; notApprovedOutcomeNameEn: string | null; notApprovedOutcomeKind: "LOOP" | "TERMINAL" | null;
+  meeting: { reference: string; meetingDate: Date; status: string; registerSnapshot: unknown; committee: { nameEn: string } };
+  votes: { person: { name: string }; choice: string; comment: string; votedAt: Date }[];
+}): { record: DecisionRecord | null; minuted: boolean } {
+  const snap = d.meeting.status === "MINUTED" && isRegisterSnapshot(d.meeting.registerSnapshot) ? d.meeting.registerSnapshot : null;
+  return {
+    minuted: d.meeting.status === "MINUTED",
+    record: decisionRecord({
+      meeting: { reference: d.meeting.reference, meetingDate: d.meeting.meetingDate, committeeName: snap?.committeeName ?? d.meeting.committee.nameEn },
+      decision: {
+        subject: d.subject, matterRef: d.matterRef, outcome: d.outcome, decisionDate: d.decisionDate, quorumRequired: d.quorumRequired, presentVoters: d.presentVoters, recusedCount: d.recusedCount,
+        votingRule: d.votingRule, votingRuleProvenance: d.votingRuleProvenance, outcomeNote: d.outcomeNote, notApprovedOutcomeNameEn: d.notApprovedOutcomeNameEn, notApprovedOutcomeKind: d.notApprovedOutcomeKind,
+      },
+      votes: d.votes.map((v) => ({ name: v.person.name, choice: v.choice, comment: v.comment, votedAt: v.votedAt })),
+    }),
+  };
+}
+
+export async function loadAward(id: string, client: Tx = db) {
+  const org = await exerciseOrg(client);
+  if (!org) return null;
+  const award = await client.award.findFirst({ where: { id, organisationId: org.id }, include: awardInclude });
+  if (!award) return null;
+  const l = await loadExercise(award.exerciseId, client);
+  if (!l) return null;
+  return { org, award, ex: l.ex, req: l.req, l };
+}
+
+export type LoadedAward = NonNullable<Awaited<ReturnType<typeof loadAward>>>;
+export type AwardRow = LoadedAward["award"];
+
+/// Lock the requisition, the exercise and the award, in that order, and re-read them.
+export async function withLockedAward<T>(awardId: string, fn: (tx: Tx, l: LoadedAward) => Promise<T>): Promise<T | null> {
+  const found = await db.award.findUnique({ where: { id: awardId }, select: { exerciseId: true, exercise: { select: { requisitionId: true } } } });
+  if (!found) return null;
+  return db.$transaction(
+    async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Requisition" WHERE id = ${found.exercise.requisitionId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM "SourcingExercise" WHERE id = ${found.exerciseId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM "Award" WHERE id = ${awardId} FOR UPDATE`;
+      const l = await loadAward(awardId, tx);
+      if (!l || l.ex.id !== found.exerciseId) return null;
+      return fn(tx, l);
+    },
+    { timeout: 30_000, maxWait: 10_000 },
+  );
+}
+
+/// Lock an exercise's requisition and the exercise, for opening an award on it.
+export async function withLockedExerciseForAward<T>(exerciseId: string, fn: (tx: Tx, l: LoadedExercise) => Promise<T>): Promise<T | null> {
+  const ex = await db.sourcingExercise.findUnique({ where: { id: exerciseId }, select: { requisitionId: true } });
+  if (!ex) return null;
+  return db.$transaction(
+    async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Requisition" WHERE id = ${ex.requisitionId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM "SourcingExercise" WHERE id = ${exerciseId} FOR UPDATE`;
+      const l = await loadExercise(exerciseId, tx);
+      if (!l) return null;
+      return fn(tx, l);
+    },
+    { timeout: 30_000, maxWait: 10_000 },
+  );
+}
+
+export async function loadAwardPolicy(organisationId: string, client: Tx = db): Promise<AwardPolicy & { id: string | null; notes: string }> {
+  const p = await client.awardPolicy.findUnique({ where: { organisationId } });
+  if (!p) return { ...UNSET_AWARD_POLICY, id: null, notes: "" };
+  return {
+    id: p.id,
+    notes: p.notes,
+    tenderInstrument: p.tenderInstrument as InstrumentKind | null,
+    quotationInstrument: p.quotationInstrument as InstrumentKind | null,
+    indentValidityDays: p.indentValidityDays,
+    commencementGraceDays: p.commencementGraceDays,
+    acceptanceReturnDays: p.acceptanceReturnDays,
+    preContractUnitCode: p.preContractUnitCode,
+    postContractUnitCode: p.postContractUnitCode,
+    quotationContractKey: p.quotationContractKey,
+    regulatedActivityLabel: p.regulatedActivityLabel,
+    loaTemplateId: p.loaTemplateId,
+    declarationTemplateId: p.declarationTemplateId,
+    coveringMemoTemplateId: p.coveringMemoTemplateId,
+    provenance: p.provenance as Provenance | null,
+  };
+}
+
+/// The customer's award configuration: recipients, variants, templates, conditions,
+/// insurance requirements, liability bands, issuers and the expiry offsets.
+export async function loadAwardConfig(organisationId: string, client: Tx = db) {
+  const where = { organisationId };
+  const order = [{ sortOrder: "asc" as const }, { code: "asc" as const }];
+  const [policy, recipients, variants, templates, conditionKinds, requirements, bands, issuers, expiring, indentFormat, expiredRule] = await Promise.all([
+    loadAwardPolicy(organisationId, client),
+    client.distributionRecipient.findMany({ where, orderBy: order }),
+    client.appointmentLetterVariant.findMany({ where, orderBy: order }),
+    client.documentTemplate.findMany({ where, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
+    client.conditionPrecedentKind.findMany({ where, orderBy: order }),
+    client.insuranceRequirement.findMany({ where, orderBy: order }),
+    client.liabilityBand.findMany({ where, orderBy: order }),
+    client.approvedIssuer.findMany({ where, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
+    client.notificationRule.findFirst({ where: { organisationId, eventKey: "security.expiring", isActive: true } }),
+    client.codeFormat.findFirst({ where: { organisationId, key: "erp_indent_no" } }),
+    client.notificationRule.findFirst({ where: { organisationId, eventKey: "award.indent.expired", isActive: true } }),
+  ]);
+  return {
+    policy,
+    recipientRows: recipients,
+    recipients: recipients.map((r): Recipient => ({ id: r.id, instrumentKind: r.instrumentKind as InstrumentKind, nameEn: r.nameEn, mandatory: r.mandatory, onlyWhenRegulated: r.onlyWhenRegulated, sortOrder: r.sortOrder, retiredOn: r.retiredOn })),
+    variantRows: variants,
+    variants: variants.map((v): Variant => ({ id: v.id, code: v.code, nameEn: v.nameEn, templateId: v.templateId, contractTypeCodes: v.contractTypeCodes, termsBandKey: v.termsBandKey, nonCommencement: v.nonCommencement, retiredOn: v.retiredOn })),
+    templateRows: templates,
+    templates: templates.map((t): TemplateRow => ({ id: t.id, code: t.code, nameEn: t.nameEn, formCode: t.formCode, revisionDate: t.revisionDate, bodyMs: t.bodyMs, bodyEn: t.bodyEn, primaryLanguage: t.primaryLanguage as DocumentLanguage | null, bodyVersion: t.bodyVersion })),
+    conditionKinds,
+    requirementRows: requirements,
+    requirements: requirements.map((r): Requirement => ({ code: r.code, nameEn: r.nameEn, kind: r.kind, contractTypeCode: r.contractTypeCode, required: r.required, percent: dec(r.percent), tailMonths: r.tailMonths, tailDays: r.tailDays, retiredOn: r.retiredOn })),
+    bandRows: bands,
+    bands: bands.map((b): LiabilityBand => ({ code: b.code, minValue: senOrNull(b.minValue), maxValue: senOrNull(b.maxValue), limit: parseSen(b.limitAmount.toString()), retiredOn: b.retiredOn })),
+    issuers,
+    expiryOffsets: expiring?.reminderOffsetDays ?? [],
+    expiryRule: expiring,
+    indentExpiredRule: expiredRule,
+    indentFormat,
+  };
+}
+
+export type AwardConfig = Awaited<ReturnType<typeof loadAwardConfig>>;
+
+/// The award's own step facts, with each committee step's cited decision read through `decisionRecord()`.
+export function routeSteps(inst: AwardRow["approvalInstances"][number]): RouteStepFact[] {
+  return inst.steps.map((s) => ({
+    id: s.id,
+    sequence: s.sequence,
+    roleCode: s.roleCode,
+    roleLabel: s.roleLabel,
+    act: s.act,
+    committeeCode: s.committeeCode,
+    decision: s.decision as StepDecision,
+    decidedByName: s.decidedByName,
+    decidedOn: s.decidedOn,
+    receivedOn: s.receivedOn,
+    cited: s.committeeDecision ? matterRecord(s.committeeDecision) : null,
+  }));
+}
+
+/// The award's latest appointment route.
+export const latestRoute = (award: AwardRow) => award.approvalInstances.find((i) => i.domain === "appointment") ?? null;
+
+/**
+ * Everything `evaluateAward` reads, loaded on one day under one issue — inside the
+ * write's transaction when there is one.
+ */
+export async function awardFacts(l: LoadedAward, client: Tx = db) {
+  const { org, award, ex, req } = l;
+  const on = org.today ? dayToDate(org.today) : new Date();
+  const [{ issue, cfg, ctx }, config, siblings, roster, delegations, units, contractType] = await Promise.all([
+    evaluationContext(org, req, ex, client),
+    loadAwardConfig(org.id, client),
+    client.award.findMany({ where: { exercise: { requisitionId: req.id }, status: { in: [...LIVE_STATUSES] }, NOT: { id: award.id } }, select: { awardedValue: true } }),
+    loadRoster(ORGANISATION_CODE, client),
+    loadDelegations(ORGANISATION_CODE, client),
+    client.orgUnit.findMany({ where: { organisationId: org.id } }),
+    ex.contractTypeCode ? client.contractType.findFirst({ where: { organisationId: org.id, code: ex.contractTypeCode } }) : Promise.resolve(null),
+  ]);
+  const method = cfg.config.methods.find((m) => m.code === ex.sourcingMethodCode) ?? null;
+  const unitPath = pathTo(units as unknown as OrgUnit[], req.sectionUnitCode || req.requestingUnitCode, on).reverse().map((u) => u.code);
+  const holdersOf = (code: string) => holdersFor(code, unitPath, roster, delegations, org.today ?? storedDay(on));
+  const people = new Map(roster.people.map((p) => [p.id, p]));
+  const available = (pid: string) => !!people.get(pid)?.isActive && !!people.get(pid)?.isAvailable;
+  const officeCodes = issue ? Object.keys(issue.matrix.roles).filter((c) => !issue.matrix.roles[c].isCommittee) : [];
+  const bands = isBandSnapshot(ex.bandSnapshot) ? ex.bandSnapshot : null;
+  const route = latestRoute(award);
+  const reqRoute = req.approvalInstances.find((i) => i.domain === "requisition") ?? null;
+  const reqSteps = reqRoute ? await client.approvalStep.findMany({ where: { instanceId: reqRoute.id }, select: { sequence: true, roleLabel: true, decision: true } }) : [];
+  const approved = approvedRouteOf({ approvalInstances: req.approvalInstances.filter((i) => i.domain === "requisition") });
+
+  const facts: AwardFacts = {
+    today: org.today,
+    organisationName: ORGANISATION_NAME,
+    award: {
+      status: award.status as AwardStatus,
+      reference: award.reference,
+      instrumentKind: award.instrumentKind as InstrumentKind,
+      value: senFromDecimal(award.awardedValue),
+      awardeeName: award.awardeeName,
+      awardeeRegistrationNo: award.awardeeRegistrationNo,
+      awardeeAddress: award.awardeeAddress,
+      completionPeriod: award.completionPeriod,
+      completionUnit: award.completionUnit as PeriodUnit,
+      startDate: day(award.startDate),
+      commencedOn: day(award.commencedOn),
+      regulatedActivity: award.regulatedActivity,
+      bondRequired: award.bondRequired,
+      bondNotRequiredReason: award.bondNotRequiredReason,
+      bondBasis: award.bondBasis,
+      bondPercent: dec(award.bondPercent),
+      bondBasisAmount: senOrNull(award.bondBasisAmount),
+      bondValidityExtraMonths: award.bondValidityExtraMonths,
+      ladAmount: senOrNull(award.ladAmount),
+      ladUnit: award.ladUnit,
+      retentionPercent: dec(award.retentionPercent),
+      retentionCapPercent: dec(award.retentionCapPercent),
+      dlpMonths: award.dlpMonths,
+      erpCommitmentNo: award.erpCommitmentNo,
+      indentReceivedOn: day(award.indentReceivedOn),
+      signatoryName: award.signatoryName,
+      issuedOn: day(award.issuedAt),
+      contractNumber: award.contract?.number ?? null,
+    },
+    exercise: {
+      reference: ex.reference,
+      title: ex.title,
+      status: ex.status,
+      regime: ex.regime,
+      appointmentRuleKey: ex.appointmentRuleKey,
+      appointmentRuleLabel: bands?.appointment.ruleLabel ?? null,
+      termsBandKey: ex.termsBandKey,
+      termsState: ex.termsState,
+      terms: bands ? { retentionApplies: bands.terms.retentionApplies, defectsLiabilityApplies: bands.terms.defectsLiabilityApplies } : null,
+      contractTypeCode: ex.contractTypeCode,
+      estimate: senFromDecimal(ex.estimatedValue),
+      justificationReasonCode: ex.justificationReasonCode,
+      dossierReference: ex.dossierReference,
+    },
+    requisition: {
+      reference: req.reference,
+      status: req.status as RequisitionStatus,
+      sourcingPermitted: req.sourcingPermitted,
+      approvedValue: approved?.value ?? null,
+      route: reqRoute ? { status: reqRoute.status as ApprovalStatus, steps: reqSteps.map((s) => ({ ...s, decision: s.decision as StepDecision })) } : null,
+    },
+    otherAwards: siblings.map((s) => senFromDecimal(s.awardedValue)),
+    policy: config.policy,
+    funder: ctx?.funder ?? null,
+    method,
+    routePeople: {
+      absentRoleCodes: org.today ? absentOffices(officeCodes, holdersOf, available) : [],
+      requesterHolds: (code) => holdersOf(code).holderIds.includes(req.requestingPersonId),
+    },
+    appointment: route ? { status: route.status as ApprovalStatus, openedAt: route.openedAt, steps: routeSteps(route) } : null,
+    recipients: config.recipients,
+    variants: config.variants,
+    templates: config.templates,
+    indentPattern: config.indentFormat?.pattern ?? null,
+    contractSeriesKey: contractType?.contractSeriesKey ?? null,
+  };
+  return { facts, issue, cfg, config, method, roster, delegations, unitPath, holdersOf, contractType, org: org as ExerciseOrg };
+}
+
+export type AwardFactsResult = Awaited<ReturnType<typeof awardFacts>>;
+
+/// The exercise's committee matters, for citing on a committee step.
+export async function exerciseMatters(exerciseId: string, client: Tx = db) {
+  return client.committeeDecision.findMany({ where: { exerciseId }, include: decisionInclude, orderBy: { tabledAt: "desc" } });
+}
+
+export const AWARDS_PAGE = 100;
+
+export async function listAwards() {
+  const org = await exerciseOrg();
+  if (!org) return { org: null, rows: [], total: 0 };
+  const where = { organisationId: org.id };
+  const [rows, total, policy] = await Promise.all([
+    db.award.findMany({
+      where,
+      orderBy: [{ createdAt: "desc" }, { reference: "desc" }],
+      take: AWARDS_PAGE,
+      include: {
+        exercise: { select: { id: true, reference: true, title: true, regime: true } },
+        contract: { select: { number: true, securities: { select: { status: true, kind: true } }, policies: { select: { status: true } } } },
+        awardReturn: true,
+        approvalInstances: { select: { status: true, domain: true, openedAt: true, createdAt: true }, orderBy: { openedAt: "desc" } },
+      },
+    }),
+    db.award.count({ where }),
+    loadAwardPolicy(org.id),
+  ]);
+  return { org, rows, total, policy };
+}
+
+export const HISTORY_PAGE = 200;
+
+/// The award's trail and everything under it, newest first. The IC number is masked in
+/// the rows themselves (build decision BD-9), so nothing here needs to mask it.
+export async function awardHistory(l: LoadedAward) {
+  const a = l.award;
+  const ids = [
+    a.id,
+    ...a.documents.map((x) => x.id),
+    ...a.distributions.map((x) => x.id),
+    ...(a.awardReturn ? [a.awardReturn.id] : []),
+    ...a.conditions.map((x) => x.id),
+    ...(a.contract ? [a.contract.id, ...a.contract.securities.map((x) => x.id), ...a.contract.policies.map((x) => x.id), ...a.contract.ownershipEvents.map((x) => x.id)] : []),
+    ...a.approvalInstances.flatMap((i) => [i.id, ...i.steps.map((s) => s.id)]),
+  ];
+  const where = { organisationId: l.org.id, OR: [{ entityId: { in: ids } }, { entityLabel: { startsWith: `${a.reference} ·` } }] };
+  const [rows, total] = await Promise.all([db.auditEntry.findMany({ where, orderBy: { at: "desc" }, take: HISTORY_PAGE }), db.auditEntry.count({ where })]);
+  return {
+    total,
+    entries: rows.map((e) => ({ id: e.id, entity: e.entity, entityLabel: e.entityLabel, action: e.action, at: e.at, reason: e.reason, changes: (e.changes ?? []) as unknown as { field: string; before: string | null; after: string | null }[] })),
+  };
+}
+
+/// Every contract's securities and policies, for the register.
+export async function listRegister() {
+  const org = await exerciseOrg();
+  if (!org) return { org: null, securities: [], policies: [], config: null };
+  const [securities, policies, config] = await Promise.all([
+    db.securityInstrument.findMany({ where: { contract: { organisationId: org.id } }, include: { issuer: { select: { name: true } }, contract: { select: { number: true, status: true, award: { select: { id: true, reference: true, awardeeName: true } } } } }, orderBy: { expiresOn: "asc" } }),
+    db.insurancePolicy.findMany({ where: { contract: { organisationId: org.id } }, include: { issuer: { select: { name: true } }, contract: { select: { number: true, status: true, award: { select: { id: true, reference: true, awardeeName: true } } } } }, orderBy: { periodEnd: "asc" } }),
+    loadAwardConfig(org.id),
+  ]);
+  return { org, securities, policies, config };
+}
