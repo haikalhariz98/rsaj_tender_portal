@@ -97,6 +97,33 @@ enum DecisionOutcome {
   DEFERRED
 }
 
+/// How a committee's individual votes combine into a decision. The corpus is silent on
+/// it for most bodies, so a committee with none set cannot record a decision at all:
+/// assuming a majority could later make a recorded CARRIED wrong.
+enum VotingRule {
+  SIMPLE_MAJORITY /// More SETUJU than TIDAK SETUJU. A tie is not carried.
+  UNANIMOUS /// Every vote cast is SETUJU.
+}
+
+/// What a matter not carried does next. A loop sends the matter back to an earlier
+/// stage, a terminal outcome ends it.
+enum NotApprovedKind {
+  LOOP
+  TERMINAL
+}
+
+/// The kinds of record a committee matter can concern. A closed set, rendered by
+/// label: each module adds its own typed nullable foreign key beside it, never a
+/// polymorphic (type, id) pair. Null on a matter means a manual matter, linked to
+/// no record.
+enum MatterKind {
+  REQUISITION
+  EXERCISE
+  LATE_TENDER
+  CONTRACT
+  VARIATION
+}
+
 /// A customer. Every configuration table hangs off this, so serving a second
 /// organisation is a seed rather than a schema change.
 model Organisation {
@@ -134,6 +161,7 @@ model Organisation {
   documentClasses   DocumentClass[]
   documentTemplates DocumentTemplate[]
   notificationRules NotificationRule[]
+  notApprovedOutcomes NotApprovedOutcome[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -184,6 +212,8 @@ model Person {
   auditEntries      AuditEntry[]
   delegationsGiven  Delegation[] @relation("DelegationFrom")
   delegationsTaken  Delegation[] @relation("DelegationTo")
+  mattersTabled     CommitteeDecision[] @relation("TabledBy")
+  recusals          DecisionRecusal[]
 
   @@unique([organisationId, staffNo])
   @@index([organisationId, name])
@@ -410,8 +440,23 @@ model Committee {
 
   notes String @default("")
 
-  members  CommitteeMember[]
-  meetings Meeting[]
+  /// Other names the body goes by in the source documents.
+  aliases   String[]  @default([])
+  /// A retired body schedules nothing and keeps its history.
+  retiredOn DateTime?
+
+  /// The office whose holder tables matters before this body. An AuthorityRole.code,
+  /// resolved through RoleAssignment on the tabling date. Null means nobody has set
+  /// one, and tabling is refused rather than inferred.
+  secretariatRoleCode String?
+
+  /// Null means no rule has been set, and no decision can be recorded under it.
+  votingRule           VotingRule?
+  votingRuleProvenance Provenance?
+
+  members             CommitteeMember[]
+  meetings            Meeting[]
+  notApprovedOutcomes NotApprovedOutcome[]
 
   @@unique([organisationId, code])
 }
@@ -444,6 +489,13 @@ model CommitteeMember {
   effectiveFrom  DateTime
   effectiveTo    DateTime?
 
+  /// On an alternate, the seat it may cover. Null on an alternate means it may cover
+  /// any seat of its position.
+  alternateForId     String?
+  alternateFor       CommitteeMember?    @relation("AlternateFor", fields: [alternateForId], references: [id], onDelete: SetNull)
+  alternates         CommitteeMember[]   @relation("AlternateFor")
+  standInAttendances MeetingAttendance[] @relation("StandIn")
+
   @@index([committeeId, effectiveFrom])
   @@index([personId])
 }
@@ -459,6 +511,11 @@ model Meeting {
   agenda      String        @default("")
   minutes     String        @default("")
   status      MeetingStatus @default(SCHEDULED)
+
+  /// Why a cancelled sitting did not go ahead.
+  cancelledReason String    @default("")
+  /// Once minuted, the sitting and everything under it are frozen.
+  minutedAt       DateTime?
 
   attendance MeetingAttendance[]
   decisions  CommitteeDecision[]
@@ -476,8 +533,11 @@ model MeetingAttendance {
   person    Person  @relation(fields: [personId], references: [id], onDelete: Restrict)
 
   attended Boolean @default(true)
-  /// Set where this person sat in place of the substantive seat holder.
+  /// Legacy free text. No longer written: `standingInForSeatId` replaced it.
   standingInFor String?
+  /// The seat this person covered, where they sat in place of its holder.
+  standingInForSeatId String?
+  standingInForSeat   CommitteeMember? @relation("StandIn", fields: [standingInForSeatId], references: [id], onDelete: SetNull)
 
   @@unique([meetingId, personId])
 }
@@ -504,9 +564,83 @@ model CommitteeDecision {
   outcome      DecisionOutcome @default(PENDING)
   decisionDate DateTime?
 
-  votes Vote[]
+  /// Agenda order.
+  sequence   Int         @default(0)
+  /// The kind of record the matter concerns. Null is a manual matter.
+  matterKind MatterKind?
+
+  /// Who tabled the matter, and when. An attestation, not an authenticated act,
+  /// until sign-in exists.
+  tabledByPersonId String?
+  tabledBy         Person?   @relation("TabledBy", fields: [tabledByPersonId], references: [id], onDelete: Restrict)
+  tabledAt         DateTime?
+
+  /// A matter that cannot be decided while this one is pending.
+  dependsOnDecisionId String?
+  dependsOn           CommitteeDecision?  @relation("DependsOn", fields: [dependsOnDecisionId], references: [id], onDelete: SetNull)
+  dependents          CommitteeDecision[] @relation("DependsOn")
+
+  /// Snapshot at recording, so a later configuration change never rewrites a
+  /// recorded decision.
+  quorumRequired       Int?
+  presentVoters        Int?
+  recusedCount         Int?
+  votingRule           VotingRule?
+  votingRuleProvenance Provenance?
+
+  /// Required for NOT_CARRIED: what happens to the matter next.
+  notApprovedOutcomeId String?
+  notApprovedOutcome   NotApprovedOutcome? @relation(fields: [notApprovedOutcomeId], references: [id], onDelete: Restrict)
+  /// Required for DEFERRED and NOT_CARRIED.
+  outcomeNote          String              @default("")
+
+  votes    Vote[]
+  recusals DecisionRecusal[]
 
   @@index([meetingId])
+}
+
+/// A member standing aside from one matter. Excluded from that matter's vote and
+/// quorum only, never from the rest of the sitting.
+model DecisionRecusal {
+  id         String            @id @default(cuid())
+  decisionId String
+  decision   CommitteeDecision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+  personId   String
+  person     Person            @relation(fields: [personId], references: [id], onDelete: Restrict)
+
+  reason     String
+  declaredAt DateTime
+
+  @@unique([decisionId, personId])
+}
+
+/// What a matter not carried does next, as the customer's policy names it. The
+/// product ships none: they are one customer's options, not a default.
+model NotApprovedOutcome {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code   String
+  nameEn String
+  nameMs String?
+  kind   NotApprovedKind
+  /// For a loop, the stage the matter returns to. A stage key for Phase 2.
+  returnsToStage String?
+
+  /// Null offers the outcome to every committee.
+  committeeId String?
+  committee   Committee? @relation(fields: [committeeId], references: [id], onDelete: SetNull)
+
+  governingSource String     @default("")
+  provenance      Provenance @default(ASSUMED)
+  sortOrder       Int        @default(0)
+  retiredOn       DateTime?
+
+  decisions CommitteeDecision[]
+
+  @@unique([organisationId, code])
 }
 
 /// One member's vote. Individual, never one aggregate committee position.
@@ -519,7 +653,10 @@ model Vote {
 
   choice  VoteChoice
   comment String     @default("")
+  /// The date on the signed voting sheet, as entered.
   votedAt DateTime   @default(now())
+  /// When the vote was entered into the system.
+  recordedAt DateTime @default(now())
 
   @@unique([decisionId, personId])
   @@index([decisionId])
