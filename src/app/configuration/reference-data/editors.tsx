@@ -410,15 +410,15 @@ export function ContractBehavioursDrawer({ id, name, values, offices }: { id: st
         t("pricingBasis", "Pricing basis"),
         t("registrationTest", "Registration eligibility test"),
         { kind: "tokens", name: "administratorRoleCodes", label: "Contract administrator", options: offices, placeholder: "Add an office" },
-        b("startRequiresSecurities", "Start of work needs bond and insurances"),
+        b("startRequiresSecurities", "Start needs bond and insurances"),
         t("eotInstrument", "Extension of time instrument"),
         t("completionInstrument", "Completion instrument"),
         b("defectsLiabilityApplies", "Defects liability period"),
         b("makingGoodCertificate", "Certificate of making good defects"),
-        b("nominationAllowed", "Nominated sub-contractors and prime cost sums"),
+        b("nominationAllowed", "Nomination and prime cost sums"),
         t("interimPaymentRule", "Interim payment rule"),
         t("sumAdjustmentDrivers", "Contract sum adjustment drivers", "Separate them with commas."),
-        { kind: "select", name: "claimsApprovalCommitteeCode", label: "Approves claims before the final account", placeholder: "Not set", options: offices },
+        { kind: "select", name: "claimsApprovalCommitteeCode", label: "Approves claims before final account", placeholder: "Not set", options: offices },
       ]}
       values={{
         id,

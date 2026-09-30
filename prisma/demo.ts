@@ -1625,7 +1625,8 @@ async function determineExercises(ids: string[]) {
           requisitionRuleKey: ctx.approved?.ruleKey ?? null,
           requisitionRuleLabel: ctx.approved?.ruleLabel ?? null,
           methodReason: cols.proposedMethodCode === l.ex.sourcingMethodCode ? "" : l.ex.methodReason,
-          ...(prepared ? { classificationSnapshot: decided as object, preparedAt: day("2026-09-08") } : {}),
+          // Loaded as decided on the day it moved into preparation.
+          ...(prepared ? { classificationSnapshot: decided as object, preparedAt: day("2026-09-08"), determinedAt: day("2026-09-08") } : {}),
         },
       });
       for (const t of ev.taxonomies.filter((x) => x.state === "DERIVED" && x.valueCode)) {

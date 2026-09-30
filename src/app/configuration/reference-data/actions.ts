@@ -10,6 +10,7 @@ import { FormReader } from "@/lib/validate";
 import { writeAudit } from "@/lib/audit/record";
 import { diffFields, snapshotFields } from "@/lib/audit/diff";
 import { DELIVERABLE_KINDS } from "@/lib/method/types";
+import { contractTypeConfigFaults, dominanceShareFault, methodConfigFaults } from "@/lib/method/config";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const PATH = "/configuration/reference-data";
@@ -155,21 +156,6 @@ function readSourcingMethod(data: FormData, taken: string[], storedCode: string 
     notes: r.text("notes", "Notes", { max: 2000 }),
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
   };
-  // Banded for no regime means nothing will ever offer it. Refused at entry rather
-  // than saved and flagged later.
-  if (!value.availableInTender && !value.availableInQuotation && !value.availableBelow) {
-    r.reject("availableInTender", "Choose at least one value band, or the method can never be used.");
-  }
-  // A method proposed in a band it cannot be used in would propose nothing usable.
-  for (const [d, a, band] of [
-    ["defaultInTender", "availableInTender", "tender"],
-    ["defaultInQuotation", "availableInQuotation", "quotation"],
-    ["defaultBelow", "availableBelow", "below the quotation floor"],
-  ] as const) {
-    if (value[d] && !value[a]) r.reject(d, `A method can be proposed ${band === "tender" || band === "quotation" ? `in the ${band} band` : band} only where it is available there.`);
-  }
-  if (value.requiresDossier && !value.dossierSeriesKey) r.reject("dossierSeriesKey", "A method that keeps a justification dossier needs the numbering series its references are issued from.");
-  if (value.requiresProposal && !value.requiresNameApproval) r.reject("requiresNameApproval", "A proposal is reviewed on its way to approval of the name. Tick that the method needs the name approved, or untick the proposal.");
   return r.finish(value);
 }
 
@@ -187,40 +173,33 @@ export async function saveSourcingMethod(_prev: FormState, data: FormData): Prom
 
   const parsed = readSourcingMethod(data, takenCodes(existing), current?.code);
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
-  const v = parsed.value;
+  const v = { ...parsed.value, provenance: parsed.value.provenance! };
+  const reason = String(data.get("reason") ?? "");
 
-  // One method proposed per band, or the regime proposes nothing (6.3 ruling R-12).
-  const others = await db.sourcingMethod.findMany({ where: { organisationId: orgId, retiredOn: null, ...(id ? { NOT: { id } } : {}) } });
-  for (const [flag, band] of [["defaultInTender", "tender"], ["defaultInQuotation", "quotation"], ["defaultBelow", "below-quotation"]] as const) {
-    const clash = v[flag] ? others.find((o) => o[flag]) : null;
-    if (clash) return { ok: false, errors: { [flag]: `${clash.nameEn} is already the method proposed in the ${band} band. Untick it there first.` } };
-  }
-  if (v.dossierSeriesKey) {
-    const series = await db.numberingSeries.findFirst({ where: { organisationId: orgId, key: v.dossierSeriesKey }, select: { id: true } });
-    if (!series) return { ok: false, errors: { dossierSeriesKey: "No numbering series has that key. Add it under Configuration, Numbering first." } };
-  }
-
-  const ctx = {
-    organisationId: orgId,
-    entity: "SourcingMethod",
-    entityLabel: v.nameEn,
-    reason: String(data.get("reason") ?? ""),
-  };
-
-  if (!id) {
-    await auditedCreate(ctx, v, (tx) =>
-      tx.sourcingMethod.create({ data: { organisationId: orgId, ...v, provenance: v.provenance! } }),
-    );
-  } else {
-    const before = await db.sourcingMethod.findUnique({ where: { id } });
-    if (!before) return { ok: false, message: "That sourcing method no longer exists." };
-    await auditedUpdate({ ...ctx, entityId: id }, before, v, (tx) =>
-      tx.sourcingMethod.update({ where: { id }, data: { ...v, provenance: v.provenance! } }),
-    );
-  }
-
-  revalidatePath(PATH);
-  return { ok: true };
+  // The configuration rules (lib: methodConfigFaults) run on the methods and series read
+  // under the organisation's lock, so two saves cannot both become a band's default.
+  return db.$transaction(async (tx): Promise<FormState> => {
+    await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${orgId} FOR UPDATE`;
+    const [others, series, before] = await Promise.all([
+      tx.sourcingMethod.findMany({ where: { organisationId: orgId, OR: [{ retiredOn: null }, { retiredOn: { gt: new Date() } }], ...(id ? { NOT: { id } } : {}) } }),
+      tx.numberingSeries.findMany({ where: { organisationId: orgId }, select: { key: true } }),
+      id ? tx.sourcingMethod.findUnique({ where: { id } }) : Promise.resolve(null),
+    ]);
+    if (id && !before) return { ok: false, message: "That sourcing method no longer exists." };
+    if (!id && (await tx.sourcingMethod.findFirst({ where: { organisationId: orgId, code: v.code } }))) return { ok: false, errors: { code: "Code is already in use." } };
+    const faults = methodConfigFaults(v, others, series.map((x) => x.key));
+    if (faults.length) return { ok: false, errors: Object.fromEntries(faults.map((f) => [f.field, f.message])) };
+    if (!before) {
+      const row = await tx.sourcingMethod.create({ data: { organisationId: orgId, ...v } });
+      await writeAudit(tx, { organisationId: orgId, entity: "SourcingMethod", entityId: row.id, entityLabel: v.nameEn, reason }, "CREATE", diffFields(null, v));
+    } else {
+      await tx.sourcingMethod.update({ where: { id: before.id }, data: v });
+      const changes = diffFields(before, v);
+      if (changes.length) await writeAudit(tx, { organisationId: orgId, entity: "SourcingMethod", entityId: before.id, entityLabel: v.nameEn, reason }, "UPDATE", changes);
+    }
+    revalidatePath(PATH);
+    return { ok: true };
+  });
 }
 
 // ---------------------------------------------------------------- contract types
@@ -249,35 +228,31 @@ export async function saveContractType(_prev: FormState, data: FormData): Promis
     notes: r.text("notes", "Notes", { max: 2000 }),
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
   };
-  // One type in force per deliverable, or the deliverable test derives nothing.
-  if (v.deliverableKind) {
-    const clash = await db.contractType.findFirst({ where: { organisationId: orgId, deliverableKind: v.deliverableKind, retiredOn: null, ...(id ? { NOT: { id } } : {}) }, select: { nameEn: true } });
-    if (clash) r.reject("deliverableKind", `${clash.nameEn} is already the default for this deliverable.`);
-  }
   const parsed = r.finish(v);
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
+  const row = { ...v, provenance: v.provenance! };
+  const reason = String(data.get("reason") ?? "");
 
-  const ctx = {
-    organisationId: orgId,
-    entity: "ContractType",
-    entityLabel: v.nameEn,
-    reason: String(data.get("reason") ?? ""),
-  };
-
-  if (!id) {
-    await auditedCreate(ctx, v, (tx) =>
-      tx.contractType.create({ data: { organisationId: orgId, ...v, provenance: v.provenance! } }),
-    );
-  } else {
-    const before = await db.contractType.findUnique({ where: { id } });
-    if (!before) return { ok: false, message: "That contract type no longer exists." };
-    await auditedUpdate({ ...ctx, entityId: id }, before, v, (tx) =>
-      tx.contractType.update({ where: { id }, data: { ...v, provenance: v.provenance! } }),
-    );
-  }
-
-  revalidatePath(PATH);
-  return { ok: true };
+  // One type in force per deliverable (lib: contractTypeConfigFaults), under the lock.
+  return db.$transaction(async (tx): Promise<FormState> => {
+    await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${orgId} FOR UPDATE`;
+    const others = await tx.contractType.findMany({ where: { organisationId: orgId, OR: [{ retiredOn: null }, { retiredOn: { gt: new Date() } }], ...(id ? { NOT: { id } } : {}) } });
+    const faults = contractTypeConfigFaults(row, others);
+    if (faults.length) return { ok: false, errors: Object.fromEntries(faults.map((f) => [f.field, f.message])) };
+    if (!id) {
+      if (await tx.contractType.findFirst({ where: { organisationId: orgId, code: row.code } })) return { ok: false, errors: { code: "Code is already in use." } };
+      const created = await tx.contractType.create({ data: { organisationId: orgId, ...row } });
+      await writeAudit(tx, { organisationId: orgId, entity: "ContractType", entityId: created.id, entityLabel: row.nameEn, reason }, "CREATE", diffFields(null, row));
+    } else {
+      const before = await tx.contractType.findUnique({ where: { id } });
+      if (!before) return { ok: false, message: "That contract type no longer exists." };
+      await tx.contractType.update({ where: { id }, data: row });
+      const changes = diffFields(before, row);
+      if (changes.length) await writeAudit(tx, { organisationId: orgId, entity: "ContractType", entityId: id, entityLabel: row.nameEn, reason }, "UPDATE", changes);
+    }
+    revalidatePath(PATH);
+    return { ok: true };
+  });
 }
 
 // ------------------------------------------------------------ retire and restore
@@ -390,24 +365,36 @@ export async function saveChecklistItem(_prev: FormState, data: FormData): Promi
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const methodId = String(data.get("sourcingMethodId") ?? "");
-  const method = await db.sourcingMethod.findFirst({ where: { id: methodId, organisationId: orgId }, include: { checklistItems: true } });
-  if (!method) return { ok: false, message: "That sourcing method no longer exists." };
-  const before = id ? method.checklistItems.find((i) => i.id === id) : undefined;
-  if (id && !before) return { ok: false, message: "That item no longer exists." };
   const r = new FormReader(data);
+  const key = id ? null : r.code("key", "Key");
   const v = {
-    key: before ? before.key : r.code("key", "Key", { taken: method.checklistItems.map((i) => i.key) }),
     labelEn: r.text("labelEn", "Item", { required: true, max: 400 }),
     labelMs: r.optionalText("labelMs"),
     required: r.bool("required"),
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
   };
   if (r.failed) return { ok: false, errors: r.errors };
-  const ctx = { organisationId: orgId, entity: "MethodChecklistItem", entityLabel: `${method.nameEn} — ${v.labelEn}`, reason: String(data.get("reason") ?? "") };
-  if (!before) await auditedCreate(ctx, v, (tx) => tx.methodChecklistItem.create({ data: { sourcingMethodId: method.id, ...v } }));
-  else await auditedUpdate({ ...ctx, entityId: before.id }, before, v, (tx) => tx.methodChecklistItem.update({ where: { id: before.id }, data: v }));
-  revalidatePath(PATH);
-  return { ok: true };
+  const reason = String(data.get("reason") ?? "");
+  // Keys and the item are read under the method's lock: two saves cannot take one key.
+  return db.$transaction(async (tx): Promise<FormState> => {
+    await tx.$queryRaw`SELECT id FROM "SourcingMethod" WHERE id = ${methodId} FOR UPDATE`;
+    const method = await tx.sourcingMethod.findFirst({ where: { id: methodId, organisationId: orgId }, include: { checklistItems: true } });
+    if (!method) return { ok: false, message: "That sourcing method no longer exists." };
+    const before = id ? method.checklistItems.find((i) => i.id === id) : undefined;
+    if (id && !before) return { ok: false, message: "That item no longer exists." };
+    const label = `${method.nameEn} — ${v.labelEn}`;
+    if (!before) {
+      if (method.checklistItems.some((i) => i.key.toLowerCase() === key!.toLowerCase())) return { ok: false, errors: { key: "Key is already in use." } };
+      const row = await tx.methodChecklistItem.create({ data: { sourcingMethodId: method.id, key: key!, ...v } });
+      await writeAudit(tx, { organisationId: orgId, entity: "MethodChecklistItem", entityId: row.id, entityLabel: label, reason }, "CREATE", diffFields(null, { key, ...v }));
+    } else {
+      await tx.methodChecklistItem.update({ where: { id: before.id }, data: v });
+      const changes = diffFields(before, v);
+      if (changes.length) await writeAudit(tx, { organisationId: orgId, entity: "MethodChecklistItem", entityId: before.id, entityLabel: label, reason }, "UPDATE", changes);
+    }
+    revalidatePath(PATH);
+    return { ok: true };
+  });
 }
 
 export async function retireChecklistItem(_prev: FormState, data: FormData): Promise<FormState> {
@@ -564,7 +551,9 @@ export async function saveTaxonomyMapping(_prev: FormState, data: FormData): Pro
   if (v.whenTaxonomyCode === v.taxonomyCode) r.reject("whenTaxonomyCode", "A classification cannot be conditioned on itself.");
   if (r.failed) return { ok: false, errors: r.errors };
   const row = { ...v, provenance: v.provenance! };
-  await auditedCreate({ organisationId: orgId, entity: "TaxonomyMapping", entityLabel: `${type!.nameEn} — ${tax!.nameEn}`, reason: String(data.get("reason") ?? "") }, row, (tx) =>
+  // The trail names what it maps: codes are configuration keys.
+  const named = { contractType: type!.nameEn, classification: tax!.nameEn, value: tax!.values.find((x) => x.code === v.valueCode)?.nameEn ?? null, basis: basis?.nameEn ?? null, conditionedOnAnother: v.whenTaxonomyCode ? "yes" : "no", provenance: row.provenance, governingSource: row.governingSource };
+  await auditedCreate({ organisationId: orgId, entity: "TaxonomyMapping", entityLabel: `${type!.nameEn} — ${tax!.nameEn}`, reason: String(data.get("reason") ?? "") }, named, (tx) =>
     tx.taxonomyMapping.create({ data: { organisationId: orgId, ...row } }),
   );
   revalidatePath(PATH);
@@ -579,9 +568,13 @@ export async function removeTaxonomyMapping(_prev: FormState, data: FormData): P
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
   const row = await db.taxonomyMapping.findFirst({ where: { id, organisationId: orgId } });
   if (!row) return { ok: false, message: "That mapping no longer exists." };
+  const [type, tax] = await Promise.all([
+    db.contractType.findFirst({ where: { organisationId: orgId, code: row.contractTypeCode }, select: { nameEn: true } }),
+    db.classificationTaxonomy.findFirst({ where: { organisationId: orgId, code: row.taxonomyCode }, select: { nameEn: true, values: { select: { code: true, nameEn: true } } } }),
+  ]);
   await db.$transaction(async (tx) => {
     await tx.taxonomyMapping.delete({ where: { id } });
-    await writeAudit(tx, { organisationId: orgId, entity: "TaxonomyMapping", entityId: id, entityLabel: `${row.contractTypeCode} — ${row.taxonomyCode}`, reason }, "DELETE", snapshotFields(row));
+    await writeAudit(tx, { organisationId: orgId, entity: "TaxonomyMapping", entityId: id, entityLabel: `${type?.nameEn ?? "A type no longer configured"} — ${tax?.nameEn ?? "a classification no longer configured"}`, reason }, "DELETE", snapshotFields({ contractType: type?.nameEn ?? null, classification: tax?.nameEn ?? null, value: tax?.values.find((x) => x.code === row.valueCode)?.nameEn ?? null, conditioned: row.whenBasisCode || row.whenTaxonomyCode ? "yes" : "no", provenance: row.provenance }));
   });
   revalidatePath(PATH);
   return { ok: true };
@@ -595,19 +588,16 @@ export async function saveClassificationPolicy(_prev: FormState, data: FormData)
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const r = new FormReader(data);
-  const raw = String(data.get("dominanceSharePct") ?? "").trim();
-  let pct: string | null = null;
-  if (raw) {
-    if (!/^\d{1,3}(\.\d{1,4})?$/.test(raw) || Number(raw) < 50 || Number(raw) >= 100) r.reject("dominanceSharePct", "A share of at least 50 and below 100 percent, to at most four decimal places.");
-    else pct = raw;
-  }
+  const share = dominanceShareFault(String(data.get("dominanceSharePct") ?? ""));
+  if (share.fault) r.reject(share.fault.field, share.fault.message);
   const provenance = r.choice("provenance", "Where this comes from", PROVENANCE);
-  if (pct && !provenance) r.reject("provenance", "Say where this comes from.");
+  if (share.value && !provenance) r.reject("provenance", "Say where this comes from.");
   const notes = r.text("notes", "Notes", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  const before = await db.classificationPolicy.findUnique({ where: { organisationId: orgId } });
-  const v = { dominanceSharePct: pct, provenance: pct ? provenance : null, notes };
+  const v = { dominanceSharePct: share.value, provenance: share.value ? provenance : null, notes };
   await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${orgId} FOR UPDATE`;
+    const before = await tx.classificationPolicy.findUnique({ where: { organisationId: orgId } });
     const row = await tx.classificationPolicy.upsert({ where: { organisationId: orgId }, create: { organisationId: orgId, ...v }, update: v });
     const changes = diffFields(before ? { ...before, dominanceSharePct: before.dominanceSharePct?.toString() ?? null } : null, v);
     if (!before || changes.length) await writeAudit(tx, { organisationId: orgId, entity: "ClassificationPolicy", entityId: row.id, entityLabel: "Mixed-scope classification", reason: String(data.get("reason") ?? "") }, before ? "UPDATE" : "CREATE", changes);

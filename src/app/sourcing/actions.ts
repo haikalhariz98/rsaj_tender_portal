@@ -10,6 +10,7 @@ import { writeAudit, type Tx } from "@/lib/audit/record";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { ACT_LABEL } from "@/lib/labels";
 import { resolveNameApproval } from "@/lib/method/approval";
+import { keptForMethod, nameRoutesToWithdraw } from "@/lib/method/config";
 import { evaluateExercise, saveBlockers, type Evaluation, type ExerciseDraft } from "@/lib/method/evaluate";
 import { transitionFault, openFault } from "@/lib/method/exercise";
 import { findingText, EXERCISE_STATUS_LABEL } from "@/lib/method/labels";
@@ -181,24 +182,28 @@ function faultState(r: FormReader, fs: readonly Finding[]): FormState {
   return { ok: false, errors: r.errors, message: `Nothing was saved. ${loose.join(" ") || "Correct the fields marked below."}` };
 }
 
-/// What the method does not ask for is not kept: the record holds what applies.
+/// What the method does not ask for is not kept (lib: keptForMethod).
 function methodColumns(v: FormValues, ev: Evaluation) {
-  const m = ev.method;
   const d = v.draft;
-  const coordination = !!m?.requiresCoordinationRecord;
+  const kept = keptForMethod(ev.method, {
+    methodCode: d.methodCode,
+    proposedCode: ev.bands.proposed.state === "PROPOSED" ? ev.bands.proposed.code : null,
+    methodReason: d.methodReason,
+    parentContractRef: d.parentContractRef,
+    justificationReasonCode: d.justificationReasonCode,
+    justificationText: d.justificationText,
+    evidenceNote: d.evidenceNote,
+    emergencyTrigger: d.emergencyTrigger,
+    coordinationMeetingOn: d.coordinationMeetingOn,
+    coordinationAttendees: v.coordinationAttendees,
+    coordinationScopeNote: v.coordinationScopeNote,
+    bqReference: v.bqReference,
+  });
   return {
+    ...kept,
     sourcingMethodCode: d.methodCode ?? "",
-    methodReason: ev.bands.proposed.state === "PROPOSED" && ev.bands.proposed.code === d.methodCode ? "" : d.methodReason,
     externalRouteNote: d.externalRouteNote,
-    parentContractRef: m && !m.requiresFreshSourcing ? d.parentContractRef : null,
-    justificationReasonCode: m?.requiresDossier ? d.justificationReasonCode : null,
-    justificationText: m?.requiresJustification || m?.requiresDossier ? d.justificationText : "",
-    evidenceNote: m?.requiresDossier ? d.evidenceNote : "",
-    emergencyTrigger: coordination ? d.emergencyTrigger : "",
-    coordinationMeetingOn: coordination && d.coordinationMeetingOn ? dayToDate(d.coordinationMeetingOn) : null,
-    coordinationAttendees: coordination ? v.coordinationAttendees : "",
-    coordinationScopeNote: coordination ? v.coordinationScopeNote : "",
-    bqReference: coordination ? v.bqReference : null,
+    coordinationMeetingOn: kept.coordinationMeetingOn ? dayToDate(kept.coordinationMeetingOn) : null,
     contractTypeOverrideReason: ev.type.state === "DERIVED" ? "" : d.typeReason,
     overriddenByPersonId: ev.type.state === "DERIVED" ? null : d.typePersonId,
     contractBasisCode: d.basisCode,
@@ -353,16 +358,14 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
     if (moved.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", diffFields(auditView(ex), auditView(after)), String(data.get("reason") ?? ""));
     await writeChildren(tx, l.org.id, ex, ex, v.draft.scope, ev, cfg.config);
-    if (methodChanged || valueChanged) {
-      for (const inst of ex.approvalInstances.filter((i) => i.status === "PENDING" || i.status === "APPROVED")) {
-        const why = methodChanged ? "The method changed after the name was sent for approval." : "The value changed after the name was sent for approval.";
-        const warning = { code: "WITHDRAWN_ON_CHANGE", level: "warn", messageEn: `${why} This route no longer describes the exercise, so it was withdrawn.` };
-        await tx.approvalInstance.update({
-          where: { id: inst.id },
-          data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue },
-        });
-        await audit(tx, l.org.id, "ApprovalInstance", inst.id, `${ex.reference} · approval of the name`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), why);
-      }
+    const withdraw = nameRoutesToWithdraw(ex.approvalInstances, { methodChanged, valueChanged });
+    for (const inst of withdraw.routes) {
+      const warning = { code: "WITHDRAWN_ON_CHANGE", level: "warn", messageEn: `${withdraw.reason} This route no longer describes the exercise, so it was withdrawn.` };
+      await tx.approvalInstance.update({
+        where: { id: inst.id },
+        data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue },
+      });
+      await audit(tx, l.org.id, "ApprovalInstance", inst.id, `${ex.reference} · approval of the name`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), withdraw.reason ?? "");
     }
     return { ok: true };
   });
