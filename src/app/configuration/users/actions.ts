@@ -9,6 +9,7 @@ import { periodsOverlap } from "@/lib/effective";
 import { faultsIn, type Delegation, type DelegationFault } from "@/lib/people/delegation";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { checkPeriod, FormReader } from "@/lib/validate";
+import { issuedInForce } from "@/lib/authority/issue";
 
 const PATH = "/configuration/users";
 
@@ -295,11 +296,7 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
     // recommender.
     db.authorityRule.count({
       where: {
-        authorityMatrix: {
-          organisationId: orgId,
-          effectiveFrom: { lte: new Date() },
-          OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }],
-        },
+        authorityMatrix: { organisationId: orgId, ...issuedInForce(new Date()) },
         OR: [
           { approverCode: roleCode, approverMandatory: true },
           { recommenders: { some: { roleCode, act: { in: ["MR", "MJR", "MA"] } } } },

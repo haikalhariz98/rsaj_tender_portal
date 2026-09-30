@@ -1,6 +1,15 @@
+import { PencilIcon, XIcon } from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
+import { buttonClass, iconButtonClass } from "@/components/ui/button";
 
-import { saveMatrix, saveRecommender, saveRule } from "./actions";
+import {
+  issueDraft,
+  removeRecommender,
+  saveMatrix,
+  saveRecommender,
+  saveRule,
+  startRevision,
+} from "./actions";
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
@@ -23,12 +32,12 @@ const matrixFields: Field[] = [
     required: true,
     hint: "How this issue of the limits is cited — a revision number, a resolution date.",
   },
-  { kind: "date", name: "effectiveFrom", label: "In force from", required: true },
   {
     kind: "date",
-    name: "effectiveTo",
-    label: "In force to",
-    hint: "Leave empty while it is current. Two issues may not be in force at once.",
+    name: "effectiveFrom",
+    label: "Meant to start",
+    required: true,
+    hint: "Nothing is in force until the draft is issued. You confirm the date then.",
   },
   {
     kind: "note",
@@ -96,12 +105,12 @@ const matrixFields: Field[] = [
 export function AddMatrix() {
   return (
     <RecordEditor
-      title="Add an issue of the limits"
-      description="One set of authority thresholds, in force over a period."
+      title="Draft the first issue of the limits"
+      description="A draft is editable and routes nothing. Add its rules, then issue it."
       fields={matrixFields}
       action={saveMatrix}
-      submitLabel="Add issue"
-      trigger={{ label: "Add issue", icon: true }}
+      submitLabel="Create draft"
+      trigger={{ label: "Draft the first issue", icon: true, className: buttonClass("primary", "sm") }}
       size="lg"
     />
   );
@@ -129,16 +138,15 @@ export function EditMatrix({ matrix }: { matrix: MatrixValues }) {
   return (
     <RecordEditor
       title={`Edit ${matrix.label}`}
-      description="Saved changes apply at once, including in the simulator. There is no second approval yet — maker-checker arrives with sign-in."
+      description="A draft. Nothing here is in force until it is issued."
       fields={[{ kind: "hidden", name: "id" }, ...matrixFields]}
       action={saveMatrix}
-      trigger={{ label: "Edit thresholds", className: "btn btn--sm" }}
+      trigger={{ label: "Edit thresholds", className: buttonClass("secondary", "sm") }}
       size="lg"
       values={{
         id: matrix.id,
         label: matrix.label,
         effectiveFrom: day(matrix.effectiveFrom),
-        effectiveTo: day(matrix.effectiveTo),
         boundaryValue: String(matrix.boundaryValue),
         boundaryInclusive: matrix.boundaryInclusive,
         quotationFloor: String(matrix.quotationFloor),
@@ -258,7 +266,7 @@ export function AddRule({
       values={{ authorityMatrixId: matrixId }}
       action={saveRule}
       submitLabel="Add rule"
-      trigger={{ label: "Add rule", icon: true }}
+      trigger={{ label: "Add rule", icon: true, className: buttonClass("secondary", "sm") }}
       size="lg"
     />
   );
@@ -300,7 +308,7 @@ export function EditRule({
       title={`Edit ${rule.labelEn}`}
       fields={[{ kind: "hidden", name: "id" }, ...ruleFields(offices)]}
       action={saveRule}
-      trigger={{ label: "Edit", className: "btn btn--sm btn--ghost" }}
+      trigger={{ label: "Edit rule", iconOnly: <PencilIcon size={15} />, className: iconButtonClass("sm") }}
       size="lg"
       values={{
         id: rule.id,
@@ -355,15 +363,102 @@ export function AddRecommender({
           label: "Acts as",
           required: true,
           placeholder: "Choose",
-          options: ACT_OPTIONS,
+          options: ACT_OPTIONS.filter((o) => o.value !== "A" && o.value !== "MA"),
         },
         { kind: "number", name: "sequence", label: "Order in the chain", min: 0 },
       ]}
       values={{ authorityRuleId: ruleId }}
       action={saveRecommender}
       submitLabel="Add recommender"
-      trigger={{ label: "Add recommender", className: "btn btn--sm btn--ghost" }}
+      trigger={{ label: "Add recommender", icon: true, className: buttonClass("ghost", "sm") }}
       size="sm"
+    />
+  );
+}
+
+export function RemoveRecommender({ id, label }: { id: string; label: string }) {
+  return (
+    <RecordEditor
+      title={`Remove ${label}`}
+      description="Takes this step out of the draft's chain."
+      fields={[{ kind: "hidden", name: "id" }]}
+      values={{ id }}
+      action={removeRecommender}
+      submitLabel="Remove"
+      destructive={{ reasonLabel: "Why is it coming out?" }}
+      trigger={{ label: `Remove ${label}`, iconOnly: <XIcon size={13} />, className: iconButtonClass("sm", false, "size-6") }}
+      size="sm"
+    />
+  );
+}
+
+/// Copy an issued issue into a draft, to be changed and issued in its place.
+export function StartRevision({ fromId, fromLabel }: { fromId: string; fromLabel: string }) {
+  return (
+    <RecordEditor
+      title="Start a new revision"
+      description={`A draft copy of ${fromLabel} — every threshold, clause and rule. Change it, then issue it; ${fromLabel} stays in force until then and is kept afterwards.`}
+      fields={[
+        { kind: "hidden", name: "fromId" },
+        {
+          kind: "text",
+          name: "label",
+          label: "Label",
+          required: true,
+          hint: "How the new issue is cited — a revision number, a resolution date.",
+        },
+        { kind: "date", name: "effectiveFrom", label: "Meant to start", required: true },
+      ]}
+      values={{ fromId }}
+      action={startRevision}
+      submitLabel="Create draft"
+      trigger={{ label: "New revision", icon: true, className: buttonClass("primary", "sm") }}
+      size="md"
+    />
+  );
+}
+
+/// Put a draft into force. It ends the issue it replaces and freezes itself.
+export function IssueDraft({
+  id,
+  label,
+  meantFrom,
+  replaces,
+}: {
+  id: string;
+  label: string;
+  meantFrom: Date;
+  replaces: string | null;
+}) {
+  return (
+    <RecordEditor
+      title={`Issue ${label}`}
+      description={
+        replaces
+          ? `From the date below it routes every matter, ${replaces} ends, and neither can be changed again. A change after that is a new revision.`
+          : "From the date below it routes every matter and can no longer be changed. A change after that is a new revision."
+      }
+      fields={[
+        { kind: "hidden", name: "id" },
+        {
+          kind: "date",
+          name: "effectiveFrom",
+          label: "In force from",
+          required: true,
+          hint: "Today or later. An issue is never back-dated.",
+        },
+        {
+          kind: "textarea",
+          name: "reason",
+          label: "Why it is being issued",
+          hint: "The resolution or decision behind it. Kept with the issue.",
+        },
+      ]}
+      values={{ id, effectiveFrom: day(meantFrom) }}
+      action={issueDraft}
+      submitLabel="Issue it"
+      trigger={{ label: "Issue", className: buttonClass("primary", "sm") }}
+      size="md"
     />
   );
 }

@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 
 import type { Roster } from "./roster";
 import type { Assignment, Office, Person } from "./types";
+import { issuedInForce } from "@/lib/authority/issue";
 
 /**
  * Load the roster.
@@ -38,11 +39,15 @@ export async function loadRoster(organisationCode: string): Promise<RosterData> 
       orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }],
     }),
     db.authorityRule.findMany({
-      where: { authorityMatrix: { organisationId: organisation.id } },
+      where: { authorityMatrix: { organisationId: organisation.id, ...issuedInForce(new Date()) } },
       select: { proposerCode: true, approverCode: true, committeeCode: true },
     }),
     db.authorityRuleStep.findMany({
-      where: { authorityRule: { authorityMatrix: { organisationId: organisation.id } } },
+      where: {
+        authorityRule: {
+          authorityMatrix: { organisationId: organisation.id, ...issuedInForce(new Date()) },
+        },
+      },
       select: { roleCode: true },
     }),
   ]);

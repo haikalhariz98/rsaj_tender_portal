@@ -1,24 +1,51 @@
 import { Accordion } from "@/components/accordion";
 import { AuthoritySimulator } from "@/components/authority-simulator";
-import { AlertTriangle, CheckIcon, InfoIcon, SlidersIcon } from "@/components/icons";
+import { AlertTriangle, CheckIcon, SlidersIcon } from "@/components/icons";
 import { RuleChain, type ChainStep } from "@/components/rule-chain";
-import { loadMatrix, loadMatrixVersion, NoActiveMatrixError } from "@/lib/authority/load";
+import { listIssues, loadMatrix, loadRuleRows, type IssueSummary } from "@/lib/authority/load";
 import { listCommittees } from "@/lib/committee/repo";
 import { approverAct, ruleIsDelegable } from "@/lib/authority/resolve";
 import { formatPercentBand, formatValueBand } from "@/lib/format";
 import { ACT_LABEL, matterLabel, methodLabel } from "@/lib/labels";
 import { ORGANISATION_CODE, ORGANISATION_NAME } from "@/lib/org";
+import { formatDate } from "@/lib/format";
 import { loadReferenceData } from "@/lib/reference/load";
 import { activeOn } from "@/lib/reference/vocabulary";
 import { loadRoster } from "@/lib/people/load";
-import { AddMatrix, AddRule, EditMatrix } from "./editors";
+import {
+  AddMatrix,
+  AddRecommender,
+  AddRule,
+  EditMatrix,
+  EditRule,
+  IssueDraft,
+  RemoveRecommender,
+  StartRevision,
+} from "./editors";
+import Link from "next/link";
+import { ButtonLink } from "@/components/ui/button";
+import { Callout } from "@/components/ui/feedback";
+import { cx } from "@/components/ui/cx";
 import type { Rule } from "@/lib/authority/types";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
 
-export default async function ApprovalMatrixPage() {
+/// Where an issue stands today. Read from its dates and whether it was issued.
+function stateOf(issue: IssueSummary, on: Date): { label: string; tone: "ok" | "info" | "warn" | "neutral" } {
+  if (!issue.issuedAt) return { label: "Draft", tone: "warn" };
+  if (issue.effectiveFrom > on) return { label: `Issued · starts ${formatDate(issue.effectiveFrom)}`, tone: "info" };
+  if (issue.effectiveTo && issue.effectiveTo <= on) return { label: "Superseded", tone: "neutral" };
+  return { label: "In force", tone: "ok" };
+}
+
+export default async function ApprovalMatrixPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ issue?: string }>;
+}) {
+  const { issue: requested } = await searchParams;
   // The vocabulary this customer has configured. Which funding routes override the
   // matrix is a property of the route, not of its name.
   const on = new Date();
@@ -36,13 +63,16 @@ export default async function ApprovalMatrixPage() {
   const roster = await loadRoster(ORGANISATION_CODE);
   const offices = roster.offices.map((o) => ({ code: o.code, nameEn: o.nameEn }));
 
-  let matrix;
-  try {
-    matrix = await loadMatrix(ORGANISATION_CODE);
-  } catch (error) {
-    if (!(error instanceof NoActiveMatrixError)) throw error;
-    // The error's own wording names the organisation by code and tells the reader to
-    // seed one — useful in a log, wrong on a screen an officer is looking at.
+  // Which issue to show: the one asked for, else the one in force, else a draft.
+  const issues = await listIssues(ORGANISATION_CODE);
+  const inForceNow =
+    issues.find(
+      (i) => i.issuedAt && i.effectiveFrom <= on && (i.effectiveTo == null || i.effectiveTo > on),
+    ) ?? null;
+  const draftIssue = issues.find((i) => !i.issuedAt) ?? null;
+  const selected = issues.find((i) => i.id === requested) ?? inForceNow ?? draftIssue ?? null;
+
+  if (!selected) {
     return (
       <>
         <PageHeader
@@ -54,11 +84,10 @@ export default async function ApprovalMatrixPage() {
         <div className="card">
           <div className="card__body">
             <div className="empty">
-              <div className="empty__t">No approval limits are in effect</div>
+              <div className="empty__t">No approval limits yet</div>
               <p className="empty__d">
-                {ORGANISATION_NAME} has no set of authority limits in force today, so the
-                portal cannot say who approves anything. Nothing has been lost — none has
-                been entered yet.
+                {ORGANISATION_NAME} has no authority limits, so the portal cannot say who
+                approves anything. Draft the first issue, add its rules, then issue it.
               </p>
               <div className="empty__a">
                 <AddMatrix />
@@ -70,11 +99,12 @@ export default async function ApprovalMatrixPage() {
     );
   }
 
-  const version = await loadMatrixVersion(ORGANISATION_CODE);
-  const matrixId = version?.id ?? "";
-  const matrixLabel = version?.label ?? "";
-  const matrixFrom = version?.effectiveFrom ?? new Date();
-  const matrixTo = version?.effectiveTo ?? null;
+  const matrix = await loadMatrix(ORGANISATION_CODE, on, selected.id);
+  const matrixId = selected.id;
+  const editable = !selected.issuedAt;
+  const state = stateOf(selected, on);
+  // Row ids only where they are needed: a draft's rules are the only ones that change.
+  const ruleRows = editable ? await loadRuleRows(selected.id) : {};
 
   // A rule may route to an office or to a committee; the two are kept apart, so look
   // in both before admitting the code is unknown.
@@ -113,6 +143,7 @@ export default async function ApprovalMatrixPage() {
     <>
       <PageHeader
         title="Approval matrix"
+        badge={<Badge tone={state.tone} dot>{`${selected.label} · ${state.label}`}</Badge>}
         subtitle="Who proposes, who recommends and who approves, at every value."
         meta={[
           `${matrix.rules.length} rules`,
@@ -121,13 +152,14 @@ export default async function ApprovalMatrixPage() {
           `${fixed} cannot be delegated`,
         ]}
         actions={
+          editable ? (
           <>
             <EditMatrix
               matrix={{
                 id: matrixId,
-                label: matrixLabel,
-                effectiveFrom: matrixFrom,
-                effectiveTo: matrixTo,
+                label: selected.label,
+                effectiveFrom: selected.effectiveFrom,
+                effectiveTo: null,
                 boundaryValue: matrix.policy.boundaryValue,
                 boundaryInclusive: matrix.policy.boundaryInclusive,
                 quotationFloor: matrix.policy.quotationFloor,
@@ -142,22 +174,66 @@ export default async function ApprovalMatrixPage() {
               }}
             />
             <AddRule matrixId={matrixId} offices={offices} />
+            <IssueDraft
+              id={matrixId}
+              label={selected.label}
+              meantFrom={selected.effectiveFrom}
+              replaces={inForceNow?.label ?? null}
+            />
           </>
+          ) : draftIssue ? (
+            <ButtonLink href={`?issue=${draftIssue.id}`} variant="primary" size="sm">
+              Open draft {draftIssue.label}
+            </ButtonLink>
+          ) : (
+            <StartRevision fromId={matrixId} fromLabel={selected.label} />
+          )
         }
       />
 
+      {issues.length > 1 && (
+        <nav aria-label="Issues" className="-mt-2 mb-5 flex flex-wrap items-center gap-2">
+          <span className="text-[12.5px] font-semibold text-ink-3">Issues</span>
+          {issues.map((i) => {
+            const s = stateOf(i, on);
+            return (
+              <Link
+                key={i.id}
+                href={`?issue=${i.id}`}
+                aria-current={i.id === selected.id ? "page" : undefined}
+                className={cx(
+                  "rounded-full border px-3 py-1 text-[12.5px] no-underline transition hover:no-underline",
+                  i.id === selected.id
+                    ? "border-brand-300 bg-brand-50 font-semibold text-brand-800"
+                    : "border-line-2 bg-surface text-ink-2 hover:border-ink-4",
+                )}
+              >
+                {i.label} <span className="text-ink-3">· {s.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      )}
+
       <div className="stack stack--lg">
-        <div className="callout callout--info">
-          <span className="callout__ico">
-            <InfoIcon size={17} />
-          </span>
-          <div className="grow">
-            <span className="sm">
-              These rules drive every approval in the portal. Saved changes apply at once,
-              including in the simulator below — there is no second approval until sign-in exists.
-            </span>
-          </div>
-        </div>
+        {editable ? (
+          <Callout tone="warn" title="This is a draft">
+            Nothing in it routes a matter until it is issued. Change the thresholds and rules
+            here, then issue it from a date. The simulator below still uses the issue in force.
+          </Callout>
+        ) : state.label === "In force" ? (
+          <Callout tone="info" title={`In force since ${formatDate(selected.effectiveFrom)}`}>
+            These rules route every approval in the portal. An issued issue cannot be changed, so
+            a decision can always be shown the rules it ran under. To change them, start a new
+            revision.
+          </Callout>
+        ) : (
+          <Callout tone="info" title={state.label}>
+            {selected.effectiveTo
+              ? `In force from ${formatDate(selected.effectiveFrom)} until ${formatDate(selected.effectiveTo)}. Kept so decisions taken under it can be shown the rules they ran under.`
+              : `Issued to come into force on ${formatDate(selected.effectiveFrom)}.`}
+          </Callout>
+        )}
 
         <section className="card">
           <div className="card__head">
@@ -284,6 +360,7 @@ export default async function ApprovalMatrixPage() {
                           <col style={{ width: "42%" }} />
                           <col style={{ width: "13%" }} />
                           <col style={{ width: "15%" }} />
+                          {editable && <col style={{ width: "150px" }} />}
                         </colgroup>
                         <thead>
                           <tr>
@@ -292,6 +369,7 @@ export default async function ApprovalMatrixPage() {
                             <th>Route</th>
                             <th>Committee</th>
                             <th>Delegation</th>
+                            {editable && <th>Change</th>}
                           </tr>
                         </thead>
                         <tbody>
@@ -359,6 +437,17 @@ export default async function ApprovalMatrixPage() {
                                     </span>
                                   )}
                                 </td>
+                                {editable && (
+                                  <td>
+                                    <RuleActions
+                                      rule={rule}
+                                      row={ruleRows[rule.ruleKey]}
+                                      matrixId={matrixId}
+                                      offices={offices}
+                                      roleName={roleName}
+                                    />
+                                  </td>
+                                )}
                               </tr>
                             );
                           })}
@@ -379,7 +468,7 @@ export default async function ApprovalMatrixPage() {
             </span>
             <div>
               <div className="strong" style={{ marginBottom: 2 }}>
-                {gaps} matters have no limit set for them
+                {gaps} {gaps === 1 ? "matter has" : "matters have"} no limit set for it
               </div>
               No limit has ever been set for who may authorise these. Work is still routed so
               nothing stalls, but the route is an assumption.
@@ -416,5 +505,60 @@ export default async function ApprovalMatrixPage() {
         </section>
       </div>
     </>
+  );
+}
+
+/// A draft rule's controls: edit it, and add or remove the steps before the approver.
+function RuleActions({
+  rule,
+  row,
+  matrixId,
+  offices,
+  roleName,
+}: {
+  rule: Rule;
+  row: { id: string; recommenders: { id: string; roleCode: string; act: string }[] } | undefined;
+  matrixId: string;
+  offices: { code: string; nameEn: string }[];
+  roleName: (code: string | null) => string | null;
+}) {
+  if (!row) return null;
+  return (
+    <div className="flex flex-col items-start gap-1.5">
+      <div className="flex items-center gap-1">
+        <EditRule
+          matrixId={matrixId}
+          offices={offices}
+          rule={{
+            id: row.id,
+            ruleKey: rule.ruleKey,
+            domain: rule.domain,
+            method: rule.method,
+            minValue: rule.minValue,
+            maxValue: rule.maxValue,
+            labelEn: rule.labelEn,
+            labelMs: rule.labelMs,
+            proposerCode: rule.proposerCode,
+            approverCode: rule.approverCode,
+            committeeCode: rule.committeeCode,
+            committeeAct: rule.committeeAct,
+            nonDelegable: rule.nonDelegable,
+            approverMandatory: rule.approverMandatory,
+            isGap: rule.isGap,
+            gapNote: rule.gapNote,
+            note: rule.note,
+            clause: rule.clause,
+            sortOrder: rule.sortOrder,
+          }}
+        />
+        <AddRecommender ruleId={row.id} offices={offices} />
+      </div>
+      {row.recommenders.map((step) => (
+        <span key={step.id} className="inline-flex items-center gap-1 rounded-full bg-ink/[0.05] py-0.5 pr-0.5 pl-2.5 text-[12px] text-ink-2">
+          {roleName(step.roleCode)} · {ACT_LABEL[step.act] ?? step.act}
+          <RemoveRecommender id={step.id} label={`${roleName(step.roleCode)} from this rule`} />
+        </span>
+      ))}
+    </div>
   );
 }

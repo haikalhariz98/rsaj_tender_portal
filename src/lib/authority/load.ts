@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import type { AuthorityAct, Matrix, Rule } from "./types";
+import { issuedInForce } from "./issue";
 
 /// Prisma returns Decimal for money and percentage columns. Bands are compared, not
 /// accumulated, so a number is safe here — every DAL threshold is well inside 2^53.
@@ -23,7 +24,13 @@ export class NoActiveMatrixError extends Error {
  * earlier issue was in force must route by that issue, and re-running a historical
  * decision has to reproduce the chain that was actually followed.
  */
-export async function loadMatrix(organisationCode: string, asOf: Date = new Date()): Promise<Matrix> {
+export async function loadMatrix(
+  organisationCode: string,
+  asOf: Date = new Date(),
+  /// A specific issue, draft or not — for the screen that edits it. Routing never
+  /// passes this: it takes the issue in force, which is never a draft.
+  issueId?: string,
+): Promise<Matrix> {
   const organisation = await db.organisation.findUnique({
     where: { code: organisationCode },
     select: { id: true },
@@ -31,11 +38,9 @@ export async function loadMatrix(organisationCode: string, asOf: Date = new Date
   if (!organisation) throw new NoActiveMatrixError();
 
   const version = await db.authorityMatrix.findFirst({
-    where: {
-      organisationId: organisation.id,
-      effectiveFrom: { lte: asOf },
-      OR: [{ effectiveTo: null }, { effectiveTo: { gt: asOf } }],
-    },
+    where: issueId
+      ? { organisationId: organisation.id, id: issueId }
+      : { organisationId: organisation.id, ...issuedInForce(asOf) },
     orderBy: { effectiveFrom: "desc" },
     include: {
       rules: {
@@ -131,8 +136,7 @@ export async function loadMatrixVersion(organisationCode: string, asOf: Date = n
   return db.authorityMatrix.findFirst({
     where: {
       organisationId: organisation.id,
-      effectiveFrom: { lte: asOf },
-      OR: [{ effectiveTo: null }, { effectiveTo: { gt: asOf } }],
+      ...issuedInForce(asOf),
     },
     orderBy: { effectiveFrom: "desc" },
     select: { id: true, label: true, effectiveFrom: true, effectiveTo: true },
@@ -153,11 +157,48 @@ export async function activeVersionLabel(
   const version = await db.authorityMatrix.findFirst({
     where: {
       organisationId: organisation.id,
-      effectiveFrom: { lte: asOf },
-      OR: [{ effectiveTo: null }, { effectiveTo: { gt: asOf } }],
+      ...issuedInForce(asOf),
     },
     orderBy: { effectiveFrom: "desc" },
     select: { label: true },
   });
   return version?.label ?? null;
+}
+
+/// Every issue, newest first, with its state — for choosing which one to look at.
+export async function listIssues(organisationCode: string) {
+  const organisation = await db.organisation.findUnique({
+    where: { code: organisationCode },
+    select: { id: true },
+  });
+  if (!organisation) return [];
+  return db.authorityMatrix.findMany({
+    where: { organisationId: organisation.id },
+    orderBy: [{ effectiveFrom: "desc" }, { label: "asc" }],
+    select: { id: true, label: true, effectiveFrom: true, effectiveTo: true, issuedAt: true },
+  });
+}
+
+export type IssueSummary = Awaited<ReturnType<typeof listIssues>>[number];
+
+/**
+ * Row ids for one issue's rules and their recommender steps, by rule key.
+ *
+ * Kept out of `Matrix` so the resolver still cannot see a primary key; only the
+ * screen that edits the rules needs them. Safe because a rule key is unique within
+ * an issue.
+ */
+export async function loadRuleRows(issueId: string) {
+  const rows = await db.authorityRule.findMany({
+    where: { authorityMatrixId: issueId },
+    select: {
+      id: true,
+      ruleKey: true,
+      recommenders: {
+        orderBy: { sequence: "asc" },
+        select: { id: true, roleCode: true, act: true, sequence: true },
+      },
+    },
+  });
+  return Object.fromEntries(rows.map((r) => [r.ruleKey, r]));
 }

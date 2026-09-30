@@ -3,16 +3,21 @@
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
-import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
+import { auditedCreate, auditedDelete, auditedUpdate, writeAudit } from "@/lib/audit/record";
+import { diffFields } from "@/lib/audit/diff";
+import { issueFault, predecessorOf, startOfDay } from "@/lib/authority/issue";
 import { rulesTiedWith } from "@/lib/authority/resolve";
 import type { Rule } from "@/lib/authority/types";
 import { db } from "@/lib/db";
 import { compareAmounts } from "@/lib/money";
-import { periodsOverlap } from "@/lib/effective";
 import { ORGANISATION_CODE } from "@/lib/org";
-import { checkPeriod, FormReader } from "@/lib/validate";
+import { FormReader } from "@/lib/validate";
 
-const ACTS = ["P", "JP", "R", "JR", "MR", "MJR", "A", "MA"] as const;
+/// A recommender proposes or recommends. Approving is the approver's act, set on
+/// the rule itself; a recommender step saying "approve" would put two approvers in
+/// one chain.
+const RECOMMENDER_ACTS = ["P", "JP", "R", "JR", "MR", "MJR"] as const;
+const COMMITTEE_ACTS = ["R", "JR", "MR", "MJR", "A", "MA"] as const;
 const PATH = "/configuration/approval-matrix";
 
 async function organisationId(): Promise<string | null> {
@@ -27,6 +32,23 @@ const NO_ORG: FormState = {
   ok: false,
   message: "No organisation is configured. Run npm run setup before adding records.",
 };
+
+/// An issued issue is frozen. Every writer that changes an issue or its rules asks
+/// this first — hiding the buttons is not enough, a server action is a public POST.
+const FROZEN: FormState = {
+  ok: false,
+  message:
+    "This issue has been issued, so it can no longer be changed. Start a new revision to change the limits.",
+};
+
+// Money and percentage columns as strings, for an audit diff that reads as figures.
+const decimals = <T extends Record<string, unknown>>(row: T): T =>
+  Object.fromEntries(
+    Object.entries(row).map(([k, v]) => [
+      k,
+      v != null && typeof v === "object" && "toFixed" in (v as object) ? String(v) : v,
+    ]),
+  ) as T;
 
 /**
  * One issue of the authority limits.
@@ -43,10 +65,16 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
 
+  const before = id
+    ? await db.authorityMatrix.findFirst({ where: { id, organisationId: orgId } })
+    : null;
+  if (id && !before) return { ok: false, message: "That issue no longer exists." };
+  if (before?.issuedAt) return FROZEN;
+
   const label = r.text("label", "Label", { required: true, max: 120 });
-  const effectiveFrom = r.date("effectiveFrom", "In force from", { required: true });
-  const effectiveTo = r.date("effectiveTo", "In force to");
-  checkPeriod(r, effectiveFrom, effectiveTo);
+  // A draft's date is when it is meant to start. Nothing is in force until it is
+  // issued, and issuing is where the period is checked and the predecessor ended.
+  const effectiveFrom = r.date("effectiveFrom", "Meant to start", { required: true });
 
   const quotationFloor = r.money("quotationFloor", "Quotation floor", { required: true });
   const tenderFloor = r.money("tenderFloor", "Tender floor", { required: true });
@@ -69,25 +97,16 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
 
   const existing = await db.authorityMatrix.findMany({
     where: { organisationId: orgId, ...(id ? { NOT: { id } } : {}) },
-    select: { id: true, label: true, effectiveFrom: true, effectiveTo: true },
+    select: { label: true },
   });
   if (existing.some((e) => e.label === label)) {
     r.reject("label", "An issue with that label already exists.");
-  }
-  if (effectiveFrom && !r.failed) {
-    const clash = existing.find((e) => periodsOverlap(e, { effectiveFrom, effectiveTo }));
-    if (clash) {
-      r.reject(
-        "effectiveFrom",
-        `"${clash.label}" is already in force over part of that period. End it first — two issues in force at once make a route depend on which is read.`,
-      );
-    }
   }
 
   const v = {
     label,
     effectiveFrom: effectiveFrom ?? new Date(),
-    effectiveTo,
+    effectiveTo: null,
     boundaryValue: boundaryValue ?? "0",
     boundaryInclusive: r.bool("boundaryInclusive"),
     quotationFloor: quotationFloor ?? "0",
@@ -115,11 +134,9 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
     await auditedCreate(ctx, v, (tx) =>
       tx.authorityMatrix.create({ data: { organisationId: orgId, ...v } }),
     );
-  } else {
-    const before = await db.authorityMatrix.findUnique({ where: { id } });
-    if (!before) return { ok: false, message: "That issue no longer exists." };
+  } else if (before) {
     await auditedUpdate(
-      { ...ctx, entityId: id },
+      { ...ctx, entityId: before.id },
       {
         ...before,
         boundaryValue: before.boundaryValue.toString(),
@@ -128,7 +145,7 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
         requisitionBoundary: before.requisitionBoundary.toString(),
       },
       v,
-      (tx) => tx.authorityMatrix.update({ where: { id }, data: v }),
+      (tx) => tx.authorityMatrix.update({ where: { id: before.id }, data: v }),
     );
   }
 
@@ -153,9 +170,10 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
 
   const matrix = await db.authorityMatrix.findFirst({
     where: { id: authorityMatrixId, organisationId: orgId },
-    select: { id: true, label: true },
+    select: { id: true, label: true, issuedAt: true },
   });
   if (!matrix) return { ok: false, message: "That issue of the limits no longer exists." };
+  if (matrix.issuedAt) return FROZEN;
 
   const before = id ? await db.authorityRule.findUnique({ where: { id } }) : null;
   if (id && !before) return { ok: false, message: "That rule no longer exists." };
@@ -230,7 +248,7 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
     proposerCode: r.optionalText("proposerCode"),
     approverCode,
     committeeCode,
-    committeeAct: r.optionalText("committeeAct") as "A" | null,
+    committeeAct: r.choice("committeeAct", "Committee acts as", COMMITTEE_ACTS) ?? null,
     nonDelegable: r.bool("nonDelegable"),
     approverMandatory: r.bool("approverMandatory"),
     isGap,
@@ -311,13 +329,14 @@ export async function saveRecommender(_prev: FormState, data: FormData): Promise
   const authorityRuleId = String(data.get("authorityRuleId") ?? "");
   const rule = await db.authorityRule.findFirst({
     where: { id: authorityRuleId, authorityMatrix: { organisationId: orgId } },
-    select: { id: true, labelEn: true },
+    select: { id: true, labelEn: true, authorityMatrix: { select: { issuedAt: true } } },
   });
   if (!rule) return { ok: false, message: "That rule no longer exists." };
+  if (rule.authorityMatrix.issuedAt) return FROZEN;
 
   const r = new FormReader(data);
   const roleCode = r.text("roleCode", "Office", { required: true });
-  const act = r.choice("act", "Acts as", ACTS, { required: true });
+  const act = r.choice("act", "Acts as", RECOMMENDER_ACTS, { required: true });
   const sequence = r.int("sequence", "Order", { min: 0 }) ?? 0;
 
   const office = await db.authorityRole.findFirst({
@@ -339,6 +358,190 @@ export async function saveRecommender(_prev: FormState, data: FormData): Promise
     parsed.value,
     (tx) => tx.authorityRuleStep.create({ data: parsed.value }),
   );
+
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/// Take a recommender off a draft's rule.
+export async function removeRecommender(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+
+  const id = String(data.get("id") ?? "");
+  const step = await db.authorityRuleStep.findFirst({
+    where: { id, authorityRule: { authorityMatrix: { organisationId: orgId } } },
+    include: { authorityRule: { select: { labelEn: true, authorityMatrix: { select: { issuedAt: true } } } } },
+  });
+  if (!step) return { ok: false, message: "That step no longer exists." };
+  if (step.authorityRule.authorityMatrix.issuedAt) return FROZEN;
+
+  const { authorityRule, ...row } = step;
+  await auditedDelete(
+    {
+      organisationId: orgId,
+      entity: "AuthorityRuleStep",
+      entityId: step.id,
+      entityLabel: `${authorityRule.labelEn} — ${step.roleCode}`,
+      reason: String(data.get("reason") ?? ""),
+    },
+    row,
+    (tx) => tx.authorityRuleStep.delete({ where: { id: step.id } }),
+  );
+
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/**
+ * Start a revision: a draft copy of an issue — thresholds, clauses, every rule and
+ * every recommender — to be changed and then issued. The issue it copies is untouched.
+ */
+export async function startRevision(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+
+  const fromId = String(data.get("fromId") ?? "");
+  const source = await db.authorityMatrix.findFirst({
+    where: { id: fromId, organisationId: orgId },
+    include: { rules: { include: { recommenders: true } } },
+  });
+  if (!source) return { ok: false, message: "That issue no longer exists." };
+
+  const r = new FormReader(data);
+  const label = r.text("label", "Label", { required: true, max: 120 });
+  const effectiveFrom = r.date("effectiveFrom", "Meant to start", { required: true });
+
+  const [labels, drafts] = await Promise.all([
+    db.authorityMatrix.findMany({ where: { organisationId: orgId }, select: { label: true } }),
+    db.authorityMatrix.count({ where: { organisationId: orgId, issuedAt: null } }),
+  ]);
+  if (labels.some((l) => l.label === label)) r.reject("label", "An issue with that label already exists.");
+  // One draft at a time: two would be two competing versions of what comes next.
+  if (drafts > 0) return { ok: false, message: "A draft revision already exists. Issue or finish that one first." };
+
+  const parsed = r.finish({ label, effectiveFrom });
+  if (!parsed.ok) return { ok: false, errors: parsed.errors };
+
+  const { rules, ...policy } = source;
+  // A new row: the source's id is dropped, everything else carried.
+  const draftPolicy = {
+    ...policy,
+    id: undefined,
+    label,
+    effectiveFrom: effectiveFrom!,
+    effectiveTo: null,
+    issuedAt: null,
+  };
+
+  await db.$transaction(async (tx) => {
+    // Decimal columns pass straight through: never via a number.
+    const draft = await tx.authorityMatrix.create({ data: draftPolicy });
+    for (const rule of rules) {
+      const { recommenders, ...ruleData } = rule;
+      await tx.authorityRule.create({
+        data: {
+          ...ruleData,
+          id: undefined,
+          authorityMatrixId: draft.id,
+          recommenders: {
+            create: recommenders.map(({ roleCode, act, sequence }) => ({ roleCode, act, sequence })),
+          },
+        },
+      });
+    }
+    await writeAudit(
+      tx,
+      {
+        organisationId: orgId,
+        entity: "AuthorityMatrix",
+        entityId: draft.id,
+        entityLabel: label,
+        reason: `Revision of ${source.label}`,
+      },
+      "CREATE",
+      diffFields(null, { label, effectiveFrom, revisionOf: source.label, rules: rules.length }),
+    );
+  });
+
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/**
+ * Issue a draft: put it into force from a date, end the issue it replaces on that
+ * date, and freeze it. One transaction, with the audit, so the history can never show
+ * two issues in force or none.
+ */
+export async function issueDraft(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+
+  const id = String(data.get("id") ?? "");
+  const draft = await db.authorityMatrix.findFirst({
+    where: { id, organisationId: orgId },
+    include: { _count: { select: { rules: true } } },
+  });
+  if (!draft) return { ok: false, message: "That draft no longer exists." };
+  if (draft.issuedAt) return { ok: false, message: "That issue has already been issued." };
+
+  const r = new FormReader(data);
+  const from = r.date("effectiveFrom", "In force from", { required: true });
+  const reason = r.text("reason", "Why", { required: true, max: 2000 });
+
+  const issued = await db.authorityMatrix.findMany({
+    where: { organisationId: orgId, issuedAt: { not: null } },
+    select: { id: true, label: true, effectiveFrom: true, effectiveTo: true },
+  });
+
+  if (draft._count.rules === 0) {
+    r.reject("effectiveFrom", "This draft has no rules, so nothing could be routed under it. Add its rules first.");
+  }
+  if (from) {
+    const fault = issueFault(from, new Date(), issued);
+    if (fault === "IN_THE_PAST") {
+      r.reject("effectiveFrom", "An issue cannot start in the past — that would change the rules decisions already ran under.");
+    } else if (fault === "NOT_AFTER_LATEST") {
+      r.reject("effectiveFrom", "Another issue is already issued to start on or after that date.");
+    }
+  }
+  const parsed = r.finish({ from, reason });
+  if (!parsed.ok) return { ok: false, errors: parsed.errors };
+
+  const day = startOfDay(from!);
+  const predecessor = predecessorOf(issued, day);
+  const now = new Date();
+
+  await db.$transaction(async (tx) => {
+    if (predecessor) {
+      await tx.authorityMatrix.update({ where: { id: predecessor.id }, data: { effectiveTo: day } });
+      await writeAudit(
+        tx,
+        {
+          organisationId: orgId,
+          entity: "AuthorityMatrix",
+          entityId: predecessor.id,
+          entityLabel: issued.find((i) => i.id === predecessor.id)?.label ?? "",
+          reason: `Superseded by ${draft.label}: ${reason}`,
+        },
+        "UPDATE",
+        diffFields({ effectiveTo: predecessor.effectiveTo }, { effectiveTo: day }),
+      );
+    }
+    await tx.authorityMatrix.update({
+      where: { id: draft.id },
+      data: { effectiveFrom: day, effectiveTo: null, issuedAt: now },
+    });
+    await writeAudit(
+      tx,
+      { organisationId: orgId, entity: "AuthorityMatrix", entityId: draft.id, entityLabel: draft.label, reason },
+      "UPDATE",
+      diffFields(
+        decimals({ issuedAt: null, effectiveFrom: draft.effectiveFrom }),
+        { issuedAt: now, effectiveFrom: day },
+      ),
+    );
+  });
 
   revalidatePath(PATH);
   return { ok: true };

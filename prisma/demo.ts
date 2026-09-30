@@ -326,7 +326,7 @@ async function load() {
       id: `${P}mx1`, organisationId, label: "Demo limits, revision 1", effectiveFrom: from,
       boundaryValue: "300000", boundaryInclusive: true,
       quotationFloor: "15000", tenderFloor: "300000", requisitionBoundary: "50000",
-      splittingWindowDays: 30, currency: "MYR",
+      splittingWindowDays: 30, currency: "MYR", issuedAt: from,
       noRuleClause: "Demo policy 1.6", selfApprovalClause: "Demo policy 1.7", absenceClause: "Demo policy 1.8",
     },
   });

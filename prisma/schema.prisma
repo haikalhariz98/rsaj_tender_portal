@@ -259,6 +259,11 @@ model AuthorityMatrix {
   effectiveFrom DateTime
   effectiveTo   DateTime?
 
+  /// When this issue was put into force. Null is a draft: editable, and invisible to
+  /// every routing decision. Once issued it is frozen — a change is a new revision, so
+  /// a decision taken under this issue can always be shown the rules it ran under.
+  issuedAt DateTime?
+
   /// The value at which the quotation and tender regimes meet.
   boundaryValue Decimal @db.Decimal(18, 2)
 

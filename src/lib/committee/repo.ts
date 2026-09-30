@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { seatsInForce } from "./seats";
+import { issuedInForce } from "@/lib/authority/issue";
 
 const num = (v: { toString(): string } | null) => (v == null ? null : Number(v.toString()));
 
@@ -91,7 +92,7 @@ export async function rulesRoutingTo(committeeCode: string) {
   if (!id) return [];
 
   const version = await db.authorityMatrix.findFirst({
-    where: { organisationId: id },
+    where: { organisationId: id, ...issuedInForce(new Date()) },
     orderBy: { effectiveFrom: "desc" },
     select: { id: true },
   });
