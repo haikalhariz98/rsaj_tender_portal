@@ -1,3 +1,4 @@
+import { PencilIcon } from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import type { NotificationRule } from "@/lib/records/load";
 
@@ -83,7 +84,7 @@ export function EditRule({ row, officeCodes }: { row: NotificationRule; officeCo
       title={`Edit ${row.nameEn}`}
       fields={[{ kind: "hidden", name: "id" }, ...ruleFields(true, officeCodes)]}
       action={saveNotificationRule}
-      trigger={{ label: "Edit", className: "btn btn--sm btn--ghost" }}
+      trigger={{ label: `Edit ${row.nameEn}`, iconOnly: <PencilIcon size={15} /> }}
       values={{
         id: row.id,
         eventKey: row.eventKey,

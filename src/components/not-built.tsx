@@ -1,6 +1,9 @@
-import Link from "next/link";
-import { PageHeader } from "@/components/ui/page-header";
+import { SparkleIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/feedback";
+import { PageHeader } from "@/components/ui/page-header";
 
 /**
  * A module that is agreed but not yet built.
@@ -22,44 +25,44 @@ export function NotBuilt({
     <>
       <PageHeader
         title={title}
-        badge={<Badge tone="warn" dot>Not built yet</Badge>}
+        badge={
+          <Badge tone="warn" dot>
+            Not built yet
+          </Badge>
+        }
         subtitle={summary}
       />
 
-      <div className="card">
-        <div className="card__body">
-          <div className="empty">
-            <div className="empty__t">This module has not been built</div>
-            <p className="empty__d">
-              It is in the plan and it is in the navigation, so the shape of the portal is
-              visible. Nothing here is working yet.
-            </p>
-            <div className="empty__a">
-              <Link href="/" className="btn btn--sm">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <Card>
+          <EmptyState
+            icon={<SparkleIcon size={24} />}
+            title="This module has not been built"
+            action={
+              <ButtonLink href="/" size="sm">
                 Back to the dashboard
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
+              </ButtonLink>
+            }
+          >
+            It is in the plan and it is in the navigation, so the shape of the portal is visible.
+            Nothing here is working yet.
+          </EmptyState>
+        </Card>
 
-      <section className="section" style={{ marginTop: 24 }}>
-        <div className="section__head">
-          <h2 className="h3">What it will hold</h2>
-        </div>
-        <div className="card">
-          <div className="card__body">
-            <ul className="stack stack--sm">
+        <Card>
+          <CardHeader title="What it will hold" />
+          <CardBody>
+            <ul className="flex flex-col gap-2.5">
               {willInclude.map((line) => (
-                <li key={line} className="row" style={{ gap: 10, alignItems: "flex-start" }}>
-                  <span className="dot" style={{ marginTop: 7 }} />
-                  <span className="sm muted">{line}</span>
+                <li key={line} className="flex items-start gap-3 text-[14px] text-ink-2">
+                  <span className="mt-2 size-1.5 shrink-0 rounded-full bg-brand-500" />
+                  <span>{line}</span>
                 </li>
               ))}
             </ul>
-          </div>
-        </div>
-      </section>
+          </CardBody>
+        </Card>
+      </div>
     </>
   );
 }

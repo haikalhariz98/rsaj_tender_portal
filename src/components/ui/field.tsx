@@ -24,21 +24,31 @@ export function Input({
   size = "md",
   mono,
   numeric,
+  icon,
   className,
   ...props
 }: Omit<InputHTMLAttributes<HTMLInputElement>, "size"> & {
   size?: keyof typeof HEIGHT;
   mono?: boolean;
   numeric?: boolean;
+  /// Drawn inside the box on the left — a search glass, say.
+  icon?: ReactNode;
 }) {
-  return (
+  const input = (
     <input
       className={inputClass(
         size,
-        cx(mono && "font-mono text-[13px]", numeric && "text-right tabular-nums", className),
+        cx(mono && "font-mono text-[13px]", numeric && "text-right tabular-nums", icon && "pl-9", className),
       )}
       {...props}
     />
+  );
+  if (!icon) return input;
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-4">{icon}</span>
+      {input}
+    </div>
   );
 }
 

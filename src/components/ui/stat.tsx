@@ -23,6 +23,8 @@ export function Stat({
   tone = "brand",
   href,
   className,
+  variant = "raised",
+  size = "md",
 }: {
   label: ReactNode;
   value: ReactNode | null;
@@ -31,6 +33,9 @@ export function Stat({
   tone?: Tone;
   href?: string;
   className?: string;
+  /// Inset sits inside a card: a sunken tile with no lift of its own.
+  variant?: "raised" | "inset";
+  size?: "md" | "sm";
 }) {
   const body = (
     <>
@@ -44,7 +49,8 @@ export function Stat({
       </div>
       <div
         className={cx(
-          "mt-2 truncate text-[30px] leading-none font-bold tracking-[-0.02em] tabular-nums",
+          "mt-2 truncate leading-none font-bold tracking-[-0.02em] tabular-nums",
+          size === "sm" ? "text-[22px]" : "text-[30px]",
           value == null ? "text-ink-4" : "text-ink",
         )}
       >
@@ -54,7 +60,8 @@ export function Stat({
     </>
   );
   const cls = cx(
-    "block min-w-0 rounded-card border border-line/70 bg-surface p-5 shadow-card",
+    "block min-w-0 rounded-card p-5",
+    variant === "inset" ? "border border-line/60 bg-sunken" : "border border-line/70 bg-surface shadow-card",
     href && "transition hover:-translate-y-0.5 hover:no-underline hover:shadow-pop",
     className,
   );

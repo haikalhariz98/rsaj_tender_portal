@@ -2,7 +2,8 @@ import { loadRoster } from "@/lib/people/load";
 import { loadNotificationRules } from "@/lib/records/load";
 import { ORGANISATION_CODE } from "@/lib/org";
 
-import { ProvenanceChip, Section, Stat } from "../records-ui";
+import { ProvenanceChip, Section, Stat, Stats } from "../records-ui";
+import { CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { AddRule, EditRule } from "./editors";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -35,7 +36,7 @@ export default async function NotificationsPage() {
         subtitle="What the portal sends, to whom, and when reminders are issued."
       />
 
-      <div className="grid g3 stack--md" style={{ marginBottom: 24 }}>
+      <Stats>
         <Stat
           label="Rules"
           value={rules.length === 0 ? null : rules.length}
@@ -51,7 +52,7 @@ export default async function NotificationsPage() {
           value={rules.length === 0 ? null : silent.length}
           hint="Recorded as notifying nobody, rather than left unset"
         />
-      </div>
+      </Stats>
 
       <Section
         title="Notifications"
@@ -60,7 +61,7 @@ export default async function NotificationsPage() {
         count={rules.length}
         action={<AddRule officeCodes={officeCodes} />}
       >
-        <table className="table">
+        <Table>
           <colgroup>
             <col style={{ width: "22%" }} />
             <col style={{ width: "24%" }} />
@@ -69,57 +70,57 @@ export default async function NotificationsPage() {
             <col style={{ width: "12%" }} />
             <col style={{ width: "12%" }} />
           </colgroup>
-          <thead>
-            <tr>
-              <th>Event</th>
-              <th>Notifies</th>
-              <th>Reminds</th>
-              <th>Escalates to</th>
-              <th>Source</th>
-              <th />
-            </tr>
-          </thead>
+          <THead>
+            <Th>Event</Th>
+            <Th>Notifies</Th>
+            <Th>Reminds</Th>
+            <Th>Escalates to</Th>
+            <Th>Source</Th>
+            <Th className="text-right">Actions</Th>
+          </THead>
           <tbody>
             {rules.map((r) => (
-              <tr key={r.id}>
-                <td>
-                  <div className="cellstack">
-                    <span className="cellstack__t">
-                      {r.nameEn}
-                      {!r.isActive && (
-                        <span className="badge badge--outline" style={{ marginLeft: 8 }}>
-                          off
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                </td>
-                <td className="sm dim">
+              <Tr key={r.id}>
+                <Td title={r.nameEn}>
+                  <CellStack
+                    title={
+                      <>
+                        {r.nameEn}
+                        {!r.isActive && (
+                          <Badge outline className="ml-2 align-middle">
+                            off
+                          </Badge>
+                        )}
+                      </>
+                    }
+                  />
+                </Td>
+                <Td className="text-ink-2">
                   {r.recipientRoleCodes.length === 0
                     ? "Nobody"
                     : r.recipientRoleCodes.map(officeName).join(", ")}
-                </td>
-                <td className="sm dim">
+                </Td>
+                <Td className="text-ink-2 tabular-nums">
                   {r.reminderOffsetDays.length === 0
                     ? "Does not chase"
                     : r.reminderOffsetDays.map((d) => `${d}d`).join(" · ")}
-                </td>
-                <td className="sm dim">
+                </Td>
+                <Td className="text-ink-2">
                   {r.escalatesToRoleCode ? officeName(r.escalatesToRoleCode) : "—"}
-                </td>
-                <td>
+                </Td>
+                <Td>
                   <ProvenanceChip value={r.provenance} />
-                </td>
-                <td className="right">
-                  <span className="inline-flex items-center justify-end gap-1">
-  <HistoryButton iconOnly entity="NotificationRule" entityId={r.id} label={r.nameEn} />
-  <EditRule row={r} officeCodes={officeCodes} />
-</span>
-                </td>
-              </tr>
+                </Td>
+                <Td>
+                  <RowActions>
+                    <HistoryButton iconOnly entity="NotificationRule" entityId={r.id} label={r.nameEn} />
+                    <EditRule row={r} officeCodes={officeCodes} />
+                  </RowActions>
+                </Td>
+              </Tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       </Section>
     </>
   );

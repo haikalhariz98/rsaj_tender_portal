@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 
 import { ChevronDown } from "@/components/icons";
+import { cx } from "@/components/ui/cx";
 
 /**
  * A collapsible group. Used to hold each decision type's rules, so 92 rows across
@@ -20,24 +21,33 @@ export function Accordion({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const bodyId = useId();
 
   return (
-    <div className="acc">
+    <div className="overflow-hidden rounded-2xl border border-line bg-surface">
       <button
         type="button"
-        className="acc__h"
         aria-expanded={open}
+        aria-controls={bodyId}
         onClick={() => setOpen((o) => !o)}
-      >
-        <span className="grow trunc">{title}</span>
-        {meta && (
-          <span className="row">
-            <span className="xs dim">{meta}</span>
-          </span>
+        className={cx(
+          "flex w-full min-w-0 items-center gap-3 px-5 py-3.5 text-left transition hover:bg-sunken",
+          "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-500",
+          open && "border-b border-line",
         )}
-        <ChevronDown size={16} className="acc__ch" />
+      >
+        <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-ink" title={title}>
+          {title}
+        </span>
+        {meta && <span className="shrink-0 text-[12.5px] text-ink-3">{meta}</span>}
+        <ChevronDown
+          size={16}
+          className={cx("shrink-0 text-ink-3 transition-transform", open && "rotate-180")}
+        />
       </button>
-      {open && <div className="acc__b">{children}</div>}
+      <div id={bodyId} hidden={!open}>
+        {open && children}
+      </div>
     </div>
   );
 }

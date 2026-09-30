@@ -84,7 +84,7 @@ export function AddOrgUnit({
     <RecordEditor
       title={label}
       description={parent ? `Under ${parent.nameEn}.` : "A top-level unit."}
-      icon={<BuildingIcon size={20} className="icon dim" style={{ marginTop: 2 }} />}
+      icon={<BuildingIcon size={18} />}
       columns={2}
       fields={[
         { kind: "hidden", name: "kind" },
@@ -114,7 +114,7 @@ export function EditOrgUnit({ unit, people }: { unit: OrgUnit; people: Person[] 
     <RecordEditor
       title={`Edit ${unit.nameEn}`}
       description={KIND_LABEL[unit.kind]}
-      icon={<BuildingIcon size={20} className="icon dim" style={{ marginTop: 2 }} />}
+      icon={<BuildingIcon size={18} />}
       columns={2}
       fields={[
         { kind: "hidden", name: "id" },

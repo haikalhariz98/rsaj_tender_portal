@@ -18,25 +18,18 @@ import {
   fundingPosture,
   isUnbanded,
 } from "@/lib/reference/vocabulary";
+import { Section, Stats } from "../records-ui";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardHeader } from "@/components/ui/card";
 import { formatDate } from "@/lib/format";
-import { Badge } from "@/components/ui/badge";
+import { Badge, Chip, type Tone } from "@/components/ui/badge";
+import { Callout } from "@/components/ui/feedback";
+import { ProvenanceBadge } from "@/components/ui/provenance";
+import { Stat } from "@/components/ui/stat";
+import { CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { HistoryButton } from "@/components/history-drawer";
 
 export const dynamic = "force-dynamic";
-
-const PROVENANCE_LABEL: Record<Provenance, string> = {
-  STATED: "Stated",
-  OBSERVED: "Observed",
-  ASSUMED: "Assumed",
-};
-
-const PROVENANCE_CHIP: Record<Provenance, string> = {
-  STATED: "chip--ok",
-  OBSERVED: "chip--info",
-  ASSUMED: "chip--warn",
-};
 
 const POSTURE_LABEL = {
   PROCURES: "Procures",
@@ -44,11 +37,14 @@ const POSTURE_LABEL = {
   RECORDS_ONLY: "Records only",
 } as const;
 
-const POSTURE_CHIP = {
-  PROCURES: "chip--ok",
-  ROUTE_SET_EXTERNALLY: "chip--info",
-  RECORDS_ONLY: "chip--warn",
-} as const;
+const POSTURE_TONE: Record<keyof typeof POSTURE_LABEL, Tone> = {
+  PROCURES: "ok",
+  ROUTE_SET_EXTERNALLY: "info",
+  RECORDS_ONLY: "warn",
+};
+
+/// Wide enough that three row actions never squeeze the columns before them.
+const TABLE_MIN = 880;
 
 export default async function ReferenceDataPage() {
   const on = new Date();
@@ -69,27 +65,26 @@ export default async function ReferenceDataPage() {
         subtitle="Sourcing methods, contract types, funding routes and code lists."
       />
 
-      <div className="grid g3 stack--md" style={{ marginBottom: 24 }}>
+      <Stats>
         <ReadinessStat label="Funding routes" readiness={readiness.fundingRoutes} />
         <ReadinessStat label="Sourcing methods" readiness={readiness.sourcingMethods} />
         <ReadinessStat label="Contract types" readiness={readiness.contractTypes} />
-      </div>
+      </Stats>
 
       {unbanded.length > 0 && (
-        <div className="callout callout--warn" style={{ marginBottom: 24 }}>
-          <div>
-            <strong>
-              {unbanded.length === 1
-                ? "One sourcing method is available at no value at all"
-                : `${unbanded.length} sourcing methods are available at no value at all`}
-            </strong>
-            <p className="sm" style={{ margin: "4px 0 0" }}>
-              {unbanded.map((m) => m.nameEn).join(", ")} — no band is ticked, so nothing will
-              ever offer{unbanded.length === 1 ? " it" : " them"}. Which band applies is a
-              policy question, so the portal leaves it showing rather than picking one.
-            </p>
-          </div>
-        </div>
+        <Callout
+          tone="warn"
+          className="mb-6"
+          title={
+            unbanded.length === 1
+              ? "One sourcing method is available at no value at all"
+              : `${unbanded.length} sourcing methods are available at no value at all`
+          }
+        >
+          {unbanded.map((m) => m.nameEn).join(", ")} — no band is ticked, so nothing will
+          ever offer{unbanded.length === 1 ? " it" : " them"}. Which band applies is a
+          policy question, so the portal leaves it showing rather than picking one.
+        </Callout>
       )}
 
       <Section
@@ -99,66 +94,61 @@ export default async function ReferenceDataPage() {
         count={routes.length}
         action={<AddFundingRoute />}
       >
-        <table className="table">
+        <Table minWidth={TABLE_MIN}>
           <colgroup>
-            <col style={{ width: "22%" }} />
+            <col style={{ width: "20%" }} />
             <col style={{ width: "15%" }} />
-            <col style={{ width: "14%" }} />
-            <col style={{ width: "21%" }} />
-            <col style={{ width: "12%" }} />
-            <col style={{ width: "16%" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "13%" }} />
+            <col style={{ width: "19%" }} />
           </colgroup>
-          <thead>
-            <tr>
-              <th>Route</th>
-              <th>Posture</th>
-              <th>Authority</th>
-              <th>Triggered by</th>
-              <th>Source</th>
-              <th />
-            </tr>
-          </thead>
+          <THead>
+            <Th>Route</Th>
+            <Th>Posture</Th>
+            <Th>Authority</Th>
+            <Th>Triggered by</Th>
+            <Th>Source</Th>
+            <Th className="text-right">Actions</Th>
+          </THead>
           <tbody>
             {routes.map((r) => {
               const posture = fundingPosture(r);
               return (
-                <tr key={r.code}>
-                  <td>
-                    <div className="cellstack">
-                      <span className="cellstack__t">{r.nameEn}</span>
-                      {r.nameMs && <span className="cellstack__s">{r.nameMs}</span>}
-                    </div>
-                  </td>
-                  <td>
-                    <span className={`chip ${POSTURE_CHIP[posture]}`}>
+                <Tr key={r.code}>
+                  <Td title={r.nameMs ? `${r.nameEn} — ${r.nameMs}` : r.nameEn}>
+                    <CellStack title={r.nameEn} sub={r.nameMs || undefined} />
+                  </Td>
+                  <Td>
+                    <Chip tone={POSTURE_TONE[posture]} title={POSTURE_LABEL[posture]}>
                       {POSTURE_LABEL[posture]}
-                    </span>
-                  </td>
-                  <td>
+                    </Chip>
+                  </Td>
+                  <Td>
                     {r.supersedesAuthority ? (
-                      <span className="badge badge--warn">Funder&rsquo;s rules prevail</span>
+                      <Badge tone="warn" title="Funder’s rules prevail">
+                        Funder&rsquo;s rules prevail
+                      </Badge>
                     ) : (
-                      <span className="sm dim">These limits apply</span>
+                      <span className="text-ink-2">These limits apply</span>
                     )}
-                  </td>
-                  <td className="sm dim">{r.trigger || "—"}</td>
-                  <td>
-                    <ProvenanceChip value={r.provenance} source={r.governingSource} />
-                  </td>
-                  <td className="right">
-                    <span className="row" style={{ gap: 4, justifyContent: "flex-end" }}>
-                      <span className="inline-flex items-center justify-end gap-1">
-  <HistoryButton iconOnly entity="FundingRoute" entityId={r.id} label={r.nameEn} />
-  <EditFundingRoute route={r} id={r.id} />
-</span>
+                  </Td>
+                  <Td className="text-ink-2">{r.trigger || "—"}</Td>
+                  <Td>
+                    <ProvenanceCell value={r.provenance} source={r.governingSource} />
+                  </Td>
+                  <Td>
+                    <RowActions>
+                      <HistoryButton iconOnly entity="FundingRoute" entityId={r.id} label={r.nameEn} />
+                      <EditFundingRoute route={r} id={r.id} />
                       <RetireEntry entity="FundingRoute" id={r.id} label={r.nameEn} />
-                    </span>
-                  </td>
-                </tr>
+                    </RowActions>
+                  </Td>
+                </Tr>
               );
             })}
           </tbody>
-        </table>
+        </Table>
       </Section>
 
       <Section
@@ -168,55 +158,48 @@ export default async function ReferenceDataPage() {
         count={methods.length}
         action={<AddSourcingMethod />}
       >
-        <table className="table">
+        <Table minWidth={TABLE_MIN}>
           <colgroup>
             <col style={{ width: "20%" }} />
-            <col style={{ width: "15%" }} />
-            <col style={{ width: "20%" }} />
-            <col style={{ width: "17%" }} />
-            <col style={{ width: "12%" }} />
             <col style={{ width: "16%" }} />
+            <col style={{ width: "17%" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "13%" }} />
+            <col style={{ width: "19%" }} />
           </colgroup>
-          <thead>
-            <tr>
-              <th>Method</th>
-              <th>Bands</th>
-              <th>Approach</th>
-              <th>Awards by</th>
-              <th>Source</th>
-              <th />
-            </tr>
-          </thead>
+          <THead>
+            <Th>Method</Th>
+            <Th>Bands</Th>
+            <Th>Approach</Th>
+            <Th>Awards by</Th>
+            <Th>Source</Th>
+            <Th className="text-right">Actions</Th>
+          </THead>
           <tbody>
             {methods.map((m) => (
-              <tr key={m.code}>
-                <td>
-                  <div className="cellstack">
-                    <span className="cellstack__t">{m.nameEn}</span>
-                    {m.nameMs && <span className="cellstack__s">{m.nameMs}</span>}
-                  </div>
-                </td>
-                <td>
+              <Tr key={m.code}>
+                <Td title={m.nameMs ? `${m.nameEn} — ${m.nameMs}` : m.nameEn}>
+                  <CellStack title={m.nameEn} sub={m.nameMs || undefined} />
+                </Td>
+                <Td>
                   <Bands method={m} />
-                </td>
-                <td className="sm dim">{approachOf(m)}</td>
-                <td className="sm dim">{m.awardInstrument || "—"}</td>
-                <td>
-                  <ProvenanceChip value={m.provenance} source={m.governingSource} />
-                </td>
-                <td className="right">
-                  <span className="row" style={{ gap: 4, justifyContent: "flex-end" }}>
-                    <span className="inline-flex items-center justify-end gap-1">
-  <HistoryButton iconOnly entity="SourcingMethod" entityId={m.id} label={m.nameEn} />
-  <EditSourcingMethod method={m} id={m.id} />
-</span>
+                </Td>
+                <Td className="text-ink-2">{approachOf(m)}</Td>
+                <Td className="text-ink-2">{m.awardInstrument || "—"}</Td>
+                <Td>
+                  <ProvenanceCell value={m.provenance} source={m.governingSource} />
+                </Td>
+                <Td>
+                  <RowActions>
+                    <HistoryButton iconOnly entity="SourcingMethod" entityId={m.id} label={m.nameEn} />
+                    <EditSourcingMethod method={m} id={m.id} />
                     <RetireEntry entity="SourcingMethod" id={m.id} label={m.nameEn} />
-                  </span>
-                </td>
-              </tr>
+                  </RowActions>
+                </Td>
+              </Tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       </Section>
 
       <Section
@@ -226,47 +209,40 @@ export default async function ReferenceDataPage() {
         count={types.length}
         action={<AddContractType />}
       >
-        <table className="table">
+        <Table minWidth={TABLE_MIN}>
           <colgroup>
             <col style={{ width: "26%" }} />
-            <col style={{ width: "40%" }} />
-            <col style={{ width: "16%" }} />
-            <col style={{ width: "18%" }} />
+            <col style={{ width: "36%" }} />
+            <col style={{ width: "17%" }} />
+            <col style={{ width: "21%" }} />
           </colgroup>
-          <thead>
-            <tr>
-              <th>Type</th>
-              <th>Notes</th>
-              <th>Source</th>
-              <th />
-            </tr>
-          </thead>
+          <THead>
+            <Th>Type</Th>
+            <Th>Notes</Th>
+            <Th>Source</Th>
+            <Th className="text-right">Actions</Th>
+          </THead>
           <tbody>
             {types.map((c) => (
-              <tr key={c.code}>
-                <td>
-                  <div className="cellstack">
-                    <span className="cellstack__t">{c.nameEn}</span>
-                    {c.nameMs && <span className="cellstack__s">{c.nameMs}</span>}
-                  </div>
-                </td>
-                <td className="sm dim">{c.notes || "—"}</td>
-                <td>
-                  <ProvenanceChip value={c.provenance} source={c.governingSource} />
-                </td>
-                <td className="right">
-                  <span className="row" style={{ gap: 4, justifyContent: "flex-end" }}>
-                    <span className="inline-flex items-center justify-end gap-1">
-  <HistoryButton iconOnly entity="ContractType" entityId={c.id} label={c.nameEn} />
-  <EditContractType type={c} id={c.id} />
-</span>
+              <Tr key={c.code}>
+                <Td title={c.nameMs ? `${c.nameEn} — ${c.nameMs}` : c.nameEn}>
+                  <CellStack title={c.nameEn} sub={c.nameMs || undefined} />
+                </Td>
+                <Td className="text-ink-2">{c.notes || "—"}</Td>
+                <Td>
+                  <ProvenanceCell value={c.provenance} source={c.governingSource} />
+                </Td>
+                <Td>
+                  <RowActions>
+                    <HistoryButton iconOnly entity="ContractType" entityId={c.id} label={c.nameEn} />
+                    <EditContractType type={c} id={c.id} />
                     <RetireEntry entity="ContractType" id={c.id} label={c.nameEn} />
-                  </span>
-                </td>
-              </tr>
+                  </RowActions>
+                </Td>
+              </Tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       </Section>
 
       <RetiredEntries
@@ -304,7 +280,9 @@ function RetiredEntries({
         {entries.map((e) => (
           <li key={e.entity + e.id} className="flex items-center gap-3 py-3">
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[14px] font-semibold text-ink">{e.nameEn}</span>
+              <span className="block truncate text-[14px] font-semibold text-ink" title={e.nameEn}>
+                {e.nameEn}
+              </span>
               <span className="block text-[12.5px] text-ink-3">
                 {e.list} · retired {e.retiredOn ? formatDate(e.retiredOn) : ""}
               </span>
@@ -321,82 +299,32 @@ function RetiredEntries({
 function ReadinessStat({ label, readiness }: { label: string; readiness: ListReadiness }) {
   const unset = readiness.state === "UNSET";
   return (
-    <div className="stat">
-      <div className="stat__top">
-        <span className="stat__label">{label}</span>
-        {readiness.needsSignOff && (
-          <span className="stat__ico stat__ico--warn">
-            <AlertTriangle size={15} />
-          </span>
-        )}
-      </div>
-      <div className="stat__value">
-        {unset ? <span className="dim">Not set</span> : readiness.active}
-      </div>
-      <div className="stat__foot">
-        <span className="stat__hint">
-          {unset
-            ? "Nobody has configured this list. That is not the same as none."
-            : readiness.needsSignOff
-              ? `${readiness.assumed} resting on a working default, awaiting sign-off`
-              : "Every entry traced to a source"}
+    <Stat
+      label={label}
+      value={unset ? <span className="text-ink-4">Not set</span> : readiness.active}
+      tone={readiness.needsSignOff ? "warn" : "neutral"}
+      icon={readiness.needsSignOff ? <AlertTriangle size={16} /> : undefined}
+      hint={
+        unset
+          ? "Nobody has configured this list. That is not the same as none."
+          : readiness.needsSignOff
+            ? `${readiness.assumed} resting on a working default, awaiting sign-off`
+            : "Every entry traced to a source"
+      }
+    />
+  );
+}
+
+/// Where an entry came from, with the document that states it beneath.
+function ProvenanceCell({ value, source }: { value: Provenance; source: string }) {
+  return (
+    <div className="flex min-w-0 flex-col items-start gap-1">
+      <ProvenanceBadge value={value} />
+      {source && (
+        <span className="block max-w-full truncate text-[12.5px] text-ink-3" title={source}>
+          {source}
         </span>
-      </div>
-    </div>
-  );
-}
-
-function Section({
-  title,
-  blurb,
-  empty,
-  count,
-  action,
-  children,
-}: {
-  title: string;
-  blurb: string;
-  empty: string;
-  count: number;
-  /// The add button. Present even when the list is empty — an empty list is the one
-  /// place someone most needs to add the first entry.
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="section" style={{ marginBottom: 24 }}>
-      <div className="section__head">
-        <h2 className="h3">{title}</h2>
-        {count > 0 && <span className="badge badge--outline">{count}</span>}
-        <div className="spacer" />
-        {action}
-      </div>
-      <p className="sm muted" style={{ margin: "0 0 12px" }}>
-        {blurb}
-      </p>
-      {count === 0 ? (
-        <div className="card">
-          <div className="card__body">
-            <div className="empty">
-              <div className="empty__t">Not set</div>
-              <p className="empty__d">{empty}</p>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="dl">
-          <div className="tablewrap">{children}</div>
-        </div>
       )}
-    </section>
-  );
-}
-
-function ProvenanceChip({ value, source }: { value: Provenance; source: string }) {
-  return (
-    <div className="cellstack">
-      <span className={`chip ${PROVENANCE_CHIP[value]}`}>{PROVENANCE_LABEL[value]}</span>
-      {source && <span className="cellstack__s">{source}</span>}
     </div>
   );
 }
@@ -410,17 +338,15 @@ function Bands({ method }: { method: SourcingMethod }) {
   ].filter(Boolean) as string[];
 
   if (bands.length === 0) {
-    return <span className="badge badge--warn">No band</span>;
+    return <Badge tone="warn">No band</Badge>;
   }
   if (bands.length === 3) {
-    return <span className="chip chip--brand">Any value</span>;
+    return <Chip tone="brand">Any value</Chip>;
   }
   return (
-    <span className="row" style={{ gap: 4, flexWrap: "wrap" }}>
+    <span className="flex flex-wrap gap-1">
       {bands.map((b) => (
-        <span key={b} className="chip">
-          {b}
-        </span>
+        <Chip key={b}>{b}</Chip>
       ))}
     </span>
   );

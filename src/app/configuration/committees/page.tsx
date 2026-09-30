@@ -1,11 +1,16 @@
-import Link from "next/link";
-
-import { AlertTriangle, ChevronRight } from "@/components/icons";
+import { ChevronRight } from "@/components/icons";
 import { listCommittees } from "@/lib/committee/repo";
-import { AddCommittee, EditCommittee } from "./editors";
 import { formatBand } from "@/lib/format";
 import { PageHeader } from "@/components/ui/page-header";
-import { Badge } from "@/components/ui/badge";
+import { Badge, Chip, type Tone } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
+import { Card, CardFooter, CardHeader } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/feedback";
+import { ProvenanceBadge } from "@/components/ui/provenance";
+import { CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
+
+import { Stat, Stats } from "../records-ui";
+import { AddCommittee, EditCommittee } from "./editors";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +21,11 @@ const ACTION_LABEL: Record<string, string> = {
   DECIDES: "Decides",
 };
 
-const ACTION_CHIP: Record<string, string> = {
-  APPROVES: "chip--ok",
-  RECOMMENDS: "chip--info",
-  CONSENTS: "chip--warn",
-  DECIDES: "chip--brand",
+const ACTION_TONE: Record<string, Tone> = {
+  APPROVES: "ok",
+  RECOMMENDS: "info",
+  CONSENTS: "warn",
+  DECIDES: "brand",
 };
 
 export default async function CommitteesPage() {
@@ -35,161 +40,139 @@ export default async function CommitteesPage() {
         title="Committees"
         badge={<Badge outline>{committees.length}</Badge>}
         subtitle="Membership, quorum and the decisions each body may take."
-        actions={<AddCommittee />}
       />
 
-      <div className="grid g3 stack--md" style={{ marginBottom: 24 }}>
-        <div className="stat">
-          <div className="stat__top">
-            <span className="stat__label">Bodies configured</span>
-          </div>
-          <div className="stat__value">{committees.length}</div>
-          <div className="stat__foot">
-            <span className="stat__hint">
-              {committees.filter((c) => c.isExternal).length} external
-            </span>
-          </div>
-        </div>
+      <Stats>
+        <Stat
+          label="Bodies configured"
+          value={committees.length}
+          hint={`${committees.filter((c) => c.isExternal).length} external`}
+        />
+        <Stat
+          label="Quorum set"
+          value={`${quorumStated} / ${committees.length}`}
+          warn={quorumStated < committees.length || committees.length === 0}
+          hint={
+            committees.length === 0
+              ? "No body is configured yet"
+              : quorumStated === committees.length
+                ? "Every body can be certified quorate"
+                : `${committees.length - quorumStated} cannot be certified quorate`
+          }
+        />
+        <Stat
+          label="Membership not set"
+          value={compositionUnknown}
+          warn={compositionUnknown > 0}
+          hint={
+            compositionUnknown === 0
+              ? "Every body's membership is traced to a source"
+              : "No members defined in policy or in practice"
+          }
+        />
+      </Stats>
 
-        <div className="stat">
-          <div className="stat__top">
-            <span className="stat__label">Quorum set</span>
-            <span className="stat__ico stat__ico--warn">
-              <AlertTriangle size={15} />
+      <Card className="mb-6 overflow-hidden">
+        <CardHeader
+          title={
+            <span className="inline-flex items-center gap-2">
+              Bodies
+              {committees.length > 0 && <Badge outline>{committees.length}</Badge>}
             </span>
-          </div>
-          <div className="stat__value">
-            {quorumStated}
-            <span className="dim" style={{ fontSize: 18, fontWeight: 500 }}>
-              {" "}
-              / {committees.length}
-            </span>
-          </div>
-          <div className="stat__foot">
-            <span className="stat__hint">
-              {committees.length === 0
-                ? "No body is configured yet"
-                : quorumStated === committees.length
-                  ? "Every body can be certified quorate"
-                  : `${committees.length - quorumStated} cannot be certified quorate`}
-            </span>
-          </div>
-        </div>
-
-        <div className="stat">
-          <div className="stat__top">
-            <span className="stat__label">Membership not set</span>
-          </div>
-          <div className="stat__value">{compositionUnknown}</div>
-          <div className="stat__foot">
-            <span className="stat__hint">
-              {compositionUnknown === 0
-                ? "Every body's membership is traced to a source"
-                : "No members defined in policy or in practice"}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="dl">
-        <div className="tablewrap">
-          <table className="table">
-            <colgroup>
-              <col style={{ width: "30%" }} />
-              <col style={{ width: "13%" }} />
-              <col style={{ width: "19%" }} />
-              <col style={{ width: "14%" }} />
-              <col style={{ width: "16%" }} />
-              <col style={{ width: "8%" }} />
-              <col style={{ width: "10%" }} />
-            </colgroup>
-            <thead>
-              <tr>
-                <th>Committee</th>
-                <th>Acts by</th>
-                <th>Value scope</th>
-                <th>Quorum</th>
-                <th>Composition</th>
-                <th />
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {committees.map((c) => (
-                <tr key={c.code}>
-                  <td>
-                    <div className="cellstack">
-                      <span className="cellstack__t">
-                        {c.nameEn}
-                        {c.isExternal && (
-                          <span className="badge badge--outline" style={{ marginLeft: 8 }}>
-                            external
+          }
+          subtitle="Who sits, how many must be present, and what each body may decide."
+          actions={<AddCommittee />}
+          divided={committees.length === 0}
+        />
+        {committees.length === 0 ? (
+          <EmptyState title="Not set">
+            No committee has been configured. Until one is, no matter can be routed to a body
+            that must sit before it is decided.
+          </EmptyState>
+        ) : (
+          <>
+            <Table minWidth={860}>
+              <colgroup>
+                <col style={{ width: "30%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "19%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "10%" }} />
+              </colgroup>
+              <THead>
+                <Th>Committee</Th>
+                <Th>Acts by</Th>
+                <Th>Value scope</Th>
+                <Th>Quorum</Th>
+                <Th>Composition</Th>
+                <Th className="text-right">Actions</Th>
+              </THead>
+              <tbody>
+                {committees.map((c) => (
+                  <Tr key={c.code}>
+                    <Td>
+                      <CellStack
+                        title={
+                          <span className="inline-flex max-w-full items-center gap-2" title={c.nameEn}>
+                            <span className="truncate">{c.nameEn}</span>
+                            {c.isExternal && <Badge outline>external</Badge>}
+                          </span>
+                        }
+                        sub={c.nameMs ? <span title={c.nameMs}>{c.nameMs}</span> : undefined}
+                      />
+                    </Td>
+                    <Td>
+                      <Chip tone={ACTION_TONE[c.action] ?? "neutral"}>
+                        {ACTION_LABEL[c.action] ?? c.action}
+                      </Chip>
+                    </Td>
+                    <Td className="text-[13px] text-ink-3">
+                      {formatBand(c.valueScopeMin, c.valueScopeMax)}
+                    </Td>
+                    <Td>
+                      {c.quorum != null ? (
+                        <Badge tone="ok">{c.quorum} members</Badge>
+                      ) : (
+                        <Badge tone="warn">Not stated</Badge>
+                      )}
+                    </Td>
+                    <Td>
+                      <span className="inline-flex items-center gap-1.5">
+                        <ProvenanceBadge value={c.compositionProvenance} />
+                        {c.compositionProvenance != null && (
+                          <span className="text-[12px] whitespace-nowrap text-ink-3">
+                            {c.seatCount} seats
                           </span>
                         )}
                       </span>
-                      {c.nameMs && <span className="cellstack__s">{c.nameMs}</span>}
-                    </div>
-                  </td>
-                  <td>
-                    <span className={`chip ${ACTION_CHIP[c.action] ?? ""}`}>
-                      {ACTION_LABEL[c.action] ?? c.action}
-                    </span>
-                  </td>
-                  <td className="sm dim">{formatBand(c.valueScopeMin, c.valueScopeMax)}</td>
-                  <td>
-                    {c.quorum != null ? (
-                      <span className="badge badge--ok">{c.quorum} members</span>
-                    ) : (
-                      <span className="badge badge--warn">Not stated</span>
-                    )}
-                  </td>
-                  <td>
-                    <ProvenanceBadge value={c.compositionProvenance} seats={c.seatCount} />
-                  </td>
-                  <td className="right">
-                    <EditCommittee committee={c} />
-                  </td>
-                  <td className="right">
-                    <Link
-                      href={`/configuration/committees/${c.code}`}
-                      className="btn btn--sm btn--ghost"
-                    >
-                      Open
-                      <ChevronRight size={14} />
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="dl__foot">
-          <span>
-            {committees.length} bodies · {committees.reduce((n, c) => n + c.meetingCount, 0)}{" "}
-            recorded sittings
-          </span>
-        </div>
-      </div>
+                    </Td>
+                    <Td>
+                      <RowActions>
+                        <EditCommittee committee={c} />
+                        <ButtonLink
+                          href={`/configuration/committees/${c.code}`}
+                          variant="ghost"
+                          size="sm"
+                        >
+                          Open
+                          <ChevronRight size={14} />
+                        </ButtonLink>
+                      </RowActions>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+            <CardFooter className="text-[12.5px] text-ink-3">
+              <span>
+                {committees.length} bodies ·{" "}
+                {committees.reduce((n, c) => n + c.meetingCount, 0)} recorded sittings
+              </span>
+            </CardFooter>
+          </>
+        )}
+      </Card>
     </>
   );
-}
-
-function ProvenanceBadge({ value, seats }: { value: string | null; seats: number }) {
-  if (value === "STATED") {
-    return (
-      <span className="row" style={{ gap: 6 }}>
-        <span className="badge badge--ok">By policy</span>
-        <span className="xs dim">{seats} seats</span>
-      </span>
-    );
-  }
-  if (value === "OBSERVED") {
-    return (
-      <span className="row" style={{ gap: 6 }}>
-        <span className="badge badge--info">From practice</span>
-        <span className="xs dim">{seats} seats</span>
-      </span>
-    );
-  }
-  return <span className="badge badge--warn">Not set</span>;
 }

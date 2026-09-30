@@ -1,11 +1,16 @@
 "use client";
 
+import { ActWithLabel } from "@/components/ui/act";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { AlertTriangle } from "@/components/icons";
+import { Avatar } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { CardBody } from "@/components/ui/card";
+import { cx } from "@/components/ui/cx";
+import { Callout } from "@/components/ui/feedback";
 import { assessDecision, type VoteChoice } from "@/lib/committee/quorum";
-import { avatarTone, formatRM, initials } from "@/lib/format";
+import { formatRM } from "@/lib/format";
 
 interface Member {
   personId: string;
@@ -27,15 +32,6 @@ interface Decision {
   act: string;
   outcome: string;
 }
-
-const ACT_LABEL: Record<string, string> = {
-  R: "Recommendation",
-  JR: "Joint recommendation",
-  MR: "Mandatory recommendation",
-  MJR: "Mandatory joint recommendation",
-  A: "Approval",
-  MA: "Mandatory approval",
-};
 
 const CHOICES: { value: VoteChoice; label: string }[] = [
   { value: "SETUJU", label: "Setuju" },
@@ -95,115 +91,140 @@ export function DecisionPanel({
   }
 
   return (
-    <div className="card__body" style={{ borderTop: "1px solid var(--line)" }}>
-      <div className="row wrap" style={{ gap: 10, marginBottom: 4 }}>
-        <span className={`chain__act chain__act--${decision.act}`} title={ACT_LABEL[decision.act]}>
-          {ACT_LABEL[decision.act] ?? decision.act}
+    <CardBody className="border-t border-line/70">
+      <div className="mb-1 flex flex-wrap items-center gap-2.5">
+        <ActWithLabel act={decision.act} />
+        <span className="min-w-0 flex-1 text-[13.5px] font-semibold text-ink">
+          {decision.subject}
         </span>
-        <span className="sm strong grow">{decision.subject}</span>
         {decision.amount != null && (
-          <span className="sm strong num">{formatRM(decision.amount)}</span>
+          <span className="text-[13.5px] font-semibold text-ink tabular-nums">
+            {formatRM(decision.amount)}
+          </span>
         )}
       </div>
-      <div className="row wrap xs dim" style={{ gap: 8, marginBottom: 16 }}>
-        {decision.matterRef && <span className="mono">{decision.matterRef}</span>}
+      <div className="mb-4 flex flex-wrap items-center gap-2 text-[12px] text-ink-3">
+        {decision.matterRef && <span className="font-mono">{decision.matterRef}</span>}
         {readiness.mandatory && (
           <>
-            {decision.matterRef && <span className="sep">·</span>}
-            <span className="chain__nd">non-delegable</span>
+            {decision.matterRef && <span aria-hidden="true">·</span>}
+            <Badge tone="warn">non-delegable</Badge>
           </>
         )}
       </div>
 
       {members.length === 0 ? (
-        <p className="sm dim">No members are appointed, so no vote can be recorded.</p>
+        <p className="text-[13px] text-ink-3">
+          No members are appointed, so no vote can be recorded.
+        </p>
       ) : (
-        <div className="vote">
-          {members.map((member) => {
-            const vote = byPerson.get(member.personId);
-            const busy = pendingPerson === member.personId;
-            return (
-              <div className="vote__row" key={member.personId}>
-                <span className="vote__who">
-                  <span className={`avatar avatar--sm ${avatarTone(member.personId)}`}>
-                    {initials(member.name)}
+        <div>
+          <ul className="divide-y divide-line/70 rounded-2xl border border-line">
+            {members.map((member) => {
+              const vote = byPerson.get(member.personId);
+              const busy = pendingPerson === member.personId;
+              return (
+                <li className="flex flex-wrap items-center gap-3 px-4 py-2.5" key={member.personId}>
+                  <span className="flex min-w-0 flex-1 items-center gap-3">
+                    <Avatar name={member.name} />
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate text-[13.5px] font-semibold text-ink" title={member.name}>
+                        {member.name}
+                      </span>
+                      <span className="truncate text-[12px] text-ink-3" title={member.position}>
+                        {member.position}
+                      </span>
+                    </span>
                   </span>
-                  <span className="col">
-                    <span className="sm strong trunc">{member.name}</span>
-                    <span className="xs dim trunc">{member.position}</span>
-                  </span>
-                </span>
 
-                {vote?.comment && <span className="xs dim grow trunc">“{vote.comment}”</span>}
-
-                <span className="vote__btns">
-                  {CHOICES.map((choice) => (
-                    <button
-                      key={choice.value}
-                      type="button"
-                      className="vote__btn"
-                      data-v={choice.value === "SETUJU" ? "SETUJU" : "TIDAK SETUJU"}
-                      aria-pressed={vote?.choice === choice.value}
-                      disabled={busy}
-                      onClick={() => cast(member.personId, choice.value)}
+                  {vote?.comment && (
+                    <span
+                      className="min-w-0 flex-1 truncate text-[12px] text-ink-3"
+                      title={vote.comment}
                     >
-                      {choice.label}
-                    </button>
-                  ))}
-                </span>
-              </div>
-            );
-          })}
+                      “{vote.comment}”
+                    </span>
+                  )}
 
-          <div className="vote__foot">
-            <span className="quorum">
-              <span className="quorum__bar">
+                  <span className="inline-flex shrink-0 rounded-full border border-line-2 bg-surface p-0.5">
+                    {CHOICES.map((choice) => {
+                      const pressed = vote?.choice === choice.value;
+                      return (
+                        <button
+                          key={choice.value}
+                          type="button"
+                          className={cx(
+                            "h-7 rounded-full px-3 text-[12.5px] font-semibold transition",
+                            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500",
+                            "disabled:cursor-not-allowed disabled:opacity-45",
+                            pressed
+                              ? choice.value === "SETUJU"
+                                ? "bg-emerald-600 text-white"
+                                : "bg-rose-600 text-white"
+                              : "text-ink-2 hover:bg-ink/5 hover:text-ink",
+                          )}
+                          data-v={choice.value === "SETUJU" ? "SETUJU" : "TIDAK SETUJU"}
+                          aria-pressed={pressed}
+                          disabled={busy}
+                          onClick={() => cast(member.personId, choice.value)}
+                        >
+                          {choice.label}
+                        </button>
+                      );
+                    })}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <span className="inline-flex flex-wrap items-center gap-3">
+              <span className="inline-flex flex-wrap gap-1">
                 {Array.from({ length: Math.max(members.length, quorum ?? 0) }, (_, i) => (
                   <span
                     key={i}
-                    className={`quorum__pip ${
-                      i < present ? "quorum__pip--on" : i < (quorum ?? 0) ? "quorum__pip--need" : ""
-                    }`}
+                    className={cx(
+                      "size-2.5 rounded-full",
+                      i < present
+                        ? "bg-emerald-500"
+                        : i < (quorum ?? 0)
+                          ? "bg-amber-400"
+                          : "bg-ink/10",
+                    )}
                     aria-hidden="true"
                   />
                 ))}
               </span>
-              <span className="xs dim">{readiness.quorum.messageEn}</span>
+              <span className="text-[12px] text-ink-3">{readiness.quorum.messageEn}</span>
             </span>
 
-            <span className="grow" />
+            <span className="flex-1" />
 
-            <span className="row" style={{ gap: 8 }}>
-              <span className="badge badge--ok">{readiness.tally.setuju} setuju</span>
-              <span className="badge badge--err">{readiness.tally.tidakSetuju} tidak setuju</span>
+            <span className="inline-flex flex-wrap items-center gap-2">
+              <Badge tone="ok">{readiness.tally.setuju} setuju</Badge>
+              <Badge tone="err">{readiness.tally.tidakSetuju} tidak setuju</Badge>
               {readiness.tally.notVoted > 0 && (
-                <span className="badge">{readiness.tally.notVoted} outstanding</span>
+                <Badge>{readiness.tally.notVoted} outstanding</Badge>
               )}
             </span>
           </div>
 
-          <div style={{ marginTop: 12 }}>
+          <div className="mt-3">
             {readiness.canRecord ? (
-              <div className={`callout ${readiness.tally.carried ? "callout--ok" : "callout--err"}`}>
-                <div>{readiness.messageEn}</div>
-              </div>
+              <Callout tone={readiness.tally.carried ? "ok" : "err"}>{readiness.messageEn}</Callout>
             ) : (
-              <div className="callout callout--warn">
-                <span className="callout__ico">
-                  <AlertTriangle size={17} />
-                </span>
-                <div>{readiness.messageEn}</div>
-              </div>
+              <Callout tone="warn">{readiness.messageEn}</Callout>
             )}
           </div>
 
           {error && (
-            <p role="alert" className="field__err" style={{ marginTop: 10 }}>
+            <p role="alert" className="mt-2.5 text-[12.5px] font-medium text-rose-600">
               {error}
             </p>
           )}
         </div>
       )}
-    </div>
+    </CardBody>
   );
 }

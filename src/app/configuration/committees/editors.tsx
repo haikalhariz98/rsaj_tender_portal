@@ -1,4 +1,6 @@
+import { PencilIcon } from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
+import { buttonClass } from "@/components/ui/button";
 
 import { saveCommittee, saveMember, vacateSeat } from "./actions";
 
@@ -117,7 +119,7 @@ export function EditCommittee({ committee }: { committee: CommitteeValues }) {
       title={`Edit ${committee.nameEn}`}
       fields={[{ kind: "hidden", name: "id" }, ...committeeFields(true)]}
       action={saveCommittee}
-      trigger={{ label: "Edit", className: "btn btn--sm btn--ghost" }}
+      trigger={{ label: `Edit ${committee.nameEn}`, iconOnly: <PencilIcon size={15} /> }}
       size="lg"
       values={{
         id: committee.id,
@@ -232,10 +234,13 @@ export interface MemberValues {
 
 export function EditMember({
   member,
+  label,
   people,
   offices,
 }: {
   member: MemberValues;
+  /// Who or what the seat is, so the icon-only trigger has a name.
+  label: string;
   people: { id: string; name: string }[];
   offices: { code: string; nameEn: string }[];
 }) {
@@ -244,7 +249,7 @@ export function EditMember({
       title="Edit seat"
       fields={[{ kind: "hidden", name: "id" }, ...memberFields(people, offices)]}
       action={saveMember}
-      trigger={{ label: "Edit", className: "btn btn--sm btn--ghost" }}
+      trigger={{ label: `Edit ${label}`, iconOnly: <PencilIcon size={15} /> }}
       size="lg"
       values={{
         id: member.id,
@@ -273,7 +278,10 @@ export function VacateSeat({ id, label }: { id: string; label: string }) {
       action={vacateSeat}
       submitLabel="Vacate"
       destructive={{ reasonLabel: "Why is it being vacated?" }}
-      trigger={{ label: "Vacate", className: "btn btn--sm btn--ghost" }}
+      trigger={{
+        label: "Vacate",
+        className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800"),
+      }}
       size="sm"
     />
   );

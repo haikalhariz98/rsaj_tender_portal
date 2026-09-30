@@ -1,19 +1,21 @@
 import {
   CheckIcon,
   HelpCircle,
-  InfoIcon,
   PencilIcon,
   ShieldIcon,
   SwapIcon,
   UserIcon,
   XIcon,
 } from "@/components/icons";
-import { buttonClass } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
+import { Badge, Chip, Dot, type Tone } from "@/components/ui/badge";
+import { buttonClass, iconButtonClass } from "@/components/ui/button";
+import { Callout } from "@/components/ui/feedback";
+import { Switch } from "@/components/ui/field";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import type { Capability } from "@/lib/people/capabilities";
 import { statusOf, type Delegation } from "@/lib/people/delegation";
 import type { Assignment, Office, Person } from "@/lib/people/types";
-import { avatarTone, initials } from "@/lib/format";
 
 import {
   endAssignment,
@@ -64,7 +66,7 @@ function personFields(offices: Office[], authorityLevels: string[]): Field[] {
   ];
 }
 
-/// A labelled band inside the drawer — the sample's `.lbl` row with an optional count.
+/// A labelled band inside the drawer — the sample's label row with an optional count.
 function DrawerSection({
   label,
   count,
@@ -77,19 +79,20 @@ function DrawerSection({
   children: React.ReactNode;
 }) {
   return (
-    <div>
-      <div className="row" style={{ gap: 10, marginBottom: 10 }}>
-        <span className="lbl">{label}</span>
+    <section className="flex flex-col gap-2.5">
+      <div className="flex items-center gap-2">
+        <h3 className="text-[12px] font-bold tracking-[0.04em] text-ink-3 uppercase">{label}</h3>
         {tip && (
-          <span className="tip" title={tip}>
-            <HelpCircle size={13} className="icon faint" />
+          <span className="inline-flex cursor-help text-ink-4" title={tip}>
+            <HelpCircle size={13} />
           </span>
         )}
-        <div className="spacer" />
-        {count != null && <span className="xs dim">{count}</span>}
+        {count != null && (
+          <span className="ml-auto text-[12px] font-semibold text-ink-3 tabular-nums">{count}</span>
+        )}
       </div>
       {children}
-    </div>
+    </section>
   );
 }
 
@@ -104,7 +107,7 @@ export function AddPerson({
     <RecordEditor
       title="Add a person"
       description="Someone on record. Separate from sign-in, which does not exist yet."
-      icon={<UserIcon size={20} className="icon dim" style={{ marginTop: 2 }} />}
+      icon={<UserIcon size={18} />}
       fields={personFields(offices, authorityLevels)}
       columns={2}
       action={savePerson}
@@ -138,85 +141,80 @@ export function EditPerson({
     <RecordEditor
       title={person.name}
       description={person.jobTitle ?? undefined}
-      icon={<UserIcon size={20} className="icon dim" style={{ marginTop: 2 }} />}
+      icon={<UserIcon size={18} />}
       fields={[{ kind: "hidden", name: "id" }, ...personFields(offices, authorityLevels)]}
       columns={2}
       action={savePerson}
-      trigger={{ label: "Edit", iconOnly: <PencilIcon size={14} /> }}
+      trigger={{ label: "Edit", iconOnly: <PencilIcon size={15} /> }}
       size="lg"
       identity={
-        <div className="row" style={{ gap: 12 }}>
-          <span className={`avatar avatar--lg ${avatarTone(person.name)}`} title={person.name}>
-            {initials(person.name)}
-          </span>
-          <div style={{ minWidth: 0 }}>
-            <div className="sm strong">{person.name}</div>
-            <div className="xs dim">{person.email ?? "No email on record"}</div>
+        <div className="flex min-w-0 items-center gap-3">
+          <Avatar name={person.name} size="lg" />
+          <div className="min-w-0">
+            <div className="truncate text-[14px] font-semibold text-ink" title={person.name}>
+              {person.name}
+            </div>
+            <div className="truncate text-[12.5px] text-ink-3">
+              {person.email ?? "No email on record"}
+            </div>
           </div>
         </div>
       }
       sections={
         <>
-          <div className="divider" />
+          <hr className="border-line" />
           <DrawerSection label="Capabilities" count={capabilities.length}>
             {capabilities.length === 0 ? (
-              <span className="xs dim">
+              <p className="text-[12.5px] text-ink-3">
                 None. Capabilities come from the roles they hold, and they hold none yet.
-              </span>
+              </p>
             ) : (
-              <div className="row wrap" style={{ gap: 6 }}>
+              <div className="flex flex-wrap gap-1.5">
                 {capabilities.map((c) => (
-                  <span key={c.id} className="badge badge--outline">
-                    <span className="badge__t">{c.nameEn}</span>
-                  </span>
+                  <Badge key={c.id} outline title={c.nameEn}>
+                    {c.nameEn}
+                  </Badge>
                 ))}
               </div>
             )}
           </DrawerSection>
 
-          <div className="divider" />
+          <hr className="border-line" />
           <DrawerSection
             label="Out of office"
             tip="Marks them as away. Cover is a delegation, recorded separately."
           >
-            <div className="stack">
-              <SwitchField name="isAway" label="Currently away" checked={!person.isAvailable} />
-            </div>
+            <Switch name="isAway" label="Currently away" defaultChecked={!person.isAvailable} />
           </DrawerSection>
 
           <DrawerSection label="Delegation">
             {delegations.length === 0 ? (
-              <span className="xs dim">Nothing delegated to or by them.</span>
+              <p className="text-[12.5px] text-ink-3">Nothing delegated to or by them.</p>
             ) : (
-              <div className="stack stack--sm">
+              <ul className="flex flex-col gap-1">
                 {delegations.map((d) => {
                   const status = statusOf(d, on);
+                  const { label, tone } = DELEGATION_STATUS[status];
+                  const parties = `${nameOf(d.fromPersonId)} → ${nameOf(d.toPersonId)}`;
                   return (
-                    <div key={d.id} className="row hoverrow" style={{ gap: 10, padding: "9px 10px" }}>
-                      <SwapIcon size={14} className="icon dim" />
-                      <span className="sm grow trunc">
-                        {nameOf(d.fromPersonId)} → {nameOf(d.toPersonId)}
+                    <li
+                      key={d.id}
+                      className="flex min-w-0 items-center gap-2.5 rounded-xl px-2.5 py-2 transition hover:bg-ink/[0.04]"
+                    >
+                      <SwapIcon size={14} className="shrink-0 text-ink-3" />
+                      <span className="min-w-0 flex-1 truncate text-[13.5px] text-ink" title={parties}>
+                        {parties}
                       </span>
-                      <span className="xs dim num">
+                      <span className="shrink-0 text-[12px] text-ink-3 tabular-nums">
                         {day(d.effectiveFrom)} — {d.effectiveTo ? day(d.effectiveTo) : "open"}
                       </span>
-                      <span
-                        className={`chip${status === "IN_FORCE" ? " chip--ok" : ""}`}
-                        title={status === "IN_FORCE" ? "In force" : status === "SCHEDULED" ? "Scheduled" : "Ended"}
-                      >
-                        <span className="dot" />
-                        <span className="badge__t">
-                          {status === "IN_FORCE"
-                            ? "In force"
-                            : status === "SCHEDULED"
-                              ? "Scheduled"
-                              : "Ended"}
-                        </span>
-                      </span>
-                    </div>
+                      <Chip tone={tone} icon={<Dot tone={tone} />} title={label}>
+                        {label}
+                      </Chip>
+                    </li>
                   );
                 })}
-              </div>
+              </ul>
             )}
           </DrawerSection>
         </>
@@ -236,28 +234,12 @@ export function EditPerson({
   );
 }
 
-/// The sample's toggle, rendered outside the field list so it can sit in a section.
-function SwitchField({
-  name,
-  label,
-  checked,
-}: {
-  name: string;
-  label: string;
-  checked: boolean;
-}) {
-  return (
-    <label className="switch">
-      <input type="checkbox" role="switch" name={name} defaultChecked={checked} />
-      <span className="switch__track">
-        <span className="switch__knob" />
-      </span>
-      <span style={{ minWidth: 0 }}>
-        <span className="check__txt">{label}</span>
-      </span>
-    </label>
-  );
-}
+/// How a delegation's status reads in the person drawer. Derived from the period.
+const DELEGATION_STATUS: Record<ReturnType<typeof statusOf>, { label: string; tone: Tone }> = {
+  IN_FORCE: { label: "In force", tone: "ok" },
+  SCHEDULED: { label: "Scheduled", tone: "info" },
+  ENDED: { label: "Ended", tone: "neutral" },
+};
 
 /**
  * Marking someone as having left, and putting them back.
@@ -290,7 +272,11 @@ export function LeaverToggle({ person }: { person: Person }) {
       reason={leaving ? undefined : { label: "Why are they coming back?" }}
       trigger={{
         label: leaving ? "Mark as left" : "Reinstate",
-        iconOnly: leaving ? <XIcon size={14} /> : <CheckIcon size={14} />,
+        iconOnly: leaving ? <XIcon size={15} /> : <CheckIcon size={15} />,
+        // Marking somebody as left is the destructive one, and reads so.
+        className: leaving
+          ? iconButtonClass("sm", false, "text-rose-700 hover:bg-rose-50 hover:text-rose-800")
+          : undefined,
       }}
       size="sm"
     />
@@ -344,7 +330,7 @@ export function AddOffice({ offices }: { offices: Office[] }) {
     <RecordEditor
       title="Add a role"
       description="A role or committee that can hold authority."
-      icon={<ShieldIcon size={20} className="icon dim" style={{ marginTop: 2 }} />}
+      icon={<ShieldIcon size={18} />}
       fields={officeFields(false, offices)}
       columns={2}
       action={saveOffice}
@@ -360,14 +346,14 @@ export function EditOffice({ office, offices }: { office: Office; offices: Offic
     <RecordEditor
       title={office.nameEn}
       description={office.authorityLevel || undefined}
-      icon={<ShieldIcon size={20} className="icon dim" style={{ marginTop: 2 }} />}
+      icon={<ShieldIcon size={18} />}
       fields={[
         { kind: "hidden", name: "id" },
         ...officeFields(true, offices.filter((o) => o.code !== office.code)),
       ]}
       columns={2}
       action={saveOffice}
-      trigger={{ label: "Edit", iconOnly: <PencilIcon size={14} /> }}
+      trigger={{ label: "Edit", iconOnly: <PencilIcon size={15} /> }}
       size="lg"
       values={{
         id: office.id,
@@ -422,7 +408,7 @@ export function AddAssignment({ people, offices }: { people: Person[]; offices: 
     <RecordEditor
       title="Assign a role"
       description="A rule routes to a role. Only an assignment turns it into a signatory."
-      icon={<UserIcon size={20} className="icon dim" style={{ marginTop: 2 }} />}
+      icon={<UserIcon size={18} />}
       fields={assignmentFields(people, offices)}
       columns={2}
       action={saveAssignment}
@@ -446,11 +432,11 @@ export function EditAssignment({
     <RecordEditor
       title="Assignment"
       description="Who holds a role, and when"
-      icon={<UserIcon size={20} className="icon dim" style={{ marginTop: 2 }} />}
+      icon={<UserIcon size={18} />}
       fields={[{ kind: "hidden", name: "id" }, ...assignmentFields(people, offices)]}
       columns={2}
       action={saveAssignment}
-      trigger={{ label: "Edit", iconOnly: <PencilIcon size={14} /> }}
+      trigger={{ label: "Edit", iconOnly: <PencilIcon size={15} /> }}
       size="lg"
       values={{
         id: assignment.id,
@@ -545,16 +531,9 @@ function delegationFields(
 }
 
 const DELEGATION_NOTE = (
-  <div className="callout callout--info">
-    <span className="callout__ico">
-      <InfoIcon size={16} />
-    </span>
-    <div className="grow" style={{ minWidth: 0 }}>
-      <span className="sm">
-        A delegation lapses on its end date without anyone having to withdraw it.
-      </span>
-    </div>
-  </div>
+  <Callout tone="info">
+    A delegation lapses on its end date without anyone having to withdraw it.
+  </Callout>
 );
 
 export function AddDelegation({
@@ -570,7 +549,7 @@ export function AddDelegation({
     <RecordEditor
       title="New delegation"
       description="Delegation"
-      icon={<SwapIcon size={20} className="icon dim" style={{ marginTop: 2 }} />}
+      icon={<SwapIcon size={18} />}
       fields={delegationFields(people, offices, capabilities)}
       columns={2}
       sections={DELEGATION_NOTE}
@@ -599,7 +578,7 @@ export function EditDelegation({
     <RecordEditor
       title="Delegation"
       description="Delegation"
-      icon={<SwapIcon size={20} className="icon dim" style={{ marginTop: 2 }} />}
+      icon={<SwapIcon size={18} />}
       fields={[
         { kind: "hidden", name: "id" },
         ...delegationFields(people, offices, capabilities, status),
@@ -607,7 +586,7 @@ export function EditDelegation({
       columns={2}
       sections={DELEGATION_NOTE}
       action={saveDelegation}
-      trigger={{ label: "Edit", iconOnly: <PencilIcon size={14} /> }}
+      trigger={{ label: "Edit", iconOnly: <PencilIcon size={15} /> }}
       size="lg"
       values={{
         id: delegation.id,
@@ -634,7 +613,10 @@ export function EndAssignment({ id, label }: { id: string; label: string }) {
       action={endAssignment}
       submitLabel="End it"
       destructive={{ reasonLabel: "Why is it ending?" }}
-      trigger={{ label: "End", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
+      trigger={{
+        label: "End",
+        className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800"),
+      }}
       size="sm"
     />
   );

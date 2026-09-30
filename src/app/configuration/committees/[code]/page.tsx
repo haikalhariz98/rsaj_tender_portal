@@ -1,18 +1,25 @@
 import { notFound } from "next/navigation";
 
-import { AlertTriangle, InfoIcon } from "@/components/icons";
+import { CalendarIcon, RouteIcon, ScaleIcon, UsersIcon } from "@/components/icons";
 import { DecisionPanel } from "@/components/committee/decision-panel";
 import { getCommittee, rulesRoutingTo } from "@/lib/committee/repo";
 import { AddMember, EditMember, VacateSeat } from "../editors";
 import { assessQuorum } from "@/lib/committee/quorum";
 import { seatsInForce } from "@/lib/committee/seats";
 import { committeeActOn } from "@/lib/authority/resolve";
-import { ACT_LABEL, matterLabel } from "@/lib/labels";
+import { matterLabel } from "@/lib/labels";
+import { ActWithLabel } from "@/components/ui/act";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster } from "@/lib/people/load";
-import { avatarTone, formatBand, formatDate, initials } from "@/lib/format";
+import { formatBand, formatDate } from "@/lib/format";
 import { PageHeader } from "@/components/ui/page-header";
+import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { cx } from "@/components/ui/cx";
+import { Callout, EmptyState } from "@/components/ui/feedback";
+import { ProvenanceBadge } from "@/components/ui/provenance";
+import { Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { HistoryButton } from "@/components/history-drawer";
 
 const MEETING_STATUS: Record<string, string> = {
@@ -68,206 +75,167 @@ export default async function CommitteePage({
         ]}
       />
 
-      <div className="stack stack--lg">
-        <section className="section">
-          <div className="callout callout--info">
-            <span className="callout__ico">
-              <InfoIcon size={17} />
-            </span>
-            <div>
-              <div className="strong" style={{ marginBottom: 2 }}>
-                Mandate
-              </div>
-              {committee.mandate}
-            </div>
-          </div>
-        </section>
+      <div className="flex flex-col gap-6">
+        <Callout tone="info" title="Mandate">
+          {committee.mandate}
+        </Callout>
 
-        <div className="grid g2">
-          <section className="card">
-            <div className="card__head">
-              <div className="card__titles">
-                <h2 className="h3">Membership</h2>
-                <div className="card__sub">
-                  {seats.length === 0
-                    ? "No seats configured"
-                    : `${seats.length} seats · ${seats.filter((s) => s.person).length} filled`}
-                </div>
-              </div>
-              <ProvenanceChip value={committee.compositionProvenance} />
-              <AddMember committeeId={committee.id} people={people} offices={offices} />
-            </div>
-            <div className="card__body">
-              {seats.length === 0 ? (
-                <div className="empty empty--sm">
-                  <div className="empty__t">No membership set</div>
-                  <p className="empty__d">
-                    Nobody has been appointed to this committee yet. Add its members before it
-                    can record a decision.
-                  </p>
-                </div>
-              ) : (
-                <div className="stack stack--sm">
-                  {seats.map((seat) => (
-                    <div key={seat.id} className="row" style={{ gap: 11 }}>
+        <div className="grid items-start gap-5 lg:grid-cols-2">
+          <Card className="overflow-hidden">
+            <CardHeader
+              icon={<UsersIcon size={17} />}
+              title="Membership"
+              subtitle={
+                seats.length === 0
+                  ? "No seats configured"
+                  : `${seats.length} seats · ${seats.filter((s) => s.person).length} filled`
+              }
+              actions={
+                <>
+                  <ProvenanceBadge value={committee.compositionProvenance} />
+                  <AddMember committeeId={committee.id} people={people} offices={offices} />
+                </>
+              }
+            />
+            {seats.length === 0 ? (
+              <EmptyState size="sm" title="No membership set">
+                Nobody has been appointed to this committee yet. Add its members before it can
+                record a decision.
+              </EmptyState>
+            ) : (
+              <ul className="divide-y divide-line/70">
+                {seats.map((seat) => {
+                  const who = seat.person?.name ?? seat.seatLabel ?? "Unnamed seat";
+                  const role = `${POSITION_LABEL[seat.position] ?? seat.position}${
+                    seat.person && seat.seatLabel ? ` · ${seat.seatLabel}` : ""
+                  }${!seat.person ? " · vacant" : ""}`;
+                  return (
+                    <li key={seat.id} className="flex items-center gap-3 px-5 py-3 sm:px-6">
                       {seat.person ? (
-                        <span className={`avatar avatar--sm ${avatarTone(seat.person.id)}`}>
-                          {initials(seat.person.name)}
-                        </span>
+                        <Avatar name={seat.person.name} />
                       ) : (
-                        <span className="avatar avatar--sm avatar--muted">—</span>
+                        <Avatar muted>—</Avatar>
                       )}
-                      <div className="col grow">
-                        <span className="sm strong trunc">
-                          {seat.person?.name ?? seat.seatLabel ?? "Unnamed seat"}
-                        </span>
-                        <span className="xs dim trunc">
-                          {POSITION_LABEL[seat.position] ?? seat.position}
-                          {seat.person && seat.seatLabel ? ` · ${seat.seatLabel}` : ""}
-                          {!seat.person && " · vacant"}
-                        </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[13.5px] font-semibold text-ink" title={who}>
+                          {who}
+                        </div>
+                        <div className="truncate text-[12px] text-ink-3" title={role}>
+                          {role}
+                        </div>
                       </div>
-                      {seat.provenance === "OBSERVED" && (
-                        <span className="badge badge--info">from practice</span>
-                      )}
-                      {seat.provenance === "STATED" && (
-                        <span className="badge badge--ok">by policy</span>
-                      )}
-                      <EditMember member={seat} people={people} offices={offices} />
-                      <VacateSeat
-                        id={seat.id}
-                        label={seat.person?.name ?? seat.seatLabel ?? "this seat"}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
+                      <ProvenanceBadge value={seat.provenance} />
+                      <div className="flex shrink-0 items-center gap-1">
+                        <EditMember member={seat} label={who} people={people} offices={offices} />
+                        {seat.person && <VacateSeat id={seat.id} label={seat.person.name} />}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Card>
 
-          <section className="card">
-            <div className="card__head">
-              <div className="card__titles">
-                <h2 className="h3">Quorum</h2>
-                <div className="card__sub">Required for a sitting to decide.</div>
-              </div>
-              <ProvenanceChip value={committee.quorumProvenance} />
-            </div>
-            <div className="card__body">
+          <Card>
+            <CardHeader
+              icon={<ScaleIcon size={17} />}
+              title="Quorum"
+              subtitle="Required for a sitting to decide."
+              actions={<ProvenanceBadge value={committee.quorumProvenance} />}
+            />
+            <CardBody>
               <QuorumCard quorum={committee.quorum} seats={seats.length} />
               {committee.notes && (
-                <p className="sm dim" style={{ marginTop: 16, lineHeight: "19px" }}>
-                  {committee.notes}
-                </p>
+                <p className="mt-4 text-[13px] leading-relaxed text-ink-3">{committee.notes}</p>
               )}
-            </div>
-          </section>
+            </CardBody>
+          </Card>
         </div>
 
-        <section className="section">
-          <div className="section__head">
-            <h2 className="h2">Why this body sits</h2>
-            <div className="section__actions">
-              <span className="badge badge--outline">
+        <Card className="overflow-hidden">
+          <CardHeader
+            icon={<RouteIcon size={17} />}
+            title="Why this body sits"
+            actions={
+              <Badge outline>
                 {rules.length} {rules.length === 1 ? "authority row" : "authority rows"}
-              </span>
-            </div>
-          </div>
+              </Badge>
+            }
+            divided={rules.length === 0}
+          />
           {rules.length === 0 ? (
-            <div className="card">
-              <div className="card__body">
-                <div className="empty empty--sm">
-                  <div className="empty__t">Nothing routes here automatically</div>
-                  <p className="empty__d">
-                    This committee is established by procedure rather than by an authority
-                    limit, so no value band sends a matter to it on its own.
-                  </p>
-                </div>
-              </div>
-            </div>
+            <EmptyState size="sm" title="Nothing routes here automatically">
+              This committee is established by procedure rather than by an authority limit, so
+              no value band sends a matter to it on its own.
+            </EmptyState>
           ) : (
-            <div className="dl">
-              <div className="tablewrap">
-                <table className="table table--compact">
-                  <colgroup>
-                    <col style={{ width: "20%" }} />
-                    <col style={{ width: "58%" }} />
-                    <col style={{ width: "22%" }} />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <th>Matter</th>
-                      <th>Applies to</th>
-                      <th>Acts as</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* Keyed by position so the internal rule key stays server-side. */}
-                    {rules.map((r, i) => (
-                      <tr key={i}>
-                        <td className="sm">{matterLabel(r.domain)}</td>
-                        <td className="sm">{r.labelEn}</td>
-                        <td>
-                          {(() => {
-                            const act = committeeActOn(r, committee.code);
-                            return act ? (
-                              <span className={`chain__act chain__act--${act}`}>{ACT_LABEL[act]}</span>
-                            ) : (
-                              <span className="xs dim">Not set</span>
-                            );
-                          })()}
-                          {r.nonDelegable && (
-                            <span className="badge badge--warn" style={{ marginLeft: 6 }}>
-                              Cannot be delegated
-                            </span>
+            <Table>
+              <colgroup>
+                <col style={{ width: "20%" }} />
+                <col style={{ width: "50%" }} />
+                <col style={{ width: "30%" }} />
+              </colgroup>
+              <THead>
+                <Th>Matter</Th>
+                <Th>Applies to</Th>
+                <Th>Acts as</Th>
+              </THead>
+              <tbody>
+                {/* Keyed by position so the internal rule key stays server-side. */}
+                {rules.map((r, i) => {
+                  const act = committeeActOn(r, committee.code);
+                  return (
+                    <Tr key={i}>
+                      <Td className="text-ink-2">{matterLabel(r.domain)}</Td>
+                      <Td className="text-ink">{r.labelEn}</Td>
+                      <Td>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {act ? (
+                            <ActWithLabel act={act} />
+                          ) : (
+                            <span className="text-[12px] text-ink-3">Not set</span>
                           )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                          {r.nonDelegable && <Badge tone="warn">Cannot be delegated</Badge>}
+                        </div>
+                      </Td>
+                    </Tr>
+                  );
+                })}
+              </tbody>
+            </Table>
           )}
-        </section>
+        </Card>
 
-        <section className="section">
-          <div className="section__head">
-            <h2 className="h2">Sittings</h2>
-            <div className="section__actions">
-              <span className="badge badge--outline">{committee.meetings.length}</span>
-            </div>
-          </div>
-
+        <Card className="overflow-hidden">
+          <CardHeader
+            icon={<CalendarIcon size={17} />}
+            title="Sittings"
+            actions={<Badge outline>{committee.meetings.length}</Badge>}
+            divided={committee.meetings.length === 0}
+          />
           {committee.meetings.length === 0 ? (
-            <div className="card">
-              <div className="card__body">
-                <div className="empty empty--sm">
-                  <div className="empty__t">No sittings recorded</div>
-                  <p className="empty__d">
-                    Meetings, attendance and per-member votes appear here once this body convenes.
-                  </p>
-                </div>
-              </div>
-            </div>
+            <EmptyState size="sm" title="No sittings recorded">
+              Meetings, attendance and per-member votes appear here once this body convenes.
+            </EmptyState>
           ) : (
-            <div className="stack">
+            <div className="divide-y divide-line border-t border-line">
               {committee.meetings.map((meeting) => (
-                <div key={meeting.id} className="card">
-                  <div className="card__head">
-                    <div className="card__titles">
-                      <h3 className="h3 mono">{meeting.reference}</h3>
-                      <div className="card__sub">
-                        {formatDate(meeting.meetingDate)} ·{" "}
-                        {meeting.attendance.filter((a) => a.attended).length} present
-                      </div>
-                    </div>
-                    <span className="badge badge--outline">{MEETING_STATUS[meeting.status] ?? "Unknown"}</span>
-                  </div>
+                <section key={meeting.id}>
+                  <CardHeader
+                    divided={false}
+                    className="bg-sunken/60"
+                    title={<span className="font-mono">{meeting.reference}</span>}
+                    subtitle={`${formatDate(meeting.meetingDate)} · ${
+                      meeting.attendance.filter((a) => a.attended).length
+                    } present`}
+                    actions={
+                      <Badge outline>{MEETING_STATUS[meeting.status] ?? "Unknown"}</Badge>
+                    }
+                  />
                   {meeting.agenda && (
-                    <div className="card__body card__body--tight">
-                      <p className="sm dim">{meeting.agenda}</p>
-                    </div>
+                    <CardBody pad="tight" className="border-t border-line/70">
+                      <p className="text-[13px] text-ink-3">{meeting.agenda}</p>
+                    </CardBody>
                   )}
                   {meeting.decisions.map((decision) => (
                     <DecisionPanel
@@ -296,23 +264,14 @@ export default async function CommitteePage({
                       }))}
                     />
                   ))}
-                </div>
+                </section>
               ))}
             </div>
           )}
-        </section>
+        </Card>
       </div>
     </>
   );
-}
-
-/// How firm a configured fact is. Policy and practice are not the same authority, so
-/// they must not look the same on screen.
-function ProvenanceChip({ value }: { value: string | null }) {
-  if (value === "STATED") return <span className="chip chip--ok">Set by policy</span>;
-  if (value === "OBSERVED") return <span className="chip chip--info">From current practice</span>;
-  if (value === "ASSUMED") return <span className="chip chip--warn">Assumed</span>;
-  return <span className="chip chip--warn">Not set</span>;
 }
 
 function QuorumCard({ quorum, seats }: { quorum: number | null; seats: number }) {
@@ -320,41 +279,35 @@ function QuorumCard({ quorum, seats }: { quorum: number | null; seats: number })
 
   if (quorum == null) {
     return (
-      <div className="callout callout--warn">
-        <span className="callout__ico">
-          <AlertTriangle size={17} />
-        </span>
-        <div>
-          <div className="strong" style={{ marginBottom: 2 }}>
-            No quorum set
-          </div>
-          Sittings of this committee cannot be certified as quorate until one is set. A quorum
-          of zero is not assumed in its place.
-        </div>
-      </div>
+      <Callout tone="warn" title="No quorum set">
+        Sittings of this committee cannot be certified as quorate until one is set. A quorum of
+        zero is not assumed in its place.
+      </Callout>
     );
   }
 
   return (
-    <div className="stack stack--sm">
-      <div className="row" style={{ gap: 12 }}>
-        <span className="stat__value stat__value--sm">{quorum}</span>
-        <div className="col">
-          <span className="sm strong">members required</span>
-          <span className="xs dim">of {seats} configured seats</span>
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-3">
+        <span className="text-[26px] leading-none font-bold tracking-[-0.02em] text-ink tabular-nums">
+          {quorum}
+        </span>
+        <div className="flex min-w-0 flex-col">
+          <span className="text-[13.5px] font-semibold text-ink">members required</span>
+          <span className="text-[12px] text-ink-3">of {seats} configured seats</span>
         </div>
       </div>
-      <div className="quorum">
-        <span className="quorum__bar">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="inline-flex flex-wrap gap-1">
           {Array.from({ length: Math.max(seats, quorum) }, (_, i) => (
             <span
               key={i}
-              className={`quorum__pip ${i < quorum ? "quorum__pip--need" : ""}`}
+              className={cx("size-2.5 rounded-full", i < quorum ? "bg-amber-400" : "bg-ink/10")}
               aria-hidden="true"
             />
           ))}
         </span>
-        <span className="xs dim">{assessment.required} needed to sit</span>
+        <span className="text-[12px] text-ink-3">{assessment.required} needed to sit</span>
       </div>
     </div>
   );

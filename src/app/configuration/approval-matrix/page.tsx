@@ -1,7 +1,7 @@
 import { Accordion } from "@/components/accordion";
 import { AuthoritySimulator } from "@/components/authority-simulator";
 import { AlertTriangle, CheckIcon, SlidersIcon } from "@/components/icons";
-import { RuleChain, type ChainStep } from "@/components/rule-chain";
+import { ActBadge, RuleChain, type ChainStep } from "@/components/rule-chain";
 import { listIssues, loadMatrix, loadRuleRows, type IssueSummary } from "@/lib/authority/load";
 import { listCommittees } from "@/lib/committee/repo";
 import { approverAct, ruleIsDelegable } from "@/lib/authority/resolve";
@@ -28,10 +28,16 @@ import { Callout } from "@/components/ui/feedback";
 import { cx } from "@/components/ui/cx";
 import type { Rule } from "@/lib/authority/types";
 import { PageHeader } from "@/components/ui/page-header";
-import { Badge } from "@/components/ui/badge";
+import { Badge, Chip } from "@/components/ui/badge";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/feedback";
+import { KeyValues, Stat } from "@/components/ui/stat";
+import { RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { HistoryButton } from "@/components/history-drawer";
 
 export const dynamic = "force-dynamic";
+
+/// The band tiles sit inside a card, so they are flat and their figures a size down.
 
 /// Where an issue stands today. Read from its dates and whether it was issued.
 function stateOf(issue: IssueSummary, on: Date): { label: string; tone: "ok" | "info" | "warn" | "neutral" } {
@@ -82,20 +88,12 @@ export default async function ApprovalMatrixPage({
           subtitle="Who proposes, who recommends and who approves, at every value."
         />
 
-        <div className="card">
-          <div className="card__body">
-            <div className="empty">
-              <div className="empty__t">No approval limits yet</div>
-              <p className="empty__d">
-                {ORGANISATION_NAME} has no authority limits, so the portal cannot say who
-                approves anything. Draft the first issue, add its rules, then issue it.
-              </p>
-              <div className="empty__a">
-                <AddMatrix />
-              </div>
-            </div>
-          </div>
-        </div>
+        <Card>
+          <EmptyState title="No approval limits yet" action={<AddMatrix />}>
+            {ORGANISATION_NAME} has no authority limits, so the portal cannot say who
+            approves anything. Draft the first issue, add its rules, then issue it.
+          </EmptyState>
+        </Card>
       </>
     );
   }
@@ -219,7 +217,7 @@ export default async function ApprovalMatrixPage({
         </nav>
       )}
 
-      <div className="stack stack--lg">
+      <div className="flex flex-col gap-6">
         {editable ? (
           <Callout tone="warn" title="This is a draft">
             Nothing in it routes a matter until it is issued. Change the thresholds and rules
@@ -239,272 +237,247 @@ export default async function ApprovalMatrixPage({
           </Callout>
         )}
 
-        <section className="card">
-          <div className="card__head">
-            <SlidersIcon size={17} />
-            <div className="card__titles">
-              <div className="h3 trunc">Value bands</div>
-              <div className="card__sub trunc">
-                Thresholds applied to every routing decision.
-              </div>
-            </div>
-          </div>
-          <div className="card__body">
-            <div className="grid g3">
-              <div className="panel">
-                <div className="lbl">Below the quotation floor</div>
-                <div className="stat__value stat__value--sm num">
-                  ≤ {formatValueBand(null, matrix.policy.quotationFloor).replace("≤ ", "")}
-                </div>
-                <p className="xs dim" style={{ marginTop: 6 }}>
-                  Matters valued at or below the quotation floor.
-                </p>
-              </div>
-              <div className="panel">
-                <div className="lbl">Quotation band</div>
-                <div className="stat__value stat__value--sm num">
-                  {formatValueBand(matrix.policy.quotationFloor, matrix.policy.tenderFloor)}
-                </div>
-                <p className="xs dim" style={{ marginTop: 6 }}>
-                  Above the quotation floor, up to where the bands meet.
-                </p>
-              </div>
-              <div className="panel">
-                <div className="lbl">Tender band</div>
-                <div className="stat__value stat__value--sm num">
-                  {formatValueBand(matrix.policy.tenderFloor, null)}
-                </div>
-                <p className="xs dim" style={{ marginTop: 6 }}>
-                  Above the point where the bands meet.
-                </p>
-              </div>
+        <Card>
+          <CardHeader
+            icon={<SlidersIcon size={17} />}
+            title="Value bands"
+            subtitle="Thresholds applied to every routing decision."
+          />
+          <CardBody className="flex flex-col gap-6">
+            <div className="grid gap-4 md:grid-cols-3">
+              <Stat
+                tone="neutral"
+                label="Below the quotation floor"
+                value={`≤ ${formatValueBand(null, matrix.policy.quotationFloor).replace("≤ ", "")}`}
+                hint="Matters valued at or below the quotation floor."
+                variant="inset"
+                size="sm"
+              />
+              <Stat
+                tone="neutral"
+                label="Quotation band"
+                value={formatValueBand(matrix.policy.quotationFloor, matrix.policy.tenderFloor)}
+                hint="Above the quotation floor, up to where the bands meet."
+                variant="inset"
+                size="sm"
+              />
+              <Stat
+                tone="neutral"
+                label="Tender band"
+                value={formatValueBand(matrix.policy.tenderFloor, null)}
+                hint="Above the point where the bands meet."
+                variant="inset"
+                size="sm"
+              />
             </div>
 
-            <div className="divider" style={{ margin: "18px 0" }} />
+            <KeyValues
+              columns={2}
+              className="border-t border-line pt-6"
+              items={[
+                {
+                  label: "Where the bands meet",
+                  value: (
+                    <span className="tabular-nums">
+                      {formatValueBand(null, matrix.policy.boundaryValue).replace("≤ ", "")}
+                    </span>
+                  ),
+                },
+                {
+                  label: "A value exactly on the boundary",
+                  value: (
+                    <Chip tone="brand">
+                      {matrix.policy.boundaryInclusive
+                        ? "Falls in the quotation band"
+                        : "Falls in the tender band"}
+                    </Chip>
+                  ),
+                },
+                {
+                  label: "Requisition boundary",
+                  value: (
+                    <span className="tabular-nums">
+                      {formatValueBand(null, matrix.policy.requisitionBoundary).replace("≤ ", "")}
+                    </span>
+                  ),
+                },
+                {
+                  label: "Anti-splitting window",
+                  value: (
+                    <span className="tabular-nums">{matrix.policy.splittingWindowDays} days</span>
+                  ),
+                },
+              ]}
+            />
 
-            <div className="kv kv--2">
-              <div className="kv__r">
-                <div className="kv__k">Where the bands meet</div>
-                <div className="kv__v num">
-                  {formatValueBand(null, matrix.policy.boundaryValue).replace("≤ ", "")}
-                </div>
-              </div>
-              <div className="kv__r">
-                <div className="kv__k">A value exactly on the boundary</div>
-                <div className="kv__v">
-                  {matrix.policy.boundaryInclusive ? (
-                    <span className="chip chip--brand">Falls in the quotation band</span>
-                  ) : (
-                    <span className="chip chip--brand">Falls in the tender band</span>
-                  )}
-                </div>
-              </div>
-              <div className="kv__r">
-                <div className="kv__k">Requisition boundary</div>
-                <div className="kv__v num">
-                  {formatValueBand(null, matrix.policy.requisitionBoundary).replace("≤ ", "")}
-                </div>
-              </div>
-              <div className="kv__r">
-                <div className="kv__k">Anti-splitting window</div>
-                <div className="kv__v num">{matrix.policy.splittingWindowDays} days</div>
-              </div>
-            </div>
+            <Callout tone="warn" title="The boundary itself is a policy choice">
+              A works package valued at exactly{" "}
+              <span className="font-semibold tabular-nums">
+                {formatValueBand(null, matrix.policy.boundaryValue).replace("≤ ", "")}
+              </span>{" "}
+              sits in the{" "}
+              <span className="font-semibold">
+                {matrix.policy.boundaryInclusive ? "quotation" : "tender"}
+              </span>{" "}
+              band under the current setting — a different committee, a different approver and a
+              different award instrument from the other reading. Only this exact value is
+              affected; every other band edge is unaffected.
+            </Callout>
+          </CardBody>
+        </Card>
 
-            <div className="callout callout--warn" style={{ marginTop: 16 }}>
-              <span className="callout__ico">
-                <AlertTriangle size={17} />
-              </span>
-              <div>
-                <div className="strong" style={{ marginBottom: 2 }}>
-                  The boundary itself is a policy choice
-                </div>
-                A works package valued at exactly{" "}
-                <span className="num strong">
-                  {formatValueBand(null, matrix.policy.boundaryValue).replace("≤ ", "")}
-                </span>{" "}
-                sits in the{" "}
-                <span className="strong">
-                  {matrix.policy.boundaryInclusive ? "quotation" : "tender"}
-                </span>{" "}
-                band under the current setting — a different committee, a different approver and a
-                different award instrument from the other reading. Only this exact value is
-                affected; every other band edge is unaffected.
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="card">
-          <div className="card__head">
-            <SlidersIcon size={17} />
-            <div className="card__titles">
-              <div className="h3 trunc">Routing rules</div>
-              <div className="card__sub trunc">Rules grouped by decision type.</div>
-            </div>
-            <div className="row">
-              <span className="badge badge--outline">{matrix.rules.length} rules</span>
-            </div>
-          </div>
-          <div className="card__body">
-            <div className="stack stack--sm">
-              {domains.map(([domain, rules], i) => (
-                <Accordion
-                  key={domain}
-                  title={matterLabel(domain)}
-                  meta={`${rules.length} ${rules.length === 1 ? "rule" : "rules"}`}
-                  defaultOpen={i === 0}
-                >
-                  <div className="dl">
-                    <div className="tablewrap dl__scroll">
-                      <table className="table table--compact">
-                        <colgroup>
-                          <col style={{ width: editable ? "15%" : "17%" }} />
-                          <col style={{ width: editable ? "11%" : "13%" }} />
-                          <col style={{ width: editable ? "38%" : "42%" }} />
-                          <col style={{ width: editable ? "15%" : "13%" }} />
-                          <col style={{ width: editable ? "13%" : "15%" }} />
-                          {editable && <col style={{ width: "8%" }} />}
-                        </colgroup>
-                        <thead>
-                          <tr>
-                            <th>Value band</th>
-                            <th>Method</th>
-                            <th>Route</th>
-                            <th>Committee</th>
-                            <th>Delegation</th>
-                            {editable && <th>Change</th>}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rules.map((rule, r) => {
-                            // A rule is banded either by ringgit or by percentage of the
-                            // contract sum; variations use the latter.
-                            const pct = formatPercentBand(rule.pctMin, rule.pctMax);
-                            return (
-                              <tr key={r}>
-                                <td className="wrapcell">
-                                  <div className="cellstack">
-                                    <span className="cellstack__t num">
-                                      {pct ?? formatValueBand(rule.minValue, rule.maxValue)}
+        <Card>
+          <CardHeader
+            icon={<SlidersIcon size={17} />}
+            title="Routing rules"
+            subtitle="Rules grouped by decision type."
+            actions={<Badge outline>{matrix.rules.length} rules</Badge>}
+          />
+          <CardBody className="flex flex-col gap-3">
+            {domains.map(([domain, rules], i) => (
+              <Accordion
+                key={domain}
+                title={matterLabel(domain)}
+                meta={`${rules.length} ${rules.length === 1 ? "rule" : "rules"}`}
+                defaultOpen={i === 0}
+              >
+                <Table minWidth={editable ? 920 : 820}>
+                  <colgroup>
+                    <col style={{ width: editable ? "14%" : "16%" }} />
+                    <col style={{ width: editable ? "10%" : "12%" }} />
+                    <col style={{ width: editable ? "36%" : "41%" }} />
+                    <col style={{ width: editable ? "15%" : "16%" }} />
+                    <col style={{ width: editable ? "13%" : "15%" }} />
+                    {editable && <col style={{ width: "12%" }} />}
+                  </colgroup>
+                  <THead>
+                    <Th>Value band</Th>
+                    <Th>Method</Th>
+                    <Th>Route</Th>
+                    <Th>Committee</Th>
+                    <Th>Delegation</Th>
+                    {editable && <Th className="text-right">Change</Th>}
+                  </THead>
+                  <tbody>
+                    {rules.map((rule, r) => {
+                      // A rule is banded either by ringgit or by percentage of the
+                      // contract sum; variations use the latter.
+                      const pct = formatPercentBand(rule.pctMin, rule.pctMax);
+                      const band = pct ?? formatValueBand(rule.minValue, rule.maxValue);
+                      const contract =
+                        !pct && (rule.contractValueMin != null || rule.contractValueMax != null)
+                          ? `contract ${formatValueBand(rule.contractValueMin, rule.contractValueMax)}`
+                          : null;
+                      const committee = rule.committeeCode ? roleName(rule.committeeCode) : null;
+                      return (
+                        <Tr key={r}>
+                          <Td className="align-top">
+                            <div className="font-semibold break-words text-ink tabular-nums">
+                              {band}
+                            </div>
+                            {pct && (
+                              <div className="text-[12.5px] text-ink-3">of the contract sum</div>
+                            )}
+                            {contract && (
+                              <div className="text-[12.5px] break-words text-ink-3">{contract}</div>
+                            )}
+                          </Td>
+                          <Td className="align-top text-[13px] break-words text-ink-2">
+                            {rule.method ? methodName(rule.method) : "Any method"}
+                          </Td>
+                          <Td className="align-top">
+                            <RuleChain steps={chainFor(rule)} />
+                            {editable && (ruleRows[rule.ruleKey]?.recommenders.length ?? 0) > 0 && (
+                              <div className="mt-1.5 flex flex-wrap gap-1">
+                                {ruleRows[rule.ruleKey]!.recommenders.map((step) => {
+                                  const text = `${roleName(step.roleCode)} · ${ACT_LABEL[step.act] ?? step.act}`;
+                                  return (
+                                    <span
+                                      key={step.id}
+                                      className="inline-flex max-w-full items-center gap-1 rounded-full bg-ink/[0.05] py-0.5 pr-0.5 pl-2.5 text-[12px] text-ink-2"
+                                    >
+                                      <span className="truncate" title={text}>
+                                        {text}
+                                      </span>
+                                      <RemoveRecommender
+                                        id={step.id}
+                                        label={`${roleName(step.roleCode)} from this rule`}
+                                      />
                                     </span>
-                                    {pct && (
-                                      <span className="cellstack__s">of the contract sum</span>
-                                    )}
-                                    {!pct &&
-                                      (rule.contractValueMin != null ||
-                                        rule.contractValueMax != null) && (
-                                        <span className="cellstack__s">
-                                          contract{" "}
-                                          {formatValueBand(
-                                            rule.contractValueMin,
-                                            rule.contractValueMax,
-                                          )}
-                                        </span>
-                                      )}
-                                  </div>
-                                </td>
-                                <td>
-                                  <span className="dim sm">
-                                    {rule.method ? methodName(rule.method) : "Any method"}
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </Td>
+                          <Td className="align-top">
+                            {committee ? (
+                              <div className="flex min-w-0 flex-col items-start gap-1">
+                                <span className="text-[13px] font-semibold break-words text-ink">
+                                  {committee}
+                                </span>
+                                {rule.committeeAct && (
+                                  <span className="inline-flex items-start gap-1.5 text-[12px] text-ink-2">
+                                    <ActBadge act={rule.committeeAct} />
+                                    <span className="pt-0.5 leading-tight">
+                                      {ACT_LABEL[rule.committeeAct] ?? rule.committeeAct}
+                                    </span>
                                   </span>
-                                </td>
-                                <td className="wrapcell">
-                                  <RuleChain steps={chainFor(rule)} />
-                                  {editable && (ruleRows[rule.ruleKey]?.recommenders.length ?? 0) > 0 && (
-                                    <div className="mt-1.5 flex flex-wrap gap-1">
-                                      {ruleRows[rule.ruleKey]!.recommenders.map((step) => (
-                                        <span
-                                          key={step.id}
-                                          className="inline-flex max-w-full items-center gap-1 rounded-full bg-ink/[0.05] py-0.5 pr-0.5 pl-2.5 text-[12px] text-ink-2"
-                                        >
-                                          <span className="truncate">
-                                            {roleName(step.roleCode)} · {ACT_LABEL[step.act] ?? step.act}
-                                          </span>
-                                          <RemoveRecommender id={step.id} label={`${roleName(step.roleCode)} from this rule`} />
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-                                </td>
-                                <td>
-                                  {rule.committeeCode ? (
-                                    <span className="row" style={{ gap: 5 }}>
-                                      <span className="badge">{roleName(rule.committeeCode)}</span>
-                                      {rule.committeeAct && (
-                                        <span
-                                          className={`chain__act chain__act--${rule.committeeAct}`}
-                                        >
-                                          {ACT_LABEL[rule.committeeAct] ?? rule.committeeAct}
-                                        </span>
-                                      )}
-                                    </span>
-                                  ) : (
-                                    <span className="dim">—</span>
-                                  )}
-                                </td>
-                                <td>
-                                  {!ruleIsDelegable(rule) ? (
-                                    <span className="badge badge--warn">
-                                      <AlertTriangle size={12} />
-                                      <span className="badge__t">Fixed</span>
-                                    </span>
-                                  ) : (
-                                    <span className="badge badge--ok">
-                                      <CheckIcon size={12} />
-                                      <span className="badge__t">May delegate</span>
-                                    </span>
-                                  )}
-                                </td>
-                                {editable && (
-                                  <td>
-                                    <RuleActions
-                                      rule={rule}
-                                      row={ruleRows[rule.ruleKey]}
-                                      matrixId={matrixId}
-                                      offices={offices}
-                                    />
-                                  </td>
                                 )}
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </Accordion>
-              ))}
-            </div>
-          </div>
-        </section>
+                              </div>
+                            ) : (
+                              <span className="text-ink-4">—</span>
+                            )}
+                          </Td>
+                          <Td className="align-top">
+                            {!ruleIsDelegable(rule) ? (
+                              <Badge tone="warn">
+                                <AlertTriangle size={12} />
+                                Fixed
+                              </Badge>
+                            ) : (
+                              <Badge tone="ok">
+                                <CheckIcon size={12} />
+                                May delegate
+                              </Badge>
+                            )}
+                          </Td>
+                          {editable && (
+                            <Td className="align-top">
+                              <RuleActions
+                                rule={rule}
+                                row={ruleRows[rule.ruleKey]}
+                                matrixId={matrixId}
+                                offices={offices}
+                              />
+                            </Td>
+                          )}
+                        </Tr>
+                      );
+                    })}
+                  </tbody>
+                </Table>
+              </Accordion>
+            ))}
+          </CardBody>
+        </Card>
 
         {gaps > 0 && (
-          <div className="callout callout--warn">
-            <span className="callout__ico">
-              <AlertTriangle size={17} />
-            </span>
-            <div>
-              <div className="strong" style={{ marginBottom: 2 }}>
-                {gaps} {gaps === 1 ? "matter has" : "matters have"} no limit set for it
-              </div>
-              No limit has ever been set for who may authorise these. Work is still routed so
-              nothing stalls, but the route is an assumption.
-            </div>
-          </div>
+          <Callout
+            tone="warn"
+            title={`${gaps} ${gaps === 1 ? "matter has" : "matters have"} no limit set for it`}
+          >
+            No limit has ever been set for who may authorise these. Work is still routed so
+            nothing stalls, but the route is an assumption.
+          </Callout>
         )}
 
-        <section className="card card--accent">
-          <div className="card__head">
-            <SlidersIcon size={17} />
-            <div className="card__titles">
-              <div className="h3 trunc">Simulator</div>
-              <div className="card__sub trunc">
-                Resolve the approval route for a given case.
-              </div>
-            </div>
-          </div>
-          <div className="card__body">
+        <Card tone="brand">
+          <CardHeader
+            icon={<SlidersIcon size={17} />}
+            title="Simulator"
+            subtitle="Resolve the approval route for a given case."
+          />
+          <CardBody>
             <AuthoritySimulator
               domains={[...byDomain.keys()]
                 .sort((a, b) => matterLabel(a).localeCompare(matterLabel(b)))
@@ -519,8 +492,8 @@ export default async function ApprovalMatrixPage({
                 .sort((a, b) => a.name.localeCompare(b.name))}
               fundingRoutes={fundingRoutes.map((r) => ({ code: r.code, label: r.nameEn }))}
             />
-          </div>
-        </section>
+          </CardBody>
+        </Card>
       </div>
     </>
   );
@@ -541,7 +514,7 @@ function RuleActions({
 }) {
   if (!row) return null;
   return (
-    <div className="flex items-center justify-end gap-1">
+    <RowActions>
       <EditRule
         matrixId={matrixId}
         offices={offices}
@@ -568,6 +541,6 @@ function RuleActions({
         }}
       />
       <AddRecommender ruleId={row.id} offices={offices} />
-    </div>
+    </RowActions>
   );
 }

@@ -1,10 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { actLabel } from "@/components/ui/act";
+import { useEffect, useId, useState } from "react";
 
-import { AlertTriangle, ArrowRight, InfoIcon } from "@/components/icons";
+import { RuleChain } from "@/components/rule-chain";
+import { Badge, Chip } from "@/components/ui/badge";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { cx } from "@/components/ui/cx";
+import { EmptyState, Callout } from "@/components/ui/feedback";
+import { AffixInput, Field, Input, Select } from "@/components/ui/field";
 
-interface ChainStep {
+interface ResolvedStep {
   role: string;
   name: string;
   act: string;
@@ -26,7 +32,7 @@ interface Resolution {
   approver: string | null;
   committee: string | null;
   nonDelegable: boolean;
-  chain: ChainStep[];
+  chain: ResolvedStep[];
   warnings: Warning[];
 }
 
@@ -36,22 +42,12 @@ const REGIME_LABEL: Record<string, string> = {
   tender: "Tender band",
 };
 
-const ACT_LABEL: Record<string, string> = {
-  P: "Propose",
-  JP: "Jointly Propose",
-  R: "Recommend",
-  JR: "Jointly Recommend",
-  MR: "Mandatory Recommendation",
-  MJR: "Mandatory Joint Recommendation",
-  A: "Approve",
-  MA: "Mandatory Approval",
-};
 
-const CALLOUT: Record<Warning["level"], string> = {
-  info: "callout--info",
-  warn: "callout--warn",
-  err: "callout--err",
-  gap: "callout--warn",
+const CALLOUT: Record<Warning["level"], "info" | "warn" | "err"> = {
+  info: "info",
+  warn: "warn",
+  err: "err",
+  gap: "warn",
 };
 
 export function AuthoritySimulator({
@@ -67,8 +63,11 @@ export function AuthoritySimulator({
   /// select says so rather than offering a route the customer never agreed to.
   fundingRoutes: { code: string; label: string }[];
 }) {
-  const [domain, setDomain] = useState("payment");
-  const [method, setMethod] = useState("tender");
+  // Start on what this customer has configured. Hard-coded "payment" and "tender"
+  // pointed the first query at a matter and method that may not exist, so the
+  // simulator opened on "no rule matches" for no reason.
+  const [domain, setDomain] = useState(domains[0]?.code ?? "");
+  const [method, setMethod] = useState("");
   const [value, setValue] = useState("620000");
   const [contractValue, setContractValue] = useState("");
   const [pct, setPct] = useState("");
@@ -115,218 +114,179 @@ export function AuthoritySimulator({
     return () => controller.abort();
   }, [key]);
 
+  const id = useId();
+  const fid = (name: string) => `${id}-${name}`;
+
   return (
-    <div className="grid" style={{ gridTemplateColumns: "minmax(0,340px) minmax(0,1fr)", gap: 24 }}>
-      <section className="card" style={{ alignSelf: "start" }}>
-        <div className="card__head">
-          <div className="card__titles">
-            <h2 className="h3">The matter</h2>
-            <div className="card__sub">What is being authorised.</div>
+    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+      <Card tone="flat">
+        <CardHeader title="The matter" subtitle="What is being authorised." />
+        <CardBody className="flex flex-col gap-4">
+          <Field label="Matter" htmlFor={fid("domain")}>
+            <Select id={fid("domain")} value={domain} onChange={(e) => setDomain(e.target.value)}>
+              {domains.map((d) => (
+                <option key={d.code} value={d.code}>
+                  {d.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field label="Sourcing method" htmlFor={fid("method")}>
+            <Select id={fid("method")} value={method} onChange={(e) => setMethod(e.target.value)}>
+              <option value="">Any</option>
+              {methods.map((m) => (
+                <option key={m.code} value={m.code}>
+                  {m.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field label="Value" htmlFor={fid("value")}>
+            <AffixInput
+              id={fid("value")}
+              prefix="RM"
+              className="[&_input]:text-right"
+              value={value}
+              inputMode="decimal"
+              onChange={(e) => setValue(e.target.value)}
+            />
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Contract value" htmlFor={fid("contract")} hint="For variations">
+              <Input
+                id={fid("contract")}
+                size="sm"
+                numeric
+                value={contractValue}
+                inputMode="decimal"
+                placeholder="optional"
+                onChange={(e) => setContractValue(e.target.value)}
+              />
+            </Field>
+            <Field label="Percentage" htmlFor={fid("pct")} hint="Of contract sum">
+              <Input
+                id={fid("pct")}
+                size="sm"
+                numeric
+                value={pct}
+                inputMode="decimal"
+                placeholder="optional"
+                onChange={(e) => setPct(e.target.value)}
+              />
+            </Field>
           </div>
-        </div>
-        <div className="card__body">
-          <div className="stack stack--md">
-            <label className="field">
-              <span className="field__lbl">Matter</span>
-              <select className="select" value={domain} onChange={(e) => setDomain(e.target.value)}>
-                {domains.map((d) => (
-                  <option key={d.code} value={d.code}>
-                    {d.label}
-                  </option>
-                ))}
-              </select>
-            </label>
 
-            <label className="field">
-              <span className="field__lbl">Sourcing method</span>
-              <select className="select" value={method} onChange={(e) => setMethod(e.target.value)}>
-                <option value="">Any</option>
-                {methods.map((m) => (
-                  <option key={m.code} value={m.code}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+          <hr className="border-line" />
 
-            <label className="field">
-              <span className="field__lbl">Value</span>
-              <div className="inputwrap inputwrap--pre">
-                <span className="inputwrap__pre">RM</span>
-                <input
-                  className="input input--num"
-                  value={value}
-                  inputMode="decimal"
-                  onChange={(e) => setValue(e.target.value)}
-                />
-              </div>
-            </label>
+          <Field
+            label="Funding route"
+            htmlFor={fid("funding")}
+            hint={
+              fundingRoutes.length === 0
+                ? "No funding route configured yet"
+                : "Whether a funder overrides these limits is set per route"
+            }
+          >
+            <Select
+              id={fid("funding")}
+              size="sm"
+              value={funding}
+              onChange={(e) => setFunding(e.target.value)}
+              disabled={fundingRoutes.length === 0}
+            >
+              <option value="">Not specified</option>
+              {fundingRoutes.map((r) => (
+                <option key={r.code} value={r.code}>
+                  {r.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
 
-            <div className="grid g2" style={{ gap: 12 }}>
-              <label className="field">
-                <span className="field__lbl">Contract value</span>
-                <input
-                  className="input input--num input--sm"
-                  value={contractValue}
-                  inputMode="decimal"
-                  placeholder="optional"
-                  onChange={(e) => setContractValue(e.target.value)}
-                />
-                <span className="field__hint">For variations</span>
-              </label>
-              <label className="field">
-                <span className="field__lbl">Percentage</span>
-                <input
-                  className="input input--num input--sm"
-                  value={pct}
-                  inputMode="decimal"
-                  placeholder="optional"
-                  onChange={(e) => setPct(e.target.value)}
-                />
-                <span className="field__hint">Of contract sum</span>
-              </label>
-            </div>
+          <Field label="Acting officer" htmlFor={fid("actor")} hint="Nobody may approve their own matter">
+            <Select id={fid("actor")} size="sm" value={actor} onChange={(e) => setActor(e.target.value)}>
+              <option value="">Not specified</option>
+              {roles.map((r) => (
+                <option key={r.code} value={r.code}>
+                  {r.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
 
-            <div className="divider" />
+          <Field label="Absent" htmlFor={fid("absent")} hint="Authority reverts upward, never down">
+            <Select id={fid("absent")} size="sm" value={absent} onChange={(e) => setAbsent(e.target.value)}>
+              <option value="">Nobody</option>
+              {roles.map((r) => (
+                <option key={r.code} value={r.code}>
+                  {r.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </CardBody>
+      </Card>
 
-            <label className="field">
-              <span className="field__lbl">Funding route</span>
-              <select
-                className="select select--sm"
-                value={funding}
-                onChange={(e) => setFunding(e.target.value)}
-                disabled={fundingRoutes.length === 0}
-              >
-                <option value="">Not specified</option>
-                {fundingRoutes.map((r) => (
-                  <option key={r.code} value={r.code}>
-                    {r.label}
-                  </option>
-                ))}
-              </select>
-              <span className="field__hint">
-                {fundingRoutes.length === 0
-                  ? "No funding route configured yet"
-                  : "Whether a funder overrides these limits is set per route"}
-              </span>
-            </label>
-
-            <label className="field">
-              <span className="field__lbl">Acting officer</span>
-              <select
-                className="select select--sm"
-                value={actor}
-                onChange={(e) => setActor(e.target.value)}
-              >
-                <option value="">Not specified</option>
-                {roles.map((r) => (
-                  <option key={r.code} value={r.code}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-              <span className="field__hint">Nobody may approve their own matter</span>
-            </label>
-
-            <label className="field">
-              <span className="field__lbl">Absent</span>
-              <select
-                className="select select--sm"
-                value={absent}
-                onChange={(e) => setAbsent(e.target.value)}
-              >
-                <option value="">Nobody</option>
-                {roles.map((r) => (
-                  <option key={r.code} value={r.code}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-              <span className="field__hint">Authority reverts upward, never down</span>
-            </label>
-          </div>
-        </div>
-      </section>
-
-      <section className="stack" style={{ opacity: stale ? 0.6 : 1, transition: "opacity 150ms" }}>
-        {error && (
-          <div className="callout callout--err" role="alert">
-            <span className="callout__ico">
-              <AlertTriangle size={17} />
-            </span>
-            <div>{error}</div>
-          </div>
-        )}
+      <section
+        aria-live="polite"
+        aria-busy={stale}
+        className={cx("flex min-w-0 flex-col gap-4 transition-opacity duration-150", stale && "opacity-60")}
+      >
+        {error && <Callout tone="err">{error}</Callout>}
 
         {result?.rule && (
-          <div className="card card--accent">
-            <div className="card__body">
-              <div className="row wrap" style={{ gap: 10, marginBottom: 8 }}>
+          <Card tone="brand">
+            <CardBody>
+              <div className="mb-2 flex flex-wrap items-center gap-2.5">
                 {result.regime && (
-                  <span className="chip chip--brand">{REGIME_LABEL[result.regime] ?? "Unknown band"}</span>
+                  <Chip tone="brand">{REGIME_LABEL[result.regime] ?? "Unknown band"}</Chip>
                 )}
-                {result.nonDelegable && <span className="chain__nd">non-delegable</span>}
+                {result.nonDelegable && <Badge tone="warn">non-delegable</Badge>}
               </div>
-              <p className="h3">{result.rule.label}</p>
-            </div>
-          </div>
+              <p className="text-[15px] font-bold tracking-tight text-ink">{result.rule.label}</p>
+            </CardBody>
+          </Card>
         )}
 
         {result && result.chain.length > 0 && (
-          <div className="card">
-            <div className="card__head">
-              <div className="card__titles">
-                <h2 className="h3">Approval chain</h2>
-                <div className="card__sub">{result.chain.length} steps, in order</div>
-              </div>
-            </div>
-            <div className="card__body">
-              <div className="chain">
-                {result.chain.map((step, i) => (
-                  <div key={`${step.role}-${step.act}-${i}`} className="row" style={{ gap: 0 }}>
-                    <div className="chain__n" data-state={i === result.chain.length - 1 ? "current" : "done"}>
-                      <span className={`chain__act chain__act--${step.act}`}>{step.act}</span>
-                      <span className="col">
-                        <span className="chain__role">{step.name}</span>
-                        <span className="chain__meta">
-                          {ACT_LABEL[step.act] ?? step.act}
-                          {step.note === "downgraded" && " · downgraded"}
-                        </span>
-                      </span>
-                      {step.nonDelegable && <span className="chain__nd">ND</span>}
-                    </div>
-                    {i < result.chain.length - 1 && (
-                      <span className="chain__arrow">
-                        <ArrowRight size={16} />
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          <Card tone="flat">
+            <CardHeader
+              title="Approval chain"
+              subtitle={`${result.chain.length} steps, in order`}
+            />
+            <CardBody>
+              <RuleChain
+                steps={result.chain.map((step) => ({
+                  role: step.name,
+                  act: step.act,
+                  meta: `${actLabel(step.act)}${step.note === "downgraded" ? " · downgraded" : ""}`,
+                  nonDelegable: step.nonDelegable,
+                }))}
+              />
+            </CardBody>
+          </Card>
         )}
 
         {result && result.chain.length === 0 && !error && (
-          <div className="card">
-            <div className="card__body">
-              <div className="empty empty--sm">
-                <div className="empty__t">No rule matched</div>
-                <p className="empty__d">
-                  Nothing in the authority matrix covers this combination.
-                </p>
-              </div>
-            </div>
-          </div>
+          <Card tone="flat">
+            <EmptyState size="sm" title="No rule matched">
+              Nothing in the authority matrix covers this combination.
+            </EmptyState>
+          </Card>
         )}
 
         {result?.warnings.map((w, i) => (
-          <div key={`${w.code}-${i}`} className={`callout ${CALLOUT[w.level]}`}>
-            <span className="callout__ico">
-              {w.level === "info" ? <InfoIcon size={17} /> : <AlertTriangle size={17} />}
-            </span>
-            <div>{w.messageEn}</div>
-          </div>
+          <Callout key={`${w.code}-${i}`} tone={CALLOUT[w.level]}>
+            <span>{w.messageEn}</span>
+            {w.clause && (
+              <Badge outline className="ml-2 align-middle" title={`Clause ${w.clause}`}>
+                {w.clause}
+              </Badge>
+            )}
+          </Callout>
         ))}
       </section>
     </div>

@@ -1,3 +1,4 @@
+import { PencilIcon } from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import type { StoredSeries } from "@/lib/numbering/load";
 import { serialFor } from "@/lib/numbering/series";
@@ -103,7 +104,7 @@ export function EditSeries({ series }: { series: StoredSeries }) {
       title={`Edit ${series.nameEn}`}
       fields={[{ kind: "hidden", name: "id" }, ...seriesFields(true)]}
       action={saveSeries}
-      trigger={{ label: "Edit", className: "btn btn--sm btn--ghost" }}
+      trigger={{ label: `Edit ${series.nameEn}`, iconOnly: <PencilIcon size={15} /> }}
       values={{
         id: series.id,
         key: series.key,

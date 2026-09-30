@@ -1,3 +1,4 @@
+import { PencilIcon } from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import type { ContractType, FundingRoute, SourcingMethod } from "@/lib/reference/types";
 
@@ -140,7 +141,7 @@ export function EditFundingRoute({ route, id }: { route: FundingRoute; id: strin
       title={`Edit ${route.nameEn}`}
       fields={[{ kind: "hidden", name: "id" }, ...fundingFields(true)]}
       action={saveFundingRoute}
-      trigger={{ label: "Edit", className: "btn btn--sm btn--ghost" }}
+      trigger={{ label: `Edit ${route.nameEn}`, iconOnly: <PencilIcon size={15} /> }}
       values={{
         id,
         code: route.code,
@@ -179,7 +180,7 @@ export function EditSourcingMethod({ method, id }: { method: SourcingMethod; id:
       title={`Edit ${method.nameEn}`}
       fields={[{ kind: "hidden", name: "id" }, ...methodFields(true)]}
       action={saveSourcingMethod}
-      trigger={{ label: "Edit", className: "btn btn--sm btn--ghost" }}
+      trigger={{ label: `Edit ${method.nameEn}`, iconOnly: <PencilIcon size={15} /> }}
       size="lg"
       values={{
         id,
@@ -224,7 +225,7 @@ export function EditContractType({ type, id }: { type: ContractType; id: string 
       title={`Edit ${type.nameEn}`}
       fields={[{ kind: "hidden", name: "id" }, ...contractFields(true)]}
       action={saveContractType}
-      trigger={{ label: "Edit", className: "btn btn--sm btn--ghost" }}
+      trigger={{ label: `Edit ${type.nameEn}`, iconOnly: <PencilIcon size={15} /> }}
       size="sm"
       values={{
         id,
@@ -262,7 +263,10 @@ export function RetireEntry({
       action={retireEntry}
       submitLabel="Retire"
       destructive={{ reasonLabel: "Why is it being retired?" }}
-      trigger={{ label: "Retire", className: "btn btn--sm btn--ghost" }}
+      trigger={{
+        label: "Retire",
+        className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800"),
+      }}
       size="sm"
     />
   );

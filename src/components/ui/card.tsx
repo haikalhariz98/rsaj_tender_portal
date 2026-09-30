@@ -54,8 +54,21 @@ export function CardHeader({
         </span>
       )}
       <div className="min-w-0 flex-1">
-        <h3 className="truncate text-[15px] font-bold tracking-tight text-ink">{title}</h3>
-        {subtitle && <p className="truncate text-[13px] text-ink-3">{subtitle}</p>}
+        <h3
+          className="truncate text-[15px] font-bold tracking-tight text-ink"
+          title={typeof title === "string" ? title : undefined}
+        >
+          {title}
+        </h3>
+        {/* One line, so a long subtitle is cut — the full text is on hover. */}
+        {subtitle && (
+          <p
+            className="truncate text-[13px] text-ink-3"
+            title={typeof subtitle === "string" ? subtitle : undefined}
+          >
+            {subtitle}
+          </p>
+        )}
       </div>
       {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
     </div>
