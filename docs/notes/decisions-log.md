@@ -18,6 +18,21 @@ dev` on a normal machine against Postgres 17 and confirm it reports no drift.
 
 ## Decisions
 
+- 2026-09-30 · 6.3 · Module SENT BACK (provisional): BD-16 issue/boundary audit gap and BD-24 value ordering. Accept on re-presentation subject to a clean code re-review, the demo trail corrections, a clean demo:wipe/load round trip after removing the UX reviewer's rows, and the BD-21 sibling check. Spec: §6.3, AGENTS.md rules 2–3.
+- 2026-09-30 · 6.3 · Demo audit rows accepted: invented, demo_-prefixed, wiped by prefix, "not signed" on person decisions. Condition: same shape as the actions write (add rq13/rq14 submission entries; dossier reference on the sx2 move), preferably built with the actions' audit helpers. Spec: AGENTS.md provenance.
+- 2026-09-30 · 6.3 · Cancelling the last live exercise does not return the requisition to Approved (§7.3.1 gives Sourcing In Progress no such exit); the "No live exercise" callout stands; way back / abandon added to the BD-1 question to RSAJ. Spec: §7.3.1, §7.3.2.
+- 2026-09-30 · 6.3 · UX not-done approved: mapping Remove (reason required, audited); bases not filtered by type (FR-MTD-013); act badges and avatar initials carried as a cross-module item with 6.1; restriction chip placement cosmetic. Spec: FR-MTD-013, AGENTS.md UI.
+- 2026-09-30 · 6.3 · BD-24 approved for generated keys and audited draft discard; SENT BACK on ordering: termsFor still sorts by the retired sortOrder — order by value in lib (or refuse overlaps on save), tested. Spec: FR-MTD-001, AGENTS.md rule 3.
+- 2026-09-30 · 6.3 · BD-23 approved: formatMoney (bigint sen; sen only where present) matches formatRM; consolidation of display formatters carried to close-out. Spec: AGENTS.md rule 4.
+- 2026-09-30 · 6.3 · BD-22 approved: FULLY_IN_EXERCISES not offered; listed apart with why. Spec: FR-MTD-001, R-16.
+- 2026-09-30 · 6.3 · BD-21 approved: CardHeader subtitle line-clamp-2 for all screens; CellStack opt-in wrap; sibling screens re-checked. Spec: AGENTS.md UI.
+- 2026-09-30 · 6.3 · BD-20 approved: boundary value derived from the tender floor in the editor; the lib R-7 check still refuses a differing figure. Spec: FR-MTD-003, R-7.
+- 2026-09-30 · 6.3 · BD-19 approved: "Withdrawn on change" / "Withdrawn: exercise cancelled", labelled in lib. Spec: FR-MTD-008.
+- 2026-09-30 · 6.3 · BD-18 approved (see fix-list #5). Spec: FR-MTD-008, FR-APR-011.
+- 2026-09-30 · 6.3 · BD-17 approved: routes ordered by openedAt, then createdAt (backfilled from openedAt); add id as a final tiebreaker. Spec: FR-MTD-008.
+- 2026-09-30 · 6.3 · BD-16 SENT BACK: a change of matrix issue with unchanged keys passes the drift check and is unaudited. Add the issue to the drift fields; audit issue label and boundary value on save and move; lib test. Spec: FR-MTD-002, AGENTS.md rule 2.
+- 2026-09-30 · 6.3 · BD-15 approved: proposalRecord written on submission and rendered once submitted; a pre-record proposal says so; a value or method change or a returned review clears it. Spec: FR-MTD-006.
+- 2026-09-30 · 6.3 · Fix-list #2 (drift refused at the move, re-save audits) and #5 (requester's approving office escalates by 6.1's self-approval rule, else refused naming the setting; a step only the requester holds warns only a delegate can decide it) confirmed. Spec: FR-MTD-008, FR-APR-011, AGENTS.md rule 2.
 - 2026-09-30 · 6.3 · Proposal record SENT BACK: on submission each item's label and required flag are stored with its answer; SUBMITTED, REVIEWED and in-preparation proposals render from that stored copy, including items retired or reworded since. Tested. Spec: FR-MTD-006, AGENTS.md provenance.
 - 2026-09-30 · 6.3 · BD-14 approved: dominanceSharePct validated only as a share (above 0, below 100, four places); value is customer policy, ships unset. Spec: FR-MTD-011, R-11.
 - 2026-09-30 · 6.3 · BD-13 approved: demo purchase-domain rows left for 6.10; method family added as appointment rows; new approved parents demo_rq13/rq14 with a full 6.1 trail; exercises determined by the save's lib functions. Spec: AGENTS.md.
