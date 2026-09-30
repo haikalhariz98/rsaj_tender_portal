@@ -52,7 +52,67 @@ async function wipe() {
   const org = await organisation();
   const demo = { id: { startsWith: P } };
 
-  // Requisitions first: an approval step may cite a committee decision.
+  // A requisition raised on the demo (by a demo person, against a demo budget code or
+  // down a demo rule set) cannot outlive the demo rows it points at. Remove it and
+  // everything that hangs off it first, children before parents.
+  const demoRef = { startsWith: P };
+  const hanging = await db.requisition.findMany({
+    where: {
+      organisationId: org.id,
+      NOT: { id: demoRef },
+      OR: [
+        { requestingPersonId: demoRef },
+        { returnedToPersonId: demoRef },
+        { budgetCodeId: demoRef },
+        {
+          approvalInstances: {
+            some: {
+              OR: [
+                { authorityMatrixId: demoRef },
+                { overrideMatrixId: demoRef },
+                { steps: { some: { OR: [{ decidedByPersonId: demoRef }, { delegationId: demoRef }, { committeeDecisionId: demoRef }] } } },
+              ],
+            },
+          },
+        },
+        { endorsements: { some: { personId: demoRef } } },
+      ],
+    },
+    select: { id: true, commitmentMovementId: true },
+  });
+  const hangingIds = hanging.map((r) => r.id);
+  const hangingInstances = await db.approvalInstance.findMany({
+    where: {
+      organisationId: org.id,
+      NOT: { id: demoRef },
+      OR: [
+        { requisitionId: { in: hangingIds } },
+        { requisitionId: null, OR: [{ authorityMatrixId: demoRef }, { overrideMatrixId: demoRef }] },
+      ],
+    },
+    select: { id: true },
+  });
+  const hangingInstanceIds = hangingInstances.map((i) => i.id);
+  const hangingMovementIds = hanging.flatMap((r) => (r.commitmentMovementId ? [r.commitmentMovementId] : []));
+  const byReq = { requisitionId: { in: hangingIds } };
+  await db.approvalStep.deleteMany({ where: { instanceId: { in: hangingInstanceIds } } });
+  await db.approvalInstance.deleteMany({ where: { id: { in: hangingInstanceIds } } });
+  await db.requisitionSplitCheck.deleteMany({ where: byReq });
+  await db.requisitionBudgetCheck.deleteMany({ where: byReq });
+  await db.requisitionEndorsement.deleteMany({ where: byReq });
+  await db.requisitionLine.deleteMany({ where: byReq });
+  await db.committeeDecision.updateMany({ where: byReq, data: { requisitionId: null } });
+  await db.budgetMovement.deleteMany({ where: { id: { in: hangingMovementIds } } });
+  await db.requisition.deleteMany({ where: { id: { in: hangingIds } } });
+  const hangingEntities = [...hangingIds, ...hangingInstanceIds, ...hangingMovementIds];
+  if (hangingEntities.length) {
+    await db.auditEntry.deleteMany({ where: { organisationId: org.id, entityId: { in: hangingEntities } } });
+    console.log(`Removed ${hangingIds.length} requisition(s) raised against demo records.`);
+  }
+  // A real committee decision may still point at a demo requisition.
+  await db.committeeDecision.updateMany({ where: { requisitionId: demoRef }, data: { requisitionId: null } });
+
+  // Demo requisitions next: an approval step may cite a committee decision.
   await db.approvalStep.deleteMany({ where: demo });
   await db.approvalInstance.deleteMany({ where: demo });
   await db.requisitionSplitCheck.deleteMany({ where: demo });
@@ -613,10 +673,10 @@ async function load() {
   // -------------------------------------------------------------- the vocabulary
   await db.fundingRoute.createMany({
     data: [
-      { id: `${P}fr1`, organisationId, code: "opex", nameEn: "Operating budget", trigger: "Approved requisition", governingSource: "Demo policy 3.1", provenance: "STATED", sortOrder: 1 },
-      { id: `${P}fr2`, organisationId, code: "capex", nameEn: "Capital budget", trigger: "Capital allocation", governingSource: "Demo policy 3.2", provenance: "STATED", sortOrder: 2 },
+      { id: `${P}fr1`, organisationId, code: "opex", nameEn: "Operating budget", approvalCommitsBudget: true, approvalCommitsBudgetProvenance: "ASSUMED", trigger: "Approved requisition", governingSource: "Demo policy 3.1", provenance: "STATED", sortOrder: 1 },
+      { id: `${P}fr2`, organisationId, code: "capex", nameEn: "Capital budget", approvalCommitsBudget: true, approvalCommitsBudgetProvenance: "ASSUMED", trigger: "Capital allocation", governingSource: "Demo policy 3.2", provenance: "STATED", sortOrder: 2 },
       { id: `${P}fr3`, organisationId, code: "funder_led", nameEn: "Funder sets the route", routeDecidedExternally: true, supersedesAuthority: true, requiresExternalAuthorityRef: true, externalAuthorityRefLabel: "Funder execution letter", trigger: "Funder's execution letter", provenance: "OBSERVED", sortOrder: 3 },
-      { id: `${P}fr4`, organisationId, code: "supervision", nameEn: "Supervision only", organisationProcures: false, supersedesAuthority: true, trigger: "Application by letter", provenance: "OBSERVED", sortOrder: 4 },
+      { id: `${P}fr4`, organisationId, code: "supervision", nameEn: "Supervision only", approvalCommitsBudget: false, approvalCommitsBudgetProvenance: "ASSUMED", organisationProcures: false, supersedesAuthority: true, trigger: "Application by letter", provenance: "OBSERVED", sortOrder: 4 },
     ],
   });
 
@@ -687,9 +747,8 @@ async function load() {
  * Every stored figure and snapshot is what the portal's own rules would have written
  * on the day: budget checks are the ledger on their date, split checks the policy
  * applied to the requisitions that existed then, routes the demo matrix resolved.
- * The head of the Northern Region endorses at the department tier, and the ruling
- * that nobody decides a requisition they endorsed means the department's approval
- * step is decided by his deputy under a delegation — the conflict the plan records.
+ * The head of the Northern Region endorses at the department tier and, holding the
+ * Head of Department office for that unit directly, decides its step (ruling BD-1).
  */
 async function loadRequisitions(organisationId: string, from: Date) {
   const REQ = (n: number) => `DEMO/REQ/${String(n).padStart(4, "0")}/2026`;
@@ -725,20 +784,6 @@ async function loadRequisitions(organisationId: string, from: Date) {
       { id: `${P}a7`, personId: `${P}p7`, roleCode: "DIV_HEAD", scope: "OPS", effectiveFrom: from },
     ],
   });
-  await db.delegation.createMany({
-    data: [
-      {
-        id: `${P}dg3`, organisationId, fromPersonId: `${P}p9`, toPersonId: `${P}p12`, roleCode: "DEPT_HEAD", capabilityCodes: [], valueCeiling: "50000.00",
-        reason: "The head endorses the region's requisitions, so his deputy decides the department's approval step",
-        effectiveFrom: day("2026-07-15"), effectiveTo: day("2027-01-01"), provenance: "ASSUMED",
-      },
-      {
-        id: `${P}dg4`, organisationId, fromPersonId: `${P}p6`, toPersonId: `${P}p12`, roleCode: "DEPT_HEAD", capabilityCodes: [], valueCeiling: "50000.00",
-        reason: "As above, under the previous head", effectiveFrom: day("2026-05-01"), effectiveTo: day("2026-06-01"), provenance: "ASSUMED",
-      },
-    ],
-  });
-
   // The requisition bands, on the demo issue. They do not follow the boundary switch.
   const band = { authorityMatrixId: `${P}mx1`, domain: "requisition", followsBoundarySwitch: false };
   await db.authorityRule.createMany({
@@ -776,9 +821,10 @@ async function loadRequisitions(organisationId: string, from: Date) {
   });
   await db.requisitionPolicy.create({
     data: {
-      id: `${P}rp1`, organisationId, splittingWindowDays: 45, splittingMatchOn: ["unit", "accountCode"], splittingAggregateAcrossYear: null,
+      id: `${P}rp1`, organisationId, splittingWindowDays: 45, splittingMatchOn: ["unit", "accountCode"],
       budgetRecheckDays: 14, endorsementTiers: ["SECTION", "DEPARTMENT"], erpReferenceRequired: true, provenance: "ASSUMED",
-      notes: "Invented demo controls. Whether year aggregation applies is deliberately left unset.",
+      splittingAggregateAcrossYear: false, splitJustifyingRoleCode: "HOD_CP",
+      notes: "Invented demo controls.",
     },
   });
   await db.numberingSeries.update({ where: { id: `${P}n1` }, data: { nextSerial: 25 } });
@@ -796,9 +842,11 @@ async function loadRequisitions(organisationId: string, from: Date) {
       { id: `${P}bm15`, budgetCodeId: `${P}bcode5`, kind: "COMMITMENT", amount: "70000.00", occurredOn: day("2026-03-10"), reference: "DEMO/REQ/0009/2026", description: "Valve replacement" },
       { id: `${P}bm16`, budgetCodeId: `${P}bcode6`, kind: "ORIGINAL", amount: "40000.00", occurredOn: day("2026-01-01"), reference: "BR26-040" },
       { id: `${P}bm17`, budgetCodeId: `${P}bcode7`, kind: "ORIGINAL", amount: "45000.00", occurredOn: day("2026-01-01"), reference: "BR26-017" },
-      // Commitments written when rq7, rq9 and rq12 were approved.
+      // Commitments written when rq7 and rq12 were approved. rq9's supervision-only route
+      // commits no budget of the organisation's (ruling BD-13).
       { id: `${P}bm12`, budgetCodeId: `${P}bcode2`, kind: "COMMITMENT", amount: "18500.00", occurredOn: day("2026-08-20"), reference: REQ(19), description: "Chlorine dosing pump spares" },
-      { id: `${P}bm14`, budgetCodeId: `${P}bcode1`, kind: "COMMITMENT", amount: "800.00", occurredOn: day("2026-05-20"), reference: REQ(21), description: "Inspection of the developer's pipeline" },
+      // rq10, received from the finance system: its commitment posted to the portal ledger (ruling BD-10).
+      { id: `${P}bm18`, budgetCodeId: `${P}bcode2`, kind: "COMMITMENT", amount: "15000.00", occurredOn: day("2026-09-25"), reference: REQ(22), description: "Meter reading handsets" },
       { id: `${P}bm13`, budgetCodeId: `${P}bcode7`, kind: "COMMITMENT", amount: "62000.00", occurredOn: day("2026-08-27"), reference: REQ(24), description: "Standby generator, Bukit Demo pump house" },
     ],
   });
@@ -860,7 +908,7 @@ async function loadRequisitions(organisationId: string, from: Date) {
       lines: [["Pipe laying, 1.2 km", "120000.00"]], justification: "The funder has approved the extension in principle.", need: "Treated water to 60 households." },
     { id: 9, n: 21, status: "APPROVED", title: "Inspection of the developer's pipeline", value: "800.00", account: "7300300", code: 1, raised: "2026-05-10", required: "2026-06-15", route: route("supervision", "RECORDS_ONLY", true, false), erp: 108,
       lines: [["Inspection and test witnessing", "800.00"]], justification: "A developer's pipeline is to be handed over.", need: "Inspect and witness the pressure test before acceptance." },
-    { id: 10, n: 22, status: "APPROVED", origin: "EXTERNAL", title: "Meter reading handsets", value: "15000.00", account: "6100100", code: null, raised: "2026-09-25", required: "2026-10-31", route: route("opex", "PROCURES", false), erp: 150,
+    { id: 10, n: 22, status: "APPROVED", origin: "EXTERNAL", title: "Meter reading handsets", value: "15000.00", account: "6100100", code: 2, raised: "2026-09-25", required: "2026-10-31", route: route("opex", "PROCURES", false), erp: 150,
       lines: [["Handheld meter reading device", "15000.00"]], justification: "Received from the finance system.", need: "Replace failed handsets." },
     { id: 11, n: 23, status: "CANCELLED", title: "Fencing at the Demo tank", value: "6000.00", account: "6200200", code: 5, raised: "2026-08-02", required: "2026-09-30", route: { fundingRouteCode: "opex" },
       lines: [["Chain-link fencing", "6000.00"]], justification: "Vandalism at the tank site.", need: "Secure the site.", cancelReason: "The landowner has fenced the site at his own cost." },
@@ -888,7 +936,7 @@ async function loadRequisitions(organisationId: string, from: Date) {
         status: x.status,
         cancelReason: x.cancelReason ?? "",
         ...x.route,
-        ...(x.id === 7 ? { commitmentMovementId: `${P}bm12` } : x.id === 9 ? { commitmentMovementId: `${P}bm14` } : x.id === 12 ? { commitmentMovementId: `${P}bm13` } : {}),
+        ...(x.id === 7 ? { commitmentMovementId: `${P}bm12` } : x.id === 10 ? { commitmentMovementId: `${P}bm18` } : x.id === 12 ? { commitmentMovementId: `${P}bm13` } : {}),
         lines: { create: x.lines.map(([description, amount], i) => ({ id: `${P}rq${x.id}l${i + 1}`, lineNo: i + 1, description, estimatedAmount: amount })) },
       },
     });
@@ -935,7 +983,7 @@ async function loadRequisitions(organisationId: string, from: Date) {
   });
 
   // Split checks, as the demo policy found them on submission.
-  const policySnap = { windowDays: 45, matchOn: ["unit", "accountCode"], aggregateAcrossYear: null, policyProvenance: "ASSUMED" as const };
+  const policySnap = { windowDays: 45, matchOn: ["unit", "accountCode"], aggregateAcrossYear: false, policyProvenance: "ASSUMED" as const };
   await db.requisitionSplitCheck.createMany({
     data: [
       { id: `${P}sp3`, requisitionId: `${P}rq3`, checkedAt: day("2026-07-28"), state: "CLEAR", ...policySnap, relatedRequisitionIds: [], relatedReferences: [] },
@@ -944,11 +992,11 @@ async function loadRequisitions(organisationId: string, from: Date) {
         id: `${P}sp5`, requisitionId: `${P}rq5`, checkedAt: day("2026-09-24"), state: "FLAGGED", ...policySnap,
         relatedRequisitionIds: [`${P}rq6`], relatedReferences: [REQ(18)], combinedValue: "48000.00", crossesBand: true,
         overrideJustification: "Zones A and B are separate networks with separate contractors' access windows; the work cannot be let as one.",
-        overriddenByPersonId: `${P}p4`, overriddenOn: day("2026-09-25"), overriddenAt: day("2026-09-25"),
+        overriddenByPersonId: `${P}p3`, overriddenOn: day("2026-09-25"), overriddenAt: day("2026-09-25"),
       },
       { id: `${P}sp7`, requisitionId: `${P}rq7`, checkedAt: day("2026-08-12"), state: "CLEAR", ...policySnap, relatedRequisitionIds: [], relatedReferences: [] },
       // Submitted before the demo organisation set its splitting policy: not assessed, for ever.
-      { id: `${P}sp9`, requisitionId: `${P}rq9`, checkedAt: day("2026-05-15"), state: "NOT_SET", windowDays: null, matchOn: [], aggregateAcrossYear: null, relatedRequisitionIds: [], relatedReferences: [] },
+      { id: `${P}sp9`, requisitionId: `${P}rq9`, checkedAt: day("2026-05-15"), state: "NOT_SET", windowDays: null, matchOn: [], aggregateAcrossYear: null, relatedRequisitionIds: [], relatedReferences: [], notSetReasons: ["WINDOW", "MATCH_ON", "YEAR_AGGREGATION"] },
       { id: `${P}sp12`, requisitionId: `${P}rq12`, checkedAt: day("2026-07-05"), state: "CLEAR", ...policySnap, relatedRequisitionIds: [], relatedReferences: [] },
     ],
   });
@@ -986,15 +1034,15 @@ async function loadRequisitions(organisationId: string, from: Date) {
       }),
       inst(5, 6, "Requisition, RM1,000 to RM40,000", "DEMO 3.1(b)", "2026-09-24", { value: "24000.00", budgetVerdict: "WITHIN", splitState: "FLAGGED", fundingRouteCode: "opex", ...budgetBlocking, status: "PENDING" }),
       inst(7, 6, "Requisition, RM1,000 to RM40,000", "DEMO 3.1(b)", "2026-08-12", {
-        value: "18500.00", budgetVerdict: "WITHIN", splitState: "CLEAR", fundingRouteCode: "opex", ...budgetBlocking, status: "APPROVED", closedAt: day("2026-08-20"), commitOnApproval: true,
+        value: "18500.00", budgetVerdict: "WITHIN", splitState: "CLEAR", fundingRouteCode: "opex", ...budgetBlocking, status: "APPROVED", closedAt: day("2026-08-20"), commitOnApproval: true, routeCommitsBudget: true,
         warnings: [{ code: "COST_CENTRE_OUTSIDE_OWNER", level: "warn", messageEn: "The cost centre's unit is not the budget code's owning unit." }],
       }),
       inst(9, 5, "Requisition, up to RM1,000", "DEMO 3.1(a)", "2026-05-15", {
-        value: "800.00", budgetVerdict: "WITHIN", splitState: "NOT_SET", fundingRouteCode: "supervision", ...budgetBlocking, status: "APPROVED", closedAt: day("2026-05-20"), commitOnApproval: true, warnings: noFunder,
+        value: "800.00", budgetVerdict: "WITHIN", splitState: "NOT_SET", fundingRouteCode: "supervision", ...budgetBlocking, status: "APPROVED", closedAt: day("2026-05-20"), commitOnApproval: true, routeCommitsBudget: false, warnings: noFunder,
       }),
       inst(12, 9, "Requisition over budget", "DEMO 3.2", "2026-07-05", {
         value: "62000.00", cond: "over_budget", budgetVerdict: "EXCEEDS", overBudgetInvoked: true, splitState: "CLEAR", fundingRouteCode: "capex", ...budgetBlocking,
-        status: "APPROVED", closedAt: day("2026-08-27"), commitOnApproval: true,
+        status: "APPROVED", closedAt: day("2026-08-27"), commitOnApproval: true, routeCommitsBudget: true,
       }),
       {
         id: `${P}ai10`, organisationId, matterKind: "REQUISITION", requisitionId: `${P}rq10`, domain: "requisition", value: "15000.00", fundingRouteCode: "opex",
@@ -1005,19 +1053,20 @@ async function loadRequisitions(organisationId: string, from: Date) {
   const step = <const E extends object>(rq: number, seq: number, roleCode: string | null, roleLabel: string, act: "P" | "R" | "MR" | "A", extra: E = {} as E) => ({
     id: `${P}as${rq}_${seq}`, instanceId: `${P}ai${rq}`, sequence: seq, roleCode, roleLabel, act, sourceRuleKey: null, ...extra,
   });
-  const byDeputy = (on: string, dg = `${P}dg3`) => ({ decision: "DONE" as const, decidedByPersonId: `${P}p12`, decidedByName: "Suresh Pillai", decidedOn: day(on), delegationId: dg, recordedAt: day(on) });
+  // The department head decides the department's step directly (ruling BD-1).
+  const byHead = (on: string, pid = `${P}p9`, name = "Imran Hakim") => ({ decision: "DONE" as const, decidedByPersonId: pid, decidedByName: name, decidedOn: day(on), recordedAt: day(on) });
   const done = (pid: string, name: string, on: string) => ({ decision: "DONE" as const, decidedByPersonId: pid, decidedByName: name, decidedOn: day(on), recordedAt: day(on) });
   await db.approvalStep.createMany({
     data: [
-      step(3, 1, "DEPT_HEAD", "Head of Department", "R", byDeputy("2026-08-03")),
+      step(3, 1, "DEPT_HEAD", "Head of Department", "R", byHead("2026-08-03")),
       step(3, 2, "DIV_HEAD", "Head of Division", "A"),
       step(4, 1, "CEO", "Chief Executive", "MR", { nonDelegable: true }),
       step(4, 2, "BOARD", "Board of Directors", "A", { committeeCode: "BOARD" }),
       step(5, 1, "DEPT_HEAD", "Head of Department", "R"),
       step(5, 2, "DIV_HEAD", "Head of Division", "A"),
-      step(7, 1, "DEPT_HEAD", "Head of Department", "R", byDeputy("2026-08-18")),
+      step(7, 1, "DEPT_HEAD", "Head of Department", "R", byHead("2026-08-18")),
       step(7, 2, "DIV_HEAD", "Head of Division", "A", done(`${P}p7`, "Gopal Nair", "2026-08-20")),
-      step(9, 1, "DEPT_HEAD", "Head of Department", "A", byDeputy("2026-05-20", `${P}dg4`)),
+      step(9, 1, "DEPT_HEAD", "Head of Department", "A", byHead("2026-05-20", `${P}p6`, "Faridah Osman")),
       step(12, 1, "CEO", "Chief Executive", "MR", { nonDelegable: true, ...done(`${P}p1`, "Aisyah Rahman", "2026-08-24") }),
       step(12, 2, "BOARD", "Board of Directors", "A", { committeeCode: "BOARD", decision: "DONE", decidedByName: "Board of Directors", decidedOn: day("2026-08-27"), committeeDecisionId: `${P}d7`, recordedAt: day("2026-08-28") }),
       // As received from the finance system: named as it names them.
