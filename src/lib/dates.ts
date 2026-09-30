@@ -3,8 +3,9 @@
  *
  * Pure. "Today" depends on where the organisation keeps its dates: 07:00 in Kuala
  * Lumpur is still yesterday in UTC. The zone is `Organisation.timeZone`, an IANA
- * name. Unset, days are judged in UTC — and the screen says so, rather than assuming
- * a zone for the customer.
+ * name. Unset is not UTC (ruling 9.5): `todayIn` gives no day, and the acts that
+ * need one — starting a sitting, tabling, voting — are refused until a zone is set.
+ * `dayIn` with a null zone is UTC only for callers that must have a day regardless.
  */
 
 /// The day `instant` falls on in `timeZone`, as YYYY-MM-DD. Null judges it in UTC —

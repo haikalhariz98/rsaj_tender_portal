@@ -114,7 +114,7 @@ describe("checkAttendanceChange (send-backs 8.6, review 2)", () => {
     const carried = {
       id: "C", act: "R", tabled: true, outcome: "CARRIED" as const, dependencyOutcome: null, recusedIds: [],
       votes: [{ personId: "chief", choice: "SETUJU" as const }, { personId: "money", choice: "SETUJU" as const }],
-      snapshot: { quorum: 2, votingRule: "SIMPLE_MAJORITY" as const },
+      snapshot: { quorum: 2, votingRule: "SIMPLE_MAJORITY" as const, alternateMayVoteForRecused: null },
     };
     const reg = resolveRegister({ meetingDate: d("2026-03-01"), seats, roster, attendance: [here("chief"), here("money")] });
     const r = checkAttendanceChange(reg, rules, [carried], [here("chief"), here("money"), here("named")]);
@@ -144,7 +144,7 @@ describe("minutingChecks and snapshots", () => {
     const later = assessFromRegister(snap.register, snap.rules, [{
       id: "M", act: "R", tabled: true, outcome: "CARRIED", dependencyOutcome: null, recusedIds: [],
       votes: [{ personId: "chief", choice: "SETUJU" }, { personId: "money", choice: "SETUJU" }],
-      snapshot: { quorum: 2, votingRule: "SIMPLE_MAJORITY" },
+      snapshot: { quorum: 2, votingRule: "SIMPLE_MAJORITY", alternateMayVoteForRecused: null },
     }]);
     expect(later.matters.M.canRecord).toBe(true);
     expect(later.voting.find((v) => v.seatId === "chair")?.personId).toBe("chief");
@@ -184,5 +184,44 @@ describe("checkRegisterChange (send-back 9.4)", () => {
     const r = checkRegisterChange(before, after, { quorum: 2, votingRule: "SIMPLE_MAJORITY", alternateMayVoteForRecused: null }, [pending]);
     expect(r.ok).toBe(false);
     expect(r.newlyIneligible).toEqual([{ matterId: "P", personId: "money" }]);
+  });
+});
+
+describe("acceptance send-back 1: a recusal that would void a vote already cast", () => {
+  it("refuses a holder's recusal after their alternate stood in and voted", async () => {
+    const { checkRecusalChange } = await import("./assess-sitting");
+    // Holder of m2 (named) absent; the linked alternate stands in and votes.
+    const register = resolveRegister({
+      meetingDate: d("2026-03-01"), seats, roster,
+      attendance: [here("chief"), here("money"), here("alt", "m2")],
+    });
+    const matter = {
+      id: "X", act: "R", tabled: true, outcome: "PENDING" as const, dependencyOutcome: null, recusedIds: [],
+      votes: [{ personId: "alt", choice: "SETUJU" as const }],
+    };
+    const rules = { quorum: 2, votingRule: "SIMPLE_MAJORITY" as const, alternateMayVoteForRecused: false };
+    const r = checkRecusalChange(register, rules, matter, "named");
+    expect(r).toEqual({ ok: false, newlyIneligible: ["alt"] });
+    // Before anyone has voted in the seat, the same recusal is accepted.
+    expect(checkRecusalChange(register, rules, { ...matter, votes: [] }, "named").ok).toBe(true);
+  });
+});
+
+describe("acceptance send-back 2: a decided matter keeps the alternate rule it was decided under", () => {
+  it("clearing the committee setting later does not unmake the decision", () => {
+    // Holder of m2 recused, has an alternate; decided with the setting "No".
+    const register = resolveRegister({ meetingDate: d("2026-03-01"), seats, roster, attendance: [here("chief"), here("money")] });
+    const carried = {
+      id: "C", act: "R", tabled: true, outcome: "CARRIED" as const, dependencyOutcome: null, recusedIds: ["named"],
+      votes: [{ personId: "chief", choice: "SETUJU" as const }, { personId: "money", choice: "SETUJU" as const }],
+      snapshot: { quorum: 2, votingRule: "SIMPLE_MAJORITY" as const, alternateMayVoteForRecused: false },
+    };
+    const cleared = { quorum: 2, votingRule: "SIMPLE_MAJORITY" as const, alternateMayVoteForRecused: null };
+    const a = assessFromRegister(register, cleared, [carried]);
+    expect(a.matters.C.canRecord).toBe(true);
+    expect(minutingChecks(a, [carried]).brokenDecisions).toBe(0);
+    // Without the snapshot, the live (cleared) setting would block it: what the snapshot prevents.
+    const live = assessFromRegister(register, cleared, [{ ...carried, snapshot: undefined }]);
+    expect(live.matters.C.blockers).toContain("ALTERNATE_FOR_RECUSED_UNCONFIGURED");
   });
 });

@@ -37,7 +37,13 @@ export interface SittingMatter {
   votes: { personId: string; choice: VoteChoice }[];
   /// A decided matter is judged on the quorum and rule it was recorded under. Absent,
   /// the committee's current ones apply.
-  snapshot?: { quorum: number | null; votingRule: VotingRule | null };
+  snapshot?: {
+    quorum: number | null;
+    votingRule: VotingRule | null;
+    /// The committee's answer on alternates for recused members, as it stood when
+    /// the matter was decided. Later edits to the committee do not rewrite it.
+    alternateMayVoteForRecused: boolean | null;
+  };
 }
 
 /// The register: every seat resolved, and who sat where. JSON-safe, so it can be
@@ -93,7 +99,7 @@ export function assessFromRegister(
     out[m.id] = assessMatter({
       quorum: m.snapshot ? m.snapshot.quorum : rules.quorum,
       votingRule: m.snapshot ? m.snapshot.votingRule : rules.votingRule,
-      alternateMayVoteForRecused: rules.alternateMayVoteForRecused,
+      alternateMayVoteForRecused: m.snapshot ? m.snapshot.alternateMayVoteForRecused : rules.alternateMayVoteForRecused,
       act: m.act,
       tabled: m.tabled,
       seats,
@@ -192,6 +198,29 @@ export function checkRegisterChange(
     newlyIneligible,
     brokenDecisions,
   };
+}
+
+/**
+ * Whether a recusal may be declared (acceptance send-back 1).
+ *
+ * Not only "has this person voted": a holder's recusal excuses their seat, so an
+ * alternate who has already voted in it would lose their vote. The matter is assessed
+ * with and without the recusal, and any vote on it that would stop counting refuses
+ * the recusal — the same before/after comparison attendance uses.
+ */
+export function checkRecusalChange(
+  register: Register,
+  rules: SittingRules,
+  matter: SittingMatter,
+  personId: string,
+): { ok: boolean; newlyIneligible: string[] } {
+  const before = assessFromRegister(register, rules, [matter]).matters[matter.id];
+  const after = assessFromRegister(register, rules, [{ ...matter, recusedIds: [...matter.recusedIds, personId] }]).matters[
+    matter.id
+  ];
+  const was = new Set(before.ineligibleVoterIds);
+  const newlyIneligible = after.ineligibleVoterIds.filter((p) => !was.has(p));
+  return { ok: newlyIneligible.length === 0, newlyIneligible };
 }
 
 /// What stops the sitting being minuted beyond the lifecycle rule itself.

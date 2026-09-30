@@ -381,3 +381,14 @@ describe("time zone unset (ruling 9.5)", () => {
     expect(VOTE_FAULT_STATUS.TIME_ZONE_UNSET).toBe(409);
   });
 });
+
+describe("acceptance small: input validation before ABSTAIN", () => {
+  it("answers ABSTAIN with a malformed date with 400, not 422", () => {
+    const r = canVote({
+      meetingStatus: "IN_PROGRESS", meetingDate: new Date("2026-03-01T00:00:00Z"), today: "2026-03-05", outcome: "PENDING",
+      tabled: true, personId: "A", presentVoterIds: ["A"], recusedIds: [], choice: "ABSTAIN", votedAt: "5 March",
+    });
+    expect(r).toEqual({ ok: false, fault: "INVALID_DATE" });
+    expect(VOTE_FAULT_STATUS.INVALID_DATE).toBe(400);
+  });
+});

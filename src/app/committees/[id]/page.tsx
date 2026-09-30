@@ -306,11 +306,24 @@ function AgendaPanel({ s }: { s: LoadedSitting }) {
         : {
             dateLabel: d.outcome === "DEFERRED" ? "Deferred on" : "Decided on",
             date: d.decisionDate,
-            quorum: d.quorumRequired == null ? "Not set" : `${d.quorumRequired} required`,
-            present: `${d.presentVoters ?? 0} counted toward quorum · ${d.recusedCount ?? 0} recused among those present`,
+            // Carried or not carried needs a quorum, so a missing one was not recorded; a
+            // deferral records the committee's quorum, which may genuinely be unset.
+            quorum:
+              d.quorumRequired != null
+                ? `${d.quorumRequired} required`
+                : d.outcome === "DEFERRED"
+                  ? "Not set"
+                  : "Not recorded",
+            // A snapshot that was never written reads as not recorded, never as nought.
+            present:
+              d.presentVoters == null && d.recusedCount == null
+                ? "Not recorded"
+                : `${d.presentVoters ?? "Not recorded"} counted toward quorum · ${d.recusedCount ?? "not recorded"} recused among those present`,
             rule: d.votingRule
               ? `${VOTING_RULE_LABEL[d.votingRule]}${d.votingRuleProvenance ? ` (${PROVENANCE_LABEL[d.votingRuleProvenance]})` : ""}`
-              : "Not applied — deferred",
+              : d.outcome === "DEFERRED"
+                ? "Not applied — deferred"
+                : "Not recorded",
             note: d.outcomeNote,
             notApproved: d.notApprovedOutcomeNameEn
               ? `${d.notApprovedOutcomeNameEn}${d.notApprovedOutcomeKind ? ` (${NOT_APPROVED_KIND_LABEL[d.notApprovedOutcomeKind].toLowerCase()})` : ""}`

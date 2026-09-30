@@ -602,6 +602,9 @@ model CommitteeDecision {
   recusedCount         Int?
   votingRule           VotingRule?
   votingRuleProvenance Provenance?
+  /// Committee.alternateMayVoteForRecused as it stood when decided, so clearing or
+  /// changing it later cannot unmake a decided matter.
+  alternateMayVoteForRecused Boolean?
 
   /// Required for NOT_CARRIED: what happens to the matter next.
   notApprovedOutcomeId String?

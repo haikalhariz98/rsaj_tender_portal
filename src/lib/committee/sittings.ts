@@ -154,7 +154,7 @@ export async function loadSitting(id: string, client: Tx = db, preloaded?: Roste
     votes: d.votes.map((v) => ({ personId: v.personId, choice: v.choice })),
     snapshot:
       d.outcome === "CARRIED" || d.outcome === "NOT_CARRIED"
-        ? { quorum: d.quorumRequired, votingRule: d.votingRule }
+        ? { quorum: d.quorumRequired, votingRule: d.votingRule, alternateMayVoteForRecused: d.alternateMayVoteForRecused }
         : undefined,
   }));
 

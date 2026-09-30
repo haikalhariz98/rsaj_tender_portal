@@ -5,7 +5,12 @@ import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/record-editor";
 import { diffFields, type FieldChange } from "@/lib/audit/diff";
 import { auditedCreate, writeAudit, type Tx } from "@/lib/audit/record";
-import { checkAttendanceChange, minutingChecks, snapshotRegister } from "@/lib/committee/assess-sitting";
+import {
+  checkAttendanceChange,
+  checkRecusalChange,
+  minutingChecks,
+  snapshotRegister,
+} from "@/lib/committee/assess-sitting";
 import {
   attendanceFaultText,
   MATTER_KINDS,
@@ -428,6 +433,19 @@ export async function declareRecusal(_prev: FormState, data: FormData): Promise<
         ? { ok: false, message }
         : { ok: false, errors: { personId: message } };
     }
+    // A holder's recusal excuses their seat: an alternate who has already voted in
+    // it would lose that vote, and a vote cannot be withdrawn (acceptance send-back 1).
+    const matter = s.matters.find((x) => x.id === decisionId)!;
+    const change = checkRecusalChange(s.register, s.rules, matter, personId);
+    if (!change.ok) {
+      const who = change.newlyIneligible.map((p) => s.names[p] ?? "A member").join(" and ");
+      return {
+        ok: false,
+        errors: {
+          personId: `${who} ${change.newlyIneligible.length === 1 ? "has" : "have"} already voted in this member's seat on the matter, and that vote would no longer count. A recusal is declared before anyone votes in the seat.`,
+        },
+      };
+    }
     const name = s.names[personId] ?? "Member";
     const row = await tx.decisionRecusal.create({ data: { decisionId, personId, reason, declaredAt: new Date() } });
     await audit(tx, s, "DecisionRecusal", row.id, `${name} on ${decision.subject}`, "CREATE", diffFields(null, { member: name, reason }));
@@ -498,6 +516,7 @@ export async function recordOutcome(_prev: FormState, data: FormData): Promise<F
       recusedCount: assessment.recusedPresentIds.length,
       votingRule: decided ? s.rules.votingRule : null,
       votingRuleProvenance: decided ? (s.rules.votingRuleProvenance as "STATED" | "OBSERVED" | "ASSUMED" | null) : null,
+      alternateMayVoteForRecused: decided ? s.rules.alternateMayVoteForRecused : null,
     };
     // Guarded on PENDING as well as locked: exactly one outcome lands.
     const done = await tx.committeeDecision.updateMany({ where: { id: decisionId, outcome: "PENDING" }, data: after });

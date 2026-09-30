@@ -300,11 +300,15 @@ export function canVote(i: {
   choice: string;
   votedAt: string;
 }): { ok: true } | { ok: false; fault: VoteFault } {
-  if (i.choice === "ABSTAIN") return { ok: false, fault: "ABSTAIN_REFUSED" };
-  if (i.choice !== "SETUJU" && i.choice !== "TIDAK_SETUJU") return { ok: false, fault: "INVALID_CHOICE" };
+  // Malformed input first (400), whatever the choice; only then is a well-formed
+  // ABSTAIN refused on its merits (422) — the order ruling 8.10 sets.
+  if (i.choice !== "SETUJU" && i.choice !== "TIDAK_SETUJU" && i.choice !== "ABSTAIN") {
+    return { ok: false, fault: "INVALID_CHOICE" };
+  }
   if (!DAY.test(i.votedAt) || Number.isNaN(new Date(`${i.votedAt}T00:00:00Z`).getTime())) {
     return { ok: false, fault: "INVALID_DATE" };
   }
+  if (i.choice === "ABSTAIN") return { ok: false, fault: "ABSTAIN_REFUSED" };
   // The sitting's state before the sheet date: on a sitting not yet held, every date
   // would read as before it, which misstates why the vote is refused.
   if (i.meetingStatus === "SCHEDULED") return { ok: false, fault: "MEETING_NOT_STARTED" };
