@@ -4,6 +4,8 @@ import { patternFaults, periodFor, previewNext, serialFor } from "@/lib/numberin
 import { ORGANISATION_CODE } from "@/lib/org";
 
 import { AddSeries, EditSeries } from "./editors";
+import { PageHeader } from "@/components/ui/page-header";
+import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
 
@@ -32,23 +34,17 @@ export default async function NumberingPage() {
 
   return (
     <>
-      <div className="pagehead">
-        <div className="pagehead__top">
-          <div className="pagehead__titles">
-            <div className="pagehead__title">
-              <h1 className="h1">Numbering</h1>
-              {faulty.length > 0 && (
-                <span className="badge badge--warn">
-                  {faulty.length === 1 ? "1 pattern at fault" : `${faulty.length} patterns at fault`}
-                </span>
-              )}
-            </div>
-            <p className="pagehead__sub">
-              How exercise, contract and certificate references are formed.
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Numbering"
+        badge={
+          faulty.length > 0 ? (
+            <Badge tone="warn" dot>
+              {faulty.length === 1 ? "1 pattern at fault" : `${faulty.length} patterns at fault`}
+            </Badge>
+          ) : undefined
+        }
+        subtitle="How exercise, contract and certificate references are formed."
+      />
 
       {faulty.length > 0 && (
         <div className="callout callout--err" style={{ marginBottom: 24 }}>

@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 
 import { DataList, type Row } from "@/components/data-list";
+import { Tabs } from "@/components/tabs";
 import {
   BuildingIcon,
   ChartIcon,
@@ -65,8 +66,6 @@ const KIND_TONE: Record<OrgUnitKind, Tone> = {
   SECTION: "neutral",
 };
 
-type View = "structure" | "cost-centres" | "sites";
-
 /// What a unit's head resolves to. Three states that must not look alike: somebody,
 /// nobody named, and somebody named who has gone.
 type Head =
@@ -93,47 +92,21 @@ function setParam(key: string, value: string) {
 }
 
 export function OrganisationScreen(data: OrganisationPanelData) {
-  const [view, setView] = useState<View>(
-    data.view === "cost-centres" || data.view === "sites" ? data.view : "structure",
-  );
-
-  const tabs: { id: View; label: string; count: number }[] = [
-    { id: "structure", label: "Structure", count: data.units.length },
-    { id: "cost-centres", label: "Cost centres", count: data.costCentres.length },
-    { id: "sites", label: "Sites", count: data.sites.length },
-  ];
-
   return (
-    <div className="flex flex-col gap-5">
-      <div
-        role="tablist"
-        aria-label="Organisation"
-        className="flex w-fit max-w-full gap-1 overflow-x-auto rounded-full bg-ink/[0.05] p-1"
-      >
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={view === t.id}
-            onClick={() => {
-              setView(t.id);
-              setParam("view", t.id);
-            }}
-            className="flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-[13.5px] font-semibold text-ink-3 transition hover:text-ink aria-selected:bg-surface aria-selected:text-ink aria-selected:shadow-[0_1px_3px_rgb(15_23_42/0.12)]"
-          >
-            {t.label}
-            <span className="rounded-full bg-ink/[0.07] px-1.5 text-[11.5px] leading-5 tabular-nums">
-              {t.count}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {view === "structure" && <StructureView {...data} />}
-      {view === "cost-centres" && <CostCentresView {...data} />}
-      {view === "sites" && <SitesView {...data} />}
-    </div>
+    <Tabs
+      label="Organisation"
+      initial={data.view ?? undefined}
+      tabs={[
+        { id: "structure", label: "Structure", count: data.units.length, panel: <StructureView {...data} /> },
+        {
+          id: "cost-centres",
+          label: "Cost centres",
+          count: data.costCentres.length,
+          panel: <CostCentresView {...data} />,
+        },
+        { id: "sites", label: "Sites", count: data.sites.length, panel: <SitesView {...data} /> },
+      ]}
+    />
   );
 }
 

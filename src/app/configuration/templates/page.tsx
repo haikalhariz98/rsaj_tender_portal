@@ -3,6 +3,8 @@ import { ORGANISATION_CODE } from "@/lib/org";
 
 import { ProvenanceChip, Section, Stat } from "../records-ui";
 import { AddTemplate, EditTemplate } from "./editors";
+import { PageHeader } from "@/components/ui/page-header";
+import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
 
@@ -17,25 +19,17 @@ export default async function TemplatesPage() {
 
   return (
     <>
-      <div className="pagehead">
-        <div className="pagehead__top">
-          <div className="pagehead__titles">
-            <div className="pagehead__title">
-              <h1 className="h1">Templates</h1>
-              {unclassified.length > 0 && (
-                <span className="badge badge--warn">
-                  {unclassified.length === 1
-                    ? "1 unclassified"
-                    : `${unclassified.length} unclassified`}
-                </span>
-              )}
-            </div>
-            <p className="pagehead__sub">
-              The certificates, letters and routing sheets the portal issues.
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Templates"
+        badge={
+          unclassified.length > 0 ? (
+            <Badge tone="warn" dot>
+              {unclassified.length === 1 ? "1 unclassified" : `${unclassified.length} unclassified`}
+            </Badge>
+          ) : undefined
+        }
+        subtitle="The certificates, letters and routing sheets the portal issues."
+      />
 
       <div className="grid g3 stack--md" style={{ marginBottom: 24 }}>
         <Stat

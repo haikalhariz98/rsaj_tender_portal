@@ -3,6 +3,8 @@ import { ORGANISATION_CODE } from "@/lib/org";
 
 import { ProvenanceChip, Section, Stat } from "../records-ui";
 import { AddDocumentClass, EditDocumentClass } from "./editors";
+import { PageHeader } from "@/components/ui/page-header";
+import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
 
@@ -12,23 +14,19 @@ export default async function DocumentsConfigPage() {
 
   return (
     <>
-      <div className="pagehead">
-        <div className="pagehead__top">
-          <div className="pagehead__titles">
-            <div className="pagehead__title">
-              <h1 className="h1">Documents</h1>
-              {unset.length > 0 && (
-                <span className="badge badge--warn">
-                  {unset.length === 1
-                    ? "1 class without a retention period"
-                    : `${unset.length} classes without a retention period`}
-                </span>
-              )}
-            </div>
-            <p className="pagehead__sub">Classification, retention and controlled-copy rules.</p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Documents"
+        badge={
+          unset.length > 0 ? (
+            <Badge tone="warn" dot>
+              {unset.length === 1
+                ? "1 class without a retention period"
+                : `${unset.length} classes without a retention period`}
+            </Badge>
+          ) : undefined
+        }
+        subtitle="Classification, retention and controlled-copy rules."
+      />
 
       <div className="grid g3 stack--md" style={{ marginBottom: 24 }}>
         <Stat

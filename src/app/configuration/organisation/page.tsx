@@ -17,10 +17,10 @@ export const dynamic = "force-dynamic";
 export default async function OrganisationPage({
   searchParams,
 }: {
-  searchParams: Promise<{ unit?: string; view?: string }>;
+  searchParams: Promise<{ unit?: string; tab?: string }>;
 }) {
   const on = new Date();
-  const [{ unit, view }, data] = await Promise.all([
+  const [{ unit, tab }, data] = await Promise.all([
     searchParams,
     loadOrganisationData(ORGANISATION_CODE),
   ]);
@@ -78,7 +78,7 @@ export default async function OrganisationPage({
         sites={data.sites}
         people={data.people}
         selected={unit ?? null}
-        view={view ?? null}
+        view={tab ?? null}
         on={on}
       />
     </>

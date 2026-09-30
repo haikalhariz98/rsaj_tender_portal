@@ -11,6 +11,8 @@ import { ACT_LABEL, matterLabel } from "@/lib/labels";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster } from "@/lib/people/load";
 import { avatarTone, formatBand, formatDate, initials } from "@/lib/format";
+import { PageHeader } from "@/components/ui/page-header";
+import { Badge } from "@/components/ui/badge";
 
 const MEETING_STATUS: Record<string, string> = {
   SCHEDULED: "Scheduled",
@@ -50,27 +52,19 @@ export default async function CommitteePage({
 
   return (
     <>
-      <div className="pagehead">
-        <div className="pagehead__top">
-          <div className="pagehead__titles">
-            <div className="pagehead__title">
-              <h1 className="h1">{committee.nameEn}</h1>
-              {committee.isExternal && <span className="chip chip--warn">External body</span>}
-            </div>
-            {committee.nameMs && <p className="pagehead__sub">{committee.nameMs}</p>}
-            <div className="pagehead__meta">
-              <span>{ACTION_LABEL[committee.action] ?? committee.action}</span>
-              <span className="sep">·</span>
-              <span>{formatBand(committee.valueScopeMin, committee.valueScopeMax)}</span>
-              <span className="sep">·</span>
-              <span>
-                {seats.length > 0 ? `${seats.length} seats` : "No members"}
-                {committee.quorum != null ? `, quorum ${committee.quorum}` : ""}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Committee"
+        title={committee.nameEn}
+        badge={committee.isExternal ? <Badge tone="warn">External body</Badge> : undefined}
+        subtitle={committee.nameMs ?? undefined}
+        meta={[
+          ACTION_LABEL[committee.action] ?? "Act not set",
+          formatBand(committee.valueScopeMin, committee.valueScopeMax),
+          `${seats.length > 0 ? `${seats.length} seats` : "No members"}${
+            committee.quorum != null ? `, quorum ${committee.quorum}` : ""
+          }`,
+        ]}
+      />
 
       <div className="stack stack--lg">
         <section className="section">

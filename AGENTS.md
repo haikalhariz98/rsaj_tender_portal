@@ -37,36 +37,39 @@ threshold an exact value falls — the product ships the switch and the customer
 | Standalone system of record, integrate behind a façade | Never build against one ERP's schema. |
 | No auth, no `User` model yet | Deliberate. `Person` is identity, separate from sign-in. Do not stub auth. |
 
-## The UI is ported, not designed
+## The UI: one design system, in `src/components/ui`
 
-`src/app/design-system.css` and `src/app/design-system-runtime.css` are a design system
-carried over as-is. **Build screens from those classes.** Do not write new component CSS
-and do not restyle with Tailwind utilities.
+The product has its own design system (indigo on slate, Plus Jakarta Sans, rounded
+cards), replacing the ported prototype stylesheet. Tokens live in the `@theme` block of
+`src/app/globals.css`; components live in `src/components/ui` and are used through
+Tailwind utilities.
 
-- Both are deliberately **unlayered plain CSS**, so they beat Tailwind's layered
-  utilities on any class both define (`.table`, `.grid`, `.container`, `.row`). Never
-  wrap them in `@layer`.
+- **Every screen uses the shared pieces, never its own copy.** `PageHeader` (title,
+  status badge, subtitle, facts, actions) heads every screen; `Tabs`
+  (`src/components/tabs.tsx`) is the only tab strip; `DataList` is the only list.
+  Also: `Card`/`CardHeader`/`CardBody`, `Badge`/`Chip`/`Dot`, `Button`/`ButtonLink`/
+  `IconButton`, `Stat`/`KeyValues`, `Callout`/`EmptyState`/`Meter`, `Field`/`Input`/
+  `Select`, `Avatar`. If a screen needs something they cannot do, extend the shared
+  component — a one-off variant is how two screens stop matching.
+- **Check a change against its siblings before calling it done.** A screen is not
+  finished when it looks right alone; open the neighbouring screens in the same area
+  and compare headers, tabs, spacing and list styling. `scripts/check-ui.mjs` fails on
+  legacy page scaffolding in migrated areas.
+- **Migration in progress.** `design-system.css` and `design-system-runtime.css` are
+  imported into a `legacy` cascade layer beneath Tailwind's utilities, so unmigrated
+  markup still renders. Do not write new markup with their classes (`.pagehead`,
+  `.tabbar`, `.card__head`, `.table`, `.btn`…). Both files go when the last screen
+  moves; `scripts/text-snapshot.mjs` diffs every screen's text before and after, so a
+  restyle cannot drop a field, a warning or a provenance tag.
 - Light-only. There is no dark theme; do not add `dark:` variants.
-- Vocabulary already there: `.card`, `.dl`/`.table`, `.pagehead`, `.stat`, `.chip`,
-  `.badge`, `.callout`, `.chain`, `.quorum__pip`, `.vote__btn`, `.avatar`, `.empty`,
-  `.field`/`.input`/`.select`, `.stack`, `.grid.g2..g6`, `.record`/`.rrail`,
-  `.cfg-wrap`/`.cfg-rail`/`.cfg-main`, `.acc`, `.subnav`.
 - Icons are inline SVG in `src/components/icons.tsx`. Add there rather than pulling in
   an icon package.
 
-**If a screen must match a prototype, render the prototype and diff against it.**
-`scripts/compare-screen.mjs "<Section>" <path> ["<Tab>"]` diffs a screen, and
-`scripts/compare-drawer.mjs <drawer> "<Section>" "<text that opens it>" ["<Tab>"]`
-diffs a form that only exists once something is clicked — neither side of which
-server markup contains. Both are built on `render-prototype.mjs`; `outline.mjs` and
-`compare-shell.mjs` remain for the shell. Reading a prototype's source and rebuilding
-from fragments produces something plausible every time and the same thing never. Note
-that a prototype may inject a second stylesheet from its JavaScript;
-`extract-runtime-css.mjs` recovers it.
-
-A deviation from the sample is recorded, not just made: `ALLOWED_EXTRA` in the screen
-comparator and `DECIDED_FIELDS` in the drawer comparator carry the reason, so an
-unexplained difference still fails.
+The prototype (`docs/prototype/`) remains the reference for **what a screen holds** —
+its fields, lists and actions — not for how it looks. The screen and drawer
+comparators (`scripts/compare-screen.mjs`, `scripts/compare-drawer.mjs`) compare
+content, and their `ALLOWED_EXTRA` / `DECIDED_FIELDS` lists still record every decided
+difference from the sample, with its reason.
 
 ## Provenance: the pattern to copy
 

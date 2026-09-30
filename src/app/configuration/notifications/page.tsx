@@ -4,6 +4,8 @@ import { ORGANISATION_CODE } from "@/lib/org";
 
 import { ProvenanceChip, Section, Stat } from "../records-ui";
 import { AddRule, EditRule } from "./editors";
+import { PageHeader } from "@/components/ui/page-header";
+import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
 
@@ -22,23 +24,15 @@ export default async function NotificationsPage() {
 
   return (
     <>
-      <div className="pagehead">
-        <div className="pagehead__top">
-          <div className="pagehead__titles">
-            <div className="pagehead__title">
-              <h1 className="h1">Notifications</h1>
-              {silent.length > 0 && (
-                <span className="badge badge--outline">
-                  {silent.length === 1 ? "1 switched off" : `${silent.length} switched off`}
-                </span>
-              )}
-            </div>
-            <p className="pagehead__sub">
-              What the portal sends, to whom, and when reminders are issued.
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Notifications"
+        badge={
+          silent.length > 0 ? (
+            <Badge outline>{silent.length === 1 ? "1 switched off" : `${silent.length} switched off`}</Badge>
+          ) : undefined
+        }
+        subtitle="What the portal sends, to whom, and when reminders are issued."
+      />
 
       <div className="grid g3 stack--md" style={{ marginBottom: 24 }}>
         <Stat

@@ -4,6 +4,8 @@ import { AlertTriangle, ChevronRight } from "@/components/icons";
 import { listCommittees } from "@/lib/committee/repo";
 import { AddCommittee, EditCommittee } from "./editors";
 import { formatBand } from "@/lib/format";
+import { PageHeader } from "@/components/ui/page-header";
+import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
 
@@ -29,22 +31,12 @@ export default async function CommitteesPage() {
 
   return (
     <>
-      <div className="pagehead">
-        <div className="pagehead__top">
-          <div className="pagehead__titles">
-            <div className="pagehead__title">
-              <h1 className="h1">Committees</h1>
-              <span className="badge badge--outline">{committees.length}</span>
-            </div>
-            <p className="pagehead__sub">
-              Membership, quorum and the decisions each body may take.
-            </p>
-          </div>
-          <div className="pagehead__actions">
-            <AddCommittee />
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Committees"
+        badge={<Badge outline>{committees.length}</Badge>}
+        subtitle="Membership, quorum and the decisions each body may take."
+        actions={<AddCommittee />}
+      />
 
       <div className="grid g3 stack--md" style={{ marginBottom: 24 }}>
         <div className="stat">

@@ -9,6 +9,7 @@ import { loadRoster } from "@/lib/people/load";
 import { ORGANISATION_CODE } from "@/lib/org";
 
 import { BudgetTabs } from "./panels";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -41,40 +42,26 @@ export default async function BudgetPage({
 
   return (
     <>
-      <div className="pagehead">
-        <div className="pagehead__top">
-          <div className="pagehead__titles">
-            <div className="pagehead__title">
-              <h1 className="h1 trunc">Budget</h1>
-            </div>
-            <p className="pagehead__sub clamp2">
-              Allocations, commitments and the balance a requirement is checked against.
-            </p>
-            <div className="pagehead__meta">
-              <span className="row" style={{ gap: 5 }}>
-                <CalendarIcon size={13} />
-                {year}
-              </span>
-              <span className="sep">·</span>
-              <span className="row" style={{ gap: 5 }}>
-                <ChartIcon size={13} />
-                {budget.codes.length} {budget.codes.length === 1 ? "Budget code" : "Budget codes"}
-              </span>
-              <span className="sep">·</span>
-              <span className="row" style={{ gap: 5 }}>
-                <ScaleIcon size={13} />
-                {formatCompactRM(totals.allocated)} Allocated
-              </span>
-              <span className="sep">·</span>
-              <span className="row" style={{ gap: 5 }}>
-                <ChartIcon size={13} />
-                {/* Nothing allocated is not nought per cent used. */}
-                {totals.utilisation == null ? "No" : `${Math.round(totals.utilisation)}%`} Utilisation
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Budget"
+        subtitle="Allocations, commitments and the balance a requirement is checked against."
+        meta={[
+          <>
+            <CalendarIcon size={14} />
+            {year}
+          </>,
+          <>
+            <ChartIcon size={14} />
+            {budget.codes.length} {budget.codes.length === 1 ? "budget code" : "budget codes"}
+          </>,
+          <>
+            <ScaleIcon size={14} />
+            {formatCompactRM(totals.allocated)} allocated
+          </>,
+          // Nothing allocated is not nought per cent used.
+          totals.utilisation == null ? "No utilisation yet" : `${Math.round(totals.utilisation)}% utilised`,
+        ]}
+      />
 
       <BudgetTabs
         initial={tab}

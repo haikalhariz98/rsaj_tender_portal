@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { PageHeader } from "@/components/ui/page-header";
+import { Badge } from "@/components/ui/badge";
 
 /**
  * A module that is agreed but not yet built.
@@ -18,17 +20,11 @@ export function NotBuilt({
 }) {
   return (
     <>
-      <div className="pagehead">
-        <div className="pagehead__top">
-          <div className="pagehead__titles">
-            <div className="pagehead__title">
-              <h1 className="h1">{title}</h1>
-              <span className="badge badge--warn">Not built yet</span>
-            </div>
-            <p className="pagehead__sub">{summary}</p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title={title}
+        badge={<Badge tone="warn" dot>Not built yet</Badge>}
+        subtitle={summary}
+      />
 
       <div className="card">
         <div className="card__body">

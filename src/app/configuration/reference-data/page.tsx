@@ -17,6 +17,8 @@ import {
   fundingPosture,
   isUnbanded,
 } from "@/lib/reference/vocabulary";
+import { PageHeader } from "@/components/ui/page-header";
+import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
 
@@ -57,19 +59,11 @@ export default async function ReferenceDataPage() {
 
   return (
     <>
-      <div className="pagehead">
-        <div className="pagehead__top">
-          <div className="pagehead__titles">
-            <div className="pagehead__title">
-              <h1 className="h1">Reference data</h1>
-              {!readiness.complete && <span className="badge badge--warn">Incomplete</span>}
-            </div>
-            <p className="pagehead__sub">
-              Sourcing methods, contract types, funding routes and code lists.
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Reference data"
+        badge={!readiness.complete ? <Badge tone="warn" dot>Incomplete</Badge> : undefined}
+        subtitle="Sourcing methods, contract types, funding routes and code lists."
+      />
 
       <div className="grid g3 stack--md" style={{ marginBottom: 24 }}>
         <ReadinessStat label="Funding routes" readiness={readiness.fundingRoutes} />

@@ -4,6 +4,7 @@ import { inForce } from "@/lib/people/delegation";
 import { ORGANISATION_CODE } from "@/lib/org";
 
 import { UsersTabs } from "./panels";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -36,31 +37,15 @@ export default async function UsersPage({
 
   return (
     <>
-      <div className="pagehead">
-        <div className="pagehead__top">
-          <div className="pagehead__titles">
-            <div className="pagehead__title">
-              <h1 className="h1 trunc">Users &amp; roles</h1>
-            </div>
-            <p className="pagehead__sub clamp2">
-              Officers, the offices they hold and what each may see.
-            </p>
-            <div className="pagehead__meta">
-              <span className="row">
-                {roster.people.length} {roster.people.length === 1 ? "person" : "people"}
-              </span>
-              <span className="sep">·</span>
-              <span className="row">
-                {roster.offices.length} {roster.offices.length === 1 ? "role" : "roles"}
-              </span>
-              <span className="sep">·</span>
-              <span className="row">
-                {live} {live === 1 ? "delegation" : "delegations"} in force
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Users & roles"
+        subtitle="Officers, the offices they hold and what each may see."
+        meta={[
+          `${roster.people.length} ${roster.people.length === 1 ? "person" : "people"}`,
+          `${roster.offices.length} ${roster.offices.length === 1 ? "role" : "roles"}`,
+          `${live} ${live === 1 ? "delegation" : "delegations"} in force`,
+        ]}
+      />
 
       <UsersTabs
         initial={tab}

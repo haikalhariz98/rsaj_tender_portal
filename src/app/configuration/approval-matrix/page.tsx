@@ -13,6 +13,8 @@ import { activeOn } from "@/lib/reference/vocabulary";
 import { loadRoster } from "@/lib/people/load";
 import { AddMatrix, AddRule, EditMatrix } from "./editors";
 import type { Rule } from "@/lib/authority/types";
+import { PageHeader } from "@/components/ui/page-header";
+import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
 
@@ -43,19 +45,11 @@ export default async function ApprovalMatrixPage() {
     // seed one — useful in a log, wrong on a screen an officer is looking at.
     return (
       <>
-        <div className="pagehead">
-          <div className="pagehead__top">
-            <div className="pagehead__titles">
-              <div className="pagehead__title">
-                <h1 className="h1">Approval matrix</h1>
-                <span className="badge badge--warn">Not set</span>
-              </div>
-              <p className="pagehead__sub">
-                Who proposes, who recommends and who approves, at every value.
-              </p>
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          title="Approval matrix"
+          badge={<Badge tone="warn">Not set</Badge>}
+          subtitle="Who proposes, who recommends and who approves, at every value."
+        />
 
         <div className="card">
           <div className="card__body">
@@ -117,26 +111,17 @@ export default async function ApprovalMatrixPage() {
 
   return (
     <>
-      <div className="pagehead">
-        <div className="pagehead__top">
-          <div className="pagehead__titles">
-            <div className="pagehead__title">
-              <h1 className="h1 trunc">Approval matrix</h1>
-            </div>
-            <p className="pagehead__sub clamp2">
-              Who proposes, who recommends and who approves, at every value.
-            </p>
-            <div className="pagehead__meta">
-              <span>{matrix.rules.length} rules</span>
-              <span className="sep">·</span>
-              <span>{domains.length} decision types</span>
-              <span className="sep">·</span>
-              <span>{committees} committees involved</span>
-              <span className="sep">·</span>
-              <span>{fixed} cannot be delegated</span>
-            </div>
-          </div>
-          <div className="pagehead__actions">
+      <PageHeader
+        title="Approval matrix"
+        subtitle="Who proposes, who recommends and who approves, at every value."
+        meta={[
+          `${matrix.rules.length} rules`,
+          `${domains.length} decision types`,
+          `${committees} committees involved`,
+          `${fixed} cannot be delegated`,
+        ]}
+        actions={
+          <>
             <EditMatrix
               matrix={{
                 id: matrixId,
@@ -157,9 +142,9 @@ export default async function ApprovalMatrixPage() {
               }}
             />
             <AddRule matrixId={matrixId} offices={offices} />
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="stack stack--lg">
         <div className="callout callout--info">
