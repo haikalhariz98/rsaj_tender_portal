@@ -17,8 +17,7 @@ import { iconButtonClass } from "@/components/ui/button";
 import { workspaceFor } from "@/lib/nav";
 import type { ShellUser } from "@/lib/shell";
 
-/// Path segment to the label the breadcrumb should read. Anything unmapped is a
-/// record reference and is shown as it is.
+/// Path segment to the label the breadcrumb should read.
 const SEGMENT_LABEL: Record<string, string> = {
   configuration: "Configuration",
   "approval-matrix": "Approval matrix",
@@ -41,6 +40,11 @@ const SEGMENT_LABEL: Record<string, string> = {
   company: "Company",
 };
 
+/// What a record under a section is called, for its breadcrumb.
+const RECORD_LABEL: Record<string, string> = {
+  committees: "Committee",
+};
+
 export function Topbar({
   organisation,
   user,
@@ -59,7 +63,10 @@ export function Topbar({
 
   const segments = pathname.split("/").filter(Boolean);
   const crumbs = segments.map((segment, i) => ({
-    label: SEGMENT_LABEL[segment] ?? decodeURIComponent(segment),
+    // An unmapped segment is a record's key — a committee's code, say. Codes never
+    // reach a screen; the page's own header names the record, so the crumb says what
+    // kind of record it is.
+    label: SEGMENT_LABEL[segment] ?? RECORD_LABEL[segments[i - 1] ?? ""] ?? "Details",
     href: "/" + segments.slice(0, i + 1).join("/"),
   }));
 
