@@ -175,6 +175,15 @@ model Organisation {
   taxonomyMappings       TaxonomyMapping[]
   classificationPolicy   ClassificationPolicy?
   sourcingExercises      SourcingExercise[]
+  awardPolicy            AwardPolicy?
+  awards                 Award[]
+  distributionRecipients DistributionRecipient[]
+  letterVariants         AppointmentLetterVariant[]
+  conditionKinds         ConditionPrecedentKind[]
+  contracts              Contract[]
+  approvedIssuers        ApprovedIssuer[]
+  insuranceRequirements  InsuranceRequirement[]
+  liabilityBands         LiabilityBand[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -235,6 +244,10 @@ model Person {
   exerciseTypeOverrides SourcingExercise[] @relation("TypeOverriddenBy")
   proposalsReviewed     SourcingExercise[] @relation("ProposalReviewer")
   exerciseParticipation ExerciseParticipant[]
+  awardsSigned          Award[]              @relation("AwardSignatory")
+  returnsReceived       AwardReturn[]        @relation("ReturnReceivedBy")
+  securitiesVerified    SecurityInstrument[] @relation("SecurityVerifiedBy")
+  policiesVerified      InsurancePolicy[]    @relation("PolicyVerifiedBy")
 
   @@unique([organisationId, staffNo])
   @@index([organisationId, name])
@@ -627,6 +640,10 @@ model CommitteeDecision {
   /// foreign key per module (6.10 ruling), never a polymorphic pair.
   requisitionId String?
   requisition   Requisition? @relation(fields: [requisitionId], references: [id], onDelete: SetNull)
+  /// The exercise the matter concerns, where `matterKind` is EXERCISE (6.11): the typed
+  /// key 6.10 reserves, linked by the exercise's portal reference when tabled.
+  exerciseId    String?
+  exercise      SourcingExercise? @relation(fields: [exerciseId], references: [id], onDelete: SetNull)
   approvalStep  ApprovalStep?
 
   /// Who tabled the matter, and when. An attestation, not an authenticated act,
@@ -667,6 +684,7 @@ model CommitteeDecision {
 
   @@index([meetingId])
   @@index([requisitionId])
+  @@index([exerciseId])
 }
 
 /// A member standing aside from one matter. Excluded from that matter's vote and
@@ -881,9 +899,24 @@ model DocumentTemplate {
   documentClassId String?
   documentClass   DocumentClass? @relation(fields: [documentClassId], references: [id], onDelete: SetNull)
 
+  /// The text of the instrument, as plain paragraphs with whitelisted {{field}} merge
+  /// fields (ADR 0008). Null: not configured, and nothing can be issued on it. Ships empty.
+  bodyMs          String?           @db.Text
+  bodyEn          String?           @db.Text
+  /// The language issued first. Null with both bodies set: not decided, and issue waits.
+  primaryLanguage DocumentLanguage?
+  /// Bumped on every audited change of a body, so an issued document names the text it was made from.
+  bodyVersion     Int               @default(0)
+
   provenance Provenance @default(ASSUMED)
   notes      String     @default("")
   sortOrder  Int        @default(0)
+
+  policiesLoa          AwardPolicy[]              @relation("PolicyLoaTemplate")
+  policiesDeclaration  AwardPolicy[]              @relation("PolicyDeclarationTemplate")
+  policiesCoveringMemo AwardPolicy[]              @relation("PolicyCoveringMemoTemplate")
+  letterVariants       AppointmentLetterVariant[]
+  awardDocuments       AwardDocument[]
 
   @@unique([organisationId, code])
 }
@@ -1010,6 +1043,7 @@ model Delegation {
   provenance Provenance @default(ASSUMED)
 
   approvalSteps ApprovalStep[]
+  awardsSigned  Award[]
 
   @@index([organisationId, effectiveFrom])
   @@index([fromPersonId])
@@ -1626,6 +1660,10 @@ model ContractType {
   sumAdjustmentDrivers        String[] @default([])
   claimsApprovalCommitteeCode String?
 
+  /// The numbering series (NumberingSeries.key) a contract of this type is numbered
+  /// from when its award is issued (FR-CON-002, 6.11). Null: not set, and issue refuses.
+  contractSeriesKey String?
+
   governingSource String     @default("")
   provenance      Provenance @default(ASSUMED)
   notes           String     @default("")
@@ -1934,6 +1972,10 @@ model ApprovalInstance {
   /// The exercise, where `matterKind` is EXERCISE (name approval, 6.3).
   exerciseId    String?
   exercise      SourcingExercise? @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  /// The award whose appointment this route approves (6.11): an exercise's award can be
+  /// cancelled and another started, and only its own route may approve it.
+  awardId       String?
+  award         Award?            @relation(fields: [awardId], references: [id], onDelete: Restrict)
 
   domain String
   cond   String?
@@ -1991,6 +2033,7 @@ model ApprovalInstance {
   @@index([organisationId, matterKind])
   @@index([requisitionId])
   @@index([exerciseId])
+  @@index([awardId])
 }
 
 /// One step of a persisted route, and who discharged it.
@@ -2018,6 +2061,9 @@ model ApprovalStep {
   delegationId      String?
   delegation        Delegation?  @relation(fields: [delegationId], references: [id], onDelete: Restrict)
   reason            String       @default("")
+  /// The day the matter reached the decider (FR-CTE-014, 6.11 ruling). Optional, on or
+  /// before the decision day. Null reads "not recorded".
+  receivedOn        DateTime?
 
   /// One committee decision discharges one step, never two.
   committeeDecisionId String?            @unique
@@ -2317,6 +2363,8 @@ model SourcingExercise {
   taxonomyValues    ExerciseTaxonomyValue[]
   participants      ExerciseParticipant[]
   approvalInstances ApprovalInstance[]
+  committeeDecisions CommitteeDecision[]
+  awards            Award[]
 
   @@unique([organisationId, reference])
   @@unique([organisationId, dossierReference])
@@ -2369,4 +2417,574 @@ model ExerciseParticipant {
   capacity   String           @default("")
 
   @@unique([exerciseId, personId])
+}
+
+// ------------------------------------------------------------------- 6.11 award
+
+enum AwardStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  ISSUED
+  ACCEPTED
+  CANCELLED
+}
+
+/// The instrument that awards an exercise: which one depends on the regime (AwardPolicy).
+enum AwardInstrumentKind {
+  LETTER_OF_ACCEPTANCE
+  WORK_INDENT
+}
+
+enum AwardDocumentKind {
+  LETTER_OF_ACCEPTANCE
+  SUCCESSFUL_BIDDER_DECLARATION
+  APPOINTMENT_LETTER
+  INDENT_COVERING_MEMO
+}
+
+enum DocumentLanguage {
+  MS
+  EN
+}
+
+enum PeriodUnit {
+  DAYS
+  WEEKS
+  MONTHS
+}
+
+enum DeliveryMethod {
+  REGISTERED_POST
+  COLLECTION
+  BY_HAND
+}
+
+enum SecurityKind {
+  PERFORMANCE_BOND
+  ADVANCE_PAYMENT_GUARANTEE
+  DESIGN_GUARANTEE_BOND
+  RETENTION_BOND
+}
+
+enum SecurityForm {
+  BANK_GUARANTEE
+  INSURANCE_GUARANTEE
+  CASH
+  BANKERS_DRAFT
+}
+
+/// What a performance bond is a percentage of (D4). Never defaulted: chosen per contract.
+enum BondBasis {
+  CONTRACT_PRICE /// The total contract price.
+  ANNUAL_VALUE /// A one-year value of the contract, entered with its provenance.
+  STATED_AMOUNT /// An amount stated outright.
+}
+
+enum InsuranceKind {
+  WORKS
+  PUBLIC_LIABILITY
+  WORKMENS_COMPENSATION
+  CAR
+  EAR
+}
+
+/// How the workmen's compensation sum is set (D4). A per-award choice, no default.
+enum WcBasis {
+  UNCOVERED_WAGES
+  PERCENT_OF_CONTRACT
+}
+
+enum RegisterStatus {
+  LODGED
+  VERIFIED
+  REJECTED
+}
+
+enum IssuerKind {
+  BANK
+  INSURER
+  TAKAFUL
+}
+
+/// 4a adds the rest of §7.3.3.
+enum ContractStatus {
+  NUMBER_ALLOCATED
+  CANCELLED
+}
+
+enum ContractNumberSource {
+  SERIES
+  INDENT_NUMBER
+}
+
+/// Where a quotation award's contract number comes from (OQ-11).
+enum QuotationContractKey {
+  INDENT_NUMBER
+  CONTRACT_SERIES
+}
+
+enum NonCommencement {
+  CANCEL_AND_BLACKLIST
+  WARNING_LETTER
+}
+
+enum CommitmentKind {
+  INDENT
+  PURCHASE_ORDER
+}
+
+/// How this customer awards. One per organisation, every field unset until set: an
+/// unset instrument refuses an award in that regime, never assumes one.
+model AwardPolicy {
+  id             String       @id @default(cuid())
+  organisationId String       @unique
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  tenderInstrument      AwardInstrumentKind?
+  quotationInstrument   AwardInstrumentKind?
+  /// Days an indent stays valid from its receipt (FR-AWD-006). Null: validity not set.
+  indentValidityDays    Int?
+  /// Days after the stated start before non-commencement is raised (FR-AWD-009).
+  commencementGraceDays Int?
+  /// Days the awardee has to return the signed instrument.
+  acceptanceReturnDays  Int?
+  /// The units that own a case before and after award (FR-CON-001), by OrgUnit.code.
+  preContractUnitCode   String?
+  postContractUnitCode  String?
+  quotationContractKey  QuotationContractKey?
+  /// The customer's words for works that need the regulator's copy (FR-AWD-004).
+  regulatedActivityLabel String?
+
+  loaTemplateId          String?
+  loaTemplate            DocumentTemplate? @relation("PolicyLoaTemplate", fields: [loaTemplateId], references: [id], onDelete: Restrict)
+  declarationTemplateId  String?
+  declarationTemplate    DocumentTemplate? @relation("PolicyDeclarationTemplate", fields: [declarationTemplateId], references: [id], onDelete: Restrict)
+  coveringMemoTemplateId String?
+  coveringMemoTemplate   DocumentTemplate? @relation("PolicyCoveringMemoTemplate", fields: [coveringMemoTemplateId], references: [id], onDelete: Restrict)
+
+  provenance Provenance?
+  notes      String      @default("")
+}
+
+/// An award of a sourcing exercise (spec §6.11). The exercise's method, contract type,
+/// regime, terms band and boundary operator are read from the exercise, never copied.
+model Award {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// Issued from NumberingSeries `award`.
+  reference  String
+  exerciseId String
+  exercise   SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  status            AwardStatus         @default(DRAFT)
+  cancelReason      String              @default("")
+  /// What cancelling an issued award recorded as its consequence (FR-AWD-009).
+  cancelConsequence NonCommencement?
+  instrumentKind    AwardInstrumentKind
+
+  // The awardee, as a snapshot: there is no vendor master yet (6.15).
+  awardeeName           String
+  awardeeRegistrationNo String  @default("")
+  awardeeAddress        String  @default("")
+  vendorId              String?
+
+  awardedValue      Decimal    @db.Decimal(18, 2)
+  completionPeriod  Int
+  completionUnit    PeriodUnit
+  startDate         DateTime?
+  commencedOn       DateTime?
+  /// Whether the works are the regulated activity (FR-AWD-004). Null: not answered.
+  regulatedActivity Boolean?
+
+  // The performance bond (D4): decided per contract, never defaulted.
+  bondRequired            Boolean?
+  bondNotRequiredReason   String      @default("")
+  bondBasis               BondBasis?
+  bondPercent             Decimal?    @db.Decimal(9, 4)
+  bondBasisAmount         Decimal?    @db.Decimal(18, 2)
+  bondValidityExtraMonths Int?
+  bondBasisProvenance     Provenance?
+  bondBasisNote           String      @default("")
+
+  // The letter's terms, per award with their provenance (B3, B8).
+  ladAmount           Decimal?    @db.Decimal(18, 2)
+  ladUnit             String      @default("")
+  retentionPercent    Decimal?    @db.Decimal(9, 4)
+  retentionCapPercent Decimal?    @db.Decimal(9, 4)
+  dlpMonths           Int?
+  termsProvenance     Provenance?
+  wcBasis             WcBasis?
+
+  // Who signs, as resolved and recorded at issue.
+  signatoryRoleCode     String?
+  signatoryRoleLabel    String?
+  signatoryRuleKey      String?
+  signatoryRuleLabel    String?
+  signatoryPersonId     String?
+  signatoryPerson       Person?     @relation("AwardSignatory", fields: [signatoryPersonId], references: [id], onDelete: Restrict)
+  signatoryName         String?
+  signedOn              DateTime?
+  signatoryDelegationId String?
+  signatoryDelegation   Delegation? @relation(fields: [signatoryDelegationId], references: [id], onDelete: Restrict)
+
+  // The finance system's commitment number (INT-05): consumed, never minted.
+  erpCommitmentNo      String?
+  erpCommitmentKind    CommitmentKind?
+  commitmentRecordedOn DateTime?
+  indentReceivedOn     DateTime?
+
+  variantId   String?
+  variant     AppointmentLetterVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  variantName String?
+
+  issuedAt      DateTime?
+  /// Every policy value the issue was judged under, with provenance. Rendered from, never re-derived.
+  issueSnapshot Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documents         AwardDocument[]
+  distributions     AwardDistribution[]
+  awardReturn       AwardReturn?
+  conditions        AwardCondition[]
+  contract          Contract?
+  approvalInstances ApprovalInstance[]
+
+  @@unique([organisationId, reference])
+  @@unique([organisationId, erpCommitmentNo])
+  @@index([organisationId, status])
+  @@index([exerciseId])
+}
+
+/// An issued document, frozen (ADR 0008). Never updated: a reissue is a new version.
+model AwardDocument {
+  id      String @id @default(cuid())
+  awardId String
+  award   Award  @relation(fields: [awardId], references: [id], onDelete: Cascade)
+
+  kind                 AwardDocumentKind
+  templateId           String
+  template             DocumentTemplate  @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  templateCode         String
+  templateName         String
+  templateFormCode     String            @default("")
+  templateRevisionDate DateTime?
+  templateBodyVersion  Int
+  language             DocumentLanguage
+  version              Int               @default(1)
+  fields               Json
+  renderedText         String            @db.Text
+  frozenAt             DateTime
+
+  @@unique([awardId, kind, version])
+}
+
+/// Who receives a copy of an instrument (FR-AWD-004). The customer's list; ships empty.
+model DistributionRecipient {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  instrumentKind    AwardInstrumentKind
+  code              String
+  nameEn            String
+  nameMs            String?
+  mandatory         Boolean             @default(true)
+  /// Only where the award is the regulated activity.
+  onlyWhenRegulated Boolean             @default(false)
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+  sortOrder  Int        @default(0)
+  retiredOn  DateTime?
+
+  copies AwardDistribution[]
+
+  @@unique([organisationId, code])
+}
+
+/// One copy of an issued instrument, and how it went (FR-AWD-004/005).
+model AwardDistribution {
+  id      String @id @default(cuid())
+  awardId String
+  award   Award  @relation(fields: [awardId], references: [id], onDelete: Cascade)
+
+  recipientId    String?
+  recipient      DistributionRecipient? @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+  recipientName  String
+  mandatory      Boolean                @default(true)
+  isAwardee      Boolean                @default(false)
+  method         DeliveryMethod?
+  consignmentRef String                 @default("")
+  despatchedOn   DateTime?
+  acknowledgedOn DateTime?
+  note           String                 @default("")
+  sortOrder      Int                    @default(0)
+}
+
+/// The awardee's return (FR-AWD-003, 008): what came back, on paper. Nothing is attached.
+model AwardReturn {
+  id      String @id @default(cuid())
+  awardId String @unique
+  award   Award  @relation(fields: [awardId], references: [id], onDelete: Cascade)
+
+  signedLetterReceivedOn  DateTime?
+  declarationReceivedOn   DateTime?
+  authorisationReceivedOn DateTime?
+  receivedByPersonId      String?
+  receivedBy              Person?   @relation("ReturnReceivedBy", fields: [receivedByPersonId], references: [id], onDelete: Restrict)
+  whereHeld               String    @default("")
+
+  // The acceptance page of the appointment letter.
+  signatoryName    String   @default("")
+  /// Held in full; shown only in the Return tab's field, masked everywhere else (6.11 ruling).
+  icNumber         String   @default("")
+  occupation       String   @default("")
+  address          String   @default("")
+  capacity         String   @default("")
+  contractorSigned Boolean?
+  stampAffixed     Boolean?
+  witnessName      String   @default("")
+  witnessSigned    Boolean?
+
+  updatedAt DateTime @updatedAt
+}
+
+/// A Pemberitahuan Perlantikan variant (FR-AWD-007): contract type plus the exercise's
+/// terms band. Value edges live once, in TermsBand.
+model AppointmentLetterVariant {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code              String
+  nameEn            String
+  templateId        String
+  template          DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  /// Empty: any contract type.
+  contractTypeCodes String[]         @default([])
+  /// TermsBand.bandKey. Null: any band.
+  termsBandKey      String?
+  nonCommencement   NonCommencement?
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+  sortOrder  Int        @default(0)
+  retiredOn  DateTime?
+
+  awards Award[]
+
+  @@unique([organisationId, code])
+}
+
+/// A kind of condition precedent (FR-AWD-014). The customer's list.
+model ConditionPrecedentKind {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code              String
+  nameEn            String
+  /// A delay in meeting it gives no extension of time. Stored now, read by the EOT module.
+  excludesEotReason Boolean @default(false)
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+  sortOrder  Int        @default(0)
+  retiredOn  DateTime?
+
+  conditions AwardCondition[]
+
+  @@unique([organisationId, code])
+}
+
+model AwardCondition {
+  id      String @id @default(cuid())
+  awardId String
+  award   Award  @relation(fields: [awardId], references: [id], onDelete: Cascade)
+
+  kindId      String
+  kind        ConditionPrecedentKind @relation(fields: [kindId], references: [id], onDelete: Restrict)
+  kindName    String
+  excludesEot Boolean                @default(false)
+  reference   String                 @default("")
+  requiredBy  DateTime?
+  satisfiedOn DateTime?
+  note        String                 @default("")
+}
+
+/// The contract shell created at issue (ADR 0007). 4a extends it.
+model Contract {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  number       String
+  numberSource ContractNumberSource
+  seriesKey    String?
+  numberedOn   DateTime
+  awardId      String               @unique
+  award        Award                @relation(fields: [awardId], references: [id], onDelete: Restrict)
+  status       ContractStatus       @default(NUMBER_ALLOCATED)
+  contractSum  Decimal              @db.Decimal(18, 2)
+  cancelReason String               @default("")
+
+  createdAt DateTime @default(now())
+
+  securities      SecurityInstrument[]
+  policies        InsurancePolicy[]
+  ownershipEvents CaseOwnershipEvent[]
+
+  @@unique([organisationId, number])
+}
+
+/// The case changing hands at award (FR-CON-001), on the same record.
+model CaseOwnershipEvent {
+  id         String   @id @default(cuid())
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  fromUnitCode String?
+  toUnitCode   String?
+  on           DateTime
+  note         String   @default("")
+}
+
+/// A bank or insurer on the regulator's approved list (FR-AWD-012). The customer's list.
+model ApprovedIssuer {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code       String
+  name       String
+  kind       IssuerKind
+  listSource String     @default("")
+  listAsAt   DateTime?
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+  sortOrder  Int        @default(0)
+  retiredOn  DateTime?
+
+  securities SecurityInstrument[]
+  policies   InsurancePolicy[]
+
+  @@unique([organisationId, code])
+}
+
+/// A bond or guarantee lodged on a contract (FR-AWD-012).
+model SecurityInstrument {
+  id         String   @id @default(cuid())
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  kind                SecurityKind
+  form                SecurityForm
+  issuerId            String?
+  issuer              ApprovedIssuer? @relation(fields: [issuerId], references: [id], onDelete: Restrict)
+  issuerNameAsWritten String          @default("")
+  instrumentRef       String          @default("")
+  value               Decimal         @db.Decimal(18, 2)
+  effectiveFrom       DateTime
+  expiresOn           DateTime?
+  status              RegisterStatus  @default(LODGED)
+  lodgedOn            DateTime
+  verifiedOn          DateTime?
+  verifiedByPersonId  String?
+  verifiedBy          Person?         @relation("SecurityVerifiedBy", fields: [verifiedByPersonId], references: [id], onDelete: Restrict)
+  rejectedReason      String          @default("")
+
+  // What it was judged against at verification.
+  requiredValue   Decimal?    @db.Decimal(18, 2)
+  basis           BondBasis?
+  basisPercent    Decimal?    @db.Decimal(9, 4)
+  basisAmount     Decimal?    @db.Decimal(18, 2)
+  basisProvenance Provenance?
+  requiredUntil   DateTime?
+
+  createdAt DateTime @default(now())
+}
+
+/// Which policies a contract must carry (FR-AWD-013). The customer's list; ships empty.
+model InsuranceRequirement {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code             String
+  nameEn           String
+  kind             InsuranceKind
+  /// Null: every contract type. A type's own row takes the place of the general one.
+  contractTypeCode String?
+  required         Boolean       @default(true)
+  /// For workmen's compensation on a percentage basis.
+  percent          Decimal?      @db.Decimal(9, 4)
+  /// The tail after completion and defects liability.
+  tailMonths       Int?
+  tailDays         Int?
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+  sortOrder  Int        @default(0)
+  retiredOn  DateTime?
+
+  @@unique([organisationId, code])
+}
+
+/// The public-liability limit by contract price, (min, max] (FR-AWD-013). Ships empty.
+model LiabilityBand {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code        String
+  minValue    Decimal? @db.Decimal(18, 2)
+  maxValue    Decimal? @db.Decimal(18, 2)
+  limitAmount Decimal  @db.Decimal(18, 2)
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+  sortOrder  Int        @default(0)
+  retiredOn  DateTime?
+
+  @@unique([organisationId, code])
+}
+
+/// An insurance policy lodged on a contract (FR-AWD-013).
+model InsurancePolicy {
+  id         String   @id @default(cuid())
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  kind                  InsuranceKind
+  /// A CAR or EAR policy accepted in place of the works policy.
+  substitutesFor        InsuranceKind?
+  issuerId              String?
+  issuer                ApprovedIssuer? @relation(fields: [issuerId], references: [id], onDelete: Restrict)
+  issuerNameAsWritten   String          @default("")
+  policyNo              String          @default("")
+  sumInsured            Decimal         @db.Decimal(18, 2)
+  appendixAmount        Decimal?        @db.Decimal(18, 2)
+  /// Public liability: the limit it must meet, derived from the bands or raised.
+  requiredLimit         Decimal?        @db.Decimal(18, 2)
+  raisedJustification   String          @default("")
+  periodStart           DateTime
+  periodEnd             DateTime
+  premiumReceiptRef     String          @default("")
+  perkesoRegistrationNo String          @default("")
+  status                RegisterStatus  @default(LODGED)
+  lodgedOn              DateTime
+  verifiedOn            DateTime?
+  verifiedByPersonId    String?
+  verifiedBy            Person?         @relation("PolicyVerifiedBy", fields: [verifiedByPersonId], references: [id], onDelete: Restrict)
+  rejectedReason        String          @default("")
+  /// What it was judged against at verification.
+  requirementSnapshot   Json?
+
+  createdAt DateTime @default(now())
 }
