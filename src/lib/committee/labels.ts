@@ -68,11 +68,31 @@ export const POSITION_LABEL = {
   SECRETARY: "Secretary",
 } as const;
 
+/// A vote, in English, with the Malay term the member signs on the sheet.
+export const VOTE_LABEL = {
+  SETUJU: { en: "Agree", ms: "Setuju" },
+  TIDAK_SETUJU: { en: "Disagree", ms: "Tidak setuju" },
+} as const;
+
 export const CHOICE_LABEL: Record<string, string> = {
-  SETUJU: "Setuju",
-  TIDAK_SETUJU: "Tidak Setuju",
+  SETUJU: "Agree (Setuju)",
+  TIDAK_SETUJU: "Disagree (Tidak setuju)",
   ABSTAIN: "Abstain",
 };
+
+/// What a committee does when it sits, as a noun, matching the act labels
+/// ("Recommendation" beside "Mandatory recommendation").
+export const COMMITTEE_ACTION_LABEL: Record<string, string> = {
+  APPROVES: "Approval",
+  RECOMMENDS: "Recommendation",
+  CONSENTS: "Consent",
+  DECIDES: "Decision",
+};
+
+/// Tabled and pending counts, worded one way on every screen.
+export function matterCount(tabled: number, pending: number): string {
+  return tabled === 0 ? "None tabled" : `${tabled} tabled · ${pending} pending`;
+}
 
 export const BLOCKER_LABEL: Record<MatterBlocker, string> = {
   NOT_TABLED: "Not tabled",
@@ -139,6 +159,8 @@ export const VOTE_FAULT_MESSAGE: Record<VoteFault, string> = {
   MEETING_CLOSED: "The sitting is closed. Votes can no longer change.",
   MATTER_NOT_TABLED: "The matter has not been tabled.",
   MATTER_DECIDED: "The matter has already been decided.",
+  TIME_ZONE_UNSET:
+    "The organisation's time zone is not set, so the date on a voting sheet cannot be judged. Set it under Configuration, Organisation.",
   NOT_A_PRESENT_VOTER: "That person is not recorded as a present voting member of this sitting.",
   RECUSED: "That member has declared a recusal on this matter.",
 };
@@ -148,6 +170,8 @@ export const TABLING_FAULT_MESSAGE: Record<TablingFault, string> = {
     "No Secretariat office is set for this committee, so nobody may table a matter. Set one in the committee's configuration.",
   NOT_TABLED: "Choose who tabled the matter.",
   NOT_SECRETARIAT_HOLDER: "That person does not hold the Secretariat office on the tabling date.",
+  TIME_ZONE_UNSET:
+    "The organisation's time zone is not set, so the tabling day cannot be judged. Set it under Configuration, Organisation.",
 };
 
 export const TRANSITION_FAULT_MESSAGE: Record<TransitionFault, string> = {
@@ -157,7 +181,60 @@ export const TRANSITION_FAULT_MESSAGE: Record<TransitionFault, string> = {
   REASON_REQUIRED: "Say why the sitting is cancelled.",
   MATTERS_DECIDED: "A sitting that has decided a matter cannot be cancelled.",
   NOT_YET_DUE: "A sitting cannot start before the day it is dated.",
+  TIME_ZONE_UNSET:
+    "The organisation's time zone is not set, so whether the sitting's day has come cannot be judged. Set it under Configuration, Organisation.",
   REGISTER_FAULTS: "The register has faults. Correct the attendance before the sitting is minuted.",
   DECISION_NO_LONGER_HOLDS:
     "A decided matter no longer follows from the register and the votes. Correct it before the sitting is minuted.",
 };
+
+/**
+ * Why a matter cannot be decided, in a few words, for beside a disabled control.
+ * The first blocker only: it is the one to clear next.
+ */
+export function blockerShort(a: {
+  blockers: readonly MatterBlocker[];
+  quorum: { shortfall: number | null };
+  tally: { notVoted: number; cast: number };
+}): string | null {
+  const b = a.blockers[0];
+  if (!b) return null;
+  switch (b) {
+    case "QUORUM_NOT_MET": {
+      const n = a.quorum.shortfall ?? 0;
+      return `Needs ${n} more voting ${n === 1 ? "member" : "members"} present`;
+    }
+    case "VOTES_OUTSTANDING":
+      return a.tally.cast === 0
+        ? "No votes recorded yet"
+        : `${a.tally.notVoted} ${a.tally.notVoted === 1 ? "vote" : "votes"} outstanding`;
+    case "QUORUM_UNCONFIGURED":
+      return "The committee's quorum is not set";
+    case "VOTING_RULE_UNCONFIGURED":
+      return "The committee's voting rule is not set";
+    case "ALTERNATE_FOR_RECUSED_UNCONFIGURED":
+      return "Whether an alternate may vote for a recused member is not set";
+    case "NOT_TABLED":
+      return "Not tabled";
+    case "DEPENDENCY_PENDING":
+      return "Waits on another matter";
+    case "INELIGIBLE_VOTE":
+      return "A vote on record does not count";
+    case "MANDATORY_ACT_NOT_FULL_BODY":
+      return "The full voting body must be present";
+  }
+}
+
+/// Where the committee's own configuration makes a matter undecidable, one sentence
+/// for the matter rather than a list of tags.
+export function configurationGapLine(blockers: readonly MatterBlocker[]): string | null {
+  const q = blockers.includes("QUORUM_UNCONFIGURED");
+  const r = blockers.includes("VOTING_RULE_UNCONFIGURED");
+  if (q && r) return "Can't be decided until the committee's quorum and voting rule are set.";
+  if (q) return "Can't be decided until the committee's quorum is set.";
+  if (r) return "Can't be decided until the committee's voting rule is set.";
+  return null;
+}
+
+/// Where the organisation's time zone is set.
+export const ORGANISATION_HREF = "/configuration/organisation";

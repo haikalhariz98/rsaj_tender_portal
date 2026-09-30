@@ -28,6 +28,10 @@ const db = new PrismaClient({
 });
 
 const ORG_CODE = process.env.ORGANISATION_CODE ?? "ORG";
+/// Invented, like everything here: the demo's sittings need a zone to start, table and
+/// vote (an unset zone blocks them). Set only where the organisation has none, and
+/// cleared by the wipe only if it is still this value.
+const DEMO_TIME_ZONE = "Asia/Kuala_Lumpur";
 const P = "demo_";
 const day = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
@@ -99,6 +103,7 @@ async function wipe() {
   await db.person.deleteMany({ where: demo });
 
   await db.auditEntry.deleteMany({ where: { organisationId: org.id, entityId: { startsWith: P } } });
+  if (org.timeZone === DEMO_TIME_ZONE) await db.organisation.update({ where: { id: org.id }, data: { timeZone: null } });
 
   console.log("Demo data removed. The organisation and any real configuration are untouched.");
 }
@@ -115,6 +120,7 @@ async function load() {
   }
 
   const from = day("2024-01-01");
+  if (!org.timeZone) await db.organisation.update({ where: { id: org.id }, data: { timeZone: DEMO_TIME_ZONE } });
 
   // ------------------------------------------------------------------- people
   await db.person.createMany({

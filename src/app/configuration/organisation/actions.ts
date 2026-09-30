@@ -271,7 +271,8 @@ export async function saveSite(_prev: FormState, data: FormData): Promise<FormSt
 /**
  * Set the organisation's time zone: the zone "today" is judged in — whether a vote
  * sheet is dated in the future, the day a matter is tabled. An IANA name, checked
- * against the runtime. Clearing it judges dates in UTC again, and the screen says so.
+ * against the runtime. Clearing it leaves it unset, which is not UTC: sittings then
+ * cannot start, table or vote until it is set again.
  */
 export async function saveTimeZone(_prev: FormState, data: FormData): Promise<FormState> {
   const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE } });

@@ -64,9 +64,9 @@ export default async function OrganisationPage({
           Today, for a vote sheet or a tabling, is the day in this zone.
         </Callout>
       ) : (
-        <Callout tone="warn" className="mb-5" title="Time zone not set — dates judged in UTC" action={<EditTimeZone timeZone={null} />}>
-          Between midnight and the zone&apos;s offset, &ldquo;today&rdquo; is still yesterday in UTC, so a vote sheet
-          dated today can be refused as in the future. Set the zone the organisation keeps its dates in.
+        <Callout tone="warn" className="mb-5" title="Time zone not set" action={<EditTimeZone timeZone={null} />}>
+          &ldquo;Today&rdquo; is not assumed to be UTC. Until the zone the organisation keeps its dates in is set,
+          committee sittings cannot start, matters cannot be tabled and votes cannot be recorded.
         </Callout>
       )}
 

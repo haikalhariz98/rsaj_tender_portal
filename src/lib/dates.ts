@@ -7,7 +7,8 @@
  * a zone for the customer.
  */
 
-/// The day `instant` falls on in `timeZone`, as YYYY-MM-DD. Null judges it in UTC.
+/// The day `instant` falls on in `timeZone`, as YYYY-MM-DD. Null judges it in UTC —
+/// for callers that must have a day; the organisation's "today" uses `todayIn`.
 export function dayIn(instant: Date, timeZone: string | null): string {
   if (!timeZone) return instant.toISOString().slice(0, 10);
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -18,6 +19,14 @@ export function dayIn(instant: Date, timeZone: string | null): string {
   }).formatToParts(instant);
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/**
+ * The organisation's today. Null while no zone is set: an unset zone is not UTC
+ * (ruling §9.5), so acts that depend on the day are refused until one is.
+ */
+export function todayIn(instant: Date, timeZone: string | null): string | null {
+  return timeZone ? dayIn(instant, timeZone) : null;
 }
 
 /// A calendar date as stored — midnight UTC of the day typed — back to YYYY-MM-DD.
@@ -48,8 +57,10 @@ export function hourIn(instant: Date, timeZone: string | null): number {
   return Number(h) % 24;
 }
 
-/// How the prototype greets, by the hour in the organisation's zone.
+/// How the prototype greets, by the hour in the organisation's zone. With no zone set
+/// there is no honest time of day, so it does not claim one.
 export function greetingAt(instant: Date, timeZone: string | null): string {
+  if (!timeZone) return "Welcome";
   const hour = hourIn(instant, timeZone);
   if (hour < 12) return "Good morning";
   if (hour < 18) return "Good afternoon";

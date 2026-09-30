@@ -21,7 +21,8 @@ export type TransitionFault =
   | "MATTERS_DECIDED"
   | "NOT_YET_DUE"
   | "REGISTER_FAULTS"
-  | "DECISION_NO_LONGER_HOLDS";
+  | "DECISION_NO_LONGER_HOLDS"
+  | "TIME_ZONE_UNSET";
 
 const NEXT: Record<MeetingStatus, readonly MeetingStatus[]> = {
   SCHEDULED: ["IN_PROGRESS", "CANCELLED"],
@@ -39,7 +40,8 @@ export function meetingTransition(
     matterOutcomes: readonly DecisionOutcome[];
     /// Today in the organisation's zone and the sitting's date, both YYYY-MM-DD. A
     /// sitting cannot start before the day it is dated.
-    today?: string;
+    /// Null while the organisation has no time zone: a sitting cannot start then.
+    today?: string | null;
     meetingDay?: string;
     /// Faults in the register as it stands. A minute of a faulty register is refused.
     registerFaults?: number;
@@ -48,6 +50,7 @@ export function meetingTransition(
   },
 ): { ok: true } | { ok: false; fault: TransitionFault } {
   if (!NEXT[from].includes(to)) return { ok: false, fault: "NOT_ALLOWED" };
+  if (to === "IN_PROGRESS" && f.today === null) return { ok: false, fault: "TIME_ZONE_UNSET" };
   if (to === "IN_PROGRESS" && f.today && f.meetingDay && f.meetingDay > f.today) {
     return { ok: false, fault: "NOT_YET_DUE" };
   }

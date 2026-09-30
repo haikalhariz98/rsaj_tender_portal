@@ -132,8 +132,8 @@ model Organisation {
   name      String
   nameMs    String?
   /// The IANA time zone the organisation keeps its dates in (for example
-  /// Asia/Kuala_Lumpur). Null means nobody has set one, and dates such as "today"
-  /// are judged in UTC — shown as such, never assumed.
+  /// Asia/Kuala_Lumpur). Null means nobody has set one. It is not UTC: acts that
+  /// depend on "today" (starting a sitting, tabling, voting) wait until it is set.
   timeZone  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

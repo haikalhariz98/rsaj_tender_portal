@@ -358,3 +358,26 @@ describe("recusal and alternates (send-back 8.5)", () => {
     expect(absent.recusedPresentIds).toEqual([]);
   });
 });
+
+describe("blocker wording", () => {
+  it("says how many more members a matter needs, and names configuration gaps once", async () => {
+    const { blockerShort, configurationGapLine } = await import("./labels");
+    const a = assessMatter({ ...base, occupants: sitting("A", "B"), votes: [v("A", "SETUJU"), v("B", "SETUJU")] });
+    expect(blockerShort(a)).toBe("Needs 1 more voting member present");
+    expect(blockerShort(assessMatter(base))).toBeNull();
+    expect(configurationGapLine(["QUORUM_UNCONFIGURED", "VOTING_RULE_UNCONFIGURED", "VOTES_OUTSTANDING"])).toBe(
+      "Can't be decided until the committee's quorum and voting rule are set.",
+    );
+  });
+});
+
+describe("time zone unset (ruling 9.5)", () => {
+  it("refuses a vote while the organisation has no time zone", () => {
+    const r = canVote({
+      meetingStatus: "IN_PROGRESS", meetingDate: new Date("2026-03-01T00:00:00Z"), today: null, outcome: "PENDING",
+      tabled: true, personId: "A", presentVoterIds: ["A"], recusedIds: [], choice: "SETUJU", votedAt: "2026-03-01",
+    });
+    expect(r).toEqual({ ok: false, fault: "TIME_ZONE_UNSET" });
+    expect(VOTE_FAULT_STATUS.TIME_ZONE_UNSET).toBe(409);
+  });
+});

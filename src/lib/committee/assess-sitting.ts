@@ -153,8 +153,24 @@ export function checkAttendanceChange(
   matters: readonly SittingMatter[],
   proposed: readonly AttendanceRecord[],
 ): AttendanceChangeCheck {
-  const before = assessFromRegister(register, rules, matters);
-  const after = assessFromRegister(withAttendance(register, proposed), rules, matters);
+  return checkRegisterChange(register, withAttendance(register, proposed), rules, matters);
+}
+
+/**
+ * Whether a register may change from `beforeRegister` to `afterRegister` under a
+ * sitting in progress — through its attendance, or through a seat or role
+ * assignment that re-resolves who holds a seat on the sitting date (send-back 9.4).
+ * The same three refusals: no new fault for anyone, no vote on record made
+ * ineligible, no decided matter broken.
+ */
+export function checkRegisterChange(
+  beforeRegister: Register,
+  afterRegister: Register,
+  rules: SittingRules,
+  matters: readonly SittingMatter[],
+): AttendanceChangeCheck {
+  const before = assessFromRegister(beforeRegister, rules, matters);
+  const after = assessFromRegister(afterRegister, rules, matters);
 
   const key = (f: { personId: string; fault: string }) => `${f.personId}|${f.fault}`;
   const had = new Set(before.present.faults.map(key));

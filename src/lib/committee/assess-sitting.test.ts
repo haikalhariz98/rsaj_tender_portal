@@ -165,3 +165,24 @@ describe("contested office (send-back 8.4)", () => {
     expect(registerRole(reg, "money")).toMatchObject({ kind: "CONTESTED" });
   });
 });
+
+describe("checkRegisterChange (send-back 9.4)", () => {
+  it("refuses a role change that takes a voter's seat away mid-sitting", async () => {
+    const { checkRegisterChange } = await import("./assess-sitting");
+    const attendance = [here("chief"), here("money"), here("named")];
+    const before = resolveRegister({ meetingDate: d("2026-03-01"), seats, roster, attendance });
+    // The Money office passes to someone else, dated before the sitting.
+    const moved: Roster = {
+      ...roster,
+      assignments: roster.assignments.map((x) => (x.roleCode === "MONEY" ? { ...x, personId: "alt" } : x)),
+    };
+    const after = resolveRegister({ meetingDate: d("2026-03-01"), seats, roster: moved, attendance });
+    const pending = {
+      id: "P", act: "R", tabled: true, outcome: "PENDING" as const, dependencyOutcome: null, recusedIds: [],
+      votes: [{ personId: "money", choice: "SETUJU" as const }],
+    };
+    const r = checkRegisterChange(before, after, { quorum: 2, votingRule: "SIMPLE_MAJORITY", alternateMayVoteForRecused: null }, [pending]);
+    expect(r.ok).toBe(false);
+    expect(r.newlyIneligible).toEqual([{ matterId: "P", personId: "money" }]);
+  });
+});

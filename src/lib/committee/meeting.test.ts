@@ -164,3 +164,16 @@ describe("secretariatHoldersOn", () => {
     expect(secretariatHoldersOn(roster, null, "2026-09-30")).toEqual([]);
   });
 });
+
+describe("time zone unset (ruling 9.5)", () => {
+  it("refuses to start a sitting or table a matter", () => {
+    expect(meetingTransition("SCHEDULED", "IN_PROGRESS", { minutes: "", reason: "", matterOutcomes: [], today: null, meetingDay: "2026-03-01" })).toEqual({
+      ok: false,
+      fault: "TIME_ZONE_UNSET",
+    });
+    expect(checkTabling({ secretariatRoleCode: "SEC", tabledByPersonId: "p", holderIdsOnDate: ["p"], tablingDay: null })).toEqual({
+      ok: false,
+      fault: "TIME_ZONE_UNSET",
+    });
+  });
+});

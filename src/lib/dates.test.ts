@@ -38,6 +38,14 @@ describe("greetingAt", () => {
     const instant = new Date("2026-03-01T23:30:00Z"); // 07:30 in Kuala Lumpur
     expect(hourIn(instant, "Asia/Kuala_Lumpur")).toBe(7);
     expect(greetingAt(instant, "Asia/Kuala_Lumpur")).toBe("Good morning");
-    expect(greetingAt(instant, null)).toBe("Good evening");
+    expect(greetingAt(instant, null)).toBe("Welcome");
+  });
+});
+
+describe("todayIn", () => {
+  it("is null while the organisation has no zone: unset is not UTC", async () => {
+    const { todayIn } = await import("./dates");
+    expect(todayIn(new Date("2026-03-01T23:30:00Z"), null)).toBeNull();
+    expect(todayIn(new Date("2026-03-01T23:30:00Z"), "Asia/Kuala_Lumpur")).toBe("2026-03-02");
   });
 });

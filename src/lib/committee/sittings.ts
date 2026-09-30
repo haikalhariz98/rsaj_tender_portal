@@ -1,11 +1,12 @@
 import type { Tx } from "@/lib/audit/record";
-import { dayIn } from "@/lib/dates";
+import { todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster } from "@/lib/people/load";
 
 import {
   assessFromRegister,
+  checkRegisterChange,
   isRegisterSnapshot,
   resolveRegister,
   type SittingMatter,
@@ -13,6 +14,7 @@ import {
 } from "./assess-sitting";
 import { outcomesOffered, type DecisionOutcome } from "./matter";
 import { assessQuorum } from "./quorum";
+import type { Seat } from "./sitting";
 import { secretariatHoldersOn } from "./tabling";
 
 /**
@@ -173,7 +175,8 @@ export async function loadSitting(id: string, client: Tx = db, preloaded?: Roste
     ? { ...Object.fromEntries(roster.people.map((p) => [p.id, p.name])), ...snapshot.names }
     : Object.fromEntries(roster.people.map((p) => [p.id, p.name]));
 
-  const today = dayIn(new Date(), org.timeZone ?? null);
+  // Null while the organisation has no time zone: starting, tabling and voting wait.
+  const today = todayIn(new Date(), org.timeZone ?? null);
   const secretariat = c.secretariatRoleCode;
 
   return {
@@ -254,4 +257,65 @@ export async function sittingHistory(s: LoadedSitting) {
   }));
   /// Never silently truncated: the screen says "latest N of M" when there are more.
   return { entries, total };
+}
+
+/**
+ * Would a change to seats or role assignments disturb a sitting in progress?
+ *
+ * An ex-officio seat resolves through role assignments on the sitting date, and a
+ * named seat through its own period, so either kind of change can move who sits —
+ * and a vote on record or a decided matter with it. For each sitting in progress on a
+ * committee the change touches, the register is resolved again with the change
+ * applied and compared (`checkRegisterChange`). Returns a refusal naming the sitting,
+ * or null. Minuted sittings are unaffected: they read their snapshot.
+ */
+export async function inProgressSittingRefusal(change: {
+  /// Committees whose seats change.
+  committeeIds?: string[];
+  /// Or: an office whose holders change; every committee with a seat for it.
+  roleCode?: string;
+  seats?: (committeeId: string, seats: Seat[]) => Seat[];
+  roster?: (roster: RosterData) => RosterData;
+}): Promise<string | null> {
+  const orgId = await organisationId();
+  if (!orgId) return null;
+  const meetings = await db.meeting.findMany({
+    where: {
+      status: "IN_PROGRESS",
+      committee: {
+        organisationId: orgId,
+        ...(change.committeeIds ? { id: { in: change.committeeIds } } : {}),
+        ...(change.roleCode ? { members: { some: { seatRoleCode: change.roleCode } } } : {}),
+      },
+    },
+    select: { id: true },
+  });
+  if (meetings.length === 0) return null;
+
+  const roster = await loadRoster(ORGANISATION_CODE);
+  const problems: string[] = [];
+  for (const { id } of meetings) {
+    const s = await loadSitting(id, db, roster);
+    if (!s) continue;
+    const c = s.meeting.committee;
+    const seats = change.seats ? change.seats(c.id, c.members) : c.members;
+    const after = resolveRegister({
+      meetingDate: s.meeting.meetingDate,
+      seats,
+      roster: change.roster ? change.roster(roster) : roster,
+      attendance: s.meeting.attendance,
+    });
+    const check = checkRegisterChange(s.register, after, s.rules, s.matters);
+    if (check.ok) continue;
+    const subject = (mid: string) => s.meeting.decisions.find((d) => d.id === mid)?.subject ?? "a matter";
+    const what = [
+      ...check.newlyIneligible.map((v) => `${s.names[v.personId] ?? "a member"}'s vote on “${subject(v.matterId)}” would no longer count`),
+      ...check.brokenDecisions.map((mid) => `“${subject(mid)}”, already decided, would no longer follow from the register`),
+      ...(check.newFaults.length > 0 ? ["the register would have faults"] : []),
+    ];
+    problems.push(`the sitting ${s.meeting.reference} of the ${s.committeeName}, in progress: ${what.join("; ")}`);
+  }
+  return problems.length === 0
+    ? null
+    : `This change is refused because it would change who sits at ${problems.join(", and at ")}. Make it once the sitting is minuted.`;
 }

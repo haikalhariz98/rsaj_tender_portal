@@ -10,14 +10,17 @@
 import { dayToDate } from "@/lib/dates";
 import { holdersOf, type Roster } from "@/lib/people/roster";
 
-export type TablingFault = "SECRETARIAT_NOT_SET" | "NOT_TABLED" | "NOT_SECRETARIAT_HOLDER";
+export type TablingFault = "SECRETARIAT_NOT_SET" | "NOT_TABLED" | "NOT_SECRETARIAT_HOLDER" | "TIME_ZONE_UNSET";
 
 export function checkTabling(i: {
   secretariatRoleCode: string | null;
   tabledByPersonId: string | null;
   /// Active holders of the Secretariat office on the tabling date.
   holderIdsOnDate: readonly string[];
+  /// The tabling day; null while the organisation has no time zone. Absent: not judged.
+  tablingDay?: string | null;
 }): { ok: true } | { ok: false; fault: TablingFault } {
+  if (i.tablingDay === null) return { ok: false, fault: "TIME_ZONE_UNSET" };
   if (!i.secretariatRoleCode) return { ok: false, fault: "SECRETARIAT_NOT_SET" };
   if (!i.tabledByPersonId) return { ok: false, fault: "NOT_TABLED" };
   if (!i.holderIdsOnDate.includes(i.tabledByPersonId)) {
@@ -35,9 +38,9 @@ export function checkTabling(i: {
 export function secretariatHoldersOn(
   roster: Roster,
   secretariatRoleCode: string | null,
-  tablingDay: string,
+  tablingDay: string | null,
 ): { id: string; name: string }[] {
-  if (!secretariatRoleCode) return [];
+  if (!secretariatRoleCode || !tablingDay) return [];
   return holdersOf(roster, secretariatRoleCode, dayToDate(tablingDay))
     .filter((p) => p.isActive)
     .map((p) => ({ id: p.id, name: p.name }));

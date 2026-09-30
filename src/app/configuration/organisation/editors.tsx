@@ -347,7 +347,7 @@ export function EditTimeZone({ timeZone }: { timeZone: string | null }) {
           name: "timeZone",
           label: "Time zone",
           placeholder: "Region/City",
-          hint: "An IANA name. Leave empty to judge dates in UTC.",
+          hint: "An IANA name. Left empty, it is not set: sittings cannot start, table or vote until it is.",
         },
       ]}
       values={{ timeZone }}

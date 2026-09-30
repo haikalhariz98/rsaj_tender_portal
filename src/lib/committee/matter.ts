@@ -267,6 +267,7 @@ export type VoteFault =
   | "MEETING_CLOSED"
   | "MATTER_NOT_TABLED"
   | "MATTER_DECIDED"
+  | "TIME_ZONE_UNSET"
   | "NOT_A_PRESENT_VOTER"
   | "RECUSED";
 
@@ -288,8 +289,9 @@ const dayOf = (d: Date) => d.toISOString().slice(0, 10);
 export function canVote(i: {
   meetingStatus: MeetingStatus;
   meetingDate: Date;
-  /// Today in the organisation's time zone, YYYY-MM-DD (`dayIn`).
-  today: string;
+  /// Today in the organisation's time zone, YYYY-MM-DD (`todayIn`). Null while no
+  /// zone is set: the sheet date cannot be judged, so no vote is recorded.
+  today: string | null;
   outcome: DecisionOutcome;
   tabled: boolean;
   personId: string;
@@ -309,6 +311,7 @@ export function canVote(i: {
   if (i.meetingStatus !== "IN_PROGRESS") return { ok: false, fault: "MEETING_CLOSED" };
   if (i.outcome !== "PENDING") return { ok: false, fault: "MATTER_DECIDED" };
   if (!i.tabled) return { ok: false, fault: "MATTER_NOT_TABLED" };
+  if (i.today == null) return { ok: false, fault: "TIME_ZONE_UNSET" };
 
   if (i.votedAt > i.today) return { ok: false, fault: "DATE_IN_FUTURE" };
   if (i.votedAt < dayOf(i.meetingDate)) return { ok: false, fault: "DATE_BEFORE_SITTING" };
@@ -329,6 +332,7 @@ export const VOTE_FAULT_STATUS: Record<VoteFault, 400 | 403 | 409 | 422> = {
   MEETING_CLOSED: 409,
   MATTER_NOT_TABLED: 409,
   MATTER_DECIDED: 409,
+  TIME_ZONE_UNSET: 409,
   NOT_A_PRESENT_VOTER: 403,
   RECUSED: 403,
 };

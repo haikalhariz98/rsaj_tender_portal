@@ -10,6 +10,7 @@ import { ORGANISATION_CODE } from "@/lib/org";
 import { compareAmounts } from "@/lib/money";
 import { checkPeriod, FormReader } from "@/lib/validate";
 import { checkAlternateLink } from "@/lib/committee/sitting";
+import { inProgressSittingRefusal } from "@/lib/committee/sittings";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const ACTIONS = ["APPROVES", "RECOMMENDS", "CONSENTS", "DECIDES"] as const;
@@ -271,6 +272,18 @@ export async function saveMember(_prev: FormState, data: FormData): Promise<Form
   if (!committee) return { ok: false, message: "That committee no longer exists." };
 
   const write = { ...v, position: v.position, provenance: v.provenance! };
+
+  // A seat whose period covers a sitting in progress may not move who sits there in a
+  // way that voids a recorded vote or a decided matter (send-back 9.4).
+  const sitting = await inProgressSittingRefusal({
+    committeeIds: [committeeId],
+    seats: (_c, seats) => {
+      const next = { ...write, id: id || "proposed-seat" };
+      return id ? seats.map((x) => (x.id === id ? { ...x, ...next } : x)) : [...seats, next];
+    },
+  });
+  if (sitting) return { ok: false, message: sitting };
+
   const ctx = {
     organisationId: orgId,
     entity: "CommitteeMember",
@@ -310,6 +323,11 @@ export async function vacateSeat(_prev: FormState, data: FormData): Promise<Form
   if (before.effectiveTo) return { ok: false, message: "That seat is already vacated." };
 
   const effectiveTo = new Date();
+  const sitting = await inProgressSittingRefusal({
+    committeeIds: [before.committeeId],
+    seats: (_c, seats) => seats.map((x) => (x.id === id ? { ...x, effectiveTo } : x)),
+  });
+  if (sitting) return { ok: false, message: sitting };
   await auditedUpdate(
     {
       organisationId: orgId,

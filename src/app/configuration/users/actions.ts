@@ -10,6 +10,7 @@ import { faultsIn, type Delegation, type DelegationFault } from "@/lib/people/de
 import { ORGANISATION_CODE } from "@/lib/org";
 import { checkPeriod, FormReader } from "@/lib/validate";
 import { issuedInForce } from "@/lib/authority/issue";
+import { inProgressSittingRefusal } from "@/lib/committee/sittings";
 
 const PATH = "/configuration/users";
 
@@ -126,6 +127,12 @@ export async function setPersonActive(_prev: FormState, data: FormData): Promise
   if (before.isActive === isActive) {
     return { ok: false, message: "Somebody has already changed that. Close and look again." };
   }
+  // A leaver stops holding the offices they hold, which can change who sits at a
+  // committee sitting in progress.
+  const sitting = await inProgressSittingRefusal({
+    roster: (r) => ({ ...r, people: r.people.map((p) => (p.id === id ? { ...p, isActive } : p)) }),
+  });
+  if (sitting) return { ok: false, message: sitting };
 
   await auditedUpdate(
     { organisationId: orgId, entity: "Person", entityId: id, entityLabel: before.name, reason },
@@ -519,6 +526,23 @@ export async function saveAssignment(_prev: FormState, data: FormData): Promise<
   const parsed = r.finish(v);
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
+  // Holding an office decides who sits in an ex-officio committee seat on a date: the
+  // change may not move who sits at a sitting in progress (send-back 9.4).
+  const previous = id ? await db.roleAssignment.findUnique({ where: { id }, select: { roleCode: true } }) : null;
+  for (const code of new Set([roleCode, previous?.roleCode].filter((c): c is string => !!c))) {
+    const sitting = await inProgressSittingRefusal({
+      roleCode: code,
+      roster: (r) => {
+        const next = { id: id || "proposed-assignment", ...v };
+        return {
+          ...r,
+          assignments: id ? r.assignments.map((a) => (a.id === id ? next : a)) : [...r.assignments, next],
+        };
+      },
+    });
+    if (sitting) return { ok: false, message: sitting };
+  }
+
   const label = `${roleCode} assignment`;
   const ctx = {
     organisationId: orgId,
@@ -559,6 +583,11 @@ export async function endAssignment(_prev: FormState, data: FormData): Promise<F
   if (before.effectiveTo) return { ok: false, message: "That assignment has already ended." };
 
   const effectiveTo = new Date();
+  const sitting = await inProgressSittingRefusal({
+    roleCode: before.roleCode,
+    roster: (r) => ({ ...r, assignments: r.assignments.map((a) => (a.id === id ? { ...a, effectiveTo } : a)) }),
+  });
+  if (sitting) return { ok: false, message: sitting };
   await auditedUpdate(
     {
       organisationId: orgId,

@@ -311,7 +311,15 @@ export async function recordAttendance(_prev: FormState, data: FormData): Promis
         ...change.newlyIneligible.map(
           (v) => `${s.names[v.personId] ?? "Someone"} has voted on “${subject(v.matterId)}”, and that vote would no longer count. A vote cannot be withdrawn.`,
         ),
-        ...change.brokenDecisions.map((id) => `“${subject(id)}” is decided, and would no longer follow from the register.`),
+        ...(change.brokenDecisions.length === 0
+          ? []
+          : attended
+            ? [
+                // Ruling §9.1: a late arrival cannot be recorded until per-matter presence
+                // exists; it goes in the minutes instead.
+                `${name}'s arrival can't be recorded yet: ${change.brokenDecisions.map((id) => `“${subject(id)}”`).join(" and ")} ${change.brokenDecisions.length === 1 ? "is" : "are"} already decided, and presence per matter is not built, so recording it would count ${name} as present on a matter they did not vote on. Note the arrival in the minutes.`,
+              ]
+            : change.brokenDecisions.map((id) => `“${subject(id)}” is decided, and would no longer follow from the register.`)),
       ];
       return { ok: false, message: `This change is refused. ${lines.join(" ")}` };
     }
@@ -357,9 +365,11 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
 
     const code = s.meeting.committee.secretariatRoleCode;
     const holders = secretariatHoldersOn(s.roster, code, s.today).map((h) => h.id);
-    const tabling = checkTabling({ secretariatRoleCode: code, tabledByPersonId, holderIdsOnDate: holders });
+    const tabling = checkTabling({ secretariatRoleCode: code, tabledByPersonId, holderIdsOnDate: holders, tablingDay: s.today });
     if (!tabling.ok) {
-      if (tabling.fault === "SECRETARIAT_NOT_SET") return { ok: false, message: TABLING_FAULT_MESSAGE.SECRETARIAT_NOT_SET };
+      if (tabling.fault === "SECRETARIAT_NOT_SET" || tabling.fault === "TIME_ZONE_UNSET") {
+        return { ok: false, message: TABLING_FAULT_MESSAGE[tabling.fault] };
+      }
       r.reject("tabledByPersonId", TABLING_FAULT_MESSAGE[tabling.fault]);
     }
     if (dependsOnDecisionId) {
@@ -374,7 +384,7 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
     const parsed = r.finish(v);
     if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
-    const tabledAt = dayToDate(s.today);
+    const tabledAt = dayToDate(s.today!);
     const sequence = s.meeting.decisions.reduce((n, d) => Math.max(n, d.sequence), 0) + 1;
     const row = await tx.committeeDecision.create({
       data: { meetingId, subject, domain, matterKind, matterRef, amount, act: act!, tabledByPersonId, tabledAt, dependsOnDecisionId, sequence },
@@ -462,9 +472,16 @@ export async function recordOutcome(_prev: FormState, data: FormData): Promise<F
     );
     if (!check.ok) {
       const field = ({ OUTCOME_REQUIRED: "notApprovedOutcomeId", OUTCOME_NOT_OFFERED: "notApprovedOutcomeId", NOTE_REQUIRED: "outcomeNote" } as Record<string, string>)[check.fault];
-      return field
-        ? { ok: false, errors: { [field]: OUTCOME_FAULT_MESSAGE[check.fault] } }
-        : { ok: false, message: OUTCOME_FAULT_MESSAGE[check.fault] };
+      if (field) return { ok: false, errors: { [field]: OUTCOME_FAULT_MESSAGE[check.fault] } };
+      // Every refusal names what blocks it, not only that something does.
+      if (check.fault === "MATTER_NOT_READY") {
+        return { ok: false, message: `This matter cannot be decided yet. ${assessment.messageEn}` };
+      }
+      if (check.fault === "OUTCOME_CONTRADICTS_VOTES") {
+        const came = assessment.computed === "CARRIED" ? "carried" : "not carried";
+        return { ok: false, message: `That outcome does not follow from the votes recorded: they come to ${came}.` };
+      }
+      return { ok: false, message: OUTCOME_FAULT_MESSAGE[check.fault] };
     }
 
     const decided = outcome !== "DEFERRED";
