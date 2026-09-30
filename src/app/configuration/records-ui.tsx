@@ -1,4 +1,16 @@
+import type { ReactNode } from "react";
+
 import { AlertTriangle } from "@/components/icons";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardHeader } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/feedback";
+import { ProvenanceBadge } from "@/components/ui/provenance";
+import { Stat as UiStat } from "@/components/ui/stat";
+
+/**
+ * The pieces the record registers (Documents, Templates, Notifications) share, built
+ * on the design system so the three screens cannot drift from one another.
+ */
 
 export function Stat({
   label,
@@ -7,28 +19,29 @@ export function Stat({
   warn,
 }: {
   label: string;
+  /// Null is "nothing to count yet", shown as a dash rather than a nought.
   value: string | number | null;
   hint: string;
   warn?: boolean;
 }) {
   return (
-    <div className="stat">
-      <div className="stat__top">
-        <span className="stat__label">{label}</span>
-        {warn && (
-          <span className="stat__ico stat__ico--warn">
-            <AlertTriangle size={15} />
-          </span>
-        )}
-      </div>
-      <div className="stat__value">{value ?? <span className="dim">Not set</span>}</div>
-      <div className="stat__foot">
-        <span className="stat__hint">{hint}</span>
-      </div>
-    </div>
+    <UiStat
+      label={label}
+      value={value}
+      hint={hint}
+      tone={warn ? "warn" : "neutral"}
+      icon={warn ? <AlertTriangle size={16} /> : undefined}
+    />
   );
 }
 
+/// A row of headline figures above a register.
+export function Stats({ children }: { children: ReactNode }) {
+  return <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">{children}</div>;
+}
+
+/// One register: its title, count and add action, what it is for, and the list — or,
+/// where nothing is set, what that leaves undecided.
 export function Section({
   title,
   blurb,
@@ -42,54 +55,27 @@ export function Section({
   empty: string;
   count: number;
   /// Present even on an empty section: that is where the first entry gets added.
-  action?: React.ReactNode;
-  children: React.ReactNode;
+  action?: ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <section className="section" style={{ marginBottom: 24 }}>
-      <div className="section__head">
-        <h2 className="h3">{title}</h2>
-        {count > 0 && <span className="badge badge--outline">{count}</span>}
-        <div className="spacer" />
-        {action}
-      </div>
-      <p className="sm muted" style={{ margin: "0 0 12px" }}>
-        {blurb}
-      </p>
-      {count === 0 ? (
-        <div className="card">
-          <div className="card__body">
-            <div className="empty">
-              <div className="empty__t">Not set</div>
-              <p className="empty__d">{empty}</p>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="dl">
-          <div className="tablewrap">{children}</div>
-        </div>
-      )}
-    </section>
+    <Card className="mb-6 overflow-hidden">
+      <CardHeader
+        title={
+          <span className="inline-flex items-center gap-2">
+            {title}
+            {count > 0 && <Badge outline>{count}</Badge>}
+          </span>
+        }
+        subtitle={blurb}
+        actions={action}
+        divided={count === 0}
+      />
+      {count === 0 ? <EmptyState title="Not set">{empty}</EmptyState> : children}
+    </Card>
   );
 }
 
-const PROVENANCE_LABEL: Record<string, string> = {
-  STATED: "Stated",
-  OBSERVED: "Observed",
-  ASSUMED: "Assumed",
-};
-
-const PROVENANCE_CHIP: Record<string, string> = {
-  STATED: "chip--ok",
-  OBSERVED: "chip--info",
-  ASSUMED: "chip--warn",
-};
-
 export function ProvenanceChip({ value }: { value: string }) {
-  return (
-    <span className={`chip ${PROVENANCE_CHIP[value] ?? ""}`}>
-      {PROVENANCE_LABEL[value] ?? value}
-    </span>
-  );
+  return <ProvenanceBadge value={value} />;
 }

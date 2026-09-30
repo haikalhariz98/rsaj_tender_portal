@@ -3,7 +3,11 @@
 import { formDataOf } from "@/components/ui/form-submit";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 
-import { AlertTriangle, PlusIcon, SaveIcon, XIcon } from "@/components/icons";
+import { PlusIcon, SaveIcon, XIcon } from "@/components/icons";
+import { buttonClass, iconButtonClass } from "@/components/ui/button";
+import { cx } from "@/components/ui/cx";
+import { Callout } from "@/components/ui/feedback";
+import { AffixInput, Field, Input, Select, Switch, Textarea } from "@/components/ui/field";
 
 /**
  * The form chrome around every configuration record.
@@ -165,7 +169,9 @@ export function RecordEditor({
       <button
         type="button"
         ref={opener}
-        className={trigger.className ?? (trigger.iconOnly ? "iconbtn iconbtn--sm" : "btn btn--sm")}
+        className={
+          trigger.className ?? (trigger.iconOnly ? iconButtonClass("sm") : buttonClass("secondary", "sm"))
+        }
         aria-label={trigger.iconOnly ? trigger.label : undefined}
         title={trigger.iconOnly ? trigger.label : undefined}
         onClick={() => {
@@ -179,61 +185,45 @@ export function RecordEditor({
 
       {open && (
         <div
-          className="scrim scrim--right"
+          className="fixed inset-0 z-50 flex justify-end bg-ink/30 backdrop-blur-[2px]"
           onPointerDown={(e) => e.target === e.currentTarget && setOpen(false)}
         >
           <aside
-            className={`drawer${size === "md" ? "" : ` drawer--${size}`}`}
+            className={cx("flex h-full max-w-[96vw] flex-col bg-surface shadow-pop", DRAWER_WIDTH[size])}
             role="dialog"
             aria-modal="true"
             aria-label={title}
             ref={dialog}
           >
-            {/* The drawer is the flex column that .ov__body scrolls inside, but the
-                form sits between them — so it has to carry the column too. Without
-                this the body has no height to scroll within and long forms are cut
-                off with no scrollbar. */}
-            <form
-              onSubmit={(e) => submit(formDataOf(e))}
-              style={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}
-            >
-              <div className="ov__head">
-                {icon}
-                <div className="grow" style={{ minWidth: 0 }}>
-                  <div className="row" style={{ gap: 8 }}>
-                    <div className="h2 trunc">{title}</div>
-                  </div>
-                  {description && (
-                    <div className="sm muted" style={{ marginTop: 2 }}>
-                      {description}
-                    </div>
-                  )}
+            {/* The form is the flex column the body scrolls inside; without it the body
+                has no height to scroll within and long forms are cut off. */}
+            <form onSubmit={(e) => submit(formDataOf(e))} className="flex min-h-0 flex-1 flex-col">
+              <header className="flex items-start gap-3 border-b border-line px-6 py-5">
+                {icon && (
+                  <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700 [&_svg]:m-0">
+                    {icon}
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <h2 className="truncate text-[18px] font-bold tracking-tight text-ink">{title}</h2>
+                  {description && <p className="mt-0.5 text-[13px] text-ink-3">{description}</p>}
                 </div>
                 <button
                   type="button"
-                  className="iconbtn"
+                  className={iconButtonClass("sm")}
                   aria-label="Close"
                   onClick={() => setOpen(false)}
                 >
                   <XIcon size={17} />
                 </button>
-              </div>
+              </header>
 
-              <div className="ov__body">
-                <div className={columns === 2 ? "stack stack--lg" : "stack stack--md"}>
-                  {state.message && (
-                    <div className="callout callout--err">
-                      <span className="callout__ico">
-                        <AlertTriangle size={17} />
-                      </span>
-                      <div className="grow">
-                        <span className="sm">{state.message}</span>
-                      </div>
-                    </div>
-                  )}
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+                <div className="flex flex-col gap-5">
+                  {state.message && <Callout tone="err">{state.message}</Callout>}
 
                   {identity}
-                  {identity && <div className="divider" />}
+                  {identity && <hr className="border-line" />}
 
                   {/* Hidden inputs carry no layout, so they stay outside the grid —
                       inside it each one would take a cell and offset the pairs. */}
@@ -248,12 +238,17 @@ export function RecordEditor({
                       />
                     ))}
 
-                  <FieldSet columns={columns}>
+                  {/* One column is a stack, not a one-column grid: a wide field's col-span would
+                      otherwise conjure a second, content-sized column beside it. */}
+                  <div className={columns === 2 ? "grid gap-4 sm:grid-cols-2" : "flex flex-col gap-4"}>
                     {fields
                       .filter((f) => f.kind !== "hidden")
                       .map((field) =>
                         field.kind === "note" ? (
-                          <p key={field.text} className="sm muted" style={{ margin: 0 }}>
+                          <p
+                            key={field.text}
+                            className="rounded-xl bg-sunken px-3.5 py-2.5 text-[13px] text-ink-2 sm:col-span-2"
+                          >
                             {field.text}
                           </p>
                         ) : (
@@ -265,45 +260,44 @@ export function RecordEditor({
                           />
                         ),
                       )}
-                  </FieldSet>
+                  </div>
 
                   {sections}
 
                   {asksReason && (
-                    <label className="field">
-                      <span className="field__lbl">
-                        {asksReason.label} <span className="field__req">*</span>
-                      </span>
-                      <textarea
-                        className="textarea"
+                    <Field
+                      label={asksReason.label}
+                      required
+                      htmlFor="record-reason"
+                      hint="Recorded in the audit trail. Nobody is signed in, so this is the only account of why the change was made."
+                      error={state.errors?.reason}
+                    >
+                      <Textarea
+                        id="record-reason"
                         name="reason"
                         rows={2}
+                        className="min-h-16"
                         value={reason}
                         onChange={(e) => setReason(e.target.value)}
                       />
-                      <span className="field__hint">
-                        Recorded in the audit trail. Nobody is signed in, so this is the only
-                        account of why the change was made.
-                      </span>
-                    </label>
+                    </Field>
                   )}
                 </div>
               </div>
 
-              <div className="ov__foot">
-                <div className="spacer" />
-                <button type="button" className="btn" onClick={() => setOpen(false)}>
+              <footer className="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
+                <button type="button" className={buttonClass("ghost", "md")} onClick={() => setOpen(false)}>
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className={`btn ${destructive ? "btn--danger" : "btn--primary"}`}
+                  className={buttonClass(destructive ? "danger" : "primary", "md")}
                   disabled={pending || blocked}
                 >
                   {!destructive && <SaveIcon size={15} />}
                   {pending ? "Saving…" : submitLabel}
                 </button>
-              </div>
+              </footer>
             </form>
           </aside>
         </div>
@@ -312,14 +306,21 @@ export function RecordEditor({
   );
 }
 
+const DRAWER_WIDTH = {
+  sm: "w-[28rem]",
+  md: "w-[34rem]",
+  lg: "w-[46rem]",
+  xl: "w-[60rem]",
+} as const;
+
 /**
- * Several values at once, as the sample's token field has them: chosen ones sit as
- * removable tags inside the box, and what is left drops down below it.
+ * Several values at once: chosen ones sit as removable tags inside the box, and what
+ * is left drops down below it.
  *
  * The values ride out on one hidden input, newline-separated — a comma can appear in
- * a customer's own code, a newline cannot — because a server action
- * reading a form has no way to tell an absent multi-value from an empty one — and
- * "nothing was delegated" and "the whole role was" are different acts here.
+ * a customer's own code, a newline cannot — because a server action reading a form
+ * has no way to tell an absent multi-value from an empty one, and "nothing was
+ * delegated" and "the whole role was" are different acts here.
  */
 function TokensInput({
   field,
@@ -341,15 +342,22 @@ function TokensInput({
   );
 
   return (
-    <div className="combo">
+    <div className="relative">
       <input type="hidden" name={field.name} value={chosen.join("\n")} />
-      <div className="tokens" role="group" onClick={() => setOpen(true)}>
+      <div
+        role="group"
+        onClick={() => setOpen(true)}
+        className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-control border border-line-2 bg-surface px-2 py-1.5 transition focus-within:border-brand-500 focus-within:ring-4 focus-within:ring-brand-500/15"
+      >
         {chosen.map((v) => (
-          <span key={v} className="tag">
+          <span
+            key={v}
+            className="inline-flex items-center gap-1 rounded-full bg-brand-50 py-0.5 pr-1 pl-2.5 text-[12.5px] font-medium text-brand-800"
+          >
             {labelOf(v)}
             <button
               type="button"
-              className="tag__x"
+              className="grid size-5 place-items-center rounded-full hover:bg-brand-100"
               aria-label={`Remove ${labelOf(v)}`}
               onClick={(e) => {
                 e.stopPropagation();
@@ -361,15 +369,7 @@ function TokensInput({
           </span>
         ))}
         <input
-          className="grow"
-          style={{
-            border: 0,
-            outline: "none",
-            minWidth: 90,
-            height: 26,
-            fontSize: "13.5px",
-            background: "transparent",
-          }}
+          className="h-7 min-w-24 flex-1 bg-transparent px-1 text-[13.5px] outline-none placeholder:text-ink-4"
           placeholder={chosen.length ? "" : (field.placeholder ?? "Select…")}
           value={typed}
           onChange={(e) => {
@@ -381,15 +381,15 @@ function TokensInput({
         />
       </div>
       {open && (
-        <div className="combo__menu">
+        <div className="absolute inset-x-0 top-[calc(100%+6px)] z-10 max-h-64 overflow-y-auto rounded-2xl border border-line bg-surface p-1.5 shadow-pop">
           {available.length === 0 ? (
-            <div className="combo__empty">Nothing left to choose</div>
+            <div className="px-3 py-2 text-[13px] text-ink-3">Nothing left to choose</div>
           ) : (
             available.map((o) => (
               <button
                 key={o.value}
                 type="button"
-                className="combo__opt"
+                className="block w-full rounded-xl px-3 py-2 text-left text-[13.5px] text-ink hover:bg-sunken"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   setChosen((c) => [...c, o.value]);
@@ -406,21 +406,6 @@ function TokensInput({
   );
 }
 
-/**
- * The inputs, laid out.
- *
- * One column stays a Fragment rather than a wrapper: the fields are direct children
- * of `.stack`, and a div between them would swallow its gap.
- */
-function FieldSet({ columns, children }: { columns: 1 | 2; children: ReactNode }) {
-  if (columns === 1) return <>{children}</>;
-  return (
-    <div className="grid g2" style={{ gap: 14 }}>
-      {children}
-    </div>
-  );
-}
-
 function FieldInput({
   field,
   value,
@@ -432,66 +417,32 @@ function FieldInput({
 }) {
   const required = "required" in field && field.required;
   const hint = "hint" in field ? field.hint : undefined;
-
-  const label = (
-    <span className="field__lbl">
-      {field.label}
-      {required && (
-        <span className="field__req" aria-hidden="true">
-          *
-        </span>
-      )}
-    </span>
-  );
-
-  const foot = (
-    <>
-      {error ? (
-        <span className="field__err">
-          <AlertTriangle size={13} />
-          {error}
-        </span>
-      ) : (
-        hint && <span className="field__hint">{hint}</span>
-      )}
-    </>
-  );
+  const id = `field-${field.name}`;
 
   if (field.kind === "switch") {
-    // The sample's toggle: a track and knob, not a tick box.
     return (
-      <label className="switch">
-        <input type="checkbox" role="switch" name={field.name} defaultChecked={value === true} />
-        <span className="switch__track">
-          <span className="switch__knob" />
-        </span>
-        <span style={{ minWidth: 0 }}>
-          <span className="check__txt">{field.label}</span>
-          {hint && <span className="check__hint">{hint}</span>}
-        </span>
-      </label>
+      <div className="sm:col-span-2">
+        <Switch name={field.name} defaultChecked={value === true} label={field.label} description={hint} />
+        {error && <p className="mt-1.5 text-[12.5px] font-medium text-rose-600">{error}</p>}
+      </div>
     );
   }
 
   if (field.kind === "readonly") {
     return (
-      <div className="field">
-        {label}
-        <span className="sm" style={{ paddingTop: 6 }}>
+      <Field label={field.label} hint={hint} error={error}>
+        <div className="flex h-10 items-center rounded-control bg-sunken px-3.5 text-[14px] text-ink-2">
           {field.text}
-        </span>
-        {foot}
-      </div>
+        </div>
+      </Field>
     );
   }
 
   if (field.kind === "tokens") {
     return (
-      <div className="field">
-        {label}
+      <Field label={field.label} required={required} hint={hint} error={error}>
         <TokensInput field={field} value={(value as string) ?? ""} />
-        {foot}
-      </div>
+      </Field>
     );
   }
 
@@ -503,9 +454,8 @@ function FieldInput({
     const orphaned = current !== "" && !field.options.some((o) => o.value === current);
 
     return (
-      <label className="field">
-        {label}
-        <select className="select" name={field.name} defaultValue={current}>
+      <Field label={field.label} required={required} htmlFor={id} hint={hint} error={error}>
+        <Select id={id} name={field.name} defaultValue={current} aria-invalid={error ? true : undefined}>
           <option value="">{field.placeholder ?? "Not set"}</option>
           {orphaned && <option value={current}>{field.orphanLabel ?? current}</option>}
           {field.options.map((o) => (
@@ -513,60 +463,51 @@ function FieldInput({
               {o.label}
             </option>
           ))}
-        </select>
-        {foot}
-      </label>
+        </Select>
+      </Field>
     );
   }
 
   if (field.kind === "textarea") {
     return (
-      <label className="field">
-        {label}
-        <textarea
-          className="textarea"
+      <Field label={field.label} htmlFor={id} hint={hint} error={error} className="sm:col-span-2">
+        <Textarea
+          id={id}
           name={field.name}
           rows={3}
           placeholder={field.placeholder}
           defaultValue={(value as string) ?? ""}
+          aria-invalid={error ? true : undefined}
         />
-        {foot}
-      </label>
+      </Field>
     );
   }
 
-  const type = field.kind === "date" ? "date" : "text";
-  const cls =
-    field.kind === "number" || field.kind === "money"
-      ? "input input--num"
-      : field.kind === "text" && field.mono
-        ? "input input--mono"
-        : "input";
-
   return (
-    <label className="field">
-      {label}
+    <Field label={field.label} required={required} htmlFor={id} hint={hint} error={error}>
       {field.kind === "money" ? (
-        <div className="inputwrap inputwrap--pre">
-          <span className="inputwrap__pre">RM</span>
-          <input
-            className={cls}
-            name={field.name}
-            inputMode="decimal"
-            defaultValue={(value as string) ?? ""}
-          />
-        </div>
-      ) : (
-        <input
-          className={cls}
-          type={type}
+        <AffixInput
+          id={id}
+          prefix="RM"
           name={field.name}
+          inputMode="decimal"
+          defaultValue={(value as string) ?? ""}
+          aria-invalid={error ? true : undefined}
+          className="[&_input]:text-right"
+        />
+      ) : (
+        <Input
+          id={id}
+          type={field.kind === "date" ? "date" : "text"}
+          name={field.name}
+          mono={field.kind === "text" && field.mono}
+          numeric={field.kind === "number"}
           inputMode={field.kind === "number" ? "numeric" : undefined}
           placeholder={"placeholder" in field ? field.placeholder : undefined}
           defaultValue={(value as string) ?? ""}
+          aria-invalid={error ? true : undefined}
         />
       )}
-      {foot}
-    </label>
+    </Field>
   );
 }

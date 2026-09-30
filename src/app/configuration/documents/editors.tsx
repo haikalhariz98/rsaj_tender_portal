@@ -1,3 +1,4 @@
+import { PencilIcon } from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import type { DocumentClass } from "@/lib/records/load";
 
@@ -63,7 +64,7 @@ export function EditDocumentClass({ row }: { row: DocumentClass }) {
       title={`Edit ${row.nameEn}`}
       fields={[{ kind: "hidden", name: "id" }, ...classFields(true)]}
       action={saveDocumentClass}
-      trigger={{ label: "Edit", className: "btn btn--sm btn--ghost" }}
+      trigger={{ label: `Edit ${row.nameEn}`, iconOnly: <PencilIcon size={15} /> }}
       values={{
         id: row.id,
         code: row.code,

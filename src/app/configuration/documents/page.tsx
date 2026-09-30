@@ -1,7 +1,8 @@
 import { loadDocumentClasses } from "@/lib/records/load";
 import { ORGANISATION_CODE } from "@/lib/org";
 
-import { ProvenanceChip, Section, Stat } from "../records-ui";
+import { ProvenanceChip, Section, Stat, Stats } from "../records-ui";
+import { CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { AddDocumentClass, EditDocumentClass } from "./editors";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +30,7 @@ export default async function DocumentsConfigPage() {
         subtitle="Classification, retention and controlled-copy rules."
       />
 
-      <div className="grid g3 stack--md" style={{ marginBottom: 24 }}>
+      <Stats>
         <Stat
           label="Classes"
           value={classes.length === 0 ? null : classes.length}
@@ -50,7 +51,7 @@ export default async function DocumentsConfigPage() {
           value={classes.length === 0 ? null : classes.filter((c) => c.controlledCopy).length}
           hint="Numbered on issue and recalled"
         />
-      </div>
+      </Stats>
 
       <Section
         title="Document classes"
@@ -59,58 +60,53 @@ export default async function DocumentsConfigPage() {
         count={classes.length}
         action={<AddDocumentClass />}
       >
-        <table className="table">
+        <Table>
           <colgroup>
             <col style={{ width: "26%" }} />
-            <col style={{ width: "16%" }} />
-            <col style={{ width: "16%" }} />
-            <col style={{ width: "16%" }} />
-            <col style={{ width: "12%" }} />
             <col style={{ width: "14%" }} />
+            <col style={{ width: "20%" }} />
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "10%" }} />
           </colgroup>
-          <thead>
-            <tr>
-              <th>Class</th>
-              <th>Keep for</th>
-              <th>Controlled copy</th>
-              <th>Release</th>
-              <th>Source</th>
-              <th />
-            </tr>
-          </thead>
+          <THead>
+            <Th>Class</Th>
+            <Th>Keep for</Th>
+            <Th>Controlled copy</Th>
+            <Th>Release</Th>
+            <Th>Source</Th>
+            <Th className="text-right">Actions</Th>
+          </THead>
           <tbody>
             {classes.map((c) => (
-              <tr key={c.id}>
-                <td>
-                  <div className="cellstack">
-                    <span className="cellstack__t">{c.nameEn}</span>
-                    {c.nameMs && <span className="cellstack__s">{c.nameMs}</span>}
-                  </div>
-                </td>
-                <td className="sm">
+              <Tr key={c.id}>
+                <Td>
+                  <CellStack title={c.nameEn} sub={c.nameMs ?? undefined} />
+                </Td>
+                <Td>
                   {c.retentionMonths == null ? (
-                    <span className="badge badge--warn">Not set</span>
+                    <Badge tone="warn">Not set</Badge>
                   ) : (
                     `${c.retentionMonths} months`
                   )}
-                </td>
-                <td className="sm dim">{c.controlledCopy ? "Numbered and recalled" : "No"}</td>
-                <td className="sm dim">
+                </Td>
+                <Td className="text-ink-2">{c.controlledCopy ? "Numbered and recalled" : "No"}</Td>
+                <Td className="text-ink-2">
                   {c.releaseNeedsApproval ? "Needs approval" : "No approval needed"}
-                </td>
-                <td>
+                </Td>
+                <Td>
                   <ProvenanceChip value={c.provenance} />
-                </td>
-                <td className="right">
-                  <span className="inline-flex items-center justify-end gap-1">
-  <HistoryButton iconOnly entity="DocumentClass" entityId={c.id} label={c.nameEn} />
-  <EditDocumentClass row={c} />
-</span>
-                </td>
-              </tr>
+                </Td>
+                <Td>
+                  <RowActions>
+                    <HistoryButton iconOnly entity="DocumentClass" entityId={c.id} label={c.nameEn} />
+                    <EditDocumentClass row={c} />
+                  </RowActions>
+                </Td>
+              </Tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       </Section>
     </>
   );
