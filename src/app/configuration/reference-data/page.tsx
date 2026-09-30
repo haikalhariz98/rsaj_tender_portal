@@ -6,6 +6,7 @@ import {
   EditContractType,
   EditFundingRoute,
   EditSourcingMethod,
+  RestoreEntry,
   RetireEntry,
 } from "./editors";
 import { ORGANISATION_CODE } from "@/lib/org";
@@ -18,6 +19,8 @@ import {
   isUnbanded,
 } from "@/lib/reference/vocabulary";
 import { PageHeader } from "@/components/ui/page-header";
+import { Card, CardHeader } from "@/components/ui/card";
+import { formatDate } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
@@ -255,7 +258,52 @@ export default async function ReferenceDataPage() {
           </tbody>
         </table>
       </Section>
+
+      <RetiredEntries
+        entries={[
+          ...data.fundingRoutes.map((e) => ({ ...e, entity: "FundingRoute" as const, list: "Funding route" })),
+          ...data.sourcingMethods.map((e) => ({ ...e, entity: "SourcingMethod" as const, list: "Sourcing method" })),
+          ...data.contractTypes.map((e) => ({ ...e, entity: "ContractType" as const, list: "Contract type" })),
+        ].filter((e) => e.retiredOn != null && e.retiredOn <= on)}
+      />
     </>
+  );
+}
+
+/// Retired entries stay on record, and can be put back. Hidden, they could only be
+/// recreated — and a recreated entry is a different record from the one matters ran under.
+function RetiredEntries({
+  entries,
+}: {
+  entries: {
+    id: string;
+    nameEn: string;
+    retiredOn: Date | null;
+    entity: "FundingRoute" | "SourcingMethod" | "ContractType";
+    list: string;
+  }[];
+}) {
+  if (entries.length === 0) return null;
+  return (
+    <Card className="mt-6">
+      <CardHeader
+        title="Retired"
+        subtitle="No longer offered. Matters already run under them keep showing them."
+      />
+      <ul className="divide-y divide-line/70 px-6">
+        {entries.map((e) => (
+          <li key={e.entity + e.id} className="flex items-center gap-3 py-3">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[14px] font-semibold text-ink">{e.nameEn}</span>
+              <span className="block text-[12.5px] text-ink-3">
+                {e.list} · retired {e.retiredOn ? formatDate(e.retiredOn) : ""}
+              </span>
+            </span>
+            <RestoreEntry entity={e.entity} id={e.id} label={e.nameEn} />
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 

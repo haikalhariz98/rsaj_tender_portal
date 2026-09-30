@@ -232,7 +232,14 @@ export async function saveContractType(_prev: FormState, data: FormData): Promis
  * under, so the row stays and stops being offered. A reason is required, because the
  * change is otherwise unattributable to anyone or anything.
  */
-export async function retireEntry(_prev: FormState, data: FormData): Promise<FormState> {
+const TABLES = {
+  FundingRoute: "fundingRoute",
+  SourcingMethod: "sourcingMethod",
+  ContractType: "contractType",
+} as const;
+
+/// Retire or restore. The same three lists, the same shape, the opposite act.
+async function setRetired(data: FormData, retire: boolean): Promise<FormState> {
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -241,36 +248,33 @@ export async function retireEntry(_prev: FormState, data: FormData): Promise<For
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
 
-  const table =
-    entity === "FundingRoute"
-      ? db.fundingRoute
-      : entity === "SourcingMethod"
-        ? db.sourcingMethod
-        : entity === "ContractType"
-          ? db.contractType
-          : null;
-  if (!table) return { ok: false, message: "Unknown record type." };
+  const key = TABLES[entity as keyof typeof TABLES];
+  if (!key) return { ok: false, message: "Unknown record type." };
+  const table = db[key] as unknown as typeof db.contractType;
 
-  const before = await (table as typeof db.contractType).findUnique({ where: { id } });
+  const before = await table.findFirst({ where: { id, organisationId: orgId } });
   if (!before) return { ok: false, message: "That record no longer exists." };
+  // Retiring twice would overwrite the date it first stopped being offered.
+  if (retire && before.retiredOn) return { ok: false, message: "That entry is already retired." };
+  if (!retire && !before.retiredOn) return { ok: false, message: "That entry is not retired." };
 
-  const retiredOn = new Date();
+  const retiredOn = retire ? new Date() : null;
   await auditedUpdate(
     { organisationId: orgId, entity, entityId: id, entityLabel: before.nameEn, reason },
     { retiredOn: before.retiredOn },
     { retiredOn },
-    (tx) =>
-      (
-        tx[
-          entity === "FundingRoute"
-            ? "fundingRoute"
-            : entity === "SourcingMethod"
-              ? "sourcingMethod"
-              : "contractType"
-        ] as typeof db.contractType
-      ).update({ where: { id }, data: { retiredOn } }),
+    (tx) => (tx[key] as unknown as typeof db.contractType).update({ where: { id }, data: { retiredOn } }),
   );
 
   revalidatePath(PATH);
   return { ok: true };
+}
+
+export async function retireEntry(_prev: FormState, data: FormData): Promise<FormState> {
+  return setRetired(data, true);
+}
+
+/// Put a retired entry back on offer. It keeps its code, which is still its own.
+export async function restoreEntry(_prev: FormState, data: FormData): Promise<FormState> {
+  return setRetired(data, false);
 }

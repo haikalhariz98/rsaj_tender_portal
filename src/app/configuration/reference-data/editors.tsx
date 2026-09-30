@@ -1,7 +1,15 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import type { ContractType, FundingRoute, SourcingMethod } from "@/lib/reference/types";
 
-import { retireEntry, saveContractType, saveFundingRoute, saveSourcingMethod } from "./actions";
+import { buttonClass } from "@/components/ui/button";
+
+import {
+  restoreEntry,
+  retireEntry,
+  saveContractType,
+  saveFundingRoute,
+  saveSourcingMethod,
+} from "./actions";
 
 /**
  * The field declarations behind each Reference data record.
@@ -255,6 +263,33 @@ export function RetireEntry({
       submitLabel="Retire"
       destructive={{ reasonLabel: "Why is it being retired?" }}
       trigger={{ label: "Retire", className: "btn btn--sm btn--ghost" }}
+      size="sm"
+    />
+  );
+}
+
+export function RestoreEntry({
+  entity,
+  id,
+  label,
+}: {
+  entity: "FundingRoute" | "SourcingMethod" | "ContractType";
+  id: string;
+  label: string;
+}) {
+  return (
+    <RecordEditor
+      title={`Restore ${label}`}
+      description="It is offered again from today, under the same code."
+      fields={[
+        { kind: "hidden", name: "entity" },
+        { kind: "hidden", name: "id" },
+      ]}
+      values={{ entity, id }}
+      action={restoreEntry}
+      submitLabel="Restore"
+      reason={{ label: "Why is it coming back?" }}
+      trigger={{ label: "Restore", className: buttonClass("secondary", "sm") }}
       size="sm"
     />
   );
