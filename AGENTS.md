@@ -36,6 +36,8 @@ threshold an exact value falls — the product ships the switch and the customer
 | Next.js 16 + Prisma 7 + Postgres 17 | Resellable; no per-tenant platform licensing. |
 | Standalone system of record, integrate behind a façade | Never build against one ERP's schema. |
 | No auth, no `User` model yet | Deliberate. `Person` is identity, separate from sign-in. Do not stub auth. |
+| Maker-checker deferred until sign-in | NFR-USE-004 / NFR-SEC-004 require a second person to approve a configuration change. Without sign-in there is no "who", so a second approver cannot be told apart from the first. Until then: every change is audited with its before/after in the same transaction; the approval matrix has a draft → issued lifecycle, and **issuing** is where the checker step will attach; destructive changes ask for a reason. Do not fake a second approval. |
+| Delegation line-management rules deferred | FR-APR-011 also requires the grantor to be the jobholder's superior and the delegate a line subordinate. There are no reporting lines in the data and no sign-in to say who is granting; `faultsIn` enforces everything else and says so. |
 
 ## The UI: one design system, in `src/components/ui`
 
