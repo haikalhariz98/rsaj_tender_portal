@@ -434,7 +434,7 @@ function ClassificationPanel({
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<SlidersIcon size={17} />} title="Three band families" subtitle={`Determined ${formatOrgDay(ex.determinedAt, l.org.timeZone)} under ${bands.matrixLabel}.`} />
+        <CardHeader icon={<SlidersIcon size={17} />} title="Three band families" subtitle={`Determined ${formatDate(ex.determinedAt)} under ${bands.matrixLabel}.`} />
         <CardBody className="flex flex-col gap-6">
           <div className="grid gap-4 md:grid-cols-3">
             <Stat variant="inset" size="sm" tone="neutral" label="Requisition band" value={<span className="text-[17px] whitespace-normal">{ex.requisitionRuleLabel ?? "Not checked"}</span>} hint={ex.requisitionRuleLabel ? "The rule the requisition was approved under." : "The requisition's approval was received from outside and not checked against the approval matrix."} />
@@ -576,7 +576,7 @@ function ContractPanel({
               { label: "Contract type", value: decided?.contractType.nameEn ?? typeName(ex.contractTypeCode) ?? NOT_SET },
               { label: "Derived from the scope", value: derivationState === "DERIVED" ? (derivedName ?? NOT_SET) : derivationState ? DERIVATION_TEXT[derivationState] : NOT_SET },
               ...(state && state !== "DERIVED" ? [{ label: "Why this type", value: ex.contractTypeOverrideReason || "Not recorded" }, { label: "Decided by", value: overriddenBy ? `${overriddenBy} · recorded on behalf of, not signed` : "Not recorded" }] : []),
-              { label: "Largest deliverable's share", value: ex.dominantSharePct ? `${Number(ex.dominantSharePct.toString()).toFixed(2)}%` : "One deliverable" },
+              { label: "Largest deliverable's share", value: ex.dominantSharePct && Number(ex.dominantSharePct.toString()) < 100 ? `${Number(ex.dominantSharePct.toString()).toFixed(2)}%` : "One deliverable" },
               {
                 label: "Mixed-scope threshold",
                 value: decided ? (decided.policy.dominanceSharePct ? `Above ${Number(decided.policy.dominanceSharePct).toFixed(2)}% · as recorded` : "Not set: no default for mixed scope") : config.policy.dominanceSharePct ? `Above ${Number(config.policy.dominanceSharePct).toFixed(2)}%` : "Not set: no default for mixed scope",
@@ -841,7 +841,7 @@ function HistoryPanel({
     if (value === "true" || value === "yes") return "Yes";
     if (value === "false" || value === "no") return "No";
     // Codes the page cannot name are configuration keys: they are not shown.
-    if (/(Code|Key)$/.test(field) || field === "taxonomy" || field === "value") return "Recorded";
+    if (/(Code|Key)$/.test(field)) return "Recorded";
     return value;
   };
   const shown = (field: string) => !/Id$/.test(field) || field === "overriddenByPersonId" || field === "proposalReviewerPersonId";

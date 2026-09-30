@@ -82,7 +82,12 @@ export function ExerciseForm({
   const [scope, setScope] = useState<ScopeLine[]>(initialScope?.length ? initialScope : [{ kind: "", amount: initial.estimatedValue ?? "", description: "" }]);
   const [preview, setPreview] = useState<{ result: Presented; proposedMethodCode: string | null; matrixLabel: string } | { message: string } | null>(null);
   const e = state.errors ?? {};
-  const set = (k: string) => (ev: { target: { value: string } }) => setV((x) => ({ ...x, [k]: ev.target.value }));
+  const set = (k: string) => (ev: { target: { value: string } }) => {
+    const next = ev.target.value;
+    // One scope line still holding the whole value follows the value as it is typed.
+    if (k === "estimatedValue") setScope((ls) => (ls.length === 1 && ls[0].amount === (v.estimatedValue ?? "") ? [{ ...ls[0], amount: next }] : ls));
+    setV((x) => ({ ...x, [k]: next }));
+  };
   const method = options.methods.find((m) => m.code === v.sourcingMethodCode) ?? null;
   const proposedCode = preview && "result" in preview ? preview.proposedMethodCode : null;
   const overridden = !!method && !!proposedCode && method.code !== proposedCode;
@@ -176,7 +181,7 @@ export function ExerciseForm({
                       </button>
                     )}
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-[minmax(0,14rem)_minmax(0,9rem)_minmax(0,1fr)]">
+                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,10rem)]">
                     <Field label="Delivers" htmlFor={`sp-${i}-k`}>
                       <Select id={`sp-${i}-k`} value={l.kind} onChange={(ev) => setLine(i, "kind", ev.target.value)}>
                         <option value="">Choose</option>
@@ -190,7 +195,7 @@ export function ExerciseForm({
                     <Field label="Value" htmlFor={`sp-${i}-a`}>
                       <AffixInput id={`sp-${i}-a`} prefix="RM" inputMode="decimal" value={l.amount} onChange={(ev) => setLine(i, "amount", ev.target.value)} className="[&_input]:text-right" />
                     </Field>
-                    <Field label="Description" htmlFor={`sp-${i}-d`}>
+                    <Field label="Description" htmlFor={`sp-${i}-d`} className="sm:col-span-2">
                       <Input id={`sp-${i}-d`} value={l.description} onChange={(ev) => setLine(i, "description", ev.target.value)} />
                     </Field>
                   </div>

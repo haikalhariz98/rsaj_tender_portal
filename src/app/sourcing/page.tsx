@@ -36,7 +36,7 @@ export default async function SourcingPage() {
       search: [r.title, r.reference, r.requisition.reference, r.requisition.erpRequisitionNo, methodName(r.sourcingMethodCode), EXERCISE_STATUS_LABEL[status]].filter(Boolean).join(" "),
       sortKeys: { value: Number(r.estimatedValue.toString()), title: r.title },
       cells: {
-        title: { kind: "link", text: r.title, href: `/sourcing/${r.id}`, sub: `${r.reference} · for ${r.requisition.reference}` },
+        title: { kind: "link", text: r.title, href: `/sourcing/${r.id}`, sub: `${r.reference} · ${methodName(r.sourcingMethodCode)}` },
         method: { kind: "stack", title: methodName(r.sourcingMethodCode), sub: typeName(r.contractTypeCode) },
         value: { kind: "money", value: Number(r.estimatedValue.toString()) },
         status: { kind: "badge", text: EXERCISE_STATUS_LABEL[status], tone: TONE[EXERCISE_STATUS_TONE[status]] },
@@ -95,10 +95,10 @@ export default async function SourcingPage() {
           rowOpens
           columns={[
             { key: "title", label: "Exercise", sortable: true, mobile: "primary" },
-            { key: "method", label: "Method and contract type", width: "22%", hideBelow: "xl" },
-            { key: "value", label: "Value", width: "130px", numeric: true, sortable: true, mobile: "meta" },
-            { key: "status", label: "Status", width: "196px", sortable: true, mobile: "meta" },
-            { key: "checks", label: "Band", width: "230px", hideBelow: "md", mobile: "meta" },
+            { key: "method", label: "Method and contract type", width: "22%", hideBelow: "2xl" },
+            { key: "value", label: "Value", width: "124px", numeric: true, sortable: true, mobile: "meta" },
+            { key: "status", label: "Status", width: "176px", sortable: true, mobile: "meta" },
+            { key: "checks", label: "Band", width: "210px", hideBelow: "md", mobile: "meta" },
           ]}
           rows={list}
         />

@@ -218,7 +218,10 @@ function auditView(x: Record<string, unknown>) {
 }
 
 /// Replace the scope lines and the derived taxonomy values, audited row by row.
-async function writeChildren(tx: Tx, orgId: string, ex: { id: string; reference: string }, before: ExerciseRow | null, scope: ExerciseDraft["scope"], ev: Evaluation) {
+async function writeChildren(tx: Tx, orgId: string, ex: { id: string; reference: string }, before: ExerciseRow | null, scope: ExerciseDraft["scope"], ev: Evaluation, cfg: { taxonomies: { code: string; nameEn: string; values: { code: string; nameEn: string }[] }[] }) {
+  // The trail names what it records: codes are configuration keys.
+  const taxName = (t: string) => cfg.taxonomies.find((x) => x.code === t)?.nameEn ?? "A classification no longer configured";
+  const valName = (t: string, v: string) => cfg.taxonomies.find((x) => x.code === t)?.values.find((x) => x.code === v)?.nameEn ?? "A value no longer configured";
   const same =
     before &&
     before.scopeParts.length === scope.length &&
@@ -243,11 +246,11 @@ async function writeChildren(tx: Tx, orgId: string, ex: { id: string; reference:
       continue;
     }
     await tx.exerciseTaxonomyValue.delete({ where: { id: tv.id } });
-    await audit(tx, orgId, "ExerciseTaxonomyValue", tv.id, `${ex.reference} · classification`, "DELETE", snapshotFields({ taxonomy: tv.taxonomyCode, value: tv.valueCode, pick: tv.pick }));
+    await audit(tx, orgId, "ExerciseTaxonomyValue", tv.id, `${ex.reference} · classification`, "DELETE", snapshotFields({ taxonomy: taxName(tv.taxonomyCode), value: valName(tv.taxonomyCode, tv.valueCode), pick: tv.pick }));
   }
   for (const t of keep.values()) {
     const row = await tx.exerciseTaxonomyValue.create({ data: { exerciseId: ex.id, taxonomyCode: t.taxonomyCode, valueCode: t.valueCode!, pick: t.state as "DERIVED" | "CHOSEN" } });
-    await audit(tx, orgId, "ExerciseTaxonomyValue", row.id, `${ex.reference} · classification`, "CREATE", diffFields(null, { taxonomy: t.taxonomyCode, value: t.valueCode, pick: t.state }));
+    await audit(tx, orgId, "ExerciseTaxonomyValue", row.id, `${ex.reference} · classification`, "CREATE", diffFields(null, { taxonomy: taxName(t.taxonomyCode), value: valName(t.taxonomyCode, t.valueCode!), pick: t.state }));
   }
 }
 
@@ -293,7 +296,7 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
         },
       });
       await audit(tx, l.org.id, "SourcingExercise", row.id, labelOf(row), "CREATE", diffFields(null, { ...auditView(row), requisition: l.req.reference }));
-      await writeChildren(tx, l.org.id, row, null, v.draft.scope, ev);
+      await writeChildren(tx, l.org.id, row, null, v.draft.scope, ev, cfg.config);
       id = row.id;
       return { ok: true };
     });
@@ -349,7 +352,7 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
     const moved = await tx.sourcingExercise.updateMany({ where: { id, status: "DRAFT", updatedAt: ex.updatedAt }, data: after });
     if (moved.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", diffFields(auditView(ex), auditView(after)), String(data.get("reason") ?? ""));
-    await writeChildren(tx, l.org.id, ex, ex, v.draft.scope, ev);
+    await writeChildren(tx, l.org.id, ex, ex, v.draft.scope, ev, cfg.config);
     if (methodChanged || valueChanged) {
       for (const inst of ex.approvalInstances.filter((i) => i.status === "PENDING" || i.status === "APPROVED")) {
         const why = methodChanged ? "The method changed after the name was sent for approval." : "The value changed after the name was sent for approval.";
@@ -386,10 +389,10 @@ export async function chooseTaxonomyValue(_prev: FormState, data: FormData): Pro
     const prior = ex.taxonomyValues.find((t) => t.taxonomyCode === taxonomyCode);
     if (prior) {
       await tx.exerciseTaxonomyValue.update({ where: { id: prior.id }, data: { valueCode, pick: "CHOSEN" } });
-      await audit(tx, l.org.id, "ExerciseTaxonomyValue", prior.id, `${ex.reference} · classification`, "UPDATE", diffFields({ value: prior.valueCode, pick: prior.pick }, { value: valueCode, pick: "CHOSEN" }));
+      await audit(tx, l.org.id, "ExerciseTaxonomyValue", prior.id, `${ex.reference} · classification`, "UPDATE", diffFields({ value: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.values.find((v) => v.code === prior.valueCode)?.nameEn ?? null, pick: prior.pick }, { value: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.values.find((v) => v.code === valueCode)?.nameEn ?? null, pick: "CHOSEN" }));
     } else {
       const row = await tx.exerciseTaxonomyValue.create({ data: { exerciseId: ex.id, taxonomyCode, valueCode, pick: "CHOSEN" } });
-      await audit(tx, l.org.id, "ExerciseTaxonomyValue", row.id, `${ex.reference} · classification`, "CREATE", diffFields(null, { taxonomy: taxonomyCode, value: valueCode, pick: "CHOSEN" }));
+      await audit(tx, l.org.id, "ExerciseTaxonomyValue", row.id, `${ex.reference} · classification`, "CREATE", diffFields(null, { taxonomy: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.nameEn ?? null, value: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.values.find((v) => v.code === valueCode)?.nameEn ?? null, pick: "CHOSEN" }));
     }
     return { ok: true };
   });
@@ -646,7 +649,7 @@ export async function moveToPreparation(_prev: FormState, data: FormData): Promi
       const moved = await tx.sourcingExercise.updateMany({ where: { id, status: "DRAFT", updatedAt: ex.updatedAt }, data: after });
       if (moved.count !== 1) throw new Refusal(CHANGED);
       await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", diffFields({ status: ex.status, dossierReference: ex.dossierReference }, { status: after.status, dossierReference, decidedRecord: "written" }));
-      await writeChildren(tx, l.org.id, ex, ex, draftOf(ex).scope, ev);
+      await writeChildren(tx, l.org.id, ex, ex, draftOf(ex).scope, ev, cfg.config);
       if (l.req.status === "APPROVED") {
         const rf = requisitionTransitionFault("APPROVED", "SOURCING", { today: l.org.today });
         if (rf) throw new Refusal({ ok: false, message: "The requisition cannot move into sourcing." });
