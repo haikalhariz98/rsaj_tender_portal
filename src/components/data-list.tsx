@@ -229,6 +229,7 @@ export function DataList({
   emptyTitle = "Nothing here",
   emptyBody,
   exportName = "export",
+  toolbar = true,
 }: {
   columns: Column[];
   rows: Row[];
@@ -253,6 +254,9 @@ export function DataList({
   emptyTitle?: string;
   emptyBody?: string;
   exportName?: string;
+  /// False for a short read-only list inside a card, where views, search, density and
+  /// export would be chrome with nothing to act on.
+  toolbar?: boolean;
 }) {
   const [compact, setCompact] = useState(false);
   const [page, setPage] = useState(0);
@@ -307,7 +311,7 @@ export function DataList({
   // Filtering an empty list is noise. The tools appear once there is something to use
   // them on, or once a filter is what emptied it.
   const narrowed = view !== "all" || query !== "" || Object.keys(chosen).length > 0;
-  const showTools = rows.length > 0 || narrowed;
+  const showTools = toolbar && (rows.length > 0 || narrowed);
 
   function toggleSort(key: string) {
     setSort((s) =>
@@ -497,7 +501,9 @@ export function DataList({
           {emptyBody}
         </EmptyState>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
+          {/* Relative so a positioned descendant is clipped here rather than by the
+              page: without it a wide table scrolled the whole screen at phone width. */}
           <table className="w-full min-w-[640px] table-fixed border-collapse text-[13.5px]">
             <colgroup>
               {selectable && <col style={{ width: 48 }} />}

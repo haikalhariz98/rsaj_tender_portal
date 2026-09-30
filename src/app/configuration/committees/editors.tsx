@@ -57,10 +57,10 @@ function committeeFields(editing: boolean, offices: OfficeOption[]): Field[] {
       required: true,
       placeholder: "Choose",
       options: [
-        { value: "APPROVES", label: "Approves" },
-        { value: "RECOMMENDS", label: "Recommends" },
-        { value: "CONSENTS", label: "Consents — a precondition, not an authority" },
-        { value: "DECIDES", label: "Decides" },
+        { value: "APPROVES", label: "Approval" },
+        { value: "RECOMMENDS", label: "Recommendation" },
+        { value: "CONSENTS", label: "Consent — a precondition, not an authority" },
+        { value: "DECIDES", label: "Decision" },
       ],
     },
     {

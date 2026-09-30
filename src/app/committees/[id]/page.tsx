@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { RecordCrumb } from "@/components/shell/record-crumb";
+
 import { AlertTriangle, CalendarIcon, ClockIcon, FileIcon, UsersIcon } from "@/components/icons";
 import { DecisionPanel, type PanelMatter } from "@/components/committee/decision-panel";
-import { HistoryButton } from "@/components/history-drawer";
 import { Tabs } from "@/components/tabs";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +15,13 @@ import { PageHeader } from "@/components/ui/page-header";
 import { KeyValues } from "@/components/ui/stat";
 import { fieldLabel } from "@/lib/audit/diff";
 import { assessQuorum } from "@/lib/committee/quorum";
+import { ProvenanceBadge } from "@/components/ui/provenance";
+import { minutingChecks } from "@/lib/committee/assess-sitting";
 import {
+  blockerShort,
+  ORGANISATION_HREF,
+  configurationGapLine,
+  matterCount,
   attendanceFaultText,
   ROLE_ASSIGNMENTS_HREF,
   BLOCKER_LABEL,
@@ -86,10 +93,15 @@ export default async function SittingPage({
   const quorumState = assessQuorum({ quorum, present: a.present.voterIds.length }).state;
 
   const present = a.present.voterIds.length;
-  const quorumFact =
-    quorum == null ? (
-      <Badge tone="warn">Quorum not set</Badge>
-    ) : (
+  const cancelled = m.status === "CANCELLED";
+  // A cancelled sitting took no register: no quorum count to show.
+  const quorumFact = cancelled ? (
+    <span>Quorum —</span>
+  ) : quorum == null ? (
+    <span className="inline-flex items-center gap-1.5">
+      Quorum <Badge tone="warn">Not set</Badge>
+    </span>
+  ) : (
       <span className="inline-flex items-center gap-2">
         <span>
           {present} of {quorum} present
@@ -107,6 +119,7 @@ export default async function SittingPage({
     minutes: m.minutes,
     reason: "",
     matterOutcomes: m.decisions.map((d) => d.outcome),
+    ...minutingChecks(a, s.matters),
   });
 
   const actions = (
@@ -114,38 +127,57 @@ export default async function SittingPage({
       {!frozen && <EditSitting meeting={m} />}
       {m.status === "SCHEDULED" && <StartSitting meetingId={m.id} />}
       {m.status === "IN_PROGRESS" && (
-        <MinuteSitting
-          meetingId={m.id}
-          blockers={minuteCheck.ok ? [] : [TRANSITION_FAULT_MESSAGE[minuteCheck.fault]]}
-        />
+        <MinuteSitting meetingId={m.id} blocker={minuteCheck.ok ? null : TRANSITION_FAULT_MESSAGE[minuteCheck.fault]} />
       )}
       {!frozen && <CancelSitting meetingId={m.id} />}
-      <HistoryButton entity="Meeting" entityId={m.id} label={m.reference} />
     </>
   );
 
   return (
     <>
+      <RecordCrumb label={m.reference} />
       <PageHeader
-        eyebrow={<Link href="/committees">Committee sittings</Link>}
+        eyebrow={<Link href="/committees">Committee sitting</Link>}
         title={m.reference}
         badge={
           <Badge tone={TONE[MEETING_STATUS_TONE[m.status]]} dot>
             {MEETING_STATUS_LABEL[m.status]}
           </Badge>
         }
-        subtitle={`A sitting of the ${s.committeeName}.`}
+        subtitle={cancelled ? `Cancelled: ${m.cancelledReason}` : undefined}
         meta={[
           <Link key="c" href={`/configuration/committees/${c.code}`}>
             {s.committeeName}
           </Link>,
           formatDate(m.meetingDate),
           quorumFact,
-          votingRule ? VOTING_RULE_LABEL[votingRule] : <Badge tone="warn">Voting rule not set</Badge>,
+          votingRule ? (
+            VOTING_RULE_LABEL[votingRule]
+          ) : (
+            <span key="vr" className="inline-flex items-center gap-1.5">
+              Voting rule <Badge tone="warn">Not set</Badge>
+            </span>
+          ),
         ]}
         actions={actions}
       />
 
+      {!frozen && s.timeZone == null && (
+        <Callout
+          tone="warn"
+          className="mb-6"
+          title="The organisation's time zone is not set"
+          action={
+            <ButtonLink href={ORGANISATION_HREF} size="sm">
+              Set time zone
+            </ButtonLink>
+          }
+        >
+          Whether a sitting&apos;s day has come, the tabling day and the date on a voting sheet all depend on it,
+          and it is not assumed to be UTC. Until it is set, this sitting cannot start, matters cannot be tabled
+          and votes cannot be recorded.
+        </Callout>
+      )}
       <ConfigurationGaps s={s} />
       {s.fromSnapshot && (
         <Callout tone="info" className="mb-6" title="As minuted">
@@ -245,7 +277,7 @@ function AgendaPanel({ s }: { s: LoadedSitting }) {
         return {
           personId: o.personId,
           name: s.names[o.personId] ?? "Not on record",
-          seat: o.standIn && seat?.name ? `${label} · for ${seat.name}` : label,
+          seat: o.standIn && seat?.name ? `${label} · standing in for ${seat.name}` : label,
           standIn: o.standIn,
           recused: recused.has(o.personId),
           // Their seat does not vote on this matter because its holder recused,
@@ -272,6 +304,7 @@ function AgendaPanel({ s }: { s: LoadedSitting }) {
       d.outcome === "PENDING"
         ? null
         : {
+            dateLabel: d.outcome === "DEFERRED" ? "Deferred on" : "Decided on",
             date: d.decisionDate,
             quorum: d.quorumRequired == null ? "Not set" : `${d.quorumRequired} required`,
             present: `${d.presentVoters ?? 0} counted toward quorum · ${d.recusedCount ?? 0} recused among those present`,
@@ -303,6 +336,9 @@ function AgendaPanel({ s }: { s: LoadedSitting }) {
       votes: d.votes.map((v) => ({ personId: v.personId, choice: v.choice, comment: v.comment, votedAt: day(v.votedAt) })),
       canRecord: assessment.canRecord,
       blockers: assessment.blockers.map((b) => BLOCKER_LABEL[b]),
+      // Where the committee's configuration is what stops it, one sentence for the
+      // matter; the sitting's callout already names what to set.
+      gapLine: configurationGapLine(assessment.blockers),
       messageEn: assessment.messageEn,
       quorumMessage: assessment.quorum.messageEn,
       tally: assessment.tally,
@@ -362,7 +398,8 @@ function AgendaPanel({ s }: { s: LoadedSitting }) {
                 <RecordOutcome
                   decisionId={d.id}
                   offered={s.outcomesOffered}
-                  suggested={assessment.computed ? OUTCOME_LABEL[assessment.computed] : null}
+                  suggested={assessment.canRecord && assessment.computed ? OUTCOME_LABEL[assessment.computed] : null}
+                  blocker={assessment.canRecord ? null : blockerShort(assessment)}
                 />
               </>
             ) : undefined
@@ -379,11 +416,9 @@ function AgendaPanel({ s }: { s: LoadedSitting }) {
           icon={<FileIcon size={17} />}
           title="Agenda"
           subtitle={
-            m.decisions.length === 0
-              ? "No matter tabled yet"
-              : `${m.decisions.length} ${m.decisions.length === 1 ? "matter" : "matters"} · ${
-                  m.decisions.filter((d) => d.outcome === "PENDING").length
-                } pending`
+            m.status === "CANCELLED" && m.decisions.length === 0
+              ? "Cancelled"
+              : matterCount(m.decisions.length, m.decisions.filter((d) => d.outcome === "PENDING").length)
           }
           actions={
             !frozen && s.secretariat.code ? (
@@ -403,7 +438,11 @@ function AgendaPanel({ s }: { s: LoadedSitting }) {
         )}
         {m.decisions.length === 0 && (
           <EmptyState size="sm" title="Nothing tabled">
-            {s.secretariat.code
+            {m.status === "CANCELLED"
+              ? "This sitting was cancelled; nothing was tabled."
+              : m.status === "MINUTED"
+                ? "Nothing was tabled at this sitting."
+                : s.secretariat.code
               ? `Matters are tabled by a holder of the ${s.secretariat.office?.nameEn ?? "Secretariat"} office.`
               : "No Secretariat office is set for this committee, so nobody may table a matter."}
           </EmptyState>
@@ -434,6 +473,8 @@ function AttendancePanel({ s }: { s: LoadedSitting }) {
     alternate: boolean;
     note?: string;
     contested?: boolean;
+    /// The Secretary-never-votes rule is a product assumption (ruling 5.8).
+    assumption?: boolean;
   };
   const lines: Line[] = [
     ...a.voting.map((v) => ({
@@ -453,7 +494,7 @@ function AttendancePanel({ s }: { s: LoadedSitting }) {
       key: v.seatId,
       personId: v.personId,
       name: v.name ?? "Vacant",
-      role: `Alternate${v.forSeatId && seatById.get(v.forSeatId) ? ` for ${seatById.get(v.forSeatId)!.name ?? seatLabel(seatById.get(v.forSeatId)!)}` : ` · any ${POSITION_LABEL[v.position].toLowerCase()} seat`}`,
+      role: `${POSITION_LABEL[v.position]} · alternate ${v.forSeatId && seatById.get(v.forSeatId) ? `for ${seatById.get(v.forSeatId)!.name ?? seatLabel(seatById.get(v.forSeatId)!)}` : `for any ${POSITION_LABEL[v.position].toLowerCase()} seat`}`,
       alternate: true,
     })),
     ...a.nonVotingMemberIds.map((pid) => ({
@@ -462,16 +503,23 @@ function AttendancePanel({ s }: { s: LoadedSitting }) {
       name: s.names[pid] ?? "Not on record",
       role: "Secretary · does not vote",
       alternate: false,
+      assumption: true,
     })),
   ];
   const faults = a.present.faults;
 
+  if (m.status === "CANCELLED") {
+    return (
+      <Card>
+        <EmptyState size="sm" title="No register">
+          This sitting was cancelled; no register was taken.
+        </EmptyState>
+      </Card>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-5">
-      <Callout tone="info" title="The Secretary attends but never votes">
-        The Secretary is not counted toward quorum and casts no vote. This is a product assumption, not a rule
-        from the committee&apos;s terms of reference, and is awaiting confirmation.
-      </Callout>
       {faults.length > 0 && (
         <Callout tone="err" title="The register has faults" icon={<AlertTriangle size={18} />}>
           {faults.map((f) => (
@@ -499,9 +547,9 @@ function AttendancePanel({ s }: { s: LoadedSitting }) {
             const r = line.personId ? record.get(line.personId) : undefined;
             const standingFor = r?.standingInForSeatId ? seatById.get(r.standingInForSeatId) : undefined;
             return (
-              <li key={line.key} className="flex items-center gap-3 px-5 py-3 sm:px-6">
+              <li key={line.key} className="flex flex-wrap items-center gap-3 px-5 py-3 sm:px-6">
                 {line.personId ? <Avatar name={line.name} /> : <Avatar muted>—</Avatar>}
-                <div className="min-w-0 flex-1">
+                <div className="min-w-40 flex-1">
                   <div className="truncate text-[13.5px] font-semibold text-ink">{line.name}</div>
                   <div className="truncate text-[12px] text-ink-3">{line.role}</div>
                   {line.note && <div className="text-[12px] text-amber-700">{line.note}</div>}
@@ -511,12 +559,17 @@ function AttendancePanel({ s }: { s: LoadedSitting }) {
                     </Link>
                   )}
                 </div>
+                {line.assumption && (
+                  <span title="The Secretary never votes or counts toward quorum. A product assumption awaiting the committee's terms of reference.">
+                    <ProvenanceBadge value="ASSUMED" />
+                  </span>
+                )}
                 {r == null ? (
                   <Badge outline>Not recorded</Badge>
                 ) : !r.attended ? (
                   <Badge>Absent</Badge>
                 ) : standingFor ? (
-                  <Badge tone="info">Standing in for {standingFor.name ?? seatLabel(standingFor)}</Badge>
+                  <Badge tone="info">Present · standing in for {standingFor.name ?? seatLabel(standingFor)}</Badge>
                 ) : (
                   <Badge tone="ok">Present</Badge>
                 )}

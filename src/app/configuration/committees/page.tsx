@@ -1,6 +1,6 @@
 import { ChevronRight } from "@/components/icons";
 import { listCommittees, listNotApprovedOutcomes } from "@/lib/committee/repo";
-import { NOT_APPROVED_KIND_LABEL } from "@/lib/committee/labels";
+import { COMMITTEE_ACTION_LABEL, NOT_APPROVED_KIND_LABEL } from "@/lib/committee/labels";
 import { loadRoster } from "@/lib/people/load";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { formatBand } from "@/lib/format";
@@ -10,7 +10,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { ProvenanceBadge } from "@/components/ui/provenance";
-import { CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
+import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 
 import { Stat, Stats } from "../records-ui";
 import {
@@ -23,12 +23,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const ACTION_LABEL: Record<string, string> = {
-  APPROVES: "Approves",
-  RECOMMENDS: "Recommends",
-  CONSENTS: "Consents",
-  DECIDES: "Decides",
-};
+const ACTION_LABEL = COMMITTEE_ACTION_LABEL;
 
 const ACTION_TONE: Record<string, Tone> = {
   APPROVES: "ok",
@@ -109,12 +104,12 @@ export default async function CommitteesPage() {
           <>
             <Table minWidth={860}>
               <colgroup>
-                <col style={{ width: "30%" }} />
+                <col />
                 <col style={{ width: "13%" }} />
                 <col style={{ width: "19%" }} />
                 <col style={{ width: "14%" }} />
                 <col style={{ width: "14%" }} />
-                <col style={{ width: "10%" }} />
+                <ActionsCol icons={1} labelled={1} />
               </colgroup>
               <THead>
                 <Th>Committee</Th>
@@ -151,11 +146,11 @@ export default async function CommitteesPage() {
                       {c.quorum != null ? (
                         <Badge tone="ok">{c.quorum} members</Badge>
                       ) : (
-                        <Badge tone="warn">Not stated</Badge>
+                        <Badge tone="warn">Not set</Badge>
                       )}
                     </Td>
                     <Td>
-                      <span className="inline-flex items-center gap-1.5">
+                      <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
                         <ProvenanceBadge value={c.compositionProvenance} />
                         {c.compositionProvenance != null && (
                           <span className="text-[12px] whitespace-nowrap text-ink-3">
@@ -212,11 +207,11 @@ export default async function CommitteesPage() {
         ) : (
           <Table minWidth={760}>
             <colgroup>
-              <col style={{ width: "34%" }} />
+              <col />
               <col style={{ width: "22%" }} />
               <col style={{ width: "20%" }} />
               <col style={{ width: "12%" }} />
-              <col style={{ width: "12%" }} />
+              <ActionsCol icons={1} labelled={1} />
             </colgroup>
             <THead>
               <Th>Outcome</Th>

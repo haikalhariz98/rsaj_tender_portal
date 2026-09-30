@@ -12,6 +12,7 @@ import { cx } from "@/components/ui/cx";
 import { Callout } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/field";
 import { KeyValues } from "@/components/ui/stat";
+import { VOTE_LABEL } from "@/lib/committee/labels";
 import { formatDate, formatRM } from "@/lib/format";
 
 /**
@@ -61,6 +62,8 @@ export interface PanelMatter {
   votes: PanelVote[];
   canRecord: boolean;
   blockers: string[];
+  /// One sentence where the committee's configuration is what stops the matter.
+  gapLine: string | null;
   messageEn: string;
   quorumMessage: string;
   tally: { setuju: number; tidakSetuju: number; notVoted: number };
@@ -68,6 +71,7 @@ export interface PanelMatter {
   /// blocks invisibly.
   ineligibleVotes: { name: string; why: string }[];
   decided: {
+    dateLabel: string;
     date: Date | null;
     quorum: string;
     present: string;
@@ -77,10 +81,7 @@ export interface PanelMatter {
   } | null;
 }
 
-const CHOICES = [
-  { value: "SETUJU", label: "Setuju" },
-  { value: "TIDAK_SETUJU", label: "Tidak Setuju" },
-] as const;
+const CHOICES = (["SETUJU", "TIDAK_SETUJU"] as const).map((value) => ({ value, ...VOTE_LABEL[value] }));
 
 const OUTCOME_TONE = { PENDING: "warn", CARRIED: "ok", NOT_CARRIED: "err", DEFERRED: "neutral" } as const;
 
@@ -97,8 +98,9 @@ export function DecisionPanel({
   /// matter is undecided.
   open: boolean;
   meetingDate: string;
-  /// Today in the organisation's zone: the latest date a sheet can bear.
-  today: string;
+  /// Today in the organisation's zone: the latest date a sheet can bear. Null while
+  /// no zone is set, when no vote can be recorded.
+  today: string | null;
   /// Controls composed by the page: record outcome, declare recusal.
   actions?: ReactNode;
   /// A callout composed by the page, for a blocker that points somewhere else.
@@ -110,7 +112,9 @@ export function DecisionPanel({
     <CardBody className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2.5">
         <ActWithLabel act={matter.act} />
-        <span className="min-w-0 flex-1 text-[14px] font-semibold text-ink">{matter.subject}</span>
+        <span className="min-w-0 basis-full text-[14px] font-semibold text-ink sm:basis-auto sm:flex-1">
+          {matter.subject}
+        </span>
         {matter.amount != null && (
           <span className="text-[13.5px] font-semibold text-ink tabular-nums">{formatRM(matter.amount)}</span>
         )}
@@ -167,7 +171,7 @@ export function DecisionPanel({
               matterId={matter.id}
               voter={voter}
               vote={byPerson.get(voter.personId)}
-              open={open && !voter.recused && !voter.excused}
+              open={open && today != null && !voter.recused && !voter.excused}
               meetingDate={meetingDate}
               today={today}
             />
@@ -175,15 +179,23 @@ export function DecisionPanel({
         </ul>
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="text-[12.5px] text-ink-3">{matter.quorumMessage}</span>
-        <span className="flex-1" />
-        <span className="inline-flex flex-wrap items-center gap-2">
-          <Badge tone="ok">{matter.tally.setuju} setuju</Badge>
-          <Badge tone="err">{matter.tally.tidakSetuju} tidak setuju</Badge>
-          {matter.tally.notVoted > 0 && <Badge>{matter.tally.notVoted} outstanding</Badge>}
-        </span>
-      </div>
+      {/* While configuration makes the matter undecidable, a tally reads as progress
+          toward a result the body cannot reach: one sentence instead. */}
+      {!matter.gapLine || matter.decided ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-[12.5px] text-ink-3">{matter.quorumMessage}</span>
+          <span className="flex-1" />
+          <span className="inline-flex flex-wrap items-center gap-2">
+            <Badge tone="ok">
+              {matter.tally.setuju} {VOTE_LABEL.SETUJU.en.toLowerCase()}
+            </Badge>
+            <Badge tone="err">
+              {matter.tally.tidakSetuju} {VOTE_LABEL.TIDAK_SETUJU.en.toLowerCase()}
+            </Badge>
+            {matter.tally.notVoted > 0 && <Badge>{matter.tally.notVoted} outstanding</Badge>}
+          </span>
+        </div>
+      ) : null}
 
       {matter.ineligibleVotes.length > 0 && (
         <Callout tone="err" title="A vote on record does not count on this matter">
@@ -199,7 +211,7 @@ export function DecisionPanel({
         <KeyValues
           columns={2}
           items={[
-            { label: "Decided", value: matter.decided.date ? formatDate(matter.decided.date) : "—" },
+            { label: matter.decided.dateLabel, value: matter.decided.date ? formatDate(matter.decided.date) : "—" },
             { label: "Voting rule", value: matter.decided.rule },
             { label: "Quorum at recording", value: matter.decided.quorum },
             { label: "Quorum judged on", value: matter.decided.present },
@@ -217,9 +229,14 @@ export function DecisionPanel({
         />
       ) : matter.canRecord ? (
         <Callout tone="ok">{matter.messageEn}</Callout>
+      ) : matter.gapLine ? (
+        <p className="text-[13px] font-medium text-amber-800">{matter.gapLine}</p>
       ) : (
-        <Callout tone="warn" title={matter.blockers.join(" · ")}>
+        <Callout tone="warn">
           {matter.messageEn}
+          {matter.blockers.length > 1 && (
+            <span className="mt-1 block text-[12.5px]">Also: {matter.blockers.slice(1).join(", ").toLowerCase()}.</span>
+          )}
         </Callout>
       )}
 
@@ -242,7 +259,7 @@ function VoterRow({
   vote: PanelVote | undefined;
   open: boolean;
   meetingDate: string;
-  today: string;
+  today: string | null;
 }) {
   const router = useRouter();
   const [choice, setChoice] = useState<string | null>(null);
@@ -276,7 +293,7 @@ function VoterRow({
   return (
     <li className="flex flex-col gap-2.5 px-4 py-3">
       <div className="flex flex-wrap items-center gap-3">
-        <span className="flex min-w-0 flex-1 items-center gap-3">
+        <span className="flex min-w-48 flex-1 items-center gap-3">
           <Avatar name={voter.name} />
           <span className="flex min-w-0 flex-col">
             <span className="truncate text-[13.5px] font-semibold text-ink" title={voter.name}>
@@ -284,7 +301,7 @@ function VoterRow({
             </span>
             <span className="truncate text-[12px] text-ink-3" title={voter.seat}>
               {voter.seat}
-              {voter.standIn && " · standing in"}
+
             </span>
           </span>
         </span>
@@ -321,8 +338,10 @@ function VoterRow({
                     aria-pressed={pressed}
                     disabled={!open || busy}
                     onClick={() => setChoice(c.value)}
+                    title={`${c.en} — on the sheet: ${c.ms}`}
                   >
-                    {c.label}
+                    {c.en}
+                    <span className="ml-1 text-[11px] font-medium opacity-70">{c.ms}</span>
                   </button>
                 );
               })}
@@ -339,7 +358,7 @@ function VoterRow({
               type="date"
               size="sm"
               min={meetingDate}
-              max={today}
+              max={today ?? undefined}
               value={votedAt}
               onChange={(e) => setVotedAt(e.target.value)}
               required

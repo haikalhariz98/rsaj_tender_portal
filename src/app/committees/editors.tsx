@@ -1,5 +1,5 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
-import { buttonClass } from "@/components/ui/button";
+import { Button, buttonClass } from "@/components/ui/button";
 import { ACT_LABEL, matterLabel } from "@/lib/labels";
 import matters from "@/lib/labels.json";
 import { MATTER_KIND_LABEL, MATTER_KINDS, NOT_APPROVED_KIND_LABEL } from "@/lib/committee/labels";
@@ -58,7 +58,7 @@ export function ScheduleSitting({
       action={scheduleSitting}
       submitLabel="Schedule"
       trigger={{ label: "Schedule sitting", icon: true, className: buttonClass("primary", "md") }}
-      size="lg"
+      size="md"
     />
   );
 }
@@ -95,20 +95,34 @@ export function StartSitting({ meetingId }: { meetingId: string }) {
   );
 }
 
-export function MinuteSitting({ meetingId, blockers }: { meetingId: string; blockers: string[] }) {
+/**
+ * Mark the sitting as minuted. Offered only once it can be: minutes written and no
+ * matter pending. Until then the control is shown disabled with the reason, rather
+ * than opening a drawer that can only refuse.
+ */
+export function MinuteSitting({ meetingId, blocker }: { meetingId: string; blocker: string | null }) {
+  if (blocker) {
+    return (
+      <span className="inline-flex items-center gap-2">
+        <Button size="sm" disabled title={blocker}>
+          Mark as minuted
+        </Button>
+        <span className="max-w-56 text-[12px] leading-tight text-ink-3">{blocker}</span>
+      </span>
+    );
+  }
   return (
     <RecordEditor
-      title="Record the minutes"
-      description="Minuting freezes the sitting: nothing under it can change afterwards."
+      title="Mark as minuted"
+      description="Minuting freezes the sitting: its register, votes and outcomes can no longer change."
       fields={[
         { kind: "hidden", name: "meetingId" },
         { kind: "hidden", name: "to" },
-        ...blockers.map((text) => ({ kind: "note", text }) as Field),
       ]}
       values={{ meetingId, to: "MINUTED" }}
       action={changeStatus}
       submitLabel="Mark as minuted"
-      trigger={{ label: "Record minutes", className: buttonClass("secondary", "sm") }}
+      trigger={{ label: "Mark as minuted", className: buttonClass("secondary", "sm") }}
       size="sm"
     />
   );
@@ -125,7 +139,7 @@ export function CancelSitting({ meetingId }: { meetingId: string }) {
       submitLabel="Cancel sitting"
       destructive={{ reasonLabel: "Why is the sitting cancelled?" }}
       trigger={{
-        label: "Cancel",
+        label: "Cancel sitting",
         className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800"),
       }}
       size="sm"
@@ -301,16 +315,52 @@ export function DeclareRecusal({
   );
 }
 
+/**
+ * Record a matter's outcome.
+ *
+ * Offered only when the matter can be decided. Otherwise the control is disabled with
+ * the reason beside it, and the one outcome still open — deferring, which is not a
+ * decision — is offered on its own. The computed result of the votes is never shown
+ * while the matter cannot be decided: it would read as a result the body has not
+ * reached.
+ */
 export function RecordOutcome({
   decisionId,
   offered,
   suggested,
+  blocker,
 }: {
   decisionId: string;
   offered: { id: string; nameEn: string; kind: "LOOP" | "TERMINAL" }[];
-  /// What the votes come to, shown rather than pre-selected.
+  /// What the votes come to, shown rather than pre-selected. Only when decidable.
   suggested: string | null;
+  /// Why it cannot be decided, or null when it can.
+  blocker: string | null;
 }) {
+  if (blocker) {
+    return (
+      <>
+        <span className="text-[12.5px] text-ink-3">{blocker}</span>
+        <RecordEditor
+          title="Defer the matter"
+          description="Deferring is not a decision: the matter is carried to a later sitting. Say why."
+          fields={[
+            { kind: "hidden", name: "decisionId" },
+            { kind: "hidden", name: "outcome" },
+            { kind: "textarea", name: "outcomeNote", label: "Why it is deferred" },
+          ]}
+          values={{ decisionId, outcome: "DEFERRED" }}
+          action={recordOutcome}
+          submitLabel="Defer matter"
+          trigger={{ label: "Defer", className: buttonClass("ghost", "sm") }}
+          size="sm"
+        />
+        <Button variant="primary" size="sm" disabled title={blocker}>
+          Record outcome
+        </Button>
+      </>
+    );
+  }
   return (
     <RecordEditor
       title="Record the outcome"

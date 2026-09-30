@@ -17,6 +17,8 @@ import { iconButtonClass } from "@/components/ui/button";
 import { workspaceFor } from "@/lib/nav";
 import type { ShellUser } from "@/lib/shell";
 
+import { useRecordCrumb } from "./record-crumb";
+
 /// Path segment to the label the breadcrumb should read.
 const SEGMENT_LABEL: Record<string, string> = {
   configuration: "Configuration",
@@ -62,6 +64,7 @@ export function Topbar({
   const workspace = workspaceFor(pathname);
 
   const segments = pathname.split("/").filter(Boolean);
+  const recordName = useRecordCrumb();
   const crumbs = segments.map((segment, i) => ({
     // An unmapped segment is a record's key — a committee's code, say. Codes never
     // reach a screen; the page's own header names the record, so the crumb says what
@@ -76,6 +79,9 @@ export function Topbar({
         : (SEGMENT_LABEL[segment] ?? RECORD_LABEL[segments[i - 1] ?? ""] ?? "Details"),
     href: "/" + segments.slice(0, i + 1).join("/"),
   }));
+  // The last crumb names the record where the page has said which one it is.
+  const last = crumbs[crumbs.length - 1];
+  if (recordName && last && !SEGMENT_LABEL[segments[segments.length - 1]]) last.label = recordName;
 
   const rootLabel = workspace === "supplier" ? "Supplier portal" : organisation;
   const rootHref = workspace === "supplier" ? "/supplier" : "/";

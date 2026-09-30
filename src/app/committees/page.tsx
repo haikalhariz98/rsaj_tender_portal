@@ -3,7 +3,7 @@ import { DataList, type Row } from "@/components/data-list";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
-import { MEETING_STATUS_LABEL, MEETING_STATUS_TONE } from "@/lib/committee/labels";
+import { matterCount, MEETING_STATUS_LABEL, MEETING_STATUS_TONE } from "@/lib/committee/labels";
 import { listSittings, organisationId, SITTINGS_PAGE } from "@/lib/committee/sittings";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
@@ -52,11 +52,13 @@ export default async function SittingsPage({ searchParams }: { searchParams: Pro
       status: { kind: "badge", text: MEETING_STATUS_LABEL[s.status], tone: TONE[MEETING_STATUS_TONE[s.status]] },
       matters: {
         kind: "text",
-        text: s.matters === 0 ? "None tabled" : s.pending > 0 ? `${s.matters} · ${s.pending} pending` : String(s.matters),
+        text: matterCount(s.matters, s.pending),
         dim: s.matters === 0,
       },
       quorum:
-        s.quorum == null
+        s.status === "CANCELLED"
+          ? { kind: "text", text: "—", dim: true }
+          : s.quorum == null
           ? { kind: "badge", text: "Not set", tone: "warn" }
           : s.status === "SCHEDULED"
             ? { kind: "text", text: `${s.quorum} required`, dim: true }
@@ -107,8 +109,8 @@ export default async function SittingsPage({ searchParams }: { searchParams: Pro
           rowAction={{ label: "Open", hrefTemplate: "/committees/{id}" }}
           rowOpens
           columns={[
-            { key: "committee", label: "Committee", width: "24%", sortable: true },
-            { key: "reference", label: "Reference", width: "18%", sortable: true },
+            { key: "committee", label: "Committee", width: "20%", sortable: true },
+            { key: "reference", label: "Reference", width: "22%", sortable: true },
             { key: "date", label: "Date", width: "14%", sortable: true },
             { key: "status", label: "Status", width: "14%", sortable: true },
             { key: "matters", label: "Matters", width: "16%", sortable: true },

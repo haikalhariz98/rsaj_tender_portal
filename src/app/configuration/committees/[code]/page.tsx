@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 
+import { RecordCrumb } from "@/components/shell/record-crumb";
+
 import { CalendarIcon, RouteIcon, ScaleIcon, UsersIcon } from "@/components/icons";
 import { DataList, type Row } from "@/components/data-list";
 import { getCommittee, rulesRoutingTo } from "@/lib/committee/repo";
@@ -8,6 +10,8 @@ import { assessQuorum, quorumFaults } from "@/lib/committee/quorum";
 import { seatsInForce } from "@/lib/committee/seats";
 import { alternatesOn, votingSeatsOn } from "@/lib/committee/sitting";
 import {
+  COMMITTEE_ACTION_LABEL,
+  matterCount,
   MEETING_STATUS_LABEL,
   MEETING_STATUS_TONE,
   POSITION_LABEL,
@@ -34,12 +38,7 @@ export const dynamic = "force-dynamic";
 
 const TONE = { info: "info", brand: "brand", ok: "ok", neutral: undefined } as const;
 
-const ACTION_LABEL: Record<string, string> = {
-  APPROVES: "Approves",
-  RECOMMENDS: "Recommends",
-  CONSENTS: "Consents",
-  DECIDES: "Decides",
-};
+const ACTION_LABEL = COMMITTEE_ACTION_LABEL;
 
 export default async function CommitteePage({
   params,
@@ -80,7 +79,7 @@ export default async function CommitteePage({
       status: { kind: "badge", text: MEETING_STATUS_LABEL[m.status], tone: TONE[MEETING_STATUS_TONE[m.status]] },
       matters: {
         kind: "text",
-        text: `${m.decisions.length} tabled · ${m.decisions.filter((d) => d.outcome === "PENDING").length} pending`,
+        text: matterCount(m.decisions.length, m.decisions.filter((d) => d.outcome === "PENDING").length),
         dim: m.decisions.length === 0,
       },
     },
@@ -88,6 +87,7 @@ export default async function CommitteePage({
 
   return (
     <>
+      <RecordCrumb label={committee.nameEn} />
       <PageHeader
         eyebrow="Committee"
         title={committee.nameEn}
@@ -128,7 +128,10 @@ export default async function CommitteePage({
               subtitle={
                 seats.length === 0
                   ? "No seats configured"
-                  : `${seats.length} seats · ${seats.filter((s) => s.person || resolved.get(s.id)?.personId).length} filled · ${voting.length} voting`
+                  : (() => {
+                      const vacant = seats.filter((s) => !s.person && !resolved.get(s.id)?.personId).length;
+                      return `${seats.length} seats · ${voting.length} voting${vacant ? ` · ${vacant} vacant` : ""}`;
+                    })()
               }
               actions={
                 <>
@@ -167,9 +170,11 @@ export default async function CommitteePage({
                     .filter(Boolean)
                     .join(" · ");
                   return (
-                    <li key={seat.id} className="flex flex-wrap items-center gap-3 px-5 py-3 sm:px-6">
+                    // One layout for every seat: who and where it came from on the first
+                    // line, the seat's actions on their own line beneath, right-aligned.
+                    <li key={seat.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-5 py-3 sm:px-6">
                       {holder ? <Avatar name={holder} /> : <Avatar muted>—</Avatar>}
-                      <div className="min-w-40 flex-1">
+                      <div className="min-w-0">
                         <div className="truncate text-[13.5px] font-semibold text-ink" title={who}>
                           {who}
                         </div>
@@ -178,7 +183,7 @@ export default async function CommitteePage({
                         </div>
                       </div>
                       <ProvenanceBadge value={seat.provenance} />
-                      <div className="flex shrink-0 items-center gap-1">
+                      <div className="col-span-3 flex flex-wrap items-center justify-end gap-1">
                         <EditMember member={seat} label={who} people={people} offices={offices} seats={seatOptions} />
                         {seat.seatRoleCode ? (
                           <VacateSeat id={seat.id} label={office ?? who} exOfficio />
@@ -213,7 +218,7 @@ export default async function CommitteePage({
                         <ProvenanceBadge value={committee.votingRuleProvenance} />
                       </span>
                     ) : (
-                      <Badge tone="warn">Not set: no matter can be decided, and no majority is assumed</Badge>
+                      <GapValue text="No matter can be decided, and no majority is assumed." />
                     ),
                   },
                   {
@@ -225,12 +230,12 @@ export default async function CommitteePage({
                           <ProvenanceBadge value={committee.alternateMayVoteForRecusedProvenance} />
                         </span>
                       ) : (
-                        <Badge tone="warn">Not set: a matter where a member with an alternate recuses cannot be decided</Badge>
+                        <GapValue text="A matter where a member with an alternate recuses cannot be decided." />
                       ),
                   },
                   {
                     label: "Secretariat",
-                    value: secretariat ?? <Badge tone="warn">Not set: nobody may table a matter</Badge>,
+                    value: secretariat ?? <GapValue text="Nobody may table a matter." />,
                   },
                 ]}
               />
@@ -298,15 +303,21 @@ export default async function CommitteePage({
         <Card className="overflow-hidden">
           <CardHeader
             icon={<CalendarIcon size={17} />}
-            title="Sittings"
+            title={
+              <span className="inline-flex items-center gap-2">
+                Sittings
+                {committee.meetings.length > 0 && <Badge outline>{committee.meetings.length}</Badge>}
+              </span>
+            }
             subtitle="Held and scheduled. Open one to take its register and record its decisions."
-            actions={<Badge outline>{committee.meetings.length}</Badge>}
+
             divided={false}
           />
           <DataList
             flat
             selectable={false}
             searchable={false}
+            toolbar={false}
             exportName={`${committee.code}-sittings`}
             emptyTitle="No sittings recorded"
             emptyBody="Schedule one under Committee sittings."
@@ -362,5 +373,16 @@ function QuorumCard({ quorum, seats }: { quorum: number | null; seats: number })
         <span className="text-[12px] text-ink-3">{assessment.required} needed to sit</span>
       </div>
     </div>
+  );
+}
+
+/// A setting nobody has made: a short badge, and the consequence as readable text
+/// rather than squeezed into the badge.
+function GapValue({ text }: { text: string }) {
+  return (
+    <span className="flex flex-col items-start gap-1">
+      <Badge tone="warn">Not set</Badge>
+      <span className="text-[12.5px] text-ink-3">{text}</span>
+    </span>
   );
 }
