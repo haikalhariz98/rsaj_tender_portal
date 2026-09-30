@@ -166,6 +166,9 @@ model Organisation {
   documentTemplates DocumentTemplate[]
   notificationRules NotificationRule[]
   notApprovedOutcomes NotApprovedOutcome[]
+  requisitions        Requisition[]
+  requisitionPolicy   RequisitionPolicy?
+  approvalInstances   ApprovalInstance[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -218,6 +221,11 @@ model Person {
   delegationsTaken  Delegation[] @relation("DelegationTo")
   mattersTabled     CommitteeDecision[] @relation("TabledBy")
   recusals          DecisionRecusal[]
+  requisitionsRaised    Requisition[]            @relation("RequestedBy")
+  requisitionsReturned  Requisition[]            @relation("ReturnedTo")
+  endorsements          RequisitionEndorsement[]
+  splitOverrides        RequisitionSplitCheck[]
+  approvalStepsDecided  ApprovalStep[]
 
   @@unique([organisationId, staffNo])
   @@index([organisationId, name])
@@ -310,7 +318,9 @@ model AuthorityMatrix {
   tenderFloor         Decimal @db.Decimal(18, 2)
   requisitionBoundary Decimal @db.Decimal(18, 2)
 
-  /// Window used by the anti-splitting control.
+  /// Deprecated (6.1 ruling OD-9): never read, edited or shown. The 30 was a guess,
+  /// and the window now lives only in RequisitionPolicy, unset until the customer sets
+  /// it. Kept so existing rows and migrations stay valid.
   splittingWindowDays Int    @default(30)
   currency            String @default("MYR")
 
@@ -326,7 +336,15 @@ model AuthorityMatrix {
   /// Where an external funder's directives override these limits.
   funderOverrideClause String?
 
-  rules AuthorityRule[]
+  /// Set on a funder's rule set: an issue that routes matters on this funding route
+  /// (FundingRoute.code) in place of the organisation's own limits (FR-REQ-006). Null
+  /// is the organisation's own issue. Every reader that means "the rules that apply"
+  /// excludes funder issues unless it asks for one by route.
+  fundingRouteCode String?
+
+  rules             AuthorityRule[]
+  approvalInstances ApprovalInstance[] @relation("InstanceMatrix")
+  overrideInstances ApprovalInstance[] @relation("InstanceOverrideMatrix")
 
   @@unique([organisationId, label])
   @@index([organisationId, effectiveFrom])
@@ -363,6 +381,13 @@ model AuthorityRule {
   /// Band on the PARENT CONTRACT's value, banded independently of the matter's own.
   contractValueMin Decimal? @db.Decimal(18, 2)
   contractValueMax Decimal? @db.Decimal(18, 2)
+
+  /// Whether this rule's band edges follow the issue's boundary switch
+  /// (`boundaryInclusive`) where an edge equals `boundaryValue`. Null means nobody has
+  /// decided, which is refused on save wherever an edge sits on the boundary, and
+  /// warns at resolution. Requisition bands do not follow it (6.1 ruling OD-4): a
+  /// RM300,000.00 requisition routes to the same office under either setting.
+  followsBoundarySwitch Boolean?
 
   labelEn String
   labelMs String?
@@ -581,6 +606,11 @@ model CommitteeDecision {
   sequence   Int         @default(0)
   /// The kind of record the matter concerns. Null is a manual matter.
   matterKind MatterKind?
+  /// The requisition the matter concerns, where `matterKind` is REQUISITION. A typed
+  /// foreign key per module (6.10 ruling), never a polymorphic pair.
+  requisitionId String?
+  requisition   Requisition? @relation(fields: [requisitionId], references: [id], onDelete: SetNull)
+  approvalSteps ApprovalStep[]
 
   /// Who tabled the matter, and when. An attestation, not an authenticated act,
   /// until sign-in exists.
@@ -619,6 +649,7 @@ model CommitteeDecision {
   recusals DecisionRecusal[]
 
   @@index([meetingId])
+  @@index([requisitionId])
 }
 
 /// A member standing aside from one matter. Excluded from that matter's vote and
@@ -961,6 +992,8 @@ model Delegation {
 
   provenance Provenance @default(ASSUMED)
 
+  approvalSteps ApprovalStep[]
+
   @@index([organisationId, effectiveFrom])
   @@index([fromPersonId])
   @@index([toPersonId])
@@ -1196,7 +1229,9 @@ model BudgetCode {
   effectiveFrom DateTime
   effectiveTo   DateTime?
 
-  movements BudgetMovement[]
+  movements    BudgetMovement[]
+  requisitions Requisition[]
+  budgetChecks RequisitionBudgetCheck[]
 
   @@unique([organisationId, code])
   @@index([organisationId, effectiveFrom])
@@ -1249,6 +1284,10 @@ model FinanceIntegration {
   schedule String?
   /// How far apart the two sides may be before it counts as a variance.
   varianceTolerance Decimal? @db.Decimal(18, 2)
+  /// Where a requisition's budget check comes from: the portal's own ledger, or
+  /// figures typed in from the finance system. Null means nobody has said, and no
+  /// check can be run — it never falls back to either.
+  budgetCheckSource BudgetCheckSource?
 }
 
 /// One reconciliation run.
@@ -1439,6 +1478,12 @@ model FundingRoute {
   /// What starts a matter down this route, in the customer's own words.
   trigger String @default("")
 
+  /// True where a matter on this route may not progress until an external body's
+  /// authority is recorded against it — a funder's execution letter, say (FR-REQ-005).
+  requiresExternalAuthorityRef Boolean @default(false)
+  /// What that authority is called, as the customer names it. Shown on the field.
+  externalAuthorityRefLabel    String?
+
   governingSource String     @default("")
   provenance      Provenance @default(ASSUMED)
   notes           String     @default("")
@@ -1530,4 +1575,379 @@ model ContractType {
 
   @@unique([organisationId, code])
   @@index([organisationId, sortOrder])
+}
+
+// ------------------------------------------------------------------ 6.1 requisitions
+
+/// Where a requisition stands (spec §7.3.1). One machine for both entry paths.
+enum RequisitionStatus {
+  DRAFT
+  ENDORSED
+  RETURNED
+  REGISTERED
+  BUDGET_CHECKED
+  OVER_BUDGET
+  PENDING_APPROVAL
+  REJECTED
+  RECALLED
+  APPROVED
+  SOURCING
+  PARTIALLY_FULFILLED
+  FULFILLED
+  CANCELLED
+  CLOSED
+}
+
+/// Raised in the portal, or received from the finance system (ADR 0003).
+enum RequisitionOrigin {
+  PORTAL
+  EXTERNAL
+}
+
+/// How a finance-system reference reached the portal. Typed in by an officer, or
+/// delivered by an adapter once one exists.
+enum ExternalRefSource {
+  MANUAL
+  ADAPTER
+}
+
+/// Where a budget check's figures came from (ADR 0004).
+enum BudgetCheckSource {
+  PORTAL_LEDGER /// Computed from the portal's movement ledger.
+  MANUAL_ERP_ENTRY /// Typed in by hand from the finance system, stored exactly as typed.
+}
+
+enum BudgetVerdictState {
+  WITHIN
+  EXCEEDS
+  NO_BUDGET
+  AMBIGUOUS
+}
+
+/// The anti-splitting result. NOT_SET is its own answer: an unconfigured check has
+/// cleared nothing, and is never later shown as CLEAR.
+enum SplitState {
+  CLEAR
+  FLAGGED
+  NOT_SET
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  RECALLED
+}
+
+enum StepDecision {
+  PENDING
+  DONE
+  REJECTED
+}
+
+/// The comparison applied at a band edge that sat on the boundary value.
+enum BoundaryOperator {
+  GT /// Above the boundary: a value exactly on it falls in the lower band.
+  GTE /// At or above: a value exactly on it falls in the upper band.
+}
+
+/// A requisition: a department asking to spend (FR-REQ-001).
+///
+/// Unit, cost centre, account and site are held by code, like everywhere else money is
+/// referenced, because those lists are effective-dated and a requisition must keep
+/// naming what it was raised against.
+model Requisition {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// The portal's own reference, issued atomically from NumberingSeries `requisition`.
+  reference String
+  origin    RequisitionOrigin @default(PORTAL)
+
+  /// The finance system's requisition number and note number. Consumed, never
+  /// minted: recorded when the finance system returns them.
+  erpRequisitionNo String?
+  erpNoteNo        String?
+  erpRefSource     ExternalRefSource?
+  erpRefRecordedAt DateTime?
+
+  requestingUnitCode String
+  sectionUnitCode    String?
+  requestingPersonId String
+  requestingPerson   Person  @relation("RequestedBy", fields: [requestingPersonId], references: [id], onDelete: Restrict)
+
+  title         String
+  justification String
+  needStatement String
+
+  costCentreCode  String
+  accountCode     String
+  budgetCodeId    String?
+  budgetCode      BudgetCode? @relation(fields: [budgetCodeId], references: [id], onDelete: Restrict)
+  siteCode        String?
+  placeOfDelivery String
+
+  dateRequired   DateTime
+  estimatedValue Decimal  @db.Decimal(18, 2)
+  /// The organisation's day it was raised. The splitting window counts from this.
+  raisedOn       DateTime
+
+  fundingRouteCode String?
+  /// The funding route as it read at submission, so a later edit to the route never
+  /// rewrites what the requisition was sent down under.
+  fundingSupersedesAuthority Boolean?
+  sourcingPermitted          Boolean?
+  fundingPosture             String?
+  /// The external body's authority, where the route requires one (FR-REQ-005).
+  externalAuthorityRef String?
+  contractTypeCode     String?
+
+  status RequisitionStatus @default(DRAFT)
+
+  /// The completeness return (FR-REQ-010): why, to whom, and when.
+  returnedReason     String    @default("")
+  returnedToPersonId String?
+  returnedTo         Person?   @relation("ReturnedTo", fields: [returnedToPersonId], references: [id], onDelete: Restrict)
+  returnedOn         DateTime?
+  cancelReason       String    @default("")
+
+  /// The COMMITMENT movement written on approval, where the settings call for one.
+  commitmentMovementId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lines              RequisitionLine[]
+  endorsements       RequisitionEndorsement[]
+  budgetChecks       RequisitionBudgetCheck[]
+  splitChecks        RequisitionSplitCheck[]
+  approvalInstances  ApprovalInstance[]
+  committeeDecisions CommitteeDecision[]
+
+  @@unique([organisationId, reference])
+  @@unique([organisationId, erpRequisitionNo])
+  @@unique([organisationId, erpNoteNo])
+  @@index([organisationId, status])
+  @@index([organisationId, raisedOn])
+}
+
+model RequisitionLine {
+  id            String      @id @default(cuid())
+  requisitionId String
+  requisition   Requisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+
+  lineNo             Int
+  description        String
+  quantity           Decimal? @db.Decimal(18, 4)
+  unit               String?
+  estimatedUnitPrice Decimal? @db.Decimal(18, 2)
+  estimatedAmount    Decimal  @db.Decimal(18, 2)
+  catalogueRef       String?
+
+  @@unique([requisitionId, lineNo])
+}
+
+/// One tier's endorsement (FR-REQ-003). Names a Person; "named user" waits for sign-in.
+model RequisitionEndorsement {
+  id            String      @id @default(cuid())
+  requisitionId String
+  requisition   Requisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+
+  tier       OrgUnitKind
+  unitCode   String
+  personId   String
+  person     Person   @relation(fields: [personId], references: [id], onDelete: Restrict)
+  endorsedOn DateTime
+  recordedAt DateTime @default(now())
+  note       String   @default("")
+
+  @@unique([requisitionId, tier])
+}
+
+/// One budget check, append-only (FR-REQ-007, ADR 0004).
+model RequisitionBudgetCheck {
+  id            String      @id @default(cuid())
+  requisitionId String
+  requisition   Requisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+
+  checkedAt DateTime          @default(now())
+  asAt      DateTime
+  source    BudgetCheckSource
+
+  budgetCodeId   String?
+  budgetCode     BudgetCode? @relation(fields: [budgetCodeId], references: [id], onDelete: SetNull)
+  /// The code as it read at the check.
+  budgetCodeCode String?
+
+  requestedAmount Decimal @db.Decimal(18, 2)
+
+  /// The four figures of the request form. Null where the source gave none.
+  actualBudget              Decimal?   @db.Decimal(18, 2)
+  balanceAsAt               Decimal?   @db.Decimal(18, 2)
+  /// Committed plus spent on the portal ledger, ASSUMED until the customer's finance
+  /// confirms what the form means by it. Never read by the verdict.
+  approvedAccount           Decimal?   @db.Decimal(18, 2)
+  approvedAccountProvenance Provenance
+  projectedBalance          Decimal?   @db.Decimal(18, 2)
+
+  verdict BudgetVerdictState
+  /// Warnings raised alongside the verdict, as keys, space-separated.
+  outcome String             @default("")
+
+  approvalInstances ApprovalInstance[]
+
+  @@index([requisitionId, checkedAt])
+}
+
+/// One anti-splitting assessment (FR-REQ-015), with the policy it ran under.
+model RequisitionSplitCheck {
+  id            String      @id @default(cuid())
+  requisitionId String
+  requisition   Requisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+
+  checkedAt DateTime   @default(now())
+  state     SplitState
+
+  windowDays           Int?
+  matchOn              String[]
+  aggregateAcrossYear  Boolean?
+  policyProvenance     Provenance?
+  relatedRequisitionIds String[]
+  /// The related requisitions' references as they read, for the screen.
+  relatedReferences    String[]
+  combinedValue        Decimal?  @db.Decimal(18, 2)
+  crossesBand          Boolean?
+
+  overrideJustification String?
+  overriddenOn          DateTime?
+  overriddenByPersonId  String?
+  overriddenBy          Person?   @relation(fields: [overriddenByPersonId], references: [id], onDelete: Restrict)
+  overriddenAt          DateTime?
+
+  approvalInstances ApprovalInstance[]
+
+  @@index([requisitionId, checkedAt])
+}
+
+/// How this customer wants requisitions controlled. One per organisation, every field
+/// unset until the customer sets it: an unset window is not a window of zero.
+model RequisitionPolicy {
+  id             String       @id @default(cuid())
+  organisationId String       @unique
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  splittingWindowDays          Int?
+  /// Which fields make two requisitions related: unit, costCentre, accountCode,
+  /// budgetCode, contractType. Empty means not set.
+  splittingMatchOn             String[]      @default([])
+  splittingAggregateAcrossYear Boolean?
+  /// A check older than this many days is re-run on submission. Null: never stale.
+  budgetRecheckDays            Int?
+  /// The tiers whose heads endorse before submission. Empty means not set.
+  endorsementTiers             OrgUnitKind[] @default([])
+  /// Whether registration needs the finance system's numbers. Null blocks it.
+  erpReferenceRequired         Boolean?
+
+  provenance Provenance?
+  notes      String      @default("")
+}
+
+/// A resolved approval route, persisted (ADR 0005). Generic across matters.
+///
+/// Snapshots every rule it was judged under, so a later edit to the limits, the
+/// budget settings or the splitting policy never rewrites what the approvers saw.
+model ApprovalInstance {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  matterKind    MatterKind
+  requisitionId String?
+  requisition   Requisition? @relation(fields: [requisitionId], references: [id], onDelete: Restrict)
+
+  domain String
+  cond   String?
+  value  Decimal @db.Decimal(18, 2)
+
+  /// Null for a trail received from outside.
+  authorityMatrixId String?
+  authorityMatrix   AuthorityMatrix? @relation("InstanceMatrix", fields: [authorityMatrixId], references: [id], onDelete: Restrict)
+  matrixLabel       String?
+  ruleKey           String?
+  ruleLabel         String?
+  ruleClause        String?
+
+  /// The boundary as it stood, and the comparison applied at it. The operator is null
+  /// when no edge of the rule sat on the boundary.
+  boundaryValue             Decimal?          @db.Decimal(18, 2)
+  boundaryInclusive         Boolean?
+  ruleFollowsBoundarySwitch Boolean?
+  boundaryOperator          BoundaryOperator?
+
+  fundingRouteCode       String?
+  fundingOverrideApplied Boolean          @default(false)
+  overrideMatrixId       String?
+  overrideMatrix         AuthorityMatrix? @relation("InstanceOverrideMatrix", fields: [overrideMatrixId], references: [id], onDelete: Restrict)
+  overrideMatrixLabel    String?
+
+  budgetCheckId     String?
+  budgetCheck       RequisitionBudgetCheck? @relation(fields: [budgetCheckId], references: [id], onDelete: SetNull)
+  budgetVerdict     BudgetVerdictState?
+  /// BudgetSettings.availabilityCheck as it stood at submission. Null: not set.
+  availabilityCheck String?
+  overBudgetInvoked Boolean                 @default(false)
+
+  splitCheckId String?
+  splitCheck   RequisitionSplitCheck? @relation(fields: [splitCheckId], references: [id], onDelete: SetNull)
+  splitState   SplitState?
+
+  /// False for a trail received from outside: the engine never routed it.
+  checkedAgainstMatrix Boolean @default(true)
+
+  /// BudgetSettings.commitOnApproval as it stood when the route closed.
+  commitOnApproval Boolean?
+
+  warnings Json           @default("[]")
+  status   ApprovalStatus @default(PENDING)
+  openedAt DateTime
+  closedAt DateTime?
+
+  steps ApprovalStep[]
+
+  @@index([organisationId, matterKind])
+  @@index([requisitionId])
+}
+
+/// One step of a persisted route, and who discharged it.
+model ApprovalStep {
+  id         String           @id @default(cuid())
+  instanceId String
+  instance   ApprovalInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  sequence Int
+  /// The office, by code, or null on a received trail that names none.
+  roleCode  String?
+  /// The office's name as it read when the route was opened.
+  roleLabel String
+  act       AuthorityAct
+  committeeCode String?
+  nonDelegable  Boolean      @default(false)
+  sourceRuleKey String?
+
+  decision          StepDecision @default(PENDING)
+  decidedByPersonId String?
+  decidedBy         Person?      @relation(fields: [decidedByPersonId], references: [id], onDelete: Restrict)
+  /// The name as it read when recorded.
+  decidedByName     String?
+  decidedOn         DateTime?
+  delegationId      String?
+  delegation        Delegation?  @relation(fields: [delegationId], references: [id], onDelete: Restrict)
+  reason            String       @default("")
+
+  committeeDecisionId String?
+  committeeDecision   CommitteeDecision? @relation(fields: [committeeDecisionId], references: [id], onDelete: Restrict)
+  recordedAt          DateTime?
+
+  @@unique([instanceId, sequence])
 }
