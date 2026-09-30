@@ -1,6 +1,6 @@
 # 0006 — Exercises are classified in Phase 1, and the method band is derived, not stored
 
-**Status:** proposed (plan `docs/notes/plans/6.3-method-selection.md`)
+**Status:** accepted — product-owner rulings 2026-09-30 (decisions log, "· 6.3 ·"); plan `docs/notes/plans/6.3-method-selection.md`
 
 ## Context
 
@@ -21,8 +21,9 @@ FR-MTD-001 requires three value-band families that are held separately: requisit
    - It is frozen when the issue is issued, so a case can cite the issue it was banded under.
    - It states which terms set applies, never retention or DLP figures.
 5. **`boundaryInclusive` stays the one D3 switch.**
-   - `bandConsistencyFaults` reports three problems:
-     - a `tenderFloor` that differs from `boundaryValue`;
+   - A `tenderFloor` that differs from `boundaryValue` is refused on save by a pure check in `src/lib` (`matrixPolicyFaults`), and so is a STATED boundary ruling with no source.
+   - `bandConsistencyFaults` reports three problems on an issue as it stands:
+     - a `tenderFloor` that differs from `boundaryValue` (legacy rows only);
      - an appointment or terms edge at the boundary that has not opted in;
      - a boundary edge whose opt-in disagrees with the regime.
    - Every exercise records the operator (GT/GTE), and whether the boundary was ruled (`boundaryProvenance = STATED`).
