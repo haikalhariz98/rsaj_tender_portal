@@ -14,6 +14,7 @@ import { ORGANISATION_CODE } from "@/lib/org";
 import type { Provenance } from "@/lib/reference/types";
 import { fundingPosture } from "@/lib/reference/vocabulary";
 
+import { byValue } from "./bands";
 import type { FunderContext } from "./approval";
 import type { EvaluationContext, ExerciseDraft, MethodConfig } from "./evaluate";
 import type { ContractTypeRow, DeliverableKind, ExerciseStatus, Method, TermsBand } from "./types";
@@ -65,8 +66,8 @@ export async function loadMethodConfig(organisationId: string, client: Tx = db) 
 export type LoadedMethodConfig = Awaited<ReturnType<typeof loadMethodConfig>>;
 
 export async function loadTermsBands(authorityMatrixId: string, client: Tx = db): Promise<(TermsBand & { id: string })[]> {
-  // In value order (UX 13): the band with no floor first.
-  const rows = await client.termsBand.findMany({ where: { authorityMatrixId }, orderBy: [{ minValue: { sort: "asc", nulls: "first" } }, { bandKey: "asc" }] });
+  // In value order (UX 13, BD-24), by the same rule the lib reads them in.
+  const rows = await client.termsBand.findMany({ where: { authorityMatrixId } });
   return rows.map((t) => ({
     id: t.id,
     bandKey: t.bandKey,
@@ -81,7 +82,7 @@ export async function loadTermsBands(authorityMatrixId: string, client: Tx = db)
     clause: t.clause,
     provenance: t.provenance as Provenance,
     sortOrder: t.sortOrder,
-  }));
+  })).sort(byValue);
 }
 
 /**
@@ -106,8 +107,8 @@ const exerciseInclude = {
   overriddenBy: { select: { id: true, name: true } },
   proposalReviewer: { select: { id: true, name: true } },
   approvalInstances: {
-    // Newest first, same-day routes by when written (review #4).
-    orderBy: [{ openedAt: "desc" as const }, { createdAt: "desc" as const }],
+    // Newest first, same-day routes by when written, then by id (review #4, BD-17).
+    orderBy: [{ openedAt: "desc" as const }, { createdAt: "desc" as const }, { id: "desc" as const }],
     include: {
       steps: {
         orderBy: { sequence: "asc" as const },

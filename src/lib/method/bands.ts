@@ -13,9 +13,9 @@
  * bridge is used only to band.
  */
 
-import { edgeAtBoundary, inBand, regimeFor } from "@/lib/authority/resolve";
+import { boundaryOperatorFor, inBand, regimeFor } from "@/lib/authority/resolve";
 import type { Policy, Regime } from "@/lib/authority/types";
-import { senToDecimalString, type Sen } from "@/lib/money";
+import { senFromAmount, senToDecimalString, type Sen } from "@/lib/money";
 import { resolveRequisitionRoute } from "@/lib/requisition/route";
 
 import { appointmentPreview, resolveNameApproval, type AppointmentPreview, type FunderContext, type NameApprovalState } from "./approval";
@@ -37,9 +37,55 @@ export interface TermsResult {
   boundaryOperator: "GT" | "GTE" | null;
 }
 
-function termsOperator(t: TermsBand, policy: Policy): "GT" | "GTE" | null {
-  if (!edgeAtBoundary({ minValue: t.minValue, maxValue: t.maxValue, contractValueMin: null, contractValueMax: null }, policy)) return null;
-  return t.followsBoundarySwitch === true && policy.boundaryInclusive === false ? "GTE" : "GT";
+/// The comparison a terms band applies at the boundary: the engine's own rule for a
+/// rule's edge, so the two never drift apart (6.3 re-review).
+export function termsOperator(t: Pick<TermsBand, "minValue" | "maxValue" | "followsBoundarySwitch">, policy: Pick<Policy, "boundaryValue" | "boundaryInclusive">): "GT" | "GTE" | null {
+  return boundaryOperatorFor({ minValue: t.minValue, maxValue: t.maxValue, contractValueMin: null, contractValueMax: null, followsBoundarySwitch: t.followsBoundarySwitch }, policy);
+}
+
+/// Whether the stored findings say the appointment rule or terms band sits on the other
+/// side of the boundary from the regime (REGIME_RULE_DISAGREE). The screen reads this,
+/// never comparing operators itself.
+export function disagreesAtBoundary(findings: readonly { code: string; data?: Record<string, unknown> }[] | null | undefined, kind: "rule" | "terms"): boolean {
+  return (findings ?? []).some((f) => f.code === "REGIME_RULE_DISAGREE" && f.data?.kind === kind);
+}
+
+/**
+ * Terms bands in value order: lowest floor first (no floor lowest), then lowest ceiling
+ * (no ceiling highest), then key, so nothing depends on the order rows were written in.
+ * The retired `sortOrder` is not read (ruling on BD-24).
+ */
+export function byValue(a: Pick<TermsBand, "minValue" | "maxValue" | "bandKey">, b: Pick<TermsBand, "minValue" | "maxValue" | "bandKey">): number {
+  const cmp = (x: number | null, y: number | null, nullLow: boolean) => {
+    if (x == null && y == null) return 0;
+    if (x == null) return nullLow ? -1 : 1;
+    if (y == null) return nullLow ? 1 : -1;
+    const d = senFromAmount(x) - senFromAmount(y);
+    return d < 0n ? -1 : d > 0n ? 1 : 0;
+  };
+  return cmp(a.minValue, b.minValue, true) || cmp(a.maxValue, b.maxValue, false) || (a.bandKey < b.bandKey ? -1 : a.bandKey > b.bandKey ? 1 : 0);
+}
+
+type BandEdges = Pick<TermsBand, "minValue" | "maxValue" | "regime" | "followsBoundarySwitch">;
+
+/**
+ * The bands a band would share a value with in a regime they both apply in (a band
+ * with no regime applies in all). Bands run from above their floor up to and including
+ * their ceiling; at the boundary value each band's own switch opt-in is honoured, so a
+ * value exactly there is checked as the resolver would band it. Saving is refused on
+ * any overlap (ruling on BD-24): two terms sets never both apply at one value.
+ */
+export function overlappingBands<T extends BandEdges>(band: BandEdges, others: readonly T[], edge: Pick<Policy, "boundaryValue" | "boundaryInclusive">): T[] {
+  const policy = edge as Policy; // inBand reads only these two
+  const lo = (x: BandEdges) => (x.minValue == null ? null : senFromAmount(x.minValue));
+  const hi = (x: BandEdges) => (x.maxValue == null ? null : senFromAmount(x.maxValue));
+  const below = (a: bigint | null, b: bigint | null) => a == null || b == null || a < b;
+  return others.filter((o) => {
+    if (band.regime != null && o.regime != null && band.regime !== o.regime) return false;
+    if (below(lo(band), hi(o)) && below(lo(o), hi(band))) return true;
+    const at = policy.boundaryValue;
+    return inBand(at, band.minValue, band.maxValue, policy, band.followsBoundarySwitch) && inBand(at, o.minValue, o.maxValue, policy, o.followsBoundarySwitch);
+  });
 }
 
 /**
@@ -49,7 +95,7 @@ function termsOperator(t: TermsBand, policy: Policy): "GT" | "GTE" | null {
  */
 export function termsFor(value: number, regime: Regime, terms: readonly TermsBand[], policy: Policy): TermsResult {
   if (terms.length === 0) return { state: "NOT_SET", band: null, overlapping: false, boundaryOperator: null };
-  const inRegime = [...terms].filter((t) => t.regime == null || t.regime === regime).sort((a, b) => a.sortOrder - b.sortOrder);
+  const inRegime = [...terms].filter((t) => t.regime == null || t.regime === regime).sort(byValue);
   if (inRegime.length === 0) return { state: "NONE_IN_REGIME", band: null, overlapping: false, boundaryOperator: null };
   const hits = inRegime.filter((t) => inBand(value, t.minValue, t.maxValue, policy, t.followsBoundarySwitch));
   if (hits.length === 0) return { state: "NO_BAND_FOR_VALUE", band: null, overlapping: false, boundaryOperator: null };

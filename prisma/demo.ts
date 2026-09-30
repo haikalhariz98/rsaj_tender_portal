@@ -1513,15 +1513,10 @@ async function loadMethodSelection(organisationId: string, from: Date) {
     ],
   });
 
-  // Their trail, as the requisition actions would have written it (UX 5).
-  const rqTrail = (rq: number, ref: string, title: string, raised: string, approved: string, sourcing: string | null) => [
-    { id: `${P}rq${rq}_au1`, organisationId, entity: "Requisition", entityId: `${P}rq${rq}`, entityLabel: `${ref} · ${title}`, action: "CREATE" as const, at: day(raised), changes: [{ field: "reference", before: null, after: ref }, { field: "status", before: null, after: "DRAFT" }] },
-    { id: `${P}rq${rq}_au2`, organisationId, entity: "Requisition", entityId: `${P}rq${rq}`, entityLabel: `${ref} · ${title}`, action: "UPDATE" as const, at: day(approved), changes: [{ field: "status", before: "PENDING_APPROVAL", after: "APPROVED" }] },
-    ...(sourcing ? [{ id: `${P}rq${rq}_au3`, organisationId, entity: "Requisition", entityId: `${P}rq${rq}`, entityLabel: `${ref} · ${title}`, action: "UPDATE" as const, at: day(sourcing), reason: "An exercise moved into preparation.", changes: [{ field: "status", before: "APPROVED", after: "SOURCING" }] }] : []),
-  ];
-  await db.auditEntry.createMany({
-    data: [...rqTrail(13, REQ(25), "Filter and pipework renewal, Bukit Demo plant", "2026-06-01", "2026-06-24", "2026-09-08"), ...rqTrail(14, REQ(26), "Clear-water tank refurbishment", "2026-08-10", "2026-08-28", null)],
-  });
+  // Their trail, in the shape the requisition actions write it (UX 5; ruling on the demo
+  // trail): raised, endorsed twice, checked and submitted with its route, each step
+  // decided, committed and approved — and rq13 moved into sourcing by DEMO/SX/0002.
+  await db.auditEntry.createMany({ data: [...(await requisitionTrail(organisationId, 13)), ...(await requisitionTrail(organisationId, 14))] });
 
   // The exercises. Their bands, snapshots and decided records are written afterwards by
   // the same functions a save uses.
@@ -1603,11 +1598,71 @@ async function loadMethodSelection(organisationId: string, from: Date) {
   });
 }
 
+/// A demo requisition's 6.1 trail, built with the diff the requisition actions use and
+/// in the same fields, dated as the demo tells it.
+async function requisitionTrail(organisationId: string, rq: 13 | 14) {
+  const { diffFields } = await import("../src/lib/audit/diff");
+  const { ACT_LABEL } = await import("../src/lib/labels");
+  const { TIER_LABEL } = await import("../src/lib/requisition/labels");
+  const d = rq === 13
+    ? { ref: "DEMO/REQ/0025/2026", title: "Filter and pipework renewal, Bukit Demo plant", raised: "2026-06-01", endorsed: ["2026-06-02", "2026-06-02"], checked: "2026-06-05", balance: "1500000.00", value: "330000.00", required: "2026-12-31", lines: 2,
+        justification: "Filter media and headers are past their service life.", need: "Restore filter throughput before the dry season.", steps: ["2026-06-08", "2026-06-12", "2026-06-18", "2026-06-24"], movement: `${P}bm20`, sourcing: "2026-09-08" }
+    : { ref: "DEMO/REQ/0026/2026", title: "Clear-water tank refurbishment", raised: "2026-08-10", endorsed: ["2026-08-11", "2026-08-12"], checked: "2026-08-15", balance: "1170000.00", value: "600000.00", required: "2027-03-31", lines: 1,
+        justification: "The tank lining has failed its inspection.", need: "Reline and re-roof the clear-water tank.", steps: ["2026-08-17", "2026-08-19", "2026-08-24", "2026-08-28"], movement: `${P}bm21`, sourcing: null };
+  const reqId = `${P}rq${rq}`;
+  const label = `${d.ref} · ${d.title}`;
+  const route = `${d.ref} · approval route`;
+  const chain = [
+    ["DEPT_HEAD", "Head of Department", "P", "Imran Hakim"],
+    ["DIV_HEAD", "Head of Division", "R", "Gopal Nair"],
+    ["FD", "Finance Director", "MR", "Bala Krishnan"],
+    ["CEO", "Chief Executive", "A", "Aisyah Rahman"],
+  ] as const;
+  let n = 0;
+  const entry = (entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", at: string, changes: object[], reason = "") =>
+    ({ id: `${reqId}_au${++n}`, organisationId, entity, entityId, entityLabel, action, at: day(at), changes: changes as object, reason, unattributed: true });
+  return [
+    entry("Requisition", reqId, label, "CREATE", d.raised, diffFields(null, {
+      reference: d.ref, title: d.title, justification: d.justification, needStatement: d.need, requestingUnitCode: "NTH", sectionUnitCode: "NTH-MNT", requestingPersonId: `${P}p11`,
+      costCentreCode: "CC-200", accountCode: "7400400", budgetCodeId: `${P}bcode8`, siteCode: "NTH-WKS", placeOfDelivery: "Bukit Demo treatment plant", dateRequired: day(d.required),
+      estimatedValue: d.value, fundingRouteCode: "capex", contractTypeCode: null, lines: d.lines, status: "DRAFT",
+    })),
+    entry("RequisitionEndorsement", `${P}en${rq}a`, `${d.ref} · ${TIER_LABEL.SECTION}`, "CREATE", d.endorsed[0], diffFields(null, { tier: "SECTION", unit: "Maintenance Section", person: "Lim Kok Seng", endorsedOn: day(d.endorsed[0]), note: "" })),
+    entry("RequisitionEndorsement", `${P}en${rq}b`, `${d.ref} · ${TIER_LABEL.DEPARTMENT}`, "CREATE", d.endorsed[1], diffFields(null, { tier: "DEPARTMENT", unit: "Northern Region", person: "Imran Hakim", endorsedOn: day(d.endorsed[1]), note: "" })),
+    entry("Requisition", reqId, label, "UPDATE", d.endorsed[1], diffFields({ status: "DRAFT" }, { status: "ENDORSED" })),
+    // Submission: the budget check, the route opened, the requisition sent for approval.
+    entry("RequisitionBudgetCheck", `${P}bk${rq}`, `${d.ref} · budget check`, "CREATE", d.checked, diffFields(null, { source: "PORTAL_LEDGER", asAt: day(d.checked), budgetCode: "CAP26-044", verdict: "WITHIN", balanceAsAt: d.balance, requestedAmount: d.value })),
+    entry("ApprovalInstance", `${P}ai${rq}`, route, "CREATE", d.checked, diffFields(null, {
+      matrix: "Demo limits, issue 1", rule: "Requisition, above RM250,000",
+      route: chain.map(([, roleLabel, act]) => `${roleLabel} (${ACT_LABEL[act]?.toLowerCase() ?? "acts"})`).join(" → "),
+      overBudget: false, fundingOverrideApplied: false, splitState: "CLEAR",
+    })),
+    entry("Requisition", reqId, label, "UPDATE", d.checked, diffFields({ status: "ENDORSED", sourcingPermitted: null }, { status: "PENDING_APPROVAL", fundingSupersedesAuthority: false, sourcingPermitted: true, fundingPosture: "PROCURES" })),
+    ...chain.map(([, roleLabel, , name], i) =>
+      entry("ApprovalStep", `${P}as${rq}_${i + 1}`, `${d.ref} · ${roleLabel}`, "UPDATE", d.steps[i], diffFields({ decision: "PENDING" }, { decision: "DONE", decidedBy: name, decidedOn: day(d.steps[i]), recordedOnBehalf: "not signed", underDelegation: null }))),
+    // The last step approves: the commitment written, the route closed, the requisition approved.
+    entry("BudgetMovement", d.movement, `CAP26-044 · commitment for ${d.ref}`, "CREATE", d.steps[3], diffFields(null, { kind: "COMMITMENT", budgetCode: "CAP26-044", reference: d.ref, amount: d.value, occurredOn: day(d.steps[3]) })),
+    entry("ApprovalInstance", `${P}ai${rq}`, route, "UPDATE", d.steps[3], diffFields({ status: "PENDING" }, { status: "APPROVED", commitment: "written" })),
+    entry("Requisition", reqId, label, "UPDATE", d.steps[3], diffFields({ status: "PENDING_APPROVAL" }, { status: "APPROVED" })),
+    ...(d.sourcing ? [entry("Requisition", reqId, label, "UPDATE", d.sourcing, diffFields({ status: "APPROVED" }, { status: "SOURCING" }), "Exercise DEMO/SX/0002/2026 moved into preparation.")] : []),
+  ];
+}
+
+/// The name route's trail, in the shape the request and decision actions write.
 async function nameRouteTrail(organisationId: string) {
+  const { diffFields } = await import("../src/lib/audit/diff");
+  const { ACT_LABEL } = await import("../src/lib/labels");
+  const chain = [["Section Head, Pre-contract", "P"], ["Head of Contract & Procurement", "MR"], ["Head of Division", "JR"], ["Finance Director", "R"], ["Chief Executive", "A"]] as const;
   await db.auditEntry.createMany({
     data: [
-      { id: `${P}ai20_au1`, organisationId, entity: "ApprovalInstance", entityId: `${P}ai20`, entityLabel: "DEMO/SX/0003/2026 · name approval", action: "CREATE", at: day("2026-09-21"), changes: [{ field: "rule", before: null, after: "Name approval, selected tender" }] },
-      { id: `${P}as20_1_au1`, organisationId, entity: "ApprovalStep", entityId: `${P}as20_1`, entityLabel: "DEMO/SX/0003/2026 · Section Head, Pre-contract", action: "UPDATE", at: day("2026-09-22"), changes: [{ field: "decision", before: "PENDING", after: "DONE" }, { field: "decidedBy", before: null, after: "Eng Siew Mei" }, { field: "recordedOnBehalf", before: null, after: "not signed" }] },
+      {
+        id: `${P}ai20_au1`, organisationId, entity: "ApprovalInstance", entityId: `${P}ai20`, entityLabel: "DEMO/SX/0003/2026 · name approval", action: "CREATE", at: day("2026-09-21"), unattributed: true,
+        changes: diffFields(null, { matrix: "Demo limits, issue 1", rule: "Name approval, selected tender", route: chain.map(([r, a]) => `${r} (${ACT_LABEL[a]?.toLowerCase() ?? "acts"})`).join(" → "), fundingOverrideApplied: false }) as object,
+      },
+      {
+        id: `${P}as20_1_au1`, organisationId, entity: "ApprovalStep", entityId: `${P}as20_1`, entityLabel: "DEMO/SX/0003/2026 · Section Head, Pre-contract", action: "UPDATE", at: day("2026-09-22"), unattributed: true,
+        changes: diffFields({ decision: "PENDING" }, { decision: "DONE", decidedBy: "Eng Siew Mei", decidedOn: day("2026-09-22"), recordedOnBehalf: "not signed", underDelegation: null }) as object,
+      },
     ],
   });
 }
@@ -1623,6 +1678,10 @@ async function determineExercises(ids: string[]) {
   const { evaluateExercise, saveBlockers } = await import("../src/lib/method/evaluate");
   const snap = await import("../src/lib/method/snapshot");
   const { behaviourProfile } = await import("../src/lib/method/profile");
+  const { auditCreate, auditPair } = await import("../src/lib/method/audit-view");
+  const { diffFields } = await import("../src/lib/audit/diff");
+  const { DELIVERABLE_LABEL } = await import("../src/lib/method/labels");
+  const { parseSen, senToDecimalString } = await import("../src/lib/money");
   // The minuted sittings are snapshotted next, on the same lib client, which they close.
   {
     for (const id of ids) {
@@ -1658,33 +1717,47 @@ async function determineExercises(ids: string[]) {
           ...(prepared ? { classificationSnapshot: decided as object, preparedAt: day("2026-09-08"), determinedAt: day("2026-09-08") } : {}),
         },
       });
-      // The trail the actions would have written (UX 5), dated as the demo tells it.
+      // The trail in the shape the actions write it (UX 5; ruling on the demo trail), built
+      // with their own helpers and dated as the demo tells it.
       const label = `${l.ex.reference} · ${l.ex.title}`;
-      const ch = (field: string, before: string | null, after: string | null) => ({ field, before, after });
-      const entries: { at: Date; action: "CREATE" | "UPDATE"; changes: object[]; reason?: string }[] = [
-        {
-          at: l.ex.createdAt,
-          action: "CREATE",
-          changes: [
-            ch("reference", null, l.ex.reference),
-            ch("title", null, l.ex.title),
-            ch("estimatedValue", null, l.ex.estimatedValue.toString()),
-            ch("sourcingMethodCode", null, l.ex.sourcingMethodCode),
-            ch("contractTypeCode", null, cols.contractTypeCode),
-            ch("contractBasisCode", null, l.ex.contractBasisCode),
-            ch("status", null, "DRAFT"),
-            ch("requisition", null, l.req.reference),
-          ],
-        },
+      const asCreated = {
+        ...l.ex, ...cols, requisitionRuleKey: ctx.approved?.ruleKey ?? null, requisitionRuleLabel: ctx.approved?.ruleLabel ?? null,
+        methodReason: cols.proposedMethodCode === l.ex.sourcingMethodCode ? "" : l.ex.methodReason,
+        status: "DRAFT", dossierReference: null, preparedAt: null, cancelReason: "", proposalState: l.ex.proposalState ? "DRAFT" : null,
+        proposalSubmittedOn: null, proposalReviewedOn: null, proposalReviewerPersonId: null, proposalReviewComment: "", scopeParts: undefined, taxonomyValues: undefined,
+      };
+      const taxName = (t: string) => cfg.config.taxonomies.find((x) => x.code === t)?.nameEn ?? "A classification no longer configured";
+      const valName = (t: string, v: string) => cfg.config.taxonomies.find((x) => x.code === t)?.values.find((x) => x.code === v)?.nameEn ?? "A value no longer configured";
+      const trail: { entity: string; entityId: string; entityLabel: string; at: Date; action: "CREATE" | "UPDATE"; changes: object[]; reason?: string }[] = [
+        { entity: "SourcingExercise", entityId: id, entityLabel: label, at: l.ex.createdAt, action: "CREATE", changes: auditCreate(asCreated, { requisition: l.req.reference }) },
+        ...l.ex.scopeParts.map((p) => ({
+          entity: "ExerciseScopePart", entityId: p.id, entityLabel: `${l.ex.reference} · scope: ${DELIVERABLE_LABEL[p.deliverableKind as keyof typeof DELIVERABLE_LABEL].toLowerCase()}`, at: l.ex.createdAt, action: "CREATE" as const,
+          changes: diffFields(null, { deliverableKind: p.deliverableKind, amount: senToDecimalString(parseSen(p.amount.toString())), description: p.description }),
+        })),
+        ...ev.taxonomies.filter((x) => x.state === "DERIVED" && x.valueCode).map((t) => ({
+          entity: "ExerciseTaxonomyValue", entityId: `${id}tv_${t.taxonomyCode}`, entityLabel: `${l.ex.reference} · ${taxName(t.taxonomyCode)}`, at: l.ex.createdAt, action: "CREATE" as const,
+          changes: diffFields(null, { taxonomy: taxName(t.taxonomyCode), value: valName(t.taxonomyCode, t.valueCode!), pick: t.state }),
+        })),
+        ...l.ex.taxonomyValues.filter((t) => t.pick === "CHOSEN").map((t) => ({
+          entity: "ExerciseTaxonomyValue", entityId: t.id, entityLabel: `${l.ex.reference} · ${taxName(t.taxonomyCode)}`, at: l.ex.createdAt, action: "CREATE" as const,
+          changes: diffFields(null, { taxonomy: taxName(t.taxonomyCode), value: valName(t.taxonomyCode, t.valueCode), pick: "CHOSEN" }),
+        })),
       ];
       if (l.ex.proposalState === "REVIEWED") {
-        entries.push({ at: day("2026-09-15"), action: "UPDATE", changes: [ch("proposalState", "DRAFT", "SUBMITTED")] });
-        entries.push({ at: day("2026-09-20"), action: "UPDATE", changes: [ch("proposalState", "SUBMITTED", "REVIEWED"), ch("reviewedBy", null, "Chen Wei Ling"), ch("recordedOnBehalf", null, "not signed")], reason: l.ex.proposalReviewComment });
+        trail.push({ entity: "SourcingExercise", entityId: id, entityLabel: label, at: l.ex.proposalSubmittedOn!, action: "UPDATE", changes: diffFields({ proposalState: "DRAFT" }, { proposalState: "SUBMITTED", proposalSubmittedOn: l.ex.proposalSubmittedOn }) });
+        trail.push({
+          entity: "SourcingExercise", entityId: id, entityLabel: label, at: l.ex.proposalReviewedOn!, action: "UPDATE", reason: l.ex.proposalReviewComment,
+          changes: diffFields({ proposalState: "SUBMITTED", proposalReviewComment: "" }, { proposalState: "REVIEWED", proposalReviewedOn: l.ex.proposalReviewedOn, proposalReviewComment: l.ex.proposalReviewComment, reviewedBy: l.ex.proposalReviewer?.name ?? null, recordedOnBehalf: "not signed" }),
+        });
       }
-      if (prepared) entries.push({ at: day("2026-09-08"), action: "UPDATE", changes: [ch("status", "DRAFT", "DOCUMENTS_IN_PREPARATION"), ch("classificationRecorded", null, "yes")] });
-      if (l.ex.status === "CANCELLED") entries.push({ at: day("2026-09-06"), action: "UPDATE", changes: [ch("status", "DRAFT", "CANCELLED")], reason: l.ex.cancelReason });
+      if (prepared) {
+        // The move, as moveToPreparation audits it: the dossier numbered, the record written.
+        const movedOn = day("2026-09-08");
+        trail.push({ entity: "SourcingExercise", entityId: id, entityLabel: label, at: movedOn, action: "UPDATE", changes: auditPair(asCreated, { ...asCreated, status: "DOCUMENTS_IN_PREPARATION", preparedAt: movedOn, dossierReference: l.ex.dossierReference, classificationRecorded: "yes" }) });
+      }
+      if (l.ex.status === "CANCELLED") trail.push({ entity: "SourcingExercise", entityId: id, entityLabel: label, at: day("2026-09-06"), action: "UPDATE", changes: diffFields({ status: "DRAFT" }, { status: "CANCELLED" }), reason: l.ex.cancelReason });
       await db.auditEntry.createMany({
-        data: entries.map((e, i) => ({ id: `${id}_au${i + 1}`, organisationId: l.org.id, entity: "SourcingExercise", entityId: id, entityLabel: label, action: e.action, changes: e.changes as object, reason: e.reason ?? "", at: e.at })),
+        data: trail.map((e, i) => ({ id: `${id}_au${i + 1}`, organisationId: l.org.id, entity: e.entity, entityId: e.entityId, entityLabel: e.entityLabel, action: e.action, changes: e.changes as object, reason: e.reason ?? "", at: e.at, unattributed: true })),
       });
       for (const t of ev.taxonomies.filter((x) => x.state === "DERIVED" && x.valueCode)) {
         await db.exerciseTaxonomyValue.create({ data: { id: `${id}tv_${t.taxonomyCode}`, exerciseId: id, taxonomyCode: t.taxonomyCode, valueCode: t.valueCode!, pick: "DERIVED" } });

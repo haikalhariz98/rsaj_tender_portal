@@ -6,6 +6,8 @@ import { classificationSnapshotOf, isClassificationSnapshot } from "./snapshot";
 import { deriveTaxonomies } from "./taxonomy";
 
 const on = new Date("2026-09-30T00:00:00Z");
+/// The extras the actions pass, now required: none recorded.
+const NO_EXTRA = { reasonName: null, appointment: { state: "NO_RULE", ruleLabel: null } };
 
 describe("the decided record (snapshot on the move into preparation)", () => {
   const cfg = { types: SPEC_TYPES, bases: SPEC_BASES, taxonomies: SPEC_TAXONOMIES, policy: { dominanceSharePct: "50.0000", provenance: "ASSUMED" as const } };
@@ -16,7 +18,7 @@ describe("the decided record (snapshot on the move into preparation)", () => {
     taxonomies: deriveTaxonomies("WORK", "DS", [], SPEC_MAPPINGS, SPEC_TAXONOMIES, on),
   };
   it("holds the method's flags, the type's twelve behaviours, the threshold with its provenance, the basis and the taxonomies", () => {
-    const s = classificationSnapshotOf(ev, cfg, "DS", (c) => c, behaviourProfile)!;
+    const s = classificationSnapshotOf(ev, cfg, "DS", (c) => c, behaviourProfile, NO_EXTRA)!;
     expect(isClassificationSnapshot(s)).toBe(true);
     expect(s.method.flags.requiresNameApproval).toBe(false);
     expect(s.contractType.profile).toHaveLength(12);
@@ -25,7 +27,7 @@ describe("the decided record (snapshot on the move into preparation)", () => {
     expect(s.taxonomies.find((t) => t.taxonomy === "REPORT")?.value).toBe("REPORT_DB");
   });
   it("does not change when the configuration later does", () => {
-    const s = classificationSnapshotOf(ev, cfg, "DS", (c) => c, behaviourProfile)!;
+    const s = classificationSnapshotOf(ev, cfg, "DS", (c) => c, behaviourProfile, NO_EXTRA)!;
     const frozen = JSON.stringify(s);
     SPEC_TYPES[0].defectsLiabilityApplies = false;
     try {
@@ -35,8 +37,8 @@ describe("the decided record (snapshot on the move into preparation)", () => {
     }
   });
   it("is not written without a method, type and basis", () => {
-    expect(classificationSnapshotOf(ev, cfg, null, (c) => c, behaviourProfile)).toBeNull();
-    expect(classificationSnapshotOf({ ...ev, method: null }, cfg, "DS", (c) => c, behaviourProfile)).toBeNull();
+    expect(classificationSnapshotOf(ev, cfg, null, (c) => c, behaviourProfile, NO_EXTRA)).toBeNull();
+    expect(classificationSnapshotOf({ ...ev, method: null }, cfg, "DS", (c) => c, behaviourProfile, NO_EXTRA)).toBeNull();
   });
 });
 

@@ -150,12 +150,14 @@ export function resolveNameApproval(ctx: FunderContext, method: Method, value: n
 
 export type NameFault = "NAME_NOT_REQUESTED" | "NAME_NOT_APPROVED" | "NAME_REJECTED";
 
-type RouteOrder = { openedAt: Date; createdAt?: Date | null };
+type RouteOrder = { openedAt: Date; createdAt?: Date | null; id?: string };
 
-/// Routes newest first: by the day opened, then by when written — two routes opened on
-/// the same day are never ordered by chance.
+/// Routes newest first: by the day opened, then by when written, then by id — two
+/// routes opened on the same day, even written in the same instant, are never ordered
+/// by chance (ruling on BD-17).
 export function latestFirst<T extends RouteOrder>(instances: readonly T[]): T[] {
-  return [...instances].sort((a, b) => b.openedAt.getTime() - a.openedAt.getTime() || (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
+  const byId = (a: T, b: T) => ((b.id ?? "") < (a.id ?? "") ? -1 : (b.id ?? "") > (a.id ?? "") ? 1 : 0);
+  return [...instances].sort((a, b) => b.openedAt.getTime() - a.openedAt.getTime() || (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0) || byId(a, b));
 }
 
 /**
@@ -208,6 +210,18 @@ export function nameRequestFault(
   if (today == null) return { code: "TIME_ZONE_UNSET", level: "block" };
   if (instances.some((i) => i.status === "PENDING" || i.status === "APPROVED")) return { code: "NAME_ALREADY_REQUESTED", level: "block" };
   return null;
+}
+
+/// Whether the requester holds an office, and whether they alone do, from 6.1's holder
+/// lookup for the requisition's unit. The request action and the page both ask it.
+export function requesterHolding(holdersOf: (roleCode: string) => { holderIds: readonly string[] }, requesterId: string) {
+  return {
+    holds: (code: string) => holdersOf(code).holderIds.includes(requesterId),
+    soleHolder: (code: string) => {
+      const h = holdersOf(code).holderIds;
+      return h.length > 0 && h.every((x) => x === requesterId);
+    },
+  };
 }
 
 /**

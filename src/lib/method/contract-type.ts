@@ -52,10 +52,11 @@ export function defaultContractType(
   const share = total > 0n ? (dominant * 100n * SCALE) / total : 0n;
   const sharePct = formatPct(share);
   if (byKind.size > 1) {
-    if (policy.dominanceSharePct == null) return { state: "THRESHOLD_NOT_SET", code: null, kind, sharePct };
-    // Two deliverables of equal largest value: neither dominates, whatever the order
-    // they were entered in (review #3).
-    if (ranked[1][1] === dominant) return { state: "MIXED_NO_DOMINANT", code: null, kind: null, sharePct };
+    // Two deliverables of equal largest value: neither is the largest, whatever the
+    // order they were entered in (review #3) — so none is named, threshold set or not.
+    const tied = ranked[1][1] === dominant;
+    if (policy.dominanceSharePct == null) return { state: "THRESHOLD_NOT_SET", code: null, kind: tied ? null : kind, sharePct };
+    if (tied) return { state: "MIXED_NO_DOMINANT", code: null, kind: null, sharePct };
     // Strictly above: dominant / total > threshold / 100, cross-multiplied in integers.
     const above = dominant * 100n * SCALE > parsePct(policy.dominanceSharePct) * total;
     if (!above) return { state: "MIXED_NO_DOMINANT", code: null, kind, sharePct };

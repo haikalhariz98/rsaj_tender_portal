@@ -9,7 +9,8 @@ import { diffFields, snapshotFields, type FieldChange } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { ACT_LABEL } from "@/lib/labels";
-import { nameRequestFault, nameRouteForRequester, WITHDRAWN_ON_CANCEL, WITHDRAWN_ON_CHANGE } from "@/lib/method/approval";
+import { nameRequestFault, nameRouteForRequester, requesterHolding, WITHDRAWN_ON_CANCEL, WITHDRAWN_ON_CHANGE } from "@/lib/method/approval";
+import { auditCreate, auditPair } from "@/lib/method/audit-view";
 import { determinationDrift } from "@/lib/method/drift";
 import { keptForMethod, nameRoutesToWithdraw } from "@/lib/method/config";
 import { remainingOf } from "@/lib/method/value";
@@ -17,7 +18,7 @@ import { evaluateExercise, saveBlockers, type Evaluation, type ExerciseDraft } f
 import { transitionFault, openFault } from "@/lib/method/exercise";
 import { DELIVERABLE_LABEL, findingText, EXERCISE_STATUS_LABEL } from "@/lib/method/labels";
 import { behaviourProfile } from "@/lib/method/profile";
-import { nameRequestProposalFault, proposalFaults, proposalRecordOf, proposalStateFor, proposalTransition } from "@/lib/method/proposal";
+import { nameRequestProposalFault, proposalFaults, proposalRecordOf, proposalReopen, proposalStateFor, proposalTransition } from "@/lib/method/proposal";
 import { classificationSnapshotOf, determinationColumns } from "@/lib/method/snapshot";
 import {
   evaluationContext,
@@ -214,31 +215,6 @@ function methodColumns(v: FormValues, ev: Evaluation) {
 
 const methodNameOf = (cfg: { methods: { code: string; nameEn: string }[] }) => (code: string) => cfg.methods.find((m) => m.code === code)?.nameEn ?? "A method no longer configured";
 
-/// The audit view of an exercise's own fields (UX 4): money and shares normalised so
-/// an unchanged figure never reads as a change, keys left out, the appointment rule and
-/// terms band by their names from the band snapshot.
-const AUDIT_SKIP = new Set([
-  "bandSnapshot", "bandWarnings", "classificationSnapshot", "proposalRecord", "determinedAt", "authorityMatrixId", "updatedAt", "createdAt", "id", "organisationId",
-  "requisitionId", "appointmentRuleKey", "termsBandKey", "requisitionRuleKey", "boundaryValue", "matrixLabel",
-]);
-function auditView(x: Record<string, unknown>) {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(x)) {
-    if (AUDIT_SKIP.has(k)) continue;
-    if (v != null && typeof v === "object" && "toFixed" in (v as object)) {
-      out[k] = k === "dominantSharePct" ? Number(String(v)).toFixed(4) : senToDecimalString(parseSen(String(v)));
-    } else if (k === "estimatedValue" && typeof v === "string") out[k] = senToDecimalString(parseSen(v));
-    else if (k === "dominantSharePct" && typeof v === "string") out[k] = Number(v).toFixed(4);
-    else out[k] = v;
-  }
-  const snap = x.bandSnapshot as { appointment?: { ruleLabel?: string | null }; terms?: { label?: string | null } } | undefined;
-  if (snap && typeof snap === "object") {
-    out.appointmentRule = snap.appointment?.ruleLabel ?? null;
-    out.termsBand = snap.terms?.label ?? null;
-  }
-  return out;
-}
-
 /// Replace the scope lines and the derived taxonomy values, audited row by row.
 async function writeChildren(tx: Tx, orgId: string, ex: { id: string; reference: string }, before: ExerciseRow | null, scope: ExerciseDraft["scope"], ev: Evaluation, cfg: { taxonomies: { code: string; nameEn: string; values: { code: string; nameEn: string }[] }[] }) {
   // The trail names what it records: codes are configuration keys.
@@ -317,7 +293,7 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
           ...methodColumns(v, ev),
         },
       });
-      await audit(tx, l.org.id, "SourcingExercise", row.id, labelOf(row), "CREATE", diffFields(null, { ...auditView(row), requisition: l.req.reference }));
+      await audit(tx, l.org.id, "SourcingExercise", row.id, labelOf(row), "CREATE", auditCreate(row, { requisition: l.req.reference }));
       await writeChildren(tx, l.org.id, row, null, v.draft.scope, ev, cfg.config);
       id = row.id;
       return { ok: true };
@@ -363,19 +339,21 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
     const on = dayToDate(l.org.today);
     const methodChanged = ex.sourcingMethodCode !== v.draft.methodCode;
     const valueChanged = parseSen(ex.estimatedValue.toString()) !== v.draft.value;
+    const reopen = proposalReopen(ev.method!.requiresProposal, ex.proposalState, { methodChanged, valueChanged });
     const after: Prisma.SourcingExerciseUpdateManyMutationInput & Record<string, unknown> = {
       title: v.title,
       estimatedValue: senToDecimalString(v.draft.value),
       // A change of method or value re-opens the proposal as a draft (ruling on BD-5):
       // answers are kept, the submission and review go.
-      proposalState: proposalStateFor(ev.method!.requiresProposal, ex.proposalState, methodChanged || valueChanged),
-      ...(methodChanged || valueChanged ? { proposalSubmittedOn: null, proposalReviewedOn: null, proposalReviewerPersonId: null, proposalReviewComment: "", proposalRecord: Prisma.DbNull } : {}),
+      proposalState: reopen.proposalState,
+      ...reopen.cleared,
+      ...(reopen.clearRecord ? { proposalRecord: Prisma.DbNull } : {}),
       ...determinationColumns(ev, issue, methodNameOf(cfg.config), on),
       ...methodColumns(v, ev),
     };
     const moved = await tx.sourcingExercise.updateMany({ where: { id, status: "DRAFT", updatedAt: ex.updatedAt }, data: after });
     if (moved.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", diffFields(auditView(ex), auditView(after)), String(data.get("reason") ?? ""));
+    await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", auditPair(ex, { ...ex, ...after }), String(data.get("reason") ?? ""));
     await writeChildren(tx, l.org.id, ex, ex, v.draft.scope, ev, cfg.config);
     const withdraw = nameRoutesToWithdraw(ex.approvalInstances, { methodChanged, valueChanged });
     for (const inst of withdraw.routes) {
@@ -520,13 +498,7 @@ export async function requestNameApproval(_prev: FormState, data: FormData): Pro
     const unitPath = pathTo(units, l.req.sectionUnitCode || l.req.requestingUnitCode, dayToDate(l.org.today!)).reverse().map((u) => u.code);
     const holders = (code: string) => holdersFor(code, unitPath, roster, delegations, l.org.today!);
     const requesterId = l.req.requestingPersonId;
-    const res = nameRouteForRequester(ctx.funder, method!, Number(senToDecimalString(value)), {
-      holds: (code) => holders(code).holderIds.includes(requesterId),
-      soleHolder: (code) => {
-        const h = holders(code);
-        return h.holderIds.length > 0 && h.holderIds.every((x) => x === requesterId);
-      },
-    });
+    const res = nameRouteForRequester(ctx.funder, method!, Number(senToDecimalString(value)), requesterHolding(holders, requesterId));
     if (res.refusal) return { ok: false, message: `Not sent: ${res.refusal}` };
     if (res.nameState !== "RESOLVED") {
       const { NAME_STATE_TEXT } = await import("@/lib/method/labels");
@@ -694,7 +666,7 @@ export async function moveToPreparation(_prev: FormState, data: FormData): Promi
       };
       const moved = await tx.sourcingExercise.updateMany({ where: { id, status: "DRAFT", updatedAt: ex.updatedAt }, data: after });
       if (moved.count !== 1) throw new Refusal(CHANGED);
-      await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", diffFields({ ...auditView(ex), status: ex.status, dossierReference: ex.dossierReference }, { ...auditView({ ...ex, ...after }), status: after.status, dossierReference, classificationRecorded: "yes" }));
+      await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", auditPair(ex, { ...ex, ...after, classificationRecorded: "yes" }));
       await writeChildren(tx, l.org.id, ex, ex, draftOf(ex).scope, ev, cfg.config);
       if (l.req.status === "APPROVED") {
         const rf = requisitionTransitionFault("APPROVED", "SOURCING", { today: l.org.today });

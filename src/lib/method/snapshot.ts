@@ -149,7 +149,9 @@ export function classificationSnapshotOf(
   basisCode: string | null,
   committeeName: (code: string) => string,
   profile: (t: import("./types").ContractTypeRow) => { key: BehaviourKey; value: BehaviourValue }[],
-  extra: { reasonName: string | null; appointment: { state: string; ruleLabel: string | null } } = { reasonName: null, appointment: { state: "NO_RULE", ruleLabel: null } },
+  /// Names and states only the caller has: required, so a decided record never quietly
+  /// goes without them (6.3 re-review).
+  extra: { reasonName: string | null; appointment: { state: string; ruleLabel: string | null } },
 ): ClassificationSnapshot | null {
   const m = ev.method;
   const t = cfg.types.find((x) => x.code === ev.type.code);

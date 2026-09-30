@@ -60,13 +60,11 @@ export function CardHeader({
         >
           {title}
         </h3>
-        {/* Up to two lines, then cut — the full text is on hover. One line cut sentences
-            mid-way on narrow cards (6.3 UX review). */}
+        {/* Wraps in full. One line cut sentences mid-way on narrow cards (6.3 UX review),
+            and the sibling check at 390 found two lines still cut them there, where no
+            hover can show the rest (BD-21). */}
         {subtitle && (
-          <p
-            className="line-clamp-2 text-[13px] text-ink-3"
-            title={typeof subtitle === "string" ? subtitle : undefined}
-          >
+          <p className="text-[13px] text-pretty text-ink-3">
             {subtitle}
           </p>
         )}

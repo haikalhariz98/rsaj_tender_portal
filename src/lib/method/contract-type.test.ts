@@ -86,5 +86,17 @@ describe("a tie for the largest deliverable (review #3)", () => {
     expect(one.state).toBe("MIXED_NO_DOMINANT");
     expect(other.state).toBe("MIXED_NO_DOMINANT");
     expect(one.code).toBeNull();
+    expect(one.kind).toBeNull();
+    expect(other.kind).toBeNull();
+  });
+  it("names no largest deliverable on a tie with the threshold unset, in either order", () => {
+    const unset = { dominanceSharePct: null, provenance: null };
+    const a = defaultContractType([part("MEASURED_CONSTRUCTION", "40.00"), part("GOODS_DELIVERED", "40.00")], SPEC_TYPES, unset, on);
+    const b = defaultContractType([part("GOODS_DELIVERED", "40.00"), part("MEASURED_CONSTRUCTION", "40.00")], SPEC_TYPES, unset, on);
+    expect(a).toEqual(b);
+    expect(a.state).toBe("THRESHOLD_NOT_SET");
+    expect(a.kind).toBeNull();
+    const untied = defaultContractType([part("MEASURED_CONSTRUCTION", "60.00"), part("GOODS_DELIVERED", "40.00")], SPEC_TYPES, unset, on);
+    expect(untied.kind).toBe("MEASURED_CONSTRUCTION");
   });
 });

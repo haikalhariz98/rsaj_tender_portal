@@ -59,6 +59,16 @@ describe("a change of value re-opens a submitted or reviewed proposal (ruling on
     expect(proposalStateFor(true, "REVIEWED", valueChanged)).toBe("DRAFT");
     expect(proposalStateFor(true, "SUBMITTED", false)).toBe("SUBMITTED");
   });
+  it("clears the submission, the review and the record on a change of value alone", async () => {
+    const { proposalReopen } = await import("./proposal");
+    const r = proposalReopen(true, "REVIEWED", { methodChanged: false, valueChanged: true });
+    expect(r.proposalState).toBe("DRAFT");
+    expect(r.cleared).toEqual({ proposalSubmittedOn: null, proposalReviewedOn: null, proposalReviewerPersonId: null, proposalReviewComment: "" });
+    expect(r.clearRecord).toBe(true);
+    expect(proposalReopen(true, "SUBMITTED", { methodChanged: true, valueChanged: false }).clearRecord).toBe(true);
+    const kept = proposalReopen(true, "REVIEWED", { methodChanged: false, valueChanged: false });
+    expect(kept).toEqual({ proposalState: "REVIEWED", cleared: {}, clearRecord: false });
+  });
 });
 
 describe("the proposal as submitted (ruling on the proposal record)", () => {

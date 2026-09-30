@@ -59,6 +59,29 @@ export function proposalStateFor(requiresProposal: boolean, current: ProposalSta
   return current;
 }
 
+/**
+ * What a save does to the proposal (6.3 ruling on BD-5): a change of method or of value
+ * re-opens it as a draft, and the submission, the review and the stored record go with
+ * it — they were for a different exercise. Answers are kept. `clearRecord` tells the
+ * caller to clear the stored proposal record too.
+ */
+export function proposalReopen(
+  requiresProposal: boolean,
+  current: ProposalState | null,
+  change: { methodChanged: boolean; valueChanged: boolean },
+): {
+  proposalState: ProposalState | null;
+  cleared: { proposalSubmittedOn: null; proposalReviewedOn: null; proposalReviewerPersonId: null; proposalReviewComment: "" } | Record<string, never>;
+  clearRecord: boolean;
+} {
+  const changed = change.methodChanged || change.valueChanged;
+  return {
+    proposalState: proposalStateFor(requiresProposal, current, changed),
+    cleared: changed ? { proposalSubmittedOn: null, proposalReviewedOn: null, proposalReviewerPersonId: null, proposalReviewComment: "" } : {},
+    clearRecord: changed,
+  };
+}
+
 /// One item as submitted: its key, its wording and whether it was required, with the
 /// answer given. Stored on submission (6.3 ruling on the proposal record).
 export interface ProposalRecordItem {

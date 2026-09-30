@@ -4,7 +4,7 @@ import { regimeFor } from "@/lib/authority/resolve";
 import type { Matrix } from "@/lib/authority/types";
 import { parseSen } from "@/lib/money";
 
-import { determineBands, termsFor, type BandContext } from "./bands";
+import { byValue, determineBands, disagreesAtBoundary, overlappingBands, termsFor, termsOperator, type BandContext } from "./bands";
 import { SPEC_MATRIX, SPEC_METHODS, SPEC_TERMS } from "./fixture";
 import type { Method } from "./types";
 
@@ -207,5 +207,67 @@ describe("the comparison a rule or band applied on the boundary (review #7)", ()
     const d = bands("300000.00", { termsBands: edge }, withSwitch(false));
     expect(d.terms.boundaryOperator).toBe("GT");
     expect(d.findings.find((f) => f.code === "REGIME_RULE_DISAGREE")?.data?.kind).toBe("terms");
+  });
+});
+
+describe("terms bands are read in value order (ruling on BD-24)", () => {
+  const [short, long] = SPEC_TERMS;
+  // Both from nothing; WIDE's lower ceiling puts it first, whatever sortOrder says.
+  const wide = { ...short, bandKey: "WIDE", minValue: null, maxValue: 45_000, labelEn: "Narrower" };
+  it("ignores the retired sort order, whatever it holds", () => {
+    const policy = SPEC_MATRIX.policy;
+    for (const [a, b] of [[{ ...short, sortOrder: 9 }, { ...wide, sortOrder: 0 }], [{ ...short, sortOrder: 0 }, { ...wide, sortOrder: 9 }]]) {
+      expect(termsFor(40_000, "quotation", [a, b], policy).band?.bandKey).toBe("WIDE");
+      expect(termsFor(40_000, "quotation", [b, a], policy).band?.bandKey).toBe("WIDE");
+    }
+    const sorted = [{ ...long, sortOrder: 0 }, { ...short, sortOrder: 5 }].sort(byValue).map((t) => t.bandKey);
+    expect(sorted).toEqual([short.bandKey, long.bandKey]);
+  });
+  it("orders the lowest ceiling first where floors match, then by key", () => {
+    const a = { ...short, bandKey: "A", minValue: 0, maxValue: null };
+    const b = { ...short, bandKey: "B", minValue: 0, maxValue: 10_000 };
+    const c = { ...short, bandKey: "C", minValue: 0, maxValue: 10_000 };
+    expect([a, c, b].sort(byValue).map((x) => x.bandKey)).toEqual(["B", "C", "A"]);
+  });
+});
+
+describe("overlapping terms bands are refused on save (ruling on BD-24)", () => {
+  const [short, long] = SPEC_TERMS;
+  const policy = SPEC_MATRIX.policy;
+  it("finds a band sharing a value in the same regime", () => {
+    const wide = { ...short, bandKey: "WIDE", minValue: 40_000, maxValue: 60_000 };
+    expect(overlappingBands(wide, [short, long], policy).map((t) => t.bandKey)).toEqual([short.bandKey, long.bandKey]);
+  });
+  it("passes bands that only meet at an edge, or apply in other regimes", () => {
+    expect(overlappingBands(long, [short], policy)).toEqual([]);
+    expect(overlappingBands({ ...long, regime: "tender", minValue: 0 }, [short], policy)).toEqual([]);
+  });
+  it("treats a band with no regime as applying in all", () => {
+    expect(overlappingBands({ ...long, regime: null, minValue: 10_000 }, [short], policy)).toHaveLength(1);
+  });
+  it("checks the boundary value as the resolver bands it", () => {
+    // Below up to and including RM300,000; above follows the switch from RM300,000. With the
+    // exact value moved up (not inclusive), both would hold RM300,000.
+    const lower = { ...short, bandKey: "L", regime: null, minValue: null, maxValue: 300_000, followsBoundarySwitch: false };
+    const upper = { ...short, bandKey: "U", regime: null, minValue: 300_000, maxValue: null, followsBoundarySwitch: true };
+    expect(overlappingBands(upper, [lower], withSwitch(false).policy)).toHaveLength(1);
+    expect(overlappingBands(upper, [lower], withSwitch(true).policy)).toEqual([]);
+    expect(overlappingBands({ ...upper, followsBoundarySwitch: false }, [lower], withSwitch(false).policy)).toEqual([]);
+  });
+});
+
+describe("a terms band's operator at the boundary is the engine's (6.3 re-review)", () => {
+  const edge = { minValue: 300_000, maxValue: null, followsBoundarySwitch: true };
+  it("moves the exact value up (GTE) only where the band follows a non-inclusive switch", () => {
+    expect(termsOperator(edge, withSwitch(false).policy)).toBe("GTE");
+    expect(termsOperator(edge, withSwitch(true).policy)).toBe("GT");
+    expect(termsOperator({ ...edge, followsBoundarySwitch: false }, withSwitch(false).policy)).toBe("GT");
+    expect(termsOperator({ ...edge, minValue: 50_000 }, withSwitch(false).policy)).toBeNull();
+  });
+  it("the screen reads a disagreement from the findings, by kind", () => {
+    const fs = [{ code: "REGIME_RULE_DISAGREE", data: { kind: "terms" } }];
+    expect(disagreesAtBoundary(fs, "terms")).toBe(true);
+    expect(disagreesAtBoundary(fs, "rule")).toBe(false);
+    expect(disagreesAtBoundary(null, "rule")).toBe(false);
   });
 });

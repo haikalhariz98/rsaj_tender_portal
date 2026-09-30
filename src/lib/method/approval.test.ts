@@ -116,6 +116,19 @@ describe("name routes opened the same day (review #4)", () => {
     const pendingLater = { status: "PENDING" as const, openedAt: day, createdAt: new Date("2026-09-21T05:00:00Z") };
     expect(invitationFault(m("selected_tender"), [approvedEarlier, pendingLater])?.code).toBe("NAME_NOT_APPROVED");
   });
+  it("fall back to the id when written in the same instant (ruling on BD-17)", async () => {
+    const { latestFirst } = await import("./approval");
+    const day = new Date("2026-09-21");
+    const at = new Date("2026-09-21T02:00:00Z");
+    const a = { id: "cm_a", openedAt: day, createdAt: at };
+    const b = { id: "cm_b", openedAt: day, createdAt: at };
+    expect(latestFirst([a, b]).map((x) => x.id)).toEqual(["cm_b", "cm_a"]);
+    expect(latestFirst([b, a]).map((x) => x.id)).toEqual(["cm_b", "cm_a"]);
+    const approved = { id: "cm_a", status: "APPROVED" as const, openedAt: day, createdAt: at };
+    const pending = { id: "cm_b", status: "PENDING" as const, openedAt: day, createdAt: at };
+    expect(invitationFault(m("selected_tender"), [approved, pending])?.code).toBe("NAME_NOT_APPROVED");
+    expect(invitationFault(m("selected_tender"), [pending, approved])?.code).toBe("NAME_NOT_APPROVED");
+  });
 });
 
 describe("a name route's label (ruling on BD-5)", () => {

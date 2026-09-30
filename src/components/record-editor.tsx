@@ -163,6 +163,11 @@ export function RecordEditor({
   // why the change was made, whichever direction the change goes.
   const asksReason = destructive ? { label: destructive.reasonLabel } : reasonAsked;
   const blocked = asksReason != null && reason.trim().length === 0;
+  const placed = new Set(fields.filter((f) => f.kind !== "hidden" && "name" in f).map((f) => (f as { name: string }).name));
+  if (asksReason) placed.add("reason");
+  const unplaced = Object.entries(state.errors ?? {})
+    .filter(([k]) => !placed.has(k))
+    .map(([, v]) => v);
 
   return (
     <>
@@ -208,6 +213,9 @@ export function RecordEditor({
               <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
                 <div className="flex flex-col gap-5">
                   {state.message && <Callout tone="err">{state.message}</Callout>}
+                  {/* A refusal on a field this form does not show is still shown: never
+                      a save that fails with nothing said (6.3 re-review). */}
+                  {unplaced.length > 0 && <Callout tone="err">{unplaced.join(" ")}</Callout>}
 
                   {identity}
                   {identity && <hr className="border-line" />}

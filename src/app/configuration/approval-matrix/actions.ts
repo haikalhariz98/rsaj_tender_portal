@@ -12,6 +12,7 @@ import type { Rule } from "@/lib/authority/types";
 import { db } from "@/lib/db";
 import { compareAmounts } from "@/lib/money";
 import { findingText } from "@/lib/method/labels";
+import { overlappingBands } from "@/lib/method/bands";
 import { matrixPolicyFaults, termsBandBoundaryFault } from "@/lib/method/boundary";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { FormReader } from "@/lib/validate";
@@ -116,6 +117,8 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
   // Where the bands meet is the tender floor (ruling R-7): derived, not a second input
   // (UX review). A form that still sends one is checked against the floor in lib.
   const boundaryValue = data.has("boundaryValue") ? r.money("boundaryValue", "Where the bands meet", { required: true }) : tenderFloor;
+  // The form has no boundary input: a refusal about it belongs on the tender floor.
+  const onForm = (field: string) => (field === "boundaryValue" && !data.has("boundaryValue") ? "tenderFloor" : field);
   const requisitionBoundary = r.money("requisitionBoundary", "Requisition boundary", {
     required: true,
   });
@@ -129,7 +132,7 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
   // hard reject, 6.3 ruling R-7); a stated ruling cites its source. Checked in lib.
   if (quotationFloor && tenderFloor && boundaryValue && boundaryProvenance) {
     for (const f of matrixPolicyFaults({ quotationFloor, tenderFloor, boundaryValue, boundaryProvenance, boundarySource })) {
-      r.reject(f.field, findingText(f));
+      r.reject(onForm(f.field), findingText(f));
     }
   }
 
@@ -188,7 +191,7 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
   if (before && boundaryValue && (moved || flipped)) {
     const rows = await db.authorityRule.findMany({ where: { authorityMatrixId: before.id } });
     const refusal = boundaryRefusal(rows, boundaryValue) ?? (await termsRefusal(before.id, boundaryValue));
-    if (refusal) r.reject(moved ? "boundaryValue" : "boundaryInclusive", refusal);
+    if (refusal) r.reject(moved ? onForm("boundaryValue") : "boundaryInclusive", refusal);
   }
 
   const parsed = r.finish(v);
@@ -531,7 +534,7 @@ export async function startRevision(_prev: FormState, data: FormData): Promise<F
     issuedAt: null,
   };
 
-  await db.$transaction(async (tx) => {
+  const draftId = await db.$transaction(async (tx) => {
     // Decimal columns pass straight through: never via a number.
     const draft = await tx.authorityMatrix.create({ data: draftPolicy });
     for (const rule of rules) {
@@ -563,10 +566,12 @@ export async function startRevision(_prev: FormState, data: FormData): Promise<F
       "CREATE",
       diffFields(null, { label, effectiveFrom, startedFrom: source.label, rules: rules.length, termsBands: termsBands.length }),
     );
+    return draft.id;
   });
 
+  // Straight to the new draft, as a new issue from scratch does (UX 12).
   revalidatePath(PATH);
-  return { ok: true };
+  redirect(`${PATH}?issue=${draftId}`);
 }
 
 /**
@@ -673,6 +678,8 @@ export async function saveTermsBand(_prev: FormState, data: FormData): Promise<F
   const r = new FormReader(data);
   // The key is generated from the terms set's name (UX 13); an edit keeps its own.
   const typedKey = String(data.get("bandKey") ?? "").trim();
+  // A key a form still sends is a configuration key: lower case, digits, "_", "." or "-".
+  if (typedKey && !/^[a-z0-9][a-z0-9_.-]{0,59}$/.test(typedKey)) r.reject("bandKey", "A terms band key is up to 60 lower-case letters, digits, dots, dashes or underscores.");
   const minValue = r.money("minValue", "From value");
   const maxValue = r.money("maxValue", "To value");
   if (minValue && maxValue && compareAmounts(maxValue, minValue) <= 0) r.reject("maxValue", "The upper bound must be above the lower.");
@@ -697,13 +704,23 @@ export async function saveTermsBand(_prev: FormState, data: FormData): Promise<F
 
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "AuthorityMatrix" WHERE id = ${authorityMatrixId} FOR UPDATE`;
-    const matrix = await tx.authorityMatrix.findFirst({ where: { id: authorityMatrixId, organisationId: orgId }, select: { id: true, label: true, issuedAt: true, boundaryValue: true } });
+    const matrix = await tx.authorityMatrix.findFirst({ where: { id: authorityMatrixId, organisationId: orgId }, select: { id: true, label: true, issuedAt: true, boundaryValue: true, boundaryInclusive: true } });
     if (!matrix) return { ok: false, message: "That issue of the limits no longer exists." } as FormState;
     if (matrix.issuedAt) return FROZEN;
     const before = id ? await tx.termsBand.findFirst({ where: { id, authorityMatrixId } }) : null;
+    // Two terms sets never both apply at one value (ruling on BD-24).
+    const siblings = await tx.termsBand.findMany({ where: { authorityMatrixId, ...(id ? { NOT: { id } } : {}) } });
+    const clash = overlappingBands(
+      { minValue: n(minValue), maxValue: n(maxValue), regime: v.regime, followsBoundarySwitch: v.followsBoundarySwitch },
+      siblings.map((t) => ({ labelEn: t.labelEn, minValue: n(t.minValue), maxValue: n(t.maxValue), regime: t.regime, followsBoundarySwitch: t.followsBoundarySwitch })),
+      { boundaryValue: Number(matrix.boundaryValue.toString()), boundaryInclusive: matrix.boundaryInclusive },
+    );
+    if (clash.length > 0) {
+      return { ok: false, errors: { maxValue: `These values overlap ${clash.map((t) => `“${t.labelEn}”`).join(", ")} in the same regime. Two terms sets cannot both apply at one value; change the edges or the regime.` } } as FormState;
+    }
     if (id && !before) return { ok: false, message: "That terms band no longer exists." } as FormState;
     const taken = new Set((await tx.termsBand.findMany({ where: { authorityMatrixId, ...(before ? { NOT: { id: before.id } } : {}) }, select: { bandKey: true } })).map((x) => x.bandKey));
-    const base = before?.bandKey ?? (typedKey || v.labelEn.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "band");
+    const base = before?.bandKey ?? (typedKey || v.labelEn.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 50) || "band");
     let bandKey = base;
     for (let n = 2; !before && taken.has(bandKey); n++) bandKey = `${base}_${n}`;
     if (termsBandBoundaryFault({ minValue: n(minValue), maxValue: n(maxValue), followsBoundarySwitch: v.followsBoundarySwitch }, { boundaryValue: Number(matrix.boundaryValue.toString()) })) {
@@ -766,8 +783,19 @@ export async function discardDraft(_prev: FormState, data: FormData): Promise<Fo
     await tx.authorityRule.deleteMany({ where: { authorityMatrixId: id } });
     await tx.termsBand.deleteMany({ where: { authorityMatrixId: id } });
     await tx.authorityMatrix.delete({ where: { id } });
+    // Every row goes into the trail with what it held, so the draft can be rebuilt from
+    // history (6.3 re-review): each rule, each of its steps, each terms band, then the issue.
+    const offices = new Map((await tx.authorityRole.findMany({ where: { organisationId: orgId }, select: { code: true, nameEn: true } })).map((o) => [o.code, o.nameEn]));
+    const del = (entity: string, entityId: string, entityLabel: string, row: Record<string, unknown>) =>
+      writeAudit(tx, { organisationId: orgId, entity, entityId, entityLabel, reason: `Draft discarded: ${reason}` }, "DELETE", snapshotFields(decimals(row)));
+    for (const { recommenders, ...rule } of draft.rules) {
+      for (const step of recommenders) await del("AuthorityRuleStep", step.id, `${rule.labelEn} — ${offices.get(step.roleCode) ?? "An office no longer configured"}`, step);
+      await del("AuthorityRule", rule.id, `${draft.label} — ${rule.labelEn}`, rule);
+    }
+    for (const band of draft.termsBands) await del("TermsBand", band.id, `${draft.label} — ${band.labelEn}`, band);
+    const { rules, termsBands, ...issue } = draft;
     await writeAudit(tx, { organisationId: orgId, entity: "AuthorityMatrix", entityId: id, entityLabel: draft.label, reason }, "DELETE",
-      snapshotFields({ label: draft.label, effectiveFrom: draft.effectiveFrom, rules: draft.rules.length, termsBands: draft.termsBands.length, status: "Draft" }));
+      snapshotFields({ ...decimals(issue), rules: rules.length, termsBands: termsBands.length, status: "Draft" }));
     return { ok: true };
   });
   if (!result.ok) return result;

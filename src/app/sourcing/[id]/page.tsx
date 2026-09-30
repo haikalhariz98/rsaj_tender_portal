@@ -16,7 +16,9 @@ import { fieldLabel } from "@/lib/audit/diff";
 import { dayToDate } from "@/lib/dates";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
-import { latestFirst, nameRequestFault, nameRouteLabel, resolveNameApproval } from "@/lib/method/approval";
+import { latestFirst, nameRequestFault, nameRouteForRequester, nameRouteLabel, requesterHolding, resolveNameApproval } from "@/lib/method/approval";
+import { disagreesAtBoundary } from "@/lib/method/bands";
+import { determinationDrift } from "@/lib/method/drift";
 import { evaluateExercise } from "@/lib/method/evaluate";
 import { transitionFault } from "@/lib/method/exercise";
 import {
@@ -42,7 +44,7 @@ import {
 import { behaviourProfile, type BehaviourValue } from "@/lib/method/profile";
 import { nameRequestProposalFault, proposalFaults, proposalView } from "@/lib/method/proposal";
 import { draftOf, evaluationContext, exerciseHistory, loadExercise, type LoadedExercise } from "@/lib/method/repo";
-import { isBandSnapshot, isClassificationSnapshot, profileRows, type BandSnapshot, type ClassificationSnapshot, type RouteSnap } from "@/lib/method/snapshot";
+import { determinationColumns, isBandSnapshot, isClassificationSnapshot, profileRows, type BandSnapshot, type ClassificationSnapshot, type RouteSnap } from "@/lib/method/snapshot";
 import type { DeliverableKind, Finding, Regime } from "@/lib/method/types";
 import { formatMoney, parseSen } from "@/lib/money";
 import { ORGANISATION_CODE } from "@/lib/org";
@@ -69,6 +71,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
+/// Where a rule or band sits at the boundary, in words; the disagreement is the lib's finding.
+const boundarySide = (op: string | null | undefined, disagrees: boolean) => (!op ? "no edge at the boundary" : disagrees ? "the other side from its band — see the checks" : "the same side as its band");
 const RESTRICTION_NOTE = "Restriction not enforced until sign-in";
 const money = (v: { toString(): string }) => formatMoney(parseSen(v.toString()));
 /// A percentage to as many places as it has (up to four), so "above the threshold" is
@@ -127,7 +131,16 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const openName = ex.approvalInstances.find((i) => i.status === "PENDING") ?? null;
   const approvedName = ex.approvalInstances.find((i) => i.status === "APPROVED") ?? null;
   const live = ex.status !== "CANCELLED";
-  const nameRoute = live && ctx && method?.requiresNameApproval ? resolveNameApproval(ctx.funder, method, Number(ex.estimatedValue.toString())) : null;
+  // The route as the request would make it: with the requester's own offices escalated,
+  // or refused, and a step only they hold warned of (review #5; 6.3 re-review).
+  const unitPath = pathTo(units as unknown as OrgUnit[], req.sectionUnitCode || req.requestingUnitCode, on).reverse().map((u) => u.code);
+  const nameRoute =
+    live && ctx && method?.requiresNameApproval
+      ? today
+        ? nameRouteForRequester(ctx.funder, method, Number(ex.estimatedValue.toString()), requesterHolding((code) => holdersFor(code, unitPath, roster, delegations, today), req.requestingPersonId))
+        : { ...resolveNameApproval(ctx.funder, method, Number(ex.estimatedValue.toString())), refusal: null }
+      : null;
+  const requesterNotes = (nameRoute?.warnings ?? []).filter((w) => (w.code as string) === "REQUESTER_HOLDS_STEP").map((w) => w.messageEn);
   // Asked in draft or in preparation, and again after a refusal or withdrawal (ruling on BD-4).
   const canAskName = live && !!method?.requiresNameApproval && !openName && !approvedName;
   const nameBlocker = !canAskName
@@ -138,10 +151,14 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
         const pf = nameRequestProposalFault(method!.requiresProposal, ex.proposalState);
         if (pf) return findingText(pf);
         if (nameRoute && nameRoute.nameState !== "RESOLVED") return NAME_STATE_TEXT[nameRoute.nameState];
+        if (nameRoute?.refusal) return nameRoute.refusal;
         return null;
       })();
   const submitBlocker = !today ? findingText({ code: "TIME_ZONE_UNSET", level: "block" }) : pFaults.length ? `${pFaults.map(findingText).join(" ")} Edit the proposal first.` : null;
-  const prepList = prepFaults.length ? [...prepFaults.filter((f) => f.code !== "BLOCKING_FAULTS"), ...blocking] : [];
+  // The move refuses where the configuration now judges the exercise differently from
+  // its last save (review #2, BD-16): said here, before the button is pressed.
+  const drift = draft && ev && issue ? determinationDrift(ex, determinationColumns(ev, issue, (c) => config.methods.find((m) => m.code === c)?.nameEn ?? "A method no longer configured", on)) : [];
+  const prepList = [...(prepFaults.length ? [...prepFaults.filter((f) => f.code !== "BLOCKING_FAULTS"), ...blocking] : []), ...drift];
   const prepBlocker = prepList.length ? prepList.map(findingText).join(" ") : null;
   // Where a blocker has a place it is put right, the note links there (UX 15).
   const FIX_AT: Record<string, { href: string; label: string }> = {
@@ -225,7 +242,6 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   );
 
   // Step suggestions: holders of the office for the requisition's unit and their delegates first.
-  const unitPath = pathTo(units as unknown as OrgUnit[], req.sectionUnitCode || req.requestingUnitCode, on).reverse().map((u) => u.code);
   const suggestions = (roleCode: string | null) => {
     if (!roleCode || !today) return activePeople;
     const h = holdersFor(roleCode, unitPath, roster, delegations, today);
@@ -240,7 +256,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       id: "classification",
       label: "Classification",
       icon: <SlidersIcon size={15} />,
-      panel: <ClassificationPanel l={l} bands={bands} findings={ev ? ev.findings : ((ex.bandWarnings as unknown as Finding[]) ?? [])} live={!!ev} methodName={methodName} flags={flags} reasonName={decided?.justification ? decided.justification.reasonName : (config.reasons.find((r) => r.code === ex.justificationReasonCode)?.nameEn ?? null)} />,
+      panel: <ClassificationPanel l={l} bands={bands} findings={ev ? ev.findings : ((ex.bandWarnings as unknown as Finding[]) ?? [])} live={!!ev} methodName={methodName} flags={flags} reasonName={decided ? (decided.justification?.reasonName ?? null) : (config.reasons.find((r) => r.code === ex.justificationReasonCode)?.nameEn ?? null)} />,
     },
     {
       id: "contract",
@@ -329,8 +345,9 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
               <NamePanel
                 l={l}
                 current={openName ?? latestFirst(ex.approvalInstances)[0] ?? null}
-                preview={nameRoute && nameRoute.nameState === "RESOLVED" ? nameRoute.chain.map((s) => ({ role: issue?.matrix.roles[s.roleCode]?.nameEn ?? "An office no longer configured", act: s.act })) : null}
-                previewText={nameRoute && nameRoute.nameState !== "RESOLVED" ? NAME_STATE_TEXT[nameRoute.nameState] : null}
+                preview={nameRoute && nameRoute.nameState === "RESOLVED" && !nameRoute.refusal ? nameRoute.chain.map((s) => ({ role: issue?.matrix.roles[s.roleCode]?.nameEn ?? "An office no longer configured", act: s.act })) : null}
+                previewText={nameRoute && nameRoute.nameState !== "RESOLVED" ? NAME_STATE_TEXT[nameRoute.nameState] : (nameRoute?.refusal ?? null)}
+                previewNotes={requesterNotes}
                 suggestions={suggestions}
                 today={today}
               />
@@ -544,8 +561,8 @@ function ClassificationPanel({
                           <ProvenanceBadge value={bands.boundary.provenance} />
                           {bands.boundary.source && <span className="text-[12.5px] text-ink-3">{bands.boundary.source}</span>}
                           <span className="text-[12.5px] text-ink-3">
-                            Appointment rule: {!bands.appointment.boundaryOperator ? "no edge at the boundary" : bands.appointment.boundaryOperator === bands.boundary.operator ? "the same side as its band" : "the other side from its band — see the checks"}. Terms band:{" "}
-                            {!bands.terms.boundaryOperator ? "no edge at the boundary" : bands.terms.boundaryOperator === bands.boundary.operator ? "the same side as its band" : "the other side from its band — see the checks"}.
+                            Appointment rule: {boundarySide(bands.appointment.boundaryOperator, disagreesAtBoundary(ex.bandWarnings as never, "rule"))}. Terms band:{" "}
+                            {boundarySide(bands.terms.boundaryOperator, disagreesAtBoundary(ex.bandWarnings as never, "terms"))}.
                           </span>
                         </span>
                       ),
@@ -749,6 +766,7 @@ function NamePanel({
   current,
   preview,
   previewText,
+  previewNotes,
   suggestions,
   today,
 }: {
@@ -756,6 +774,8 @@ function NamePanel({
   current: LoadedExercise["ex"]["approvalInstances"][number] | null;
   preview: { role: string; act: string }[] | null;
   previewText: string | null;
+  /// Said before the route exists: a step only the requester holds (REQUESTER_HOLDS_STEP).
+  previewNotes: string[];
   suggestions: (roleCode: string | null) => { value: string; label: string }[];
   today: string | null;
 }) {
@@ -783,6 +803,9 @@ function NamePanel({
                     </li>
                   ))}
                 </ol>
+                {previewNotes.map((n) => (
+                  <Callout key={n} tone="warn">{n}</Callout>
+                ))}
               </>
             ) : (
               <p className="text-[13.5px] text-ink-2">{previewText ?? "Requested once the exercise is ready."}</p>
@@ -885,6 +908,8 @@ const FIELD_NAME: Record<string, string> = {
   appointmentRuleKey: "Appointment rule",
   appointmentState: "Appointment route",
   boundaryOperator: "Boundary rule",
+  boundaryValue: "Where the bands meet",
+  approvalMatrixIssue: "Approval matrix issue",
   onBoundary: "On the boundary",
   boundaryRuled: "Boundary ruled",
   boundaryProvenance: "Boundary ruling",
