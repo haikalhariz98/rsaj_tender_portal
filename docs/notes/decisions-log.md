@@ -18,6 +18,8 @@ dev` on a normal machine against Postgres 17 and confirm it reports no drift.
 
 ## Decisions
 
+- 2026-09-30 · 6.1 · R2: a committee decision cited on a route closed as returned-at-approval stays with that route and is not re-citable; the resubmitted route needs a fresh decision (re-table), and the record says so beside the returned route, naming the committee and decision date. Release-and-recite rejected (decision taken on a budget position found no longer to hold; new route is the over-budget route). Spec: FR-REQ-007, 008, 012, FR-APR-004.
+- 2026-09-30 · 6.1 · R1 (BD-22): an organisation-wide office assignment (no unit) is tied only to an endorsement recorded for the root unit of the requisition's unit path. Tests: company-tier endorser decides the CEO step directly; department-tier endorser holding an org-wide office refused; delegate refused. Spec: FR-REQ-003, FR-APR-008, BD-1.
 - 2026-09-30 · 6.1 · Acceptance SENT BACK (round 3): BD-24 display label, BD-26 direct holders only, BD-27 wipe refuses by default, BD-32 unset-zone marking, BD-33 residual wording, split value typed as sen in lib. Verified: 609 tests, typecheck, lint; ruling tests present; no assertion weakened. Spec: FR-REQ-001–016, FR-APR-008, 011.
 - 2026-09-30 · 6.1 · Splitting test fixture aggregateAcrossYear null → false accepted as preserving intent (null now means NOT_SET per ruling); no assertion changed; new null → NOT_SET case added. Spec: FR-REQ-015, B7.
 - 2026-09-30 · 6.1 · BD-33 approved: an issued set with no rules reads "In force · no rules supplied"; remaining user-facing "revision" wording changed to "issue". Spec: FR-MTD-003.
