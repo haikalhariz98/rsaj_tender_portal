@@ -78,6 +78,30 @@ export async function auditedUpdate<T>(
   });
 }
 
+/**
+ * Create or replace a row and record it, as one act.
+ *
+ * For a write whose target may or may not exist yet — a member's vote on a matter is
+ * one row however often it is re-entered. `before` is null when there is no row, and
+ * the entry is then a creation; otherwise it records what moved. The write and its
+ * audit row share the transaction, and the write callback may itself read inside it.
+ */
+export async function auditedUpsert<T extends { id: string }>(
+  ctx: Omit<AuditContext, "entityId">,
+  before: Record<string, unknown> | null,
+  after: Record<string, unknown>,
+  write: (tx: Tx) => Promise<T>,
+): Promise<T> {
+  const changes = diffFields(before, after);
+  return db.$transaction(async (tx) => {
+    const row = await write(tx);
+    if (before == null || changes.length > 0) {
+      await writeAudit(tx, { ...ctx, entityId: row.id }, before == null ? "CREATE" : "UPDATE", changes);
+    }
+    return row;
+  });
+}
+
 /// Delete a row, keeping the whole of it in the trail.
 export async function auditedDelete(
   ctx: AuditContext,
