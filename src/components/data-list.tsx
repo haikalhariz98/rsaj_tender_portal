@@ -114,7 +114,9 @@ function CellView({ cell }: { cell: Cell | undefined }) {
     case "stack":
       return (
         <div className="min-w-0">
-          <div className="truncate font-semibold text-ink">{cell.title}</div>
+          <div className="truncate font-semibold text-ink" title={cell.title}>
+            {cell.title}
+          </div>
           {cell.sub && (
             <div
               className={cx(
@@ -129,7 +131,7 @@ function CellView({ cell }: { cell: Cell | undefined }) {
       );
     case "text":
       return (
-        <span className={cx("block truncate", cell.dim ? "text-ink-3" : "text-ink")}>
+        <span className={cx("block truncate", cell.dim ? "text-ink-3" : "text-ink")} title={cell.text}>
           {cell.text}
         </span>
       );
@@ -140,9 +142,17 @@ function CellView({ cell }: { cell: Cell | undefined }) {
         <span className="font-semibold tabular-nums">{formatRM(cell.value)}</span>
       );
     case "badge":
-      return <Badge tone={cell.tone}>{cell.text}</Badge>;
+      return (
+        <Badge tone={cell.tone} title={cell.text}>
+          {cell.text}
+        </Badge>
+      );
     case "chip":
-      return <Chip tone={cell.tone}>{cell.text}</Chip>;
+      return (
+        <Chip tone={cell.tone} title={cell.text}>
+          {cell.text}
+        </Chip>
+      );
     case "person":
       return (
         <span className="flex min-w-0 items-center gap-2">

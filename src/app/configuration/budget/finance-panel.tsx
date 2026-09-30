@@ -1,11 +1,17 @@
 "use client";
 
 import { formDataOf } from "@/components/ui/form-submit";
-import { useState, useTransition, type ReactNode } from "react";
+import { useState, useTransition } from "react";
 
 import { DataList, type Row } from "@/components/data-list";
-import { AlertTriangle, CheckIcon, ChartIcon, GlobeIcon, SaveIcon } from "@/components/icons";
+import { CheckIcon, ChartIcon, GlobeIcon } from "@/components/icons";
 import type { FormState } from "@/components/record-editor";
+import { Badge } from "@/components/ui/badge";
+import { Button, IconButton } from "@/components/ui/button";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { Callout } from "@/components/ui/feedback";
+import { AffixInput, Field, Select } from "@/components/ui/field";
+import { Stat } from "@/components/ui/stat";
 import { figuresFor, type BudgetCode, type Movement } from "@/lib/budget/codes";
 import { ago, lineFor, outstanding, summarise, syncReadiness } from "@/lib/budget/finance";
 import type { FinanceData } from "@/lib/budget/load";
@@ -13,6 +19,7 @@ import { formatCompactRM } from "@/lib/format";
 import { formatSen, parseSen, senToDecimalString } from "@/lib/money";
 
 import { acceptPortalFigure, saveFinanceSettings, synchroniseNow } from "./actions";
+import { SaveBar } from "./controls-panel";
 
 const DIRECTION_LABEL: Record<string, string> = {
   two_way: "Two way",
@@ -97,9 +104,16 @@ export function FinancePanel({
     },
   }));
 
+  const duration = lastRun?.finishedAt
+    ? `${Math.max(0, Math.round((lastRun.finishedAt.getTime() - lastRun.startedAt.getTime()) / 1000))}s`
+    : "—";
+  const direction = finance.direction
+    ? (DIRECTION_LABEL[finance.direction] ?? finance.direction)
+    : "Not set";
+
   return (
-    <div className="stack stack--lg">
-      <div className="grid g2" style={{ gap: 16 }}>
+    <div className="flex flex-col gap-6">
+      <div className="grid gap-4 lg:grid-cols-2">
         <HoldingCard
           title="Held in the portal"
           accent
@@ -129,138 +143,135 @@ export function FinancePanel({
         />
       </div>
 
-      <section className="card">
-        <div className="card__head">
-          <ChartIcon size={17} className="icon dim" />
-          <div className="card__titles">
-            <div className="h3 trunc">Last synchronised</div>
-            <div className="card__sub trunc">
-              {/* A run that never happened is not a time. */}
-              {lastRun ? stamp(lastRun.startedAt) : "Never"}
-            </div>
-          </div>
-          <div className="row" style={{ gap: 6, flex: "0 0 auto" }}>
-            <button
-              type="button"
-              className="btn btn--primary"
+      <Card>
+        <CardHeader
+          icon={<ChartIcon size={17} />}
+          title="Last synchronised"
+          // A run that never happened is not a time.
+          subtitle={lastRun ? stamp(lastRun.startedAt) : "Never"}
+          actions={
+            <Button
+              variant="primary"
+              size="sm"
               disabled={pending}
+              icon={<GlobeIcon size={15} />}
               onClick={() => act(synchroniseNow)}
             >
-              <GlobeIcon size={15} />
               Synchronise now
-            </button>
-          </div>
-        </div>
-        <div className="card__body">
-          <div className="row wrap" style={{ gap: 12 }}>
-            <Kpi
+            </Button>
+          }
+        />
+        <CardBody className="flex flex-col gap-4">
+          {/* Five tiles: a row of five when wide, pairs below that with the first
+              spanning, so every row is filled edge to edge. */}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <Stat
+              tone="neutral"
               label="Direction"
-              value={finance.direction ? (DIRECTION_LABEL[finance.direction] ?? finance.direction) : "Not set"}
-              hint={finance.schedule ? (SCHEDULE_LABEL[finance.schedule] ?? finance.schedule) : undefined}
-            />
-            <Kpi label="Records in" value={lastRun ? String(lastRun.recordsIn) : "—"} />
-            <Kpi label="Records out" value={lastRun ? String(lastRun.recordsOut) : "—"} />
-            <Kpi
-              label="Variances"
-              value={String(live.length)}
-              hint={live.length === 0 ? undefined : formatCompactRM(gap)}
-              tone={live.length === 0 ? undefined : "warn"}
-            />
-            <Kpi
-              label="Duration"
               value={
-                lastRun?.finishedAt
-                  ? `${Math.max(0, Math.round((lastRun.finishedAt.getTime() - lastRun.startedAt.getTime()) / 1000))}s`
-                  : "—"
+                <span className="block text-[17px] leading-snug whitespace-normal" title={direction}>
+                  {direction}
+                </span>
               }
+              hint={finance.schedule ? (SCHEDULE_LABEL[finance.schedule] ?? finance.schedule) : undefined}
+              variant="inset" size="sm" className="sm:col-span-2 xl:col-span-1"
             />
+            <Stat
+              tone="neutral"
+              label="Records in"
+              value={lastRun ? String(lastRun.recordsIn) : "—"}
+              variant="inset" size="sm"
+            />
+            <Stat
+              tone="neutral"
+              label="Records out"
+              value={lastRun ? String(lastRun.recordsOut) : "—"}
+              variant="inset" size="sm"
+            />
+            <Stat
+              tone="neutral"
+              label="Variances"
+              value={
+                <span className={live.length === 0 ? undefined : "text-amber-700"}>{live.length}</span>
+              }
+              hint={live.length === 0 ? undefined : formatCompactRM(gap)}
+              variant="inset" size="sm"
+            />
+            <Stat tone="neutral" label="Duration" value={duration} variant="inset" size="sm" />
           </div>
 
           {(state.message || lastRun?.problem) && (
-            <div className="callout callout--warn" style={{ marginTop: 14 }}>
-              <span className="callout__ico">
-                <AlertTriangle size={16} />
-              </span>
-              <div className="grow" style={{ minWidth: 0 }}>
-                <div className="callout__title">
-                  {readiness === "NOT_CONFIGURED" ? "nothing configured" : "no adapter"}
-                </div>
-                <span className="sm">{state.message ?? lastRun?.problem}</span>
-              </div>
-            </div>
+            <Callout
+              tone="warn"
+              title={readiness === "NOT_CONFIGURED" ? "nothing configured" : "no adapter"}
+            >
+              {state.message ?? lastRun?.problem}
+            </Callout>
           )}
-        </div>
-      </section>
+        </CardBody>
+      </Card>
 
-      <section className="card">
-        <div className="card__head">
-          <ChartIcon size={17} className="icon dim" />
-          <div className="card__titles">
-            <div className="h3 trunc">Reconciliation</div>
-            <div className="card__sub trunc">
-              Where the portal and Finance &amp; Operations disagree on a code.
-            </div>
-          </div>
-          <div className="row" style={{ gap: 6, flex: "0 0 auto" }}>
-            {live.length > 0 && (
-              <span className="badge badge--warn">
-                <span className="badge__t">
-                  {live.length} {live.length === 1 ? "code differs" : "codes differ"}
-                </span>
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="card__body card__body--flush">
-          <DataList
-            flat
-            selectable={false}
-            exportName="reconciliation"
-            searchPlaceholder="Search budget codes"
-            emptyTitle="Nothing to reconcile"
-            emptyBody="The two systems have not been compared, or they agree on every code."
-            views={[
-              { id: "outstanding", label: "Outstanding" },
-              { id: "settled", label: "Settled" },
-            ]}
-            columns={[
-              { key: "code", label: "Budget code", width: "20%", sortable: true },
-              { key: "account", label: "Account code", width: "12%" },
-              { key: "compares", label: "Compares", width: "10%" },
-              { key: "portal", label: "Portal", width: "11%", numeric: true, sortable: true },
-              {
-                key: "finance",
-                label: "Finance & Operations",
-                width: "13%",
-                numeric: true,
-                sortable: true,
-              },
-              { key: "difference", label: "Difference", width: "11%", numeric: true, sortable: true },
-              { key: "reason", label: "Reason", width: "13%" },
-              { key: "lastSeen", label: "Last seen", width: "10%", sortable: true },
-            ]}
-            rows={rows}
-            actions={(id) => {
-              const l = lines.find((x) => x.variance.id === id);
-              if (!l || l.settled) return null;
-              return (
-                <button
-                  type="button"
-                  className="iconbtn iconbtn--sm"
-                  aria-label="Accept the portal figure"
-                  title="Accept the portal figure"
-                  disabled={pending}
-                  onClick={() => act(() => acceptPortalFigure(id))}
-                >
-                  <CheckIcon size={14} />
-                </button>
-              );
-            }}
-          />
-        </div>
-      </section>
+      <Card className="overflow-hidden">
+        <CardHeader
+          icon={<ChartIcon size={17} />}
+          title="Reconciliation"
+          subtitle="Where the portal and Finance & Operations disagree on a code."
+          actions={
+            live.length > 0 ? (
+              <Badge tone="warn">
+                {live.length} {live.length === 1 ? "code differs" : "codes differ"}
+              </Badge>
+            ) : undefined
+          }
+          divided={false}
+        />
+        <DataList
+          flat
+          selectable={false}
+          exportName="reconciliation"
+          searchPlaceholder="Search budget codes"
+          emptyTitle="Nothing to reconcile"
+          emptyBody="The two systems have not been compared, or they agree on every code."
+          views={[
+            { id: "outstanding", label: "Outstanding" },
+            { id: "settled", label: "Settled" },
+          ]}
+          columns={[
+            { key: "code", label: "Budget code", width: "20%", sortable: true },
+            { key: "account", label: "Account code", width: "12%" },
+            { key: "compares", label: "Compares", width: "10%" },
+            { key: "portal", label: "Portal", width: "11%", numeric: true, sortable: true },
+            {
+              key: "finance",
+              label: "Finance & Operations",
+              width: "13%",
+              numeric: true,
+              sortable: true,
+            },
+            { key: "difference", label: "Difference", width: "11%", numeric: true, sortable: true },
+            { key: "reason", label: "Reason", width: "13%" },
+            { key: "lastSeen", label: "Last seen", width: "10%", sortable: true },
+          ]}
+          rows={rows}
+          actions={(id) => {
+            const l = lines.find((x) => x.variance.id === id);
+            if (!l || l.settled) return null;
+            return (
+              <IconButton
+                size="sm"
+                label="Accept the portal figure"
+                disabled={pending}
+                onClick={() => act(() => acceptPortalFigure(id))}
+              >
+                <CheckIcon size={15} />
+              </IconButton>
+            );
+          }}
+        />
+      </Card>
 
       <form
+        className="flex flex-col gap-6"
         onSubmit={(e) => {
           const data = formDataOf(e);
           startTransition(async () => {
@@ -271,92 +282,65 @@ export function FinancePanel({
         }}
         onChange={() => setDirty(true)}
       >
-        <section className="card">
-          <div className="card__head">
-            <GlobeIcon size={17} className="icon dim" />
-            <div className="card__titles">
-              <div className="h3 trunc">Finance &amp; Operations</div>
-              <div className="card__sub trunc">
-                How and how often the portal reconciles with Finance &amp; Operations.
-              </div>
-            </div>
-          </div>
-          <div className="card__body">
-            <div>
-              <Setting
-                title="Synchronisation direction"
+        <Card>
+          <CardHeader
+            icon={<GlobeIcon size={17} />}
+            title="Finance & Operations"
+            subtitle="How and how often the portal reconciles with Finance & Operations."
+          />
+          <CardBody>
+            <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
+              <Field
+                label="Synchronisation direction"
+                htmlFor="fin-direction"
                 hint="Which way records move between the two systems."
               >
-                <select
-                  className="select select--sm"
-                  name="direction"
-                  aria-label="Synchronisation direction"
-                  defaultValue={finance.direction ?? ""}
-                >
+                <Select id="fin-direction" name="direction" defaultValue={finance.direction ?? ""}>
                   <option value="">Not set</option>
                   {Object.entries(DIRECTION_LABEL).map(([v, l]) => (
                     <option key={v} value={v}>
                       {l}
                     </option>
                   ))}
-                </select>
-              </Setting>
+                </Select>
+              </Field>
 
-              <Setting title="Schedule" hint="How often the comparison runs on its own.">
-                <select
-                  className="select select--sm"
-                  name="schedule"
-                  aria-label="Schedule"
-                  defaultValue={finance.schedule ?? ""}
-                >
+              <Field label="Schedule" htmlFor="fin-schedule" hint="How often the comparison runs on its own.">
+                <Select id="fin-schedule" name="schedule" defaultValue={finance.schedule ?? ""}>
                   <option value="">Not set</option>
                   {Object.entries(SCHEDULE_LABEL).map(([v, l]) => (
                     <option key={v} value={v}>
                       {l}
                     </option>
                   ))}
-                </select>
-              </Setting>
+                </Select>
+              </Field>
 
-              <Setting
-                title="Variance tolerance"
+              <Field
+                label="Variance tolerance"
+                htmlFor="fin-varianceTolerance"
                 hint="How far apart the two may be before it counts as a disagreement. Empty means any difference counts."
                 error={state.errors?.varianceTolerance}
               >
-                <span className="inputwrap inputwrap--pre">
-                  <span className="inputwrap__pre">RM</span>
-                  <input
-                    className="input input--num input--sm"
-                    name="varianceTolerance"
-                    inputMode="decimal"
-                    aria-label="Variance tolerance"
-                    style={{ paddingLeft: 36 }}
-                    defaultValue={
-                      finance.varianceTolerance
-                        ? senToDecimalString(parseSen(finance.varianceTolerance))
-                        : ""
-                    }
-                  />
-                </span>
-              </Setting>
+                <AffixInput
+                  id="fin-varianceTolerance"
+                  prefix="RM"
+                  name="varianceTolerance"
+                  inputMode="decimal"
+                  className="[&_input]:text-right"
+                  aria-invalid={state.errors?.varianceTolerance ? true : undefined}
+                  defaultValue={
+                    finance.varianceTolerance
+                      ? senToDecimalString(parseSen(finance.varianceTolerance))
+                      : ""
+                  }
+                />
+              </Field>
             </div>
-          </div>
-        </section>
+          </CardBody>
+        </Card>
 
-        {dirty && (
-          <div className="cfg-savebar" role="status">
-            <span className="cfg-dot" aria-hidden="true" />
-            <div style={{ minWidth: 0 }}>
-              <div className="cfg-savebar__t">Unsaved changes</div>
-              <div className="cfg-savebar__s">Leaving this screen will lose them.</div>
-            </div>
-            <div className="spacer" />
-            <button type="submit" className="btn btn--sm btn--primary" disabled={pending}>
-              <SaveIcon size={15} />
-              {pending ? "Saving…" : "Save"}
-            </button>
-          </div>
-        )}
+        {dirty && <SaveBar message="Leaving this screen will lose them." pending={pending} />}
       </form>
     </div>
   );
@@ -374,78 +358,24 @@ function HoldingCard({
   accent?: boolean;
 }) {
   return (
-    <div className={`card${accent ? " card--accent" : ""}`}>
-      <div className="card__head">
-        <ChartIcon size={17} className="icon dim" />
-        <div className="card__titles">
-          <div className="h3 trunc">{title}</div>
-        </div>
-      </div>
-      <div className="card__body card__body--tight">
-        <div style={{ padding: "2px 2px 6px" }}>
-          <p className="sm muted" style={{ margin: "0 0 12px" }}>
-            {blurb}
-          </p>
-          <div className="kv kv--rows">
-            {rows.map(([k, v]) => (
-              <div key={k} className="kv__r">
-                <div className="kv__k">{k}</div>
-                <div className="kv__v">
-                  <span className="num">{v}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Kpi({
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  tone?: "ok" | "warn" | "err";
-}) {
-  return (
-    <div className="cfg-kpi" data-tone={tone}>
-      <span className="cfg-kpi__k">{label}</span>
-      <span className="cfg-kpi__v">{value}</span>
-      {hint && <span className="cfg-kpi__h">{hint}</span>}
-    </div>
-  );
-}
-
-function Setting({
-  title,
-  hint,
-  error,
-  children,
-}: {
-  title: string;
-  hint: string;
-  error?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="cfg-set">
-      <div className="cfg-set__l">
-        <span className="cfg-set__t">{title}</span>
-        <span className="cfg-set__h">{hint}</span>
-        {error && (
-          <span className="field__err">
-            <AlertTriangle size={13} />
-            {error}
-          </span>
-        )}
-      </div>
-      <div className="cfg-set__c">{children}</div>
-    </div>
+    <Card tone={accent ? "brand" : "default"}>
+      <CardHeader icon={<ChartIcon size={17} />} title={title} divided={false} />
+      <CardBody className="pt-0">
+        <p className="mb-3 text-[13px] text-ink-3">{blurb}</p>
+        <dl className="flex flex-col">
+          {rows.map(([k, v]) => (
+            <div
+              key={k}
+              className="flex items-baseline justify-between gap-4 border-b border-line/70 py-2.5 last:border-b-0"
+            >
+              <dt className="text-[13px] text-ink-3">{k}</dt>
+              <dd className="min-w-0 truncate text-right text-[14px] font-semibold text-ink tabular-nums" title={v}>
+                {v}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </CardBody>
+    </Card>
   );
 }

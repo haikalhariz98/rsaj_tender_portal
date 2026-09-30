@@ -3,7 +3,22 @@
 import { useState } from "react";
 
 import { DataList, type Row } from "@/components/data-list";
-import { ChartIcon, GridIcon } from "@/components/icons";
+import {
+  AlertTriangle,
+  ChartIcon,
+  CheckIcon,
+  ClockIcon,
+  GridIcon,
+  ScaleIcon,
+  ShieldIcon,
+} from "@/components/icons";
+import type { Tone } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { cx } from "@/components/ui/cx";
+import { EmptyState } from "@/components/ui/feedback";
+import { Stat } from "@/components/ui/stat";
+import { Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import {
   movementRows,
   movementStatus,
@@ -26,15 +41,19 @@ import { MovementsDrawer } from "./movements-drawer";
  * each chart is that chart's own data rather than a second calculation — the two
  * cannot drift apart because there is only one of them.
  *
- * The chart palette is the sample's, and it was checked rather than assumed: the
- * three series pass the six colour checks, worst adjacent pair ΔE 8.8 under
- * deuteranopia, and every series is named in a legend so identity never rests on
- * colour alone.
+ * The chart palette is the product's own: brand for what was allocated, amber for
+ * what is spoken for, emerald for what has been paid. Every series is named in a
+ * legend, so identity never rests on colour alone.
  */
 const SERIES = {
-  allocated: "#0B5FFF",
-  spendPlusCommitments: "#B54708",
-  actualSpend: "#12855C",
+  allocated: { stroke: "stroke-brand-600", swatch: "bg-brand-600", fill: "fill-brand-500", bar: "bg-brand-500" },
+  spendPlusCommitments: {
+    stroke: "stroke-amber-600",
+    swatch: "bg-amber-600",
+    fill: "fill-amber-500",
+    bar: "bg-amber-500",
+  },
+  actualSpend: { stroke: "stroke-emerald-600", swatch: "bg-emerald-600", fill: "fill-emerald-500", bar: "bg-emerald-500" },
 } as const;
 
 export interface AvailabilityData {
@@ -108,96 +127,125 @@ export function AvailabilityPanel({
     };
   });
 
+  const utilisationOver = thresholdState(utilisation, threshold) === "AT_OR_OVER";
+
   return (
-    <div className="stack stack--lg">
-      <div className="row wrap" style={{ gap: 12 }}>
-        <Kpi label="Allocated" value={formatCompactRM(totals.allocated)} hint={`${codes.length} Budget codes`} />
-        <Kpi
+    <div className="flex flex-col gap-6">
+      {/* Five tiles: a full row of five on wide screens, pairs below that with the last
+          one spanning, so the row is always filled edge to edge. */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <Tile
+          label="Allocated"
+          icon={<ScaleIcon size={17} />}
+          value={formatCompactRM(totals.allocated)}
+          hint={`${codes.length} Budget codes`}
+        />
+        <Tile
           label="Committed"
+          icon={<ClockIcon size={17} />}
           value={formatCompactRM(totals.committed)}
           hint="Approved requirements and contracts not yet paid"
         />
-        <Kpi label="Actual spend" value={formatCompactRM(totals.actualSpend)} />
-        <Kpi label="Available" value={formatCompactRM(available)} tone={available < 0n ? "err" : "ok"} />
-        <Kpi
+        <Tile label="Actual spend" icon={<CheckIcon size={17} />} value={formatCompactRM(totals.actualSpend)} />
+        <Tile
+          label="Available"
+          icon={available < 0n ? <AlertTriangle size={17} /> : <ShieldIcon size={17} />}
+          value={formatCompactRM(available)}
+          tone={available < 0n ? "err" : "ok"}
+        />
+        <Tile
           label="Utilisation"
+          icon={<ChartIcon size={17} />}
           // Nothing allocated is not nought per cent used.
           value={utilisation == null ? "Not set" : `${utilisation.toFixed(1)}%`}
-          tone={thresholdState(utilisation, threshold) === "AT_OR_OVER" ? "warn" : "ok"}
+          tone={utilisationOver ? "warn" : "ok"}
           hint={threshold == null ? "No warning threshold set" : `Warning threshold ${threshold}%`}
+          className="sm:col-span-2 xl:col-span-1"
         />
       </div>
 
       <SpendChart spend={spend} />
       <UnitChart rows={byUnit} unitName={unitName} threshold={threshold} />
 
-      <section className="card">
-        <div className="card__head">
-          <ChartIcon size={17} className="icon dim" />
-          <div className="card__titles">
-            <div className="h3 trunc">Commitment and availability</div>
-          </div>
-        </div>
-        <div className="card__body card__body--flush">
-          <DataList
-            flat
-            selectable={false}
-            rowOpens
-            exportName="availability"
-            searchPlaceholder="Search budget codes"
-            emptyTitle="No budget code configured"
-            emptyBody="There is nothing to commit against until a budget code exists."
-            filters={[
-              { key: "type", label: "Type" },
-              { key: "unit", label: "Owning department" },
-            ]}
-            columns={[
-              { key: "code", label: "Budget code", width: "28%", sortable: true },
-              { key: "allocated", label: "Allocated", width: "12%", numeric: true, sortable: true },
-              { key: "committed", label: "Committed", width: "12%", numeric: true, sortable: true },
-              { key: "spend", label: "Actual spend", width: "13%", numeric: true, sortable: true },
-              { key: "available", label: "Available", width: "12%", numeric: true, sortable: true },
-              { key: "utilisation", label: "Utilisation", width: "14%", sortable: true },
-            ]}
-            rows={rows}
-            actions={(id) => {
-              const c = codes.find((x) => x.id === id);
-              if (!c) return null;
-              return (
-                <MovementsDrawer
-                  budgetCode={c}
-                  figures={figuresById[c.id]}
-                  rows={movementRows(movements, c.id, on)}
-                  status={(r) => movementStatus(r, on)}
-                  year={year}
-                  threshold={threshold}
-                />
-              );
-            }}
-          />
-        </div>
-      </section>
+      <Card className="overflow-hidden">
+        <CardHeader icon={<ChartIcon size={17} />} title="Commitment and availability" divided={false} />
+        <DataList
+          flat
+          selectable={false}
+          rowOpens
+          exportName="availability"
+          searchPlaceholder="Search budget codes"
+          emptyTitle="No budget code configured"
+          emptyBody="There is nothing to commit against until a budget code exists."
+          filters={[
+            { key: "type", label: "Type" },
+            { key: "unit", label: "Owning department" },
+          ]}
+          columns={[
+            { key: "code", label: "Budget code", width: "28%", sortable: true },
+            { key: "allocated", label: "Allocated", width: "12%", numeric: true, sortable: true },
+            { key: "committed", label: "Committed", width: "12%", numeric: true, sortable: true },
+            { key: "spend", label: "Actual spend", width: "13%", numeric: true, sortable: true },
+            { key: "available", label: "Available", width: "12%", numeric: true, sortable: true },
+            { key: "utilisation", label: "Utilisation", width: "14%", sortable: true },
+          ]}
+          rows={rows}
+          actions={(id) => {
+            const c = codes.find((x) => x.id === id);
+            if (!c) return null;
+            return (
+              <MovementsDrawer
+                budgetCode={c}
+                figures={figuresById[c.id]}
+                rows={movementRows(movements, c.id, on)}
+                status={(r) => movementStatus(r, on)}
+                year={year}
+                threshold={threshold}
+              />
+            );
+          }}
+        />
+      </Card>
     </div>
   );
 }
 
-function Kpi({
+const VALUE_TONE: Partial<Record<Tone, string>> = {
+  ok: "text-emerald-700",
+  warn: "text-amber-700",
+  err: "text-rose-700",
+};
+
+/// A headline figure whose colour carries its state: green in hand, amber past the
+/// threshold, red overdrawn.
+function Tile({
   label,
   value,
   hint,
+  icon,
   tone,
+  className,
 }: {
   label: string;
   value: string;
   hint?: string;
+  icon: React.ReactNode;
   tone?: "ok" | "warn" | "err";
+  className?: string;
 }) {
   return (
-    <div className="cfg-kpi" data-tone={tone}>
-      <span className="cfg-kpi__k">{label}</span>
-      <span className="cfg-kpi__v">{value}</span>
-      {hint && <span className="cfg-kpi__h">{hint}</span>}
-    </div>
+    <Stat
+      label={label}
+      icon={icon}
+      tone={tone ?? "brand"}
+      value={
+        <span title={value} className={tone ? VALUE_TONE[tone] : undefined}>
+          {value}
+        </span>
+      }
+      hint={hint}
+      className={className}
+    />
   );
 }
 
@@ -205,37 +253,36 @@ function Kpi({
 
 const PLOT = { w: 760, h: 300, left: 62, right: 668, top: 18, bottom: 266 };
 
-/// A chart and the table it was drawn from, which is the chart's accessible form.
-function Figures({
-  children,
-  open,
-  onToggle,
-}: {
-  children: React.ReactNode;
-  open: boolean;
-  onToggle: () => void;
-}) {
+/// Grid lines and axis labels, the same on both charts.
+const GRID = "stroke-line";
+const AXIS = "fill-ink-3 text-[10.5px]";
+
+/// The show/hide control under a chart. The table it reveals is the chart's
+/// accessible form, and sits flush in the card below it.
+function FiguresToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
-    <>
-      <div style={{ marginTop: 10 }}>
-        <button type="button" className="btn btn--sm btn--ghost" onClick={onToggle}>
-          {open ? "Hide the figures" : "Show the figures"}
-        </button>
-      </div>
-      {open && <div style={{ marginTop: 10 }}>{children}</div>}
-    </>
+    <div className="mt-3">
+      <Button variant="ghost" size="sm" aria-expanded={open} onClick={onToggle}>
+        {open ? "Hide the figures" : "Show the figures"}
+      </Button>
+    </div>
   );
 }
 
-function Legend({ items, line }: { items: { label: string; colour: string }[]; line?: boolean }) {
+function Legend({
+  items,
+  line,
+}: {
+  items: { label: string; swatch: string }[];
+  line?: boolean;
+}) {
   return (
-    <div className="cfg-legend">
+    <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[12.5px] text-ink-2">
       {items.map((i) => (
-        <span key={i.label} className="cfg-legend__i">
+        <span key={i.label} className="inline-flex items-center gap-2">
           <span
-            className="cfg-legend__k"
-            data-line={line ? "true" : undefined}
-            style={{ background: i.colour }}
+            aria-hidden="true"
+            className={cx("shrink-0", line ? "h-0.5 w-4 rounded-full" : "size-2.5 rounded-sm", i.swatch)}
           />
           {i.label}
         </span>
@@ -262,93 +309,83 @@ function SpendChart({ spend }: { spend: PeriodSpend[] }) {
     spend.map((s, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)} ${y(pick(s)).toFixed(1)}`).join(" ");
 
   return (
-    <section className="card">
-      <div className="card__head">
-        <ChartIcon size={17} className="icon dim" />
-        <div className="card__titles">
-          <div className="h3 trunc">Spend against allocation</div>
-          <div className="card__sub trunc">Cumulative across the financial year.</div>
-        </div>
-      </div>
-      <div className="card__body">
-        {spend.length === 0 ? (
-          <div className="empty empty--sm">
-            <div className="empty__t">No period to plot</div>
-            <p className="empty__d">A year needs periods before spend can be drawn against it.</p>
-          </div>
-        ) : (
-          <div>
-            <div className="cfg-chart cfg-plot">
-              <svg viewBox={`0 0 ${PLOT.w} ${PLOT.h}`} role="img" aria-label="Spend against allocation">
-                {[0, 0.25, 0.5, 0.75, 1].map((f) => {
-                  const gy = PLOT.bottom - f * (PLOT.bottom - PLOT.top);
-                  return (
-                    <g key={f}>
-                      <line x1={PLOT.left} y1={gy} x2={PLOT.right} y2={gy} stroke="#E4E7EC" strokeWidth={1} />
-                      <text x={PLOT.left - 10} y={gy + 3.5} textAnchor="end" fontSize={10.5} fill="#98A2B3">
-                        {formatCompactRM((top * BigInt(Math.round(f * 1000))) / 1000n)}
-                      </text>
-                    </g>
-                  );
-                })}
-                {spend.map((s, i) => (
-                  <text
-                    key={s.period.id}
-                    x={x(i)}
-                    y={PLOT.h - 12}
-                    textAnchor="middle"
-                    fontSize={10.5}
-                    fill="#98A2B3"
-                  >
-                    {s.period.nameEn.split(" ")[0].slice(0, 3)}
-                  </text>
-                ))}
-                <path d={path((s) => s.allocated)} fill="none" stroke={SERIES.allocated} strokeWidth={2} />
-                <path
-                  d={path((s) => s.spendPlusCommitments)}
-                  fill="none"
-                  stroke={SERIES.spendPlusCommitments}
-                  strokeWidth={2}
-                />
-                <path d={path((s) => s.actualSpend)} fill="none" stroke={SERIES.actualSpend} strokeWidth={2} />
-              </svg>
-            </div>
+    <Card className="overflow-hidden">
+      <CardHeader
+        icon={<ChartIcon size={17} />}
+        title="Spend against allocation"
+        subtitle="Cumulative across the financial year."
+      />
+      {spend.length === 0 ? (
+        <EmptyState size="sm" title="No period to plot">
+          A year needs periods before spend can be drawn against it.
+        </EmptyState>
+      ) : (
+        <>
+          <CardBody>
+            <svg
+              viewBox={`0 0 ${PLOT.w} ${PLOT.h}`}
+              role="img"
+              aria-label="Spend against allocation"
+              className="block h-auto w-full"
+            >
+              {[0, 0.25, 0.5, 0.75, 1].map((f) => {
+                const gy = PLOT.bottom - f * (PLOT.bottom - PLOT.top);
+                return (
+                  <g key={f}>
+                    <line x1={PLOT.left} y1={gy} x2={PLOT.right} y2={gy} className={GRID} strokeWidth={1} />
+                    <text x={PLOT.left - 10} y={gy + 3.5} textAnchor="end" className={AXIS}>
+                      {formatCompactRM((top * BigInt(Math.round(f * 1000))) / 1000n)}
+                    </text>
+                  </g>
+                );
+              })}
+              {spend.map((s, i) => (
+                <text key={s.period.id} x={x(i)} y={PLOT.h - 12} textAnchor="middle" className={AXIS}>
+                  {s.period.nameEn.split(" ")[0].slice(0, 3)}
+                </text>
+              ))}
+              <path d={path((s) => s.allocated)} fill="none" className={SERIES.allocated.stroke} strokeWidth={2} />
+              <path
+                d={path((s) => s.spendPlusCommitments)}
+                fill="none"
+                className={SERIES.spendPlusCommitments.stroke}
+                strokeWidth={2}
+              />
+              <path d={path((s) => s.actualSpend)} fill="none" className={SERIES.actualSpend.stroke} strokeWidth={2} />
+            </svg>
             <Legend
               line
               items={[
-                { label: "Allocated", colour: SERIES.allocated },
-                { label: "Spend plus commitments", colour: SERIES.spendPlusCommitments },
-                { label: "Actual spend", colour: SERIES.actualSpend },
+                { label: "Allocated", swatch: SERIES.allocated.swatch },
+                { label: "Spend plus commitments", swatch: SERIES.spendPlusCommitments.swatch },
+                { label: "Actual spend", swatch: SERIES.actualSpend.swatch },
               ]}
             />
-            <Figures open={open} onToggle={() => setOpen(!open)}>
-              <div className="tablewrap">
-                <table className="table table--compact">
-                  <thead>
-                    <tr>
-                      <th>Period</th>
-                      <th className="num">Allocated</th>
-                      <th className="num">Actual spend</th>
-                      <th className="num">Spend plus commitments</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {spend.map((s) => (
-                      <tr key={s.period.id}>
-                        <td>{s.period.nameEn.split(" ")[0].slice(0, 3)}</td>
-                        <td className="num">{formatCompactRM(s.allocated)}</td>
-                        <td className="num">{formatCompactRM(s.actualSpend)}</td>
-                        <td className="num">{formatCompactRM(s.spendPlusCommitments)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Figures>
-          </div>
-        )}
-      </div>
-    </section>
+            <FiguresToggle open={open} onToggle={() => setOpen(!open)} />
+          </CardBody>
+          {open && (
+            <Table minWidth={480}>
+              <THead>
+                <Th>Period</Th>
+                <Th numeric>Allocated</Th>
+                <Th numeric>Actual spend</Th>
+                <Th numeric>Spend plus commitments</Th>
+              </THead>
+              <tbody>
+                {spend.map((s) => (
+                  <Tr key={s.period.id}>
+                    <Td>{s.period.nameEn.split(" ")[0].slice(0, 3)}</Td>
+                    <Td numeric>{formatCompactRM(s.allocated)}</Td>
+                    <Td numeric>{formatCompactRM(s.actualSpend)}</Td>
+                    <Td numeric>{formatCompactRM(s.spendPlusCommitments)}</Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </>
+      )}
+    </Card>
   );
 }
 
@@ -365,128 +402,112 @@ function UnitChart({
   const drawn = rows.filter((r) => r.utilisation != null);
 
   return (
-    <section className="card">
-      <div className="card__head">
-        <GridIcon size={17} className="icon dim" />
-        <div className="card__titles">
-          <div className="h3 trunc">Utilisation by department</div>
-          <div className="card__sub trunc">
-            Committed and paid as a share of what each department was given.
-          </div>
-        </div>
-      </div>
-      <div className="card__body">
-        {drawn.length === 0 ? (
-          <div className="empty empty--sm">
-            <div className="empty__t">Nothing to compare</div>
-            <p className="empty__d">
-              No department holds a code with an allocation, so there is no share to draw.
-            </p>
-          </div>
-        ) : (
-          <div>
-            <div className="cfg-chart cfg-plot">
-              <svg
-                viewBox={`0 0 ${PLOT.w} ${PLOT.h}`}
-                role="img"
-                aria-label="Utilisation by department"
-              >
-                {[0, 25, 50, 75, 100].map((pct) => {
-                  const gy = PLOT.bottom - (pct / 100) * (PLOT.bottom - PLOT.top);
-                  return (
-                    <g key={pct}>
-                      <line x1={PLOT.left} y1={gy} x2={PLOT.right} y2={gy} stroke="#E4E7EC" strokeWidth={1} />
-                      <text x={PLOT.left - 10} y={gy + 3.5} textAnchor="end" fontSize={10.5} fill="#98A2B3">
-                        {pct}%
-                      </text>
-                    </g>
-                  );
-                })}
-                {threshold != null && (
-                  <line
-                    x1={PLOT.left}
-                    y1={PLOT.bottom - (threshold / 100) * (PLOT.bottom - PLOT.top)}
-                    x2={PLOT.right}
-                    y2={PLOT.bottom - (threshold / 100) * (PLOT.bottom - PLOT.top)}
-                    stroke={SERIES.spendPlusCommitments}
-                    strokeWidth={1}
-                    strokeDasharray="4 4"
-                  />
-                )}
-                {drawn.map((r, i) => {
-                  const slot = (PLOT.right - PLOT.left) / drawn.length;
-                  // A 2px gap between neighbours, so adjacent bars never touch.
-                  const width = Math.max(6, slot * 0.6);
-                  const bx = PLOT.left + slot * i + (slot - width) / 2;
-                  const pct = Math.min(r.utilisation ?? 0, 100);
-                  const by = PLOT.bottom - (pct / 100) * (PLOT.bottom - PLOT.top);
-                  const over = threshold != null && (r.utilisation ?? 0) >= threshold;
-                  return (
-                    <g key={r.unitCode || "none"}>
-                      <rect
-                        x={bx}
-                        y={by}
-                        width={width}
-                        height={PLOT.bottom - by}
-                        rx={4}
-                        fill={over ? SERIES.spendPlusCommitments : SERIES.allocated}
-                      />
-                      <text
-                        x={bx + width / 2}
-                        y={PLOT.h - 12}
-                        textAnchor="middle"
-                        fontSize={10.5}
-                        fill="#98A2B3"
-                      >
-                        {unitName(r.unitCode).slice(0, 12)}
-                      </text>
-                    </g>
-                  );
-                })}
-              </svg>
-            </div>
+    <Card className="overflow-hidden">
+      <CardHeader
+        icon={<GridIcon size={17} />}
+        title="Utilisation by department"
+        subtitle="Committed and paid as a share of what each department was given."
+      />
+      {drawn.length === 0 ? (
+        <EmptyState size="sm" title="Nothing to compare">
+          No department holds a code with an allocation, so there is no share to draw.
+        </EmptyState>
+      ) : (
+        <>
+          <CardBody>
+            <svg
+              viewBox={`0 0 ${PLOT.w} ${PLOT.h}`}
+              role="img"
+              aria-label="Utilisation by department"
+              className="block h-auto w-full"
+            >
+              {[0, 25, 50, 75, 100].map((pct) => {
+                const gy = PLOT.bottom - (pct / 100) * (PLOT.bottom - PLOT.top);
+                return (
+                  <g key={pct}>
+                    <line x1={PLOT.left} y1={gy} x2={PLOT.right} y2={gy} className={GRID} strokeWidth={1} />
+                    <text x={PLOT.left - 10} y={gy + 3.5} textAnchor="end" className={AXIS}>
+                      {pct}%
+                    </text>
+                  </g>
+                );
+              })}
+              {threshold != null && (
+                <line
+                  x1={PLOT.left}
+                  y1={PLOT.bottom - (threshold / 100) * (PLOT.bottom - PLOT.top)}
+                  x2={PLOT.right}
+                  y2={PLOT.bottom - (threshold / 100) * (PLOT.bottom - PLOT.top)}
+                  className={SERIES.spendPlusCommitments.stroke}
+                  strokeWidth={1}
+                  strokeDasharray="4 4"
+                />
+              )}
+              {drawn.map((r, i) => {
+                const slot = (PLOT.right - PLOT.left) / drawn.length;
+                // A 2px gap between neighbours, so adjacent bars never touch.
+                const width = Math.max(6, slot * 0.6);
+                const bx = PLOT.left + slot * i + (slot - width) / 2;
+                const pct = Math.min(r.utilisation ?? 0, 100);
+                const by = PLOT.bottom - (pct / 100) * (PLOT.bottom - PLOT.top);
+                const over = threshold != null && (r.utilisation ?? 0) >= threshold;
+                return (
+                  <g key={r.unitCode || "none"}>
+                    <rect
+                      x={bx}
+                      y={by}
+                      width={width}
+                      height={PLOT.bottom - by}
+                      rx={4}
+                      className={over ? SERIES.spendPlusCommitments.fill : SERIES.allocated.fill}
+                    />
+                    <text x={bx + width / 2} y={PLOT.h - 12} textAnchor="middle" className={AXIS}>
+                      {unitName(r.unitCode).slice(0, 12)}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
             <Legend
               items={[
-                { label: "Within the threshold", colour: SERIES.allocated },
-                { label: "Over the threshold", colour: SERIES.spendPlusCommitments },
+                { label: "Within the threshold", swatch: SERIES.allocated.bar },
+                { label: "Over the threshold", swatch: SERIES.spendPlusCommitments.bar },
               ]}
             />
-            <Figures open={open} onToggle={() => setOpen(!open)}>
-              <div className="tablewrap">
-                <table className="table table--compact">
-                  <thead>
-                    <tr>
-                      <th>Department</th>
-                      <th className="num">Allocated</th>
-                      <th className="num">Committed</th>
-                      <th className="num">Actual spend</th>
-                      <th className="num">Utilisation</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r) => (
-                      <tr key={r.unitCode || "none"}>
-                        <td>{unitName(r.unitCode)}</td>
-                        <td className="num">{formatCompactRM(r.allocated)}</td>
-                        <td className="num">{formatCompactRM(r.committed)}</td>
-                        <td className="num">{formatCompactRM(r.actualSpend)}</td>
-                        <td className="num">
-                          {r.utilisation == null ? (
-                            <span className="dim">Not set</span>
-                          ) : (
-                            `${r.utilisation.toFixed(1)}%`
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Figures>
-          </div>
-        )}
-      </div>
-    </section>
+            <FiguresToggle open={open} onToggle={() => setOpen(!open)} />
+          </CardBody>
+          {open && (
+            <Table minWidth={560}>
+              <THead>
+                <Th>Department</Th>
+                <Th numeric>Allocated</Th>
+                <Th numeric>Committed</Th>
+                <Th numeric>Actual spend</Th>
+                <Th numeric>Utilisation</Th>
+              </THead>
+              <tbody>
+                {rows.map((r) => (
+                  <Tr key={r.unitCode || "none"}>
+                    <Td className="truncate" title={unitName(r.unitCode)}>
+                      {unitName(r.unitCode)}
+                    </Td>
+                    <Td numeric>{formatCompactRM(r.allocated)}</Td>
+                    <Td numeric>{formatCompactRM(r.committed)}</Td>
+                    <Td numeric>{formatCompactRM(r.actualSpend)}</Td>
+                    <Td numeric>
+                      {r.utilisation == null ? (
+                        <span className="text-ink-3">Not set</span>
+                      ) : (
+                        `${r.utilisation.toFixed(1)}%`
+                      )}
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </>
+      )}
+    </Card>
   );
 }
-

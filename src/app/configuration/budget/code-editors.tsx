@@ -2,6 +2,8 @@
 
 import { ChartIcon, PencilIcon } from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
+import { cx } from "@/components/ui/cx";
+import { Meter } from "@/components/ui/feedback";
 import type { BudgetCode, Figures } from "@/lib/budget/codes";
 import { formatSen } from "@/lib/money";
 
@@ -88,7 +90,7 @@ export function AddBudgetCode({
     <RecordEditor
       title="New budget code"
       description="Budget code"
-      icon={<ChartIcon size={20} className="icon dim" style={{ marginTop: 2 }} />}
+      icon={<ChartIcon size={17} />}
       columns={2}
       fields={[
         { kind: "text", name: "code", label: "Code", required: true, mono: true },
@@ -124,41 +126,29 @@ export function EditBudgetCode({
     <RecordEditor
       title={budgetCode.descriptionEn}
       description={budgetCode.code}
-      icon={<ChartIcon size={20} className="icon dim" style={{ marginTop: 2 }} />}
+      icon={<ChartIcon size={17} />}
       columns={2}
       fields={[
         { kind: "hidden", name: "id" },
         ...budgetCodeFields(units, people, accountCodes),
       ]}
       action={saveBudgetCode}
-      trigger={{ label: "Edit", iconOnly: <PencilIcon size={14} /> }}
+      trigger={{ label: `Edit ${budgetCode.descriptionEn}`, iconOnly: <PencilIcon size={15} /> }}
       size="lg"
       identity={
-        <>
-          <div className="row wrap" style={{ gap: 24 }}>
+        <div className="flex flex-col gap-4">
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
             <Figure label="Allocated" value={formatSen(figures.allocated)} />
             <Figure label="Committed" value={formatSen(figures.committed)} />
             <Figure label="Actual spend" value={formatSen(figures.actualSpend)} />
             <Figure label="Available" value={formatSen(figures.available)} strong />
-          </div>
+          </dl>
           {figures.utilisation == null ? (
-            <span className="xs dim">Nothing allocated yet, so there is no utilisation to show.</span>
+            <p className="text-[12.5px] text-ink-3">Nothing allocated yet, so there is no utilisation to show.</p>
           ) : (
-            <div className="cfg-meter">
-              <span className="cfg-meter__t">
-                <span
-                  className="cfg-meter__f"
-                  data-tone={over ? "warn" : ""}
-                  style={{ width: `${Math.min(figures.utilisation, 100)}%` }}
-                />
-                {threshold != null && (
-                  <span className="cfg-meter__m" style={{ left: `${threshold}%` }} />
-                )}
-              </span>
-              <span className="cfg-meter__v">{Math.round(figures.utilisation)}%</span>
-            </div>
+            <Meter percent={figures.utilisation} threshold={threshold} tone={over ? "warn" : undefined} />
           )}
-        </>
+        </div>
       }
       values={{
         id: budgetCode.id,
@@ -179,11 +169,14 @@ export function EditBudgetCode({
 
 function Figure({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
-    <div>
-      <div className="lbl">{label}</div>
-      <div className="sm strong">
-        <span className={strong ? "num strong" : "num"}>{value}</span>
-      </div>
+    <div className="min-w-0">
+      <dt className="text-[12px] font-semibold text-ink-3">{label}</dt>
+      <dd
+        className={cx("mt-0.5 truncate text-[14px] text-ink tabular-nums", strong ? "font-bold" : "font-semibold")}
+        title={value}
+      >
+        {value}
+      </dd>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { DataList, type Row } from "@/components/data-list";
 import { ChartIcon } from "@/components/icons";
 import { Tabs } from "@/components/tabs";
+import { Card, CardHeader } from "@/components/ui/card";
 import {
   figuresFor,
   ledgerFor,
@@ -179,18 +180,14 @@ function BudgetCodesPanel({
   });
 
   return (
-    <section className="card">
-      <div className="card__head">
-        <ChartIcon size={17} className="icon dim" />
-        <div className="card__titles">
-          <div className="h3 trunc">Budget codes</div>
-        </div>
-        <div className="row">
-          <AddBudgetCode units={units} people={people} accountCodes={accountCodes} />
-        </div>
-      </div>
-      <div className="card__body card__body--flush">
-        <DataList
+    <Card className="overflow-hidden">
+      <CardHeader
+        icon={<ChartIcon size={17} />}
+        title="Budget codes"
+        actions={<AddBudgetCode units={units} people={people} accountCodes={accountCodes} />}
+        divided={false}
+      />
+      <DataList
           flat
           selectable={false}
           rowOpens
@@ -232,8 +229,7 @@ function BudgetCodesPanel({
             );
           }}
         />
-      </div>
-    </section>
+    </Card>
   );
 }
 
@@ -283,19 +279,15 @@ function AllocationsPanel({
   });
 
   return (
-    <section className="card">
-      <div className="card__head">
-        <ChartIcon size={17} className="icon dim" />
-        <div className="card__titles">
-          <div className="h3 trunc">Allocations</div>
-          {year != null && <div className="card__sub trunc">{year}</div>}
-        </div>
-        <div className="row" style={{ gap: 6, flex: "0 0 auto" }}>
-          <TransferBetweenCodes codes={codes} figuresById={figuresById} />
-        </div>
-      </div>
-      <div className="card__body card__body--flush">
-        <DataList
+    <Card className="overflow-hidden">
+      <CardHeader
+        icon={<ChartIcon size={17} />}
+        title="Allocations"
+        subtitle={year != null ? String(year) : undefined}
+        actions={<TransferBetweenCodes codes={codes} figuresById={figuresById} />}
+        divided={false}
+      />
+      <DataList
           flat
           selectable={false}
           rowOpens
@@ -330,8 +322,7 @@ function AllocationsPanel({
             );
           }}
         />
-      </div>
-    </section>
+    </Card>
   );
 }
 

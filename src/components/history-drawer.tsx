@@ -3,12 +3,13 @@
 import { useEffect, useState, useTransition } from "react";
 
 import { historyOf, type HistoryEntry } from "@/app/configuration/history";
-import { ClockIcon, XIcon } from "@/components/icons";
+import { ClockIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
 import { fieldLabel } from "@/lib/audit/diff";
 import { formatDate } from "@/lib/format";
+import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 
 const ACTION: Record<HistoryEntry["action"], { label: string; tone: "ok" | "info" | "err" }> = {
   CREATE: { label: "Created", tone: "ok" },
@@ -65,26 +66,22 @@ export function HistoryButton({
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-ink/30 backdrop-blur-[2px]" onClick={() => setOpen(false)} aria-hidden="true" />
+        <div
+          className={DRAWER_SCRIM}
+          onPointerDown={(e) => e.target === e.currentTarget && setOpen(false)}
+        >
           <aside
             role="dialog"
             aria-modal="true"
             aria-label={`History of ${label}`}
-            className="relative flex h-full w-[min(32rem,94vw)] flex-col bg-surface shadow-pop"
+            className={drawerPanelClass("md")}
           >
-            <header className="flex items-start gap-3 border-b border-line px-6 py-5">
-              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700">
-                <ClockIcon size={17} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <h2 className="truncate text-[17px] font-bold text-ink">History</h2>
-                <p className="truncate text-[13px] text-ink-3">{label}</p>
-              </div>
-              <button type="button" onClick={() => setOpen(false)} aria-label="Close" className={iconButtonClass("sm")}>
-                <XIcon size={16} />
-              </button>
-            </header>
+            <DrawerHeader
+              icon={<ClockIcon size={17} />}
+              title="History"
+              subtitle={label}
+              onClose={() => setOpen(false)}
+            />
 
             <div className="flex-1 overflow-y-auto px-6 py-5">
               {pending || entries == null ? (

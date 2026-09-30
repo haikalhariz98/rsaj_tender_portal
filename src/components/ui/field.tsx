@@ -154,11 +154,10 @@ export function Field({
       </label>
       <div className="min-w-0">
         {children}
-        {error ? (
-          <p className="mt-1.5 text-[12.5px] font-medium text-rose-600">{error}</p>
-        ) : hint ? (
-          <p className="mt-1.5 text-[12.5px] text-ink-3">{hint}</p>
-        ) : null}
+        {/* Both, when both exist: the hint says what the field is for, and a refused
+            value is easier to correct with that still in view. */}
+        {hint && <p className="mt-1.5 text-[12.5px] text-ink-3">{hint}</p>}
+        {error && <p className="mt-1 text-[12.5px] font-medium text-rose-600">{error}</p>}
       </div>
     </div>
   );

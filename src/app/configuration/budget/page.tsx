@@ -59,7 +59,9 @@ export default async function BudgetPage({
             {formatCompactRM(totals.allocated)} allocated
           </>,
           // Nothing allocated is not nought per cent used.
-          totals.utilisation == null ? "No utilisation yet" : `${Math.round(totals.utilisation)}% utilised`,
+          // One decimal, as the Utilisation tile on Commitment and availability shows it —
+          // a rounded figure here and an exact one there read as two different answers.
+          totals.utilisation == null ? "No utilisation yet" : `${totals.utilisation.toFixed(1)}% utilised`,
         ]}
       />
 

@@ -1,4 +1,6 @@
+import { PencilIcon } from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
+import { buttonClass } from "@/components/ui/button";
 import type { Allocation } from "@/lib/budget/availability";
 
 import { endAllocation, releaseCommitment, saveAllocation, saveCommitment } from "./actions";
@@ -103,7 +105,7 @@ export function EditAllocation({
       title="Edit allocation"
       fields={[{ kind: "hidden", name: "id" }, ...allocationFields(centres, accounts)]}
       action={saveAllocation}
-      trigger={{ label: "Edit", className: "btn btn--sm btn--ghost" }}
+      trigger={{ label: "Edit allocation", iconOnly: <PencilIcon size={15} /> }}
       values={{
         id: allocation.id,
         costCentreCode: allocation.costCentreCode,
@@ -164,7 +166,7 @@ export function ReleaseCommitment({ id, reference }: { id: string; reference: st
       action={releaseCommitment}
       submitLabel="Release"
       destructive={{ reasonLabel: "Why is it being released?" }}
-      trigger={{ label: "Release", className: "btn btn--sm btn--ghost" }}
+      trigger={{ label: "Release", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
       size="sm"
     />
   );
@@ -180,7 +182,7 @@ export function EndAllocation({ id, label }: { id: string; label: string }) {
       action={endAllocation}
       submitLabel="End it"
       destructive={{ reasonLabel: "Why is it ending?" }}
-      trigger={{ label: "End", className: "btn btn--sm btn--ghost" }}
+      trigger={{ label: "End", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
       size="sm"
     />
   );

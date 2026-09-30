@@ -5,9 +5,9 @@ import { useEffect, useRef, useState, useTransition, type ReactNode } from "reac
 
 import { PlusIcon, SaveIcon, XIcon } from "@/components/icons";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
-import { cx } from "@/components/ui/cx";
 import { Callout } from "@/components/ui/feedback";
 import { AffixInput, Field, Input, Select, Switch, Textarea } from "@/components/ui/field";
+import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 
 /**
  * The form chrome around every configuration record.
@@ -185,11 +185,11 @@ export function RecordEditor({
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex justify-end bg-ink/30 backdrop-blur-[2px]"
+          className={DRAWER_SCRIM}
           onPointerDown={(e) => e.target === e.currentTarget && setOpen(false)}
         >
           <aside
-            className={cx("flex h-full max-w-[96vw] flex-col bg-surface shadow-pop", DRAWER_WIDTH[size])}
+            className={drawerPanelClass(size)}
             role="dialog"
             aria-modal="true"
             aria-label={title}
@@ -198,25 +198,12 @@ export function RecordEditor({
             {/* The form is the flex column the body scrolls inside; without it the body
                 has no height to scroll within and long forms are cut off. */}
             <form onSubmit={(e) => submit(formDataOf(e))} className="flex min-h-0 flex-1 flex-col">
-              <header className="flex items-start gap-3 border-b border-line px-6 py-5">
-                {icon && (
-                  <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700 [&_svg]:m-0">
-                    {icon}
-                  </span>
-                )}
-                <div className="min-w-0 flex-1">
-                  <h2 className="truncate text-[18px] font-bold tracking-tight text-ink">{title}</h2>
-                  {description && <p className="mt-0.5 text-[13px] text-ink-3">{description}</p>}
-                </div>
-                <button
-                  type="button"
-                  className={iconButtonClass("sm")}
-                  aria-label="Close"
-                  onClick={() => setOpen(false)}
-                >
-                  <XIcon size={17} />
-                </button>
-              </header>
+              <DrawerHeader
+                icon={icon}
+                title={title}
+                subtitle={description}
+                onClose={() => setOpen(false)}
+              />
 
               <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
                 <div className="flex flex-col gap-5">
@@ -306,12 +293,6 @@ export function RecordEditor({
   );
 }
 
-const DRAWER_WIDTH = {
-  sm: "w-[28rem]",
-  md: "w-[34rem]",
-  lg: "w-[46rem]",
-  xl: "w-[60rem]",
-} as const;
 
 /**
  * Several values at once: chosen ones sit as removable tags inside the box, and what

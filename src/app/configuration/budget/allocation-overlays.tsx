@@ -3,17 +3,26 @@
 import { formDataOf } from "@/components/ui/form-submit";
 import { useEffect, useRef, useState, useTransition } from "react";
 
-import { AlertTriangle, ChartIcon, EyeIcon, PlusIcon, SaveIcon, XIcon } from "@/components/icons";
+import { ChartIcon, EyeIcon, PlusIcon, SaveIcon } from "@/components/icons";
 import { EMPTY_FORM_STATE, RecordEditor, type FormState } from "@/components/record-editor";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonClass, iconButtonClass } from "@/components/ui/button";
+import { cx } from "@/components/ui/cx";
+import { Callout } from "@/components/ui/feedback";
+import { AffixInput, Field, Input, Select } from "@/components/ui/field";
 import { ledgerLines, type BudgetCode, type Figures, type Movement } from "@/lib/budget/codes";
 import { formatCompactRM } from "@/lib/format";
 import { formatSen } from "@/lib/money";
 
 import { addRevision, transferBetweenCodes } from "./actions";
+import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const writeDate = (d: Date) =>
   `${String(d.getDate()).padStart(2, "0")} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+
+/// The head of a hand-built overlay, matching RecordEditor's: icon tile, title, a
+/// quieter line under it, and the close button.
 
 /**
  * What a code's allocation is made of.
@@ -54,70 +63,71 @@ export function AllocationDetails({
       <button
         type="button"
         ref={opener}
-        className="iconbtn iconbtn--sm"
+        className={iconButtonClass("sm")}
         aria-label="Details"
         title="Details"
         onClick={() => setOpen(true)}
       >
-        <EyeIcon size={14} />
+        <EyeIcon size={15} />
       </button>
 
       {open && (
         <div
-          className="scrim scrim--right"
+          className={DRAWER_SCRIM}
           onPointerDown={(e) => e.target === e.currentTarget && setOpen(false)}
         >
-          <aside className="drawer drawer--lg" role="dialog" aria-modal="true" aria-label={budgetCode.descriptionEn}>
-            <div className="ov__head">
-              <ChartIcon size={20} className="icon dim" style={{ marginTop: 2 }} />
-              <div className="grow" style={{ minWidth: 0 }}>
-                <div className="row" style={{ gap: 8 }}>
-                  <div className="h2 trunc">{budgetCode.descriptionEn}</div>
-                  <span className="badge badge--brand">
-                    <span className="badge__t">{formatCompactRM(total.amount)}</span>
-                  </span>
-                </div>
-                <div className="sm muted" style={{ marginTop: 2 }}>
-                  {budgetCode.code}
+          <aside
+            className={drawerPanelClass("lg")}
+            role="dialog"
+            aria-modal="true"
+            aria-label={budgetCode.descriptionEn}
+          >
+            <DrawerHeader
+              icon={<ChartIcon size={17} />}
+              title={budgetCode.descriptionEn}
+              badge={<Badge tone="brand">{formatCompactRM(total.amount)}</Badge>}
+              subtitle={
+                <>
+                  <span className="font-mono text-[12.5px]">{budgetCode.code}</span>
                   {year != null && ` · ${year}`}
-                </div>
-              </div>
-              <button
-                type="button"
-                className="iconbtn"
-                aria-label="Close"
-                onClick={() => setOpen(false)}
-              >
-                <XIcon size={17} />
-              </button>
-            </div>
+                </>
+              }
+              onClose={() => setOpen(false)}
+            />
 
-            <div className="ov__body">
-              <div className="stack stack--lg">
-                <div className="pj-ledger">
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+              <div className="flex flex-col gap-5">
+                <div className="overflow-hidden rounded-2xl border border-line">
                   {lines.map((l, i) => (
                     <div
                       key={i}
-                      className="pj-lrow"
-                      data-sub={l.kind === "MOVEMENT" ? "true" : undefined}
-                      data-total={l.kind === "TOTAL" ? "true" : undefined}
+                      className={cx(
+                        "flex items-baseline justify-between gap-4 border-b border-line/70 px-4 py-2.5 last:border-b-0",
+                        l.kind === "MOVEMENT" && "pl-8",
+                        l.kind === "TOTAL" && "bg-sunken",
+                      )}
                     >
-                      <span className="pj-lrow__k">
+                      <span
+                        className={cx(
+                          "min-w-0 text-[13.5px]",
+                          l.kind === "TOTAL" ? "font-bold text-ink" : l.kind === "MOVEMENT" ? "text-ink-2" : "text-ink",
+                        )}
+                      >
                         {l.label}
-                        {l.note && <span className="pj-lrow__n">{l.note}</span>}
+                        {l.note && <span className="ml-2 text-[12.5px] text-ink-3">{l.note}</span>}
                       </span>
                       {l.kind === "TOTAL" ? (
-                        <span className="pj-lrow__v">
-                          <span className="num strong">{formatSen(l.amount)}</span>
+                        <span className="shrink-0 text-[14px] font-bold text-ink tabular-nums">
+                          {formatSen(l.amount)}
                         </span>
                       ) : l.kind === "ORIGINAL" ? (
-                        <span className="pj-lrow__v">
-                          <span className="num">{formatSen(l.amount)}</span>
-                        </span>
+                        <span className="shrink-0 text-[13.5px] text-ink tabular-nums">{formatSen(l.amount)}</span>
                       ) : (
                         <span
-                          className="pj-lrow__v"
-                          style={{ color: l.adds ? "var(--ok)" : "var(--err)" }}
+                          className={cx(
+                            "shrink-0 text-[13.5px] font-semibold tabular-nums",
+                            l.adds ? "text-emerald-700" : "text-rose-700",
+                          )}
                         >
                           {l.adds ? "+" : "−"}
                           {formatSen(l.amount)}
@@ -127,16 +137,15 @@ export function AllocationDetails({
                   ))}
                 </div>
 
-                <AddRevision budgetCode={budgetCode} />
+                <div>
+                  <AddRevision budgetCode={budgetCode} />
+                </div>
               </div>
             </div>
 
-            <div className="ov__foot">
-              <div className="spacer" />
-              <button type="button" className="btn" onClick={() => setOpen(false)}>
-                Cancel
-              </button>
-            </div>
+            <footer className="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
+              <Button onClick={() => setOpen(false)}>Cancel</Button>
+            </footer>
           </aside>
         </div>
       )}
@@ -150,7 +159,7 @@ function AddRevision({ budgetCode }: { budgetCode: BudgetCode }) {
     <RecordEditor
       title="Add revision"
       description={`${budgetCode.code} — ${budgetCode.descriptionEn}`}
-      icon={<ChartIcon size={20} className="icon dim" style={{ marginTop: 2 }} />}
+      icon={<ChartIcon size={17} />}
       columns={2}
       fields={[
         { kind: "hidden", name: "budgetCodeId" },
@@ -179,7 +188,7 @@ function AddRevision({ budgetCode }: { budgetCode: BudgetCode }) {
       values={{ budgetCodeId: budgetCode.id }}
       action={addRevision}
       submitLabel="Add revision"
-      trigger={{ label: "Add revision", className: "btn", icon: true }}
+      trigger={{ label: "Add revision", icon: true }}
       size="md"
     />
   );
@@ -188,8 +197,9 @@ function AddRevision({ budgetCode }: { budgetCode: BudgetCode }) {
 /**
  * Moving allocation between two codes.
  *
- * A modal rather than a drawer, as the sample has it — it is one act on two records
- * and belongs in front of the list, not beside it.
+ * The sample shows it as a centred modal. It opens from the right as every other
+ * form in the product does — the prototype decides what the form holds, not where
+ * it sits.
  */
 export function TransferBetweenCodes({
   codes,
@@ -228,12 +238,18 @@ export function TransferBetweenCodes({
     });
   };
 
+  const codeOptions = codes.map((c) => (
+    <option key={c.id} value={c.id}>
+      {c.code} — {c.descriptionEn}
+    </option>
+  ));
+
   return (
     <>
       <button
         type="button"
         ref={opener}
-        className="btn btn--primary btn--sm"
+        className={buttonClass("primary", "sm")}
         onClick={() => setOpen(true)}
       >
         <PlusIcon size={15} />
@@ -241,152 +257,93 @@ export function TransferBetweenCodes({
       </button>
 
       {open && (
-        <div className="scrim" onPointerDown={(e) => e.target === e.currentTarget && close()}>
-          <div className="modal modal--md" role="dialog" aria-modal="true" aria-label="Transfer between codes">
-            <form
-              onSubmit={(e) => submit(formDataOf(e))}
-              style={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}
-            >
-              <div className="ov__head">
-                <ChartIcon size={20} className="icon dim" style={{ marginTop: 2 }} />
-                <div className="grow" style={{ minWidth: 0 }}>
-                  <div className="row" style={{ gap: 8 }}>
-                    <div className="h2 trunc">Transfer between codes</div>
-                  </div>
-                </div>
-                <button type="button" className="iconbtn" aria-label="Close" onClick={close}>
-                  <XIcon size={17} />
-                </button>
-              </div>
+        <div
+          className={DRAWER_SCRIM}
+          onPointerDown={(e) => e.target === e.currentTarget && close()}
+        >
+          <aside
+            className={drawerPanelClass("md")}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Transfer between codes"
+          >
+            <form onSubmit={(e) => submit(formDataOf(e))} className="flex min-h-0 flex-1 flex-col">
+              <DrawerHeader icon={<ChartIcon size={17} />} title="Transfer between codes" onClose={close} />
 
-              <div className="ov__body">
-                <div className="stack">
-                  {state.message && (
-                    <div className="callout callout--err">
-                      <span className="callout__ico">
-                        <AlertTriangle size={17} />
-                      </span>
-                      <div className="grow">
-                        <span className="sm">{state.message}</span>
-                      </div>
-                    </div>
-                  )}
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+                <div className="flex flex-col gap-4">
+                  {state.message && <Callout tone="err">{state.message}</Callout>}
 
-                  <label className="field">
-                    <span className="field__lbl">
-                      From code
-                      <span className="field__req" aria-hidden="true">
-                        *
-                      </span>
-                    </span>
-                    <select
-                      className="select"
+                  <Field label="From code" required htmlFor="transfer-from" error={state.errors?.fromCodeId}>
+                    <Select
+                      id="transfer-from"
                       name="fromCodeId"
                       value={fromId}
                       onChange={(e) => setFromId(e.target.value)}
+                      aria-invalid={state.errors?.fromCodeId ? true : undefined}
                     >
                       <option value="">Choose</option>
-                      {codes.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.code} — {c.descriptionEn}
-                        </option>
-                      ))}
-                    </select>
-                    {state.errors?.fromCodeId && (
-                      <span className="field__err">
-                        <AlertTriangle size={13} />
-                        {state.errors.fromCodeId}
-                      </span>
-                    )}
-                  </label>
+                      {codeOptions}
+                    </Select>
+                  </Field>
 
-                  <div className="row" style={{ gap: 10 }}>
-                    <span className="sm dim">Available</span>
-                    <div className="spacer" />
+                  <div className="flex items-center justify-between gap-3 rounded-xl bg-sunken px-3.5 py-2.5">
+                    <span className="text-[13px] text-ink-3">Available</span>
                     {/* Read from the ledger of whichever code is chosen. Blank until
                         one is, rather than a zero that would read as "nothing left". */}
-                    <span className="num strong">
+                    <span className="text-[14px] font-bold text-ink tabular-nums">
                       {available == null ? "—" : formatSen(available)}
                     </span>
                   </div>
 
-                  <label className="field">
-                    <span className="field__lbl">
-                      To code
-                      <span className="field__req" aria-hidden="true">
-                        *
-                      </span>
-                    </span>
-                    <select className="select" name="toCodeId" defaultValue="">
+                  <Field label="To code" required htmlFor="transfer-to" error={state.errors?.toCodeId}>
+                    <Select
+                      id="transfer-to"
+                      name="toCodeId"
+                      defaultValue=""
+                      aria-invalid={state.errors?.toCodeId ? true : undefined}
+                    >
                       <option value="">Choose</option>
-                      {codes.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.code} — {c.descriptionEn}
-                        </option>
-                      ))}
-                    </select>
-                    {state.errors?.toCodeId && (
-                      <span className="field__err">
-                        <AlertTriangle size={13} />
-                        {state.errors.toCodeId}
-                      </span>
-                    )}
-                  </label>
+                      {codeOptions}
+                    </Select>
+                  </Field>
 
-                  <label className="field">
-                    <span className="field__lbl">
-                      Amount
-                      <span className="field__req" aria-hidden="true">
-                        *
-                      </span>
-                    </span>
-                    <div className="inputwrap inputwrap--pre">
-                      <span className="inputwrap__pre">RM</span>
-                      <input className="input input--num" name="amount" inputMode="decimal" />
-                    </div>
-                    {state.errors?.amount && (
-                      <span className="field__err">
-                        <AlertTriangle size={13} />
-                        {state.errors.amount}
-                      </span>
-                    )}
-                  </label>
+                  <Field label="Amount" required htmlFor="transfer-amount" error={state.errors?.amount}>
+                    <AffixInput
+                      id="transfer-amount"
+                      prefix="RM"
+                      name="amount"
+                      inputMode="decimal"
+                      className="[&_input]:text-right"
+                      aria-invalid={state.errors?.amount ? true : undefined}
+                    />
+                  </Field>
 
-                  <label className="field">
-                    <span className="field__lbl">Reference</span>
-                    <input className="input" name="reference" />
-                  </label>
+                  <Field label="Reference" htmlFor="transfer-reference">
+                    <Input id="transfer-reference" name="reference" />
+                  </Field>
 
-                  <label className="field">
-                    <span className="field__lbl">
-                      Dated
-                      <span className="field__req" aria-hidden="true">
-                        *
-                      </span>
-                    </span>
-                    <input className="input" type="date" name="occurredOn" />
-                    {state.errors?.occurredOn && (
-                      <span className="field__err">
-                        <AlertTriangle size={13} />
-                        {state.errors.occurredOn}
-                      </span>
-                    )}
-                  </label>
+                  <Field label="Dated" required htmlFor="transfer-dated" error={state.errors?.occurredOn}>
+                    <Input
+                      id="transfer-dated"
+                      type="date"
+                      name="occurredOn"
+                      aria-invalid={state.errors?.occurredOn ? true : undefined}
+                    />
+                  </Field>
                 </div>
               </div>
 
-              <div className="ov__foot">
-                <div className="spacer" />
-                <button type="button" className="btn" onClick={close}>
+              <footer className="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
+                <Button variant="ghost" onClick={close}>
                   Cancel
-                </button>
-                <button type="submit" className="btn btn--primary" disabled={pending}>
-                  <SaveIcon size={15} />
+                </Button>
+                <Button type="submit" variant="primary" disabled={pending} icon={<SaveIcon size={15} />}>
                   {pending ? "Saving…" : "Transfer between codes"}
-                </button>
-              </div>
+                </Button>
+              </footer>
             </form>
-          </div>
+          </aside>
         </div>
       )}
     </>

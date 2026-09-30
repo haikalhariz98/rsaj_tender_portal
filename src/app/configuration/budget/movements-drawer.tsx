@@ -1,11 +1,17 @@
 "use client";
 
+import { ChartIcon } from "@/components/icons";
 import { useEffect, useRef, useState } from "react";
 
-import { ChartIcon, XIcon } from "@/components/icons";
 import type { MovementRow } from "@/lib/budget/analysis";
 import type { BudgetCode, Figures } from "@/lib/budget/codes";
 import { formatSen } from "@/lib/money";
+import { Badge, Chip, Dot } from "@/components/ui/badge";
+import { Button, iconButtonClass } from "@/components/ui/button";
+import { Meter } from "@/components/ui/feedback";
+import { Table, Td, Th, THead, Tr } from "@/components/ui/table";
+import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
+
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const day = (d: Date) =>
@@ -61,7 +67,7 @@ export function MovementsDrawer({
       <button
         type="button"
         ref={opener}
-        className="iconbtn iconbtn--sm"
+        className={iconButtonClass("sm")}
         aria-label="Movements"
         title="Movements"
         onClick={() => setOpen(true)}
@@ -71,128 +77,105 @@ export function MovementsDrawer({
 
       {open && (
         <div
-          className="scrim scrim--right"
+          className={DRAWER_SCRIM}
           onPointerDown={(e) => e.target === e.currentTarget && setOpen(false)}
         >
           <aside
-            className="drawer drawer--xl"
+            className={drawerPanelClass("xl")}
             role="dialog"
             aria-modal="true"
             aria-label={`Movements against ${budgetCode.code}`}
           >
-            <div className="ov__head">
-              <ChartIcon size={20} className="icon dim" style={{ marginTop: 2 }} />
-              <div className="grow" style={{ minWidth: 0 }}>
-                <div className="row" style={{ gap: 8 }}>
-                  <div className="h2 trunc">{budgetCode.descriptionEn}</div>
-                </div>
-                <div className="sm muted" style={{ marginTop: 2 }}>
-                  {budgetCode.code}
+            <DrawerHeader
+              icon={<ChartIcon size={17} />}
+              title={budgetCode.descriptionEn}
+              subtitle={
+                <>
+                  <span className="font-mono text-[12.5px]">{budgetCode.code}</span>
                   {year != null && ` · ${year}`}
-                </div>
-              </div>
-              <button type="button" className="iconbtn" aria-label="Close" onClick={() => setOpen(false)}>
-                <XIcon size={17} />
-              </button>
-            </div>
+                </>
+              }
+              onClose={() => setOpen(false)}
+            />
 
-            <div className="ov__body">
-              <div className="stack stack--lg">
-                <div className="row wrap" style={{ gap: 16 }}>
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+              <div className="flex flex-col gap-5">
+                <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
                   <Figure label="Allocated" value={formatSen(figures.allocated)} />
                   <Figure label="Committed" value={formatSen(figures.committed)} />
                   <Figure label="Actual spend" value={formatSen(figures.actualSpend)} />
                   <Figure label="Available" value={formatSen(figures.available)} />
-                </div>
+                </dl>
 
                 {figures.utilisation == null ? (
-                  <span className="xs dim">
+                  <p className="text-[12.5px] text-ink-3">
                     Nothing allocated, so there is no utilisation to show.
-                  </span>
+                  </p>
                 ) : (
-                  <div className="cfg-meter">
-                    <span className="cfg-meter__t">
-                      <span
-                        className="cfg-meter__f"
-                        data-tone={
-                          threshold != null && figures.utilisation >= threshold ? "warn" : ""
-                        }
-                        style={{ width: `${Math.min(figures.utilisation, 100)}%` }}
-                      />
-                      {threshold != null && (
-                        <span className="cfg-meter__m" style={{ left: `${threshold}%` }} />
-                      )}
-                    </span>
-                    <span className="cfg-meter__v">{Math.round(figures.utilisation)}%</span>
-                  </div>
+                  <Meter percent={figures.utilisation} threshold={threshold} />
                 )}
 
-                <div className="divider" />
+                <hr className="border-line" />
 
                 <div>
-                  <div className="row" style={{ gap: 10, marginBottom: 10 }}>
-                    <span className="lbl">Movements</span>
-                    <div className="spacer" />
-                    <span className="xs dim">{rows.length}</span>
+                  <div className="mb-3 flex items-center gap-2.5">
+                    <h3 className="text-[14px] font-bold text-ink">Movements</h3>
+                    <span className="flex-1" />
+                    <span className="text-[12.5px] text-ink-3 tabular-nums">{rows.length}</span>
                   </div>
                   {rows.length === 0 ? (
-                    <span className="xs dim">
-                      Nothing has moved against this code yet.
-                    </span>
+                    <p className="text-[12.5px] text-ink-3">Nothing has moved against this code yet.</p>
                   ) : (
-                    <div className="tablewrap">
-                      <table className="table">
-                        <thead>
-                          <tr>
-                            <th>Reference</th>
-                            <th>Type</th>
-                            <th>Date</th>
-                            <th>Status</th>
-                            <th className="num">Amount</th>
-                          </tr>
-                        </thead>
+                    // Flush to the drawer's edges, so the cells line up with its head.
+                    <div className="-mx-6">
+                      <Table minWidth={640}>
+                        <THead>
+                          <Th>Reference</Th>
+                          <Th>Type</Th>
+                          <Th>Date</Th>
+                          <Th>Status</Th>
+                          <Th numeric>Amount</Th>
+                        </THead>
                         <tbody>
                           {rows.map((r) => {
                             const s = status(r);
+                            const tone = s === "Released" ? "neutral" : "ok";
                             return (
-                              <tr key={r.id}>
-                                <td>
-                                  <span className="mono sm">{r.reference || "—"}</span>
-                                </td>
-                                <td>
-                                  <span className="badge">
-                                    <span className="badge__t">{KIND_LABEL[r.kind]}</span>
+                              <Tr key={r.id}>
+                                <Td>
+                                  <span
+                                    className="block truncate font-mono text-[12.5px] text-ink"
+                                    title={r.reference || undefined}
+                                  >
+                                    {r.reference || "—"}
                                   </span>
-                                </td>
-                                <td>
-                                  <span className="num">{day(r.occurredOn)}</span>
-                                </td>
-                                <td>
-                                  <span className={`chip${s === "Released" ? "" : " chip--ok"}`} title={s}>
-                                    <span className={`dot${s === "Released" ? "" : " dot--ok"}`} />
-                                    <span className="badge__t">{s}</span>
-                                  </span>
-                                </td>
-                                <td className="num">
-                                  <span className="num">{formatSen(r.amount)}</span>
-                                </td>
-                              </tr>
+                                </Td>
+                                <Td>
+                                  <Badge>{KIND_LABEL[r.kind]}</Badge>
+                                </Td>
+                                <Td className="tabular-nums">{day(r.occurredOn)}</Td>
+                                <Td>
+                                  <Chip tone={tone} icon={<Dot tone={tone} />} title={s}>
+                                    {s}
+                                  </Chip>
+                                </Td>
+                                <Td numeric className="font-semibold">
+                                  {formatSen(r.amount)}
+                                </Td>
+                              </Tr>
                             );
                           })}
                         </tbody>
-                      </table>
+                      </Table>
                     </div>
                   )}
                 </div>
               </div>
             </div>
 
-            <div className="ov__foot">
-              <div className="spacer" />
-              <button type="button" className="btn" onClick={() => setOpen(false)}>
-                Cancel
-              </button>
-            </div>
+            <footer className="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
+              <Button onClick={() => setOpen(false)}>Cancel</Button>
+            </footer>
           </aside>
         </div>
       )}
@@ -202,11 +185,11 @@ export function MovementsDrawer({
 
 function Figure({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ minWidth: 0 }}>
-      <div className="lbl">{label}</div>
-      <div className="sm strong" style={{ marginTop: 2 }}>
-        <span className="num">{value}</span>
-      </div>
+    <div className="min-w-0">
+      <dt className="text-[12px] font-semibold text-ink-3">{label}</dt>
+      <dd className="mt-0.5 truncate text-[15px] font-bold text-ink tabular-nums" title={value}>
+        {value}
+      </dd>
     </div>
   );
 }
@@ -215,8 +198,8 @@ function Figure({ label, value }: { label: string; value: string }) {
 function ListIcon() {
   return (
     <svg
-      width={14}
-      height={14}
+      width={15}
+      height={15}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
