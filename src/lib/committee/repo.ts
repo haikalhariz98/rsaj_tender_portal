@@ -44,6 +44,8 @@ export async function listCommittees() {
     secretariatRoleCode: c.secretariatRoleCode,
     votingRule: c.votingRule,
     votingRuleProvenance: c.votingRuleProvenance,
+    alternateMayVoteForRecused: c.alternateMayVoteForRecused,
+    alternateMayVoteForRecusedProvenance: c.alternateMayVoteForRecusedProvenance,
     seatCount: seatsInForce(c.members, today).length,
     filledCount: seatsInForce(c.members, today).filter((m) => m.personId != null).length,
     meetingCount: c._count.meetings,

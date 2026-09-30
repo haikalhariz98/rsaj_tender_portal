@@ -6,6 +6,9 @@ import { loadOrganisationData } from "@/lib/organisation/load";
 import { buildStructure } from "@/lib/organisation/structure";
 import { ORGANISATION_CODE } from "@/lib/org";
 
+import { db } from "@/lib/db";
+
+import { EditTimeZone } from "./editors";
 import { OrganisationScreen } from "./panels";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +28,8 @@ export default async function OrganisationPage({
     loadOrganisationData(ORGANISATION_CODE),
   ]);
 
+  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { timeZone: true } });
+  const timeZone = org?.timeZone ?? null;
   const { roots, detached, faults } = buildStructure(data.units, on);
   const units = activeOn(data.units, on);
 
@@ -53,6 +58,17 @@ export default async function OrganisationPage({
           `${activeOn(data.sites, on).length} sites`,
         ]}
       />
+
+      {timeZone ? (
+        <Callout tone="info" className="mb-5" title={`Dates are judged in ${timeZone}`} action={<EditTimeZone timeZone={timeZone} />}>
+          Today, for a vote sheet or a tabling, is the day in this zone.
+        </Callout>
+      ) : (
+        <Callout tone="warn" className="mb-5" title="Time zone not set — dates judged in UTC" action={<EditTimeZone timeZone={null} />}>
+          Between midnight and the zone&apos;s offset, &ldquo;today&rdquo; is still yesterday in UTC, so a vote sheet
+          dated today can be refused as in the future. Set the zone the organisation keeps its dates in.
+        </Callout>
+      )}
 
       {/* A structure that cannot be drawn as stated is the customer's to fix — it is
           shown, never quietly re-rooted. The loader used to drop these. */}

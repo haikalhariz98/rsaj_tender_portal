@@ -9,6 +9,7 @@ import { periodsOverlap } from "@/lib/effective";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { compareAmounts } from "@/lib/money";
 import { checkPeriod, FormReader } from "@/lib/validate";
+import { checkAlternateLink } from "@/lib/committee/sitting";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const ACTIONS = ["APPROVES", "RECOMMENDS", "CONSENTS", "DECIDES"] as const;
@@ -79,6 +80,29 @@ export async function saveCommittee(_prev: FormState, data: FormData): Promise<F
     r.reject("votingRuleProvenance", "Say where the voting rule came from, or leave the rule unset.");
   }
 
+  // Whether an alternate may vote in place of a recused member: RSAJ policy, shipped
+  // unset. Only "no" can be chosen today: "yes" needs a per-matter stand-in while the
+  // holder is present, which is not built, and a half-built "yes" would let a
+  // recused holder decide by attending whether their seat votes.
+  const altRaw = r.optionalText("alternateMayVoteForRecused");
+  const alternateMayVoteForRecused = altRaw === "no" ? false : null;
+  if (altRaw === "yes") {
+    r.reject(
+      "alternateMayVoteForRecused",
+      "Not available yet: an alternate voting for a recused member who is present needs a per-matter stand-in, which is not built.",
+    );
+  } else if (altRaw && altRaw !== "no") {
+    r.reject("alternateMayVoteForRecused", "Not one of the available options.");
+  }
+  const alternateMayVoteForRecusedProvenance = r.choice(
+    "alternateMayVoteForRecusedProvenance",
+    "Where this came from",
+    PROVENANCE,
+  );
+  if (alternateMayVoteForRecused != null && !alternateMayVoteForRecusedProvenance) {
+    r.reject("alternateMayVoteForRecusedProvenance", "Say where this came from, or leave it unset.");
+  }
+
   const aliases = [
     ...new Set(
       String(data.get("aliases") ?? "")
@@ -114,6 +138,8 @@ export async function saveCommittee(_prev: FormState, data: FormData): Promise<F
     secretariatRoleCode,
     votingRule,
     votingRuleProvenance: votingRule ? votingRuleProvenance : null,
+    alternateMayVoteForRecused,
+    alternateMayVoteForRecusedProvenance: alternateMayVoteForRecused == null ? null : alternateMayVoteForRecusedProvenance,
   };
 
   const parsed = r.finish(v);
@@ -194,14 +220,20 @@ export async function saveMember(_prev: FormState, data: FormData): Promise<Form
   const alternateForId = isAlternate ? r.optionalText("alternateForId") : null;
   if (alternateForId) {
     const target = await db.committeeMember.findFirst({
-      where: { id: alternateForId, committeeId, isAlternate: false },
-      select: { id: true, position: true },
+      where: { id: alternateForId, committeeId },
+      select: { id: true, position: true, isAlternate: true },
     });
-    if (!target) r.reject("alternateForId", "That seat is not a seat of this committee.");
-    else if (target.position === "CHAIRMAN") {
-      r.reject("alternateForId", "Nobody stands in for the chairman, so the chair has no alternate.");
+    const link = checkAlternateLink({ selfId: id || null, target });
+    if (!link.ok) {
+      r.reject(
+        "alternateForId",
+        {
+          NOT_A_SEAT_OF_THIS_COMMITTEE: "That seat is not a seat of this committee.",
+          CHAIR_HAS_NO_ALTERNATE: "Nobody stands in for the chairman, so the chair has no alternate.",
+          OWN_ALTERNATE: "A seat cannot be its own alternate.",
+        }[link.fault],
+      );
     }
-    if (id && alternateForId === id) r.reject("alternateForId", "A seat cannot be its own alternate.");
   }
 
   // One chairman at a time. Two would make the minute unsignable.
@@ -352,9 +384,22 @@ export async function saveNotApprovedOutcome(_prev: FormState, data: FormData): 
   if (!id) {
     await auditedCreate(ctx, v, (tx) => tx.notApprovedOutcome.create({ data: { organisationId: orgId, ...write } }));
   } else {
-    const before = await db.notApprovedOutcome.findUnique({ where: { id } });
+    const before = await db.notApprovedOutcome.findUnique({
+      where: { id },
+      include: { _count: { select: { decisions: true } } },
+    });
     if (!before) return { ok: false, message: "That outcome no longer exists." };
-    await auditedUpdate({ ...ctx, entityId: id }, before, v, (tx) =>
+    // A decision cites it: changing it would rewrite what was recorded. Retire it and
+    // add a new one instead.
+    if (before._count.decisions > 0) {
+      return {
+        ok: false,
+        message: `This outcome has been used by ${before._count.decisions} recorded ${before._count.decisions === 1 ? "decision" : "decisions"}, so it cannot be changed. Retire it and add a new one.`,
+      };
+    }
+    const { _count: _unused, ...row } = before;
+    void _unused;
+    await auditedUpdate({ ...ctx, entityId: id }, row, v, (tx) =>
       tx.notApprovedOutcome.update({ where: { id }, data: write }),
     );
   }

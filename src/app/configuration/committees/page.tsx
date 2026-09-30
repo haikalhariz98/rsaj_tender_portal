@@ -250,10 +250,19 @@ export default async function CommitteesPage() {
                     </Td>
                     <Td>
                       <RowActions>
-                        <EditNotApprovedOutcome
-                          outcome={o}
-                          committees={committees.map((c) => ({ id: c.id, nameEn: c.nameEn }))}
-                        />
+                        {o._count.decisions > 0 ? (
+                          <span
+                            className="text-[12px] whitespace-nowrap text-ink-3"
+                            title="Recorded decisions cite this outcome, so it cannot be changed. Retire it and add a new one."
+                          >
+                            In use
+                          </span>
+                        ) : (
+                          <EditNotApprovedOutcome
+                            outcome={o}
+                            committees={committees.map((c) => ({ id: c.id, nameEn: c.nameEn }))}
+                          />
+                        )}
                         {!retired && <RetireNotApprovedOutcome id={o.id} label={o.nameEn} />}
                       </RowActions>
                     </Td>

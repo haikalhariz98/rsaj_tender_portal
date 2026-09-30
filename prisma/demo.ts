@@ -387,20 +387,27 @@ async function load() {
       },
       {
         id: `${P}d3`, meetingId: `${P}mt2`, sequence: 2, domain: "appointment", subject: "Award of the IT support contract", matterKind: "EXERCISE", matterRef: "DEMO/T/2026/010", amount: "380000", act: "A", ...tabled, tabledAt: day("2026-08-13"),
-        outcome: "DEFERRED", decisionDate: day("2026-08-20"), quorumRequired: 3, presentVoters: 3, recusedCount: 1,
+        // Judged on two: the Finance Director, present, recused.
+        outcome: "DEFERRED", decisionDate: day("2026-08-20"), quorumRequired: 3, presentVoters: 2, recusedCount: 1,
         outcomeNote: "The Finance Director's recusal left the Board inquorate on this matter. To be re-tabled at the next sitting.",
       },
       {
         id: `${P}d4`, meetingId: `${P}mt2`, sequence: 3, domain: "appointment", subject: "Award of the civil works package", matterKind: "EXERCISE", matterRef: "DEMO/T/2026/011", amount: "1250000", act: "A", ...tabled, tabledAt: day("2026-08-13"),
         outcome: "NOT_CARRIED", decisionDate: day("2026-08-20"), quorumRequired: 3, presentVoters: 3, recusedCount: 0, votingRule: "SIMPLE_MAJORITY", votingRuleProvenance: "ASSUMED",
-        notApprovedOutcomeId: `${P}nao2`, outcomeNote: "The tendered rates exceed the estimate by a margin the Board would not accept without negotiation.",
+        notApprovedOutcomeId: `${P}nao2`, notApprovedOutcomeNameEn: "Return for re-negotiation", notApprovedOutcomeKind: "LOOP", outcomeNote: "The tendered rates exceed the estimate by a margin the Board would not accept without negotiation.",
       },
+      // The Director of Operations has an alternate and recuses: whether the alternate may
+      // vote in his place is unset on the demo Tender Board, so the matter shows the gap.
+      { id: `${P}d6`, meetingId: `${P}mt1`, sequence: 2, domain: "appointment", subject: "Renewal of the security services contract", matterKind: "CONTRACT", matterRef: "DEMO/KP/T/2024/003", amount: "520000", act: "A", ...tabled, tabledAt: day("2026-09-22") },
       { id: `${P}d5`, meetingId: `${P}mt3`, sequence: 1, domain: "appointment", subject: "Quotation for stationery supply", matterKind: "EXERCISE", matterRef: "DEMO/SH/2026/031", amount: "42000", act: "MR", authorityRuleKey: "demo.purchase.mid", ...tabled, tabledAt: day("2026-09-28") },
     ],
   });
 
-  await db.decisionRecusal.create({
-    data: { id: `${P}rc1`, decisionId: `${P}d3`, personId: `${P}p2`, reason: "A family member is a director of one of the tenderers.", declaredAt: day("2026-08-20") },
+  await db.decisionRecusal.createMany({
+    data: [
+      { id: `${P}rc1`, decisionId: `${P}d3`, personId: `${P}p2`, reason: "A family member is a director of one of the tenderers.", declaredAt: day("2026-08-20") },
+      { id: `${P}rc2`, decisionId: `${P}d6`, personId: `${P}p7`, reason: "Previously employed by the incumbent contractor.", declaredAt: day("2026-09-22") },
+    ],
   });
 
   const vote = (id: string, decisionId: string, personId: string, choice: "SETUJU" | "TIDAK_SETUJU", on: string, comment = "") => ({
@@ -645,8 +652,35 @@ async function load() {
     ],
   });
 
+  // The minuted sitting carries the register frozen as it stood, as minuting writes it.
+  await snapshotMinuted([`${P}mt2`]);
+
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
   console.log("Remove it with: npm run demo:wipe");
+}
+
+/// Freeze the register of a demo sitting loaded as already minuted, with the same
+/// functions the minuting action uses.
+async function snapshotMinuted(ids: string[]) {
+  const { loadSitting } = await import("../src/lib/committee/sittings");
+  const { snapshotRegister } = await import("../src/lib/committee/assess-sitting");
+  const lib = await import("../src/lib/db");
+  try {
+    for (const id of ids) {
+      const s = await loadSitting(id);
+      if (!s) throw new Error(`Demo sitting ${id} did not load.`);
+      const people = [
+        ...s.register.voting.map((v) => v.personId),
+        ...s.register.alternates.map((v) => v.personId),
+        ...s.register.nonVotingMemberIds,
+        ...s.meeting.attendance.map((a) => a.personId),
+      ].filter((p): p is string => p != null);
+      const snap = snapshotRegister(s.register, s.rules, s.committeeName, Object.fromEntries(people.map((p) => [p, s.names[p] ?? ""])));
+      await db.meeting.update({ where: { id }, data: { registerSnapshot: snap as object } });
+    }
+  } finally {
+    await lib.db.$disconnect();
+  }
 }
 
 const mode = process.argv[2];

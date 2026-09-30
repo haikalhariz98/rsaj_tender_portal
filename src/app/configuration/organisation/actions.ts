@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
 import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
+import { isTimeZone } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { inForceOn } from "@/lib/effective";
 import { placementFault } from "@/lib/organisation/structure";
@@ -261,6 +262,34 @@ export async function saveSite(_prev: FormState, data: FormData): Promise<FormSt
     );
   }
 
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+// -------------------------------------------------------------------- time zone
+
+/**
+ * Set the organisation's time zone: the zone "today" is judged in — whether a vote
+ * sheet is dated in the future, the day a matter is tabled. An IANA name, checked
+ * against the runtime. Clearing it judges dates in UTC again, and the screen says so.
+ */
+export async function saveTimeZone(_prev: FormState, data: FormData): Promise<FormState> {
+  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE } });
+  if (!org) return NO_ORG;
+  const r = new FormReader(data);
+  const timeZone = r.optionalText("timeZone");
+  if (timeZone && !isTimeZone(timeZone)) {
+    r.reject("timeZone", "Not a time zone name. Use the IANA form, for example Asia/Kuala_Lumpur.");
+  }
+  const parsed = r.finish({ timeZone });
+  if (!parsed.ok) return { ok: false, errors: parsed.errors };
+
+  await auditedUpdate(
+    { organisationId: org.id, entity: "Organisation", entityId: org.id, entityLabel: org.name, reason: String(data.get("reason") ?? "") },
+    { timeZone: org.timeZone },
+    { timeZone },
+    (tx) => tx.organisation.update({ where: { id: org.id }, data: { timeZone } }),
+  );
   revalidatePath(PATH);
   return { ok: true };
 }

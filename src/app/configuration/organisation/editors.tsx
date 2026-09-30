@@ -5,7 +5,7 @@ import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import type { CostCentre, OrgUnit, OrgUnitKind, Site } from "@/lib/organisation/types";
 
-import { saveCostCentre, saveOrgUnit, saveSite } from "./actions";
+import { saveCostCentre, saveOrgUnit, saveSite, saveTimeZone } from "./actions";
 
 type Person = { id: string; name: string; isActive: boolean };
 
@@ -331,6 +331,30 @@ export function EditSite({ site, units }: { site: Site; units: OrgUnit[] }) {
         effectiveFrom: day(site.effectiveFrom),
         effectiveTo: day(site.effectiveTo),
       }}
+    />
+  );
+}
+
+/// The organisation's time zone. No value is proposed: which zone is the customer's.
+export function EditTimeZone({ timeZone }: { timeZone: string | null }) {
+  return (
+    <RecordEditor
+      title="Time zone"
+      description="The zone dates such as today are judged in: whether a vote sheet is dated in the future, the day a matter is tabled."
+      fields={[
+        {
+          kind: "text",
+          name: "timeZone",
+          label: "Time zone",
+          placeholder: "Region/City",
+          hint: "An IANA name. Leave empty to judge dates in UTC.",
+        },
+      ]}
+      values={{ timeZone }}
+      action={saveTimeZone}
+      reason={{ label: "Why is it changing?" }}
+      trigger={{ label: timeZone ? "Change time zone" : "Set time zone", className: buttonClass("secondary", "sm") }}
+      size="sm"
     />
   );
 }

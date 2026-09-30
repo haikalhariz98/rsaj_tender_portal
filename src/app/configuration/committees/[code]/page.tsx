@@ -217,6 +217,18 @@ export default async function CommitteePage({
                     ),
                   },
                   {
+                    label: "Alternate for a recused member",
+                    value:
+                      committee.alternateMayVoteForRecused === false ? (
+                        <span className="inline-flex flex-wrap items-center gap-2">
+                          May not vote: the seat does not vote on that matter
+                          <ProvenanceBadge value={committee.alternateMayVoteForRecusedProvenance} />
+                        </span>
+                      ) : (
+                        <Badge tone="warn">Not set: a matter where a member with an alternate recuses cannot be decided</Badge>
+                      ),
+                  },
+                  {
                     label: "Secretariat",
                     value: secretariat ?? <Badge tone="warn">Not set: nobody may table a matter</Badge>,
                   },

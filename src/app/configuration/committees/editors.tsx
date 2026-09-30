@@ -103,6 +103,24 @@ function committeeFields(editing: boolean, offices: OfficeOption[]): Field[] {
     },
     {
       kind: "select",
+      name: "alternateMayVoteForRecused",
+      label: "May an alternate vote for a recused member?",
+      placeholder: "Not set",
+      hint: "Unset, a matter where a member with an alternate recuses cannot be decided. \"Yes\" is not available yet: it needs a per-matter stand-in while the member is present, which is not built.",
+      options: [
+        { value: "no", label: "No — the recused member's seat does not vote on that matter" },
+        { value: "yes", label: "Yes — not available yet" },
+      ],
+    },
+    {
+      kind: "select",
+      name: "alternateMayVoteForRecusedProvenance",
+      label: "Where that came from",
+      placeholder: "Not set",
+      options: PROVENANCE_OPTIONS,
+    },
+    {
+      kind: "select",
       name: "secretariatRoleCode",
       label: "Secretariat office",
       placeholder: "Not set",
@@ -163,6 +181,8 @@ export interface CommitteeValues {
   secretariatRoleCode: string | null;
   votingRule: string | null;
   votingRuleProvenance: string | null;
+  alternateMayVoteForRecused: boolean | null;
+  alternateMayVoteForRecusedProvenance: string | null;
 }
 
 export function EditCommittee({ committee, offices }: { committee: CommitteeValues; offices: OfficeOption[] }) {
@@ -193,6 +213,9 @@ export function EditCommittee({ committee, offices }: { committee: CommitteeValu
         secretariatRoleCode: committee.secretariatRoleCode,
         votingRule: committee.votingRule,
         votingRuleProvenance: committee.votingRuleProvenance,
+        alternateMayVoteForRecused:
+          committee.alternateMayVoteForRecused == null ? null : committee.alternateMayVoteForRecused ? "yes" : "no",
+        alternateMayVoteForRecusedProvenance: committee.alternateMayVoteForRecusedProvenance,
       }}
     />
   );

@@ -30,6 +30,8 @@ export interface PanelVoter {
   seat: string;
   standIn: boolean;
   recused: boolean;
+  /// Present, but the seat does not vote on this matter (its holder recused).
+  excused?: boolean;
 }
 
 export interface PanelVote {
@@ -62,6 +64,9 @@ export interface PanelMatter {
   messageEn: string;
   quorumMessage: string;
   tally: { setuju: number; tidakSetuju: number; notVoted: number };
+  /// Votes on record that do not count, with why. Shown so INELIGIBLE_VOTE never
+  /// blocks invisibly.
+  ineligibleVotes: { name: string; why: string }[];
   decided: {
     date: Date | null;
     quorum: string;
@@ -83,6 +88,7 @@ export function DecisionPanel({
   matter,
   open,
   meetingDate,
+  today,
   actions,
   notice,
 }: {
@@ -91,6 +97,8 @@ export function DecisionPanel({
   /// matter is undecided.
   open: boolean;
   meetingDate: string;
+  /// Today in the organisation's zone: the latest date a sheet can bear.
+  today: string;
   /// Controls composed by the page: record outcome, declare recusal.
   actions?: ReactNode;
   /// A callout composed by the page, for a blocker that points somewhere else.
@@ -159,8 +167,9 @@ export function DecisionPanel({
               matterId={matter.id}
               voter={voter}
               vote={byPerson.get(voter.personId)}
-              open={open && !voter.recused}
+              open={open && !voter.recused && !voter.excused}
               meetingDate={meetingDate}
+              today={today}
             />
           ))}
         </ul>
@@ -176,6 +185,16 @@ export function DecisionPanel({
         </span>
       </div>
 
+      {matter.ineligibleVotes.length > 0 && (
+        <Callout tone="err" title="A vote on record does not count on this matter">
+          {matter.ineligibleVotes.map((v) => (
+            <span key={v.name} className="block">
+              {v.name}: {v.why}.
+            </span>
+          ))}
+        </Callout>
+      )}
+
       {matter.decided ? (
         <KeyValues
           columns={2}
@@ -183,7 +202,7 @@ export function DecisionPanel({
             { label: "Decided", value: matter.decided.date ? formatDate(matter.decided.date) : "—" },
             { label: "Voting rule", value: matter.decided.rule },
             { label: "Quorum at recording", value: matter.decided.quorum },
-            { label: "Present and recused", value: matter.decided.present },
+            { label: "Quorum judged on", value: matter.decided.present },
             ...(matter.decided.notApproved
               ? [
                   { label: "Next step", value: matter.decided.notApproved },
@@ -216,12 +235,14 @@ function VoterRow({
   vote,
   open,
   meetingDate,
+  today,
 }: {
   matterId: string;
   voter: PanelVoter;
   vote: PanelVote | undefined;
   open: boolean;
   meetingDate: string;
+  today: string;
 }) {
   const router = useRouter();
   const [choice, setChoice] = useState<string | null>(null);
@@ -270,6 +291,8 @@ function VoterRow({
 
         {voter.recused ? (
           <Badge tone="warn">Recused — not counted</Badge>
+        ) : voter.excused ? (
+          <Badge tone="warn">Seat does not vote: its holder recused</Badge>
         ) : (
           <>
             {vote && (
@@ -316,6 +339,7 @@ function VoterRow({
               type="date"
               size="sm"
               min={meetingDate}
+              max={today}
               value={votedAt}
               onChange={(e) => setVotedAt(e.target.value)}
               required

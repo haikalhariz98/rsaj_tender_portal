@@ -1,9 +1,10 @@
 import { CalendarIcon } from "@/components/icons";
 import { DataList, type Row } from "@/components/data-list";
-import { Card, CardHeader } from "@/components/ui/card";
+import { ButtonLink } from "@/components/ui/button";
+import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { MEETING_STATUS_LABEL, MEETING_STATUS_TONE } from "@/lib/committee/labels";
-import { listSittings, organisationId } from "@/lib/committee/sittings";
+import { listSittings, organisationId, SITTINGS_PAGE } from "@/lib/committee/sittings";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { patternFaults } from "@/lib/numbering/series";
@@ -21,19 +22,19 @@ const TONE = { info: "info", brand: "brand", ok: "ok", neutral: undefined } as c
  * record. That view arrives with the modules that own the matters; this list works
  * before them (ruling 5.1).
  */
-export default async function SittingsPage() {
-  const { sittings, committees } = await listSittings();
+export default async function SittingsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+  const { page: raw } = await searchParams;
+  const requested = Math.max(0, Number.parseInt(raw ?? "0", 10) || 0);
+  const { sittings, committees, total, page, counts } = await listSittings(requested);
+  const pages = Math.max(1, Math.ceil(total / SITTINGS_PAGE));
   const orgId = await organisationId();
   const series = orgId
     ? await db.numberingSeries.findUnique({ where: { organisationId_key: { organisationId: orgId, key: "meeting" } } })
     : null;
   const numbered = series != null && patternFaults(series).length === 0;
 
-  const upcoming = sittings.filter((s) => s.status === "SCHEDULED").length;
-  const awaiting = sittings.filter((s) => s.status === "IN_PROGRESS").length;
-  const pending = sittings
-    .filter((s) => s.status === "SCHEDULED" || s.status === "IN_PROGRESS")
-    .reduce((n, s) => n + s.pending, 0);
+  // Counted across every sitting, not only this page.
+  const { upcoming, awaiting, pending } = counts;
   const schedulable = committees.filter((c) => c.retiredOn == null || c.retiredOn > new Date());
 
   const rows: Row[] = sittings.map((s) => ({
@@ -59,7 +60,7 @@ export default async function SittingsPage() {
           ? { kind: "badge", text: "Not set", tone: "warn" }
           : s.status === "SCHEDULED"
             ? { kind: "text", text: `${s.quorum} required`, dim: true }
-            : { kind: "badge", text: `${s.present} of ${s.quorum}`, tone: s.present >= s.quorum ? "ok" : "warn" },
+            : { kind: "badge", text: `${s.present} of ${s.quorum}`, tone: s.quorumState === "MET" ? "ok" : "warn" },
     },
   }));
 
@@ -115,6 +116,25 @@ export default async function SittingsPage() {
           ]}
           rows={rows}
         />
+        {pages > 1 && (
+          <CardFooter className="flex items-center justify-between text-[12.5px] text-ink-3">
+            <span>
+              Sittings {page * SITTINGS_PAGE + 1}–{Math.min(total, (page + 1) * SITTINGS_PAGE)} of {total}
+            </span>
+            <span className="flex gap-2">
+              {page > 0 && (
+                <ButtonLink href={`/committees?page=${page - 1}`} size="sm" variant="ghost">
+                  Newer
+                </ButtonLink>
+              )}
+              {page + 1 < pages && (
+                <ButtonLink href={`/committees?page=${page + 1}`} size="sm" variant="ghost">
+                  Older
+                </ButtonLink>
+              )}
+            </span>
+          </CardFooter>
+        )}
       </Card>
     </>
   );
