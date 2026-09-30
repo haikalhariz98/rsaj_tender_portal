@@ -29,6 +29,7 @@ import { cx } from "@/components/ui/cx";
 import type { Rule } from "@/lib/authority/types";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
+import { HistoryButton } from "@/components/history-drawer";
 
 export const dynamic = "force-dynamic";
 
@@ -152,7 +153,9 @@ export default async function ApprovalMatrixPage({
           `${fixed} cannot be delegated`,
         ]}
         actions={
-          editable ? (
+          <>
+          <HistoryButton entity="AuthorityMatrix" entityId={matrixId} label={selected.label} />
+          {editable ? (
           <>
             <EditMatrix
               matrix={{
@@ -187,7 +190,8 @@ export default async function ApprovalMatrixPage({
             </ButtonLink>
           ) : (
             <StartRevision fromId={matrixId} fromLabel={selected.label} />
-          )
+          )}
+          </>
         }
       />
 

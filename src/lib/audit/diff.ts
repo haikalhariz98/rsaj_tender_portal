@@ -56,6 +56,9 @@ export function snapshotFields(row: Record<string, unknown>): FieldChange[] {
 
 /// Field names are configuration-ish keys; screens render labels.
 export function fieldLabel(field: string): string {
+  // The bilingual pairs read as the forms print them: "Name (EN)", "Name (BM)".
+  const lang = /En$/.test(field) ? " (EN)" : /Ms$/.test(field) ? " (BM)" : "";
+  if (lang) return fieldLabel(field.slice(0, -2)) + lang;
   const spaced = field
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/_/g, " ")

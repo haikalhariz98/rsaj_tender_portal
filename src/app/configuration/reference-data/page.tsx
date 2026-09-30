@@ -22,6 +22,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardHeader } from "@/components/ui/card";
 import { formatDate } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
+import { HistoryButton } from "@/components/history-drawer";
 
 export const dynamic = "force-dynamic";
 
@@ -146,7 +147,10 @@ export default async function ReferenceDataPage() {
                   </td>
                   <td className="right">
                     <span className="row" style={{ gap: 4, justifyContent: "flex-end" }}>
-                      <EditFundingRoute route={r} id={r.id} />
+                      <span className="inline-flex items-center justify-end gap-1">
+  <HistoryButton iconOnly entity="FundingRoute" entityId={r.id} label={r.nameEn} />
+  <EditFundingRoute route={r} id={r.id} />
+</span>
                       <RetireEntry entity="FundingRoute" id={r.id} label={r.nameEn} />
                     </span>
                   </td>
@@ -202,7 +206,10 @@ export default async function ReferenceDataPage() {
                 </td>
                 <td className="right">
                   <span className="row" style={{ gap: 4, justifyContent: "flex-end" }}>
-                    <EditSourcingMethod method={m} id={m.id} />
+                    <span className="inline-flex items-center justify-end gap-1">
+  <HistoryButton iconOnly entity="SourcingMethod" entityId={m.id} label={m.nameEn} />
+  <EditSourcingMethod method={m} id={m.id} />
+</span>
                     <RetireEntry entity="SourcingMethod" id={m.id} label={m.nameEn} />
                   </span>
                 </td>
@@ -249,7 +256,10 @@ export default async function ReferenceDataPage() {
                 </td>
                 <td className="right">
                   <span className="row" style={{ gap: 4, justifyContent: "flex-end" }}>
-                    <EditContractType type={c} id={c.id} />
+                    <span className="inline-flex items-center justify-end gap-1">
+  <HistoryButton iconOnly entity="ContractType" entityId={c.id} label={c.nameEn} />
+  <EditContractType type={c} id={c.id} />
+</span>
                     <RetireEntry entity="ContractType" id={c.id} label={c.nameEn} />
                   </span>
                 </td>

@@ -6,6 +6,7 @@ import { ProvenanceChip, Section, Stat } from "../records-ui";
 import { AddRule, EditRule } from "./editors";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
+import { HistoryButton } from "@/components/history-drawer";
 
 export const dynamic = "force-dynamic";
 
@@ -110,7 +111,10 @@ export default async function NotificationsPage() {
                   <ProvenanceChip value={r.provenance} />
                 </td>
                 <td className="right">
-                  <EditRule row={r} officeCodes={officeCodes} />
+                  <span className="inline-flex items-center justify-end gap-1">
+  <HistoryButton iconOnly entity="NotificationRule" entityId={r.id} label={r.nameEn} />
+  <EditRule row={r} officeCodes={officeCodes} />
+</span>
                 </td>
               </tr>
             ))}

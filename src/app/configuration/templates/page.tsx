@@ -5,6 +5,7 @@ import { ProvenanceChip, Section, Stat } from "../records-ui";
 import { AddTemplate, EditTemplate } from "./editors";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
+import { HistoryButton } from "@/components/history-drawer";
 
 export const dynamic = "force-dynamic";
 
@@ -115,7 +116,10 @@ export default async function TemplatesPage() {
                     <ProvenanceChip value={t.provenance} />
                   </td>
                   <td className="right">
-                    <EditTemplate row={t} classes={classes} />
+                    <span className="inline-flex items-center justify-end gap-1">
+  <HistoryButton iconOnly entity="DocumentTemplate" entityId={t.id} label={t.nameEn} />
+  <EditTemplate row={t} classes={classes} />
+</span>
                   </td>
                 </tr>
               );

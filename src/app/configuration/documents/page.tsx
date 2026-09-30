@@ -5,6 +5,7 @@ import { ProvenanceChip, Section, Stat } from "../records-ui";
 import { AddDocumentClass, EditDocumentClass } from "./editors";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
+import { HistoryButton } from "@/components/history-drawer";
 
 export const dynamic = "force-dynamic";
 
@@ -101,7 +102,10 @@ export default async function DocumentsConfigPage() {
                   <ProvenanceChip value={c.provenance} />
                 </td>
                 <td className="right">
-                  <EditDocumentClass row={c} />
+                  <span className="inline-flex items-center justify-end gap-1">
+  <HistoryButton iconOnly entity="DocumentClass" entityId={c.id} label={c.nameEn} />
+  <EditDocumentClass row={c} />
+</span>
                 </td>
               </tr>
             ))}

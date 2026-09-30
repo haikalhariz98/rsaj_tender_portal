@@ -6,6 +6,7 @@ import { ORGANISATION_CODE } from "@/lib/org";
 import { AddSeries, EditSeries } from "./editors";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
+import { HistoryButton } from "@/components/history-drawer";
 
 export const dynamic = "force-dynamic";
 
@@ -149,7 +150,10 @@ export default async function NumberingPage() {
                           </span>
                         </td>
                         <td className="right">
-                          <EditSeries series={s} />
+                          <span className="inline-flex items-center justify-end gap-1">
+  <HistoryButton iconOnly entity="NumberingSeries" entityId={s.id} label={s.nameEn} />
+  <EditSeries series={s} />
+</span>
                         </td>
                       </tr>
                     );

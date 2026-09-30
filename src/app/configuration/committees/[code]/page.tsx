@@ -13,6 +13,7 @@ import { loadRoster } from "@/lib/people/load";
 import { avatarTone, formatBand, formatDate, initials } from "@/lib/format";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
+import { HistoryButton } from "@/components/history-drawer";
 
 const MEETING_STATUS: Record<string, string> = {
   SCHEDULED: "Scheduled",
@@ -55,6 +56,7 @@ export default async function CommitteePage({
       <PageHeader
         eyebrow="Committee"
         title={committee.nameEn}
+        actions={<HistoryButton entity="Committee" entityId={committee.id} label={committee.nameEn} />}
         badge={committee.isExternal ? <Badge tone="warn">External body</Badge> : undefined}
         subtitle={committee.nameMs ?? undefined}
         meta={[

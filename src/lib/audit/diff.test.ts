@@ -83,4 +83,12 @@ describe("field labels", () => {
     expect(fieldLabel("cost_centre_code")).toBe("Cost centre code");
     expect(fieldLabel("code")).toBe("Code");
   });
+
+  it("reads a bilingual pair the way the forms print it", () => {
+    expect(fieldLabel("nameEn")).toBe("Name (EN)");
+    expect(fieldLabel("nameMs")).toBe("Name (BM)");
+    expect(fieldLabel("reasonMs")).toBe("Reason (BM)");
+    // Only a trailing language suffix counts.
+    expect(fieldLabel("openedOn")).toBe("Opened on");
+  });
 });
