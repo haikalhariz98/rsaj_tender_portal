@@ -278,6 +278,11 @@ const DECIDED_CONTROLS = [
     theirs: "Restore defaults",
     why: "this product ships no defaults — a threshold or a rate baked in would be one customer's policy arriving as software — so the button says what it actually does",
   },
+  {
+    ours: "New requisition",
+    theirs: "New request",
+    why: "6.1 UX review M8: the dashboard's button was disabled with no reason while requisitions could be raised; it now opens the requisition form and says so",
+  },
 ];
 
 function diffLists(label, mine, theirs, out, allowExtra = false) {
