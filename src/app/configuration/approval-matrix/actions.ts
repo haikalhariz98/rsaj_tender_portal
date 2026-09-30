@@ -38,7 +38,7 @@ const NO_ORG: FormState = {
 const FROZEN: FormState = {
   ok: false,
   message:
-    "This issue has been issued, so it can no longer be changed. Start a new revision to change the limits.",
+    "This issue has been issued, so it can no longer be changed. Start a new issue to change the limits.",
 };
 
 // Money and percentage columns as strings, for an audit diff that reads as figures.
@@ -164,11 +164,15 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
     funderOverrideClause: r.optionalText("funderOverrideClause"),
   };
 
-  // Moving the boundary can put an existing rule's edge on it (code review, item 7).
-  if (before && boundaryValue && compareAmounts(boundaryValue, before.boundaryValue.toString()) !== 0) {
+  // Moving the boundary can put an existing rule's edge on it (code review, item 7), and
+  // flipping which side it falls on changes what every rule on it means (round 3, k):
+  // either one re-checks the rules against it.
+  const moved = before && boundaryValue && compareAmounts(boundaryValue, before.boundaryValue.toString()) !== 0;
+  const flipped = before && v.boundaryInclusive !== before.boundaryInclusive;
+  if (before && boundaryValue && (moved || flipped)) {
     const rows = await db.authorityRule.findMany({ where: { authorityMatrixId: before.id } });
     const refusal = boundaryRefusal(rows, boundaryValue);
-    if (refusal) r.reject("boundaryValue", refusal);
+    if (refusal) r.reject(moved ? "boundaryValue" : "boundaryInclusive", refusal);
   }
 
   const parsed = r.finish(v);
@@ -492,7 +496,7 @@ export async function startRevision(_prev: FormState, data: FormData): Promise<F
   ]);
   if (labels.some((l) => l.label === label)) r.reject("label", "An issue with that label already exists.");
   // One draft at a time: two would be two competing versions of what comes next.
-  if (drafts > 0) return { ok: false, message: "A draft revision already exists. Issue or finish that one first." };
+  if (drafts > 0) return { ok: false, message: "A draft issue already exists. Issue or finish that one first." };
 
   const parsed = r.finish({ label, effectiveFrom });
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
@@ -531,10 +535,10 @@ export async function startRevision(_prev: FormState, data: FormData): Promise<F
         entity: "AuthorityMatrix",
         entityId: draft.id,
         entityLabel: label,
-        reason: `Revision of ${source.label}`,
+        reason: `New issue from ${source.label}`,
       },
       "CREATE",
-      diffFields(null, { label, effectiveFrom, revisionOf: source.label, rules: rules.length }),
+      diffFields(null, { label, effectiveFrom, startedFrom: source.label, rules: rules.length }),
     );
   });
 

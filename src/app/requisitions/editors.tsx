@@ -393,7 +393,7 @@ export function JustifySplitDrawer({ id, people, today, office }: { id: string; 
       fields={[
         hidden("id"),
         { kind: "textarea", name: "overrideJustification", label: "Justification" },
-        { kind: "select", name: "personId", label: "Justified by", required: true, placeholder: "Choose", options: people, hint: `A holder of the ${office} office — not the requester, nor anyone who endorsed it. Recorded on their behalf, not signed.` },
+        { kind: "select", name: "personId", label: "Justified by", required: true, placeholder: "Choose", options: people, hint: `Someone who holds the ${office} office directly — not a delegate, the requester or anyone who endorsed it. Recorded on their behalf, not signed.` },
         { kind: "date", name: "overriddenOn", label: "On", required: true },
       ]}
       values={{ id, overriddenOn: today }}

@@ -30,7 +30,11 @@ import { blocking, requisitionFaults } from "@/lib/requisition/fields";
 import { fundingGate } from "@/lib/requisition/funding";
 import { deciderFaults, holdersFor, requesterHoldsApprover } from "@/lib/requisition/holders";
 import {
-  APPROVAL_STATUS_LABEL,
+  approvalRouteLabel,
+  returnedAtApproval,
+  trailRouteStatusLabel,
+  UNPOSTED_TEXT,
+  UNPOSTED_TITLE,
   DECIDER_FAULT_TEXT,
   DECISION_LABEL,
   endorsementFaultText,
@@ -60,6 +64,8 @@ import {
   type LoadedRequisition,
 } from "@/lib/requisition/repo";
 import { resolveRequisitionRoute } from "@/lib/requisition/route";
+import { returnedRouteCitationNotes } from "@/lib/requisition/committee-step";
+import { unpostedIntakeReason, type UnpostedReason } from "@/lib/requisition/budget";
 import { splitApprovalFault, splitStateLabel } from "@/lib/requisition/splitting";
 import { transitionFault } from "@/lib/requisition/status";
 import type { OrgUnitKind } from "@/lib/requisition/types";
@@ -257,6 +263,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
         requesterId: r.requestingPersonId,
         endorserIds: [],
         endorsements: r.endorsements.map((e) => ({ personId: e.personId, unitCode: e.unitCode })),
+        rootUnitCode: path[path.length - 1] ?? null,
         otherDeciderIds: open.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.decidedByPersonId!),
         earlierDone: true,
         decidedOn: today,
@@ -280,7 +287,8 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
     return { options: [...eligibleOpts, ...barredOpts, ...rest], candidates: labelled.size, eligible: eligibleIds.length, barred };
   };
 
-  // Who may justify a flagged split (ruling Q3), listed as the action judges it.
+  // Who may justify a flagged split (ruling Q3), listed as the action judges it: a
+  // direct holder only (BD-26), never a delegate, the requester or an endorser.
   const justifierOptions = () => {
     if (!policy.splitJustifyingRoleCode || !today) return people;
     const path = pathTo(lookups.units, unit, on).reverse().map((u) => u.code);
@@ -295,7 +303,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
       const name = personName(pid) ?? "Not on record";
       const via = h.holderIds.includes(pid) ? null : h.delegates.find((d) => d.personId === pid);
       const role = via ? `delegate of ${personName(via.delegation.fromPersonId) ?? "a holder no longer on record"}` : "holds the office";
-      const why = pid === r.requestingPersonId ? "raised it" : endorserIds.has(pid) ? "endorsed it" : null;
+      const why = via ? "a delegate, not a direct holder" : pid === r.requestingPersonId ? "raised it" : endorserIds.has(pid) ? "endorsed it" : null;
       (why ? barred : ok).push({ value: pid, label: why ? `${name} — ${role}, cannot justify: ${why}` : `${name} — ${role}` });
     }
     return [...ok, ...barred, ...people.filter((p) => !seen.has(p.value))];
@@ -408,11 +416,16 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
           Endorsing, submitting and deciding depend on today&apos;s date, which is not assumed to be UTC. None of them can be recorded until the zone is set.
         </Callout>
       )}
-      {r.status === "OVER_BUDGET" && ((r.approvalInstances[0]?.warnings as { code: string }[] | null) ?? []).some((w) => w.code === "RETURNED_AT_APPROVAL") && (
-        <Callout tone="warn" className="mb-6" title="Returned at approval: the budget no longer covers it">
+      {r.status === "OVER_BUDGET" && inst?.status === "RECALLED" && returnedAtApproval(inst.warnings) && (
+        <Callout tone="warn" className="mb-6" title="Returned at approval (budget): the budget no longer covers it">
           When the final decision was recorded, the budget code was re-checked before committing, and another commitment had used the
           balance since submission. The decision was not recorded; a fresh check is on the Budget tab. Submit it again on the
           over-budget route.
+          {returnedRouteCitationNotes({ returnedAtApproval: true, steps: inst.steps }).map((n) => (
+            <span key={n} className="mt-1.5 block">
+              {n}
+            </span>
+          ))}
         </Callout>
       )}
       {r.status === "RETURNED" && (
@@ -475,6 +488,11 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
             panel: (
               <BudgetPanel
                 l={l}
+                unposted={
+                  r.origin === "EXTERNAL" && !r.commitmentMovementId
+                    ? unpostedIntakeReason(controls.budgetCheckSource, (route as { approvalCommitsBudget?: boolean | null } | null)?.approvalCommitsBudget ?? null)
+                    : null
+                }
                 controls={controls}
                 recheckDays={policy.budgetRecheckDays}
                 checkAction={
@@ -790,8 +808,11 @@ function BudgetPanel({
   controls,
   recheckDays,
   checkAction,
+  unposted,
 }: {
   l: LoadedRequisition;
+  /// Why a received requisition has no ledger commitment, from the settings in force.
+  unposted: UnpostedReason | null;
   /// The Check budget control, where it can be run from here.
   checkAction: React.ReactNode;
   controls: { availabilityCheck: string | null; commitOnApproval: boolean | null; budgetCheckSource: string | null };
@@ -851,9 +872,9 @@ function BudgetPanel({
           actions={c ? <Badge tone={TONE[VERDICT_TONE[c.verdict]]}>{VERDICT_LABEL[c.verdict]}</Badge> : undefined}
         />
         <CardBody className="flex flex-col gap-5">
-          {r.origin === "EXTERNAL" && !r.commitmentMovementId && (
-            <Callout tone="info" title="Commitment held in the finance system, not posted in the portal ledger">
-              This requisition was approved in the finance system, which holds its commitment. The portal&apos;s budget figures do not include it.
+          {r.origin === "EXTERNAL" && !r.commitmentMovementId && unposted && (
+            <Callout tone={unposted === "HELD_IN_FINANCE" || unposted === "ROUTE_OFF" ? "info" : "warn"} title={UNPOSTED_TITLE[unposted]}>
+              {UNPOSTED_TEXT[unposted]}
             </Callout>
           )}
           {!c ? (
@@ -1033,7 +1054,7 @@ function ApprovalPanel({
               ? `Opened ${formatOrgDay(inst.openedAt, l.org.timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}.`
               : "As received from the finance system: not checked against the approval matrix."
           }
-          actions={<Badge tone={inst.status === "APPROVED" ? "ok" : inst.status === "PENDING" ? "brand" : "warn"}>{APPROVAL_STATUS_LABEL[inst.status]}</Badge>}
+          actions={<Badge tone={inst.status === "APPROVED" ? "ok" : inst.status === "PENDING" ? "brand" : "warn"}>{approvalRouteLabel(inst.status, inst.warnings)}</Badge>}
         />
         <CardBody className="flex flex-col gap-5">
           {inst.checkedAgainstMatrix ? (
@@ -1178,14 +1199,25 @@ function ApprovalPanel({
         <Card className="overflow-hidden">
           <CardHeader icon={<ClockIcon size={17} />} title="Earlier routes" subtitle="Kept on record. A re-submission opens a new route." />
           <ul className="divide-y divide-line/70">
-            {earlier.map((e) => (
-              <li key={e.id} className="flex flex-wrap items-center gap-2 px-5 py-3 text-[13px] sm:px-6">
-                <Badge tone="neutral">{APPROVAL_STATUS_LABEL[e.status]}</Badge>
-                <span className="text-ink-2">
-                  Opened {formatOrgDay(e.openedAt, l.org.timeZone)} · {e.ruleLabel ?? "as received"} · {e.steps.map((s) => s.roleLabel).join(" → ")}
-                </span>
-              </li>
-            ))}
+            {earlier.map((e) => {
+              const returned = e.status === "RECALLED" && returnedAtApproval(e.warnings);
+              const notes = returnedRouteCitationNotes({ returnedAtApproval: returned, steps: e.steps });
+              return (
+                <li key={e.id} className="flex flex-col gap-1.5 px-5 py-3 text-[13px] sm:px-6">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone={returned ? "warn" : "neutral"}>{approvalRouteLabel(e.status, e.warnings)}</Badge>
+                    <span className="text-ink-2">
+                      Opened {formatOrgDay(e.openedAt, l.org.timeZone)} · {e.ruleLabel ?? "as received"} · {e.steps.map((s) => s.roleLabel).join(" → ")}
+                    </span>
+                  </div>
+                  {notes.map((n) => (
+                    <p key={n} className="text-[12.5px] text-ink-3">
+                      {n}
+                    </p>
+                  ))}
+                </li>
+              );
+            })}
           </ul>
         </Card>
       )}
@@ -1429,6 +1461,8 @@ const MONEY_FIELDS = new Set([
   "projectedBalance",
   "combinedValue",
   "boundaryValue",
+  "requested",
+  "requestedAmount",
 ]);
 
 function HistoryPanel({
@@ -1443,10 +1477,13 @@ function HistoryPanel({
   /// The page's reading of stored codes and ids it can name.
   labelFor: (field: string, value: string) => string | null;
 }) {
-  const read = (field: string, value: string | null): string => {
+  type Entry = (typeof entries)[number];
+  const read = (field: string, value: string | null, e: Entry): string => {
     if (value == null || value === "") return "—";
     const named = labelFor(field, value);
     if (named != null) return named;
+    // A route's status: a budget return reads as one, never a bare "Recalled".
+    if (e.entity === "ApprovalInstance" && field === "status") return trailRouteStatusLabel(value, e.changes);
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return formatDate(value);
     if (field === "status") return STATUS_LABEL[value as keyof typeof STATUS_LABEL] ?? value;
     if (field === "verdict") return VERDICT_LABEL[value as keyof typeof VERDICT_LABEL] ?? value;
@@ -1467,7 +1504,7 @@ function HistoryPanel({
   // An id the page cannot name is plumbing, not a change anyone needs to read: the
   // named ones (people, the budget code) come through `labelFor`.
   const shown = (field: string, change: { before: string | null; after: string | null }) =>
-    !/Id$/.test(field) || [change.before, change.after].some((v) => v != null && v !== "" && labelFor(field, v) != null);
+    field !== "returnedAtApproval" && (!/Id$/.test(field) || [change.before, change.after].some((v) => v != null && v !== "" && labelFor(field, v) != null));
   return (
     <Card className="overflow-hidden">
       <CardHeader
@@ -1499,8 +1536,8 @@ function HistoryPanel({
                 <ul className="text-[12.5px] break-words text-ink-3">
                   {e.changes.filter((ch) => shown(ch.field, ch)).map((ch) => (
                     <li key={ch.field}>
-                      {knownFieldName(ch.field) ?? fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{read(ch.field, ch.before)} → </>}
-                      <span className="text-ink-2">{read(ch.field, e.action === "DELETE" ? ch.before : ch.after)}</span>
+                      {knownFieldName(ch.field) ?? fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{read(ch.field, ch.before, e)} → </>}
+                      <span className="text-ink-2">{read(ch.field, e.action === "DELETE" ? ch.before : ch.after, e)}</span>
                     </li>
                   ))}
                 </ul>

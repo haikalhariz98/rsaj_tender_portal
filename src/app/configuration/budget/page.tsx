@@ -1,5 +1,8 @@
 import { Callout } from "@/components/ui/feedback";
 import { db } from "@/lib/db";
+import { unpostedIntakeReason, type UnpostedReason } from "@/lib/requisition/budget";
+import { UNPOSTED_TEXT, UNPOSTED_TITLE } from "@/lib/requisition/labels";
+import { loadControls } from "@/lib/requisition/repo";
 import { CalendarIcon, ChartIcon, ScaleIcon } from "@/components/icons";
 import { totalsAcross } from "@/lib/budget/codes";
 import { loadBudgetCodes, loadBudgetPeriods, loadFinance } from "@/lib/budget/load";
@@ -36,12 +39,22 @@ export default async function BudgetPage({
     loadFinance(ORGANISATION_CODE),
   ]);
 
-  // Ruling BD-10: received requisitions whose commitment is held in the finance system.
-  const held = await db.requisition.findMany({
+  // Ruling BD-10: received requisitions with no commitment in the portal ledger, grouped
+  // by why — held in the finance system only where that is the source (round 3, h).
+  const unpostedRows = await db.requisition.findMany({
     where: { organisation: { code: ORGANISATION_CODE }, origin: "EXTERNAL", commitmentMovementId: null, status: { notIn: ["CANCELLED", "CLOSED"] } },
-    select: { reference: true, title: true, budgetCode: { select: { code: true } } },
+    select: { reference: true, title: true, fundingRouteCode: true, organisationId: true, budgetCode: { select: { code: true } } },
     orderBy: { reference: "asc" },
   });
+  const orgRow = unpostedRows.length ? await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true } }) : null;
+  const [controls, routes] = orgRow
+    ? await Promise.all([loadControls(orgRow.id), db.fundingRoute.findMany({ where: { organisationId: orgRow.id }, select: { code: true, approvalCommitsBudget: true } })])
+    : [null, []];
+  const unposted = new Map<UnpostedReason, typeof unpostedRows>();
+  for (const r of unpostedRows) {
+    const why = unpostedIntakeReason(controls?.budgetCheckSource ?? null, routes.find((x) => x.code === r.fundingRouteCode)?.approvalCommitsBudget ?? null);
+    unposted.set(why, [...(unposted.get(why) ?? []), r]);
+  }
 
   const asked = Number(yearParam);
   const shownYear = Number.isInteger(asked) ? asked : defaultYear(periods.periods);
@@ -74,12 +87,11 @@ export default async function BudgetPage({
         ]}
       />
 
-      {held.length > 0 && (
-        <Callout tone="info" className="mb-6" title="Commitments held in the finance system, not posted in the portal ledger">
-          {held.map((h) => `${h.budgetCode?.code ?? "No budget code"}: ${h.reference} (${h.title})`).join("; ")}. These requisitions were
-          approved in the finance system and received here; the figures below do not include their commitments.
+      {[...unposted.entries()].map(([why, rows]) => (
+        <Callout key={why} tone={why === "HELD_IN_FINANCE" || why === "ROUTE_OFF" ? "info" : "warn"} className="mb-6" title={`Received requisitions — ${UNPOSTED_TITLE[why].charAt(0).toLowerCase()}${UNPOSTED_TITLE[why].slice(1)}`}>
+          {rows.map((h) => `${h.budgetCode?.code ?? "No budget code"}: ${h.reference} (${h.title})`).join("; ")}. For each: {UNPOSTED_TEXT[why]}
         </Callout>
-      )}
+      ))}
 
       <BudgetTabs
         initial={tab}

@@ -33,7 +33,7 @@ function matrixFields(routes: { code: string; nameEn: string }[]): Field[] {
     name: "label",
     label: "Issue",
     required: true,
-    hint: "How this issue of the limits is cited — a revision number, a resolution date.",
+    hint: "How this issue of the limits is cited — an issue number, a resolution date.",
   },
   {
     kind: "date",
@@ -436,7 +436,7 @@ export function StartRevision({ fromId, fromLabel }: { fromId: string; fromLabel
           name: "label",
           label: "Label",
           required: true,
-          hint: "How the new issue is cited — a revision number, a resolution date.",
+          hint: "How the new issue is cited — an issue number, a resolution date.",
         },
         { kind: "date", name: "effectiveFrom", label: "Meant to start", required: true },
       ]}

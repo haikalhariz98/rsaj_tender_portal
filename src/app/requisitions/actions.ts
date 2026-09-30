@@ -12,13 +12,13 @@ import { postingRefusal } from "@/lib/budget/periods";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { manualEntry, portalLedger, type BudgetCheckProvider } from "@/lib/integration/budget-check";
-import { manualIntake } from "@/lib/integration/requisition-intake";
+import { manualIntake, type IntakeTerms } from "@/lib/integration/requisition-intake";
 import { parseSen, senToDecimalString } from "@/lib/money";
 import { NumberingError, issueReference } from "@/lib/numbering/issue";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
-import { ageDay, approvalBudgetFault, approvalCommitment, intakeCommitment, isStale, overBudgetDisposition, type BudgetSnapshot } from "@/lib/requisition/budget";
+import { ageDay, approvalBudgetOutcome, approvalCommitment, approvalRechecks, intakeCommitment, isStale, overBudgetDisposition, type BudgetSnapshot } from "@/lib/requisition/budget";
 import { committeeCitationFault, committeeStepFrom, type CitationFault } from "@/lib/requisition/committee-step";
 import { endorsementEntryFault, endorsementFaults } from "@/lib/requisition/endorsement";
 import { blocking, erpRefFaults, requisitionFaults, type DraftLine, type RequisitionDraft } from "@/lib/requisition/fields";
@@ -31,6 +31,8 @@ import {
   endorsementFaultText,
   fieldFaultText,
   fundingFaultText,
+  RETURNED_AT_APPROVAL,
+  returnedAtApproval,
   STATUS_LABEL,
   TIER_LABEL,
   transitionFaultText,
@@ -707,7 +709,8 @@ async function splitSubjects(tx: Tx, orgId: string) {
       reference: r.reference,
       status: r.status,
       raisedOn: storedDay(r.raisedOn),
-      value: num(r.estimatedValue)!,
+      // Exact sen, from the Decimal's string: never through a float.
+      value: parseSen(r.estimatedValue.toString()),
       keys: { unit: r.requestingUnitCode || null, costCentre: r.costCentreCode || null, accountCode: r.accountCode || null, budgetCode: r.budgetCodeId, contractType: r.contractTypeCode },
     }),
   );
@@ -813,7 +816,7 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
         policyProvenance: policy.provenance,
         relatedRequisitionIds: split.related.map((x) => x.id),
         relatedReferences: split.related.map((x) => x.reference),
-        combinedValue: split.combinedValue == null ? null : String(split.combinedValue),
+        combinedValue: split.combinedValue == null ? null : senToDecimalString(split.combinedValue),
         crossesBand: split.crossesBand,
         notSetReasons: split.notSet,
       },
@@ -944,6 +947,9 @@ async function approvalGate(tx: Tx, l: LoadedRequisition, instanceId: string): P
       state: { ok: false, message: `Approval commits the budget today, and the budget period ${closed.nameEn} ${closed.year} is closed. Reopen the period, or approve once the next one is open.` },
     };
   }
+  // Re-checked only on the portal ledger: a check typed from the finance system cannot
+  // be re-run under a lock here (round 3, item g).
+  if (!approvalRechecks(controls.budgetCheckSource)) return { kind: "ok", commit, routeCommits, commitOnApproval: controls.commitOnApproval };
   // Under the code's lock (taken by the provider), so a commitment landing at the same
   // moment is either counted here or waits.
   const fresh = await portalLedger.check(tx, {
@@ -953,10 +959,24 @@ async function approvalGate(tx: Tx, l: LoadedRequisition, instanceId: string): P
     requested: parseSen(req.estimatedValue.toString()),
     on: today,
   });
-  if (approvalBudgetFault(fresh, inst.cond)) {
+  const outcome = approvalBudgetOutcome(fresh.verdict, inst.cond);
+  // Neither is "over budget": refused, and nothing is written — no check, no status.
+  if (outcome === "NO_BUDGET") {
+    return {
+      kind: "refuse",
+      state: { ok: false, message: "Not approved: re-checked at approval, the budget code has no budget allocated to check against. Nothing was recorded. Allocate a budget to the code, then record the decision again." },
+    };
+  }
+  if (outcome === "AMBIGUOUS") {
+    return {
+      kind: "refuse",
+      state: { ok: false, message: "Not approved: re-checked at approval, the requisition's account is not the budget code's, so which budget line it draws on is unclear. Nothing was recorded." },
+    };
+  }
+  if (outcome === "RETURN") {
     await writeCheck(tx, l, fresh, today);
     const returned = {
-      code: "RETURNED_AT_APPROVAL",
+      code: RETURNED_AT_APPROVAL,
       level: "err",
       messageEn: "Returned at approval: re-checked under the budget code's lock, the budget no longer covered it. A fresh check was recorded; it goes back on the over-budget route.",
       messageMs: "Dikembalikan semasa kelulusan: bajet tidak lagi mencukupi. Semakan baharu direkodkan; ia dihantar semula melalui laluan melebihi bajet.",
@@ -966,7 +986,8 @@ async function approvalGate(tx: Tx, l: LoadedRequisition, instanceId: string): P
       data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), returned] as unknown as Prisma.InputJsonValue },
     });
     await audit(tx, l.org.id, "ApprovalInstance", inst.id, `${req.reference} · approval route`, "UPDATE",
-      diffFields({ status: inst.status }, { status: "RECALLED" }), "Returned at approval: the budget no longer covers it.");
+      // The marker lets the trail read the route as returned at approval, not recalled.
+      diffFields({ status: inst.status, returnedAtApproval: null }, { status: "RECALLED", returnedAtApproval: true }), "Returned at approval: the budget no longer covers it.");
     await mustMove(tx, l, "OVER_BUDGET");
     await audit(tx, l.org.id, "Requisition", req.id, labelOf(req), "UPDATE", diffFields({ status: req.status }, { status: "OVER_BUDGET" }),
       "Returned at approval: the budget no longer covers it.");
@@ -1040,6 +1061,7 @@ export async function recordDecision(_prev: FormState, data: FormData): Promise<
       requesterId: l.req.requestingPersonId,
       endorserIds: [],
       endorsements: l.req.endorsements.map((e) => ({ personId: e.personId, unitCode: e.unitCode })),
+      rootUnitCode: unitPath[unitPath.length - 1] ?? null,
       otherDeciderIds: inst.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.decidedByPersonId!),
       earlierDone: inst.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE"),
       decidedOn,
@@ -1103,12 +1125,17 @@ export async function citeCommitteeDecision(_prev: FormState, data: FormData): P
     const matter = l.req.committeeDecisions.find((d) => d.id === decisionId);
     if (!matter) return { ok: false, errors: { committeeDecisionId: "That matter was not tabled against this requisition." } };
     // One decision discharges one step: any step anywhere already citing it counts.
-    const cited = await tx.approvalStep.findMany({ where: { committeeDecisionId: matter.id }, select: { id: true } });
+    const cited = await tx.approvalStep.findMany({
+      where: { committeeDecisionId: matter.id },
+      select: { id: true, instance: { select: { status: true, warnings: true } } },
+    });
     const fault = committeeCitationFault(
       { ...matter, amount: matter.amount?.toString() ?? null, committeeCode: matter.meeting.committee.code },
       step,
       { id: l.req.id, estimatedValue: l.req.estimatedValue.toString() },
       cited.length > 0 ? [matter.id] : [],
+      // Ruling R2: cited on a route returned at approval, it stays with that route.
+      cited.some((c) => c.instance.status === "RECALLED" && returnedAtApproval(c.instance.warnings)) ? [matter.id] : [],
     );
     if (fault) return { ok: false, errors: { committeeDecisionId: CITATION_TEXT[fault] } };
     const record = recordOf(matter);
@@ -1196,7 +1223,8 @@ export async function justifySplit(_prev: FormState, data: FormData): Promise<Fo
       person,
       requesterId: l.req.requestingPersonId,
       endorserIds: l.req.endorsements.map((e) => e.personId),
-      holderIds: [...holders.holderIds, ...holders.delegates.map((d) => d.personId)],
+      holderIds: holders.holderIds,
+      delegateIds: holders.delegates.map((d) => d.personId),
       on: day,
       today: l.org.today,
     });
@@ -1218,6 +1246,7 @@ const JUSTIFIER_TEXT: Record<JustifierFault, string> = {
   REQUESTER: "The requesting officer cannot justify a flag on their own requisition.",
   ENDORSER: "Someone who endorsed this requisition cannot justify its flag.",
   NOT_HOLDER: "That person does not hold the office that may justify a possible split, for this requisition's department, on that date.",
+  DELEGATE: "That person acts in the office only under a delegation. Only someone who holds the office directly may justify a possible split.",
   INACTIVE: "That person is recorded as having left.",
   FUTURE_DATE: "The date cannot be after today.",
 };
@@ -1250,6 +1279,7 @@ const CITATION_TEXT: Record<CitationFault, string> = {
   OTHER_COMMITTEE: "That matter was decided by a different committee from the one this step names.",
   OTHER_ACT: "The committee was asked for a different act from the one this step needs.",
   OTHER_AMOUNT: "The matter was tabled for a different amount from this requisition's value.",
+  CITED_ON_RETURNED_ROUTE: "That decision was cited on a route returned at approval for budget. It stays with that route and cannot discharge this one: table the matter again.",
   ALREADY_CITED: "That decision already discharges another step. One decision discharges one step.",
 };
 
@@ -1305,27 +1335,38 @@ export async function receiveRequisition(_prev: FormState, data: FormData): Prom
   }
   if (r.failed) return { ok: false, errors: r.errors, message: "Nothing was saved. Correct the fields marked below." };
 
-  const route = lookups.fundingRoutes.find((x) => x.code === payload.fundingRouteCode) ?? null;
-  const gate = fundingGate(route, { externalAuthorityRef: null }, dayToDate(org.today));
-  // Ruling BD-10: on the portal ledger, a received commitment is posted, or refused.
-  const controls = await loadControls(org.id);
-  const routeRow = route ? await db.fundingRoute.findFirst({ where: { organisationId: org.id, code: route.code }, select: { approvalCommitsBudget: true } }) : null;
-  const commitment = intakeCommitment(controls.budgetCheckSource, routeRow?.approvalCommitsBudget ?? null, !!payload.budgetCodeId);
-  if (commitment === "ROUTE_NOT_SET") {
-    return { ok: false, errors: { fundingRouteCode: "Whether approval on this funding route commits the organisation's budget is not set, so the commitment cannot be posted to the portal ledger. Set it on the route under Reference data." } };
-  }
-  if (commitment === "NO_BUDGET_CODE") {
-    return { ok: false, errors: { budgetCodeId: "The portal ledger is the budget source, so the commitment this approval made must be posted against a budget code. Choose it." } };
-  }
-  if (commitment === "POST") {
-    const periods = await db.budgetPeriod.findMany({ where: { organisationId: org.id } });
-    const closed = postingRefusal(periods, dayToDate(org.today));
-    if (closed) return { ok: false, message: `The commitment would be posted today, and the budget period ${closed.nameEn} ${closed.year} is closed.` };
-  }
+  const today = org.today;
+  // Read inside the intake's transaction (round 3, item l): the route, the controls and
+  // the budget periods as they stand when the requisition is written.
+  const terms = async (tx: Tx): Promise<IntakeTerms> => {
+    const { lookups: now } = await loadLookups(org.id, tx);
+    const route = now.fundingRoutes.find((x) => x.code === payload.fundingRouteCode) ?? null;
+    const gate = fundingGate(route, { externalAuthorityRef: null }, dayToDate(today));
+    const funding = gate.posture ? { supersedesAuthority: gate.supersedesAuthority === true, sourcingPermitted: gate.sourcingPermitted === true, posture: gate.posture } : null;
+    // Ruling BD-10: on the portal ledger, a received commitment is posted, or refused.
+    const controls = await loadControls(org.id, tx);
+    const routeRow = route ? await tx.fundingRoute.findFirst({ where: { organisationId: org.id, code: route.code }, select: { approvalCommitsBudget: true } }) : null;
+    const commitment = intakeCommitment(controls.budgetCheckSource, routeRow?.approvalCommitsBudget ?? null, !!payload.budgetCodeId);
+    if (commitment === "SOURCE_NOT_SET") {
+      return { ok: false, message: "Where the budget check comes from is not set, so nobody has said whether this requisition's commitment belongs in the portal ledger or the finance system. Set it in Requisition controls before receiving a requisition." };
+    }
+    if (commitment === "ROUTE_NOT_SET") {
+      return { ok: false, errors: { fundingRouteCode: `Whether approval on the funding route “${route?.nameEn ?? "chosen"}” commits the organisation's budget is not set, so the commitment cannot be posted to the portal ledger. Set it on the route under Reference data.` } };
+    }
+    if (commitment === "NO_BUDGET_CODE") {
+      return { ok: false, errors: { budgetCodeId: "The portal ledger is the budget source, so the commitment this approval made must be posted against a budget code. Choose it." } };
+    }
+    if (commitment === "POST") {
+      const periods = await tx.budgetPeriod.findMany({ where: { organisationId: org.id } });
+      const closed = postingRefusal(periods, dayToDate(today));
+      if (closed) return { ok: false, message: `The commitment would be posted today, and the budget period ${closed.nameEn} ${closed.year} is closed.` };
+    }
+    return { ok: true, funding, postCommitment: commitment === "POST" };
+  };
   let result;
   try {
     result = await manualIntake.receive(
-      { organisationId: org.id, today: org.today, postCommitment: commitment === "POST", funding: gate.posture ? { supersedesAuthority: gate.supersedesAuthority === true, sourcingPermitted: gate.sourcingPermitted === true, posture: gate.posture } : null },
+      { organisationId: org.id, today, postCommitment: false, funding: null, terms },
       payload,
     );
   } catch (e) {
@@ -1334,7 +1375,7 @@ export async function receiveRequisition(_prev: FormState, data: FormData): Prom
     }
     throw e;
   }
-  if (!result.ok) return { ok: false, message: result.message };
+  if (!result.ok) return { ok: false, message: result.message, errors: result.errors };
   refresh(result.id);
   redirect(`/requisitions/${result.id}`);
 }

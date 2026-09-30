@@ -266,7 +266,7 @@ export default async function RequisitionControlsPage() {
                   label: "Who may justify a possible split",
                   value: (
                     <Setting
-                      value={justifier ? `A holder of the ${justifier} office for the requesting department — never the requester or an endorser` : null}
+                      value={justifier ? `Someone holding the ${justifier} office directly for the requesting department — never a delegate, the requester or an endorser` : null}
                       unset="No flag can be justified, so a flagged requisition cannot be finally approved."
                       action={<EditPolicy policy={policy} notes={policy.notes} offices={offices} label="Set it" quiet />}
                     />
