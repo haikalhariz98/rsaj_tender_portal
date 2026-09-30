@@ -46,3 +46,12 @@ export const ACT_LABEL: Record<string, string> = {
   A: "Approve",
   MA: "Mandatory approval",
 };
+
+/// Rule conditions, spelled out. A condition is a configuration key like a matter's.
+const CONDS: Record<string, string> = {
+  over_budget: "When over budget",
+};
+
+export function condLabel(code: string): string {
+  return CONDS[code] ?? code.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+}

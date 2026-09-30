@@ -4,9 +4,9 @@ import { AlertTriangle, CheckIcon, SlidersIcon } from "@/components/icons";
 import { ActBadge, RuleChain, type ChainStep } from "@/components/rule-chain";
 import { listIssues, loadMatrix, loadRuleRows, type IssueSummary } from "@/lib/authority/load";
 import { listCommittees } from "@/lib/committee/repo";
-import { approverAct, ruleIsDelegable } from "@/lib/authority/resolve";
+import { approverAct, edgeAtBoundary, ruleIsDelegable } from "@/lib/authority/resolve";
 import { formatPercentBand, formatValueBand } from "@/lib/format";
-import { ACT_LABEL, matterLabel, methodLabel } from "@/lib/labels";
+import { ACT_LABEL, condLabel, matterLabel, methodLabel } from "@/lib/labels";
 import { ORGANISATION_CODE, ORGANISATION_NAME } from "@/lib/org";
 import { formatDate } from "@/lib/format";
 import { loadReferenceData } from "@/lib/reference/load";
@@ -70,14 +70,23 @@ export default async function ApprovalMatrixPage({
   const roster = await loadRoster(ORGANISATION_CODE);
   const offices = roster.offices.map((o) => ({ code: o.code, nameEn: o.nameEn }));
 
-  // Which issue to show: the one asked for, else the one in force, else a draft.
+  // Which issue to show: the one asked for, else the one in force, else a draft. A
+  // funder's rule set is shown only when asked for: the defaults, "in force" and the
+  // draft to open all mean the organisation's own limits, as routing does.
   const issues = await listIssues(ORGANISATION_CODE);
-  const inForceNow =
-    issues.find(
-      (i) => i.issuedAt && i.effectiveFrom <= on && (i.effectiveTo == null || i.effectiveTo > on),
-    ) ?? null;
-  const draftIssue = issues.find((i) => !i.issuedAt) ?? null;
-  const selected = issues.find((i) => i.id === requested) ?? inForceNow ?? draftIssue ?? null;
+  const own = issues.filter((i) => i.fundingRouteCode == null);
+  const inForceOf = (list: IssueSummary[]) =>
+    list.find((i) => i.issuedAt && i.effectiveFrom <= on && (i.effectiveTo == null || i.effectiveTo > on)) ?? null;
+  const inForceNow = inForceOf(own);
+  const selected = issues.find((i) => i.id === requested) ?? inForceNow ?? own.find((i) => !i.issuedAt) ?? issues[0] ?? null;
+  // The route this issue belongs to, and its siblings on that route.
+  const selectedRoute = selected?.fundingRouteCode ?? null;
+  const sameRoute = issues.filter((i) => i.fundingRouteCode === selectedRoute);
+  const draftIssue = sameRoute.find((i) => !i.issuedAt) ?? null;
+  const replaces = inForceOf(sameRoute);
+  const routeName = (code: string | null) =>
+    code == null ? null : (reference.fundingRoutes.find((r) => r.code === code)?.nameEn ?? "A funding route no longer configured");
+  const funderRoutes = fundingRoutes.filter((r) => r.supersedesAuthority).map((r) => ({ code: r.code, nameEn: r.nameEn }));
 
   if (!selected) {
     return (
@@ -142,7 +151,12 @@ export default async function ApprovalMatrixPage({
     <>
       <PageHeader
         title="Approval matrix"
-        badge={<Badge tone={state.tone} dot>{`${selected.label} · ${state.label}`}</Badge>}
+        badge={
+          <>
+            <Badge tone={state.tone} dot>{`${selected.label} · ${state.label}`}</Badge>
+            {selectedRoute && <Badge tone="info">{`Funder rule set · ${routeName(selectedRoute)}`}</Badge>}
+          </>
+        }
         subtitle="Who proposes, who recommends and who approves, at every value."
         meta={[
           `${matrix.rules.length} rules`,
@@ -166,20 +180,21 @@ export default async function ApprovalMatrixPage({
                 quotationFloor: matrix.policy.quotationFloor,
                 tenderFloor: matrix.policy.tenderFloor,
                 requisitionBoundary: matrix.policy.requisitionBoundary,
-                splittingWindowDays: matrix.policy.splittingWindowDays,
                 currency: matrix.policy.currency,
+                fundingRouteCode: selectedRoute,
                 noRuleClause: matrix.policy.clauses?.noRule ?? null,
                 selfApprovalClause: matrix.policy.clauses?.selfApproval ?? null,
                 absenceClause: matrix.policy.clauses?.absence ?? null,
                 funderOverrideClause: matrix.policy.clauses?.funderOverride ?? null,
               }}
+              routes={funderRoutes}
             />
             <AddRule matrixId={matrixId} offices={offices} />
             <IssueDraft
               id={matrixId}
               label={selected.label}
               meantFrom={selected.effectiveFrom}
-              replaces={inForceNow?.label ?? null}
+              replaces={replaces?.label ?? null}
             />
           </>
           ) : draftIssue ? (
@@ -188,6 +203,14 @@ export default async function ApprovalMatrixPage({
             </ButtonLink>
           ) : (
             <StartRevision fromId={matrixId} fromLabel={selected.label} />
+          )}
+          {funderRoutes.length > 0 && selectedRoute == null && (
+            <AddMatrix
+              routes={funderRoutes}
+              primary={false}
+              label="Draft a funder's rule set"
+              title="Draft a funder's rule set"
+            />
           )}
           </>
         }
@@ -210,7 +233,7 @@ export default async function ApprovalMatrixPage({
                     : "border-line-2 bg-surface text-ink-2 hover:border-ink-4",
                 )}
               >
-                {i.label} <span className="text-ink-3">· {s.label}</span>
+                {i.label} <span className="text-ink-3">· {i.fundingRouteCode ? `Funder rule set · ${routeName(i.fundingRouteCode)} · ` : ""}{s.label}</span>
               </Link>
             );
           })}
@@ -301,12 +324,6 @@ export default async function ApprovalMatrixPage({
                     </span>
                   ),
                 },
-                {
-                  label: "Anti-splitting window",
-                  value: (
-                    <span className="tabular-nums">{matrix.policy.splittingWindowDays} days</span>
-                  ),
-                },
               ]}
             />
 
@@ -380,6 +397,20 @@ export default async function ApprovalMatrixPage({
                             )}
                             {contract && (
                               <div className="text-[12.5px] break-words text-ink-3">{contract}</div>
+                            )}
+                            {rule.cond && (
+                              <div className="text-[12.5px] break-words text-ink-3">{condLabel(rule.cond)}</div>
+                            )}
+                            {edgeAtBoundary(rule, matrix.policy) && (
+                              <div className="mt-1">
+                                {rule.followsBoundarySwitch == null ? (
+                                  <Badge tone="err">Boundary: not decided</Badge>
+                                ) : rule.followsBoundarySwitch ? (
+                                  <Badge tone="neutral">Follows the boundary switch</Badge>
+                                ) : (
+                                  <Badge tone="neutral">Ignores the boundary switch</Badge>
+                                )}
+                              </div>
                             )}
                           </Td>
                           <Td className="align-top text-[13px] break-words text-ink-2">
@@ -525,6 +556,7 @@ function RuleActions({
           method: rule.method,
           minValue: rule.minValue,
           maxValue: rule.maxValue,
+          followsBoundarySwitch: rule.followsBoundarySwitch,
           labelEn: rule.labelEn,
           labelMs: rule.labelMs,
           proposerCode: rule.proposerCode,

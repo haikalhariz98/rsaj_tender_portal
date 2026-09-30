@@ -24,7 +24,10 @@ const ACT_OPTIONS = [
   { value: "MA", label: "Mandatory approval" },
 ];
 
-const matrixFields: Field[] = [
+/// The issue's fields. `routes` are the funding routes whose funder's rules may
+/// supersede the limits: choosing one makes this issue that funder's rule set.
+function matrixFields(routes: { code: string; nameEn: string }[]): Field[] {
+  return [
   {
     kind: "text",
     name: "label",
@@ -65,13 +68,16 @@ const matrixFields: Field[] = [
     hint: "Where governing documents disagree, this is the switch. It affects that one exact figure and nothing else.",
   },
   { kind: "money", name: "requisitionBoundary", label: "Requisition boundary", required: true },
-  {
-    kind: "number",
-    name: "splittingWindowDays",
-    label: "Anti-splitting window (days)",
-    min: 0,
-  },
   { kind: "text", name: "currency", label: "Currency", required: true },
+  {
+    kind: "select",
+    name: "fundingRouteCode",
+    label: "Funder's rule set for",
+    placeholder: "None — the organisation's own limits",
+    options: routes.map((r) => ({ value: r.code, label: r.nameEn })),
+    orphanLabel: "A funding route no longer configured",
+    hint: "Only for a funder whose rules supersede these limits. Such an issue routes matters on that funding route alone, and never replaces the organisation's own issue.",
+  },
   {
     kind: "note",
     text: "Where your manual states the portal's standing rules, cite the clause. Left empty, the warning on a matter says the source is not recorded.",
@@ -100,17 +106,29 @@ const matrixFields: Field[] = [
     label: "Clause: funder's directives prevail",
     hint: "An external funder's rules override these limits where they conflict.",
   },
-];
+  ];
+}
 
-export function AddMatrix() {
+/// Draft an issue from blank: the organisation's first, or a funder's rule set.
+export function AddMatrix({
+  routes = [],
+  label = "Draft the first issue",
+  title = "Draft the first issue of the limits",
+  primary = true,
+}: {
+  routes?: { code: string; nameEn: string }[];
+  label?: string;
+  title?: string;
+  primary?: boolean;
+}) {
   return (
     <RecordEditor
-      title="Draft the first issue of the limits"
+      title={title}
       description="A draft is editable and routes nothing. Add its rules, then issue it."
-      fields={matrixFields}
+      fields={matrixFields(routes)}
       action={saveMatrix}
       submitLabel="Create draft"
-      trigger={{ label: "Draft the first issue", icon: true, className: buttonClass("primary", "sm") }}
+      trigger={{ label, icon: true, className: buttonClass(primary ? "primary" : "secondary", "sm") }}
       size="lg"
     />
   );
@@ -126,20 +144,20 @@ export interface MatrixValues {
   quotationFloor: number;
   tenderFloor: number;
   requisitionBoundary: number;
-  splittingWindowDays: number;
   currency: string;
+  fundingRouteCode: string | null;
   noRuleClause: string | null;
   selfApprovalClause: string | null;
   absenceClause: string | null;
   funderOverrideClause: string | null;
 }
 
-export function EditMatrix({ matrix }: { matrix: MatrixValues }) {
+export function EditMatrix({ matrix, routes }: { matrix: MatrixValues; routes: { code: string; nameEn: string }[] }) {
   return (
     <RecordEditor
       title={`Edit ${matrix.label}`}
       description="A draft. Nothing here is in force until it is issued."
-      fields={[{ kind: "hidden", name: "id" }, ...matrixFields]}
+      fields={[{ kind: "hidden", name: "id" }, ...matrixFields(routes)]}
       action={saveMatrix}
       trigger={{ label: "Edit thresholds", className: buttonClass("secondary", "sm") }}
       size="lg"
@@ -152,8 +170,8 @@ export function EditMatrix({ matrix }: { matrix: MatrixValues }) {
         quotationFloor: String(matrix.quotationFloor),
         tenderFloor: String(matrix.tenderFloor),
         requisitionBoundary: String(matrix.requisitionBoundary),
-        splittingWindowDays: String(matrix.splittingWindowDays),
         currency: matrix.currency,
+        fundingRouteCode: matrix.fundingRouteCode,
         noRuleClause: matrix.noRuleClause,
         selfApprovalClause: matrix.selfApprovalClause,
         absenceClause: matrix.absenceClause,
@@ -194,6 +212,17 @@ function ruleFields(offices: { code: string; nameEn: string }[]): Field[] {
     },
     { kind: "money", name: "minValue", label: "From value" },
     { kind: "money", name: "maxValue", label: "To value" },
+    {
+      kind: "select",
+      name: "followsBoundarySwitch",
+      label: "At the boundary value",
+      placeholder: "Not decided",
+      options: [
+        { value: "yes", label: "Follows the boundary switch" },
+        { value: "no", label: "Does not follow it — the band stays above its lower edge" },
+      ],
+      hint: "Required where an edge of this band is the value where the bands meet. A rule that does not follow the switch routes a value exactly on the boundary the same way under either setting.",
+    },
     {
       kind: "select",
       name: "proposerCode",
@@ -279,6 +308,7 @@ export interface RuleValues {
   method: string | null;
   minValue: number | null;
   maxValue: number | null;
+  followsBoundarySwitch: boolean | null;
   labelEn: string;
   labelMs: string | null;
   proposerCode: string | null;
@@ -320,6 +350,7 @@ export function EditRule({
         method: rule.method,
         minValue: rule.minValue == null ? null : String(rule.minValue),
         maxValue: rule.maxValue == null ? null : String(rule.maxValue),
+        followsBoundarySwitch: rule.followsBoundarySwitch == null ? null : rule.followsBoundarySwitch ? "yes" : "no",
         proposerCode: rule.proposerCode,
         approverCode: rule.approverCode,
         committeeCode: rule.committeeCode,

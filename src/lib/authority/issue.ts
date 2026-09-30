@@ -11,9 +11,14 @@
  * The one definition of "the issue in force on a date", as a query filter. Every read
  * that means "the rules that apply" goes through this — a draft must never route a
  * matter, block a delegation or name a committee's mandate.
+ *
+ * `fundingRouteCode` picks whose rules: null (the default, so every existing reader
+ * is unchanged) is the organisation's own issue and excludes every funder's rule set;
+ * a route's code reads that funder's rule set instead (FR-REQ-006).
  */
-export function issuedInForce(asOf: Date) {
+export function issuedInForce(asOf: Date, fundingRouteCode: string | null = null) {
   return {
+    fundingRouteCode,
     issuedAt: { not: null },
     effectiveFrom: { lte: asOf },
     OR: [{ effectiveTo: null }, { effectiveTo: { gt: asOf } }],
@@ -54,4 +59,16 @@ export function predecessorOf(issued: readonly IssuePeriod[], from: Date): Issue
       (i) => i.effectiveFrom < day && (i.effectiveTo == null || i.effectiveTo > day),
     ) ?? null
   );
+}
+
+/**
+ * The issues a draft's lifecycle is judged against: those on its own route. A funder's
+ * rule set follows its own line of issues, so issuing one never ends the
+ * organisation's own issue, and is never refused for starting before it.
+ */
+export function onRoute<T extends { fundingRouteCode: string | null }>(
+  issues: readonly T[],
+  fundingRouteCode: string | null,
+): T[] {
+  return issues.filter((i) => (i.fundingRouteCode ?? null) === (fundingRouteCode ?? null));
 }

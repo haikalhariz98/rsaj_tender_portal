@@ -21,7 +21,11 @@ const MAX_ESCALATION_HOPS = 6;
  *
  * Every band edge is exclusive at the bottom and inclusive at the top, EXCEPT at
  * `policy.boundaryValue`, where spec decision D3 applies and `boundaryInclusive`
- * decides which side a value exactly on the boundary lands.
+ * decides which side a value exactly on the boundary lands — but only for a band
+ * that follows the switch (`follows === true`). The issue's own regime thresholds
+ * always follow it, which is the default; a rule passes its own
+ * `followsBoundarySwitch`, and a rule that does not follow it (or has not decided,
+ * null) keeps (min, max] at the boundary too (6.1 ruling OD-4).
  *
  * A null value matches only an unbounded row — a row with a band is not a candidate
  * for a matter whose value is unknown.
@@ -31,6 +35,7 @@ export function inBand(
   min: number | null,
   max: number | null,
   policy: Policy,
+  follows: boolean | null = true,
 ): boolean {
   if (value == null) return min == null && max == null;
 
@@ -39,13 +44,74 @@ export function inBand(
   const v = senFromAmount(value);
   const lo = min == null ? null : senFromAmount(min);
   const hi = max == null ? null : senFromAmount(max);
-  const flip = policy.boundaryInclusive === false;
+  const flip = follows === true && policy.boundaryInclusive === false;
   const b = senFromAmount(policy.boundaryValue);
 
   const lowerOk = lo == null || (flip && lo === b ? v >= lo : v > lo);
   const upperOk = hi == null || (flip && hi === b ? v < hi : v <= hi);
 
   return lowerOk && upperOk;
+}
+
+/// Whether any of a rule's money edges sits exactly on the boundary value — the only
+/// place the boundary switch can matter to it.
+export function edgeAtBoundary(
+  rule: Pick<Rule, "minValue" | "maxValue" | "contractValueMin" | "contractValueMax">,
+  policy: Pick<Policy, "boundaryValue">,
+): boolean {
+  const b = senFromAmount(policy.boundaryValue);
+  return [rule.minValue, rule.maxValue, rule.contractValueMin, rule.contractValueMax].some(
+    (e) => e != null && senFromAmount(e) === b,
+  );
+}
+
+/**
+ * The comparison applied at a rule's boundary edge: "GTE" only where the rule
+ * follows the switch and the switch puts a value exactly on the boundary in the upper
+ * band; otherwise "GT". Null where no edge of the rule sits on the boundary.
+ */
+export function boundaryOperatorFor(
+  rule: Pick<Rule, "minValue" | "maxValue" | "contractValueMin" | "contractValueMax" | "followsBoundarySwitch">,
+  policy: Pick<Policy, "boundaryValue" | "boundaryInclusive">,
+): "GT" | "GTE" | null {
+  if (!edgeAtBoundary(rule, policy)) return null;
+  return rule.followsBoundarySwitch === true && policy.boundaryInclusive === false ? "GTE" : "GT";
+}
+
+export type BoundaryRuleFault = "BOUNDARY_SWITCH_UNDECIDED" | "BOUNDARY_SWITCH_DISAGREES";
+
+/**
+ * Why a rule cannot be saved as it stands at the boundary.
+ *
+ * A rule with an edge on the boundary must say whether it follows the switch: left
+ * undecided, which band a value exactly on the boundary falls in is nobody's
+ * decision. And two rules that meet at the boundary for the same matter must agree:
+ * if one follows the switch and the other does not, the boundary value falls in both
+ * bands or in neither, depending on the setting.
+ */
+export function boundaryRuleFault(
+  rule: Rule,
+  policy: Pick<Policy, "boundaryValue">,
+  others: readonly Rule[] = [],
+): BoundaryRuleFault | null {
+  if (!edgeAtBoundary(rule, policy)) return null;
+  if (rule.followsBoundarySwitch == null) return "BOUNDARY_SWITCH_UNDECIDED";
+  const b = senFromAmount(policy.boundaryValue);
+  const at = (e: number | null) => e != null && senFromAmount(e) === b;
+  const meets = others.some(
+    (o) =>
+      o.ruleKey !== rule.ruleKey &&
+      o.domain === rule.domain &&
+      (o.method ?? null) === (rule.method ?? null) &&
+      (o.cond ?? null) === (rule.cond ?? null) &&
+      o.followsBoundarySwitch != null &&
+      o.followsBoundarySwitch !== rule.followsBoundarySwitch &&
+      ((at(o.maxValue) && at(rule.minValue)) ||
+        (at(o.minValue) && at(rule.maxValue)) ||
+        (at(o.contractValueMax) && at(rule.contractValueMin)) ||
+        (at(o.contractValueMin) && at(rule.contractValueMax))),
+  );
+  return meets ? "BOUNDARY_SWITCH_DISAGREES" : null;
 }
 
 /// Percentage bands are plain (min, max] — the D3 boundary rule is about ringgit.
@@ -62,8 +128,8 @@ export function inPercentBand(
 /// Which sourcing regime a value falls into.
 export function regimeFor(value: number | null | undefined, policy: Policy): Regime | null {
   if (value == null) return null;
-  if (inBand(value, policy.tenderFloor, null, policy)) return "tender";
-  if (inBand(value, policy.quotationFloor, policy.tenderFloor, policy)) return "quotation";
+  if (inBand(value, policy.tenderFloor, null, policy, true)) return "tender";
+  if (inBand(value, policy.quotationFloor, policy.tenderFloor, policy, true)) return "quotation";
   return "below";
 }
 
@@ -200,7 +266,7 @@ function candidateRules(matrix: Matrix, q: ResolveQuery): Rule[] {
 
     if (
       (r.contractValueMin != null || r.contractValueMax != null) &&
-      !inBand(q.contractValue, r.contractValueMin, r.contractValueMax, policy)
+      !inBand(q.contractValue, r.contractValueMin, r.contractValueMax, policy, r.followsBoundarySwitch)
     ) {
       return false;
     }
@@ -209,7 +275,7 @@ function candidateRules(matrix: Matrix, q: ResolveQuery): Rule[] {
     }
     if (
       (r.minValue != null || r.maxValue != null) &&
-      !inBand(q.value, r.minValue, r.maxValue, policy)
+      !inBand(q.value, r.minValue, r.maxValue, policy, r.followsBoundarySwitch)
     ) {
       return false;
     }
@@ -267,6 +333,7 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
     });
     return {
       rule: null,
+      boundaryOperator: null,
       chain: [],
       warnings,
       regime,
@@ -296,6 +363,19 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
       level: "info",
       messageEn: rule.gapNote,
       messageMs: rule.gapNote,
+      clause: rule.clause,
+    });
+  }
+
+  // A rule with an edge on the boundary that has not said whether it follows the
+  // switch. It is matched as (min, max], but which band the boundary value falls in
+  // is nobody's decision, so the route is not one anybody can rely on.
+  if (edgeAtBoundary(rule, matrix.policy) && rule.followsBoundarySwitch == null) {
+    warnings.push({
+      code: "BOUNDARY_SWITCH_UNDECIDED",
+      level: "err",
+      messageEn: `“${rule.labelEn}” has a band edge on the boundary value and nobody has decided whether it follows the boundary switch. Decide it on the rule before relying on this route.`,
+      messageMs: `“${rule.labelMs ?? rule.labelEn}” mempunyai had jalur pada nilai sempadan dan belum ditetapkan sama ada ia mengikut suis sempadan.`,
       clause: rule.clause,
     });
   }
@@ -444,6 +524,7 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
 
   return {
     rule,
+    boundaryOperator: boundaryOperatorFor(rule, matrix.policy),
     chain: deduped,
     warnings,
     regime,

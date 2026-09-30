@@ -26,6 +26,8 @@ const rule = (r: Partial<Rule> & Pick<Rule, "ruleKey" | "domain">): Rule => ({
   pctMax: null,
   contractValueMin: null,
   contractValueMax: null,
+  // Every fixture row follows the switch, as every rule did before it was per rule.
+  followsBoundarySwitch: true,
   labelEn: r.ruleKey,
   labelMs: null,
   proposerCode: null,
@@ -50,7 +52,6 @@ export const TEST_MATRIX: Matrix = {
     quotationFloor: 15_000,
     tenderFloor: 300_000,
     requisitionBoundary: 50_000,
-    splittingWindowDays: 30,
     currency: "MYR",
   },
   roles: Object.fromEntries(

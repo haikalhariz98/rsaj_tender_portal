@@ -243,6 +243,19 @@ const ALLOWED_EXTRA = [
 const isAllowed = (label) => ALLOWED_EXTRA.some((re) => re.test(label));
 
 /**
+ * What the sample has and we have removed, by decision, with the reason. The
+ * counterpart of ALLOWED_EXTRA: a field missing from ours for a reason is reported as
+ * kept rather than silently tolerated, and any other missing field still fails.
+ */
+const DECIDED_ABSENT = [
+  {
+    // The approval matrix's "Order-splitting window" (6.1 ruling OD-9).
+    match: /splitting window/i,
+    why: "the window was a guessed 30 on the approval matrix; it is no longer read, edited or shown there, and lives only in Requisition controls, unset until the customer sets it (B7)",
+  },
+];
+
+/**
  * Controls we render differently from the sample, and why.
  *
  * A substitution rather than an extra: the sample has one control where we have
@@ -265,7 +278,12 @@ function diffLists(label, mine, theirs, out, allowExtra = false) {
       out.push(`  kept     ${label} — "${d.ours}" for their "${d.theirs}": ${d.why}`);
     }
   }
-  const missing = theirs.filter((t) => !mine.includes(t));
+  const absentAll = theirs.filter((t) => !mine.includes(t));
+  const decidedAbsent = absentAll.filter((t) => DECIDED_ABSENT.some((d) => d.match.test(t)));
+  for (const t of decidedAbsent) {
+    out.push(`  kept     ${label} — "${t}" removed by decision: ${DECIDED_ABSENT.find((d) => d.match.test(t)).why}`);
+  }
+  const missing = absentAll.filter((t) => !decidedAbsent.includes(t));
   const extraAll = mine.filter((m) => !theirs.includes(m));
   const allowed = allowExtra ? extraAll.filter(isAllowed) : [];
   const extra = extraAll.filter((e) => !allowed.includes(e));

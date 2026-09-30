@@ -438,7 +438,7 @@ async function load() {
       id: `${P}mx1`, organisationId, label: "Demo limits, revision 1", effectiveFrom: from,
       boundaryValue: "300000", boundaryInclusive: true,
       quotationFloor: "15000", tenderFloor: "300000", requisitionBoundary: "50000",
-      splittingWindowDays: 30, currency: "MYR", issuedAt: from,
+      currency: "MYR", issuedAt: from,
       noRuleClause: "Demo policy 1.6", selfApprovalClause: "Demo policy 1.7", absenceClause: "Demo policy 1.8",
     },
   });
@@ -446,8 +446,8 @@ async function load() {
   await db.authorityRule.createMany({
     data: [
       { id: `${P}rule1`, authorityMatrixId: `${P}mx1`, ruleKey: "demo.purchase.low", domain: "purchase", maxValue: "15000", labelEn: "Purchase, below the quotation floor", approverCode: "SEC_PRE", clause: "DEMO 1.1", sortOrder: 1 },
-      { id: `${P}rule2`, authorityMatrixId: `${P}mx1`, ruleKey: "demo.purchase.mid", domain: "purchase", minValue: "15000", maxValue: "300000", labelEn: "Purchase, quotation band", approverCode: "FD", committeeCode: "QUOTE_CTTE", committeeAct: "MR", clause: "DEMO 1.2", sortOrder: 2 },
-      { id: `${P}rule3`, authorityMatrixId: `${P}mx1`, ruleKey: "demo.purchase.high", domain: "purchase", minValue: "300000", labelEn: "Purchase, tender band", approverCode: "TENDER_BOARD", committeeCode: "TENDER_BOARD", committeeAct: "A", nonDelegable: true, clause: "DEMO 1.3", sortOrder: 3 },
+      { id: `${P}rule2`, authorityMatrixId: `${P}mx1`, ruleKey: "demo.purchase.mid", domain: "purchase", minValue: "15000", maxValue: "300000", followsBoundarySwitch: true, labelEn: "Purchase, quotation band", approverCode: "FD", committeeCode: "QUOTE_CTTE", committeeAct: "MR", clause: "DEMO 1.2", sortOrder: 2 },
+      { id: `${P}rule3`, authorityMatrixId: `${P}mx1`, ruleKey: "demo.purchase.high", domain: "purchase", minValue: "300000", followsBoundarySwitch: true, labelEn: "Purchase, tender band", approverCode: "TENDER_BOARD", committeeCode: "TENDER_BOARD", committeeAct: "A", nonDelegable: true, clause: "DEMO 1.3", sortOrder: 3 },
       { id: `${P}rule4`, authorityMatrixId: `${P}mx1`, ruleKey: "demo.variation", domain: "variation", labelEn: "Variation order", isGap: true, gapNote: "The demo source is silent on variations above 20%.", clause: "DEMO 2.1", sortOrder: 4 },
     ],
   });

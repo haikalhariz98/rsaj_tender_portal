@@ -32,6 +32,9 @@ export interface Rule {
   pctMax: number | null;
   contractValueMin: number | null;
   contractValueMax: number | null;
+  /// Whether this rule's edges follow the issue's boundary switch where an edge equals
+  /// `boundaryValue`. Null: nobody has decided. See `inBand`.
+  followsBoundarySwitch: boolean | null;
   labelEn: string;
   labelMs: string | null;
   proposerCode: string | null;
@@ -58,7 +61,6 @@ export interface Policy {
   quotationFloor: number;
   tenderFloor: number;
   requisitionBoundary: number;
-  splittingWindowDays: number;
   currency: string;
   /// Clauses the engine cites for its own standing rules. Customer text; absent means
   /// the source is not recorded, and warnings say so instead of citing one.
@@ -90,7 +92,8 @@ export interface ResolutionWarning {
     | "AMBIGUOUS"
     | "SELF_APPROVAL"
     | "ABSENCE"
-    | "GOV_OVERRIDE";
+    | "GOV_OVERRIDE"
+    | "BOUNDARY_SWITCH_UNDECIDED";
   level: WarningLevel;
   messageEn: string;
   messageMs: string;
@@ -133,8 +136,14 @@ export interface ResolveQuery {
   fundingSupersedesAuthority?: boolean;
 }
 
+/// The comparison applied at a band edge that sat on the boundary value.
+export type BoundaryOperator = "GT" | "GTE";
+
 export interface Resolution {
   rule: Rule | null;
+  /// The comparison applied at the matched rule's boundary edge, or null where no
+  /// edge of the rule sat on the boundary.
+  boundaryOperator: BoundaryOperator | null;
   chain: ApprovalStep[];
   warnings: ResolutionWarning[];
   regime: Regime | null;

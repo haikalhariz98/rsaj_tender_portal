@@ -16,6 +16,7 @@ export interface SeedRule {
   pctMax?: number | null;
   cvMin?: number | null;
   cvMax?: number | null;
+  followsBoundarySwitch?: boolean | null;
   label: string;
   proposer?: string | null;
   approver?: string | null;
@@ -58,6 +59,7 @@ export function toRule(seed: SeedRule): Rule {
     pctMax: seed.pctMax ?? null,
     contractValueMin: seed.cvMin ?? null,
     contractValueMax: seed.cvMax ?? null,
+    followsBoundarySwitch: seed.followsBoundarySwitch ?? null,
     labelEn: seed.label,
     labelMs: null,
     proposerCode: seed.proposer ?? null,
@@ -97,7 +99,6 @@ export function buildMatrix(rules: SeedRule[], roles: SeedRole[], policy: SeedPo
       quotationFloor: policy.quotationFloor,
       tenderFloor: policy.tenderFloor,
       requisitionBoundary: policy.requisitionBoundary,
-      splittingWindowDays: policy.splittingWindowDays,
       currency: policy.currency,
     },
     roles: Object.fromEntries(roles.map((r) => [r.code, toRole(r)])),

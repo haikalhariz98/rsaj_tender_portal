@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { TEST_MATRIX } from "./fixture";
 import {
   approverAct,
+  boundaryRuleFault,
   committeeActOn,
   inBand,
   regimeFor,
@@ -368,5 +369,81 @@ describe("what a screen may say about a rule", () => {
     expect(committeeActOn({ committeeAct: "MR", approverCode: "X" }, "PANEL")).toBe("MR");
     expect(committeeActOn({ committeeAct: null, approverCode: "PANEL" }, "PANEL")).toBe("A");
     expect(committeeActOn({ committeeAct: null, approverCode: "CHIEF" }, "PANEL")).toBeNull();
+  });
+});
+
+// 6.1 ruling OD-4: the boundary switch is scoped per rule.
+describe("a rule that does not follow the boundary switch", () => {
+  const flipped = { ...matrix.policy, boundaryInclusive: false };
+
+  it("keeps (min, max] at the boundary whichever way the switch is set", () => {
+    expect(inBand(300_000, 15_000, 300_000, matrix.policy, false)).toBe(true);
+    expect(inBand(300_000, 15_000, 300_000, flipped, false)).toBe(true);
+    expect(inBand(300_000, 300_000, null, flipped, false)).toBe(false);
+  });
+
+  it("flips only when it follows, never when undecided", () => {
+    expect(inBand(300_000, 15_000, 300_000, flipped, true)).toBe(false);
+    expect(inBand(300_000, 15_000, 300_000, flipped, null)).toBe(true);
+  });
+
+  it("leaves the regime thresholds following the switch", () => {
+    expect(regimeFor(300_000, flipped)).toBe("tender");
+  });
+
+  it("routes a boundary value the same way under both settings", () => {
+    const pinned: Matrix = {
+      ...matrix,
+      rules: matrix.rules.map((r) => (r.domain === "appointment" ? { ...r, followsBoundarySwitch: false } : r)),
+    };
+    for (const boundaryInclusive of [true, false]) {
+      const m = { ...pinned, policy: { ...pinned.policy, boundaryInclusive } };
+      const result = resolveApproval(m, { domain: "appointment", method: "open", value: 300_000 });
+      expect(result.rule?.ruleKey).toBe("APP_UNDER_BOUNDARY");
+      expect(result.boundaryOperator).toBe("GT");
+    }
+  });
+
+  it("records the operator a following rule was matched under", () => {
+    const up = resolveApproval({ ...matrix, policy: flipped }, { domain: "appointment", method: "open", value: 300_000 });
+    expect(up.rule?.ruleKey).toBe("APP_OVER_BOUNDARY");
+    expect(up.boundaryOperator).toBe("GTE");
+    const down = resolveApproval(matrix, { domain: "appointment", method: "open", value: 300_000 });
+    expect(down.boundaryOperator).toBe("GT");
+  });
+
+  it("has no operator where no edge of the rule sits on the boundary", () => {
+    expect(resolveApproval(matrix, { domain: "payment", method: "tender", value: 50_000 }).boundaryOperator).toBeNull();
+  });
+
+  it("warns, as an error, where a rule at the boundary has not decided", () => {
+    const undecided: Matrix = {
+      ...matrix,
+      rules: matrix.rules.map((r) => (r.ruleKey === "APP_UNDER_BOUNDARY" ? { ...r, followsBoundarySwitch: null } : r)),
+    };
+    const result = resolveApproval(undecided, { domain: "appointment", method: "open", value: 200_000 });
+    expect(result.warnings.find((w) => w.code === "BOUNDARY_SWITCH_UNDECIDED")?.level).toBe("err");
+  });
+});
+
+describe("saving a rule at the boundary", () => {
+  const under = matrix.rules.find((r) => r.ruleKey === "APP_UNDER_BOUNDARY")!;
+  const over = matrix.rules.find((r) => r.ruleKey === "APP_OVER_BOUNDARY")!;
+
+  it("requires the rule to decide whether it follows the switch", () => {
+    expect(boundaryRuleFault({ ...under, followsBoundarySwitch: null }, matrix.policy)).toBe("BOUNDARY_SWITCH_UNDECIDED");
+    expect(boundaryRuleFault(under, matrix.policy)).toBeNull();
+  });
+
+  it("does not ask a rule with no edge on the boundary", () => {
+    const low = matrix.rules.find((r) => r.ruleKey === "PAY_LOW")!;
+    expect(boundaryRuleFault({ ...low, followsBoundarySwitch: null }, matrix.policy)).toBeNull();
+  });
+
+  it("refuses two neighbours meeting at the boundary that disagree", () => {
+    expect(boundaryRuleFault({ ...under, followsBoundarySwitch: false }, matrix.policy, [over])).toBe(
+      "BOUNDARY_SWITCH_DISAGREES",
+    );
+    expect(boundaryRuleFault(under, matrix.policy, [over])).toBeNull();
   });
 });

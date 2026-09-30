@@ -5,8 +5,8 @@ import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/record-editor";
 import { auditedCreate, auditedDelete, auditedUpdate, writeAudit } from "@/lib/audit/record";
 import { diffFields } from "@/lib/audit/diff";
-import { issueFault, predecessorOf, startOfDay } from "@/lib/authority/issue";
-import { rulesTiedWith } from "@/lib/authority/resolve";
+import { issueFault, onRoute, predecessorOf, startOfDay } from "@/lib/authority/issue";
+import { boundaryRuleFault, rulesTiedWith } from "@/lib/authority/resolve";
 import type { Rule } from "@/lib/authority/types";
 import { db } from "@/lib/db";
 import { compareAmounts } from "@/lib/money";
@@ -103,6 +103,24 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
     r.reject("label", "An issue with that label already exists.");
   }
 
+  // A funder's rule set is an issue for one funding route (FR-REQ-006). Only a route
+  // whose funder supersedes the limits is ever routed by one, so any other is refused
+  // rather than saved as a rule set nothing would read.
+  const fundingRouteCode = r.optionalText("fundingRouteCode");
+  if (fundingRouteCode) {
+    const route = await db.fundingRoute.findFirst({
+      where: { organisationId: orgId, code: fundingRouteCode },
+      select: { supersedesAuthority: true, retiredOn: true },
+    });
+    if (!route) r.reject("fundingRouteCode", "That funding route no longer exists.");
+    else if (!route.supersedesAuthority) {
+      r.reject(
+        "fundingRouteCode",
+        "This funding route's funder does not supersede the limits, so its rule set would never route anything. Set that on the route under Reference data first.",
+      );
+    }
+  }
+
   const v = {
     label,
     effectiveFrom: effectiveFrom ?? new Date(),
@@ -112,7 +130,9 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
     quotationFloor: quotationFloor ?? "0",
     tenderFloor: tenderFloor ?? "0",
     requisitionBoundary: requisitionBoundary ?? "0",
-    splittingWindowDays: r.int("splittingWindowDays", "Anti-splitting window", { min: 0 }) ?? 0,
+    // AuthorityMatrix.splittingWindowDays is deprecated (6.1 ruling OD-9): never read,
+    // edited or shown. The window lives in RequisitionPolicy.
+    fundingRouteCode,
     currency: r.text("currency", "Currency", { required: true, max: 8 }),
     noRuleClause: r.optionalText("noRuleClause"),
     selfApprovalClause: r.optionalText("selfApprovalClause"),
@@ -170,7 +190,7 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
 
   const matrix = await db.authorityMatrix.findFirst({
     where: { id: authorityMatrixId, organisationId: orgId },
-    select: { id: true, label: true, issuedAt: true },
+    select: { id: true, label: true, issuedAt: true, boundaryValue: true },
   });
   if (!matrix) return { ok: false, message: "That issue of the limits no longer exists." };
   if (matrix.issuedAt) return FROZEN;
@@ -243,6 +263,10 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
     pctMax: before?.pctMax?.toString() ?? null,
     contractValueMin: before?.contractValueMin?.toString() ?? null,
     contractValueMax: before?.contractValueMax?.toString() ?? null,
+    followsBoundarySwitch: (() => {
+      const f = r.choice("followsBoundarySwitch", "At the boundary value", ["yes", "no"] as const);
+      return f == null ? null : f === "yes";
+    })(),
     labelEn: r.text("labelEn", "Label", { required: true, max: 240 }),
     labelMs: r.optionalText("labelMs"),
     proposerCode: r.optionalText("proposerCode"),
@@ -277,7 +301,24 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
       pctMax: x.pctMax == null ? null : Number(x.pctMax.toString()),
       contractValueMin: x.contractValueMin == null ? null : Number(x.contractValueMin.toString()),
       contractValueMax: x.contractValueMax == null ? null : Number(x.contractValueMax.toString()),
+      followsBoundarySwitch: x.followsBoundarySwitch ?? null,
     }) as Rule;
+  if (!r.failed) {
+    // An edge on the boundary must say whether it follows the switch, and two rules
+    // meeting there must agree (6.1 ruling OD-4).
+    const boundary = boundaryRuleFault(asBands(v), { boundaryValue: Number(matrix.boundaryValue.toString()) }, siblings.map(asBands));
+    if (boundary === "BOUNDARY_SWITCH_UNDECIDED") {
+      r.reject(
+        "followsBoundarySwitch",
+        "An edge of this band is the value where the bands meet. Decide whether the band follows the boundary switch there.",
+      );
+    } else if (boundary === "BOUNDARY_SWITCH_DISAGREES") {
+      r.reject(
+        "followsBoundarySwitch",
+        "The neighbouring rule for the same matter meets this one at the boundary and decides the other way. Make them agree, or a value exactly on the boundary would fall in both bands or neither.",
+      );
+    }
+  }
   if (!r.failed) {
     const tied = rulesTiedWith(asBands(v), siblings.map(asBands));
     if (tied.length > 0) {
@@ -414,7 +455,9 @@ export async function startRevision(_prev: FormState, data: FormData): Promise<F
 
   const [labels, drafts] = await Promise.all([
     db.authorityMatrix.findMany({ where: { organisationId: orgId }, select: { label: true } }),
-    db.authorityMatrix.count({ where: { organisationId: orgId, issuedAt: null } }),
+    // Partitioned by route: a funder's draft rule set and the organisation's own draft
+    // are not competing versions of one thing.
+    db.authorityMatrix.count({ where: { organisationId: orgId, issuedAt: null, fundingRouteCode: source.fundingRouteCode } }),
   ]);
   if (labels.some((l) => l.label === label)) r.reject("label", "An issue with that label already exists.");
   // One draft at a time: two would be two competing versions of what comes next.
@@ -489,10 +532,15 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
   const from = r.date("effectiveFrom", "In force from", { required: true });
   const reason = r.text("reason", "Why", { required: true, max: 2000 });
 
-  const issued = await db.authorityMatrix.findMany({
-    where: { organisationId: orgId, issuedAt: { not: null } },
-    select: { id: true, label: true, effectiveFrom: true, effectiveTo: true },
-  });
+  // Partitioned by route: issuing a funder's rule set never ends the organisation's
+  // own issue, nor is it refused for coming before it (6.1, funder rule set ruling).
+  const issued = onRoute(
+    await db.authorityMatrix.findMany({
+      where: { organisationId: orgId, issuedAt: { not: null } },
+      select: { id: true, label: true, effectiveFrom: true, effectiveTo: true, fundingRouteCode: true },
+    }),
+    draft.fundingRouteCode,
+  );
 
   if (draft._count.rules === 0) {
     r.reject("effectiveFrom", "This draft has no rules, so nothing could be routed under it. Add its rules first.");

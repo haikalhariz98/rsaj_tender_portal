@@ -31,16 +31,38 @@ export async function loadMatrix(
   /// passes this: it takes the issue in force, which is never a draft.
   issueId?: string,
 ): Promise<Matrix> {
+  const found = await loadIssue(organisationCode, asOf, issueId, null);
+  if (!found) throw new NoActiveMatrixError();
+  return found.matrix;
+}
+
+/**
+ * A funder's rule set in force on a date for one funding route, or null where none
+ * is issued (FR-REQ-006). Null is an answer, not an error: the matter then routes by
+ * the organisation's own limits and says the funder's rules are not held.
+ */
+export async function loadOverrideMatrix(organisationCode: string, fundingRouteCode: string, asOf: Date = new Date()) {
+  return loadIssue(organisationCode, asOf, undefined, fundingRouteCode);
+}
+
+/// The issue in force (or the one asked for) with its id and label, and the pure
+/// matrix built from it.
+export async function loadIssue(
+  organisationCode: string,
+  asOf: Date,
+  issueId: string | undefined,
+  fundingRouteCode: string | null,
+): Promise<{ id: string; label: string; matrix: Matrix } | null> {
   const organisation = await db.organisation.findUnique({
     where: { code: organisationCode },
     select: { id: true },
   });
-  if (!organisation) throw new NoActiveMatrixError();
+  if (!organisation) return null;
 
   const version = await db.authorityMatrix.findFirst({
     where: issueId
       ? { organisationId: organisation.id, id: issueId }
-      : { organisationId: organisation.id, ...issuedInForce(asOf) },
+      : { organisationId: organisation.id, ...issuedInForce(asOf, fundingRouteCode) },
     orderBy: { effectiveFrom: "desc" },
     include: {
       rules: {
@@ -49,7 +71,7 @@ export async function loadMatrix(
       },
     },
   });
-  if (!version) throw new NoActiveMatrixError();
+  if (!version) return null;
 
   const roles = await db.authorityRole.findMany({
     where: { organisationId: organisation.id },
@@ -67,6 +89,7 @@ export async function loadMatrix(
     pctMax: num(r.pctMax),
     contractValueMin: num(r.contractValueMin),
     contractValueMax: num(r.contractValueMax),
+    followsBoundarySwitch: r.followsBoundarySwitch,
     labelEn: r.labelEn,
     labelMs: r.labelMs,
     proposerCode: r.proposerCode,
@@ -86,14 +109,13 @@ export async function loadMatrix(
     })),
   }));
 
-  return {
+  const matrix: Matrix = {
     policy: {
       boundaryValue: Number(version.boundaryValue.toString()),
       boundaryInclusive: version.boundaryInclusive,
       quotationFloor: Number(version.quotationFloor.toString()),
       tenderFloor: Number(version.tenderFloor.toString()),
       requisitionBoundary: Number(version.requisitionBoundary.toString()),
-      splittingWindowDays: version.splittingWindowDays,
       currency: version.currency,
       clauses: {
         noRule: version.noRuleClause,
@@ -117,6 +139,7 @@ export async function loadMatrix(
     ),
     rules,
   };
+  return { id: version.id, label: version.label, matrix };
 }
 
 /**
@@ -175,7 +198,7 @@ export async function listIssues(organisationCode: string) {
   return db.authorityMatrix.findMany({
     where: { organisationId: organisation.id },
     orderBy: [{ effectiveFrom: "desc" }, { label: "asc" }],
-    select: { id: true, label: true, effectiveFrom: true, effectiveTo: true, issuedAt: true },
+    select: { id: true, label: true, effectiveFrom: true, effectiveTo: true, issuedAt: true, fundingRouteCode: true },
   });
 }
 
