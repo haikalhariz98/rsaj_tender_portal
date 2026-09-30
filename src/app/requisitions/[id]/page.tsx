@@ -338,7 +338,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                 preview={preview}
                 previewMatrixRoles={previewRoles}
                 decide={(step) => {
-                  if (!open || step.decision !== "PENDING" || step.committeeCode) return null;
+                  if (!open || step.decision !== "PENDING") return null;
                   const earlierDone = open.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE");
                   if (!earlierDone) return DECIDER_FAULT_TEXT.OUT_OF_ORDER;
                   if (!today) return DECIDER_FAULT_TEXT.TIME_ZONE_UNSET;
@@ -1127,12 +1127,6 @@ function ChecksPanel({
           icon={<RouteIcon size={17} />}
           title="Funding gate"
           subtitle="What the funding route decides (FR-REQ-004–006)."
-          actions={
-            <>
-              {route?.requires && !["CANCELLED", "CLOSED"].includes(r.status) && <ExternalAuthorityDrawer id={r.id} label={label} current={r.externalAuthorityRef} />}
-              {!["DRAFT", "CANCELLED", "CLOSED", "FULFILLED", "PENDING_APPROVAL"].includes(r.status) && <ChangeFundingDrawer id={r.id} current={r.fundingRouteCode} routes={routes} />}
-            </>
-          }
         />
         <CardBody className="flex flex-col gap-4">
           <KeyValues
@@ -1154,6 +1148,10 @@ function ChecksPanel({
           {gate.faults.length > 0 && !["APPROVED", "CANCELLED", "CLOSED"].includes(r.status) && (
             <Callout tone="warn">{gate.faults.join(" ")}</Callout>
           )}
+          <div className="flex flex-wrap items-center gap-2">
+            {route?.requires && !["CANCELLED", "CLOSED"].includes(r.status) && <ExternalAuthorityDrawer id={r.id} label={label} current={r.externalAuthorityRef} />}
+            {!["DRAFT", "CANCELLED", "CLOSED", "FULFILLED", "PENDING_APPROVAL"].includes(r.status) && <ChangeFundingDrawer id={r.id} current={r.fundingRouteCode} routes={routes} />}
+          </div>
         </CardBody>
       </Card>
 

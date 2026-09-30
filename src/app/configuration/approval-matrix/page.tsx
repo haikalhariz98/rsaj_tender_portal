@@ -246,6 +246,12 @@ export default async function ApprovalMatrixPage({
             Nothing in it routes a matter until it is issued. Change the thresholds and rules
             here, then issue it from a date. The simulator below still uses the issue in force.
           </Callout>
+        ) : state.label === "In force" && selectedRoute ? (
+          <Callout tone="info" title={`In force since ${formatDate(selected.effectiveFrom)}`}>
+            A funder&apos;s rule set. It routes only requisitions on the {routeName(selectedRoute)} funding route, in place of the
+            organisation&apos;s limits, where it has a rule for the matter. Otherwise the organisation&apos;s limits route them, and
+            the approval trail says the funder&apos;s rules were not applied.
+          </Callout>
         ) : state.label === "In force" ? (
           <Callout tone="info" title={`In force since ${formatDate(selected.effectiveFrom)}`}>
             These rules route every approval in the portal. An issued issue cannot be changed, so
@@ -351,6 +357,13 @@ export default async function ApprovalMatrixPage({
             actions={<Badge outline>{matrix.rules.length} rules</Badge>}
           />
           <CardBody className="flex flex-col gap-3">
+            {domains.length === 0 && (
+              <EmptyState size="sm" title="No rules">
+                {selectedRoute
+                  ? "The funder's rules have not been supplied, so nothing is routed by them: every matter on this route is routed by the organisation's limits, with a warning."
+                  : "No rule has been added to this issue yet."}
+              </EmptyState>
+            )}
             {domains.map(([domain, rules], i) => (
               <Accordion
                 key={domain}
@@ -502,7 +515,8 @@ export default async function ApprovalMatrixPage({
           </Callout>
         )}
 
-        <Card tone="brand">
+{!selectedRoute && (
+                <Card tone="brand">
           <CardHeader
             icon={<SlidersIcon size={17} />}
             title="Simulator"
@@ -525,6 +539,7 @@ export default async function ApprovalMatrixPage({
             />
           </CardBody>
         </Card>
+        )}
       </div>
     </>
   );

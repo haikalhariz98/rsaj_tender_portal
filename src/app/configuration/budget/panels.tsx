@@ -205,12 +205,12 @@ function BudgetCodesPanel({
             { key: "unit", label: "Owning department" },
           ]}
           columns={[
-            { key: "code", label: "Budget code", width: "26%", sortable: true },
-            { key: "type", label: "Type", width: "10%", sortable: true },
-            { key: "unit", label: "Owning department", width: "16%", sortable: true },
-            { key: "allocated", label: "Allocated", width: "12%", numeric: true, sortable: true },
+            { key: "code", label: "Budget code", sortable: true },
+            { key: "type", label: "Type", width: "10%", sortable: true, hideBelow: "2xl" },
+            { key: "unit", label: "Owning department", width: "18%", sortable: true, hideBelow: "lg" },
+            { key: "allocated", label: "Allocated", width: "12%", numeric: true, sortable: true, hideBelow: "md" },
             { key: "available", label: "Available", width: "12%", numeric: true, sortable: true },
-            { key: "utilisation", label: "Utilisation", width: "14%", sortable: true },
+            { key: "utilisation", label: "Utilisation", width: "14%", sortable: true, hideBelow: "md" },
             { key: "status", label: "Status", width: "10%" },
           ]}
           rows={rows}

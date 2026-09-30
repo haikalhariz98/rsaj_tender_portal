@@ -54,6 +54,7 @@ export default async function RequisitionControlsPage() {
     policy.budgetRecheckDays == null,
     policy.splittingWindowDays == null,
     policy.splittingMatchOn.length === 0,
+    policy.splittingAggregateAcrossYear == null,
     controls.budgetCheckSource == null,
   ].filter(Boolean).length;
   const format = (key: string) => formats.find((f) => f.key === key) ?? null;

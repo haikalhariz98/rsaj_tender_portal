@@ -200,7 +200,14 @@ export async function listRequisitions() {
   const [open, pending, overBudget, flagged] = await Promise.all([
     db.requisition.count({ where: { ...where, status: { notIn: ["CANCELLED", "CLOSED", "APPROVED", "SOURCING", "PARTIALLY_FULFILLED", "FULFILLED"] } } }),
     db.requisition.count({ where: { ...where, status: "PENDING_APPROVAL" } }),
-    db.requisition.count({ where: { ...where, status: "OVER_BUDGET" } }),
+    // Open, and over budget on its latest check — whether or not it has gone on to the
+    // over-budget approvers.
+    db.requisition
+      .findMany({
+        where: { ...where, status: { in: ["REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET", "PENDING_APPROVAL"] } },
+        select: { budgetChecks: { orderBy: { checkedAt: "desc" }, take: 1, select: { verdict: true } } },
+      })
+      .then((xs) => xs.filter((x) => x.budgetChecks[0]?.verdict === "EXCEEDS").length),
     db.requisition.count({
       where: { ...where, status: { notIn: ["CANCELLED", "CLOSED"] }, splitChecks: { some: { state: "FLAGGED", overrideJustification: null } } },
     }),

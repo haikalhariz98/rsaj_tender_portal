@@ -54,13 +54,14 @@ export interface Column {
   sortable?: boolean;
   /// Drop this column below the named breakpoint, for a secondary column a narrow
   /// card cannot afford.
-  hideBelow?: "md" | "lg" | "xl";
+  hideBelow?: "md" | "lg" | "xl" | "2xl";
 }
 
 const HIDE_BELOW = {
   md: "hidden md:table-cell",
   lg: "hidden lg:table-cell",
   xl: "hidden xl:table-cell",
+  "2xl": "hidden 2xl:table-cell",
 } as const;
 
 // Written out, not derived from the map above: Tailwind only emits classes it can
@@ -69,6 +70,7 @@ const HIDE_COL_BELOW = {
   md: "hidden md:table-column",
   lg: "hidden lg:table-column",
   xl: "hidden xl:table-column",
+  "2xl": "hidden 2xl:table-column",
 } as const;
 
 export interface Row {
@@ -551,15 +553,18 @@ export function DataList({
                       <button
                         type="button"
                         onClick={() => toggleSort(c.key)}
+                        title={c.label}
                         className={cx(
-                          "inline-flex items-center gap-1 rounded-md hover:text-ink",
+                          // Held to the column: a heading wider than a narrow column is
+                          // cut with an ellipsis rather than spilling into the next one.
+                          "inline-flex max-w-full min-w-0 items-center gap-1 rounded-md align-middle hover:text-ink",
                           sort?.key === c.key && "text-ink",
                         )}
                       >
-                        {c.label}
+                        <span className="min-w-0 truncate">{c.label}</span>
                         <span
                           aria-hidden="true"
-                          className={cx("text-[9px]", sort?.key !== c.key && "opacity-40")}
+                          className={cx("shrink-0 text-[9px]", sort?.key !== c.key && "opacity-40")}
                         >
                           {sort?.key === c.key && sort.dir === "desc" ? "▼" : "▲"}
                         </span>

@@ -23,7 +23,7 @@ export default async function RequisitionsPage() {
   const { org, rows, total, counts } = await listRequisitions();
 
   const list: Row[] = rows.map((r) => {
-    const split = r.split ? splitStateLabel(r.split.state, !!r.split.overrideJustification) : { label: "Not assessed", tone: "neutral" as const };
+    const split = r.split ? splitStateLabel(r.split.state, !!r.split.overrideJustification, true) : { label: "Not assessed", tone: "neutral" as const };
     const erp = r.erpRequisitionNo ?? null;
     return {
       id: r.id,
@@ -37,8 +37,7 @@ export default async function RequisitionsPage() {
       sortKeys: { value: r.value, required: r.dateRequired.getTime(), title: r.title },
       cells: {
         title: { kind: "link", text: r.title, href: `/requisitions/${r.id}`, sub: erp ? `${erp} · ${r.reference}` : r.reference },
-        department: { kind: "text", text: r.unitName },
-        funding: r.routeName ? { kind: "text", text: r.routeName } : { kind: "text", text: "Not set", dim: true },
+        department: { kind: "stack", title: r.unitName, sub: r.routeName ?? "Funding route not set" },
         value: { kind: "money", value: r.value },
         status: { kind: "badge", text: STATUS_LABEL[r.status], tone: TONE[STATUS_TONE[r.status]] },
         budget: r.verdict ? { kind: "chip", text: VERDICT_LABEL[r.verdict], tone: TONE[VERDICT_TONE[r.verdict]] } : { kind: "text", text: "Not checked", dim: true },
@@ -57,7 +56,7 @@ export default async function RequisitionsPage() {
           `${counts.open} open`,
           `${counts.pending} pending approval`,
           `${counts.overBudget} over budget`,
-          `${counts.flagged} flagged as a possible split`,
+          `${counts.flagged} possible ${counts.flagged === 1 ? "split" : "splits"} awaiting justification`,
         ]}
         actions={
           org ? (
@@ -108,27 +107,23 @@ export default async function RequisitionsPage() {
             { id: "drafts", label: "Drafts" },
             { id: "over", label: "Over budget" },
           ]}
-          filters={[
-            { key: "status", label: "Status" },
-            { key: "department", label: "Department" },
-          ]}
+          filters={[{ key: "status", label: "Status" }]}
           rowAction={{ label: "Open", hrefTemplate: "/requisitions/{id}" }}
           rowOpens
           columns={[
             { key: "title", label: "Requisition", sortable: true },
-            { key: "department", label: "Department", width: "13%", hideBelow: "lg" },
-            { key: "funding", label: "Funding", width: "12%", hideBelow: "xl" },
-            { key: "value", label: "Value", width: "120px", numeric: true, sortable: true },
-            { key: "status", label: "Status", width: "140px", sortable: true },
-            { key: "budget", label: "Budget", width: "130px", hideBelow: "md" },
-            { key: "split", label: "Splitting", width: "170px", hideBelow: "lg" },
-            { key: "required", label: "Required by", width: "112px", sortable: true, hideBelow: "xl" },
+            { key: "department", label: "Department and funding", width: "17%", hideBelow: "lg" },
+            { key: "value", label: "Value", width: "112px", numeric: true, sortable: true },
+            { key: "status", label: "Status", width: "160px", sortable: true },
+            { key: "budget", label: "Budget", width: "140px", hideBelow: "md" },
+            { key: "split", label: "Splitting", width: "150px", hideBelow: "xl" },
+            { key: "required", label: "Required by", width: "112px", sortable: true, hideBelow: "2xl" },
           ]}
           rows={list}
         />
         {total > rows.length && (
           <CardFooter className="text-[12.5px] text-ink-3">
-            Showing the latest {REQUISITIONS_PAGE} of {total}. Search finds any of them by number.
+            Showing the latest {REQUISITIONS_PAGE} of {total}.
           </CardFooter>
         )}
       </Card>

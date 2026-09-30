@@ -36,6 +36,8 @@ const SEGMENT_LABEL: Record<string, string> = {
   suppliers: "Suppliers",
   documents: "Documents",
   reports: "Reports",
+  requisitions: "Requisitions",
+  receive: "Receive from finance system",
   supplier: "Supplier portal",
   opportunities: "Opportunities",
   bids: "My Bids",
@@ -45,6 +47,13 @@ const SEGMENT_LABEL: Record<string, string> = {
 /// What a record under a section is called, for its breadcrumb.
 const RECORD_LABEL: Record<string, string> = {
   committees: "Committee",
+  requisitions: "Requisition",
+};
+
+/// Segments whose label depends on where they sit.
+const NESTED_LABEL: Record<string, string> = {
+  "configuration/requisitions": "Requisition controls",
+  "requisitions/new": "New requisition",
 };
 
 export function Topbar({
@@ -76,12 +85,19 @@ export function Topbar({
         ? i === 0
           ? "Committee sittings"
           : "Sitting"
-        : (SEGMENT_LABEL[segment] ?? RECORD_LABEL[segments[i - 1] ?? ""] ?? "Details"),
+        : (NESTED_LABEL[`${segments[i - 1] ?? ""}/${segment}`] ??
+          (segment === "edit" ? "Edit" : undefined) ??
+          SEGMENT_LABEL[segment] ??
+          RECORD_LABEL[segments[i - 1] ?? ""] ??
+          "Details"),
     href: "/" + segments.slice(0, i + 1).join("/"),
   }));
   // The last crumb names the record where the page has said which one it is.
   const last = crumbs[crumbs.length - 1];
-  if (recordName && last && !SEGMENT_LABEL[segments[segments.length - 1]]) last.label = recordName;
+  const lastSegment = segments[segments.length - 1];
+  if (recordName && last && !SEGMENT_LABEL[lastSegment] && lastSegment !== "edit" && lastSegment !== "new") last.label = recordName;
+  // A record's own crumb, where the page names it and a sub-page sits under it.
+  if (recordName && lastSegment === "edit" && crumbs.length >= 2) crumbs[crumbs.length - 2].label = recordName;
 
   const rootLabel = workspace === "supplier" ? "Supplier portal" : organisation;
   const rootHref = workspace === "supplier" ? "/supplier" : "/";

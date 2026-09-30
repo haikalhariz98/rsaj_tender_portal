@@ -103,9 +103,14 @@ export function splitApprovalFault(check: { state: SplitState; overrideJustifica
  * How a stored split state reads. Always from what was stored: a NOT_SET check reads
  * "Not assessed" for ever, however the policy is set later.
  */
-export function splitStateLabel(state: SplitState | null, justified = false): { label: string; tone: "ok" | "warn" | "err" | "neutral" } {
+export function splitStateLabel(
+  state: SplitState | null,
+  justified = false,
+  short = false,
+): { label: string; tone: "ok" | "warn" | "err" | "neutral" } {
   if (state == null) return { label: "Not assessed", tone: "neutral" };
-  if (state === "NOT_SET") return { label: "Not assessed · control not set", tone: "warn" };
-  if (state === "CLEAR") return { label: "No related requisitions", tone: "ok" };
-  return justified ? { label: "Possible split · justified", tone: "warn" } : { label: "Possible split", tone: "err" };
+  if (state === "NOT_SET") return { label: short ? "Control not set" : "Not assessed · control not set", tone: "warn" };
+  if (state === "CLEAR") return { label: short ? "No split found" : "No related requisitions", tone: "ok" };
+  if (justified) return { label: short ? "Split justified" : "Possible split · justified", tone: "warn" };
+  return { label: "Possible split", tone: "err" };
 }
