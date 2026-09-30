@@ -1,0 +1,129 @@
+/**
+ * Who may discharge a step, and why a named Person may not (ruling OD-12).
+ *
+ * Nobody signs in yet, so the recording officer names the Person who decided. The
+ * checks that sign-in would make are made on that Person: they must hold the office
+ * for the requesting unit on the day — the unit's own holder, else the nearest
+ * ancestor's, else an organisation-wide one — or hold a live delegation of the whole
+ * office from such a holder. Nobody decides a requisition they raised or endorsed,
+ * nobody discharges two steps of one route, and no decision is dated after today.
+ */
+
+import { inForceOn } from "@/lib/effective";
+import { parseSen, type Sen } from "@/lib/money";
+import type { Delegation } from "@/lib/people/delegation";
+import type { Roster } from "@/lib/people/roster";
+
+const dayDate = (d: string) => new Date(`${d}T00:00:00.000Z`);
+
+export interface Holders {
+  /// The scope the holders were found at: a unit code, or null for organisation-wide.
+  scope: string | null;
+  holderIds: string[];
+  /// Delegates of the whole office from one of those holders, in force on the day.
+  delegates: { personId: string; delegation: Delegation }[];
+}
+
+/**
+ * The office's holders for a unit on a day. `unitPath` runs from the requesting unit
+ * (or section) up to the root: the nearest scope with a holder wins.
+ */
+export function holdersFor(
+  roleCode: string,
+  unitPath: readonly string[],
+  roster: Roster,
+  delegations: readonly Delegation[],
+  day: string,
+): Holders {
+  const on = dayDate(day);
+  const assigned = roster.assignments.filter((a) => a.roleCode === roleCode && inForceOn(a, on));
+  let scope: string | null = null;
+  let holderIds: string[] = [];
+  for (const unit of unitPath) {
+    const here = assigned.filter((a) => a.scope === unit);
+    if (here.length > 0) {
+      scope = unit;
+      holderIds = here.map((a) => a.personId);
+      break;
+    }
+  }
+  if (holderIds.length === 0) holderIds = assigned.filter((a) => a.scope == null || a.scope === "").map((a) => a.personId);
+
+  // A delegation carries an approval act only when it hands over the whole office: a
+  // listed subset of capabilities does not (see people/delegation.ts).
+  const delegates = delegations
+    .filter((d) => d.roleCode === roleCode && holderIds.includes(d.fromPersonId) && d.capabilityCodes.length === 0 && inForceOn(d, on))
+    .map((d) => ({ personId: d.toPersonId, delegation: d }));
+  return { scope, holderIds, delegates };
+}
+
+export type DeciderFault =
+  | "TIME_ZONE_UNSET"
+  | "COMMITTEE_STEP"
+  | "NOT_PENDING"
+  | "OUT_OF_ORDER"
+  | "INACTIVE"
+  | "NOT_HOLDER"
+  | "DELEGATION_NOT_PERMITTED"
+  | "OVER_CEILING"
+  | "SELF_APPROVAL"
+  | "ENDORSED_IT"
+  | "ALREADY_DISCHARGED_A_STEP"
+  | "FUTURE_DATE"
+  | "BEFORE_SUBMISSION";
+
+export interface DeciderContext {
+  today: string | null;
+  holders: Holders;
+  person: { id: string; isActive: boolean } | null;
+  requesterId: string;
+  endorserIds: readonly string[];
+  /// People who have already discharged another step of this route.
+  otherDeciderIds: readonly string[];
+  /// Whether every earlier step is done.
+  earlierDone: boolean;
+  /// YYYY-MM-DD: the decision date, and the day the route was opened.
+  decidedOn: string;
+  openedOn: string;
+  value: Sen;
+}
+
+export interface DeciderCheck {
+  faults: DeciderFault[];
+  /// The delegation the decision was made under, where it was.
+  delegationId: string | null;
+}
+
+export function deciderFaults(
+  step: { committeeCode: string | null; nonDelegable: boolean; decision: string },
+  ctx: DeciderContext,
+): DeciderCheck {
+  const faults: DeciderFault[] = [];
+  let delegationId: string | null = null;
+  if (ctx.today == null) return { faults: ["TIME_ZONE_UNSET"], delegationId };
+  // A committee step is discharged by its decision, cited from the sitting.
+  if (step.committeeCode) return { faults: ["COMMITTEE_STEP"], delegationId };
+  if (step.decision !== "PENDING") faults.push("NOT_PENDING");
+  if (!ctx.earlierDone) faults.push("OUT_OF_ORDER");
+  if (ctx.decidedOn > ctx.today) faults.push("FUTURE_DATE");
+  if (ctx.decidedOn < ctx.openedOn) faults.push("BEFORE_SUBMISSION");
+
+  const pid = ctx.person?.id ?? null;
+  if (!ctx.person || !pid) return { faults: [...faults, "NOT_HOLDER"], delegationId };
+  if (!ctx.person.isActive) faults.push("INACTIVE");
+
+  if (!ctx.holders.holderIds.includes(pid)) {
+    const via = ctx.holders.delegates.find((d) => d.personId === pid);
+    if (!via) faults.push("NOT_HOLDER");
+    else if (step.nonDelegable) faults.push("DELEGATION_NOT_PERMITTED");
+    else {
+      delegationId = via.delegation.id;
+      // Null ceiling: none was set on the delegation, so it limits nothing.
+      if (via.delegation.valueCeiling != null && ctx.value > parseSen(via.delegation.valueCeiling)) faults.push("OVER_CEILING");
+    }
+  }
+  if (pid === ctx.requesterId) faults.push("SELF_APPROVAL");
+  if (ctx.endorserIds.includes(pid)) faults.push("ENDORSED_IT");
+  if (ctx.otherDeciderIds.includes(pid)) faults.push("ALREADY_DISCHARGED_A_STEP");
+  return { faults, delegationId };
+}

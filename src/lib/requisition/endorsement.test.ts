@@ -1,0 +1,65 @@
+import { describe, expect, it } from "vitest";
+
+import type { OrgUnit } from "@/lib/organisation/types";
+
+import { endorsementEntryFault, endorsementFaults, endorsersFor } from "./endorsement";
+
+const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
+const unit = (code: string, kind: OrgUnit["kind"], parentCode: string | null, headPersonId: string | null, from = "2024-01-01", to: string | null = null): OrgUnit => ({
+  code, nameEn: code, nameMs: null, kind, parentCode, costCentreCode: null, headPersonId, registrationNumber: null,
+  taxReference: null, telephone: null, financialYearStart: null, address: "", operatingLicence: null, governingSource: "",
+  provenance: "STATED", notes: "", sortOrder: 0, effectiveFrom: d(from), effectiveTo: to ? d(to) : null,
+});
+
+const UNITS = [
+  unit("CO", "COMPANY", null, "ceo"),
+  unit("DIV", "DIVISION", "CO", null),
+  unit("DEPT", "DEPARTMENT", "DIV", "hod", "2024-01-01", "2026-07-01"),
+  unit("DEPT", "DEPARTMENT", "DIV", "hod2", "2026-07-01"),
+  unit("SEC", "SECTION", "DEPT", "sh"),
+];
+const today = "2026-09-30";
+
+describe("who endorses (FR-REQ-003)", () => {
+  it("takes each tier's head from the unit of that kind on the path", () => {
+    const e = endorsersFor("SEC", ["SECTION", "DEPARTMENT"], UNITS, d(today));
+    expect(e.map((x) => [x.tier, x.headPersonId, x.fault])).toEqual([["SECTION", "sh", null], ["DEPARTMENT", "hod2", null]]);
+  });
+
+  it("faults a tier with no unit on the path, and a unit with no head", () => {
+    expect(endorsersFor("DEPT", ["SECTION"], UNITS, d(today))[0].fault).toBe("TIER_NOT_ON_PATH");
+    expect(endorsersFor("SEC", ["DIVISION"], UNITS, d(today))[0].fault).toBe("NO_HEAD");
+  });
+});
+
+describe("whether the endorsements are complete", () => {
+  const good = [
+    { tier: "SECTION" as const, unitCode: "SEC", personId: "sh", endorsedOn: "2026-09-10" },
+    { tier: "DEPARTMENT" as const, unitCode: "DEPT", personId: "hod2", endorsedOn: "2026-09-11" },
+  ];
+
+  it("is complete when every tier is endorsed by its head", () => {
+    expect(endorsementFaults("SEC", ["SECTION", "DEPARTMENT"], good, UNITS, today)).toEqual([]);
+  });
+
+  it("blocks when no tiers are set, rather than passing vacuously (OD-3)", () => {
+    expect(endorsementFaults("SEC", [], good, UNITS, today)).toEqual([{ code: "NOT_SET" }]);
+  });
+
+  it("names a missing tier, and a tier with no unit on the path", () => {
+    expect(endorsementFaults("SEC", ["SECTION", "DEPARTMENT"], [good[0]], UNITS, today)).toEqual([{ code: "MISSING", tier: "DEPARTMENT" }]);
+    expect(endorsementFaults("DEPT", ["SECTION"], [], UNITS, today)).toEqual([{ code: "TIER_NOT_ON_PATH", tier: "SECTION" }]);
+  });
+
+  it("refuses someone not heading the unit on the endorsement date", () => {
+    // hod headed DEPT until July; on 2026-09-11 it is hod2.
+    const e = { tier: "DEPARTMENT" as const, unitCode: "DEPT", personId: "hod", endorsedOn: "2026-09-11" };
+    expect(endorsementEntryFault(e, "SEC", ["DEPARTMENT"], UNITS, today)).toEqual({ code: "NOT_HEAD", tier: "DEPARTMENT", personId: "hod" });
+    expect(endorsementEntryFault({ ...e, endorsedOn: "2026-06-30" }, "SEC", ["DEPARTMENT"], UNITS, today)).toBeNull();
+  });
+
+  it("refuses a future date, and waits for a time zone", () => {
+    expect(endorsementEntryFault({ ...good[0], endorsedOn: "2026-10-01" }, "SEC", ["SECTION"], UNITS, today)).toEqual({ code: "FUTURE_DATE", tier: "SECTION" });
+    expect(endorsementEntryFault(good[0], "SEC", ["SECTION"], UNITS, null)).toEqual({ code: "TIME_ZONE_UNSET" });
+  });
+});
