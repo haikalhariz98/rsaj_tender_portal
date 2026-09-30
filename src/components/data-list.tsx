@@ -39,6 +39,9 @@ export type Cell =
   | { kind: "avatars"; names: string[]; max?: number }
   /// Several small badges in one cell, overflowing to +N.
   | { kind: "badges"; items: string[]; max?: number }
+  /// Toned chips stacked in one cell, for a column that summarises several checks
+  /// ("Within budget" over "No split found") rather than spending a column on each.
+  | { kind: "chips"; items: { text: string; tone?: "ok" | "warn" | "err" | "info" | "brand" }[] }
   /// A filled bar with the figure beside it, and a marker at the configured warning
   /// threshold. Null percent renders as not set — a code with no allocation has not
   /// used none of its budget, and a bar drawn at zero says it has.
@@ -99,6 +102,10 @@ export interface View {
 export interface Filter {
   key: string;
   label: string;
+  /// The values to offer, in this order (a lifecycle, say), whether or not a row holds
+  /// them yet. Values the rows hold beyond it follow, sorted. Omitted: the rows'
+  /// own values, sorted.
+  order?: string[];
 }
 
 /// An action offered on hover at the end of each row.
@@ -127,6 +134,8 @@ function cellText(cell: Cell | undefined): string {
       return cell.names.join(" ");
     case "badges":
       return cell.items.join(" ");
+    case "chips":
+      return cell.items.map((i) => i.text).join(" · ");
     case "meter":
       return cell.percent == null ? "" : `${cell.percent}%`;
   }
@@ -203,6 +212,18 @@ function CellView({ cell }: { cell: Cell | undefined }) {
       return cell.names.length === 0 ? dash : <AvatarStack names={cell.names} max={cell.max ?? 4} />;
     case "meter":
       return <Meter percent={cell.percent} threshold={cell.threshold} />;
+    case "chips":
+      return cell.items.length === 0 ? (
+        dash
+      ) : (
+        <span className="flex flex-col items-start gap-1">
+          {cell.items.map((item) => (
+            <Chip key={item.text} tone={item.tone} title={item.text}>
+              {item.text}
+            </Chip>
+          ))}
+        </span>
+      );
     case "badges": {
       if (cell.items.length === 0) return dash;
       const shown = cell.items.slice(0, cell.max ?? 3);
@@ -280,7 +301,8 @@ export function DataList({
   const optionsFor = useMemo(() => {
     const map: Record<string, string[]> = {};
     for (const f of filters) {
-      map[f.key] = [...new Set(rows.map((r) => cellText(r.cells[f.key])).filter(Boolean))].sort();
+      const held = [...new Set(rows.map((r) => cellText(r.cells[f.key])).filter(Boolean))].sort();
+      map[f.key] = f.order ? [...f.order, ...held.filter((v) => !f.order!.includes(v))] : held;
     }
     return map;
   }, [filters, rows]);

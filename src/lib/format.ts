@@ -1,3 +1,5 @@
+import { dayIn } from "./dates";
+
 /// Ringgit, the way the manuals write it: "RM300,000" with no decimals unless the
 /// amount has sen.
 export function formatRM(value: number | null | undefined): string {
@@ -62,6 +64,21 @@ export function formatDate(value: Date | string | null | undefined): string {
   if (!value) return "—";
   const d = typeof value === "string" ? new Date(value) : value;
   return d.toLocaleDateString("en-MY", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+/**
+ * The organisation's calendar day an instant fell on, formatted as `formatDate` does.
+ * For timestamps (when a check ran, a route opened, a change was made), so they read on
+ * the same day as the days typed beside them. An unset zone reads the day in UTC.
+ */
+export function formatOrgDay(instant: Date | null | undefined, timeZone: string | null): string {
+  if (!instant) return "—";
+  return new Date(`${dayIn(instant, timeZone)}T00:00:00.000Z`).toLocaleDateString("en-MY", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 /// Two initials for an avatar. Malaysian names often carry bin/binti/a/l — those are

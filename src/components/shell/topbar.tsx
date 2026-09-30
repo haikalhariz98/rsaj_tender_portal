@@ -37,7 +37,8 @@ const SEGMENT_LABEL: Record<string, string> = {
   documents: "Documents",
   reports: "Reports",
   requisitions: "Requisitions",
-  receive: "Receive from finance system",
+  // Short: the crumb shares the bar with search. The page title says the rest.
+  receive: "Receive",
   supplier: "Supplier portal",
   opportunities: "Opportunities",
   bids: "My Bids",

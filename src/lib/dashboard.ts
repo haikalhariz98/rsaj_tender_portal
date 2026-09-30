@@ -21,6 +21,18 @@ export interface QueueItem {
   entitled: number;
 }
 
+/// A requisition whose approval route is open, and the step it waits on.
+export interface RequisitionWaiting {
+  id: string;
+  reference: string;
+  title: string;
+  value: number | null;
+  /// The office or committee of the first undecided step.
+  waitingOn: string | null;
+  openedAt: Date;
+  waitingDays: number;
+}
+
 export interface ActivityItem {
   at: Date;
   who: string;
@@ -102,6 +114,26 @@ export async function loadDashboard(asOf: Date = new Date()) {
     take: 5,
   });
 
+  const pendingRequisitions = await db.approvalInstance.findMany({
+    where: { organisationId: org.id, status: "PENDING", requisition: { status: "PENDING_APPROVAL" } },
+    include: {
+      requisition: { select: { id: true, reference: true, title: true, estimatedValue: true } },
+      steps: { where: { decision: "PENDING" }, orderBy: { sequence: "asc" }, take: 1 },
+    },
+    orderBy: { openedAt: "asc" },
+  });
+  const requisitions: RequisitionWaiting[] = pendingRequisitions
+    .filter((i) => i.requisition)
+    .map((i) => ({
+      id: i.requisition!.id,
+      reference: i.requisition!.reference,
+      title: i.requisition!.title,
+      value: num(i.requisition!.estimatedValue),
+      waitingOn: i.steps[0]?.roleLabel ?? null,
+      openedAt: i.openedAt,
+      waitingDays: Math.max(0, Math.floor((asOf.getTime() - i.openedAt.getTime()) / DAY)),
+    }));
+
   const committees = await db.committee.count({ where: { organisationId: org.id } });
   const withoutQuorum = await db.committee.count({
     where: { organisationId: org.id, quorum: null },
@@ -109,6 +141,7 @@ export async function loadDashboard(asOf: Date = new Date()) {
 
   return {
     queue,
+    requisitions,
     activity,
     committedValue,
     decidedCount: decided.length,

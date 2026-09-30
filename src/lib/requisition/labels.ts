@@ -30,6 +30,25 @@ export const STATUS_LABEL: Record<RequisitionStatus, string> = {
   CLOSED: "Closed",
 };
 
+/// The lifecycle, in the order a requisition moves through it (§7.3.1), for filters.
+export const STATUS_ORDER: readonly RequisitionStatus[] = [
+  "DRAFT",
+  "RETURNED",
+  "ENDORSED",
+  "REGISTERED",
+  "BUDGET_CHECKED",
+  "OVER_BUDGET",
+  "PENDING_APPROVAL",
+  "RECALLED",
+  "REJECTED",
+  "APPROVED",
+  "SOURCING",
+  "PARTIALLY_FULFILLED",
+  "FULFILLED",
+  "CANCELLED",
+  "CLOSED",
+];
+
 export const STATUS_TONE: Record<RequisitionStatus, Tone> = {
   DRAFT: "neutral",
   ENDORSED: "info",
@@ -69,9 +88,9 @@ export const SOURCE_LABEL = {
 
 export const TIER_LABEL: Record<OrgUnitKind, string> = {
   COMPANY: "Company",
-  DIVISION: "Head of division",
-  DEPARTMENT: "Head of department",
-  SECTION: "Section head",
+  DIVISION: "Head of Division",
+  DEPARTMENT: "Head of Department",
+  SECTION: "Section Head",
 };
 
 export const SPLIT_KEY_LABEL: Record<SplitKey, string> = {
@@ -108,6 +127,17 @@ const FIELD_NAME: Record<string, string> = {
   lines: "Line items",
   erpRequisitionNo: "Finance system requisition no.",
   erpNoteNo: "Requisition note no.",
+  // Recorded on the trail rather than typed on the form.
+  fundingSupersedesAuthority: "Funder's rules supersede the approval matrix",
+  sourcingPermitted: "Sourcing permitted",
+  fundingPosture: "What the funding route means",
+  externalAuthorityRef: "External authority",
+  splitState: "Splitting check",
+  returnedReason: "Reason for the return",
+  returnedToPersonId: "Returned to",
+  returnedOn: "Returned on",
+  cancelReason: "Reason for cancelling",
+  raisedOn: "Raised on",
 };
 
 /// A requisition field's own name where it has one, for the trail.
@@ -131,7 +161,9 @@ const rm = (sen: bigint) => {
   const neg = sen < 0n;
   const abs = neg ? -sen : sen;
   const whole = (abs / 100n).toLocaleString("en-MY");
-  return `${neg ? "−" : ""}RM ${whole}.${(abs % 100n).toString().padStart(2, "0")}`;
+  const cents = abs % 100n;
+  // As formatRM writes it: "RM9,500", with sen only where there are some.
+  return `${neg ? "−" : ""}RM${whole}${cents ? `.${cents.toString().padStart(2, "0")}` : ""}`;
 };
 
 export function fieldFaultText(f: FieldFault): string {
@@ -170,11 +202,11 @@ export function endorsementFaultText(f: EndorsementFault, names: (id: string) =>
     case "NOT_SET":
       return "No endorsement tiers are set, so nothing can be endorsed or submitted. Set them in Requisition controls.";
     case "TIER_NOT_ON_PATH":
-      return `The policy asks for a ${TIER_LABEL[f.tier].toLowerCase()}'s endorsement, but the requesting unit has no ${f.tier.toLowerCase()} above it.`;
+      return `The policy asks for a ${TIER_LABEL[f.tier]}'s endorsement, but the requesting unit has no ${f.tier.toLowerCase()} above it.`;
     case "NO_HEAD":
       return `The ${f.tier.toLowerCase()} on this requisition's path has no head recorded. Record one under Organisation.`;
     case "MISSING":
-      return `Awaiting the ${TIER_LABEL[f.tier].toLowerCase()}'s endorsement.`;
+      return `Awaiting the ${TIER_LABEL[f.tier]}'s endorsement.`;
     case "NOT_HEAD":
       return `${names(f.personId)} did not head that unit on the endorsement date.`;
     case "FUTURE_DATE":
@@ -183,6 +215,8 @@ export function endorsementFaultText(f: EndorsementFault, names: (id: string) =>
       return "Set the organisation's time zone before recording endorsements.";
     case "REQUESTER":
       return "The requesting officer cannot endorse their own requisition.";
+    case "BEFORE_RAISED":
+      return "An endorsement cannot be dated before the day the requisition was raised.";
   }
 }
 
@@ -222,6 +256,13 @@ export function transitionFaultText(f: TransitionFault): string {
     case "STEP_ALREADY_DECIDED":
       return "A step has already been decided, so it can no longer be recalled.";
   }
+}
+
+/// A decider refusal naming the person chosen rather than "that person".
+export function deciderFaultText(f: DeciderFault, name: string | null): string {
+  const text = DECIDER_FAULT_TEXT[f];
+  if (!name) return text;
+  return text.replace(/^That person/, name).replace(/that person/g, name);
 }
 
 export const DECIDER_FAULT_TEXT: Record<DeciderFault, string> = {

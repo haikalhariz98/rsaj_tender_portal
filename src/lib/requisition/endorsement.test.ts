@@ -71,3 +71,14 @@ describe("the requesting officer (code review, item 9)", () => {
     expect(endorsementEntryFault(e, "SEC", ["SECTION"], UNITS, today, "someone-else")).toBeNull();
   });
 });
+
+describe("the endorsement date (UX review, M1)", () => {
+  const e = { tier: "SECTION" as const, unitCode: "SEC", personId: "sh", endorsedOn: "2026-09-10" };
+  it("may not fall before the day the requisition was raised", () => {
+    expect(endorsementEntryFault(e, "SEC", ["SECTION"], UNITS, today, "requester", "2026-09-11")).toEqual({ code: "BEFORE_RAISED", tier: "SECTION" });
+  });
+  it("may fall on the day it was raised, or after", () => {
+    expect(endorsementEntryFault(e, "SEC", ["SECTION"], UNITS, today, "requester", "2026-09-10")).toBeNull();
+    expect(endorsementEntryFault(e, "SEC", ["SECTION"], UNITS, today, "requester", "2026-09-01")).toBeNull();
+  });
+});

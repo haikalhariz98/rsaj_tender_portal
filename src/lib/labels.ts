@@ -47,6 +47,18 @@ export const ACT_LABEL: Record<string, string> = {
   MA: "Mandatory approval",
 };
 
+/// The acts as done, for recording a decision: "Recommended", not "Recommend — done".
+export const ACT_DONE_LABEL: Record<string, string> = {
+  P: "Proposed",
+  JP: "Jointly proposed",
+  R: "Recommended",
+  JR: "Jointly recommended",
+  MR: "Recommended (mandatory recommendation)",
+  MJR: "Jointly recommended (mandatory)",
+  A: "Approved",
+  MA: "Approved (mandatory approval)",
+};
+
 /// Rule conditions, spelled out. A condition is a configuration key like a matter's.
 const CONDS: Record<string, string> = {
   over_budget: "When over budget",

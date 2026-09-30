@@ -67,7 +67,7 @@ export function resolveRequisitionRoute(
   const warnings: ResolutionWarning[] = [];
   const clause = funderClause(dal);
   const cite = clause ? { clause } : {};
-  const noClause = clause ? "" : " The clause behind this rule is not recorded in the approval matrix.";
+  const noClause = clause ? "" : " The clause that says a funder's rules prevail over the approval matrix is not recorded.";
 
   if (q.fundingSupersedesAuthority) {
     const funded = override ? resolveApproval(override.matrix, query) : null;
