@@ -49,9 +49,14 @@ async function wipe() {
   const demo = { id: { startsWith: P } };
 
   await db.vote.deleteMany({ where: demo });
+  await db.decisionRecusal.deleteMany({ where: demo });
+  // A matter may depend on another: clear the links before removing either.
+  await db.committeeDecision.updateMany({ where: demo, data: { dependsOnDecisionId: null } });
   await db.committeeDecision.deleteMany({ where: demo });
+  await db.notApprovedOutcome.deleteMany({ where: demo });
   await db.meetingAttendance.deleteMany({ where: demo });
   await db.meeting.deleteMany({ where: demo });
+  await db.committeeMember.updateMany({ where: demo, data: { alternateForId: null } });
   await db.committeeMember.deleteMany({ where: demo });
   await db.committee.deleteMany({ where: demo });
 
@@ -119,6 +124,8 @@ async function load() {
       { id: `${P}p3`, organisationId, staffNo: "D003", name: "Chen Wei Ling", email: "chen.weiling@demo.invalid", jobTitle: "Head of Contract & Procurement", jobTitleMs: "Ketua Kontrak & Perolehan", authorityLevel: "Head of Department", department: "Contract & Procurement", telephone: "07-000 0003", portalRoleCode: "HOD_CP" },
       { id: `${P}p4`, organisationId, staffNo: "D004", name: "Daniel Anak Jelani", email: "daniel.jelani@demo.invalid", jobTitle: "Procurement Executive", jobTitleMs: "Eksekutif Perolehan", authorityLevel: "Contract & Procurement", department: "Contract & Procurement", telephone: "07-000 0004", portalRoleCode: "CP_EXEC" },
       { id: `${P}p5`, organisationId, staffNo: "D005", name: "Eng Siew Mei", email: "siewmei.eng@demo.invalid", jobTitle: "Section Head, Pre-contract", jobTitleMs: "Ketua Seksyen Pra-kontrak", authorityLevel: "Contract & Procurement", department: "Contract & Procurement", telephone: "07-000 0005", portalRoleCode: "SEC_PRE", isAvailable: false },
+      { id: `${P}p7`, organisationId, staffNo: "D007", name: "Gopal Nair", email: "gopal.nair@demo.invalid", jobTitle: "Director, Operations", jobTitleMs: "Pengarah Operasi", authorityLevel: "Functional Director", department: "Operations", telephone: "07-000 0007" },
+      { id: `${P}p8`, organisationId, staffNo: "D008", name: "Hana Yusof", email: "hana.yusof@demo.invalid", jobTitle: "Deputy Director, Operations", jobTitleMs: "Timbalan Pengarah Operasi", authorityLevel: "Head of Department", department: "Operations", telephone: "07-000 0008" },
       { id: `${P}p6`, organisationId, staffNo: "D006", name: "Faridah Osman", email: "faridah.osman@demo.invalid", jobTitle: "Regional Manager, North", jobTitleMs: "Pengurus Wilayah, Utara", authorityLevel: "Head of Department", department: "Northern Region", portalRoleCode: "REQUESTOR", isActive: false },
     ],
   });
@@ -300,12 +307,18 @@ async function load() {
         mandate: "Approves awards above the tender floor.", governingSource: "Demo constitution cl. 4",
         action: "APPROVES", quorum: 3, quorumProvenance: "STATED", compositionProvenance: "STATED",
         valueScopeMin: "300000", notes: "",
+        aliases: ["Main Tender Board"], secretariatRoleCode: "HOD_CP",
+        // Invented, like every demo figure. Without a rule no matter can be decided,
+        // and the minuted sitting below could not exist.
+        votingRule: "SIMPLE_MAJORITY", votingRuleProvenance: "ASSUMED",
       },
       {
         id: `${P}c2`, organisationId, code: "QUOTE_CTTE", nameEn: "Quotation Committee", nameMs: "Jawatankuasa Sebut Harga",
         mandate: "Recommends awards in the quotation band.", governingSource: "Demo constitution cl. 5",
         action: "RECOMMENDS", compositionProvenance: "OBSERVED",
         valueScopeMin: "15000", valueScopeMax: "300000", notes: "",
+        // Quorum and voting rule deliberately unset: the sitting shows both gaps.
+        secretariatRoleCode: "HOD_CP",
       },
     ],
   });
@@ -317,6 +330,92 @@ async function load() {
       { id: `${P}m3`, committeeId: `${P}c1`, personId: `${P}p3`, position: "SECRETARY", provenance: "OBSERVED", effectiveFrom: from },
       { id: `${P}m4`, committeeId: `${P}c2`, seatRoleCode: "FD", position: "CHAIRMAN", provenance: "OBSERVED", effectiveFrom: from },
       { id: `${P}m5`, committeeId: `${P}c2`, personId: `${P}p4`, position: "MEMBER", provenance: "ASSUMED", effectiveFrom: from },
+      // D4: the Tender Board's quorum of 3 needs three voting seats. The Secretary does not vote.
+      { id: `${P}m6`, committeeId: `${P}c1`, personId: `${P}p7`, position: "MEMBER", provenance: "STATED", appointmentRef: "DEMO/APPT/7", effectiveFrom: from },
+    ],
+  });
+  await db.committeeMember.create({
+    data: { id: `${P}m7`, committeeId: `${P}c1`, personId: `${P}p8`, position: "MEMBER", isAlternate: true, alternateForId: `${P}m6`, provenance: "STATED", appointmentRef: "DEMO/APPT/8", effectiveFrom: from },
+  });
+
+  // ------------------------------------------------- not-approved outcomes
+  // Invented wording. The product ships none; these exist only to exercise the screens.
+  await db.notApprovedOutcome.createMany({
+    data: [
+      { id: `${P}nao1`, organisationId, code: "reclarify", nameEn: "Return for re-clarification", nameMs: "Kembali untuk penjelasan semula", kind: "LOOP", returnsToStage: "evaluation", governingSource: "Demo policy 7.2(a)", provenance: "ASSUMED", sortOrder: 1 },
+      { id: `${P}nao2`, organisationId, code: "renegotiate", nameEn: "Return for re-negotiation", nameMs: "Kembali untuk rundingan semula", kind: "LOOP", returnsToStage: "negotiation", governingSource: "Demo policy 7.2(b)", provenance: "ASSUMED", sortOrder: 2 },
+      { id: `${P}nao3`, organisationId, code: "recall", nameEn: "Recall the exercise", nameMs: "Panggil semula pelawaan", kind: "LOOP", returnsToStage: "invitation", governingSource: "Demo policy 7.2(c)", provenance: "ASSUMED", sortOrder: 3 },
+      { id: `${P}nao4`, organisationId, code: "cancel", nameEn: "Cancel the exercise", nameMs: "Batal pelawaan", kind: "TERMINAL", governingSource: "Demo policy 7.2(d)", provenance: "ASSUMED", sortOrder: 4 },
+    ],
+  });
+
+  // --------------------------------------------------------------- sittings
+  await db.meeting.createMany({
+    data: [
+      { id: `${P}mt1`, committeeId: `${P}c1`, reference: "DEMO/SIT/4/2026", meetingDate: day("2026-09-29"), status: "IN_PROGRESS", agenda: "Award of the demo cleaning contract." },
+      {
+        id: `${P}mt2`, committeeId: `${P}c1`, reference: "DEMO/SIT/3/2026", meetingDate: day("2026-08-20"), status: "MINUTED", minutedAt: day("2026-08-27"),
+        agenda: "Three awards in the tender band.",
+        minutes: "The Board met with three voting members present, the Director of Operations' alternate sitting in her principal's seat. The fleet award was carried. The Finance Director declared an interest in the IT award and stood aside, leaving the Board inquorate on it, so it was deferred. The civil works award was not carried and returned for re-negotiation.",
+      },
+      { id: `${P}mt3`, committeeId: `${P}c2`, reference: "DEMO/SQ/2/2026", meetingDate: day("2026-10-15"), status: "SCHEDULED", agenda: "Quotation for demo stationery." },
+      { id: `${P}mt4`, committeeId: `${P}c1`, reference: "DEMO/SIT/2/2026", meetingDate: day("2026-07-10"), status: "CANCELLED", cancelledReason: "The chairman was abroad and nobody may stand in for the chair." },
+    ],
+  });
+
+  await db.meetingAttendance.createMany({
+    data: [
+      { id: `${P}at1`, meetingId: `${P}mt1`, personId: `${P}p1`, attended: true },
+      { id: `${P}at2`, meetingId: `${P}mt1`, personId: `${P}p2`, attended: true },
+      { id: `${P}at3`, meetingId: `${P}mt1`, personId: `${P}p3`, attended: true },
+      { id: `${P}at4`, meetingId: `${P}mt1`, personId: `${P}p7`, attended: false },
+      { id: `${P}at5`, meetingId: `${P}mt2`, personId: `${P}p1`, attended: true },
+      { id: `${P}at6`, meetingId: `${P}mt2`, personId: `${P}p2`, attended: true },
+      { id: `${P}at7`, meetingId: `${P}mt2`, personId: `${P}p3`, attended: true },
+      { id: `${P}at8`, meetingId: `${P}mt2`, personId: `${P}p7`, attended: false },
+      { id: `${P}at9`, meetingId: `${P}mt2`, personId: `${P}p8`, attended: true, standingInForSeatId: `${P}m6` },
+    ],
+  });
+
+  const tabled = { tabledByPersonId: `${P}p3` };
+  await db.committeeDecision.createMany({
+    data: [
+      { id: `${P}d1`, meetingId: `${P}mt1`, sequence: 1, domain: "appointment", subject: "Award of the head office cleaning contract", matterKind: "EXERCISE", matterRef: "DEMO/T/2026/014", amount: "412000", act: "A", authorityRuleKey: "demo.purchase.high", ...tabled, tabledAt: day("2026-09-22") },
+      {
+        id: `${P}d2`, meetingId: `${P}mt2`, sequence: 1, domain: "appointment", subject: "Award of the fleet maintenance contract", matterKind: "EXERCISE", matterRef: "DEMO/T/2026/009", amount: "655000", act: "A", ...tabled, tabledAt: day("2026-08-13"),
+        outcome: "CARRIED", decisionDate: day("2026-08-20"), quorumRequired: 3, presentVoters: 3, recusedCount: 0, votingRule: "SIMPLE_MAJORITY", votingRuleProvenance: "ASSUMED",
+      },
+      {
+        id: `${P}d3`, meetingId: `${P}mt2`, sequence: 2, domain: "appointment", subject: "Award of the IT support contract", matterKind: "EXERCISE", matterRef: "DEMO/T/2026/010", amount: "380000", act: "A", ...tabled, tabledAt: day("2026-08-13"),
+        outcome: "DEFERRED", decisionDate: day("2026-08-20"), quorumRequired: 3, presentVoters: 3, recusedCount: 1,
+        outcomeNote: "The Finance Director's recusal left the Board inquorate on this matter. To be re-tabled at the next sitting.",
+      },
+      {
+        id: `${P}d4`, meetingId: `${P}mt2`, sequence: 3, domain: "appointment", subject: "Award of the civil works package", matterKind: "EXERCISE", matterRef: "DEMO/T/2026/011", amount: "1250000", act: "A", ...tabled, tabledAt: day("2026-08-13"),
+        outcome: "NOT_CARRIED", decisionDate: day("2026-08-20"), quorumRequired: 3, presentVoters: 3, recusedCount: 0, votingRule: "SIMPLE_MAJORITY", votingRuleProvenance: "ASSUMED",
+        notApprovedOutcomeId: `${P}nao2`, outcomeNote: "The tendered rates exceed the estimate by a margin the Board would not accept without negotiation.",
+      },
+      { id: `${P}d5`, meetingId: `${P}mt3`, sequence: 1, domain: "appointment", subject: "Quotation for stationery supply", matterKind: "EXERCISE", matterRef: "DEMO/SH/2026/031", amount: "42000", act: "MR", authorityRuleKey: "demo.purchase.mid", ...tabled, tabledAt: day("2026-09-28") },
+    ],
+  });
+
+  await db.decisionRecusal.create({
+    data: { id: `${P}rc1`, decisionId: `${P}d3`, personId: `${P}p2`, reason: "A family member is a director of one of the tenderers.", declaredAt: day("2026-08-20") },
+  });
+
+  const vote = (id: string, decisionId: string, personId: string, choice: "SETUJU" | "TIDAK_SETUJU", on: string, comment = "") => ({
+    id: `${P}${id}`, decisionId: `${P}${decisionId}`, personId: `${P}${personId}`, choice, comment, votedAt: day(on), recordedAt: day(on),
+  });
+  await db.vote.createMany({
+    data: [
+      vote("v1", "d1", "p1", "SETUJU", "2026-09-29"),
+      vote("v2", "d1", "p2", "SETUJU", "2026-09-29", "Subject to the performance bond."),
+      vote("v3", "d2", "p1", "SETUJU", "2026-08-20"),
+      vote("v4", "d2", "p2", "SETUJU", "2026-08-20"),
+      vote("v5", "d2", "p8", "SETUJU", "2026-08-21"),
+      vote("v6", "d4", "p1", "SETUJU", "2026-08-20"),
+      vote("v7", "d4", "p2", "TIDAK_SETUJU", "2026-08-20", "Rates well above the estimate."),
+      vote("v8", "d4", "p8", "TIDAK_SETUJU", "2026-08-21", "Negotiate first."),
     ],
   });
 
@@ -517,6 +616,7 @@ async function load() {
     data: [
       { id: `${P}n1`, organisationId, key: "requisition", nameEn: "Requisitions", pattern: "DEMO/REQ/{SERIAL}/{YEAR}", padding: 4, resetOn: "CALENDAR_YEAR", nextSerial: 12, serialPeriod: "2026", provenance: "STATED" },
       { id: `${P}n2`, organisationId, key: "contract", nameEn: "Contracts", pattern: "DEMO/KP/T/{SERIAL}/{YEAR}", padding: 3, resetOn: "CALENDAR_YEAR", nextSerial: 4, serialPeriod: "2026", provenance: "STATED" },
+      { id: `${P}n4`, organisationId, key: "meeting", nameEn: "Committee sittings", pattern: "DEMO/SIT/{SERIAL}/{YEAR}", padding: 1, resetOn: "CALENDAR_YEAR", nextSerial: 5, serialPeriod: "2026", provenance: "ASSUMED" },
       { id: `${P}n3`, organisationId, key: "certificate", nameEn: "Certificates", pattern: "DEMO/CERT/{SERIAL}", padding: 5, resetOn: "NEVER", nextSerial: 231, provenance: "OBSERVED" },
     ],
   });
