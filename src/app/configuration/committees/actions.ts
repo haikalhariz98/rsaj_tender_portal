@@ -13,6 +13,8 @@ import { checkPeriod, FormReader } from "@/lib/validate";
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const ACTIONS = ["APPROVES", "RECOMMENDS", "CONSENTS", "DECIDES"] as const;
 const POSITIONS = ["CHAIRMAN", "DEPUTY_CHAIRMAN", "MEMBER", "SECRETARY"] as const;
+const VOTING_RULES = ["SIMPLE_MAJORITY", "UNANIMOUS"] as const;
+const KINDS = ["LOOP", "TERMINAL"] as const;
 const PATH = "/configuration/committees";
 
 async function organisationId(): Promise<string | null> {
@@ -57,6 +59,36 @@ export async function saveCommittee(_prev: FormState, data: FormData): Promise<F
     r.reject("quorumProvenance", "Say where the quorum came from, or leave the quorum unset.");
   }
 
+  // The Secretariat is an office the organisation holds, checked here rather than
+  // trusted from the form: an unknown code would refuse every tabling later with no
+  // clue why. Unset is allowed and means tabling is refused until one is chosen.
+  const secretariatRoleCode = r.optionalText("secretariatRoleCode");
+  if (secretariatRoleCode) {
+    const office = await db.authorityRole.findFirst({
+      where: { organisationId: orgId, code: secretariatRoleCode },
+      select: { id: true },
+    });
+    if (!office) r.reject("secretariatRoleCode", "That office is not one of the organisation's offices.");
+  }
+
+  // Unset means no rule has been written down, and no matter can be decided under
+  // it. A rule, once set, says where it came from.
+  const votingRule = r.choice("votingRule", "Voting rule", VOTING_RULES);
+  const votingRuleProvenance = r.choice("votingRuleProvenance", "Where the voting rule came from", PROVENANCE);
+  if (votingRule && !votingRuleProvenance) {
+    r.reject("votingRuleProvenance", "Say where the voting rule came from, or leave the rule unset.");
+  }
+
+  const aliases = [
+    ...new Set(
+      String(data.get("aliases") ?? "")
+        .split("\n")
+        .map((a) => a.trim())
+        .filter(Boolean),
+    ),
+  ];
+  const retiredOn = r.date("retiredOn", "Retired on");
+
   const valueScopeMin = r.money("valueScopeMin", "Value scope from");
   const valueScopeMax = r.money("valueScopeMax", "Value scope to");
   if (valueScopeMin && valueScopeMax && compareAmounts(valueScopeMax, valueScopeMin) <= 0) {
@@ -77,6 +109,11 @@ export async function saveCommittee(_prev: FormState, data: FormData): Promise<F
     valueScopeMin,
     valueScopeMax,
     notes: r.text("notes", "Notes", { max: 2000 }),
+    aliases,
+    retiredOn,
+    secretariatRoleCode,
+    votingRule,
+    votingRuleProvenance: votingRule ? votingRuleProvenance : null,
   };
 
   const parsed = r.finish(v);
@@ -151,6 +188,21 @@ export async function saveMember(_prev: FormState, data: FormData): Promise<Form
 
   const position = r.choice("position", "Position", POSITIONS, { required: true });
   const isAlternate = r.bool("isAlternate");
+  // An alternate may be tied to the seat it covers. Left empty, it covers any seat of
+  // its position. Only an alternate carries the link, and only to a seat of the same
+  // committee that is not itself an alternate.
+  const alternateForId = isAlternate ? r.optionalText("alternateForId") : null;
+  if (alternateForId) {
+    const target = await db.committeeMember.findFirst({
+      where: { id: alternateForId, committeeId, isAlternate: false },
+      select: { id: true, position: true },
+    });
+    if (!target) r.reject("alternateForId", "That seat is not a seat of this committee.");
+    else if (target.position === "CHAIRMAN") {
+      r.reject("alternateForId", "Nobody stands in for the chairman, so the chair has no alternate.");
+    }
+    if (id && alternateForId === id) r.reject("alternateForId", "A seat cannot be its own alternate.");
+  }
 
   // One chairman at a time. Two would make the minute unsignable.
   if (position === "CHAIRMAN" && !isAlternate && effectiveFrom && !r.failed) {
@@ -170,6 +222,7 @@ export async function saveMember(_prev: FormState, data: FormData): Promise<Form
     seatLabel,
     position: position ?? "MEMBER",
     isAlternate,
+    alternateForId,
     provenance: r.choice("provenance", "Provenance", PROVENANCE, { required: true }),
     appointmentRef: r.optionalText("appointmentRef"),
     effectiveFrom: effectiveFrom ?? new Date(),
@@ -240,5 +293,94 @@ export async function vacateSeat(_prev: FormState, data: FormData): Promise<Form
 
   revalidatePath(PATH);
   revalidatePath(`${PATH}/${before.committee.code}`);
+  return { ok: true };
+}
+
+// ------------------------------------------------------ not-approved outcomes
+
+/**
+ * What a matter not carried does next, as the organisation's policy names it.
+ *
+ * None is shipped (ruling 5.5): they are one customer's options, not a product
+ * default. Until one is configured a matter voted down cannot be recorded.
+ */
+export async function saveNotApprovedOutcome(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+
+  const id = String(data.get("id") ?? "");
+  const existing = await db.notApprovedOutcome.findMany({
+    where: { organisationId: orgId },
+    select: { id: true, code: true },
+  });
+  const current = id ? existing.find((e) => e.id === id) : undefined;
+  if (id && !current) return { ok: false, message: "That outcome no longer exists." };
+
+  const r = new FormReader(data);
+  const code = current
+    ? current.code
+    : r.code("code", "Code", { taken: existing.map((e) => e.code) });
+  const kind = r.choice("kind", "What it does", KINDS, { required: true });
+  const returnsToStage = kind === "LOOP" ? r.optionalText("returnsToStage") : null;
+  const committeeId = r.optionalText("committeeId");
+  if (committeeId) {
+    const c = await db.committee.findFirst({ where: { id: committeeId, organisationId: orgId }, select: { id: true } });
+    if (!c) r.reject("committeeId", "That committee no longer exists.");
+  }
+
+  const v = {
+    code,
+    nameEn: r.text("nameEn", "Name", { required: true, max: 160 }),
+    nameMs: r.optionalText("nameMs"),
+    kind,
+    returnsToStage,
+    committeeId,
+    governingSource: r.text("governingSource", "Source", { max: 240 }),
+    provenance: r.choice("provenance", "Provenance", PROVENANCE, { required: true }),
+    sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
+  };
+  const parsed = r.finish(v);
+  if (!parsed.ok) return { ok: false, errors: parsed.errors };
+
+  const write = { ...v, kind: v.kind!, provenance: v.provenance! };
+  const ctx = {
+    organisationId: orgId,
+    entity: "NotApprovedOutcome",
+    entityLabel: v.nameEn,
+    reason: String(data.get("reason") ?? ""),
+  };
+  if (!id) {
+    await auditedCreate(ctx, v, (tx) => tx.notApprovedOutcome.create({ data: { organisationId: orgId, ...write } }));
+  } else {
+    const before = await db.notApprovedOutcome.findUnique({ where: { id } });
+    if (!before) return { ok: false, message: "That outcome no longer exists." };
+    await auditedUpdate({ ...ctx, entityId: id }, before, v, (tx) =>
+      tx.notApprovedOutcome.update({ where: { id }, data: write }),
+    );
+  }
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/// Retire an outcome. Decisions already recorded against it keep citing it.
+export async function retireNotApprovedOutcome(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+  const id = String(data.get("id") ?? "");
+  const reason = String(data.get("reason") ?? "").trim();
+  if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
+
+  const before = await db.notApprovedOutcome.findFirst({ where: { id, organisationId: orgId } });
+  if (!before) return { ok: false, message: "That outcome no longer exists." };
+  if (before.retiredOn) return { ok: false, message: "That outcome is already retired." };
+
+  const retiredOn = new Date();
+  await auditedUpdate(
+    { organisationId: orgId, entity: "NotApprovedOutcome", entityId: id, entityLabel: before.nameEn, reason },
+    { retiredOn: null },
+    { retiredOn },
+    (tx) => tx.notApprovedOutcome.update({ where: { id }, data: { retiredOn } }),
+  );
+  revalidatePath(PATH);
   return { ok: true };
 }

@@ -230,6 +230,14 @@ const ALLOWED_EXTRA = [
   /^Release$/,
   /^Vacate$/,
   /^Set format$/,
+  // A departure from the prototype, decided (6.10, ruling 5.1): sittings are run from
+  // their own screen under Work, because the prototype's only view of a committee's
+  // votes is on each matter's record, and those modules do not exist yet. Setup stays
+  // in Configuration; running a sitting does not.
+  /^Committee sittings$/,
+  /^Schedule sitting$/,
+  // Ruling 5.2: an ex-officio seat is ended as "Remove office from committee".
+  /^Remove office from committee$/,
 ];
 
 const isAllowed = (label) => ALLOWED_EXTRA.some((re) => re.test(label));

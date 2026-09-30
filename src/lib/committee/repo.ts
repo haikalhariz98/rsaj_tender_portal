@@ -39,6 +39,11 @@ export async function listCommittees() {
     valueScopeMin: num(c.valueScopeMin),
     valueScopeMax: num(c.valueScopeMax),
     notes: c.notes,
+    aliases: c.aliases,
+    retiredOn: c.retiredOn,
+    secretariatRoleCode: c.secretariatRoleCode,
+    votingRule: c.votingRule,
+    votingRuleProvenance: c.votingRuleProvenance,
     seatCount: seatsInForce(c.members, today).length,
     filledCount: seatsInForce(c.members, today).filter((m) => m.personId != null).length,
     meetingCount: c._count.meetings,
@@ -61,11 +66,8 @@ export async function getCommittee(code: string) {
       meetings: {
         orderBy: { meetingDate: "desc" },
         include: {
-          attendance: { include: { person: true } },
-          decisions: {
-            orderBy: { id: "asc" },
-            include: { votes: { include: { person: true } } },
-          },
+          attendance: true,
+          decisions: { select: { outcome: true } },
         },
       },
     },
@@ -76,10 +78,7 @@ export async function getCommittee(code: string) {
     ...committee,
     valueScopeMin: num(committee.valueScopeMin),
     valueScopeMax: num(committee.valueScopeMax),
-    meetings: committee.meetings.map((m) => ({
-      ...m,
-      decisions: m.decisions.map((d) => ({ ...d, amount: num(d.amount) })),
-    })),
+    meetings: committee.meetings,
   };
 }
 
@@ -116,4 +115,15 @@ export async function rulesRoutingTo(committeeCode: string) {
   });
 
   return rules;
+}
+
+/// Not-approved outcomes of the organisation, retired ones included, for the list.
+export async function listNotApprovedOutcomes() {
+  const id = await organisationId();
+  if (!id) return [];
+  return db.notApprovedOutcome.findMany({
+    where: { organisationId: id },
+    orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }],
+    include: { committee: { select: { nameEn: true } }, _count: { select: { decisions: true } } },
+  });
 }

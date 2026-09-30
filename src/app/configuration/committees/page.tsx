@@ -1,5 +1,8 @@
 import { ChevronRight } from "@/components/icons";
-import { listCommittees } from "@/lib/committee/repo";
+import { listCommittees, listNotApprovedOutcomes } from "@/lib/committee/repo";
+import { NOT_APPROVED_KIND_LABEL } from "@/lib/committee/labels";
+import { loadRoster } from "@/lib/people/load";
+import { ORGANISATION_CODE } from "@/lib/org";
 import { formatBand } from "@/lib/format";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge, Chip, type Tone } from "@/components/ui/badge";
@@ -10,7 +13,13 @@ import { ProvenanceBadge } from "@/components/ui/provenance";
 import { CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 
 import { Stat, Stats } from "../records-ui";
-import { AddCommittee, EditCommittee } from "./editors";
+import {
+  AddCommittee,
+  AddNotApprovedOutcome,
+  EditCommittee,
+  EditNotApprovedOutcome,
+  RetireNotApprovedOutcome,
+} from "./editors";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +38,14 @@ const ACTION_TONE: Record<string, Tone> = {
 };
 
 export default async function CommitteesPage() {
-  const committees = await listCommittees();
+  const [committees, outcomes, roster] = await Promise.all([
+    listCommittees(),
+    listNotApprovedOutcomes(),
+    loadRoster(ORGANISATION_CODE),
+  ]);
+  const offices = roster.offices.filter((o) => !o.isCommittee).map((o) => ({ code: o.code, nameEn: o.nameEn }));
+  const now = new Date();
+  const liveOutcomes = outcomes.filter((o) => o.retiredOn == null || o.retiredOn > now);
 
   const quorumStated = committees.filter((c) => c.quorum != null).length;
   const compositionUnknown = committees.filter((c) => c.compositionProvenance == null).length;
@@ -81,7 +97,7 @@ export default async function CommitteesPage() {
             </span>
           }
           subtitle="Who sits, how many must be present, and what each body may decide."
-          actions={<AddCommittee />}
+          actions={<AddCommittee offices={offices} />}
           divided={committees.length === 0}
         />
         {committees.length === 0 ? (
@@ -117,6 +133,7 @@ export default async function CommitteesPage() {
                           <span className="inline-flex max-w-full items-center gap-2" title={c.nameEn}>
                             <span className="truncate">{c.nameEn}</span>
                             {c.isExternal && <Badge outline>external</Badge>}
+                            {c.retiredOn && c.retiredOn <= now && <Badge>retired</Badge>}
                           </span>
                         }
                         sub={c.nameMs ? <span title={c.nameMs}>{c.nameMs}</span> : undefined}
@@ -149,7 +166,7 @@ export default async function CommitteesPage() {
                     </Td>
                     <Td>
                       <RowActions>
-                        <EditCommittee committee={c} />
+                        <EditCommittee committee={c} offices={offices} />
                         <ButtonLink
                           href={`/configuration/committees/${c.code}`}
                           variant="ghost"
@@ -171,6 +188,80 @@ export default async function CommitteesPage() {
               </span>
             </CardFooter>
           </>
+        )}
+      </Card>
+
+      <Card id="not-approved-outcomes" className="mb-6 scroll-mt-6 overflow-hidden">
+        <CardHeader
+          title={
+            <span className="inline-flex items-center gap-2">
+              Not-approved outcomes
+              {liveOutcomes.length > 0 && <Badge outline>{liveOutcomes.length}</Badge>}
+            </span>
+          }
+          subtitle="What a matter voted down does next. A matter not carried must name one."
+          actions={<AddNotApprovedOutcome committees={committees.map((c) => ({ id: c.id, nameEn: c.nameEn }))} />}
+          divided={outcomes.length === 0}
+        />
+        {outcomes.length === 0 ? (
+          <EmptyState title="Not set">
+            No not-approved outcome is configured, so a matter a committee votes down cannot be recorded, and
+            the sitting that heard it cannot be minuted. None is shipped: which outcomes exist is your
+            organisation&apos;s policy.
+          </EmptyState>
+        ) : (
+          <Table minWidth={760}>
+            <colgroup>
+              <col style={{ width: "34%" }} />
+              <col style={{ width: "22%" }} />
+              <col style={{ width: "20%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "12%" }} />
+            </colgroup>
+            <THead>
+              <Th>Outcome</Th>
+              <Th>What it does</Th>
+              <Th>Offered to</Th>
+              <Th>Source</Th>
+              <Th className="text-right">Actions</Th>
+            </THead>
+            <tbody>
+              {outcomes.map((o) => {
+                const retired = o.retiredOn != null && o.retiredOn <= now;
+                return (
+                  <Tr key={o.id}>
+                    <Td>
+                      <CellStack
+                        title={
+                          <span className="inline-flex max-w-full items-center gap-2">
+                            <span className="truncate">{o.nameEn}</span>
+                            {retired && <Badge>retired</Badge>}
+                          </span>
+                        }
+                        sub={o.nameMs ?? undefined}
+                      />
+                    </Td>
+                    <Td>
+                      <Chip tone={o.kind === "LOOP" ? "info" : "warn"}>{NOT_APPROVED_KIND_LABEL[o.kind]}</Chip>
+                    </Td>
+                    <Td className="text-[13px] text-ink-3">{o.committee?.nameEn ?? "Every committee"}</Td>
+                    <Td>
+                      <ProvenanceBadge value={o.provenance} />
+                    </Td>
+                    <Td>
+                      <RowActions>
+                        <EditNotApprovedOutcome
+                          outcome={o}
+                          committees={committees.map((c) => ({ id: c.id, nameEn: c.nameEn }))}
+                        />
+                        {!retired && <RetireNotApprovedOutcome id={o.id} label={o.nameEn} />}
+                      </RowActions>
+                    </Td>
+                  </Tr>
+                );
+              })}
+            </tbody>
+          </Table>
         )}
       </Card>
     </>

@@ -32,6 +32,9 @@ export const STAFF_NAV: NavGroup[] = [
     items: [
       { href: "/sourcing", label: "Sourcing", icon: "globe" },
       { href: "/projects", label: "Projects", icon: "tools" },
+      // Not in the prototype, which shows committee votes only on each matter's own
+      // record. Sittings run before those modules exist (ruling 5.1).
+      { href: "/committees", label: "Committee sittings", icon: "users", built: true },
     ],
   },
   {

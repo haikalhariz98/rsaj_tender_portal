@@ -1,11 +1,19 @@
 import { notFound } from "next/navigation";
 
 import { CalendarIcon, RouteIcon, ScaleIcon, UsersIcon } from "@/components/icons";
-import { DecisionPanel } from "@/components/committee/decision-panel";
+import { DataList, type Row } from "@/components/data-list";
 import { getCommittee, rulesRoutingTo } from "@/lib/committee/repo";
 import { AddMember, EditMember, VacateSeat } from "../editors";
-import { assessQuorum } from "@/lib/committee/quorum";
+import { assessQuorum, quorumFaults } from "@/lib/committee/quorum";
 import { seatsInForce } from "@/lib/committee/seats";
+import { alternatesOn, votingSeatsOn } from "@/lib/committee/sitting";
+import {
+  MEETING_STATUS_LABEL,
+  MEETING_STATUS_TONE,
+  POSITION_LABEL,
+  VOTING_RULE_LABEL,
+} from "@/lib/committee/labels";
+import { KeyValues } from "@/components/ui/stat";
 import { committeeActOn } from "@/lib/authority/resolve";
 import { matterLabel } from "@/lib/labels";
 import { ActWithLabel } from "@/components/ui/act";
@@ -22,21 +30,9 @@ import { ProvenanceBadge } from "@/components/ui/provenance";
 import { Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { HistoryButton } from "@/components/history-drawer";
 
-const MEETING_STATUS: Record<string, string> = {
-  SCHEDULED: "Scheduled",
-  IN_PROGRESS: "In progress",
-  MINUTED: "Minuted",
-  CANCELLED: "Cancelled",
-};
-
 export const dynamic = "force-dynamic";
 
-const POSITION_LABEL: Record<string, string> = {
-  CHAIRMAN: "Chairman",
-  DEPUTY_CHAIRMAN: "Deputy Chairman",
-  MEMBER: "Member",
-  SECRETARY: "Secretary",
-};
+const TONE = { info: "info", brand: "brand", ok: "ok", neutral: undefined } as const;
 
 const ACTION_LABEL: Record<string, string> = {
   APPROVES: "Approves",
@@ -53,10 +49,42 @@ export default async function CommitteePage({
   if (!committee) notFound();
 
   const rules = await rulesRoutingTo(committee.code);
-  const seats = seatsInForce(committee.members, new Date());
+  const today = new Date();
+  const seats = seatsInForce(committee.members, today);
   const roster = await loadRoster(ORGANISATION_CODE);
   const people = roster.people.filter((p) => p.isActive).map((p) => ({ id: p.id, name: p.name }));
   const offices = roster.offices.map((o) => ({ code: o.code, nameEn: o.nameEn }));
+
+  // Ex-officio seats resolve to whoever holds the office today (D1): the seat is the
+  // office's, and its holder votes. The Secretary and alternates never count.
+  const voting = votingSeatsOn(committee.members, roster, today);
+  const resolved = new Map([...voting, ...alternatesOn(committee.members, roster, today)].map((v) => [v.seatId, v]));
+  const faults = quorumFaults({ quorum: committee.quorum, votingSeats: voting.length });
+  const seatOptions = seats
+    .filter((x) => !x.isAlternate && x.position !== "CHAIRMAN" && x.position !== "SECRETARY")
+    .map((x) => ({
+      id: x.id,
+      label: `${POSITION_LABEL[x.position]} · ${resolved.get(x.id)?.name ?? resolved.get(x.id)?.officeLabel ?? x.seatLabel ?? "vacant"}`,
+    }));
+  const secretariat = committee.secretariatRoleCode
+    ? (roster.offices.find((o) => o.code === committee.secretariatRoleCode)?.nameEn ?? "An office no longer configured")
+    : null;
+
+  const sittingRows: Row[] = committee.meetings.map((m) => ({
+    id: m.id,
+    search: `${m.reference} ${MEETING_STATUS_LABEL[m.status]}`,
+    sortKeys: { date: m.meetingDate.getTime() },
+    cells: {
+      reference: { kind: "link", text: m.reference, href: `/committees/${m.id}` },
+      date: { kind: "text", text: formatDate(m.meetingDate) },
+      status: { kind: "badge", text: MEETING_STATUS_LABEL[m.status], tone: TONE[MEETING_STATUS_TONE[m.status]] },
+      matters: {
+        kind: "text",
+        text: `${m.decisions.length} tabled · ${m.decisions.filter((d) => d.outcome === "PENDING").length} pending`,
+        dim: m.decisions.length === 0,
+      },
+    },
+  }));
 
   return (
     <>
@@ -72,13 +100,25 @@ export default async function CommitteePage({
           `${seats.length > 0 ? `${seats.length} seats` : "No members"}${
             committee.quorum != null ? `, quorum ${committee.quorum}` : ""
           }`,
+          ...(committee.retiredOn ? [`Retired ${formatDate(committee.retiredOn)}`] : []),
         ]}
       />
 
       <div className="flex flex-col gap-6">
         <Callout tone="info" title="Mandate">
           {committee.mandate}
+          {committee.aliases.length > 0 && (
+            <span className="mt-1 block text-[12.5px]">Also known as {committee.aliases.join(", ")}.</span>
+          )}
         </Callout>
+
+        {faults.includes("QUORUM_EXCEEDS_VOTING_SEATS") && (
+          <Callout tone="err" title="This quorum can never be met">
+            The quorum is {committee.quorum}, but the committee has {voting.length} voting{" "}
+            {voting.length === 1 ? "seat" : "seats"} today. The Secretary and alternates do not count. Every
+            sitting would be inquorate however many attend. Either the quorum or the membership is wrong.
+          </Callout>
+        )}
 
         <div className="grid items-start gap-5 lg:grid-cols-2">
           <Card className="overflow-hidden">
@@ -88,15 +128,21 @@ export default async function CommitteePage({
               subtitle={
                 seats.length === 0
                   ? "No seats configured"
-                  : `${seats.length} seats · ${seats.filter((s) => s.person).length} filled`
+                  : `${seats.length} seats · ${seats.filter((s) => s.person || resolved.get(s.id)?.personId).length} filled · ${voting.length} voting`
               }
               actions={
                 <>
                   <ProvenanceBadge value={committee.compositionProvenance} />
-                  <AddMember committeeId={committee.id} people={people} offices={offices} />
+                  <AddMember committeeId={committee.id} people={people} offices={offices} seats={seatOptions} />
                 </>
               }
             />
+            {seats.length > 0 && (
+              <p className="border-b border-line/70 px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">
+                The Secretary attends but never votes or counts toward quorum. This is a product assumption
+                awaiting the committee&apos;s terms of reference.
+              </p>
+            )}
             {seats.length === 0 ? (
               <EmptyState size="sm" title="No membership set">
                 Nobody has been appointed to this committee yet. Add its members before it can
@@ -105,18 +151,25 @@ export default async function CommitteePage({
             ) : (
               <ul className="divide-y divide-line/70">
                 {seats.map((seat) => {
-                  const who = seat.person?.name ?? seat.seatLabel ?? "Unnamed seat";
-                  const role = `${POSITION_LABEL[seat.position] ?? seat.position}${
-                    seat.person && seat.seatLabel ? ` · ${seat.seatLabel}` : ""
-                  }${!seat.person ? " · vacant" : ""}`;
+                  const r = resolved.get(seat.id);
+                  const holder = seat.person?.name ?? r?.name ?? null;
+                  const office = seat.seatRoleCode ? (r?.officeLabel ?? seat.seatLabel) : seat.seatLabel;
+                  const who = holder ?? office ?? "Unnamed seat";
+                  const covers = seat.alternateForId ? resolved.get(seat.alternateForId) : undefined;
+                  const role = [
+                    seat.isAlternate
+                      ? `Alternate${covers ? ` for ${covers.name ?? covers.officeLabel ?? "a seat"}` : ` · any ${POSITION_LABEL[seat.position].toLowerCase()} seat`}`
+                      : POSITION_LABEL[seat.position],
+                    seat.seatRoleCode && holder ? `ex officio · ${office}` : null,
+                    seat.position === "SECRETARY" ? "does not vote" : null,
+                    r?.contested ? "two holders today, none chosen" : !holder ? "vacant" : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ");
                   return (
-                    <li key={seat.id} className="flex items-center gap-3 px-5 py-3 sm:px-6">
-                      {seat.person ? (
-                        <Avatar name={seat.person.name} />
-                      ) : (
-                        <Avatar muted>—</Avatar>
-                      )}
-                      <div className="min-w-0 flex-1">
+                    <li key={seat.id} className="flex flex-wrap items-center gap-3 px-5 py-3 sm:px-6">
+                      {holder ? <Avatar name={holder} /> : <Avatar muted>—</Avatar>}
+                      <div className="min-w-40 flex-1">
                         <div className="truncate text-[13.5px] font-semibold text-ink" title={who}>
                           {who}
                         </div>
@@ -126,8 +179,12 @@ export default async function CommitteePage({
                       </div>
                       <ProvenanceBadge value={seat.provenance} />
                       <div className="flex shrink-0 items-center gap-1">
-                        <EditMember member={seat} label={who} people={people} offices={offices} />
-                        {seat.person && <VacateSeat id={seat.id} label={seat.person.name} />}
+                        <EditMember member={seat} label={who} people={people} offices={offices} seats={seatOptions} />
+                        {seat.seatRoleCode ? (
+                          <VacateSeat id={seat.id} label={office ?? who} exOfficio />
+                        ) : (
+                          seat.person && <VacateSeat id={seat.id} label={seat.person.name} />
+                        )}
                       </div>
                     </li>
                   );
@@ -144,7 +201,27 @@ export default async function CommitteePage({
               actions={<ProvenanceBadge value={committee.quorumProvenance} />}
             />
             <CardBody>
-              <QuorumCard quorum={committee.quorum} seats={seats.length} />
+              <QuorumCard quorum={committee.quorum} seats={voting.length} />
+              <KeyValues
+                className="mt-5"
+                items={[
+                  {
+                    label: "Voting rule",
+                    value: committee.votingRule ? (
+                      <span className="inline-flex flex-wrap items-center gap-2">
+                        {VOTING_RULE_LABEL[committee.votingRule]}
+                        <ProvenanceBadge value={committee.votingRuleProvenance} />
+                      </span>
+                    ) : (
+                      <Badge tone="warn">Not set: no matter can be decided, and no majority is assumed</Badge>
+                    ),
+                  },
+                  {
+                    label: "Secretariat",
+                    value: secretariat ?? <Badge tone="warn">Not set: nobody may table a matter</Badge>,
+                  },
+                ]}
+              />
               {committee.notes && (
                 <p className="mt-4 text-[13px] leading-relaxed text-ink-3">{committee.notes}</p>
               )}
@@ -210,64 +287,27 @@ export default async function CommitteePage({
           <CardHeader
             icon={<CalendarIcon size={17} />}
             title="Sittings"
+            subtitle="Held and scheduled. Open one to take its register and record its decisions."
             actions={<Badge outline>{committee.meetings.length}</Badge>}
-            divided={committee.meetings.length === 0}
+            divided={false}
           />
-          {committee.meetings.length === 0 ? (
-            <EmptyState size="sm" title="No sittings recorded">
-              Meetings, attendance and per-member votes appear here once this body convenes.
-            </EmptyState>
-          ) : (
-            <div className="divide-y divide-line border-t border-line">
-              {committee.meetings.map((meeting) => (
-                <section key={meeting.id}>
-                  <CardHeader
-                    divided={false}
-                    className="bg-sunken/60"
-                    title={<span className="font-mono">{meeting.reference}</span>}
-                    subtitle={`${formatDate(meeting.meetingDate)} · ${
-                      meeting.attendance.filter((a) => a.attended).length
-                    } present`}
-                    actions={
-                      <Badge outline>{MEETING_STATUS[meeting.status] ?? "Unknown"}</Badge>
-                    }
-                  />
-                  {meeting.agenda && (
-                    <CardBody pad="tight" className="border-t border-line/70">
-                      <p className="text-[13px] text-ink-3">{meeting.agenda}</p>
-                    </CardBody>
-                  )}
-                  {meeting.decisions.map((decision) => (
-                    <DecisionPanel
-                      key={decision.id}
-                      decision={{
-                        id: decision.id,
-                        subject: decision.subject,
-                        matterRef: decision.matterRef,
-                        amount: decision.amount,
-                        act: decision.act,
-                        outcome: decision.outcome,
-                      }}
-                      quorum={committee.quorum}
-                      present={meeting.attendance.filter((a) => a.attended).length}
-                      members={seatsInForce(committee.members, meeting.meetingDate)
-                        .filter((s) => s.person)
-                        .map((s) => ({
-                          personId: s.person!.id,
-                          name: s.person!.name,
-                          position: POSITION_LABEL[s.position] ?? s.position,
-                        }))}
-                      votes={decision.votes.map((v) => ({
-                        personId: v.personId,
-                        choice: v.choice,
-                        comment: v.comment,
-                      }))}
-                    />
-                  ))}
-                </section>
-              ))}
-            </div>
-          )}
+          <DataList
+            flat
+            selectable={false}
+            searchable={false}
+            exportName={`${committee.code}-sittings`}
+            emptyTitle="No sittings recorded"
+            emptyBody="Schedule one under Committee sittings."
+            rowAction={{ label: "Open", hrefTemplate: "/committees/{id}" }}
+            rowOpens
+            columns={[
+              { key: "reference", label: "Reference", width: "30%", sortable: true },
+              { key: "date", label: "Date", width: "20%", sortable: true },
+              { key: "status", label: "Status", width: "20%" },
+              { key: "matters", label: "Matters", width: "30%" },
+            ]}
+            rows={sittingRows}
+          />
         </Card>
       </div>
     </>
@@ -294,7 +334,7 @@ function QuorumCard({ quorum, seats }: { quorum: number | null; seats: number })
         </span>
         <div className="flex min-w-0 flex-col">
           <span className="text-[13.5px] font-semibold text-ink">members required</span>
-          <span className="text-[12px] text-ink-3">of {seats} configured seats</span>
+          <span className="text-[12px] text-ink-3">of {seats} voting seats</span>
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-3">

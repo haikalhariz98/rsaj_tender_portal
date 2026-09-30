@@ -66,7 +66,14 @@ export function Topbar({
     // An unmapped segment is a record's key — a committee's code, say. Codes never
     // reach a screen; the page's own header names the record, so the crumb says what
     // kind of record it is.
-    label: SEGMENT_LABEL[segment] ?? RECORD_LABEL[segments[i - 1] ?? ""] ?? "Details",
+    // "committees" at the top is the running of sittings; under Configuration it is
+    // the setup of the bodies. Same word, two screens.
+    label:
+      segments[0] === "committees"
+        ? i === 0
+          ? "Committee sittings"
+          : "Sitting"
+        : (SEGMENT_LABEL[segment] ?? RECORD_LABEL[segments[i - 1] ?? ""] ?? "Details"),
     href: "/" + segments.slice(0, i + 1).join("/"),
   }));
 

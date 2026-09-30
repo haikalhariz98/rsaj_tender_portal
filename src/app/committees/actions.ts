@@ -225,7 +225,7 @@ export async function recordAttendance(_prev: FormState, data: FormData): Promis
 
   const r = new FormReader(data);
   const personId = r.text("personId", "Person", { required: true });
-  const attended = r.optionalText("attended") !== "no";
+  const attended = r.choice("attended", "At this sitting", ["yes", "no"] as const, { required: true }) === "yes";
   const standingInForSeatId = attended ? r.optionalText("standingInForSeatId") : null;
   if (r.failed) return { ok: false, errors: r.errors };
 

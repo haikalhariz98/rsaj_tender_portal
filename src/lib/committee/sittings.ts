@@ -143,3 +143,27 @@ export async function loadSitting(id: string) {
 }
 
 export type LoadedSitting = NonNullable<Awaited<ReturnType<typeof loadSitting>>>;
+
+/// The audit trail of a sitting and everything under it, newest first.
+export async function sittingHistory(s: LoadedSitting) {
+  const m = s.meeting;
+  const ids = [
+    m.id,
+    ...m.attendance.map((a) => a.id),
+    ...m.decisions.flatMap((d) => [d.id, ...d.votes.map((v) => v.id), ...d.recusals.map((r) => r.id)]),
+  ];
+  const rows = await db.auditEntry.findMany({
+    where: { organisationId: s.organisationId, entityId: { in: ids } },
+    orderBy: { at: "desc" },
+    take: 200,
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    entity: r.entity,
+    entityLabel: r.entityLabel,
+    action: r.action,
+    at: r.at,
+    reason: r.reason,
+    changes: (r.changes ?? []) as unknown as { field: string; before: string | null; after: string | null }[],
+  }));
+}

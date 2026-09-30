@@ -271,6 +271,11 @@ describe("canVote", () => {
     }
   });
 
+  it("says a sitting not yet held has not started, rather than blaming the date", () => {
+    const future = { ...ok, meetingStatus: "SCHEDULED" as const, meetingDate: new Date("2026-04-01T00:00:00Z") };
+    expect(canVote(future)).toEqual({ ok: false, fault: "MEETING_NOT_STARTED" });
+  });
+
   it("refuses a sheet date after today or before the sitting with 422", () => {
     expect(canVote({ ...ok, votedAt: "2026-03-06" })).toEqual({ ok: false, fault: "DATE_IN_FUTURE" });
     expect(canVote({ ...ok, votedAt: "2026-02-28" })).toEqual({ ok: false, fault: "DATE_BEFORE_SITTING" });

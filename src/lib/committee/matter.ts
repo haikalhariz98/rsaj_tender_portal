@@ -228,6 +228,9 @@ const dayOf = (d: Date) => d.toISOString().slice(0, 10);
 /**
  * Whether one member's vote may be recorded.
  *
+ * Checked in this order: the input (400, ABSTAIN 422), the sitting and matter
+ * (409), the sheet date (422), then who is voting (403).
+ *
  * Only while the sitting is in progress: a scheduled sitting has no register yet, and
  * a minuted or cancelled one is frozen. Only from someone present and not recused on
  * this matter. SETUJU or TIDAK SETUJU only — ABSTAIN is refused (ruling 5.7), since
@@ -251,13 +254,15 @@ export function canVote(i: {
   if (!DAY.test(i.votedAt) || Number.isNaN(new Date(`${i.votedAt}T00:00:00Z`).getTime())) {
     return { ok: false, fault: "INVALID_DATE" };
   }
-  if (i.votedAt > dayOf(i.today)) return { ok: false, fault: "DATE_IN_FUTURE" };
-  if (i.votedAt < dayOf(i.meetingDate)) return { ok: false, fault: "DATE_BEFORE_SITTING" };
-
+  // The sitting's state before the sheet date: on a sitting not yet held, every date
+  // would read as before it, which misstates why the vote is refused.
   if (i.meetingStatus === "SCHEDULED") return { ok: false, fault: "MEETING_NOT_STARTED" };
   if (i.meetingStatus !== "IN_PROGRESS") return { ok: false, fault: "MEETING_CLOSED" };
   if (i.outcome !== "PENDING") return { ok: false, fault: "MATTER_DECIDED" };
   if (!i.tabled) return { ok: false, fault: "MATTER_NOT_TABLED" };
+
+  if (i.votedAt > dayOf(i.today)) return { ok: false, fault: "DATE_IN_FUTURE" };
+  if (i.votedAt < dayOf(i.meetingDate)) return { ok: false, fault: "DATE_BEFORE_SITTING" };
 
   if (i.recusedIds.includes(i.personId)) return { ok: false, fault: "RECUSED" };
   if (!i.presentVoterIds.includes(i.personId)) return { ok: false, fault: "NOT_A_PRESENT_VOTER" };
