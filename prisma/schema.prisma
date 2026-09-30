@@ -275,6 +275,18 @@ model AuthorityMatrix {
   splittingWindowDays Int    @default(30)
   currency            String @default("MYR")
 
+  /// The clauses the engine cites when it applies a standing rule of its own rather
+  /// than a row. Customer text, never shipped: null means "source not recorded", and
+  /// the warning says so rather than citing a clause from someone else's manual.
+  /// Where no row matches and the matter must go to the approver's superior.
+  noRuleClause         String?
+  /// Where nobody may approve their own matter.
+  selfApprovalClause   String?
+  /// Where an absent holder's authority reverts upward.
+  absenceClause        String?
+  /// Where an external funder's directives override these limits.
+  funderOverrideClause String?
+
   rules AuthorityRule[]
 
   @@unique([organisationId, label])

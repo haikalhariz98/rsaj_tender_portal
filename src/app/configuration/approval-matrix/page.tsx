@@ -143,6 +143,10 @@ export default async function ApprovalMatrixPage() {
                 requisitionBoundary: matrix.policy.requisitionBoundary,
                 splittingWindowDays: matrix.policy.splittingWindowDays,
                 currency: matrix.policy.currency,
+                noRuleClause: matrix.policy.clauses?.noRule ?? null,
+                selfApprovalClause: matrix.policy.clauses?.selfApproval ?? null,
+                absenceClause: matrix.policy.clauses?.absence ?? null,
+                funderOverrideClause: matrix.policy.clauses?.funderOverride ?? null,
               }}
             />
             <AddRule matrixId={matrixId} offices={offices} />
@@ -157,8 +161,8 @@ export default async function ApprovalMatrixPage() {
           </span>
           <div className="grow">
             <span className="sm">
-              These rules drive every approval in the portal. A change here takes effect
-              immediately, including in the simulator below.
+              These rules drive every approval in the portal. Saved changes apply at once,
+              including in the simulator below — there is no second approval until sign-in exists.
             </span>
           </div>
         </div>

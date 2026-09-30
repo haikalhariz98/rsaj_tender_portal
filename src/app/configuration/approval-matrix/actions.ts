@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
 import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
+import { rulesTiedWith } from "@/lib/authority/resolve";
+import type { Rule } from "@/lib/authority/types";
 import { db } from "@/lib/db";
 import { periodsOverlap } from "@/lib/effective";
 import { ORGANISATION_CODE } from "@/lib/org";
@@ -92,6 +94,10 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
     requisitionBoundary: requisitionBoundary ?? "0",
     splittingWindowDays: r.int("splittingWindowDays", "Anti-splitting window", { min: 0 }) ?? 0,
     currency: r.text("currency", "Currency", { required: true, max: 8 }),
+    noRuleClause: r.optionalText("noRuleClause"),
+    selfApprovalClause: r.optionalText("selfApprovalClause"),
+    absenceClause: r.optionalText("absenceClause"),
+    funderOverrideClause: r.optionalText("funderOverrideClause"),
   };
 
   const parsed = r.finish(v);
@@ -232,6 +238,36 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
     clause: r.text("clause", "Clause", { required: true, max: 120 }),
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
   };
+
+  // Two rules that tie for some matter leave its route to row order. Refused here, as
+  // the resolver flags it on a matter; gap rows are exempt, overlapping is their job.
+  const siblings = await db.authorityRule.findMany({
+    where: { authorityMatrixId, ...(before ? { NOT: { id: before.id } } : {}) },
+  });
+  const asBands = (x: typeof v | (typeof siblings)[number]) =>
+    ({
+      ruleKey: x.ruleKey,
+      labelEn: x.labelEn,
+      domain: x.domain,
+      method: x.method ?? null,
+      cond: x.cond ?? null,
+      isGap: x.isGap,
+      minValue: x.minValue == null ? null : Number(x.minValue.toString()),
+      maxValue: x.maxValue == null ? null : Number(x.maxValue.toString()),
+      pctMin: x.pctMin == null ? null : Number(x.pctMin.toString()),
+      pctMax: x.pctMax == null ? null : Number(x.pctMax.toString()),
+      contractValueMin: x.contractValueMin == null ? null : Number(x.contractValueMin.toString()),
+      contractValueMax: x.contractValueMax == null ? null : Number(x.contractValueMax.toString()),
+    }) as Rule;
+  if (!r.failed) {
+    const tied = rulesTiedWith(asBands(v), siblings.map(asBands));
+    if (tied.length > 0) {
+      r.reject(
+        "minValue",
+        `This band overlaps “${tied[0].labelEn}” for the same matter. A value in both would route by row order — narrow one of the bands, or record this one as a known gap.`,
+      );
+    }
+  }
 
   const parsed = r.finish(v);
   if (!parsed.ok) return { ok: false, errors: parsed.errors };

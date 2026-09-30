@@ -327,6 +327,7 @@ async function load() {
       boundaryValue: "300000", boundaryInclusive: true,
       quotationFloor: "15000", tenderFloor: "300000", requisitionBoundary: "50000",
       splittingWindowDays: 30, currency: "MYR",
+      noRuleClause: "Demo policy 1.6", selfApprovalClause: "Demo policy 1.7", absenceClause: "Demo policy 1.8",
     },
   });
 

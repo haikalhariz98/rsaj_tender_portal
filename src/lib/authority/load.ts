@@ -7,9 +7,9 @@ const num = (value: { toString(): string } | null): number | null =>
   value == null ? null : Number(value.toString());
 
 export class NoActiveMatrixError extends Error {
-  constructor(organisationCode: string) {
+  constructor() {
     super(
-      `No DAL version is in effect for organisation "${organisationCode}". ` +
+      `No approval matrix is in force. ` +
         `Seed one before resolving approvals.`,
     );
     this.name = "NoActiveMatrixError";
@@ -28,7 +28,7 @@ export async function loadMatrix(organisationCode: string, asOf: Date = new Date
     where: { code: organisationCode },
     select: { id: true },
   });
-  if (!organisation) throw new NoActiveMatrixError(organisationCode);
+  if (!organisation) throw new NoActiveMatrixError();
 
   const version = await db.authorityMatrix.findFirst({
     where: {
@@ -44,7 +44,7 @@ export async function loadMatrix(organisationCode: string, asOf: Date = new Date
       },
     },
   });
-  if (!version) throw new NoActiveMatrixError(organisationCode);
+  if (!version) throw new NoActiveMatrixError();
 
   const roles = await db.authorityRole.findMany({
     where: { organisationId: organisation.id },
@@ -90,6 +90,12 @@ export async function loadMatrix(organisationCode: string, asOf: Date = new Date
       requisitionBoundary: Number(version.requisitionBoundary.toString()),
       splittingWindowDays: version.splittingWindowDays,
       currency: version.currency,
+      clauses: {
+        noRule: version.noRuleClause,
+        selfApproval: version.selfApprovalClause,
+        absence: version.absenceClause,
+        funderOverride: version.funderOverrideClause,
+      },
     },
     roles: Object.fromEntries(
       roles.map((r) => [

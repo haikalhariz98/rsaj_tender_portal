@@ -137,8 +137,17 @@ export const TEST_MATRIX: Matrix = {
       committeeAct: "MR",
     }),
 
-    // Resolved from the parent contract's value rather than held as a standing office.
-    rule({ ruleKey: "SITE_INSTRUCTION", domain: "instruction", approverCode: "SO_PD" }),
+    // An office resolved from the parent contract's value is ordinary rows banded on
+    // contract value — there is no special case for it in the engine.
+    rule({ ruleKey: "INSTR_SMALL", domain: "instruction", contractValueMax: 1_000_000, approverCode: "MANAGER" }),
+    rule({
+      ruleKey: "INSTR_MID",
+      domain: "instruction",
+      contractValueMin: 1_000_000,
+      contractValueMax: 3_000_000,
+      approverCode: "DIRECTOR",
+    }),
+    rule({ ruleKey: "INSTR_LARGE", domain: "instruction", contractValueMin: 3_000_000, approverCode: "CHIEF" }),
 
     // A matter with no rule behind it: routing shown is an assumption.
     rule({

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { TEST_MATRIX } from "./fixture";
-import { inBand, regimeFor, resolveApproval, resolveSuperintendingOfficer } from "./resolve";
+import { approverAct, inBand, regimeFor, resolveApproval, rulesTiedWith } from "./resolve";
 import type { Matrix } from "./types";
 
 const matrix: Matrix = TEST_MATRIX;
@@ -183,16 +183,86 @@ describe("nobody approves their own matter", () => {
   });
 });
 
-describe("the superintending officer is resolved from contract value", () => {
+describe("an office resolved from the contract value", () => {
   it.each([
-    [null, "HOD"],
-    [500_000, "HOD"],
-    [1_000_000, "HOD"],
-    [1_000_000.01, "FD"],
-    [3_000_000, "FD"],
-    [3_000_000.01, "CEO"],
-  ])("a contract of %s gives %s", (contractValue, expected) => {
-    expect(resolveSuperintendingOfficer(contractValue)).toBe(expected);
+    [500_000, "MANAGER"],
+    [1_000_000, "MANAGER"],
+    [1_000_000.01, "DIRECTOR"],
+    [3_000_000, "DIRECTOR"],
+    [3_000_000.01, "CHIEF"],
+  ])("a contract of %s routes to %s through ordinary banded rows", (contractValue, expected) => {
+    expect(resolveApproval(matrix, { domain: "instruction", contractValue }).approverCode).toBe(expected);
+  });
+
+  it("will not guess an office when the contract value is unknown", () => {
+    // It used to fall back to a hard-coded office. With no value there is no band.
+    const result = resolveApproval(matrix, { domain: "instruction" });
+    expect(result.chain).toEqual([]);
+    expect(result.warnings[0]).toMatchObject({ code: "NO_RULE", level: "err" });
+  });
+});
+
+describe("standing rules cite configured clauses", () => {
+  const withClauses = {
+    ...matrix,
+    policy: { ...matrix.policy, clauses: { noRule: "Manual 1.6", absence: "Manual 2.3" } },
+  };
+
+  it("cites the configured clause", () => {
+    const result = resolveApproval(withClauses, { domain: "not_a_real_domain" });
+    expect(result.warnings[0].clause).toBe("Manual 1.6");
+  });
+
+  it("says the source is not recorded rather than inventing one", () => {
+    const result = resolveApproval(matrix, { domain: "not_a_real_domain" });
+    expect(result.warnings[0].clause).toBeUndefined();
+    expect(result.warnings[0].messageEn).toContain("not recorded");
+  });
+});
+
+describe("routes that cannot be completed say so", () => {
+  it("leaves the approver empty when self-approval has nowhere to go", () => {
+    const noEscalation = {
+      ...matrix,
+      roles: {
+        ...matrix.roles,
+        MANAGER: { ...matrix.roles.MANAGER, selfApprovalEscalatesToCode: null },
+      },
+    };
+    const result = resolveApproval(noEscalation, {
+      domain: "payment",
+      method: "tender",
+      value: 50_000,
+      actorRoleCode: "MANAGER",
+    });
+    expect(result.approverCode).toBeNull();
+    expect(result.warnings.find((w) => w.code === "SELF_APPROVAL")?.level).toBe("err");
+  });
+
+  it("flags an absent approver with nobody above them", () => {
+    const result = resolveApproval(matrix, {
+      domain: "payment",
+      method: "tender",
+      value: 50_000,
+      absentRoleCodes: ["MANAGER", "DIRECTOR", "CHIEF", "CHAIR", "BOARD"],
+    });
+    expect(result.warnings.some((w) => w.code === "ABSENCE" && w.level === "err")).toBe(true);
+  });
+
+  it("warns when two rules match equally, instead of picking one silently", () => {
+    const twin = { ...matrix.rules.find((r) => r.ruleKey === "INSTR_SMALL")!, ruleKey: "INSTR_TWIN", labelEn: "Twin" };
+    const result = resolveApproval({ ...matrix, rules: [...matrix.rules, twin] }, {
+      domain: "instruction",
+      contractValue: 500_000,
+    });
+    expect(result.warnings.some((w) => w.code === "AMBIGUOUS" && w.level === "err")).toBe(true);
+  });
+});
+
+describe("the approver's act", () => {
+  it("is mandatory approval exactly when the approver is mandatory", () => {
+    expect(approverAct({ approverMandatory: true })).toBe("MA");
+    expect(approverAct({ approverMandatory: false })).toBe("A");
   });
 });
 
@@ -251,5 +321,28 @@ describe("externally funded matters", () => {
         (w) => w.code === "GOV_OVERRIDE",
       ),
     ).toBe(true);
+  });
+});
+
+describe("rules that would tie", () => {
+  const find = (key: string) => matrix.rules.find((r) => r.ruleKey === key)!;
+
+  it("finds none among bands that only touch", () => {
+    for (const r of matrix.rules) expect(rulesTiedWith(r, matrix.rules)).toEqual([]);
+  });
+
+  it("finds a band that overlaps its neighbour", () => {
+    const wide = { ...find("INSTR_SMALL"), ruleKey: "INSTR_WIDE", contractValueMax: 2_000_000 };
+    expect(rulesTiedWith(wide, matrix.rules).map((r) => r.ruleKey)).toEqual(["INSTR_SMALL", "INSTR_MID"]);
+  });
+
+  it("leaves gap rows alone — overlapping is what they are for", () => {
+    const gap = { ...find("INSTR_SMALL"), ruleKey: "INSTR_GAP", isGap: true };
+    expect(rulesTiedWith(gap, matrix.rules)).toEqual([]);
+  });
+
+  it("does not count a more specific row as a tie", () => {
+    const narrower = { ...find("INSTR_SMALL"), ruleKey: "INSTR_COND", cond: "urgent" };
+    expect(rulesTiedWith(narrower, matrix.rules)).toEqual([]);
   });
 });

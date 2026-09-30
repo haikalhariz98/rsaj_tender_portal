@@ -63,6 +63,34 @@ const matrixFields: Field[] = [
     min: 0,
   },
   { kind: "text", name: "currency", label: "Currency", required: true },
+  {
+    kind: "note",
+    text: "Where your manual states the portal's standing rules, cite the clause. Left empty, the warning on a matter says the source is not recorded.",
+  },
+  {
+    kind: "text",
+    name: "noRuleClause",
+    label: "Clause: no rule matches",
+    hint: "Escalate to the superior of the officer expected to approve.",
+  },
+  {
+    kind: "text",
+    name: "selfApprovalClause",
+    label: "Clause: no self-approval",
+    hint: "Nobody approves their own expenses or allocations.",
+  },
+  {
+    kind: "text",
+    name: "absenceClause",
+    label: "Clause: absence reverts upward",
+    hint: "An absent holder's authority goes up, never down.",
+  },
+  {
+    kind: "text",
+    name: "funderOverrideClause",
+    label: "Clause: funder's directives prevail",
+    hint: "An external funder's rules override these limits where they conflict.",
+  },
 ];
 
 export function AddMatrix() {
@@ -91,13 +119,17 @@ export interface MatrixValues {
   requisitionBoundary: number;
   splittingWindowDays: number;
   currency: string;
+  noRuleClause: string | null;
+  selfApprovalClause: string | null;
+  absenceClause: string | null;
+  funderOverrideClause: string | null;
 }
 
 export function EditMatrix({ matrix }: { matrix: MatrixValues }) {
   return (
     <RecordEditor
       title={`Edit ${matrix.label}`}
-      description="A change here takes effect immediately, including in the simulator."
+      description="Saved changes apply at once, including in the simulator. There is no second approval yet — maker-checker arrives with sign-in."
       fields={[{ kind: "hidden", name: "id" }, ...matrixFields]}
       action={saveMatrix}
       trigger={{ label: "Edit thresholds", className: "btn btn--sm" }}
@@ -114,6 +146,10 @@ export function EditMatrix({ matrix }: { matrix: MatrixValues }) {
         requisitionBoundary: String(matrix.requisitionBoundary),
         splittingWindowDays: String(matrix.splittingWindowDays),
         currency: matrix.currency,
+        noRuleClause: matrix.noRuleClause,
+        selfApprovalClause: matrix.selfApprovalClause,
+        absenceClause: matrix.absenceClause,
+        funderOverrideClause: matrix.funderOverrideClause,
       }}
     />
   );

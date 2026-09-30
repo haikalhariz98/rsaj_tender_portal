@@ -60,6 +60,16 @@ export interface Policy {
   requisitionBoundary: number;
   splittingWindowDays: number;
   currency: string;
+  /// Clauses the engine cites for its own standing rules. Customer text; absent means
+  /// the source is not recorded, and warnings say so instead of citing one.
+  clauses?: StandingClauses;
+}
+
+export interface StandingClauses {
+  noRule?: string | null;
+  selfApproval?: string | null;
+  absence?: string | null;
+  funderOverride?: string | null;
 }
 
 export interface Matrix {
@@ -77,7 +87,7 @@ export interface ResolutionWarning {
     | "NO_RULE"
     | "GAP_RULE"
     | "RULE_NOTE"
-    | "SO_RESOLVED"
+    | "AMBIGUOUS"
     | "SELF_APPROVAL"
     | "ABSENCE"
     | "GOV_OVERRIDE";

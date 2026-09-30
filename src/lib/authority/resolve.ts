@@ -62,14 +62,20 @@ export function regimeFor(value: number | null | undefined, policy: Policy): Reg
 }
 
 /**
- * The Superintending Officer is not a standing office — it is resolved from the
- * contract value at the time the matter arises (DAL §3.1.4.4 item 5).
+ * A standing rule's citation, and what to say when there is none.
+ *
+ * The engine applies a few rules of its own — escalate when nothing matches, nobody
+ * approves their own matter, absence reverts upward, a funder's directives prevail.
+ * Which clause of the customer's manual says so is configuration. Unset, the warning
+ * says the source is not recorded rather than borrowing another manual's numbering.
  */
-export function resolveSuperintendingOfficer(contractValue: number | null | undefined): string {
-  if (contractValue == null) return "HOD";
-  if (contractValue > 3_000_000) return "CEO";
-  if (contractValue > 1_000_000) return "FD";
-  return "HOD";
+function cite(clause: string | null | undefined): { clause?: string; en: string; ms: string } {
+  return clause
+    ? { clause, en: "", ms: "" }
+    : {
+        en: " The clause behind this rule is not recorded in the approval matrix.",
+        ms: " Klausa bagi peraturan ini tidak direkodkan dalam matriks kelulusan.",
+      };
 }
 
 /**
@@ -77,14 +83,62 @@ export function resolveSuperintendingOfficer(contractValue: number | null | unde
  * both contract value and percentage beats one banded on percentage alone.
  * Gap rows are pushed to the bottom: an assumed route is a last resort.
  */
-function specificity(rule: Rule): number {
+export function specificity(rule: Rule): number {
   let score = 0;
-  if (rule.contractValueMin != null || rule.contractValueMax != null) score += 8;
-  if (rule.pctMin != null || rule.pctMax != null) score += 4;
-  if (rule.minValue != null || rule.maxValue != null) score += 2;
+  if (rule.contractValueMin != null || rule.contractValueMax != null) score += 16;
+  if (rule.pctMin != null || rule.pctMax != null) score += 8;
+  if (rule.minValue != null || rule.maxValue != null) score += 4;
+  // A row confined to a method is more specific than one that applies to any method.
+  // Without this the two tie, and the tie was settled silently by row order.
+  if (rule.method != null) score += 2;
   if (rule.cond != null) score += 1;
-  if (rule.isGap) score -= 16;
+  if (rule.isGap) score -= 32;
   return score;
+}
+
+/// Two (min, max] bands share at least one value. Null is unbounded on that side.
+/// Half-open bands that merely touch do not share a value, whichever way the boundary
+/// switch is set — the switch moves one exact figure, and it moves it for both.
+function bandsMeet(
+  aMin: number | null,
+  aMax: number | null,
+  bMin: number | null,
+  bMax: number | null,
+): boolean {
+  const aBelowB = aMax != null && bMin != null && aMax <= bMin;
+  const bBelowA = bMax != null && aMin != null && bMax <= aMin;
+  return !aBelowB && !bBelowA;
+}
+
+/**
+ * Rules that would tie with `rule` for some matter: same matter, method and
+ * condition, equally specific, and every band they share overlapping.
+ *
+ * This is the save-time twin of the AMBIGUOUS warning. Gap rows are left out on
+ * purpose: they sit below real rows as a fallback, so overlapping one is their design.
+ */
+export function rulesTiedWith(rule: Rule, others: readonly Rule[]): Rule[] {
+  if (rule.isGap) return [];
+  return others.filter(
+    (o) =>
+      o.ruleKey !== rule.ruleKey &&
+      !o.isGap &&
+      o.domain === rule.domain &&
+      (o.method ?? null) === (rule.method ?? null) &&
+      (o.cond ?? null) === (rule.cond ?? null) &&
+      specificity(o) === specificity(rule) &&
+      bandsMeet(o.minValue, o.maxValue, rule.minValue, rule.maxValue) &&
+      bandsMeet(o.pctMin, o.pctMax, rule.pctMin, rule.pctMax) &&
+      bandsMeet(o.contractValueMin, o.contractValueMax, rule.contractValueMin, rule.contractValueMax),
+  );
+}
+
+/**
+ * The approver's act on a rule. Mandatory approval follows from `approverMandatory`
+ * alone, as the schema documents; the page and the engine both read it from here.
+ */
+export function approverAct(rule: Pick<Rule, "approverMandatory">): AuthorityAct {
+  return rule.approverMandatory ? "MA" : "A";
 }
 
 function candidateRules(matrix: Matrix, q: ResolveQuery): Rule[] {
@@ -149,15 +203,33 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
   const matches = candidateRules(matrix, query).sort((a, b) => specificity(b) - specificity(a));
   const rule = matches[0] ?? null;
 
+  // Two rules that match equally well: which one routes is down to row order, which
+  // is not a decision anybody took. Resolve by the first, but say it is a guess.
+  if (rule && matches[1] && specificity(matches[1]) === specificity(rule)) {
+    warnings.push({
+      code: "AMBIGUOUS",
+      level: "err",
+      messageEn: `More than one approval rule matches this matter equally (“${rule.labelEn}” and “${matches[1].labelEn}”). The route shown follows the first by row order, which is not a decision — correct the overlapping rules.`,
+      messageMs: `Lebih daripada satu peraturan kelulusan sepadan sama rata (“${rule.labelMs ?? rule.labelEn}” dan “${matches[1].labelMs ?? matches[1].labelEn}”). Laluan yang ditunjukkan mengikut susunan baris, bukan keputusan — betulkan peraturan yang bertindih.`,
+      clause: rule.clause,
+    });
+  }
+
   if (!rule) {
+    // Deliberately no chain. With nothing matching there is no expected approver to
+    // escalate from, and inventing one would be a hard-coded route. A matter the
+    // customer knows is uncovered is recorded as a gap row, which does resolve.
+    const src = cite(matrix.policy.clauses?.noRule);
     warnings.push({
       code: "NO_RULE",
       level: "err",
       messageEn:
-        "No DAL row matches this combination. DAL §1.6: escalate to the immediate superior of the expected approving authority.",
+        "No approval rule matches this matter, so it cannot be routed. Escalate it to the immediate superior of the officer expected to approve, and record a rule or a known gap for it." +
+        src.en,
       messageMs:
-        "Tiada baris DAL sepadan. DAL §1.6: naikkan kepada atasan terdekat pegawai yang dijangka meluluskan.",
-      clause: "DAL_16",
+        "Tiada peraturan kelulusan sepadan, jadi perkara ini tidak boleh dihalakan. Naikkan kepada atasan terdekat pegawai yang dijangka meluluskan, dan rekodkan peraturan atau jurang yang diketahui." +
+        src.ms,
+      clause: src.clause,
     });
     return {
       rule: null,
@@ -176,19 +248,21 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
       code: "GAP_RULE",
       level: "gap",
       messageEn:
-        "No DAL row exists for this item — the routing shown is an assumption, not a documented rule.",
+        "No documented approval rule exists for this item — the routing shown is an assumption, not a documented rule.",
       messageMs:
-        "Tiada baris DAL untuk perkara ini — laluan yang ditunjukkan adalah andaian, bukan peraturan bertulis.",
+        "Tiada peraturan kelulusan bertulis untuk perkara ini — laluan yang ditunjukkan adalah andaian, bukan peraturan bertulis.",
       clause: rule.clause,
     });
   }
   if (rule.gapNote) {
+    // The gap note is what the administrator wrote to explain the gap, so it is the
+    // message. The rule's clause is the citation.
     warnings.push({
       code: "RULE_NOTE",
       level: "info",
-      messageEn: rule.note,
-      messageMs: rule.note,
-      clause: rule.gapNote,
+      messageEn: rule.gapNote,
+      messageMs: rule.gapNote,
+      clause: rule.clause,
     });
   }
 
@@ -214,32 +288,36 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
     });
   }
 
-  let approver = rule.approverCode;
+  // An office resolved from the contract value (a superintending officer, say) is not
+  // special-cased here: it is rows banded on contract value, like any other band.
+  let approver: string | null = rule.approverCode;
 
-  // The SO is resolved from the contract value, not held as a standing office.
-  if (approver === "SO_PD") {
-    approver = resolveSuperintendingOfficer(query.contractValue);
-    warnings.push({
-      code: "SO_RESOLVED",
-      level: "info",
-      messageEn: `Superintending Officer resolved from contract value: ${roleName(matrix, approver).en}.`,
-      messageMs: `Pegawai Penguasa ditentukan daripada nilai kontrak: ${roleName(matrix, approver).ms}.`,
-      clause: "DAL_3144_5",
-      to: approver,
-    });
-  }
+  const clauses = matrix.policy.clauses;
 
   // No one may approve their own expenses or allocations. The actor is downgraded to
   // a recommender and the approval moves up.
   if (approver && query.actorRoleCode && query.actorRoleCode === approver) {
     const escalated = matrix.roles[approver]?.selfApprovalEscalatesToCode;
-    if (escalated) {
+    const src = cite(clauses?.selfApproval);
+    if (!escalated) {
+      // Nowhere to send it. Routing it to the actor would let them approve their own
+      // matter, so the approver is left empty and the warning says why.
+      warnings.push({
+        code: "SELF_APPROVAL",
+        level: "err",
+        messageEn: `${roleName(matrix, approver).en} would be approving their own matter, and no office is set to approve in their place. Set where self-approval escalates to for this role.${src.en}`,
+        messageMs: `${roleName(matrix, approver).ms} akan meluluskan perkara sendiri, dan tiada jawatan ditetapkan untuk meluluskan bagi pihaknya.${src.ms}`,
+        clause: src.clause,
+        from: approver,
+      });
+      approver = null;
+    } else {
       warnings.push({
         code: "SELF_APPROVAL",
         level: "warn",
-        messageEn: `No one may approve their own expenses or allocations — escalated to ${roleName(matrix, escalated).en}.`,
-        messageMs: `Tiada sesiapa boleh meluluskan perbelanjaan sendiri — dinaikkan kepada ${roleName(matrix, escalated).ms}.`,
-        clause: "DAL_16",
+        messageEn: `No one may approve their own expenses or allocations — escalated to ${roleName(matrix, escalated).en}.${src.en}`,
+        messageMs: `Tiada sesiapa boleh meluluskan perbelanjaan sendiri — dinaikkan kepada ${roleName(matrix, escalated).ms}.${src.ms}`,
+        clause: src.clause,
         from: approver,
         to: escalated,
       });
@@ -256,23 +334,50 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
 
   // Absence reverts authority UPWARD. It never passes down automatically.
   const absent = new Set(query.absentRoleCodes ?? []);
+  const absenceSrc = cite(clauses?.absence);
   for (let hops = 0; approver && absent.has(approver) && hops < MAX_ESCALATION_HOPS; hops++) {
     const up = matrix.roles[approver]?.escalatesToCode;
-    if (!up) break;
+    if (!up) {
+      // Absent, with nobody above configured. The matter would sit with someone who is
+      // not there, so say so rather than route to them in silence.
+      warnings.push({
+        code: "ABSENCE",
+        level: "err",
+        messageEn: `${roleName(matrix, approver).en} is absent and no office is set to take their authority. Set where this role escalates to.${absenceSrc.en}`,
+        messageMs: `${roleName(matrix, approver).ms} tiada dan tiada jawatan ditetapkan untuk mengambil alih kuasanya.${absenceSrc.ms}`,
+        clause: absenceSrc.clause,
+        from: approver,
+      });
+      break;
+    }
     warnings.push({
       code: "ABSENCE",
       level: "warn",
-      messageEn: `${roleName(matrix, approver).en} is absent. Authority reverts UPWARD to ${roleName(matrix, up).en} — it never passes down automatically, and may be re-delegated only on the absent holder's recommendation.`,
-      messageMs: `${roleName(matrix, approver).ms} tiada. Kuasa kembali KE ATAS kepada ${roleName(matrix, up).ms} — ia tidak turun secara automatik.`,
-      clause: "DAL_ABSENCE",
+      messageEn: `${roleName(matrix, approver).en} is absent. Authority reverts upward to ${roleName(matrix, up).en} — it never passes down automatically.${absenceSrc.en}`,
+      messageMs: `${roleName(matrix, approver).ms} tiada. Kuasa kembali ke atas kepada ${roleName(matrix, up).ms} — ia tidak turun secara automatik.${absenceSrc.ms}`,
+      clause: absenceSrc.clause,
       from: approver,
       to: up,
     });
     approver = up;
   }
 
+  // Escalating past an absence can land on the actor. The same rule applies there.
+  if (approver && query.actorRoleCode && query.actorRoleCode === approver) {
+    const src = cite(clauses?.selfApproval);
+    warnings.push({
+      code: "SELF_APPROVAL",
+      level: "err",
+      messageEn: `After escalation, ${roleName(matrix, approver).en} would be approving their own matter. It needs an approver above them.${src.en}`,
+      messageMs: `Selepas dinaikkan, ${roleName(matrix, approver).ms} akan meluluskan perkara sendiri.${src.ms}`,
+      clause: src.clause,
+      from: approver,
+    });
+    approver = null;
+  }
+
   if (approver) {
-    const act: AuthorityAct = rule.nonDelegable && rule.approverMandatory ? "MA" : "A";
+    const act = approverAct(rule);
     const role = matrix.roles[approver];
     chain.push({
       roleCode: approver,
@@ -289,14 +394,17 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
   );
 
   if (query.fundingSupersedesAuthority) {
+    const src = cite(clauses?.funderOverride);
     warnings.push({
       code: "GOV_OVERRIDE",
       level: "warn",
       messageEn:
-        "Externally funded: the funder's own guidelines and directives supersede these limits where they conflict.",
+        "Externally funded: the funder's own guidelines and directives supersede these limits where they conflict." +
+        src.en,
       messageMs:
-        "Dibiayai pihak luar: garis panduan dan arahan penyandang dana mengatasi had ini apabila bercanggah.",
-      clause: "DAL_GOV",
+        "Dibiayai pihak luar: garis panduan dan arahan penyandang dana mengatasi had ini apabila bercanggah." +
+        src.ms,
+      clause: src.clause,
     });
   }
 
