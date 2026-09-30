@@ -166,3 +166,18 @@ function describe(blockers: DecisionBlocker[], tally: VoteTally, mandatory: bool
   }
   return "Not ready.";
 }
+
+export type QuorumFault = "QUORUM_EXCEEDS_VOTING_SEATS";
+
+/**
+ * What is wrong with a quorum as configured.
+ *
+ * A quorum larger than the number of voting seats can never be met: every sitting
+ * would be inquorate however many attend. Reported, never repaired — which number is
+ * wrong is the organisation's question. An unset quorum is not a fault here; it is
+ * its own state, and `assessQuorum` already refuses to certify under it.
+ */
+export function quorumFaults(i: { quorum: number | null; votingSeats: number }): QuorumFault[] {
+  if (i.quorum == null) return [];
+  return i.quorum > i.votingSeats ? ["QUORUM_EXCEEDS_VOTING_SEATS"] : [];
+}
