@@ -140,6 +140,34 @@ export function rulesTiedWith(rule: Rule, others: readonly Rule[]): Rule[] {
 }
 
 /**
+ * Whether anything on a rule may be delegated. Not while the rule is marked fixed, the
+ * approval is mandatory, or any recommendation on it is mandatory — the engine treats
+ * all three as non-delegable, so the screen must too.
+ */
+export function ruleIsDelegable(
+  rule: Pick<Rule, "nonDelegable" | "approverMandatory" | "recommenders">,
+): boolean {
+  return (
+    !rule.nonDelegable &&
+    !rule.approverMandatory &&
+    !rule.recommenders.some((rec) => MANDATORY_ACTS.has(rec.act))
+  );
+}
+
+/**
+ * What a committee does on a rule that routes to it. Where the rule records the act,
+ * that; where the committee is the approver, it approves. Otherwise the act is not set
+ * — it used to be guessed as "recommend", which a screen then stated as fact.
+ */
+export function committeeActOn(
+  rule: Pick<Rule, "committeeAct" | "approverCode">,
+  committeeCode: string,
+): AuthorityAct | null {
+  if (rule.committeeAct) return rule.committeeAct;
+  return rule.approverCode === committeeCode ? "A" : null;
+}
+
+/**
  * The approver's act on a rule. Mandatory approval follows from `approverMandatory`
  * alone, as the schema documents; the page and the engine both read it from here.
  */

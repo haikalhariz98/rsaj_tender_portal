@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
+import { seatsInForce } from "./seats";
 
 const num = (v: { toString(): string } | null) => (v == null ? null : Number(v.toString()));
 
@@ -16,11 +17,12 @@ export async function listCommittees() {
     where: { organisationId: id },
     orderBy: [{ isExternal: "asc" }, { code: "asc" }],
     include: {
-      members: { where: { effectiveTo: null } },
+      members: true,
       _count: { select: { meetings: true } },
     },
   });
 
+  const today = new Date();
   return committees.map((c) => ({
     id: c.id,
     code: c.code,
@@ -36,8 +38,8 @@ export async function listCommittees() {
     valueScopeMin: num(c.valueScopeMin),
     valueScopeMax: num(c.valueScopeMax),
     notes: c.notes,
-    seatCount: c.members.length,
-    filledCount: c.members.filter((m) => m.personId != null).length,
+    seatCount: seatsInForce(c.members, today).length,
+    filledCount: seatsInForce(c.members, today).filter((m) => m.personId != null).length,
     meetingCount: c._count.meetings,
   }));
 }

@@ -1,3 +1,4 @@
+import { seatsInForce } from "@/lib/committee/seats";
 import { db } from "@/lib/db";
 
 const CHOICES = new Set(["SETUJU", "TIDAK_SETUJU", "ABSTAIN"]);
@@ -38,7 +39,10 @@ export async function POST(request: Request, ctx: RouteContext<"/api/committees/
 
   const decision = await db.committeeDecision.findUnique({
     where: { id },
-    select: { id: true, meeting: { select: { committeeId: true, status: true } } },
+    select: {
+      id: true,
+      meeting: { select: { committeeId: true, status: true, meetingDate: true } },
+    },
   });
   if (!decision) return Response.json({ error: "Decision not found" }, { status: 404 });
 
@@ -49,15 +53,13 @@ export async function POST(request: Request, ctx: RouteContext<"/api/committees/
     );
   }
 
-  // Only a member of the committee may vote on its decisions.
-  const seat = await db.committeeMember.findFirst({
-    where: {
-      committeeId: decision.meeting.committeeId,
-      personId,
-      effectiveTo: null,
-    },
-    select: { id: true },
+  // Only a member of the committee may vote on its decisions — a member on the day
+  // it sat, by the same rule every screen uses.
+  const held = await db.committeeMember.findMany({
+    where: { committeeId: decision.meeting.committeeId, personId },
+    select: { id: true, effectiveFrom: true, effectiveTo: true },
   });
+  const seat = seatsInForce(held, decision.meeting.meetingDate)[0];
   if (!seat) {
     return Response.json(
       { error: "That person does not hold a current seat on this committee" },

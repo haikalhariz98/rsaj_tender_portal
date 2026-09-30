@@ -5,10 +5,19 @@ import { DecisionPanel } from "@/components/committee/decision-panel";
 import { getCommittee, rulesRoutingTo } from "@/lib/committee/repo";
 import { AddMember, EditMember, VacateSeat } from "../editors";
 import { assessQuorum } from "@/lib/committee/quorum";
-import { matterLabel } from "@/lib/labels";
+import { seatsInForce } from "@/lib/committee/seats";
+import { committeeActOn } from "@/lib/authority/resolve";
+import { ACT_LABEL, matterLabel } from "@/lib/labels";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster } from "@/lib/people/load";
 import { avatarTone, formatBand, formatDate, initials } from "@/lib/format";
+
+const MEETING_STATUS: Record<string, string> = {
+  SCHEDULED: "Scheduled",
+  IN_PROGRESS: "In progress",
+  MINUTED: "Minuted",
+  CANCELLED: "Cancelled",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +43,7 @@ export default async function CommitteePage({
   if (!committee) notFound();
 
   const rules = await rulesRoutingTo(committee.code);
-  const seats = committee.members.filter((m) => m.effectiveTo == null);
+  const seats = seatsInForce(committee.members, new Date());
   const roster = await loadRoster(ORGANISATION_CODE);
   const people = roster.people.filter((p) => p.isActive).map((p) => ({ id: p.id, name: p.name }));
   const offices = roster.offices.map((o) => ({ code: o.code, nameEn: o.nameEn }));
@@ -46,7 +55,6 @@ export default async function CommitteePage({
           <div className="pagehead__titles">
             <div className="pagehead__title">
               <h1 className="h1">{committee.nameEn}</h1>
-              <span className="badge badge--outline mono">{committee.code}</span>
               {committee.isExternal && <span className="chip chip--warn">External body</span>}
             </div>
             {committee.nameMs && <p className="pagehead__sub">{committee.nameMs}</p>}
@@ -164,7 +172,9 @@ export default async function CommitteePage({
           <div className="section__head">
             <h2 className="h2">Why this body sits</h2>
             <div className="section__actions">
-              <span className="badge badge--outline">{rules.length} authority rows</span>
+              <span className="badge badge--outline">
+                {rules.length} {rules.length === 1 ? "authority row" : "authority rows"}
+              </span>
             </div>
           </div>
           {rules.length === 0 ? (
@@ -202,16 +212,17 @@ export default async function CommitteePage({
                         <td className="sm">{matterLabel(r.domain)}</td>
                         <td className="sm">{r.labelEn}</td>
                         <td>
-                          <span
-                            className={`chain__act chain__act--${
-                              r.committeeAct ?? (r.approverCode === committee.code ? "A" : "R")
-                            }`}
-                          >
-                            {r.committeeAct ?? (r.approverCode === committee.code ? "A" : "R")}
-                          </span>
+                          {(() => {
+                            const act = committeeActOn(r, committee.code);
+                            return act ? (
+                              <span className={`chain__act chain__act--${act}`}>{ACT_LABEL[act]}</span>
+                            ) : (
+                              <span className="xs dim">Not set</span>
+                            );
+                          })()}
                           {r.nonDelegable && (
-                            <span className="chain__nd" style={{ marginLeft: 6 }}>
-                              ND
+                            <span className="badge badge--warn" style={{ marginLeft: 6 }}>
+                              Cannot be delegated
                             </span>
                           )}
                         </td>
@@ -255,7 +266,7 @@ export default async function CommitteePage({
                         {meeting.attendance.filter((a) => a.attended).length} present
                       </div>
                     </div>
-                    <span className="badge badge--outline">{meeting.status.replace(/_/g, " ")}</span>
+                    <span className="badge badge--outline">{MEETING_STATUS[meeting.status] ?? "Unknown"}</span>
                   </div>
                   {meeting.agenda && (
                     <div className="card__body card__body--tight">
@@ -275,7 +286,7 @@ export default async function CommitteePage({
                       }}
                       quorum={committee.quorum}
                       present={meeting.attendance.filter((a) => a.attended).length}
-                      members={seats
+                      members={seatsInForce(committee.members, meeting.meetingDate)
                         .filter((s) => s.person)
                         .map((s) => ({
                           personId: s.person!.id,

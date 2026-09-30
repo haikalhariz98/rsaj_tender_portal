@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import { TEST_MATRIX } from "./fixture";
-import { approverAct, inBand, regimeFor, resolveApproval, rulesTiedWith } from "./resolve";
+import {
+  approverAct,
+  committeeActOn,
+  inBand,
+  regimeFor,
+  resolveApproval,
+  ruleIsDelegable,
+  rulesTiedWith,
+} from "./resolve";
 import type { Matrix } from "./types";
 
 const matrix: Matrix = TEST_MATRIX;
@@ -344,5 +352,21 @@ describe("rules that would tie", () => {
   it("does not count a more specific row as a tie", () => {
     const narrower = { ...find("INSTR_SMALL"), ruleKey: "INSTR_COND", cond: "urgent" };
     expect(rulesTiedWith(narrower, matrix.rules)).toEqual([]);
+  });
+});
+
+describe("what a screen may say about a rule", () => {
+  const base = { nonDelegable: false, approverMandatory: false, recommenders: [] };
+
+  it("counts a mandatory recommendation as not delegable", () => {
+    expect(ruleIsDelegable(base)).toBe(true);
+    expect(ruleIsDelegable({ ...base, recommenders: [{ roleCode: "PANEL", act: "MR" as const }] })).toBe(false);
+    expect(ruleIsDelegable({ ...base, approverMandatory: true })).toBe(false);
+  });
+
+  it("does not guess a committee's act", () => {
+    expect(committeeActOn({ committeeAct: "MR", approverCode: "X" }, "PANEL")).toBe("MR");
+    expect(committeeActOn({ committeeAct: null, approverCode: "PANEL" }, "PANEL")).toBe("A");
+    expect(committeeActOn({ committeeAct: null, approverCode: "CHIEF" }, "PANEL")).toBeNull();
   });
 });

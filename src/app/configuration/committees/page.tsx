@@ -135,7 +135,7 @@ export default async function CommitteesPage() {
                           </span>
                         )}
                       </span>
-                      <span className="cellstack__s">{c.nameMs ?? c.code}</span>
+                      {c.nameMs && <span className="cellstack__s">{c.nameMs}</span>}
                     </div>
                   </td>
                   <td>

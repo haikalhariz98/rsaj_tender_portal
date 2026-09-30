@@ -30,6 +30,12 @@ interface Resolution {
   warnings: Warning[];
 }
 
+const REGIME_LABEL: Record<string, string> = {
+  below: "Below the quotation floor",
+  quotation: "Quotation band",
+  tender: "Tender band",
+};
+
 const ACT_LABEL: Record<string, string> = {
   P: "Propose",
   JP: "Jointly Propose",
@@ -256,7 +262,9 @@ export function AuthoritySimulator({
           <div className="card card--accent">
             <div className="card__body">
               <div className="row wrap" style={{ gap: 10, marginBottom: 8 }}>
-                {result.regime && <span className="chip chip--brand">{result.regime} regime</span>}
+                {result.regime && (
+                  <span className="chip chip--brand">{REGIME_LABEL[result.regime] ?? "Unknown band"}</span>
+                )}
                 {result.nonDelegable && <span className="chain__nd">non-delegable</span>}
               </div>
               <p className="h3">{result.rule.label}</p>

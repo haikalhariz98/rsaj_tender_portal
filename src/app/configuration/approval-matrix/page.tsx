@@ -3,8 +3,10 @@ import { AuthoritySimulator } from "@/components/authority-simulator";
 import { AlertTriangle, CheckIcon, InfoIcon, SlidersIcon } from "@/components/icons";
 import { RuleChain, type ChainStep } from "@/components/rule-chain";
 import { loadMatrix, loadMatrixVersion, NoActiveMatrixError } from "@/lib/authority/load";
+import { listCommittees } from "@/lib/committee/repo";
+import { approverAct, ruleIsDelegable } from "@/lib/authority/resolve";
 import { formatPercentBand, formatValueBand } from "@/lib/format";
-import { matterLabel, methodLabel } from "@/lib/labels";
+import { ACT_LABEL, matterLabel, methodLabel } from "@/lib/labels";
 import { ORGANISATION_CODE, ORGANISATION_NAME } from "@/lib/org";
 import { loadReferenceData } from "@/lib/reference/load";
 import { activeOn } from "@/lib/reference/vocabulary";
@@ -80,8 +82,13 @@ export default async function ApprovalMatrixPage() {
   const matrixFrom = version?.effectiveFrom ?? new Date();
   const matrixTo = version?.effectiveTo ?? null;
 
+  // A rule may route to an office or to a committee; the two are kept apart, so look
+  // in both before admitting the code is unknown.
+  const committeeNames = new Map((await listCommittees()).map((c) => [c.code, c.nameEn]));
   const roleName = (code: string | null) =>
-    code == null ? null : (matrix.roles[code]?.nameEn ?? code);
+    code == null
+      ? null
+      : (matrix.roles[code]?.nameEn ?? committeeNames.get(code) ?? "Unknown office or committee");
 
   const chainFor = (rule: Rule): ChainStep[] => {
     const steps: ChainStep[] = [];
@@ -90,7 +97,7 @@ export default async function ApprovalMatrixPage() {
     if (rule.approverCode) {
       steps.push({
         role: roleName(rule.approverCode)!,
-        act: rule.nonDelegable && rule.approverMandatory ? "MA" : "A",
+        act: approverAct(rule),
       });
     }
     return steps;
@@ -104,7 +111,7 @@ export default async function ApprovalMatrixPage() {
   }
   const domains = [...byDomain.entries()].sort((a, b) => b[1].length - a[1].length);
 
-  const fixed = matrix.rules.filter((r) => r.nonDelegable).length;
+  const fixed = matrix.rules.filter((r) => !ruleIsDelegable(r)).length;
   const gaps = matrix.rules.filter((r) => r.isGap).length;
   const committees = new Set(matrix.rules.map((r) => r.committeeCode).filter(Boolean)).size;
 
@@ -185,7 +192,7 @@ export default async function ApprovalMatrixPage() {
                   ≤ {formatValueBand(null, matrix.policy.quotationFloor).replace("≤ ", "")}
                 </div>
                 <p className="xs dim" style={{ marginTop: 6 }}>
-                  Direct purchase. No competitive process required.
+                  Matters valued at or below the quotation floor.
                 </p>
               </div>
               <div className="panel">
@@ -194,7 +201,7 @@ export default async function ApprovalMatrixPage() {
                   {formatValueBand(matrix.policy.quotationFloor, matrix.policy.tenderFloor)}
                 </div>
                 <p className="xs dim" style={{ marginTop: 6 }}>
-                  Quotation. Competitive, with a committee recommendation.
+                  Above the quotation floor, up to where the bands meet.
                 </p>
               </div>
               <div className="panel">
@@ -203,7 +210,7 @@ export default async function ApprovalMatrixPage() {
                   {formatValueBand(matrix.policy.tenderFloor, null)}
                 </div>
                 <p className="xs dim" style={{ marginTop: 6 }}>
-                  Tender. Advertised, and approved by a board.
+                  Above the point where the bands meet.
                 </p>
               </div>
             </div>
@@ -341,12 +348,12 @@ export default async function ApprovalMatrixPage() {
                                 <td>
                                   {rule.committeeCode ? (
                                     <span className="row" style={{ gap: 5 }}>
-                                      <span className="badge">{rule.committeeCode}</span>
+                                      <span className="badge">{roleName(rule.committeeCode)}</span>
                                       {rule.committeeAct && (
                                         <span
                                           className={`chain__act chain__act--${rule.committeeAct}`}
                                         >
-                                          {rule.committeeAct}
+                                          {ACT_LABEL[rule.committeeAct] ?? rule.committeeAct}
                                         </span>
                                       )}
                                     </span>
@@ -355,7 +362,7 @@ export default async function ApprovalMatrixPage() {
                                   )}
                                 </td>
                                 <td>
-                                  {rule.nonDelegable ? (
+                                  {!ruleIsDelegable(rule) ? (
                                     <span className="badge badge--warn">
                                       <AlertTriangle size={12} />
                                       <span className="badge__t">Fixed</span>

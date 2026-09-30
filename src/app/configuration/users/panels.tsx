@@ -186,7 +186,7 @@ function RolesPanel({ offices, people, holdings, grants }: UsersData) {
       search: [o.nameEn, o.nameMs, o.code, o.workspace, o.authorityLevel].filter(Boolean).join(" "),
       sortKeys: { capabilities: grants.filter((g) => g.roleCode === o.code).length },
       cells: {
-        role: { kind: "stack", title: o.nameEn, sub: o.code, monoSub: true },
+        role: { kind: "stack", title: o.nameEn, sub: o.nameMs ?? undefined },
         workspace: o.workspace
           ? { kind: "badge", text: o.workspace }
           : { kind: "text", text: "Not set", dim: true },
@@ -486,7 +486,12 @@ function DelegationPanel({ people, offices, delegations, capabilities }: UsersDa
         what:
           d.capabilityCodes.length === 0
             ? { kind: "badge", text: "The whole role", tone: "warn" }
-            : { kind: "badges", items: d.capabilityCodes },
+            : {
+                kind: "badges",
+                items: d.capabilityCodes.map(
+                  (code) => capabilities.find((c) => c.code === code)?.nameEn ?? "Unknown capability",
+                ),
+              },
         period: {
           kind: "stack",
           title: `${day(d.effectiveFrom)} — ${d.effectiveTo ? day(d.effectiveTo) : "open"}`,
