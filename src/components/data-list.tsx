@@ -47,10 +47,29 @@ export type Cell =
 export interface Column {
   key: string;
   label: string;
+  /// Any CSS width. Prefer pixels for a column that holds a figure or a control:
+  /// a percentage of a narrow card is narrower than the figure it must hold.
   width?: string;
   numeric?: boolean;
   sortable?: boolean;
+  /// Drop this column below the named breakpoint, for a secondary column a narrow
+  /// card cannot afford.
+  hideBelow?: "md" | "lg" | "xl";
 }
+
+const HIDE_BELOW = {
+  md: "hidden md:table-cell",
+  lg: "hidden lg:table-cell",
+  xl: "hidden xl:table-cell",
+} as const;
+
+// Written out, not derived from the map above: Tailwind only emits classes it can
+// read whole from the source.
+const HIDE_COL_BELOW = {
+  md: "hidden md:table-column",
+  lg: "hidden lg:table-column",
+  xl: "hidden xl:table-column",
+} as const;
 
 export interface Row {
   id: string;
@@ -483,7 +502,11 @@ export function DataList({
             <colgroup>
               {selectable && <col style={{ width: 48 }} />}
               {columns.map((c) => (
-                <col key={c.key} style={c.width ? { width: c.width } : undefined} />
+                <col
+                  key={c.key}
+                  className={c.hideBelow ? HIDE_COL_BELOW[c.hideBelow] : undefined}
+                  style={c.width ? { width: c.width } : undefined}
+                />
               ))}
               {(rowAction || actions) && <col style={{ width: actions ? 128 : 56 }} />}
             </colgroup>
@@ -515,6 +538,7 @@ export function DataList({
                     className={cx(
                       "px-4 py-2.5 text-[12px] font-semibold whitespace-nowrap text-ink-3",
                       c.numeric ? "text-right" : "text-left",
+                      c.hideBelow && HIDE_BELOW[c.hideBelow],
                     )}
                   >
                     {c.sortable ? (
@@ -540,8 +564,10 @@ export function DataList({
                   </th>
                 ))}
                 {(rowAction || actions) && (
-                  <th className="px-4 py-2.5 text-right text-[12px] font-semibold text-ink-3">
-                    Actions
+                  <th className="px-4 py-2.5 text-right text-[12px] font-semibold whitespace-nowrap text-ink-3">
+                    {/* A lone row link is an arrow in a 56px column; the word would clip.
+                        Screen readers still get the name of the column. */}
+                    <span className={actions ? undefined : "sr-only"}>Actions</span>
                   </th>
                 )}
               </tr>
@@ -599,21 +625,26 @@ export function DataList({
                   {columns.map((c) => (
                     <td
                       key={c.key}
-                      className={cx(cellPad, "align-middle", c.numeric && "text-right tabular-nums")}
+                      className={cx(
+                        cellPad,
+                        "align-middle",
+                        c.numeric && "text-right whitespace-nowrap tabular-nums",
+                        c.hideBelow && HIDE_BELOW[c.hideBelow],
+                      )}
                     >
                       <CellView cell={row.cells[c.key]} />
                     </td>
                   ))}
                   {actions && (
                     <td className={cellPad}>
-                      <div data-rowactions className="flex items-center justify-end gap-1">
+                      <div data-rowactions className="flex items-center justify-end-safe gap-1 whitespace-nowrap">
                         {actions(row.id)}
                       </div>
                     </td>
                   )}
                   {rowAction && !actions && (
                     <td className={cellPad}>
-                      <div data-rowactions className="flex justify-end">
+                      <div data-rowactions className="flex justify-end-safe">
                         <Link
                           href={rowAction.hrefTemplate.replace("{id}", row.id)}
                           className={iconButtonClass(

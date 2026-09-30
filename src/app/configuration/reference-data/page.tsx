@@ -26,7 +26,7 @@ import { Badge, Chip, type Tone } from "@/components/ui/badge";
 import { Callout } from "@/components/ui/feedback";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { Stat } from "@/components/ui/stat";
-import { CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
+import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { HistoryButton } from "@/components/history-drawer";
 
 export const dynamic = "force-dynamic";
@@ -96,12 +96,12 @@ export default async function ReferenceDataPage() {
       >
         <Table minWidth={TABLE_MIN}>
           <colgroup>
-            <col style={{ width: "20%" }} />
+            <col />
             <col style={{ width: "15%" }} />
             <col style={{ width: "15%" }} />
             <col style={{ width: "18%" }} />
             <col style={{ width: "13%" }} />
-            <col style={{ width: "19%" }} />
+            <ActionsCol icons={2} labelled={1} />
           </colgroup>
           <THead>
             <Th>Route</Th>
@@ -160,12 +160,12 @@ export default async function ReferenceDataPage() {
       >
         <Table minWidth={TABLE_MIN}>
           <colgroup>
-            <col style={{ width: "20%" }} />
+            <col />
             <col style={{ width: "16%" }} />
             <col style={{ width: "17%" }} />
             <col style={{ width: "15%" }} />
             <col style={{ width: "13%" }} />
-            <col style={{ width: "19%" }} />
+            <ActionsCol icons={2} labelled={1} />
           </colgroup>
           <THead>
             <Th>Method</Th>
@@ -212,9 +212,9 @@ export default async function ReferenceDataPage() {
         <Table minWidth={TABLE_MIN}>
           <colgroup>
             <col style={{ width: "26%" }} />
-            <col style={{ width: "36%" }} />
+            <col />
             <col style={{ width: "17%" }} />
-            <col style={{ width: "21%" }} />
+            <ActionsCol icons={2} labelled={1} />
           </colgroup>
           <THead>
             <Th>Type</Th>

@@ -155,7 +155,7 @@ export default async function Dashboard() {
         />
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid grid-cols-1 items-start gap-6 2xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="flex min-w-0 flex-col gap-6">
           <Card className="overflow-hidden">
             <CardHeader
@@ -188,11 +188,11 @@ export default async function Dashboard() {
                 hrefTemplate: "/configuration/committees",
               }}
               columns={[
-                { key: "item", label: "Item", width: "40%", sortable: true },
-                { key: "type", label: "Type", width: "15%", sortable: true },
-                { key: "value", label: "Value", width: "14%", numeric: true, sortable: true },
-                { key: "waiting", label: "Waiting", width: "11%", numeric: true, sortable: true },
-                { key: "with", label: "With", width: "20%" },
+                { key: "item", label: "Item", sortable: true },
+                { key: "type", label: "Type", width: "140px", sortable: true, hideBelow: "lg" },
+                { key: "value", label: "Value", width: "132px", numeric: true, sortable: true },
+                { key: "waiting", label: "Waiting", width: "104px", numeric: true, sortable: true },
+                { key: "with", label: "With", width: "190px", hideBelow: "md" },
               ]}
               rows={data.queue.map((item) => ({
                 id: item.decisionId,

@@ -4,7 +4,7 @@ import { patternFaults, periodFor, previewNext, serialFor } from "@/lib/numberin
 import { ORGANISATION_CODE } from "@/lib/org";
 
 import { ProvenanceChip, Section } from "../records-ui";
-import { CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
+import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { AddSeries, EditSeries } from "./editors";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -66,12 +66,12 @@ export default async function NumberingPage() {
       >
         <Table>
           <colgroup>
-            <col style={{ width: "20%" }} />
+            <col />
             <col style={{ width: "20%" }} />
             <col style={{ width: "20%" }} />
             <col style={{ width: "16%" }} />
             <col style={{ width: "12%" }} />
-            <col style={{ width: "12%" }} />
+            <ActionsCol icons={2} />
           </colgroup>
           <THead>
             <Th>Series</Th>

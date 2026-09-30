@@ -98,13 +98,13 @@ export function Topbar({
         <MenuIcon size={20} />
       </button>
 
-      <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-[13.5px]">
+      <nav aria-label="Breadcrumb" className="flex min-w-0 shrink-0 items-center gap-1.5 text-[13.5px] max-md:shrink">
         {all.map((crumb, i) => {
           const last = i === all.length - 1;
           return (
             <span
               key={crumb.href + i}
-              className={i < all.length - 2 ? "hidden min-w-0 items-center gap-1.5 sm:flex" : "flex min-w-0 items-center gap-1.5"}
+              className={i < all.length - 1 ? "hidden min-w-0 items-center gap-1.5 sm:flex" : "flex min-w-0 items-center gap-1.5"}
             >
               {last ? (
                 <span aria-current="page" className="truncate font-semibold text-ink">
@@ -133,7 +133,7 @@ export function Topbar({
         disabled
         aria-label="Search"
         title="Search is not built yet"
-        className="hidden h-10 w-64 cursor-not-allowed items-center gap-2.5 rounded-full border border-line bg-surface px-4 text-[13.5px] text-ink-4 md:flex"
+        className="hidden h-10 w-64 min-w-10 shrink cursor-not-allowed overflow-hidden items-center gap-2.5 rounded-full border border-line bg-surface px-4 text-[13.5px] text-ink-4 md:flex"
       >
         <SearchIcon size={16} />
         <span className="flex-1 truncate text-left">Search</span>

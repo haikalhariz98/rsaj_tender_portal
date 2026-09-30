@@ -3,7 +3,7 @@ import { loadNotificationRules } from "@/lib/records/load";
 import { ORGANISATION_CODE } from "@/lib/org";
 
 import { ProvenanceChip, Section, Stat, Stats } from "../records-ui";
-import { CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
+import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { AddRule, EditRule } from "./editors";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -63,12 +63,12 @@ export default async function NotificationsPage() {
       >
         <Table>
           <colgroup>
-            <col style={{ width: "22%" }} />
+            <col />
             <col style={{ width: "24%" }} />
             <col style={{ width: "16%" }} />
             <col style={{ width: "14%" }} />
             <col style={{ width: "12%" }} />
-            <col style={{ width: "12%" }} />
+            <ActionsCol icons={2} />
           </colgroup>
           <THead>
             <Th>Event</Th>

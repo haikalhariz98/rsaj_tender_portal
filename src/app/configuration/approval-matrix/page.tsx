@@ -32,7 +32,7 @@ import { Badge, Chip } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { KeyValues, Stat } from "@/components/ui/stat";
-import { RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
+import { ActionsCol, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { HistoryButton } from "@/components/history-drawer";
 
 export const dynamic = "force-dynamic";
@@ -345,10 +345,10 @@ export default async function ApprovalMatrixPage({
                   <colgroup>
                     <col style={{ width: editable ? "14%" : "16%" }} />
                     <col style={{ width: editable ? "10%" : "12%" }} />
-                    <col style={{ width: editable ? "36%" : "41%" }} />
+                    <col />
                     <col style={{ width: editable ? "15%" : "16%" }} />
                     <col style={{ width: editable ? "13%" : "15%" }} />
-                    {editable && <col style={{ width: "12%" }} />}
+                    {editable && <ActionsCol icons={2} />}
                   </colgroup>
                   <THead>
                     <Th>Value band</Th>

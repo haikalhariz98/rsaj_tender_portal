@@ -2,7 +2,7 @@ import { loadDocumentClasses } from "@/lib/records/load";
 import { ORGANISATION_CODE } from "@/lib/org";
 
 import { ProvenanceChip, Section, Stat, Stats } from "../records-ui";
-import { CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
+import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { AddDocumentClass, EditDocumentClass } from "./editors";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -62,12 +62,12 @@ export default async function DocumentsConfigPage() {
       >
         <Table>
           <colgroup>
-            <col style={{ width: "26%" }} />
+            <col />
             <col style={{ width: "14%" }} />
             <col style={{ width: "20%" }} />
             <col style={{ width: "18%" }} />
             <col style={{ width: "12%" }} />
-            <col style={{ width: "10%" }} />
+            <ActionsCol icons={2} />
           </colgroup>
           <THead>
             <Th>Class</Th>

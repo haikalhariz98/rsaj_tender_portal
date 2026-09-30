@@ -94,7 +94,28 @@ export function CellStack({
   );
 }
 
-/// The controls at the end of a row, right-aligned and evenly spaced.
+/// The controls at the end of a row, right-aligned and evenly spaced. `justify-end-safe`
+/// keeps an overflow on the cell's own start edge instead of spilling into the
+/// previous cell, and the controls never wrap.
 export function RowActions({ children }: { children: ReactNode }) {
-  return <div className="flex items-center justify-end gap-1">{children}</div>;
+  return <div className="flex items-center justify-end-safe gap-1 whitespace-nowrap">{children}</div>;
+}
+
+/// The column that holds a row's `RowActions`, sized to its controls in pixels. A
+/// percentage of a table-fixed table is narrower than two buttons at some viewport,
+/// and the controls then spill into the cell beside them. `icons` counts the 32px
+/// icon-only controls (history, edit...), `labelled` the small buttons that carry a
+/// word (Retire...). Give the column's neighbours a percentage, or none at all so one
+/// of them takes what is left; never give the actions a percentage.
+///
+///   <colgroup>
+///     <col />
+///     <col style={{ width: "18%" }} />
+///     <ActionsCol icons={2} />
+///   </colgroup>
+export function ActionsCol({ icons = 2, labelled = 0 }: { icons?: number; labelled?: number }) {
+  const controls = icons + labelled;
+  // Controls, the gaps between them, and the cell's own padding (16 + 24 at last).
+  const width = icons * 32 + labelled * 84 + Math.max(controls - 1, 0) * 4 + 40;
+  return <col style={{ width }} />;
 }

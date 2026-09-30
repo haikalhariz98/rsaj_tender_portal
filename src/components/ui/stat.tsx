@@ -49,8 +49,9 @@ export function Stat({
       </div>
       <div
         className={cx(
-          "mt-2 truncate leading-none font-bold tracking-[-0.02em] tabular-nums",
-          size === "sm" ? "text-[22px]" : "text-[30px]",
+          "mt-2 leading-none font-bold tracking-[-0.02em] whitespace-nowrap tabular-nums",
+          // A figure is never truncated; the tile scales the type to the room it has.
+          size === "sm" ? "text-[22px]" : "text-[26px] @[15rem]:text-[30px]",
           value == null ? "text-ink-4" : "text-ink",
         )}
       >
@@ -60,7 +61,7 @@ export function Stat({
     </>
   );
   const cls = cx(
-    "block min-w-0 rounded-card p-5",
+    "@container block min-w-0 rounded-card p-5",
     variant === "inset" ? "border border-line/60 bg-sunken" : "border border-line/70 bg-surface shadow-card",
     href && "transition hover:-translate-y-0.5 hover:no-underline hover:shadow-pop",
     className,
