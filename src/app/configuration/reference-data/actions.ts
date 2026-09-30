@@ -45,12 +45,18 @@ function readFundingRoute(data: FormData, taken: string[], storedCode: string | 
     organisationProcures: r.bool("organisationProcures"),
     routeDecidedExternally: r.bool("routeDecidedExternally"),
     supersedesAuthority: r.bool("supersedesAuthority"),
+    requiresExternalAuthorityRef: r.bool("requiresExternalAuthorityRef"),
+    externalAuthorityRefLabel: r.optionalText("externalAuthorityRefLabel"),
     trigger: r.text("trigger", "Triggered by", { max: 240 }),
     governingSource: r.text("governingSource", "Source", { max: 240 }),
     provenance: r.choice("provenance", "Provenance", PROVENANCE, { required: true }),
     notes: r.text("notes", "Notes", { max: 2000 }),
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
   };
+  // A matter held for an external authority must be told what it is waiting for.
+  if (value.requiresExternalAuthorityRef && !value.externalAuthorityRefLabel) {
+    r.reject("externalAuthorityRefLabel", "Name the authority a matter on this route waits for, as it is shown on the requisition.");
+  }
   // A route the organisation does not run cannot also be one whose route it chooses.
   if (!value.organisationProcures && value.routeDecidedExternally) {
     r.reject(

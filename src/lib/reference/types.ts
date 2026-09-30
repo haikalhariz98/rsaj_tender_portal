@@ -17,6 +17,10 @@ export interface FundingRoute {
   organisationProcures: boolean;
   routeDecidedExternally: boolean;
   supersedesAuthority: boolean;
+  /// Whether a matter on this route waits for an external body's authority to be
+  /// recorded (FR-REQ-005), and what that authority is called.
+  requiresExternalAuthorityRef?: boolean;
+  externalAuthorityRefLabel?: string | null;
   trigger: string;
   governingSource: string;
   provenance: Provenance;

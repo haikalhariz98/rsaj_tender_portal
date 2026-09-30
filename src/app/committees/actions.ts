@@ -377,6 +377,17 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
       }
       r.reject("tabledByPersonId", TABLING_FAULT_MESSAGE[tabling.fault]);
     }
+    // A requisition matter links to its requisition by the typed key (6.10 ruling), found
+    // by the reference given: the portal's own, or the finance system's numbers.
+    let requisitionId: string | null = null;
+    if (matterKind === "REQUISITION" && matterRef) {
+      const req = await tx.requisition.findFirst({
+        where: { organisationId: s.organisationId, OR: [{ reference: matterRef }, { erpRequisitionNo: matterRef }, { erpNoteNo: matterRef }] },
+        select: { id: true },
+      });
+      if (!req) r.reject("matterRef", "No requisition has that reference. Give its portal reference or its finance-system number.");
+      requisitionId = req?.id ?? null;
+    }
     if (dependsOnDecisionId) {
       const dep = await tx.committeeDecision.findFirst({
         where: { id: dependsOnDecisionId, meeting: { committee: { organisationId: s.organisationId } } },
@@ -392,7 +403,7 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
     const tabledAt = dayToDate(s.today!);
     const sequence = s.meeting.decisions.reduce((n, d) => Math.max(n, d.sequence), 0) + 1;
     const row = await tx.committeeDecision.create({
-      data: { meetingId, subject, domain, matterKind, matterRef, amount, act: act!, tabledByPersonId, tabledAt, dependsOnDecisionId, sequence },
+      data: { meetingId, subject, domain, matterKind, matterRef, requisitionId, amount, act: act!, tabledByPersonId, tabledAt, dependsOnDecisionId, sequence },
     });
     await audit(tx, s, "CommitteeDecision", row.id, subject, "CREATE",
       diffFields(null, { ...v, tabledBy: tabledByPersonId ? s.names[tabledByPersonId] : null, tabledAt, sequence }));

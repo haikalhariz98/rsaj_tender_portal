@@ -48,6 +48,8 @@ export async function loadReferenceData(organisationCode: string): Promise<Refer
       organisationProcures: r.organisationProcures,
       routeDecidedExternally: r.routeDecidedExternally,
       supersedesAuthority: r.supersedesAuthority,
+      requiresExternalAuthorityRef: r.requiresExternalAuthorityRef,
+      externalAuthorityRefLabel: r.externalAuthorityRefLabel,
       trigger: r.trigger,
       governingSource: r.governingSource,
       provenance: r.provenance as Provenance,

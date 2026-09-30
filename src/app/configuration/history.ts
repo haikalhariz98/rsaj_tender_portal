@@ -11,6 +11,7 @@ import {
   CHOICE_LABEL,
 } from "@/lib/committee/labels";
 import { db } from "@/lib/db";
+import { SOURCE_LABEL, SPLIT_KEY_LABEL, STATUS_LABEL, TIER_LABEL } from "@/lib/requisition/labels";
 import { ORGANISATION_CODE } from "@/lib/org";
 
 /// The entities whose history a screen may ask for. Anything else is refused rather
@@ -30,6 +31,9 @@ const ENTITIES = new Set([
   "NotificationRule",
   "NumberingSeries",
   "SourcingMethod",
+  "Requisition",
+  "RequisitionPolicy",
+  "FinanceIntegration",
 ]);
 
 export interface HistoryEntry {
@@ -54,10 +58,17 @@ const VALUE_LABEL: Record<string, Record<string, string>> = {
   action: { APPROVES: "Approves", RECOMMENDS: "Recommends", CONSENTS: "Consents", DECIDES: "Decides" },
 };
 const PROVENANCE: Record<string, string> = { STATED: "Stated", OBSERVED: "Observed", ASSUMED: "Assumed" };
+
+/// Where one entity stores a code under a field name another uses for something else —
+/// a requisition's status is not a sitting's — the entity's own labels win.
+const ENTITY_VALUE_LABEL: Record<string, Record<string, Record<string, string>>> = {
+  Requisition: { status: STATUS_LABEL, origin: { PORTAL: "Raised in the portal", EXTERNAL: "Received from the finance system" } },
+  FinanceIntegration: { budgetCheckSource: SOURCE_LABEL },
+};
 const OFFICE_FIELDS = new Set(["secretariatRoleCode", "seatRoleCode"]);
 
 /// A reader that turns stored codes and ids into what they stand for.
-async function valueReader(): Promise<(field: string, value: string | null) => string | null> {
+async function valueReader(entity = ""): Promise<(field: string, value: string | null) => string | null> {
   const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true } });
   if (!org) return (_f, v) => v;
   const [offices, people, committees, outcomes] = await Promise.all([
@@ -75,6 +86,13 @@ async function valueReader(): Promise<(field: string, value: string | null) => s
   };
   return (field, value) => {
     if (value == null) return null;
+    if (ENTITY_VALUE_LABEL[entity]?.[field]?.[value]) return ENTITY_VALUE_LABEL[entity][field][value];
+    if (entity === "RequisitionPolicy" && field === "endorsementTiers") {
+      return value ? value.split(", ").map((t) => TIER_LABEL[t as keyof typeof TIER_LABEL] ?? t).join(", ") : "Not set";
+    }
+    if (entity === "RequisitionPolicy" && field === "splittingMatchOn") {
+      return value ? value.split(", ").map((k) => SPLIT_KEY_LABEL[k as keyof typeof SPLIT_KEY_LABEL] ?? k).join(", ") : "Not set";
+    }
     if (VALUE_LABEL[field]?.[value]) return VALUE_LABEL[field][value];
     if (/Provenance$|^provenance$/.test(field)) return PROVENANCE[value] ?? value;
     if (OFFICE_FIELDS.has(field)) return office.get(value) ?? "An office no longer configured";
@@ -89,7 +107,7 @@ export async function historyOf(entity: string, entityId: string): Promise<Histo
   if (!ENTITIES.has(entity) || !entityId) return [];
   const [rows, read] = await Promise.all([
     loadAudit(ORGANISATION_CODE, { entity, entityId, take: 100 }),
-    valueReader(),
+    valueReader(entity),
   ]);
   return rows.map((r) => ({
     id: r.id,
