@@ -4,12 +4,14 @@ import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
 import { auditedCreate, auditedDelete, auditedUpdate, writeAudit } from "@/lib/audit/record";
-import { diffFields } from "@/lib/audit/diff";
+import { diffFields, snapshotFields } from "@/lib/audit/diff";
 import { issueFault, onRoute, predecessorOf, startOfDay } from "@/lib/authority/issue";
 import { boundaryFaultsAcross, boundaryRuleFault, rulesTiedWith } from "@/lib/authority/resolve";
 import type { Rule } from "@/lib/authority/types";
 import { db } from "@/lib/db";
 import { compareAmounts } from "@/lib/money";
+import { findingText } from "@/lib/method/labels";
+import { matrixPolicyFaults, termsBandBoundaryFault } from "@/lib/method/boundary";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { FormReader } from "@/lib/validate";
 
@@ -74,6 +76,14 @@ function boundaryRefusal(rules: RuleRow[], boundaryValue: unknown): string | nul
     .join("; ")}. Decide it on each rule first.`;
 }
 
+/// The refusal naming every terms band whose edge sits on the boundary undecided.
+async function termsRefusal(authorityMatrixId: string, boundaryValue: unknown): Promise<string | null> {
+  const bands = await db.termsBand.findMany({ where: { authorityMatrixId } });
+  const undecided = bands.filter((t) => termsBandBoundaryFault({ minValue: n(t.minValue), maxValue: n(t.maxValue), followsBoundarySwitch: t.followsBoundarySwitch }, { boundaryValue: Number(String(boundaryValue)) }));
+  if (undecided.length === 0) return null;
+  return `At the boundary value, the terms ${undecided.length === 1 ? "band" : "bands"} ${undecided.map((t) => `“${t.labelEn}”`).join(", ")} ${undecided.length === 1 ? "has" : "have"} not decided whether to follow the boundary switch. Decide it on each band first.`;
+}
+
 /**
  * One issue of the authority limits.
  *
@@ -107,16 +117,17 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
     required: true,
   });
 
-  if (quotationFloor && tenderFloor && compareAmounts(tenderFloor, quotationFloor) <= 0) {
-    r.reject("tenderFloor", "The tender floor must be above the quotation floor.");
-  }
-  // The boundary is where the two bands meet, so it has to be the tender floor. A
-  // boundary elsewhere would leave a band of values belonging to neither regime.
-  if (boundaryValue && tenderFloor && compareAmounts(boundaryValue, tenderFloor) !== 0) {
-    r.reject(
-      "boundaryValue",
-      "The bands meet at the tender floor. Set this to the same figure, or move the floor.",
-    );
+  // The boundary ruling (spec D3, 6.3 ruling R-8): where it comes from, and the
+  // document, which a stated ruling must cite. Frozen with the issue like the rest.
+  const boundaryProvenance = r.choice("boundaryProvenance", "Where the boundary ruling comes from", ["STATED", "OBSERVED", "ASSUMED"] as const, { required: true });
+  const boundarySource = r.text("boundarySource", "Boundary ruling source", { max: 240 });
+
+  // The tender floor must be above the quotation floor and must be the boundary (a
+  // hard reject, 6.3 ruling R-7); a stated ruling cites its source. Checked in lib.
+  if (quotationFloor && tenderFloor && boundaryValue && boundaryProvenance) {
+    for (const f of matrixPolicyFaults({ quotationFloor, tenderFloor, boundaryValue, boundaryProvenance, boundarySource })) {
+      r.reject(f.field, findingText(f));
+    }
   }
 
   const existing = await db.authorityMatrix.findMany({
@@ -158,6 +169,8 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
     // edited or shown. The window lives in RequisitionPolicy.
     fundingRouteCode,
     currency: r.text("currency", "Currency", { required: true, max: 8 }),
+    boundaryProvenance: boundaryProvenance ?? "ASSUMED",
+    boundarySource,
     noRuleClause: r.optionalText("noRuleClause"),
     selfApprovalClause: r.optionalText("selfApprovalClause"),
     absenceClause: r.optionalText("absenceClause"),
@@ -171,7 +184,7 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
   const flipped = before && v.boundaryInclusive !== before.boundaryInclusive;
   if (before && boundaryValue && (moved || flipped)) {
     const rows = await db.authorityRule.findMany({ where: { authorityMatrixId: before.id } });
-    const refusal = boundaryRefusal(rows, boundaryValue);
+    const refusal = boundaryRefusal(rows, boundaryValue) ?? (await termsRefusal(before.id, boundaryValue));
     if (refusal) r.reject(moved ? "boundaryValue" : "boundaryInclusive", refusal);
   }
 
@@ -480,7 +493,7 @@ export async function startRevision(_prev: FormState, data: FormData): Promise<F
   const fromId = String(data.get("fromId") ?? "");
   const source = await db.authorityMatrix.findFirst({
     where: { id: fromId, organisationId: orgId },
-    include: { rules: { include: { recommenders: true } } },
+    include: { rules: { include: { recommenders: true } }, termsBands: true },
   });
   if (!source) return { ok: false, message: "That issue no longer exists." };
 
@@ -501,7 +514,7 @@ export async function startRevision(_prev: FormState, data: FormData): Promise<F
   const parsed = r.finish({ label, effectiveFrom });
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
-  const { rules, ...policy } = source;
+  const { rules, termsBands, ...policy } = source;
   // A new row: the source's id is dropped, everything else carried.
   const draftPolicy = {
     ...policy,
@@ -528,6 +541,10 @@ export async function startRevision(_prev: FormState, data: FormData): Promise<F
         },
       });
     }
+    // Terms bands travel with the issue, as its rules do (6.3).
+    for (const band of termsBands) {
+      await tx.termsBand.create({ data: { ...band, id: undefined, authorityMatrixId: draft.id } });
+    }
     await writeAudit(
       tx,
       {
@@ -538,7 +555,7 @@ export async function startRevision(_prev: FormState, data: FormData): Promise<F
         reason: `New issue from ${source.label}`,
       },
       "CREATE",
-      diffFields(null, { label, effectiveFrom, startedFrom: source.label, rules: rules.length }),
+      diffFields(null, { label, effectiveFrom, startedFrom: source.label, rules: rules.length, termsBands: termsBands.length }),
     );
   });
 
@@ -578,7 +595,9 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
   );
 
   // Every rule is re-checked at the boundary before the issue is frozen.
-  const boundaryIssue = boundaryRefusal(await db.authorityRule.findMany({ where: { authorityMatrixId: draft.id } }), draft.boundaryValue);
+  const boundaryIssue =
+    boundaryRefusal(await db.authorityRule.findMany({ where: { authorityMatrixId: draft.id } }), draft.boundaryValue) ??
+    (await termsRefusal(draft.id, draft.boundaryValue));
   if (boundaryIssue) r.reject("effectiveFrom", boundaryIssue);
   if (draft._count.rules === 0) {
     r.reject("effectiveFrom", "This draft has no rules, so nothing could be routed under it. Add its rules first.");
@@ -631,4 +650,89 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
 
   revalidatePath(PATH);
   return { ok: true };
+}
+
+// ---------------------------------------------------------------- terms bands
+
+/**
+ * A contract terms band on a draft issue (FR-MTD-001, 6.3 ruling R-14): which terms set
+ * applies at a value, never the retention or defects figures. Written under the issue's
+ * row lock, so an issue being issued cannot take a band edited at the same moment.
+ */
+export async function saveTermsBand(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+  const id = String(data.get("id") ?? "");
+  const authorityMatrixId = String(data.get("authorityMatrixId") ?? "");
+  const r = new FormReader(data);
+  const bandKey = r.code("bandKey", "Key");
+  const minValue = r.money("minValue", "From value");
+  const maxValue = r.money("maxValue", "To value");
+  if (minValue && maxValue && compareAmounts(maxValue, minValue) <= 0) r.reject("maxValue", "The upper bound must be above the lower.");
+  const tri = (name: string, label: string) => {
+    const c = r.choice(name, label, ["yes", "no"] as const);
+    return c == null ? null : c === "yes";
+  };
+  const v = {
+    bandKey,
+    minValue,
+    maxValue,
+    regime: r.choice("regime", "Regime", ["below", "quotation", "tender"] as const),
+    labelEn: r.text("labelEn", "Terms set", { required: true, max: 240 }),
+    labelMs: r.optionalText("labelMs"),
+    retentionApplies: tri("retentionApplies", "Retention"),
+    defectsLiabilityApplies: tri("defectsLiabilityApplies", "Defects liability period"),
+    insuranceNote: r.text("insuranceNote", "Insurance", { max: 1000 }),
+    followsBoundarySwitch: tri("followsBoundarySwitch", "At the boundary value"),
+    clause: r.text("clause", "Clause", { max: 120 }),
+    provenance: r.choice("provenance", "Where this comes from", ["STATED", "OBSERVED", "ASSUMED"] as const, { required: true }),
+    sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
+  };
+  if (r.failed) return { ok: false, errors: r.errors };
+
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "AuthorityMatrix" WHERE id = ${authorityMatrixId} FOR UPDATE`;
+    const matrix = await tx.authorityMatrix.findFirst({ where: { id: authorityMatrixId, organisationId: orgId }, select: { id: true, label: true, issuedAt: true, boundaryValue: true } });
+    if (!matrix) return { ok: false, message: "That issue of the limits no longer exists." } as FormState;
+    if (matrix.issuedAt) return FROZEN;
+    const before = id ? await tx.termsBand.findFirst({ where: { id, authorityMatrixId } }) : null;
+    if (id && !before) return { ok: false, message: "That terms band no longer exists." } as FormState;
+    const clash = await tx.termsBand.findFirst({ where: { authorityMatrixId, bandKey, ...(before ? { NOT: { id: before.id } } : {}) }, select: { id: true } });
+    if (clash) return { ok: false, errors: { bandKey: "A band with that key already exists on this issue." } } as FormState;
+    if (termsBandBoundaryFault({ minValue: n(minValue), maxValue: n(maxValue), followsBoundarySwitch: v.followsBoundarySwitch }, { boundaryValue: Number(matrix.boundaryValue.toString()) })) {
+      return { ok: false, errors: { followsBoundarySwitch: "An edge of this band is the value where the regimes meet. Decide whether the band follows the boundary switch there." } } as FormState;
+    }
+    const data2 = { ...v, provenance: v.provenance! };
+    const label = `${matrix.label} — ${v.labelEn}`;
+    if (!before) {
+      const row = await tx.termsBand.create({ data: { authorityMatrixId, ...data2 } });
+      await writeAudit(tx, { organisationId: orgId, entity: "TermsBand", entityId: row.id, entityLabel: label }, "CREATE", diffFields(null, data2));
+    } else {
+      await tx.termsBand.update({ where: { id: before.id }, data: data2 });
+      const changes = diffFields(decimals({ ...before }), data2);
+      if (changes.length) await writeAudit(tx, { organisationId: orgId, entity: "TermsBand", entityId: before.id, entityLabel: label, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
+    }
+    revalidatePath(PATH);
+    return { ok: true } as FormState;
+  });
+}
+
+export async function removeTermsBand(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+  const id = String(data.get("id") ?? "");
+  const reason = String(data.get("reason") ?? "").trim();
+  if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
+  return db.$transaction(async (tx) => {
+    const band = await tx.termsBand.findFirst({ where: { id, authorityMatrix: { organisationId: orgId } }, include: { authorityMatrix: { select: { id: true, label: true } } } });
+    if (!band) return { ok: false, message: "That terms band no longer exists." } as FormState;
+    await tx.$queryRaw`SELECT id FROM "AuthorityMatrix" WHERE id = ${band.authorityMatrixId} FOR UPDATE`;
+    const m = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: band.authorityMatrixId }, select: { issuedAt: true } });
+    if (m.issuedAt) return FROZEN;
+    const { authorityMatrix, ...row } = band;
+    await tx.termsBand.delete({ where: { id } });
+    await writeAudit(tx, { organisationId: orgId, entity: "TermsBand", entityId: id, entityLabel: `${authorityMatrix.label} — ${band.labelEn}`, reason }, "DELETE", snapshotFields(decimals(row)));
+    revalidatePath(PATH);
+    return { ok: true } as FormState;
+  });
 }

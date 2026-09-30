@@ -226,6 +226,8 @@ export function findingText(f: Finding): string {
       return d.derived ? "A type other than the derived one needs a reason." : "A chosen type needs a reason.";
     case "TYPE_PERSON_REQUIRED":
       return "Name who decided the type in Contract & Procurement.";
+    case "BASIS_UNKNOWN":
+      return "That contract basis is no longer configured.";
     // exercise.ts
     case "REQUISITION_NOT_APPROVED":
       return "Only an approved requisition can have a sourcing exercise.";

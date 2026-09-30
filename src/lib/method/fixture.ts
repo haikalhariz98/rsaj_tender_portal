@@ -19,7 +19,8 @@ const rule = (r: Partial<Rule> & Pick<Rule, "ruleKey" | "domain">): Rule => ({
   contractValueMin: null,
   contractValueMax: null,
   followsBoundarySwitch: null,
-  labelEn: r.ruleKey,
+  // Worded, as a customer's rule labels are: a label is shown, a key never.
+  labelEn: `Rule ${r.ruleKey.toLowerCase().replace(/_/g, " ")}`,
   labelMs: null,
   proposerCode: null,
   approverCode: null,

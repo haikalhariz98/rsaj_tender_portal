@@ -121,3 +121,59 @@ export interface ClassificationSnapshot {
 export function isClassificationSnapshot(x: unknown): x is ClassificationSnapshot {
   return typeof x === "object" && x != null && (x as { v?: unknown }).v === 1 && typeof (x as { contractType?: unknown }).contractType === "object";
 }
+
+/**
+ * The decided record of an evaluation that is moving into preparation. Null where it
+ * could not be decided (no method, type or basis) — the move refuses before this.
+ */
+export function classificationSnapshotOf(
+  ev: { method: Method | null; derivation: { state: string; code: string | null; sharePct: string | null }; type: { state: ContractTypeState | null; code: string | null }; taxonomies: { taxonomyCode: string; state: TaxonomyState; valueCode: string | null }[] },
+  cfg: {
+    types: (import("./types").ContractTypeRow)[];
+    bases: (import("./types").ContractBasis)[];
+    taxonomies: (import("./types").Taxonomy)[];
+    policy: import("./types").ClassificationPolicy;
+  },
+  basisCode: string | null,
+  committeeName: (code: string) => string,
+  profile: (t: import("./types").ContractTypeRow) => { key: BehaviourKey; value: BehaviourValue }[],
+): ClassificationSnapshot | null {
+  const m = ev.method;
+  const t = cfg.types.find((x) => x.code === ev.type.code);
+  const b = cfg.bases.find((x) => x.code === basisCode);
+  if (!m || !t || !b || !ev.type.state) return null;
+  const derived = cfg.types.find((x) => x.code === ev.derivation.code) ?? null;
+  return {
+    v: 1,
+    method: {
+      code: m.code,
+      nameEn: m.nameEn,
+      committee: m.committeeCode ? committeeName(m.committeeCode) : null,
+      flags: {
+        requiresJustification: m.requiresJustification,
+        requiresProposal: m.requiresProposal,
+        requiresNameApproval: m.requiresNameApproval,
+        restrictedAccess: m.restrictedAccess,
+        requiresDossier: m.requiresDossier,
+        requiresCoordinationRecord: m.requiresCoordinationRecord,
+        requiresFreshSourcing: m.requiresFreshSourcing,
+      },
+    },
+    contractType: {
+      code: t.code,
+      nameEn: t.nameEn,
+      state: ev.type.state,
+      derivedCode: derived?.code ?? null,
+      derivedName: derived?.nameEn ?? null,
+      derivationState: ev.derivation.state,
+      sharePct: ev.derivation.sharePct,
+      profile: profile(t),
+    },
+    policy: { dominanceSharePct: cfg.policy.dominanceSharePct, provenance: cfg.policy.provenance },
+    basis: { code: b.code, nameEn: b.nameEn, standardFormLabel: b.standardFormLabel },
+    taxonomies: ev.taxonomies.map((x) => {
+      const tax = cfg.taxonomies.find((y) => y.code === x.taxonomyCode);
+      return { taxonomy: tax?.nameEn ?? "A classification no longer configured", state: x.state, value: x.valueCode ? (tax?.values.find((v) => v.code === x.valueCode)?.nameEn ?? "A value no longer configured") : null };
+    }),
+  };
+}
