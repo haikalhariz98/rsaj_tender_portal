@@ -15,10 +15,7 @@ const ENTITIES = new Set([
   "FundingRoute",
   "NotificationRule",
   "NumberingSeries",
-  "Person",
-  "AuthorityRole",
   "SourcingMethod",
-  "BudgetCode",
 ]);
 
 export interface HistoryEntry {

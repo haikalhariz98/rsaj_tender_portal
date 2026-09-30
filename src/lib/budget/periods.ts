@@ -114,3 +114,22 @@ export function refusalToClose(period: Period): CloseRefusal | null {
 export function refusalToReopen(period: Period): "ALREADY_OPEN" | null {
   return periodStatus(period) === "OPEN" ? "ALREADY_OPEN" : null;
 }
+
+/**
+ * Why a movement dated `on` may not be posted, if it may not.
+ *
+ * Closing a period is the decision that its figures are final, so nothing dated
+ * inside a closed period is accepted — including a back-dated one. A period nobody
+ * has opened yet is not refused: not opening a month is not a decision to shut it.
+ * Dates are compared by day. `endsOn` is exclusive, as every period in the project
+ * is: January ends on the first of February, which belongs to February.
+ */
+export function postingRefusal(periods: readonly Period[], on: Date): Period | null {
+  const day = Date.UTC(on.getUTCFullYear(), on.getUTCMonth(), on.getUTCDate());
+  const dayOf = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  return (
+    periods.find(
+      (p) => periodStatus(p) === "CLOSED" && dayOf(p.startsOn) <= day && day < dayOf(p.endsOn),
+    ) ?? null
+  );
+}

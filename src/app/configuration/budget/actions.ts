@@ -10,7 +10,7 @@ import { loadBudget } from "@/lib/budget/load";
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { checkPeriod, FormReader } from "@/lib/validate";
-import { refusalToClose, refusalToReopen, type Period } from "@/lib/budget/periods";
+import { postingRefusal, refusalToClose, refusalToReopen, type Period } from "@/lib/budget/periods";
 import { figuresFor, transferFaults, type Movement } from "@/lib/budget/codes";
 import { syncReadiness } from "@/lib/budget/finance";
 import { formatSen, parseSen, senToDecimalString } from "@/lib/money";
@@ -296,7 +296,7 @@ export async function changePeriod(_prev: FormState, data: FormData): Promise<Fo
   return setPeriodOpen(String(data.get("id") ?? ""), data.get("open") === "yes", reason);
 }
 
-export async function setPeriodOpen(periodId: string, open: boolean, reason = ""): Promise<FormState> {
+async function setPeriodOpen(periodId: string, open: boolean, reason: string): Promise<FormState> {
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -368,6 +368,16 @@ export async function setRollForward(year: number, on: boolean): Promise<FormSta
 }
 
 /// The stored row as the pure module wants it.
+/// The message when a movement falls in a closed period, or null. Read from the
+/// periods as they stand, so a period closed a minute ago already refuses.
+async function closedPeriodMessage(orgId: string, on: Date): Promise<string | null> {
+  const periods = await db.budgetPeriod.findMany({ where: { organisationId: orgId } });
+  const closed = postingRefusal(periods.map(toPeriod), on);
+  return closed
+    ? `${closed.nameEn} ${closed.year} is closed, so nothing dated in it can be posted. Reopen it first, or date this in an open period.`
+    : null;
+}
+
 function toPeriod(row: {
   id: string;
   year: number;
@@ -401,6 +411,10 @@ export async function addRevision(_prev: FormState, data: FormData): Promise<For
 
   if (amount != null && amount <= 0n) {
     r.reject("amount", "A revision of nothing is not a revision. Enter what is being moved.");
+  }
+  if (occurredOn) {
+    const closed = await closedPeriodMessage(orgId, occurredOn);
+    if (closed) r.reject("occurredOn", closed);
   }
 
   const parsed = r.finish({ budgetCodeId, amount, reference, occurredOn });
@@ -459,6 +473,10 @@ export async function transferBetweenCodes(_prev: FormState, data: FormData): Pr
   const amount = amountText == null ? null : parseSen(amountText);
   const reference = r.optionalText("reference");
   const occurredOn = r.date("occurredOn", "Dated", { required: true });
+  if (occurredOn) {
+    const closed = await closedPeriodMessage(orgId, occurredOn);
+    if (closed) r.reject("occurredOn", closed);
+  }
 
   const parsed = r.finish({ fromId, toId, amount, occurredOn });
   if (!parsed.ok) return { ok: false, errors: parsed.errors };

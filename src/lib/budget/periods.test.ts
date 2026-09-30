@@ -4,6 +4,7 @@ import {
   defaultYear,
   periodStatus,
   periodsIn,
+  postingRefusal,
   refusalToClose,
   refusalToReopen,
   summariseYear,
@@ -143,5 +144,34 @@ describe("refusing a close or a reopen", () => {
   it("will not reopen one that is already open", () => {
     expect(refusalToReopen(period(2026, { openedOn: OPENED }))).toBe("ALREADY_OPEN");
     expect(refusalToReopen(period(2026))).toBeNull();
+  });
+});
+
+describe("posting into a period", () => {
+  // Ends are exclusive: January ends on the first of February.
+  const jan = period(2026, { endsOn: new Date("2026-02-01"), openedOn: OPENED, closedOn: CLOSED });
+  const feb = period(2026, {
+    startsOn: new Date("2026-02-01"),
+    endsOn: new Date("2026-03-01"),
+    openedOn: CLOSED,
+  });
+  const mar = period(2026, { startsOn: new Date("2026-03-01"), endsOn: new Date("2026-04-01") });
+
+  it("refuses anything dated inside a closed period, its last day included", () => {
+    expect(postingRefusal([jan, feb, mar], new Date("2026-01-15"))?.id).toBe(jan.id);
+    expect(postingRefusal([jan, feb, mar], new Date("2026-01-31T18:00:00Z"))?.id).toBe(jan.id);
+  });
+
+  it("gives the first of the next month to the next period, not the closed one", () => {
+    expect(postingRefusal([jan, feb, mar], new Date("2026-02-01"))).toBeNull();
+  });
+
+  it("accepts an open period, and one nobody has opened yet", () => {
+    expect(postingRefusal([jan, feb, mar], new Date("2026-02-10"))).toBeNull();
+    expect(postingRefusal([jan, feb, mar], new Date("2026-03-10"))).toBeNull();
+  });
+
+  it("accepts a date no period covers — that is a gap in the calendar, not a closure", () => {
+    expect(postingRefusal([jan, feb, mar], new Date("2027-06-01"))).toBeNull();
   });
 });
