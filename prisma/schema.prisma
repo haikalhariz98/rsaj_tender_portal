@@ -131,6 +131,10 @@ model Organisation {
   code      String   @unique
   name      String
   nameMs    String?
+  /// The IANA time zone the organisation keeps its dates in (for example
+  /// Asia/Kuala_Lumpur). Null means nobody has set one, and dates such as "today"
+  /// are judged in UTC — shown as such, never assumed.
+  timeZone  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -454,6 +458,12 @@ model Committee {
   votingRule           VotingRule?
   votingRuleProvenance Provenance?
 
+  /// Whether an alternate may vote in place of a member who has recused on a matter.
+  /// Null means nobody has said, and a matter where the question arises cannot be
+  /// decided. RSAJ policy, not a product default.
+  alternateMayVoteForRecused           Boolean?
+  alternateMayVoteForRecusedProvenance Provenance?
+
   members             CommitteeMember[]
   meetings            Meeting[]
   notApprovedOutcomes NotApprovedOutcome[]
@@ -516,6 +526,9 @@ model Meeting {
   cancelledReason String    @default("")
   /// Once minuted, the sitting and everything under it are frozen.
   minutedAt       DateTime?
+  /// The register as it stood when minuted: seats, holders, alternates and who sat
+  /// where. A minuted sitting renders from this, never from today's configuration.
+  registerSnapshot Json?
 
   attendance MeetingAttendance[]
   decisions  CommitteeDecision[]
@@ -581,7 +594,9 @@ model CommitteeDecision {
   dependents          CommitteeDecision[] @relation("DependsOn")
 
   /// Snapshot at recording, so a later configuration change never rewrites a
-  /// recorded decision.
+  /// recorded decision. `presentVoters` is the count the matter's quorum was judged
+  /// on (present and entitled on this matter); `recusedCount` is the recusals among
+  /// those present.
   quorumRequired       Int?
   presentVoters        Int?
   recusedCount         Int?
@@ -591,6 +606,9 @@ model CommitteeDecision {
   /// Required for NOT_CARRIED: what happens to the matter next.
   notApprovedOutcomeId String?
   notApprovedOutcome   NotApprovedOutcome? @relation(fields: [notApprovedOutcomeId], references: [id], onDelete: Restrict)
+  /// The outcome as it read when recorded, so a later rename cannot rewrite it.
+  notApprovedOutcomeNameEn String?
+  notApprovedOutcomeKind   NotApprovedKind?
   /// Required for DEFERRED and NOT_CARRIED.
   outcomeNote          String              @default("")
 
@@ -631,7 +649,9 @@ model NotApprovedOutcome {
 
   /// Null offers the outcome to every committee.
   committeeId String?
-  committee   Committee? @relation(fields: [committeeId], references: [id], onDelete: SetNull)
+  /// Restrict: deleting a committee must not silently widen its outcomes to every
+  /// committee. Retire them first.
+  committee   Committee? @relation(fields: [committeeId], references: [id], onDelete: Restrict)
 
   governingSource String     @default("")
   provenance      Provenance @default(ASSUMED)
