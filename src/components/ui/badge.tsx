@@ -12,7 +12,7 @@ const SOFT: Record<Tone, string> = {
   ok: "bg-emerald-100 text-emerald-800",
   warn: "bg-amber-100 text-amber-800",
   err: "bg-rose-100 text-rose-700",
-  info: "bg-indigo-100 text-indigo-700",
+  info: "bg-sky-100 text-sky-700",
 };
 
 const DOT: Record<Tone, string> = {
@@ -21,7 +21,7 @@ const DOT: Record<Tone, string> = {
   ok: "bg-emerald-500",
   warn: "bg-amber-500",
   err: "bg-rose-500",
-  info: "bg-indigo-500",
+  info: "bg-sky-500",
 };
 
 export function dotClass(tone: Tone = "neutral"): string {
@@ -79,7 +79,7 @@ export function Chip({
     ok: "border-emerald-200 bg-emerald-50 text-emerald-800",
     warn: "border-amber-200 bg-amber-50 text-amber-800",
     err: "border-rose-200 bg-rose-50 text-rose-700",
-    info: "border-indigo-200 bg-indigo-50 text-indigo-700",
+    info: "border-sky-200 bg-sky-50 text-sky-700",
   };
   return (
     <span

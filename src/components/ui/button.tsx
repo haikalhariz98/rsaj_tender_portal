@@ -17,7 +17,7 @@ const VARIANT: Record<ButtonVariant, string> = {
     // Unavailable reads as unavailable, not as a washed-out version of the main action.
     "disabled:bg-ink/10 disabled:text-ink-3 disabled:opacity-100 disabled:shadow-none",
   secondary:
-    "border border-line-2 bg-surface text-ink shadow-[0_1px_2px_rgb(19_33_27/0.05)] hover:border-ink-4 hover:bg-sunken",
+    "border border-line-2 bg-surface text-ink shadow-[0_1px_2px_rgb(15_23_42/0.05)] hover:border-ink-4 hover:bg-sunken",
   ghost: "text-ink-2 hover:bg-ink/5 hover:text-ink",
   subtle: "bg-brand-50 text-brand-800 hover:bg-brand-100",
   danger: "bg-rose-600 text-white hover:bg-rose-700",

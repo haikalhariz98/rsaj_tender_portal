@@ -10,7 +10,7 @@ const ICON_TILE: Record<Tone, string> = {
   ok: "bg-emerald-100 text-emerald-700",
   warn: "bg-amber-100 text-amber-700",
   err: "bg-rose-100 text-rose-700",
-  info: "bg-indigo-100 text-indigo-700",
+  info: "bg-sky-100 text-sky-700",
 };
 
 /// A headline figure. `value` null means the figure does not exist yet (the module

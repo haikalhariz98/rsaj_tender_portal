@@ -51,7 +51,7 @@ export function EmptyState({
 }
 
 const CALLOUT: Record<Exclude<Tone, "neutral" | "brand">, { box: string; icon: ReactNode }> = {
-  info: { box: "border-indigo-200 bg-indigo-50 text-indigo-900 [&_.ico]:text-indigo-600", icon: <InfoIcon size={18} /> },
+  info: { box: "border-sky-200 bg-sky-50 text-sky-900 [&_.ico]:text-sky-600", icon: <InfoIcon size={18} /> },
   ok: { box: "border-emerald-200 bg-emerald-50 text-emerald-900 [&_.ico]:text-emerald-600", icon: <CheckIcon size={18} /> },
   warn: { box: "border-amber-200 bg-amber-50 text-amber-900 [&_.ico]:text-amber-600", icon: <AlertTriangle size={18} /> },
   err: { box: "border-rose-200 bg-rose-50 text-rose-900 [&_.ico]:text-rose-600", icon: <XIcon size={18} /> },

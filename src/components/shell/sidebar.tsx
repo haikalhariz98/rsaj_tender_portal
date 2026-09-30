@@ -17,10 +17,19 @@ import {
   SlidersIcon,
   ToolsIcon,
   UserIcon,
+  UsersIcon,
   XIcon,
 } from "@/components/icons";
 import { cx } from "@/components/ui/cx";
-import { navFor, STAFF_NAV, SUPPLIER_NAV, workspaceFor, type Workspace } from "@/lib/nav";
+import {
+  CONFIG_SECTIONS,
+  navFor,
+  STAFF_NAV,
+  SUPPLIER_NAV,
+  workspaceFor,
+  type NavGroup,
+  type Workspace,
+} from "@/lib/nav";
 
 const ICONS: Record<string, ComponentType<{ size?: number }>> = {
   grid: GridIcon,
@@ -31,7 +40,17 @@ const ICONS: Record<string, ComponentType<{ size?: number }>> = {
   chart: ChartIcon,
   sliders: SlidersIcon,
   inbox: InboxIcon,
+  users: UsersIcon,
+  user: UserIcon,
 };
+
+/// Configuration's sections in the sidebar's own shape. Inside Configuration the
+/// sidebar becomes its navigator — the settings pattern — so the sections never have
+/// to sit in a second rail squeezed beside the screen.
+const CONFIG_NAV: NavGroup[] = CONFIG_SECTIONS.map((g) => ({
+  label: g.group,
+  items: g.items.map(({ href, label, icon, built }) => ({ href, label, icon, built })),
+}));
 
 export function Sidebar({
   organisation,
@@ -52,7 +71,8 @@ export function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
   const workspace = workspaceFor(pathname);
-  const groups = navFor(workspace);
+  const inConfig = pathname === "/configuration" || pathname.startsWith("/configuration/");
+  const groups = inConfig ? CONFIG_NAV : navFor(workspace);
 
   const [switching, setSwitching] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -114,7 +134,22 @@ export function Sidebar({
         )}
       </div>
 
-      {/* The workspace you are in, which is also how you leave it. */}
+      {inConfig ? (
+        <div className="px-1">
+          <Link
+            href="/"
+            onClick={onNavigate}
+            className="inline-flex items-center gap-1.5 rounded-full py-1 pr-3 pl-2 text-[13px] font-semibold text-ink-3 no-underline transition hover:bg-ink/5 hover:text-ink hover:no-underline"
+          >
+            <ChevronDown size={15} className="rotate-90" />
+            Back to dashboard
+          </Link>
+          <div className="mt-3 px-2">
+            <div className="text-[18px] font-bold tracking-tight text-ink">Configuration</div>
+          </div>
+        </div>
+      ) : (
+      /* The workspace you are in, which is also how you leave it. */
       <div className="relative" ref={brand}>
         <button
           type="button"
@@ -125,7 +160,7 @@ export function Sidebar({
           onClick={() => setSwitching((open) => !open)}
           className="flex w-full items-center gap-3 rounded-2xl border border-line bg-sunken px-3 py-2.5 text-left transition hover:border-line-2 hover:bg-surface"
         >
-          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-surface text-brand-700 shadow-[0_1px_2px_rgb(19_33_27/0.08)]">
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-surface text-brand-700 shadow-[0_1px_2px_rgb(15_23_42/0.08)]">
             {workspace === "supplier" ? <UserIcon size={16} /> : <BuildingIcon size={16} />}
           </span>
           <span className="min-w-0 flex-1">
@@ -164,10 +199,11 @@ export function Sidebar({
           </div>
         )}
       </div>
+      )}
 
-      <div className="-mx-1 mt-2 flex-1 overflow-y-auto px-1">
+      <div className="-mx-1 mt-2 flex-1 overflow-y-auto px-1 [scrollbar-width:thin]">
         {groups.map((group) => (
-          <div key={group.label} className="mt-4 first:mt-1">
+          <div key={group.label} className="mt-3.5 first:mt-1">
             <div className="px-3 pb-1.5 text-[11.5px] font-semibold text-ink-4">{group.label}</div>
             <div className="flex flex-col gap-0.5">
               {group.items.map((item) => {
@@ -181,7 +217,7 @@ export function Sidebar({
                     onClick={onNavigate}
                     aria-current={active ? "page" : undefined}
                     className={cx(
-                      "group flex items-center gap-3 rounded-xl px-3 py-2 text-[14px] font-medium no-underline transition hover:no-underline",
+                      "group flex items-center gap-3 rounded-xl px-3 py-1.5 text-[14px] font-medium no-underline transition hover:no-underline",
                       active
                         ? "bg-brand-50 font-semibold text-brand-800"
                         : "text-ink-2 hover:bg-ink/[0.04] hover:text-ink",
@@ -196,6 +232,11 @@ export function Sidebar({
                       <Ico size={16} />
                     </span>
                     <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                    {inConfig && !item.built && (
+                      <span className="rounded-full bg-amber-100 px-2 text-[11px] leading-5 font-bold text-amber-800">
+                        soon
+                      </span>
+                    )}
                     {count ? (
                       <span
                         className={cx(

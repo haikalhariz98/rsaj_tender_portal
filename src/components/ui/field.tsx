@@ -8,7 +8,7 @@ import type {
 import { cx } from "./cx";
 
 const CONTROL =
-  "w-full min-w-0 rounded-control border border-line-2 bg-surface text-ink shadow-[0_1px_2px_rgb(19_33_27/0.04)] " +
+  "w-full min-w-0 rounded-control border border-line-2 bg-surface text-ink shadow-[0_1px_2px_rgb(15_23_42/0.04)] " +
   "placeholder:text-ink-4 transition outline-none " +
   "hover:border-ink-4 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 " +
   "disabled:cursor-not-allowed disabled:bg-sunken disabled:text-ink-3 " +

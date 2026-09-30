@@ -8,40 +8,40 @@
 @import "./design-system-runtime.css" layer(legacy);
 
 /* ---------- Tokens -----------------------------------------------------------
-   Friendly and calm: a green-tinted canvas, white cards with generous radii, and one
-   emerald accent. Everything else in the palette is Tailwind's own (amber for
-   warning, rose for error, indigo for information). */
+   Professional and calm: a cool slate canvas, white cards with generous radii, and
+   one deep indigo accent. Everything else in the palette is Tailwind's own (emerald
+   for success, amber for warning, rose for error, sky for information). */
 @theme {
   --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace;
 
-  --color-brand-50: #ecfdf5;
-  --color-brand-100: #d1fae5;
-  --color-brand-200: #a7f3d0;
-  --color-brand-300: #6ee7b7;
-  --color-brand-400: #34d399;
-  --color-brand-500: #10b981;
-  --color-brand-600: #059669;
-  --color-brand-700: #047857;
-  --color-brand-800: #065f46;
-  --color-brand-900: #064e3b;
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c7d2fe;
+  --color-brand-300: #a5b4fc;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --color-brand-800: #3730a3;
+  --color-brand-900: #312e81;
 
-  --color-canvas: #f2f6f4;
+  --color-canvas: #f4f6fa;
   --color-surface: #ffffff;
-  --color-sunken: #f6f9f7;
-  --color-ink: #13211b;
-  --color-ink-2: #45554d;
-  --color-ink-3: #66756d;
-  --color-ink-4: #97a39d;
-  --color-line: #e3eae6;
-  --color-line-2: #cfdad4;
+  --color-sunken: #f8fafc;
+  --color-ink: #0f172a;
+  --color-ink-2: #475569;
+  --color-ink-3: #64748b;
+  --color-ink-4: #94a3b8;
+  --color-line: #e4e8ef;
+  --color-line-2: #d3d9e3;
 
   --radius-card: 1.25rem;
   --radius-control: 0.75rem;
 
-  --shadow-card: 0 1px 2px rgb(19 33 27 / 0.04), 0 6px 20px -8px rgb(19 33 27 / 0.08);
-  --shadow-pop: 0 16px 40px -12px rgb(19 33 27 / 0.22), 0 2px 6px rgb(19 33 27 / 0.06);
-  --shadow-brand: 0 6px 16px -6px rgb(4 120 87 / 0.45);
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 6px 20px -8px rgb(15 23 42 / 0.08);
+  --shadow-pop: 0 16px 40px -12px rgb(15 23 42 / 0.22), 0 2px 6px rgb(15 23 42 / 0.06);
+  --shadow-brand: 0 6px 16px -6px rgb(67 56 202 / 0.4);
 }
 
 /* The legacy stylesheet redeclares these on :root inside its layer, which would

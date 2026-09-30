@@ -1,15 +1,9 @@
-import { ConfigRail } from "@/components/config-rail";
-
 /**
- * Every Configuration screen shares one frame: the section navigator on the left,
- * the section itself on the right. The page head belongs to the section, not to
- * this frame, so each screen states its own purpose and actions.
+ * Every Configuration screen shares one frame. The section navigator is the sidebar
+ * itself — it switches to Configuration's sections while you are in here — so this
+ * frame adds nothing but a width that suits forms and registers. The page head
+ * belongs to the section, so each screen states its own purpose and actions.
  */
 export default function ConfigurationLayout({ children }: LayoutProps<"/configuration">) {
-  return (
-    <div className="cfg-wrap">
-      <ConfigRail />
-      <div className="cfg-main">{children}</div>
-    </div>
-  );
+  return <div className="min-w-0">{children}</div>;
 }

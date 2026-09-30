@@ -427,7 +427,7 @@ export function DataList({
                   aria-label={label}
                   title={label}
                   onClick={() => setCompact(value)}
-                  className="grid size-8 place-items-center rounded-full text-ink-3 transition aria-pressed:bg-surface aria-pressed:text-ink aria-pressed:shadow-[0_1px_2px_rgb(19_33_27/0.1)]"
+                  className="grid size-8 place-items-center rounded-full text-ink-3 transition aria-pressed:bg-surface aria-pressed:text-ink aria-pressed:shadow-[0_1px_2px_rgb(15_23_42/0.1)]"
                 >
                   <Ico size={14} />
                 </button>
