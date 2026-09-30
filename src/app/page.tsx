@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import {
   CalendarIcon,
   ClockIcon,
@@ -8,11 +6,19 @@ import {
   GavelIcon,
   GlobeIcon,
   PlusIcon,
+  SparkleIcon,
   ToolsIcon,
   UserIcon,
   UsersIcon,
 } from "@/components/icons";
 import { DataList } from "@/components/data-list";
+import { Avatar } from "@/components/ui/avatar";
+import { Badge, Dot } from "@/components/ui/badge";
+import { Button, ButtonLink } from "@/components/ui/button";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/feedback";
+import { PageHeader } from "@/components/ui/page-header";
+import { Stat } from "@/components/ui/stat";
 import { loadDashboard } from "@/lib/dashboard";
 import { formatDate, formatRM } from "@/lib/format";
 import { matterLabel } from "@/lib/labels";
@@ -34,17 +40,37 @@ function greeting(now: Date): string {
   return "Good evening";
 }
 
+/// Modules the dashboard will report on once they exist. Listed rather than drawn as
+/// empty cards: three blank panels read as a broken screen, one honest list does not.
+const COMING = [
+  {
+    icon: <ToolsIcon size={17} />,
+    title: "Project health",
+    body: "Progress, certified value and time remaining will report here once contract administration lands.",
+  },
+  {
+    icon: <FilesIcon size={17} />,
+    title: "Documents awaiting my review",
+    body: "Submissions routed to you will land here for review against a service level.",
+  },
+  {
+    icon: <GlobeIcon size={17} />,
+    title: "Sourcing pipeline",
+    body: "Active sourcing events by stage: planning, invited, open for bids, evaluating, awaiting approval and awarded.",
+  },
+];
+
 export default async function Dashboard() {
   const [data, shell] = await Promise.all([loadDashboard(), loadShell()]);
 
   if (!data) {
     return (
-      <div className="empty">
-        <div className="empty__t">Nothing configured yet</div>
-        <p className="empty__d">
-          Run <code className="mono">npm run setup</code> to load the organisation.
-        </p>
-      </div>
+      <Card>
+        <EmptyState title="Nothing configured yet" icon={<SparkleIcon size={24} />}>
+          Run <code className="font-mono text-[12.5px]">npm run setup</code> to load the
+          organisation.
+        </EmptyState>
+      </Card>
     );
   }
 
@@ -57,319 +83,232 @@ export default async function Dashboard() {
 
   return (
     <>
-      <div className="pagehead">
-        <div className="pagehead__top">
-          <div className="pagehead__titles">
-            <div className="pagehead__title">
-              <h1 className="h1 trunc">
-                {firstName ? `${greeting(now)}, ${firstName}` : greeting(now)}
-              </h1>
-            </div>
-            <p className="pagehead__sub clamp2">
-              {waiting === 0
-                ? "No items are awaiting a decision."
-                : `${waiting} ${waiting === 1 ? "item is" : "items are"} awaiting a decision.`}
-            </p>
-            <div className="pagehead__meta">
-              {shell.user && (
-                <>
-                  <span className="row">
-                    <UserIcon size={14} />
-                    {shell.user.jobTitle}
-                  </span>
-                  <span className="sep">·</span>
-                </>
-              )}
-              <span className="row">
-                <CalendarIcon size={14} />
-                {formatDate(now)}
-              </span>
-              {overdue > 0 && (
-                <>
-                  <span className="sep">·</span>
-                  <span className="row">
-                    <span className="badge badge--err">{overdue} aged over 14 days</span>
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
-          <div className="pagehead__actions">
-            <button type="button" className="btn" disabled>
-              <DownloadIcon size={15} />
+      <PageHeader
+        title={firstName ? `${greeting(now)}, ${firstName}` : greeting(now)}
+        subtitle={
+          waiting === 0
+            ? "No items are awaiting a decision."
+            : `${waiting} ${waiting === 1 ? "item is" : "items are"} awaiting a decision.`
+        }
+        meta={[
+          shell.user && (
+            <>
+              <UserIcon size={14} />
+              {shell.user.jobTitle}
+            </>
+          ),
+          <>
+            <CalendarIcon size={14} />
+            {formatDate(now)}
+          </>,
+          overdue > 0 && (
+            <Badge tone="err" dot>
+              {overdue} aged over 14 days
+            </Badge>
+          ),
+        ]}
+        actions={
+          <>
+            <Button icon={<DownloadIcon size={16} />} disabled title="Export is not built yet">
               Export
-            </button>
-            <button type="button" className="btn btn--primary" disabled>
-              <PlusIcon size={15} />
+            </Button>
+            <Button
+              variant="primary"
+              icon={<PlusIcon size={16} />}
+              disabled
+              title="Raising a request is not built yet"
+            >
               New request
-            </button>
-          </div>
-        </div>
+            </Button>
+          </>
+        }
+      />
+
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat
+          label="Awaiting a decision"
+          value={waiting}
+          tone="warn"
+          icon={<ClockIcon size={17} />}
+          hint={waiting > 0 ? `oldest ${data.queue[0].waitingDays} days` : "queue is clear"}
+        />
+        <Stat
+          label="Sourcing pipeline"
+          value={null}
+          tone="brand"
+          icon={<GlobeIcon size={17} />}
+          hint="sourcing is not built yet"
+        />
+        <Stat
+          label="Value approved"
+          value={formatRM(data.committedValue)}
+          tone="info"
+          icon={<GavelIcon size={17} />}
+          hint={`across ${data.decidedCount} decided matters`}
+        />
+        <Stat
+          label="Votes outstanding"
+          value={data.votesOutstanding}
+          tone="ok"
+          icon={<UsersIcon size={17} />}
+          hint="members yet to record a position"
+        />
       </div>
 
-      <div className="grid g4" style={{ marginBottom: 24 }}>
-        <div className="stat">
-          <div className="stat__top">
-            <span className="stat__label">Awaiting a decision</span>
-            <span className="stat__ico stat__ico--warn">
-              <ClockIcon size={15} />
-            </span>
-          </div>
-          <div className="stat__value">{waiting}</div>
-          <div className="stat__foot">
-            <span className="stat__hint">
-              {waiting > 0 ? `oldest ${data.queue[0].waitingDays} days` : "queue is clear"}
-            </span>
-          </div>
-        </div>
-
-        <div className="stat">
-          <div className="stat__top">
-            <span className="stat__label">Sourcing pipeline</span>
-            <span className="stat__ico stat__ico--brand">
-              <GlobeIcon size={15} />
-            </span>
-          </div>
-          <div className="stat__value">—</div>
-          <div className="stat__foot">
-            <span className="stat__hint">sourcing is not built yet</span>
-          </div>
-        </div>
-
-        <div className="stat">
-          <div className="stat__top">
-            <span className="stat__label">Value approved</span>
-            <span className="stat__ico stat__ico--info">
-              <GavelIcon size={15} />
-            </span>
-          </div>
-          <div className="stat__value stat__value--sm">{formatRM(data.committedValue)}</div>
-          <div className="stat__foot">
-            <span className="stat__hint">across {data.decidedCount} decided matters</span>
-          </div>
-        </div>
-
-        <div className="stat">
-          <div className="stat__top">
-            <span className="stat__label">Votes outstanding</span>
-            <span className="stat__ico stat__ico--ok">
-              <UsersIcon size={15} />
-            </span>
-          </div>
-          <div className="stat__value">{data.votesOutstanding}</div>
-          <div className="stat__foot">
-            <span className="stat__hint">members yet to record a position</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="record">
-        <div className="stack stack--lg">
-          <div className="card">
-            <div className="card__head">
-              <ClockIcon size={17} />
-              <div className="card__titles">
-                <div className="h3 trunc">My approvals &amp; tasks</div>
-                <div className="card__sub trunc">
-                  Matters routed to a committee, oldest first.
-                </div>
-              </div>
-              <div className="row">
-                <Link href="/configuration/committees" className="btn btn--ghost btn--sm">
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="flex min-w-0 flex-col gap-6">
+          <Card className="overflow-hidden">
+            <CardHeader
+              icon={<ClockIcon size={17} />}
+              title="My approvals & tasks"
+              subtitle="Matters routed to a committee, oldest first."
+              divided={false}
+              actions={
+                <ButtonLink href="/configuration/committees" variant="ghost" size="sm">
                   View all
-                </Link>
-              </div>
-            </div>
-            <div className="card__body card__body--flush">
-              <DataList
-                flat
-                exportName="approvals-and-tasks"
-                searchPlaceholder="Search my queue…"
-                emptyTitle="Your queue is clear"
-                emptyBody="Matters routed to a committee appear here the moment they are raised."
-                views={[
-                  { id: "aged", label: "Aged over 14 days" },
-                  { id: "financial", label: "Financial items" },
-                ]}
-                filters={[
-                  { key: "type", label: "Type" },
-                  { key: "with", label: "Committee" },
-                ]}
-                rowAction={{
-                  label: "Open the sitting",
-                  hrefTemplate: "/configuration/committees",
-                }}
-                columns={[
-                  { key: "item", label: "Item", width: "40%", sortable: true },
-                  { key: "type", label: "Type", width: "15%", sortable: true },
-                  { key: "value", label: "Value", width: "14%", numeric: true, sortable: true },
-                  { key: "waiting", label: "Waiting", width: "11%", numeric: true, sortable: true },
-                  { key: "with", label: "With", width: "20%" },
-                ]}
-                rows={data.queue.map((item) => ({
-                  id: item.decisionId,
-                  search: `${item.subject} ${item.matterRef ?? ""} ${item.committeeName}`,
-                  views: [
-                    ...(item.waitingDays > 14 ? ["aged"] : []),
-                    ...(item.amount != null ? ["financial"] : []),
-                  ],
-                  sortKeys: {
-                    value: item.amount ?? -1,
-                    waiting: item.waitingDays,
-                    item: item.subject,
-                    type: matterLabel(item.domain),
+                </ButtonLink>
+              }
+            />
+            <DataList
+              flat
+              exportName="approvals-and-tasks"
+              searchPlaceholder="Search my queue…"
+              emptyTitle="Your queue is clear"
+              emptyBody="Matters routed to a committee appear here the moment they are raised."
+              views={[
+                { id: "aged", label: "Aged over 14 days" },
+                { id: "financial", label: "Financial items" },
+              ]}
+              filters={[
+                { key: "type", label: "Type" },
+                { key: "with", label: "Committee" },
+              ]}
+              rowAction={{
+                label: "Open the sitting",
+                hrefTemplate: "/configuration/committees",
+              }}
+              columns={[
+                { key: "item", label: "Item", width: "40%", sortable: true },
+                { key: "type", label: "Type", width: "15%", sortable: true },
+                { key: "value", label: "Value", width: "14%", numeric: true, sortable: true },
+                { key: "waiting", label: "Waiting", width: "11%", numeric: true, sortable: true },
+                { key: "with", label: "With", width: "20%" },
+              ]}
+              rows={data.queue.map((item) => ({
+                id: item.decisionId,
+                search: `${item.subject} ${item.matterRef ?? ""} ${item.committeeName}`,
+                views: [
+                  ...(item.waitingDays > 14 ? ["aged"] : []),
+                  ...(item.amount != null ? ["financial"] : []),
+                ],
+                sortKeys: {
+                  value: item.amount ?? -1,
+                  waiting: item.waitingDays,
+                  item: item.subject,
+                  type: matterLabel(item.domain),
+                },
+                cells: {
+                  item: {
+                    kind: "stack",
+                    title: item.subject,
+                    sub: item.matterRef ?? item.meetingReference,
+                    monoSub: true,
                   },
-                  cells: {
-                    item: {
-                      kind: "stack",
-                      title: item.subject,
-                      sub: item.matterRef ?? item.meetingReference,
-                      monoSub: true,
-                    },
-                    type: { kind: "text", text: matterLabel(item.domain), dim: true },
-                    value: { kind: "money", value: item.amount },
-                    waiting: {
-                      kind: "badge",
-                      text: `${item.waitingDays}d`,
-                      tone: item.waitingDays > 14 ? "err" : undefined,
-                    },
-                    with: {
-                      kind: "link",
-                      text: item.committeeName,
-                      href: `/configuration/committees/${item.committeeCode}`,
-                      sub: `${item.votesCast} of ${item.entitled} voted`,
-                    },
+                  type: { kind: "text", text: matterLabel(item.domain), dim: true },
+                  value: { kind: "money", value: item.amount },
+                  waiting: {
+                    kind: "badge",
+                    text: `${item.waitingDays}d`,
+                    tone: item.waitingDays > 14 ? "err" : undefined,
                   },
-                }))}
-              />
-            </div>
-          </div>
+                  with: {
+                    kind: "link",
+                    text: item.committeeName,
+                    href: `/configuration/committees/${item.committeeCode}`,
+                    sub: `${item.votesCast} of ${item.entitled} voted`,
+                  },
+                },
+              }))}
+            />
+          </Card>
 
-          <div className="card">
-            <div className="card__head">
-              <ToolsIcon size={17} />
-              <div className="card__titles">
-                <div className="h3 trunc">Project health</div>
-                <div className="card__sub trunc">Active contracts requiring attention.</div>
-              </div>
-            </div>
-            <div className="card__body">
-              <div className="empty empty--sm">
-                <div className="empty__t">Projects is not built yet</div>
-                <p className="empty__d">
-                  Progress, certified value and time remaining will report here once contract
-                  administration lands.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="card__head">
-              <FilesIcon size={17} />
-              <div className="card__titles">
-                <div className="h3 trunc">Documents awaiting my review</div>
-                <div className="card__sub trunc">Submitted by contractors and awaiting review.</div>
-              </div>
-            </div>
-            <div className="card__body">
-              <div className="empty empty--sm">
-                <div className="empty__t">Documents is not built yet</div>
-                <p className="empty__d">
-                  Submissions routed to you will land here for review against a service level.
-                </p>
-              </div>
-            </div>
-          </div>
+          <Card tone="flat" className="border-dashed bg-surface/60">
+            <CardHeader
+              icon={<SparkleIcon size={17} />}
+              title="On the way"
+              subtitle="These will report here once their modules are built."
+            />
+            <CardBody className="grid gap-5 md:grid-cols-3">
+              {COMING.map((c) => (
+                <div key={c.title} className="min-w-0">
+                  <div className="flex items-center gap-2 text-ink-3">
+                    {c.icon}
+                    <Badge tone="warn">Not built yet</Badge>
+                  </div>
+                  <div className="mt-2.5 text-[14px] font-bold text-ink">{c.title}</div>
+                  <p className="mt-1 text-[13px] leading-relaxed text-ink-3">{c.body}</p>
+                </div>
+              ))}
+            </CardBody>
+          </Card>
         </div>
 
-        <aside className="rrail">
-          <div className="card">
-            <div className="card__head">
-              <GlobeIcon size={17} />
-              <div className="card__titles">
-                <div className="h3 trunc">Sourcing pipeline</div>
-                <div className="card__sub trunc">Active sourcing events by stage.</div>
-              </div>
-            </div>
-            <div className="card__body card__body--tight">
-              {["Planning", "Invited", "Open for bids", "Evaluating", "Awaiting approval", "Awarded"].map(
-                (stage) => (
-                  <div className="pipestage" key={stage}>
-                    <span className="pipestage__dot" style={{ background: "var(--n-200)" }} />
-                    <span className="pipestage__n trunc">{stage}</span>
-                    <span className="pipestage__c">—</span>
-                    <span className="pipestage__v">—</span>
-                  </div>
-                ),
-              )}
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="card__head">
-              <CalendarIcon size={17} />
-              <div className="card__titles">
-                <div className="h3 trunc">Upcoming sittings</div>
-                <div className="card__sub trunc">Committees scheduled to sit.</div>
-              </div>
-            </div>
-            <div className="card__body card__body--tight">
-              {data.upcoming.length === 0 ? (
-                <p className="sm dim" style={{ padding: "8px 0" }}>
-                  Nothing scheduled.
-                </p>
-              ) : (
-                data.upcoming.map((m) => (
-                  <div className="hoverrow" key={m.id}>
-                    <span
-                      className={`tl__dot ${m.daysAway <= 2 ? "tl__dot--warn" : "tl__dot--brand"}`}
-                    />
-                    <div className="grow col">
-                      <span className="sm strong trunc">{m.committeeName}</span>
-                      <span className="xs dim trunc">{m.reference}</span>
+        <aside className="flex min-w-0 flex-col gap-6">
+          <Card>
+            <CardHeader
+              icon={<CalendarIcon size={17} />}
+              title="Upcoming sittings"
+              subtitle="Committees scheduled to sit."
+            />
+            {data.upcoming.length === 0 ? (
+              <EmptyState size="sm" title="Nothing scheduled" />
+            ) : (
+              <ul className="divide-y divide-line/70 px-2 py-1.5">
+                {data.upcoming.map((m) => (
+                  <li key={m.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5">
+                    <Dot tone={m.daysAway <= 2 ? "warn" : "brand"} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[13.5px] font-semibold text-ink">
+                        {m.committeeName}
+                      </div>
+                      <div className="truncate text-[12px] text-ink-3">{m.reference}</div>
                     </div>
-                    <div className="col right">
-                      <div className="xs strong num">
+                    <div className="shrink-0 text-right">
+                      <div className="text-[12.5px] font-bold text-ink tabular-nums">
                         {m.daysAway <= 0 ? "today" : `in ${m.daysAway} days`}
                       </div>
-                      <div className="xs faint num">{formatDate(m.meetingDate)}</div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="card__head">
-              <UsersIcon size={17} />
-              <div className="card__titles">
-                <div className="h3 trunc">Recent activity</div>
-              </div>
-            </div>
-            <div className="card__body card__body--tight">
-              {data.activity.length === 0 ? (
-                <p className="sm dim" style={{ padding: "8px 0" }}>
-                  No activity yet.
-                </p>
-              ) : (
-                <div className="feed">
-                  {data.activity.map((a, i) => (
-                    <div className="feed__i" key={i}>
-                      <div className="feed__b">
-                        <div className="feed__t">
-                          <b>{a.who}</b> {a.what}
-                        </div>
-                        <div className="feed__m xs dim trunc">{a.detail}</div>
-                        <div className="feed__ts xs faint">{formatDate(a.at)}</div>
+                      <div className="text-[12px] text-ink-4 tabular-nums">
+                        {formatDate(m.meetingDate)}
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          <Card>
+            <CardHeader icon={<UsersIcon size={17} />} title="Recent activity" />
+            {data.activity.length === 0 ? (
+              <EmptyState size="sm" title="No activity yet" />
+            ) : (
+              <ol className="px-6 py-4">
+                {data.activity.map((a, i) => (
+                  <li key={i} className="relative flex gap-3 pb-4 last:pb-0">
+                    <span className="absolute top-8 bottom-0 left-[13px] w-px bg-line last:hidden" />
+                    <Avatar name={a.who} size="xs" className="mt-0.5 size-7" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13.5px] text-ink">
+                        <b className="font-semibold">{a.who}</b> {a.what}
+                      </div>
+                      <div className="truncate text-[12.5px] text-ink-3">{a.detail}</div>
+                      <div className="text-[12px] text-ink-4">{formatDate(a.at)}</div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </Card>
         </aside>
       </div>
     </>

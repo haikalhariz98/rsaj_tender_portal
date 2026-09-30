@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 
-import { Sidebar } from "@/components/shell/sidebar";
-import { Topbar } from "@/components/shell/topbar";
+import { AppShell } from "@/components/shell/app-shell";
 import { loadShell } from "@/lib/shell";
 import { ORGANISATION_NAME, ORGANISATION_STRAPLINE } from "@/lib/org";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+const jakarta = Plus_Jakarta_Sans({
+  variable: "--font-jakarta",
   subsets: ["latin"],
 });
 
@@ -22,21 +21,16 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const shell = await loadShell();
 
   return (
-    <html lang="en" className={inter.variable} style={{ colorScheme: "light" }}>
+    <html lang="en" className={jakarta.variable} style={{ colorScheme: "light" }}>
       <body>
-        <div className="app">
-          <Sidebar
-            organisation={ORGANISATION_NAME}
-            strapline={ORGANISATION_STRAPLINE}
-            counts={shell.counts}
-          />
-          <div className="main">
-            <Topbar organisation={ORGANISATION_NAME} user={shell.user} />
-            <main className="content">
-              <div className="container">{children}</div>
-            </main>
-          </div>
-        </div>
+        <AppShell
+          organisation={ORGANISATION_NAME}
+          strapline={ORGANISATION_STRAPLINE}
+          counts={shell.counts}
+          user={shell.user}
+        >
+          {children}
+        </AppShell>
       </body>
     </html>
   );

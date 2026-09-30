@@ -7,17 +7,19 @@ import { useEffect, useRef, useState, type ComponentType } from "react";
 import {
   BuildingIcon,
   ChartIcon,
+  CheckIcon,
   ChevronDown,
   FilesIcon,
   GavelIcon,
   GlobeIcon,
   GridIcon,
   InboxIcon,
-  PanelLeftIcon,
   SlidersIcon,
   ToolsIcon,
   UserIcon,
+  XIcon,
 } from "@/components/icons";
+import { cx } from "@/components/ui/cx";
 import { navFor, STAFF_NAV, SUPPLIER_NAV, workspaceFor, type Workspace } from "@/lib/nav";
 
 const ICONS: Record<string, ComponentType<{ size?: number }>> = {
@@ -35,11 +37,17 @@ export function Sidebar({
   organisation,
   strapline,
   counts,
+  onNavigate,
+  onClose,
 }: {
   organisation: string;
   strapline: string;
   /// Outstanding-work counts keyed by href, shown as a badge on the nav item.
   counts: Record<string, number>;
+  /// Called after a link is followed, so the mobile drawer can close.
+  onNavigate?: () => void;
+  /// Present only in the mobile drawer.
+  onClose?: () => void;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -50,7 +58,7 @@ export function Sidebar({
   const trigger = useRef<HTMLButtonElement>(null);
   const brand = useRef<HTMLDivElement>(null);
 
-  // Close on Escape and on a click outside. Escape returns focus to the chevron,
+  // Close on Escape and on a click outside. Escape returns focus to the trigger,
   // because a menu that closes and drops the caret leaves a keyboard user nowhere.
   useEffect(() => {
     if (!switching) return;
@@ -76,6 +84,7 @@ export function Sidebar({
   /// not state held off-screen, so this pushes to the other side's first screen.
   const switchTo = (to: Workspace) => {
     setSwitching(false);
+    onNavigate?.();
     router.push(to === "supplier" ? SUPPLIER_NAV[0].items[0].href : STAFF_NAV[0].items[0].href);
   };
 
@@ -87,102 +96,122 @@ export function Sidebar({
     href === "/" || href === "/supplier" ? pathname === href : pathname.startsWith(href);
 
   return (
-    <nav className="sidebar">
-      {/* The brand block already names the workspace you are in, so it is also how you
-          leave it. Stating the same fact twice — here and in a top-bar switcher — cost
-          the breadcrumb its room, and the top bar dropped the one word ("Viewing as")
-          that identified the control as a switch at exactly the widths where it was
-          needed most. */}
-      <div className="sb-brand" ref={brand} style={{ position: "relative" }}>
-        {/* Drop a logo at /public/logo.png and swap this for an <Image>. */}
-        <span className="sb-mark">
-          <GavelIcon size={22} />
+    <nav className="flex h-full flex-col gap-2 px-4 pt-5 pb-4" aria-label="Main">
+      <div className="flex items-center gap-2.5 px-2 pb-3">
+        <span className="grid size-9 place-items-center rounded-xl bg-brand-700 text-white shadow-brand">
+          <GavelIcon size={18} />
         </span>
-        <div className="sb-brandtext grow">
-          <div className="sb-name trunc">{workspaceName}</div>
-          <div className="sb-sub trunc">{strapline}</div>
-        </div>
+        <span className="text-[17px] font-extrabold tracking-tight text-ink">Perolehan</span>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close navigation"
+            className="ml-auto grid size-9 place-items-center rounded-full text-ink-3 hover:bg-ink/5"
+          >
+            <XIcon size={18} />
+          </button>
+        )}
+      </div>
+
+      {/* The workspace you are in, which is also how you leave it. */}
+      <div className="relative" ref={brand}>
         <button
           type="button"
           ref={trigger}
-          className="iconbtn"
           aria-haspopup="menu"
           aria-expanded={switching}
           aria-label={`Viewing as ${workspaceName}. Switch workspace`}
           onClick={() => setSwitching((open) => !open)}
+          className="flex w-full items-center gap-3 rounded-2xl border border-line bg-sunken px-3 py-2.5 text-left transition hover:border-line-2 hover:bg-surface"
         >
-          <ChevronDown size={17} />
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-surface text-brand-700 shadow-[0_1px_2px_rgb(19_33_27/0.08)]">
+            {workspace === "supplier" ? <UserIcon size={16} /> : <BuildingIcon size={16} />}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[13.5px] font-bold text-ink">{workspaceName}</span>
+            <span className="block truncate text-[12px] text-ink-3">{strapline}</span>
+          </span>
+          <ChevronDown size={16} className="shrink-0 text-ink-3" />
         </button>
 
         {switching && (
           <div
-            className="popover"
             role="menu"
             aria-label="Switch workspace"
-            style={{ top: "calc(100% + 4px)", left: 12, right: 12 }}
+            className="absolute inset-x-0 top-[calc(100%+6px)] z-30 rounded-2xl border border-line bg-surface p-1.5 shadow-pop"
           >
-            <div className="menu__t">Viewing as</div>
-            <button
-              type="button"
-              className="menu__i"
-              role="menuitemradio"
-              aria-checked={workspace === "internal"}
-              onClick={() => switchTo("internal")}
-            >
-              <BuildingIcon size={16} />
-              <span className="trunc">{organisation}</span>
-            </button>
-            <button
-              type="button"
-              className="menu__i"
-              role="menuitemradio"
-              aria-checked={workspace === "supplier"}
-              onClick={() => switchTo("supplier")}
-            >
-              <UserIcon size={16} />
-              <span className="trunc">Supplier portal</span>
-            </button>
+            <div className="px-3 pt-2 pb-1 text-[11.5px] font-semibold text-ink-3">Viewing as</div>
+            {(
+              [
+                ["internal", organisation, BuildingIcon],
+                ["supplier", "Supplier portal", UserIcon],
+              ] as const
+            ).map(([id, label, Ico]) => (
+              <button
+                key={id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={workspace === id}
+                onClick={() => switchTo(id)}
+                className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[13.5px] text-ink hover:bg-sunken aria-checked:font-semibold"
+              >
+                <Ico size={16} />
+                <span className="min-w-0 flex-1 truncate">{label}</span>
+                {workspace === id && <CheckIcon size={15} className="text-brand-600" />}
+              </button>
+            ))}
           </div>
         )}
       </div>
 
-      <div className="sb-nav">
+      <div className="-mx-1 mt-2 flex-1 overflow-y-auto px-1">
         {groups.map((group) => (
-          <div key={group.label}>
-            <div className="navgroup">{group.label}</div>
-            {group.items.map((item) => {
-              const Ico = ICONS[item.icon] ?? GridIcon;
-              const count = counts[item.href];
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="navitem"
-                  aria-current={isActive(item.href) ? "page" : undefined}
-                >
-                  <span className="navitem__ico">
-                    <Ico />
-                  </span>
-                  <span className="navitem__label trunc">{item.label}</span>
-                  {count ? (
+          <div key={group.label} className="mt-4 first:mt-1">
+            <div className="px-3 pb-1.5 text-[11.5px] font-semibold text-ink-4">{group.label}</div>
+            <div className="flex flex-col gap-0.5">
+              {group.items.map((item) => {
+                const Ico = ICONS[item.icon] ?? GridIcon;
+                const count = counts[item.href];
+                const active = isActive(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={onNavigate}
+                    aria-current={active ? "page" : undefined}
+                    className={cx(
+                      "group flex items-center gap-3 rounded-xl px-3 py-2 text-[14px] font-medium no-underline transition hover:no-underline",
+                      active
+                        ? "bg-brand-50 font-semibold text-brand-800"
+                        : "text-ink-2 hover:bg-ink/[0.04] hover:text-ink",
+                    )}
+                  >
                     <span
-                      className={`navitem__badge${item.href === "/" ? " navitem__badge--alert" : ""}`}
+                      className={cx(
+                        "grid size-7 place-items-center rounded-lg transition",
+                        active ? "bg-brand-600 text-white" : "text-ink-3 group-hover:text-ink-2",
+                      )}
                     >
-                      {count}
+                      <Ico size={16} />
                     </span>
-                  ) : null}
-                </Link>
-              );
-            })}
+                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                    {count ? (
+                      <span
+                        className={cx(
+                          "min-w-6 rounded-full px-1.5 text-center text-[11.5px] leading-5 font-bold",
+                          item.href === "/" ? "bg-rose-500 text-white" : "bg-ink/[0.07] text-ink-2",
+                        )}
+                      >
+                        {count}
+                      </span>
+                    ) : null}
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         ))}
-      </div>
-
-      <div className="sb-foot">
-        <button type="button" className="iconbtn" aria-label="Collapse navigation" disabled>
-          <PanelLeftIcon size={17} />
-        </button>
-        <span className="sb-foottext xs faint trunc">{organisation} · Procurement</span>
       </div>
     </nav>
   );
