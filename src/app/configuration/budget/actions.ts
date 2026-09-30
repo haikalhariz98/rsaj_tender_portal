@@ -380,7 +380,7 @@ export async function addRevision(_prev: FormState, data: FormData): Promise<For
 
   const r = new FormReader(data);
   const budgetCodeId = r.text("budgetCodeId", "Budget code", { required: true });
-  const direction = r.text("direction", "Direction", { required: true });
+  const direction = r.choice("direction", "Direction", ["up", "down"] as const, { required: true });
   const amountText = r.money("amount", "Amount", { required: true });
   const amount = amountText == null ? null : parseSen(amountText);
   const reference = r.text("reference", "Reference", { required: true, max: 60 });
@@ -402,6 +402,7 @@ export async function addRevision(_prev: FormState, data: FormData): Promise<For
 
   // Down is stored as a negative revision rather than as its own kind: the ledger
   // sums revisions, and a second kind would have to be remembered everywhere it does.
+  // REVISION is the one signed kind (see the schema); `ledgerLines` reads the sign.
   const signed = direction === "down" ? `-${senToDecimalString(amount!)}` : senToDecimalString(amount!);
 
   const row = {

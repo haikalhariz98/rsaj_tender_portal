@@ -253,6 +253,19 @@ describe("the allocation ledger, line by line", () => {
     const lines = ledgerLines([move("TRANSFER_OUT", "95000.00")], "b1", ON, write);
     expect(lines[0].adds).toBe(false);
   });
+
+  it("reads a downward revision as taking away, at its size", () => {
+    const lines = ledgerLines(
+      [move("ORIGINAL", "1000.00"), move("REVISION", "-250.00")],
+      "b1",
+      ON,
+      write,
+    );
+    expect(lines[1].label).toBe("Revised down");
+    expect(lines[1].adds).toBe(false);
+    expect(formatSen(lines[1].amount)).toBe("RM250.00");
+    expect(formatSen(lines[2].amount)).toBe("RM750.00");
+  });
 });
 
 describe("refusing a transfer", () => {

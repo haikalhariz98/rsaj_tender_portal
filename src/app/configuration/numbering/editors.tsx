@@ -1,5 +1,6 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import type { StoredSeries } from "@/lib/numbering/load";
+import { serialFor } from "@/lib/numbering/series";
 
 import { saveSeries } from "./actions";
 
@@ -111,7 +112,9 @@ export function EditSeries({ series }: { series: StoredSeries }) {
         padding: String(series.padding),
         resetOn: series.resetOn,
         financialYearStartMonth: String(series.financialYearStartMonth),
-        nextSerial: String(series.nextSerial),
+        // The serial the next reference would take today, not the stored one: after a
+        // yearly reset is due, the stored figure belongs to last year.
+        nextSerial: String(serialFor(series, new Date())),
         provenance: series.provenance,
         notes: series.notes,
       }}

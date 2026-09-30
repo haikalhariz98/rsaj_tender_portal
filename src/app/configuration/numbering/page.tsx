@@ -1,6 +1,6 @@
 import { AlertTriangle } from "@/components/icons";
 import { loadSeries } from "@/lib/numbering/load";
-import { patternFaults, periodFor, previewNext } from "@/lib/numbering/series";
+import { patternFaults, periodFor, previewNext, serialFor } from "@/lib/numbering/series";
 import { ORGANISATION_CODE } from "@/lib/org";
 
 import { AddSeries, EditSeries } from "./editors";
@@ -128,7 +128,7 @@ export default async function NumberingPage() {
                           <div className="cellstack">
                             <span className="cellstack__t">{s.nameEn}</span>
                             <span className="cellstack__s">
-                              serial {s.nextSerial}
+                              serial {serialFor(s, on)}
                               {period ? ` of ${period}` : ""}
                             </span>
                           </div>

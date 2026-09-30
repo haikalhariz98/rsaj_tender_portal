@@ -24,19 +24,20 @@ const NO_ORG: FormState = {
   message: "No organisation is configured. Run npm run setup before adding records.",
 };
 
-/// A code may be reused once the entry holding it is retired, so only entries still
-/// in force count as taken.
-function takenCodes(rows: { code: string; retiredOn: Date | null }[], except?: string): string[] {
-  return rows
-    .filter((r) => r.retiredOn == null && r.code !== except)
-    .map((r) => r.code);
+/// Every code ever issued counts as taken, retired or not. The tables hold one row per
+/// code, so a retired entry still owns its code — offering it again would pass here
+/// and then fail at the database. A retired entry comes back by being restored.
+function takenCodes(rows: { code: string }[]): string[] {
+  return rows.map((r) => r.code);
 }
 
 // ---------------------------------------------------------------- funding routes
 
-function readFundingRoute(data: FormData, taken: string[], editing: boolean) {
+/// `storedCode` is the code of the entry being edited. A code is set once and the edit
+/// drawer does not offer it, so an edit keeps the stored one.
+function readFundingRoute(data: FormData, taken: string[], storedCode: string | undefined) {
   const r = new FormReader(data);
-  const code = editing ? String(data.get("code") ?? "") : r.code("code", "Code", { taken });
+  const code = storedCode ?? r.code("code", "Code", { taken });
   const value = {
     code,
     nameEn: r.text("nameEn", "Name", { required: true, max: 120 }),
@@ -70,8 +71,9 @@ export async function saveFundingRoute(_prev: FormState, data: FormData): Promis
     select: { id: true, code: true, retiredOn: true },
   });
   const current = id ? existing.find((e) => e.id === id) : undefined;
+  if (id && !current) return { ok: false, message: "That funding route no longer exists." };
 
-  const parsed = readFundingRoute(data, takenCodes(existing, current?.code), Boolean(id));
+  const parsed = readFundingRoute(data, takenCodes(existing), current?.code);
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
   const v = parsed.value;
 
@@ -100,9 +102,11 @@ export async function saveFundingRoute(_prev: FormState, data: FormData): Promis
 
 // -------------------------------------------------------------- sourcing methods
 
-function readSourcingMethod(data: FormData, taken: string[], editing: boolean) {
+/// `storedCode` is the code of the entry being edited. A code is set once and the edit
+/// drawer does not offer it, so an edit keeps the stored one.
+function readSourcingMethod(data: FormData, taken: string[], storedCode: string | undefined) {
   const r = new FormReader(data);
-  const code = editing ? String(data.get("code") ?? "") : r.code("code", "Code", { taken });
+  const code = storedCode ?? r.code("code", "Code", { taken });
   const value = {
     code,
     nameEn: r.text("nameEn", "Name", { required: true, max: 120 }),
@@ -139,8 +143,9 @@ export async function saveSourcingMethod(_prev: FormState, data: FormData): Prom
     select: { id: true, code: true, retiredOn: true },
   });
   const current = id ? existing.find((e) => e.id === id) : undefined;
+  if (id && !current) return { ok: false, message: "That sourcing method no longer exists." };
 
-  const parsed = readSourcingMethod(data, takenCodes(existing, current?.code), Boolean(id));
+  const parsed = readSourcingMethod(data, takenCodes(existing), current?.code);
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
   const v = parsed.value;
 
@@ -179,10 +184,12 @@ export async function saveContractType(_prev: FormState, data: FormData): Promis
     select: { id: true, code: true, retiredOn: true },
   });
   const current = id ? existing.find((e) => e.id === id) : undefined;
+  if (id && !current) return { ok: false, message: "That contract type no longer exists." };
 
   const r = new FormReader(data);
   const v = {
-    code: id ? String(data.get("code") ?? "") : r.code("code", "Code", { taken: takenCodes(existing, current?.code) }),
+    // Set once; the edit drawer does not offer it, so an edit keeps the stored code.
+    code: current ? current.code : r.code("code", "Code", { taken: takenCodes(existing) }),
     nameEn: r.text("nameEn", "Name", { required: true, max: 120 }),
     nameMs: r.optionalText("nameMs"),
     governingSource: r.text("governingSource", "Source", { max: 240 }),

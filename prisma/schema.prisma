@@ -1037,8 +1037,9 @@ model BudgetMovement {
   reference   String @default("")
   description String @default("")
 
-  /// Always positive. The kind says which way it moves — a signed amount and a kind
-  /// that disagree is a ledger nobody can total.
+  /// Positive, and the kind says which way it moves — except REVISION, the one
+  /// direction-neutral kind, which is signed: a revision down is stored negative.
+  /// Read direction through `ledgerLines`, never from the kind alone.
   amount Decimal @db.Decimal(18, 2)
 
   occurredOn DateTime

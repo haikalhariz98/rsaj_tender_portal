@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  afterConfiguring,
   afterIssuing,
   formatReference,
   needsReset,
@@ -192,5 +193,42 @@ describe("preview", () => {
   it("shows the reset in the preview before it happens", () => {
     const s = series({ pattern: "AB/{SERIAL}/{YEAR}", nextSerial: 41, serialPeriod: "2026" });
     expect(previewNext(s, d("2027-01-01"))).toBe("AB/001/2027");
+  });
+});
+
+describe("saving a series", () => {
+  const on = d("2026-06-15");
+
+  it("stamps a new series with the period it is created in", () => {
+    const s = afterConfiguring(null, { resetOn: "CALENDAR_YEAR", financialYearStartMonth: 1 }, 500, on);
+    expect(s).toEqual({ nextSerial: 500, serialPeriod: "2026" });
+    // The take-on serial is what the first reference uses — not a restart at 1.
+    expect(serialFor(series(s), on)).toBe(500);
+  });
+
+  it("keeps the stored serial when the field is left blank", () => {
+    const before = series({ nextSerial: 42, serialPeriod: "2026" });
+    const s = afterConfiguring(before, { resetOn: "CALENDAR_YEAR", financialYearStartMonth: 1 }, null, on);
+    expect(s).toEqual({ nextSerial: 42, serialPeriod: "2026" });
+  });
+
+  it("leaves a pending reset alone when only the name changes", () => {
+    // Last year's serial, saved in the new year without touching it: the new year still
+    // starts at 1 rather than inheriting 42.
+    const before = series({ nextSerial: 42, serialPeriod: "2025" });
+    const s = afterConfiguring(before, { resetOn: "CALENDAR_YEAR", financialYearStartMonth: 1 }, 1, on);
+    expect(serialFor(series(s), on)).toBe(1);
+  });
+
+  it("stamps a serial typed in by hand with today's period", () => {
+    const before = series({ nextSerial: 42, serialPeriod: "2025" });
+    const s = afterConfiguring(before, { resetOn: "CALENDAR_YEAR", financialYearStartMonth: 1 }, 7, on);
+    expect(s).toEqual({ nextSerial: 7, serialPeriod: "2026" });
+  });
+
+  it("never restarts when a running series is switched to reset yearly", () => {
+    const before = series({ resetOn: "NEVER", nextSerial: 231, serialPeriod: "" });
+    const s = afterConfiguring(before, { resetOn: "CALENDAR_YEAR", financialYearStartMonth: 1 }, null, on);
+    expect(serialFor(series({ ...s, resetOn: "CALENDAR_YEAR" }), on)).toBe(231);
   });
 });

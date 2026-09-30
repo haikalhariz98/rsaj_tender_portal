@@ -137,3 +137,57 @@ export function afterIssuing(series: Series, on: Date): Series {
   const serial = serialFor(series, on);
   return { ...series, nextSerial: serial + 1, serialPeriod: period };
 }
+
+/**
+ * The serial state after an administrator saves a series.
+ *
+ * `nextSerial` is only meaningful together with the period it belongs to. A serial
+ * typed in by hand — a take-on from a legacy register, say — belongs to the period it
+ * is typed in, so the period is stamped with it; left unstamped, the first reference
+ * would see a "new" period and start again at 1, repeating numbers already issued.
+ *
+ * An edit that touches neither the serial nor the reset rule leaves both alone, so a
+ * rename in January does not carry last year's serial into the new year.
+ *
+ * `before` is null for a new series. `entered` is the serial typed in, or null when
+ * the field was left blank — which keeps what is there rather than resetting to 1.
+ */
+export function afterConfiguring(
+  before: Series | null,
+  after: Pick<Series, "resetOn" | "financialYearStartMonth">,
+  entered: number | null,
+  on: Date,
+): Pick<Series, "nextSerial" | "serialPeriod"> {
+  const stamp = (nextSerial: number) => ({
+    nextSerial,
+    serialPeriod: periodFor({ ...(before ?? blankSeries), ...after }, on),
+  });
+
+  if (!before) return stamp(entered ?? 1);
+
+  const ruleChanged =
+    after.resetOn !== before.resetOn ||
+    after.financialYearStartMonth !== before.financialYearStartMonth;
+
+  if (ruleChanged) {
+    // Continue past anything issued under either rule: the higher of what the old
+    // rule would issue today and what it last stood at.
+    const floor = Math.max(before.nextSerial, serialFor(before, on));
+    return stamp(Math.max(entered ?? floor, floor));
+  }
+
+  if (entered != null && entered !== serialFor(before, on)) return stamp(entered);
+
+  return { nextSerial: before.nextSerial, serialPeriod: before.serialPeriod };
+}
+
+const blankSeries: Series = {
+  key: "",
+  nameEn: "",
+  pattern: "",
+  padding: 1,
+  resetOn: "NEVER",
+  financialYearStartMonth: 1,
+  nextSerial: 1,
+  serialPeriod: "",
+};

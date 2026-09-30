@@ -150,6 +150,9 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
   });
   if (!matrix) return { ok: false, message: "That issue of the limits no longer exists." };
 
+  const before = id ? await db.authorityRule.findUnique({ where: { id } }) : null;
+  if (id && !before) return { ok: false, message: "That rule no longer exists." };
+
   const r = new FormReader(data);
   const ruleKey = r.text("ruleKey", "Rule key", { required: true, max: 120 });
 
@@ -205,13 +208,16 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
     ruleKey,
     domain: r.text("domain", "Matter", { required: true, max: 60 }),
     method: r.optionalText("method"),
-    cond: r.optionalText("cond"),
+    // The rule drawer does not carry the variation bands or the condition. A field the
+    // form never sent is kept as stored rather than written as empty — otherwise every
+    // save of a variation rule would quietly strip the band it routes on.
+    cond: data.has("cond") ? r.optionalText("cond") : (before?.cond ?? null),
     minValue,
     maxValue,
-    pctMin: null,
-    pctMax: null,
-    contractValueMin: null,
-    contractValueMax: null,
+    pctMin: before?.pctMin?.toString() ?? null,
+    pctMax: before?.pctMax?.toString() ?? null,
+    contractValueMin: before?.contractValueMin?.toString() ?? null,
+    contractValueMax: before?.contractValueMax?.toString() ?? null,
     labelEn: r.text("labelEn", "Label", { required: true, max: 240 }),
     labelMs: r.optionalText("labelMs"),
     proposerCode: r.optionalText("proposerCode"),
@@ -237,17 +243,19 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
     reason: String(data.get("reason") ?? ""),
   };
 
-  if (!id) {
+  if (!before) {
     await auditedCreate(ctx, v, (tx) => tx.authorityRule.create({ data: v }));
   } else {
-    const before = await db.authorityRule.findUnique({ where: { id } });
-    if (!before) return { ok: false, message: "That rule no longer exists." };
     await auditedUpdate(
       { ...ctx, entityId: id },
       {
         ...before,
         minValue: before.minValue?.toString() ?? null,
         maxValue: before.maxValue?.toString() ?? null,
+        pctMin: before.pctMin?.toString() ?? null,
+        pctMax: before.pctMax?.toString() ?? null,
+        contractValueMin: before.contractValueMin?.toString() ?? null,
+        contractValueMax: before.contractValueMax?.toString() ?? null,
       },
       v,
       (tx) => tx.authorityRule.update({ where: { id }, data: v }),

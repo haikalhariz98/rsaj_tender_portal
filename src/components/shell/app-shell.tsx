@@ -1,6 +1,5 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 import type { ShellUser } from "@/lib/shell";
@@ -23,11 +22,9 @@ export function AppShell({
   user: ShellUser | null;
   children: ReactNode;
 }) {
+  // Closed by the sidebar itself on every link and workspace switch (`onNavigate`),
+  // by the scrim, and by Escape.
   const [open, setOpen] = useState(false);
-  const pathname = usePathname();
-
-  // A route change closes the drawer, whatever caused it.
-  useEffect(() => setOpen(false), [pathname]);
 
   useEffect(() => {
     if (!open) return;

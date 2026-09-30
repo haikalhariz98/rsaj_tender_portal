@@ -34,13 +34,15 @@ export async function saveTemplate(_prev: FormState, data: FormData): Promise<Fo
     select: { id: true, code: true },
   });
   const current = id ? existing.find((e) => e.id === id) : undefined;
+  if (id && !current) return { ok: false, message: "That template no longer exists." };
 
   const r = new FormReader(data);
-  const code = id
-    ? String(data.get("code") ?? "")
-    : r.code("code", "Code", {
-        taken: existing.filter((e) => e.code !== current?.code).map((e) => e.code),
-      });
+  // The code is set once and never edited: records elsewhere join on it. The edit
+  // drawer does not offer it, so it is read from the stored record — the form has no
+  // such field, and writing its absence would blank the thing everything points at.
+  const code = current
+    ? current.code
+    : r.code("code", "Code", { taken: existing.map((e) => e.code) });
 
   const documentClassId = r.optionalText("documentClassId");
   if (documentClassId) {

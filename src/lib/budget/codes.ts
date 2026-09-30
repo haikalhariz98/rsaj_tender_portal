@@ -217,7 +217,10 @@ export function ledgerLines(
 
   const lines: LedgerLine[] = [];
   for (const m of mine) {
-    const adds = m.kind !== "TRANSFER_OUT";
+    const amount = senFromDecimal(m.amount);
+    // A revision is the one signed kind: down is stored negative. Everything else is
+    // positive and its kind says which way it moves.
+    const adds = m.kind === "TRANSFER_OUT" ? false : amount >= 0n;
     const label =
       m.kind === "ORIGINAL"
         ? "Original"
@@ -234,7 +237,8 @@ export function ledgerLines(
     lines.push({
       label,
       note: m.kind === "ORIGINAL" ? null : note || null,
-      amount: senFromDecimal(m.amount),
+      // The line says which way it moves; the figure beside it is the size.
+      amount: amount < 0n ? -amount : amount,
       adds,
       kind: m.kind === "ORIGINAL" ? "ORIGINAL" : "MOVEMENT",
     });

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/record-editor";
 import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
 import { db } from "@/lib/db";
-import { patternFaults } from "@/lib/numbering/series";
+import { afterConfiguring, patternFaults, serialFor, type Series } from "@/lib/numbering/series";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { FormReader } from "@/lib/validate";
 
@@ -36,13 +36,14 @@ export async function saveSeries(_prev: FormState, data: FormData): Promise<Form
     select: { id: true, key: true },
   });
   const current = id ? existing.find((e) => e.id === id) : undefined;
+  if (id && !current) return { ok: false, message: "That series no longer exists." };
 
   const r = new FormReader(data);
-  const key = id
-    ? String(data.get("key") ?? "")
-    : r.code("key", "Applies to", {
-        taken: existing.filter((e) => e.key !== current?.key).map((e) => e.key),
-      });
+  // What a series applies to is set once: references already issued were formed
+  // under it. The edit drawer does not offer it, so it comes from the stored record.
+  const key = current
+    ? current.key
+    : r.code("key", "Applies to", { taken: existing.map((e) => e.key) });
 
   const pattern = r.text("pattern", "Pattern", { required: true, max: 200 });
   const resetOn = r.choice("resetOn", "Starts again", RESETS, { required: true });
@@ -77,19 +78,21 @@ export async function saveSeries(_prev: FormState, data: FormData): Promise<Form
     }
   }
 
+  const now = new Date();
+  const stored = current ? await db.numberingSeries.findUnique({ where: { id } }) : null;
+  const storedSeries: Series | null = stored;
+
   const nextSerial = r.int("nextSerial", "Next serial", { min: 1 });
-  if (id && nextSerial != null) {
-    const before = existing.find((e) => e.id === id);
-    if (before) {
-      const row = await db.numberingSeries.findUnique({ where: { id }, select: { nextSerial: true } });
-      // A serial never goes backwards: an allocated reference is never reused, and a
-      // gap is evidence while a duplicate is a defect.
-      if (row && nextSerial < row.nextSerial) {
-        r.reject(
-          "nextSerial",
-          `The serial cannot go back. It is at ${row.nextSerial}; an allocated reference is never reused.`,
-        );
-      }
+  if (storedSeries && nextSerial != null) {
+    // A serial never goes backwards: an allocated reference is never reused, and a
+    // gap is evidence while a duplicate is a defect. Measured against what the series
+    // would issue today, so a due yearly reset may be confirmed at 1.
+    const floor = serialFor(storedSeries, now);
+    if (nextSerial < floor) {
+      r.reject(
+        "nextSerial",
+        `The serial cannot go back. It is at ${floor}; an allocated reference is never reused.`,
+      );
     }
   }
 
@@ -100,7 +103,6 @@ export async function saveSeries(_prev: FormState, data: FormData): Promise<Form
     padding: r.int("padding", "Serial width", { min: 1 }) ?? 1,
     resetOn: resetOn ?? "NEVER",
     financialYearStartMonth: financialYearStartMonth ?? 1,
-    nextSerial: nextSerial ?? 1,
     provenance: r.choice("provenance", "Provenance", PROVENANCE, { required: true }),
     notes: r.text("notes", "Notes", { max: 2000 }),
   };
@@ -108,23 +110,29 @@ export async function saveSeries(_prev: FormState, data: FormData): Promise<Form
   const parsed = r.finish(v);
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
+  // Blank keeps the stored serial; a typed one is stamped with today's period.
+  const serial = afterConfiguring(
+    storedSeries,
+    { resetOn: v.resetOn, financialYearStartMonth: v.financialYearStartMonth },
+    nextSerial,
+    now,
+  );
+
   const ctx = {
     organisationId: orgId,
     entity: "NumberingSeries",
     entityLabel: v.nameEn,
     reason: String(data.get("reason") ?? ""),
   };
-  const write = { ...v, resetOn: v.resetOn, provenance: v.provenance! };
+  const write = { ...v, ...serial, resetOn: v.resetOn, provenance: v.provenance! };
 
-  if (!id) {
-    await auditedCreate(ctx, v, (tx) =>
+  if (!stored) {
+    await auditedCreate(ctx, write, (tx) =>
       tx.numberingSeries.create({ data: { organisationId: orgId, ...write } }),
     );
   } else {
-    const before = await db.numberingSeries.findUnique({ where: { id } });
-    if (!before) return { ok: false, message: "That series no longer exists." };
-    await auditedUpdate({ ...ctx, entityId: id }, before, v, (tx) =>
-      tx.numberingSeries.update({ where: { id }, data: write }),
+    await auditedUpdate({ ...ctx, entityId: stored.id }, stored, write, (tx) =>
+      tx.numberingSeries.update({ where: { id: stored.id }, data: write }),
     );
   }
 

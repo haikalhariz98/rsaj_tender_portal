@@ -59,13 +59,14 @@ export async function saveNotificationRule(_prev: FormState, data: FormData): Pr
     select: { id: true, eventKey: true },
   });
   const current = id ? existing.find((e) => e.id === id) : undefined;
+  if (id && !current) return { ok: false, message: "That notification no longer exists." };
 
   const r = new FormReader(data);
-  const eventKey = id
-    ? String(data.get("eventKey") ?? "")
-    : r.code("eventKey", "Event", {
-        taken: existing.filter((e) => e.eventKey !== current?.eventKey).map((e) => e.eventKey),
-      });
+  // The event a rule listens for is set once. The edit drawer does not offer it, so
+  // it comes from the stored record rather than from a form that has no such field.
+  const eventKey = current
+    ? current.eventKey
+    : r.code("eventKey", "Event", { taken: existing.map((e) => e.eventKey) });
 
   const offices = await db.authorityRole.findMany({
     where: { organisationId: orgId },
