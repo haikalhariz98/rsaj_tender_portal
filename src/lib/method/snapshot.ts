@@ -10,6 +10,7 @@
  */
 
 import type { BandDetermination } from "./bands";
+import type { Evaluation } from "./evaluate";
 import type { BehaviourKey, BehaviourValue } from "./profile";
 import type { TaxonomyState } from "./taxonomy";
 import type { BoundaryOperator, ContractTypeState, Method, Provenance, Regime } from "./types";
@@ -177,3 +178,35 @@ export function classificationSnapshotOf(
     }),
   };
 }
+
+/// The columns an evaluation writes, with the band snapshot the screen renders from.
+export function determinationColumns(ev: Evaluation, issue: { id: string; label: string; boundarySource: string; matrix: { roles: Record<string, { nameEn: string }>; policy: { boundaryValue: number } } }, methodName: (c: string) => string, on: Date) {
+  const name = (code: string) => issue.matrix.roles[code]?.nameEn ?? "An office no longer configured";
+  const snap = bandSnapshot(ev.bands, { matrixLabel: issue.label, boundarySource: issue.boundarySource, name, methodName });
+  const m = ev.method;
+  return {
+    authorityMatrixId: issue.id,
+    matrixLabel: issue.label,
+    regime: ev.bands.regime,
+    appointmentRuleKey: ev.bands.appointment.ruleKey,
+    appointmentState: ev.bands.appointment.state,
+    termsBandKey: ev.bands.terms.band?.bandKey ?? null,
+    termsState: ev.bands.terms.state,
+    boundaryValue: String(issue.matrix.policy.boundaryValue),
+    boundaryOperator: ev.bands.boundary.operator,
+    onBoundary: ev.bands.boundary.onBoundary,
+    boundaryRuled: ev.bands.boundary.ruled,
+    boundaryProvenance: ev.bands.boundary.provenance,
+    bandSnapshot: snap as unknown as object,
+    bandWarnings: ev.findings.filter((f) => f.level !== "block") as unknown as object,
+    determinedAt: on,
+    proposedMethodCode: ev.bands.proposed.state === "PROPOSED" ? ev.bands.proposed.code : null,
+    derivedContractTypeCode: ev.derivation.code,
+    derivationState: ev.derivation.state,
+    dominantSharePct: ev.derivation.sharePct,
+    contractTypeCode: ev.type.code,
+    contractTypeState: ev.type.state,
+    restricted: m?.restrictedAccess ?? false,
+  };
+}
+

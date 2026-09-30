@@ -64,6 +64,11 @@ async function removeTrailByReference(organisationId: string, references: string
           OR: references.map((ref) => ({ entityLabel: { startsWith: `${ref} ·` } })),
         },
         { entity: "BudgetMovement", OR: references.map((ref) => ({ entityLabel: { endsWith: ` for ${ref}` } })) },
+        // 6.3: what was under an exercise, labelled with its reference.
+        {
+          entity: { in: ["ExerciseScopePart", "ExerciseProposalAnswer", "ExerciseTaxonomyValue", "ExerciseParticipant", "ApprovalInstance", "ApprovalStep"] },
+          OR: references.map((ref) => ({ entityLabel: { startsWith: `${ref} ·` } })),
+        },
       ],
     },
   });
@@ -115,27 +120,53 @@ async function wipe() {
     orderBy: { reference: "asc" },
   });
   const hangingIds = hanging.map((r) => r.id);
+  // 6.3: an exercise that is not demo data but hangs off demo rows — opened on a demo
+  // requisition, or naming demo people, or routed under the demo limits.
+  const hangingExercises = await db.sourcingExercise.findMany({
+    where: {
+      organisationId: org.id,
+      NOT: { id: demoRef },
+      OR: [
+        { requisitionId: { in: hangingIds } },
+        { requisitionId: demoRef },
+        { overriddenByPersonId: demoRef },
+        { proposalReviewerPersonId: demoRef },
+        { participants: { some: { personId: demoRef } } },
+        { approvalInstances: { some: { OR: [{ authorityMatrixId: demoRef }, { overrideMatrixId: demoRef }, { steps: { some: { OR: [{ decidedByPersonId: demoRef }, { delegationId: demoRef }] } } }] } } },
+      ],
+    },
+    select: {
+      id: true, reference: true, title: true,
+      scopeParts: { select: { id: true } }, proposalAnswers: { select: { id: true } }, taxonomyValues: { select: { id: true } }, participants: { select: { id: true } },
+    },
+    orderBy: { reference: "asc" },
+  });
+  const hangingExerciseIds = hangingExercises.map((x) => x.id);
   const hangingInstances = await db.approvalInstance.findMany({
     where: {
       organisationId: org.id,
       NOT: { id: demoRef },
       OR: [
         { requisitionId: { in: hangingIds } },
-        { requisitionId: null, OR: [{ authorityMatrixId: demoRef }, { overrideMatrixId: demoRef }] },
+        { exerciseId: { in: hangingExerciseIds } },
+        // A route on no requisition under the demo limits — unless it is a name approval
+        // recorded on a demo exercise, which goes with that exercise below.
+        { requisitionId: null, NOT: { exerciseId: demoRef }, OR: [{ authorityMatrixId: demoRef }, { overrideMatrixId: demoRef }] },
       ],
     },
-    select: { id: true, requisitionId: true, matrixLabel: true, steps: { select: { id: true } } },
+    select: { id: true, requisitionId: true, exerciseId: true, matrixLabel: true, steps: { select: { id: true } } },
   });
   // Real committee matters linked to a demo requisition: the link would be cleared.
   const linkedMatters = await db.committeeDecision.findMany({
     where: { NOT: { id: demoRef }, requisitionId: demoRef },
     select: { id: true, subject: true, matterRef: true },
   });
-  const orphanRoutes = hangingInstances.filter((i) => i.requisitionId == null);
+  const orphanRoutes = hangingInstances.filter((i) => i.requisitionId == null && (i.exerciseId == null || !hangingExerciseIds.includes(i.exerciseId)));
 
-  if (hanging.length || orphanRoutes.length || linkedMatters.length) {
+  if (hanging.length || hangingExercises.length || orphanRoutes.length || linkedMatters.length) {
     const lines = [
       ...hanging.map((r) => `  requisition ${r.reference} · ${r.title}`),
+      ...hangingExercises.map((x) => `  sourcing exercise ${x.reference} · ${x.title}`),
       ...orphanRoutes.map((i) => `  approval route ${i.id} under ${i.matrixLabel ?? "a demo rule set"}`),
       ...linkedMatters.map((m) => `  committee matter ${m.matterRef ?? m.subject} (link to a demo requisition)`),
     ];
@@ -158,8 +189,14 @@ async function wipe() {
   const hangingInstanceIds = hangingInstances.map((i) => i.id);
   const hangingMovementIds = hanging.flatMap((r) => (r.commitmentMovementId ? [r.commitmentMovementId] : []));
   const byReq = { requisitionId: { in: hangingIds } };
+  const byEx = { exerciseId: { in: hangingExerciseIds } };
   await db.approvalStep.deleteMany({ where: { instanceId: { in: hangingInstanceIds } } });
   await db.approvalInstance.deleteMany({ where: { id: { in: hangingInstanceIds } } });
+  await db.exerciseScopePart.deleteMany({ where: byEx });
+  await db.exerciseProposalAnswer.deleteMany({ where: byEx });
+  await db.exerciseTaxonomyValue.deleteMany({ where: byEx });
+  await db.exerciseParticipant.deleteMany({ where: byEx });
+  await db.sourcingExercise.deleteMany({ where: { id: { in: hangingExerciseIds } } });
   await db.requisitionSplitCheck.deleteMany({ where: byReq });
   await db.requisitionBudgetCheck.deleteMany({ where: byReq });
   await db.requisitionEndorsement.deleteMany({ where: byReq });
@@ -173,16 +210,47 @@ async function wipe() {
     ...hangingInstanceIds,
     ...hangingInstances.flatMap((i) => i.steps.map((x) => x.id)),
     ...hangingMovementIds,
+    ...hangingExerciseIds,
+    ...hangingExercises.flatMap((x) => [...x.scopeParts, ...x.proposalAnswers, ...x.taxonomyValues, ...x.participants].map((y) => y.id)),
   ];
   if (hangingEntities.length) {
     const gone = await db.auditEntry.deleteMany({ where: { organisationId: org.id, entityId: { in: hangingEntities } } });
-    gone.count += await removeTrailByReference(org.id, hanging.map((r) => r.reference));
-    console.log(`Removed ${hanging.length} requisition(s), ${orphanRoutes.length} other route(s) and ${gone.count} audit entr${gone.count === 1 ? "y" : "ies"}.`);
+    gone.count += await removeTrailByReference(org.id, [...hanging.map((r) => r.reference), ...hangingExercises.map((x) => x.reference)]);
+    console.log(`Removed ${hanging.length} requisition(s), ${hangingExercises.length} exercise(s), ${orphanRoutes.length} other route(s) and ${gone.count} audit entr${gone.count === 1 ? "y" : "ies"}.`);
   }
   if (linkedMatters.length) {
     await db.committeeDecision.updateMany({ where: { id: { in: linkedMatters.map((m) => m.id) } }, data: { requisitionId: null } });
     console.log(`Cleared ${linkedMatters.length} committee matter link(s) to demo requisitions.`);
   }
+
+  // Demo exercises before their requisitions. What was recorded on one through the
+  // screens (a scope line, an answer, a participant, a name-approval route) belongs to
+  // it, whatever its id: removed with it, with its audit entries (6.3).
+  const onDemoEx = { exerciseId: demoRef };
+  const recordedEx = await db.sourcingExercise.findMany({
+    where: { id: demoRef },
+    select: {
+      reference: true,
+      scopeParts: { where: { NOT: { id: demoRef } }, select: { id: true } },
+      proposalAnswers: { where: { NOT: { id: demoRef } }, select: { id: true } },
+      taxonomyValues: { where: { NOT: { id: demoRef } }, select: { id: true } },
+      participants: { where: { NOT: { id: demoRef } }, select: { id: true } },
+      approvalInstances: { select: { id: true, steps: { select: { id: true } } } },
+    },
+  });
+  const recordedExIds = recordedEx
+    .flatMap((x) => [...x.scopeParts, ...x.proposalAnswers, ...x.taxonomyValues, ...x.participants, ...x.approvalInstances, ...x.approvalInstances.flatMap((i) => i.steps)])
+    .map((x) => x.id)
+    .filter((x) => !x.startsWith(P));
+  await db.approvalStep.deleteMany({ where: { instance: onDemoEx } });
+  await db.approvalInstance.deleteMany({ where: onDemoEx });
+  await db.exerciseScopePart.deleteMany({ where: { OR: [demo, onDemoEx] } });
+  await db.exerciseProposalAnswer.deleteMany({ where: { OR: [demo, onDemoEx] } });
+  await db.exerciseTaxonomyValue.deleteMany({ where: { OR: [demo, onDemoEx] } });
+  await db.exerciseParticipant.deleteMany({ where: { OR: [demo, onDemoEx] } });
+  await db.sourcingExercise.deleteMany({ where: demo });
+  if (recordedExIds.length) await db.auditEntry.deleteMany({ where: { organisationId: org.id, entityId: { in: recordedExIds } } });
+  await removeTrailByReference(org.id, recordedEx.map((x) => x.reference));
 
   // Demo requisitions next: an approval step may cite a committee decision. What was
   // recorded on a demo requisition through the screens (an endorsement, a check, a
@@ -234,6 +302,8 @@ async function wipe() {
 
   await db.authorityRuleStep.deleteMany({ where: demo });
   await db.authorityRule.deleteMany({ where: demo });
+  // Terms bands on a demo issue belong to it, whoever added them.
+  await db.termsBand.deleteMany({ where: { OR: [demo, { authorityMatrixId: demoRef }] } });
   await db.authorityMatrix.deleteMany({ where: demo });
 
   await db.financeVariance.deleteMany({ where: demo });
@@ -253,8 +323,16 @@ async function wipe() {
   await db.numberingSeries.deleteMany({ where: demo });
 
   await db.fundingRoute.deleteMany({ where: demo });
+  // A demo method's proposal items, and a demo classification's values, go with them.
+  await db.methodChecklistItem.deleteMany({ where: { OR: [demo, { sourcingMethodId: demoRef }] } });
   await db.sourcingMethod.deleteMany({ where: demo });
   await db.contractType.deleteMany({ where: demo });
+  await db.justificationReason.deleteMany({ where: demo });
+  await db.contractBasis.deleteMany({ where: demo });
+  await db.taxonomyMapping.deleteMany({ where: demo });
+  await db.taxonomyValue.deleteMany({ where: { OR: [demo, { taxonomyId: demoRef }] } });
+  await db.classificationTaxonomy.deleteMany({ where: demo });
+  await db.classificationPolicy.deleteMany({ where: demo });
 
   await db.codeFormat.deleteMany({ where: demo });
   await db.site.deleteMany({ where: demo });
@@ -830,7 +908,9 @@ async function load() {
 
   // The minuted sitting carries the register frozen as it stood, as minuting writes it.
   await loadRequisitions(organisationId, from);
+  await loadMethodSelection(organisationId, from);
 
+  await determineExercises([`${P}sx1`, `${P}sx2`, `${P}sx3`, `${P}sx4`, `${P}sx5`, `${P}sx6`]);
   await snapshotMinuted([`${P}mt2`, `${P}mt5`]);
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
@@ -1171,6 +1251,388 @@ async function loadRequisitions(organisationId: string, from: Date) {
       step(10, 2, null, "Head of Division", "A", { decision: "DONE", decidedByName: "G. Nair", decidedOn: day("2026-09-22"), recordedAt: day("2026-09-25") }),
     ],
   });
+}
+
+/**
+ * Method selection (6.3): the method family on the demo issue, contract terms bands,
+ * the nine methods' behaviours, contract-type behaviours, bases, other classifications
+ * and their mappings, a mixed-scope threshold, two approved parents and six exercises.
+ * Invented throughout, like every demo figure. The exercises' bands and decided records
+ * are written by the same lib functions a save writes (`determineExercises`).
+ */
+async function loadMethodSelection(organisationId: string, from: Date) {
+  const REQ = (n: number) => `DEMO/REQ/${String(n).padStart(4, "0")}/2026`;
+  const mx = `${P}mx1`;
+
+  // Bodies and offices the method family routes to.
+  await db.authorityRole.createMany({
+    data: [
+      { id: `${P}r11`, organisationId, code: "QUOTE_CTTE", nameEn: "Quotation Committee", nameMs: "Jawatankuasa Sebut Harga", isCommittee: true, workspace: "Internal", authorityLevel: "Committee", sortOrder: 11 },
+      { id: `${P}r12`, organisationId, code: "CHAIRMAN", nameEn: "Chairman", nameMs: "Pengerusi", workspace: "Internal", authorityLevel: "Board", sortOrder: 12 },
+      { id: `${P}r13`, organisationId, code: "TECH_CTTE", nameEn: "Technical Committee", nameMs: "Jawatankuasa Teknikal", isCommittee: true, workspace: "Internal", authorityLevel: "Committee", sortOrder: 13 },
+    ],
+  });
+  await db.committee.create({
+    data: {
+      id: `${P}c4`, organisationId, code: "TECH_CTTE", nameEn: "Technical Committee", nameMs: "Jawatankuasa Teknikal",
+      mandate: "Considers specialist and sole-source scopes.", governingSource: "Demo constitution cl. 6", action: "RECOMMENDS",
+      compositionProvenance: "ASSUMED", secretariatRoleCode: "HOD_CP",
+    },
+  });
+
+  // The method family on the demo issue. Every edge at RM300,000 follows the switch.
+  const app = { authorityMatrixId: mx, domain: "appointment" };
+  await db.authorityRule.createMany({
+    data: [
+      { id: `${P}rule20`, ...app, method: "direct", ruleKey: "demo.direct.1", maxValue: "2000", labelEn: "Direct appointment, up to RM2,000", approverCode: "DEPT_HEAD", clause: "DEMO 4.1(a)", sortOrder: 20 },
+      { id: `${P}rule21`, ...app, method: "direct", ruleKey: "demo.direct.2", minValue: "2000", maxValue: "8000", labelEn: "Direct appointment, RM2,000 to RM8,000", approverCode: "DIV_HEAD", clause: "DEMO 4.1(b)", sortOrder: 21 },
+      { id: `${P}rule22`, ...app, method: "direct", ruleKey: "demo.direct.3", minValue: "8000", maxValue: "15000", labelEn: "Direct appointment, RM8,000 to RM15,000", approverCode: "FD", clause: "DEMO 4.1(c)", sortOrder: 22 },
+      { id: `${P}rule23`, ...app, method: "direct", ruleKey: "demo.direct.4", minValue: "15000", maxValue: "300000", followsBoundarySwitch: true, labelEn: "Direct appointment, RM15,000 to RM300,000", approverCode: "CEO", committeeCode: "QUOTE_CTTE", committeeAct: "MR", nonDelegable: true, clause: "DEMO 4.1(d)", sortOrder: 23 },
+      { id: `${P}rule24`, ...app, method: "direct", ruleKey: "demo.direct.5", minValue: "300000", maxValue: "1000000", followsBoundarySwitch: true, labelEn: "Direct appointment, RM300,000 to RM1 million", approverCode: "TENDER_BOARD", committeeCode: "TENDER_BOARD", committeeAct: "A", nonDelegable: true, clause: "DEMO 4.1(e)", sortOrder: 24 },
+      { id: `${P}rule25`, ...app, method: "direct", ruleKey: "demo.direct.6", minValue: "1000000", maxValue: "4000000", labelEn: "Direct appointment, RM1 million to RM4 million", approverCode: "CHAIRMAN", committeeCode: "TENDER_BOARD", committeeAct: "MR", nonDelegable: true, clause: "DEMO 4.1(f)", sortOrder: 25 },
+      { id: `${P}rule26`, ...app, method: "direct", ruleKey: "demo.direct.7", minValue: "4000000", labelEn: "Direct appointment, above RM4 million", approverCode: "BOARD", committeeCode: "TENDER_BOARD", committeeAct: "MR", nonDelegable: true, clause: "DEMO 4.1(g)", sortOrder: 26 },
+      { id: `${P}rule27`, ...app, method: "tender", ruleKey: "demo.tender", minValue: "300000", followsBoundarySwitch: true, labelEn: "Tender, above RM300,000", approverCode: "TENDER_BOARD", committeeCode: "TENDER_BOARD", committeeAct: "A", nonDelegable: true, clause: "DEMO 4.2", sortOrder: 27 },
+      { id: `${P}rule28`, ...app, method: "quotation", ruleKey: "demo.quotation", minValue: "15000", maxValue: "300000", followsBoundarySwitch: true, labelEn: "Quotation, RM15,000 to RM300,000", approverCode: "CEO", committeeCode: "QUOTE_CTTE", committeeAct: "MR", nonDelegable: true, clause: "DEMO 4.3", sortOrder: 28 },
+      { id: `${P}rule29`, authorityMatrixId: mx, domain: "name_approval", method: "tender", ruleKey: "demo.name.tender", labelEn: "Approval of the name, selected tender", proposerCode: "SEC_PRE", approverCode: "CEO", clause: "DEMO 4.4", sortOrder: 29 },
+      { id: `${P}rule30`, authorityMatrixId: mx, domain: "name_approval", method: "quotation", ruleKey: "demo.name.quotation", labelEn: "Approval of the name, selective quotation", proposerCode: "DEPT_HEAD", approverCode: "FD", clause: "DEMO 4.5", sortOrder: 30 },
+      { id: `${P}rule31`, ...app, method: "specialist", ruleKey: "demo.specialist", labelEn: "Specialist or sole source", approverCode: "CEO", committeeCode: "TECH_CTTE", committeeAct: "R", clause: "DEMO 4.6", sortOrder: 31 },
+    ],
+  });
+  await db.authorityRuleStep.createMany({
+    data: [
+      { id: `${P}st20`, authorityRuleId: `${P}rule23`, roleCode: "QUOTE_CTTE", act: "MR", sequence: 1 },
+      { id: `${P}st21`, authorityRuleId: `${P}rule25`, roleCode: "TENDER_BOARD", act: "MR", sequence: 1 },
+      { id: `${P}st22`, authorityRuleId: `${P}rule26`, roleCode: "TENDER_BOARD", act: "MR", sequence: 1 },
+      { id: `${P}st23`, authorityRuleId: `${P}rule28`, roleCode: "QUOTE_CTTE", act: "MR", sequence: 1 },
+      { id: `${P}st24`, authorityRuleId: `${P}rule29`, roleCode: "HOD_CP", act: "MR", sequence: 1 },
+      { id: `${P}st25`, authorityRuleId: `${P}rule29`, roleCode: "DIV_HEAD", act: "JR", sequence: 2 },
+      { id: `${P}st26`, authorityRuleId: `${P}rule29`, roleCode: "FD", act: "R", sequence: 3 },
+      { id: `${P}st27`, authorityRuleId: `${P}rule30`, roleCode: "DEPT_HEAD", act: "JR", sequence: 1 },
+      { id: `${P}st28`, authorityRuleId: `${P}rule30`, roleCode: "DIV_HEAD", act: "R", sequence: 2 },
+      { id: `${P}st29`, authorityRuleId: `${P}rule31`, roleCode: "TECH_CTTE", act: "R", sequence: 1 },
+    ],
+  });
+
+  // Contract terms bands on the quotation route. Invented split, not any customer's.
+  await db.termsBand.createMany({
+    data: [
+      { id: `${P}tb1`, authorityMatrixId: mx, bandKey: "demo.terms.short", regime: "quotation", maxValue: "80000", labelEn: "Short-form terms", retentionApplies: false, defectsLiabilityApplies: false, insuranceNote: "Public liability for the works period", clause: "DEMO T1", provenance: "OBSERVED", sortOrder: 1 },
+      { id: `${P}tb2`, authorityMatrixId: mx, bandKey: "demo.terms.extended", regime: "quotation", minValue: "80000", labelEn: "Extended terms", retentionApplies: true, defectsLiabilityApplies: true, insuranceNote: "Works and public liability to the end of defects liability", clause: "DEMO T2", provenance: "OBSERVED", sortOrder: 2 },
+    ],
+  });
+
+  // The methods' behaviours, and the five methods the demo did not have.
+  await db.sourcingMethod.update({ where: { id: `${P}sm1` }, data: { defaultInTender: true } });
+  await db.sourcingMethod.update({ where: { id: `${P}sm2` }, data: { defaultInQuotation: true } });
+  await db.sourcingMethod.update({ where: { id: `${P}sm3` }, data: { defaultBelow: true } });
+  const anyValue = { availableInTender: true, availableInQuotation: true, availableBelow: true };
+  await db.sourcingMethod.createMany({
+    data: [
+      {
+        id: `${P}sm5`, organisationId, code: "selected_tender", nameEn: "Selected tender", nameMs: "Tender Terpilih", availableInTender: true, invitesNamedSuppliers: true,
+        awardInstrument: "Letter of Acceptance", committeeCode: "TENDER_BOARD", authorityMethodKey: "tender",
+        requiresJustification: true, justificationPrompt: "The specialist expertise that makes an open tender unsuitable.", requiresProposal: true, requiresNameApproval: true, restrictedAccess: true,
+        governingSource: "Demo policy 4.4", provenance: "STATED", sortOrder: 5,
+      },
+      { id: `${P}sm6`, organisationId, code: "selective_quotation", nameEn: "Selective quotation", nameMs: "Sebut Harga Terpilih", availableInQuotation: true, invitesNamedSuppliers: true, awardInstrument: "Appointment letter", committeeCode: "QUOTE_CTTE", authorityMethodKey: "quotation", requiresNameApproval: true, governingSource: "Demo policy 4.5", provenance: "STATED", sortOrder: 6 },
+      { id: `${P}sm7`, organisationId, code: "selective_direct", nameEn: "Selective direct appointment", nameMs: "Lantikan Terus Terpilih", ...anyValue, awardInstrument: "Purchase order", authorityMethodKey: "direct", requiresDossier: true, dossierSeriesKey: "direct_appointment", provenance: "OBSERVED", sortOrder: 7 },
+      { id: `${P}sm8`, organisationId, code: "specialist", nameEn: "Specialist or sole source", availableInQuotation: true, availableBelow: true, awardInstrument: "Appointment letter", committeeCode: "TECH_CTTE", authorityMethodKey: "specialist", requiresJustification: true, justificationPrompt: "Why only this specialist can do the work, and that they scoped it on site.", provenance: "OBSERVED", sortOrder: 8 },
+      { id: `${P}sm9`, organisationId, code: "emergency", nameEn: "Emergency works", ...anyValue, awardInstrument: "Purchase order", authorityMethodKey: "direct", requiresCoordinationRecord: true, governingSource: "Demo policy 4.7", provenance: "STATED", sortOrder: 9 },
+    ],
+  });
+  await db.methodChecklistItem.createMany({
+    data: [
+      { id: `${P}mci1`, sourcingMethodId: `${P}sm5`, key: "scope", labelEn: "The work and its scope", sortOrder: 1 },
+      { id: `${P}mci2`, sourcingMethodId: `${P}sm5`, key: "estimate", labelEn: "The estimated cost and the budget that covers it", sortOrder: 2 },
+      { id: `${P}mci3`, sourcingMethodId: `${P}sm5`, key: "grades", labelEn: "The grades and registration of the firms eligible", sortOrder: 3 },
+      { id: `${P}mci4`, sourcingMethodId: `${P}sm5`, key: "firms", labelEn: "The firms proposed, and their background", sortOrder: 4 },
+      { id: `${P}mci5`, sourcingMethodId: `${P}sm5`, key: "period", labelEn: "The completion period", sortOrder: 5 },
+      { id: `${P}mci6`, sourcingMethodId: `${P}sm5`, key: "benefit", labelEn: "What is gained over an open tender", required: false, sortOrder: 6 },
+    ],
+  });
+  await db.justificationReason.createMany({
+    data: [
+      { id: `${P}jr1`, organisationId, code: "sole_distributor", nameEn: "Sole authorised distributor", sourcingMethodCode: "selective_direct", governingSource: "Demo policy 4.6(a)", provenance: "OBSERVED", sortOrder: 1 },
+      { id: `${P}jr2`, organisationId, code: "continuity", nameEn: "Continuity of an existing installation", governingSource: "Demo policy 4.6(b)", provenance: "ASSUMED", sortOrder: 2 },
+    ],
+  });
+
+  // Contract types: the deliverable each is the default for, and what each drives.
+  await db.contractType.update({
+    where: { id: `${P}ct1` },
+    data: {
+      deliverableKind: "MEASURED_CONSTRUCTION", pricingBasis: "Bill of quantities, or drawings and specification", registrationTest: "Works contractor registration",
+      administratorRoleCodes: ["HOD_CP", "SEC_PRE"], startRequiresSecurities: true, eotInstrument: "Certificate of extension of time", completionInstrument: "Certificate of practical completion",
+      defectsLiabilityApplies: true, makingGoodCertificate: true, nominationAllowed: true, interimPaymentRule: "Monthly: work done and materials on site",
+      sumAdjustmentDrivers: ["Variations", "Re-measurement"], claimsApprovalCommitteeCode: "TENDER_BOARD",
+    },
+  });
+  await db.contractType.update({
+    where: { id: `${P}ct2` },
+    data: {
+      deliverableKind: "TERM_PERFORMANCE", pricingBasis: "Schedule of rates", registrationTest: "Services registration", administratorRoleCodes: ["HOD_CP"],
+      startRequiresSecurities: true, completionInstrument: "Certificate of completion at the end of the term",
+      // The demo sources disagree on defects liability for services: left not set.
+      nominationAllowed: false, interimPaymentRule: "Monthly: services performed",
+    },
+  });
+  await db.contractType.update({
+    where: { id: `${P}ct3` },
+    data: {
+      deliverableKind: "GOODS_DELIVERED", pricingBasis: "Specification and schedule of prices", administratorRoleCodes: ["SEC_PRE"], startRequiresSecurities: false,
+      completionInstrument: "Delivery certificate", defectsLiabilityApplies: false, makingGoodCertificate: false, nominationAllowed: false, interimPaymentRule: "Local order, invoice and delivery order",
+    },
+  });
+  await db.contractBasis.createMany({
+    data: [
+      { id: `${P}cb1`, organisationId, code: "bq", nameEn: "Bill of quantities", standardFormLabel: "Demo standard form A", governingSource: "Demo policy 5.2", provenance: "STATED", sortOrder: 1 },
+      { id: `${P}cb2`, organisationId, code: "ds", nameEn: "Drawings and specification", standardFormLabel: "Demo standard form B", governingSource: "Demo policy 5.2", provenance: "STATED", sortOrder: 2 },
+    ],
+  });
+  await db.classificationTaxonomy.createMany({
+    data: [
+      { id: `${P}tx1`, organisationId, code: "panel", nameEn: "Specification panel type", provenance: "OBSERVED", sortOrder: 1 },
+      { id: `${P}tx2`, organisationId, code: "report", nameEn: "Performance report form", provenance: "OBSERVED", sortOrder: 2 },
+      { id: `${P}tx3`, organisationId, code: "evaluation", nameEn: "Evaluation approach", provenance: "ASSUMED", sortOrder: 3 },
+    ],
+  });
+  await db.taxonomyValue.createMany({
+    data: [
+      { id: `${P}tv1`, taxonomyId: `${P}tx1`, code: "civil", nameEn: "Civil works panel", sortOrder: 1 },
+      { id: `${P}tv2`, taxonomyId: `${P}tx1`, code: "general", nameEn: "General supplies panel", sortOrder: 2 },
+      { id: `${P}tv3`, taxonomyId: `${P}tx2`, code: "works", nameEn: "Works report", sortOrder: 1 },
+      { id: `${P}tv4`, taxonomyId: `${P}tx2`, code: "design_build", nameEn: "Design and build report", sortOrder: 2 },
+      { id: `${P}tv5`, taxonomyId: `${P}tx2`, code: "services", nameEn: "Services report", sortOrder: 3 },
+      { id: `${P}tv6`, taxonomyId: `${P}tx2`, code: "supply", nameEn: "Supply report", sortOrder: 4 },
+      { id: `${P}tv7`, taxonomyId: `${P}tx3`, code: "two_envelope", nameEn: "Technical then price", sortOrder: 1 },
+      { id: `${P}tv8`, taxonomyId: `${P}tx3`, code: "lowest_price", nameEn: "Lowest compliant price", sortOrder: 2 },
+    ],
+  });
+  const m = (n: number, contractTypeCode: string, taxonomyCode: string, valueCode: string, extra: object = {}) => ({ id: `${P}tm${n}`, organisationId, contractTypeCode, taxonomyCode, valueCode, provenance: "ASSUMED" as const, ...extra });
+  await db.taxonomyMapping.createMany({
+    data: [
+      m(1, "works", "panel", "civil"),
+      m(2, "works", "evaluation", "two_envelope"),
+      // Works has two report forms; only the drawings-and-specification basis settles it.
+      m(3, "works", "report", "works"),
+      m(4, "works", "report", "design_build"),
+      m(5, "works", "report", "design_build", { whenBasisCode: "ds" }),
+      m(6, "services", "panel", "general"),
+      m(7, "services", "report", "services"),
+      m(8, "services", "evaluation", "two_envelope"),
+      m(9, "supply", "panel", "general"),
+      m(10, "supply", "report", "supply"),
+      m(11, "supply", "evaluation", "lowest_price"),
+    ],
+  });
+  await db.classificationPolicy.create({ data: { id: `${P}cp1`, organisationId, dominanceSharePct: "60.0000", provenance: "ASSUMED", notes: "Invented demo threshold." } });
+  await db.numberingSeries.createMany({
+    data: [
+      { id: `${P}n5`, organisationId, key: "exercise", nameEn: "Sourcing exercises", pattern: "DEMO/SX/{SERIAL}/{YEAR}", padding: 4, resetOn: "CALENDAR_YEAR", nextSerial: 7, serialPeriod: "2026", provenance: "ASSUMED" },
+      { id: `${P}n6`, organisationId, key: "direct_appointment", nameEn: "Direct appointment dossiers", pattern: "DEMO/DA/{SERIAL}/{YEAR}", padding: 4, resetOn: "CALENDAR_YEAR", nextSerial: 2, serialPeriod: "2026", provenance: "OBSERVED" },
+    ],
+  });
+
+  // Two approved parents, with the trail the 6.1 rules would have written on the day.
+  await db.accountCode.create({ data: { id: `${P}ac4`, organisationId, code: "7400400", nameEn: "Civil works", provenance: "ASSUMED", sortOrder: 4, effectiveFrom: from } });
+  await db.budgetCode.create({
+    data: { id: `${P}bcode8`, organisationId, code: "CAP26-044", descriptionEn: "Northern treatment works upgrade", type: "Capital", owningUnitCode: "NTH", accountCode: "7400400", holderPersonId: `${P}p9`, effectiveFrom: day("2026-01-01"), effectiveTo: day("2027-01-01") },
+  });
+  await db.budgetMovement.createMany({
+    data: [
+      { id: `${P}bm19`, budgetCodeId: `${P}bcode8`, kind: "ORIGINAL", amount: "1500000.00", occurredOn: day("2026-01-01"), reference: "BR26-044" },
+      { id: `${P}bm20`, budgetCodeId: `${P}bcode8`, kind: "COMMITMENT", amount: "330000.00", occurredOn: day("2026-06-24"), reference: REQ(25), description: "Filter and pipework renewal, Bukit Demo plant" },
+      { id: `${P}bm21`, budgetCodeId: `${P}bcode8`, kind: "COMMITMENT", amount: "600000.00", occurredOn: day("2026-08-28"), reference: REQ(26), description: "Clear-water tank refurbishment" },
+    ],
+  });
+  const base = {
+    organisationId, origin: "PORTAL" as const, requestingUnitCode: "NTH", sectionUnitCode: "NTH-MNT", requestingPersonId: `${P}p11`,
+    costCentreCode: "CC-200", placeOfDelivery: "Bukit Demo treatment plant", siteCode: "NTH-WKS", accountCode: "7400400", budgetCodeId: `${P}bcode8`,
+    fundingRouteCode: "capex", fundingSupersedesAuthority: false, sourcingPermitted: true, fundingPosture: "PROCURES", erpRefSource: "MANUAL" as const, erpRefRecordedAt: day("2026-06-02"),
+  };
+  await db.requisition.create({
+    data: {
+      ...base, id: `${P}rq13`, reference: REQ(25), erpRequisitionNo: "XR2026000161", erpNoteNo: "RN/2026/0161", title: "Filter and pipework renewal, Bukit Demo plant",
+      justification: "Filter media and headers are past their service life.", needStatement: "Restore filter throughput before the dry season.",
+      dateRequired: day("2026-12-31"), estimatedValue: "330000.00", raisedOn: day("2026-06-01"), status: "SOURCING", commitmentMovementId: `${P}bm20`,
+      lines: { create: [{ id: `${P}rq13l1`, lineNo: 1, description: "Filter renewal works", estimatedAmount: "300000.00" }, { id: `${P}rq13l2`, lineNo: 2, description: "Dosing controllers and spares", estimatedAmount: "30000.00" }] },
+    },
+  });
+  await db.requisition.create({
+    data: {
+      ...base, id: `${P}rq14`, reference: REQ(26), erpRequisitionNo: "XR2026000162", erpNoteNo: "RN/2026/0162", title: "Clear-water tank refurbishment",
+      justification: "The tank lining has failed its inspection.", needStatement: "Reline and re-roof the clear-water tank.",
+      dateRequired: day("2027-03-31"), estimatedValue: "600000.00", raisedOn: day("2026-08-10"), status: "APPROVED", commitmentMovementId: `${P}bm21`,
+      lines: { create: [{ id: `${P}rq14l1`, lineNo: 1, description: "Tank relining and roof works", estimatedAmount: "600000.00" }] },
+    },
+  });
+  await db.numberingSeries.update({ where: { id: `${P}n1` }, data: { nextSerial: 27 } });
+  await db.requisitionEndorsement.createMany({
+    data: [
+      { id: `${P}en13a`, requisitionId: `${P}rq13`, tier: "SECTION", unitCode: "NTH-MNT", personId: `${P}p10`, endorsedOn: day("2026-06-02") },
+      { id: `${P}en13b`, requisitionId: `${P}rq13`, tier: "DEPARTMENT", unitCode: "NTH", personId: `${P}p9`, endorsedOn: day("2026-06-02") },
+      { id: `${P}en14a`, requisitionId: `${P}rq14`, tier: "SECTION", unitCode: "NTH-MNT", personId: `${P}p10`, endorsedOn: day("2026-08-11") },
+      { id: `${P}en14b`, requisitionId: `${P}rq14`, tier: "DEPARTMENT", unitCode: "NTH", personId: `${P}p9`, endorsedOn: day("2026-08-12") },
+    ],
+  });
+  const check = (rq: number, on: string, requested: string, balance: string, approvedAccount: string, projected: string) => ({
+    id: `${P}bk${rq}`, requisitionId: `${P}rq${rq}`, checkedAt: day(on), asAt: day(on), source: "PORTAL_LEDGER" as const, budgetCodeId: `${P}bcode8`, budgetCodeCode: "CAP26-044",
+    requestedAmount: requested, actualBudget: "1500000.00", balanceAsAt: balance, approvedAccount, approvedAccountProvenance: "ASSUMED" as const, projectedBalance: projected, verdict: "WITHIN" as const,
+  });
+  await db.requisitionBudgetCheck.createMany({ data: [check(13, "2026-06-05", "330000.00", "1500000.00", "0.00", "1170000.00"), check(14, "2026-08-15", "600000.00", "1170000.00", "330000.00", "570000.00")] });
+  const policySnap = { windowDays: 45, matchOn: ["unit", "accountCode"], aggregateAcrossYear: false, policyProvenance: "ASSUMED" as const, relatedRequisitionIds: [], relatedReferences: [] };
+  await db.requisitionSplitCheck.createMany({
+    data: [
+      { id: `${P}sp13`, requisitionId: `${P}rq13`, checkedAt: day("2026-06-05"), state: "CLEAR", ...policySnap },
+      { id: `${P}sp14`, requisitionId: `${P}rq14`, checkedAt: day("2026-08-15"), state: "CLEAR", ...policySnap },
+    ],
+  });
+  const approvedRoute = (rq: number, opened: string, closed: string) => ({
+    id: `${P}ai${rq}`, organisationId, matterKind: "REQUISITION" as const, requisitionId: `${P}rq${rq}`, domain: "requisition", value: rq === 13 ? "330000.00" : "600000.00",
+    authorityMatrixId: mx, matrixLabel: "Demo limits, issue 1", ruleKey: "demo.requisition.4", ruleLabel: "Requisition, above RM250,000", ruleClause: "DEMO 3.1(d)",
+    boundaryValue: "300000", boundaryInclusive: true, ruleFollowsBoundarySwitch: false, boundaryOperator: null, fundingRouteCode: "capex",
+    budgetCheckId: `${P}bk${rq}`, budgetVerdict: "WITHIN" as const, availabilityCheck: "blocking", splitCheckId: `${P}sp${rq}`, splitState: "CLEAR" as const,
+    checkedAgainstMatrix: true, status: "APPROVED" as const, openedAt: day(opened), closedAt: day(closed), commitOnApproval: true, routeCommitsBudget: true,
+  });
+  await db.approvalInstance.createMany({ data: [approvedRoute(13, "2026-06-05", "2026-06-24"), approvedRoute(14, "2026-08-15", "2026-08-28")] });
+  const step = (rq: number, seq: number, roleCode: string, roleLabel: string, act: "P" | "R" | "MR" | "A", pid: string, name: string, on: string, nonDelegable = false) => ({
+    id: `${P}as${rq}_${seq}`, instanceId: `${P}ai${rq}`, sequence: seq, roleCode, roleLabel, act, nonDelegable, sourceRuleKey: "demo.requisition.4",
+    decision: "DONE" as const, decidedByPersonId: pid, decidedByName: name, decidedOn: day(on), recordedAt: day(on),
+  });
+  await db.approvalStep.createMany({
+    data: [
+      step(13, 1, "DEPT_HEAD", "Head of Department", "P", `${P}p9`, "Imran Hakim", "2026-06-08"),
+      step(13, 2, "DIV_HEAD", "Head of Division", "R", `${P}p7`, "Gopal Nair", "2026-06-12"),
+      step(13, 3, "FD", "Finance Director", "MR", `${P}p2`, "Bala Krishnan", "2026-06-18", true),
+      step(13, 4, "CEO", "Chief Executive", "A", `${P}p1`, "Aisyah Rahman", "2026-06-24"),
+      step(14, 1, "DEPT_HEAD", "Head of Department", "P", `${P}p9`, "Imran Hakim", "2026-08-17"),
+      step(14, 2, "DIV_HEAD", "Head of Division", "R", `${P}p7`, "Gopal Nair", "2026-08-19"),
+      step(14, 3, "FD", "Finance Director", "MR", `${P}p2`, "Bala Krishnan", "2026-08-24", true),
+      step(14, 4, "CEO", "Chief Executive", "A", `${P}p1`, "Aisyah Rahman", "2026-08-28"),
+    ],
+  });
+
+  // The exercises. Their bands, snapshots and decided records are written afterwards by
+  // the same functions a save uses.
+  const SX = (n: number) => `DEMO/SX/${String(n).padStart(4, "0")}/2026`;
+  const ex = (n: number, rq: number, title: string, value: string, method: string, extra: object = {}) => ({
+    id: `${P}sx${n}`, organisationId, reference: SX(n), requisitionId: `${P}rq${rq}`, title, estimatedValue: value, sourcingMethodCode: method,
+    createdAt: day("2026-09-01"), ...extra,
+  });
+  await db.sourcingExercise.createMany({
+    data: [
+      ex(1, 13, "Filter renewal works", "300000.00", "open_quotation", { contractBasisCode: "bq", createdAt: day("2026-09-10") }),
+      ex(2, 13, "Dosing controllers from the sole distributor", "9000.00", "selective_direct", {
+        status: "DOCUMENTS_IN_PREPARATION", methodReason: "The controllers must match the installed dosing system; only its distributor supplies them.",
+        justificationReasonCode: "sole_distributor", justificationText: "The installed dosing system accepts only its maker's controllers.", evidenceNote: "Distributor's letter of sole authority, dated 12 August 2026, held by Contract & Procurement.",
+        dossierReference: "DEMO/DA/0001/2026", contractBasisCode: "ds", createdAt: day("2026-09-02"),
+      }),
+      ex(3, 14, "Tank relining by a specialist contractor", "420000.00", "selected_tender", {
+        methodReason: "Relining a potable-water tank needs an accredited applicator; only a few firms hold the accreditation.",
+        justificationText: "Three firms in the region hold the potable-water lining accreditation.", contractBasisCode: "ds", proposalState: "REVIEWED",
+        proposalSubmittedOn: day("2026-09-15"), proposalReviewedOn: day("2026-09-20"), proposalReviewerPersonId: `${P}p3`, proposalReviewComment: "Grades confirmed against the register.", createdAt: day("2026-09-12"),
+      }),
+      ex(4, 13, "Emergency repair of the trunk main", "12000.00", "emergency", {
+        status: "DOCUMENTS_IN_PREPARATION", methodReason: "A burst trunk main cut supply to the upper zone.",
+        emergencyTrigger: "Burst trunk main at Jalan Demo, supply to the upper zone cut.", coordinationMeetingOn: day("2026-09-02"),
+        coordinationAttendees: "Operations, Contract & Procurement, Northern Region", coordinationScopeNote: "Replace 12 metres of main and reinstate the road.", bqReference: "DEMO/BQ/2026/017",
+        contractBasisCode: "bq", createdAt: day("2026-09-03"),
+      }),
+      ex(5, 14, "Roof works and tank fittings", "150000.00", "open_quotation", { contractBasisCode: "bq", createdAt: day("2026-09-18") }),
+      ex(6, 13, "Spare filter nozzles", "15000.00", "direct", { status: "CANCELLED", cancelReason: "The nozzles were supplied under the filter works instead.", createdAt: day("2026-09-04") }),
+    ],
+  });
+  const part = (n: number, i: number, kind: "GOODS_DELIVERED" | "MEASURED_CONSTRUCTION" | "TERM_PERFORMANCE", amount: string, description: string) => ({ id: `${P}sx${n}p${i}`, exerciseId: `${P}sx${n}`, deliverableKind: kind, amount, description, sortOrder: i });
+  await db.exerciseScopePart.createMany({
+    data: [
+      part(1, 1, "MEASURED_CONSTRUCTION", "300000.00", "Filter media and header renewal"),
+      part(2, 1, "GOODS_DELIVERED", "9000.00", "Two dosing controllers"),
+      part(3, 1, "MEASURED_CONSTRUCTION", "420000.00", "Relining the tank"),
+      part(4, 1, "MEASURED_CONSTRUCTION", "12000.00", "Main replacement and reinstatement"),
+      part(5, 1, "MEASURED_CONSTRUCTION", "105000.00", "Roof replacement"),
+      part(5, 2, "GOODS_DELIVERED", "45000.00", "Tank fittings and hatches"),
+      part(6, 1, "GOODS_DELIVERED", "15000.00", "Filter nozzles"),
+    ],
+  });
+  // The emergency's report form was ambiguous for works on a bill of quantities: chosen once.
+  await db.exerciseTaxonomyValue.create({ data: { id: `${P}sx4tv`, exerciseId: `${P}sx4`, taxonomyCode: "report", valueCode: "works", pick: "CHOSEN" } });
+  await db.exerciseProposalAnswer.createMany({
+    data: [
+      { id: `${P}pa1`, exerciseId: `${P}sx3`, itemKey: "scope", text: "Blast, prime and reline the 5 ML clear-water tank; replace the access hatches.", answeredAt: day("2026-09-14") },
+      { id: `${P}pa2`, exerciseId: `${P}sx3`, itemKey: "estimate", text: "RM420,000, within the requisition's approved RM600,000 on CAP26-044.", answeredAt: day("2026-09-14") },
+      { id: `${P}pa3`, exerciseId: `${P}sx3`, itemKey: "grades", text: "Grade 5 and above, with the potable-water lining accreditation.", answeredAt: day("2026-09-14") },
+      { id: `${P}pa4`, exerciseId: `${P}sx3`, itemKey: "firms", text: "Demo Linings Sdn Bhd, Contoh Coatings Sdn Bhd, Sampel Tank Works Sdn Bhd — each has relined a tank for the demo utility.", answeredAt: day("2026-09-14") },
+      { id: `${P}pa5`, exerciseId: `${P}sx3`, itemKey: "period", text: "Sixteen weeks, with the tank out of service for ten.", answeredAt: day("2026-09-14") },
+    ],
+  });
+  await db.exerciseParticipant.createMany({
+    data: [
+      { id: `${P}xp1`, exerciseId: `${P}sx3`, personId: `${P}p3`, capacity: "Contract & Procurement" },
+      { id: `${P}xp2`, exerciseId: `${P}sx3`, personId: `${P}p4`, capacity: "Evaluation panel" },
+      { id: `${P}xp3`, exerciseId: `${P}sx3`, personId: `${P}p7`, capacity: "Head of Division" },
+    ],
+  });
+  // The selected tender's name, sent for approval and part-way through its route.
+  await db.approvalInstance.create({
+    data: {
+      id: `${P}ai20`, organisationId, matterKind: "EXERCISE", exerciseId: `${P}sx3`, domain: "name_approval", value: "420000.00",
+      authorityMatrixId: mx, matrixLabel: "Demo limits, issue 1", ruleKey: "demo.name.tender", ruleLabel: "Approval of the name, selected tender", ruleClause: "DEMO 4.4",
+      boundaryValue: "300000", boundaryInclusive: true, ruleFollowsBoundarySwitch: null, boundaryOperator: null, fundingRouteCode: "capex",
+      checkedAgainstMatrix: true, status: "PENDING", openedAt: day("2026-09-21"),
+      steps: {
+        create: [
+          { id: `${P}as20_1`, sequence: 1, roleCode: "SEC_PRE", roleLabel: "Section Head, Pre-contract", act: "P", sourceRuleKey: "demo.name.tender", decision: "DONE", decidedByPersonId: `${P}p5`, decidedByName: "Eng Siew Mei", decidedOn: day("2026-09-22"), recordedAt: day("2026-09-22") },
+          { id: `${P}as20_2`, sequence: 2, roleCode: "HOD_CP", roleLabel: "Head of Contract & Procurement", act: "MR", nonDelegable: true, sourceRuleKey: "demo.name.tender" },
+          { id: `${P}as20_3`, sequence: 3, roleCode: "DIV_HEAD", roleLabel: "Head of Division", act: "JR", sourceRuleKey: "demo.name.tender" },
+          { id: `${P}as20_4`, sequence: 4, roleCode: "FD", roleLabel: "Finance Director", act: "R", sourceRuleKey: "demo.name.tender" },
+          { id: `${P}as20_5`, sequence: 5, roleCode: "CEO", roleLabel: "Chief Executive", act: "A", sourceRuleKey: "demo.name.tender" },
+        ],
+      },
+    },
+  });
+}
+
+/**
+ * Determine the demo exercises as a save would: the bands under the issue in force, the
+ * snapshot the screen renders from, and — for those loaded past Draft — the decided
+ * record, all through `src/lib/method`. Refuses loudly if a demo exercise would not
+ * pass its own save checks.
+ */
+async function determineExercises(ids: string[]) {
+  const repo = await import("../src/lib/method/repo");
+  const { evaluateExercise, saveBlockers } = await import("../src/lib/method/evaluate");
+  const snap = await import("../src/lib/method/snapshot");
+  const { behaviourProfile } = await import("../src/lib/method/profile");
+  // The minuted sittings are snapshotted next, on the same lib client, which they close.
+  {
+    for (const id of ids) {
+      const l = await repo.loadExercise(id);
+      if (!l) throw new Error(`Demo exercise ${id} did not load.`);
+      const { issue, cfg, ctx } = await repo.evaluationContext(l.org, l.req, l.ex);
+      if (!issue || !ctx) throw new Error("No issue in force for the demo exercises.");
+      const ev = evaluateExercise(repo.draftOf(l.ex), ctx);
+      const blockers = saveBlockers(ev.findings);
+      if (blockers.length > 0 && l.ex.status !== "CANCELLED") throw new Error(`Demo exercise ${id} would not save: ${blockers.map((b) => b.code).join(", ")}`);
+      const on = day(l.org.today ?? "2026-09-30");
+      const cols = snap.determinationColumns(ev, issue, (c) => cfg.config.methods.find((x) => x.code === c)?.nameEn ?? "", on);
+      const prepared = l.ex.status === "DOCUMENTS_IN_PREPARATION";
+      const decided = prepared ? snap.classificationSnapshotOf(ev, cfg.config, l.ex.contractBasisCode, (c) => issue.matrix.roles[c]?.nameEn ?? "", behaviourProfile) : null;
+      if (prepared && !decided) throw new Error(`Demo exercise ${id} cannot be decided.`);
+      await db.sourcingExercise.update({
+        where: { id },
+        data: {
+          ...cols,
+          requisitionRuleKey: ctx.approved?.ruleKey ?? null,
+          requisitionRuleLabel: ctx.approved?.ruleLabel ?? null,
+          methodReason: cols.proposedMethodCode === l.ex.sourcingMethodCode ? "" : l.ex.methodReason,
+          ...(prepared ? { classificationSnapshot: decided as object, preparedAt: day("2026-09-08") } : {}),
+        },
+      });
+      for (const t of ev.taxonomies.filter((x) => x.state === "DERIVED" && x.valueCode)) {
+        await db.exerciseTaxonomyValue.create({ data: { id: `${id}tv_${t.taxonomyCode}`, exerciseId: id, taxonomyCode: t.taxonomyCode, valueCode: t.valueCode!, pick: "DERIVED" } });
+      }
+    }
+  }
 }
 
 /// Freeze the register of a demo sitting loaded as already minuted, with the same

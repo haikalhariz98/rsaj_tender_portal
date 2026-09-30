@@ -15,7 +15,7 @@ import { transitionFault, openFault } from "@/lib/method/exercise";
 import { findingText, EXERCISE_STATUS_LABEL } from "@/lib/method/labels";
 import { behaviourProfile } from "@/lib/method/profile";
 import { nameRequestProposalFault, proposalFaults, proposalStateFor, proposalTransition } from "@/lib/method/proposal";
-import { bandSnapshot, classificationSnapshotOf } from "@/lib/method/snapshot";
+import { classificationSnapshotOf, determinationColumns } from "@/lib/method/snapshot";
 import {
   evaluationContext,
   loadMethodConfig,
@@ -181,37 +181,6 @@ function faultState(r: FormReader, fs: readonly Finding[]): FormState {
   return { ok: false, errors: r.errors, message: `Nothing was saved. ${loose.join(" ") || "Correct the fields marked below."}` };
 }
 
-/// The columns an evaluation writes, with the band snapshot the screen renders from.
-function evaluatedColumns(ev: Evaluation, issue: { id: string; label: string; boundarySource: string; matrix: { roles: Record<string, { nameEn: string }>; policy: { boundaryValue: number } } }, methodName: (c: string) => string, on: Date) {
-  const name = (code: string) => issue.matrix.roles[code]?.nameEn ?? "An office no longer configured";
-  const snap = bandSnapshot(ev.bands, { matrixLabel: issue.label, boundarySource: issue.boundarySource, name, methodName });
-  const m = ev.method;
-  return {
-    authorityMatrixId: issue.id,
-    matrixLabel: issue.label,
-    regime: ev.bands.regime,
-    appointmentRuleKey: ev.bands.appointment.ruleKey,
-    appointmentState: ev.bands.appointment.state,
-    termsBandKey: ev.bands.terms.band?.bandKey ?? null,
-    termsState: ev.bands.terms.state,
-    boundaryValue: String(issue.matrix.policy.boundaryValue),
-    boundaryOperator: ev.bands.boundary.operator,
-    onBoundary: ev.bands.boundary.onBoundary,
-    boundaryRuled: ev.bands.boundary.ruled,
-    boundaryProvenance: ev.bands.boundary.provenance,
-    bandSnapshot: snap as unknown as Prisma.InputJsonValue,
-    bandWarnings: ev.findings.filter((f) => f.level !== "block") as unknown as Prisma.InputJsonValue,
-    determinedAt: on,
-    proposedMethodCode: ev.bands.proposed.state === "PROPOSED" ? ev.bands.proposed.code : null,
-    derivedContractTypeCode: ev.derivation.code,
-    derivationState: ev.derivation.state,
-    dominantSharePct: ev.derivation.sharePct,
-    contractTypeCode: ev.type.code,
-    contractTypeState: ev.type.state,
-    restricted: m?.restrictedAccess ?? false,
-  };
-}
-
 /// What the method does not ask for is not kept: the record holds what applies.
 function methodColumns(v: FormValues, ev: Evaluation) {
   const m = ev.method;
@@ -319,7 +288,7 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
           requisitionRuleKey: ctx.approved?.ruleKey ?? null,
           requisitionRuleLabel: ctx.approved?.ruleLabel ?? null,
           proposalState: proposalStateFor(m.requiresProposal, null, true),
-          ...evaluatedColumns(ev, issue, methodNameOf(cfg.config), on),
+          ...determinationColumns(ev, issue, methodNameOf(cfg.config), on),
           ...methodColumns(v, ev),
         },
       });
@@ -374,7 +343,7 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
       estimatedValue: senToDecimalString(v.draft.value),
       proposalState: proposalStateFor(ev.method!.requiresProposal, ex.proposalState, methodChanged),
       ...(methodChanged ? { proposalSubmittedOn: null, proposalReviewedOn: null, proposalReviewerPersonId: null, proposalReviewComment: "" } : {}),
-      ...evaluatedColumns(ev, issue, methodNameOf(cfg.config), on),
+      ...determinationColumns(ev, issue, methodNameOf(cfg.config), on),
       ...methodColumns(v, ev),
     };
     const moved = await tx.sourcingExercise.updateMany({ where: { id, status: "DRAFT", updatedAt: ex.updatedAt }, data: after });
@@ -672,7 +641,7 @@ export async function moveToPreparation(_prev: FormState, data: FormData): Promi
         preparedAt: on,
         dossierReference,
         classificationSnapshot: snapshot as unknown as Prisma.InputJsonValue,
-        ...evaluatedColumns(ev, issue, methodNameOf(cfg.config), on),
+        ...determinationColumns(ev, issue, methodNameOf(cfg.config), on),
       };
       const moved = await tx.sourcingExercise.updateMany({ where: { id, status: "DRAFT", updatedAt: ex.updatedAt }, data: after });
       if (moved.count !== 1) throw new Refusal(CHANGED);
