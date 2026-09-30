@@ -1,4 +1,4 @@
-import { PencilIcon, XIcon } from "@/components/icons";
+import { PencilIcon, PlusIcon, XIcon } from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 
@@ -370,7 +370,7 @@ export function AddRecommender({
       values={{ authorityRuleId: ruleId }}
       action={saveRecommender}
       submitLabel="Add recommender"
-      trigger={{ label: "Add recommender", icon: true, className: buttonClass("ghost", "sm") }}
+      trigger={{ label: "Add recommender", iconOnly: <PlusIcon size={15} />, className: iconButtonClass("sm") }}
       size="sm"
     />
   );

@@ -359,12 +359,12 @@ export default async function ApprovalMatrixPage({
                     <div className="tablewrap dl__scroll">
                       <table className="table table--compact">
                         <colgroup>
-                          <col style={{ width: "17%" }} />
-                          <col style={{ width: "13%" }} />
-                          <col style={{ width: "42%" }} />
-                          <col style={{ width: "13%" }} />
-                          <col style={{ width: "15%" }} />
-                          {editable && <col style={{ width: "150px" }} />}
+                          <col style={{ width: editable ? "15%" : "17%" }} />
+                          <col style={{ width: editable ? "11%" : "13%" }} />
+                          <col style={{ width: editable ? "38%" : "42%" }} />
+                          <col style={{ width: editable ? "15%" : "13%" }} />
+                          <col style={{ width: editable ? "13%" : "15%" }} />
+                          {editable && <col style={{ width: "8%" }} />}
                         </colgroup>
                         <thead>
                           <tr>
@@ -411,6 +411,21 @@ export default async function ApprovalMatrixPage({
                                 </td>
                                 <td className="wrapcell">
                                   <RuleChain steps={chainFor(rule)} />
+                                  {editable && (ruleRows[rule.ruleKey]?.recommenders.length ?? 0) > 0 && (
+                                    <div className="mt-1.5 flex flex-wrap gap-1">
+                                      {ruleRows[rule.ruleKey]!.recommenders.map((step) => (
+                                        <span
+                                          key={step.id}
+                                          className="inline-flex max-w-full items-center gap-1 rounded-full bg-ink/[0.05] py-0.5 pr-0.5 pl-2.5 text-[12px] text-ink-2"
+                                        >
+                                          <span className="truncate">
+                                            {roleName(step.roleCode)} · {ACT_LABEL[step.act] ?? step.act}
+                                          </span>
+                                          <RemoveRecommender id={step.id} label={`${roleName(step.roleCode)} from this rule`} />
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
                                 </td>
                                 <td>
                                   {rule.committeeCode ? (
@@ -448,7 +463,6 @@ export default async function ApprovalMatrixPage({
                                       row={ruleRows[rule.ruleKey]}
                                       matrixId={matrixId}
                                       offices={offices}
-                                      roleName={roleName}
                                     />
                                   </td>
                                 )}
@@ -512,57 +526,48 @@ export default async function ApprovalMatrixPage({
   );
 }
 
-/// A draft rule's controls: edit it, and add or remove the steps before the approver.
+/// A draft rule's controls: edit it, and add a step before the approver. Steps are
+/// removed where they are shown, in the route.
 function RuleActions({
   rule,
   row,
   matrixId,
   offices,
-  roleName,
 }: {
   rule: Rule;
-  row: { id: string; recommenders: { id: string; roleCode: string; act: string }[] } | undefined;
+  row: { id: string } | undefined;
   matrixId: string;
   offices: { code: string; nameEn: string }[];
-  roleName: (code: string | null) => string | null;
 }) {
   if (!row) return null;
   return (
-    <div className="flex flex-col items-start gap-1.5">
-      <div className="flex items-center gap-1">
-        <EditRule
-          matrixId={matrixId}
-          offices={offices}
-          rule={{
-            id: row.id,
-            ruleKey: rule.ruleKey,
-            domain: rule.domain,
-            method: rule.method,
-            minValue: rule.minValue,
-            maxValue: rule.maxValue,
-            labelEn: rule.labelEn,
-            labelMs: rule.labelMs,
-            proposerCode: rule.proposerCode,
-            approverCode: rule.approverCode,
-            committeeCode: rule.committeeCode,
-            committeeAct: rule.committeeAct,
-            nonDelegable: rule.nonDelegable,
-            approverMandatory: rule.approverMandatory,
-            isGap: rule.isGap,
-            gapNote: rule.gapNote,
-            note: rule.note,
-            clause: rule.clause,
-            sortOrder: rule.sortOrder,
-          }}
-        />
-        <AddRecommender ruleId={row.id} offices={offices} />
-      </div>
-      {row.recommenders.map((step) => (
-        <span key={step.id} className="inline-flex items-center gap-1 rounded-full bg-ink/[0.05] py-0.5 pr-0.5 pl-2.5 text-[12px] text-ink-2">
-          {roleName(step.roleCode)} · {ACT_LABEL[step.act] ?? step.act}
-          <RemoveRecommender id={step.id} label={`${roleName(step.roleCode)} from this rule`} />
-        </span>
-      ))}
+    <div className="flex items-center justify-end gap-1">
+      <EditRule
+        matrixId={matrixId}
+        offices={offices}
+        rule={{
+          id: row.id,
+          ruleKey: rule.ruleKey,
+          domain: rule.domain,
+          method: rule.method,
+          minValue: rule.minValue,
+          maxValue: rule.maxValue,
+          labelEn: rule.labelEn,
+          labelMs: rule.labelMs,
+          proposerCode: rule.proposerCode,
+          approverCode: rule.approverCode,
+          committeeCode: rule.committeeCode,
+          committeeAct: rule.committeeAct,
+          nonDelegable: rule.nonDelegable,
+          approverMandatory: rule.approverMandatory,
+          isGap: rule.isGap,
+          gapNote: rule.gapNote,
+          note: rule.note,
+          clause: rule.clause,
+          sortOrder: rule.sortOrder,
+        }}
+      />
+      <AddRecommender ruleId={row.id} offices={offices} />
     </div>
   );
 }
