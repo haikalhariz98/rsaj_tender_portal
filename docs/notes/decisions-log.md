@@ -18,6 +18,17 @@ dev` on a normal machine against Postgres 17 and confirm it reports no drift.
 
 ## Decisions
 
+- 2026-09-30 · 6.10 · Build decision §8.5 (recusal scope) SENT BACK: as built, a recused holder decides whether their seat votes by choosing to attend. Whether an alternate may vote for a recused member is RSAJ policy (FR-CTE-010 ASSUMED; DAL §1.5 is recuse-and-escalate). Build a nullable per-committee setting with provenance; unset blocks only the affected matters; attendance must not change whether the seat votes; per-matter stand-in with holder present deferred unless built. Spec: FR-CTE-010, DAL §1.5.
+- 2026-09-30 · 6.10 · Build decision §8.9 (outcome snapshot) SENT BACK: store the count the matter's quorum was judged on and the recusals among those present (sitting-wide count and absent recusals do not reproduce the quorum). DEFERRED storing no voting rule approved. Spec: FR-CTE-010.
+- 2026-09-30 · 6.10 · Build decision §8.6: recusal before voting and INELIGIBLE_VOTE blocking approved in principle; SENT BACK because no vote can be removed — refuse any attendance change that would make an existing vote on a pending matter ineligible. Spec: FR-CTE-005, 010.
+- 2026-09-30 · 6.10 · Build decision §8.4: two holders of an ex-officio office on the sitting date leaves the seat unfilled; the system never picks. Approved; the attendance refusal must name the conflicting office assignment, not "not a member". Spec: FR-CTE-002.
+- 2026-09-30 · 6.10 · §8.3: register limited to seat holders, alternates and the Secretary; others refused; an alternate may attend without covering a seat and is not counted; non-members in attendance go in the minutes text. Approved. Spec: FR-CTE-004.
+- 2026-09-30 · 6.10 · §8.1: MatterKind enum REQUISITION, EXERCISE, LATE_TENDER, CONTRACT, VARIATION, shown by label; new kinds arrive by migration with their module. Approved. Spec: FR-CTE-004.
+- 2026-09-30 · 6.10 · §8.2: votes, attendance and outcomes only while IN_PROGRESS (SCHEDULED → 409); tabling and recusal open before the sitting. Approved. Spec: FR-CTE-004.
+- 2026-09-30 · 6.10 · §8.7: UNANIMOUS carries only when every vote cast is SETUJU. Approved. Spec: FR-CTE-005.
+- 2026-09-30 · 6.10 · §8.8: a dependent matter is blocked while its prerequisite is PENDING or DEFERRED; either decided outcome releases it. Approved. Spec: FR-CTE-007/008.
+- 2026-09-30 · 6.10 · §8.10: sheet date entered, never pre-filled; votes route order 400 → ABSTAIN 422 → 409 → date 422 → 403. Approved. Spec: FR-CTE-005.
+- 2026-09-30 · 6.10 · §8.11: no alternate on a CHAIRMAN seat (all committees, wider than FR-CTE-012's Tender Board scope; a per-committee switch is the reversal path). Approved. Spec: FR-CTE-012, OQ-01.
 - 2026-09-30 · 6.11 · Scope approved: FR-AWD-001–008, 012, 013, 014 (generic), 009 (clock, warning, cancel); FR-CON-001, 002, 008 (readiness checklist); FR-REQ-016 enforcement; FR-CTE-014 read model. Build starts only after 6.10 accepted and 6.1 and 6.3 landed. Spec: §6.11, §6.12, §13.9.
 - 2026-09-30 · 6.11 · FR-AWD-011 (M) deferred to Phase 2 (no tenderers or tender documents in Phase 1, §13.3); when built, never dispose of documents while a collection right subsists (OQ-10, D11). FR-AWD-010 (S) deferred to Phase 2 and D7. Spec: FR-AWD-010, 011.
 - 2026-09-30 · 6.11 · FR-AWD-009 blacklisting deferred to 6.15 (needs Vendor); recorded as "blacklisting recommended". Indent-expiry, security-expiry and section-head alerts computed and shown, not sent. Spec: FR-AWD-006, 009, 012, FR-CON-001.
