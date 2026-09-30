@@ -3,31 +3,35 @@
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
-import { auditedCreate, auditedUpdate, auditedUpsert } from "@/lib/audit/record";
+import { diffFields, type FieldChange } from "@/lib/audit/diff";
+import { auditedCreate, writeAudit, type Tx } from "@/lib/audit/record";
+import { checkAttendanceChange, minutingChecks, snapshotRegister } from "@/lib/committee/assess-sitting";
 import {
-  ATTENDANCE_FAULT_MESSAGE,
+  attendanceFaultText,
   MATTER_KINDS,
   OUTCOME_FAULT_MESSAGE,
   TABLING_FAULT_MESSAGE,
   TRANSITION_FAULT_MESSAGE,
 } from "@/lib/committee/labels";
-import { checkOutcome, type MeetingStatus } from "@/lib/committee/matter";
-import { isFrozen, meetingTransition } from "@/lib/committee/meeting";
-import { presentVoters } from "@/lib/committee/sitting";
-import { loadSitting, organisationId, type LoadedSitting } from "@/lib/committee/sittings";
-import { checkTabling } from "@/lib/committee/tabling";
+import { checkOutcome, checkRecusal, type MeetingStatus } from "@/lib/committee/matter";
+import { meetingTransition, sittingPermits, type SittingAct } from "@/lib/committee/meeting";
+import { registerRole } from "@/lib/committee/sitting";
+import { organisationId, withLockedSitting, type LoadedSitting } from "@/lib/committee/sittings";
+import { checkTabling, secretariatHoldersOn } from "@/lib/committee/tabling";
+import { dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { afterIssuing, formatReference, patternFaults, serialFor } from "@/lib/numbering/series";
-import { holdersOf } from "@/lib/people/roster";
 import { FormReader } from "@/lib/validate";
 
 /**
  * Writes for committee sittings.
  *
- * Every action is reachable by a direct POST, so each one re-reads the sitting from
- * the organisation's own records and runs the pure check before writing; a refusal
- * saves nothing. Every write carries its audit row in the same transaction. Nobody is
- * signed in, so whoever records a tabling or a vote is attesting it, not proving it.
+ * Every action is reachable by a direct POST. Each write to a sitting runs inside
+ * `withLockedSitting`: the sitting's row is locked, everything under it is re-read in
+ * the same transaction, the pure check runs on that data, and only then is the write
+ * made, with its audit row, in that transaction. Two writes to one sitting therefore
+ * never both pass a check on data the other is about to change. A refusal saves
+ * nothing. Nobody is signed in, so whoever records a tabling or a vote attests it.
  */
 
 const NO_ORG: FormState = {
@@ -35,26 +39,53 @@ const NO_ORG: FormState = {
   message: "No organisation is configured. Run npm run setup before recording sittings.",
 };
 const GONE: FormState = { ok: false, message: "That sitting no longer exists." };
-const FROZEN: FormState = {
+const CLOSED: FormState = {
   ok: false,
   message: "This sitting is minuted or cancelled. Nothing under it can change.",
 };
+const NOT_IN_PROGRESS: FormState = {
+  ok: false,
+  message: "The register, votes and outcomes are recorded while the sitting is in progress.",
+};
 
 const ACTS = ["P", "JP", "R", "JR", "MR", "MJR", "A", "MA"] as const;
-const today = () => new Date(new Date().toISOString().slice(0, 10) + "T00:00:00.000Z");
 
 function refresh(meetingId?: string) {
   revalidatePath("/committees");
   if (meetingId) revalidatePath(`/committees/${meetingId}`);
 }
 
-async function openSitting(meetingId: string): Promise<LoadedSitting | FormState> {
-  const sitting = await loadSitting(meetingId);
-  if (!sitting) return GONE;
-  if (isFrozen(sitting.meeting.status)) return FROZEN;
-  return sitting;
+/// Refuse an act the sitting's status does not permit (ruling 8.2).
+function permit(s: LoadedSitting, act: SittingAct): FormState | null {
+  if (sittingPermits(s.meeting.status, act)) return null;
+  return s.meeting.status === "MINUTED" || s.meeting.status === "CANCELLED" ? CLOSED : NOT_IN_PROGRESS;
 }
-const refused = (s: LoadedSitting | FormState): s is FormState => "ok" in s;
+
+async function audit(
+  tx: Tx,
+  s: LoadedSitting,
+  entity: string,
+  entityId: string,
+  entityLabel: string,
+  action: "CREATE" | "UPDATE",
+  changes: FieldChange[],
+  reason = "",
+) {
+  if (action === "UPDATE" && changes.length === 0) return;
+  await writeAudit(tx, { organisationId: s.organisationId, entity, entityId, entityLabel, reason }, action, changes);
+}
+
+/// Run a sitting write under the lock; a missing sitting reads as gone.
+async function inSitting(meetingId: string, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>): Promise<FormState> {
+  const result = await withLockedSitting(meetingId, fn);
+  if (result?.ok) refresh(meetingId);
+  return result ?? GONE;
+}
+
+async function meetingOf(decisionId: string): Promise<string | null> {
+  const found = await db.committeeDecision.findUnique({ where: { id: decisionId }, select: { meetingId: true } });
+  return found?.meetingId ?? null;
+}
 
 // ------------------------------------------------------------------- schedule
 
@@ -125,85 +156,110 @@ export async function scheduleSitting(_prev: FormState, data: FormData): Promise
 /// Edit a sitting's date and agenda. The date moves only before it starts.
 export async function editSitting(_prev: FormState, data: FormData): Promise<FormState> {
   const meetingId = String(data.get("meetingId") ?? "");
-  const s = await openSitting(meetingId);
-  if (refused(s)) return s;
-
   const r = new FormReader(data);
   const meetingDate = r.date("meetingDate", "Date", { required: true });
   const agenda = r.text("agenda", "Agenda", { max: 4000 });
-  const m = s.meeting;
-  if (meetingDate && m.status !== "SCHEDULED" && meetingDate.getTime() !== m.meetingDate.getTime()) {
-    r.reject("meetingDate", "The date of a sitting that has started cannot change.");
-  }
-  const parsed = r.finish({ meetingDate, agenda });
-  if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
-  await auditedUpdate(
-    { organisationId: s.organisationId, entity: "Meeting", entityId: m.id, entityLabel: m.reference },
-    { meetingDate: m.meetingDate, agenda: m.agenda },
-    { meetingDate, agenda },
-    (tx) => tx.meeting.update({ where: { id: m.id }, data: { meetingDate: meetingDate!, agenda } }),
-  );
-  refresh(m.id);
-  return { ok: true };
+  return inSitting(meetingId, async (tx, s) => {
+    const refusal = permit(s, "EDIT");
+    if (refusal) return refusal;
+    const m = s.meeting;
+    if (meetingDate && m.status !== "SCHEDULED" && meetingDate.getTime() !== m.meetingDate.getTime()) {
+      r.reject("meetingDate", "The date of a sitting that has started cannot change.");
+    }
+    const parsed = r.finish({ meetingDate, agenda });
+    if (!parsed.ok) return { ok: false, errors: parsed.errors };
+
+    await tx.meeting.update({ where: { id: m.id }, data: { meetingDate: meetingDate!, agenda } });
+    await audit(tx, s, "Meeting", m.id, m.reference, "UPDATE",
+      diffFields({ meetingDate: m.meetingDate, agenda: m.agenda }, { meetingDate, agenda }));
+    return { ok: true };
+  });
 }
 
 // ---------------------------------------------------------------- lifecycle
 
+/**
+ * Start, minute or cancel a sitting.
+ *
+ * Minuting also checks the register has no faults and every decided matter still
+ * follows from it, and freezes the register as the sitting's snapshot: from then on
+ * the sitting renders from what stood on the day, not from today's configuration.
+ */
 export async function changeStatus(_prev: FormState, data: FormData): Promise<FormState> {
   const meetingId = String(data.get("meetingId") ?? "");
   const to = String(data.get("to") ?? "") as MeetingStatus;
   const reason = String(data.get("reason") ?? "").trim();
 
-  const s = await loadSitting(meetingId);
-  if (!s) return GONE;
-  const m = s.meeting;
+  return inSitting(meetingId, async (tx, s) => {
+    const m = s.meeting;
+    const checks = minutingChecks(s.assessment, s.matters);
+    const check = meetingTransition(m.status, to, {
+      minutes: m.minutes,
+      reason,
+      matterOutcomes: m.decisions.map((d) => d.outcome),
+      today: s.today,
+      meetingDay: storedDay(m.meetingDate),
+      ...checks,
+    });
+    if (!check.ok) {
+      return check.fault === "REASON_REQUIRED"
+        ? { ok: false, errors: { reason: TRANSITION_FAULT_MESSAGE.REASON_REQUIRED } }
+        : { ok: false, message: TRANSITION_FAULT_MESSAGE[check.fault] };
+    }
 
-  const check = meetingTransition(m.status, to, {
-    minutes: m.minutes,
-    reason,
-    matterOutcomes: m.decisions.map((d) => d.outcome),
+    const minutedAt = to === "MINUTED" ? new Date() : undefined;
+    const registerSnapshot =
+      to === "MINUTED"
+        ? snapshotRegister(
+            s.register,
+            s.rules,
+            s.committeeName,
+            Object.fromEntries(
+              [
+                ...s.register.voting.map((v) => v.personId),
+                ...s.register.alternates.map((v) => v.personId),
+                ...s.register.nonVotingMemberIds,
+                ...m.attendance.map((a) => a.personId),
+              ]
+                .filter((id): id is string => id != null)
+                .map((id) => [id, s.names[id] ?? "Not on record"]),
+            ),
+          )
+        : undefined;
+
+    const after = {
+      status: to,
+      ...(to === "CANCELLED" ? { cancelledReason: reason } : {}),
+      ...(minutedAt ? { minutedAt } : {}),
+    };
+    // Guarded on the status read under the lock, so a second transition cannot land.
+    const moved = await tx.meeting.updateMany({
+      where: { id: m.id, status: m.status },
+      data: { ...after, ...(registerSnapshot ? { registerSnapshot: registerSnapshot as object } : {}) },
+    });
+    if (moved.count !== 1) return { ok: false, message: "The sitting changed while this was being saved. Reload and try again." };
+    await audit(tx, s, "Meeting", m.id, m.reference, "UPDATE",
+      diffFields({ status: m.status, cancelledReason: m.cancelledReason, minutedAt: m.minutedAt }, after), reason);
+    return { ok: true };
   });
-  if (!check.ok) {
-    return check.fault === "REASON_REQUIRED"
-      ? { ok: false, errors: { reason: TRANSITION_FAULT_MESSAGE.REASON_REQUIRED } }
-      : { ok: false, message: TRANSITION_FAULT_MESSAGE[check.fault] };
-  }
-
-  const after = {
-    status: to,
-    ...(to === "CANCELLED" ? { cancelledReason: reason } : {}),
-    ...(to === "MINUTED" ? { minutedAt: new Date() } : {}),
-  };
-  await auditedUpdate(
-    { organisationId: s.organisationId, entity: "Meeting", entityId: m.id, entityLabel: m.reference, reason },
-    { status: m.status, cancelledReason: m.cancelledReason, minutedAt: m.minutedAt },
-    after,
-    (tx) => tx.meeting.update({ where: { id: m.id }, data: after }),
-  );
-  refresh(m.id);
-  return { ok: true };
 }
 
 export async function saveMinutes(_prev: FormState, data: FormData): Promise<FormState> {
   const meetingId = String(data.get("meetingId") ?? "");
-  const s = await openSitting(meetingId);
-  if (refused(s)) return s;
-
   const r = new FormReader(data);
   const minutes = r.text("minutes", "Minutes", { required: true, max: 20000 });
   const parsed = r.finish({ minutes });
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
-  const m = s.meeting;
-  await auditedUpdate(
-    { organisationId: s.organisationId, entity: "Meeting", entityId: m.id, entityLabel: m.reference },
-    { minutes: m.minutes },
-    { minutes },
-    (tx) => tx.meeting.update({ where: { id: m.id }, data: { minutes } }),
-  );
-  refresh(m.id);
-  return { ok: true };
+  return inSitting(meetingId, async (tx, s) => {
+    const refusal = permit(s, "MINUTES");
+    if (refusal) return refusal;
+    const m = s.meeting;
+    await tx.meeting.update({ where: { id: m.id }, data: { minutes } });
+    await audit(tx, s, "Meeting", m.id, m.reference, "UPDATE", diffFields({ minutes: m.minutes }, { minutes }));
+    return { ok: true };
+  });
 }
 
 // --------------------------------------------------------------- attendance
@@ -211,59 +267,65 @@ export async function saveMinutes(_prev: FormState, data: FormData): Promise<For
 /**
  * Record one person's attendance.
  *
- * The register is checked as it would stand after the change; a fault that names
- * this person — a stand-in for the chair, a stand-in while the holder is present, an
- * alternate for another seat — refuses the save.
+ * The register is checked as it would stand after the change. The change is refused
+ * where it would create a fault for anyone, make a vote already on record ineligible
+ * (a vote cannot be withdrawn), or leave a decided matter no longer following from
+ * the register.
  */
 export async function recordAttendance(_prev: FormState, data: FormData): Promise<FormState> {
   const meetingId = String(data.get("meetingId") ?? "");
-  const s = await openSitting(meetingId);
-  if (refused(s)) return s;
-  if (s.meeting.status !== "IN_PROGRESS") {
-    return { ok: false, message: "The register is taken once the sitting has started." };
-  }
-
   const r = new FormReader(data);
   const personId = r.text("personId", "Person", { required: true });
   const attended = r.choice("attended", "At this sitting", ["yes", "no"] as const, { required: true }) === "yes";
   const standingInForSeatId = attended ? r.optionalText("standingInForSeatId") : null;
   if (r.failed) return { ok: false, errors: r.errors };
 
-  const a = s.assessment;
-  const known =
-    a.voting.some((v) => v.personId === personId) ||
-    a.alternates.some((v) => v.personId === personId) ||
-    a.nonVotingMemberIds.includes(personId);
-  if (!known) return { ok: false, errors: { personId: ATTENDANCE_FAULT_MESSAGE.NOT_A_MEMBER } };
+  return inSitting(meetingId, async (tx, s) => {
+    const refusal = permit(s, "ATTENDANCE");
+    if (refusal) return refusal;
 
-  const others = s.meeting.attendance.filter((x) => x.personId !== personId);
-  const proposed = [...others, { personId, attended, standingInForSeatId }];
-  const result = presentVoters({
-    voting: a.voting,
-    alternates: a.alternates,
-    nonVotingMemberIds: a.nonVotingMemberIds,
-    attendance: proposed,
+    const name = s.names[personId] ?? "This person";
+    const role = registerRole(s.register, personId);
+    if (role.kind === "CONTESTED") {
+      return {
+        ok: false,
+        message: attendanceFaultText(name, "OFFICE_CONTESTED", {
+          office: role.seat.officeLabel,
+          holders: role.seat.contestedHolderIds.map((id) => s.names[id] ?? "Not on record"),
+        }),
+      };
+    }
+    if (role.kind === "NOT_A_MEMBER") {
+      return { ok: false, errors: { personId: attendanceFaultText(name, "NOT_A_MEMBER") } };
+    }
+
+    const proposed = [
+      ...s.meeting.attendance.filter((x) => x.personId !== personId),
+      { personId, attended, standingInForSeatId },
+    ];
+    const change = checkAttendanceChange(s.register, s.rules, s.matters, proposed);
+    if (!change.ok) {
+      const subject = (id: string) => s.meeting.decisions.find((d) => d.id === id)?.subject ?? "a matter";
+      const lines = [
+        ...change.newFaults.map((f) => attendanceFaultText(s.names[f.personId] ?? "Someone", f.fault)),
+        ...change.newlyIneligible.map(
+          (v) => `${s.names[v.personId] ?? "Someone"} has voted on “${subject(v.matterId)}”, and that vote would no longer count. A vote cannot be withdrawn.`,
+        ),
+        ...change.brokenDecisions.map((id) => `“${subject(id)}” is decided, and would no longer follow from the register.`),
+      ];
+      return { ok: false, message: `This change is refused. ${lines.join(" ")}` };
+    }
+
+    const before = s.meeting.attendance.find((x) => x.personId === personId) ?? null;
+    const row = await tx.meetingAttendance.upsert({
+      where: { meetingId_personId: { meetingId, personId } },
+      update: { attended, standingInForSeatId },
+      create: { meetingId, personId, attended, standingInForSeatId },
+    });
+    await audit(tx, s, "MeetingAttendance", row.id, `${name} at ${s.meeting.reference}`, before ? "UPDATE" : "CREATE",
+      diffFields(before && { attended: before.attended, standingInForSeatId: before.standingInForSeatId }, { attended, standingInForSeatId }));
+    return { ok: true };
   });
-  const fault = result.faults.find((f) => f.personId === personId);
-  if (fault) {
-    return { ok: false, errors: { standingInForSeatId: `This person ${ATTENDANCE_FAULT_MESSAGE[fault.fault]}` } };
-  }
-
-  const person = s.roster.people.find((p) => p.id === personId);
-  const before = s.meeting.attendance.find((x) => x.personId === personId) ?? null;
-  await auditedUpsert(
-    { organisationId: s.organisationId, entity: "MeetingAttendance", entityLabel: `${person?.name ?? "Member"} at ${s.meeting.reference}` },
-    before && { attended: before.attended, standingInForSeatId: before.standingInForSeatId },
-    { attended, standingInForSeatId },
-    (tx) =>
-      tx.meetingAttendance.upsert({
-        where: { meetingId_personId: { meetingId, personId } },
-        update: { attended, standingInForSeatId },
-        create: { meetingId, personId, attended, standingInForSeatId },
-      }),
-  );
-  refresh(meetingId);
-  return { ok: true };
 }
 
 // ------------------------------------------------------------------ matters
@@ -271,15 +333,13 @@ export async function recordAttendance(_prev: FormState, data: FormData): Promis
 /**
  * Table a matter (FR-CTE-006).
  *
- * Only a holder of the committee's Secretariat office on the tabling date may table,
- * and the committee must have one set. The tabler is chosen by whoever records it —
- * an attestation until sign-in exists.
+ * Only a holder of the committee's Secretariat office on the tabling day — today in
+ * the organisation's zone, the same day the drawer offered its tablers from — and
+ * the committee must have one set. An attestation until sign-in exists. Under the
+ * sitting's lock, so a matter cannot be tabled onto a sitting being minuted.
  */
 export async function tableMatter(_prev: FormState, data: FormData): Promise<FormState> {
   const meetingId = String(data.get("meetingId") ?? "");
-  const s = await openSitting(meetingId);
-  if (refused(s)) return s;
-
   const r = new FormReader(data);
   const subject = r.text("subject", "Subject", { required: true, max: 400 });
   const domain = r.text("domain", "Matter", { required: true, max: 60 });
@@ -291,85 +351,78 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
   const tabledByPersonId = r.optionalText("tabledByPersonId");
   const dependsOnDecisionId = r.optionalText("dependsOnDecisionId");
 
-  const on = today();
-  const code = s.meeting.committee.secretariatRoleCode;
-  const holders = code ? holdersOf(s.roster, code, on).filter((p) => p.isActive).map((p) => p.id) : [];
-  const tabling = checkTabling({ secretariatRoleCode: code, tabledByPersonId, holderIdsOnDate: holders });
-  if (!tabling.ok) {
-    if (tabling.fault === "SECRETARIAT_NOT_SET") return { ok: false, message: TABLING_FAULT_MESSAGE.SECRETARIAT_NOT_SET };
-    r.reject("tabledByPersonId", TABLING_FAULT_MESSAGE[tabling.fault]);
-  }
+  return inSitting(meetingId, async (tx, s) => {
+    const refusal = permit(s, "TABLE");
+    if (refusal) return refusal;
 
-  if (dependsOnDecisionId) {
-    const dep = await db.committeeDecision.findFirst({
-      where: { id: dependsOnDecisionId, meeting: { committee: { organisationId: s.organisationId } } },
-      select: { id: true },
+    const code = s.meeting.committee.secretariatRoleCode;
+    const holders = secretariatHoldersOn(s.roster, code, s.today).map((h) => h.id);
+    const tabling = checkTabling({ secretariatRoleCode: code, tabledByPersonId, holderIdsOnDate: holders });
+    if (!tabling.ok) {
+      if (tabling.fault === "SECRETARIAT_NOT_SET") return { ok: false, message: TABLING_FAULT_MESSAGE.SECRETARIAT_NOT_SET };
+      r.reject("tabledByPersonId", TABLING_FAULT_MESSAGE[tabling.fault]);
+    }
+    if (dependsOnDecisionId) {
+      const dep = await tx.committeeDecision.findFirst({
+        where: { id: dependsOnDecisionId, meeting: { committee: { organisationId: s.organisationId } } },
+        select: { id: true },
+      });
+      if (!dep) r.reject("dependsOnDecisionId", "That matter no longer exists.");
+    }
+
+    const v = { subject, domain, matterKind, matterRef, amount, act, tabledByPersonId, dependsOnDecisionId };
+    const parsed = r.finish(v);
+    if (!parsed.ok) return { ok: false, errors: parsed.errors };
+
+    const tabledAt = dayToDate(s.today);
+    const sequence = s.meeting.decisions.reduce((n, d) => Math.max(n, d.sequence), 0) + 1;
+    const row = await tx.committeeDecision.create({
+      data: { meetingId, subject, domain, matterKind, matterRef, amount, act: act!, tabledByPersonId, tabledAt, dependsOnDecisionId, sequence },
     });
-    if (!dep) r.reject("dependsOnDecisionId", "That matter no longer exists.");
-  }
-
-  const v = { subject, domain, matterKind, matterRef, amount, act, tabledByPersonId, dependsOnDecisionId };
-  const parsed = r.finish(v);
-  if (!parsed.ok) return { ok: false, errors: parsed.errors };
-
-  const sequence = s.meeting.decisions.reduce((n, d) => Math.max(n, d.sequence), 0) + 1;
-  const tabler = s.roster.people.find((p) => p.id === tabledByPersonId);
-  await auditedCreate(
-    { organisationId: s.organisationId, entity: "CommitteeDecision", entityLabel: subject },
-    { ...v, tabledBy: tabler?.name ?? null, tabledAt: on, sequence },
-    (tx) =>
-      tx.committeeDecision.create({
-        data: {
-          meetingId,
-          subject,
-          domain,
-          matterKind,
-          matterRef,
-          amount,
-          act: act!,
-          tabledByPersonId,
-          tabledAt: on,
-          dependsOnDecisionId,
-          sequence,
-        },
-      }),
-  );
-  refresh(meetingId);
-  return { ok: true };
+    await audit(tx, s, "CommitteeDecision", row.id, subject, "CREATE",
+      diffFields(null, { ...v, tabledBy: tabledByPersonId ? s.names[tabledByPersonId] : null, tabledAt, sequence }));
+    return { ok: true };
+  });
 }
 
 /// Declare a recusal on one matter. The member leaves that matter's vote and quorum.
 export async function declareRecusal(_prev: FormState, data: FormData): Promise<FormState> {
   const decisionId = String(data.get("decisionId") ?? "");
-  const found = await db.committeeDecision.findUnique({ where: { id: decisionId }, select: { meetingId: true } });
-  if (!found) return { ok: false, message: "That matter no longer exists." };
-  const s = await openSitting(found.meetingId);
-  if (refused(s)) return s;
-  const decision = s.meeting.decisions.find((d) => d.id === decisionId)!;
-  if (decision.outcome !== "PENDING") return { ok: false, message: "The matter has already been decided." };
+  const meetingId = await meetingOf(decisionId);
+  if (!meetingId) return { ok: false, message: "That matter no longer exists." };
 
   const r = new FormReader(data);
   const personId = r.text("personId", "Member", { required: true });
   const reason = r.text("reason", "Reason", { required: true, max: 1000 });
-  const a = s.assessment;
-  const member =
-    a.voting.some((x) => x.personId === personId) || a.alternates.some((x) => x.personId === personId);
-  if (personId && !member) r.reject("personId", "Only a voting member or an alternate can declare a recusal.");
-  if (decision.recusals.some((x) => x.personId === personId)) r.reject("personId", "This member has already recused.");
-  if (decision.votes.some((x) => x.personId === personId)) {
-    r.reject("personId", "This member has already voted on the matter. A recusal is declared before voting.");
-  }
-  const parsed = r.finish({ personId, reason });
-  if (!parsed.ok) return { ok: false, errors: parsed.errors };
+  if (r.failed) return { ok: false, errors: r.errors };
 
-  const person = s.roster.people.find((p) => p.id === personId);
-  await auditedCreate(
-    { organisationId: s.organisationId, entity: "DecisionRecusal", entityLabel: `${person?.name ?? "Member"} on ${decision.subject}` },
-    { member: person?.name ?? personId, reason },
-    (tx) => tx.decisionRecusal.create({ data: { decisionId, personId, reason, declaredAt: new Date() } }),
-  );
-  refresh(s.meeting.id);
-  return { ok: true };
+  return inSitting(meetingId, async (tx, s) => {
+    const decision = s.meeting.decisions.find((d) => d.id === decisionId);
+    if (!decision) return { ok: false, message: "That matter no longer exists." };
+    const check = checkRecusal({
+      meetingStatus: s.meeting.status,
+      outcome: decision.outcome,
+      role: registerRole(s.register, personId).kind,
+      alreadyRecused: decision.recusals.some((x) => x.personId === personId),
+      hasVoted: decision.votes.some((x) => x.personId === personId),
+    });
+    if (!check.ok) {
+      const message = {
+        SITTING_CLOSED: CLOSED.message!,
+        MATTER_DECIDED: "The matter has already been decided.",
+        NOT_A_VOTING_MEMBER: "Only a voting member or an alternate can declare a recusal.",
+        ALREADY_RECUSED: "This member has already recused.",
+        ALREADY_VOTED: "This member has already voted on the matter. A recusal is declared before voting, and a vote cannot be withdrawn.",
+      }[check.fault];
+      return check.fault === "SITTING_CLOSED" || check.fault === "MATTER_DECIDED"
+        ? { ok: false, message }
+        : { ok: false, errors: { personId: message } };
+    }
+    const name = s.names[personId] ?? "Member";
+    const row = await tx.decisionRecusal.create({ data: { decisionId, personId, reason, declaredAt: new Date() } });
+    await audit(tx, s, "DecisionRecusal", row.id, `${name} on ${decision.subject}`, "CREATE", diffFields(null, { member: name, reason }));
+    return { ok: true };
+  });
 }
 
 /**
@@ -377,20 +430,16 @@ export async function declareRecusal(_prev: FormState, data: FormData): Promise<
  *
  * CARRIED and NOT_CARRIED must follow from the individual votes under the committee's
  * voting rule; NOT_CARRIED also needs one of its configured not-approved outcomes.
- * DEFERRED needs only a note. The quorum, the count present and recused, and the
- * voting rule with its provenance are copied onto the decision, so later
- * configuration never rewrites it.
+ * DEFERRED needs only a note. Re-assessed under the sitting's lock, so a vote landing
+ * at the same moment is either counted or refused, and a second save on the same
+ * matter finds it decided. The snapshot stores the count the matter's quorum was
+ * judged on, the recusals among those present, the rule with its provenance, and the
+ * outcome's name and kind.
  */
 export async function recordOutcome(_prev: FormState, data: FormData): Promise<FormState> {
   const decisionId = String(data.get("decisionId") ?? "");
-  const found = await db.committeeDecision.findUnique({ where: { id: decisionId }, select: { meetingId: true } });
-  if (!found) return { ok: false, message: "That matter no longer exists." };
-  const s = await openSitting(found.meetingId);
-  if (refused(s)) return s;
-  if (s.meeting.status !== "IN_PROGRESS") return { ok: false, message: "Outcomes are recorded while the sitting is in progress." };
-
-  const decision = s.meeting.decisions.find((d) => d.id === decisionId)!;
-  if (decision.outcome !== "PENDING") return { ok: false, message: "The matter has already been decided." };
+  const meetingId = await meetingOf(decisionId);
+  if (!meetingId) return { ok: false, message: "That matter no longer exists." };
 
   const r = new FormReader(data);
   const outcome = r.choice("outcome", "Outcome", ["CARRIED", "NOT_CARRIED", "DEFERRED"] as const, { required: true });
@@ -398,40 +447,46 @@ export async function recordOutcome(_prev: FormState, data: FormData): Promise<F
   const note = r.text("outcomeNote", "Note", { max: 2000 });
   if (r.failed || !outcome) return { ok: false, errors: r.errors };
 
-  const assessment = s.assessment.matters[decisionId];
-  const check = checkOutcome(
-    assessment,
-    { outcome, notApprovedOutcomeId, note },
-    { outcomes: s.outcomesAll, committeeId: s.meeting.committeeId, on: s.meeting.meetingDate },
-  );
-  if (!check.ok) {
-    const field = { OUTCOME_REQUIRED: "notApprovedOutcomeId", OUTCOME_NOT_OFFERED: "notApprovedOutcomeId", NOTE_REQUIRED: "outcomeNote" }[
-      check.fault as string
-    ];
-    return field
-      ? { ok: false, errors: { [field]: OUTCOME_FAULT_MESSAGE[check.fault] } }
-      : { ok: false, message: OUTCOME_FAULT_MESSAGE[check.fault] };
-  }
+  return inSitting(meetingId, async (tx, s) => {
+    const refusal = permit(s, "OUTCOME");
+    if (refusal) return refusal;
+    const decision = s.meeting.decisions.find((d) => d.id === decisionId);
+    if (!decision) return { ok: false, message: "That matter no longer exists." };
+    if (decision.outcome !== "PENDING") return { ok: false, message: "The matter has already been decided." };
 
-  const c = s.meeting.committee;
-  const decided = outcome !== "DEFERRED";
-  const after = {
-    outcome,
-    decisionDate: s.meeting.meetingDate,
-    outcomeNote: note,
-    notApprovedOutcomeId,
-    quorumRequired: c.quorum,
-    presentVoters: s.assessment.present.voterIds.length,
-    recusedCount: decision.recusals.length,
-    votingRule: decided ? c.votingRule : null,
-    votingRuleProvenance: decided ? c.votingRuleProvenance : null,
-  };
-  await auditedUpdate(
-    { organisationId: s.organisationId, entity: "CommitteeDecision", entityId: decisionId, entityLabel: decision.subject },
-    { outcome: decision.outcome, decisionDate: decision.decisionDate, outcomeNote: decision.outcomeNote, notApprovedOutcomeId: decision.notApprovedOutcomeId },
-    after,
-    (tx) => tx.committeeDecision.update({ where: { id: decisionId }, data: after }),
-  );
-  refresh(s.meeting.id);
-  return { ok: true };
+    const assessment = s.assessment.matters[decisionId];
+    const check = checkOutcome(
+      assessment,
+      { outcome, notApprovedOutcomeId, note },
+      { outcomes: s.outcomesAll, committeeId: s.meeting.committeeId, on: s.meeting.meetingDate },
+    );
+    if (!check.ok) {
+      const field = ({ OUTCOME_REQUIRED: "notApprovedOutcomeId", OUTCOME_NOT_OFFERED: "notApprovedOutcomeId", NOTE_REQUIRED: "outcomeNote" } as Record<string, string>)[check.fault];
+      return field
+        ? { ok: false, errors: { [field]: OUTCOME_FAULT_MESSAGE[check.fault] } }
+        : { ok: false, message: OUTCOME_FAULT_MESSAGE[check.fault] };
+    }
+
+    const decided = outcome !== "DEFERRED";
+    const chosen = notApprovedOutcomeId ? s.outcomesAll.find((o) => o.id === notApprovedOutcomeId) : undefined;
+    const after = {
+      outcome,
+      decisionDate: s.meeting.meetingDate,
+      outcomeNote: note,
+      notApprovedOutcomeId,
+      notApprovedOutcomeNameEn: chosen?.nameEn ?? null,
+      notApprovedOutcomeKind: chosen?.kind ?? null,
+      quorumRequired: s.rules.quorum,
+      presentVoters: assessment.entitledIds.length,
+      recusedCount: assessment.recusedPresentIds.length,
+      votingRule: decided ? s.rules.votingRule : null,
+      votingRuleProvenance: decided ? (s.rules.votingRuleProvenance as "STATED" | "OBSERVED" | "ASSUMED" | null) : null,
+    };
+    // Guarded on PENDING as well as locked: exactly one outcome lands.
+    const done = await tx.committeeDecision.updateMany({ where: { id: decisionId, outcome: "PENDING" }, data: after });
+    if (done.count !== 1) return { ok: false, message: "The matter has already been decided." };
+    await audit(tx, s, "CommitteeDecision", decisionId, decision.subject, "UPDATE",
+      diffFields({ outcome: decision.outcome, decisionDate: decision.decisionDate, outcomeNote: decision.outcomeNote, notApprovedOutcomeId: decision.notApprovedOutcomeId }, after));
+    return { ok: true };
+  });
 }

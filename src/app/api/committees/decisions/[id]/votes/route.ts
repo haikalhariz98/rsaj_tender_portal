@@ -1,7 +1,9 @@
-import { auditedUpsert } from "@/lib/audit/record";
+import { diffFields } from "@/lib/audit/diff";
+import { writeAudit } from "@/lib/audit/record";
 import { VOTE_FAULT_MESSAGE } from "@/lib/committee/labels";
 import { canVote, VOTE_FAULT_STATUS } from "@/lib/committee/matter";
-import { loadSitting } from "@/lib/committee/sittings";
+import { withLockedSitting } from "@/lib/committee/sittings";
+import { dayToDate } from "@/lib/dates";
 import { db } from "@/lib/db";
 
 /**
@@ -18,7 +20,8 @@ import { db } from "@/lib/db";
  *   403  not a present voting member of the sitting, or recused on this matter
  *   409  the sitting is not in progress (scheduled, minuted or cancelled), the matter
  *        is not tabled, or it is already decided
- *   422  ABSTAIN, or a sheet date after today or before the sitting
+ *   422  ABSTAIN, or a sheet date after today (in the organisation's time zone)
+ *        or before the sitting
  *
  * Every rule is `canVote`'s; the statuses are its tested table. The vote and its audit
  * row, with the before and after, are written in one transaction.
@@ -48,54 +51,61 @@ export async function POST(request: Request, ctx: RouteContext<"/api/committees/
   }
 
   const found = await db.committeeDecision.findUnique({ where: { id }, select: { meetingId: true } });
-  const sitting = found ? await loadSitting(found.meetingId) : null;
-  const decision = sitting?.meeting.decisions.find((d) => d.id === id);
-  if (!sitting || !decision) return Response.json({ error: "Decision not found" }, { status: 404 });
+  if (!found) return Response.json({ error: "Decision not found" }, { status: 404 });
 
-  const assessment = sitting.assessment.matters[id];
-  const recusedIds = decision.recusals.map((r) => r.personId);
-  const check = canVote({
-    meetingStatus: sitting.meeting.status,
-    meetingDate: sitting.meeting.meetingDate,
-    today: new Date(),
-    outcome: decision.outcome,
-    tabled: decision.tabledByPersonId != null,
-    personId,
-    presentVoterIds: sitting.assessment.present.voterIds,
-    recusedIds,
-    choice,
-    votedAt,
+  // Checked and written under the sitting's row lock, on data read inside the same
+  // transaction: an outcome recorded at the same moment either sees this vote or
+  // this vote sees the matter decided — never both missing each other.
+  const result = await withLockedSitting(found.meetingId, async (tx, sitting) => {
+    const decision = sitting.meeting.decisions.find((d) => d.id === id);
+    if (!decision) return Response.json({ error: "Decision not found" }, { status: 404 });
+
+    const check = canVote({
+      meetingStatus: sitting.meeting.status,
+      meetingDate: sitting.meeting.meetingDate,
+      today: sitting.today,
+      outcome: decision.outcome,
+      tabled: decision.tabledByPersonId != null,
+      personId,
+      // Entitled on this matter, not merely present: a seat whose holder is recused
+      // does not vote, whoever sits in it.
+      presentVoterIds: sitting.assessment.matters[id]?.entitledIds ?? [],
+      recusedIds: decision.recusals.map((r) => r.personId),
+      choice,
+      votedAt,
+    });
+    if (!check.ok) {
+      return Response.json(
+        { error: VOTE_FAULT_MESSAGE[check.fault], fault: check.fault },
+        { status: VOTE_FAULT_STATUS[check.fault] },
+      );
+    }
+
+    const previous = decision.votes.find((v) => v.personId === personId) ?? null;
+    const sheetDate = dayToDate(votedAt);
+    const text = typeof comment === "string" ? comment.trim() : "";
+    const vote = await tx.vote.upsert({
+      where: { decisionId_personId: { decisionId: id, personId } },
+      update: { choice: choice as "SETUJU" | "TIDAK_SETUJU", comment: text, votedAt: sheetDate, recordedAt: new Date() },
+      create: { decisionId: id, personId, choice: choice as "SETUJU" | "TIDAK_SETUJU", comment: text, votedAt: sheetDate },
+    });
+    const before = previous && { choice: previous.choice, comment: previous.comment, votedAt: previous.votedAt };
+    const changes = diffFields(before, { choice, comment: text, votedAt: sheetDate });
+    if (!previous || changes.length > 0) {
+      await writeAudit(
+        tx,
+        {
+          organisationId: sitting.organisationId,
+          entity: "Vote",
+          entityId: vote.id,
+          entityLabel: `${sitting.names[personId] ?? "Member"} on ${decision.subject}`,
+        },
+        previous ? "UPDATE" : "CREATE",
+        changes,
+      );
+    }
+    return Response.json({ id: vote.id, choice: vote.choice, votedAt }, { status: 200 });
   });
-  if (!check.ok) {
-    return Response.json(
-      { error: VOTE_FAULT_MESSAGE[check.fault], fault: check.fault },
-      { status: VOTE_FAULT_STATUS[check.fault] },
-    );
-  }
 
-  const voter = sitting.roster.people.find((p) => p.id === personId);
-  const previous = decision.votes.find((v) => v.personId === personId) ?? null;
-  const sheetDate = new Date(`${votedAt}T00:00:00.000Z`);
-  const text = typeof comment === "string" ? comment.trim() : "";
-
-  const vote = await auditedUpsert(
-    {
-      organisationId: sitting.organisationId,
-      entity: "Vote",
-      entityLabel: `${voter?.name ?? "Member"} on ${decision.subject}`,
-    },
-    previous && { choice: previous.choice, comment: previous.comment, votedAt: previous.votedAt },
-    { choice, comment: text, votedAt: sheetDate },
-    (tx) =>
-      tx.vote.upsert({
-        where: { decisionId_personId: { decisionId: id, personId } },
-        update: { choice: choice as "SETUJU" | "TIDAK_SETUJU", comment: text, votedAt: sheetDate, recordedAt: new Date() },
-        create: { decisionId: id, personId, choice: choice as "SETUJU" | "TIDAK_SETUJU", comment: text, votedAt: sheetDate },
-      }),
-  );
-
-  return Response.json(
-    { id: vote.id, choice: vote.choice, votedAt, entitled: assessment?.entitledIds.length ?? 0 },
-    { status: 200 },
-  );
+  return result ?? Response.json({ error: "Decision not found" }, { status: 404 });
 }
