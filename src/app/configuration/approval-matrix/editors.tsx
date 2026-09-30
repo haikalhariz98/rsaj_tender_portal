@@ -5,6 +5,8 @@ import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import {
   issueDraft,
   removeRecommender,
+  removeTermsBand,
+  saveTermsBand,
   saveMatrix,
   saveRecommender,
   saveRule,
@@ -66,6 +68,25 @@ function matrixFields(routes: { code: string; nameEn: string }[]): Field[] {
     name: "boundaryInclusive",
     label: "A value exactly on the boundary falls in the lower band",
     hint: "Where governing documents disagree, this is the switch. It affects that one exact figure and nothing else.",
+  },
+  {
+    kind: "select",
+    name: "boundaryProvenance",
+    label: "Where the boundary ruling comes from",
+    required: true,
+    placeholder: "Choose",
+    options: [
+      { value: "STATED", label: "Stated — a written ruling" },
+      { value: "OBSERVED", label: "Observed — seen in practice" },
+      { value: "ASSUMED", label: "Assumed — the interim position, needs a ruling" },
+    ],
+    hint: "Every exercise exactly on the boundary records whether the rule it ran under was written down.",
+  },
+  {
+    kind: "text",
+    name: "boundarySource",
+    label: "Boundary ruling source",
+    hint: "The document that states it. Required where the ruling is stated.",
   },
   { kind: "money", name: "requisitionBoundary", label: "Requisition boundary", required: true },
   { kind: "text", name: "currency", label: "Currency", required: true },
@@ -146,6 +167,8 @@ export interface MatrixValues {
   requisitionBoundary: number;
   currency: string;
   fundingRouteCode: string | null;
+  boundaryProvenance: string;
+  boundarySource: string;
   noRuleClause: string | null;
   selfApprovalClause: string | null;
   absenceClause: string | null;
@@ -172,6 +195,8 @@ export function EditMatrix({ matrix, routes }: { matrix: MatrixValues; routes: {
         requisitionBoundary: String(matrix.requisitionBoundary),
         currency: matrix.currency,
         fundingRouteCode: matrix.fundingRouteCode,
+        boundaryProvenance: matrix.boundaryProvenance,
+        boundarySource: matrix.boundarySource,
         noRuleClause: matrix.noRuleClause,
         selfApprovalClause: matrix.selfApprovalClause,
         absenceClause: matrix.absenceClause,
@@ -490,6 +515,128 @@ export function IssueDraft({
       submitLabel="Issue it"
       trigger={{ label: "Issue", className: buttonClass("primary", "sm") }}
       size="md"
+    />
+  );
+}
+
+const TRI = (yes: string, no: string) => [
+  { value: "yes", label: yes },
+  { value: "no", label: no },
+];
+
+function termsFields(): Field[] {
+  return [
+    { kind: "hidden", name: "authorityMatrixId" },
+    { kind: "text", name: "bandKey", label: "Key", required: true, mono: true, hint: "Recorded on every exercise banded under it. Never shown." },
+    { kind: "text", name: "labelEn", label: "Terms set", required: true, hint: "Which set of terms applies — never the retention or defects figures, which belong to the contract." },
+    { kind: "text", name: "labelMs", label: "Terms set (Malay)" },
+    {
+      kind: "select",
+      name: "regime",
+      label: "Applies in",
+      placeholder: "Every regime",
+      options: [
+        { value: "below", label: "Below the quotation floor" },
+        { value: "quotation", label: "The quotation band" },
+        { value: "tender", label: "The tender band" },
+      ],
+    },
+    { kind: "money", name: "minValue", label: "From value", hint: "Exclusive. Empty for no floor." },
+    { kind: "money", name: "maxValue", label: "To value", hint: "Inclusive. Empty for no ceiling." },
+    { kind: "select", name: "followsBoundarySwitch", label: "At the boundary value", placeholder: "Not decided", options: TRI("Follows the boundary switch", "Ignores the boundary switch"), hint: "Required where an edge is the value where the regimes meet." },
+    { kind: "select", name: "retentionApplies", label: "Retention", placeholder: "Not set", options: TRI("Applies", "Does not apply") },
+    { kind: "select", name: "defectsLiabilityApplies", label: "Defects liability period", placeholder: "Not set", options: TRI("Applies", "Does not apply") },
+    { kind: "text", name: "insuranceNote", label: "Insurance" },
+    { kind: "text", name: "clause", label: "Clause" },
+    {
+      kind: "select",
+      name: "provenance",
+      label: "Where this comes from",
+      required: true,
+      placeholder: "Choose",
+      options: [
+        { value: "STATED", label: "Stated" },
+        { value: "OBSERVED", label: "Observed" },
+        { value: "ASSUMED", label: "Assumed" },
+      ],
+    },
+    { kind: "number", name: "sortOrder", label: "Order", min: 0 },
+  ];
+}
+
+export interface TermsBandValues {
+  id: string;
+  bandKey: string;
+  labelEn: string;
+  regime: string | null;
+  minValue: number | null;
+  maxValue: number | null;
+  followsBoundarySwitch: boolean | null;
+  retentionApplies: boolean | null;
+  defectsLiabilityApplies: boolean | null;
+  insuranceNote: string;
+  clause: string;
+  provenance: string;
+  sortOrder: number;
+}
+
+const yn = (b: boolean | null) => (b == null ? null : b ? "yes" : "no");
+
+export function AddTermsBand({ matrixId }: { matrixId: string }) {
+  return (
+    <RecordEditor
+      title="Add a contract terms band"
+      description="Which terms set applies at a value. The band edges are (from, to]."
+      fields={termsFields()}
+      values={{ authorityMatrixId: matrixId }}
+      action={saveTermsBand}
+      submitLabel="Add band"
+      trigger={{ label: "Add terms band", icon: true, className: buttonClass("secondary", "sm") }}
+      size="lg"
+    />
+  );
+}
+
+export function EditTermsBand({ matrixId, band }: { matrixId: string; band: TermsBandValues }) {
+  return (
+    <RecordEditor
+      title={`Edit ${band.labelEn}`}
+      fields={[{ kind: "hidden", name: "id" }, ...termsFields().filter((f) => !("name" in f) || f.name !== "bandKey"), { kind: "hidden", name: "bandKey" }]}
+      values={{
+        id: band.id,
+        authorityMatrixId: matrixId,
+        bandKey: band.bandKey,
+        labelEn: band.labelEn,
+        regime: band.regime,
+        minValue: band.minValue == null ? null : String(band.minValue),
+        maxValue: band.maxValue == null ? null : String(band.maxValue),
+        followsBoundarySwitch: yn(band.followsBoundarySwitch),
+        retentionApplies: yn(band.retentionApplies),
+        defectsLiabilityApplies: yn(band.defectsLiabilityApplies),
+        insuranceNote: band.insuranceNote,
+        clause: band.clause,
+        provenance: band.provenance,
+        sortOrder: String(band.sortOrder),
+      }}
+      action={saveTermsBand}
+      trigger={{ label: `Edit ${band.labelEn}`, iconOnly: <PencilIcon size={14} />, className: iconButtonClass("sm") }}
+      size="lg"
+    />
+  );
+}
+
+export function RemoveTermsBand({ id, label }: { id: string; label: string }) {
+  return (
+    <RecordEditor
+      title={`Remove ${label}`}
+      description="Takes this band off the draft."
+      fields={[{ kind: "hidden", name: "id" }]}
+      values={{ id }}
+      action={removeTermsBand}
+      submitLabel="Remove"
+      destructive={{ reasonLabel: "Why is it coming out?" }}
+      trigger={{ label: `Remove ${label}`, iconOnly: <XIcon size={14} />, className: iconButtonClass("sm") }}
+      size="sm"
     />
   );
 }

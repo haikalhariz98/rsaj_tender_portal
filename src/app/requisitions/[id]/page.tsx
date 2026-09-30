@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { AlertTriangle, ChartIcon, ClipboardIcon, ClockIcon, RouteIcon, ShieldIcon } from "@/components/icons";
+import { AlertTriangle, ChartIcon, ClipboardIcon, ClockIcon, GlobeIcon, RouteIcon, ShieldIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { ActBadge } from "@/components/ui/act";
@@ -92,6 +92,12 @@ import {
   SubmitDrawer,
 } from "../editors";
 
+import { db } from "@/lib/db";
+import { openFault } from "@/lib/method/exercise";
+import { EXERCISE_STATUS_LABEL, EXERCISE_STATUS_TONE, findingText, REGIME_SHORT } from "@/lib/method/labels";
+import type { ExerciseStatus, Regime } from "@/lib/method/types";
+import { formatSen } from "@/lib/money";
+
 export const dynamic = "force-dynamic";
 
 const TONE = { neutral: "neutral", brand: "brand", ok: "ok", warn: "warn", err: "err", info: "info" } as const;
@@ -128,14 +134,19 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   const today = l.org.today;
   const on = today ? dayToDate(today) : new Date();
 
-  const [policy, controls, { lookups, formats, costCentres, accountCodes, sites }, roster, delegations, history] = await Promise.all([
+  const [policy, controls, { lookups, formats, costCentres, accountCodes, sites }, roster, delegations, history, exercises, methodCount] = await Promise.all([
     loadPolicy(l.org.id),
     loadControls(l.org.id),
     loadLookups(l.org.id),
     loadRoster(ORGANISATION_CODE),
     loadDelegations(ORGANISATION_CODE),
     requisitionHistory(l),
+    db.sourcingExercise.findMany({ where: { requisitionId: id }, orderBy: { createdAt: "asc" }, select: { id: true, reference: true, title: true, estimatedValue: true, status: true, regime: true, sourcingMethodCode: true } }),
+    db.sourcingMethod.count({ where: { organisationId: l.org.id, OR: [{ retiredOn: null }, { retiredOn: { gt: new Date() } }] } }),
   ]);
+  const methodNames = new Map((await db.sourcingMethod.findMany({ where: { organisationId: l.org.id }, select: { code: true, nameEn: true } })).map((m) => [m.code, m.nameEn]));
+  const approvedRoute = l.req.approvalInstances.find((i) => i.status === "APPROVED") ?? null;
+  const exerciseFault = openFault({ status: l.req.status, sourcingPermitted: l.req.sourcingPermitted, approvedRoute: !!approvedRoute }, { today: l.org.today, methodsConfigured: methodCount > 0 });
 
   // Names for codes: units by their latest name, business codes with their names.
   const unitName = (code: string | null) => {
@@ -563,6 +574,55 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                 erpExamples={erpExamples}
                 justifierPeople={justifierOptions()}
               />
+            ),
+          },
+          {
+            id: "sourcing",
+            label: "Sourcing",
+            icon: <GlobeIcon size={15} />,
+            count: exercises.length,
+            panel: (
+              <Card className="overflow-hidden">
+                <CardHeader
+                  icon={<GlobeIcon size={17} />}
+                  title="Sourcing exercises"
+                  subtitle={approvedRoute ? `Its approval covers ${formatRM(num(approvedRoute.value))}. Live exercises may not together exceed it.` : "Opened once the requisition is approved."}
+                  actions={
+                    exerciseFault ? (
+                      <Blocked label="Open sourcing exercise" reason={findingText(exerciseFault)} />
+                    ) : (
+                      <ButtonLink href={`/sourcing/new?requisition=${r.id}`} variant="primary" size="sm">
+                        Open sourcing exercise
+                      </ButtonLink>
+                    )
+                  }
+                />
+                {exercises.length === 0 ? (
+                  <EmptyState size="sm" title="No exercises">
+                    {exerciseFault ? findingText(exerciseFault) : "Open one to classify how this requisition is sourced."}
+                  </EmptyState>
+                ) : (
+                  <ul className="divide-y divide-line/70">
+                    {exercises.map((x) => (
+                      <li key={x.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 sm:px-6">
+                        <span className="min-w-0">
+                          <Link href={`/sourcing/${x.id}`} className="block font-semibold break-words">
+                            {x.title}
+                          </Link>
+                          <span className="block text-[12.5px] text-ink-3">
+                            <span className="font-mono">{x.reference}</span> · {methodNames.get(x.sourcingMethodCode) ?? "A method no longer configured"}
+                            {x.regime ? ` · ${REGIME_SHORT[x.regime as Regime]}` : ""}
+                          </span>
+                        </span>
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="text-[13.5px] tabular-nums text-ink">{formatSen(parseSen(x.estimatedValue.toString()))}</span>
+                          <Badge tone={EXERCISE_STATUS_TONE[x.status as ExerciseStatus]}>{EXERCISE_STATUS_LABEL[x.status as ExerciseStatus]}</Badge>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
             ),
           },
           {

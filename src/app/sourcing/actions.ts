@@ -19,6 +19,7 @@ import { bandSnapshot, classificationSnapshotOf } from "@/lib/method/snapshot";
 import {
   evaluationContext,
   loadMethodConfig,
+  draftOf,
   requisitionOfExercise,
   withLockedRequisitionForSourcing,
   type ExerciseOrg,
@@ -641,7 +642,7 @@ export async function moveToPreparation(_prev: FormState, data: FormData): Promi
       const ex = l.ex;
       const { issue, ctx, cfg } = await evaluationContext(l.org, l.req, ex, tx);
       if (!issue || !ctx) return NO_ISSUE;
-      const ev = evaluateExercise(draftOfRow(ex), ctx);
+      const ev = evaluateExercise(draftOf(ex), ctx);
       const blocking = ev.findings.filter((f) => f.level === "block");
       const t = transitionFault(ex.status, "DOCUMENTS_IN_PREPARATION", {
         today: l.org.today,
@@ -676,7 +677,7 @@ export async function moveToPreparation(_prev: FormState, data: FormData): Promi
       const moved = await tx.sourcingExercise.updateMany({ where: { id, status: "DRAFT", updatedAt: ex.updatedAt }, data: after });
       if (moved.count !== 1) throw new Refusal(CHANGED);
       await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", diffFields({ status: ex.status, dossierReference: ex.dossierReference }, { status: after.status, dossierReference, decidedRecord: "written" }));
-      await writeChildren(tx, l.org.id, ex, ex, draftOfRow(ex).scope, ev);
+      await writeChildren(tx, l.org.id, ex, ex, draftOf(ex).scope, ev);
       if (l.req.status === "APPROVED") {
         const rf = requisitionTransitionFault("APPROVED", "SOURCING", { today: l.org.today });
         if (rf) throw new Refusal({ ok: false, message: "The requisition cannot move into sourcing." });
@@ -692,29 +693,6 @@ export async function moveToPreparation(_prev: FormState, data: FormData): Promi
     }
     throw e;
   }
-}
-
-/// A stored exercise as the evaluator reads a draft.
-function draftOfRow(ex: ExerciseRow): ExerciseDraft {
-  return {
-    id: ex.id,
-    value: parseSen(ex.estimatedValue.toString()),
-    methodCode: ex.sourcingMethodCode || null,
-    methodReason: ex.methodReason,
-    externalRouteNote: ex.externalRouteNote,
-    parentContractRef: ex.parentContractRef,
-    scope: ex.scopeParts.map((p) => ({ kind: p.deliverableKind as DeliverableKind, amount: parseSen(p.amount.toString()), description: p.description })),
-    contractTypeCode: ex.contractTypeState === "DERIVED" ? null : ex.contractTypeCode,
-    typeReason: ex.contractTypeOverrideReason,
-    typePersonId: ex.overriddenByPersonId,
-    basisCode: ex.contractBasisCode,
-    justificationReasonCode: ex.justificationReasonCode,
-    justificationText: ex.justificationText,
-    evidenceNote: ex.evidenceNote,
-    dossierReference: ex.dossierReference,
-    emergencyTrigger: ex.emergencyTrigger,
-    coordinationMeetingOn: ex.coordinationMeetingOn ? storedDay(ex.coordinationMeetingOn) : null,
-  };
 }
 
 /// Cancel an exercise, with a reason. An assumption: §7.3.2 gives it no SOP path. An

@@ -3,12 +3,30 @@ import {
   AddContractType,
   AddFundingRoute,
   AddSourcingMethod,
+  BasisDrawer,
+  ChecklistItemDrawer,
+  ClassificationPolicyDrawer,
+  ContractBehavioursDrawer,
   EditContractType,
   EditFundingRoute,
   EditSourcingMethod,
+  MappingDrawer,
+  ReasonDrawer,
+  RemoveMapping,
   RestoreEntry,
+  RetireChecklistItem,
   RetireEntry,
+  TaxonomyDrawer,
+  TaxonomyValueDrawer,
+  type RetirableEntity,
 } from "./editors";
+import { loadMethodConfig } from "@/lib/method/repo";
+import { behaviourProfile } from "@/lib/method/profile";
+import { DELIVERABLE_LABEL } from "@/lib/method/labels";
+import type { DeliverableKind } from "@/lib/method/types";
+import { KeyValues } from "@/components/ui/stat";
+import { CardBody } from "@/components/ui/card";
+import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { loadReferenceData } from "@/lib/reference/load";
 import type { ListReadiness, Provenance, SourcingMethod } from "@/lib/reference/types";
@@ -56,6 +74,40 @@ export default async function ReferenceDataPage() {
   const types = activeOn(data.contractTypes, on);
 
   const unbanded = methods.filter(isUnbanded);
+
+  // Classification (6.3): method behaviours, proposal items, reasons, contract-type
+  // behaviours, bases, taxonomies, mappings and the mixed-scope policy.
+  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true } });
+  const cls = org ? await loadMethodConfig(org.id) : null;
+  const rows = cls?.rows;
+  const live = <T extends { retiredOn: Date | null }>(xs: T[]) => xs.filter((x) => x.retiredOn == null || x.retiredOn > on);
+  const methodRow = (code: string) => rows?.methods.find((m) => m.code === code);
+  const typeRow = (code: string) => rows?.types.find((t) => t.code === code);
+  const offices = org ? (await db.authorityRole.findMany({ where: { organisationId: org.id }, orderBy: { sortOrder: "asc" }, select: { code: true, nameEn: true } })).map((o) => ({ value: o.code, label: o.nameEn })) : [];
+  const methodOptions = methods.map((m) => ({ value: m.code, label: m.nameEn }));
+  const items = (rows?.methods ?? []).flatMap((m) => live(m.checklistItems).map((i) => ({ ...i, method: m.nameEn })));
+  const reasons = live(rows?.reasons ?? []);
+  const bases = live(rows?.bases ?? []);
+  const taxonomies = live(rows?.taxonomies ?? []);
+  const mappings = rows?.mappings ?? [];
+  const policy = rows?.policy ?? null;
+  const taxName = (c: string) => rows?.taxonomies.find((t) => t.code === c)?.nameEn ?? "A classification no longer configured";
+  const valueName = (t: string, v: string) => rows?.taxonomies.find((x) => x.code === t)?.values.find((x) => x.code === v)?.nameEn ?? "A value no longer configured";
+  const asks = (code: string) => {
+    const m = methodRow(code);
+    if (!m) return [];
+    return [
+      m.defaultInTender && "Proposed in the tender band",
+      m.defaultInQuotation && "Proposed in the quotation band",
+      m.defaultBelow && "Proposed below the quotation floor",
+      m.requiresJustification && "Justification",
+      m.requiresProposal && "Proposal",
+      m.requiresNameApproval && "Name approval",
+      m.restrictedAccess && "Restricted",
+      m.requiresDossier && "Dossier",
+      m.requiresCoordinationRecord && "Coordination record",
+    ].filter(Boolean) as string[];
+  };
 
   return (
     <>
@@ -192,6 +244,13 @@ export default async function ReferenceDataPage() {
               <Tr key={m.code}>
                 <Td title={m.nameMs ? `${m.nameEn} — ${m.nameMs}` : m.nameEn}>
                   <CellStack title={m.nameEn} sub={m.nameMs || undefined} />
+                  {asks(m.code).length > 0 && (
+                    <span className="mt-1 flex flex-wrap gap-1">
+                      {asks(m.code).map((a) => (
+                        <Chip key={a}>{a}</Chip>
+                      ))}
+                    </span>
+                  )}
                 </Td>
                 <Td>
                   <Bands method={m} />
@@ -204,7 +263,7 @@ export default async function ReferenceDataPage() {
                 <Td>
                   <RowActions>
                     <HistoryButton iconOnly entity="SourcingMethod" entityId={m.id} label={m.nameEn} />
-                    <EditSourcingMethod method={m} id={m.id} />
+                    <EditSourcingMethod method={{ ...m, ...(methodRow(m.code) ?? {}), provenance: m.provenance }} id={m.id} />
                     <RetireEntry entity="SourcingMethod" id={m.id} label={m.nameEn} />
                   </RowActions>
                 </Td>
@@ -226,11 +285,11 @@ export default async function ReferenceDataPage() {
             <col style={{ width: "26%" }} />
             <col />
             <col style={{ width: "17%" }} />
-            <ActionsCol icons={2} labelled={1} />
+            <ActionsCol icons={3} labelled={1} />
           </colgroup>
           <THead>
             <Th>Type</Th>
-            <Th>Notes</Th>
+            <Th>What it drives</Th>
             <Th>Source</Th>
             <Th className="text-right">Actions</Th>
           </THead>
@@ -238,16 +297,24 @@ export default async function ReferenceDataPage() {
             {types.map((c) => (
               <Tr key={c.code}>
                 <Td title={c.nameMs ? `${c.nameEn} — ${c.nameMs}` : c.nameEn}>
-                  <CellStack title={c.nameEn} sub={c.nameMs || undefined} />
+                  <CellStack title={c.nameEn} sub={typeRow(c.code)?.deliverableKind ? `Default for ${DELIVERABLE_LABEL[typeRow(c.code)!.deliverableKind as DeliverableKind].toLowerCase()}` : "Default for no deliverable"} />
                 </Td>
-                <Td className="text-ink-2">{c.notes || "—"}</Td>
+                <Td className="text-ink-2">
+                  {(() => {
+                    const t = typeRow(c.code);
+                    const set = t ? behaviourProfile({ ...t }).filter((b) => b.value != null).length : 0;
+                    return `${set} of 12 behaviours set${set < 12 ? " · the rest not set" : ""}`;
+                  })()}
+                  {c.notes && <div className="truncate text-[12.5px] text-ink-3">{c.notes}</div>}
+                </Td>
                 <Td>
                   <ProvenanceCell value={c.provenance} source={c.governingSource} />
                 </Td>
                 <Td>
                   <RowActions>
                     <HistoryButton iconOnly entity="ContractType" entityId={c.id} label={c.nameEn} />
-                    <EditContractType type={c} id={c.id} />
+                    <EditContractType type={{ ...c, deliverableKind: typeRow(c.code)?.deliverableKind ?? null }} id={c.id} />
+                    {typeRow(c.code) && <ContractBehavioursDrawer id={c.id} name={c.nameEn} values={typeRow(c.code)!} offices={offices} />}
                     <RetireEntry entity="ContractType" id={c.id} label={c.nameEn} />
                   </RowActions>
                 </Td>
@@ -257,11 +324,275 @@ export default async function ReferenceDataPage() {
         </Table>
       </Section>
 
+      <Section
+        title="Proposal items"
+        blurb="What a method's proposal must hold before it goes to review."
+        empty="No proposal items are set. A method that asks for a proposal cannot have one submitted until its items are."
+        count={items.length}
+        action={<ChecklistItemDrawer methods={methodOptions.filter((o) => methodRow(o.value)?.requiresProposal)} />}
+      >
+        <Table minWidth={TABLE_MIN}>
+          <colgroup>
+            <col style={{ width: "22%" }} />
+            <col />
+            <col style={{ width: "13%" }} />
+            <ActionsCol icons={1} labelled={1} />
+          </colgroup>
+          <THead>
+            <Th>Method</Th>
+            <Th>Item</Th>
+            <Th>Required</Th>
+            <Th className="text-right">Actions</Th>
+          </THead>
+          <tbody>
+            {items.map((i) => (
+              <Tr key={i.id}>
+                <Td className="text-ink-2">{i.method}</Td>
+                <Td className="break-words">{i.labelEn}</Td>
+                <Td>{i.required ? <Chip tone="brand">Required</Chip> : <Chip>Optional</Chip>}</Td>
+                <Td>
+                  <RowActions>
+                    <ChecklistItemDrawer methods={methodOptions} item={i} />
+                    <RetireChecklistItem id={i.id} label={i.labelEn} />
+                  </RowActions>
+                </Td>
+              </Tr>
+            ))}
+          </tbody>
+        </Table>
+      </Section>
+
+      <Section
+        title="Justification reasons"
+        blurb="Why a direct appointment may be justified."
+        empty="No reasons are set. A method that keeps a justification dossier cannot have an exercise move into preparation until one is."
+        count={reasons.length}
+        action={<ReasonDrawer methods={methodOptions} />}
+      >
+        <Table minWidth={TABLE_MIN}>
+          <colgroup>
+            <col />
+            <col style={{ width: "24%" }} />
+            <col style={{ width: "20%" }} />
+            <ActionsCol icons={2} labelled={1} />
+          </colgroup>
+          <THead>
+            <Th>Reason</Th>
+            <Th>Offered for</Th>
+            <Th>Source</Th>
+            <Th className="text-right">Actions</Th>
+          </THead>
+          <tbody>
+            {reasons.map((r) => (
+              <Tr key={r.id}>
+                <Td>
+                  <CellStack title={r.nameEn} sub={r.nameMs || undefined} />
+                </Td>
+                <Td className="text-ink-2">{r.sourcingMethodCode ? (methodRow(r.sourcingMethodCode)?.nameEn ?? "A method no longer configured") : "Every method that asks"}</Td>
+                <Td>
+                  <ProvenanceCell value={r.provenance as Provenance} source={r.governingSource} />
+                </Td>
+                <Td>
+                  <RowActions>
+                    <HistoryButton iconOnly entity="JustificationReason" entityId={r.id} label={r.nameEn} />
+                    <ReasonDrawer methods={methodOptions} reason={r} />
+                    <RetireEntry entity="JustificationReason" id={r.id} label={r.nameEn} />
+                  </RowActions>
+                </Td>
+              </Tr>
+            ))}
+          </tbody>
+        </Table>
+      </Section>
+
+      <Section
+        title="Contract bases"
+        blurb="Bills of quantities, drawings and specification. Always chosen by the officer."
+        empty="No contract basis is set. An exercise cannot move into preparation until one is chosen."
+        count={bases.length}
+        action={<BasisDrawer />}
+      >
+        <Table minWidth={TABLE_MIN}>
+          <colgroup>
+            <col style={{ width: "30%" }} />
+            <col />
+            <col style={{ width: "20%" }} />
+            <ActionsCol icons={2} labelled={1} />
+          </colgroup>
+          <THead>
+            <Th>Basis</Th>
+            <Th>Standard contract form</Th>
+            <Th>Source</Th>
+            <Th className="text-right">Actions</Th>
+          </THead>
+          <tbody>
+            {bases.map((b) => (
+              <Tr key={b.id}>
+                <Td>
+                  <CellStack title={b.nameEn} sub={b.nameMs || undefined} />
+                </Td>
+                <Td className="text-ink-2">{b.standardFormLabel || "Not set"}</Td>
+                <Td>
+                  <ProvenanceCell value={b.provenance as Provenance} source={b.governingSource} />
+                </Td>
+                <Td>
+                  <RowActions>
+                    <HistoryButton iconOnly entity="ContractBasis" entityId={b.id} label={b.nameEn} />
+                    <BasisDrawer basis={b} />
+                    <RetireEntry entity="ContractBasis" id={b.id} label={b.nameEn} />
+                  </RowActions>
+                </Td>
+              </Tr>
+            ))}
+          </tbody>
+        </Table>
+      </Section>
+
+      <Section
+        title="Other classifications"
+        blurb="The other classifications a contract carries, derived from its type."
+        empty="No other classification is set, so none is derived for an exercise."
+        count={taxonomies.length}
+        action={<TaxonomyDrawer />}
+      >
+        <Table minWidth={TABLE_MIN}>
+          <colgroup>
+            <col style={{ width: "24%" }} />
+            <col />
+            <col style={{ width: "18%" }} />
+            <ActionsCol icons={2} labelled={1} />
+          </colgroup>
+          <THead>
+            <Th>Classification</Th>
+            <Th>Values</Th>
+            <Th>Source</Th>
+            <Th className="text-right">Actions</Th>
+          </THead>
+          <tbody>
+            {taxonomies.map((t) => (
+              <Tr key={t.id}>
+                <Td>
+                  <CellStack title={t.nameEn} sub={t.nameMs || undefined} />
+                </Td>
+                <Td>
+                  <ul className="flex flex-col gap-1">
+                    {t.values.map((v) => (
+                      <li key={v.id} className="flex min-w-0 items-center gap-1.5 text-[13px]">
+                        <span className={v.retiredOn ? "min-w-0 break-words text-ink-4 line-through" : "min-w-0 break-words text-ink-2"}>{v.nameEn}</span>
+                        <TaxonomyValueDrawer taxonomyId={t.id} taxonomy={t.nameEn} value={{ id: v.id, nameEn: v.nameEn, nameMs: v.nameMs, sortOrder: v.sortOrder, retired: v.retiredOn != null }} />
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-2">
+                    <TaxonomyValueDrawer taxonomyId={t.id} taxonomy={t.nameEn} />
+                  </div>
+                </Td>
+                <Td>
+                  <ProvenanceCell value={t.provenance as Provenance} source={t.governingSource} />
+                </Td>
+                <Td>
+                  <RowActions>
+                    <HistoryButton iconOnly entity="ClassificationTaxonomy" entityId={t.id} label={t.nameEn} />
+                    <TaxonomyDrawer taxonomy={t} />
+                    <RetireEntry entity="ClassificationTaxonomy" id={t.id} label={t.nameEn} />
+                  </RowActions>
+                </Td>
+              </Tr>
+            ))}
+          </tbody>
+        </Table>
+      </Section>
+
+      <Section
+        title="Classification mappings"
+        blurb="Each contract type's value in the other classifications. Two values for one type ask the officer to choose once."
+        empty="No mapping is set, so every other classification shows as not mapped."
+        count={mappings.length}
+        action={
+          <MappingDrawer
+            types={types.map((t) => ({ value: t.code, label: t.nameEn }))}
+            taxonomies={taxonomies.map((t) => ({ value: t.code, label: t.nameEn }))}
+            values={taxonomies.flatMap((t) => live(t.values).map((v) => ({ value: v.code, label: `${t.nameEn}: ${v.nameEn}` })))}
+            bases={bases.map((b) => ({ value: b.code, label: b.nameEn }))}
+          />
+        }
+      >
+        <Table minWidth={TABLE_MIN}>
+          <colgroup>
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "22%" }} />
+            <col />
+            <col style={{ width: "16%" }} />
+            <ActionsCol icons={0} labelled={1} />
+          </colgroup>
+          <THead>
+            <Th>Contract type</Th>
+            <Th>Classification</Th>
+            <Th>Value, and when</Th>
+            <Th>Source</Th>
+            <Th className="text-right">Actions</Th>
+          </THead>
+          <tbody>
+            {mappings.map((m) => (
+              <Tr key={m.id}>
+                <Td className="text-ink">{typeRow(m.contractTypeCode)?.nameEn ?? "A type no longer configured"}</Td>
+                <Td className="text-ink-2">{taxName(m.taxonomyCode)}</Td>
+                <Td className="break-words">
+                  {valueName(m.taxonomyCode, m.valueCode)}
+                  {(m.whenBasisCode || m.whenTaxonomyCode) && (
+                    <div className="text-[12.5px] text-ink-3">
+                      Only when{" "}
+                      {[
+                        m.whenBasisCode && `the basis is ${rows?.bases.find((b) => b.code === m.whenBasisCode)?.nameEn.toLowerCase() ?? "a basis no longer configured"}`,
+                        m.whenTaxonomyCode && m.whenValueCode && `${taxName(m.whenTaxonomyCode).toLowerCase()} is ${valueName(m.whenTaxonomyCode, m.whenValueCode)}`,
+                      ]
+                        .filter(Boolean)
+                        .join(" and ")}
+                    </div>
+                  )}
+                </Td>
+                <Td>
+                  <ProvenanceCell value={m.provenance as Provenance} source={m.governingSource} />
+                </Td>
+                <Td>
+                  <RowActions>
+                    <RemoveMapping id={m.id} label={`${typeRow(m.contractTypeCode)?.nameEn ?? "type"} in ${taxName(m.taxonomyCode)}`} />
+                  </RowActions>
+                </Td>
+              </Tr>
+            ))}
+          </tbody>
+        </Table>
+      </Section>
+
+      <Card className="mb-6">
+        <CardHeader
+          title="Mixed scope"
+          subtitle="How an exercise whose scope mixes deliverables is classified."
+          actions={<ClassificationPolicyDrawer values={{ dominanceSharePct: policy?.dominanceSharePct?.toString() ?? null, provenance: policy?.provenance ?? null, notes: policy?.notes ?? "" }} />}
+        />
+        <CardBody>
+          <KeyValues
+            columns={2}
+            items={[
+              {
+                label: "Dominance threshold",
+                value: policy?.dominanceSharePct != null ? `The largest deliverable's share must be above ${Number(policy.dominanceSharePct.toString()).toFixed(2)}%` : <span className="text-ink-3">Not set: no default for mixed scope. The officer chooses the type, with a reason.</span>,
+              },
+              { label: "Where it comes from", value: policy?.provenance ? <ProvenanceBadge value={policy.provenance} /> : "Not set" },
+            ]}
+          />
+        </CardBody>
+      </Card>
+
       <RetiredEntries
         entries={[
           ...data.fundingRoutes.map((e) => ({ ...e, entity: "FundingRoute" as const, list: "Funding route" })),
           ...data.sourcingMethods.map((e) => ({ ...e, entity: "SourcingMethod" as const, list: "Sourcing method" })),
           ...data.contractTypes.map((e) => ({ ...e, entity: "ContractType" as const, list: "Contract type" })),
+          ...(rows?.reasons ?? []).map((e) => ({ ...e, entity: "JustificationReason" as const, list: "Justification reason" })),
+          ...(rows?.bases ?? []).map((e) => ({ ...e, entity: "ContractBasis" as const, list: "Contract basis" })),
+          ...(rows?.taxonomies ?? []).map((e) => ({ ...e, entity: "ClassificationTaxonomy" as const, list: "Classification" })),
         ].filter((e) => e.retiredOn != null && e.retiredOn <= on)}
       />
     </>
@@ -277,7 +608,7 @@ function RetiredEntries({
     id: string;
     nameEn: string;
     retiredOn: Date | null;
-    entity: "FundingRoute" | "SourcingMethod" | "ContractType";
+    entity: RetirableEntity;
     list: string;
   }[];
 }) {

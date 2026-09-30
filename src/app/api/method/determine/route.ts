@@ -74,6 +74,8 @@ export async function POST(request: Request) {
   return Response.json({
     ok: true,
     matrixLabel: issue.label,
+    // Not shown: the form uses it to offer the proposed method.
+    proposedMethodCode: ev.bands.proposed.state === "PROPOSED" ? ev.bands.proposed.code : null,
     result: presentEvaluation(ev, {
       name: (code) => issue.matrix.roles[code]?.nameEn ?? "An office no longer configured",
       typeName: (code) => c.types.find((t) => t.code === code)?.nameEn ?? "A type no longer configured",

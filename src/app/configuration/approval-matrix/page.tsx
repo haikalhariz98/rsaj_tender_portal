@@ -16,12 +16,21 @@ import {
   AddMatrix,
   AddRecommender,
   AddRule,
+  AddTermsBand,
   EditMatrix,
   EditRule,
+  EditTermsBand,
   IssueDraft,
   RemoveRecommender,
+  RemoveTermsBand,
   StartRevision,
 } from "./editors";
+import { db } from "@/lib/db";
+import { bandConsistencyFaults } from "@/lib/method/boundary";
+import { findingText, REGIME_LABEL } from "@/lib/method/labels";
+import { loadTermsBands } from "@/lib/method/repo";
+import type { Regime } from "@/lib/method/types";
+import { ProvenanceBadge } from "@/components/ui/provenance";
 import Link from "next/link";
 import { ButtonLink } from "@/components/ui/button";
 import { Callout } from "@/components/ui/feedback";
@@ -120,6 +129,14 @@ export default async function ApprovalMatrixPage({
   const inForce = baseState.label === "In force";
   // Row ids only where they are needed: a draft's rules are the only ones that change.
   const ruleRows = editable ? await loadRuleRows(selected.id) : {};
+  // The terms family and the boundary ruling (6.3).
+  const [termsBands, boundaryMeta] = await Promise.all([
+    loadTermsBands(selected.id),
+    db.authorityMatrix.findUniqueOrThrow({ where: { id: selected.id }, select: { boundaryProvenance: true, boundarySource: true } }),
+  ]);
+  const consistency = bandConsistencyFaults(matrix, termsBands);
+  const requisitionRules = matrix.rules.filter((r) => r.domain === "requisition" && !r.cond).sort((a, b) => (a.minValue ?? -1) - (b.minValue ?? -1));
+  const appointmentRules = matrix.rules.filter((r) => r.domain === "appointment");
 
   // A rule may route to an office or to a committee; the two are kept apart, so look
   // in both before admitting the code is unknown.
@@ -193,6 +210,8 @@ export default async function ApprovalMatrixPage({
                 requisitionBoundary: matrix.policy.requisitionBoundary,
                 currency: matrix.policy.currency,
                 fundingRouteCode: selectedRoute,
+                boundaryProvenance: boundaryMeta.boundaryProvenance,
+                boundarySource: boundaryMeta.boundarySource,
                 noRuleClause: matrix.policy.clauses?.noRule ?? null,
                 selfApprovalClause: matrix.policy.clauses?.selfApproval ?? null,
                 absenceClause: matrix.policy.clauses?.absence ?? null,
@@ -334,6 +353,18 @@ export default async function ApprovalMatrixPage({
                   ),
                 },
                 {
+                  label: "Boundary ruling",
+                  value: (
+                    <span className="flex flex-col items-start gap-1">
+                      <ProvenanceBadge value={boundaryMeta.boundaryProvenance} />
+                      <span className="text-[12.5px] text-ink-3">
+                        {boundaryMeta.boundarySource ||
+                          (boundaryMeta.boundaryProvenance === "STATED" ? "Source not recorded" : "No written ruling: every case exactly on the boundary is recorded as an exception")}
+                      </span>
+                    </span>
+                  ),
+                },
+                {
                   label: "Requisition boundary",
                   value: (
                     <span className="tabular-nums">
@@ -358,6 +389,124 @@ export default async function ApprovalMatrixPage({
               affected; every other band edge is unaffected.
             </Callout>
           </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader
+            icon={<SlidersIcon size={17} />}
+            title="Three band families"
+            subtitle="Requisition approval, procurement method and contract terms, held separately. None reads another's edges."
+          />
+          <CardBody className="grid gap-4 md:grid-cols-3">
+            <div className="min-w-0 rounded-2xl border border-line/60 bg-sunken p-4">
+              <h4 className="text-[13px] font-semibold text-ink-2">Requisition approval</h4>
+              {requisitionRules.length === 0 ? (
+                <p className="mt-2 text-[13px] text-ink-3">No requisition rules on this issue.</p>
+              ) : (
+                <ul className="mt-2 flex flex-col gap-1.5 text-[13px]">
+                  {requisitionRules.map((r) => (
+                    <li key={r.ruleKey} className="flex flex-wrap justify-between gap-x-2">
+                      <span className="tabular-nums text-ink">{formatValueBand(r.minValue, r.maxValue)}</span>
+                      <span className="min-w-0 break-words text-ink-2">{roleName(r.approverCode) ?? "No approver"}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="min-w-0 rounded-2xl border border-line/60 bg-sunken p-4">
+              <h4 className="text-[13px] font-semibold text-ink-2">Procurement method</h4>
+              <ul className="mt-2 flex flex-col gap-1.5 text-[13px]">
+                <li className="flex flex-wrap justify-between gap-x-2"><span className="tabular-nums text-ink">{formatValueBand(null, matrix.policy.quotationFloor)}</span><span className="text-ink-2">{REGIME_LABEL.below}</span></li>
+                <li className="flex flex-wrap justify-between gap-x-2"><span className="tabular-nums text-ink">{formatValueBand(matrix.policy.quotationFloor, matrix.policy.tenderFloor)}</span><span className="text-ink-2">{REGIME_LABEL.quotation}</span></li>
+                <li className="flex flex-wrap justify-between gap-x-2"><span className="tabular-nums text-ink">{formatValueBand(matrix.policy.tenderFloor, null)}</span><span className="text-ink-2">{REGIME_LABEL.tender}</span></li>
+              </ul>
+              <p className="mt-2 text-[12.5px] text-ink-3">{appointmentRules.length} appointment {appointmentRules.length === 1 ? "rule" : "rules"} decide who approves, by method.</p>
+            </div>
+            <div className="min-w-0 rounded-2xl border border-line/60 bg-sunken p-4">
+              <h4 className="text-[13px] font-semibold text-ink-2">Contract terms</h4>
+              {termsBands.length === 0 ? (
+                <p className="mt-2 text-[13px] text-ink-3">Not set: no terms bands on this issue.</p>
+              ) : (
+                <ul className="mt-2 flex flex-col gap-1.5 text-[13px]">
+                  {termsBands.map((t) => (
+                    <li key={t.bandKey} className="flex flex-col">
+                      <span className="tabular-nums text-ink">{formatValueBand(t.minValue, t.maxValue)}{t.regime ? ` · ${REGIME_LABEL[t.regime as Regime].toLowerCase()}` : " · every regime"}</span>
+                      <span className="break-words text-ink-2">{t.labelEn}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </CardBody>
+        </Card>
+
+        {consistency.map((f, i) => (
+          <Callout key={i} tone="warn" title="The boundary could fall differently in two families">
+            {findingText(f)}
+          </Callout>
+        ))}
+
+        <Card className="overflow-hidden">
+          <CardHeader
+            icon={<SlidersIcon size={17} />}
+            title="Contract terms bands"
+            subtitle="Which terms set applies at a value — never the retention or defects figures."
+            actions={editable ? <AddTermsBand matrixId={matrixId} /> : <Badge outline>{termsBands.length} {termsBands.length === 1 ? "band" : "bands"}</Badge>}
+          />
+          {termsBands.length === 0 ? (
+            <EmptyState size="sm" title="Not set">
+              No contract terms bands are set on this issue, so an exercise shows which terms set applies as not set.
+              {editable ? " Add them here." : " Add them on a new issue."}
+            </EmptyState>
+          ) : (
+            <Table minWidth={editable ? 820 : 720}>
+              <colgroup>
+                <col style={{ width: "18%" }} />
+                <col />
+                <col style={{ width: "17%" }} />
+                <col style={{ width: "17%" }} />
+                <col style={{ width: "14%" }} />
+                {editable && <ActionsCol icons={2} />}
+              </colgroup>
+              <THead>
+                <Th>Value band</Th>
+                <Th>Terms set</Th>
+                <Th>Applies in</Th>
+                <Th>Retention · defects</Th>
+                <Th>Source</Th>
+                {editable && <Th className="text-right">Change</Th>}
+              </THead>
+              <tbody>
+                {termsBands.map((t) => (
+                  <Tr key={t.id}>
+                    <Td className="align-top font-semibold tabular-nums">{formatValueBand(t.minValue, t.maxValue)}</Td>
+                    <Td className="align-top break-words">
+                      {t.labelEn}
+                      {t.insuranceNote && <div className="text-[12.5px] text-ink-3">{t.insuranceNote}</div>}
+                    </Td>
+                    <Td className="align-top text-[13px] text-ink-2">{t.regime ? REGIME_LABEL[t.regime as Regime] : "Every regime"}</Td>
+                    <Td className="align-top text-[13px] text-ink-2">
+                      {t.retentionApplies == null ? "Not set" : t.retentionApplies ? "Retention" : "No retention"} · {t.defectsLiabilityApplies == null ? "not set" : t.defectsLiabilityApplies ? "defects liability" : "no defects liability"}
+                    </Td>
+                    <Td className="align-top">
+                      <div className="flex min-w-0 flex-col items-start gap-1">
+                        <ProvenanceBadge value={t.provenance} />
+                        {t.clause && <span className="max-w-full truncate text-[12.5px] text-ink-3">{t.clause}</span>}
+                      </div>
+                    </Td>
+                    {editable && (
+                      <Td className="align-top">
+                        <RowActions>
+                          <EditTermsBand matrixId={matrixId} band={t} />
+                          <RemoveTermsBand id={t.id} label={t.labelEn} />
+                        </RowActions>
+                      </Td>
+                    )}
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
         </Card>
 
         <Card>

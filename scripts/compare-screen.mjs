@@ -248,6 +248,29 @@ const ALLOWED_EXTRA = [
   // registration) has its own screen under Money and authority. The prototype held
   // only a guessed splitting window, on the approval matrix, which is removed (OD-9).
   /^Requisition controls$/,
+  // 6.3 plan §4: Phase 1 classifies exercises while sourcing still runs outside the
+  // portal (§13.3). The prototype's Sourcing screen is the sourcing window (6.5); ours
+  // is the exercise list and record, with the acts classification needs.
+  /^Sourcing$/,
+  /^Open sourcing exercise$/,
+  /^Move to preparation$/,
+  /^Cancel exercise$/,
+  /^Submit proposal$/,
+  /^Request name approval$/,
+  /^Edit proposal$/,
+  /^Use the proposed method$/,
+  // 6.3 plan §4, ruling R-7/R-14: the three band families and the terms bands on the
+  // approval matrix, which the prototype (one threshold) does not have.
+  /^Three band families$/,
+  /^Contract terms bands$/,
+  // 6.3 plan §4: the classification lists on Reference data (FR-MTD-006, 009, 011–014).
+  /^Proposal items$/,
+  /^Justification reasons$/,
+  /^Contract bases$/,
+  /^Other classifications$/,
+  /^Classification mappings$/,
+  /^Mixed scope$/,
+  /^Behaviours of /,
 ];
 
 const isAllowed = (label) => ALLOWED_EXTRA.some((re) => re.test(label));

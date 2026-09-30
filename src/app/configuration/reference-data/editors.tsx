@@ -5,12 +5,23 @@ import type { ContractType, FundingRoute, SourcingMethod } from "@/lib/reference
 import { buttonClass } from "@/components/ui/button";
 
 import {
+  removeTaxonomyMapping,
   restoreEntry,
+  retireChecklistItem,
   retireEntry,
+  saveChecklistItem,
+  saveClassificationPolicy,
+  saveContractBasis,
+  saveContractBehaviours,
   saveContractType,
   saveFundingRoute,
+  saveJustificationReason,
   saveSourcingMethod,
+  saveTaxonomy,
+  saveTaxonomyMapping,
+  saveTaxonomyValue,
 } from "./actions";
+import type { ContractBehaviours, MethodBehaviour } from "@/lib/method/types";
 
 /**
  * The field declarations behind each Reference data record.
@@ -134,6 +145,21 @@ function methodFields(editing: boolean): Field[] {
       mono: true,
       hint: "Binds this method to the approval rows banded under that key.",
     },
+    {
+      kind: "note",
+      text: "What choosing this method asks of an exercise. The regime proposes the method marked as its default; at most one per band.",
+    },
+    { kind: "switch", name: "defaultInTender", label: "Proposed in the tender band" },
+    { kind: "switch", name: "defaultInQuotation", label: "Proposed in the quotation band" },
+    { kind: "switch", name: "defaultBelow", label: "Proposed below the quotation floor" },
+    { kind: "switch", name: "requiresJustification", label: "Needs a justification" },
+    { kind: "text", name: "justificationPrompt", label: "What the justification must show" },
+    { kind: "switch", name: "requiresProposal", label: "Needs a proposal reviewed by Contract & Procurement" },
+    { kind: "switch", name: "requiresNameApproval", label: "Needs the name approved" },
+    { kind: "switch", name: "restrictedAccess", label: "Restricted to named participants", hint: "Recorded; not enforced until sign-in." },
+    { kind: "switch", name: "requiresDossier", label: "Keeps a justification dossier with a reason code" },
+    { kind: "text", name: "dossierSeriesKey", label: "Dossier numbering series key", mono: true, hint: "The numbering series its dossier references are issued from." },
+    { kind: "switch", name: "requiresCoordinationRecord", label: "Needs an emergency coordination record" },
     { kind: "text", name: "governingSource", label: "Source document" },
     PROVENANCE_FIELD,
     { kind: "number", name: "sortOrder", label: "Order", min: 0 },
@@ -141,11 +167,25 @@ function methodFields(editing: boolean): Field[] {
   ];
 }
 
+const KIND_OPTIONS = [
+  { value: "GOODS_DELIVERED", label: "Goods delivered" },
+  { value: "MEASURED_CONSTRUCTION", label: "Measured construction or installation" },
+  { value: "TERM_PERFORMANCE", label: "Performance over a term" },
+];
+
 function contractFields(editing: boolean): Field[] {
   return [
     ...(editing ? [] : [codeField("Used internally. Never shown on a screen.")]),
     { kind: "text", name: "nameEn", label: "Name", required: true },
     { kind: "text", name: "nameMs", label: "Name (Malay)" },
+    {
+      kind: "select",
+      name: "deliverableKind",
+      label: "The default type for",
+      placeholder: "No deliverable",
+      options: KIND_OPTIONS,
+      hint: "An exercise whose scope is this deliverable takes this type unless someone chooses another, with a reason.",
+    },
     { kind: "text", name: "governingSource", label: "Source document" },
     PROVENANCE_FIELD,
     { kind: "number", name: "sortOrder", label: "Order", min: 0 },
@@ -211,7 +251,7 @@ export function AddSourcingMethod() {
   );
 }
 
-export function EditSourcingMethod({ method, id }: { method: SourcingMethod; id: string }) {
+export function EditSourcingMethod({ method, id }: { method: SourcingMethod & Partial<MethodBehaviour>; id: string }) {
   return (
     <RecordEditor
       title={`Edit ${method.nameEn}`}
@@ -233,6 +273,17 @@ export function EditSourcingMethod({ method, id }: { method: SourcingMethod; id:
         awardInstrument: method.awardInstrument,
         committeeCode: method.committeeCode,
         authorityMethodKey: method.authorityMethodKey,
+        defaultInTender: method.defaultInTender ?? false,
+        defaultInQuotation: method.defaultInQuotation ?? false,
+        defaultBelow: method.defaultBelow ?? false,
+        requiresJustification: method.requiresJustification ?? false,
+        justificationPrompt: method.justificationPrompt ?? "",
+        requiresProposal: method.requiresProposal ?? false,
+        requiresNameApproval: method.requiresNameApproval ?? false,
+        restrictedAccess: method.restrictedAccess ?? false,
+        requiresDossier: method.requiresDossier ?? false,
+        dossierSeriesKey: method.dossierSeriesKey ?? null,
+        requiresCoordinationRecord: method.requiresCoordinationRecord ?? false,
         governingSource: method.governingSource,
         provenance: method.provenance,
         sortOrder: num(method.sortOrder),
@@ -256,7 +307,7 @@ export function AddContractType() {
   );
 }
 
-export function EditContractType({ type, id }: { type: ContractType; id: string }) {
+export function EditContractType({ type, id }: { type: ContractType & { deliverableKind?: string | null }; id: string }) {
   return (
     <RecordEditor
       title={`Edit ${type.nameEn}`}
@@ -269,6 +320,7 @@ export function EditContractType({ type, id }: { type: ContractType; id: string 
         code: type.code,
         nameEn: type.nameEn,
         nameMs: type.nameMs,
+        deliverableKind: type.deliverableKind ?? null,
         governingSource: type.governingSource,
         provenance: type.provenance,
         sortOrder: num(type.sortOrder),
@@ -284,7 +336,7 @@ export function RetireEntry({
   id,
   label,
 }: {
-  entity: "FundingRoute" | "SourcingMethod" | "ContractType";
+  entity: RetirableEntity;
   id: string;
   label: string;
 }) {
@@ -314,7 +366,7 @@ export function RestoreEntry({
   id,
   label,
 }: {
-  entity: "FundingRoute" | "SourcingMethod" | "ContractType";
+  entity: RetirableEntity;
   id: string;
   label: string;
 }) {
@@ -332,6 +384,269 @@ export function RestoreEntry({
       reason={{ label: "Why is it coming back?" }}
       trigger={{ label: "Restore", className: buttonClass("secondary", "sm") }}
       size="sm"
+    />
+  );
+}
+
+export type RetirableEntity = "FundingRoute" | "SourcingMethod" | "ContractType" | "JustificationReason" | "ContractBasis" | "ClassificationTaxonomy";
+
+type Option = { value: string; label: string };
+const TRI = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+];
+const tri = (b: boolean | null) => (b == null ? null : b ? "yes" : "no");
+
+/// The twelve behaviours of a contract type (FR-MTD-012). Each may stay unset.
+export function ContractBehavioursDrawer({ id, name, values, offices }: { id: string; name: string; values: ContractBehaviours; offices: Option[] }) {
+  const t = (n: keyof ContractBehaviours, label: string, hint?: string): Field => ({ kind: "text", name: n, label, hint });
+  const b = (n: keyof ContractBehaviours, label: string): Field => ({ kind: "select", name: n, label, placeholder: "Not set", options: TRI });
+  return (
+    <RecordEditor
+      title={`What ${name} drives`}
+      description="The twelve behaviours the contract type sets downstream. Leave one unset where the sources are silent or conflict: it shows as not set, never as no."
+      fields={[
+        { kind: "hidden", name: "id" },
+        t("pricingBasis", "Pricing basis"),
+        t("registrationTest", "Registration eligibility test"),
+        { kind: "tokens", name: "administratorRoleCodes", label: "Contract administrator", options: offices, placeholder: "Add an office" },
+        b("startRequiresSecurities", "Start of work needs bond and insurances"),
+        t("eotInstrument", "Extension of time instrument"),
+        t("completionInstrument", "Completion instrument"),
+        b("defectsLiabilityApplies", "Defects liability period"),
+        b("makingGoodCertificate", "Certificate of making good defects"),
+        b("nominationAllowed", "Nominated sub-contractors and prime cost sums"),
+        t("interimPaymentRule", "Interim payment rule"),
+        t("sumAdjustmentDrivers", "Contract sum adjustment drivers", "Separate them with commas."),
+        { kind: "select", name: "claimsApprovalCommitteeCode", label: "Approves claims before the final account", placeholder: "Not set", options: offices },
+      ]}
+      values={{
+        id,
+        pricingBasis: values.pricingBasis,
+        registrationTest: values.registrationTest,
+        administratorRoleCodes: values.administratorRoleCodes.join("\n"),
+        startRequiresSecurities: tri(values.startRequiresSecurities),
+        eotInstrument: values.eotInstrument,
+        completionInstrument: values.completionInstrument,
+        defectsLiabilityApplies: tri(values.defectsLiabilityApplies),
+        makingGoodCertificate: tri(values.makingGoodCertificate),
+        nominationAllowed: tri(values.nominationAllowed),
+        interimPaymentRule: values.interimPaymentRule,
+        sumAdjustmentDrivers: values.sumAdjustmentDrivers.join(", "),
+        claimsApprovalCommitteeCode: values.claimsApprovalCommitteeCode,
+      }}
+      action={saveContractBehaviours}
+      submitLabel="Save behaviours"
+      trigger={{ label: `Behaviours of ${name}`, iconOnly: <SlidersGlyph /> }}
+      size="lg"
+    />
+  );
+}
+
+function SlidersGlyph() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />
+    </svg>
+  );
+}
+
+export function ChecklistItemDrawer({ methods, item }: { methods: Option[]; item?: { id: string; sourcingMethodId: string; key: string; labelEn: string; labelMs: string | null; required: boolean; sortOrder: number } }) {
+  return (
+    <RecordEditor
+      title={item ? `Edit ${item.labelEn}` : "Add a proposal item"}
+      description="One item of the proposal a method asks for, in the customer's words."
+      fields={[
+        { kind: "hidden", name: "id" },
+        ...(item ? [{ kind: "hidden", name: "sourcingMethodId" } as Field] : [{ kind: "select", name: "sourcingMethodId", label: "Method", required: true, placeholder: "Choose", options: methods } as Field]),
+        ...(item ? [] : [{ kind: "text", name: "key", label: "Key", required: true, mono: true, hint: "Never shown." } as Field]),
+        { kind: "textarea", name: "labelEn", label: "Item" },
+        { kind: "text", name: "labelMs", label: "Item (Malay)" },
+        { kind: "switch", name: "required", label: "Must be answered before the proposal is submitted" },
+        { kind: "number", name: "sortOrder", label: "Order", min: 0 },
+      ]}
+      values={item ? { id: item.id, sourcingMethodId: item.sourcingMethodId, labelEn: item.labelEn, labelMs: item.labelMs, required: item.required, sortOrder: num(item.sortOrder) } : { required: true }}
+      action={saveChecklistItem}
+      submitLabel={item ? "Save" : "Add item"}
+      trigger={item ? { label: `Edit ${item.labelEn}`, iconOnly: <PencilIcon size={15} /> } : { label: "Add item", icon: true }}
+      size="md"
+    />
+  );
+}
+
+export function RetireChecklistItem({ id, label }: { id: string; label: string }) {
+  return (
+    <RecordEditor
+      title={`Retire ${label}`}
+      description="It is no longer asked for. Answers already given are kept."
+      fields={[{ kind: "hidden", name: "id" }]}
+      values={{ id }}
+      action={retireChecklistItem}
+      submitLabel="Retire"
+      destructive={{ reasonLabel: "Why is it being retired?" }}
+      trigger={{ label: "Retire", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
+      size="sm"
+    />
+  );
+}
+
+export function ReasonDrawer({ methods, reason }: { methods: Option[]; reason?: { id: string; nameEn: string; nameMs: string | null; sourcingMethodCode: string | null; governingSource: string; provenance: string; sortOrder: number } }) {
+  return (
+    <RecordEditor
+      title={reason ? `Edit ${reason.nameEn}` : "Add a justification reason"}
+      description="A reason a direct appointment may be justified by."
+      fields={[
+        { kind: "hidden", name: "id" },
+        ...(reason ? [] : [codeField("Never shown.")]),
+        { kind: "text", name: "nameEn", label: "Reason", required: true },
+        { kind: "text", name: "nameMs", label: "Reason (Malay)" },
+        { kind: "select", name: "sourcingMethodCode", label: "Offered for", placeholder: "Every method that asks for a reason", options: methods },
+        { kind: "text", name: "governingSource", label: "Source document" },
+        PROVENANCE_FIELD,
+        { kind: "number", name: "sortOrder", label: "Order", min: 0 },
+      ]}
+      values={reason ? { id: reason.id, nameEn: reason.nameEn, nameMs: reason.nameMs, sourcingMethodCode: reason.sourcingMethodCode, governingSource: reason.governingSource, provenance: reason.provenance, sortOrder: num(reason.sortOrder) } : undefined}
+      action={saveJustificationReason}
+      submitLabel={reason ? "Save" : "Add reason"}
+      trigger={reason ? { label: `Edit ${reason.nameEn}`, iconOnly: <PencilIcon size={15} /> } : { label: "Add reason", icon: true }}
+      size="md"
+    />
+  );
+}
+
+export function BasisDrawer({ basis }: { basis?: { id: string; nameEn: string; nameMs: string | null; standardFormLabel: string | null; governingSource: string; provenance: string; sortOrder: number; notes: string } }) {
+  return (
+    <RecordEditor
+      title={basis ? `Edit ${basis.nameEn}` : "Add a contract basis"}
+      description="Bills of quantities, drawings and specification. Always chosen by the officer on an exercise."
+      fields={[
+        { kind: "hidden", name: "id" },
+        ...(basis ? [] : [codeField("Never shown.")]),
+        { kind: "text", name: "nameEn", label: "Name", required: true },
+        { kind: "text", name: "nameMs", label: "Name (Malay)" },
+        { kind: "text", name: "standardFormLabel", label: "Standard contract form" },
+        { kind: "text", name: "governingSource", label: "Source document" },
+        PROVENANCE_FIELD,
+        { kind: "number", name: "sortOrder", label: "Order", min: 0 },
+        { kind: "textarea", name: "notes", label: "Notes" },
+      ]}
+      values={basis ? { ...basis, sortOrder: num(basis.sortOrder) } : undefined}
+      action={saveContractBasis}
+      submitLabel={basis ? "Save" : "Add basis"}
+      trigger={basis ? { label: `Edit ${basis.nameEn}`, iconOnly: <PencilIcon size={15} /> } : { label: "Add basis", icon: true }}
+      size="md"
+    />
+  );
+}
+
+export function TaxonomyDrawer({ taxonomy }: { taxonomy?: { id: string; nameEn: string; nameMs: string | null; governingSource: string; provenance: string; sortOrder: number } }) {
+  return (
+    <RecordEditor
+      title={taxonomy ? `Edit ${taxonomy.nameEn}` : "Add a classification"}
+      description="Another classification a contract carries — a report form, an evaluation type — derived from the contract type."
+      fields={[
+        { kind: "hidden", name: "id" },
+        ...(taxonomy ? [] : [codeField("Never shown.")]),
+        { kind: "text", name: "nameEn", label: "Name", required: true },
+        { kind: "text", name: "nameMs", label: "Name (Malay)" },
+        { kind: "text", name: "governingSource", label: "Source document" },
+        PROVENANCE_FIELD,
+        { kind: "number", name: "sortOrder", label: "Order", min: 0 },
+      ]}
+      values={taxonomy ? { ...taxonomy, sortOrder: num(taxonomy.sortOrder) } : undefined}
+      action={saveTaxonomy}
+      submitLabel={taxonomy ? "Save" : "Add classification"}
+      trigger={taxonomy ? { label: `Edit ${taxonomy.nameEn}`, iconOnly: <PencilIcon size={15} /> } : { label: "Add classification", icon: true }}
+      size="md"
+    />
+  );
+}
+
+export function TaxonomyValueDrawer({ taxonomyId, taxonomy, value }: { taxonomyId: string; taxonomy: string; value?: { id: string; nameEn: string; nameMs: string | null; sortOrder: number; retired: boolean } }) {
+  return (
+    <RecordEditor
+      title={value ? `Edit ${value.nameEn}` : `Add a value to ${taxonomy}`}
+      fields={[
+        { kind: "hidden", name: "id" },
+        { kind: "hidden", name: "taxonomyId" },
+        ...(value ? [] : [codeField("Never shown.")]),
+        { kind: "text", name: "nameEn", label: "Value", required: true },
+        { kind: "text", name: "nameMs", label: "Value (Malay)" },
+        { kind: "number", name: "sortOrder", label: "Order", min: 0 },
+        ...(value ? [{ kind: "switch", name: "retired", label: "Retired: no longer offered" } as Field] : []),
+      ]}
+      values={value ? { id: value.id, taxonomyId, nameEn: value.nameEn, nameMs: value.nameMs, sortOrder: num(value.sortOrder), retired: value.retired } : { taxonomyId }}
+      action={saveTaxonomyValue}
+      submitLabel={value ? "Save" : "Add value"}
+      trigger={value ? { label: `Edit ${value.nameEn}`, iconOnly: <PencilIcon size={14} /> } : { label: "Add value", icon: true, className: buttonClass("secondary", "sm") }}
+      size="sm"
+    />
+  );
+}
+
+export function MappingDrawer({ types, taxonomies, values, bases }: { types: Option[]; taxonomies: Option[]; values: Option[]; bases: Option[] }) {
+  return (
+    <RecordEditor
+      title="Add a mapping"
+      description="A contract type's value in another classification, optionally only when the basis or another classification's value says so."
+      fields={[
+        { kind: "select", name: "contractTypeCode", label: "Contract type", required: true, placeholder: "Choose", options: types },
+        { kind: "select", name: "taxonomyCode", label: "Classification", required: true, placeholder: "Choose", options: taxonomies },
+        { kind: "select", name: "valueCode", label: "Value", required: true, placeholder: "Choose", options: values, hint: "A value of that classification." },
+        { kind: "select", name: "whenBasisCode", label: "Only when the basis is", placeholder: "Any basis", options: bases },
+        { kind: "select", name: "whenTaxonomyCode", label: "Only when this classification", placeholder: "No condition", options: taxonomies },
+        { kind: "select", name: "whenValueCode", label: "has this value", placeholder: "No condition", options: values },
+        { kind: "text", name: "governingSource", label: "Source document" },
+        PROVENANCE_FIELD,
+      ]}
+      action={saveTaxonomyMapping}
+      submitLabel="Add mapping"
+      trigger={{ label: "Add mapping", icon: true }}
+      size="md"
+    />
+  );
+}
+
+export function RemoveMapping({ id, label }: { id: string; label: string }) {
+  return (
+    <RecordEditor
+      title={`Remove ${label}`}
+      fields={[{ kind: "hidden", name: "id" }]}
+      values={{ id }}
+      action={removeTaxonomyMapping}
+      submitLabel="Remove"
+      destructive={{ reasonLabel: "Why is it coming out?" }}
+      trigger={{ label: "Remove", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
+      size="sm"
+    />
+  );
+}
+
+export function ClassificationPolicyDrawer({ values }: { values: { dominanceSharePct: string | null; provenance: string | null; notes: string } }) {
+  return (
+    <RecordEditor
+      title="Mixed-scope classification"
+      description="The share of value the largest deliverable must strictly exceed for its type to be the default. Leave it empty for no default: the officer then chooses, with a reason."
+      fields={[
+        { kind: "text", name: "dominanceSharePct", label: "Dominance threshold (percent)", placeholder: "Not set", hint: "At least 50 and below 100." },
+        {
+          kind: "select",
+          name: "provenance",
+          label: "Where this comes from",
+          placeholder: "Not set",
+          options: [
+            { value: "STATED", label: "Stated" },
+            { value: "OBSERVED", label: "Observed" },
+            { value: "ASSUMED", label: "Assumed" },
+          ],
+        },
+        { kind: "textarea", name: "notes", label: "Notes" },
+      ]}
+      values={values}
+      action={saveClassificationPolicy}
+      submitLabel="Save"
+      trigger={{ label: "Edit", className: buttonClass("secondary", "sm") }}
+      size="md"
     />
   );
 }

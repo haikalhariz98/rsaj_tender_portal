@@ -33,7 +33,7 @@ export const STAFF_NAV: NavGroup[] = [
       // Not in the prototype, whose requisition screen no route renders. Above
       // Sourcing, not under it: a supervision-only matter never becomes sourcing (6.1).
       { href: "/requisitions", label: "Requisitions", icon: "clipboard", built: true },
-      { href: "/sourcing", label: "Sourcing", icon: "globe" },
+      { href: "/sourcing", label: "Sourcing", icon: "globe", built: true },
       { href: "/projects", label: "Projects", icon: "tools" },
       // Not in the prototype, which shows committee votes only on each matter's own
       // record. Sittings run before those modules exist (ruling 5.1).

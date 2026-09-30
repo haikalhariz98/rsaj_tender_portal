@@ -7,7 +7,7 @@
 
 import type { Tx } from "@/lib/audit/record";
 import { loadIssue, loadOverrideMatrix } from "@/lib/authority/load";
-import { dayToDate, todayIn } from "@/lib/dates";
+import { dayToDate, storedDay, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { parseSen } from "@/lib/money";
 import { ORGANISATION_CODE } from "@/lib/org";
@@ -15,7 +15,7 @@ import type { Provenance } from "@/lib/reference/types";
 import { fundingPosture } from "@/lib/reference/vocabulary";
 
 import type { FunderContext } from "./approval";
-import type { EvaluationContext, MethodConfig } from "./evaluate";
+import type { EvaluationContext, ExerciseDraft, MethodConfig } from "./evaluate";
 import type { ContractTypeRow, DeliverableKind, ExerciseStatus, Method, TermsBand } from "./types";
 import type { ApprovedRoute } from "./value";
 
@@ -270,3 +270,27 @@ export async function exerciseHistory(l: LoadedExercise) {
     })),
   };
 }
+
+/// A stored exercise as the evaluator reads a draft.
+export function draftOf(ex: ExerciseRow): ExerciseDraft {
+  return {
+    id: ex.id,
+    value: parseSen(ex.estimatedValue.toString()),
+    methodCode: ex.sourcingMethodCode || null,
+    methodReason: ex.methodReason,
+    externalRouteNote: ex.externalRouteNote,
+    parentContractRef: ex.parentContractRef,
+    scope: ex.scopeParts.map((p) => ({ kind: p.deliverableKind as DeliverableKind, amount: parseSen(p.amount.toString()), description: p.description })),
+    contractTypeCode: ex.contractTypeState === "DERIVED" ? null : ex.contractTypeCode,
+    typeReason: ex.contractTypeOverrideReason,
+    typePersonId: ex.overriddenByPersonId,
+    basisCode: ex.contractBasisCode,
+    justificationReasonCode: ex.justificationReasonCode,
+    justificationText: ex.justificationText,
+    evidenceNote: ex.evidenceNote,
+    dossierReference: ex.dossierReference,
+    emergencyTrigger: ex.emergencyTrigger,
+    coordinationMeetingOn: ex.coordinationMeetingOn ? storedDay(ex.coordinationMeetingOn) : null,
+  };
+}
+
