@@ -33,6 +33,7 @@ import {
   approvalRouteLabel,
   returnedAtApproval,
   trailRouteStatusLabel,
+  undecidedStepText,
   UNPOSTED_TEXT,
   UNPOSTED_TITLE,
   DECIDER_FAULT_TEXT,
@@ -1131,7 +1132,7 @@ function ApprovalPanel({
                     </div>
                     {s.decision === "PENDING" ? (
                       <div className="text-[12.5px] text-ink-3">
-                        {s.committeeCode ? "Awaiting the committee's decision on a tabled matter." : "Awaiting a decision."}
+                        {undecidedStepText(inst, !!s.committeeCode)}
                         {s.nonDelegable && " Cannot be delegated."}
                       </div>
                     ) : committee && record ? (

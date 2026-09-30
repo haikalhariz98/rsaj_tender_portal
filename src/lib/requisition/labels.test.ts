@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { approvalRouteLabel, RETURNED_AT_APPROVAL_LABEL, returnedAtApproval, trailRouteStatusLabel } from "./labels";
+import { approvalRouteLabel, RETURNED_AT_APPROVAL_LABEL, returnedAtApproval, trailRouteStatusLabel, undecidedStepText } from "./labels";
 
 describe("an approval route's status label (BD-24 display ruling)", () => {
   const returned = [{ code: "SPLIT_NOT_SET", level: "warn" }, { code: "RETURNED_AT_APPROVAL", level: "err" }];
@@ -34,5 +34,20 @@ describe("an approval route's status on the History tab (BD-24 display ruling)",
   it("reads an officer's recall, and the status before it, as they were", () => {
     expect(trailRouteStatusLabel("RECALLED", [{ field: "status", after: "RECALLED" }])).toBe("Recalled");
     expect(trailRouteStatusLabel("PENDING", [{ field: "returnedAtApproval", after: "yes" }])).toBe("In progress");
+  });
+});
+
+describe("an undecided step, by its route's state (6.1 acceptance item)", () => {
+  it("awaits a decision only while the route is open", () => {
+    expect(undecidedStepText({ status: "PENDING", warnings: [] }, false)).toBe("Awaiting a decision.");
+    expect(undecidedStepText({ status: "PENDING", warnings: [] }, true)).toBe("Awaiting the committee's decision on a tabled matter.");
+  });
+  it("says why a closed route left it undecided, never awaiting", () => {
+    expect(undecidedStepText({ status: "RECALLED", warnings: [{ code: "RETURNED_AT_APPROVAL" }] }, false)).toBe("Not decided — route returned at approval");
+    expect(undecidedStepText({ status: "RECALLED", warnings: [] }, true)).toBe("Not decided — route recalled");
+    expect(undecidedStepText({ status: "REJECTED", warnings: [] }, false)).toBe("Not decided — route rejected at an earlier step");
+    for (const status of ["RECALLED", "REJECTED", "APPROVED"]) {
+      expect(undecidedStepText({ status, warnings: [] }, false)).not.toMatch(/Awaiting/);
+    }
   });
 });

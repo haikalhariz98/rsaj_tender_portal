@@ -325,3 +325,15 @@ export const UNPOSTED_TEXT: Record<keyof typeof UNPOSTED_TITLE, string> = {
   SOURCE_NOT_SET: "Nobody has said whether the budget is held in the portal ledger or the finance system, so the portal's figures may not include it. Set the source in Requisition controls.",
   UNEXPLAINED: "The settings in force would post one, and none is on the ledger: it may have been received before they were set. The portal's figures do not include it.",
 };
+
+/**
+ * What an undecided step says. On an open route it awaits a decision; on a closed
+ * route it never will, and says why the route closed — never "awaiting".
+ */
+export function undecidedStepText(route: { status: string; warnings: unknown }, committee: boolean): string {
+  if (route.status === "PENDING") return committee ? "Awaiting the committee's decision on a tabled matter." : "Awaiting a decision.";
+  if (route.status === "RECALLED") return returnedAtApproval(route.warnings) ? "Not decided — route returned at approval" : "Not decided — route recalled";
+  if (route.status === "REJECTED") return "Not decided — route rejected at an earlier step";
+  if (route.status === "APPROVED") return "Not decided — route closed as approved";
+  return "Not decided — route closed";
+}
