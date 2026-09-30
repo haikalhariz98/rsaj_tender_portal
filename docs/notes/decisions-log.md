@@ -6,7 +6,7 @@ decision · reason · spec ID.
 
 ## Where the build stopped
 
-Phase 1 started 2026-09-30. **6.10 committee sittings: accepted.** Next: 6.1 requisition (plan revised with rulings, ADRs 0003–0005 accepted), then 6.3 method selection, then 6.11 award + registers — all three planned and ruled on (plans in docs/notes/plans/). Open follow-ups: numbering (series.ts) and budget periods (periods.ts) take the day from UTC; shared-UI polish items (users table at 390px, numbering pattern cells, template/notification chips, approval-matrix committee chip).
+Phase 1 started 2026-09-30. **6.10 committee sittings: accepted. 6.1 requisition: accepted (4d1b426).** Next: 6.3 method selection (in progress), then 6.11 award + registers — all three planned and ruled on (plans in docs/notes/plans/). Open follow-ups: numbering (series.ts) and budget periods (periods.ts) take the day from UTC; shared-UI polish items (users table at 390px, numbering pattern cells, template/notification chips, approval-matrix committee chip).
 
 **Environment caveat for the founder.** This session ran on PostgreSQL 16 (no Docker) and
 could not download Prisma's native schema engine (binaries.prisma.sh is blocked by the
@@ -18,6 +18,9 @@ dev` on a normal machine against Postgres 17 and confirm it reports no drift.
 
 ## Decisions
 
+- 2026-09-30 · 6.1 · ACCEPTED at 4d1b426 (per the product owner's condition: closed-route step wording from lib/requisition/labels.ts, tested; 642 tests, typecheck, lint pass). Spec: FR-REQ-001–010, 015, 016 guard; deferrals as logged.
+- 2026-09-30 · 6.1 · Acceptance SENT BACK (one item): an undecided step on a closed route (returned at approval, recalled, rejected) must not read "Awaiting a decision"; label from lib/requisition/labels.ts, tested. Acceptance follows on that commit with checks passing. Spec: AGENTS.md gaps stay honest.
+- 2026-09-30 · 6.1 · Round 3 verified at aa9adb1: 640 tests, typecheck, lint pass; R1, R2, BD-24, 26, 27, 32, 33, split values in sen, Q2 gate, exact citation amounts implemented and tested. Unset budget source refuses intake (SOURCE_NOT_SET) approved. Test edits accepted as faithful: intakeCommitment(null) HELD_IN_FINANCE → SOURCE_NOT_SET; checkedDay alias → dayIn, same values; split sums re-expressed in sen with bigint asserted. Spec: FR-REQ-007, 015, 016.
 - 2026-09-30 · 6.1 · R2: a committee decision cited on a route closed as returned-at-approval stays with that route and is not re-citable; the resubmitted route needs a fresh decision (re-table), and the record says so beside the returned route, naming the committee and decision date. Release-and-recite rejected (decision taken on a budget position found no longer to hold; new route is the over-budget route). Spec: FR-REQ-007, 008, 012, FR-APR-004.
 - 2026-09-30 · 6.1 · R1 (BD-22): an organisation-wide office assignment (no unit) is tied only to an endorsement recorded for the root unit of the requisition's unit path. Tests: company-tier endorser decides the CEO step directly; department-tier endorser holding an org-wide office refused; delegate refused. Spec: FR-REQ-003, FR-APR-008, BD-1.
 - 2026-09-30 · 6.1 · Acceptance SENT BACK (round 3): BD-24 display label, BD-26 direct holders only, BD-27 wipe refuses by default, BD-32 unset-zone marking, BD-33 residual wording, split value typed as sen in lib. Verified: 609 tests, typecheck, lint; ruling tests present; no assertion weakened. Spec: FR-REQ-001–016, FR-APR-008, 011.
