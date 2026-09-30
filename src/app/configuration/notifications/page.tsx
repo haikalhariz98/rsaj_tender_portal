@@ -83,16 +83,8 @@ export default async function NotificationsPage() {
               <Tr key={r.id}>
                 <Td title={r.nameEn}>
                   <CellStack
-                    title={
-                      <>
-                        {r.nameEn}
-                        {!r.isActive && (
-                          <Badge outline className="ml-2 align-middle">
-                            off
-                          </Badge>
-                        )}
-                      </>
-                    }
+                    title={r.nameEn}
+                    aside={!r.isActive ? <Badge outline>off</Badge> : undefined}
                   />
                 </Td>
                 <Td className="text-ink-2">

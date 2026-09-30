@@ -426,7 +426,7 @@ function UnitPanel({
                     >
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[14px] font-semibold text-ink">{child.unit.nameEn}</span>
-                        <span className="block truncate text-[12.5px] text-ink-3">
+                        <span className="block text-[12.5px] text-ink-3">
                           {h.state === "NAMED" ? h.person.name : h.state === "LEFT" ? "Head has left" : "No head named"}
                           {child.children.length > 0 &&
                             ` · ${child.children.length} ${pluralTier(nextTier(child.unit.kind) ?? "SECTION").toLowerCase()}`}

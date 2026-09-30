@@ -43,7 +43,7 @@ export function CardHeader({
   return (
     <div
       className={cx(
-        "flex min-w-0 items-center gap-3 px-5 py-4 sm:px-6",
+        "flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 px-5 py-4 sm:px-6",
         divided && "border-b border-line",
         className,
       )}
@@ -53,11 +53,10 @@ export function CardHeader({
           {icon}
         </span>
       )}
-      <div className="min-w-0 flex-1">
+      <div className="min-w-[9rem] flex-1 basis-40">
         <h3
-          className="truncate text-[15px] font-bold tracking-tight text-ink"
-          title={typeof title === "string" ? title : undefined}
-        >
+          className="text-[15px] text-balance break-words font-bold tracking-tight text-ink"
+                  >
           {title}
         </h3>
         {/* Wraps in full. One line cut sentences mid-way on narrow cards (6.3 UX review),
@@ -69,7 +68,7 @@ export function CardHeader({
           </p>
         )}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }

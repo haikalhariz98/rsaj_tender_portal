@@ -313,7 +313,7 @@ function VoterRow({
         ) : (
           <>
             {vote && (
-              <span className="min-w-0 truncate text-[12px] text-ink-3" title={vote.comment || undefined}>
+              <span className="min-w-0 text-[12px] break-words text-ink-3">
                 Sheet dated {formatDate(vote.votedAt)}
                 {vote.comment && <> · “{vote.comment}”</>}
               </span>

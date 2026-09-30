@@ -1,6 +1,8 @@
 import { MANDATORY_ACTS as MANDATORY } from "@/lib/committee/quorum";
 import { ACT_LABEL } from "@/lib/labels";
 
+import { CheckIcon, EyeIcon, FileIcon, ShieldIcon } from "@/components/icons";
+
 import { cx } from "./cx";
 
 /**
@@ -37,19 +39,32 @@ export function actLabel(act: string): string {
   return ACT_LABEL[act] ?? "Unknown act";
 }
 
-/// The act's abbreviation in a small tinted badge; its full name on hover.
-export function ActBadge({ act, className }: { act: string; className?: string }) {
+/// A neutral role glyph for an act: a document for proposing, an eye for recommending,
+/// a shield for the mandatory acts, a tick for approving. No letter codes on screen.
+function ActGlyph({ act }: { act: string }) {
+  if (isMandatoryAct(act)) return <ShieldIcon size={12} />;
+  if (act === "A") return <CheckIcon size={12} />;
+  if (act === "P" || act === "JP") return <FileIcon size={12} />;
+  return <EyeIcon size={12} />;
+}
+
+/// A small tinted badge: the step number when the act sits in an ordered route, otherwise
+/// a role glyph. The act's full name is its accessible name and its hover text; callers
+/// keep the words visible beside it.
+export function ActBadge({ act, step, className }: { act: string; step?: number; className?: string }) {
   return (
     <span
       title={actLabel(act)}
+      role="img"
+      aria-label={actLabel(act)}
       className={cx(
-        "inline-grid h-5 min-w-5 shrink-0 place-items-center rounded-full px-1.5 text-[10.5px] leading-none font-bold tracking-wide",
+        "inline-grid h-5 min-w-5 shrink-0 place-items-center rounded-full px-1.5 text-[11px] leading-none font-bold tabular-nums",
         actTint(act),
         isMandatoryAct(act) && "ring-1",
         className,
       )}
     >
-      {act}
+      {step !== undefined ? step : <ActGlyph act={act} />}
     </span>
   );
 }
@@ -59,7 +74,7 @@ export function ActWithLabel({ act }: { act: string }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-2">
       <ActBadge act={act} />
-      <span>{actLabel(act)}</span>
+      <span className="min-w-0">{actLabel(act)}</span>
     </span>
   );
 }

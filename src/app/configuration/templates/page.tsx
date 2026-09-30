@@ -91,16 +91,8 @@ export default async function TemplatesPage() {
                 <Tr key={t.id}>
                   <Td title={t.nameMs ? `${t.nameEn} — ${t.nameMs}` : t.nameEn}>
                     <CellStack
-                      title={
-                        <>
-                          {t.nameEn}
-                          {t.bilingual && (
-                            <Badge outline className="ml-2 align-middle">
-                              bilingual
-                            </Badge>
-                          )}
-                        </>
-                      }
+                      title={t.nameEn}
+                      aside={t.bilingual ? <Badge outline>bilingual</Badge> : undefined}
                       sub={t.nameMs ?? undefined}
                     />
                   </Td>

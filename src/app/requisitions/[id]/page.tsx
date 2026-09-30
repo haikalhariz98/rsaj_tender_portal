@@ -1078,7 +1078,7 @@ function ApprovalPanel({
                   <ol className="flex flex-col gap-2">
                     {preview.resolution.chain.map((s, i) => (
                       <li key={i} className="flex items-center gap-2 text-[13.5px]">
-                        <ActBadge act={s.act} />
+                        <ActBadge act={s.act} step={i + 1} />
                         <span className="font-semibold text-ink">{previewMatrixRoles[s.roleCode]?.nameEn ?? "An office no longer configured"}</span>
                         <span className="text-ink-3">{ACT_LABEL[s.act]}</span>
                       </li>
@@ -1185,7 +1185,7 @@ function ApprovalPanel({
           )}
         </CardBody>
         <ol className="divide-y divide-line/70 border-t border-line">
-          {inst.steps.map((s) => {
+          {inst.steps.map((s, stepIndex) => {
             const committee = s.committeeDecision;
             const record = committee ? recordOf({ ...committee, meeting: committee.meeting }) : null;
             const blocker = open ? decide(s) : null;
@@ -1194,7 +1194,7 @@ function ApprovalPanel({
             return (
               <li key={s.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-6">
                 <div className="flex min-w-0 items-start gap-3">
-                  <ActBadge act={s.act} />
+                  <ActBadge act={s.act} step={stepIndex + 1} />
                   <div className="min-w-0">
                     <div className="font-semibold break-words text-ink">
                       {s.roleLabel} <span className="font-normal text-ink-3">· {ACT_LABEL[s.act]}</span>

@@ -64,13 +64,13 @@ export default async function NumberingPage() {
         count={series.length}
         action={<AddSeries />}
       >
-        <Table>
+        <Table minWidth={920}>
           <colgroup>
             <col />
-            <col style={{ width: "20%" }} />
-            <col style={{ width: "20%" }} />
-            <col style={{ width: "16%" }} />
-            <col style={{ width: "12%" }} />
+            <col style={{ width: "26%" }} />
+            <col style={{ width: "24%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "11%" }} />
             <ActionsCol icons={2} />
           </colgroup>
           <THead>
@@ -99,10 +99,10 @@ export default async function NumberingPage() {
                       }
                     />
                   </Td>
-                  <Td className="truncate font-mono text-[12.5px] text-ink-2" title={s.pattern}>
+                  <Td className="font-mono text-[12.5px] text-ink-2 [overflow-wrap:anywhere]">
                     {s.pattern}
                   </Td>
-                  <Td className="truncate" title={next ?? undefined}>
+                  <Td className="[overflow-wrap:anywhere]">
                     {next == null ? (
                       <Badge tone="warn">Would collide</Badge>
                     ) : (

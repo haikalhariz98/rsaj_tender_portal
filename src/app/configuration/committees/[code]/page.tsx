@@ -175,10 +175,10 @@ export default async function CommitteePage({
                     <li key={seat.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-5 py-3 sm:px-6">
                       {holder ? <Avatar name={holder} /> : <Avatar muted>—</Avatar>}
                       <div className="min-w-0">
-                        <div className="truncate text-[13.5px] font-semibold text-ink" title={who}>
+                        <div className="text-[13.5px] font-semibold break-words text-ink">
                           {who}
                         </div>
-                        <div className="truncate text-[12px] text-ink-3" title={role}>
+                        <div className="text-[12px] text-ink-3">
                           {role}
                         </div>
                       </div>
@@ -265,9 +265,9 @@ export default async function CommitteePage({
           ) : (
             <Table>
               <colgroup>
-                <col style={{ width: "20%" }} />
-                <col style={{ width: "50%" }} />
-                <col style={{ width: "30%" }} />
+                <col style={{ width: "18%" }} />
+                <col style={{ width: "44%" }} />
+                <col style={{ width: "38%" }} />
               </colgroup>
               <THead>
                 <Th>Matter</Th>

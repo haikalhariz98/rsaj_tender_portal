@@ -142,11 +142,11 @@ function PeoplePanel({ people, offices, holdings, capabilities, grants, delegati
           { key: "department", label: "Department" },
         ]}
         columns={[
-          { key: "name", label: "Name", width: "26%", sortable: true },
-          { key: "jobTitle", label: "Job title", width: "20%", sortable: true },
-          { key: "department", label: "Department", width: "18%", sortable: true },
-          { key: "portalRole", label: "Portal role", width: "16%" },
-          { key: "availability", label: "Availability", width: "12%" },
+          { key: "name", label: "Name", width: "26%", sortable: true, mobile: "primary" },
+          { key: "jobTitle", label: "Job title", width: "20%", sortable: true, mobile: "meta" },
+          { key: "department", label: "Department", width: "18%", sortable: true, mobile: "meta" },
+          { key: "portalRole", label: "Portal role", width: "16%", mobile: "meta" },
+          { key: "availability", label: "Availability", width: "12%", mobile: "meta" },
         ]}
         rows={rows}
         rowOpens

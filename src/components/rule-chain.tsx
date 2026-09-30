@@ -39,7 +39,7 @@ export function RuleChain({ steps }: { steps: ChainStep[] }) {
                 : "border-line bg-surface",
             )}
           >
-            <ActBadge act={step.act} />
+            <ActBadge act={step.act} step={i + 1} />
             <span className="min-w-0">
               <span className="block font-medium text-ink">{step.role}</span>
               {step.meta && <span className="block text-[11.5px] text-ink-3">{step.meta}</span>}

@@ -79,8 +79,12 @@ export function CellStack({
   sub,
   mono,
   wrap,
+  aside,
 }: {
   title: ReactNode;
+  /// A badge that belongs to the title ("bilingual", "off"). It keeps its own room beside
+  /// the title, which is what gets cut, instead of trailing out of a truncated line.
+  aside?: ReactNode;
   sub?: ReactNode;
   /// The sub line is a reference or pattern, set in the code face.
   mono?: boolean;
@@ -90,7 +94,14 @@ export function CellStack({
 }) {
   return (
     <div className="min-w-0">
-      <div className={cx(wrap ? "break-words" : "truncate", "font-semibold text-ink")}>{title}</div>
+      {aside ? (
+        <div className="flex min-w-0 items-center gap-2">
+          <div className={cx(wrap ? "break-words" : "truncate", "min-w-0 font-semibold text-ink")}>{title}</div>
+          <span className="shrink-0">{aside}</span>
+        </div>
+      ) : (
+        <div className={cx(wrap ? "break-words" : "truncate", "font-semibold text-ink")}>{title}</div>
+      )}
       {sub && (
         <div className={cx(wrap ? "break-words" : "truncate", "text-[12.5px] text-ink-3", mono && "font-mono text-[12px]")}>{sub}</div>
       )}
