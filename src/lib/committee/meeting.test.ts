@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { decisionRecord } from "./record";
-import { isFrozen, meetingTransition } from "./meeting";
+import { isFrozen, meetingTransition, sittingPermits } from "./meeting";
 import { checkTabling } from "./tabling";
 
 describe("meetingTransition", () => {
@@ -80,7 +80,8 @@ describe("decisionRecord", () => {
     votingRule: "SIMPLE_MAJORITY" as const,
     votingRuleProvenance: "STATED",
     outcomeNote: "",
-    notApprovedOutcome: null,
+    notApprovedOutcomeNameEn: null,
+    notApprovedOutcomeKind: null,
   };
 
   it("reads from the snapshot, with each member's vote and sheet date", () => {
@@ -98,7 +99,68 @@ describe("decisionRecord", () => {
     expect(r?.meetingReference).toBe("TB 1/2026");
   });
 
+  it("reads the not-approved outcome from the decision's own snapshot", () => {
+    const r = decisionRecord({
+      meeting,
+      decision: { ...decision, outcome: "NOT_CARRIED", notApprovedOutcomeNameEn: "Return", notApprovedOutcomeKind: "LOOP" },
+      votes: [],
+    });
+    expect(r?.notApproved).toEqual({ nameEn: "Return", kind: "LOOP" });
+  });
+
   it("gives nothing for a pending matter", () => {
     expect(decisionRecord({ meeting, decision: { ...decision, outcome: "PENDING" }, votes: [] })).toBeNull();
+  });
+});
+
+describe("meetingTransition, hardened", () => {
+  it("refuses to start a sitting dated after today", () => {
+    const f = { minutes: "", reason: "", matterOutcomes: [] as const };
+    expect(meetingTransition("SCHEDULED", "IN_PROGRESS", { ...f, today: "2026-09-30", meetingDay: "2026-10-15" })).toEqual({
+      ok: false,
+      fault: "NOT_YET_DUE",
+    });
+    expect(meetingTransition("SCHEDULED", "IN_PROGRESS", { ...f, today: "2026-10-15", meetingDay: "2026-10-15" })).toEqual({ ok: true });
+  });
+  it("refuses to minute a faulty register or a decision that no longer holds", () => {
+    const f = { minutes: "Minuted.", reason: "", matterOutcomes: ["CARRIED"] as const };
+    expect(meetingTransition("IN_PROGRESS", "MINUTED", { ...f, registerFaults: 1 })).toEqual({ ok: false, fault: "REGISTER_FAULTS" });
+    expect(meetingTransition("IN_PROGRESS", "MINUTED", { ...f, brokenDecisions: 1 })).toEqual({
+      ok: false,
+      fault: "DECISION_NO_LONGER_HOLDS",
+    });
+  });
+});
+
+describe("sittingPermits (ruling 8.2)", () => {
+  it("takes votes, attendance and outcomes only while in progress", () => {
+    for (const act of ["VOTE", "ATTENDANCE", "OUTCOME"] as const) {
+      expect(sittingPermits("SCHEDULED", act)).toBe(false);
+      expect(sittingPermits("IN_PROGRESS", act)).toBe(true);
+    }
+  });
+  it("takes tabling and recusals before the sitting, and nothing once closed", () => {
+    expect(sittingPermits("SCHEDULED", "TABLE")).toBe(true);
+    expect(sittingPermits("SCHEDULED", "RECUSE")).toBe(true);
+    expect(sittingPermits("MINUTED", "TABLE")).toBe(false);
+    expect(sittingPermits("CANCELLED", "RECUSE")).toBe(false);
+  });
+});
+
+describe("secretariatHoldersOn", () => {
+  it("judges the holder on the tabling day", async () => {
+    const { secretariatHoldersOn } = await import("./tabling");
+    const person = (id: string) => ({ id, staffNo: null, name: id, email: null, jobTitle: null, jobTitleMs: null, department: null, telephone: null, portalRoleCode: null, authorityLevel: null, isAvailable: true, isActive: true });
+    const roster = {
+      people: [person("old"), person("new")],
+      offices: [],
+      assignments: [
+        { id: "a", personId: "old", roleCode: "SEC", scope: null, effectiveFrom: new Date("2026-01-01T00:00:00Z"), effectiveTo: new Date("2026-09-30T00:00:00Z") },
+        { id: "b", personId: "new", roleCode: "SEC", scope: null, effectiveFrom: new Date("2026-09-30T00:00:00Z"), effectiveTo: null },
+      ],
+    };
+    expect(secretariatHoldersOn(roster, "SEC", "2026-09-29").map((h) => h.id)).toEqual(["old"]);
+    expect(secretariatHoldersOn(roster, "SEC", "2026-09-30").map((h) => h.id)).toEqual(["new"]);
+    expect(secretariatHoldersOn(roster, null, "2026-09-30")).toEqual([]);
   });
 });

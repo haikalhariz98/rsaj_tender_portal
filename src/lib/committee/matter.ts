@@ -10,15 +10,21 @@
  * nobody has set is not a quorum of zero or an assumed majority. It blocks.
  */
 
-import { assessQuorum, tallyVotes, type QuorumAssessment, type VoteChoice, type VoteTally } from "./quorum";
+import {
+  assessQuorum,
+  MANDATORY_ACTS,
+  tallyVotes,
+  type QuorumAssessment,
+  type VoteChoice,
+  type VoteTally,
+} from "./quorum";
 import type { Occupant } from "./sitting";
 
 export type VotingRule = "SIMPLE_MAJORITY" | "UNANIMOUS";
 export type DecisionOutcome = "PENDING" | "CARRIED" | "NOT_CARRIED" | "DEFERRED";
 export type MeetingStatus = "SCHEDULED" | "IN_PROGRESS" | "MINUTED" | "CANCELLED";
 
-/// Acts a committee cannot discharge with part of its body (MR, MJR, MA).
-export const MANDATORY_ACTS: ReadonlySet<string> = new Set(["MR", "MJR", "MA"]);
+export { MANDATORY_ACTS };
 
 export type MatterBlocker =
   | "NOT_TABLED"
@@ -26,6 +32,7 @@ export type MatterBlocker =
   | "QUORUM_UNCONFIGURED"
   | "QUORUM_NOT_MET"
   | "VOTING_RULE_UNCONFIGURED"
+  | "ALTERNATE_FOR_RECUSED_UNCONFIGURED"
   | "INELIGIBLE_VOTE"
   | "VOTES_OUTSTANDING"
   | "MANDATORY_ACT_NOT_FULL_BODY";
@@ -35,8 +42,13 @@ export interface MatterInput {
   votingRule: VotingRule | null;
   act: string;
   tabled: boolean;
-  /// Every voting seat in force on the sitting date, with its holder where resolved.
-  seats: readonly { seatId: string; holderId: string | null }[];
+  /// Every voting seat in force on the sitting date, with its holder where resolved,
+  /// and whether any alternate in force could cover it.
+  seats: readonly { seatId: string; holderId: string | null; hasAlternate?: boolean }[];
+  /// Committee.alternateMayVoteForRecused. Null: nobody has said. Only `false` is a
+  /// usable answer today: the permissive value needs a per-matter stand-in while the
+  /// holder is present, which is not built, so it is treated as unanswered.
+  alternateMayVoteForRecused?: boolean | null;
   /// Who sits in which seat, from `presentVoters`.
   occupants: readonly Pick<Occupant, "seatId" | "personId">[];
   recusedIds: readonly string[];
@@ -54,8 +66,15 @@ export interface MatterAssessment {
   /// no vote is cast.
   computed: "CARRIED" | "NOT_CARRIED" | null;
   mandatory: boolean;
-  /// People entitled to vote on this matter: present, less the recused.
+  /// People entitled to vote on this matter: present in a seat that votes on it, not
+  /// recused. The count the quorum is judged on.
   entitledIds: string[];
+  /// Recused members who are present. Absent recusals change nothing.
+  recusedPresentIds: string[];
+  /// Votes on record from someone not entitled on this matter, or ABSTAIN.
+  ineligibleVoterIds: string[];
+  /// Seats that do not vote on this matter because their holder is recused.
+  excusedSeatIds: string[];
   /// Voting seats that no present, non-recused member covers.
   uncoveredSeatIds: string[];
   messageEn: string;
@@ -72,22 +91,45 @@ export function combine(rule: VotingRule, tally: VoteTally): "CARRIED" | "NOT_CA
 
 export function assessMatter(i: MatterInput): MatterAssessment {
   const recused = new Set(i.recusedIds);
-  const entitledIds = [...new Set(i.occupants.map((o) => o.personId))].filter((id) => !recused.has(id));
-  const entitled = new Set(entitledIds);
+  const occupantsOf = new Map<string, string[]>();
+  for (const o of i.occupants) occupantsOf.set(o.seatId, [...(occupantsOf.get(o.seatId) ?? []), o.personId]);
+
+  // A recused holder's seat does not vote on the matter, whether or not the holder
+  // attends: attendance must not decide whether a seat votes. Where an alternate could
+  // cover that seat, whether they may vote in the holder's place is the committee's
+  // policy; unanswered, the matter cannot be decided.
+  const excusedSeatIds: string[] = [];
+  let alternateQuestion = false;
+  const entitled = new Set<string>();
+  const uncoveredSeatIds: string[] = [];
+  for (const seat of i.seats) {
+    const occupants = occupantsOf.get(seat.seatId) ?? [];
+    if (seat.holderId != null && recused.has(seat.holderId)) {
+      excusedSeatIds.push(seat.seatId);
+      if (seat.hasAlternate && i.alternateMayVoteForRecused !== false) alternateQuestion = true;
+      continue;
+    }
+    if (occupants.length === 0) {
+      uncoveredSeatIds.push(seat.seatId);
+      continue;
+    }
+    // An alternate covering an absent holder who recuses personally leaves the seat
+    // with nobody to vote: excused, not missing.
+    const voters = occupants.filter((p) => !recused.has(p));
+    if (voters.length === 0) excusedSeatIds.push(seat.seatId);
+    for (const p of voters) entitled.add(p);
+  }
+  const entitledIds = [...entitled];
+  const recusedPresentIds = [...new Set(i.occupants.map((o) => o.personId))].filter((p) => recused.has(p));
 
   const quorum = assessQuorum({ quorum: i.quorum, present: entitledIds.length });
 
   const eligible = i.votes.filter((v) => entitled.has(v.personId) && v.choice !== "ABSTAIN");
-  const ineligible = i.votes.length - eligible.length;
+  const ineligibleVoterIds = i.votes
+    .filter((v) => !entitled.has(v.personId) || v.choice === "ABSTAIN")
+    .map((v) => v.personId);
+  const ineligible = ineligibleVoterIds.length;
   const tally = tallyVotes(eligible, entitledIds.length);
-
-  // A seat with someone in it is covered, or excused if that person is recused. An
-  // empty seat is excused only where its holder has declared a recusal; otherwise it
-  // is missing from the body.
-  const occupied = new Set(i.occupants.map((o) => o.seatId));
-  const uncoveredSeatIds = i.seats
-    .filter((s) => !occupied.has(s.seatId) && !(s.holderId != null && recused.has(s.holderId)))
-    .map((s) => s.seatId);
 
   const mandatory = MANDATORY_ACTS.has(i.act);
   const blockers: MatterBlocker[] = [];
@@ -98,6 +140,7 @@ export function assessMatter(i: MatterInput): MatterAssessment {
   if (quorum.state === "UNCONFIGURED") blockers.push("QUORUM_UNCONFIGURED");
   if (quorum.state === "NOT_MET") blockers.push("QUORUM_NOT_MET");
   if (i.votingRule == null) blockers.push("VOTING_RULE_UNCONFIGURED");
+  if (alternateQuestion) blockers.push("ALTERNATE_FOR_RECUSED_UNCONFIGURED");
   if (ineligible > 0) blockers.push("INELIGIBLE_VOTE");
   // Stricter than assessDecision: every present, non-recused voter votes (FR-CTE-005).
   if (tally.notVoted > 0 || tally.cast === 0) blockers.push("VOTES_OUTSTANDING");
@@ -113,6 +156,9 @@ export function assessMatter(i: MatterInput): MatterAssessment {
     computed,
     mandatory,
     entitledIds,
+    recusedPresentIds,
+    ineligibleVoterIds,
+    excusedSeatIds,
     uncoveredSeatIds,
     messageEn: describe(blockers, quorum, tally, computed, uncoveredSeatIds.length),
   };
@@ -141,8 +187,10 @@ function describe(
       return `Cannot be recorded: ${quorum.messageEn.charAt(0).toLowerCase()}${quorum.messageEn.slice(1)}`;
     case "VOTING_RULE_UNCONFIGURED":
       return "Cannot be recorded: no voting rule has been set for this committee, and none is assumed.";
+    case "ALTERNATE_FOR_RECUSED_UNCONFIGURED":
+      return "A member with an alternate has recused on this matter, and the committee has not said whether an alternate may vote in a recused member's place. Set it in the committee's configuration.";
     case "INELIGIBLE_VOTE":
-      return "A vote is recorded from someone not entitled to vote on this matter. Remove it first.";
+      return "A vote is on record from someone not entitled to vote on this matter. It is shown against the matter.";
     case "VOTES_OUTSTANDING":
       return tally.cast === 0
         ? "No votes recorded yet. Every present member votes before an outcome is recorded."
@@ -240,7 +288,8 @@ const dayOf = (d: Date) => d.toISOString().slice(0, 10);
 export function canVote(i: {
   meetingStatus: MeetingStatus;
   meetingDate: Date;
-  today: Date;
+  /// Today in the organisation's time zone, YYYY-MM-DD (`dayIn`).
+  today: string;
   outcome: DecisionOutcome;
   tabled: boolean;
   personId: string;
@@ -261,7 +310,7 @@ export function canVote(i: {
   if (i.outcome !== "PENDING") return { ok: false, fault: "MATTER_DECIDED" };
   if (!i.tabled) return { ok: false, fault: "MATTER_NOT_TABLED" };
 
-  if (i.votedAt > dayOf(i.today)) return { ok: false, fault: "DATE_IN_FUTURE" };
+  if (i.votedAt > i.today) return { ok: false, fault: "DATE_IN_FUTURE" };
   if (i.votedAt < dayOf(i.meetingDate)) return { ok: false, fault: "DATE_BEFORE_SITTING" };
 
   if (i.recusedIds.includes(i.personId)) return { ok: false, fault: "RECUSED" };
@@ -283,3 +332,35 @@ export const VOTE_FAULT_STATUS: Record<VoteFault, 400 | 403 | 409 | 422> = {
   NOT_A_PRESENT_VOTER: 403,
   RECUSED: 403,
 };
+
+// --------------------------------------------------------------- recusal
+
+export type RecusalFault =
+  | "SITTING_CLOSED"
+  | "MATTER_DECIDED"
+  | "NOT_A_VOTING_MEMBER"
+  | "ALREADY_RECUSED"
+  | "ALREADY_VOTED";
+
+/**
+ * Whether a member may declare a recusal on a matter.
+ *
+ * Open before and during the sitting (ruling §8.2), never once minuted or cancelled,
+ * never on a decided matter. Only a voting member or an alternate. Declared before
+ * voting (§8.6): a vote cannot be withdrawn, so a recusal after it would leave a vote
+ * on record from someone not entitled.
+ */
+export function checkRecusal(i: {
+  meetingStatus: MeetingStatus;
+  outcome: DecisionOutcome;
+  role: "VOTING" | "ALTERNATE" | "NON_VOTING" | "CONTESTED" | "NOT_A_MEMBER";
+  alreadyRecused: boolean;
+  hasVoted: boolean;
+}): { ok: true } | { ok: false; fault: RecusalFault } {
+  if (i.meetingStatus === "MINUTED" || i.meetingStatus === "CANCELLED") return { ok: false, fault: "SITTING_CLOSED" };
+  if (i.outcome !== "PENDING") return { ok: false, fault: "MATTER_DECIDED" };
+  if (i.role !== "VOTING" && i.role !== "ALTERNATE") return { ok: false, fault: "NOT_A_VOTING_MEMBER" };
+  if (i.alreadyRecused) return { ok: false, fault: "ALREADY_RECUSED" };
+  if (i.hasVoted) return { ok: false, fault: "ALREADY_VOTED" };
+  return { ok: true };
+}

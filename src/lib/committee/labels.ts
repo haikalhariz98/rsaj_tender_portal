@@ -80,6 +80,7 @@ export const BLOCKER_LABEL: Record<MatterBlocker, string> = {
   QUORUM_UNCONFIGURED: "Quorum not set",
   QUORUM_NOT_MET: "Not quorate",
   VOTING_RULE_UNCONFIGURED: "Voting rule not set",
+  ALTERNATE_FOR_RECUSED_UNCONFIGURED: "Alternates for recused members not set",
   INELIGIBLE_VOTE: "Vote from someone not entitled",
   VOTES_OUTSTANDING: "Votes outstanding",
   MANDATORY_ACT_NOT_FULL_BODY: "Full body required",
@@ -91,7 +92,31 @@ export const ATTENDANCE_FAULT_MESSAGE: Record<AttendanceFault, string> = {
   STAND_IN_WHILE_HOLDER_PRESENT: "is standing in for a seat whose holder is present.",
   ALTERNATE_NOT_FOR_THAT_SEAT: "is not an alternate for that seat.",
   SEAT_COVERED_TWICE: "is standing in for a seat another alternate already covers.",
+  OFFICE_CONTESTED:
+    "holds an office that has more than one holder on the sitting date. Fix the role assignments under Configuration, Users & roles, Roles; the system will not pick one.",
 };
+
+/// Where contested office assignments are fixed.
+export const ROLE_ASSIGNMENTS_HREF = "/configuration/users?tab=roles";
+
+/**
+ * An attendance fault as a sentence about one person. A contested office names the
+ * office and its competing holders, so the fix is findable.
+ */
+export function attendanceFaultText(
+  name: string,
+  fault: AttendanceFault,
+  contested?: { office: string | null; holders: string[] },
+): string {
+  if (fault === "OFFICE_CONTESTED" && contested) {
+    return `${name} holds the office of ${contested.office ?? "an office"}, which ${contested.holders.join(" and ")} both hold on the sitting date. Fix the conflicting role assignment under Configuration, Users & roles, Roles; the system will not pick one.`;
+  }
+  return `${name} ${ATTENDANCE_FAULT_MESSAGE[fault]}`;
+}
+
+/// The notification event a matter not carried will raise once delivery exists. A
+/// NotificationRule may be configured for it now; nothing is sent (FR-CTE-009).
+export const NOT_CARRIED_EVENT_KEY = "committee_matter_not_carried";
 
 export const OUTCOME_FAULT_MESSAGE: Record<OutcomeFault, string> = {
   MATTER_NOT_READY: "The matter cannot be decided yet. Clear what blocks it first.",
@@ -131,4 +156,8 @@ export const TRANSITION_FAULT_MESSAGE: Record<TransitionFault, string> = {
   MATTERS_PENDING: "Every matter must be decided or deferred before the sitting is minuted.",
   REASON_REQUIRED: "Say why the sitting is cancelled.",
   MATTERS_DECIDED: "A sitting that has decided a matter cannot be cancelled.",
+  NOT_YET_DUE: "A sitting cannot start before the day it is dated.",
+  REGISTER_FAULTS: "The register has faults. Correct the attendance before the sitting is minuted.",
+  DECISION_NO_LONGER_HOLDS:
+    "A decided matter no longer follows from the register and the votes. Correct it before the sitting is minuted.",
 };

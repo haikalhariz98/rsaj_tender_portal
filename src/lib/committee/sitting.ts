@@ -43,6 +43,8 @@ export interface VotingSeat {
   vacant: boolean;
   /// More than one active holder of the office on the date. Reported, never resolved.
   contested: boolean;
+  /// Who the competing holders are, where contested. Empty otherwise.
+  contestedHolderIds: string[];
 }
 
 export interface AlternateSeat extends VotingSeat {
@@ -66,6 +68,7 @@ function resolve(seat: Seat, roster: Roster, on: Date): VotingSeat {
       officeLabel: office?.nameEn ?? seat.seatLabel ?? null,
       vacant: unique.length === 0,
       contested: unique.length > 1,
+      contestedHolderIds: unique.length > 1 ? unique.map((u) => u.id) : [],
     };
   }
   const person = seat.personId ? people.get(seat.personId) : undefined;
@@ -78,6 +81,7 @@ function resolve(seat: Seat, roster: Roster, on: Date): VotingSeat {
     officeLabel: seat.seatLabel,
     vacant: seat.personId == null,
     contested: false,
+    contestedHolderIds: [],
   };
 }
 
@@ -108,7 +112,10 @@ export type AttendanceFault =
   | "STAND_IN_FOR_CHAIR"
   | "STAND_IN_WHILE_HOLDER_PRESENT"
   | "ALTERNATE_NOT_FOR_THAT_SEAT"
-  | "SEAT_COVERED_TWICE";
+  | "SEAT_COVERED_TWICE"
+  /// Holds an office whose seat has two holders on the date. Fixed in role
+  /// assignments, not in the register.
+  | "OFFICE_CONTESTED";
 
 export interface AttendanceRecord {
   personId: string;
@@ -128,7 +135,53 @@ export interface PresentVoters {
   voterIds: string[];
   /// Who sits in which voting seat at this sitting.
   occupants: Occupant[];
-  faults: { personId: string; fault: AttendanceFault }[];
+  faults: { personId: string; fault: AttendanceFault; seatId?: string }[];
+}
+
+/// Whether an alternate may cover a seat: linked to it, or floating for its position.
+/// Nobody covers the chair (FR-CTE-012).
+export function alternateMayCover(alt: AlternateSeat, seat: VotingSeat): boolean {
+  if (seat.position === "CHAIRMAN") return false;
+  return alt.forSeatId === seat.seatId || (alt.forSeatId == null && alt.position === seat.position);
+}
+
+/// Whether any alternate in force could cover the seat.
+export function seatHasAlternate(seat: VotingSeat, alternates: readonly AlternateSeat[]): boolean {
+  return alternates.some((a) => a.personId != null && alternateMayCover(a, seat));
+}
+
+export type RegisterRole =
+  | { kind: "VOTING" }
+  | { kind: "ALTERNATE" }
+  | { kind: "NON_VOTING" }
+  | { kind: "CONTESTED"; seat: VotingSeat }
+  | { kind: "NOT_A_MEMBER" };
+
+/// What someone is to the register on the sitting date. The one membership check the
+/// attendance action and the recusal action use.
+export function registerRole(
+  i: { voting: readonly VotingSeat[]; alternates: readonly AlternateSeat[]; nonVotingMemberIds: readonly string[] },
+  personId: string,
+): RegisterRole {
+  if (i.voting.some((s) => s.personId === personId)) return { kind: "VOTING" };
+  const contested = i.voting.find((s) => s.contestedHolderIds.includes(personId));
+  if (contested) return { kind: "CONTESTED", seat: contested };
+  if (i.alternates.some((s) => s.personId === personId)) return { kind: "ALTERNATE" };
+  if (i.nonVotingMemberIds.includes(personId)) return { kind: "NON_VOTING" };
+  return { kind: "NOT_A_MEMBER" };
+}
+
+export type AlternateLinkFault = "NOT_A_SEAT_OF_THIS_COMMITTEE" | "CHAIR_HAS_NO_ALTERNATE" | "OWN_ALTERNATE";
+
+/// Whether an alternate may be linked to a seat (ruling §8.11: never the chair's).
+export function checkAlternateLink(i: {
+  selfId: string | null;
+  target: { id: string; position: CommitteePosition; isAlternate: boolean } | null;
+}): { ok: true } | { ok: false; fault: AlternateLinkFault } {
+  if (!i.target || i.target.isAlternate) return { ok: false, fault: "NOT_A_SEAT_OF_THIS_COMMITTEE" };
+  if (i.selfId != null && i.target.id === i.selfId) return { ok: false, fault: "OWN_ALTERNATE" };
+  if (i.target.position === "CHAIRMAN") return { ok: false, fault: "CHAIR_HAS_NO_ALTERNATE" };
+  return { ok: true };
 }
 
 /**
@@ -163,6 +216,11 @@ export function presentVoters(i: {
       }
       continue;
     }
+    const contested = i.voting.find((s) => s.contestedHolderIds.includes(a.personId));
+    if (contested) {
+      faults.push({ personId: a.personId, fault: "OFFICE_CONTESTED", seatId: contested.seatId });
+      continue;
+    }
     if (i.nonVotingMemberIds.includes(a.personId)) continue;
     // An alternate may attend without covering anyone. They are not counted.
     if (i.alternates.some((s) => s.personId === a.personId)) continue;
@@ -179,11 +237,7 @@ export function presentVoters(i: {
       faults.push({ personId: a.personId, fault: "STAND_IN_FOR_CHAIR" });
       continue;
     }
-    const mayCover = i.alternates.some(
-      (alt) =>
-        alt.personId === a.personId &&
-        (alt.forSeatId === seat.seatId || (alt.forSeatId == null && alt.position === seat.position)),
-    );
+    const mayCover = i.alternates.some((alt) => alt.personId === a.personId && alternateMayCover(alt, seat));
     if (!mayCover) {
       faults.push({ personId: a.personId, fault: "ALTERNATE_NOT_FOR_THAT_SEAT" });
       continue;

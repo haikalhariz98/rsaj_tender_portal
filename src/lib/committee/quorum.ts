@@ -108,7 +108,9 @@ export interface DecisionReadiness {
   messageEn: string;
 }
 
-const MANDATORY_ACTS = new Set(["MR", "MJR", "MA"]);
+/// Acts a committee cannot discharge with part of its body (MR, MJR, MA). The one
+/// definition: the badge, the decision rule and the matter rule all read it.
+export const MANDATORY_ACTS: ReadonlySet<string> = new Set(["MR", "MJR", "MA"]);
 
 /**
  * Whether a committee decision may be recorded as final.

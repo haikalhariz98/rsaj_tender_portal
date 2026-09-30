@@ -1,3 +1,4 @@
+import { MANDATORY_ACTS as MANDATORY } from "@/lib/committee/quorum";
 import { ACT_LABEL } from "@/lib/labels";
 
 import { cx } from "./cx";
@@ -8,7 +9,6 @@ import { cx } from "./cx";
  * Its words come only from `ACT_LABEL`, so an act reads the same everywhere.
  */
 
-const MANDATORY = new Set(["MR", "MJR", "MA"]);
 
 /// Mandatory acts cannot be skipped or delegated, so they must not look like
 /// ordinary ones: amber for a mandatory recommendation, rose for mandatory approval.

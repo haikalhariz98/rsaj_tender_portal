@@ -4,6 +4,7 @@ import {
   assessMatter,
   canVote,
   checkOutcome,
+  checkRecusal,
   combine,
   outcomesOffered,
   VOTE_FAULT_STATUS,
@@ -230,7 +231,7 @@ describe("canVote", () => {
   const ok = {
     meetingStatus: "IN_PROGRESS" as const,
     meetingDate: new Date("2026-03-01T00:00:00Z"),
-    today: new Date("2026-03-05T10:00:00Z"),
+    today: "2026-03-05",
     outcome: "PENDING" as const,
     tabled: true,
     personId: "A",
@@ -287,5 +288,73 @@ describe("canVote", () => {
     expect(canVote({ ...ok, choice: "YES" })).toEqual({ ok: false, fault: "INVALID_CHOICE" });
     expect(canVote({ ...ok, votedAt: "5 March" })).toEqual({ ok: false, fault: "INVALID_DATE" });
     expect(VOTE_FAULT_STATUS.INVALID_CHOICE).toBe(400);
+  });
+});
+
+describe("checkRecusal", () => {
+  const ok = {
+    meetingStatus: "SCHEDULED" as const,
+    outcome: "PENDING" as const,
+    role: "VOTING" as const,
+    alreadyRecused: false,
+    hasVoted: false,
+  };
+  it("is open before the sitting and during it (ruling 8.2)", () => {
+    expect(checkRecusal(ok)).toEqual({ ok: true });
+    expect(checkRecusal({ ...ok, meetingStatus: "IN_PROGRESS" })).toEqual({ ok: true });
+    expect(checkRecusal({ ...ok, role: "ALTERNATE" })).toEqual({ ok: true });
+  });
+  it("is refused after voting, on a decided matter, a closed sitting or a non-voter", () => {
+    expect(checkRecusal({ ...ok, hasVoted: true })).toEqual({ ok: false, fault: "ALREADY_VOTED" });
+    expect(checkRecusal({ ...ok, outcome: "CARRIED" })).toEqual({ ok: false, fault: "MATTER_DECIDED" });
+    expect(checkRecusal({ ...ok, meetingStatus: "MINUTED" })).toEqual({ ok: false, fault: "SITTING_CLOSED" });
+    expect(checkRecusal({ ...ok, role: "NON_VOTING" })).toEqual({ ok: false, fault: "NOT_A_VOTING_MEMBER" });
+    expect(checkRecusal({ ...ok, alreadyRecused: true })).toEqual({ ok: false, fault: "ALREADY_RECUSED" });
+  });
+});
+
+describe("recusal and alternates (send-back 8.5)", () => {
+  const withAlt = { ...base, seats: [{ seatId: "seat-A", holderId: "A" }, { seatId: "seat-B", holderId: "B", hasAlternate: true }, { seatId: "seat-C", holderId: "C" }] };
+
+  it("unset: blocks a matter where a recused member's seat has an alternate, naming the setting", () => {
+    const a = assessMatter({ ...withAlt, quorum: 2, recusedIds: ["B"], votes: [v("A", "SETUJU"), v("C", "SETUJU")] });
+    expect(a.blockers).toEqual(["ALTERNATE_FOR_RECUSED_UNCONFIGURED"]);
+    expect(a.messageEn).toContain("alternate may vote");
+  });
+
+  it("unset: does not block a matter where no alternate could cover the recused seat", () => {
+    const a = assessMatter({ ...base, quorum: 2, recusedIds: ["B"], votes: [v("A", "SETUJU"), v("C", "SETUJU")] });
+    expect(a.blockers).toEqual([]);
+  });
+
+  it("the holder's attendance does not change whether their seat votes", () => {
+    const common = { ...withAlt, quorum: 2, alternateMayVoteForRecused: false, recusedIds: ["B"] };
+    const holderPresent = assessMatter({ ...common, occupants: sitting("A", "B", "C"), votes: [v("A", "SETUJU"), v("C", "SETUJU")] });
+    const altCovering = assessMatter({
+      ...common,
+      occupants: [...sitting("A", "C"), { seatId: "seat-B", personId: "B-alt" }],
+      votes: [v("A", "SETUJU"), v("C", "SETUJU")],
+    });
+    for (const a of [holderPresent, altCovering]) {
+      expect(a.entitledIds.sort()).toEqual(["A", "C"]);
+      expect(a.excusedSeatIds).toEqual(["seat-B"]);
+      expect(a.canRecord).toBe(true);
+    }
+    // A vote from the alternate on that matter is not entitled, and shows as such.
+    const altVoted = assessMatter({
+      ...common,
+      occupants: [...sitting("A", "C"), { seatId: "seat-B", personId: "B-alt" }],
+      votes: [v("A", "SETUJU"), v("C", "SETUJU"), v("B-alt", "SETUJU")],
+    });
+    expect(altVoted.blockers).toContain("INELIGIBLE_VOTE");
+    expect(altVoted.ineligibleVoterIds).toEqual(["B-alt"]);
+  });
+
+  it("counts the recusals among those present only", () => {
+    const present = assessMatter({ ...base, quorum: 2, recusedIds: ["B"], votes: [v("A", "SETUJU"), v("C", "SETUJU")] });
+    expect(present.recusedPresentIds).toEqual(["B"]);
+    expect(present.entitledIds.length).toBe(2);
+    const absent = assessMatter({ ...base, quorum: 2, occupants: sitting("A", "C"), recusedIds: ["B"], votes: [v("A", "SETUJU"), v("C", "SETUJU")] });
+    expect(absent.recusedPresentIds).toEqual([]);
   });
 });

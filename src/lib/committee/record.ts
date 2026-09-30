@@ -10,6 +10,7 @@
 import type { DecisionOutcome, VotingRule } from "./matter";
 
 export interface DecisionRecordInput {
+  /// `committeeName` from the sitting's register snapshot where it is minuted.
   meeting: { reference: string; meetingDate: Date; committeeName: string };
   decision: {
     subject: string;
@@ -22,7 +23,9 @@ export interface DecisionRecordInput {
     votingRule: VotingRule | null;
     votingRuleProvenance: string | null;
     outcomeNote: string;
-    notApprovedOutcome: { nameEn: string; kind: "LOOP" | "TERMINAL" } | null;
+    /// The outcome as snapshotted onto the decision, never the live outcome row.
+    notApprovedOutcomeNameEn: string | null;
+    notApprovedOutcomeKind: "LOOP" | "TERMINAL" | null;
   };
   votes: { name: string; choice: string; comment: string; votedAt: Date }[];
 }
@@ -56,7 +59,10 @@ export function decisionRecord(i: DecisionRecordInput): DecisionRecord | null {
     decisionDate: d.decisionDate,
     quorum: { required: d.quorumRequired, present: d.presentVoters, recused: d.recusedCount },
     votingRule: { rule: d.votingRule, provenance: d.votingRuleProvenance },
-    notApproved: d.notApprovedOutcome,
+    notApproved:
+      d.notApprovedOutcomeNameEn && d.notApprovedOutcomeKind
+        ? { nameEn: d.notApprovedOutcomeNameEn, kind: d.notApprovedOutcomeKind }
+        : null,
     note: d.outcomeNote,
     votes: i.votes
       .filter((v) => v.choice === "SETUJU" || v.choice === "TIDAK_SETUJU")

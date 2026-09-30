@@ -3,8 +3,16 @@ import { describe, expect, it } from "vitest";
 import type { Roster } from "@/lib/people/roster";
 import type { Person } from "@/lib/people/types";
 
-import { assessSitting } from "./assess-sitting";
-import type { Seat } from "./sitting";
+import {
+  assessFromRegister,
+  assessSitting,
+  checkAttendanceChange,
+  isRegisterSnapshot,
+  minutingChecks,
+  resolveRegister,
+  snapshotRegister,
+} from "./assess-sitting";
+import { registerRole, type Seat } from "./sitting";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 const person = (id: string): Person => ({
@@ -74,5 +82,86 @@ describe("assessSitting", () => {
       }],
     });
     expect(a.matters.M.canRecord).toBe(true);
+  });
+});
+
+describe("checkAttendanceChange (send-backs 8.6, review 2)", () => {
+  const rules = { quorum: 2, votingRule: "SIMPLE_MAJORITY" as const, alternateMayVoteForRecused: null };
+  const register = resolveRegister({
+    meetingDate: d("2026-03-01"), seats, roster,
+    attendance: [here("chief"), here("money"), here("named")],
+  });
+  const pending = {
+    id: "P", act: "R", tabled: true, outcome: "PENDING" as const, dependencyOutcome: null, recusedIds: [],
+    votes: [{ personId: "named", choice: "SETUJU" as const }],
+  };
+
+  it("refuses a change that makes a vote on a pending matter ineligible", () => {
+    const r = checkAttendanceChange(register, rules, [pending], [here("chief"), here("money"), { personId: "named", attended: false, standingInForSeatId: null }]);
+    expect(r.ok).toBe(false);
+    expect(r.newlyIneligible).toEqual([{ matterId: "P", personId: "named" }]);
+  });
+
+  it("refuses a change that creates a fault for someone else", () => {
+    // The alternate is already recorded covering m2; marking the holder present faults the alternate.
+    const reg = resolveRegister({ meetingDate: d("2026-03-01"), seats, roster, attendance: [here("chief"), here("alt", "m2")] });
+    const r = checkAttendanceChange(reg, rules, [], [here("chief"), here("alt", "m2"), here("named")]);
+    expect(r.ok).toBe(false);
+    expect(r.newFaults).toEqual([{ personId: "alt", fault: "STAND_IN_WHILE_HOLDER_PRESENT" }]);
+  });
+
+  it("refuses a change that breaks a decided matter", () => {
+    const carried = {
+      id: "C", act: "R", tabled: true, outcome: "CARRIED" as const, dependencyOutcome: null, recusedIds: [],
+      votes: [{ personId: "chief", choice: "SETUJU" as const }, { personId: "money", choice: "SETUJU" as const }],
+      snapshot: { quorum: 2, votingRule: "SIMPLE_MAJORITY" as const },
+    };
+    const reg = resolveRegister({ meetingDate: d("2026-03-01"), seats, roster, attendance: [here("chief"), here("money")] });
+    const r = checkAttendanceChange(reg, rules, [carried], [here("chief"), here("money"), here("named")]);
+    expect(r.brokenDecisions).toEqual(["C"]);
+    expect(r.ok).toBe(false);
+  });
+
+  it("allows an ordinary arrival", () => {
+    expect(checkAttendanceChange(register, rules, [pending], [here("chief"), here("money"), here("named"), here("sec")]).ok).toBe(true);
+  });
+});
+
+describe("minutingChecks and snapshots", () => {
+  it("counts register faults and decisions that no longer hold", () => {
+    const a = assessSitting({
+      meetingDate: d("2026-03-01"), seats, roster, quorum: 2, votingRule: "SIMPLE_MAJORITY",
+      attendance: [here("chief"), here("stranger-id")],
+      matters: [],
+    });
+    expect(minutingChecks(a, []).registerFaults).toBe(1);
+  });
+
+  it("a snapshot survives a later change of roster", () => {
+    const reg = resolveRegister({ meetingDate: d("2026-03-01"), seats, roster, attendance: [here("chief"), here("money")] });
+    const snap = snapshotRegister(reg, { quorum: 2, votingRule: "SIMPLE_MAJORITY", votingRuleProvenance: "STATED", alternateMayVoteForRecused: null }, "Board", { chief: "chief" });
+    expect(isRegisterSnapshot(snap)).toBe(true);
+    const later = assessFromRegister(snap.register, snap.rules, [{
+      id: "M", act: "R", tabled: true, outcome: "CARRIED", dependencyOutcome: null, recusedIds: [],
+      votes: [{ personId: "chief", choice: "SETUJU" }, { personId: "money", choice: "SETUJU" }],
+      snapshot: { quorum: 2, votingRule: "SIMPLE_MAJORITY" },
+    }]);
+    expect(later.matters.M.canRecord).toBe(true);
+    expect(later.voting.find((v) => v.seatId === "chair")?.personId).toBe("chief");
+  });
+});
+
+describe("contested office (send-back 8.4)", () => {
+  it("names the contested office rather than calling the holder a non-member", () => {
+    const twice: Roster = {
+      ...roster,
+      assignments: [
+        ...roster.assignments,
+        { id: "a9", personId: "named", roleCode: "MONEY", scope: null, effectiveFrom: d("2024-01-01"), effectiveTo: null },
+      ],
+    };
+    const reg = resolveRegister({ meetingDate: d("2026-03-01"), seats, roster: twice, attendance: [here("money")] });
+    expect(reg.present.faults).toEqual([{ personId: "money", fault: "OFFICE_CONTESTED", seatId: "m1" }]);
+    expect(registerRole(reg, "money")).toMatchObject({ kind: "CONTESTED" });
   });
 });

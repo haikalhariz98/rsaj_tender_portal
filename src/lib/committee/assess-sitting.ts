@@ -4,6 +4,10 @@
  *
  * Pure. The screen, the server actions and the votes route all call this, so the
  * rule a member sees on the page is the rule the write enforces.
+ *
+ * The register is resolved once (`resolveRegister`) and can be frozen as a snapshot
+ * when the sitting is minuted: a minuted sitting is then assessed from the snapshot
+ * (`assessFromRegister`), never from today's seats, roster or quorum.
  */
 
 import type { Roster } from "@/lib/people/roster";
@@ -14,6 +18,7 @@ import {
   alternatesOn,
   nonVotingMembersOn,
   presentVoters,
+  seatHasAlternate,
   votingSeatsOn,
   type AlternateSeat,
   type AttendanceRecord,
@@ -30,14 +35,75 @@ export interface SittingMatter {
   dependencyOutcome: DecisionOutcome | null;
   recusedIds: string[];
   votes: { personId: string; choice: VoteChoice }[];
+  /// A decided matter is judged on the quorum and rule it was recorded under. Absent,
+  /// the committee's current ones apply.
+  snapshot?: { quorum: number | null; votingRule: VotingRule | null };
 }
 
-export interface SittingAssessment {
+/// The register: every seat resolved, and who sat where. JSON-safe, so it can be
+/// stored as the minuted sitting's snapshot.
+export interface Register {
   voting: VotingSeat[];
   alternates: AlternateSeat[];
   nonVotingMemberIds: string[];
   present: PresentVoters;
+}
+
+export interface SittingRules {
+  quorum: number | null;
+  votingRule: VotingRule | null;
+  alternateMayVoteForRecused: boolean | null;
+}
+
+export interface SittingAssessment extends Register {
   matters: Record<string, MatterAssessment>;
+}
+
+export function resolveRegister(i: {
+  meetingDate: Date;
+  seats: readonly Seat[];
+  roster: Roster;
+  attendance: readonly AttendanceRecord[];
+}): Register {
+  const on = i.meetingDate;
+  const voting = votingSeatsOn(i.seats, i.roster, on);
+  const alternates = alternatesOn(i.seats, i.roster, on);
+  const nonVotingMemberIds = nonVotingMembersOn(i.seats, i.roster, on);
+  const present = presentVoters({ voting, alternates, nonVotingMemberIds, attendance: i.attendance });
+  return { voting, alternates, nonVotingMemberIds, present };
+}
+
+/// The register with a different attendance, for checking a change before it is made.
+export function withAttendance(r: Register, attendance: readonly AttendanceRecord[]): Register {
+  return { ...r, present: presentVoters({ ...r, attendance }) };
+}
+
+export function assessFromRegister(
+  register: Register,
+  rules: SittingRules,
+  matters: readonly SittingMatter[],
+): SittingAssessment {
+  const seats = register.voting.map((s) => ({
+    seatId: s.seatId,
+    holderId: s.personId,
+    hasAlternate: seatHasAlternate(s, register.alternates),
+  }));
+  const out: Record<string, MatterAssessment> = {};
+  for (const m of matters) {
+    out[m.id] = assessMatter({
+      quorum: m.snapshot ? m.snapshot.quorum : rules.quorum,
+      votingRule: m.snapshot ? m.snapshot.votingRule : rules.votingRule,
+      alternateMayVoteForRecused: rules.alternateMayVoteForRecused,
+      act: m.act,
+      tabled: m.tabled,
+      seats,
+      occupants: register.present.occupants,
+      recusedIds: m.recusedIds,
+      votes: m.votes,
+      dependencyOutcome: m.dependencyOutcome,
+    });
+  }
+  return { ...register, matters: out };
 }
 
 export function assessSitting(i: {
@@ -46,29 +112,100 @@ export function assessSitting(i: {
   roster: Roster;
   quorum: number | null;
   votingRule: VotingRule | null;
+  alternateMayVoteForRecused?: boolean | null;
   attendance: readonly AttendanceRecord[];
   matters: readonly SittingMatter[];
 }): SittingAssessment {
-  const on = i.meetingDate;
-  const voting = votingSeatsOn(i.seats, i.roster, on);
-  const alternates = alternatesOn(i.seats, i.roster, on);
-  const nonVotingMemberIds = nonVotingMembersOn(i.seats, i.roster, on);
-  const present = presentVoters({ voting, alternates, nonVotingMemberIds, attendance: i.attendance });
+  return assessFromRegister(
+    resolveRegister(i),
+    { quorum: i.quorum, votingRule: i.votingRule, alternateMayVoteForRecused: i.alternateMayVoteForRecused ?? null },
+    i.matters,
+  );
+}
 
-  const matters: Record<string, MatterAssessment> = {};
-  for (const m of i.matters) {
-    matters[m.id] = assessMatter({
-      quorum: i.quorum,
-      votingRule: i.votingRule,
-      act: m.act,
-      tabled: m.tabled,
-      seats: voting.map((s) => ({ seatId: s.seatId, holderId: s.personId })),
-      occupants: present.occupants,
-      recusedIds: m.recusedIds,
-      votes: m.votes,
-      dependencyOutcome: m.dependencyOutcome,
-    });
+/// A decided matter that no longer follows from the register and its votes.
+export function decisionHolds(m: SittingMatter, a: MatterAssessment): boolean {
+  if (m.outcome !== "CARRIED" && m.outcome !== "NOT_CARRIED") return true;
+  return a.canRecord && a.computed === m.outcome;
+}
+
+export interface AttendanceChangeCheck {
+  ok: boolean;
+  /// Register faults the change would create, for anyone.
+  newFaults: PresentVoters["faults"];
+  /// Votes on record that the change would make ineligible, on any matter.
+  newlyIneligible: { matterId: string; personId: string }[];
+  /// Decided matters that would no longer follow from the register.
+  brokenDecisions: string[];
+}
+
+/**
+ * Whether an attendance change may be made (send-backs 8.6 and review 2).
+ *
+ * Refused where it would create a register fault for anyone — not only the person
+ * changed — where it would make a vote already on record ineligible on any matter
+ * (a vote cannot be withdrawn), or where a decided matter would no longer follow from
+ * the register. A change that removes a fault is always allowed.
+ */
+export function checkAttendanceChange(
+  register: Register,
+  rules: SittingRules,
+  matters: readonly SittingMatter[],
+  proposed: readonly AttendanceRecord[],
+): AttendanceChangeCheck {
+  const before = assessFromRegister(register, rules, matters);
+  const after = assessFromRegister(withAttendance(register, proposed), rules, matters);
+
+  const key = (f: { personId: string; fault: string }) => `${f.personId}|${f.fault}`;
+  const had = new Set(before.present.faults.map(key));
+  const newFaults = after.present.faults.filter((f) => !had.has(key(f)));
+
+  const newlyIneligible: AttendanceChangeCheck["newlyIneligible"] = [];
+  const brokenDecisions: string[] = [];
+  for (const m of matters) {
+    const was = new Set(before.matters[m.id].ineligibleVoterIds);
+    for (const p of after.matters[m.id].ineligibleVoterIds) {
+      if (!was.has(p)) newlyIneligible.push({ matterId: m.id, personId: p });
+    }
+    if (decisionHolds(m, before.matters[m.id]) && !decisionHolds(m, after.matters[m.id])) brokenDecisions.push(m.id);
   }
 
-  return { voting, alternates, nonVotingMemberIds, present, matters };
+  return {
+    ok: newFaults.length === 0 && newlyIneligible.length === 0 && brokenDecisions.length === 0,
+    newFaults,
+    newlyIneligible,
+    brokenDecisions,
+  };
+}
+
+/// What stops the sitting being minuted beyond the lifecycle rule itself.
+export function minutingChecks(a: SittingAssessment, matters: readonly SittingMatter[]) {
+  return {
+    registerFaults: a.present.faults.length,
+    brokenDecisions: matters.filter((m) => !decisionHolds(m, a.matters[m.id])).length,
+  };
+}
+
+/// The snapshot stored on a minuted sitting.
+export interface RegisterSnapshot {
+  version: 1;
+  register: Register;
+  rules: SittingRules & { votingRuleProvenance: string | null };
+  committeeName: string;
+  /// Names as they read on the day, keyed by person id.
+  names: Record<string, string>;
+}
+
+export function snapshotRegister(
+  register: Register,
+  rules: RegisterSnapshot["rules"],
+  committeeName: string,
+  names: Record<string, string>,
+): RegisterSnapshot {
+  // A plain-JSON copy: nothing in it may point back at live configuration.
+  return JSON.parse(JSON.stringify({ version: 1, register, rules, committeeName, names }));
+}
+
+export function isRegisterSnapshot(v: unknown): v is RegisterSnapshot {
+  return typeof v === "object" && v != null && (v as { version?: unknown }).version === 1 && "register" in v;
 }

@@ -7,6 +7,9 @@
  * by whoever records it, so the screen shows it as attested, not authenticated.
  */
 
+import { dayToDate } from "@/lib/dates";
+import { holdersOf, type Roster } from "@/lib/people/roster";
+
 export type TablingFault = "SECRETARIAT_NOT_SET" | "NOT_TABLED" | "NOT_SECRETARIAT_HOLDER";
 
 export function checkTabling(i: {
@@ -21,4 +24,21 @@ export function checkTabling(i: {
     return { ok: false, fault: "NOT_SECRETARIAT_HOLDER" };
   }
   return { ok: true };
+}
+
+/**
+ * The active holders of the Secretariat office on the tabling day.
+ *
+ * One date for the drawer that offers the tablers and the action that checks them:
+ * the day the matter is tabled, in the organisation's zone (`dayIn`).
+ */
+export function secretariatHoldersOn(
+  roster: Roster,
+  secretariatRoleCode: string | null,
+  tablingDay: string,
+): { id: string; name: string }[] {
+  if (!secretariatRoleCode) return [];
+  return holdersOf(roster, secretariatRoleCode, dayToDate(tablingDay))
+    .filter((p) => p.isActive)
+    .map((p) => ({ id: p.id, name: p.name }));
 }
