@@ -169,6 +169,12 @@ model Organisation {
   requisitions        Requisition[]
   requisitionPolicy   RequisitionPolicy?
   approvalInstances   ApprovalInstance[]
+  justificationReasons   JustificationReason[]
+  contractBases          ContractBasis[]
+  classificationTaxonomies ClassificationTaxonomy[]
+  taxonomyMappings       TaxonomyMapping[]
+  classificationPolicy   ClassificationPolicy?
+  sourcingExercises      SourcingExercise[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -226,6 +232,9 @@ model Person {
   endorsements          RequisitionEndorsement[]
   splitOverrides        RequisitionSplitCheck[]
   approvalStepsDecided  ApprovalStep[]
+  exerciseTypeOverrides SourcingExercise[] @relation("TypeOverriddenBy")
+  proposalsReviewed     SourcingExercise[] @relation("ProposalReviewer")
+  exerciseParticipation ExerciseParticipant[]
 
   @@unique([organisationId, staffNo])
   @@index([organisationId, name])
@@ -342,7 +351,15 @@ model AuthorityMatrix {
   /// excludes funder issues unless it asks for one by route.
   fundingRouteCode String?
 
+  /// Where the ruling on a value exactly at `boundaryValue` comes from (spec D3, R2).
+  /// ASSUMED until a written ruling is recorded: STATED needs `boundarySource`, and like
+  /// every field of an issue it is frozen once issued, so a ruling arrives as a new
+  /// issue. Every exercise on the boundary records whether it was ruled (6.3 ruling).
+  boundaryProvenance Provenance @default(ASSUMED)
+  boundarySource     String     @default("")
+
   rules             AuthorityRule[]
+  termsBands        TermsBand[]
   approvalInstances ApprovalInstance[] @relation("InstanceMatrix")
   overrideInstances ApprovalInstance[] @relation("InstanceOverrideMatrix")
 
@@ -1546,12 +1563,31 @@ model SourcingMethod {
   /// Held explicitly because several methods commonly share one row.
   authorityMethodKey String?
 
+  /// The method proposed in each regime (FR-MTD-005). At most one per regime is
+  /// meant; none means the approver "depends on the method", never a guess.
+  defaultInTender    Boolean @default(false)
+  defaultInQuotation Boolean @default(false)
+  defaultBelow       Boolean @default(false)
+
+  /// What choosing this method asks of the exercise.
+  requiresJustification      Boolean @default(false)
+  justificationPrompt        String  @default("")
+  requiresProposal           Boolean @default(false)
+  requiresNameApproval       Boolean @default(false)
+  restrictedAccess           Boolean @default(false)
+  requiresDossier            Boolean @default(false)
+  requiresCoordinationRecord Boolean @default(false)
+  /// The numbering series (NumberingSeries.key) a dossier reference is issued from.
+  dossierSeriesKey String?
+
   governingSource String     @default("")
   provenance      Provenance @default(ASSUMED)
   notes           String     @default("")
   sortOrder       Int        @default(0)
 
   retiredOn DateTime?
+
+  checklistItems MethodChecklistItem[]
 
   @@unique([organisationId, code])
   @@index([organisationId, sortOrder])
@@ -1571,6 +1607,24 @@ model ContractType {
   code   String
   nameEn String
   nameMs String?
+
+  /// Which deliverable this type is the default for (FR-MTD-011). Null: none.
+  deliverableKind DeliverableKind?
+
+  /// The downstream behaviours the type drives (FR-MTD-012). Null or empty means not
+  /// set: the screen says so rather than reading it as "no".
+  pricingBasis                String?
+  registrationTest            String?
+  administratorRoleCodes      String[] @default([])
+  startRequiresSecurities     Boolean?
+  eotInstrument               String?
+  completionInstrument        String?
+  defectsLiabilityApplies     Boolean?
+  makingGoodCertificate       Boolean?
+  nominationAllowed           Boolean?
+  interimPaymentRule          String?
+  sumAdjustmentDrivers        String[] @default([])
+  claimsApprovalCommitteeCode String?
 
   governingSource String     @default("")
   provenance      Provenance @default(ASSUMED)
@@ -1730,6 +1784,7 @@ model Requisition {
   splitChecks        RequisitionSplitCheck[]
   approvalInstances  ApprovalInstance[]
   committeeDecisions CommitteeDecision[]
+  exercises          SourcingExercise[]
 
   @@unique([organisationId, reference])
   @@unique([organisationId, erpRequisitionNo])
@@ -1876,6 +1931,9 @@ model ApprovalInstance {
   matterKind    MatterKind
   requisitionId String?
   requisition   Requisition? @relation(fields: [requisitionId], references: [id], onDelete: Restrict)
+  /// The exercise, where `matterKind` is EXERCISE (name approval, 6.3).
+  exerciseId    String?
+  exercise      SourcingExercise? @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
 
   domain String
   cond   String?
@@ -1930,6 +1988,7 @@ model ApprovalInstance {
 
   @@index([organisationId, matterKind])
   @@index([requisitionId])
+  @@index([exerciseId])
 }
 
 /// One step of a persisted route, and who discharged it.
@@ -1964,4 +2023,344 @@ model ApprovalStep {
   recordedAt          DateTime?
 
   @@unique([instanceId, sequence])
+}
+
+// ------------------------------------------------------------ 6.3 method selection
+
+/// Where a sourcing exercise stands (spec §7.3.2). 6.3 builds the first states; 6.5
+/// adds the sourcing window. CANCELLED is an assumption: §7.3.2 gives it no SOP path.
+enum ExerciseStatus {
+  DRAFT
+  DOCUMENTS_IN_PREPARATION
+  CANCELLED
+}
+
+/// The deliverable test behind a contract type (FR-MTD-011).
+enum DeliverableKind {
+  GOODS_DELIVERED
+  MEASURED_CONSTRUCTION
+  TERM_PERFORMANCE
+}
+
+/// A selected-tender proposal's progress (FR-MTD-006).
+enum ProposalState {
+  DRAFT
+  SUBMITTED
+  REVIEWED
+}
+
+/// How an exercise's taxonomy value was reached (FR-MTD-014).
+enum TaxonomyPick {
+  DERIVED
+  CHOSEN
+}
+
+/// How an exercise's contract type was reached (FR-MTD-011).
+enum ContractTypeState {
+  DERIVED /// The deliverable test gave it.
+  OVERRIDDEN /// The test gave another, and a named Person chose this with a reason.
+  CHOSEN /// The test could not give one, and a named Person chose this with a reason.
+}
+
+/// A contract terms band on an issue of the limits (FR-MTD-001): which terms set
+/// applies, never the retention or defects figures, which belong to the contract.
+/// Frozen with its issue, and copied when a new issue is started.
+model TermsBand {
+  id                String          @id @default(cuid())
+  authorityMatrixId String
+  authorityMatrix   AuthorityMatrix @relation(fields: [authorityMatrixId], references: [id], onDelete: Cascade)
+
+  bandKey  String
+  minValue Decimal? @db.Decimal(18, 2)
+  maxValue Decimal? @db.Decimal(18, 2)
+  /// The regime (below, quotation, tender) the band applies in. Null: every regime.
+  regime   String?
+
+  labelEn String
+  labelMs String?
+
+  /// Null: not set, which is not "does not apply".
+  retentionApplies        Boolean?
+  defectsLiabilityApplies Boolean?
+  insuranceNote           String   @default("")
+
+  /// As on a rule: required where an edge equals the boundary value.
+  followsBoundarySwitch Boolean?
+
+  clause     String     @default("")
+  provenance Provenance @default(ASSUMED)
+  sortOrder  Int        @default(0)
+
+  @@unique([authorityMatrixId, bandKey])
+}
+
+/// One item of a method's proposal (FR-MTD-006), as the customer words it.
+model MethodChecklistItem {
+  id               String         @id @default(cuid())
+  sourcingMethodId String
+  sourcingMethod   SourcingMethod @relation(fields: [sourcingMethodId], references: [id], onDelete: Cascade)
+
+  key       String
+  labelEn   String
+  labelMs   String?
+  required  Boolean   @default(true)
+  sortOrder Int       @default(0)
+  retiredOn DateTime?
+
+  @@unique([sourcingMethodId, key])
+}
+
+/// Why a direct appointment is justified (FR-MTD-009). The customer's own list.
+model JustificationReason {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// The method it is offered for (SourcingMethod.code). Null: every method that asks.
+  sourcingMethodCode String?
+  code               String
+  nameEn             String
+  nameMs             String?
+
+  governingSource String     @default("")
+  provenance      Provenance @default(ASSUMED)
+  sortOrder       Int        @default(0)
+  retiredOn       DateTime?
+
+  @@unique([organisationId, code])
+}
+
+/// Bills of quantities, drawings and specification (FR-MTD-013). Always chosen by the
+/// officer: nothing derives it (6.3 ruling).
+model ContractBasis {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code              String
+  nameEn            String
+  nameMs            String?
+  /// The standard contract form the basis selects, as the customer names it.
+  standardFormLabel String?
+
+  governingSource String     @default("")
+  provenance      Provenance @default(ASSUMED)
+  notes           String     @default("")
+  sortOrder       Int        @default(0)
+  retiredOn       DateTime?
+
+  @@unique([organisationId, code])
+}
+
+/// One of the other classifications a contract carries (FR-MTD-014).
+model ClassificationTaxonomy {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code   String
+  nameEn String
+  nameMs String?
+
+  governingSource String     @default("")
+  provenance      Provenance @default(ASSUMED)
+  sortOrder       Int        @default(0)
+  retiredOn       DateTime?
+
+  values TaxonomyValue[]
+
+  @@unique([organisationId, code])
+}
+
+model TaxonomyValue {
+  id         String                 @id @default(cuid())
+  taxonomyId String
+  taxonomy   ClassificationTaxonomy @relation(fields: [taxonomyId], references: [id], onDelete: Cascade)
+
+  code      String
+  nameEn    String
+  nameMs    String?
+  sortOrder Int       @default(0)
+  retiredOn DateTime?
+
+  @@unique([taxonomyId, code])
+}
+
+/// A contract type's value in another taxonomy, optionally only when the basis or
+/// another taxonomy's value says so. Held by codes, like every reference.
+model TaxonomyMapping {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  contractTypeCode String
+  taxonomyCode     String
+  valueCode        String
+  whenBasisCode    String?
+  whenTaxonomyCode String?
+  whenValueCode    String?
+
+  governingSource String     @default("")
+  provenance      Provenance @default(ASSUMED)
+
+  @@index([organisationId, contractTypeCode])
+}
+
+/// How mixed scope is classified (FR-MTD-011). None shipped: an unset threshold means
+/// no default for mixed scope, and the officer chooses with a reason.
+model ClassificationPolicy {
+  id             String       @id @default(cuid())
+  organisationId String       @unique
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// The share of value, in percent, the dominant deliverable must strictly exceed.
+  dominanceSharePct Decimal?    @db.Decimal(9, 4)
+  provenance        Provenance?
+  notes             String      @default("")
+}
+
+/// A sourcing exercise (spec §7.3.2), classified in Phase 1 (§13.3, ADR 0006).
+model SourcingExercise {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// Issued from NumberingSeries `exercise`.
+  reference     String
+  requisitionId String
+  requisition   Requisition @relation(fields: [requisitionId], references: [id], onDelete: Restrict)
+
+  title          String
+  estimatedValue Decimal        @db.Decimal(18, 2)
+  status         ExerciseStatus @default(DRAFT)
+  cancelReason   String         @default("")
+
+  // Method (FR-MTD-004, 005, 010).
+  sourcingMethodCode String
+  proposedMethodCode String?
+  methodReason       String  @default("")
+  externalRouteNote  String  @default("")
+  parentContractRef  String?
+
+  // Bands, as determined on the last save (FR-MTD-001, 003).
+  authorityMatrixId    String?
+  matrixLabel          String?
+  regime               String?
+  requisitionRuleKey   String?
+  requisitionRuleLabel String?
+  appointmentRuleKey   String?
+  appointmentState     String?
+  termsBandKey         String?
+  termsState           String?
+  boundaryValue        Decimal?          @db.Decimal(18, 2)
+  boundaryOperator     BoundaryOperator?
+  onBoundary           Boolean           @default(false)
+  boundaryRuled        Boolean?
+  boundaryProvenance   Provenance?
+  bandSnapshot         Json              @default("{}")
+  bandWarnings         Json              @default("[]")
+  determinedAt         DateTime?
+
+  // Contract type and basis (FR-MTD-011, 013).
+  contractTypeCode           String?
+  derivedContractTypeCode    String?
+  derivationState            String?
+  dominantSharePct           Decimal?           @db.Decimal(9, 4)
+  contractTypeState          ContractTypeState?
+  contractTypeOverrideReason String             @default("")
+  overriddenByPersonId       String?
+  overriddenBy               Person?            @relation("TypeOverriddenBy", fields: [overriddenByPersonId], references: [id], onDelete: Restrict)
+  contractBasisCode          String?
+  /// Set on award (6.11). After it, the type changes only by a controlled change.
+  classificationLockedAt     DateTime?
+
+  // Justification and dossier (FR-MTD-005, 009).
+  justificationReasonCode String?
+  justificationText       String  @default("")
+  evidenceNote            String  @default("")
+  dossierReference        String?
+
+  // Emergency coordination record (FR-REQ-013).
+  emergencyTrigger      String    @default("")
+  coordinationMeetingOn DateTime?
+  coordinationAttendees String    @default("")
+  coordinationScopeNote String    @default("")
+  bqReference           String?
+
+  // Proposal (FR-MTD-006).
+  proposalState            ProposalState?
+  proposalSubmittedOn      DateTime?
+  proposalReviewedOn       DateTime?
+  proposalReviewerPersonId String?
+  proposalReviewer         Person?        @relation("ProposalReviewer", fields: [proposalReviewerPersonId], references: [id], onDelete: Restrict)
+  proposalReviewComment    String         @default("")
+
+  /// The method's restriction as it stood (FR-MTD-007). Not enforced until sign-in.
+  restricted Boolean @default(false)
+
+  /// The decided record, written on the move into preparation; the exercise renders
+  /// from it afterwards, whatever later happens to the configuration.
+  classificationSnapshot Json?
+  preparedAt             DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  scopeParts        ExerciseScopePart[]
+  proposalAnswers   ExerciseProposalAnswer[]
+  taxonomyValues    ExerciseTaxonomyValue[]
+  participants      ExerciseParticipant[]
+  approvalInstances ApprovalInstance[]
+
+  @@unique([organisationId, reference])
+  @@unique([organisationId, dossierReference])
+  @@index([organisationId, status])
+  @@index([requisitionId])
+}
+
+model ExerciseScopePart {
+  id         String           @id @default(cuid())
+  exerciseId String
+  exercise   SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  deliverableKind DeliverableKind
+  amount          Decimal         @db.Decimal(18, 2)
+  description     String          @default("")
+  sortOrder       Int             @default(0)
+}
+
+model ExerciseProposalAnswer {
+  id         String           @id @default(cuid())
+  exerciseId String
+  exercise   SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  itemKey    String
+  text       String
+  answeredAt DateTime @default(now())
+
+  @@unique([exerciseId, itemKey])
+}
+
+model ExerciseTaxonomyValue {
+  id         String           @id @default(cuid())
+  exerciseId String
+  exercise   SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  taxonomyCode String
+  valueCode    String
+  pick         TaxonomyPick
+
+  @@unique([exerciseId, taxonomyCode])
+}
+
+/// A named participant of a restricted exercise (FR-MTD-007).
+model ExerciseParticipant {
+  id         String           @id @default(cuid())
+  exerciseId String
+  exercise   SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  personId   String
+  person     Person           @relation(fields: [personId], references: [id], onDelete: Restrict)
+  capacity   String           @default("")
+
+  @@unique([exerciseId, personId])
 }
