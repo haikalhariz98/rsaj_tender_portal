@@ -29,6 +29,8 @@ export interface RouteSnap {
   committee: string | null;
   committeeAct: string | null;
   chain: ChainStepSnap[];
+  /// The comparison the rule applied at the boundary; null where no edge sits there.
+  boundaryOperator?: BoundaryOperator | null;
   /// The funder's rule set that routed it, where one did.
   overrideLabel: string | null;
   warnings: { level: string; text: string }[];
@@ -51,6 +53,7 @@ export interface BandSnapshot {
     insuranceNote: string;
     clause: string | null;
     provenance: Provenance | null;
+    boundaryOperator?: BoundaryOperator | null;
   };
   boundary: { value: number; operator: BoundaryOperator; onBoundary: boolean; ruled: boolean; provenance: Provenance; source: string };
 }
@@ -67,6 +70,7 @@ export function bandSnapshot(
     committee: a.committeeCode ? ctx.name(a.committeeCode) : null,
     committeeAct: a.committeeAct,
     chain: a.chain.map((s) => ({ role: ctx.name(s.roleCode), act: s.act, committee: !!s.committeeCode })),
+    boundaryOperator: a.boundaryOperator,
     overrideLabel: a.overrideIssue?.label ?? null,
     warnings: a.warnings.map((w) => ({ level: w.level, text: w.messageEn })),
   });
@@ -87,6 +91,7 @@ export function bandSnapshot(
       insuranceNote: d.terms.band?.insuranceNote ?? "",
       clause: d.terms.band?.clause ?? null,
       provenance: d.terms.band?.provenance ?? null,
+      boundaryOperator: d.terms.boundaryOperator,
     },
     boundary: { value: d.boundary.boundaryValue, operator: d.boundary.operator, onBoundary: d.boundary.onBoundary, ruled: d.boundary.ruled, provenance: d.boundary.provenance, source: ctx.boundarySource },
   };
@@ -117,6 +122,12 @@ export interface ClassificationSnapshot {
   policy: { dominanceSharePct: string | null; provenance: Provenance | null };
   basis: { code: string; nameEn: string; standardFormLabel: string | null };
   taxonomies: { taxonomy: string; state: TaxonomyState; value: string | null }[];
+  /// Names as they read when decided (review #6): the reason, and the offices the
+  /// profile names.
+  justification?: { reasonName: string | null };
+  offices?: Record<string, string>;
+  /// Who approves the appointment, as it stood — kept even as a gap (ruling on BD-3).
+  appointment?: { state: string; ruleLabel: string | null };
 }
 
 export function isClassificationSnapshot(x: unknown): x is ClassificationSnapshot {
@@ -138,6 +149,7 @@ export function classificationSnapshotOf(
   basisCode: string | null,
   committeeName: (code: string) => string,
   profile: (t: import("./types").ContractTypeRow) => { key: BehaviourKey; value: BehaviourValue }[],
+  extra: { reasonName: string | null; appointment: { state: string; ruleLabel: string | null } } = { reasonName: null, appointment: { state: "NO_RULE", ruleLabel: null } },
 ): ClassificationSnapshot | null {
   const m = ev.method;
   const t = cfg.types.find((x) => x.code === ev.type.code);
@@ -172,6 +184,9 @@ export function classificationSnapshotOf(
     },
     policy: { dominanceSharePct: cfg.policy.dominanceSharePct, provenance: cfg.policy.provenance },
     basis: { code: b.code, nameEn: b.nameEn, standardFormLabel: b.standardFormLabel },
+    justification: { reasonName: extra.reasonName },
+    offices: Object.fromEntries([...t.administratorRoleCodes, ...(t.claimsApprovalCommitteeCode ? [t.claimsApprovalCommitteeCode] : [])].map((c) => [c, committeeName(c)])),
+    appointment: extra.appointment,
     taxonomies: ev.taxonomies.map((x) => {
       const tax = cfg.taxonomies.find((y) => y.code === x.taxonomyCode);
       return { taxonomy: tax?.nameEn ?? "A classification no longer configured", state: x.state, value: x.valueCode ? (tax?.values.find((v) => v.code === x.valueCode)?.nameEn ?? "A value no longer configured") : null };
@@ -210,3 +225,19 @@ export function determinationColumns(ev: Evaluation, issue: { id: string; label:
   };
 }
 
+
+/**
+ * The twelve behaviours as the screen shows them: from the decided record once there
+ * is one — its values and the office names as they read then — else from the type now.
+ */
+export function profileRows(
+  decided: ClassificationSnapshot | null,
+  live: { key: BehaviourKey; value: BehaviourValue }[] | null,
+  liveOfficeName: (code: string) => string,
+): { key: BehaviourKey; value: BehaviourValue; offices: (code: string) => string }[] | null {
+  if (decided) {
+    const names = decided.offices ?? {};
+    return decided.contractType.profile.map((b) => ({ ...b, offices: (c: string) => names[c] ?? "An office as it then stood" }));
+  }
+  return live ? live.map((b) => ({ ...b, offices: liveOfficeName })) : null;
+}

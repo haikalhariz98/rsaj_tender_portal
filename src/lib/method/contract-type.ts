@@ -47,11 +47,15 @@ export function defaultContractType(
   const byKind = new Map<DeliverableKind, Sen>();
   for (const p of parts) byKind.set(p.kind, (byKind.get(p.kind) ?? 0n) + p.amount);
   const total = addSen(...byKind.values());
-  const [kind, dominant] = [...byKind.entries()].sort((a, b) => (b[1] > a[1] ? 1 : b[1] < a[1] ? -1 : 0))[0];
+  const ranked = [...byKind.entries()].sort((a, b) => (b[1] > a[1] ? 1 : b[1] < a[1] ? -1 : 0));
+  const [kind, dominant] = ranked[0];
   const share = total > 0n ? (dominant * 100n * SCALE) / total : 0n;
   const sharePct = formatPct(share);
   if (byKind.size > 1) {
     if (policy.dominanceSharePct == null) return { state: "THRESHOLD_NOT_SET", code: null, kind, sharePct };
+    // Two deliverables of equal largest value: neither dominates, whatever the order
+    // they were entered in (review #3).
+    if (ranked[1][1] === dominant) return { state: "MIXED_NO_DOMINANT", code: null, kind: null, sharePct };
     // Strictly above: dominant / total > threshold / 100, cross-multiplied in integers.
     const above = dominant * 100n * SCALE > parsePct(policy.dominanceSharePct) * total;
     if (!above) return { state: "MIXED_NO_DOMINANT", code: null, kind, sharePct };

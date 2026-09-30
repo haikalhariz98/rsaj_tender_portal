@@ -103,3 +103,65 @@ describe("a method not tied to the matrix", () => {
     expect(m("specialist").requiresJustification).toBe(true);
   });
 });
+
+describe("name routes opened the same day (review #4)", () => {
+  it("are ordered by the day, then by when they were written", async () => {
+    const { latestFirst } = await import("./approval");
+    const day = new Date("2026-09-21");
+    const a = { id: "a", openedAt: day, createdAt: new Date("2026-09-21T02:00:00Z") };
+    const b = { id: "b", openedAt: day, createdAt: new Date("2026-09-21T05:00:00Z") };
+    expect(latestFirst([a, b]).map((x) => x.id)).toEqual(["b", "a"]);
+    expect(latestFirst([b, a]).map((x) => x.id)).toEqual(["b", "a"]);
+    const approvedEarlier = { status: "APPROVED" as const, openedAt: day, createdAt: new Date("2026-09-21T02:00:00Z") };
+    const pendingLater = { status: "PENDING" as const, openedAt: day, createdAt: new Date("2026-09-21T05:00:00Z") };
+    expect(invitationFault(m("selected_tender"), [approvedEarlier, pendingLater])?.code).toBe("NAME_NOT_APPROVED");
+  });
+});
+
+describe("a name route's label (ruling on BD-5)", () => {
+  it("reads a route withdrawn on change as such, never recalled", async () => {
+    const { nameRouteLabel } = await import("./approval");
+    expect(nameRouteLabel("RECALLED", [{ code: "WITHDRAWN_ON_CHANGE" }])).toBe("Withdrawn on change");
+    expect(nameRouteLabel("RECALLED", [{ code: "WITHDRAWN_ON_CANCEL" }])).toBe("Withdrawn: exercise cancelled");
+    expect(nameRouteLabel("RECALLED", null)).not.toMatch(/recall/i);
+    expect(nameRouteLabel("PENDING", [])).toBe("In progress");
+  });
+});
+
+describe("requesting the name (ruling on BD-4)", () => {
+  it("is allowed in preparation, and again after a refusal or withdrawal", async () => {
+    const { nameRequestFault } = await import("./approval");
+    expect(nameRequestFault("DOCUMENTS_IN_PREPARATION", m("selected_tender"), [], "2026-09-30")).toBeNull();
+    expect(nameRequestFault("DRAFT", m("selected_tender"), [{ status: "REJECTED" }, { status: "RECALLED" }], "2026-09-30")).toBeNull();
+  });
+  it("is refused while one is open or approved, on a cancelled exercise, or for a method that does not ask", async () => {
+    const { nameRequestFault } = await import("./approval");
+    expect(nameRequestFault("DOCUMENTS_IN_PREPARATION", m("selected_tender"), [{ status: "PENDING" }], "2026-09-30")?.code).toBe("NAME_ALREADY_REQUESTED");
+    expect(nameRequestFault("DRAFT", m("selected_tender"), [{ status: "APPROVED" }], "2026-09-30")?.code).toBe("NAME_ALREADY_REQUESTED");
+    expect(nameRequestFault("CANCELLED", m("selected_tender"), [], "2026-09-30")?.code).toBe("NAME_EXERCISE_CANCELLED");
+    expect(nameRequestFault("DRAFT", m("open_tender"), [], "2026-09-30")?.code).toBe("NAME_NOT_ASKED");
+    expect(nameRequestFault("DRAFT", m("selected_tender"), [], null)?.code).toBe("TIME_ZONE_UNSET");
+  });
+});
+
+describe("a requester who holds a step of the name's route (review #5)", () => {
+  it("escalates the approval as 6.1's self-approval rule does", async () => {
+    const { nameRouteForRequester } = await import("./approval");
+    const dal = { ...SPEC_MATRIX, roles: { ...SPEC_MATRIX.roles, FD: { ...SPEC_MATRIX.roles.FD, selfApprovalEscalatesToCode: "CEO" } } };
+    const r = nameRouteForRequester({ ...ctx, dal }, m("selective_quotation"), 80_000, { holds: (c) => c === "FD", soleHolder: () => false });
+    expect(r.refusal).toBeNull();
+    expect(r.approverCode).toBe("CEO");
+    expect(chain(r)).toContain("FD:R");
+  });
+  it("refuses at request time, naming the setting, when there is nowhere to escalate", async () => {
+    const { nameRouteForRequester } = await import("./approval");
+    const r = nameRouteForRequester(ctx, m("selective_quotation"), 80_000, { holds: (c) => c === "FD", soleHolder: () => false });
+    expect(r.refusal).toMatch(/self-approval escalates/);
+  });
+  it("says so where only a delegate could decide a step the requester alone holds", async () => {
+    const { nameRouteForRequester } = await import("./approval");
+    const r = nameRouteForRequester(ctx, m("selective_quotation"), 80_000, { holds: (c) => c === "HODIV", soleHolder: (c) => c === "HODIV" });
+    expect(r.refusal).toBeNull();
+    expect(r.warnings.map((w) => w.code as string)).toContain("REQUESTER_HOLDS_STEP");
+  });
+});

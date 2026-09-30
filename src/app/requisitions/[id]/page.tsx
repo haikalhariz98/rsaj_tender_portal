@@ -597,6 +597,13 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                     )
                   }
                 />
+                {r.status === "SOURCING" && exercises.every((x) => x.status === "CANCELLED") && (
+                  <div className="border-b border-line px-5 py-3 sm:px-6">
+                    <Callout tone="warn" title="No live exercise">
+                      Every exercise on this requisition has been cancelled. It stays in sourcing — the portal has no path back to approved, nor to abandon an approved requisition — so open a new exercise against it.
+                    </Callout>
+                  </div>
+                )}
                 {exercises.length === 0 ? (
                   <EmptyState size="sm" title="No exercises">
                     {exerciseFault ? findingText(exerciseFault) : "Open one to classify how this requisition is sourced."}

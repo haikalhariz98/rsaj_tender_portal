@@ -20,7 +20,10 @@ describe("exercises may not outgrow their requisition's approval (ruling R-16)",
     expect(text).toMatch(/RM330,000\.01/);
     expect(text).toMatch(/Reduce this exercise's value/);
     expect(text).toMatch(/cancel a sibling exercise/);
-    expect(text).toMatch(/cancel and raise a new requisition/);
+    expect(text).toMatch(/cancel this exercise and raise a separate requisition/);
+    // 6.1 has no path to abandon a requisition: the exits never read as cancelling it (ruling on BD-1).
+    expect(text).not.toMatch(/cancel (the|this) requisition/i);
+    expect(text).toMatch(/The requisition itself stays as approved/);
   });
   it("exactly the approved value passes, and cancelled siblings do not count", () => {
     expect(codes(exerciseValueFaults(approved, [sib("a", "300000.00"), sib("b", "21000.00")], draft("9000.00"), SPEC_MATRIX.policy))).not.toContain("EXCEEDS_APPROVED_VALUE");

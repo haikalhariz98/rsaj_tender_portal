@@ -75,6 +75,9 @@ export interface AppointmentPreview {
   committeeCode: string | null;
   committeeAct: string | null;
   chain: ApprovalStep[];
+  /// The comparison the matched rule applied at the boundary; null where no edge of it
+  /// sits there.
+  boundaryOperator: "GT" | "GTE" | null;
   source: "DAL" | "OVERRIDE";
   overrideIssue: { id: string; label: string } | null;
   /// The engine's warnings, already worded.
@@ -91,6 +94,7 @@ const EMPTY = (state: AppointmentState, methodCode: string | null): AppointmentP
   committeeCode: null,
   committeeAct: null,
   chain: [],
+  boundaryOperator: null,
   source: "DAL",
   overrideIssue: null,
   warnings: [],
@@ -111,6 +115,7 @@ function preview(ctx: FunderContext, domain: string, method: Method, value: numb
     committeeCode: rule.committeeCode,
     committeeAct: rule.committeeAct,
     chain: r.resolution.chain,
+    boundaryOperator: r.resolution.boundaryOperator,
     source: r.source,
     overrideIssue: r.overrideIssue,
     warnings: r.warnings,
@@ -145,18 +150,104 @@ export function resolveNameApproval(ctx: FunderContext, method: Method, value: n
 
 export type NameFault = "NAME_NOT_REQUESTED" | "NAME_NOT_APPROVED" | "NAME_REJECTED";
 
+type RouteOrder = { openedAt: Date; createdAt?: Date | null };
+
+/// Routes newest first: by the day opened, then by when written — two routes opened on
+/// the same day are never ordered by chance.
+export function latestFirst<T extends RouteOrder>(instances: readonly T[]): T[] {
+  return [...instances].sort((a, b) => b.openedAt.getTime() - a.openedAt.getTime() || (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
+}
+
 /**
  * Whether invitation may proceed as far as the name goes (FR-MTD-008). Built and
  * tested here; enforced by 6.5, which invites. Reads the latest name-approval route.
  */
 export function invitationFault(
   method: Pick<Method, "requiresNameApproval">,
-  instances: readonly { status: "PENDING" | "APPROVED" | "REJECTED" | "RECALLED"; openedAt: Date }[],
+  instances: readonly ({ status: "PENDING" | "APPROVED" | "REJECTED" | "RECALLED" } & RouteOrder)[],
 ): Finding<NameFault> | null {
   if (!method.requiresNameApproval) return null;
-  const latest = [...instances].sort((a, b) => b.openedAt.getTime() - a.openedAt.getTime())[0];
+  const latest = latestFirst(instances)[0];
   if (!latest || latest.status === "RECALLED") return { code: "NAME_NOT_REQUESTED", level: "block" };
   if (latest.status === "PENDING") return { code: "NAME_NOT_APPROVED", level: "block" };
   if (latest.status === "REJECTED") return { code: "NAME_REJECTED", level: "block" };
   return null;
+}
+
+/// Warning codes a name route is closed with, so its label says why it closed.
+export const WITHDRAWN_ON_CHANGE = "WITHDRAWN_ON_CHANGE";
+export const WITHDRAWN_ON_CANCEL = "WITHDRAWN_ON_CANCEL";
+
+/// A name route's status in words. A route withdrawn because the exercise changed reads
+/// "Withdrawn on change", never "recalled" (6.3 ruling on BD-5).
+export function nameRouteLabel(status: string, warnings: unknown): string {
+  const codes = Array.isArray(warnings) ? warnings.map((w) => (w as { code?: unknown })?.code) : [];
+  if (status === "RECALLED") {
+    if (codes.includes(WITHDRAWN_ON_CHANGE)) return "Withdrawn on change";
+    if (codes.includes(WITHDRAWN_ON_CANCEL)) return "Withdrawn: exercise cancelled";
+    return "Withdrawn";
+  }
+  return ({ PENDING: "In progress", APPROVED: "Approved", REJECTED: "Refused" } as Record<string, string>)[status] ?? "Closed";
+}
+
+export type NameRequestFault = "NAME_EXERCISE_CANCELLED" | "NAME_NOT_ASKED" | "NAME_ALREADY_REQUESTED" | "TIME_ZONE_UNSET";
+
+/**
+ * Whether the name may be sent for approval now. While the exercise is a draft or in
+ * preparation (it gates invitation, not preparation — ruling on BD-4), and again after
+ * a route was refused or withdrawn; never while one is open or approved.
+ */
+export function nameRequestFault(
+  status: "DRAFT" | "DOCUMENTS_IN_PREPARATION" | "CANCELLED",
+  method: Pick<Method, "requiresNameApproval"> | null,
+  instances: readonly { status: string }[],
+  today: string | null,
+): Finding<NameRequestFault> | null {
+  if (status === "CANCELLED") return { code: "NAME_EXERCISE_CANCELLED", level: "block" };
+  if (!method?.requiresNameApproval) return { code: "NAME_NOT_ASKED", level: "block" };
+  if (today == null) return { code: "TIME_ZONE_UNSET", level: "block" };
+  if (instances.some((i) => i.status === "PENDING" || i.status === "APPROVED")) return { code: "NAME_ALREADY_REQUESTED", level: "block" };
+  return null;
+}
+
+/**
+ * The name's route with the requester in mind (6.1's rule, reused). Where the
+ * requisition's requester holds the approving office, the engine's self-approval rule
+ * escalates it; with nowhere to escalate, the route is refused naming the setting.
+ * Any other step whose office only the requester holds could be decided only by a
+ * delegate: said, as a warning on the route.
+ */
+export function nameRouteForRequester(
+  ctx: FunderContext,
+  method: Method,
+  value: number,
+  requester: { holds: (roleCode: string) => boolean; soleHolder: (roleCode: string) => boolean },
+): (AppointmentPreview & { nameState: NameApprovalState }) & { refusal: string | null } {
+  let r = resolveNameApproval(ctx, method, value);
+  if (r.nameState !== "RESOLVED") return { ...r, refusal: null };
+  if (r.approverCode && requester.holds(r.approverCode)) {
+    const self = r.approverCode;
+    const q = { domain: NAME_APPROVAL_DOMAIN, method: method.authorityMethodKey, value, actorRoleCode: self };
+    const e = resolveUnderFunder(ctx, q);
+    const refused = e.warnings.find((w) => w.code === "SELF_APPROVAL" && w.level === "err");
+    if (refused || !e.resolution.approverCode) {
+      const name = ctx.dal.roles[self]?.nameEn ?? "the approving office";
+      return { ...r, refusal: `The requisition's requester holds the office that approves the name (${name}), and no office is set to approve in its place. Set where self-approval escalates to for that office under Users & roles, then request again.` };
+    }
+    r = {
+      ...r,
+      approverCode: e.resolution.approverCode,
+      chain: e.resolution.chain,
+      warnings: e.warnings,
+    };
+  }
+  const only = r.chain.filter((s) => !s.committeeCode && requester.soleHolder(s.roleCode));
+  const notes = only.map((s) => ({
+    code: "REQUESTER_HOLDS_STEP",
+    level: "warn" as const,
+    messageEn: `The requisition's requester is the only holder of the ${ctx.dal.roles[s.roleCode]?.nameEn ?? "office"} step and may not decide it: only a delegate of that office can.`,
+    messageMs: "Pemohon ialah satu-satunya pemegang jawatan ini; hanya wakil boleh memutuskan.",
+  }));
+  // A warning of this module, not of the engine: worded, and rendered by its text.
+  return { ...r, warnings: [...r.warnings, ...(notes as unknown as ResolutionWarning[])], refusal: null };
 }

@@ -39,3 +39,25 @@ describe("the decided record (snapshot on the move into preparation)", () => {
     expect(classificationSnapshotOf({ ...ev, method: null }, cfg, "DS", (c) => c, behaviourProfile)).toBeNull();
   });
 });
+
+describe("the decided record renders from itself, not from today's configuration (review #6)", () => {
+  const cfg = { types: SPEC_TYPES, bases: SPEC_BASES, taxonomies: SPEC_TAXONOMIES, policy: { dominanceSharePct: null, provenance: null } };
+  const ev = { method: SPEC_METHODS[0], derivation: { state: "DERIVED", code: "WORK", sharePct: "100.0000" }, type: { state: "DERIVED" as const, code: "WORK" }, taxonomies: [] };
+  it("keeps the reason's name, the offices' names and the appointment route — even a gap", async () => {
+    const { profileRows } = await import("./snapshot");
+    const s = classificationSnapshotOf(ev, cfg, "BQ", (c) => `Office ${c} as then`, behaviourProfile, { reasonName: "Sole distributor", appointment: { state: "NO_RULE", ruleLabel: null } })!;
+    expect(s.justification?.reasonName).toBe("Sole distributor");
+    expect(s.appointment).toEqual({ state: "NO_RULE", ruleLabel: null });
+    const rows = profileRows(s, behaviourProfile(SPEC_TYPES[1]), () => "Office renamed today")!;
+    const admin = rows.find((r) => r.key === "administratorRoleCodes")!;
+    expect(admin.value).toEqual(["SO", "PD"]);
+    expect(admin.offices("SO")).toBe("Office SO as then");
+    expect(rows.find((r) => r.key === "nominationAllowed")?.value).toBe(true);
+  });
+  it("before it is decided, the type in force renders", async () => {
+    const { profileRows } = await import("./snapshot");
+    const rows = profileRows(null, behaviourProfile(SPEC_TYPES[2]), () => "Now")!;
+    expect(rows.find((r) => r.key === "nominationAllowed")?.value).toBe(false);
+    expect(rows[0].offices("x")).toBe("Now");
+  });
+});

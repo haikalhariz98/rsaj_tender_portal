@@ -105,7 +105,8 @@ const exerciseInclude = {
   overriddenBy: { select: { id: true, name: true } },
   proposalReviewer: { select: { id: true, name: true } },
   approvalInstances: {
-    orderBy: { openedAt: "desc" as const },
+    // Newest first, same-day routes by when written (review #4).
+    orderBy: [{ openedAt: "desc" as const }, { createdAt: "desc" as const }],
     include: {
       steps: {
         orderBy: { sequence: "asc" as const },

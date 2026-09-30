@@ -183,3 +183,29 @@ describe("a funder that supersedes the limits (FR-REQ-006 partition)", () => {
     expect(d.appointment.warnings.map((w) => w.code)).not.toContain("GOV_OVERRIDE");
   });
 });
+
+describe("the comparison a rule or band applied on the boundary (review #7)", () => {
+  const ignoring: Matrix = {
+    ...withSwitch(false),
+    rules: SPEC_MATRIX.rules.map((r) => (r.ruleKey === "DA_300K" || r.ruleKey === "DA_3M" ? { ...r, followsBoundarySwitch: false } : r)),
+  };
+  it("is recorded with the case", () => {
+    const d = bands("300000.00", { method: m("direct") }, withSwitch(false));
+    expect(d.appointment.ruleKey).toBe("DA_3M");
+    expect(d.appointment.boundaryOperator).toBe("GTE");
+    expect(d.findings.map((f) => f.code)).not.toContain("REGIME_RULE_DISAGREE");
+  });
+  it("a rule that ignores the switch while the regime follows it is carried as a disagreement", () => {
+    const d = bands("300000.00", { method: m("direct") }, ignoring);
+    expect(d.regime).toBe("tender");
+    expect(d.appointment.ruleKey).toBe("DA_300K");
+    expect(d.appointment.boundaryOperator).toBe("GT");
+    expect(d.findings.find((f) => f.code === "REGIME_RULE_DISAGREE")?.data?.kind).toBe("rule");
+  });
+  it("so is a terms band that does", () => {
+    const edge = [{ ...SPEC_TERMS[0], bandKey: "E", regime: null, maxValue: 300_000, followsBoundarySwitch: false }];
+    const d = bands("300000.00", { termsBands: edge }, withSwitch(false));
+    expect(d.terms.boundaryOperator).toBe("GT");
+    expect(d.findings.find((f) => f.code === "REGIME_RULE_DISAGREE")?.data?.kind).toBe("terms");
+  });
+});

@@ -4,18 +4,19 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import type { FormState } from "@/components/record-editor";
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { diffFields, snapshotFields, type FieldChange } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { ACT_LABEL } from "@/lib/labels";
-import { resolveNameApproval } from "@/lib/method/approval";
+import { nameRequestFault, nameRouteForRequester, WITHDRAWN_ON_CANCEL, WITHDRAWN_ON_CHANGE } from "@/lib/method/approval";
+import { determinationDrift } from "@/lib/method/drift";
 import { keptForMethod, nameRoutesToWithdraw } from "@/lib/method/config";
 import { evaluateExercise, saveBlockers, type Evaluation, type ExerciseDraft } from "@/lib/method/evaluate";
 import { transitionFault, openFault } from "@/lib/method/exercise";
 import { findingText, EXERCISE_STATUS_LABEL } from "@/lib/method/labels";
 import { behaviourProfile } from "@/lib/method/profile";
-import { nameRequestProposalFault, proposalFaults, proposalStateFor, proposalTransition } from "@/lib/method/proposal";
+import { nameRequestProposalFault, proposalFaults, proposalRecordOf, proposalStateFor, proposalTransition } from "@/lib/method/proposal";
 import { classificationSnapshotOf, determinationColumns } from "@/lib/method/snapshot";
 import {
   evaluationContext,
@@ -346,11 +347,13 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
     const on = dayToDate(l.org.today);
     const methodChanged = ex.sourcingMethodCode !== v.draft.methodCode;
     const valueChanged = parseSen(ex.estimatedValue.toString()) !== v.draft.value;
-    const after = {
+    const after: Prisma.SourcingExerciseUpdateManyMutationInput & Record<string, unknown> = {
       title: v.title,
       estimatedValue: senToDecimalString(v.draft.value),
-      proposalState: proposalStateFor(ev.method!.requiresProposal, ex.proposalState, methodChanged),
-      ...(methodChanged ? { proposalSubmittedOn: null, proposalReviewedOn: null, proposalReviewerPersonId: null, proposalReviewComment: "" } : {}),
+      // A change of method or value re-opens the proposal as a draft (ruling on BD-5):
+      // answers are kept, the submission and review go.
+      proposalState: proposalStateFor(ev.method!.requiresProposal, ex.proposalState, methodChanged || valueChanged),
+      ...(methodChanged || valueChanged ? { proposalSubmittedOn: null, proposalReviewedOn: null, proposalReviewerPersonId: null, proposalReviewComment: "", proposalRecord: Prisma.DbNull } : {}),
       ...determinationColumns(ev, issue, methodNameOf(cfg.config), on),
       ...methodColumns(v, ev),
     };
@@ -360,7 +363,7 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
     await writeChildren(tx, l.org.id, ex, ex, v.draft.scope, ev, cfg.config);
     const withdraw = nameRoutesToWithdraw(ex.approvalInstances, { methodChanged, valueChanged });
     for (const inst of withdraw.routes) {
-      const warning = { code: "WITHDRAWN_ON_CHANGE", level: "warn", messageEn: `${withdraw.reason} This route no longer describes the exercise, so it was withdrawn.` };
+      const warning = { code: WITHDRAWN_ON_CHANGE, level: "warn", messageEn: `${withdraw.reason} This route no longer describes the exercise, so it was withdrawn.` };
       await tx.approvalInstance.update({
         where: { id: inst.id },
         data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue },
@@ -438,7 +441,9 @@ export async function submitProposal(_prev: FormState, data: FormData): Promise<
     const faults = proposalFaults(cfg.checklist[ex.sourcingMethodCode] ?? [], ex.proposalAnswers, on);
     const t = proposalTransition(ex.proposalState, "SUBMITTED", { faults, today: l.org.today });
     if (t.length > 0) return refuse(t, "The proposal cannot be submitted:");
-    await tx.sourcingExercise.update({ where: { id }, data: { proposalState: "SUBMITTED", proposalSubmittedOn: on } });
+    // The proposal as submitted, item by item, so its review renders what was reviewed.
+    const record = proposalRecordOf(cfg.checklist[ex.sourcingMethodCode] ?? [], ex.proposalAnswers, on);
+    await tx.sourcingExercise.update({ where: { id }, data: { proposalState: "SUBMITTED", proposalSubmittedOn: on, proposalRecord: record as unknown as Prisma.InputJsonValue } });
     await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", diffFields({ proposalState: ex.proposalState }, { proposalState: "SUBMITTED", proposalSubmittedOn: on }));
     return { ok: true };
   });
@@ -462,7 +467,8 @@ export async function reviewProposal(_prev: FormState, data: FormData): Promise<
     const t = proposalTransition(ex.proposalState, outcome, { faults: [], reviewerPersonId: person?.id ?? null, on: storedDay(on), today: l.org.today });
     if (t.length > 0) return refuse(t, "The review was not recorded:");
     const after = { proposalState: outcome, proposalReviewedOn: outcome === "REVIEWED" ? on : null, proposalReviewerPersonId: person!.id, proposalReviewComment: comment };
-    await tx.sourcingExercise.update({ where: { id }, data: after });
+    // Returned for amendment: it is being prepared again, and the next submission records it anew.
+    await tx.sourcingExercise.update({ where: { id }, data: { ...after, ...(outcome === "DRAFT" ? { proposalRecord: Prisma.DbNull } : {}) } });
     await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE",
       diffFields({ proposalState: ex.proposalState, proposalReviewComment: ex.proposalReviewComment }, { ...after, proposalReviewerPersonId: undefined, reviewedBy: person!.name, recordedOnBehalf: "not signed" }), comment);
     return { ok: true };
@@ -482,17 +488,30 @@ export async function requestNameApproval(_prev: FormState, data: FormData): Pro
   const id = String(data.get("id") ?? "");
   return inExercise(id, async (tx, l) => {
     const ex = l.ex;
-    if (ex.status !== "DRAFT") return { ok: false, message: "The name is sent for approval while the exercise is a draft." };
-    if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }], "Not sent:");
-    if (ex.approvalInstances.some((i) => i.status === "PENDING" || i.status === "APPROVED")) return refuse([{ code: "NAME_ALREADY_REQUESTED", level: "block" }], "Not sent:");
     const { issue, ctx, cfg } = await evaluationContext(l.org, l.req, ex, tx);
     if (!issue || !ctx) return NO_ISSUE;
-    const method = cfg.config.methods.find((m) => m.code === ex.sourcingMethodCode);
-    if (!method?.requiresNameApproval) return { ok: false, message: "This exercise's method does not ask for approval of the name." };
-    const pf = nameRequestProposalFault(method.requiresProposal, ex.proposalState);
+    const method = cfg.config.methods.find((m) => m.code === ex.sourcingMethodCode) ?? null;
+    // In draft or in preparation, and again after a refusal or withdrawal (ruling on BD-4).
+    const rf = nameRequestFault(ex.status, method, ex.approvalInstances, l.org.today);
+    if (rf) return refuse([rf], "Not sent:");
+    const pf = nameRequestProposalFault(method!.requiresProposal, ex.proposalState);
     if (pf) return refuse([pf], "Not sent:");
     const value = parseSen(ex.estimatedValue.toString());
-    const res = resolveNameApproval(ctx.funder, method, Number(senToDecimalString(value)));
+    // The requester is barred from deciding: where they hold a step's office, the
+    // approval escalates, or the route says only a delegate can decide (review #5).
+    const [roster, delegations] = [await loadRoster(ORGANISATION_CODE, tx), await loadDelegations(ORGANISATION_CODE, tx)];
+    const units = (await tx.orgUnit.findMany({ where: { organisationId: l.org.id } })) as unknown as OrgUnit[];
+    const unitPath = pathTo(units, l.req.sectionUnitCode || l.req.requestingUnitCode, dayToDate(l.org.today!)).reverse().map((u) => u.code);
+    const holders = (code: string) => holdersFor(code, unitPath, roster, delegations, l.org.today!);
+    const requesterId = l.req.requestingPersonId;
+    const res = nameRouteForRequester(ctx.funder, method!, Number(senToDecimalString(value)), {
+      holds: (code) => holders(code).holderIds.includes(requesterId),
+      soleHolder: (code) => {
+        const h = holders(code);
+        return h.holderIds.length > 0 && h.holderIds.every((x) => x === requesterId);
+      },
+    });
+    if (res.refusal) return { ok: false, message: `Not sent: ${res.refusal}` };
     if (res.nameState !== "RESOLVED") {
       const { NAME_STATE_TEXT } = await import("@/lib/method/labels");
       return refuse([{ code: "NAME_ROUTE_UNAVAILABLE", level: "block", data: { text: NAME_STATE_TEXT[res.nameState] } }], "Not sent:");
@@ -502,7 +521,7 @@ export async function requestNameApproval(_prev: FormState, data: FormData): Pro
     const src = res.source === "OVERRIDE" && ctx.funder.override ? ctx.funder.override : { id: issue.id, label: issue.label, matrix: issue.matrix };
     const rule = (src.matrix.rules.find((x) => x.ruleKey === res.ruleKey) ?? null)!;
     const roleLabel = (code: string) => src.matrix.roles[code]?.nameEn ?? issue.matrix.roles[code]?.nameEn ?? "An office no longer configured";
-    const on = dayToDate(l.org.today);
+    const on = dayToDate(l.org.today!);
     const { boundaryOperatorFor } = await import("@/lib/authority/resolve");
     const instance = await tx.approvalInstance.create({
       data: {
@@ -632,7 +651,15 @@ export async function moveToPreparation(_prev: FormState, data: FormData): Promi
       if (t.length > 0 || blocking.length > 0) return refuse([...t, ...blocking], "Not moved into preparation:");
       const on = dayToDate(l.org.today!);
       const committeeName = (code: string) => issue.matrix.roles[code]?.nameEn ?? "A committee no longer configured";
-      const snapshot = classificationSnapshotOf(ev, cfg.config, ex.contractBasisCode, committeeName, behaviourProfile);
+      // What the configuration now judges differently is not rewritten unseen: refused,
+      // with a re-save asked for, which audits it (review #2).
+      const fresh = determinationColumns(ev, issue, methodNameOf(cfg.config), on);
+      const drift = determinationDrift(ex, fresh);
+      if (drift.length > 0) return refuse(drift, "Not moved into preparation:");
+      const snapshot = classificationSnapshotOf(ev, cfg.config, ex.contractBasisCode, committeeName, behaviourProfile, {
+        reasonName: cfg.config.reasons.find((r) => r.code === ex.justificationReasonCode)?.nameEn ?? null,
+        appointment: { state: ev.bands.appointment.state, ruleLabel: ev.bands.appointment.ruleLabel },
+      });
       if (!snapshot) return { ok: false, message: "Not moved into preparation: the method, contract type or basis is no longer configured." };
       const dossierReference = ev.method!.requiresDossier && !ex.dossierReference
         ? ev.method!.dossierSeriesKey
@@ -647,11 +674,11 @@ export async function moveToPreparation(_prev: FormState, data: FormData): Promi
         preparedAt: on,
         dossierReference,
         classificationSnapshot: snapshot as unknown as Prisma.InputJsonValue,
-        ...determinationColumns(ev, issue, methodNameOf(cfg.config), on),
+        ...fresh,
       };
       const moved = await tx.sourcingExercise.updateMany({ where: { id, status: "DRAFT", updatedAt: ex.updatedAt }, data: after });
       if (moved.count !== 1) throw new Refusal(CHANGED);
-      await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", diffFields({ status: ex.status, dossierReference: ex.dossierReference }, { status: after.status, dossierReference, decidedRecord: "written" }));
+      await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", diffFields({ ...auditView(ex), status: ex.status, dossierReference: ex.dossierReference }, { ...auditView({ ...ex, ...after }), status: after.status, dossierReference, decidedRecord: "written" }));
       await writeChildren(tx, l.org.id, ex, ex, draftOf(ex).scope, ev, cfg.config);
       if (l.req.status === "APPROVED") {
         const rf = requisitionTransitionFault("APPROVED", "SOURCING", { today: l.org.today });
@@ -683,7 +710,8 @@ export async function cancelExercise(_prev: FormState, data: FormData): Promise<
     if (moved.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", diffFields({ status: ex.status }, { status: "CANCELLED" }), reason);
     for (const inst of ex.approvalInstances.filter((i) => i.status === "PENDING")) {
-      await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "RECALLED", closedAt: new Date() } });
+      const warning = { code: WITHDRAWN_ON_CANCEL, level: "info", messageEn: `Withdrawn: the exercise was cancelled — ${reason}` };
+      await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
       await audit(tx, l.org.id, "ApprovalInstance", inst.id, nameLabel(ex), "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), `The exercise was cancelled: ${reason}`);
     }
     return { ok: true };

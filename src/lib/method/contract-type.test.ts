@@ -77,3 +77,14 @@ describe("choosing another type, and the lock", () => {
     expect(c.faults.map((f) => f.code)).toEqual(["LOCKED"]);
   });
 });
+
+describe("a tie for the largest deliverable (review #3)", () => {
+  const THIRTY = { dominanceSharePct: "30.0000", provenance: "ASSUMED" as const };
+  it("40/40/20 at a 30% threshold derives nothing, in either order", () => {
+    const one = defaultContractType([part("MEASURED_CONSTRUCTION", "40.00"), part("GOODS_DELIVERED", "40.00"), part("TERM_PERFORMANCE", "20.00")], SPEC_TYPES, THIRTY, on);
+    const other = defaultContractType([part("GOODS_DELIVERED", "40.00"), part("MEASURED_CONSTRUCTION", "40.00"), part("TERM_PERFORMANCE", "20.00")], SPEC_TYPES, THIRTY, on);
+    expect(one.state).toBe("MIXED_NO_DOMINANT");
+    expect(other.state).toBe("MIXED_NO_DOMINANT");
+    expect(one.code).toBeNull();
+  });
+});

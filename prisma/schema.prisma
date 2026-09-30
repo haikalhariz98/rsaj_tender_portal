@@ -1983,6 +1983,8 @@ model ApprovalInstance {
   status   ApprovalStatus @default(PENDING)
   openedAt DateTime
   closedAt DateTime?
+  /// When the row was written: orders two routes opened on the same day.
+  createdAt DateTime @default(now())
 
   steps ApprovalStep[]
 
@@ -2294,6 +2296,10 @@ model SourcingExercise {
   proposalReviewerPersonId String?
   proposalReviewer         Person?        @relation("ProposalReviewer", fields: [proposalReviewerPersonId], references: [id], onDelete: Restrict)
   proposalReviewComment    String         @default("")
+  /// The proposal as submitted: each item's key, label and required flag with its
+  /// answer. A submitted, reviewed or decided proposal renders from this, whatever
+  /// later happens to the method's items. Null while it is being prepared.
+  proposalRecord           Json?
 
   /// The method's restriction as it stood (FR-MTD-007). Not enforced until sign-in.
   restricted Boolean @default(false)

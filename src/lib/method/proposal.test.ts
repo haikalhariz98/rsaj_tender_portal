@@ -50,3 +50,42 @@ describe("choosing selected tender opens the proposal (FR-MTD-005)", () => {
     expect(proposalStateFor(true, "REVIEWED", true)).toBe("DRAFT");
   });
 });
+
+describe("a change of value re-opens a submitted or reviewed proposal (ruling on BD-5)", () => {
+  it("re-opens as a draft on a change of method or of value, keeping nothing else", async () => {
+    const { proposalStateFor } = await import("./proposal");
+    const valueChanged = true;
+    expect(proposalStateFor(true, "SUBMITTED", valueChanged)).toBe("DRAFT");
+    expect(proposalStateFor(true, "REVIEWED", valueChanged)).toBe("DRAFT");
+    expect(proposalStateFor(true, "SUBMITTED", false)).toBe("SUBMITTED");
+  });
+});
+
+describe("the proposal as submitted (ruling on the proposal record)", () => {
+  it("stores each item's key, wording and required flag with its answer", async () => {
+    const { proposalRecordOf } = await import("./proposal");
+    const rec = proposalRecordOf(TEN_ITEMS, answers(), on);
+    expect(rec.items).toHaveLength(10);
+    expect(rec.items[4]).toEqual({ key: "e", label: "Item (e)", required: true, answer: "Answer e" });
+  });
+  it("a submitted proposal renders from the record: a retired or reworded item's answer still shows", async () => {
+    const { proposalRecordOf, proposalView } = await import("./proposal");
+    const rec = proposalRecordOf(TEN_ITEMS, answers(), on);
+    const later = TEN_ITEMS.map((i) => (i.key === "e" ? { ...i, retiredOn: new Date("2026-09-01") } : i.key === "a" ? { ...i, labelEn: "Reworded" } : i));
+    const view = proposalView("REVIEWED", rec, later, answers(), new Date("2026-10-30T00:00:00Z"));
+    expect(view.fromRecord).toBe(true);
+    expect(view.rows.find((r) => r.key === "e")?.answer).toBe("Answer e");
+    expect(view.rows.find((r) => r.key === "a")?.label).toBe("Item (a)");
+  });
+  it("a proposal being prepared shows the items in force", async () => {
+    const { proposalView } = await import("./proposal");
+    const later = TEN_ITEMS.map((i) => (i.key === "e" ? { ...i, retiredOn: new Date("2026-09-01") } : i));
+    const view = proposalView("DRAFT", null, later, answers(), on);
+    expect(view.fromRecord).toBe(false);
+    expect(view.rows.map((r) => r.key)).not.toContain("e");
+  });
+  it("one submitted before the record was kept says it is not from the record", async () => {
+    const { proposalView } = await import("./proposal");
+    expect(proposalView("SUBMITTED", null, TEN_ITEMS, answers(), on).fromRecord).toBe(false);
+  });
+});

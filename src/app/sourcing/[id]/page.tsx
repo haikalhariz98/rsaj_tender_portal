@@ -17,7 +17,7 @@ import { fieldLabel } from "@/lib/audit/diff";
 import { dayToDate } from "@/lib/dates";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
-import { resolveNameApproval } from "@/lib/method/approval";
+import { latestFirst, nameRequestFault, nameRouteLabel, resolveNameApproval } from "@/lib/method/approval";
 import { evaluateExercise } from "@/lib/method/evaluate";
 import { transitionFault } from "@/lib/method/exercise";
 import {
@@ -39,9 +39,9 @@ import {
   TYPE_STATE_LABEL,
 } from "@/lib/method/labels";
 import { behaviourProfile, type BehaviourValue } from "@/lib/method/profile";
-import { nameRequestProposalFault, proposalFaults } from "@/lib/method/proposal";
+import { nameRequestProposalFault, proposalFaults, proposalView } from "@/lib/method/proposal";
 import { draftOf, evaluationContext, exerciseHistory, loadExercise, type LoadedExercise } from "@/lib/method/repo";
-import { isBandSnapshot, isClassificationSnapshot, type BandSnapshot, type ClassificationSnapshot, type RouteSnap } from "@/lib/method/snapshot";
+import { isBandSnapshot, isClassificationSnapshot, profileRows, type BandSnapshot, type ClassificationSnapshot, type RouteSnap } from "@/lib/method/snapshot";
 import type { DeliverableKind, Finding, Regime } from "@/lib/method/types";
 import { formatSen, parseSen } from "@/lib/money";
 import { ORGANISATION_CODE } from "@/lib/org";
@@ -70,6 +70,9 @@ export const dynamic = "force-dynamic";
 
 const RESTRICTION_NOTE = "Restriction not enforced until sign-in";
 const money = (v: { toString(): string }) => formatSen(parseSen(v.toString()));
+/// A percentage to as many places as it has (up to four), so "above the threshold" is
+/// visibly true: 50.0010%, not 50.00%.
+const pct = (v: string) => v.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
 const tone = (l: string) => (l === "block" || l === "err" ? "err" : l === "info" ? "info" : "warn") as "err" | "warn" | "info";
 
 export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
@@ -119,27 +122,29 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
     : [];
   const items = (cfg.checklist[ex.sourcingMethodCode] ?? []).filter((i) => i.retiredOn == null || i.retiredOn > on);
   const pFaults = method?.requiresProposal ? proposalFaults(items, ex.proposalAnswers, on) : [];
+  const proposal = proposalView(ex.proposalState, ex.proposalRecord, items, ex.proposalAnswers, on);
   const openName = ex.approvalInstances.find((i) => i.status === "PENDING") ?? null;
   const approvedName = ex.approvalInstances.find((i) => i.status === "APPROVED") ?? null;
-  const nameRoute = draft && ctx && method?.requiresNameApproval ? resolveNameApproval(ctx.funder, method, Number(ex.estimatedValue.toString())) : null;
-  const nameBlocker = !method?.requiresNameApproval
+  const live = ex.status !== "CANCELLED";
+  const nameRoute = live && ctx && method?.requiresNameApproval ? resolveNameApproval(ctx.funder, method, Number(ex.estimatedValue.toString())) : null;
+  // Asked in draft or in preparation, and again after a refusal or withdrawal (ruling on BD-4).
+  const canAskName = live && !!method?.requiresNameApproval && !openName && !approvedName;
+  const nameBlocker = !canAskName
     ? null
-    : !today
-      ? findingText({ code: "TIME_ZONE_UNSET", level: "block" })
-      : openName || approvedName
-        ? null
-        : (() => {
-            const pf = nameRequestProposalFault(method.requiresProposal, ex.proposalState);
-            if (pf) return findingText(pf);
-            if (nameRoute && nameRoute.nameState !== "RESOLVED") return NAME_STATE_TEXT[nameRoute.nameState];
-            return null;
-          })();
+    : (() => {
+        const rf = nameRequestFault(ex.status, method, ex.approvalInstances, today);
+        if (rf) return findingText(rf);
+        const pf = nameRequestProposalFault(method!.requiresProposal, ex.proposalState);
+        if (pf) return findingText(pf);
+        if (nameRoute && nameRoute.nameState !== "RESOLVED") return NAME_STATE_TEXT[nameRoute.nameState];
+        return null;
+      })();
   const submitBlocker = !today ? findingText({ code: "TIME_ZONE_UNSET", level: "block" }) : pFaults.length ? `${pFaults.map(findingText).join(" ")} Edit the proposal first.` : null;
   const prepBlocker = prepFaults.length ? [...prepFaults.filter((f) => f.code !== "BLOCKING_FAULTS"), ...blocking].map(findingText).join(" ") : null;
 
   const unavailable: [string, string | null][] = [
     ["Submit proposal", draft && method?.requiresProposal && ex.proposalState === "DRAFT" ? submitBlocker : null],
-    ["Request name approval", draft && method?.requiresNameApproval && !openName && !approvedName ? nameBlocker : null],
+    ["Request name approval", canAskName ? nameBlocker : null],
     ["Move to preparation", draft ? prepBlocker : null],
   ];
   const notes = unavailable.filter((x): x is [string, string] => x[1] != null);
@@ -164,7 +169,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       )}
       {draft && method?.requiresProposal && ex.proposalState === "DRAFT" && <SubmitProposalDrawer id={ex.id} blocker={submitBlocker} />}
       {draft && method?.requiresProposal && ex.proposalState === "SUBMITTED" && <ReviewProposalDrawer id={ex.id} people={activePeople} today={today} />}
-      {draft && method?.requiresNameApproval && !openName && !approvedName && <RequestNameApprovalDrawer id={ex.id} blocker={nameBlocker} />}
+      {canAskName && <RequestNameApprovalDrawer id={ex.id} blocker={nameBlocker} />}
       {draft && <MoveToPreparationDrawer id={ex.id} blocker={prepBlocker} dossier={!!method?.requiresDossier} />}
       {ex.status !== "CANCELLED" && <CancelExerciseDrawer id={ex.id} />}
     </>
@@ -186,7 +191,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       id: "classification",
       label: "Classification",
       icon: <SlidersIcon size={15} />,
-      panel: <ClassificationPanel l={l} bands={bands} findings={ev ? ev.findings : ((ex.bandWarnings as unknown as Finding[]) ?? [])} live={!!ev} methodName={methodName} flags={flags} reasonName={config.reasons.find((r) => r.code === ex.justificationReasonCode)?.nameEn ?? null} />,
+      panel: <ClassificationPanel l={l} bands={bands} findings={ev ? ev.findings : ((ex.bandWarnings as unknown as Finding[]) ?? [])} live={!!ev} methodName={methodName} flags={flags} reasonName={decided?.justification ? decided.justification.reasonName : (config.reasons.find((r) => r.code === ex.justificationReasonCode)?.nameEn ?? null)} />,
     },
     {
       id: "contract",
@@ -220,24 +225,28 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
                   subtitle={ex.proposalState ? PROPOSAL_STATE_LABEL[ex.proposalState] : NOT_SET}
                   actions={draft && ex.proposalState === "DRAFT" && items.length > 0 ? <ProposalAnswersDrawer id={ex.id} items={items.map((i) => ({ key: i.key, label: i.labelEn, required: i.required }))} answers={Object.fromEntries(ex.proposalAnswers.map((a) => [a.itemKey, a.text]))} /> : undefined}
                 />
-                {items.length === 0 ? (
+                {proposal.rows.length === 0 ? (
                   <EmptyState size="sm" title="No proposal items are configured" action={<ButtonLink href="/configuration/reference-data" size="sm">Add them</ButtonLink>}>
                     This method asks for a proposal, but no items are set for it.
                   </EmptyState>
                 ) : (
-                  <ol className="divide-y divide-line/70">
-                    {items.map((i) => {
-                      const a = ex.proposalAnswers.find((x) => x.itemKey === i.key);
-                      return (
+                  <>
+                    {ex.proposalState && ex.proposalState !== "DRAFT" && (
+                      <p className="border-b border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">
+                        {proposal.fromRecord ? "As submitted: the items and answers as they stood then." : "Submitted before the portal kept a copy of the items: shown with the items in force today."}
+                      </p>
+                    )}
+                    <ol className="divide-y divide-line/70">
+                      {proposal.rows.map((i) => (
                         <li key={i.key} className="flex flex-col gap-1 px-5 py-3 sm:px-6">
                           <span className="text-[13px] font-semibold text-ink">
-                            {i.labelEn} {!i.required && <span className="font-normal text-ink-3">· optional</span>}
+                            {i.label} {!i.required && <span className="font-normal text-ink-3">· optional</span>}
                           </span>
-                          <span className={a?.text.trim() ? "text-[13.5px] break-words whitespace-pre-line text-ink-2" : "text-[13px] text-amber-800"}>{a?.text.trim() ? a.text : i.required ? "Empty: required before it can be submitted" : "Not answered"}</span>
+                          <span className={i.answer.trim() ? "text-[13.5px] break-words whitespace-pre-line text-ink-2" : "text-[13px] text-amber-800"}>{i.answer.trim() ? i.answer : i.required ? "Empty: required before it can be submitted" : "Not answered"}</span>
                         </li>
-                      );
-                    })}
-                  </ol>
+                      ))}
+                    </ol>
+                  </>
                 )}
                 {(ex.proposalReviewer || ex.proposalReviewComment) && (
                   <CardBody className="border-t border-line">
@@ -265,6 +274,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
             panel: (
               <NamePanel
                 l={l}
+                current={openName ?? latestFirst(ex.approvalInstances)[0] ?? null}
                 preview={nameRoute && nameRoute.nameState === "RESOLVED" ? nameRoute.chain.map((s) => ({ role: issue?.matrix.roles[s.roleCode]?.nameEn ?? "An office no longer configured", act: s.act })) : null}
                 previewText={nameRoute && nameRoute.nameState !== "RESOLVED" ? NAME_STATE_TEXT[nameRoute.nameState] : null}
                 suggestions={suggestions}
@@ -340,7 +350,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
         meta={[
           <span key="v" className="tabular-nums">{money(ex.estimatedValue)}</span>,
           methodName,
-          typeName(ex.contractTypeCode) ?? "Contract type not set",
+          decided?.contractType.nameEn ?? typeName(ex.contractTypeCode) ?? "Contract type not set",
           ex.regime ? REGIME_SHORT[ex.regime as Regime] : "Regime not determined",
         ]}
         actions={actions}
@@ -467,6 +477,12 @@ function ClassificationPanel({
                       {bands.boundary.onBoundary && <Badge tone="warn">{bands.boundary.ruled ? "On the boundary" : "On the boundary · not ruled"}</Badge>}
                     </span>
                     {bands.boundary.source && <span className="text-[12.5px] text-ink-3">{bands.boundary.source}</span>}
+                    {bands.boundary.onBoundary && (
+                      <span className="text-[12.5px] text-ink-3">
+                        Appointment rule: {bands.appointment.boundaryOperator ? OPERATOR_LABEL[bands.appointment.boundaryOperator].toLowerCase() : "no edge at the boundary"}. Terms band:{" "}
+                        {bands.terms.boundaryOperator ? OPERATOR_LABEL[bands.terms.boundaryOperator].toLowerCase() : "no edge at the boundary"}.
+                      </span>
+                    )}
                   </span>
                 ),
               },
@@ -559,7 +575,8 @@ function ContractPanel({
 }) {
   const ex = l.ex;
   const type = config.types.find((t) => t.code === ex.contractTypeCode) ?? null;
-  const profile = decided?.contractType.profile ?? (type ? behaviourProfile(type) : null);
+  // Once decided, the record's values and office names; before, the type in force (review #6).
+  const profile = profileRows(decided, type ? behaviourProfile(type) : null, officeName);
   const state = (decided?.contractType.state ?? ex.contractTypeState) as keyof typeof TYPE_STATE_LABEL | null;
   const derivationState = (decided?.contractType.derivationState ?? live?.derivation.state ?? ex.derivationState) as keyof typeof DERIVATION_TEXT | null;
   const derivedName = decided?.contractType.derivedName ?? typeName(live?.derivation.code ?? ex.derivedContractTypeCode);
@@ -576,10 +593,10 @@ function ContractPanel({
               { label: "Contract type", value: decided?.contractType.nameEn ?? typeName(ex.contractTypeCode) ?? NOT_SET },
               { label: "Derived from the scope", value: derivationState === "DERIVED" ? (derivedName ?? NOT_SET) : derivationState ? DERIVATION_TEXT[derivationState] : NOT_SET },
               ...(state && state !== "DERIVED" ? [{ label: "Why this type", value: ex.contractTypeOverrideReason || "Not recorded" }, { label: "Decided by", value: overriddenBy ? `${overriddenBy} · recorded on behalf of, not signed` : "Not recorded" }] : []),
-              { label: "Largest deliverable's share", value: ex.dominantSharePct && Number(ex.dominantSharePct.toString()) < 100 ? `${Number(ex.dominantSharePct.toString()).toFixed(2)}%` : "One deliverable" },
+              { label: "Largest deliverable's share", value: ex.dominantSharePct && Number(ex.dominantSharePct.toString()) < 100 ? `${pct(ex.dominantSharePct.toString())}%` : "One deliverable" },
               {
                 label: "Mixed-scope threshold",
-                value: decided ? (decided.policy.dominanceSharePct ? `Above ${Number(decided.policy.dominanceSharePct).toFixed(2)}% · as recorded` : "Not set: no default for mixed scope") : config.policy.dominanceSharePct ? `Above ${Number(config.policy.dominanceSharePct).toFixed(2)}%` : "Not set: no default for mixed scope",
+                value: decided ? (decided.policy.dominanceSharePct ? `Above ${pct(decided.policy.dominanceSharePct)}% · as recorded` : "Not set: no default for mixed scope") : config.policy.dominanceSharePct ? `Above ${pct(config.policy.dominanceSharePct)}%` : "Not set: no default for mixed scope",
               },
               { label: "Requester's indication", value: requesterType ?? "None" },
               { label: "Contract basis", value: basis ? `${basis.nameEn}${basis.standardFormLabel ? ` · ${basis.standardFormLabel}` : ""}` : "Not chosen: required before documents go into preparation" },
@@ -605,7 +622,7 @@ function ContractPanel({
         <CardHeader icon={<SlidersIcon size={17} />} title="What the type drives" subtitle={decided ? "As recorded when it moved into preparation." : "Enforced where each behaviour lives, in later modules."} />
         <CardBody>
           {profile ? (
-            <KeyValues columns={2} items={profile.map((b) => ({ label: BEHAVIOUR_LABEL[b.key], value: behaviourText(b.value, officeName, b.key) }))} />
+            <KeyValues columns={2} items={profile.map((b) => ({ label: BEHAVIOUR_LABEL[b.key], value: behaviourText(b.value, b.offices, b.key) }))} />
           ) : (
             <EmptyState size="sm" title="No contract type yet">Choose or derive one to see its behaviours.</EmptyState>
           )}
@@ -655,19 +672,22 @@ function ContractPanel({
 
 function NamePanel({
   l,
+  current,
   preview,
   previewText,
   suggestions,
   today,
 }: {
   l: LoadedExercise;
+  current: LoadedExercise["ex"]["approvalInstances"][number] | null;
   preview: { role: string; act: string }[] | null;
   previewText: string | null;
   suggestions: (roleCode: string | null) => { value: string; label: string }[];
   today: string | null;
 }) {
   const ex = l.ex;
-  const [inst, ...earlier] = ex.approvalInstances;
+  const inst = current;
+  const earlier = latestFirst(ex.approvalInstances).filter((i) => i.id !== current?.id);
   return (
     <div className="flex flex-col gap-6">
       <Callout tone="info" title="Name approval recorded; not enforced in Phase 1">
@@ -701,7 +721,7 @@ function NamePanel({
             icon={<RouteIcon size={17} />}
             title="Approval of the name"
             subtitle={`Requested ${formatOrgDay(inst.openedAt, l.org.timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}.`}
-            actions={<Badge tone={inst.status === "APPROVED" ? "ok" : inst.status === "PENDING" ? "brand" : "warn"}>{{ PENDING: "In progress", APPROVED: "Approved", REJECTED: "Refused", RECALLED: "Withdrawn" }[inst.status]}</Badge>}
+            actions={<Badge tone={inst.status === "APPROVED" ? "ok" : inst.status === "PENDING" ? "brand" : "warn"}>{nameRouteLabel(inst.status, inst.warnings)}</Badge>}
           />
           {((inst.warnings as { level: string; messageEn: string }[]) ?? []).length > 0 && (
             <CardBody className="flex flex-col gap-2">
@@ -751,7 +771,7 @@ function NamePanel({
           <ul className="divide-y divide-line/70">
             {earlier.map((e) => (
               <li key={e.id} className="flex flex-wrap items-center gap-2 px-5 py-3 text-[13px] sm:px-6">
-                <Badge tone="neutral">{{ PENDING: "In progress", APPROVED: "Approved", REJECTED: "Refused", RECALLED: "Withdrawn" }[e.status]}</Badge>
+                <Badge tone="neutral">{nameRouteLabel(e.status, e.warnings)}</Badge>
                 <span className="text-ink-2">
                   Requested {formatOrgDay(e.openedAt, l.org.timeZone)} · {e.steps.map((s) => s.roleLabel).join(" → ")}
                 </span>
@@ -821,7 +841,7 @@ function HistoryPanel({
 }) {
   const read = (field: string, value: string | null): string => {
     if (value == null || value === "") return "—";
-    if (field === "status") return EXERCISE_STATUS_LABEL[value as keyof typeof EXERCISE_STATUS_LABEL] ?? { PENDING: "In progress", APPROVED: "Approved", REJECTED: "Refused", RECALLED: "Withdrawn", SOURCING: "Sourcing" }[value] ?? "Changed";
+    if (field === "status") return EXERCISE_STATUS_LABEL[value as keyof typeof EXERCISE_STATUS_LABEL] ?? (value === "SOURCING" ? "Sourcing" : value === "APPROVED" ? "Approved" : nameRouteLabel(value, null));
     if (field === "sourcingMethodCode" || field === "proposedMethodCode") return methodName(value);
     if (field === "contractTypeCode" || field === "derivedContractTypeCode") return typeName(value) ?? "—";
     if (field === "regime") return REGIME_LABEL[value as Regime] ?? "—";

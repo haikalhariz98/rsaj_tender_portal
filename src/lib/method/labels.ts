@@ -115,7 +115,7 @@ export function findingText(f: Finding): string {
     case "NO_APPROVED_ROUTE":
       return "The requisition has no approved route on record, so there is no approved value to open an exercise against.";
     case "EXCEEDS_APPROVED_VALUE":
-      return `Together with the requisition's other live exercises this comes to ${money(d.combined)}, above the ${money(d.approved)} its approval covered. Reduce this exercise's value, cancel a sibling exercise, or cancel and raise a new requisition for the difference.`;
+      return `Together with the requisition's other live exercises this comes to ${money(d.combined)}, above the ${money(d.approved)} its approval covered. Reduce this exercise's value, cancel a sibling exercise, or cancel this exercise and raise a separate requisition for the difference. The requisition itself stays as approved.`;
     case "SPLIT_ACROSS_REGIME":
       return `This exercise's value is in a different regime from the requisition's live exercises together (${money(d.combined)}). Check that the work is not being split below a threshold.`;
     case "REQUISITION_BAND_CHANGED":
@@ -251,6 +251,12 @@ export function findingText(f: Finding): string {
       return "A classification needs a choice on the Contract type tab.";
     case "BLOCKING_FAULTS":
       return "The exercise has faults to correct: see the Classification tab.";
+    case "DETERMINATION_CHANGED":
+      return `Since it was last saved, the configuration now gives a different result for ${d.changes}. Open Edit and save it again, so the change is recorded, then move it.`;
+    case "NAME_EXERCISE_CANCELLED":
+      return "A cancelled exercise's name is not sent for approval.";
+    case "NAME_NOT_ASKED":
+      return "This exercise's method does not ask for approval of the name.";
     // actions
     case "NAME_ALREADY_REQUESTED":
       return "Approval of the name is already requested.";

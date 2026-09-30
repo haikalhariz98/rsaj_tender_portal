@@ -297,7 +297,7 @@ export default async function ReferenceDataPage() {
             {types.map((c) => (
               <Tr key={c.code}>
                 <Td title={c.nameMs ? `${c.nameEn} — ${c.nameMs}` : c.nameEn}>
-                  <CellStack title={c.nameEn} sub={typeRow(c.code)?.deliverableKind ? `Default for ${DELIVERABLE_LABEL[typeRow(c.code)!.deliverableKind as DeliverableKind].toLowerCase()}` : "Default for no deliverable"} />
+                  <CellStack title={c.nameEn} sub={typeRow(c.code)?.deliverableKind ? `Default for this deliverable: ${DELIVERABLE_LABEL[typeRow(c.code)!.deliverableKind as DeliverableKind].toLowerCase()}` : "Default for this deliverable: none"} />
                 </Td>
                 <Td className="text-ink-2">
                   {(() => {

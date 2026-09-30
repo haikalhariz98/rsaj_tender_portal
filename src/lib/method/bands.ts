@@ -13,7 +13,7 @@
  * bridge is used only to band.
  */
 
-import { inBand, regimeFor } from "@/lib/authority/resolve";
+import { edgeAtBoundary, inBand, regimeFor } from "@/lib/authority/resolve";
 import type { Policy, Regime } from "@/lib/authority/types";
 import { senToDecimalString, type Sen } from "@/lib/money";
 import { resolveRequisitionRoute } from "@/lib/requisition/route";
@@ -33,6 +33,13 @@ export interface TermsResult {
   band: TermsBand | null;
   /// More than one band covers the value: the first by order is shown, with a warning.
   overlapping: boolean;
+  /// The comparison the band applied at the boundary; null where no edge sits there.
+  boundaryOperator: "GT" | "GTE" | null;
+}
+
+function termsOperator(t: TermsBand, policy: Policy): "GT" | "GTE" | null {
+  if (!edgeAtBoundary({ minValue: t.minValue, maxValue: t.maxValue, contractValueMin: null, contractValueMax: null }, policy)) return null;
+  return t.followsBoundarySwitch === true && policy.boundaryInclusive === false ? "GTE" : "GT";
 }
 
 /**
@@ -41,12 +48,12 @@ export interface TermsResult {
  * this value are a gap. Each band passes its own boundary opt-in to `inBand`.
  */
 export function termsFor(value: number, regime: Regime, terms: readonly TermsBand[], policy: Policy): TermsResult {
-  if (terms.length === 0) return { state: "NOT_SET", band: null, overlapping: false };
+  if (terms.length === 0) return { state: "NOT_SET", band: null, overlapping: false, boundaryOperator: null };
   const inRegime = [...terms].filter((t) => t.regime == null || t.regime === regime).sort((a, b) => a.sortOrder - b.sortOrder);
-  if (inRegime.length === 0) return { state: "NONE_IN_REGIME", band: null, overlapping: false };
+  if (inRegime.length === 0) return { state: "NONE_IN_REGIME", band: null, overlapping: false, boundaryOperator: null };
   const hits = inRegime.filter((t) => inBand(value, t.minValue, t.maxValue, policy, t.followsBoundarySwitch));
-  if (hits.length === 0) return { state: "NO_BAND_FOR_VALUE", band: null, overlapping: false };
-  return { state: "APPLIES", band: hits[0], overlapping: hits.length > 1 };
+  if (hits.length === 0) return { state: "NO_BAND_FOR_VALUE", band: null, overlapping: false, boundaryOperator: null };
+  return { state: "APPLIES", band: hits[0], overlapping: hits.length > 1, boundaryOperator: termsOperator(hits[0], policy) };
 }
 
 export interface BandContext {
@@ -103,6 +110,16 @@ export function determineBands(value: Sen, ctx: BandContext): BandDetermination 
   const boundary = boundaryOf(value, policy, ctx.boundaryProvenance);
 
   const findings: Finding[] = [...boundaryFindings(boundary)];
+  // On the boundary, a rule or band that applied a different comparison from the regime
+  // put this value in a different band from its regime: carried with the case (review #7).
+  if (boundary.onBoundary) {
+    if (appointment.boundaryOperator && appointment.boundaryOperator !== boundary.operator) {
+      findings.push({ code: "REGIME_RULE_DISAGREE", level: "warn", data: { label: appointment.ruleLabel, kind: "rule" } });
+    }
+    if (terms.boundaryOperator && terms.boundaryOperator !== boundary.operator) {
+      findings.push({ code: "REGIME_RULE_DISAGREE", level: "warn", data: { label: terms.band?.labelEn ?? null, kind: "terms" } });
+    }
+  }
   if (terms.state === "NOT_SET") findings.push({ code: "TERMS_NOT_SET", level: "warn" });
   if (terms.state === "NO_BAND_FOR_VALUE") findings.push({ code: "TERMS_NO_BAND", level: "warn" });
   if (terms.overlapping) findings.push({ code: "TERMS_OVERLAP", level: "warn" });

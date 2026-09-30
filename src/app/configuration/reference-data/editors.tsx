@@ -181,8 +181,8 @@ function contractFields(editing: boolean): Field[] {
     {
       kind: "select",
       name: "deliverableKind",
-      label: "The default type for",
-      placeholder: "No deliverable",
+      label: "Default for this deliverable",
+      placeholder: "None — chosen only",
       options: KIND_OPTIONS,
       hint: "An exercise whose scope is this deliverable takes this type unless someone chooses another, with a reason.",
     },

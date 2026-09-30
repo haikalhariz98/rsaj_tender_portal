@@ -1616,7 +1616,15 @@ async function determineExercises(ids: string[]) {
       const on = day(l.org.today ?? "2026-09-30");
       const cols = snap.determinationColumns(ev, issue, (c) => cfg.config.methods.find((x) => x.code === c)?.nameEn ?? "", on);
       const prepared = l.ex.status === "DOCUMENTS_IN_PREPARATION";
-      const decided = prepared ? snap.classificationSnapshotOf(ev, cfg.config, l.ex.contractBasisCode, (c) => issue.matrix.roles[c]?.nameEn ?? "", behaviourProfile) : null;
+      const decided = prepared
+        ? snap.classificationSnapshotOf(ev, cfg.config, l.ex.contractBasisCode, (c) => issue.matrix.roles[c]?.nameEn ?? "", behaviourProfile, {
+            reasonName: cfg.config.reasons.find((r) => r.code === l.ex.justificationReasonCode)?.nameEn ?? null,
+            appointment: { state: ev.bands.appointment.state, ruleLabel: ev.bands.appointment.ruleLabel },
+          })
+        : null;
+      // A submitted or reviewed proposal carries its record, as a submission writes it.
+      const { proposalRecordOf } = await import("../src/lib/method/proposal");
+      const record = l.ex.proposalState && l.ex.proposalState !== "DRAFT" ? proposalRecordOf(cfg.checklist[l.ex.sourcingMethodCode] ?? [], l.ex.proposalAnswers, day("2026-09-15")) : null;
       if (prepared && !decided) throw new Error(`Demo exercise ${id} cannot be decided.`);
       await db.sourcingExercise.update({
         where: { id },
@@ -1625,6 +1633,7 @@ async function determineExercises(ids: string[]) {
           requisitionRuleKey: ctx.approved?.ruleKey ?? null,
           requisitionRuleLabel: ctx.approved?.ruleLabel ?? null,
           methodReason: cols.proposedMethodCode === l.ex.sourcingMethodCode ? "" : l.ex.methodReason,
+          ...(record ? { proposalRecord: record as object } : {}),
           // Loaded as decided on the day it moved into preparation.
           ...(prepared ? { classificationSnapshot: decided as object, preparedAt: day("2026-09-08"), determinedAt: day("2026-09-08") } : {}),
         },
