@@ -43,11 +43,13 @@ export default async function RequisitionControlsPage() {
       </>
     );
   }
-  const [policy, controls, formats] = await Promise.all([
+  const [policy, controls, formats, offices] = await Promise.all([
     loadPolicy(org.id),
     loadControls(org.id),
     db.codeFormat.findMany({ where: { organisationId: org.id, key: { in: ["erp_requisition_no", "erp_note_no"] } } }),
+    db.authorityRole.findMany({ where: { organisationId: org.id, isCommittee: false }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { code: true, nameEn: true } }),
   ]);
+  const justifier = policy.splitJustifyingRoleCode ? (offices.find((o) => o.code === policy.splitJustifyingRoleCode)?.nameEn ?? "An office no longer configured") : null;
   const unset = [
     policy.endorsementTiers.length === 0,
     policy.erpReferenceRequired == null,
@@ -55,6 +57,7 @@ export default async function RequisitionControlsPage() {
     policy.splittingWindowDays == null,
     policy.splittingMatchOn.length === 0,
     policy.splittingAggregateAcrossYear == null,
+    policy.splitJustifyingRoleCode == null,
     controls.budgetCheckSource == null,
   ].filter(Boolean).length;
   const format = (key: string) => formats.find((f) => f.key === key) ?? null;
@@ -69,7 +72,7 @@ export default async function RequisitionControlsPage() {
         actions={
           <>
             {policy.id && <HistoryButton entity="RequisitionPolicy" entityId={policy.id} label="Requisition controls" />}
-            <EditPolicy policy={policy} notes={policy.notes} />
+            <EditPolicy policy={policy} notes={policy.notes} offices={offices} />
           </>
         }
       />
@@ -236,7 +239,16 @@ export default async function RequisitionControlsPage() {
                   value: (
                     <Setting
                       value={policy.splittingAggregateAcrossYear == null ? null : policy.splittingAggregateAcrossYear ? "Also related across the financial year" : "The window only"}
-                      unset="The window only. Nothing is aggregated across the year."
+                      unset="Not assessed on any requisition: whether the year aggregates is policy too."
+                    />
+                  ),
+                },
+                {
+                  label: "Who may justify a possible split",
+                  value: (
+                    <Setting
+                      value={justifier ? `A holder of the ${justifier} office for the requesting department — never the requester or an endorser` : null}
+                      unset="No flag can be justified, so a flagged requisition cannot be finally approved."
                     />
                   ),
                 },

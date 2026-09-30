@@ -17,7 +17,7 @@ const PROVENANCE_OPTIONS = [
 ];
 
 /// Every field starts empty where nothing is set; saving an empty field leaves it unset.
-export function EditPolicy({ policy, notes }: { policy: RequisitionPolicy; notes: string }) {
+export function EditPolicy({ policy, notes, offices }: { policy: RequisitionPolicy; notes: string; offices: { code: string; nameEn: string }[] }) {
   return (
     <RecordEditor
       title="Edit requisition controls"
@@ -53,8 +53,17 @@ export function EditPolicy({ policy, notes }: { policy: RequisitionPolicy; notes
           kind: "select",
           name: "splittingAggregateAcrossYear",
           label: "Also relate everything in the same financial year",
-          placeholder: "Not set — the window only",
+          placeholder: "Not set — not assessed",
           options: TRI,
+        },
+        {
+          kind: "select",
+          name: "splitJustifyingRoleCode",
+          label: "The office that may justify a possible split",
+          placeholder: "Not set — no flag can be justified",
+          options: offices.map((o) => ({ value: o.code, label: o.nameEn })),
+          orphanLabel: "An office no longer configured",
+          hint: "Its holder for the requesting department. Never the requester, nor anyone who endorsed it.",
         },
         { kind: "select", name: "provenance", label: "Where these controls come from", placeholder: "Not set", options: PROVENANCE_OPTIONS },
         { kind: "textarea", name: "notes", label: "Notes" },
@@ -66,6 +75,7 @@ export function EditPolicy({ policy, notes }: { policy: RequisitionPolicy; notes
         splittingWindowDays: policy.splittingWindowDays == null ? null : String(policy.splittingWindowDays),
         splittingMatchOn: policy.splittingMatchOn.join("\n"),
         splittingAggregateAcrossYear: tri(policy.splittingAggregateAcrossYear),
+        splitJustifyingRoleCode: policy.splitJustifyingRoleCode,
         provenance: policy.provenance,
         notes,
       }}

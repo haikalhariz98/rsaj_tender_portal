@@ -352,7 +352,7 @@ export function CiteCommitteeDrawer({ id, stepId, committee, decisions, blocker 
   );
 }
 
-export function JustifySplitDrawer({ id, people, today }: { id: string; people: Option[]; today: string | null }) {
+export function JustifySplitDrawer({ id, people, today, office }: { id: string; people: Option[]; today: string | null; office: string }) {
   return (
     <RecordEditor
       title="Justify the possible split"
@@ -360,7 +360,7 @@ export function JustifySplitDrawer({ id, people, today }: { id: string; people: 
       fields={[
         hidden("id"),
         { kind: "textarea", name: "overrideJustification", label: "Justification" },
-        { kind: "select", name: "personId", label: "Justified by", required: true, placeholder: "Choose", options: people, hint: "Recorded on their behalf, not signed." },
+        { kind: "select", name: "personId", label: "Justified by", required: true, placeholder: "Choose", options: people, hint: `A holder of the ${office} office — not the requester, nor anyone who endorsed it. Recorded on their behalf, not signed.` },
         { kind: "date", name: "overriddenOn", label: "On", required: true },
       ]}
       values={{ id, overriddenOn: today }}

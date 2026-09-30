@@ -23,13 +23,12 @@ import { parseSen } from "@/lib/money";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
-import { officesHeldBy } from "@/lib/people/roster";
-import { checkedDay, identityHolds, isStale, overBudgetDisposition, type BudgetSnapshot } from "@/lib/requisition/budget";
+import { ageDay, approvalCommitment, identityHolds, isStale, overBudgetDisposition, type BudgetSnapshot } from "@/lib/requisition/budget";
 import { commitmentFault } from "@/lib/requisition/commitment";
 import { endorsementFaults, endorsersFor } from "@/lib/requisition/endorsement";
 import { blocking, requisitionFaults } from "@/lib/requisition/fields";
 import { fundingGate } from "@/lib/requisition/funding";
-import { deciderFaults, holdersFor } from "@/lib/requisition/holders";
+import { deciderFaults, holdersFor, requesterHoldsApprover } from "@/lib/requisition/holders";
 import {
   APPROVAL_STATUS_LABEL,
   DECIDER_FAULT_TEXT,
@@ -66,6 +65,7 @@ import { transitionFault } from "@/lib/requisition/status";
 import type { OrgUnitKind } from "@/lib/requisition/types";
 
 import {
+  Blocked,
   CancelDrawer,
   ChangeFundingDrawer,
   CheckBudgetDrawer,
@@ -92,6 +92,22 @@ const CONTROLS_HREF = "/configuration/requisitions";
 const BUDGET_HREF = "/configuration/budget";
 const PRE_SUBMIT = ["REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET"];
 const TERMINAL = ["CANCELLED", "CLOSED"];
+
+/// Why a splitting check could not run, in words.
+function NOT_SET_REASON_TEXT(x: string): string {
+  if (x.startsWith("MISSING_KEY:")) {
+    const k = x.slice("MISSING_KEY:".length) as keyof typeof SPLIT_KEY_LABEL;
+    return `this requisition has no ${(SPLIT_KEY_LABEL[k] ?? "field").toLowerCase()}, which requisitions are related on`;
+  }
+  return (
+    {
+      WINDOW: "the splitting window was not set",
+      MATCH_ON: "the fields that make requisitions related were not set",
+      YEAR_AGGREGATION: "whether the financial year aggregates was not set",
+      FINANCIAL_YEAR: "the company's financial year start was not recorded",
+    } as Record<string, string>
+  )[x] ?? "a setting was missing";
+}
 
 const sen = (v: { toString(): string } | null) => (v == null ? null : parseSen(v.toString()));
 const money = (v: { toString(): string } | null) => (v == null ? "Not recorded" : formatRM(num(v)));
@@ -156,7 +172,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   let preview: ReturnType<typeof resolveRequisitionRoute> | null = null;
   let previewRoles: Record<string, { nameEn: string }> = {};
   if (PRE_SUBMIT.includes(r.status)) {
-    const stale = lastCheck && today ? isStale(checkedDay(lastCheck.checkedAt, l.org.timeZone!), policy.budgetRecheckDays, today) : false;
+    const stale = lastCheck && today ? isStale(ageDay(lastCheck), policy.budgetRecheckDays, today) : false;
     if (!today) submitBlocker = transitionFaultText({ code: "TIME_ZONE_UNSET" });
     else if (fieldFaults.length > 0) submitBlocker = fieldFaultText(fieldFaults[0]);
     else if (gate.faults.length > 0) submitBlocker = fundingFaultText(gate.faults[0]);
@@ -182,8 +198,8 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
       const override = gate.supersedesAuthority && r.fundingRouteCode ? await loadOverrideMatrix(ORGANISATION_CODE, r.fundingRouteCode, on) : null;
       const q = { value: num(r.estimatedValue)!, overBudget: lastCheck?.verdict === "EXCEEDS", fundingRouteCode: r.fundingRouteCode, fundingSupersedesAuthority: gate.supersedesAuthority === true };
       preview = resolveRequisitionRoute(dal.matrix, override, q);
-      const held = officesHeldBy(roster, r.requestingPersonId, on).map((o) => o.code);
-      if (preview.resolution.approverCode && held.includes(preview.resolution.approverCode)) {
+      const path = pathTo(lookups.units, unit, on).reverse().map((u) => u.code);
+      if (preview.resolution.approverCode && today && requesterHoldsApprover(preview.resolution.approverCode, r.requestingPersonId, path, roster, delegations, today)) {
         preview = resolveRequisitionRoute(dal.matrix, override, { ...q, actorRoleCode: preview.resolution.approverCode });
       }
       if (preview.faults.length > 0) submitBlocker ??= preview.faults[0].messageEn;
@@ -275,6 +291,13 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
           }
         >
           Endorsing, submitting and deciding depend on today&apos;s date, which is not assumed to be UTC. None of them can be recorded until the zone is set.
+        </Callout>
+      )}
+      {r.status === "OVER_BUDGET" && ((r.approvalInstances[0]?.warnings as { code: string }[] | null) ?? []).some((w) => w.code === "RETURNED_AT_APPROVAL") && (
+        <Callout tone="warn" className="mb-6" title="Returned at approval: the budget no longer covers it">
+          When the final decision was recorded, the budget code was re-checked before committing, and another commitment had used the
+          balance since submission. The decision was not recorded; a fresh check is on the Budget tab. Submit it again on the
+          over-budget route.
         </Callout>
       )}
       {r.status === "RETURNED" && (
@@ -377,7 +400,8 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                         holders: h,
                         person: lookups.people.find((p) => p.id === pid) ?? null,
                         requesterId: r.requestingPersonId,
-                        endorserIds: r.endorsements.map((e) => e.personId),
+                        endorserIds: [],
+                        endorsements: r.endorsements.map((e) => ({ personId: e.personId, unitCode: e.unitCode })),
                         otherDeciderIds: open.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.decidedByPersonId!),
                         earlierDone: true,
                         decidedOn: today,
@@ -399,7 +423,17 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
               <ChecksPanel
                 l={l}
                 gate={{ ...gate, faults: gate.faults.map(fundingFaultText) }}
-                route={route ? { name: route.nameEn, requires: route.requiresExternalAuthorityRef, label: route.externalAuthorityRefLabel } : null}
+                route={
+                  route
+                    ? {
+                        name: route.nameEn,
+                        requires: route.requiresExternalAuthorityRef,
+                        label: route.externalAuthorityRefLabel,
+                        commitsBudget: (route as { approvalCommitsBudget?: boolean | null }).approvalCommitsBudget ?? null,
+                      }
+                    : null
+                }
+                justifyingOffice={policy.splitJustifyingRoleCode ? (roster.offices.find((o) => o.code === policy.splitJustifyingRoleCode)?.nameEn ?? "An office no longer configured") : null}
                 routes={lookups.fundingRoutes.filter((x) => x.retiredOn == null || x.retiredOn > on).map((x) => ({ value: x.code, label: x.nameEn }))}
                 policy={policy}
                 people={people}
@@ -657,7 +691,7 @@ function BudgetPanel({
       approvedAccount: sen(c.approvedAccount),
       balanceAsAt: sen(c.balanceAsAt),
     } as BudgetSnapshot);
-  const stale = c && l.org.today ? isStale(checkedDay(c.checkedAt, l.org.timeZone!), recheckDays, l.org.today) : false;
+  const stale = c && l.org.today ? isStale(ageDay(c), recheckDays, l.org.today) : false;
   const settings: { label: string; value: React.ReactNode }[] = [
     {
       label: "Check source",
@@ -691,6 +725,11 @@ function BudgetPanel({
           actions={c ? <Badge tone={TONE[VERDICT_TONE[c.verdict]]}>{VERDICT_LABEL[c.verdict]}</Badge> : undefined}
         />
         <CardBody className="flex flex-col gap-5">
+          {r.origin === "EXTERNAL" && !r.commitmentMovementId && (
+            <Callout tone="info" title="Commitment held in the finance system, not posted in the portal ledger">
+              This requisition was approved in the finance system, which holds its commitment. The portal&apos;s budget figures do not include it.
+            </Callout>
+          )}
           {!c ? (
             <EmptyState size="sm" title="No budget check yet">
               The check runs once the requisition is registered.
@@ -895,7 +934,16 @@ function ApprovalPanel({
                 },
                 {
                   label: "Splitting check the approvers saw",
-                  value: <Chip tone={TONE[splitShown.tone]}>{splitShown.label}</Chip>,
+                  value: (
+                    <span className="flex flex-col items-start gap-1">
+                      <Chip tone={TONE[splitShown.tone]}>{splitShown.label}</Chip>
+                      {split?.overrideJustification && (
+                        <span className="text-[12.5px] text-ink-2">
+                          Justified by {split.overriddenBy?.name ?? "Not recorded"} · recorded on behalf of, not signed · {formatDate(split.overriddenOn)}
+                        </span>
+                      )}
+                    </span>
+                  ),
                 },
               ]}
             />
@@ -944,7 +992,9 @@ function ApprovalPanel({
                       <div className="text-[12.5px] text-ink-2">
                         {DECISION_LABEL[s.decision]} · {s.decidedByName ?? "Not recorded"}
                         {inst.checkedAgainstMatrix ? " · recorded on behalf of, not signed" : ""} · {formatDate(s.decidedOn)}
-                        {s.delegation ? ` · under delegation from ${s.delegation.fromPerson.name}` : ""}
+                        {s.delegation
+                          ? ` · under delegation from ${s.delegation.fromPerson.name} (${s.delegation.valueCeiling == null ? "no ceiling set" : `ceiling ${formatRM(num(s.delegation.valueCeiling))}`})`
+                          : ""}
                         {s.reason ? ` · “${s.reason}”` : ""}
                       </div>
                     )}
@@ -978,12 +1028,16 @@ function ApprovalPanel({
       </Card>
 
       {inst.status === "APPROVED" && inst.checkedAgainstMatrix && (
-        <Callout tone={inst.commitOnApproval ? "ok" : "info"} title={inst.commitOnApproval ? "Budget committed on approval" : "No commitment written"}>
-          {inst.commitOnApproval
+        <Callout tone={r.commitmentMovementId ? "ok" : "info"} title={r.commitmentMovementId ? "Budget committed on approval" : "No commitment written"}>
+          {r.commitmentMovementId
             ? `A commitment of ${formatRM(num(r.estimatedValue))} was written against the budget code on the day it was approved.`
-            : inst.commitOnApproval === false
-              ? "Commit on approval is set off, so approval wrote no commitment."
-              : "Commit on approval was not set when it was approved, so no commitment was written."}
+            : {
+                SETTING_NOT_SET: "Commit on approval was not set when it was approved, so no commitment was written.",
+                SETTING_OFF: "Commit on approval is set off, so approval wrote no commitment.",
+                ROUTE_NOT_SET: "Commitment not set for this funding route when it was approved, so no commitment was written.",
+                ROUTE_OFF: "This funding route does not commit the organisation's budget, so approval wrote no commitment.",
+                WRITE: "No commitment is on record.",
+              }[approvalCommitment(inst.commitOnApproval, inst.routeCommitsBudget)]}
         </Callout>
       )}
 
@@ -1040,6 +1094,7 @@ function ChecksPanel({
   l,
   gate,
   route,
+  justifyingOffice,
   routes,
   policy,
   people,
@@ -1048,7 +1103,9 @@ function ChecksPanel({
 }: {
   l: LoadedRequisition;
   gate: { faults: string[]; posture: string | null; sourcingPermitted: boolean | null; supersedesAuthority: boolean | null };
-  route: { name: string; requires: boolean | undefined; label: string | null | undefined } | null;
+  route: { name: string; requires: boolean | undefined; label: string | null | undefined; commitsBudget: boolean | null } | null;
+  /// The office that may justify a possible split; null while unset.
+  justifyingOffice: string | null;
   routes: { value: string; label: string }[];
   policy: { splittingWindowDays: number | null; splittingMatchOn: string[]; provenance: string | null };
   people: { value: string; label: string }[];
@@ -1080,7 +1137,12 @@ function ChecksPanel({
           actions={
             <>
               <Chip tone={TONE[shown.tone]}>{shown.label}</Chip>
-              {canJustify && <JustifySplitDrawer id={r.id} people={people} today={today} />}
+              {canJustify &&
+                (justifyingOffice ? (
+                  <JustifySplitDrawer id={r.id} people={people} today={today} office={justifyingOffice} />
+                ) : (
+                  <Blocked label="Justify" reason="The office that may justify a possible split is not set. Set it in Requisition controls." />
+                ))}
             </>
           }
         />
@@ -1097,7 +1159,11 @@ function ChecksPanel({
                 </ButtonLink>
               }
             >
-              When this requisition was submitted, the splitting window or the fields that make requisitions related were not set, so no check ran. That is recorded, and it was shown to the approvers. It will never read as clear.
+              When this requisition was submitted, the check could not run:{" "}
+              {split.notSetReasons.length
+                ? split.notSetReasons.map((x) => NOT_SET_REASON_TEXT(x)).join("; ")
+                : "the splitting window or the fields that make requisitions related were not set"}
+              . That is recorded, and it was shown to the approvers. It will never read as clear.
             </Callout>
           ) : (
             <KeyValues
@@ -1153,6 +1219,13 @@ function ChecksPanel({
               },
             ]}
           />
+          {inst?.status === "APPROVED" && inst.checkedAgainstMatrix && inst.fundingRouteCode !== r.fundingRouteCode && (
+            <Callout tone="warn" title="Funding route changed after approval">
+              It was approved on the {routeNameOf(inst.fundingRouteCode ?? "") ?? "a route no longer configured"} route
+              {inst.fundingOverrideApplied ? ", under that funder's rule set" : ", under the approval matrix"}. The approval was not re-routed for the
+              new route{route && gate.supersedesAuthority ? ", whose funder's rules supersede the matrix — check whether it must be approved again" : ""}.
+            </Callout>
+          )}
           {gate.faults.length > 0 && !["APPROVED", "CANCELLED", "CLOSED"].includes(r.status) && (
             <Callout tone="warn">{gate.faults.join(" ")}</Callout>
           )}
@@ -1166,6 +1239,11 @@ function ChecksPanel({
       <Card>
         <CardHeader icon={<ShieldIcon size={17} />} title="Commitment" subtitle="No purchase order, indent, letter of acceptance or contract before approval (FR-REQ-016)." />
         <CardBody>
+          {r.origin === "PORTAL" && route && route.commitsBudget == null && !["CANCELLED", "CLOSED"].includes(r.status) && (
+            <Callout tone="warn" className="mb-4" title="Commitment not set for this funding route">
+              Whether approval on the {route.name} route commits the organisation&apos;s budget is not set, so approval writes no commitment. Set it on the route under Reference data.
+            </Callout>
+          )}
           {commit == null ? (
             <Callout tone="ok">Approved. A commitment may be issued against it.</Callout>
           ) : commit.code === "NO_APPROVAL_ROUTE" ? (

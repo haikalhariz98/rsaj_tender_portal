@@ -26,6 +26,7 @@ import { checkTabling, secretariatHoldersOn } from "@/lib/committee/tabling";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { afterIssuing, formatReference, patternFaults, serialFor } from "@/lib/numbering/series";
+import { MATTER_REF_TEXT, resolveMatterRef } from "@/lib/requisition/matter-link";
 import { FormReader } from "@/lib/validate";
 
 /**
@@ -380,13 +381,19 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
     // A requisition matter links to its requisition by the typed key (6.10 ruling), found
     // by the reference given: the portal's own, or the finance system's numbers.
     let requisitionId: string | null = null;
+    let requisitionReference: string | null = null;
     if (matterKind === "REQUISITION" && matterRef) {
-      const req = await tx.requisition.findFirst({
+      // Two matches are refused as ambiguous, never picked between; a cancelled or
+      // closed requisition takes nothing (ruling BD-18).
+      const matches = await tx.requisition.findMany({
         where: { organisationId: s.organisationId, OR: [{ reference: matterRef }, { erpRequisitionNo: matterRef }, { erpNoteNo: matterRef }] },
-        select: { id: true },
+        select: { id: true, status: true, reference: true },
+        take: 2,
       });
-      if (!req) r.reject("matterRef", "No requisition has that reference. Give its portal reference or its finance-system number.");
-      requisitionId = req?.id ?? null;
+      const found = resolveMatterRef(matches);
+      requisitionReference = found.ok ? matches[0].reference : null;
+      if (!found.ok) r.reject("matterRef", MATTER_REF_TEXT[found.fault]);
+      requisitionId = found.ok ? found.requisitionId : null;
     }
     if (dependsOnDecisionId) {
       const dep = await tx.committeeDecision.findFirst({
@@ -406,7 +413,7 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
       data: { meetingId, subject, domain, matterKind, matterRef, requisitionId, amount, act: act!, tabledByPersonId, tabledAt, dependsOnDecisionId, sequence },
     });
     await audit(tx, s, "CommitteeDecision", row.id, subject, "CREATE",
-      diffFields(null, { ...v, tabledBy: tabledByPersonId ? s.names[tabledByPersonId] : null, tabledAt, sequence }));
+      diffFields(null, { ...v, linkedRequisition: requisitionReference, tabledBy: tabledByPersonId ? s.names[tabledByPersonId] : null, tabledAt, sequence }));
     return { ok: true };
   });
 }

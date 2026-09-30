@@ -49,10 +49,15 @@ export async function savePolicy(_prev: FormState, data: FormData): Promise<Form
     budgetRecheckDays: r.int("budgetRecheckDays", "Re-check after", { min: 0 }),
     endorsementTiers: tiers as (typeof TIERS)[number][],
     erpReferenceRequired: triState(r, "erpReferenceRequired", "Registration needs the finance system's numbers"),
+    splitJustifyingRoleCode: r.optionalText("splitJustifyingRoleCode"),
     provenance: r.choice("provenance", "Provenance", PROVENANCE),
     notes: r.text("notes", "Notes", { max: 4000 }),
   };
   const reason = r.text("reason", "Reason", { max: 2000 });
+  if (v.splitJustifyingRoleCode) {
+    const office = await db.authorityRole.findFirst({ where: { organisationId: org.id, code: v.splitJustifyingRoleCode, isCommittee: false }, select: { id: true } });
+    if (!office) r.reject("splitJustifyingRoleCode", "That is not an office. Add it under Users & roles first.");
+  }
   const parsed = r.finish(v);
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 

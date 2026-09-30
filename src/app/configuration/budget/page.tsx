@@ -1,3 +1,5 @@
+import { Callout } from "@/components/ui/feedback";
+import { db } from "@/lib/db";
 import { CalendarIcon, ChartIcon, ScaleIcon } from "@/components/icons";
 import { totalsAcross } from "@/lib/budget/codes";
 import { loadBudgetCodes, loadBudgetPeriods, loadFinance } from "@/lib/budget/load";
@@ -34,6 +36,13 @@ export default async function BudgetPage({
     loadFinance(ORGANISATION_CODE),
   ]);
 
+  // Ruling BD-10: received requisitions whose commitment is held in the finance system.
+  const held = await db.requisition.findMany({
+    where: { organisation: { code: ORGANISATION_CODE }, origin: "EXTERNAL", commitmentMovementId: null, status: { notIn: ["CANCELLED", "CLOSED"] } },
+    select: { reference: true, title: true, budgetCode: { select: { code: true } } },
+    orderBy: { reference: "asc" },
+  });
+
   const asked = Number(yearParam);
   const shownYear = Number.isInteger(asked) ? asked : defaultYear(periods.periods);
 
@@ -64,6 +73,13 @@ export default async function BudgetPage({
           totals.utilisation == null ? "No utilisation yet" : `${totals.utilisation.toFixed(1)}% utilised`,
         ]}
       />
+
+      {held.length > 0 && (
+        <Callout tone="info" className="mb-6" title="Commitments held in the finance system, not posted in the portal ledger">
+          {held.map((h) => `${h.budgetCode?.code ?? "No budget code"}: ${h.reference} (${h.title})`).join("; ")}. These requisitions were
+          approved in the finance system and received here; the figures below do not include their commitments.
+        </Callout>
+      )}
 
       <BudgetTabs
         initial={tab}

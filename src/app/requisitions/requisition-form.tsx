@@ -29,6 +29,7 @@ export interface FormOptions {
   budgetCodes: { id: string; code: string; name: string }[];
   sites: { code: string; name: string }[];
   fundingRoutes: { code: string; name: string }[];
+  contractTypes: { code: string; name: string }[];
 }
 
 interface Line {
@@ -51,19 +52,25 @@ export type FormLine = Line;
 const BLANK_LINE: Line = { description: "", quantity: "", unit: "", estimatedUnitPrice: "", estimatedAmount: "" };
 const BLANK_STEP: Step = { roleLabel: "", act: "", actorName: "", actorPersonId: "", decidedOn: "" };
 
-/// Ringgit total of the typed line amounts, in sen, or null where one does not parse.
-function totalOf(lines: Line[]): number | null {
-  let sen = 0;
+/// Sen of a typed amount, exactly (no float), or null where it is not an amount.
+function senOf(v: string): bigint | null {
+  const m = /^(\d+)(?:\.(\d{1,2}))?$/.exec(v.replace(/,/g, "").trim());
+  return m ? BigInt(m[1]) * 100n + BigInt((m[2] ?? "").padEnd(2, "0")) : null;
+}
+
+/// Total of the typed line amounts in sen, or null where one is not an amount.
+function totalOf(lines: Line[]): bigint | null {
+  let sen = 0n;
   for (const l of lines) {
-    const v = l.estimatedAmount.replace(/,/g, "").trim();
-    if (!v) continue;
-    if (!/^\d+(\.\d{1,2})?$/.test(v)) return null;
-    sen += Math.round(Number(v) * 100);
+    if (!l.estimatedAmount.trim()) continue;
+    const v = senOf(l.estimatedAmount);
+    if (v == null) return null;
+    sen += v;
   }
   return sen;
 }
 
-const rm = (sen: number) => `RM ${(sen / 100).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const rm = (sen: bigint) => `RM ${(sen / 100n).toLocaleString("en-MY")}.${(sen % 100n).toString().padStart(2, "0")}`;
 
 export function RequisitionForm({
   mode,
@@ -91,7 +98,7 @@ export function RequisitionForm({
 
   const sections = useMemo(() => options.sections.filter((s) => s.parentCode === unit), [options.sections, unit]);
   const total = totalOf(lines);
-  const valueSen = /^\d+(\.\d{1,2})?$/.test(value.replace(/,/g, "").trim()) ? Math.round(Number(value.replace(/,/g, "")) * 100) : null;
+  const valueSen = senOf(value);
 
   const action = mode === "new" ? createRequisition : mode === "edit" ? editDraft : receiveRequisition;
   const submit = (data: FormData) => {
@@ -183,6 +190,7 @@ export function RequisitionForm({
           {select("costCentreCode", "Cost centre", coded(options.costCentres))}
           {select("accountCode", "Account code", coded(options.accounts))}
           {select("budgetCodeId", "Budget code", options.budgetCodes.map((b) => ({ value: b.id, label: `${b.code} · ${b.name}` })), { hint: "The budget line the check reads. Its account must be the requisition's." })}
+          {select("contractTypeCode", "Contract type", options.contractTypes.map((c) => ({ value: c.code, label: c.name })), { placeholder: "Not set" })}
           {select("siteCode", "Site", options.sites.map((s) => ({ value: s.code, label: s.name })), { placeholder: "None" })}
           {text("placeOfDelivery", "Place of delivery")}
           {text("dateRequired", "Date required", { required: true, type: "date" })}

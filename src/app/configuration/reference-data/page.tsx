@@ -123,6 +123,13 @@ export default async function ReferenceDataPage() {
                     <Chip tone={POSTURE_TONE[posture]} title={POSTURE_LABEL[posture]}>
                       {POSTURE_LABEL[posture]}
                     </Chip>
+                    <div className="mt-1 truncate text-[12px] text-ink-3">
+                      {r.approvalCommitsBudget == null
+                        ? "Budget commitment not set"
+                        : r.approvalCommitsBudget
+                          ? "Approval commits the budget"
+                          : "Approval commits no budget"}
+                    </div>
                     {r.requiresExternalAuthorityRef && (
                       <div className="mt-1 truncate text-[12px] text-ink-3" title={`Waits for ${r.externalAuthorityRefLabel ?? "an external authority"}`}>
                         Waits for {r.externalAuthorityRefLabel ?? "an external authority"}

@@ -46,6 +46,7 @@ export default async function EditRequisitionPage(props: PageProps<"/requisition
               sectionUnitCode: r.sectionUnitCode ?? "",
               requestingPersonId: r.requestingPersonId,
               fundingRouteCode: r.fundingRouteCode ?? "",
+              contractTypeCode: r.contractTypeCode ?? "",
               costCentreCode: r.costCentreCode,
               accountCode: r.accountCode,
               budgetCodeId: r.budgetCodeId ?? "",

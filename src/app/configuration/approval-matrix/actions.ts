@@ -6,7 +6,7 @@ import type { FormState } from "@/components/record-editor";
 import { auditedCreate, auditedDelete, auditedUpdate, writeAudit } from "@/lib/audit/record";
 import { diffFields } from "@/lib/audit/diff";
 import { issueFault, onRoute, predecessorOf, startOfDay } from "@/lib/authority/issue";
-import { boundaryRuleFault, rulesTiedWith } from "@/lib/authority/resolve";
+import { boundaryFaultsAcross, boundaryRuleFault, rulesTiedWith } from "@/lib/authority/resolve";
 import type { Rule } from "@/lib/authority/types";
 import { db } from "@/lib/db";
 import { compareAmounts } from "@/lib/money";
@@ -49,6 +49,30 @@ const decimals = <T extends Record<string, unknown>>(row: T): T =>
       v != null && typeof v === "object" && "toFixed" in (v as object) ? String(v) : v,
     ]),
   ) as T;
+
+/// A stored rule as the pure band checks read it.
+type RuleRow = {
+  ruleKey: string; labelEn: string; domain: string; method: string | null; cond: string | null; isGap: boolean;
+  minValue: unknown; maxValue: unknown; pctMin: unknown; pctMax: unknown; contractValueMin: unknown; contractValueMax: unknown;
+  followsBoundarySwitch: boolean | null;
+};
+const n = (x: unknown) => (x == null ? null : Number(String(x)));
+function bandsOf(x: RuleRow): Rule {
+  return {
+    ruleKey: x.ruleKey, labelEn: x.labelEn, domain: x.domain, method: x.method ?? null, cond: x.cond ?? null, isGap: x.isGap,
+    minValue: n(x.minValue), maxValue: n(x.maxValue), pctMin: n(x.pctMin), pctMax: n(x.pctMax),
+    contractValueMin: n(x.contractValueMin), contractValueMax: n(x.contractValueMax), followsBoundarySwitch: x.followsBoundarySwitch ?? null,
+  } as Rule;
+}
+
+/// The refusal naming every rule the boundary check fails, or null.
+function boundaryRefusal(rules: RuleRow[], boundaryValue: unknown): string | null {
+  const faults = boundaryFaultsAcross(rules.map(bandsOf), { boundaryValue: Number(String(boundaryValue)) });
+  if (faults.length === 0) return null;
+  return `At the boundary value, ${faults
+    .map((f) => `“${f.rule.labelEn}” ${f.fault === "BOUNDARY_SWITCH_UNDECIDED" ? "has not decided whether it follows the boundary switch" : "disagrees with its neighbour about the switch"}`)
+    .join("; ")}. Decide it on each rule first.`;
+}
 
 /**
  * One issue of the authority limits.
@@ -139,6 +163,13 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
     absenceClause: r.optionalText("absenceClause"),
     funderOverrideClause: r.optionalText("funderOverrideClause"),
   };
+
+  // Moving the boundary can put an existing rule's edge on it (code review, item 7).
+  if (before && boundaryValue && compareAmounts(boundaryValue, before.boundaryValue.toString()) !== 0) {
+    const rows = await db.authorityRule.findMany({ where: { authorityMatrixId: before.id } });
+    const refusal = boundaryRefusal(rows, boundaryValue);
+    if (refusal) r.reject("boundaryValue", refusal);
+  }
 
   const parsed = r.finish(v);
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
@@ -542,6 +573,9 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
     draft.fundingRouteCode,
   );
 
+  // Every rule is re-checked at the boundary before the issue is frozen.
+  const boundaryIssue = boundaryRefusal(await db.authorityRule.findMany({ where: { authorityMatrixId: draft.id } }), draft.boundaryValue);
+  if (boundaryIssue) r.reject("effectiveFrom", boundaryIssue);
   if (draft._count.rules === 0) {
     r.reject("effectiveFrom", "This draft has no rules, so nothing could be routed under it. Add its rules first.");
   }

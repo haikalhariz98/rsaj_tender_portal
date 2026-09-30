@@ -47,12 +47,21 @@ function readFundingRoute(data: FormData, taken: string[], storedCode: string | 
     supersedesAuthority: r.bool("supersedesAuthority"),
     requiresExternalAuthorityRef: r.bool("requiresExternalAuthorityRef"),
     externalAuthorityRefLabel: r.optionalText("externalAuthorityRefLabel"),
+    approvalCommitsBudget: (() => {
+      const c = r.choice("approvalCommitsBudget", "Approval commits the organisation's budget", ["yes", "no"] as const);
+      return c == null ? null : c === "yes";
+    })(),
+    approvalCommitsBudgetProvenance: r.choice("approvalCommitsBudgetProvenance", "Where that comes from", PROVENANCE),
     trigger: r.text("trigger", "Triggered by", { max: 240 }),
     governingSource: r.text("governingSource", "Source", { max: 240 }),
     provenance: r.choice("provenance", "Provenance", PROVENANCE, { required: true }),
     notes: r.text("notes", "Notes", { max: 2000 }),
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
   };
+  // A decided setting says where it came from, as every policy value does.
+  if (value.approvalCommitsBudget != null && !value.approvalCommitsBudgetProvenance) {
+    r.reject("approvalCommitsBudgetProvenance", "Say where this comes from.");
+  }
   // A matter held for an external authority must be told what it is waiting for.
   if (value.requiresExternalAuthorityRef && !value.externalAuthorityRefLabel) {
     r.reject("externalAuthorityRefLabel", "Name the authority a matter on this route waits for, as it is shown on the requisition.");
