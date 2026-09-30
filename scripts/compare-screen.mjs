@@ -238,6 +238,16 @@ const ALLOWED_EXTRA = [
   /^Schedule sitting$/,
   // Ruling 5.2: an ex-officio seat is ended as "Remove office from committee".
   /^Remove office from committee$/,
+  // A departure from the prototype, decided (6.1 plan §5): requisitions are run from
+  // their own screen under Work. The prototype's requisition screen is reachable from
+  // no route, and a supervision-only matter never becomes sourcing, so it is not
+  // under Sourcing.
+  /^Requisitions$/,
+  /^Receive from finance system$/,
+  // 6.1 plan §5: the requisition policy (endorsement tiers, splitting, re-check,
+  // registration) has its own screen under Money and authority. The prototype held
+  // only a guessed splitting window, on the approval matrix, which is removed (OD-9).
+  /^Requisition controls$/,
 ];
 
 const isAllowed = (label) => ALLOWED_EXTRA.some((re) => re.test(label));

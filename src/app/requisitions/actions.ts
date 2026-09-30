@@ -1098,7 +1098,8 @@ function readTrail(data: FormData): ReceivedStep[] {
     return raw
       .map((x) => ({
         roleLabel: s(x?.roleLabel),
-        act: ((ACTS as readonly string[]).includes(s(x?.act)) ? s(x?.act) : "A") as ReceivedStep["act"],
+        // An act not chosen stays empty and is refused, never read as an approval.
+        act: ((ACTS as readonly string[]).includes(s(x?.act)) ? s(x?.act) : "") as ReceivedStep["act"],
         actorName: s(x?.actorName),
         actorPersonId: s(x?.actorPersonId) || null,
         decidedOn: /^\d{4}-\d{2}-\d{2}$/.test(s(x?.decidedOn)) ? s(x?.decidedOn) : "",

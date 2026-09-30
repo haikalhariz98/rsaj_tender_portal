@@ -280,3 +280,21 @@ export function draftOf(req: RequisitionRow): RequisitionDraft {
     })),
   };
 }
+
+/// The choices the requisition form offers, in force on `on`. Units by name; business
+/// codes (cost centre, account, budget code) with their names.
+export async function formOptions(organisationId: string, on: Date) {
+  const { lookups, costCentres, accountCodes, sites } = await loadLookups(organisationId);
+  const inForce = <T extends { effectiveFrom: Date; effectiveTo: Date | null }>(x: T) => x.effectiveFrom <= on && (x.effectiveTo == null || x.effectiveTo > on);
+  const units = lookups.units.filter(inForce);
+  return {
+    departments: units.filter((u) => u.kind === "DEPARTMENT").map((u) => ({ code: u.code, name: u.nameEn })),
+    sections: units.filter((u) => u.kind === "SECTION").map((u) => ({ code: u.code, name: u.nameEn, parentCode: u.parentCode })),
+    people: lookups.people.filter((p) => p.isActive).map((p) => ({ id: p.id, name: p.name })),
+    costCentres: costCentres.filter(inForce).map((c) => ({ code: c.code, name: c.nameEn })),
+    accounts: accountCodes.filter(inForce).map((a) => ({ code: a.code, name: a.nameEn })),
+    budgetCodes: lookups.budgetCodes.filter((b) => b.isActive && inForce(b)).map((b) => ({ id: b.id, code: b.code, name: b.descriptionEn })),
+    sites: sites.filter(inForce).map((x) => ({ code: x.code, name: x.nameEn })),
+    fundingRoutes: lookups.fundingRoutes.filter((r) => r.retiredOn == null || r.retiredOn > on).map((r) => ({ code: r.code, name: r.nameEn })),
+  };
+}

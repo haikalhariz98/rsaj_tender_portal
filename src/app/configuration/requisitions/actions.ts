@@ -92,3 +92,56 @@ export async function saveBudgetCheckSource(_prev: FormState, data: FormData): P
   revalidatePath(PATH);
   return { ok: true };
 }
+
+const FORMAT_KEYS = ["erp_requisition_no", "erp_note_no"] as const;
+
+/**
+ * The shape of one of the finance system's numbers, as a pattern with an example.
+ * The customer's own: the portal consumes these numbers and never mints them, so it
+ * can only check them against a shape somebody has set. Cleared, it is not checked.
+ */
+export async function saveErpFormat(_prev: FormState, data: FormData): Promise<FormState> {
+  const org = await requisitionOrg();
+  if (!org) return NO_ORG;
+  const r = new FormReader(data);
+  const key = r.choice("key", "Number", FORMAT_KEYS, { required: true });
+  const pattern = r.text("pattern", "Pattern", { max: 200 });
+  const example = r.text("example", "Example", { max: 120 });
+  const description = r.text("description", "Description", { max: 400 });
+  const provenance = r.choice("provenance", "Provenance", PROVENANCE);
+  const reason = r.text("reason", "Reason", { max: 2000 });
+  if (pattern) {
+    try {
+      new RegExp(`^(?:${pattern})$`);
+    } catch {
+      r.reject("pattern", "That is not a pattern the portal can read.");
+    }
+    if (!provenance) r.reject("provenance", "Say where the shape comes from.");
+    if (example && !new RegExp(`^(?:${pattern})$`).test(example)) r.reject("example", "The example does not match the pattern.");
+  }
+  if (r.failed || !key) return { ok: false, errors: r.errors };
+  await db.$transaction(async (tx) => {
+    const before = await tx.codeFormat.findUnique({ where: { organisationId_key: { organisationId: org.id, key } } });
+    const label = key === "erp_requisition_no" ? "Finance system requisition no. format" : "Requisition note no. format";
+    if (!pattern) {
+      if (!before) return;
+      await tx.codeFormat.delete({ where: { id: before.id } });
+      await writeAudit(tx, { organisationId: org.id, entity: "CodeFormat", entityId: before.id, entityLabel: label, reason }, "DELETE",
+        diffFields({ pattern: before.pattern, example: before.example }, { pattern: null, example: null }));
+      return;
+    }
+    const v = { pattern, example, description, provenance: provenance! };
+    const row = await tx.codeFormat.upsert({
+      where: { organisationId_key: { organisationId: org.id, key } },
+      update: v,
+      create: { organisationId: org.id, key, ...v },
+    });
+    const changes = diffFields(before, v);
+    if (!before || changes.length > 0) {
+      await writeAudit(tx, { organisationId: org.id, entity: "CodeFormat", entityId: row.id, entityLabel: label, reason }, before ? "UPDATE" : "CREATE", changes);
+    }
+  });
+  revalidatePath(PATH);
+  revalidatePath("/requisitions");
+  return { ok: true };
+}

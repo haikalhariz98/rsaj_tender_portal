@@ -30,6 +30,9 @@ export const STAFF_NAV: NavGroup[] = [
   {
     label: "Work",
     items: [
+      // Not in the prototype, whose requisition screen no route renders. Above
+      // Sourcing, not under it: a supervision-only matter never becomes sourcing (6.1).
+      { href: "/requisitions", label: "Requisitions", icon: "clipboard", built: true },
       { href: "/sourcing", label: "Sourcing", icon: "globe" },
       { href: "/projects", label: "Projects", icon: "tools" },
       // Not in the prototype, which shows committee votes only on each matter's own
@@ -129,6 +132,13 @@ export const CONFIG_SECTIONS: {
         label: "Approval matrix",
         description: "Who proposes, who recommends and who approves, at every value.",
         icon: "sliders",
+        built: true,
+      },
+      {
+        href: "/configuration/requisitions",
+        label: "Requisition controls",
+        description: "Endorsement tiers, the splitting check, budget re-checks and registration.",
+        icon: "clipboard",
         built: true,
       },
     ],

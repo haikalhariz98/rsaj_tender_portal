@@ -9,6 +9,7 @@ import {
   ChartIcon,
   CheckIcon,
   ChevronDown,
+  ClipboardIcon,
   FilesIcon,
   GavelIcon,
   GlobeIcon,
@@ -42,6 +43,7 @@ const ICONS: Record<string, ComponentType<{ size?: number }>> = {
   inbox: InboxIcon,
   users: UsersIcon,
   user: UserIcon,
+  clipboard: ClipboardIcon,
 };
 
 /// Configuration's sections in the sidebar's own shape. Inside Configuration the

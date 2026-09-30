@@ -77,6 +77,7 @@ export function intakeFaults(
   if (p.trail.length === 0) out.push({ field: "trail", message: "TRAIL_REQUIRED" });
   p.trail.forEach((s, i) => {
     if (!s.roleLabel.trim()) out.push({ field: `trail.${i}.roleLabel`, message: "REQUIRED" });
+    if (!["P", "JP", "R", "JR", "MR", "MJR", "A", "MA"].includes(s.act)) out.push({ field: `trail.${i}.act`, message: "REQUIRED" });
     if (!s.actorName.trim()) out.push({ field: `trail.${i}.actorName`, message: "REQUIRED" });
     if (!s.decidedOn) out.push({ field: `trail.${i}.decidedOn`, message: "REQUIRED" });
     else if (s.decidedOn > today) out.push({ field: `trail.${i}.decidedOn`, message: "FUTURE_DATE" });
