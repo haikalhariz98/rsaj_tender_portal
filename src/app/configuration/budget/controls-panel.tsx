@@ -1,6 +1,7 @@
 "use client";
 
 import { formDataOf } from "@/components/ui/form-submit";
+import { buttonClass } from "@/components/ui/button";
 import { useRef, useState, useTransition, type ReactNode } from "react";
 
 import { AlertTriangle, CheckIcon, GridIcon, SaveIcon, ShieldIcon, XIcon } from "@/components/icons";
@@ -38,6 +39,11 @@ export function ControlsPanel({
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  // Clearing asks first, and afterwards the form is rebuilt from what is saved: its
+  // inputs are uncontrolled, so without a remount they kept showing the old values —
+  // and a later Save would have posted them straight back.
+  const [confirming, setConfirming] = useState(false);
+  const [formKey, setFormKey] = useState(0);
   const [check, setCheck] = useState(settings?.availabilityCheck ?? "");
   const [overrides, setOverrides] = useState<string[]>(settings?.overrideRoleCodes ?? []);
 
@@ -55,16 +61,23 @@ export function ControlsPanel({
 
   const clear = () => {
     startTransition(async () => {
-      await clearBudgetControls();
+      const result = await clearBudgetControls();
+      setConfirming(false);
+      if (!result.ok) {
+        setState(result);
+        return;
+      }
       setCheck("");
       setOverrides([]);
       setSaved(false);
+      setDirty(false);
       setState({ ok: false });
+      setFormKey((k) => k + 1);
     });
   };
 
   return (
-    <form onSubmit={(e) => submit(formDataOf(e))} ref={formRef} onChange={() => setDirty(true)}>
+    <form key={formKey} onSubmit={(e) => submit(formDataOf(e))} ref={formRef} onChange={() => setDirty(true)}>
       <div className="stack stack--lg">
         <section className="card">
           <div className="card__head">
@@ -79,9 +92,35 @@ export function ControlsPanel({
               {/* The sample says "Restore defaults". This product ships none — a
                   threshold baked in here would be one customer's policy arriving as
                   software — so the button says what it actually does. */}
-              <button type="button" className="btn btn--sm" disabled={pending} onClick={clear}>
-                Clear these settings
-              </button>
+              {confirming ? (
+                <span className="flex items-center gap-2 rounded-full bg-rose-50 py-1 pr-1 pl-3 text-[12.5px] text-rose-800">
+                  Clear every setting on this screen?
+                  <button
+                    type="button"
+                    className={buttonClass("danger", "sm")}
+                    disabled={pending}
+                    onClick={clear}
+                  >
+                    {pending ? "Clearing…" : "Clear them"}
+                  </button>
+                  <button
+                    type="button"
+                    className={buttonClass("ghost", "sm")}
+                    onClick={() => setConfirming(false)}
+                  >
+                    Keep them
+                  </button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className={buttonClass("secondary", "sm")}
+                  disabled={pending}
+                  onClick={() => setConfirming(true)}
+                >
+                  Clear these settings
+                </button>
+              )}
             </div>
           </div>
           <div className="card__body">

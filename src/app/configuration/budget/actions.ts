@@ -284,7 +284,19 @@ export async function saveBudgetCode(_prev: FormState, data: FormData): Promise<
  * word, so the trail can say when a year stopped accepting postings and the screen
  * can tell a period nobody has opened from one somebody shut.
  */
-export async function setPeriodOpen(periodId: string, open: boolean): Promise<FormState> {
+/**
+ * Open, close or reopen a period, with the reason for it.
+ *
+ * Closing decides what may still be posted into a month, and reopening undoes that
+ * decision, so neither is a single click: each asks why, and the reason is kept.
+ */
+export async function changePeriod(_prev: FormState, data: FormData): Promise<FormState> {
+  const reason = String(data.get("reason") ?? "").trim();
+  if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
+  return setPeriodOpen(String(data.get("id") ?? ""), data.get("open") === "yes", reason);
+}
+
+export async function setPeriodOpen(periodId: string, open: boolean, reason = ""): Promise<FormState> {
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -311,7 +323,7 @@ export async function setPeriodOpen(periodId: string, open: boolean): Promise<Fo
       entity: "BudgetPeriod",
       entityId: periodId,
       entityLabel: `${before.year} ${before.code} — ${before.nameEn}`,
-      reason: "",
+      reason,
     },
     { openedOn: before.openedOn, closedOn: before.closedOn },
     after,

@@ -12,7 +12,10 @@ import {
   type Period,
 } from "@/lib/budget/periods";
 
-import { setPeriodOpen, setRollForward } from "./actions";
+import { RecordEditor } from "@/components/record-editor";
+import { iconButtonClass } from "@/components/ui/button";
+
+import { changePeriod, setRollForward } from "./actions";
 
 /**
  * Periods, in the sample's shape: a tile per year over a table of that year's
@@ -210,19 +213,9 @@ export function PeriodsPanel({
             actions={(id) => {
               const p = periodsIn(periods, selected).find((x) => x.id === id);
               if (!p) return null;
-              const open = periodStatus(p) === "OPEN";
-              return (
-                <button
-                  type="button"
-                  className="iconbtn iconbtn--sm"
-                  aria-label={open ? "Close period" : "Reopen period"}
-                  title={open ? "Close period" : "Reopen period"}
-                  disabled={pending}
-                  onClick={() => act(() => setPeriodOpen(p.id, !open))}
-                >
-                  {open ? <XIcon size={14} /> : <CheckIcon size={14} />}
-                </button>
-              );
+              const status = periodStatus(p);
+              const label = `${p.code} ${p.nameEn}`;
+              return <PeriodChange id={p.id} label={label} status={status} />;
             }}
           />
         </div>
@@ -242,4 +235,48 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 /// "01 Jan 2026", as the sample writes a date.
 function day(d: Date): string {
   return `${String(d.getDate()).padStart(2, "0")} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+/**
+ * Close, open or reopen one period. Each asks why: closing stops postings into the
+ * month, reopening undoes a decision somebody took.
+ */
+function PeriodChange({
+  id,
+  label,
+  status,
+}: {
+  id: string;
+  label: string;
+  status: "OPEN" | "CLOSED" | "NOT_YET_OPEN";
+}) {
+  const closing = status === "OPEN";
+  const verb = closing ? "Close" : status === "CLOSED" ? "Reopen" : "Open";
+  return (
+    <RecordEditor
+      title={`${verb} ${label}`}
+      description={
+        closing
+          ? "Nothing more may be posted into it once it is closed."
+          : status === "CLOSED"
+            ? "It was closed on purpose. Reopening lets postings into it again."
+            : "Postings into it are allowed once it is open."
+      }
+      fields={[
+        { kind: "hidden", name: "id" },
+        { kind: "hidden", name: "open" },
+      ]}
+      values={{ id, open: closing ? "" : "yes" }}
+      action={changePeriod}
+      submitLabel={`${verb} period`}
+      destructive={closing || status === "CLOSED" ? { reasonLabel: `Why is it being ${closing ? "closed" : "reopened"}?` } : undefined}
+      reason={closing || status === "CLOSED" ? undefined : { label: "Why is it being opened?" }}
+      trigger={{
+        label: `${verb} period`,
+        iconOnly: closing ? <XIcon size={14} /> : <CheckIcon size={14} />,
+        className: iconButtonClass("sm"),
+      }}
+      size="sm"
+    />
+  );
 }
