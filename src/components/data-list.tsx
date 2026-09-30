@@ -55,6 +55,12 @@ export interface Column {
   /// Drop this column below the named breakpoint, for a secondary column a narrow
   /// card cannot afford.
   hideBelow?: "md" | "lg" | "xl" | "2xl";
+  /// Opt-in stacked layout below `md`. When any column sets this, the table is
+  /// replaced on a phone by one card-row per record: the `primary` column is the
+  /// title, each `meta` column follows under its label (status, value, date…), and
+  /// `hide` columns are left out. A column with no flag counts as `hide`. Desktop is
+  /// unchanged. Sorting is a table feature and is not offered in the stacked layout.
+  mobile?: "primary" | "meta" | "hide";
 }
 
 const HIDE_BELOW = {
@@ -339,6 +345,12 @@ export function DataList({
   const openRow = (tr: HTMLElement) =>
     tr.querySelector<HTMLElement>("[data-rowactions] button, [data-rowactions] a")?.click();
 
+  // The stacked phone layout is opt-in: a list whose columns carry no `mobile` flag
+  // keeps its scrolling table.
+  const stacked = columns.some((c) => c.mobile);
+  const mobilePrimary = columns.find((c) => c.mobile === "primary");
+  const mobileMeta = columns.filter((c) => c.mobile === "meta");
+
   const cellPad = compact ? "px-4 py-2" : "px-4 py-3.5";
 
   return (
@@ -503,7 +515,67 @@ export function DataList({
           {emptyBody}
         </EmptyState>
       ) : (
-        <div className="relative overflow-x-auto">
+        <>
+        {stacked && (
+          <ul className="divide-y divide-line/70 border-t border-line md:hidden">
+            {paged.map((row) => (
+              <li
+                key={row.id}
+                className={cx("flex items-start gap-3 px-4 py-3.5", selected.has(row.id) && "bg-brand-50/60")}
+              >
+                {selectable && (
+                  <input
+                    type="checkbox"
+                    className="mt-1 size-4 shrink-0 cursor-pointer accent-brand-600"
+                    checked={selected.has(row.id)}
+                    onChange={(e) =>
+                      setSelected((s) => {
+                        const next = new Set(s);
+                        if (e.target.checked) next.add(row.id);
+                        else next.delete(row.id);
+                        return next;
+                      })
+                    }
+                    aria-label={`Select ${cellText(row.cells[(mobilePrimary ?? columns[0]).key])}`}
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  {mobilePrimary && (
+                    <div className="text-[14.5px] [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal">
+                      <CellView cell={row.cells[mobilePrimary.key]} />
+                    </div>
+                  )}
+                  {mobileMeta.length > 0 && (
+                    <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-2.5">
+                      {mobileMeta.map((c) => (
+                        <div key={c.key} className="min-w-0">
+                          <dt className="text-[11.5px] font-semibold text-ink-3">{c.label}</dt>
+                          <dd className={cx("mt-0.5 min-w-0 text-[13.5px] [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal", c.numeric && "tabular-nums")}>
+                            <CellView cell={row.cells[c.key]} />
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                  {actions && (
+                    <div className="mt-3 flex flex-wrap items-center gap-1">{actions(row.id)}</div>
+                  )}
+                </div>
+                {rowAction && !actions && (
+                  <Link
+                    href={rowAction.hrefTemplate.replace("{id}", row.id)}
+                    className={iconButtonClass("sm", false, "shrink-0 text-ink-4")}
+                    aria-label={rowAction.label}
+                    title={rowAction.label}
+                  >
+                    <ChevronRight size={16} />
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className={cx("relative overflow-x-auto", stacked && "hidden md:block")}>
           {/* Relative so a positioned descendant is clipped here rather than by the
               page: without it a wide table scrolled the whole screen at phone width. */}
           <table className="w-full min-w-[640px] table-fixed border-collapse text-[13.5px]">
@@ -676,6 +748,7 @@ export function DataList({
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {visible.length > 0 && (

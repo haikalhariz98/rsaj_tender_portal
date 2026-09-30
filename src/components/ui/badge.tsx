@@ -35,6 +35,7 @@ export function Badge({
   dot,
   outline,
   size = "sm",
+  wrap = true,
   className,
   children,
   ...props
@@ -43,12 +44,18 @@ export function Badge({
   dot?: boolean;
   outline?: boolean;
   size?: "sm" | "md";
+  /// A status is never cut with an ellipsis: a label wider than its cell wraps onto a
+  /// second line. Pass `wrap={false}` only where one line is a hard requirement.
+  wrap?: boolean;
 }) {
   return (
     <span
       className={cx(
-        "inline-flex max-w-full shrink-0 items-center gap-1.5 truncate rounded-full font-semibold whitespace-nowrap",
-        size === "sm" ? "h-6 px-2.5 text-[12px]" : "h-7 px-3 text-[13px]",
+        "inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full font-semibold",
+        wrap
+          ? "min-h-6 py-0.5 text-left leading-4 break-words"
+          : cx("truncate whitespace-nowrap", size === "sm" ? "h-6" : "h-7"),
+        size === "sm" ? "px-2.5 text-[12px]" : "px-3 text-[13px]",
         outline ? "border border-line-2 bg-surface text-ink-2" : SOFT[tone],
         className,
       )}
@@ -69,10 +76,11 @@ export function Dot({ tone = "neutral", className }: { tone?: Tone; className?: 
 export function Chip({
   tone = "neutral",
   icon,
+  wrap = true,
   className,
   children,
   ...props
-}: HTMLAttributes<HTMLSpanElement> & { tone?: Tone; icon?: ReactNode }) {
+}: HTMLAttributes<HTMLSpanElement> & { tone?: Tone; icon?: ReactNode; wrap?: boolean }) {
   const ring: Record<Tone, string> = {
     neutral: "border-line-2 bg-surface text-ink-2",
     brand: "border-brand-200 bg-brand-50 text-brand-800",
@@ -84,14 +92,15 @@ export function Chip({
   return (
     <span
       className={cx(
-        "inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-[12.5px] font-medium whitespace-nowrap",
+        "inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-[12.5px] font-medium",
+        !wrap && "whitespace-nowrap",
         ring[tone],
         className,
       )}
       {...props}
     >
       {icon}
-      <span className="truncate">{children}</span>
+      <span className={wrap ? "min-w-0 break-words" : "truncate"}>{children}</span>
     </span>
   );
 }

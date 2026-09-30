@@ -100,15 +100,22 @@ export function StartSitting({ meetingId }: { meetingId: string }) {
  * matter pending. Until then the control is shown disabled with the reason, rather
  * than opening a drawer that can only refuse.
  */
-export function MinuteSitting({ meetingId, blocker }: { meetingId: string; blocker: string | null }) {
+export function MinuteSitting({
+  meetingId,
+  blocker,
+  blockerId,
+}: {
+  meetingId: string;
+  blocker: string | null;
+  /// Id of the element that states the blocker (PageHeader's `actionsNoteId`). The
+  /// reason is shown there, under the action row, not beside this button.
+  blockerId?: string;
+}) {
   if (blocker) {
     return (
-      <span className="inline-flex items-center gap-2">
-        <Button size="sm" disabled title={blocker}>
-          Mark as minuted
-        </Button>
-        <span className="max-w-56 text-[12px] leading-tight text-ink-3">{blocker}</span>
-      </span>
+      <Button size="sm" disabled aria-describedby={blockerId} title={blocker}>
+        Mark as minuted
+      </Button>
     );
   }
   return (

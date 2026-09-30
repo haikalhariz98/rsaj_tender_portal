@@ -105,8 +105,8 @@ export default async function CommitteesPage() {
             <Table minWidth={860}>
               <colgroup>
                 <col />
-                <col style={{ width: "13%" }} />
-                <col style={{ width: "19%" }} />
+                <col style={{ width: "16%" }} />
+                <col style={{ width: "17%" }} />
                 <col style={{ width: "14%" }} />
                 <col style={{ width: "14%" }} />
                 <ActionsCol icons={1} labelled={1} />

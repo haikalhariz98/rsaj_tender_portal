@@ -122,12 +122,15 @@ export default async function SittingPage({
     ...minutingChecks(a, s.matters),
   });
 
+  const minuteBlocker =
+    m.status === "IN_PROGRESS" && !minuteCheck.ok ? TRANSITION_FAULT_MESSAGE[minuteCheck.fault] : null;
+
   const actions = (
     <>
       {!frozen && <EditSitting meeting={m} />}
       {m.status === "SCHEDULED" && <StartSitting meetingId={m.id} />}
       {m.status === "IN_PROGRESS" && (
-        <MinuteSitting meetingId={m.id} blocker={minuteCheck.ok ? null : TRANSITION_FAULT_MESSAGE[minuteCheck.fault]} />
+        <MinuteSitting meetingId={m.id} blocker={minuteBlocker} blockerId="sitting-actions-note" />
       )}
       {!frozen && <CancelSitting meetingId={m.id} />}
     </>
@@ -160,6 +163,8 @@ export default async function SittingPage({
           ),
         ]}
         actions={actions}
+        actionsNote={minuteBlocker}
+        actionsNoteId="sitting-actions-note"
       />
 
       {!frozen && s.timeZone == null && (

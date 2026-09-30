@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 
 import { cx } from "./cx";
 
@@ -10,6 +10,8 @@ export function PageHeader({
   subtitle,
   meta,
   actions,
+  actionsNote,
+  actionsNoteId,
   eyebrow,
   className,
 }: {
@@ -20,19 +22,30 @@ export function PageHeader({
   /// Small facts under the subtitle. Pass an array; they are separated for you.
   meta?: ReactNode[];
   actions?: ReactNode;
+  /// Why an action is unavailable, shown on its own line under the action row rather
+  /// than between buttons. The action group is described by it (aria-describedby); a
+  /// disabled button inside can point at `actionsNoteId` to be described by it too.
+  actionsNote?: ReactNode;
+  /// Id for the note, when a caller needs to reference it. Generated when omitted.
+  actionsNoteId?: string;
   /// A small label above the title, e.g. the section it belongs to.
   eyebrow?: ReactNode;
   className?: string;
 }) {
   const facts = (meta ?? []).filter(Boolean);
+  const generated = useId();
+  const noteId = actionsNoteId ?? `${generated}-note`;
   return (
     <header
       className={cx(
-        "mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between",
+        "mb-7 flex flex-wrap items-end justify-between gap-x-6 gap-y-4",
         className,
       )}
     >
-      <div className="min-w-0">
+      {/* The title block keeps a floor of 26rem (or the full row on a phone): when the
+          actions do not fit beside it they wrap onto their own row below, instead of
+          squeezing the title into a narrow column. */}
+      <div className="min-w-[min(100%,26rem)] flex-1">
         {eyebrow && (
           <div className="mb-1.5 text-[12px] font-semibold tracking-wide text-brand-700 uppercase">
             {eyebrow}
@@ -56,7 +69,24 @@ export function PageHeader({
           </div>
         )}
       </div>
-      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+      {(actions || actionsNote) && (
+        <div className="flex max-w-full min-w-0 flex-col items-start gap-1.5 sm:items-end">
+          {actions && (
+            <div
+              role={actionsNote ? "group" : undefined}
+              aria-describedby={actionsNote ? noteId : undefined}
+              className="flex flex-wrap items-center gap-2 sm:justify-end"
+            >
+              {actions}
+            </div>
+          )}
+          {actionsNote && (
+            <p id={noteId} className="max-w-[44ch] text-[12.5px] leading-snug text-ink-3 sm:text-right">
+              {actionsNote}
+            </p>
+          )}
+        </div>
+      )}
     </header>
   );
 }

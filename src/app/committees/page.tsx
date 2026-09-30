@@ -109,12 +109,12 @@ export default async function SittingsPage({ searchParams }: { searchParams: Pro
           rowAction={{ label: "Open", hrefTemplate: "/committees/{id}" }}
           rowOpens
           columns={[
-            { key: "committee", label: "Committee", width: "20%", sortable: true },
-            { key: "reference", label: "Reference", width: "22%", sortable: true },
-            { key: "date", label: "Date", width: "14%", sortable: true },
-            { key: "status", label: "Status", width: "14%", sortable: true },
-            { key: "matters", label: "Matters", width: "16%", sortable: true },
-            { key: "quorum", label: "Quorum", width: "14%" },
+            { key: "committee", label: "Committee", width: "20%", sortable: true, mobile: "meta" },
+            { key: "reference", label: "Reference", width: "22%", sortable: true, mobile: "primary" },
+            { key: "date", label: "Date", width: "14%", sortable: true, mobile: "meta" },
+            { key: "status", label: "Status", width: "14%", sortable: true, mobile: "meta" },
+            { key: "matters", label: "Matters", width: "16%", sortable: true, mobile: "meta" },
+            { key: "quorum", label: "Quorum", width: "14%", mobile: "meta" },
           ]}
           rows={rows}
         />

@@ -78,14 +78,14 @@ export function Callout({
   return (
     <div
       role={tone === "err" || tone === "warn" ? "alert" : "note"}
-      className={cx("flex gap-3 rounded-2xl border px-4 py-3.5 text-[13.5px]", c.box, className)}
+      className={cx("flex flex-wrap gap-x-3 gap-y-2.5 rounded-2xl border px-4 py-3.5 text-[13.5px]", c.box, className)}
     >
       <span className="ico mt-px shrink-0">{icon ?? c.icon}</span>
-      <div className="min-w-0 flex-1 leading-relaxed">
+      <div className="min-w-[min(100%,16rem)] flex-1 basis-0 leading-relaxed">
         {title && <div className="font-bold">{title}</div>}
         {children && <div className={cx(title && "mt-0.5", "opacity-90")}>{children}</div>}
       </div>
-      {action && <div className="shrink-0 self-center">{action}</div>}
+      {action && <div className="ml-auto shrink-0 self-center max-sm:ml-8">{action}</div>}
     </div>
   );
 }
