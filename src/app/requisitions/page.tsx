@@ -1,11 +1,11 @@
-import { ClipboardIcon } from "@/components/icons";
+import { ClipboardIcon, PlusIcon } from "@/components/icons";
 import { DataList, type Row } from "@/components/data-list";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { formatDate } from "@/lib/format";
-import { STATUS_LABEL, STATUS_TONE, VERDICT_LABEL, VERDICT_TONE } from "@/lib/requisition/labels";
+import { STATUS_LABEL, STATUS_ORDER, STATUS_TONE, VERDICT_LABEL, VERDICT_TONE } from "@/lib/requisition/labels";
 import { listRequisitions, REQUISITIONS_PAGE } from "@/lib/requisition/repo";
 import { splitStateLabel } from "@/lib/requisition/splitting";
 
@@ -23,7 +23,7 @@ export default async function RequisitionsPage() {
   const { org, rows, total, counts } = await listRequisitions();
 
   const list: Row[] = rows.map((r) => {
-    const split = r.split ? splitStateLabel(r.split.state, !!r.split.overrideJustification, true) : { label: "Not assessed", tone: "neutral" as const };
+    const split = splitStateLabel(r.split?.state ?? null, !!r.split?.overrideJustification);
     const erp = r.erpRequisitionNo ?? null;
     return {
       id: r.id,
@@ -40,8 +40,15 @@ export default async function RequisitionsPage() {
         department: { kind: "stack", title: r.unitName, sub: r.routeName ?? "Funding route not set" },
         value: { kind: "money", value: r.value },
         status: { kind: "badge", text: STATUS_LABEL[r.status], tone: TONE[STATUS_TONE[r.status]] },
-        budget: r.verdict ? { kind: "chip", text: VERDICT_LABEL[r.verdict], tone: TONE[VERDICT_TONE[r.verdict]] } : { kind: "text", text: "Not checked", dim: true },
-        split: { kind: "chip", text: split.label, tone: TONE[split.tone] },
+        // One column for both checks: each chip names its own check, and the title keeps
+        // the width.
+        checks: {
+          kind: "chips",
+          items: [
+            r.verdict ? { text: VERDICT_LABEL[r.verdict], tone: TONE[VERDICT_TONE[r.verdict]] } : { text: "Budget not checked" },
+            { text: r.split ? split.label : "Splitting not assessed", tone: TONE[split.tone] },
+          ],
+        },
         required: { kind: "text", text: formatDate(r.dateRequired) },
       },
     };
@@ -64,7 +71,7 @@ export default async function RequisitionsPage() {
               <ButtonLink href="/requisitions/receive" variant="secondary" size="md">
                 Receive from finance system
               </ButtonLink>
-              <ButtonLink href="/requisitions/new" variant="primary" size="md">
+              <ButtonLink href="/requisitions/new" variant="primary" size="md" icon={<PlusIcon size={16} />}>
                 New requisition
               </ButtonLink>
             </>
@@ -107,17 +114,16 @@ export default async function RequisitionsPage() {
             { id: "drafts", label: "Drafts" },
             { id: "over", label: "Over budget" },
           ]}
-          filters={[{ key: "status", label: "Status" }]}
+          filters={[{ key: "status", label: "Status", order: STATUS_ORDER.map((s) => STATUS_LABEL[s]) }]}
           rowAction={{ label: "Open", hrefTemplate: "/requisitions/{id}" }}
           rowOpens
           columns={[
-            { key: "title", label: "Requisition", sortable: true },
-            { key: "department", label: "Department and funding", width: "17%", hideBelow: "lg" },
-            { key: "value", label: "Value", width: "112px", numeric: true, sortable: true },
-            { key: "status", label: "Status", width: "160px", sortable: true },
-            { key: "budget", label: "Budget", width: "140px", hideBelow: "md" },
-            { key: "split", label: "Splitting", width: "150px", hideBelow: "xl" },
-            { key: "required", label: "Required by", width: "112px", sortable: true, hideBelow: "2xl" },
+            { key: "title", label: "Requisition", sortable: true, mobile: "primary" },
+            { key: "department", label: "Department and funding", width: "18%", hideBelow: "2xl" },
+            { key: "value", label: "Value", width: "120px", numeric: true, sortable: true, mobile: "meta" },
+            { key: "status", label: "Status", width: "172px", sortable: true, mobile: "meta" },
+            { key: "checks", label: "Checks", width: "204px", hideBelow: "md", mobile: "meta" },
+            { key: "required", label: "Required by", width: "112px", sortable: true, hideBelow: "2xl", mobile: "meta" },
           ]}
           rows={list}
         />

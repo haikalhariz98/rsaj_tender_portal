@@ -20,7 +20,7 @@ import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { Stat } from "@/components/ui/stat";
 import { loadDashboard } from "@/lib/dashboard";
-import { formatDate, formatRM } from "@/lib/format";
+import { formatDate, formatOrgDay, formatRM } from "@/lib/format";
 import { matterLabel } from "@/lib/labels";
 import { loadShell } from "@/lib/shell";
 import { greetingAt } from "@/lib/dates";
@@ -66,7 +66,7 @@ export default async function Dashboard() {
   // Greet by name only when there is a name. Splitting the old placeholder produced
   // "Good afternoon, Signed".
   const firstName = shell.user?.name.split(/\s+/)[0] ?? null;
-  const waiting = data.queue.length;
+  const waiting = data.queue.length + data.requisitions.length;
   const overdue = data.queue.filter((q) => q.waitingDays > 14).length;
 
   return (
@@ -87,7 +87,7 @@ export default async function Dashboard() {
           ),
           <>
             <CalendarIcon size={14} />
-            {formatDate(now)}
+            {formatOrgDay(now, timeZone)}
           </>,
           overdue > 0 && (
             <Badge tone="err" dot>
@@ -100,14 +100,9 @@ export default async function Dashboard() {
             <Button icon={<DownloadIcon size={16} />} disabled title="Export is not built yet">
               Export
             </Button>
-            <Button
-              variant="primary"
-              icon={<PlusIcon size={16} />}
-              disabled
-              title="Raising a request is not built yet"
-            >
-              New request
-            </Button>
+            <ButtonLink href="/requisitions/new" variant="primary" icon={<PlusIcon size={16} />}>
+              New requisition
+            </ButtonLink>
           </>
         }
       />
@@ -118,7 +113,11 @@ export default async function Dashboard() {
           value={waiting}
           tone="warn"
           icon={<ClockIcon size={17} />}
-          hint={waiting > 0 ? `oldest ${data.queue[0].waitingDays} days` : "queue is clear"}
+          hint={
+            waiting > 0
+              ? `oldest ${Math.max(data.queue[0]?.waitingDays ?? 0, data.requisitions[0]?.waitingDays ?? 0)} days`
+              : "queue is clear"
+          }
         />
         <Stat
           label="Sourcing pipeline"
@@ -215,6 +214,46 @@ export default async function Dashboard() {
                     href: `/configuration/committees/${item.committeeCode}`,
                     sub: `${item.votesCast} of ${item.entitled} voted`,
                   },
+                },
+              }))}
+            />
+          </Card>
+
+          <Card className="overflow-hidden">
+            <CardHeader
+              icon={<ClockIcon size={17} />}
+              title="Requisitions awaiting approval"
+              subtitle="Open approval routes, oldest first, with the step each waits on."
+              divided={false}
+              actions={
+                <ButtonLink href="/requisitions" variant="ghost" size="sm">
+                  View all
+                </ButtonLink>
+              }
+            />
+            <DataList
+              flat
+              toolbar={false}
+              selectable={false}
+              exportName="requisitions-awaiting-approval"
+              emptyTitle="No requisition is awaiting approval"
+              emptyBody="A requisition appears here once it is submitted, until its route closes."
+              rowAction={{ label: "Open", hrefTemplate: "/requisitions/{id}" }}
+              rowOpens
+              columns={[
+                { key: "item", label: "Requisition", mobile: "primary" },
+                { key: "on", label: "Waiting on", width: "200px", hideBelow: "md", mobile: "meta" },
+                { key: "value", label: "Value", width: "132px", numeric: true, mobile: "meta" },
+                { key: "waiting", label: "Waiting", width: "104px", numeric: true, mobile: "meta" },
+              ]}
+              rows={data.requisitions.map((q) => ({
+                id: q.id,
+                search: `${q.title} ${q.reference}`,
+                cells: {
+                  item: { kind: "link", text: q.title, href: `/requisitions/${q.id}`, sub: q.reference },
+                  on: q.waitingOn ? { kind: "text", text: q.waitingOn } : { kind: "text", text: "No step pending", dim: true },
+                  value: { kind: "money", value: q.value },
+                  waiting: { kind: "badge", text: `${q.waitingDays}d`, tone: q.waitingDays > 14 ? "err" : undefined },
                 },
               }))}
             />

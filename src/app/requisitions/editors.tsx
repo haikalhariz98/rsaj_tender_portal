@@ -30,7 +30,16 @@ import {
 type Option = { value: string; label: string };
 
 /// A control the rules say cannot be used yet, with the reason beside it.
-export function Blocked({ label, reason, primary }: { label: string; reason: string; primary?: boolean }) {
+export function Blocked({ label, reason, primary, noteId }: { label: string; reason: string; primary?: boolean; noteId?: string }) {
+  // In a page header the reason is stated once, under the action row (PageHeader's
+  // `actionsNote`), and the button points at it rather than carrying its own copy.
+  if (noteId) {
+    return (
+      <Button size="sm" variant={primary ? "primary" : "secondary"} disabled title={reason} aria-describedby={noteId}>
+        {label}
+      </Button>
+    );
+  }
   return (
     <span className="inline-flex max-w-full items-center gap-2">
       <Button size="sm" variant={primary ? "primary" : "secondary"} disabled title={reason}>
@@ -64,8 +73,11 @@ export function RecordEndorsementDrawer({ id, tiers, people, today }: { id: stri
   );
 }
 
+/// Id of the header note that states why a header action is unavailable.
+export const HEADER_NOTE_ID = "requisition-actions-note";
+
 export function MarkEndorsed({ id, blocker }: { id: string; blocker: string | null }) {
-  if (blocker) return <Blocked label="Mark endorsed" reason={blocker} primary />;
+  if (blocker) return <Blocked label="Mark endorsed" reason={blocker} primary noteId={HEADER_NOTE_ID} />;
   return (
     <RecordEditor
       title="Mark as endorsed"
@@ -84,7 +96,7 @@ export function ReturnDrawer({ id, people, today }: { id: string; people: Option
   return (
     <RecordEditor
       title="Return as incomplete"
-      description="The completeness review found the pack incomplete. It goes back to the requesting department with the reason (FR-REQ-010)."
+      description="The completeness review found the pack incomplete. It goes back to the requesting department with the reason."
       fields={[
         hidden("id"),
         { kind: "textarea", name: "reason", label: "What is incomplete" },
@@ -100,8 +112,26 @@ export function ReturnDrawer({ id, people, today }: { id: string; people: Option
   );
 }
 
-export function RegisterDrawer({ id, required, proc, nm, blocker }: { id: string; required: boolean | null; proc: string | null; nm: string | null; blocker: string | null }) {
-  if (blocker) return <Blocked label="Register" reason={blocker} primary />;
+/// The configured examples of the finance system's two numbers, shown before typing.
+export type ErpExamples = { requisition: string | null; note: string | null };
+const exampleHint = (x: string | null) => (x ? `For example ${x}.` : undefined);
+
+export function RegisterDrawer({
+  id,
+  required,
+  proc,
+  nm,
+  blocker,
+  examples,
+}: {
+  id: string;
+  required: boolean | null;
+  proc: string | null;
+  nm: string | null;
+  blocker: string | null;
+  examples: ErpExamples;
+}) {
+  if (blocker) return <Blocked label="Register" reason={blocker} primary noteId={HEADER_NOTE_ID} />;
   return (
     <RecordEditor
       title="Register"
@@ -112,8 +142,8 @@ export function RegisterDrawer({ id, required, proc, nm, blocker }: { id: string
       }
       fields={[
         hidden("id"),
-        { kind: "text", name: "erpRequisitionNo", label: "Finance system requisition no.", required: required === true, mono: true },
-        { kind: "text", name: "erpNoteNo", label: "Requisition note no.", required: required === true, mono: true },
+        { kind: "text", name: "erpRequisitionNo", label: "Finance system requisition no.", required: required === true, mono: true, hint: exampleHint(examples.requisition) },
+        { kind: "text", name: "erpNoteNo", label: "Requisition note no.", required: required === true, mono: true, hint: exampleHint(examples.note) },
       ]}
       values={{ id, erpRequisitionNo: proc, erpNoteNo: nm }}
       action={registerRequisition}
@@ -124,15 +154,15 @@ export function RegisterDrawer({ id, required, proc, nm, blocker }: { id: string
   );
 }
 
-export function ErpRefsDrawer({ id, proc, nm }: { id: string; proc: string | null; nm: string | null }) {
+export function ErpRefsDrawer({ id, proc, nm, examples }: { id: string; proc: string | null; nm: string | null; examples: ErpExamples }) {
   return (
     <RecordEditor
       title="Record finance numbers"
       description="The finance system's requisition and note numbers, as it issued them. Each belongs to one requisition."
       fields={[
         hidden("id"),
-        { kind: "text", name: "erpRequisitionNo", label: "Finance system requisition no.", mono: true },
-        { kind: "text", name: "erpNoteNo", label: "Requisition note no.", mono: true },
+        { kind: "text", name: "erpRequisitionNo", label: "Finance system requisition no.", mono: true, hint: exampleHint(examples.requisition) },
+        { kind: "text", name: "erpNoteNo", label: "Requisition note no.", mono: true, hint: exampleHint(examples.note) },
       ]}
       values={{ id, erpRequisitionNo: proc, erpNoteNo: nm }}
       action={recordErpRefs}
@@ -144,7 +174,7 @@ export function ErpRefsDrawer({ id, proc, nm }: { id: string; proc: string | nul
 }
 
 export function CheckBudgetDrawer({ id, source, blocker, today }: { id: string; source: "PORTAL_LEDGER" | "MANUAL_ERP_ENTRY" | null; blocker: string | null; today: string | null }) {
-  if (blocker || !source) return <Blocked label="Check budget" reason={blocker ?? "The budget check source is not set."} />;
+  if (blocker || !source) return <Blocked label="Check budget" reason={blocker ?? "The budget check source is not set."} noteId={HEADER_NOTE_ID} />;
   const manual = source === "MANUAL_ERP_ENTRY";
   return (
     <RecordEditor
@@ -185,7 +215,7 @@ export function SubmitDrawer({
   /// Where the latest check is over budget: whether it needs the route invoked, and whether the control is set.
   overBudget: { invocation: boolean; controlNotSet: boolean; auto: boolean; ifRechecked?: boolean } | null;
 }) {
-  if (blocker) return <Blocked label="Submit for approval" reason={blocker} primary />;
+  if (blocker) return <Blocked label="Submit for approval" reason={blocker} primary noteId={HEADER_NOTE_ID} />;
   const fields: Field[] = [hidden("id")];
   if (overBudget?.invocation) {
     fields.push({
@@ -219,7 +249,7 @@ export function SubmitDrawer({
 }
 
 export function RecallDrawer({ id, blocker }: { id: string; blocker: string | null }) {
-  if (blocker) return <Blocked label="Recall" reason={blocker} />;
+  if (blocker) return <Blocked label="Recall" reason={blocker} noteId={HEADER_NOTE_ID} />;
   return (
     <RecordEditor
       title="Recall"
@@ -245,7 +275,7 @@ export function CancelDrawer({ id }: { id: string }) {
       action={cancelRequisition}
       submitLabel="Cancel requisition"
       destructive={{ reasonLabel: "Why is it cancelled?" }}
-      trigger={{ label: "Cancel", className: buttonClass("ghost", "sm") }}
+      trigger={{ label: "Cancel requisition", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
       size="sm"
     />
   );
@@ -277,7 +307,7 @@ export function CloseDrawer({ id }: { id: string }) {
       action={closeRequisition}
       submitLabel="Close"
       destructive={{ reasonLabel: "Why is it closed?" }}
-      trigger={{ label: "Close", className: buttonClass("ghost", "sm") }}
+      trigger={{ label: "Close requisition", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
       size="sm"
     />
   );
@@ -288,6 +318,7 @@ export function DecisionDrawer({
   stepId,
   roleLabel,
   act,
+  done,
   people,
   today,
   blocker,
@@ -296,6 +327,8 @@ export function DecisionDrawer({
   stepId: string;
   roleLabel: string;
   act: string;
+  /// The act as done: "Recommended", "Approved".
+  done: string;
   people: Option[];
   today: string | null;
   blocker: string | null;
@@ -315,11 +348,11 @@ export function DecisionDrawer({
           required: true,
           placeholder: "Choose",
           options: [
-            { value: "DONE", label: `${act} — done` },
+            { value: "DONE", label: done },
             { value: "REJECTED", label: "Rejected" },
           ],
         },
-        { kind: "select", name: "personId", label: "Decided by", required: true, placeholder: "Choose", options: people, hint: "Holders of the office for this department are listed first." },
+        { kind: "select", name: "personId", label: "Decided by", required: true, placeholder: "Choose", options: people, hint: "Holders of the office for this department and their delegates come first, then anyone who cannot decide it and why." },
         { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was submitted." },
         { kind: "textarea", name: "reason", label: "Reason", hint: "Required for a rejection." },
       ]}
@@ -356,7 +389,7 @@ export function JustifySplitDrawer({ id, people, today, office }: { id: string; 
   return (
     <RecordEditor
       title="Justify the possible split"
-      description="Why these related requisitions are not one requirement split below a threshold. Required before the final approval (FR-REQ-015)."
+      description="Why these related requisitions are not one requirement split below a threshold. Required before the final approval."
       fields={[
         hidden("id"),
         { kind: "textarea", name: "overrideJustification", label: "Justification" },

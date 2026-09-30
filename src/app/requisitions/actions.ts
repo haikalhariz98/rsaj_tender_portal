@@ -27,6 +27,7 @@ import { deciderFaults, holdersFor, requesterHoldsApprover } from "@/lib/requisi
 import { intakeFaults, type ExternalRequisition, type ReceivedStep } from "@/lib/requisition/intake";
 import {
   DECIDER_FAULT_TEXT,
+  deciderFaultText,
   endorsementFaultText,
   fieldFaultText,
   fundingFaultText,
@@ -349,10 +350,10 @@ export async function recordEndorsement(_prev: FormState, data: FormData): Promi
     if (!person) return { ok: false, errors: { personId: "That person is not on file." } };
     if (!person.isActive) return { ok: false, errors: { personId: "That person is recorded as having left." } };
     const endorsedOn = storedDay(on);
-    const fault = endorsementEntryFault({ tier, unitCode: "", personId, endorsedOn }, unitOf(l.req), policy.endorsementTiers, lookups.units, l.org.today, l.req.requestingPersonId);
+    const fault = endorsementEntryFault({ tier, unitCode: "", personId, endorsedOn }, unitOf(l.req), policy.endorsementTiers, lookups.units, l.org.today, l.req.requestingPersonId, storedDay(l.req.raisedOn));
     if (fault) {
       const text = endorsementFaultText(fault, () => person.name);
-      return fault.code === "NOT_HEAD" || fault.code === "REQUESTER" ? { ok: false, errors: { personId: text } } : fault.code === "FUTURE_DATE" ? { ok: false, errors: { endorsedOn: text } } : { ok: false, message: text };
+      return fault.code === "NOT_HEAD" || fault.code === "REQUESTER" ? { ok: false, errors: { personId: text } } : fault.code === "FUTURE_DATE" || fault.code === "BEFORE_RAISED" ? { ok: false, errors: { endorsedOn: text } } : { ok: false, message: text };
     }
     const unit = pathTo(lookups.units, unitOf(l.req), on).reverse().find((u) => u.kind === tier)!;
     const row = await tx.requisitionEndorsement.create({
@@ -1046,7 +1047,7 @@ export async function recordDecision(_prev: FormState, data: FormData): Promise<
       value: parseSen(l.req.estimatedValue.toString()),
     });
     if (check.faults.length > 0) {
-      const texts = check.faults.map((f) => DECIDER_FAULT_TEXT[f]);
+      const texts = check.faults.map((f) => deciderFaultText(f, person?.name ?? null));
       const field = check.faults.some((f) => ["FUTURE_DATE", "BEFORE_SUBMISSION"].includes(f)) && check.faults.length === 1 ? "decidedOn" : "personId";
       return ["TIME_ZONE_UNSET", "COMMITTEE_STEP", "NOT_PENDING", "OUT_OF_ORDER"].includes(check.faults[0])
         ? { ok: false, message: texts.join(" ") }
@@ -1200,7 +1201,7 @@ export async function justifySplit(_prev: FormState, data: FormData): Promise<Fo
       today: l.org.today,
     });
     if (faults.length > 0) {
-      const text = faults.map((f) => JUSTIFIER_TEXT[f]).join(" ");
+      const text = faults.map((f) => JUSTIFIER_TEXT[f].replace(/^That person/, person?.name ?? "That person")).join(" ");
       return faults.includes("FUTURE_DATE") && faults.length === 1 ? { ok: false, errors: { overriddenOn: text } } : faults[0] === "TIME_ZONE_UNSET" ? NO_ZONE : { ok: false, errors: { personId: text } };
     }
     const after = { overrideJustification: justification, overriddenByPersonId: personId, overriddenOn: on, overriddenAt: new Date() };

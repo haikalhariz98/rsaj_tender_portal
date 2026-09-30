@@ -17,13 +17,26 @@ const PROVENANCE_OPTIONS = [
 ];
 
 /// Every field starts empty where nothing is set; saving an empty field leaves it unset.
-export function EditPolicy({ policy, notes, offices }: { policy: RequisitionPolicy; notes: string; offices: { code: string; nameEn: string }[] }) {
+export function EditPolicy({
+  policy,
+  notes,
+  offices,
+  label = "Edit controls",
+  quiet = false,
+}: {
+  policy: RequisitionPolicy;
+  notes: string;
+  offices: { code: string; nameEn: string }[];
+  /// The trigger's words: "Set it" where it sits beside an unset control.
+  label?: string;
+  quiet?: boolean;
+}) {
   return (
     <RecordEditor
       title="Edit requisition controls"
       description="Nothing is proposed for you. A field left empty stays not set, and the screen says what that stops."
       fields={[
-        { kind: "note", text: "Endorsement (FR-REQ-003)" },
+        { kind: "note", text: "Endorsement" },
         {
           kind: "tokens",
           name: "endorsementTiers",
@@ -31,7 +44,7 @@ export function EditPolicy({ policy, notes, offices }: { policy: RequisitionPoli
           options: (["SECTION", "DEPARTMENT", "DIVISION"] as const).map((t) => ({ value: t, label: TIER_LABEL[t] })),
           hint: "The head of each tier's unit on the requesting unit's path. Empty: nothing can be endorsed or submitted.",
         },
-        { kind: "note", text: "Registration (FR-REQ-002)" },
+        { kind: "note", text: "Registration" },
         {
           kind: "select",
           name: "erpReferenceRequired",
@@ -39,9 +52,9 @@ export function EditPolicy({ policy, notes, offices }: { policy: RequisitionPoli
           placeholder: "Not set — registration is refused",
           options: TRI,
         },
-        { kind: "note", text: "Budget check (FR-REQ-007)" },
+        { kind: "note", text: "Budget check" },
         { kind: "number", name: "budgetRecheckDays", label: "Re-check on submission when the check is older than (days)", min: 0, hint: "Empty: a check never goes stale." },
-        { kind: "note", text: "Anti-splitting (FR-REQ-015). No governing document sets these; they are the customer's decision (B7)." },
+        { kind: "note", text: "Anti-splitting. No governing document sets these; they are the customer's decision." },
         { kind: "number", name: "splittingWindowDays", label: "Window (days)", min: 1 },
         {
           kind: "tokens",
@@ -81,7 +94,7 @@ export function EditPolicy({ policy, notes, offices }: { policy: RequisitionPoli
       }}
       action={savePolicy}
       reason={{ label: "Why are the controls changing?" }}
-      trigger={{ label: "Edit controls", className: buttonClass("primary", "sm") }}
+      trigger={{ label, className: buttonClass(quiet ? "secondary" : "primary", "sm") }}
       size="lg"
     />
   );

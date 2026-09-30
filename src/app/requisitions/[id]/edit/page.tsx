@@ -11,6 +11,26 @@ import { RequisitionForm } from "../../requisition-form";
 
 export const dynamic = "force-dynamic";
 
+/// The way back to draft from where it stands, naming only actions that exist there.
+function backToDraft(status: string): string {
+  switch (status) {
+    case "ENDORSED":
+      return "To change them, return it as incomplete from the requisition, then reopen it as a draft.";
+    case "RETURNED":
+    case "RECALLED":
+    case "REJECTED":
+      return "To change them, reopen it as a draft from the requisition.";
+    case "PENDING_APPROVAL":
+      return "To change them, recall it from approval before anyone decides, then reopen it as a draft.";
+    case "REGISTERED":
+    case "BUDGET_CHECKED":
+    case "OVER_BUDGET":
+      return "Once registered it cannot go back to draft. Cancel it and raise a new requisition to change them.";
+    default:
+      return "It can no longer be changed.";
+  }
+}
+
 export default async function EditRequisitionPage(props: PageProps<"/requisitions/[id]/edit">) {
   const { id } = await props.params;
   const l = await loadRequisition(id);
@@ -23,7 +43,7 @@ export default async function EditRequisitionPage(props: PageProps<"/requisition
       <PageHeader eyebrow={<Link href={`/requisitions/${id}`}>{r.reference}</Link>} title={`Edit ${r.title}`} subtitle="Only a draft can be edited." />
       {r.status !== "DRAFT" ? (
         <Callout tone="warn" title="This requisition is no longer a draft">
-          Its fields are fixed once it is endorsed. Return or reopen it to change them.
+          Its fields are fixed once it is endorsed. {backToDraft(r.status)}
         </Callout>
       ) : (
         <>

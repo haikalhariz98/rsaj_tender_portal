@@ -16,14 +16,21 @@ import { EditCheckSource, EditErpFormat, EditPolicy } from "./editors";
 export const dynamic = "force-dynamic";
 
 /// A setting's value, or "Not set" and what that stops.
-function Setting({ value, unset }: { value: React.ReactNode | null; unset: string }) {
+function Setting({ value, unset, action }: { value: React.ReactNode | null; unset: string; action?: React.ReactNode }) {
   if (value != null) return <>{value}</>;
   return (
-    <span className="flex flex-col items-start gap-1">
+    <span className="flex flex-col items-start gap-1.5">
       <Badge tone="warn">Not set</Badge>
       <span className="text-[12.5px] text-ink-3">{unset}</span>
+      {action}
     </span>
   );
+}
+
+/// A regular expression, said in words: the configured description, else that a shape
+/// is set. The pattern itself is a configuration key and stays in the editor.
+function shapeInWords(f: { description: string | null; example: string | null }) {
+  return f.description?.trim() || "Checked against a set shape";
 }
 
 /**
@@ -68,7 +75,11 @@ export default async function RequisitionControlsPage() {
         title="Requisition controls"
         badge={unset > 0 ? <Badge tone="warn" dot>{`${unset} not set`}</Badge> : <Badge tone="ok" dot>All set</Badge>}
         subtitle="Whose endorsement a requisition needs, when it registers, where its budget check comes from, and how a split is caught."
-        meta={[<ProvenanceBadge key="p" value={policy.provenance} />]}
+        meta={[
+          <span key="p" className="inline-flex items-center gap-1.5">
+            Where these controls come from <ProvenanceBadge value={policy.provenance} />
+          </span>,
+        ]}
         actions={
           <>
             {policy.id && <HistoryButton entity="RequisitionPolicy" entityId={policy.id} label="Requisition controls" />}
@@ -78,16 +89,16 @@ export default async function RequisitionControlsPage() {
       />
 
       <div className="flex flex-col gap-6">
-        {(policy.splittingWindowDays == null || policy.splittingMatchOn.length === 0) && (
-          <Callout tone="warn" title="The splitting check is not set">
-            No governing document says when two requisitions are one requirement split in pieces. Until the window and the related
-            fields are set, every requisition is submitted with its splitting check recorded as not assessed, and approvers see that.
+        {(policy.splittingWindowDays == null || policy.splittingMatchOn.length === 0 || policy.splittingAggregateAcrossYear == null) && (
+          <Callout tone="warn" title="The splitting check is not set" action={<EditPolicy policy={policy} notes={policy.notes} offices={offices} label="Set it" quiet />}>
+            No governing document says when two requisitions are one requirement split in pieces. Until the window, the related
+            fields and whether the financial year aggregates are all set, every requisition is submitted with its splitting check recorded as not assessed, and approvers see that.
             It is never shown as clear.
           </Callout>
         )}
 
         <Card>
-          <CardHeader icon={<ShieldIcon size={17} />} title="Endorsement" subtitle="Whose endorsement a requisition needs before it is registered (FR-REQ-003)." />
+          <CardHeader icon={<ShieldIcon size={17} />} title="Endorsement" subtitle="Whose endorsement a requisition needs before it is registered." />
           <CardBody>
             <KeyValues
               items={[
@@ -97,6 +108,7 @@ export default async function RequisitionControlsPage() {
                     <Setting
                       value={policy.endorsementTiers.length ? policy.endorsementTiers.map((t) => TIER_LABEL[t]).join(", then ") : null}
                       unset="No requisition can be endorsed, so none can be registered or submitted. Nothing is assumed."
+                      action={<EditPolicy policy={policy} notes={policy.notes} offices={offices} label="Set it" quiet />}
                     />
                   ),
                 },
@@ -109,7 +121,7 @@ export default async function RequisitionControlsPage() {
           <CardHeader
             icon={<FileIcon size={17} />}
             title="Registration"
-            subtitle="The finance system's requisition and note numbers are consumed here, never issued (FR-REQ-002)."
+            subtitle="The finance system's requisition and note numbers are consumed here, never issued."
           />
           <CardBody className="flex flex-col gap-5">
             <KeyValues
@@ -121,6 +133,7 @@ export default async function RequisitionControlsPage() {
                     <Setting
                       value={policy.erpReferenceRequired == null ? null : policy.erpReferenceRequired ? "Yes — both numbers before registering" : "No — they are recorded when known"}
                       unset="Registration is refused until this is decided."
+                      action={<EditPolicy policy={policy} notes={policy.notes} offices={offices} label="Set it" quiet />}
                     />
                   ),
                 },
@@ -142,8 +155,12 @@ export default async function RequisitionControlsPage() {
                     </div>
                     {f ? (
                       <div className="min-w-0 text-[13px] text-ink-2">
-                        <span className="font-mono break-all">{f.pattern}</span>
-                        {f.example && <span className="block text-ink-3">For example {f.example}</span>}
+                        <span className="block">{shapeInWords(f)}</span>
+                        {f.example && (
+                          <span className="block text-ink-3">
+                            For example <span className="font-mono">{f.example}</span>
+                          </span>
+                        )}
                         <span className="mt-1 block">
                           <ProvenanceBadge value={f.provenance} />
                         </span>
@@ -162,11 +179,11 @@ export default async function RequisitionControlsPage() {
           <CardHeader
             icon={<ChartIcon size={17} />}
             title="Budget check"
-            subtitle="Where the four figures come from, when they go stale, and what happens over budget (FR-REQ-007, 008)."
+            subtitle="Where the figures come from and when they go stale."
             actions={
               <>
                 <EditCheckSource source={controls.budgetCheckSource} />
-                <ButtonLink href="/configuration/budget?tab=controls" size="sm" variant="ghost">
+                <ButtonLink href="/configuration/budget?tab=controls" size="sm" variant="secondary">
                   Budget controls
                 </ButtonLink>
               </>
@@ -187,7 +204,7 @@ export default async function RequisitionControlsPage() {
                 },
                 {
                   label: "Re-checked on submission when older than",
-                  value: <Setting value={policy.budgetRecheckDays == null ? null : `${policy.budgetRecheckDays} days`} unset="A check never goes stale, and is not re-run on submission." />,
+                  value: <Setting value={policy.budgetRecheckDays == null ? null : `${policy.budgetRecheckDays} days`} unset="A check never goes stale, and is not re-run on submission." action={<EditPolicy policy={policy} notes={policy.notes} offices={offices} label="Set it" quiet />} />,
                 },
                 {
                   label: "Over budget (Budget controls)",
@@ -219,18 +236,19 @@ export default async function RequisitionControlsPage() {
         </Card>
 
         <Card>
-          <CardHeader icon={<ClipboardIcon size={17} />} title="Anti-splitting" subtitle="When two requisitions count as one requirement split below a threshold (FR-REQ-015)." />
+          <CardHeader icon={<ClipboardIcon size={17} />} title="Anti-splitting" subtitle="When two requisitions count as one requirement split below a threshold." />
           <CardBody>
             <KeyValues
               columns={2}
               items={[
-                { label: "Window", value: <Setting value={policy.splittingWindowDays == null ? null : `${policy.splittingWindowDays} days`} unset="Not assessed on any requisition." /> },
+                { label: "Window", value: <Setting value={policy.splittingWindowDays == null ? null : `${policy.splittingWindowDays} days`} unset="Not assessed on any requisition." action={<EditPolicy policy={policy} notes={policy.notes} offices={offices} label="Set it" quiet />} /> },
                 {
                   label: "Related when they share",
                   value: (
                     <Setting
                       value={policy.splittingMatchOn.length ? policy.splittingMatchOn.map((k) => SPLIT_KEY_LABEL[k]).join(", ") : null}
                       unset="Not assessed on any requisition."
+                      action={<EditPolicy policy={policy} notes={policy.notes} offices={offices} label="Set it" quiet />}
                     />
                   ),
                 },
@@ -240,6 +258,7 @@ export default async function RequisitionControlsPage() {
                     <Setting
                       value={policy.splittingAggregateAcrossYear == null ? null : policy.splittingAggregateAcrossYear ? "Also related across the financial year" : "The window only"}
                       unset="Not assessed on any requisition: whether the year aggregates is policy too."
+                      action={<EditPolicy policy={policy} notes={policy.notes} offices={offices} label="Set it" quiet />}
                     />
                   ),
                 },
@@ -249,6 +268,7 @@ export default async function RequisitionControlsPage() {
                     <Setting
                       value={justifier ? `A holder of the ${justifier} office for the requesting department — never the requester or an endorser` : null}
                       unset="No flag can be justified, so a flagged requisition cannot be finally approved."
+                      action={<EditPolicy policy={policy} notes={policy.notes} offices={offices} label="Set it" quiet />}
                     />
                   ),
                 },

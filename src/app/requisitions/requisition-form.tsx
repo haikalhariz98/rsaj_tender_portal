@@ -11,6 +11,7 @@ import { Callout } from "@/components/ui/feedback";
 import { AffixInput, Field, Input, Select, Textarea } from "@/components/ui/field";
 import { formDataOf } from "@/components/ui/form-submit";
 import { ACT_LABEL } from "@/lib/labels";
+import { lineAmount } from "@/lib/requisition/lines";
 
 import { createRequisition, editDraft, receiveRequisition } from "./actions";
 
@@ -70,7 +71,10 @@ function totalOf(lines: Line[]): bigint | null {
   return sen;
 }
 
-const rm = (sen: bigint) => `RM ${(sen / 100n).toLocaleString("en-MY")}.${(sen % 100n).toString().padStart(2, "0")}`;
+/// As formatRM writes ringgit: "RM9,500", with sen only where there are some.
+const rm = (sen: bigint) => `RM${(sen / 100n).toLocaleString("en-MY")}${sen % 100n ? `.${(sen % 100n).toString().padStart(2, "0")}` : ""}`;
+
+const typed = (sen: bigint) => `${sen / 100n}.${(sen % 100n).toString().padStart(2, "0")}`;
 
 export function RequisitionForm({
   mode,
@@ -111,7 +115,27 @@ export function RequisitionForm({
     });
   };
 
-  const setLine = (i: number, k: keyof Line, v: string) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, [k]: v } : l)));
+  // An amount is worked out from quantity × unit price until someone types one; then
+  // it is theirs, and stays as typed.
+  const [ownAmount, setOwnAmount] = useState<boolean[]>(() => lines.map((l) => l.estimatedAmount.trim() !== ""));
+  const setLine = (i: number, k: keyof Line, v: string) => {
+    if (k === "estimatedAmount") setOwnAmount((o) => lines.map((_, j) => (j === i ? v.trim() !== "" : (o[j] ?? false))));
+    setLines((ls) =>
+      ls.map((l, j) => {
+        if (j !== i) return l;
+        const next = { ...l, [k]: v };
+        if ((k === "quantity" || k === "estimatedUnitPrice") && !ownAmount[i]) {
+          const worked = lineAmount(next.quantity, next.estimatedUnitPrice);
+          next.estimatedAmount = worked == null ? "" : typed(worked);
+        }
+        return next;
+      }),
+    );
+  };
+  const removeLine = (i: number) => {
+    setLines((ls) => ls.filter((_, j) => j !== i));
+    setOwnAmount((o) => o.filter((_, j) => j !== i));
+  };
   const setStep = (i: number, k: keyof Step, v: string) => setTrail((ts) => ts.map((t, j) => (j === i ? { ...t, [k]: v } : t)));
 
   const select = (name: string, label: string, opts: { value: string; label: string }[], o: { required?: boolean; placeholder?: string; hint?: string; onChange?: (v: string) => void } = {}) => (
@@ -186,7 +210,9 @@ export function RequisitionForm({
             placeholder: sections.length ? "None" : "No section in this department",
           })}
           {select("requestingPersonId", "Requesting officer", options.people.map((p) => ({ value: p.id, label: p.name })), { required: true })}
-          {select("fundingRouteCode", "Funding route", options.fundingRoutes.map((r) => ({ value: r.code, label: r.name })), { hint: "Required to submit." })}
+          {select("fundingRouteCode", "Funding route", options.fundingRoutes.map((r) => ({ value: r.code, label: r.name })), {
+            hint: mode === "receive" ? "The route it was approved under in the finance system." : "Required to submit.",
+          })}
           {select("costCentreCode", "Cost centre", coded(options.costCentres))}
           {select("accountCode", "Account code", coded(options.accounts))}
           {select("budgetCodeId", "Budget code", options.budgetCodes.map((b) => ({ value: b.id, label: `${b.code} · ${b.name}` })), { hint: "The budget line the check reads. Its account must be the requisition's." })}
@@ -198,7 +224,11 @@ export function RequisitionForm({
       </Card>
 
       <Card>
-        <CardHeader icon={<FileIcon size={17} />} title="Line items" subtitle="One or more lines. They must sum to the estimated value before the requisition leaves draft." />
+        <CardHeader
+          icon={<FileIcon size={17} />}
+          title="Line items"
+          subtitle={mode === "receive" ? "One or more lines, summing to the estimated value." : "One or more lines, summing to the estimated value before it leaves draft."}
+        />
         <CardBody className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Estimated value" htmlFor="rq-estimatedValue" required error={e.estimatedValue}>
@@ -230,7 +260,7 @@ export function RequisitionForm({
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-[12.5px] font-semibold text-ink-3">Line {i + 1}</span>
                   {lines.length > 1 && (
-                    <button type="button" className={iconButtonClass("sm")} aria-label={`Remove line ${i + 1}`} onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}>
+                    <button type="button" className={iconButtonClass("sm")} aria-label={`Remove line ${i + 1}`} onClick={() => removeLine(i)}>
                       <XIcon size={14} />
                     </button>
                   )}
@@ -248,7 +278,7 @@ export function RequisitionForm({
                   <Field label="Unit price" htmlFor={`ln-${i}-p`}>
                     <AffixInput id={`ln-${i}-p`} prefix="RM" inputMode="decimal" value={l.estimatedUnitPrice} onChange={(ev) => setLine(i, "estimatedUnitPrice", ev.target.value)} className="[&_input]:text-right" />
                   </Field>
-                  <Field label="Amount" htmlFor={`ln-${i}-a`}>
+                  <Field label="Amount" htmlFor={`ln-${i}-a`} hint={ownAmount[i] ? undefined : "Quantity × unit price"}>
                     <AffixInput id={`ln-${i}-a`} prefix="RM" inputMode="decimal" value={l.estimatedAmount} onChange={(ev) => setLine(i, "estimatedAmount", ev.target.value)} className="[&_input]:text-right" />
                   </Field>
                 </div>

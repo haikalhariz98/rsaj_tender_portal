@@ -110,7 +110,14 @@ export default async function ApprovalMatrixPage({
   const matrix = await loadMatrix(ORGANISATION_CODE, on, selected.id);
   const matrixId = selected.id;
   const editable = !selected.issuedAt;
-  const state = stateOf(selected, on);
+  const noRules = matrix.rules.length === 0;
+  const baseState = stateOf(selected, on);
+  // An issued set with no rules routes nothing: never a green "In force" on its own.
+  const state =
+    noRules && selected.issuedAt && baseState.label === "In force"
+      ? { label: "In force · no rules supplied", tone: "warn" as const }
+      : baseState;
+  const inForce = baseState.label === "In force";
   // Row ids only where they are needed: a draft's rules are the only ones that change.
   const ruleRows = editable ? await loadRuleRows(selected.id) : {};
 
@@ -158,12 +165,16 @@ export default async function ApprovalMatrixPage({
           </>
         }
         subtitle="Who proposes, who recommends and who approves, at every value."
-        meta={[
-          `${matrix.rules.length} rules`,
-          `${domains.length} decision types`,
-          `${committees} committees involved`,
-          `${fixed} cannot be delegated`,
-        ]}
+        meta={
+          noRules
+            ? ["Rules not supplied"]
+            : [
+                `${matrix.rules.length} ${matrix.rules.length === 1 ? "rule" : "rules"}`,
+                `${domains.length} decision ${domains.length === 1 ? "type" : "types"}`,
+                `${committees} ${committees === 1 ? "committee" : "committees"} involved`,
+                `${fixed} cannot be delegated`,
+              ]
+        }
         actions={
           <>
           <HistoryButton entity="AuthorityMatrix" entityId={matrixId} label={selected.label} />
@@ -246,17 +257,17 @@ export default async function ApprovalMatrixPage({
             Nothing in it routes a matter until it is issued. Change the thresholds and rules
             here, then issue it from a date. The simulator below still uses the issue in force.
           </Callout>
-        ) : state.label === "In force" && selectedRoute ? (
+        ) : inForce && selectedRoute ? (
           <Callout tone="info" title={`In force since ${formatDate(selected.effectiveFrom)}`}>
-            A funder&apos;s rule set. It routes only requisitions on the {routeName(selectedRoute)} funding route, in place of the
+            A funder&apos;s rule set. It routes only requisitions whose funding route is &ldquo;{routeName(selectedRoute)}&rdquo;, in place of the
             organisation&apos;s limits, where it has a rule for the matter. Otherwise the organisation&apos;s limits route them, and
             the approval trail says the funder&apos;s rules were not applied.
           </Callout>
-        ) : state.label === "In force" ? (
+        ) : inForce ? (
           <Callout tone="info" title={`In force since ${formatDate(selected.effectiveFrom)}`}>
-            These rules route every approval in the portal. An issued issue cannot be changed, so
-            a decision can always be shown the rules it ran under. To change them, start a new
-            revision.
+            These rules route every approval in the portal. Once issued, an issue cannot be changed,
+            so a decision can always be shown the rules it ran under. To change them, start a new
+            issue.
           </Callout>
         ) : (
           <Callout tone="info" title={state.label}>
@@ -415,13 +426,15 @@ export default async function ApprovalMatrixPage({
                               <div className="text-[12.5px] break-words text-ink-3">{condLabel(rule.cond)}</div>
                             )}
                             {edgeAtBoundary(rule, matrix.policy) && (
-                              <div className="mt-1">
+                              // Its own line, as text: a badge this long clipped in the
+                              // band column at 1280.
+                              <div className="mt-1 text-[12.5px] break-words text-ink-3">
                                 {rule.followsBoundarySwitch == null ? (
-                                  <Badge tone="err">Boundary: not decided</Badge>
+                                  <Badge tone="err">Boundary not decided</Badge>
                                 ) : rule.followsBoundarySwitch ? (
-                                  <Badge tone="neutral">Follows the boundary switch</Badge>
+                                  "At the boundary: follows the switch"
                                 ) : (
-                                  <Badge tone="neutral">Ignores the boundary switch</Badge>
+                                  "At the boundary: ignores the switch"
                                 )}
                               </div>
                             )}

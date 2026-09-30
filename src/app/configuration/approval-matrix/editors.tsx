@@ -427,7 +427,7 @@ export function RemoveRecommender({ id, label }: { id: string; label: string }) 
 export function StartRevision({ fromId, fromLabel }: { fromId: string; fromLabel: string }) {
   return (
     <RecordEditor
-      title="Start a new revision"
+      title="Start a new issue"
       description={`A draft copy of ${fromLabel} — every threshold, clause and rule. Change it, then issue it; ${fromLabel} stays in force until then and is kept afterwards.`}
       fields={[
         { kind: "hidden", name: "fromId" },
@@ -443,7 +443,7 @@ export function StartRevision({ fromId, fromLabel }: { fromId: string; fromLabel
       values={{ fromId }}
       action={startRevision}
       submitLabel="Create draft"
-      trigger={{ label: "New revision", icon: true, className: buttonClass("primary", "sm") }}
+      trigger={{ label: "New issue", icon: true, className: buttonClass("primary", "sm") }}
       size="md"
     />
   );
@@ -466,8 +466,8 @@ export function IssueDraft({
       title={`Issue ${label}`}
       description={
         replaces
-          ? `From the date below it routes every matter, ${replaces} ends, and neither can be changed again. A change after that is a new revision.`
-          : "From the date below it routes every matter and can no longer be changed. A change after that is a new revision."
+          ? `From the date below it routes every matter, ${replaces} ends, and neither can be changed again. A change after that is a new issue.`
+          : "From the date below it routes every matter and can no longer be changed. A change after that is a new issue."
       }
       fields={[
         { kind: "hidden", name: "id" },
