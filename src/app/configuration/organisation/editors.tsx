@@ -1,46 +1,46 @@
 "use client";
 
-import { useTransition, useState } from "react";
-
-import { AlertTriangle, BuildingIcon, PencilIcon, SaveIcon } from "@/components/icons";
-import { EMPTY_FORM_STATE, RecordEditor, type Field, type FormState } from "@/components/record-editor";
+import { BuildingIcon, PencilIcon } from "@/components/icons";
+import { RecordEditor, type Field } from "@/components/record-editor";
+import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import type { CostCentre, OrgUnit, OrgUnitKind, Site } from "@/lib/organisation/types";
 
 import { saveCostCentre, saveOrgUnit, saveSite } from "./actions";
 
 type Person = { id: string; name: string; isActive: boolean };
 
-const KIND_OPTIONS: { value: OrgUnitKind; label: string }[] = [
-  { value: "COMPANY", label: "Company" },
-  { value: "DIVISION", label: "Division" },
-  { value: "DEPARTMENT", label: "Department" },
-  { value: "SECTION", label: "Section" },
-];
+export const KIND_LABEL: Record<OrgUnitKind, string> = {
+  COMPANY: "Company",
+  DIVISION: "Division",
+  DEPARTMENT: "Department",
+  SECTION: "Section",
+};
 
 const personOptions = (people: Person[]) =>
   people.filter((p) => p.isActive).map((p) => ({ value: p.id, label: p.name }));
 
+const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+
 /**
- * The fields a unit carries.
+ * The fields a unit carries, by tier.
  *
  * A company holds registration, tax, address and the rest; nothing else does. The
- * form asks only for what the kind carries, and `saveOrgUnit` writes only what the
- * form posted — a department edit must leave a company's details alone, and on a
- * shared nullable table nothing would complain if it did not.
+ * form asks only for what the tier carries, and `saveOrgUnit` writes only what the
+ * form posted — a department edit must leave a company's details alone.
  */
-export function unitFields(kind: OrgUnitKind, units: OrgUnit[], people: Person[]): Field[] {
+function unitFields(kind: OrgUnitKind, people: Person[]): Field[] {
   const common: Field[] = [
-    { kind: "text", name: "code", label: "Code", required: true, mono: true },
+    { kind: "text", name: "nameEn", label: "Name (EN)", required: true },
+    { kind: "text", name: "nameMs", label: "Name (BM)" },
     {
       kind: "select",
       name: "headPersonId",
-      label: "Head",
-      placeholder: "—",
+      label: kind === "COMPANY" ? "Chief executive" : `Head of ${KIND_LABEL[kind].toLowerCase()}`,
+      placeholder: "Nobody named",
       options: personOptions(people),
       orphanLabel: "Somebody no longer on record",
+      hint: "Endorsements and approvals that go to the head of this unit find them here.",
     },
-    { kind: "text", name: "nameEn", label: "Name (EN)", required: true },
-    { kind: "text", name: "nameMs", label: "Name (BM)" },
   ];
 
   if (kind !== "COMPANY") return common;
@@ -62,203 +62,87 @@ export function unitFields(kind: OrgUnitKind, units: OrgUnit[], people: Person[]
   ];
 }
 
-function unitValues(unit: OrgUnit): Record<string, string | null> {
-  return {
-    id: unit.code,
-    code: unit.code,
-    headPersonId: unit.headPersonId,
-    nameEn: unit.nameEn,
-    nameMs: unit.nameMs,
-    registrationNumber: unit.registrationNumber,
-    taxReference: unit.taxReference,
-    telephone: unit.telephone,
-    financialYearStart: unit.financialYearStart,
-    address: unit.address,
-    operatingLicence: unit.operatingLicence,
-  };
-}
-
 /**
- * The selected unit's details, edited in place.
+ * Add a unit of a given tier under a given parent.
  *
- * Not a drawer: the sample puts this form in the card itself, and the tree beside it
- * is how you move between records. A drawer would put a lid over the thing the tree
- * exists to show.
+ * Both are decided by where the button is — "Add department" on a division — so the
+ * drawer does not ask again. A company is the one tier added with no parent.
  */
-export function UnitForm({
-  unit,
-  units,
+export function AddOrgUnit({
+  kind,
+  parent,
   people,
+  variant = "secondary",
 }: {
-  unit: OrgUnit;
-  units: OrgUnit[];
+  kind: OrgUnitKind;
+  parent: OrgUnit | null;
   people: Person[];
+  variant?: "primary" | "secondary" | "ghost";
 }) {
-  const [state, setState] = useState<FormState>(EMPTY_FORM_STATE);
-  const [pending, startTransition] = useTransition();
-  const [dirty, setDirty] = useState(false);
-
-  const fields = unitFields(unit.kind, units, people);
-  const values = unitValues(unit);
-
-  const submit = (data: FormData) => {
-    startTransition(async () => {
-      const result = await saveOrgUnit(EMPTY_FORM_STATE, data);
-      setState(result);
-      if (result.ok) setDirty(false);
-    });
-  };
-
-  return (
-    <form action={submit} onChange={() => setDirty(true)}>
-      <div className="stack stack--lg">
-        {state.message && (
-          <div className="callout callout--err">
-            <span className="callout__ico">
-              <AlertTriangle size={17} />
-            </span>
-            <div className="grow">
-              <span className="sm">{state.message}</span>
-            </div>
-          </div>
-        )}
-
-        <input type="hidden" name="id" value={unit.code} />
-        <input type="hidden" name="kind" value={unit.kind} />
-
-        <div className="grid g2" style={{ gap: 16 }}>
-          {fields.map((field) => (
-            <UnitField
-              key={"name" in field ? field.name : field.kind}
-              field={field}
-              value={"name" in field ? (values[field.name] ?? "") : ""}
-              error={"name" in field ? state.errors?.[field.name] : undefined}
-            />
-          ))}
-        </div>
-
-        {dirty && (
-          <div className="row">
-            <div className="spacer" />
-            <button type="submit" className="btn btn--primary btn--sm" disabled={pending}>
-              <SaveIcon size={15} />
-              {pending ? "Saving…" : "Save"}
-            </button>
-          </div>
-        )}
-      </div>
-    </form>
-  );
-}
-
-/// One field of the in-card form. The drawer's `FieldInput` is not reusable here —
-/// it is private to the record editor and this form has no drawer around it.
-function UnitField({
-  field,
-  value,
-  error,
-}: {
-  field: Field;
-  value: string;
-  error?: string;
-}) {
-  if (field.kind === "hidden" || field.kind === "note") return null;
-
-  const required = "required" in field && field.required;
-  const hint = "hint" in field ? field.hint : undefined;
-
-  const label = (
-    <span className="field__lbl">
-      {field.label}
-      {required && (
-        <span className="field__req" aria-hidden="true">
-          *
-        </span>
-      )}
-    </span>
-  );
-
-  const foot = error ? (
-    <span className="field__err">
-      <AlertTriangle size={13} />
-      {error}
-    </span>
-  ) : hint ? (
-    <span className="field__hint">{hint}</span>
-  ) : null;
-
-  if (field.kind === "select") {
-    const orphaned = value !== "" && !field.options.some((o) => o.value === value);
-    return (
-      <label className="field">
-        {label}
-        <select className="select" name={field.name} defaultValue={value}>
-          <option value="">{field.placeholder ?? "Not set"}</option>
-          {orphaned && <option value={value}>{field.orphanLabel ?? value}</option>}
-          {field.options.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        {foot}
-      </label>
-    );
-  }
-
-  if (field.kind === "textarea") {
-    return (
-      <label className="field">
-        {label}
-        <textarea className="textarea" name={field.name} rows={3} defaultValue={value} />
-        {foot}
-      </label>
-    );
-  }
-
-  return (
-    <label className="field">
-      {label}
-      <input
-        className={"mono" in field && field.mono ? "input input--mono" : "input"}
-        name={field.name}
-        placeholder={"placeholder" in field ? field.placeholder : undefined}
-        defaultValue={value}
-      />
-      {foot}
-    </label>
-  );
-}
-
-export function AddOrgUnit({ units, people }: { units: OrgUnit[]; people: Person[] }) {
+  const label = `Add ${KIND_LABEL[kind].toLowerCase()}`;
   return (
     <RecordEditor
-      title="Add a unit"
-      description="A company, division, department or section."
+      title={label}
+      description={parent ? `Under ${parent.nameEn}.` : "A top-level unit."}
       icon={<BuildingIcon size={20} className="icon dim" style={{ marginTop: 2 }} />}
       columns={2}
       fields={[
+        { kind: "hidden", name: "kind" },
+        { kind: "hidden", name: "parentCode" },
         {
-          kind: "select",
-          name: "kind",
-          label: "Tier",
+          kind: "text",
+          name: "code",
+          label: "Code",
           required: true,
-          placeholder: "Choose",
-          options: KIND_OPTIONS,
+          mono: true,
+          hint: "Set once. Records elsewhere refer to it, so it cannot be changed later.",
         },
-        {
-          kind: "select",
-          name: "parentCode",
-          label: "Sits under",
-          placeholder: "Nothing — it is a top-level unit",
-          options: units.map((u) => ({ value: u.code, label: u.nameEn })),
-        },
-        ...unitFields("COMPANY", units, people),
+        ...unitFields(kind, people),
         { kind: "date", name: "effectiveFrom", label: "In force from", required: true },
       ]}
+      values={{ kind, parentCode: parent?.code ?? "" }}
       action={saveOrgUnit}
-      submitLabel="Add unit"
-      trigger={{ label: "Add unit", icon: true }}
+      submitLabel={label}
+      trigger={{ label, icon: true, className: buttonClass(variant, "sm") }}
+      size="lg"
+    />
+  );
+}
+
+export function EditOrgUnit({ unit, people }: { unit: OrgUnit; people: Person[] }) {
+  return (
+    <RecordEditor
+      title={`Edit ${unit.nameEn}`}
+      description={KIND_LABEL[unit.kind]}
+      icon={<BuildingIcon size={20} className="icon dim" style={{ marginTop: 2 }} />}
+      columns={2}
+      fields={[
+        { kind: "hidden", name: "id" },
+        { kind: "hidden", name: "kind" },
+        {
+          kind: "readonly",
+          name: "code",
+          label: "Code",
+          text: unit.code,
+          hint: "Set when the unit was created.",
+        },
+        ...unitFields(unit.kind, people),
+      ]}
+      values={{
+        id: unit.code,
+        kind: unit.kind,
+        headPersonId: unit.headPersonId,
+        nameEn: unit.nameEn,
+        nameMs: unit.nameMs,
+        registrationNumber: unit.registrationNumber,
+        taxReference: unit.taxReference,
+        telephone: unit.telephone,
+        financialYearStart: unit.financialYearStart,
+        address: unit.address,
+        operatingLicence: unit.operatingLicence,
+      }}
+      action={saveOrgUnit}
+      trigger={{ label: "Edit", className: buttonClass("secondary", "sm") }}
       size="lg"
     />
   );
@@ -280,9 +164,9 @@ function costCentreFields(units: OrgUnit[], sites: Site[], people: Person[]): Fi
     {
       kind: "select",
       name: "orgUnitCode",
-      label: "Department",
+      label: "Belongs to",
       placeholder: "Not set",
-      options: units.map((u) => ({ value: u.code, label: u.nameEn })),
+      options: units.map((u) => ({ value: u.code, label: `${u.nameEn} · ${KIND_LABEL[u.kind]}` })),
     },
     {
       kind: "select",
@@ -310,26 +194,30 @@ function costCentreFields(units: OrgUnit[], sites: Site[], people: Person[]): Fi
   ];
 }
 
-const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
-
 export function AddCostCentre({
   units,
   sites,
   people,
+  unit,
+  variant = "secondary",
 }: {
   units: OrgUnit[];
   sites: Site[];
   people: Person[];
+  /// Preset when added from a unit's own panel.
+  unit?: OrgUnit;
+  variant?: "primary" | "secondary" | "ghost";
 }) {
   return (
     <RecordEditor
       title="Add a cost centre"
-      description="What spending is charged to."
+      description={unit ? `Belonging to ${unit.nameEn}.` : "What spending is charged to."}
       columns={2}
       fields={costCentreFields(units, sites, people)}
+      values={unit ? { orgUnitCode: unit.code } : undefined}
       action={saveCostCentre}
       submitLabel="Add cost centre"
-      trigger={{ label: "Add cost centre", icon: true }}
+      trigger={{ label: "Add cost centre", icon: true, className: buttonClass(variant, "sm") }}
       size="lg"
     />
   );
@@ -353,7 +241,7 @@ export function EditCostCentre({
       columns={2}
       fields={[{ kind: "hidden", name: "id" }, ...costCentreFields(units, sites, people)]}
       action={saveCostCentre}
-      trigger={{ label: "Edit", iconOnly: <PencilIcon size={14} /> }}
+      trigger={{ label: "Edit", iconOnly: <PencilIcon size={15} />, className: iconButtonClass("sm") }}
       size="lg"
       values={{
         id: centre.code,
@@ -376,7 +264,7 @@ function siteFields(units: OrgUnit[]): Field[] {
   return [
     { kind: "text", name: "code", label: "Code", required: true, mono: true },
     { kind: "text", name: "nameEn", label: "Site", required: true },
-    { kind: "text", name: "kind", label: "Kind" },
+    { kind: "text", name: "kind", label: "Kind", hint: "Office, plant, reservoir — your own words." },
     { kind: "text", name: "town", label: "Town" },
     { kind: "text", name: "district", label: "District" },
     {
@@ -384,7 +272,7 @@ function siteFields(units: OrgUnit[]): Field[] {
       name: "orgUnitCode",
       label: "Looked after by",
       placeholder: "Not set",
-      options: units.map((u) => ({ value: u.code, label: u.nameEn })),
+      options: units.map((u) => ({ value: u.code, label: `${u.nameEn} · ${KIND_LABEL[u.kind]}` })),
     },
     { kind: "textarea", name: "address", label: "Address" },
     { kind: "date", name: "effectiveFrom", label: "In force from", required: true },
@@ -397,16 +285,25 @@ function siteFields(units: OrgUnit[]): Field[] {
   ];
 }
 
-export function AddSite({ units }: { units: OrgUnit[] }) {
+export function AddSite({
+  units,
+  unit,
+  variant = "secondary",
+}: {
+  units: OrgUnit[];
+  unit?: OrgUnit;
+  variant?: "primary" | "secondary" | "ghost";
+}) {
   return (
     <RecordEditor
       title="Add a site"
-      description="Where the work happens."
+      description={unit ? `Looked after by ${unit.nameEn}.` : "Where the work happens."}
       columns={2}
       fields={siteFields(units)}
+      values={unit ? { orgUnitCode: unit.code } : undefined}
       action={saveSite}
       submitLabel="Add site"
-      trigger={{ label: "Add site", icon: true }}
+      trigger={{ label: "Add site", icon: true, className: buttonClass(variant, "sm") }}
       size="lg"
     />
   );
@@ -420,7 +317,7 @@ export function EditSite({ site, units }: { site: Site; units: OrgUnit[] }) {
       columns={2}
       fields={[{ kind: "hidden", name: "id" }, ...siteFields(units)]}
       action={saveSite}
-      trigger={{ label: "Edit", iconOnly: <PencilIcon size={14} /> }}
+      trigger={{ label: "Edit", iconOnly: <PencilIcon size={15} />, className: iconButtonClass("sm") }}
       size="lg"
       values={{
         id: site.code,

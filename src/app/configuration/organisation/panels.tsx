@@ -1,29 +1,47 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { DataList, type Row } from "@/components/data-list";
-import { BuildingIcon, ChevronDown, ChevronRight, SearchIcon } from "@/components/icons";
+import {
+  BuildingIcon,
+  ChartIcon,
+  ChevronDown,
+  ChevronRight,
+  GlobeIcon,
+  SearchIcon,
+} from "@/components/icons";
+import { Avatar } from "@/components/ui/avatar";
+import { Badge, type Tone } from "@/components/ui/badge";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { cx } from "@/components/ui/cx";
+import { Callout, EmptyState } from "@/components/ui/feedback";
+import { KeyValues } from "@/components/ui/stat";
+import { formatDate } from "@/lib/format";
 import { activeOn } from "@/lib/effective";
+import { nextTier } from "@/lib/organisation/structure";
 import type { CostCentre, OrgUnit, OrgUnitKind, Site, UnitNode } from "@/lib/organisation/types";
 
-import { AddCostCentre, AddOrgUnit, AddSite, EditCostCentre, EditSite, UnitForm } from "./editors";
+import {
+  AddCostCentre,
+  AddOrgUnit,
+  AddSite,
+  EditCostCentre,
+  EditOrgUnit,
+  EditSite,
+  KIND_LABEL,
+} from "./editors";
 
 /**
- * Organisation, in the prototype's shape: the structure on the left, whichever unit
- * is selected beside it, and the cost centres and sites underneath.
+ * Organisation: the structure, and the cost centres and sites hung off it.
  *
- * The three lists this replaced — units, account codes, code formats — were a
- * different decomposition of the same configuration. Account codes belong to Budget,
- * where the sample keeps them.
+ * It is not decoration. Requisitions record their department, section and cost
+ * centre from here; "the Head of Department" in an endorsement chain or an approval
+ * route is found by walking this tree. So the screen leads with the thing those rules
+ * need — who heads each unit — and says plainly where nobody does.
  */
 
-const KIND_LABEL: Record<OrgUnitKind, string> = {
-  COMPANY: "Company",
-  DIVISION: "Division",
-  DEPARTMENT: "Department",
-  SECTION: "Section",
-};
+type Person = { id: string; name: string; isActive: boolean };
 
 export interface OrganisationPanelData {
   roots: UnitNode[];
@@ -31,161 +49,272 @@ export interface OrganisationPanelData {
   units: OrgUnit[];
   costCentres: CostCentre[];
   sites: Site[];
-  people: { id: string; name: string; isActive: boolean }[];
-  /// The unit whose detail is shown. Read from the address so a node can be linked
-  /// to, survives a refresh, and can be compared against the sample one kind at a
-  /// time — the detail form is not the same form for a company and a department.
+  people: Person[];
+  /// The unit whose detail is shown, read from the address so a unit can be linked to
+  /// and survives a refresh.
   selected: string | null;
+  /// Which tab, likewise from the address.
+  view: string | null;
   on: Date;
 }
 
-export function OrganisationScreen(data: OrganisationPanelData) {
-  const { roots, detached, units, people, selected } = data;
-  const all = [...flattenNodes(roots), ...flattenNodes(detached)];
-  const [chosen, setChosen] = useState<string | null>(selected);
-  const current = all.find((n) => n.unit.code === chosen) ?? all[0] ?? null;
+const KIND_TONE: Record<OrgUnitKind, Tone> = {
+  COMPANY: "brand",
+  DIVISION: "info",
+  DEPARTMENT: "ok",
+  SECTION: "neutral",
+};
 
-  const select = (code: string) => {
-    setChosen(code);
-    const url = new URL(window.location.href);
-    url.searchParams.set("unit", code);
-    window.history.replaceState(null, "", url);
-  };
+type View = "structure" | "cost-centres" | "sites";
 
-  return (
-    <div className="stack stack--lg">
-      <div className="row wrap" style={{ gap: 20, alignItems: "flex-start" }}>
-        <StructureCard
-          nodes={[...roots, ...detached]}
-          selected={current?.unit.code ?? null}
-          units={units}
-          onSelect={select}
-        />
-        <div className="grow" style={{ minWidth: 380 }}>
-          {current ? (
-            <UnitCard node={current} onSelect={select} {...data} />
-          ) : (
-            <section className="card">
-              <div className="card__body">
-                <div className="empty">
-                  <div className="empty__t">No structure yet</div>
-                  <p className="empty__d">
-                    Add a company, and the divisions, departments and sections under it.
-                  </p>
-                  <AddOrgUnit units={units} people={people} />
-                </div>
-              </div>
-            </section>
-          )}
-        </div>
-      </div>
+/// What a unit's head resolves to. Three states that must not look alike: somebody,
+/// nobody named, and somebody named who has gone.
+type Head =
+  | { state: "NAMED"; person: Person }
+  | { state: "NONE" }
+  | { state: "LEFT"; person: Person | null };
 
-      <CostCentresCard {...data} />
-      <SitesCard {...data} />
-    </div>
-  );
+function headOf(unit: OrgUnit, people: Person[]): Head {
+  if (!unit.headPersonId) return { state: "NONE" };
+  const person = people.find((p) => p.id === unit.headPersonId) ?? null;
+  if (!person || !person.isActive) return { state: "LEFT", person };
+  return { state: "NAMED", person };
 }
 
 function flattenNodes(nodes: readonly UnitNode[]): UnitNode[] {
   return nodes.flatMap((n) => [n, ...flattenNodes(n.children)]);
 }
 
+/// Replace one search parameter without a navigation — every panel is already here.
+function setParam(key: string, value: string) {
+  const url = new URL(window.location.href);
+  url.searchParams.set(key, value);
+  window.history.replaceState(null, "", url);
+}
+
+export function OrganisationScreen(data: OrganisationPanelData) {
+  const [view, setView] = useState<View>(
+    data.view === "cost-centres" || data.view === "sites" ? data.view : "structure",
+  );
+
+  const tabs: { id: View; label: string; count: number }[] = [
+    { id: "structure", label: "Structure", count: data.units.length },
+    { id: "cost-centres", label: "Cost centres", count: data.costCentres.length },
+    { id: "sites", label: "Sites", count: data.sites.length },
+  ];
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div
+        role="tablist"
+        aria-label="Organisation"
+        className="flex w-fit max-w-full gap-1 overflow-x-auto rounded-full bg-ink/[0.05] p-1"
+      >
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={view === t.id}
+            onClick={() => {
+              setView(t.id);
+              setParam("view", t.id);
+            }}
+            className="flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-[13.5px] font-semibold text-ink-3 transition hover:text-ink aria-selected:bg-surface aria-selected:text-ink aria-selected:shadow-[0_1px_3px_rgb(15_23_42/0.12)]"
+          >
+            {t.label}
+            <span className="rounded-full bg-ink/[0.07] px-1.5 text-[11.5px] leading-5 tabular-nums">
+              {t.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {view === "structure" && <StructureView {...data} />}
+      {view === "cost-centres" && <CostCentresView {...data} />}
+      {view === "sites" && <SitesView {...data} />}
+    </div>
+  );
+}
+
 // --------------------------------------------------------------------- structure
 
-function StructureCard({
-  nodes,
+function StructureView(data: OrganisationPanelData) {
+  const { roots, detached, people, units } = data;
+  const all = [...flattenNodes(roots), ...flattenNodes(detached)];
+  const [chosen, setChosen] = useState<string | null>(data.selected);
+  const current = all.find((n) => n.unit.code === chosen) ?? all[0] ?? null;
+
+  const select = (code: string) => {
+    setChosen(code);
+    setParam("unit", code);
+  };
+
+  if (all.length === 0) {
+    return (
+      <Card>
+        <EmptyState
+          icon={<BuildingIcon size={24} />}
+          title="No structure yet"
+          action={<AddOrgUnit kind="COMPANY" parent={null} people={people} variant="primary" />}
+        >
+          Start with the company. Divisions, departments and sections are added under it,
+          one level at a time.
+        </EmptyState>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="grid items-start gap-5 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
+      <StructureTree
+        roots={roots}
+        detached={detached}
+        people={people}
+        selected={current?.unit.code ?? null}
+        onSelect={select}
+        hasCompany={units.some((u) => u.kind === "COMPANY")}
+      />
+      {current && <UnitPanel node={current} onSelect={select} {...data} />}
+    </div>
+  );
+}
+
+function StructureTree({
+  roots,
+  detached,
+  people,
   selected,
-  units,
   onSelect,
+  hasCompany,
 }: {
-  nodes: UnitNode[];
+  roots: UnitNode[];
+  detached: UnitNode[];
+  people: Person[];
   selected: string | null;
-  units: OrgUnit[];
   onSelect: (code: string) => void;
+  hasCompany: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const nodes = [...roots, ...detached];
 
   const needle = query.trim().toLowerCase();
-  // Searching flattens the tree rather than filtering it in place: a match three
-  // levels down whose parents do not match would otherwise be invisible.
+  // Searching flattens the tree: a match three levels down whose parents do not match
+  // would otherwise be invisible.
   const visible = needle
     ? flattenNodes(nodes).filter(
         (n) =>
           n.unit.nameEn.toLowerCase().includes(needle) ||
+          (n.unit.nameMs ?? "").toLowerCase().includes(needle) ||
           n.unit.code.toLowerCase().includes(needle),
       )
     : shown(nodes, collapsed);
 
-  const anyOpen = flattenNodes(nodes).some(
-    (n) => n.children.length > 0 && !collapsed.has(n.unit.code),
-  );
+  const detachedCodes = new Set(flattenNodes(detached).map((n) => n.unit.code));
 
   return (
-    <section className="card" style={{ flex: "0 0 340px", minWidth: 300 }}>
-      <div className="card__head">
-        <BuildingIcon size={17} className="icon dim" />
-        <div className="card__titles">
-          <div className="h3 trunc">Structure</div>
-        </div>
-        <div className="row" style={{ gap: 6, flex: "0 0 auto" }}>
-          <button
-            type="button"
-            className="btn btn--ghost btn--sm"
-            onClick={() =>
-              setCollapsed(
-                anyOpen
-                  ? new Set(flattenNodes(nodes).filter((n) => n.children.length).map((n) => n.unit.code))
-                  : new Set(),
-              )
-            }
-          >
-            <ChevronDown size={13} />
-            {anyOpen ? "Collapse all" : "Expand all"}
-          </button>
+    <Card className="lg:sticky lg:top-20">
+      <CardHeader
+        icon={<BuildingIcon size={17} />}
+        title="Structure"
+        subtitle="Choose a unit to see who heads it."
+        actions={
+          !hasCompany ? <AddOrgUnit kind="COMPANY" parent={null} people={people} /> : undefined
+        }
+      />
+      <div className="px-4 pt-3.5 pb-2">
+        <div className="relative">
+          <SearchIcon
+            size={15}
+            className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-ink-4"
+          />
+          <input
+            type="search"
+            placeholder="Search units"
+            aria-label="Search the structure"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="h-9 w-full rounded-full border border-line-2 bg-surface pr-3 pl-9 text-[13px] outline-none placeholder:text-ink-4 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15"
+          />
         </div>
       </div>
-      <div className="card__body card__body--tight">
-        <div style={{ padding: "0 8px 8px" }}>
-          <div className="searchinput">
-            <SearchIcon size={14} className="icon searchinput__ico" />
-            <input
-              className="input input--sm"
-              type="search"
-              placeholder="Search the structure"
-              aria-label="Search the structure"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
-        </div>
-        {units.length === 0 ? (
-          <div className="empty empty--sm">
-            <div className="empty__t">Nothing configured</div>
-          </div>
+      <div role="tree" aria-label="Organisation structure" className="max-h-[60vh] overflow-y-auto px-2 pb-3">
+        {visible.length === 0 ? (
+          <p className="px-3 py-6 text-center text-[13px] text-ink-3">No unit matches.</p>
         ) : (
-          <div className="cfg-tree" role="tree">
-            {visible.map((node) => (
-              <TreeNode
+          visible.map((node) => {
+            const hasChildren = node.children.length > 0;
+            const expanded = !collapsed.has(node.unit.code);
+            const head = headOf(node.unit, people);
+            const isSelected = node.unit.code === selected;
+            return (
+              <div
                 key={node.unit.code}
-                node={node}
-                selected={selected}
-                onSelect={onSelect}
-                expanded={!collapsed.has(node.unit.code)}
-                onToggle={() =>
-                  setCollapsed((c) => {
-                    const next = new Set(c);
-                    if (next.has(node.unit.code)) next.delete(node.unit.code);
-                    else next.add(node.unit.code);
-                    return next;
-                  })
-                }
-              />
-            ))}
-          </div>
+                role="treeitem"
+                aria-selected={isSelected}
+                aria-expanded={hasChildren ? expanded : undefined}
+                className={cx(
+                  "group flex items-center gap-1.5 rounded-xl py-1.5 pr-2 transition",
+                  isSelected ? "bg-brand-50" : "hover:bg-ink/[0.04]",
+                )}
+                style={{ paddingLeft: needle ? 8 : 8 + Math.min(node.depth, 4) * 18 }}
+              >
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  aria-hidden={!hasChildren}
+                  onClick={() =>
+                    hasChildren &&
+                    setCollapsed((c) => {
+                      const next = new Set(c);
+                      if (next.has(node.unit.code)) next.delete(node.unit.code);
+                      else next.add(node.unit.code);
+                      return next;
+                    })
+                  }
+                  className={cx(
+                    "grid size-5 shrink-0 place-items-center rounded text-ink-4",
+                    hasChildren ? "hover:bg-ink/5 hover:text-ink" : "invisible",
+                  )}
+                >
+                  {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSelect(node.unit.code)}
+                  title={KIND_LABEL[node.unit.kind]}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                >
+                  <span
+                    className={cx(
+                      "min-w-0 flex-1 truncate text-[13.5px]",
+                      isSelected ? "font-semibold text-brand-800" : "font-medium text-ink",
+                    )}
+                  >
+                    {node.unit.nameEn}
+                  </span>
+                  {detachedCodes.has(node.unit.code) && node.depth === 0 && (
+                    <Badge tone="err">Detached</Badge>
+                  )}
+                  {head.state === "NAMED" ? (
+                    <Avatar name={head.person.name} size="xs" />
+                  ) : (
+                    <span
+                      title={head.state === "LEFT" ? "Head has left" : "No head named"}
+                      className={cx(
+                        "size-2 shrink-0 rounded-full",
+                        head.state === "LEFT" ? "bg-rose-500" : "bg-amber-400",
+                      )}
+                    />
+                  )}
+                </button>
+              </div>
+            );
+          })
         )}
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -196,310 +325,404 @@ function shown(nodes: readonly UnitNode[], collapsed: ReadonlySet<string>): Unit
   );
 }
 
-function TreeNode({
-  node,
-  selected,
-  expanded,
-  onToggle,
-  onSelect,
-}: {
-  node: UnitNode;
-  selected: string | null;
-  expanded: boolean;
-  onToggle: () => void;
-  onSelect: (code: string) => void;
-}) {
-  const hasChildren = node.children.length > 0;
-
-  return (
-    <button
-      type="button"
-      role="treeitem"
-      className="cfg-tnode"
-      data-depth={Math.min(node.depth, 3)}
-      // The stylesheet keys the selected node off aria-current, as the sample does;
-      // aria-selected is what a tree is actually meant to announce.
-      aria-current={node.unit.code === selected ? true : undefined}
-      aria-selected={node.unit.code === selected}
-      aria-expanded={hasChildren ? expanded : undefined}
-      onClick={() => onSelect(node.unit.code)}
-    >
-      <span
-        className="cfg-tnode__c"
-        onClick={(e) => {
-          if (!hasChildren) return;
-          // The chevron opens and closes; the rest of the node selects. Two acts on
-          // one row, so the inner one has to stop before it reaches the outer.
-          e.stopPropagation();
-          onToggle();
-        }}
-      >
-        {hasChildren && (expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />)}
-      </span>
-      <span className="trunc">
-        {node.unit.code} · {node.unit.nameEn}
-      </span>
-      {hasChildren && <span className="cfg-tnode__n">{node.children.length}</span>}
-    </button>
-  );
-}
-
-// ------------------------------------------------------------------- unit detail
-
-function UnitCard({
+function UnitPanel({
   node,
   units,
   costCentres,
+  sites,
   people,
   on,
   onSelect,
 }: OrganisationPanelData & { node: UnitNode; onSelect: (code: string) => void }) {
   const unit = node.unit;
-  const parent = units.find((u) => u.code === unit.parentCode) ?? null;
+  const head = headOf(unit, people);
+  const childKind = nextTier(unit.kind);
+  const path = ancestors(unit, units);
+  const parent = path.at(-1) ?? null;
+  const ownCentres = costCentres.filter((c) => c.orgUnitCode === unit.code);
+  const ownSites = sites.filter((s) => s.orgUnitCode === unit.code);
   const centre = costCentres.find((c) => c.code === unit.costCentreCode) ?? null;
+  const headTitle =
+    unit.kind === "COMPANY" ? "Chief executive" : `Head of ${KIND_LABEL[unit.kind].toLowerCase()}`;
 
   return (
-    <section className="card">
-      <div className="card__head">
-        <BuildingIcon size={17} className="icon dim" />
-        <div className="card__titles">
-          <div className="h3 trunc">{unit.nameEn}</div>
-          <div className="card__sub trunc">{KIND_LABEL[unit.kind]}</div>
-        </div>
-        <div className="row" style={{ gap: 6, flex: "0 0 auto" }}>
-          <span className="badge badge--brand">
-            <span className="badge__t">{unit.code}</span>
-          </span>
-        </div>
-      </div>
-      <div className="card__body">
-        <div className="stack stack--lg">
-          <UnitForm key={unit.code} unit={unit} units={units} people={people} />
-
-          {unit.kind !== "COMPANY" && (
-            <>
-              <div className="divider" />
-              <div className="kv kv--3">
-                <div>
-                  <div className="kv__k">{parent ? KIND_LABEL[parent.kind] : "Sits under"}</div>
-                  <div className="kv__v">{parent ? parent.nameEn : "Nothing — it is detached"}</div>
-                </div>
-                <div>
-                  <div className="kv__k">{childLabel(unit.kind)}</div>
-                  <div className="kv__v">{node.children.length}</div>
-                </div>
-                <div>
-                  <div className="kv__k">Cost centre</div>
-                  <div className="kv__v">
-                    {centre ? (
-                      <span className="mono sm">{centre.code}</span>
-                    ) : (
-                      <span className="sm dim">Not set</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          {node.children.length > 0 && (
-            <div>
-              <div className="row" style={{ gap: 10, marginBottom: 10 }}>
-                <span className="lbl">{childLabel(unit.kind)}</span>
-                <div className="spacer" />
-                <span className="xs dim">{node.children.length}</span>
-              </div>
-              <div className="stack stack--sm">
-                {node.children.map((child) => (
-                  <button
-                    key={child.unit.code}
-                    type="button"
-                    className="row hoverrow"
-                    style={{ gap: 10, padding: "9px 10px", width: "100%", textAlign: "left" }}
-                    onClick={() => onSelect(child.unit.code)}
-                  >
-                    <span className="sm grow trunc">{child.unit.nameEn}</span>
-                    <span className="xs dim mono">{child.unit.code}</span>
-                    {!activeOn([child.unit], on).length && (
-                      <span className="chip">
-                        <span className="dot" />
-                        <span className="badge__t">Closed</span>
-                      </span>
-                    )}
-                  </button>
+    <div className="flex min-w-0 flex-col gap-5">
+      <Card>
+        <div className="flex flex-col gap-4 px-5 pt-5 pb-4 sm:flex-row sm:items-start sm:px-6">
+          <div className="min-w-0 flex-1">
+            {path.length > 0 && (
+              <nav aria-label="Sits under" className="mb-2 flex flex-wrap items-center gap-1 text-[12.5px] text-ink-3">
+                {path.map((p) => (
+                  <span key={p.code} className="flex items-center gap-1">
+                    <button type="button" onClick={() => onSelect(p.code)} className="hover:text-ink hover:underline">
+                      {p.nameEn}
+                    </button>
+                    <ChevronRight size={12} className="text-ink-4" />
+                  </span>
                 ))}
-              </div>
+              </nav>
+            )}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h2 className="text-[22px] leading-tight font-bold tracking-tight text-ink">{unit.nameEn}</h2>
+              <Badge tone={KIND_TONE[unit.kind]}>{KIND_LABEL[unit.kind]}</Badge>
             </div>
+            {unit.nameMs && <p className="mt-1 text-[14px] text-ink-3">{unit.nameMs}</p>}
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <EditOrgUnit unit={unit} people={people} />
+            {childKind && <AddOrgUnit kind={childKind} parent={unit} people={people} variant="primary" />}
+          </div>
+        </div>
+
+        <div className="border-t border-line px-5 py-4 sm:px-6">
+          <div className="mb-2 text-[12px] font-semibold text-ink-3">{headTitle}</div>
+          {head.state === "NAMED" ? (
+            <div className="flex items-center gap-3">
+              <Avatar name={head.person.name} size="md" />
+              <div className="text-[15px] font-semibold text-ink">{head.person.name}</div>
+            </div>
+          ) : head.state === "LEFT" ? (
+            <Callout tone="err" title={head.person ? `${head.person.name} has left` : "The head named here is no longer on record"}>
+              Anything that goes to the {headTitle.toLowerCase()} of this unit has nobody to go to. Name a new
+              head with Edit.
+            </Callout>
+          ) : (
+            <Callout tone="warn" title="Nobody is named as head">
+              Endorsements and approvals that go to the {headTitle.toLowerCase()} of this unit cannot
+              find one until somebody is named.
+            </Callout>
           )}
         </div>
+
+        <CardBody className="border-t border-line">
+          <KeyValues
+            columns={3}
+            items={[
+              { label: "Code", value: <span className="font-mono text-[13px]">{unit.code}</span> },
+              {
+                label: "Sits under",
+                value: parent ? (
+                  <button type="button" onClick={() => onSelect(parent.code)} className="font-medium text-brand-700 hover:underline">
+                    {parent.nameEn}
+                  </button>
+                ) : unit.kind === "COMPANY" ? (
+                  "Nothing — it is the top"
+                ) : (
+                  <span className="font-medium text-rose-700">Nothing in force — it is detached</span>
+                ),
+              },
+              { label: "In force from", value: formatDate(unit.effectiveFrom) },
+              ...(unit.kind !== "COMPANY"
+                ? [
+                    {
+                      label: "Charged to",
+                      value: centre ? (
+                        <span>
+                          {centre.nameEn}{" "}
+                          <span className="font-mono text-[12px] whitespace-nowrap text-ink-3">{centre.code}</span>
+                        </span>
+                      ) : (
+                        <span className="text-ink-3">No cost centre set</span>
+                      ),
+                    },
+                  ]
+                : []),
+              ...(unit.kind === "COMPANY" ? companyFacts(unit) : []),
+            ]}
+          />
+        </CardBody>
+      </Card>
+
+      {childKind && (
+        <Card>
+          <CardHeader
+            title={`${pluralTier(childKind)} under ${unit.nameEn}`}
+            subtitle={node.children.length === 0 ? "None yet." : undefined}
+            divided={node.children.length > 0}
+          />
+          {node.children.length > 0 && (
+            <ul className="divide-y divide-line/70 px-2 py-1.5">
+              {node.children.map((child) => {
+                const h = headOf(child.unit, people);
+                return (
+                  <li key={child.unit.code}>
+                    <button
+                      type="button"
+                      onClick={() => onSelect(child.unit.code)}
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-ink/[0.03]"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[14px] font-semibold text-ink">{child.unit.nameEn}</span>
+                        <span className="block truncate text-[12.5px] text-ink-3">
+                          {h.state === "NAMED" ? h.person.name : h.state === "LEFT" ? "Head has left" : "No head named"}
+                          {child.children.length > 0 &&
+                            ` · ${child.children.length} ${pluralTier(nextTier(child.unit.kind) ?? "SECTION").toLowerCase()}`}
+                        </span>
+                      </span>
+                      <Badge tone={KIND_TONE[child.unit.kind]}>{KIND_LABEL[child.unit.kind]}</Badge>
+                      {!activeOn([child.unit], on).length && <Badge>Closed</Badge>}
+                      <ChevronRight size={16} className="text-ink-4" />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Card>
+      )}
+
+      <div className="grid gap-5 2xl:grid-cols-2">
+        <Linked
+          title="Cost centres"
+          subtitle="What this unit's spending is charged to."
+          action={<AddCostCentre units={units} sites={sites} people={people} unit={unit} variant="ghost" />}
+          empty="No cost centre belongs to this unit."
+          items={ownCentres.map((c) => ({
+            key: c.code,
+            title: c.nameEn,
+            sub: c.code,
+            extra: people.find((p) => p.id === c.ownerPersonId)?.name,
+          }))}
+        />
+        <Linked
+          title="Sites"
+          subtitle="Where this unit's work happens."
+          action={<AddSite units={units} unit={unit} variant="ghost" />}
+          empty="This unit looks after no site."
+          items={ownSites.map((s) => ({
+            key: s.code,
+            title: s.nameEn,
+            sub: [s.kind, s.town].filter(Boolean).join(" · ") || s.code,
+          }))}
+        />
       </div>
-    </section>
+    </div>
   );
 }
 
-/// What sits under a tier. The customer's own vocabulary decides the tiers; this only
-/// names the one below.
-function childLabel(kind: OrgUnitKind): string {
-  switch (kind) {
-    case "COMPANY":
-      return "Divisions";
-    case "DIVISION":
-      return "Departments";
-    default:
-      return "Sections";
+function Linked({
+  title,
+  subtitle,
+  action,
+  empty,
+  items,
+}: {
+  title: string;
+  subtitle: string;
+  action: ReactNode;
+  empty: string;
+  items: { key: string; title: string; sub: string; extra?: string }[];
+}) {
+  return (
+    <Card>
+      <CardHeader title={title} subtitle={subtitle} actions={action} divided={items.length > 0} />
+      {items.length === 0 ? (
+        <p className="px-6 pb-5 text-[13px] text-ink-3">{empty}</p>
+      ) : (
+        <ul className="divide-y divide-line/70 px-6 pb-2">
+          {items.map((it) => (
+            <li key={it.key} className="flex items-center gap-3 py-2.5">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[13.5px] font-semibold text-ink">{it.title}</span>
+                <span className="block truncate font-mono text-[12px] text-ink-3">{it.sub}</span>
+              </span>
+              {it.extra && <Avatar name={it.extra} size="xs" />}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+function companyFacts(unit: OrgUnit): { label: string; value: ReactNode }[] {
+  const notSet = <span className="text-ink-3">Not set</span>;
+  return [
+    { label: "Registration number", value: unit.registrationNumber || notSet },
+    { label: "Tax reference", value: unit.taxReference || notSet },
+    { label: "Telephone", value: unit.telephone || notSet },
+    { label: "Financial year starts", value: unit.financialYearStart || notSet },
+    { label: "Operating licence", value: unit.operatingLicence || notSet },
+    { label: "Address", value: unit.address || notSet },
+  ];
+}
+
+/// The unit's ancestors, root first, not including itself.
+function ancestors(unit: OrgUnit, units: OrgUnit[]): OrgUnit[] {
+  const chain: OrgUnit[] = [];
+  const seen = new Set<string>([unit.code]);
+  let parentCode = unit.parentCode;
+  while (parentCode && !seen.has(parentCode)) {
+    const parent = units.find((u) => u.code === parentCode);
+    if (!parent) break;
+    chain.unshift(parent);
+    seen.add(parent.code);
+    parentCode = parent.parentCode;
   }
+  return chain;
+}
+
+function pluralTier(kind: OrgUnitKind): string {
+  return { COMPANY: "Companies", DIVISION: "Divisions", DEPARTMENT: "Departments", SECTION: "Sections" }[kind];
 }
 
 // ------------------------------------------------------------------ cost centres
 
-function CostCentresCard({ costCentres, units, sites, people, on }: OrganisationPanelData) {
+/// Read from the period, never stored: a status that can disagree with its own dates
+/// is a record nobody can answer for. Not yet begun is not closed.
+function datedStatus(
+  entry: { effectiveFrom: Date; effectiveTo: Date | null },
+  on: Date,
+): { views: string[]; cell: Row["cells"][string] } {
+  if (entry.effectiveFrom > on) {
+    return {
+      views: ["upcoming"],
+      cell: { kind: "badge", text: `Starts ${formatDate(entry.effectiveFrom)}`, tone: "info" },
+    };
+  }
+  if (entry.effectiveTo != null && entry.effectiveTo <= on) {
+    return { views: ["closed"], cell: { kind: "badge", text: "Closed" } };
+  }
+  return { views: [], cell: { kind: "badge", text: "Active", tone: "ok" } };
+}
+
+function CostCentresView({ costCentres, units, sites, people, on }: OrganisationPanelData) {
   const unitName = (code: string | null) =>
-    code ? (units.find((u) => u.code === code)?.nameEn ?? code) : "";
+    code ? (units.find((u) => u.code === code)?.nameEn ?? "Unit not in force") : "";
   const siteName = (code: string | null) =>
-    code ? (sites.find((s) => s.code === code)?.nameEn ?? code) : "";
-  const personName = (id: string | null) =>
-    id ? (people.find((p) => p.id === id)?.name ?? "") : "";
+    code ? (sites.find((s) => s.code === code)?.nameEn ?? "Site not in force") : "";
+  const personName = (id: string | null) => (id ? (people.find((p) => p.id === id)?.name ?? "") : "");
 
   const rows: Row[] = costCentres.map((c) => {
-    const active = activeOn([c], on).length > 0;
+    const status = datedStatus(c, on);
     const owner = personName(c.ownerPersonId);
     return {
       id: c.code,
-      views: active ? [] : ["closed"],
+      views: status.views,
       search: [c.code, c.nameEn, unitName(c.orgUnitCode), siteName(c.siteCode), c.activity, owner]
         .filter(Boolean)
         .join(" "),
       cells: {
-        code: { kind: "stack", title: c.code, sub: c.nameEn, monoTitle: true },
-        unit: { kind: "text", text: unitName(c.orgUnitCode) || "—", dim: !c.orgUnitCode },
-        site: { kind: "text", text: siteName(c.siteCode) || "—", dim: !c.siteCode },
-        activity: { kind: "text", text: c.activity || "Not set", dim: !c.activity },
-        owner: owner
-          ? { kind: "person", name: owner }
-          : { kind: "text", text: "Nobody named", dim: true },
-        // Read from the period, never stored: a status that can disagree with its own
-        // dates is a record nobody can answer for.
-        status: active
-          ? { kind: "chip", text: "Active", tone: "ok" }
-          : { kind: "chip", text: "Closed" },
+        centre: { kind: "stack", title: c.nameEn, sub: c.code, monoSub: true },
+        unit: {
+          kind: "stack",
+          title: unitName(c.orgUnitCode) || "Not set",
+          sub: c.activity || undefined,
+        },
+        site: { kind: "text", text: siteName(c.siteCode) || "Not set", dim: !c.siteCode },
+        owner: owner ? { kind: "person", name: owner } : { kind: "text", text: "Nobody named", dim: true },
+        status: status.cell,
       },
     };
   });
 
   return (
-    <section className="card">
-      <div className="card__head">
-        <div className="card__titles">
-          <div className="h3 trunc">Cost centres</div>
-          <div className="card__sub trunc">
-            What spending is charged to, and who answers for it.
-          </div>
-        </div>
-        <div className="row">
-          <AddCostCentre units={units} sites={sites} people={people} />
-        </div>
-      </div>
-      <div className="card__body card__body--flush">
-        <DataList
-          flat
-          selectable={false}
-          rowOpens
-          exportName="cost-centres"
-          searchPlaceholder="Cost centres"
-          emptyTitle="No cost centre configured"
-          emptyBody="Nothing can be charged anywhere until one exists."
-          views={[{ id: "closed", label: "Closed" }]}
-          filters={[
-            { key: "unit", label: "Department" },
-            { key: "site", label: "Site" },
-            { key: "activity", label: "Activity" },
-          ]}
-          columns={[
-            { key: "code", label: "Code", width: "24%", sortable: true },
-            { key: "unit", label: "Department", width: "16%", sortable: true },
-            { key: "site", label: "Site", width: "16%", sortable: true },
-            { key: "activity", label: "Activity", width: "14%" },
-            { key: "owner", label: "Cost centre owner", width: "18%" },
-            { key: "status", label: "Status", width: "12%" },
-          ]}
-          rows={rows}
-          actions={(code) => {
-            const centre = costCentres.find((c) => c.code === code);
-            return centre ? (
-              <EditCostCentre centre={centre} units={units} sites={sites} people={people} />
-            ) : null;
-          }}
-        />
-      </div>
-    </section>
+    <Card className="overflow-hidden">
+      <CardHeader
+        icon={<ChartIcon size={17} />}
+        title="Cost centres"
+        subtitle="What spending is charged to, and who answers for it. Requisitions choose from this list."
+        actions={<AddCostCentre units={units} sites={sites} people={people} variant="primary" />}
+        divided={false}
+      />
+      <DataList
+        flat
+        selectable={false}
+        rowOpens
+        exportName="cost-centres"
+        searchPlaceholder="Search cost centres"
+        emptyTitle="No cost centre yet"
+        emptyBody="Nothing can be charged anywhere until one exists."
+        views={[
+          { id: "closed", label: "Closed" },
+          { id: "upcoming", label: "Not yet in force" },
+        ]}
+        filters={[
+          { key: "unit", label: "Unit" },
+          { key: "site", label: "Site" },
+        ]}
+        columns={[
+          { key: "centre", label: "Cost centre", width: "30%", sortable: true },
+          { key: "unit", label: "Belongs to · activity", width: "22%", sortable: true },
+          { key: "site", label: "Site", width: "18%", sortable: true },
+          { key: "owner", label: "Owner", width: "18%" },
+          { key: "status", label: "Status", width: "12%" },
+        ]}
+        rows={rows}
+        actions={(code) => {
+          const centre = costCentres.find((c) => c.code === code);
+          return centre ? <EditCostCentre centre={centre} units={units} sites={sites} people={people} /> : null;
+        }}
+      />
+    </Card>
   );
 }
 
 // -------------------------------------------------------------------------- sites
 
-function SitesCard({ sites, costCentres, units, on }: OrganisationPanelData) {
+function SitesView({ sites, costCentres, units, on }: OrganisationPanelData) {
   const rows: Row[] = sites.map((s) => {
-    const active = activeOn([s], on).length > 0;
+    const status = datedStatus(s, on);
     const centres = costCentres.filter((c) => c.siteCode === s.code).length;
+    const unit = units.find((u) => u.code === s.orgUnitCode);
     return {
       id: s.code,
-      views: active ? [] : ["closed"],
-      search: [s.nameEn, s.code, s.kind, s.town, s.district].filter(Boolean).join(" "),
+      views: status.views,
+      search: [s.nameEn, s.code, s.kind, s.town, s.district, unit?.nameEn].filter(Boolean).join(" "),
       cells: {
         site: { kind: "stack", title: s.nameEn, sub: s.code, monoSub: true },
-        kind: s.kind
-          ? { kind: "badge", text: s.kind }
-          : { kind: "text", text: "Not set", dim: true },
-        town: { kind: "text", text: s.town || "—", dim: !s.town },
-        district: { kind: "text", text: s.district || "—", dim: !s.district },
+        kind: s.kind ? { kind: "badge", text: s.kind } : { kind: "text", text: "Not set", dim: true },
+        where: {
+          kind: "stack",
+          title: s.town || "Town not set",
+          sub: s.district || undefined,
+        },
+        unit: { kind: "text", text: unit?.nameEn ?? "Not set", dim: !unit },
         centres: { kind: "text", text: String(centres) },
-        status: active
-          ? { kind: "chip", text: "Active", tone: "ok" }
-          : { kind: "chip", text: "Closed" },
+        status: status.cell,
       },
     };
   });
 
   return (
-    <section className="card">
-      <div className="card__head">
-        <div className="card__titles">
-          <div className="h3 trunc">Sites</div>
-          <div className="card__sub trunc">Where the work happens, and who looks after it.</div>
-        </div>
-        <div className="row">
-          <AddSite units={units} />
-        </div>
-      </div>
-      <div className="card__body card__body--flush">
-        <DataList
-          flat
-          selectable={false}
-          rowOpens
-          exportName="sites"
-          searchPlaceholder="Sites"
-          emptyTitle="No site configured"
-          emptyBody="A cost centre names the site its spending belongs to."
-          views={[{ id: "closed", label: "Closed" }]}
-          filters={[
-            { key: "kind", label: "Kind" },
-            { key: "district", label: "District" },
-          ]}
-          columns={[
-            { key: "site", label: "Site", width: "26%", sortable: true },
-            { key: "kind", label: "Kind", width: "16%" },
-            { key: "town", label: "Town", width: "16%", sortable: true },
-            { key: "district", label: "District", width: "16%" },
-            { key: "centres", label: "Cost centres", width: "14%", numeric: true, sortable: true },
-            { key: "status", label: "Status", width: "12%" },
-          ]}
-          rows={rows}
-          actions={(code) => {
-            const site = sites.find((s) => s.code === code);
-            return site ? <EditSite site={site} units={units} /> : null;
-          }}
-        />
-      </div>
-    </section>
+    <Card className="overflow-hidden">
+      <CardHeader
+        icon={<GlobeIcon size={17} />}
+        title="Sites"
+        subtitle="Where the work happens, and which unit looks after it."
+        actions={<AddSite units={units} variant="primary" />}
+        divided={false}
+      />
+      <DataList
+        flat
+        selectable={false}
+        rowOpens
+        exportName="sites"
+        searchPlaceholder="Search sites"
+        emptyTitle="No site yet"
+        emptyBody="A cost centre names the site its spending belongs to."
+        views={[
+          { id: "closed", label: "Closed" },
+          { id: "upcoming", label: "Not yet in force" },
+        ]}
+        filters={[
+          { key: "kind", label: "Kind" },
+          { key: "unit", label: "Unit" },
+        ]}
+        columns={[
+          { key: "site", label: "Site", width: "26%", sortable: true },
+          { key: "kind", label: "Kind", width: "14%" },
+          { key: "where", label: "Town", width: "20%", sortable: true },
+          { key: "unit", label: "Looked after by", width: "20%" },
+          { key: "centres", label: "Cost centres", width: "10%", numeric: true, sortable: true },
+          { key: "status", label: "Status", width: "10%" },
+        ]}
+        rows={rows}
+        actions={(code) => {
+          const site = sites.find((s) => s.code === code);
+          return site ? <EditSite site={site} units={units} /> : null;
+        }}
+      />
+    </Card>
   );
 }

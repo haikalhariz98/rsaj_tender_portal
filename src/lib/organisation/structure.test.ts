@@ -10,7 +10,9 @@ import {
   findFormat,
   flatten,
   inForceOn,
+  nextTier,
   pathTo,
+  placementFault,
 } from "./structure";
 
 /// After the dissolved division has closed, before the future section opens.
@@ -192,5 +194,26 @@ describe("readiness", () => {
     expect(r.active).toBe(activeOn(UNITS, NOW).length);
     expect(r.assumed).toBe(1);
     expect(r.needsSignOff).toBe(true);
+  });
+});
+
+describe("where a unit may sit", () => {
+  it("lets a company stand alone, and nothing else", () => {
+    expect(placementFault("COMPANY", null)).toBeNull();
+    expect(placementFault("COMPANY", "DIVISION")).toBe("COMPANY_UNDER_SOMETHING");
+    expect(placementFault("DEPARTMENT", null)).toBe("NEEDS_A_PARENT");
+  });
+
+  it("allows skipping a tier but never going back up", () => {
+    expect(placementFault("DEPARTMENT", "COMPANY")).toBeNull();
+    expect(placementFault("SECTION", "DEPARTMENT")).toBeNull();
+    expect(placementFault("DIVISION", "DEPARTMENT")).toBe("NOT_DEEPER_THAN_PARENT");
+    expect(placementFault("SECTION", "SECTION")).toBe("NOT_DEEPER_THAN_PARENT");
+  });
+
+  it("offers the next tier down, and nothing under a section", () => {
+    expect(nextTier("COMPANY")).toBe("DIVISION");
+    expect(nextTier("DEPARTMENT")).toBe("SECTION");
+    expect(nextTier("SECTION")).toBeNull();
   });
 });

@@ -1,4 +1,6 @@
-import { BuildingIcon, GlobeIcon, UsersIcon } from "@/components/icons";
+import { Badge } from "@/components/ui/badge";
+import { Callout } from "@/components/ui/feedback";
+import { PageHeader } from "@/components/ui/page-header";
 import { activeOn } from "@/lib/effective";
 import { loadOrganisationData } from "@/lib/organisation/load";
 import { buildStructure } from "@/lib/organisation/structure";
@@ -9,67 +11,74 @@ import { OrganisationScreen } from "./panels";
 export const dynamic = "force-dynamic";
 
 /**
- * Organisation, in the prototype's shape.
- *
- * Account codes used to have a card here. The sample keeps them on Budget, which is
- * where they belong — a chart of accounts is what a budget check runs against, not
- * part of the org chart.
+ * Organisation: companies down to sections, and the cost centres and sites hung off
+ * them. Account codes are on Budget, where a budget check runs against them.
  */
 export default async function OrganisationPage({
   searchParams,
 }: {
-  searchParams: Promise<{ unit?: string }>;
+  searchParams: Promise<{ unit?: string; view?: string }>;
 }) {
   const on = new Date();
-  const [{ unit }, data] = await Promise.all([searchParams, loadOrganisationData(ORGANISATION_CODE)]);
+  const [{ unit, view }, data] = await Promise.all([
+    searchParams,
+    loadOrganisationData(ORGANISATION_CODE),
+  ]);
 
-  const { roots, detached } = buildStructure(data.units, on);
-
+  const { roots, detached, faults } = buildStructure(data.units, on);
   const units = activeOn(data.units, on);
-  const costCentres = activeOn(data.costCentres, on);
-  const sites = activeOn(data.sites, on);
-  const companies = units.filter((u) => u.kind === "COMPANY").length;
-  const departments = units.filter((u) => u.kind === "DEPARTMENT").length;
+
+  // Units nobody heads, or headed by somebody who has gone. Counted here so the header
+  // can say so before anyone opens the tree.
+  const active = new Set(data.people.filter((p) => p.isActive).map((p) => p.id));
+  const headless = units.filter((u) => !u.headPersonId || !active.has(u.headPersonId)).length;
+
+  const nameOf = (code: string) => data.units.find((u) => u.code === code)?.nameEn ?? code;
 
   return (
     <>
-      <div className="pagehead">
-        <div className="pagehead__top">
-          <div className="pagehead__titles">
-            <div className="pagehead__title">
-              <h1 className="h1 trunc">Organisation</h1>
-            </div>
-            <p className="pagehead__sub clamp2">
-              Companies, divisions, departments, sections, cost centres and sites.
-            </p>
-            <div className="pagehead__meta">
-              <span className="row" style={{ gap: 5 }}>
-                <BuildingIcon size={13} />
-                {companies} · {companies === 1 ? "Company" : "Companies"}
-              </span>
-              <span className="sep">·</span>
-              <span className="row" style={{ gap: 5 }}>
-                <UsersIcon size={13} />
-                {departments} {departments === 1 ? "department" : "departments"}
-              </span>
-              <span className="sep">·</span>
-              <span className="row" style={{ gap: 5 }}>
-                <GlobeIcon size={13} />
-                {sites.length} · {sites.length === 1 ? "Site" : "Sites"}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Organisation"
+        subtitle="The structure requisitions are raised from, and approvals are routed through."
+        badge={
+          headless > 0 ? (
+            <Badge tone="warn" dot>
+              {headless} {headless === 1 ? "unit has" : "units have"} no head
+            </Badge>
+          ) : undefined
+        }
+        meta={[
+          `${units.length} ${units.length === 1 ? "unit" : "units"}`,
+          `${activeOn(data.costCentres, on).length} cost centres in use`,
+          `${activeOn(data.sites, on).length} sites`,
+        ]}
+      />
+
+      {/* A structure that cannot be drawn as stated is the customer's to fix — it is
+          shown, never quietly re-rooted. The loader used to drop these. */}
+      {faults.length > 0 && (
+        <Callout tone="err" title="Part of the structure cannot be drawn as configured" className="mb-5">
+          <ul className="mt-1 list-disc pl-5">
+            {faults.map((f, i) => (
+              <li key={i}>
+                {f.kind === "DETACHED"
+                  ? `${nameOf(f.code)} sits under ${nameOf(f.parentCode)}, which is not in force. It is shown as detached.`
+                  : `${f.codes.map(nameOf).join(" → ")} sit under each other in a loop. They are left out of the tree until one is moved.`}
+              </li>
+            ))}
+          </ul>
+        </Callout>
+      )}
 
       <OrganisationScreen
         roots={roots}
         detached={detached}
         units={units}
-        costCentres={costCentres}
-        sites={sites}
+        costCentres={data.costCentres}
+        sites={data.sites}
         people={data.people}
         selected={unit ?? null}
+        view={view ?? null}
         on={on}
       />
     </>

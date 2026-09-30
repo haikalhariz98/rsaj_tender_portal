@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/record-editor";
 import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
 import { db } from "@/lib/db";
+import { inForceOn } from "@/lib/effective";
+import { placementFault } from "@/lib/organisation/structure";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { checkPeriod, FormReader } from "@/lib/validate";
 
@@ -50,7 +52,7 @@ export async function saveOrgUnit(_prev: FormState, data: FormData): Promise<For
 
   const existing = await db.orgUnit.findMany({
     where: { organisationId: orgId },
-    select: { id: true, code: true, kind: true },
+    select: { id: true, code: true, kind: true, effectiveFrom: true, effectiveTo: true },
   });
   const current = editingCode ? existing.find((u) => u.code === editingCode) : undefined;
   if (editingCode && !current) return { ok: false, message: "That unit no longer exists." };
@@ -62,6 +64,27 @@ export async function saveOrgUnit(_prev: FormState, data: FormData): Promise<For
   const parentCode = r.optionalText("parentCode");
   if (parentCode && parentCode === code) {
     r.reject("parentCode", "A unit cannot sit under itself.");
+  }
+
+  // Where it sits is set when it is created. The parent has to exist and be in force,
+  // and be a shallower tier: every rule that looks up "the Head of Department" walks
+  // up this tree, and a section above a department would send it the wrong way.
+  if (!current) {
+    const parent = parentCode
+      ? existing.find((u) => u.code === parentCode && inForceOn(u, new Date()))
+      : null;
+    if (parentCode && !parent) {
+      r.reject("parentCode", "That unit is not in force. Choose one that is.");
+    } else {
+      const fault = placementFault(kind, parent?.kind ?? null);
+      if (fault === "COMPANY_UNDER_SOMETHING") {
+        r.reject("parentCode", "A company stands on its own; it does not sit under another unit.");
+      } else if (fault === "NEEDS_A_PARENT") {
+        r.reject("parentCode", "Choose the unit this one sits under.");
+      } else if (fault === "NOT_DEEPER_THAN_PARENT") {
+        r.reject("parentCode", "It must sit under a unit of a higher tier.");
+      }
+    }
   }
 
   const common = {

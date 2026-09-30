@@ -8,6 +8,7 @@
 import { activeOn } from "@/lib/effective";
 
 import type {
+  OrgUnitKind,
   CodeCheck,
   CodeFormat,
   Effective,
@@ -21,6 +22,37 @@ import type {
 // Effective dating is shared: units, role assignments and authority matrices must
 // all agree on what "in force" means. Re-exported so existing callers keep working.
 export { activeOn, inForceOn } from "@/lib/effective";
+
+/// The tiers, outermost first. A unit sits strictly deeper than the unit it sits under.
+export const TIERS: readonly OrgUnitKind[] = ["COMPANY", "DIVISION", "DEPARTMENT", "SECTION"];
+
+/// The tier a new unit under this one would usually be. Null under a section, which
+/// is the innermost tier.
+export function nextTier(kind: OrgUnitKind): OrgUnitKind | null {
+  return TIERS[TIERS.indexOf(kind) + 1] ?? null;
+}
+
+export type PlacementFault =
+  | "COMPANY_UNDER_SOMETHING"
+  | "NEEDS_A_PARENT"
+  | "NOT_DEEPER_THAN_PARENT";
+
+/**
+ * Why a unit of this tier cannot sit where it has been put.
+ *
+ * A company stands alone; everything else sits under something shallower. A tier may
+ * be skipped — a department straight under a company is a real shape — but a section
+ * may not sit above a department, because every rule that walks up the tree to find
+ * "the Head of Department" would then walk past it.
+ */
+export function placementFault(
+  kind: OrgUnitKind,
+  parentKind: OrgUnitKind | null,
+): PlacementFault | null {
+  if (kind === "COMPANY") return parentKind ? "COMPANY_UNDER_SOMETHING" : null;
+  if (!parentKind) return "NEEDS_A_PARENT";
+  return TIERS.indexOf(kind) > TIERS.indexOf(parentKind) ? null : "NOT_DEEPER_THAN_PARENT";
+}
 
 /**
  * Walk from a unit up to its root, as of a date.
