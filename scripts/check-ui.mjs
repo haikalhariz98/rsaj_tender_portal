@@ -1,19 +1,21 @@
-// Fail when migrated areas use the legacy page scaffolding.
+// Fail when markup uses class names from the retired prototype stylesheet.
 //
-// Consistency is what the shared components buy, and it is lost one screen at a time:
-// somebody copies an old header "just for now". This catches the scaffolding that
-// makes two screens look different — page heads and tab strips — in the areas that
-// have moved to src/components/ui. Add an area to MIGRATED when it moves.
+// That stylesheet is deleted, so its classes style nothing: a screen written with them
+// renders unstyled, and copying an old snippet "just for now" is how screens drift.
+// Every screen is on src/components/ui; this keeps it that way.
 //
 //   node scripts/check-ui.mjs
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-const MIGRATED = ["src/app/configuration", "src/app/page.tsx", "src/components/not-built.tsx", "src/components/tabs.tsx", "src/components/shell"];
+const MIGRATED = ["src/app", "src/components"];
 
-/// Legacy classes that decide how a screen is framed. A screen using any of these is
-/// not using PageHeader / Tabs.
-const FORBIDDEN = ["pagehead", "tabbar", "cfg-wrap", "cfg-rail", "subnav"];
+/// Retired prototype classes that framed or styled a screen. None has a rule any more.
+const FORBIDDEN = [
+  "pagehead", "tabbar", "cfg-wrap", "cfg-rail", "subnav", "card__head", "card__body",
+  "cellstack", "callout", "empty__t", "stat__value", "iconbtn", "btn--primary", "btn--sm",
+  "badge--warn", "chip--ok", "tablewrap", "ov__head", "drawer--lg",
+];
 
 function files(path) {
   if (!statSync(path).isDirectory()) return [path];
@@ -26,7 +28,7 @@ for (const file of MIGRATED.flatMap(files).filter((f) => /\.tsx?$/.test(f))) {
   lines.forEach((line, i) => {
     for (const cls of FORBIDDEN) {
       if (new RegExp(`className=[{"'\`][^>]*\\b${cls}(__|--|\\b)`).test(line)) {
-        problems.push(`${file}:${i + 1}  legacy "${cls}" — use the shared component`);
+        problems.push(`${file}:${i + 1}  retired class "${cls}" — use the shared component`);
       }
     }
   });
@@ -34,7 +36,7 @@ for (const file of MIGRATED.flatMap(files).filter((f) => /\.tsx?$/.test(f))) {
 
 if (problems.length) {
   console.error(problems.join("\n"));
-  console.error(`\n${problems.length} legacy scaffolding use(s) in migrated areas.`);
+  console.error(`\n${problems.length} use(s) of retired prototype classes.`);
   process.exit(1);
 }
 console.log("UI scaffolding check passed.");

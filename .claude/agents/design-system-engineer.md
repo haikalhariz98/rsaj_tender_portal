@@ -19,14 +19,12 @@ src/components/tabs.tsx         the one tab strip
 src/components/data-list.tsx    the one list: search, filters, sort, density, CSV, pages
 src/components/shell/           AppShell, Sidebar (switches to Configuration's sections), Topbar
 src/components/icons.tsx        inline SVG icon set — 24px grid, 1.75 stroke
-src/app/design-system*.css      LEGACY, imported into a `legacy` cascade layer
 ```
 
-The legacy stylesheets sit in a `legacy` layer beneath Tailwind's utilities, so new markup
-always wins and unmigrated screens still render. Do not write new markup with their
-classes (`.pagehead`, `.tabbar`, `.card__head`, `.table`, `.btn`…); both files are deleted
-when the last screen moves. `scripts/check-ui.mjs` (run by `npm run lint`) fails on legacy
-page scaffolding in migrated areas.
+The stylesheet ported from the client prototype has been deleted; every screen is on
+the components above. Its class names (`.pagehead`, `.card__head`, `.table`, `.btn`…)
+style nothing now, and `scripts/check-ui.mjs` (run by `npm run lint`) fails if one
+reappears.
 
 ## The rule that matters most
 

@@ -19,9 +19,9 @@ with `PageHeader` and uses the one `Tabs` and the one `DataList` — never a pri
 a component cannot do what a screen needs, ask the design-system-engineer to extend it
 rather than forking a variant.
 
-The old prototype stylesheets (`src/app/design-system*.css`) are legacy, kept only while
-screens migrate. Do not write new markup with their classes (`.pagehead`, `.tabbar`,
-`.card__head`, `.table`, `.btn`…); `npm run lint` fails on legacy page scaffolding.
+The prototype's stylesheet has been deleted. Its class names (`.pagehead`, `.tabbar`,
+`.card__head`, `.table`, `.btn`…) style nothing — never write them; `npm run lint` fails if
+one reappears.
 
 ## The product's navigation model
 

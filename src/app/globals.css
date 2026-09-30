@@ -1,11 +1,6 @@
-/* Layer order. `legacy` sits under Tailwind's utilities, so a screen built from the
-   new components always wins, while a screen not yet migrated still finds its old
-   classes. The legacy layer and both imports below go when the last screen moves. */
-@layer theme, base, legacy, components, utilities;
-
+/* The product's design system: Tailwind v4, the tokens below, and the components in
+   src/components/ui. The stylesheet ported from the client prototype is gone. */
 @import "tailwindcss";
-@import "./design-system.css" layer(legacy);
-@import "./design-system-runtime.css" layer(legacy);
 
 /* ---------- Tokens -----------------------------------------------------------
    Professional and calm: a cool slate canvas, white cards with generous radii, and
@@ -44,14 +39,13 @@
   --shadow-brand: 0 6px 16px -6px rgb(67 56 202 / 0.4);
 }
 
-/* The legacy stylesheet redeclares these on :root inside its layer, which would
-   otherwise outrank the theme layer. Unlayered, these win. */
+/* The font variable next/font provides, and the colour scheme. */
 :root {
   --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, "Segoe UI", sans-serif;
   color-scheme: light;
 }
 
-/* Unlayered for the same reason: the legacy layer restyles body and would win. */
+/* Page defaults. */
 html,
 body {
   height: 100%;
@@ -67,4 +61,11 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-brand-500);
   outline-offset: 2px;
+}
+
+@layer base {
+  /* An icon beside text that truncates must not be squeezed by the flex row. */
+  svg {
+    flex-shrink: 0;
+  }
 }

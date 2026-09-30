@@ -145,7 +145,7 @@ export function EditPerson({
       fields={[{ kind: "hidden", name: "id" }, ...personFields(offices, authorityLevels)]}
       columns={2}
       action={savePerson}
-      trigger={{ label: "Edit", iconOnly: <PencilIcon size={15} /> }}
+      trigger={{ label: `Edit ${person.name}`, iconOnly: <PencilIcon size={15} /> }}
       size="lg"
       identity={
         <div className="flex min-w-0 items-center gap-3">
@@ -353,7 +353,7 @@ export function EditOffice({ office, offices }: { office: Office; offices: Offic
       ]}
       columns={2}
       action={saveOffice}
-      trigger={{ label: "Edit", iconOnly: <PencilIcon size={15} /> }}
+      trigger={{ label: `Edit ${office.nameEn}`, iconOnly: <PencilIcon size={15} /> }}
       size="lg"
       values={{
         id: office.id,
@@ -436,7 +436,7 @@ export function EditAssignment({
       fields={[{ kind: "hidden", name: "id" }, ...assignmentFields(people, offices)]}
       columns={2}
       action={saveAssignment}
-      trigger={{ label: "Edit", iconOnly: <PencilIcon size={15} /> }}
+      trigger={{ label: "Edit assignment", iconOnly: <PencilIcon size={15} /> }}
       size="lg"
       values={{
         id: assignment.id,
@@ -586,7 +586,7 @@ export function EditDelegation({
       columns={2}
       sections={DELEGATION_NOTE}
       action={saveDelegation}
-      trigger={{ label: "Edit", iconOnly: <PencilIcon size={15} /> }}
+      trigger={{ label: "Edit delegation", iconOnly: <PencilIcon size={15} /> }}
       size="lg"
       values={{
         id: delegation.id,

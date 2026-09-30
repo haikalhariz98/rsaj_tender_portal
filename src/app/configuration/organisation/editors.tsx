@@ -241,7 +241,7 @@ export function EditCostCentre({
       columns={2}
       fields={[{ kind: "hidden", name: "id" }, ...costCentreFields(units, sites, people)]}
       action={saveCostCentre}
-      trigger={{ label: "Edit", iconOnly: <PencilIcon size={15} />, className: iconButtonClass("sm") }}
+      trigger={{ label: `Edit ${centre.nameEn}`, iconOnly: <PencilIcon size={15} />, className: iconButtonClass("sm") }}
       size="lg"
       values={{
         id: centre.code,
@@ -317,7 +317,7 @@ export function EditSite({ site, units }: { site: Site; units: OrgUnit[] }) {
       columns={2}
       fields={[{ kind: "hidden", name: "id" }, ...siteFields(units)]}
       action={saveSite}
-      trigger={{ label: "Edit", iconOnly: <PencilIcon size={15} />, className: iconButtonClass("sm") }}
+      trigger={{ label: `Edit ${site.nameEn}`, iconOnly: <PencilIcon size={15} />, className: iconButtonClass("sm") }}
       size="lg"
       values={{
         id: site.code,

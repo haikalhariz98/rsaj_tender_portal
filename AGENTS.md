@@ -55,14 +55,13 @@ Tailwind utilities.
   component — a one-off variant is how two screens stop matching.
 - **Check a change against its siblings before calling it done.** A screen is not
   finished when it looks right alone; open the neighbouring screens in the same area
-  and compare headers, tabs, spacing and list styling. `scripts/check-ui.mjs` fails on
-  legacy page scaffolding in migrated areas.
-- **Migration in progress.** `design-system.css` and `design-system-runtime.css` are
-  imported into a `legacy` cascade layer beneath Tailwind's utilities, so unmigrated
-  markup still renders. Do not write new markup with their classes (`.pagehead`,
-  `.tabbar`, `.card__head`, `.table`, `.btn`…). Both files go when the last screen
-  moves; `scripts/text-snapshot.mjs` diffs every screen's text before and after, so a
-  restyle cannot drop a field, a warning or a provenance tag.
+  and compare headers, tabs, spacing and list styling. `scripts/check-ui.mjs` (run by `npm run
+  lint`) fails on the retired prototype classes anywhere in the app.
+- **The prototype's stylesheet is gone.** Every screen is on the design system; the
+  ported `design-system*.css` files were deleted once the last one moved. Its class names
+  (`.pagehead`, `.card__head`, `.table`, `.btn`, `.badge--*`…) now style nothing — do not
+  write them. `scripts/text-snapshot.mjs <dir>` records every screen's visible text; diff
+  two runs to prove a restyle dropped no field, warning or provenance tag.
 - Light-only. There is no dark theme; do not add `dark:` variants.
 - Icons are inline SVG in `src/components/icons.tsx`. Add there rather than pulling in
   an icon package.
