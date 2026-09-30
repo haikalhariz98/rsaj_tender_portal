@@ -3,6 +3,8 @@ import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 
+import { loadAwards, loadAwardSetup, wipeAwards } from "./demo-award";
+
 /**
  * A demonstration dataset, loaded deliberately and never by default.
  *
@@ -184,6 +186,14 @@ async function wipe() {
       return;
     }
     console.log(["--remove-dependents: removing these records, which point at demo records, with their audit entries:", ...lines].join("\n"));
+  }
+
+  // 6.11: awards on demo exercises, and awards that are not demo data but point at demo
+  // rows (refused, listing them, unless --remove-dependents), then the award configuration.
+  // Before anything else is removed: a refusal here removes nothing.
+  if (!(await wipeAwards(db, org.id, REMOVE_DEPENDENTS))) {
+    process.exitCode = 1;
+    return;
   }
 
   const hangingInstanceIds = hangingInstances.map((i) => i.id);
@@ -909,10 +919,12 @@ async function load() {
   // The minuted sitting carries the register frozen as it stood, as minuting writes it.
   await loadRequisitions(organisationId, from);
   await loadMethodSelection(organisationId, from);
+  const awardExercises = await loadAwardSetup(db, organisationId, from);
 
-  await determineExercises([`${P}sx1`, `${P}sx2`, `${P}sx3`, `${P}sx4`, `${P}sx5`, `${P}sx6`]);
+  await determineExercises([`${P}sx1`, `${P}sx2`, `${P}sx3`, `${P}sx4`, `${P}sx5`, `${P}sx6`, ...awardExercises]);
+  await loadAwards(db, organisationId);
   await nameRouteTrail(organisationId);
-  await snapshotMinuted([`${P}mt2`, `${P}mt5`]);
+  await snapshotMinuted([`${P}mt2`, `${P}mt5`, `${P}mt6`, `${P}mt7`]);
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
   console.log("Remove it with: npm run demo:wipe");
