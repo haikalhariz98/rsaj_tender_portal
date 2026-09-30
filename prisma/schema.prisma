@@ -610,7 +610,7 @@ model CommitteeDecision {
   /// foreign key per module (6.10 ruling), never a polymorphic pair.
   requisitionId String?
   requisition   Requisition? @relation(fields: [requisitionId], references: [id], onDelete: SetNull)
-  approvalSteps ApprovalStep[]
+  approvalStep  ApprovalStep?
 
   /// Who tabled the matter, and when. An attestation, not an authenticated act,
   /// until sign-in exists.
@@ -1484,6 +1484,12 @@ model FundingRoute {
   /// What that authority is called, as the customer names it. Shown on the field.
   externalAuthorityRefLabel    String?
 
+  /// Whether approving a matter on this route commits the organisation's own budget
+  /// (6.1 ruling BD-13). Null: nobody has said, and approval writes no commitment and
+  /// says so. Whether the organisation procures is not a proxy for it.
+  approvalCommitsBudget           Boolean?
+  approvalCommitsBudgetProvenance Provenance?
+
   governingSource String     @default("")
   provenance      Provenance @default(ASSUMED)
   notes           String     @default("")
@@ -1818,6 +1824,8 @@ model RequisitionSplitCheck {
   relatedReferences    String[]
   combinedValue        Decimal?  @db.Decimal(18, 2)
   crossesBand          Boolean?
+  /// Why a NOT_SET check could not run: the settings or keys it lacked.
+  notSetReasons        String[]  @default([])
 
   overrideJustification String?
   overriddenOn          DateTime?
@@ -1848,6 +1856,9 @@ model RequisitionPolicy {
   endorsementTiers             OrgUnitKind[] @default([])
   /// Whether registration needs the finance system's numbers. Null blocks it.
   erpReferenceRequired         Boolean?
+  /// The office whose holder may justify a flagged split (6.1 ruling Q3), by
+  /// AuthorityRole.code. Null blocks justification.
+  splitJustifyingRoleCode      String?
 
   provenance Provenance?
   notes      String      @default("")
@@ -1907,6 +1918,8 @@ model ApprovalInstance {
 
   /// BudgetSettings.commitOnApproval as it stood when the route closed.
   commitOnApproval Boolean?
+  /// FundingRoute.approvalCommitsBudget as it stood when the route closed.
+  routeCommitsBudget Boolean?
 
   warnings Json           @default("[]")
   status   ApprovalStatus @default(PENDING)
@@ -1945,7 +1958,8 @@ model ApprovalStep {
   delegation        Delegation?  @relation(fields: [delegationId], references: [id], onDelete: Restrict)
   reason            String       @default("")
 
-  committeeDecisionId String?
+  /// One committee decision discharges one step, never two.
+  committeeDecisionId String?            @unique
   committeeDecision   CommitteeDecision? @relation(fields: [committeeDecisionId], references: [id], onDelete: Restrict)
   recordedAt          DateTime?
 
