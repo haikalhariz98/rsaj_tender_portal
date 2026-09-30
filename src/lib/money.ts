@@ -100,3 +100,13 @@ export function formatSen(sen: Sen, currency = "RM"): string {
   const frac = (abs % 100n).toString().padStart(2, "0");
   return `${negative ? "−" : ""}${currency}${whole}.${frac}`;
 }
+
+/**
+ * For display, as the portal writes money everywhere: whole ringgit without sen
+ * ("RM300,000"), sen only where there are some ("RM300,000.01"). One format, so a
+ * figure reads the same on every screen.
+ */
+export function formatMoney(sen: Sen, currency = "RM"): string {
+  const full = formatSen(sen, currency);
+  return sen % 100n === 0n ? full.slice(0, -3) : full;
+}

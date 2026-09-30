@@ -10,7 +10,7 @@
 
 import { regimeFor } from "@/lib/authority/resolve";
 import type { Policy } from "@/lib/authority/types";
-import { addSen, formatSen, type Sen } from "@/lib/money";
+import { addSen, formatMoney as formatSen, type Sen } from "@/lib/money";
 
 import { bandingNumber } from "./bands";
 import type { ExerciseStatus, Finding } from "./types";
@@ -53,4 +53,11 @@ export function exerciseValueFaults(
     out.push({ code: "REQUISITION_BAND_CHANGED", level: "warn", data: { approvedRule: approved.ruleLabel, ownRule: draft.requisitionRuleLabel } });
   }
   return out;
+}
+
+/// The approved value not yet held by a live exercise, excluding one exercise (being
+/// edited). Null where there is no approved route.
+export function remainingOf(approved: ApprovedRoute | null, exercises: readonly { id: string; value: Sen; status: ExerciseStatus }[], except: string | null = null): Sen | null {
+  if (!approved) return null;
+  return approved.value - addSen(...exercises.filter((x) => x.id !== except && x.status !== "CANCELLED").map((x) => x.value));
 }

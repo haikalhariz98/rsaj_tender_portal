@@ -78,17 +78,21 @@ export function CellStack({
   title,
   sub,
   mono,
+  wrap,
 }: {
   title: ReactNode;
   sub?: ReactNode;
   /// The sub line is a reference or pattern, set in the code face.
   mono?: boolean;
+  /// Let a name wrap rather than cut it, where the column is narrow and the name is
+  /// the thing the row is read by.
+  wrap?: boolean;
 }) {
   return (
     <div className="min-w-0">
-      <div className="truncate font-semibold text-ink">{title}</div>
+      <div className={cx(wrap ? "break-words" : "truncate", "font-semibold text-ink")}>{title}</div>
       {sub && (
-        <div className={cx("truncate text-[12.5px] text-ink-3", mono && "font-mono text-[12px]")}>{sub}</div>
+        <div className={cx(wrap ? "break-words" : "truncate", "text-[12.5px] text-ink-3", mono && "font-mono text-[12px]")}>{sub}</div>
       )}
     </div>
   );

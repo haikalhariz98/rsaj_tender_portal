@@ -4,10 +4,10 @@
  */
 
 import { ACT_LABEL } from "@/lib/labels";
-import { formatSen, senFromAmount } from "@/lib/money";
+import { formatMoney as formatSen } from "@/lib/money";
 
 import type { Evaluation } from "./evaluate";
-import { APPOINTMENT_STATE_TEXT, DERIVATION_TEXT, findingText, NAME_STATE_TEXT, REGIME_LABEL, TAXONOMY_STATE_LABEL, TERMS_STATE_TEXT, TYPE_STATE_LABEL } from "./labels";
+import { APPOINTMENT_STATE_TEXT, boundarySentence, DERIVATION_TEXT, findingText, NAME_STATE_TEXT, REGIME_LABEL, TAXONOMY_STATE_LABEL, TERMS_STATE_TEXT, TYPE_STATE_LABEL } from "./labels";
 import type { Provenance } from "./types";
 import type { ApprovedRoute } from "./value";
 
@@ -34,7 +34,6 @@ export interface Presented {
 }
 
 const yesNo = (b: boolean | null) => (b == null ? "Not set" : b ? "Applies" : "Does not apply");
-const PROVENANCE_WORD: Record<Provenance, string> = { STATED: "stated", OBSERVED: "observed", ASSUMED: "assumed" };
 
 export function presentEvaluation(
   ev: Evaluation,
@@ -84,10 +83,7 @@ export function presentEvaluation(
       defects: yesNo(b.terms.band?.defectsLiabilityApplies ?? null),
     },
     boundary: {
-      rule:
-        b.boundary.operator === "GT"
-          ? `A value exactly at ${formatSen(senFromAmount(b.boundary.boundaryValue))} stays in the quotation regime (${PROVENANCE_WORD[b.boundary.provenance]}).`
-          : `A value exactly at ${formatSen(senFromAmount(b.boundary.boundaryValue))} moves to the tender regime (${PROVENANCE_WORD[b.boundary.provenance]}).`,
+      rule: boundarySentence(b.boundary.operator, String(b.boundary.boundaryValue), b.boundary.provenance),
       onBoundary: b.boundary.onBoundary,
       provenance: b.boundary.provenance,
       source: ctx.boundarySource,
@@ -96,7 +92,7 @@ export function presentEvaluation(
       status: ev.type.state ? TYPE_STATE_LABEL[ev.type.state] : "Not set",
       name: ev.type.code ? ctx.typeName(ev.type.code) : null,
       derivation: ev.derivation.state === "DERIVED" && ev.derivation.code ? `Derived: ${ctx.typeName(ev.derivation.code)}.` : DERIVATION_TEXT[ev.derivation.state],
-      share: ev.derivation.sharePct ? `${Number(ev.derivation.sharePct).toFixed(2)}% of the value is the largest deliverable` : null,
+      share: ev.derivation.sharePct && Number(ev.derivation.sharePct) < 100 ? `${ev.derivation.sharePct.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "")}% of the value is the largest deliverable` : ev.derivation.sharePct ? "One deliverable" : null,
     },
     taxonomies: ev.taxonomies.map((t) => ({
       name: ctx.taxonomyName(t.taxonomyCode),

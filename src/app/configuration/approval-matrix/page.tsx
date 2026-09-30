@@ -17,6 +17,7 @@ import {
   AddRecommender,
   AddRule,
   AddTermsBand,
+  DiscardDraft,
   EditMatrix,
   EditRule,
   EditTermsBand,
@@ -27,7 +28,7 @@ import {
 } from "./editors";
 import { db } from "@/lib/db";
 import { bandConsistencyFaults } from "@/lib/method/boundary";
-import { findingText, REGIME_LABEL } from "@/lib/method/labels";
+import { boundarySentence, findingText, REGIME_LABEL } from "@/lib/method/labels";
 import { loadTermsBands } from "@/lib/method/repo";
 import type { Regime } from "@/lib/method/types";
 import { ProvenanceBadge } from "@/components/ui/provenance";
@@ -37,7 +38,7 @@ import { Callout } from "@/components/ui/feedback";
 import { cx } from "@/components/ui/cx";
 import type { Rule } from "@/lib/authority/types";
 import { PageHeader } from "@/components/ui/page-header";
-import { Badge, Chip } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { KeyValues, Stat } from "@/components/ui/stat";
@@ -220,6 +221,7 @@ export default async function ApprovalMatrixPage({
               routes={funderRoutes}
             />
             <AddRule matrixId={matrixId} offices={offices} />
+            <DiscardDraft id={matrixId} label={selected.label} />
             <IssueDraft
               id={matrixId}
               label={selected.label}
@@ -345,11 +347,7 @@ export default async function ApprovalMatrixPage({
                 {
                   label: "A value exactly on the boundary",
                   value: (
-                    <Chip tone="brand">
-                      {matrix.policy.boundaryInclusive
-                        ? "Falls in the quotation band"
-                        : "Falls in the tender band"}
-                    </Chip>
+                    <span>{boundarySentence(matrix.policy.boundaryInclusive ? "GT" : "GTE", String(matrix.policy.boundaryValue), boundaryMeta.boundaryProvenance)}</span>
                   ),
                 },
                 {
@@ -367,8 +365,9 @@ export default async function ApprovalMatrixPage({
                 {
                   label: "Requisition boundary",
                   value: (
-                    <span className="tabular-nums">
-                      {formatValueBand(null, matrix.policy.requisitionBoundary).replace("≤ ", "")}
+                    <span className="flex flex-col">
+                      <span className="tabular-nums">{formatValueBand(null, matrix.policy.requisitionBoundary).replace("≤ ", "")}</span>
+                      <span className="text-[12.5px] text-ink-3">Shown for reference: who approves a requisition is set by the requisition rules below.</span>
                     </span>
                   ),
                 },
@@ -533,8 +532,8 @@ export default async function ApprovalMatrixPage({
               >
                 <Table minWidth={editable ? 920 : 820}>
                   <colgroup>
-                    <col style={{ width: editable ? "14%" : "16%" }} />
-                    <col style={{ width: editable ? "10%" : "12%" }} />
+                    <col style={{ width: editable ? "13%" : "15%" }} />
+                    <col style={{ width: editable ? "13%" : "14%" }} />
                     <col />
                     <col style={{ width: editable ? "15%" : "16%" }} />
                     <col style={{ width: editable ? "13%" : "15%" }} />
@@ -546,7 +545,7 @@ export default async function ApprovalMatrixPage({
                     <Th>Route</Th>
                     <Th>Committee</Th>
                     <Th>Delegation</Th>
-                    {editable && <Th className="text-right">Change</Th>}
+                    {editable && <Th className="text-right"><span className="sr-only">Change</span></Th>}
                   </THead>
                   <tbody>
                     {rules.map((rule, r) => {
@@ -588,7 +587,7 @@ export default async function ApprovalMatrixPage({
                               </div>
                             )}
                           </Td>
-                          <Td className="align-top text-[13px] break-words text-ink-2">
+                          <Td className="align-top text-[13px] text-ink-2 [overflow-wrap:normal]">
                             {rule.method ? methodName(rule.method) : "Any method"}
                           </Td>
                           <Td className="align-top">

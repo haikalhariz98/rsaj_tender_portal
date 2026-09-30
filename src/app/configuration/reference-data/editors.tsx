@@ -22,6 +22,7 @@ import {
   saveTaxonomyValue,
 } from "./actions";
 import type { ContractBehaviours, MethodBehaviour } from "@/lib/method/types";
+import { BEHAVIOUR_LABEL } from "@/lib/method/labels";
 
 /**
  * The field declarations behind each Reference data record.
@@ -399,26 +400,27 @@ const tri = (b: boolean | null) => (b == null ? null : b ? "yes" : "no");
 
 /// The twelve behaviours of a contract type (FR-MTD-012). Each may stay unset.
 export function ContractBehavioursDrawer({ id, name, values, offices }: { id: string; name: string; values: ContractBehaviours; offices: Option[] }) {
-  const t = (n: keyof ContractBehaviours, label: string, hint?: string): Field => ({ kind: "text", name: n, label, hint });
-  const b = (n: keyof ContractBehaviours, label: string): Field => ({ kind: "select", name: n, label, placeholder: "Not set", options: TRI });
+  // The same words as the exercise record shows (UX 11).
+  const t = (n: keyof ContractBehaviours, hint?: string): Field => ({ kind: "text", name: n, label: BEHAVIOUR_LABEL[n], hint });
+  const b = (n: keyof ContractBehaviours): Field => ({ kind: "select", name: n, label: BEHAVIOUR_LABEL[n], placeholder: "Not set", options: TRI });
   return (
     <RecordEditor
       title={`What ${name} drives`}
       description="The twelve behaviours the contract type sets downstream. Leave one unset where the sources are silent or conflict: it shows as not set, never as no."
       fields={[
         { kind: "hidden", name: "id" },
-        t("pricingBasis", "Pricing basis"),
-        t("registrationTest", "Registration eligibility test"),
-        { kind: "tokens", name: "administratorRoleCodes", label: "Contract administrator", options: offices, placeholder: "Add an office" },
-        b("startRequiresSecurities", "Start needs bond and insurances"),
-        t("eotInstrument", "Extension of time instrument"),
-        t("completionInstrument", "Completion instrument"),
-        b("defectsLiabilityApplies", "Defects liability period"),
-        b("makingGoodCertificate", "Certificate of making good defects"),
-        b("nominationAllowed", "Nomination and prime cost sums"),
-        t("interimPaymentRule", "Interim payment rule"),
-        t("sumAdjustmentDrivers", "Contract sum adjustment drivers", "Separate them with commas."),
-        { kind: "select", name: "claimsApprovalCommitteeCode", label: "Approves claims before final account", placeholder: "Not set", options: offices },
+        t("pricingBasis"),
+        t("registrationTest"),
+        { kind: "tokens", name: "administratorRoleCodes", label: BEHAVIOUR_LABEL.administratorRoleCodes, options: offices, placeholder: "Add an office" },
+        b("startRequiresSecurities"),
+        t("eotInstrument"),
+        t("completionInstrument"),
+        b("defectsLiabilityApplies"),
+        b("makingGoodCertificate"),
+        b("nominationAllowed"),
+        t("interimPaymentRule"),
+        t("sumAdjustmentDrivers", "Separate them with commas."),
+        { kind: "select", name: "claimsApprovalCommitteeCode", label: BEHAVIOUR_LABEL.claimsApprovalCommitteeCode, placeholder: "Not set", options: offices },
       ]}
       values={{
         id,
@@ -437,19 +439,12 @@ export function ContractBehavioursDrawer({ id, name, values, offices }: { id: st
       }}
       action={saveContractBehaviours}
       submitLabel="Save behaviours"
-      trigger={{ label: `Behaviours of ${name}`, iconOnly: <SlidersGlyph /> }}
+      trigger={{ label: "Behaviours", className: buttonClass("ghost", "sm") }}
       size="lg"
     />
   );
 }
 
-function SlidersGlyph() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />
-    </svg>
-  );
-}
 
 export function ChecklistItemDrawer({ methods, item }: { methods: Option[]; item?: { id: string; sourcingMethodId: string; key: string; labelEn: string; labelMs: string | null; required: boolean; sortOrder: number } }) {
   return (
@@ -628,7 +623,7 @@ export function ClassificationPolicyDrawer({ values }: { values: { dominanceShar
       title="Mixed-scope classification"
       description="The share of value the largest deliverable must strictly exceed for its type to be the default. Leave it empty for no default: the officer then chooses, with a reason."
       fields={[
-        { kind: "text", name: "dominanceSharePct", label: "Dominance threshold (percent)", placeholder: "Not set", hint: "At least 50 and below 100." },
+        { kind: "text", name: "dominanceSharePct", label: "Mixed-scope threshold (percent)", placeholder: "Not set", hint: "At least 50 and below 100." },
         {
           kind: "select",
           name: "provenance",

@@ -99,7 +99,7 @@ export function boundaryOf(value: Sen, policy: Pick<Policy, "boundaryValue" | "b
 
 /// The logged exception (spec D3): a case on the boundary while the ruling is unwritten.
 export function boundaryFindings(b: BoundaryResult): Finding<"BOUNDARY_NOT_RULED">[] {
-  return b.onBoundary && !b.ruled ? [{ code: "BOUNDARY_NOT_RULED", level: "warn", data: { operator: b.operator } }] : [];
+  return b.onBoundary && !b.ruled ? [{ code: "BOUNDARY_NOT_RULED", level: "warn", data: { operator: b.operator, value: String(b.boundaryValue), provenance: b.provenance } }] : [];
 }
 
 /// Exact sen of a decimal string, for callers holding Decimal columns.

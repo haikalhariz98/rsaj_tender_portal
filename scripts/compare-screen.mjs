@@ -270,7 +270,7 @@ const ALLOWED_EXTRA = [
   /^Other classifications$/,
   /^Classification mappings$/,
   /^Mixed scope$/,
-  /^Behaviours of /,
+  /^Behaviours$/,
 ];
 
 const isAllowed = (label) => ALLOWED_EXTRA.some((re) => re.test(label));

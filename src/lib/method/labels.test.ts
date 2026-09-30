@@ -17,7 +17,7 @@ const CODES = [
   "SCOPE_REQUIRED", "SCOPE_AMOUNT_INVALID", "SCOPE_SUM_MISMATCH", "LOCKED", "TYPE_REQUIRED", "TYPE_UNKNOWN", "TYPE_REASON_REQUIRED", "TYPE_PERSON_REQUIRED",
   "REQUISITION_NOT_APPROVED", "SOURCING_NOT_RECORDED", "TERMINAL", "NOT_ALLOWED", "CANCEL_REASON_REQUIRED", "METHOD_NOT_SET", "TYPE_NOT_SET", "BASIS_NOT_SET",
   "PROPOSAL_NOT_REVIEWED", "TAXONOMY_AMBIGUOUS", "BLOCKING_FAULTS", "BASIS_UNKNOWN",
-  "DETERMINATION_CHANGED", "NAME_EXERCISE_CANCELLED", "NAME_NOT_ASKED", "NAME_ALREADY_REQUESTED",
+  "DETERMINATION_CHANGED", "FULLY_IN_EXERCISES", "NAME_EXERCISE_CANCELLED", "NAME_NOT_ASKED", "NAME_ALREADY_REQUESTED",
 ];
 
 describe("every finding has words, and none shows a code", () => {
@@ -28,5 +28,18 @@ describe("every finding has words, and none shows a code", () => {
   });
   it("every behaviour has a label", () => {
     for (const k of BEHAVIOUR_KEYS) expect(BEHAVIOUR_LABEL[k]).toBeTruthy();
+  });
+});
+
+describe("the boundary in one sentence (UX 9)", () => {
+  it("says which band, at which value, and whether it is ruled", async () => {
+    const { boundarySentence } = await import("./labels");
+    expect(boundarySentence("GT", "300000", "ASSUMED")).toBe("A value exactly on RM300,000 falls in the quotation band (assumed; not yet ruled).");
+    expect(boundarySentence("GTE", "300000", "STATED")).toBe("A value exactly on RM300,000 falls in the tender band (stated).");
+  });
+  it("the logged exception does not contradict itself", () => {
+    const t = findingText({ code: "BOUNDARY_NOT_RULED", level: "warn", data: { operator: "GT", value: "300000", provenance: "ASSUMED" } });
+    expect(t).toMatch(/falls in the quotation band \(assumed; not yet ruled\)/);
+    expect(t).not.toMatch(/lower regime|upper regime/);
   });
 });

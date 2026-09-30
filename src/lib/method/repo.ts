@@ -65,7 +65,8 @@ export async function loadMethodConfig(organisationId: string, client: Tx = db) 
 export type LoadedMethodConfig = Awaited<ReturnType<typeof loadMethodConfig>>;
 
 export async function loadTermsBands(authorityMatrixId: string, client: Tx = db): Promise<(TermsBand & { id: string })[]> {
-  const rows = await client.termsBand.findMany({ where: { authorityMatrixId }, orderBy: [{ sortOrder: "asc" }, { bandKey: "asc" }] });
+  // In value order (UX 13): the band with no floor first.
+  const rows = await client.termsBand.findMany({ where: { authorityMatrixId }, orderBy: [{ minValue: { sort: "asc", nulls: "first" } }, { bandKey: "asc" }] });
   return rows.map((t) => ({
     id: t.id,
     bandKey: t.bandKey,

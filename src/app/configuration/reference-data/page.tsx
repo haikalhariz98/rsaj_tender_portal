@@ -224,18 +224,18 @@ export default async function ReferenceDataPage() {
       >
         <Table minWidth={TABLE_MIN}>
           <colgroup>
+            <col style={{ width: "19%" }} />
+            <col style={{ width: "12%" }} />
             <col />
-            <col style={{ width: "16%" }} />
             <col style={{ width: "17%" }} />
-            <col style={{ width: "15%" }} />
             <col style={{ width: "13%" }} />
             <ActionsCol icons={2} labelled={1} />
           </colgroup>
           <THead>
             <Th>Method</Th>
             <Th>Bands</Th>
-            <Th>Approach</Th>
-            <Th>Awards by</Th>
+            <Th>Asks for</Th>
+            <Th>Approach and award</Th>
             <Th>Source</Th>
             <Th className="text-right">Actions</Th>
           </THead>
@@ -243,20 +243,25 @@ export default async function ReferenceDataPage() {
             {methods.map((m) => (
               <Tr key={m.code}>
                 <Td title={m.nameMs ? `${m.nameEn} — ${m.nameMs}` : m.nameEn}>
-                  <CellStack title={m.nameEn} sub={m.nameMs || undefined} />
-                  {asks(m.code).length > 0 && (
-                    <span className="mt-1 flex flex-wrap gap-1">
-                      {asks(m.code).map((a) => (
-                        <Chip key={a}>{a}</Chip>
-                      ))}
-                    </span>
-                  )}
+                  <CellStack wrap title={m.nameEn} sub={m.nameMs || undefined} />
                 </Td>
                 <Td>
                   <Bands method={m} />
                 </Td>
-                <Td className="text-ink-2">{approachOf(m)}</Td>
-                <Td className="text-ink-2">{m.awardInstrument || "—"}</Td>
+                <Td>
+                  {asks(m.code).length > 0 ? (
+                    <span className="flex flex-wrap gap-1">
+                      {asks(m.code).map((a) => (
+                        <Chip key={a}>{a}</Chip>
+                      ))}
+                    </span>
+                  ) : (
+                    <span className="text-ink-3">Nothing further</span>
+                  )}
+                </Td>
+                <Td>
+                  <CellStack wrap title={<span className="font-normal text-ink-2">{approachOf(m)}</span>} sub={m.awardInstrument ? `Awarded by ${m.awardInstrument.toLowerCase()}` : undefined} />
+                </Td>
                 <Td>
                   <ProvenanceCell value={m.provenance} source={m.governingSource} />
                 </Td>
@@ -285,7 +290,7 @@ export default async function ReferenceDataPage() {
             <col style={{ width: "26%" }} />
             <col />
             <col style={{ width: "17%" }} />
-            <ActionsCol icons={3} labelled={1} />
+            <ActionsCol icons={2} labelled={2} />
           </colgroup>
           <THead>
             <Th>Type</Th>
@@ -297,7 +302,7 @@ export default async function ReferenceDataPage() {
             {types.map((c) => (
               <Tr key={c.code}>
                 <Td title={c.nameMs ? `${c.nameEn} — ${c.nameMs}` : c.nameEn}>
-                  <CellStack title={c.nameEn} sub={typeRow(c.code)?.deliverableKind ? `Default for this deliverable: ${DELIVERABLE_LABEL[typeRow(c.code)!.deliverableKind as DeliverableKind].toLowerCase()}` : "Default for this deliverable: none"} />
+                  <CellStack wrap title={c.nameEn} sub={typeRow(c.code)?.deliverableKind ? `Default for this deliverable: ${DELIVERABLE_LABEL[typeRow(c.code)!.deliverableKind as DeliverableKind].toLowerCase()}` : "Default for this deliverable: none"} />
                 </Td>
                 <Td className="text-ink-2">
                   {(() => {
@@ -336,7 +341,7 @@ export default async function ReferenceDataPage() {
             <col style={{ width: "22%" }} />
             <col />
             <col style={{ width: "13%" }} />
-            <ActionsCol icons={1} labelled={1} />
+            <ActionsCol icons={2} labelled={1} />
           </colgroup>
           <THead>
             <Th>Method</Th>
@@ -352,6 +357,7 @@ export default async function ReferenceDataPage() {
                 <Td>{i.required ? <Chip tone="brand">Required</Chip> : <Chip>Optional</Chip>}</Td>
                 <Td>
                   <RowActions>
+                    <HistoryButton iconOnly entity="MethodChecklistItem" entityId={i.id} label={i.labelEn} />
                     <ChecklistItemDrawer methods={methodOptions} item={i} />
                     <RetireChecklistItem id={i.id} label={i.labelEn} />
                   </RowActions>
@@ -576,7 +582,7 @@ export default async function ReferenceDataPage() {
             columns={2}
             items={[
               {
-                label: "Dominance threshold",
+                label: "Mixed-scope threshold",
                 value: policy?.dominanceSharePct != null ? `The largest deliverable's share must be above ${Number(policy.dominanceSharePct.toString()).toFixed(2)}%` : <span className="text-ink-3">Not set: no default for mixed scope. The officer chooses the type, with a reason.</span>,
               },
               { label: "Where it comes from", value: policy?.provenance ? <ProvenanceBadge value={policy.provenance} /> : "Not set" },

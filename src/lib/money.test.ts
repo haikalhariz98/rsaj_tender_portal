@@ -128,3 +128,12 @@ describe("comparing amounts exactly", () => {
     expect(compareAmounts("15000", "300000")).toBe(-1);
   });
 });
+
+describe("formatMoney: one display format", () => {
+  it("drops sen only where there are none", async () => {
+    const { formatMoney } = await import("./money");
+    expect(formatMoney(parseSen("300000"))).toBe("RM300,000");
+    expect(formatMoney(parseSen("300000.01"))).toBe("RM300,000.01");
+    expect(formatMoney(parseSen("0.50"))).toBe("RM0.50");
+  });
+});

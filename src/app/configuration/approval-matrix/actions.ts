@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import type { FormState } from "@/components/record-editor";
 import { auditedCreate, auditedDelete, auditedUpdate, writeAudit } from "@/lib/audit/record";
@@ -112,7 +113,9 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
 
   const quotationFloor = r.money("quotationFloor", "Quotation floor", { required: true });
   const tenderFloor = r.money("tenderFloor", "Tender floor", { required: true });
-  const boundaryValue = r.money("boundaryValue", "Where the bands meet", { required: true });
+  // Where the bands meet is the tender floor (ruling R-7): derived, not a second input
+  // (UX review). A form that still sends one is checked against the floor in lib.
+  const boundaryValue = data.has("boundaryValue") ? r.money("boundaryValue", "Where the bands meet", { required: true }) : tenderFloor;
   const requisitionBoundary = r.money("requisitionBoundary", "Requisition boundary", {
     required: true,
   });
@@ -199,9 +202,12 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
   };
 
   if (!id) {
-    await auditedCreate(ctx, v, (tx) =>
+    const created = await auditedCreate(ctx, v, (tx) =>
       tx.authorityMatrix.create({ data: { organisationId: orgId, ...v } }),
     );
+    // Straight to the new draft (UX review).
+    revalidatePath(PATH);
+    redirect(`${PATH}?issue=${created.id}`);
   } else if (before) {
     await auditedUpdate(
       { ...ctx, entityId: before.id },
@@ -665,7 +671,8 @@ export async function saveTermsBand(_prev: FormState, data: FormData): Promise<F
   const id = String(data.get("id") ?? "");
   const authorityMatrixId = String(data.get("authorityMatrixId") ?? "");
   const r = new FormReader(data);
-  const bandKey = r.code("bandKey", "Key");
+  // The key is generated from the terms set's name (UX 13); an edit keeps its own.
+  const typedKey = String(data.get("bandKey") ?? "").trim();
   const minValue = r.money("minValue", "From value");
   const maxValue = r.money("maxValue", "To value");
   if (minValue && maxValue && compareAmounts(maxValue, minValue) <= 0) r.reject("maxValue", "The upper bound must be above the lower.");
@@ -674,7 +681,6 @@ export async function saveTermsBand(_prev: FormState, data: FormData): Promise<F
     return c == null ? null : c === "yes";
   };
   const v = {
-    bandKey,
     minValue,
     maxValue,
     regime: r.choice("regime", "Regime", ["below", "quotation", "tender"] as const),
@@ -686,7 +692,6 @@ export async function saveTermsBand(_prev: FormState, data: FormData): Promise<F
     followsBoundarySwitch: tri("followsBoundarySwitch", "At the boundary value"),
     clause: r.text("clause", "Clause", { max: 120 }),
     provenance: r.choice("provenance", "Where this comes from", ["STATED", "OBSERVED", "ASSUMED"] as const, { required: true }),
-    sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
   };
   if (r.failed) return { ok: false, errors: r.errors };
 
@@ -697,12 +702,15 @@ export async function saveTermsBand(_prev: FormState, data: FormData): Promise<F
     if (matrix.issuedAt) return FROZEN;
     const before = id ? await tx.termsBand.findFirst({ where: { id, authorityMatrixId } }) : null;
     if (id && !before) return { ok: false, message: "That terms band no longer exists." } as FormState;
-    const clash = await tx.termsBand.findFirst({ where: { authorityMatrixId, bandKey, ...(before ? { NOT: { id: before.id } } : {}) }, select: { id: true } });
-    if (clash) return { ok: false, errors: { bandKey: "A band with that key already exists on this issue." } } as FormState;
+    const taken = new Set((await tx.termsBand.findMany({ where: { authorityMatrixId, ...(before ? { NOT: { id: before.id } } : {}) }, select: { bandKey: true } })).map((x) => x.bandKey));
+    const base = before?.bandKey ?? (typedKey || v.labelEn.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "band");
+    let bandKey = base;
+    for (let n = 2; !before && taken.has(bandKey); n++) bandKey = `${base}_${n}`;
     if (termsBandBoundaryFault({ minValue: n(minValue), maxValue: n(maxValue), followsBoundarySwitch: v.followsBoundarySwitch }, { boundaryValue: Number(matrix.boundaryValue.toString()) })) {
       return { ok: false, errors: { followsBoundarySwitch: "An edge of this band is the value where the regimes meet. Decide whether the band follows the boundary switch there." } } as FormState;
     }
-    const data2 = { ...v, provenance: v.provenance! };
+    // Bands read in value order: no order to set by hand (UX 13).
+    const data2 = { ...v, bandKey, provenance: v.provenance! };
     const label = `${matrix.label} — ${v.labelEn}`;
     if (!before) {
       const row = await tx.termsBand.create({ data: { authorityMatrixId, ...data2 } });
@@ -735,4 +743,34 @@ export async function removeTermsBand(_prev: FormState, data: FormData): Promise
     revalidatePath(PATH);
     return { ok: true } as FormState;
   });
+}
+
+/**
+ * Discard a draft issue: its rules, their steps and its terms bands go with it, on the
+ * record with a reason. An issued issue is never discarded — decisions ran under it.
+ */
+export async function discardDraft(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+  const id = String(data.get("id") ?? "");
+  const reason = String(data.get("reason") ?? "").trim();
+  if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
+  const result = await db.$transaction(async (tx): Promise<FormState> => {
+    await tx.$queryRaw`SELECT id FROM "AuthorityMatrix" WHERE id = ${id} FOR UPDATE`;
+    const draft = await tx.authorityMatrix.findFirst({ where: { id, organisationId: orgId }, include: { rules: { include: { recommenders: true } }, termsBands: true } });
+    if (!draft) return { ok: false, message: "That draft no longer exists." };
+    if (draft.issuedAt) return { ok: false, message: "An issued issue cannot be discarded: decisions ran under it." };
+    const used = await tx.approvalInstance.count({ where: { OR: [{ authorityMatrixId: id }, { overrideMatrixId: id }] } });
+    if (used > 0) return { ok: false, message: "A route cites this draft, so it cannot be discarded." };
+    await tx.authorityRuleStep.deleteMany({ where: { authorityRule: { authorityMatrixId: id } } });
+    await tx.authorityRule.deleteMany({ where: { authorityMatrixId: id } });
+    await tx.termsBand.deleteMany({ where: { authorityMatrixId: id } });
+    await tx.authorityMatrix.delete({ where: { id } });
+    await writeAudit(tx, { organisationId: orgId, entity: "AuthorityMatrix", entityId: id, entityLabel: draft.label, reason }, "DELETE",
+      snapshotFields({ label: draft.label, effectiveFrom: draft.effectiveFrom, rules: draft.rules.length, termsBands: draft.termsBands.length, status: "Draft" }));
+    return { ok: true };
+  });
+  if (!result.ok) return result;
+  revalidatePath(PATH);
+  redirect(PATH);
 }

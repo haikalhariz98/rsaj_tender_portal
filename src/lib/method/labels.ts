@@ -3,6 +3,8 @@
  * screen (AGENTS.md rule 5): each finding, state and enum has its text here, tested.
  */
 
+import { formatMoney, parseSen } from "@/lib/money";
+
 import type { BehaviourKey } from "./profile";
 import type { DerivationState } from "./contract-type";
 import type { TaxonomyState } from "./taxonomy";
@@ -16,17 +18,26 @@ export const EXERCISE_STATUS_LABEL: Record<ExerciseStatus, string> = {
   CANCELLED: "Cancelled",
 };
 export const EXERCISE_STATUS_TONE: Record<ExerciseStatus, "brand" | "info" | "neutral"> = {
-  DRAFT: "brand",
+  // As a requisition's draft reads (UX low).
+  DRAFT: "neutral",
   DOCUMENTS_IN_PREPARATION: "info",
   CANCELLED: "neutral",
 };
 /// §7.3.2 gives cancellation no SOP path; the screen says so wherever it shows it.
-export const CANCELLED_ASSUMPTION = "Cancelling an exercise is an assumption: the governing procedure gives it no path.";
+export const CANCELLED_ASSUMPTION = "The procedure does not cover cancelling an exercise: this is recorded as the organisation's own step.";
+
+/// One term per concept (UX 11).
+export const TERM = {
+  nameApproval: "Name approval",
+  mixedThreshold: "Mixed-scope threshold",
+  newExercise: "New exercise",
+  notEnforced: "recorded, not enforced in this phase",
+} as const;
 
 export const REGIME_LABEL: Record<Regime, string> = {
-  below: "Below the quotation regime",
-  quotation: "Quotation regime",
-  tender: "Tender regime",
+  below: "Below the quotation floor",
+  quotation: "Quotation band",
+  tender: "Tender band",
 };
 export const REGIME_SHORT: Record<Regime, string> = { below: "Below quotation", quotation: "Quotation", tender: "Tender" };
 
@@ -67,24 +78,24 @@ export const TAXONOMY_STATE_LABEL: Record<TaxonomyState, string> = {
 
 export const TERMS_STATE_TEXT: Record<TermsState, string> = {
   APPLIES: "Applies",
-  NONE_IN_REGIME: "No contract terms band applies in this regime.",
-  NO_BAND_FOR_VALUE: "Terms bands are set for this regime, but none covers this value — a gap in the bands.",
+  NONE_IN_REGIME: "Not applicable: the terms bands on the approval matrix cover other bands, not this one.",
+  NO_BAND_FOR_VALUE: "Terms bands are set for this band, but none covers this value — a gap in the terms bands.",
   NOT_SET: "Not set: no contract terms bands are set on the issue in force.",
 };
 
 export const APPOINTMENT_STATE_TEXT: Record<AppointmentState, string> = {
   RESOLVED: "Resolved",
-  DEPENDS_ON_METHOD: "The approver depends on the method: no single method is proposed in this regime.",
+  DEPENDS_ON_METHOD: "The approver depends on the method: no single method is proposed in this band.",
   NO_METHOD_KEY: "This method is not tied to any approval rule, so nobody can be shown as approving its appointment. Set its approval matrix method under Reference data.",
   NO_RULE: "No approval rule matches this method at this value. Add a rule for it to the approval matrix, or record a known gap.",
 };
 
 export const NAME_STATE_TEXT: Record<NameApprovalState, string> = {
   NOT_REQUIRED: "Not required for this method.",
-  NO_METHOD_KEY: "This method asks for approval of the name but is not tied to any approval rule. Set its approval matrix method under Reference data.",
+  NO_METHOD_KEY: "This method asks for name approval but is not tied to any approval rule. Set its approval matrix method under Reference data.",
   NO_RULE: "No approval rule for the name matches this method. Add one to the approval matrix.",
   HAS_COMMITTEE_STEP:
-    "The route for approval of the name includes a committee step, and an exercise cannot yet be tabled at a sitting. Record the name approval outside the portal, or change the rule so that offices decide it.",
+    "The route for name approval includes a committee step, and an exercise cannot yet be tabled at a sitting. Record the name approval outside the portal, or change the rule so that offices decide it.",
   RESOLVED: "Resolved",
 };
 
@@ -92,18 +103,29 @@ export const BEHAVIOUR_LABEL: Record<BehaviourKey, string> = {
   pricingBasis: "Pricing basis",
   registrationTest: "Registration eligibility test",
   administratorRoleCodes: "Contract administrator",
-  startRequiresSecurities: "Start of work needs bond and insurances",
+  startRequiresSecurities: "Start needs bond and insurances",
   eotInstrument: "Extension of time instrument",
   completionInstrument: "Completion instrument",
   defectsLiabilityApplies: "Defects liability period",
   makingGoodCertificate: "Certificate of making good defects",
-  nominationAllowed: "Nominated sub-contractors and prime cost sums",
+  nominationAllowed: "Nomination and prime cost sums",
   interimPaymentRule: "Interim payment rule",
   sumAdjustmentDrivers: "Contract sum adjustment drivers",
-  claimsApprovalCommitteeCode: "Approves claims before the final account",
+  claimsApprovalCommitteeCode: "Approves claims before final account",
 };
 
 export const NOT_SET = "Not set";
+
+/**
+ * The boundary rule in one sentence, the same everywhere (UX 9): which band a value
+ * exactly on the boundary falls in, and whether that is a written ruling.
+ */
+export function boundarySentence(operator: "GT" | "GTE", boundary: string | null, provenance: "STATED" | "OBSERVED" | "ASSUMED"): string {
+  const at = boundary ? `exactly on ${formatMoney(parseSen(boundary))}` : "exactly on the boundary";
+  const band = operator === "GTE" ? "tender" : "quotation";
+  const source = provenance === "STATED" ? "stated" : provenance === "OBSERVED" ? "observed; not yet ruled" : "assumed; not yet ruled";
+  return `A value ${at} falls in the ${band} band (${source}).`;
+}
 
 const money = (v: unknown) => String(v ?? "");
 
@@ -117,18 +139,18 @@ export function findingText(f: Finding): string {
     case "EXCEEDS_APPROVED_VALUE":
       return `Together with the requisition's other live exercises this comes to ${money(d.combined)}, above the ${money(d.approved)} its approval covered. Reduce this exercise's value, cancel a sibling exercise, or cancel this exercise and raise a separate requisition for the difference. The requisition itself stays as approved.`;
     case "SPLIT_ACROSS_REGIME":
-      return `This exercise's value is in a different regime from the requisition's live exercises together (${money(d.combined)}). Check that the work is not being split below a threshold.`;
+      return `This exercise's value is in a different band from the requisition's live exercises together (${money(d.combined)}). Check that the work is not being split below a threshold.`;
     case "REQUISITION_BAND_CHANGED":
       return `On its own value this exercise would be approved under “${d.ownRule ?? "another requisition band"}”, not “${d.approvedRule ?? "the band"}” the requisition was approved under. The requisition's approval stands; the difference is recorded.`;
     case "REQUISITION_BAND_NOT_CHECKED":
       return "The requisition's approval was received from outside and not checked against the approval matrix, so whether this exercise stays in its requisition band is not assessed.";
     // bands.ts, boundary.ts
     case "BOUNDARY_NOT_RULED":
-      return `This value is exactly on the boundary between the regimes. The rule applied (${d.operator === "GTE" ? "at or above the boundary: the upper regime" : "above the boundary: the lower regime"}) is the interim position, not a written ruling. Recorded as an exception until the ruling is written into the approval matrix.`;
+      return `This value is exactly where the quotation and tender bands meet. ${boundarySentence(d.operator === "GTE" ? "GTE" : "GT", d.value == null ? null : String(d.value), d.provenance === "OBSERVED" ? "OBSERVED" : "ASSUMED")} It is recorded as an exception until the ruling is written into the approval matrix.`;
     case "TERMS_NOT_SET":
       return "No contract terms bands are set on the approval matrix in force, so which terms set applies is not set.";
     case "TERMS_NO_BAND":
-      return "Terms bands are set for this regime, but none covers this value.";
+      return "Terms bands are set for this band, but none covers this value.";
     case "TERMS_OVERLAP":
       return "More than one contract terms band covers this value; the first by order is shown. Correct the bands on the approval matrix.";
     case "APPOINTMENT_NO_RULE":
@@ -140,15 +162,15 @@ export function findingText(f: Finding): string {
     case "TENDER_NOT_ABOVE_QUOTATION":
       return "The tender floor must be above the quotation floor.";
     case "TENDER_FLOOR_NOT_BOUNDARY":
-      return "The regimes meet at the tender floor, so the boundary must be the same figure. Set it to the tender floor, or move the floor.";
+      return "The quotation and tender bands meet at the tender floor, so the boundary must be the same figure. Set it to the tender floor, or move the floor.";
     case "BOUNDARY_SOURCE_REQUIRED":
       return "A boundary ruling recorded as stated must cite the document that states it.";
     case "SWITCH_GOVERNS_NO_REGIME":
-      return "The boundary is not the tender floor, so the boundary setting governs no regime edge. Correct it on a new issue.";
+      return "The boundary is not the tender floor, so the boundary setting governs no band edge. Correct it on a new issue.";
     case "BOUNDARY_UNDECIDED":
       return `“${d.label}” has an edge on the boundary and nobody has decided whether it follows the boundary setting.`;
     case "REGIME_RULE_DISAGREE":
-      return `“${d.label}” has an edge on the boundary and does not follow the boundary setting, so a value exactly on the boundary would fall in a different band from its regime.`;
+      return `“${d.label}” has an edge on the boundary and does not follow the boundary setting, so a value exactly on the boundary would fall in a different band from its method band.`;
     // eligibility.ts
     case "METHODS_NOT_SET":
       return "No sourcing method is configured. Add the methods under Configuration, Reference data.";
@@ -161,9 +183,9 @@ export function findingText(f: Finding): string {
     case "METHOD_RETIRED":
       return `${d.method ?? "That method"} has been retired.`;
     case "METHOD_NOT_IN_REGIME":
-      return `${d.method ?? "That method"} is not available in the ${REGIME_SHORT[(d.regime as Regime) ?? "below"]?.toLowerCase() ?? ""} regime.`;
+      return `${d.method ?? "That method"} is not available ${d.regime === "below" ? "below the quotation floor" : `in the ${REGIME_SHORT[(d.regime as Regime) ?? "below"]?.toLowerCase() ?? ""} band`}.`;
     case "OVERRIDE_REASON_REQUIRED":
-      return `The regime proposes ${d.proposed ?? "another method"}. Say why a different method is used.`;
+      return `The band proposes ${d.proposed ?? "another method"}. Say why a different method is used.`;
     case "EXTERNAL_ROUTE_NOTE_REQUIRED":
       return "An external body sets the sourcing route on this funding route. Record what it decided.";
     case "JUSTIFICATION_REQUIRED":
@@ -172,11 +194,11 @@ export function findingText(f: Finding): string {
       return "A call-off draws on an existing contract. Record the contract's reference.";
     // approval.ts
     case "NAME_NOT_REQUESTED":
-      return "Approval of the name has not been requested.";
+      return "Name approval has not been requested.";
     case "NAME_NOT_APPROVED":
-      return "Approval of the name is still pending.";
+      return "Name approval is still pending.";
     case "NAME_REJECTED":
-      return "Approval of the name was refused.";
+      return "Name approval was refused.";
     // proposal.ts
     case "ITEMS_NOT_SET":
       return "This method asks for a proposal, but no proposal items are configured for it. Add them under Reference data.";
@@ -231,6 +253,8 @@ export function findingText(f: Finding): string {
     // exercise.ts
     case "REQUISITION_NOT_APPROVED":
       return "Only an approved requisition can have a sourcing exercise.";
+    case "FULLY_IN_EXERCISES":
+      return "The requisition's live exercises already hold all of its approved value. Reduce or cancel one of them to open another.";
     case "SOURCING_NOT_RECORDED":
       return "Whether this requisition's funding route lets the organisation procure was not recorded when it was submitted, so no exercise can be opened.";
     case "TERMINAL":
@@ -256,12 +280,12 @@ export function findingText(f: Finding): string {
     case "NAME_EXERCISE_CANCELLED":
       return "A cancelled exercise's name is not sent for approval.";
     case "NAME_NOT_ASKED":
-      return "This exercise's method does not ask for approval of the name.";
+      return "This exercise's method does not ask for name approval.";
     // actions
     case "NAME_ALREADY_REQUESTED":
-      return "Approval of the name is already requested.";
+      return "Name approval is already requested.";
     case "NAME_ROUTE_UNAVAILABLE":
-      return String(d.text ?? "The route for approval of the name cannot be resolved.");
+      return String(d.text ?? "The route for name approval cannot be resolved.");
     default:
       return "A check did not pass.";
   }

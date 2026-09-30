@@ -39,7 +39,7 @@ const BANDS = [
  * - It must be usable in some band, and proposed only where it is usable.
  * - One method proposed per band, or the regime proposes nothing (ruling R-12).
  * - A dossier is numbered from a configured series.
- * - A proposal is reviewed on its way to approval of the name.
+ * - A proposal is reviewed on its way to name approval.
  */
 export function methodConfigFaults(m: MethodFlags, others: readonly MethodFlags[], seriesKeys: readonly string[]): Fault[] {
   const out: Fault[] = [];
@@ -51,7 +51,7 @@ export function methodConfigFaults(m: MethodFlags, others: readonly MethodFlags[
   }
   if (m.requiresDossier && !m.dossierSeriesKey) out.push({ field: "dossierSeriesKey", message: "A method that keeps a justification dossier needs the numbering series its references are issued from." });
   if (m.dossierSeriesKey && !seriesKeys.includes(m.dossierSeriesKey)) out.push({ field: "dossierSeriesKey", message: "No numbering series has that key. Add it under Configuration, Numbering first." });
-  if (m.requiresProposal && !m.requiresNameApproval) out.push({ field: "requiresNameApproval", message: "A proposal is reviewed on its way to approval of the name. Tick that the method needs the name approved, or untick the proposal." });
+  if (m.requiresProposal && !m.requiresNameApproval) out.push({ field: "requiresNameApproval", message: "A proposal is reviewed on its way to name approval. Tick that the method needs the name approved, or untick the proposal." });
   return out;
 }
 

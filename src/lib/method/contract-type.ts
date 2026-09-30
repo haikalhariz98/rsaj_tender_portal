@@ -10,7 +10,7 @@
  * locked (6.11).
  */
 
-import { addSen, formatSen, type Sen } from "@/lib/money";
+import { addSen, formatMoney as formatSen, type Sen } from "@/lib/money";
 
 import type { ClassificationPolicy, ContractTypeRow, ContractTypeState, DeliverableKind, Finding } from "./types";
 

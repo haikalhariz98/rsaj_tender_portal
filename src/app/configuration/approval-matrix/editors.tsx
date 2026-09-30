@@ -3,6 +3,7 @@ import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 
 import {
+  discardDraft,
   issueDraft,
   removeRecommender,
   removeTermsBand,
@@ -54,19 +55,12 @@ function matrixFields(routes: { code: string; nameEn: string }[]): Field[] {
     name: "tenderFloor",
     label: "Tender floor",
     required: true,
-    hint: "Where the quotation band ends and the tender band begins.",
-  },
-  {
-    kind: "money",
-    name: "boundaryValue",
-    label: "Where the bands meet",
-    required: true,
-    hint: "The same figure as the tender floor.",
+    hint: "Where the quotation band ends and the tender band begins: the boundary.",
   },
   {
     kind: "switch",
     name: "boundaryInclusive",
-    label: "A value exactly on the boundary falls in the lower band",
+    label: "A value exactly on the tender floor falls in the quotation band",
     hint: "Where governing documents disagree, this is the switch. It affects that one exact figure and nothing else.",
   },
   {
@@ -188,7 +182,6 @@ export function EditMatrix({ matrix, routes }: { matrix: MatrixValues; routes: {
         id: matrix.id,
         label: matrix.label,
         effectiveFrom: day(matrix.effectiveFrom),
-        boundaryValue: String(matrix.boundaryValue),
         boundaryInclusive: matrix.boundaryInclusive,
         quotationFloor: String(matrix.quotationFloor),
         tenderFloor: String(matrix.tenderFloor),
@@ -527,24 +520,23 @@ const TRI = (yes: string, no: string) => [
 function termsFields(): Field[] {
   return [
     { kind: "hidden", name: "authorityMatrixId" },
-    { kind: "text", name: "bandKey", label: "Key", required: true, mono: true, hint: "Recorded on every exercise banded under it. Never shown." },
     { kind: "text", name: "labelEn", label: "Terms set", required: true, hint: "Which set of terms applies — never the retention or defects figures, which belong to the contract." },
     { kind: "text", name: "labelMs", label: "Terms set (Malay)" },
     {
       kind: "select",
       name: "regime",
       label: "Applies in",
-      placeholder: "Every regime",
+      placeholder: "Every band",
       options: [
         { value: "below", label: "Below the quotation floor" },
-        { value: "quotation", label: "The quotation band" },
-        { value: "tender", label: "The tender band" },
+        { value: "quotation", label: "Quotation band" },
+        { value: "tender", label: "Tender band" },
       ],
     },
-    { kind: "money", name: "minValue", label: "From value", hint: "Exclusive. Empty for no floor." },
-    { kind: "money", name: "maxValue", label: "To value", hint: "Inclusive. Empty for no ceiling." },
+    { kind: "money", name: "minValue", label: "Above", hint: "The band starts above this value. Empty for no floor." },
+    { kind: "money", name: "maxValue", label: "Up to and including", hint: "Empty for no ceiling." },
     { kind: "select", name: "followsBoundarySwitch", label: "At the boundary value", placeholder: "Not decided", options: TRI("Follows the boundary switch", "Ignores the boundary switch"), hint: "Required where an edge is the value where the regimes meet." },
-    { kind: "select", name: "retentionApplies", label: "Retention", placeholder: "Not set", options: TRI("Applies", "Does not apply") },
+    { kind: "select", name: "retentionApplies", label: "Retention", placeholder: "Not set", options: TRI("Applies", "Does not apply"), hint: "Whether retention applies; the percentage is set on the contract." },
     { kind: "select", name: "defectsLiabilityApplies", label: "Defects liability period", placeholder: "Not set", options: TRI("Applies", "Does not apply") },
     { kind: "text", name: "insuranceNote", label: "Insurance" },
     { kind: "text", name: "clause", label: "Clause" },
@@ -560,7 +552,6 @@ function termsFields(): Field[] {
         { value: "ASSUMED", label: "Assumed" },
       ],
     },
-    { kind: "number", name: "sortOrder", label: "Order", min: 0 },
   ];
 }
 
@@ -601,7 +592,7 @@ export function EditTermsBand({ matrixId, band }: { matrixId: string; band: Term
   return (
     <RecordEditor
       title={`Edit ${band.labelEn}`}
-      fields={[{ kind: "hidden", name: "id" }, ...termsFields().filter((f) => !("name" in f) || f.name !== "bandKey"), { kind: "hidden", name: "bandKey" }]}
+      fields={[{ kind: "hidden", name: "id" }, ...termsFields(), { kind: "hidden", name: "bandKey" }]}
       values={{
         id: band.id,
         authorityMatrixId: matrixId,
@@ -616,7 +607,6 @@ export function EditTermsBand({ matrixId, band }: { matrixId: string; band: Term
         insuranceNote: band.insuranceNote,
         clause: band.clause,
         provenance: band.provenance,
-        sortOrder: String(band.sortOrder),
       }}
       action={saveTermsBand}
       trigger={{ label: `Edit ${band.labelEn}`, iconOnly: <PencilIcon size={14} />, className: iconButtonClass("sm") }}
@@ -636,6 +626,22 @@ export function RemoveTermsBand({ id, label }: { id: string; label: string }) {
       submitLabel="Remove"
       destructive={{ reasonLabel: "Why is it coming out?" }}
       trigger={{ label: `Remove ${label}`, iconOnly: <XIcon size={14} />, className: iconButtonClass("sm") }}
+      size="sm"
+    />
+  );
+}
+
+export function DiscardDraft({ id, label }: { id: string; label: string }) {
+  return (
+    <RecordEditor
+      title={`Discard ${label}`}
+      description="The draft, its rules and its terms bands are removed. It never routed anything; the discard is on the record."
+      fields={[{ kind: "hidden", name: "id" }]}
+      values={{ id }}
+      action={discardDraft}
+      submitLabel="Discard draft"
+      destructive={{ reasonLabel: "Why is it being discarded?" }}
+      trigger={{ label: "Discard draft", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
       size="sm"
     />
   );

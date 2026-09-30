@@ -27,18 +27,37 @@ const hidden = (name: string): Field => ({ kind: "hidden", name });
 /// Id of the header note that states why a header action is unavailable.
 export const EXERCISE_NOTE_ID = "exercise-actions-note";
 
-export function MoveToPreparationDrawer({ id, blocker, dossier }: { id: string; blocker: string | null; dossier: boolean }) {
+export function MoveToPreparationDrawer({ id, blocker, summary }: { id: string; blocker: string | null; summary: { fixed: [string, string][]; notes: string[] } }) {
   if (blocker) return <Blocked label="Move to preparation" reason={blocker} primary noteId={EXERCISE_NOTE_ID} />;
   return (
     <RecordEditor
-      title="Move documents into preparation"
-      description={`The method, contract type and basis are fixed from here, and the classification is recorded as it stands today.${dossier ? " The justification dossier is numbered now." : ""} The first exercise to move puts the requisition into sourcing.`}
+      title="Move to preparation"
+      description="These are fixed from here and recorded as they stand today."
       fields={[hidden("id")]}
       values={{ id }}
+      sections={
+        <div className="flex flex-col gap-4">
+          <dl className="grid gap-x-4 gap-y-2.5 text-[13.5px] sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]">
+            {summary.fixed.map(([k, v]) => (
+              <div key={k} className="contents">
+                <dt className="font-semibold text-ink-3">{k}</dt>
+                <dd className="min-w-0 break-words text-ink">{v}</dd>
+              </div>
+            ))}
+          </dl>
+          {summary.notes.length > 0 && (
+            <ul className="flex list-disc flex-col gap-1 pl-5 text-[13px] text-ink-2">
+              {summary.notes.map((n) => (
+                <li key={n}>{n}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      }
       action={moveToPreparation}
       submitLabel="Move to preparation"
       trigger={{ label: "Move to preparation", className: buttonClass("primary", "sm") }}
-      size="sm"
+      size="md"
     />
   );
 }
@@ -47,7 +66,7 @@ export function CancelExerciseDrawer({ id }: { id: string }) {
   return (
     <RecordEditor
       title="Cancel this exercise"
-      description="Cancelling an exercise is an assumption: the governing procedure gives it no path. It stays on record, its value no longer counts against the requisition, and an open approval of the name is withdrawn."
+      description="The procedure does not cover cancelling an exercise: this is recorded as the organisation's own step. It stays on record, its value no longer counts against the requisition, and an open name approval is withdrawn."
       fields={[hidden("id")]}
       values={{ id }}
       action={cancelExercise}
@@ -126,7 +145,7 @@ export function RequestNameApprovalDrawer({ id, blocker }: { id: string; blocker
   return (
     <RecordEditor
       title="Send the name for approval"
-      description="The route is resolved now under the approval matrix in force and kept with the rules it was judged under. Invitation happens outside the portal in this phase, so the approval is recorded, not enforced."
+      description="The route is resolved now under the approval matrix in force and kept with the rules it was judged under. Invitation happens outside the portal in this phase, so the name approval is recorded, not enforced."
       fields={[hidden("id")]}
       values={{ id }}
       action={requestNameApproval}
@@ -160,7 +179,7 @@ export function NameDecisionDrawer({
   return (
     <RecordEditor
       title={`Record ${roleLabel}'s decision`}
-      description={`The ${act.toLowerCase()} step on the approval of the name. Name who decided: recorded on their behalf, not signed. They must hold the office for the requisition's department, or a delegation of it.`}
+      description={`The ${act.toLowerCase()} step of the name approval. Name who decided: recorded on their behalf, not signed. They must hold the office for the requisition's department, or a delegation of it.`}
       fields={[
         hidden("id"),
         hidden("stepId"),

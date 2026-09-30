@@ -43,7 +43,8 @@ describe("splits across a regime and the requisition band", () => {
     const f = exerciseValueFaults(approved, [sib("a", "300000.00")], draft("21000.00"), SPEC_MATRIX.policy);
     const s = f.find((x) => x.code === "SPLIT_ACROSS_REGIME")!;
     expect(s.level).toBe("warn");
-    expect(findingText(s)).toMatch(/RM321,000\.00/);
+    // One money format (UX 14): whole ringgit without sen.
+    expect(findingText(s)).toMatch(/RM321,000\)/);
   });
   it("a value in a different requisition band from the approved route's rule warns", () => {
     const f = exerciseValueFaults(approved, [], draft("9000.00", "REQ_50K"), SPEC_MATRIX.policy);
@@ -52,5 +53,14 @@ describe("splits across a regime and the requisition band", () => {
   it("a route received from outside is not assessed, never called changed", () => {
     const f = exerciseValueFaults({ ...approved, ruleKey: null, checkedAgainstMatrix: false }, [], draft("9000.00", "REQ_50K"), SPEC_MATRIX.policy);
     expect(codes(f)).toEqual(["REQUISITION_BAND_NOT_CHECKED"]);
+  });
+});
+
+describe("what is left of the approval", () => {
+  it("is the approved value less the live exercises", async () => {
+    const { remainingOf } = await import("./value");
+    expect(remainingOf(approved, [sib("a", "300000.00"), sib("b", "21000.00"), sib("c", "15000.00", "CANCELLED")])).toBe(parseSen("9000.00"));
+    expect(remainingOf(approved, [sib("a", "330000.00")], "a")).toBe(parseSen("330000.00"));
+    expect(remainingOf(null, [])).toBeNull();
   });
 });

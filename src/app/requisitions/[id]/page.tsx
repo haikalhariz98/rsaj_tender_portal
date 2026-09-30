@@ -96,7 +96,7 @@ import { db } from "@/lib/db";
 import { openFault } from "@/lib/method/exercise";
 import { EXERCISE_STATUS_LABEL, EXERCISE_STATUS_TONE, findingText, REGIME_SHORT } from "@/lib/method/labels";
 import type { ExerciseStatus, Regime } from "@/lib/method/types";
-import { formatSen } from "@/lib/money";
+import { addSen, formatMoney } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
 
@@ -146,7 +146,9 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   ]);
   const methodNames = new Map((await db.sourcingMethod.findMany({ where: { organisationId: l.org.id }, select: { code: true, nameEn: true } })).map((m) => [m.code, m.nameEn]));
   const approvedRoute = l.req.approvalInstances.find((i) => i.status === "APPROVED") ?? null;
-  const exerciseFault = openFault({ status: l.req.status, sourcingPermitted: l.req.sourcingPermitted, approvedRoute: !!approvedRoute }, { today: l.org.today, methodsConfigured: methodCount > 0 });
+  const inExercises = addSen(...exercises.filter((x) => x.status !== "CANCELLED").map((x) => parseSen(x.estimatedValue.toString())));
+  const remaining = approvedRoute ? parseSen(approvedRoute.value.toString()) - inExercises : null;
+  const exerciseFault = openFault({ status: l.req.status, sourcingPermitted: l.req.sourcingPermitted, approvedRoute: !!approvedRoute, remaining }, { today: l.org.today, methodsConfigured: methodCount > 0 });
 
   // Names for codes: units by their latest name, business codes with their names.
   const unitName = (code: string | null) => {
@@ -586,13 +588,13 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                 <CardHeader
                   icon={<GlobeIcon size={17} />}
                   title="Sourcing exercises"
-                  subtitle={approvedRoute ? `Its approval covers ${formatRM(num(approvedRoute.value))}. Live exercises may not together exceed it.` : "Opened once the requisition is approved."}
+                  subtitle={approvedRoute && remaining != null ? `Approved for ${formatMoney(parseSen(approvedRoute.value.toString()))} · ${formatMoney(inExercises)} in live exercises · ${formatMoney(remaining)} left.` : "Opened once the requisition is approved."}
                   actions={
                     exerciseFault ? (
-                      <Blocked label="Open sourcing exercise" reason={findingText(exerciseFault)} />
+                      <Blocked label="New exercise" reason={findingText(exerciseFault)} />
                     ) : (
                       <ButtonLink href={`/sourcing/new?requisition=${r.id}`} variant="primary" size="sm">
-                        Open sourcing exercise
+                        New exercise
                       </ButtonLink>
                     )
                   }
@@ -622,7 +624,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                           </span>
                         </span>
                         <span className="flex flex-wrap items-center gap-2">
-                          <span className="text-[13.5px] tabular-nums text-ink">{formatSen(parseSen(x.estimatedValue.toString()))}</span>
+                          <span className="text-[13.5px] tabular-nums text-ink">{formatMoney(parseSen(x.estimatedValue.toString()))}</span>
                           <Badge tone={EXERCISE_STATUS_TONE[x.status as ExerciseStatus]}>{EXERCISE_STATUS_LABEL[x.status as ExerciseStatus]}</Badge>
                         </span>
                       </li>

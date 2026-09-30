@@ -5,7 +5,6 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { ClipboardIcon, FileIcon, PlusIcon, RouteIcon, SaveIcon, ScaleIcon, SlidersIcon, XIcon } from "@/components/icons";
 import type { FormState } from "@/components/record-editor";
 import { ActBadge } from "@/components/ui/act";
-import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink, iconButtonClass } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
@@ -78,6 +77,8 @@ export function ExerciseForm({
 }) {
   const [state, setState] = useState<FormState>({ ok: false });
   const [pending, startTransition] = useTransition();
+  // Until the first save is tried, what blocks is "still to do", not an error (UX 8).
+  const [tried, setTried] = useState(false);
   const [v, setV] = useState<Values>(initial);
   const [scope, setScope] = useState<ScopeLine[]>(initialScope?.length ? initialScope : [{ kind: "", amount: initial.estimatedValue ?? "", description: "" }]);
   const [preview, setPreview] = useState<{ result: Presented; proposedMethodCode: string | null; matrixLabel: string } | { message: string } | null>(null);
@@ -117,6 +118,7 @@ export function ExerciseForm({
   }, [v, scope, requisition.id, id]);
 
   const submit = (data: FormData) => {
+    setTried(true);
     data.set("scope", JSON.stringify(scope));
     startTransition(async () => {
       const result = await (mode === "new" ? createExercise : updateExercise)({ ok: false }, data);
@@ -287,7 +289,7 @@ export function ExerciseForm({
         <CardBody className="flex flex-col gap-5" aria-live="polite">
           {!preview && <p className="text-[13.5px] text-ink-3">Type the estimated value to see its bands.</p>}
           {preview && "message" in preview && <Callout tone="warn">{preview.message}</Callout>}
-          {r && <PreviewPanel r={r} />}
+          {r && <PreviewPanel r={r} tried={tried} chosen={!!method} />}
         </CardBody>
       </Card>
     </form>
@@ -319,7 +321,7 @@ function RouteSteps({ route }: { route: Presented["appointment"] }) {
   );
 }
 
-function PreviewPanel({ r }: { r: Presented }) {
+function PreviewPanel({ r, tried, chosen }: { r: Presented; tried: boolean; chosen: boolean }) {
   return (
     <>
       <KeyValues
@@ -339,27 +341,30 @@ function PreviewPanel({ r }: { r: Presented }) {
               <span className="text-ink-3">{r.terms.status}</span>
             ),
           },
-          {
-            label: "At the boundary",
-            value: (
-              <span className="flex flex-col items-start gap-1">
-                <span>{r.boundary.rule}</span>
-                <span className="flex flex-wrap items-center gap-1.5">
-                  <ProvenanceBadge value={r.boundary.provenance} />
-                  {r.boundary.onBoundary && <Badge tone="warn">On the boundary</Badge>}
-                </span>
-              </span>
-            ),
-          },
+          ...(r.boundary.onBoundary
+            ? [
+                {
+                  label: "At the boundary",
+                  value: (
+                    <span className="flex flex-col items-start gap-1">
+                      <span>{r.boundary.rule}</span>
+                      <ProvenanceBadge value={r.boundary.provenance} />
+                    </span>
+                  ),
+                },
+              ]
+            : []),
         ]}
       />
       <div className="border-t border-line pt-4">
-        <p className="mb-2 text-[12px] font-semibold text-ink-3">Approval of the appointment{r.method ? ` · ${r.method}` : ""}</p>
+        <p className="mb-2 text-[12px] font-semibold text-ink-3">
+          {chosen ? `Approval of the appointment · ${r.method}` : r.method ? `If you use the proposed method (${r.method})` : "Approval of the appointment"}
+        </p>
         <RouteSteps route={r.appointment} />
       </div>
       {r.nameApproval && (
         <div className="border-t border-line pt-4">
-          <p className="mb-2 text-[12px] font-semibold text-ink-3">Approval of the name · recorded, not enforced in Phase 1</p>
+          <p className="mb-2 text-[12px] font-semibold text-ink-3">Name approval · recorded, not enforced in this phase</p>
           <RouteSteps route={r.nameApproval} />
         </div>
       )}
@@ -373,13 +378,16 @@ function PreviewPanel({ r }: { r: Presented }) {
         />
       </div>
       {r.findings.length > 0 && (
-        <ul className="flex flex-col gap-2 border-t border-line pt-4">
-          {r.findings.map((f) => (
-            <li key={f.text}>
-              <Callout tone={TONE[f.tone]}>{f.text}</Callout>
-            </li>
-          ))}
-        </ul>
+        <div className="flex flex-col gap-2 border-t border-line pt-4">
+          {!tried && r.findings.some((f) => f.tone === "err") && <p className="text-[12px] font-semibold text-ink-3">Still to do</p>}
+          <ul className="flex flex-col gap-2">
+            {r.findings.map((f) => (
+              <li key={f.text}>
+                <Callout tone={f.tone === "err" && !tried ? "info" : TONE[f.tone]}>{f.text}</Callout>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </>
   );

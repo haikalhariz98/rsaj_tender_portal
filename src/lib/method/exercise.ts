@@ -11,11 +11,12 @@
 
 import type { ExerciseStatus, Finding, ProposalState } from "./types";
 
-export type OpenFault = "TIME_ZONE_UNSET" | "REQUISITION_NOT_APPROVED" | "SOURCING_NOT_PERMITTED" | "SOURCING_NOT_RECORDED" | "NO_APPROVED_ROUTE" | "METHODS_NOT_SET";
+export type OpenFault = "TIME_ZONE_UNSET" | "REQUISITION_NOT_APPROVED" | "SOURCING_NOT_PERMITTED" | "SOURCING_NOT_RECORDED" | "NO_APPROVED_ROUTE" | "FULLY_IN_EXERCISES" | "METHODS_NOT_SET";
 
 /// Whether an exercise may be opened on a requisition.
 export function openFault(
-  req: { status: string; sourcingPermitted: boolean | null; approvedRoute: boolean },
+  /// `remaining`: the approved value not yet in a live exercise, in sen, where known.
+  req: { status: string; sourcingPermitted: boolean | null; approvedRoute: boolean; remaining?: bigint | null },
   ctx: { today: string | null; methodsConfigured: boolean },
 ): Finding<OpenFault> | null {
   const f = (code: OpenFault, data?: Finding["data"]): Finding<OpenFault> => ({ code, level: "block", ...(data ? { data } : {}) });
@@ -23,6 +24,8 @@ export function openFault(
   if (req.sourcingPermitted === false) return f("SOURCING_NOT_PERMITTED");
   if (req.sourcingPermitted == null) return f("SOURCING_NOT_RECORDED");
   if (!req.approvedRoute) return f("NO_APPROVED_ROUTE");
+  // Its live exercises already hold all it was approved for (UX 7, ruling R-16).
+  if (req.remaining != null && req.remaining <= 0n) return f("FULLY_IN_EXERCISES");
   if (ctx.today == null) return f("TIME_ZONE_UNSET");
   if (!ctx.methodsConfigured) return f("METHODS_NOT_SET");
   return null;

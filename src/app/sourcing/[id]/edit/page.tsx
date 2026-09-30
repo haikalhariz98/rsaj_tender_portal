@@ -1,4 +1,6 @@
 import Link from "next/link";
+
+import { RecordCrumb } from "@/components/shell/record-crumb";
 import { notFound } from "next/navigation";
 
 import { ButtonLink } from "@/components/ui/button";
@@ -8,7 +10,7 @@ import { dayToDate } from "@/lib/dates";
 import { exerciseFormOptions } from "@/lib/method/form-options";
 import { EXERCISE_STATUS_LABEL } from "@/lib/method/labels";
 import { approvedRouteOf, loadExercise } from "@/lib/method/repo";
-import { addSen, formatSen, parseSen, subtractSen } from "@/lib/money";
+import { addSen, formatMoney, parseSen, subtractSen } from "@/lib/money";
 
 import { ExerciseForm } from "../../exercise-form";
 
@@ -19,7 +21,12 @@ export default async function EditExercisePage(props: PageProps<"/sourcing/[id]/
   const l = await loadExercise(id);
   if (!l) notFound();
   const { ex, req, org } = l;
-  const header = <PageHeader eyebrow={<Link href={`/sourcing/${ex.id}`}>{ex.reference}</Link>} title={`Edit ${ex.title}`} subtitle="A draft's value, method, scope, contract type and basis. The bands are judged again on save." />;
+  const header = (
+    <>
+      <RecordCrumb label={ex.reference} />
+      <PageHeader eyebrow={<Link href="/sourcing">Sourcing</Link>} title={`Edit ${ex.title}`} subtitle={<>A draft&apos;s value, method, scope, contract type and basis — <Link href={`/sourcing/${ex.id}`}>{ex.reference}</Link>. The bands are judged again on save.</>} />
+    </>
+  );
   if (ex.status !== "DRAFT") {
     return (
       <>
@@ -45,12 +52,12 @@ export default async function EditExercisePage(props: PageProps<"/sourcing/[id]/
           id: req.id,
           reference: req.reference,
           title: req.title,
-          approved: approved ? `The requisition's approval covers ${formatSen(approved.value)}; its other live exercises hold ${formatSen(others)}, leaving ${formatSen(subtractSen(approved.value, others))}.` : "",
+          approved: approved ? `The requisition's approval covers ${formatMoney(approved.value)}; its other live exercises hold ${formatMoney(others)}, leaving ${formatMoney(subtractSen(approved.value, others))}.` : "",
         }}
         options={options}
         initial={{
           title: ex.title,
-          estimatedValue: ex.estimatedValue.toString(),
+          estimatedValue: ex.estimatedValue.toString().replace(/\.0+$/, ""),
           sourcingMethodCode: ex.sourcingMethodCode,
           methodReason: ex.methodReason,
           externalRouteNote: ex.externalRouteNote,

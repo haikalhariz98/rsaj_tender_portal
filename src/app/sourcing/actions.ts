@@ -12,9 +12,10 @@ import { ACT_LABEL } from "@/lib/labels";
 import { nameRequestFault, nameRouteForRequester, WITHDRAWN_ON_CANCEL, WITHDRAWN_ON_CHANGE } from "@/lib/method/approval";
 import { determinationDrift } from "@/lib/method/drift";
 import { keptForMethod, nameRoutesToWithdraw } from "@/lib/method/config";
+import { remainingOf } from "@/lib/method/value";
 import { evaluateExercise, saveBlockers, type Evaluation, type ExerciseDraft } from "@/lib/method/evaluate";
 import { transitionFault, openFault } from "@/lib/method/exercise";
-import { findingText, EXERCISE_STATUS_LABEL } from "@/lib/method/labels";
+import { DELIVERABLE_LABEL, findingText, EXERCISE_STATUS_LABEL } from "@/lib/method/labels";
 import { behaviourProfile } from "@/lib/method/profile";
 import { nameRequestProposalFault, proposalFaults, proposalRecordOf, proposalStateFor, proposalTransition } from "@/lib/method/proposal";
 import { classificationSnapshotOf, determinationColumns } from "@/lib/method/snapshot";
@@ -213,12 +214,27 @@ function methodColumns(v: FormValues, ev: Evaluation) {
 
 const methodNameOf = (cfg: { methods: { code: string; nameEn: string }[] }) => (code: string) => cfg.methods.find((m) => m.code === code)?.nameEn ?? "A method no longer configured";
 
-/// The audit view of an exercise's own fields: money as figures, JSON left out.
+/// The audit view of an exercise's own fields (UX 4): money and shares normalised so
+/// an unchanged figure never reads as a change, keys left out, the appointment rule and
+/// terms band by their names from the band snapshot.
+const AUDIT_SKIP = new Set([
+  "bandSnapshot", "bandWarnings", "classificationSnapshot", "proposalRecord", "determinedAt", "authorityMatrixId", "updatedAt", "createdAt", "id", "organisationId",
+  "requisitionId", "appointmentRuleKey", "termsBandKey", "requisitionRuleKey", "boundaryValue", "matrixLabel",
+]);
 function auditView(x: Record<string, unknown>) {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(x)) {
-    if (["bandSnapshot", "bandWarnings", "classificationSnapshot", "determinedAt", "authorityMatrixId", "updatedAt", "createdAt", "id", "organisationId", "requisitionId"].includes(k)) continue;
-    out[k] = v != null && typeof v === "object" && "toFixed" in (v as object) ? String(v) : v;
+    if (AUDIT_SKIP.has(k)) continue;
+    if (v != null && typeof v === "object" && "toFixed" in (v as object)) {
+      out[k] = k === "dominantSharePct" ? Number(String(v)).toFixed(4) : senToDecimalString(parseSen(String(v)));
+    } else if (k === "estimatedValue" && typeof v === "string") out[k] = senToDecimalString(parseSen(v));
+    else if (k === "dominantSharePct" && typeof v === "string") out[k] = Number(v).toFixed(4);
+    else out[k] = v;
+  }
+  const snap = x.bandSnapshot as { appointment?: { ruleLabel?: string | null }; terms?: { label?: string | null } } | undefined;
+  if (snap && typeof snap === "object") {
+    out.appointmentRule = snap.appointment?.ruleLabel ?? null;
+    out.termsBand = snap.terms?.label ?? null;
   }
   return out;
 }
@@ -235,11 +251,11 @@ async function writeChildren(tx: Tx, orgId: string, ex: { id: string; reference:
   if (!same) {
     for (const p of before?.scopeParts ?? []) {
       await tx.exerciseScopePart.delete({ where: { id: p.id } });
-      await audit(tx, orgId, "ExerciseScopePart", p.id, `${ex.reference} · scope`, "DELETE", snapshotFields({ deliverableKind: p.deliverableKind, amount: p.amount.toString(), description: p.description }));
+      await audit(tx, orgId, "ExerciseScopePart", p.id, `${ex.reference} · scope: ${DELIVERABLE_LABEL[p.deliverableKind as DeliverableKind].toLowerCase()}`, "DELETE", snapshotFields({ deliverableKind: p.deliverableKind, amount: p.amount.toString(), description: p.description }));
     }
     for (const [i, p] of scope.entries()) {
       const row = await tx.exerciseScopePart.create({ data: { exerciseId: ex.id, deliverableKind: p.kind, amount: senToDecimalString(p.amount), description: p.description, sortOrder: i } });
-      await audit(tx, orgId, "ExerciseScopePart", row.id, `${ex.reference} · scope`, "CREATE", diffFields(null, { deliverableKind: p.kind, amount: senToDecimalString(p.amount), description: p.description }));
+      await audit(tx, orgId, "ExerciseScopePart", row.id, `${ex.reference} · scope: ${DELIVERABLE_LABEL[p.kind].toLowerCase()}`, "CREATE", diffFields(null, { deliverableKind: p.kind, amount: senToDecimalString(p.amount), description: p.description }));
     }
   }
   // Taxonomy values: derived ones follow the type; a chosen pick stays while it is
@@ -252,11 +268,11 @@ async function writeChildren(tx: Tx, orgId: string, ex: { id: string; reference:
       continue;
     }
     await tx.exerciseTaxonomyValue.delete({ where: { id: tv.id } });
-    await audit(tx, orgId, "ExerciseTaxonomyValue", tv.id, `${ex.reference} · classification`, "DELETE", snapshotFields({ taxonomy: taxName(tv.taxonomyCode), value: valName(tv.taxonomyCode, tv.valueCode), pick: tv.pick }));
+    await audit(tx, orgId, "ExerciseTaxonomyValue", tv.id, `${ex.reference} · ${taxName(tv.taxonomyCode)}`, "DELETE", snapshotFields({ taxonomy: taxName(tv.taxonomyCode), value: valName(tv.taxonomyCode, tv.valueCode), pick: tv.pick }));
   }
   for (const t of keep.values()) {
     const row = await tx.exerciseTaxonomyValue.create({ data: { exerciseId: ex.id, taxonomyCode: t.taxonomyCode, valueCode: t.valueCode!, pick: t.state as "DERIVED" | "CHOSEN" } });
-    await audit(tx, orgId, "ExerciseTaxonomyValue", row.id, `${ex.reference} · classification`, "CREATE", diffFields(null, { taxonomy: taxName(t.taxonomyCode), value: valName(t.taxonomyCode, t.valueCode!), pick: t.state }));
+    await audit(tx, orgId, "ExerciseTaxonomyValue", row.id, `${ex.reference} · ${taxName(t.taxonomyCode)}`, "CREATE", diffFields(null, { taxonomy: taxName(t.taxonomyCode), value: valName(t.taxonomyCode, t.valueCode!), pick: t.state }));
   }
 }
 
@@ -275,7 +291,7 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
     const result = await withLockedRequisitionForSourcing(requisitionId, null, async (tx, l): Promise<FormState> => {
       const { issue, cfg, ctx } = await evaluationContext(l.org, l.req, null, tx);
       const fault = openFault(
-        { status: l.req.status, sourcingPermitted: l.req.sourcingPermitted, approvedRoute: !!ctx?.approved },
+        { status: l.req.status, sourcingPermitted: l.req.sourcingPermitted, approvedRoute: !!ctx?.approved, remaining: ctx ? remainingOf(ctx.approved, ctx.siblings) : null },
         { today: l.org.today, methodsConfigured: cfg.config.methods.length > 0 },
       );
       if (fault) return refuse([fault], "No exercise was opened:");
@@ -368,7 +384,7 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
         where: { id: inst.id },
         data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue },
       });
-      await audit(tx, l.org.id, "ApprovalInstance", inst.id, `${ex.reference} · approval of the name`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), withdraw.reason ?? "");
+      await audit(tx, l.org.id, "ApprovalInstance", inst.id, `${ex.reference} · name approval`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), withdraw.reason ?? "");
     }
     return { ok: true };
   });
@@ -395,10 +411,10 @@ export async function chooseTaxonomyValue(_prev: FormState, data: FormData): Pro
     const prior = ex.taxonomyValues.find((t) => t.taxonomyCode === taxonomyCode);
     if (prior) {
       await tx.exerciseTaxonomyValue.update({ where: { id: prior.id }, data: { valueCode, pick: "CHOSEN" } });
-      await audit(tx, l.org.id, "ExerciseTaxonomyValue", prior.id, `${ex.reference} · classification`, "UPDATE", diffFields({ value: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.values.find((v) => v.code === prior.valueCode)?.nameEn ?? null, pick: prior.pick }, { value: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.values.find((v) => v.code === valueCode)?.nameEn ?? null, pick: "CHOSEN" }));
+      await audit(tx, l.org.id, "ExerciseTaxonomyValue", prior.id, `${ex.reference} · ${ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.nameEn ?? "classification"}`, "UPDATE", diffFields({ value: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.values.find((v) => v.code === prior.valueCode)?.nameEn ?? null, pick: prior.pick }, { value: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.values.find((v) => v.code === valueCode)?.nameEn ?? null, pick: "CHOSEN" }));
     } else {
       const row = await tx.exerciseTaxonomyValue.create({ data: { exerciseId: ex.id, taxonomyCode, valueCode, pick: "CHOSEN" } });
-      await audit(tx, l.org.id, "ExerciseTaxonomyValue", row.id, `${ex.reference} · classification`, "CREATE", diffFields(null, { taxonomy: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.nameEn ?? null, value: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.values.find((v) => v.code === valueCode)?.nameEn ?? null, pick: "CHOSEN" }));
+      await audit(tx, l.org.id, "ExerciseTaxonomyValue", row.id, `${ex.reference} · ${ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.nameEn ?? "classification"}`, "CREATE", diffFields(null, { taxonomy: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.nameEn ?? null, value: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.values.find((v) => v.code === valueCode)?.nameEn ?? null, pick: "CHOSEN" }));
     }
     return { ok: true };
   });
@@ -475,9 +491,9 @@ export async function reviewProposal(_prev: FormState, data: FormData): Promise<
   });
 }
 
-// ------------------------------------------------------------ approval of the name
+// ------------------------------------------------------------ name approval
 
-const nameLabel = (ex: { reference: string }) => `${ex.reference} · approval of the name`;
+const nameLabel = (ex: { reference: string }) => `${ex.reference} · name approval`;
 
 /**
  * Send the name for approval (FR-MTD-008): the route resolved now, under the issue in
@@ -582,7 +598,7 @@ export async function recordNameDecision(_prev: FormState, data: FormData): Prom
   return inExercise(id, async (tx, l) => {
     const ex = l.ex;
     const inst = ex.approvalInstances.find((i) => i.status === "PENDING");
-    if (!inst || ex.status === "CANCELLED") return { ok: false, message: "No approval of the name is open on this exercise." };
+    if (!inst || ex.status === "CANCELLED") return { ok: false, message: "No name approval is open on this exercise." };
     const step = inst.steps.find((s) => s.id === stepId);
     if (!step) return { ok: false, message: "That step is not on the open route." };
     const [roster, delegations] = [await loadRoster(ORGANISATION_CODE, tx), await loadDelegations(ORGANISATION_CODE, tx)];
@@ -678,7 +694,7 @@ export async function moveToPreparation(_prev: FormState, data: FormData): Promi
       };
       const moved = await tx.sourcingExercise.updateMany({ where: { id, status: "DRAFT", updatedAt: ex.updatedAt }, data: after });
       if (moved.count !== 1) throw new Refusal(CHANGED);
-      await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", diffFields({ ...auditView(ex), status: ex.status, dossierReference: ex.dossierReference }, { ...auditView({ ...ex, ...after }), status: after.status, dossierReference, decidedRecord: "written" }));
+      await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", diffFields({ ...auditView(ex), status: ex.status, dossierReference: ex.dossierReference }, { ...auditView({ ...ex, ...after }), status: after.status, dossierReference, classificationRecorded: "yes" }));
       await writeChildren(tx, l.org.id, ex, ex, draftOf(ex).scope, ev, cfg.config);
       if (l.req.status === "APPROVED") {
         const rf = requisitionTransitionFault("APPROVED", "SOURCING", { today: l.org.today });

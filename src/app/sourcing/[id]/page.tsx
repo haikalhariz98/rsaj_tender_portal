@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { HistoryButton } from "@/components/history-drawer";
 import { ClipboardIcon, ClockIcon, FileIcon, RouteIcon, ShieldIcon, SlidersIcon, UsersIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
@@ -23,7 +22,9 @@ import { transitionFault } from "@/lib/method/exercise";
 import {
   APPOINTMENT_STATE_TEXT,
   BEHAVIOUR_LABEL,
+  boundarySentence,
   CANCELLED_ASSUMPTION,
+  TERM,
   DELIVERABLE_LABEL,
   DERIVATION_TEXT,
   EXERCISE_STATUS_LABEL,
@@ -43,7 +44,7 @@ import { nameRequestProposalFault, proposalFaults, proposalView } from "@/lib/me
 import { draftOf, evaluationContext, exerciseHistory, loadExercise, type LoadedExercise } from "@/lib/method/repo";
 import { isBandSnapshot, isClassificationSnapshot, profileRows, type BandSnapshot, type ClassificationSnapshot, type RouteSnap } from "@/lib/method/snapshot";
 import type { DeliverableKind, Finding, Regime } from "@/lib/method/types";
-import { formatSen, parseSen } from "@/lib/money";
+import { formatMoney, parseSen } from "@/lib/money";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
@@ -69,7 +70,7 @@ import {
 export const dynamic = "force-dynamic";
 
 const RESTRICTION_NOTE = "Restriction not enforced until sign-in";
-const money = (v: { toString(): string }) => formatSen(parseSen(v.toString()));
+const money = (v: { toString(): string }) => formatMoney(parseSen(v.toString()));
 /// A percentage to as many places as it has (up to four), so "above the threshold" is
 /// visibly true: 50.0010%, not 50.00%.
 const pct = (v: string) => v.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
@@ -140,7 +141,21 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
         return null;
       })();
   const submitBlocker = !today ? findingText({ code: "TIME_ZONE_UNSET", level: "block" }) : pFaults.length ? `${pFaults.map(findingText).join(" ")} Edit the proposal first.` : null;
-  const prepBlocker = prepFaults.length ? [...prepFaults.filter((f) => f.code !== "BLOCKING_FAULTS"), ...blocking].map(findingText).join(" ") : null;
+  const prepList = prepFaults.length ? [...prepFaults.filter((f) => f.code !== "BLOCKING_FAULTS"), ...blocking] : [];
+  const prepBlocker = prepList.length ? prepList.map(findingText).join(" ") : null;
+  // Where a blocker has a place it is put right, the note links there (UX 15).
+  const FIX_AT: Record<string, { href: string; label: string }> = {
+    BASIS_NOT_SET: { href: `/sourcing/${ex.id}/edit`, label: "Choose a basis" },
+    TYPE_NOT_SET: { href: `/sourcing/${ex.id}/edit`, label: "Choose a type" },
+    METHOD_NOT_SET: { href: `/sourcing/${ex.id}/edit`, label: "Choose a method" },
+    TAXONOMY_AMBIGUOUS: { href: `/sourcing/${ex.id}?tab=contract`, label: "Choose it" },
+    PROPOSAL_NOT_REVIEWED: { href: `/sourcing/${ex.id}?tab=proposal`, label: "Open the Proposal tab" },
+    JUSTIFICATION_REQUIRED: { href: `/sourcing/${ex.id}/edit`, label: "Edit the justification" },
+    REASON_REQUIRED: { href: `/sourcing/${ex.id}/edit`, label: "Choose a reason" },
+    COORDINATION_RECORD_REQUIRED: { href: `/sourcing/${ex.id}/edit`, label: "Record the meeting" },
+    DETERMINATION_CHANGED: { href: `/sourcing/${ex.id}/edit`, label: "Edit and save" },
+    REASONS_NOT_SET: { href: "/configuration/reference-data", label: "Reference data" },
+  };
 
   const unavailable: [string, string | null][] = [
     ["Submit proposal", draft && method?.requiresProposal && ex.proposalState === "DRAFT" ? submitBlocker : null],
@@ -153,7 +168,20 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       <span className="flex flex-col gap-0.5">
         {notes.map(([label, why]) => (
           <span key={label}>
-            <span className="font-semibold text-ink-2">{label}:</span> {why}
+            <span className="font-semibold text-ink-2">{label}:</span>{" "}
+            {label === "Move to preparation"
+              ? prepList.map((f, i) => (
+                  <span key={i}>
+                    {findingText(f)}
+                    {FIX_AT[f.code] && (
+                      <>
+                        {" "}
+                        <Link href={FIX_AT[f.code].href}>{FIX_AT[f.code].label}</Link>
+                      </>
+                    )}{" "}
+                  </span>
+                ))
+              : why}
           </span>
         ))}
       </span>
@@ -161,7 +189,6 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
 
   const actions = (
     <>
-      <HistoryButton entity="SourcingExercise" entityId={ex.id} label={ex.reference} />
       {draft && (
         <ButtonLink href={`/sourcing/${ex.id}/edit`} variant="secondary" size="sm">
           Edit
@@ -170,7 +197,29 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       {draft && method?.requiresProposal && ex.proposalState === "DRAFT" && <SubmitProposalDrawer id={ex.id} blocker={submitBlocker} />}
       {draft && method?.requiresProposal && ex.proposalState === "SUBMITTED" && <ReviewProposalDrawer id={ex.id} people={activePeople} today={today} />}
       {canAskName && <RequestNameApprovalDrawer id={ex.id} blocker={nameBlocker} />}
-      {draft && <MoveToPreparationDrawer id={ex.id} blocker={prepBlocker} dossier={!!method?.requiresDossier} />}
+      {draft && (
+        <MoveToPreparationDrawer
+          id={ex.id}
+          blocker={prepBlocker}
+          summary={{
+            fixed: [
+              ["Method", methodName],
+              ["Contract type", ev?.type.code ? (typeName(ev.type.code) ?? NOT_SET) : NOT_SET],
+              ["Contract basis", config.bases.find((b) => b.code === ex.contractBasisCode)?.nameEn ?? NOT_SET],
+              ["Requisition band", ex.requisitionRuleLabel ?? "Not checked"],
+              ["Method band", ev ? REGIME_LABEL[ev.bands.regime] : NOT_SET],
+              ["Contract terms band", ev?.bands.terms.band?.labelEn ?? (ev ? TERMS_STATE_TEXT[ev.bands.terms.state] : NOT_SET)],
+              ...(ev?.bands.boundary.onBoundary ? [["At the boundary", boundarySentence(ev.bands.boundary.operator, String(ev.bands.boundary.boundaryValue), ev.bands.boundary.provenance)] as [string, string]] : []),
+            ],
+            notes: [
+              ...(method?.requiresDossier ? ["The justification dossier is numbered now."] : []),
+              ...(openName ? ["The name approval in progress stays open: it gates invitation, not preparation."] : method?.requiresNameApproval && !approvedName ? ["The name has not been sent for approval yet; it can be requested in preparation."] : []),
+              ...(ex.restricted ? [`Restricted to the named participants — ${RESTRICTION_NOTE.toLowerCase()}.`] : []),
+              ...(req.status === "APPROVED" ? [`This is the requisition's first exercise to move: ${req.reference} goes into sourcing.`] : []),
+            ],
+          }}
+        />
+      )}
       {ex.status !== "CANCELLED" && <CancelExerciseDrawer id={ex.id} />}
     </>
   );
@@ -222,8 +271,13 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
                 <CardHeader
                   icon={<ClipboardIcon size={17} />}
                   title="Proposal"
-                  subtitle={ex.proposalState ? PROPOSAL_STATE_LABEL[ex.proposalState] : NOT_SET}
-                  actions={draft && ex.proposalState === "DRAFT" && items.length > 0 ? <ProposalAnswersDrawer id={ex.id} items={items.map((i) => ({ key: i.key, label: i.labelEn, required: i.required }))} answers={Object.fromEntries(ex.proposalAnswers.map((a) => [a.itemKey, a.text]))} /> : undefined}
+                  subtitle={proposal.fromRecord ? "As submitted." : "The items the method asks for."}
+                  actions={draft && ex.proposalState === "DRAFT" && items.length > 0 ? (
+                    <span className="flex items-center gap-2">
+                      <Badge tone="brand">{PROPOSAL_STATE_LABEL.DRAFT}</Badge>
+                      <ProposalAnswersDrawer id={ex.id} items={items.map((i) => ({ key: i.key, label: i.labelEn, required: i.required }))} answers={Object.fromEntries(ex.proposalAnswers.map((a) => [a.itemKey, a.text]))} />
+                    </span>
+                  ) : ex.proposalState ? <Badge tone={ex.proposalState === "REVIEWED" ? "ok" : "info"}>{PROPOSAL_STATE_LABEL[ex.proposalState]}</Badge> : undefined}
                 />
                 {proposal.rows.length === 0 ? (
                   <EmptyState size="sm" title="No proposal items are configured" action={<ButtonLink href="/configuration/reference-data" size="sm">Add them</ButtonLink>}>
@@ -242,7 +296,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
                           <span className="text-[13px] font-semibold text-ink">
                             {i.label} {!i.required && <span className="font-normal text-ink-3">· optional</span>}
                           </span>
-                          <span className={i.answer.trim() ? "text-[13.5px] break-words whitespace-pre-line text-ink-2" : "text-[13px] text-amber-800"}>{i.answer.trim() ? i.answer : i.required ? "Empty: required before it can be submitted" : "Not answered"}</span>
+                          <span className={i.answer.trim() ? "text-[13.5px] break-words whitespace-pre-line text-ink-2" : i.required ? "text-[13px] text-amber-800" : "text-[13px] text-ink-3"}>{i.answer.trim() ? i.answer : i.required ? "Empty: required before it can be submitted" : "Not answered"}</span>
                         </li>
                       ))}
                     </ol>
@@ -269,7 +323,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       ? [
           {
             id: "name",
-            label: "Name approval",
+            label: TERM.nameApproval,
             icon: <RouteIcon size={15} />,
             panel: (
               <NamePanel
@@ -324,7 +378,18 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       label: "History",
       icon: <ClockIcon size={15} />,
       count: history.total,
-      panel: <HistoryPanel entries={history.entries} total={history.total} timeZone={org.timeZone} personName={personName} typeName={typeName} methodName={(c) => config.methods.find((m) => m.code === c)?.nameEn ?? "A method no longer configured"} />,
+      panel: (
+        <HistoryPanel
+          entries={history.entries}
+          total={history.total}
+          timeZone={org.timeZone}
+          personName={personName}
+          typeName={typeName}
+          methodName={(c) => config.methods.find((m) => m.code === c)?.nameEn ?? "A method no longer configured"}
+          basisName={(c) => config.bases.find((b) => b.code === c)?.nameEn ?? null}
+          reasonName={(c) => config.reasons.find((r) => r.code === c)?.nameEn ?? null}
+        />
+      ),
     },
   ];
 
@@ -454,11 +519,13 @@ function ClassificationPanel({
               size="sm"
               tone="neutral"
               label="Contract terms band"
-              value={<span className={bands.terms.label ? "text-[17px] whitespace-normal" : "text-[17px] whitespace-normal text-ink-4"}>{bands.terms.label ?? NOT_SET}</span>}
+              value={<span className={bands.terms.label ? "text-[17px] whitespace-normal" : "text-[17px] whitespace-normal text-ink-4"}>{bands.terms.label ?? (bands.terms.state === "NONE_IN_REGIME" ? "Not applicable" : NOT_SET)}</span>}
               hint={
                 bands.terms.label
                   ? `Retention: ${bands.terms.retentionApplies == null ? "not set" : bands.terms.retentionApplies ? "applies" : "does not apply"}. Defects liability: ${bands.terms.defectsLiabilityApplies == null ? "not set" : bands.terms.defectsLiabilityApplies ? "applies" : "does not apply"}.`
-                  : TERMS_STATE_TEXT[bands.terms.state as keyof typeof TERMS_STATE_TEXT]
+                  : bands.terms.state === "NOT_SET" || bands.terms.state === "NO_BAND_FOR_VALUE"
+                    ? <>{TERMS_STATE_TEXT[bands.terms.state as keyof typeof TERMS_STATE_TEXT]} <Link href="/configuration/approval-matrix">Set them on the approval matrix</Link>.</>
+                    : TERMS_STATE_TEXT[bands.terms.state as keyof typeof TERMS_STATE_TEXT]
               }
             />
           </div>
@@ -467,25 +534,24 @@ function ClassificationPanel({
             className="border-t border-line pt-6"
             items={[
               { label: "Value", value: <span className="tabular-nums">{money(ex.estimatedValue)}</span> },
-              {
-                label: "Boundary rule applied",
-                value: (
-                  <span className="flex flex-col items-start gap-1">
-                    <span>{OPERATOR_LABEL[bands.boundary.operator]}</span>
-                    <span className="flex flex-wrap items-center gap-1.5">
-                      <ProvenanceBadge value={bands.boundary.provenance} />
-                      {bands.boundary.onBoundary && <Badge tone="warn">{bands.boundary.ruled ? "On the boundary" : "On the boundary · not ruled"}</Badge>}
-                    </span>
-                    {bands.boundary.source && <span className="text-[12.5px] text-ink-3">{bands.boundary.source}</span>}
-                    {bands.boundary.onBoundary && (
-                      <span className="text-[12.5px] text-ink-3">
-                        Appointment rule: {bands.appointment.boundaryOperator ? OPERATOR_LABEL[bands.appointment.boundaryOperator].toLowerCase() : "no edge at the boundary"}. Terms band:{" "}
-                        {bands.terms.boundaryOperator ? OPERATOR_LABEL[bands.terms.boundaryOperator].toLowerCase() : "no edge at the boundary"}.
-                      </span>
-                    )}
-                  </span>
-                ),
-              },
+              ...(bands.boundary.onBoundary
+                ? [
+                    {
+                      label: "At the boundary",
+                      value: (
+                        <span className="flex flex-col items-start gap-1">
+                          <span>{boundarySentence(bands.boundary.operator, String(bands.boundary.value), bands.boundary.provenance)}</span>
+                          <ProvenanceBadge value={bands.boundary.provenance} />
+                          {bands.boundary.source && <span className="text-[12.5px] text-ink-3">{bands.boundary.source}</span>}
+                          <span className="text-[12.5px] text-ink-3">
+                            Appointment rule: {!bands.appointment.boundaryOperator ? "no edge at the boundary" : bands.appointment.boundaryOperator === bands.boundary.operator ? "the same side as its band" : "the other side from its band — see the checks"}. Terms band:{" "}
+                            {!bands.terms.boundaryOperator ? "no edge at the boundary" : bands.terms.boundaryOperator === bands.boundary.operator ? "the same side as its band" : "the other side from its band — see the checks"}.
+                          </span>
+                        </span>
+                      ),
+                    },
+                  ]
+                : []),
             ]}
           />
         </CardBody>
@@ -529,7 +595,7 @@ function ClassificationPanel({
 
       {(blocking.length > 0 || others.length > 0) && (
         <Card>
-          <CardHeader icon={<ShieldIcon size={17} />} title={live ? "Checks, as it stands today" : "Checks, as recorded"} subtitle={blocking.length ? "What must be put right before documents go into preparation, and what is recorded with it." : "Recorded with the exercise."} />
+          <CardHeader icon={<ShieldIcon size={17} />} title={live ? "Checks, as they stand today" : "Checks, as recorded"} subtitle={blocking.length ? "What must be put right before documents go into preparation, and what is recorded with it." : "Recorded with the exercise."} />
           <CardBody className="flex flex-col gap-2">
             {[...blocking, ...others].map((f, i) => (
               <Callout key={i} tone={tone(f.level)}>
@@ -595,7 +661,7 @@ function ContractPanel({
               ...(state && state !== "DERIVED" ? [{ label: "Why this type", value: ex.contractTypeOverrideReason || "Not recorded" }, { label: "Decided by", value: overriddenBy ? `${overriddenBy} · recorded on behalf of, not signed` : "Not recorded" }] : []),
               { label: "Largest deliverable's share", value: ex.dominantSharePct && Number(ex.dominantSharePct.toString()) < 100 ? `${pct(ex.dominantSharePct.toString())}%` : "One deliverable" },
               {
-                label: "Mixed-scope threshold",
+                label: TERM.mixedThreshold,
                 value: decided ? (decided.policy.dominanceSharePct ? `Above ${pct(decided.policy.dominanceSharePct)}% · as recorded` : "Not set: no default for mixed scope") : config.policy.dominanceSharePct ? `Above ${pct(config.policy.dominanceSharePct)}%` : "Not set: no default for mixed scope",
               },
               { label: "Requester's indication", value: requesterType ?? "None" },
@@ -622,7 +688,15 @@ function ContractPanel({
         <CardHeader icon={<SlidersIcon size={17} />} title="What the type drives" subtitle={decided ? "As recorded when it moved into preparation." : "Enforced where each behaviour lives, in later modules."} />
         <CardBody>
           {profile ? (
-            <KeyValues columns={2} items={profile.map((b) => ({ label: BEHAVIOUR_LABEL[b.key], value: behaviourText(b.value, b.offices, b.key) }))} />
+            <div className="flex flex-col gap-4">
+              <KeyValues columns={2} items={profile.map((b) => ({ label: BEHAVIOUR_LABEL[b.key], value: behaviourText(b.value, b.offices, b.key) }))} />
+              {!decided && type && profile.some((b) => b.value == null) && (
+                <p className="border-t border-line pt-4 text-[13px] text-ink-2">
+                  {profile.filter((b) => b.value == null).length} of 12 behaviours are not set for {type.nameEn}.{" "}
+                  <Link href="/configuration/reference-data">Set them under Reference data, Contract types, Behaviours of {type.nameEn}</Link>.
+                </p>
+              )}
+            </div>
           ) : (
             <EmptyState size="sm" title="No contract type yet">Choose or derive one to see its behaviours.</EmptyState>
           )}
@@ -690,12 +764,12 @@ function NamePanel({
   const earlier = latestFirst(ex.approvalInstances).filter((i) => i.id !== current?.id);
   return (
     <div className="flex flex-col gap-6">
-      <Callout tone="info" title="Name approval recorded; not enforced in Phase 1">
-        Invitation happens outside the portal in this phase, so the portal records the approval of the name but cannot hold an invitation back until it is given.
+      <Callout tone="info" title="Name approval recorded; not enforced in this phase">
+        Invitation happens outside the portal in this phase, so the portal records the name approval but cannot hold an invitation back until it is given.
       </Callout>
       {!inst ? (
         <Card>
-          <CardHeader icon={<RouteIcon size={17} />} title="Approval of the name" subtitle="Not requested yet." />
+          <CardHeader icon={<RouteIcon size={17} />} title={TERM.nameApproval} subtitle="Not requested yet." />
           <CardBody className="flex flex-col gap-3">
             {preview ? (
               <>
@@ -719,7 +793,7 @@ function NamePanel({
         <Card className="overflow-hidden">
           <CardHeader
             icon={<RouteIcon size={17} />}
-            title="Approval of the name"
+            title={TERM.nameApproval}
             subtitle={`Requested ${formatOrgDay(inst.openedAt, l.org.timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}.`}
             actions={<Badge tone={inst.status === "APPROVED" ? "ok" : inst.status === "PENDING" ? "brand" : "warn"}>{nameRouteLabel(inst.status, inst.warnings)}</Badge>}
           />
@@ -732,10 +806,11 @@ function NamePanel({
               ))}
             </CardBody>
           )}
+          {inst.status === "PENDING" && <p className="border-t border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">Steps are decided in order: each waits for the one before it.</p>}
           <ol className="divide-y divide-line/70 border-t border-line">
             {inst.steps.map((s) => {
               const earlierDone = inst.steps.filter((x) => x.sequence < s.sequence).every((x) => x.decision === "DONE");
-              const blocker = inst.status !== "PENDING" || s.decision !== "PENDING" ? null : !earlierDone ? DECIDER_FAULT_TEXT.OUT_OF_ORDER : !today ? DECIDER_FAULT_TEXT.TIME_ZONE_UNSET : null;
+              const blocker = inst.status !== "PENDING" || s.decision !== "PENDING" ? null : !today ? DECIDER_FAULT_TEXT.TIME_ZONE_UNSET : null;
               return (
                 <li key={s.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-6">
                   <div className="flex min-w-0 items-start gap-3">
@@ -747,7 +822,7 @@ function NamePanel({
                       <div className="text-[12.5px] text-ink-2">
                         {s.decision === "PENDING"
                           ? inst.status === "PENDING"
-                            ? `Awaiting a decision.${s.nonDelegable ? " Cannot be delegated." : ""}`
+                            ? `${earlierDone ? "Awaiting a decision." : "Waits for the step before."}${s.nonDelegable ? " Cannot be delegated." : ""}`
                             : "Not decided: the route closed."
                           : `${DECISION_LABEL[s.decision]} · ${s.decidedByName ?? "Not recorded"} · recorded on behalf of, not signed · ${formatDate(s.decidedOn)}${s.delegation ? ` · under delegation from ${s.delegation.fromPerson.name}` : ""}${s.reason ? ` · “${s.reason}”` : ""}`}
                       </div>
@@ -755,7 +830,7 @@ function NamePanel({
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
                     {s.decision !== "PENDING" && <Badge tone={s.decision === "DONE" ? "ok" : "err"}>{DECISION_LABEL[s.decision]}</Badge>}
-                    {inst.status === "PENDING" && s.decision === "PENDING" && (
+                    {inst.status === "PENDING" && s.decision === "PENDING" && earlierDone && (
                       <NameDecisionDrawer id={ex.id} stepId={s.id} roleLabel={s.roleLabel} act={ACT_LABEL[s.act]} done={ACT_DONE_LABEL[s.act] ?? "Done"} people={suggestions(s.roleCode)} today={today} blocker={blocker} />
                     )}
                   </div>
@@ -792,7 +867,7 @@ const ENTITY_LABEL: Record<string, string> = {
   ExerciseProposalAnswer: "Proposal item",
   ExerciseTaxonomyValue: "Classification",
   ExerciseParticipant: "Participant",
-  ApprovalInstance: "Approval of the name",
+  ApprovalInstance: "Name approval",
   ApprovalStep: "Name approval step",
   Requisition: "Requisition",
 };
@@ -821,6 +896,16 @@ const FIELD_NAME: Record<string, string> = {
   requisitionRuleKey: "Requisition rule",
   taxonomy: "Classification",
   pick: "How it was reached",
+  dominantSharePct: "Largest deliverable's share",
+  appointmentRule: "Rule that approves the appointment",
+  termsBand: "Contract terms band",
+  classificationRecorded: "Classification recorded",
+  proposalReviewComment: "Review comment",
+  methodReason: "Why this method",
+  contractTypeOverrideReason: "Why this type",
+  overriddenByPersonId: "Type decided by",
+  reviewedBy: "Reviewed by",
+  recordedOnBehalf: "Recorded",
 };
 const MONEY = new Set(["estimatedValue", "amount", "boundaryValue"]);
 
@@ -831,6 +916,8 @@ function HistoryPanel({
   personName,
   typeName,
   methodName,
+  basisName,
+  reasonName,
 }: {
   entries: Awaited<ReturnType<typeof exerciseHistory>>["entries"];
   total: number;
@@ -838,9 +925,15 @@ function HistoryPanel({
   personName: (id: string | null) => string | null;
   typeName: (c: string | null) => string | null;
   methodName: (c: string) => string;
+  basisName: (c: string) => string | null;
+  reasonName: (c: string) => string | null;
 }) {
   const read = (field: string, value: string | null): string => {
     if (value == null || value === "") return "—";
+    if (field === "dominantSharePct") return Number(value) >= 100 ? "One deliverable" : `${pct(value)}%`;
+    if (field === "contractBasisCode") return basisName(value) ?? "A basis no longer configured";
+    if (field === "justificationReasonCode") return reasonName(value) ?? "A reason no longer configured";
+    if (field === "recordedOnBehalf") return "on behalf of, not signed";
     if (field === "status") return EXERCISE_STATUS_LABEL[value as keyof typeof EXERCISE_STATUS_LABEL] ?? (value === "SOURCING" ? "Sourcing" : value === "APPROVED" ? "Approved" : nameRouteLabel(value, null));
     if (field === "sourcingMethodCode" || field === "proposedMethodCode") return methodName(value);
     if (field === "contractTypeCode" || field === "derivedContractTypeCode") return typeName(value) ?? "—";
@@ -856,15 +949,20 @@ function HistoryPanel({
     if (field === "pick") return TAXONOMY_STATE_LABEL[value as "DERIVED"] ?? "—";
     if (field === "decision") return DECISION_LABEL[value as keyof typeof DECISION_LABEL] ?? "—";
     if (field === "overriddenByPersonId" || field === "proposalReviewerPersonId") return personName(value) ?? "—";
-    if (MONEY.has(field) && /^-?\d+(\.\d+)?$/.test(value)) return formatSen(parseSen(value));
+    if (MONEY.has(field) && /^-?\d+(\.\d+)?$/.test(value)) return formatMoney(parseSen(value));
     if (/^\d{4}-\d{2}-\d{2}/.test(value)) return formatDate(value);
     if (value === "true" || value === "yes") return "Yes";
     if (value === "false" || value === "no") return "No";
-    // Codes the page cannot name are configuration keys: they are not shown.
-    if (/(Code|Key)$/.test(field)) return "Recorded";
     return value;
   };
-  const shown = (field: string) => !/Id$/.test(field) || field === "overriddenByPersonId" || field === "proposalReviewerPersonId";
+  // Keys the page cannot name are configuration: left out, as are ids (UX 4).
+  const NAMED_KEYS = new Set(["sourcingMethodCode", "proposedMethodCode", "contractTypeCode", "derivedContractTypeCode", "contractBasisCode", "justificationReasonCode"]);
+  const shown = (field: string, ch: { before: string | null; after: string | null }, action: string) =>
+    (!/(Code|Key)$/.test(field) || NAMED_KEYS.has(field)) &&
+    (!/Id$/.test(field) || field === "overriddenByPersonId" || field === "proposalReviewerPersonId") &&
+    // A creation lists what it was given, not every empty field.
+    (action !== "CREATE" || (ch.after != null && ch.after !== "" && ch.after !== "false")) &&
+    (action !== "UPDATE" || ch.before !== ch.after);
   return (
     <Card className="overflow-hidden">
       <CardHeader
@@ -890,7 +988,7 @@ function HistoryPanel({
               </div>
               {e.changes.length > 0 && (
                 <ul className="text-[12.5px] break-words text-ink-3">
-                  {e.changes.filter((ch) => shown(ch.field)).map((ch) => (
+                  {e.changes.filter((ch) => shown(ch.field, ch, e.action)).map((ch) => (
                     <li key={ch.field}>
                       {FIELD_NAME[ch.field] ?? fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{read(ch.field, ch.before)} → </>}
                       <span className="text-ink-2">{read(ch.field, e.action === "DELETE" ? ch.before : ch.after)}</span>

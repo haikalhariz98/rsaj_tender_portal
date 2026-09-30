@@ -4,7 +4,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
-import { EXERCISE_STATUS_LABEL, EXERCISE_STATUS_TONE, REGIME_SHORT } from "@/lib/method/labels";
+import { EXERCISE_STATUS_LABEL, EXERCISE_STATUS_TONE, REGIME_SHORT, TERM } from "@/lib/method/labels";
 import { EXERCISES_PAGE, listExercises, loadMethodConfig } from "@/lib/method/repo";
 import type { ExerciseStatus, Regime } from "@/lib/method/types";
 
@@ -26,12 +26,15 @@ export default async function SourcingPage() {
   const awaitingName = rows.filter((r) => r.status !== "CANCELLED" && r.approvalInstances.some((i) => i.status === "PENDING")).length;
   const list: Row[] = rows.map((r) => {
     const status = r.status as ExerciseStatus;
+    const nameOpen = status !== "CANCELLED" && r.approvalInstances.some((i) => i.status === "PENDING");
+    const nameApproved = status !== "CANCELLED" && r.approvalInstances.some((i) => i.status === "APPROVED");
     return {
       id: r.id,
       views: [
         ...(status === "DRAFT" ? ["drafts"] : []),
         ...(status === "DOCUMENTS_IN_PREPARATION" ? ["preparing"] : []),
         ...(r.onBoundary && status !== "CANCELLED" ? ["boundary"] : []),
+        ...(nameOpen ? ["name"] : []),
       ],
       search: [r.title, r.reference, r.requisition.reference, r.requisition.erpRequisitionNo, methodName(r.sourcingMethodCode), EXERCISE_STATUS_LABEL[status]].filter(Boolean).join(" "),
       sortKeys: { value: Number(r.estimatedValue.toString()), title: r.title },
@@ -45,6 +48,7 @@ export default async function SourcingPage() {
           items: [
             { text: r.regime ? REGIME_SHORT[r.regime as Regime] : "Regime not determined", tone: "brand" as const },
             ...(r.onBoundary ? [{ text: r.boundaryRuled ? "On the boundary" : "On the boundary · not ruled", tone: "warn" as const }] : []),
+            ...(nameOpen ? [{ text: `${TERM.nameApproval} in progress`, tone: "brand" as const }] : nameApproved ? [{ text: `${TERM.nameApproval} given`, tone: "ok" as const }] : []),
             ...(r.restricted ? [{ text: "Restricted · not enforced until sign-in", tone: "warn" as const }] : []),
           ],
         },
@@ -66,7 +70,7 @@ export default async function SourcingPage() {
         actions={
           org ? (
             <ButtonLink href="/sourcing/new" variant="primary" size="md" icon={<PlusIcon size={16} />}>
-              New exercise
+              {TERM.newExercise}
             </ButtonLink>
           ) : undefined
         }
@@ -89,6 +93,7 @@ export default async function SourcingPage() {
             { id: "drafts", label: "Drafts" },
             { id: "preparing", label: "In preparation" },
             { id: "boundary", label: "On the boundary" },
+            { id: "name", label: `${TERM.nameApproval} in progress` },
           ]}
           filters={[{ key: "status", label: "Status", order: STATUS_ORDER.map((s) => EXERCISE_STATUS_LABEL[s]) }]}
           rowAction={{ label: "Open", hrefTemplate: "/sourcing/{id}" }}
@@ -98,7 +103,7 @@ export default async function SourcingPage() {
             { key: "method", label: "Method and contract type", width: "22%", hideBelow: "2xl" },
             { key: "value", label: "Value", width: "124px", numeric: true, sortable: true, mobile: "meta" },
             { key: "status", label: "Status", width: "176px", sortable: true, mobile: "meta" },
-            { key: "checks", label: "Band", width: "210px", hideBelow: "md", mobile: "meta" },
+            { key: "checks", label: "Band and checks", width: "220px", hideBelow: "md", mobile: "meta" },
           ]}
           rows={list}
         />

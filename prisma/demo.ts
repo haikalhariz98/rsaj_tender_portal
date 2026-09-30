@@ -911,6 +911,7 @@ async function load() {
   await loadMethodSelection(organisationId, from);
 
   await determineExercises([`${P}sx1`, `${P}sx2`, `${P}sx3`, `${P}sx4`, `${P}sx5`, `${P}sx6`]);
+  await nameRouteTrail(organisationId);
   await snapshotMinuted([`${P}mt2`, `${P}mt5`]);
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
@@ -1293,8 +1294,8 @@ async function loadMethodSelection(organisationId: string, from: Date) {
       { id: `${P}rule26`, ...app, method: "direct", ruleKey: "demo.direct.7", minValue: "4000000", labelEn: "Direct appointment, above RM4 million", approverCode: "BOARD", committeeCode: "TENDER_BOARD", committeeAct: "MR", nonDelegable: true, clause: "DEMO 4.1(g)", sortOrder: 26 },
       { id: `${P}rule27`, ...app, method: "tender", ruleKey: "demo.tender", minValue: "300000", followsBoundarySwitch: true, labelEn: "Tender, above RM300,000", approverCode: "TENDER_BOARD", committeeCode: "TENDER_BOARD", committeeAct: "A", nonDelegable: true, clause: "DEMO 4.2", sortOrder: 27 },
       { id: `${P}rule28`, ...app, method: "quotation", ruleKey: "demo.quotation", minValue: "15000", maxValue: "300000", followsBoundarySwitch: true, labelEn: "Quotation, RM15,000 to RM300,000", approverCode: "CEO", committeeCode: "QUOTE_CTTE", committeeAct: "MR", nonDelegable: true, clause: "DEMO 4.3", sortOrder: 28 },
-      { id: `${P}rule29`, authorityMatrixId: mx, domain: "name_approval", method: "tender", ruleKey: "demo.name.tender", labelEn: "Approval of the name, selected tender", proposerCode: "SEC_PRE", approverCode: "CEO", clause: "DEMO 4.4", sortOrder: 29 },
-      { id: `${P}rule30`, authorityMatrixId: mx, domain: "name_approval", method: "quotation", ruleKey: "demo.name.quotation", labelEn: "Approval of the name, selective quotation", proposerCode: "DEPT_HEAD", approverCode: "FD", clause: "DEMO 4.5", sortOrder: 30 },
+      { id: `${P}rule29`, authorityMatrixId: mx, domain: "name_approval", method: "tender", ruleKey: "demo.name.tender", labelEn: "Name approval, selected tender", proposerCode: "SEC_PRE", approverCode: "CEO", clause: "DEMO 4.4", sortOrder: 29 },
+      { id: `${P}rule30`, authorityMatrixId: mx, domain: "name_approval", method: "quotation", ruleKey: "demo.name.quotation", labelEn: "Name approval, selective quotation", proposerCode: "DEPT_HEAD", approverCode: "FD", clause: "DEMO 4.5", sortOrder: 30 },
       { id: `${P}rule31`, ...app, method: "specialist", ruleKey: "demo.specialist", labelEn: "Specialist or sole source", approverCode: "CEO", committeeCode: "TECH_CTTE", committeeAct: "R", clause: "DEMO 4.6", sortOrder: 31 },
     ],
   });
@@ -1512,6 +1513,16 @@ async function loadMethodSelection(organisationId: string, from: Date) {
     ],
   });
 
+  // Their trail, as the requisition actions would have written it (UX 5).
+  const rqTrail = (rq: number, ref: string, title: string, raised: string, approved: string, sourcing: string | null) => [
+    { id: `${P}rq${rq}_au1`, organisationId, entity: "Requisition", entityId: `${P}rq${rq}`, entityLabel: `${ref} · ${title}`, action: "CREATE" as const, at: day(raised), changes: [{ field: "reference", before: null, after: ref }, { field: "status", before: null, after: "DRAFT" }] },
+    { id: `${P}rq${rq}_au2`, organisationId, entity: "Requisition", entityId: `${P}rq${rq}`, entityLabel: `${ref} · ${title}`, action: "UPDATE" as const, at: day(approved), changes: [{ field: "status", before: "PENDING_APPROVAL", after: "APPROVED" }] },
+    ...(sourcing ? [{ id: `${P}rq${rq}_au3`, organisationId, entity: "Requisition", entityId: `${P}rq${rq}`, entityLabel: `${ref} · ${title}`, action: "UPDATE" as const, at: day(sourcing), reason: "An exercise moved into preparation.", changes: [{ field: "status", before: "APPROVED", after: "SOURCING" }] }] : []),
+  ];
+  await db.auditEntry.createMany({
+    data: [...rqTrail(13, REQ(25), "Filter and pipework renewal, Bukit Demo plant", "2026-06-01", "2026-06-24", "2026-09-08"), ...rqTrail(14, REQ(26), "Clear-water tank refurbishment", "2026-08-10", "2026-08-28", null)],
+  });
+
   // The exercises. Their bands, snapshots and decided records are written afterwards by
   // the same functions a save uses.
   const SX = (n: number) => `DEMO/SX/${String(n).padStart(4, "0")}/2026`;
@@ -1576,7 +1587,7 @@ async function loadMethodSelection(organisationId: string, from: Date) {
   await db.approvalInstance.create({
     data: {
       id: `${P}ai20`, organisationId, matterKind: "EXERCISE", exerciseId: `${P}sx3`, domain: "name_approval", value: "420000.00",
-      authorityMatrixId: mx, matrixLabel: "Demo limits, issue 1", ruleKey: "demo.name.tender", ruleLabel: "Approval of the name, selected tender", ruleClause: "DEMO 4.4",
+      authorityMatrixId: mx, matrixLabel: "Demo limits, issue 1", ruleKey: "demo.name.tender", ruleLabel: "Name approval, selected tender", ruleClause: "DEMO 4.4",
       boundaryValue: "300000", boundaryInclusive: true, ruleFollowsBoundarySwitch: null, boundaryOperator: null, fundingRouteCode: "capex",
       checkedAgainstMatrix: true, status: "PENDING", openedAt: day("2026-09-21"),
       steps: {
@@ -1589,6 +1600,15 @@ async function loadMethodSelection(organisationId: string, from: Date) {
         ],
       },
     },
+  });
+}
+
+async function nameRouteTrail(organisationId: string) {
+  await db.auditEntry.createMany({
+    data: [
+      { id: `${P}ai20_au1`, organisationId, entity: "ApprovalInstance", entityId: `${P}ai20`, entityLabel: "DEMO/SX/0003/2026 · name approval", action: "CREATE", at: day("2026-09-21"), changes: [{ field: "rule", before: null, after: "Name approval, selected tender" }] },
+      { id: `${P}as20_1_au1`, organisationId, entity: "ApprovalStep", entityId: `${P}as20_1`, entityLabel: "DEMO/SX/0003/2026 · Section Head, Pre-contract", action: "UPDATE", at: day("2026-09-22"), changes: [{ field: "decision", before: "PENDING", after: "DONE" }, { field: "decidedBy", before: null, after: "Eng Siew Mei" }, { field: "recordedOnBehalf", before: null, after: "not signed" }] },
+    ],
   });
 }
 
@@ -1637,6 +1657,34 @@ async function determineExercises(ids: string[]) {
           // Loaded as decided on the day it moved into preparation.
           ...(prepared ? { classificationSnapshot: decided as object, preparedAt: day("2026-09-08"), determinedAt: day("2026-09-08") } : {}),
         },
+      });
+      // The trail the actions would have written (UX 5), dated as the demo tells it.
+      const label = `${l.ex.reference} · ${l.ex.title}`;
+      const ch = (field: string, before: string | null, after: string | null) => ({ field, before, after });
+      const entries: { at: Date; action: "CREATE" | "UPDATE"; changes: object[]; reason?: string }[] = [
+        {
+          at: l.ex.createdAt,
+          action: "CREATE",
+          changes: [
+            ch("reference", null, l.ex.reference),
+            ch("title", null, l.ex.title),
+            ch("estimatedValue", null, l.ex.estimatedValue.toString()),
+            ch("sourcingMethodCode", null, l.ex.sourcingMethodCode),
+            ch("contractTypeCode", null, cols.contractTypeCode),
+            ch("contractBasisCode", null, l.ex.contractBasisCode),
+            ch("status", null, "DRAFT"),
+            ch("requisition", null, l.req.reference),
+          ],
+        },
+      ];
+      if (l.ex.proposalState === "REVIEWED") {
+        entries.push({ at: day("2026-09-15"), action: "UPDATE", changes: [ch("proposalState", "DRAFT", "SUBMITTED")] });
+        entries.push({ at: day("2026-09-20"), action: "UPDATE", changes: [ch("proposalState", "SUBMITTED", "REVIEWED"), ch("reviewedBy", null, "Chen Wei Ling"), ch("recordedOnBehalf", null, "not signed")], reason: l.ex.proposalReviewComment });
+      }
+      if (prepared) entries.push({ at: day("2026-09-08"), action: "UPDATE", changes: [ch("status", "DRAFT", "DOCUMENTS_IN_PREPARATION"), ch("classificationRecorded", null, "yes")] });
+      if (l.ex.status === "CANCELLED") entries.push({ at: day("2026-09-06"), action: "UPDATE", changes: [ch("status", "DRAFT", "CANCELLED")], reason: l.ex.cancelReason });
+      await db.auditEntry.createMany({
+        data: entries.map((e, i) => ({ id: `${id}_au${i + 1}`, organisationId: l.org.id, entity: "SourcingExercise", entityId: id, entityLabel: label, action: e.action, changes: e.changes as object, reason: e.reason ?? "", at: e.at })),
       });
       for (const t of ev.taxonomies.filter((x) => x.state === "DERIVED" && x.valueCode)) {
         await db.exerciseTaxonomyValue.create({ data: { id: `${id}tv_${t.taxonomyCode}`, exerciseId: id, taxonomyCode: t.taxonomyCode, valueCode: t.valueCode!, pick: "DERIVED" } });
