@@ -5,7 +5,7 @@ import { PrinterIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Callout } from "@/components/ui/feedback";
 import { evaluateAward } from "@/lib/award/evaluate";
-import { DOCUMENT_LABEL, kindOfSlug, LANGUAGE_LABEL } from "@/lib/award/labels";
+import { kindOfSlug, LANGUAGE_LABEL } from "@/lib/award/labels";
 import { awardFacts, loadAward } from "@/lib/award/repo";
 import { formatDate, formatOrgDay } from "@/lib/format";
 
@@ -46,7 +46,7 @@ export default async function PrintPage(props: PageProps<"/awards/[id]/print/[ki
   }
   return (
     <>
-      <RecordCrumb label={`${award.reference} · ${DOCUMENT_LABEL[kind]}`} />
+      <RecordCrumb label={award.reference} />
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3 print:hidden">
         <Link href={`/awards/${award.id}?tab=instrument`}>Back to the award</Link>
         <PrintButton icon={<PrinterIcon size={15} />} />

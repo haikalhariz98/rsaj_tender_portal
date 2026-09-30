@@ -19,7 +19,7 @@ import { renderedText } from "@/lib/award/merge";
 import { awardFacts, exerciseMatters, loadAwardConfig, matterRecord, withLockedAward, withLockedExerciseForAward, latestRoute, type LoadedAward } from "@/lib/award/repo";
 import { receivedOnFault } from "@/lib/award/routing";
 import { checkSignatory } from "@/lib/award/signatory";
-import { acceptancePageFaults, returnComplete, returnState, type ReturnRecord } from "@/lib/award/stage-two";
+import { returnComplete, type ReturnRecord } from "@/lib/award/stage-two";
 import { awardTransition, editable, LIVE_STATUSES } from "@/lib/award/status";
 import type { AwardStatus, Finding, InstrumentKind } from "@/lib/award/types";
 import { dayToDate, storedDay } from "@/lib/dates";
@@ -692,8 +692,6 @@ export async function recordReturn(_prev: FormState, data: FormData): Promise<Fo
         await audit(tx, l.org.id, "Award", a.id, labelOf(a), "UPDATE", diffFields({ status: a.status }, { status: "ACCEPTED" }), a.instrumentKind === "LETTER_OF_ACCEPTANCE" ? "All three documents returned." : "The acceptance page is complete.");
       }
     }
-    void returnState;
-    void acceptancePageFaults;
     return { ok: true };
   });
 }

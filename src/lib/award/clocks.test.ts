@@ -28,3 +28,14 @@ describe("the commencement clock (FR-AWD-009)", () => {
     expect(commencementState("2026-10-01", "2026-10-03", 7, "2026-12-01", "WARNING_LETTER")).toEqual({ state: "COMMENCED", on: "2026-10-03" });
   });
 });
+
+describe("when an expired indent is raised", () => {
+  const expired = { state: "EXPIRED" as const, expiresOn: "2026-09-25" };
+  it("until work commences, and not on a cancelled award", async () => {
+    const { indentExpiryRaised } = await import("./indent");
+    expect(indentExpiryRaised(expired, null, "ISSUED")).toBe(true);
+    expect(indentExpiryRaised(expired, "2026-09-22", "ACCEPTED")).toBe(false);
+    expect(indentExpiryRaised(expired, null, "CANCELLED")).toBe(false);
+    expect(indentExpiryRaised({ state: "VALID", expiresOn: "2026-10-25" }, null, "ISSUED")).toBe(false);
+  });
+});

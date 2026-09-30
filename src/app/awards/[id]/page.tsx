@@ -16,7 +16,7 @@ import { fieldLabel } from "@/lib/audit/diff";
 import { CONTRACT_YEAR_READING } from "@/lib/award/contract-number";
 import { distributionComplete } from "@/lib/award/distribution";
 import { evaluateAward, type AwardEvaluation } from "@/lib/award/evaluate";
-import { INDENT_READING } from "@/lib/award/indent";
+import { INDENT_READING, indentExpiryRaised } from "@/lib/award/indent";
 import {
   ACCEPTANCE_FAULT_LABEL,
   AWARD_STATUS_LABEL,
@@ -44,7 +44,7 @@ import {
   SECURITY_KIND_LABEL,
   WC_BASIS_LABEL,
 } from "@/lib/award/labels";
-import { maskIc, MASKING_NOTE } from "@/lib/award/mask";
+import { MASKING_NOTE } from "@/lib/award/mask";
 import { mergeFieldLabel } from "@/lib/award/fields";
 import { readinessGate } from "@/lib/award/readiness";
 import { awardFacts, awardHistory, exerciseMatters, latestRoute, loadAward, matterRecord, type LoadedAward } from "@/lib/award/repo";
@@ -239,7 +239,7 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
   });
 
   const tabs = [
-    { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel l={l} ev={ev} methodName={methodName} typeName={typeName} policyLabel={policy.regulatedActivityLabel} contractSeriesSet={!!f.contractType?.contractSeriesKey} validityDays={policy.indentValidityDays} expiredRule={!!f.config.indentExpiredRule} /> },
+    { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel l={l} ev={ev} methodName={methodName} typeName={typeName} policyLabel={policy.regulatedActivityLabel} validityDays={policy.indentValidityDays} expiredRule={!!f.config.indentExpiredRule} /> },
     {
       id: "approval",
       label: "Approval",
@@ -335,7 +335,7 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
             The grace period ended on {formatDate(ev.commencement.deadline)}. The variant&apos;s consequence: {consequenceText ? consequenceText.toLowerCase() : "not set on the variant"}. Cancelling records it; blacklisting itself waits for the supplier register. Nothing is sent.
           </Callout>
         )}
-        {ev.indent?.state === "EXPIRED" && issued && (
+        {ev.indent?.state === "EXPIRED" && issued && indentExpiryRaised(ev.indent, day(award.commencedOn), status) && (
           <Callout tone="err" title="The indent has expired">
             It expired on {formatDate(ev.indent.expiresOn)}. {f.config.indentExpiredRule ? `The rule “${f.config.indentExpiredRule.nameEn}” names who is to be told;` : "No notification rule names who is to be told;"} nothing is sent from the portal in this phase. {INDENT_READING}
           </Callout>
@@ -349,7 +349,7 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
 
 // ------------------------------------------------------------------ overview
 
-function OverviewPanel({ l, ev, methodName, typeName, policyLabel, contractSeriesSet, validityDays, expiredRule }: { l: LoadedAward; ev: AwardEvaluation; methodName: string; typeName: string; policyLabel: string | null; contractSeriesSet: boolean; validityDays: number | null; expiredRule: boolean }) {
+function OverviewPanel({ l, ev, methodName, typeName, policyLabel, validityDays, expiredRule }: { l: LoadedAward; ev: AwardEvaluation; methodName: string; typeName: string; policyLabel: string | null; validityDays: number | null; expiredRule: boolean }) {
   const { award, ex, req } = l;
   const kind = award.instrumentKind as InstrumentKind;
   const c = award.contract;
@@ -396,7 +396,7 @@ function OverviewPanel({ l, ev, methodName, typeName, policyLabel, contractSerie
                     <Chip tone={c.status === "CANCELLED" ? "warn" : "ok"}>{CONTRACT_STATUS_LABEL[c.status]}</Chip>
                     <span className="text-[12.5px] text-ink-3">{CONTRACT_YEAR_READING}</span>
                   </span>
-                ) : "fault" in ev.contractNumber ? notSet(awardFindingText({ code: ev.contractNumber.fault, level: "block" })) : ev.contractNumber.source === "SERIES" ? `Drawn from its series on issue${contractSeriesSet ? "" : ""}` : "The indent's own number, on issue",
+                ) : "fault" in ev.contractNumber ? notSet(awardFindingText({ code: ev.contractNumber.fault, level: "block" })) : ev.contractNumber.source === "SERIES" ? "Drawn from its contract type's series on issue" : "The indent's own number, on issue",
               },
               { label: "Contract sum", value: c ? <span className="tabular-nums">{money(c.contractSum)}</span> : notSet("On issue") },
               {
@@ -913,7 +913,7 @@ function SecuritiesPanel({
           ) : null}
           <div className="grid gap-4 md:grid-cols-3">
             <Stat variant="inset" size="sm" tone="neutral" label="Required amount" value={ev.requiredBond.state === "SET" ? formatMoney(ev.requiredBond.amount) : null} hint={award.bondBasis ? `${BOND_BASIS_LABEL[award.bondBasis]}${award.bondPercent ? `, ${pct(award.bondPercent)}` : ""}` : "Basis not set"} />
-            <Stat variant="inset" size="sm" tone="neutral" label="One-year value, as entered" value={award.bondBasisAmount && award.bondBasis === "ANNUAL_VALUE" ? money(award.bondBasisAmount) : null} hint={derived ? `Half the sum over its period would be ${formatMoney(derived * 1n)} — shown for comparison, never used.` : "Derived only for a period in months."} />
+            <Stat variant="inset" size="sm" tone="neutral" label="One-year value, as entered" value={award.bondBasisAmount && award.bondBasis === "ANNUAL_VALUE" ? money(award.bondBasisAmount) : null} hint={derived ? `Derived from the sum and period: ${formatMoney(derived)}. For comparison only.` : "No derived figure: the period is not in months."} />
             <Stat variant="inset" size="sm" tone="neutral" label="Must run until" value={ev.bondUntil ? formatDate(ev.bondUntil) : null} hint={award.bondValidityExtraMonths != null ? `Completion plus ${award.bondValidityExtraMonths} months.` : "Months past completion not set."} />
           </div>
           {award.bondBasisProvenance && award.bondRequired && (
@@ -1115,4 +1115,3 @@ function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<ReturnTyp
   );
 }
 
-void maskIc;

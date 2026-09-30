@@ -3,7 +3,7 @@ import { AwardIcon } from "@/components/icons";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
-import { indentState } from "@/lib/award/indent";
+import { indentExpiryRaised, indentState } from "@/lib/award/indent";
 import { AWARD_STATUS_LABEL, AWARD_STATUS_TONE, INSTRUMENT_SHORT } from "@/lib/award/labels";
 import { AWARDS_PAGE, listAwards } from "@/lib/award/repo";
 import { returnComplete } from "@/lib/award/stage-two";
@@ -43,7 +43,7 @@ export default async function AwardsPage() {
         ...(issued ? ["issued"] : []),
         ...(status === "ISSUED" && !back ? ["return"] : []),
         ...(issued && !r.erpCommitmentNo ? ["commitment"] : []),
-        ...(indent?.state === "EXPIRED" && status !== "CANCELLED" ? ["expired"] : []),
+        ...(indentExpiryRaised(indent, day(r.commencedOn), status) ? ["expired"] : []),
       ],
       search: [r.awardeeName, r.reference, r.exercise.reference, r.exercise.title, r.contract?.number, AWARD_STATUS_LABEL[status]].filter(Boolean).join(" "),
       sortKeys: { value: Number(r.awardedValue.toString()), awardee: r.awardeeName },
@@ -58,7 +58,7 @@ export default async function AwardsPage() {
             ...(issued ? [{ text: back ? "Returned" : "Awaiting return", tone: back ? ("ok" as const) : ("warn" as const) }] : []),
             ...(issued ? [{ text: unverified ? `${unverified} to verify` : secs.length + pols.length ? "Securities verified" : "No securities lodged", tone: unverified || !(secs.length + pols.length) ? ("warn" as const) : ("ok" as const) }] : []),
             ...(issued && !r.erpCommitmentNo ? [{ text: "No commitment number", tone: "warn" as const }] : []),
-            ...(indent?.state === "EXPIRED" && status !== "CANCELLED" ? [{ text: "Indent expired", tone: "err" as const }] : []),
+            ...(indentExpiryRaised(indent, day(r.commencedOn), status) ? [{ text: "Indent expired", tone: "err" as const }] : []),
             ...(!issued && status !== "CANCELLED" ? [{ text: status === "APPROVED" ? "To issue" : status === "PENDING_APPROVAL" ? "With the approvers" : "Being prepared", tone: "brand" as const }] : []),
           ],
         },

@@ -37,6 +37,9 @@ const SEGMENT_LABEL: Record<string, string> = {
   documents: "Documents",
   reports: "Reports",
   requisitions: "Requisitions",
+  awards: "Awards",
+  securities: "Securities",
+  print: "Print",
   // Short: the crumb shares the bar with search. The page title says the rest.
   receive: "Receive",
   supplier: "Supplier portal",
@@ -49,12 +52,15 @@ const SEGMENT_LABEL: Record<string, string> = {
 const RECORD_LABEL: Record<string, string> = {
   committees: "Committee",
   requisitions: "Requisition",
+  awards: "Award",
 };
 
 /// Segments whose label depends on where they sit.
 const NESTED_LABEL: Record<string, string> = {
   "configuration/requisitions": "Requisition controls",
   "requisitions/new": "New requisition",
+  "configuration/awards": "Award controls",
+  "awards/new": "New award",
 };
 
 export function Topbar({

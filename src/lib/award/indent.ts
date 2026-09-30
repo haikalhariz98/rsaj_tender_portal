@@ -23,3 +23,12 @@ export function indentState(receivedOn: Day | null, validityDays: number | null,
 
 /// The reading the expiry day rests on, said wherever it is shown.
 export const INDENT_READING = "Valid through its expiry day (the day of receipt plus the validity days): an assumed reading of the rule.";
+
+/**
+ * Whether an expired indent is still a live problem: until work commences under it, and
+ * never on a cancelled award (build decision BD-12). Once work has started, the indent
+ * was acted on inside its validity.
+ */
+export function indentExpiryRaised(state: IndentState | null, commencedOn: Day | null, status: string): boolean {
+  return state?.state === "EXPIRED" && !commencedOn && status !== "CANCELLED";
+}
