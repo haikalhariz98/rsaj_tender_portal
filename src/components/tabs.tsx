@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type CSSProperties, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 
 import { ChevronLeft, ChevronRight } from "@/components/icons";
+import { scrollFor } from "@/lib/ui/strip-scroll";
 import { navigatesOnSelect, sectionToOpen, tabKeyMove } from "@/lib/ui/tab-keys";
 
 /**
@@ -68,9 +69,12 @@ function useScrollStrip<T extends HTMLElement>(currentSelector: string, keyOf: s
   useEffect(() => {
     const item = el?.querySelector<HTMLElement>(currentSelector);
     if (!el || !item) return;
-    // Measured from the rectangles, so it does not depend on which ancestor is positioned.
-    const at = el.scrollLeft + item.getBoundingClientRect().left - el.getBoundingClientRect().left;
-    el.scrollTo({ left: Math.max(0, at - (el.clientWidth - item.offsetWidth) / 2), behavior: "auto" });
+    // Only as far as the item needs (`scrollFor`), measured from the rectangles so it does not
+    // depend on which ancestor is positioned.
+    const box = el.getBoundingClientRect();
+    const r = item.getBoundingClientRect();
+    const to = scrollFor({ scrollLeft: el.scrollLeft, scrollWidth: el.scrollWidth, width: el.clientWidth, itemLeft: r.left - box.left, itemRight: r.right - box.left, fade: 44 });
+    if (to != null) el.scrollTo({ left: to, behavior: "auto" });
     // The scroll event that follows (onScroll) measures again.
   }, [el, currentSelector, keyOf]);
 
