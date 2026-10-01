@@ -206,14 +206,13 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
         </Section>
 
         <Section id="scope-rules" title="Which methods need their scope approved by a committee" blurb="Where a method does, the finalised bill is tabled at a sitting of the committee named, under the act named, and the documents cannot go for approval until a matter under that act is carried. Not set holds that check back, naming this setting; it is never read as No." empty={emptyText(c.scopeRules, rows.scopeRules, "No sourcing methods are configured. Add them under Reference data.")} count={rows.scopeRules.length}>
-          <Table minWidth={820}>
+          <Table minWidth={760}>
             <colgroup>
-              <col />
-              <col style={{ width: "14%" }} />
+              <col style={{ width: "26%", minWidth: "200px" }} />
+              <col style={{ width: "15%" }} />
               <col style={{ width: "20%" }} />
               <col style={{ width: "13%" }} />
-              <col style={{ width: "16%" }} />
-              <col style={{ width: "13%" }} />
+              <col style={{ width: "19%" }} />
               <ActionsCol icons={1} labelled={1} />
             </colgroup>
             <THead>
@@ -221,8 +220,7 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
               <Th>Scope approved</Th>
               <Th>By</Th>
               <Th>Source</Th>
-              <Th>Act</Th>
-              <Th>Act source</Th>
+              <Th>Act and its source</Th>
               <Th className="text-right">Actions</Th>
             </THead>
             <tbody>
@@ -232,8 +230,16 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
                   <Td label="Scope approved">{m.raw.scopeApprovalRequired === "unset" ? <Badge tone="warn">Not set</Badge> : m.required}</Td>
                   <Td label="By">{m.committee == null ? <span className="text-ink-3">—</span> : m.raw.scopeCommitteeCode ? m.committee : <Badge tone="warn">{m.committee}</Badge>}</Td>
                   <Td label="Source">{m.raw.scopeApprovalRequired === "unset" ? <span className="text-ink-3">—</span> : <ProvenanceBadge value={m.raw.scopeApprovalProvenance} />}</Td>
-                  <Td label="Act">{m.act == null ? <span className="text-ink-3">—</span> : m.raw.scopeAct ? m.act : <Badge tone="warn">Not set</Badge>}</Td>
-                  <Td label="Act source">{m.raw.scopeAct ? <ProvenanceBadge value={m.raw.scopeActProvenance} /> : <span className="text-ink-3">—</span>}</Td>
+                  <Td label="Act and its source">
+                    {m.act == null ? (
+                      <span className="text-ink-3">—</span>
+                    ) : (
+                      <span className="flex flex-col items-start gap-1">
+                        {m.raw.scopeAct ? m.act : <Badge tone="warn">Not set</Badge>}
+                        {m.raw.scopeAct && <ProvenanceBadge value={m.raw.scopeActProvenance} />}
+                      </span>
+                    )}
+                  </Td>
                   <Td>
                     <RowActions>
                       <HistoryButton iconOnly entity="SourcingMethod" entityId={m.id} label={m.name} />

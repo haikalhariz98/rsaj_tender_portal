@@ -154,7 +154,7 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
           <CardHeader
             icon={<FileIcon size={17} />}
             title="Policy"
-            subtitle="Unset is not zero and not a guess: it says what it leaves undecided. A figure set says where it came from."
+            subtitle="The wording and figures every pack is judged by."
             actions={
               <span className="flex flex-wrap items-center gap-2">
                 <EditTenderPolicy values={policyValues} taxonomies={k?.taxonomyOptions ?? []} />
@@ -162,6 +162,7 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
             }
           />
           <CardBody>
+            <p className="mb-4 text-[12.5px] text-ink-3">Unset is not zero and not a guess: it says what it leaves undecided. A figure set says where it came from.</p>
             <KeyValues
               columns={2}
               items={[
@@ -359,15 +360,13 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                     <p className="bg-sunken px-5 py-2 text-[12.5px] font-semibold text-ink-2 sm:px-6">{b.basis === "Every basis" ? "On every basis" : `On ${b.basis}`}</p>
                     <Table minWidth={760}>
                       <colgroup>
-                        <col style={{ width: 56 }} />
-                        <col />
-                        <col style={{ width: 136 }} />
+                        <col style={{ minWidth: 260 }} />
+                        <col style={{ width: 150 }} />
                         <col style={{ width: 150 }} />
                         <col style={{ width: 120 }} />
                         <ActionsCol icons={1} labelled={2} />
                       </colgroup>
                       <THead>
-                        <Th>No.</Th>
                         <Th>Part</Th>
                         <Th>Prepared by</Th>
                         <Th>Mandatory</Th>
@@ -379,9 +378,8 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                           const sub = [r.role, r.content, r.template ? `Template: ${r.template}` : r.source, r.retired ? `Retired${r.raw.retiredOn ? ` from ${formatDate(r.raw.retiredOn)}` : ""}` : null].filter(Boolean).join(" · ");
                           return (
                             <Tr key={r.id}>
-                              <Td label="No." className="font-semibold text-ink-2">{r.printedNumber}</Td>
-                              <Td label="Part"><CellStack title={r.label} sub={sub} /></Td>
-                              <Td label="Prepared by">{r.preparedBy === NOT_SET ? <Badge outline>Not set</Badge> : r.preparedBy}</Td>
+                              <Td><CellStack title={`${r.printedNumber}. ${r.label}`} sub={sub} /></Td>
+                              <Td label="Prepared by">{r.preparedBy === NOT_SET ? <span className="text-ink-3">Any office</span> : r.preparedBy}</Td>
                               <Td label="Mandatory">
                                 {r.mandatory === NOT_SET ? <Badge tone="warn" title="Submission is held back until this is set">Not set</Badge> : r.mandatory}
                                 {r.inTableDocument === "Yes" && <span className="block text-[12.5px] text-ink-3">In the Tender Table Document</span>}
