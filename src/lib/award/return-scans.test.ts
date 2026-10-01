@@ -70,3 +70,17 @@ describe("an accepted award is never re-judged on its scans (plan §3)", () => {
     expect(returnReadsComplete("ISSUED", "WORK_INDENT", page, new Set(["ACCEPTANCE_PAGE"]))).toBe(true);
   });
 });
+
+describe("scansAwaitingPaper: a scan slot whose paper has not come back", () => {
+  it("lists the items of a Letter of Acceptance not yet received", async () => {
+    const { scansAwaitingPaper, EMPTY_RETURN: empty } = await import("./stage-two");
+    const two = { ...empty, signedLetterReceivedOn: "2026-09-24", declarationReceivedOn: "2026-09-24" } as ReturnRecord;
+    expect(scansAwaitingPaper("LETTER_OF_ACCEPTANCE", two)).toEqual(["AUTHORISATION"]);
+    expect(scansAwaitingPaper("LETTER_OF_ACCEPTANCE", empty)).toEqual(["SIGNED_LETTER", "DECLARATION", "AUTHORISATION"]);
+  });
+  it("says the acceptance page is awaited until any of its fields is recorded", async () => {
+    const { scansAwaitingPaper, EMPTY_RETURN: empty } = await import("./stage-two");
+    expect(scansAwaitingPaper("WORK_INDENT", empty)).toEqual(["ACCEPTANCE_PAGE"]);
+    expect(scansAwaitingPaper("WORK_INDENT", { ...empty, signatoryName: "A" } as ReturnRecord)).toEqual([]);
+  });
+});

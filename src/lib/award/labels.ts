@@ -65,6 +65,10 @@ export const GATE_LABEL = { RETURNED: "Instrument returned signed", BOND: "Perfo
 export const GATE_STATE_LABEL = { MET: "Met", NOT_MET: "Not met", NOT_SET: "Not set" } as const;
 /// The scans a return is bound to (OD-5), and what an award accepted before them reads.
 export const RETURN_SCAN_LABEL = { SIGNED_LETTER: "the signed letter's scan", DECLARATION: "the signed declaration's scan", AUTHORISATION: "the letter of authorisation's scan", ACCEPTANCE_PAGE: "the acceptance page's scan" } as const;
+/// What each scan slot is called on the Return tab: the same words as the card above it, which lists the items themselves.
+export const RETURN_SLOT_LABEL = { SIGNED_LETTER: "Signed letter", DECLARATION: "Successful bidder's declaration", AUTHORISATION: "Letter of authorisation", ACCEPTANCE_PAGE: "Acceptance page" } as const;
+/// A scan slot whose paper has not come back: nothing is overdue, and nothing is to be scanned yet.
+export const WAITING_FOR_PAPER = "Waiting for the paper copy";
 export const ACCEPTED_BEFORE_SCANS = "Accepted before scans were required";
 
 /// The return drawer's description (FR-AWD-003, 008; OD-5; BD-24).

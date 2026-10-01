@@ -131,6 +131,12 @@ export function scansRequired(status: string, hasScanSnapshot: boolean): boolean
   return !(status === "ACCEPTED" && !hasScanSnapshot);
 }
 
+/// The scans whose paper has not come back, so there is nothing to scan yet.
+export function scansAwaitingPaper(kind: InstrumentKind, r: ReturnRecord): ReturnScan[] {
+  if (kind === "WORK_INDENT") return pageRecorded(r) ? [] : ["ACCEPTANCE_PAGE"];
+  return (Object.keys(ITEM_DAY) as ReturnItem[]).filter((i) => !r[ITEM_DAY[i]]);
+}
+
 /// The items recorded as received whose scan is not attached.
 export function scansMissing(kind: InstrumentKind, r: ReturnRecord, attached: ReadonlySet<string>): ReturnScan[] {
   if (kind === "WORK_INDENT") return pageRecorded(r) && !attached.has("ACCEPTANCE_PAGE") ? ["ACCEPTANCE_PAGE"] : [];

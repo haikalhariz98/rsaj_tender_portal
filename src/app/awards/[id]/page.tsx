@@ -46,16 +46,18 @@ import {
   REGISTER_STATUS_LABEL,
   REGISTER_STATUS_TONE,
   RETURN_ITEM_LABEL,
+  RETURN_SLOT_LABEL,
   returnScansText,
   SECURITY_FORM_LABEL,
   SECURITY_KIND_LABEL,
   WC_BASIS_LABEL,
+  WAITING_FOR_PAPER,
   WC_CHECK_LABEL,
 } from "@/lib/award/labels";
 import { mergeFieldLabel } from "@/lib/award/fields";
 import { conditionsOutstanding, readinessGate } from "@/lib/award/readiness";
 import { awardFacts, awardHistory, exerciseMatters, latestRoute, loadAward, matterRecord, type LoadedAward } from "@/lib/award/repo";
-import { acceptancePageFaults, instrumentReturned, RETURN_SCANS, returnReadsComplete, returnState, scansMissing, scansRequired, type ReturnRecord } from "@/lib/award/stage-two";
+import { acceptancePageFaults, instrumentReturned, RETURN_SCANS, returnReadsComplete, returnState, scansAwaitingPaper, scansMissing, scansRequired, type ReturnRecord } from "@/lib/award/stage-two";
 import { isLive } from "@/lib/documents/evidence";
 import { cancellable, editable } from "@/lib/award/status";
 import { absentFrom } from "@/lib/award/appointment";
@@ -893,6 +895,8 @@ function ReturnPanel({ l, ret, people }: { l: LoadedAward; ret: ReturnRecord | n
         title="Scans of what came back"
         subtitle="Each returned item counts toward the return, and toward acceptance, only with its signed scan attached."
         required={Object.fromEntries(RETURN_SCANS[award.instrumentKind as InstrumentKind].map((p) => [p, scansAreRequired]))}
+        labels={RETURN_SLOT_LABEL}
+        statuses={ret && award.awardReturn ? Object.fromEntries(scansAwaitingPaper(award.instrumentKind as InstrumentKind, ret).map((p) => [p, { text: WAITING_FOR_PAPER, tone: "neutral" as const }])) : undefined}
       />
     </div>
   );
@@ -961,9 +965,12 @@ function ReturnRecordCard({ l, ret, people }: { l: LoadedAward; ret: ReturnRecor
           items={[
             { label: "Received by", value: r.receivedBy ? `${r.receivedBy.name} · recorded on behalf of, not signed` : notSet("Not recorded") },
             { label: "Originals held at", value: r.whereHeld || notSet("Not recorded") },
-            { label: "Scans", value: <Chip tone={scanLine.tone}>{scanLine.text}</Chip> },
           ]}
         />
+        <Callout tone={scanLine.tone}>
+          <span className="font-semibold">Scans. </span>
+          {scanLine.text}
+        </Callout>
       </CardBody>
     </Card>
   );
