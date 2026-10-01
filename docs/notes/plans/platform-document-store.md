@@ -47,7 +47,7 @@ FR-CRT final-account pack, FR-REQ-010 anggaran harga (still waits on D5), FR-AWD
 ## 2. Storage design
 
 **Tables** (additive migration `document_store`; `organisationId` on every table; no semicolon in any migration comment):
-- `DocumentClass` + `classification DocumentClassification?` (PUBLIC/INTERNAL/SULIT; null = not set), `retentionTrigger
+- `DocumentClass` + `classification SecurityClass?` (PUBLIC/INTERNAL/SULIT; null = not set; the enum shared with 6.2, BD-DS-1), `retentionTrigger
   RetentionTrigger?` (RECEIVED / OWNER_CLOSED / CONTRACT_FINAL_ACCOUNT), `disposalMethod DisposalMethod?`, `disposalAuthorityRoleCode
   String?` (validated office). All ship unset; "Not set" on screen.
 - `DocumentStorePolicy` (one per organisation): `allowedMediaTypes String[]` (subset of the product's sniffable set), `maxBytes BigInt?`
@@ -80,9 +80,11 @@ S3/Azure adapters implement the same interface later; a non-transactional driver
 and an orphan report lists unreferenced blobs — never auto-deleted.
 
 **Upload** `POST /api/documents` (Route Handler): refuse on `Content-Length` over the effective cap (413) before reading; `formData()`;
-sniff, size, hash; one transaction creates the STAGED document, version, blob and audit row; returns `{ versionId, sha256 }`. **Attach**
-is the owner module's server action taking `versionId`: it locks the owner row (`FOR UPDATE`, existing lock helpers), re-runs
-`attachFault` on locked data, writes attachment + audit. **Download** `GET /api/documents/versions/[id]` runs `downloadDecision`,
+sniff, size, hash; one transaction creates the STAGED document, version, blob and audit row; returns `{ versionId, sha256 }`. **Attach,
+detach and new version** are generic actions (`src/app/documents/actions.ts`, BD-DS-16): each locks its owner through the owner
+module's own helper (`withLockedSitting`, `withLockedRequisitionForSourcing`, `withLockedAward`, `lockDelegation`, via
+`src/lib/documents/owners.ts`), then the document, re-runs `attachFault` / `detachFault` / `repinFault` on locked data, and writes
+the attachment, its audit row and the owner's own consequence in one transaction. **Download** `GET /api/documents/versions/[id]` runs `downloadDecision`,
 recomputes the digest (mismatch → INTEGRITY_FAILED event, 500), serves `Content-Disposition: attachment`, stored type, `nosniff`,
 `Cache-Control: private, no-store`, and logs the event. Refused types, sizes and SULIT requests are logged as REFUSED.
 

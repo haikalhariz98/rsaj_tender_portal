@@ -23,8 +23,10 @@ behind a façade. This build may not contact any outside service, and has no sig
 4. **Attachments pin a version and use typed owner FKs.** `DocumentAttachment` names one owner through a typed nullable FK (meeting,
    exercise, award, delegation; more arrive with their modules) and a closed `AttachmentPurpose`; never a polymorphic (type, id).
    A record that was judged on evidence snapshots the pins it was judged on.
-5. **Upload is two-step.** A Route Handler stores and stages a version (Server Actions cap bodies at 1 MB); the owner module's
-   action attaches it under the owner's row lock, re-running the pure check on locked data, with its audit row.
+5. **Upload is two-step.** A Route Handler stores and stages a version (Server Actions cap bodies at 1 MB). Attach, detach and
+   new version are generic actions (`src/app/documents/actions.ts`); each locks its owner through the owner module's own lock
+   helper (`src/lib/documents/owners.ts`), then the document, re-runs the pure check on locked data, and writes with its audit
+   row and the owner's own consequence in one transaction (BD-DS-16, approved 2026-10-01).
 6. **Classification comes from the document class and is snapshotted.** SULIT and unclassified bytes are not served until sign-in
    (OD-2); everything else is served to anyone who can reach the portal, and the screens say so.
 7. **Type and size are organisation policy, unset refuses.** Types are sniffed from content, not trusted from the client. Malware
