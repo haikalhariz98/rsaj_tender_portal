@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { ADDENDUM_STATUS_LABEL, CERT_SIGHTED_LABEL, CHANGE_ROUTE_TEXT, CHECK_STATE_LABEL, CLOSING_CHANGE_KIND_LABEL, DAY_RULE_LABEL, DELIVERY_METHOD_LABEL, FEE_COST_KIND_LABEL, PARTY_SOURCE_LABEL, PATH_LABEL, PHASE_LABEL, SETTING_LABEL, SITE_EVENT_KIND_LABEL, TABLE_AVAILABILITY_LABEL, UNWORDED, windowFindingText } from "./labels";
+import { ADDENDUM_STATUS_LABEL, CERT_SIGHTED_LABEL, CHANGE_ROUTE_TEXT, CHECK_STATE_LABEL, CLOSING_CHANGE_KIND_LABEL, DAY_RULE_LABEL, DELIVERY_METHOD_LABEL, FEE_COST_KIND_LABEL, PARTY_SOURCE_LABEL, PATH_LABEL, PHASE_LABEL, SETTING_LABEL, SITE_EVENT_KIND_LABEL, TABLE_AVAILABILITY_LABEL, tableAvailabilityText, UNWORDED, windowFindingText } from "./labels";
 import { ADDENDUM_STATUSES, ADVERTISEMENT_DAY_RULES, CERT_SIGHTED, CHECK_STATES, CLOSING_CHANGE_KINDS, DELIVERY_METHODS, FEE_COST_KINDS, PARTY_SOURCES, SITE_EVENT_KINDS, WINDOW_PATHS } from "./types";
 import { WINDOW_PHASES } from "./phase";
 
@@ -62,5 +62,13 @@ describe("every enum and state has a label", () => {
 describe("the estimate never feeds the window's public facts (6.2)", () => {
   it("no window module imports the company estimate", () => {
     for (const src of sources) expect(src).not.toMatch(/@\/lib\/scope\/(estimate|estimate-store|sealed)/);
+  });
+});
+
+describe("the Tender Table Document's availability in words", () => {
+  it("a cancelled exercise says it was cancelled, and when; a closed window says the window closed", () => {
+    expect(tableAvailabilityText("WITHDRAWN", "07 Oct 2026")).toBe("Withdrawn: the exercise was cancelled on 07 Oct 2026");
+    expect(tableAvailabilityText("WITHDRAWN", null)).toBe(TABLE_AVAILABILITY_LABEL.WITHDRAWN);
+    expect(tableAvailabilityText("AVAILABLE", "07 Oct 2026")).toBe(TABLE_AVAILABILITY_LABEL.AVAILABLE);
   });
 });

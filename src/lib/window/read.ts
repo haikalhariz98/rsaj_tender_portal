@@ -9,7 +9,7 @@
 
 import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { formatDate, formatOrgDateTime } from "@/lib/format";
+import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 import { uncollectedReceipts } from "@/lib/integration/fee-receipt";
 import { EXERCISE_STATUS_LABEL, REGIME_LABEL } from "@/lib/method/labels";
 import { loadExercise } from "@/lib/method/repo";
@@ -28,10 +28,11 @@ import { windowEditFault } from "./edit";
 import { attendanceCsv, isMandatory, mandatoryPermittedFor } from "./events";
 import { inviteeEditFault, inviteeListFault, regKey } from "./invitees";
 import { closingDay, judgePublish, nameRoutesWithLists, pathOf, phaseOf, proposedInvitees, renderAddendum } from "./judge";
-import { ADDENDUM_STATUS_LABEL, CERT_SIGHTED_LABEL, CHECK_STATE_LABEL, CLOSING_CHANGE_KIND_LABEL, DAY_RULE_LABEL, DELIVERY_METHOD_LABEL, FEE_COST_KIND_LABEL, NOTIFIED_LABEL, PARTY_SOURCE_LABEL, PATH_LABEL, PHASE_LABEL, PHASE_TONE, SITE_EVENT_KIND_LABEL, TABLE_AVAILABILITY_LABEL, windowFindingText } from "./labels";
-import { closingHistory, tableDocumentAvailability, type WindowPhase } from "./phase";
+import { ADDENDUM_STATUS_LABEL, CLOSING_CHANGE_KIND_LABEL, DAY_RULE_LABEL, DELIVERY_METHOD_LABEL, FEE_COST_KIND_LABEL, NOTIFIED_LABEL, PARTY_SOURCE_LABEL, PATH_LABEL, PHASE_LABEL, PHASE_TONE, SITE_EVENT_KIND_LABEL, tableAvailabilityText, windowFindingText } from "./labels";
+import { closingHistory, sinceApprovedLines, standingEntry, tableDocumentAvailability, tablePrintRefusal, type TableAvailability, type WindowPhase } from "./phase";
 import { basisTotalOf, eventFactsOf, loadCalendar, loadChannels, loadFloors, loadWindowPolicy, windowData, type WindowData } from "./repo";
 import { annotationLines, isAnnotation, voidSaleFault } from "./sale";
+import { saleChecks } from "./sale-checks";
 import type { Finding, Provenance } from "./types";
 
 const NOT_SET = "Not set";
@@ -100,6 +101,9 @@ export async function windowTab(exerciseId: string) {
   const lead = estimateLeadWarning(scope.lastEstimateVersionOn, ex.closingAt, scopePolicy, tz);
   const changeRoutes = windowChangeRoutesOf(ex.approvalInstances);
   const pending = changeRoutes.find((r) => r.status === "PENDING") ?? null;
+  const cancelledOn = formatCancelledOn(w?.cancellations ?? [], tz);
+  // A cancelled exercise and the one that replaces it link each other (FR-ADV-016).
+  const related = await db.sourcingExercise.findMany({ where: { OR: [...(ex.replacesExerciseId ? [{ id: ex.replacesExerciseId }] : []), { replacesExerciseId: ex.id }] }, select: { id: true, reference: true, replacesExerciseId: true }, orderBy: { reference: "asc" } });
   const history = closingHistory(d.approved?.approvedClosingAt ? { closingAt: d.approved.approvedClosingAt, approvedAt: d.approved.approvedAt } : null, w?.closingChanges ?? []);
   const proposed = proposedInvitees(d.parties);
   const nameRoutes = nameRoutesWithLists(ex, d.invitees);
@@ -118,7 +122,7 @@ export async function windowTab(exerciseId: string) {
     pathKey: path,
     pathChanged: !!(w && methodPath && w.path !== methodPath),
     phase: { key: phase.phase, label: PHASE_LABEL[phase.phase], tone: PHASE_TONE[phase.phase], submissionOpen: phase.submissionOpen },
-    tableDocument: TABLE_AVAILABILITY_LABEL[tableDocumentAvailability(phase.phase)],
+    tableDocument: tableAvailabilityText(tableDocumentAvailability(phase.phase), cancelledOn),
     dates: {
       start: day(ex.tenderingStartOn),
       closing: ex.closingAt ? formatOrgDateTime(ex.closingAt, tz) : NOT_SET,
@@ -140,7 +144,7 @@ export async function windowTab(exerciseId: string) {
         const f = d.floors.find((x) => x.regime === ex.regime);
         return f ? `${formatMoney(f.minimum)} (${provenance(f.provenance)}${f.governingSource ? `, ${f.governingSource}` : ""})` : NOT_SET;
       })(),
-      basis: (w?.feeLines ?? []).map((l) => ({ id: l.id, cost: FEE_COST_KIND_LABEL[l.kind], description: l.description, quantity: l.quantity?.toString() ?? null, unitCost: l.unitCost ? money(l.unitCost) : null, amount: money(l.amount) })),
+      basis: (w?.feeLines ?? []).map((l) => ({ id: l.id, cost: FEE_COST_KIND_LABEL[l.kind], description: l.description, quantity: l.quantity?.toString() ?? null, unitCost: l.unitCost ? money(l.unitCost) : null, amount: money(l.amount), raw: { kind: l.kind, description: l.description, quantity: l.quantity?.toString() ?? "", unitCost: l.unitCost?.toString() ?? "", amount: l.quantity ? "" : l.amount.toString() } })),
       basisTotal: w ? formatMoney(basisTotalOf(w)) : formatMoney(0n),
     },
     channels: path === "ADVERTISED"
@@ -166,7 +170,7 @@ export async function windowTab(exerciseId: string) {
       : null,
     findings: words(j.result.findings),
     notice: w?.noticeText ? { text: w.noticeText, template: w.noticeTemplateCode ? `${d.templates.notice?.nameEn ?? "A template"}, text version ${w.noticeTemplateBodyVersion}` : null } : j.notice?.text ? { text: j.notice.text, template: null, preview: true } : null,
-    history: history.map((h) => ({ what: h.source === "APPROVED" ? "Approved for tendering" : CLOSING_CHANGE_KIND_LABEL[h.source], closing: formatOrgDateTime(h.closingAt, tz), lastDayOfSale: h.purchaseCloseDay ? day(h.purchaseCloseDay) : null, on: h.at ? formatOrgDateTime(h.at, tz) : NOT_SET, reason: h.reason || null })),
+    history: history.map((h, i) => ({ stands: standingEntry(history.length, phase.phase) === i, what: h.source === "APPROVED" ? "Approved for tendering" : CLOSING_CHANGE_KIND_LABEL[h.source], closing: formatOrgDateTime(h.closingAt, tz), lastDayOfSale: h.purchaseCloseDay ? day(h.purchaseCloseDay) : null, on: h.at ? formatOrgDateTime(h.at, tz) : NOT_SET, reason: h.reason || null })),
     changes: (w?.closingChanges ?? []).map((c) => {
       const route = changeRoutes.find((r) => r.id === c.approvalInstanceId) ?? null;
       return {
@@ -183,7 +187,9 @@ export async function windowTab(exerciseId: string) {
     }),
     cancellations: (w?.cancellations ?? []).map((c) => ({ id: c.id, reason: c.reason, feesRefunded: c.feeRefund ? "Yes" : "No", state: c.appliedAt ? `Applied ${formatOrgDateTime(c.appliedAt, tz)}` : c.refusedAt ? `Not made: ${c.refusedReason}` : "With approval", notices: c.notices.map((n) => ({ id: n.id, recipient: n.party.name, ...delivery(n) })) })),
     pendingChangeRouteId: pending?.id ?? null,
-    replaces: ex.replacesExerciseId,
+    replaces: related.filter((r) => r.id === ex.replacesExerciseId).map((r) => ({ id: r.id, reference: r.reference }))[0] ?? null,
+    replacedBy: related.filter((r) => r.replacesExerciseId === ex.id).map((r) => ({ id: r.id, reference: r.reference })),
+    cancelledOn,
     actions: {
       save: allowed(editFault),
       publish: firstBlock(j.result.findings) ? { allowed: false as const, reason: windowFindingText(firstBlock(j.result.findings)!) } : { allowed: true as const },
@@ -227,12 +233,7 @@ export async function saleRegister(exerciseId: string) {
         amount: money(s.amount),
         soldOn: day(s.soldOn),
         paymentMethod: s.paymentMethod,
-        checks: [
-          `Authority: ${s.authoritySighted ? "sighted" : "not sighted"}`,
-          ...(s.restrictionCertSighted ? [`Status certificate: ${CERT_SIGHTED_LABEL[s.restrictionCertSighted].toLowerCase()}${s.restrictionCertValidUntil ? `, valid until ${day(s.restrictionCertValidUntil)}` : ""}`] : []),
-          `Registration: ${CHECK_STATE_LABEL[s.registrationCheck]}`,
-          `Suspension: ${CHECK_STATE_LABEL[s.suspensionCheck]}`,
-        ],
+        checks: saleChecks({ authoritySighted: s.authoritySighted, certSighted: s.restrictionCertSighted, certValidUntil: s.restrictionCertValidUntil ? storedDay(s.restrictionCertValidUntil) : null, registrationCheck: s.registrationCheck, suspensionCheck: s.suspensionCheck }, closingDay(ex.closingAt, org.timeZone)),
         addendaAcknowledged: `${acked} of ${addenda.length}`,
         issuedBy: `${s.issuedBy.name} (recorded on their behalf, not signed)`,
         voided: s.voidedAt ? `Voided: ${s.voidReason}` : null,
@@ -418,13 +419,36 @@ export async function windowColumns(exerciseIds: readonly string[]) {
 export type { Loaded };
 
 /// FR-DOC-010: whether the Tender Table Document is available now, in words, from the window's phase (ADR 0014).
-export async function tableDocumentNote(exerciseId: string): Promise<string | null> {
+export async function tableDocumentNote(exerciseId: string): Promise<{ availability: TableAvailability; text: string; refusal: string | null; sinceApproved: string[] } | null> {
   const l = await loadExercise(exerciseId);
   if (!l) return null;
-  const w = await db.exerciseWindow.findUnique({ where: { exerciseId }, select: { purchaseFromDay: true, purchaseCloseDay: true } });
-  const phase = phaseOf(l.ex, w, new Date(), l.org.timeZone).phase;
-  return TABLE_AVAILABILITY_LABEL[tableDocumentAvailability(phase)];
+  const tz = l.org.timeZone;
+  const w = await db.exerciseWindow.findUnique({
+    where: { exerciseId },
+    select: {
+      purchaseFromDay: true,
+      purchaseCloseDay: true,
+      cancellations: { select: { appliedAt: true } },
+      closingChanges: { select: { kind: true, toClosingAt: true, toPurchaseCloseDay: true, appliedAt: true } },
+      addenda: { select: { status: true } },
+    },
+  });
+  const phase = phaseOf(l.ex, w, new Date(), tz).phase;
+  const availability = tableDocumentAvailability(phase);
+  const history = closingHistory(null, (w?.closingChanges ?? []).map((c) => ({ ...c, reason: "" })));
+  return {
+    availability,
+    text: tableAvailabilityText(availability, formatCancelledOn(w?.cancellations ?? [], tz)),
+    refusal: tablePrintRefusal(availability),
+    sinceApproved: sinceApprovedLines({ closing: l.ex.closingAt ? formatOrgDateTime(l.ex.closingAt, tz) : null, closingChanges: history.length, addendaIssued: (w?.addenda ?? []).filter((a) => a.status === "ISSUED").length }),
+  };
 }
+
+/// The day an applied cancellation took effect, as the organisation reads it; null where none was applied.
+const formatCancelledOn = (cancellations: readonly { appliedAt: Date | null }[], tz: string | null) => {
+  const c = cancellations.find((x) => x.appliedAt);
+  return c?.appliedAt ? formatOrgDay(c.appliedAt, tz) : null;
+};
 
 /**
  * The name approval's invitee list (ADR 0015): the list as it stands beside the list the latest

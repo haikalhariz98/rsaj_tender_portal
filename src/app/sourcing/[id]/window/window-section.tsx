@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 
 import { EscalateDrawer } from "@/app/approvals/editors";
 import { ClockIcon, FileIcon, RouteIcon, ShieldIcon, SlidersIcon, UsersIcon } from "@/components/icons";
@@ -91,7 +92,7 @@ export function windowHeader(d: WindowTab, c: WindowContext): { actions: ReactNo
             rows={[
               ["Way of tendering", d.path],
               ["Closes", closingNow],
-              ["Advertisement day", d.dates.advertisedOn],
+              [d.pathKey === "INVITED" ? "Invited on" : "Advertisement day", d.dates.advertisedOn],
               ["Last day of sale", d.dates.lastDayOfSale],
               ["Document fee", d.fee.amount],
             ]}
@@ -141,7 +142,21 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
           />
           {d.pathChanged && <Callout tone="warn" title="The method has changed since the window was prepared">The method now calls for the other way of tendering. Check the method before the window is published.</Callout>}
           {d.frozenRules && <p className="text-[12.5px] text-ink-3">{d.frozenRules}</p>}
-          {d.replaces && <p className="text-[12.5px] text-ink-3">This exercise replaces an earlier one, cancelled.</p>}
+          {d.replaces && (
+            <p className="text-[12.5px] text-ink-3">
+              This exercise replaces <Link href={`/sourcing/${d.replaces.id}`} className="font-semibold">{d.replaces.reference}</Link>, which was cancelled.
+            </p>
+          )}
+          {d.replacedBy.length > 0 && (
+            <p className="text-[12.5px] text-ink-3">
+              Replaced by {d.replacedBy.map((r, i) => (
+                <span key={r.id}>
+                  {i > 0 && ", "}
+                  <Link href={`/sourcing/${r.id}`} className="font-semibold">{r.reference}</Link>
+                </span>
+              ))}.
+            </p>
+          )}
         </CardBody>
       </Card>
 
@@ -214,7 +229,7 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
                   <col style={{ width: 90 }} />
                   <col style={{ width: 120 }} />
                   <col style={{ width: 130 }} />
-                  <ActionsCol labelled={1} icons={0} />
+                  <ActionsCol labelled={2} icons={0} />
                 </colgroup>
                 <THead>
                   <Th>Cost</Th>
@@ -233,7 +248,10 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
                       <Td numeric label="Unit cost">{l.unitCost ?? "—"}</Td>
                       <Td numeric label="Amount"><span className="font-semibold">{l.amount}</span></Td>
                       <Td>
-                        <RowActions>{d.actions.save.allowed && <RemoveFeeLineDrawer exerciseId={c.exerciseId} lineId={l.id} label={l.cost} />}</RowActions>
+                        <RowActions>
+                          {d.actions.save.allowed && <FeeLineDrawer exerciseId={c.exerciseId} allowed={d.actions.save} kinds={FEE_COST_KINDS.map((k) => ({ value: k, label: FEE_COST_KIND_LABEL[k] }))} line={{ id: l.id, label: l.cost, values: l.raw }} />}
+                          {d.actions.save.allowed && <RemoveFeeLineDrawer exerciseId={c.exerciseId} lineId={l.id} label={l.cost} />}
+                        </RowActions>
                       </Td>
                     </Tr>
                   ))}
@@ -456,7 +474,7 @@ function ClosingCard({ d, c, latest, earlier }: { d: WindowTab; c: WindowContext
                   <li key={i} className="flex flex-col gap-0.5 px-5 py-3 text-[13.5px] sm:px-6">
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold text-ink">{h.closing}</span>
-                      {i === d.history.length - 1 && <Chip tone="brand">Stands now</Chip>}
+                      {h.stands && <Chip tone="brand">Stands now</Chip>}
                       <span className="text-ink-3">{h.what}</span>
                     </span>
                     <span className="text-[12.5px] break-words text-ink-3">

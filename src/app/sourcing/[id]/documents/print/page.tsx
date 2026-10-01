@@ -24,6 +24,28 @@ export default async function PackPrintPage(props: PageProps<"/sourcing/[id]/doc
   const table = (await props.searchParams).set === "table";
   const [v, tableNote] = await Promise.all([printView(id, table ? "table" : "pack"), table ? tableDocumentNote(id) : null]);
   if (!v) notFound();
+  // FR-DOC-010: the Tender Table Document is printed only while it is available for inspection.
+  if (table && tableNote?.refusal) {
+    return (
+      <>
+        <RecordCrumb label={v.exercise.reference} />
+        <PageHeader eyebrow={<Link href={`/sourcing/${id}?tab=documents`}>Back to the tender documents</Link>} title="The Tender Table Document is not available" meta={[<span key="ref" className="font-mono text-[12.5px]">{v.exercise.reference}</span>, v.exercise.title]} />
+        <Card>
+          <EmptyState
+            title={tableNote.text}
+            action={
+              <span className="flex flex-wrap justify-center gap-2">
+                <ButtonLink href={`/sourcing/${id}?tab=documents`} variant="secondary" size="sm">Back to the tender documents</ButtonLink>
+                <ButtonLink href={`/sourcing/${id}/documents/print`} variant="ghost" size="sm">Print the whole pack</ButtonLink>
+              </span>
+            }
+          >
+            {tableNote.refusal}
+          </EmptyState>
+        </Card>
+      </>
+    );
+  }
   if ("none" in v) {
     return (
       <>
@@ -65,7 +87,13 @@ export default async function PackPrintPage(props: PageProps<"/sourcing/[id]/doc
           </div>
         )}
         <h1 className={`${table ? "mb-2" : "mb-6"} text-[22px] leading-tight font-bold text-ink`}>{table ? `Tender Table Document: ${v.exercise.title}` : v.title}</h1>
-        {table && <p className="mb-6 text-[13.5px] text-ink-2">Only the parts of this pack flagged for the Tender Table Document, in print order. The whole pack is the other link above.{tableNote ? ` ${tableNote}.` : ""}</p>}
+        {table && (
+          <div className="mb-6 flex flex-col gap-1 text-[13.5px] text-ink-2">
+            <p>Only the parts of this pack flagged for the Tender Table Document, in print order. The whole pack is the other link above.</p>
+            {tableNote && <p className="font-semibold">{tableNote.text}.</p>}
+            {tableNote?.sinceApproved.map((l) => <p key={l}>{l}</p>)}
+          </div>
+        )}
         <header className="mb-8 flex flex-wrap justify-between gap-x-6 gap-y-1 border-b border-line pb-3 text-[11.5px] text-ink-3">
           <span>{v.exercise.reference}</span>
           <span>{v.document}</span>

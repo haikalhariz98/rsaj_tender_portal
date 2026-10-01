@@ -16,7 +16,7 @@ export interface SaleRow {
   amount: string;
   soldOn: string;
   paymentMethod: string;
-  checks: string[];
+  checks: { text: string; warn: boolean }[];
   addendaAcknowledged: string;
   issuedBy: string;
   voided: string | null;
@@ -45,7 +45,7 @@ export function SaleList({ exerciseId, sales }: { exerciseId: string; sales: Sal
         kind: "chips",
         items: [
           ...(s.voided ? [{ text: "Void", tone: "err" as const }] : []),
-          ...s.checks.map((c) => c.replace(/: Not checked: the supplier register is not built yet/, ": not checked")).map((c) => ({ text: c, tone: /not checked|not sighted|not shown|failed/i.test(c) ? ("warn" as const) : ("ok" as const) })),
+          ...s.checks.map((c) => ({ text: c.text, tone: c.warn ? ("warn" as const) : ("ok" as const) })),
         ],
       },
       addenda: { kind: "text", text: s.addendaAcknowledged },

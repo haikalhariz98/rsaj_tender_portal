@@ -17,7 +17,7 @@ import { CONFIG_UNWORDED, configFaultText } from "./config";
 
 const SETTINGS = "Configuration, Invitation controls";
 
-export const PATH_LABEL: Record<WindowPath, string> = { ADVERTISED: "Advertised", INVITED: "By invitation" };
+export const PATH_LABEL: Record<WindowPath, string> = { ADVERTISED: "By advertisement", INVITED: "By invitation" };
 export const FEE_COST_KIND_LABEL: Record<FeeCostKind, string> = {
   PAPER_A4: "A4 paper",
   PAPER_A3: "A3 paper",
@@ -70,6 +70,10 @@ export const TABLE_AVAILABILITY_LABEL: Record<TableAvailability, string> = {
   WITHDRAWN: "Withdrawn: the window has closed",
   UNKNOWN: "Not known: the organisation's time zone or the window's days are not set",
 };
+/// The availability in words. A cancelled exercise's Table Document is withdrawn because it was cancelled, on the day it was, not because a window closed.
+export function tableAvailabilityText(a: TableAvailability, cancelledOn: string | null): string {
+  return a === "WITHDRAWN" && cancelledOn ? `Withdrawn: the exercise was cancelled on ${cancelledOn}` : TABLE_AVAILABILITY_LABEL[a];
+}
 export const NOTIFIED_LABEL: Record<NotifiedState, string> = { NO_RECIPIENTS: "No purchasers to notify", COMPLETE: "Every recipient notified", OUTSTANDING: "Not every recipient notified yet" };
 export const CHANGE_ROUTE_TEXT: Record<ChangeRouteState, string> = {
   RESOLVED: "Resolved",

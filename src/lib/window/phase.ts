@@ -70,6 +70,27 @@ export function tableDocumentAvailability(phase: WindowPhase): TableAvailability
   }
 }
 
+/**
+ * Whether the Tender Table Document may be PRINTED now (FR-DOC-010): only while it is available
+ * for inspection, from publication to the closing. Outside that window the print is refused with
+ * the availability in words beside it, never a blank page; null where it may be printed.
+ */
+export function tablePrintRefusal(availability: TableAvailability): string | null {
+  return availability === "AVAILABLE" ? null : "It is printed only while it is available for inspection, from publication to the closing.";
+}
+
+/**
+ * What a printout of the documents as approved does not say: the print is the text frozen at
+ * approval, so a closing moved since and the addenda issued since are named beside it.
+ */
+export function sinceApprovedLines(i: { closing: string | null; closingChanges: number; addendaIssued: number }): string[] {
+  const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+  return [
+    i.closingChanges > 0 ? `The closing has been changed ${i.closingChanges} ${plural(i.closingChanges, "time", "times")} since approval; it now stands at ${i.closing ?? "a time not set"}.` : "The closing is as approved.",
+    i.addendaIssued > 0 ? `${i.addendaIssued} ${plural(i.addendaIssued, "addendum has", "addenda have")} been issued since approval. This text is as approved and does not include ${plural(i.addendaIssued, "it", "them")}.` : "No addendum has been issued since approval.",
+  ];
+}
+
 export interface ClosingHistoryEntry {
   /// APPROVED: 6.4's approved dates, frozen on the pack (X-2). Otherwise the applied change's kind.
   source: "APPROVED" | "CORRECTION" | "EXTENSION";
@@ -93,6 +114,22 @@ export function closingHistory(
   const applied = changes.filter((c) => c.appliedAt != null).sort((a, b) => a.appliedAt!.getTime() - b.appliedAt!.getTime());
   for (const c of applied) out.push({ source: c.kind, closingAt: c.toClosingAt, purchaseCloseDay: c.toPurchaseCloseDay, at: c.appliedAt, reason: c.reason });
   return out;
+}
+
+/**
+ * The history entry that "stands now": the last, unless the exercise is cancelled. Cancelled is
+ * judged first (as in `windowPhase`): a cancelled exercise's closing is no longer a date anything
+ * will happen on, so no entry stands. Null where none does.
+ */
+export function standingEntry(historyLength: number, phase: WindowPhase): number | null {
+  if (phase === "CANCELLED" || historyLength === 0) return null;
+  return historyLength - 1;
+}
+
+/// The verb a header puts before the closing: it closes, it closed, or it was to close and the exercise was cancelled.
+export function closingVerb(phase: WindowPhase): "Closes" | "Closed" | "Was to close" {
+  if (phase === "CANCELLED") return "Was to close";
+  return phase === "CLOSED" ? "Closed" : "Closes";
 }
 
 /// Whether the exercise's closing is the history's last entry (X-2: only the two writers write it).

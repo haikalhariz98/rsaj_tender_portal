@@ -79,6 +79,7 @@ import { awardOpenRefusal, exerciseOpenForAward } from "@/lib/award/gate";
 import type { WindowGate } from "@/lib/window/gate";
 import { WINDOW_ENTITIES } from "@/lib/window/audit-view";
 import { PHASE_LABEL, PHASE_TONE } from "@/lib/window/labels";
+import { closingVerb } from "@/lib/window/phase";
 import { readWindowGate } from "@/lib/window/repo";
 import { nameListTab } from "@/lib/window/read";
 import { exerciseMatters } from "@/lib/award/repo";
@@ -552,7 +553,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
           methodName,
           decided?.contractType.nameEn ?? typeName(ex.contractTypeCode) ?? "Contract type not set",
           ex.regime ? REGIME_SHORT[ex.regime as Regime] : "Regime not determined",
-          ...(ex.closingAt ? [<span key="closing">{`${windowGateNow.phase === "CLOSED" ? "Closed" : "Closes"} ${formatOrgDateTime(ex.closingAt, org.timeZone)}`}</span>] : []),
+          ...(ex.closingAt ? [<span key="closing">{`${closingVerb(windowGateNow.phase)} ${formatOrgDateTime(ex.closingAt, org.timeZone)}`}</span>] : []),
         ]}
         actions={actions}
         actionsNote={headerNote}

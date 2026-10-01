@@ -132,7 +132,7 @@ export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }
               { label: "Contract basis", value: d.facts.contractBasis },
               { label: "Standard form", value: d.facts.standardForm },
               { label: "Version", value: d.facts.version },
-              ...(d.pack ? [{ label: "Tender Table Document", value: tableNote ?? "Not known" }] : []),
+              ...(d.pack ? [{ label: "Tender Table Document", value: tableNote?.text ?? "Not known" }] : []),
               ...(d.pack || d.exercise.status !== "Draft" ? [{ label: "Restricted", value: d.facts.restricted }] : []),
               ...(d.dates && "approvedOn" in d.dates
                 ? [

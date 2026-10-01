@@ -7,7 +7,7 @@ import { manualFeeReceipt, uncollectedReceipts } from "@/lib/integration/fee-rec
 
 import { event } from "./fixture";
 import { windowFindingText } from "./labels";
-import { annotationLines, isAnnotation, isReceiptDuplicate, RECEIPT_INDEX, saleAnnotation, saleFaults, voidSaleFault, type SaleInput } from "./sale";
+import { annotationLines, certExpiresBeforeClosing, isAnnotation, isReceiptDuplicate, RECEIPT_INDEX, saleAnnotation, saleFaults, voidSaleFault, type SaleInput } from "./sale";
 
 /**
  * FR-ADV-009–012, FR-DOC-009 at sale; OD-9 (register checks read "not checked", a warning, never a
@@ -62,6 +62,14 @@ describe("each refusal", () => {
     expect(codes(fs, "warn")).toContain("CERT_EXPIRES_BEFORE_CLOSING");
     // Valid until the sale day itself passes.
     expect(codes(saleFaults({ ...ok, restricted: true, certSighted: "ORIGINAL", certValidUntil: "2026-11-05" }), "block")).toEqual([]);
+  });
+  it("the register re-judges a certificate against the closing as it stands: an extension past its day warns, valid on the closing day itself does not", () => {
+    expect(certExpiresBeforeClosing("2026-11-10", "2026-11-17")).toBe(true);
+    expect(certExpiresBeforeClosing("2026-11-10", "2026-11-10")).toBe(false);
+    expect(certExpiresBeforeClosing("2026-11-17", "2026-11-17")).toBe(false);
+    expect(certExpiresBeforeClosing("2026-11-17", "2026-11-24")).toBe(true);
+    expect(certExpiresBeforeClosing(null, "2026-11-24")).toBe(false);
+    expect(certExpiresBeforeClosing("2026-11-17", null)).toBe(false);
   });
   it("not restricted: the certificate is not asked", () => {
     expect(codes(saleFaults({ ...ok, certSighted: "NOT_SHOWN" }), "block")).toEqual([]);

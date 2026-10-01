@@ -4,7 +4,7 @@ import { dayToDate } from "@/lib/dates";
 
 import { klAt } from "./fixture";
 import { PHASE_LABEL, TABLE_AVAILABILITY_LABEL } from "./labels";
-import { closingConsistent, closingHistory, tableDocumentAvailability, WINDOW_PHASES, windowPhase, type PhaseInput } from "./phase";
+import { closingConsistent, closingHistory, closingVerb, sinceApprovedLines, standingEntry, tablePrintRefusal, tableDocumentAvailability, WINDOW_PHASES, windowPhase, type PhaseInput } from "./phase";
 
 /**
  * ADR 0014: the window's phases are derived from the stored instants on every read, never stored.
@@ -88,5 +88,32 @@ describe("the closing's history (X-2, FR-ADV-015)", () => {
   it("applied changes are in the order applied", () => {
     const later = { ...ext, toClosingAt: klAt("2026-12-01"), appliedAt: at("2026-11-20T02:00:00Z") };
     expect(closingHistory(approved, [later, ext]).map((e) => e.closingAt.toISOString())).toEqual([klAt("2026-11-17"), klAt("2026-11-24"), klAt("2026-12-01")].map((d) => d.toISOString()));
+  });
+});
+
+describe("what stands now, and the verb before the closing", () => {
+  it("the last entry stands, unless the exercise is cancelled: cancelled is judged first", () => {
+    expect(standingEntry(3, "OPEN_FOR_PURCHASE")).toBe(2);
+    expect(standingEntry(3, "CLOSED")).toBe(2);
+    expect(standingEntry(3, "CANCELLED")).toBeNull();
+    expect(standingEntry(0, "OPEN_FOR_PURCHASE")).toBeNull();
+  });
+  it("a cancelled exercise 'was to close'; a closed one 'closed'; the rest 'close'", () => {
+    expect(closingVerb("CANCELLED")).toBe("Was to close");
+    expect(closingVerb("CLOSED")).toBe("Closed");
+    for (const p of ["NOT_PUBLISHED", "PUBLISHED", "OPEN_FOR_PURCHASE", "CLOSED_FOR_PURCHASE", "UNKNOWN"] as const) expect(closingVerb(p)).toBe("Closes");
+  });
+});
+
+describe("printing the Tender Table Document (FR-DOC-010)", () => {
+  it("prints only while available; otherwise refuses, saying when it is printed", () => {
+    expect(tablePrintRefusal("AVAILABLE")).toBeNull();
+    for (const a of ["NOT_YET", "WITHDRAWN", "UNKNOWN"] as const) expect(tablePrintRefusal(a)).toMatch(/printed only while it is available for inspection, from publication to the closing/);
+  });
+  it("names a closing moved and addenda issued since approval", () => {
+    expect(sinceApprovedLines({ closing: null, closingChanges: 0, addendaIssued: 0 })).toEqual(["The closing is as approved.", "No addendum has been issued since approval."]);
+    const [a, b] = sinceApprovedLines({ closing: "21 Oct 2026 · 15:00", closingChanges: 1, addendaIssued: 2 });
+    expect(a).toBe("The closing has been changed 1 time since approval; it now stands at 21 Oct 2026 · 15:00.");
+    expect(b).toContain("2 addenda have been issued since approval");
   });
 });

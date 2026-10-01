@@ -69,6 +69,14 @@ export interface SaleInput {
   paymentMethod: string;
 }
 
+/**
+ * Whether a purchaser's status certificate runs out before the closing: judged against the
+ * closing as it stands NOW, so an extension that moves the closing past the certificate's day
+ * turns the register's reading to a warning, and a correction back turns it clear. A certificate
+ * valid until the closing day itself is valid at the closing. Null where either day is unknown.
+ */
+export const certExpiresBeforeClosing = (validUntil: string | null, closingDay: string | null): boolean => (validUntil != null && closingDay != null ? validUntil < closingDay : false);
+
 export function saleFaults(i: SaleInput): Finding<SaleFault>[] {
   const out: Finding<SaleFault>[] = [];
   const f = (code: SaleFault, level: Finding["level"] = "block", data?: Finding["data"]) => out.push({ code, level, ...(data ? { data } : {}) });
@@ -84,7 +92,7 @@ export function saleFaults(i: SaleInput): Finding<SaleFault>[] {
     if (i.certSighted == null || i.certSighted === "NOT_SHOWN") f("CERT_NOT_SHOWN");
     else if (!i.certValidUntil) f("CERT_EXPIRY_NOT_RECORDED");
     else if (i.soldOn && i.certValidUntil < i.soldOn) f("CERT_EXPIRED", "block", { validUntil: i.certValidUntil });
-    else if (i.closingDay && i.certValidUntil < i.closingDay) f("CERT_EXPIRES_BEFORE_CLOSING", "warn", { validUntil: i.certValidUntil, closingDay: i.closingDay });
+    else if (certExpiresBeforeClosing(i.certValidUntil, i.closingDay)) f("CERT_EXPIRES_BEFORE_CLOSING", "warn", { validUntil: i.certValidUntil, closingDay: i.closingDay });
   }
   // FR-ADV-013: a mandatory event gates the sale on the attendance register.
   for (const a of attendanceFaults(i.partyId, i.events, i.mandatoryPermitted)) out.push(a);
