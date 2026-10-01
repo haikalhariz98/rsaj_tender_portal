@@ -267,6 +267,7 @@ export type VoteFault =
   | "MEETING_CLOSED"
   | "MATTER_NOT_TABLED"
   | "MATTER_DECIDED"
+  | "MATTER_WITHDRAWN"
   | "TIME_ZONE_UNSET"
   | "NOT_A_PRESENT_VOTER"
   | "RECUSED";
@@ -299,6 +300,8 @@ export function canVote(i: {
   recusedIds: readonly string[];
   choice: string;
   votedAt: string;
+  /// Withdrawn from the agenda before the sitting opened: nothing is recorded on it.
+  withdrawn?: boolean;
 }): { ok: true } | { ok: false; fault: VoteFault } {
   // Malformed input first (400), whatever the choice; only then is a well-formed
   // ABSTAIN refused on its merits (422) — the order ruling 8.10 sets.
@@ -313,6 +316,7 @@ export function canVote(i: {
   // would read as before it, which misstates why the vote is refused.
   if (i.meetingStatus === "SCHEDULED") return { ok: false, fault: "MEETING_NOT_STARTED" };
   if (i.meetingStatus !== "IN_PROGRESS") return { ok: false, fault: "MEETING_CLOSED" };
+  if (i.withdrawn) return { ok: false, fault: "MATTER_WITHDRAWN" };
   if (i.outcome !== "PENDING") return { ok: false, fault: "MATTER_DECIDED" };
   if (!i.tabled) return { ok: false, fault: "MATTER_NOT_TABLED" };
   if (i.today == null) return { ok: false, fault: "TIME_ZONE_UNSET" };
@@ -336,6 +340,7 @@ export const VOTE_FAULT_STATUS: Record<VoteFault, 400 | 403 | 409 | 422> = {
   MEETING_CLOSED: 409,
   MATTER_NOT_TABLED: 409,
   MATTER_DECIDED: 409,
+  MATTER_WITHDRAWN: 409,
   TIME_ZONE_UNSET: 409,
   NOT_A_PRESENT_VOTER: 403,
   RECUSED: 403,
@@ -346,6 +351,7 @@ export const VOTE_FAULT_STATUS: Record<VoteFault, 400 | 403 | 409 | 422> = {
 export type RecusalFault =
   | "SITTING_CLOSED"
   | "MATTER_DECIDED"
+  | "MATTER_WITHDRAWN"
   | "NOT_A_VOTING_MEMBER"
   | "ALREADY_RECUSED"
   | "ALREADY_VOTED";
@@ -364,11 +370,40 @@ export function checkRecusal(i: {
   role: "VOTING" | "ALTERNATE" | "NON_VOTING" | "CONTESTED" | "NOT_A_MEMBER";
   alreadyRecused: boolean;
   hasVoted: boolean;
+  withdrawn?: boolean;
 }): { ok: true } | { ok: false; fault: RecusalFault } {
   if (i.meetingStatus === "MINUTED" || i.meetingStatus === "CANCELLED") return { ok: false, fault: "SITTING_CLOSED" };
+  if (i.withdrawn) return { ok: false, fault: "MATTER_WITHDRAWN" };
   if (i.outcome !== "PENDING") return { ok: false, fault: "MATTER_DECIDED" };
   if (i.role !== "VOTING" && i.role !== "ALTERNATE") return { ok: false, fault: "NOT_A_VOTING_MEMBER" };
   if (i.alreadyRecused) return { ok: false, fault: "ALREADY_RECUSED" };
   if (i.hasVoted) return { ok: false, fault: "ALREADY_VOTED" };
   return { ok: true };
+}
+
+// ------------------------------------------------------------------- withdrawal
+
+export type WithdrawFault = "SITTING_STARTED" | "MATTER_DECIDED" | "ALREADY_WITHDRAWN" | "MATTER_CITED" | "HAS_DEPENDENTS" | "REASON_REQUIRED";
+
+/**
+ * Whether a tabled matter may be withdrawn from the agenda (6.10 follow-up, 6.11 BD-31):
+ * only before the sitting opens — once it is in progress a pending matter is deferred,
+ * with a note — only while undecided, never once something cites it, and with a reason.
+ * The row is kept and the withdrawal audited; the matter is then left out of the votes,
+ * the quorum and the minuting.
+ */
+export function withdrawFault(i: { meetingStatus: MeetingStatus; outcome: DecisionOutcome; withdrawn: boolean; cited: boolean; dependents?: number; reason: string }): WithdrawFault | null {
+  if (i.withdrawn) return "ALREADY_WITHDRAWN";
+  if (i.meetingStatus !== "SCHEDULED") return "SITTING_STARTED";
+  if (i.outcome !== "PENDING") return "MATTER_DECIDED";
+  if (i.cited) return "MATTER_CITED";
+  // A matter another waits on cannot leave: the other would wait for ever.
+  if ((i.dependents ?? 0) > 0) return "HAS_DEPENDENTS";
+  if (!i.reason.trim()) return "REASON_REQUIRED";
+  return null;
+}
+
+/// The outcomes a sitting is minuted on: a withdrawn matter is not on the agenda.
+export function liveOutcomes<T extends { outcome: DecisionOutcome; withdrawnAt: Date | null }>(decisions: readonly T[]): DecisionOutcome[] {
+  return decisions.filter((d) => !d.withdrawnAt).map((d) => d.outcome);
 }

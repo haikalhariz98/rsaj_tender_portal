@@ -392,3 +392,29 @@ describe("acceptance small: input validation before ABSTAIN", () => {
     expect(VOTE_FAULT_STATUS.INVALID_DATE).toBe(400);
   });
 });
+
+describe("withdrawing a matter from the agenda (6.10 follow-up, 6.11 BD-31)", () => {
+  const base = { meetingStatus: "SCHEDULED" as const, outcome: "PENDING" as const, withdrawn: false, cited: false, dependents: 0, reason: "Paper not ready" };
+  it("is allowed before the sitting opens, on an undecided matter nothing cites, with a reason", async () => {
+    const { withdrawFault } = await import("./matter");
+    expect(withdrawFault(base)).toBeNull();
+  });
+  it.each([
+    [{ meetingStatus: "IN_PROGRESS" as const }, "SITTING_STARTED"],
+    [{ meetingStatus: "MINUTED" as const }, "SITTING_STARTED"],
+    [{ outcome: "DEFERRED" as const }, "MATTER_DECIDED"],
+    [{ withdrawn: true }, "ALREADY_WITHDRAWN"],
+    [{ cited: true }, "MATTER_CITED"],
+    [{ dependents: 1 }, "HAS_DEPENDENTS"],
+    [{ reason: "  " }, "REASON_REQUIRED"],
+  ] as const)("refuses %o as %s", async (change, fault) => {
+    const { withdrawFault } = await import("./matter");
+    expect(withdrawFault({ ...base, ...change })).toBe(fault);
+  });
+  it("leaves a withdrawn matter out of the minuting, and refuses votes and recusals on it", async () => {
+    const { liveOutcomes, canVote, checkRecusal } = await import("./matter");
+    expect(liveOutcomes([{ outcome: "PENDING", withdrawnAt: new Date() }, { outcome: "CARRIED", withdrawnAt: null }])).toEqual(["CARRIED"]);
+    expect(canVote({ meetingStatus: "IN_PROGRESS", meetingDate: new Date("2026-10-01"), today: "2026-10-01", outcome: "PENDING", tabled: true, personId: "p1", presentVoterIds: ["p1"], recusedIds: [], choice: "SETUJU", votedAt: "2026-10-01", withdrawn: true })).toEqual({ ok: false, fault: "MATTER_WITHDRAWN" });
+    expect(checkRecusal({ meetingStatus: "SCHEDULED", outcome: "PENDING", role: "VOTING", alreadyRecused: false, hasVoted: false, withdrawn: true })).toEqual({ ok: false, fault: "MATTER_WITHDRAWN" });
+  });
+});

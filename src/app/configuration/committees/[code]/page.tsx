@@ -79,7 +79,7 @@ export default async function CommitteePage({
       status: { kind: "badge", text: MEETING_STATUS_LABEL[m.status], tone: TONE[MEETING_STATUS_TONE[m.status]] },
       matters: {
         kind: "text",
-        text: matterCount(m.decisions.length, m.decisions.filter((d) => d.outcome === "PENDING").length),
+        text: matterCount(m.decisions.filter((d) => !d.withdrawnAt).length, m.decisions.filter((d) => d.outcome === "PENDING" && !d.withdrawnAt).length),
         dim: m.decisions.length === 0,
       },
     },

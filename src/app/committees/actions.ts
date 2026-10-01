@@ -17,8 +17,9 @@ import {
   OUTCOME_FAULT_MESSAGE,
   TABLING_FAULT_MESSAGE,
   TRANSITION_FAULT_MESSAGE,
+  WITHDRAW_FAULT_MESSAGE,
 } from "@/lib/committee/labels";
-import { checkOutcome, checkRecusal, type MeetingStatus } from "@/lib/committee/matter";
+import { checkOutcome, checkRecusal, liveOutcomes, withdrawFault, type MeetingStatus } from "@/lib/committee/matter";
 import { meetingTransition, sittingPermits, type SittingAct } from "@/lib/committee/meeting";
 import { registerRole } from "@/lib/committee/sitting";
 import { organisationId, withLockedSitting, type LoadedSitting } from "@/lib/committee/sittings";
@@ -209,7 +210,8 @@ export async function changeStatus(_prev: FormState, data: FormData): Promise<Fo
     const check = meetingTransition(m.status, to, {
       minutes: m.minutes,
       reason,
-      matterOutcomes: m.decisions.map((d) => d.outcome),
+      // A matter withdrawn before the sitting opened is not on the agenda (6.10 follow-up).
+      matterOutcomes: liveOutcomes(m.decisions),
       today: s.today,
       meetingDay: storedDay(m.meetingDate),
       ...checks,
@@ -456,16 +458,18 @@ export async function declareRecusal(_prev: FormState, data: FormData): Promise<
       role: registerRole(s.register, personId).kind,
       alreadyRecused: decision.recusals.some((x) => x.personId === personId),
       hasVoted: decision.votes.some((x) => x.personId === personId),
+      withdrawn: decision.withdrawnAt != null,
     });
     if (!check.ok) {
       const message = {
         SITTING_CLOSED: CLOSED.message!,
         MATTER_DECIDED: "The matter has already been decided.",
+        MATTER_WITHDRAWN: "The matter was withdrawn from the agenda.",
         NOT_A_VOTING_MEMBER: "Only a voting member or an alternate can declare a recusal.",
         ALREADY_RECUSED: "This member has already recused.",
         ALREADY_VOTED: "This member has already voted on the matter. A recusal is declared before voting, and a vote cannot be withdrawn.",
       }[check.fault];
-      return check.fault === "SITTING_CLOSED" || check.fault === "MATTER_DECIDED"
+      return check.fault === "SITTING_CLOSED" || check.fault === "MATTER_DECIDED" || check.fault === "MATTER_WITHDRAWN"
         ? { ok: false, message }
         : { ok: false, errors: { personId: message } };
     }
@@ -517,6 +521,7 @@ export async function recordOutcome(_prev: FormState, data: FormData): Promise<F
     const decision = s.meeting.decisions.find((d) => d.id === decisionId);
     if (!decision) return { ok: false, message: "That matter no longer exists." };
     if (decision.outcome !== "PENDING") return { ok: false, message: "The matter has already been decided." };
+    if (decision.withdrawnAt) return { ok: false, message: "The matter was withdrawn from the agenda: nothing is recorded on it." };
 
     const assessment = s.assessment.matters[decisionId];
     const check = checkOutcome(
@@ -559,6 +564,32 @@ export async function recordOutcome(_prev: FormState, data: FormData): Promise<F
     if (done.count !== 1) return { ok: false, message: "The matter has already been decided." };
     await audit(tx, s, "CommitteeDecision", decisionId, decision.subject, "UPDATE",
       diffFields({ outcome: decision.outcome, decisionDate: decision.decisionDate, outcomeNote: decision.outcomeNote, notApprovedOutcomeId: decision.notApprovedOutcomeId }, after));
+    return { ok: true };
+  });
+}
+
+/**
+ * Withdraw a tabled matter from the agenda before the sitting opens (6.10 follow-up,
+ * 6.11 BD-31), with a reason. The row is kept, the withdrawal audited; the matter is
+ * then left out of the votes, the quorum and the minuting. Once the sitting is in
+ * progress a pending matter is deferred instead, with a note.
+ */
+export async function withdrawMatter(_prev: FormState, data: FormData): Promise<FormState> {
+  const decisionId = String(data.get("decisionId") ?? "");
+  const reason = String(data.get("reason") ?? "").trim();
+  const meetingId = await meetingOf(decisionId);
+  if (!meetingId) return { ok: false, message: "That matter no longer exists." };
+  return inSitting(meetingId, async (tx, s) => {
+    const decision = s.meeting.decisions.find((d) => d.id === decisionId);
+    if (!decision) return { ok: false, message: "That matter no longer exists." };
+    const cited = (await tx.approvalStep.count({ where: { committeeDecisionId: decision.id } })) > 0 || decision.requisitionGateId != null;
+    const dependents = await tx.committeeDecision.count({ where: { dependsOnDecisionId: decision.id, withdrawnAt: null } });
+    const fault = withdrawFault({ meetingStatus: s.meeting.status, outcome: decision.outcome, withdrawn: decision.withdrawnAt != null, cited, dependents, reason });
+    if (fault) return fault === "REASON_REQUIRED" ? { ok: false, errors: { reason: WITHDRAW_FAULT_MESSAGE[fault] } } : { ok: false, message: WITHDRAW_FAULT_MESSAGE[fault] };
+    const withdrawnAt = new Date();
+    const moved = await tx.committeeDecision.updateMany({ where: { id: decision.id, outcome: "PENDING", withdrawnAt: null }, data: { withdrawnAt, withdrawnReason: reason } });
+    if (moved.count !== 1) return { ok: false, message: "The matter changed while this was being saved. Reload and try again." };
+    await audit(tx, s, "CommitteeDecision", decision.id, decision.subject, "UPDATE", diffFields({ withdrawnAt: null }, { withdrawnAt, withdrawn: "from the agenda, before the sitting opened" }), reason);
     return { ok: true };
   });
 }

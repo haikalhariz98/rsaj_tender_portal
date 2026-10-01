@@ -38,6 +38,7 @@ export async function loadShell(): Promise<{
     const pending = await db.committeeDecision.count({
       where: {
         outcome: "PENDING",
+        withdrawnAt: null,
         meeting: { committee: { organisationId: org.id } },
       },
     });

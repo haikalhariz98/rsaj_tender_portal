@@ -71,7 +71,7 @@ export async function getCommittee(code: string) {
         orderBy: { meetingDate: "desc" },
         include: {
           attendance: true,
-          decisions: { select: { outcome: true } },
+          decisions: { select: { outcome: true, withdrawnAt: true } },
         },
       },
     },

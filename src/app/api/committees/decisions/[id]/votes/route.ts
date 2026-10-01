@@ -73,6 +73,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/committees/
       recusedIds: decision.recusals.map((r) => r.personId),
       choice,
       votedAt,
+      withdrawn: decision.withdrawnAt != null,
     });
     if (!check.ok) {
       return Response.json(

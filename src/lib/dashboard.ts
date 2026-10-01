@@ -70,7 +70,7 @@ export async function loadDashboard(asOf: Date = new Date()) {
   });
 
   const queue: QueueItem[] = decisions
-    .filter((d) => d.outcome === "PENDING")
+    .filter((d) => d.outcome === "PENDING" && !d.withdrawnAt)
     .map((d) => ({
       decisionId: d.id,
       committeeCode: d.meeting.committee.code,

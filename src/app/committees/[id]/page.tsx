@@ -35,7 +35,7 @@ import {
   TRANSITION_FAULT_MESSAGE,
   VOTING_RULE_LABEL,
 } from "@/lib/committee/labels";
-import { MANDATORY_ACTS } from "@/lib/committee/matter";
+import { liveOutcomes, MANDATORY_ACTS } from "@/lib/committee/matter";
 import { isFrozen, meetingTransition } from "@/lib/committee/meeting";
 import type { VotingSeat } from "@/lib/committee/sitting";
 import { loadSitting, sittingHistory, type LoadedSitting } from "@/lib/committee/sittings";
@@ -45,6 +45,7 @@ import { actWithCode, matterLabel } from "@/lib/labels";
 import {
   CancelSitting,
   DeclareRecusal,
+  WithdrawMatter,
   EditMinutes,
   EditSitting,
   MinuteSitting,
@@ -121,7 +122,7 @@ export default async function SittingPage({
   const minuteCheck = meetingTransition(m.status, "MINUTED", {
     minutes: m.minutes,
     reason: "",
-    matterOutcomes: m.decisions.map((d) => d.outcome),
+    matterOutcomes: liveOutcomes(m.decisions),
     ...minutingChecks(a, s.matters),
   });
 
@@ -274,6 +275,22 @@ function AgendaPanel({ s, prefill }: { s: LoadedSitting; prefill?: Record<string
   const voting = new Map(a.voting.map((v) => [v.seatId, v]));
 
   const matters = m.decisions.map((d) => {
+    // Withdrawn before the sitting opened (6.10 follow-up): on record, off the agenda.
+    if (d.withdrawnAt) {
+      return (
+        <Card key={d.id} className="overflow-hidden">
+          <CardBody className="flex flex-col gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone="neutral">Withdrawn from the agenda</Badge>
+              <span className="min-w-0 font-semibold break-words text-ink">{d.subject}</span>
+            </div>
+            <p className="text-[12.5px] text-ink-2">
+              Withdrawn {formatOrgDay(d.withdrawnAt, s.timeZone)} before the sitting opened{d.withdrawnReason ? ` — “${d.withdrawnReason}”` : ""}. Nothing is voted or decided on it.
+            </p>
+          </CardBody>
+        </Card>
+      );
+    }
     const assessment = a.matters[d.id];
     const recused = new Set(d.recusals.map((r) => r.personId));
     const seen = new Set<string>();
@@ -414,7 +431,9 @@ function AgendaPanel({ s, prefill }: { s: LoadedSitting; prefill?: Record<string
             ) : undefined
           }
           actions={
-            open ? (
+            m.status === "SCHEDULED" && d.outcome === "PENDING" ? (
+              <WithdrawMatter decisionId={d.id} subject={d.subject} />
+            ) : open ? (
               <>
                 {uniqueMembers.length > 0 && <DeclareRecusal decisionId={d.id} members={uniqueMembers} />}
                 <RecordOutcome
@@ -440,7 +459,7 @@ function AgendaPanel({ s, prefill }: { s: LoadedSitting; prefill?: Record<string
           subtitle={
             m.status === "CANCELLED" && m.decisions.length === 0
               ? "Cancelled"
-              : matterCount(m.decisions.length, m.decisions.filter((d) => d.outcome === "PENDING").length)
+              : matterCount(m.decisions.filter((d) => !d.withdrawnAt).length, m.decisions.filter((d) => d.outcome === "PENDING" && !d.withdrawnAt).length)
           }
           actions={
             !frozen && s.secretariat.code ? (

@@ -13,6 +13,7 @@ import {
   saveMinutes,
   scheduleSitting,
   tableMatter,
+  withdrawMatter,
 } from "./actions";
 
 /**
@@ -408,6 +409,23 @@ export function RecordOutcome({
       action={recordOutcome}
       submitLabel="Record outcome"
       trigger={{ label: "Record outcome", className: buttonClass("primary", "sm") }}
+    />
+  );
+}
+
+/// Withdraw a matter from the agenda before the sitting opens (6.10 follow-up), with a reason.
+export function WithdrawMatter({ decisionId, subject }: { decisionId: string; subject: string }) {
+  return (
+    <RecordEditor
+      title="Withdraw from the agenda"
+      description={`“${subject}” leaves the agenda before the sitting opens. It stays on record as withdrawn, with the reason, and nothing is voted or decided on it. Once the sitting opens, a matter is deferred instead.`}
+      fields={[{ kind: "hidden", name: "decisionId" }]}
+      values={{ decisionId }}
+      action={withdrawMatter}
+      destructive={{ reasonLabel: "Why is it withdrawn?" }}
+      submitLabel="Withdraw from the agenda"
+      trigger={{ label: "Withdraw from agenda", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
+      size="sm"
     />
   );
 }

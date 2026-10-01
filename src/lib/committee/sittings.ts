@@ -48,7 +48,7 @@ export async function listSittings(page = 0) {
       include: {
         committee: { include: { members: true } },
         attendance: true,
-        decisions: { select: { outcome: true } },
+        decisions: { select: { outcome: true, withdrawnAt: true } },
       },
     }),
     db.meeting.count({ where }),
@@ -60,7 +60,7 @@ export async function listSittings(page = 0) {
     loadRoster(ORGANISATION_CODE),
     db.meeting.groupBy({ by: ["status"], where, _count: true }),
     db.committeeDecision.count({
-      where: { outcome: "PENDING", meeting: { ...where, status: { in: ["SCHEDULED", "IN_PROGRESS"] } } },
+      where: { outcome: "PENDING", withdrawnAt: null, meeting: { ...where, status: { in: ["SCHEDULED", "IN_PROGRESS"] } } },
     }),
   ]);
 
@@ -77,8 +77,8 @@ export async function listSittings(page = 0) {
       meetingDate: m.meetingDate,
       status: m.status,
       committeeName: snap?.committeeName ?? m.committee.nameEn,
-      matters: m.decisions.length,
-      pending: m.decisions.filter((d) => d.outcome === "PENDING").length,
+      matters: m.decisions.filter((d) => !d.withdrawnAt).length,
+      pending: m.decisions.filter((d) => d.outcome === "PENDING" && !d.withdrawnAt).length,
       present,
       quorum,
       quorumState: assessQuorum({ quorum, present }).state,

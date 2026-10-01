@@ -159,6 +159,7 @@ export const VOTE_FAULT_MESSAGE: Record<VoteFault, string> = {
   MEETING_CLOSED: "The sitting is closed. Votes can no longer change.",
   MATTER_NOT_TABLED: "The matter has not been tabled.",
   MATTER_DECIDED: "The matter has already been decided.",
+  MATTER_WITHDRAWN: "The matter was withdrawn from the agenda: nothing is recorded on it.",
   TIME_ZONE_UNSET:
     "The organisation's time zone is not set, so the date on a voting sheet cannot be judged. Set it under Configuration, Organisation.",
   NOT_A_PRESENT_VOTER: "That person is not recorded as a present voting member of this sitting.",
@@ -238,3 +239,13 @@ export function configurationGapLine(blockers: readonly MatterBlocker[]): string
 
 /// Where the organisation's time zone is set.
 export const ORGANISATION_HREF = "/configuration/organisation";
+
+/// Why a matter cannot be withdrawn from the agenda (6.10 follow-up).
+export const WITHDRAW_FAULT_MESSAGE: Record<import("./matter").WithdrawFault, string> = {
+  ALREADY_WITHDRAWN: "This matter is already withdrawn.",
+  SITTING_STARTED: "The sitting has opened. A matter is withdrawn only before it opens; now it is deferred, with a note.",
+  MATTER_DECIDED: "The matter has been decided, so it stays on the agenda.",
+  MATTER_CITED: "A record cites this matter, so it stays on the agenda. Defer it at the sitting instead, with a note.",
+  HAS_DEPENDENTS: "Another matter on the agenda waits on this one, so it stays. Withdraw that matter first, or defer this one at the sitting.",
+  REASON_REQUIRED: "Say why it is withdrawn.",
+};
