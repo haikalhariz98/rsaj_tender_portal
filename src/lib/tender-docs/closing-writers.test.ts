@@ -87,6 +87,8 @@ const CLOSING_KEY_READERS: Record<string, string> = {
   "src/lib/scope/read.ts": "selects the closing for the estimate tab",
   "prisma/demo-tender-docs.ts": "the demo's approving step, mirroring the action; its load checks the dates against the pack",
   "prisma/demo-scope.ts": "judges the demo's estimates with no closing yet",
+  // 6.5 (faithful update, flagged): the demo's applied extension, as 6.4's demo mirrors its approving step.
+  "prisma/demo-window.ts": "the demo's applied extension, mirroring applyClosingChange; its load checks the closing against the change's history",
   // 6.5 (faithful update, flagged): the window's pure rules read the closing they are given.
   "src/lib/window/dates.ts": "judges a closing against the date rules; writes nothing",
   "src/lib/window/change.ts": "judges a proposed closing against the date rules; writes nothing",
