@@ -15,6 +15,7 @@ import { postingRefusal, refusalToClose, refusalToReopen, type Period } from "@/
 import { figuresFor, transferFaults, type Movement } from "@/lib/budget/codes";
 import { syncReadiness } from "@/lib/budget/finance";
 import { formatSen, parseSen, senToDecimalString } from "@/lib/money";
+import { splitValues } from "@/lib/ui/select-logic";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const PATH = "/configuration/budget";
@@ -596,10 +597,7 @@ export async function saveBudgetControls(_prev: FormState, data: FormData): Prom
     // A switch posts nothing when off, so this one really is two states rather than
     // three — which is right: somebody has looked at the toggle either way.
     commitOnApproval: r.bool("commitOnApproval"),
-    overrideRoleCodes: (r.optionalText("overrideRoleCodes") ?? "")
-      .split("\n")
-      .map((c) => c.trim())
-      .filter(Boolean),
+    overrideRoleCodes: splitValues(r.optionalText("overrideRoleCodes")),
     advanceRecoupmentRatePercent: percent(
       "advanceRecoupmentRatePercent",
       "Advance recoupment rate",

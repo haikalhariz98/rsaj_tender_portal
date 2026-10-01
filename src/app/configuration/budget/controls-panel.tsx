@@ -173,9 +173,10 @@ export function ControlsPanel({
 
               <Field
                 label="May override the check"
+                htmlFor="ctl-overrideRoleCodes"
                 hint="Roles that can proceed past a failed check. Nobody, unless named here."
               >
-                <RoleTokens roles={roles} chosen={overrides} onChange={setOverrides} />
+                <RoleTokens roles={roles} chosen={overrides} onChange={(next) => { setOverrides(next); setDirty(true); }} />
               </Field>
 
               <Switch
@@ -432,7 +433,8 @@ function Suffixed({
   );
 }
 
-/// Which roles may proceed past a failed check.
+/// Which roles may proceed past a failed check: the shared Select in multiple mode, which
+/// posts the chosen codes as one newline-joined field.
 function RoleTokens({
   roles,
   chosen,
@@ -442,73 +444,21 @@ function RoleTokens({
   chosen: string[];
   onChange: (next: string[]) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const nameOf = (code: string) => roles.find((r) => r.code === code)?.nameEn ?? code;
-  const available = roles.filter((r) => !chosen.includes(r.code));
-
   return (
-    <div className="relative">
-      <input type="hidden" name="overrideRoleCodes" value={chosen.join("\n")} />
-      <div
-        role="group"
-        aria-label="May override the check"
-        onClick={() => setOpen(true)}
-        className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-control border border-line-2 bg-surface px-2 py-1.5 transition focus-within:border-brand-500 focus-within:ring-4 focus-within:ring-brand-500/15"
-      >
-        {chosen.map((code) => (
-          <span
-            key={code}
-            className="inline-flex max-w-full items-center gap-1 rounded-full bg-brand-50 py-0.5 pr-1 pl-2.5 text-[12.5px] font-medium text-brand-800"
-          >
-            <span className="truncate" title={nameOf(code)}>
-              {nameOf(code)}
-            </span>
-            <button
-              type="button"
-              className="grid size-5 shrink-0 place-items-center rounded-full hover:bg-brand-100"
-              aria-label={`Remove ${nameOf(code)}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onChange(chosen.filter((c) => c !== code));
-              }}
-            >
-              <XIcon size={11} />
-            </button>
-          </span>
-        ))}
-        <input
-          className="h-7 min-w-24 flex-1 bg-transparent px-1 text-[13.5px] outline-none placeholder:text-ink-4"
-          placeholder={chosen.length ? "" : "Nobody"}
-          onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 120)}
-          readOnly
-        />
-      </div>
-      {open && (
-        <div
-          className="absolute inset-x-0 top-[calc(100%+6px)] z-10 max-h-64 overflow-y-auto rounded-2xl border border-line bg-surface p-1.5 shadow-pop"
-          role="listbox"
-          aria-multiselectable="true"
-        >
-          {available.length === 0 ? (
-            <div className="px-3 py-2 text-[13px] text-ink-3">Every role is already named</div>
-          ) : (
-            available.map((r) => (
-              <button
-                key={r.code}
-                type="button"
-                className="block w-full rounded-xl px-3 py-2 text-left text-[13.5px] text-ink hover:bg-sunken"
-                role="option"
-                aria-selected={false}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => onChange([...chosen, r.code])}
-              >
-                {r.nameEn}
-              </button>
-            ))
-          )}
-        </div>
-      )}
-    </div>
+    <Select
+      multiple
+      id="ctl-overrideRoleCodes"
+      name="overrideRoleCodes"
+      placeholder="Nobody"
+      value={chosen}
+      onValuesChange={onChange}
+      searchable={false}
+    >
+      {roles.map((r) => (
+        <option key={r.code} value={r.code}>
+          {r.nameEn}
+        </option>
+      ))}
+    </Select>
   );
 }

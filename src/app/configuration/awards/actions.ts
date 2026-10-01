@@ -11,6 +11,7 @@ import { exerciseOrg } from "@/lib/method/repo";
 import { parseSen, senToDecimalString } from "@/lib/money";
 import { bandSetFaults } from "@/lib/securities/liability";
 import { FormReader } from "@/lib/validate";
+import { splitValues } from "@/lib/ui/select-logic";
 
 /**
  * Award controls: the customer's policy for awards and the lists the award reads. Every
@@ -121,7 +122,7 @@ export async function saveVariant(_prev: FormState, data: FormData): Promise<For
   const existing = await db.appointmentLetterVariant.findMany({ where: { organisationId: o.id }, select: { id: true, code: true } });
   const current = id ? existing.find((e) => e.id === id) : undefined;
   if (id && !current) return { ok: false, message: "That variant no longer exists." };
-  const types = String(data.get("contractTypeCodes") ?? "").split("\n").map((x) => x.trim()).filter(Boolean);
+  const types = splitValues(data.get("contractTypeCodes"));
   const v = {
     code: current ? current.code : r.code("code", "Code", { taken: existing.map((e) => e.code) }),
     nameEn: r.text("nameEn", "Name", { required: true, max: 200 }),

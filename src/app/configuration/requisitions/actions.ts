@@ -11,6 +11,7 @@ import { gateRuleFaults, type GateRuleFault } from "@/lib/requisition/gate";
 import { requisitionOrg } from "@/lib/requisition/repo";
 import { SPLIT_KEYS, type SplitKey } from "@/lib/requisition/types";
 import { FormReader } from "@/lib/validate";
+import { splitValues } from "@/lib/ui/select-logic";
 
 /**
  * Requisition controls: the customer's policy for requisitions, every field unset
@@ -30,11 +31,7 @@ function triState(r: FormReader, name: string, label: string): boolean | null {
 }
 
 /// Values posted newline-separated by the tokens field.
-const list = (data: FormData, name: string) =>
-  String(data.get(name) ?? "")
-    .split("\n")
-    .map((s) => s.trim())
-    .filter(Boolean);
+const list = (data: FormData, name: string) => splitValues(data.get(name));
 
 export async function savePolicy(_prev: FormState, data: FormData): Promise<FormState> {
   const org = await requisitionOrg();

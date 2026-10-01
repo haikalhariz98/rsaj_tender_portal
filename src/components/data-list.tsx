@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 
 import {
-  ChevronDown,
   ChevronRight,
   DownloadIcon,
   RowsTightIcon,
@@ -16,6 +15,7 @@ import { Badge, Chip } from "@/components/ui/badge";
 import { iconButtonClass } from "@/components/ui/button";
 import { cx } from "@/components/ui/cx";
 import { EmptyState, Meter } from "@/components/ui/feedback";
+import { Select } from "@/components/ui/select";
 import { formatRM } from "@/lib/format";
 
 /**
@@ -295,7 +295,6 @@ export function DataList({
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [chosen, setChosen] = useState<Record<string, string>>({});
-  const [openFilter, setOpenFilter] = useState<string | null>(null);
 
   /// Distinct values a filter can offer, taken from the rows themselves.
   const optionsFor = useMemo(() => {
@@ -385,19 +384,20 @@ export function DataList({
       {showTools && (
         <div className="flex flex-wrap items-center gap-2 px-4 py-3 sm:px-5">
           {views.length > 0 && (
-            <select
-              className={cx(smallControl, "cursor-pointer font-semibold")}
-              value={view}
-              onChange={(e) => setView(e.target.value)}
+            <Select
+              variant="chip"
               aria-label="View"
+              searchable={false}
+              value={view === "all" ? "" : view}
+              onChange={(e) => setView(e.target.value || "all")}
             >
-              <option value="all">All records</option>
+              <option value="">All records</option>
               {views.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.label}
                 </option>
               ))}
-            </select>
+            </Select>
           )}
 
           {searchable && (
@@ -419,61 +419,30 @@ export function DataList({
             </div>
           )}
 
-          {filters.map((f) => {
-            const options: { value: string | null; label: string }[] = [
-              { value: null, label: `Any ${f.label.toLowerCase()}` },
-              ...(optionsFor[f.key] ?? []).map((v) => ({ value: v, label: v })),
-            ];
-            return (
-              <div key={f.key} className="relative">
-                <button
-                  type="button"
-                  aria-expanded={openFilter === f.key}
-                  onClick={() => setOpenFilter((o) => (o === f.key ? null : f.key))}
-                  className={cx(
-                    smallControl,
-                    "inline-flex items-center gap-1.5 font-medium",
-                    chosen[f.key] && "border-brand-300 bg-brand-50 text-brand-800",
-                  )}
-                >
-                  <span>{f.label}</span>
-                  {chosen[f.key] && (
-                    <span className="max-w-32 truncate font-semibold">{chosen[f.key]}</span>
-                  )}
-                  <ChevronDown size={14} className="text-ink-3" />
-                </button>
-                {openFilter === f.key && (
-                  <div className="absolute top-[calc(100%+6px)] left-0 z-20 max-h-72 min-w-52 overflow-y-auto rounded-2xl border border-line bg-surface p-1.5 shadow-pop">
-                    {options.map((opt) => {
-                      const on = opt.value === null ? !chosen[f.key] : chosen[f.key] === opt.value;
-                      return (
-                        <button
-                          key={opt.label}
-                          type="button"
-                          aria-pressed={on}
-                          onClick={() => {
-                            setChosen((c) => {
-                              const next = { ...c };
-                              if (opt.value === null) delete next[f.key];
-                              else next[f.key] = opt.value;
-                              return next;
-                            });
-                            setOpenFilter(null);
-                          }}
-                          className={cx(
-                            "block w-full truncate rounded-xl px-3 py-2 text-left text-[13.5px] hover:bg-sunken",
-                            on ? "font-semibold text-brand-800" : "text-ink",
-                          )}
-                        >
-                          {opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {filters.map((f) => (
+            <Select
+              key={f.key}
+              variant="chip"
+              aria-label={f.label}
+              chipLabel={f.label}
+              value={chosen[f.key] ?? ""}
+              onChange={(e) =>
+                setChosen((c) => {
+                  const next = { ...c };
+                  if (e.target.value === "") delete next[f.key];
+                  else next[f.key] = e.target.value;
+                  return next;
+                })
+              }
+            >
+              <option value="">{`Any ${f.label.toLowerCase()}`}</option>
+              {(optionsFor[f.key] ?? []).map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </Select>
+          ))}
 
           <div className="ml-auto flex items-center gap-1.5">
             {/* Icon-only with the label in a title. Words here would widen the bar and
@@ -778,23 +747,25 @@ export function DataList({
           <span className="tabular-nums">
             {`Showing ${start + 1}-${Math.min(start + pageSize, visible.length)} of ${visible.length}`}
           </span>
-          <label className="ml-auto flex items-center gap-2">
-            <span className="text-[12.5px]">Rows</span>
-            <select
-              className={cx(smallControl, "h-8 cursor-pointer px-2.5")}
-              value={pageSize}
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-[12.5px]" aria-hidden="true">Rows</span>
+            <Select
+              variant="chip"
+              aria-label="Rows per page"
+              searchable={false}
+              value={String(pageSize)}
               onChange={(e) => {
                 setPageSize(Number(e.target.value));
                 setPage(0);
               }}
             >
               {[10, 25, 50].map((n) => (
-                <option key={n} value={n}>
+                <option key={n} value={String(n)}>
                   {n}
                 </option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </div>
           {pageCount > 1 && (
             <nav className="flex items-center gap-1" aria-label="Pagination">
               <button

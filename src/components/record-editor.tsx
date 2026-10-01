@@ -3,10 +3,11 @@
 import { formDataOf } from "@/components/ui/form-submit";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 
-import { PlusIcon, SaveIcon, XIcon } from "@/components/icons";
+import { PlusIcon, SaveIcon } from "@/components/icons";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import { Callout } from "@/components/ui/feedback";
 import { AffixInput, Field, Input, Select, Switch, Textarea } from "@/components/ui/field";
+import { splitValues } from "@/lib/ui/select-logic";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 
 /**
@@ -185,7 +186,7 @@ export function RecordEditor({
       opener.current?.focus();
     };
     document.addEventListener("keydown", onKey);
-    dialog.current?.querySelector<HTMLElement>("input,select,textarea")?.focus();
+    dialog.current?.querySelector<HTMLElement>("input:not([tabindex='-1']),[role=combobox],textarea")?.focus();
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
 
@@ -339,99 +340,6 @@ export function RecordEditor({
 }
 
 
-/**
- * Several values at once: chosen ones sit as removable tags inside the box, and what
- * is left drops down below it.
- *
- * The values ride out on one hidden input, newline-separated — a comma can appear in
- * a customer's own code, a newline cannot — because a server action reading a form
- * has no way to tell an absent multi-value from an empty one, and "nothing was
- * delegated" and "the whole role was" are different acts here.
- */
-function TokensInput({
-  field,
-  value,
-}: {
-  field: Extract<Field, { kind: "tokens" }>;
-  value: string;
-}) {
-  const [chosen, setChosen] = useState<string[]>(() =>
-    value ? value.split("\n").filter(Boolean) : [],
-  );
-  const [open, setOpen] = useState(false);
-  const [typed, setTyped] = useState("");
-
-  const labelOf = (v: string) => field.options.find((o) => o.value === v)?.label ?? v;
-  const needle = typed.trim().toLowerCase();
-  const available = field.options.filter(
-    (o) => !chosen.includes(o.value) && (!needle || o.label.toLowerCase().includes(needle)),
-  );
-
-  return (
-    <div className="relative">
-      <input type="hidden" name={field.name} value={chosen.join("\n")} />
-      <div
-        role="group"
-        onClick={() => setOpen(true)}
-        className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-control border border-line-2 bg-surface px-2 py-1.5 transition focus-within:border-brand-500 focus-within:ring-4 focus-within:ring-brand-500/15"
-      >
-        {chosen.map((v) => (
-          <span
-            key={v}
-            className="inline-flex items-center gap-1 rounded-full bg-brand-50 py-0.5 pr-1 pl-2.5 text-[12.5px] font-medium text-brand-800"
-          >
-            {labelOf(v)}
-            <button
-              type="button"
-              className="grid size-5 place-items-center rounded-full hover:bg-brand-100"
-              aria-label={`Remove ${labelOf(v)}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                setChosen((c) => c.filter((x) => x !== v));
-              }}
-            >
-              <XIcon size={11} />
-            </button>
-          </span>
-        ))}
-        <input
-          className="h-7 min-w-24 flex-1 bg-transparent px-1 text-[13.5px] outline-none placeholder:text-ink-4"
-          placeholder={chosen.length ? "" : (field.placeholder ?? "Select…")}
-          value={typed}
-          onChange={(e) => {
-            setTyped(e.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 120)}
-        />
-      </div>
-      {open && (
-        <div className="absolute inset-x-0 top-[calc(100%+6px)] z-10 max-h-64 overflow-y-auto rounded-2xl border border-line bg-surface p-1.5 shadow-pop">
-          {available.length === 0 ? (
-            <div className="px-3 py-2 text-[13px] text-ink-3">Nothing left to choose</div>
-          ) : (
-            available.map((o) => (
-              <button
-                key={o.value}
-                type="button"
-                className="block w-full rounded-xl px-3 py-2 text-left text-[13.5px] text-ink hover:bg-sunken"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  setChosen((c) => [...c, o.value]);
-                  setTyped("");
-                }}
-              >
-                {o.label}
-              </button>
-            ))
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function FieldInput({
   field,
   value,
@@ -465,9 +373,26 @@ function FieldInput({
   }
 
   if (field.kind === "tokens") {
+    // Several values at once, on the shared Select: the chosen ones ride out as ONE
+    // newline-joined field (splitValues reads it back) - a comma can appear in a
+    // customer's own code, a newline cannot, and a server action reading a form cannot
+    // tell an absent multi-value from an empty one.
     return (
-      <Field label={field.label} required={required} hint={hint} error={error}>
-        <TokensInput field={field} value={(value as string) ?? ""} />
+      <Field label={field.label} required={required} htmlFor={id} hint={hint} error={error}>
+        <Select
+          multiple
+          id={id}
+          name={field.name}
+          placeholder={field.placeholder ?? "Select…"}
+          defaultValue={splitValues(value as string)}
+          aria-invalid={error ? true : undefined}
+        >
+          {field.options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </Select>
       </Field>
     );
   }

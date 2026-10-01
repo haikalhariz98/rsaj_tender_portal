@@ -11,6 +11,7 @@ import { ORGANISATION_CODE } from "@/lib/org";
 import { checkPeriod, FormReader } from "@/lib/validate";
 import { issuedInForce } from "@/lib/authority/issue";
 import { inProgressSittingRefusal } from "@/lib/committee/sittings";
+import { splitValues } from "@/lib/ui/select-logic";
 
 const PATH = "/configuration/users";
 
@@ -273,10 +274,7 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
   const roleCode = r.text("roleCode", "Delegating from", { required: true });
   const effectiveFrom = r.date("effectiveFrom", "From", { required: true });
   const effectiveTo = r.date("effectiveTo", "To");
-  const capabilityCodes = (r.optionalText("capabilityCodes") ?? "")
-    .split("\n")
-    .map((c) => c.trim())
-    .filter(Boolean);
+  const capabilityCodes = splitValues(r.optionalText("capabilityCodes"));
 
   const v = {
     fromPersonId,
