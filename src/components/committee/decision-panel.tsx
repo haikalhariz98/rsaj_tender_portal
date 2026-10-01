@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 
@@ -49,6 +50,8 @@ export interface PanelMatter {
   /// The kind of record, by label. Null for a manual matter.
   kindLabel: string | null;
   matterRef: string | null;
+  /// Where the linked record opens, when the matter names one on record.
+  matterHref?: string | null;
   amount: number | null;
   act: string;
   mandatory: boolean;
@@ -128,8 +131,15 @@ export function DecisionPanel({
         <span aria-hidden="true">·</span>
         {matter.kindLabel ? (
           <span>
-            {matter.kindLabel}
-            {matter.matterRef && <span className="ml-1 font-mono text-[12px]">{matter.matterRef}</span>}
+            {matter.kindLabel}{" "}
+            {matter.matterRef &&
+              (matter.matterHref ? (
+                <Link href={matter.matterHref} className="font-mono text-[12px] text-brand-700 underline decoration-brand-700/35 underline-offset-2 hover:decoration-current">
+                  {matter.matterRef}
+                </Link>
+              ) : (
+                <span className="font-mono text-[12px]">{matter.matterRef}</span>
+              ))}
           </span>
         ) : (
           <span>Not linked to a record{matter.matterRef ? ` · ${matter.matterRef}` : ""}</span>

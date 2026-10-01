@@ -29,6 +29,9 @@ export function Tabs({
   label?: string;
 }) {
   const [active, setActive] = useState(initial ?? tabs[0]?.id);
+  // A long strip drops its icons and tightens below the widest screens, so every tab
+  // fits beside the sidebar instead of scrolling the last ones out of sight.
+  const dense = tabs.length > 6;
   const current = tabs.find((t) => t.id === active) ?? tabs[0];
   const strip = useRef<HTMLDivElement>(null);
   // Whether the strip has more tabs hidden past its left / right edge. Drives the
@@ -115,9 +118,9 @@ export function Tabs({
               aria-selected={selected}
               tabIndex={selected ? 0 : -1}
               onClick={() => select(tab.id)}
-              className="flex shrink-0 snap-center items-center gap-2 rounded-full px-4 py-2 text-[13.5px] font-semibold whitespace-nowrap text-ink-3 transition hover:text-ink aria-selected:bg-surface aria-selected:text-ink aria-selected:shadow-[0_1px_3px_rgb(15_23_42/0.12)]"
+              className={`flex shrink-0 snap-center items-center gap-2 rounded-full py-2 text-[13.5px] font-semibold whitespace-nowrap text-ink-3 transition hover:text-ink aria-selected:bg-surface aria-selected:text-ink aria-selected:shadow-[0_1px_3px_rgb(15_23_42/0.12)] ${dense ? "px-3 2xl:px-4" : "px-4"}`}
             >
-              {tab.icon}
+              {tab.icon && (dense ? <span className="hidden 2xl:inline-flex">{tab.icon}</span> : tab.icon)}
               {tab.label}
               {tab.count != null && (
                 <span className="rounded-full bg-ink/[0.07] px-1.5 text-[11.5px] leading-5 tabular-nums">

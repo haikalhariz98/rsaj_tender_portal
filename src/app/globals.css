@@ -64,6 +64,18 @@ body {
 }
 
 @layer base {
+  /* A link in running text reads as a link. Styled links (buttons, nav, crumbs) carry
+     their own classes and are left alone. */
+  a:not([class]) {
+    color: var(--color-brand-700);
+    text-decoration-line: underline;
+    text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+    text-underline-offset: 2px;
+  }
+  a:not([class]):hover {
+    text-decoration-color: currentColor;
+  }
+
   /* An icon beside text that truncates must not be squeezed by the flex row. */
   svg {
     flex-shrink: 0;

@@ -81,7 +81,10 @@ export function Topbar({
 
   const segments = pathname.split("/").filter(Boolean);
   const recordName = useRecordCrumb();
-  const crumbs = segments.map((segment, i) => ({
+  // A printable document sits under its record: "Awards › AW/1 › Print", the document's
+  // own slug left off (the page names it).
+  const printAt = segments.indexOf("print");
+  const crumbs = segments.slice(0, printAt > 0 ? printAt + 1 : segments.length).map((segment, i) => ({
     // An unmapped segment is a record's key — a committee's code, say. Codes never
     // reach a screen; the page's own header names the record, so the crumb says what
     // kind of record it is.
@@ -102,9 +105,13 @@ export function Topbar({
   // The last crumb names the record where the page has said which one it is.
   const last = crumbs[crumbs.length - 1];
   const lastSegment = segments[segments.length - 1];
-  if (recordName && last && !SEGMENT_LABEL[lastSegment] && lastSegment !== "edit" && lastSegment !== "new") last.label = recordName;
+  if (recordName && last && printAt < 0 && !SEGMENT_LABEL[lastSegment] && lastSegment !== "edit" && lastSegment !== "new") last.label = recordName;
   // A record's own crumb, where the page names it and a sub-page sits under it.
   if (recordName && lastSegment === "edit" && crumbs.length >= 2) crumbs[crumbs.length - 2].label = recordName;
+  if (recordName && printAt > 0) {
+    crumbs[printAt - 1].label = recordName;
+    crumbs[printAt].label = "Print";
+  }
 
   const rootLabel = workspace === "supplier" ? "Supplier portal" : organisation;
   const rootHref = workspace === "supplier" ? "/supplier" : "/";

@@ -235,8 +235,11 @@ export function TableMatter({
   meetingId,
   holders,
   otherMatters,
+  prefill,
 }: {
   meetingId: string;
+  /// Values carried from the record that asks for the matter; the drawer opens with them.
+  prefill?: Record<string, string>;
   /// Active holders of the Secretariat office today.
   holders: { id: string; name: string }[];
   otherMatters: { id: string; subject: string }[];
@@ -282,7 +285,8 @@ export function TableMatter({
           options: holders.map((h) => ({ value: h.id, label: h.name })),
         },
       ]}
-      values={{ meetingId }}
+      values={{ ...prefill, meetingId }}
+      defaultOpen={!!prefill}
       action={tableMatter}
       submitLabel="Table matter"
       trigger={{ label: "Table a matter", icon: true }}

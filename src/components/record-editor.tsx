@@ -48,7 +48,9 @@ export type Field =
       label: string;
       required?: boolean;
       hint?: string;
-      options: { value: string; label: string }[];
+      /// A disabled option is shown greyed with its reason in the label, not hidden:
+      /// the officer sees it exists and why it cannot be chosen.
+      options: { value: string; label: string; disabled?: boolean }[];
       /// Shown as the unchosen option. Never pre-selects anything.
       placeholder?: string;
       /// How a stored value that is no longer among the options reads. Without it the
@@ -72,6 +74,11 @@ export type Field =
   | { kind: "hidden"; name: string }
   | { kind: "note"; text: string };
 
+/// Show a field only while another select of the same form holds one of the given
+/// values — the bond's reason while "no bond", its percentage while "a bond". A hidden
+/// field still submits what it holds; the action decides what a value means.
+export type ShowWhen = { name: string; in: readonly string[] };
+
 export interface FormState {
   ok: boolean;
   errors?: Record<string, string>;
@@ -94,9 +101,12 @@ export function RecordEditor({
   values,
   trigger,
   submitLabel = "Save",
+  cancelLabel = "Cancel",
+  showWhen,
   destructive,
   reason: reasonAsked,
   size = "md",
+  defaultOpen = false,
 }: {
   title: string;
   description?: string;
@@ -116,6 +126,10 @@ export function RecordEditor({
   values?: Record<string, string | boolean | null>;
   trigger: { label: string; className?: string; icon?: boolean; iconOnly?: ReactNode };
   submitLabel?: string;
+  /// The footer's dismiss button. A destructive act says what dismissing keeps ("Keep the award").
+  cancelLabel?: string;
+  /// Per field name, when it is shown (see `ShowWhen`).
+  showWhen?: Record<string, ShowWhen>;
   /// Requires a reason before the button enables, and turns the button red. For an
   /// act that takes something away.
   destructive?: { reasonLabel: string };
@@ -123,13 +137,23 @@ export function RecordEditor({
   reason?: { label: string };
   /// Drawer width. The form opens from the right, as the prototype does.
   size?: "sm" | "md" | "lg" | "xl";
+  /// Opens on arrival — for a link from another record that asks for this act with
+  /// its fields filled in (an award's committee step tabling its matter).
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [state, setState] = useState<FormState>(EMPTY_FORM_STATE);
   const [pending, startTransition] = useTransition();
   const [reason, setReason] = useState("");
   const dialog = useRef<HTMLElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
+  // The selects that decide which fields show, as the officer changes them.
+  const [live, setLive] = useState<Record<string, string>>({});
+  const current = (name: string) => live[name] ?? String(values?.[name] ?? "");
+  const shown = (name: string) => {
+    const w = showWhen?.[name];
+    return !w || w.in.includes(current(w.name));
+  };
 
   // A save that succeeded closes the form; one that failed stays open holding its
   // errors, because reopening a cleared form loses what the officer typed. Decided
@@ -202,7 +226,14 @@ export function RecordEditor({
           >
             {/* The form is the flex column the body scrolls inside; without it the body
                 has no height to scroll within and long forms are cut off. */}
-            <form onSubmit={(e) => submit(formDataOf(e))} className="flex min-h-0 flex-1 flex-col">
+            <form
+              onSubmit={(e) => submit(formDataOf(e))}
+              onChange={(e) => {
+                const t = e.target as unknown as HTMLSelectElement;
+                if (showWhen && t.name && Object.values(showWhen).some((w) => w.name === t.name)) setLive((x) => ({ ...x, [t.name]: t.value }));
+              }}
+              className="flex min-h-0 flex-1 flex-col"
+            >
               <DrawerHeader
                 icon={icon}
                 title={title}
@@ -247,12 +278,10 @@ export function RecordEditor({
                             {field.text}
                           </p>
                         ) : (
-                          <FieldInput
-                            key={field.name}
-                            field={field}
-                            value={values?.[field.name] ?? null}
-                            error={state.errors?.[field.name]}
-                          />
+                          // `contents` keeps the field in the form's grid exactly as it would sit unwrapped.
+                          <div key={field.name} className={shown(field.name) ? "contents" : "hidden"}>
+                            <FieldInput field={field} value={values?.[field.name] ?? null} error={state.errors?.[field.name]} />
+                          </div>
                         ),
                       )}
                   </div>
@@ -282,7 +311,7 @@ export function RecordEditor({
 
               <footer className="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
                 <button type="button" className={buttonClass("ghost", "md")} onClick={() => setOpen(false)}>
-                  Cancel
+                  {cancelLabel}
                 </button>
                 <button
                   type="submit"
@@ -448,7 +477,7 @@ function FieldInput({
           <option value="">{field.placeholder ?? "Not set"}</option>
           {orphaned && <option value={current}>{field.orphanLabel ?? current}</option>}
           {field.options.map((o) => (
-            <option key={o.value} value={o.value}>
+            <option key={o.value} value={o.value} disabled={o.disabled}>
               {o.label}
             </option>
           ))}

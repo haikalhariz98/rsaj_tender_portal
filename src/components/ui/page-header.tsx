@@ -13,6 +13,7 @@ export function PageHeader({
   actionsNote,
   actionsNoteId,
   eyebrow,
+  actionsBelow,
   className,
 }: {
   title: ReactNode;
@@ -30,6 +31,9 @@ export function PageHeader({
   actionsNoteId?: string;
   /// A small label above the title, e.g. the section it belongs to.
   eyebrow?: ReactNode;
+  /// Put the actions on their own row under the title, left-aligned — for a record
+  /// whose title and facts need the full width and whose actions are several.
+  actionsBelow?: boolean;
   className?: string;
 }) {
   const facts = (meta ?? []).filter(Boolean);
@@ -47,7 +51,7 @@ export function PageHeader({
           squeezing the title into a narrow column. */}
       <div className="min-w-[min(100%,26rem)] flex-1">
         {eyebrow && (
-          <div className="mb-1.5 text-[12px] font-semibold tracking-wide text-brand-700 uppercase">
+          <div className="mb-1.5 text-[12px] font-semibold tracking-wide text-brand-700 uppercase [&_a]:no-underline">
             {eyebrow}
           </div>
         )}
@@ -59,29 +63,33 @@ export function PageHeader({
         </div>
         {subtitle && <p className="mt-1.5 max-w-[70ch] text-[15px] text-ink-2">{subtitle}</p>}
         {facts.length > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[13px] text-ink-3">
-            {facts.map((f, i) => (
-              <span key={i} className="inline-flex items-center gap-1.5">
-                {i > 0 && <span className="mr-0.5 text-ink-4" aria-hidden="true">•</span>}
-                {f}
-              </span>
-            ))}
+          // Each fact carries its separator in a left gutter; the row is shifted left by
+          // that gutter and clipped, so a fact starting a wrapped line shows no stray "•".
+          <div className="mt-3 overflow-hidden">
+            <div className="-ml-4 flex flex-wrap items-center gap-y-1.5 text-[13px] text-ink-3">
+              {facts.map((f, i) => (
+                <span key={i} className="relative inline-flex min-w-0 items-center gap-1.5 pl-4">
+                  <span className="absolute left-1.5 text-ink-4" aria-hidden="true">•</span>
+                  {f}
+                </span>
+              ))}
+            </div>
           </div>
         )}
       </div>
       {(actions || actionsNote) && (
-        <div className="flex max-w-full min-w-0 flex-col items-start gap-1.5 sm:items-end">
+        <div className={cx("flex max-w-full min-w-0 flex-col items-start gap-1.5", actionsBelow ? "basis-full" : "sm:items-end")}>
           {actions && (
             <div
               role={actionsNote ? "group" : undefined}
               aria-describedby={actionsNote ? noteId : undefined}
-              className="flex flex-wrap items-center gap-2 sm:justify-end"
+              className={cx("flex flex-wrap items-center gap-2", !actionsBelow && "sm:justify-end")}
             >
               {actions}
             </div>
           )}
           {actionsNote && (
-            <p id={noteId} className="max-w-[44ch] text-[12.5px] leading-snug text-ink-3 sm:text-right">
+            <p id={noteId} className={cx("text-[12.5px] leading-snug text-ink-3", actionsBelow ? "max-w-[70ch]" : "max-w-[44ch] sm:text-right")}>
               {actionsNote}
             </p>
           )}

@@ -75,9 +75,12 @@ export default async function SittingPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  const [{ id }, { tab }] = await Promise.all([params, searchParams]);
+  const [{ id }, sp] = await Promise.all([params, searchParams]);
+  const tab = sp.tab;
+  // A record asking for a matter to be tabled (an award's committee step) links here with it filled in.
+  const prefill = sp.table === "1" ? Object.fromEntries((["subject", "domain", "act", "matterKind", "matterRef", "amount"] as const).filter((k) => sp[k]).map((k) => [k, sp[k]!])) : undefined;
   const s = await loadSitting(id);
   if (!s) notFound();
 
@@ -206,7 +209,7 @@ export default async function SittingPage({
             label: "Agenda and decisions",
             icon: <FileIcon size={15} />,
             count: m.decisions.length,
-            panel: <AgendaPanel s={s} />,
+            panel: <AgendaPanel s={s} prefill={prefill} />,
           },
           {
             id: "attendance",
@@ -264,7 +267,7 @@ function ConfigurationGaps({ s }: { s: LoadedSitting }) {
 
 // ------------------------------------------------------------------ agenda
 
-function AgendaPanel({ s }: { s: LoadedSitting }) {
+function AgendaPanel({ s, prefill }: { s: LoadedSitting; prefill?: Record<string, string> }) {
   const m = s.meeting;
   const a = s.assessment;
   const frozen = isFrozen(m.status);
@@ -341,6 +344,7 @@ function AgendaPanel({ s }: { s: LoadedSitting }) {
       matterLabel: matterLabel(d.domain),
       kindLabel: d.matterKind ? MATTER_KIND_LABEL[d.matterKind] : null,
       matterRef: d.matterRef,
+      matterHref: d.exerciseId ? `/sourcing/${d.exerciseId}` : d.requisitionId ? `/requisitions/${d.requisitionId}` : null,
       amount: d.amount,
       act: d.act,
       mandatory: MANDATORY_ACTS.has(d.act),
@@ -444,6 +448,7 @@ function AgendaPanel({ s }: { s: LoadedSitting }) {
                 meetingId={m.id}
                 holders={s.secretariat.holders}
                 otherMatters={m.decisions.map((d) => ({ id: d.id, subject: d.subject }))}
+                prefill={prefill}
               />
             ) : undefined
           }

@@ -60,10 +60,16 @@ export function formatPercentBand(min: number | null, max: number | null): strin
   return `${min}% – ${max}%`;
 }
 
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/// "02 Nov 2026": two-digit day, three-letter month, every time — the locale's "Sept"
+/// beside "Nov" read as two formats. Days are stored at midnight UTC, so read in UTC.
+const dayText = (d: Date) => `${String(d.getUTCDate()).padStart(2, "0")} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+
 export function formatDate(value: Date | string | null | undefined): string {
   if (!value) return "—";
   const d = typeof value === "string" ? new Date(value) : value;
-  return d.toLocaleDateString("en-MY", { day: "2-digit", month: "short", year: "numeric" });
+  if (Number.isNaN(d.getTime())) return "—";
+  return dayText(d);
 }
 
 /**
@@ -75,12 +81,7 @@ export function formatDate(value: Date | string | null | undefined): string {
  */
 export function formatOrgDay(instant: Date | null | undefined, timeZone: string | null): string {
   if (!instant) return "—";
-  const day = new Date(`${dayIn(instant, timeZone)}T00:00:00.000Z`).toLocaleDateString("en-MY", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  const day = dayText(new Date(`${dayIn(instant, timeZone)}T00:00:00.000Z`));
   return timeZone ? day : `${day} (UTC — time zone not set)`;
 }
 
