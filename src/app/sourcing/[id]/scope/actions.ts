@@ -8,16 +8,32 @@ import type { FieldChange } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { dayToDate, storedDay, todayIn } from "@/lib/dates";
 import { parseSen, senToDecimalString, type Sen } from "@/lib/money";
-import { ENTITY, bqHeaderAudit, bqStatusAudit, estimateCreatedAudit, estimateEventAudit, estimateStateAudit, estimateVersionAudit, itemAudit, sectionAudit, verificationAudit, verificationClearedAudit } from "@/lib/scope/audit-view";
+import { ENTITY, bqExportAudit, bqImportAudit, rateFromText, scopeTabledAudit, bqHeaderAudit, bqStatusAudit, estimateCreatedAudit, estimateEventAudit, estimateStateAudit, estimateVersionAudit, itemAudit, sectionAudit, verificationAudit, verificationClearedAudit } from "@/lib/scope/audit-view";
 import { bqTotals, draftEditFaults, finaliseFaults, holdingOn, isQuantity, itemAmount, qualificationSnapshot, reviseFaults, startBqFaults, totalsSnapshot } from "@/lib/scope/bq";
 import { actionResult, lodgeFaults, retainFaults, startFault, versionFaults, voidFault } from "@/lib/scope/estimate";
 import { writeEstimateVersion } from "@/lib/scope/estimate-store";
-import { ESTIMATE_STATE_LABEL, scopeFaultText, type ScopeCode } from "@/lib/scope/labels";
+import { csvFaultText, ESTIMATE_STATE_LABEL, keyedMismatchText, scopeFaultText, type ScopeCode } from "@/lib/scope/labels";
 import { lockBqRows, lockEstimateRow, lockLiveEstimateRows, lockPanelRow, withLockedExerciseScope, type LockedExercise } from "@/lib/scope/lock";
 import { columnsInForce, editClearsVerifications, panelEditFault, panelFaults, standingVerifications, verifyFaults } from "@/lib/scope/panel";
-import { activePerson, estimateFactsOf, lineOf, linesOf, loadBqVersions, loadEstimates, loadHoldings, loadPanel, loadPanelColumns, loadQualifications, loadScopePolicy, loadScopeRules } from "@/lib/scope/repo";
+import { activePerson, estimateFactsOf, lineOf, linesOf, loadBqVersions, loadEstimates, loadHoldings, loadPanel, loadPanelColumns, loadQualifications, loadRateIssues, loadScopeMatters, loadScopePolicy, loadScopeRules } from "@/lib/scope/repo";
+import { priceFromSchedule, type PricedFromSchedule } from "@/lib/scope/rates";
+import { formatDate } from "@/lib/format";
 import { BQ_ITEM_KINDS, BQ_SCOPED_BY, blocking, type BqItemKind, type Finding } from "@/lib/scope/types";
-import { CLASSIFICATION_LABEL } from "@/lib/documents/labels";
+import { CLASSIFICATION_LABEL, documentFaultText, PURPOSE_LABEL } from "@/lib/documents/labels";
+import { attachFault } from "@/lib/documents/attach";
+import { attached, detached, filed } from "@/lib/documents/audit-view";
+import { lockVersion } from "@/lib/documents/service";
+import { bqVersionFacts } from "@/lib/documents/owner-facts";
+import { blobStore, sha256Hex } from "@/lib/documents/store";
+import { checkTabling, secretariatHoldersOn } from "@/lib/committee/tabling";
+import { TABLING_FAULT_MESSAGE } from "@/lib/committee/labels";
+import { sittingPermits } from "@/lib/committee/meeting";
+import { lockSittingIn } from "@/lib/committee/sittings";
+import { ACT_LABEL } from "@/lib/labels";
+import { ORGANISATION_CODE } from "@/lib/org";
+import { loadRoster } from "@/lib/people/load";
+import { bqCsvFilename, bqToCsv, decodeCsv, parseBqCsv } from "@/lib/scope/csv";
+import { scopeCitationFault, scopeMatterSubject, SCOPE_DOMAIN } from "@/lib/scope/scope-matter";
 import { FormReader } from "@/lib/validate";
 
 /**
@@ -190,25 +206,48 @@ export async function saveBqItem(_prev: FormState, data: FormData): Promise<Form
   const quantityRaw = r.optionalText("quantity");
   if (quantityRaw && !isQuantity(quantityRaw)) r.reject("quantity", scopeFaultText("QUANTITY_INVALID"));
   const rateRaw = r.money("rate", "Rate");
+  // FR-EST-004: "<issue id>|<item code>" of an issue in force today, or empty for a rate entered.
+  const scheduleItem = r.optionalText("scheduleItem");
   const provisional = r.bool("provisional") && kind === "MEASURED";
   const sortOrder = r.int("sortOrder", "Order") ?? 0;
   if (r.failed || !kind) return { ok: false, errors: r.errors };
   const quantity = quantityRaw ? quantityRaw.replace(/,/g, "") : null;
-  const rate: Sen | null = rateRaw == null ? null : parseSen(rateRaw);
-  const amount = itemAmount(quantity, rate);
   return inExercise(exerciseId, async (tx, l) => {
     const v = await lockedDraft(tx, l, versionId);
     const section = await tx.bqSection.findFirst({ where: { id: sectionId, versionId: v.id } });
     if (!section) return { ok: false, errors: { sectionId: scopeFaultText("SECTION_REQUIRED") } };
     const before = itemId ? await tx.bqItem.findFirst({ where: { id: itemId, section: { versionId: v.id } } }) : null;
     if (itemId && !before) return RECORD_GONE;
+    // A rate from a schedule is taken from the issue in force on the organisation's day,
+    // read in this transaction, and kept with what the issue said (priceFromSchedule).
+    let priced: PricedFromSchedule | null = null;
+    if (scheduleItem) {
+      const [issueId, code] = scheduleItem.split("|");
+      const issues = await loadRateIssues(l.org.id, tx);
+      const chosen = issues.find((i) => i.id === issueId);
+      if (!chosen || !code) return { ok: false, errors: { scheduleItem: scopeFaultText("RECORD_GONE") } };
+      const p = priceFromSchedule(issues, chosen.label, code, today(l));
+      if (!p.ok) return { ok: false, errors: { scheduleItem: scopeFaultText(p.fault) } };
+      // The issue in force moved on since the form was opened: say so rather than price from another issue.
+      if (p.priced.rateScheduleId !== chosen.id) return { ok: false, errors: { scheduleItem: scopeFaultText("CHANGED") } };
+      priced = p.priced;
+    }
+    const rate: Sen | null = priced ? priced.rate : rateRaw == null ? null : parseSen(rateRaw);
+    const amount = itemAmount(quantity, rate);
     const row = {
-      sectionId: section.id, itemRef, description, unit, kind, provisional, sortOrder, rateSource: "ENTERED" as const,
+      sectionId: section.id, itemRef, description, unit, kind, provisional, sortOrder,
       quantity, rate: rate == null ? null : senToDecimalString(rate), amount: amount == null ? null : senToDecimalString(amount),
+      ...(priced
+        ? { rateSource: "SCHEDULE" as const, rateScheduleId: priced.rateScheduleId, rateItemCode: priced.rateItemCode, scheduleLabelSnapshot: priced.scheduleLabelSnapshot, scheduleIssueSnapshot: priced.scheduleIssueSnapshot, scheduleEffectiveFromSnapshot: dayToDate(priced.scheduleEffectiveFromSnapshot) }
+        : { rateSource: "ENTERED" as const, rateScheduleId: null, rateItemCode: null, scheduleLabelSnapshot: null, scheduleIssueSnapshot: null, scheduleEffectiveFromSnapshot: null }),
     };
     const saved = before ? await tx.bqItem.update({ where: { id: before.id }, data: row }) : await tx.bqItem.create({ data: { organisationId: l.org.id, ...row } });
+    const fromText = (x: { scheduleLabelSnapshot: string | null; scheduleIssueSnapshot: string | null; scheduleEffectiveFromSnapshot: Date | string | null; rateItemCode: string | null } | null) =>
+      x?.scheduleLabelSnapshot && x.scheduleIssueSnapshot && x.scheduleEffectiveFromSnapshot && x.rateItemCode
+        ? rateFromText({ label: x.scheduleLabelSnapshot, issue: x.scheduleIssueSnapshot, effectiveFrom: typeof x.scheduleEffectiveFromSnapshot === "string" ? x.scheduleEffectiveFromSnapshot : storedDay(x.scheduleEffectiveFromSnapshot), itemCode: x.rateItemCode }, formatDate)
+        : null;
     await audit(tx, l.org.id, ENTITY.bqItem, saved.id, label(l, `Bill of quantities v${v.versionNo} · ${itemRef || description}`), before ? "UPDATE" : "CREATE",
-      itemAudit(before ? lineOf(before) : null, { itemRef, description, unit, kind, quantity, rate, provisional }));
+      itemAudit(before ? { ...lineOf(before), rateFrom: fromText(before) } : null, { itemRef, description, unit, kind, quantity, rate, provisional, rateFrom: fromText(priced) }));
     return { ok: true };
   });
 }
@@ -286,7 +325,11 @@ export async function startBqRevision(_prev: FormState, data: FormData): Promise
     for (const s of from.sections) {
       const ns = await tx.bqSection.create({ data: { organisationId: l.org.id, versionId: v.id, number: s.number, title: s.title, sortOrder: s.sortOrder } });
       await tx.bqItem.createMany({
-        data: s.items.map((i) => ({ organisationId: l.org.id, sectionId: ns.id, itemRef: i.itemRef, description: i.description, unit: i.unit, kind: i.kind, quantity: i.quantity, rate: i.rate, amount: i.amount, provisional: i.provisional, rateSource: i.rateSource, sortOrder: i.sortOrder })),
+        data: s.items.map((i) => ({
+          organisationId: l.org.id, sectionId: ns.id, itemRef: i.itemRef, description: i.description, unit: i.unit, kind: i.kind, quantity: i.quantity, rate: i.rate, amount: i.amount, provisional: i.provisional, rateSource: i.rateSource, sortOrder: i.sortOrder,
+          // A line priced from a schedule keeps what the issue said, into the revision too (FR-EST-004).
+          rateScheduleId: i.rateScheduleId, rateItemCode: i.rateItemCode, scheduleLabelSnapshot: i.scheduleLabelSnapshot, scheduleIssueSnapshot: i.scheduleIssueSnapshot, scheduleEffectiveFromSnapshot: i.scheduleEffectiveFromSnapshot,
+        })),
       });
     }
     await audit(tx, l.org.id, ENTITY.bqVersion, v.id, label(l, `Bill of quantities v${versionNo}`), "CREATE", bqStatusAudit(null, "DRAFT", { version: versionNo, revises: `version ${from.versionNo}`, lines: from.sections.reduce((n, s) => n + s.items.length, 0) }), reason);
@@ -584,4 +627,203 @@ export async function voidEstimate(_prev: FormState, data: FormData): Promise<Fo
     await audit(tx, l.org.id, ENTITY.estimateEvent, ev.id, label(l, "Company estimate · voided"), "CREATE", estimateEventAudit({ kind: "VOIDED", personName: person?.name ?? null, versionNo: facts.currentVersionNo, reason }), reason);
     return { ok: true };
   });
+}
+
+// ------------------------------------------------------------------ increment 2: scope approval (OD-9, FR-REQ-014)
+
+const ACTS = ["P", "JP", "R", "JR", "MR", "MJR", "A", "MA"] as const;
+
+/**
+ * Table the finalised bill's scope at a sitting of the committee the method names, as a
+ * SCOPE matter that names the version by its typed key. Locks the exercise (requisition,
+ * exercise, its bill versions) and then the sitting (`lockSittingIn`): no act takes them
+ * the other way round. On the locked rows it re-runs `scopeCitationFault` (which version,
+ * which committee, once per version) and `checkTabling` (a Secretariat holder on the
+ * tabling day, attested). The committee's act is the officer's choice, as on the sitting's
+ * own drawer. The matter is decided at the sitting like any other; scope approval is read
+ * from that decision (`scopeApproval`), never stored beside it.
+ */
+export async function tableScope(_prev: FormState, data: FormData): Promise<FormState> {
+  const r = new FormReader(data);
+  const exerciseId = exerciseIdOf(data);
+  const versionId = String(data.get("versionId") ?? "");
+  const meetingId = r.text("meetingId", "Sitting", { required: true });
+  const act = r.choice("act", "The committee's act", ACTS, { required: true });
+  const tabledByPersonId = r.optionalText("tabledByPersonId");
+  if (r.failed || !act) return { ok: false, errors: r.errors };
+  const roster = await loadRoster(ORGANISATION_CODE);
+  const result = await inExercise(exerciseId, async (tx, l) => {
+    await lockBqRows(tx, exerciseId);
+    const version = await tx.bqVersion.findFirst({ where: { id: versionId, organisationId: l.org.id }, select: { id: true, exerciseId: true, status: true, versionNo: true } });
+    if (!version) return RECORD_GONE;
+    const s = await lockSittingIn(tx, meetingId, roster);
+    if (!s) return { ok: false, errors: { meetingId: scopeFaultText("SITTING_GONE") } };
+    const rules = await loadScopeRules(l.org.id, l.ex, tx);
+    const matters = (await loadScopeMatters(exerciseId, tx)).filter((m) => m.bqVersionId === version.id);
+    const faults = scopeCitationFault({
+      exercise: { id: l.ex.id, status: l.ex.status },
+      rule: rules.method,
+      version,
+      sitting: { committeeCode: s.meeting.committee.code, frozen: !sittingPermits(s.meeting.status, "TABLE") },
+      matters,
+    });
+    if (blocking(faults).length) return refuse(faults);
+    const code = s.meeting.committee.secretariatRoleCode;
+    const tabling = checkTabling({ secretariatRoleCode: code, tabledByPersonId, holderIdsOnDate: secretariatHoldersOn(s.roster, code, s.today).map((h) => h.id), tablingDay: s.today });
+    if (!tabling.ok) {
+      return tabling.fault === "NOT_TABLED" || tabling.fault === "NOT_SECRETARIAT_HOLDER"
+        ? { ok: false, errors: { tabledByPersonId: TABLING_FAULT_MESSAGE[tabling.fault] } }
+        : { ok: false, message: `Nothing was saved: ${TABLING_FAULT_MESSAGE[tabling.fault]}` };
+    }
+    const subject = scopeMatterSubject(l.ex.reference, version.versionNo);
+    const tabledAt = dayToDate(s.today!);
+    const sequence = s.meeting.decisions.reduce((n, d) => Math.max(n, d.sequence), 0) + 1;
+    const row = await tx.committeeDecision.create({
+      data: { meetingId: s.meeting.id, subject, domain: SCOPE_DOMAIN, matterKind: "SCOPE", matterRef: l.ex.reference, bqVersionId: version.id, act, tabledByPersonId, tabledAt, sequence },
+    });
+    await audit(tx, l.org.id, "CommitteeDecision", row.id, label(l, `Scope matter, bill version ${version.versionNo}`), "CREATE",
+      scopeTabledAudit({ subject, versionNo: version.versionNo, sitting: s.meeting.reference, committee: s.meeting.committee.nameEn, act: ACT_LABEL[act] ?? act, tabledBy: tabledByPersonId ? (s.names[tabledByPersonId] ?? null) : null, tabledOn: s.today! }));
+    return { ok: true, message: `Tabled at ${s.meeting.reference}. It is decided there, at the sitting.` };
+  });
+  if (result.ok) {
+    revalidatePath("/committees");
+    revalidatePath(`/committees/${meetingId}`);
+  }
+  return result;
+}
+
+// ------------------------------------------------------------------ increment 2: CSV (OD-5, Q-3)
+
+/**
+ * Import a bill from the CSV the officer uploaded (Q-3). The file reached the portal
+ * through the document store's upload Route Handler (a Server Action caps a body at 1 MB),
+ * as a received document of the class the officer chose; this act takes its version id.
+ * Under the exercise's lock, then the draft's, then the document's: the stored bytes are
+ * read through the store façade and their fingerprint checked, decoded and parsed again
+ * here (`parseBqCsv`, the same rule the drawer previewed with), and only a file with no
+ * blocking finding is imported. The lines, the file's attachment to the version (purpose
+ * BQ_IMPORT_SOURCE, by this act only) and every audit row are written in one transaction.
+ * A draft that already has lines is replaced only when the officer says so, each removed
+ * line audited. A refused import leaves the file in Received, not filed.
+ */
+export async function importBqCsv(_prev: FormState, data: FormData): Promise<FormState> {
+  const exerciseId = exerciseIdOf(data);
+  const bqVersionId = String(data.get("bqVersionId") ?? "");
+  const documentVersionId = String(data.get("versionId") ?? "");
+  const replace = data.get("replace") === "on" || data.get("replace") === "true";
+  const s = blobStore();
+  if ("fault" in s) return { ok: false, message: `Nothing was saved: ${documentFaultText({ code: s.fault, level: "block" })}` };
+  return inExercise(exerciseId, async (tx, l) => {
+    const v = await lockedDraft(tx, l, bqVersionId).catch((e) => {
+      if (e instanceof Refusal && e.state === RECORD_GONE) throw new Refusal({ ok: false, message: scopeFaultText("NO_DRAFT") });
+      throw e;
+    });
+    const doc = await lockVersion(tx, documentVersionId, l.org.id);
+    if (!doc) return { ok: false, message: documentFaultText({ code: "VERSION_UNKNOWN", level: "block" }) };
+    const stored = await tx.documentVersion.findUniqueOrThrow({ where: { id: doc.id }, select: { mediaType: true, originalFilename: true, document: { select: { id: true, title: true, status: true, classificationSnapshot: true, documentClass: { select: { classification: true } } } } } });
+    if (stored.mediaType !== "text/csv") return { ok: false, message: scopeFaultText("FILE_NOT_CSV") };
+    const bytes = await s.store.get(l.org.id, doc.sha256);
+    if (!bytes || sha256Hex(bytes) !== doc.sha256) return { ok: false, message: scopeFaultText("FILE_UNREADABLE") };
+    const decoded = decodeCsv(bytes);
+    if ("fault" in decoded) return { ok: false, message: `${scopeFaultText("FILE_REFUSED")} ${csvFaultText(decoded.fault)}` };
+    const parsed = parseBqCsv(decoded.text);
+    const blocks = parsed.faults.filter((f) => f.level === "block");
+    if (blocks.length) return { ok: false, message: `${scopeFaultText("FILE_REFUSED")} ${blocks.slice(0, 8).map(csvFaultText).join(" ")}${blocks.length > 8 ? ` And ${blocks.length - 8} more.` : ""}` };
+    const existing = await tx.bqSection.findMany({ where: { versionId: v.id }, include: { items: true } });
+    const existingLines = existing.reduce((n, x) => n + x.items.length, 0);
+    if (existingLines > 0 && !replace) return { ok: false, errors: { replace: scopeFaultText("DRAFT_NOT_EMPTY") } };
+    const already = await tx.documentAttachment.findFirst({ where: { bqVersionId: v.id, purpose: "BQ_IMPORT_SOURCE", detachedAt: null, version: { documentId: doc.documentId } }, select: { id: true } });
+    const owner = bqVersionFacts({ status: v.status, exercise: { status: l.ex.status } });
+    const attachFaults = attachFault({ purpose: "BQ_IMPORT_SOURCE", owner, version: doc, documentClass: stored.document.documentClass, documentClassification: stored.document.classificationSnapshot, alreadyAttached: !!already && !replace, byOwnerAct: true });
+    if (blocking(attachFaults).length) return { ok: false, message: `Nothing was saved: ${blocking(attachFaults).map(documentFaultText).join(" ")}` };
+
+    const vLabel = `Bill of quantities v${v.versionNo}`;
+    if (replace) {
+      // The files the replaced lines came from are no longer what the draft holds: taken off, with why, kept in the trail.
+      const earlier = await tx.documentAttachment.findMany({ where: { bqVersionId: v.id, purpose: "BQ_IMPORT_SOURCE", detachedAt: null }, include: { version: { select: { versionNo: true, document: { select: { title: true } } } } } });
+      for (const e of earlier) {
+        const why = `Replaced: the draft's lines were imported again, from ${stored.originalFilename}.`;
+        await tx.documentAttachment.update({ where: { id: e.id }, data: { detachedAt: new Date(), detachReason: why } });
+        await writeAudit(tx, { organisationId: l.org.id, entity: "DocumentAttachment", entityId: e.id, entityLabel: `${label(l, vLabel)} · ${PURPOSE_LABEL.BQ_IMPORT_SOURCE}`, reason: why }, "UPDATE",
+          detached({ purpose: "BQ_IMPORT_SOURCE", title: e.version.document.title, versionNo: e.version.versionNo, reason: why }));
+      }
+      for (const sec of existing) {
+        for (const i of sec.items) {
+          await tx.bqItem.delete({ where: { id: i.id } });
+          await audit(tx, l.org.id, ENTITY.bqItem, i.id, label(l, `${vLabel} · ${i.itemRef || i.description}`), "DELETE", itemAudit(null, lineOf(i)));
+        }
+        await tx.bqSection.delete({ where: { id: sec.id } });
+        await audit(tx, l.org.id, ENTITY.bqSection, sec.id, label(l, `${vLabel} · section ${sec.number}`), "DELETE", sectionAudit(null, { number: sec.number, title: sec.title }));
+      }
+    }
+    let order = 0;
+    for (const [si, sec] of parsed.sections.entries()) {
+      const row = await tx.bqSection.create({ data: { organisationId: l.org.id, versionId: v.id, number: sec.number, title: sec.title, sortOrder: si + 1 } });
+      await audit(tx, l.org.id, ENTITY.bqSection, row.id, label(l, `${vLabel} · section ${sec.number}`), "CREATE", sectionAudit(null, { number: sec.number, title: sec.title }));
+      for (const i of sec.items) {
+        const amount = itemAmount(i.quantity, i.rate);
+        const item = await tx.bqItem.create({
+          data: {
+            organisationId: l.org.id, sectionId: row.id, itemRef: i.itemRef, description: i.description, unit: i.unit, kind: i.kind, provisional: i.provisional, sortOrder: ++order, rateSource: "ENTERED",
+            quantity: i.quantity, rate: i.rate == null ? null : senToDecimalString(i.rate), amount: amount == null ? null : senToDecimalString(amount),
+          },
+        });
+        await audit(tx, l.org.id, ENTITY.bqItem, item.id, label(l, `${vLabel} · ${i.itemRef || i.description}`), "CREATE", itemAudit(null, i));
+      }
+    }
+    const attachment = await tx.documentAttachment.create({ data: { organisationId: l.org.id, purpose: "BQ_IMPORT_SOURCE", versionId: doc.id, bqVersionId: v.id } });
+    const ownerLabel = label(l, vLabel);
+    await writeAudit(tx, { organisationId: l.org.id, entity: "DocumentAttachment", entityId: attachment.id, entityLabel: `${ownerLabel} · ${PURPOSE_LABEL.BQ_IMPORT_SOURCE}` }, "CREATE",
+      attached({ purpose: "BQ_IMPORT_SOURCE", title: stored.document.title, versionNo: doc.versionNo, sha256: doc.sha256, owner: ownerLabel }));
+    if (stored.document.status === "STAGED") {
+      await tx.document.update({ where: { id: stored.document.id }, data: { status: "FILED", filedAt: new Date() } });
+      await writeAudit(tx, { organisationId: l.org.id, entity: "Document", entityId: stored.document.id, entityLabel: `Document · ${stored.document.title}` }, "UPDATE", filed());
+    }
+    await audit(tx, l.org.id, ENTITY.bqVersion, v.id, label(l, vLabel), "UPDATE",
+      bqImportAudit({ file: stored.originalFilename, documentTitle: stored.document.title, versionNo: doc.versionNo, sha256: doc.sha256, sections: parsed.sections.length, lines: parsed.lineCount, replacedLines: replace ? existingLines : 0, mismatches: parsed.keyedMismatches.length, priced: parsed.priced }));
+    revalidatePath("/configuration/documents");
+    const warns = [...parsed.faults.filter((f) => f.level !== "block").map(csvFaultText), ...parsed.keyedMismatches.slice(0, 5).map(keyedMismatchText)];
+    return { ok: true, message: [`Imported ${parsed.lineCount} ${parsed.lineCount === 1 ? "line" : "lines"} in ${parsed.sections.length} ${parsed.sections.length === 1 ? "section" : "sections"}; the file is kept with version ${v.versionNo}.`, ...warns].join(" ") };
+  });
+}
+
+export interface BqExportResult {
+  ok: boolean;
+  message?: string;
+  file?: string;
+  fileName?: string;
+  sha256?: string;
+}
+
+/**
+ * Export a version of the bill as CSV, priced or unpriced (OD-5, OD-8). Built here, on the
+ * server, from the version's sections and lines only — the select below names nothing
+ * else, so no company-estimate figure and no exercise value can reach the file (the SULIT
+ * guard) — and recorded, with the file's digest, in the same transaction. The file comes
+ * back to the browser to save, as the audit trail's export does.
+ */
+export async function exportBqCsv(_prev: BqExportResult, data: FormData): Promise<BqExportResult> {
+  const exerciseId = exerciseIdOf(data);
+  const bqVersionId = String(data.get("bqVersionId") ?? "");
+  const priced = data.get("priced") === "yes";
+  let out: BqExportResult = { ok: false };
+  const result = await inExercise(exerciseId, async (tx, l) => {
+    const v = await tx.bqVersion.findFirst({
+      where: { id: bqVersionId, exerciseId },
+      select: {
+        id: true, versionNo: true,
+        sections: { orderBy: [{ sortOrder: "asc" }, { number: "asc" }], select: { number: true, title: true, items: { orderBy: [{ sortOrder: "asc" }, { itemRef: "asc" }], select: { itemRef: true, description: true, unit: true, kind: true, quantity: true, rate: true, provisional: true } } } },
+      },
+    });
+    if (!v) return RECORD_GONE;
+    const frozen = { versionNo: v.versionNo, sections: v.sections.map((s) => ({ number: s.number, title: s.title, items: s.items.map(lineOf) })) };
+    const file = bqToCsv(frozen, { priced });
+    const fileName = bqCsvFilename(l.ex.reference, v.versionNo, priced);
+    const sha256 = sha256Hex(new TextEncoder().encode(file));
+    const lines = frozen.sections.reduce((n, s) => n + s.items.length, 0);
+    await audit(tx, l.org.id, ENTITY.bqExport, v.id, label(l, `Bill of quantities v${v.versionNo} · CSV export`), "CREATE", bqExportAudit({ versionNo: v.versionNo, priced, fileName, sha256, lines }));
+    out = { ok: true, file, fileName, sha256 };
+    return { ok: true };
+  });
+  return result.ok ? out : { ok: false, message: result.message };
 }

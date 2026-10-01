@@ -8,8 +8,13 @@ import { writeAudit, type Tx } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import { storedDay } from "@/lib/dates";
 import { ORGANISATION_CODE } from "@/lib/org";
-import { CONFIG_FAULT_TEXT, holdingFault, scopePolicyFaults } from "@/lib/scope/config";
-import { activePerson } from "@/lib/scope/repo";
+import { CONFIG_FAULT_TEXT, holdingFault, scopePolicyFaults, scopeRuleFaults, scopeRuleToSave, SCOPE_RULE_FAULT_TEXT } from "@/lib/scope/config";
+import { RATE_ENTITY } from "@/lib/scope/audit-view";
+import { RATE_SCHEDULE_STATUS_LABEL, scopeFaultText } from "@/lib/scope/labels";
+import { issueFaults, itemFaults, nextIssueNo, scheduleEditFault, startIssueFaults } from "@/lib/scope/rates";
+import { activePerson, loadRateIssues } from "@/lib/scope/repo";
+import { dayToDate, todayIn } from "@/lib/dates";
+import { formatSen, parseSen, senToDecimalString } from "@/lib/money";
 import { FormReader } from "@/lib/validate";
 
 /**
@@ -295,6 +300,194 @@ export async function saveBasisBqRule(_prev: FormState, data: FormData): Promise
     await tx.contractBasis.update({ where: { id }, data: v });
     await audit(tx, orgId, "ContractBasis", id, before.nameEn, "UPDATE", before, v);
     revalidatePath("/configuration/reference-data");
+    return done();
+  });
+}
+
+// ------------------------------------------------------------------ increment 2: a method's scope-approval rule (OD-9)
+
+/// Whether a method needs its scope approved by a committee: yes (naming the committee), no, or not set; with its provenance.
+export async function saveMethodScopeRule(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+  const id = String(data.get("id") ?? "");
+  const r = new FormReader(data);
+  const required = triState(r.choice("scopeApprovalRequired", "Scope approved by a committee", ["yes", "no", "unset"] as const, { required: true }));
+  const provenance = r.choice("scopeApprovalProvenance", "Provenance", PROVENANCE);
+  const committeeCode = r.optionalText("scopeCommitteeCode");
+  if (r.failed) return { ok: false, errors: r.errors };
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "SourcingMethod" WHERE id = ${id} FOR UPDATE`;
+    const before = await tx.sourcingMethod.findFirst({ where: { id, organisationId: orgId }, select: { nameEn: true, scopeApprovalRequired: true, scopeApprovalProvenance: true, scopeCommitteeCode: true } });
+    if (!before) return GONE;
+    const committees = (await tx.committee.findMany({ where: { organisationId: orgId, retiredOn: null }, select: { code: true } })).map((c) => c.code);
+    const faults = scopeRuleFaults({ required, provenance, committeeCode }, { committees });
+    if (faults.length) return { ok: false, errors: Object.fromEntries(faults.map((f) => [f.field, SCOPE_RULE_FAULT_TEXT[f.code]])) };
+    const v = scopeRuleToSave({ required, provenance, committeeCode });
+    await tx.sourcingMethod.update({ where: { id }, data: v });
+    await audit(tx, orgId, "SourcingMethod", id, before.nameEn, "UPDATE", { scopeApprovalRequired: before.scopeApprovalRequired, scopeApprovalProvenance: before.scopeApprovalProvenance, scopeCommitteeCode: before.scopeCommitteeCode }, v);
+    revalidatePath("/configuration/reference-data");
+    revalidatePath("/sourcing", "layout");
+    return done();
+  });
+}
+
+// ------------------------------------------------------------------ increment 2: schedules of rates (FR-EST-004)
+
+const issueLabel = (label: string, issueNo: number) => `Schedule of rates · ${label}, issue ${issueNo}`;
+const scheduleRefusal = (fs: readonly { code: string; level: string; data?: Record<string, string | number | null> }[]): FormState => ({ ok: false, message: `Nothing was saved: ${fs.map((f) => scopeFaultText(f as Parameters<typeof scopeFaultText>[0])).join(" ")}` });
+
+/// Lock every issue of a schedule, so two acts on one schedule never interleave.
+async function lockSchedule(tx: Tx, organisationId: string, label: string) {
+  await tx.$queryRaw`SELECT id FROM "RateSchedule" WHERE "organisationId" = ${organisationId} AND label = ${label} FOR UPDATE`;
+}
+
+/**
+ * Start a draft issue of a schedule: a new schedule (issue 1), or the next issue of one,
+ * copied item by item from its latest issue. One draft at a time per schedule.
+ */
+export async function startRateIssue(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+  const r = new FormReader(data);
+  const label = r.text("label", "Schedule", { required: true, max: 200 });
+  const provenance = r.choice("provenance", "Provenance", PROVENANCE, { required: true });
+  const governingSource = r.text("governingSource", "Governing source", { max: 500 });
+  const notes = r.text("notes", "Notes", { max: 2000 });
+  if (r.failed || !provenance) return { ok: false, errors: r.errors };
+  return db.$transaction(async (tx) => {
+    await lockSchedule(tx, orgId, label);
+    const issues = await loadRateIssues(orgId, tx);
+    const faults = startIssueFaults(issues, label);
+    if (faults.length) return faults[0].code === "LABEL_REQUIRED" ? { ok: false, errors: { label: scopeFaultText(faults[0]) } } : scheduleRefusal(faults);
+    const issueNo = nextIssueNo(issues, label);
+    const from = issues.filter((i) => i.label === label).sort((a, b) => b.issueNo - a.issueNo)[0] ?? null;
+    const row = await tx.rateSchedule.create({ data: { organisationId: orgId, label, issueNo, status: "DRAFT", provenance, governingSource, notes } });
+    await audit(tx, orgId, RATE_ENTITY.schedule, row.id, issueLabel(label, issueNo), "CREATE", null, { schedule: label, issue: issueNo, status: RATE_SCHEDULE_STATUS_LABEL.DRAFT, provenance, governingSource, ...(from ? { copiedFrom: `issue ${from.issueNo}`, items: from.items.length } : {}) });
+    for (const i of from?.items ?? []) {
+      const item = await tx.rateScheduleItem.create({ data: { organisationId: orgId, scheduleId: row.id, code: i.code, descriptionEn: i.descriptionEn, descriptionMs: i.descriptionMs, unit: i.unit, rate: senToDecimalString(i.rate), sortOrder: i.sortOrder } });
+      await audit(tx, orgId, RATE_ENTITY.item, item.id, `${issueLabel(label, issueNo)} · ${i.code}`, "CREATE", null, { code: i.code, description: i.descriptionEn, unit: i.unit, rate: formatSen(i.rate) });
+    }
+    return done();
+  });
+}
+
+/// Lock and read one issue (and every issue of its schedule) for an edit.
+async function lockedIssue(tx: Tx, orgId: string, scheduleId: string) {
+  const at = await tx.rateSchedule.findFirst({ where: { id: scheduleId, organisationId: orgId }, select: { label: true } });
+  if (!at) return null;
+  await lockSchedule(tx, orgId, at.label);
+  const issues = await loadRateIssues(orgId, tx);
+  const issue = issues.find((i) => i.id === scheduleId);
+  return issue ? { issue, issues } : null;
+}
+
+/// Add or edit an item of a draft issue. An issued issue is never changed.
+export async function saveRateItem(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+  const scheduleId = String(data.get("scheduleId") ?? "");
+  const itemId = String(data.get("itemId") ?? "") || undefined;
+  const r = new FormReader(data);
+  const code = r.text("code", "Code", { required: true, max: 40 });
+  const descriptionEn = r.text("descriptionEn", "Description", { required: true, max: 2000 });
+  const unit = r.text("unit", "Unit", { max: 40 });
+  const rateRaw = r.money("rate", "Rate", { required: true });
+  const sortOrder = r.int("sortOrder", "Order") ?? 0;
+  if (r.failed || rateRaw == null) return { ok: false, errors: r.errors };
+  const rate = parseSen(rateRaw);
+  return db.$transaction(async (tx) => {
+    const l = await lockedIssue(tx, orgId, scheduleId);
+    if (!l) return GONE;
+    const faults = itemFaults({ code, descriptionEn, rate, id: itemId }, l.issue);
+    if (faults.length) {
+      const withField = faults.filter((f) => f.field);
+      return withField.length === faults.length ? { ok: false, errors: Object.fromEntries(withField.map((f) => [f.field!, scopeFaultText(f)])) } : scheduleRefusal(faults);
+    }
+    const before = itemId ? l.issue.items.find((i) => i.id === itemId) ?? null : null;
+    if (itemId && !before) return GONE;
+    const row = { code: code.trim(), descriptionEn, unit, rate: senToDecimalString(rate), sortOrder };
+    const saved = before ? await tx.rateScheduleItem.update({ where: { id: before.id }, data: row }) : await tx.rateScheduleItem.create({ data: { organisationId: orgId, scheduleId, ...row } });
+    await audit(tx, orgId, RATE_ENTITY.item, saved.id, `${issueLabel(l.issue.label, l.issue.issueNo)} · ${row.code}`, before ? "UPDATE" : "CREATE",
+      before ? { code: before.code, description: before.descriptionEn, unit: before.unit, rate: formatSen(before.rate) } : null, { code: row.code, description: descriptionEn, unit, rate: formatSen(rate) });
+    return done();
+  });
+}
+
+/// Remove an item of a draft issue, its whole row kept in the trail.
+export async function removeRateItem(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+  const scheduleId = String(data.get("scheduleId") ?? "");
+  const itemId = String(data.get("itemId") ?? "");
+  return db.$transaction(async (tx) => {
+    const l = await lockedIssue(tx, orgId, scheduleId);
+    if (!l) return GONE;
+    const fault = scheduleEditFault(l.issue);
+    if (fault) return scheduleRefusal([fault]);
+    const item = l.issue.items.find((i) => i.id === itemId);
+    if (!item) return GONE;
+    await tx.rateScheduleItem.delete({ where: { id: item.id } });
+    await writeAudit(tx, { organisationId: orgId, entity: RATE_ENTITY.item, entityId: item.id, entityLabel: `${issueLabel(l.issue.label, l.issue.issueNo)} · ${item.code}` }, "DELETE",
+      diffFields({ code: item.code, description: item.descriptionEn, unit: item.unit, rate: formatSen(item.rate) }, {}));
+    return done();
+  });
+}
+
+/**
+ * Issue a draft: from the day it takes effect, named as issued by a person (recorded on
+ * their behalf, not signed), on the organisation's day. The issue issued before it is
+ * superseded in the same act; lines already priced from it keep what it said.
+ */
+export async function issueRateSchedule(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+  const scheduleId = String(data.get("scheduleId") ?? "");
+  const r = new FormReader(data);
+  const effectiveFrom = r.date("effectiveFrom", "Takes effect from", { required: true });
+  const issuedByPersonId = r.optionalText("issuedByPersonId");
+  if (r.failed) return { ok: false, errors: r.errors };
+  return db.$transaction(async (tx) => {
+    const org = await tx.organisation.findUniqueOrThrow({ where: { id: orgId }, select: { timeZone: true } });
+    const today = org.timeZone ? todayIn(new Date(), org.timeZone) : null;
+    const l = await lockedIssue(tx, orgId, scheduleId);
+    if (!l) return GONE;
+    const issuer = issuedByPersonId ? await activePerson(orgId, issuedByPersonId, tx) : null;
+    if (issuedByPersonId && !issuer) return { ok: false, errors: { issuedByPersonId: scopeFaultText("PERSON_UNKNOWN") } };
+    const effective = effectiveFrom ? storedDay(effectiveFrom) : null;
+    const { faults, supersedes } = issueFaults(l.issue, l.issues, { effectiveFrom: effective, issuedByPersonId: issuer?.id ?? null, today });
+    if (faults.length) {
+      const byField: Record<string, string> = {};
+      for (const f of faults) if (f.code === "EFFECTIVE_REQUIRED" || f.code === "EFFECTIVE_NOT_AFTER_CURRENT") byField.effectiveFrom = scopeFaultText(f); else if (f.code === "ISSUER_REQUIRED") byField.issuedByPersonId = scopeFaultText(f);
+      return Object.keys(byField).length === faults.length ? { ok: false, errors: byField } : scheduleRefusal(faults);
+    }
+    if (supersedes) {
+      await tx.rateSchedule.update({ where: { id: supersedes.id }, data: { status: "SUPERSEDED", supersededOn: dayToDate(today!) } });
+      await audit(tx, orgId, RATE_ENTITY.schedule, supersedes.id, issueLabel(supersedes.label, supersedes.issueNo), "UPDATE", { status: RATE_SCHEDULE_STATUS_LABEL.ISSUED }, { status: RATE_SCHEDULE_STATUS_LABEL.SUPERSEDED, supersededBy: `issue ${l.issue.issueNo}`, supersededOn: today });
+    }
+    await tx.rateSchedule.update({ where: { id: l.issue.id }, data: { status: "ISSUED", effectiveFrom: dayToDate(effective!), issuedOn: dayToDate(today!), issuedByPersonId: issuer!.id } });
+    await audit(tx, orgId, RATE_ENTITY.schedule, l.issue.id, issueLabel(l.issue.label, l.issue.issueNo), "UPDATE", { status: RATE_SCHEDULE_STATUS_LABEL.DRAFT }, { status: RATE_SCHEDULE_STATUS_LABEL.ISSUED, effectiveFrom: effective, issuedOn: today, issuedBy: `${issuer!.name} (recorded on behalf of, not signed)`, items: l.issue.items.length });
+    revalidatePath("/sourcing", "layout");
+    return done();
+  });
+}
+
+/// Discard a draft issue (never an issued one), with its items; the trail keeps every row.
+export async function discardRateIssue(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+  const scheduleId = String(data.get("scheduleId") ?? "");
+  return db.$transaction(async (tx) => {
+    const l = await lockedIssue(tx, orgId, scheduleId);
+    if (!l) return GONE;
+    const fault = scheduleEditFault(l.issue);
+    if (fault) return scheduleRefusal([fault]);
+    for (const i of l.issue.items) {
+      await tx.rateScheduleItem.delete({ where: { id: i.id } });
+      await writeAudit(tx, { organisationId: orgId, entity: RATE_ENTITY.item, entityId: i.id, entityLabel: `${issueLabel(l.issue.label, l.issue.issueNo)} · ${i.code}` }, "DELETE", diffFields({ code: i.code, description: i.descriptionEn, unit: i.unit, rate: formatSen(i.rate) }, {}));
+    }
+    await tx.rateSchedule.delete({ where: { id: l.issue.id } });
+    await writeAudit(tx, { organisationId: orgId, entity: RATE_ENTITY.schedule, entityId: l.issue.id, entityLabel: issueLabel(l.issue.label, l.issue.issueNo) }, "DELETE", diffFields({ schedule: l.issue.label, issue: l.issue.issueNo, status: RATE_SCHEDULE_STATUS_LABEL.DRAFT }, {}));
     return done();
   });
 }

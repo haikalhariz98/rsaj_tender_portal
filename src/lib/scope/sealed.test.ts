@@ -68,3 +68,29 @@ describe("no RSAJ figure in the product (X-10 d)", () => {
     expect(files.filter((f) => f.startsWith("src/") && !isTest(f) && /4,?200,?000(?:\.00)?\b/.test(source(f)))).toEqual([]);
   });
 });
+
+describe("exports carry no sealed or SULIT figure (OD-1, OD-8, the SULIT guard)", () => {
+  const ACTIONS = "src/app/sourcing/[id]/scope/actions.ts";
+  const body = (src: string, fn: string) => {
+    const at = src.indexOf(`export async function ${fn}(`);
+    expect(at, fn).toBeGreaterThan(-1);
+    const next = src.indexOf("\nexport ", at + 10);
+    return src.slice(at, next === -1 ? undefined : next);
+  };
+  it("the CSV builder reads the bill's lines only, and touches nothing of the estimate", () => {
+    const csv = source("src/lib/scope/csv.ts");
+    expect(csv).not.toMatch(/estimate-store|readSealedFigures|companyEstimate|estimateVersion|estimatedValue/);
+    expect(csv).not.toMatch(/from "\.\/estimate"/);
+  });
+  it("the export act selects sections and lines only: no estimate, no exercise value, no matter amount", () => {
+    const fn = body(source(ACTIONS), "exportBqCsv");
+    expect(fn).toMatch(/bqToCsv\(/);
+    expect(fn).not.toMatch(/estimat|readSealedFigures|amount\s*:\s*true|include\s*:/i);
+    // The only file builder is the one the export act calls.
+    expect(matching(/\bbqToCsv\(/, (f) => !isTest(f) && f !== "src/lib/scope/csv.ts")).toEqual([ACTIONS]);
+  });
+  it("nothing in a client component builds a bill's file: exports are built on the server", () => {
+    const clients = files.filter((f) => f.startsWith("src/") && !isTest(f) && /^["']use client["']/m.test(source(f)));
+    expect(clients.filter((f) => /\bbqToCsv\b/.test(source(f)))).toEqual([]);
+  });
+});

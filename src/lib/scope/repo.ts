@@ -14,6 +14,7 @@ import { recordOf } from "@/lib/requisition/repo";
 
 import type { EstimateFacts } from "./estimate";
 import type { PanelColumn } from "./panel";
+import type { RateIssue } from "./rates";
 import type { ScopeMatter } from "./scope-matter";
 import type { BqItemKind, BqLine, EstimateState, QualificationHolding, QualificationRow, ScopePolicy } from "./types";
 import { UNSET_SCOPE_POLICY } from "./types";
@@ -146,6 +147,29 @@ export async function loadScopeMatters(exerciseId: string, client: Tx = db): Pro
     include: { meeting: { include: { committee: { select: { code: true, nameEn: true } } } }, votes: { include: { person: { select: { name: true } } } } },
   });
   return rows.map((d) => ({ id: d.id, bqVersionId: d.bqVersionId, committeeCode: d.meeting.committee.code, withdrawn: d.withdrawnAt != null, tabledAt: d.tabledAt, record: recordOf(d), sittingReference: d.meeting.reference }));
+}
+
+/// The organisation's schedules of rates, issue by issue, as `rates.ts` reads them (days as YYYY-MM-DD).
+export async function loadRateIssues(organisationId: string, client: Tx = db): Promise<(Omit<RateIssue, "items"> & { governingSource: string; provenance: Provenance; notes: string; issuedOn: string | null; supersededOn: string | null; issuedBy: string | null; items: (RateIssue["items"][number] & { id: string; unitText: string; descriptionMs: string | null; sortOrder: number })[] })[]> {
+  const rows = await client.rateSchedule.findMany({
+    where: { organisationId },
+    orderBy: [{ label: "asc" }, { issueNo: "desc" }],
+    include: { items: { orderBy: [{ sortOrder: "asc" }, { code: "asc" }] }, issuedBy: { select: { name: true } } },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    label: r.label,
+    issueNo: r.issueNo,
+    status: r.status,
+    effectiveFrom: day(r.effectiveFrom),
+    issuedOn: day(r.issuedOn),
+    supersededOn: day(r.supersededOn),
+    issuedBy: r.issuedBy?.name ?? null,
+    governingSource: r.governingSource,
+    provenance: r.provenance as Provenance,
+    notes: r.notes,
+    items: r.items.map((i) => ({ id: i.id, code: i.code, descriptionEn: i.descriptionEn, descriptionMs: i.descriptionMs, unit: i.unit, unitText: i.unit, rate: parseSen(i.rate.toString()), sortOrder: i.sortOrder })),
+  }));
 }
 
 /// An active person of the organisation, by id, or null.

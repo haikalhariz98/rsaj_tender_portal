@@ -118,5 +118,9 @@
   "committee_gate": {
     "en": "Committee gate",
     "ms": "Get jawatankuasa"
+  },
+  "scope_approval": {
+    "en": "Scope approval",
+    "ms": "Kelulusan skop"
   }
 }

@@ -225,11 +225,21 @@ export async function withLockedSitting<T>(
 ): Promise<T | null> {
   const roster = await loadRoster(ORGANISATION_CODE);
   return db.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM "Meeting" WHERE id = ${meetingId} FOR UPDATE`;
-    const s = await loadSitting(meetingId, tx, roster);
+    const s = await lockSittingIn(tx, meetingId, roster);
     if (!s) return null;
     return fn(tx, s);
   });
+}
+
+/**
+ * The same lock and re-read, inside a transaction another module already holds. Used by
+ * 6.2's scope tabling, which locks the exercise (requisition, exercise, its bill versions)
+ * first and the sitting last; no act takes them the other way round (a sitting's own acts
+ * never lock an exercise), so the two orders never meet.
+ */
+export async function lockSittingIn(tx: Tx, meetingId: string, roster: Awaited<ReturnType<typeof loadRoster>>): Promise<LoadedSitting | null> {
+  await tx.$queryRaw`SELECT id FROM "Meeting" WHERE id = ${meetingId} FOR UPDATE`;
+  return loadSitting(meetingId, tx, roster);
 }
 
 export const HISTORY_PAGE = 200;

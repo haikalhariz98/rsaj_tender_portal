@@ -27,7 +27,12 @@ export const ENTITY = {
   estimate: "CompanyEstimate",
   estimateVersion: "CompanyEstimateVersion",
   estimateEvent: "EstimateEvent",
+  /// Increment 2: a bill exported as CSV (no row of its own: the trail is the record of it).
+  bqExport: "BqCsvExport",
 } as const;
+
+/// Increment 2: schedules of rates are configuration, labelled by their own name, not an exercise's.
+export const RATE_ENTITY = { schedule: "RateSchedule", item: "RateScheduleItem" } as const;
 
 /// The entities whose rows are labelled `${exercise reference} · …`, for the exercise's History.
 export const SCOPE_ENTITIES: readonly string[] = Object.values(ENTITY);
@@ -90,9 +95,12 @@ export interface ItemAuditFacts {
   quantity: string | null;
   rate: Sen | null;
   provisional: boolean;
+  /// FR-EST-004: where the rate came from a schedule, the issue as the line keeps it (`rateFromText`).
+  rateFrom?: string | null;
 }
 
 const itemFields = (i: ItemAuditFacts) => ({
+  ...(i.rateFrom !== undefined ? { rateFrom: i.rateFrom ?? "Entered" } : {}),
   item: i.itemRef || null,
   description: i.description,
   unit: i.unit || null,
@@ -107,6 +115,35 @@ const itemFields = (i: ItemAuditFacts) => ({
 });
 
 export const itemAudit = (before: ItemAuditFacts | null, after: ItemAuditFacts): FieldChange[] => diffFields(before ? itemFields(before) : null, itemFields(after));
+
+/// What a schedule-priced line keeps, in words: the schedule, the issue, the day it took effect and the item.
+export const rateFromText = (s: { label: string; issue: string; effectiveFrom: string; itemCode: string }, formatDay: (d: string) => string) =>
+  `${s.label}, ${s.issue} (in force from ${formatDay(s.effectiveFrom)}), item ${s.itemCode}`;
+
+/// A bill's CSV import: the file, what it added, and what it reported.
+export function bqImportAudit(i: { file: string; documentTitle: string; versionNo: number; sha256: string; sections: number; lines: number; replacedLines: number; mismatches: number; priced: boolean }): FieldChange[] {
+  return diffFields(null, {
+    importedFrom: i.file,
+    document: i.documentTitle,
+    documentVersion: i.versionNo,
+    fingerprint: i.sha256,
+    sections: i.sections,
+    lines: i.lines,
+    ...(i.replacedLines ? { linesReplaced: i.replacedLines } : {}),
+    priced: i.priced ? "Yes" : "No, rates to be entered",
+    amountsThatDiffered: i.mismatches,
+  });
+}
+
+/// A bill's CSV export: which version, priced or not, the file's name and its digest. Never a figure.
+export function bqExportAudit(i: { versionNo: number; priced: boolean; fileName: string; sha256: string; lines: number }): FieldChange[] {
+  return diffFields(null, { version: i.versionNo, file: i.fileName, priced: i.priced ? "Priced" : "Unpriced", lines: i.lines, fingerprint: i.sha256 });
+}
+
+/// A scope matter tabled: what, where, by whom ("recorded on behalf of, not signed").
+export function scopeTabledAudit(i: { subject: string; versionNo: number; sitting: string; committee: string; act: string; tabledBy: string | null; tabledOn: string }): FieldChange[] {
+  return diffFields(null, { subject: i.subject, matter: "Scope approval", bill: `version ${i.versionNo}`, sitting: i.sitting, committee: i.committee, act: i.act, tabledBy: named(i.tabledBy), tabledOn: i.tabledOn });
+}
 
 export const sectionAudit = (before: { number: string; title: string } | null, after: { number: string; title: string }): FieldChange[] => diffFields(before, after);
 
