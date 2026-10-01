@@ -39,7 +39,7 @@
  *   conditions cite the clause.
  * - sx1 and sx15: registrations recorded, the permit chosen, both confirmations recorded on
  *   their packs before submission; sx15 is restricted, so its frozen documents carry the
- *   stamp. sx5: registrations and permit recorded, restriction not answered, and v2 (not
+ *   stamp. sx5: registrations and permit recorded, restriction answered no, and v2 (not
  *   carried) unconfirmed, so its readiness card shows those blocks honestly.
  */
 
@@ -659,12 +659,28 @@ export async function tenderDocsDependents(db: Db, organisationId: string, exerc
   // Increment 2: a real exercise requiring a demo registration body, a real template citing the demo clause.
   const requirements = await db.exerciseRegistrationRequirement.findMany({ where: { organisationId, bodyCode: { in: BODIES.map((b) => b.code) }, exercise: { NOT: { id: demoRef } }, NOT: { exerciseId: { in: [...exerciseIds] } } }, select: { bodyLabelSnapshot: true, exercise: { select: { reference: true } } } });
   const citing = await db.documentTemplate.findMany({ where: { organisationId, NOT: { id: demoRef }, OR: [{ bodyEn: { contains: `clause:${CLAUSE.code}` } }, { bodyMs: { contains: `clause:${CLAUSE.code}` } }] }, select: { nameEn: true } });
+  // The demo's permit list goes with the demo: an exercise that is not removed with it and names one of its types, or a policy kept (edited after the demo loaded, so the organisation's) that names the list, would be left pointing at nothing.
+  const permitCodes = PERMITS.values.map((v) => v.code);
+  const onPermits = await db.sourcingExercise.findMany({ where: { organisationId, NOT: [{ id: demoRef }, { id: { in: [...exerciseIds] } }], regulatedActivity: true, regulatorPermitCode: { in: permitCodes } }, select: { reference: true } });
+  const keptPolicy = await db.tenderDocumentPolicy.findFirst({ where: { organisationId, regulatorPermitTaxonomyCode: PERMITS.code } });
+  const policyKept = keptPolicy != null && !(keptPolicy.id === DEMO_POLICY_ID && policyHoldsDemoValues(keptPolicy));
   return [
+    ...onPermits.map((x) => `  exercise ${x.reference}, which names a permit type from the demo permit list`),
+    ...(policyKept ? ["  the tender documents policy, which names the demo permit list (it was changed after the demo loaded, so it is the organisation's)"] : []),
     ...parts.map((p) => `  tender documents v${p.pack.versionNo} of ${p.pack.exercise.reference}, part ${p.printedNumber}, which draws a demo template`),
     ...frozen.map((d) => `  tender documents v${d.pack.versionNo} of ${d.pack.exercise.reference}, frozen from a demo template`),
     ...requirements.map((r) => `  exercise ${r.exercise.reference}, which requires registration with ${r.bodyLabelSnapshot} (a demo registration body)`),
     ...citing.map((t) => `  template ${t.nameEn}, which cites the demo clause`),
   ];
+}
+
+/// Whether the demo's policy row still holds exactly what the demo loaded (as increment 2 loads it, or as increment 1 did): then it goes with the demo; edited through the screens, it is the organisation's.
+function policyHoldsDemoValues(pol: { ladDailyPct: { toString(): string } | null; firstCertificateFloor: { toString(): string } | null; firstCertificatePct: { toString(): string } | null; insuranceExtraMonths: number | null; insuranceExtraDays: number | null; restrictionStampTextEn: string | null; restrictionStampTextMs: string | null; restrictionLabelEn: string | null; assuranceRequired: boolean | null; regulatorPermitTaxonomyCode: string | null }): boolean {
+  return (
+    pol.ladDailyPct?.toString() === "0.05" && pol.firstCertificateFloor?.toString() === "2500" && pol.firstCertificatePct?.toString() === "5" && pol.insuranceExtraMonths === 2 && pol.insuranceExtraDays === 0 &&
+    ((pol.restrictionStampTextEn === DEMO_POLICY.restrictionStampTextEn && pol.restrictionStampTextMs === DEMO_POLICY.restrictionStampTextMs && pol.restrictionLabelEn === DEMO_POLICY.restrictionLabelEn && pol.assuranceRequired === true && pol.regulatorPermitTaxonomyCode === DEMO_POLICY.regulatorPermitTaxonomyCode) ||
+      (pol.restrictionStampTextEn == null && pol.restrictionStampTextMs == null && pol.restrictionLabelEn == null && pol.assuranceRequired == null && pol.regulatorPermitTaxonomyCode == null))
+  );
 }
 
 export async function wipeTenderDocs(db: Db, organisationId: string, exerciseIds: readonly string[]) {
@@ -698,11 +714,7 @@ export async function wipeTenderDocs(db: Db, organisationId: string, exerciseIds
   // The policy goes only while it still holds the demo's values; edited through the screens, it is the organisation's.
   const pol = await db.tenderDocumentPolicy.findUnique({ where: { id: DEMO_POLICY_ID } });
   if (pol) {
-    const same = pol.ladDailyPct?.toString() === "0.05" && pol.firstCertificateFloor?.toString() === "2500" && pol.firstCertificatePct?.toString() === "5" && pol.insuranceExtraMonths === 2 && pol.insuranceExtraDays === 0 &&
-      // As increment 2 loads it, or as increment 1 loaded it (nothing of increment 2 set).
-      ((pol.restrictionStampTextEn === DEMO_POLICY.restrictionStampTextEn && pol.restrictionStampTextMs === DEMO_POLICY.restrictionStampTextMs && pol.restrictionLabelEn === DEMO_POLICY.restrictionLabelEn && pol.assuranceRequired === true && pol.regulatorPermitTaxonomyCode === DEMO_POLICY.regulatorPermitTaxonomyCode) ||
-        (pol.restrictionStampTextEn == null && pol.restrictionStampTextMs == null && pol.restrictionLabelEn == null && pol.assuranceRequired == null && pol.regulatorPermitTaxonomyCode == null));
-    if (same) await db.tenderDocumentPolicy.delete({ where: { id: DEMO_POLICY_ID } });
+    if (policyHoldsDemoValues(pol)) await db.tenderDocumentPolicy.delete({ where: { id: DEMO_POLICY_ID } });
     else console.log("Kept the tender documents policy: it was changed after the demo loaded.");
   }
   // The demo's Approval for Tendering rows go with the demo issue (authorityRule deleteMany demo).

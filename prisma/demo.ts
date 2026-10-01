@@ -307,7 +307,7 @@ async function wipe() {
   // 6.4: a real pack standing on a demo template is never removed under it, whatever the flag.
   const tenderDependents = await tenderDocsDependents(db, org.id, hangingExerciseIds);
   if (tenderDependents.length) {
-    console.error(["Refused whatever the flag: these tender documents are not demo data and draw a demo template:", ...tenderDependents, "Nothing was removed. Choose another template for those parts first."].join("\n"));
+    console.error(["Refused whatever the flag: these records are not demo data and stand on demo configuration (a template, a registration body, a clause or the permit list):", ...tenderDependents, "Nothing was removed. Choose other configuration for them first (another template for a part, another list in the policy, no permit type on an exercise)."].join("\n"));
   }
   if (scopeDependents.hard.length) {
     console.error(["Refused whatever the flag: these bill lines are not demo data and were priced from a demo schedule of rates, which keeps their price's source; no wipe rewrites a bill line:", ...scopeDependents.hard, "Nothing was removed. Re-enter or re-price those lines first."].join("\n"));
