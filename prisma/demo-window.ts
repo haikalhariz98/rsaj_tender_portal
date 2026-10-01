@@ -11,7 +11,7 @@
  *   newspaper, sale closing 2 days before the closing, closing time 15:00, the advertisement day
  *   the latest required channel's, mandatory attendance permitted; the demo notice, letter and
  *   addendum templates demo_dt13–15. Channels demo_pch1–3 (a newspaper, the notice board, the
- *   website), each required. Fee floors demo_ff1–2 (tender RM200.00, quotation RM50.00). Calendar
+ *   website), each required. Fee floors demo_ff1–2 (tender RM200.00, quotation RM40.00; invented, X-10 d). Calendar
  *   demo_hol1, weekends Saturday and Sunday, invented holidays demo_hd*, each year the demo's dates
  *   touch maintained in full and the year after them not (it shows the block).
  * - Authority rows: approval for tendering of a tender (demo_rule42, the Head of Contract &
@@ -356,7 +356,7 @@ const CHANNELS = [
 
 const FLOORS = [
   { id: `${P}ff1`, regime: "tender", minimum: "200.00" },
-  { id: `${P}ff2`, regime: "quotation", minimum: "50.00" },
+  { id: `${P}ff2`, regime: "quotation", minimum: "40.00" },
 ] as const;
 
 const POLICY_ID = `${P}wp1`;

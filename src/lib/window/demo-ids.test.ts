@@ -3,6 +3,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { compareAmounts } from "@/lib/money";
+
 /**
  * X-4 (phase 2 rulings): 6.5's demo owns demo_mt12 / demo_d41, its routes start at demo_ai62
  * (6.4 holds 60–61, 6.6 follows 6.5's), and its exercises are demo_sx16–19. A source scan of the
@@ -26,5 +28,19 @@ describe("X-4: 6.5's demo ids", () => {
     expect(src).toMatch(/export const WINDOW_EXERCISES = \[`\$\{P\}sx19`, `\$\{P\}sx16`, `\$\{P\}sx17`, `\$\{P\}sx18`\] as const;/);
     expect(numbers(/\$\{P\}mt(\d+)/g)).toEqual([12]);
     expect([...new Set(numbers(/\$\{P\}d(\d+)`/g))]).toEqual([41]);
+  });
+});
+
+describe("X-10 d: the demo's fee floors are invented, never the customer's", () => {
+  // SK002's printed floors (RM250.00 tender, RM50.00 quotation) are test-only fixtures (fee.test.ts).
+  const floors = Object.fromEntries([...src.matchAll(/\{ id: `\$\{P\}ff\d+`, regime: "(\w+)", minimum: "([\d.]+)" \}/g)].map((m) => [m[1], m[2]]));
+  const fees = Object.fromEntries([...src.matchAll(/const (tender|quotation)Window = [\s\S]*?feeAmount: "([\d.]+)"/g)].map((m) => [m[1], m[2]]));
+  it("neither floor is SK002's figure", () => {
+    expect(Object.keys(floors).sort()).toEqual(["quotation", "tender"]);
+    expect(floors.tender).not.toBe("250.00");
+    expect(floors.quotation).not.toBe("50.00");
+  });
+  it("each demo fee is at or above its floor, so every sale passes its act's checks (X-10 c)", () => {
+    for (const regime of ["tender", "quotation"]) expect(compareAmounts(fees[regime], floors[regime])).toBeGreaterThanOrEqual(0);
   });
 });
