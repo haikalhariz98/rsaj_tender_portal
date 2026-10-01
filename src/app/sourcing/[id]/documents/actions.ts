@@ -38,6 +38,7 @@ import { appendixText, freezePack } from "@/lib/tender-docs/freeze";
 import { appendixFaultText, datesFaultText, PACK_KIND_LABEL, partFaultText, startFaultText, submitFindingTexts } from "@/lib/tender-docs/labels";
 import { lockPackRows } from "@/lib/tender-docs/owner";
 import { allOf, blockingOf, markReadyFaults, nextPack, omitFaults, packEditFault, pickTemplateFaults, startPackFaults, submitFaults } from "@/lib/tender-docs/pack";
+import { CONFIG_STILL_UNSET, flagChanges } from "@/lib/tender-docs/refresh";
 import { isPct, PCT_COLUMN, pctRefusal, type PctField } from "@/lib/tender-docs/percent";
 import { liveClauses } from "@/lib/tender-docs/clauses";
 import { conditionFieldValues, conditionsSnapshot, conditionStamp, readConditionsSnapshot } from "@/lib/tender-docs/conditions";
@@ -125,13 +126,14 @@ async function officeNames(tx: Tx, organisationId: string) {
   return { codes: [...names.keys()], name: (code: string | null) => (code ? (names.get(code) ?? "An office no longer configured") : "Not set") };
 }
 
-const partAuditFacts = (p: { printedNumber: string; labelSnapshot: string; role: PartAuditFacts["role"]; content: PartAuditFacts["content"]; source: PartAuditFacts["source"]; mandatory: boolean | null; state: PartAuditFacts["state"]; omittedReason: string }, templateName: string | null): PartAuditFacts => ({
+const partAuditFacts = (p: { printedNumber: string; labelSnapshot: string; role: PartAuditFacts["role"]; content: PartAuditFacts["content"]; source: PartAuditFacts["source"]; mandatory: boolean | null; inTableDocument: boolean | null; state: PartAuditFacts["state"]; omittedReason: string }, templateName: string | null): PartAuditFacts => ({
   printedNumber: p.printedNumber,
   label: p.labelSnapshot,
   role: p.role,
   content: p.content,
   source: p.source,
   mandatory: p.mandatory,
+  inTableDocument: p.inTableDocument,
   state: p.state,
   omittedReason: p.omittedReason,
   templateName,
@@ -261,6 +263,31 @@ export async function markPartReady(_prev: FormState, data: FormData): Promise<F
     if (faults.length) return refuse(faults);
     await tx.tenderPackPart.update({ where: { id: part.id }, data: { state: "READY", omittedReason: "" } });
     await audit(tx, l.org.id, ENTITY.part, part.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "UPDATE", partAudit(partAuditFacts(part, part.template?.nameEn ?? null), partAuditFacts({ ...part, state: "READY", omittedReason: "" }, part.template?.nameEn ?? null)));
+    return { ok: true };
+  });
+}
+
+/**
+ * Take the draft's "mandatory" and "in the Tender Table Document" answers from the configuration
+ * as it stands (code review C2, BD-64-39). A draft keeps the answers it was started with; where
+ * the configuration did not say then, nothing else could unblock it. Only an answer the
+ * configuration now gives is taken, each part audited; a frozen version is never refreshed.
+ */
+export async function refreshPartFlags(_prev: FormState, data: FormData): Promise<FormState> {
+  const exerciseId = exerciseIdOf(data);
+  return inPacks(exerciseId, async (tx, l, packs) => {
+    const pack = draftOf(packs);
+    if (!pack) return NO_PACK;
+    const edit = packEditFault(pack.status, l.ex.status);
+    if (edit) return refuse([edit]);
+    const changes = flagChanges(pack.parts.map(partFactsOf), await loadConfiguredParts(l.org.id, tx));
+    if (changes.length === 0) return { ok: false, message: `Nothing to refresh: ${CONFIG_STILL_UNSET}` };
+    for (const c of changes) {
+      const part = pack.parts.find((x) => x.partCode === c.partCode)!;
+      const next = { mandatory: c.mandatory?.to ?? part.mandatory, inTableDocument: c.inTableDocument?.to ?? part.inTableDocument };
+      await tx.tenderPackPart.update({ where: { id: part.id }, data: next });
+      await audit(tx, l.org.id, ENTITY.part, part.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "UPDATE", partAudit(partAuditFacts(part, part.template?.nameEn ?? null), partAuditFacts({ ...part, ...next }, part.template?.nameEn ?? null)), "Refreshed from the configuration");
+    }
     return { ok: true };
   });
 }

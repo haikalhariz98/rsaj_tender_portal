@@ -334,7 +334,7 @@ async function startPack(db: Db, organisationId: string, p: { id: string; exerci
     const id = `${p.id}_${c.code}`;
     const state = prior?.state ?? "NOT_STARTED";
     await db.tenderPackPart.create({ data: { id, organisationId, packId: p.id, partCode: c.code, printedNumber: c.printedNumber, sortOrder: c.sortOrder, labelSnapshot: c.labelEn, labelMsSnapshot: c.labelMs, role: c.role, content: c.content, source: c.source, mandatory: c.mandatory, inTableDocument: c.inTableDocument, ownerOrgUnitCode: c.ownerOrgUnitCode, templateCode: c.templateCode, templateId: template?.id ?? null, state } });
-    entry(ENTITY.part, id, `${ex.reference} · Tender documents v${p.versionNo} · part ${c.printedNumber}`, "CREATE", p.at, partAudit(null, { printedNumber: c.printedNumber, label: c.labelEn, role: c.role, content: c.content, source: c.source, mandatory: c.mandatory, state, omittedReason: "", templateName: template?.nameEn ?? null }));
+    entry(ENTITY.part, id, `${ex.reference} · Tender documents v${p.versionNo} · part ${c.printedNumber}`, "CREATE", p.at, partAudit(null, { printedNumber: c.printedNumber, label: c.labelEn, role: c.role, content: c.content, source: c.source, mandatory: c.mandatory, inTableDocument: c.inTableDocument, state, omittedReason: "", templateName: template?.nameEn ?? null }));
     // A returned version's files go with the part (the attach judged as startPack judges it).
     for (const a of prior?.attachments.filter((x) => x.detachedAt == null) ?? []) {
       const aid = `${id}_a${a.version.versionNo}`;
@@ -394,7 +394,7 @@ async function markAllReady(db: Db, organisationId: string, packId: string, ref:
     const f = markReadyFaults(partFactsOf(p), row.status, ex.status, content);
     if (f.length) throw new Error(`Demo part ${p.id} cannot be made ready: ${f.map((x) => x.code).join(", ")}`);
     await db.tenderPackPart.update({ where: { id: p.id }, data: { state: "READY" } });
-    const facts = { printedNumber: p.printedNumber, label: p.labelSnapshot, role: p.role, content: p.content, source: p.source, mandatory: p.mandatory, omittedReason: "", templateName: p.template?.nameEn ?? null };
+    const facts = { printedNumber: p.printedNumber, label: p.labelSnapshot, role: p.role, content: p.content, source: p.source, mandatory: p.mandatory, inTableDocument: p.inTableDocument, omittedReason: "", templateName: p.template?.nameEn ?? null };
     entry(ENTITY.part, p.id, `${ref} · Tender documents v${row.versionNo} · part ${p.printedNumber}`, "UPDATE", when, partAudit({ ...facts, state: "NOT_STARTED" }, { ...facts, state: "READY" }));
   }
 }
@@ -534,7 +534,7 @@ async function reworkDrawings(db: Db, organisationId: string, packId: string, re
     entry("DocumentAttachment", a.id, `${ref} · Tender pack v${part.pack.versionNo} · part ${part.printedNumber}, ${part.labelSnapshot} · ${PURPOSE_LABEL.TENDER_PART}`, "UPDATE", when, diffFields({ purpose: PURPOSE_LABEL.TENDER_PART, document: a.version.document.title, attached: "yes" }, { purpose: PURPOSE_LABEL.TENDER_PART, document: a.version.document.title, attached: "no", detachedBecause: reason }), reason);
   }
   await db.tenderPackPart.update({ where: { id: partId }, data: { state: "NOT_STARTED" } });
-  const facts = { printedNumber: part.printedNumber, label: part.labelSnapshot, role: part.role, content: part.content, source: part.source, mandatory: part.mandatory, omittedReason: "", templateName: null };
+  const facts = { printedNumber: part.printedNumber, label: part.labelSnapshot, role: part.role, content: part.content, source: part.source, mandatory: part.mandatory, inTableDocument: part.inTableDocument, omittedReason: "", templateName: null };
   entry(ENTITY.part, partId, `${ref} · Tender documents v${part.pack.versionNo} · part ${part.printedNumber}`, "UPDATE", when, partAudit({ ...facts, state: "READY" }, { ...facts, state: "NOT_STARTED" }));
 }
 

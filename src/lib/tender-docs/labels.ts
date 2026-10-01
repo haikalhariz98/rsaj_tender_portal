@@ -143,6 +143,8 @@ export const yesNoNotSet = (b: boolean | null | undefined) => (b == null ? NOT_S
 
 export const TENDER_DOCS_CONFIG_PATH = "/configuration/tender-documents";
 const SET_PARTS = "Set it under Configuration, Tender documents.";
+/// An answer the draft took as unset is set in configuration, then taken into the draft by an explicit refresh (BD-64-39).
+const SET_PARTS_REFRESH = "Set it under Configuration, Tender documents, then choose Refresh from configuration under Parts below.";
 const d = (f: Finding, k: string) => (f.data?.[k] == null ? "" : String(f.data[k]));
 
 const EDIT_TEXT: Record<EditFault, (f: Finding) => string> = {
@@ -165,7 +167,7 @@ const PART_ACT_TEXT: Record<Exclude<PartActFault, EditFault | ContentFault>, (f:
   ALREADY_READY: () => "This part is already marked ready.",
   ALREADY_OMITTED: () => "This part is already omitted.",
   MANDATORY_OMITTED: (f) => `Part ${d(f, "part")} is mandatory, so it cannot be omitted. Make it ready.`,
-  MANDATORY_UNSET: (f) => `Whether part ${d(f, "part")} is mandatory is not set. ${SET_PARTS}`,
+  MANDATORY_UNSET: (f) => `Whether part ${d(f, "part")} is mandatory is not set. ${SET_PARTS_REFRESH}`,
   OMIT_REASON_REQUIRED: (f) => `Say why part ${d(f, "part")} is omitted.`,
   NOT_A_TEMPLATE_PART: (f) => `Part ${d(f, "part")} does not draw a library template.`,
 };
@@ -173,7 +175,7 @@ const PART_ACT_TEXT: Record<Exclude<PartActFault, EditFault | ContentFault>, (f:
 const READINESS_TEXT: Record<Exclude<ReadinessFault, ContentFault | "MANDATORY_UNSET" | "MANDATORY_OMITTED" | "OMIT_REASON_REQUIRED">, (f: Finding) => string> = {
   PART_NOT_READY: (f) => `Part ${d(f, "part")} is not ready. Make it ready, or omit it with the reason where it is not mandatory.`,
   DECLARATION_PART_MISSING: () => `Every tender and quotation pack binds the bidder's declaration as a mandatory part, and this pack's parts have none. Add a declaration part for this pack kind under Configuration, Tender documents.`,
-  DECLARATION_NOT_MANDATORY: (f) => `The bidder's declaration (part ${d(f, "part")}) must be mandatory. ${SET_PARTS}`,
+  DECLARATION_NOT_MANDATORY: (f) => `The bidder's declaration (part ${d(f, "part")}) must be mandatory. ${SET_PARTS_REFRESH}`,
   NO_PARTS: () => "The pack has no parts.",
 };
 

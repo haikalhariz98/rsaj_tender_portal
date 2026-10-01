@@ -143,11 +143,13 @@ export function partRetiredOn(retiredOn: string | null, today: string | null): b
 /**
  * How many settings hold work back (62-C4's rule for the header): a method in use whose
  * document pack is not set (its exercises cannot move into preparation), and a part not
- * retired whose "mandatory" is not set (a pack on it cannot be submitted). A part whose
+ * retired whose "mandatory" is not set, and each whose "in the Tender Table Document" is not
+ * set (a pack on it cannot be submitted; each is a setting of its own). A part whose
  * retirement cannot be judged (time zone unset) is counted: it may still hold work back.
  */
-export function configHoldingWorkBack(methods: readonly { retired: boolean; documentPackKind: string | null }[], parts: readonly { retiredOn: string | null; mandatory: boolean | null }[], today: string | null): number {
-  return methods.filter((m) => !m.retired && m.documentPackKind == null).length + parts.filter((p) => partRetiredOn(p.retiredOn, today) !== true && p.mandatory == null).length;
+export function configHoldingWorkBack(methods: readonly { retired: boolean; documentPackKind: string | null }[], parts: readonly { retiredOn: string | null; mandatory: boolean | null; inTableDocument?: boolean | null }[], today: string | null): number {
+  const held = parts.filter((p) => partRetiredOn(p.retiredOn, today) !== true);
+  return methods.filter((m) => !m.retired && m.documentPackKind == null).length + held.filter((p) => p.mandatory == null).length + held.filter((p) => p.inTableDocument === null).length;
 }
 
 /// Said where the organisation's day is needed and its time zone is not set (names the setting).

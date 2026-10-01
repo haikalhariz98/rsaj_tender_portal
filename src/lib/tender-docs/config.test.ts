@@ -83,6 +83,15 @@ describe("retirement and the header count, on the organisation's day (carry b)",
     expect(configHoldingWorkBack(methods, parts, "2026-09-30")).toBe(1 + 3);
     expect(configHoldingWorkBack(methods, parts, null)).toBe(1 + 3);
   });
+  it("a part whose place in the Tender Table Document is not set holds submission back, like its mandatory flag (U3)", () => {
+    const parts = [
+      { retiredOn: null, mandatory: true, inTableDocument: null },
+      { retiredOn: null, mandatory: null, inTableDocument: null },
+      { retiredOn: null, mandatory: true, inTableDocument: false },
+      { retiredOn: "2026-09-01", mandatory: true, inTableDocument: null },
+    ];
+    expect(configHoldingWorkBack([], parts, "2026-10-01")).toBe(1 + 2);
+  });
   it("the screen and the restore act read the organisation's day, never UTC's, and the act blocks when it is unset", () => {
     const read = readFileSync(join(process.cwd(), "src/lib/tender-docs/read.ts"), "utf8");
     const config = read.slice(read.indexOf("export async function tenderDocsConfig"));

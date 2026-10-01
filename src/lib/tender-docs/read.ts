@@ -57,6 +57,7 @@ import {
 } from "./labels";
 import { blockingOf, isLivePack, markReadyFaults, omitFaults, packEditFault, startPackFaults, submitFaults, nextPack } from "./pack";
 import { distinctOffices, pickTemplateView } from "./part-view";
+import { refreshView } from "./refresh";
 import { formatPct } from "./percent";
 import { appendixFactsOf, loadConfiguredParts, loadPacks, loadTemplates, loadTenderPolicy, partFactsOf, pinnedFilesOf, profileOf, scopeReadiness, type PackRow } from "./repo";
 import { tenderingRouteForRequester, timeIn } from "./tendering";
@@ -224,6 +225,8 @@ function packView(p: PackRow, c: NonNullable<Awaited<ReturnType<typeof context>>
     frozen: p.frozenAt != null,
     frozenOn: p.frozenAt ? formatDate(p.frozenAt) : null,
     returnedBecause: p.status === "RETURNED" ? p.returnedReason : null,
+    /// Draft only: take the parts' two answers from the configuration as it stands (BD-64-39), or why that cannot help yet.
+    refresh: editable && p.status === "DRAFT" ? refreshView(p.parts.map(partFactsOf), c.configured) : null,
     parts: p.parts.map((row) => {
       const facts = partFactsOf(row);
       const frozenDocs = p.documents.filter((d) => d.partCode === row.partCode);

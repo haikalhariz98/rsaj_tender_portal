@@ -77,7 +77,7 @@ export function PartDrawer({
         { kind: "select", name: "source", label: "Where its content comes from", required: true, placeholder: "Choose", options: options.sources },
         { kind: "select", name: "templateCode", label: "Template it draws", placeholder: "Chosen on each exercise", options: options.templates, hint: "Only for a part drawn from the template library, and never a bespoke one." },
         { kind: "select", name: "mandatory", label: "Mandatory", required: true, placeholder: "Choose", placeholderDisabled: true, options: THREE, hint: "Not set holds submission back, naming this setting." },
-        { kind: "select", name: "inTableDocument", label: "In the Tender Table Document", required: true, placeholder: "Choose", placeholderDisabled: true, options: THREE },
+        { kind: "select", name: "inTableDocument", label: "In the Tender Table Document", required: true, placeholder: "Choose", placeholderDisabled: true, options: THREE, hint: "Not set holds submission back, naming this setting." },
         { kind: "select", name: "ownerOrgUnitCode", label: "Prepared by", placeholder: "Not set", options: options.units },
         { kind: "text", name: "governingSource", label: "Where it is required", hint: "The document that asks for it." },
         provenance("provenance", "Where this came from", true),

@@ -5,7 +5,9 @@ import { Callout } from "@/components/ui/feedback";
 
 import { TENDERING_STATE_LABEL } from "@/lib/tender-docs/labels";
 
-import { markPartReady, omitPart, pickPartTemplate, recordTenderingDecision, reopenPart, startPack, submitPack } from "./actions";
+import { REFRESH_LABEL, type RefreshView } from "@/lib/tender-docs/refresh";
+
+import { markPartReady, omitPart, pickPartTemplate, recordTenderingDecision, refreshPartFlags, reopenPart, startPack, submitPack } from "./actions";
 
 /**
  * The drawers of the Tender documents tab. Fields are data; every rule sits in the action and
@@ -85,6 +87,29 @@ export function SubmitPackDrawer({ exerciseId, allowed, rows, warnings, today }:
       submitLabel="Submit for approval"
       trigger={{ label: "Submit for approval", className: buttonClass("primary", "sm") }}
       size="lg"
+    />
+  );
+}
+
+export function RefreshFlagsDrawer({ exerciseId, refresh }: { exerciseId: string; refresh: RefreshView }) {
+  if (!refresh.allowed) return <Blocked label={REFRESH_LABEL} reason={refresh.reason} />;
+  return (
+    <RecordEditor
+      title={REFRESH_LABEL}
+      description="A version keeps the answers it was started with. Where the configuration has since said whether a part is mandatory, or is in the Tender Table Document, they are taken into this draft. A frozen version is never changed."
+      fields={[hidden("exerciseId")]}
+      values={{ exerciseId }}
+      sections={
+        <ul className="flex list-disc flex-col gap-1 pl-5 text-[13px] text-ink-2">
+          {refresh.changes.map((c) => (
+            <li key={c}>{c}</li>
+          ))}
+        </ul>
+      }
+      action={refreshPartFlags}
+      submitLabel="Take them from the configuration"
+      trigger={{ label: REFRESH_LABEL, className: secondary }}
+      size="md"
     />
   );
 }

@@ -383,6 +383,11 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                               <Td label="Mandatory">
                                 {r.mandatory === NOT_SET ? <Badge tone="warn" title="Submission is held back until this is set">Not set</Badge> : r.mandatory}
                                 {r.inTableDocument === "Yes" && <span className="block text-[12.5px] text-ink-3">In the Tender Table Document</span>}
+                                {r.inTableDocument === NOT_SET && (
+                                  <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[12.5px] text-ink-3">
+                                    <Badge tone="warn" title="Submission is held back until this is set">Not set</Badge> In the Tender Table Document
+                                  </span>
+                                )}
                               </Td>
                               <Td label="Source"><ProvenanceBadge value={r.raw.provenance} /></Td>
                               <Td>

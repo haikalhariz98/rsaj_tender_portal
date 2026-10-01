@@ -19,7 +19,7 @@ import { documentsTab } from "@/lib/tender-docs/read";
 import { conditionsTab } from "@/lib/tender-docs/read-conditions";
 
 import { ConditionsCards } from "./conditions";
-import { DecideDrawer, StartPackDrawer, SubmitPackDrawer } from "./editors";
+import { DecideDrawer, RefreshFlagsDrawer, StartPackDrawer, SubmitPackDrawer } from "./editors";
 import { PartsList, type PartRow } from "./parts-list";
 
 type Data = NonNullable<Awaited<ReturnType<typeof documentsTab>>>;
@@ -180,6 +180,7 @@ export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }
             icon={<SlidersIcon size={17} />}
             title={`Parts, version ${d.pack.versionNo}`}
             subtitle={hasBq ? "In print order. The bill of quantities is issued unpriced: no rate or amount reaches tenderers." : "In print order, as configured when this version was started."}
+            actions={d.pack.refresh ? <RefreshFlagsDrawer exerciseId={exerciseId} refresh={d.pack.refresh} /> : undefined}
           />
           <PartsList exerciseId={exerciseId} parts={parts} printHref={d.printHref ?? `/sourcing/${exerciseId}/documents/print`} />
         </Card>

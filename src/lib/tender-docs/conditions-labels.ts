@@ -59,15 +59,17 @@ const TEXT: Record<ConditionsFault, (f: Finding) => string> = {
   ASSURANCE_MISSING: (f) => `Not yet confirmed: ${ASSURANCE_KIND_LABEL[d(f, "kind") as AssuranceKind]?.toLowerCase() ?? "an assurance"}. Record who confirmed it and when under Assurance below.`,
   ASSURANCE_NOT_REQUIRED: () => "The organisation's policy is that the assurance confirmations are not required: recorded as its decision.",
   // FR-DOC-010
-  TABLE_DOCUMENT_UNSET: (f) => `Whether part ${d(f, "part")} is in the Tender Table Document is not set. Set it on the part ${CONFIG}.`,
-  TABLE_DOCUMENT_EMPTY: () => `No part of this pack is in the Tender Table Document. Say which are, on the parts ${CONFIG}.`,
+  TABLE_DOCUMENT_UNSET: (f) => `Whether part ${d(f, "part")} is in the Tender Table Document is not set. Set it on the part ${CONFIG}, then choose Refresh from configuration under Parts below.`,
+  TABLE_DOCUMENT_EMPTY: () => `No part of this pack is in the Tender Table Document. Say which are, on the parts ${CONFIG}, then choose Refresh from configuration under Parts below.`,
 };
 
 export const conditionsFaultText = (f: Finding) => (TEXT as Record<string, (f: Finding) => string>)[f.code]?.(f) ?? "A condition of the tender is not met.";
 
 /// Which card on the tab, or which configuration page, puts a finding right.
 export function conditionsFixHref(code: string, exerciseId: string): string {
-  const config = ["STAMP_NOT_SET", "PERMIT_LIST_NOT_SET", "CLAUSE_MANDATORY_UNSET", "CLAUSE_LANGUAGE_MISSING", "ASSURANCE_POLICY_NOT_SET", "TABLE_DOCUMENT_UNSET", "TABLE_DOCUMENT_EMPTY", "NOTICE_PART_MISSING", "INSTRUCTIONS_PART_MISSING"];
+  const config = ["STAMP_NOT_SET", "PERMIT_LIST_NOT_SET", "CLAUSE_MANDATORY_UNSET", "CLAUSE_LANGUAGE_MISSING", "ASSURANCE_POLICY_NOT_SET", "NOTICE_PART_MISSING", "INSTRUCTIONS_PART_MISSING"];
+  // The answers on a draft's parts are taken into it by the refresh on the Parts card.
+  if (code === "TABLE_DOCUMENT_UNSET" || code === "TABLE_DOCUMENT_EMPTY") return `/sourcing/${exerciseId}?tab=documents#parts`;
   if (config.includes(code)) return "/configuration/tender-documents";
   if (["NOTICE_LACKS_ELIGIBILITY", "PERMIT_NOT_IN_INSTRUCTIONS", "PERMIT_FIELD_NOT_REGULATED"].includes(code)) return `/sourcing/${exerciseId}?tab=documents#parts`;
   if (code.startsWith("ASSURANCE")) return `/sourcing/${exerciseId}?tab=documents#assurance`;

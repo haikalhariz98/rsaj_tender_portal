@@ -77,6 +77,7 @@ export interface PartAuditFacts {
   content: PartContent;
   source: PartSource;
   mandatory: boolean | null;
+  inTableDocument: boolean | null;
   state: PackPartState;
   omittedReason: string;
   templateName: string | null;
@@ -88,6 +89,7 @@ const partView = (p: PartAuditFacts) => ({
   content: PART_CONTENT_LABEL[p.content],
   source: PART_SOURCE_LABEL[p.source],
   mandatory: yesNoNotSet(p.mandatory),
+  inTheTenderTableDocument: yesNoNotSet(p.inTableDocument),
   state: PART_STATE_LABEL[p.state],
   omittedBecause: p.state === "OMITTED" ? p.omittedReason : null,
   template: p.templateName,
