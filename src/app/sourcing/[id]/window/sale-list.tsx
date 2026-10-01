@@ -64,14 +64,14 @@ export function SaleList({ exerciseId, sales }: { exerciseId: string; sales: Sal
         { id: "noreceipt", label: "Receipt to collect" },
         { id: "void", label: "Void" },
       ]}
-      actionsWidth={170}
+      actionsWidth={132}
       stackBelow="xl"
       columns={[
         { key: "purchaser", label: "Purchaser", sortable: true, mobile: "primary" },
-        { key: "receipt", label: "Receipt and amount", width: "150px", mobile: "meta" },
-        { key: "soldOn", label: "Sold on", width: "110px", sortable: true, mobile: "meta" },
-        { key: "checks", label: "Checks", width: "230px", mobile: "meta" },
-        { key: "addenda", label: "Addenda acknowledged", width: "110px", hideBelow: "2xl", mobile: "hide" },
+        { key: "receipt", label: "Receipt and amount", width: "156px", mobile: "meta" },
+        { key: "soldOn", label: "Sold on", width: "124px", sortable: true, mobile: "meta" },
+        { key: "checks", label: "Checks", width: "244px", mobile: "meta" },
+        { key: "addenda", label: "Addenda acknowledged", width: "118px", mobile: "meta" },
       ]}
       rows={rows}
       actions={(id) => {

@@ -3,12 +3,13 @@ import type { ReactNode } from "react";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
-import { addendaTab, briefingTab, saleRegister, windowTab } from "@/lib/window/read";
+import { addendaTab, briefingTab, invitationActs, saleRegister, windowTab } from "@/lib/window/read";
 
 import { AddendaSection, addendaHeader } from "./addenda-section";
 import { BriefingSection, briefingHeader } from "./briefing-section";
 import { GONE } from "./common";
 import { SaleSection, saleHeader } from "./sale-section";
+import { tabActs } from "./tab-acts";
 import { WindowSection, windowHeader, type WindowContext } from "./window-section";
 
 /// The sections of the exercise's Invitation tab, in order. The strip is the shared Tabs' second level.
@@ -29,6 +30,13 @@ export interface InvitationView {
   notes: [string, string][];
   /// Where the section replaces the header's own cancel (a published exercise is cancelled on its route).
   cancel: ReactNode | null;
+}
+
+/// A section's own header acts with the tab's (extend, cancel), so every section's header is alike.
+async function withTabActs(own: { actions: ReactNode; notes: [string, string][] }, c: WindowContext) {
+  const a = await invitationActs(c.exerciseId);
+  const tab = a ? tabActs(a, c) : { actions: null, notes: [] as [string, string][], cancel: null };
+  return { actions: <>{own.actions}{tab.actions}</>, notes: [...own.notes, ...tab.notes], cancel: tab.cancel };
 }
 
 const EARLY = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING"];
@@ -55,17 +63,17 @@ export async function loadInvitation(section: InvitationSectionId, c: WindowCont
   if (section === "sales") {
     const d = await saleRegister(c.exerciseId);
     if (!d) return { ...none, panel: GONE };
-    return { ...saleHeader(d, c), cancel: null, panel: <SaleSection d={d} c={c} /> };
+    return { ...(await withTabActs(saleHeader(d, c), c)), panel: <SaleSection d={d} c={c} /> };
   }
   if (section === "briefing") {
     const d = await briefingTab(c.exerciseId);
     if (!d) return { ...none, panel: GONE };
-    return { ...briefingHeader(d, c), cancel: null, panel: <BriefingSection d={d} c={c} /> };
+    return { ...(await withTabActs(briefingHeader(d, c), c)), panel: <BriefingSection d={d} c={c} /> };
   }
   if (section === "addenda") {
     const d = await addendaTab(c.exerciseId);
     if (!d) return { ...none, panel: GONE };
-    return { ...addendaHeader(d, c), cancel: null, panel: <AddendaSection d={d} c={c} /> };
+    return { ...(await withTabActs(addendaHeader(d, c), c)), panel: <AddendaSection d={d} c={c} /> };
   }
   const d = await windowTab(c.exerciseId);
   if (!d) return { ...none, panel: GONE };

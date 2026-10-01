@@ -110,11 +110,7 @@ export async function windowTab(exerciseId: string) {
   const latestName = nameRoutes[0] ?? null;
   const approvedList = latestName && (latestName.status === "APPROVED" || latestName.status === "PENDING") ? latestName.invitees : null;
   const listFault = latestName ? inviteeListFault(latestName.invitees, proposed) : null;
-  const extend = w && ex.closingAt ? closingChangeFaults({ kind: "EXTENSION", status: ex.status, now, currentClosingAt: ex.closingAt, toClosingAt: new Date(ex.closingAt.getTime() + 7 * 86_400_000), currentPurchaseCloseDay: w.purchaseCloseDay ? storedDay(w.purchaseCloseDay) : null, toPurchaseCloseDay: null, reason: "-", changePending: !!pending, rules: { advertisementDay: null, closingTimeReason: "", timeZone: tz, policy: d.policy, calendar: d.calendar } }) : [];
-  const live = await db.award.findMany({ where: { exerciseId }, select: { reference: true, status: true } });
-  const awardLive = live.find((a) => a.status !== "CANCELLED") ?? null;
-  const cancelBlock = firstBlock(cancelFaults({ status: ex.status, reason: "-", feeRefund: true, changePending: !!pending, awardStands: awardLive?.reference ?? null, today: org.today }));
-  const extendBlock = ["NOT_PUBLISHED", "CLOSING_PASSED", "CHANGE_PENDING", "TIME_ZONE_UNSET"].map((c) => extend.find((f) => f.code === c)).find(Boolean) ?? null;
+  const tabActs = await closingActions(x);
   return {
     exercise: { id: ex.id, reference: ex.reference, title: ex.title, status: EXERCISE_STATUS_LABEL[ex.status], regime: ex.regime ? REGIME_LABEL[ex.regime as Regime] : NOT_SET, restricted: ex.restrictedTender == null ? "Not answered" : ex.restrictedTender ? d.tender.restrictionLabel ?? "Restricted" : "Not restricted" },
     hasWindow: !!w,
@@ -194,11 +190,40 @@ export async function windowTab(exerciseId: string) {
       save: allowed(editFault),
       publish: firstBlock(j.result.findings) ? { allowed: false as const, reason: windowFindingText(firstBlock(j.result.findings)!) } : { allowed: true as const },
       publishLabel: path === "INVITED" ? "Issue the letters of invitation" : "Publish the advertisement",
-      correct: allowed(ex.status === "APPROVED_FOR_TENDERING" ? (pending ? { code: "CHANGE_PENDING", level: "block" } : null) : { code: ex.status === "ADVERTISED" || ex.status === "INVITED" ? "ALREADY_PUBLISHED" : "NOT_APPROVED_FOR_TENDERING", level: "block" }),
-      extend: closingMayMove(phase.phase) ? allowed(extendBlock) : allowed(extendBlock ?? { code: ex.status === "ADVERTISED" || ex.status === "INVITED" ? "CLOSING_PASSED" : "NOT_PUBLISHED", level: "block" }),
-      cancel: allowed(cancelBlock && cancelBlock.code !== "REASON_REQUIRED" ? cancelBlock : null),
+      ...tabActs,
     },
   };
+}
+
+/**
+ * The acts the Invitation TAB offers whichever section is open (correct the closing before
+ * publication, extend it and cancel after): one judgement, so the header reads the same on every
+ * section (UX U6). Each is allowed or carries its reason.
+ */
+async function closingActions(x: Loaded) {
+  const { org, ex, d, now } = x;
+  const tz = org.timeZone;
+  const w = d.window;
+  const phase = phaseOf(ex, w, now, tz);
+  const pending = windowChangeRoutesOf(ex.approvalInstances).find((r) => r.status === "PENDING") ?? null;
+  const extend = w && ex.closingAt ? closingChangeFaults({ kind: "EXTENSION", status: ex.status, now, currentClosingAt: ex.closingAt, toClosingAt: new Date(ex.closingAt.getTime() + 7 * 86_400_000), currentPurchaseCloseDay: w.purchaseCloseDay ? storedDay(w.purchaseCloseDay) : null, toPurchaseCloseDay: null, reason: "-", changePending: !!pending, rules: { advertisementDay: null, closingTimeReason: "", timeZone: tz, policy: d.policy, calendar: d.calendar } }) : [];
+  const live = await db.award.findMany({ where: { exerciseId: ex.id }, select: { reference: true, status: true } });
+  const awardLive = live.find((a) => a.status !== "CANCELLED") ?? null;
+  const cancelBlock = firstBlock(cancelFaults({ status: ex.status, reason: "-", feeRefund: true, changePending: !!pending, awardStands: awardLive?.reference ?? null, today: org.today }));
+  const extendBlock = ["NOT_PUBLISHED", "CLOSING_PASSED", "CHANGE_PENDING", "TIME_ZONE_UNSET"].map((c) => extend.find((f) => f.code === c)).find(Boolean) ?? null;
+  return {
+    closing: ex.closingAt ? formatOrgDateTime(ex.closingAt, tz) : NOT_SET,
+    lastDayOfSale: w?.purchaseCloseDay ? day(w.purchaseCloseDay) : null,
+    correct: allowed(ex.status === "APPROVED_FOR_TENDERING" ? (pending ? { code: "CHANGE_PENDING", level: "block" } : null) : { code: ex.status === "ADVERTISED" || ex.status === "INVITED" ? "ALREADY_PUBLISHED" : "NOT_APPROVED_FOR_TENDERING", level: "block" }),
+    extend: closingMayMove(phase.phase) ? allowed(extendBlock) : allowed(extendBlock ?? { code: ex.status === "ADVERTISED" || ex.status === "INVITED" ? "CLOSING_PASSED" : "NOT_PUBLISHED", level: "block" }),
+    cancel: allowed(cancelBlock && cancelBlock.code !== "REASON_REQUIRED" ? cancelBlock : null),
+  };
+}
+
+/// The tab's acts alone, for the sections that do not otherwise read the window (the sale register, briefing, addenda).
+export async function invitationActs(exerciseId: string) {
+  const x = await load(exerciseId);
+  return x ? closingActions(x) : null;
 }
 
 export type WindowTab = NonNullable<Awaited<ReturnType<typeof windowTab>>>;

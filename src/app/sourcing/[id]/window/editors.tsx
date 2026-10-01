@@ -303,7 +303,7 @@ export function RequestChangeDrawer({ exerciseId, kind, allowed, closing, lastDa
 }
 
 export function RequestCancellationDrawer({ exerciseId, allowed, reference, noteId = EXERCISE_NOTE_ID }: { exerciseId: string; allowed: Allowed; reference: string; noteId?: string }) {
-  if (!allowed.allowed) return <Blocked label="Cancel the exercise" reason={allowed.reason} noteId={noteId} destructive />;
+  if (!allowed.allowed) return <Blocked label="Cancel exercise" reason={allowed.reason} noteId={noteId} destructive />;
   return (
     <RecordEditor
       title={`Cancel ${reference}`}
@@ -318,7 +318,7 @@ export function RequestCancellationDrawer({ exerciseId, allowed, reference, note
       cancelLabel={`Keep ${reference}`}
       action={requestCancellation}
       submitLabel={`Ask to cancel ${reference}`}
-      trigger={{ label: "Cancel the exercise", className: buttonClass("destructive", "sm") }}
+      trigger={{ label: "Cancel exercise", className: buttonClass("destructive", "sm") }}
       size="md"
     />
   );

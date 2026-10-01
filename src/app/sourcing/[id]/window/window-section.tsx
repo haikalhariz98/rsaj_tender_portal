@@ -23,6 +23,7 @@ import { FEE_COST_KINDS } from "@/lib/window/types";
 
 import { RouteSteps } from "../route-steps";
 import { DeliveryList, FromBadge, levelTone, SETTINGS_HREF } from "./common";
+import { tabActs } from "./tab-acts";
 import {
   EditWindowDrawer,
   FeeLineDrawer,
@@ -34,8 +35,6 @@ import {
   RemoveFeeLineDrawer,
   RemoveInviteeDrawer,
   RemovePublicationDrawer,
-  RequestCancellationDrawer,
-  RequestChangeDrawer,
   WindowDecisionDrawer,
 } from "./editors";
 
@@ -59,51 +58,38 @@ export interface WindowContext {
 const published = (status: string) => status === "ADVERTISED" || status === "INVITED";
 
 /**
- * The page header's share of the Window section: the act the section's state asks for, and the
- * ones that cannot be done now, each with its reason (the header's note says it once). Publish
- * is the primary act while the window is prepared; once published the closing may be extended
- * and the exercise cancelled, each on its approval route.
+ * The page header's share of the Window section: the act the section's state asks for (publish,
+ * while the window is prepared). The acts of the tab itself (correct or extend the closing, cancel)
+ * are `tabActs`, the same on every section.
  */
 export function windowHeader(d: WindowTab, c: WindowContext): { actions: ReactNode; notes: [string, string][]; cancel: ReactNode | null } {
   const notes: [string, string][] = [];
-  const note = (label: string, a: { allowed: boolean; reason?: string }) => !a.allowed && a.reason && notes.push([label, a.reason]);
   const pre = c.status === "APPROVED_FOR_TENDERING";
-  const live = published(c.status);
-  if (!pre && !live) return { actions: null, notes, cancel: null };
-  const closingNow = d.dates.closing;
-  const lastDay = d.dates.lastDayOfSale === "Not set" ? null : d.dates.lastDayOfSale;
+  const tab = tabActs({ ...d.actions, closing: d.dates.closing, lastDayOfSale: d.dates.lastDayOfSale === "Not set" ? null : d.dates.lastDayOfSale }, c);
+  if (!pre) return tab;
   const publish = !d.hasWindow ? { allowed: false as const, reason: "The window's items are not prepared yet. Prepare the window below first." } : d.actions.publish;
-  if (pre) {
-    note(d.actions.publishLabel, publish);
-    note("Correct the closing", d.actions.correct);
-  } else {
-    note("Extend the closing", d.actions.extend);
-    note("Cancel the exercise", d.actions.cancel);
-  }
+  if (!publish.allowed) notes.push([d.actions.publishLabel, publish.reason]);
   return {
     actions: (
       <>
-        {pre && <RequestChangeDrawer exerciseId={c.exerciseId} kind="CORRECTION" allowed={d.actions.correct} closing={closingNow} lastDayOfSale={lastDay} />}
-        {pre && (
-          <PublishDrawer
-            exerciseId={c.exerciseId}
-            label={d.actions.publishLabel}
-            allowed={publish}
-            rows={[
-              ["Way of tendering", d.path],
-              ["Closes", closingNow],
-              [d.pathKey === "INVITED" ? "Invited on" : "Advertisement day", d.dates.advertisedOn],
-              ["Last day of sale", d.dates.lastDayOfSale],
-              ["Document fee", d.fee.amount],
-            ]}
-            notes={d.findings.filter((f) => f.level !== "block").map((f) => f.text)}
-          />
-        )}
-        {live && <RequestChangeDrawer exerciseId={c.exerciseId} kind="EXTENSION" allowed={d.actions.extend} closing={closingNow} lastDayOfSale={lastDay} />}
+        {tab.actions}
+        <PublishDrawer
+          exerciseId={c.exerciseId}
+          label={d.actions.publishLabel}
+          allowed={publish}
+          rows={[
+            ["Way of tendering", d.path],
+            [d.pathKey === "INVITED" ? "Invited on" : "Advertisement day", d.dates.advertisedOn],
+            ["Closes", d.dates.closing],
+            ["Last day of sale", d.dates.lastDayOfSale],
+            ["Document fee", d.fee.amount],
+          ]}
+          notes={d.findings.filter((f) => f.level !== "block").map((f) => f.text)}
+        />
       </>
     ),
-    notes,
-    cancel: live ? <RequestCancellationDrawer exerciseId={c.exerciseId} reference={c.reference} allowed={d.actions.cancel} /> : null,
+    notes: [...notes, ...tab.notes],
+    cancel: tab.cancel,
   };
 }
 
