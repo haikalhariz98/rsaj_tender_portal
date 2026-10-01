@@ -1,5 +1,6 @@
 import { formatMoney } from "@/lib/money";
 import {
+  AwardIcon,
   CalendarIcon,
   ClockIcon,
   DownloadIcon,
@@ -13,13 +14,14 @@ import {
   UsersIcon,
 } from "@/components/icons";
 import { DataList } from "@/components/data-list";
-import { Avatar } from "@/components/ui/avatar";
 import { Badge, Dot } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { Stat } from "@/components/ui/stat";
+import Link from "next/link";
+import type { ActivityKind } from "@/lib/dashboard/activity";
 import { loadDashboard } from "@/lib/dashboard";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { matterLabel } from "@/lib/labels";
@@ -28,6 +30,22 @@ import { greetingAt } from "@/lib/dates";
 import { organisationTimeZone } from "@/lib/org-time";
 
 export const dynamic = "force-dynamic";
+
+/// Where each kind of line links, and the icon that tells the kinds apart at a glance.
+const ACTIVITY_HREF = {
+  requisition: (id: string) => `/requisitions/${id}`,
+  award: (id: string) => `/awards/${id}`,
+  exercise: (id: string) => `/sourcing/${id}`,
+  sitting: (id: string) => `/committees/${id}`,
+};
+const ACTIVITY_ICON: Record<ActivityKind, React.ReactNode> = {
+  requisition: <FilesIcon size={15} />,
+  approval: <ClockIcon size={15} />,
+  exercise: <GlobeIcon size={15} />,
+  sitting: <CalendarIcon size={15} />,
+  matter: <UsersIcon size={15} />,
+  award: <AwardIcon size={15} />,
+};
 
 /// Modules the dashboard will report on once they exist. Listed rather than drawn as
 /// empty cards: three blank panels read as a broken screen, one honest list does not.
@@ -302,24 +320,39 @@ export default async function Dashboard() {
           </Card>
 
           <Card>
-            <CardHeader icon={<UsersIcon size={17} />} title="Recent activity" />
+            <CardHeader icon={<ClockIcon size={17} />} title="Recent activity" subtitle="Requisitions, sittings and awards as they move." />
             {data.activity.length === 0 ? (
-              <EmptyState size="sm" title="No activity yet" />
+              <EmptyState size="sm" title="Nothing has moved yet">
+                Requisitions, sittings and awards appear here as they change.
+              </EmptyState>
             ) : (
               <ol className="px-6 py-4">
-                {data.activity.map((a, i) => (
-                  <li key={i} className="relative flex gap-3 pb-4 last:pb-0">
-                    <span className="absolute top-8 bottom-0 left-[13px] w-px bg-line last:hidden" />
-                    <Avatar name={a.who} size="xs" className="mt-0.5 size-7" />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[13.5px] text-ink">
-                        <b className="font-semibold">{a.who}</b> {a.what}
+                {data.activity.map((a) => {
+                  const href = a.link ? ACTIVITY_HREF[a.link.kind](a.link.id) : null;
+                  return (
+                    <li key={a.key} className="relative flex gap-3 pb-4 last:pb-0">
+                      <span className="absolute top-8 bottom-0 left-[13px] w-px bg-line last:hidden" />
+                      <span aria-hidden className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-sunken text-ink-3">
+                        {ACTIVITY_ICON[a.kind]}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[13.5px] font-semibold text-ink">
+                          {href ? (
+                            <Link href={href} className="rounded-sm hover:text-brand-700 hover:underline focus-visible:outline-2 focus-visible:outline-brand-500">
+                              {a.headline}
+                            </Link>
+                          ) : (
+                            a.headline
+                          )}
+                        </div>
+                        {(a.title || a.reason) && (
+                          <div className="truncate text-[12.5px] text-ink-3">{[a.title, a.reason].filter(Boolean).join(" · ")}</div>
+                        )}
+                        <div className="text-[12px] text-ink-4">{a.day}</div>
                       </div>
-                      <div className="truncate text-[12.5px] text-ink-3">{a.detail}</div>
-                      <div className="text-[12px] text-ink-4">{formatDate(a.at)}</div>
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ol>
             )}
           </Card>
