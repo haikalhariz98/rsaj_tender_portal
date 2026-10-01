@@ -212,6 +212,19 @@ export function exerciseRouteMatter(domain: string): { kind: string; tab: string
   return isExerciseDomain(domain) ? EXERCISE_ROUTE_MATTER[domain] : { kind: "Approval on the exercise", tab: null, auditNoun: "approval" };
 }
 
+/// How the History names an exercise route's own audit rows, by the route's domain: the approval of
+/// the name, Approval for Tendering or the approval of a change to the window, and the same for a
+/// step of it. Never one name for all three (UX U3). `null` for a domain the product does not know.
+const HISTORY_ROUTE_NAME: Record<ExerciseRouteDomain, string> = {
+  [NAME_APPROVAL_DOMAIN]: "Name approval",
+  [TENDERING_APPROVAL_DOMAIN]: "Approval for tendering",
+  [WINDOW_CHANGE_DOMAIN]: "Approval of the change to the invitation window",
+};
+export function historyRouteLabel(domain: string, part: "route" | "step"): string {
+  const name = isExerciseDomain(domain) ? HISTORY_ROUTE_NAME[domain] : "Approval on the exercise";
+  return part === "step" ? `Step of the ${name.charAt(0).toLowerCase()}${name.slice(1)}` : name;
+}
+
 export type NameFault = "NAME_NOT_REQUESTED" | "NAME_NOT_APPROVED" | "NAME_REJECTED";
 
 type RouteOrder = { openedAt: Date; createdAt?: Date | null; id?: string };

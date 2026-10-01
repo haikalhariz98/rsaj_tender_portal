@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { exerciseRouteMatter, exerciseRoutePreview, exerciseRoutesOf, invitationFault, nameRoutesOf, routesByDomain, tenderingRoutesOf, windowChangeRoutesOf, type FunderContext } from "./approval";
+import { exerciseRouteMatter, historyRouteLabel, exerciseRoutePreview, exerciseRoutesOf, invitationFault, nameRoutesOf, routesByDomain, tenderingRoutesOf, windowChangeRoutesOf, type FunderContext } from "./approval";
 import { SPEC_MATRIX, SPEC_METHODS } from "./fixture";
 import { NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN, WINDOW_CHANGE_DOMAIN, type Method } from "./types";
 
@@ -34,6 +34,16 @@ describe("window_change routes", () => {
 
   it("the worklist reads it in words and opens the Invitation tab", () => {
     expect(exerciseRouteMatter(WINDOW_CHANGE_DOMAIN)).toEqual({ kind: "Change to the invitation window", tab: "invitation", auditNoun: "window change" });
+  });
+});
+
+describe("the History names a route's rows by its domain, not as a name approval", () => {
+  it("each domain has its own name, and its steps", () => {
+    expect(historyRouteLabel(NAME_APPROVAL_DOMAIN, "route")).toBe("Name approval");
+    expect(historyRouteLabel(WINDOW_CHANGE_DOMAIN, "route")).toBe("Approval of the change to the invitation window");
+    expect(historyRouteLabel(WINDOW_CHANGE_DOMAIN, "step")).toBe("Step of the approval of the change to the invitation window");
+    expect(historyRouteLabel(NAME_APPROVAL_DOMAIN, "step")).toBe("Step of the name approval");
+    expect(historyRouteLabel("tendering_approval", "route")).not.toMatch(/name/i);
   });
 });
 

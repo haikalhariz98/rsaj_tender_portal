@@ -30,7 +30,7 @@ import { routeTone, stepTone } from "@/lib/ui/status-tone";
 import { dayToDate } from "@/lib/dates";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
-import { latestFirst, nameRequestFault, nameRouteForRequester, nameRouteLabel, nameRoutesOf, requesterHolding, resolveNameApproval, tenderingRoutesOf, windowChangeRoutesOf } from "@/lib/method/approval";
+import { exerciseRoutesOf, historyRouteLabel, latestFirst, nameRequestFault, nameRouteForRequester, nameRouteLabel, nameRoutesOf, requesterHolding, resolveNameApproval, tenderingRoutesOf, windowChangeRoutesOf } from "@/lib/method/approval";
 import { disagreesAtBoundary } from "@/lib/method/bands";
 import { determinationDrift } from "@/lib/method/drift";
 import { evaluateExercise } from "@/lib/method/evaluate";
@@ -524,6 +524,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
           basisName={(c) => config.bases.find((b) => b.code === c)?.nameEn ?? null}
           reasonName={(c) => config.reasons.find((r) => r.code === c)?.nameEn ?? null}
           tenderingRouteIds={new Set(tenderingRoutesOf(ex.approvalInstances).map((i) => i.id))}
+          routeDomains={new Map(exerciseRoutesOf(ex.approvalInstances).flatMap((i) => [[i.id, i.domain] as const, ...i.steps.map((s) => [s.id, i.domain] as const)]))}
         />
       ),
     },
@@ -1210,8 +1211,6 @@ const ENTITY_LABEL: Record<string, string> = {
   ExerciseProposalAnswer: "Proposal item",
   ExerciseTaxonomyValue: "Classification",
   ExerciseParticipant: "Participant",
-  ApprovalInstance: "Name approval",
-  ApprovalStep: "Name approval step",
   Requisition: "Requisition",
 };
 const ACTION_LABEL = { CREATE: "Created", UPDATE: "Changed", DELETE: "Removed" } as const;
@@ -1264,6 +1263,7 @@ function HistoryPanel({
   basisName,
   reasonName,
   tenderingRouteIds,
+  routeDomains,
 }: {
   entries: Awaited<ReturnType<typeof exerciseHistory>>["entries"];
   total: number;
@@ -1275,6 +1275,8 @@ function HistoryPanel({
   reasonName: (c: string) => string | null;
   /// The exercise's Approval for Tendering routes: a rejection there reads "Returned for amendment" (Q-3).
   tenderingRouteIds: ReadonlySet<string>;
+  /// Each route's and each step's id to its route's domain, so the History names them by it.
+  routeDomains: ReadonlyMap<string, string>;
 }) {
   // The department estimate (a registered SULIT field) reads with the SULIT chip in the trail too.
   const chipped = (field: string, value: string | null, entityId: string, entity: string) => (isSulitField(field) && value ? <SulitValue>{read(field, value, entityId, entity)}</SulitValue> : read(field, value, entityId, entity));
@@ -1334,7 +1336,7 @@ function HistoryPanel({
             <li key={e.id} className="flex flex-col gap-1.5 px-5 py-3 sm:px-6">
               <div className="flex flex-wrap items-center gap-2 text-[13px]">
                 <Badge tone={e.action === "CREATE" ? "ok" : e.action === "DELETE" ? "err" : "info"}>{ACTION_LABEL[e.action]}</Badge>
-                <span className="font-semibold text-ink">{ENTITY_LABEL[e.entity] ?? "Record"}</span>
+                <span className="font-semibold text-ink">{routeDomains.has(e.entityId) ? historyRouteLabel(routeDomains.get(e.entityId)!, e.entity === "ApprovalStep" ? "step" : "route") : (ENTITY_LABEL[e.entity] ?? "Record")}</span>
                 <span className="min-w-0 break-words text-ink-2">{trailLabel(e.entityLabel)}</span>
                 <span className="flex-1" />
                 <span className="text-[12px] text-ink-3">{formatOrgDay(e.at, timeZone)}</span>
