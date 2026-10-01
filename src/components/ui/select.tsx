@@ -20,9 +20,11 @@ import {
 
 import { CheckIcon, ChevronDown, SearchIcon } from "@/components/icons";
 import {
+  CLEAR_LABEL,
   filterOptions,
   joinValues,
   moveActive,
+  planChoices,
   resultsAnnouncement,
   toggleValue,
   typeahead,
@@ -54,7 +56,7 @@ export function Option(
   return null;
 }
 
-type Item = Opt & { icon?: ReactNode; avatar?: string };
+type Item = Opt & { icon?: ReactNode; avatar?: string; clear?: boolean };
 
 function textOf(node: ReactNode): string {
   if (node == null || typeof node === "boolean") return "";
@@ -174,6 +176,16 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
     [controlled, props.value, inner],
   );
   const single = chosen[0] ?? "";
+  const hasValue = !multiple ? single !== "" : chosen.length > 0;
+
+  // The empty option is a placeholder (required field, or a generic prompt such as
+  // "Choose") or a real choice ("None", "Not set"); the rule lives in select-logic.
+  const isRequired = !!(required || ctx.required);
+  const plan = useMemo(
+    () => planChoices(items, { required: isRequired, multiple, hasValue }),
+    [items, isRequired, multiple, hasValue],
+  );
+  const clearRow = useMemo<Item | null>(() => (plan.clear ? { value: "", label: CLEAR_LABEL, clear: true } : null), [plan.clear]);
 
   const nativeRef = useRef<HTMLSelectElement>(null);
   const hiddenRef = useRef<HTMLInputElement>(null);
@@ -189,14 +201,22 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
   const typed = useRef({ text: "", at: 0 });
 
   const searchOn = wantsSearch(items, searchable);
-  const shown = useMemo(() => (searchOn ? filterOptions(items, query) : items), [items, query, searchOn]);
+  // The rows for a query. "Clear selection" heads the list, and is not searched through.
+  const rowsFor = useCallback(
+    (q: string): Item[] => {
+      const found = searchOn ? filterOptions(plan.rows, q) : plan.rows;
+      return clearRow && !q.trim() ? [clearRow, ...found] : found;
+    },
+    [plan.rows, clearRow, searchOn],
+  );
+  const shown = useMemo(() => rowsFor(query), [rowsFor, query]);
 
   const coarse = () => typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
 
   const openList = useCallback(
     (initialQuery = "", from?: MoveKey) => {
       if (disabled) return;
-      const list = searchOn ? filterOptions(items, initialQuery) : items;
+      const list = rowsFor(initialQuery);
       const selected = list.findIndex((o) => chosen.includes(o.value) && !o.disabled);
       touched.current = false;
       setQuery(initialQuery);
@@ -208,7 +228,7 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
       setActive(at);
       setOpen(true);
     },
-    [disabled, items, chosen, searchOn],
+    [disabled, rowsFor, chosen],
   );
 
   const close = useCallback((returnFocus: boolean) => {
@@ -329,8 +349,8 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
           const t = typed.current;
           t.text = now - t.at < 700 ? t.text + k : k;
           t.at = now;
-          const at = typeahead(items, t.text, items.findIndex((o) => o.value === single));
-          if (at >= 0) commitSingle(items[at].value);
+          const at = typeahead(plan.rows, t.text, plan.rows.findIndex((o) => o.value === single));
+          if (at >= 0) commitSingle(plan.rows[at].value);
         } else {
           openList();
         }
@@ -391,6 +411,7 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
   // ---- what the trigger shows ---------------------------------------------------
   const selectedItems = chosen.map((v) => items.find((o) => o.value === v) ?? { value: v, label: v });
   const emptyOption = items.find((o) => o.value === "");
+  const placeholderText = plan.role === "placeholder";
   const aria = fieldAria(ctx, props);
   const labelledBy = aria["aria-labelledby"] ?? ownLabelId;
   const invalid = aria["aria-invalid"];
@@ -421,13 +442,11 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
     );
   } else {
     display = (
-      <span className={cx("truncate", emptyOption?.label ? "text-ink-3" : "text-ink-4")}>
+      <span className={cx("truncate", emptyOption?.label && !placeholderText ? "text-ink-3" : "text-ink-4")}>
         {emptyOption?.label || placeholder || "Select an option"}
       </span>
     );
   }
-
-  const hasValue = !multiple ? single !== "" : chosen.length > 0;
 
   const triggerEl = (
     <button
@@ -443,7 +462,7 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
       aria-label={props["aria-label"]}
       aria-describedby={aria["aria-describedby"]}
       aria-invalid={invalid}
-      aria-required={required || undefined}
+      aria-required={isRequired || undefined}
       disabled={disabled}
       title={props.title}
       onClick={() => {
@@ -519,7 +538,7 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
               const q = e.target.value;
               setQuery(q);
               touched.current = false;
-              setActive(moveActive(filterOptions(items, q), -1, "ArrowDown"));
+              setActive(moveActive(rowsFor(q), -1, "ArrowDown"));
             }}
             className="h-9 w-full rounded-xl bg-sunken pr-3 pl-9 text-[13.5px] text-ink outline-none placeholder:text-ink-4 focus:ring-2 focus:ring-brand-500/30"
           />
@@ -537,7 +556,7 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
           const on = chosen.includes(o.value);
           return (
             <li
-              key={o.value}
+              key={o.clear ? "clear" : o.value}
               id={optId(i)}
               role="option"
               aria-selected={on}
@@ -551,12 +570,12 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
                 "flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13.5px] pointer-coarse:min-h-11",
                 o.disabled ? "cursor-not-allowed text-ink-3" : "cursor-pointer",
                 i === active && !o.disabled && "bg-sunken",
-                on ? "font-semibold text-brand-800" : !o.disabled && "text-ink",
+                on ? "font-semibold text-brand-800" : !o.disabled && (o.clear ? "text-ink-3" : "text-ink"),
               )}
             >
               {o.avatar ? <Avatar name={o.avatar} size="xs" /> : o.icon}
               <span className="min-w-0 flex-1">
-                <span className={cx("block", o.value === "" && !on && "text-ink-3")}>{o.label}</span>
+                <span className={cx("block", (o.clear || (o.value === "" && !on)) && "text-ink-3")}>{o.label}</span>
                 {o.sub && <span className="block text-[12px] font-normal text-ink-3">{o.sub}</span>}
               </span>
               {on && <CheckIcon size={15} className="shrink-0 text-brand-700" aria-hidden="true" />}
@@ -565,7 +584,7 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
         })}
         {shown.length === 0 && (
           <li role="presentation" className="px-3 py-2 text-[13px] text-ink-3">
-            {items.length === 0 ? "Nothing to choose yet" : `No matches for “${query.trim()}”`}
+            {plan.rows.length === 0 ? "Nothing to choose yet" : `No matches for “${query.trim()}”`}
           </li>
         )}
       </ul>

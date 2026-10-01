@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CLEAR_LABEL,
   SEARCH_THRESHOLD,
+  emptyOptionRole,
+  isPromptLabel,
+  planChoices,
   filterOptions,
   joinValues,
   moveActive,
@@ -139,5 +143,55 @@ describe("resultsAnnouncement", () => {
     expect(resultsAnnouncement(0)).toBe("No matches");
     expect(resultsAnnouncement(1)).toBe("1 option");
     expect(resultsAnnouncement(12)).toBe("12 options");
+  });
+});
+
+describe("the empty option: placeholder or choice", () => {
+  const withEmpty = (label: string): Opt[] => [{ value: "", label }, ...opts("Alpha", "Beta")];
+
+  it("knows a generic prompt from a named state", () => {
+    for (const l of ["Choose", "choose", "Select…", "Select...", "Select an option", "Choose one", " Pick one "]) {
+      expect(isPromptLabel(l), l).toBe(true);
+    }
+    for (const l of ["None", "Not set", "Nobody", "Any", "Not on file", "—", "No section in this department", "Not decided", "Choose wisely or not"]) {
+      expect(isPromptLabel(l), l).toBe(false);
+    }
+  });
+
+  it("is a placeholder when the field is required, whatever it says", () => {
+    expect(emptyOptionRole(withEmpty("Not set"), { required: true })).toBe("placeholder");
+    expect(emptyOptionRole(withEmpty("None"), { required: true })).toBe("placeholder");
+  });
+
+  it("is a placeholder when optional but worded as a prompt", () => {
+    expect(emptyOptionRole(withEmpty("Choose"))).toBe("placeholder");
+    expect(emptyOptionRole(withEmpty("Select an option"))).toBe("placeholder");
+  });
+
+  it("stays a choice when optional and it names a state", () => {
+    for (const l of ["None", "Not set", "Nobody", "No section in this department", "Not on file", "All records"]) {
+      expect(emptyOptionRole(withEmpty(l)), l).toBe("choice");
+    }
+  });
+
+  it("has no role without an empty option, or in a multiple select", () => {
+    expect(emptyOptionRole(opts("A"), { required: true })).toBe("none");
+    expect(emptyOptionRole(withEmpty("Choose"), { multiple: true })).toBe("none");
+  });
+
+  it("takes a placeholder out of the rows and keeps a choice in", () => {
+    const p = planChoices(withEmpty("Choose"), { required: true, hasValue: false });
+    expect(p.rows.map((o) => o.label)).toEqual(["Alpha", "Beta"]);
+    expect(p.placeholder).toBe("Choose");
+    const c = planChoices(withEmpty("None"), { hasValue: true });
+    expect(c.rows.map((o) => o.label)).toEqual(["None", "Alpha", "Beta"]);
+    expect(c.clear).toBe(false);
+  });
+
+  it("offers Clear selection only when optional, a placeholder, and a value is chosen", () => {
+    expect(CLEAR_LABEL).toBe("Clear selection");
+    expect(planChoices(withEmpty("Choose"), { hasValue: true }).clear).toBe(true);
+    expect(planChoices(withEmpty("Choose"), { hasValue: false }).clear).toBe(false);
+    expect(planChoices(withEmpty("Choose"), { required: true, hasValue: true }).clear).toBe(false);
   });
 });

@@ -10,6 +10,58 @@ export type Opt = {
   sub?: string;
 };
 
+/// Generic prompts: words that ask for a choice rather than name one. An empty option
+/// worded like this is a placeholder, never a value somebody picked ("Choose", "Select…",
+/// "Select an option"). Anything else ("None", "Not set", "Nobody", "Any", "Not on file",
+/// "No section in this department") names a state that can be a real, saved choice.
+const PROMPT = /^(choose|select|pick)(\s+(an?\s+)?(option|one|value|item))?\s*(…|\.{3})?$/i;
+
+export function isPromptLabel(label: string): boolean {
+  return PROMPT.test(label.trim());
+}
+
+export const CLEAR_LABEL = "Clear selection";
+
+export type EmptyRole = "none" | "placeholder" | "choice";
+
+/// What the empty-value option (value "") is, in one rule:
+///  - a required field: a placeholder (nothing may be saved empty, so it is never a row);
+///  - an optional field whose label is a generic prompt: a placeholder;
+///  - anything else: a choice, kept as an ordinary row (unset can be a saved answer).
+export function emptyOptionRole(
+  options: readonly Opt[],
+  { required = false, multiple = false }: { required?: boolean; multiple?: boolean } = {},
+): EmptyRole {
+  const empty = options.find((o) => o.value === "");
+  if (!empty || multiple) return "none";
+  return required || isPromptLabel(empty.label) ? "placeholder" : "choice";
+}
+
+export type ChoicePlan<T extends Opt> = {
+  role: EmptyRole;
+  /// The rows to list: the placeholder is taken out; a choice stays.
+  rows: T[];
+  /// The closed field's muted text while nothing is chosen (the placeholder's own words).
+  placeholder?: string;
+  /// One muted "Clear selection" row at the top: only for an optional field whose empty
+  /// option is a placeholder, and only while a value is selected.
+  clear: boolean;
+};
+
+export function planChoices<T extends Opt>(
+  options: readonly T[],
+  { required = false, multiple = false, hasValue }: { required?: boolean; multiple?: boolean; hasValue: boolean },
+): ChoicePlan<T> {
+  const role = emptyOptionRole(options, { required, multiple });
+  if (role !== "placeholder") return { role, rows: [...options], clear: false };
+  return {
+    role,
+    rows: options.filter((o) => o.value !== ""),
+    placeholder: options.find((o) => o.value === "")?.label,
+    clear: !required && hasValue,
+  };
+}
+
 /// A search box appears above this many choosable options, unless the caller says.
 export const SEARCH_THRESHOLD = 7;
 

@@ -116,7 +116,7 @@ export function Field({
   const errorId = error ? `${base}-error` : undefined;
   const describedBy = [hintId, errorId].filter(Boolean).join(" ") || undefined;
   return (
-    <FieldProvider value={{ labelId, describedBy, invalid: !!error }}>
+    <FieldProvider value={{ labelId, describedBy, invalid: !!error, required }}>
       {/* The notch hangs 8px above the box; the top padding keeps it clear of whatever is above. */}
       <div className={cx("min-w-0 pt-2", className)}>
         <div className={NOTCH_WRAP}>

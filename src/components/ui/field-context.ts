@@ -8,6 +8,8 @@ export type FieldContextValue = {
   /// Space-separated ids of the hint and error lines.
   describedBy?: string;
   invalid?: boolean;
+  /// The Field is marked required: a Select inside it treats its empty option as a placeholder.
+  required?: boolean;
 };
 
 const FieldContext = createContext<FieldContextValue>({});
