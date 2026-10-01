@@ -135,7 +135,7 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   DEPARTURES_REQUIRED: "The bill does not follow the measurement standard: state its departures.",
   PREPARER_REQUIRED: "Name who prepared the bill.",
   QUALIFICATION_NOT_SET: `The qualification a bill's preparer must hold is not set. ${SET_IT}`,
-  PREPARER_NOT_QUALIFIED: (d) => `The preparer does not hold ${d.qualification ?? "the configured qualification"} on ${d.on ? formatDate(String(d.on)) : "today"}. Record their qualification under Configuration, Users and roles, or name a qualified preparer.`,
+  PREPARER_NOT_QUALIFIED: (d) => `The preparer does not hold ${d.qualification ?? "the configured qualification"} on ${d.on ? formatDate(String(d.on)) : "today"}. Record their qualification under Configuration, Scope and estimate (Qualifications), or name a qualified preparer.`,
   TIME_ZONE_NOT_SET: "The organisation's time zone is not set, so today is not known. Set it under Configuration, Organisation.",
   DRAFT_EXISTS: "A revision is already being drafted. Finalise it, or carry on editing it.",
   ALREADY_STARTED: "The bill is already started. Edit its draft, or start a revision of the finalised version.",

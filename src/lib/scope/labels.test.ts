@@ -57,3 +57,12 @@ describe("the estimate's refusals read whole without their data (codes only, OD-
     for (const c of SCOPE_CODES) expect(scopeFaultText(c), c).not.toMatch(/undefined|null|NaN/);
   });
 });
+
+describe("the unqualified-preparer refusal points to where qualifications are set", () => {
+  it("names Configuration, Scope and estimate, not Users and roles", () => {
+    const text = scopeFaultText({ code: "PREPARER_NOT_QUALIFIED", level: "block", data: { qualification: "Quantity surveyor", on: "2026-10-01" } });
+    expect(text).toContain("Configuration, Scope and estimate");
+    expect(text).not.toContain("Users and roles");
+    expect(scopeFaultText("PREPARER_NOT_QUALIFIED")).toContain("Configuration, Scope and estimate");
+  });
+});
