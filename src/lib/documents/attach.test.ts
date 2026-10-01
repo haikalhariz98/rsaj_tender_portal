@@ -349,3 +349,25 @@ describe("X-8: an exercise's status freezes it, its panel and its bill alike, ev
     expect(ownerState("BQ_IMPORT_SOURCE", { kind: "bqVersion", exerciseStatus: "CANCELLED", status: "DRAFT" })).toEqual({ state: "FROZEN", exit: "EXERCISE_CANCELLED" });
   });
 });
+
+describe("6.4 (BD-64-4, ADR 0013): the panel stands frozen with the tender pack submitted on it", () => {
+  const panel = (exerciseStatus: "PENDING_APPROVAL_FOR_TENDERING" | "APPROVED_FOR_TENDERING"): OwnerFacts => ({ kind: "specificationPanel", exerciseStatus, status: "VERIFIED", verifiedScanVersionIds: ["v1"], liveScanVersionIds: ["v1"] });
+  const filed = { version: { withdrawnAt: null }, documentClass: { classification: "SULIT" as const } };
+  for (const exerciseStatus of ["PENDING_APPROVAL_FOR_TENDERING", "APPROVED_FOR_TENDERING"] as const) {
+    it(`${exerciseStatus}: frozen, saying the pack froze on it`, () => {
+      expect(ownerState("SPEC_PANEL_FORM", panel(exerciseStatus))).toEqual({ state: "FROZEN", exit: "PACK_FROZEN" });
+    });
+    it(`${exerciseStatus}: no new version of the verified scan is attached`, () => {
+      expect(attachFault({ purpose: "SPEC_PANEL_FORM", owner: panel(exerciseStatus), ...filed }).map((f) => f.code)).toEqual(["OWNER_FROZEN"]);
+    });
+    it(`${exerciseStatus}: the verified scan is not re-pinned to another version`, () => {
+      expect(repinFault({ purpose: "SPEC_PANEL_FORM", owner: panel(exerciseStatus), reason: "corrected", attachment: { detachedAt: null, versionId: "v1", documentId: "d1" }, to: { id: "v2", documentId: "d1", withdrawnAt: null } }).map((f) => f.code)).toEqual(["OWNER_FROZEN"]);
+    });
+    it(`${exerciseStatus}: nor taken off`, () => {
+      expect(detachFault({ purpose: "SPEC_PANEL_FORM", owner: panel(exerciseStatus), reason: "wrong scan", reliedOn: null }).map((f) => f.code)).toEqual(["OWNER_FROZEN"]);
+    });
+  }
+  it("open again once the documents are returned for amendment (the exercise is back in preparation)", () => {
+    expect(ownerState("SPEC_PANEL_FORM", { ...panel("PENDING_APPROVAL_FOR_TENDERING"), exerciseStatus: "DOCUMENTS_IN_PREPARATION" } as OwnerFacts)).toEqual({ state: "OPEN" });
+  });
+});

@@ -10,6 +10,7 @@
 
 import { isLive } from "./evidence";
 import type { ExerciseStatus } from "@/lib/method/types";
+import { exerciseAllowsPanel } from "@/lib/scope/panel";
 import type { PartSource, TenderPackStatus } from "@/lib/tender-docs/types";
 
 import { OWNER_ACT_PURPOSES, PURPOSE_CLASSIFICATION, PURPOSE_OWNER, type AttachmentPurpose, type Finding, type SecurityClass } from "./types";
@@ -159,8 +160,13 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): { sta
       return { state: "OPEN" };
     case "delegation":
       return owner.ended ? { state: "FROZEN", exit: "DELEGATION_ENDED" } : { state: "OPEN" };
-    case "specificationPanel":
-      return exerciseFrozen(owner.exerciseStatus) ? { state: "FROZEN", exit: "EXERCISE_CANCELLED" } : { state: "OPEN" };
+    case "specificationPanel": {
+      // 6.4 (BD-64-4, ADR 0013): the tender pack froze on this panel, so its signed form is
+      // neither attached, taken off nor re-pinned while the pack is with approval or approved;
+      // the panel's own rule (`exerciseAllowsPanel`) decides, so the two never disagree.
+      const allows = exerciseAllowsPanel(owner.exerciseStatus);
+      return allows === "OPEN" ? { state: "OPEN" } : { state: "FROZEN", exit: allows };
+    }
     case "bqVersion":
       // A finalised or superseded bill keeps the file it was imported from, as it stands.
       if (exerciseFrozen(owner.exerciseStatus)) return { state: "FROZEN", exit: "EXERCISE_CANCELLED" };

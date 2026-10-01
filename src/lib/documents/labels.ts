@@ -139,7 +139,7 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
   AWARD_CANCELLED: "The award is cancelled, so nothing more is attached to it.",
   DELEGATION_ENDED: "The delegation has ended, so nothing more is attached to it.",
   BQ_FINALISED: "This version of the bill is finalised and keeps the file it was imported from. To import another, start a revision of the bill.",
-  PACK_FROZEN: "This tender pack was submitted and stands as it was frozen. A change is made on the next version, once the documents are returned for amendment.",
+  PACK_FROZEN: "The tender documents were submitted on this and stand as they were frozen. A change waits until they are returned for amendment, and is made then (a pack's part on its next version); after approval for tendering a change is an addendum, not yet available.",
 };
 
 const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {
