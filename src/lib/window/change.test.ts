@@ -73,17 +73,20 @@ describe("applying an approved extension (the approving step's re-run)", () => {
   // last day of sale to Thu 19 Nov. Approved Mon 23 Nov (09:00 in Kuala Lumpur): the 19th has
   // passed, the current closing has not.
   const asked = { ...ext(), now: new Date("2026-11-23T01:00:00Z"), currentClosingAt: klAt("2026-11-24"), currentPurchaseCloseDay: "2026-11-15", toClosingAt: klAt("2026-12-01"), toPurchaseCloseDay: "2026-11-19", rules: { ...ext().rules, today: "2026-11-23" } };
-  it("judges the last day of sale against the day it was asked for, not the day it is approved", () => {
-    expect(codes(appliedChangeFaults(asked, "2026-11-10"))).toEqual([]);
+  it("judges a moved last day of sale against the day of approval: one that has passed while the change waited is not applied", () => {
+    expect(codes(appliedChangeFaults(asked))).toEqual(["PURCHASE_CLOSE_IN_PAST"]);
   });
-  it("the same request asked on the 23rd would be refused for the past day", () => {
-    expect(codes(appliedChangeFaults(asked, "2026-11-23"))).toEqual(["PURCHASE_CLOSE_IN_PAST"]);
+  it("the same change approved before that day passes", () => {
+    expect(codes(appliedChangeFaults({ ...asked, now: new Date("2026-11-18T01:00:00Z"), rules: { ...asked.rules, today: "2026-11-18" } }))).toEqual([]);
+  });
+  it("a last day of sale the change does not move is not judged, however long ago it was", () => {
+    expect(codes(appliedChangeFaults({ ...asked, toPurchaseCloseDay: "2026-11-15" }))).toEqual([]);
   });
   it("is still refused when the current closing passed while it waited", () => {
-    expect(codes(appliedChangeFaults({ ...asked, now: new Date("2026-11-24T07:00:00Z") }, "2026-11-10"))).toEqual(["CLOSING_PASSED"]);
+    expect(codes(appliedChangeFaults({ ...asked, now: new Date("2026-11-24T07:00:00Z"), toPurchaseCloseDay: "2026-11-15" }))).toEqual(["CLOSING_PASSED"]);
   });
   it("an unchanged request is no fault at the approving step", () => {
-    expect(codes(appliedChangeFaults({ ...ext(), toClosingAt: klAt("2026-11-17"), toPurchaseCloseDay: "2026-11-15", kind: "CORRECTION", status: "APPROVED_FOR_TENDERING" }, "2026-11-10"))).toEqual([]);
+    expect(codes(appliedChangeFaults({ ...ext(), toClosingAt: klAt("2026-11-17"), toPurchaseCloseDay: "2026-11-15", kind: "CORRECTION", status: "APPROVED_FOR_TENDERING" }))).toEqual([]);
   });
 });
 

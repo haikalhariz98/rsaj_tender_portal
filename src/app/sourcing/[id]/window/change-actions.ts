@@ -227,9 +227,9 @@ async function applyClosingChange(tx: Tx, l: LockedWindow, d: WindowData, change
       currentPurchaseCloseDay: d.window!.purchaseCloseDay ? storedDay(d.window!.purchaseCloseDay) : null,
       toPurchaseCloseDay: change.toPurchaseCloseDay ? storedDay(change.toPurchaseCloseDay) : null,
       reason: change.reason,
+      // The rules' today is the organisation's day now, at approval.
       rules: changeRules(l, d),
     },
-    storedDay(change.requestedOn),
   );
   if (fs.length) {
     const why = fs.map(windowFindingText).join(" ");
