@@ -119,6 +119,7 @@ import { openFault } from "@/lib/method/exercise";
 import { EXERCISE_STATUS_LABEL, EXERCISE_STATUS_TONE, findingText, REGIME_SHORT } from "@/lib/method/labels";
 import type { ExerciseStatus, Regime } from "@/lib/method/types";
 import { addSen, formatMoney } from "@/lib/money";
+import { historyMoneyText, linesSubtitle } from "@/lib/requisition/money-text";
 
 export const dynamic = "force-dynamic";
 
@@ -870,7 +871,7 @@ function Overview({
         <CardHeader
           icon={<ClipboardIcon size={17} />}
           title="Line items"
-          subtitle={`${r.lines.length} ${r.lines.length === 1 ? "line" : "lines"}, coming to ${formatRM(Number(lineTotal) / 100)}.`}
+          subtitle={linesSubtitle(r.lines.length, lineTotal)}
         />
         {r.lines.length === 0 ? (
           <EmptyState size="sm" title="No lines">
@@ -1860,22 +1861,6 @@ const ENTITY_LABEL: Record<string, string> = {
 };
 const ACTION_LABEL = { CREATE: "Recorded", UPDATE: "Changed", DELETE: "Withdrawn" } as const;
 
-/// Figures the trail stores as decimal strings, read back as ringgit.
-const MONEY_FIELDS = new Set([
-  "estimatedValue",
-  "estimatedAmount",
-  "unitPrice",
-  "value",
-  "amount",
-  "balanceAsAt",
-  "actualBudget",
-  "approvedAccount",
-  "projectedBalance",
-  "combinedValue",
-  "boundaryValue",
-  "requested",
-  "requestedAmount",
-]);
 
 function HistoryPanel({
   entries,
@@ -1909,7 +1894,8 @@ function HistoryPanel({
     if (field === "origin") return value === "EXTERNAL" ? "Received from the finance system" : "Raised in the portal";
     if (field === "act") return ACT_LABEL[value] ? actLabel(value) : value;
     if (field === "cond") return condLabel(value);
-    if (MONEY_FIELDS.has(field) && /^-?\d+(\.\d+)?$/.test(value)) return formatRM(Number(value));
+    const money = historyMoneyText(field, value);
+    if (money != null) return money;
     if (value === "true" || value === "yes") return "Yes";
     if (value === "false" || value === "no") return "No";
     if (/Id$/.test(field)) return "Another record";
