@@ -36,7 +36,11 @@ export function AppShell({
   const hasAlerts = Object.values(counts).some((n) => n > 0);
 
   return (
-    <div className="min-h-dvh">
+    <div className="relative min-h-dvh">
+      {/* The sidebar itself is fixed to the viewport; this strip is the same surface
+          running the whole height of the page, so a long page, a full-page capture or
+          overscroll never shows the canvas under it. */}
+      <div aria-hidden="true" className="absolute inset-y-0 left-0 z-0 hidden w-68 border-r border-line/70 bg-surface lg:block print:hidden" />
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-68 border-r border-line/70 bg-surface lg:block print:hidden">
         <Sidebar organisation={organisation} strapline={strapline} counts={counts} />
       </aside>
