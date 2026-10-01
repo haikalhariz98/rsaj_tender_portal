@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { Tx } from "@/lib/audit/record";
 
 import { attachFault, repinFault, type OwnerFacts } from "./attach";
-import { lockVersion, LOCKED_VERSION_SELECT, type LockedVersion } from "./lock";
+import { lockVersion, LOCKED_VERSION_SELECT, shareDocumentClass, type LockedVersion } from "./lock";
 
 /**
  * Review 2026-10-01, must-fix 1: an attach read the version before it locked the
@@ -136,5 +136,25 @@ describe("every attach path judges the version read after the document's lock (s
     // Only the one version read, and it carries what repinFault judges.
     expect(repin.match(/tx\.documentVersion\./g)).toHaveLength(1);
     expect(repin).toMatch(/select: \{ \.\.\.LOCKED_VERSION_SELECT,/);
+  });
+});
+
+describe("storeUpload holds the class before reading it (review carry 8)", () => {
+  it("shareDocumentClass takes FOR SHARE on the class row, within the organisation", async () => {
+    const calls: { sql: string; values: unknown[] }[] = [];
+    const tx = { $queryRaw: (strings: TemplateStringsArray, ...values: unknown[]) => (calls.push({ sql: strings.join("?"), values }), Promise.resolve([])) } as unknown as Tx;
+    await shareDocumentClass(tx, "dc1", "org1");
+    expect(calls).toHaveLength(1);
+    expect(calls[0].sql).toMatch(/FROM "DocumentClass" WHERE id = \? AND "organisationId" = \? FOR SHARE/);
+    expect(calls[0].values).toEqual(["dc1", "org1"]);
+  });
+  it("storeUpload takes it before its one read of the class (source scan)", () => {
+    const text = readFileSync(join(process.cwd(), "src/lib/documents/service.ts"), "utf8");
+    const store = text.slice(text.indexOf("export async function storeUpload("));
+    const share = store.indexOf("await shareDocumentClass(tx, i.documentClassId, i.org.id);");
+    const read = store.indexOf("tx.documentClass.findFirst(");
+    expect(share).toBeGreaterThan(-1);
+    expect(read).toBeGreaterThan(share);
+    expect(store.match(/tx\.documentClass\.find/g)).toHaveLength(1);
   });
 });

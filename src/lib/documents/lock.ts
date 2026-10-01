@@ -40,3 +40,13 @@ export async function lockVersion(tx: Tx, versionId: string, organisationId: str
   await lockDocument(tx, at.documentId);
   return tx.documentVersion.findFirst({ where: { id: versionId, organisationId }, select: LOCKED_VERSION_SELECT });
 }
+
+/**
+ * Hold a document class (`FOR SHARE`) for the rest of the transaction: a concurrent edit
+ * of the class waits, so what the caller reads of it next (classification, retention) is
+ * what it snapshots onto a document. Within the organisation, so another's id holds
+ * nothing. Taken before the class is read (review carry 8, as `reclassifyDocument` does).
+ */
+export async function shareDocumentClass(tx: Tx, documentClassId: string, organisationId: string): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM "DocumentClass" WHERE id = ${documentClassId} AND "organisationId" = ${organisationId} FOR SHARE`;
+}

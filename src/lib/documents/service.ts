@@ -11,7 +11,7 @@ import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 
 import { filenameFault } from "./access";
-import { lockDocument } from "./lock";
+import { lockDocument, shareDocumentClass } from "./lock";
 import { documentCreated, versionCreated } from "./audit-view";
 import { receivedOnFault } from "./received";
 import { isRetentionRule, type RetentionRule } from "./retention";
@@ -142,6 +142,9 @@ export async function storeUpload(i: UploadInput): Promise<UploadResult> {
         const classCount = await tx.documentClass.count({ where: { organisationId: i.org.id } });
         if (classCount === 0) throw new UploadRefusal({ code: "CLASSES_NOT_CONFIGURED", level: "block" });
         if (!i.documentClassId) throw new UploadRefusal({ code: "CLASS_NOT_SET", level: "block" });
+        // The class is held before it is read: its classification and retention are
+        // snapshotted onto the document, and an edit of the class waits for this act.
+        await shareDocumentClass(tx, i.documentClassId, i.org.id);
         const cls = await tx.documentClass.findFirst({ where: { id: i.documentClassId, organisationId: i.org.id } });
         if (!cls) throw new UploadRefusal({ code: "CLASS_UNKNOWN", level: "block" });
         if (!i.title.trim()) throw new UploadRefusal({ code: "TITLE_REQUIRED", level: "block" });
