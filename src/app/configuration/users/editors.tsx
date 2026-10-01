@@ -5,7 +5,7 @@ import { useCallback } from "react";
 import { EMPTY_FORM_STATE } from "@/components/record-editor";
 import { stage, STORED_NOT_FILED, useStagedRef } from "@/components/attachments/upload-actions";
 import type { UploadView } from "@/lib/documents/views";
-import { RECOMMENDATION_HINT, recommendationLabel } from "@/lib/people/labels";
+import { RECOMMENDATION_HINT, recommendationNote } from "@/lib/people/labels";
 import {
   CheckIcon,
   HelpCircle,
@@ -553,7 +553,7 @@ function delegationFields(
 /// invents neither.
 function recommendationUploadFields(upload: UploadView, attachedNote?: string | null): Field[] {
   return [
-    ...(attachedNote ? ([{ kind: "note", text: `The recommendation on record: ${attachedNote}. Choose a file below to attach another.` }] as Field[]) : []),
+    ...(attachedNote ? ([{ kind: "note", text: attachedNote }] as Field[]) : []),
     ...(upload.refusals.length ? ([{ kind: "note", text: `Uploads are refused until this is set. ${upload.refusals.join(" ")}` }] as Field[]) : []),
     {
       kind: "file",
@@ -657,7 +657,7 @@ export function EditDelegation({
       icon={<SwapIcon size={18} />}
       fields={[
         { kind: "hidden", name: "id" },
-        ...delegationFields(people, offices, capabilities, upload, status, recommendationLabel(delegation)),
+        ...delegationFields(people, offices, capabilities, upload, status, recommendationNote(delegation)),
       ]}
       columns={2}
       sections={DELEGATION_NOTE}

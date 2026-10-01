@@ -15,27 +15,52 @@ const STANDING_TEXT: Readonly<Record<Exclude<RecommendationStanding, "NONE">, st
 /// Said beside a legacy delegation's label where it has no end date.
 export const NO_END_DATE = "no end date";
 
-/**
- * How a delegation's absent-holder recommendation reads (FR-APR-012, OD-6). Reads the
- * stored mark of a delegation recorded on text before attachments existed; never guesses
- * it from the text. Null where there is no recommendation at all.
- */
-export function recommendationLabel(d: {
+type Shown = {
   holderRecommendation?: string | null;
   recommendationTextOnlyAtLanding?: boolean;
   recommendationAttached?: boolean;
   recommendationEverAttached?: boolean;
   effectiveTo?: Date | null;
-}): string | null {
-  const standing = recommendationStanding({
+};
+
+const standingOf = (d: Shown) =>
+  recommendationStanding({
     holderRecommendation: d.holderRecommendation,
     recommendationTextOnlyAtLanding: d.recommendationTextOnlyAtLanding,
     liveAttachments: d.recommendationAttached ? 1 : 0,
     everAttachments: d.recommendationAttached || d.recommendationEverAttached ? 1 : 0,
   });
+
+/**
+ * How a delegation's absent-holder recommendation reads (FR-APR-012, OD-6). Reads the
+ * stored mark of a delegation recorded on text before attachments existed; never guesses
+ * it from the text. Null where there is no recommendation at all.
+ */
+export function recommendationLabel(d: Shown): string | null {
+  const standing = standingOf(d);
   if (standing === "NONE") return null;
   const text = STANDING_TEXT[standing];
   return standing === "TEXT_BEFORE_ATTACHMENTS" && d.effectiveTo === null ? `${text} · ${NO_END_DATE}` : text;
+}
+
+/**
+ * The note above the delegation editor's file field: what is on record, in the words of
+ * its state, and what choosing a file does. Null where there is nothing on record.
+ */
+export function recommendationNote(d: Shown): string | null {
+  const label = recommendationLabel(d);
+  if (!label) return null;
+  const standing = standingOf(d);
+  switch (standing) {
+    case "ATTACHED":
+      return `The recommendation on record: ${label}. Choose a file below to attach another.`;
+    case "NO_LONGER_ATTACHED":
+      return `The recommendation on record: ${label}. Choose a file below to attach it again.`;
+    case "TEXT_BEFORE_ATTACHMENTS":
+      return `The recommendation on record: ${label}. It stands on its text until the end date is moved later or opened, the delegate changes or more is delegated; then the signed recommendation is needed. Choose a file below to attach it.`;
+    default:
+      return `The recommendation on record: ${label}. Choose a file below to attach it.`;
+  }
 }
 
 export const RECOMMENDATION_HINT =

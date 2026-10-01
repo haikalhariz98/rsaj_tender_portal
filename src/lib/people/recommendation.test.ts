@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { faultsIn, type Delegation } from "./delegation";
-import { NO_END_DATE, recommendationLabel } from "./labels";
+import { NO_END_DATE, recommendationLabel, recommendationNote } from "./labels";
 import { legacyEndedBy, recommendationStanding, standsOnTextBeforeAttachments, type DelegationTerms, type RecommendationFacts } from "./recommendation";
 
 /**
@@ -131,5 +131,21 @@ describe("with faultsIn: the attachment is required once legacy standing ends (O
   });
   it("widening the capabilities asks for it", () => {
     expect(judge({ ...base, capabilityCodes: ["run_sourcing", "approve_po", "sign_loa"] })).toContain("ABSENT_GRANTOR_RECOMMENDATION_NOT_ATTACHED");
+  });
+});
+
+describe("the editor's note matches the record's state", () => {
+  it("only an attached recommendation offers to attach another", () => {
+    expect(recommendationNote({ holderRecommendation: TEXT, recommendationAttached: true })).toBe("The recommendation on record: signed recommendation attached. Choose a file below to attach another.");
+    expect(recommendationNote({ holderRecommendation: TEXT, recommendationEverAttached: true })).toBe("The recommendation on record: signed recommendation no longer attached. Choose a file below to attach it again.");
+    expect(recommendationNote({ holderRecommendation: TEXT })).toBe("The recommendation on record: signed recommendation not attached. Choose a file below to attach it.");
+  });
+  it("a legacy one says what ends its standing on text", () => {
+    const n = recommendationNote({ holderRecommendation: TEXT, recommendationTextOnlyAtLanding: true, effectiveTo: null })!;
+    expect(n).toMatch(/^The recommendation on record: recorded as text before attachments existed · no end date\. It stands on its text until/);
+    expect(n).toMatch(/signed recommendation is needed/);
+  });
+  it("nothing on record, no note", () => {
+    expect(recommendationNote({ holderRecommendation: "" })).toBeNull();
   });
 });
