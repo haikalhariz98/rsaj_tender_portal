@@ -261,6 +261,11 @@ model Organisation {
   conditionsAppendices  ConditionsAppendix[]
   appendixVariationLimits AppendixVariationLimit[]
   appendixSections      AppendixSection[]
+  registrationBodies    RegistrationBody[]
+  exerciseRegistrationRequirements ExerciseRegistrationRequirement[]
+  clauseTexts           ClauseText[]
+  clauseOverrides       ClauseOverride[]
+  packAssurances        PackAssurance[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -335,6 +340,8 @@ model Person {
   panelVerifications       SpecPanelVerification[]
   estimatesPrepared        CompanyEstimate[]        @relation("EstimatePreparer")
   estimateVersionsPrepared CompanyEstimateVersion[] @relation("EstimateVersionPreparer")
+  clauseOverridesEndorsed  ClauseOverride[]
+  packAssurancesConfirmed  PackAssurance[]
   estimateEvents           EstimateEvent[]
   rateSchedulesIssued      RateSchedule[]           @relation("RateScheduleIssuedBy")
 
@@ -2682,6 +2689,16 @@ model SourcingExercise {
   closingAt              DateTime?
   approvedForTenderingAt DateTime?
 
+  /// 6.4 increment 2 (FR-DOC-009): whether the tender is restricted, as the customer's policy
+  /// words the restriction. Null: not answered, and submission is refused. Its stamp wording is
+  /// configuration (TenderDocumentPolicy), never a literal here.
+  restrictedTender       Boolean?
+  /// FR-DOC-006: whether the works are the regulated activity that needs the regulator's
+  /// permit. Null: not answered. The permit type, from the policy's configured list, is
+  /// recorded only where the answer is yes (CHECK in the migration).
+  regulatedActivity      Boolean?
+  regulatorPermitCode    String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2700,6 +2717,8 @@ model SourcingExercise {
   bqVersions         BqVersion[]
   specificationPanel SpecificationPanel?
   companyEstimates   CompanyEstimate[]
+  /// 6.4 increment 2 (FR-DOC-005): the registrations a bidder must hold.
+  registrationRequirements ExerciseRegistrationRequirement[]
 
   @@unique([organisationId, reference])
   @@unique([organisationId, dossierReference])
@@ -4246,6 +4265,12 @@ model TenderDocumentPolicy {
   dbInsuranceExtraProvenance Provenance?
   /// FR-DOC-006 (increment 2): the taxonomy listing regulator permits.
   regulatorPermitTaxonomyCode String?
+  /// FR-DOC-009 (increment 2): the restriction as the organisation words it on screens (the
+  /// stamp above is what is printed), and where the wording comes from.
+  restrictionLabelEn     String?
+  restrictionProvenance  Provenance?
+  /// FR-DOC-014: where the answer on assurance comes from.
+  assuranceProvenance    Provenance?
 
   governingSource String @default("")
   notes           String @default("")
@@ -4301,12 +4326,20 @@ model TenderPack {
   copiedFrom       TenderPack? @relation("PackCopiedFrom", fields: [copiedFromPackId], references: [id], onDelete: Restrict)
   copiedInto       TenderPack? @relation("PackCopiedFrom")
 
+  /// 6.4 increment 2: what the pack was judged under at submission, in words: eligibility and
+  /// its validity window, restriction and stamp, regulator permit, assurance (policy and
+  /// confirmations), mandatory clauses and overrides, the Tender Table Document's parts.
+  /// Null: frozen before increment 2 (never backfilled from configuration).
+  conditionsSnapshot Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   parts     TenderPackPart[]
   documents TenderPackDocument[]
   appendix  ConditionsAppendix?
+  clauseOverrides ClauseOverride[]
+  assurances      PackAssurance[]
 
   @@unique([exerciseId, versionNo])
   @@index([organisationId, status])
@@ -4453,4 +4486,122 @@ model AppendixSection {
   ladAmount   Decimal? @db.Decimal(18, 2)
   ladPct      Decimal? @db.Decimal(9, 6)
   sortOrder   Int      @default(0)
+}
+
+// ------------------------------------------------------------------ 6.4 increment 2
+
+/// A body a bidder registers with (FR-DOC-005; ruling: configured bodies, never columns per
+/// regulator). Ships empty. `qualifierLabelEn` names what an exercise states with it (a grade,
+/// category and specialisation; field codes); null: the body takes no qualifier.
+model RegistrationBody {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  code             String
+  labelEn          String
+  labelMs          String?
+  qualifierLabelEn String?
+
+  governingSource String     @default("")
+  provenance      Provenance @default(ASSUMED)
+  notes           String     @default("")
+  sortOrder       Int        @default(0)
+  retiredOn       DateTime?
+
+  @@unique([organisationId, code])
+}
+
+/// A registration an exercise requires of bidders (FR-DOC-005). Requirements in one
+/// `alternativeGroup` are alternatives (any one is enough); every group is required.
+model ExerciseRegistrationRequirement {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId     String
+  exercise       SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  bodyCode               String
+  /// The body's name and qualifier label as they stood when entered.
+  bodyLabelSnapshot      String
+  qualifierLabelSnapshot String?
+  /// What is stated with the body (a grade, category, specialisation, field codes). Empty: none.
+  qualifiers             String @default("")
+  alternativeGroup       Int    @default(1)
+  sortOrder              Int    @default(0)
+  createdAt              DateTime @default(now())
+
+  @@index([exerciseId])
+}
+
+/// A clause every agreement must carry (FR-DOC-011), cited in a template as {{clause:code}}.
+/// Ships empty. `bodyVersion` counts each change to its text, as a template's does.
+model ClauseText {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  code        String
+  titleEn     String
+  titleMs     String?
+  bodyEn      String  @db.Text
+  bodyMs      String? @db.Text
+  bodyVersion Int     @default(1)
+  /// Whether every agreement must carry it. Null: not set, and a pack cannot be submitted.
+  mandatoryInAgreements Boolean?
+
+  governingSource String     @default("")
+  provenance      Provenance @default(ASSUMED)
+  notes           String     @default("")
+  sortOrder       Int        @default(0)
+  retiredOn       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organisationId, code])
+}
+
+/// A legal endorsement that lets one pack version go without a mandatory clause (FR-DOC-011):
+/// a named Person and the reason, recorded on their behalf, not signed. Not carried to the
+/// next version.
+model ClauseOverride {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  packId         String
+  pack           TenderPack   @relation(fields: [packId], references: [id], onDelete: Restrict)
+
+  clauseCode          String
+  clauseTitleSnapshot String
+  personId            String
+  person              Person   @relation(fields: [personId], references: [id], onDelete: Restrict)
+  reason              String
+  recordedAt          DateTime
+
+  @@unique([packId, clauseCode])
+}
+
+/// The two document-assurance confirmations (FR-DOC-014).
+enum AssuranceKind {
+  NO_AMBIGUITY
+  DRAWINGS_COORDINATED
+}
+
+/// One assurance confirmation on one pack version: a named Person and the day, recorded on
+/// their behalf, not signed. Not carried to the next version.
+model PackAssurance {
+  id             String        @id @default(cuid())
+  organisationId String
+  organisation   Organisation  @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  packId         String
+  pack           TenderPack    @relation(fields: [packId], references: [id], onDelete: Restrict)
+  kind           AssuranceKind
+  personId       String
+  person         Person        @relation(fields: [personId], references: [id], onDelete: Restrict)
+  confirmedOn    DateTime
+  note           String        @default("")
+  recordedAt     DateTime
+
+  @@unique([packId, kind])
 }
