@@ -27,9 +27,18 @@ export function megabytesToBytes(mb: string): bigint | null {
   return bytes > 0n ? bytes : null;
 }
 
-/// Bytes as megabytes for a form to show, 1 MB = 1,048,576 bytes, trailing zeros dropped (the inverse of the above for whole and three-decimal values).
+/**
+ * Bytes as megabytes for a form to show, 1 MB = 1,048,576 bytes, to the nearest thousandth
+ * (half up), trailing zeros dropped. The exact inverse of `megabytesToBytes` for every
+ * value it accepts: that floors by less than one byte, and one byte is under a thousandth
+ * of a thousandth, so rounding to the nearest brings it back — reopening the upload rules
+ * and saving never changes the cap. A positive size below half a thousandth shows as
+ * 0.001, never 0, which the form would refuse. Flooring here lowered the cap on each save
+ * (0.1 read back as 0.099; 0.001 as 0) — review should-fix 4.
+ */
 export function bytesToMegabytes(bytes: bigint): string {
-  const thousandths = (bytes * 1000n) / 1048576n;
+  let thousandths = (bytes * 1000n + 524288n) / 1048576n;
+  if (thousandths === 0n && bytes > 0n) thousandths = 1n;
   const whole = thousandths / 1000n;
   const frac = (thousandths % 1000n).toString().padStart(3, "0").replace(/0+$/, "");
   return frac ? `${whole}.${frac}` : `${whole}`;

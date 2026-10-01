@@ -86,4 +86,37 @@ describe("megabytes on the upload rules form", () => {
     expect(bytesToMegabytes(megabytesToBytes("0.25")!)).toBe("0.25");
     expect(megabytesToBytes(bytesToMegabytes(20971520n))).toBe(20971520n);
   });
+
+  // Review should-fix 4: flooring the way back lowered the cap each time the form was saved.
+  const asTyped = (t: bigint) => {
+    const frac = (t % 1000n).toString().padStart(3, "0").replace(/0+$/, "");
+    return frac ? `${t / 1000n}.${frac}` : `${t / 1000n}`;
+  };
+  const roundTrips = (t: bigint) => {
+    const typed = asTyped(t);
+    const bytes = megabytesToBytes(typed)!;
+    expect(bytesToMegabytes(bytes), typed).toBe(typed);
+    // Saved again unchanged, the cap stays the same number of bytes.
+    expect(megabytesToBytes(bytesToMegabytes(bytes)), typed).toBe(bytes);
+  };
+  it("the reported cases: 0.1 reads back as 0.1 and 0.001 as 0.001, not 0.099 and 0", () => {
+    expect(megabytesToBytes("0.1")).toBe(104857n);
+    expect(bytesToMegabytes(104857n)).toBe("0.1");
+    expect(megabytesToBytes("0.001")).toBe(1048n);
+    expect(bytesToMegabytes(1048n)).toBe("0.001");
+  });
+  it("every three-decimal value from 0.001 to 100 MB round-trips exactly", () => {
+    for (let t = 1n; t <= 100_000n; t++) roundTrips(t);
+  });
+  it("and the largest the form accepts, and a spread between", () => {
+    for (let t = 999_999_999_999n; t > 999_999_989_999n; t--) roundTrips(t);
+    for (let t = 100_000n; t < 999_999_999_999n; t = t * 7n + 13n) roundTrips(t);
+  });
+  it("a size that is not a typed value rounds to the nearest thousandth, half up, never to zero", () => {
+    // 0.0005 MB is 524.288 bytes: 524 rounds down, 525 up.
+    expect(bytesToMegabytes(524n + 1048576n)).toBe("1");
+    expect(bytesToMegabytes(525n + 1048576n)).toBe("1.001");
+    expect(bytesToMegabytes(1n)).toBe("0.001");
+    expect(bytesToMegabytes(0n)).toBe("0");
+  });
 });
