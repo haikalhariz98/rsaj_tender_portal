@@ -610,8 +610,8 @@ function AttendancePanel({ s }: { s: LoadedSitting }) {
               <li key={line.key} className="flex flex-wrap items-center gap-3 px-5 py-3 sm:px-6">
                 {line.personId ? <Avatar name={line.name} /> : <Avatar muted>—</Avatar>}
                 <div className="min-w-40 flex-1">
-                  <div className="truncate text-[13.5px] font-semibold text-ink">{line.name}</div>
-                  <div className="truncate text-[12px] text-ink-3">{line.role}</div>
+                  <div className="break-words text-[13.5px] font-semibold text-ink">{line.name}</div>
+                  <div className="break-words text-[12px] text-ink-3">{line.role}</div>
                   {line.note && <div className="text-[12px] text-amber-700">{line.note}</div>}
                   {line.contested && (
                     <Link href={ROLE_ASSIGNMENTS_HREF} className="text-[12px] font-semibold text-brand-700">

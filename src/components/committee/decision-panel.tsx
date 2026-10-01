@@ -311,10 +311,10 @@ function VoterRow({
         <span className="flex min-w-48 flex-1 items-center gap-3">
           <Avatar name={voter.name} />
           <span className="flex min-w-0 flex-col">
-            <span className="truncate text-[13.5px] font-semibold text-ink" title={voter.name}>
+            <span className="break-words text-[13.5px] font-semibold text-ink" title={voter.name}>
               {voter.name}
             </span>
-            <span className="truncate text-[12px] text-ink-3" title={voter.seat}>
+            <span className="break-words text-[12px] text-ink-3" title={voter.seat}>
               {voter.seat}
 
             </span>
