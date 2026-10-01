@@ -57,6 +57,19 @@ on. Replace the module's `NotBuilt` page when it lands.
 `npx prisma migrate deploy`, `npm run db:seed`, `npm run demo:load`, `npm run dev`) and
 open the module's screens and their siblings. Fix what you see before moving on.
 
+## Report each module
+
+The founder's session reviews every module before anything is merged. When the
+product-owner accepts a module, append an entry under "## Modules" in
+`docs/notes/decisions-log.md` (create the heading if absent):
+
+- module and spec IDs covered;
+- commit range (first..last hash);
+- migrations added (names);
+- screens and routes added or changed;
+- what was deferred, and why;
+- anything you are unsure of and want a human to look at.
+
 ## Commit
 
 One commit per coherent step, clear message saying what and why, ending with the
