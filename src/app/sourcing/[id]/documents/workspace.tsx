@@ -6,18 +6,19 @@ import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
-import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
+import { isMandatoryAct } from "@/components/ui/act";
 import { KeyValues } from "@/components/ui/stat";
 import { db } from "@/lib/db";
-import { formatDate, formatOrgDay } from "@/lib/format";
+import { formatOrgDay } from "@/lib/format";
 import { ACT_DONE_LABEL, routedOnLabel } from "@/lib/labels";
-import { escalationText } from "@/lib/authority/escalation-labels";
-import { routeCoreText, stepOriginText } from "@/lib/authority/core-routing-labels";
+import { routeCoreText } from "@/lib/authority/core-routing-labels";
 import type { LoadedExercise } from "@/lib/method/repo";
 import { findingsSummary, IF_REFUSED_TEXT, NOT_APPLICABLE_BEFORE_ASSEMBLY, TENDERING_STATE_LABEL, tenderingRouteLabel, tenderingRouteTone, tenderingStepLabel, tenderingStepTone } from "@/lib/tender-docs/labels";
 import { documentsTab } from "@/lib/tender-docs/read";
 import { conditionsTab } from "@/lib/tender-docs/read-conditions";
+import { tableDocumentNote } from "@/lib/window/read";
 
+import { RouteSteps } from "../route-steps";
 import { ConditionsCards } from "./conditions";
 import { DecideDrawer, type FixedWindow, RefreshFlagsDrawer, StartPackDrawer, SubmitPackDrawer } from "./editors";
 import { PartsList, type PartRow } from "./parts-list";
@@ -47,7 +48,7 @@ const PACK_TONE: Record<string, "neutral" | "brand" | "ok" | "warn" | "err"> = {
  * exercise's own routes arrive from the page, which already holds them.
  */
 export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }: { exerciseId: string; today: string | null; timeZone: string | null; routes: Route[] }) {
-  const [d, conditions] = await Promise.all([documentsTab(exerciseId), conditionsTab(exerciseId)]);
+  const [d, conditions, tableNote] = await Promise.all([documentsTab(exerciseId), conditionsTab(exerciseId), tableDocumentNote(exerciseId)]);
   if (!d) return GONE;
   const draft = d.pack?.status === "Draft";
   const returned = d.pack?.status === TENDERING_STATE_LABEL.RETURNED ? d.pack : null;
@@ -131,6 +132,7 @@ export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }
               { label: "Contract basis", value: d.facts.contractBasis },
               { label: "Standard form", value: d.facts.standardForm },
               { label: "Version", value: d.facts.version },
+              ...(d.pack ? [{ label: "Tender Table Document", value: tableNote ?? "Not known" }] : []),
               ...(d.pack || d.exercise.status !== "Draft" ? [{ label: "Restricted", value: d.facts.restricted }] : []),
               ...(d.dates && "approvedOn" in d.dates
                 ? [
@@ -152,7 +154,7 @@ export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }
             </Callout>
           )}
           {!d.pack && !d.start.allowed && <Callout tone="info" title="Not started">{d.start.reason}</Callout>}
-          {d.facts.status === TENDERING_STATE_LABEL.APPROVED && <Callout tone="ok" title={TENDERING_STATE_LABEL.APPROVED}>The documents stand as frozen. A change from here is an addendum, which is not available yet.</Callout>}
+          {d.facts.status === TENDERING_STATE_LABEL.APPROVED && <Callout tone="ok" title={TENDERING_STATE_LABEL.APPROVED}>The documents stand as frozen. A change from here is an addendum, made on the Invitation tab once the window is published.</Callout>}
         </CardBody>
       </Card>
 
@@ -310,46 +312,21 @@ async function RouteCard({ exerciseId, routes, decide, proposed, today, timeZone
             Chain beneath the approver: {routeCoreText(inst, (c) => { const n = officeName(c) ?? "an office no longer configured"; return { en: n, ms: n }; }).en}
           </p>
         )}
-        <ol className="divide-y divide-line/70 border-t border-line">
-          {inst.steps.map((s) => {
-            const earlierDone = inst.steps.filter((x) => x.sequence < s.sequence).every((x) => x.decision === "DONE");
-            const isLast = inst.steps.every((x) => x.id === s.id || x.decision === "DONE");
-            return (
-              <li key={s.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-6">
-                <div className="flex min-w-0 items-start gap-3">
-                  <ActBadge act={s.act} />
-                  <div className="min-w-0">
-                    <div className="font-semibold break-words text-ink">
-                      {s.roleLabel} <span className="font-normal text-ink-3">· {actLabel(s.act)}</span>
-                    </div>
-                    {stepOriginText(inst, s) && <div className="text-[12.5px] text-ink-3">{stepOriginText(inst, s)}</div>}
-                    {s.escalation && (
-                      <div className="text-[12.5px] break-words text-amber-800">
-                        {escalationText({ roleLabel: s.roleLabel, actingRoleLabel: s.actingRoleLabel, escalation: s.escalation, escalationReason: s.escalationReason, declaredByName: s.declaredBy?.name ?? null })}
-                      </div>
-                    )}
-                    <div className="text-[12.5px] text-ink-2">
-                      {s.decision === "PENDING"
-                        ? inst.status === "PENDING"
-                          ? `${earlierDone ? "Awaiting a decision." : "Waits for the step before."}${s.nonDelegable ? " Cannot be delegated." : ""}`
-                          : "Not decided: the route closed."
-                        : `${tenderingStepLabel(s.decision)} · ${s.decidedByName ?? "Not recorded"} · recorded on behalf of, not signed · ${formatDate(s.decidedOn)}${s.delegation ? ` · under delegation from ${s.delegation.fromPerson.name}` : ""}${s.reason ? ` · “${s.reason}”` : ""}`}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-                  {s.decision !== "PENDING" && <Badge tone={tenderingStepTone(s.decision)}>{tenderingStepLabel(s.decision)}</Badge>}
-                  {inst.status === "PENDING" && s.decision === "PENDING" && !s.committeeCode && s.roleCode && (
-                    <EscalateDrawer stepId={s.id} office={s.actingRoleLabel ?? s.roleLabel} mandatory={isMandatoryAct(s.act)} people={everyone} />
-                  )}
-                  {inst.status === "PENDING" && s.decision === "PENDING" && earlierDone && !s.committeeCode && (
-                    <DecideDrawer exerciseId={exerciseId} stepId={s.id} office={s.roleLabel} done={ACT_DONE_LABEL[s.act] ?? "Done"} people={decide?.stepId === s.id ? people : everyone} today={today} recordsDates={isLast} proposed={proposed} fixedWindow={decide?.stepId === s.id && "fixedWindow" in decide ? (decide.fixedWindow as FixedWindow | null) : null} />
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ol>
+        <RouteSteps
+          inst={inst}
+          stepLabel={tenderingStepLabel}
+          stepTone={tenderingStepTone}
+          action={(s, { earlierDone, isLast }) => (
+            <>
+              {inst.status === "PENDING" && s.decision === "PENDING" && !s.committeeCode && s.roleCode && (
+                <EscalateDrawer stepId={s.id} office={s.actingRoleLabel ?? s.roleLabel} mandatory={isMandatoryAct(s.act)} people={everyone} />
+              )}
+              {inst.status === "PENDING" && s.decision === "PENDING" && earlierDone && !s.committeeCode && (
+                <DecideDrawer exerciseId={exerciseId} stepId={s.id} office={s.roleLabel} done={ACT_DONE_LABEL[s.act] ?? "Done"} people={decide?.stepId === s.id ? people : everyone} today={today} recordsDates={isLast} proposed={proposed} fixedWindow={decide?.stepId === s.id && "fixedWindow" in decide ? (decide.fixedWindow as FixedWindow | null) : null} />
+              )}
+            </>
+          )}
+        />
       </Card>
       {earlier.length > 0 && (
         <Card className="overflow-hidden">

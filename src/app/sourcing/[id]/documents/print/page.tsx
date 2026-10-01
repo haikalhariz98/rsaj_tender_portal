@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { printView } from "@/lib/tender-docs/read";
+import { tableDocumentNote } from "@/lib/window/read";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export default async function PackPrintPage(props: PageProps<"/sourcing/[id]/doc
   const { id } = await props.params;
   // FR-DOC-010 (the part built here): the same pack, only the parts in the Tender Table Document.
   const table = (await props.searchParams).set === "table";
-  const v = await printView(id, table ? "table" : "pack");
+  const [v, tableNote] = await Promise.all([printView(id, table ? "table" : "pack"), table ? tableDocumentNote(id) : null]);
   if (!v) notFound();
   if ("none" in v) {
     return (
@@ -64,7 +65,7 @@ export default async function PackPrintPage(props: PageProps<"/sourcing/[id]/doc
           </div>
         )}
         <h1 className={`${table ? "mb-2" : "mb-6"} text-[22px] leading-tight font-bold text-ink`}>{table ? `Tender Table Document: ${v.exercise.title}` : v.title}</h1>
-        {table && <p className="mb-6 text-[13.5px] text-ink-2">Only the parts of this pack flagged for the Tender Table Document, in print order. The whole pack is the other link above.</p>}
+        {table && <p className="mb-6 text-[13.5px] text-ink-2">Only the parts of this pack flagged for the Tender Table Document, in print order. The whole pack is the other link above.{tableNote ? ` ${tableNote}.` : ""}</p>}
         <header className="mb-8 flex flex-wrap justify-between gap-x-6 gap-y-1 border-b border-line pb-3 text-[11.5px] text-ink-3">
           <span>{v.exercise.reference}</span>
           <span>{v.document}</span>

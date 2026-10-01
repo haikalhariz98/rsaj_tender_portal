@@ -21,7 +21,7 @@ const hidden = (name: string): Field => ({ kind: "hidden", name });
 const ghost = buttonClass("ghost", "sm");
 const secondary = buttonClass("secondary", "sm");
 
-function Facts({ rows, notes }: { rows: [string, string][]; notes?: string[] }) {
+export function Facts({ rows, notes }: { rows: [string, string][]; notes?: string[] }) {
   return (
     <div className="flex flex-col gap-4">
       <dl className="grid gap-x-4 gap-y-2.5 text-[13.5px] sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]">
