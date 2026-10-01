@@ -220,7 +220,7 @@ export function ColumnDrawer({ units, c }: { units: Option[]; c?: { id: string; 
 // ------------------------------------------------------------------ increment 2
 
 /// OD-9: whether a method's scope is approved by a committee, and which. Not set blocks, naming this setting.
-export function EditMethodScopeRule({ id, name, raw, committees }: { id: string; name: string; raw: { scopeApprovalRequired: string; scopeApprovalProvenance: string; scopeCommitteeCode: string }; committees: Option[] }) {
+export function EditMethodScopeRule({ id, name, raw, committees, acts }: { id: string; name: string; raw: { scopeApprovalRequired: string; scopeApprovalProvenance: string; scopeCommitteeCode: string; scopeAct: string; scopeActProvenance: string }; committees: Option[]; acts: Option[] }) {
   return (
     <RecordEditor
       title={`Is the scope approved by a committee under ${name}?`}
@@ -231,9 +231,11 @@ export function EditMethodScopeRule({ id, name, raw, committees }: { id: string;
         { kind: "select", name: "scopeCommitteeCode", label: "The committee that approves it", placeholder: "Not set", options: committees, hint: "Left empty with Yes, the check reads “Committee not set” and blocks." },
         provenance("scopeApprovalProvenance", "Where this came from", false),
         { kind: "note", text: "Say where the answer came from whenever it is Yes or No." },
+        { kind: "select", name: "scopeAct", label: "The committee's act on the scope", placeholder: "Not set", options: acts, hint: "Tabling writes this act, and only a matter carried under it approves the scope. Left empty with Yes, it reads “Act not set” and blocks tabling." },
+        provenance("scopeActProvenance", "Where the act came from", false),
       ]}
       values={{ id, ...raw }}
-      showWhen={{ scopeCommitteeCode: { name: "scopeApprovalRequired", in: ["yes"] } }}
+      showWhen={{ scopeCommitteeCode: { name: "scopeApprovalRequired", in: ["yes"] }, scopeAct: { name: "scopeApprovalRequired", in: ["yes"] }, scopeActProvenance: { name: "scopeApprovalRequired", in: ["yes"] } }}
       action={saveMethodScopeRule}
       submitLabel="Save"
       trigger={{ label: "Edit", className: ghost, ariaLabel: `Edit the scope approval rule for ${name}` }}

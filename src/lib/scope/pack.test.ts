@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { scopeFaultText } from "./labels";
 import { packFaults, type PackInput } from "./pack";
+import { scopeApproval } from "./scope-matter";
 
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
 const ready: PackInput = { basis: { requiresBq: true }, method: { requiresCompanyEstimate: true }, bq: [{ status: "FINALISED" }], panel: "VERIFIED", panelBill: { versionNo: 1, status: "FINALISED" }, estimate: { state: "LODGED", behind: false }, scope: "APPROVED" };
@@ -80,7 +81,19 @@ describe("packFaults: scope approval (increment 2, OD-9, FR-REQ-014)", () => {
   it("an unset rule blocks naming it, never reads as not required; a rule with no committee blocks naming that", () => {
     expect(codes(judge({ scope: "RULE_NOT_SET" }))).toEqual(["SCOPE_RULE_NOT_SET"]);
     expect(codes(judge({ scope: "COMMITTEE_NOT_SET" }))).toEqual(["SCOPE_COMMITTEE_NOT_SET"]);
+    // Overrides BD-62-16: an unset act blocks the documents, naming the setting.
+    expect(codes(judge({ scope: "ACT_NOT_SET" }))).toEqual(["SCOPE_ACT_NOT_SET"]);
+    expect(scopeFaultText(judge({ scope: "ACT_NOT_SET" })[0])).toMatch(/act the committee discharges.*Configuration, Scope and estimate/);
     expect(scopeFaultText(judge({ scope: "RULE_NOT_SET" })[0])).toMatch(/Configuration, Scope and estimate/);
+  });
+  it("a carried recommendation (R) under a configured approval (A) does not let the documents go", () => {
+    const record = { committee: "Technical Committee", meetingReference: "SIT/1", meetingDate: new Date("2026-09-25T00:00:00Z"), subject: "Scope", matterRef: null, outcome: "CARRIED" as const, decisionDate: new Date("2026-09-25T00:00:00Z"), quorum: { required: 2, present: 2, recused: 0 }, votingRule: { rule: "SIMPLE_MAJORITY" as const, provenance: "ASSUMED" as const }, notApproved: null, note: "", votes: [] };
+    const carriedR = { id: "d1", bqVersionId: "v1", committeeCode: "TECH", act: "R", withdrawn: false, sittingCancelled: false, tabledAt: new Date("2026-09-20T00:00:00Z"), record };
+    const scope = scopeApproval({ scopeApprovalRequired: true, scopeCommitteeCode: "TECH", scopeAct: "A" }, [{ id: "v1", versionNo: 1, status: "FINALISED" }], [carriedR]).state;
+    expect(codes(judge({ scope }))).toEqual(["SCOPE_NOT_APPROVED"]);
+    // An unset act blocks too, naming the setting rather than the matter.
+    const unset = scopeApproval({ scopeApprovalRequired: true, scopeCommitteeCode: "TECH", scopeAct: null }, [{ id: "v1", versionNo: 1, status: "FINALISED" }], [{ ...carriedR, act: "A" }]).state;
+    expect(codes(judge({ scope: unset }))).toEqual(["SCOPE_ACT_NOT_SET"]);
   });
   it("every other state blocks until the finalised bill's scope matter is carried, saying where it stands", () => {
     for (const s of ["NO_FINALISED_BILL", "NOT_TABLED", "PENDING", "DEFERRED", "RETURNED", "ENDED", "OUTCOME_NOT_RECORDED"] as const) {

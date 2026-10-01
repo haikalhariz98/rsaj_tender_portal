@@ -78,29 +78,54 @@ export const CONFIG_FAULT_TEXT: Readonly<Record<ConfigFault, string>> = {
   PERIOD_REVERSED: "The last day cannot be before the first.",
 };
 
-export type ScopeRuleFault = "PROVENANCE_REQUIRED" | "UNKNOWN_COMMITTEE";
+export type ScopeRuleFault = "PROVENANCE_REQUIRED" | "UNKNOWN_COMMITTEE" | "UNKNOWN_ACT";
+
+/// A method's scope rule as the form gives it: the answer, the committee, and the act the
+/// committee discharges (overrides BD-62-16's officer choice), the act with its own provenance.
+export interface ScopeRuleDraft {
+  required: boolean | null;
+  provenance: Provenance | null;
+  committeeCode: string | null;
+  act: string | null;
+  actProvenance: Provenance | null;
+}
 
 /**
  * A method's scope-approval rule (OD-9), three-state: yes, no or not set. A set answer says
  * where it comes from; a committee, where the answer is yes, must be one configured (left
- * empty it reads "Committee not set" and blocks, never a guess). A committee named beside
- * "no" or "not set" is not kept (`scopeRuleToSave`).
+ * empty it reads "Committee not set" and blocks, never a guess). The act, where the answer is
+ * yes, is one of the authority acts and says where it comes from (left empty it reads "Act
+ * not set" and blocks). A committee or act named beside "no" or "not set" is not kept
+ * (`scopeRuleToSave`).
  */
-export function scopeRuleFaults(r: { required: boolean | null; provenance: Provenance | null; committeeCode: string | null }, known: { committees: readonly string[] }): (Finding<ScopeRuleFault> & { field: string })[] {
+export function scopeRuleFaults(r: ScopeRuleDraft, known: { committees: readonly string[]; acts: readonly string[] }): (Finding<ScopeRuleFault> & { field: string })[] {
   const out: (Finding<ScopeRuleFault> & { field: string })[] = [];
   if (r.required != null && r.provenance == null) out.push({ code: "PROVENANCE_REQUIRED", level: "block", field: "scopeApprovalProvenance" });
   if (r.required === true && r.committeeCode != null && !known.committees.includes(r.committeeCode)) out.push({ code: "UNKNOWN_COMMITTEE", level: "block", field: "scopeCommitteeCode" });
+  if (r.required === true && r.act != null) {
+    if (!known.acts.includes(r.act)) out.push({ code: "UNKNOWN_ACT", level: "block", field: "scopeAct" });
+    if (r.actProvenance == null) out.push({ code: "PROVENANCE_REQUIRED", level: "block", field: "scopeActProvenance" });
+  }
   return out;
 }
 
-/// What is stored: provenance only with an answer, a committee only with a yes.
-export function scopeRuleToSave(r: { required: boolean | null; provenance: Provenance | null; committeeCode: string | null }) {
-  return { scopeApprovalRequired: r.required, scopeApprovalProvenance: r.required == null ? null : r.provenance, scopeCommitteeCode: r.required === true ? r.committeeCode : null };
+/// What is stored: provenance only with an answer, a committee and an act only with a yes,
+/// and the act's provenance only beside the act.
+export function scopeRuleToSave(r: ScopeRuleDraft) {
+  const act = r.required === true ? r.act : null;
+  return {
+    scopeApprovalRequired: r.required,
+    scopeApprovalProvenance: r.required == null ? null : r.provenance,
+    scopeCommitteeCode: r.required === true ? r.committeeCode : null,
+    scopeAct: act,
+    scopeActProvenance: act == null ? null : r.actProvenance,
+  };
 }
 
 export const SCOPE_RULE_FAULT_TEXT: Readonly<Record<ScopeRuleFault, string>> = {
   PROVENANCE_REQUIRED: CONFIG_FAULT_TEXT.PROVENANCE_REQUIRED,
   UNKNOWN_COMMITTEE: "That committee is not configured. Choose one from Configuration, Committees.",
+  UNKNOWN_ACT: "Choose one of the acts listed.",
 };
 
 /// A policy field's value reads as unset: "Not set", "Not set: no late estimate is accepted", or no limit.

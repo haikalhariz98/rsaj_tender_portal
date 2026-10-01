@@ -15,6 +15,7 @@ import { db } from "@/lib/db";
 import { CLASSIFICATION_LABEL, DISPOSAL_METHOD_LABEL, RETENTION_TRIGGER_LABEL } from "@/lib/documents/labels";
 import { SOURCE_LABEL, SPLIT_KEY_LABEL, STATUS_LABEL, TIER_LABEL } from "@/lib/requisition/labels";
 import { ORGANISATION_CODE } from "@/lib/org";
+import { ACT_LABEL } from "@/lib/labels";
 import { formatOrgDateTime } from "@/lib/format";
 
 /// The entities whose history a screen may ask for. Anything else is refused rather
@@ -81,9 +82,10 @@ const ENTITY_VALUE_LABEL: Record<string, Record<string, Record<string, string>>>
   Requisition: { status: STATUS_LABEL, origin: { PORTAL: "Raised in the portal", EXTERNAL: "Received from the finance system" } },
   FinanceIntegration: { budgetCheckSource: SOURCE_LABEL },
   DocumentClass: { classification: CLASSIFICATION_LABEL, retentionTrigger: RETENTION_TRIGGER_LABEL, disposalMethod: DISPOSAL_METHOD_LABEL },
+  SourcingMethod: { scopeAct: ACT_LABEL },
 };
 /// Yes or No where a stored flag is a boolean.
-const FLAG_FIELDS = new Set(["requiresCompanyEstimate", "requiresBq"]);
+const FLAG_FIELDS = new Set(["requiresCompanyEstimate", "requiresBq", "scopeApprovalRequired"]);
 const DELIVERABLE_VALUE: Record<string, string> = { GOODS_DELIVERED: "Goods delivered", MEASURED_CONSTRUCTION: "Measured construction", TERM_PERFORMANCE: "Performance over a term" };
 const OFFICE_FIELDS = new Set(["secretariatRoleCode", "seatRoleCode", "disposalAuthorityRoleCode"]);
 
@@ -94,7 +96,7 @@ async function valueReader(entity = ""): Promise<(field: string, value: string |
   const [offices, people, committees, outcomes, orgUnits] = await Promise.all([
     db.authorityRole.findMany({ where: { organisationId: org.id }, select: { code: true, nameEn: true } }),
     db.person.findMany({ where: { organisationId: org.id }, select: { id: true, name: true } }),
-    db.committee.findMany({ where: { organisationId: org.id }, select: { id: true, nameEn: true } }),
+    db.committee.findMany({ where: { organisationId: org.id }, select: { id: true, code: true, nameEn: true } }),
     db.notApprovedOutcome.findMany({ where: { organisationId: org.id }, select: { id: true, nameEn: true } }),
     db.orgUnit.findMany({ where: { organisationId: org.id }, select: { code: true, nameEn: true } }),
   ]);
@@ -118,6 +120,7 @@ async function valueReader(entity = ""): Promise<(field: string, value: string |
     if (FLAG_FIELDS.has(field)) return value === "true" ? "Yes" : value === "false" ? "No" : value;
     if (field === "deliverableKind" && DELIVERABLE_VALUE[value]) return DELIVERABLE_VALUE[value];
     if (field === "orgUnitCode") return units.get(value) ?? "A unit no longer in the structure";
+    if (field === "scopeCommitteeCode") return committees.find((c) => c.code === value)?.nameEn ?? "A committee no longer configured";
     if (VALUE_LABEL[field]?.[value]) return VALUE_LABEL[field][value];
     if (/Provenance$|^provenance$/.test(field)) return PROVENANCE[value] ?? value;
     if (OFFICE_FIELDS.has(field)) return office.get(value) ?? "An office no longer configured";

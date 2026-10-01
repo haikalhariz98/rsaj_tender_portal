@@ -73,6 +73,10 @@ const NAMED_FIELDS: Record<string, string> = {
   panelProjectStatusTaxonomyCode: "List of project statuses",
   requiresCompanyEstimate: "Needs a company estimate",
   requiresBq: "Let on a bill of quantities",
+  // A method's scope-approval rule (OD-9), with the act it is decided under (overrides BD-62-16).
+  scopeApprovalRequired: "Scope approved by a committee",
+  scopeCommitteeCode: "Committee that approves the scope",
+  scopeAct: "Committee's act on the scope",
   orgUnitCode: "Unit whose officer verifies",
   qualificationCode: "Qualification",
   deliverableKind: "What the contract delivers",

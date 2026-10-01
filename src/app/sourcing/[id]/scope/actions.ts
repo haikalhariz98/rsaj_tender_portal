@@ -32,7 +32,6 @@ import { TABLING_FAULT_MESSAGE } from "@/lib/committee/labels";
 import { sittingPermits } from "@/lib/committee/meeting";
 import { lockSittingIn } from "@/lib/committee/sittings";
 import { ACT_LABEL } from "@/lib/labels";
-import { AUTHORITY_ACTS } from "@/lib/authority/types";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster } from "@/lib/people/load";
 import { bqCsvFilename, bqToCsv, decodeCsv, parseBqCsv } from "@/lib/scope/csv";
@@ -663,8 +662,9 @@ export async function voidEstimate(_prev: FormState, data: FormData): Promise<Fo
  * exercise, its bill versions) and then the sitting (`lockSittingIn`): no act takes them
  * the other way round. On the locked rows it re-runs `scopeCitationFault` (which version,
  * which committee, once per version) and `checkTabling` (a Secretariat holder on the
- * tabling day, attested). The committee's act is the officer's choice, as on the sitting's
- * own drawer. The matter is decided at the sitting like any other; scope approval is read
+ * tabling day, attested). The committee's act is the one the sourcing method names
+ * (`scopeAct`, read under the lock; overrides BD-62-16's officer choice): unset refuses,
+ * naming the setting, and nothing else is written. The matter is decided at the sitting like any other; scope approval is read
  * from that decision (`scopeApproval`), never stored beside it.
  */
 export async function tableScope(_prev: FormState, data: FormData): Promise<FormState> {
@@ -672,9 +672,8 @@ export async function tableScope(_prev: FormState, data: FormData): Promise<Form
   const exerciseId = exerciseIdOf(data);
   const versionId = String(data.get("versionId") ?? "");
   const meetingId = r.text("meetingId", "Sitting", { required: true });
-  const act = r.choice("act", "The committee's act", AUTHORITY_ACTS, { required: true });
   const tabledByPersonId = r.optionalText("tabledByPersonId");
-  if (r.failed || !act) return { ok: false, errors: r.errors };
+  if (r.failed) return { ok: false, errors: r.errors };
   const roster = await loadRoster(ORGANISATION_CODE);
   const result = await inExercise(exerciseId, async (tx, l) => {
     await lockBqRows(tx, exerciseId);
@@ -684,14 +683,17 @@ export async function tableScope(_prev: FormState, data: FormData): Promise<Form
     if (!s) return { ok: false, errors: { meetingId: scopeFaultText("SITTING_GONE") } };
     const rules = await loadScopeRules(l.org.id, l.ex, tx);
     const matters = (await loadScopeMatters(exerciseId, tx)).filter((m) => m.bqVersionId === version.id);
+    // The configured act, as read under the lock: the matter carries it and no other.
+    const act = rules.method?.scopeAct ?? null;
     const faults = scopeCitationFault({
       exercise: { id: l.ex.id, status: l.ex.status },
       rule: rules.method,
       version,
       sitting: { committeeCode: s.meeting.committee.code, frozen: !sittingPermits(s.meeting.status, "TABLE") },
+      act,
       matters,
     });
-    if (blocking(faults).length) return refuse(faults);
+    if (blocking(faults).length || !act) return refuse(faults);
     const code = s.meeting.committee.secretariatRoleCode;
     const tabling = checkTabling({ secretariatRoleCode: code, tabledByPersonId, holderIdsOnDate: secretariatHoldersOn(s.roster, code, s.today).map((h) => h.id), tablingDay: s.today });
     if (!tabling.ok) {

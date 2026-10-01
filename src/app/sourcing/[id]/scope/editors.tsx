@@ -471,18 +471,17 @@ export function TableScopeDrawer({
   table,
 }: {
   exerciseId: string;
-  table: { allowed: Allowed; versionId: string | null; versionNo: number | null; committee: string | null; sittings: Option[]; holders: Option[]; acts: Option[] };
+  table: { allowed: Allowed; versionId: string | null; versionNo: number | null; committee: string | null; act: string | null; sittings: Option[]; holders: Option[] };
 }) {
   if (!table.allowed.allowed || !table.versionId) return <Blocked label="Table the scope" reason={table.allowed.allowed ? "There is no finalised bill to table." : table.allowed.reason} primary />;
   return (
     <RecordEditor
       title={`Table version ${table.versionNo} of the bill for scope approval`}
-      description={`A matter at a sitting of the ${table.committee ?? "committee"}, naming this version. It is decided there; tabling is by a holder of the committee's Secretariat office, recorded on their behalf, not signed.`}
+      description={`A matter at a sitting of the ${table.committee ?? "committee"}, naming this version, under the act the sourcing method sets (${table.act ?? "not set"}). It is decided there; tabling is by a holder of the committee's Secretariat office, recorded on their behalf, not signed.`}
       fields={[
         hidden("exerciseId"),
         hidden("versionId"),
         { kind: "select", name: "meetingId", label: "Sitting", required: true, placeholder: "Choose", options: table.sittings, hint: "Sittings of the committee that are scheduled or in progress." },
-        { kind: "select", name: "act", label: "The committee's act", required: true, placeholder: "Choose", options: table.acts },
         { kind: "select", name: "tabledByPersonId", label: "Tabled by", required: true, placeholder: table.holders.length === 0 ? "Nobody holds the Secretariat office" : "Choose", options: table.holders },
       ]}
       values={{ exerciseId, versionId: table.versionId }}

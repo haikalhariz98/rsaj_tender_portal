@@ -6,7 +6,7 @@ import { scopeApprovalLine, scopeFaultText, SCOPE_STATE_BADGE, SCOPE_STATE_TEXT 
 import { scopeApproval, scopeCitationFault, scopeClears, scopeMatterSubject, type ScopeMatter, type ScopeRule } from "./scope-matter";
 
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
-const rule: ScopeRule = { scopeApprovalRequired: true, scopeCommitteeCode: "TECH" };
+const rule: ScopeRule = { scopeApprovalRequired: true, scopeCommitteeCode: "TECH", scopeAct: "A" };
 const v1 = { id: "v1", versionNo: 1, status: "FINALISED" as const };
 const day = (d: string) => new Date(`${d}T00:00:00Z`);
 
@@ -16,19 +16,37 @@ function record(outcome: DecisionRecord["outcome"], decided: string, notApproved
     quorum: { required: 3, present: 3, recused: 0 }, votingRule: { rule: "SIMPLE_MAJORITY", provenance: "ASSUMED" }, notApproved, note: "", votes: [],
   };
 }
-const matter = (id: string, x: Partial<ScopeMatter> = {}): ScopeMatter => ({ id, bqVersionId: "v1", committeeCode: "TECH", withdrawn: false, sittingCancelled: false, tabledAt: day("2026-09-20"), record: null, sittingReference: "SIT/1", ...x });
+const matter = (id: string, x: Partial<ScopeMatter> = {}): ScopeMatter => ({ id, bqVersionId: "v1", committeeCode: "TECH", act: "A", withdrawn: false, sittingCancelled: false, tabledAt: day("2026-09-20"), record: null, sittingReference: "SIT/1", ...x });
 
 describe("scopeApproval: three-state rule, never a quiet 'not required' (OD-9)", () => {
   it("an unset rule is RULE_NOT_SET, not NOT_REQUIRED; a method no longer configured says so", () => {
-    expect(scopeApproval({ scopeApprovalRequired: null, scopeCommitteeCode: null }, [v1], []).state).toBe("RULE_NOT_SET");
-    expect(scopeApproval({ scopeApprovalRequired: null, scopeCommitteeCode: "TECH" }, [v1], [matter("d1", { record: record("CARRIED", "2026-09-25") })]).state).toBe("RULE_NOT_SET");
+    expect(scopeApproval({ scopeApprovalRequired: null, scopeCommitteeCode: null, scopeAct: null }, [v1], []).state).toBe("RULE_NOT_SET");
+    expect(scopeApproval({ scopeApprovalRequired: null, scopeCommitteeCode: "TECH", scopeAct: null }, [v1], [matter("d1", { record: record("CARRIED", "2026-09-25") })]).state).toBe("RULE_NOT_SET");
     expect(scopeApproval(null, [v1], []).state).toBe("METHOD_NOT_CONFIGURED");
   });
   it("NOT_REQUIRED only when the rule says no", () => {
-    expect(scopeApproval({ scopeApprovalRequired: false, scopeCommitteeCode: null }, [], []).state).toBe("NOT_REQUIRED");
+    expect(scopeApproval({ scopeApprovalRequired: false, scopeCommitteeCode: null, scopeAct: null }, [], []).state).toBe("NOT_REQUIRED");
   });
   it("a yes with no committee is COMMITTEE_NOT_SET", () => {
-    expect(scopeApproval({ scopeApprovalRequired: true, scopeCommitteeCode: null }, [v1], []).state).toBe("COMMITTEE_NOT_SET");
+    expect(scopeApproval({ scopeApprovalRequired: true, scopeCommitteeCode: null, scopeAct: null }, [v1], []).state).toBe("COMMITTEE_NOT_SET");
+  });
+  it("a yes with a committee and no act is ACT_NOT_SET: nothing reads as approval, not even a carried matter", () => {
+    const noAct = { ...rule, scopeAct: null };
+    expect(scopeApproval(noAct, [v1], []).state).toBe("ACT_NOT_SET");
+    expect(scopeApproval(noAct, [v1], [matter("d1", { record: record("CARRIED", "2026-09-25") })]).state).toBe("ACT_NOT_SET");
+    expect(scopeClears("ACT_NOT_SET")).toBe(false);
+  });
+  it("only a matter carried under the configured act approves: a carried recommendation (R) does not clear an approval (A)", () => {
+    const recommended = matter("d1", { act: "R", record: record("CARRIED", "2026-09-25") });
+    const a = scopeApproval(rule, [v1], [recommended]);
+    expect(a).toMatchObject({ state: "NOT_TABLED", decisive: null });
+    expect(scopeClears(a.state)).toBe(false);
+    // A recommendation waiting does not hold the version back from being tabled under the act.
+    expect(scopeApproval(rule, [v1], [matter("d1", { act: "R" })]).state).toBe("NOT_TABLED");
+    // The same matter under the configured act approves.
+    expect(scopeApproval(rule, [v1], [{ ...recommended, act: "A" }]).state).toBe("APPROVED");
+    // And a rule configured as R reads the R matter as the approval it asks for.
+    expect(scopeApproval({ ...rule, scopeAct: "R" }, [v1], [recommended]).state).toBe("APPROVED");
   });
   it("no finalised bill, then not tabled, then pending, then approved", () => {
     expect(scopeApproval(rule, [{ ...v1, status: "DRAFT" }], []).state).toBe("NO_FINALISED_BILL");
@@ -59,7 +77,7 @@ describe("scopeApproval: three-state rule, never a quiet 'not required' (OD-9)",
   it("an undecided matter at a cancelled sitting counts as withdrawn: it never blocks for ever, and the version is tabled again", () => {
     const stranded = matter("d1", { sittingCancelled: true });
     expect(scopeApproval(rule, [v1], [stranded]).state).toBe("NOT_TABLED");
-    expect(codes(scopeCitationFault({ exercise: { id: "x1", status: "DOCUMENTS_IN_PREPARATION" }, rule, version: { id: "v1", exerciseId: "x1", status: "FINALISED" }, sitting: { committeeCode: "TECH", frozen: false }, matters: [stranded] }))).toEqual([]);
+    expect(codes(scopeCitationFault({ exercise: { id: "x1", status: "DOCUMENTS_IN_PREPARATION" }, rule, version: { id: "v1", exerciseId: "x1", status: "FINALISED" }, sitting: { committeeCode: "TECH", frozen: false }, act: "A", matters: [stranded] }))).toEqual([]);
     expect(scopeApproval(rule, [v1], [stranded, matter("d2", { tabledAt: day("2026-09-28") })])).toMatchObject({ state: "PENDING", decisive: { id: "d2" } });
     // A decision recorded before the sitting was cancelled still stands.
     expect(scopeApproval(rule, [v1], [matter("d1", { sittingCancelled: true, record: record("CARRIED", "2026-09-25") })]).state).toBe("APPROVED");
@@ -91,6 +109,7 @@ describe("scopeCitationFault: which version may be tabled at which sitting", () 
     rule,
     version: { id: "v1", exerciseId: "x1", status: "FINALISED" },
     sitting: { committeeCode: "TECH", frozen: false },
+    act: "A",
     matters: [],
   };
   const judge = (x: Partial<typeof base> = {}) => codes(scopeCitationFault({ ...base, ...x }));
@@ -102,13 +121,25 @@ describe("scopeCitationFault: which version may be tabled at which sitting", () 
     expect(judge({ exercise: { id: "x1", status: "CANCELLED" } })).toEqual(["EXERCISE_CANCELLED"]);
     expect(judge({ version: { id: "v1", exerciseId: "x2", status: "FINALISED" } })).toEqual(["OTHER_EXERCISE"]);
     expect(judge({ rule: null })).toEqual(["METHOD_NOT_CONFIGURED"]);
-    expect(judge({ rule: { scopeApprovalRequired: null, scopeCommitteeCode: "TECH" } })).toEqual(["SCOPE_RULE_NOT_SET"]);
-    expect(judge({ rule: { scopeApprovalRequired: false, scopeCommitteeCode: null } })).toEqual(["SCOPE_NOT_REQUIRED"]);
-    expect(judge({ rule: { scopeApprovalRequired: true, scopeCommitteeCode: null } })).toEqual(["SCOPE_COMMITTEE_NOT_SET"]);
+    expect(judge({ rule: { scopeApprovalRequired: null, scopeCommitteeCode: "TECH", scopeAct: null } })).toEqual(["SCOPE_RULE_NOT_SET"]);
+    expect(judge({ rule: { scopeApprovalRequired: false, scopeCommitteeCode: null, scopeAct: null } })).toEqual(["SCOPE_NOT_REQUIRED"]);
+    expect(judge({ rule: { scopeApprovalRequired: true, scopeCommitteeCode: null, scopeAct: null } })).toEqual(["SCOPE_COMMITTEE_NOT_SET"]);
     expect(judge({ sitting: { committeeCode: "BOARD", frozen: false } })).toEqual(["OTHER_COMMITTEE"]);
     expect(judge({ version: { id: "v1", exerciseId: "x1", status: "DRAFT" } })).toEqual(["VERSION_NOT_FINALISED"]);
     expect(judge({ version: { id: "v1", exerciseId: "x1", status: "SUPERSEDED" } })).toEqual(["VERSION_NOT_FINALISED"]);
     expect(judge({ sitting: { committeeCode: "TECH", frozen: true } })).toEqual(["SITTING_CLOSED"]);
+  });
+  it("the act is the configured one (overrides BD-62-16): unset blocks naming the setting, another act is refused as the gate refuses it", () => {
+    expect(judge({ rule: { ...rule, scopeAct: null } })).toEqual(["SCOPE_ACT_NOT_SET"]);
+    expect(scopeFaultText(scopeCitationFault({ ...base, rule: { ...rule, scopeAct: null } })[0])).toMatch(/Configuration, Scope and estimate/);
+    expect(judge({ act: "R" })).toEqual(["OTHER_ACT"]);
+    expect(judge({ act: null })).toEqual(["OTHER_ACT"]);
+    // An act already carried under another act does not stand in the way of tabling under this one.
+    expect(judge({ matters: [matter("d1", { act: "R", record: record("CARRIED", "2026-09-25") })] })).toEqual([]);
+    for (const f of [...scopeCitationFault({ ...base, rule: { ...rule, scopeAct: null } }), ...scopeCitationFault({ ...base, act: "R" })]) {
+      expect(scopeFaultText(f), f.code).not.toBe("This was refused.");
+      expect(scopeFaultText(f), f.code).not.toMatch(/[A-Z]{2,}_[A-Z_]+/);
+    }
   });
   it("one version answers once: waiting or carried refuse; returned and ended send it back to the bill", () => {
     expect(judge({ matters: [matter("d1")] })).toEqual(["SCOPE_ALREADY_WAITING"]);
@@ -134,7 +165,7 @@ describe("scopeCitationFault: which version may be tabled at which sitting", () 
   });
   it("every refusal has words that name the way forward, and none shows a code", () => {
     const all = [
-      ...scopeCitationFault({ ...base, exercise: { id: "x1", status: "CANCELLED" }, rule: { scopeApprovalRequired: null, scopeCommitteeCode: null }, version: { id: "v1", exerciseId: "x2", status: "DRAFT" }, sitting: { committeeCode: "B", frozen: true } }),
+      ...scopeCitationFault({ ...base, exercise: { id: "x1", status: "CANCELLED" }, rule: { scopeApprovalRequired: null, scopeCommitteeCode: null, scopeAct: null }, version: { id: "v1", exerciseId: "x2", status: "DRAFT" }, sitting: { committeeCode: "B", frozen: true } }),
       ...scopeCitationFault({ ...base, matters: [matter("d1", { record: record("NOT_CARRIED", "2026-09-25", { nameEn: "End", kind: "TERMINAL" }) })] }),
     ];
     expect(all.length).toBeGreaterThan(4);

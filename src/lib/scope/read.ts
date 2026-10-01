@@ -51,6 +51,8 @@ import {
   CSV_EXPORT_NOTE,
   CSV_IMPORT_NOTE,
   scopeApprovalLine,
+  scopeOtherActNote,
+  SCOPE_NOT_COUNTING,
 } from "./labels";
 import { packFaults, type PackFault } from "./pack";
 import { issueText, schedulesInForce } from "./rates";
@@ -63,7 +65,7 @@ import { TABLING_FAULT_MESSAGE } from "@/lib/committee/labels";
 import { ACT_LABEL } from "@/lib/labels";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster } from "@/lib/people/load";
-import { scopeApproval } from "./scope-matter";
+import { countsFor, scopeApproval } from "./scope-matter";
 import { columnsInForce, panelFaults, panelState, standingVerifications, verifyPanelFault } from "./panel";
 import { blocking, type BqScopedBy, type Finding } from "./types";
 
@@ -91,6 +93,7 @@ const PACK_HREF = (exerciseId: string): Readonly<Record<PackFault, string>> => (
   ESTIMATE_BEHIND: `/sourcing/${exerciseId}?tab=scope&section=estimate#company-estimate`,
   SCOPE_RULE_NOT_SET: `${SCOPE_CONFIG_PATH}#scope-rules`,
   SCOPE_COMMITTEE_NOT_SET: `${SCOPE_CONFIG_PATH}#scope-rules`,
+  SCOPE_ACT_NOT_SET: `${SCOPE_CONFIG_PATH}#scope-rules`,
   SCOPE_NOT_APPROVED: `/sourcing/${exerciseId}?tab=scope&section=scope#scope-approval`,
 });
 
@@ -199,8 +202,6 @@ export async function scopeTab(exerciseId: string) {
   };
 }
 
-const ACT_OPTIONS = Object.entries(ACT_LABEL).map(([value, label]) => ({ value, label }));
-
 /**
  * The Scope section's scope-approval card (OD-9, FR-REQ-014): where approval stands, the
  * rule it was read under (with provenance), every SCOPE matter on the exercise's bills, and
@@ -218,7 +219,7 @@ async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>,
     db.committeeDecision.findMany({
       where: { matterKind: "SCOPE", bqVersion: { exerciseId: ex.id } },
       orderBy: [{ tabledAt: "desc" }, { id: "desc" }],
-      select: { id: true, meetingId: true, outcome: true, withdrawnAt: true, tabledAt: true, decisionDate: true, notApprovedOutcomeNameEn: true, bqVersion: { select: { versionNo: true } }, meeting: { select: { reference: true, meetingDate: true, status: true, committee: { select: { nameEn: true } } } }, tabledBy: { select: { name: true } } },
+      select: { id: true, meetingId: true, outcome: true, act: true, withdrawnAt: true, tabledAt: true, decisionDate: true, notApprovedOutcomeNameEn: true, bqVersion: { select: { versionNo: true } }, meeting: { select: { reference: true, meetingDate: true, status: true, committee: { select: { nameEn: true } } } }, tabledBy: { select: { name: true } } },
     }),
   ]);
   const holders = committee ? secretariatHoldersOn(roster, committee.secretariatRoleCode, org.today) : [];
@@ -227,7 +228,7 @@ async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>,
   const reasons: string[] = [];
   if (!finalised) reasons.push(scopeFaultText("VERSION_NOT_FINALISED"));
   else {
-    const f = scopeCitationFault({ exercise: { id: ex.id, status: ex.status }, rule, version: finalised, sitting: { committeeCode: code ?? "", frozen: false }, matters: a.scopeMatters.filter((m) => m.bqVersionId === finalised.id) });
+    const f = scopeCitationFault({ exercise: { id: ex.id, status: ex.status }, rule, version: finalised, sitting: { committeeCode: code ?? "", frozen: false }, act: rule?.scopeAct ?? null, matters: a.scopeMatters.filter((m) => m.bqVersionId === finalised.id) });
     reasons.push(...blocking(f).map((x) => scopeFaultText(x)));
   }
   if (reasons.length === 0 && committee && sittings.length === 0) reasons.push(scopeFaultText({ code: "NO_OPEN_SITTING", level: "block", data: { committee: committee.nameEn } }));
@@ -236,14 +237,26 @@ async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>,
     if (!t.ok) reasons.push(t.fault === "NOT_TABLED" ? "Nobody holds the committee's Secretariat office today, so nobody may table the scope. Assign the office under Configuration, Users & roles." : TABLING_FAULT_MESSAGE[t.fault]);
   }
   const OUTCOME: Record<string, string> = { PENDING: "Waiting for the decision", CARRIED: "Carried", NOT_CARRIED: "Not carried", DEFERRED: "Deferred" };
+  // The configured act in words (overrides BD-62-16): only a matter under it speaks for approval.
+  const actWords = rule?.scopeAct ? (ACT_LABEL[rule.scopeAct] ?? "An act the portal does not name") : null;
+  const counted = new Set(rule ? a.scopeMatters.filter((m) => countsFor(rule, m)).map((m) => m.id) : []);
+  // A decision under another act (or committee) is listed, and said not to count: a carried
+  // recommendation must never read as the approval.
+  const notCounting = (m: { id: string; withdrawnAt: Date | null; outcome: string; meeting: { status: string } }) =>
+    rule?.scopeApprovalRequired === true && !m.withdrawnAt && !(m.meeting.status === "CANCELLED" && m.outcome === "PENDING") && !counted.has(m.id);
+  const otherActDecided = finalised != null && rows.some((m) => m.bqVersion?.versionNo === finalised.versionNo && m.outcome !== "PENDING" && notCounting(m));
+  const line = scopeApprovalLine(approval, committeeName);
   return {
     state: approval.state,
     badge: SCOPE_STATE_BADGE[approval.state],
-    line: scopeApprovalLine(approval, committeeName),
+    line: approval.state === "NOT_TABLED" && otherActDecided && actWords ? `${line} ${scopeOtherActNote(actWords)}` : line,
     rule: {
       required: rule == null ? "The sourcing method is no longer configured" : rule.scopeApprovalRequired == null ? NOT_SET : rule.scopeApprovalRequired ? "Yes" : "No",
       provenance: rule?.scopeApprovalRequired == null ? null : provenanceText(rule.scopeApprovalProvenance),
       committee: rule?.scopeApprovalRequired ? (committeeName ?? NOT_SET) : null,
+      /// The act the committee discharges, in words, and where that came from; null where no yes.
+      act: rule?.scopeApprovalRequired ? (actWords ?? NOT_SET) : null,
+      actProvenance: rule?.scopeApprovalRequired && rule.scopeAct ? provenanceText(rule.scopeActProvenance) : null,
     },
     configHref: SCOPE_CONFIG_PATH,
     matters: rows.map((m) => ({
@@ -252,11 +265,12 @@ async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>,
       sitting: m.meeting.reference,
       sittingHref: `/committees/${m.meetingId}`,
       committee: m.meeting.committee.nameEn,
+      act: ACT_LABEL[m.act] ?? "An act the portal does not name",
       tabledOn: m.tabledAt ? storedDay(m.tabledAt) : null,
       tabledBy: m.tabledBy ? `${m.tabledBy.name}, ${ATTESTED}` : null,
       // An undecided matter at a cancelled sitting counts for nothing (scopeApproval), as a withdrawn one.
-      outcome: m.withdrawnAt ? "Withdrawn" : m.meeting.status === "CANCELLED" && m.outcome === "PENDING" ? "Sitting cancelled, not decided" : OUTCOME[m.outcome] ?? "Outcome not known",
-      outcomeTone: (m.withdrawnAt || (m.meeting.status === "CANCELLED" && m.outcome === "PENDING") ? "neutral" : m.outcome === "CARRIED" ? "ok" : m.outcome === "NOT_CARRIED" ? "err" : m.outcome === "DEFERRED" ? "warn" : "info") as "ok" | "err" | "warn" | "info" | "neutral",
+      outcome: m.withdrawnAt ? "Withdrawn" : m.meeting.status === "CANCELLED" && m.outcome === "PENDING" ? "Sitting cancelled, not decided" : `${OUTCOME[m.outcome] ?? "Outcome not known"}${notCounting(m) ? SCOPE_NOT_COUNTING : ""}`,
+      outcomeTone: (m.withdrawnAt || (m.meeting.status === "CANCELLED" && m.outcome === "PENDING") || notCounting(m) ? "neutral" : m.outcome === "CARRIED" ? "ok" : m.outcome === "NOT_CARRIED" ? "err" : m.outcome === "DEFERRED" ? "warn" : "info") as "ok" | "err" | "warn" | "info" | "neutral",
       decidedOn: m.decisionDate ? storedDay(m.decisionDate) : null,
       notApproved: m.notApprovedOutcomeNameEn,
     })),
@@ -265,9 +279,9 @@ async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>,
       versionId: finalised?.id ?? null,
       versionNo: finalised?.versionNo ?? null,
       committee: committeeName,
+      act: actWords,
       sittings: sittings.map((x) => ({ value: x.id, label: `${x.reference}, ${formatDate(storedDay(x.meetingDate))}` })),
       holders: holders.map((h) => ({ value: h.id, label: h.name })),
-      acts: ACT_OPTIONS,
       people: people.length,
     },
   };
@@ -462,7 +476,7 @@ export async function scopeConfiguration() {
     loadHoldings(org.id),
     db.bqTemplate.findMany({ where: { organisationId: org.id }, orderBy: { nameEn: "asc" }, include: { sections: { orderBy: { sortOrder: "asc" } } } }),
     loadPanelColumns(org.id),
-    db.sourcingMethod.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { id: true, nameEn: true, requiresCompanyEstimate: true, requiresCompanyEstimateProvenance: true, scopeApprovalRequired: true, scopeApprovalProvenance: true, scopeCommitteeCode: true, retiredOn: true } }),
+    db.sourcingMethod.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { id: true, nameEn: true, requiresCompanyEstimate: true, requiresCompanyEstimateProvenance: true, scopeApprovalRequired: true, scopeApprovalProvenance: true, scopeCommitteeCode: true, scopeAct: true, scopeActProvenance: true, retiredOn: true } }),
     db.contractBasis.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { id: true, nameEn: true, requiresBq: true, requiresBqProvenance: true, retiredOn: true } }),
     db.authorityRole.findMany({ where: { organisationId: org.id, isCommittee: false }, orderBy: { sortOrder: "asc" }, select: { code: true, nameEn: true } }),
     db.classificationTaxonomy.findMany({ where: { organisationId: org.id }, orderBy: { sortOrder: "asc" }, select: { code: true, nameEn: true } }),
@@ -520,7 +534,9 @@ export async function scopeConfiguration() {
       required: m.scopeApprovalRequired == null ? NOT_SET : m.scopeApprovalRequired ? "Yes" : "No",
       committee: m.scopeApprovalRequired ? (m.scopeCommitteeCode ? nameOf(committees, m.scopeCommitteeCode) : "Committee not set") : null,
       provenance: m.scopeApprovalRequired == null ? null : provenanceText(m.scopeApprovalProvenance),
-      raw: { scopeApprovalRequired: m.scopeApprovalRequired == null ? "unset" : m.scopeApprovalRequired ? "yes" : "no", scopeApprovalProvenance: m.scopeApprovalProvenance ?? "", scopeCommitteeCode: m.scopeCommitteeCode ?? "" },
+      /// The act in words; "Act not set" with a yes and none; null where the answer is not yes.
+      act: m.scopeApprovalRequired ? (m.scopeAct ? (ACT_LABEL[m.scopeAct] ?? "An act the portal does not name") : "Act not set") : null,
+      raw: { scopeApprovalRequired: m.scopeApprovalRequired == null ? "unset" : m.scopeApprovalRequired ? "yes" : "no", scopeApprovalProvenance: m.scopeApprovalProvenance ?? "", scopeCommitteeCode: m.scopeCommitteeCode ?? "", scopeAct: m.scopeAct ?? "", scopeActProvenance: m.scopeActProvenance ?? "" },
       retired: m.retiredOn != null,
     })),
     schedules: [...new Set(rateIssues.map((i) => i.label))].map((label) => {
@@ -547,7 +563,7 @@ export async function scopeConfiguration() {
       };
     }),
     bases: bases.map((b) => ({ id: b.id, name: b.nameEn, letOnBill: yesNo(b.requiresBq), raw: b.requiresBq == null ? "unset" : b.requiresBq ? "yes" : "no", rawProvenance: b.requiresBqProvenance ?? "", provenance: b.requiresBq == null ? null : provenanceText(b.requiresBqProvenance), retired: b.retiredOn != null })),
-    options: { units: units.filter((u) => u.effectiveTo == null).map((u) => ({ value: u.code, label: u.nameEn })), offices: offices.map((o) => ({ value: o.code, label: o.nameEn })), lists: lists.map((l) => ({ value: l.code, label: l.nameEn })), qualifications: qualifications.filter((q) => q.retiredOn == null).map((q) => ({ value: q.code, label: q.nameEn })), people: people.filter((p) => p.isActive).map((p) => ({ value: p.id, label: p.name })), committees: committees.filter((c) => c.retiredOn == null).map((c) => ({ value: c.code, label: c.nameEn })) },
+    options: { units: units.filter((u) => u.effectiveTo == null).map((u) => ({ value: u.code, label: u.nameEn })), offices: offices.map((o) => ({ value: o.code, label: o.nameEn })), lists: lists.map((l) => ({ value: l.code, label: l.nameEn })), qualifications: qualifications.filter((q) => q.retiredOn == null).map((q) => ({ value: q.code, label: q.nameEn })), people: people.filter((p) => p.isActive).map((p) => ({ value: p.id, label: p.name })), committees: committees.filter((c) => c.retiredOn == null).map((c) => ({ value: c.code, label: c.nameEn })), acts: Object.entries(ACT_LABEL).map(([value, label]) => ({ value, label })) },
     today: org.today,
   };
 }

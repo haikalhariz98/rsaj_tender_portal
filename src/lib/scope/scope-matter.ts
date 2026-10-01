@@ -23,9 +23,13 @@ import type { BqStatus, Finding } from "./types";
 export const SCOPE_DOMAIN = "scope_approval";
 
 /// The method's scope rule as configured, or null where the method is no longer configured.
+/// `scopeAct` is the act the committee discharges on a scope matter (AuthorityAct): tabling
+/// writes it, and only a matter carried under it approves the scope. Null is not set and
+/// blocks, never a guess at the act.
 export interface ScopeRule {
   scopeApprovalRequired: boolean | null;
   scopeCommitteeCode: string | null;
+  scopeAct: string | null;
 }
 
 /// A SCOPE matter as the rules read it. `record` is `decisionRecord()`, null while pending.
@@ -33,6 +37,8 @@ export interface ScopeMatter {
   id: string;
   bqVersionId: string | null;
   committeeCode: string;
+  /// The act the matter was tabled under (CommitteeDecision.act).
+  act: string;
   withdrawn: boolean;
   /// Its sitting was cancelled. Cancelling a sitting leaves its matters as they were, and a
   /// matter can no longer be withdrawn from it, so an undecided one there counts as withdrawn.
@@ -48,6 +54,7 @@ export type ScopeApprovalState =
   | "RULE_NOT_SET"
   | "NOT_REQUIRED"
   | "COMMITTEE_NOT_SET"
+  | "ACT_NOT_SET"
   | "NO_FINALISED_BILL"
   | "NOT_TABLED"
   | "PENDING"
@@ -78,8 +85,9 @@ function inDecisionOrder(ms: readonly ScopeMatter[]): ScopeMatter[] {
 /**
  * Where scope approval stands for an exercise. `versions` are the bill's versions; the one
  * that counts is the finalised one (at most one stands). Matters before another committee
- * than the one configured, withdrawn ones, and undecided ones at a cancelled sitting count
- * for nothing.
+ * than the one configured, matters under another act than the one configured (a carried
+ * recommendation is not an approval), withdrawn ones, and undecided ones at a cancelled
+ * sitting count for nothing.
  */
 export function scopeApproval(
   rule: ScopeRule | null,
@@ -91,8 +99,9 @@ export function scopeApproval(
   if (rule.scopeApprovalRequired == null) return { state: "RULE_NOT_SET", ...none };
   if (rule.scopeApprovalRequired === false) return { state: "NOT_REQUIRED", ...none };
   if (!rule.scopeCommitteeCode) return { state: "COMMITTEE_NOT_SET", ...none };
+  if (!rule.scopeAct) return { state: "ACT_NOT_SET", ...none };
   const finalised = versions.find((v) => v.status === "FINALISED") ?? null;
-  const counted = matters.filter((m) => !m.withdrawn && !(m.sittingCancelled && m.record == null) && m.committeeCode === rule.scopeCommitteeCode);
+  const counted = matters.filter((m) => countsFor(rule, m));
   const earlier = counted
     .filter((m) => m.bqVersionId !== finalised?.id && m.record?.outcome === "CARRIED")
     .map((m) => versions.find((v) => v.id === m.bqVersionId)?.versionNo ?? null)
@@ -122,6 +131,12 @@ export function scopeApproval(
   return { state: "NOT_TABLED", decisive: null, ...base };
 }
 
+/// Whether a matter speaks for scope approval under the rule: before the configured committee,
+/// under the configured act, not withdrawn, and not left undecided at a cancelled sitting.
+export function countsFor(rule: ScopeRule, m: ScopeMatter): boolean {
+  return !m.withdrawn && !(m.sittingCancelled && m.record == null) && m.committeeCode === rule.scopeCommitteeCode && rule.scopeAct != null && m.act === rule.scopeAct;
+}
+
 /// Whether scope approval lets the documents go for approval (packFaults reads this).
 export const scopeClears = (s: ScopeApprovalState) => s === "NOT_REQUIRED" || s === "APPROVED";
 
@@ -131,9 +146,11 @@ export type ScopeCitationFault =
   | "SCOPE_RULE_NOT_SET"
   | "SCOPE_NOT_REQUIRED"
   | "SCOPE_COMMITTEE_NOT_SET"
+  | "SCOPE_ACT_NOT_SET"
   | "VERSION_NOT_FINALISED"
   | "OTHER_EXERCISE"
   | "OTHER_COMMITTEE"
+  | "OTHER_ACT"
   | "SITTING_CLOSED"
   | "SCOPE_ALREADY_WAITING"
   | "SCOPE_ALREADY_APPROVED"
@@ -147,12 +164,16 @@ export type ScopeCitationFault =
  * or once it is carried, another is refused; once the committee returns it, the bill is
  * revised and the new version tabled; once ended, nothing more. A deferred matter, or one
  * not carried with no outcome recorded (which cannot be read either way), may be tabled again. Tabling itself (who tables, the Secretariat) is `checkTabling`'s.
+ *
+ * `act` is the act the matter would carry. Only the configured act is tabled (OTHER_ACT, as
+ * `gateCitationFault` refuses one): tableScope writes the configured act, so this guards it.
  */
 export function scopeCitationFault(i: {
   exercise: { id: string; status: ExerciseStatus };
   rule: ScopeRule | null;
   version: { id: string; exerciseId: string; status: BqStatus };
   sitting: { committeeCode: string; frozen: boolean };
+  act: string | null;
   /// Every SCOPE matter that names this version (any committee).
   matters: readonly ScopeMatter[];
 }): Finding<ScopeCitationFault>[] {
@@ -164,10 +185,14 @@ export function scopeCitationFault(i: {
   else if (i.rule.scopeApprovalRequired == null) b("SCOPE_RULE_NOT_SET");
   else if (i.rule.scopeApprovalRequired === false) b("SCOPE_NOT_REQUIRED");
   else if (!i.rule.scopeCommitteeCode) b("SCOPE_COMMITTEE_NOT_SET");
-  else if (i.sitting.committeeCode !== i.rule.scopeCommitteeCode) b("OTHER_COMMITTEE");
+  else {
+    if (i.sitting.committeeCode !== i.rule.scopeCommitteeCode) b("OTHER_COMMITTEE");
+    if (!i.rule.scopeAct) b("SCOPE_ACT_NOT_SET");
+    else if (i.act !== i.rule.scopeAct) b("OTHER_ACT");
+  }
   if (i.version.status !== "FINALISED") b("VERSION_NOT_FINALISED", { status: i.version.status });
   if (i.sitting.frozen) b("SITTING_CLOSED");
-  if (i.rule?.scopeApprovalRequired && i.rule.scopeCommitteeCode) {
+  if (i.rule?.scopeApprovalRequired && i.rule.scopeCommitteeCode && i.rule.scopeAct) {
     const s = scopeApproval(i.rule, [{ id: i.version.id, versionNo: 0, status: "FINALISED" }], i.matters);
     if (s.state === "PENDING") b("SCOPE_ALREADY_WAITING", { sitting: s.decisive?.sittingReference ?? null });
     else if (s.state === "APPROVED") b("SCOPE_ALREADY_APPROVED");

@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { storedDay } from "@/lib/dates";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { CONFIG_FAULT_TEXT, holdingFault, qualificationName, scopePolicyFaults, scopePolicyToSave, scopeRuleFaults, scopeRuleToSave, SCOPE_RULE_FAULT_TEXT } from "@/lib/scope/config";
+import { AUTHORITY_ACTS, type AuthorityAct } from "@/lib/authority/types";
 import { RATE_ENTITY } from "@/lib/scope/audit-view";
 import { RATE_SCHEDULE_STATUS_LABEL, scopeFaultText } from "@/lib/scope/labels";
 import { issueFaults, itemFaults, nextIssueNo, scheduleEditFault, startIssueFaults } from "@/lib/scope/rates";
@@ -331,17 +332,23 @@ export async function saveMethodScopeRule(_prev: FormState, data: FormData): Pro
   const required = triState(r.choice("scopeApprovalRequired", "Scope approved by a committee", ["yes", "no", "unset"] as const, { required: true }));
   const provenance = r.choice("scopeApprovalProvenance", "Provenance", PROVENANCE);
   const committeeCode = r.optionalText("scopeCommitteeCode");
+  // Overrides BD-62-16: the act the committee discharges is configured here, never chosen at tabling.
+  const act = r.choice("scopeAct", "The committee's act", AUTHORITY_ACTS);
+  const actProvenance = r.choice("scopeActProvenance", "Provenance", PROVENANCE);
   if (r.failed) return { ok: false, errors: r.errors };
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "SourcingMethod" WHERE id = ${id} FOR UPDATE`;
-    const before = await tx.sourcingMethod.findFirst({ where: { id, organisationId: orgId }, select: { nameEn: true, scopeApprovalRequired: true, scopeApprovalProvenance: true, scopeCommitteeCode: true } });
+    const before = await tx.sourcingMethod.findFirst({ where: { id, organisationId: orgId }, select: { nameEn: true, scopeApprovalRequired: true, scopeApprovalProvenance: true, scopeCommitteeCode: true, scopeAct: true, scopeActProvenance: true } });
     if (!before) return GONE;
     const committees = (await tx.committee.findMany({ where: { organisationId: orgId, retiredOn: null }, select: { code: true } })).map((c) => c.code);
-    const faults = scopeRuleFaults({ required, provenance, committeeCode }, { committees });
+    const draft = { required, provenance, committeeCode, act: act ?? null, actProvenance: actProvenance ?? null };
+    const faults = scopeRuleFaults(draft, { committees, acts: AUTHORITY_ACTS });
     if (faults.length) return { ok: false, errors: Object.fromEntries(faults.map((f) => [f.field, SCOPE_RULE_FAULT_TEXT[f.code]])) };
-    const v = scopeRuleToSave({ required, provenance, committeeCode });
+    const saved = scopeRuleToSave(draft);
+    // The act is one of AUTHORITY_ACTS: the form read it as one, and scopeRuleFaults refused any other.
+    const v = { ...saved, scopeAct: saved.scopeAct as AuthorityAct | null };
     await tx.sourcingMethod.update({ where: { id }, data: v });
-    await audit(tx, orgId, "SourcingMethod", id, before.nameEn, "UPDATE", { scopeApprovalRequired: before.scopeApprovalRequired, scopeApprovalProvenance: before.scopeApprovalProvenance, scopeCommitteeCode: before.scopeCommitteeCode }, v);
+    await audit(tx, orgId, "SourcingMethod", id, before.nameEn, "UPDATE", { scopeApprovalRequired: before.scopeApprovalRequired, scopeApprovalProvenance: before.scopeApprovalProvenance, scopeCommitteeCode: before.scopeCommitteeCode, scopeAct: before.scopeAct, scopeActProvenance: before.scopeActProvenance }, v);
     revalidatePath("/configuration/reference-data");
     revalidatePath("/sourcing", "layout");
     return done();

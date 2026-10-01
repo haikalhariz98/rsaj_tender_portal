@@ -263,12 +263,14 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   ESTIMATE_BEHIND: "The estimate was amended after it was lodged. Lodge the current version.",
   SCOPE_RULE_NOT_SET: `Whether this sourcing method needs its scope approved by a committee is not set. ${SET_IT}`,
   SCOPE_COMMITTEE_NOT_SET: `This sourcing method needs its scope approved by a committee, and which committee is not set. ${SET_IT}`,
+  SCOPE_ACT_NOT_SET: `This sourcing method needs its scope approved by a committee, and the act the committee discharges on it is not set, so nothing is tabled and no decision reads as approval. ${SET_IT}`,
   SCOPE_NOT_APPROVED: (d) => `The scope is not approved: ${SCOPE_STATE_TEXT[(d.state as ScopeApprovalState) ?? "NOT_TABLED"] ?? SCOPE_STATE_TEXT.NOT_TABLED} See Scope and estimate, Scope.`,
   // scope-matter.ts
   SCOPE_NOT_REQUIRED: "This sourcing method does not ask for its scope to be approved by a committee, so nothing is tabled.",
   VERSION_NOT_FINALISED: "Only the finalised bill is tabled. Finalise the draft first.",
   OTHER_EXERCISE: "That bill belongs to another exercise.",
   OTHER_COMMITTEE: "That sitting is of another committee. Scope is tabled at a sitting of the committee the sourcing method names.",
+  OTHER_ACT: "Scope is tabled under the act the sourcing method names, and no other. Change the act under Configuration, Scope and estimate if it is wrong.",
   SITTING_CLOSED: "That sitting is minuted or cancelled, so nothing more is tabled at it. Choose a sitting that is scheduled or in progress, or schedule one under Committees.",
   SCOPE_ALREADY_WAITING: (d) => `This version is already tabled${d.sitting ? ` at ${d.sitting}` : ""} and waiting for the decision.`,
   SCOPE_ALREADY_APPROVED: "The scope of this version is already approved.",
@@ -336,6 +338,7 @@ export const SCOPE_STATE_TEXT: Readonly<Record<ScopeApprovalState, string>> = {
   RULE_NOT_SET: `whether this sourcing method needs its scope approved is not set. ${SET_IT}`,
   NOT_REQUIRED: "this sourcing method does not ask for its scope to be approved by a committee.",
   COMMITTEE_NOT_SET: `which committee approves the scope is not set. ${SET_IT}`,
+  ACT_NOT_SET: `the act the committee discharges on the scope is not set, so no decision reads as approval. ${SET_IT}`,
   NO_FINALISED_BILL: "there is no finalised bill to table yet. Finalise the bill of quantities first.",
   NOT_TABLED: "the finalised bill has not been tabled. Table it at a sitting of the committee.",
   PENDING: "the finalised bill is tabled and waiting for the committee's decision.",
@@ -351,6 +354,7 @@ export const SCOPE_STATE_BADGE: Readonly<Record<ScopeApprovalState, { label: str
   RULE_NOT_SET: { label: "Rule not set", tone: "warn" },
   NOT_REQUIRED: { label: "Not required", tone: "neutral" },
   COMMITTEE_NOT_SET: { label: "Committee not set", tone: "warn" },
+  ACT_NOT_SET: { label: "Act not set", tone: "warn" },
   NO_FINALISED_BILL: { label: "No finalised bill", tone: "warn" },
   NOT_TABLED: { label: "Not tabled", tone: "warn" },
   PENDING: { label: "Waiting for the decision", tone: "info" },
@@ -382,6 +386,13 @@ export function scopeApprovalLine(a: ScopeApproval, committee: string | null, fo
       return `Scope approval: ${SCOPE_STATE_TEXT[a.state]}${earlier}`;
   }
 }
+
+/// Beside a matter decided under another act or committee than the rule names: listed, never counted.
+export const SCOPE_NOT_COUNTING = ", but not under the act and committee set, so it does not count";
+
+/// The card's addition where the finalised bill was decided only under another act: a carried
+/// recommendation is not the approval (overrides BD-62-16).
+export const scopeOtherActNote = (actWords: string) => `A decision under another act does not count: the scope is approved only by a matter carried under ${actWords}.`;
 
 export const RATE_SCHEDULE_STATUS_LABEL: Readonly<Record<RateScheduleStatus, string>> = { DRAFT: "Draft", ISSUED: "Issued", SUPERSEDED: "Superseded" };
 

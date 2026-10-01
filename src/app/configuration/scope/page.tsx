@@ -71,7 +71,7 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
     rules: [
       ...c.methods.map((m) => ({ unset: m.raw === "unset", retired: m.retired })),
       ...c.bases.map((x) => ({ unset: x.raw === "unset", retired: x.retired })),
-      ...c.scopeRules.map((m) => ({ unset: m.raw.scopeApprovalRequired === "unset" || (m.raw.scopeApprovalRequired === "yes" && !m.raw.scopeCommitteeCode), retired: m.retired })),
+      ...c.scopeRules.map((m) => ({ unset: m.raw.scopeApprovalRequired === "unset" || (m.raw.scopeApprovalRequired === "yes" && (!m.raw.scopeCommitteeCode || !m.raw.scopeAct)), retired: m.retired })),
     ],
   });
   // Retired rows sit behind "Show retired": they are history, not something to set.
@@ -203,13 +203,15 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
           </Table>
         </Section>
 
-        <Section id="scope-rules" title="Which methods need their scope approved by a committee" blurb="Where a method does, the finalised bill is tabled at a sitting of the committee named, and the documents cannot go for approval until it is carried. Not set holds that check back, naming this setting; it is never read as No." empty={emptyText(c.scopeRules, rows.scopeRules, "No sourcing methods are configured. Add them under Reference data.")} count={rows.scopeRules.length}>
-          <Table minWidth={640}>
+        <Section id="scope-rules" title="Which methods need their scope approved by a committee" blurb="Where a method does, the finalised bill is tabled at a sitting of the committee named, under the act named, and the documents cannot go for approval until a matter under that act is carried. Not set holds that check back, naming this setting; it is never read as No." empty={emptyText(c.scopeRules, rows.scopeRules, "No sourcing methods are configured. Add them under Reference data.")} count={rows.scopeRules.length}>
+          <Table minWidth={820}>
             <colgroup>
               <col />
-              <col style={{ width: "18%" }} />
-              <col style={{ width: "24%" }} />
+              <col style={{ width: "14%" }} />
+              <col style={{ width: "20%" }} />
+              <col style={{ width: "13%" }} />
               <col style={{ width: "16%" }} />
+              <col style={{ width: "13%" }} />
               <ActionsCol icons={1} labelled={1} />
             </colgroup>
             <THead>
@@ -217,6 +219,8 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
               <Th>Scope approved</Th>
               <Th>By</Th>
               <Th>Source</Th>
+              <Th>Act</Th>
+              <Th>Act source</Th>
               <Th className="text-right">Actions</Th>
             </THead>
             <tbody>
@@ -226,10 +230,12 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
                   <Td label="Scope approved">{m.raw.scopeApprovalRequired === "unset" ? <Badge tone="warn">Not set</Badge> : m.required}</Td>
                   <Td label="By">{m.committee == null ? <span className="text-ink-3">—</span> : m.raw.scopeCommitteeCode ? m.committee : <Badge tone="warn">{m.committee}</Badge>}</Td>
                   <Td label="Source">{m.raw.scopeApprovalRequired === "unset" ? <span className="text-ink-3">—</span> : <ProvenanceBadge value={m.raw.scopeApprovalProvenance} />}</Td>
+                  <Td label="Act">{m.act == null ? <span className="text-ink-3">—</span> : m.raw.scopeAct ? m.act : <Badge tone="warn">Not set</Badge>}</Td>
+                  <Td label="Act source">{m.raw.scopeAct ? <ProvenanceBadge value={m.raw.scopeActProvenance} /> : <span className="text-ink-3">—</span>}</Td>
                   <Td>
                     <RowActions>
                       <HistoryButton iconOnly entity="SourcingMethod" entityId={m.id} label={m.name} />
-                      <EditMethodScopeRule id={m.id} name={m.name} raw={m.raw} committees={c.options.committees} />
+                      <EditMethodScopeRule id={m.id} name={m.name} raw={m.raw} committees={c.options.committees} acts={c.options.acts} />
                     </RowActions>
                   </Td>
                 </Tr>

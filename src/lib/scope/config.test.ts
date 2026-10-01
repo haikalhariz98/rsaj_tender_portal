@@ -42,21 +42,34 @@ describe("the scope policy's own checks", () => {
 });
 
 describe("a method's scope-approval rule (OD-9), three-state", () => {
-  const known = { committees: ["TECH", "BOARD"] };
+  const known = { committees: ["TECH", "BOARD"], acts: ["R", "A"] };
+  const noAct = { act: null, actProvenance: null } as const;
   it("a set answer needs its provenance; not set needs none", () => {
-    expect(scopeRuleFaults({ required: null, provenance: null, committeeCode: null }, known)).toEqual([]);
-    expect(scopeRuleFaults({ required: false, provenance: null, committeeCode: null }, known).map((f) => f.code)).toEqual(["PROVENANCE_REQUIRED"]);
-    expect(scopeRuleFaults({ required: true, provenance: "ASSUMED", committeeCode: "TECH" }, known)).toEqual([]);
+    expect(scopeRuleFaults({ required: null, provenance: null, committeeCode: null, ...noAct }, known)).toEqual([]);
+    expect(scopeRuleFaults({ required: false, provenance: null, committeeCode: null, ...noAct }, known).map((f) => f.code)).toEqual(["PROVENANCE_REQUIRED"]);
+    expect(scopeRuleFaults({ required: true, provenance: "ASSUMED", committeeCode: "TECH", ...noAct }, known)).toEqual([]);
   });
   it("a committee named with a yes must be configured; a yes with none is saved and reads Committee not set", () => {
-    expect(scopeRuleFaults({ required: true, provenance: "ASSUMED", committeeCode: "GONE" }, known).map((f) => f.field)).toEqual(["scopeCommitteeCode"]);
-    expect(scopeRuleFaults({ required: true, provenance: "ASSUMED", committeeCode: null }, known)).toEqual([]);
+    expect(scopeRuleFaults({ required: true, provenance: "ASSUMED", committeeCode: "GONE", ...noAct }, known).map((f) => f.field)).toEqual(["scopeCommitteeCode"]);
+    expect(scopeRuleFaults({ required: true, provenance: "ASSUMED", committeeCode: null, ...noAct }, known)).toEqual([]);
   });
   it("stores provenance only with an answer and a committee only with a yes", () => {
-    expect(scopeRuleToSave({ required: null, provenance: "STATED", committeeCode: "TECH" })).toEqual({ scopeApprovalRequired: null, scopeApprovalProvenance: null, scopeCommitteeCode: null });
-    expect(scopeRuleToSave({ required: false, provenance: "STATED", committeeCode: "TECH" })).toEqual({ scopeApprovalRequired: false, scopeApprovalProvenance: "STATED", scopeCommitteeCode: null });
-    expect(scopeRuleToSave({ required: true, provenance: "ASSUMED", committeeCode: "TECH" })).toEqual({ scopeApprovalRequired: true, scopeApprovalProvenance: "ASSUMED", scopeCommitteeCode: "TECH" });
+    expect(scopeRuleToSave({ required: null, provenance: "STATED", committeeCode: "TECH", ...noAct })).toEqual({ scopeApprovalRequired: null, scopeApprovalProvenance: null, scopeCommitteeCode: null, scopeAct: null, scopeActProvenance: null });
+    expect(scopeRuleToSave({ required: false, provenance: "STATED", committeeCode: "TECH", ...noAct })).toEqual({ scopeApprovalRequired: false, scopeApprovalProvenance: "STATED", scopeCommitteeCode: null, scopeAct: null, scopeActProvenance: null });
+    expect(scopeRuleToSave({ required: true, provenance: "ASSUMED", committeeCode: "TECH", ...noAct })).toEqual({ scopeApprovalRequired: true, scopeApprovalProvenance: "ASSUMED", scopeCommitteeCode: "TECH", scopeAct: null, scopeActProvenance: null });
     expect(SCOPE_RULE_FAULT_TEXT.UNKNOWN_COMMITTEE).toMatch(/Configuration, Committees/);
+  });
+  it("the act (overrides BD-62-16): one of the acts, with its own provenance, kept only with a yes", () => {
+    expect(scopeRuleFaults({ required: true, provenance: "ASSUMED", committeeCode: "TECH", act: "A", actProvenance: "ASSUMED" }, known)).toEqual([]);
+    expect(scopeRuleFaults({ required: true, provenance: "ASSUMED", committeeCode: "TECH", act: "A", actProvenance: null }, known).map((f) => f.field)).toEqual(["scopeActProvenance"]);
+    expect(scopeRuleFaults({ required: true, provenance: "ASSUMED", committeeCode: "TECH", act: "X", actProvenance: "ASSUMED" }, known).map((f) => f.code)).toEqual(["UNKNOWN_ACT"]);
+    // A yes with no act is saved and reads Act not set; an act beside no is not judged, and not kept.
+    expect(scopeRuleFaults({ required: true, provenance: "ASSUMED", committeeCode: "TECH", act: null, actProvenance: null }, known)).toEqual([]);
+    expect(scopeRuleFaults({ required: false, provenance: "ASSUMED", committeeCode: null, act: "X", actProvenance: null }, known)).toEqual([]);
+    expect(scopeRuleToSave({ required: true, provenance: "ASSUMED", committeeCode: "TECH", act: "A", actProvenance: "STATED" })).toMatchObject({ scopeAct: "A", scopeActProvenance: "STATED" });
+    expect(scopeRuleToSave({ required: false, provenance: "ASSUMED", committeeCode: null, act: "A", actProvenance: "STATED" })).toMatchObject({ scopeAct: null, scopeActProvenance: null });
+    expect(scopeRuleToSave({ required: true, provenance: "ASSUMED", committeeCode: "TECH", act: null, actProvenance: "STATED" })).toMatchObject({ scopeAct: null, scopeActProvenance: null });
+    expect(SCOPE_RULE_FAULT_TEXT.UNKNOWN_ACT).not.toMatch(/[A-Z]{2,}_/);
   });
 });
 

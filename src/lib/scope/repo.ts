@@ -132,7 +132,7 @@ export function estimateFactsOf(e: { id: string; state: string; preparerPersonId
 /// The exercise's method and basis flags as configured (null where no longer configured).
 export async function loadScopeRules(organisationId: string, ex: { sourcingMethodCode: string; contractBasisCode: string | null }, client: Tx = db) {
   // One after the other: inside a transaction the client is one connection.
-  const method = await client.sourcingMethod.findFirst({ where: { organisationId, code: ex.sourcingMethodCode }, select: { nameEn: true, requiresCompanyEstimate: true, requiresCompanyEstimateProvenance: true, scopeApprovalRequired: true, scopeApprovalProvenance: true, scopeCommitteeCode: true } });
+  const method = await client.sourcingMethod.findFirst({ where: { organisationId, code: ex.sourcingMethodCode }, select: { nameEn: true, requiresCompanyEstimate: true, requiresCompanyEstimateProvenance: true, scopeApprovalRequired: true, scopeApprovalProvenance: true, scopeCommitteeCode: true, scopeAct: true, scopeActProvenance: true } });
   const basis = ex.contractBasisCode ? await client.contractBasis.findFirst({ where: { organisationId, code: ex.contractBasisCode }, select: { nameEn: true, requiresBq: true, requiresBqProvenance: true } }) : null;
   return { method, basis };
 }
@@ -148,7 +148,7 @@ export async function loadScopeMatters(exerciseId: string, client: Tx = db): Pro
     orderBy: [{ tabledAt: "asc" }, { id: "asc" }],
     include: { meeting: { include: { committee: { select: { code: true, nameEn: true } } } }, votes: { include: { person: { select: { name: true } } } } },
   });
-  return rows.map((d) => ({ id: d.id, bqVersionId: d.bqVersionId, committeeCode: d.meeting.committee.code, withdrawn: d.withdrawnAt != null, sittingCancelled: d.meeting.status === "CANCELLED", tabledAt: d.tabledAt, record: recordOf(d), sittingReference: d.meeting.reference }));
+  return rows.map((d) => ({ id: d.id, bqVersionId: d.bqVersionId, committeeCode: d.meeting.committee.code, act: d.act, withdrawn: d.withdrawnAt != null, sittingCancelled: d.meeting.status === "CANCELLED", tabledAt: d.tabledAt, record: recordOf(d), sittingReference: d.meeting.reference }));
 }
 
 /// The organisation's schedules of rates, issue by issue, as `rates.ts` reads them (days as YYYY-MM-DD).

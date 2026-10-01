@@ -2,7 +2,7 @@
  * Whether an exercise's scope is ready for its tender documents to go for approval
  * (OD-4): shown on the Scope tab now, "not yet enforced", and enforced by 6.4 at Pending
  * Approval for Tendering. Pure. Increment 2 adds scope approval (OD-9, FR-REQ-014):
- * SCOPE_RULE_NOT_SET and SCOPE_COMMITTEE_NOT_SET block naming the setting, and
+ * SCOPE_RULE_NOT_SET, SCOPE_COMMITTEE_NOT_SET and SCOPE_ACT_NOT_SET block naming the setting, and
  * SCOPE_NOT_APPROVED blocks until the finalised bill's scope matter is carried.
  *
  * Unset configuration never reads as "not needed" (OD-6): a method whose estimate rule is
@@ -28,6 +28,7 @@ export type PackFault =
   | "ESTIMATE_BEHIND"
   | "SCOPE_RULE_NOT_SET"
   | "SCOPE_COMMITTEE_NOT_SET"
+  | "SCOPE_ACT_NOT_SET"
   | "SCOPE_NOT_APPROVED";
 
 export interface PackInput {
@@ -77,6 +78,7 @@ export function packFaults(i: PackInput): Finding<PackFault>[] {
   // The method's own absence is said once, above (METHOD_NOT_CONFIGURED).
   if (i.scope === "RULE_NOT_SET") out.push({ code: "SCOPE_RULE_NOT_SET", level: "block" });
   else if (i.scope === "COMMITTEE_NOT_SET") out.push({ code: "SCOPE_COMMITTEE_NOT_SET", level: "block" });
+  else if (i.scope === "ACT_NOT_SET") out.push({ code: "SCOPE_ACT_NOT_SET", level: "block" });
   else if (i.scope !== "METHOD_NOT_CONFIGURED" && !scopeClears(i.scope)) out.push({ code: "SCOPE_NOT_APPROVED", level: "block", data: { state: i.scope } });
   return out;
 }

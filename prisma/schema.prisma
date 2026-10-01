@@ -1787,6 +1787,11 @@ model SourcingMethod {
   scopeApprovalRequired             Boolean?
   scopeApprovalProvenance           Provenance?
   scopeCommitteeCode                String?
+  /// The act the committee discharges on a scope matter (overrides BD-62-16's officer choice):
+  /// tabling writes it, and only a matter carried under it approves the scope. Null: not set,
+  /// and tabling and packFaults block naming it. Its own provenance, as the committee's answer.
+  scopeAct                          AuthorityAct?
+  scopeActProvenance                Provenance?
   /// The numbering series (NumberingSeries.key) a dossier reference is issued from.
   dossierSeriesKey String?
 

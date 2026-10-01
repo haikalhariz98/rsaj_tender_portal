@@ -24,7 +24,8 @@
  *   matter demo_d40 is tabled at the Technical Committee's sitting demo_mt11 and carried
  *   (increment 2, `loadScopeSitting`).
  * - Increment 2: scope approval required for the specialist method by the Technical
- *   Committee, not for the others, emergency unset; one schedule of rates in two issues, sx5's
+ *   Committee, under the act Approve (ASSUMED, as every demo value), not for the others,
+ *   emergency unset; one schedule of rates in two issues, sx5's
  *   roof lines priced from issue 1 and kept after issue 2 superseded it.
  * - demo_sx2, sx4 and sx7 keep no bill, panel or estimate: the empty states.
  *
@@ -219,7 +220,7 @@ export async function loadScope(db: Db, organisationId: string) {
   await est([`${P}sm3`, `${P}sm7`, `${P}sm8`], false);
   // OD-9: scope approval by the Technical Committee for the specialist method only, assumed;
   // emergency left unset, so its exercises show the rule as not set.
-  await db.sourcingMethod.update({ where: { id: `${P}sm8` }, data: { scopeApprovalRequired: true, scopeApprovalProvenance: "ASSUMED", scopeCommitteeCode: "TECH_CTTE" } });
+  await db.sourcingMethod.update({ where: { id: `${P}sm8` }, data: { scopeApprovalRequired: true, scopeApprovalProvenance: "ASSUMED", scopeCommitteeCode: "TECH_CTTE", scopeAct: "A", scopeActProvenance: "ASSUMED" } });
   await db.sourcingMethod.updateMany({ where: { id: { in: [`${P}sm1`, `${P}sm2`, `${P}sm3`, `${P}sm4`, `${P}sm5`, `${P}sm6`, `${P}sm7`] } }, data: { scopeApprovalRequired: false, scopeApprovalProvenance: "ASSUMED" } });
   await db.contractBasis.update({ where: { id: `${P}cb1` }, data: { requiresBq: true, requiresBqProvenance: "ASSUMED" } });
   await db.contractBasis.update({ where: { id: `${P}cb2` }, data: { requiresBq: false, requiresBqProvenance: "ASSUMED" } });
@@ -426,12 +427,12 @@ export async function checkScope() {
       // matters before it, and the Secretariat holder rule on the tabling day.
       const d40 = await lib.committeeDecision.findUniqueOrThrow({
         where: { id: `${P}d40` },
-        select: { tabledAt: true, tabledByPersonId: true, meeting: { select: { minutedAt: true, committee: { select: { code: true, secretariatRoleCode: true } } } } },
+        select: { tabledAt: true, tabledByPersonId: true, act: true, meeting: { select: { minutedAt: true, committee: { select: { code: true, secretariatRoleCode: true } } } } },
       });
       if (!d40.tabledAt) throw new Error("Demo demo_d40 has no tabling day.");
       const tabledOn = d40.tabledAt.toISOString().slice(0, 10);
       const frozen = d40.meeting.minutedAt != null && d40.meeting.minutedAt.getTime() <= d40.tabledAt.getTime();
-      fail("sx15's scope tabling (demo_d40)", scopeCitationFault({ exercise: { id: exerciseId, status: ex.status }, rule: rules.method, version: bill, sitting: { committeeCode: d40.meeting.committee.code, frozen }, matters: matters.filter((m) => m.id !== `${P}d40`) }));
+      fail("sx15's scope tabling (demo_d40)", scopeCitationFault({ exercise: { id: exerciseId, status: ex.status }, rule: rules.method, version: bill, sitting: { committeeCode: d40.meeting.committee.code, frozen }, act: d40.act, matters: matters.filter((m) => m.id !== `${P}d40`) }));
       const secretariat = d40.meeting.committee.secretariatRoleCode;
       const roster = await loadRoster(ORGANISATION_CODE);
       const tabling = checkTabling({ secretariatRoleCode: secretariat, tabledByPersonId: d40.tabledByPersonId, holderIdsOnDate: secretariatHoldersOn(roster, secretariat, tabledOn).map((h) => h.id), tablingDay: tabledOn });
@@ -552,7 +553,7 @@ export async function loadScopeSitting(db: Db): Promise<string[]> {
     data: {
       id: mt, committeeId: `${P}c4`, reference: "DEMO/TC/1/2026", meetingDate: day("2026-09-30"), status: "MINUTED", minutedAt: day("2026-10-01"),
       agenda: "Scope of the FRP tank repair by its manufacturer (DEMO/SX/0015/2026).",
-      minutes: "The Committee examined the manufacturer's scope of repair and its bill of quantities, version 1, and recommended the scope as tabled.",
+      minutes: "The Committee examined the manufacturer's scope of repair and its bill of quantities, version 1, and approved the scope as tabled.",
     },
   });
   await db.meetingAttendance.createMany({
@@ -565,7 +566,7 @@ export async function loadScopeSitting(db: Db): Promise<string[]> {
   await db.committeeDecision.create({
     data: {
       id: `${P}d40`, meetingId: mt, sequence: 1, domain: "scope_approval", matterKind: "SCOPE", matterRef: "DEMO/SX/0015/2026", bqVersionId: `${P}bqv4`,
-      subject: scopeMatterSubject("FRP tank repair by its manufacturer", 1), act: "R", tabledByPersonId: `${P}p3`, tabledAt: day("2026-09-28"),
+      subject: scopeMatterSubject("FRP tank repair by its manufacturer", 1), act: "A", tabledByPersonId: `${P}p3`, tabledAt: day("2026-09-28"),
       outcome: "CARRIED", decisionDate: day("2026-09-30"), quorumRequired: 2, presentVoters: 2, recusedCount: 0, votingRule: "SIMPLE_MAJORITY", votingRuleProvenance: "ASSUMED",
     },
   });

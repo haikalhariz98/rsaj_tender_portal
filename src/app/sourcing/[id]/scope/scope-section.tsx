@@ -162,6 +162,8 @@ export function ScopeSection({ d }: { d: Data }) {
               { label: "Needs committee approval", value: approval.rule.required === NOT_SET ? <span className="flex flex-col items-start gap-1"><Badge tone="warn">Not set</Badge><Link href={approval.configHref} className="text-[12.5px] font-semibold">Set it under Configuration</Link></span> : approval.rule.required },
               { label: "Committee", value: approval.rule.committee ?? "—" },
               { label: "Where the rule came from", value: approval.rule.provenance ?? "—" },
+              { label: "The committee's act", value: approval.rule.act === NOT_SET ? <span className="flex flex-col items-start gap-1"><Badge tone="warn">Not set</Badge><Link href={approval.configHref} className="text-[12.5px] font-semibold">Set it under Configuration</Link></span> : approval.rule.act ?? "—" },
+              { label: "Where the act came from", value: approval.rule.actProvenance ?? "—" },
             ]}
           />
           {/* Offered only where tabling is the next step; every other state's callout above says what is next. */}
@@ -182,7 +184,8 @@ export function ScopeSection({ d }: { d: Data }) {
               emptyTitle="Nothing tabled"
               columns={[
                 { key: "version", label: "Bill", width: "14%", mobile: "primary" },
-                { key: "sitting", label: "Sitting", width: "26%", mobile: "meta" },
+                { key: "sitting", label: "Sitting", width: "22%", mobile: "meta" },
+                { key: "act", label: "Act", width: "14%", mobile: "meta" },
                 { key: "tabled", label: "Tabled", mobile: "meta" },
                 { key: "outcome", label: "Decision", width: "22%", mobile: "meta" },
               ]}
@@ -192,6 +195,7 @@ export function ScopeSection({ d }: { d: Data }) {
                 cells: {
                   version: { kind: "text", text: m.version },
                   sitting: { kind: "link", text: m.sitting, href: m.sittingHref, sub: m.committee },
+                  act: { kind: "text", text: m.act },
                   tabled: { kind: "text", text: m.tabledOn ? `${formatDate(m.tabledOn)}${m.tabledBy ? `, by ${m.tabledBy}` : ""}` : "—", dim: true },
                   outcome: { kind: "badge", text: m.decidedOn ? `${m.outcome}, ${formatDate(m.decidedOn)}` : m.outcome, tone: m.outcomeTone === "neutral" ? undefined : m.outcomeTone },
                 },
