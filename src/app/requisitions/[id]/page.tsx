@@ -1158,7 +1158,7 @@ function ApprovalPanel({
                       <li key={i} className="flex items-center gap-2 text-[13.5px]">
                         <ActBadge act={s.act} step={i + 1} />
                         <span className="font-semibold text-ink">{previewMatrixRoles[s.roleCode]?.nameEn ?? "An office no longer configured"}</span>
-                        <span className="text-ink-3">{ACT_LABEL[s.act]}</span>
+                        <span className="text-ink-3">{actLabel(s.act)}</span>
                       </li>
                     ))}
                   </ol>
@@ -1811,7 +1811,7 @@ function HistoryPanel({
     if (field === "splitState") return splitStateLabel(value as "CLEAR").label;
     if (field === "fundingPosture") return POSTURE_LABEL[value] ?? "Not recorded";
     if (field === "origin") return value === "EXTERNAL" ? "Received from the finance system" : "Raised in the portal";
-    if (field === "act") return ACT_LABEL[value] ?? value;
+    if (field === "act") return ACT_LABEL[value] ? actLabel(value) : value;
     if (field === "cond") return condLabel(value);
     if (MONEY_FIELDS.has(field) && /^-?\d+(\.\d+)?$/.test(value)) return formatRM(Number(value));
     if (value === "true" || value === "yes") return "Yes";

@@ -40,7 +40,7 @@ import { isFrozen, meetingTransition } from "@/lib/committee/meeting";
 import type { VotingSeat } from "@/lib/committee/sitting";
 import { loadSitting, sittingHistory, type LoadedSitting } from "@/lib/committee/sittings";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
-import { ACT_LABEL, matterLabel } from "@/lib/labels";
+import { actWithCode, matterLabel } from "@/lib/labels";
 
 import {
   CancelSitting,
@@ -682,7 +682,7 @@ function HistoryPanel({
     if (field === "status") return MEETING_STATUS_LABEL[value as keyof typeof MEETING_STATUS_LABEL] ?? value;
     if (field === "outcome") return OUTCOME_LABEL[value as keyof typeof OUTCOME_LABEL] ?? value;
     if (field === "choice") return CHOICE_LABEL[value] ?? value;
-    if (field === "act") return ACT_LABEL[value] ?? value;
+    if (field === "act") return actWithCode(value);
     if (field === "domain") return matterLabel(value);
     if (field === "matterKind") return MATTER_KIND_LABEL[value as keyof typeof MATTER_KIND_LABEL] ?? value;
     if (field === "votingRule") return VOTING_RULE_LABEL[value as keyof typeof VOTING_RULE_LABEL] ?? value;

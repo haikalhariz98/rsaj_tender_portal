@@ -532,7 +532,7 @@ function ApprovalPanel({
                     <li key={i} className="flex min-w-0 items-center gap-2 text-[13.5px]">
                       <ActBadge act={s.act} step={i + 1} />
                       <span className="min-w-0 font-semibold break-words text-ink">{roleName(s.roleCode)}</span>
-                      <span className="text-ink-3">{ACT_LABEL[s.act]}{s.committeeCode ? ", as a committee decision" : ""}</span>
+                      <span className="text-ink-3">{actLabel(s.act)}{s.committeeCode ? ", as a committee decision" : ""}</span>
                     </li>
                   ))}
                 </ol>
@@ -628,7 +628,7 @@ function ApprovalPanel({
                     <ActBadge act={s.act} step={stepIndex + 1} />
                     <div className="min-w-0">
                       <div className="font-semibold break-words text-ink">
-                        {s.roleLabel} <span className="font-normal text-ink-3">· {ACT_LABEL[s.act]}{s.committeeCode ? ", as a committee decision" : ""}</span>
+                        {s.roleLabel} <span className="font-normal text-ink-3">· {actLabel(s.act)}{s.committeeCode ? ", as a committee decision" : ""}</span>
                       </div>
                       {s.escalation && (
                         <div className="text-[12.5px] break-words text-amber-800">

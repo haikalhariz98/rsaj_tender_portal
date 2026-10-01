@@ -1,5 +1,5 @@
 import { MANDATORY_ACTS as MANDATORY } from "@/lib/committee/quorum";
-import { ACT_LABEL } from "@/lib/labels";
+import { actWithCode } from "@/lib/labels";
 
 import { CheckIcon, EyeIcon, FileIcon, ShieldIcon } from "@/components/icons";
 
@@ -35,8 +35,14 @@ export function isMandatoryAct(act: string): boolean {
   return MANDATORY.has(act);
 }
 
+/**
+ * An act in words with its DAL code (close-out ruling CO-9, FR-APR-003): "Mandatory
+ * recommendation (MR)". The code is the manual's own vocabulary (Appendix B.1), printed
+ * on every routing sheet — not a configuration key — so it is shown beside the words,
+ * and an MR step never reads like an R one.
+ */
 export function actLabel(act: string): string {
-  return ACT_LABEL[act] ?? "Unknown act";
+  return actWithCode(act);
 }
 
 /// A neutral role glyph for an act: a document for proposing, an eye for recommending,

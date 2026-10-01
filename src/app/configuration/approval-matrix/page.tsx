@@ -6,7 +6,7 @@ import { listIssues, loadMatrix, loadRuleRows, type IssueSummary } from "@/lib/a
 import { listCommittees } from "@/lib/committee/repo";
 import { approverAct, edgeAtBoundary, ruleIsDelegable } from "@/lib/authority/resolve";
 import { formatPercentBand, formatValueBand } from "@/lib/format";
-import { ACT_LABEL, condLabel, matterLabel, methodLabel } from "@/lib/labels";
+import { actWithCode, condLabel, matterLabel, methodLabel } from "@/lib/labels";
 import { ORGANISATION_CODE, ORGANISATION_NAME } from "@/lib/org";
 import { formatDate } from "@/lib/format";
 import { loadReferenceData } from "@/lib/reference/load";
@@ -603,7 +603,7 @@ export default async function ApprovalMatrixPage({
                             {editable && (ruleRows[rule.ruleKey]?.recommenders.length ?? 0) > 0 && (
                               <div className="mt-1.5 flex flex-wrap gap-1">
                                 {ruleRows[rule.ruleKey]!.recommenders.map((step) => {
-                                  const text = `${roleName(step.roleCode)} · ${ACT_LABEL[step.act] ?? step.act}`;
+                                  const text = `${roleName(step.roleCode)} · ${actWithCode(step.act)}`;
                                   return (
                                     <span
                                       key={step.id}
@@ -632,7 +632,7 @@ export default async function ApprovalMatrixPage({
                                   <span className="inline-flex items-start gap-1.5 text-[12px] text-ink-2">
                                     <ActBadge act={rule.committeeAct} />
                                     <span className="pt-0.5 leading-tight">
-                                      {ACT_LABEL[rule.committeeAct] ?? rule.committeeAct}
+                                      {actWithCode(rule.committeeAct)}
                                     </span>
                                   </span>
                                 )}

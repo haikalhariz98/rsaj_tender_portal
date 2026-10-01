@@ -47,6 +47,12 @@ export const ACT_LABEL: Record<string, string> = {
   MA: "Mandatory approval",
 };
 
+/// An act's words with its DAL code, as a routing sheet prints both (ruling CO-9).
+export function actWithCode(act: string): string {
+  const words = ACT_LABEL[act];
+  return words ? `${words} (${act})` : "Unknown act";
+}
+
 /// The acts as done, for recording a decision: "Recommended", not "Recommend — done".
 export const ACT_DONE_LABEL: Record<string, string> = {
   P: "Proposed",

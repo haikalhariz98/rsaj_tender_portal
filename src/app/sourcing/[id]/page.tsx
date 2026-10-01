@@ -587,7 +587,7 @@ function RouteList({ route }: { route: RouteSnap }) {
             <li key={i} className="flex min-w-0 items-center gap-2 text-[13.5px]">
               <ActBadge act={s.act} />
               <span className="min-w-0 font-semibold break-words text-ink">{s.role}</span>
-              <span className="text-ink-3">{ACT_LABEL[s.act] ?? "Acts"}</span>
+              <span className="text-ink-3">{actLabel(s.act)}</span>
             </li>
           ))}
         </ol>
@@ -911,7 +911,7 @@ function NamePanel({
                     <li key={i} className="flex items-center gap-2 text-[13.5px]">
                       <ActBadge act={s.act} />
                       <span className="font-semibold text-ink">{s.role}</span>
-                      <span className="text-ink-3">{ACT_LABEL[s.act]}</span>
+                      <span className="text-ink-3">{actLabel(s.act)}</span>
                     </li>
                   ))}
                 </ol>
