@@ -34,6 +34,9 @@ export interface ScopeMatter {
   bqVersionId: string | null;
   committeeCode: string;
   withdrawn: boolean;
+  /// Its sitting was cancelled. Cancelling a sitting leaves its matters as they were, and a
+  /// matter can no longer be withdrawn from it, so an undecided one there counts as withdrawn.
+  sittingCancelled: boolean;
   tabledAt: Date | null;
   record: DecisionRecord | null;
   /// Where it is tabled, for saying where the approval is waiting.
@@ -75,7 +78,8 @@ function inDecisionOrder(ms: readonly ScopeMatter[]): ScopeMatter[] {
 /**
  * Where scope approval stands for an exercise. `versions` are the bill's versions; the one
  * that counts is the finalised one (at most one stands). Matters before another committee
- * than the one configured, and withdrawn ones, count for nothing.
+ * than the one configured, withdrawn ones, and undecided ones at a cancelled sitting count
+ * for nothing.
  */
 export function scopeApproval(
   rule: ScopeRule | null,
@@ -88,7 +92,7 @@ export function scopeApproval(
   if (rule.scopeApprovalRequired === false) return { state: "NOT_REQUIRED", ...none };
   if (!rule.scopeCommitteeCode) return { state: "COMMITTEE_NOT_SET", ...none };
   const finalised = versions.find((v) => v.status === "FINALISED") ?? null;
-  const counted = matters.filter((m) => !m.withdrawn && m.committeeCode === rule.scopeCommitteeCode);
+  const counted = matters.filter((m) => !m.withdrawn && !(m.sittingCancelled && m.record == null) && m.committeeCode === rule.scopeCommitteeCode);
   const earlier = counted
     .filter((m) => m.bqVersionId !== finalised?.id && m.record?.outcome === "CARRIED")
     .map((m) => versions.find((v) => v.id === m.bqVersionId)?.versionNo ?? null)

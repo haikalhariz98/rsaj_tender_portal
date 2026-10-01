@@ -214,7 +214,7 @@ async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>,
     db.committeeDecision.findMany({
       where: { matterKind: "SCOPE", bqVersion: { exerciseId: ex.id } },
       orderBy: [{ tabledAt: "desc" }, { id: "desc" }],
-      select: { id: true, meetingId: true, outcome: true, withdrawnAt: true, tabledAt: true, decisionDate: true, notApprovedOutcomeNameEn: true, bqVersion: { select: { versionNo: true } }, meeting: { select: { reference: true, meetingDate: true, committee: { select: { nameEn: true } } } }, tabledBy: { select: { name: true } } },
+      select: { id: true, meetingId: true, outcome: true, withdrawnAt: true, tabledAt: true, decisionDate: true, notApprovedOutcomeNameEn: true, bqVersion: { select: { versionNo: true } }, meeting: { select: { reference: true, meetingDate: true, status: true, committee: { select: { nameEn: true } } } }, tabledBy: { select: { name: true } } },
     }),
   ]);
   const holders = committee ? secretariatHoldersOn(roster, committee.secretariatRoleCode, org.today) : [];
@@ -250,8 +250,9 @@ async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>,
       committee: m.meeting.committee.nameEn,
       tabledOn: m.tabledAt ? storedDay(m.tabledAt) : null,
       tabledBy: m.tabledBy ? `${m.tabledBy.name}, ${ATTESTED}` : null,
-      outcome: m.withdrawnAt ? "Withdrawn" : OUTCOME[m.outcome] ?? m.outcome,
-      outcomeTone: (m.withdrawnAt ? "neutral" : m.outcome === "CARRIED" ? "ok" : m.outcome === "NOT_CARRIED" ? "err" : m.outcome === "DEFERRED" ? "warn" : "info") as "ok" | "err" | "warn" | "info" | "neutral",
+      // An undecided matter at a cancelled sitting counts for nothing (scopeApproval), as a withdrawn one.
+      outcome: m.withdrawnAt ? "Withdrawn" : m.meeting.status === "CANCELLED" && m.outcome === "PENDING" ? "Sitting cancelled, not decided" : OUTCOME[m.outcome] ?? "Outcome not known",
+      outcomeTone: (m.withdrawnAt || (m.meeting.status === "CANCELLED" && m.outcome === "PENDING") ? "neutral" : m.outcome === "CARRIED" ? "ok" : m.outcome === "NOT_CARRIED" ? "err" : m.outcome === "DEFERRED" ? "warn" : "info") as "ok" | "err" | "warn" | "info" | "neutral",
       decidedOn: m.decisionDate ? storedDay(m.decisionDate) : null,
       notApproved: m.notApprovedOutcomeNameEn,
     })),

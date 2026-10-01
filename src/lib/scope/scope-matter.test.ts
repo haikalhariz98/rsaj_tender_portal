@@ -16,7 +16,7 @@ function record(outcome: DecisionRecord["outcome"], decided: string, notApproved
     quorum: { required: 3, present: 3, recused: 0 }, votingRule: { rule: "SIMPLE_MAJORITY", provenance: "ASSUMED" }, notApproved, note: "", votes: [],
   };
 }
-const matter = (id: string, x: Partial<ScopeMatter> = {}): ScopeMatter => ({ id, bqVersionId: "v1", committeeCode: "TECH", withdrawn: false, tabledAt: day("2026-09-20"), record: null, sittingReference: "SIT/1", ...x });
+const matter = (id: string, x: Partial<ScopeMatter> = {}): ScopeMatter => ({ id, bqVersionId: "v1", committeeCode: "TECH", withdrawn: false, sittingCancelled: false, tabledAt: day("2026-09-20"), record: null, sittingReference: "SIT/1", ...x });
 
 describe("scopeApproval: three-state rule, never a quiet 'not required' (OD-9)", () => {
   it("an unset rule is RULE_NOT_SET, not NOT_REQUIRED; a method no longer configured says so", () => {
@@ -55,6 +55,14 @@ describe("scopeApproval: three-state rule, never a quiet 'not required' (OD-9)",
   it("withdrawn matters and matters before another committee count for nothing", () => {
     expect(scopeApproval(rule, [v1], [matter("d1", { withdrawn: true, record: record("CARRIED", "2026-09-25") })]).state).toBe("NOT_TABLED");
     expect(scopeApproval(rule, [v1], [matter("d1", { committeeCode: "BOARD", record: record("CARRIED", "2026-09-25") })]).state).toBe("NOT_TABLED");
+  });
+  it("an undecided matter at a cancelled sitting counts as withdrawn: it never blocks for ever, and the version is tabled again", () => {
+    const stranded = matter("d1", { sittingCancelled: true });
+    expect(scopeApproval(rule, [v1], [stranded]).state).toBe("NOT_TABLED");
+    expect(codes(scopeCitationFault({ exercise: { id: "x1", status: "DOCUMENTS_IN_PREPARATION" }, rule, version: { id: "v1", exerciseId: "x1", status: "FINALISED" }, sitting: { committeeCode: "TECH", frozen: false }, matters: [stranded] }))).toEqual([]);
+    expect(scopeApproval(rule, [v1], [stranded, matter("d2", { tabledAt: day("2026-09-28") })])).toMatchObject({ state: "PENDING", decisive: { id: "d2" } });
+    // A decision recorded before the sitting was cancelled still stands.
+    expect(scopeApproval(rule, [v1], [matter("d1", { sittingCancelled: true, record: record("CARRIED", "2026-09-25") })]).state).toBe("APPROVED");
   });
   it("approval belongs to one version: a finalised revision is not approved by its predecessor's decision", () => {
     const versions = [{ id: "v1", versionNo: 1, status: "SUPERSEDED" as const }, { id: "v2", versionNo: 2, status: "FINALISED" as const }];
