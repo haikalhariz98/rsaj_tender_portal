@@ -39,6 +39,8 @@ const SEGMENT_LABEL: Record<string, string> = {
   requisitions: "Requisitions",
   awards: "Awards",
   securities: "Securities",
+  approvals: "Awaiting decision",
+  audit: "Audit trail",
   print: "Print",
   // Short: the crumb shares the bar with search. The page title says the rest.
   receive: "Receive",

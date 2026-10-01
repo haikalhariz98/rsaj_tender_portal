@@ -11,6 +11,7 @@ import {
   CheckIcon,
   ChevronDown,
   ClipboardIcon,
+  ClockIcon,
   FilesIcon,
   GavelIcon,
   GlobeIcon,
@@ -48,6 +49,7 @@ const ICONS: Record<string, ComponentType<{ size?: number }>> = {
   clipboard: ClipboardIcon,
   award: AwardIcon,
   shield: ShieldIcon,
+  clock: ClockIcon,
 };
 
 /// Configuration's sections in the sidebar's own shape. Inside Configuration the

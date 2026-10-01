@@ -175,6 +175,13 @@ export const CONFIG_SECTIONS: {
         built: true,
       },
       {
+        href: "/configuration/audit",
+        label: "Audit trail",
+        description: "Every change on record, and its export with a digest for an outside auditor.",
+        icon: "clock",
+        built: true,
+      },
+      {
         href: "/configuration/templates",
         label: "Templates",
         description: "The certificates, letters and routing sheets the portal issues.",
