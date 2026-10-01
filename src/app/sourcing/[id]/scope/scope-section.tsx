@@ -157,7 +157,7 @@ export function ScopeSection({ d }: { d: Data }) {
           <KeyValues
             columns={3}
             items={[
-              { label: "Approved by a committee", value: approval.rule.required === NOT_SET ? <span className="flex flex-col items-start gap-1"><Badge tone="warn">Not set</Badge><Link href={approval.configHref} className="text-[12.5px] font-semibold">Set it under Configuration</Link></span> : approval.rule.required },
+              { label: "Needs committee approval", value: approval.rule.required === NOT_SET ? <span className="flex flex-col items-start gap-1"><Badge tone="warn">Not set</Badge><Link href={approval.configHref} className="text-[12.5px] font-semibold">Set it under Configuration</Link></span> : approval.rule.required },
               { label: "Committee", value: approval.rule.committee ?? "—" },
               { label: "Where the rule came from", value: approval.rule.provenance ?? "—" },
             ]}

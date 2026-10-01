@@ -63,6 +63,10 @@ export const NOT_SET = "Not set";
 /// Where a configured value came from (the three-state honesty of AGENTS.md).
 export const PROVENANCE_LABEL: Readonly<Record<"STATED" | "OBSERVED" | "ASSUMED", string>> = { STATED: "Stated", OBSERVED: "Observed", ASSUMED: "Assumed" };
 export const NO_LIMIT = "No limit set";
+
+/// How many people verified a panel, against the most its form allows: a count of people is not
+/// "3 of 6", which reads as three of six having done it.
+export const signatoriesText = (people: number, limit: number | null) => (limit == null ? `${people} · ${NO_LIMIT}` : `${people} (at most ${limit})`);
 /// The lead-time reading (OD-3), shown with it.
 export const LEAD_READING = "Ready when the last version was made on or before the closing day less the lead (an assumed reading).";
 

@@ -32,6 +32,7 @@ import {
   LEAD_STATE_BADGE,
   leadTimeText,
   NO_LIMIT,
+  signatoriesText,
   NOT_SET,
   PACK_CARD_HEADING,
   PANEL_STATE_LABEL,
@@ -168,7 +169,7 @@ export async function scopeTab(exerciseId: string) {
         return { code: c.code, label: c.labelEn, verifiedBy: v ? `${v.person.name}, ${ATTESTED}` : null, verifiedOn: v ? storedDay(v.verifiedOn) : null, note: v?.note || null };
       }),
       cleared: panel ? panel.verifications.filter((v) => v.clearedAt != null).map((v) => ({ column: v.columnLabelSnapshot, by: v.person.name, clearedOn: storedDay(v.clearedAt!) })) : [],
-      signatories: policy.panelSignatoryLimit == null ? `${signatories} · ${NO_LIMIT}` : `${signatories} of ${policy.panelSignatoryLimit}`,
+      signatories: signatoriesText(signatories, policy.panelSignatoryLimit),
       signedFormScans: panel?.liveSulitScans ?? 0,
       /// What the edit form starts from: the stored values, as strings (never labels).
       raw: {

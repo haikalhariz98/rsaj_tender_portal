@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { BQ_SCOPED_BY, BQ_ITEM_KINDS } from "./types";
-import { BQ_READABLE_STATEMENT, ESTIMATE_SEALED_STATEMENT, ESTIMATE_STATE_LABEL, EVENT_KIND_LABEL, firmValueText, ITEM_KIND_LABEL, LEAD_STATE_BADGE, leadTimeText, PACK_CARD_HEADING, PANEL_STATE_LABEL, SCOPE_CODES, scopeFaultText, SCOPED_BY_LABEL, sealedVersion } from "./labels";
+import { BQ_READABLE_STATEMENT, ESTIMATE_SEALED_STATEMENT, ESTIMATE_STATE_LABEL, EVENT_KIND_LABEL, firmValueText, ITEM_KIND_LABEL, LEAD_STATE_BADGE, leadTimeText, PACK_CARD_HEADING, PANEL_STATE_LABEL, SCOPE_CODES, scopeFaultText, SCOPED_BY_LABEL, sealedVersion, signatoriesText } from "./labels";
 
 describe("every code has words, and no words are a code (AGENTS.md rule 5)", () => {
   it("each code renders a sentence that is not the code", () => {
@@ -72,5 +72,13 @@ describe("an estimate refusal is rendered from its code alone (refuseCodes passe
     const t = scopeFaultText("TOO_LARGE");
     expect(t).toBe("The figure is too large to record: an amount holds at most 16 digits before the decimal point.");
     expect(t).not.toMatch(/\d{3,}/);
+  });
+});
+
+describe("signatoriesText", () => {
+  it("a count of people with the most the form allows, never 'x of y'", () => {
+    expect(signatoriesText(3, 6)).toBe("3 (at most 6)");
+    expect(signatoriesText(0, 6)).toBe("0 (at most 6)");
+    expect(signatoriesText(3, null)).toBe("3 · No limit set");
   });
 });
