@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { deciderFaults } from "@/lib/requisition/holders";
+import { nameCitationFault } from "@/lib/window/name-citation";
+
 import { appointmentPreview, invitationFault, resolveNameApproval, type FunderContext } from "./approval";
 import { SPEC_MATRIX, SPEC_METHODS } from "./fixture";
 import type { Method } from "./types";
@@ -53,12 +56,31 @@ describe("approval of the name (FR-MTD-008)", () => {
   it("is not asked of a method that does not require it", () => {
     expect(resolveNameApproval(ctx, m("open_tender"), 420_000).nameState).toBe("NOT_REQUIRED");
   });
-  it("a route with a committee step is refused with its exit, not left undischargeable", () => {
+  // 6.5 OD-12 (replaces 6.3 BD-7's "refused with its exit", flagged, stricter): the route with a
+  // committee step opens; nobody can decide that step in person; invitation is refused while it
+  // waits; and only a citation of this exercise's matter on the name discharges it (each refusal of
+  // nameCitationFault is in src/lib/window/name-citation.test.ts).
+  it("a route with a committee step opens, and invitation waits until a citation discharges the step", () => {
     const withCommittee = {
       ...SPEC_MATRIX,
       rules: SPEC_MATRIX.rules.map((r) => (r.ruleKey === "NAME_QUOTATION" ? { ...r, recommenders: [...r.recommenders, { roleCode: "QC", act: "R" as const }] } : r)),
     };
-    expect(resolveNameApproval({ ...ctx, dal: withCommittee }, m("selective_quotation"), 80_000).nameState).toBe("HAS_COMMITTEE_STEP");
+    const r = resolveNameApproval({ ...ctx, dal: withCommittee }, m("selective_quotation"), 80_000);
+    expect(r.nameState).toBe("RESOLVED");
+    const found = r.chain.find((s) => s.committeeCode);
+    expect(found).toMatchObject({ committeeCode: "QC", act: "R" });
+    const step = { committeeCode: found!.committeeCode ?? null, act: found!.act as string };
+    // A person's decision on the committee step is refused: it is discharged by the committee's decision.
+    const holders = { scope: null, holderIds: ["p1"], delegates: [] };
+    const person = deciderFaults({ committeeCode: step.committeeCode, nonDelegable: false, decision: "PENDING" }, { today: "2026-10-01", holders, declaredConflictIds: [], person: { id: "p1", isActive: true }, requesterId: "p9", endorserIds: [], otherDeciderIds: [], earlierDone: true, decidedOn: "2026-10-01", openedOn: "2026-10-01", value: 8_000_000n });
+    expect(person.faults).toEqual(["COMMITTEE_STEP"]);
+    // While the step waits, the route is pending and invitation is refused.
+    expect(invitationFault(m("selective_quotation"), [{ status: "PENDING", openedAt: new Date("2026-10-01") }])?.code).toBe("NAME_NOT_APPROVED");
+    // Only this exercise's matter on the name, before the step's committee, for its act, discharges it.
+    const matter = { id: "d41", exerciseId: "x1", matterKind: "EXERCISE", domain: "name_approval", act: "R", committeeCode: "QC", decidedOn: "2026-10-02" };
+    expect(nameCitationFault(matter, step, "x1", "2026-10-01", [])).toBeNull();
+    expect(nameCitationFault({ ...matter, domain: "appointment" }, step, "x1", "2026-10-01", [])).toBe("NOT_A_NAME_MATTER");
+    expect(nameCitationFault({ ...matter, exerciseId: "x2" }, step, "x1", "2026-10-01", [])).toBe("NOT_THIS_EXERCISE");
   });
   it("no rule for the method's key is said, not guessed", () => {
     const none = { ...SPEC_MATRIX, rules: SPEC_MATRIX.rules.filter((r) => r.domain !== "name_approval") };

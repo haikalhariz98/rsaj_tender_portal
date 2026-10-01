@@ -146,19 +146,19 @@ export function appointmentPreview(ctx: FunderContext, method: Method | null, va
   return preview(ctx, APPOINTMENT_DOMAIN, method, value);
 }
 
-export type NameApprovalState = "NOT_REQUIRED" | "NO_METHOD_KEY" | "NO_RULE" | "HAS_COMMITTEE_STEP" | "RESOLVED";
+export type NameApprovalState = "NOT_REQUIRED" | "NO_METHOD_KEY" | "NO_RULE" | "RESOLVED";
 
 /**
- * The route for approval of the name (FR-MTD-008), where the method asks for one. A
- * committee step cannot be discharged on an exercise yet (exercises are not tabled at
- * sittings until 6.5), so a route with one is refused and says so (build decision).
+ * The route for approval of the name (FR-MTD-008), where the method asks for one. 6.5 lifts
+ * 6.3 BD-7 (OD-12): a route with a committee step opens, and the step is discharged only by
+ * citing the committee's decision on a matter tabled against the exercise on the name
+ * (`nameCitationFault`); until then the route is pending and invitation is refused.
  */
 export function resolveNameApproval(ctx: FunderContext, method: Method, value: number): AppointmentPreview & { nameState: NameApprovalState } {
   if (!method.requiresNameApproval) return { ...EMPTY("NO_RULE", method.code), nameState: "NOT_REQUIRED" };
   const p = preview(ctx, NAME_APPROVAL_DOMAIN, method, value);
   if (p.state === "NO_METHOD_KEY") return { ...p, nameState: "NO_METHOD_KEY" };
   if (p.state === "NO_RULE") return { ...p, nameState: "NO_RULE" };
-  if (p.chain.some((s) => s.committeeCode)) return { ...p, nameState: "HAS_COMMITTEE_STEP" };
   return { ...p, nameState: "RESOLVED" };
 }
 
@@ -256,12 +256,14 @@ export function nameRouteLabel(status: string, warnings: unknown): string {
   return ({ PENDING: "In progress", APPROVED: "Approved", REJECTED: "Refused" } as Record<string, string>)[status] ?? "Closed";
 }
 
-export type NameRequestFault = "NAME_EXERCISE_CANCELLED" | "NAME_NOT_ASKED" | "NAME_ALREADY_REQUESTED" | "NAME_REJECTION_UNRESOLVED" | "TIME_ZONE_UNSET";
+export type NameRequestFault = "NAME_EXERCISE_CANCELLED" | "NAME_LIST_FROZEN" | "NAME_NOT_ASKED" | "NAME_ALREADY_REQUESTED" | "NAME_REJECTION_UNRESOLVED" | "TIME_ZONE_UNSET";
 
 /**
  * Whether the name may be sent for approval now. While the exercise is a draft or in
- * preparation (it gates invitation, not preparation — ruling on BD-4), and again after
- * a route was refused or withdrawn; never while one is open or approved.
+ * preparation (it gates invitation, not preparation — ruling on BD-4), with approval for
+ * tendering and approved for tendering (6.5: BD-4 extended, the list may change until it is
+ * invited), and again after a route was refused or withdrawn; never while one is open or
+ * approved, and never once published: the invited list is frozen (ADR 0015).
  */
 export function nameRequestFault(
   status: ExerciseStatus,
@@ -270,6 +272,7 @@ export function nameRequestFault(
   today: string | null,
 ): Finding<NameRequestFault> | null {
   if (status === "CANCELLED") return { code: "NAME_EXERCISE_CANCELLED", level: "block" };
+  if (status === "ADVERTISED" || status === "INVITED") return { code: "NAME_LIST_FROZEN", level: "block" };
   if (!method?.requiresNameApproval) return { code: "NAME_NOT_ASKED", level: "block" };
   if (today == null) return { code: "TIME_ZONE_UNSET", level: "block" };
   if (instances.some((i) => i.status === "PENDING" || i.status === "APPROVED")) return { code: "NAME_ALREADY_REQUESTED", level: "block" };

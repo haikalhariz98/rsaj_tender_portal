@@ -92,3 +92,6 @@ export function inviteeEditFault(status: ExerciseStatus): Finding<InviteeEditFau
 
 /// The name routes a change of the list withdraws: every one pending or approved.
 export const routesWithdrawnByListChange = <R extends { status: string }>(nameRoutes: readonly R[]): R[] => nameRoutes.filter((r) => r.status === "PENDING" || r.status === "APPROVED");
+
+/// Requesting the name needs a list to freeze (ADR 0015): the route approves these contractors.
+export const nameListFault = (proposed: readonly unknown[]): Finding<"NAME_NO_INVITEES"> | null => (proposed.length === 0 ? { code: "NAME_NO_INVITEES", level: "block" } : null);

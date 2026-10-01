@@ -114,8 +114,6 @@ export const NAME_STATE_TEXT: Record<NameApprovalState, string> = {
   NOT_REQUIRED: "Not required for this method.",
   NO_METHOD_KEY: "This method asks for name approval but is not tied to any approval rule. Set its approval matrix method under Reference data.",
   NO_RULE: "No approval rule for the name matches this method. Add one to the approval matrix.",
-  HAS_COMMITTEE_STEP:
-    "The route for name approval includes a committee step, and an exercise cannot yet be tabled at a sitting. Record the name approval outside the portal, or change the rule so that offices decide it.",
   RESOLVED: "Resolved",
 };
 
@@ -332,6 +330,10 @@ export function findingText(f: Finding): string {
       return `Since it was last saved, the configuration now gives a different result for ${d.changes}. Open Edit and save it again, so the change is recorded, then move it.`;
     case "NAME_EXERCISE_CANCELLED":
       return "A cancelled exercise's name is not sent for approval.";
+    case "NAME_LIST_FROZEN":
+      return "The exercise is published, so its invitee list stands as approved. To invite others, cancel the exercise and open a replacement.";
+    case "NAME_NO_INVITEES":
+      return "No contractor is proposed for invitation, so there is no list to approve. Add the invitees on the Invitation tab first.";
     case "NAME_NOT_ASKED":
       return "This exercise's method does not ask for name approval.";
     // actions
