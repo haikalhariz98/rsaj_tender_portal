@@ -11,7 +11,11 @@
 
 import { methodKeeps, ownerState, purposeFits, type OwnerFacts } from "./attach";
 import { EXIT_TEXT, PURPOSE_LABEL } from "./labels";
-import { ATTACHMENT_PURPOSES, OWNER_ACT_PURPOSES, type AttachmentPurpose, type OwnerKind } from "./types";
+import { ATTACHMENT_PURPOSES, OWNER_ACT_PURPOSES, OWNER_KINDS, PURPOSE_OWNER, type AttachmentPurpose, type OwnerKind } from "./types";
+
+/// The kinds a received document can be attached to from the shared choice: those with at
+/// least one purpose that is not attached by its owner's own act (a bill version is not one).
+export const ATTACHABLE_OWNER_KINDS: readonly OwnerKind[] = OWNER_KINDS.filter((k) => ATTACHMENT_PURPOSES.some((p) => PURPOSE_OWNER[p] === k && !OWNER_ACT_PURPOSES.includes(p)));
 
 export const OWNER_KIND_LABEL: Readonly<Record<OwnerKind, string>> = {
   meeting: "Committee sitting",

@@ -10,8 +10,7 @@ import { buttonClass } from "@/components/ui/button";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 import { Callout } from "@/components/ui/feedback";
 import { Field, Select } from "@/components/ui/field";
-import { OWNER_KINDS } from "@/lib/documents/types";
-import { OWNER_KIND_LABEL, ownerHref } from "@/lib/documents/targets";
+import { ATTACHABLE_OWNER_KINDS, OWNER_KIND_LABEL, ownerHref } from "@/lib/documents/targets";
 import type { OwnerKind } from "@/lib/documents/types";
 
 type Targets = NonNullable<Awaited<ReturnType<typeof loadAttachTargets>>>;
@@ -67,7 +66,7 @@ export function AttachToRecordButton({
   }, [open]);
 
   const chooseKind = (k: string) => {
-    const next = OWNER_KINDS.find((x) => x === k) ?? "";
+    const next = ATTACHABLE_OWNER_KINDS.find((x) => x === k) ?? "";
     setKind(next);
     setRecordId("");
     setPurpose("");
@@ -136,7 +135,7 @@ export function AttachToRecordButton({
                   )}
                   <Field label="Kind of record" required htmlFor="attach-kind">
                     <Select id="attach-kind" value={kind} onChange={(e) => chooseKind(e.target.value)} placeholder="Choose a kind of record">
-                      {OWNER_KINDS.map((k) => (
+                      {ATTACHABLE_OWNER_KINDS.map((k) => (
                         <option key={k} value={k}>
                           {OWNER_KIND_LABEL[k]}
                         </option>

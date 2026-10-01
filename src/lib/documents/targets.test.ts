@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { attachFault, type ExerciseMethodFlags } from "./attach";
-import { attachableVersion, attachTargets, exercisePurposes, ownerHref, type TargetOwner } from "./targets";
+import { ATTACHABLE_OWNER_KINDS, attachableVersion, attachTargets, exercisePurposes, ownerHref, type TargetOwner } from "./targets";
 import { ATTACHMENT_PURPOSES } from "./types";
 
 const exercise = (flags: ExerciseMethodFlags | null, over: Partial<{ status: "DRAFT" | "CANCELLED"; awardApproved: boolean }> = {}): TargetOwner => ({
@@ -91,5 +91,11 @@ describe("attachableVersion", () => {
   });
   it("is null where every version is withdrawn", () => {
     expect(attachableVersion([v("a", 1, true)])).toBeNull();
+  });
+});
+
+describe("the kinds offered for a received document", () => {
+  it("are every owner kind but the bill version, whose only purpose its import attaches", () => {
+    expect(ATTACHABLE_OWNER_KINDS).toEqual(["meeting", "exercise", "award", "delegation", "specificationPanel"]);
   });
 });
