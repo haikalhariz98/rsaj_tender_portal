@@ -237,22 +237,19 @@ export function FinancePanel({
             { id: "settled", label: "Settled" },
           ]}
           columns={[
-            { key: "code", label: "Budget code", width: "20%", sortable: true },
-            { key: "account", label: "Account code", width: "12%" },
-            { key: "compares", label: "Compares", width: "10%" },
-            { key: "portal", label: "Portal", width: "11%", numeric: true, sortable: true },
-            {
-              key: "finance",
-              label: "Finance & Operations",
-              width: "13%",
-              numeric: true,
-              sortable: true,
-            },
-            { key: "difference", label: "Difference", width: "11%", numeric: true, sortable: true },
-            { key: "reason", label: "Reason", width: "13%" },
-            { key: "lastSeen", label: "Last seen", width: "10%", sortable: true },
+            { key: "code", label: "Budget code", sortable: true, mobile: "primary" },
+            { key: "account", label: "Account code", width: "104px", mobile: "meta" },
+            // The code's own line already says what it compares; the column repeats it, so
+            // it waits for a wide screen.
+            { key: "compares", label: "Compares", width: "120px", hideBelow: "2xl", mobile: "meta" },
+            { key: "portal", label: "Portal", width: "104px", numeric: true, sortable: true, mobile: "meta" },
+            { key: "finance", label: "Finance & Operations", width: "112px", numeric: true, sortable: true, mobile: "meta" },
+            { key: "difference", label: "Difference", width: "112px", numeric: true, sortable: true, mobile: "meta" },
+            { key: "reason", label: "Reason", width: "144px", mobile: "meta" },
+            { key: "lastSeen", label: "Last seen", width: "96px", sortable: true, mobile: "meta" },
           ]}
           rows={rows}
+          actionsWidth={72}
           actions={(id) => {
             const l = lines.find((x) => x.variance.id === id);
             if (!l || l.settled) return null;

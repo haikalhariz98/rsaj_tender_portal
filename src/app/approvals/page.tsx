@@ -79,9 +79,9 @@ export default async function ApprovalsPage() {
             rowOpens
             columns={[
               { key: "matter", label: "Matter", mobile: "primary" },
-              { key: "office", label: "Office", width: "22%", sortable: true, mobile: "meta" },
+              { key: "office", label: "Office", width: "160px", sortable: true, mobile: "meta" },
               { key: "act", label: "Act", width: "170px", hideBelow: "xl" },
-              { key: "waiting", label: "Waiting", width: "132px", sortable: true, mobile: "meta" },
+              { key: "waiting", label: "Waiting", width: "148px", sortable: true, mobile: "meta" },
               { key: "why", label: "Where it stands", width: "220px", hideBelow: "md", mobile: "meta" },
             ]}
             rows={rows}

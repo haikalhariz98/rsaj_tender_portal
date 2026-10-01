@@ -54,6 +54,10 @@ export interface Column {
   /// a percentage of a narrow card is narrower than the figure it must hold.
   width?: string;
   numeric?: boolean;
+  /// Text in this column never wraps and is never cut: a date, a reference. Size the
+  /// column to hold it. Without it text wraps onto a second line rather than being
+  /// truncated, so the main column of a list always shows what the row is.
+  nowrap?: boolean;
   sortable?: boolean;
   /// Drop this column below the named breakpoint, for a secondary column a narrow
   /// card cannot afford.
@@ -144,19 +148,20 @@ function cellText(cell: Cell | undefined): string {
 
 const dash = <span className="text-ink-4">—</span>;
 
-function CellView({ cell }: { cell: Cell | undefined }) {
+function CellView({ cell, nowrap = false }: { cell: Cell | undefined; nowrap?: boolean }) {
   if (!cell) return dash;
+  // Text wraps by default (a long name goes onto a second line, break-words so a long
+  // reference cannot push the column wider); `nowrap` columns keep one line.
+  const line = nowrap ? "whitespace-nowrap" : "break-words";
   switch (cell.kind) {
     case "stack":
       return (
         <div className="min-w-0">
-          <div className="truncate font-semibold text-ink" title={cell.title}>
-            {cell.title}
-          </div>
+          <div className={cx(line, "font-semibold text-ink")}>{cell.title}</div>
           {cell.sub && (
             <div
               className={cx(
-                "truncate text-[12.5px] text-ink-3",
+                "break-words text-[12.5px] text-ink-3",
                 cell.monoSub && "font-mono text-[12px]",
               )}
             >
@@ -166,11 +171,7 @@ function CellView({ cell }: { cell: Cell | undefined }) {
         </div>
       );
     case "text":
-      return (
-        <span className={cx("block truncate", cell.dim ? "text-ink-3" : "text-ink")} title={cell.text}>
-          {cell.text}
-        </span>
-      );
+      return <span className={cx("block", line, cell.dim ? "text-ink-3" : "text-ink")}>{cell.text}</span>;
     case "money":
       return cell.value == null ? (
         dash
@@ -179,7 +180,7 @@ function CellView({ cell }: { cell: Cell | undefined }) {
       );
     case "badge":
       return (
-        <Badge tone={cell.tone} title={cell.text}>
+        <Badge tone={cell.tone} title={cell.text} className="md:whitespace-nowrap">
           {cell.text}
         </Badge>
       );
@@ -193,7 +194,7 @@ function CellView({ cell }: { cell: Cell | undefined }) {
       return (
         <span className="flex min-w-0 items-center gap-2">
           <Avatar name={cell.name} size="xs" />
-          <span className="truncate">{cell.name}</span>
+          <span className="min-w-0 break-words">{cell.name}</span>
         </span>
       );
     case "link":
@@ -201,11 +202,11 @@ function CellView({ cell }: { cell: Cell | undefined }) {
         <div className="min-w-0">
           <Link
             href={cell.href}
-            className="block truncate font-semibold text-brand-700 no-underline hover:text-brand-800 hover:underline"
+            className={cx("block font-semibold text-brand-700 no-underline hover:text-brand-800 hover:underline", line)}
           >
             {cell.text}
           </Link>
-          {cell.sub && <div className="truncate text-[12.5px] text-ink-3">{cell.sub}</div>}
+          {cell.sub && <div className="break-words text-[12.5px] text-ink-3">{cell.sub}</div>}
         </div>
       );
     case "avatars":
@@ -250,6 +251,7 @@ export function DataList({
   filters = [],
   rowAction,
   actions,
+  actionsWidth,
   rowOpens = false,
   selectable = true,
   searchPlaceholder = "Search…",
@@ -268,6 +270,9 @@ export function DataList({
   /// Arbitrary per-row controls, for screens whose row action opens an editor rather
   /// than navigating. Renders under an "Actions" header.
   actions?: (id: string) => ReactNode;
+  /// Pixels for the actions column; 128 holds two icon buttons or one labelled one. Give
+  /// less when a row has a single icon, so the room goes to the row's main column.
+  actionsWidth?: number;
   /// Clicking anywhere in a row presses its first action. Only for a list whose
   /// first action opens the record — never one that leads with a destructive one.
   rowOpens?: boolean;
@@ -579,7 +584,7 @@ export function DataList({
                   style={c.width ? { width: c.width } : undefined}
                 />
               ))}
-              {(rowAction || actions) && <col style={{ width: actions ? 128 : 56 }} />}
+              {(rowAction || actions) && <col style={{ width: actions ? (actionsWidth ?? 128) : 56 }} />}
             </colgroup>
             <thead>
               <tr className="border-y border-line bg-sunken">
@@ -607,7 +612,9 @@ export function DataList({
                         : undefined
                     }
                     className={cx(
-                      "px-4 py-2.5 text-[12px] font-semibold whitespace-nowrap text-ink-3",
+                      // A heading wraps onto a second line rather than being cut: a long
+                      // label ("Finance & Operations") must not need a wide column.
+                      "px-4 py-2.5 align-bottom text-[12px] leading-4 font-semibold text-ink-3",
                       c.numeric ? "text-right" : "text-left",
                       c.hideBelow && HIDE_BELOW[c.hideBelow],
                     )}
@@ -621,10 +628,11 @@ export function DataList({
                           // Held to the column: a heading wider than a narrow column is
                           // cut with an ellipsis rather than spilling into the next one.
                           "inline-flex max-w-full min-w-0 items-center gap-1 rounded-md align-middle hover:text-ink",
+                          c.numeric ? "text-right" : "text-left",
                           sort?.key === c.key && "text-ink",
                         )}
                       >
-                        <span className="min-w-0 truncate">{c.label}</span>
+                        <span className="min-w-0 break-words">{c.label}</span>
                         <span
                           aria-hidden="true"
                           className={cx("shrink-0 text-[9px]", sort?.key !== c.key && "opacity-40")}
@@ -706,7 +714,7 @@ export function DataList({
                         c.hideBelow && HIDE_BELOW[c.hideBelow],
                       )}
                     >
-                      <CellView cell={row.cells[c.key]} />
+                      <CellView cell={row.cells[c.key]} nowrap={c.nowrap} />
                     </td>
                   ))}
                   {actions && (

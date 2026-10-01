@@ -182,13 +182,13 @@ export function AvailabilityPanel({
             { key: "unit", label: "Owning department" },
           ]}
           columns={[
-            { key: "code", label: "Budget code", sortable: true },
-            { key: "allocated", label: "Allocated", width: "12%", numeric: true, sortable: true },
-            { key: "committed", label: "Committed", width: "12%", numeric: true, sortable: true, hideBelow: "md" },
-            { key: "spend", label: "Actual spend", width: "13%", numeric: true, sortable: true, hideBelow: "md" },
-            { key: "available", label: "Available", width: "12%", numeric: true, sortable: true },
+            { key: "code", label: "Budget code", sortable: true, mobile: "primary" },
+            { key: "allocated", label: "Allocated", width: "120px", numeric: true, sortable: true, mobile: "meta" },
+            { key: "committed", label: "Committed", width: "120px", numeric: true, sortable: true, hideBelow: "md", mobile: "meta" },
+            { key: "spend", label: "Actual spend", width: "120px", numeric: true, sortable: true, hideBelow: "md", mobile: "meta" },
+            { key: "available", label: "Available", width: "120px", numeric: true, sortable: true, mobile: "meta" },
             // A meter needs room for its bar and its figure: pixels, not a share.
-            { key: "utilisation", label: "Utilisation", width: "140px", sortable: true },
+            { key: "utilisation", label: "Utilisation", width: "140px", sortable: true, mobile: "meta" },
           ]}
           rows={rows}
           actions={(id) => {

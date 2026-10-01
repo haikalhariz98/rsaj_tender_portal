@@ -186,11 +186,11 @@ export default async function Dashboard() {
                 hrefTemplate: "/configuration/committees",
               }}
               columns={[
-                { key: "item", label: "Item", sortable: true },
-                { key: "type", label: "Type", width: "140px", sortable: true, hideBelow: "lg" },
-                { key: "value", label: "Value", width: "132px", numeric: true, sortable: true },
-                { key: "waiting", label: "Waiting", width: "104px", numeric: true, sortable: true },
-                { key: "with", label: "With", width: "190px", hideBelow: "md" },
+                { key: "item", label: "Item", sortable: true, mobile: "primary" },
+                { key: "type", label: "Type", width: "140px", sortable: true, hideBelow: "lg", mobile: "meta" },
+                { key: "value", label: "Value", width: "132px", numeric: true, sortable: true, mobile: "meta" },
+                { key: "waiting", label: "Waiting", width: "104px", numeric: true, sortable: true, mobile: "meta" },
+                { key: "with", label: "With", width: "190px", hideBelow: "md", mobile: "meta" },
               ]}
               rows={data.queue.map((item) => ({
                 id: item.decisionId,
@@ -299,10 +299,10 @@ export default async function Dashboard() {
                   <li key={m.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5">
                     <Dot tone="brand" />
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13.5px] font-semibold text-ink">
+                      <div className="text-[13.5px] font-semibold break-words text-ink">
                         {m.committeeName}
                       </div>
-                      <div className="truncate text-[12px] text-ink-3">{m.reference}</div>
+                      <div className="text-[12px] break-words text-ink-3">{m.reference}</div>
                     </div>
                     <div className="shrink-0 text-right">
                       <div className="text-[12.5px] font-bold text-ink tabular-nums">

@@ -100,10 +100,10 @@ export default async function AwardsPage() {
           rowOpens
           columns={[
             { key: "awardee", label: "Awardee", sortable: true, mobile: "primary" },
-            { key: "instrument", label: "Reference", width: "20%", hideBelow: "xl" },
-            { key: "value", label: "Value", width: "132px", numeric: true, sortable: true, mobile: "meta" },
-            { key: "status", label: "Status", width: "176px", sortable: true, mobile: "meta" },
-            { key: "checks", label: "Where it stands", width: "210px", hideBelow: "md", mobile: "meta" },
+            { key: "instrument", label: "Reference", width: "204px", nowrap: true, hideBelow: "xl" },
+            { key: "value", label: "Value", width: "128px", numeric: true, sortable: true, mobile: "meta" },
+            { key: "status", label: "Status", width: "192px", sortable: true, mobile: "meta" },
+            { key: "checks", label: "Where it stands", width: "190px", hideBelow: "md", mobile: "meta" },
           ]}
           rows={list}
         />

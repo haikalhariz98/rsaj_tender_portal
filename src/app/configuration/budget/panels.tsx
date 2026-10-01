@@ -205,15 +205,16 @@ function BudgetCodesPanel({
             { key: "unit", label: "Owning department" },
           ]}
           columns={[
-            { key: "code", label: "Budget code", sortable: true },
-            { key: "type", label: "Type", width: "10%", sortable: true, hideBelow: "2xl" },
-            { key: "unit", label: "Owning department", width: "20%", sortable: true, hideBelow: "lg" },
-            { key: "allocated", label: "Allocated", width: "12%", numeric: true, sortable: true, hideBelow: "md" },
-            { key: "available", label: "Available", width: "104px", numeric: true, sortable: true },
-            { key: "utilisation", label: "Utilisation", width: "14%", sortable: true, hideBelow: "md" },
-            { key: "status", label: "Status", width: "136px" },
+            { key: "code", label: "Budget code", sortable: true, mobile: "primary" },
+            { key: "type", label: "Type", width: "96px", sortable: true, hideBelow: "2xl", mobile: "meta" },
+            { key: "unit", label: "Owning department", width: "152px", sortable: true, hideBelow: "lg", mobile: "meta" },
+            { key: "allocated", label: "Allocated", width: "120px", numeric: true, sortable: true, hideBelow: "md", mobile: "meta" },
+            { key: "available", label: "Available", width: "120px", numeric: true, sortable: true, mobile: "meta" },
+            { key: "utilisation", label: "Utilisation", width: "128px", sortable: true, hideBelow: "md", mobile: "meta" },
+            { key: "status", label: "Status", width: "136px", mobile: "meta" },
           ]}
           rows={rows}
+          actionsWidth={72}
           actions={(id) => {
             const budgetCode = codes.find((c) => c.id === id);
             if (!budgetCode) return null;
@@ -301,17 +302,11 @@ function AllocationsPanel({
           ]}
           filters={[{ key: "type", label: "Type" }]}
           columns={[
-            { key: "code", label: "Budget code", width: "30%", sortable: true },
-            { key: "original", label: "Original", width: "16%", numeric: true, sortable: true },
-            { key: "revisions", label: "Revisions", width: "15%", numeric: true, sortable: true },
-            { key: "transfers", label: "Transfers", width: "15%", numeric: true, sortable: true },
-            {
-              key: "current",
-              label: "Current allocation",
-              width: "18%",
-              numeric: true,
-              sortable: true,
-            },
+            { key: "code", label: "Budget code", sortable: true, mobile: "primary" },
+            { key: "original", label: "Original", width: "120px", numeric: true, sortable: true, mobile: "meta" },
+            { key: "revisions", label: "Revisions", width: "120px", numeric: true, sortable: true, mobile: "meta" },
+            { key: "transfers", label: "Transfers", width: "120px", numeric: true, sortable: true, mobile: "meta" },
+            { key: "current", label: "Current allocation", width: "136px", numeric: true, sortable: true, mobile: "meta" },
           ]}
           rows={rows}
           actions={(id) => {
