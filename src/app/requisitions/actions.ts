@@ -52,6 +52,7 @@ import {
 } from "@/lib/requisition/repo";
 import { resolveRequisitionRoute } from "@/lib/requisition/route";
 import { assessSplitting, justifierFaults, splitApprovalFault, type JustifierFault, type SplitSubject } from "@/lib/requisition/splitting";
+import { MoveRefused, moveRequisition } from "@/lib/requisition/move";
 import { transitionFault, type TransitionContext } from "@/lib/requisition/status";
 import type { OrgUnitKind, RequisitionStatus } from "@/lib/requisition/types";
 import { ACT_LABEL } from "@/lib/labels";
@@ -113,17 +114,17 @@ async function inRequisition(id: string, fn: (tx: Tx, l: LoadedRequisition) => P
   return result ?? GONE;
 }
 
-/// Move a requisition from the status read under the lock, or report that it moved.
-async function moveStatus(tx: Tx, l: LoadedRequisition, to: RequisitionStatus, extra: Prisma.RequisitionUpdateManyMutationInput = {}) {
-  const moved = await tx.requisition.updateMany({ where: { id: l.req.id, status: l.req.status }, data: { status: to, ...extra } });
-  return moved.count === 1;
-}
-
 const CHANGED: FormState = { ok: false, message: "The requisition changed while this was being saved. Reload and try again." };
 
-/// As `moveStatus`, but a lost race rolls back everything written before it.
-async function mustMove(tx: Tx, l: LoadedRequisition, to: RequisitionStatus, extra: Prisma.RequisitionUpdateManyMutationInput = {}) {
-  if (!(await moveStatus(tx, l, to, extra))) throw new Refusal(CHANGED);
+/**
+ * Move a requisition from the status read under the lock (ruling C1): the state
+ * machine is asked inside the move, so no caller can write a status it refuses. A
+ * refusal or a lost race throws, rolling back everything written before it. The
+ * loaded row follows the move, so a second move in the same act starts from it.
+ */
+async function mustMove(tx: Tx, l: LoadedRequisition, to: RequisitionStatus, ctx: TransitionContext, extra: Prisma.RequisitionUpdateManyMutationInput = {}) {
+  await moveRequisition(tx, l.req, to, ctx, extra);
+  l.req.status = to;
 }
 
 /// A refusal found after a write in the same transaction: thrown to roll it back.
@@ -134,6 +135,7 @@ class Refusal extends Error {
 }
 function caught(e: unknown): FormState {
   if (e instanceof Refusal) return e.state;
+  if (e instanceof MoveRefused) return e.fault.code === "CHANGED" ? CHANGED : { ok: false, message: transitionFaultText(e.fault) };
   throw e;
 }
 
@@ -391,10 +393,12 @@ async function leaveDraftContext(tx: Tx, l: LoadedRequisition): Promise<Transiti
 export async function markEndorsed(_prev: FormState, data: FormData): Promise<FormState> {
   const id = String(data.get("id") ?? "");
   return inRequisition(id, async (tx, l): Promise<FormState> => {
-    const fault = transitionFault(l.req.status, "ENDORSED", await leaveDraftContext(tx, l));
+    const ctx = await leaveDraftContext(tx, l);
+    const fault = transitionFault(l.req.status, "ENDORSED", ctx);
     if (fault) return { ok: false, message: transitionFaultText(fault) };
-    await mustMove(tx, l, "ENDORSED");
-    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: l.req.status }, { status: "ENDORSED" }));
+    const from = l.req.status;
+    await mustMove(tx, l, "ENDORSED", ctx);
+    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: "ENDORSED" }));
     return { ok: true };
   });
 }
@@ -408,7 +412,8 @@ export async function returnRequisition(_prev: FormState, data: FormData): Promi
   const on = r.date("returnedOn", "Returned on");
   return inRequisition(id, async (tx, l): Promise<FormState> => {
     const returnedOn = on ? storedDay(on) : null;
-    const fault = transitionFault(l.req.status, "RETURNED", { today: l.org.today, reason, returnedToPersonId: to, returnedOn });
+    const ctx = { today: l.org.today, reason, returnedToPersonId: to, returnedOn };
+    const fault = transitionFault(l.req.status, "RETURNED", ctx);
     if (fault) {
       if (fault.code === "RETURN_DETAILS_REQUIRED") {
         const errors: Record<string, string> = {};
@@ -423,9 +428,9 @@ export async function returnRequisition(_prev: FormState, data: FormData): Promi
     const person = await tx.person.findFirst({ where: { id: to!, organisationId: l.org.id }, select: { name: true } });
     if (!person) return { ok: false, errors: { returnedToPersonId: "That person is not on file." } };
     const after = { status: "RETURNED" as const, returnedReason: reason, returnedToPersonId: to, returnedOn: on };
-    await mustMove(tx, l, "RETURNED", after);
-    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE",
-      diffFields({ status: l.req.status, returnedReason: l.req.returnedReason, returnedToPersonId: l.req.returnedToPersonId, returnedOn: l.req.returnedOn }, after), reason);
+    const before = { status: l.req.status, returnedReason: l.req.returnedReason, returnedToPersonId: l.req.returnedToPersonId, returnedOn: l.req.returnedOn };
+    await mustMove(tx, l, "RETURNED", ctx, after);
+    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields(before, after), reason);
     return { ok: true };
   });
 }
@@ -437,8 +442,9 @@ export async function reopenDraft(_prev: FormState, data: FormData): Promise<For
   return inRequisition(id, async (tx, l): Promise<FormState> => {
     const fault = transitionFault(l.req.status, "DRAFT", { today: l.org.today });
     if (fault) return { ok: false, message: transitionFaultText(fault) };
-    await mustMove(tx, l, "DRAFT");
-    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: l.req.status }, { status: "DRAFT" }), reason);
+    const from = l.req.status;
+    await mustMove(tx, l, "DRAFT", { today: l.org.today });
+    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: "DRAFT" }), reason);
     return { ok: true };
   });
 }
@@ -450,8 +456,9 @@ export async function cancelRequisition(_prev: FormState, data: FormData): Promi
   return inRequisition(id, async (tx, l): Promise<FormState> => {
     const fault = transitionFault(l.req.status, "CANCELLED", { today: l.org.today, reason });
     if (fault) return fault.code === "REASON_REQUIRED" ? { ok: false, errors: { reason: transitionFaultText(fault) } } : { ok: false, message: transitionFaultText(fault) };
-    await mustMove(tx, l, "CANCELLED", { cancelReason: reason });
-    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: l.req.status, cancelReason: l.req.cancelReason }, { status: "CANCELLED", cancelReason: reason }), reason);
+    const before = { status: l.req.status, cancelReason: l.req.cancelReason };
+    await mustMove(tx, l, "CANCELLED", { today: l.org.today, reason }, { cancelReason: reason });
+    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields(before, { status: "CANCELLED", cancelReason: reason }), reason);
     return { ok: true };
   });
 }
@@ -462,10 +469,11 @@ export async function closeRequisition(_prev: FormState, data: FormData): Promis
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
   return inRequisition(id, async (tx, l): Promise<FormState> => {
-    const fault = transitionFault(l.req.status, "CLOSED", { today: l.org.today });
+    const fault = transitionFault(l.req.status, "CLOSED", { today: l.org.today, reason });
     if (fault) return { ok: false, message: transitionFaultText(fault) };
-    await mustMove(tx, l, "CLOSED");
-    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: l.req.status }, { status: "CLOSED" }), reason);
+    const from = l.req.status;
+    await mustMove(tx, l, "CLOSED", { today: l.org.today, reason });
+    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: "CLOSED" }), reason);
     return { ok: true };
   });
 }
@@ -522,7 +530,8 @@ export async function registerRequisition(_prev: FormState, data: FormData): Pro
     const policy = await loadPolicy(l.org.id, tx);
     const nextProc = proc ?? l.req.erpRequisitionNo;
     const nextNm = nm ?? l.req.erpNoteNo;
-    const fault = transitionFault(l.req.status, "REGISTERED", { today: l.org.today, erpReferenceRequired: policy.erpReferenceRequired, erpRequisitionNo: nextProc, erpNoteNo: nextNm });
+    const regCtx = { today: l.org.today, erpReferenceRequired: policy.erpReferenceRequired, erpRequisitionNo: nextProc, erpNoteNo: nextNm };
+    const fault = transitionFault(l.req.status, "REGISTERED", regCtx);
     if (fault) {
       if (fault.code === "ERP_REFS_REQUIRED") {
         return { ok: false, errors: Object.fromEntries(fault.missing.map((m) => [m, "Required: the policy registers a requisition only with the finance system's numbers."])) };
@@ -539,9 +548,9 @@ export async function registerRequisition(_prev: FormState, data: FormData): Pro
     const refs = nextProc !== l.req.erpRequisitionNo || nextNm !== l.req.erpNoteNo
       ? { erpRequisitionNo: nextProc, erpNoteNo: nextNm, erpRefSource: "MANUAL" as const, erpRefRecordedAt: new Date() }
       : {};
-    await mustMove(tx, l, "REGISTERED", refs);
-    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE",
-      diffFields({ status: l.req.status, erpRequisitionNo: l.req.erpRequisitionNo, erpNoteNo: l.req.erpNoteNo }, { status: "REGISTERED", erpRequisitionNo: nextProc, erpNoteNo: nextNm }));
+    const before = { status: l.req.status, erpRequisitionNo: l.req.erpRequisitionNo, erpNoteNo: l.req.erpNoteNo };
+    await mustMove(tx, l, "REGISTERED", regCtx, refs);
+    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields(before, { status: "REGISTERED", erpRequisitionNo: nextProc, erpNoteNo: nextNm }));
     await linkMatchingMatters(tx, l.org.id, id);
     return { ok: true };
   });
@@ -688,8 +697,9 @@ export async function checkBudget(_prev: FormState, data: FormData): Promise<For
     await writeCheck(tx, l, snapshot, asAt);
     const to: RequisitionStatus = snapshot.verdict === "EXCEEDS" ? "OVER_BUDGET" : "BUDGET_CHECKED";
     if (to !== l.req.status) {
-      await mustMove(tx, l, to);
-      await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: l.req.status }, { status: to }));
+      const from = l.req.status;
+      await mustMove(tx, l, to, { today: l.org.today });
+      await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: to }));
     }
     return { ok: true };
   });
@@ -885,7 +895,8 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
       sourcingPermitted: gate.sourcingPermitted,
       fundingPosture: gate.posture,
     };
-    await mustMove(tx, l, "PENDING_APPROVAL", after);
+    const beforeStatus = { status: req.status, sourcingPermitted: req.sourcingPermitted };
+    await mustMove(tx, l, "PENDING_APPROVAL", { today: l.org.today }, after);
     await audit(tx, l.org.id, "ApprovalInstance", instance.id, `${req.reference} · approval route`, "CREATE",
       diffFields(null, {
         matrix: dal.label,
@@ -895,7 +906,7 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
         fundingOverrideApplied: resolved.fundingOverrideApplied,
         splitState: split.state,
       }));
-    await audit(tx, l.org.id, "Requisition", id, labelOf(req), "UPDATE", diffFields({ status: req.status, sourcingPermitted: req.sourcingPermitted }, after));
+    await audit(tx, l.org.id, "Requisition", id, labelOf(req), "UPDATE", diffFields(beforeStatus, after));
     return { ok: true };
   });
 }
@@ -988,8 +999,9 @@ async function approvalGate(tx: Tx, l: LoadedRequisition, instanceId: string): P
     await audit(tx, l.org.id, "ApprovalInstance", inst.id, `${req.reference} · approval route`, "UPDATE",
       // The marker lets the trail read the route as returned at approval, not recalled.
       diffFields({ status: inst.status, returnedAtApproval: null }, { status: "RECALLED", returnedAtApproval: true }), "Returned at approval: the budget no longer covers it.");
-    await mustMove(tx, l, "OVER_BUDGET");
-    await audit(tx, l.org.id, "Requisition", req.id, labelOf(req), "UPDATE", diffFields({ status: req.status }, { status: "OVER_BUDGET" }),
+    const from = req.status;
+    await mustMove(tx, l, "OVER_BUDGET", { today: l.org.today });
+    await audit(tx, l.org.id, "Requisition", req.id, labelOf(req), "UPDATE", diffFields({ status: from }, { status: "OVER_BUDGET" }),
       "Returned at approval: the budget no longer covers it.");
     return {
       kind: "return",
@@ -1022,9 +1034,10 @@ async function approve(tx: Tx, l: LoadedRequisition, instanceId: string, gate: E
   });
   await audit(tx, l.org.id, "ApprovalInstance", instanceId, `${req.reference} · approval route`, "UPDATE",
     diffFields({ status: "PENDING" }, { status: "APPROVED", commitment: gate.commit === "WRITE" ? "written" : "not written" }));
-  await mustMove(tx, l, "APPROVED", { commitmentMovementId });
+  const from = req.status;
+  await mustMove(tx, l, "APPROVED", { today: l.org.today }, { commitmentMovementId });
   await audit(tx, l.org.id, "Requisition", req.id, labelOf(req), "UPDATE",
-    diffFields({ status: req.status }, { status: "APPROVED" }));
+    diffFields({ status: from }, { status: "APPROVED" }));
 }
 
 /**
@@ -1092,8 +1105,9 @@ export async function recordDecision(_prev: FormState, data: FormData): Promise<
     if (decision === "REJECTED") {
       await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "REJECTED", closedAt: new Date() } });
       await audit(tx, l.org.id, "ApprovalInstance", inst.id, `${l.req.reference} · approval route`, "UPDATE", diffFields({ status: inst.status }, { status: "REJECTED" }), reason);
-      await mustMove(tx, l, "REJECTED");
-      await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: l.req.status }, { status: "REJECTED" }), reason);
+      const from = l.req.status;
+      await mustMove(tx, l, "REJECTED", { today: l.org.today, reason });
+      await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: "REJECTED" }), reason);
       return { ok: true };
     }
     if (gate?.kind === "ok") await approve(tx, l, inst.id, gate);
@@ -1160,12 +1174,18 @@ export async function citeCommitteeDecision(_prev: FormState, data: FormData): P
     if (s.decision === "REJECTED") {
       await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "REJECTED", closedAt: new Date() } });
       await audit(tx, l.org.id, "ApprovalInstance", inst.id, `${l.req.reference} · approval route`, "UPDATE", diffFields({ status: inst.status }, { status: "REJECTED" }));
-      // The not-approved outcome says where it goes: a loop to Draft, or closed. Where
-      // the decision recorded none, it stays Rejected for the officer to decide.
-      const to: RequisitionStatus = s.requisitionGoesTo ?? "REJECTED";
-      await mustMove(tx, l, to);
-      await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: l.req.status }, { status: to }),
-        `Not carried by ${s.citation!.committee} at ${s.citation!.meetingReference}`);
+      // Every rejection lands on Rejected first (ruling C1: there is no Pending → Draft
+      // or Pending → Closed edge). The not-approved outcome then says where it goes: a
+      // loop to Draft, or closed. Where the decision recorded none, it stays Rejected
+      // for the officer to decide.
+      const why = `Not carried by ${s.citation!.committee} at ${s.citation!.meetingReference}`;
+      const from = l.req.status;
+      await mustMove(tx, l, "REJECTED", { today: l.org.today, reason: why });
+      await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: "REJECTED" }), why);
+      if (s.requisitionGoesTo) {
+        await mustMove(tx, l, s.requisitionGoesTo, { today: l.org.today, reason: why });
+        await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: "REJECTED" }, { status: s.requisitionGoesTo }), why);
+      }
       return { ok: true };
     }
     if (gate?.kind === "ok") await approve(tx, l, inst.id, gate);
@@ -1186,8 +1206,9 @@ export async function recallRequisition(_prev: FormState, data: FormData): Promi
       await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "RECALLED", closedAt: new Date() } });
       await audit(tx, l.org.id, "ApprovalInstance", inst.id, `${l.req.reference} · approval route`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), reason);
     }
-    await mustMove(tx, l, "RECALLED");
-    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: l.req.status }, { status: "RECALLED" }), reason);
+    const from = l.req.status;
+    await mustMove(tx, l, "RECALLED", { today: l.org.today, anyStepDone: inst?.steps.some((s) => s.decision !== "PENDING") ?? false });
+    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: "RECALLED" }), reason);
     return { ok: true };
   });
 }

@@ -39,8 +39,8 @@ import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { deciderFaults, holdersFor } from "@/lib/requisition/holders";
-import { deciderFaultText } from "@/lib/requisition/labels";
-import { transitionFault as requisitionTransitionFault } from "@/lib/requisition/status";
+import { deciderFaultText, transitionFaultText } from "@/lib/requisition/labels";
+import { MoveRefused, moveRequisition } from "@/lib/requisition/move";
 import { FormReader } from "@/lib/validate";
 
 /**
@@ -87,6 +87,7 @@ async function inExercise(id: string, fn: (tx: Tx, l: { org: ExerciseOrg; req: S
     result = await withLockedRequisitionForSourcing(reqId, id, (tx, l) => (l.ex ? fn(tx, { ...l, ex: l.ex }) : Promise.resolve(GONE)));
   } catch (e) {
     if (e instanceof Refusal) return e.state;
+    if (e instanceof MoveRefused) return e.fault.code === "CHANGED" ? CHANGED : { ok: false, message: `The requisition cannot move: ${transitionFaultText(e.fault)}` };
     throw e;
   }
   if (result?.ok) refresh(id, reqId);
@@ -670,10 +671,8 @@ export async function moveToPreparation(_prev: FormState, data: FormData): Promi
       await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", auditPair(ex, { ...ex, ...after, classificationRecorded: "yes" }));
       await writeChildren(tx, l.org.id, ex, ex, draftOf(ex).scope, ev, cfg.config);
       if (l.req.status === "APPROVED") {
-        const rf = requisitionTransitionFault("APPROVED", "SOURCING", { today: l.org.today });
-        if (rf) throw new Refusal({ ok: false, message: "The requisition cannot move into sourcing." });
-        const rm = await tx.requisition.updateMany({ where: { id: l.req.id, status: "APPROVED" }, data: { status: "SOURCING" } });
-        if (rm.count !== 1) throw new Refusal(CHANGED);
+        // Through the requisition's own state machine (ruling C1); a refusal throws.
+        await moveRequisition(tx, { id: l.req.id, status: "APPROVED" }, "SOURCING", { today: l.org.today });
         await audit(tx, l.org.id, "Requisition", l.req.id, `${l.req.reference} · ${l.req.title}`, "UPDATE", diffFields({ status: "APPROVED" }, { status: "SOURCING" }), `Exercise ${ex.reference} moved into preparation.`);
       }
       return { ok: true };

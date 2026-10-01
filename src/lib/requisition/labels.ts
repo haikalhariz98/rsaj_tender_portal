@@ -284,6 +284,10 @@ export function transitionFaultText(f: TransitionFault): string {
       return "The date cannot be after today.";
     case "STEP_ALREADY_DECIDED":
       return "A step has already been decided, so it can no longer be recalled.";
+    case "SUCCESSOR_REQUIRED":
+      return "A rejected requisition goes back for approval only on a route continued from an earlier step. Reopen it as a draft to send it again.";
+    case "GATE_NOT_ENDED":
+      return "An approved requisition is closed without sourcing only when a committee gate has ended it.";
   }
 }
 

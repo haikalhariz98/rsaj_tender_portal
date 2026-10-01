@@ -1,8 +1,9 @@
 /**
  * The requisition state machine (spec §7.3.1), for both entry paths (ADR 0003).
  *
- * Pure: `transitionFault` says why a move cannot be made, or null. Every action that
- * changes a status asks it on data read under the requisition's row lock, so the
+ * Pure: `transitionFault` says why a move cannot be made, or null. No status is ever
+ * written without asking it: `moveRequisition` (move.ts) asks it on data read under
+ * the requisition's row lock and refuses before writing (close-out ruling C1), so the
  * screen's disabled button and the server's refusal can never disagree.
  */
 
@@ -23,9 +24,12 @@ export const TRANSITIONS: Record<RequisitionStatus, readonly RequisitionStatus[]
   OVER_BUDGET: ["OVER_BUDGET", "BUDGET_CHECKED", "PENDING_APPROVAL", "CANCELLED"],
   // Over budget: returned at approval when the budget no longer covers it (ruling Q2).
   PENDING_APPROVAL: ["APPROVED", "REJECTED", "RECALLED", "OVER_BUDGET"],
-  REJECTED: ["DRAFT", "CLOSED"],
+  // Back to approval only on a successor route, opened from an earlier step by the
+  // rejection destination (FR-APR-016, ADR 0009).
+  REJECTED: ["DRAFT", "CLOSED", "PENDING_APPROVAL"],
   RECALLED: ["DRAFT"],
-  APPROVED: ["SOURCING"],
+  // Closed without sourcing only when a committee gate has ended it (FR-REQ-012).
+  APPROVED: ["SOURCING", "CLOSED"],
   SOURCING: ["FULFILLED", "PARTIALLY_FULFILLED"],
   PARTIALLY_FULFILLED: ["FULFILLED"],
   FULFILLED: ["CLOSED"],
@@ -54,7 +58,9 @@ export type TransitionFault =
   | { code: "RETURN_DETAILS_REQUIRED"; missing: ("reason" | "recipient" | "date")[] }
   | { code: "REASON_REQUIRED" }
   | { code: "FUTURE_DATE" }
-  | { code: "STEP_ALREADY_DECIDED" };
+  | { code: "STEP_ALREADY_DECIDED" }
+  | { code: "SUCCESSOR_REQUIRED" }
+  | { code: "GATE_NOT_ENDED" };
 
 export interface TransitionContext {
   /// The organisation's today; null while no time zone is set.
@@ -73,6 +79,10 @@ export interface TransitionContext {
   returnedOn?: string | null;
   /// Whether any step of the open approval has been discharged.
   anyStepDone?: boolean;
+  /// Rejected back to approval: true only when a successor route is being opened.
+  successor?: boolean;
+  /// Approved to closed: true only when a committee gate has ended the requisition.
+  gateEnded?: boolean;
 }
 
 /// Acts that depend on the organisation's today (plan §2.4).
@@ -126,6 +136,13 @@ export function transitionFault(
     case "RECALLED":
       // FR-APR-017: recall only before the first decision.
       return ctx.anyStepDone ? { code: "STEP_ALREADY_DECIDED" } : null;
+    case "PENDING_APPROVAL":
+      // From Rejected it goes back only on a successor route (FR-APR-016). Any other
+      // way back would re-open a rejected matter without a decision saying so.
+      return from === "REJECTED" && ctx.successor !== true ? { code: "SUCCESSOR_REQUIRED" } : null;
+    case "CLOSED":
+      if (from === "APPROVED" && ctx.gateEnded !== true) return { code: "GATE_NOT_ENDED" };
+      return ctx.reason?.trim() ? null : { code: "REASON_REQUIRED" };
     case "CANCELLED":
     case "REJECTED":
       return ctx.reason?.trim() ? null : { code: "REASON_REQUIRED" };

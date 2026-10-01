@@ -70,3 +70,27 @@ describe("the requisition state machine (§7.3.1)", () => {
     expect(transitionFault("PENDING_APPROVAL", "APPROVED", { today: null })).toEqual({ code: "TIME_ZONE_UNSET" });
   });
 });
+
+describe("the close-out edges (ruling C1, FR-APR-016, FR-REQ-012)", () => {
+  it("refuses Rejected back to Pending approval without a successor route", () => {
+    expect(transitionFault("REJECTED", "PENDING_APPROVAL", { today })).toEqual({ code: "SUCCESSOR_REQUIRED" });
+    expect(transitionFault("REJECTED", "PENDING_APPROVAL", { today, successor: false })).toEqual({ code: "SUCCESSOR_REQUIRED" });
+    expect(transitionFault("REJECTED", "PENDING_APPROVAL", { today, successor: true })).toBeNull();
+  });
+
+  it("never moves Pending approval straight to Draft or Closed: a rejection lands on Rejected first", () => {
+    expect(transitionFault("PENDING_APPROVAL", "DRAFT", { today })).toMatchObject({ code: "NOT_ALLOWED" });
+    expect(transitionFault("PENDING_APPROVAL", "CLOSED", { today, reason: "x" })).toMatchObject({ code: "NOT_ALLOWED" });
+  });
+
+  it("closes an approved requisition only when a gate ended it, and with a reason", () => {
+    expect(transitionFault("APPROVED", "CLOSED", { today, reason: "Not required" })).toEqual({ code: "GATE_NOT_ENDED" });
+    expect(transitionFault("APPROVED", "CLOSED", { today, gateEnded: true, reason: " " })).toEqual({ code: "REASON_REQUIRED" });
+    expect(transitionFault("APPROVED", "CLOSED", { today, gateEnded: true, reason: "Not required" })).toBeNull();
+  });
+
+  it("closes a rejected requisition only with a reason", () => {
+    expect(transitionFault("REJECTED", "CLOSED", { today })).toEqual({ code: "REASON_REQUIRED" });
+    expect(transitionFault("REJECTED", "CLOSED", { today, reason: "Terminated" })).toBeNull();
+  });
+});
