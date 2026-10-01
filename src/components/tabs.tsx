@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
+
+import { navigatesOnSelect, tabKeyMove } from "@/lib/ui/tab-keys";
 
 /**
  * The tab strip under a Configuration screen's header. One component, so every
@@ -55,6 +57,10 @@ export function Tabs({
   // fits beside the sidebar instead of scrolling the last ones out of sight.
   const dense = tabs.length > 6;
   const current = tabs.find((t) => t.id === active) ?? tabs[0];
+  // Roving focus: the tab the keyboard is on, which may be ahead of the one selected (a tab
+  // with sections is selected only on Enter, Space or a click). Null: focus follows selection.
+  const [focused, setFocused] = useState<string | null>(null);
+  const focusId = focused ?? current?.id;
   const strip = useRef<HTMLDivElement>(null);
   // Whether the strip has more tabs hidden past its left / right edge. Drives the
   // edge fades, which are the visible cue that the strip scrolls.
@@ -96,8 +102,9 @@ export function Tabs({
   const select = (id: string) => {
     const next = tabs.find((t) => t.id === id);
     setActive(id);
+    setFocused(null);
     // A tab with sections is loaded by the server, one section at a time: go and get it.
-    if (next?.sections?.length) {
+    if (next?.sections && navigatesOnSelect(next)) {
       if (id !== current?.id) router.push(sectionHref(pathname, id, next.sections[0].id), { scroll: false });
       return;
     }
@@ -108,13 +115,20 @@ export function Tabs({
     window.history.replaceState(null, "", url);
   };
 
-  // Arrow keys move between tabs, as a tablist is expected to.
+  // Arrow keys (and Home/End) move between tabs, as a tablist is expected to. A plain tab
+  // is selected as focus arrives; a tab with sections is a navigation, so arrowing onto it
+  // only moves focus and Enter or Space (the button's click) selects it (tab-keys.ts).
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-    const i = tabs.findIndex((t) => t.id === current?.id);
-    const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
-    select(next.id);
-    strip.current?.querySelector<HTMLButtonElement>(`[data-tab="${next.id}"]`)?.focus();
+    const move = tabKeyMove(tabs, focusId, e.key);
+    if (!move) return;
+    e.preventDefault();
+    if (move.select) select(move.focus);
+    else setFocused(move.focus);
+    strip.current?.querySelector<HTMLButtonElement>(`[data-tab="${move.focus}"]`)?.focus();
+  };
+  // Leaving the strip hands the roving stop back to the selected tab.
+  const onBlur = (e: FocusEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(null);
   };
 
   return (
@@ -125,6 +139,7 @@ export function Tabs({
         role="tablist"
         aria-label={label}
         onKeyDown={onKeyDown}
+        onBlur={onBlur}
         onScroll={measure}
         // Edge fades say there are more tabs off-screen. A mask rather than an overlay,
         // so it needs no colour matched to the pill and never intercepts a click.
@@ -146,7 +161,7 @@ export function Tabs({
               type="button"
               role="tab"
               aria-selected={selected}
-              tabIndex={selected ? 0 : -1}
+              tabIndex={tab.id === focusId ? 0 : -1}
               onClick={() => select(tab.id)}
               className={`flex shrink-0 snap-center items-center gap-2 rounded-full py-2 text-[13.5px] font-semibold whitespace-nowrap text-ink-3 transition hover:text-ink aria-selected:bg-surface aria-selected:text-ink aria-selected:shadow-[0_1px_3px_rgb(15_23_42/0.12)] ${dense ? "px-3 2xl:px-4" : "px-4"}`}
             >
