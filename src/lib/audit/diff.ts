@@ -60,6 +60,9 @@ const NAMED_FIELDS: Record<string, string> = {
   standingInForSeatId: "Standing in for",
   dependsOnDecisionId: "Depends on",
   notApprovedOutcomeId: "Outcome if not carried",
+  // Core routing (FR-APR-004): the rule editor's own words.
+  generateCoreChain: "Chain from core routing",
+  coreChainReason: "Why the chain is as entered",
 };
 
 /// Field names are configuration-ish keys; screens render labels. A reference to a

@@ -96,5 +96,7 @@ describe("field labels", () => {
     expect(fieldLabel("budgetCodeId")).toBe("Budget code");
     expect(fieldLabel("relatedRequisitionIds")).toBe("Related requisitions");
     expect(fieldLabel("id")).toBe("Id");
+    expect(fieldLabel("generateCoreChain")).toBe("Chain from core routing");
+    expect(fieldLabel("coreChainReason")).toBe("Why the chain is as entered");
   });
 });

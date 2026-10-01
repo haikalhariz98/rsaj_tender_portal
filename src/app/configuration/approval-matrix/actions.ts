@@ -15,7 +15,7 @@ import { copyCoreRouting, CORE_ACTS, coreChainFaultsAcross, coreLevelFaults, cor
 import { coreLevelFaultText, issueRefusal, ruleSaveRefusal } from "@/lib/authority/core-routing-labels";
 import { destinationRowFaults, type RejectionKind } from "@/lib/authority/rejection";
 import { DESTINATION_FAULT_TEXT } from "@/lib/authority/rejection-labels";
-import { matterLabel } from "@/lib/labels";
+import { actWithCode, matterLabel } from "@/lib/labels";
 import { db } from "@/lib/db";
 import { compareAmounts } from "@/lib/money";
 import { findingText } from "@/lib/method/labels";
@@ -1018,7 +1018,7 @@ export async function removeCoreLevel(_prev: FormState, data: FormData): Promise
     for (const step of level.steps) {
       await tx.coreRoutingStep.delete({ where: { id: step.id } });
       await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingStep", entityId: step.id, entityLabel: `${label} — ${name(step.roleCode)}`, reason }, "DELETE",
-        snapshotFields({ office: name(step.roleCode), act: step.act, sequence: step.sequence, provenance: step.provenance, note: step.note }));
+        snapshotFields({ office: name(step.roleCode), act: actWithCode(step.act), sequence: step.sequence, provenance: step.provenance, note: step.note }));
     }
     await tx.coreRoutingLevel.delete({ where: { id } });
     await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingLevel", entityId: id, entityLabel: label, reason }, "DELETE",
@@ -1060,7 +1060,7 @@ export async function saveCoreStep(_prev: FormState, data: FormData): Promise<Fo
     if (fault) return { ok: false, errors: { roleCode: coreLevelFaultText(fault.fault, officeIn(roles, fault.roleCode)) } };
     const row = await tx.coreRoutingStep.create({ data: { organisationId: orgId, coreRoutingLevelId: level.id, roleCode, act, sequence, provenance, note } });
     await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingStep", entityId: row.id, entityLabel: `${matrix.label} — core routing: ${officeIn(roles, level.approverCode)} — ${officeIn(roles, roleCode)}`, reason: String(data.get("reason") ?? "") }, "CREATE",
-      diffFields(null, { office: officeIn(roles, roleCode), act, sequence, provenance, note }));
+      diffFields(null, { office: officeIn(roles, roleCode), act: actWithCode(act), sequence, provenance, note }));
     return { ok: true };
   });
   if (!result.ok) return result;
@@ -1084,7 +1084,7 @@ export async function removeCoreStep(_prev: FormState, data: FormData): Promise<
     const roles = (await issueIn(tx, step.level.authorityMatrixId))?.matrix.roles ?? {};
     await tx.coreRoutingStep.delete({ where: { id } });
     await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingStep", entityId: id, entityLabel: `${matrix.label} — core routing: ${officeIn(roles, step.level.approverCode)} — ${officeIn(roles, step.roleCode)}`, reason }, "DELETE",
-      snapshotFields({ office: officeIn(roles, step.roleCode), act: step.act, sequence: step.sequence, provenance: step.provenance, note: step.note }));
+      snapshotFields({ office: officeIn(roles, step.roleCode), act: actWithCode(step.act), sequence: step.sequence, provenance: step.provenance, note: step.note }));
     return { ok: true };
   });
   if (!result.ok) return result;
