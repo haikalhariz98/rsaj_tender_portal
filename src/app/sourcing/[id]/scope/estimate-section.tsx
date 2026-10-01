@@ -85,14 +85,15 @@ function Live({ e, d, exerciseId, people }: { e: Estimate; d: Data; exerciseId: 
               { label: "Prepared on", value: e.preparedOn ? formatDate(e.preparedOn) : "—" },
               { label: "Current version", value: String(e.currentVersionNo) },
               { label: "Lodged version", value: e.lodgedVersionNo ? `Version ${e.lodgedVersionNo}` : "Not lodged yet" },
-              { label: "Retained copy", value: e.retainedPlace ?? "Not recorded" },
+              // The place on the estimate is the last copy recorded, which is of the version named.
+              { label: "Retained copy", value: e.retainedVersionNo != null ? `Version ${e.retainedVersionNo}, at ${e.retainedPlace ?? "a place not recorded"}` : "Not recorded" },
             ]}
           />
           {!closed && (
             <div className="flex flex-wrap items-start gap-3 border-t border-line pt-5">
               <AmendEstimateDrawer exerciseId={exerciseId} estimateId={e.id} preparerName={e.preparerName} preparerPersonId={e.preparerPersonId} versionNo={e.currentVersionNo} allowed={e.actions.amend} />
               {(!lodged || e.lodgementBehind) && <LodgeEstimateDrawer exerciseId={exerciseId} estimateId={e.id} versionNo={e.currentVersionNo} people={people} allowed={e.actions.lodge} again={e.lodgementBehind} />}
-              {lodged && !e.retainedPlace && <RetainCopyDrawer exerciseId={exerciseId} estimateId={e.id} people={people} allowed={e.actions.retain} />}
+              {e.retainedCopyDue && <RetainCopyDrawer exerciseId={exerciseId} estimateId={e.id} people={people} allowed={e.actions.retain} versionNo={e.lodgedVersionNo} />}
               <VoidEstimateDrawer exerciseId={exerciseId} estimateId={e.id} preparerName={e.preparerName} people={people} allowed={e.actions.void} />
             </div>
           )}

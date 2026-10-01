@@ -157,6 +157,14 @@ export function retainFaults(est: EstimateFacts, i: { personId: string | null; p
   return out;
 }
 
+/**
+ * Whether the retained copy is still to be recorded for the version lodged: lodged, and
+ * no copy retained of that version yet — including after a re-lodgement, where the copy
+ * retained earlier is of an older version (BD-62-6). The screen offers Record it on this.
+ */
+export const retainedCopyDue = (est: Pick<EstimateFacts, "state" | "lodgedVersionNo" | "retainedVersionNo">) =>
+  est.state === "LODGED" && est.lodgedVersionNo != null && est.retainedVersionNo !== est.lodgedVersionNo;
+
 export type ClassificationFault = "CLASSIFICATION_LOWERED";
 
 /// FR-EST-008: SULIT from creation and never lowered (via the document store's one rule).

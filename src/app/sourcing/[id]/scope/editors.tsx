@@ -418,12 +418,12 @@ export function LodgeEstimateDrawer({ exerciseId, estimateId, versionNo, people,
   );
 }
 
-export function RetainCopyDrawer({ exerciseId, estimateId, people, allowed }: { exerciseId: string; estimateId: string; people: Option[]; allowed: Allowed }) {
+export function RetainCopyDrawer({ exerciseId, estimateId, people, allowed, versionNo }: { exerciseId: string; estimateId: string; people: Option[]; allowed: Allowed; versionNo: number | null }) {
   if (!allowed.allowed) return <Blocked label="Record the retained copy" reason={allowed.reason} />;
   return (
     <RecordEditor
       title="Record the retained copy"
-      description="The second copy of the lodged version, and where it is kept."
+      description={`The second copy of the lodged version${versionNo != null ? `, version ${versionNo}` : ""}, and where it is kept.`}
       fields={[
         hidden("exerciseId"),
         hidden("estimateId"),

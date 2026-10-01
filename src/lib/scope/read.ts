@@ -18,7 +18,7 @@ import { exerciseOrg } from "@/lib/method/repo";
 
 import { bqTotals, currentBq, draftEditFaults, finaliseFaults, reviseFaults, startBqFaults } from "./bq";
 import { estimateFactsOf as factsOf, loadBqVersions, loadEstimates, loadRateIssues, loadScopeMatters, loadHoldings, loadPanel, loadPanelColumns, loadQualifications, loadScopePolicy, loadScopeRules, linesOf, lineOf } from "./repo";
-import { leadTime, lodgeFaults, lodgementBehind, retainFaults, startFault, versionFaults, voidFault } from "./estimate";
+import { leadTime, lodgeFaults, lodgementBehind, retainedCopyDue, retainFaults, startFault, versionFaults, voidFault } from "./estimate";
 import {
   ATTESTED,
   BQ_READABLE_STATEMENT,
@@ -408,7 +408,9 @@ export async function estimateTab(exerciseId: string) {
       currentVersionNo: e.currentVersionNo,
       lodgedVersionNo: facts.lodgedVersionNo,
       lodgementBehind: lodgementBehind(facts),
+      retainedVersionNo: facts.retainedVersionNo,
       retainedPlace: e.retainedPlace || null,
+      retainedCopyDue: retainedCopyDue(facts),
       voidReason: e.state === "VOID" ? e.voidReason : null,
       versions: e.versions.map((v) => ({ versionNo: v.versionNo, preparedOn: storedDay(v.preparedOn), preparer: v.preparer.name, value: SEALED_TEXT, reason: v.versionNo === 1 ? null : SEALED_TEXT })),
       events: e.events.map((x) => ({ id: x.id, kind: EVENT_KIND_LABEL[x.kind], by: x.person ? `${x.person.name}, ${ATTESTED}` : null, capacity: x.capacity || null, versionNo: x.versionNo, copyNo: x.copyNo, note: x.kind === "VOIDED" || x.kind === "RETAINED" ? x.note || null : null, at: x.at })),

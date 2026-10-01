@@ -16,6 +16,7 @@ import {
   lodgementBehind,
   overrideFaults,
   retainFaults,
+  retainedCopyDue,
   sealFigures,
   startFault,
   versionFaults,
@@ -120,6 +121,17 @@ describe("lodgement and the retained copy (FR-EST-007, 010)", () => {
     expect(codes(retainFaults(est(), { personId: "p3", place: "C&P safe" }))).toEqual(["NOT_LODGED"]);
     expect(codes(retainFaults(est({ state: "LODGED", lodgedVersionNo: 1, retainedVersionNo: 1 }), { personId: "p3", place: "x" }))).toEqual(["ALREADY_RETAINED"]);
     expect(codes(retainFaults(est({ state: "LODGED", lodgedVersionNo: 1 }), { personId: null, place: " " }))).toEqual(["PLACE_REQUIRED", "PERSON_REQUIRED"]);
+  });
+  it("after re-lodgement the second copy of the new version is due and allowed; the earlier copy does not count for it", () => {
+    // Version 1 lodged and its copy retained; amended to version 2 and lodged again.
+    const relodged = est({ state: "LODGED", currentVersionNo: 2, lodgedVersionNo: 2, retainedVersionNo: 1 });
+    expect(retainFaults(relodged, { personId: "p3", place: "C&P safe" })).toEqual([]);
+    expect(retainedCopyDue(relodged)).toBe(true);
+    // Before the re-lodgement (amended, lodged copy behind): the copy of the lodged version stands.
+    expect(retainedCopyDue(est({ state: "LODGED", currentVersionNo: 2, lodgedVersionNo: 1, retainedVersionNo: 1 }))).toBe(false);
+    expect(retainedCopyDue(est({ state: "LODGED", lodgedVersionNo: 2, retainedVersionNo: 2 }))).toBe(false);
+    expect(retainedCopyDue(est({ state: "LODGED", lodgedVersionNo: 1, retainedVersionNo: null }))).toBe(true);
+    expect(retainedCopyDue(est({ state: "DRAFT" }))).toBe(false);
   });
 });
 
