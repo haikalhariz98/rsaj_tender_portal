@@ -270,10 +270,10 @@ function AssignmentsList({ assignments, people, offices }: UsersData) {
         emptyTitle="Nobody holds a role"
         emptyBody="A rule routes to a role; only an assignment turns it into somebody who can sign."
         columns={[
-          { key: "person", label: "Person", width: "26%", sortable: true },
-          { key: "role", label: "Role", width: "28%", sortable: true },
-          { key: "period", label: "Period", width: "22%" },
-          { key: "status", label: "Status", width: "14%" },
+          { key: "person", label: "Person", width: "26%", sortable: true, mobile: "primary" },
+          { key: "role", label: "Role", width: "28%", sortable: true, mobile: "meta" },
+          { key: "period", label: "Period", width: "22%", mobile: "meta" },
+          { key: "status", label: "Status", width: "14%", mobile: "meta" },
         ]}
         rows={rows}
         actions={(id) => {
@@ -339,11 +339,11 @@ function RolesList({ offices, people, holdings, grants }: UsersData) {
         emptyTitle="No role configured"
         emptyBody="An approval rule routes to a role, so nothing routes until one exists."
         columns={[
-          { key: "role", label: "Role", width: "28%", sortable: true },
-          { key: "workspace", label: "Workspace", width: "14%" },
-          { key: "authorityLevel", label: "Authority level", width: "22%", sortable: true },
-          { key: "heldBy", label: "Held by", width: "20%" },
-          { key: "capabilities", label: "Capabilities", width: "16%", numeric: true, sortable: true },
+          { key: "role", label: "Role", width: "28%", sortable: true, mobile: "primary" },
+          { key: "workspace", label: "Workspace", width: "14%", mobile: "meta" },
+          { key: "authorityLevel", label: "Authority level", width: "22%", sortable: true, mobile: "meta" },
+          { key: "heldBy", label: "Held by", width: "20%", mobile: "meta" },
+          { key: "capabilities", label: "Capabilities", width: "16%", numeric: true, sortable: true, mobile: "meta" },
         ]}
         rows={rows}
         actions={(id) => {
@@ -452,10 +452,11 @@ function PermissionsPanel({ offices, capabilities, grants }: UsersData) {
         </Callout>
       )}
       {/* The grid scrolls sideways under a pinned capability column, so a new role adds
-          a column rather than squeezing the others. */}
+          a column rather than squeezing the others. On a phone it is a list instead:
+          each capability, then one line per role with its tick. */}
       <div className="overflow-x-auto">
-        <table className="w-full border-separate border-spacing-0 text-[13.5px]">
-          <thead>
+        <table className="w-full border-separate border-spacing-0 text-[13.5px] max-md:block [&_tbody]:max-md:block [&_tr]:max-md:block">
+          <thead className="max-md:hidden">
             <tr>
               <th
                 scope="col"
@@ -485,7 +486,7 @@ function PermissionsPanel({ offices, capabilities, grants }: UsersData) {
                     <th
                       scope="row"
                       title={capability.nameEn}
-                      className="sticky left-0 z-10 border-r border-b border-line/70 bg-surface py-2.5 pr-4 pl-5 text-left font-medium text-ink transition group-hover:bg-brand-50 sm:pl-6"
+                      className="sticky left-0 z-10 border-r border-b border-line/70 bg-surface py-2.5 pr-4 pl-5 text-left font-medium text-ink transition group-hover:bg-brand-50 max-md:static max-md:block max-md:border-r-0 max-md:pb-1 max-md:break-words sm:pl-6"
                     >
                       {capability.nameEn}
                     </th>
@@ -499,8 +500,9 @@ function PermissionsPanel({ offices, capabilities, grants }: UsersData) {
                       return (
                         <td
                           key={o.code}
-                          className="border-b border-line/70 px-2 py-2.5 text-center transition group-hover:bg-brand-50/40"
+                          className="border-b border-line/70 px-2 py-2.5 text-center transition group-hover:bg-brand-50/40 max-md:flex max-md:items-center max-md:justify-between max-md:gap-3 max-md:border-b-0 max-md:py-1.5 max-md:pr-5 max-md:pl-5 max-md:text-left"
                         >
+                          <span className="min-w-0 text-[13px] text-ink-2 md:hidden">{o.nameEn}</span>
                           <span
                             className={cx(
                               "inline-grid place-items-center rounded-md p-0.5",
@@ -562,12 +564,12 @@ function GroupRows({
       <tr>
         <th
           scope="row"
-          className="sticky left-0 z-10 border-r border-b border-line/70 bg-sunken pt-4 pr-4 pb-2 pl-5 text-left text-[11.5px] font-bold tracking-[0.04em] text-ink-3 uppercase sm:pl-6"
+          className="sticky left-0 z-10 border-r border-b border-line/70 bg-sunken pt-4 pr-4 pb-2 pl-5 text-left max-md:static max-md:block max-md:border-r-0 text-[11.5px] font-bold tracking-[0.04em] text-ink-3 uppercase sm:pl-6"
         >
           {label}
         </th>
         {Array.from({ length: span }, (_, i) => (
-          <td key={i} className="border-b border-line/70 bg-sunken" />
+          <td key={i} className="border-b border-line/70 bg-sunken max-md:hidden" />
         ))}
       </tr>
       {children}
@@ -633,7 +635,7 @@ function DelegationPanel({ people, offices, delegations, capabilities, upload }:
           actions={<AddDelegation people={people} offices={offices} capabilities={capabilities} upload={upload} />}
           divided={false}
         />
-        <DataList
+        <DataList stackBelow="xl"
           flat
           selectable={false}
           exportName="delegations"

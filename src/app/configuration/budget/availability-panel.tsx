@@ -169,7 +169,7 @@ export function AvailabilityPanel({
 
       <Card className="overflow-hidden">
         <CardHeader icon={<ChartIcon size={17} />} title="Commitment and availability" divided={false} />
-        <DataList
+        <DataList stackBelow="xl"
           flat
           selectable={false}
           rowOpens
@@ -375,10 +375,10 @@ function SpendChart({ spend }: { spend: PeriodSpend[] }) {
               <tbody>
                 {spend.map((s) => (
                   <Tr key={s.period.id}>
-                    <Td>{s.period.nameEn.split(" ")[0].slice(0, 3)}</Td>
-                    <Td numeric>{formatCompactRM(s.allocated)}</Td>
-                    <Td numeric>{formatCompactRM(s.actualSpend)}</Td>
-                    <Td numeric>{formatCompactRM(s.spendPlusCommitments)}</Td>
+                    <Td label="Period">{s.period.nameEn.split(" ")[0].slice(0, 3)}</Td>
+                    <Td label="Allocated" numeric>{formatCompactRM(s.allocated)}</Td>
+                    <Td label="Actual spend" numeric>{formatCompactRM(s.actualSpend)}</Td>
+                    <Td label="Spend plus commitments" numeric>{formatCompactRM(s.spendPlusCommitments)}</Td>
                   </Tr>
                 ))}
               </tbody>
@@ -489,13 +489,13 @@ function UnitChart({
               <tbody>
                 {rows.map((r) => (
                   <Tr key={r.unitCode || "none"}>
-                    <Td className="truncate" title={unitName(r.unitCode)}>
+                    <Td label="Department" className="truncate" title={unitName(r.unitCode)}>
                       {unitName(r.unitCode)}
                     </Td>
-                    <Td numeric>{formatCompactRM(r.allocated)}</Td>
-                    <Td numeric>{formatCompactRM(r.committed)}</Td>
-                    <Td numeric>{formatCompactRM(r.actualSpend)}</Td>
-                    <Td numeric>
+                    <Td label="Allocated" numeric>{formatCompactRM(r.allocated)}</Td>
+                    <Td label="Committed" numeric>{formatCompactRM(r.committed)}</Td>
+                    <Td label="Actual spend" numeric>{formatCompactRM(r.actualSpend)}</Td>
+                    <Td label="Utilisation" numeric>
                       {r.utilisation == null ? (
                         <span className="text-ink-3">Not set</span>
                       ) : (

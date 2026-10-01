@@ -122,7 +122,7 @@ export default async function CommitteesPage() {
               <tbody>
                 {committees.map((c) => (
                   <Tr key={c.code}>
-                    <Td>
+                    <Td label="Committee">
                       <CellStack
                         title={
                           <span className="inline-flex max-w-full items-center gap-2" title={c.nameEn}>
@@ -134,22 +134,22 @@ export default async function CommitteesPage() {
                         sub={c.nameMs ? <span title={c.nameMs}>{c.nameMs}</span> : undefined}
                       />
                     </Td>
-                    <Td>
+                    <Td label="Acts by">
                       <Chip tone={ACTION_TONE[c.action] ?? "neutral"}>
                         {ACTION_LABEL[c.action] ?? c.action}
                       </Chip>
                     </Td>
-                    <Td className="text-[13px] text-ink-3">
+                    <Td label="Value scope" className="text-[13px] text-ink-3">
                       {formatBand(c.valueScopeMin, c.valueScopeMax)}
                     </Td>
-                    <Td>
+                    <Td label="Quorum">
                       {c.quorum != null ? (
                         <Badge tone="ok">{c.quorum} members</Badge>
                       ) : (
                         <Badge tone="warn">Not set</Badge>
                       )}
                     </Td>
-                    <Td>
+                    <Td label="Composition">
                       <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
                         <ProvenanceBadge value={c.compositionProvenance} />
                         {c.compositionProvenance != null && (
@@ -225,7 +225,7 @@ export default async function CommitteesPage() {
                 const retired = o.retiredOn != null && o.retiredOn <= now;
                 return (
                   <Tr key={o.id}>
-                    <Td>
+                    <Td label="Outcome">
                       <CellStack
                         title={
                           <span className="inline-flex max-w-full items-center gap-2">
@@ -236,11 +236,11 @@ export default async function CommitteesPage() {
                         sub={o.nameMs ?? undefined}
                       />
                     </Td>
-                    <Td>
+                    <Td label="What it does">
                       <Chip tone={o.kind === "LOOP" ? "info" : "warn"}>{NOT_APPROVED_KIND_LABEL[o.kind]}</Chip>
                     </Td>
-                    <Td className="text-[13px] text-ink-3">{o.committee?.nameEn ?? "Every committee"}</Td>
-                    <Td>
+                    <Td label="Offered to" className="text-[13px] text-ink-3">{o.committee?.nameEn ?? "Every committee"}</Td>
+                    <Td label="Source">
                       <ProvenanceBadge value={o.provenance} />
                     </Td>
                     <Td>

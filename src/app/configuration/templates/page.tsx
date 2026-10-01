@@ -101,22 +101,21 @@ export default async function TemplatesPage() {
               const cls = classes.find((c) => c.id === t.documentClassId);
               return (
                 <Tr key={t.id}>
-                  <Td title={t.nameMs ? `${t.nameEn} — ${t.nameMs}` : t.nameEn}>
+                  <Td label="Template" title={t.nameMs ? `${t.nameEn} — ${t.nameMs}` : t.nameEn}>
                     <CellStack
-                      wrap
                       title={t.nameEn}
                       aside={t.bilingual ? <Badge outline>bilingual</Badge> : undefined}
                       sub={[t.nameMs, textLine(t)].filter(Boolean).join(" · ")}
                     />
                   </Td>
-                  <Td className="truncate font-mono text-[12.5px] text-ink-2" title={t.formCode || undefined}>
+                  <Td label="Form code" className="truncate font-mono text-[12.5px] text-ink-2" title={t.formCode || undefined}>
                     {t.formCode || "—"}
                   </Td>
-                  <Td className="text-ink-2 tabular-nums">{day(t.revisionDate)}</Td>
-                  <Td className="truncate" title={cls?.nameEn}>
+                  <Td label="Revision" className="text-ink-2 tabular-nums">{day(t.revisionDate)}</Td>
+                  <Td label="Class" className="truncate" title={cls?.nameEn}>
                     {cls ? cls.nameEn : <Badge tone="warn">Not classified</Badge>}
                   </Td>
-                  <Td>
+                  <Td label="Source">
                     <ProvenanceChip value={t.provenance} />
                   </Td>
                   <Td>

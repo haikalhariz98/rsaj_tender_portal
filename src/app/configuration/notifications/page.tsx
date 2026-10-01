@@ -81,26 +81,26 @@ export default async function NotificationsPage() {
           <tbody>
             {rules.map((r) => (
               <Tr key={r.id}>
-                <Td title={r.nameEn}>
+                <Td label="Event" title={r.nameEn}>
                   <CellStack
                     title={r.nameEn}
                     aside={!r.isActive ? <Badge outline>off</Badge> : undefined}
                   />
                 </Td>
-                <Td className="text-ink-2">
+                <Td label="Notifies" className="text-ink-2">
                   {r.recipientRoleCodes.length === 0
                     ? "Nobody"
                     : r.recipientRoleCodes.map(officeName).join(", ")}
                 </Td>
-                <Td className="text-ink-2 tabular-nums">
+                <Td label="Reminds" className="text-ink-2 tabular-nums">
                   {r.reminderOffsetDays.length === 0
                     ? "Does not chase"
                     : r.reminderOffsetDays.map((d) => `${d}d`).join(" · ")}
                 </Td>
-                <Td className="text-ink-2">
+                <Td label="Escalates to" className="text-ink-2">
                   {r.escalatesToRoleCode ? officeName(r.escalatesToRoleCode) : "—"}
                 </Td>
-                <Td>
+                <Td label="Source">
                   <ProvenanceChip value={r.provenance} />
                 </Td>
                 <Td>

@@ -187,7 +187,7 @@ function BudgetCodesPanel({
         actions={<AddBudgetCode units={units} people={people} accountCodes={accountCodes} />}
         divided={false}
       />
-      <DataList
+      <DataList stackBelow="xl"
           flat
           selectable={false}
           rowOpens

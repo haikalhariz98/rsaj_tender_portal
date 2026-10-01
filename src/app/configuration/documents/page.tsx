@@ -122,24 +122,23 @@ export default async function DocumentsConfigPage() {
           <tbody>
             {classes.map((c) => (
               <Tr key={c.id}>
-                <Td>
-                  <CellStack wrap title={c.nameEn} sub={c.nameMs ?? undefined} />
+                <Td label="Class">
+                  <CellStack title={c.nameEn} sub={c.nameMs ?? undefined} />
                 </Td>
                 <Td label="Classification">
                   {c.classification ? <Badge tone={classificationTone(c.classification)}>{classificationLabel(c.classification)}</Badge> : <Badge tone="warn">Not set</Badge>}
                 </Td>
                 <Td label="Keep for">
                   <CellStack
-                    wrap
                     title={c.retentionMonths == null ? <Badge tone="warn">Not set</Badge> : `${c.retentionMonths} months`}
                     sub={c.retentionTrigger ? RETENTION_TRIGGER_LABEL[c.retentionTrigger] : "Start not set"}
                   />
                 </Td>
                 <Td label="Disposal">
-                  <CellStack wrap title={c.disposalMethod ? DISPOSAL_METHOD_LABEL[c.disposalMethod] : NOT_SET} sub={officeName(c.disposalAuthorityRoleCode) ?? "Authority not set"} />
+                  <CellStack title={c.disposalMethod ? DISPOSAL_METHOD_LABEL[c.disposalMethod] : NOT_SET} sub={officeName(c.disposalAuthorityRoleCode) ?? "Authority not set"} />
                 </Td>
                 <Td label="Handling" className="text-ink-2">
-                  <CellStack wrap title={c.controlledCopy ? "Numbered and recalled" : "Not a controlled copy"} sub={c.releaseNeedsApproval ? "Release needs approval" : "No approval needed to release"} />
+                  <CellStack title={c.controlledCopy ? "Numbered and recalled" : "Not a controlled copy"} sub={c.releaseNeedsApproval ? "Release needs approval" : "No approval needed to release"} />
                 </Td>
                 <Td label="Source">
                   <ProvenanceChip value={c.provenance} />
@@ -251,10 +250,10 @@ export default async function DocumentsConfigPage() {
                 const v = d.versions[0];
                 return (
                   <Tr key={d.id}>
-                    <Td><CellStack wrap title={d.title} sub={v?.originalFilename} /></Td>
+                    <Td label="Document"><CellStack title={d.title} sub={v?.originalFilename} /></Td>
                     <Td label="Class" className="text-ink-2">{d.documentClass.nameEn}</Td>
                     <Td label="Classification"><Badge tone={classificationTone(d.classificationSnapshot)}>{classificationBadge(d.classificationSnapshot)}</Badge></Td>
-                    <Td label="Received"><CellStack wrap title={formatOrgDay(d.createdAt, tz)} sub={v ? `${v.recordedBy.name} · recorded on behalf of, not signed` : undefined} /></Td>
+                    <Td label="Received"><CellStack title={formatOrgDay(d.createdAt, tz)} sub={v ? `${v.recordedBy.name} · recorded on behalf of, not signed` : undefined} /></Td>
                     <Td>
                       <RowActions>
                         <AttachToRecordButton versionId={attachableVersion(d.versions)} title={d.title} unclassified={d.classificationSnapshot == null} />
@@ -301,9 +300,9 @@ export default async function DocumentsConfigPage() {
             <tbody>
               {holds.map((h) => (
                 <Tr key={h.id}>
-                  <Td><CellStack wrap title={h.document.title} /></Td>
+                  <Td label="Document"><CellStack title={h.document.title} /></Td>
                   <Td label="Why it is held" className="break-words text-ink-2">{h.reason}</Td>
-                  <Td label="Placed"><CellStack wrap title={formatOrgDay(h.placedAt, tz)} sub={`${h.placedBy.name} · recorded on behalf of, not signed`} /></Td>
+                  <Td label="Placed"><CellStack title={formatOrgDay(h.placedAt, tz)} sub={`${h.placedBy.name} · recorded on behalf of, not signed`} /></Td>
                   <Td>
                     <RowActions>
                       <DocumentButton documentId={h.document.id} label={h.document.title} />

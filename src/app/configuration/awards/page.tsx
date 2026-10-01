@@ -180,9 +180,9 @@ export default async function AwardControlsPage() {
             <tbody>
               {c.recipientRows.map((r) => (
                 <Tr key={r.id}>
-                  <Td><CellStack wrap title={r.nameEn} sub={[r.mandatory ? "Mandatory" : "Optional", r.onlyWhenRegulated ? "only for the regulated activity" : null, r.retiredOn ? `retired ${formatDate(r.retiredOn)}` : null].filter(Boolean).join(" · ")} /></Td>
-                  <Td className="text-ink-2">{INSTRUMENT_LABEL[r.instrumentKind]}</Td>
-                  <Td><ProvenanceBadge value={r.provenance} /></Td>
+                  <Td label="Recipient"><CellStack title={r.nameEn} sub={[r.mandatory ? "Mandatory" : "Optional", r.onlyWhenRegulated ? "only for the regulated activity" : null, r.retiredOn ? `retired ${formatDate(r.retiredOn)}` : null].filter(Boolean).join(" · ")} /></Td>
+                  <Td label="Of" className="text-ink-2">{INSTRUMENT_LABEL[r.instrumentKind]}</Td>
+                  <Td label="Source"><ProvenanceBadge value={r.provenance} /></Td>
                   <Td>
                     <RowActions>
                       <HistoryButton iconOnly entity="DistributionRecipient" entityId={r.id} label={r.nameEn} />
@@ -213,11 +213,11 @@ export default async function AwardControlsPage() {
             <tbody>
               {c.variantRows.map((v) => (
                 <Tr key={v.id}>
-                  <Td><CellStack wrap title={v.nameEn} sub={`${templateName(v.templateId) ?? ""} · if work does not commence: ${v.nonCommencement ? NON_COMMENCEMENT_LABEL[v.nonCommencement].toLowerCase() : "not set"}${v.retiredOn ? ` · retired ${formatDate(v.retiredOn)}` : ""}`} /></Td>
-                  <Td className="text-ink-2">
-                    <CellStack wrap title={v.contractTypeCodes.length ? v.contractTypeCodes.map(typeName).join(", ") : "Any contract type"} sub={v.termsBandKey ? (terms.find((t) => t.bandKey === v.termsBandKey)?.labelEn ?? "A terms band no longer on the matrix") : "Any terms band"} />
+                  <Td label="Variant"><CellStack title={v.nameEn} sub={`${templateName(v.templateId) ?? ""} · if work does not commence: ${v.nonCommencement ? NON_COMMENCEMENT_LABEL[v.nonCommencement].toLowerCase() : "not set"}${v.retiredOn ? ` · retired ${formatDate(v.retiredOn)}` : ""}`} /></Td>
+                  <Td label="For" className="text-ink-2">
+                    <CellStack title={v.contractTypeCodes.length ? v.contractTypeCodes.map(typeName).join(", ") : "Any contract type"} sub={v.termsBandKey ? (terms.find((t) => t.bandKey === v.termsBandKey)?.labelEn ?? "A terms band no longer on the matrix") : "Any terms band"} />
                   </Td>
-                  <Td><ProvenanceBadge value={v.provenance} /></Td>
+                  <Td label="Source"><ProvenanceBadge value={v.provenance} /></Td>
                   <Td>
                     <RowActions>
                       <HistoryButton iconOnly entity="AppointmentLetterVariant" entityId={v.id} label={v.nameEn} />
@@ -246,8 +246,8 @@ export default async function AwardControlsPage() {
             <tbody>
               {c.conditionKinds.map((k) => (
                 <Tr key={k.id}>
-                  <Td><CellStack wrap title={k.nameEn} sub={[k.excludesEotReason ? "A delay gives no extension of time" : "A delay may give an extension of time", k.retiredOn ? `retired ${formatDate(k.retiredOn)}` : null].filter(Boolean).join(" · ")} /></Td>
-                  <Td><ProvenanceBadge value={k.provenance} /></Td>
+                  <Td label="Condition"><CellStack title={k.nameEn} sub={[k.excludesEotReason ? "A delay gives no extension of time" : "A delay may give an extension of time", k.retiredOn ? `retired ${formatDate(k.retiredOn)}` : null].filter(Boolean).join(" · ")} /></Td>
+                  <Td label="Source"><ProvenanceBadge value={k.provenance} /></Td>
                   <Td>
                     <RowActions>
                       <HistoryButton iconOnly entity="ConditionPrecedentKind" entityId={k.id} label={k.nameEn} />
@@ -278,9 +278,9 @@ export default async function AwardControlsPage() {
             <tbody>
               {c.requirementRows.map((q) => (
                 <Tr key={q.id}>
-                  <Td><CellStack wrap title={q.nameEn} sub={`${INSURANCE_KIND_LABEL[q.kind]} · ${q.contractTypeCode ? typeName(q.contractTypeCode) : "every type"}${q.required ? "" : " · not required"}${q.percent ? ` · ${q.percent.toString().replace(/\.?0+$/, "")}% of the sum` : ""}`} /></Td>
-                  <Td className="text-ink-2">{q.tailMonths == null && q.tailDays == null ? "Not set" : `Defects liability, then ${q.tailMonths ?? 0} months ${q.tailDays ?? 0} days`}</Td>
-                  <Td><ProvenanceBadge value={q.provenance} /></Td>
+                  <Td label="Requirement"><CellStack title={q.nameEn} sub={`${INSURANCE_KIND_LABEL[q.kind]} · ${q.contractTypeCode ? typeName(q.contractTypeCode) : "every type"}${q.required ? "" : " · not required"}${q.percent ? ` · ${q.percent.toString().replace(/\.?0+$/, "")}% of the sum` : ""}`} /></Td>
+                  <Td label="Runs past completion" className="text-ink-2">{q.tailMonths == null && q.tailDays == null ? "Not set" : `Defects liability, then ${q.tailMonths ?? 0} months ${q.tailDays ?? 0} days`}</Td>
+                  <Td label="Source"><ProvenanceBadge value={q.provenance} /></Td>
                   <Td>
                     <RowActions>
                       <HistoryButton iconOnly entity="InsuranceRequirement" entityId={q.id} label={q.nameEn} />
@@ -322,9 +322,9 @@ export default async function AwardControlsPage() {
             <tbody>
               {c.bandRows.map((b) => (
                 <Tr key={b.id}>
-                  <Td><CellStack wrap title={b.minValue == null ? `Up to ${money(b.maxValue)}` : b.maxValue == null ? `Above ${money(b.minValue)}` : `Above ${money(b.minValue)}, up to ${money(b.maxValue)}`} sub={b.retiredOn ? `Retired ${formatDate(b.retiredOn)}` : undefined} /></Td>
-                  <Td className="text-right tabular-nums">{money(b.limitAmount)}</Td>
-                  <Td><ProvenanceBadge value={b.provenance} /></Td>
+                  <Td label="Contract price"><CellStack title={b.minValue == null ? `Up to ${money(b.maxValue)}` : b.maxValue == null ? `Above ${money(b.minValue)}` : `Above ${money(b.minValue)}, up to ${money(b.maxValue)}`} sub={b.retiredOn ? `Retired ${formatDate(b.retiredOn)}` : undefined} /></Td>
+                  <Td label="Limit" className="text-right tabular-nums">{money(b.limitAmount)}</Td>
+                  <Td label="Source"><ProvenanceBadge value={b.provenance} /></Td>
                   <Td>
                     <RowActions>
                       <HistoryButton iconOnly entity="LiabilityBand" entityId={b.id} label="Liability band" />
@@ -355,9 +355,9 @@ export default async function AwardControlsPage() {
             <tbody>
               {c.issuers.map((i) => (
                 <Tr key={i.id}>
-                  <Td><CellStack wrap title={i.name} sub={`${ISSUER_KIND_LABEL[i.kind]}${i.retiredOn ? ` · retired ${formatDate(i.retiredOn)}` : ""}`} /></Td>
-                  <Td className="text-ink-2"><CellStack wrap title={i.listSource || "Not recorded"} sub={i.listAsAt ? `As at ${formatDate(i.listAsAt)}` : undefined} /></Td>
-                  <Td><ProvenanceBadge value={i.provenance} /></Td>
+                  <Td label="Issuer"><CellStack title={i.name} sub={`${ISSUER_KIND_LABEL[i.kind]}${i.retiredOn ? ` · retired ${formatDate(i.retiredOn)}` : ""}`} /></Td>
+                  <Td label="List" className="text-ink-2"><CellStack title={i.listSource || "Not recorded"} sub={i.listAsAt ? `As at ${formatDate(i.listAsAt)}` : undefined} /></Td>
+                  <Td label="Source"><ProvenanceBadge value={i.provenance} /></Td>
                   <Td>
                     <RowActions>
                       <HistoryButton iconOnly entity="ApprovedIssuer" entityId={i.id} label={i.name} />

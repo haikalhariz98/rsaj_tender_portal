@@ -75,12 +75,12 @@ export default async function AuditTrailPage() {
               <tbody>
                 {exports.map((x) => (
                   <Tr key={x.id}>
-                    <Td className="text-ink-2">{formatOrgDay(x.generatedAt, org.timeZone)}</Td>
-                    <Td className="text-ink-2">
+                    <Td label="Exported" className="text-ink-2">{formatOrgDay(x.generatedAt, org.timeZone)}</Td>
+                    <Td label="Days" className="text-ink-2">
                       {formatDate(x.fromDay)} to {formatDate(x.toDay)}
                     </Td>
-                    <Td className="text-right tabular-nums text-ink-2">{x.rowCount}</Td>
-                    <Td>
+                    <Td label="Entries" className="text-right tabular-nums text-ink-2">{x.rowCount}</Td>
+                    <Td label="SHA-256 of the file">
                       <span className="font-mono text-[12px] break-all text-ink-2">{x.sha256}</span>
                     </Td>
                   </Tr>

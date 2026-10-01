@@ -541,7 +541,7 @@ export default async function ApprovalMatrixPage({
                       </div>
                     </Td>
                     {editable && (
-                      <Td className="align-top">
+                      <Td label="Change" className="align-top">
                         <RowActions>
                           <EditTermsBand matrixId={matrixId} band={t} />
                           <RemoveTermsBand id={t.id} label={t.labelEn} />
@@ -629,7 +629,7 @@ export default async function ApprovalMatrixPage({
                       </div>
                     </Td>
                     {editable && (
-                      <Td className="align-top">
+                      <Td label="Change" className="align-top">
                         <RowActions>
                           <AddCoreStep levelId={level.id} officeName={officeName(level.approverCode)} offices={offices} />
                           <EditCoreLevel matrixId={matrixId} offices={offices} level={level} officeName={officeName(level.approverCode)} />
@@ -784,7 +784,7 @@ export default async function ApprovalMatrixPage({
                             )}
                           </Td>
                           {editable && (
-                            <Td className="align-top">
+                            <Td label="Change" className="align-top">
                               <RuleActions
                                 rule={rule}
                                 row={ruleRows[rule.ruleKey]}

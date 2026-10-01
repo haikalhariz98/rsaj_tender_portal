@@ -329,17 +329,17 @@ export default async function RequisitionControlsPage() {
               <tbody>
                 {gateRules.map((g) => (
                   <Tr key={g.id}>
-                    <Td>
-                      <CellStack title={committeeName(g.committeeCode)} sub={`${routeName(g.fundingRouteCode)} · ${actLabel(g.act)}`} wrap />
+                    <Td label="Route and committee">
+                      <CellStack title={committeeName(g.committeeCode)} sub={`${routeName(g.fundingRouteCode)} · ${actLabel(g.act)}`} />
                     </Td>
-                    <Td className="text-ink-2">
+                    <Td label="What is put to it" className="text-ink-2">
                       <span className="break-words">{g.subjectEn}</span>
                       <div className="mt-1">
                         <ProvenanceBadge value={g.provenance} />
                       </div>
                     </Td>
-                    <Td className="tabular-nums text-ink-2">{g.aboveValue ? formatMoney(parseSen(g.aboveValue.toString())) : "Any value"}</Td>
-                    <Td className="text-ink-2">
+                    <Td label="Applies above" className="tabular-nums text-ink-2">{g.aboveValue ? formatMoney(parseSen(g.aboveValue.toString())) : "Any value"}</Td>
+                    <Td label="In force" className="text-ink-2">
                       {formatDate(g.effectiveFrom)}
                       {g.effectiveTo ? ` to ${formatDate(g.effectiveTo)}` : " onwards"}
                     </Td>

@@ -893,15 +893,15 @@ function Overview({
             <tbody>
               {r.lines.map((x) => (
                 <Tr key={x.id}>
-                  <Td className="tabular-nums text-ink-3">{x.lineNo}</Td>
-                  <Td>
+                  <Td label="No." className="tabular-nums text-ink-3">{x.lineNo}</Td>
+                  <Td label="Description">
                     <span className="block truncate" title={x.description}>
                       {x.description}
                     </span>
                   </Td>
-                  <Td numeric>{x.quantity == null ? "—" : `${Number(x.quantity.toString())}${x.unit ? ` ${x.unit}` : ""}`}</Td>
-                  <Td numeric>{x.estimatedUnitPrice == null ? "—" : formatRM(num(x.estimatedUnitPrice))}</Td>
-                  <Td numeric className="font-semibold">
+                  <Td label="Quantity" numeric>{x.quantity == null ? "—" : `${Number(x.quantity.toString())}${x.unit ? ` ${x.unit}` : ""}`}</Td>
+                  <Td label="Unit price" numeric>{x.estimatedUnitPrice == null ? "—" : formatRM(num(x.estimatedUnitPrice))}</Td>
+                  <Td label="Amount" numeric className="font-semibold">
                     {formatRM(num(x.estimatedAmount))}
                   </Td>
                 </Tr>
@@ -960,17 +960,17 @@ function Overview({
                 const e = r.endorsements.find((y) => y.tier === x.tier);
                 return (
                   <Tr key={x.tier}>
-                    <Td>
+                    <Td label="Tier">
                       <CellStack title={TIER_LABEL[x.tier]} sub={x.unit ?? "No such unit on the path"} />
                     </Td>
-                    <Td>
+                    <Td label="Endorsed">
                       {e ? (
                         <CellStack title={`${e.person.name} · ${formatDate(e.endorsedOn)}`} sub={e.note || RECORDED_ON_BEHALF_SENTENCE} />
                       ) : (
                         <Badge tone="warn">Awaiting</Badge>
                       )}
                     </Td>
-                    <Td>
+                    <Td label="Endorser today">
                       {x.fault === "TIER_NOT_ON_PATH" ? (
                         <Badge tone="err">Not on this path</Badge>
                       ) : x.fault === "NO_HEAD" ? (
@@ -1146,12 +1146,12 @@ function BudgetPanel({
             <tbody>
               {r.budgetChecks.slice(1).map((x) => (
                 <Tr key={x.id}>
-                  <Td>{formatOrgDay(x.checkedAt, l.org.timeZone)}</Td>
-                  <Td>
+                  <Td label="Checked">{formatOrgDay(x.checkedAt, l.org.timeZone)}</Td>
+                  <Td label="Source">
                     <span className="block truncate">{SOURCE_LABEL[x.source]}</span>
                   </Td>
-                  <Td numeric>{money(x.balanceAsAt)}</Td>
-                  <Td>
+                  <Td label="Balance as at" numeric>{money(x.balanceAsAt)}</Td>
+                  <Td label="Verdict">
                     <Badge tone={TONE[VERDICT_TONE[x.verdict]]}>{VERDICT_LABEL[x.verdict]}</Badge>
                   </Td>
                 </Tr>

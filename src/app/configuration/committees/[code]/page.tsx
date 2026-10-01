@@ -291,9 +291,9 @@ export default async function CommitteePage({
                   const act = committeeActOn(r, committee.code);
                   return (
                     <Tr key={i}>
-                      <Td className="text-ink-2">{matterLabel(r.domain)}</Td>
-                      <Td className="text-ink">{r.labelEn}</Td>
-                      <Td>
+                      <Td label="Matter" className="text-ink-2">{matterLabel(r.domain)}</Td>
+                      <Td label="Applies to" className="text-ink">{r.labelEn}</Td>
+                      <Td label="Acts as">
                         <div className="flex flex-wrap items-center gap-1.5">
                           {act ? (
                             <ActWithLabel act={act} />
@@ -335,10 +335,10 @@ export default async function CommitteePage({
             rowAction={{ label: "Open", hrefTemplate: "/committees/{id}" }}
             rowOpens
             columns={[
-              { key: "reference", label: "Reference", width: "30%", sortable: true },
-              { key: "date", label: "Date", width: "20%", sortable: true },
-              { key: "status", label: "Status", width: "20%" },
-              { key: "matters", label: "Matters", width: "30%" },
+              { key: "reference", label: "Reference", width: "30%", sortable: true, mobile: "primary" },
+              { key: "date", label: "Date", width: "20%", sortable: true, mobile: "meta" },
+              { key: "status", label: "Status", width: "20%", mobile: "meta" },
+              { key: "matters", label: "Matters", width: "30%", mobile: "meta" },
             ]}
             rows={sittingRows}
           />

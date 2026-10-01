@@ -225,7 +225,7 @@ export function FinancePanel({
           }
           divided={false}
         />
-        <DataList
+        <DataList stackBelow="xl"
           flat
           selectable={false}
           exportName="reconciliation"

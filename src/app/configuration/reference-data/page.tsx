@@ -168,21 +168,21 @@ export default async function ReferenceDataPage() {
               const posture = fundingPosture(r);
               return (
                 <Tr key={r.code}>
-                  <Td title={r.nameMs ? `${r.nameEn} — ${r.nameMs}` : r.nameEn}>
+                  <Td label="Route" title={r.nameMs ? `${r.nameEn} — ${r.nameMs}` : r.nameEn}>
                     <CellStack title={r.nameEn} sub={r.nameMs || undefined} />
                   </Td>
-                  <Td>
+                  <Td label="Posture">
                     <Chip tone={POSTURE_TONE[posture]} title={POSTURE_LABEL[posture]}>
                       {POSTURE_LABEL[posture]}
                     </Chip>
-                    <div className="mt-1 truncate text-[12px] text-ink-3">
+                    <div className="mt-1 break-words text-[12px] text-ink-3">
                       {r.approvalCommitsBudget == null
                         ? "Budget commitment not set"
                         : r.approvalCommitsBudget
                           ? "Approval commits the budget"
                           : "Approval commits no budget"}
                     </div>
-                    <div className="mt-1 truncate text-[12px] text-ink-3">
+                    <div className="mt-1 break-words text-[12px] text-ink-3">
                       {r.committeeGateRequired == null ? "Committee gate not set" : r.committeeGateRequired ? "Committee gate before sourcing" : "No committee gate"}
                     </div>
                     {r.requiresExternalAuthorityRef && (
@@ -191,7 +191,7 @@ export default async function ReferenceDataPage() {
                       </div>
                     )}
                   </Td>
-                  <Td>
+                  <Td label="Authority">
                     {r.supersedesAuthority ? (
                       <Badge tone="warn" title="Funder’s rules prevail">
                         Funder&rsquo;s rules prevail
@@ -200,8 +200,8 @@ export default async function ReferenceDataPage() {
                       <span className="text-ink-2">These limits apply</span>
                     )}
                   </Td>
-                  <Td className="text-ink-2">{r.trigger || "—"}</Td>
-                  <Td>
+                  <Td label="Triggered by" className="text-ink-2">{r.trigger || "—"}</Td>
+                  <Td label="Source">
                     <ProvenanceCell value={r.provenance} source={r.governingSource} />
                   </Td>
                   <Td>
@@ -245,13 +245,13 @@ export default async function ReferenceDataPage() {
           <tbody>
             {methods.map((m) => (
               <Tr key={m.code}>
-                <Td title={m.nameMs ? `${m.nameEn} — ${m.nameMs}` : m.nameEn}>
-                  <CellStack wrap title={m.nameEn} sub={m.nameMs || undefined} />
+                <Td label="Method" title={m.nameMs ? `${m.nameEn} — ${m.nameMs}` : m.nameEn}>
+                  <CellStack title={m.nameEn} sub={m.nameMs || undefined} />
                 </Td>
-                <Td>
+                <Td label="Bands">
                   <Bands method={m} />
                 </Td>
-                <Td>
+                <Td label="Asks for">
                   {asks(m.code).length > 0 ? (
                     <span className="flex flex-wrap gap-1">
                       {asks(m.code).map((a) => (
@@ -262,10 +262,10 @@ export default async function ReferenceDataPage() {
                     <span className="text-ink-3">Nothing further</span>
                   )}
                 </Td>
-                <Td>
-                  <CellStack wrap title={<span className="font-normal text-ink-2">{approachOf(m)}</span>} sub={m.awardInstrument ? `Awarded by ${m.awardInstrument.toLowerCase()}` : undefined} />
+                <Td label="Approach and award">
+                  <CellStack title={<span className="font-normal text-ink-2">{approachOf(m)}</span>} sub={m.awardInstrument ? `Awarded by ${m.awardInstrument.toLowerCase()}` : undefined} />
                 </Td>
-                <Td>
+                <Td label="Source">
                   <ProvenanceCell value={m.provenance} source={m.governingSource} />
                 </Td>
                 <Td>
@@ -304,19 +304,19 @@ export default async function ReferenceDataPage() {
           <tbody>
             {types.map((c) => (
               <Tr key={c.code}>
-                <Td title={c.nameMs ? `${c.nameEn} — ${c.nameMs}` : c.nameEn}>
-                  <CellStack wrap title={c.nameEn} sub={typeRow(c.code)?.deliverableKind ? `Default for this deliverable: ${DELIVERABLE_LABEL[typeRow(c.code)!.deliverableKind as DeliverableKind].toLowerCase()}` : "Default for this deliverable: none"} />
+                <Td label="Type" title={c.nameMs ? `${c.nameEn} — ${c.nameMs}` : c.nameEn}>
+                  <CellStack title={c.nameEn} sub={typeRow(c.code)?.deliverableKind ? `Default for this deliverable: ${DELIVERABLE_LABEL[typeRow(c.code)!.deliverableKind as DeliverableKind].toLowerCase()}` : "Default for this deliverable: none"} />
                 </Td>
-                <Td className="text-ink-2">
+                <Td label="What it drives" className="text-ink-2">
                   {(() => {
                     const t = typeRow(c.code);
                     const set = t ? behaviourProfile({ ...t }).filter((b) => b.value != null).length : 0;
                     return `${set} of 12 behaviours set${set < 12 ? " · the rest not set" : ""}`;
                   })()}
                   <div className="text-[12.5px] text-ink-3">{(typeRow(c.code) as { contractSeriesKey?: string | null } | undefined)?.contractSeriesKey ? "Contract numbers: from its series" : "Contract numbers: series not set — its awards cannot be issued"}</div>
-                  {c.notes && <div className="truncate text-[12.5px] text-ink-3">{c.notes}</div>}
+                  {c.notes && <div className="break-words text-[12.5px] text-ink-3">{c.notes}</div>}
                 </Td>
-                <Td>
+                <Td label="Source">
                   <ProvenanceCell value={c.provenance} source={c.governingSource} />
                 </Td>
                 <Td>
@@ -356,9 +356,9 @@ export default async function ReferenceDataPage() {
           <tbody>
             {items.map((i) => (
               <Tr key={i.id}>
-                <Td className="text-ink-2">{i.method}</Td>
-                <Td className="break-words">{i.labelEn}</Td>
-                <Td>{i.required ? <Chip tone="brand">Required</Chip> : <Chip>Optional</Chip>}</Td>
+                <Td label="Method" className="text-ink-2">{i.method}</Td>
+                <Td label="Item" className="break-words">{i.labelEn}</Td>
+                <Td label="Required">{i.required ? <Chip tone="brand">Required</Chip> : <Chip>Optional</Chip>}</Td>
                 <Td>
                   <RowActions>
                     <HistoryButton iconOnly entity="MethodChecklistItem" entityId={i.id} label={i.labelEn} />
@@ -395,11 +395,11 @@ export default async function ReferenceDataPage() {
           <tbody>
             {reasons.map((r) => (
               <Tr key={r.id}>
-                <Td>
+                <Td label="Reason">
                   <CellStack title={r.nameEn} sub={r.nameMs || undefined} />
                 </Td>
-                <Td className="text-ink-2">{r.sourcingMethodCode ? (methodRow(r.sourcingMethodCode)?.nameEn ?? "A method no longer configured") : "Every method that asks"}</Td>
-                <Td>
+                <Td label="Offered for" className="text-ink-2">{r.sourcingMethodCode ? (methodRow(r.sourcingMethodCode)?.nameEn ?? "A method no longer configured") : "Every method that asks"}</Td>
+                <Td label="Source">
                   <ProvenanceCell value={r.provenance as Provenance} source={r.governingSource} />
                 </Td>
                 <Td>
@@ -438,11 +438,11 @@ export default async function ReferenceDataPage() {
           <tbody>
             {bases.map((b) => (
               <Tr key={b.id}>
-                <Td>
+                <Td label="Basis">
                   <CellStack title={b.nameEn} sub={b.nameMs || undefined} />
                 </Td>
-                <Td className="text-ink-2">{b.standardFormLabel || "Not set"}</Td>
-                <Td>
+                <Td label="Standard contract form" className="text-ink-2">{b.standardFormLabel || "Not set"}</Td>
+                <Td label="Source">
                   <ProvenanceCell value={b.provenance as Provenance} source={b.governingSource} />
                 </Td>
                 <Td>
@@ -481,10 +481,10 @@ export default async function ReferenceDataPage() {
           <tbody>
             {taxonomies.map((t) => (
               <Tr key={t.id}>
-                <Td>
+                <Td label="Classification">
                   <CellStack title={t.nameEn} sub={t.nameMs || undefined} />
                 </Td>
-                <Td>
+                <Td label="Values">
                   <ul className="flex flex-col gap-1">
                     {t.values.map((v) => (
                       <li key={v.id} className="flex min-w-0 items-center gap-1.5 text-[13px]">
@@ -497,7 +497,7 @@ export default async function ReferenceDataPage() {
                     <TaxonomyValueDrawer taxonomyId={t.id} taxonomy={t.nameEn} />
                   </div>
                 </Td>
-                <Td>
+                <Td label="Source">
                   <ProvenanceCell value={t.provenance as Provenance} source={t.governingSource} />
                 </Td>
                 <Td>
@@ -545,9 +545,9 @@ export default async function ReferenceDataPage() {
           <tbody>
             {mappings.map((m) => (
               <Tr key={m.id}>
-                <Td className="text-ink">{typeRow(m.contractTypeCode)?.nameEn ?? "A type no longer configured"}</Td>
-                <Td className="text-ink-2">{taxName(m.taxonomyCode)}</Td>
-                <Td className="break-words">
+                <Td label="Contract type" className="text-ink">{typeRow(m.contractTypeCode)?.nameEn ?? "A type no longer configured"}</Td>
+                <Td label="Classification" className="text-ink-2">{taxName(m.taxonomyCode)}</Td>
+                <Td label="Value, and when" className="break-words">
                   {valueName(m.taxonomyCode, m.valueCode)}
                   {(m.whenBasisCode || m.whenTaxonomyCode) && (
                     <div className="text-[12.5px] text-ink-3">
@@ -561,7 +561,7 @@ export default async function ReferenceDataPage() {
                     </div>
                   )}
                 </Td>
-                <Td>
+                <Td label="Source">
                   <ProvenanceCell value={m.provenance as Provenance} source={m.governingSource} />
                 </Td>
                 <Td>

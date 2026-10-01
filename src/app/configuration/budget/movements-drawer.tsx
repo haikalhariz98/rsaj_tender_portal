@@ -142,7 +142,7 @@ export function MovementsDrawer({
                             const tone = s === "Released" ? "neutral" : "ok";
                             return (
                               <Tr key={r.id}>
-                                <Td>
+                                <Td label="Reference">
                                   <span
                                     className="block truncate font-mono text-[12.5px] text-ink"
                                     title={r.reference || undefined}
@@ -150,16 +150,16 @@ export function MovementsDrawer({
                                     {r.reference || "—"}
                                   </span>
                                 </Td>
-                                <Td>
+                                <Td label="Type">
                                   <Badge>{KIND_LABEL[r.kind]}</Badge>
                                 </Td>
-                                <Td className="tabular-nums">{day(r.occurredOn)}</Td>
-                                <Td>
+                                <Td label="Date" className="tabular-nums">{day(r.occurredOn)}</Td>
+                                <Td label="Status">
                                   <Chip tone={tone} icon={<Dot tone={tone} />} title={s}>
                                     {s}
                                   </Chip>
                                 </Td>
-                                <Td numeric className="font-semibold">
+                                <Td label="Amount" numeric className="font-semibold">
                                   {formatSen(r.amount)}
                                 </Td>
                               </Tr>

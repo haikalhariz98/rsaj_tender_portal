@@ -100,7 +100,7 @@ export default async function NumberingPage() {
               const next = faults.length > 0 ? null : previewNext(s, on);
               return (
                 <Tr key={s.id}>
-                  <Td title={s.nameEn}>
+                  <Td label="Series" title={s.nameEn}>
                     <CellStack
                       title={s.nameEn}
                       sub={
@@ -111,10 +111,10 @@ export default async function NumberingPage() {
                       }
                     />
                   </Td>
-                  <Td className="font-mono text-[12.5px] text-ink-2 [overflow-wrap:anywhere]">
+                  <Td label="Pattern" className="font-mono text-[12.5px] text-ink-2 [overflow-wrap:anywhere]">
                     {s.pattern}
                   </Td>
-                  <Td className="[overflow-wrap:anywhere]">
+                  <Td label="Next reference" className="[overflow-wrap:anywhere]">
                     {next == null ? (
                       <Badge tone="warn">Would collide</Badge>
                     ) : !day ? (
@@ -123,13 +123,13 @@ export default async function NumberingPage() {
                       <span className="font-mono text-[12.5px] tabular-nums text-ink">{next}</span>
                     )}
                   </Td>
-                  <Td className="text-ink-2">
+                  <Td label="Starts again" className="text-ink-2">
                     {RESET_LABEL[s.resetOn] ?? s.resetOn}
                     {s.resetOn === "FINANCIAL_YEAR" && s.financialYearStartMonth !== 1
                       ? ` (from month ${s.financialYearStartMonth})`
                       : ""}
                   </Td>
-                  <Td>
+                  <Td label="Source">
                     <ProvenanceChip value={s.provenance} />
                   </Td>
                   <Td>
