@@ -1,10 +1,13 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { manualFeeReceipt, uncollectedReceipts } from "@/lib/integration/fee-receipt";
 
 import { event } from "./fixture";
 import { windowFindingText } from "./labels";
-import { annotationLines, isAnnotation, saleAnnotation, saleFaults, voidSaleFault, type SaleInput } from "./sale";
+import { annotationLines, isAnnotation, isReceiptDuplicate, RECEIPT_INDEX, saleAnnotation, saleFaults, voidSaleFault, type SaleInput } from "./sale";
 
 /**
  * FR-ADV-009–012, FR-DOC-009 at sale; OD-9 (register checks read "not checked", a warning, never a
@@ -128,5 +131,32 @@ describe("the finance receipt (OD-11)", () => {
   it("live sales with no receipt are the reconciliation list, oldest first", () => {
     const s = (id: string, day: string, receipt: string | null, voided = false) => ({ id, soldOn: new Date(day), financeReceiptNo: receipt, voidedAt: voided ? new Date() : null });
     expect(uncollectedReceipts([s("b", "2026-11-06", null), s("a", "2026-11-05", null), s("c", "2026-11-05", "OR-1"), s("d", "2026-11-04", null, true)]).map((x) => x.id)).toEqual(["a", "b"]);
+  });
+});
+
+describe("a receipt number taken on another exercise at the same moment (the unique index)", () => {
+  // The shape observed from Prisma 7 + @prisma/adapter-pg (see scope/unique-violation.test.ts).
+  const adapterError = (index: string) => ({ code: "P2002", meta: { modelName: "DocumentSale", driverAdapterError: { cause: { originalCode: "23505", originalMessage: `duplicate key value violates unique constraint "${index}"`, constraint: { fields: ['"organisationId"', '"financeReceiptNo"'] } } } } });
+  it("the receipt index's violation is the RECEIPT_DUPLICATE refusal, in the adapter's shape and the engine's", () => {
+    expect(isReceiptDuplicate(adapterError(RECEIPT_INDEX))).toBe(true);
+    expect(isReceiptDuplicate({ code: "P2002", meta: { modelName: "DocumentSale", target: ["organisationId", "financeReceiptNo"] } })).toBe(true);
+    expect(windowFindingText({ code: "RECEIPT_DUPLICATE", level: "block" })).toBe("That receipt number is already recorded on another sale.");
+  });
+  it("any other error is not dressed up as one", () => {
+    expect(isReceiptDuplicate(adapterError("DocumentSale_one_live_per_party"))).toBe(false);
+    expect(isReceiptDuplicate({ code: "P2002", meta: { modelName: "ExerciseParty", target: ["exerciseId", "registrationNo"] } })).toBe(false);
+    expect(isReceiptDuplicate({ code: "P2025", meta: {} })).toBe(false);
+    expect(isReceiptDuplicate(new Error("boom"))).toBe(false);
+    expect(isReceiptDuplicate(null)).toBe(false);
+  });
+  it("the index name is the one the migrations create", () => {
+    const dir = join(process.cwd(), "prisma/migrations");
+    const sql = readdirSync(dir).filter((m) => !m.includes(".")).map((m) => { try { return readFileSync(join(dir, m, "migration.sql"), "utf8"); } catch { return ""; } }).join("\n");
+    expect(sql).toContain(`CREATE UNIQUE INDEX "${RECEIPT_INDEX}" ON "DocumentSale"("organisationId", "financeReceiptNo")`);
+  });
+  it("the sale and the late receipt both map it to their refusal (source scan)", () => {
+    const src = readFileSync(join(process.cwd(), "src/app/sourcing/[id]/window/register-actions.ts"), "utf8");
+    expect(src).toMatch(/export async function recordSale[\s\S]*?return receiptGuarded\(\(\) => inWindow\([\s\S]*?\}\), refuse\(\[\{ code: "RECEIPT_DUPLICATE", level: "block" \}\], "Not sold:"\)\);/);
+    expect(src).toMatch(/export async function recordReceipt[\s\S]*?return receiptGuarded\(\(\) => inWindow\([\s\S]*?\}\), \{ ok: false, errors: \{ financeReceiptNo: windowFindingText\(\{ code: "TAKEN", level: "block" \}\) \} \}\);/);
   });
 });

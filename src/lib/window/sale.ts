@@ -13,6 +13,8 @@
  * recorded later: a sale without one is on the reconciliation list (FR-ADV-009 partial). Pure.
  */
 
+import { uniqueViolationIndex } from "@/lib/scope/unique-violation";
+
 import { attendanceFaults } from "./events";
 import type { WindowPhase } from "./phase";
 import type { CertSighted, CheckState, EventFacts, Finding } from "./types";
@@ -95,6 +97,23 @@ export function saleFaults(i: SaleInput): Finding<SaleFault>[] {
   if (i.receiptNo && i.receiptTaken) f("RECEIPT_DUPLICATE");
   if (!i.receiptNo) f("RECEIPT_NOT_RECORDED", "warn");
   return out;
+}
+
+/**
+ * The unique index behind "one finance receipt number per organisation" (migration
+ * `invitation_window`). The sale act checks the number under the window's lock, but two sales on
+ * DIFFERENT exercises hold different locks, so the second to commit reaches this index instead:
+ * that is the same refusal (RECEIPT_DUPLICATE / TAKEN), not a crash.
+ */
+export const RECEIPT_INDEX = "DocumentSale_organisationId_financeReceiptNo_key";
+
+/// Whether an error is the receipt index's unique violation; anything else is rethrown by the caller.
+export function isReceiptDuplicate(e: unknown): boolean {
+  if (uniqueViolationIndex(e) === RECEIPT_INDEX) return true;
+  // The engine's own shape names the columns, with the model.
+  if (typeof e !== "object" || e === null) return false;
+  const { code, meta } = e as { code?: unknown; meta?: { modelName?: unknown; target?: unknown } };
+  return code === "P2002" && meta?.modelName === "DocumentSale" && Array.isArray(meta.target) && meta.target.includes("financeReceiptNo");
 }
 
 /**

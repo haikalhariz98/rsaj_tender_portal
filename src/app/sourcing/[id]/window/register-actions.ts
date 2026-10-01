@@ -16,7 +16,7 @@ import { lockAddendumRows, lockSaleRows } from "@/lib/window/lock";
 import { closingDay, pathOf, phaseOf, renderAddendum } from "@/lib/window/judge";
 import { windowFindingText } from "@/lib/window/labels";
 import { eventFactsOf, type WindowData } from "@/lib/window/repo";
-import { ATTESTABLE_CHECKS, saleAnnotation, saleFaults, voidSaleFault } from "@/lib/window/sale";
+import { ATTESTABLE_CHECKS, isReceiptDuplicate, saleAnnotation, saleFaults, voidSaleFault } from "@/lib/window/sale";
 import { CERT_SIGHTED, DELIVERY_METHODS, SITE_EVENT_KINDS, type CertSighted, type CheckState, type DeliveryMethod, type Finding, type PartySource, type SiteEventKind } from "@/lib/window/types";
 import { FormReader } from "@/lib/validate";
 
@@ -31,6 +31,19 @@ import { activePerson, audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW,
 
 const TRI = ["yes", "no", "unset"] as const;
 const tri = (v: (typeof TRI)[number] | null) => (v === "yes" ? true : v === "no" ? false : null);
+
+/**
+ * A receipt number taken by a sale on another exercise between the check and the commit reaches
+ * the organisation's unique index (`isReceiptDuplicate`): the same refusal as the check, nothing saved.
+ */
+async function receiptGuarded(run: () => Promise<FormState>, refused: FormState): Promise<FormState> {
+  try {
+    return await run();
+  } catch (e) {
+    if (isReceiptDuplicate(e)) return refused;
+    throw e;
+  }
+}
 
 /// The party a register act names: an existing one by id, or one found or made by registration number.
 async function partyFor(tx: Tx, l: LockedWindow, d: WindowData, r: { partyId: string | null; name: string; registrationNo: string; address: string; phone: string; fax: string; email: string }, source: PartySource) {
@@ -73,7 +86,7 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
   const receiptNo = r.optionalText("financeReceiptNo");
   const personId = r.optionalText("issuedByPersonId");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return receiptGuarded(() => inWindow(exerciseId, async (tx, l, d) => {
     if (!l.org.today) return NO_ZONE;
     const w = d.window;
     if (!w) return NO_WINDOW;
@@ -140,7 +153,7 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
     }
     const said = notes(fs);
     return { ok: true, message: `Sold to ${buyer.name}.${said ? ` ${said}` : ""}` };
-  });
+  }), refuse([{ code: "RECEIPT_DUPLICATE", level: "block" }], "Not sold:"));
 }
 
 /// Void a sale recorded in error, with a reason; refused once the window has closed (X-11).
@@ -169,7 +182,7 @@ export async function recordReceipt(_prev: FormState, data: FormData): Promise<F
   const r = new FormReader(data);
   const number = r.text("financeReceiptNo", "Receipt number", { required: true, max: 80 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return receiptGuarded(() => inWindow(exerciseId, async (tx, l, d) => {
     if (!l.org.today) return NO_ZONE;
     const s = d.window?.sales.find((x) => x.id === saleId);
     if (!s || s.voidedAt) return { ok: false, message: "That sale is not live on this exercise." };
@@ -181,7 +194,7 @@ export async function recordReceipt(_prev: FormState, data: FormData): Promise<F
     await tx.documentSale.update({ where: { id: s.id }, data: { financeReceiptNo: number, receiptRecordedOn: on } });
     await audit(tx, l.org.id, ENTITY.sale, s.id, label(l, `Sale · ${s.party.name}`), "UPDATE", diffFields({ financeReceipt: null }, { financeReceipt: number, receiptRecordedOn: formatDate(l.org.today), source: "typed by an officer from the finance receipt" }));
     return { ok: true };
-  });
+  }), { ok: false, errors: { financeReceiptNo: windowFindingText({ code: "TAKEN", level: "block" }) } });
 }
 
 // ------------------------------------------------------------------ briefings and site visits
