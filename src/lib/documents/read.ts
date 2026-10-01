@@ -13,7 +13,7 @@ import { detachFault, ownerState, purposeFits, reliedOn, reliedOnAttachment, rep
 import { isLive } from "./evidence";
 import { accessReasonText, ACCESS_STATEMENT, documentFaultText, DOWNLOAD_REFUSAL_TEXT, EXIT_TEXT, FINGERPRINT_STATEMENT } from "./labels";
 import { effectiveCap } from "./limits";
-import { awardFacts, bqVersionFacts, delegationFacts, exerciseFacts, exerciseMethodFlags, meetingFacts, panelFacts } from "./owner-facts";
+import { awardFacts, bqVersionFacts, delegationFacts, exerciseFacts, exerciseMethodFlags, meetingFacts, PANEL_FACTS_SELECT, panelFacts } from "./owner-facts";
 import { type OwnerRef } from "./repo";
 import { attachTargets, ownerHref } from "./targets";
 import { retentionOf, documentOrg, loadStorePolicy } from "./service";
@@ -50,7 +50,7 @@ export async function readOwner(ref: OwnerRef): Promise<{ facts: OwnerFacts; lab
       return d ? { facts: delegationFacts(d, org.today ?? storedDay(new Date())), label: `Delegation · ${d.fromPerson.name} to ${d.toPerson.name}` } : null;
     }
     case "specificationPanel": {
-      const p = await db.specificationPanel.findFirst({ where: { id: ref.id, organisationId: org.id }, select: { status: true, exercise: { select: { status: true, reference: true } } } });
+      const p = await db.specificationPanel.findFirst({ where: { id: ref.id, organisationId: org.id }, select: { ...PANEL_FACTS_SELECT, exercise: { select: { status: true, reference: true } } } });
       return p ? { facts: panelFacts(p), label: `${p.exercise.reference} · Specification panel` } : null;
     }
     case "bqVersion": {
@@ -108,7 +108,7 @@ export async function ownerPanel(ref: OwnerRef) {
       purpose,
       live: isLive(r),
       /// Null once it is off the record. Otherwise whether it may come off, and if not why.
-      detach: offPast ? null : refusal(detachFault({ purpose, owner: owner.facts, reason: "-", reliedOn: reliedOnAttachment(r, () => reliedOn(purpose, owner.facts, liveOf(purpose))) })),
+      detach: offPast ? null : refusal(detachFault({ purpose, owner: owner.facts, reason: "-", reliedOn: reliedOnAttachment(r, () => reliedOn(purpose, owner.facts, liveOf(purpose), r.versionId)) })),
       /// Null once it is off the record. Otherwise whether a new version of the document may replace this pin, and if not why.
       newVersion: offPast ? null : refusal(repinFault({ purpose, owner: owner.facts, reason: "-", attachment: { detachedAt: r.detachedAt, versionId: r.versionId, documentId: d.id }, to: { id: "next", documentId: d.id, withdrawnAt: null } })),
       attachedAt: r.attachedAt,
@@ -239,7 +239,7 @@ export async function attachTargetsOf(kind: OwnerRef["kind"]) {
     case "specificationPanel": {
       const where = { organisationId: org.id };
       const [rows, total] = await Promise.all([
-        db.specificationPanel.findMany({ where, orderBy: { exercise: { createdAt: "desc" } }, take, select: { id: true, status: true, exerciseId: true, exercise: { select: { status: true, reference: true, title: true } } } }),
+        db.specificationPanel.findMany({ where, orderBy: { exercise: { createdAt: "desc" } }, take, select: { id: true, ...PANEL_FACTS_SELECT, exerciseId: true, exercise: { select: { status: true, reference: true, title: true } } } }),
         db.specificationPanel.count({ where }),
       ]);
       return { records: attachTargets(rows.map((p) => ({ id: p.id, label: `${p.exercise.reference} · ${p.exercise.title}`, href: ownerHref("specificationPanel", p.id, p.exerciseId), facts: panelFacts(p) }))), total };

@@ -42,8 +42,10 @@ export type OwnerFacts =
       scansRequired: boolean;
     }
   | { kind: "delegation"; ended: boolean }
-  /// 6.2: a specification panel, judged with its exercise's status.
-  | { kind: "specificationPanel"; exerciseStatus: ExerciseStatus; status: "DRAFT" | "VERIFIED" }
+  /// 6.2: a specification panel, judged with its exercise's status. BD-62-26: the scan
+  /// versions its `verifiedSnapshot` names, and the version of each live attachment of the
+  /// signed form (one entry per attachment), so reliance falls only on a scan it was verified on.
+  | { kind: "specificationPanel"; exerciseStatus: ExerciseStatus; status: "DRAFT" | "VERIFIED"; verifiedScanVersionIds: readonly string[]; liveScanVersionIds: readonly string[] }
   /// 6.2 Q-3: a bill of quantities version, judged with its exercise's status.
   | { kind: "bqVersion"; exerciseStatus: ExerciseStatus; status: "DRAFT" | "FINALISED" | "SUPERSEDED" };
 
@@ -220,21 +222,33 @@ export function detachFault(i: { purpose: AttachmentPurpose; owner: OwnerFacts; 
 
 /**
  * Whether a judged record relies on an attachment of this purpose, given how many live
- * attachments of the purpose the owner holds (this one included). Only the last live one
- * is relied on; a duplicate may come off. The one definition: the owner acts refuse by it
- * and the screens disable Detach by it, so the two give the same reason.
+ * attachments of the purpose the owner holds (this one included) and the version this
+ * attachment pins. Only the last live one is relied on; a duplicate may come off. The one
+ * definition: the owner acts refuse by it and the screens disable Detach by it, so the two
+ * give the same reason.
  */
-export function reliedOn(purpose: AttachmentPurpose, owner: OwnerFacts, liveOfPurpose: number): Reliance | null {
+export function reliedOn(purpose: AttachmentPurpose, owner: OwnerFacts, liveOfPurpose: number, versionId?: string): Reliance | null {
   // Q-3: each imported file is what some of the bill's lines came from, so none is a
   // duplicate: a wrong one is replaced by a new version, never simply taken off.
   if (owner.kind === "bqVersion") return purpose === "BQ_IMPORT_SOURCE" ? "IMPORTED_FROM_IT" : null;
+  // Q-1, BD-62-26: a verified panel stands only on the scans its snapshot names. The last of
+  // those live is replaced by a new version, never simply taken off; any other scan (another
+  // document, or a later version of the same one) was never verified on and may come off; and
+  // where none it names is live (SCAN_GONE) nothing is relied on.
+  // Asked without the attachment's version, it cannot tell which scan this is, so it fails safe:
+  // relied on while any scan the snapshot names is live.
+  if (owner.kind === "specificationPanel") {
+    if (purpose !== "SPEC_PANEL_FORM" || owner.status !== "VERIFIED") return null;
+    const liveNamed = owner.liveScanVersionIds.filter((v) => owner.verifiedScanVersionIds.includes(v)).length;
+    if (versionId === undefined) return liveNamed > 0 ? "VERIFIED_ON_IT" : null;
+    if (!owner.verifiedScanVersionIds.includes(versionId)) return null;
+    return liveNamed > 1 ? null : "VERIFIED_ON_IT";
+  }
   if (liveOfPurpose > 1) return null;
   if (owner.kind === "award") return awardReliance(purpose, owner);
   // OD-6: a delegation stands on its attached recommendation; the last live one is
   // replaced by a new version, never simply taken off.
   if (owner.kind === "delegation") return purpose === "HOLDER_RECOMMENDATION" ? "GRANTED_ON_IT" : null;
-  // Q-1: a verified panel's last live scan is replaced by a new version, never simply taken off.
-  if (owner.kind === "specificationPanel") return purpose === "SPEC_PANEL_FORM" && owner.status === "VERIFIED" ? "VERIFIED_ON_IT" : null;
   return null;
 }
 

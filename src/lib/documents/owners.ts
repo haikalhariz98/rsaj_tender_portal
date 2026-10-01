@@ -23,7 +23,7 @@ import { lockDelegation } from "@/lib/people/lock";
 import { exerciseOfBqVersion, exerciseOfPanel, lockBqRows, lockPanelRow, withLockedExerciseScope } from "@/lib/scope/lock";
 
 import { reliedOn, type OwnerFacts, type Reliance } from "./attach";
-import { awardFacts, bqVersionFacts, delegationFacts, exerciseFacts, exerciseMethodFlags, meetingFacts, panelFacts } from "./owner-facts";
+import { awardFacts, bqVersionFacts, delegationFacts, exerciseFacts, exerciseMethodFlags, meetingFacts, PANEL_FACTS_SELECT, panelFacts } from "./owner-facts";
 import type { OwnerRef } from "./repo";
 import { documentOrg } from "./service";
 import type { AttachmentPurpose } from "./types";
@@ -39,7 +39,8 @@ export interface LockedOwner {
   paths: string[];
   /// Whether a judged record relies on an attachment of this purpose (detachFault), given
   /// how many live attachments of the purpose the owner holds, this one included.
-  reliance: (purpose: AttachmentPurpose, liveOfPurpose: number) => Reliance | null;
+  /// `versionId`: the version the attachment being judged pins (a panel relies only on the scans its snapshot names).
+  reliance: (purpose: AttachmentPurpose, liveOfPurpose: number, versionId: string) => Reliance | null;
   /// What the owner's own module does when its attachments change, in the same act
   /// (an award whose last return scan arrives is accepted). Returns a line for the officer.
   afterChange?: (tx: Tx) => Promise<string | null>;
@@ -96,7 +97,7 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
           label: `${a.reference}`,
           facts,
           paths: [`/awards/${a.id}`, "/awards"],
-          reliance: (purpose, live) => reliedOn(purpose, facts, live),
+          reliance: (purpose, live, versionId) => reliedOn(purpose, facts, live, versionId),
           // OD-5, BD-12: the scan that completes the return accepts the award in the same act.
           afterChange: (tx) => acceptOnCompleteReturn(tx, l),
         });
@@ -107,9 +108,10 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
       if (!exerciseId) return null;
       return withLockedExerciseScope(exerciseId, async (tx, l) => {
         await lockPanelRow(tx, ref.id);
-        const p = await tx.specificationPanel.findFirst({ where: { id: ref.id, exerciseId, organisationId: l.org.id }, select: { status: true } });
+        // BD-62-26: the snapshot and the live scans, read under the panel's lock.
+        const p = await tx.specificationPanel.findFirst({ where: { id: ref.id, exerciseId, organisationId: l.org.id }, select: PANEL_FACTS_SELECT });
         if (!p) return null;
-        const facts = panelFacts({ status: p.status, exercise: { status: l.ex.status } });
+        const facts = panelFacts({ ...p, exercise: { status: l.ex.status } });
         return fn(tx, {
           ref,
           organisationId: l.org.id,
@@ -117,7 +119,7 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
           label: `${l.ex.reference} · Specification panel`,
           facts,
           paths: [`/sourcing/${exerciseId}`],
-          reliance: (purpose, live) => reliedOn(purpose, facts, live),
+          reliance: (purpose, live, versionId) => reliedOn(purpose, facts, live, versionId),
         });
       });
     }
@@ -137,7 +139,7 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
           label: `${l.ex.reference} · Bill of quantities, version ${v.versionNo}`,
           facts,
           paths: [`/sourcing/${exerciseId}`],
-          reliance: (purpose, live) => reliedOn(purpose, facts, live),
+          reliance: (purpose, live, versionId) => reliedOn(purpose, facts, live, versionId),
         });
       });
     }
@@ -157,7 +159,7 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
           label: `Delegation · ${d.fromPerson.name} to ${d.toPerson.name}`,
           facts,
           paths: ["/configuration/users"],
-          reliance: (purpose, live) => reliedOn(purpose, facts, live),
+          reliance: (purpose, live, versionId) => reliedOn(purpose, facts, live, versionId),
         });
       });
   }

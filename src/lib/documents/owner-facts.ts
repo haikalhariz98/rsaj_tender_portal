@@ -6,8 +6,10 @@
  */
 
 import { isClassificationSnapshot } from "@/lib/method/snapshot";
+import { verifiedScanVersionIds } from "@/lib/scope/panel";
 
 import type { AwardStatus, ExerciseMethodFlags, ExerciseStatus, InstrumentKind, MeetingStatus, OwnerFacts } from "./attach";
+import { isLive } from "./evidence";
 
 export const meetingFacts = (m: { status: MeetingStatus }): OwnerFacts => ({ kind: "meeting", status: m.status });
 
@@ -38,8 +40,27 @@ export function awardFacts(a: { status: AwardStatus; instrumentKind: InstrumentK
   return { kind: "award", status: a.status, instrumentKind: a.instrumentKind, scansRequired: !(a.status === "ACCEPTED" && a.returnScanSnapshot == null) };
 }
 
-/// 6.2: a specification panel, with its exercise's status.
-export const panelFacts = (p: { status: "DRAFT" | "VERIFIED"; exercise: { status: ExerciseStatus } }): OwnerFacts => ({ kind: "specificationPanel", exerciseStatus: p.exercise.status, status: p.status });
+/// 6.2: a specification panel, with its exercise's status, the scans its snapshot names
+/// (BD-62-26; a missing or malformed snapshot names none) and its live signed-form attachments.
+export const panelFacts = (p: {
+  status: "DRAFT" | "VERIFIED";
+  exercise: { status: ExerciseStatus };
+  verifiedSnapshot: unknown;
+  attachments: readonly { purpose: string; versionId: string; detachedAt: Date | null; version: { withdrawnAt: Date | null } }[];
+}): OwnerFacts => ({
+  kind: "specificationPanel",
+  exerciseStatus: p.exercise.status,
+  status: p.status,
+  verifiedScanVersionIds: verifiedScanVersionIds(p.verifiedSnapshot),
+  liveScanVersionIds: p.attachments.filter((a) => a.purpose === "SPEC_PANEL_FORM" && isLive(a)).map((a) => a.versionId),
+});
+
+/// What a panel's facts are read from: its snapshot and its signed-form attachments, live or not.
+export const PANEL_FACTS_SELECT = {
+  status: true,
+  verifiedSnapshot: true,
+  attachments: { where: { purpose: "SPEC_PANEL_FORM" as const }, select: { purpose: true, versionId: true, detachedAt: true, version: { select: { withdrawnAt: true } } } },
+} as const;
 
 /// 6.2 Q-3: a bill of quantities version, with its exercise's status.
 export const bqVersionFacts = (v: { status: "DRAFT" | "FINALISED" | "SUPERSEDED"; exercise: { status: ExerciseStatus } }): OwnerFacts => ({ kind: "bqVersion", exerciseStatus: v.exercise.status, status: v.status });

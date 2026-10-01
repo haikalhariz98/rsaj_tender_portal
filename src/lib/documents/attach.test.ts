@@ -212,7 +212,7 @@ describe("only a live attachment is relied on (review carry 5)", () => {
 });
 
 describe("6.2 Q-1: the signed specification panel form, on its panel, SULIT", () => {
-  const panel = (x: Partial<Extract<OwnerFacts, { kind: "specificationPanel" }>> = {}): OwnerFacts => ({ kind: "specificationPanel", exerciseStatus: "DRAFT", status: "DRAFT", ...x });
+  const panel = (x: Partial<Extract<OwnerFacts, { kind: "specificationPanel" }>> = {}): OwnerFacts => ({ kind: "specificationPanel", exerciseStatus: "DRAFT", status: "DRAFT", verifiedScanVersionIds: [], liveScanVersionIds: [], ...x });
   const sulit = { classification: "SULIT" as const };
 
   it("belongs on a panel only, and a panel takes nothing else", () => {
@@ -238,12 +238,57 @@ describe("6.2 Q-1: the signed specification panel form, on its panel, SULIT", ()
     expect(ownerState("SPEC_PANEL_FORM", panel({ exerciseStatus: "DOCUMENTS_IN_PREPARATION", status: "VERIFIED" }))).toEqual({ state: "OPEN" });
   });
   it("a verified panel stands on its last live scan: replaced by a new version, never simply taken off", () => {
-    expect(reliedOn("SPEC_PANEL_FORM", panel({ status: "VERIFIED" }), 1)).toBe("VERIFIED_ON_IT");
-    expect(reliedOn("SPEC_PANEL_FORM", panel({ status: "VERIFIED" }), 2)).toBeNull();
-    expect(reliedOn("SPEC_PANEL_FORM", panel({ status: "DRAFT" }), 1)).toBeNull();
+    // BD-62-26: the scan is the one the panel's snapshot names (s1), live.
+    const onS1 = { verifiedScanVersionIds: ["s1"], liveScanVersionIds: ["s1"] };
+    expect(reliedOn("SPEC_PANEL_FORM", panel({ status: "VERIFIED", ...onS1 }), 1, "s1")).toBe("VERIFIED_ON_IT");
+    expect(reliedOn("SPEC_PANEL_FORM", panel({ status: "VERIFIED", verifiedScanVersionIds: ["s1", "s2"], liveScanVersionIds: ["s1", "s2"] }), 2, "s1")).toBeNull();
+    expect(reliedOn("SPEC_PANEL_FORM", panel({ status: "DRAFT", ...onS1 }), 1, "s1")).toBeNull();
     const f = detachFault({ purpose: "SPEC_PANEL_FORM", owner: panel({ status: "VERIFIED" }), reason: "wrong file", reliedOn: "VERIFIED_ON_IT" });
     expect(codes(f)).toEqual(["RELIED_ON"]);
     expect(documentFaultText(f[0])).toMatch(/^The specification panel was verified on this scan/);
+    // BD-62-26: the words say a new version leaves the panel to be verified again, never that it carries the verification over.
+    expect(documentFaultText(f[0])).toMatch(/new version.*verified again/);
+  });
+});
+
+describe("BD-62-26: a verified panel relies only on the live scan its snapshot names", () => {
+  const panel = (x: Partial<Extract<OwnerFacts, { kind: "specificationPanel" }>> = {}): OwnerFacts => ({ kind: "specificationPanel", exerciseStatus: "DRAFT", status: "VERIFIED", verifiedScanVersionIds: ["snap"], liveScanVersionIds: [], ...x });
+  it("the snapshot scan is refused even beside a live scan the panel was never verified on", () => {
+    // Two live scans of the purpose: the old count rule let either come off. The snapshot one may not.
+    const owner = panel({ liveScanVersionIds: ["snap", "later"] });
+    expect(reliedOn("SPEC_PANEL_FORM", owner, 2, "snap")).toBe("VERIFIED_ON_IT");
+    const f = detachFault({ purpose: "SPEC_PANEL_FORM", owner, reason: "wrong file", reliedOn: reliedOnAttachment({ detachedAt: null, version: { withdrawnAt: null } }, () => reliedOn("SPEC_PANEL_FORM", owner, 2, "snap")) });
+    expect(codes(f)).toEqual(["RELIED_ON"]);
+    // The scan it was never verified on, a later version of the same document included, is not relied on.
+    expect(reliedOn("SPEC_PANEL_FORM", owner, 2, "later")).toBeNull();
+  });
+  it("on a SCAN_GONE panel (no scan it names is live) a non-snapshot scan comes off freely", () => {
+    const gone = panel({ liveScanVersionIds: ["later"] });
+    expect(reliedOn("SPEC_PANEL_FORM", gone, 1, "later")).toBeNull();
+    const f = detachFault({ purpose: "SPEC_PANEL_FORM", owner: gone, reason: "wrong file", reliedOn: reliedOnAttachment({ detachedAt: null, version: { withdrawnAt: null } }, () => reliedOn("SPEC_PANEL_FORM", gone, 1, "later")) });
+    expect(f).toEqual([]);
+  });
+  it("a malformed or missing snapshot names nothing, so nothing is relied on", () => {
+    expect(reliedOn("SPEC_PANEL_FORM", panel({ verifiedScanVersionIds: [], liveScanVersionIds: ["a"] }), 1, "a")).toBeNull();
+  });
+  it("asked without the attachment's version, it fails safe while a named scan is live", () => {
+    expect(reliedOn("SPEC_PANEL_FORM", panel({ liveScanVersionIds: ["snap"] }), 1)).toBe("VERIFIED_ON_IT");
+    expect(reliedOn("SPEC_PANEL_FORM", panel({ liveScanVersionIds: ["later"] }), 1)).toBeNull();
+  });
+  it("panelFacts reads the names from the snapshot and the live scans from the attachments", async () => {
+    const { panelFacts } = await import("./owner-facts");
+    const W = new Date("2026-09-30T00:00:00Z");
+    const facts = panelFacts({
+      status: "VERIFIED",
+      exercise: { status: "DOCUMENTS_IN_PREPARATION" },
+      verifiedSnapshot: { scans: [{ versionId: "snap" }] },
+      attachments: [
+        { purpose: "SPEC_PANEL_FORM", versionId: "snap", detachedAt: null, version: { withdrawnAt: null } },
+        { purpose: "SPEC_PANEL_FORM", versionId: "off", detachedAt: W, version: { withdrawnAt: null } },
+        { purpose: "SPEC_PANEL_FORM", versionId: "withdrawn", detachedAt: null, version: { withdrawnAt: W } },
+      ],
+    });
+    expect(facts).toMatchObject({ verifiedScanVersionIds: ["snap"], liveScanVersionIds: ["snap"] });
   });
 });
 
@@ -285,7 +330,7 @@ describe("6.2 Q-3: a bill's imported CSV, on the bill version, attached only by 
     const f = repinFault({ purpose: "BQ_IMPORT_SOURCE", owner: bq(), reason: "corrected", attachment: { detachedAt: null, versionId: "v1", documentId: "d1" }, to: { id: "v2", documentId: "d1", withdrawnAt: null } });
     expect(codes(f)).toEqual(["ATTACHED_BY_OWNER_ACT"]);
     // Other purposes re-pin as before.
-    expect(repinFault({ purpose: "SPEC_PANEL_FORM", owner: { kind: "specificationPanel", exerciseStatus: "DRAFT", status: "DRAFT" }, reason: "corrected", attachment: { detachedAt: null, versionId: "v1", documentId: "d1" }, to: { id: "v2", documentId: "d1", withdrawnAt: null } })).toEqual([]);
+    expect(repinFault({ purpose: "SPEC_PANEL_FORM", owner: { kind: "specificationPanel", exerciseStatus: "DRAFT", status: "DRAFT", verifiedScanVersionIds: [], liveScanVersionIds: [] }, reason: "corrected", attachment: { detachedAt: null, versionId: "v1", documentId: "d1" }, to: { id: "v2", documentId: "d1", withdrawnAt: null } })).toEqual([]);
   });
 });
 
@@ -297,10 +342,10 @@ describe("X-8: an exercise's status freezes it, its panel and its bill alike, ev
   });
   it("the panel and the bill version read the exercise's status through it", () => {
     for (const exerciseStatus of ["DRAFT", "DOCUMENTS_IN_PREPARATION"] as const) {
-      expect(ownerState("SPEC_PANEL_FORM", { kind: "specificationPanel", exerciseStatus, status: "VERIFIED" })).toEqual({ state: "OPEN" });
+      expect(ownerState("SPEC_PANEL_FORM", { kind: "specificationPanel", exerciseStatus, status: "VERIFIED", verifiedScanVersionIds: [], liveScanVersionIds: [] })).toEqual({ state: "OPEN" });
       expect(ownerState("BQ_IMPORT_SOURCE", { kind: "bqVersion", exerciseStatus, status: "DRAFT" })).toEqual({ state: "OPEN" });
     }
-    expect(ownerState("SPEC_PANEL_FORM", { kind: "specificationPanel", exerciseStatus: "CANCELLED", status: "DRAFT" })).toEqual({ state: "FROZEN", exit: "EXERCISE_CANCELLED" });
+    expect(ownerState("SPEC_PANEL_FORM", { kind: "specificationPanel", exerciseStatus: "CANCELLED", status: "DRAFT", verifiedScanVersionIds: [], liveScanVersionIds: [] })).toEqual({ state: "FROZEN", exit: "EXERCISE_CANCELLED" });
     expect(ownerState("BQ_IMPORT_SOURCE", { kind: "bqVersion", exerciseStatus: "CANCELLED", status: "DRAFT" })).toEqual({ state: "FROZEN", exit: "EXERCISE_CANCELLED" });
   });
 });

@@ -138,7 +138,7 @@ export async function detachDocument(_prev: FormState, data: FormData): Promise<
     if (!a) return GONE;
     const live = await tx.documentAttachment.count({ where: { [OWNER_COLUMN[ref.kind]]: ref.id, purpose: a.purpose, detachedAt: null, version: { withdrawnAt: null } } });
     // Only a live attachment can be relied on: a withdrawn pin always comes off.
-    const faults = detachFault({ purpose: a.purpose, owner: o.facts, reason, reliedOn: reliedOnAttachment(a, () => o.reliance(a.purpose, live)), detachedAt: a.detachedAt });
+    const faults = detachFault({ purpose: a.purpose, owner: o.facts, reason, reliedOn: reliedOnAttachment(a, () => o.reliance(a.purpose, live, a.versionId)), detachedAt: a.detachedAt });
     if (faults.length) return refuse(faults);
     await tx.documentAttachment.update({ where: { id: a.id }, data: { detachedAt: new Date(), detachReason: reason } });
     await writeAudit(tx, { organisationId: o.organisationId, entity: "DocumentAttachment", entityId: a.id, entityLabel: `${o.label} · ${PURPOSE_LABEL[a.purpose]}`, reason }, "UPDATE",
