@@ -17,6 +17,7 @@ import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues, Stat } from "@/components/ui/stat";
 import { CellStack, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { fieldLabel } from "@/lib/audit/diff";
+import { routeTone, stepTone } from "@/lib/ui/status-tone";
 import { issueDayFor, newerIssueNote, noIssueOnRaisedText } from "@/lib/authority/issue";
 import { loadIssue, loadMatrixVersion, loadOverrideMatrix, loadPinnedRule } from "@/lib/authority/load";
 import { MATTER_KIND_LABEL, OUTCOME_LABEL } from "@/lib/committee/labels";
@@ -523,7 +524,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
         </Callout>
       )}
       {r.status === "REJECTED" && inst && (
-        <Callout tone="warn" className="mb-6" title={awaitingChoice ? "Rejected: where it goes next is the officer's choice" : "Rejected"}>
+        <Callout tone="err" className="mb-6" title={awaitingChoice ? "Rejected: where it goes next is the officer's choice" : "Rejected"}>
           {inst.rejectionReason ? `“${inst.rejectionReason}” ` : ""}
           {awaitingChoice ? (inst.rejectionChoices.length > 0 ? CHOICE_WHY_TEXT[awaitingChoice.why] : "It was rejected before rejection destinations were recorded, so the officer chooses where it goes. The choice is recorded as theirs, not as policy.") : null}
         </Callout>
@@ -1267,7 +1268,7 @@ function ApprovalPanel({
               ? `Opened ${formatOrgDay(inst.openedAt, l.org.timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}.`
               : "As received from the finance system: not checked against the approval matrix."
           }
-          actions={<Badge tone={inst.status === "APPROVED" ? "ok" : inst.status === "PENDING" ? "brand" : "warn"}>{approvalRouteLabel(inst.status, inst.warnings)}</Badge>}
+          actions={<Badge tone={routeTone(inst.status)}>{approvalRouteLabel(inst.status, inst.warnings)}</Badge>}
         />
         <CardBody className="flex flex-col gap-5">
           {inst.checkedAgainstMatrix ? (
@@ -1398,7 +1399,7 @@ function ApprovalPanel({
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-                  {s.decision !== "PENDING" && <Badge tone={s.decision === "DONE" ? "ok" : "err"}>{DECISION_LABEL[s.decision]}</Badge>}
+                  {s.decision !== "PENDING" && <Badge tone={stepTone(s.decision)}>{DECISION_LABEL[s.decision]}</Badge>}
                   {open && s.decision === "PENDING" && !s.committeeCode && s.roleCode && (
                     <EscalateDrawer stepId={s.id} office={s.actingRoleLabel ?? s.roleLabel} mandatory={isMandatoryAct(s.act)} people={suggestions(s)} />
                   )}
@@ -1454,7 +1455,7 @@ function ApprovalPanel({
               return (
                 <li key={e.id} className="flex flex-col gap-1.5 px-5 py-3 text-[13px] sm:px-6">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone={returned ? "warn" : "neutral"}>{approvalRouteLabel(e.status, e.warnings)}</Badge>
+                    <Badge tone={returned ? "warn" : routeTone(e.status)}>{approvalRouteLabel(e.status, e.warnings)}</Badge>
                     <span className="text-ink-2">
                       Opened {formatOrgDay(e.openedAt, l.org.timeZone)} · {e.ruleLabel ?? "as received"} · {e.steps.map((s) => s.roleLabel).join(" → ")}
                     </span>

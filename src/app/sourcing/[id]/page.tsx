@@ -18,6 +18,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues, Stat } from "@/components/ui/stat";
 import { fieldLabel } from "@/lib/audit/diff";
+import { routeTone, stepTone } from "@/lib/ui/status-tone";
 import { dayToDate } from "@/lib/dates";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
@@ -923,7 +924,7 @@ function NamePanel({
             icon={<RouteIcon size={17} />}
             title={TERM.nameApproval}
             subtitle={`Requested ${formatOrgDay(inst.openedAt, l.org.timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}: ${inst.ruleLabel ?? "a rule no longer on file"} · ${inst.ruleClause || "clause not recorded"}.`}
-            actions={<Badge tone={inst.status === "APPROVED" ? "ok" : inst.status === "PENDING" ? "brand" : "warn"}>{nameRouteLabel(inst.status, inst.warnings)}</Badge>}
+            actions={<Badge tone={routeTone(inst.status)}>{nameRouteLabel(inst.status, inst.warnings)}</Badge>}
           />
           {((inst.warnings as { level: string; messageEn: string }[]) ?? []).length > 0 && (
             <CardBody className="flex flex-col gap-2">
@@ -1007,7 +1008,7 @@ function NamePanel({
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-                    {s.decision !== "PENDING" && <Badge tone={s.decision === "DONE" ? "ok" : "err"}>{DECISION_LABEL[s.decision]}</Badge>}
+                    {s.decision !== "PENDING" && <Badge tone={stepTone(s.decision)}>{DECISION_LABEL[s.decision]}</Badge>}
                     {inst.status === "PENDING" && s.decision === "PENDING" && !s.committeeCode && s.roleCode && (
                       <EscalateDrawer stepId={s.id} office={s.actingRoleLabel ?? s.roleLabel} mandatory={isMandatoryAct(s.act)} people={suggestions(s.actingRoleCode ?? s.roleCode)} />
                     )}

@@ -16,6 +16,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues, Stat } from "@/components/ui/stat";
 import { fieldLabel, foldPeriodChanges } from "@/lib/audit/diff";
+import { routeTone, stepTone } from "@/lib/ui/status-tone";
 import { CONTRACT_YEAR_READING } from "@/lib/award/contract-number";
 import { distributionComplete } from "@/lib/award/distribution";
 import { evaluateAward, type AwardEvaluation } from "@/lib/award/evaluate";
@@ -558,7 +559,7 @@ function ApprovalPanel({
             icon={<RouteIcon size={17} />}
             title="Approval of the appointment"
             subtitle={`Sent ${formatOrgDay(inst.openedAt, l.org.timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}: ${inst.ruleLabel ?? "a rule no longer on file"} · ${inst.ruleClause || "clause not recorded"}.`}
-            actions={<Badge tone={inst.status === "APPROVED" ? "ok" : inst.status === "PENDING" ? "brand" : "warn"}>{inst.status === "APPROVED" ? "Approved" : inst.status === "PENDING" ? "In progress" : inst.status === "REJECTED" ? "Refused" : "Withdrawn"}</Badge>}
+            actions={<Badge tone={routeTone(inst.status)}>{inst.status === "APPROVED" ? "Approved" : inst.status === "PENDING" ? "In progress" : inst.status === "REJECTED" ? "Refused" : "Withdrawn"}</Badge>}
           />
           {(absentLine || ((inst.warnings as { level: string; messageEn: string }[]) ?? []).length > 0) && (
             <CardBody className="flex flex-col gap-2">
@@ -663,7 +664,7 @@ function ApprovalPanel({
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-                    {s.decision !== "PENDING" && <Badge tone={s.decision === "DONE" ? "ok" : "err"}>{DECISION_LABEL[s.decision]}</Badge>}
+                    {s.decision !== "PENDING" && <Badge tone={stepTone(s.decision)}>{DECISION_LABEL[s.decision]}</Badge>}
                     {open && s.committeeCode && needsTabling && (tableHref ? <ButtonLink href={tableHref} size="sm" variant="secondary">Table at a sitting</ButtonLink> : <ButtonLink href="/committees" size="sm" variant="secondary">Schedule a sitting</ButtonLink>)}
                     {inst.status === "PENDING" && s.decision === "PENDING" && !s.committeeCode && s.roleCode && (
                       <EscalateDrawer stepId={s.id} office={s.actingRoleLabel ?? s.roleLabel} mandatory={isMandatoryAct(s.act)} people={suggestions(s.actingRoleCode ?? s.roleCode)} />
@@ -758,7 +759,7 @@ function ApprovalPanel({
           <ul className="divide-y divide-line/70">
             {earlier.map((e) => (
               <li key={e.id} className="flex flex-wrap items-center gap-2 px-5 py-3 text-[13px] sm:px-6">
-                <Badge tone="neutral">{e.status === "REJECTED" ? "Refused" : e.status === "RECALLED" ? "Withdrawn" : e.status === "APPROVED" ? "Approved" : "In progress"}</Badge>
+                <Badge tone={routeTone(e.status)}>{e.status === "REJECTED" ? "Refused" : e.status === "RECALLED" ? "Withdrawn" : e.status === "APPROVED" ? "Approved" : "In progress"}</Badge>
                 <span className="min-w-0 break-words text-ink-2">
                   Sent {formatOrgDay(e.openedAt, l.org.timeZone)} · {e.steps.map((s) => s.roleLabel).join(" → ")}
                 </span>
