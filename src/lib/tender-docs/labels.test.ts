@@ -5,6 +5,9 @@ import { describe, expect, it } from "vitest";
 
 import { BEHAVIOUR_KEYS } from "@/lib/method/profile";
 
+import { ASSURANCE_KIND_LABEL, clauseConfigFaultText, conditionsFaultText, confirmFaultText, overrideFaultText, restrictionQuestion } from "./conditions-labels";
+import { ASSURANCE_KINDS } from "./assurance";
+
 import { appendixFaultText, behaviourFaultText, datesFaultText, PACK_KIND_LABEL, PACK_STATUS_LABEL, PART_CONTENT_LABEL, PART_ROLE_LABEL, PART_SOURCE_LABEL, PART_STATE_LABEL, partFaultText, routeFaultText, startFaultText, tenderingRouteLabel } from "./labels";
 import { PACK_KINDS, PACK_PART_STATES, PART_CONTENTS, PART_ROLES, PART_SOURCES, TENDER_PACK_STATUSES } from "./types";
 
@@ -14,14 +17,24 @@ import { PACK_KINDS, PACK_PART_STATES, PART_CONTENTS, PART_ROLES, PART_SOURCES, 
  */
 
 const CODE = /\b[A-Z][A-Z0-9]+_[A-Z0-9_]+\b/;
-const f = (code: string, data: Record<string, string | number | null> = { part: "2. Form of tender", template: "Form of tender", field: "Field", fields: "{{x}}", role: "CONDITIONS", section: "S", holder: "H", text: "The words the engine gave for it.", behaviour: "pricingBasis", where: "BILL", appendix: 1 }) => ({ code, level: "block" as const, data });
+const f = (code: string, data: Record<string, string | number | null> = { part: "2. Form of tender", template: "Form of tender", field: "Field", fields: "{{x}}", role: "CONDITIONS", section: "S", holder: "H", text: "The words the engine gave for it.", behaviour: "pricingBasis", where: "BILL", appendix: 1, body: "A registry", qualifier: "Grade", clause: "Anti-corruption clause", person: "A person", reason: "A reason", language: "Malay", count: 2, kind: "NO_AMBIGUITY" }) => ({ code, level: "block" as const, data });
 
 const FAMILIES: [string, (x: ReturnType<typeof f>) => string, string[]][] = [
   ["part", partFaultText, ["PACK_NOT_DRAFT", "EXERCISE_NOT_IN_PREPARATION", "TEMPLATE_NOT_SET", "TEMPLATE_BODY_EMPTY", "TEMPLATE_LANGUAGE_NOT_SET", "TEMPLATE_UNKNOWN_FIELD", "BESPOKE_FROM_LIBRARY", "BQ_PART_WITHOUT_BQ", "UPLOAD_MISSING", "APPENDIX_INCOMPLETE", "ALREADY_READY", "ALREADY_OMITTED", "MANDATORY_OMITTED", "MANDATORY_UNSET", "OMIT_REASON_REQUIRED", "NOT_A_TEMPLATE_PART", "PART_NOT_READY", "DECLARATION_PART_MISSING", "DECLARATION_NOT_MANDATORY", "NO_PARTS"]],
   ["start", startFaultText, ["EXERCISE_NOT_IN_PREPARATION", "PREPARED_BEFORE_ASSEMBLY", "NO_PACK_FOR_METHOD", "LIVE_PACK_EXISTS", "PACK_APPROVED", "NO_PACK", "BASIS_NOT_SET", "COMPOSITION_NOT_SET", "DUPLICATE_ROLE", "NO_CONDITIONS_PART"]],
   ["appendix", appendixFaultText, ["FIELD_NOT_SET", "FIELD_NOT_VALID", "PC_SUM_TEXT_REQUIRED", "SECTIONS_REQUIRED", "SECTIONS_NOT_EXPECTED", "SECTION_LAD_NOT_SET", "VARIATION_LIMIT_NOT_SET", "DLP_MONTHS_NOT_EXPECTED", "APPENDIX_NOT_STARTED"]],
   ["behaviour", behaviourFaultText, ["PROFILE_NOT_RECORDED", "BEHAVIOUR_NOT_SET", "DLP_MONTHS_REQUIRED", "DLP_NOT_FOR_TYPE", "NOMINATION_NOT_FOR_TYPE", "BOND_FORMS_REQUIRED"]],
-  ["dates", datesFaultText, ["TIME_ZONE_NOT_SET", "DATES_REQUIRED", "DATE_NOT_VALID", "CLOSING_TIME_NOT_VALID", "START_IN_PAST", "CLOSING_NOT_AFTER_START"]],
+  ["dates", datesFaultText, ["TIME_ZONE_NOT_SET", "DATES_REQUIRED", "DATE_NOT_VALID", "CLOSING_TIME_NOT_VALID", "START_IN_PAST", "CLOSING_NOT_AFTER_START", "DATES_DIFFER_FROM_DOCUMENTS"]],
+  ["conditions", conditionsFaultText, [
+    "ELIGIBILITY_NOT_SET", "BODY_NOT_CONFIGURED", "BODY_RETIRED", "QUALIFIERS_REQUIRED", "QUALIFIERS_NOT_TAKEN", "GROUP_NOT_VALID", "BODY_TWICE_IN_GROUP",
+    "NOTICE_PART_MISSING", "NOTICE_LACKS_ELIGIBILITY", "NOTICE_NOT_CHECKED", "RESTRICTION_NOT_ANSWERED", "STAMP_NOT_SET", "UPLOADS_NOT_STAMPED",
+    "REGULATED_NOT_ANSWERED", "PERMIT_LIST_NOT_SET", "PERMIT_NOT_CHOSEN", "PERMIT_NOT_ON_LIST", "INSTRUCTIONS_PART_MISSING", "PERMIT_NOT_IN_INSTRUCTIONS", "INSTRUCTIONS_NOT_CHECKED", "PERMIT_FIELD_NOT_REGULATED",
+    "CLAUSE_MANDATORY_UNSET", "AGREEMENT_PART_MISSING", "CLAUSE_MISSING", "CLAUSE_NOT_CHECKABLE", "CLAUSE_LANGUAGE_MISSING", "CLAUSE_OVERRIDDEN",
+    "ASSURANCE_POLICY_NOT_SET", "ASSURANCE_MISSING", "ASSURANCE_NOT_REQUIRED", "TABLE_DOCUMENT_UNSET", "TABLE_DOCUMENT_EMPTY",
+  ]],
+  ["confirm", confirmFaultText, ["PACK_NOT_EDITABLE", "TIME_ZONE_NOT_SET", "ALREADY_CONFIRMED", "NOT_NEEDED", "PERSON_REQUIRED", "PERSON_NOT_ACTIVE", "DAY_REQUIRED", "DAY_IN_FUTURE", "DAY_BEFORE_PACK"]],
+  ["override", overrideFaultText, ["PACK_NOT_EDITABLE", "CLAUSE_NOT_MANDATORY", "ALREADY_OVERRIDDEN", "PERSON_REQUIRED", "PERSON_NOT_ACTIVE", "REASON_REQUIRED"]],
+  ["clause config", clauseConfigFaultText, ["CODE_REQUIRED", "CODE_TAKEN", "TITLE_REQUIRED", "BODY_REQUIRED", "BODY_HAS_FIELD", "PROVENANCE_REQUIRED"]],
   ["route", routeFaultText, ["NO_ISSUE_IN_FORCE", "ROUTE_NO_METHOD_KEY", "ROUTE_NO_RULE", "ROUTE_HAS_COMMITTEE_STEP", "ROUTE_REFUSED", "ROUTE_ERROR", "ROUTE_OPEN"]],
 ];
 
@@ -41,6 +54,14 @@ describe("every finding has words of its own, with no code in them", () => {
   });
   it("every behaviour is named in words", () => {
     for (const k of BEHAVIOUR_KEYS) expect(behaviourFaultText(f("BEHAVIOUR_NOT_SET", { behaviour: k }))).not.toMatch(/behaviour is not set|[a-z][A-Z]/);
+  });
+});
+
+describe("increment 2's vocabulary", () => {
+  it("each assurance kind has words; the restriction is asked in the customer's words, or says they are not set", () => {
+    expect(Object.keys(ASSURANCE_KIND_LABEL).sort()).toEqual([...ASSURANCE_KINDS].sort());
+    expect(restrictionQuestion("Restricted to eligible bidders")).toBe("Restricted to eligible bidders");
+    expect(restrictionQuestion(null)).toMatch(/not set/);
   });
 });
 

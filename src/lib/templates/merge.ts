@@ -47,3 +47,11 @@ export function renderWith(body: string, fields: Readonly<Record<string, string>
 
 /// The frozen text: paragraphs separated by a blank line.
 export const renderedText = (r: Rendered) => r.paragraphs.join("\n\n");
+
+/// The merge fields a body names, each once, in the order first named (whitelisted or not).
+export function fieldsNamed(body: string | null | undefined): string[] {
+  if (!body) return [];
+  const out = new Set<string>();
+  for (const m of body.matchAll(FIELD)) out.add(m[1].trim());
+  return [...out];
+}

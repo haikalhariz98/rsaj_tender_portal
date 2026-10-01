@@ -27,7 +27,7 @@ import { APPENDIX_FIELD_LABEL, appendixComplete, appendixFaults, ladDaily, type 
 import { BEHAVIOURS_AFTER_AWARD, BEHAVIOURS_CHECKED_HERE, behaviourFaults } from "./behaviour";
 import { formLabel, resolveComposition } from "./composition";
 import { CONFIG_TIME_ZONE_NOT_SET, configHoldingWorkBack, partRetiredOn } from "./config";
-import { PACK_WHITELIST, packFieldValues } from "./fields";
+import { packFieldValues } from "./fields";
 import { appendixText, packManifest, unpricedBqText } from "./freeze";
 import {
   appendixFaultText,
@@ -54,6 +54,13 @@ import { pickTemplateView } from "./part-view";
 import { formatPct } from "./percent";
 import { appendixFactsOf, loadConfiguredParts, loadPacks, loadTemplates, loadTenderPolicy, partFactsOf, pinnedFilesOf, profileOf, scopeReadiness, type PackRow } from "./repo";
 import { tenderingRouteForRequester, timeIn } from "./tendering";
+import { liveClauses } from "./clauses";
+import { conditionFieldValues, conditionStamp, readConditionsSnapshot } from "./conditions";
+import { conditionsFixHref } from "./conditions-labels";
+import { packWhitelist } from "./fields";
+import { tableDocumentManifest } from "./freeze";
+import { loadConditions } from "./repo";
+import { stamped } from "./stamp";
 import type { Finding, PackKind } from "./types";
 
 export type Allowed = { allowed: true } | { allowed: false; reason: string };
@@ -72,6 +79,7 @@ const FIX_HREF = (exerciseId: string) => ({
   scope: `/sourcing/${exerciseId}?tab=scope`,
   appendix: `/sourcing/${exerciseId}/appendix`,
   behaviour: "/configuration/reference-data",
+  conditions: `/sourcing/${exerciseId}?tab=documents#conditions`,
   dates: `/sourcing/${exerciseId}?tab=documents#submit`,
   route: "/configuration/approval-matrix",
 });
@@ -115,7 +123,10 @@ export async function documentsTab(exerciseId: string) {
   const next = nextPack(packs);
   const scope = await scopeReadiness(org.id, ex);
   const appendix = shown?.appendix ? appendixFactsOf(shown.appendix) : null;
-  const content = { bqFinalised: scope.bill != null, appendixComplete: appendix ? appendixComplete(appendix) : null };
+  // Increment 2: the conditions, on the organisation's day (none judged without it).
+  const conditions = on ? await loadConditions(org.id, ex, shown?.status === "DRAFT" ? shown.id : null, on) : null;
+  const whitelist = packWhitelist(conditions ? liveClauses(conditions.clauses.clauses, on!) : []);
+  const content = { bqFinalised: scope.bill != null, appendixComplete: appendix ? appendixComplete(appendix) : null, whitelist };
 
   // The route as it would open, for the submit check (the dates are the drawer's own).
   let route: ReturnType<typeof tenderingRouteForRequester> | null = null;
@@ -132,7 +143,7 @@ export async function documentsTab(exerciseId: string) {
     }
   }
   const submit =
-    shown?.status === "DRAFT"
+    shown?.status === "DRAFT" && conditions
       ? submitFaults({
           packStatus: shown.status,
           exerciseStatus: ex.status,
@@ -145,6 +156,7 @@ export async function documentsTab(exerciseId: string) {
           dates: [],
           route: { issue: issueInForce, state: route?.tenderingState ?? (issueInForce ? "NO_METHOD_KEY" : null), refusal: route?.refusal ?? null, errors: (route?.warnings ?? []).filter((w) => w.level === "err").map((w) => w.messageEn) },
           routeOpen: tenderingRoutesOf(ex.approvalInstances).some((i) => i.status === "PENDING"),
+          conditions,
         })
       : null;
   const hrefs = FIX_HREF(ex.id);
@@ -168,9 +180,9 @@ export async function documentsTab(exerciseId: string) {
     start: start.length ? { allowed: false as const, reason: start.map(startFaultText).join(" ") } : { allowed: true as const, label: next.copyFrom ? `Start version ${next.versionNo} from the returned version ${next.copyFrom.versionNo}` : "Start the tender documents" },
     pack: shown ? packView(shown, c, ex.id, editable, content) : null,
     readiness: submit
-      ? submitFindingTexts(submit).map((t) => ({ level: t.level, text: t.text, href: hrefs[t.family] }))
+      ? submitFindingTexts(submit).map((t) => ({ level: t.level, text: t.text, href: t.family === "conditions" ? conditionsFixHref(t.code, ex.id) : hrefs[t.family] }))
       : [],
-    submit: submit ? (blockingOf(submit).length ? { allowed: false as const, reason: "The findings above block it." } : { allowed: true as const }) : { allowed: false as const, reason: shown ? `This version is ${PACK_STATUS_LABEL[shown.status].toLowerCase()}.` : "Start the tender documents first." },
+    submit: submit ? (blockingOf(submit).length ? { allowed: false as const, reason: "The findings above block it." } : { allowed: true as const }) : { allowed: false as const, reason: shown?.status === "DRAFT" ? "The organisation's time zone is not set, so the documents cannot be judged. Set it under Configuration, Organisation." : shown ? `This version is ${PACK_STATUS_LABEL[shown.status].toLowerCase()}.` : "Start the tender documents first." },
     behaviours: {
       checkedHere: BEHAVIOURS_CHECKED_HERE.map((k) => ({ label: BEHAVIOUR_LABEL[k], value: valueText(k), findings: behaviourFindings.filter((f) => f.data?.behaviour === k || behaviourKeyOf(f.code) === k).map(behaviourFaultText) })),
       afterAward: BEHAVIOURS_AFTER_AWARD.map((b) => ({ label: BEHAVIOUR_LABEL[b.key], value: valueText(b.key), where: BEHAVIOUR_AFTER_AWARD_WHERE[b.where] })),
@@ -364,20 +376,26 @@ export async function appendixPage(exerciseId: string) {
  * (ADR 0008). With approval: frozen, marked not issued. A draft: rendered live from the
  * current templates, bill and Appendix, marked "Draft, not issued".
  */
-export async function printView(exerciseId: string) {
+export async function printView(exerciseId: string, set: "pack" | "table" = "pack") {
   const c = await context(exerciseId);
   if (!c) return null;
   const pack = c.packs.find((p) => p.status === "APPROVED") ?? c.packs.find((p) => isLivePack(p.status)) ?? null;
   if (!pack) return null;
   const watermark = pack.status === "APPROVED" ? null : pack.status === "SUBMITTED" ? "With approval, not issued" : "Draft, not issued";
   const manifest = packManifest(pack.manifest);
+  // FR-DOC-010 (the part built here): the Tender Table Document is the parts flagged for it, ready.
+  const document = set === "table" ? "Tender Table Document" : PACK_KIND_LABEL[pack.packKind];
   if (pack.frozenAt && manifest) {
+    const snapshot = readConditionsSnapshot(pack.conditionsSnapshot);
     return {
       exercise: { id: c.ex.id, reference: c.ex.reference, title: c.ex.title },
       version: pack.versionNo,
+      document,
       form: pack.formLabelSnapshot ?? NOT_SET,
       watermark,
-      parts: manifest.map((m) => ({
+      /// FR-DOC-009: the restriction as frozen; null where not restricted or frozen before increment 2.
+      stamp: snapshot?.restriction.restricted ? (snapshot.restriction.stampEn ?? snapshot.restriction.stampMs) : null,
+      parts: (set === "table" ? tableDocumentManifest(manifest) : manifest).map((m) => ({
         printedNumber: m.printedNumber,
         label: m.label,
         omitted: m.state === "OMITTED" ? `Omitted: ${m.omittedReason}` : null,
@@ -393,12 +411,20 @@ export async function printView(exerciseId: string) {
   const type = c.ex.contractTypeCode ? await db.contractType.findFirst({ where: { organisationId: c.org.id, code: c.ex.contractTypeCode }, select: { nameEn: true } }) : null;
   const fields = packFieldValues({ organisationName: org.name, exerciseReference: c.ex.reference, exerciseTitle: c.ex.title, requisitionReference: c.req.reference, packKindLabel: PACK_KIND_LABEL[pack.packKind], versionNo: pack.versionNo, formLabel: pack.formLabelSnapshot, basisName: basis?.nameEn ?? null, typeName: type?.nameEn ?? null });
   const a: AppendixFacts | null = pack.appendix ? appendixFactsOf(pack.appendix) : null;
+  // Increment 2, live: the conditions' fields (the window empty until dates are proposed) and the stamp, as the freeze will apply them.
+  const conditions = c.org.today ? await loadConditions(c.org.id, c.ex, pack.id, c.org.today) : null;
+  const byLang = conditions ? conditionFieldValues(conditions, null) : null;
+  const whitelist = packWhitelist(conditions ? liveClauses(conditions.clauses.clauses, c.org.today!) : []);
+  const stamp = conditions ? conditionStamp(conditions) : null;
+  const shownParts = set === "table" ? pack.parts.filter((p) => p.inTableDocument === true && p.state !== "OMITTED") : pack.parts;
   return {
     exercise: { id: c.ex.id, reference: c.ex.reference, title: c.ex.title },
     version: pack.versionNo,
+    document,
     form: pack.formLabelSnapshot ?? NOT_SET,
     watermark,
-    parts: pack.parts.map((p) => ({
+    stamp: stamp ? (stamp.EN ?? stamp.MS) : null,
+    parts: shownParts.map((p) => ({
       printedNumber: p.printedNumber,
       label: p.labelSnapshot,
       omitted: p.state === "OMITTED" ? `Omitted: ${p.omittedReason}` : null,
@@ -406,12 +432,12 @@ export async function printView(exerciseId: string) {
         p.source === "TEMPLATE" && p.template
           ? (["MS", "EN"] as const).flatMap((lang) => {
               const body = lang === "MS" ? p.template!.bodyMs : p.template!.bodyEn;
-              return body?.trim() ? [{ language: lang === "MS" ? "Malay" : "English", paragraphs: renderWith(body, fields, PACK_WHITELIST).paragraphs, fidelity: `From ${p.template!.nameEn}, text version ${p.template!.bodyVersion}, as it stands now.` }] : [];
+              return body?.trim() ? [{ language: lang === "MS" ? "Malay" : "English", paragraphs: stamped(renderedText(renderWith(body, { ...fields, ...(byLang?.[lang] ?? {}) }, whitelist)), stamp?.[lang]).split("\n\n"), fidelity: `From ${p.template!.nameEn}, text version ${p.template!.bodyVersion}, as it stands now.` }] : [];
             })
           : p.source === "BQ_UNPRICED" && scope.bill
-            ? [{ language: "English", paragraphs: unpricedBqText(scope.bill.frozen).split("\n\n"), fidelity: "The bill of quantities, unpriced, as it stands now." }]
+            ? [{ language: "English", paragraphs: stamped(unpricedBqText(scope.bill.frozen), stamp?.EN).split("\n\n"), fidelity: "The bill of quantities, unpriced, as it stands now." }]
             : p.source === "APPENDIX" && a
-              ? [{ language: "English", paragraphs: [appendixText(a, c.office)], fidelity: "The Appendix as entered so far." }]
+              ? [{ language: "English", paragraphs: stamped(appendixText(a, c.office), stamp?.EN).split("\n\n"), fidelity: "The Appendix as entered so far." }]
               : [],
       files: pinnedFilesOf(p).map((f) => ({ title: f.title, versionNo: f.versionNo, fingerprint: f.sha256 })),
     })),

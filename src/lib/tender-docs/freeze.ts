@@ -10,12 +10,14 @@
 import { formatSen } from "@/lib/money";
 import { unpricedBq, type FrozenBq } from "@/lib/scope/bq";
 import { ITEM_KIND_LABEL } from "@/lib/scope/labels";
-import { renderedText, renderWith } from "@/lib/templates/merge";
+import { renderedText, renderWith, type MergeWhitelist } from "@/lib/templates/merge";
 
 import { APPENDIX_FIELD_LABEL, type AppendixFacts } from "./appendix";
+import { clausesCited, type ClauseFacts } from "./clauses";
 import { PACK_WHITELIST } from "./fields";
 import { LAD_KIND_LABEL, NOT_SET, UPLIFT_KIND_LABEL, yesNoNotSet } from "./labels";
 import { formatPct } from "./percent";
+import { stamped, type StampWords } from "./stamp";
 import type { DocumentLanguage, PackPartFacts, PackPartState, PartRole, PartSource } from "./types";
 
 export interface PinnedFile {
@@ -39,6 +41,10 @@ export interface ManifestEntry {
   bill: { versionId: string; versionNo: number } | null;
   appendixId: string | null;
   files: PinnedFile[];
+  /// Increment 2: the clauses a template part cites, at the text version frozen; absent before increment 2.
+  clauses?: { code: string; title: string; bodyVersion: number }[];
+  /// Increment 2: whether the portal stamped the part's generated text with the restriction (FR-DOC-009).
+  stamped?: boolean;
 }
 
 export interface FrozenDocument {
@@ -113,6 +119,14 @@ export interface FreezeInput {
   /// The finalised bill, where the pack issues one.
   bill: { versionId: string; frozen: FrozenBq } | null;
   appendix: { id: string; facts: AppendixFacts; text: string } | null;
+  /// Increment 2: the fields' values that differ by language (eligibility words, clause text), over `fields`.
+  fieldsByLanguage?: Partial<Record<DocumentLanguage, Readonly<Record<string, string>>>>;
+  /// The merge fields a template may name (`packWhitelist`); absent: the pack's only.
+  whitelist?: MergeWhitelist;
+  /// The restriction stamp by language where the tender is restricted (FR-DOC-009); absent or null: not restricted.
+  stamp?: StampWords | null;
+  /// The live clauses, for the manifest's record of what each part cites.
+  clauses?: readonly ClauseFacts[];
 }
 
 /**
@@ -138,6 +152,8 @@ export function freezePack(i: FreezeInput): { documents: FrozenDocument[]; manif
       bill: ready && p.source === "BQ_UNPRICED" && i.bill ? { versionId: i.bill.versionId, versionNo: i.bill.frozen.versionNo } : null,
       appendixId: ready && p.source === "APPENDIX" && i.appendix ? i.appendix.id : null,
       files: ready && p.source === "UPLOAD" ? [...p.files] : [],
+      ...(i.clauses ? { clauses: ready && p.source === "TEMPLATE" ? clausesCited(p, i.clauses) : [] } : {}),
+      ...(i.stamp !== undefined ? { stamped: !!i.stamp && ready && p.source !== "UPLOAD" } : {}),
     });
     if (!ready) continue;
     const base = { partCode: p.partCode, source: p.source, templateId: null, templateCode: null, templateName: null, templateFormCode: "", templateRevisionDate: null, templateBodyVersion: null };
@@ -146,6 +162,7 @@ export function freezePack(i: FreezeInput): { documents: FrozenDocument[]; manif
       for (const language of ["MS", "EN"] as const) {
         const body = language === "MS" ? t.bodyMs : t.bodyEn;
         if (!body?.trim()) continue;
+        const fields = { ...i.fields, ...(i.fieldsByLanguage?.[language] ?? {}) };
         documents.push({
           ...base,
           templateId: t.id,
@@ -155,14 +172,14 @@ export function freezePack(i: FreezeInput): { documents: FrozenDocument[]; manif
           templateRevisionDate: t.revisionDate,
           templateBodyVersion: t.bodyVersion,
           language,
-          fields: { ...i.fields },
-          renderedText: renderedText(renderWith(body, i.fields, PACK_WHITELIST)),
+          fields,
+          renderedText: stamped(renderedText(renderWith(body, fields, i.whitelist ?? PACK_WHITELIST)), i.stamp?.[language]),
         });
       }
     } else if (p.source === "BQ_UNPRICED" && i.bill) {
-      documents.push({ ...base, language: "EN", fields: { bill: unpricedBq(i.bill.frozen) }, renderedText: unpricedBqText(i.bill.frozen) });
+      documents.push({ ...base, language: "EN", fields: { bill: unpricedBq(i.bill.frozen) }, renderedText: stamped(unpricedBqText(i.bill.frozen), i.stamp?.EN) });
     } else if (p.source === "APPENDIX" && i.appendix) {
-      documents.push({ ...base, language: "EN", fields: { appendixId: i.appendix.id }, renderedText: i.appendix.text });
+      documents.push({ ...base, language: "EN", fields: { appendixId: i.appendix.id }, renderedText: stamped(i.appendix.text, i.stamp?.EN) });
     }
   }
   return { documents, manifest };
@@ -177,4 +194,13 @@ export function packManifest(stored: unknown): ManifestEntry[] | null {
   if (!Array.isArray(stored)) return null;
   const ok = stored.every((e) => e && typeof e === "object" && typeof (e as ManifestEntry).partCode === "string" && Array.isArray((e as ManifestEntry).files));
   return ok ? (stored as ManifestEntry[]) : null;
+}
+
+/**
+ * The Tender Table Document (FR-DOC-010, the part 6.4 builds): the frozen pack's parts that
+ * are in it, ready, in print order. Its publication window is 6.5's and its inspection log
+ * arrives with sign-in; this says only what it holds.
+ */
+export function tableDocumentManifest(manifest: readonly ManifestEntry[] | null): ManifestEntry[] {
+  return (manifest ?? []).filter((m) => m.inTableDocument === true && m.state === "READY");
 }

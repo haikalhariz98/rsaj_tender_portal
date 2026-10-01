@@ -19,6 +19,11 @@ import { estimateFactsOf, linesOf, loadBqVersions, loadEstimates, loadPanel, loa
 import { scopeApproval } from "@/lib/scope/scope-matter";
 
 import type { AppendixFacts } from "./appendix";
+import type { AssuranceKind, ConfirmationFacts } from "./assurance";
+import type { ClauseFacts, OverrideFacts } from "./clauses";
+import type { ConditionsInput } from "./conditions";
+import type { RegistrationBodyFacts, RequirementFacts } from "./eligibility";
+import type { PermitList } from "./permit";
 import type { InsuranceTailPolicy } from "./appendix";
 import type { PinnedFile } from "./freeze";
 import type { ConfiguredPart, DocumentLanguage, PackKind, PackPartFacts, PartRole, Provenance, TemplateFacts } from "./types";
@@ -47,6 +52,9 @@ export interface TenderPolicy {
   insuranceExtraProvenance: Provenance | null;
   dbInsuranceExtraProvenance: Provenance | null;
   regulatorPermitTaxonomyCode: string | null;
+  restrictionLabelEn: string | null;
+  restrictionProvenance: Provenance | null;
+  assuranceProvenance: Provenance | null;
   governingSource: string;
   notes: string;
 }
@@ -68,6 +76,9 @@ export async function loadTenderPolicy(organisationId: string, client: Tx = db):
     insuranceExtraProvenance: (p?.insuranceExtraProvenance as Provenance | null) ?? null,
     dbInsuranceExtraProvenance: (p?.dbInsuranceExtraProvenance as Provenance | null) ?? null,
     regulatorPermitTaxonomyCode: p?.regulatorPermitTaxonomyCode ?? null,
+    restrictionLabelEn: p?.restrictionLabelEn ?? null,
+    restrictionProvenance: (p?.restrictionProvenance as Provenance | null) ?? null,
+    assuranceProvenance: (p?.assuranceProvenance as Provenance | null) ?? null,
     governingSource: p?.governingSource ?? "",
     notes: p?.notes ?? "",
   };
@@ -211,3 +222,63 @@ export async function scopeReadiness(organisationId: string, ex: { id: string; s
 
 /// The pack kind an exercise assembles now, from its snapshot; null before document assembly.
 export const packKindOf = (ex: { packKindSnapshot: PackKind | null }) => ex.packKindSnapshot;
+
+// ------------------------------------------------------------------ increment 2: the tender's conditions
+
+export async function loadRegistrationBodies(organisationId: string, client: Tx = db): Promise<(RegistrationBodyFacts & { id: string; governingSource: string; provenance: Provenance; notes: string; sortOrder: number })[]> {
+  const rows = await client.registrationBody.findMany({ where: { organisationId }, orderBy: [{ sortOrder: "asc" }, { labelEn: "asc" }] });
+  return rows.map((r) => ({ ...r, provenance: r.provenance as Provenance, retiredOn: r.retiredOn ? storedDay(r.retiredOn) : null }));
+}
+
+export async function loadRequirements(exerciseId: string, client: Tx = db): Promise<(RequirementFacts & { id: string })[]> {
+  const rows = await client.exerciseRegistrationRequirement.findMany({ where: { exerciseId }, orderBy: [{ alternativeGroup: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }] });
+  const bodies = rows.length ? await client.registrationBody.findMany({ where: { organisationId: rows[0].organisationId, code: { in: rows.map((r) => r.bodyCode) } }, select: { code: true, labelMs: true } }) : [];
+  return rows.map((r) => ({ id: r.id, bodyCode: r.bodyCode, bodyLabel: r.bodyLabelSnapshot, bodyLabelMs: bodies.find((b) => b.code === r.bodyCode)?.labelMs ?? null, qualifierLabel: r.qualifierLabelSnapshot, qualifiers: r.qualifiers, alternativeGroup: r.alternativeGroup, sortOrder: r.sortOrder }));
+}
+
+export async function loadClauses(organisationId: string, client: Tx = db): Promise<(ClauseFacts & { id: string; governingSource: string; provenance: Provenance; notes: string; sortOrder: number })[]> {
+  const rows = await client.clauseText.findMany({ where: { organisationId }, orderBy: [{ sortOrder: "asc" }, { titleEn: "asc" }] });
+  return rows.map((r) => ({ ...r, provenance: r.provenance as Provenance, retiredOn: r.retiredOn ? storedDay(r.retiredOn) : null }));
+}
+
+/// The configured list of permit types: the taxonomy the policy names. Null: none named, or no longer configured.
+export async function loadPermitList(organisationId: string, taxonomyCode: string | null, today: string | null, client: Tx = db): Promise<PermitList | null> {
+  if (!taxonomyCode) return null;
+  const t = await client.classificationTaxonomy.findFirst({ where: { organisationId, code: taxonomyCode }, include: { values: { orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] } } });
+  if (!t) return null;
+  const retired = (d: Date | null) => d != null && (today == null || storedDay(d) <= today);
+  return { name: t.nameEn, values: t.values.map((v) => ({ code: v.code, label: v.nameEn, retired: retired(v.retiredOn) })) };
+}
+
+export async function loadOverrides(packId: string, client: Tx = db) {
+  const rows = await client.clauseOverride.findMany({ where: { packId }, orderBy: { recordedAt: "asc" }, include: { person: { select: { name: true } } } });
+  return rows.map((r) => ({ id: r.id, clauseCode: r.clauseCode, clauseTitle: r.clauseTitleSnapshot, personName: r.person.name, reason: r.reason, recordedAt: r.recordedAt })) satisfies OverrideFacts[];
+}
+
+export async function loadConfirmations(packId: string, client: Tx = db) {
+  const rows = await client.packAssurance.findMany({ where: { packId }, orderBy: { kind: "asc" }, include: { person: { select: { name: true } } } });
+  return rows.map((r) => ({ id: r.id, kind: r.kind as AssuranceKind, personName: r.person.name, confirmedOn: storedDay(r.confirmedOn), note: r.note })) satisfies ConfirmationFacts[];
+}
+
+/**
+ * Everything `conditionsFaults` reads for one exercise and (where there is one) its pack, on
+ * the organisation's day. Read inside the submission's transaction on locked rows, and by
+ * the screens through the same mapping.
+ */
+export async function loadConditions(organisationId: string, ex: { id: string; restrictedTender: boolean | null; regulatedActivity: boolean | null; regulatorPermitCode: string | null }, packId: string | null, today: string, client: Tx = db): Promise<ConditionsInput> {
+  const policy = await loadTenderPolicy(organisationId, client);
+  const requirements = await loadRequirements(ex.id, client);
+  const bodies = await loadRegistrationBodies(organisationId, client);
+  const list = await loadPermitList(organisationId, policy.regulatorPermitTaxonomyCode, today, client);
+  const clauses = await loadClauses(organisationId, client);
+  const overrides = packId ? await loadOverrides(packId, client) : [];
+  const confirmations = packId ? await loadConfirmations(packId, client) : [];
+  return {
+    today,
+    eligibility: { requirements, bodies },
+    restriction: { restricted: ex.restrictedTender, label: policy.restrictionLabelEn, stamp: { EN: policy.restrictionStampTextEn, MS: policy.restrictionStampTextMs } },
+    permit: { regulated: ex.regulatedActivity, permitCode: ex.regulatorPermitCode, list },
+    clauses: { clauses, overrides },
+    assurance: { required: policy.assuranceRequired, confirmations },
+  };
+}

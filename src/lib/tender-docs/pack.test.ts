@@ -9,6 +9,7 @@ import type { BqLine } from "@/lib/scope/types";
 import type { AppendixFacts } from "./appendix";
 import { resolveComposition } from "./composition";
 import { appendixText, freezePack, packManifest, unpricedBqText } from "./freeze";
+import type { ConditionsInput } from "./conditions";
 import { allOf, blockingOf, markReadyFaults, nextPack, omitFaults, packEditFault, packReadiness, pickTemplateFaults, startPackFaults, submitFaults, templateFaults, type SubmitInput } from "./pack";
 import { OMP005_QUOTATION_PARTS, SK001_TENDER_PARTS } from "./sk001-fixture";
 import type { PackPartFacts, TemplateFacts } from "./types";
@@ -22,6 +23,17 @@ const part = (x: Partial<PackPartFacts> = {}): PackPartFacts => ({
 });
 const declaration = part({ partCode: "p9", printedNumber: "9", label: "Declaration", role: "DECLARATION", template: template({ id: "tpl9", code: "declaration", nameEn: "Declaration", bodyEn: "I declare." }) });
 const CTX = { bqFinalised: true, appendixComplete: true };
+/// Increment 2 (faithful fixture update): a notice carrying the eligibility block (FR-DOC-005),
+/// and conditions every check passes with no finding at all.
+const notice = part({ partCode: "p1", printedNumber: "1", label: "Notice", role: "INVITATION", template: template({ id: "tpl1n", code: "notice", nameEn: "Notice", bodyEn: "Registered with {{eligibility.registration}}, valid {{eligibility.window}}." }) });
+const CLEAR_CONDITIONS: ConditionsInput = {
+  today: "2026-10-01",
+  eligibility: { requirements: [{ bodyCode: "reg", bodyLabel: "A registry", bodyLabelMs: null, qualifierLabel: null, qualifiers: "", alternativeGroup: 1, sortOrder: 0 }], bodies: [{ code: "reg", labelEn: "A registry", labelMs: null, qualifierLabelEn: null, retiredOn: null }] },
+  restriction: { restricted: false, label: null, stamp: { EN: null, MS: null } },
+  permit: { regulated: false, permitCode: null, list: null },
+  clauses: { clauses: [], overrides: [] },
+  assurance: { required: true, confirmations: [{ kind: "NO_AMBIGUITY", personName: "A officer", confirmedOn: "2026-09-30" }] },
+};
 
 describe("a part's content, by its source (FR-DOC-003)", () => {
   it("a template part needs its template, with text, a first language where it has two, and only pack merge fields", () => {
@@ -124,7 +136,7 @@ const cleanScope: PackInput = {
 const submit = (x: Partial<SubmitInput> = {}): SubmitInput => ({
   packStatus: "DRAFT",
   exerciseStatus: "DOCUMENTS_IN_PREPARATION",
-  parts: [part(), declaration],
+  parts: [part(), declaration, notice],
   content: CTX,
   scope: cleanScope,
   appendix: null,
@@ -133,6 +145,7 @@ const submit = (x: Partial<SubmitInput> = {}): SubmitInput => ({
   dates: [],
   route: { issue: true, state: "RESOLVED", refusal: null, errors: [] },
   routeOpen: false,
+  conditions: CLEAR_CONDITIONS,
   ...x,
 });
 
@@ -187,6 +200,11 @@ describe("submission's other checks", () => {
   });
   it("the proposed dates' findings are carried", () => {
     expect(codes(allOf(submitFaults(submit({ dates: [{ code: "DATES_REQUIRED", level: "block" }] }))))).toEqual(["DATES_REQUIRED"]);
+  });
+  it("increment 2: the tender's conditions bind it (FR-DOC-005, 006, 009, 011, 014)", () => {
+    expect(codes(submitFaults(submit({ parts: [part(), declaration] })).conditions)).toEqual(["NOTICE_PART_MISSING"]);
+    expect(codes(submitFaults(submit({ conditions: { ...CLEAR_CONDITIONS, restriction: { ...CLEAR_CONDITIONS.restriction, restricted: null } } })).conditions)).toEqual(["RESTRICTION_NOT_ANSWERED"]);
+    expect(codes(blockingOf(submitFaults(submit({ conditions: { ...CLEAR_CONDITIONS, assurance: { required: null, confirmations: [] } } }))))).toEqual(["ASSURANCE_POLICY_NOT_SET"]);
   });
   it("a pack already with approval cannot be submitted again", () => {
     expect(codes(submitFaults(submit({ packStatus: "SUBMITTED", exerciseStatus: "PENDING_APPROVAL_FOR_TENDERING" })).edit)).toEqual(["EXERCISE_NOT_IN_PREPARATION"]);

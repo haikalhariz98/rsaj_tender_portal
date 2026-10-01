@@ -12,11 +12,12 @@
  */
 
 import { packFaults, type PackFault, type PackInput } from "@/lib/scope/pack";
-import { renderWith } from "@/lib/templates/merge";
+import { renderWith, type MergeWhitelist } from "@/lib/templates/merge";
 
 import { appendixFaults, type AppendixFacts, type AppendixFault } from "./appendix";
 import { behaviourFaults, type BehaviourContext, type BehaviourFault } from "./behaviour";
 import type { Composition, CompositionFault } from "./composition";
+import { conditionsFaults, type ConditionsFault, type ConditionsInput } from "./conditions";
 import { PACK_WHITELIST } from "./fields";
 import type { DatesFault, TenderingRouteState } from "./tendering";
 import type { BehaviourKey, BehaviourValue } from "@/lib/method/profile";
@@ -57,16 +58,18 @@ export interface ContentContext {
   bqFinalised: boolean;
   /// The Appendix is complete (no `appendixFaults`); null where the pack has none.
   appendixComplete: boolean | null;
+  /// The merge fields a template may name: the pack's and the live clauses' (`packWhitelist`). Absent: the pack's only, so a clause citation is refused (fails safe).
+  whitelist?: MergeWhitelist;
 }
 
 /// Whether a template has text to freeze, and in which language it is issued first.
-export function templateFaults(t: TemplateFacts): Finding<ContentFault>[] {
+export function templateFaults(t: TemplateFacts, whitelist: MergeWhitelist = PACK_WHITELIST): Finding<ContentFault>[] {
   const en = !!t.bodyEn?.trim();
   const ms = !!t.bodyMs?.trim();
   if (!en && !ms) return [{ code: "TEMPLATE_BODY_EMPTY", level: "block", data: { template: t.nameEn } }];
   const out: Finding<ContentFault>[] = [];
   if (en && ms && !t.primaryLanguage) out.push({ code: "TEMPLATE_LANGUAGE_NOT_SET", level: "block", data: { template: t.nameEn } });
-  const unknown = [...new Set([...(en ? renderWith(t.bodyEn!, {}, PACK_WHITELIST).unknown : []), ...(ms ? renderWith(t.bodyMs!, {}, PACK_WHITELIST).unknown : [])])];
+  const unknown = [...new Set([...(en ? renderWith(t.bodyEn!, {}, whitelist).unknown : []), ...(ms ? renderWith(t.bodyMs!, {}, whitelist).unknown : [])])];
   if (unknown.length) out.push({ code: "TEMPLATE_UNKNOWN_FIELD", level: "block", data: { template: t.nameEn, fields: unknown.map((u) => `{{${u}}}`).join(", ") } });
   return out;
 }
@@ -82,7 +85,7 @@ export function partContentFaults(p: PackPartFacts, ctx: ContentContext): Findin
     case "TEMPLATE": {
       if (p.content === "BESPOKE") return [{ code: "BESPOKE_FROM_LIBRARY", level: "block", data: { part } }];
       if (!p.template) return [{ code: "TEMPLATE_NOT_SET", level: "block", data: { part } }];
-      return templateFaults(p.template).map((f) => ({ ...f, data: { ...f.data, part } }));
+      return templateFaults(p.template, ctx.whitelist).map((f) => ({ ...f, data: { ...f.data, part } }));
     }
     case "BQ_UNPRICED":
       return ctx.bqFinalised ? [] : [{ code: "BQ_PART_WITHOUT_BQ", level: "block", data: { part } }];
@@ -116,12 +119,12 @@ export function omitFaults(p: PackPartFacts, packStatus: TenderPackStatus, exerc
 }
 
 /// Choosing the library template a part draws (FR-DOC-003): a template part, not bespoke, with text.
-export function pickTemplateFaults(p: PackPartFacts, t: TemplateFacts, packStatus: TenderPackStatus, exerciseStatus: ExerciseStatus): Finding<PartActFault>[] {
+export function pickTemplateFaults(p: PackPartFacts, t: TemplateFacts, packStatus: TenderPackStatus, exerciseStatus: ExerciseStatus, whitelist: MergeWhitelist = PACK_WHITELIST): Finding<PartActFault>[] {
   const edit = packEditFault(packStatus, exerciseStatus);
   if (edit) return [edit];
   if (p.source !== "TEMPLATE") return [{ code: "NOT_A_TEMPLATE_PART", level: "block", data: { part: partName(p) } }];
   if (p.content === "BESPOKE") return [{ code: "BESPOKE_FROM_LIBRARY", level: "block", data: { part: partName(p) } }];
-  return templateFaults(t).map((f) => ({ ...f, data: { ...f.data, part: partName(p) } }));
+  return templateFaults(t, whitelist).map((f) => ({ ...f, data: { ...f.data, part: partName(p) } }));
 }
 
 // ------------------------------------------------------------------ the pack's readiness
@@ -200,6 +203,8 @@ export interface SubmitInput {
   route: { issue: boolean; state: TenderingRouteState | null; refusal: string | null; errors: readonly string[] };
   /// An Approval for Tendering route is already open on the exercise.
   routeOpen: boolean;
+  /// Increment 2: eligibility, restriction, permit, clauses, assurance (`conditionsFaults`).
+  conditions: ConditionsInput;
 }
 
 export interface SubmitFindings {
@@ -208,6 +213,7 @@ export interface SubmitFindings {
   scope: Finding<PackFault>[];
   appendix: Finding<AppendixFault | "APPENDIX_NOT_STARTED">[];
   behaviour: Finding<BehaviourFault>[];
+  conditions: Finding<ConditionsFault>[];
   dates: Finding<DatesFault>[];
   route: Finding<RouteFault>[];
 }
@@ -215,7 +221,8 @@ export interface SubmitFindings {
 /**
  * Everything that stands between the pack and approval for tendering: the parts, 6.2's
  * scope readiness (enforced here, on locked rows: OD-4), the Appendix (FR-DOC-004), the
- * contract type's behaviours (FR-MTD-012), the proposed dates and the route. Grouped, so
+ * contract type's behaviours (FR-MTD-012), the tender's conditions (increment 2: FR-DOC-005,
+ * 006, 009, 010, 011, 014), the proposed dates and the route. Grouped, so
  * each finding is worded by its own family; `blockingOf` flattens them.
  */
 export function submitFaults(i: SubmitInput): SubmitFindings {
@@ -236,12 +243,13 @@ export function submitFaults(i: SubmitInput): SubmitFindings {
     scope: packFaults(i.scope),
     appendix: hasAppendixPart ? (i.appendix ? appendixFaults(i.appendix) : [{ code: "APPENDIX_NOT_STARTED", level: "block" }]) : [],
     behaviour: behaviourFaults(i.profile, { appendix: hasAppendixPart ? i.appendix : null, primeCostSums: i.primeCostSums, parts: i.parts }),
+    conditions: conditionsFaults(i.parts, i.conditions),
     dates: [...i.dates],
     route,
   };
 }
 
 /// Every finding of a submission, flattened.
-export const allOf = (s: SubmitFindings): Finding[] => [...s.edit, ...s.readiness, ...s.scope, ...s.appendix, ...s.behaviour, ...s.dates, ...s.route];
+export const allOf = (s: SubmitFindings): Finding[] => [...s.edit, ...s.readiness, ...s.scope, ...s.appendix, ...s.behaviour, ...s.conditions, ...s.dates, ...s.route];
 /// The ones that refuse it.
 export const blockingOf = (s: SubmitFindings): Finding[] => allOf(s).filter((f) => f.level === "block");

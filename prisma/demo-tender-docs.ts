@@ -364,11 +364,18 @@ async function submit(db: Db, organisationId: string, s: { packId: string; route
   const route = tenderingRouteForRequester(ctx!.funder, method, Number(l.ex.estimatedValue.toString()), requesterHolding((code) => holdersFor(code, unitPath, roster, delegations, subDay), l.req.requestingPersonId, value, (pid) => roster.people.some((p) => p.id === pid && p.isActive && p.isAvailable)));
   const dates = approvalDatesFault({ startOn: s.startOn, closingDay: s.closingDay, closingTime: s.closingTime, timeZone: l.org.timeZone, today: subDay });
   const appendix = pack.appendix ? td.appendixFactsOf(pack.appendix) : null;
+  // Increment 2: the conditions as submitPack reads them, on the submission's day.
+  const { liveClauses } = await import("../src/lib/tender-docs/clauses");
+  const cond = await import("../src/lib/tender-docs/conditions");
+  const { packWhitelist } = await import("../src/lib/tender-docs/fields");
+  const conditions = await td.loadConditions(organisationId, l.ex, pack.id, subDay);
+  const whitelist = packWhitelist(liveClauses(conditions.clauses.clauses, subDay));
   const findings = submitFaults({
-    packStatus: pack.status, exerciseStatus: l.ex.status, parts: pack.parts.map(td.partFactsOf), content: { bqFinalised: scope.bill != null, appendixComplete: appendix ? appendixComplete(appendix) : null },
+    packStatus: pack.status, exerciseStatus: l.ex.status, parts: pack.parts.map(td.partFactsOf), content: { bqFinalised: scope.bill != null, appendixComplete: appendix ? appendixComplete(appendix) : null, whitelist },
     scope: scope.input, appendix, profile: td.profileOf(l.ex.classificationSnapshot), primeCostSums: scope.bill?.primeCostSums ?? null, dates: dates.faults,
     route: { issue: !!issue, state: route.tenderingState, refusal: route.refusal, errors: route.warnings.filter((w) => w.level === "err").map((w) => w.messageEn) },
     routeOpen: tenderingRoutesOf(l.ex.approvalInstances).some((i) => i.status === "PENDING"),
+    conditions,
   });
   const blocks = blockingOf(findings);
   if (blocks.length) throw new Error(`Demo pack ${s.packId} fails its submission: ${blocks.map((f) => f.code).join(", ")}`);
@@ -377,7 +384,8 @@ async function submit(db: Db, organisationId: string, s: { packId: string; route
   const basis = await db.contractBasis.findFirst({ where: { organisationId, code: pack.contractBasisCode }, select: { nameEn: true } });
   const type = await db.contractType.findFirst({ where: { organisationId, code: l.ex.contractTypeCode ?? "" }, select: { nameEn: true } });
   const fields = packFieldValues({ organisationName: org.name, exerciseReference: l.ex.reference, exerciseTitle: l.ex.title, requisitionReference: l.req.reference, packKindLabel: PACK_KIND_LABEL[pack.packKind], versionNo: pack.versionNo, formLabel: pack.formLabelSnapshot, basisName: basis?.nameEn ?? null, typeName: type?.nameEn ?? null });
-  const frozen = freezePack({ parts: pack.parts.map((p) => ({ ...td.partFactsOf(p), files: td.pinnedFilesOf(p) })), fields, bill: scope.bill ? { versionId: scope.bill.versionId, frozen: scope.bill.frozen } : null, appendix: pack.appendix && appendix ? { id: pack.appendix.id, facts: appendix, text: appendixText(appendix, office) } : null });
+  const window = { startOn: s.startOn, closingDay: s.closingDay };
+  const frozen = freezePack({ parts: pack.parts.map((p) => ({ ...td.partFactsOf(p), files: td.pinnedFilesOf(p) })), fields, fieldsByLanguage: cond.conditionFieldValues(conditions, window), whitelist, stamp: cond.conditionStamp(conditions), clauses: liveClauses(conditions.clauses.clauses, subDay), bill: scope.bill ? { versionId: scope.bill.versionId, frozen: scope.bill.frozen } : null, appendix: pack.appendix && appendix ? { id: pack.appendix.id, facts: appendix, text: appendixText(appendix, office) } : null });
   const ref = l.ex.reference;
   for (const [i, d] of frozen.documents.entries()) {
     const id = `${s.packId}_doc${i + 1}`;
@@ -399,7 +407,7 @@ async function submit(db: Db, organisationId: string, s: { packId: string; route
     },
   });
   entry("ApprovalInstance", s.routeId, `${ref} · approval for tendering`, "CREATE", s.at, diffFields(null, { matrix: issue!.label, rule: rule.labelEn, route: route.chain.map((c) => `${roleLabel(c.roleCode)} (${ACT_LABEL[c.act]?.toLowerCase() ?? "acts"})`).join(" → "), fundingOverrideApplied: false, ifRejected: "Returned for amendment" }));
-  await db.tenderPack.update({ where: { id: s.packId }, data: { status: "SUBMITTED", submittedAt: s.at, frozenAt: s.at, manifest: frozen.manifest as object, faultsSnapshot: [], bqVersionId: scope.bill?.versionId ?? null, proposedStartOn: day(s.startOn), proposedClosingAt: dates.closingAt, approvalInstanceId: s.routeId } });
+  await db.tenderPack.update({ where: { id: s.packId }, data: { status: "SUBMITTED", submittedAt: s.at, frozenAt: s.at, manifest: frozen.manifest as object, faultsSnapshot: [], conditionsSnapshot: cond.conditionsSnapshot(pack.parts.map(td.partFactsOf), conditions, window) as object, bqVersionId: scope.bill?.versionId ?? null, proposedStartOn: day(s.startOn), proposedClosingAt: dates.closingAt, approvalInstanceId: s.routeId } });
   if (pack.appendix) await db.conditionsAppendix.update({ where: { id: pack.appendix.id }, data: { status: "COMPLETE" } });
   entry(ENTITY.pack, s.packId, `${ref} · Tender documents v${pack.versionNo}`, "UPDATE", s.at, packStatusAudit("DRAFT", "SUBMITTED", { proposedStart: s.startOn, proposedClosing: `${s.closingDay}, ${s.closingTime}`, partsFrozen: frozen.documents.length, filesPinned: frozen.manifest.reduce((x, m) => x + m.files.length, 0), warnings: null }));
   const t = transitionFault(l.ex.status, "PENDING_APPROVAL_FOR_TENDERING", { today: subDay, via: "SUBMISSION", packFaults: 0 });
@@ -444,6 +452,9 @@ async function decide(db: Db, organisationId: string, d: { packId: string; decis
   }
   const dates = approvalDatesFault({ ...d.dates!, timeZone: l.org.timeZone, today: d.decidedOn });
   if (dates.faults.length) throw new Error(`Demo approval dates fail: ${dates.faults.map((f) => f.code).join(", ")}`);
+  const { readConditionsSnapshot } = await import("../src/lib/tender-docs/conditions");
+  const { frozenWindowFault } = await import("../src/lib/tender-docs/tendering");
+  if (frozenWindowFault(readConditionsSnapshot(pack.conditionsSnapshot)?.windowStated ?? null, d.dates!)) throw new Error("Demo approval dates differ from those the frozen notice states.");
   await db.approvalInstance.update({ where: { id: inst.id }, data: { status: "APPROVED", closedAt: d.at } });
   entry("ApprovalInstance", inst.id, `${ref} · approval for tendering`, "UPDATE", d.at, diffFields({ status: "PENDING" }, { status: "APPROVED" }));
   await db.tenderPack.update({ where: { id: pack.id }, data: { status: "APPROVED", approvedStartOn: day(d.dates!.startOn), approvedClosingAt: dates.closingAt, approvedAt: day(d.decidedOn) } });

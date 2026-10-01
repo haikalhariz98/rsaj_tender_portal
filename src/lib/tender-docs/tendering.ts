@@ -95,7 +95,7 @@ export function timeIn(instant: Date, timeZone: string): string {
   return new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(instant);
 }
 
-export type DatesFault = "TIME_ZONE_NOT_SET" | "DATES_REQUIRED" | "DATE_NOT_VALID" | "CLOSING_TIME_NOT_VALID" | "START_IN_PAST" | "CLOSING_NOT_AFTER_START";
+export type DatesFault = "TIME_ZONE_NOT_SET" | "DATES_REQUIRED" | "DATE_NOT_VALID" | "CLOSING_TIME_NOT_VALID" | "START_IN_PAST" | "CLOSING_NOT_AFTER_START" | "DATES_DIFFER_FROM_DOCUMENTS";
 
 /**
  * The start day and the closing day and time, as proposed at submission or recorded by the
@@ -127,3 +127,17 @@ export function estimateLeadWarning(lastVersion: string | Date | null, closingAt
 
 /// The day an instant falls on in the organisation's zone (for a closing instant's day).
 export const closingDayOf = (closingAt: Date, timeZone: string) => dayIn(closingAt, timeZone);
+
+/**
+ * Increment 2 (FR-DOC-005): where the frozen documents state the registrations' validity
+ * window, they state the days proposed at submission. The approving step records those days,
+ * or the documents would contradict the record: other days need the documents returned for
+ * amendment, and the next version states the new ones. Where no frozen document states the
+ * window (`stated` null, or a pack frozen before increment 2), the approver may set any valid
+ * days, as before. The closing time is not part of the window and may differ.
+ */
+export function frozenWindowFault(stated: { startOn: string; closingDay: string } | null, recorded: { startOn: string | null; closingDay: string | null }): Finding<"DATES_DIFFER_FROM_DOCUMENTS"> | null {
+  if (!stated) return null;
+  if (recorded.startOn === stated.startOn && recorded.closingDay === stated.closingDay) return null;
+  return { code: "DATES_DIFFER_FROM_DOCUMENTS", level: "block", data: { startOn: stated.startOn, closingDay: stated.closingDay } };
+}

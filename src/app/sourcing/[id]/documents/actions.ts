@@ -39,8 +39,11 @@ import { appendixFaultText, datesFaultText, PACK_KIND_LABEL, partFaultText, star
 import { lockPackRows } from "@/lib/tender-docs/owner";
 import { allOf, blockingOf, markReadyFaults, nextPack, omitFaults, packEditFault, pickTemplateFaults, startPackFaults, submitFaults } from "@/lib/tender-docs/pack";
 import { isPct, PCT_COLUMN, pctRefusal, type PctField } from "@/lib/tender-docs/percent";
-import { appendixFactsOf, loadConfiguredParts, loadPacks, loadTemplates, partFactsOf, pinnedFilesOf, profileOf, scopeReadiness, templateFactsOf, type PackRow } from "@/lib/tender-docs/repo";
-import { approvalDatesFault, estimateLeadWarning, RETURN_DECIDED_BY, returnOutcome, TENDERING_DOMAIN, tenderingRejectionSnapshot, tenderingRouteForRequester } from "@/lib/tender-docs/tendering";
+import { liveClauses } from "@/lib/tender-docs/clauses";
+import { conditionFieldValues, conditionsSnapshot, conditionStamp, readConditionsSnapshot } from "@/lib/tender-docs/conditions";
+import { packWhitelist } from "@/lib/tender-docs/fields";
+import { appendixFactsOf, loadClauses, loadConditions, loadConfiguredParts, loadPacks, loadTemplates, partFactsOf, pinnedFilesOf, profileOf, scopeReadiness, templateFactsOf, type PackRow } from "@/lib/tender-docs/repo";
+import { approvalDatesFault, estimateLeadWarning, frozenWindowFault, RETURN_DECIDED_BY, returnOutcome, TENDERING_DOMAIN, tenderingRejectionSnapshot, tenderingRouteForRequester } from "@/lib/tender-docs/tendering";
 import type { Finding } from "@/lib/tender-docs/types";
 import { FormReader } from "@/lib/validate";
 
@@ -108,6 +111,11 @@ async function inPacks(exerciseId: string, fn: (tx: Tx, l: LockedExercise, packs
 }
 
 const draftOf = (packs: readonly PackRow[]) => packs.find((p) => p.status === "DRAFT") ?? null;
+
+/// The merge fields a pack's template may name today: the pack's own and the live clauses' (FR-DOC-011).
+async function whitelistOn(tx: Tx, organisationId: string, today: string | null) {
+  return packWhitelist(today ? liveClauses(await loadClauses(organisationId, tx), today) : []);
+}
 const exerciseIdOf = (data: FormData) => String(data.get("exerciseId") ?? "");
 
 /// Office and committee names by code, as configured (for the Appendix's words).
@@ -249,7 +257,7 @@ export async function markPartReady(_prev: FormState, data: FormData): Promise<F
     await lockBqRows(tx, exerciseId);
     const bqFinalised = (await tx.bqVersion.count({ where: { exerciseId, status: "FINALISED" } })) > 0;
     const appx = pack.appendix ? appendixComplete(appendixFactsOf(pack.appendix)) : null;
-    const faults = markReadyFaults(partFactsOf(part), pack.status, l.ex.status, { bqFinalised, appendixComplete: appx });
+    const faults = markReadyFaults(partFactsOf(part), pack.status, l.ex.status, { bqFinalised, appendixComplete: appx, whitelist: await whitelistOn(tx, l.org.id, l.org.today) });
     if (faults.length) return refuse(faults);
     await tx.tenderPackPart.update({ where: { id: part.id }, data: { state: "READY", omittedReason: "" } });
     await audit(tx, l.org.id, ENTITY.part, part.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "UPDATE", partAudit(partAuditFacts(part, part.template?.nameEn ?? null), partAuditFacts({ ...part, state: "READY", omittedReason: "" }, part.template?.nameEn ?? null)));
@@ -294,7 +302,7 @@ export async function pickPartTemplate(_prev: FormState, data: FormData): Promis
     const { pack, part } = lockedPart(l, packs, partId);
     const t = await tx.documentTemplate.findFirst({ where: { id: templateId, organisationId: l.org.id } });
     if (!t) return { ok: false, errors: { templateId: "That template is not configured. Choose one from the list." } };
-    const faults = pickTemplateFaults(partFactsOf(part), templateFactsOf(t), pack.status, l.ex.status);
+    const faults = pickTemplateFaults(partFactsOf(part), templateFactsOf(t), pack.status, l.ex.status, await whitelistOn(tx, l.org.id, l.org.today));
     if (faults.length) return refuse(faults);
     if (part.templateId === t.id) return { ok: true };
     await tx.tenderPackPart.update({ where: { id: part.id }, data: { templateId: t.id, state: "NOT_STARTED" } });
@@ -507,11 +515,14 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
     const holders = (code: string) => holdersFor(code, unitPath, roster, delegations, l.org.today!);
     const route = issue && ctx && method ? tenderingRouteForRequester(ctx.funder, method, Number(senToDecimalString(value)), requesterHolding(holders, l.req.requestingPersonId, value, (pid) => roster.people.some((p) => p.id === pid && p.isActive && p.isAvailable))) : null;
     const dates = approvalDatesFault({ startOn, closingDay, closingTime, timeZone: l.org.timeZone, today: l.org.today });
+    // Increment 2: the conditions, read on the locked exercise and pack (requirements, answers, clauses, overrides, confirmations).
+    const conditions = await loadConditions(l.org.id, l.ex, pack.id, l.org.today, tx);
+    const whitelist = packWhitelist(liveClauses(conditions.clauses.clauses, l.org.today));
     const findings = submitFaults({
       packStatus: pack.status,
       exerciseStatus: l.ex.status,
       parts: pack.parts.map(partFactsOf),
-      content: { bqFinalised: scope.bill != null, appendixComplete: pack.appendix ? appendixComplete(appendixFactsOf(pack.appendix)) : null },
+      content: { bqFinalised: scope.bill != null, appendixComplete: pack.appendix ? appendixComplete(appendixFactsOf(pack.appendix)) : null, whitelist },
       scope: scope.input,
       appendix: pack.appendix ? appendixFactsOf(pack.appendix) : null,
       profile: profileOf(l.ex.classificationSnapshot),
@@ -519,6 +530,7 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
       dates: dates.faults,
       route: { issue: !!issue && !!ctx, state: method ? (route?.tenderingState ?? null) : "NO_METHOD_KEY", refusal: route?.refusal ?? null, errors: (route?.warnings ?? []).filter((w) => w.level === "err").map((w) => w.messageEn) },
       routeOpen: tenderingRoutesOf(l.ex.approvalInstances).some((i) => i.status === "PENDING"),
+      conditions,
     });
     const blocks = blockingOf(findings);
     if (blocks.length) {
@@ -536,9 +548,15 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
     ];
     const fields = packFieldValues({ organisationName: org.name, exerciseReference: l.ex.reference, exerciseTitle: l.ex.title, requisitionReference: l.req.reference, packKindLabel: PACK_KIND_LABEL[pack.packKind], versionNo: pack.versionNo, formLabel: pack.formLabelSnapshot, basisName: basis?.nameEn ?? null, typeName: type?.nameEn ?? null });
     const appendixFacts = pack.appendix ? appendixFactsOf(pack.appendix) : null;
+    // The validity window the notice states: the proposed days (the approving step must record them, BD-64-31).
+    const window = { startOn: startOn!, closingDay: closingDay! };
     const frozen = freezePack({
       parts: pack.parts.map((p) => ({ ...partFactsOf(p), files: pinnedFilesOf(p) })),
       fields,
+      fieldsByLanguage: conditionFieldValues(conditions, window),
+      whitelist,
+      stamp: conditionStamp(conditions),
+      clauses: liveClauses(conditions.clauses.clauses, l.org.today),
       bill: scope.bill ? { versionId: scope.bill.versionId, frozen: scope.bill.frozen } : null,
       appendix: pack.appendix && appendixFacts ? { id: pack.appendix.id, facts: appendixFacts, text: appendixText(appendixFacts, names.name) } : null,
     });
@@ -627,6 +645,7 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
         frozenAt: now,
         manifest: frozen.manifest as unknown as Prisma.InputJsonValue,
         faultsSnapshot: submitFindingTexts(findings).map((t) => ({ level: t.level, text: t.text, family: t.family })) as unknown as Prisma.InputJsonValue,
+        conditionsSnapshot: conditionsSnapshot(pack.parts.map(partFactsOf), conditions, window) as unknown as Prisma.InputJsonValue,
         bqVersionId: scope.bill?.versionId ?? null,
         proposedStartOn: dayToDate(startOn!),
         proposedClosingAt: dates.closingAt,
@@ -703,8 +722,11 @@ export async function recordTenderingDecision(_prev: FormState, data: FormData):
     const completes = decision === "DONE" && inst.steps.every((s) => s.id === step.id || s.decision === "DONE");
     // The approving step records the dates (FR-DOC-012): judged on the day it decided, in the organisation's zone.
     const dates = completes ? approvalDatesFault({ startOn, closingDay, closingTime, timeZone: l.org.timeZone, today: decidedOn }) : null;
+    // Increment 2: where the frozen notice states the validity window, the days it states (BD-64-31).
+    const windowFault = completes && dates && !dates.faults.length ? frozenWindowFault(readConditionsSnapshot(pack.conditionsSnapshot)?.windowStated ?? null, { startOn, closingDay }) : null;
+    if (windowFault) dates!.faults.push(windowFault);
     if (dates && dates.faults.length) {
-      return { ok: false, errors: Object.fromEntries(dates.faults.map((f) => [f.code === "CLOSING_TIME_NOT_VALID" ? "closingTime" : f.code === "START_IN_PAST" ? "startOn" : f.code === "TIME_ZONE_NOT_SET" ? "decidedOn" : "closingDay", datesFaultText(f)])) };
+      return { ok: false, errors: Object.fromEntries(dates.faults.map((f) => [f.code === "CLOSING_TIME_NOT_VALID" ? "closingTime" : f.code === "START_IN_PAST" || f.code === "DATES_DIFFER_FROM_DOCUMENTS" ? "startOn" : f.code === "TIME_ZONE_NOT_SET" ? "decidedOn" : "closingDay", datesFaultText(f)])) };
     }
     const after = personDecisionWrite({ decision, person: { id: person!.id, name: person!.name }, decidedOn: on, delegationId: check.delegationId, reason, recordedAt: new Date() });
     const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });

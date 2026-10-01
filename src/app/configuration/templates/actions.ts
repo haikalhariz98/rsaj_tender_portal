@@ -8,7 +8,8 @@ import { auditedCreate, writeAudit } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { renderTemplate } from "@/lib/award/merge";
-import { PACK_WHITELIST } from "@/lib/tender-docs/fields";
+import { fieldsNamed } from "@/lib/templates/merge";
+import { templateFieldRefusals } from "@/lib/tender-docs/fields";
 import { FormReader } from "@/lib/validate";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
@@ -76,8 +77,11 @@ export async function saveTemplate(_prev: FormState, data: FormData): Promise<Fo
   // refused here, where it can be put right, rather than at issue.
   // A template serves an award's letters or a tender pack's parts (6.4): a field neither
   // fills is refused; each instrument re-checks its own whitelist when it is issued or frozen.
+  // A configured clause may be cited as {{clause:code}} (FR-DOC-011, 6.4 increment 2).
+  const clauseCodes = (await db.clauseText.findMany({ where: { organisationId: orgId }, select: { code: true } })).map((c) => c.code);
   for (const k of ["bodyMs", "bodyEn"] as const) {
-    const unknown = v[k] ? renderTemplate(v[k]!, {}).unknown.filter((u) => !PACK_WHITELIST.has(u)) : [];
+    const awardUnknown = new Set(v[k] ? renderTemplate(v[k]!, {}).unknown : []);
+    const unknown = v[k] ? templateFieldRefusals(fieldsNamed(v[k]), (f) => !awardUnknown.has(f), clauseCodes) : [];
     if (unknown.length) r.reject(k, `The portal does not fill ${unknown.map((u) => `{{${u}}}`).join(", ")}. Use the merge fields listed below.`);
   }
   if (v.bodyMs && v.bodyEn && !v.primaryLanguage) r.reject("primaryLanguage", "With text in both languages, say which is issued first.");

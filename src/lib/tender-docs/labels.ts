@@ -10,6 +10,7 @@ import type { BehaviourKey } from "@/lib/method/profile";
 import { scopeFaultText } from "@/lib/scope/labels";
 
 import type { AppendixFault } from "./appendix";
+import { conditionsFaultText } from "./conditions-labels";
 import type { BehaviourFault } from "./behaviour";
 import type { ContentFault, EditFault, PartActFault, ReadinessFault, RouteFault, StartFault, SubmitFindings } from "./pack";
 import type { DatesFault } from "./tendering";
@@ -190,6 +191,7 @@ const DATES_TEXT: Record<DatesFault, string> = {
   CLOSING_TIME_NOT_VALID: "Give the closing time as hours and minutes, 24-hour (14:30).",
   START_IN_PAST: "The start day has passed. Give today or a later day.",
   CLOSING_NOT_AFTER_START: "The closing day must be after the start day.",
+  DATES_DIFFER_FROM_DOCUMENTS: "The frozen notice states the registrations' validity window from the proposed start to the proposed closing day. Record those days, or return the documents for amendment so the next version states the new ones.",
 };
 
 export const datesFaultText = (f: Finding) => DATES_TEXT[f.code as DatesFault] ?? "The tendering dates are not valid.";
@@ -215,6 +217,7 @@ export function submitFindingTexts(s: SubmitFindings): { level: Finding["level"]
   add("scope", s.scope, (f) => scopeFaultText(f));
   add("appendix", s.appendix, appendixFaultText);
   add("behaviour", s.behaviour, behaviourFaultText);
+  add("conditions", s.conditions, conditionsFaultText);
   add("dates", s.dates, datesFaultText);
   add("route", s.route, routeFaultText);
   return out;
