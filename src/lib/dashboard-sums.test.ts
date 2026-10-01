@@ -47,3 +47,17 @@ describe("waiting days carry no fixed judgement (6.9 review ruling R5)", () => {
     expect(found).toEqual([]);
   });
 });
+
+import { exerciseTally } from "./dashboard-sums";
+
+describe("exercises by status (exerciseTally)", () => {
+  const order = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "CANCELLED"] as const;
+  it("counts each status, lists the ones with none, and leaves cancelled out of the open count", () => {
+    const t = exerciseTally(["DRAFT", "DRAFT", "CANCELLED", "DOCUMENTS_IN_PREPARATION", "DRAFT"], order);
+    expect(t.byStatus).toEqual([{ status: "DRAFT", count: 3 }, { status: "DOCUMENTS_IN_PREPARATION", count: 1 }, { status: "CANCELLED", count: 1 }]);
+    expect(t).toMatchObject({ open: 4, total: 5 });
+  });
+  it("is all zeros, not absent, when there are none", () => {
+    expect(exerciseTally([], order)).toMatchObject({ open: 0, total: 0, byStatus: [{ count: 0 }, { count: 0 }, { count: 0 }] });
+  });
+});

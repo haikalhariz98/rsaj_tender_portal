@@ -14,3 +14,12 @@ export function committedSen(decisions: readonly { outcome: string; domain: stri
   const withAmount = carried.filter((d) => d.amount != null);
   return { total: addSen(...withAmount.map((d) => parseSen(d.amount!.toString()))), counted: withAmount.length, withoutAmount: carried.length - withAmount.length };
 }
+
+/**
+ * Sourcing exercises tallied by status, every status listed (a status with none counts
+ * 0, which is a true count here, not an unset one). `open` is those not cancelled.
+ */
+export function exerciseTally<S extends string>(statuses: readonly S[], order: readonly S[]): { open: number; total: number; byStatus: { status: S; count: number }[] } {
+  const byStatus = order.map((status) => ({ status, count: statuses.filter((s) => s === status).length }));
+  return { open: statuses.filter((s) => (s as string) !== "CANCELLED").length, total: statuses.length, byStatus };
+}

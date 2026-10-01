@@ -1,7 +1,9 @@
-import { committedSen } from "@/lib/dashboard-sums";
+import { committedSen, exerciseTally } from "@/lib/dashboard-sums";
 import { ACTIVITY_ENTITIES, activityFeed, type ActivityEntry, type ActivityOwner } from "@/lib/dashboard/activity";
 import { openStepOf, oldestWaitingDays } from "@/lib/approvals/queue";
 import { todayIn } from "@/lib/dates";
+import { EXERCISE_STATUS_ORDER } from "@/lib/method/labels";
+import type { ExerciseStatus } from "@/lib/method/types";
 import { db } from "@/lib/db";
 import type { FieldChange } from "@/lib/audit/diff";
 import { ORGANISATION_CODE } from "@/lib/org";
@@ -135,6 +137,11 @@ export async function loadDashboard(asOf: Date = new Date()) {
     .sort((a, b) => (b.waitingDays ?? -1) - (a.waitingDays ?? -1) || a.reference.localeCompare(b.reference));
   const oldestWaiting = oldestWaitingDays([...requisitions.map((r) => r.waitingDays), ...queue.map((q) => q.waitingDays)]);
 
+  const exercises = exerciseTally(
+    (await db.sourcingExercise.findMany({ where: { organisationId: org.id }, select: { status: true } })).map((e) => e.status as ExerciseStatus),
+    EXERCISE_STATUS_ORDER,
+  );
+
   const committees = await db.committee.count({ where: { organisationId: org.id } });
   const withoutQuorum = await db.committee.count({
     where: { organisationId: org.id, quorum: null },
@@ -143,6 +150,7 @@ export async function loadDashboard(asOf: Date = new Date()) {
   return {
     queue,
     requisitions,
+    exercises,
     oldestWaiting,
     activity,
     committedSen: committed.total,

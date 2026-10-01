@@ -17,6 +17,7 @@ export const EXERCISE_STATUS_LABEL: Record<ExerciseStatus, string> = {
   DOCUMENTS_IN_PREPARATION: "Documents in preparation",
   CANCELLED: "Cancelled",
 };
+export const EXERCISE_STATUS_ORDER: readonly ExerciseStatus[] = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "CANCELLED"];
 export const EXERCISE_STATUS_TONE: Record<ExerciseStatus, "brand" | "info" | "neutral"> = {
   // As a requisition's draft reads (UX low).
   DRAFT: "neutral",

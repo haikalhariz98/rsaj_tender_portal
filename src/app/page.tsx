@@ -23,6 +23,7 @@ import { Stat } from "@/components/ui/stat";
 import Link from "next/link";
 import type { ActivityKind } from "@/lib/dashboard/activity";
 import { WAITING_RULE_TEXT } from "@/lib/approvals/queue";
+import { EXERCISE_STATUS_LABEL } from "@/lib/method/labels";
 import { loadDashboard } from "@/lib/dashboard";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { matterLabel } from "@/lib/labels";
@@ -60,11 +61,6 @@ const COMING = [
     icon: <FilesIcon size={17} />,
     title: "Documents awaiting my review",
     body: "Submissions routed to you will land here for review against a service level.",
-  },
-  {
-    icon: <GlobeIcon size={17} />,
-    title: "Sourcing pipeline",
-    body: "Active sourcing events by stage: planning, invited, open for bids, evaluating, awaiting approval and awarded.",
   },
 ];
 
@@ -138,11 +134,11 @@ export default async function Dashboard() {
           }
         />
         <Stat
-          label="Sourcing pipeline"
-          value={null}
+          label="Sourcing exercises"
+          value={data.exercises.open}
           tone="brand"
           icon={<GlobeIcon size={17} />}
-          hint="sourcing is not built yet"
+          hint={data.exercises.total === 0 ? "none started yet" : data.exercises.byStatus.map((b) => `${b.count} ${EXERCISE_STATUS_LABEL[b.status].toLowerCase()}`).join(" · ")}
         />
         <Stat
           label="Value approved"
@@ -165,7 +161,7 @@ export default async function Dashboard() {
           <Card className="overflow-hidden">
             <CardHeader
               icon={<ClockIcon size={17} />}
-              title="My approvals & tasks"
+              title="Committee matters waiting"
               subtitle="Matters routed to a committee, oldest first."
               divided={false}
               actions={
@@ -176,9 +172,9 @@ export default async function Dashboard() {
             />
             <DataList
               flat
-              exportName="approvals-and-tasks"
-              searchPlaceholder="Search my queue…"
-              emptyTitle="Your queue is clear"
+              exportName="committee-matters-waiting"
+              searchPlaceholder="Search matters…"
+              emptyTitle="No committee matter is waiting"
               emptyBody="Matters routed to a committee appear here the moment they are raised."
               views={[{ id: "financial", label: "Financial items" }]}
               filters={[
@@ -273,7 +269,7 @@ export default async function Dashboard() {
               title="On the way"
               subtitle="These will report here once their modules are built."
             />
-            <CardBody className="grid gap-5 md:grid-cols-3">
+            <CardBody className="grid gap-5 md:grid-cols-2">
               {COMING.map((c) => (
                 <div key={c.title} className="min-w-0">
                   <div className="flex items-center gap-2 text-ink-3">
