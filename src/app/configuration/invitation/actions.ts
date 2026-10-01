@@ -84,7 +84,7 @@ export async function saveWindowPolicy(_prev: FormState, data: FormData): Promis
   const reason = String(data.get("reason") ?? "");
   return db.$transaction(async (tx): Promise<FormState> => {
     await lockOrganisation(tx, org.id);
-    const today = todayIn(new Date(), org.timeZone) ?? storedDay(new Date());
+    const today = todayIn(new Date(), org.timeZone);
     const channels = await tx.publicationChannel.findMany({ where: { organisationId: org.id }, select: { id: true, nameEn: true, retiredOn: true } });
     const calendars = await tx.holidayCalendar.findMany({ where: { organisationId: org.id }, select: { id: true, name: true, retiredOn: true } });
     const templates = await tx.documentTemplate.findMany({ where: { organisationId: org.id }, select: { id: true, nameEn: true } });
@@ -130,8 +130,8 @@ export async function saveWindowPolicy(_prev: FormState, data: FormData): Promis
 
 // ------------------------------------------------------------------ channels
 
-const channelWords = (c: { code: string; nameEn: string; nameMs: string | null; requiredWhenAdvertised: boolean | null; governingSource: string; provenance: string; retiredOn?: Date | null }) => ({
-  code: c.code,
+// The configuration key (`code`) is not part of what History shows: the name is.
+const channelWords = (c: { nameEn: string; nameMs: string | null; requiredWhenAdvertised: boolean | null; governingSource: string; provenance: string; retiredOn?: Date | null }) => ({
   name: c.nameEn,
   nameInMalay: c.nameMs,
   required: c.requiredWhenAdvertised == null ? NOT_SET : c.requiredWhenAdvertised ? "Required for every advertised exercise" : "Not required",
@@ -257,8 +257,7 @@ export async function removeFeeFloor(_prev: FormState, data: FormData): Promise<
 
 // ------------------------------------------------------------------ holiday calendars (FR-ADV-005, OD-7)
 
-const calendarWords = (c: { code: string; name: string; weekendDays: number[]; weekendProvenance: string | null; governingSource: string; provenance: string; retiredOn?: Date | null }) => ({
-  code: c.code,
+const calendarWords = (c: { name: string; weekendDays: number[]; weekendProvenance: string | null; governingSource: string; provenance: string; retiredOn?: Date | null }) => ({
   name: c.name,
   weekend: c.weekendDays.length ? c.weekendDays.map((d) => WEEKDAY[d]).join(", ") : NOT_SET,
   weekendFrom: prov(c.weekendProvenance),

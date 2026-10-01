@@ -57,6 +57,9 @@ const ENTITIES = new Set([
   "PublicHoliday",
 ]);
 
+/// Entities whose configuration key is not part of what their history shows (the name is); older rows carry it.
+const CODE_HIDDEN = new Set(["PublicationChannel", "HolidayCalendar"]);
+
 export interface HistoryEntry {
   id: string;
   action: "CREATE" | "UPDATE" | "DELETE";
@@ -163,7 +166,7 @@ export async function historyOf(entity: string, entityId: string): Promise<Histo
     actorName: r.actorName,
     unattributed: r.unattributed,
     part: issue && r.entity in CORE_ROUTING_ENTITY_NAME ? (coreRoutingEntryName(r.entityLabel, issue.label) ?? "Core routing") : null,
-    changes: r.changes.map((c) => ({
+    changes: r.changes.filter((c) => !(c.field === "code" && CODE_HIDDEN.has(entity))).map((c) => ({
       field: c.field,
       before: read(c.field, c.before == null ? null : String(c.before)),
       after: read(c.field, c.after == null ? null : String(c.after)),

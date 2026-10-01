@@ -9,7 +9,7 @@ import { REGIMES } from "@/lib/method/types";
 
 import type { Finding } from "./types";
 
-export type PolicyFault = "DAYS_NOT_VALID" | "TARGET_BELOW_MINIMUM" | "TIME_NOT_VALID" | "NAMED_CHANNEL_REQUIRED" | "CHANNEL_NOT_FOR_RULE" | "CHANNEL_RETIRED" | "CALENDAR_RETIRED" | "CALENDAR_UNKNOWN" | "CHANNEL_UNKNOWN" | "TEMPLATE_UNKNOWN";
+export type PolicyFault = "DAYS_NOT_VALID" | "TARGET_BELOW_MINIMUM" | "TIME_NOT_VALID" | "NAMED_CHANNEL_REQUIRED" | "CHANNEL_NOT_FOR_RULE" | "CHANNEL_RETIRED" | "CALENDAR_RETIRED" | "CALENDAR_UNKNOWN" | "CHANNEL_UNKNOWN" | "TEMPLATE_UNKNOWN" | "TIME_ZONE_NOT_SET";
 
 export interface PolicyInput {
   minAdvertisementDays: number | null;
@@ -23,9 +23,20 @@ export interface PolicyInput {
   templateIds: readonly (string | null)[];
 }
 
-export function policyFaults(p: PolicyInput, known: { channels: readonly { id: string; retiredOn: string | null }[]; calendars: readonly { id: string; retiredOn: string | null }[]; templateIds: readonly string[]; today: string }): Finding<PolicyFault>[] {
+export function policyFaults(p: PolicyInput, known: { channels: readonly { id: string; retiredOn: string | null }[]; calendars: readonly { id: string; retiredOn: string | null }[]; templateIds: readonly string[]; today: string | null }): Finding<PolicyFault>[] {
   const out: Finding<PolicyFault>[] = [];
   const f = (code: PolicyFault, data?: Finding["data"]) => out.push({ code, level: "block", ...(data ? { data } : {}) });
+  /// Whether a record with a retirement day is retired today. With no time zone there is no "today": the
+  /// answer is not guessed from the server's clock (a UTC fallback), the save is refused naming the setting.
+  let zoneNeeded = false;
+  const retired = (retiredOn: string | null) => {
+    if (retiredOn == null) return false;
+    if (known.today == null) {
+      zoneNeeded = true;
+      return false;
+    }
+    return retiredOn <= known.today;
+  };
   for (const [field, v] of Object.entries({ minAdvertisementDays: p.minAdvertisementDays, targetAdvertisementDays: p.targetAdvertisementDays, newspaperWarnDays: p.newspaperWarnDays, purchaseCutoffDays: p.purchaseCutoffDays })) {
     if (v != null && (!Number.isInteger(v) || v < 0 || v > 365)) f("DAYS_NOT_VALID", { field });
   }
@@ -36,14 +47,15 @@ export function policyFaults(p: PolicyInput, known: { channels: readonly { id: s
   if (p.advertisementChannelId) {
     const c = known.channels.find((x) => x.id === p.advertisementChannelId);
     if (!c) f("CHANNEL_UNKNOWN");
-    else if (c.retiredOn != null && c.retiredOn <= known.today) f("CHANNEL_RETIRED");
+    else if (retired(c.retiredOn)) f("CHANNEL_RETIRED");
   }
   if (p.calendarId) {
     const c = known.calendars.find((x) => x.id === p.calendarId);
     if (!c) f("CALENDAR_UNKNOWN");
-    else if (c.retiredOn != null && c.retiredOn <= known.today) f("CALENDAR_RETIRED");
+    else if (retired(c.retiredOn)) f("CALENDAR_RETIRED");
   }
   for (const t of p.templateIds) if (t && !known.templateIds.includes(t)) f("TEMPLATE_UNKNOWN");
+  if (zoneNeeded) f("TIME_ZONE_NOT_SET");
   return out;
 }
 
@@ -142,6 +154,8 @@ export function configFaultText(f: Finding & { line?: number }): string {
       return "That holiday calendar is retired.";
     case "CALENDAR_UNKNOWN":
       return "That holiday calendar is no longer configured.";
+    case "TIME_ZONE_NOT_SET":
+      return "The organisation's time zone is not set, so whether that channel or calendar is retired cannot be judged today. Set the time zone under Configuration, Organisation.";
     case "TEMPLATE_UNKNOWN":
       return "That template is no longer configured.";
     case "REGIME_UNKNOWN":

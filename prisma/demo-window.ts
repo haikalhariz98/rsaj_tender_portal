@@ -248,7 +248,7 @@ export async function loadWindowDemo(db: Db, organisationId: string, hooks: Wind
     // The route asks the Head of Department to propose and then to recommend jointly, and the
     // demo's region has one: on the day of the joint recommendation he is away at a commissioning,
     // and his office is delegated to the Section Head for that day (6.1's delegation, judged by faultsIn).
-    await delegateForTheDay(db, organisationId, `${P}dg5`, W(10), W(9), T(W(10), "08:00"), entry);
+    await delegateForTheDay(db, organisationId, `${P}dg5`, W(10), W(10), T(W(10), "08:00"), entry);
     // The people before the committee on one day, the committee's sitting the next, the rest after it.
     const hours = ["10:00", "11:00", "12:00", "14:00", "15:00"];
     await acts.decideNext(`${P}ai69`, W(11), T(W(11), "15:00"));
@@ -376,7 +376,7 @@ async function loadConfiguration(db: Db, organisationId: string, at: Date, today
   for (const c of CHANNELS) {
     const row = { id: c.id, organisationId, code: c.code, nameEn: c.nameEn, requiredWhenAdvertised: true, governingSource: SOURCE, provenance: "ASSUMED" as const, sortOrder: c.sortOrder, notes: "Invented demo channel." };
     await db.publicationChannel.create({ data: row });
-    entry("PublicationChannel", c.id, `Publication channel · ${c.nameEn}`, "CREATE", at, diffFields(null, { code: c.code, name: c.nameEn, nameInMalay: null, required: "Required for every advertised exercise", governingSource: SOURCE, whereItComesFrom: "Assumed", retiredOn: null }));
+    entry("PublicationChannel", c.id, `Publication channel · ${c.nameEn}`, "CREATE", at, diffFields(null, { name: c.nameEn, nameInMalay: null, required: "Required for every advertised exercise", governingSource: SOURCE, whereItComesFrom: "Assumed", retiredOn: null }));
   }
   for (const f of FLOORS) {
     if (await db.documentFeeFloor.findFirst({ where: { organisationId, regime: f.regime } })) continue;
@@ -387,7 +387,7 @@ async function loadConfiguration(db: Db, organisationId: string, at: Date, today
   // The calendar: every year the demo's dates touch, maintained in full; the year after, not.
   const cal = { id: `${P}hol1`, code: "demo_state", name: "Demo state calendar" };
   await db.holidayCalendar.create({ data: { ...cal, organisationId, weekendDays: WEEKEND, weekendProvenance: "ASSUMED", governingSource: SOURCE, provenance: "ASSUMED", notes: "Invented demo calendar.", sortOrder: 1 } });
-  entry("HolidayCalendar", cal.id, `Holiday calendar · ${cal.name}`, "CREATE", at, diffFields(null, { code: cal.code, name: cal.name, weekend: "Saturday, Sunday", weekendFrom: "Assumed", governingSource: SOURCE, whereItComesFrom: "Assumed", retiredOn: null }));
+  entry("HolidayCalendar", cal.id, `Holiday calendar · ${cal.name}`, "CREATE", at, diffFields(null, { name: cal.name, weekend: "Saturday, Sunday", weekendFrom: "Assumed", governingSource: SOURCE, whereItComesFrom: "Assumed", retiredOn: null }));
   const first = Number(W(30).slice(0, 4));
   const last = Number(W(-30).slice(0, 4));
   let h = 0;

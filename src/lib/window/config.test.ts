@@ -25,6 +25,11 @@ describe("the window policy", () => {
     expect(codes(policyFaults({ ...empty, advertisementDayRule: "NAMED_CHANNEL", advertisementChannelId: "c2" }, known))).toEqual(["CHANNEL_RETIRED"]);
     expect(codes(policyFaults({ ...empty, advertisementDayRule: "NAMED_CHANNEL", advertisementChannelId: "zz" }, known))).toEqual(["CHANNEL_UNKNOWN"]);
   });
+  it("with no time zone a retirement day is not judged against a guessed day: refused naming the setting, unless nothing has a retirement day", () => {
+    const noZone = { ...known, today: null };
+    expect(codes(policyFaults({ ...empty, advertisementDayRule: "NAMED_CHANNEL", advertisementChannelId: "c2" }, noZone))).toEqual(["TIME_ZONE_NOT_SET"]);
+    expect(policyFaults({ ...empty, advertisementDayRule: "NAMED_CHANNEL", advertisementChannelId: "c1" }, noZone)).toEqual([]);
+  });
   it("a calendar and templates that exist", () => {
     expect(codes(policyFaults({ ...empty, calendarId: "zz", templateIds: ["t9"] }, known))).toEqual(["CALENDAR_UNKNOWN", "TEMPLATE_UNKNOWN"]);
   });
