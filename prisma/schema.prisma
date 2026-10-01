@@ -225,6 +225,8 @@ model Organisation {
   rejectionDestinations RejectionDestination[]
   committeeGateRules    CommitteeGateRule[]
   auditExports          AuditExport[]
+  coreRoutingLevels     CoreRoutingLevel[]
+  coreRoutingSteps      CoreRoutingStep[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -416,6 +418,10 @@ model AuthorityMatrix {
 
   rules             AuthorityRule[]
   termsBands        TermsBand[]
+  /// The core routing rule (FR-APR-004): the chain beneath each approving office.
+  /// Owned by the issue, copied on revision, frozen when issued. Ships empty, and a
+  /// funder's rule set carries its own, never the organisation's (6.9 OQ-7).
+  coreRouting       CoreRoutingLevel[]
   approvalInstances ApprovalInstance[] @relation("InstanceMatrix")
   overrideInstances ApprovalInstance[] @relation("InstanceOverrideMatrix")
 
@@ -487,6 +493,12 @@ model AuthorityRule {
   clause String
 
   sortOrder Int @default(0)
+
+  /// Whether this rule's chain is generated from the issue's core routing (FR-APR-004).
+  /// Null: nobody has decided, and the route warns that its chain was not checked.
+  /// False is a decision ("as entered") and needs `coreChainReason`.
+  generateCoreChain Boolean?
+  coreChainReason   String?
 
   recommenders AuthorityRuleStep[]
 
@@ -2125,6 +2137,15 @@ model ApprovalInstance {
   warnings Json           @default("[]")
   status   ApprovalStatus @default(PENDING)
   openedAt DateTime
+
+  /// The core routing as it stood when the route opened (FR-APR-004). `coreSnapshotAt`
+  /// null: the route predates the snapshot ("not recorded"). Set: the rule's flag as it
+  /// stood (null not decided, false as entered with its reason) and, where the chain
+  /// was generated, the core row it was generated from.
+  coreSnapshotAt      DateTime?
+  coreChainFlag       Boolean?
+  coreChainReason     String?
+  coreRoutingSnapshot Json?
   closedAt DateTime?
   /// When the row was written: orders two routes opened on the same day.
   createdAt DateTime @default(now())
@@ -2177,6 +2198,9 @@ model ApprovalStep {
   committeeCode String?
   nonDelegable  Boolean      @default(false)
   sourceRuleKey String?
+  /// Where a generated chain's step came from. Null on a chain as entered, and on a
+  /// route that predates core routing.
+  chainOrigin   ChainStepOrigin?
 
   decision          StepDecision @default(PENDING)
   decidedByPersonId String?
@@ -2215,6 +2239,52 @@ model ApprovalStep {
   declaredBy         Person?         @relation("ConflictDeclaredBy", fields: [declaredByPersonId], references: [id], onDelete: Restrict)
 
   @@unique([instanceId, sequence])
+}
+
+/// Where a step of a generated chain came from (FR-APR-004, 6.9 ruling C1).
+enum ChainStepOrigin {
+  CORE /// The core routing's step, as the core routing has it.
+  CORE_STRENGTHENED /// A core step whose act the rule raised above the core act.
+  CORE_ACT_SET /// A core step whose act the rule set to another of the same rank.
+  RULE /// A step the rule adds to the core routing.
+}
+
+/// One approving office's row of the core routing rule in one issue. Ships empty.
+/// A row with no steps means "approves alone", which is not the same as no row.
+model CoreRoutingLevel {
+  id                String            @id @default(cuid())
+  organisationId    String
+  organisation      Organisation      @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  authorityMatrixId String
+  authorityMatrix   AuthorityMatrix   @relation(fields: [authorityMatrixId], references: [id], onDelete: Cascade)
+  /// The approving office, by AuthorityRole.code.
+  approverCode      String
+  clause            String            @default("")
+  provenance        Provenance        @default(ASSUMED)
+  note              String            @default("")
+  sortOrder         Int               @default(0)
+  steps             CoreRoutingStep[]
+
+  @@unique([authorityMatrixId, approverCode])
+  @@index([organisationId])
+}
+
+/// An office beneath the approver, in order. The act is P, JP, R or JR (src/lib).
+model CoreRoutingStep {
+  id                 String           @id @default(cuid())
+  organisationId     String
+  organisation       Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  coreRoutingLevelId String
+  level              CoreRoutingLevel @relation(fields: [coreRoutingLevelId], references: [id], onDelete: Cascade)
+  roleCode           String
+  act                AuthorityAct
+  sequence           Int
+  provenance         Provenance       @default(ASSUMED)
+  note               String           @default("")
+
+  @@unique([coreRoutingLevelId, sequence])
+  @@unique([coreRoutingLevelId, roleCode])
+  @@index([organisationId])
 }
 
 // ------------------------------------------------------------ 6.3 method selection
