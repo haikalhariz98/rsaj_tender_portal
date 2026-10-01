@@ -15,6 +15,7 @@
 
 import type { RejectionOutcome } from "@/lib/authority/rejection";
 import { dayIn, isDay } from "@/lib/dates";
+import { formatDate } from "@/lib/format";
 import { exerciseRoutePreview, withRequester, type AppointmentPreview, type FunderContext, type RequesterOnName } from "@/lib/method/approval";
 import { TENDERING_APPROVAL_DOMAIN, type Method } from "@/lib/method/types";
 import { leadTime, type LeadState } from "@/lib/scope/estimate";
@@ -140,4 +141,22 @@ export function frozenWindowFault(stated: { startOn: string; closingDay: string 
   if (!stated) return null;
   if (recorded.startOn === stated.startOn && recorded.closingDay === stated.closingDay) return null;
   return { code: "DATES_DIFFER_FROM_DOCUMENTS", level: "block", data: { startOn: stated.startOn, closingDay: stated.closingDay } };
+}
+
+/**
+ * What the approving step's form shows when a frozen notice states the validity window (U2):
+ * the start and closing day as fixed values ("08 Oct 2026, as the notice states"), with the
+ * words that say why; only the closing time stays editable. Null where no document states it:
+ * then the approver sets the days. The values posted are the stated days, and
+ * `frozenWindowFault` still judges what arrives.
+ */
+export function decisionWindow(stated: { startOn: string; closingDay: string } | null) {
+  if (!stated) return null;
+  return {
+    startOn: stated.startOn,
+    closingDay: stated.closingDay,
+    startText: `${formatDate(stated.startOn)}, as the notice states`,
+    closingText: `${formatDate(stated.closingDay)}, as the notice states`,
+    note: "The frozen notice states the registrations' validity window, so approving records exactly these days. To change them, return the documents for amendment.",
+  };
 }

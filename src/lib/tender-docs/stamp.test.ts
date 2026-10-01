@@ -73,3 +73,37 @@ describe("FR-DOC-009 acceptance: a restricted exercise carries the stamp on ever
     expect(stamped("Text", null)).toBe("Text");
   });
 });
+
+describe("a restricted pack says its uploaded files are not stamped by the portal (U6)", () => {
+  it("only for an upload, and only where the tender is restricted (not unanswered, not no)", async () => {
+    const { uploadStampNote, UPLOADED_NOT_STAMPED } = await import("./stamp");
+    expect(UPLOADED_NOT_STAMPED).toBe("Uploaded file: not stamped by the portal; check it carries the stamp");
+    expect(uploadStampNote(true, "UPLOAD")).toBe(UPLOADED_NOT_STAMPED);
+    expect(uploadStampNote(true, "TEMPLATE")).toBeNull();
+    expect(uploadStampNote(false, "UPLOAD")).toBeNull();
+    expect(uploadStampNote(null, "UPLOAD")).toBeNull();
+  });
+  it("the parts list and the print view carry it (source scan)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const list = readFileSync(join(process.cwd(), "src/app/sourcing/[id]/documents/parts-list.tsx"), "utf8");
+    const print = readFileSync(join(process.cwd(), "src/app/sourcing/[id]/documents/print/page.tsx"), "utf8");
+    const read = readFileSync(join(process.cwd(), "src/lib/tender-docs/read.ts"), "utf8");
+    expect(list).toMatch(/uploadNote/);
+    expect(print).toMatch(/p\.stampNote/);
+    expect(read.match(/uploadStampNote\(/g)?.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("the documents card's Restricted fact (U6)", () => {
+  it("is the exercise's answer while a draft, and what was frozen once frozen; unanswered is never 'No'", async () => {
+    const { restrictionFact } = await import("./stamp");
+    expect(restrictionFact({ frozen: false, snapshot: undefined, answer: true })).toBe("Yes");
+    expect(restrictionFact({ frozen: false, snapshot: undefined, answer: false })).toBe("No");
+    expect(restrictionFact({ frozen: false, snapshot: undefined, answer: null })).toBe("Not answered");
+    // Frozen: a later change to the exercise's answer does not rewrite it.
+    expect(restrictionFact({ frozen: true, snapshot: true, answer: false })).toBe("Yes");
+    expect(restrictionFact({ frozen: true, snapshot: null, answer: true })).toBe("Not answered");
+    expect(restrictionFact({ frozen: true, snapshot: undefined, answer: true })).toBe("Not recorded with these documents");
+  });
+});

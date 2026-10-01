@@ -126,6 +126,16 @@ export function Topbar({
     crumbs[printAt].label = "Print";
   }
 
+  // An exercise's documents are the Tender documents tab, not the register of documents: named so, and linked to the tab (no page of its own sits at that path).
+  if (segments[0] === "sourcing") {
+    segments.forEach((sg, i) => {
+      if (sg === "documents" && i >= 2) {
+        crumbs[i].label = "Tender documents";
+        crumbs[i].href = `/sourcing/${segments[1]}?tab=documents`;
+      }
+    });
+  }
+
   const rootLabel = workspace === "supplier" ? "Supplier portal" : organisation;
   const rootHref = workspace === "supplier" ? "/supplier" : "/";
   const trail = workspace === "supplier" ? crumbs.slice(1) : crumbs;
@@ -153,7 +163,8 @@ export function Topbar({
           return (
             <span
               key={crumb.href + i}
-              className={i < all.length - 1 ? "hidden min-w-0 items-center gap-1.5 sm:flex" : "flex min-w-0 items-center gap-1.5"}
+              // The organisation's crumb gives way below 2xl, so the record and its section keep their width beside the search box.
+              className={i === 0 && workspace !== "supplier" && all.length > 2 ? "hidden min-w-0 items-center gap-1.5 2xl:flex" : i < all.length - 1 ? "hidden shrink-0 items-center gap-1.5 whitespace-nowrap sm:flex" : "flex min-w-0 items-center gap-1.5"}
             >
               {last ? (
                 <span aria-current="page" className="truncate font-semibold text-ink">

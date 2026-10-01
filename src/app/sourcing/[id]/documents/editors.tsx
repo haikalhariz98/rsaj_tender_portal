@@ -178,7 +178,10 @@ export function ReopenPartDrawer({ exerciseId, partId, partLabel, state }: { exe
   );
 }
 
-export function DecideDrawer({ exerciseId, stepId, office, done, people, today, recordsDates, proposed, windowNote }: { exerciseId: string; stepId: string; office: string; done: string; people: Option[]; today: string | null; recordsDates: boolean; proposed: { startOn: string; closingDay: string; closingTime: string } | null; windowNote?: string | null }) {
+/// What the approving step is shown when a frozen notice states the validity window (decisionWindow).
+export type FixedWindow = { startOn: string; closingDay: string; startText: string; closingText: string; note: string };
+
+export function DecideDrawer({ exerciseId, stepId, office, done, people, today, recordsDates, proposed, fixedWindow }: { exerciseId: string; stepId: string; office: string; done: string; people: Option[]; today: string | null; recordsDates: boolean; proposed: { startOn: string; closingDay: string; closingTime: string } | null; fixedWindow?: FixedWindow | null }) {
   return (
     <RecordEditor
       title={`Record ${office}'s decision`}
@@ -191,16 +194,25 @@ export function DecideDrawer({ exerciseId, stepId, office, done, people, today, 
         { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was submitted." },
         { kind: "textarea", name: "reason", label: "Reason for returning them", required: true, hint: "Say what is to be amended." },
         ...(recordsDates
-          ? ([
-              { kind: "date", name: "startOn", label: "Tendering starts on", required: true, hint: "As proposed when submitted; the approver may set another. Not before the day decided." },
-              { kind: "date", name: "closingDay", label: "Closing day", required: true, hint: "After the start day." },
-              { kind: "text", name: "closingTime", label: "Closing time", required: true, hint: "Hours and minutes, 24-hour (14:30)." },
-              ...(windowNote ? [{ kind: "note", text: windowNote }] : []),
-            ] as Field[])
+          ? (fixedWindow
+              ? ([
+                  // The notice states the window: its note first, then the days as fixed values; only the time is the approver's.
+                  { kind: "readonly", name: "windowNote", label: "Validity window", text: "Stated by the frozen notice", hint: fixedWindow.note },
+                  { kind: "readonly", name: "startShown", label: "Tendering starts on", text: fixedWindow.startText },
+                  { kind: "readonly", name: "closingShown", label: "Closing day", text: fixedWindow.closingText },
+                  hidden("startOn"),
+                  hidden("closingDay"),
+                  { kind: "text", name: "closingTime", label: "Closing time", required: true, hint: "Hours and minutes, 24-hour (14:30). The time is not part of the window." },
+                ] as Field[])
+              : ([
+                  { kind: "date", name: "startOn", label: "Tendering starts on", required: true, hint: "As proposed when submitted; the approver may set another. Not before the day decided." },
+                  { kind: "date", name: "closingDay", label: "Closing day", required: true, hint: "After the start day." },
+                  { kind: "text", name: "closingTime", label: "Closing time", required: true, hint: "Hours and minutes, 24-hour (14:30)." },
+                ] as Field[]))
           : []),
       ]}
-      values={{ exerciseId, stepId, decidedOn: today, ...(recordsDates && proposed ? proposed : {}) }}
-      showWhen={{ reason: { name: "decision", in: ["REJECTED"] }, ...(recordsDates ? { startOn: { name: "decision", in: ["DONE"] }, closingDay: { name: "decision", in: ["DONE"] }, closingTime: { name: "decision", in: ["DONE"] } } : {}) }}
+      values={{ exerciseId, stepId, decidedOn: today, ...(recordsDates && proposed ? proposed : {}), ...(recordsDates && fixedWindow ? { startOn: fixedWindow.startOn, closingDay: fixedWindow.closingDay } : {}) }}
+      showWhen={{ reason: { name: "decision", in: ["REJECTED"] }, ...(recordsDates ? { startOn: { name: "decision", in: ["DONE"] }, closingDay: { name: "decision", in: ["DONE"] }, closingTime: { name: "decision", in: ["DONE"] }, windowNote: { name: "decision", in: ["DONE"] }, startShown: { name: "decision", in: ["DONE"] }, closingShown: { name: "decision", in: ["DONE"] } } : {}) }}
       action={recordTenderingDecision}
       submitLabel="Record decision"
       trigger={{ label: "Record decision", className: buttonClass("primary", "sm") }}

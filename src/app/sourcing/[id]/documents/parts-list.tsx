@@ -16,6 +16,8 @@ export interface PartRow {
   role: string;
   content: string;
   source: string;
+  /// Where the tender is restricted and the part is an uploaded file: the portal does not stamp it.
+  uploadNote: string | null;
   preparedBy: string;
   mandatory: string;
   inTableDocument: string;
@@ -41,14 +43,10 @@ export interface PartRow {
 export function PartsList({ exerciseId, parts, printHref }: { exerciseId: string; parts: PartRow[]; printHref: string }) {
   const byId = new Map(parts.map((p) => [p.id, p]));
   const rows: Row[] = parts.map((p) => {
-    const sub = [p.role, p.preparedBy === "Not set" ? null : `Prepared by ${p.preparedBy}`, p.template ? (p.template === "Not set" ? "No template chosen" : `Template: ${p.template}`) : null, p.omittedBecause ? `Omitted: ${p.omittedBecause}` : null].filter(Boolean).join(" · ");
+    const tableText = p.inTableDocument === "Yes" ? "In the Tender Table Document" : p.inTableDocument === "No" ? "Not in the Tender Table Document" : "Tender Table Document: not set";
+    const sub = [p.role, tableText, p.preparedBy === "Not set" ? null : `Prepared by ${p.preparedBy}`, p.template ? (p.template === "Not set" ? "No template chosen" : `Template: ${p.template}`) : null, p.omittedBecause ? `Omitted: ${p.omittedBecause}` : null].filter(Boolean).join(" · ");
     const liveFiles = p.files.filter((f) => f.live);
-    const note =
-      p.state === "Not ready"
-        ? !p.markReady.allowed
-          ? p.markReady.reason
-          : undefined
-        : undefined;
+    const note = [p.state === "Not ready" && !p.markReady.allowed ? p.markReady.reason : null, p.uploadNote ? `${p.uploadNote}.` : null].filter(Boolean).join(" ") || undefined;
     return {
       id: p.id,
       search: `${p.printedNumber} ${p.label}`,

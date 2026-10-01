@@ -37,3 +37,19 @@ describe("carry 6: saving the policy refuses a permit list that classifies contr
     expect(tx).toMatch(/lockOrganisation[\s\S]*conditionsPolicyFaults\([^\n]*loadTaxonomyUses\(org\.id, tx\)/);
   });
 });
+
+describe("print and route polish (source scan)", () => {
+  const readSrc = read("src/lib/tender-docs/read.ts");
+  it("a draft print says where the window comes from, and an approved header states approval and window", () => {
+    expect(readSrc).toContain('"[the start and closing days proposed at submission]"');
+    expect(readSrc).toMatch(/approvedLine: pack\.status === "APPROVED"/);
+  });
+  it("the Tender Table Document has its own title and a link from the tab", () => {
+    expect(read("src/app/sourcing/[id]/documents/print/page.tsx")).toContain("Tender Table Document: ${v.exercise.title}");
+    expect(read("src/app/sourcing/[id]/documents/workspace.tsx")).toContain("?set=table");
+  });
+  it("the route card's subtitle names the version, and the crumb is 'Tender documents'", () => {
+    expect(read("src/app/sourcing/[id]/documents/workspace.tsx")).toMatch(/versionLabel \? `\$\{versionLabel\}, submitted`/);
+    expect(read("src/components/shell/topbar.tsx")).toContain('crumbs[i].label = "Tender documents"');
+  });
+});

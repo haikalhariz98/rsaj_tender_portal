@@ -65,8 +65,8 @@ export function RestrictionDrawer({ exerciseId, question, raw, allowed }: { exer
   return (
     <RecordEditor
       title="Is the tender restricted?"
-      description={`${question}. Where it is, every document the portal generates carries the stamp configured for it. Not answered holds submission back.`}
-      fields={[hidden("exerciseId"), { kind: "select", name: "restrictedTender", label: question, required: true, placeholder: "Choose", options: THREE }]}
+      description={`Asked here as: ${question}. Where the answer is yes, every document the portal generates carries the stamp configured for it. Not answered holds submission back.`}
+      fields={[hidden("exerciseId"), { kind: "select", name: "restrictedTender", label: "Answer", required: true, placeholder: "Choose", options: THREE }]}
       values={{ exerciseId, restrictedTender: raw === "unset" ? "" : raw }}
       action={saveRestriction}
       submitLabel="Save"

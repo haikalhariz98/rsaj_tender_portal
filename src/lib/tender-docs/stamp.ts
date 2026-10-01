@@ -52,3 +52,19 @@ export const stampFor = (restricted: boolean | null, stamp: StampWords): StampWo
 export function stamped(text: string, stamp: string | null | undefined): string {
   return stamp?.trim() ? `${stamp.trim()}\n\n${text}` : text;
 }
+
+/// What a restricted pack says of a part whose content is an uploaded file: the portal generates no text for it, so it cannot stamp it (U6).
+export const UPLOADED_NOT_STAMPED = "Uploaded file: not stamped by the portal; check it carries the stamp";
+
+/// The note for one part, or null: only where the tender is restricted and the part's content is an upload.
+export const uploadStampNote = (restricted: boolean | null | undefined, source: string): string | null => (restricted === true && source === "UPLOAD" ? UPLOADED_NOT_STAMPED : null);
+
+/**
+ * The documents card's "Restricted" fact: as frozen once the pack is frozen (`undefined`: it
+ * was frozen before the answer was recorded with it), else the exercise's own answer. An
+ * unanswered question reads "Not answered", never "No".
+ */
+export function restrictionFact(i: { frozen: boolean; snapshot: boolean | null | undefined; answer: boolean | null }): string {
+  if (i.frozen) return i.snapshot === undefined ? "Not recorded with these documents" : i.snapshot == null ? "Not answered" : i.snapshot ? "Yes" : "No";
+  return i.answer == null ? "Not answered" : i.answer ? "Yes" : "No";
+}

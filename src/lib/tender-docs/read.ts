@@ -27,7 +27,9 @@ import { APPENDIX_FIELD_LABEL, appendixComplete, appendixFaults, ladDaily, type 
 import { BEHAVIOURS_AFTER_AWARD, BEHAVIOURS_CHECKED_HERE, behaviourFaults } from "./behaviour";
 import { formLabel, resolveComposition } from "./composition";
 import { CONFIG_TIME_ZONE_NOT_SET, configHoldingWorkBack, partRetiredOn } from "./config";
-import { packFieldValues } from "./fields";
+import { packFieldValues, WINDOW_FIELD } from "./fields";
+
+const WINDOW_PLACEHOLDER = "[the start and closing days proposed at submission]";
 import { appendixText, packManifest, unpricedBqText } from "./freeze";
 import {
   appendixCardOf,
@@ -60,13 +62,13 @@ import { distinctOffices, pickTemplateView } from "./part-view";
 import { refreshView } from "./refresh";
 import { formatPct } from "./percent";
 import { appendixFactsOf, loadConfiguredParts, loadPacks, loadTemplates, loadTenderPolicy, partFactsOf, pinnedFilesOf, profileOf, scopeReadiness, type PackRow } from "./repo";
-import { tenderingRouteForRequester, timeIn } from "./tendering";
+import { decisionWindow, tenderingRouteForRequester, timeIn } from "./tendering";
 import { liveClauses } from "./clauses";
 import { conditionFieldValues, conditionStamp, readConditionsSnapshot } from "./conditions";
 import { packWhitelist } from "./fields";
 import { tableDocumentManifest } from "./freeze";
 import { loadConditions } from "./repo";
-import { stamped } from "./stamp";
+import { restrictionFact, stamped, uploadStampNote } from "./stamp";
 import type { Finding, PackKind } from "./types";
 
 export type Allowed = { allowed: true } | { allowed: false; reason: string };
@@ -171,6 +173,8 @@ export async function documentsTab(exerciseId: string) {
       standardForm: shown?.formLabelSnapshot ?? (composition && !("fault" in composition) ? (formLabel(composition.parts, (code) => c.templates.find((t) => t.code === code)?.nameEn ?? null) ?? NOT_SET) : legacy ? NOT_APPLICABLE_BEFORE_ASSEMBLY : NOT_SET),
       version: shown ? `Version ${shown.versionNo}` : legacy ? NOT_APPLICABLE_BEFORE_ASSEMBLY : "None yet",
       status: shown ? PACK_STATUS_LABEL[shown.status] : "Not started",
+      /// Whether the tender is restricted: as frozen once the pack is frozen, as answered on the exercise before. Not answered is not "No".
+      restricted: legacy ? NOT_APPLICABLE_BEFORE_ASSEMBLY : restrictionFact({ frozen: shown?.frozenAt != null, snapshot: shown?.frozenAt ? readConditionsSnapshot(shown.conditionsSnapshot)?.restriction.restricted : undefined, answer: ex.restrictedTender }),
     },
     start: start.length ? { allowed: false as const, reason: start.map(startFaultText).join(" ") } : { allowed: true as const, label: next.copyFrom ? `Start version ${next.versionNo} from the returned version ${next.copyFrom.versionNo}` : "Start the tender documents" },
     pack: shown ? packView(shown, c, ex.id, editable, content) : null,
@@ -218,6 +222,8 @@ const storedDayIn = (at: Date, tz: string) => new Intl.DateTimeFormat("en-CA", {
 
 function packView(p: PackRow, c: NonNullable<Awaited<ReturnType<typeof context>>>, exerciseId: string, editable: boolean, content: { bqFinalised: boolean; appendixComplete: boolean | null }) {
   const manifest = packManifest(p.manifest);
+  /// The restriction as this version stands under it: frozen with the pack, or the exercise's answer while it is a draft (U6).
+  const restricted = p.frozenAt ? (readConditionsSnapshot(p.conditionsSnapshot)?.restriction.restricted ?? null) : c.ex.restrictedTender;
   return {
     id: p.id,
     versionNo: p.versionNo,
@@ -238,6 +244,7 @@ function packView(p: PackRow, c: NonNullable<Awaited<ReturnType<typeof context>>
         role: PART_ROLE_LABEL[row.role],
         content: PART_CONTENT_LABEL[row.content],
         source: PART_SOURCE_LABEL[row.source],
+        uploadNote: uploadStampNote(restricted, row.source),
         preparedBy: c.unitName(row.ownerOrgUnitCode),
         mandatory: yesNoNotSet(row.mandatory),
         inTableDocument: yesNoNotSet(row.inTableDocument),
@@ -269,8 +276,8 @@ function packView(p: PackRow, c: NonNullable<Awaited<ReturnType<typeof context>>
 function withWindowNote<R extends { decide: object | null } | null>(route: R, submitted: PackRow | null): R {
   if (!route?.decide) return route;
   const stated = submitted ? readConditionsSnapshot(submitted.conditionsSnapshot)?.windowStated : null;
-  const note = stated ? `The frozen notice states the registrations' validity window from ${formatDate(stated.startOn)} to ${formatDate(stated.closingDay)}. Approving records those days; other days need the documents returned for amendment.` : null;
-  return { ...route, decide: { ...route.decide, windowNote: note } };
+  const fixed = decisionWindow(stated ?? null);
+  return { ...route, decide: { ...route.decide, fixedWindow: fixed } };
 }
 
 /// The templates the configuration names for parts of a role; null where it names none, so nothing is narrowed to an empty list.
@@ -409,6 +416,7 @@ export async function printView(exerciseId: string, set: "pack" | "table" = "pac
   const document = set === "table" ? "Tender Table Document" : PACK_KIND_LABEL[pack.packKind];
   if (pack.frozenAt && manifest) {
     const snapshot = readConditionsSnapshot(pack.conditionsSnapshot);
+    const restrictedFrozen = snapshot?.restriction.restricted ?? null;
     return {
       exercise: { id: c.ex.id, reference: c.ex.reference, title: c.ex.title },
       title,
@@ -416,6 +424,8 @@ export async function printView(exerciseId: string, set: "pack" | "table" = "pac
       document,
       form: pack.formLabelSnapshot ?? NOT_SET,
       watermark,
+      /// An approved pack's header states when it was approved and the window tendering runs over.
+      approvedLine: pack.status === "APPROVED" ? `Approved for tendering ${formatDate(pack.approvedAt)} · Tendering ${formatDate(pack.approvedStartOn)} to ${closingText(pack.approvedClosingAt, c.org.timeZone)}` : null,
       /// FR-DOC-009: the restriction as frozen; null where not restricted or frozen before increment 2.
       stamp: snapshot?.restriction.restricted ? (snapshot.restriction.stampEn ?? snapshot.restriction.stampMs) : null,
       parts: (set === "table" ? tableDocumentManifest(manifest) : manifest).map((m) => ({
@@ -424,6 +434,7 @@ export async function printView(exerciseId: string, set: "pack" | "table" = "pac
         omitted: m.state === "OMITTED" ? `Omitted: ${m.omittedReason}` : null,
         texts: pack.documents.filter((d) => d.partCode === m.partCode).map((d) => ({ language: d.language === "MS" ? "Malay" : "English", paragraphs: d.renderedText.split("\n\n"), fidelity: d.templateName ? `From ${d.templateName}${d.templateFormCode ? ` (${d.templateFormCode})` : ""}, text version ${d.templateBodyVersion}, frozen ${formatDate(d.frozenAt)}.` : `${PART_SOURCE_LABEL[d.source]}, frozen ${formatDate(d.frozenAt)}.` })),
         files: m.files.map((f) => ({ title: f.title, versionNo: f.versionNo, fingerprint: f.sha256 })),
+        stampNote: uploadStampNote(restrictedFrozen, m.source),
       })),
     };
   }
@@ -437,6 +448,8 @@ export async function printView(exerciseId: string, set: "pack" | "table" = "pac
   // Increment 2, live: the conditions' fields (the window empty until dates are proposed) and the stamp, as the freeze will apply them.
   const conditions = c.org.today ? await loadConditions(c.org.id, c.ex, pack.id, c.org.today) : null;
   const byLang = conditions ? conditionFieldValues(conditions, null) : null;
+  // The window is stated only once the days are proposed at submission: a draft says so, in place of the gap.
+  if (byLang) for (const lang of ["EN", "MS"] as const) byLang[lang][WINDOW_FIELD] = WINDOW_PLACEHOLDER;
   const whitelist = packWhitelist(conditions ? liveClauses(conditions.clauses.clauses, c.org.today!) : []);
   const stamp = conditions ? conditionStamp(conditions) : null;
   const shownParts = set === "table" ? pack.parts.filter((p) => p.inTableDocument === true && p.state !== "OMITTED") : pack.parts;
@@ -464,6 +477,7 @@ export async function printView(exerciseId: string, set: "pack" | "table" = "pac
               ? [{ language: "English", paragraphs: stamped(appendixText(a, c.office), stamp?.EN).split("\n\n"), fidelity: "The Appendix as entered so far." }]
               : [],
       files: pinnedFilesOf(p).map((f) => ({ title: f.title, versionNo: f.versionNo, fingerprint: f.sha256 })),
+      stampNote: uploadStampNote(stamp ? true : null, p.source),
     })),
   };
 }

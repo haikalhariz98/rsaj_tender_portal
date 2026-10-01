@@ -19,7 +19,7 @@ import { documentsTab } from "@/lib/tender-docs/read";
 import { conditionsTab } from "@/lib/tender-docs/read-conditions";
 
 import { ConditionsCards } from "./conditions";
-import { DecideDrawer, RefreshFlagsDrawer, StartPackDrawer, SubmitPackDrawer } from "./editors";
+import { DecideDrawer, type FixedWindow, RefreshFlagsDrawer, StartPackDrawer, SubmitPackDrawer } from "./editors";
 import { PartsList, type PartRow } from "./parts-list";
 
 type Data = NonNullable<Awaited<ReturnType<typeof documentsTab>>>;
@@ -60,6 +60,7 @@ export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }
     role: p.role,
     content: p.content,
     source: p.source,
+    uploadNote: p.uploadNote,
     preparedBy: p.preparedBy,
     mandatory: p.mandatory,
     inTableDocument: p.inTableDocument,
@@ -121,6 +122,7 @@ export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }
             {primary}
             {d.appendixHref && <ButtonLink href={d.appendixHref} variant="secondary" size="sm">{draft ? "Enter the Appendix" : "Open the Appendix"}</ButtonLink>}
             {d.printHref && <ButtonLink href={d.printHref} variant="secondary" size="sm">Print the pack</ButtonLink>}
+            {d.printHref && <ButtonLink href={`${d.printHref}?set=table`} variant="secondary" size="sm">Tender Table Document</ButtonLink>}
           </div>
           <KeyValues
             columns={3}
@@ -129,6 +131,7 @@ export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }
               { label: "Contract basis", value: d.facts.contractBasis },
               { label: "Standard form", value: d.facts.standardForm },
               { label: "Version", value: d.facts.version },
+              ...(d.pack || d.exercise.status !== "Draft" ? [{ label: "Restricted", value: d.facts.restricted }] : []),
               ...(d.dates && "approvedOn" in d.dates
                 ? [
                     { label: "Tendering starts", value: d.dates.start },
@@ -188,7 +191,7 @@ export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }
 
       {conditions && (d.pack || d.exercise.status === "Draft") && <ConditionsCards c={conditions} packless={!d.pack} />}
 
-      {(d.pack || routes.length > 0) && <RouteCard exerciseId={exerciseId} routes={routes} decide={d.route?.decide ?? null} proposed={d.proposed} today={today} timeZone={timeZone} />}
+      {(d.pack || routes.length > 0) && <RouteCard versionLabel={(() => { const v = d.versions.find((x) => x.submittedOn); return v ? `Version ${v.versionNo}` : null; })()} exerciseId={exerciseId} routes={routes} decide={d.route?.decide ?? null} proposed={d.proposed} today={today} timeZone={timeZone} />}
 
       {d.pack && <Card>
         <CardHeader icon={<ScaleIcon size={17} />} title="What the contract type asks of these documents" subtitle="Checked here: six. The other six are checked after award." />
@@ -248,7 +251,7 @@ export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }
 
 // ------------------------------------------------------------------ the route
 
-async function RouteCard({ exerciseId, routes, decide, proposed, today, timeZone }: { exerciseId: string; routes: Route[]; decide: NonNullable<Data["route"]>["decide"] | null; proposed: Data["proposed"]; today: string | null; timeZone: string | null }) {
+async function RouteCard({ exerciseId, routes, decide, proposed, today, timeZone, versionLabel }: { versionLabel: string | null; exerciseId: string; routes: Route[]; decide: NonNullable<Data["route"]>["decide"] | null; proposed: Data["proposed"]; today: string | null; timeZone: string | null }) {
   const inst = routes[0] ?? null;
   const earlier = routes.slice(1);
   const officeName = (code: string | null) => (code ? "an office no longer configured" : null);
@@ -275,7 +278,7 @@ async function RouteCard({ exerciseId, routes, decide, proposed, today, timeZone
         <CardHeader
           icon={<RouteIcon size={17} />}
           title="Approval for tendering"
-          subtitle={`Submitted ${formatOrgDay(inst.openedAt, timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}.`}
+          subtitle={`${versionLabel ? `${versionLabel}, submitted` : "Submitted"} ${formatOrgDay(inst.openedAt, timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}.`}
           actions={<Badge tone={tenderingRouteTone(inst.status)}>{tenderingRouteLabel(inst.status, inst.warnings)}</Badge>}
         />
         <CardBody className="flex flex-col gap-4">
@@ -340,7 +343,7 @@ async function RouteCard({ exerciseId, routes, decide, proposed, today, timeZone
                     <EscalateDrawer stepId={s.id} office={s.actingRoleLabel ?? s.roleLabel} mandatory={isMandatoryAct(s.act)} people={everyone} />
                   )}
                   {inst.status === "PENDING" && s.decision === "PENDING" && earlierDone && !s.committeeCode && (
-                    <DecideDrawer exerciseId={exerciseId} stepId={s.id} office={s.roleLabel} done={ACT_DONE_LABEL[s.act] ?? "Done"} people={decide?.stepId === s.id ? people : everyone} today={today} recordsDates={isLast} proposed={proposed} windowNote={decide?.stepId === s.id && "windowNote" in decide ? (decide.windowNote as string | null) : null} />
+                    <DecideDrawer exerciseId={exerciseId} stepId={s.id} office={s.roleLabel} done={ACT_DONE_LABEL[s.act] ?? "Done"} people={decide?.stepId === s.id ? people : everyone} today={today} recordsDates={isLast} proposed={proposed} fixedWindow={decide?.stepId === s.id && "fixedWindow" in decide ? (decide.fixedWindow as FixedWindow | null) : null} />
                   )}
                 </div>
               </li>

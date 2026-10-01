@@ -2,7 +2,6 @@ import { CheckIcon, GavelIcon, UsersIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
-import { KeyValues } from "@/components/ui/stat";
 import { capFirst } from "@/lib/tender-docs/frozen-view";
 import type { ConditionsTab, LiveConditions } from "@/lib/tender-docs/read-conditions";
 
@@ -34,7 +33,7 @@ function Findings({ items }: { items: { level: string; text: string }[] }) {
 function Row({ title, value, action, children }: { title: string; value?: React.ReactNode; action?: React.ReactNode; children?: React.ReactNode }) {
   return (
     <li className="flex flex-col gap-2 px-4 py-3">
-      <span className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
+      <span className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-4">
         <span className="min-w-0 text-[13.5px] font-semibold break-words text-ink">{title}</span>
         <span className="flex min-w-0 flex-wrap items-center gap-2 text-[13px] text-ink-2">
           {value}
@@ -108,7 +107,16 @@ function FrozenCards({ c }: { c: Frozen }) {
               {f.permit.type != null && <span className="text-[12.5px] text-ink-3">Permit type: {f.permit.type === NOT_SET ? "not chosen" : f.permit.type}</span>}
             </Row>
           </ul>
-          {f.tableDocument.length > 0 && <KeyValues columns={1} items={[{ label: "In the Tender Table Document", value: f.tableDocument.join(" · ") }]} />}
+          {f.tableDocument.length > 0 && (
+            <div>
+              <p className="mb-2 text-[12px] font-semibold text-ink-3">In the Tender Table Document</p>
+              <ul className="flex list-disc flex-col gap-1 pl-5 text-[13.5px] text-ink">
+                {f.tableDocument.map((t) => (
+                  <li key={t}>{t}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </CardBody>
       </Card>
 

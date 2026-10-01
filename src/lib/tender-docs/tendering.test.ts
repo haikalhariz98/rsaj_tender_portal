@@ -142,3 +142,27 @@ describe("6.2's estimate lead, read against the closing at approval: a warning, 
     expect(estimateLeadWarning("2026-10-01", closingAt, { estimateLeadDays: null }, "Asia/Kuala_Lumpur")).toMatchObject({ state: "LEAD_NOT_SET", warn: true });
   });
 });
+
+describe("the approving step's form where a frozen notice states the validity window (U2)", () => {
+  it("shows the stated days as fixed values, and posts exactly those days", async () => {
+    const { decisionWindow, frozenWindowFault } = await import("./tendering");
+    const w = decisionWindow({ startOn: "2026-10-08", closingDay: "2026-10-22" })!;
+    expect(w.startText).toBe("08 Oct 2026, as the notice states");
+    expect(w.closingText).toBe("22 Oct 2026, as the notice states");
+    expect(w.note).toMatch(/approving records exactly these days/);
+    // What the form posts is what the rule accepts; any other day is refused.
+    expect(frozenWindowFault({ startOn: "2026-10-08", closingDay: "2026-10-22" }, { startOn: w.startOn, closingDay: w.closingDay })).toBeNull();
+    expect(frozenWindowFault({ startOn: "2026-10-08", closingDay: "2026-10-22" }, { startOn: "2026-10-09", closingDay: w.closingDay })?.code).toBe("DATES_DIFFER_FROM_DOCUMENTS");
+  });
+  it("is absent where no document states the window: the approver sets the days", async () => {
+    const { decisionWindow } = await import("./tendering");
+    expect(decisionWindow(null)).toBeNull();
+  });
+  it("the drawer fixes the days and leaves only the closing time editable, for Approved only (source scan)", () => {
+    const src = readFileSync(join(process.cwd(), "src/app/sourcing/[id]/documents/editors.tsx"), "utf8");
+    const drawer = src.slice(src.indexOf("export function DecideDrawer"));
+    expect(drawer).toMatch(/name: "windowNote"[\s\S]*name: "startShown"[\s\S]*name: "closingShown"[\s\S]*hidden\("startOn"\)[\s\S]*hidden\("closingDay"\)[\s\S]*name: "closingTime"/);
+    expect(drawer).toMatch(/windowNote: \{ name: "decision", in: \["DONE"\] \}, startShown: \{ name: "decision", in: \["DONE"\] \}, closingShown: \{ name: "decision", in: \["DONE"\] \}/);
+    expect(drawer).toMatch(/startOn: fixedWindow\.startOn, closingDay: fixedWindow\.closingDay/);
+  });
+});
