@@ -230,76 +230,104 @@ const onDemoOwner = { OR: [{ meetingId: demoRef }, { exerciseId: demoRef }, { aw
 /// negated LIKE, so `NOT: onDemoOwner` would silently drop exactly the real records.
 const notOnDemoOwner = { AND: (["meetingId", "exerciseId", "awardId", "delegationId"] as const).map((k) => ({ OR: [{ [k]: null }, { NOT: { [k]: demoRef } }] })) };
 
-/**
- * Whether the documents stand in the wipe's way. Checked before anything is removed.
- * Refused (listing them): an attachment on a record that is not demo data pinned to a
- * demo document, and a document that is not demo data attached to a demo record (with
- * --remove-dependents, those attachments are taken off and the documents kept).
- */
-export async function documentWipeRefused(db: Db, organisationId: string, removeDependents: boolean): Promise<boolean> {
+/// Documents that are not demo data but name a demo person: a version recorded on a demo
+/// person's behalf, or a hold placed or released by one. In a demo environment every
+/// upload names a demo person, so these are what the screens added while the demo stood.
+const namesDemoPerson = {
+  OR: [{ versions: { some: { recordedByPersonId: demoRef } } }, { holds: { some: { OR: [{ placedByPersonId: demoRef }, { releasedByPersonId: demoRef }] } } }],
+};
+
+async function dependents(db: Db, organisationId: string) {
+  // A real record's attachment pinned to a demo document: never removed for the demo.
   const pointing = await db.documentAttachment.findMany({
     where: { organisationId, version: { documentId: demoRef }, ...notOnDemoOwner },
     select: { id: true, purpose: true, version: { select: { document: { select: { title: true } } } } },
   });
+  // Documents not demo data that name a demo person: removed whole with --remove-dependents,
+  // unless one is attached to a real record (then never).
+  const naming = await db.document.findMany({
+    where: { organisationId, NOT: { id: demoRef }, ...namesDemoPerson },
+    select: { id: true, title: true, versions: { select: { id: true, sha256: true, attachments: { select: { id: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true } } } }, holds: { select: { id: true } } },
+  });
+  const onReal = (a: { meetingId: string | null; exerciseId: string | null; awardId: string | null; delegationId: string | null }) =>
+    [a.meetingId, a.exerciseId, a.awardId, a.delegationId].some((x) => x != null && !x.startsWith(P));
+  const pinnedToReal = naming.filter((d) => d.versions.some((v) => v.attachments.some(onReal)));
+  // Documents not demo data, naming no demo person, attached to a demo record: the
+  // attachment comes off with --remove-dependents; the document stays.
   const onDemo = await db.documentAttachment.findMany({
-    where: { organisationId, ...onDemoOwner, NOT: { version: { documentId: demoRef } } },
+    where: { organisationId, ...onDemoOwner, NOT: { version: { documentId: demoRef } }, version: { document: { NOT: namesDemoPerson } } },
     select: { id: true, purpose: true, version: { select: { document: { select: { title: true } } } } },
   });
-  // Real documents and holds that name a demo person: a person is never removed under them.
-  const named = await db.documentVersion.findMany({ where: { organisationId, NOT: { documentId: demoRef }, recordedByPersonId: demoRef }, select: { versionNo: true, document: { select: { title: true } } } });
-  const holds = await db.legalHold.findMany({ where: { organisationId, NOT: { documentId: demoRef }, OR: [{ placedByPersonId: demoRef }, { releasedByPersonId: demoRef }] }, select: { document: { select: { title: true } } } });
-  const hard = pointing.length + named.length + holds.length;
-  if (hard || (onDemo.length && !removeDependents)) {
-    console.error(
-      [
-        "Refused: these records are not demo data, but point at demo records, so the demo cannot be removed under them:",
-        ...pointing.map((a) => `  an attachment (${PURPOSE_LABEL[a.purpose]}) of the demo document “${a.version.document.title}” on a record that is not demo data`),
-        ...onDemo.map((a) => `  the document “${a.version.document.title}”, attached to a demo record as ${PURPOSE_LABEL[a.purpose]}`),
-        ...named.map((v) => `  version ${v.versionNo} of the document “${v.document.title}”, recorded on behalf of a demo person`),
-        ...holds.map((h) => `  a legal hold on the document “${h.document.title}”, placed or released by a demo person`),
-        hard
-          ? "Nothing was removed. A document, its versions and its holds are never removed for the demo: take the attachments off the real records, and wipe only where no real document names a demo person."
-          : "Nothing was removed. Take them off first, or run the wipe again with --remove-dependents, which takes those attachments off and keeps the documents.",
-      ].join("\n"),
-    );
-    return true;
-  }
-  return false;
+  return { pointing, naming, pinnedToReal, onDemo };
 }
 
 /**
- * Remove the demo documents and everything recorded under them, in dependency order:
- * access events, holds, attachments, versions, documents — then only the blobs no
- * remaining version references. Then the demo upload rules, if they still hold the
- * demo's values (a policy edited since is real configuration, and is kept).
+ * Whether the documents stand in the wipe's way. Checked before anything is removed.
+ * Always refused (listing them): a real record's attachment pinned to a demo document,
+ * and a document naming a demo person that is attached to a real record. Refused unless
+ * --remove-dependents: a document added through the screens that names a demo person
+ * (removed whole), and a real document attached to a demo record (taken off, kept).
  */
-export async function wipeDocuments(db: Db, organisationId: string) {
-  // Documents not demo data, attached to demo records: their attachments come off (the
-  // refusal above allowed it only with --remove-dependents); the documents stay.
-  const foreign = await db.documentAttachment.findMany({ where: { organisationId, ...onDemoOwner, NOT: { version: { documentId: demoRef } } }, select: { id: true } });
-  if (foreign.length) {
-    await db.documentAttachment.deleteMany({ where: { id: { in: foreign.map((a) => a.id) } } });
-    await db.auditEntry.deleteMany({ where: { organisationId, entityId: { in: foreign.map((a) => a.id) } } });
-    console.log(`--remove-dependents: took ${foreign.length} attachment(s) of documents that are not demo data off demo records; the documents are kept.`);
-  }
+export async function documentWipeRefused(db: Db, organisationId: string, removeDependents: boolean): Promise<boolean> {
+  const { pointing, naming, pinnedToReal, onDemo } = await dependents(db, organisationId);
+  const hard = pointing.length + pinnedToReal.length;
+  if (!hard && (removeDependents || (!naming.length && !onDemo.length))) return false;
+  console.error(
+    [
+      "Refused: these records are not demo data, but point at demo records, so the demo cannot be removed under them:",
+      ...pointing.map((a) => `  an attachment (${PURPOSE_LABEL[a.purpose]}) of the demo document “${a.version.document.title}” on a record that is not demo data`),
+      ...pinnedToReal.map((d) => `  the document “${d.title}”, which names a demo person and is attached to a record that is not demo data`),
+      ...naming.filter((d) => !pinnedToReal.includes(d)).map((d) => `  the document “${d.title}”, recorded on behalf of (or held by) a demo person`),
+      ...onDemo.map((a) => `  the document “${a.version.document.title}”, attached to a demo record as ${PURPOSE_LABEL[a.purpose]}`),
+      hard
+        ? "Nothing was removed. Take those attachments off the records that are not demo data first: nothing attached to a real record is removed for the demo."
+        : "Nothing was removed. Deal with them first, or run the wipe again with --remove-dependents, which removes the documents recorded for demo people (with their versions, holds and access log) and takes the other documents off the demo records, keeping them.",
+    ].join("\n"),
+  );
+  return true;
+}
 
-  const docs = await db.document.findMany({ where: { organisationId, id: demoRef }, select: { id: true, versions: { select: { id: true, sha256: true, attachments: { select: { id: true } } } }, holds: { select: { id: true } } } });
+/// Remove documents and everything recorded under them, then the bytes no remaining version uses.
+async function removeDocuments(db: Db, organisationId: string, docs: { id: string; versions: { id: string; sha256: string; attachments: { id: string }[] }[]; holds: { id: string }[] }[]) {
   const docIds = docs.map((d) => d.id);
   const versions = docs.flatMap((d) => d.versions);
   const versionIds = versions.map((v) => v.id);
   const entityIds = [...docIds, ...versionIds, ...versions.flatMap((v) => v.attachments.map((a) => a.id)), ...docs.flatMap((d) => d.holds.map((h) => h.id))];
-
-  await db.documentAccessEvent.deleteMany({ where: { OR: [{ versionId: { in: versionIds } }, { id: demoRef }] } });
+  await db.documentAccessEvent.deleteMany({ where: { versionId: { in: versionIds } } });
   await db.legalHold.deleteMany({ where: { documentId: { in: docIds } } });
   await db.documentAttachment.deleteMany({ where: { versionId: { in: versionIds } } });
   await db.documentVersion.deleteMany({ where: { id: { in: versionIds } } });
   await db.document.deleteMany({ where: { id: { in: docIds } } });
-  // Only bytes nothing else stands on: a version that is not demo data may share a digest.
+  // Only bytes nothing else stands on: another version may share a digest.
   const digests = [...new Set(versions.map((v) => v.sha256))];
   const stillUsed = new Set((await db.documentVersion.findMany({ where: { organisationId, sha256: { in: digests } }, select: { sha256: true } })).map((v) => v.sha256));
   const free = digests.filter((d) => !stillUsed.has(d));
   if (free.length) await db.blobContent.deleteMany({ where: { organisationId, sha256: { in: free } } });
   if (entityIds.length) await db.auditEntry.deleteMany({ where: { organisationId, entityId: { in: entityIds } } });
+}
+
+/**
+ * Remove the demo documents and everything recorded under them, in dependency order:
+ * access events, holds, attachments, versions, documents — then only the blobs no
+ * remaining version references. With --remove-dependents (the refusal above allowed it),
+ * first the documents the screens added for demo people, and the attachments of other
+ * real documents on demo records (those documents kept). Then the demo upload rules, if
+ * they still hold the demo's values (a policy edited since is real, and is kept).
+ */
+export async function wipeDocuments(db: Db, organisationId: string) {
+  const { naming, onDemo } = await dependents(db, organisationId);
+  if (naming.length) {
+    await removeDocuments(db, organisationId, naming);
+    console.log(`--remove-dependents: removed ${naming.length} document(s) recorded for demo people: ${naming.map((d) => `“${d.title}”`).join(", ")}.`);
+  }
+  if (onDemo.length) {
+    await db.documentAttachment.deleteMany({ where: { id: { in: onDemo.map((a) => a.id) } } });
+    await db.auditEntry.deleteMany({ where: { organisationId, entityId: { in: onDemo.map((a) => a.id) } } });
+    console.log(`--remove-dependents: took ${onDemo.length} attachment(s) of other documents off demo records; the documents are kept.`);
+  }
+  const docs = await db.document.findMany({ where: { organisationId, id: demoRef }, select: { id: true, versions: { select: { id: true, sha256: true, attachments: { select: { id: true } } } }, holds: { select: { id: true } } } });
+  await removeDocuments(db, organisationId, docs);
+  await db.documentAccessEvent.deleteMany({ where: { id: demoRef } });
 
   const policy = await db.documentStorePolicy.findUnique({ where: { id: DEMO_POLICY_ID } });
   if (policy) {
