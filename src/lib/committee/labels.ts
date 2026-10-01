@@ -290,4 +290,7 @@ export const GATE_MINUTES_NOTE: Record<SignedMinutesState, string> = {
   CANCELLED: "the sitting was cancelled",
 };
 
+/// The minutes card of a minuted sitting: frozen, but the signed copy is attached after minuting (FR-CTE-004).
+export const MINUTED_CARD_NOTE = "Minuted. The sitting is frozen. The signed copy can still be attached.";
+
 export const MINUTES_EDITOR_DESCRIPTION = "The minutes as text. The signed copy is attached to the sitting once it is minuted.";

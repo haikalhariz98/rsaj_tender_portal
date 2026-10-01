@@ -38,6 +38,7 @@ import {
   TRANSITION_FAULT_MESSAGE,
   VOTING_RULE_LABEL,
   signedMinutesState,
+  MINUTED_CARD_NOTE,
   SIGNED_MINUTES_LABEL,
   SIGNED_MINUTES_TONE,
 } from "@/lib/committee/labels";
@@ -661,7 +662,7 @@ function MinutesPanel({ s }: { s: LoadedSitting }) {
       <CardHeader
         icon={<CalendarIcon size={17} />}
         title="Minutes"
-        subtitle={m.status === "MINUTED" ? "Minuted. The sitting is frozen." : "Recorded as text."}
+        subtitle={m.status === "MINUTED" ? MINUTED_CARD_NOTE : "Recorded as text."}
         actions={!isFrozen(m.status) ? <EditMinutes meetingId={m.id} minutes={m.minutes} /> : undefined}
       />
       <CardBody className="flex flex-col gap-5">
