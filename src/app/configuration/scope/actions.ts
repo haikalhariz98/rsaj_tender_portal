@@ -49,6 +49,13 @@ async function audit(tx: Tx, organisationId: string, entity: string, entityId: s
 
 const triState = (v: string | null): boolean | null => (v === "yes" ? true : v === "no" ? false : null);
 
+/// A create has no row of its own to lock, so it locks the organisation first: two creates
+/// of one code (or the policy's first save) then run one after the other, and the duplicate
+/// check reads what the first wrote.
+async function lockOrganisation(tx: Tx, organisationId: string) {
+  await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${organisationId} FOR UPDATE`;
+}
+
 // ------------------------------------------------------------------ policy
 
 export async function saveScopePolicy(_prev: FormState, data: FormData): Promise<FormState> {
@@ -74,6 +81,8 @@ export async function saveScopePolicy(_prev: FormState, data: FormData): Promise
   };
   if (r.failed) return { ok: false, errors: r.errors };
   return db.$transaction(async (tx) => {
+    // The first save creates the row, so the organisation is locked before it.
+    await lockOrganisation(tx, orgId);
     await tx.$queryRaw`SELECT id FROM "ScopePolicy" WHERE "organisationId" = ${orgId} FOR UPDATE`;
     const qualifications = await tx.qualification.findMany({ where: { organisationId: orgId, retiredOn: null }, select: { code: true, nameEn: true } });
     const offices = await tx.authorityRole.findMany({ where: { organisationId: orgId, isCommittee: false }, select: { code: true, nameEn: true } });
@@ -126,6 +135,7 @@ export async function saveQualification(_prev: FormState, data: FormData): Promi
       await audit(tx, orgId, "Qualification", row.id, row.nameEn, "UPDATE", before, v);
       return done();
     }
+    await lockOrganisation(tx, orgId);
     const taken = await tx.qualification.findFirst({ where: { organisationId: orgId, code: codeRaw! }, select: { id: true } });
     if (taken) return { ok: false, errors: { code: "Code is already in use." } };
     const row = await tx.qualification.create({ data: { organisationId: orgId, code: codeRaw!, ...v, provenance: v.provenance! } });
@@ -194,6 +204,7 @@ export async function saveBqTemplate(_prev: FormState, data: FormData): Promise<
       await audit(tx, orgId, "BqTemplate", id, v.nameEn, "UPDATE", before, v);
       return done();
     }
+    await lockOrganisation(tx, orgId);
     if (await tx.bqTemplate.findFirst({ where: { organisationId: orgId, code: code! }, select: { id: true } })) return { ok: false, errors: { code: "Code is already in use." } };
     const row = await tx.bqTemplate.create({ data: { organisationId: orgId, code: code!, ...v, provenance: v.provenance! } });
     await audit(tx, orgId, "BqTemplate", row.id, v.nameEn, "CREATE", null, { code, ...v });
@@ -251,6 +262,7 @@ export async function saveSpecPanelColumn(_prev: FormState, data: FormData): Pro
       await audit(tx, orgId, "SpecPanelColumn", id, v.labelEn, "UPDATE", before, v);
       return done();
     }
+    await lockOrganisation(tx, orgId);
     if (await tx.specPanelColumn.findFirst({ where: { organisationId: orgId, code: code! }, select: { id: true } })) return { ok: false, errors: { code: "Code is already in use." } };
     const row = await tx.specPanelColumn.create({ data: { organisationId: orgId, code: code!, ...v, provenance: v.provenance! } });
     await audit(tx, orgId, "SpecPanelColumn", row.id, v.labelEn, "CREATE", null, { code, ...v });
