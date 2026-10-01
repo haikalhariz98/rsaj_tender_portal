@@ -306,10 +306,21 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
       if (pop.current?.contains(n) || trigger.current?.contains(n)) return;
       close(false);
     };
+    // Escape belongs to the open list alone. A drawer or dialog listens on the document,
+    // and Next hydrates on the document too, so a React handler cannot get in front of
+    // it; a capture listener on the window runs before every one of them.
+    const escape = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      close(true);
+    };
+    window.addEventListener("keydown", escape, true);
     window.addEventListener("resize", onMove);
     window.addEventListener("scroll", onMove, true);
     document.addEventListener("pointerdown", outside);
     return () => {
+      window.removeEventListener("keydown", escape, true);
       window.removeEventListener("resize", onMove);
       window.removeEventListener("scroll", onMove, true);
       document.removeEventListener("pointerdown", outside);
@@ -437,7 +448,9 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
     display = (
       <>
         {it.avatar ? <Avatar name={it.avatar} size="xs" /> : (it as Item).icon}
-        <span className={cx("min-w-0 truncate", chip && "font-semibold")}>{it.label}</span>
+        <span className={cx("min-w-0 truncate", chip && "font-semibold")} title={it.label}>
+          {it.label}
+        </span>
       </>
     );
   } else {
@@ -512,7 +525,7 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
       ref={pop}
       popover="manual"
       style={{ position: "fixed", inset: "auto", margin: 0 }}
-      className="z-50 rounded-2xl border border-line bg-surface p-1.5 text-ink shadow-pop"
+      className="z-50 rounded-2xl border border-line bg-surface p-1.5 text-left font-normal whitespace-normal text-ink shadow-pop"
       onKeyDown={(e) => {
         // The search box and the rows share one handler; the box reports itself.
         if (e.target === searchRef.current) onKeyDown(e, true);
@@ -575,8 +588,8 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
             >
               {o.avatar ? <Avatar name={o.avatar} size="xs" /> : o.icon}
               <span className="min-w-0 flex-1">
-                <span className={cx("block", (o.clear || (o.value === "" && !on)) && "text-ink-3")}>{o.label}</span>
-                {o.sub && <span className="block text-[12px] font-normal text-ink-3">{o.sub}</span>}
+                <span className={cx("block break-words", (o.clear || (o.value === "" && !on)) && "text-ink-3")}>{o.label}</span>
+                {o.sub && <span className="block text-[12px] font-normal break-words text-ink-3">{o.sub}</span>}
               </span>
               {on && <CheckIcon size={15} className="shrink-0 text-brand-700" aria-hidden="true" />}
             </li>

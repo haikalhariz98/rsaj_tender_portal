@@ -6,13 +6,16 @@ import { iconButtonClass } from "./button";
 import { cx } from "./cx";
 
 /**
+ * (A drawer is rendered where its opener sits, which can be inside a table cell that
+ * says `whitespace-nowrap`; the scrim resets it so the drawer's text always wraps.)
+ *
  * The side drawer every create, edit, history and detail view opens in: a dimmed
  * scrim, a white panel on the right, a header with the record's name and a close
  * button, then a scrolling body. One shell, so no two drawers differ in width,
  * spacing or how they close.
  */
 
-export const DRAWER_SCRIM = "fixed inset-0 z-50 flex justify-end bg-ink/30 backdrop-blur-[2px]";
+export const DRAWER_SCRIM = "fixed inset-0 z-50 flex justify-end bg-ink/30 text-left font-normal whitespace-normal backdrop-blur-[2px]";
 
 export const DRAWER_WIDTH = {
   sm: "w-[28rem]",
@@ -50,14 +53,14 @@ export function DrawerHeader({
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
           <h2
-            className="truncate text-[18px] font-bold tracking-tight text-ink"
+            className="min-w-0 text-[18px] leading-snug font-bold tracking-tight break-words text-ink"
             title={typeof title === "string" ? title : undefined}
           >
             {title}
           </h2>
           {badge}
         </div>
-        {subtitle && <p className="mt-0.5 text-[13px] text-ink-3">{subtitle}</p>}
+        {subtitle && <p className="mt-0.5 text-[13px] break-words text-ink-3">{subtitle}</p>}
       </div>
       <button type="button" className={iconButtonClass("sm")} aria-label="Close" onClick={onClose}>
         <XIcon size={17} />
