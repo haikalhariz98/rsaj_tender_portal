@@ -28,6 +28,19 @@
  *   at the Head of Contract & Procurement.
  * - demo_sx3 stays a draft (no pack until it is in preparation); demo_sx2, sx4, sx7 and the
  *   award exercises sx10–14 were prepared before document assembly and keep that path.
+ *
+ * Increment 2 (FR-DOC-005, 006, 009, 010, 011, 014), invented and ASSUMED throughout:
+ * - Registration bodies demo_rb1–3 (a companies registry; a contractors board stated with a
+ *   grade and category; a supplier register stated with field codes); clause demo_cl1, an
+ *   invented integrity clause every agreement carries; permit list demo_tx4 (values
+ *   demo_tv9–11), named by the policy, which also words the restriction and its stamp in
+ *   invented terms (no customer's wording) and requires the two assurance confirmations.
+ * - The notice template names the eligibility fields, the instructions the permit, the
+ *   conditions cite the clause.
+ * - sx1 and sx15: registrations recorded, the permit chosen, both confirmations recorded on
+ *   their packs before submission; sx15 is restricted, so its frozen documents carry the
+ *   stamp. sx5: registrations and permit recorded, restriction not answered, and v2 (not
+ *   carried) unconfirmed, so its readiness card shows those blocks honestly.
  */
 
 import type { PrismaClient } from "../src/generated/prisma/client";
@@ -56,11 +69,11 @@ const demoRef = { startsWith: P };
 
 const body = (title: string, lines: string[]) => [title, ...lines].join("\n\n");
 const TEMPLATES = [
-  { id: `${P}dt8`, code: "demo_notice", nameEn: "Demo notice of invitation", formCode: "DEMO-F-101", bodyEn: body("{{organisation.name}} invites offers for {{exercise.title}} ({{exercise.reference}}).", ["This invitation is part of the {{pack.kind}}, version {{pack.version}}, raised against requisition {{requisition.reference}}.", "The contract is let on {{contract.basis}} under {{pack.form}}."]) },
-  { id: `${P}dt9`, code: "demo_instructions", nameEn: "Demo instructions to bidders", formCode: "DEMO-F-102", bodyEn: body("Instructions to bidders: {{exercise.title}}", ["Read every part of the {{pack.kind}} before pricing.", "Offers are made on the form bound in this document and returned in the sealed envelope provided."]) },
+  { id: `${P}dt8`, code: "demo_notice", nameEn: "Demo notice of invitation", formCode: "DEMO-F-101", bodyEn: body("{{organisation.name}} invites offers for {{exercise.title}} ({{exercise.reference}}).", ["This invitation is part of the {{pack.kind}}, version {{pack.version}}, raised against requisition {{requisition.reference}}.", "Bidders must be registered with {{eligibility.registration}}. Each registration must be active and valid {{eligibility.window}}.", "The contract is let on {{contract.basis}} under {{pack.form}}."]) },
+  { id: `${P}dt9`, code: "demo_instructions", nameEn: "Demo instructions to bidders", formCode: "DEMO-F-102", bodyEn: body("Instructions to bidders: {{exercise.title}}", ["Read every part of the {{pack.kind}} before pricing.", "Offers are made on the form bound in this document and returned in the sealed envelope provided.", "The successful bidder obtains the regulator's {{permit.type}} before the works start."]) },
   { id: `${P}dt10`, code: "demo_form_of_offer", nameEn: "Demo form of offer", formCode: "DEMO-F-103", bodyEn: body("Form of offer: {{exercise.reference}}", ["We offer to carry out {{exercise.title}} for the sum stated in our priced bill or schedule, on the terms of {{pack.form}}.", "Signed for and on behalf of the bidder, in the presence of a witness."]) },
-  { id: `${P}dt11`, code: "demo_conditions_bq", nameEn: "Demo conditions of contract (bill of quantities)", formCode: "DEMO-F-110", bodyEn: body("Conditions of contract where a bill of quantities forms part of the contract", ["These conditions govern {{contract.type}} work on {{exercise.title}}.", "The Appendix to these conditions states the officers empowered, the insurances, the liquidated damages and the defects liability period."]) },
-  { id: `${P}dt12`, code: "demo_conditions_ds", nameEn: "Demo conditions of contract (drawings and specification)", formCode: "DEMO-F-111", bodyEn: body("Conditions of contract where drawings and specification form part of the contract", ["These conditions govern {{contract.type}} work on {{exercise.title}}.", "The Appendix to these conditions states the officers empowered, the insurances, the liquidated damages and the defects liability period."]) },
+  { id: `${P}dt11`, code: "demo_conditions_bq", nameEn: "Demo conditions of contract (bill of quantities)", formCode: "DEMO-F-110", bodyEn: body("Conditions of contract where a bill of quantities forms part of the contract", ["These conditions govern {{contract.type}} work on {{exercise.title}}.", "The Appendix to these conditions states the officers empowered, the insurances, the liquidated damages and the defects liability period.", "{{clause:demo_integrity}}"]) },
+  { id: `${P}dt12`, code: "demo_conditions_ds", nameEn: "Demo conditions of contract (drawings and specification)", formCode: "DEMO-F-111", bodyEn: body("Conditions of contract where drawings and specification form part of the contract", ["These conditions govern {{contract.type}} work on {{exercise.title}}.", "The Appendix to these conditions states the officers empowered, the insurances, the liquidated damages and the defects liability period.", "{{clause:demo_integrity}}"]) },
 ] as const;
 
 type PartRow = { id: string; code: string; packKind: "TENDER" | "QUOTATION"; contractBasisCode?: string; printedNumber: string; sortOrder: number; labelEn: string; role: string; content: "STANDARD" | "BESPOKE" | "MIXED"; source: "TEMPLATE" | "BQ_UNPRICED" | "APPENDIX" | "UPLOAD"; mandatory: boolean; inTableDocument: boolean; templateCode?: string; ownerOrgUnitCode?: string };
@@ -99,8 +112,30 @@ const DEMO_POLICY = {
   firstCertificateFloor: "2500.00", firstCertificatePct: "5", firstCertificateProvenance: "ASSUMED" as const,
   insuranceExtraMonths: 2, insuranceExtraDays: 0, insuranceExtraProvenance: "ASSUMED" as const,
   governingSource: "Demo policy 6 (invented)",
-  notes: "Invented demo values, not a recommendation. Assurance and the restriction stamp are left unset.",
+  notes: "Invented demo values, not a recommendation.",
+  // Increment 2: invented wording, never a customer's (6.4 condition).
+  restrictionLabelEn: "Restricted to bidders on the demo priority register",
+  restrictionStampTextEn: "DEMO RESTRICTED TENDER: PRIORITY REGISTER BIDDERS ONLY",
+  restrictionStampTextMs: "TENDER TERHAD DEMO: PEMBIDA DAFTAR KEUTAMAAN SAHAJA",
+  restrictionProvenance: "ASSUMED" as const,
+  assuranceRequired: true,
+  assuranceProvenance: "ASSUMED" as const,
+  regulatorPermitTaxonomyCode: "demo_permits",
 };
+
+/// Increment 2's configuration (invented, ASSUMED).
+const BODIES = [
+  { id: `${P}rb1`, code: "demo_companies", labelEn: "the Demo Companies Registry", labelMs: "Pendaftar Syarikat Demo", qualifierLabelEn: null, sortOrder: 1 },
+  { id: `${P}rb2`, code: "demo_contractors", labelEn: "the Demo Contractors Board", labelMs: null, qualifierLabelEn: "Grade and category", sortOrder: 2 },
+  { id: `${P}rb3`, code: "demo_suppliers", labelEn: "the Demo Supplier Register", labelMs: null, qualifierLabelEn: "Field codes", sortOrder: 3 },
+];
+const CLAUSE = {
+  id: `${P}cl1`, code: "demo_integrity", titleEn: "Demo integrity clause", titleMs: "Klausa integriti demo",
+  bodyEn: "Integrity (demo clause). The Contractor shall not offer, give or agree to give any gift or benefit to any officer of the Employer in connection with this Contract. A breach entitles the Employer to end the Contract.",
+  bodyMs: "Integriti (klausa demo). Kontraktor tidak boleh menawarkan, memberi atau bersetuju memberi apa-apa hadiah atau faedah kepada mana-mana pegawai Majikan berhubung dengan Kontrak ini.",
+  mandatoryInAgreements: true, sortOrder: 1,
+};
+const PERMITS = { id: `${P}tx4`, code: "demo_permits", nameEn: "Demo regulator permits", values: [{ id: `${P}tv9`, code: "class_1", nameEn: "Demo permit class 1" }, { id: `${P}tv10`, code: "class_2", nameEn: "Demo permit class 2" }, { id: `${P}tv11`, code: "class_3", nameEn: "Demo permit class 3" }] };
 
 const METHOD_PACKS: Record<string, "TENDER" | "QUOTATION" | "NONE"> = {
   [`${P}sm1`]: "TENDER", [`${P}sm5`]: "TENDER",
@@ -126,8 +161,15 @@ export async function loadTenderDocs(db: Db, organisationId: string) {
   for (const p of PARTS) entry(ENTITY.config, p.id, `Tender document part · ${p.labelEn}`, "CREATE", configured, diffFields(null, { documentPack: PACK_KIND_LABEL[p.packKind], printedNumber: p.printedNumber, labelEn: p.labelEn, whereItComesFrom: "Assumed" }));
   if (!(await db.tenderDocumentPolicy.findUnique({ where: { organisationId } }))) {
     await db.tenderDocumentPolicy.create({ data: { id: DEMO_POLICY_ID, organisationId, ...DEMO_POLICY } });
-    entry(ENTITY.policy, DEMO_POLICY_ID, "Tender documents policy", "CREATE", configured, diffFields(null, { ladDailyRate: "0.05%", firstCertificateFloor: "RM2,500.00", firstCertificatePercentage: "5%", insuranceBeyondDefectsPeriod: "2 months 0 days", whereItComesFrom: "Assumed" }));
+    entry(ENTITY.policy, DEMO_POLICY_ID, "Tender documents policy", "CREATE", configured, diffFields(null, { ladDailyRate: "0.05%", firstCertificateFloor: "RM2,500.00", firstCertificatePercentage: "5%", insuranceBeyondDefectsPeriod: "2 months 0 days", restrictionAskedAs: DEMO_POLICY.restrictionLabelEn, restrictionStampEn: DEMO_POLICY.restrictionStampTextEn, restrictionStampMs: DEMO_POLICY.restrictionStampTextMs, assuranceRequired: "Yes", regulatorPermitList: PERMITS.nameEn, whereItComesFrom: "Assumed" }));
   }
+  // Increment 2: registration bodies, the clause, the permit list (all invented, ASSUMED).
+  await db.registrationBody.createMany({ data: BODIES.map((b) => ({ ...b, organisationId, governingSource: "Demo policy 6 (invented)", provenance: "ASSUMED" as const })) });
+  for (const b of BODIES) entry("RegistrationBody", b.id, `Registration body · ${b.labelEn}`, "CREATE", configured, diffFields(null, { code: b.code, name: b.labelEn, statedWithIt: b.qualifierLabelEn ?? "Nothing", whereItComesFrom: "Assumed" }));
+  await db.clauseText.create({ data: { ...CLAUSE, organisationId, bodyVersion: 1, governingSource: "Demo policy 6 (invented)", provenance: "ASSUMED", createdAt: configured } });
+  entry("ClauseText", CLAUSE.id, `Clause · ${CLAUSE.titleEn}`, "CREATE", configured, diffFields(null, { code: CLAUSE.code, title: CLAUSE.titleEn, textVersion: 1, everyAgreementCarriesIt: "Yes", whereItComesFrom: "Assumed" }));
+  await db.classificationTaxonomy.create({ data: { id: PERMITS.id, organisationId, code: PERMITS.code, nameEn: PERMITS.nameEn, provenance: "ASSUMED", sortOrder: 9, values: { create: PERMITS.values.map((v, i) => ({ ...v, sortOrder: i + 1 })) } } });
+  entry("ClassificationTaxonomy", PERMITS.id, PERMITS.nameEn, "CREATE", configured, diffFields(null, { code: PERMITS.code, name: PERMITS.nameEn, values: PERMITS.values.map((v) => v.nameEn).join(", "), whereItComesFrom: "Assumed" }));
   for (const [id, kind] of Object.entries(METHOD_PACKS)) {
     const m = await db.sourcingMethod.update({ where: { id }, data: { documentPackKind: kind, documentPackKindProvenance: "ASSUMED" }, select: { nameEn: true } });
     entry("SourcingMethod", id, m.nameEn, "UPDATE", configured, diffFields({ documentPack: "Not set" }, { documentPack: PACK_KIND_LABEL[kind], documentPackComesFrom: "Assumed" }));
@@ -180,6 +222,19 @@ export async function loadTenderDocs(db: Db, organisationId: string) {
   const completeAppendix = { ladOfficerRoleCode: "HOD_CP", eotOfficerRoleCode: "HOD_CP", terminationOfficerRoleCode: "CEO", warRiskOfficerRoleCode: "CEO", arbitrationOfficerRoleCode: "CEO", pcSumWorksApply: false, tplMinimum: "500000.00", wcMinimum: "250000.00", worksInsuranceUpliftKind: "PERCENT" as const, worksInsuranceUpliftPct: "10", insuranceExcess: "5000.00", ladKind: "PERCENT_OF_SUM_PER_DAY" as const, ladPct: "0.05", sectionalCompletion: false, dlpApplies: true, dlpMonths: 12, firstInterimMinimum: "2500.00", subsequentInterimMinimum: "2500.00", honourCertificateDays: 30 };
   for (const [pack, ref, when] of [[`${P}tpk1`, "DEMO/SX/0001/2026", "2026-09-25T11:00"], [`${P}tpk2`, "DEMO/SX/0005/2026", "2026-09-27T11:00"], [`${P}tpk4`, "DEMO/SX/0015/2026", "2026-09-28T11:00"]] as const) {
     await enterAppendix(db, organisationId, pack, ref, completeAppendix, at(when), entry);
+  }
+  // Increment 2: each exercise's conditions, recorded the day its pack was started, as the tab's actions write them.
+  const reg = (ex: string, ref: string, when: string, rows: { body: string; qualifiers?: string; group: number }[]) => conditionsFor(db, organisationId, ex, ref, rows, at(when), entry);
+  await reg(`${P}sx1`, "DEMO/SX/0001/2026", "2026-09-25T10:30", [{ body: "demo_companies", group: 1 }, { body: "demo_contractors", qualifiers: "grade D4, category civil works", group: 2 }, { body: "demo_suppliers", qualifiers: "field code 220101", group: 2 }]);
+  await answer(db, organisationId, `${P}sx1`, "DEMO/SX/0001/2026", { restrictedTender: false, regulatedActivity: true, regulatorPermitCode: "class_2" }, at("2026-09-25T10:40"), entry);
+  await reg(`${P}sx5`, "DEMO/SX/0005/2026", "2026-09-26T10:30", [{ body: "demo_companies", group: 1 }, { body: "demo_contractors", qualifiers: "grade D3, category mechanical works", group: 2 }]);
+  await answer(db, organisationId, `${P}sx5`, "DEMO/SX/0005/2026", { restrictedTender: false, regulatedActivity: true, regulatorPermitCode: "class_1" }, at("2026-09-26T10:40"), entry);
+  await reg(`${P}sx15`, "DEMO/SX/0015/2026", "2026-09-28T10:30", [{ body: "demo_companies", group: 1 }, { body: "demo_contractors", qualifiers: "grade D5, category specialist tank works", group: 2 }]);
+  await answer(db, organisationId, `${P}sx15`, "DEMO/SX/0015/2026", { restrictedTender: true, regulatedActivity: true, regulatorPermitCode: "class_3" }, at("2026-09-28T10:40"), entry);
+  // Assurance (FR-DOC-014): both confirmations on each pack before it went, by named officers.
+  for (const [pack, ref, on, when] of [[`${P}tpk1`, "DEMO/SX/0001/2026", "2026-09-25", "2026-09-25T13:00"], [`${P}tpk2`, "DEMO/SX/0005/2026", "2026-09-29", "2026-09-29T11:00"], [`${P}tpk4`, "DEMO/SX/0015/2026", "2026-09-30", "2026-09-30T16:00"]] as const) {
+    await confirm(db, organisationId, pack, ref, "NO_AMBIGUITY", `${P}p4`, on, at(when), entry);
+    await confirm(db, organisationId, pack, ref, "DRAWINGS_COORDINATED", `${P}p10`, on, at(when), entry);
   }
   // Every part ready, in the afternoon of the day it was started (each its own act).
   for (const [pack, ref, when] of [[`${P}tpk1`, "DEMO/SX/0001/2026", "2026-09-25T12:00"], [`${P}tpk2`, "DEMO/SX/0005/2026", "2026-09-27T12:00"], [`${P}tpk4`, "DEMO/SX/0015/2026", "2026-09-28T12:00"]] as const) {
@@ -329,7 +384,12 @@ async function markAllReady(db: Db, organisationId: string, packId: string, ref:
   const ex = await db.sourcingExercise.findUniqueOrThrow({ where: { id: pack.exerciseId }, select: { id: true, status: true, sourcingMethodCode: true, contractBasisCode: true } });
   const row = (await loadPacks(pack.exerciseId)).find((x) => x.id === packId)!;
   const scope = await scopeReadiness(organisationId, ex);
-  const content = { bqFinalised: scope.bill != null, appendixComplete: row.appendix ? appendixComplete(appendixFactsOf(row.appendix)) : null };
+  // The clause citations a template may make, as markPartReady reads them (increment 2).
+  const { liveClauses } = await import("../src/lib/tender-docs/clauses");
+  const { packWhitelist } = await import("../src/lib/tender-docs/fields");
+  const { loadClauses } = await import("../src/lib/tender-docs/repo");
+  const whitelist = packWhitelist(liveClauses(await loadClauses(organisationId), "2026-10-01"));
+  const content = { bqFinalised: scope.bill != null, appendixComplete: row.appendix ? appendixComplete(appendixFactsOf(row.appendix)) : null, whitelist };
   for (const p of row.parts.filter((x) => x.state === "NOT_STARTED")) {
     const f = markReadyFaults(partFactsOf(p), row.status, ex.status, content);
     if (f.length) throw new Error(`Demo part ${p.id} cannot be made ready: ${f.map((x) => x.code).join(", ")}`);
@@ -492,6 +552,53 @@ async function reviseAppendix(db: Db, organisationId: string, packId: string, re
   entry(ENTITY.appendix, aid, `${ref} · Tender documents v${pack.versionNo} · Appendix`, "UPDATE", when, appendixAudit(before, { ...after, status }, office));
 }
 
+// ------------------------------------------------------------------ increment 2: the acts, as the tab's actions write them
+
+/// Record the registrations bidders must hold, each judged by requirementFaults as addRequirement judges it.
+async function conditionsFor(db: Db, organisationId: string, exerciseId: string, ref: string, rows: { body: string; qualifiers?: string; group: number }[], when: Date, entry: Add) {
+  const { requirementFaults } = await import("../src/lib/tender-docs/eligibility");
+  const { loadRegistrationBodies } = await import("../src/lib/tender-docs/repo");
+  const bodies = await loadRegistrationBodies(organisationId);
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur" }).format(when);
+  for (const [i, r] of rows.entries()) {
+    const f = requirementFaults({ bodyCode: r.body, qualifiers: r.qualifiers ?? "", alternativeGroup: r.group }, bodies, day);
+    if (f.length) throw new Error(`Demo requirement on ${exerciseId} refused: ${f.map((x) => x.code).join(", ")}`);
+    const b = bodies.find((x) => x.code === r.body)!;
+    const id = `${exerciseId}_rq${i + 1}`;
+    await db.exerciseRegistrationRequirement.create({ data: { id, organisationId, exerciseId, bodyCode: b.code, bodyLabelSnapshot: b.labelEn, qualifierLabelSnapshot: b.qualifierLabelEn, qualifiers: r.qualifiers ?? "", alternativeGroup: r.group, sortOrder: i, createdAt: when } });
+    entry("ExerciseRegistrationRequirement", id, `${ref} · Registration required · ${b.labelEn}`, "CREATE", when, diffFields(null, { registrationBody: b.labelEn, requiredWithIt: r.qualifiers || null, alternativeGroup: `Group ${r.group}` }));
+  }
+}
+
+/// Answer the restriction and the regulator permit, as saveRestriction and savePermit write them.
+async function answer(db: Db, organisationId: string, exerciseId: string, ref: string, a: { restrictedTender: boolean | null; regulatedActivity: boolean | null; regulatorPermitCode: string | null }, when: Date, entry: Add) {
+  const { permitSaveFaults, permitLabel } = await import("../src/lib/tender-docs/permit");
+  const { loadPermitList } = await import("../src/lib/tender-docs/repo");
+  const { yesNoNotSet } = await import("../src/lib/tender-docs/labels");
+  const list = await loadPermitList(organisationId, "demo_permits", "2026-10-01");
+  if (permitSaveFaults(a.regulatedActivity, a.regulatorPermitCode, list).length) throw new Error(`Demo permit on ${exerciseId} refused.`);
+  const ex = await db.sourcingExercise.update({ where: { id: exerciseId }, data: a, select: { title: true } });
+  const label = `${ref} · ${ex.title}`;
+  if (a.restrictedTender != null) entry("SourcingExercise", exerciseId, label, "UPDATE", when, diffFields({ restrictedTender: "Not set" }, { restrictedTender: yesNoNotSet(a.restrictedTender) }), DEMO_POLICY.restrictionLabelEn);
+  entry("SourcingExercise", exerciseId, label, "UPDATE", when, diffFields({ needsRegulatorPermit: "Not set", permitType: null }, { needsRegulatorPermit: yesNoNotSet(a.regulatedActivity), permitType: a.regulatedActivity ? permitLabel(true, a.regulatorPermitCode, list) : null }));
+}
+
+/// Record an assurance confirmation, judged by confirmFaults as recordAssurance judges it.
+async function confirm(db: Db, organisationId: string, packId: string, ref: string, kind: "NO_AMBIGUITY" | "DRAWINGS_COORDINATED", personId: string, on: string, when: Date, entry: Add) {
+  const { confirmFaults } = await import("../src/lib/tender-docs/assurance");
+  const { ASSURANCE_KIND_LABEL } = await import("../src/lib/tender-docs/conditions-labels");
+  const { loadPacks, partFactsOf, loadConfirmations } = await import("../src/lib/tender-docs/repo");
+  const pack = await db.tenderPack.findUniqueOrThrow({ where: { id: packId }, select: { exerciseId: true, versionNo: true, createdAt: true, exercise: { select: { status: true } } } });
+  const row = (await loadPacks(pack.exerciseId)).find((p) => p.id === packId)!;
+  const person = await db.person.findUniqueOrThrow({ where: { id: personId }, select: { name: true, isActive: true } });
+  const started = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur" }).format(pack.createdAt);
+  const f = confirmFaults({ packStatus: row.status, exerciseStatus: pack.exercise.status, kind, parts: row.parts.map(partFactsOf), existing: await loadConfirmations(packId), person, confirmedOn: on, today: "2026-10-01", packStartedOn: started });
+  if (f.length) throw new Error(`Demo confirmation on ${packId} refused: ${f.map((x) => x.code).join(", ")}`);
+  const id = `${packId}_as_${kind === "NO_AMBIGUITY" ? 1 : 2}`;
+  await db.packAssurance.create({ data: { id, organisationId, packId, kind, personId, confirmedOn: day(on), recordedAt: when } });
+  entry("PackAssurance", id, `${ref} · Tender documents v${pack.versionNo} · ${ASSURANCE_KIND_LABEL[kind]}`, "CREATE", when, diffFields(null, { confirmation: ASSURANCE_KIND_LABEL[kind], confirmedBy: person.name, confirmedOn: on, recordedOnBehalf: "not signed" }));
+}
+
 // ------------------------------------------------------------------ the after-load check (X-10 c)
 
 /**
@@ -521,6 +628,16 @@ export async function checkTenderDocs(db: Db) {
   if (v2.status !== "DRAFT") fail("sx5 v2's Appendix should be half entered.");
   const sx15 = await db.tenderPack.findUniqueOrThrow({ where: { id: `${P}tpk4` }, include: { approvalInstance: { include: { steps: true } } } });
   if (sx15.status !== "SUBMITTED" || sx15.approvalInstance?.status !== "PENDING" || sx15.approvalInstance.steps[0]?.roleCode !== "HOD_CP") fail("sx15 is not pending at the Head of Contract & Procurement.");
+  // Increment 2: what each pack froze, and what the draft still lacks.
+  const { readConditionsSnapshot } = await import("../src/lib/tender-docs/conditions");
+  const snap1 = readConditionsSnapshot(p1.conditionsSnapshot);
+  if (!snap1?.windowStated || snap1.windowStated.startOn !== "2026-10-12" || snap1.windowStated.closingDay !== "2026-10-29") fail("sx1's frozen notice does not state the approved window.");
+  if (snap1?.assurance.confirmations.length !== 2) fail("sx1 was not frozen with both assurance confirmations.");
+  const notice1 = await db.tenderPackDocument.findFirstOrThrow({ where: { packId: `${P}tpk1`, partCode: "demo_q_notice" } });
+  if (!notice1.renderedText.includes("valid from 12 October 2026 to 29 October 2026")) fail("sx1's frozen notice does not state the validity window.");
+  const docs15 = await db.tenderPackDocument.findMany({ where: { packId: `${P}tpk4` } });
+  if (!docs15.length || docs15.some((d) => !d.renderedText.startsWith(DEMO_POLICY.restrictionStampTextEn))) fail("sx15 is restricted and not every generated document carries the stamp.");
+  if (await db.packAssurance.count({ where: { packId: `${P}tpk3` } })) fail("sx5 v2 should not carry v1's confirmations.");
   const loadDay = new Date("2026-10-01T23:59:59+08:00");
   const late = await db.auditEntry.count({ where: { id: { startsWith: `${P}td` }, at: { gt: loadDay } } });
   if (late) fail(`${late} trail entries are dated after the load day (X-10 a).`);
@@ -539,9 +656,14 @@ export async function tenderDocsDependents(db: Db, organisationId: string, exerc
   const onReal = { exercise: { NOT: { id: demoRef } }, NOT: { exerciseId: { in: [...exerciseIds] } } };
   const parts = await db.tenderPackPart.findMany({ where: { organisationId, templateId: demoRef, pack: onReal }, select: { pack: { select: { versionNo: true, exercise: { select: { reference: true } } } }, printedNumber: true } });
   const frozen = await db.tenderPackDocument.findMany({ where: { organisationId, templateId: demoRef, pack: onReal }, select: { partCode: true, pack: { select: { versionNo: true, exercise: { select: { reference: true } } } } } });
+  // Increment 2: a real exercise requiring a demo registration body, a real template citing the demo clause.
+  const requirements = await db.exerciseRegistrationRequirement.findMany({ where: { organisationId, bodyCode: { in: BODIES.map((b) => b.code) }, exercise: { NOT: { id: demoRef } }, NOT: { exerciseId: { in: [...exerciseIds] } } }, select: { bodyLabelSnapshot: true, exercise: { select: { reference: true } } } });
+  const citing = await db.documentTemplate.findMany({ where: { organisationId, NOT: { id: demoRef }, OR: [{ bodyEn: { contains: `clause:${CLAUSE.code}` } }, { bodyMs: { contains: `clause:${CLAUSE.code}` } }] }, select: { nameEn: true } });
   return [
     ...parts.map((p) => `  tender documents v${p.pack.versionNo} of ${p.pack.exercise.reference}, part ${p.printedNumber}, which draws a demo template`),
     ...frozen.map((d) => `  tender documents v${d.pack.versionNo} of ${d.pack.exercise.reference}, frozen from a demo template`),
+    ...requirements.map((r) => `  exercise ${r.exercise.reference}, which requires registration with ${r.bodyLabelSnapshot} (a demo registration body)`),
+    ...citing.map((t) => `  template ${t.nameEn}, which cites the demo clause`),
   ];
 }
 
@@ -550,6 +672,17 @@ export async function wipeTenderDocs(db: Db, organisationId: string, exerciseIds
   const ids = (await db.tenderPack.findMany({ where: packs, select: { id: true, parts: { select: { id: true } }, documents: { select: { id: true } }, appendix: { select: { id: true, variationLimits: { select: { id: true } }, sections: { select: { id: true } } } } } }));
   const rowIds = ids.flatMap((p) => [p.id, ...p.parts.map((x) => x.id), ...p.documents.map((x) => x.id), ...(p.appendix ? [p.appendix.id, ...p.appendix.variationLimits.map((x) => x.id), ...p.appendix.sections.map((x) => x.id)] : [])]);
   const byPack = { packId: { in: ids.map((p) => p.id) } };
+  // Increment 2: confirmations and endorsements on those packs, requirements on those exercises (audit rows of real ones with them).
+  const incTwo = [
+    ...(await db.packAssurance.findMany({ where: byPack, select: { id: true } })),
+    ...(await db.clauseOverride.findMany({ where: byPack, select: { id: true } })),
+    ...(await db.exerciseRegistrationRequirement.findMany({ where: { OR: [{ exerciseId: demoRef }, { exerciseId: { in: [...exerciseIds] } }] }, select: { id: true } })),
+  ].map((r) => r.id);
+  await db.packAssurance.deleteMany({ where: byPack });
+  await db.clauseOverride.deleteMany({ where: byPack });
+  await db.exerciseRegistrationRequirement.deleteMany({ where: { OR: [{ exerciseId: demoRef }, { exerciseId: { in: [...exerciseIds] } }] } });
+  const realIncTwo = incTwo.filter((x) => !x.startsWith(P));
+  if (realIncTwo.length) await db.auditEntry.deleteMany({ where: { organisationId, entityId: { in: realIncTwo } } });
   await db.appendixVariationLimit.deleteMany({ where: { appendix: byPack } });
   await db.appendixSection.deleteMany({ where: { appendix: byPack } });
   await db.conditionsAppendix.deleteMany({ where: byPack });
@@ -560,10 +693,15 @@ export async function wipeTenderDocs(db: Db, organisationId: string, exerciseIds
   const real = rowIds.filter((x) => !x.startsWith(P));
   if (real.length) await db.auditEntry.deleteMany({ where: { organisationId, entityId: { in: real } } });
   await db.tenderDocumentPart.deleteMany({ where: { id: demoRef } });
+  await db.registrationBody.deleteMany({ where: { id: demoRef } });
+  await db.clauseText.deleteMany({ where: { id: demoRef } });
   // The policy goes only while it still holds the demo's values; edited through the screens, it is the organisation's.
   const pol = await db.tenderDocumentPolicy.findUnique({ where: { id: DEMO_POLICY_ID } });
   if (pol) {
-    const same = pol.ladDailyPct?.toString() === "0.05" && pol.firstCertificateFloor?.toString() === "2500" && pol.firstCertificatePct?.toString() === "5" && pol.insuranceExtraMonths === 2 && pol.insuranceExtraDays === 0 && pol.restrictionStampTextEn == null && pol.assuranceRequired == null;
+    const same = pol.ladDailyPct?.toString() === "0.05" && pol.firstCertificateFloor?.toString() === "2500" && pol.firstCertificatePct?.toString() === "5" && pol.insuranceExtraMonths === 2 && pol.insuranceExtraDays === 0 &&
+      // As increment 2 loads it, or as increment 1 loaded it (nothing of increment 2 set).
+      ((pol.restrictionStampTextEn === DEMO_POLICY.restrictionStampTextEn && pol.restrictionStampTextMs === DEMO_POLICY.restrictionStampTextMs && pol.restrictionLabelEn === DEMO_POLICY.restrictionLabelEn && pol.assuranceRequired === true && pol.regulatorPermitTaxonomyCode === DEMO_POLICY.regulatorPermitTaxonomyCode) ||
+        (pol.restrictionStampTextEn == null && pol.restrictionStampTextMs == null && pol.restrictionLabelEn == null && pol.assuranceRequired == null && pol.regulatorPermitTaxonomyCode == null));
     if (same) await db.tenderDocumentPolicy.delete({ where: { id: DEMO_POLICY_ID } });
     else console.log("Kept the tender documents policy: it was changed after the demo loaded.");
   }
