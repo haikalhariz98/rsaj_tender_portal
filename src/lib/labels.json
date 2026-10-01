@@ -23,6 +23,10 @@
     "en": "Approval of Name",
     "ms": "Kelulusan Nama"
   },
+  "tendering_approval": {
+    "en": "Approval for Tendering",
+    "ms": "Kelulusan untuk Tender"
+  },
   "signing": {
     "en": "Signing of LoA / Contract",
     "ms": "Menandatangani SST / Kontrak"

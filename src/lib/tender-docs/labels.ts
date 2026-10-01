@@ -104,7 +104,7 @@ const CONTENT_TEXT: Record<ContentFault, (f: Finding) => string> = {
   BESPOKE_FROM_LIBRARY: (f) => `Part ${d(f, "part")} is prepared for this exercise, so it cannot be drawn from the template library. It is uploaded, or comes from the bill or the Appendix.`,
   BQ_PART_WITHOUT_BQ: (f) => `Part ${d(f, "part")} issues the bill of quantities unpriced, and the exercise has no finalised bill. Finalise it on the Bill of quantities tab.`,
   UPLOAD_MISSING: (f) => `Part ${d(f, "part")} has no file attached. Attach it to the part.`,
-  APPENDIX_INCOMPLETE: (f) => `Part ${d(f, "part")} is the Appendix, which is not complete yet. Complete it on the Appendix page.`,
+  APPENDIX_INCOMPLETE: (f) => `Part ${d(f, "part")}: the Appendix is not complete yet. Complete it on the Appendix page.`,
 };
 
 const PART_ACT_TEXT: Record<Exclude<PartActFault, EditFault | ContentFault>, (f: Finding) => string> = {

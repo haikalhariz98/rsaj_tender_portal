@@ -181,6 +181,9 @@ describe("submission's other checks", () => {
     expect(codes(submitFaults(submit({ route: { issue: true, state: "NO_RULE", refusal: null, errors: [] } })).route)).toEqual(["ROUTE_NO_RULE"]);
     expect(codes(submitFaults(submit({ route: { issue: true, state: "RESOLVED", refusal: "The requester…", errors: [] } })).route)).toEqual(["ROUTE_REFUSED"]);
     expect(codes(submitFaults(submit({ routeOpen: true })).route)).toEqual(["ROUTE_OPEN"]);
+    // The engine's own error for a matter with no rule is not said twice.
+    expect(codes(submitFaults(submit({ route: { issue: true, state: "NO_RULE", refusal: null, errors: ["No approval rule matches this matter."] } })).route)).toEqual(["ROUTE_NO_RULE"]);
+    expect(codes(submitFaults(submit({ route: { issue: true, state: "RESOLVED", refusal: null, errors: ["The rule is a known gap."] } })).route)).toEqual(["ROUTE_ERROR"]);
   });
   it("the proposed dates' findings are carried", () => {
     expect(codes(allOf(submitFaults(submit({ dates: [{ code: "DATES_REQUIRED", level: "block" }] }))))).toEqual(["DATES_REQUIRED"]);

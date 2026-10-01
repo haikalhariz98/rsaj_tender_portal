@@ -228,7 +228,8 @@ export function submitFaults(i: SubmitInput): SubmitFindings {
   else if (i.route.state === "NO_RULE" || i.route.state == null) route.push({ code: "ROUTE_NO_RULE", level: "block" });
   else if (i.route.state === "HAS_COMMITTEE_STEP") route.push({ code: "ROUTE_HAS_COMMITTEE_STEP", level: "block" });
   else if (i.route.refusal) route.push({ code: "ROUTE_REFUSED", level: "block", data: { text: i.route.refusal } });
-  for (const e of i.route.errors) route.push({ code: "ROUTE_ERROR", level: "block", data: { text: e } });
+  // The engine's own errors, where a rule resolved (a route that resolved nothing has said so above).
+  if (i.route.issue && i.route.state === "RESOLVED") for (const e of i.route.errors) route.push({ code: "ROUTE_ERROR", level: "block", data: { text: e } });
   return {
     edit: edit ? [edit] : [],
     readiness: packReadiness(i.parts, i.content),

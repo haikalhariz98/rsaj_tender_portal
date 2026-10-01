@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { rejectionOutcome } from "@/lib/authority/rejection";
 import type { Matrix, Rule } from "@/lib/authority/types";
+import { hasMatterLabel, matterLabel } from "@/lib/labels";
 import type { FunderContext, RequesterOnName } from "@/lib/method/approval";
 import { SPEC_MATRIX, SPEC_METHODS } from "@/lib/method/fixture";
 import type { Method } from "@/lib/method/types";
@@ -21,6 +22,10 @@ const withRows = (rules: Rule[]): FunderContext => ({ dal: { ...SPEC_MATRIX, rul
 const nobody: RequesterOnName = { id: "req", holds: () => false, ableToAct: () => ({ holderIds: ["other"], delegateIds: [] }) };
 
 describe("the route, from configuration only", () => {
+  it("the domain reads as words wherever a rule is shown, never its key", () => {
+    expect(hasMatterLabel(TENDERING_DOMAIN)).toBe(true);
+    expect(matterLabel(TENDERING_DOMAIN)).toBe("Approval for Tendering");
+  });
   it("with no rows for the domain, nothing routes it and it says so, never a guessed approver", () => {
     const r = resolveTendering(withRows([]), m("open_quotation"), 100_000);
     expect(r.tenderingState).toBe("NO_RULE");
