@@ -14,6 +14,7 @@ import {
   mediaLabel,
   RETENTION_TRIGGER_LABEL,
 } from "@/lib/documents/labels";
+import { attentionText, classReadiness } from "@/lib/documents/readiness";
 import { stagedDocuments, standingHolds, uploadContext } from "@/lib/documents/read";
 import { documentOrg, loadStorePolicy } from "@/lib/documents/service";
 import { classificationTone } from "@/lib/documents/views";
@@ -41,7 +42,8 @@ export default async function DocumentsConfigPage() {
   const offices = officeRows.map((o) => ({ value: o.code, label: o.nameEn }));
   const officeName = (code: string | null) => (code ? (officeRows.find((o) => o.code === code)?.nameEn ?? "An office no longer configured") : null);
   const tz = org?.timeZone ?? null;
-  const unset = classes.filter((c) => c.retentionMonths == null);
+  const readiness = classReadiness(classes);
+  const attention = attentionText(readiness.needAttention.length);
   const unclassified = classes.filter((c) => c.classification == null);
   const people = upload?.people.map((p) => ({ value: p.id, label: p.name })) ?? [];
 
@@ -50,11 +52,9 @@ export default async function DocumentsConfigPage() {
       <PageHeader
         title="Documents"
         badge={
-          unset.length > 0 ? (
+          attention ? (
             <Badge tone="warn" dot>
-              {unset.length === 1
-                ? "1 class without a retention period"
-                : `${unset.length} classes without a retention period`}
+              {attention}
             </Badge>
           ) : undefined
         }
@@ -68,13 +68,13 @@ export default async function DocumentsConfigPage() {
           hint={classes.length === 0 ? "Nobody has classified anything yet" : "In use"}
         />
         <Stat
-          label="Retention set"
-          value={classes.length === 0 ? null : `${classes.length - unset.length} / ${classes.length}`}
-          warn={unset.length > 0}
+          label="Ready to run"
+          value={classes.length === 0 ? null : `${readiness.ready} / ${readiness.total}`}
+          warn={readiness.ready < readiness.total}
           hint={
-            unset.length > 0
-              ? "An unset period is not a period of zero"
-              : "Every class says how long to keep it"
+            readiness.ready < readiness.total
+              ? "Ready needs a period and what starts it. An unset period is not a period of zero"
+              : "Every class says how long to keep it and what starts the clock"
           }
         />
         <Stat
