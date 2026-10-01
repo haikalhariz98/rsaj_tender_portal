@@ -717,7 +717,7 @@ function ClassificationPanel({
                 ? [
                     { label: "Reason", value: reasonName ?? "Not recorded" },
                     { label: "Dossier reference", value: ex.dossierReference ? <span className="font-mono text-[13px]">{ex.dossierReference}</span> : "Numbered when it moves into preparation" },
-                    { label: "Supporting evidence", value: <span className="flex flex-col gap-1"><span>{ex.evidenceNote || "No note"}</span><Chip tone={evidenceChip(evidence.dossier, "dossier").tone}>{evidenceChip(evidence.dossier, "dossier").text}</Chip></span> },
+                    { label: "Supporting evidence", value: <span className="flex flex-col items-start gap-1"><span>{ex.evidenceNote || "No note"}</span><Chip tone={evidenceChip(evidence.dossier, "dossier").tone}>{evidenceChip(evidence.dossier, "dossier").text}</Chip></span> },
                   ]
                 : []),
               ...(flags?.requiresCoordinationRecord
@@ -725,11 +725,11 @@ function ClassificationPanel({
                     { label: "Emergency trigger", value: ex.emergencyTrigger || "Not recorded" },
                     { label: "Coordination meeting", value: ex.coordinationMeetingOn ? formatDate(ex.coordinationMeetingOn) : "Not recorded" },
                     { label: "Attended by", value: ex.coordinationAttendees || "Not recorded" },
-                    { label: "Scope fixed", value: <span className="flex flex-col gap-1"><span>{ex.coordinationScopeNote || "No note"}</span><Chip tone={evidenceChip(evidence.scope, "scope").tone}>{evidenceChip(evidence.scope, "scope").text}</Chip></span> },
+                    { label: "Scope fixed", value: <span className="flex flex-col items-start gap-1"><span>{ex.coordinationScopeNote || "No note"}</span><Chip tone={evidenceChip(evidence.scope, "scope").tone}>{evidenceChip(evidence.scope, "scope").text}</Chip></span> },
                     { label: "Bill of quantities", value: ex.bqReference ?? "Not recorded" },
                   ]
                 : []),
-              ...(flags && !flags.requiresFreshSourcing ? [{ label: "Parent contract", value: <span className="flex flex-col gap-1"><span>{ex.parentContractRef ?? "Not recorded"}</span><Chip tone="warn">Capacity not tracked</Chip></span> }] : []),
+              ...(flags && !flags.requiresFreshSourcing ? [{ label: "Parent contract", value: <span className="flex flex-col items-start gap-1"><span>{ex.parentContractRef ?? "Not recorded"}</span><Chip tone="warn">Capacity not tracked</Chip></span> }] : []),
             ]}
           />
           <div className="border-t border-line pt-5">
