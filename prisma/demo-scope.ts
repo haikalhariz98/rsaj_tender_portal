@@ -33,7 +33,7 @@
  */
 
 import type { PrismaClient } from "../src/generated/prisma/client";
-import { estimateCreatedAudit, estimateEventAudit, estimateStateAudit, estimateVersionAudit, bqFinalisedAudit, bqStatusAudit, itemAudit, rateFromText, verificationAudit, ENTITY, RATE_ENTITY, SCOPE_ENTITIES } from "../src/lib/scope/audit-view";
+import { estimateCreatedAudit, estimateEventAudit, estimateStateAudit, estimateVersionAudit, bqFinalisedAudit, bqStatusAudit, itemAudit, sectionAudit, rateFromText, verificationAudit, ENTITY, RATE_ENTITY, SCOPE_ENTITIES } from "../src/lib/scope/audit-view";
 import { diffFields } from "../src/lib/audit/diff";
 import { formatDate } from "../src/lib/format";
 import { bqTotals, itemAmount, totalsSnapshot } from "../src/lib/scope/bq";
@@ -266,6 +266,8 @@ export async function loadScope(db: Db, organisationId: string) {
     entry(ENTITY.bqVersion, b.id, vLabel, "CREATE", created, bqStatusAudit(null, "DRAFT", { version: b.versionNo, ...(b.revisionReason ? { revises: "version 1" } : {}) }), b.revisionReason ?? "");
     for (const [si, s] of b.sections.entries()) {
       await db.bqSection.create({ data: { id: s.id, organisationId, versionId: b.id, number: s.number, title: s.title, sortOrder: si + 1 } });
+      // A revision's sections and lines are copied rows, each audited as created (startBqRevision).
+      if (b.revisionReason) entry(ENTITY.bqSection, s.id, `${vLabel} · section ${s.number}`, "CREATE", created, sectionAudit(null, { number: s.number, title: s.title }));
       for (const [ii, it] of s.items.entries()) {
         const l = line(it);
         const amount = itemAmount(l.quantity, l.rate);
@@ -277,7 +279,7 @@ export async function loadScope(db: Db, organisationId: string) {
           : {};
         await db.bqItem.create({ data: { id, organisationId, sectionId: s.id, itemRef: l.itemRef, description: l.description, unit: l.unit, kind: l.kind, quantity: l.quantity, rate: senToDecimalString(l.rate!), amount: amount == null ? null : senToDecimalString(amount), provisional: l.provisional, sortOrder: ii + 1, ...priced } });
         const rateFrom = sch ? rateFromText({ label: RATE_LABEL, issue: `Issue ${rs1.issueNo}`, effectiveFrom: rs1.effectiveFrom, itemCode: sch.code }, formatDate) : undefined;
-        if (!b.revisionReason) entry(ENTITY.bqItem, id, `${b.reference} · Bill of quantities v${b.versionNo} · ${l.itemRef}`, "CREATE", sch ? at(`${PRICED_ON}T11:00`) : created, itemAudit(null, { ...l, ...(rateFrom ? { rateFrom } : {}) }));
+        entry(ENTITY.bqItem, id, `${b.reference} · Bill of quantities v${b.versionNo} · ${l.itemRef}`, "CREATE", sch && !b.revisionReason ? at(`${PRICED_ON}T11:00`) : created, itemAudit(null, { ...l, ...(rateFrom ? { rateFrom } : {}) }));
       }
     }
     if (finalised) entry(ENTITY.bqVersion, b.id, vLabel, "UPDATE", at(`${b.finalisedOn}T15:00`), bqFinalisedAudit(bqTotals(lines, b.excluded), { standard: DEMO_SCOPE_POLICY.measurementStandardLabel, preparerQualification: "Qualified quantity measurer" }));

@@ -176,6 +176,13 @@ export async function saveBqSection(_prev: FormState, data: FormData): Promise<F
   });
 }
 
+/// Where a schedule-priced line's rate came from, in words for its audit row; null for a rate entered.
+function fromText(x: { scheduleLabelSnapshot: string | null; scheduleIssueSnapshot: string | null; scheduleEffectiveFromSnapshot: Date | string | null; rateItemCode: string | null } | null) {
+  return x?.scheduleLabelSnapshot && x.scheduleIssueSnapshot && x.scheduleEffectiveFromSnapshot && x.rateItemCode
+    ? rateFromText({ label: x.scheduleLabelSnapshot, issue: x.scheduleIssueSnapshot, effectiveFrom: typeof x.scheduleEffectiveFromSnapshot === "string" ? x.scheduleEffectiveFromSnapshot : storedDay(x.scheduleEffectiveFromSnapshot), itemCode: x.rateItemCode }, formatDate)
+    : null;
+}
+
 /// Remove a section of the draft, with its lines. A finalised version is never changed.
 export async function removeBqSection(_prev: FormState, data: FormData): Promise<FormState> {
   const exerciseId = exerciseIdOf(data);
@@ -252,10 +259,6 @@ export async function saveBqItem(_prev: FormState, data: FormData): Promise<Form
         : { rateSource: "ENTERED" as const, rateScheduleId: null, rateItemCode: null, scheduleLabelSnapshot: null, scheduleIssueSnapshot: null, scheduleEffectiveFromSnapshot: null }),
     };
     const saved = before ? await tx.bqItem.update({ where: { id: before.id }, data: row }) : await tx.bqItem.create({ data: { organisationId: l.org.id, ...row } });
-    const fromText = (x: { scheduleLabelSnapshot: string | null; scheduleIssueSnapshot: string | null; scheduleEffectiveFromSnapshot: Date | string | null; rateItemCode: string | null } | null) =>
-      x?.scheduleLabelSnapshot && x.scheduleIssueSnapshot && x.scheduleEffectiveFromSnapshot && x.rateItemCode
-        ? rateFromText({ label: x.scheduleLabelSnapshot, issue: x.scheduleIssueSnapshot, effectiveFrom: typeof x.scheduleEffectiveFromSnapshot === "string" ? x.scheduleEffectiveFromSnapshot : storedDay(x.scheduleEffectiveFromSnapshot), itemCode: x.rateItemCode }, formatDate)
-        : null;
     await audit(tx, l.org.id, ENTITY.bqItem, saved.id, label(l, `Bill of quantities v${v.versionNo} · ${itemRef || description}`), before ? "UPDATE" : "CREATE",
       itemAudit(before ? { ...lineOf(before), rateFrom: fromText(before) } : null, { itemRef, description, unit, kind, quantity, rate, provisional, rateFrom: fromText(priced) }));
     return { ok: true };
@@ -333,17 +336,22 @@ export async function startBqRevision(_prev: FormState, data: FormData): Promise
         followsStandard: from.followsStandard, departuresText: from.departuresText, preparerPersonId: from.preparerPersonId, provisionalExcludedFromFirm: from.provisionalExcludedFromFirm, revisionReason: reason,
       },
     });
+    await audit(tx, l.org.id, ENTITY.bqVersion, v.id, label(l, `Bill of quantities v${versionNo}`), "CREATE", bqStatusAudit(null, "DRAFT", { version: versionNo, revises: `version ${from.versionNo}`, lines: from.sections.reduce((n, s) => n + s.items.length, 0) }), reason);
+    // Every section and line copied is its own row, each audited as created (as startBq and saveBqItem do).
     for (const s of from.sections) {
       const ns = await tx.bqSection.create({ data: { organisationId: l.org.id, versionId: v.id, number: s.number, title: s.title, sortOrder: s.sortOrder } });
-      await tx.bqItem.createMany({
-        data: s.items.map((i) => ({
-          organisationId: l.org.id, sectionId: ns.id, itemRef: i.itemRef, description: i.description, unit: i.unit, kind: i.kind, quantity: i.quantity, rate: i.rate, amount: i.amount, provisional: i.provisional, rateSource: i.rateSource, sortOrder: i.sortOrder,
-          // A line priced from a schedule keeps what the issue said, into the revision too (FR-EST-004).
-          rateScheduleId: i.rateScheduleId, rateItemCode: i.rateItemCode, scheduleLabelSnapshot: i.scheduleLabelSnapshot, scheduleIssueSnapshot: i.scheduleIssueSnapshot, scheduleEffectiveFromSnapshot: i.scheduleEffectiveFromSnapshot,
-        })),
-      });
+      await audit(tx, l.org.id, ENTITY.bqSection, ns.id, label(l, `Bill of quantities v${versionNo} · section ${s.number}`), "CREATE", sectionAudit(null, { number: s.number, title: s.title }));
+      for (const i of s.items) {
+        const ni = await tx.bqItem.create({
+          data: {
+            organisationId: l.org.id, sectionId: ns.id, itemRef: i.itemRef, description: i.description, unit: i.unit, kind: i.kind, quantity: i.quantity, rate: i.rate, amount: i.amount, provisional: i.provisional, rateSource: i.rateSource, sortOrder: i.sortOrder,
+            // A line priced from a schedule keeps what the issue said, into the revision too (FR-EST-004).
+            rateScheduleId: i.rateScheduleId, rateItemCode: i.rateItemCode, scheduleLabelSnapshot: i.scheduleLabelSnapshot, scheduleIssueSnapshot: i.scheduleIssueSnapshot, scheduleEffectiveFromSnapshot: i.scheduleEffectiveFromSnapshot,
+          },
+        });
+        await audit(tx, l.org.id, ENTITY.bqItem, ni.id, label(l, `Bill of quantities v${versionNo} · ${i.itemRef || i.description}`), "CREATE", itemAudit(null, { ...lineOf(i), rateFrom: fromText(i) }));
+      }
     }
-    await audit(tx, l.org.id, ENTITY.bqVersion, v.id, label(l, `Bill of quantities v${versionNo}`), "CREATE", bqStatusAudit(null, "DRAFT", { version: versionNo, revises: `version ${from.versionNo}`, lines: from.sections.reduce((n, s) => n + s.items.length, 0) }), reason);
     return { ok: true };
   });
 }
