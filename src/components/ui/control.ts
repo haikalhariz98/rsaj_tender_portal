@@ -9,7 +9,7 @@ export const CONTROL =
   "disabled:cursor-not-allowed disabled:bg-sunken disabled:text-ink-3 " +
   "aria-invalid:border-rose-400 aria-invalid:focus:ring-rose-500/15";
 
-export const HEIGHT = { sm: "h-8 px-3 text-[13px]", md: "h-10 px-3.5 text-[14px]" } as const;
+export const HEIGHT = { sm: "h-9 px-3 text-[13px]", md: "h-10 px-3.5 text-[14px]" } as const;
 
 export type ControlSize = keyof typeof HEIGHT;
 

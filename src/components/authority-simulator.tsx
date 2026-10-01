@@ -161,7 +161,6 @@ export function AuthoritySimulator({
             <Field label="Contract value" htmlFor={fid("contract")} hint="For variations">
               <Input
                 id={fid("contract")}
-                size="sm"
                 numeric
                 value={contractValue}
                 inputMode="decimal"
@@ -172,7 +171,6 @@ export function AuthoritySimulator({
             <Field label="Percentage" htmlFor={fid("pct")} hint="Of contract sum">
               <Input
                 id={fid("pct")}
-                size="sm"
                 numeric
                 value={pct}
                 inputMode="decimal"
@@ -195,7 +193,6 @@ export function AuthoritySimulator({
           >
             <Select
               id={fid("funding")}
-              size="sm"
               value={funding}
               onChange={(e) => setFunding(e.target.value)}
               disabled={fundingRoutes.length === 0}
@@ -210,7 +207,7 @@ export function AuthoritySimulator({
           </Field>
 
           <Field label="Acting officer" htmlFor={fid("actor")} hint="Nobody may approve their own matter">
-            <Select id={fid("actor")} size="sm" value={actor} onChange={(e) => setActor(e.target.value)}>
+            <Select id={fid("actor")} value={actor} onChange={(e) => setActor(e.target.value)}>
               <option value="">Not specified</option>
               {roles.map((r) => (
                 <option key={r.code} value={r.code}>
@@ -221,7 +218,7 @@ export function AuthoritySimulator({
           </Field>
 
           <Field label="Absent" htmlFor={fid("absent")} hint="Authority reverts upward, never down">
-            <Select id={fid("absent")} size="sm" value={absent} onChange={(e) => setAbsent(e.target.value)}>
+            <Select id={fid("absent")} value={absent} onChange={(e) => setAbsent(e.target.value)}>
               <option value="">Nobody</option>
               {roles.map((r) => (
                 <option key={r.code} value={r.code}>
