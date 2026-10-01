@@ -29,6 +29,7 @@ export type AddendumFault =
   | "TEMPLATE_TEXT_NOT_SET"
   | "TEMPLATE_INCOMPLETE"
   | "TEMPLATE_UNKNOWN_FIELD"
+  | "STAMP_NOT_SET"
   | "TIME_ZONE_UNSET"
   | "NO_RECIPIENTS";
 
@@ -47,7 +48,7 @@ export function issueFaults(i: {
   whatChanged: string;
   /// Live ADDENDUM_SIGNED attachments.
   signedCopies: number;
-  template: { state: "NOT_SET" | "NO_TEXT" | "OK"; missing: readonly string[]; unknown: readonly string[] };
+  template: { state: "NOT_SET" | "NO_TEXT" | "OK"; missing: readonly string[]; unknown: readonly string[]; stampMissing?: boolean };
   recipients: number;
   today: string | null;
 }): Finding<AddendumFault>[] {
@@ -59,11 +60,13 @@ export function issueFaults(i: {
   if (!i.title.trim()) out.push({ code: "TITLE_REQUIRED", level: "block" });
   if (!i.whatChanged.trim()) out.push({ code: "WHAT_CHANGED_REQUIRED", level: "block" });
   if (i.signedCopies < 1) out.push({ code: "SIGNED_COPY_REQUIRED", level: "block" });
-  if (i.template.state === "NOT_SET") out.push({ code: "TEMPLATE_NOT_SET", level: "block" });
-  else if (i.template.state === "NO_TEXT") out.push({ code: "TEMPLATE_TEXT_NOT_SET", level: "block" });
+  if (i.template.state === "NOT_SET") out.push({ code: "TEMPLATE_NOT_SET", level: "block", data: { instrument: "ADDENDUM" } });
+  else if (i.template.state === "NO_TEXT") out.push({ code: "TEMPLATE_TEXT_NOT_SET", level: "block", data: { instrument: "ADDENDUM" } });
   else {
     if (i.template.unknown.length) out.push({ code: "TEMPLATE_UNKNOWN_FIELD", level: "block", data: { fields: i.template.unknown.join(", ") } });
     if (i.template.missing.length) out.push({ code: "TEMPLATE_INCOMPLETE", level: "block", data: { fields: i.template.missing.join(", ") } });
+    // FR-DOC-009: a restricted exercise's addendum carries the configured stamp, in its language.
+    if (i.template.stampMissing) out.push({ code: "STAMP_NOT_SET", level: "block" });
   }
   // Issued with nobody to notify is allowed, and says so.
   if (i.recipients === 0) out.push({ code: "NO_RECIPIENTS", level: "info" });

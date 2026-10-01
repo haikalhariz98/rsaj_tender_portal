@@ -13,6 +13,7 @@ import type { PolicySetting } from "./dates";
 import type { TableAvailability, WindowPhase } from "./phase";
 import type { ChangeRouteState } from "./change";
 import type { NotifiedState } from "./addendum";
+import { CONFIG_UNWORDED, configFaultText } from "./config";
 
 const SETTINGS = "Configuration, Invitation controls";
 
@@ -377,10 +378,30 @@ export function windowFindingText(f: Finding): string {
       return "Say whether the document fees are refunded.";
     case "AWARD_STANDS":
       return `${d.award ? `Award ${d.award}` : "An award"} stands on this exercise. Cancel the award first, from its own record.`;
+    // ---- what may be written when (edit.ts)
+    case "NOT_IN_PREPARATION":
+      return "The window is prepared once the exercise is in preparation. Move it into preparation first.";
+    case "WINDOW_PUBLISHED":
+      return "The window is published, so this stands as published. A change now is an addendum, or a change to the closing.";
+    case "WINDOW_NOT_PREPARED":
+      return "The window is not prepared yet. Save its notice items on the Invitation tab first.";
+    case "CHANNEL_RETIRED":
+      return "That channel is retired or no longer configured.";
+    case "CHANNEL_ALREADY_RECORDED":
+      return "A publication is already recorded on that channel. Remove it first to record another.";
+    case "PUBLICATION_BEFORE_APPROVAL":
+      return `A publication on ${day(d.day)} would be before the approval for tendering on ${day(d.approvedOn)}.`;
+    case "PERSON_REQUIRED":
+      return "Choose someone on record and active.";
+    case "NOT_INVITED":
+      return "Only an invitee whose letter of invitation was issued is sold the documents.";
     case "PUBLISH_NOT_READY":
       return "The invitation is not ready to publish: see what the Invitation tab says blocks it.";
-    default:
-      return UNWORDED;
+    default: {
+      // Configuration's own refusals (config.ts) have their words there.
+      const c = configFaultText(f);
+      return c === CONFIG_UNWORDED ? UNWORDED : c;
+    }
   }
 }
 

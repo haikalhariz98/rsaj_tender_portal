@@ -63,6 +63,7 @@ export type PublishFault =
   | "TEMPLATE_LANGUAGE_NOT_SET"
   | "TEMPLATE_INCOMPLETE"
   | "TEMPLATE_UNKNOWN_FIELD"
+  | "CHANGE_PENDING"
   | "TIME_ZONE_UNSET";
 
 export interface PublishInput {
@@ -100,6 +101,8 @@ export interface PublishInput {
   basisTotal: Sen;
   /// The instrument's template as rendered for this window: the notice (advertised) or a letter (invited).
   template: { state: TemplateState; missing: readonly string[]; unknown: readonly string[]; stampMissing: boolean };
+  /// A window_change route is pending: the closing may yet move, so nothing is published on it.
+  changePending?: boolean;
   /// The invited path's list and name routes.
   invited: {
     method: { requiresNameApproval: boolean };
@@ -119,6 +122,7 @@ export function publishFaults(i: PublishInput): PublishResult {
   const f = (code: PublishFault, data?: Finding["data"]) => out.push({ code, level: "block", ...(data ? { data } : {}) });
   if (!i.today || !i.timeZone) f("TIME_ZONE_UNSET");
   if (i.status !== "APPROVED_FOR_TENDERING") f("NOT_APPROVED_FOR_TENDERING", { status: i.status });
+  if (i.changePending) f("CHANGE_PENDING");
   if (i.packKind !== "TENDER" && i.packKind !== "QUOTATION") f("NO_TENDER_DOCUMENTS");
   const path = i.windowPath ?? i.methodPath;
   if (!i.methodPath) f("PATH_NOT_SET");

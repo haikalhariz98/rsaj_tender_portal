@@ -62,7 +62,8 @@ const writersOf = (re: RegExp, field: RegExp) =>
 
 describe("X-2: who writes the closing", () => {
   it("only the approving step writes the exercise's closing and start", () => {
-    expect([...new Set(writersOf(EXERCISE_WRITE, /\bclosingAt\b/))]).toEqual(["src/app/sourcing/[id]/documents/actions.ts#recordTenderingDecision"]);
+    // 6.5 (X-2, faithful update, flagged): the applied closing change is the closing's second writer, by name.
+    expect([...new Set(writersOf(EXERCISE_WRITE, /\bclosingAt\b/))].sort()).toEqual(["src/app/sourcing/[id]/documents/actions.ts#recordTenderingDecision", "src/app/sourcing/[id]/window/change-actions.ts#applyClosingChange"]);
     expect([...new Set(writersOf(EXERCISE_WRITE, /\btenderingStartOn\b/))]).toEqual(["src/app/sourcing/[id]/documents/actions.ts#recordTenderingDecision"]);
   });
   it("the same step, and only it, freezes the dates on the approved pack", () => {
@@ -76,8 +77,8 @@ describe("X-2: who writes the closing", () => {
   });
 });
 
-/// The writers of the closing: 6.4's approving step (6.5 adds its applied closing change here, by name).
-const CLOSING_WRITERS = ["src/app/sourcing/[id]/documents/actions.ts"];
+/// The writers of the closing: 6.4's approving step and 6.5's applied closing change, by name.
+const CLOSING_WRITERS = ["src/app/sourcing/[id]/documents/actions.ts", "src/app/sourcing/[id]/window/change-actions.ts"];
 
 /// Every other file that names the `closingAt:` key, and what it does with it. None writes it.
 const CLOSING_KEY_READERS: Record<string, string> = {
@@ -93,6 +94,9 @@ const CLOSING_KEY_READERS: Record<string, string> = {
   "src/lib/window/publish.ts": "passes the closing to the date rules at publication; writes nothing",
   "src/lib/window/events.ts": "judges an event against the closing it is given; writes nothing",
   "src/lib/window/fields.ts": "states the closing in an instrument's words; writes nothing",
+  "src/lib/window/repo.ts": "reads the exercise's closing for the window's rules; writes nothing",
+  "src/lib/window/judge.ts": "passes the closing to the phase and the instruments; writes nothing",
+  "src/lib/window/read.ts": "shows the closing's history from the stored dates; writes nothing",
 };
 
 describe("X-2: the closing is written nowhere else, by any route (carry a)", () => {

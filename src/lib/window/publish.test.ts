@@ -85,6 +85,7 @@ describe("each refusal alone", () => {
     ["TEMPLATE_INCOMPLETE", { template: { state: "OK", missing: ["window.fee"], unknown: [], stampMissing: false } }],
     ["TEMPLATE_UNKNOWN_FIELD", { template: { state: "OK", missing: [], unknown: ["invitee.name"], stampMissing: false } }],
     ["TIME_ZONE_UNSET", { timeZone: null }],
+    ["CHANGE_PENDING", { changePending: true }],
   ])("%s", (code, over) => {
     const r = publishFaults({ ...ok, ...over });
     expect(codes(r)).toContain(code);

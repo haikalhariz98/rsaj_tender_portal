@@ -42,6 +42,9 @@ describe("issuing", () => {
     expect(codes(issueFaults({ ...ok, template: { state: "NO_TEXT", missing: [], unknown: [] } }))).toEqual(["TEMPLATE_TEXT_NOT_SET"]);
     expect(codes(issueFaults({ ...ok, template: { state: "OK", missing: ["addendum.title"], unknown: ["x"] } }))).toEqual(["TEMPLATE_UNKNOWN_FIELD", "TEMPLATE_INCOMPLETE"]);
   });
+  it("a restricted exercise's addendum needs the stamp in its language", () => {
+    expect(codes(issueFaults({ ...ok, template: { state: "OK", missing: [], unknown: [], stampMissing: true } }))).toEqual(["STAMP_NOT_SET"]);
+  });
   it("with no purchasers it still issues, saying there is nobody to notify", () => {
     const fs = issueFaults({ ...ok, recipients: 0 });
     expect(codes(fs)).toEqual([]);
