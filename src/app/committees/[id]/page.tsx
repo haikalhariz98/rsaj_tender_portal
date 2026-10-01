@@ -17,6 +17,7 @@ import { fieldLabel } from "@/lib/audit/diff";
 import { assessQuorum } from "@/lib/committee/quorum";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { minutingChecks } from "@/lib/committee/assess-sitting";
+import { configurationGaps } from "@/lib/committee/gaps";
 import {
   blockerShort,
   ORGANISATION_HREF,
@@ -236,33 +237,32 @@ export default async function SittingPage({
   );
 }
 
-/// What the committee's configuration leaves unset, where it stops this sitting.
+/// What the committee's configuration leaves unset, and which matters it stops. The
+/// count and the subjects come from `configurationGaps`, read off the same assessment.
 function ConfigurationGaps({ s }: { s: LoadedSitting }) {
   const c = s.meeting.committee;
-  if (isFrozen(s.meeting.status)) return null;
-  const gaps: string[] = [];
-  const altQuestion = Object.values(s.assessment.matters).some((x) => x.blockers.includes("ALTERNATE_FOR_RECUSED_UNCONFIGURED"));
-  if (altQuestion) {
-    gaps.push("the committee has not said whether an alternate may vote in place of a recused member, so a matter where a member with an alternate recuses cannot be decided");
-  }
-  if (c.quorum == null) gaps.push("no quorum is set, so no sitting can be certified quorate");
-  if (c.votingRule == null) gaps.push("no voting rule is set, and none is assumed, so no matter can be carried or voted down");
-  if (!c.secretariatRoleCode) gaps.push("no Secretariat office is set, so nobody may table a matter");
-  if (gaps.length === 0) return null;
+  const report = configurationGaps({
+    status: s.meeting.status,
+    rules: s.rules,
+    secretariatRoleCode: c.secretariatRoleCode,
+    matters: s.meeting.decisions.map((d) => ({ id: d.id, subject: d.subject, outcome: d.outcome, withdrawn: d.withdrawnAt != null })),
+    assessment: s.assessment,
+  });
+  if (!report) return null;
   return (
     <Callout
       tone="warn"
       className="mb-6"
-      title="This committee's configuration stops the sitting from deciding"
+      title={report.title}
       action={
         <ButtonLink href={`/configuration/committees/${c.code}`} size="sm">
           Configure committee
         </ButtonLink>
       }
     >
-      {gaps.map((g, i) => (
-        <span key={i} className="block">
-          {g.charAt(0).toUpperCase() + g.slice(1)}.
+      {report.gaps.map((g) => (
+        <span key={g.key} className="block">
+          {g.text}
         </span>
       ))}
     </Callout>
