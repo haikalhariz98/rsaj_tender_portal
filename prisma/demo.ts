@@ -8,6 +8,7 @@ import { loadDocuments, planDocumentWipe, reportDocumentRefusal, wipeDocuments }
 import { checkScope, loadScope, loadScopeExercises, loadScopeSitting, SCOPE_ENTITIES, scopeWipeDependents, screenHoldingsOnDemo, wipeScope } from "./demo-scope";
 import { loadSittingTrail } from "./demo-sitting-trail";
 import { checkTenderDocs, loadTenderDocs, tenderDocsDependents, wipeTenderDocs } from "./demo-tender-docs";
+import { checkWindowDemo, loadWindowDemo, windowDemoDependents, WINDOW_ENTITIES, wipeWindowDemo } from "./demo-window";
 import { removedWithDemo } from "../src/lib/documents/demo-wipe-plan";
 import { inspectLogo } from "../src/lib/organisation/logo";
 import { initialsLogo } from "../src/lib/organisation/png";
@@ -106,7 +107,7 @@ async function removeTrailByReference(organisationId: string, references: string
         { entity: "BudgetMovement", OR: references.map((ref) => ({ entityLabel: { endsWith: ` for ${ref}` } })) },
         // 6.3: what was under an exercise, labelled with its reference.
         {
-          entity: { in: ["ExerciseScopePart", "ExerciseProposalAnswer", "ExerciseTaxonomyValue", "ExerciseParticipant", "ApprovalInstance", "ApprovalStep", ...SCOPE_ENTITIES] },
+          entity: { in: ["ExerciseScopePart", "ExerciseProposalAnswer", "ExerciseTaxonomyValue", "ExerciseParticipant", "ApprovalInstance", "ApprovalStep", ...SCOPE_ENTITIES, ...WINDOW_ENTITIES, "NameRouteInvitee"] },
           OR: references.map((ref) => ({ entityLabel: { startsWith: `${ref} ·` } })),
         },
       ],
@@ -236,6 +237,8 @@ async function wipe() {
         { specificationPanel: { verifications: { some: { personId: demoRef } } } },
         { companyEstimates: { some: { OR: [{ preparerPersonId: demoRef }, { versions: { some: { preparerPersonId: demoRef } } }, { events: { some: { personId: demoRef } } }] } } },
         { approvalInstances: { some: { awardId: null, steps: { some: { OR: onScreenMade } } } } },
+        // 6.5: a publication, sale or attendance on its window recorded on behalf of a demo person.
+        { window: { OR: [{ publications: { some: { recordedByPersonId: demoRef } } }, { sales: { some: { issuedByPersonId: demoRef } } }, { events: { some: { attendance: { some: { recordedByPersonId: demoRef } } } } }] } },
       ],
     },
     select: {
@@ -309,12 +312,17 @@ async function wipe() {
   if (tenderDependents.length) {
     console.error(["Refused whatever the flag: these records are not demo data and stand on demo configuration (a template, a registration body, a clause or the permit list):", ...tenderDependents, "Nothing was removed. Choose other configuration for them first (another template for a part, another list in the policy, no permit type on an exercise)."].join("\n"));
   }
+  // 6.5: a window not removed with the demo, published on a demo channel or frozen from a demo template, or a kept policy naming the demo's configuration.
+  const windowDependents = await windowDemoDependents(db, org.id, hangingExerciseIds);
+  if (windowDependents.length) {
+    console.error(["Refused whatever the flag: these records are not demo data and stand on the demo's invitation controls (a channel, a calendar or a template):", ...windowDependents, "Nothing was removed. Name other configuration in the policy first; a publication or a frozen letter is never rewritten by a wipe."].join("\n"));
+  }
   if (scopeDependents.hard.length) {
     console.error(["Refused whatever the flag: these bill lines are not demo data and were priced from a demo schedule of rates, which keeps their price's source; no wipe rewrites a bill line:", ...scopeDependents.hard, "Nothing was removed. Re-enter or re-price those lines first."].join("\n"));
   }
   const documentsRefused = reportDocumentRefusal(documentPlan);
   const awardsRefused = reportAwardRefusal(awardCheck);
-  if (requisitionsRefused || documentsRefused || awardsRefused || scopeDependents.hard.length || tenderDependents.length) {
+  if (requisitionsRefused || documentsRefused || awardsRefused || scopeDependents.hard.length || tenderDependents.length || windowDependents.length) {
     process.exitCode = 1;
     return;
   }
@@ -323,6 +331,8 @@ async function wipe() {
   // Nothing refused: removal starts here. Attachments pin meetings, exercises, awards and
   // delegations: the documents go before any of them (their keys refuse a delete).
   await wipeDocuments(db, org.id, documentPlan);
+  // 6.5: the windows and their registers, before the routes, sittings, people and exercises they point at (an addendum's signed copy went with the documents).
+  await wipeWindowDemo(db, org.id, hangingExerciseIds);
   // 6.4: packs before the bills, templates and routes they point at (their parts' files went with the documents).
   await wipeTenderDocs(db, org.id, hangingExerciseIds);
   await wipeAwards(db, org.id, awardCheck);
@@ -1151,6 +1161,12 @@ async function load() {
   // each act checked by the product's own rules as it is written, then the whole read back.
   await loadTenderDocs(db, organisationId);
   await checkTenderDocs(db);
+  // 6.5: the invitation windows, on exercises taken through 6.2's and 6.4's acts; every act judged
+  // as it is written and dated relative to the load day, then each phase read back (X-10).
+  const windowSittings = (await loadWindowDemo(db, organisationId, { determine: determineExercises })).sittings;
+  await loadSittingTrail(db, organisationId, windowSittings);
+  await snapshotMinuted(windowSittings);
+  await checkWindowDemo(db);
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
   console.log("Remove it with: npm run demo:wipe");
