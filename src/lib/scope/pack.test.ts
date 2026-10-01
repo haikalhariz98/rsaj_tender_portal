@@ -41,6 +41,25 @@ describe("packFaults: what 6.4 enforces when the documents go for approval (OD-4
     // A draft panel is already PANEL_NOT_VERIFIED; its bill is judged when it is verified.
     expect(codes(judge({ panel: "DRAFT", panelBill: { versionNo: 1, status: "SUPERSEDED" } }))).toEqual(["PANEL_NOT_VERIFIED"]);
   });
+  it("with no bill at all the finding says the bill is not started, never that a panel names the wrong one (sx4)", () => {
+    const none = judge({ bq: [], panel: "NONE", panelBill: null });
+    expect(codes(none)).toEqual(["BQ_NOT_FINALISED", "PANEL_NOT_VERIFIED"]);
+    const text = scopeFaultText(none[0]);
+    expect(text).toMatch(/not started/);
+    expect(text).not.toMatch(/panel/i);
+    // A draft only: said as a draft, and still not the panel's sentence.
+    const draftOnly = judge({ bq: [{ status: "DRAFT" }] });
+    expect(scopeFaultText(draftOnly[0])).toMatch(/no finalised version/);
+    expect(scopeFaultText(draftOnly[0])).not.toMatch(/panel/i);
+    // The panel's own finding of the same code keeps its own sentence.
+    expect(scopeFaultText("BQ_NOT_FINALISED")).toMatch(/the panel names/);
+  });
+  it("PANEL_BILL_SUPERSEDED only where the panel names a bill and a finalised bill exists to compare", () => {
+    // A panel naming a superseded bill while no bill is finalised: the missing bill is said, once.
+    const f = judge({ bq: [{ status: "SUPERSEDED", versionNo: 1 }], panelBill: { versionNo: 1, status: "SUPERSEDED" } });
+    expect(codes(f)).toEqual(["BQ_NOT_FINALISED"]);
+    expect(codes(judge({ bq: [], panelBill: { versionNo: 1, status: "DRAFT" } }))).toEqual(["BQ_NOT_FINALISED"]);
+  });
   it("ESTIMATE_NOT_LODGED where the method needs one; behind its lodgement after an amendment; nothing where it does not", () => {
     expect(codes(judge({ estimate: null }))).toEqual(["ESTIMATE_NOT_LODGED"]);
     expect(codes(judge({ estimate: { state: "DRAFT", behind: false } }))).toEqual(["ESTIMATE_NOT_LODGED"]);

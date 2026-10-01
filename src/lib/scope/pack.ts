@@ -52,14 +52,19 @@ export function packFaults(i: PackInput): Finding<PackFault>[] {
   if (i.basis == null) out.push({ code: "BASIS_NOT_CHOSEN", level: "block" });
   else if (i.basis.requiresBq == null) out.push({ code: "BASIS_BQ_NOT_SET", level: "block" });
   else if (i.basis.requiresBq) {
-    if (!i.bq.some((v) => v.status === "FINALISED")) out.push({ code: "BQ_NOT_FINALISED", level: "block" });
+    // `started` lets the words tell no bill at all from a draft that is not finalised yet; the
+    // panel's own finding of the same code (panel.ts) carries none and keeps its own sentence.
+    if (!i.bq.some((v) => v.status === "FINALISED")) out.push({ code: "BQ_NOT_FINALISED", level: "block", data: { started: i.bq.length > 0 ? 1 : 0 } });
     else if (i.bq.some((v) => v.status === "DRAFT")) out.push({ code: "BQ_REVISION_OPEN", level: "warn" });
   }
   if (i.panel === "SCAN_GONE") out.push({ code: "PANEL_SCAN_GONE", level: "block" });
   else if (i.panel !== "VERIFIED") out.push({ code: "PANEL_NOT_VERIFIED", level: "block" });
   // A panel verified on a bill since superseded certifies quantities that no longer stand.
-  if ((i.panel === "VERIFIED" || i.panel === "SCAN_GONE") && i.panelBill != null && i.panelBill.status !== "FINALISED") {
-    const current = i.bq.find((v) => v.status === "FINALISED")?.versionNo ?? null;
+  // It compares two bills, so it is said only where both exist: with no finalised bill the finding
+  // above already says so, and a comparison against nothing would only confuse.
+  const finalised = i.bq.find((v) => v.status === "FINALISED");
+  if ((i.panel === "VERIFIED" || i.panel === "SCAN_GONE") && i.panelBill != null && i.panelBill.status !== "FINALISED" && finalised != null) {
+    const current = finalised.versionNo ?? null;
     out.push({ code: "PANEL_BILL_SUPERSEDED", level: "block", data: { panelVersion: i.panelBill.versionNo, current } });
   }
   if (i.method == null) out.push({ code: "METHOD_NOT_CONFIGURED", level: "block" });

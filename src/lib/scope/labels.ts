@@ -176,7 +176,14 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   KIND_NOT_SET: "Choose the contract kind, or specify it.",
   STATUS_NOT_SET: "Choose the project status, or specify it.",
   BQ_NOT_NAMED: "The contract basis is let on a bill of quantities: name the finalised bill the panel certifies.",
-  BQ_NOT_FINALISED: "The bill the panel names is not the finalised one. Name the finalised version.",
+  // Two findings share this code: the panel's (names a bill that is not the finalised one) and the
+  // documents' readiness (no finalised bill). Only the readiness one carries `started`.
+  BQ_NOT_FINALISED: (d) =>
+    d.started == null
+      ? "The bill the panel names is not the finalised one. Name the finalised version."
+      : d.started === 0
+        ? "The bill of quantities is not started. Start and finalise it under Scope and estimate, Bill of quantities."
+        : "The bill of quantities has no finalised version yet. Finalise it under Scope and estimate, Bill of quantities.",
   SCAN_REQUIRED: "Attach the signed panel form, scanned and filed as SULIT, before marking the panel verified.",
   COLUMN_UNKNOWN: "That column is not configured. Choose one from the panel form.",
   ALREADY_VERIFIED: "That column is already verified. Edit the panel to clear its verifications first.",
