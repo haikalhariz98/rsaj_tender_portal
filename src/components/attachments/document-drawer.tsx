@@ -15,6 +15,7 @@ import { KeyValues } from "@/components/ui/stat";
 import { RECLASSIFY_NOTE, WITHDRAW_NOTE } from "@/lib/documents/labels";
 import type { AttachmentItemView, DrawerView, DrawerVersionView, UploadView } from "@/lib/documents/views";
 
+import { AttachToRecordButton } from "./attach-to-record";
 import { DetachButton, NewVersionButton, VerifyButton, type Notice, type OnNotice, type OwnerKey } from "./upload-actions";
 
 /**
@@ -245,6 +246,12 @@ function Summary({ d, onDone }: { d: DrawerView; onDone: (n: Notice) => void }) 
           { label: "Disposal needs the authority of", value: d.retention.authority },
         ]}
       />
+      {d.staged && (
+        <div className="flex flex-col items-start gap-1.5">
+          <AttachToRecordButton documentId={d.id} versionId={d.attachVersionId} title={d.title} unclassified={d.classificationUnset} />
+          <p className="text-[12.5px] text-ink-3">Received, not filed. Attach it to the record it belongs to, as what it is kept as there.</p>
+        </div>
+      )}
       <div>
         {d.classificationLocked ? (
           <div className="flex flex-col items-start gap-1.5">

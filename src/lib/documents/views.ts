@@ -10,6 +10,7 @@ import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 
 import { DOCUMENT_ENTITY_LABEL } from "./audit-view";
 import { documentClassificationChoices } from "./classification";
+import { attachableVersion } from "./targets";
 
 import {
   ACCESS_KIND_LABEL,
@@ -238,6 +239,10 @@ export interface DrawerView {
   /// Where no change can be made at all, why, in words; null where one can.
   classificationLocked: string | null;
   status: string;
+  /// Received and not attached to any record yet.
+  staged: boolean;
+  /// The version an attachment would pin, for a received-not-filed document; null once filed, or where every version is withdrawn.
+  attachVersionId: string | null;
   createdOn: string;
   filedOn: string | null;
   retention: { period: string; starts: string; disposal: string; authority: string };
@@ -275,6 +280,8 @@ export function drawerView(d: Drawer, timeZone: string | null): DrawerView {
     classificationUnset: d.classification == null,
     ...classificationForm(d.classification, d.documentClass.classification),
     status: STATUS_LABEL[d.status],
+    staged: d.status === "STAGED",
+    attachVersionId: d.status === "STAGED" ? attachableVersion(d.versions) : null,
     createdOn: formatOrgDay(d.createdAt, timeZone),
     filedOn: d.filedAt ? formatOrgDay(d.filedAt, timeZone) : null,
     retention: {

@@ -153,9 +153,10 @@ export function RowActions({ children }: { children: ReactNode }) {
 ///     <col style={{ width: "18%" }} />
 ///     <ActionsCol icons={2} />
 ///   </colgroup>
-export function ActionsCol({ icons = 2, labelled = 0 }: { icons?: number; labelled?: number }) {
-  const controls = icons + labelled;
+///   `long`: buttons with a sentence for a label ("Attach to a record…"), about twice a short one.
+export function ActionsCol({ icons = 2, labelled = 0, long = 0 }: { icons?: number; labelled?: number; long?: number }) {
+  const controls = icons + labelled + long;
   // Controls, the gaps between them, and the cell's own padding (16 + 24 at last).
-  const width = icons * 32 + labelled * 84 + Math.max(controls - 1, 0) * 4 + 40;
+  const width = icons * 32 + labelled * 84 + long * 200 + Math.max(controls - 1, 0) * 4 + 40;
   return <col style={{ width }} />;
 }

@@ -11,7 +11,7 @@ import { holdFaults, releaseFaults } from "@/lib/documents/hold";
 import { documentFaultText, FINGERPRINT_STATEMENT, PURPOSE_LABEL } from "@/lib/documents/labels";
 import { ownerOf, withLockedOwner, type LockedOwner } from "@/lib/documents/owners";
 import type { OwnerRef } from "@/lib/documents/repo";
-import { documentDrawer, ownerPanel, uploadContext } from "@/lib/documents/read";
+import { attachTargetsOf, documentDrawer, ownerPanel, TARGET_CAP, uploadContext } from "@/lib/documents/read";
 import { documentOrg, lockDocument, lockVersion, LOCKED_VERSION_SELECT, logAccess } from "@/lib/documents/service";
 import { blobStore, sha256Hex } from "@/lib/documents/store";
 import { ATTACHMENT_PURPOSES, blocking, OWNER_COLUMN, OWNER_KINDS, SECURITY_CLASSES, type Finding } from "@/lib/documents/types";
@@ -305,4 +305,11 @@ export async function loadOwnerPanel(ref: OwnerRef, opts: PanelOptions = {}): Pr
   if (!OWNER_KINDS.includes(ref.kind)) return null;
   const [org, panel, upload] = await Promise.all([documentOrg(), ownerPanel(ref), uploadContext()]);
   return panel && upload ? panelView(panel, upload, org?.timeZone ?? null, opts) : null;
+}
+
+/// The records of one kind a received document can be attached to, with what each keeps and whether it is open. `cap` says how many are listed at most.
+export async function loadAttachTargets(kind: string) {
+  const k = OWNER_KINDS.find((x) => x === kind);
+  if (!k) return null;
+  return { ...(await attachTargetsOf(k)), cap: TARGET_CAP };
 }

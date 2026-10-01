@@ -2,6 +2,7 @@ import { exerciseEvidence, type ExerciseEvidence } from "@/lib/documents/evidenc
 import { DOCUMENT_ENTITY_LABEL } from "@/lib/documents/audit-view";
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
 import { attachmentFacts } from "@/lib/documents/repo";
+import { exercisePurposes } from "@/lib/documents/targets";
 import { resolutionText, supersession } from "@/lib/documents/supersession";
 import type { AttachmentFact } from "@/lib/documents/types";
 import Link from "next/link";
@@ -743,7 +744,7 @@ function ClassificationPanel({
           owner={{ kind: "exercise", id: ex.id }}
           title={flags.requiresDossier && flags.requiresCoordinationRecord ? "Dossier evidence and coordination scope" : flags.requiresDossier ? "Dossier evidence" : "Coordination meeting scope"}
           subtitle={flags.requiresDossier ? "Kept against the exercise. A direct appointment is sent for approval only with its dossier evidence attached." : "Kept against the exercise: the document that fixed the scope at the coordination meeting."}
-          only={[...(flags.requiresDossier ? (["DOSSIER_EVIDENCE"] as const) : []), ...(flags.requiresCoordinationRecord ? (["COORDINATION_SCOPE"] as const) : [])]}
+          only={exercisePurposes(flags)}
           required={{ DOSSIER_EVIDENCE: flags.requiresDossier, COORDINATION_SCOPE: flags.requiresCoordinationRecord }}
         />
       )}

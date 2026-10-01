@@ -15,6 +15,7 @@ import { accessReasonText, ACCESS_STATEMENT, documentFaultText, DOWNLOAD_REFUSAL
 import { effectiveCap } from "./limits";
 import { awardFacts, delegationFacts, exerciseFacts, meetingFacts } from "./owner-facts";
 import { type OwnerRef } from "./repo";
+import { attachTargets, ownerHref } from "./targets";
 import { retentionOf, documentOrg, loadStorePolicy } from "./service";
 import { deploymentCeiling } from "./store";
 import { ATTACHMENT_PURPOSES, OWNER_COLUMN, type AttachmentPurpose } from "./types";
@@ -141,8 +142,8 @@ export async function documentDrawer(documentId: string) {
   const history = await db.auditEntry.findMany({ where: { organisationId: org.id, entityId: { in: ids } }, orderBy: { at: "desc" }, take: 200 });
   const ownerLabel = (a: (typeof d.versions)[number]["attachments"][number]) =>
     a.meeting?.reference ?? a.exercise?.reference ?? a.award?.reference ?? (a.delegation ? `Delegation · ${a.delegation.fromPerson.name} to ${a.delegation.toPerson.name}` : "A record");
-  const ownerHref = (a: (typeof d.versions)[number]["attachments"][number]) =>
-    a.meetingId ? `/committees/${a.meetingId}` : a.exerciseId ? `/sourcing/${a.exerciseId}` : a.awardId ? `/awards/${a.awardId}` : "/configuration/users";
+  const hrefOf = (a: (typeof d.versions)[number]["attachments"][number]) =>
+    a.meetingId ? ownerHref("meeting", a.meetingId) : a.exerciseId ? ownerHref("exercise", a.exerciseId) : a.awardId ? ownerHref("award", a.awardId) : ownerHref("delegation", a.delegationId ?? "");
   return {
     id: d.id,
     title: d.title,
@@ -162,13 +163,69 @@ export async function documentDrawer(documentId: string) {
         byteSize: v.byteSize.toString(),
         download: decision.allow ? { allowed: true as const, href: `/api/documents/versions/${v.id}` } : { allowed: false as const, reason: DOWNLOAD_REFUSAL_TEXT[decision.reason].replace(/ The request was refused and logged\.$/, "") },
         accessEvents: v.accessEvents.map((e) => ({ id: e.id, kind: e.kind, at: e.at, reason: accessReasonText(e.reasonCode) })),
-        attachments: v.attachments.map((a) => ({ id: a.id, purpose: a.purpose, attachedAt: a.attachedAt, detachedAt: a.detachedAt, detachReason: a.detachReason, owner: ownerLabel(a), href: ownerHref(a) })),
+        attachments: v.attachments.map((a) => ({ id: a.id, purpose: a.purpose, attachedAt: a.attachedAt, detachedAt: a.detachedAt, detachReason: a.detachReason, owner: ownerLabel(a), href: hrefOf(a) })),
       };
     }),
     holds: d.holds,
     history: history.map((e) => ({ id: e.id, entity: e.entity, entityLabel: e.entityLabel, action: e.action, at: e.at, reason: e.reason, changes: (e.changes ?? []) as unknown as { field: string; before: string | null; after: string | null }[] })),
     statements: { access: ACCESS_STATEMENT, fingerprint: FINGERPRINT_STATEMENT },
   };
+}
+
+/// How many records of a kind the attach choice lists at most. More is said, never quietly cut.
+export const TARGET_CAP = 200;
+
+/**
+ * The records a received document can be attached to, of one kind, newest first, each with
+ * the purposes that suit it and whether they are open (`attachTargets`). `total` is how many
+ * records of the kind there are, so a list that is cut says so.
+ */
+export async function attachTargetsOf(kind: OwnerRef["kind"]) {
+  const org = await documentOrg();
+  if (!org) return { records: [], total: 0 };
+  const take = TARGET_CAP;
+  switch (kind) {
+    case "meeting": {
+      const where = { committee: { organisationId: org.id } };
+      const [rows, total] = await Promise.all([db.meeting.findMany({ where, orderBy: { meetingDate: "desc" }, take, select: { id: true, status: true, reference: true } }), db.meeting.count({ where })]);
+      return { records: attachTargets(rows.map((m) => ({ id: m.id, label: m.reference, facts: meetingFacts(m) }))), total };
+    }
+    case "exercise": {
+      const where = { organisationId: org.id };
+      const [rows, total, methods] = await Promise.all([
+        db.sourcingExercise.findMany({ where, orderBy: { createdAt: "desc" }, take, select: { id: true, status: true, reference: true, title: true, sourcingMethodCode: true, classificationSnapshot: true, awards: { select: { status: true, approvalInstances: { where: { domain: "appointment", status: "PENDING" }, select: { id: true } } } } } }),
+        db.sourcingExercise.count({ where }),
+        db.sourcingMethod.findMany({ where: { organisationId: org.id }, select: { code: true, requiresDossier: true, requiresCoordinationRecord: true } }),
+      ]);
+      return {
+        records: attachTargets(
+          rows.map((ex) => {
+            // A decided exercise keeps what its method asked when it was decided.
+            const snap = ex.classificationSnapshot as { method?: { flags?: { requiresDossier?: boolean; requiresCoordinationRecord?: boolean } } } | null;
+            const flags = snap?.method?.flags ?? methods.find((m) => m.code === ex.sourcingMethodCode) ?? null;
+            return {
+              id: ex.id,
+              label: `${ex.reference} · ${ex.title}`,
+              facts: exerciseFacts(ex, ex.awards.map((a) => ({ status: a.status, openAppointmentRoutes: a.approvalInstances.length }))),
+              exerciseFlags: flags ? { requiresDossier: !!flags.requiresDossier, requiresCoordinationRecord: !!flags.requiresCoordinationRecord } : null,
+            };
+          }),
+        ),
+        total,
+      };
+    }
+    case "award": {
+      const where = { organisationId: org.id };
+      const [rows, total] = await Promise.all([db.award.findMany({ where, orderBy: { createdAt: "desc" }, take, select: { id: true, status: true, instrumentKind: true, returnScanSnapshot: true, reference: true, awardeeName: true } }), db.award.count({ where })]);
+      return { records: attachTargets(rows.map((a) => ({ id: a.id, label: `${a.reference} · ${a.awardeeName}`, facts: awardFacts(a) }))), total };
+    }
+    case "delegation": {
+      const where = { organisationId: org.id };
+      const today = org.today ?? storedDay(new Date());
+      const [rows, total] = await Promise.all([db.delegation.findMany({ where, orderBy: { effectiveFrom: "desc" }, take, select: { id: true, effectiveTo: true, fromPerson: { select: { name: true } }, toPerson: { select: { name: true } } } }), db.delegation.count({ where })]);
+      return { records: attachTargets(rows.map((d) => ({ id: d.id, label: `${d.fromPerson.name} to ${d.toPerson.name}`, facts: delegationFacts(d, today) }))), total };
+    }
+  }
 }
 
 /// "Received, not filed": staged documents, oldest first. Never deleted automatically.
@@ -178,7 +235,7 @@ export async function stagedDocuments() {
   return db.document.findMany({
     where: { organisationId: org.id, status: "STAGED" },
     orderBy: { createdAt: "asc" },
-    select: { id: true, title: true, createdAt: true, classificationSnapshot: true, documentClass: { select: { nameEn: true } }, versions: { select: { versionNo: true, originalFilename: true, recordedBy: { select: { name: true } } }, orderBy: { versionNo: "desc" }, take: 1 } },
+    select: { id: true, title: true, createdAt: true, classificationSnapshot: true, documentClass: { select: { nameEn: true } }, versions: { select: { id: true, versionNo: true, withdrawnAt: true, originalFilename: true, recordedBy: { select: { name: true } } }, orderBy: { versionNo: "desc" } } },
   });
 }
 

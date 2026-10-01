@@ -1,3 +1,4 @@
+import { AttachToRecordButton } from "@/components/attachments/attach-to-record";
 import { DocumentButton } from "@/components/attachments/document-drawer";
 import { HistoryButton } from "@/components/history-drawer";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,7 @@ import {
   RETENTION_TRIGGER_LABEL,
 } from "@/lib/documents/labels";
 import { attentionText, classReadiness } from "@/lib/documents/readiness";
+import { attachableVersion } from "@/lib/documents/targets";
 import { stagedDocuments, standingHolds, uploadContext } from "@/lib/documents/read";
 import { documentOrg, loadStorePolicy } from "@/lib/documents/service";
 import { classificationTone } from "@/lib/documents/views";
@@ -231,10 +233,10 @@ export default async function DocumentsConfigPage() {
           <Table minWidth={760} stack>
             <colgroup>
               <col />
-              <col style={{ width: "17%" }} />
-              <col style={{ width: "13%" }} />
-              <col style={{ width: "22%" }} />
-              <ActionsCol icons={0} labelled={1} />
+              <col style={{ width: "14%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "19%" }} />
+              <ActionsCol icons={0} labelled={1} long={1} />
             </colgroup>
             <THead>
               <Th>Document</Th>
@@ -254,6 +256,7 @@ export default async function DocumentsConfigPage() {
                     <Td label="Received"><CellStack wrap title={formatOrgDay(d.createdAt, tz)} sub={v ? `${v.recordedBy.name} · recorded on behalf of, not signed` : undefined} /></Td>
                     <Td>
                       <RowActions>
+                        <AttachToRecordButton documentId={d.id} versionId={attachableVersion(d.versions)} title={d.title} unclassified={d.classificationSnapshot == null} />
                         <DocumentButton documentId={d.id} label={d.title} />
                       </RowActions>
                     </Td>
