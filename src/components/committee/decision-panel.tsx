@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type ReactNode } from "react";
+import { useId, useState, useTransition, type ReactNode } from "react";
 
 import { ActWithLabel } from "@/components/ui/act";
 import { Avatar } from "@/components/ui/avatar";
@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { CardBody } from "@/components/ui/card";
 import { cx } from "@/components/ui/cx";
 import { Callout } from "@/components/ui/feedback";
-import { Input } from "@/components/ui/field";
+import { Field, Input } from "@/components/ui/field";
 import { KeyValues } from "@/components/ui/stat";
 import { VOTE_LABEL } from "@/lib/committee/labels";
 import { formatDate, formatRM } from "@/lib/format";
@@ -275,6 +275,7 @@ function VoterRow({
   today: string | null;
 }) {
   const router = useRouter();
+  const uid = useId();
   const [choice, setChoice] = useState<string | null>(null);
   const [votedAt, setVotedAt] = useState("");
   const [comment, setComment] = useState("");
@@ -365,9 +366,9 @@ function VoterRow({
 
       {open && choice && (
         <div className="flex flex-wrap items-end gap-2 pl-11">
-          <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
-            Date on the signed sheet
+          <Field label="Date on the signed sheet" htmlFor={`${uid}-date`}>
             <Input
+              id={`${uid}-date`}
               type="date"
               size="sm"
               min={meetingDate}
@@ -376,11 +377,10 @@ function VoterRow({
               onChange={(e) => setVotedAt(e.target.value)}
               required
             />
-          </label>
-          <label className="flex min-w-48 flex-1 flex-col gap-1 text-[12px] font-semibold text-ink-2">
-            Comment
-            <Input size="sm" value={comment} onChange={(e) => setComment(e.target.value)} />
-          </label>
+          </Field>
+          <Field label="Comment" htmlFor={`${uid}-comment`} className="min-w-48 flex-1">
+            <Input id={`${uid}-comment`} size="sm" value={comment} onChange={(e) => setComment(e.target.value)} />
+          </Field>
           <Button variant="primary" size="sm" disabled={busy || !votedAt} onClick={save}>
             {busy ? "Saving…" : "Save vote"}
           </Button>

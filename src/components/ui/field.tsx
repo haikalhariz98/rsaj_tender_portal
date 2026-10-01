@@ -1,10 +1,11 @@
 "use client";
 
+import { useId } from "react";
 import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
 
-import { CONTROL, inputClass, type ControlSize } from "./control";
+import { CONTROL, NOTCH_LABEL, NOTCH_WRAP, inputClass, type ControlSize } from "./control";
 import { cx } from "./cx";
-import { fieldAria, useFieldContext } from "./field-context";
+import { FieldProvider, fieldAria, useFieldContext } from "./field-context";
 
 export { inputClass };
 export { Option, Select } from "./select";
@@ -88,7 +89,10 @@ export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTex
   );
 }
 
-/// Label, control, and the hint or error under it.
+/// A control with its label notched into the top border, and the hint or error under it.
+/// Every Input, Textarea, AffixInput and Select goes through this, so every form reads
+/// the same. The label names the control (for/id, and aria-labelledby through context);
+/// the hint and error describe it.
 export function Field({
   label,
   htmlFor,
@@ -97,7 +101,6 @@ export function Field({
   error,
   children,
   className,
-  inline,
 }: {
   label: ReactNode;
   htmlFor?: string;
@@ -106,33 +109,41 @@ export function Field({
   error?: ReactNode;
   children: ReactNode;
   className?: string;
-  /// Label beside the control rather than above it.
-  inline?: boolean;
 }) {
+  const base = useId();
+  const labelId = `${base}-label`;
+  const hintId = hint ? `${base}-hint` : undefined;
+  const errorId = error ? `${base}-error` : undefined;
+  const describedBy = [hintId, errorId].filter(Boolean).join(" ") || undefined;
   return (
-    <div
-      className={cx(
-        "min-w-0",
-        inline ? "grid items-center gap-3 sm:grid-cols-[200px_1fr]" : "flex flex-col gap-1.5",
-        className,
-      )}
-    >
-      <label htmlFor={htmlFor} className="text-[13px] font-semibold text-ink-2">
-        {label}
-        {required && (
-          <span className="ml-0.5 text-rose-600" aria-hidden="true">
-            *
-          </span>
-        )}
-      </label>
-      <div className="min-w-0">
-        {children}
+    <FieldProvider value={{ labelId, describedBy, invalid: !!error }}>
+      {/* The notch hangs 8px above the box; the top padding keeps it clear of whatever is above. */}
+      <div className={cx("min-w-0 pt-2", className)}>
+        <div className={NOTCH_WRAP}>
+          <label id={labelId} htmlFor={htmlFor} className={NOTCH_LABEL}>
+            {label}
+            {required && (
+              <span className="ml-0.5 text-rose-600" aria-hidden="true">
+                *
+              </span>
+            )}
+          </label>
+          {children}
+        </div>
         {/* Both, when both exist: the hint says what the field is for, and a refused
             value is easier to correct with that still in view. */}
-        {hint && <p className="mt-1.5 text-[12.5px] text-ink-3">{hint}</p>}
-        {error && <p className="mt-1 text-[12.5px] font-medium text-rose-600">{error}</p>}
+        {hint && (
+          <p id={hintId} className="mt-1.5 text-[12.5px] text-ink-3">
+            {hint}
+          </p>
+        )}
+        {error && (
+          <p id={errorId} className="mt-1 text-[12.5px] font-medium text-rose-600">
+            {error}
+          </p>
+        )}
       </div>
-    </div>
+    </FieldProvider>
   );
 }
 
