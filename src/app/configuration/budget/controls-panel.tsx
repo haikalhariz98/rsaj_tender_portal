@@ -19,7 +19,7 @@ import { AffixInput, Field, Select, Switch } from "@/components/ui/field";
 import { Stat } from "@/components/ui/stat";
 import { type BudgetCode, type Movement } from "@/lib/budget/codes";
 import type { BudgetControls } from "@/lib/budget/load";
-import { OUTCOME_WORD, workedExample } from "@/lib/budget/controls";
+import { exampleSentence, outcomeTitle, workedExample } from "@/lib/budget/controls";
 import { formatCompactRM } from "@/lib/format";
 import { parseSen, senToDecimalString } from "@/lib/money";
 
@@ -222,7 +222,7 @@ export function ControlsPanel({
                     tone="neutral"
                     label="Amount"
                     value={formatCompactRM(example.amount)}
-                    hint="A sen more than is left, so the setting shows"
+                    hint={example.overspent ? "Any amount exceeds it" : "A sen more than is left, so the setting shows"}
                     variant="inset" size="sm"
                   />
                   <Stat
@@ -260,20 +260,9 @@ export function ControlsPanel({
                       <XIcon size={18} />
                     )
                   }
-                  title={OUTCOME_WORD[example.outcome]}
+                  title={outcomeTitle(example.outcome)}
                 >
-                  {example.outcome === "NOT_SET" ? (
-                    <>
-                      A requirement of {formatCompactRM(example.amount)} on{" "}
-                      {example.code.code} today would exceed the balance, and nobody
-                      has said whether the portal should hold it or let it through.
-                    </>
-                  ) : (
-                    <>
-                      A requirement of {formatCompactRM(example.amount)} on{" "}
-                      {example.code.code} today would be {OUTCOME_WORD[example.outcome]}.
-                    </>
-                  )}
+                  {exampleSentence(example, { amount: formatCompactRM(example.amount), available: formatCompactRM(example.available) })}
                 </Callout>
               </div>
             )}

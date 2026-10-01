@@ -35,6 +35,12 @@ export const OUTCOME_WORD: Record<CheckOutcome, string> = {
   NOT_SET: "undecided",
 };
 
+/// The outcome as a sentence-case title: "Held", not "held".
+export function outcomeTitle(o: CheckOutcome): string {
+  const w = OUTCOME_WORD[o];
+  return w.charAt(0).toUpperCase() + w.slice(1);
+}
+
 export interface WorkedExample {
   code: BudgetCode;
   available: Sen;
@@ -44,6 +50,29 @@ export interface WorkedExample {
   /// Where the code's utilisation would land if the requirement went through.
   utilisationAfter: number | null;
   outcome: CheckOutcome;
+  /// The code has nothing left (already spent or committed past its allocation). No
+  /// code with a balance exists to illustrate against, so the example says so.
+  overspent: boolean;
+}
+
+/**
+ * What the example says, in words. A code with a balance is asked about one sen more
+ * than is left. An overspent one is not: asking "a sen more than a negative balance"
+ * is nonsense, so it says the code is already over and what the setting does to
+ * anything further.
+ */
+export function exampleSentence(e: WorkedExample, f: { amount: string; available: string }): string {
+  if (e.overspent) {
+    const what =
+      e.outcome === "NOT_SET"
+        ? "nobody has said whether the portal should hold a requirement that exceeds the balance or let it through"
+        : `any requirement on it would be ${OUTCOME_WORD[e.outcome]}`;
+    return `${e.code.code} is already overspent (${f.available} available), and no budget code with a balance is left to illustrate against. As things stand, ${what}.`;
+  }
+  if (e.outcome === "NOT_SET") {
+    return `A requirement of ${f.amount} on ${e.code.code} today would exceed the balance, and nobody has said whether the portal should hold it or let it through.`;
+  }
+  return `A requirement of ${f.amount} on ${e.code.code} today would be ${OUTCOME_WORD[e.outcome]}.`;
 }
 
 /**
@@ -67,12 +96,15 @@ export function workedExample(
     .filter((c) => c.figures.allocated > 0n);
   if (candidates.length === 0) return null;
 
-  // The one closest to running out is the one worth asking about.
-  candidates.sort((a, b) => (b.figures.utilisation ?? 0) - (a.figures.utilisation ?? 0));
-  const { code, figures } = candidates[0];
+  // The one closest to running out is the one worth asking about, among those that
+  // still have a balance: a sen more than a negative balance asks nothing.
+  const closest = (a: (typeof candidates)[number], b: (typeof candidates)[number]) => (b.figures.utilisation ?? 0) - (a.figures.utilisation ?? 0);
+  const withBalance = candidates.filter((c) => c.figures.available > 0n).sort(closest);
+  const { code, figures } = (withBalance.length > 0 ? withBalance : candidates.sort(closest))[0];
 
   const available = figures.available;
-  const amount = available > 0n ? available + 1n : 1n;
+  const overspent = available <= 0n;
+  const amount = overspent ? 1n : available + 1n;
   const used = addSen(addSen(figures.committed, figures.actualSpend), amount);
   const utilisationAfter =
     figures.allocated > 0n ? Number((used * 10000n) / figures.allocated) / 100 : null;
@@ -83,5 +115,6 @@ export function workedExample(
     amount,
     utilisationAfter,
     outcome: outcomeFor(availabilityCheck, fitsWithin(available, amount)),
+    overspent,
   };
 }
