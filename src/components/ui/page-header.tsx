@@ -5,6 +5,16 @@ import { cutAtWord } from "@/lib/ui/cut-text";
 import { cx } from "./cx";
 import { MoreText } from "./more-text";
 
+const Fact = ({ children }: { children: ReactNode }) => (
+  <span className="relative inline-flex min-w-0 items-center gap-1.5 pl-4">
+    <span className="absolute left-1 text-ink-4" aria-hidden="true">•</span>
+    {children}
+  </span>
+);
+
+/// Each fact on its own, except that the last two are one unit once there are three or more.
+const groupFacts = (facts: ReactNode[]): ReactNode[][] => (facts.length >= 3 ? [...facts.slice(0, -2).map((f) => [f]), facts.slice(-2)] : facts.map((f) => [f]));
+
 /// The head of every screen: a large friendly title, a sentence under it, an
 /// optional row of facts, and the screen's actions on the right.
 export function PageHeader({
@@ -75,12 +85,19 @@ export function PageHeader({
           // no stray "•". The 4px clip margin keeps a focused link's ring whole.
           <div className="mt-3 overflow-x-clip [overflow-clip-margin:4px]">
             <div className="-ml-4 flex flex-wrap items-center gap-y-1.5 text-[13px] text-ink-3">
-              {facts.map((f, i) => (
-                <span key={i} className="relative inline-flex min-w-0 items-center gap-1.5 pl-4">
-                  <span className="absolute left-1 text-ink-4" aria-hidden="true">•</span>
-                  {f}
-                </span>
-              ))}
+              {/* The last two facts wrap together where there are three or more, so a line never
+                  ends with one fact alone ("Quotation") beside a row that has room for two. */}
+              {groupFacts(facts).map((g, i) =>
+                g.length === 1 ? (
+                  <Fact key={i}>{g[0]}</Fact>
+                ) : (
+                  <span key={i} className="inline-flex min-w-0 flex-wrap items-center gap-y-1.5">
+                    {g.map((f, j) => (
+                      <Fact key={j}>{f}</Fact>
+                    ))}
+                  </span>
+                ),
+              )}
             </div>
           </div>
         )}

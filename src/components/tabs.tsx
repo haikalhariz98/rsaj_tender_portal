@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type CSSProperties, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 
 import { ChevronLeft, ChevronRight } from "@/components/icons";
-import { navigatesOnSelect, tabKeyMove } from "@/lib/ui/tab-keys";
+import { navigatesOnSelect, sectionToOpen, tabKeyMove } from "@/lib/ui/tab-keys";
 
 /**
  * The tab strip under a Configuration screen's header. One component, so every
@@ -105,8 +105,13 @@ export function Tabs({
   tabs,
   initial,
   label = "Sections",
+  dense: denseAsked,
 }: {
   tabs: TabSpec[];
+  /// Tighten the strip and drop its icons below the widest screens. By default a strip does it
+  /// when it has more than six tabs; a screen whose tab set varies from one record to the next
+  /// says so itself, so its strip looks the same on every record.
+  dense?: boolean;
   initial?: string;
   /// What the strip is, for a screen reader.
   label?: string;
@@ -124,7 +129,7 @@ export function Tabs({
   const pathname = usePathname();
   // A long strip drops its icons and tightens below the widest screens, so every tab
   // fits beside the sidebar instead of scrolling the last ones out of sight.
-  const dense = tabs.length > 6;
+  const dense = denseAsked ?? tabs.length > 6;
   const current = tabs.find((t) => t.id === active) ?? tabs[0];
   // Roving focus: the tab the keyboard is on, which may be ahead of the one selected (a tab
   // with sections is selected only on Enter, Space or a click). Null: focus follows selection.
@@ -144,13 +149,15 @@ export function Tabs({
     setFocused(null);
     // A tab with sections is loaded by the server, one section at a time: go and get it.
     if (next?.sections && navigatesOnSelect(next)) {
-      if (id !== current?.id) router.push(sectionHref(pathname, id, next.sections[0].id), { scroll: false });
+      // Back to a tab that has sections lands on the section the address last named, if it is one of its.
+      const section = sectionToOpen(next.sections, new URL(window.location.href).searchParams.get("section"));
+      if (id !== current?.id && section) router.push(sectionHref(pathname, id, section), { scroll: false });
       return;
     }
     const url = new URL(window.location.href);
     url.searchParams.set("tab", id);
-    // Another tab's section is not this tab's.
-    url.searchParams.delete("section");
+    // The section stays in the address: it is only used when it is one of the sectioned tab's own, so
+    // returning to that tab finds the section the officer was on.
     window.history.replaceState(null, "", url);
   };
 

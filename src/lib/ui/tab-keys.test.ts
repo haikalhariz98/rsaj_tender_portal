@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { navigatesOnSelect, tabKeyMove } from "./tab-keys";
+import { navigatesOnSelect, sectionToOpen, tabKeyMove } from "./tab-keys";
 
 // The exercise page's shape: plain tabs around one with sections (Scope and estimate).
 const tabs = [{ id: "classification" }, { id: "contract" }, { id: "scope", sections: [{ id: "scope" }, { id: "bq" }, { id: "estimate" }] }, { id: "award" }, { id: "history" }];
@@ -41,5 +41,18 @@ describe("the tab strip's keys", () => {
     expect(navigatesOnSelect({ id: "x" })).toBe(false);
     expect(navigatesOnSelect({ id: "x", sections: [] })).toBe(false);
     expect(navigatesOnSelect({ id: "x", sections: [{}] })).toBe(true);
+  });
+});
+
+describe("sectionToOpen: coming back to a tab with sections", () => {
+  const sections = [{ id: "scope" }, { id: "bq" }, { id: "estimate" }];
+  it("lands on the section the address last named, if it is one of the tab's", () => {
+    expect(sectionToOpen(sections, "estimate")).toBe("estimate");
+    expect(sectionToOpen(sections, "bq")).toBe("bq");
+  });
+  it("falls back to the first for none, or for a section of some other tab", () => {
+    expect(sectionToOpen(sections, null)).toBe("scope");
+    expect(sectionToOpen(sections, "window")).toBe("scope");
+    expect(sectionToOpen([], "bq")).toBeNull();
   });
 });

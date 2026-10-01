@@ -45,11 +45,12 @@ export function Blocked({ label, reason, primary, destructive, noteId }: { label
     );
   }
   return (
-    <span className="inline-flex max-w-full items-center gap-2">
+    // On a phone the reason goes under the button: beside it, it is squeezed into a few words a line.
+    <span className="inline-flex max-w-full flex-col items-start gap-1.5 sm:flex-row sm:items-center sm:gap-2">
       <Button size="sm" variant={variant} disabled title={reason}>
         {label}
       </Button>
-      <span className="max-w-64 text-[12px] leading-tight text-ink-3">{reason}</span>
+      <span className="max-w-full text-[12px] leading-tight text-ink-3 sm:max-w-64">{reason}</span>
     </span>
   );
 }

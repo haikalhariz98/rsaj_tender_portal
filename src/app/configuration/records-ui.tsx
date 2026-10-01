@@ -48,8 +48,11 @@ export function Section({
   empty,
   count,
   action,
+  id,
   children,
 }: {
+  /// An anchor, so a link from another screen (a readiness finding) lands on this card.
+  id?: string;
   title: string;
   blurb: string;
   empty: string;
@@ -59,7 +62,7 @@ export function Section({
   children: ReactNode;
 }) {
   return (
-    <Card className="mb-6 overflow-hidden">
+    <Card id={id} className="mb-6 scroll-mt-24 overflow-hidden">
       <CardHeader
         title={
           <span className="inline-flex items-center gap-2">

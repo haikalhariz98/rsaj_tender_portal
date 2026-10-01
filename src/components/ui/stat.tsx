@@ -50,8 +50,8 @@ export function Stat({
       <div
         className={cx(
           "mt-2 leading-none font-bold tracking-[-0.02em] whitespace-nowrap tabular-nums",
-          // A figure is never truncated; the tile scales the type to the room it has.
-          size === "sm" ? "text-[22px]" : "text-[26px] @[15rem]:text-[30px]",
+          // A figure is never truncated; the tile scales the type to the room it has (two tiles across a phone are narrower than 12rem).
+          size === "sm" ? "text-[22px] @max-[12rem]:text-[16px]" : "text-[26px] @max-[12rem]:text-[16px] @[15rem]:text-[30px]",
           value == null ? "text-ink-4" : "text-ink",
         )}
       >

@@ -1,3 +1,6 @@
+import { FileIcon } from "@/components/icons";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { ownerPanel, uploadContext } from "@/lib/documents/read";
 import type { OwnerRef } from "@/lib/documents/repo";
@@ -16,7 +19,15 @@ import { AttachmentPanel } from "./attachment-panel";
  * exercise's method needs a dossier; an award's return needs its scans); everything
  * the panel decides comes from `read.ts`.
  */
-export async function OwnerAttachments({ owner, title, subtitle, ...opts }: { owner: OwnerRef; title?: string; subtitle?: string } & PanelOptions) {
+export async function OwnerAttachments({ owner, title, subtitle, collapseWhenEmpty, ...opts }: {
+  owner: OwnerRef;
+  title?: string;
+  subtitle?: string;
+  /// Where every slot is filled only by another step (nothing here is uploaded) and nothing is
+  /// attached, nor was: the panel is one line, its title and what the slot says, not a card of
+  /// empty states. Anything attached, or any slot that can take an upload, shows the whole panel.
+  collapseWhenEmpty?: boolean;
+} & PanelOptions) {
   const [org, panel, upload] = await Promise.all([documentOrg(), ownerPanel(owner), uploadContext()]);
   if (!panel || !upload) {
     return (
@@ -25,5 +36,19 @@ export async function OwnerAttachments({ owner, title, subtitle, ...opts }: { ow
       </EmptyState>
     );
   }
-  return <AttachmentPanel {...panelView(panel, upload, org?.timeZone ?? null, opts)} title={title} subtitle={subtitle} />;
+  const view = panelView(panel, upload, org?.timeZone ?? null, opts);
+  if (collapseWhenEmpty && view.items.length === 0 && view.past.length === 0 && view.slots.length > 0 && view.slots.every((s) => s.attachedBy != null)) {
+    return (
+      <Card>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-5 py-3.5 sm:px-6">
+          <FileIcon size={16} />
+          <span className="text-[14px] font-semibold text-ink">{title ?? "Documents"}</span>
+          {view.slots.map((s) => (
+            <Badge key={s.purpose} tone={s.status.tone}>{s.status.text}</Badge>
+          ))}
+        </div>
+      </Card>
+    );
+  }
+  return <AttachmentPanel {...view} title={title} subtitle={subtitle} />;
 }

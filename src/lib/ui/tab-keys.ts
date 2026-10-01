@@ -17,6 +17,12 @@ export type TabKeyMove = { focus: string; select: boolean };
 /// Whether selecting the tab asks the server for it (a navigation), rather than showing a panel already here.
 export const navigatesOnSelect = (tab: TabKeySpec): boolean => (tab.sections?.length ?? 0) > 0;
 
+/// The section to open when a tab with sections is selected: the one the address last named, if
+/// it is one of this tab's, else the first. Coming back to a tab lands where the officer left it.
+export function sectionToOpen(sections: readonly { id: string }[], remembered: string | null): string | null {
+  return sections.find((s) => s.id === remembered)?.id ?? sections[0]?.id ?? null;
+}
+
 /**
  * Where a key moves focus from the focused tab: ArrowRight/ArrowLeft to the next/previous
  * tab (wrapping), Home/End to the first/last. Null for any other key, or an empty strip.
