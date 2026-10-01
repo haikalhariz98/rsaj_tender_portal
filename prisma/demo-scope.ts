@@ -28,6 +28,8 @@
  *   emergency unset; one schedule of rates in two issues, sx5's
  *   roof lines priced from issue 1 and kept after issue 2 superseded it.
  * - demo_sx2, sx4 and sx7 keep no bill, panel or estimate: the empty states.
+ * - 6.4 (X-10 c): demo_sx15's panel is verified on 27 September on its signed form (demo_doc10),
+ *   so its tender documents pass 6.2's readiness when they are submitted.
  *
  * Estimate versions are written with their figures (the demo's own client has no omit) and
  * nothing here prints them; their audit rows read "Sealed (version N)" (ADR 0012).
@@ -293,6 +295,8 @@ export async function loadScope(db: Db, organisationId: string) {
     { id: `${P}spp1`, exerciseId: `${P}sx1`, reference: "DEMO/SX/0001/2026", bq: `${P}bqv1`, bqNo: 1, verified: "2026-09-14", columns: 3, scan: { versionId: `${P}doc7v1`, title: "Signed specification panel form, DEMO/SX/0001/2026" } },
     { id: `${P}spp5`, exerciseId: `${P}sx5`, reference: "DEMO/SX/0005/2026", bq: `${P}bqv2`, bqNo: 1, verified: "2026-09-22", columns: 3, scan: { versionId: `${P}doc8v1`, title: "Signed specification panel form, DEMO/SX/0005/2026" } },
     { id: `${P}spp3`, exerciseId: `${P}sx3`, reference: "DEMO/SX/0003/2026", bq: null, bqNo: null, verified: null, columns: 2, scan: null },
+    // 6.4 (X-10 c): sx15's tender documents go for approval, so its panel is verified on its signed form.
+    { id: `${P}spp15`, exerciseId: `${P}sx15`, reference: "DEMO/SX/0015/2026", bq: `${P}bqv4`, bqNo: 1, verified: "2026-09-27", columns: 3, scan: { versionId: `${P}doc10v1`, title: "Signed specification panel form, DEMO/SX/0015/2026" } },
   ];
   for (const p of panels) {
     const on = p.verified ?? "2026-09-24";

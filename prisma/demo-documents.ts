@@ -83,7 +83,7 @@ export const demoPng = () => initialsLogo("SR", [120, 53, 15], 96);
 
 // ------------------------------------------------------------------ load
 
-interface DemoVersion {
+export interface DemoVersion {
   id: string;
   n: number;
   bytes: Buffer;
@@ -94,7 +94,7 @@ interface DemoVersion {
   withdrawn?: { at: string; reason: string };
 }
 
-interface DemoDoc {
+export interface DemoDoc {
   id: string;
   title: string;
   classId: string;
@@ -102,7 +102,7 @@ interface DemoDoc {
   classification: SecurityClass | null;
   createdAt: string;
   versions: DemoVersion[];
-  attachments: { id: string; purpose: AttachmentPurpose; owner: { meetingId?: string; exerciseId?: string; awardId?: string; delegationId?: string; specificationPanelId?: string; bqVersionId?: string }; ownerLabel: string; versionId: string; at: string; detached?: { at: string; reason: string; replacedBy?: string } }[];
+  attachments: { id: string; purpose: AttachmentPurpose; owner: { meetingId?: string; exerciseId?: string; awardId?: string; delegationId?: string; specificationPanelId?: string; bqVersionId?: string; tenderPackPartId?: string }; ownerLabel: string; versionId: string; at: string; detached?: { at: string; reason: string; replacedBy?: string } }[];
   hold?: { id: string; reason: string; at: string; personId: string; personName: string };
 }
 
@@ -153,6 +153,12 @@ export async function loadDocuments(db: Db, organisationId: string) {
       versions: [{ id: `${P}doc${7 + i}v1`, n: 1, bytes: demoPdf([`Specification panel form (demo, SULIT) — DEMO/SX/${ref}/2026`, "Prepared, checked and approved for issue, signed on paper.", "Listed, never opened in the portal before sign-in."]), mediaType: "application/pdf", filename: `panel-form-${ref}.pdf`, receivedOn: i === 0 ? "2026-09-14" : "2026-09-22", storedAt: i === 0 ? "2026-09-14T15:30" : "2026-09-22T15:30" }],
       attachments: [{ id: `${P}doc${7 + i}a1`, purpose: "SPEC_PANEL_FORM" as const, owner: { specificationPanelId: `${P}spp${i === 0 ? 1 : 5}` }, ownerLabel: `DEMO/SX/${ref}/2026 · Specification panel`, versionId: `${P}doc${7 + i}v1`, at: i === 0 ? "2026-09-14T15:35" : "2026-09-22T15:35" }],
     })),
+    // 6.4 (X-10 c): sx15's panel form, so its tender documents can go for approval honestly.
+    {
+      id: `${P}doc10`, title: "Signed specification panel form, DEMO/SX/0015/2026", classId: `${P}dc2`, className: "Certificates", classification: "SULIT" as const, createdAt: "2026-09-27T15:30",
+      versions: [{ id: `${P}doc10v1`, n: 1, bytes: demoPdf(["Specification panel form (demo, SULIT) — DEMO/SX/0015/2026", "Prepared, checked and approved for issue, signed on paper.", "Listed, never opened in the portal before sign-in."]), mediaType: "application/pdf", filename: "panel-form-0015.pdf", receivedOn: "2026-09-27", storedAt: "2026-09-27T15:30" }],
+      attachments: [{ id: `${P}doc10a1`, purpose: "SPEC_PANEL_FORM" as const, owner: { specificationPanelId: `${P}spp15` }, ownerLabel: "DEMO/SX/0015/2026 · Specification panel", versionId: `${P}doc10v1`, at: "2026-09-27T15:35" }],
+    },
     // 6.2 Q-3: the bill sx15's version 1 was imported from, kept as received (INTERNAL, the officer's choice).
     {
       id: `${P}doc9`, title: "Bill of quantities from the tank's manufacturer, DEMO/SX/0015/2026", ...internal, createdAt: "2026-09-25T09:30",
@@ -166,10 +172,45 @@ export async function loadDocuments(db: Db, organisationId: string) {
     },
   ];
 
+  const entry = await writeDemoDocs(db, organisationId, docs, `${P}docau`, recorder);
+  // The import that attached doc9 also recorded what it added on the bill (importBqCsv).
+  {
+    const d = docs.find((x) => x.id === `${P}doc9`)!;
+    const v = d.versions[0];
+    const { parseBqCsv } = await import("../src/lib/scope/csv");
+    const parsed = parseBqCsv(v.bytes.toString("utf8"));
+    entry("BqVersion", `${P}bqv4`, "DEMO/SX/0015/2026 · Bill of quantities v1", "UPDATE", "2026-09-25T09:35",
+      bqImportAudit({ file: v.filename, documentTitle: d.title, versionNo: 1, sha256: sha(v.bytes), sections: parsed.sections.length, lines: parsed.lineCount, replacedLines: 0, mismatches: parsed.keyedMismatches.length, priced: parsed.priced }));
+  }
+  await entry.flush();
+
+  // The accepted award was accepted on its scan (OD-5): the pin it was accepted on.
+  await db.award.update({
+    where: { id: `${P}aw5` },
+    data: { returnScanSnapshot: { v: 1, purposes: ["ACCEPTANCE_PAGE"], takenOn: "2026-09-21", pins: [{ attachmentId: `${P}doc3a1`, documentId: `${P}doc3`, versionId: `${P}doc3v1`, versionNo: 1, sha256: sha(docs[2].versions[0].bytes), title: docs[2].title, purpose: "ACCEPTANCE_PAGE" }] } },
+  });
+
+  // Access, as the screens would have logged it: the minutes downloaded, the SULIT note refused.
+  await db.documentAccessEvent.createMany({
+    data: [
+      { id: `${P}docev1`, organisationId, versionId: `${P}doc1v1`, kind: "DOWNLOADED", at: at("2026-09-09T09:00") },
+      { id: `${P}docev2`, organisationId, versionId: `${P}doc5v1`, kind: "REFUSED", reasonCode: "SULIT", at: at("2026-09-10T14:30") },
+      { id: `${P}docev3`, organisationId, versionId: `${P}doc2v2`, kind: "VERIFIED", at: at("2026-09-25T15:05") },
+    ],
+  });
+}
+
+/**
+ * Write demo documents as the store's acts would have: each version's bytes, the document,
+ * its versions, attachments (and re-pins, detachments, withdrawals, holds), each with the
+ * trail its act writes. Audit rows are numbered `${auditPrefix}n`; `entry` adds more and
+ * `flush` writes them. Shared with the 6.4 demo (tender pack parts' files).
+ */
+export async function writeDemoDocs(db: Db, organisationId: string, docs: readonly DemoDoc[], auditPrefix: string, recorder: { id: string; name: string }) {
   const audit: { id: string; organisationId: string; entity: string; entityId: string; entityLabel: string; action: "CREATE" | "UPDATE"; at: Date; changes: object[]; reason: string; unattributed: boolean }[] = [];
   let n = 0;
   const entry = (entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", when: string, changes: object[], reason = "") =>
-    audit.push({ id: `${P}docau${++n}`, organisationId, entity, entityId, entityLabel, action, at: at(when), changes, reason, unattributed: true });
+    audit.push({ id: `${auditPrefix}${++n}`, organisationId, entity, entityId, entityLabel, action, at: at(when), changes, reason, unattributed: true });
 
   for (const d of docs) {
     for (const v of d.versions) {
@@ -222,33 +263,12 @@ export async function loadDocuments(db: Db, organisationId: string) {
       entry("LegalHold", d.hold.id, `Document · ${d.title} · legal hold`, "CREATE", d.hold.at, holdPlaced({ reason: d.hold.reason, placedBy: d.hold.personName }), d.hold.reason);
     }
   }
-  // The import that attached doc9 also recorded what it added on the bill (importBqCsv).
-  {
-    const d = docs.find((x) => x.id === `${P}doc9`)!;
-    const v = d.versions[0];
-    const { parseBqCsv } = await import("../src/lib/scope/csv");
-    const parsed = parseBqCsv(v.bytes.toString("utf8"));
-    entry("BqVersion", `${P}bqv4`, "DEMO/SX/0015/2026 · Bill of quantities v1", "UPDATE", "2026-09-25T09:35",
-      bqImportAudit({ file: v.filename, documentTitle: d.title, versionNo: 1, sha256: sha(v.bytes), sections: parsed.sections.length, lines: parsed.lineCount, replacedLines: 0, mismatches: parsed.keyedMismatches.length, priced: parsed.priced }));
-  }
-  await db.auditEntry.createMany({ data: audit as never });
-
-  // The accepted award was accepted on its scan (OD-5): the pin it was accepted on.
-  await db.award.update({
-    where: { id: `${P}aw5` },
-    data: { returnScanSnapshot: { v: 1, purposes: ["ACCEPTANCE_PAGE"], takenOn: "2026-09-21", pins: [{ attachmentId: `${P}doc3a1`, documentId: `${P}doc3`, versionId: `${P}doc3v1`, versionNo: 1, sha256: sha(docs[2].versions[0].bytes), title: docs[2].title, purpose: "ACCEPTANCE_PAGE" }] } },
-  });
-
-  // Access, as the screens would have logged it: the minutes downloaded, the SULIT note refused.
-  await db.documentAccessEvent.createMany({
-    data: [
-      { id: `${P}docev1`, organisationId, versionId: `${P}doc1v1`, kind: "DOWNLOADED", at: at("2026-09-09T09:00") },
-      { id: `${P}docev2`, organisationId, versionId: `${P}doc5v1`, kind: "REFUSED", reasonCode: "SULIT", at: at("2026-09-10T14:30") },
-      { id: `${P}docev3`, organisationId, versionId: `${P}doc2v2`, kind: "VERIFIED", at: at("2026-09-25T15:05") },
-    ],
-  });
+  const flush = async () => {
+    await db.auditEntry.createMany({ data: audit as never });
+    audit.length = 0;
+  };
+  return Object.assign(entry, { flush });
 }
-
 
 async function retentionOfClass(db: Db, classId: string) {
   const c = await db.documentClass.findUniqueOrThrow({ where: { id: classId } });

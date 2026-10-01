@@ -7,6 +7,7 @@ import { checkAwards, loadAwards, loadAwardSetup, reportAwardRefusal, wipeAwards
 import { loadDocuments, planDocumentWipe, reportDocumentRefusal, wipeDocuments } from "./demo-documents";
 import { checkScope, loadScope, loadScopeExercises, loadScopeSitting, SCOPE_ENTITIES, scopeWipeDependents, screenHoldingsOnDemo, wipeScope } from "./demo-scope";
 import { loadSittingTrail } from "./demo-sitting-trail";
+import { checkTenderDocs, loadTenderDocs, tenderDocsDependents, wipeTenderDocs } from "./demo-tender-docs";
 import { removedWithDemo } from "../src/lib/documents/demo-wipe-plan";
 import { inspectLogo } from "../src/lib/organisation/logo";
 import { initialsLogo } from "../src/lib/organisation/png";
@@ -303,12 +304,17 @@ async function wipe() {
       ].join("\n"),
     );
   }
+  // 6.4: a real pack standing on a demo template is never removed under it, whatever the flag.
+  const tenderDependents = await tenderDocsDependents(db, org.id, hangingExerciseIds);
+  if (tenderDependents.length) {
+    console.error(["Refused whatever the flag: these tender documents are not demo data and draw a demo template:", ...tenderDependents, "Nothing was removed. Choose another template for those parts first."].join("\n"));
+  }
   if (scopeDependents.hard.length) {
     console.error(["Refused whatever the flag: these bill lines are not demo data and were priced from a demo schedule of rates, which keeps their price's source; no wipe rewrites a bill line:", ...scopeDependents.hard, "Nothing was removed. Re-enter or re-price those lines first."].join("\n"));
   }
   const documentsRefused = reportDocumentRefusal(documentPlan);
   const awardsRefused = reportAwardRefusal(awardCheck);
-  if (requisitionsRefused || documentsRefused || awardsRefused || scopeDependents.hard.length) {
+  if (requisitionsRefused || documentsRefused || awardsRefused || scopeDependents.hard.length || tenderDependents.length) {
     process.exitCode = 1;
     return;
   }
@@ -317,6 +323,8 @@ async function wipe() {
   // Nothing refused: removal starts here. Attachments pin meetings, exercises, awards and
   // delegations: the documents go before any of them (their keys refuse a delete).
   await wipeDocuments(db, org.id, documentPlan);
+  // 6.4: packs before the bills, templates and routes they point at (their parts' files went with the documents).
+  await wipeTenderDocs(db, org.id, hangingExerciseIds);
   await wipeAwards(db, org.id, awardCheck);
   // 6.2: bills, panels and estimates on the demo's exercises and those removed with it (their scans went with the documents).
   await wipeScope(db, org.id, hangingExerciseIds);
@@ -1136,8 +1144,13 @@ async function load() {
   await snapshotMinuted(scopeSittings);
   // Documents last: they attach to sittings, exercises, awards, delegations and panels.
   await loadDocuments(db, organisationId);
-  // X-10 c: every 6.2 row passes the checks of its act, judged once the scans are attached.
+  // X-10 c: every 6.2 row passes the checks of its act, judged once the scans are attached and
+  // before 6.4 moves the exercises on (each act judged in the state it was made in).
   await checkScope();
+  // 6.4: tender and quotation documents, after the scope rows and documents they stand on;
+  // each act checked by the product's own rules as it is written, then the whole read back.
+  await loadTenderDocs(db, organisationId);
+  await checkTenderDocs(db);
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
   console.log("Remove it with: npm run demo:wipe");
