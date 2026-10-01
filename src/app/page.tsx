@@ -138,7 +138,7 @@ export default async function Dashboard() {
           value={data.exercises.open}
           tone="brand"
           icon={<GlobeIcon size={17} />}
-          hint={data.exercises.total === 0 ? "none started yet" : data.exercises.byStatus.map((b) => `${b.count} ${EXERCISE_STATUS_LABEL[b.status].toLowerCase()}`).join(" · ")}
+          hint={data.exercises.total === 0 ? "none started yet" : [...data.exercises.openByStatus.map((b) => `${b.count} ${EXERCISE_STATUS_LABEL[b.status].toLowerCase()}`), ...(data.exercises.cancelled > 0 ? [`${data.exercises.cancelled} cancelled, not counted`] : [])].join(" · ")}
         />
         <Stat
           label="Value approved"

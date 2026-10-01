@@ -57,6 +57,11 @@ describe("exercises by status (exerciseTally)", () => {
     expect(t.byStatus).toEqual([{ status: "DRAFT", count: 3 }, { status: "DOCUMENTS_IN_PREPARATION", count: 1 }, { status: "CANCELLED", count: 1 }]);
     expect(t).toMatchObject({ open: 4, total: 5 });
   });
+  it("the open breakdown adds up to the open headline; cancelled is counted apart", () => {
+    const t = exerciseTally(["DRAFT", "DRAFT", "CANCELLED", "DOCUMENTS_IN_PREPARATION", "DRAFT"], order);
+    expect(t.openByStatus.reduce((n, b) => n + b.count, 0)).toBe(t.open);
+    expect(t.cancelled).toBe(1);
+  });
   it("is all zeros, not absent, when there are none", () => {
     expect(exerciseTally([], order)).toMatchObject({ open: 0, total: 0, byStatus: [{ count: 0 }, { count: 0 }, { count: 0 }] });
   });

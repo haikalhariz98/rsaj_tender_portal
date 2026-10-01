@@ -19,7 +19,9 @@ export function committedSen(decisions: readonly { outcome: string; domain: stri
  * Sourcing exercises tallied by status, every status listed (a status with none counts
  * 0, which is a true count here, not an unset one). `open` is those not cancelled.
  */
-export function exerciseTally<S extends string>(statuses: readonly S[], order: readonly S[]): { open: number; total: number; byStatus: { status: S; count: number }[] } {
+export function exerciseTally<S extends string>(statuses: readonly S[], order: readonly S[]): { open: number; total: number; byStatus: { status: S; count: number }[]; openByStatus: { status: S; count: number }[]; cancelled: number } {
   const byStatus = order.map((status) => ({ status, count: statuses.filter((s) => s === status).length }));
-  return { open: statuses.filter((s) => (s as string) !== "CANCELLED").length, total: statuses.length, byStatus };
+  // The headline counts the open; its breakdown must add up to it, so cancelled is said apart and statuses with none are left out.
+  const openByStatus = byStatus.filter((b) => (b.status as string) !== "CANCELLED" && b.count > 0);
+  return { open: statuses.filter((s) => (s as string) !== "CANCELLED").length, total: statuses.length, byStatus, openByStatus, cancelled: statuses.filter((s) => (s as string) === "CANCELLED").length };
 }
