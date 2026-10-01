@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
-import { diffFields } from "@/lib/audit/diff";
-import { auditedCreate, auditedDelete, auditedUpdate, writeAudit } from "@/lib/audit/record";
+import { diffFields, snapshotFields } from "@/lib/audit/diff";
+import { auditedCreate, auditedUpdate, writeAudit, type Tx } from "@/lib/audit/record";
 import { isTimeZone } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { inForceOn } from "@/lib/effective";
@@ -307,6 +307,12 @@ function refreshEverywhere() {
   revalidatePath(PATH);
 }
 
+/// Lock the organisation's row for the rest of the transaction. Every write to its
+/// details or its logo takes it, so the trail's "before" is what the write replaced.
+async function lockOrganisation(tx: Tx, id: string) {
+  await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${id} FOR UPDATE`;
+}
+
 /**
  * Save the organisation's identity details. The legal name is the only required field.
  * The change is audited, before and after, in the same transaction as the write. Issued
@@ -321,13 +327,17 @@ export async function saveDetails(_prev: FormState, data: FormData): Promise<For
   if (Object.keys(faults).length > 0) return { ok: false, errors: faults as Record<string, string> };
 
   const after = normaliseDetails(input);
-  const before = Object.fromEntries(DETAIL_FIELDS.map((f) => [f, org[f]]));
-  const { changed } = await auditedUpdate(
-    { organisationId: org.id, entity: "Organisation", entityId: org.id, entityLabel: org.name, reason: String(data.get("reason") ?? "") },
-    before,
-    after,
-    (tx) => tx.organisation.update({ where: { id: org.id }, data: after }),
-  );
+  const changed = await db.$transaction(async (tx) => {
+    // The details as they stand under the lock, not as they were read for the form.
+    await lockOrganisation(tx, org.id);
+    const locked = await tx.organisation.findUniqueOrThrow({ where: { id: org.id } });
+    const changes = diffFields(Object.fromEntries(DETAIL_FIELDS.map((f) => [f, locked[f]])), after);
+    await tx.organisation.update({ where: { id: org.id }, data: after });
+    if (changes.length > 0) {
+      await writeAudit(tx, { organisationId: org.id, entity: "Organisation", entityId: org.id, entityLabel: locked.name, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
+    }
+    return changes.length > 0;
+  });
   refreshEverywhere();
   return { ok: true, message: changed ? "Saved. The new details show across the portal now." : "Nothing changed." };
 }
@@ -353,7 +363,10 @@ export async function uploadLogo(_prev: FormState, data: FormData): Promise<Form
 
   const file = data.get("logo");
   if (!(file instanceof File) || file.size === 0) return { ok: false, errors: { logo: logoFaultText("EMPTY", 0) } };
-  // Refused on the declared size before the bytes are read into memory.
+  // By now Next has already read and parsed the whole request body, capped by
+  // serverActions.bodySizeLimit in next.config.ts (just above this limit), and the form
+  // refuses a larger file before sending it. This catches a file between the logo limit
+  // and that cap, with the same message the form gives, before its bytes are copied.
   if (file.size > LOGO_MAX_BYTES) return { ok: false, errors: { logo: logoFaultText("TOO_LARGE", file.size) } };
 
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -361,6 +374,9 @@ export async function uploadLogo(_prev: FormState, data: FormData): Promise<Form
   if (!check.ok) return { ok: false, errors: { logo: logoFaultText(check.fault, check.sizeBytes) } };
 
   const outcome = await db.$transaction(async (tx) => {
+    // Under the organisation's lock, as removing the logo is: the prior logo recorded is
+    // the one this upload replaces.
+    await lockOrganisation(tx, org.id);
     const prior = await tx.organisationLogo.findUnique({ where: { organisationId: org.id }, select: { sha256: true, mediaType: true, sizeBytes: true, width: true, height: true } });
     if (prior?.sha256 === check.sha256) return "SAME" as const;
     const row = {
@@ -397,14 +413,16 @@ export async function removeLogo(_prev: FormState, data: FormData): Promise<Form
   if (!org) return NO_ORG;
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "Say why the logo is being removed." } };
-  const logo = await db.organisationLogo.findUnique({ where: { organisationId: org.id }, select: { id: true, sha256: true, mediaType: true, sizeBytes: true, width: true, height: true } });
-  if (!logo) return { ok: false, message: "There is no logo to remove." };
-
-  await auditedDelete(
-    { organisationId: org.id, entity: "OrganisationLogo", entityId: logo.id, entityLabel: org.name, reason },
-    logoFacts(logo),
-    (tx) => tx.organisationLogo.delete({ where: { id: logo.id } }),
-  );
+  const result = await db.$transaction(async (tx): Promise<FormState> => {
+    // The logo as it stands under the lock: an upload meanwhile is the one removed and recorded.
+    await lockOrganisation(tx, org.id);
+    const logo = await tx.organisationLogo.findUnique({ where: { organisationId: org.id }, select: { id: true, sha256: true, mediaType: true, sizeBytes: true, width: true, height: true } });
+    if (!logo) return { ok: false, message: "There is no logo to remove." };
+    await tx.organisationLogo.delete({ where: { id: logo.id } });
+    await writeAudit(tx, { organisationId: org.id, entity: "OrganisationLogo", entityId: logo.id, entityLabel: org.name, reason }, "DELETE", snapshotFields(logoFacts(logo)));
+    return { ok: true };
+  });
+  if (!result.ok) return result;
   refreshEverywhere();
   return { ok: true };
 }
