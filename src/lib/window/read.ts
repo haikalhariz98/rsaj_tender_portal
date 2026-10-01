@@ -47,6 +47,8 @@ const delivery = (d: { method: keyof typeof DELIVERY_METHOD_LABEL | null; consig
   consignment: d.consignmentRef || null,
   sentOn: d.despatchedOn ? day(d.despatchedOn) : "Not recorded",
   acknowledgedOn: d.acknowledgedOn ? day(d.acknowledgedOn) : "Not recorded",
+  /// As stored, for the form that records it: sending the form again must not erase what was recorded.
+  raw: { method: d.method ?? "", consignmentRef: d.consignmentRef, despatchedOn: d.despatchedOn ? storedDay(d.despatchedOn) : "", acknowledgedOn: d.acknowledgedOn ? storedDay(d.acknowledgedOn) : "" },
 });
 
 /// The exercise, its organisation and the window's data, read for display (no lock).
@@ -209,6 +211,8 @@ export async function saleRegister(exerciseId: string) {
   const sales = w?.sales ?? [];
   const addenda = (w?.addenda ?? []).filter((a) => a.status === "ISSUED");
   return {
+    pathKey: pathOf(d).path,
+    status: ex.status,
     phase: PHASE_LABEL[phase],
     open: phase === "OPEN_FOR_PURCHASE" ? { allowed: true as const } : { allowed: false as const, reason: windowFindingText({ code: "SALE_CLOSED", level: "block", data: { phase } }) },
     restricted: ex.restrictedTender === true ? { label: d.tender.restrictionLabel ?? "Restricted", asks: "The original or a certified copy of the purchaser's status certificate, and the day it is valid until." } : null,
@@ -237,7 +241,7 @@ export async function saleRegister(exerciseId: string) {
       };
     }),
     reconciliation: uncollectedReceipts(sales).map((s) => ({ id: s.id, purchaser: s.party.name, soldOn: day(s.soldOn), amount: money(s.amount) })),
-    parties: d.parties.map((p) => ({ id: p.id, name: p.name, registrationNo: p.registrationNo, cameAs: PARTY_SOURCE_LABEL[p.source] })),
+    parties: d.parties.map((p) => ({ id: p.id, name: p.name, registrationNo: p.registrationNo, cameAs: PARTY_SOURCE_LABEL[p.source], invited: p.source === "PROPOSED_INVITEE" })),
   };
 }
 
@@ -254,6 +258,9 @@ export async function briefingTab(exerciseId: string) {
   const events = d.window?.events ?? [];
   const facts = d.window ? eventFactsOf(d.window) : [];
   return {
+    pathKey: pathOf(d).path,
+    status: ex.status,
+    parties: d.parties.map((p) => ({ id: p.id, name: p.name, registrationNo: p.registrationNo, invited: p.source === "PROPOSED_INVITEE" })),
     schedule: allowed(windowEditFault(ex.status, ex.packKindSnapshot)),
     mandatoryOffered: permitted === true,
     events: events.map((e, i) => ({
@@ -297,6 +304,11 @@ export async function addendaTab(exerciseId: string) {
   const phase = phaseOf(ex, w, now, org.timeZone).phase;
   const recipients = w ? recipientsFor(w.sales, w.letters.map((l) => ({ partyId: l.partyId }))) : [];
   return {
+    status: ex.status,
+    /// Applied closing changes an addendum may announce (the choice offered on a draft).
+    closingChanges: (w?.closingChanges ?? []).filter((c) => c.appliedAt).map((c) => ({ value: c.id, label: `${CLOSING_CHANGE_KIND_LABEL[c.kind]} to ${formatOrgDateTime(c.toClosingAt, org.timeZone)}` })),
+    /// How many a draft issued now would go to: the register as it stands (FR-ADV-012).
+    willGoTo: recipients.length,
     draft: allowed(addendumWindowFault(phase)),
     addenda: (w?.addenda ?? []).map((a) => {
       const signedCopies = a.attachments.filter((x) => !x.detachedAt && !x.version.withdrawnAt).length;
@@ -401,3 +413,34 @@ export async function windowColumns(exerciseIds: readonly string[]) {
 export const closingWeekDay = (closingAt: Date, timeZone: string) => dayIn(closingAt, timeZone);
 
 export type { Loaded };
+
+/// FR-DOC-010: whether the Tender Table Document is available now, in words, from the window's phase (ADR 0014).
+export async function tableDocumentNote(exerciseId: string): Promise<string | null> {
+  const l = await loadExercise(exerciseId);
+  if (!l) return null;
+  const w = await db.exerciseWindow.findUnique({ where: { exerciseId }, select: { purchaseFromDay: true, purchaseCloseDay: true } });
+  const phase = phaseOf(l.ex, w, new Date(), l.org.timeZone).phase;
+  return TABLE_AVAILABILITY_LABEL[tableDocumentAvailability(phase)];
+}
+
+/**
+ * The name approval's invitee list (ADR 0015): the list as it stands beside the list the latest
+ * name route was asked and approved for, whether they agree, and whether the list is frozen (the
+ * exercise is invited). Null where the exercise does not exist.
+ */
+export async function nameListTab(exerciseId: string) {
+  const x = await load(exerciseId);
+  if (!x) return null;
+  const { ex, d } = x;
+  const proposed = proposedInvitees(d.parties);
+  const latest = nameRoutesWithLists(ex, d.invitees)[0] ?? null;
+  const fault = latest ? inviteeListFault(latest.invitees, proposed) : null;
+  const route = latest ? nameRoutesOf(ex.approvalInstances).find((r) => r.id === latest.id) : null;
+  return {
+    invited: pathOf(d).path === "INVITED",
+    frozen: ex.status === "INVITED",
+    proposed: proposed.map((p) => ({ name: p.name, registrationNo: p.registrationNo, onRoute: latest ? latest.invitees.some((a) => regKey(a.registrationNo) === regKey(p.registrationNo)) : null })),
+    route: latest ? { label: nameRouteLabel(latest.status, route?.warnings), state: fault ? windowFindingText(fault) : "The list as approved is the list as proposed." } : null,
+    asked: latest ? latest.invitees.map((a) => ({ name: a.name, registrationNo: a.registrationNo, stillProposed: proposed.some((p) => regKey(p.registrationNo) === regKey(a.registrationNo)) })) : [],
+  };
+}

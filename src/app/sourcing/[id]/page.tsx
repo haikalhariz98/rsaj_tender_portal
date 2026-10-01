@@ -9,14 +9,13 @@ import type { AttachmentFact } from "@/lib/documents/types";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { AwardIcon, ClipboardIcon, ClockIcon, FileIcon, RouteIcon, ShieldIcon, SlidersIcon, ToolsIcon, UsersIcon } from "@/components/icons";
+import { AwardIcon, ClipboardIcon, ClockIcon, FileIcon, GlobeIcon, RouteIcon, ShieldIcon, SlidersIcon, ToolsIcon, UsersIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
 import { EscalateDrawer } from "@/app/approvals/editors";
-import { escalationText } from "@/lib/authority/escalation-labels";
 import { earlierSteps, returnTargetBeforeNext, type RejectionKind } from "@/lib/authority/rejection";
-import { routeCoreText, stepOriginText } from "@/lib/authority/core-routing-labels";
+import { routeCoreText } from "@/lib/authority/core-routing-labels";
 import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { isSulitField } from "@/lib/sulit-fields";
@@ -29,9 +28,9 @@ import { KeyValues, Stat } from "@/components/ui/stat";
 import { fieldLabel } from "@/lib/audit/diff";
 import { routeTone, stepTone } from "@/lib/ui/status-tone";
 import { dayToDate } from "@/lib/dates";
-import { formatDate, formatOrgDay } from "@/lib/format";
+import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
-import { latestFirst, nameRequestFault, nameRouteForRequester, nameRouteLabel, nameRoutesOf, requesterHolding, resolveNameApproval, tenderingRoutesOf } from "@/lib/method/approval";
+import { latestFirst, nameRequestFault, nameRouteForRequester, nameRouteLabel, nameRoutesOf, requesterHolding, resolveNameApproval, tenderingRoutesOf, windowChangeRoutesOf } from "@/lib/method/approval";
 import { disagreesAtBoundary } from "@/lib/method/bands";
 import { determinationDrift } from "@/lib/method/drift";
 import { evaluateExercise } from "@/lib/method/evaluate";
@@ -78,7 +77,12 @@ import { loadAwardPolicy } from "@/lib/award/repo";
 import { ENTITY as TENDER_ENTITY } from "@/lib/tender-docs/audit-view";
 import { awardOpenRefusal, exerciseOpenForAward } from "@/lib/award/gate";
 import type { WindowGate } from "@/lib/window/gate";
+import { WINDOW_ENTITIES } from "@/lib/window/audit-view";
+import { PHASE_LABEL, PHASE_TONE } from "@/lib/window/labels";
 import { readWindowGate } from "@/lib/window/repo";
+import { nameListTab } from "@/lib/window/read";
+import { exerciseMatters } from "@/lib/award/repo";
+import { RouteSteps } from "./route-steps";
 import { tenderingRouteLabel, trailLabel } from "@/lib/tender-docs/labels";
 import type { PackKind } from "@/lib/tender-docs/types";
 import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
@@ -88,6 +92,7 @@ import {
   AddParticipantDrawer,
   CancelExerciseDrawer,
   ChooseTaxonomyDrawer,
+  CiteNameDecisionDrawer,
   EXERCISE_NOTE_ID,
   MoveToPreparationDrawer,
   NameChoiceDrawer,
@@ -99,11 +104,13 @@ import {
   SubmitProposalDrawer,
 } from "../editors";
 import { DocumentsWorkspace } from "./documents/workspace";
+import { INVITATION_SECTIONS, invitationSectionOf, loadInvitation } from "./window/workspace";
 import { SCOPE_SECTIONS, ScopeWorkspace, scopeSectionOf } from "./scope/workspace";
 
 export const dynamic = "force-dynamic";
 
 /// Where a rule or band sits at the boundary, in words; the disagreement is the lib's finding.
+const flagsNeedName = (code: string, methods: { code: string; requiresNameApproval: boolean }[]) => methods.find((m) => m.code === code)?.requiresNameApproval ?? false;
 const boundarySide = (op: string | null | undefined, disagrees: boolean) => (!op ? "no edge at the boundary" : disagrees ? "the other side from its band — see the checks" : "the same side as its band");
 const RESTRICTION_NOTE = "Restriction not enforced until sign-in";
 const money = (v: { toString(): string }) => formatMoney(parseSen(v.toString()));
@@ -182,6 +189,26 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
         ? nameRouteForRequester(ctx.funder, method, Number(ex.estimatedValue.toString()), requesterHolding((code) => holdersFor(code, unitPath, roster, delegations, today), req.requestingPersonId, parseSen(ex.estimatedValue.toString()), (pid) => roster.people.some((p) => p.id === pid && p.isActive && p.isAvailable)))
         : { ...resolveNameApproval(ctx.funder, method, Number(ex.estimatedValue.toString())), refusal: null }
       : null;
+  // Step suggestions: holders of the office for the requisition's unit and their delegates first.
+  const suggestions = (roleCode: string | null) => {
+    if (!roleCode || !today) return activePeople;
+    const h = holdersFor(roleCode, unitPath, roster, delegations, today);
+    const first = [...h.holderIds, ...h.delegates.map((d) => d.personId)];
+    const top = activePeople.filter((p) => first.includes(p.value)).map((p) => ({ ...p, label: `${p.label} — ${h.holderIds.includes(p.value) ? "holds the office" : "delegate"}` }));
+    return [...top, ...activePeople.filter((p) => !first.includes(p.value))];
+  };
+
+
+  // 6.5: the Invitation tab is read one section at a time, and only while it is the tab being looked at.
+  // Its header acts (publish, extend, record a sale...) come with it, so they are never judged for another tab.
+  const published = ex.status === "ADVERTISED" || ex.status === "INVITED";
+  // The name tab's own reads (the invitee list beside the approved one, the committee's matters to cite), only for that tab.
+  const [nameList, nameMatters] = tab === "name" && flagsNeedName(ex.sourcingMethodCode, cfg.config.methods) ? await Promise.all([nameListTab(ex.id), exerciseMatters(ex.id)]) : [null, []];
+  const inv =
+    tab === "invitation"
+      ? await loadInvitation(invitationSectionOf(section), { exerciseId: ex.id, reference: ex.reference, status: ex.status, today, timeZone: org.timeZone, routes: latestFirst(windowChangeRoutesOf(ex.approvalInstances)), people: activePeople, suggestions })
+      : null;
+
   // Asked in draft or in preparation, and again after a refusal or withdrawal (ruling on BD-4).
   const canAskName = live && !!method?.requiresNameApproval && !openName && !approvedName;
   const nameBlocker = !canAskName
@@ -217,12 +244,14 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
 
   // The same rule the cancel action enforces: a live award stands on the exercise.
   const liveAward = exerciseCancelBlockedBy(awards);
-  const cancelBlocker = liveAward ? `award ${liveAward.reference} stands on this exercise — cancel the award first.` : null;
+  // A published exercise is cancelled on its approval route, asked for from the Invitation tab (FR-ADV-016).
+  const cancelBlocker = liveAward ? `award ${liveAward.reference} stands on this exercise — cancel the award first.` : published ? "A published exercise is cancelled from the Invitation tab: it goes to approval with a reason and an answer on the fees." : null;
   const unavailable: [string, string | null][] = [
     ["Submit proposal", draft && method?.requiresProposal && ex.proposalState === "DRAFT" ? submitBlocker : null],
     ["Request name approval", canAskName ? nameBlocker : null],
     ["Move to preparation", draft ? prepBlocker : null],
-    ["Cancel exercise", ex.status !== "CANCELLED" ? cancelBlocker : null],
+    ["Cancel exercise", ex.status !== "CANCELLED" && !(published && inv?.cancel) ? cancelBlocker : null],
+    ...(inv?.notes ?? []).map(([label, why]) => [label, why] as [string, string | null]),
   ];
   const notes = unavailable.filter((x): x is [string, string] => x[1] != null);
   const headerNote =
@@ -282,20 +311,10 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
           }}
         />
       )}
-      {ex.status !== "CANCELLED" && (
-        <CancelExerciseDrawer id={ex.id} blocker={cancelBlocker} />
-      )}
+      {inv?.actions}
+      {ex.status !== "CANCELLED" && (published && inv?.cancel ? inv.cancel : <CancelExerciseDrawer id={ex.id} blocker={cancelBlocker} />)}
     </>
   );
-
-  // Step suggestions: holders of the office for the requisition's unit and their delegates first.
-  const suggestions = (roleCode: string | null) => {
-    if (!roleCode || !today) return activePeople;
-    const h = holdersFor(roleCode, unitPath, roster, delegations, today);
-    const first = [...h.holderIds, ...h.delegates.map((d) => d.personId)];
-    const top = activePeople.filter((p) => first.includes(p.value)).map((p) => ({ ...p, label: `${p.label} — ${h.holderIds.includes(p.value) ? "holds the office" : "delegate"}` }));
-    return [...top, ...activePeople.filter((p) => !first.includes(p.value))];
-  };
 
   const restricted = ex.restricted;
   const tabs = [
@@ -340,6 +359,15 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       // Read only while it is the tab being looked at.
       lazy: true,
       panel: tab === "documents" ? <DocumentsWorkspace exerciseId={ex.id} today={today} timeZone={org.timeZone} routes={latestFirst(tenderingRoutesOf(ex.approvalInstances))} /> : null,
+    },
+    {
+      id: "invitation",
+      label: "Invitation",
+      icon: <GlobeIcon size={15} />,
+      sections: [...INVITATION_SECTIONS],
+      section: invitationSectionOf(section),
+      // Read only while it is the tab being looked at, and only for the section named.
+      panel: inv?.panel ?? null,
     },
     ...(flags?.requiresProposal
       ? [
@@ -416,6 +444,8 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
                 today={today}
                 people={roster.people.filter((p) => p.isActive).map((p) => ({ value: p.id, label: p.name }))}
                 officeName={(code) => (code ? (roster.offices.find((o) => o.code === code)?.nameEn ?? "An office no longer configured") : null)}
+                list={nameList}
+                matters={nameMatters}
               />
             ),
           },
@@ -509,6 +539,9 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
             <Badge tone={EXERCISE_STATUS_TONE[ex.status]} dot>
               {EXERCISE_STATUS_LABEL[ex.status]}
             </Badge>
+            {published && (
+              <Badge tone={PHASE_TONE[windowGateNow.phase]}>{PHASE_LABEL[windowGateNow.phase]}</Badge>
+            )}
             {restricted && <Badge tone="warn">{`Restricted · ${RESTRICTION_NOTE.toLowerCase()}`}</Badge>}
           </>
         }
@@ -519,6 +552,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
           methodName,
           decided?.contractType.nameEn ?? typeName(ex.contractTypeCode) ?? "Contract type not set",
           ex.regime ? REGIME_SHORT[ex.regime as Regime] : "Regime not determined",
+          ...(ex.closingAt ? [<span key="closing">{`${windowGateNow.phase === "CLOSED" ? "Closed" : "Closes"} ${formatOrgDateTime(ex.closingAt, org.timeZone)}`}</span>] : []),
         ]}
         actions={actions}
         actionsNote={headerNote}
@@ -527,8 +561,8 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
 
       <div className="mb-6 flex flex-col gap-3">
         {ex.status !== "CANCELLED" && (
-          <Callout tone="info" title="Sourcing runs outside the portal in this phase">
-            The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
+          <Callout tone="info" title="Bids and evaluation run outside the portal in this phase">
+            The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
           </Callout>
         )}
         {ex.status === "CANCELLED" && (
@@ -965,7 +999,11 @@ function NamePanel({
   today,
   people,
   officeName,
+  list,
+  matters,
 }: {
+  list: Awaited<ReturnType<typeof nameListTab>>;
+  matters: Awaited<ReturnType<typeof exerciseMatters>>;
   people: { value: string; label: string }[];
   officeName: (code: string | null) => string | null;
   l: LoadedExercise;
@@ -980,9 +1018,36 @@ function NamePanel({
   const earlier = latestFirst(nameRoutesOf(ex.approvalInstances)).filter((i) => i.id !== current?.id);
   return (
     <div className="flex flex-col gap-6">
-      <Callout tone="info" title="Name approval recorded; not enforced in this phase">
-        Invitation happens outside the portal in this phase, so the portal records the name approval but cannot hold an invitation back until it is given.
+      <Callout tone="info" title="The name is approved for a list, and invitation is held to it">
+        The letters of invitation go only to the contractors on the list the name was approved for. Changing the list withdraws the approval until the name is asked for again, and once the exercise is invited the list is frozen. Where the route has a committee step, it is discharged by citing the committee&apos;s decision.
       </Callout>
+      {list && list.invited && (
+        <Card className="overflow-hidden">
+          <CardHeader icon={<UsersIcon size={17} />} title="The invitee list" subtitle={list.frozen ? "Frozen: the exercise is invited." : list.route ? `${list.route.label}. ${list.route.state}` : "Proposed on the Invitation tab. The name is asked for with this list."} actions={<Link href={`/sourcing/${ex.id}?tab=invitation&section=window`} className="text-[13px] font-semibold">Open the Invitation tab</Link>} />
+          <CardBody className="grid gap-4 md:grid-cols-2">
+            <div>
+              <p className="mb-2 text-[12px] font-semibold text-ink-3">As it stands</p>
+              {list.proposed.length === 0 ? <p className="text-[13.5px] text-ink-3">Nobody is proposed yet.</p> : (
+                <ul className="flex flex-col gap-1.5 text-[13.5px]">
+                  {list.proposed.map((p) => (
+                    <li key={p.registrationNo} className="flex flex-wrap items-center gap-2"><span className="font-semibold text-ink">{p.name}</span><span className="text-ink-3">{p.registrationNo}</span>{p.onRoute === false && <Chip tone="warn">Not on the approved list</Chip>}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <p className="mb-2 text-[12px] font-semibold text-ink-3">As the name was asked for</p>
+              {list.asked.length === 0 ? <p className="text-[13.5px] text-ink-3">{list.route ? "No list was recorded with this route: it approves no names, so it is asked for again with the list." : "Not asked for yet."}</p> : (
+                <ul className="flex flex-col gap-1.5 text-[13.5px]">
+                  {list.asked.map((p) => (
+                    <li key={p.registrationNo} className="flex flex-wrap items-center gap-2"><span className="font-semibold text-ink">{p.name}</span><span className="text-ink-3">{p.registrationNo}</span>{!p.stillProposed && <Chip tone="warn">No longer proposed</Chip>}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </CardBody>
+        </Card>
+      )}
       {!inst ? (
         <Card>
           <CardHeader icon={<RouteIcon size={17} />} title={TERM.nameApproval} subtitle="Not requested yet." />
@@ -1067,46 +1132,29 @@ function NamePanel({
               Chain beneath the approver: {routeCoreText(inst, (c) => { const n = officeName(c) ?? "an office no longer configured"; return { en: n, ms: n }; }).en}
             </p>
           )}
-          <ol className="divide-y divide-line/70 border-t border-line">
-            {inst.steps.map((s) => {
-              const earlierDone = inst.steps.filter((x) => x.sequence < s.sequence).every((x) => x.decision === "DONE");
+          <RouteSteps
+            inst={inst}
+            stepLabel={(x) => DECISION_LABEL[x]}
+            stepTone={stepTone}
+            decided={(s) => (s.committeeCode ? `${DECISION_LABEL[s.decision]} · ${s.decidedByName ?? "The committee"} · the committee's decision, cited from its sitting · ${formatDate(s.decidedOn)}` : null)}
+            action={(s, { earlierDone }) => {
               const blocker = inst.status !== "PENDING" || s.decision !== "PENDING" ? null : !today ? DECIDER_FAULT_TEXT.TIME_ZONE_UNSET : null;
+              const open = inst.status === "PENDING" && s.decision === "PENDING" && earlierDone;
+              const cited = new Set(nameRoutesOf(ex.approvalInstances).flatMap((i) => i.steps.map((x) => x.committeeDecisionId)).filter(Boolean));
+              const offered = matters
+                .filter((m) => m.domain === "name_approval" && m.meeting.committee.code === s.committeeCode && !cited.has(m.id))
+                .map((m) => ({ value: m.id, label: `${m.meeting.reference} · ${m.subject} · ${m.outcome === "PENDING" ? "not decided yet" : m.outcome === "CARRIED" ? "carried" : m.outcome === "DEFERRED" ? "deferred" : "not carried"}${m.outcome === "PENDING" ? " — cannot be cited until decided" : ""}`, disabled: m.outcome === "PENDING" }));
               return (
-                <li key={s.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-6">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <ActBadge act={s.act} />
-                    <div className="min-w-0">
-                      <div className="font-semibold break-words text-ink">
-                        {s.roleLabel} <span className="font-normal text-ink-3">· {actLabel(s.act)}</span>
-                      </div>
-                      {stepOriginText(inst, s) && <div className="text-[12.5px] text-ink-3">{stepOriginText(inst, s)}</div>}
-                      {s.escalation && (
-                        <div className="text-[12.5px] break-words text-amber-800">
-                          {escalationText({ roleLabel: s.roleLabel, actingRoleLabel: s.actingRoleLabel, escalation: s.escalation, escalationReason: s.escalationReason, declaredByName: s.declaredBy?.name ?? null })}
-                        </div>
-                      )}
-                      <div className="text-[12.5px] text-ink-2">
-                        {s.decision === "PENDING"
-                          ? inst.status === "PENDING"
-                            ? `${earlierDone ? "Awaiting a decision." : "Waits for the step before."}${s.nonDelegable ? " Cannot be delegated." : ""}`
-                            : "Not decided: the route closed."
-                          : `${DECISION_LABEL[s.decision]} · ${s.decidedByName ?? "Not recorded"} · recorded on behalf of, not signed · ${formatDate(s.decidedOn)}${s.delegation ? ` · under delegation from ${s.delegation.fromPerson.name}` : ""}${s.reason ? ` · “${s.reason}”` : ""}`}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-                    {s.decision !== "PENDING" && <Badge tone={stepTone(s.decision)}>{DECISION_LABEL[s.decision]}</Badge>}
-                    {inst.status === "PENDING" && s.decision === "PENDING" && !s.committeeCode && s.roleCode && (
-                      <EscalateDrawer stepId={s.id} office={s.actingRoleLabel ?? s.roleLabel} mandatory={isMandatoryAct(s.act)} people={suggestions(s.actingRoleCode ?? s.roleCode)} />
-                    )}
-                    {inst.status === "PENDING" && s.decision === "PENDING" && earlierDone && (
-                      <NameDecisionDrawer id={ex.id} stepId={s.id} roleLabel={s.roleLabel} act={ACT_LABEL[s.act]} done={ACT_DONE_LABEL[s.act] ?? "Done"} people={suggestions(s.actingRoleCode ?? s.roleCode)} today={today} blocker={blocker} />
-                    )}
-                  </div>
-                </li>
+                <>
+                  {inst.status === "PENDING" && s.decision === "PENDING" && !s.committeeCode && s.roleCode && (
+                    <EscalateDrawer stepId={s.id} office={s.actingRoleLabel ?? s.roleLabel} mandatory={isMandatoryAct(s.act)} people={suggestions(s.actingRoleCode ?? s.roleCode)} />
+                  )}
+                  {open && s.committeeCode && <CiteNameDecisionDrawer id={ex.id} stepId={s.id} committee={s.roleLabel} matters={offered} />}
+                  {open && !s.committeeCode && <NameDecisionDrawer id={ex.id} stepId={s.id} roleLabel={s.roleLabel} act={ACT_LABEL[s.act]} done={ACT_DONE_LABEL[s.act] ?? "Done"} people={suggestions(s.actingRoleCode ?? s.roleCode)} today={today} blocker={blocker} />}
+                </>
               );
-            })}
-          </ol>
+            }}
+          />
         </Card>
       )}
       {earlier.length > 0 && (
@@ -1142,6 +1190,20 @@ const ENTITY_LABEL: Record<string, string> = {
   [TENDER_ENTITY.appendix]: "Appendix",
   [TENDER_ENTITY.variationLimit]: "Variation limit",
   [TENDER_ENTITY.section]: "Appendix section",
+  // 6.5: the invitation window; every value is already in words.
+  ExerciseWindow: "Invitation window",
+  WindowFeeLine: "Fee basis",
+  PublicationRecord: "Publication",
+  ExerciseParty: "Contractor",
+  InvitationLetter: "Letter of invitation",
+  DocumentSale: "Sale of the documents",
+  SiteEvent: "Briefing or site visit",
+  SiteEventAttendance: "Attendance",
+  Addendum: "Addendum",
+  AddendumRecipient: "Addendum copy",
+  ClosingChange: "Closing change",
+  WindowCancellation: "Cancellation",
+  WindowNotice: "Notice of a change",
   SourcingExercise: "Exercise",
   ExerciseScopePart: "Scope",
   ExerciseProposalAnswer: "Proposal item",
@@ -1214,9 +1276,11 @@ function HistoryPanel({
   tenderingRouteIds: ReadonlySet<string>;
 }) {
   // The department estimate (a registered SULIT field) reads with the SULIT chip in the trail too.
-  const chipped = (field: string, value: string | null, entityId: string) => (isSulitField(field) && value ? <SulitValue>{read(field, value, entityId)}</SulitValue> : read(field, value, entityId));
-  const read = (field: string, value: string | null, entityId: string): string => {
+  const chipped = (field: string, value: string | null, entityId: string, entity: string) => (isSulitField(field) && value ? <SulitValue>{read(field, value, entityId, entity)}</SulitValue> : read(field, value, entityId, entity));
+  const read = (field: string, value: string | null, entityId: string, entity: string): string => {
     if (value == null || value === "") return "—";
+    // A window row's values are written in words already (an addendum's "Draft", a sale's "yes"): never read as a stored code.
+    if (WINDOW_ENTITIES.includes(entity)) return value === "yes" ? "Yes" : value === "no" ? "No" : /^\d{4}-\d{2}-\d{2}$/.test(value) ? formatDate(value) : value;
     if (field === "status" && tenderingRouteIds.has(entityId)) return tenderingRouteLabel(value, null);
     if (field === "dominantSharePct") return Number(value) >= 100 ? "One deliverable" : `${pct(value)}%`;
     if (field === "contractBasisCode") return basisName(value) ?? "A basis no longer configured";
@@ -1278,8 +1342,8 @@ function HistoryPanel({
                 <ul className="text-[12.5px] break-words text-ink-3">
                   {e.changes.filter((ch) => shown(ch.field, ch, e.action)).map((ch) => (
                     <li key={ch.field}>
-                      {FIELD_NAME[ch.field] ?? fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{chipped(ch.field, ch.before, e.entityId)} → </>}
-                      <span className="text-ink-2">{chipped(ch.field, e.action === "DELETE" ? ch.before : ch.after, e.entityId)}</span>
+                      {FIELD_NAME[ch.field] ?? fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{chipped(ch.field, ch.before, e.entityId, e.entity)} → </>}
+                      <span className="text-ink-2">{chipped(ch.field, e.action === "DELETE" ? ch.before : ch.after, e.entityId, e.entity)}</span>
                     </li>
                   ))}
                 </ul>

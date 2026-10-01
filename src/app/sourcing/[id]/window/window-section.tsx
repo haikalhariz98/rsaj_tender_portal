@@ -1,0 +1,593 @@
+import type { ReactNode } from "react";
+
+import { EscalateDrawer } from "@/app/approvals/editors";
+import { ClockIcon, FileIcon, RouteIcon, ShieldIcon, SlidersIcon, UsersIcon } from "@/components/icons";
+import { OwnerAttachments } from "@/components/attachments/owner-attachments";
+import { Badge, Chip } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { Callout, EmptyState } from "@/components/ui/feedback";
+import { isMandatoryAct } from "@/components/ui/act";
+import { KeyValues } from "@/components/ui/stat";
+import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
+import { routeCoreText } from "@/lib/authority/core-routing-labels";
+import { formatOrgDay } from "@/lib/format";
+import { ACT_DONE_LABEL, routedOnLabel } from "@/lib/labels";
+import type { LoadedExercise } from "@/lib/method/repo";
+import { routeTone, stepTone } from "@/lib/ui/status-tone";
+import { DECISION_LABEL } from "@/lib/requisition/labels";
+import { FEE_COST_KIND_LABEL } from "@/lib/window/labels";
+import type { WindowTab } from "@/lib/window/read";
+import { FEE_COST_KINDS } from "@/lib/window/types";
+
+import { RouteSteps } from "../route-steps";
+import { DeliveryList, FromBadge, levelTone, SETTINGS_HREF } from "./common";
+import {
+  EditWindowDrawer,
+  FeeLineDrawer,
+  LetterDeliveryDrawer,
+  NoticeDeliveryDrawer,
+  ProposeInviteeDrawer,
+  PublishDrawer,
+  RecordPublicationDrawer,
+  RemoveFeeLineDrawer,
+  RemoveInviteeDrawer,
+  RemovePublicationDrawer,
+  RequestCancellationDrawer,
+  RequestChangeDrawer,
+  WindowDecisionDrawer,
+} from "./editors";
+
+type Route = LoadedExercise["ex"]["approvalInstances"][number];
+export type Person = { value: string; label: string };
+
+/// What the window section needs beyond its read model, from the page (which already holds the exercise).
+export interface WindowContext {
+  exerciseId: string;
+  reference: string;
+  status: string;
+  today: string | null;
+  timeZone: string | null;
+  /// The exercise's `window_change` routes, newest first.
+  routes: Route[];
+  people: Person[];
+  /// Who may be named for a step: the office's holders and delegates first.
+  suggestions: (roleCode: string | null) => Person[];
+}
+
+const published = (status: string) => status === "ADVERTISED" || status === "INVITED";
+
+/**
+ * The page header's share of the Window section: the act the section's state asks for, and the
+ * ones that cannot be done now, each with its reason (the header's note says it once). Publish
+ * is the primary act while the window is prepared; once published the closing may be extended
+ * and the exercise cancelled, each on its approval route.
+ */
+export function windowHeader(d: WindowTab, c: WindowContext): { actions: ReactNode; notes: [string, string][]; cancel: ReactNode | null } {
+  const notes: [string, string][] = [];
+  const note = (label: string, a: { allowed: boolean; reason?: string }) => !a.allowed && a.reason && notes.push([label, a.reason]);
+  const pre = c.status === "APPROVED_FOR_TENDERING";
+  const live = published(c.status);
+  if (!pre && !live) return { actions: null, notes, cancel: null };
+  const closingNow = d.dates.closing;
+  const lastDay = d.dates.lastDayOfSale === "Not set" ? null : d.dates.lastDayOfSale;
+  const publish = !d.hasWindow ? { allowed: false as const, reason: "The window's items are not prepared yet. Prepare the window below first." } : d.actions.publish;
+  if (pre) {
+    note(d.actions.publishLabel, publish);
+    note("Correct the closing", d.actions.correct);
+  } else {
+    note("Extend the closing", d.actions.extend);
+    note("Cancel the exercise", d.actions.cancel);
+  }
+  return {
+    actions: (
+      <>
+        {pre && <RequestChangeDrawer exerciseId={c.exerciseId} kind="CORRECTION" allowed={d.actions.correct} closing={closingNow} lastDayOfSale={lastDay} />}
+        {pre && (
+          <PublishDrawer
+            exerciseId={c.exerciseId}
+            label={d.actions.publishLabel}
+            allowed={publish}
+            rows={[
+              ["Way of tendering", d.path],
+              ["Closes", closingNow],
+              ["Advertisement day", d.dates.advertisedOn],
+              ["Last day of sale", d.dates.lastDayOfSale],
+              ["Document fee", d.fee.amount],
+            ]}
+            notes={d.findings.filter((f) => f.level !== "block").map((f) => f.text)}
+          />
+        )}
+        {live && <RequestChangeDrawer exerciseId={c.exerciseId} kind="EXTENSION" allowed={d.actions.extend} closing={closingNow} lastDayOfSale={lastDay} />}
+      </>
+    ),
+    notes,
+    cancel: live ? <RequestCancellationDrawer exerciseId={c.exerciseId} reference={c.reference} allowed={d.actions.cancel} /> : null,
+  };
+}
+
+export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
+  const pre = c.status === "APPROVED_FOR_TENDERING";
+  const live = published(c.status);
+  const blocks = d.findings.filter((f) => f.level === "block");
+  const others = d.findings.filter((f) => f.level !== "block");
+  const invited = d.pathKey === "INVITED";
+  const phaseBadge = live || c.status === "CANCELLED" ? <Badge tone={d.phase.tone} dot>{d.phase.label}</Badge> : undefined;
+  const latest = c.routes[0] ?? null;
+  const earlier = c.routes.slice(1);
+  return (
+    <div className="flex flex-col gap-6">
+      <Card>
+        <CardHeader
+          icon={<ClockIcon size={17} />}
+          title="The window"
+          subtitle={`${d.path}. ${live || c.status === "CANCELLED" ? "Where it stands is worked out from the dates, never typed." : "Prepared here, then published."}`}
+          actions={phaseBadge}
+        />
+        <CardBody className="flex flex-col gap-4">
+          <KeyValues
+            columns={3}
+            items={[
+              { label: "Tendering starts", value: d.dates.start },
+              { label: "Closes", value: d.dates.closing },
+              { label: invited ? "Invited on" : "Advertised on", value: d.dates.advertisedOn },
+              { label: "First day of sale", value: d.dates.firstDayOfSale },
+              { label: "Last day of sale", value: d.dates.lastDayOfSale },
+              { label: "Where it stands", value: `${d.phase.label}${d.phase.submissionOpen ? ". Tenders may be submitted" : ""}` },
+              { label: "Tender Table Document", value: d.tableDocument },
+              ...(d.dates.publishedAt ? [{ label: "Published", value: `${d.dates.publishedAt} · recorded on behalf of the officer, not signed` }] : []),
+              { label: "The estimate's lead time", value: <span className={d.lead.warn ? "text-amber-800" : undefined}>{d.lead.text}</span> },
+            ]}
+          />
+          {d.pathChanged && <Callout tone="warn" title="The method has changed since the window was prepared">The method now calls for the other way of tendering. Check the method before the window is published.</Callout>}
+          {d.frozenRules && <p className="text-[12.5px] text-ink-3">{d.frozenRules}</p>}
+          {d.replaces && <p className="text-[12.5px] text-ink-3">This exercise replaces an earlier one, cancelled.</p>}
+        </CardBody>
+      </Card>
+
+      {pre && (
+        <Card id="publish" className="scroll-mt-24">
+          <CardHeader
+            icon={<ShieldIcon size={17} />}
+            title={`Before it can be ${invited ? "invited" : "published"}`}
+            subtitle={blocks.length === 0 ? (others.length ? `Nothing to put right; ${others.length} to note.` : "Every check passes.") : `${blocks.length} to put right${others.length ? `, ${others.length} to note` : ""}.`}
+            actions={blocks.some((f) => /Invitation controls/.test(f.text)) ? <ButtonLink href={SETTINGS_HREF} variant="secondary" size="sm">Open Invitation controls</ButtonLink> : undefined}
+          />
+          <CardBody className="flex flex-col gap-2">
+            {!d.hasWindow && <Callout tone="warn">The window is not prepared yet. Prepare it first: its items, days of sale and fee.</Callout>}
+            {d.findings.length === 0 && d.hasWindow ? (
+              <Callout tone="ok">Every check passes. {d.actions.publishLabel}.</Callout>
+            ) : (
+              d.findings.map((f, i) => (
+                <Callout key={i} tone={levelTone(f.level)}>
+                  {f.text}
+                </Callout>
+              ))
+            )}
+          </CardBody>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader
+          icon={<FileIcon size={17} />}
+          title="What the notice states, and the fee"
+          subtitle={d.actions.save.allowed ? "The notice's items, and what a set of the documents costs and why." : d.actions.save.reason}
+          actions={<EditWindowDrawer exerciseId={c.exerciseId} items={d.items} allowed={d.actions.save} first={!d.hasWindow} />}
+        />
+        {!d.items ? (
+          <EmptyState size="sm" title="Not prepared yet">The window has no items yet: where the documents are inspected and bought, the days of sale and the fee.</EmptyState>
+        ) : (
+          <CardBody className="flex flex-col gap-4">
+            <KeyValues
+              columns={2}
+              items={[
+                { label: "Documents inspected at", value: d.items.inspectionPlace || "Not recorded" },
+                { label: "Documents bought at", value: d.items.purchasePlace || "Not recorded" },
+                { label: "Hours", value: d.items.inspectionHours || "Not recorded" },
+                { label: "Tenders submitted at", value: d.items.submissionPlace || "Not recorded" },
+                { label: "Document fee", value: <span className="font-semibold tabular-nums">{d.fee.amount}</span> },
+                { label: "How the fee is paid", value: d.items.feePaymentMethods || "Not recorded" },
+                { label: "The least the fee may be", value: d.fee.floor === "Not set" ? <span className="flex flex-wrap items-center gap-2"><Badge tone="warn">Not set</Badge><span className="text-[12.5px] text-ink-3">No minimum is set for this band, so the window cannot be published.</span></span> : d.fee.floor },
+                ...(d.items.closingTimeReason ? [{ label: "Why the closing time differs", value: d.items.closingTimeReason }] : []),
+                ...(d.registrations.length ? [{ label: "Registrations asked of a tenderer", value: d.registrations.join("; ") }] : []),
+              ]}
+            />
+          </CardBody>
+        )}
+        {d.hasWindow && (
+          <div className="border-t border-line">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 sm:px-6">
+              <div>
+                <p className="text-[13.5px] font-semibold text-ink">What a set costs to make</p>
+                <p className="text-[12.5px] text-ink-3">The fee is entered, not worked out from this.</p>
+              </div>
+              <FeeLineDrawer exerciseId={c.exerciseId} allowed={d.actions.save} kinds={FEE_COST_KINDS.map((k) => ({ value: k, label: FEE_COST_KIND_LABEL[k] }))} />
+            </div>
+            {d.fee.basis.length === 0 ? (
+              <p className="px-5 pb-4 text-[13px] text-ink-3 sm:px-6">No cost is listed: the basis is empty.</p>
+            ) : (
+              <Table minWidth={640}>
+                <colgroup>
+                  <col style={{ width: "28%" }} />
+                  <col />
+                  <col style={{ width: 90 }} />
+                  <col style={{ width: 120 }} />
+                  <col style={{ width: 130 }} />
+                  <ActionsCol labelled={1} icons={0} />
+                </colgroup>
+                <THead>
+                  <Th>Cost</Th>
+                  <Th>Description</Th>
+                  <Th numeric>Quantity</Th>
+                  <Th numeric>Unit cost</Th>
+                  <Th numeric>Amount</Th>
+                  <Th className="text-right">Actions</Th>
+                </THead>
+                <tbody>
+                  {d.fee.basis.map((l) => (
+                    <Tr key={l.id}>
+                      <Td label="Cost"><CellStack title={l.cost} /></Td>
+                      <Td label="Description">{l.description || <span className="text-ink-3">—</span>}</Td>
+                      <Td numeric label="Quantity">{l.quantity ?? "—"}</Td>
+                      <Td numeric label="Unit cost">{l.unitCost ?? "—"}</Td>
+                      <Td numeric label="Amount"><span className="font-semibold">{l.amount}</span></Td>
+                      <Td>
+                        <RowActions>{d.actions.save.allowed && <RemoveFeeLineDrawer exerciseId={c.exerciseId} lineId={l.id} label={l.cost} />}</RowActions>
+                      </Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+            <p className="border-t border-line px-5 py-3 text-[13px] text-ink-2 sm:px-6">
+              The basis comes to <span className="font-semibold tabular-nums">{d.fee.basisTotal}</span>.
+            </p>
+          </div>
+        )}
+      </Card>
+
+      {d.pathKey === "ADVERTISED" ? (
+        <>
+          <Card className="overflow-hidden">
+            <CardHeader
+              icon={<SlidersIcon size={17} />}
+              title="Channels and publications"
+              subtitle={d.advertisementDay?.day && d.advertisementDay.day !== "Not known yet" ? `Advertised on ${d.advertisementDay.day}: the day is worked out from the publications under the rule below.` : "The notice is advertised only once every required channel carries it."}
+              actions={
+                !live && c.status !== "CANCELLED" && d.hasWindow ? (
+                  <RecordPublicationDrawer exerciseId={c.exerciseId} channels={d.channels.filter((x) => !x.publication).map((x) => ({ value: x.id, label: x.name }))} people={c.people} today={c.today} />
+                ) : undefined
+              }
+              divided={d.channels.length === 0}
+            />
+            {d.channels.length === 0 ? (
+              <EmptyState size="sm" title="No publication channel is configured" action={<ButtonLink href={SETTINGS_HREF} size="sm" variant="secondary">Open Invitation controls</ButtonLink>}>
+                An advertised exercise cannot be published until the channels, and which are required, are set.
+              </EmptyState>
+            ) : (
+              <Table minWidth={720}>
+                <colgroup>
+                  <col />
+                  <col style={{ width: 120 }} />
+                  <col style={{ width: 130 }} />
+                  <col style={{ width: "30%" }} />
+                  <ActionsCol labelled={1} icons={0} />
+                </colgroup>
+                <THead>
+                  <Th>Channel</Th>
+                  <Th>Required</Th>
+                  <Th>Published on</Th>
+                  <Th>Title, edition or address</Th>
+                  <Th className="text-right">Actions</Th>
+                </THead>
+                <tbody>
+                  {d.channels.map((x) => (
+                    <Tr key={x.id}>
+                      <Td label="Channel"><CellStack title={x.name} sub={x.publication ? x.publication.recordedBy : undefined} /></Td>
+                      <Td label="Required">{x.required === "Not set" ? <Badge tone="warn">Not set</Badge> : x.required === "Required" ? <Chip tone="brand">Required</Chip> : <span className="text-ink-2">Not required</span>}</Td>
+                      <Td label="Published on">{x.publication ? x.publication.on : <Chip tone={x.required === "Required" ? "warn" : "neutral"}>{x.required === "Required" ? "Not yet published" : "Not published"}</Chip>}</Td>
+                      <Td label="Title, edition or address">{x.publication?.reference || <span className="text-ink-3">—</span>}</Td>
+                      <Td>
+                        <RowActions>{x.publication && !live && c.status !== "CANCELLED" && <RemovePublicationDrawer exerciseId={c.exerciseId} publicationId={x.publication.id} channel={x.name} />}</RowActions>
+                      </Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+            {d.advertisementDay && d.advertisementDay.missing.length > 0 && !live && (
+              <p className="border-t border-line px-5 py-3 text-[13px] text-ink-2 sm:px-6">
+                Still to be published through: <span className="font-semibold">{d.advertisementDay.missing.join(", ")}</span>.
+              </p>
+            )}
+          </Card>
+          {d.hasWindow && (
+            <OwnerAttachments owner={{ kind: "exercise", id: c.exerciseId }} only={["PUBLICATION_PROOF"]} title="Proofs of publication" subtitle="A cutting, a screen print or a photograph of the board, kept with the exercise." collapseWhenEmpty={false} />
+          )}
+        </>
+      ) : invited ? (
+        <InviteesCard d={d} c={c} />
+      ) : (
+        <Card>
+          <EmptyState title="The way of tendering is not set">The method says both a public advertisement and a list of invited contractors, or neither. Correct the method before the window is prepared.</EmptyState>
+        </Card>
+      )}
+
+      <ClosingCard d={d} c={c} latest={latest} earlier={earlier} />
+
+      <Card>
+        <CardHeader icon={<SlidersIcon size={17} />} title="The rules this window is judged by" subtitle="Each value is the organisation's setting, with where it comes from. Not set blocks the act it governs." actions={<ButtonLink href={SETTINGS_HREF} variant="secondary" size="sm">Open Invitation controls</ButtonLink>} />
+        <ul className="divide-y divide-line/70">
+          {d.rules.map((r) => (
+            <li key={r.label} className="flex flex-col gap-1 px-5 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:px-6">
+              <span className="min-w-0 text-[13.5px] font-semibold text-ink">{r.label}</span>
+              <span className="flex min-w-0 flex-col items-start gap-1 text-[13.5px] sm:items-end sm:text-right">
+                {r.value.startsWith("Not set") ? <Badge tone="warn">{r.value}</Badge> : <span className="break-words text-ink-2">{r.value}</span>}
+                <span className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  <FromBadge text={r.from} />
+                  {r.source && <span className="text-[12.5px] break-words text-ink-3">{r.source}</span>}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </Card>
+
+      {d.notice && (
+        <Card>
+          <CardHeader icon={<FileIcon size={17} />} title="The notice" subtitle={d.notice.template ? `Frozen when published, from ${d.notice.template}.` : "As it would read if published now. It is frozen when it is published."} />
+          <CardBody>
+            <details className="text-[13.5px]">
+              <summary className="cursor-pointer font-semibold text-ink-3">Read the notice</summary>
+              <p className="mt-3 break-words whitespace-pre-line text-ink-2">{d.notice.text}</p>
+            </details>
+          </CardBody>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ invitees and letters
+
+function InviteesCard({ d, c }: { d: WindowTab; c: WindowContext }) {
+  const inv = d.invitees;
+  if (!inv) return null;
+  const frozen = !inv.edit.allowed;
+  const hasRoute = !!inv.nameRoute && inv.approved != null;
+  const letters = inv.proposed.filter((p) => p.letter);
+  return (
+    <>
+      <Card className="overflow-hidden">
+        <CardHeader
+          icon={<UsersIcon size={17} />}
+          title="Invitees and letters of invitation"
+          subtitle={frozen ? "The list is frozen: the exercise is invited. The way out is cancelling and a replacement exercise." : "The contractors proposed. The name is approved for exactly this list, and letters go to those on it."}
+          actions={frozen ? undefined : <ProposeInviteeDrawer exerciseId={c.exerciseId} allowed={inv.edit} withdrawsRoute={hasRoute} />}
+          divided={inv.proposed.length === 0}
+        />
+        {inv.proposed.length === 0 ? (
+          <EmptyState size="sm" title="Nobody proposed yet">Propose the contractors to invite. The name is then sent for approval with that list.</EmptyState>
+        ) : (
+          <Table minWidth={720}>
+            <colgroup>
+              <col />
+              <col style={{ width: 200 }} />
+              <col style={{ width: "26%" }} />
+              <ActionsCol labelled={2} icons={0} />
+            </colgroup>
+            <THead>
+              <Th>Contractor</Th>
+              <Th>On the approved list</Th>
+              <Th>Letter of invitation</Th>
+              <Th className="text-right">Actions</Th>
+            </THead>
+            <tbody>
+              {inv.proposed.map((p) => (
+                <Tr key={p.id}>
+                  <Td label="Contractor"><CellStack title={p.name} sub={p.registrationNo} /></Td>
+                  <Td label="On the approved list">
+                    {p.onApprovedList == null ? <Chip tone="neutral">No list approved yet</Chip> : p.onApprovedList ? <Chip tone="ok">On the approved list</Chip> : <Chip tone="warn">Not on the approved list</Chip>}
+                  </Td>
+                  <Td label="Letter of invitation">
+                    {p.letter ? <span className="flex flex-col gap-0.5 text-[13px]"><span>Frozen {p.letter.frozenOn}</span><span className="text-ink-3">{p.letter.sentOn === "Not recorded" ? "Delivery not recorded" : `Sent ${p.letter.sentOn}, ${p.letter.sentBy.toLowerCase()}`}</span></span> : <span className="text-ink-3">Not issued</span>}
+                  </Td>
+                  <Td>
+                    <RowActions>
+                      {p.letter ? (
+                        <LetterDeliveryDrawer exerciseId={c.exerciseId} id={p.letter.id} who={p.name} values={p.letter.raw} />
+                      ) : (
+                        !frozen && <RemoveInviteeDrawer exerciseId={c.exerciseId} partyId={p.id} name={p.name} withdrawsRoute={hasRoute} />
+                      )}
+                    </RowActions>
+                  </Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+        {letters.length > 0 && (
+          <p className="border-t border-line px-5 py-3 text-[12.5px] text-ink-3 sm:px-6">
+            A letter&apos;s text is frozen when it is issued, from the configured template. Delivery is recorded by the officer; the portal sends nothing.
+          </p>
+        )}
+      </Card>
+      <Card>
+        <CardHeader
+          icon={<RouteIcon size={17} />}
+          title="The name, and the list it was approved for"
+          subtitle={inv.nameRoute ? `Name approval: ${inv.nameRoute.label}. ${inv.nameRoute.listState}` : "The name has not been sent for approval."}
+          actions={<ButtonLink href={`/sourcing/${c.exerciseId}?tab=name`} variant="secondary" size="sm">Open the name approval</ButtonLink>}
+        />
+        {inv.approved && inv.approved.length > 0 && (
+          <CardBody>
+            <ul className="flex flex-col gap-1 text-[13.5px]">
+              {inv.approved.map((a) => (
+                <li key={a.registrationNo} className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold text-ink">{a.name}</span>
+                  <span className="text-ink-3">{a.registrationNo}</span>
+                  {!a.stillProposed && <Chip tone="warn">No longer proposed</Chip>}
+                </li>
+              ))}
+            </ul>
+          </CardBody>
+        )}
+      </Card>
+    </>
+  );
+}
+
+// ------------------------------------------------------------------ closing, changes and the route
+
+function ClosingCard({ d, c, latest, earlier }: { d: WindowTab; c: WindowContext; latest: Route | null; earlier: Route[] }) {
+  const nothing = d.history.length === 0 && d.changes.length === 0 && d.cancellations.length === 0 && !latest;
+  return (
+    <>
+      <Card className="overflow-hidden">
+        <CardHeader icon={<ClockIcon size={17} />} title="The closing, and its changes" subtitle="The closing set when the documents were approved, and every change since. A change is kept beside the closing it replaced." divided={nothing} />
+        {nothing ? (
+          <EmptyState size="sm" title="The closing is not set">It is recorded when the tender documents are approved for tendering.</EmptyState>
+        ) : (
+          <>
+            {d.history.length > 0 && (
+              <ol className="divide-y divide-line/70">
+                {d.history.map((h, i) => (
+                  <li key={i} className="flex flex-col gap-0.5 px-5 py-3 text-[13.5px] sm:px-6">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-ink">{h.closing}</span>
+                      {i === d.history.length - 1 && <Chip tone="brand">Stands now</Chip>}
+                      <span className="text-ink-3">{h.what}</span>
+                    </span>
+                    <span className="text-[12.5px] break-words text-ink-3">
+                      {h.on !== "Not set" ? `Recorded ${h.on}` : ""}
+                      {h.lastDayOfSale ? ` · last day of sale ${h.lastDayOfSale}` : ""}
+                      {h.reason ? ` · “${h.reason}”` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+            {d.changes.map((ch) => (
+              <div key={ch.id} className="border-t border-line">
+                <div className="flex flex-col gap-0.5 px-5 py-3 text-[13.5px] sm:px-6">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-ink">{ch.kind}</span>
+                    <Badge tone={ch.state.startsWith("Applied") ? "ok" : ch.state.startsWith("Not made") ? "err" : "brand"}>{ch.state}</Badge>
+                  </span>
+                  <span className="text-[12.5px] break-words text-ink-3">{`${ch.from} → ${ch.to}${ch.lastDayOfSale ? ` · last day of sale ${ch.lastDayOfSale}` : ""} · “${ch.reason}”`}</span>
+                </div>
+                {ch.notices.length > 0 && (
+                  <DeliveryList
+                    caption="Purchasers told of the extension. Delivery is recorded by the officer; the portal sends nothing."
+                    items={ch.notices.map((n) => ({ id: n.id, who: n.recipient, delivery: n, action: <NoticeDeliveryDrawer exerciseId={c.exerciseId} id={n.id} who={n.recipient} what="notice of the extension" values={n.raw} /> }))}
+                  />
+                )}
+              </div>
+            ))}
+            {d.cancellations.map((x) => (
+              <div key={x.id} className="border-t border-line">
+                <div className="flex flex-col gap-0.5 px-5 py-3 text-[13.5px] sm:px-6">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-ink">Cancellation of the exercise</span>
+                    <Badge tone={x.state.startsWith("Applied") ? "neutral" : x.state.startsWith("Not made") ? "err" : "brand"}>{x.state}</Badge>
+                  </span>
+                  <span className="text-[12.5px] break-words text-ink-3">{`“${x.reason}” · fees refunded: ${x.feesRefunded}`}</span>
+                </div>
+                {x.notices.length > 0 && (
+                  <DeliveryList
+                    caption="Holders of the documents told of the cancellation. Delivery is recorded by the officer; the portal sends nothing."
+                    items={x.notices.map((n) => ({ id: n.id, who: n.recipient, delivery: n, action: <NoticeDeliveryDrawer exerciseId={c.exerciseId} id={n.id} who={n.recipient} what="notice of the cancellation" values={n.raw} /> }))}
+                  />
+                )}
+              </div>
+            ))}
+          </>
+        )}
+      </Card>
+      {latest && <ChangeRouteCard c={c} inst={latest} />}
+      {earlier.length > 0 && (
+        <Card className="overflow-hidden">
+          <CardHeader icon={<ClockIcon size={17} />} title="Earlier routes" subtitle="Kept on record." />
+          <ul className="divide-y divide-line/70">
+            {earlier.map((e) => (
+              <li key={e.id} className="flex flex-wrap items-center gap-2 px-5 py-3 text-[13px] sm:px-6">
+                <Badge tone={routeTone(e.status)}>{changeRouteLabel(e.status, e.warnings)}</Badge>
+                <span className="text-ink-2">
+                  {routedOnLabel(e.cond)} · asked {formatOrgDay(e.openedAt, c.timeZone)} · {e.steps.map((s) => s.roleLabel).join(" → ")}
+                  {e.rejectionReason ? ` · “${e.rejectionReason}”` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+    </>
+  );
+}
+
+/// A window change's route in words: refused means the change was not made, and may be asked for again.
+function changeRouteLabel(status: string, warnings: unknown): string {
+  if (status === "PENDING") return "With approval";
+  if (status === "REJECTED") return "Refused";
+  if (status === "APPROVED") return Array.isArray(warnings) && warnings.some((w) => (w as { code?: string })?.code === "CHANGE_NOT_APPLIED") ? "Approved, not applied" : "Approved";
+  return "Withdrawn";
+}
+
+/// The route of a change to the window, as every exercise route reads: its rule, its steps, what happens if it is refused.
+function ChangeRouteCard({ c, inst }: { c: WindowContext; inst: Route }) {
+  const warnings = ((inst.warnings as { code?: string; level: string; messageEn: string }[]) ?? []).filter((w) => !(inst.checkedAgainstMatrix && w.code && (w.code === "CORE_AS_ENTERED" || w.code === "CORE_NOT_CHECKED")));
+  const what = routedOnLabel(inst.cond).toLowerCase();
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader
+        icon={<RouteIcon size={17} />}
+        title="Approval of the change"
+        subtitle={`Asked ${formatOrgDay(inst.openedAt, c.timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}.`}
+        actions={<Badge tone={inst.status === "REJECTED" ? "warn" : routeTone(inst.status)}>{changeRouteLabel(inst.status, inst.warnings)}</Badge>}
+      />
+      <CardBody className="flex flex-col gap-4">
+        <KeyValues
+          columns={2}
+          items={[
+            { label: "Rule", value: inst.ruleLabel ? `${inst.ruleLabel}${inst.ruleClause ? ` · ${inst.ruleClause}` : ""}` : "Not recorded" },
+            { label: "Asked for", value: routedOnLabel(inst.cond) },
+          ]}
+        />
+        {warnings.map((w, i) => (
+          <Callout key={i} tone={levelTone(w.level === "err" ? "block" : w.level)}>
+            {w.messageEn}
+          </Callout>
+        ))}
+      </CardBody>
+      {inst.status === "PENDING" && <p className="border-t border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">Steps are decided in order: each waits for the one before it. If refused: the change is not made, and it may be asked for again.</p>}
+      {inst.status === "REJECTED" && (
+        <div className="border-t border-line px-5 py-3 sm:px-6">
+          <Callout tone="warn" title="Refused: the change was not made">
+            {inst.rejectionReason || "No reason recorded."} It may be asked for again.
+          </Callout>
+        </div>
+      )}
+      {inst.checkedAgainstMatrix && (
+        <p className="border-t border-line px-5 py-2.5 text-[12.5px] break-words text-ink-3 sm:px-6">
+          Chain beneath the approver: {routeCoreText(inst, () => ({ en: "an office no longer configured", ms: "an office no longer configured" })).en}
+        </p>
+      )}
+      <RouteSteps
+        inst={inst}
+        stepLabel={(x) => DECISION_LABEL[x]}
+        stepTone={stepTone}
+        action={(s, { earlierDone }) => (
+          <>
+            {inst.status === "PENDING" && s.decision === "PENDING" && !s.committeeCode && s.roleCode && (
+              <EscalateDrawer stepId={s.id} office={s.actingRoleLabel ?? s.roleLabel} mandatory={isMandatoryAct(s.act)} people={c.suggestions(s.actingRoleCode ?? s.roleCode)} />
+            )}
+            {inst.status === "PENDING" && s.decision === "PENDING" && earlierDone && !s.committeeCode && (
+              <WindowDecisionDrawer exerciseId={c.exerciseId} stepId={s.id} office={s.roleLabel} done={ACT_DONE_LABEL[s.act] ?? "Done"} people={c.suggestions(s.actingRoleCode ?? s.roleCode)} today={c.today} what={what} />
+            )}
+          </>
+        )}
+      />
+    </Card>
+  );
+}

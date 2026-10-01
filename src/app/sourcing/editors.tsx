@@ -3,6 +3,7 @@ import { buttonClass } from "@/components/ui/button";
 
 import { Blocked } from "../requisitions/editors";
 import {
+  citeNameDecision,
   addParticipant,
   chooseNameRejection,
   cancelExercise,
@@ -148,13 +149,31 @@ export function RequestNameApprovalDrawer({ id, blocker }: { id: string; blocker
   return (
     <RecordEditor
       title="Send the name for approval"
-      description="The route is resolved now under the approval matrix in force and kept with the rules it was judged under. Invitation happens outside the portal in this phase, so the name approval is recorded, not enforced."
+      description="The route is resolved now under the approval matrix in force and kept with the rules it was judged under. The invitee list is recorded with it: the name is approved for exactly that list, and the letters go only to those on it."
       fields={[hidden("id")]}
       values={{ id }}
       action={requestNameApproval}
       submitLabel="Request approval"
       trigger={{ label: "Request name approval", className: buttonClass("secondary", "sm") }}
       size="sm"
+    />
+  );
+}
+
+/// A committee step of the name route is discharged by the committee's own decision on this exercise, cited, never by a person (FR-MTD-008).
+export function CiteNameDecisionDrawer({ id, stepId, committee, matters }: { id: string; stepId: string; committee: string; matters: (Option & { disabled?: boolean })[] }) {
+  if (matters.length === 0) return <Blocked label="Cite decision" reason={`No matter on this exercise has been tabled before the ${committee} for the approval of the name yet. Table it at a sitting first.`} />;
+  if (matters.every((m) => m.disabled)) return <Blocked label="Cite decision" reason={`The ${committee} has not decided the matter tabled on this exercise yet.`} />;
+  return (
+    <RecordEditor
+      title={`Cite the ${committee}'s decision`}
+      description="A committee's step is discharged by its decision on the approval of the name for this exercise, as the sitting recorded it. Until it is cited, the invitation is held back."
+      fields={[hidden("id"), hidden("stepId"), { kind: "select", name: "committeeDecisionId", label: "The matter", required: true, placeholder: "Choose", options: matters, hint: "A matter not decided yet is listed but cannot be chosen." }]}
+      values={{ id, stepId }}
+      action={citeNameDecision}
+      submitLabel="Cite decision"
+      trigger={{ label: "Cite decision", className: buttonClass("primary", "sm") }}
+      size="md"
     />
   );
 }

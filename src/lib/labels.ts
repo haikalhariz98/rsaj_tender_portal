@@ -68,6 +68,10 @@ export const ACT_DONE_LABEL: Record<string, string> = {
 /// Rule conditions, spelled out. A condition is a configuration key like a matter's.
 const CONDS: Record<string, string> = {
   over_budget: "When over budget",
+  // 6.5: what a change to the invitation window is asked for.
+  EXTENSION: "An extension of the closing",
+  CORRECTION: "A correction of the closing before publication",
+  CANCELLATION: "The cancellation of the published exercise",
 };
 
 export function condLabel(code: string): string {
