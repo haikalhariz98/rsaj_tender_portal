@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type CSSProperties, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 
+import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { navigatesOnSelect, tabKeyMove } from "@/lib/ui/tab-keys";
 
 /**
@@ -30,6 +31,74 @@ export interface TabSpec {
   sections?: { id: string; label: string }[];
   /// The section the server rendered. Only read for the tab that has `sections`.
   section?: string;
+}
+
+/**
+ * A strip that scrolls sideways when its items do not fit, used by both levels of tabs so
+ * they behave alike. It says whether there is more past either edge (`more`), keeps the
+ * item `current` names in view when it changes (the strip only, never the page), and gives
+ * `scroll` to the edge buttons. `keyOf` is whatever identifies the current item: a change
+ * of it re-centres the strip, including on first paint from a deep link.
+ */
+function useScrollStrip<T extends HTMLElement>(currentSelector: string, keyOf: string | undefined, count: number) {
+  // The element is held as state (a callback ref), so nothing reads a ref while rendering and
+  // the effects below run again when the strip mounts or is swapped for another.
+  const [el, setEl] = useState<T | null>(null);
+  const [more, setMore] = useState({ start: false, end: false });
+
+  const measure = useCallback(() => {
+    if (!el) return;
+    const start = el.scrollLeft > 2;
+    const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+    setMore((m) => (m.start === start && m.end === end ? m : { start, end }));
+  }, [el]);
+
+  // Observing reports the strip's size at once, so this also takes the first measurement.
+  useEffect(() => {
+    if (!el) return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [el, measure, count]);
+
+  useEffect(() => {
+    const item = el?.querySelector<HTMLElement>(currentSelector);
+    if (!el || !item) return;
+    // Measured from the rectangles, so it does not depend on which ancestor is positioned.
+    const at = el.scrollLeft + item.getBoundingClientRect().left - el.getBoundingClientRect().left;
+    el.scrollTo({ left: Math.max(0, at - (el.clientWidth - item.offsetWidth) / 2), behavior: "auto" });
+    // The scroll event that follows (onScroll) measures again.
+  }, [el, currentSelector, keyOf]);
+
+  const scroll = (dir: -1 | 1) => el?.scrollBy({ left: dir * Math.max(120, el.clientWidth * 0.6), behavior: "smooth" });
+  // Edge fades say there are more items off-screen. A mask rather than an overlay, so it
+  // needs no colour matched to what is behind and never intercepts a click.
+  const mask: CSSProperties | undefined =
+    more.start || more.end
+      ? { maskImage: `linear-gradient(to right, ${more.start ? "transparent, #000 36px" : "black, black"}, ${more.end ? "black calc(100% - 36px), transparent" : "black, black"})` }
+      : undefined;
+  return { el, attach: setEl, more, measure, scroll, mask };
+}
+
+/// The buttons at a strip's edges that scroll it, shown only on the side that has more. They
+/// are for the pointer: the keyboard moves between tabs with the arrow keys, so they stay out
+/// of the tab order.
+function EdgeButtons({ more, scroll, label }: { more: { start: boolean; end: boolean }; scroll: (dir: -1 | 1) => void; label: string }) {
+  const cls = "absolute top-1/2 z-10 flex size-7 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface text-ink-2 shadow-sm transition hover:text-ink";
+  return (
+    <>
+      {more.start && (
+        <button type="button" tabIndex={-1} aria-label={`Scroll ${label} back`} onClick={() => scroll(-1)} className={`${cls} left-1`}>
+          <ChevronLeft size={15} />
+        </button>
+      )}
+      {more.end && (
+        <button type="button" tabIndex={-1} aria-label={`Scroll ${label} forward`} onClick={() => scroll(1)} className={`${cls} right-1`}>
+          <ChevronRight size={15} />
+        </button>
+      )}
+    </>
+  );
 }
 
 export function Tabs({
@@ -61,38 +130,8 @@ export function Tabs({
   // with sections is selected only on Enter, Space or a click). Null: focus follows selection.
   const [focused, setFocused] = useState<string | null>(null);
   const focusId = focused ?? current?.id;
-  const strip = useRef<HTMLDivElement>(null);
-  // Whether the strip has more tabs hidden past its left / right edge. Drives the
-  // edge fades, which are the visible cue that the strip scrolls.
-  const [more, setMore] = useState({ start: false, end: false });
-
-  const measure = useCallback(() => {
-    const el = strip.current;
-    if (!el) return;
-    const start = el.scrollLeft > 2;
-    const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
-    setMore((m) => (m.start === start && m.end === end ? m : { start, end }));
-  }, []);
-
-  useEffect(() => {
-    measure();
-    const el = strip.current;
-    if (!el) return;
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [measure, tabs.length]);
-
-  // Keep the selected tab in view, including on first paint with `?tab=` deep links.
-  // Scrolls the strip only (never the page).
-  useEffect(() => {
-    const el = strip.current;
-    const tab = el?.querySelector<HTMLElement>('[aria-selected="true"]');
-    if (!el || !tab) return;
-    const left = tab.offsetLeft - (el.clientWidth - tab.offsetWidth) / 2;
-    el.scrollTo({ left: Math.max(0, left), behavior: "auto" });
-    measure();
-  }, [current?.id, measure]);
+  const { el: stripEl, attach: attachStrip, more: stripMore, measure: measureStrip, scroll: scrollStrip, mask: stripMask } = useScrollStrip<HTMLDivElement>('[aria-selected="true"]', current?.id, tabs.length);
+  const { attach: attachSub, more: subMore, measure: measureSub, scroll: scrollSub, mask: subMask } = useScrollStrip<HTMLElement>('[aria-current="page"]', current?.section ?? current?.id, current?.sections?.length ?? 0);
 
   /**
    * Switching a tab writes it to the address bar as `?tab=`. Not a navigation —
@@ -124,7 +163,7 @@ export function Tabs({
     e.preventDefault();
     if (move.select) select(move.focus);
     else setFocused(move.focus);
-    strip.current?.querySelector<HTMLButtonElement>(`[data-tab="${move.focus}"]`)?.focus();
+    stripEl?.querySelector<HTMLButtonElement>(`[data-tab="${move.focus}"]`)?.focus();
   };
   // Leaving the strip hands the roving stop back to the selected tab.
   const onBlur = (e: FocusEvent<HTMLDivElement>) => {
@@ -135,21 +174,13 @@ export function Tabs({
     <div className="flex min-w-0 flex-col gap-5">
       <div className="relative w-fit max-w-full min-w-0 rounded-full bg-ink/[0.05]">
       <div
-        ref={strip}
+        ref={attachStrip}
         role="tablist"
         aria-label={label}
         onKeyDown={onKeyDown}
         onBlur={onBlur}
-        onScroll={measure}
-        // Edge fades say there are more tabs off-screen. A mask rather than an overlay,
-        // so it needs no colour matched to the pill and never intercepts a click.
-        style={
-          more.start || more.end
-            ? {
-                maskImage: `linear-gradient(to right, ${more.start ? "transparent, #000 28px" : "black, black"}, ${more.end ? "black calc(100% - 28px), transparent" : "black, black"})`,
-              }
-            : undefined
-        }
+        onScroll={measureStrip}
+        style={stripMask}
         className="flex max-w-full snap-x snap-proximity gap-1 overflow-x-auto overscroll-x-contain rounded-full p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {tabs.map((tab) => {
@@ -163,7 +194,7 @@ export function Tabs({
               aria-selected={selected}
               tabIndex={tab.id === focusId ? 0 : -1}
               onClick={() => select(tab.id)}
-              className={`flex shrink-0 snap-center items-center gap-2 rounded-full py-2 text-[13.5px] font-semibold whitespace-nowrap text-ink-3 transition hover:text-ink aria-selected:bg-surface aria-selected:text-ink aria-selected:shadow-[0_1px_3px_rgb(15_23_42/0.12)] ${dense ? "px-3 2xl:px-4" : "px-4"}`}
+              className={`flex shrink-0 snap-center items-center gap-2 rounded-full py-2 text-[13.5px] font-semibold whitespace-nowrap text-ink-3 transition hover:text-ink focus-visible:-outline-offset-2! aria-selected:bg-surface aria-selected:text-ink aria-selected:shadow-[0_1px_3px_rgb(15_23_42/0.12)] ${dense ? "px-3 2xl:px-4" : "px-4"}`}
             >
               {tab.icon && (dense ? <span className="hidden 2xl:inline-flex">{tab.icon}</span> : tab.icon)}
               {tab.label}
@@ -176,27 +207,38 @@ export function Tabs({
           );
         })}
       </div>
+      <EdgeButtons more={stripMore} scroll={scrollStrip} label="the tabs" />
       </div>
 
       <div role="tabpanel" className="min-w-0">
         {current?.sections?.length ? (
           <div className="flex min-w-0 flex-col gap-5">
-            <nav aria-label={`${current.label} sections`} className="flex max-w-full gap-1 overflow-x-auto border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {current.sections.map((s) => {
-                const on = s.id === (current.section ?? current.sections![0].id);
-                return (
-                  <Link
-                    key={s.id}
-                    href={sectionHref(pathname, current.id, s.id)}
-                    scroll={false}
-                    aria-current={on ? "page" : undefined}
-                    className={`-mb-px shrink-0 border-b-2 px-3.5 py-2.5 text-[13.5px] font-semibold whitespace-nowrap transition hover:text-ink hover:no-underline ${on ? "border-brand-600 text-ink" : "border-transparent text-ink-3"}`}
-                  >
-                    {s.label}
-                  </Link>
-                );
-              })}
-            </nav>
+            <div className="relative min-w-0">
+              <nav
+                ref={attachSub}
+                aria-label={`${current.label} sections`}
+                onScroll={measureSub}
+                style={subMask}
+                className="flex max-w-full gap-1 overflow-x-auto border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                {current.sections.map((s) => {
+                  const on = s.id === (current.section ?? current.sections![0].id);
+                  return (
+                    <Link
+                      key={s.id}
+                      href={sectionHref(pathname, current.id, s.id)}
+                      scroll={false}
+                      aria-current={on ? "page" : undefined}
+                      // Inset: the strip scrolls, so it clips an outline drawn outside the link.
+                      className={`-mb-px shrink-0 border-b-2 px-3.5 py-2.5 text-[13.5px] font-semibold whitespace-nowrap transition hover:text-ink hover:no-underline focus-visible:-outline-offset-2! ${on ? "border-brand-600 text-ink" : "border-transparent text-ink-3"}`}
+                    >
+                      {s.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+              <EdgeButtons more={subMore} scroll={scrollSub} label={`${current.label} sections`} />
+            </div>
             {current.panel ?? <p className="text-[13.5px] text-ink-3" role="status">Loading…</p>}
           </div>
         ) : (
