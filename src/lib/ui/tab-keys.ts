@@ -10,12 +10,14 @@
 export interface TabKeySpec {
   id: string;
   sections?: readonly unknown[];
+  /// A tab with no sections whose panel the server renders only while it is the one named.
+  lazy?: boolean;
 }
 
 export type TabKeyMove = { focus: string; select: boolean };
 
 /// Whether selecting the tab asks the server for it (a navigation), rather than showing a panel already here.
-export const navigatesOnSelect = (tab: TabKeySpec): boolean => (tab.sections?.length ?? 0) > 0;
+export const navigatesOnSelect = (tab: TabKeySpec): boolean => (tab.sections?.length ?? 0) > 0 || tab.lazy === true;
 
 /// The section to open when a tab with sections is selected: the one the address last named, if
 /// it is one of this tab's, else the first. Coming back to a tab lands where the officer left it.

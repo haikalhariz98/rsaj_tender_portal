@@ -11,7 +11,7 @@ import type { ExerciseStatus, Regime } from "@/lib/method/types";
 
 export const dynamic = "force-dynamic";
 
-const TONE = { brand: "brand", info: "info", neutral: undefined } as const;
+const TONE = { brand: "brand", info: "info", ok: "ok", neutral: undefined } as const;
 
 /**
  * Sourcing exercises (6.3): classified here in Phase 1 — bands, method, contract type
@@ -33,6 +33,7 @@ export default async function SourcingPage() {
       views: [
         ...(status === "DRAFT" ? ["drafts"] : []),
         ...(status === "DOCUMENTS_IN_PREPARATION" ? ["preparing"] : []),
+        ...(status === "PENDING_APPROVAL_FOR_TENDERING" ? ["approval"] : []),
         ...(r.onBoundary && status !== "CANCELLED" ? ["boundary"] : []),
         ...(nameOpen ? ["name"] : []),
       ],
@@ -64,6 +65,7 @@ export default async function SourcingPage() {
         meta={[
           `${rows.filter((r) => r.status === "DRAFT").length} drafts`,
           `${rows.filter((r) => r.status === "DOCUMENTS_IN_PREPARATION").length} in preparation`,
+          `${rows.filter((r) => r.status === "PENDING_APPROVAL_FOR_TENDERING").length} with approval for tendering`,
           `${awaitingName} awaiting name approval`,
           `${rows.filter((r) => r.onBoundary && r.status !== "CANCELLED").length} on the boundary`,
         ]}
@@ -77,7 +79,7 @@ export default async function SourcingPage() {
       />
 
       <Callout tone="info" className="mb-6" title="Sourcing runs outside the portal in this phase">
-        An exercise is classified here: its three value bands, sourcing method, contract type and basis, and who approves the name and the appointment. Documents, invitation, bids and evaluation are still recorded outside the portal.
+        An exercise is classified here: its three value bands, sourcing method, contract type and basis, and who approves the name and the appointment. Its tender documents are prepared and approved here; invitation, bids and evaluation are still recorded outside the portal.
       </Callout>
 
       <Card className="overflow-hidden">
@@ -92,6 +94,7 @@ export default async function SourcingPage() {
           views={[
             { id: "drafts", label: "Drafts" },
             { id: "preparing", label: "In preparation" },
+            { id: "approval", label: "With approval" },
             { id: "boundary", label: "On the boundary" },
             { id: "name", label: `${TERM.nameApproval} in progress` },
           ]}

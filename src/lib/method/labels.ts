@@ -20,12 +20,13 @@ export const EXERCISE_STATUS_LABEL: Record<ExerciseStatus, string> = {
   CANCELLED: "Cancelled",
 };
 export const EXERCISE_STATUS_ORDER: readonly ExerciseStatus[] = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING", "APPROVED_FOR_TENDERING", "CANCELLED"];
-export const EXERCISE_STATUS_TONE: Record<ExerciseStatus, "brand" | "info" | "neutral"> = {
+export const EXERCISE_STATUS_TONE: Record<ExerciseStatus, "brand" | "info" | "neutral" | "ok"> = {
   // As a requisition's draft reads (UX low).
   DRAFT: "neutral",
   DOCUMENTS_IN_PREPARATION: "info",
-  PENDING_APPROVAL_FOR_TENDERING: "info",
-  APPROVED_FOR_TENDERING: "brand",
+  // One colour for one meaning (status-tone): with approval is under way, approved is done.
+  PENDING_APPROVAL_FOR_TENDERING: "brand",
+  APPROVED_FOR_TENDERING: "ok",
   CANCELLED: "neutral",
 };
 /// §7.3.2 gives cancellation no SOP path; the screen says so wherever it shows it.

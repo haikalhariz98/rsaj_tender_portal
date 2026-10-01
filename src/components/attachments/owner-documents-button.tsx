@@ -8,6 +8,7 @@ import { FileIcon } from "@/components/icons";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 import { EmptyState } from "@/components/ui/feedback";
+import type { OwnerRef } from "@/lib/documents/repo";
 import type { PanelOptions, PanelView } from "@/lib/documents/views";
 
 import { AttachmentPanel } from "./attachment-panel";
@@ -17,7 +18,10 @@ import { AttachmentPanel } from "./attachment-panel";
  * its own for them (a delegation in Users & roles). Loaded when opened. The panel inside
  * is the shared one: the same decisions, the same reasons.
  */
-export function OwnerDocumentsButton({ owner, label, options, iconOnly = false }: { owner: { kind: "meeting" | "exercise" | "award" | "delegation"; id: string }; label: string; options?: PanelOptions; /// For a table row: the icon alone, named by `Documents of …`, so the row needs no room for the word.
+export function OwnerDocumentsButton({ owner, label, options, iconOnly = false, title = "Signed recommendation", subtitle = "The absent holder's signed recommendation to re-delegate." }: {
+  /// What the panel is headed and described as; the defaults are the delegation's.
+  title?: string;
+  subtitle?: string; owner: OwnerRef; label: string; options?: PanelOptions; /// For a table row: the icon alone, named by `Documents of …`, so the row needs no room for the word.
   iconOnly?: boolean }) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<PanelView | null | undefined>(undefined);
@@ -66,7 +70,7 @@ export function OwnerDocumentsButton({ owner, label, options, iconOnly = false }
                     The record no longer exists. Reload the page.
                   </EmptyState>
                 ) : (
-                  <AttachmentPanel {...view} onChanged={async () => setView(await loadOwnerPanel(owner, options))} title="Signed recommendation" subtitle="The absent holder's signed recommendation to re-delegate." />
+                  <AttachmentPanel {...view} onChanged={async () => setView(await loadOwnerPanel(owner, options))} title={title} subtitle={subtitle} />
                 )}
               </div>
             </aside>

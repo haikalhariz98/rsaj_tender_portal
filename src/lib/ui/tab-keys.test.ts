@@ -42,6 +42,11 @@ describe("the tab strip's keys", () => {
     expect(navigatesOnSelect({ id: "x", sections: [] })).toBe(false);
     expect(navigatesOnSelect({ id: "x", sections: [{}] })).toBe(true);
   });
+
+  it("a lazy tab, rendered by the server only while it is named, navigates on select too", () => {
+    expect(navigatesOnSelect({ id: "documents", lazy: true })).toBe(true);
+    expect(navigatesOnSelect({ id: "documents", lazy: false })).toBe(false);
+  });
 });
 
 describe("sectionToOpen: coming back to a tab with sections", () => {

@@ -31,6 +31,10 @@ export interface TabSpec {
   sections?: { id: string; label: string }[];
   /// The section the server rendered. Only read for the tab that has `sections`.
   section?: string;
+  /// The server renders this tab's panel only while it is the one the address names (it reads
+  /// data no other tab needs). Selecting it is a navigation to `?tab=<id>`; leave `panel` null
+  /// until then. For a tab with `sections` this is already so.
+  lazy?: boolean;
 }
 
 /**
@@ -154,6 +158,10 @@ export function Tabs({
       if (id !== current?.id && section) router.push(sectionHref(pathname, id, section), { scroll: false });
       return;
     }
+    if (next && next.lazy) {
+      if (id !== current?.id) router.push(`${pathname}?tab=${encodeURIComponent(id)}`, { scroll: false });
+      return;
+    }
     const url = new URL(window.location.href);
     url.searchParams.set("tab", id);
     // The section stays in the address: it is only used when it is one of the sectioned tab's own, so
@@ -249,7 +257,7 @@ export function Tabs({
             {current.panel ?? <p className="text-[13.5px] text-ink-3" role="status">Loading…</p>}
           </div>
         ) : (
-          current?.panel
+          (current?.panel ?? (current?.lazy ? <p className="text-[13.5px] text-ink-3" role="status">Loading…</p> : null))
         )}
       </div>
     </div>

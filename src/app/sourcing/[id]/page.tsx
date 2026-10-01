@@ -31,7 +31,7 @@ import { routeTone, stepTone } from "@/lib/ui/status-tone";
 import { dayToDate } from "@/lib/dates";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
-import { latestFirst, nameRequestFault, nameRouteForRequester, nameRouteLabel, nameRoutesOf, requesterHolding, resolveNameApproval } from "@/lib/method/approval";
+import { latestFirst, nameRequestFault, nameRouteForRequester, nameRouteLabel, nameRoutesOf, requesterHolding, resolveNameApproval, tenderingRoutesOf } from "@/lib/method/approval";
 import { disagreesAtBoundary } from "@/lib/method/bands";
 import { determinationDrift } from "@/lib/method/drift";
 import { evaluateExercise } from "@/lib/method/evaluate";
@@ -74,6 +74,9 @@ import { instrumentFor } from "@/lib/award/instrument";
 import { exerciseCancelBlockedBy } from "@/lib/award/status";
 import { AWARD_STATUS_LABEL, AWARD_STATUS_TONE, awardFindingText, DOSSIER_EVIDENCE_NEEDED, INSTRUMENT_SHORT } from "@/lib/award/labels";
 import { loadAwardPolicy } from "@/lib/award/repo";
+import { ENTITY as TENDER_ENTITY } from "@/lib/tender-docs/audit-view";
+import { awardOpenRefusal, exerciseOpenForAward } from "@/lib/award/gate";
+import type { PackKind } from "@/lib/tender-docs/types";
 import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
 import { DECISION_LABEL, DECIDER_FAULT_TEXT, OPERATOR_LABEL } from "@/lib/requisition/labels";
 
@@ -91,6 +94,7 @@ import {
   ReviewProposalDrawer,
   SubmitProposalDrawer,
 } from "../editors";
+import { DocumentsWorkspace } from "./documents/workspace";
 import { SCOPE_SECTIONS, ScopeWorkspace, scopeSectionOf } from "./scope/workspace";
 
 export const dynamic = "force-dynamic";
@@ -322,6 +326,14 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       // Read only while it is the tab being looked at, and only for the section named.
       panel: tab === "scope" ? <ScopeWorkspace exerciseId={ex.id} section={scopeSection} /> : null,
     },
+    {
+      id: "documents",
+      label: "Tender documents",
+      icon: <FileIcon size={15} />,
+      // Read only while it is the tab being looked at.
+      lazy: true,
+      panel: tab === "documents" ? <DocumentsWorkspace exerciseId={ex.id} today={today} timeZone={org.timeZone} routes={latestFirst(tenderingRoutesOf(ex.approvalInstances))} /> : null,
+    },
     ...(flags?.requiresProposal
       ? [
           {
@@ -411,6 +423,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
         <AwardTab
           exerciseId={ex.id}
           status={ex.status}
+          packKind={ex.packKindSnapshot}
           awards={awards}
           // Whether an award can be opened here at all, and whether it could then go for approval.
           opening={(() => {
@@ -506,7 +519,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       <div className="mb-6 flex flex-col gap-3">
         {ex.status !== "CANCELLED" && (
           <Callout tone="info" title="Sourcing runs outside the portal in this phase">
-            The exercise is classified here — bands, method, contract type and basis. Documents, invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
+            The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
           </Callout>
         )}
         {ex.status === "CANCELLED" && (
@@ -538,13 +551,13 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
 
 // --------------------------------------------------------------------- award
 
-function AwardTab({ exerciseId, status, awards, opening, dossier }: { exerciseId: string; status: string; opening: string | null; dossier: boolean; awards: { id: string; reference: string; awardeeName: string; awardedValue: { toString(): string }; status: string; instrumentKind: string; cancelReason: string; contract: { number: string } | null }[] }) {
+function AwardTab({ exerciseId, status, packKind, awards, opening, dossier }: { exerciseId: string; status: string; packKind: PackKind | null; opening: string | null; dossier: boolean; awards: { id: string; reference: string; awardeeName: string; awardedValue: { toString(): string }; status: string; instrumentKind: string; cancelReason: string; contract: { number: string } | null }[] }) {
   const live = awards.find((a) => a.status !== "CANCELLED") ?? null;
   const cancelled = awards.filter((a) => a.status === "CANCELLED");
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<AwardIcon size={17} />} title="The award" subtitle={live ? "Its approval, instrument, return and securities are on the award's own record." : "An award is opened once the exercise is in preparation, with its classification decided."} />
+        <CardHeader icon={<AwardIcon size={17} />} title="The award" subtitle={live ? "Its approval, instrument, return and securities are on the award's own record." : awardOpenRefusal(packKind)} />
         <CardBody>
           {live ? (
             <div className="flex flex-col gap-4">
@@ -563,11 +576,13 @@ function AwardTab({ exerciseId, status, awards, opening, dossier }: { exerciseId
                 <ButtonLink href={`/awards/${live.id}`} variant="secondary" size="sm">Open the award</ButtonLink>
               </div>
             </div>
-          ) : status === "DOCUMENTS_IN_PREPARATION" && opening ? (
+          ) : !exerciseOpenForAward(status, packKind) ? (
+            <EmptyState size="sm" title="Not awarded">{status === "CANCELLED" ? "The exercise is cancelled." : status === "DRAFT" ? "The exercise must move into preparation first." : awardOpenRefusal(packKind)}</EmptyState>
+          ) : opening ? (
             <EmptyState size="sm" title="No award is opened here" action={<Button size="sm" variant="primary" disabled aria-describedby="award-start-note">Start the award</Button>}>
               <span id="award-start-note">{opening}</span>
             </EmptyState>
-          ) : status === "DOCUMENTS_IN_PREPARATION" ? (
+          ) : (
             <div className="flex flex-col gap-4">
               {dossier && (
                 <Callout tone="warn" title={DOSSIER_EVIDENCE_NEEDED.title}>
@@ -578,8 +593,6 @@ function AwardTab({ exerciseId, status, awards, opening, dossier }: { exerciseId
                 {dossier ? DOSSIER_EVIDENCE_NEEDED.short : "Record the awardee and the awarded value; the award is then sent for the appointment's approval."}
               </EmptyState>
             </div>
-          ) : (
-            <EmptyState size="sm" title="Not awarded">{status === "CANCELLED" ? "The exercise is cancelled." : "The exercise must move into preparation first."}</EmptyState>
           )}
         </CardBody>
       </Card>
@@ -1099,6 +1112,13 @@ const ENTITY_LABEL: Record<string, string> = {
   ...DOCUMENT_ENTITY_LABEL,
   // 6.2: the bill, panel, estimate, their exports and scope matters, labelled with the exercise.
   ...SCOPE_ENTITY_LABEL,
+  // 6.4: the pack, its parts and the Appendix; their values are already in words.
+  [TENDER_ENTITY.pack]: "Tender documents",
+  [TENDER_ENTITY.part]: "Tender document part",
+  [TENDER_ENTITY.document]: "Frozen text",
+  [TENDER_ENTITY.appendix]: "Appendix",
+  [TENDER_ENTITY.variationLimit]: "Variation limit",
+  [TENDER_ENTITY.section]: "Appendix section",
   SourcingExercise: "Exercise",
   ExerciseScopePart: "Scope",
   ExerciseProposalAnswer: "Proposal item",

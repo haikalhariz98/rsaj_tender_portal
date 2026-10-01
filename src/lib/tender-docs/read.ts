@@ -322,7 +322,7 @@ export async function appendixPage(exerciseId: string) {
       helper: a.ladKind === "PERCENT_OF_SUM_PER_DAY" ? "Fixed at award, against the awarded sum." : null,
       suggestion: p.ladDailyPct ? `The policy's rate is ${formatPct(p.ladDailyPct)} of the contract sum a day (${provenance(p.ladDailyPctProvenance).toLowerCase()}).` : null,
     },
-    sectional: { value: yesNoNotSet(a.sectionalCompletion), sections: pack.appendix.sections.map((s) => ({ id: s.id, description: s.description, lad: s.ladKind == null ? NOT_SET : s.ladKind === "AMOUNT_PER_DAY" ? (s.ladAmount ? `${formatSen(parseSen(s.ladAmount.toString()))} a day` : NOT_SET) : s.ladPct ? `${formatPct(s.ladPct.toString())} of the contract sum a day` : NOT_SET })) },
+    sectional: { value: yesNoNotSet(a.sectionalCompletion), sections: pack.appendix.sections.map((s) => ({ id: s.id, description: s.description, raw: { description: s.description, ladKind: s.ladKind ?? "", ladAmount: s.ladAmount ? senToDecimalString(parseSen(s.ladAmount.toString())) : "", ladPct: s.ladPct ? s.ladPct.toString() : "", sortOrder: String(s.sortOrder) }, lad: s.ladKind == null ? NOT_SET : s.ladKind === "AMOUNT_PER_DAY" ? (s.ladAmount ? `${formatSen(parseSen(s.ladAmount.toString()))} a day` : NOT_SET) : s.ladPct ? `${formatPct(s.ladPct.toString())} of the contract sum a day` : NOT_SET })) },
     dlp: {
       value: a.dlpApplies == null ? NOT_SET : a.dlpApplies ? (a.dlpMonths == null ? NOT_SET : `${a.dlpMonths} months`) : "Does not apply",
       /// FR-MTD-012: hidden, with the reason, where the contract type has none.
