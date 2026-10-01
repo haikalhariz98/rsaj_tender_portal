@@ -12,7 +12,7 @@ import {
 } from "@/components/icons";
 import { AvatarStack, Avatar } from "@/components/ui/avatar";
 import { Badge, Chip } from "@/components/ui/badge";
-import { iconButtonClass } from "@/components/ui/button";
+import { Button, iconButtonClass } from "@/components/ui/button";
 import { cx } from "@/components/ui/cx";
 import { EmptyState, Meter } from "@/components/ui/feedback";
 import { Select } from "@/components/ui/select";
@@ -128,6 +128,12 @@ export interface Row {
 export interface View {
   id: string;
   label: string;
+  /// What an empty list says when this view is chosen and nothing is in it ("Nothing closes
+  /// this week"), rather than the list's own empty state. The way back to all records is always offered.
+  emptyTitle?: string;
+  emptyBody?: string;
+  /// What a heading above the list says about this view (what counts in it), where it needs saying.
+  about?: string;
 }
 
 /// A chip in the toolbar that narrows the list by one column's values.
@@ -291,6 +297,7 @@ export function DataList({
   toolbar = true,
   stackBelow = "md",
   onViewChange,
+  initialView,
 }: {
   columns: Column[];
   rows: Row[];
@@ -327,11 +334,13 @@ export function DataList({
   /// Told when a view is picked ("" for all records), so a heading beside the list can say
   /// which list this is. The list keeps the state; this only reports it.
   onViewChange?: (id: string) => void;
+  /// The view the list opens on (a view named in the address). Ignored if no such view exists.
+  initialView?: string;
 }) {
   const [compact, setCompact] = useState(false);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
-  const [view, setView] = useState("all");
+  const [view, setView] = useState(initialView && views.some((v) => v.id === initialView) ? initialView : "all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -572,10 +581,26 @@ export function DataList({
       {visible.length === 0 ? (
         <EmptyState
           size="sm"
-          title={emptyTitle}
+          title={narrowed ? (views.find((v) => v.id === view)?.emptyTitle ?? "Nothing matches") : emptyTitle}
           className={cx(showTools && "border-t border-line")}
+          action={
+            narrowed ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setView("all");
+                  onViewChange?.("");
+                  setQuery("");
+                  setChosen({});
+                }}
+              >
+                Show all records
+              </Button>
+            ) : undefined
+          }
         >
-          {emptyBody}
+          {narrowed ? (views.find((v) => v.id === view)?.emptyBody ?? "No record matches the view, search and filters you have chosen.") : emptyBody}
         </EmptyState>
       ) : (
         <>
@@ -691,7 +716,7 @@ export function DataList({
                     )}
                   >
                     {c.sulit ? (
-                      <span className={cx("flex flex-col gap-1", c.numeric ? "items-end" : "items-start")}>
+                      <span className={cx("flex flex-wrap items-center gap-x-2 gap-y-1", c.numeric ? "justify-end" : "justify-start")}>
                         {c.sortable ? sortButton(c) : c.label}
                         <SulitMark />
                       </span>

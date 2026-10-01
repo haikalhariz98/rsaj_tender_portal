@@ -9,8 +9,7 @@ import { EXERCISE_STATUS_LABEL, EXERCISE_STATUS_ORDER, EXERCISE_STATUS_TONE, REG
 import { EXERCISES_PAGE, listExercises, loadMethodConfig } from "@/lib/method/repo";
 import type { ExerciseStatus, Regime } from "@/lib/method/types";
 
-import { daysFrom } from "@/lib/dates";
-import { PHASE_LABEL } from "@/lib/window/labels";
+import { CLOSING_SOON_DAYS, closesSoon } from "@/lib/window/closing-soon";
 import { windowColumns } from "@/lib/window/read";
 
 import { ExerciseList } from "./exercise-list";
@@ -23,7 +22,8 @@ const TONE = { brand: "brand", info: "info", ok: "ok", neutral: undefined } as c
  * Sourcing exercises (6.3): classified here in Phase 1 — bands, method, contract type
  * and basis — while the sourcing itself still runs outside the portal (§13.3).
  */
-export default async function SourcingPage() {
+export default async function SourcingPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
+  const { view } = await searchParams;
   const { org, rows, total } = await listExercises();
   const cfg = org ? await loadMethodConfig(org.id) : null;
   const methodName = (c: string) => cfg?.config.methods.find((m) => m.code === c)?.nameEn ?? "A method no longer configured";
@@ -42,8 +42,8 @@ export default async function SourcingPage() {
     return {
       id: r.id,
       views: [
-        ...(live && w?.phase === PHASE_LABEL.OPEN_FOR_PURCHASE ? ["open"] : []),
-        ...(live && today && w?.closingDay && w.phase !== PHASE_LABEL.CLOSED && daysFrom(today, w.closingDay) >= 0 && daysFrom(today, w.closingDay) < 7 ? ["week"] : []),
+        ...(live && w?.phaseCode === "OPEN_FOR_PURCHASE" ? ["open"] : []),
+        ...(live && w && closesSoon({ today, closingDay: w.closingDay, phase: w.phaseCode }) ? ["soon"] : []),
         ...(status === "DRAFT" ? ["drafts"] : []),
         ...(status === "DOCUMENTS_IN_PREPARATION" ? ["preparing"] : []),
         ...(status === "PENDING_APPROVAL_FOR_TENDERING" ? ["approval"] : []),
@@ -56,7 +56,7 @@ export default async function SourcingPage() {
         title: { kind: "link", text: r.title, href: `/sourcing/${r.id}`, sub: `${r.reference} · ${methodName(r.sourcingMethodCode)}` },
         method: { kind: "stack", title: methodName(r.sourcingMethodCode), sub: typeName(r.contractTypeCode) },
         value: { kind: "money", value: Number(r.estimatedValue.toString()) },
-        window: { kind: "stack", title: r.closingAt ? w?.closing ?? "—" : "Not set yet", sub: r.closingAt ? w?.phase : undefined },
+        window: { kind: "stack", title: r.closingAt ? w?.closing ?? "—" : status === "CANCELLED" ? "No closing" : "Not set yet", sub: r.closingAt ? w?.phase : status === "CANCELLED" ? "Cancelled before one was set" : undefined },
         status: { kind: "badge", text: EXERCISE_STATUS_LABEL[status], tone: TONE[EXERCISE_STATUS_TONE[status]] },
         checks: {
           kind: "chips",
@@ -102,12 +102,19 @@ export default async function SourcingPage() {
         searchPlaceholder="Search by title or reference"
         emptyTitle="No sourcing exercises yet"
         emptyBody="Open one from an approved requisition."
+        initialView={view}
         views={[
           { id: "drafts", label: EXERCISE_STATUS_LABEL.DRAFT },
           { id: "preparing", label: EXERCISE_STATUS_LABEL.DOCUMENTS_IN_PREPARATION },
           { id: "approval", label: EXERCISE_STATUS_LABEL.PENDING_APPROVAL_FOR_TENDERING },
           { id: "open", label: "Open for purchase" },
-          { id: "week", label: "Closing this week" },
+          {
+            id: "soon",
+            label: `Closing within ${CLOSING_SOON_DAYS} days`,
+            about: `Published exercises closing today or in the next ${CLOSING_SOON_DAYS - 1} days, in the organisation's time. A closing that has already passed, even earlier today, is not counted.`,
+            emptyTitle: `Nothing closes within ${CLOSING_SOON_DAYS} days`,
+            emptyBody: "Pick another view, or show all records.",
+          },
           { id: "boundary", label: "On the boundary" },
           { id: "name", label: `${TERM.nameApproval} in progress` },
         ]}
@@ -117,7 +124,7 @@ export default async function SourcingPage() {
         columns={[
           { key: "title", label: "Exercise", sortable: true, mobile: "primary" },
           { key: "method", label: "Method and contract type", width: "22%", hideBelow: "2xl" },
-          { key: "value", label: "Value", width: "124px", numeric: true, sortable: true, sulit: true, mobile: "meta" },
+          { key: "value", label: "Value", width: "156px", numeric: true, sortable: true, sulit: true, mobile: "meta" },
           { key: "window", label: "Closing", width: "190px", hideBelow: "lg", mobile: "meta" },
           { key: "status", label: "Status", width: "230px", sortable: true, mobile: "meta" },
           { key: "checks", label: "Band and checks", width: "220px", hideBelow: "2xl", mobile: "meta" },

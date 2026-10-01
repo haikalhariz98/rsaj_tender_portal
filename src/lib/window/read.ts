@@ -7,7 +7,7 @@
  * rule shown carries its value, where it comes from and its source, or "Not set".
  */
 
-import { dayIn, storedDay } from "@/lib/dates";
+import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { uncollectedReceipts } from "@/lib/integration/fee-receipt";
@@ -29,7 +29,7 @@ import { attendanceCsv, isMandatory, mandatoryPermittedFor } from "./events";
 import { inviteeEditFault, inviteeListFault, regKey } from "./invitees";
 import { closingDay, judgePublish, nameRoutesWithLists, pathOf, phaseOf, proposedInvitees, renderAddendum } from "./judge";
 import { ADDENDUM_STATUS_LABEL, CERT_SIGHTED_LABEL, CHECK_STATE_LABEL, CLOSING_CHANGE_KIND_LABEL, DAY_RULE_LABEL, DELIVERY_METHOD_LABEL, FEE_COST_KIND_LABEL, NOTIFIED_LABEL, PARTY_SOURCE_LABEL, PATH_LABEL, PHASE_LABEL, PHASE_TONE, SITE_EVENT_KIND_LABEL, TABLE_AVAILABILITY_LABEL, windowFindingText } from "./labels";
-import { closingHistory, tableDocumentAvailability } from "./phase";
+import { closingHistory, tableDocumentAvailability, type WindowPhase } from "./phase";
 import { basisTotalOf, eventFactsOf, loadCalendar, loadChannels, loadFloors, loadWindowPolicy, windowData, type WindowData } from "./repo";
 import { annotationLines, isAnnotation, voidSaleFault } from "./sale";
 import type { Finding, Provenance } from "./types";
@@ -402,16 +402,18 @@ export async function receiptExceptions() {
  * in the organisation's zone and the phase in words, derived now (ADR 0014).
  */
 export async function windowColumns(exerciseIds: readonly string[]) {
-  if (exerciseIds.length === 0) return new Map<string, { closing: string; phase: string; closingDay: string | null }>();
+  if (exerciseIds.length === 0) return new Map<string, { closing: string; phase: string; phaseCode: WindowPhase; closingDay: string | null }>();
   const org = await db.organisation.findFirst({ select: { timeZone: true } });
   const tz = org?.timeZone ?? null;
   const rows = await db.sourcingExercise.findMany({ where: { id: { in: [...exerciseIds] } }, select: { id: true, status: true, closingAt: true, window: { select: { purchaseFromDay: true, purchaseCloseDay: true } } } });
   const now = new Date();
-  return new Map(rows.map((r) => [r.id, { closing: r.closingAt ? formatOrgDateTime(r.closingAt, tz) : "—", phase: PHASE_LABEL[phaseOf(r, r.window, now, tz).phase], closingDay: closingDay(r.closingAt, tz) }]));
+  return new Map(
+    rows.map((r) => {
+      const phase = phaseOf(r, r.window, now, tz).phase;
+      return [r.id, { closing: r.closingAt ? formatOrgDateTime(r.closingAt, tz) : "—", phase: PHASE_LABEL[phase], phaseCode: phase, closingDay: closingDay(r.closingAt, tz) }];
+    }),
+  );
 }
-
-/// The organisation's day an instant falls on, for a screen comparing a closing with this week.
-export const closingWeekDay = (closingAt: Date, timeZone: string) => dayIn(closingAt, timeZone);
 
 export type { Loaded };
 
