@@ -84,6 +84,16 @@ export function leadTimeText(l: { state: LeadState; lastPermittedDay?: string; l
   }
 }
 
+/// The lead-time state as a short badge, and how seriously it reads.
+export const LEAD_STATE_BADGE: Readonly<Record<LeadState, { label: string; tone: "ok" | "warn" | "err" | "neutral" }>> = {
+  READY: { label: "Ready", tone: "ok" },
+  LATE: { label: "Late", tone: "err" },
+  NOT_PREPARED: { label: "Not prepared", tone: "warn" },
+  LEAD_NOT_SET: { label: "Lead time not set", tone: "warn" },
+  CLOSING_NOT_SET: { label: "Closing not set", tone: "neutral" },
+  TIME_ZONE_NOT_SET: { label: "Time zone not set", tone: "warn" },
+};
+
 export type ScopeCode =
   | FinaliseFault
   | DraftFault

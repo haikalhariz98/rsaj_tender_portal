@@ -31,7 +31,7 @@ export type Field =
       placeholder?: string;
       mono?: boolean;
     }
-  | { kind: "textarea"; name: string; label: string; hint?: string; placeholder?: string }
+  | { kind: "textarea"; name: string; label: string; required?: boolean; hint?: string; placeholder?: string }
   | {
       kind: "number";
       name: string;
@@ -41,7 +41,9 @@ export type Field =
       min?: number;
       placeholder?: string;
     }
-  | { kind: "money"; name: string; label: string; required?: boolean; hint?: string }
+  /// `sealed` is a figure nobody may read back: the browser is told not to remember it,
+  /// and it only ever lives in this field while it is typed.
+  | { kind: "money"; name: string; label: string; required?: boolean; hint?: string; sealed?: boolean }
   | { kind: "date"; name: string; label: string; required?: boolean; hint?: string }
   | {
       kind: "select";
@@ -113,6 +115,8 @@ export function RecordEditor({
   showWhen,
   destructive,
   reason: reasonAsked,
+  danger,
+  confirm,
   size = "md",
   defaultOpen = false,
 }: {
@@ -144,6 +148,13 @@ export function RecordEditor({
   destructive?: { reasonLabel: string };
   /// Requires a reason without the act being destructive.
   reason?: { label: string };
+  /// Takes something away but asks no reason (a draft's working row, which its audit row keeps whole): the button reads as destructive.
+  danger?: boolean;
+  /// A second step before saving: the values typed in the named fields are shown back, on
+  /// this page only, for the officer to check, and saved only when they say so. For a figure
+  /// that cannot be shown again once it is saved. Nothing is kept: closing the form, or
+  /// saving, forgets what was typed.
+  confirm?: { fields: string[]; heading: string; note: string; submitLabel: string };
   /// Drawer width. The form opens from the right, as the prototype does.
   size?: "sm" | "md" | "lg" | "xl";
   /// Opens on arrival — for a link from another record that asks for this act with
@@ -155,8 +166,13 @@ export function RecordEditor({
   // form reopens from the stored values.
   const setOpen = (v: boolean) => {
     setOpenState(v);
-    if (!v) setLive({});
+    if (!v) {
+      setLive({});
+      setReview(null);
+    }
   };
+  // The typed values being checked, while the confirm step is showing.
+  const [review, setReview] = useState<{ label: string; value: string }[] | null>(null);
   const [state, setState] = useState<FormState>(EMPTY_FORM_STATE);
   const [pending, startTransition] = useTransition();
   const [reason, setReason] = useState("");
@@ -178,6 +194,7 @@ export function RecordEditor({
     startTransition(async () => {
       const result = await action(EMPTY_FORM_STATE, data);
       setState(result);
+      setReview(null);
       if (result.ok) {
         setOpen(false);
         setReason("");
@@ -242,7 +259,21 @@ export function RecordEditor({
             {/* The form is the flex column the body scrolls inside; without it the body
                 has no height to scroll within and long forms are cut off. */}
             <form
-              onSubmit={(e) => submit(formDataOf(e))}
+              onSubmit={(e) => {
+                const data = formDataOf(e);
+                if (confirm && !review) {
+                  // Back to the form's own values, never to a stored copy.
+                  setReview(
+                    confirm.fields.map((name) => {
+                      const f = fields.find((x) => "name" in x && x.name === name);
+                      const typed = String(data.get(name) ?? "").trim();
+                      return { label: f && "label" in f ? f.label : name, value: f?.kind === "money" && typed ? `RM ${typed}` : typed || "Nothing typed" };
+                    }),
+                  );
+                  return;
+                }
+                submit(data);
+              }}
               onChange={(e) => {
                 const t = e.target as unknown as HTMLSelectElement;
                 if (showWhen && t.name && Object.values(showWhen).some((w) => w.name === t.name)) setLive((x) => ({ ...x, [t.name]: t.value }));
@@ -257,7 +288,21 @@ export function RecordEditor({
               />
 
               <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-                <div className="flex flex-col gap-5">
+                {review && confirm && (
+                  <div className="flex flex-col gap-4" role="group" aria-label={confirm.heading}>
+                    <p className="text-[15px] font-bold text-ink">{confirm.heading}</p>
+                    <dl className="flex flex-col gap-2 rounded-2xl border border-line bg-sunken px-4 py-3">
+                      {review.map((r) => (
+                        <div key={r.label} className="flex flex-col gap-0.5">
+                          <dt className="text-[12.5px] font-semibold text-ink-3">{r.label}</dt>
+                          <dd className="text-[18px] font-bold break-words text-ink tabular-nums">{r.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <p className="text-[13px] text-ink-2">{confirm.note}</p>
+                  </div>
+                )}
+                <div className={review ? "hidden" : "flex flex-col gap-5"}>
                   {state.message && <Callout tone="err">{state.message}</Callout>}
                   {/* A refusal on a field this form does not show is still shown: never
                       a save that fails with nothing said (6.3 re-review). */}
@@ -327,16 +372,16 @@ export function RecordEditor({
               </div>
 
               <footer className="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
-                <button type="button" className={buttonClass("ghost", "md")} onClick={() => setOpen(false)}>
-                  {cancelLabel}
+                <button type="button" className={buttonClass("ghost", "md")} onClick={() => (review ? setReview(null) : setOpen(false))}>
+                  {review ? "Change it" : cancelLabel}
                 </button>
                 <button
                   type="submit"
-                  className={buttonClass(destructive ? "danger" : "primary", "md")}
+                  className={buttonClass(destructive || danger ? "danger" : "primary", "md")}
                   disabled={pending || blocked}
                 >
-                  {!destructive && <SaveIcon size={15} />}
-                  {pending ? "Saving…" : submitLabel}
+                  {!destructive && !danger && <SaveIcon size={15} />}
+                  {pending ? "Saving…" : review && confirm ? confirm.submitLabel : submitLabel}
                 </button>
               </footer>
             </form>
@@ -437,7 +482,7 @@ function FieldInput({
 
   if (field.kind === "textarea") {
     return (
-      <Field label={field.label} htmlFor={id} hint={hint} error={error} className="sm:col-span-2">
+      <Field label={field.label} required={required} htmlFor={id} hint={hint} error={error} className="sm:col-span-2">
         <Textarea
           id={id}
           name={field.name}
@@ -458,7 +503,9 @@ function FieldInput({
           prefix="RM"
           name={field.name}
           inputMode="decimal"
-          defaultValue={(value as string) ?? ""}
+          autoComplete={field.sealed ? "off" : undefined}
+          spellCheck={field.sealed ? false : undefined}
+          defaultValue={field.sealed ? "" : ((value as string) ?? "")}
           aria-invalid={error ? true : undefined}
           className="[&_input]:text-right"
         />

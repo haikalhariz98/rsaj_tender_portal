@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { BQ_SCOPED_BY, BQ_ITEM_KINDS } from "./types";
-import { BQ_READABLE_STATEMENT, ESTIMATE_SEALED_STATEMENT, ESTIMATE_STATE_LABEL, EVENT_KIND_LABEL, firmValueText, ITEM_KIND_LABEL, leadTimeText, PACK_CARD_HEADING, PANEL_STATE_LABEL, SCOPE_CODES, scopeFaultText, SCOPED_BY_LABEL, sealedVersion } from "./labels";
+import { BQ_READABLE_STATEMENT, ESTIMATE_SEALED_STATEMENT, ESTIMATE_STATE_LABEL, EVENT_KIND_LABEL, firmValueText, ITEM_KIND_LABEL, LEAD_STATE_BADGE, leadTimeText, PACK_CARD_HEADING, PANEL_STATE_LABEL, SCOPE_CODES, scopeFaultText, SCOPED_BY_LABEL, sealedVersion } from "./labels";
 
 describe("every code has words, and no words are a code (AGENTS.md rule 5)", () => {
   it("each code renders a sentence that is not the code", () => {
@@ -21,6 +21,15 @@ describe("every code has words, and no words are a code (AGENTS.md rule 5)", () 
     for (const s of ["DRAFT", "LODGED", "DISCLOSED", "VOID"] as const) expect(ESTIMATE_STATE_LABEL[s]).toBeTruthy();
     for (const s of ["NONE", "DRAFT", "VERIFIED", "SCAN_GONE"] as const) expect(PANEL_STATE_LABEL[s]).toBeTruthy();
     for (const k of ["PREPARED", "AMENDED", "LODGED", "RETAINED", "LATE_OVERRIDE", "DISCLOSED", "VOIDED"] as const) expect(EVENT_KIND_LABEL[k]).toBeTruthy();
+  });
+});
+
+describe("the lead-time badge", () => {
+  it("every state has a badge that is words, never the code", () => {
+    for (const s of ["READY", "LATE", "NOT_PREPARED", "LEAD_NOT_SET", "CLOSING_NOT_SET", "TIME_ZONE_NOT_SET"] as const) {
+      expect(LEAD_STATE_BADGE[s].label).toBeTruthy();
+      expect(LEAD_STATE_BADGE[s].label).not.toMatch(/_/);
+    }
   });
 });
 

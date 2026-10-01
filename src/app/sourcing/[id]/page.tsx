@@ -8,7 +8,7 @@ import type { AttachmentFact } from "@/lib/documents/types";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { AwardIcon, ClipboardIcon, ClockIcon, FileIcon, RouteIcon, ShieldIcon, SlidersIcon, UsersIcon } from "@/components/icons";
+import { AwardIcon, ClipboardIcon, ClockIcon, FileIcon, RouteIcon, ShieldIcon, SlidersIcon, ToolsIcon, UsersIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
@@ -89,6 +89,7 @@ import {
   ReviewProposalDrawer,
   SubmitProposalDrawer,
 } from "../editors";
+import { SCOPE_SECTIONS, ScopeWorkspace, scopeSectionOf } from "./scope/workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -102,7 +103,8 @@ const pct = (v: string) => v.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
 const tone = (l: string) => (l === "block" || l === "err" ? "err" : l === "info" ? "info" : "warn") as "err" | "warn" | "info";
 
 export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
-  const [{ id }, { tab }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string }>]);
+  const [{ id }, { tab, section }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string; section?: string }>]);
+  const scopeSection = scopeSectionOf(section);
   const l = await loadExercise(id);
   if (!l) notFound();
   const { ex, req, org } = l;
@@ -306,6 +308,15 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
           officeName={(c) => roster.offices.find((o) => o.code === c)?.nameEn ?? issue?.matrix.roles[c]?.nameEn ?? "An office no longer configured"}
         />
       ),
+    },
+    {
+      id: "scope",
+      label: "Scope and estimate",
+      icon: <ToolsIcon size={15} />,
+      sections: [...SCOPE_SECTIONS],
+      section: scopeSection,
+      // Read only while it is the tab being looked at, and only for the section named.
+      panel: tab === "scope" ? <ScopeWorkspace exerciseId={ex.id} section={scopeSection} /> : null,
     },
     ...(flags?.requiresProposal
       ? [

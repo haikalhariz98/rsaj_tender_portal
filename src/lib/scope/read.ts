@@ -11,8 +11,9 @@
 
 import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { formatDate } from "@/lib/format";
 import { CLASSIFICATION_LABEL } from "@/lib/documents/labels";
-import { formatSen, parseSen } from "@/lib/money";
+import { formatSen, parseSen, senToDecimalString } from "@/lib/money";
 import { exerciseOrg } from "@/lib/method/repo";
 
 import { bqTotals, currentBq, draftEditFaults, finaliseFaults, reviseFaults, startBqFaults } from "./bq";
@@ -28,6 +29,7 @@ import {
   firmValueText,
   ITEM_KIND_LABEL,
   LEAD_READING,
+  LEAD_STATE_BADGE,
   leadTimeText,
   NO_LIMIT,
   NOT_SET,
@@ -133,8 +135,8 @@ export async function scopeTab(exerciseId: string) {
       stateLabel: PANEL_STATE_LABEL[state],
       contractKind: panel ? valueName(panel.contractKindCode, policy.panelContractKindTaxonomyCode, panel.contractKindOther) : NOT_SET,
       projectStatus: panel ? valueName(panel.projectStatusCode, policy.panelProjectStatusTaxonomyCode, panel.projectStatusOther) : NOT_SET,
-      currentRevision: panel?.currentRevisionNo ? `${panel.currentRevisionNo}${panel.currentRevisionOn ? `, ${storedDay(panel.currentRevisionOn)}` : ""}` : NOT_SET,
-      revisedRevision: panel?.revisedRevisionNo ? `${panel.revisedRevisionNo}${panel.revisedRevisionOn ? `, ${storedDay(panel.revisedRevisionOn)}` : ""}` : NOT_SET,
+      currentRevision: panel?.currentRevisionNo ? `${panel.currentRevisionNo}${panel.currentRevisionOn ? `, ${formatDate(panel.currentRevisionOn)}` : ""}` : NOT_SET,
+      revisedRevision: panel?.revisedRevisionNo ? `${panel.revisedRevisionNo}${panel.revisedRevisionOn ? `, ${formatDate(panel.revisedRevisionOn)}` : ""}` : NOT_SET,
       completionPeriod: panel?.completionPeriodText || NOT_SET,
       certifiesBill: panel?.bqVersion ? `Version ${panel.bqVersion.versionNo} (${BQ_STATUS_LABEL[panel.bqVersion.status]})` : NOT_SET,
       columns: inForce.map((c) => {
@@ -144,6 +146,19 @@ export async function scopeTab(exerciseId: string) {
       cleared: panel ? panel.verifications.filter((v) => v.clearedAt != null).map((v) => ({ column: v.columnLabelSnapshot, by: v.person.name, clearedOn: storedDay(v.clearedAt!) })) : [],
       signatories: policy.panelSignatoryLimit == null ? `${signatories} · ${NO_LIMIT}` : `${signatories} of ${policy.panelSignatoryLimit}`,
       signedFormScans: panel?.liveSulitScans ?? 0,
+      /// What the edit form starts from: the stored values, as strings (never labels).
+      raw: {
+        contractKindCode: panel?.contractKindCode ?? "",
+        contractKindOther: panel?.contractKindOther ?? "",
+        projectStatusCode: panel?.projectStatusCode ?? "",
+        projectStatusOther: panel?.projectStatusOther ?? "",
+        currentRevisionNo: panel?.currentRevisionNo ?? "",
+        currentRevisionOn: panel?.currentRevisionOn ? storedDay(panel.currentRevisionOn) : "",
+        revisedRevisionNo: panel?.revisedRevisionNo ?? "",
+        revisedRevisionOn: panel?.revisedRevisionOn ? storedDay(panel.revisedRevisionOn) : "",
+        completionPeriodText: panel?.completionPeriodText ?? "",
+        bqVersionId: panel?.bqVersion?.id ?? "",
+      },
       findings: pFaults.map((f) => ({ level: f.level, text: scopeFaultText(f) })),
       verify: panel ? (panel.status === "VERIFIED" ? ({ allowed: false, reason: "The panel is verified." } as Allowed) : judged(pFaults)) : ({ allowed: false, reason: "Save the panel's details first." } as Allowed),
       options: { contractKinds: listOf(policy.panelContractKindTaxonomyCode), projectStatuses: listOf(policy.panelProjectStatusTaxonomyCode), bills: versions.filter((v) => v.status === "FINALISED").map((v) => ({ value: v.id, label: `Version ${v.versionNo}` })), people, columns: inForce.map((c) => ({ value: c.code, label: c.labelEn })) },
@@ -193,20 +208,30 @@ export async function bqTab(exerciseId: string) {
         followsStandard: yesNo(v.followsStandard),
         departures: v.departuresText || null,
         preparer: v.preparer ? `${v.preparer.name}, ${ATTESTED}` : NOT_SET,
-        qualification: snap?.name ? `${snap.name}, held on ${snap.judgedOn}` : v.status === "DRAFT" ? "Checked when it is finalised" : NOT_SET,
+        qualification: snap?.name ? `${snap.name}, held on ${formatDate(snap.judgedOn)}` : v.status === "DRAFT" ? "Checked when it is finalised" : NOT_SET,
         provisionalLeftOut: v.provisionalExcludedFromFirm == null ? "Not stated" : yesNo(v.provisionalExcludedFromFirm),
         revisionReason: v.revisionReason || null,
+      },
+      raw: {
+        scopedBy: v.scopedBy ?? "",
+        scopeStatement: v.scopeStatement,
+        followsStandard: v.followsStandard == null ? "" : v.followsStandard ? "yes" : "no",
+        departuresText: v.departuresText,
+        preparerPersonId: v.preparerPersonId ?? "",
+        provisionalExcludedFromFirm: v.provisionalExcludedFromFirm == null ? "" : v.provisionalExcludedFromFirm ? "yes" : "no",
       },
       sections: v.sections.map((s) => ({
         id: s.id,
         number: s.number,
         title: s.title,
+        sortOrder: String(s.sortOrder),
         items: s.items.map((i) => {
           const l = lineOf(i);
           return {
             id: i.id, itemRef: i.itemRef, description: i.description, unit: i.unit, kind: ITEM_KIND_LABEL[l.kind],
             quantity: l.quantity ?? NOT_SET, rate: l.rate == null ? NOT_SET : money(l.rate), amount: i.amount == null ? NOT_SET : formatSen(parseSen(i.amount.toString())),
             chips: l.provisional ? [PROVISIONAL_CHIP] : [], rateSource: RATE_SOURCE_LABEL[i.rateSource],
+            raw: { itemRef: i.itemRef, description: i.description, unit: i.unit, kind: l.kind, quantity: l.quantity ?? "", rate: l.rate == null ? "" : senToDecimalString(l.rate), provisional: l.provisional, sortOrder: String(i.sortOrder) },
           };
         }),
       })),
@@ -251,6 +276,8 @@ export async function estimateTab(exerciseId: string) {
       classification: CLASSIFICATION_LABEL[e.classification],
       state: ESTIMATE_STATE_LABEL[e.state],
       preparer: `${e.preparer.name}, ${ATTESTED}`,
+      preparerName: e.preparer.name,
+      preparerPersonId: e.preparerPersonId,
       preparedOn: e.versions[0] ? storedDay(e.versions[0].preparedOn) : null,
       currentVersionNo: e.currentVersionNo,
       lodgedVersionNo: facts.lodgedVersionNo,
@@ -259,7 +286,7 @@ export async function estimateTab(exerciseId: string) {
       voidReason: e.state === "VOID" ? e.voidReason : null,
       versions: e.versions.map((v) => ({ versionNo: v.versionNo, preparedOn: storedDay(v.preparedOn), preparer: v.preparer.name, value: SEALED_TEXT, reason: v.versionNo === 1 ? null : SEALED_TEXT })),
       events: e.events.map((x) => ({ id: x.id, kind: EVENT_KIND_LABEL[x.kind], by: x.person ? `${x.person.name}, ${ATTESTED}` : null, capacity: x.capacity || null, versionNo: x.versionNo, copyNo: x.copyNo, note: x.kind === "VOIDED" || x.kind === "RETAINED" ? x.note || null : null, at: x.at })),
-      lead: { text: leadTimeText(lead), reading: LEAD_READING },
+      lead: { badge: LEAD_STATE_BADGE[lead.state], text: leadTimeText(lead), reading: LEAD_READING },
       actions: {
         amend: asked(versionFaults({ value: 1n, personId: e.preparerPersonId, reason: "given" }, facts, { closingAt, timeZone: org.timeZone, exerciseStatus: ex.status, now })),
         lodge: judged(lodgeFaults(facts, { personId: "given" }, ex.status)),
@@ -275,6 +302,7 @@ export async function estimateTab(exerciseId: string) {
     exercise: { id: ex.id, reference: ex.reference, title: ex.title },
     badge: CLASSIFICATION_LABEL.SULIT,
     statement: ESTIMATE_SEALED_STATEMENT,
+    timeZone: org.timeZone,
     live: liveRow ? view(liveRow) : null,
     voided: estimates.filter((x) => x.state === "VOID").map(view),
     prepare,
@@ -287,7 +315,7 @@ export async function estimateTab(exerciseId: string) {
 export async function scopeConfiguration() {
   const org = await exerciseOrg();
   if (!org) return null;
-  const [policy, qualifications, holdings, templates, columns, methods, bases, offices, lists, people] = await Promise.all([
+  const [policy, qualifications, holdings, templates, columns, methods, bases, offices, lists, people, units] = await Promise.all([
     loadScopePolicy(org.id),
     loadQualifications(org.id),
     loadHoldings(org.id),
@@ -298,6 +326,7 @@ export async function scopeConfiguration() {
     db.authorityRole.findMany({ where: { organisationId: org.id, isCommittee: false }, orderBy: { sortOrder: "asc" }, select: { code: true, nameEn: true } }),
     db.classificationTaxonomy.findMany({ where: { organisationId: org.id }, orderBy: { sortOrder: "asc" }, select: { code: true, nameEn: true } }),
     db.person.findMany({ where: { organisationId: org.id }, orderBy: { name: "asc" }, select: { id: true, name: true, isActive: true } }),
+    db.orgUnit.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { code: true, nameEn: true, effectiveTo: true } }),
   ]);
   const nameOf = (rows: readonly { code: string; nameEn: string }[], code: string | null) => (code == null ? NOT_SET : (rows.find((r) => r.code === code)?.nameEn ?? "A row no longer configured"));
   const personName = (id: string) => people.find((p) => p.id === id)?.name ?? "A person no longer on record";
@@ -305,23 +334,42 @@ export async function scopeConfiguration() {
     policy: {
       raw: policy,
       fields: [
-        { label: "Measurement standard", value: policy.measurementStandardLabel ?? NOT_SET, provenance: provenanceText(policy.measurementStandardProvenance) },
+        { label: "Measurement standard", value: policy.measurementStandardLabel ?? NOT_SET, provenance: provenanceText(policy.measurementStandardProvenance), rawProvenance: policy.measurementStandardProvenance },
         { label: "Qualification a bill's preparer holds", value: nameOf(qualifications, policy.bqPreparerQualificationCode), provenance: null },
-        { label: "Estimate made at least this many days before closing", value: policy.estimateLeadDays == null ? NOT_SET : `${policy.estimateLeadDays} day${policy.estimateLeadDays === 1 ? "" : "s"}`, provenance: provenanceText(policy.estimateLeadProvenance) },
+        { label: "Estimate made at least this many days before closing", value: policy.estimateLeadDays == null ? NOT_SET : `${policy.estimateLeadDays} day${policy.estimateLeadDays === 1 ? "" : "s"}`, provenance: provenanceText(policy.estimateLeadProvenance), rawProvenance: policy.estimateLeadProvenance },
         { label: "Office holding the estimate's copies", value: nameOf(offices, policy.estimateCustodianRoleCode), provenance: null },
         { label: "Office auditing the estimate", value: nameOf(offices, policy.estimateAuditRoleCode), provenance: null },
         { label: "Office that may accept a late estimate", value: policy.estimateOverrideRoleCode == null ? "Not set: no late estimate is accepted" : nameOf(offices, policy.estimateOverrideRoleCode), provenance: null },
-        { label: "Most verifiers on a specification panel", value: policy.panelSignatoryLimit == null ? NO_LIMIT : String(policy.panelSignatoryLimit), provenance: provenanceText(policy.panelSignatoryLimitProvenance) },
+        { label: "Most verifiers on a specification panel", value: policy.panelSignatoryLimit == null ? NO_LIMIT : String(policy.panelSignatoryLimit), provenance: provenanceText(policy.panelSignatoryLimitProvenance), rawProvenance: policy.panelSignatoryLimitProvenance },
         { label: "List of contract kinds", value: nameOf(lists, policy.panelContractKindTaxonomyCode), provenance: null },
         { label: "List of project statuses", value: nameOf(lists, policy.panelProjectStatusTaxonomyCode), provenance: null },
         { label: "Opening benchmark row is called", value: policy.benchmarkLabelEn ?? NOT_SET, provenance: null },
       ],
     },
-    qualifications: qualifications.map((q) => ({ ...q, provenance: provenanceText(q.provenance), holders: holdings.filter((h) => h.qualificationCode === q.code).map((h) => ({ id: h.id, person: personName(h.personId), from: h.validFrom, to: h.validTo ?? "Open-ended", evidence: h.evidenceNote || null })) })),
-    templates: templates.map((t) => ({ id: t.id, code: t.code, name: t.nameEn, provenance: provenanceText(t.provenance), retiredOn: t.retiredOn ? storedDay(t.retiredOn) : null, sections: t.sections.map((s) => ({ id: s.id, number: s.number, title: s.titleEn })) })),
-    columns: columns.map((c) => ({ ...c, provenance: provenanceText(c.provenance) })),
-    methods: methods.map((m) => ({ id: m.id, name: m.nameEn, needsEstimate: yesNo(m.requiresCompanyEstimate), provenance: m.requiresCompanyEstimate == null ? null : provenanceText(m.requiresCompanyEstimateProvenance) })),
-    bases: bases.map((b) => ({ id: b.id, name: b.nameEn, letOnBill: yesNo(b.requiresBq), provenance: b.requiresBq == null ? null : provenanceText(b.requiresBqProvenance) })),
-    options: { offices: offices.map((o) => ({ value: o.code, label: o.nameEn })), lists: lists.map((l) => ({ value: l.code, label: l.nameEn })), qualifications: qualifications.filter((q) => q.retiredOn == null).map((q) => ({ value: q.code, label: q.nameEn })), people: people.filter((p) => p.isActive).map((p) => ({ value: p.id, label: p.name })) },
+    qualifications: qualifications.map((q) => ({
+      id: q.id,
+      name: q.nameEn,
+      nameMs: q.nameMs ?? "",
+      governingSource: q.governingSource,
+      provenance: provenanceText(q.provenance),
+      rawProvenance: q.provenance as string,
+      retiredOn: q.retiredOn,
+      holders: holdings.filter((h) => h.qualificationCode === q.code).map((h) => ({ id: h.id, person: personName(h.personId), from: h.validFrom, to: h.validTo, evidence: h.evidenceNote || null, raw: { id: h.id, personId: h.personId, qualificationCode: h.qualificationCode, validFrom: h.validFrom, validTo: h.validTo ?? "", evidenceNote: h.evidenceNote } })),
+      code: q.code,
+    })),
+    templates: templates.map((t) => ({
+      id: t.id,
+      name: t.nameEn,
+      nameMs: t.nameMs ?? "",
+      deliverableKind: t.deliverableKind ?? "",
+      provenance: provenanceText(t.provenance),
+      rawProvenance: t.provenance as string,
+      retiredOn: t.retiredOn ? storedDay(t.retiredOn) : null,
+      sections: t.sections.map((s) => ({ id: s.id, number: s.number, title: s.titleEn, titleMs: s.titleMs ?? "", sortOrder: String(s.sortOrder) })),
+    })),
+    columns: columns.map((c) => ({ id: c.id, label: c.labelEn, labelMs: c.labelMs ?? "", unit: c.orgUnitCode ? (units.find((u) => u.code === c.orgUnitCode)?.nameEn ?? "A unit no longer in the structure") : null, orgUnitCode: c.orgUnitCode ?? "", sortOrder: String(c.sortOrder), provenance: provenanceText(c.provenance), rawProvenance: c.provenance as string, retiredOn: c.retiredOn })),
+    methods: methods.map((m) => ({ id: m.id, name: m.nameEn, needsEstimate: yesNo(m.requiresCompanyEstimate), raw: m.requiresCompanyEstimate == null ? "unset" : m.requiresCompanyEstimate ? "yes" : "no", rawProvenance: m.requiresCompanyEstimateProvenance ?? "", provenance: m.requiresCompanyEstimate == null ? null : provenanceText(m.requiresCompanyEstimateProvenance), retired: m.retiredOn != null })),
+    bases: bases.map((b) => ({ id: b.id, name: b.nameEn, letOnBill: yesNo(b.requiresBq), raw: b.requiresBq == null ? "unset" : b.requiresBq ? "yes" : "no", rawProvenance: b.requiresBqProvenance ?? "", provenance: b.requiresBq == null ? null : provenanceText(b.requiresBqProvenance), retired: b.retiredOn != null })),
+    options: { units: units.filter((u) => u.effectiveTo == null).map((u) => ({ value: u.code, label: u.nameEn })), offices: offices.map((o) => ({ value: o.code, label: o.nameEn })), lists: lists.map((l) => ({ value: l.code, label: l.nameEn })), qualifications: qualifications.filter((q) => q.retiredOn == null).map((q) => ({ value: q.code, label: q.nameEn })), people: people.filter((p) => p.isActive).map((p) => ({ value: p.id, label: p.name })) },
   };
 }
