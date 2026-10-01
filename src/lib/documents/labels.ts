@@ -100,6 +100,9 @@ export const MEDIA_LABEL: Readonly<Record<string, string>> = {
   "image/jpeg": "JPEG image",
   "image/tiff": "TIFF image",
   "text/csv": "CSV file",
+  // Declared types only (what a browser may send), so a refusal names what was declared.
+  "text/plain": "plain text file",
+  "application/vnd.ms-excel": "Excel file",
   "application/zip": "ZIP archive or Office file",
   "text/html": "web page",
   "image/svg+xml": "SVG drawing",

@@ -130,6 +130,16 @@ describe("a CSV is told by its bytes (6.2 Q-3, the bill of quantities as receive
     expect(mediaFault(sniffMediaType(PDF), { filename: "a.pdf", contentType: "application/vnd.ms-excel" }, csvPolicy)?.code).toBe("DECLARED_TYPE_MISMATCH");
     expect(typeFromName("BILL.CSV")).toBe("text/csv");
   });
+  it("the CSV names are read as CSV only when the bytes are CSV; any other file keeps the type it was sent as", () => {
+    expect(typeFromHeader("text/plain", "text/csv")).toBe("text/csv");
+    expect(typeFromHeader("application/vnd.ms-excel", "text/csv")).toBe("text/csv");
+    expect(typeFromHeader("text/plain", "application/pdf")).toBe("text/plain");
+    expect(typeFromHeader("application/vnd.ms-excel")).toBe("application/vnd.ms-excel");
+    const f = mediaFault(sniffMediaType(PDF), { filename: "a.pdf", contentType: "text/plain" }, csvPolicy);
+    expect(f).toEqual({ code: "DECLARED_TYPE_MISMATCH", level: "block", data: { sniffed: "application/pdf", declared: "text/plain" } });
+    expect(documentFaultText(f!)).toBe("The file's contents are a PDF, but it was sent as a plain text file. It was not stored. Check it is the file you meant, and give it its right name.");
+    expect(documentFaultText(mediaFault(sniffMediaType(PDF), { filename: "a.pdf", contentType: "application/vnd.ms-excel" }, csvPolicy)!)).toMatch(/sent as an Excel file/);
+  });
   it("a policy may list CSV", () => {
     expect(unknownPolicyTypes(["text/csv"])).toEqual([]);
   });

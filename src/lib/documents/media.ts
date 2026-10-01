@@ -81,14 +81,18 @@ export function typeFromName(filename: string): KnownMediaType | null {
 
 const CSV_ALIASES = ["application/vnd.ms-excel", "application/csv", "text/x-csv", "text/comma-separated-values", "text/plain"];
 
-/// The type the client declared, normalised. Null where it declared nothing useful.
-export function typeFromHeader(contentType: string | null | undefined): string | null {
+/**
+ * The type the client declared, normalised. Null where it declared nothing useful.
+ * `sniffed` is what the bytes are: the names browsers give a .csv (Windows with Excel
+ * installed says "an Excel file"; others say plain text) are read as CSV only when the
+ * bytes are CSV. For any other file the declared type is kept as declared, so a PDF sent
+ * as plain text is refused as sent as plain text, never as "sent as a CSV file".
+ */
+export function typeFromHeader(contentType: string | null | undefined, sniffed: Sniffed = null): string | null {
   const t = (contentType ?? "").split(";")[0].trim().toLowerCase();
   if (!t || t === "application/octet-stream") return null;
   if (t === "image/jpg" || t === "image/pjpeg") return "image/jpeg";
-  // What browsers declare for a .csv: Windows with Excel installed says "an Excel file" for
-  // it. The bytes have already been read as CSV, so these are only other names for it.
-  if (CSV_ALIASES.includes(t)) return "text/csv";
+  if (sniffed === "text/csv" && CSV_ALIASES.includes(t)) return "text/csv";
   return t;
 }
 
@@ -117,7 +121,7 @@ export function mediaFault(sniffed: Sniffed, declared: { filename: string; conte
   const byName = typeFromName(declared.filename);
   if (!byName) return f("NAME_WITHOUT_TYPE", { sniffed, filename: declared.filename });
   if (byName !== sniffed) return f("DECLARED_TYPE_MISMATCH", { sniffed, declared: byName });
-  const byHeader = typeFromHeader(declared.contentType);
+  const byHeader = typeFromHeader(declared.contentType, sniffed);
   if (byHeader && byHeader !== sniffed) return f("DECLARED_TYPE_MISMATCH", { sniffed, declared: byHeader });
   return null;
 }
