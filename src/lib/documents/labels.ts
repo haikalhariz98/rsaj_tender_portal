@@ -141,7 +141,7 @@ const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {
   ACCEPTED_ON_IT: "The award was accepted on this scan, so it is not taken off. To correct it, attach a new version, with the reason.",
   GRANTED_ON_IT: "The delegation stands on this recommendation, so it is not taken off. To correct it, attach a new version, with the reason.",
   VERIFIED_ON_IT: "The specification panel was verified on this scan, so it is not taken off. To correct it, attach a new version, with the reason.",
-  IMPORTED_FROM_IT: "Lines of the bill were imported from this file, so it is not taken off. To correct it, attach a new version, with the reason.",
+  IMPORTED_FROM_IT: "Lines of the bill were imported from this file, so it is not taken off. To correct the bill, import the corrected file into the draft, replacing its lines: the new file then takes this one's place.",
 };
 
 export const DOWNLOAD_REFUSAL_TEXT: Readonly<Record<DownloadRefusal, string>> = {

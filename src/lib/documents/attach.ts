@@ -239,7 +239,7 @@ export function awardReliance(purpose: AttachmentPurpose, owner: OwnerFacts): Re
   return RETURN_PURPOSES[owner.instrumentKind].includes(purpose) ? "ACCEPTED_ON_IT" : null;
 }
 
-export type RepinFault = "REASON_REQUIRED" | "OWNER_FROZEN" | "OWNER_NOT_READY" | "VERSION_WITHDRAWN" | "NOT_SAME_DOCUMENT" | "ALREADY_PINNED" | "ALREADY_DETACHED";
+export type RepinFault = "ATTACHED_BY_OWNER_ACT" | "REASON_REQUIRED" | "OWNER_FROZEN" | "OWNER_NOT_READY" | "VERSION_WITHDRAWN" | "NOT_SAME_DOCUMENT" | "ALREADY_PINNED" | "ALREADY_DETACHED";
 
 /**
  * Moving an attachment's pin to another version of the same document (OD-8): one
@@ -254,6 +254,9 @@ export function repinFault(i: {
   to: { id: string; documentId: string; withdrawnAt: Date | null };
 }): Finding<RepinFault>[] {
   if (i.attachment.detachedAt != null) return [{ code: "ALREADY_DETACHED", level: "block" }];
+  // Q-3: a bill's imported file is what its lines came from; another version of it would
+  // not be. The bill is corrected by importing again, which replaces the file with the lines.
+  if (OWNER_ACT_PURPOSES.includes(i.purpose)) return [{ code: "ATTACHED_BY_OWNER_ACT", level: "block", data: { purpose: i.purpose } }];
   const out: Finding<RepinFault>[] = [];
   if (!i.reason.trim()) out.push({ code: "REASON_REQUIRED", level: "block" });
   const st = ownerState(i.purpose, i.owner);

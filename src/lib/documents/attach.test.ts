@@ -281,4 +281,10 @@ describe("6.2 Q-3: a bill's imported CSV, on the bill version, attached only by 
     expect(codes(f)).toEqual(["RELIED_ON"]);
     expect(documentFaultText(f[0])).toMatch(/^Lines of the bill were imported from this file/);
   });
+  it("is never re-pinned to another version: the bill is corrected by importing again", () => {
+    const f = repinFault({ purpose: "BQ_IMPORT_SOURCE", owner: bq(), reason: "corrected", attachment: { detachedAt: null, versionId: "v1", documentId: "d1" }, to: { id: "v2", documentId: "d1", withdrawnAt: null } });
+    expect(codes(f)).toEqual(["ATTACHED_BY_OWNER_ACT"]);
+    // Other purposes re-pin as before.
+    expect(repinFault({ purpose: "SPEC_PANEL_FORM", owner: { kind: "specificationPanel", exerciseStatus: "DRAFT", status: "DRAFT" }, reason: "corrected", attachment: { detachedAt: null, versionId: "v1", documentId: "d1" }, to: { id: "v2", documentId: "d1", withdrawnAt: null } })).toEqual([]);
+  });
 });

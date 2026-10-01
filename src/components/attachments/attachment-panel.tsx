@@ -147,7 +147,7 @@ export function AttachmentPanel({
 }
 
 function SlotRow({ s, item, owner, upload, refused, showReason, onNotice }: { s: SlotView; item: AttachmentItemView | null; owner: OwnerKey; upload: PanelView["upload"]; refused: boolean; showReason: boolean; onNotice: (n: Notice) => void }) {
-  const open = s.state === "OPEN" && !refused;
+  const open = s.state === "OPEN" && !refused && s.attachedBy == null;
   return (
     <li className="flex flex-wrap items-start gap-x-4 gap-y-2 px-4 py-3.5">
       <div className="min-w-[min(100%,14rem)] flex-1">
@@ -157,6 +157,7 @@ function SlotRow({ s, item, owner, upload, refused, showReason, onNotice }: { s:
           <span className="text-[12.5px] text-ink-3">{s.required ? "Required" : "Optional"}</span>
         </div>
         {s.reason && showReason && <p className="mt-1 text-[13px] text-ink-3">{s.reason}</p>}
+        {s.attachedBy && <p className="mt-1 text-[13px] text-ink-3">{s.attachedBy}</p>}
         {s.findings.map((f) => (
           <p key={f.text} className={f.tone === "err" ? "mt-1 text-[13px] font-medium text-rose-700" : f.tone === "warn" ? "mt-1 text-[13px] font-medium text-amber-800" : "mt-1 text-[13px] text-ink-3"}>
             {f.text}
@@ -193,6 +194,8 @@ function RowActions({ item, owner, upload, onNotice }: { item: AttachmentItemVie
 /// The slot's one button: Upload while it is empty, then what its capacity says (`slotAct`):
 /// a new version of the one document, or another document.
 function SlotButton({ s, item, owner, upload, refused, open, onNotice }: { s: SlotView; item: AttachmentItemView | null; owner: OwnerKey; upload: PanelView["upload"]; refused: boolean; open: boolean; onNotice: (n: Notice) => void }) {
+  // Attached by the owner's own act (a bill's import): that act is the only way in, and it says where.
+  if (s.attachedBy != null) return null;
   if (s.act === "NEW_VERSION" && item?.newVersion) {
     return item.newVersion.allowed && !refused ? (
       <NewVersionButton owner={owner} item={item} upload={upload} onNotice={onNotice} prominent />

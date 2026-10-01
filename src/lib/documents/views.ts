@@ -101,6 +101,9 @@ export interface SlotView {
   /// Where the slot stands, as a badge: attached, outstanding, not yet, closed.
   status: { text: string; tone: Tone };
   findings: { tone: "warn" | "info" | "err"; text: string }[];
+  /// Where a purpose is attached by its owner's own act (a bill's imported file), the words
+  /// that say where; the slot then offers no upload of its own. Null otherwise.
+  attachedBy: string | null;
 }
 
 /// A slot's badge from what the read decided (its state) and what the caller says (required).
@@ -162,6 +165,8 @@ export interface PanelOptions {
   statuses?: Partial<Record<AttachmentPurpose, { text: string; tone: Tone }>>;
   /// Extra lines under a slot (the caller's own findings, already in words).
   findings?: Partial<Record<AttachmentPurpose, { tone: "warn" | "info" | "err"; text: string }[]>>;
+  /// Purposes the owner's own act attaches (OWNER_ACT_PURPOSES), with the words naming that act.
+  attachedBy?: Partial<Record<AttachmentPurpose, string>>;
 }
 
 export function panelView(p: Panel, u: Upload, timeZone: string | null, opts: PanelOptions = {}): PanelView {
@@ -171,7 +176,7 @@ export function panelView(p: Panel, u: Upload, timeZone: string | null, opts: Pa
     .sort((a, b) => (opts.only ? opts.only.indexOf(a.purpose) - opts.only.indexOf(b.purpose) : 0))
     .map((s) => {
       const required = opts.required?.[s.purpose] ?? false;
-      return { purpose: s.purpose, label: opts.labels?.[s.purpose] ?? PURPOSE_LABEL[s.purpose], required, state: s.state, reason: s.reason, live: s.live, act: slotAct(s.purpose, s.live), status: slotStatus({ state: s.state, live: s.live, required }, opts.statuses?.[s.purpose]), findings: opts.findings?.[s.purpose] ?? [] };
+      return { purpose: s.purpose, label: opts.labels?.[s.purpose] ?? PURPOSE_LABEL[s.purpose], required, state: s.state, reason: s.reason, live: s.live, act: slotAct(s.purpose, s.live), status: slotStatus({ state: s.state, live: s.live, required }, opts.statuses?.[s.purpose]), findings: opts.findings?.[s.purpose] ?? [], attachedBy: opts.attachedBy?.[s.purpose] ?? null };
     });
   const all = p.items.filter((i) => shown(i.purpose)).map((i) => itemView(i, timeZone));
   const frozenAll = slots.length > 0 && slots.every((s) => s.state === "FROZEN") && new Set(slots.map((s) => s.reason)).size === 1;
