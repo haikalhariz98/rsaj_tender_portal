@@ -21,6 +21,7 @@ export type PackFault =
   | "BQ_REVISION_OPEN"
   | "PANEL_NOT_VERIFIED"
   | "PANEL_SCAN_GONE"
+  | "PANEL_BILL_SUPERSEDED"
   | "METHOD_NOT_CONFIGURED"
   | "ESTIMATE_RULE_NOT_SET"
   | "ESTIMATE_NOT_LODGED"
@@ -34,9 +35,12 @@ export interface PackInput {
   basis: { requiresBq: boolean | null } | null;
   /// The exercise's sourcing method as configured, null where it is no longer configured.
   method: { requiresCompanyEstimate: boolean | null } | null;
-  /// The bill's versions' statuses.
-  bq: readonly { status: BqStatus }[];
+  /// The bill's versions' statuses (and numbers, where known, to name them).
+  bq: readonly { status: BqStatus; versionNo?: number }[];
   panel: PanelState;
+  /// The bill version the panel certifies, null where it names none. Required: a verified
+  /// panel is only as good as the bill it was verified on.
+  panelBill: { versionNo: number; status: BqStatus } | null;
   /// The live estimate (not void), null where none. `behind`: amended since it was lodged.
   estimate: { state: EstimateState; behind: boolean } | null;
   /// `scopeApproval(...).state` (scope-matter.ts). Required: there is no default reading.
@@ -53,6 +57,11 @@ export function packFaults(i: PackInput): Finding<PackFault>[] {
   }
   if (i.panel === "SCAN_GONE") out.push({ code: "PANEL_SCAN_GONE", level: "block" });
   else if (i.panel !== "VERIFIED") out.push({ code: "PANEL_NOT_VERIFIED", level: "block" });
+  // A panel verified on a bill since superseded certifies quantities that no longer stand.
+  if ((i.panel === "VERIFIED" || i.panel === "SCAN_GONE") && i.panelBill != null && i.panelBill.status !== "FINALISED") {
+    const current = i.bq.find((v) => v.status === "FINALISED")?.versionNo ?? null;
+    out.push({ code: "PANEL_BILL_SUPERSEDED", level: "block", data: { panelVersion: i.panelBill.versionNo, current } });
+  }
   if (i.method == null) out.push({ code: "METHOD_NOT_CONFIGURED", level: "block" });
   else if (i.method.requiresCompanyEstimate == null) out.push({ code: "ESTIMATE_RULE_NOT_SET", level: "block" });
   else if (i.method.requiresCompanyEstimate) {

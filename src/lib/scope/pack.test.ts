@@ -4,7 +4,7 @@ import { scopeFaultText } from "./labels";
 import { packFaults, type PackInput } from "./pack";
 
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
-const ready: PackInput = { basis: { requiresBq: true }, method: { requiresCompanyEstimate: true }, bq: [{ status: "FINALISED" }], panel: "VERIFIED", estimate: { state: "LODGED", behind: false }, scope: "APPROVED" };
+const ready: PackInput = { basis: { requiresBq: true }, method: { requiresCompanyEstimate: true }, bq: [{ status: "FINALISED" }], panel: "VERIFIED", panelBill: { versionNo: 1, status: "FINALISED" }, estimate: { state: "LODGED", behind: false }, scope: "APPROVED" };
 const judge = (x: Partial<PackInput> = {}) => packFaults({ ...ready, ...x });
 
 describe("packFaults: what 6.4 enforces when the documents go for approval (OD-4)", () => {
@@ -29,6 +29,18 @@ describe("packFaults: what 6.4 enforces when the documents go for approval (OD-4
     expect(codes(judge({ panel: "DRAFT" }))).toEqual(["PANEL_NOT_VERIFIED"]);
     expect(codes(judge({ panel: "SCAN_GONE" }))).toEqual(["PANEL_SCAN_GONE"]);
   });
+  it("a panel verified on a bill since superseded blocks, naming both versions and the way out", () => {
+    const f = judge({ bq: [{ status: "SUPERSEDED", versionNo: 1 }, { status: "FINALISED", versionNo: 2 }], panelBill: { versionNo: 1, status: "SUPERSEDED" } });
+    expect(f).toEqual([{ code: "PANEL_BILL_SUPERSEDED", level: "block", data: { panelVersion: 1, current: 2 } }]);
+    expect(scopeFaultText(f[0])).toBe("The specification panel was verified on version 1 of the bill, which is no longer the finalised one (version 2 is). Edit the panel under Scope and estimate, Scope to name the current bill, then verify it again.");
+    // Whose scan has gone too: both are said.
+    expect(codes(judge({ panel: "SCAN_GONE", panelBill: { versionNo: 1, status: "SUPERSEDED" } }))).toEqual(["PANEL_SCAN_GONE", "PANEL_BILL_SUPERSEDED"]);
+    // On the current finalised bill, or naming none (a basis not let on a bill): nothing to say.
+    expect(judge({ panelBill: { versionNo: 2, status: "FINALISED" } })).toEqual([]);
+    expect(judge({ basis: { requiresBq: false }, bq: [], panelBill: null })).toEqual([]);
+    // A draft panel is already PANEL_NOT_VERIFIED; its bill is judged when it is verified.
+    expect(codes(judge({ panel: "DRAFT", panelBill: { versionNo: 1, status: "SUPERSEDED" } }))).toEqual(["PANEL_NOT_VERIFIED"]);
+  });
   it("ESTIMATE_NOT_LODGED where the method needs one; behind its lodgement after an amendment; nothing where it does not", () => {
     expect(codes(judge({ estimate: null }))).toEqual(["ESTIMATE_NOT_LODGED"]);
     expect(codes(judge({ estimate: { state: "DRAFT", behind: false } }))).toEqual(["ESTIMATE_NOT_LODGED"]);
@@ -36,7 +48,7 @@ describe("packFaults: what 6.4 enforces when the documents go for approval (OD-4
     expect(judge({ method: { requiresCompanyEstimate: false }, estimate: null })).toEqual([]);
   });
   it("each finding names where to fix it", () => {
-    const all = packFaults({ basis: { requiresBq: null }, method: { requiresCompanyEstimate: null }, bq: [], panel: "NONE", estimate: null, scope: "NOT_REQUIRED" });
+    const all = packFaults({ basis: { requiresBq: null }, method: { requiresCompanyEstimate: null }, bq: [], panel: "NONE", panelBill: null, estimate: null, scope: "NOT_REQUIRED" });
     for (const f of all) expect(scopeFaultText(f)).toMatch(/Configuration|tab|Scope|Company estimate|Contract type/);
   });
 });

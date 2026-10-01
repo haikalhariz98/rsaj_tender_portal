@@ -209,6 +209,7 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   BQ_REVISION_OPEN: "A revision of the bill is being drafted; the finalised version is the one that goes with the documents.",
   PANEL_NOT_VERIFIED: "The specification panel is not verified. Complete it under Scope and estimate, Scope.",
   PANEL_SCAN_GONE: "The scan of the signed form the panel was verified on has been withdrawn or taken off, so the panel no longer counts as verified. A scan attached since does not count by itself: make sure a SULIT scan of the signed form is attached, then use Mark verified on the panel to verify it again.",
+  PANEL_BILL_SUPERSEDED: (d) => `The specification panel was verified on version ${d.panelVersion ?? "?"} of the bill, which is no longer the finalised one${d.current != null ? ` (version ${d.current} is)` : ""}. Edit the panel under Scope and estimate, Scope to name the current bill, then verify it again.`,
   METHOD_NOT_CONFIGURED: "The exercise's sourcing method is no longer configured. Configure it under Configuration, Reference data.",
   ESTIMATE_RULE_NOT_SET: `Whether this sourcing method needs a company estimate is not set. ${SET_IT}`,
   ESTIMATE_NOT_LODGED: "The company estimate is not lodged. Prepare and lodge it under Scope and estimate, Company estimate.",

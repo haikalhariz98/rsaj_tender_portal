@@ -440,7 +440,7 @@ export async function checkScope() {
       const live = estimates.find((x) => x.state !== "VOID");
       const facts = live ? repo.estimateFactsOf(live) : null;
       const scope = scopeApproval(rules.method, versions, await repo.loadScopeMatters(exerciseId)).state;
-      const f = packFaults({ basis: rules.basis, method: rules.method, bq: versions, panel: panelState(panel), estimate: facts ? { state: facts.state, behind: lodgementBehind(facts) } : null, scope });
+      const f = packFaults({ basis: rules.basis, method: rules.method, bq: versions, panel: panelState(panel), panelBill: panel?.bqVersion ?? null, estimate: facts ? { state: facts.state, behind: lodgementBehind(facts) } : null, scope });
       fail("sx5's readiness for 6.4", blocking(f));
     }
   }

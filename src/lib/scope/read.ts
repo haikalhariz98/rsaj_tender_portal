@@ -80,6 +80,7 @@ const PACK_HREF = (exerciseId: string): Readonly<Record<PackFault, string>> => (
   BQ_REVISION_OPEN: `/sourcing/${exerciseId}?tab=scope&section=bq`,
   PANEL_NOT_VERIFIED: `/sourcing/${exerciseId}?tab=scope&section=scope`,
   PANEL_SCAN_GONE: `/sourcing/${exerciseId}?tab=scope&section=scope`,
+  PANEL_BILL_SUPERSEDED: `/sourcing/${exerciseId}?tab=scope&section=scope`,
   METHOD_NOT_CONFIGURED: "/configuration/reference-data",
   ESTIMATE_RULE_NOT_SET: SCOPE_CONFIG_PATH,
   ESTIMATE_NOT_LODGED: `/sourcing/${exerciseId}?tab=scope&section=estimate`,
@@ -144,6 +145,7 @@ export async function scopeTab(exerciseId: string) {
     method: rules.method ? { requiresCompanyEstimate: rules.method.requiresCompanyEstimate } : null,
     bq: versions,
     panel: state,
+    panelBill: panel?.bqVersion ? { versionNo: panel.bqVersion.versionNo, status: panel.bqVersion.status } : null,
     estimate: live ? { state: live.state, behind: lodgementBehind(live) } : null,
     scope: a.approval.state,
   });
