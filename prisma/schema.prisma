@@ -3017,6 +3017,12 @@ model Award {
   dlpMonths           Int?
   termsProvenance     Provenance?
   wcBasis             WcBasis?
+  /// 64-C4 (6.4 Q-1 B): why a term differs from the exercise's frozen tender Appendix (the
+  /// regulated activity: from the tender's answer). Null: it does not differ, or the
+  /// exercise froze no Appendix. Never backfilled.
+  ladDiffersReason       String?
+  dlpDiffersReason       String?
+  regulatedDiffersReason String?
 
   // Who signs, as resolved and recorded at issue.
   signatoryRoleCode     String?
