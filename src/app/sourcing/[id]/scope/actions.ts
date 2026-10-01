@@ -12,7 +12,7 @@ import { dayToDate, storedDay, todayIn } from "@/lib/dates";
 import { parseSen, senToDecimalString, type Sen } from "@/lib/money";
 import { ENTITY, bqExportAudit, bqFinalisedAudit, listValueLabel, panelAudit, type PanelAuditFacts, bqImportAudit, rateFromText, scopeTabledAudit, bqHeaderAudit, bqStatusAudit, estimateCreatedAudit, estimateEventAudit, estimateStateAudit, estimateVersionAudit, itemAudit, sectionAudit, verificationAudit, verificationClearedAudit } from "@/lib/scope/audit-view";
 import { bqTotals, draftEditFaults, finaliseFaults, holdingOn, isQuantity, itemAmount, lineSizeFaults, qualificationSnapshot, reviseFaults, startBqFaults, totalsSnapshot } from "@/lib/scope/bq";
-import { actionResult, lodgeFaults, retainFaults, startFault, versionFaults, voidFault } from "@/lib/scope/estimate";
+import { actionResult, lodgeFaults, retainFaults, startFault, versionContext, versionFaults, voidFault } from "@/lib/scope/estimate";
 import { writeEstimateVersion } from "@/lib/scope/estimate-store";
 import { csvFaultText, ESTIMATE_STATE_LABEL, keyedMismatchText, PANEL_STATE_LABEL, scopeFaultText, type ScopeCode } from "@/lib/scope/labels";
 import { lockBqRows, lockEstimateRow, lockLiveEstimateRows, lockPanelRow, withLockedExerciseScope, type LockedExercise } from "@/lib/scope/lock";
@@ -527,7 +527,7 @@ const preparedOnOf = (l: LockedExercise) => {
 /**
  * Prepare a fresh estimate: version 1 by its preparer (FR-EST-006). Refused while an
  * estimate not void exists (OD-2): the lib on the locked rows, and the partial unique index
- * behind it. 6.2 passes no closing (X-1).
+ * behind it. The closing is the locked exercise's (X-1): none until tendering is approved.
  */
 export async function prepareEstimate(_prev: FormState, data: FormData): Promise<FormState> {
   const exerciseId = exerciseIdOf(data);
@@ -540,7 +540,8 @@ export async function prepareEstimate(_prev: FormState, data: FormData): Promise
     if (live) return refuseCodes([live.code]);
     const person = await activePerson(l.org.id, personId, tx);
     if (personId && !person) return refuseCodes(["PERSON_UNKNOWN"]);
-    const result = actionResult(versionFaults({ value, personId: person?.id ?? null, reason: "" }, null, { closingAt: null, timeZone: l.org.timeZone, exerciseStatus: l.ex.status, now: new Date() }));
+    // X-1: judged against the locked exercise's closing (6.4 records it at approval).
+    const result = actionResult(versionFaults({ value, personId: person?.id ?? null, reason: "" }, null, versionContext(l, new Date())));
     if (!result.ok) return refuseCodes(result.codes);
     const preparedOn = preparedOnOf(l)!;
     const bq = await tx.bqVersion.findFirst({ where: { exerciseId, status: "FINALISED" }, select: { id: true } });
@@ -576,7 +577,8 @@ export async function amendEstimate(_prev: FormState, data: FormData): Promise<F
     const { row, facts } = await lockedEstimate(tx, l, estimateId);
     const person = await activePerson(l.org.id, personId, tx);
     if (personId && !person) return refuseCodes(["PERSON_UNKNOWN"]);
-    const result = actionResult(versionFaults({ value, personId: person?.id ?? null, reason }, facts, { closingAt: null, timeZone: l.org.timeZone, exerciseStatus: l.ex.status, now: new Date() }));
+    // X-1: judged against the locked exercise's closing (6.4 records it at approval).
+    const result = actionResult(versionFaults({ value, personId: person?.id ?? null, reason }, facts, versionContext(l, new Date())));
     if (!result.ok) return refuseCodes(result.codes);
     const versionNo = facts.currentVersionNo + 1;
     const preparedOn = preparedOnOf(l)!;

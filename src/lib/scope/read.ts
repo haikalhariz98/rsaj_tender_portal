@@ -100,7 +100,7 @@ const PACK_HREF = (exerciseId: string): Readonly<Record<PackFault, string>> => (
 async function loadAll(exerciseId: string) {
   const org = await exerciseOrg();
   if (!org) return null;
-  const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { id: true, reference: true, title: true, status: true, sourcingMethodCode: true, contractBasisCode: true } });
+  const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { id: true, reference: true, title: true, status: true, sourcingMethodCode: true, contractBasisCode: true, closingAt: true } });
   if (!ex) return null;
   const [policy, versions, panel, estimates, rules, scopeMatters] = await Promise.all([
     loadScopePolicy(org.id),
@@ -420,8 +420,8 @@ export async function estimateTab(exerciseId: string) {
   const { org, ex, policy, estimates } = a;
   const people = await db.person.findMany({ where: { organisationId: org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } });
   const now = new Date();
-  // X-1: 6.2 has no closing date; 6.4 passes the exercise's.
-  const closingAt: Date | null = null;
+  // X-1: the closing the approval for tendering recorded (6.4), null until then.
+  const closingAt: Date | null = ex.closingAt;
   const view = (e: (typeof estimates)[number]) => {
     const facts = factsOf(e);
     const last = e.versions[e.versions.length - 1];

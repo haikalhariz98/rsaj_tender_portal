@@ -115,6 +115,16 @@ export function versionFaults(
   return out;
 }
 
+/**
+ * X-1: what `versionFaults` judges a version under, from the exercise as read under its
+ * lock: its closing (written by 6.4's approving step; null until then, "Closing not set"),
+ * the organisation's zone, its status, and the instant of the act. The estimate actions
+ * take their context from here, so the closing they judge is always the locked row's.
+ */
+export function versionContext(l: { ex: { closingAt: Date | null; status: ExerciseStatus }; org: { timeZone: string | null } }, now: Date) {
+  return { closingAt: l.ex.closingAt, timeZone: l.org.timeZone, exerciseStatus: l.ex.status, now };
+}
+
 export type StartFault = "LIVE_ESTIMATE_EXISTS";
 
 /// OD-2: at most one estimate not void per exercise.
