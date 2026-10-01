@@ -26,13 +26,15 @@ export function exerciseMethodFlags(classificationSnapshot: unknown, configured:
 
 /// `awards`: the exercise's awards, with how many appointment routes each has open.
 /// `method`: `exerciseMethodFlags` of the exercise.
-export function exerciseFacts(ex: { status: ExerciseStatus }, awards: readonly { status: string; openAppointmentRoutes: number }[], method: ExerciseMethodFlags | null): OwnerFacts {
+/// `window`: 6.5's invitation window, where the exercise has one (its path decides the window's purposes).
+export function exerciseFacts(ex: { status: ExerciseStatus }, awards: readonly { status: string; openAppointmentRoutes: number }[], method: ExerciseMethodFlags | null, window: { path: "ADVERTISED" | "INVITED" } | null = null): OwnerFacts {
   return {
     kind: "exercise",
     status: ex.status,
     appointmentRouteOpen: awards.some((a) => a.openAppointmentRoutes > 0),
     awardApproved: awards.some((a) => a.status === "APPROVED" || a.status === "ISSUED" || a.status === "ACCEPTED"),
     method,
+    window,
   };
 }
 
@@ -72,6 +74,13 @@ export const tenderPackPartFacts = (p: { source: PartSource; pack: { status: Ten
   exerciseStatus: p.pack.exercise.status,
   packStatus: p.pack.status,
   source: p.source,
+});
+
+/// 6.5: an addendum, with its exercise's status.
+export const addendumFacts = (a: { status: "DRAFT" | "ISSUED" | "VOID"; window: { exercise: { status: ExerciseStatus } } }): OwnerFacts => ({
+  kind: "addendum",
+  exerciseStatus: a.window.exercise.status,
+  status: a.status,
 });
 
 /// Ended once its last day has passed, in the organisation's days.

@@ -22,9 +22,10 @@ import { requisitionOfExercise, withLockedRequisitionForSourcing } from "@/lib/m
 import { lockDelegation } from "@/lib/people/lock";
 import { exerciseOfBqVersion, exerciseOfPanel, lockBqRows, lockPanelRow, withLockedExerciseScope } from "@/lib/scope/lock";
 import { exerciseOfPackPart, lockPackRows, PACK_PART_FACTS_SELECT, packPartLabel } from "@/lib/tender-docs/owner";
+import { ADDENDUM_FACTS_SELECT, addendumLabel, exerciseOfAddendum, lockAddendumRows, lockWindowRow } from "@/lib/window/lock";
 
 import { reliedOn, type OwnerFacts, type Reliance } from "./attach";
-import { awardFacts, bqVersionFacts, delegationFacts, exerciseFacts, exerciseMethodFlags, meetingFacts, PANEL_FACTS_SELECT, panelFacts, tenderPackPartFacts } from "./owner-facts";
+import { addendumFacts, awardFacts, bqVersionFacts, delegationFacts, exerciseFacts, exerciseMethodFlags, meetingFacts, PANEL_FACTS_SELECT, panelFacts, tenderPackPartFacts } from "./owner-facts";
 import type { OwnerRef } from "./repo";
 import { documentOrg } from "./service";
 import type { AttachmentPurpose } from "./types";
@@ -75,12 +76,15 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
         const configured = l.ex.sourcingMethodCode
           ? await tx.sourcingMethod.findFirst({ where: { organisationId: l.org.id, code: l.ex.sourcingMethodCode }, select: { requiresDossier: true, requiresCoordinationRecord: true } })
           : null;
+        // 6.5: the window's path decides its purposes; read after the exercise's lock, under the window's.
+        await lockWindowRow(tx, l.ex.id);
+        const window = await tx.exerciseWindow.findUnique({ where: { exerciseId: l.ex.id }, select: { path: true } });
         return fn(tx, {
           ref,
           organisationId: l.org.id,
           today: l.org.today,
           label: `${l.ex.reference}`,
-          facts: exerciseFacts(l.ex, awards.map((a) => ({ status: a.status, openAppointmentRoutes: a.approvalInstances.length })), exerciseMethodFlags(l.ex.classificationSnapshot, configured)),
+          facts: exerciseFacts(l.ex, awards.map((a) => ({ status: a.status, openAppointmentRoutes: a.approvalInstances.length })), exerciseMethodFlags(l.ex.classificationSnapshot, configured), window),
           paths: [`/sourcing/${ref.id}`, ...awards.map((a) => `/awards/${a.id}`)],
           reliance: () => null,
         });
@@ -164,6 +168,29 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
         });
       });
     }
+    case "addendum": {
+      // 6.5: requisition, exercise, the window, then its addenda, as the window actions lock them.
+      const exerciseId = await exerciseOfAddendum(ref.id);
+      if (!exerciseId) return null;
+      return withLockedExerciseScope(exerciseId, async (tx, l) => {
+        await lockWindowRow(tx, exerciseId);
+        const w = await tx.exerciseWindow.findUnique({ where: { exerciseId }, select: { id: true } });
+        if (!w) return null;
+        await lockAddendumRows(tx, w.id);
+        const a = await tx.addendum.findFirst({ where: { id: ref.id, organisationId: l.org.id, windowId: w.id }, select: ADDENDUM_FACTS_SELECT });
+        if (!a) return null;
+        const facts = addendumFacts(a);
+        return fn(tx, {
+          ref,
+          organisationId: l.org.id,
+          today: l.org.today,
+          label: addendumLabel(a),
+          facts,
+          paths: [`/sourcing/${exerciseId}`],
+          reliance: (purpose, live, versionId) => reliedOn(purpose, facts, live, versionId),
+        });
+      });
+    }
     case "delegation":
       return db.$transaction(async (tx) => {
         const org = await documentOrg(tx);
@@ -187,7 +214,7 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
 }
 
 /// Which owner an attachment belongs to.
-export function ownerOf(a: { meetingId: string | null; exerciseId: string | null; awardId: string | null; delegationId: string | null; specificationPanelId?: string | null; bqVersionId?: string | null; tenderPackPartId?: string | null }): OwnerRef | null {
+export function ownerOf(a: { meetingId: string | null; exerciseId: string | null; awardId: string | null; delegationId: string | null; specificationPanelId?: string | null; bqVersionId?: string | null; tenderPackPartId?: string | null; addendumId?: string | null }): OwnerRef | null {
   if (a.meetingId) return { kind: "meeting", id: a.meetingId };
   if (a.exerciseId) return { kind: "exercise", id: a.exerciseId };
   if (a.awardId) return { kind: "award", id: a.awardId };
@@ -195,5 +222,6 @@ export function ownerOf(a: { meetingId: string | null; exerciseId: string | null
   if (a.specificationPanelId) return { kind: "specificationPanel", id: a.specificationPanelId };
   if (a.bqVersionId) return { kind: "bqVersion", id: a.bqVersionId };
   if (a.tenderPackPartId) return { kind: "tenderPackPart", id: a.tenderPackPartId };
+  if (a.addendumId) return { kind: "addendum", id: a.addendumId };
   return null;
 }

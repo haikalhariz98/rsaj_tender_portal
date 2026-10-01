@@ -67,8 +67,11 @@ export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
   SPEC_PANEL_FORM: "Signed specification panel form",
   BQ_IMPORT_SOURCE: "Imported bill of quantities file",
   TENDER_PART: "Tender document part",
+  ADDENDUM_SIGNED: "Signed addendum",
   DOSSIER_EVIDENCE: "Dossier evidence",
   COORDINATION_SCOPE: "Coordination meeting scope document",
+  PUBLICATION_PROOF: "Proof of publication",
+  ATTENDANCE_SHEET: "Signed attendance sheet",
   HOLDER_RECOMMENDATION: "Absent holder's signed recommendation",
   SIGNED_LETTER: "Signed letter of acceptance",
   DECLARATION: "Signed successful bidder declaration",
@@ -139,7 +142,11 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
   AWARD_CANCELLED: "The award is cancelled, so nothing more is attached to it.",
   DELEGATION_ENDED: "The delegation has ended, so nothing more is attached to it.",
   BQ_FINALISED: "This version of the bill is finalised and keeps the file it was imported from. To import another, start a revision of the bill.",
-  PACK_FROZEN: "The tender documents were submitted on this and stand as they were frozen. A change waits until they are returned for amendment, and is made then (a pack's part on its next version); after approval for tendering a change is an addendum, not yet available.",
+  PACK_FROZEN: "The tender documents were submitted on this and stand as they were frozen. A change waits until they are returned for amendment, and is made then (a pack's part on its next version); after approval for tendering a change is an addendum, issued on the Invitation tab.",
+  NOT_APPROVED_FOR_TENDERING: "A publication's proof is attached once the exercise is approved for tendering, when it can be published.",
+  WINDOW_NOT_PUBLISHED: "An attendance sheet is attached once the exercise is advertised or invited and the event is held.",
+  ADDENDUM_ISSUED: "The addendum is issued on this signed copy and stands as issued. A further change is another addendum.",
+  ADDENDUM_VOID: "The addendum was voided before it was issued, so nothing more is attached to it.",
 };
 
 const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {

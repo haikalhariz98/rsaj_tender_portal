@@ -35,6 +35,9 @@ export type OwnerFacts =
       /// or, while a draft, as configured now. Null where neither is known: the method is
       /// no longer configured, so the exercise keeps nothing.
       method: ExerciseMethodFlags | null;
+      /// 6.5: its invitation window's path, where it has a window. Publication proofs are kept
+      /// only by an advertised one, attendance sheets by any window. Absent or null: no window.
+      window?: { path: "ADVERTISED" | "INVITED" } | null;
     }
   | {
       kind: "award";
@@ -52,7 +55,9 @@ export type OwnerFacts =
   | { kind: "bqVersion"; exerciseStatus: ExerciseStatus; status: "DRAFT" | "FINALISED" | "SUPERSEDED" }
   /// 6.4: a tender pack's part, judged with its pack's and exercise's status. Only a part whose
   /// content is uploaded (source UPLOAD) keeps a file.
-  | { kind: "tenderPackPart"; exerciseStatus: ExerciseStatus; packStatus: TenderPackStatus; source: PartSource };
+  | { kind: "tenderPackPart"; exerciseStatus: ExerciseStatus; packStatus: TenderPackStatus; source: PartSource }
+  /// 6.5: an addendum, judged with its exercise's status. Its signed copy changes only while it is a draft.
+  | { kind: "addendum"; exerciseStatus: ExerciseStatus; status: "DRAFT" | "ISSUED" | "VOID" };
 
 /// Whether an exercise's status freezes what it (and its panel and bill) holds. Exhaustive
 /// (X-8): a status added to ExerciseStatus fails to compile here until it is decided.
@@ -96,8 +101,13 @@ export function exercisePurposes(flags: ExerciseMethodFlags | null): AttachmentP
  * still be taken off or re-pinned after its draft method changes.
  */
 export function methodKeeps(purpose: AttachmentPurpose, owner: OwnerFacts): boolean {
-  return owner.kind !== "exercise" || exercisePurposes(owner.method).includes(purpose);
+  // 6.5: the window's purposes are kept by the window (`purposeFits`), never by the method.
+  if (owner.kind !== "exercise" || !METHOD_PURPOSES.includes(purpose)) return true;
+  return exercisePurposes(owner.method).includes(purpose);
 }
+
+/// The exercise purposes its sourcing method decides.
+const METHOD_PURPOSES: readonly AttachmentPurpose[] = ["DOSSIER_EVIDENCE", "COORDINATION_SCOPE"];
 
 /// The return scans each instrument comes back with (FR-AWD-003, 008).
 export const RETURN_PURPOSES: Readonly<Record<InstrumentKind, readonly AttachmentPurpose[]>> = {
@@ -116,7 +126,11 @@ export type OwnerExit =
   | "AWARD_CANCELLED"
   | "DELEGATION_ENDED"
   | "BQ_FINALISED"
-  | "PACK_FROZEN";
+  | "PACK_FROZEN"
+  | "NOT_APPROVED_FOR_TENDERING"
+  | "WINDOW_NOT_PUBLISHED"
+  | "ADDENDUM_ISSUED"
+  | "ADDENDUM_VOID";
 
 export type AttachFault =
   | "PURPOSE_NOT_FOR_OWNER"
@@ -137,6 +151,9 @@ export function purposeFits(purpose: AttachmentPurpose, owner: OwnerFacts): bool
   // 6.4: a part keeps a file only where its content is uploaded; a template, the bill or the
   // Appendix is frozen from its own source (FR-DOC-003).
   if (owner.kind === "tenderPackPart") return owner.source === "UPLOAD";
+  // 6.5: a publication's proof belongs to an advertised window; an attendance sheet to any window.
+  if (owner.kind === "exercise" && purpose === "PUBLICATION_PROOF") return owner.window?.path === "ADVERTISED";
+  if (owner.kind === "exercise" && purpose === "ATTENDANCE_SHEET") return owner.window != null;
   return true;
 }
 
@@ -156,6 +173,9 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): { sta
         if (owner.awardApproved) return { state: "FROZEN", exit: "AWARD_APPROVED" };
         if (owner.appointmentRouteOpen) return { state: "FROZEN", exit: "ROUTE_OPEN" };
       }
+      // 6.5: a publication is recorded from approval for tendering on; an event is held once published.
+      if (purpose === "PUBLICATION_PROOF" && owner.status !== "APPROVED_FOR_TENDERING" && owner.status !== "ADVERTISED") return { state: "NOT_READY", exit: "NOT_APPROVED_FOR_TENDERING" };
+      if (purpose === "ATTENDANCE_SHEET" && owner.status !== "ADVERTISED" && owner.status !== "INVITED") return { state: "NOT_READY", exit: "WINDOW_NOT_PUBLISHED" };
       return { state: "OPEN" };
     case "award":
       if (owner.status === "CANCELLED") return { state: "FROZEN", exit: "AWARD_CANCELLED" };
@@ -179,6 +199,11 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): { sta
       // returned, it stands as frozen; a return opens a new draft, where the file is replaced.
       if (exerciseFrozen(owner.exerciseStatus)) return { state: "FROZEN", exit: "EXERCISE_CANCELLED" };
       return owner.packStatus === "DRAFT" ? { state: "OPEN" } : { state: "FROZEN", exit: "PACK_FROZEN" };
+    case "addendum":
+      // 6.5: an issued addendum stands as issued, with the signed copy it was issued on.
+      if (exerciseFrozen(owner.exerciseStatus)) return { state: "FROZEN", exit: "EXERCISE_CANCELLED" };
+      if (owner.status === "DRAFT") return { state: "OPEN" };
+      return { state: "FROZEN", exit: owner.status === "ISSUED" ? "ADDENDUM_ISSUED" : "ADDENDUM_VOID" };
   }
 }
 

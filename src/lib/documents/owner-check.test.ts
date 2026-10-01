@@ -101,3 +101,28 @@ describe("6.4: the tender pack part is an owner, everywhere at once (X-6)", () =
     expect(sql).toHaveLength(1);
   });
 });
+
+describe("6.5: the addendum is an owner, and the window's purposes pair with theirs, everywhere at once (X-6)", () => {
+  it("addendumId is counted by one_owner and ADDENDUM_SIGNED pairs with it", () => {
+    expect(latestCheck("DocumentAttachment_one_owner")).toMatch(/"addendumId"/);
+    expect(latestCheck("DocumentAttachment_purpose_owner")).toMatch(/\("purpose"\s*=\s*'ADDENDUM_SIGNED'\s*AND\s*"addendumId"\s+IS NOT NULL\)/);
+    expect(OWNER_COLUMN.addendum).toBe("addendumId");
+    expect(PURPOSE_OWNER.ADDENDUM_SIGNED).toBe("addendum");
+  });
+
+  it("a publication's proof and an attendance sheet are the exercise's", () => {
+    expect(latestCheck("DocumentAttachment_purpose_owner")).toMatch(/'PUBLICATION_PROOF', 'ATTENDANCE_SHEET'\) AND "exerciseId" IS NOT NULL/);
+    expect(PURPOSE_OWNER.PUBLICATION_PROOF).toBe("exercise");
+    expect(PURPOSE_OWNER.ATTENDANCE_SHEET).toBe("exercise");
+  });
+
+  it.each(["ADDENDUM_SIGNED", "PUBLICATION_PROOF", "ATTENDANCE_SHEET"])("%s arrived alone in its own migration, before the migration that rebuilt the CHECKs with it", (value) => {
+    const own = migrations.filter((d) => new RegExp(`ALTER TYPE "AttachmentPurpose" ADD VALUE '${value}'`).test(readFileSync(join(migrationsDir, d, "migration.sql"), "utf8")));
+    const used = migrations.filter((d) => d !== own[0] && readFileSync(join(migrationsDir, d, "migration.sql"), "utf8").includes(`'${value}'`));
+    expect(own).toHaveLength(1);
+    expect(used.length).toBeGreaterThan(0);
+    for (const u of used) expect(own[0] < u).toBe(true);
+    const sql = readFileSync(join(migrationsDir, own[0], "migration.sql"), "utf8").split("\n").filter((l) => l.trim() && !l.trim().startsWith("--"));
+    expect(sql).toHaveLength(1);
+  });
+});

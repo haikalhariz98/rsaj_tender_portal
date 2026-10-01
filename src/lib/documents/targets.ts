@@ -25,6 +25,7 @@ export const OWNER_KIND_LABEL: Readonly<Record<OwnerKind, string>> = {
   specificationPanel: "Specification panel",
   bqVersion: "Bill of quantities",
   tenderPackPart: "Tender document part",
+  addendum: "Addendum",
 };
 
 /// Where an owner's own screen is, for a link from a document to the record it is on.
@@ -45,6 +46,8 @@ export function ownerHref(kind: OwnerKind, id: string, exerciseId?: string): str
       return exerciseId ? `/sourcing/${exerciseId}?tab=scope&section=bq` : "/sourcing";
     case "tenderPackPart":
       return exerciseId ? `/sourcing/${exerciseId}?tab=documents` : "/sourcing";
+    case "addendum":
+      return exerciseId ? `/sourcing/${exerciseId}?tab=invitation&section=addenda` : "/sourcing";
   }
 }
 

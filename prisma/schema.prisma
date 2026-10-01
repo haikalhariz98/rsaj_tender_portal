@@ -3546,8 +3546,14 @@ enum AttachmentPurpose {
   BQ_IMPORT_SOURCE
   /// 6.4: an uploaded part of a tender pack (drawings, a specification), on the pack's part.
   TENDER_PART
+  /// 6.5: an addendum's signed copy, on the addendum (FR-ADV-014).
+  ADDENDUM_SIGNED
   DOSSIER_EVIDENCE
   COORDINATION_SCOPE
+  /// 6.5: proof of an advertisement's publication on a channel, on the exercise (FR-ADV-001).
+  PUBLICATION_PROOF
+  /// 6.5: a briefing's or site visit's signed attendance sheet, on the exercise (FR-ADV-013).
+  ATTENDANCE_SHEET
   HOLDER_RECOMMENDATION
   SIGNED_LETTER
   DECLARATION
@@ -3689,6 +3695,9 @@ model DocumentAttachment {
   /// 6.4: a tender pack's part, for the file that is the part (drawings, a specification).
   tenderPackPartId     String?
   tenderPackPart       TenderPackPart?     @relation(fields: [tenderPackPartId], references: [id], onDelete: Restrict)
+  /// 6.5: an addendum, for its signed copy (FR-ADV-014).
+  addendumId           String?
+  addendum             Addendum?           @relation(fields: [addendumId], references: [id], onDelete: Restrict)
 
   attachedAt   DateTime  @default(now())
   detachedAt   DateTime?
@@ -3701,6 +3710,7 @@ model DocumentAttachment {
   @@index([specificationPanelId])
   @@index([bqVersionId])
   @@index([tenderPackPartId])
+  @@index([addendumId])
   @@index([versionId])
 }
 
@@ -5174,7 +5184,8 @@ model Addendum {
   voidReason      String         @default("")
   createdAt       DateTime       @default(now())
 
-  recipients AddendumRecipient[]
+  recipients  AddendumRecipient[]
+  attachments DocumentAttachment[]
 
   @@unique([windowId, number])
 }
