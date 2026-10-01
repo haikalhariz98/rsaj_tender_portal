@@ -121,7 +121,7 @@ Each ships empty or unset on purpose. Until set, the system refuses or warns and
 7. **Budget policy:** `approvalCommitsBudget` per funding route; splitting-control keys, window and justifying office (B7); endorsement tiers; `erpReferenceRequired`. DL 6.1 · BD-13, BD-23, "Splitting check unset".
 8. **Award controls:** instrument per regime, templates, recipients, signatories, bond basis, liability bands, quotation contract key. DL 6.11 · "Instrument per regime", BD-6, BD-7.
 9. **Document store** before go-live, then: allowed types and size, classes, **malware scanning** (a go-live condition for any customer; every version is NOT_SCANNED until a scanner is configured). DL doc store · OD-3, OD-4, OD-7, "Sequencing".
-10. **Sign-in.** Not ruled a go-live condition. Until it lands: audit rows are unattributed, approvers are recorded on behalf and not signed, SULIT records are not restricted, delegation line rules and maker-checker are absent. Whether to go live without it is the product owner's call (section 10).
+10. **Sign-in.** A go-live condition for any customer (ruled at Phase 1 acceptance, section 10; DL 2026-10-01 · Phase 1 · "Sign-in ruled a go-live condition"). Building it stays deferred by standing decision (`AGENTS.md`; `autonomous-build.md` "Never") and is the founder's to schedule. Until it lands: audit rows are unattributed, approvers are recorded on behalf and not signed, SULIT records are not restricted, delegation line rules and maker-checker are absent, and the vendor portal (6.15b) and electronic tender box (6.15c) cannot ship.
 
 ## 7. Questions to RSAJ, collected from the rulings
 
