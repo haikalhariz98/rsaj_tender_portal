@@ -370,6 +370,9 @@ const POLICY = {
   dateRuleSource: SOURCE, notes: "Invented demo values, not a recommendation.",
 };
 
+/// Configuration is written in the order it depends on itself (templates, then channels and floors, calendars, the policy that names them): one minute apart, so the History reads in that order.
+const after = (at: Date, minutes: number) => new Date(at.getTime() + minutes * 60_000);
+
 async function loadConfiguration(db: Db, organisationId: string, at: Date, today: string, W: (k: number) => string, entry: Add) {
   await db.documentTemplate.createMany({ data: TEMPLATES.map((t, i) => ({ ...t, organisationId, documentClassId: `${P}dc1`, revisionDate: dayToDate("2026-06-01"), bodyVersion: 1, provenance: "ASSUMED" as const, sortOrder: 13 + i, notes: "Invented demo text." })) });
   for (const t of TEMPLATES) entry("DocumentTemplate", t.id, t.nameEn, "CREATE", at, diffFields(null, { code: t.code, nameEn: t.nameEn, formCode: t.formCode, textVersion: 1, whereItComesFrom: "Assumed" }));
@@ -377,18 +380,18 @@ async function loadConfiguration(db: Db, organisationId: string, at: Date, today
   for (const c of CHANNELS) {
     const row = { id: c.id, organisationId, code: c.code, nameEn: c.nameEn, requiredWhenAdvertised: true, governingSource: SOURCE, provenance: "ASSUMED" as const, sortOrder: c.sortOrder, notes: "Invented demo channel." };
     await db.publicationChannel.create({ data: row });
-    entry("PublicationChannel", c.id, `Publication channel · ${c.nameEn}`, "CREATE", at, diffFields(null, { name: c.nameEn, nameInMalay: null, required: "Required for every advertised exercise", governingSource: SOURCE, whereItComesFrom: "Assumed", retiredOn: null }));
+    entry("PublicationChannel", c.id, `Publication channel · ${c.nameEn}`, "CREATE", after(at, 1), diffFields(null, { name: c.nameEn, nameInMalay: null, required: "Required for every advertised exercise", governingSource: SOURCE, whereItComesFrom: "Assumed", retiredOn: null }));
   }
   for (const f of FLOORS) {
     if (await db.documentFeeFloor.findFirst({ where: { organisationId, regime: f.regime } })) continue;
     await db.documentFeeFloor.create({ data: { ...f, organisationId, governingSource: SOURCE, provenance: "ASSUMED", notes: "Invented demo floor." } });
-    entry("DocumentFeeFloor", f.id, `Fee floor · ${REGIME_LABEL[f.regime as Regime]}`, "CREATE", at, diffFields(null, { band: REGIME_LABEL[f.regime as Regime], minimumFee: `RM${f.minimum}`, governingSource: SOURCE, whereItComesFrom: "Assumed" }));
+    entry("DocumentFeeFloor", f.id, `Fee floor · ${REGIME_LABEL[f.regime as Regime]}`, "CREATE", after(at, 1), diffFields(null, { band: REGIME_LABEL[f.regime as Regime], minimumFee: `RM${f.minimum}`, governingSource: SOURCE, whereItComesFrom: "Assumed" }));
   }
 
   // The calendar: every year the demo's dates touch, maintained in full; the year after, not.
   const cal = { id: `${P}hol1`, code: "demo_state", name: "Demo state calendar" };
   await db.holidayCalendar.create({ data: { ...cal, organisationId, weekendDays: WEEKEND, weekendProvenance: "ASSUMED", governingSource: SOURCE, provenance: "ASSUMED", notes: "Invented demo calendar.", sortOrder: 1 } });
-  entry("HolidayCalendar", cal.id, `Holiday calendar · ${cal.name}`, "CREATE", at, diffFields(null, { name: cal.name, weekend: "Saturday, Sunday", weekendFrom: "Assumed", governingSource: SOURCE, whereItComesFrom: "Assumed", retiredOn: null }));
+  entry("HolidayCalendar", cal.id, `Holiday calendar · ${cal.name}`, "CREATE", after(at, 2), diffFields(null, { name: cal.name, weekend: "Saturday, Sunday", weekendFrom: "Assumed", governingSource: SOURCE, whereItComesFrom: "Assumed", retiredOn: null }));
   const first = Number(W(30).slice(0, 4));
   const last = Number(W(-30).slice(0, 4));
   let h = 0;
@@ -396,12 +399,12 @@ async function loadConfiguration(db: Db, organisationId: string, at: Date, today
     const complete = y <= last;
     const yid = `${P}holy${y}`;
     await db.holidayCalendarYear.create({ data: { id: yid, organisationId, calendarId: cal.id, year: y, complete, source: complete ? "Demo state gazette (invented)" : "", provenance: "ASSUMED" } });
-    entry("HolidayCalendarYear", yid, `Holiday calendar · ${cal.name} · ${y}`, "CREATE", at, diffFields(null, { year: y, maintainedInFull: complete ? "Yes" : "No", listFrom: complete ? "Demo state gazette (invented)" : null, whereItComesFrom: "Assumed" }));
+    entry("HolidayCalendarYear", yid, `Holiday calendar · ${cal.name} · ${y}`, "CREATE", after(at, 3), diffFields(null, { year: y, maintainedInFull: complete ? "Yes" : "No", listFrom: complete ? "Demo state gazette (invented)" : null, whereItComesFrom: "Assumed" }));
     if (!complete) continue;
     for (const [md, name] of HOLIDAYS) {
       const id = `${P}hd${++h}`;
       await db.publicHoliday.create({ data: { id, organisationId, calendarId: cal.id, day: dayToDate(`${y}-${md}`), nameEn: name, gazetteRef: "", provenance: "ASSUMED" } });
-      entry("PublicHoliday", id, `Holiday calendar · ${cal.name} · ${name}`, "CREATE", at, diffFields(null, { day: formatDate(`${y}-${md}`), name, nameInMalay: null, gazette: null, whereItComesFrom: "Assumed" }));
+      entry("PublicHoliday", id, `Holiday calendar · ${cal.name} · ${name}`, "CREATE", after(at, 3), diffFields(null, { day: formatDate(`${y}-${md}`), name, nameInMalay: null, gazette: null, whereItComesFrom: "Assumed" }));
     }
   }
 
@@ -413,7 +416,7 @@ async function loadConfiguration(db: Db, organisationId: string, at: Date, today
     const fs = policyFaults({ ...POLICY, templateIds: [POLICY.noticeTemplateId, POLICY.invitationTemplateId, POLICY.addendumTemplateId] }, { channels: channels.map((c) => ({ id: c.id, retiredOn: c.retiredOn ? storedDay(c.retiredOn) : null })), calendars: calendars.map((c) => ({ id: c.id, retiredOn: c.retiredOn ? storedDay(c.retiredOn) : null })), templateIds: templates.map((t) => t.id), today });
     if (fs.length) throw new Error(`Demo window policy refused: ${fs.map((f) => f.code).join(", ")}`);
     await db.windowPolicy.create({ data: { id: POLICY_ID, organisationId, ...POLICY } });
-    entry("WindowPolicy", POLICY_ID, "Invitation controls · policy", "CREATE", at, diffFields(null, {
+    entry("WindowPolicy", POLICY_ID, "Invitation controls · policy", "CREATE", after(at, 4), diffFields(null, {
       minimumDays: 7, targetDays: 10, newspaperMargin: 2, purchaseCutoffDays: 2, dateRulesFrom: "Assumed", defaultClosingTime: "15:00", closingTimeFrom: "Assumed",
       advertisementDay: DAY_RULE_LABEL.LATEST_REQUIRED_CHANNEL, namedChannel: null, dayRuleFrom: "Assumed", holidayCalendar: cal.name, mandatoryAttendance: "Permitted", attendanceFrom: "Assumed",
       noticeTemplate: TEMPLATES[0].nameEn, invitationTemplate: TEMPLATES[1].nameEn, addendumTemplate: TEMPLATES[2].nameEn, sourceCited: SOURCE,
@@ -1228,6 +1231,16 @@ export async function checkWindowDemo(db: Db) {
   const sx16 = await db.sourcingExercise.findUniqueOrThrow({ where: { id: `${P}sx16` }, select: { replacesExerciseId: true } });
   if (sx16.replacesExerciseId !== `${P}sx19`) fail("sx16 does not record that it replaces sx19.");
   if (await db.exerciseParty.count({ where: { id: demoRef, NOT: { vendorId: null } } })) fail("a demo party names a vendor (it stays unlinked until 6.15).");
+  // C-3: the History reads configuration first. Every entry of the invitation controls precedes every
+  // entry of an act that is judged under them (a policy, channel, calendar or floor never follows the
+  // publication, sale or letter it governs).
+  const CONFIG = ["DocumentTemplate", "WindowPolicy", "PublicationChannel", "HolidayCalendar", "HolidayCalendarYear", "PublicHoliday", "DocumentFeeFloor"];
+  const lastConfig = await db.auditEntry.aggregate({ _max: { at: true }, where: { id: { startsWith: `${P}wau` }, entity: { in: CONFIG } } });
+  const firstAct = await db.auditEntry.aggregate({ _min: { at: true }, where: { id: { startsWith: `${P}wau` }, entity: { notIn: CONFIG } } });
+  if (lastConfig._max.at && firstAct._min.at && lastConfig._max.at >= firstAct._min.at) fail("a configuration entry is not strictly before the first act that depends on it (History order).");
+  const policyAt = await db.auditEntry.aggregate({ _min: { at: true }, where: { id: { startsWith: `${P}wau` }, entity: "WindowPolicy" } });
+  const named = await db.auditEntry.aggregate({ _max: { at: true }, where: { id: { startsWith: `${P}wau` }, entity: { in: ["DocumentTemplate", "PublicationChannel", "HolidayCalendar"] } } });
+  if (policyAt._min.at && named._max.at && policyAt._min.at <= named._max.at) fail("the policy's entry is not strictly after the channels, calendar and templates it names (History order).");
   const late = await db.auditEntry.count({ where: { id: { startsWith: `${P}wau` }, at: { gt: now } } });
   if (late) fail(`${late} trail entries are dated after now (X-10 a).`);
 }
