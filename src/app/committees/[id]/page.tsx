@@ -221,7 +221,8 @@ export default async function SittingPage({
             id: "attendance",
             label: "Attendance",
             icon: <UsersIcon size={15} />,
-            count: present,
+            // Not started: no register, so no count — never a "0" that reads as nobody came.
+            count: a.registerTaken ? present : undefined,
             panel: <AttendancePanel s={s} />,
           },
           { id: "minutes", label: "Minutes", icon: <CalendarIcon size={15} />, panel: <MinutesPanel s={s} /> },
@@ -587,7 +588,11 @@ function AttendancePanel({ s }: { s: LoadedSitting }) {
         <CardHeader
           icon={<UsersIcon size={17} />}
           title="Register"
-          subtitle={`${a.present.voterIds.length} voting ${a.present.voterIds.length === 1 ? "member" : "members"} present, judged on the seats in force on ${formatDate(m.meetingDate)}`}
+          subtitle={
+            a.registerTaken
+              ? `${a.present.voterIds.length} voting ${a.present.voterIds.length === 1 ? "member" : "members"} present, judged on the seats in force on ${formatDate(m.meetingDate)}`
+              : `The sitting has not started: the register is taken when it starts. Members on the seats in force on ${formatDate(m.meetingDate)}.`
+          }
         />
         <ul className="divide-y divide-line/70">
           {lines.map((line) => {
@@ -612,7 +617,7 @@ function AttendancePanel({ s }: { s: LoadedSitting }) {
                   </span>
                 )}
                 {r == null ? (
-                  <Badge outline>Not recorded</Badge>
+                  <Badge outline>{a.registerTaken ? "Not recorded" : "Taken when the sitting starts"}</Badge>
                 ) : !r.attended ? (
                   <Badge>Absent</Badge>
                 ) : standingFor ? (
@@ -683,6 +688,11 @@ const ENTITY_LABEL: Record<string, string> = {
   Vote: "Vote",
   DecisionRecusal: "Recusal",
 };
+
+/// A reference recorded beside the name it was read as: the name says it once.
+const NAMED_BY: Record<string, string> = { tabledByPersonId: "tabledBy", notApprovedOutcomeId: "notApprovedOutcomeNameEn" };
+const shownChanges = <C extends { field: string }>(changes: C[]): C[] =>
+  changes.filter((ch) => !(NAMED_BY[ch.field] && changes.some((c) => c.field === NAMED_BY[ch.field])));
 
 function HistoryPanel({
   s,
@@ -756,7 +766,7 @@ function HistoryPanel({
               </div>
               {e.changes.length > 0 && (
                 <ul className="text-[12.5px] text-ink-3">
-                  {e.changes.map((ch) => (
+                  {shownChanges(e.changes).map((ch) => (
                     <li key={ch.field}>
                       {fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{read(ch.field, ch.before)} → </>}
                       <span className="text-ink-2">{read(ch.field, ch.after)}</span>

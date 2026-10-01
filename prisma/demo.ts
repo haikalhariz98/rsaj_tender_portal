@@ -670,29 +670,30 @@ async function load() {
   const tabled = { tabledByPersonId: `${P}p3` };
   await db.committeeDecision.createMany({
     data: [
-      // A manual matter: linked to no record, so it names no reference that is not one
-      // (6.10 local review 3). Never an exercise at a mismatched amount, which the award
-      // flow could cite (6.11 BD-3).
+      // Manual matters, d1–d6: linked to no record, so none names a reference that is
+      // not one (6.10 local review 3 and its follow-up). No demo exercise, award or
+      // contract has the same amount and kind as any of them, and linking one at a
+      // mismatched amount could make it citable by the award flow (6.11 BD-3).
       { id: `${P}d1`, meetingId: `${P}mt1`, sequence: 1, domain: "appointment", subject: "Award of the head office cleaning contract", matterKind: null, matterRef: null, amount: "412000", act: "A", authorityRuleKey: "demo.purchase.high", ...tabled, tabledAt: day("2026-09-22") },
       {
-        id: `${P}d2`, meetingId: `${P}mt2`, sequence: 1, domain: "appointment", subject: "Award of the fleet maintenance contract", matterKind: "EXERCISE", matterRef: "DEMO/T/2026/009", amount: "655000", act: "A", ...tabled, tabledAt: day("2026-08-13"),
+        id: `${P}d2`, meetingId: `${P}mt2`, sequence: 1, domain: "appointment", subject: "Award of the fleet maintenance contract", matterKind: null, matterRef: null, amount: "655000", act: "A", ...tabled, tabledAt: day("2026-08-13"),
         outcome: "CARRIED", decisionDate: day("2026-08-20"), quorumRequired: 3, presentVoters: 3, recusedCount: 0, votingRule: "SIMPLE_MAJORITY", votingRuleProvenance: "ASSUMED",
       },
       {
-        id: `${P}d3`, meetingId: `${P}mt2`, sequence: 2, domain: "appointment", subject: "Award of the IT support contract", matterKind: "EXERCISE", matterRef: "DEMO/T/2026/010", amount: "380000", act: "A", ...tabled, tabledAt: day("2026-08-13"),
+        id: `${P}d3`, meetingId: `${P}mt2`, sequence: 2, domain: "appointment", subject: "Award of the IT support contract", matterKind: null, matterRef: null, amount: "380000", act: "A", ...tabled, tabledAt: day("2026-08-13"),
         // Judged on two: the Finance Director, present, recused.
         outcome: "DEFERRED", decisionDate: day("2026-08-20"), quorumRequired: 3, presentVoters: 2, recusedCount: 1,
         outcomeNote: "The Finance Director's recusal left the Board inquorate on this matter. To be re-tabled at the next sitting.",
       },
       {
-        id: `${P}d4`, meetingId: `${P}mt2`, sequence: 3, domain: "appointment", subject: "Award of the civil works package", matterKind: "EXERCISE", matterRef: "DEMO/T/2026/011", amount: "1250000", act: "A", ...tabled, tabledAt: day("2026-08-13"),
+        id: `${P}d4`, meetingId: `${P}mt2`, sequence: 3, domain: "appointment", subject: "Award of the civil works package", matterKind: null, matterRef: null, amount: "1250000", act: "A", ...tabled, tabledAt: day("2026-08-13"),
         outcome: "NOT_CARRIED", decisionDate: day("2026-08-20"), quorumRequired: 3, presentVoters: 3, recusedCount: 0, votingRule: "SIMPLE_MAJORITY", votingRuleProvenance: "ASSUMED",
         notApprovedOutcomeId: `${P}nao2`, notApprovedOutcomeNameEn: "Return for re-negotiation", notApprovedOutcomeKind: "LOOP", outcomeNote: "The tendered rates exceed the estimate by a margin the Board would not accept without negotiation.",
       },
       // The Director of Operations has an alternate and recuses: whether the alternate may
       // vote in his place is unset on the demo Tender Board, so the matter shows the gap.
-      { id: `${P}d6`, meetingId: `${P}mt1`, sequence: 2, domain: "appointment", subject: "Renewal of the security services contract", matterKind: "CONTRACT", matterRef: "DEMO/KP/T/2024/003", amount: "520000", act: "A", ...tabled, tabledAt: day("2026-09-22") },
-      { id: `${P}d5`, meetingId: `${P}mt3`, sequence: 1, domain: "appointment", subject: "Quotation for stationery supply", matterKind: "EXERCISE", matterRef: "DEMO/SH/2026/031", amount: "42000", act: "MR", authorityRuleKey: "demo.purchase.mid", ...tabled, tabledAt: day("2026-09-28") },
+      { id: `${P}d6`, meetingId: `${P}mt1`, sequence: 2, domain: "appointment", subject: "Renewal of the security services contract", matterKind: null, matterRef: null, amount: "520000", act: "A", ...tabled, tabledAt: day("2026-09-22") },
+      { id: `${P}d5`, meetingId: `${P}mt3`, sequence: 1, domain: "appointment", subject: "Quotation for stationery supply", matterKind: null, matterRef: null, amount: "42000", act: "MR", authorityRuleKey: "demo.purchase.mid", ...tabled, tabledAt: day("2026-09-28") },
     ],
   });
 

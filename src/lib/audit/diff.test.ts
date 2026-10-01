@@ -90,5 +90,11 @@ describe("field labels", () => {
     expect(fieldLabel("reasonMs")).toBe("Reason (BM)");
     // Only a trailing language suffix counts.
     expect(fieldLabel("openedOn")).toBe("Opened on");
+    // A reference reads as what it points at: no label says "id" (6.10 follow-up).
+    expect(fieldLabel("tabledByPersonId")).toBe("Tabled by");
+    expect(fieldLabel("standingInForSeatId")).toBe("Standing in for");
+    expect(fieldLabel("budgetCodeId")).toBe("Budget code");
+    expect(fieldLabel("relatedRequisitionIds")).toBe("Related requisitions");
+    expect(fieldLabel("id")).toBe("Id");
   });
 });

@@ -54,11 +54,24 @@ export function snapshotFields(row: Record<string, unknown>): FieldChange[] {
   }));
 }
 
-/// Field names are configuration-ish keys; screens render labels.
+/// Fields whose generic reading would say what is stored rather than what it means.
+const NAMED_FIELDS: Record<string, string> = {
+  tabledByPersonId: "Tabled by",
+  standingInForSeatId: "Standing in for",
+  dependsOnDecisionId: "Depends on",
+  notApprovedOutcomeId: "Outcome if not carried",
+};
+
+/// Field names are configuration-ish keys; screens render labels. A reference to a
+/// record reads as what it points at — "Decided by person", never "… person id": the
+/// screen shows the record's name in the value, so the label never mentions an id.
 export function fieldLabel(field: string): string {
+  if (NAMED_FIELDS[field]) return NAMED_FIELDS[field];
   // The bilingual pairs read as the forms print them: "Name (EN)", "Name (BM)".
   const lang = /En$/.test(field) ? " (EN)" : /Ms$/.test(field) ? " (BM)" : "";
   if (lang) return fieldLabel(field.slice(0, -2)) + lang;
+  const ref = /^(.+[a-z0-9])Id(s?)$/.exec(field);
+  if (ref) return fieldLabel(ref[1]) + ref[2];
   const spaced = field
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/_/g, " ")
