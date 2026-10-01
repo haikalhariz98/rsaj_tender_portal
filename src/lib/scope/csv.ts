@@ -310,6 +310,18 @@ export function importSummary(p: ParsedBqCsv) {
   return { sections: p.sections.length, lines: lines.length, priced: p.priced, total: t.total, incompleteLines: t.incompleteLines };
 }
 
+/// Why the import's button is off, judged in the browser with the order the server judges in
+/// (a file it refuses first, then a draft that has lines and no Replace), so the officer is
+/// told before sending anything. Null: nothing stands in the way, or no file is chosen yet (the
+/// file field says that itself).
+export type ImportBlock = "FILE_REFUSED" | "NEEDS_REPLACE";
+export function importBlock(parsed: ParsedBqCsv | null, ctx: { draftLines: number; replace: boolean }): ImportBlock | null {
+  if (!parsed) return null;
+  if (parsed.faults.some((f) => f.level === "block")) return "FILE_REFUSED";
+  if (ctx.draftLines > 0 && !ctx.replace) return "NEEDS_REPLACE";
+  return null;
+}
+
 // ------------------------------------------------------------------ export
 
 /// A cell as written: quoted where it holds a comma, quote or line break; a formula-looking start guarded.

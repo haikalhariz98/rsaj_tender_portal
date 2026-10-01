@@ -10,7 +10,7 @@ import { formatSen, type Sen } from "@/lib/money";
 import type { DraftFault, FinaliseFault } from "./bq";
 import type { ClassificationFault, DiscloseFault, LeadState, LodgeFault, OverrideFault, RetainFault, StartFault, VersionFault, ViewFault, VoidFault } from "./estimate";
 import type { PackFault } from "./pack";
-import type { BqCsvFault } from "./csv";
+import type { BqCsvFault, ImportBlock } from "./csv";
 import type { MarkVerifiedFault, PanelFault, PanelState, VerifyFault } from "./panel";
 import type { PriceFault, RateScheduleStatus, ScheduleFault } from "./rates";
 import type { ScopeApproval, ScopeApprovalState, ScopeCitationFault } from "./scope-matter";
@@ -274,6 +274,12 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   DRAFT_NOT_EMPTY: "The draft already has lines. Tick “Replace the draft's lines” to import over them, or remove them first.",
   NO_DRAFT: "A file is imported into a draft. Start the bill, or a revision of it, first.",
   NO_OPEN_SITTING: (d) => `No sitting of the ${d.committee ?? "committee"} is scheduled or in progress. Schedule one under Committees, then table the scope there.`,
+};
+
+/// Why the import button is off (csv.ts `importBlock`), in the words shown beside it.
+export const IMPORT_BLOCK_TEXT: Readonly<Record<ImportBlock, string>> = {
+  FILE_REFUSED: "This file cannot be imported. Correct the problems listed above and choose it again.",
+  NEEDS_REPLACE: "Turn on Replace to import into this draft.",
 };
 
 export const SCOPE_CODES = Object.keys(TEXT) as ScopeCode[];

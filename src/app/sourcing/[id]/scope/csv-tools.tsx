@@ -8,8 +8,8 @@ import { Button, buttonClass } from "@/components/ui/button";
 import { Callout } from "@/components/ui/feedback";
 import { Field, Select } from "@/components/ui/field";
 import { formatSen } from "@/lib/money";
-import { exportToSave, importSummary, parseBqCsv, type ParsedBqCsv } from "@/lib/scope/csv";
-import { csvFaultText, keyedMismatchText } from "@/lib/scope/labels";
+import { exportToSave, importBlock, importSummary, parseBqCsv, type ParsedBqCsv } from "@/lib/scope/csv";
+import { csvFaultText, IMPORT_BLOCK_TEXT, keyedMismatchText } from "@/lib/scope/labels";
 
 import { exportBqCsv, importBqCsv, type BqExportResult } from "./actions";
 
@@ -67,12 +67,14 @@ function Preview({ parsed }: { parsed: ParsedBqCsv | null }) {
   );
 }
 
-/// Listens to the drawer's file input and reads the chosen file. Nothing is sent from here.
-function FileWatcher({ onParsed }: { onParsed: (p: ParsedBqCsv | null) => void }) {
+/// Listens to the drawer's form: the file chosen (read here, nothing is sent) and the Replace
+/// switch. When the drawer closes the form is gone, so what it held is forgotten.
+function FormWatcher({ onParsed, onReplace }: { onParsed: (p: ParsedBqCsv | null) => void; onReplace: (on: boolean) => void }) {
   const at = useRef<HTMLSpanElement>(null);
   useEffect(() => {
-    const input = at.current?.closest("form")?.querySelector<HTMLInputElement>('input[type="file"][name="file"]');
-    if (!input) return;
+    const form = at.current?.closest("form");
+    const input = form?.querySelector<HTMLInputElement>('input[type="file"][name="file"]');
+    if (!form || !input) return;
     const read = async () => {
       const f = input.files?.[0];
       if (!f) return onParsed(null);
@@ -85,9 +87,16 @@ function FileWatcher({ onParsed }: { onParsed: (p: ParsedBqCsv | null) => void }
       }
       onParsed(parseBqCsv(text));
     };
+    const replace = () => onReplace(!!form.querySelector<HTMLInputElement>('input[name="replace"]')?.checked);
     input.addEventListener("change", read);
-    return () => input.removeEventListener("change", read);
-  }, [onParsed]);
+    form.addEventListener("change", replace);
+    return () => {
+      input.removeEventListener("change", read);
+      form.removeEventListener("change", replace);
+      onParsed(null);
+      onReplace(false);
+    };
+  }, [onParsed, onReplace]);
   return <span ref={at} hidden />;
 }
 
@@ -107,6 +116,10 @@ export function ImportCsvDrawer({
   const stagedRef = useStagedRef();
   const [parsed, setParsed] = useState<ParsedBqCsv | null>(null);
   const onParsed = useCallback((p: ParsedBqCsv | null) => setParsed(p), []);
+  const [replace, setReplace] = useState(false);
+  const onReplace = useCallback((on: boolean) => setReplace(on), []);
+  // Judged by lib in the order the server judges, so the button is off for the reason the server would give.
+  const block = importBlock(parsed, { draftLines: draft?.lines ?? 0, replace });
   const action = useCallback<SaveAction>(
     async (_prev, data) => {
       const file = data.get("file");
@@ -160,12 +173,13 @@ export function ImportCsvDrawer({
       sections={
         <div className="flex flex-col gap-2 border-t border-line pt-4">
           <p className="text-[12px] font-semibold text-ink-3">What the file holds</p>
-          <FileWatcher onParsed={onParsed} />
+          <FormWatcher onParsed={onParsed} onReplace={onReplace} />
           <Preview parsed={parsed} />
         </div>
       }
       action={action}
       submitLabel="Upload and import"
+      submitBlock={block ? IMPORT_BLOCK_TEXT[block] : null}
       trigger={{ label: "Import from CSV", className: buttonClass("secondary", "sm") }}
       size="lg"
     />

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { formatSen, parseSen } from "@/lib/money";
 
 import { bqTotals, type FrozenBq } from "./bq";
-import { BQ_CSV_MAX_LINES, BQ_CSV_TEXT_MAX, bqCsvFilename, exportToSave, bqToCsv, csvCell, decodeCsv, importSummary, parseBqCsv, parseCsv } from "./csv";
+import { importBlock, BQ_CSV_MAX_LINES, BQ_CSV_TEXT_MAX, bqCsvFilename, exportToSave, bqToCsv, csvCell, decodeCsv, importSummary, parseBqCsv, parseCsv } from "./csv";
 import { CSV_FAULT_CODES, csvFaultText, keyedMismatchText } from "./labels";
 import type { BqLine } from "./types";
 
@@ -270,5 +270,24 @@ describe("a cell a spreadsheet could read as a formula: warned, read as text, ne
     const p = parseBqCsv(`${H}\n1,A,1.1,'=SUM(A1),m,,1,2.00,,`);
     expect(p.faults).toEqual([]);
     expect(p.sections[0].items[0].description).toBe("=SUM(A1)");
+  });
+});
+
+describe("importBlock: why the import's button is off", () => {
+  const clean = parseBqCsv("Section,Section title,Item,Description,Unit,Kind,Quantity,Rate\n1,Preliminaries,1.1,Site set-up,item,Measured work,1,100.00\n");
+  const refused = parseBqCsv("Section,Description\n");
+  it("a file the server would refuse is blocked first, whatever Replace says", () => {
+    expect(refused.faults.some((f) => f.level === "block")).toBe(true);
+    expect(importBlock(refused, { draftLines: 0, replace: false })).toBe("FILE_REFUSED");
+    expect(importBlock(refused, { draftLines: 4, replace: true })).toBe("FILE_REFUSED");
+  });
+  it("a clean file into a draft that has lines needs Replace; with it, or into an empty draft, it goes", () => {
+    expect(clean.faults.filter((f) => f.level === "block")).toEqual([]);
+    expect(importBlock(clean, { draftLines: 3, replace: false })).toBe("NEEDS_REPLACE");
+    expect(importBlock(clean, { draftLines: 3, replace: true })).toBeNull();
+    expect(importBlock(clean, { draftLines: 0, replace: false })).toBeNull();
+  });
+  it("no file chosen is not a block: the file field asks for it", () => {
+    expect(importBlock(null, { draftLines: 3, replace: false })).toBeNull();
   });
 });
