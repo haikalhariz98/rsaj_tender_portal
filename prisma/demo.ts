@@ -669,7 +669,10 @@ async function load() {
   const tabled = { tabledByPersonId: `${P}p3` };
   await db.committeeDecision.createMany({
     data: [
-      { id: `${P}d1`, meetingId: `${P}mt1`, sequence: 1, domain: "appointment", subject: "Award of the head office cleaning contract", matterKind: "EXERCISE", matterRef: "DEMO/T/2026/014", amount: "412000", act: "A", authorityRuleKey: "demo.purchase.high", ...tabled, tabledAt: day("2026-09-22") },
+      // A manual matter: linked to no record, so it names no reference that is not one
+      // (6.10 local review 3). Never an exercise at a mismatched amount, which the award
+      // flow could cite (6.11 BD-3).
+      { id: `${P}d1`, meetingId: `${P}mt1`, sequence: 1, domain: "appointment", subject: "Award of the head office cleaning contract", matterKind: null, matterRef: null, amount: "412000", act: "A", authorityRuleKey: "demo.purchase.high", ...tabled, tabledAt: day("2026-09-22") },
       {
         id: `${P}d2`, meetingId: `${P}mt2`, sequence: 1, domain: "appointment", subject: "Award of the fleet maintenance contract", matterKind: "EXERCISE", matterRef: "DEMO/T/2026/009", amount: "655000", act: "A", ...tabled, tabledAt: day("2026-08-13"),
         outcome: "CARRIED", decisionDate: day("2026-08-20"), quorumRequired: 3, presentVoters: 3, recusedCount: 0, votingRule: "SIMPLE_MAJORITY", votingRuleProvenance: "ASSUMED",
