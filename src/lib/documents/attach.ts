@@ -47,6 +47,22 @@ export type OwnerFacts =
   /// 6.2 Q-3: a bill of quantities version, judged with its exercise's status.
   | { kind: "bqVersion"; exerciseStatus: ExerciseStatus; status: "DRAFT" | "FINALISED" | "SUPERSEDED" };
 
+/// Whether an exercise's status freezes what it (and its panel and bill) holds. Exhaustive
+/// (X-8): a status added to ExerciseStatus fails to compile here until it is decided.
+export function exerciseFrozen(status: ExerciseStatus): boolean {
+  switch (status) {
+    case "DRAFT":
+    case "DOCUMENTS_IN_PREPARATION":
+      return false;
+    case "CANCELLED":
+      return true;
+    default: {
+      const never: never = status;
+      return never;
+    }
+  }
+}
+
 /// The two things a sourcing method can ask an exercise to keep a document for.
 export interface ExerciseMethodFlags {
   requiresDossier: boolean;
@@ -117,7 +133,7 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): { sta
       if (owner.status !== "MINUTED") return { state: "NOT_READY", exit: "MINUTE_FIRST" };
       return { state: "OPEN" };
     case "exercise":
-      if (owner.status === "CANCELLED") return { state: "FROZEN", exit: "EXERCISE_CANCELLED" };
+      if (exerciseFrozen(owner.status)) return { state: "FROZEN", exit: "EXERCISE_CANCELLED" };
       if (purpose === "DOSSIER_EVIDENCE") {
         if (owner.awardApproved) return { state: "FROZEN", exit: "AWARD_APPROVED" };
         if (owner.appointmentRouteOpen) return { state: "FROZEN", exit: "ROUTE_OPEN" };
@@ -130,10 +146,10 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): { sta
     case "delegation":
       return owner.ended ? { state: "FROZEN", exit: "DELEGATION_ENDED" } : { state: "OPEN" };
     case "specificationPanel":
-      return owner.exerciseStatus === "CANCELLED" ? { state: "FROZEN", exit: "EXERCISE_CANCELLED" } : { state: "OPEN" };
+      return exerciseFrozen(owner.exerciseStatus) ? { state: "FROZEN", exit: "EXERCISE_CANCELLED" } : { state: "OPEN" };
     case "bqVersion":
       // A finalised or superseded bill keeps the file it was imported from, as it stands.
-      if (owner.exerciseStatus === "CANCELLED") return { state: "FROZEN", exit: "EXERCISE_CANCELLED" };
+      if (exerciseFrozen(owner.exerciseStatus)) return { state: "FROZEN", exit: "EXERCISE_CANCELLED" };
       return owner.status === "DRAFT" ? { state: "OPEN" } : { state: "FROZEN", exit: "BQ_FINALISED" };
   }
 }

@@ -39,6 +39,22 @@ export interface PanelFacts {
   liveSulitScans: number;
 }
 
+/// Whether the exercise allows the panel to be edited or verified, by its status. Exhaustive
+/// (X-8): a status added to ExerciseStatus fails to compile here until it is decided.
+export function exerciseAllowsPanel(status: ExerciseStatus): "OPEN" | "EXERCISE_CANCELLED" {
+  switch (status) {
+    case "DRAFT":
+    case "DOCUMENTS_IN_PREPARATION":
+      return "OPEN";
+    case "CANCELLED":
+      return "EXERCISE_CANCELLED";
+    default: {
+      const never: never = status;
+      return never;
+    }
+  }
+}
+
 /// The columns in force on a day: those not retired by it.
 export const columnsInForce = (columns: readonly PanelColumn[], day: string | null) => columns.filter((c) => c.retiredOn == null || (day != null && c.retiredOn > day));
 
@@ -122,7 +138,7 @@ export function panelFaults(
   ctx: { columns: readonly PanelColumn[]; policy: ScopePolicy; today: string | null; exerciseStatus: ExerciseStatus; bqRequired: boolean | null },
 ): Finding<PanelFault>[] {
   const out: Finding<PanelFault>[] = [];
-  if (ctx.exerciseStatus === "CANCELLED") out.push({ code: "EXERCISE_CANCELLED", level: "block" });
+  if (exerciseAllowsPanel(ctx.exerciseStatus) !== "OPEN") out.push({ code: "EXERCISE_CANCELLED", level: "block" });
   const columns = columnsInForce(ctx.columns, ctx.today);
   const standing = standingVerifications(p.verifications);
   if (columns.length === 0) out.push({ code: "COLUMNS_NOT_SET", level: "block" });
@@ -150,7 +166,7 @@ export function verifyFaults(
   ctx: { columns: readonly PanelColumn[]; today: string | null; exerciseStatus: ExerciseStatus },
 ): Finding<VerifyFault>[] {
   const out: Finding<VerifyFault>[] = [];
-  if (ctx.exerciseStatus === "CANCELLED") out.push({ code: "EXERCISE_CANCELLED", level: "block" });
+  if (exerciseAllowsPanel(ctx.exerciseStatus) !== "OPEN") out.push({ code: "EXERCISE_CANCELLED", level: "block" });
   if (p.status === "VERIFIED") out.push({ code: "PANEL_VERIFIED", level: "block" });
   if (!columnsInForce(ctx.columns, ctx.today).some((c) => c.code === i.columnCode)) out.push({ code: "COLUMN_UNKNOWN", level: "block" });
   else if (standingVerifications(p.verifications).some((v) => v.columnCode === i.columnCode)) out.push({ code: "ALREADY_VERIFIED", level: "block" });
@@ -169,5 +185,5 @@ export function editClearsVerifications(p: Pick<PanelFacts, "status" | "verifica
 /// Editing the panel's facts is refused only on a cancelled exercise (a verified panel may be
 /// edited: its verifications are cleared, audited, and it returns to a draft).
 export function panelEditFault(exerciseStatus: ExerciseStatus): Finding<"EXERCISE_CANCELLED">[] {
-  return exerciseStatus === "CANCELLED" ? [{ code: "EXERCISE_CANCELLED", level: "block" }] : [];
+  return exerciseAllowsPanel(exerciseStatus) !== "OPEN" ? [{ code: "EXERCISE_CANCELLED", level: "block" }] : [];
 }

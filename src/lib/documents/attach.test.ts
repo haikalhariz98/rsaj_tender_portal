@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { attachFault, awardReliance, detachFault, exercisePurposes, methodKeeps, reliedOn, reliedOnAttachment, ownerState, purposeFits, repinFault, type OwnerFacts } from "./attach";
+import { attachFault, awardReliance, detachFault, exerciseFrozen, exercisePurposes, methodKeeps, reliedOn, reliedOnAttachment, ownerState, purposeFits, repinFault, type OwnerFacts } from "./attach";
 import { documentFaultText } from "./labels";
 
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
@@ -286,5 +286,21 @@ describe("6.2 Q-3: a bill's imported CSV, on the bill version, attached only by 
     expect(codes(f)).toEqual(["ATTACHED_BY_OWNER_ACT"]);
     // Other purposes re-pin as before.
     expect(repinFault({ purpose: "SPEC_PANEL_FORM", owner: { kind: "specificationPanel", exerciseStatus: "DRAFT", status: "DRAFT" }, reason: "corrected", attachment: { detachedAt: null, versionId: "v1", documentId: "d1" }, to: { id: "v2", documentId: "d1", withdrawnAt: null } })).toEqual([]);
+  });
+});
+
+describe("X-8: an exercise's status freezes it, its panel and its bill alike, every status decided", () => {
+  it("only a cancelled exercise is frozen", () => {
+    expect(exerciseFrozen("DRAFT")).toBe(false);
+    expect(exerciseFrozen("DOCUMENTS_IN_PREPARATION")).toBe(false);
+    expect(exerciseFrozen("CANCELLED")).toBe(true);
+  });
+  it("the panel and the bill version read the exercise's status through it", () => {
+    for (const exerciseStatus of ["DRAFT", "DOCUMENTS_IN_PREPARATION"] as const) {
+      expect(ownerState("SPEC_PANEL_FORM", { kind: "specificationPanel", exerciseStatus, status: "VERIFIED" })).toEqual({ state: "OPEN" });
+      expect(ownerState("BQ_IMPORT_SOURCE", { kind: "bqVersion", exerciseStatus, status: "DRAFT" })).toEqual({ state: "OPEN" });
+    }
+    expect(ownerState("SPEC_PANEL_FORM", { kind: "specificationPanel", exerciseStatus: "CANCELLED", status: "DRAFT" })).toEqual({ state: "FROZEN", exit: "EXERCISE_CANCELLED" });
+    expect(ownerState("BQ_IMPORT_SOURCE", { kind: "bqVersion", exerciseStatus: "CANCELLED", status: "DRAFT" })).toEqual({ state: "FROZEN", exit: "EXERCISE_CANCELLED" });
   });
 });

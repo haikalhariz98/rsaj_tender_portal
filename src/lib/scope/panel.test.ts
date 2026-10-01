@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { columnsInForce, editClearsVerifications, panelEditFault, panelFaults, panelState, verifiedScanVersionIds, verifyFaults, verifyPanelFault, type PanelColumn, type PanelFacts } from "./panel";
+import { columnsInForce, editClearsVerifications, exerciseAllowsPanel, panelEditFault, panelFaults, panelState, verifiedScanVersionIds, verifyFaults, verifyPanelFault, type PanelColumn, type PanelFacts } from "./panel";
 import { UNSET_SCOPE_POLICY, type ScopePolicy } from "./types";
 
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
@@ -124,5 +124,15 @@ describe("recording a column's verification (attested, recorded on behalf of, no
     expect(verify({}, panel({ verifications: verified() }))).toEqual(["ALREADY_VERIFIED"]);
     expect(verify({}, panel({ verifications: [{ columnCode: "prepared", personId: "a", clearedAt: new Date() }] }))).toEqual([]);
     expect(verify({}, panel({ status: "VERIFIED", verifications: [] }))).toEqual(["PANEL_VERIFIED"]);
+  });
+});
+
+describe("X-8: the panel's acts by exercise status, every status decided", () => {
+  it("a draft or one in preparation is open; a cancelled one is not, for edit, record and verify alike", () => {
+    expect(exerciseAllowsPanel("DRAFT")).toBe("OPEN");
+    expect(exerciseAllowsPanel("DOCUMENTS_IN_PREPARATION")).toBe("OPEN");
+    expect(exerciseAllowsPanel("CANCELLED")).toBe("EXERCISE_CANCELLED");
+    expect(codes(verifyFaults({ columnCode: "prepared", personId: "a", verifiedOn: "2026-09-30" }, panel({ verifications: [] }), { columns, today: "2026-09-30", exerciseStatus: "CANCELLED" }))).toEqual(["EXERCISE_CANCELLED"]);
+    expect(judge(panel(), { exerciseStatus: "DOCUMENTS_IN_PREPARATION" })).toEqual([]);
   });
 });
