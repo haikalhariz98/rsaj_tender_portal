@@ -8,7 +8,11 @@ import { auditedCreate, auditedDelete, auditedUpdate, writeAudit } from "@/lib/a
 import { diffFields, snapshotFields } from "@/lib/audit/diff";
 import { issueFault, onRoute, predecessorOf, startOfDay } from "@/lib/authority/issue";
 import { boundaryFaultsAcross, boundaryRuleFault, rulesTiedWith } from "@/lib/authority/resolve";
-import type { Rule } from "@/lib/authority/types";
+import type { AuthorityAct, CoreLevel, Rule } from "@/lib/authority/types";
+import type { Tx } from "@/lib/audit/record";
+import { loadIssue } from "@/lib/authority/load";
+import { copyCoreRouting, CORE_ACTS, coreChainFaultsAcross, coreLevelFaults, coreLevelFor, ruleCoreFault, type CoreLevelRow } from "@/lib/authority/core-routing";
+import { coreLevelFaultText, issueRefusal, ruleSaveRefusal } from "@/lib/authority/core-routing-labels";
 import { destinationRowFaults, type RejectionKind } from "@/lib/authority/rejection";
 import { DESTINATION_FAULT_TEXT } from "@/lib/authority/rejection-labels";
 import { matterLabel } from "@/lib/labels";
@@ -82,11 +86,56 @@ function boundaryRefusal(rules: RuleRow[], boundaryValue: unknown): string | nul
 }
 
 /// The refusal naming every terms band whose edge sits on the boundary undecided.
-async function termsRefusal(authorityMatrixId: string, boundaryValue: unknown): Promise<string | null> {
-  const bands = await db.termsBand.findMany({ where: { authorityMatrixId } });
+async function termsRefusal(authorityMatrixId: string, boundaryValue: unknown, client: Tx = db): Promise<string | null> {
+  const bands = await client.termsBand.findMany({ where: { authorityMatrixId } });
   const undecided = bands.filter((t) => termsBandBoundaryFault({ minValue: n(t.minValue), maxValue: n(t.maxValue), followsBoundarySwitch: t.followsBoundarySwitch }, { boundaryValue: Number(String(boundaryValue)) }));
   if (undecided.length === 0) return null;
   return `At the boundary value, the terms ${undecided.length === 1 ? "band" : "bands"} ${undecided.map((t) => `“${t.labelEn}”`).join(", ")} ${undecided.length === 1 ? "has" : "have"} not decided whether to follow the boundary switch. Decide it on each band first.`;
+}
+
+/// A refusal raised inside a write's transaction: it rolls the write back and is
+/// returned to the form as it stands.
+class Refused extends Error {
+  constructor(readonly state: FormState) {
+    super("refused");
+  }
+}
+
+async function refusable(run: () => Promise<FormState>): Promise<FormState> {
+  try {
+    return await run();
+  } catch (e) {
+    if (e instanceof Refused) return e.state;
+    throw e;
+  }
+}
+
+/// Lock an issue's row for the rest of the transaction: every write to an issue, its
+/// rules or its core routing takes it, so issuing cannot take a half-made change.
+async function lockIssue(tx: Tx, authorityMatrixId: string) {
+  await tx.$queryRaw`SELECT id FROM "AuthorityMatrix" WHERE id = ${authorityMatrixId} FOR UPDATE`;
+}
+
+/// An issue as the resolver reads it, inside the caller's transaction.
+async function issueIn(tx: Tx, authorityMatrixId: string) {
+  return loadIssue(ORGANISATION_CODE, new Date(), authorityMatrixId, null, tx);
+}
+
+/// An office's name for a message, never its code.
+const officeIn = (roles: Record<string, { nameEn: string }>, code: string) => roles[code]?.nameEn ?? "An office no longer configured";
+
+/**
+ * Whether a rule taking its chain from the core routing may be saved as it would stand
+ * (6.9 departure 1): a weaker act, core offices out of order, its approver or an
+ * approval beneath it, or one office twice is refused. No core row for its approver is
+ * not refused — rules and rows may be entered in either order; the rule warns, and
+ * issuing refuses it until the row exists.
+ */
+function coreSaveFault(rule: Pick<Rule, "approverCode" | "proposerCode" | "recommenders">, core: readonly CoreLevel[], roles: Record<string, { nameEn: string }>): string | null {
+  const level = coreLevelFor(core, rule.approverCode);
+  if (!level) return null;
+  const f = ruleCoreFault(rule, level);
+  return f ? ruleSaveRefusal(f.fault, officeIn(roles, f.roleCode)) : null;
 }
 
 /**
@@ -340,6 +389,16 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
     note: r.text("note", "Note", { max: 2000 }),
     clause: r.text("clause", "Clause", { required: true, max: 120 }),
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
+    // Where the chain beneath the approver comes from (FR-APR-004): not set, generated
+    // from the core routing, or as entered — a decision not to check, which needs its
+    // reason (ruling OQ-4). The reason is kept only with that decision.
+    ...(() => {
+      const c = r.choice("generateCoreChain", "Chain beneath the approver", ["yes", "no"] as const);
+      const generateCoreChain = c == null ? null : c === "yes";
+      const why = r.text("coreChainReason", "Why the chain is as entered", { max: 1000 });
+      if (generateCoreChain === false && !why) r.reject("coreChainReason", "Say why this rule's chain is not taken from the core routing — the clause that states it, for example.");
+      return { generateCoreChain, coreChainReason: generateCoreChain === false ? why : null };
+    })(),
   };
 
   // Two rules that tie for some matter leave its route to row order. Refused here, as
@@ -399,24 +458,47 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
     reason: String(data.get("reason") ?? ""),
   };
 
-  if (!before) {
-    await auditedCreate(ctx, v, (tx) => tx.authorityRule.create({ data: v }));
-  } else {
-    await auditedUpdate(
-      { ...ctx, entityId: id },
-      {
-        ...before,
-        minValue: before.minValue?.toString() ?? null,
-        maxValue: before.maxValue?.toString() ?? null,
-        pctMin: before.pctMin?.toString() ?? null,
-        pctMax: before.pctMax?.toString() ?? null,
-        contractValueMin: before.contractValueMin?.toString() ?? null,
-        contractValueMax: before.contractValueMax?.toString() ?? null,
-      },
-      v,
-      (tx) => tx.authorityRule.update({ where: { id }, data: v }),
-    );
-  }
+  // Re-checked under the issue's lock, on the core routing as it stands in the same
+  // transaction, so a core row changed or the issue issued meanwhile is seen.
+  const guard = async (tx: Tx) => {
+    await lockIssue(tx, authorityMatrixId);
+    const locked = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: authorityMatrixId }, select: { issuedAt: true } });
+    if (locked.issuedAt) throw new Refused(FROZEN);
+    if (v.generateCoreChain !== true) return;
+    const issue = await issueIn(tx, authorityMatrixId);
+    const steps = issue?.matrix.rules.find((x) => x.ruleKey === before?.ruleKey)?.recommenders ?? [];
+    const fault = issue && coreSaveFault({ approverCode: v.approverCode, proposerCode: v.proposerCode, recommenders: steps }, issue.matrix.coreRouting ?? [], issue.matrix.roles);
+    if (fault) throw new Refused({ ok: false, errors: { generateCoreChain: fault } });
+  };
+
+  const saved = await refusable(async () => {
+    if (!before) {
+      await auditedCreate(ctx, v, async (tx) => {
+        await guard(tx);
+        return tx.authorityRule.create({ data: v });
+      });
+    } else {
+      await auditedUpdate(
+        { ...ctx, entityId: id },
+        {
+          ...before,
+          minValue: before.minValue?.toString() ?? null,
+          maxValue: before.maxValue?.toString() ?? null,
+          pctMin: before.pctMin?.toString() ?? null,
+          pctMax: before.pctMax?.toString() ?? null,
+          contractValueMin: before.contractValueMin?.toString() ?? null,
+          contractValueMax: before.contractValueMax?.toString() ?? null,
+        },
+        v,
+        async (tx) => {
+          await guard(tx);
+          return tx.authorityRule.update({ where: { id }, data: v });
+        },
+      );
+    }
+    return { ok: true };
+  });
+  if (!saved.ok) return saved;
 
   revalidatePath(PATH);
   return { ok: true };
@@ -430,7 +512,7 @@ export async function saveRecommender(_prev: FormState, data: FormData): Promise
   const authorityRuleId = String(data.get("authorityRuleId") ?? "");
   const rule = await db.authorityRule.findFirst({
     where: { id: authorityRuleId, authorityMatrix: { organisationId: orgId } },
-    select: { id: true, labelEn: true, authorityMatrix: { select: { issuedAt: true } } },
+    select: { id: true, labelEn: true, authorityMatrixId: true, authorityMatrix: { select: { issuedAt: true } } },
   });
   if (!rule) return { ok: false, message: "That rule no longer exists." };
   if (rule.authorityMatrix.issuedAt) return FROZEN;
@@ -442,23 +524,42 @@ export async function saveRecommender(_prev: FormState, data: FormData): Promise
 
   const office = await db.authorityRole.findFirst({
     where: { organisationId: orgId, code: roleCode },
-    select: { code: true },
+    select: { code: true, nameEn: true },
   });
   if (!office) r.reject("roleCode", "That is not an office.");
 
   const parsed = r.finish({ authorityRuleId, roleCode, act: act ?? "R", sequence });
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
-  await auditedCreate(
-    {
-      organisationId: orgId,
-      entity: "AuthorityRuleStep",
-      entityLabel: `${rule.labelEn} — ${roleCode}`,
-      reason: String(data.get("reason") ?? ""),
-    },
-    parsed.value,
-    (tx) => tx.authorityRuleStep.create({ data: parsed.value }),
-  );
+  const saved = await refusable(async () => {
+    await auditedCreate(
+      {
+        organisationId: orgId,
+        entity: "AuthorityRuleStep",
+        entityLabel: `${rule.labelEn} — ${office?.nameEn ?? "An office no longer configured"}`,
+        reason: String(data.get("reason") ?? ""),
+      },
+      parsed.value,
+      async (tx) => {
+        // The same check as saving the rule, on the chain as it would stand, under the
+        // issue's lock (6.9 departure 1).
+        await lockIssue(tx, rule.authorityMatrixId);
+        const locked = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: rule.authorityMatrixId }, select: { issuedAt: true } });
+        if (locked.issuedAt) throw new Refused(FROZEN);
+        const row = await tx.authorityRule.findUniqueOrThrow({ where: { id: rule.id }, include: { recommenders: { orderBy: { sequence: "asc" } } } });
+        if (row.generateCoreChain === true) {
+          const issue = await issueIn(tx, rule.authorityMatrixId);
+          const steps = [...row.recommenders.map((x) => ({ roleCode: x.roleCode, act: x.act as AuthorityAct, sequence: x.sequence })), { roleCode, act: (act ?? "R") as AuthorityAct, sequence }]
+            .sort((a, b) => a.sequence - b.sequence);
+          const fault = issue && coreSaveFault({ approverCode: row.approverCode, proposerCode: row.proposerCode, recommenders: steps }, issue.matrix.coreRouting ?? [], issue.matrix.roles);
+          if (fault) throw new Refused({ ok: false, errors: { roleCode: fault } });
+        }
+        return tx.authorityRuleStep.create({ data: parsed.value });
+      },
+    );
+    return { ok: true };
+  });
+  if (!saved.ok) return saved;
 
   revalidatePath(PATH);
   return { ok: true };
@@ -503,41 +604,43 @@ export async function startRevision(_prev: FormState, data: FormData): Promise<F
   if (!orgId) return NO_ORG;
 
   const fromId = String(data.get("fromId") ?? "");
-  const source = await db.authorityMatrix.findFirst({
-    where: { id: fromId, organisationId: orgId },
-    include: { rules: { include: { recommenders: true } }, termsBands: true },
-  });
-  if (!source) return { ok: false, message: "That issue no longer exists." };
-
   const r = new FormReader(data);
   const label = r.text("label", "Label", { required: true, max: 120 });
   const effectiveFrom = r.date("effectiveFrom", "Meant to start", { required: true });
-
-  const [labels, drafts] = await Promise.all([
-    db.authorityMatrix.findMany({ where: { organisationId: orgId }, select: { label: true } }),
-    // Partitioned by route: a funder's draft rule set and the organisation's own draft
-    // are not competing versions of one thing.
-    db.authorityMatrix.count({ where: { organisationId: orgId, issuedAt: null, fundingRouteCode: source.fundingRouteCode } }),
-  ]);
-  if (labels.some((l) => l.label === label)) r.reject("label", "An issue with that label already exists.");
-  // One draft at a time: two would be two competing versions of what comes next.
-  if (drafts > 0) return { ok: false, message: "A draft issue already exists. Issue or finish that one first." };
-
   const parsed = r.finish({ label, effectiveFrom });
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
-  const { rules, termsBands, ...policy } = source;
-  // A new row: the source's id is dropped, everything else carried.
-  const draftPolicy = {
-    ...policy,
-    id: undefined,
-    label,
-    effectiveFrom: effectiveFrom!,
-    effectiveTo: null,
-    issuedAt: null,
-  };
+  const result = await db.$transaction(async (tx): Promise<FormState & { draftId?: string }> => {
+    // The source is read under its lock, with everything it owns: its rules, its terms
+    // bands and its own core routing — never another issue's (6.9 note D-1, OQ-7).
+    await lockIssue(tx, fromId);
+    const source = await tx.authorityMatrix.findFirst({
+      where: { id: fromId, organisationId: orgId },
+      include: { rules: { include: { recommenders: true } }, termsBands: true, coreRouting: { include: { steps: true } } },
+    });
+    if (!source) return { ok: false, message: "That issue no longer exists." };
 
-  const draftId = await db.$transaction(async (tx) => {
+    const [labels, drafts] = await Promise.all([
+      tx.authorityMatrix.findMany({ where: { organisationId: orgId }, select: { label: true } }),
+      // Partitioned by route: a funder's draft rule set and the organisation's own draft
+      // are not competing versions of one thing.
+      tx.authorityMatrix.count({ where: { organisationId: orgId, issuedAt: null, fundingRouteCode: source.fundingRouteCode } }),
+    ]);
+    if (labels.some((l) => l.label === label)) return { ok: false, errors: { label: "An issue with that label already exists." } };
+    // One draft at a time: two would be two competing versions of what comes next.
+    if (drafts > 0) return { ok: false, message: "A draft issue already exists. Issue or finish that one first." };
+
+    const { rules, termsBands, coreRouting, ...policy } = source;
+    // A new row: the source's id is dropped, everything else carried.
+    const draftPolicy = {
+      ...policy,
+      id: undefined,
+      label,
+      effectiveFrom: effectiveFrom!,
+      effectiveTo: null,
+      issuedAt: null,
+    };
+
     // Decimal columns pass straight through: never via a number.
     const draft = await tx.authorityMatrix.create({ data: draftPolicy });
     for (const rule of rules) {
@@ -557,6 +660,10 @@ export async function startRevision(_prev: FormState, data: FormData): Promise<F
     for (const band of termsBands) {
       await tx.termsBand.create({ data: { ...band, id: undefined, authorityMatrixId: draft.id } });
     }
+    // So does its core routing: revising §2.2.1 is revising the issue (6.9 note D-1).
+    for (const level of copyCoreRouting(coreRouting as CoreLevelRow[], { authorityMatrixId: draft.id, organisationId: orgId })) {
+      await tx.coreRoutingLevel.create({ data: level });
+    }
     await writeAudit(
       tx,
       {
@@ -567,14 +674,15 @@ export async function startRevision(_prev: FormState, data: FormData): Promise<F
         reason: `New issue from ${source.label}`,
       },
       "CREATE",
-      diffFields(null, { label, effectiveFrom, startedFrom: source.label, rules: rules.length, termsBands: termsBands.length }),
+      diffFields(null, { label, effectiveFrom, startedFrom: source.label, rules: rules.length, termsBands: termsBands.length, coreRouting: coreRouting.length }),
     );
-    return draft.id;
+    return { ok: true, draftId: draft.id };
   });
+  if (!result.ok || !result.draftId) return result;
 
   // Straight to the new draft, as a new issue from scratch does (UX 12).
   revalidatePath(PATH);
-  redirect(`${PATH}?issue=${draftId}`);
+  redirect(`${PATH}?issue=${result.draftId}`);
 }
 
 /**
@@ -587,51 +695,67 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
-  const draft = await db.authorityMatrix.findFirst({
-    where: { id, organisationId: orgId },
-    include: { _count: { select: { rules: true } } },
-  });
-  if (!draft) return { ok: false, message: "That draft no longer exists." };
-  if (draft.issuedAt) return { ok: false, message: "That issue has already been issued." };
-
   const r = new FormReader(data);
   const from = r.date("effectiveFrom", "In force from", { required: true });
   const reason = r.text("reason", "Why", { required: true, max: 2000 });
-
-  // Partitioned by route: issuing a funder's rule set never ends the organisation's
-  // own issue, nor is it refused for coming before it (6.1, funder rule set ruling).
-  const issued = onRoute(
-    await db.authorityMatrix.findMany({
-      where: { organisationId: orgId, issuedAt: { not: null } },
-      select: { id: true, label: true, effectiveFrom: true, effectiveTo: true, fundingRouteCode: true },
-    }),
-    draft.fundingRouteCode,
-  );
-
-  // Every rule is re-checked at the boundary before the issue is frozen.
-  const boundaryIssue =
-    boundaryRefusal(await db.authorityRule.findMany({ where: { authorityMatrixId: draft.id } }), draft.boundaryValue) ??
-    (await termsRefusal(draft.id, draft.boundaryValue));
-  if (boundaryIssue) r.reject("effectiveFrom", boundaryIssue);
-  if (draft._count.rules === 0) {
-    r.reject("effectiveFrom", "This draft has no rules, so nothing could be routed under it. Add its rules first.");
-  }
-  if (from) {
-    const fault = issueFault(from, new Date(), issued);
-    if (fault === "IN_THE_PAST") {
-      r.reject("effectiveFrom", "An issue cannot start in the past — that would change the rules decisions already ran under.");
-    } else if (fault === "NOT_AFTER_LATEST") {
-      r.reject("effectiveFrom", "Another issue is already issued to start on or after that date.");
-    }
-  }
   const parsed = r.finish({ from, reason });
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
-  const day = startOfDay(from!);
-  const predecessor = predecessorOf(issued, day);
-  const now = new Date();
+  // Every check runs on the draft as it stands under its lock, in the transaction that
+  // issues it (6.9 ruling C6): a rule or a core row changed a moment before is seen.
+  const result = await db.$transaction(async (tx): Promise<FormState> => {
+    await lockIssue(tx, id);
+    const draft = await tx.authorityMatrix.findFirst({
+      where: { id, organisationId: orgId },
+      include: { _count: { select: { rules: true } } },
+    });
+    if (!draft) return { ok: false, message: "That draft no longer exists." };
+    if (draft.issuedAt) return { ok: false, message: "That issue has already been issued." };
 
-  await db.$transaction(async (tx) => {
+    // Partitioned by route: issuing a funder's rule set never ends the organisation's
+    // own issue, nor is it refused for coming before it (6.1, funder rule set ruling).
+    const issued = onRoute(
+      await tx.authorityMatrix.findMany({
+        where: { organisationId: orgId, issuedAt: { not: null } },
+        select: { id: true, label: true, effectiveFrom: true, effectiveTo: true, fundingRouteCode: true },
+      }),
+      draft.fundingRouteCode,
+    );
+
+    const refusals: string[] = [];
+    // Every rule is re-checked at the boundary before the issue is frozen.
+    const boundaryIssue =
+      boundaryRefusal(await tx.authorityRule.findMany({ where: { authorityMatrixId: draft.id } }), draft.boundaryValue) ??
+      (await termsRefusal(draft.id, draft.boundaryValue, tx));
+    if (boundaryIssue) refusals.push(boundaryIssue);
+    if (draft._count.rules === 0) {
+      refusals.push("This draft has no rules, so nothing could be routed under it. Add its rules first.");
+    }
+    // Core routing (FR-APR-004): every core row sound, and every rule taking its chain
+    // from the core routing able to — none shortened, weakened or out of order.
+    const issue = await issueIn(tx, draft.id);
+    if (issue) {
+      const core = issue.matrix.coreRouting ?? [];
+      for (const level of core) {
+        for (const f of coreLevelFaults(level, issue.matrix.roles)) {
+          refusals.push(`The core routing for ${officeIn(issue.matrix.roles, level.approverCode)}: ${coreLevelFaultText(f.fault, officeIn(issue.matrix.roles, f.roleCode))}`);
+        }
+      }
+      for (const f of coreChainFaultsAcross(issue.matrix.rules, core, issue.matrix.roles)) {
+        refusals.push(issueRefusal(f.fault, f.rule.labelEn, f.roleCode ? officeIn(issue.matrix.roles, f.roleCode) : "its approver"));
+      }
+    }
+    const fault = issueFault(from!, new Date(), issued);
+    if (fault === "IN_THE_PAST") {
+      refusals.push("An issue cannot start in the past — that would change the rules decisions already ran under.");
+    } else if (fault === "NOT_AFTER_LATEST") {
+      refusals.push("Another issue is already issued to start on or after that date.");
+    }
+    if (refusals.length > 0) return { ok: false, errors: { effectiveFrom: refusals.join(" ") } };
+
+    const day = startOfDay(from!);
+    const predecessor = predecessorOf(issued, day);
+    const now = new Date();
     if (predecessor) {
       await tx.authorityMatrix.update({ where: { id: predecessor.id }, data: { effectiveTo: day } });
       await writeAudit(
@@ -660,7 +784,9 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
         { issuedAt: now, effectiveFrom: day },
       ),
     );
+    return { ok: true };
   });
+  if (!result.ok) return result;
 
   revalidatePath(PATH);
   return { ok: true };
@@ -766,7 +892,7 @@ export async function removeTermsBand(_prev: FormState, data: FormData): Promise
 }
 
 /**
- * Discard a draft issue: its rules, their steps and its terms bands go with it, on the
+ * Discard a draft issue: its rules, their steps, its terms bands and its core routing go with it, on the
  * record with a reason. An issued issue is never discarded — decisions ran under it.
  */
 export async function discardDraft(_prev: FormState, data: FormData): Promise<FormState> {
@@ -777,7 +903,7 @@ export async function discardDraft(_prev: FormState, data: FormData): Promise<Fo
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
   const result = await db.$transaction(async (tx): Promise<FormState> => {
     await tx.$queryRaw`SELECT id FROM "AuthorityMatrix" WHERE id = ${id} FOR UPDATE`;
-    const draft = await tx.authorityMatrix.findFirst({ where: { id, organisationId: orgId }, include: { rules: { include: { recommenders: true } }, termsBands: true } });
+    const draft = await tx.authorityMatrix.findFirst({ where: { id, organisationId: orgId }, include: { rules: { include: { recommenders: true } }, termsBands: true, coreRouting: { include: { steps: true } } } });
     if (!draft) return { ok: false, message: "That draft no longer exists." };
     if (draft.issuedAt) return { ok: false, message: "An issued issue cannot be discarded: decisions ran under it." };
     const used = await tx.approvalInstance.count({ where: { OR: [{ authorityMatrixId: id }, { overrideMatrixId: id }] } });
@@ -785,6 +911,8 @@ export async function discardDraft(_prev: FormState, data: FormData): Promise<Fo
     await tx.authorityRuleStep.deleteMany({ where: { authorityRule: { authorityMatrixId: id } } });
     await tx.authorityRule.deleteMany({ where: { authorityMatrixId: id } });
     await tx.termsBand.deleteMany({ where: { authorityMatrixId: id } });
+    await tx.coreRoutingStep.deleteMany({ where: { level: { authorityMatrixId: id } } });
+    await tx.coreRoutingLevel.deleteMany({ where: { authorityMatrixId: id } });
     await tx.authorityMatrix.delete({ where: { id } });
     // Every row goes into the trail with what it held, so the draft can be rebuilt from
     // history (6.3 re-review): each rule, each of its steps, each terms band, then the issue.
@@ -796,14 +924,172 @@ export async function discardDraft(_prev: FormState, data: FormData): Promise<Fo
       await del("AuthorityRule", rule.id, `${draft.label} — ${rule.labelEn}`, rule);
     }
     for (const band of draft.termsBands) await del("TermsBand", band.id, `${draft.label} — ${band.labelEn}`, band);
-    const { rules, termsBands, ...issue } = draft;
+    // The core routing, step by step and row by row (FR-APR-004).
+    const officeName = (code: string) => offices.get(code) ?? "An office no longer configured";
+    for (const { steps, ...level } of draft.coreRouting) {
+      for (const step of steps) await del("CoreRoutingStep", step.id, `${draft.label} — core routing: ${officeName(level.approverCode)} — ${officeName(step.roleCode)}`, { ...step, roleCode: officeName(step.roleCode) });
+      await del("CoreRoutingLevel", level.id, `${draft.label} — core routing: ${officeName(level.approverCode)}`, { ...level, approverCode: officeName(level.approverCode) });
+    }
+    const { rules, termsBands, coreRouting, ...issue } = draft;
     await writeAudit(tx, { organisationId: orgId, entity: "AuthorityMatrix", entityId: id, entityLabel: draft.label, reason }, "DELETE",
-      snapshotFields({ ...decimals(issue), rules: rules.length, termsBands: termsBands.length, status: "Draft" }));
+      snapshotFields({ ...decimals(issue), rules: rules.length, termsBands: termsBands.length, coreRouting: coreRouting.length, status: "Draft" }));
     return { ok: true };
   });
   if (!result.ok) return result;
   revalidatePath(PATH);
   redirect(PATH);
+}
+
+// ------------------------------------------------------------------ core routing
+
+const PROVENANCES = ["STATED", "OBSERVED", "ASSUMED"] as const;
+
+/**
+ * One approving office's row of the core routing on a draft (FR-APR-004, §2.2.1): which
+ * office approves, the clause and where it comes from. Its steps are added one by one.
+ * Written under the issue's row lock, refused on an issued issue, audited in the same
+ * transaction.
+ */
+export async function saveCoreLevel(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+  const id = String(data.get("id") ?? "");
+  const authorityMatrixId = String(data.get("authorityMatrixId") ?? "");
+  const r = new FormReader(data);
+  const v = {
+    approverCode: r.text("approverCode", "Approved by", { required: true }),
+    clause: r.text("clause", "Clause", { max: 120 }),
+    provenance: r.choice("provenance", "Where this comes from", PROVENANCES, { required: true }),
+    note: r.text("note", "Note", { max: 1000 }),
+  };
+  if (r.failed || !v.provenance) return { ok: false, errors: r.errors };
+  const write = { ...v, provenance: v.provenance };
+
+  const result = await refusable(() =>
+    db.$transaction(async (tx): Promise<FormState> => {
+      await lockIssue(tx, authorityMatrixId);
+      const matrix = await tx.authorityMatrix.findFirst({ where: { id: authorityMatrixId, organisationId: orgId }, select: { id: true, label: true, issuedAt: true } });
+      if (!matrix) return { ok: false, message: "That issue of the limits no longer exists." };
+      if (matrix.issuedAt) return FROZEN;
+      const before = id ? await tx.coreRoutingLevel.findFirst({ where: { id, authorityMatrixId }, include: { steps: { orderBy: { sequence: "asc" } } } }) : null;
+      if (id && !before) return { ok: false, message: "That core routing row no longer exists." };
+      const roles = (await issueIn(tx, authorityMatrixId))?.matrix.roles ?? {};
+      if (!roles[write.approverCode]) return { ok: false, errors: { approverCode: coreLevelFaultText("UNKNOWN_OFFICE", "") } };
+      const clash = await tx.coreRoutingLevel.findFirst({ where: { authorityMatrixId, approverCode: write.approverCode, ...(before ? { NOT: { id: before.id } } : {}) }, select: { id: true } });
+      if (clash) return { ok: false, errors: { approverCode: `${officeIn(roles, write.approverCode)} already has a row in this issue's core routing. Change that row instead.` } };
+      // The row as it would stand, with its steps, through the same check issuing runs.
+      const level: CoreLevel = { approverCode: write.approverCode, clause: write.clause, provenance: write.provenance, steps: (before?.steps ?? []).map((st) => ({ roleCode: st.roleCode, act: st.act as AuthorityAct, provenance: st.provenance })) };
+      const fault = coreLevelFaults(level, roles)[0];
+      if (fault) return { ok: false, errors: { approverCode: coreLevelFaultText(fault.fault, officeIn(roles, fault.roleCode)) } };
+      const label = `${matrix.label} — core routing: ${officeIn(roles, write.approverCode)}`;
+      const shown = { ...write, approverCode: officeIn(roles, write.approverCode) };
+      if (!before) {
+        const row = await tx.coreRoutingLevel.create({ data: { organisationId: orgId, authorityMatrixId, ...write } });
+        await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingLevel", entityId: row.id, entityLabel: label }, "CREATE", diffFields(null, shown));
+      } else {
+        await tx.coreRoutingLevel.update({ where: { id: before.id }, data: write });
+        const changes = diffFields({ approverCode: officeIn(roles, before.approverCode), clause: before.clause, provenance: before.provenance, note: before.note }, shown);
+        if (changes.length) await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingLevel", entityId: before.id, entityLabel: label, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
+      }
+      return { ok: true };
+    }),
+  );
+  if (!result.ok) return result;
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/// Take an approving office's row out of a draft's core routing, with its steps. Asks why.
+export async function removeCoreLevel(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+  const id = String(data.get("id") ?? "");
+  const reason = String(data.get("reason") ?? "").trim();
+  if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
+  const result = await db.$transaction(async (tx): Promise<FormState> => {
+    const level = await tx.coreRoutingLevel.findFirst({ where: { id, organisationId: orgId }, include: { steps: true } });
+    if (!level) return { ok: false, message: "That core routing row no longer exists." };
+    await lockIssue(tx, level.authorityMatrixId);
+    const matrix = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: level.authorityMatrixId }, select: { label: true, issuedAt: true } });
+    if (matrix.issuedAt) return FROZEN;
+    const roles = (await issueIn(tx, level.authorityMatrixId))?.matrix.roles ?? {};
+    const name = (code: string) => officeIn(roles, code);
+    const label = `${matrix.label} — core routing: ${name(level.approverCode)}`;
+    for (const step of level.steps) {
+      await tx.coreRoutingStep.delete({ where: { id: step.id } });
+      await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingStep", entityId: step.id, entityLabel: `${label} — ${name(step.roleCode)}`, reason }, "DELETE",
+        snapshotFields({ office: name(step.roleCode), act: step.act, sequence: step.sequence, provenance: step.provenance, note: step.note }));
+    }
+    await tx.coreRoutingLevel.delete({ where: { id } });
+    await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingLevel", entityId: id, entityLabel: label, reason }, "DELETE",
+      snapshotFields({ approverCode: name(level.approverCode), clause: level.clause, provenance: level.provenance, note: level.note, steps: level.steps.length }));
+    return { ok: true };
+  });
+  if (!result.ok) return result;
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/// An office beneath the approver in a draft's core row, in order. Its act is one of
+/// the four the core routing holds (6.9 note D-4).
+export async function saveCoreStep(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+  const levelId = String(data.get("coreRoutingLevelId") ?? "");
+  const r = new FormReader(data);
+  const roleCode = r.text("roleCode", "Office", { required: true });
+  const act = r.choice("act", "Acts as", CORE_ACTS, { required: true });
+  const asked = r.int("sequence", "Place in the chain", { min: 1 });
+  const provenance = r.choice("provenance", "Where this comes from", PROVENANCES, { required: true });
+  const note = r.text("note", "Note", { max: 1000 });
+  if (r.failed || !act || !provenance) return { ok: false, errors: r.errors };
+
+  const result = await db.$transaction(async (tx): Promise<FormState> => {
+    const level = await tx.coreRoutingLevel.findFirst({ where: { id: levelId, organisationId: orgId }, include: { steps: { orderBy: { sequence: "asc" } } } });
+    if (!level) return { ok: false, message: "That core routing row no longer exists." };
+    await lockIssue(tx, level.authorityMatrixId);
+    const matrix = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: level.authorityMatrixId }, select: { label: true, issuedAt: true } });
+    if (matrix.issuedAt) return FROZEN;
+    const roles = (await issueIn(tx, level.authorityMatrixId))?.matrix.roles ?? {};
+    const sequence = asked ?? (level.steps.at(-1)?.sequence ?? 0) + 1;
+    if (level.steps.some((st) => st.sequence === sequence)) {
+      return { ok: false, errors: { sequence: `Place ${sequence} is taken by ${officeIn(roles, level.steps.find((st) => st.sequence === sequence)!.roleCode)}. Choose another place, or leave it empty to add at the end.` } };
+    }
+    const steps = [...level.steps.map((st) => ({ roleCode: st.roleCode, act: st.act as AuthorityAct, provenance: st.provenance, sequence: st.sequence })), { roleCode, act: act as AuthorityAct, provenance, sequence }].sort((a, b) => a.sequence - b.sequence);
+    const fault = coreLevelFaults({ approverCode: level.approverCode, clause: level.clause, provenance: level.provenance, steps }, roles).find((f) => f.roleCode === roleCode);
+    if (fault) return { ok: false, errors: { roleCode: coreLevelFaultText(fault.fault, officeIn(roles, fault.roleCode)) } };
+    const row = await tx.coreRoutingStep.create({ data: { organisationId: orgId, coreRoutingLevelId: level.id, roleCode, act, sequence, provenance, note } });
+    await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingStep", entityId: row.id, entityLabel: `${matrix.label} — core routing: ${officeIn(roles, level.approverCode)} — ${officeIn(roles, roleCode)}`, reason: String(data.get("reason") ?? "") }, "CREATE",
+      diffFields(null, { office: officeIn(roles, roleCode), act, sequence, provenance, note }));
+    return { ok: true };
+  });
+  if (!result.ok) return result;
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/// Take a step out of a draft's core row. Asks why.
+export async function removeCoreStep(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+  const id = String(data.get("id") ?? "");
+  const reason = String(data.get("reason") ?? "").trim();
+  if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
+  const result = await db.$transaction(async (tx): Promise<FormState> => {
+    const step = await tx.coreRoutingStep.findFirst({ where: { id, organisationId: orgId }, include: { level: true } });
+    if (!step) return { ok: false, message: "That step no longer exists." };
+    await lockIssue(tx, step.level.authorityMatrixId);
+    const matrix = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: step.level.authorityMatrixId }, select: { label: true, issuedAt: true } });
+    if (matrix.issuedAt) return FROZEN;
+    const roles = (await issueIn(tx, step.level.authorityMatrixId))?.matrix.roles ?? {};
+    await tx.coreRoutingStep.delete({ where: { id } });
+    await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingStep", entityId: id, entityLabel: `${matrix.label} — core routing: ${officeIn(roles, step.level.approverCode)} — ${officeIn(roles, step.roleCode)}`, reason }, "DELETE",
+      snapshotFields({ office: officeIn(roles, step.roleCode), act: step.act, sequence: step.sequence, provenance: step.provenance, note: step.note }));
+    return { ok: true };
+  });
+  if (!result.ok) return result;
+  revalidatePath(PATH);
+  return { ok: true };
 }
 
 // ------------------------------------------------------- rejection destinations
