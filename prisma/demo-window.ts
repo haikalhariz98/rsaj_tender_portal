@@ -82,8 +82,9 @@ const demoRef = { startsWith: P };
 const REQ = (n: number) => `DEMO/REQ/${String(n).padStart(4, "0")}/2026`;
 const SX = (n: number) => `DEMO/SX/${String(n).padStart(4, "0")}/2026`;
 const SOURCE = "Demo procedure 5 (invented)";
-/// Who records the window's acts, on whose behalf (not signed): the officer acting for the
-/// Pre-contract Section while its head is on leave (the demo's delegation demo_dg3).
+/// Who records the window's acts, on whose behalf (not signed): an officer of the Pre-contract
+/// Section. Nothing here claims he acts for the Section Head: his delegation (demo_dg3) covers only
+/// 28 September to 16 October, and the demo's acts are not all inside it.
 const CLERK = `${P}p4`;
 const CLERK_NAME = "Daniel Anak Jelani";
 
