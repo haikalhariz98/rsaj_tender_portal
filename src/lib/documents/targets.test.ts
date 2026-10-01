@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { attachFault, type ExerciseMethodFlags } from "./attach";
 import { attachableVersion, attachTargets, exercisePurposes, ownerHref, type TargetOwner } from "./targets";
+import { ATTACHMENT_PURPOSES } from "./types";
 
-const exercise = (flags: TargetOwner["exerciseFlags"], over: Partial<{ status: "DRAFT" | "CANCELLED"; awardApproved: boolean }> = {}): TargetOwner => ({
-  id: "ex", label: "DEMO/SX/1", exerciseFlags: flags,
-  facts: { kind: "exercise", status: over.status ?? "DRAFT", appointmentRouteOpen: false, awardApproved: over.awardApproved ?? false },
+const exercise = (flags: ExerciseMethodFlags | null, over: Partial<{ status: "DRAFT" | "CANCELLED"; awardApproved: boolean }> = {}): TargetOwner => ({
+  id: "ex", label: "DEMO/SX/1",
+  facts: { kind: "exercise", status: over.status ?? "DRAFT", appointmentRouteOpen: false, awardApproved: over.awardApproved ?? false, method: flags },
 });
 
 describe("exercisePurposes", () => {
@@ -22,6 +24,17 @@ describe("attachTargets", () => {
     expect(a.purposes.map((p) => p.value)).toEqual(["DOSSIER_EVIDENCE"]);
     expect(b.purposes).toEqual([]);
     expect(b.nothingKept).toMatch(/method asks for no document/);
+  });
+
+  it("offers an exercise a purpose exactly where the attach act would not refuse it for the record or its method", () => {
+    const methods: (ExerciseMethodFlags | null)[] = [null, ...[false, true].flatMap((d) => [false, true].map((c) => ({ requiresDossier: d, requiresCoordinationRecord: c })))];
+    for (const method of methods) {
+      const [r] = attachTargets([exercise(method)]);
+      for (const p of ATTACHMENT_PURPOSES) {
+        const refused = attachFault({ purpose: p, owner: exercise(method).facts, version: { withdrawnAt: null }, documentClass: { classification: "INTERNAL" } }).some((f) => f.code.startsWith("PURPOSE_NOT_FOR_"));
+        expect(r.purposes.some((x) => x.value === p), `${p} on ${JSON.stringify(method)}`).toBe(!refused);
+      }
+    }
   });
 
   it("marks a purpose the owner is not open for, with the way out in words", () => {

@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { attachFault, awardReliance, detachFault, reliedOn, reliedOnAttachment, ownerState, purposeFits, repinFault, type OwnerFacts } from "./attach";
+import { attachFault, awardReliance, detachFault, exercisePurposes, methodKeeps, reliedOn, reliedOnAttachment, ownerState, purposeFits, repinFault, type OwnerFacts } from "./attach";
 import { documentFaultText } from "./labels";
 
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
 const live = { withdrawnAt: null };
 const internal = { classification: "INTERNAL" as const };
 const minuted: OwnerFacts = { kind: "meeting", status: "MINUTED" };
-const exercise = (x: Partial<Extract<OwnerFacts, { kind: "exercise" }>> = {}): OwnerFacts => ({ kind: "exercise", status: "DOCUMENTS_IN_PREPARATION", appointmentRouteOpen: false, awardApproved: false, ...x });
+// By default the exercise's method keeps both a dossier and a scope document, so the owner-state tests below judge only what they name.
+const exercise = (x: Partial<Extract<OwnerFacts, { kind: "exercise" }>> = {}): OwnerFacts => ({ kind: "exercise", status: "DOCUMENTS_IN_PREPARATION", appointmentRouteOpen: false, awardApproved: false, method: { requiresDossier: true, requiresCoordinationRecord: true }, ...x });
 const award = (x: Partial<Extract<OwnerFacts, { kind: "award" }>> = {}): OwnerFacts => ({ kind: "award", status: "ISSUED", instrumentKind: "LETTER_OF_ACCEPTANCE", scansRequired: true, ...x });
 
 describe("attaching: the purpose must suit the owner (CHECK in the migration, and here)", () => {
@@ -21,6 +22,54 @@ describe("attaching: the purpose must suit the owner (CHECK in the migration, an
     expect(purposeFits("ACCEPTANCE_PAGE", award())).toBe(false);
     expect(purposeFits("ACCEPTANCE_PAGE", award({ instrumentKind: "WORK_INDENT" }))).toBe(true);
     expect(purposeFits("SIGNED_LETTER", award({ instrumentKind: "WORK_INDENT" }))).toBe(false);
+  });
+});
+
+describe("attaching: an exercise keeps only what its sourcing method asks for", () => {
+  const dossierOnly = { requiresDossier: true, requiresCoordinationRecord: false };
+  const scopeOnly = { requiresDossier: false, requiresCoordinationRecord: true };
+  const neither = { requiresDossier: false, requiresCoordinationRecord: false };
+  const attach = (purpose: "DOSSIER_EVIDENCE" | "COORDINATION_SCOPE", method: Extract<OwnerFacts, { kind: "exercise" }>["method"]) =>
+    attachFault({ purpose, owner: exercise({ status: "DRAFT", method }), version: live, documentClass: internal });
+
+  it("dossier evidence only where the method keeps a justification dossier", () => {
+    expect(attach("DOSSIER_EVIDENCE", dossierOnly)).toEqual([]);
+    const f = attach("DOSSIER_EVIDENCE", scopeOnly);
+    expect(f).toEqual([{ code: "PURPOSE_NOT_FOR_METHOD", level: "block", data: { purpose: "DOSSIER_EVIDENCE", reason: "METHOD_DOES_NOT_ASK" } }]);
+    expect(documentFaultText(f[0])).toMatch(/^Dossier evidence is not kept on this exercise: its sourcing method does not keep a justification dossier\./);
+    expect(codes(attach("DOSSIER_EVIDENCE", neither))).toEqual(["PURPOSE_NOT_FOR_METHOD"]);
+  });
+  it("the coordination scope document only where the method records a coordination meeting", () => {
+    expect(attach("COORDINATION_SCOPE", scopeOnly)).toEqual([]);
+    const f = attach("COORDINATION_SCOPE", dossierOnly);
+    expect(codes(f)).toEqual(["PURPOSE_NOT_FOR_METHOD"]);
+    expect(documentFaultText(f[0])).toMatch(/its sourcing method does not record a coordination meeting/);
+    expect(codes(attach("COORDINATION_SCOPE", neither))).toEqual(["PURPOSE_NOT_FOR_METHOD"]);
+  });
+  it("a method no longer configured keeps nothing, and says so rather than claiming it asks for nothing", () => {
+    for (const p of ["DOSSIER_EVIDENCE", "COORDINATION_SCOPE"] as const) {
+      const f = attach(p, null);
+      expect(f).toEqual([{ code: "PURPOSE_NOT_FOR_METHOD", level: "block", data: { purpose: p, reason: "METHOD_NOT_CONFIGURED" } }]);
+      expect(documentFaultText(f[0])).toMatch(/no longer configured/);
+    }
+  });
+  it("a method that keeps both takes both", () => {
+    expect(attach("DOSSIER_EVIDENCE", { requiresDossier: true, requiresCoordinationRecord: true })).toEqual([]);
+    expect(attach("COORDINATION_SCOPE", { requiresDossier: true, requiresCoordinationRecord: true })).toEqual([]);
+  });
+  it("is judged before the owner's state: a frozen exercise still says the method is why", () => {
+    expect(codes(attachFault({ purpose: "DOSSIER_EVIDENCE", owner: exercise({ status: "CANCELLED", method: scopeOnly }), version: live, documentClass: internal }))).toEqual(["PURPOSE_NOT_FOR_METHOD"]);
+  });
+  it("methodKeeps is exercisePurposes for an exercise, and true for every other owner", () => {
+    for (const method of [dossierOnly, scopeOnly, neither, null]) {
+      for (const p of ["DOSSIER_EVIDENCE", "COORDINATION_SCOPE"] as const) expect(methodKeeps(p, exercise({ method }))).toBe(exercisePurposes(method).includes(p));
+    }
+    expect(methodKeeps("SIGNED_MINUTES", minuted)).toBe(true);
+    expect(methodKeeps("SIGNED_LETTER", award())).toBe(true);
+    expect(methodKeeps("HOLDER_RECOMMENDATION", { kind: "delegation", ended: false })).toBe(true);
+  });
+  it("detach and re-pin are not judged by it: what an exercise holds can still come off after its draft method changes", () => {
+    expect(detachFault({ purpose: "DOSSIER_EVIDENCE", owner: exercise({ status: "DRAFT", method: scopeOnly }), reason: "Method changed", reliedOn: null })).toEqual([]);
   });
 });
 

@@ -5,17 +5,31 @@
  * and a refused one always give the same reason.
  */
 
-import type { AwardStatus, ExerciseStatus, InstrumentKind, MeetingStatus, OwnerFacts } from "./attach";
+import { isClassificationSnapshot } from "@/lib/method/snapshot";
+
+import type { AwardStatus, ExerciseMethodFlags, ExerciseStatus, InstrumentKind, MeetingStatus, OwnerFacts } from "./attach";
 
 export const meetingFacts = (m: { status: MeetingStatus }): OwnerFacts => ({ kind: "meeting", status: m.status });
 
+/**
+ * What an exercise's method asks it to keep. A decided exercise keeps what its method
+ * asked when it was decided (its classification snapshot), whatever the method says now;
+ * a draft keeps what its configured method asks. Null where neither is known.
+ */
+export function exerciseMethodFlags(classificationSnapshot: unknown, configured: ExerciseMethodFlags | null): ExerciseMethodFlags | null {
+  const flags = isClassificationSnapshot(classificationSnapshot) ? classificationSnapshot.method.flags : configured;
+  return flags ? { requiresDossier: !!flags.requiresDossier, requiresCoordinationRecord: !!flags.requiresCoordinationRecord } : null;
+}
+
 /// `awards`: the exercise's awards, with how many appointment routes each has open.
-export function exerciseFacts(ex: { status: ExerciseStatus }, awards: readonly { status: string; openAppointmentRoutes: number }[]): OwnerFacts {
+/// `method`: `exerciseMethodFlags` of the exercise.
+export function exerciseFacts(ex: { status: ExerciseStatus }, awards: readonly { status: string; openAppointmentRoutes: number }[], method: ExerciseMethodFlags | null): OwnerFacts {
   return {
     kind: "exercise",
     status: ex.status,
     appointmentRouteOpen: awards.some((a) => a.openAppointmentRoutes > 0),
     awardApproved: awards.some((a) => a.status === "APPROVED" || a.status === "ISSUED" || a.status === "ACCEPTED"),
+    method,
   };
 }
 

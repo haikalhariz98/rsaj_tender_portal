@@ -13,7 +13,7 @@ import { detachFault, ownerState, purposeFits, reliedOn, reliedOnAttachment, rep
 import { isLive } from "./evidence";
 import { accessReasonText, ACCESS_STATEMENT, documentFaultText, DOWNLOAD_REFUSAL_TEXT, EXIT_TEXT, FINGERPRINT_STATEMENT } from "./labels";
 import { effectiveCap } from "./limits";
-import { awardFacts, delegationFacts, exerciseFacts, meetingFacts } from "./owner-facts";
+import { awardFacts, delegationFacts, exerciseFacts, exerciseMethodFlags, meetingFacts } from "./owner-facts";
 import { type OwnerRef } from "./repo";
 import { attachTargets, ownerHref } from "./targets";
 import { retentionOf, documentOrg, loadStorePolicy } from "./service";
@@ -36,8 +36,10 @@ export async function readOwner(ref: OwnerRef): Promise<{ facts: OwnerFacts; lab
       return m ? { facts: meetingFacts(m), label: m.reference } : null;
     }
     case "exercise": {
-      const ex = await db.sourcingExercise.findFirst({ where: { id: ref.id, organisationId: org.id }, select: { status: true, reference: true, awards: { select: { status: true, approvalInstances: { where: { domain: "appointment", status: "PENDING" }, select: { id: true } } } } } });
-      return ex ? { facts: exerciseFacts(ex, ex.awards.map((a) => ({ status: a.status, openAppointmentRoutes: a.approvalInstances.length }))), label: ex.reference } : null;
+      const ex = await db.sourcingExercise.findFirst({ where: { id: ref.id, organisationId: org.id }, select: { status: true, reference: true, sourcingMethodCode: true, classificationSnapshot: true, awards: { select: { status: true, approvalInstances: { where: { domain: "appointment", status: "PENDING" }, select: { id: true } } } } } });
+      if (!ex) return null;
+      const configured = ex.sourcingMethodCode ? await db.sourcingMethod.findFirst({ where: { organisationId: org.id, code: ex.sourcingMethodCode }, select: { requiresDossier: true, requiresCoordinationRecord: true } }) : null;
+      return { facts: exerciseFacts(ex, ex.awards.map((a) => ({ status: a.status, openAppointmentRoutes: a.approvalInstances.length })), exerciseMethodFlags(ex.classificationSnapshot, configured)), label: ex.reference };
     }
     case "award": {
       const a = await db.award.findFirst({ where: { id: ref.id, organisationId: org.id }, select: { status: true, instrumentKind: true, returnScanSnapshot: true, reference: true } });
@@ -199,17 +201,12 @@ export async function attachTargetsOf(kind: OwnerRef["kind"]) {
       ]);
       return {
         records: attachTargets(
-          rows.map((ex) => {
-            // A decided exercise keeps what its method asked when it was decided.
-            const snap = ex.classificationSnapshot as { method?: { flags?: { requiresDossier?: boolean; requiresCoordinationRecord?: boolean } } } | null;
-            const flags = snap?.method?.flags ?? methods.find((m) => m.code === ex.sourcingMethodCode) ?? null;
-            return {
-              id: ex.id,
-              label: `${ex.reference} · ${ex.title}`,
-              facts: exerciseFacts(ex, ex.awards.map((a) => ({ status: a.status, openAppointmentRoutes: a.approvalInstances.length }))),
-              exerciseFlags: flags ? { requiresDossier: !!flags.requiresDossier, requiresCoordinationRecord: !!flags.requiresCoordinationRecord } : null,
-            };
-          }),
+          rows.map((ex) => ({
+            id: ex.id,
+            label: `${ex.reference} · ${ex.title}`,
+            // The same facts the attach act reads under its lock, method included.
+            facts: exerciseFacts(ex, ex.awards.map((a) => ({ status: a.status, openAppointmentRoutes: a.approvalInstances.length })), exerciseMethodFlags(ex.classificationSnapshot, methods.find((m) => m.code === ex.sourcingMethodCode) ?? null)),
+          })),
         ),
         total,
       };

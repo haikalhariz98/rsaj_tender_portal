@@ -249,6 +249,13 @@ export function documentFaultText(f: Finding): string {
     // attach.ts
     case "PURPOSE_NOT_FOR_OWNER":
       return `${PURPOSE_LABEL[d.purpose as AttachmentPurpose] ?? "That kind of document"} does not belong on this record.`;
+    case "PURPOSE_NOT_FOR_METHOD": {
+      const what = PURPOSE_LABEL[d.purpose as AttachmentPurpose] ?? "That kind of document";
+      if (d.reason === "METHOD_NOT_CONFIGURED")
+        return `${what} is not kept on this exercise: its sourcing method is no longer configured, so it keeps no document. Configure the method under Configuration, Reference data, or attach the document to another record.`;
+      const why = d.purpose === "DOSSIER_EVIDENCE" ? "does not keep a justification dossier" : d.purpose === "COORDINATION_SCOPE" ? "does not record a coordination meeting" : "does not ask for it";
+      return `${what} is not kept on this exercise: its sourcing method ${why}. Attach it to an exercise whose method asks for it, or, while the exercise is a draft, change its method.`;
+    }
     case "OWNER_NOT_READY":
     case "OWNER_FROZEN":
       return EXIT_TEXT[d.exit as OwnerExit] ?? "This record takes no attachments now.";

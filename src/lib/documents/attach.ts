@@ -26,6 +26,10 @@ export type OwnerFacts =
       appointmentRouteOpen: boolean;
       /// An award on the exercise is approved, issued or accepted.
       awardApproved: boolean;
+      /// What its sourcing method asks it to keep, as decided (the classification snapshot)
+      /// or, while a draft, as configured now. Null where neither is known: the method is
+      /// no longer configured, so the exercise keeps nothing.
+      method: ExerciseMethodFlags | null;
     }
   | {
       kind: "award";
@@ -35,6 +39,28 @@ export type OwnerFacts =
       scansRequired: boolean;
     }
   | { kind: "delegation"; ended: boolean };
+
+/// The two things a sourcing method can ask an exercise to keep a document for.
+export interface ExerciseMethodFlags {
+  requiresDossier: boolean;
+  requiresCoordinationRecord: boolean;
+}
+
+/// What a method asks an exercise to keep: dossier evidence and/or the coordination scope document.
+export function exercisePurposes(flags: ExerciseMethodFlags | null): AttachmentPurpose[] {
+  return [...(flags?.requiresDossier ? (["DOSSIER_EVIDENCE"] as const) : []), ...(flags?.requiresCoordinationRecord ? (["COORDINATION_SCOPE"] as const) : [])];
+}
+
+/**
+ * Whether the owner's method keeps this purpose. Only an exercise has a method: it keeps
+ * dossier evidence only where its method takes a dossier, and a coordination scope
+ * document only where its method records a coordination meeting. Every other owner keeps
+ * whatever `purposeFits` allows. Judged on attach only: what an exercise already holds can
+ * still be taken off or re-pinned after its draft method changes.
+ */
+export function methodKeeps(purpose: AttachmentPurpose, owner: OwnerFacts): boolean {
+  return owner.kind !== "exercise" || exercisePurposes(owner.method).includes(purpose);
+}
 
 /// The return scans each instrument comes back with (FR-AWD-003, 008).
 export const RETURN_PURPOSES: Readonly<Record<InstrumentKind, readonly AttachmentPurpose[]>> = {
@@ -55,6 +81,7 @@ export type OwnerExit =
 
 export type AttachFault =
   | "PURPOSE_NOT_FOR_OWNER"
+  | "PURPOSE_NOT_FOR_METHOD"
   | "OWNER_NOT_READY"
   | "OWNER_FROZEN"
   | "VERSION_WITHDRAWN"
@@ -110,6 +137,7 @@ export interface AttachInput {
 export function attachFault(i: AttachInput): Finding<AttachFault>[] {
   const out: Finding<AttachFault>[] = [];
   if (!purposeFits(i.purpose, i.owner)) return [{ code: "PURPOSE_NOT_FOR_OWNER", level: "block", data: { purpose: i.purpose, owner: i.owner.kind } }];
+  if (!methodKeeps(i.purpose, i.owner)) return [{ code: "PURPOSE_NOT_FOR_METHOD", level: "block", data: { purpose: i.purpose, reason: i.owner.kind === "exercise" && i.owner.method == null ? "METHOD_NOT_CONFIGURED" : "METHOD_DOES_NOT_ASK" } }];
   const st = ownerState(i.purpose, i.owner);
   if (st.state === "NOT_READY") out.push({ code: "OWNER_NOT_READY", level: "block", data: { exit: st.exit } });
   if (st.state === "FROZEN") out.push({ code: "OWNER_FROZEN", level: "block", data: { exit: st.exit } });

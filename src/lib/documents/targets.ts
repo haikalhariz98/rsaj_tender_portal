@@ -5,11 +5,11 @@
  * choice offered and the act that follows never disagree. The act still re-judges everything.
  *
  * An exercise keeps a dossier or a scope document only where its method asks for one
- * (`exercisePurposes`); the exercise's own screen shows the same, so a document is never
- * filed under a heading the exercise never shows.
+ * (`methodKeeps`, the rule the attach act refuses by); the exercise's own screen shows the
+ * same (`exercisePurposes`), so a document is never filed under a heading the exercise never shows.
  */
 
-import { ownerState, purposeFits, type OwnerFacts } from "./attach";
+import { methodKeeps, ownerState, purposeFits, type OwnerFacts } from "./attach";
 import { EXIT_TEXT, PURPOSE_LABEL } from "./labels";
 import { ATTACHMENT_PURPOSES, type AttachmentPurpose, type OwnerKind } from "./types";
 
@@ -25,18 +25,14 @@ export function ownerHref(kind: OwnerKind, id: string): string {
   return kind === "meeting" ? `/committees/${id}` : kind === "exercise" ? `/sourcing/${id}` : kind === "award" ? `/awards/${id}` : "/configuration/users";
 }
 
-/// What a method asks an exercise to keep: dossier evidence and/or the coordination scope document.
-export function exercisePurposes(flags: { requiresDossier: boolean; requiresCoordinationRecord: boolean } | null): AttachmentPurpose[] {
-  return [...(flags?.requiresDossier ? (["DOSSIER_EVIDENCE"] as const) : []), ...(flags?.requiresCoordinationRecord ? (["COORDINATION_SCOPE"] as const) : [])];
-}
+export { exercisePurposes } from "./attach";
 
 export interface TargetOwner {
   id: string;
   /// Its reference, never an id.
   label: string;
+  /// An exercise's facts carry what its method keeps (`method`), read the way the attach act reads it.
   facts: OwnerFacts;
-  /// An exercise's method flags (null where its method is no longer configured).
-  exerciseFlags?: { requiresDossier: boolean; requiresCoordinationRecord: boolean } | null;
 }
 
 export interface TargetPurpose {
@@ -57,8 +53,7 @@ const NOTHING_KEPT = "Nothing is kept against this record: its method asks for n
 
 export function attachTargets(owners: readonly TargetOwner[]): (TargetRecord & { nothingKept: string | null })[] {
   return owners.map((o) => {
-    const fitting = ATTACHMENT_PURPOSES.filter((p) => purposeFits(p, o.facts));
-    const kept = o.facts.kind === "exercise" ? fitting.filter((p) => exercisePurposes(o.exerciseFlags ?? null).includes(p)) : fitting;
+    const kept = ATTACHMENT_PURPOSES.filter((p) => purposeFits(p, o.facts) && methodKeeps(p, o.facts));
     const purposes = kept.map((value) => {
       const st = ownerState(value, o.facts);
       return { value, label: PURPOSE_LABEL[value], open: st.state === "OPEN", reason: st.state === "OPEN" ? null : EXIT_TEXT[st.exit] };

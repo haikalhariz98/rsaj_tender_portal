@@ -6,7 +6,8 @@
  * (`withLockedAward`); a delegation by its own row (`lockDelegation`). The owner is locked before any
  * document row, always, so two acts never take the same locks in opposite orders.
  *
- * Under the lock each adapter reads the facts `attachFault` / `detachFault` judge, and
+ * Under the lock each adapter reads the facts `attachFault` / `detachFault` judge (an
+ * exercise's include what its sourcing method asks it to keep), and
  * the label the audit rows carry (prefixed with the owner's reference so each module's
  * History finds them).
  */
@@ -21,7 +22,7 @@ import { requisitionOfExercise, withLockedRequisitionForSourcing } from "@/lib/m
 import { lockDelegation } from "@/lib/people/lock";
 
 import { reliedOn, type OwnerFacts, type Reliance } from "./attach";
-import { awardFacts, delegationFacts, exerciseFacts, meetingFacts } from "./owner-facts";
+import { awardFacts, delegationFacts, exerciseFacts, exerciseMethodFlags, meetingFacts } from "./owner-facts";
 import type { OwnerRef } from "./repo";
 import { documentOrg } from "./service";
 import type { AttachmentPurpose } from "./types";
@@ -67,12 +68,16 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
           where: { exerciseId: l.ex.id },
           select: { id: true, status: true, approvalInstances: { where: { domain: "appointment", status: "PENDING" }, select: { id: true } } },
         });
+        // What its method asks it to keep, read under the lock: the purpose attached is judged by it.
+        const configured = l.ex.sourcingMethodCode
+          ? await tx.sourcingMethod.findFirst({ where: { organisationId: l.org.id, code: l.ex.sourcingMethodCode }, select: { requiresDossier: true, requiresCoordinationRecord: true } })
+          : null;
         return fn(tx, {
           ref,
           organisationId: l.org.id,
           today: l.org.today,
           label: `${l.ex.reference}`,
-          facts: exerciseFacts(l.ex, awards.map((a) => ({ status: a.status, openAppointmentRoutes: a.approvalInstances.length }))),
+          facts: exerciseFacts(l.ex, awards.map((a) => ({ status: a.status, openAppointmentRoutes: a.approvalInstances.length })), exerciseMethodFlags(l.ex.classificationSnapshot, configured)),
           paths: [`/sourcing/${ref.id}`, ...awards.map((a) => `/awards/${a.id}`)],
           reliance: () => null,
         });
