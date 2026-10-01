@@ -57,6 +57,8 @@ export const ESTIMATE_SEALED_STATEMENT =
 export const PACK_CARD_HEADING = "Checked when the documents go for approval, not yet enforced";
 export const ATTESTED = "recorded on behalf of, not signed";
 export const NOT_SET = "Not set";
+/// Where a configured value came from (the three-state honesty of AGENTS.md).
+export const PROVENANCE_LABEL: Readonly<Record<"STATED" | "OBSERVED" | "ASSUMED", string>> = { STATED: "Stated", OBSERVED: "Observed", ASSUMED: "Assumed" };
 export const NO_LIMIT = "No limit set";
 /// The lead-time reading (OD-3), shown with it.
 export const LEAD_READING = "Ready when the last version was made on or before the closing day less the lead (an assumed reading).";
@@ -116,7 +118,7 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   NOT_DRAFT: "Only a draft is changed or finalised. Start a revision to change a finalised bill.",
   EXERCISE_CANCELLED: "The exercise is cancelled, so its scope, bill and estimate are not changed.",
   NO_ITEMS: "The bill has no lines. Add its sections and lines first.",
-  ITEM_INCOMPLETE: (d) => `${d.count === 1 ? "One line has" : `${d.count} lines have`} no description, quantity or rate${d.first ? ` (the first is ${d.first})` : ""}. Complete ${d.count === 1 ? "it" : "them"} before finalising.`,
+  ITEM_INCOMPLETE: (d) => `${d.count === 1 ? "One line has" : d.count != null ? `${d.count} lines have` : "Some lines have"} no description, quantity or rate${d.first ? ` (the first is ${d.first})` : ""}. Complete ${d.count === 1 ? "it" : "them"} before finalising.`,
   SCOPED_BY_NOT_SET: "Say who scoped the work.",
   STANDARD_NOT_SET: `The measurement standard a bill follows is not set. ${SET_IT}`,
   STANDARD_UNANSWERED: "Answer whether the bill follows the measurement standard.",
@@ -132,7 +134,7 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   // panel.ts
   COLUMNS_NOT_SET: `The panel's verification columns are not set. ${SET_IT}`,
   COLUMN_UNVERIFIED: (d) => `${d.column ?? "A column"} is not verified yet. Record who verified it.`,
-  OVER_SIGNATORY_LIMIT: (d) => `${d.signatories} people verified the panel; the form allows ${d.limit}. Clear a verification and record it under a person already named.`,
+  OVER_SIGNATORY_LIMIT: (d) => (d.signatories != null && d.limit != null ? `${d.signatories} people verified the panel; the form allows ${d.limit}.` : "More people verified the panel than the form allows.") + " Clear a verification and record it under a person already named.",
   LIMIT_NOT_SET: `No signatory limit is set, so the number of verifiers is not checked. ${SET_IT}`,
   LISTS_NOT_SET: `The lists of contract kinds and project statuses are not set, so each is specified in words. ${SET_IT}`,
   KIND_NOT_SET: "Choose the contract kind, or specify it.",
@@ -156,10 +158,10 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   LIVE_ESTIMATE_EXISTS: "This exercise already has an estimate that is not void. Amend it, or void it before it is lodged.",
   ALREADY_VOID: "This estimate is already void.",
   AFTER_LODGEMENT: "A lodged estimate is not voided: it stands as lodged and is amended only by its preparer before closing.",
-  ALREADY_LODGED: (d) => `Version ${d.versionNo} is already lodged.`,
+  ALREADY_LODGED: "The current version is already lodged.",
   NOT_LODGED: "Lodge the estimate first.",
   PLACE_REQUIRED: "Say where the retained copy is kept.",
-  ALREADY_RETAINED: (d) => `The retained copy of version ${d.versionNo} is already recorded.`,
+  ALREADY_RETAINED: "The retained copy of the lodged version is already recorded.",
   CLASSIFICATION_LOWERED: "The estimate is SULIT and is never classified lower.",
   OVERRIDE_NOT_PERMITTED: `No office may accept a late estimate: none is set. ${SET_IT}`,
   NOT_HOLDER: "That person does not hold the office that may accept a late estimate.",
@@ -169,12 +171,12 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   NOT_IN_CUSTODY: "That person does not hold the estimate's copies.",
   // pack.ts
   BASIS_NOT_CHOSEN: "Choose the exercise's contract basis on its Contract type tab.",
-  BASIS_BQ_NOT_SET: "Whether the contract basis is let on a bill of quantities is not set. Set it on the basis under Configuration, Reference data.",
+  BASIS_BQ_NOT_SET: `Whether the contract basis is let on a bill of quantities is not set. ${SET_IT}`,
   BQ_REVISION_OPEN: "A revision of the bill is being drafted; the finalised version is the one that goes with the documents.",
   PANEL_NOT_VERIFIED: "The specification panel is not verified. Complete it on the Scope tab.",
   PANEL_SCAN_GONE: "The panel's signed form is no longer attached. Attach it again and verify the panel again.",
   METHOD_NOT_CONFIGURED: "The exercise's sourcing method is no longer configured. Configure it under Configuration, Reference data.",
-  ESTIMATE_RULE_NOT_SET: "Whether this sourcing method needs a company estimate is not set. Set it on the method under Configuration, Reference data.",
+  ESTIMATE_RULE_NOT_SET: `Whether this sourcing method needs a company estimate is not set. ${SET_IT}`,
   ESTIMATE_NOT_LODGED: "The company estimate is not lodged. Prepare and lodge it on the Company estimate tab.",
   ESTIMATE_BEHIND: "The estimate was amended after it was lodged. Lodge the current version.",
   // the acts

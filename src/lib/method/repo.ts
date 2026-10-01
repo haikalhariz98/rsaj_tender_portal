@@ -16,6 +16,8 @@ import { ORGANISATION_CODE } from "@/lib/org";
 import type { Provenance } from "@/lib/reference/types";
 import { fundingPosture } from "@/lib/reference/vocabulary";
 
+import { historyChange } from "@/lib/scope/audit-view";
+
 import { byValue } from "./bands";
 import type { FunderContext } from "./approval";
 import type { EvaluationContext, ExerciseDraft, MethodConfig } from "./evaluate";
@@ -278,10 +280,16 @@ export async function exerciseHistory(l: LoadedExercise) {
       action: e.action,
       at: e.at,
       reason: e.reason,
-      changes: (e.changes ?? []) as unknown as { field: string; before: string | null; after: string | null }[],
+      // 6.2: an estimate version's figure or reason reads "Sealed (version N)", whatever the row holds (ADR 0012).
+      changes: ((e.changes ?? []) as unknown as { field: string; before: string | null; after: string | null }[]).map((c) => historyChange(e.entity, c, versionInLabel(e.entityLabel))),
     })),
   };
 }
+
+const versionInLabel = (label: string) => {
+  const m = /version (\d+)$/.exec(label);
+  return m ? Number(m[1]) : null;
+};
 
 /// A stored exercise as the evaluator reads a draft.
 export function draftOf(ex: ExerciseRow): ExerciseDraft {

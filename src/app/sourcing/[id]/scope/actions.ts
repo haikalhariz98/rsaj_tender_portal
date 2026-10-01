@@ -1,0 +1,587 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+
+import type { FormState } from "@/components/record-editor";
+import { Prisma } from "@/generated/prisma/client";
+import type { FieldChange } from "@/lib/audit/diff";
+import { writeAudit, type Tx } from "@/lib/audit/record";
+import { dayToDate, storedDay, todayIn } from "@/lib/dates";
+import { parseSen, senToDecimalString, type Sen } from "@/lib/money";
+import { ENTITY, bqHeaderAudit, bqStatusAudit, estimateCreatedAudit, estimateEventAudit, estimateStateAudit, estimateVersionAudit, itemAudit, sectionAudit, verificationAudit, verificationClearedAudit } from "@/lib/scope/audit-view";
+import { bqTotals, draftEditFaults, finaliseFaults, holdingOn, isQuantity, itemAmount, qualificationSnapshot, reviseFaults, startBqFaults, totalsSnapshot } from "@/lib/scope/bq";
+import { actionResult, lodgeFaults, retainFaults, startFault, versionFaults, voidFault } from "@/lib/scope/estimate";
+import { writeEstimateVersion } from "@/lib/scope/estimate-store";
+import { ESTIMATE_STATE_LABEL, scopeFaultText, type ScopeCode } from "@/lib/scope/labels";
+import { lockBqRows, lockEstimateRow, lockLiveEstimateRows, lockPanelRow, withLockedExerciseScope, type LockedExercise } from "@/lib/scope/lock";
+import { columnsInForce, editClearsVerifications, panelEditFault, panelFaults, standingVerifications, verifyFaults } from "@/lib/scope/panel";
+import { activePerson, estimateFactsOf, lineOf, linesOf, loadBqVersions, loadEstimates, loadHoldings, loadPanel, loadPanelColumns, loadQualifications, loadScopePolicy, loadScopeRules } from "@/lib/scope/repo";
+import { BQ_ITEM_KINDS, BQ_SCOPED_BY, blocking, type BqItemKind, type Finding } from "@/lib/scope/types";
+import { CLASSIFICATION_LABEL } from "@/lib/documents/labels";
+import { FormReader } from "@/lib/validate";
+
+/**
+ * Writes for 6.2 increment 1: the bill of quantities, the specification panel and the
+ * company estimate, on an exercise (plan §4).
+ *
+ * Every action is reachable by a direct POST, so each locks the exercise's requisition,
+ * then the exercise, then the 6.2 rows it changes (`withLockedExerciseScope`, `lock.ts`),
+ * re-reads what it judges inside that transaction, re-runs the pure rule on the locked
+ * data, and writes with its audit rows in the same transaction. A refusal saves nothing
+ * and names what blocks it, and where to fix it. Nobody is signed in: every person named is
+ * "recorded on behalf of, not signed", and the audit is unattributed.
+ *
+ * The estimate's acts hand back codes only, rendered as fixed sentences: never the typed
+ * figure, never the reason (OD-1, ADR 0012). Their audit rows read "Sealed (version N)".
+ */
+
+const GONE: FormState = { ok: false, message: scopeFaultText("EXERCISE_GONE") };
+const RECORD_GONE: FormState = { ok: false, message: scopeFaultText("RECORD_GONE") };
+
+class Refusal extends Error {
+  constructor(readonly state: FormState) {
+    super(state.message ?? "Refused");
+  }
+}
+
+const refuse = (fs: readonly Finding[]): FormState => ({ ok: false, message: `Nothing was saved: ${blocking(fs).map((f) => scopeFaultText(f)).join(" ")}` });
+/// The estimate's refusals: codes only, as fixed sentences, never a figure, a reason or any finding data.
+const refuseCodes = (codes: readonly string[]): FormState => ({ ok: false, message: `Nothing was saved: ${codes.map((c) => scopeFaultText(c as ScopeCode)).join(" ")}` });
+
+async function audit(tx: Tx, orgId: string, entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE" | "DELETE", changes: FieldChange[], reason = "") {
+  if (action === "UPDATE" && changes.length === 0) return;
+  await writeAudit(tx, { organisationId: orgId, entity, entityId, entityLabel, reason }, action, changes);
+}
+
+/// Every 6.2 row is labelled with its exercise's reference, so the exercise's History finds it.
+const label = (l: LockedExercise, what: string) => `${l.ex.reference} · ${what}`;
+
+async function inExercise(exerciseId: string, fn: (tx: Tx, l: LockedExercise) => Promise<FormState>): Promise<FormState> {
+  let result: FormState | null;
+  try {
+    result = await withLockedExerciseScope(exerciseId, fn);
+  } catch (e) {
+    if (e instanceof Refusal) return e.state;
+    // OD-2's backstop: the partial unique index refused a second live estimate.
+    if (e && typeof e === "object" && "code" in e && (e as { code?: string }).code === "P2002") return refuseCodes(["LIVE_ESTIMATE_EXISTS"]);
+    throw e;
+  }
+  if (result?.ok) {
+    revalidatePath(`/sourcing/${exerciseId}`);
+    revalidatePath("/sourcing");
+  }
+  return result ?? GONE;
+}
+
+const today = (l: LockedExercise) => l.org.today;
+const exerciseIdOf = (data: FormData) => String(data.get("exerciseId") ?? "");
+
+// ------------------------------------------------------------------ bill of quantities
+
+/// Start the exercise's first bill, optionally from a configured template's section headings.
+export async function startBq(_prev: FormState, data: FormData): Promise<FormState> {
+  const exerciseId = exerciseIdOf(data);
+  const templateCode = String(data.get("templateCode") ?? "").trim() || null;
+  return inExercise(exerciseId, async (tx, l) => {
+    await lockBqRows(tx, exerciseId);
+    const versions = await tx.bqVersion.findMany({ where: { exerciseId }, select: { status: true } });
+    const faults = startBqFaults(versions, l.ex.status);
+    if (faults.length) return refuse(faults);
+    const template = templateCode ? await tx.bqTemplate.findFirst({ where: { organisationId: l.org.id, code: templateCode, retiredOn: null }, include: { sections: { orderBy: { sortOrder: "asc" } } } }) : null;
+    if (templateCode && !template) return { ok: false, errors: { templateCode: "That template is not configured. Choose one from the list, or start without one." } };
+    const v = await tx.bqVersion.create({ data: { organisationId: l.org.id, exerciseId, versionNo: 1, status: "DRAFT", templateCode: template?.code ?? null } });
+    await audit(tx, l.org.id, ENTITY.bqVersion, v.id, label(l, "Bill of quantities v1"), "CREATE", bqStatusAudit(null, "DRAFT", { version: 1, template: template?.nameEn ?? null }));
+    for (const s of template?.sections ?? []) {
+      const row = await tx.bqSection.create({ data: { organisationId: l.org.id, versionId: v.id, number: s.number, title: s.titleEn, sortOrder: s.sortOrder } });
+      await audit(tx, l.org.id, ENTITY.bqSection, row.id, label(l, `Bill of quantities v1 · section ${s.number}`), "CREATE", sectionAudit(null, { number: s.number, title: s.titleEn }));
+    }
+    return { ok: true };
+  });
+}
+
+/// The draft's lock and re-read: the version must be this exercise's, and a draft.
+async function lockedDraft(tx: Tx, l: LockedExercise, versionId: string) {
+  await lockBqRows(tx, l.ex.id);
+  const v = await tx.bqVersion.findFirst({ where: { id: versionId, exerciseId: l.ex.id }, include: { preparer: { select: { name: true } } } });
+  if (!v) throw new Refusal(RECORD_GONE);
+  const faults = draftEditFaults(v, l.ex.status);
+  if (faults.length) throw new Refusal(refuse(faults));
+  return v;
+}
+
+const triState = (v: string | null): boolean | null => (v === "yes" ? true : v === "no" ? false : null);
+
+/// The draft's header: who scoped it, the scope statement, the standard, the preparer, and OD-7.
+export async function saveBqHeader(_prev: FormState, data: FormData): Promise<FormState> {
+  const r = new FormReader(data);
+  const exerciseId = exerciseIdOf(data);
+  const versionId = String(data.get("versionId") ?? "");
+  const scopedBy = r.choice("scopedBy", "Scoped by", BQ_SCOPED_BY);
+  const scopeStatement = r.text("scopeStatement", "Scope statement", { max: 8000 });
+  const followsStandard = triState(r.choice("followsStandard", "Follows the standard", ["yes", "no", "unanswered"] as const));
+  const departuresText = r.text("departuresText", "Departures", { max: 8000 });
+  const preparerPersonId = r.optionalText("preparerPersonId");
+  const provisionalExcludedFromFirm = triState(r.choice("provisionalExcludedFromFirm", "Provisional quantities in the firm value", ["yes", "no", "unstated"] as const));
+  if (r.failed) return { ok: false, errors: r.errors };
+  return inExercise(exerciseId, async (tx, l) => {
+    const v = await lockedDraft(tx, l, versionId);
+    const preparer = preparerPersonId ? await activePerson(l.org.id, preparerPersonId, tx) : null;
+    if (preparerPersonId && !preparer) return { ok: false, errors: { preparerPersonId: scopeFaultText("PERSON_UNKNOWN") } };
+    const after = { scopedBy, scopeStatement, followsStandard, departuresText, preparerPersonId: preparer?.id ?? null, provisionalExcludedFromFirm };
+    await tx.bqVersion.update({ where: { id: v.id }, data: after });
+    await audit(tx, l.org.id, ENTITY.bqVersion, v.id, label(l, `Bill of quantities v${v.versionNo}`), "UPDATE",
+      bqHeaderAudit({ ...v, preparerName: v.preparer?.name ?? null }, { ...after, preparerName: preparer?.name ?? null }));
+    return { ok: true };
+  });
+}
+
+/// Add or edit a section of the draft.
+export async function saveBqSection(_prev: FormState, data: FormData): Promise<FormState> {
+  const r = new FormReader(data);
+  const exerciseId = exerciseIdOf(data);
+  const versionId = String(data.get("versionId") ?? "");
+  const sectionId = String(data.get("sectionId") ?? "") || null;
+  const number = r.text("number", "Section number", { required: true, max: 20 });
+  const title = r.text("title", "Section title", { required: true, max: 300 });
+  const sortOrder = r.int("sortOrder", "Order") ?? 0;
+  if (r.failed) return { ok: false, errors: r.errors };
+  return inExercise(exerciseId, async (tx, l) => {
+    const v = await lockedDraft(tx, l, versionId);
+    const before = sectionId ? await tx.bqSection.findFirst({ where: { id: sectionId, versionId: v.id } }) : null;
+    if (sectionId && !before) return RECORD_GONE;
+    const row = before
+      ? await tx.bqSection.update({ where: { id: before.id }, data: { number, title, sortOrder } })
+      : await tx.bqSection.create({ data: { organisationId: l.org.id, versionId: v.id, number, title, sortOrder } });
+    await audit(tx, l.org.id, ENTITY.bqSection, row.id, label(l, `Bill of quantities v${v.versionNo} · section ${number}`), before ? "UPDATE" : "CREATE", sectionAudit(before ? { number: before.number, title: before.title } : null, { number, title }));
+    return { ok: true };
+  });
+}
+
+/// Remove a section of the draft, with its lines. A finalised version is never changed.
+export async function removeBqSection(_prev: FormState, data: FormData): Promise<FormState> {
+  const exerciseId = exerciseIdOf(data);
+  const versionId = String(data.get("versionId") ?? "");
+  const sectionId = String(data.get("sectionId") ?? "");
+  return inExercise(exerciseId, async (tx, l) => {
+    const v = await lockedDraft(tx, l, versionId);
+    const s = await tx.bqSection.findFirst({ where: { id: sectionId, versionId: v.id }, include: { items: true } });
+    if (!s) return RECORD_GONE;
+    for (const i of s.items) {
+      await tx.bqItem.delete({ where: { id: i.id } });
+      await audit(tx, l.org.id, ENTITY.bqItem, i.id, label(l, `Bill of quantities v${v.versionNo} · ${i.itemRef || i.description}`), "DELETE", itemAudit(null, lineOf(i)));
+    }
+    await tx.bqSection.delete({ where: { id: s.id } });
+    await audit(tx, l.org.id, ENTITY.bqSection, s.id, label(l, `Bill of quantities v${v.versionNo} · section ${s.number}`), "DELETE", sectionAudit(null, { number: s.number, title: s.title }));
+    return { ok: true };
+  });
+}
+
+/// Add or edit a line of the draft. Its amount is worked out here, from the quantity and the rate, never typed.
+export async function saveBqItem(_prev: FormState, data: FormData): Promise<FormState> {
+  const r = new FormReader(data);
+  const exerciseId = exerciseIdOf(data);
+  const versionId = String(data.get("versionId") ?? "");
+  const itemId = String(data.get("itemId") ?? "") || null;
+  const sectionId = r.text("sectionId", "Section", { required: true });
+  const itemRef = r.text("itemRef", "Item", { max: 40 });
+  const description = r.text("description", "Description", { required: true, max: 4000 });
+  const unit = r.text("unit", "Unit", { max: 40 });
+  const kind = r.choice("kind", "Kind", BQ_ITEM_KINDS, { required: true }) as BqItemKind | null;
+  const quantityRaw = r.optionalText("quantity");
+  if (quantityRaw && !isQuantity(quantityRaw)) r.reject("quantity", scopeFaultText("QUANTITY_INVALID"));
+  const rateRaw = r.money("rate", "Rate");
+  const provisional = r.bool("provisional") && kind === "MEASURED";
+  const sortOrder = r.int("sortOrder", "Order") ?? 0;
+  if (r.failed || !kind) return { ok: false, errors: r.errors };
+  const quantity = quantityRaw ? quantityRaw.replace(/,/g, "") : null;
+  const rate: Sen | null = rateRaw == null ? null : parseSen(rateRaw);
+  const amount = itemAmount(quantity, rate);
+  return inExercise(exerciseId, async (tx, l) => {
+    const v = await lockedDraft(tx, l, versionId);
+    const section = await tx.bqSection.findFirst({ where: { id: sectionId, versionId: v.id } });
+    if (!section) return { ok: false, errors: { sectionId: scopeFaultText("SECTION_REQUIRED") } };
+    const before = itemId ? await tx.bqItem.findFirst({ where: { id: itemId, section: { versionId: v.id } } }) : null;
+    if (itemId && !before) return RECORD_GONE;
+    const row = {
+      sectionId: section.id, itemRef, description, unit, kind, provisional, sortOrder, rateSource: "ENTERED" as const,
+      quantity, rate: rate == null ? null : senToDecimalString(rate), amount: amount == null ? null : senToDecimalString(amount),
+    };
+    const saved = before ? await tx.bqItem.update({ where: { id: before.id }, data: row }) : await tx.bqItem.create({ data: { organisationId: l.org.id, ...row } });
+    await audit(tx, l.org.id, ENTITY.bqItem, saved.id, label(l, `Bill of quantities v${v.versionNo} · ${itemRef || description}`), before ? "UPDATE" : "CREATE",
+      itemAudit(before ? lineOf(before) : null, { itemRef, description, unit, kind, quantity, rate, provisional }));
+    return { ok: true };
+  });
+}
+
+export async function removeBqItem(_prev: FormState, data: FormData): Promise<FormState> {
+  const exerciseId = exerciseIdOf(data);
+  const versionId = String(data.get("versionId") ?? "");
+  const itemId = String(data.get("itemId") ?? "");
+  return inExercise(exerciseId, async (tx, l) => {
+    const v = await lockedDraft(tx, l, versionId);
+    const i = await tx.bqItem.findFirst({ where: { id: itemId, section: { versionId: v.id } } });
+    if (!i) return RECORD_GONE;
+    await tx.bqItem.delete({ where: { id: i.id } });
+    await audit(tx, l.org.id, ENTITY.bqItem, i.id, label(l, `Bill of quantities v${v.versionNo} · ${i.itemRef || i.description}`), "DELETE", itemAudit(null, lineOf(i)));
+    return { ok: true };
+  });
+}
+
+/**
+ * Finalise the draft (FR-EST-001, 003): judged on the locked version with the policy, the
+ * preparer's qualifications and the organisation's day read in the transaction; frozen with
+ * its totals, the standard's label and the preparer's qualification as they stood; the
+ * version it revises is superseded in the same act.
+ */
+export async function finaliseBq(_prev: FormState, data: FormData): Promise<FormState> {
+  const exerciseId = exerciseIdOf(data);
+  const versionId = String(data.get("versionId") ?? "");
+  return inExercise(exerciseId, async (tx, l) => {
+    await lockBqRows(tx, exerciseId);
+    const versions = await loadBqVersions(exerciseId, tx);
+    const v = versions.find((x) => x.id === versionId);
+    if (!v) return RECORD_GONE;
+    const policy = await loadScopePolicy(l.org.id, tx);
+    const qualifications = await loadQualifications(l.org.id, tx);
+    const holdings = v.preparerPersonId ? await loadHoldings(l.org.id, tx, [v.preparerPersonId]) : [];
+    const lines = linesOf(v);
+    const faults = finaliseFaults({ status: v.status, scopedBy: v.scopedBy, followsStandard: v.followsStandard, departuresText: v.departuresText, preparerPersonId: v.preparerPersonId, lines }, { policy, holdings, qualifications, today: today(l), exerciseStatus: l.ex.status });
+    if (blocking(faults).length) return refuse(faults);
+    const day = today(l)!;
+    const code = policy.bqPreparerQualificationCode!;
+    const holding = holdingOn(holdings, v.preparerPersonId!, code, day, qualifications)!;
+    const totals = totalsSnapshot(bqTotals(lines, v.provisionalExcludedFromFirm));
+    const qualification = qualificationSnapshot(holding, qualifications.find((q) => q.code === code), day);
+    for (const prev of versions.filter((x) => x.status === "FINALISED")) {
+      await tx.bqVersion.update({ where: { id: prev.id }, data: { status: "SUPERSEDED" } });
+      await audit(tx, l.org.id, ENTITY.bqVersion, prev.id, label(l, `Bill of quantities v${prev.versionNo}`), "UPDATE", bqStatusAudit("FINALISED", "SUPERSEDED", { supersededBy: `version ${v.versionNo}` }));
+    }
+    await tx.bqVersion.update({
+      where: { id: v.id },
+      data: { status: "FINALISED", finalisedAt: new Date(), totalsSnapshot: totals, standardLabelSnapshot: policy.measurementStandardLabel, preparerQualificationSnapshot: qualification },
+    });
+    await audit(tx, l.org.id, ENTITY.bqVersion, v.id, label(l, `Bill of quantities v${v.versionNo}`), "UPDATE",
+      bqStatusAudit("DRAFT", "FINALISED", { total: totals.total, buildersWorks: totals.buildersWorks, firmValue: totals.firmValue ?? "Not stated", standard: policy.measurementStandardLabel, preparerQualification: qualification.name }));
+    return { ok: true };
+  });
+}
+
+/// Start a revision: a new draft copied from the latest finalised version, with the reason.
+export async function startBqRevision(_prev: FormState, data: FormData): Promise<FormState> {
+  const exerciseId = exerciseIdOf(data);
+  const reason = String(data.get("reason") ?? "").trim();
+  return inExercise(exerciseId, async (tx, l) => {
+    await lockBqRows(tx, exerciseId);
+    const versions = await loadBqVersions(exerciseId, tx);
+    const faults = reviseFaults(versions, l.ex.status, reason);
+    if (faults.length) return faults.some((f) => f.code === "REASON_REQUIRED") && faults.length === 1 ? { ok: false, errors: { reason: scopeFaultText("REASON_REQUIRED") } } : refuse(faults);
+    const from = versions.find((x) => x.status === "FINALISED")!;
+    const versionNo = Math.max(...versions.map((x) => x.versionNo)) + 1;
+    const v = await tx.bqVersion.create({
+      data: {
+        organisationId: l.org.id, exerciseId, versionNo, status: "DRAFT", templateCode: from.templateCode, scopedBy: from.scopedBy, scopeStatement: from.scopeStatement,
+        followsStandard: from.followsStandard, departuresText: from.departuresText, preparerPersonId: from.preparerPersonId, provisionalExcludedFromFirm: from.provisionalExcludedFromFirm, revisionReason: reason,
+      },
+    });
+    for (const s of from.sections) {
+      const ns = await tx.bqSection.create({ data: { organisationId: l.org.id, versionId: v.id, number: s.number, title: s.title, sortOrder: s.sortOrder } });
+      await tx.bqItem.createMany({
+        data: s.items.map((i) => ({ organisationId: l.org.id, sectionId: ns.id, itemRef: i.itemRef, description: i.description, unit: i.unit, kind: i.kind, quantity: i.quantity, rate: i.rate, amount: i.amount, provisional: i.provisional, rateSource: i.rateSource, sortOrder: i.sortOrder })),
+      });
+    }
+    await audit(tx, l.org.id, ENTITY.bqVersion, v.id, label(l, `Bill of quantities v${versionNo}`), "CREATE", bqStatusAudit(null, "DRAFT", { version: versionNo, revises: `version ${from.versionNo}`, lines: from.sections.reduce((n, s) => n + s.items.length, 0) }), reason);
+    return { ok: true };
+  });
+}
+
+// ------------------------------------------------------------------ specification panel
+
+/**
+ * Save the panel's facts (creating it on first save). Editing a panel that has standing
+ * verifications, or is verified, clears them (kept, marked cleared, each audited) and
+ * returns it to a draft: they attested facts that have changed.
+ */
+export async function savePanel(_prev: FormState, data: FormData): Promise<FormState> {
+  const r = new FormReader(data);
+  const exerciseId = exerciseIdOf(data);
+  const contractKindCode = r.optionalText("contractKindCode");
+  const contractKindOther = r.text("contractKindOther", "Contract kind, specified", { max: 300 });
+  const projectStatusCode = r.optionalText("projectStatusCode");
+  const projectStatusOther = r.text("projectStatusOther", "Project status, specified", { max: 300 });
+  const currentRevisionNo = r.optionalText("currentRevisionNo");
+  const currentRevisionOn = r.date("currentRevisionOn", "Current revision date");
+  const revisedRevisionNo = r.optionalText("revisedRevisionNo");
+  const revisedRevisionOn = r.date("revisedRevisionOn", "Revised revision date");
+  const completionPeriodText = r.text("completionPeriodText", "Completion period", { max: 300 });
+  const bqVersionId = r.optionalText("bqVersionId");
+  if (r.failed) return { ok: false, errors: r.errors };
+  return inExercise(exerciseId, async (tx, l) => {
+    const fault = panelEditFault(l.ex.status);
+    if (fault.length) return refuse(fault);
+    const existing = await tx.specificationPanel.findUnique({ where: { exerciseId }, select: { id: true } });
+    if (existing) await lockPanelRow(tx, existing.id);
+    const before = await loadPanel(exerciseId, tx);
+    const policy = await loadScopePolicy(l.org.id, tx);
+    // A listed code must be a value of the configured list.
+    const listed = async (taxonomyCode: string | null, code: string | null, field: string) => {
+      if (!code) return null;
+      const ok = taxonomyCode ? await tx.taxonomyValue.findFirst({ where: { code, taxonomy: { organisationId: l.org.id, code: taxonomyCode } }, select: { id: true } }) : null;
+      if (!ok) throw new Refusal({ ok: false, errors: { [field]: "That is not on the configured list. Choose one from it, or specify it in words." } });
+      return code;
+    };
+    const kind = await listed(policy.panelContractKindTaxonomyCode, contractKindCode, "contractKindCode");
+    const status = await listed(policy.panelProjectStatusTaxonomyCode, projectStatusCode, "projectStatusCode");
+    const bq = bqVersionId ? await tx.bqVersion.findFirst({ where: { id: bqVersionId, exerciseId }, select: { id: true, versionNo: true } }) : null;
+    if (bqVersionId && !bq) return { ok: false, errors: { bqVersionId: "That bill is not this exercise's." } };
+    const after = {
+      contractKindCode: kind, contractKindOther, projectStatusCode: status, projectStatusOther, currentRevisionNo, currentRevisionOn, revisedRevisionNo, revisedRevisionOn, completionPeriodText, bqVersionId: bq?.id ?? null,
+    };
+    const panelLabel = label(l, "Specification panel");
+    if (!before) {
+      const p = await tx.specificationPanel.create({ data: { organisationId: l.org.id, exerciseId, ...after } });
+      await audit(tx, l.org.id, ENTITY.panel, p.id, panelLabel, "CREATE", panelChanges(null, { ...after, bqVersionNo: bq?.versionNo ?? null }));
+      return { ok: true };
+    }
+    const clears = editClearsVerifications({ status: before.status, verifications: before.verifications });
+    const changes = panelChanges({ ...before, bqVersionNo: before.bqVersion?.versionNo ?? null }, { ...after, bqVersionNo: bq?.versionNo ?? null });
+    if (changes.length === 0) return { ok: true };
+    await tx.specificationPanel.update({ where: { id: before.id }, data: { ...after, ...(clears ? { status: "DRAFT", verifiedAt: null, verifiedSnapshot: Prisma.DbNull } : {}) } });
+    await audit(tx, l.org.id, ENTITY.panel, before.id, panelLabel, "UPDATE", [...changes, ...(before.status === "VERIFIED" ? [{ field: "status", before: "Verified", after: "Draft" }] : [])]);
+    if (clears) {
+      const now = new Date();
+      for (const v of standingVerifications(before.verifications) as typeof before.verifications) {
+        await tx.specPanelVerification.update({ where: { id: v.id }, data: { clearedAt: now } });
+        await audit(tx, l.org.id, ENTITY.verification, v.id, label(l, `Specification panel · ${v.columnLabelSnapshot}`), "UPDATE", verificationClearedAudit({ column: v.columnLabelSnapshot, personName: v.person.name }));
+      }
+    }
+    return { ok: true };
+  });
+}
+
+function panelChanges(before: Record<string, unknown> | null, after: Record<string, unknown>): FieldChange[] {
+  const view = (p: Record<string, unknown>) => ({
+    contractKind: p.contractKindCode ?? null, contractKindSpecified: p.contractKindOther || null, projectStatus: p.projectStatusCode ?? null, projectStatusSpecified: p.projectStatusOther || null,
+    currentRevision: p.currentRevisionNo ?? null, currentRevisionOn: p.currentRevisionOn ?? null, revisedRevision: p.revisedRevisionNo ?? null, revisedRevisionOn: p.revisedRevisionOn ?? null,
+    completionPeriod: p.completionPeriodText || null, certifiesBill: p.bqVersionNo == null ? null : `version ${p.bqVersionNo}`,
+  });
+  const b = before ? view(before) : null;
+  const a = view(after);
+  return Object.keys(a).flatMap((k) => {
+    const x = b ? b[k as keyof typeof b] : null;
+    const y = a[k as keyof typeof a];
+    const s = (v: unknown) => (v == null ? null : v instanceof Date ? storedDay(v) : String(v));
+    return s(x) === s(y) ? [] : [{ field: k, before: s(x), after: s(y) }];
+  });
+}
+
+/// Record one column's verification: attested on behalf of the person named, on a day not after today.
+export async function recordPanelVerification(_prev: FormState, data: FormData): Promise<FormState> {
+  const r = new FormReader(data);
+  const exerciseId = exerciseIdOf(data);
+  const columnCode = r.text("columnCode", "Column", { required: true });
+  const personId = r.optionalText("personId");
+  const verifiedOn = r.date("verifiedOn", "Verified on");
+  const note = r.text("note", "Note", { max: 2000 });
+  if (r.failed) return { ok: false, errors: r.errors };
+  return inExercise(exerciseId, async (tx, l) => {
+    const existing = await tx.specificationPanel.findUnique({ where: { exerciseId }, select: { id: true } });
+    if (!existing) return { ok: false, message: "Save the panel's details first." };
+    await lockPanelRow(tx, existing.id);
+    const p = (await loadPanel(exerciseId, tx))!;
+    const columns = await loadPanelColumns(l.org.id, tx);
+    const person = await activePerson(l.org.id, personId, tx);
+    if (personId && !person) return { ok: false, errors: { personId: scopeFaultText("PERSON_UNKNOWN") } };
+    const faults = verifyFaults({ columnCode, personId: person?.id ?? null, verifiedOn: verifiedOn ? storedDay(verifiedOn) : null }, p, { columns, today: today(l), exerciseStatus: l.ex.status });
+    if (faults.length) return refuse(faults);
+    const column = columnsInForce(columns, today(l)).find((c) => c.code === columnCode)!;
+    const row = await tx.specPanelVerification.create({ data: { organisationId: l.org.id, panelId: p.id, columnCode, columnLabelSnapshot: column.labelEn, personId: person!.id, verifiedOn: verifiedOn!, note } });
+    await audit(tx, l.org.id, ENTITY.verification, row.id, label(l, `Specification panel · ${column.labelEn}`), "CREATE", verificationAudit({ column: column.labelEn, personName: person!.name, verifiedOn: storedDay(verifiedOn!), note }));
+    return { ok: true };
+  });
+}
+
+/**
+ * Mark the panel VERIFIED (Q-1): judged on the locked panel, its standing verifications,
+ * the columns and the limit in force, the bill it names and the live SULIT scans of its
+ * signed form, all read in the transaction; frozen with what it was verified on.
+ */
+export async function markPanelVerified(_prev: FormState, data: FormData): Promise<FormState> {
+  const exerciseId = exerciseIdOf(data);
+  return inExercise(exerciseId, async (tx, l) => {
+    const existing = await tx.specificationPanel.findUnique({ where: { exerciseId }, select: { id: true } });
+    if (!existing) return { ok: false, message: "Save the panel's details first." };
+    await lockPanelRow(tx, existing.id);
+    const p = (await loadPanel(exerciseId, tx))!;
+    if (p.status === "VERIFIED") return { ok: false, message: "The panel is already verified." };
+    const columns = await loadPanelColumns(l.org.id, tx);
+    const policy = await loadScopePolicy(l.org.id, tx);
+    const rules = await loadScopeRules(l.org.id, l.ex, tx);
+    const faults = panelFaults(
+      { status: p.status, contractKindCode: p.contractKindCode, contractKindOther: p.contractKindOther, projectStatusCode: p.projectStatusCode, projectStatusOther: p.projectStatusOther, bq: p.bqVersion, verifications: p.verifications, liveSulitScans: p.liveSulitScans },
+      { columns, policy, today: today(l), exerciseStatus: l.ex.status, bqRequired: rules.basis?.requiresBq ?? null },
+    );
+    if (blocking(faults).length) return refuse(faults);
+    const scans = await tx.documentAttachment.findMany({ where: { specificationPanelId: p.id, purpose: "SPEC_PANEL_FORM", detachedAt: null, version: { withdrawnAt: null, document: { classificationSnapshot: "SULIT" } } }, select: { versionId: true, version: { select: { versionNo: true, document: { select: { title: true } } } } } });
+    const standing = standingVerifications(p.verifications) as typeof p.verifications;
+    const snapshot = {
+      columns: columnsInForce(columns, today(l)).map((c) => ({ code: c.code, label: c.labelEn })),
+      verifications: standing.map((v) => ({ column: v.columnLabelSnapshot, person: v.person.name, verifiedOn: storedDay(v.verifiedOn) })),
+      signatoryLimit: policy.panelSignatoryLimit,
+      signatoryLimitProvenance: policy.panelSignatoryLimitProvenance,
+      scans: scans.map((s) => ({ versionId: s.versionId, title: s.version.document.title, versionNo: s.version.versionNo })),
+      bqVersionNo: p.bqVersion?.versionNo ?? null,
+    };
+    await tx.specificationPanel.update({ where: { id: p.id }, data: { status: "VERIFIED", verifiedAt: new Date(), verifiedSnapshot: snapshot } });
+    await audit(tx, l.org.id, ENTITY.panel, p.id, label(l, "Specification panel"), "UPDATE", [
+      { field: "status", before: "Draft", after: "Verified" },
+      { field: "verifiedBy", before: null, after: snapshot.verifications.map((v) => `${v.column}: ${v.person}`).join("; ") + " (recorded on behalf of, not signed)" },
+      { field: "signedForm", before: null, after: snapshot.scans.map((s) => `${s.title}, version ${s.versionNo} (${CLASSIFICATION_LABEL.SULIT})`).join("; ") },
+    ]);
+    const warns = faults.filter((f) => f.level === "warn").map((f) => scopeFaultText(f));
+    return { ok: true, message: warns.join(" ") || undefined };
+  });
+}
+
+// ------------------------------------------------------------------ company estimate (sealed)
+
+/// The typed figure, in sen, or null. Never echoed back: the form shows a fixed sentence.
+function readValue(data: FormData): Sen | null {
+  const raw = String(data.get("value") ?? "").replace(/,/g, "").trim();
+  if (!/^\d+(\.\d{1,2})?$/.test(raw)) return null;
+  return parseSen(raw);
+}
+
+/// The organisation's day at save, never typed. Null while no zone is set (versionFaults refuses then).
+const preparedOnOf = (l: LockedExercise) => {
+  const d = todayIn(new Date(), l.org.timeZone);
+  return d ? dayToDate(d) : null;
+};
+
+/**
+ * Prepare a fresh estimate: version 1 by its preparer (FR-EST-006). Refused while an
+ * estimate not void exists (OD-2): the lib on the locked rows, and the partial unique index
+ * behind it. 6.2 passes no closing (X-1).
+ */
+export async function prepareEstimate(_prev: FormState, data: FormData): Promise<FormState> {
+  const exerciseId = exerciseIdOf(data);
+  const personId = String(data.get("personId") ?? "").trim() || null;
+  const value = readValue(data);
+  return inExercise(exerciseId, async (tx, l) => {
+    await lockLiveEstimateRows(tx, exerciseId);
+    const estimates = await tx.companyEstimate.findMany({ where: { exerciseId }, select: { state: true } });
+    const live = startFault(estimates);
+    if (live) return refuseCodes([live.code]);
+    const person = await activePerson(l.org.id, personId, tx);
+    if (personId && !person) return refuseCodes(["PERSON_UNKNOWN"]);
+    const result = actionResult(versionFaults({ value, personId: person?.id ?? null, reason: "" }, null, { closingAt: null, timeZone: l.org.timeZone, exerciseStatus: l.ex.status, now: new Date() }));
+    if (!result.ok) return refuseCodes(result.codes);
+    const preparedOn = preparedOnOf(l)!;
+    const bq = await tx.bqVersion.findFirst({ where: { exerciseId, status: "FINALISED" }, select: { id: true } });
+    const est = await tx.companyEstimate.create({ data: { organisationId: l.org.id, exerciseId, preparerPersonId: person!.id, classification: "SULIT", state: "DRAFT", currentVersionNo: 1 } });
+    const v = await writeEstimateVersion(tx, { organisationId: l.org.id, estimateId: est.id, versionNo: 1, value: value!, reason: "", preparedOn, preparerPersonId: person!.id, bqVersionId: bq?.id ?? null });
+    const ev = await tx.estimateEvent.create({ data: { organisationId: l.org.id, estimateId: est.id, kind: "PREPARED", personId: person!.id, capacity: "Preparer", versionNo: 1 } });
+    await audit(tx, l.org.id, ENTITY.estimate, est.id, label(l, "Company estimate"), "CREATE", estimateCreatedAudit({ preparerName: person!.name, classification: CLASSIFICATION_LABEL.SULIT }));
+    await audit(tx, l.org.id, ENTITY.estimateVersion, v.id, label(l, "Company estimate · version 1"), "CREATE", estimateVersionAudit({ versionNo: 1, preparerName: person!.name, preparedOn: storedDay(preparedOn) }));
+    await audit(tx, l.org.id, ENTITY.estimateEvent, ev.id, label(l, "Company estimate · prepared"), "CREATE", estimateEventAudit({ kind: "PREPARED", personName: person!.name, capacity: "Preparer", versionNo: 1 }));
+    return { ok: true };
+  });
+}
+
+/// The live estimate's lock and re-read, as the rules see it (never its figure).
+async function lockedEstimate(tx: Tx, l: LockedExercise, estimateId: string) {
+  await lockEstimateRow(tx, estimateId);
+  const e = (await loadEstimates(l.ex.id, tx)).find((x) => x.id === estimateId);
+  if (!e) throw new Refusal(RECORD_GONE);
+  return { row: e, facts: estimateFactsOf(e) };
+}
+
+/**
+ * Amend: the next version by the same preparer, with the reason (FR-EST-009). The reason is
+ * sealed with the figure: stored by the store, never in the audit row's reason.
+ */
+export async function amendEstimate(_prev: FormState, data: FormData): Promise<FormState> {
+  const exerciseId = exerciseIdOf(data);
+  const estimateId = String(data.get("estimateId") ?? "");
+  const personId = String(data.get("personId") ?? "").trim() || null;
+  const reason = String(data.get("reason") ?? "");
+  const value = readValue(data);
+  return inExercise(exerciseId, async (tx, l) => {
+    const { row, facts } = await lockedEstimate(tx, l, estimateId);
+    const person = await activePerson(l.org.id, personId, tx);
+    if (personId && !person) return refuseCodes(["PERSON_UNKNOWN"]);
+    const result = actionResult(versionFaults({ value, personId: person?.id ?? null, reason }, facts, { closingAt: null, timeZone: l.org.timeZone, exerciseStatus: l.ex.status, now: new Date() }));
+    if (!result.ok) return refuseCodes(result.codes);
+    const versionNo = facts.currentVersionNo + 1;
+    const preparedOn = preparedOnOf(l)!;
+    const bq = await tx.bqVersion.findFirst({ where: { exerciseId, status: "FINALISED" }, select: { id: true } });
+    const v = await writeEstimateVersion(tx, { organisationId: l.org.id, estimateId: row.id, versionNo, value: value!, reason, preparedOn, preparerPersonId: person!.id, bqVersionId: bq?.id ?? null });
+    await tx.companyEstimate.update({ where: { id: row.id }, data: { currentVersionNo: versionNo } });
+    const ev = await tx.estimateEvent.create({ data: { organisationId: l.org.id, estimateId: row.id, kind: "AMENDED", personId: person!.id, capacity: "Preparer", versionNo } });
+    await audit(tx, l.org.id, ENTITY.estimateVersion, v.id, label(l, `Company estimate · version ${versionNo}`), "CREATE", estimateVersionAudit({ versionNo, preparerName: person!.name, preparedOn: storedDay(preparedOn) }));
+    await audit(tx, l.org.id, ENTITY.estimateEvent, ev.id, label(l, "Company estimate · amended"), "CREATE", estimateEventAudit({ kind: "AMENDED", personName: person!.name, capacity: "Preparer", versionNo }));
+    return { ok: true };
+  });
+}
+
+/// Lodge the current version into the sealed set (FR-EST-010): copy 1, with who lodged it.
+export async function lodgeEstimate(_prev: FormState, data: FormData): Promise<FormState> {
+  const exerciseId = exerciseIdOf(data);
+  const estimateId = String(data.get("estimateId") ?? "");
+  const personId = String(data.get("personId") ?? "").trim() || null;
+  const capacity = String(data.get("capacity") ?? "").trim().slice(0, 200);
+  return inExercise(exerciseId, async (tx, l) => {
+    const { row, facts } = await lockedEstimate(tx, l, estimateId);
+    const person = await activePerson(l.org.id, personId, tx);
+    if (personId && !person) return refuseCodes(["PERSON_UNKNOWN"]);
+    const result = actionResult(lodgeFaults(facts, { personId: person?.id ?? null }, l.ex.status));
+    if (!result.ok) return refuseCodes(result.codes);
+    await tx.companyEstimate.update({ where: { id: row.id }, data: { state: "LODGED", lodgedAt: new Date() } });
+    const ev = await tx.estimateEvent.create({ data: { organisationId: l.org.id, estimateId: row.id, kind: "LODGED", personId: person!.id, capacity, versionNo: facts.currentVersionNo, copyNo: 1 } });
+    if (facts.state !== "LODGED") await audit(tx, l.org.id, ENTITY.estimate, row.id, label(l, "Company estimate"), "UPDATE", estimateStateAudit(ESTIMATE_STATE_LABEL[facts.state], ESTIMATE_STATE_LABEL.LODGED));
+    await audit(tx, l.org.id, ENTITY.estimateEvent, ev.id, label(l, "Company estimate · lodged"), "CREATE", estimateEventAudit({ kind: "LODGED", personName: person!.name, capacity, versionNo: facts.currentVersionNo, copyNo: 1 }));
+    return { ok: true };
+  });
+}
+
+/// Record the second copy, retained, and where it is kept (FR-EST-007).
+export async function recordRetainedCopy(_prev: FormState, data: FormData): Promise<FormState> {
+  const exerciseId = exerciseIdOf(data);
+  const estimateId = String(data.get("estimateId") ?? "");
+  const personId = String(data.get("personId") ?? "").trim() || null;
+  const capacity = String(data.get("capacity") ?? "").trim().slice(0, 200);
+  const place = String(data.get("place") ?? "").trim().slice(0, 300);
+  return inExercise(exerciseId, async (tx, l) => {
+    const { row, facts } = await lockedEstimate(tx, l, estimateId);
+    const person = await activePerson(l.org.id, personId, tx);
+    if (personId && !person) return refuseCodes(["PERSON_UNKNOWN"]);
+    const result = actionResult(retainFaults(facts, { personId: person?.id ?? null, place }));
+    if (!result.ok) return refuseCodes(result.codes);
+    await tx.companyEstimate.update({ where: { id: row.id }, data: { retainedPlace: place } });
+    const ev = await tx.estimateEvent.create({ data: { organisationId: l.org.id, estimateId: row.id, kind: "RETAINED", personId: person!.id, capacity, note: place, versionNo: facts.lodgedVersionNo, copyNo: 2 } });
+    await audit(tx, l.org.id, ENTITY.estimateEvent, ev.id, label(l, "Company estimate · copy retained"), "CREATE", estimateEventAudit({ kind: "RETAINED", personName: person!.name, capacity, versionNo: facts.lodgedVersionNo, copyNo: 2, place }));
+    return { ok: true };
+  });
+}
+
+/**
+ * Void the estimate before lodgement (OD-2): the preparer cannot continue. The reason is
+ * why, audited; it carries no figure. The versions are kept; a new officer prepares afresh.
+ */
+export async function voidEstimate(_prev: FormState, data: FormData): Promise<FormState> {
+  const exerciseId = exerciseIdOf(data);
+  const estimateId = String(data.get("estimateId") ?? "");
+  const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
+  const personId = String(data.get("personId") ?? "").trim() || null;
+  return inExercise(exerciseId, async (tx, l) => {
+    const { row, facts } = await lockedEstimate(tx, l, estimateId);
+    const person = await activePerson(l.org.id, personId, tx);
+    if (personId && !person) return refuseCodes(["PERSON_UNKNOWN"]);
+    const faults = voidFault(facts, reason);
+    if (faults.length) return faults.length === 1 && faults[0].code === "REASON_REQUIRED" ? { ok: false, errors: { reason: scopeFaultText("REASON_REQUIRED") } } : refuseCodes(faults.map((f) => f.code));
+    await tx.companyEstimate.update({ where: { id: row.id }, data: { state: "VOID", voidedAt: new Date(), voidReason: reason } });
+    const ev = await tx.estimateEvent.create({ data: { organisationId: l.org.id, estimateId: row.id, kind: "VOIDED", personId: person?.id ?? null, note: reason, versionNo: facts.currentVersionNo } });
+    await audit(tx, l.org.id, ENTITY.estimate, row.id, label(l, "Company estimate"), "UPDATE", estimateStateAudit(ESTIMATE_STATE_LABEL[facts.state], ESTIMATE_STATE_LABEL.VOID), reason);
+    await audit(tx, l.org.id, ENTITY.estimateEvent, ev.id, label(l, "Company estimate · voided"), "CREATE", estimateEventAudit({ kind: "VOIDED", personName: person?.name ?? null, versionNo: facts.currentVersionNo, reason }), reason);
+    return { ok: true };
+  });
+}

@@ -42,3 +42,9 @@ describe("the statements the screens carry", () => {
     expect(leadTimeText({ state: "LATE", lastPermittedDay: "2026-11-12", lastVersionDay: "2026-11-13" })).toMatch(/^Late/);
   });
 });
+
+describe("the estimate's refusals read whole without their data (codes only, OD-1)", () => {
+  it("no sentence depends on a finding's data to make sense", () => {
+    for (const c of SCOPE_CODES) expect(scopeFaultText(c), c).not.toMatch(/undefined|null|NaN/);
+  });
+});
