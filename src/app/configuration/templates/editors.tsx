@@ -3,8 +3,10 @@ import { RecordEditor, type Field } from "@/components/record-editor";
 import type { DocumentClass, DocumentTemplate } from "@/lib/records/load";
 
 import { MERGE_FIELDS } from "@/lib/award/fields";
+import { PACK_MERGE_FIELDS } from "@/lib/tender-docs/fields";
 
 import { saveTemplate } from "./actions";
+import { InsertClause } from "./insert-tools";
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
@@ -70,29 +72,42 @@ function templateFields(editing: boolean, classes: DocumentClass[]): Field[] {
   ];
 }
 
-/// The merge fields a body may name, as a list to copy from.
-function MergeFieldList() {
-  return (
-    <details className="rounded-xl border border-line px-4 py-3 text-[13px]">
-      <summary className="cursor-pointer font-semibold text-ink-2">Merge fields a text may use</summary>
+/// The merge fields a body may name, as lists to copy from: an award's and an agreement's, and a tender pack's in a group of their own, with a picker for the clauses.
+function MergeFieldList({ clauses }: { clauses: { code: string; title: string }[] }) {
+  const group = (title: string, note: string | null, fields: readonly { key: string; labelEn: string }[]) => (
+    <div>
+      <p className="font-semibold text-ink-2">{title}</p>
+      {note && <p className="mt-0.5 text-[12.5px] text-ink-3">{note}</p>}
       <ul className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-2">
-        {MERGE_FIELDS.map((f) => (
+        {fields.map((f) => (
           <li key={f.key} className="min-w-0 break-words">
             <code className="font-mono text-[12px] text-ink">{`{{${f.key}}}`}</code> <span className="text-ink-3">{f.labelEn}</span>
           </li>
         ))}
       </ul>
-    </details>
+    </div>
+  );
+  return (
+    <div className="flex flex-col gap-3">
+      <InsertClause clauses={clauses} />
+      <details className="rounded-xl border border-line px-4 py-3 text-[13px]">
+        <summary className="cursor-pointer font-semibold text-ink-2">Merge fields a text may use</summary>
+        <div className="mt-3 flex flex-col gap-4">
+          {group("Tender documents", "The registration and window fields belong in the notice, and the permit field in the instructions to tenderers. They are filled when the documents are submitted for approval.", PACK_MERGE_FIELDS)}
+          {group("Awards and agreements", null, MERGE_FIELDS)}
+        </div>
+      </details>
+    </div>
   );
 }
 
-export function AddTemplate({ classes }: { classes: DocumentClass[] }) {
+export function AddTemplate({ classes, clauses }: { classes: DocumentClass[]; clauses: { code: string; title: string }[] }) {
   return (
     <RecordEditor
       title="Add a template"
       description="A form the portal issues, and the printed original it stands next to."
       fields={templateFields(false, classes)}
-      sections={<MergeFieldList />}
+      sections={<MergeFieldList clauses={clauses} />}
       action={saveTemplate}
       size="lg"
       submitLabel="Add template"
@@ -104,15 +119,17 @@ export function AddTemplate({ classes }: { classes: DocumentClass[] }) {
 export function EditTemplate({
   row,
   classes,
+  clauses,
 }: {
   row: DocumentTemplate;
   classes: DocumentClass[];
+  clauses: { code: string; title: string }[];
 }) {
   return (
     <RecordEditor
       title={`Edit ${row.nameEn}`}
       fields={[{ kind: "hidden", name: "id" }, ...templateFields(true, classes)]}
-      sections={<MergeFieldList />}
+      sections={<MergeFieldList clauses={clauses} />}
       action={saveTemplate}
       size="lg"
       trigger={{ label: `Edit ${row.nameEn}`, iconOnly: <PencilIcon size={15} /> }}

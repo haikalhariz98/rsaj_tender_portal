@@ -121,3 +121,13 @@ describe("configuring a clause", () => {
     expect(nextBodyVersion({ bodyEn: "a", bodyMs: null, bodyVersion: 3 }, { bodyEn: "a", bodyMs: "b" })).toBe(4);
   });
 });
+
+describe("which templates cite a clause (U1: the clause rows say where it is carried from)", () => {
+  const t = (nameEn: string, bodyEn: string | null, bodyMs: string | null = null) => ({ nameEn, bodyEn, bodyMs });
+  it("names each template that cites the clause in either language, and none that does not", async () => {
+    const { templatesCiting } = await import("./fields");
+    const ts = [t("Conditions of contract", "General.\n\n{{clause:integrity}}"), t("Letter of acceptance", "Dear {{awardee.name}}"), t("Syarat", null, "Umum.\n\n{{clause:integrity}}"), t("Another clause", "{{clause:other}}")];
+    expect(templatesCiting("integrity", ts)).toEqual(["Conditions of contract", "Syarat"]);
+    expect(templatesCiting("absent", ts)).toEqual([]);
+  });
+});

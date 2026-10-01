@@ -1,5 +1,9 @@
 import { loadDocumentClasses, loadTemplates } from "@/lib/records/load";
+import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
+import { todayIn } from "@/lib/dates";
+import { liveClauses } from "@/lib/tender-docs/clauses";
+import { loadClauses } from "@/lib/tender-docs/repo";
 
 import { ProvenanceChip, Section, Stat, Stats } from "../records-ui";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
@@ -24,10 +28,14 @@ function textLine(t: { bodyMs: string | null; bodyEn: string | null; primaryLang
 }
 
 export default async function TemplatesPage() {
-  const [templates, classes] = await Promise.all([
+  const [templates, classes, org] = await Promise.all([
     loadTemplates(ORGANISATION_CODE),
     loadDocumentClasses(ORGANISATION_CODE),
+    db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, timeZone: true } }),
   ]);
+  // The clauses a text may cite (6.4 inc 2): live today, by title. Without the organisation's day none is judged live, so none is offered.
+  const today = org ? todayIn(new Date(), org.timeZone) : null;
+  const clauses = org && today ? liveClauses(await loadClauses(org.id), today).map((c) => ({ code: c.code, title: c.titleEn })) : [];
   const unclassified = templates.filter((t) => t.documentClassId == null);
   const withText = templates.filter((t) => t.bodyMs?.trim() || t.bodyEn?.trim()).length;
 
@@ -77,7 +85,7 @@ export default async function TemplatesPage() {
         blurb="A generated form has to stand next to the printed one it replaces, so each carries its form code and revision."
         empty="No template has been set. Nothing can be issued until one exists."
         count={templates.length}
-        action={<AddTemplate classes={classes} />}
+        action={<AddTemplate classes={classes} clauses={clauses} />}
       >
         <Table>
           <colgroup>
@@ -121,7 +129,7 @@ export default async function TemplatesPage() {
                   <Td>
                     <RowActions>
                       <HistoryButton iconOnly entity="DocumentTemplate" entityId={t.id} label={t.nameEn} />
-                      <EditTemplate row={t} classes={classes} />
+                      <EditTemplate row={t} classes={classes} clauses={clauses} />
                     </RowActions>
                   </Td>
                 </Tr>

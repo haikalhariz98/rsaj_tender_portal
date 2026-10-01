@@ -9,7 +9,7 @@
  * name (FR-DOC-006), and the configured clauses, cited as {{clause:code}} (FR-DOC-011).
  */
 
-import type { MergeWhitelist } from "@/lib/templates/merge";
+import { fieldsNamed, type MergeWhitelist } from "@/lib/templates/merge";
 
 export const PACK_MERGE_FIELDS: readonly { key: string; labelEn: string }[] = [
   { key: "organisation.name", labelEn: "Organisation" },
@@ -35,6 +35,12 @@ export const PERMIT_FIELD = "permit.type";
 export const CLAUSE_PREFIX = "clause:";
 export const clauseField = (code: string) => `${CLAUSE_PREFIX}${code}`;
 export const clauseCodeOf = (key: string) => (key.startsWith(CLAUSE_PREFIX) ? key.slice(CLAUSE_PREFIX.length) : null);
+
+/// The templates whose text (in either language) cites a clause, by name: where a clause is carried from.
+export function templatesCiting(clauseCode: string, templates: readonly { nameEn: string; bodyEn: string | null; bodyMs: string | null }[]): string[] {
+  const key = clauseField(clauseCode);
+  return templates.filter((t) => [t.bodyEn, t.bodyMs].some((b) => !!b && fieldsNamed(b).includes(key))).map((t) => t.nameEn);
+}
 
 const KEYS: ReadonlySet<string> = new Set(PACK_MERGE_FIELDS.map((f) => f.key));
 

@@ -11,6 +11,7 @@ import { PROVENANCE_LABEL } from "@/lib/scope/labels";
 
 import { partRetiredOn } from "./config";
 import { conditionsHoldingWorkBack, permitListUseFaults } from "./config-conditions";
+import { templatesCiting } from "./fields";
 import { NOT_SET, yesNoNotSet } from "./labels";
 import { loadClauses, loadRegistrationBodies, loadTaxonomyUses, loadTenderPolicy } from "./repo";
 
@@ -19,12 +20,13 @@ const provenance = (p: string | null | undefined) => (p ? ((PROVENANCE_LABEL as 
 export async function conditionsConfig(showRetired = false) {
   const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, timeZone: true } });
   if (!org) return null;
-  const [bodies, clauses, policy, taxonomies, uses] = await Promise.all([
+  const [bodies, clauses, policy, taxonomies, uses, templates] = await Promise.all([
     loadRegistrationBodies(org.id),
     loadClauses(org.id),
     loadTenderPolicy(org.id),
     db.classificationTaxonomy.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { code: true, nameEn: true, _count: { select: { values: true } } } }),
     loadTaxonomyUses(org.id),
+    db.documentTemplate.findMany({ where: { organisationId: org.id }, orderBy: { nameEn: "asc" }, select: { nameEn: true, bodyEn: true, bodyMs: true } }),
   ]);
   const today = todayIn(new Date(), org.timeZone);
   const retired = (r: string | null) => partRetiredOn(r, today) === true;
@@ -52,6 +54,8 @@ export async function conditionsConfig(showRetired = false) {
         version: `Text version ${c.bodyVersion}`,
         mandatory: yesNoNotSet(c.mandatoryInAgreements),
         malay: c.bodyMs?.trim() ? "English and Malay" : "English only",
+        /// The templates that cite it (a clause no template cites is carried by none).
+        citedBy: templatesCiting(c.code, templates),
         provenance: c.provenance,
         governingSource: c.governingSource || null,
         retired: retired(c.retiredOn),
