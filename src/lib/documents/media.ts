@@ -37,6 +37,16 @@ export function sniffMediaType(head: Uint8Array): Sniffed {
  * no control character other than tab, carriage return and line feed, and the first line
  * holds a comma, the delimiter. Plain prose with no comma on its first line is not a CSV.
  * Judged after the markup checks, so a page of HTML named `.csv` is still refused as markup.
+ *
+ * Invariant this relies on: a stored file is only ever served by the document download
+ * route (`src/app/api/documents/versions/[id]/route.ts`), as an attachment (never inline,
+ * `dispositionFilename`), with the stored type and `X-Content-Type-Options: nosniff`.
+ * These tests are loose by design — text with a comma on its first line passes — so a
+ * file accepted as CSV may still hold markup or script further down. It is safe only
+ * because no browser renders it: it is saved, not shown, and not re-sniffed. Serving a
+ * stored document inline, or without `nosniff`, would break that; any new route that
+ * serves stored bytes must keep both. (The organisation logo route is inline, and takes
+ * only the images `src/lib/organisation/logo.ts` decodes, never a stored document.)
  */
 function looksLikeCsv(head: Uint8Array): boolean {
   let text: string;
