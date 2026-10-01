@@ -502,13 +502,13 @@ export async function requestNameApproval(_prev: FormState, data: FormData): Pro
     if (pf) return refuse([pf], "Not sent:");
     const value = parseSen(ex.estimatedValue.toString());
     // The requester is barred from deciding: where they hold a step's office, the
-    // approval escalates, or the route says only a delegate can decide (review #5).
+    // approval escalates; where they alone could act for a step, it is refused (R1).
     const [roster, delegations] = [await loadRoster(ORGANISATION_CODE, tx), await loadDelegations(ORGANISATION_CODE, tx)];
     const units = (await tx.orgUnit.findMany({ where: { organisationId: l.org.id } })) as unknown as OrgUnit[];
     const unitPath = pathTo(units, l.req.sectionUnitCode || l.req.requestingUnitCode, dayToDate(l.org.today!)).reverse().map((u) => u.code);
     const holders = (code: string) => holdersFor(code, unitPath, roster, delegations, l.org.today!);
     const requesterId = l.req.requestingPersonId;
-    const res = nameRouteForRequester(ctx.funder, method!, Number(senToDecimalString(value)), requesterHolding(holders, requesterId));
+    const res = nameRouteForRequester(ctx.funder, method!, Number(senToDecimalString(value)), requesterHolding(holders, requesterId, value, (pid) => roster.people.some((p) => p.id === pid && p.isActive && p.isAvailable)));
     if (res.refusal) return { ok: false, message: `Not sent: ${res.refusal}` };
     if (res.nameState !== "RESOLVED") {
       const { NAME_STATE_TEXT } = await import("@/lib/method/labels");

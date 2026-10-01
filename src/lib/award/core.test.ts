@@ -293,3 +293,26 @@ describe("one rule for a live award", () => {
     expect(LIVE_STATUSES).toHaveLength(5);
   });
 });
+
+describe("award submission refuses a step only the requester could act for (FR-APR-008, ruling R1)", () => {
+  const quotation = SPEC_METHODS.find((m) => m.code === "open_quotation")!;
+  // The requester is the Chief Executive: the approval escalates to the Chairman, and the
+  // Chief Executive's step is downgraded to a recommendation the requester alone holds.
+  const m = { ...AWARD_MATRIX, roles: { ...AWARD_MATRIX.roles, CEO: { ...AWARD_MATRIX.roles.CEO, selfApprovalEscalatesToCode: "CHAIR" } } };
+  const ctx = { dal: m, override: null, supersedes: false };
+  const people = (delegateIds: string[]) => ({
+    absentRoleCodes: [],
+    requesterHolds: (c: string) => c === "CEO",
+    requesterId: "p_ceo",
+    ableToAct: (c: string) => (c === "CEO" ? { holderIds: ["p_ceo"], delegateIds } : { holderIds: [`p_${c.toLowerCase()}`], delegateIds: [] }),
+  });
+  it("is refused, naming a delegation or another raiser, where the requester alone holds the downgraded step", () => {
+    const r = appointmentRoute(ctx, quotation, 180_000, people([]));
+    expect(r).toMatchObject({ ok: false, fault: "REQUESTER_ONLY" });
+    expect(!r.ok && r.messages.join(" ")).toMatch(/Record a delegation .*or have another officer raise the requisition/);
+  });
+  it("routes once a delegation of that office to another officer is live", () => {
+    const r = appointmentRoute(ctx, quotation, 180_000, people(["p_deputy"]));
+    expect(r.ok && r.approverCode).toBe("CHAIR");
+  });
+});

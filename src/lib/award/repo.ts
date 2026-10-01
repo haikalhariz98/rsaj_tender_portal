@@ -19,7 +19,7 @@ import { ORGANISATION_CODE, ORGANISATION_NAME } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
-import { holdersFor } from "@/lib/requisition/holders";
+import { ableToAct, holdersFor } from "@/lib/requisition/holders";
 import { recordOf, type DecisionRow } from "@/lib/requisition/repo";
 import type { ApprovalStatus, RequisitionStatus, StepDecision } from "@/lib/requisition/types";
 import type { LiabilityBand } from "@/lib/securities/liability";
@@ -299,6 +299,8 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
     routePeople: {
       absentRoleCodes: org.today ? absentOffices(officeCodes, holdersOf, available) : [],
       requesterHolds: (code) => holdersOf(code).holderIds.includes(req.requestingPersonId),
+      requesterId: req.requestingPersonId,
+      ableToAct: (code) => ableToAct(holdersOf(code), req.requestingPersonId, senFromDecimal(award.awardedValue), available),
     },
     appointment: route ? { status: route.status as ApprovalStatus, openedAt: route.openedAt, steps: routeSteps(route) } : null,
     recipients: config.recipients,

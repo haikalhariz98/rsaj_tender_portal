@@ -28,7 +28,8 @@ import { fundingGate } from "@/lib/requisition/funding";
 import { absentOffices } from "@/lib/authority/absence";
 import { actingOffice } from "@/lib/authority/escalation";
 import { committeeCitationWrite, personDecisionWrite } from "@/lib/authority/decided-step";
-import { deciderFaults, holdersFor, requesterHoldsApprover } from "@/lib/requisition/holders";
+import { ableToAct, deciderFaults, holdersFor, requesterHoldsApprover } from "@/lib/requisition/holders";
+import { requesterOnlySteps, requesterOnlyText } from "@/lib/authority/requester-only";
 import { intakeFaults, type ExternalRequisition, type ReceivedStep } from "@/lib/requisition/intake";
 import {
   DECIDER_FAULT_TEXT,
@@ -816,6 +817,14 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
       resolved = resolveRequisitionRoute(dal.matrix, override, { ...q, actorRoleCode: resolved.resolution.approverCode });
     }
     if (resolved.faults.length > 0) return { ok: false, message: resolved.faults.map((f) => f.messageEn).join(" ") };
+    // FR-APR-008 (ruling R1): a step only the requester could decide is refused here,
+    // with its way out, rather than opened to stall.
+    const valueSen = parseSen(req.estimatedValue.toString());
+    const onlyRequester = requesterOnlySteps(resolved.resolution.chain, req.requestingPersonId, (c) => ableToAct(holdersFor(c, unitPath, roster, delegations, todayStr), req.requestingPersonId, valueSen, available));
+    if (onlyRequester.length > 0) {
+      const office = (c: string) => (override?.matrix.roles[c] ?? dal.matrix.roles[c])?.nameEn ?? "an office no longer configured";
+      return { ok: false, message: onlyRequester.map((x) => requesterOnlyText(x, office(x.roleCode), "requisition", dal.matrix.policy.clauses?.selfApproval)).join(" ") };
+    }
 
     // Splitting (FR-REQ-015): NOT_SET is stored and shown, never cleared (OD-7).
     const others = await splitSubjects(tx, l.org.id);

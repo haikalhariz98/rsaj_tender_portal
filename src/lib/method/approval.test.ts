@@ -166,20 +166,21 @@ describe("a requester who holds a step of the name's route (review #5)", () => {
   it("escalates the approval as 6.1's self-approval rule does", async () => {
     const { nameRouteForRequester } = await import("./approval");
     const dal = { ...SPEC_MATRIX, roles: { ...SPEC_MATRIX.roles, FD: { ...SPEC_MATRIX.roles.FD, selfApprovalEscalatesToCode: "CEO" } } };
-    const r = nameRouteForRequester({ ...ctx, dal }, m("selective_quotation"), 80_000, { holds: (c) => c === "FD", soleHolder: () => false });
+    const r = nameRouteForRequester({ ...ctx, dal }, m("selective_quotation"), 80_000, { id: "req", holds: (c) => c === "FD", ableToAct: () => ({ holderIds: ["someone-else"], delegateIds: [] }) });
     expect(r.refusal).toBeNull();
     expect(r.approverCode).toBe("CEO");
     expect(chain(r)).toContain("FD:R");
   });
   it("refuses at request time, naming the setting, when there is nowhere to escalate", async () => {
     const { nameRouteForRequester } = await import("./approval");
-    const r = nameRouteForRequester(ctx, m("selective_quotation"), 80_000, { holds: (c) => c === "FD", soleHolder: () => false });
+    const r = nameRouteForRequester(ctx, m("selective_quotation"), 80_000, { id: "req", holds: (c) => c === "FD", ableToAct: () => ({ holderIds: ["someone-else"], delegateIds: [] }) });
     expect(r.refusal).toMatch(/self-approval escalates/);
   });
-  it("says so where only a delegate could decide a step the requester alone holds", async () => {
+  // Ruling R1 (FR-APR-008): this was a warning (REQUESTER_HOLDS_STEP); a step the
+  // requester alone is able to act for now refuses the request, naming the way out.
+  it("refuses where the requester alone is able to act for a step, naming a delegation or another raiser", async () => {
     const { nameRouteForRequester } = await import("./approval");
-    const r = nameRouteForRequester(ctx, m("selective_quotation"), 80_000, { holds: (c) => c === "HODIV", soleHolder: (c) => c === "HODIV" });
-    expect(r.refusal).toBeNull();
-    expect(r.warnings.map((w) => w.code as string)).toContain("REQUESTER_HOLDS_STEP");
+    const r = nameRouteForRequester(ctx, m("selective_quotation"), 80_000, { id: "req", holds: (c) => c === "HODIV", ableToAct: (c) => ({ holderIds: [c === "HODIV" ? "req" : "someone-else"], delegateIds: [] }) });
+    expect(r.refusal).toMatch(/Record a delegation .* or have another officer raise/);
   });
 });

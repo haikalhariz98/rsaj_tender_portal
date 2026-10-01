@@ -144,15 +144,14 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const approvedName = ex.approvalInstances.find((i) => i.status === "APPROVED") ?? null;
   const live = ex.status !== "CANCELLED";
   // The route as the request would make it: with the requester's own offices escalated,
-  // or refused, and a step only they hold warned of (review #5; 6.3 re-review).
+  // or refused, and refused where they alone could act for a step (FR-APR-008, R1).
   const unitPath = pathTo(units as unknown as OrgUnit[], req.sectionUnitCode || req.requestingUnitCode, on).reverse().map((u) => u.code);
   const nameRoute =
     live && ctx && method?.requiresNameApproval
       ? today
-        ? nameRouteForRequester(ctx.funder, method, Number(ex.estimatedValue.toString()), requesterHolding((code) => holdersFor(code, unitPath, roster, delegations, today), req.requestingPersonId))
+        ? nameRouteForRequester(ctx.funder, method, Number(ex.estimatedValue.toString()), requesterHolding((code) => holdersFor(code, unitPath, roster, delegations, today), req.requestingPersonId, parseSen(ex.estimatedValue.toString()), (pid) => roster.people.some((p) => p.id === pid && p.isActive && p.isAvailable)))
         : { ...resolveNameApproval(ctx.funder, method, Number(ex.estimatedValue.toString())), refusal: null }
       : null;
-  const requesterNotes = (nameRoute?.warnings ?? []).filter((w) => (w.code as string) === "REQUESTER_HOLDS_STEP").map((w) => w.messageEn);
   // Asked in draft or in preparation, and again after a refusal or withdrawal (ruling on BD-4).
   const canAskName = live && !!method?.requiresNameApproval && !openName && !approvedName;
   const nameBlocker = !canAskName
@@ -365,7 +364,6 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
                 current={openName ?? latestFirst(ex.approvalInstances)[0] ?? null}
                 preview={nameRoute && nameRoute.nameState === "RESOLVED" && !nameRoute.refusal ? nameRoute.chain.map((s) => ({ role: issue?.matrix.roles[s.roleCode]?.nameEn ?? "An office no longer configured", act: s.act })) : null}
                 previewText={nameRoute && nameRoute.nameState !== "RESOLVED" ? NAME_STATE_TEXT[nameRoute.nameState] : (nameRoute?.refusal ?? null)}
-                previewNotes={requesterNotes}
                 suggestions={suggestions}
                 today={today}
                 people={roster.people.filter((p) => p.isActive).map((p) => ({ value: p.id, label: p.name }))}
@@ -874,7 +872,6 @@ function NamePanel({
   current,
   preview,
   previewText,
-  previewNotes,
   suggestions,
   today,
   people,
@@ -886,8 +883,6 @@ function NamePanel({
   current: LoadedExercise["ex"]["approvalInstances"][number] | null;
   preview: { role: string; act: string }[] | null;
   previewText: string | null;
-  /// Said before the route exists: a step only the requester holds (REQUESTER_HOLDS_STEP).
-  previewNotes: string[];
   suggestions: (roleCode: string | null) => { value: string; label: string }[];
   today: string | null;
 }) {
@@ -915,9 +910,6 @@ function NamePanel({
                     </li>
                   ))}
                 </ol>
-                {previewNotes.map((n) => (
-                  <Callout key={n} tone="warn">{n}</Callout>
-                ))}
               </>
             ) : (
               <p className="text-[13.5px] text-ink-2">{previewText ?? "Requested once the exercise is ready."}</p>

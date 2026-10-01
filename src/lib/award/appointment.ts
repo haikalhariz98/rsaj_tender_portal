@@ -11,6 +11,7 @@
  * resolves, and its warning stays on the route (AGENTS rule 2).
  */
 
+import { requesterOnlySteps, requesterOnlyText, type AbleToAct } from "@/lib/authority/requester-only";
 import type { ApprovalStep, ResolutionWarning } from "@/lib/authority/types";
 import { invitationFault, resolveUnderFunder, type FunderContext } from "@/lib/method/approval";
 import { dossierFault } from "@/lib/method/justification";
@@ -18,7 +19,7 @@ import { APPOINTMENT_DOMAIN, type Method } from "@/lib/method/types";
 
 import type { Finding } from "./types";
 
-export type RouteFault = "DEPENDS_ON_METHOD" | "NO_METHOD_KEY" | "NO_RULE" | "ROUTE_ERROR";
+export type RouteFault = "DEPENDS_ON_METHOD" | "NO_METHOD_KEY" | "NO_RULE" | "ROUTE_ERROR" | "REQUESTER_ONLY";
 
 export type AppointmentRoute =
   | {
@@ -40,6 +41,11 @@ export interface RoutePeople {
   absentRoleCodes: readonly string[];
   /// Whether the requisition's requester holds an office for its unit on the day.
   requesterHolds: (roleCode: string) => boolean;
+  /// The requisition's requester, and who is able to act for an office on the day
+  /// (FR-APR-008, ruling R1). Given at submission; left out only where the route is
+  /// resolved for its rule alone (opening the award), never to excuse the check.
+  requesterId?: string | null;
+  ableToAct?: (roleCode: string) => AbleToAct;
 }
 
 export function appointmentRoute(ctx: FunderContext, method: Method | null, value: number, people: RoutePeople): AppointmentRoute {
@@ -56,6 +62,15 @@ export function appointmentRoute(ctx: FunderContext, method: Method | null, valu
   const rule = r.resolution.rule!;
   const errors = r.warnings.filter((w) => w.level === "err");
   if (errors.length > 0 || !r.resolution.approverCode) return fail("ROUTE_ERROR", errors.map((w) => w.messageEn), rule);
+  // FR-APR-008 (ruling R1): a step only the requisition's requester could act for.
+  if (people.ableToAct && people.requesterId) {
+    const only = requesterOnlySteps(r.resolution.chain, people.requesterId, people.ableToAct);
+    if (only.length > 0) {
+      const roles = r.source === "OVERRIDE" && ctx.override ? ctx.override.matrix.roles : ctx.dal.roles;
+      const office = (c: string) => roles[c]?.nameEn ?? ctx.dal.roles[c]?.nameEn ?? "an office no longer configured";
+      return fail("REQUESTER_ONLY", only.map((s) => requesterOnlyText(s, office(s.roleCode), "requisition", ctx.dal.policy.clauses?.selfApproval)), rule);
+    }
+  }
   return {
     ok: true,
     ruleKey: rule.ruleKey,

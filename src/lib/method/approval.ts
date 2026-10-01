@@ -10,8 +10,12 @@
  * skipped silently.
  */
 
+import { requesterOnlySteps, requesterOnlyText, type AbleToAct } from "@/lib/authority/requester-only";
 import { resolveApproval } from "@/lib/authority/resolve";
 import type { ApprovalStep, Matrix, Resolution, ResolutionWarning, ResolveQuery } from "@/lib/authority/types";
+
+import type { Sen } from "@/lib/money";
+import { ableToAct, type Holders } from "@/lib/requisition/holders";
 
 import { APPOINTMENT_DOMAIN, NAME_APPROVAL_DOMAIN, type Finding, type Method } from "./types";
 
@@ -215,30 +219,41 @@ export function nameRequestFault(
   return null;
 }
 
-/// Whether the requester holds an office, and whether they alone do, from 6.1's holder
-/// lookup for the requisition's unit. The request action and the page both ask it.
-export function requesterHolding(holdersOf: (roleCode: string) => { holderIds: readonly string[] }, requesterId: string) {
+/// Whether the requester holds an office, and who else is able to act for it, from
+/// 6.1's holder lookup for the requisition's unit on the day: holders and live
+/// delegates within their ceiling, available (FR-APR-008, ruling R1). The request
+/// action and the page both ask it.
+export function requesterHolding(
+  holdersOf: (roleCode: string) => Holders,
+  requesterId: string,
+  value: Sen,
+  available: (personId: string) => boolean,
+): RequesterOnName {
   return {
+    id: requesterId,
     holds: (code: string) => holdersOf(code).holderIds.includes(requesterId),
-    soleHolder: (code: string) => {
-      const h = holdersOf(code).holderIds;
-      return h.length > 0 && h.every((x) => x === requesterId);
-    },
+    ableToAct: (code: string) => ableToAct(holdersOf(code), requesterId, value, available),
   };
+}
+
+export interface RequesterOnName {
+  id: string;
+  holds: (roleCode: string) => boolean;
+  ableToAct: (roleCode: string) => AbleToAct;
 }
 
 /**
  * The name's route with the requester in mind (6.1's rule, reused). Where the
  * requisition's requester holds the approving office, the engine's self-approval rule
  * escalates it; with nowhere to escalate, the route is refused naming the setting.
- * Any other step whose office only the requester holds could be decided only by a
- * delegate: said, as a warning on the route.
+ * Any other step only the requester is able to act for is refused too, naming the way
+ * out (FR-APR-008, ruling R1: it was a warning; a route nobody can move is not opened).
  */
 export function nameRouteForRequester(
   ctx: FunderContext,
   method: Method,
   value: number,
-  requester: { holds: (roleCode: string) => boolean; soleHolder: (roleCode: string) => boolean },
+  requester: RequesterOnName,
 ): (AppointmentPreview & { nameState: NameApprovalState }) & { refusal: string | null } {
   let r = resolveNameApproval(ctx, method, value);
   if (r.nameState !== "RESOLVED") return { ...r, refusal: null };
@@ -258,13 +273,11 @@ export function nameRouteForRequester(
       warnings: e.warnings,
     };
   }
-  const only = r.chain.filter((s) => !s.committeeCode && requester.soleHolder(s.roleCode));
-  const notes = only.map((s) => ({
-    code: "REQUESTER_HOLDS_STEP",
-    level: "warn" as const,
-    messageEn: `The requisition's requester is the only holder of the ${ctx.dal.roles[s.roleCode]?.nameEn ?? "office"} step and may not decide it: only a delegate of that office can.`,
-    messageMs: "Pemohon ialah satu-satunya pemegang jawatan ini; hanya wakil boleh memutuskan.",
-  }));
-  // A warning of this module, not of the engine: worded, and rendered by its text.
-  return { ...r, warnings: [...r.warnings, ...(notes as unknown as ResolutionWarning[])], refusal: null };
+  const roles = r.source === "OVERRIDE" && ctx.override ? ctx.override.matrix.roles : ctx.dal.roles;
+  const only = requesterOnlySteps(r.chain, requester.id, requester.ableToAct);
+  if (only.length > 0) {
+    const refusal = only.map((s) => requesterOnlyText(s, roles[s.roleCode]?.nameEn ?? ctx.dal.roles[s.roleCode]?.nameEn ?? "an office no longer configured", "requisition", ctx.dal.policy.clauses?.selfApproval)).join(" ");
+    return { ...r, refusal };
+  }
+  return { ...r, refusal: null };
 }

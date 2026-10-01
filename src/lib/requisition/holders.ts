@@ -167,3 +167,25 @@ export function requesterHoldsApprover(
 ): boolean {
   return holdersFor(approverCode, unitPath, roster, delegations, day).holderIds.includes(requesterId);
 }
+
+/**
+ * The people able to act for an office on the day, for the requester-only check
+ * (FR-APR-008, ruling R1): its holders and live delegates who are active and available,
+ * delegates only where their ceiling reaches the value. The requester is counted
+ * wherever they hold the office or a delegation of it, available or not — the question
+ * is whether anybody but them could act.
+ */
+export function ableToAct(
+  h: Holders,
+  requesterId: string | null,
+  value: Sen,
+  available: (personId: string) => boolean,
+): { holderIds: string[]; delegateIds: string[] } {
+  const counts = (pid: string) => pid === requesterId || available(pid);
+  return {
+    holderIds: h.holderIds.filter(counts),
+    delegateIds: h.delegates
+      .filter((d) => counts(d.personId) && (d.delegation.valueCeiling == null || value <= parseSen(d.delegation.valueCeiling)))
+      .map((d) => d.personId),
+  };
+}

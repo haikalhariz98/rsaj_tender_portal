@@ -163,6 +163,8 @@ export function awardFindingText(f: Finding): string {
       return `No approval rule approves this appointment at this value. It cannot be routed: escalate it to the immediate superior of the indicated approving authority, and record a rule or a known gap for it on the approval matrix.${d.messages ? ` ${d.messages}` : ""}`;
     case "ROUTE_ERROR":
       return `The appointment's route cannot be relied on: ${d.messages ?? "the approval matrix raised an error"}`;
+    case "REQUESTER_ONLY":
+      return d.messages ? String(d.messages) : "The requisition's requester is the only officer able to act for a step of the appointment's route, and nobody decides a step of a matter they raised. Record a delegation of that office to another officer under Users & roles, or have another officer raise the requisition.";
     case "EVIDENCE_NOT_ATTACHED":
       return "A direct appointment is not approved without supporting evidence attached (its dossier), and the portal cannot store documents yet. This award cannot go for approval in the portal until it can; keep it as a draft, or cancel it.";
     // Close-out ruling CO-8: until 6.5 enforces it at invitation, at submission.

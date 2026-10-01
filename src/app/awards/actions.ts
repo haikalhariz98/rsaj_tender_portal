@@ -156,6 +156,8 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
       if (!issue || !ctx) return refuse([{ code: "NO_ISSUE_IN_FORCE", level: "block" }], "No award was opened:");
       const value = parseSen(v.awardedValue!);
       const method = cfg.config.methods.find((m) => m.code === ex.sourcingMethodCode) ?? null;
+      // Resolved here for its rule alone (the value checks below); who can act, and the
+      // requester-only check (FR-APR-008), are judged at submission.
       const route = appointmentRoute(ctx.funder, method, Number(senToDecimalString(value)), { absentRoleCodes: [], requesterHolds: () => false });
       const siblings = await tx.award.findMany({ where: { exercise: { requisitionId: req.id }, status: { in: [...LIVE_STATUSES] } }, select: { awardedValue: true } });
       const faults = awardValueFaults({

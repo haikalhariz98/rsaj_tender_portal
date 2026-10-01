@@ -32,7 +32,8 @@ import { commitmentFault } from "@/lib/requisition/commitment";
 import { endorsementFaults, endorsersFor } from "@/lib/requisition/endorsement";
 import { blocking, requisitionFaults } from "@/lib/requisition/fields";
 import { fundingGate } from "@/lib/requisition/funding";
-import { deciderFaults, holdersFor, requesterHoldsApprover } from "@/lib/requisition/holders";
+import { ableToAct, deciderFaults, holdersFor, requesterHoldsApprover } from "@/lib/requisition/holders";
+import { requesterOnlySteps, requesterOnlyText } from "@/lib/authority/requester-only";
 import {
   approvalRouteLabel,
   GATE_STATE_LABEL,
@@ -277,6 +278,14 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
         preview = resolveRequisitionRoute(dal.matrix, override, { ...q, actorRoleCode: preview.resolution.approverCode });
       }
       if (preview.faults.length > 0) submitBlocker ??= preview.faults[0].messageEn;
+      // FR-APR-008 (ruling R1), as submission will judge it.
+      if (today && preview.faults.length === 0) {
+        const available = (pid: string) => !!byId.get(pid)?.isActive && !!byId.get(pid)?.isAvailable;
+        const valueSen = parseSen(r.estimatedValue.toString());
+        const onlyRequester = requesterOnlySteps(preview.resolution.chain, r.requestingPersonId, (c) => ableToAct(holdersFor(c, path, roster, delegations, today), r.requestingPersonId, valueSen, available));
+        const office = (c: string) => (override?.matrix.roles[c] ?? dal.matrix.roles[c])?.nameEn ?? "an office no longer configured";
+        if (onlyRequester.length > 0) submitBlocker ??= onlyRequester.map((x) => requesterOnlyText(x, office(x.roleCode), "requisition", dal.matrix.policy.clauses?.selfApproval)).join(" ");
+      }
     }
   }
 

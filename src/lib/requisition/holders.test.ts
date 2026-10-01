@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Delegation } from "@/lib/people/delegation";
 import type { Roster } from "@/lib/people/roster";
 
-import { deciderFaults, holdersFor, requesterHoldsApprover, type DeciderContext } from "./holders";
+import { ableToAct, deciderFaults, holdersFor, requesterHoldsApprover, type DeciderContext } from "./holders";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
 const person = (id: string, isActive = true) => ({
@@ -203,5 +203,19 @@ describe("a declared conflict bars the declarer (FR-APR-009)", () => {
       },
     );
     expect(check.faults).toEqual(["DECLARED_CONFLICT"]);
+  });
+});
+
+describe("who is able to act for an office on the day (FR-APR-008, ruling R1)", () => {
+  const all = () => true;
+  it("counts holders and live delegates within their ceiling", () => {
+    const h = holdersFor("DEPT_HEAD", PATH, ROSTER, [delegation({ valueCeiling: "10000.00" })], "2026-09-30");
+    expect(ableToAct(h, "req", 1_000_000n, all)).toEqual({ holderIds: ["hodNth"], delegateIds: ["deputy"] });
+    // RM10,000.01 is one sen over the delegate's ceiling.
+    expect(ableToAct(h, "req", 1_000_001n, all)).toEqual({ holderIds: ["hodNth"], delegateIds: [] });
+  });
+  it("leaves out anyone not available, but never the requester", () => {
+    const h = holdersFor("DEPT_HEAD", PATH, ROSTER, [delegation()], "2026-09-30");
+    expect(ableToAct(h, "hodNth", 100n, (pid) => pid !== "hodNth" && pid !== "deputy")).toEqual({ holderIds: ["hodNth"], delegateIds: [] });
   });
 });
