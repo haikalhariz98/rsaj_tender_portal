@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, useTransition, type ReactNode } from "reac
 import { PlusIcon, SaveIcon } from "@/components/icons";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import { Callout } from "@/components/ui/feedback";
-import { AffixInput, Field, Input, Select, Switch, Textarea } from "@/components/ui/field";
+import { AffixInput, Field, FileInput, Input, Select, Switch, Textarea } from "@/components/ui/field";
 import { splitValues } from "@/lib/ui/select-logic";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 
@@ -60,6 +60,10 @@ export type Field =
       orphanLabel?: string;
     }
   | { kind: "switch"; name: string; label: string; hint?: string }
+  /// A file chosen from the officer's device, on the shared FileInput. It rides out in the
+  /// form's data as a File: the action that reads it is a client function that sends it
+  /// where a body of that size can go (never a Server Action, which caps a body at 1 MB).
+  | { kind: "file"; name: string; label: string; required?: boolean; hint?: string; accept?: string }
   /// Several values at once, shown as removable tags.
   | {
       kind: "tokens";
@@ -125,7 +129,8 @@ export function RecordEditor({
   action: SaveAction;
   /// Current values, when editing. Absent means a new record and empty inputs.
   values?: Record<string, string | boolean | null>;
-  trigger: { label: string; className?: string; icon?: boolean; iconOnly?: ReactNode };
+  trigger: { label: string; className?: string; icon?: boolean; iconOnly?: ReactNode; /// A longer name for a screen reader where the visible label is short and repeated down a list.
+    ariaLabel?: string };
   submitLabel?: string;
   /// The footer's dismiss button. A destructive act says what dismissing keeps ("Keep the award").
   cancelLabel?: string;
@@ -208,7 +213,7 @@ export function RecordEditor({
         className={
           trigger.className ?? (trigger.iconOnly ? iconButtonClass("sm") : buttonClass("secondary", "sm"))
         }
-        aria-label={trigger.iconOnly ? trigger.label : undefined}
+        aria-label={trigger.iconOnly ? trigger.label : trigger.ariaLabel}
         title={trigger.iconOnly ? trigger.label : undefined}
         onClick={() => {
           setState(EMPTY_FORM_STATE);
@@ -359,6 +364,14 @@ function FieldInput({
         <Switch name={field.name} defaultChecked={value === true} label={field.label} description={hint} />
         {error && <p className="mt-1.5 text-[12.5px] font-medium text-rose-600">{error}</p>}
       </div>
+    );
+  }
+
+  if (field.kind === "file") {
+    return (
+      <Field label={field.label} required={required} htmlFor={id} hint={hint} error={error} className="sm:col-span-2">
+        <FileInput id={id} name={field.name} accept={field.accept} aria-invalid={error ? true : undefined} />
+      </Field>
     );
   }
 

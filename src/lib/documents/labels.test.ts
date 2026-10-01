@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { versionCreated, attached, policyView } from "./audit-view";
-import { CLASSIFICATION_LABEL, documentFaultText, formatBytes, mediaLabel, PURPOSE_LABEL, shortFingerprint, STATUS_LABEL } from "./labels";
+import { accessReasonText, CLASSIFICATION_LABEL, documentFaultText, WITHDRAW_NOTE, formatBytes, mediaLabel, PURPOSE_LABEL, shortFingerprint, STATUS_LABEL } from "./labels";
 import { megabytesToBytes, policyFaults } from "./policy";
 import { ATTACHMENT_PURPOSES, KNOWN_MEDIA_TYPES, SECURITY_CLASSES } from "./types";
 
@@ -61,5 +61,20 @@ describe("saving the upload rules", () => {
     expect(megabytesToBytes("0.5")).toBe(524288n);
     expect(megabytesToBytes("0")).toBeNull();
     expect(megabytesToBytes("abc")).toBeNull();
+  });
+});
+
+describe("the access log never shows a code", () => {
+  it("reads every reason the routes log as words, and nothing for a plain download", () => {
+    expect(accessReasonText("")).toBeNull();
+    for (const code of ["SULIT", "UNCLASSIFIED", "THREAT", "DIGEST_MISMATCH", "BYTES_MISSING", "TOO_LARGE", "TYPE_NOT_ALLOWED", "TYPES_NOT_SET", "DRIVER_NOT_BUILT"]) {
+      const t = accessReasonText(code)!;
+      expect(t, code).not.toBe("This was refused.");
+      expect(t.replace(/DOCUMENT_MAX_BYTES|DOCUMENT_STORE_DRIVER/g, ""), code).not.toMatch(/[A-Z]{2,}_[A-Z_]+/);
+    }
+  });
+  it("the withdraw note says withdrawal does not stop downloads and names the way to", () => {
+    expect(WITHDRAW_NOTE).toMatch(/does NOT stop/);
+    expect(WITHDRAW_NOTE).toMatch(/SULIT/);
   });
 });

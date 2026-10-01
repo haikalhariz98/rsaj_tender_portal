@@ -116,6 +116,32 @@ export const DOWNLOAD_REFUSAL_TEXT: Readonly<Record<DownloadRefusal, string>> = 
   THREAT: "Malware was found in this file, so it is not opened. The request was refused and logged.",
 };
 
+/// Why an access event was logged, in words. The stored reason is a code (a refusal's finding
+/// or a download decision's); it never reaches a screen.
+export function accessReasonText(code: string): string | null {
+  if (!code) return null;
+  if (code === "SULIT" || code === "UNCLASSIFIED" || code === "THREAT") return DOWNLOAD_REFUSAL_TEXT[code].replace(/ The request was refused and logged\.$/, "");
+  if (code === "DIGEST_MISMATCH") return "The stored file did not hash to its fingerprint.";
+  if (code === "BYTES_MISSING") return "The stored file could not be found.";
+  return documentFaultText({ code, level: "block" });
+}
+
+/// Said on the withdraw form (BD-DS-18): withdrawal marks a version, it does not close access.
+export const WITHDRAW_NOTE =
+  "Withdrawing marks this version as withdrawn, with your reason, and keeps the file. It does NOT stop the file being downloaded. To stop downloads, set the document's classification to SULIT.";
+
+/// Said on the detach form: what taking a document off a record does and does not do.
+export const DETACH_NOTE =
+  "This takes the document off this record only. The file and every version stay stored and listed, and the record shows it was taken off, when and why.";
+
+/// Said on the classification form: what recording one does.
+export const RECLASSIFY_NOTE =
+  "Setting a classification, or raising it, is recorded with your reason. Raising it to SULIT stops the document being opened in the portal. A SULIT document is not lowered by one person.";
+
+/// Said on the new-version form: the new version moves the pin, the old one stays.
+export const NEW_VERSION_NOTE =
+  "Upload the corrected file. This record then points at the new version; the old version stays stored and the change is recorded with your reason.";
+
 /// The text for any finding this module's rules, the store and the route handlers return.
 export function documentFaultText(f: Finding): string {
   const d = f.data ?? {};

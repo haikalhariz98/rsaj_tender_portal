@@ -145,6 +145,21 @@ export function detachFault(i: { purpose: AttachmentPurpose; owner: OwnerFacts; 
   return out;
 }
 
+/**
+ * Whether a judged record relies on an attachment of this purpose, given how many live
+ * attachments of the purpose the owner holds (this one included). Only the last live one
+ * is relied on; a duplicate may come off. The one definition: the owner acts refuse by it
+ * and the screens disable Detach by it, so the two give the same reason.
+ */
+export function reliedOn(purpose: AttachmentPurpose, owner: OwnerFacts, liveOfPurpose: number): Reliance | null {
+  if (liveOfPurpose > 1) return null;
+  if (owner.kind === "award") return awardReliance(purpose, owner);
+  // OD-6: a delegation stands on its attached recommendation; the last live one is
+  // replaced by a new version, never simply taken off.
+  if (owner.kind === "delegation") return purpose === "HOLDER_RECOMMENDATION" ? "GRANTED_ON_IT" : null;
+  return null;
+}
+
 /// Whether an award's acceptance relied on a scan of this purpose (OD-5).
 export function awardReliance(purpose: AttachmentPurpose, owner: OwnerFacts): Reliance | null {
   if (owner.kind !== "award" || owner.status !== "ACCEPTED" || !owner.scansRequired) return null;

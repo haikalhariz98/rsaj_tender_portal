@@ -11,10 +11,12 @@ import { holdFaults, releaseFaults } from "@/lib/documents/hold";
 import { documentFaultText, FINGERPRINT_STATEMENT, PURPOSE_LABEL } from "@/lib/documents/labels";
 import { ownerOf, withLockedOwner, type LockedOwner } from "@/lib/documents/owners";
 import type { OwnerRef } from "@/lib/documents/repo";
+import { documentDrawer, ownerPanel, uploadContext } from "@/lib/documents/read";
 import { documentOrg, lockDocument, logAccess } from "@/lib/documents/service";
 import { blobStore, sha256Hex } from "@/lib/documents/store";
 import { ATTACHMENT_PURPOSES, blocking, OWNER_COLUMN, OWNER_KINDS, SECURITY_CLASSES, type Finding } from "@/lib/documents/types";
 import { withdrawFault } from "@/lib/documents/versioning";
+import { drawerView, panelView, type DrawerView, type PanelOptions, type PanelView } from "@/lib/documents/views";
 import { db } from "@/lib/db";
 import { FormReader } from "@/lib/validate";
 
@@ -267,4 +269,19 @@ export async function verifyVersion(_prev: FormState, data: FormData): Promise<F
   return ok
     ? { ok: true, message: `The fingerprint matches what was stored. ${FINGERPRINT_STATEMENT}` }
     : { ok: false, message: "The stored file does not match its fingerprint. This has been logged; report it to whoever runs the portal." };
+}
+
+// ------------------------------------------------------------------ reads for the client islands
+
+/// One document for the drawer, as words and dates. Null when it does not exist.
+export async function loadDocumentDrawer(documentId: string): Promise<DrawerView | null> {
+  const [org, d] = await Promise.all([documentOrg(), documentDrawer(String(documentId))]);
+  return d ? drawerView(d, org?.timeZone ?? null) : null;
+}
+
+/// An owner's panel, for a drawer that opens it on request (a delegation's documents).
+export async function loadOwnerPanel(ref: OwnerRef, opts: PanelOptions = {}): Promise<PanelView | null> {
+  if (!OWNER_KINDS.includes(ref.kind)) return null;
+  const [org, panel, upload] = await Promise.all([documentOrg(), ownerPanel(ref), uploadContext()]);
+  return panel && upload ? panelView(panel, upload, org?.timeZone ?? null, opts) : null;
 }

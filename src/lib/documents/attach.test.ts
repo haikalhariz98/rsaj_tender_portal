@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { attachFault, awardReliance, detachFault, ownerState, purposeFits, repinFault, type OwnerFacts } from "./attach";
+import { attachFault, awardReliance, detachFault, reliedOn, ownerState, purposeFits, repinFault, type OwnerFacts } from "./attach";
 import { documentFaultText } from "./labels";
 
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
@@ -120,5 +120,18 @@ describe("detaching (with a reason) and re-pinning a new version (OD-8)", () => 
   });
   it("an accepted award's scan is replaced by a new version (the correction path)", () => {
     expect(repinFault({ purpose: "DECLARATION", owner: award({ status: "ACCEPTED" }), reason: "Clearer scan", attachment: { detachedAt: null, versionId: "v1", documentId: "d1" }, to: { id: "v2", documentId: "d1", withdrawnAt: null } })).toEqual([]);
+  });
+});
+
+describe("what is relied on is one rule for the act and the screen", () => {
+  it("the last live scan of an accepted award, and the last live recommendation, are relied on; a duplicate is not", () => {
+    const accepted = award({ status: "ACCEPTED" });
+    expect(reliedOn("DECLARATION", accepted, 1)).toBe("ACCEPTED_ON_IT");
+    expect(reliedOn("DECLARATION", accepted, 2)).toBeNull();
+    expect(reliedOn("DECLARATION", award(), 1)).toBeNull();
+    expect(reliedOn("HOLDER_RECOMMENDATION", { kind: "delegation", ended: false }, 1)).toBe("GRANTED_ON_IT");
+    expect(reliedOn("HOLDER_RECOMMENDATION", { kind: "delegation", ended: false }, 2)).toBeNull();
+    expect(reliedOn("SIGNED_MINUTES", minuted, 1)).toBeNull();
+    expect(reliedOn("DOSSIER_EVIDENCE", exercise(), 1)).toBeNull();
   });
 });

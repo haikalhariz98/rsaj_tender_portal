@@ -19,7 +19,7 @@ import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { requisitionOfExercise, withLockedRequisitionForSourcing } from "@/lib/method/repo";
 
-import { awardReliance, type OwnerFacts, type Reliance } from "./attach";
+import { reliedOn, type OwnerFacts, type Reliance } from "./attach";
 import { awardFacts, delegationFacts, exerciseFacts, meetingFacts } from "./owner-facts";
 import type { OwnerRef } from "./repo";
 import { documentOrg } from "./service";
@@ -89,8 +89,7 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
           label: `${a.reference}`,
           facts,
           paths: [`/awards/${a.id}`, "/awards"],
-          // Only the last live scan of an item is relied on; a duplicate may come off.
-          reliance: (purpose, live) => (live <= 1 ? awardReliance(purpose, facts) : null),
+          reliance: (purpose, live) => reliedOn(purpose, facts, live),
           // OD-5, BD-12: the scan that completes the return accepts the award in the same act.
           afterChange: (tx) => acceptOnCompleteReturn(tx, l),
         });
@@ -106,16 +105,15 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
         });
         if (!d) return null;
         const today = org.today ?? storedDay(new Date());
+        const facts = delegationFacts(d, today);
         return fn(tx, {
           ref,
           organisationId: org.id,
           today: org.today,
           label: `Delegation · ${d.fromPerson.name} to ${d.toPerson.name}`,
-          facts: delegationFacts(d, today),
+          facts,
           paths: ["/configuration/users"],
-          // OD-6: a delegation stands on its attached recommendation; the last live one is
-          // replaced by a new version, never simply taken off.
-          reliance: (purpose, live) => (purpose === "HOLDER_RECOMMENDATION" && live <= 1 ? "GRANTED_ON_IT" : null),
+          reliance: (purpose, live) => reliedOn(purpose, facts, live),
         });
       });
   }

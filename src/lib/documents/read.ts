@@ -9,9 +9,9 @@ import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 
 import { downloadDecision } from "./access";
-import { ownerState, purposeFits, type OwnerFacts } from "./attach";
+import { detachFault, ownerState, purposeFits, reliedOn, repinFault, type OwnerFacts } from "./attach";
 import { isLive } from "./evidence";
-import { ACCESS_STATEMENT, documentFaultText, DOWNLOAD_REFUSAL_TEXT, EXIT_TEXT, FINGERPRINT_STATEMENT } from "./labels";
+import { accessReasonText, ACCESS_STATEMENT, documentFaultText, DOWNLOAD_REFUSAL_TEXT, EXIT_TEXT, FINGERPRINT_STATEMENT } from "./labels";
 import { effectiveCap } from "./limits";
 import { awardFacts, delegationFacts, exerciseFacts, meetingFacts } from "./owner-facts";
 import { type OwnerRef } from "./repo";
@@ -80,14 +80,26 @@ export async function ownerPanel(ref: OwnerRef) {
     const st = ownerState(purpose, owner.facts);
     return { purpose, state: st.state, reason: st.state === "OPEN" ? null : EXIT_TEXT[st.exit], live: rows.filter((r) => r.purpose === purpose && isLive(r)).length };
   });
+  const liveOf = (purpose: string) => rows.filter((x) => x.purpose === purpose && isLive(x)).length;
+  // A disabled act and a refused one give the same reason: the same rule, asked without a reason typed yet.
+  const refusal = (fs: readonly { code: string; level: "block" | "warn" | "info" }[]) => {
+    const f = fs.find((x) => x.code !== "REASON_REQUIRED");
+    return f ? { allowed: false as const, reason: documentFaultText(f) } : { allowed: true as const };
+  };
   const items = rows.map((r) => {
     const d = r.version.document;
+    const purpose = r.purpose as AttachmentPurpose;
+    const offPast = r.detachedAt != null;
     const decision = downloadDecision({ classification: d.classificationSnapshot, scanState: r.version.scanState });
     const latest = currentVersion(d.versions);
     return {
       attachmentId: r.id,
-      purpose: r.purpose as AttachmentPurpose,
+      purpose,
       live: isLive(r),
+      /// Null once it is off the record. Otherwise whether it may come off, and if not why.
+      detach: offPast ? null : refusal(detachFault({ purpose, owner: owner.facts, reason: "-", reliedOn: reliedOn(purpose, owner.facts, liveOf(purpose)) })),
+      /// Null once it is off the record. Otherwise whether a new version of the document may replace this pin, and if not why.
+      newVersion: offPast ? null : refusal(repinFault({ purpose, owner: owner.facts, reason: "-", attachment: { detachedAt: r.detachedAt, versionId: r.versionId, documentId: d.id }, to: { id: "next", documentId: d.id, withdrawnAt: null } })),
       attachedAt: r.attachedAt,
       detachedAt: r.detachedAt,
       detachReason: r.detachReason,
@@ -120,6 +132,11 @@ export async function documentDrawer(documentId: string) {
     },
   });
   if (!d) return null;
+  const retention = retentionOf(d.retentionSnapshot);
+  const authority = retention?.disposalAuthorityRoleCode
+    ? await db.authorityRole.findFirst({ where: { organisationId: org.id, code: retention.disposalAuthorityRoleCode }, select: { nameEn: true } })
+    : null;
+  const people = await db.person.findMany({ where: { organisationId: org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } });
   const ids = [d.id, ...d.versions.map((v) => v.id), ...d.versions.flatMap((v) => v.attachments.map((a) => a.id)), ...d.holds.map((h) => h.id)];
   const history = await db.auditEntry.findMany({ where: { organisationId: org.id, entityId: { in: ids } }, orderBy: { at: "desc" }, take: 200 });
   const ownerLabel = (a: (typeof d.versions)[number]["attachments"][number]) =>
@@ -132,7 +149,10 @@ export async function documentDrawer(documentId: string) {
     status: d.status,
     documentClass: d.documentClass,
     classification: d.classificationSnapshot,
-    retention: retentionOf(d.retentionSnapshot),
+    retention,
+    /// The office a disposal needs, by name: "A role no longer configured" if it has gone.
+    disposalAuthority: retention?.disposalAuthorityRoleCode ? (authority?.nameEn ?? "An office no longer configured") : null,
+    people,
     createdAt: d.createdAt,
     filedAt: d.filedAt,
     versions: d.versions.map((v) => {
@@ -141,6 +161,7 @@ export async function documentDrawer(documentId: string) {
         ...v,
         byteSize: v.byteSize.toString(),
         download: decision.allow ? { allowed: true as const, href: `/api/documents/versions/${v.id}` } : { allowed: false as const, reason: DOWNLOAD_REFUSAL_TEXT[decision.reason].replace(/ The request was refused and logged\.$/, "") },
+        accessEvents: v.accessEvents.map((e) => ({ id: e.id, kind: e.kind, at: e.at, reason: accessReasonText(e.reasonCode) })),
         attachments: v.attachments.map((a) => ({ id: a.id, purpose: a.purpose, attachedAt: a.attachedAt, detachedAt: a.detachedAt, detachReason: a.detachReason, owner: ownerLabel(a), href: ownerHref(a) })),
       };
     }),
@@ -176,9 +197,10 @@ export async function standingHolds() {
 export async function uploadContext() {
   const org = await documentOrg();
   if (!org) return null;
-  const [classes, policy] = await Promise.all([
+  const [classes, policy, people] = await Promise.all([
     db.documentClass.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { id: true, nameEn: true, classification: true } }),
     loadStorePolicy(org.id),
+    db.person.findMany({ where: { organisationId: org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
   const ceiling = deploymentCeiling();
   const cap = effectiveCap(policy, ceiling);
@@ -189,6 +211,8 @@ export async function uploadContext() {
   ];
   return {
     classes,
+    /// Who may be named as recording an upload: active people on record.
+    people,
     allowedMediaTypes: policy.allowedMediaTypes,
     maxBytes: policy.maxBytes?.toString() ?? null,
     ceiling: "ceiling" in ceiling ? ceiling.ceiling.toString() : null,
