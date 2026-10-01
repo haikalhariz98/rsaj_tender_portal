@@ -17,7 +17,7 @@ import type { ApprovalStep, CoreChainRecord, Matrix, Resolution, ResolutionWarni
 import type { Sen } from "@/lib/money";
 import { ableToAct, type Holders } from "@/lib/requisition/holders";
 
-import { APPOINTMENT_DOMAIN, NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN, type ExerciseStatus, type Finding, type Method } from "./types";
+import { APPOINTMENT_DOMAIN, NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN, WINDOW_CHANGE_DOMAIN, type ExerciseStatus, type Finding, type Method } from "./types";
 
 export interface FunderContext {
   dal: Matrix;
@@ -107,13 +107,15 @@ const EMPTY = (state: AppointmentState, methodCode: string | null): AppointmentP
 });
 
 /// The route of `domain` for a method at a value, under the funder's rule set where it supersedes.
-export function exerciseRoutePreview(ctx: FunderContext, domain: string, method: Method, value: number): AppointmentPreview {
-  return preview(ctx, domain, method, value);
+/// `cond`: the matter's condition, where the domain's rows are written per condition (6.5's
+/// window_change: a correction, an extension or a cancellation); a general row serves any.
+export function exerciseRoutePreview(ctx: FunderContext, domain: string, method: Method, value: number, cond: string | null = null): AppointmentPreview {
+  return preview(ctx, domain, method, value, cond);
 }
 
-function preview(ctx: FunderContext, domain: string, method: Method, value: number): AppointmentPreview {
+function preview(ctx: FunderContext, domain: string, method: Method, value: number, cond: string | null = null): AppointmentPreview {
   if (!method.authorityMethodKey) return EMPTY("NO_METHOD_KEY", method.code);
-  const r = resolveUnderFunder(ctx, { domain, method: method.authorityMethodKey, value });
+  const r = resolveUnderFunder(ctx, { domain, method: method.authorityMethodKey, value, ...(cond ? { cond } : {}) });
   const rule = r.resolution.rule;
   if (!rule) return { ...EMPTY("NO_RULE", method.code), source: r.source, overrideIssue: r.overrideIssue, warnings: r.warnings };
   return {
@@ -168,7 +170,7 @@ export function resolveNameApproval(ctx: FunderContext, method: Method, value: n
  * as a name route (and an approved one never satisfies `invitationFault`). A later
  * module adds its domain here and nowhere else.
  */
-export const EXERCISE_ROUTE_DOMAINS = [NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN] as const;
+export const EXERCISE_ROUTE_DOMAINS = [NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN, WINDOW_CHANGE_DOMAIN] as const;
 export type ExerciseRouteDomain = (typeof EXERCISE_ROUTE_DOMAINS)[number];
 
 /// The database filter for an exercise's own routes: no award, and one of its domains.
@@ -188,6 +190,8 @@ export function routesByDomain<T extends { domain: string; awardId?: string | nu
 export const nameRoutesOf = <T extends { domain: string; awardId?: string | null }>(routes: readonly T[]): T[] => routesByDomain(routes)[NAME_APPROVAL_DOMAIN];
 /// The Approval for Tendering routes (FR-DOC-012).
 export const tenderingRoutesOf = <T extends { domain: string; awardId?: string | null }>(routes: readonly T[]): T[] => routesByDomain(routes)[TENDERING_APPROVAL_DOMAIN];
+/// 6.5: the routes deciding a change to the window — a closing correction or extension, or a cancellation (OD-5).
+export const windowChangeRoutesOf = <T extends { domain: string; awardId?: string | null }>(routes: readonly T[]): T[] => routesByDomain(routes)[WINDOW_CHANGE_DOMAIN];
 /// Every route of the exercise's own, of any of its domains (cancelling withdraws them all).
 export const exerciseRoutesOf = <T extends { domain: string; awardId?: string | null }>(routes: readonly T[]): T[] => {
   const by = routesByDomain(routes);
@@ -199,6 +203,7 @@ export const exerciseRoutesOf = <T extends { domain: string; awardId?: string | 
 export const EXERCISE_ROUTE_MATTER: Record<ExerciseRouteDomain, { kind: string; tab: string; auditNoun: string }> = {
   [NAME_APPROVAL_DOMAIN]: { kind: "Approval of the name", tab: "name", auditNoun: "name approval" },
   [TENDERING_APPROVAL_DOMAIN]: { kind: "Approval for tendering", tab: "documents", auditNoun: "approval for tendering" },
+  [WINDOW_CHANGE_DOMAIN]: { kind: "Change to the invitation window", tab: "invitation", auditNoun: "window change" },
 };
 
 /// The label of an exercise route of any domain. A domain the product does not know

@@ -14,7 +14,7 @@ import {
   tenderingRoutesOf,
 } from "./approval";
 import { SPEC_METHODS } from "./fixture";
-import { APPOINTMENT_DOMAIN, NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN, type Method } from "./types";
+import { APPOINTMENT_DOMAIN, NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN, WINDOW_CHANGE_DOMAIN, type Method } from "./types";
 
 /**
  * Ruling X-5: an exercise's own routes are told apart by domain, never by `awardId`
@@ -54,7 +54,8 @@ describe("the by-domain splitter", () => {
   });
 
   it("the database filter names both the award and the domains", () => {
-    expect(EXERCISE_ROUTES_WHERE).toEqual({ awardId: null, domain: { in: [NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN] } });
+    // 6.5 (X-5, faithful update, flagged): the window_change domain joins the exercise's own.
+    expect(EXERCISE_ROUTES_WHERE).toEqual({ awardId: null, domain: { in: [NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN, WINDOW_CHANGE_DOMAIN] } });
   });
 });
 
@@ -154,7 +155,7 @@ describe("no exercise-route reader filters on awardId alone (source scan, ruling
     // exerciseRoutesOf / routesByDomain. The history's id list (every route is history)
     // is the one direct read.
     // The routes may be reached through the locked context (`l.ex.approvalInstances`).
-    const SPLIT = /(nameRoutesOf|tenderingRoutesOf|exerciseRoutesOf|routesByDomain)\(\s*(?:\w+\.)?$/;
+    const SPLIT = /(nameRoutesOf|tenderingRoutesOf|windowChangeRoutesOf|exerciseRoutesOf|routesByDomain)\(\s*(?:\w+\.)?$/;
     const offenders: string[] = [];
     for (const f of files) {
       const rel = relative(ROOT, f);
