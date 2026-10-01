@@ -226,8 +226,8 @@ export default async function Dashboard() {
               subtitle="Open approval routes, oldest first, with the step each waits on."
               divided={false}
               actions={
-                <ButtonLink href="/requisitions" variant="ghost" size="sm">
-                  View all
+                <ButtonLink href="/approvals" variant="ghost" size="sm">
+                  Awaiting decision
                 </ButtonLink>
               }
             />

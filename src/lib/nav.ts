@@ -33,6 +33,9 @@ export const STAFF_NAV: NavGroup[] = [
       // Not in the prototype, whose requisition screen no route renders. Above
       // Sourcing, not under it: a supervision-only matter never becomes sourcing (6.1).
       { href: "/requisitions", label: "Requisitions", icon: "clipboard", built: true },
+      // Not in the prototype (close-out ruling CO-7): every open approval's next step, by
+      // the office deciding it. Shown to everyone until sign-in; nobody is notified.
+      { href: "/approvals", label: "Awaiting decision", icon: "inbox", built: true },
       { href: "/sourcing", label: "Sourcing", icon: "globe", built: true },
       // Not in the prototype, which has the award only as a tab of the exercise (6.11 plan §6).
       // Cross-exercise work lists: what awaits approval, issue, return or a commitment number.

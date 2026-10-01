@@ -4,7 +4,10 @@ import { notFound } from "next/navigation";
 import { AlertTriangle, ChartIcon, ClipboardIcon, ClockIcon, GlobeIcon, RouteIcon, ShieldIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
-import { ActBadge, actLabel } from "@/components/ui/act";
+import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
+import { EscalateDrawer } from "@/app/approvals/editors";
+import { escalationText } from "@/lib/authority/escalation-labels";
+import { absentOffices } from "@/lib/authority/absence";
 import { Badge, Chip } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -246,9 +249,14 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
     else {
       previewRoles = dal.matrix.roles;
       const override = gate.supersedesAuthority && r.fundingRouteCode ? await loadOverrideMatrix(ORGANISATION_CODE, r.fundingRouteCode, on) : null;
-      const q = { value: num(r.estimatedValue)!, overBudget: lastCheck?.verdict === "EXCEEDS", fundingRouteCode: r.fundingRouteCode, fundingSupersedesAuthority: gate.supersedesAuthority === true };
-      preview = resolveRequisitionRoute(dal.matrix, override, q);
       const path = pathTo(lookups.units, unit, on).reverse().map((u) => u.code);
+      // As submission will judge it: an office with nobody able to act reverts upward.
+      const byId = new Map(roster.people.map((p) => [p.id, p]));
+      const absentRoleCodes = today
+        ? absentOffices(Object.keys(dal.matrix.roles).filter((c) => !dal.matrix.roles[c].isCommittee), (c) => holdersFor(c, path, roster, delegations, today), (pid) => !!byId.get(pid)?.isActive && !!byId.get(pid)?.isAvailable)
+        : [];
+      const q = { value: num(r.estimatedValue)!, overBudget: lastCheck?.verdict === "EXCEEDS", fundingRouteCode: r.fundingRouteCode, fundingSupersedesAuthority: gate.supersedesAuthority === true, absentRoleCodes };
+      preview = resolveRequisitionRoute(dal.matrix, override, q);
       if (preview.resolution.approverCode && today && requesterHoldsApprover(preview.resolution.approverCode, r.requestingPersonId, path, roster, delegations, today)) {
         preview = resolveRequisitionRoute(dal.matrix, override, { ...q, actorRoleCode: preview.resolution.approverCode });
       }
@@ -283,14 +291,16 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
     ENDORSED_IT: "endorsed it",
     SELF_APPROVAL: "raised it",
     ALREADY_DISCHARGED_A_STEP: "decided another step",
+    DECLARED_CONFLICT: "declared a conflict on this step",
     OVER_CEILING: "value over their delegation's ceiling",
     DELEGATION_NOT_PERMITTED: "a delegate, and this step cannot be delegated",
     INACTIVE: "recorded as having left",
   };
-  const deciderOptions = (step: { id: string; roleCode: string | null; committeeCode: string | null; nonDelegable: boolean; decision: string }) => {
-    if (!open || !today || !step.roleCode) return { options: people, candidates: 0, eligible: 0, barred: [] as string[] };
+  const deciderOptions = (step: { id: string; roleCode: string | null; actingRoleCode: string | null; declaredByPersonId: string | null; committeeCode: string | null; nonDelegable: boolean; decision: string }) => {
+    const office = step.actingRoleCode ?? step.roleCode;
+    if (!open || !today || !office) return { options: people, candidates: 0, eligible: 0, barred: [] as string[] };
     const path = pathTo(lookups.units, unit, on).reverse().map((u) => u.code);
-    const h = holdersFor(step.roleCode, path, roster, delegations, today);
+    const h = holdersFor(office, path, roster, delegations, today);
     const eligibleIds: string[] = [];
     const barredOpts: { value: string; label: string }[] = [];
     const barred: string[] = [];
@@ -308,6 +318,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
         endorsements: r.endorsements.map((e) => ({ personId: e.personId, unitCode: e.unitCode })),
         rootUnitCode: path[path.length - 1] ?? null,
         otherDeciderIds: open.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.decidedByPersonId!),
+        declaredConflictIds: step.declaredByPersonId ? [step.declaredByPersonId] : [],
         earlierDone: true,
         decidedOn: today,
         openedOn: storedDay(open.openedAt),
@@ -1274,8 +1285,13 @@ function ApprovalPanel({
                   <ActBadge act={s.act} step={stepIndex + 1} />
                   <div className="min-w-0">
                     <div className="font-semibold break-words text-ink">
-                      {s.roleLabel} <span className="font-normal text-ink-3">· {ACT_LABEL[s.act]}</span>
+                      {s.roleLabel} <span className="font-normal text-ink-3">· {actLabel(s.act)}</span>
                     </div>
+                    {s.escalation && (
+                      <div className="text-[12.5px] break-words text-amber-800">
+                        {escalationText({ roleLabel: s.roleLabel, actingRoleLabel: s.actingRoleLabel, escalation: s.escalation, escalationReason: s.escalationReason, declaredByName: s.declaredBy?.name ?? null })}
+                      </div>
+                    )}
                     {s.decision === "PENDING" ? (
                       <div className="text-[12.5px] text-ink-3">
                         {undecidedStepText(inst, !!s.committeeCode)}
@@ -1315,7 +1331,10 @@ function ApprovalPanel({
                 <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
                   {s.decision !== "PENDING" && <Badge tone={s.decision === "DONE" ? "ok" : "err"}>{DECISION_LABEL[s.decision]}</Badge>}
                   {open && s.decision === "PENDING" && !s.committeeCode && s.roleCode && (
-                    <DecisionDrawer id={r.id} stepId={s.id} roleLabel={s.roleLabel} act={ACT_LABEL[s.act]} done={ACT_DONE_LABEL[s.act] ?? "Done"} people={suggestions(s)} today={today} blocker={blocker} />
+                    <EscalateDrawer stepId={s.id} office={s.actingRoleLabel ?? s.roleLabel} mandatory={isMandatoryAct(s.act)} people={suggestions(s)} />
+                  )}
+                  {open && s.decision === "PENDING" && !s.committeeCode && s.roleCode && (
+                    <DecisionDrawer id={r.id} stepId={s.id} roleLabel={s.actingRoleLabel ?? s.roleLabel} act={ACT_LABEL[s.act]} done={ACT_DONE_LABEL[s.act] ?? "Done"} people={suggestions(s)} today={today} blocker={blocker} />
                   )}
                   {open && s.decision === "PENDING" && s.committeeCode && (
                     <CiteCommitteeDrawer

@@ -314,6 +314,7 @@ export const DECIDER_FAULT_TEXT: Record<DeciderFault, string> = {
   ALREADY_DISCHARGED_A_STEP: "That person has already decided another step of this route.",
   FUTURE_DATE: "A decision cannot be dated after today.",
   BEFORE_SUBMISSION: "A decision cannot be dated before the requisition was submitted.",
+  DECLARED_CONFLICT: "That person declared a conflict of interest on this step and recused. The step was escalated to the office above.",
 };
 
 /// Why a received requisition's commitment is not in the portal ledger, as a title.

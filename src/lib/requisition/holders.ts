@@ -70,7 +70,8 @@ export type DeciderFault =
   | "ENDORSED_IT"
   | "ALREADY_DISCHARGED_A_STEP"
   | "FUTURE_DATE"
-  | "BEFORE_SUBMISSION";
+  | "BEFORE_SUBMISSION"
+  | "DECLARED_CONFLICT";
 
 export interface DeciderContext {
   today: string | null;
@@ -88,6 +89,8 @@ export interface DeciderContext {
   rootUnitCode?: string | null;
   /// People who have already discharged another step of this route.
   otherDeciderIds: readonly string[];
+  /// People who declared a conflict on this step and recused (FR-APR-009).
+  declaredConflictIds?: readonly string[];
   /// Whether every earlier step is done.
   earlierDone: boolean;
   /// YYYY-MM-DD: the decision date, and the day the route was opened.
@@ -144,6 +147,7 @@ export function deciderFaults(
     if (!(direct && tied)) faults.push("ENDORSED_IT");
   }
   if (ctx.otherDeciderIds.includes(pid)) faults.push("ALREADY_DISCHARGED_A_STEP");
+  if (ctx.declaredConflictIds?.includes(pid)) faults.push("DECLARED_CONFLICT");
   return { faults, delegationId };
 }
 

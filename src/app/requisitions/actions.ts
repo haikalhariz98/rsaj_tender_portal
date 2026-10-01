@@ -23,6 +23,8 @@ import { committeeCitationFault, committeeStepFrom, type CitationFault } from "@
 import { endorsementEntryFault, endorsementFaults } from "@/lib/requisition/endorsement";
 import { blocking, erpRefFaults, requisitionFaults, type DraftLine, type RequisitionDraft } from "@/lib/requisition/fields";
 import { fundingGate } from "@/lib/requisition/funding";
+import { absentOffices } from "@/lib/authority/absence";
+import { actingOffice } from "@/lib/authority/escalation";
 import { deciderFaults, holdersFor, requesterHoldsApprover } from "@/lib/requisition/holders";
 import { intakeFaults, type ExternalRequisition, type ReceivedStep } from "@/lib/requisition/intake";
 import {
@@ -787,11 +789,17 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
     if (!dal) return { ok: false, message: "No approval matrix is in force, so the requisition cannot be routed." };
     const override = gate.supersedesAuthority && req.fundingRouteCode ? await loadOverrideMatrix(ORGANISATION_CODE, req.fundingRouteCode, today, tx) : null;
     const value = num(req.estimatedValue)!;
-    const q = { value, overBudget: disposition.cond === "over_budget", fundingRouteCode: req.fundingRouteCode, fundingSupersedesAuthority: gate.supersedesAuthority === true };
+    const unitPath = pathTo(lookups.units, unitOf(req), today).reverse().map((u) => u.code);
+    // FR-APR-010/012: an office with nobody able to act on the day reverts upward at
+    // routing, as the appointment route does (6.11 BD-2). A vacant office is not absent.
+    const people = new Map(roster.people.map((p) => [p.id, p]));
+    const available = (pid: string) => !!people.get(pid)?.isActive && !!people.get(pid)?.isAvailable;
+    const routeOffices = [...new Set([...Object.keys(dal.matrix.roles), ...Object.keys(override?.matrix.roles ?? {})])].filter((c) => !(dal.matrix.roles[c] ?? override?.matrix.roles[c])?.isCommittee);
+    const absentRoleCodes = absentOffices(routeOffices, (c) => holdersFor(c, unitPath, roster, delegations, todayStr), available);
+    const q = { value, overBudget: disposition.cond === "over_budget", fundingRouteCode: req.fundingRouteCode, fundingSupersedesAuthority: gate.supersedesAuthority === true, absentRoleCodes };
     let resolved = resolveRequisitionRoute(dal.matrix, override, q);
     // Nobody approves their own requisition: where the requester holds the approving
     // office, the engine's self-approval rule escalates it.
-    const unitPath = pathTo(lookups.units, unitOf(req), today).reverse().map((u) => u.code);
     if (resolved.resolution.approverCode && requesterHoldsApprover(resolved.resolution.approverCode, req.requestingPersonId, unitPath, roster, delegations, todayStr)) {
       resolved = resolveRequisitionRoute(dal.matrix, override, { ...q, actorRoleCode: resolved.resolution.approverCode });
     }
@@ -1200,7 +1208,9 @@ export async function recordDecision(_prev: FormState, data: FormData): Promise<
     const unitPath = pathTo(lookups.units, unitOf(l.req), on).reverse().map((u) => u.code);
     const check = deciderFaults(step, {
       today: l.org.today,
-      holders: step.roleCode ? holdersFor(step.roleCode, unitPath, roster, delegations, decidedOn) : { scope: null, holderIds: [], delegates: [] },
+      // Judged on the office acting for the step, where it was escalated (FR-APR-009/010).
+      holders: actingOffice(step) ? holdersFor(actingOffice(step)!, unitPath, roster, delegations, decidedOn) : { scope: null, holderIds: [], delegates: [] },
+      declaredConflictIds: step.declaredByPersonId ? [step.declaredByPersonId] : [],
       person,
       requesterId: l.req.requestingPersonId,
       endorserIds: [],
@@ -1228,7 +1238,7 @@ export async function recordDecision(_prev: FormState, data: FormData): Promise<
       return gate.state;
     }
     const after = { decision, decidedByPersonId: personId, decidedByName: person!.name, decidedOn: on, delegationId: check.delegationId, reason, recordedAt: new Date() };
-    const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING" }, data: after });
+    const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
     if (done.count !== 1) return CHANGED;
     await audit(tx, l.org.id, "ApprovalStep", step.id, `${l.req.reference} · ${step.roleLabel}`, "UPDATE",
       diffFields({ decision: step.decision }, { decision, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);
@@ -1296,7 +1306,7 @@ export async function citeCommitteeDecision(_prev: FormState, data: FormData): P
       return gate.state;
     }
     const after = { decision: s.decision, decidedByName: s.citation!.committee, decidedOn: s.decidedOn, committeeDecisionId: matter.id, recordedAt: new Date() };
-    const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING" }, data: after });
+    const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
     if (done.count !== 1) return CHANGED;
     await audit(tx, l.org.id, "ApprovalStep", step.id, `${l.req.reference} · ${step.roleLabel}`, "UPDATE",
       diffFields({ decision: step.decision }, { decision: s.decision, committee: s.citation!.committee, sitting: s.citation!.meetingReference, decidedOn: s.decidedOn }));

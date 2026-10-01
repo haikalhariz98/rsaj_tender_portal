@@ -114,6 +114,7 @@ const include = {
       steps: {
         orderBy: { sequence: "asc" as const },
         include: {
+          declaredBy: { select: { name: true } },
           delegation: { select: { id: true, valueCeiling: true, fromPerson: { select: { name: true } } } },
           committeeDecision: {
             include: { meeting: { include: { committee: { select: { nameEn: true, code: true } } } }, votes: { include: { person: { select: { name: true } } } } },

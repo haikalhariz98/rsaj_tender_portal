@@ -284,6 +284,20 @@ const ALLOWED_EXTRA = [
   // "{n}% of the accepted value", a hard-coded basis. The basis is decided per contract
   // and never defaulted, so the bond is shown with its basis, or as not set.
   /^The performance bond$/,
+  // Phase 1 close-out (ruling CO-7): the office worklist at /approvals, under Work; the
+  // prototype has no approvals queue. Step escalation (FR-APR-009/010) and the rejection
+  // destination's choice (FR-APR-016) are acts the prototype's routes do not have.
+  /^Awaiting decision$/,
+  /^Escalate$/,
+  /^Choose where it goes$/,
+  // FR-REQ-012: the committee gate between approval and the first exercise.
+  /^Check committee gates$/,
+  /^Cite the decision$/,
+  /^Close without sourcing$/,
+  /^Add committee gate$/,
+  // FR-APR-015: the audit trail and its export, under Configuration, Records.
+  /^Audit trail$/,
+  /^Export the trail$/,
 ];
 
 const isAllowed = (label) => ALLOWED_EXTRA.some((re) => re.test(label));

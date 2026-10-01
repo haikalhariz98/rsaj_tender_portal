@@ -116,7 +116,7 @@ const exerciseInclude = {
       rejectionChosenBy: { select: { name: true } },
       steps: {
         orderBy: { sequence: "asc" as const },
-        include: { delegation: { select: { id: true, valueCeiling: true, fromPerson: { select: { name: true } } } } },
+        include: { declaredBy: { select: { name: true } }, delegation: { select: { id: true, valueCeiling: true, fromPerson: { select: { name: true } } } } },
       },
     },
   },

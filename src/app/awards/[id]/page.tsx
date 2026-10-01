@@ -5,7 +5,9 @@ import { AwardIcon, CheckIcon, ClipboardIcon, ClockIcon, FileIcon, InboxIcon, Pr
 import { Button } from "@/components/ui/button";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
-import { ActBadge, actLabel } from "@/components/ui/act";
+import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
+import { EscalateDrawer } from "@/app/approvals/editors";
+import { escalationText } from "@/lib/authority/escalation-labels";
 import { Badge, Chip } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -628,6 +630,11 @@ function ApprovalPanel({
                       <div className="font-semibold break-words text-ink">
                         {s.roleLabel} <span className="font-normal text-ink-3">· {ACT_LABEL[s.act]}{s.committeeCode ? ", as a committee decision" : ""}</span>
                       </div>
+                      {s.escalation && (
+                        <div className="text-[12.5px] break-words text-amber-800">
+                          {escalationText({ roleLabel: s.roleLabel, actingRoleLabel: s.actingRoleLabel, escalation: s.escalation, escalationReason: s.escalationReason, declaredByName: s.declaredBy?.name ?? null })}
+                        </div>
+                      )}
                       <div className="text-[12.5px] break-words text-ink-2">
                         {s.decision === "PENDING"
                           ? inst.status === "PENDING"
@@ -649,10 +656,13 @@ function ApprovalPanel({
                   <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
                     {s.decision !== "PENDING" && <Badge tone={s.decision === "DONE" ? "ok" : "err"}>{DECISION_LABEL[s.decision]}</Badge>}
                     {open && s.committeeCode && needsTabling && (tableHref ? <ButtonLink href={tableHref} size="sm" variant="secondary">Table at a sitting</ButtonLink> : <ButtonLink href="/committees" size="sm" variant="secondary">Schedule a sitting</ButtonLink>)}
+                    {inst.status === "PENDING" && s.decision === "PENDING" && !s.committeeCode && s.roleCode && (
+                      <EscalateDrawer stepId={s.id} office={s.actingRoleLabel ?? s.roleLabel} mandatory={isMandatoryAct(s.act)} people={suggestions(s.actingRoleCode ?? s.roleCode)} />
+                    )}
                     {open && (s.committeeCode ? (
                       <CiteDecisionDrawer id={award.id} stepId={s.id} committee={s.roleLabel} matters={offered} />
                     ) : (
-                      <DecideStepDrawer id={award.id} stepId={s.id} roleLabel={s.roleLabel} act={ACT_LABEL[s.act] ?? "Acts"} done={ACT_DONE_LABEL[s.act] ?? "Done"} people={suggestions(s.roleCode)} today={today} />
+                      <DecideStepDrawer id={award.id} stepId={s.id} roleLabel={s.roleLabel} act={ACT_LABEL[s.act] ?? "Acts"} done={ACT_DONE_LABEL[s.act] ?? "Done"} people={suggestions(s.actingRoleCode ?? s.roleCode)} today={today} />
                     ))}
                   </div>
                 </li>

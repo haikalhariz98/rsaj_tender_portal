@@ -59,7 +59,7 @@ export const awardInclude = {
       rejectionChosenBy: { select: { name: true } },
       steps: {
         orderBy: { sequence: "asc" as const },
-        include: { committeeDecision: { include: decisionInclude }, delegation: { select: { id: true, fromPerson: { select: { name: true } } } } },
+        include: { committeeDecision: { include: decisionInclude }, declaredBy: { select: { name: true } }, delegation: { select: { id: true, fromPerson: { select: { name: true } } } } },
       },
     },
   },

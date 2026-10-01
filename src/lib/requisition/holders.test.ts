@@ -182,3 +182,26 @@ describe("an endorser holding an organisation-wide office (ruling R1)", () => {
     expect(r.faults).toContain("ENDORSED_IT");
   });
 });
+
+describe("a declared conflict bars the declarer (FR-APR-009)", () => {
+  it("refuses the person who recused, even where they hold the acting office", async () => {
+    const { deciderFaults } = await import("./holders");
+    const check = deciderFaults(
+      { committeeCode: null, nonDelegable: false, decision: "PENDING" },
+      {
+        today: "2026-10-01",
+        holders: { scope: null, holderIds: ["p1"], delegates: [] },
+        person: { id: "p1", isActive: true },
+        requesterId: "p9",
+        endorserIds: [],
+        otherDeciderIds: [],
+        declaredConflictIds: ["p1"],
+        earlierDone: true,
+        decidedOn: "2026-10-01",
+        openedOn: "2026-09-30",
+        value: 100n,
+      },
+    );
+    expect(check.faults).toEqual(["DECLARED_CONFLICT"]);
+  });
+});

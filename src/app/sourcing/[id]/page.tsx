@@ -4,7 +4,9 @@ import { notFound } from "next/navigation";
 import { AwardIcon, ClipboardIcon, ClockIcon, FileIcon, RouteIcon, ShieldIcon, SlidersIcon, UsersIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
-import { ActBadge, actLabel } from "@/components/ui/act";
+import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
+import { EscalateDrawer } from "@/app/approvals/editors";
+import { escalationText } from "@/lib/authority/escalation-labels";
 import { earlierSteps, type RejectionKind } from "@/lib/authority/rejection";
 import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import { Badge, Chip } from "@/components/ui/badge";
@@ -989,8 +991,13 @@ function NamePanel({
                     <ActBadge act={s.act} />
                     <div className="min-w-0">
                       <div className="font-semibold break-words text-ink">
-                        {s.roleLabel} <span className="font-normal text-ink-3">· {ACT_LABEL[s.act]}</span>
+                        {s.roleLabel} <span className="font-normal text-ink-3">· {actLabel(s.act)}</span>
                       </div>
+                      {s.escalation && (
+                        <div className="text-[12.5px] break-words text-amber-800">
+                          {escalationText({ roleLabel: s.roleLabel, actingRoleLabel: s.actingRoleLabel, escalation: s.escalation, escalationReason: s.escalationReason, declaredByName: s.declaredBy?.name ?? null })}
+                        </div>
+                      )}
                       <div className="text-[12.5px] text-ink-2">
                         {s.decision === "PENDING"
                           ? inst.status === "PENDING"
@@ -1002,8 +1009,11 @@ function NamePanel({
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
                     {s.decision !== "PENDING" && <Badge tone={s.decision === "DONE" ? "ok" : "err"}>{DECISION_LABEL[s.decision]}</Badge>}
+                    {inst.status === "PENDING" && s.decision === "PENDING" && !s.committeeCode && s.roleCode && (
+                      <EscalateDrawer stepId={s.id} office={s.actingRoleLabel ?? s.roleLabel} mandatory={isMandatoryAct(s.act)} people={suggestions(s.actingRoleCode ?? s.roleCode)} />
+                    )}
                     {inst.status === "PENDING" && s.decision === "PENDING" && earlierDone && (
-                      <NameDecisionDrawer id={ex.id} stepId={s.id} roleLabel={s.roleLabel} act={ACT_LABEL[s.act]} done={ACT_DONE_LABEL[s.act] ?? "Done"} people={suggestions(s.roleCode)} today={today} blocker={blocker} />
+                      <NameDecisionDrawer id={ex.id} stepId={s.id} roleLabel={s.roleLabel} act={ACT_LABEL[s.act]} done={ACT_DONE_LABEL[s.act] ?? "Done"} people={suggestions(s.actingRoleCode ?? s.roleCode)} today={today} blocker={blocker} />
                     )}
                   </div>
                 </li>

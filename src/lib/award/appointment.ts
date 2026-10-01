@@ -70,22 +70,8 @@ export function appointmentRoute(ctx: FunderContext, method: Method | null, valu
   };
 }
 
-/**
- * Which offices on a chain have nobody able to act: every holder for the unit is away
- * or has left, and nobody holds a delegation of the office. Authority then reverts
- * upward (FR-APR-010, DAL §1.6) — the engine does it, the route records it.
- */
-export function absentOffices(
-  codes: readonly string[],
-  holdersOf: (code: string) => { holderIds: readonly string[]; delegates: readonly { personId: string }[] },
-  available: (personId: string) => boolean,
-): string[] {
-  return codes.filter((c) => {
-    const h = holdersOf(c);
-    if (h.holderIds.length === 0) return false; // vacant is not absent: the route says who, and deciding waits for a holder
-    return !h.holderIds.some(available) && !h.delegates.some((d) => available(d.personId));
-  });
-}
+/// Which offices have nobody able to act: `authority/absence.ts`, shared with requisitions.
+export { absentOffices } from "@/lib/authority/absence";
 
 export type SubmitFault =
   | "NOT_DRAFT"

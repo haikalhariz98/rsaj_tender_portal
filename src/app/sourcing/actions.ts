@@ -41,6 +41,7 @@ import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
+import { actingOffice } from "@/lib/authority/escalation";
 import { deciderFaults, holdersFor } from "@/lib/requisition/holders";
 import { deciderFaultText, transitionFaultText } from "@/lib/requisition/labels";
 import { MoveRefused, moveRequisition } from "@/lib/requisition/move";
@@ -590,7 +591,9 @@ export async function recordNameDecision(_prev: FormState, data: FormData): Prom
     const decidedOn = storedDay(on);
     const check = deciderFaults(step, {
       today: l.org.today,
-      holders: step.roleCode ? holdersFor(step.roleCode, unitPath, roster, delegations, decidedOn) : { scope: null, holderIds: [], delegates: [] },
+      // Judged on the office acting for the step, where it was escalated (FR-APR-009/010).
+      holders: actingOffice(step) ? holdersFor(actingOffice(step)!, unitPath, roster, delegations, decidedOn) : { scope: null, holderIds: [], delegates: [] },
+      declaredConflictIds: step.declaredByPersonId ? [step.declaredByPersonId] : [],
       person,
       // Nobody decides the name for an exercise on a requisition they raised.
       requesterId: l.req.requestingPersonId,
@@ -606,7 +609,7 @@ export async function recordNameDecision(_prev: FormState, data: FormData): Prom
       return ["TIME_ZONE_UNSET", "COMMITTEE_STEP", "NOT_PENDING", "OUT_OF_ORDER"].includes(check.faults[0]) ? { ok: false, message: texts.join(" ") } : { ok: false, errors: { personId: texts.join(" ") } };
     }
     const after = { decision, decidedByPersonId: person!.id, decidedByName: person!.name, decidedOn: on, delegationId: check.delegationId, reason, recordedAt: new Date() };
-    const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING" }, data: after });
+    const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
     if (done.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, l.org.id, "ApprovalStep", step.id, `${ex.reference} · ${step.roleLabel}`, "UPDATE",
       diffFields({ decision: step.decision }, { decision, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);
