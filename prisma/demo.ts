@@ -39,9 +39,15 @@ const ORG_CODE = process.env.ORGANISATION_CODE ?? "ORG";
 const DEMO_TIME_ZONE = "Asia/Kuala_Lumpur";
 const P = "demo_";
 
+/// The legal name is required, so the seed gives it a placeholder ("Your organisation",
+/// or ORGANISATION_NAME). The demo replaces that placeholder, and only that, with an
+/// invented name; the wipe puts the placeholder back only while the name still holds the
+/// demo's value, so a name somebody typed is never touched.
+const SEED_LEGAL_NAME = process.env.ORGANISATION_NAME ?? "Your organisation";
+const DEMO_LEGAL_NAME = "Demo Utilities Sdn Bhd";
+
 /// Invented identity details, set only on fields the organisation has not filled in and
-/// cleared by the wipe only where they still hold these values. The legal name is never
-/// touched. Details carry no provenance column, so nothing here is marked ASSUMED: every
+/// cleared by the wipe only where they still hold these values. Details carry no provenance column, so nothing here is marked ASSUMED: every
 /// value is invented and says so (".invalid" addresses, zeros for numbers).
 const DEMO_DETAILS = {
   nameMs: "Demo Utiliti Berhad",
@@ -442,6 +448,7 @@ async function wipe() {
   );
   if (Object.keys(filled).length > 0) await db.organisation.update({ where: { id: org.id }, data: filled });
   if (org.timeZone === DEMO_TIME_ZONE) await db.organisation.update({ where: { id: org.id }, data: { timeZone: null } });
+  if (org.name === DEMO_LEGAL_NAME) await db.organisation.update({ where: { id: org.id }, data: { name: SEED_LEGAL_NAME } });
 
   console.log("Demo data removed. The organisation and any real configuration are untouched.");
 }
@@ -463,6 +470,7 @@ async function load() {
   // Identity details and a drawn logo, only where the organisation has none of its own.
   const unset = Object.fromEntries(Object.entries(DEMO_DETAILS).filter(([f, v]) => v !== null && (org as Record<string, unknown>)[f] == null));
   if (Object.keys(unset).length > 0) await db.organisation.update({ where: { id: org.id }, data: unset });
+  if (org.name === SEED_LEGAL_NAME) await db.organisation.update({ where: { id: org.id }, data: { name: DEMO_LEGAL_NAME } });
   if (!(await db.organisationLogo.findUnique({ where: { organisationId: org.id }, select: { id: true } }))) {
     const bytes = demoLogoBytes();
     const check = inspectLogo(bytes);
