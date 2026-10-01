@@ -1,5 +1,6 @@
 "use client";
 
+import { RECORDED_ON_BEHALF } from "@/lib/documents/labels";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition, type ReactNode } from "react";
@@ -159,7 +160,7 @@ export function DecisionPanel({
         {matter.tabledBy ? (
           <>
             Tabled by <span className="font-semibold text-ink-2">{matter.tabledBy}</span>
-            {matter.tabledAt && <> on {formatDate(matter.tabledAt)}</>} · attested, not signed in
+            {matter.tabledAt && <> on {formatDate(matter.tabledAt)}</>} · {RECORDED_ON_BEHALF}
           </>
         ) : (
           "Not tabled"

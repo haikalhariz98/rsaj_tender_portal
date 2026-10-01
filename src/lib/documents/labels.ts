@@ -28,6 +28,8 @@ export const SCAN_LABEL: Readonly<Record<ScanState, string>> = {
 
 /// Who recorded a version: a named Person, on whose behalf it was recorded. Not a signature.
 export const RECORDED_ON_BEHALF = "recorded on behalf of, not signed";
+/// The same phrase where it starts a line.
+export const RECORDED_ON_BEHALF_SENTENCE = "Recorded on behalf of, not signed";
 
 export const CLASSIFICATION_LABEL: Readonly<Record<SecurityClass, string>> = { PUBLIC: "Public", INTERNAL: "Internal", SULIT: "SULIT" };
 export const classificationLabel = (c: SecurityClass | null | undefined) => (c ? CLASSIFICATION_LABEL[c] : "Not set");
