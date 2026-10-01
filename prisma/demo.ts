@@ -5,6 +5,7 @@ import { PrismaClient } from "../src/generated/prisma/client";
 
 import { checkAwards, loadAwards, loadAwardSetup, reportAwardRefusal, wipeAwards } from "./demo-award";
 import { loadDocuments, planDocumentWipe, reportDocumentRefusal, wipeDocuments } from "./demo-documents";
+import { checkScope, loadScope, loadScopeExercises, SCOPE_ENTITIES, screenHoldingsOnDemo, wipeScope } from "./demo-scope";
 import { loadSittingTrail } from "./demo-sitting-trail";
 import { removedWithDemo } from "../src/lib/documents/demo-wipe-plan";
 import { inspectLogo } from "../src/lib/organisation/logo";
@@ -104,7 +105,7 @@ async function removeTrailByReference(organisationId: string, references: string
         { entity: "BudgetMovement", OR: references.map((ref) => ({ entityLabel: { endsWith: ` for ${ref}` } })) },
         // 6.3: what was under an exercise, labelled with its reference.
         {
-          entity: { in: ["ExerciseScopePart", "ExerciseProposalAnswer", "ExerciseTaxonomyValue", "ExerciseParticipant", "ApprovalInstance", "ApprovalStep"] },
+          entity: { in: ["ExerciseScopePart", "ExerciseProposalAnswer", "ExerciseTaxonomyValue", "ExerciseParticipant", "ApprovalInstance", "ApprovalStep", ...SCOPE_ENTITIES] },
           OR: references.map((ref) => ({ entityLabel: { startsWith: `${ref} ·` } })),
         },
       ],
@@ -167,6 +168,8 @@ async function wipe() {
   const citedRequisitionIds = [...new Set(screenDecisions.flatMap((d) => [d.requisitionId, d.requisitionGate?.requisitionId ?? null]).filter((x): x is string => x != null && !x.startsWith(P)))];
   const citedExerciseIds = [...new Set(screenDecisions.map((d) => d.exerciseId).filter((x): x is string => x != null && !x.startsWith(P)))];
   const onScreenMade = [{ committeeDecisionId: { in: screenDecisionIds } }, { delegationId: { in: screenDelegationIds } }];
+  // 6.2: a qualification recorded through the screens for a demo person goes with the person.
+  const screenHoldings = await screenHoldingsOnDemo(db, org.id);
 
   const hanging = await db.requisition.findMany({
     where: {
@@ -227,6 +230,10 @@ async function wipe() {
         { approvalInstances: { some: { OR: [{ authorityMatrixId: demoRef }, { overrideMatrixId: demoRef }, { rejectionDestinationId: demoRef }, { rejectionChosenByPersonId: demoRef }, { steps: { some: { OR: [{ decidedByPersonId: demoRef }, { delegationId: demoRef }, { declaredByPersonId: demoRef }] } } }] } } },
         // Carry D4: named by a matter at a screen-made sitting, or its own route relied on one.
         { id: { in: citedExerciseIds } },
+        // 6.2: a bill, panel verification or estimate recorded on it names a demo person.
+        { bqVersions: { some: { preparerPersonId: demoRef } } },
+        { specificationPanel: { verifications: { some: { personId: demoRef } } } },
+        { companyEstimates: { some: { OR: [{ preparerPersonId: demoRef }, { versions: { some: { preparerPersonId: demoRef } } }, { events: { some: { personId: demoRef } } }] } } },
         { approvalInstances: { some: { awardId: null, steps: { some: { OR: onScreenMade } } } } },
       ],
     },
@@ -270,6 +277,7 @@ async function wipe() {
     ...linkedMatters.map((m) => `  committee matter ${m.matterRef ?? m.subject} (link to a demo requisition)`),
     ...screenSittings.map((m) => `  committee sitting ${m.reference} on the demo ${m.committee.nameEn}, with its attendance, matters and votes`),
     ...screenDelegations.map((d) => `  delegation from ${d.fromPerson.name} to ${d.toPerson.name}, which names a demo person`),
+    ...screenHoldings.map((h) => `  qualification held by ${h.person.name}, a demo person`),
   ];
 
   // 6.11: awards on demo exercises or on the exercises above, and awards that are not demo
@@ -304,6 +312,8 @@ async function wipe() {
   // delegations: the documents go before any of them (their keys refuse a delete).
   await wipeDocuments(db, org.id, documentPlan);
   await wipeAwards(db, org.id, awardCheck);
+  // 6.2: bills, panels and estimates on the demo's exercises and those removed with it (their scans went with the documents).
+  await wipeScope(db, org.id, hangingExerciseIds);
 
   const hangingInstanceIds = hangingInstances.map((i) => i.id);
   const hangingMovementIds = hanging.flatMap((r) => (r.commitmentMovementId ? [r.commitmentMovementId] : []));
@@ -1102,8 +1112,9 @@ async function load() {
   await loadRequisitions(organisationId, from);
   await loadMethodSelection(organisationId, from);
   const awardExercises = await loadAwardSetup(db, organisationId, from);
+  const scopeExercises = await loadScopeExercises(db, organisationId);
 
-  await determineExercises([`${P}sx1`, `${P}sx2`, `${P}sx3`, `${P}sx4`, `${P}sx5`, `${P}sx6`, `${P}sx7`, ...awardExercises]);
+  await determineExercises([`${P}sx1`, `${P}sx2`, `${P}sx3`, `${P}sx4`, `${P}sx5`, `${P}sx6`, `${P}sx7`, ...awardExercises, ...scopeExercises]);
   await loadAwards(db, organisationId);
   await nameRouteTrail(organisationId);
   await loadCloseout(organisationId);
@@ -1111,8 +1122,12 @@ async function load() {
   // Their History: the trail the sitting actions would have written (6.10 local review 4).
   await loadSittingTrail(db, organisationId, minuted);
   await snapshotMinuted(minuted);
-  // Documents last: they attach to sittings, exercises, awards and delegations.
+  // 6.2: bills, panels and estimates, before the documents that attach to the panels.
+  await loadScope(db, organisationId);
+  // Documents last: they attach to sittings, exercises, awards, delegations and panels.
   await loadDocuments(db, organisationId);
+  // X-10 c: every 6.2 row passes the checks of its act, judged once the scans are attached.
+  await checkScope();
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
   console.log("Remove it with: npm run demo:wipe");

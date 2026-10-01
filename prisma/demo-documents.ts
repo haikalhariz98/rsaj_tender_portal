@@ -98,7 +98,7 @@ interface DemoDoc {
   classification: SecurityClass | null;
   createdAt: string;
   versions: DemoVersion[];
-  attachments: { id: string; purpose: AttachmentPurpose; owner: { meetingId?: string; exerciseId?: string; awardId?: string; delegationId?: string }; ownerLabel: string; versionId: string; at: string; detached?: { at: string; reason: string; replacedBy?: string } }[];
+  attachments: { id: string; purpose: AttachmentPurpose; owner: { meetingId?: string; exerciseId?: string; awardId?: string; delegationId?: string; specificationPanelId?: string }; ownerLabel: string; versionId: string; at: string; detached?: { at: string; reason: string; replacedBy?: string } }[];
   hold?: { id: string; reason: string; at: string; personId: string; personName: string };
 }
 
@@ -143,6 +143,12 @@ export async function loadDocuments(db: Db, organisationId: string) {
       versions: [{ id: `${P}doc5v1`, n: 1, bytes: demoPdf(["Coordination meeting scope and cost note (demo, SULIT)", "Burst trunk main, upper zone", "Listed, never opened in the portal before sign-in."]), mediaType: "application/pdf", filename: "scope-and-cost-note.pdf", receivedOn: "2026-09-02", storedAt: "2026-09-09T16:00" }],
       attachments: [{ id: `${P}doc5a1`, purpose: "COORDINATION_SCOPE", owner: { exerciseId: `${P}sx4` }, ownerLabel: "DEMO/SX/0004/2026", versionId: `${P}doc5v1`, at: "2026-09-09T16:05" }],
     },
+    // 6.2 Q-1: each verified panel's signed form, SULIT, attached on the day it was verified.
+    ...(["0001", "0005"] as const).map((ref, i) => ({
+      id: `${P}doc${7 + i}`, title: `Signed specification panel form, DEMO/SX/${ref}/2026`, classId: `${P}dc2`, className: "Certificates", classification: "SULIT" as const, createdAt: i === 0 ? "2026-09-14T15:30" : "2026-09-22T15:30",
+      versions: [{ id: `${P}doc${7 + i}v1`, n: 1, bytes: demoPdf([`Specification panel form (demo, SULIT) — DEMO/SX/${ref}/2026`, "Prepared, checked and approved for issue, signed on paper.", "Listed, never opened in the portal before sign-in."]), mediaType: "application/pdf", filename: `panel-form-${ref}.pdf`, receivedOn: i === 0 ? "2026-09-14" : "2026-09-22", storedAt: i === 0 ? "2026-09-14T15:30" : "2026-09-22T15:30" }],
+      attachments: [{ id: `${P}doc${7 + i}a1`, purpose: "SPEC_PANEL_FORM" as const, owner: { specificationPanelId: `${P}spp${i === 0 ? 1 : 5}` }, ownerLabel: `DEMO/SX/${ref}/2026 · Specification panel`, versionId: `${P}doc${7 + i}v1`, at: i === 0 ? "2026-09-14T15:35" : "2026-09-22T15:35" }],
+    })),
     {
       id: `${P}doc6`, title: "Contractor's covering letter", classId: `${P}dc3`, className: "Correspondence", classification: null, createdAt: "2026-09-29T10:30",
       versions: [{ id: `${P}doc6v1`, n: 1, bytes: demoPdf(["Contractor's covering letter (demo)", "Received, not yet filed against any record."]), mediaType: "application/pdf", filename: "covering-letter.pdf", receivedOn: "2026-09-29", storedAt: "2026-09-29T10:30" }],
