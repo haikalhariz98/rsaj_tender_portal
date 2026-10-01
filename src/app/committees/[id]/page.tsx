@@ -618,7 +618,7 @@ function AttendancePanel({ s }: { s: LoadedSitting }) {
                   </span>
                 )}
                 {r == null ? (
-                  <Badge outline>{a.registerTaken ? "Not recorded" : "Taken when the sitting starts"}</Badge>
+                  <span className="text-[12.5px] text-ink-3">{a.registerTaken ? "Not recorded" : "Taken when the sitting starts"}</span>
                 ) : !r.attended ? (
                   <Badge>Absent</Badge>
                 ) : standingFor ? (

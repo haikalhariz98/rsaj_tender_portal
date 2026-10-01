@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useState } from "react";
 import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
 
 import { CONTROL, NOTCH_LABEL, NOTCH_WRAP, inputClass, type ControlSize } from "./control";
@@ -74,6 +74,49 @@ export function AffixInput({
           {suffix}
         </span>
       )}
+    </div>
+  );
+}
+
+/// A file picker drawn as a control: a "Choose file" pill and the chosen name, in the same
+/// box as every other input. The native input stays in the page (visually hidden, still
+/// focusable and named by its Field), so the form submits the file as it always did.
+export function FileInput({
+  className,
+  onChange,
+  chooseLabel = "Choose file",
+  ...props
+}: Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "size" | "value" | "defaultValue"> & {
+  id: string;
+  chooseLabel?: string;
+}) {
+  const ctx = useFieldContext();
+  const [name, setName] = useState<string | null>(null);
+  return (
+    <div className={cx("relative", className)}>
+      <input
+        type="file"
+        className="peer sr-only"
+        {...props}
+        {...fieldAria(ctx, props)}
+        onChange={(e) => {
+          setName(e.currentTarget.files?.[0]?.name ?? null);
+          onChange?.(e);
+        }}
+      />
+      <label
+        htmlFor={props.id}
+        className={cx(
+          CONTROL,
+          "flex h-10 cursor-pointer items-center gap-3 px-2 text-[14px]",
+          "peer-focus-visible:border-brand-500 peer-focus-visible:ring-4 peer-focus-visible:ring-brand-500/15",
+          "peer-disabled:cursor-not-allowed peer-disabled:bg-sunken peer-disabled:text-ink-3",
+          "peer-aria-invalid:border-rose-400",
+        )}
+      >
+        <span className="shrink-0 rounded-full bg-brand-50 px-3 py-1 text-[13px] font-semibold text-brand-800">{chooseLabel}</span>
+        <span className={cx("min-w-0 truncate", name ? "text-ink" : "text-ink-4")}>{name ?? "No file chosen"}</span>
+      </label>
     </div>
   );
 }

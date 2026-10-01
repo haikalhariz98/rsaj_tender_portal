@@ -6,7 +6,7 @@ import { RecordEditor } from "@/components/record-editor";
 import { Button, buttonClass } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
-import { Field, Input } from "@/components/ui/field";
+import { Field, FileInput } from "@/components/ui/field";
 import { LOGO_MAX_BYTES, LOGO_SUGGESTED_HEIGHT } from "@/lib/organisation/logo-limits";
 
 import { removeLogo, uploadLogo } from "./actions";
@@ -27,6 +27,7 @@ const TYPE = { "image/png": "PNG", "image/jpeg": "JPEG", "image/webp": "WebP" } 
 export function LogoCard({ logo }: { logo: LogoInfo | null }) {
   const [state, action, pending] = useActionState(uploadLogo, { ok: false });
   const [tooBig, setTooBig] = useState<string | null>(null);
+  const [chosen, setChosen] = useState(false);
   const error = tooBig ?? state.errors?.logo;
   const src = logo ? `/organisation/logo/${logo.sha}` : null;
 
@@ -75,21 +76,20 @@ export function LogoCard({ logo }: { logo: LogoInfo | null }) {
             error={error}
             hint={`PNG, JPEG or WebP, up to ${LOGO_MAX_BYTES / 1024} KB (a technical limit). At least ${LOGO_SUGGESTED_HEIGHT} px tall is suggested. SVG is not accepted.`}
           >
-            <Input
+            <FileInput
               id="logo"
               name="logo"
-              type="file"
               accept="image/png,image/jpeg,image/webp"
               aria-invalid={!!error}
-              className="h-auto py-2 file:mr-3 file:rounded-full file:border-0 file:bg-brand-50 file:px-3 file:py-1 file:text-[13px] file:font-semibold file:text-brand-800"
               onChange={(e) => {
                 const f = e.currentTarget.files?.[0];
+                setChosen(!!f);
                 setTooBig(f && f.size > LOGO_MAX_BYTES ? `The logo is ${Math.ceil(f.size / 1024)} KB. The limit is ${LOGO_MAX_BYTES / 1024} KB.` : null);
               }}
             />
           </Field>
           <div>
-            <Button type="submit" variant="primary" size="sm" disabled={pending || !!tooBig}>
+            <Button type="submit" variant="primary" size="sm" disabled={pending || !!tooBig || !chosen}>
               {pending ? "Uploading…" : logo ? "Replace logo" : "Upload logo"}
             </Button>
           </div>
