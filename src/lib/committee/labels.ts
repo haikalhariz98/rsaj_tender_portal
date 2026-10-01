@@ -10,6 +10,7 @@ import type { AttendanceFault } from "./sitting";
 import type { MatterBlocker, OutcomeFault, VoteFault } from "./matter";
 import type { TablingFault } from "./tabling";
 import type { TransitionFault } from "./meeting";
+import { SCOPE_DOMAIN } from "@/lib/scope/scope-matter";
 
 export const MEETING_STATUS_LABEL = {
   SCHEDULED: "Scheduled",
@@ -69,7 +70,7 @@ export const SITTING_TABLED_MATTER_KINDS = MATTER_KINDS.filter((k) => k !== "SCO
 
 /// Matter domains tabled only from their own record, for the same reason: a scope-approval
 /// matter tabled from the sitting would name no bill version, so its decision could never count.
-export const RECORD_TABLED_DOMAINS: readonly string[] = ["scope_approval"];
+export const RECORD_TABLED_DOMAINS: readonly string[] = [SCOPE_DOMAIN];
 export const RECORD_TABLED_DOMAIN_TEXT = "Scope approval is tabled from the exercise, under Scope and estimate, Scope, which names the bill version the committee decides on.";
 export const sittingTablesDomain = (domain: string) => !RECORD_TABLED_DOMAINS.includes(domain);
 

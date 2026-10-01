@@ -1,6 +1,9 @@
 /// The DAL authority grammar. Fixed by the manual.
 export type AuthorityAct = "P" | "JP" | "R" | "JR" | "MR" | "MJR" | "A" | "MA";
 
+/// Every act of the grammar, in the manual's order: the one list a form's choice reads.
+export const AUTHORITY_ACTS: readonly AuthorityAct[] = ["P", "JP", "R", "JR", "MR", "MJR", "A", "MA"];
+
 /// Acts that cannot be delegated or skipped. A mandatory recommendation must be
 /// obtained even where the approver would otherwise be willing to proceed.
 export const MANDATORY_ACTS: ReadonlySet<AuthorityAct> = new Set<AuthorityAct>(["MR", "MJR", "MA"]);

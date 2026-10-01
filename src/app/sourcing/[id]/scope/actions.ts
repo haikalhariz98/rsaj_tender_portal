@@ -32,6 +32,7 @@ import { TABLING_FAULT_MESSAGE } from "@/lib/committee/labels";
 import { sittingPermits } from "@/lib/committee/meeting";
 import { lockSittingIn } from "@/lib/committee/sittings";
 import { ACT_LABEL } from "@/lib/labels";
+import { AUTHORITY_ACTS } from "@/lib/authority/types";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster } from "@/lib/people/load";
 import { bqCsvFilename, bqToCsv, decodeCsv, parseBqCsv } from "@/lib/scope/csv";
@@ -655,7 +656,6 @@ export async function voidEstimate(_prev: FormState, data: FormData): Promise<Fo
 
 // ------------------------------------------------------------------ increment 2: scope approval (OD-9, FR-REQ-014)
 
-const ACTS = ["P", "JP", "R", "JR", "MR", "MJR", "A", "MA"] as const;
 
 /**
  * Table the finalised bill's scope at a sitting of the committee the method names, as a
@@ -672,7 +672,7 @@ export async function tableScope(_prev: FormState, data: FormData): Promise<Form
   const exerciseId = exerciseIdOf(data);
   const versionId = String(data.get("versionId") ?? "");
   const meetingId = r.text("meetingId", "Sitting", { required: true });
-  const act = r.choice("act", "The committee's act", ACTS, { required: true });
+  const act = r.choice("act", "The committee's act", AUTHORITY_ACTS, { required: true });
   const tabledByPersonId = r.optionalText("tabledByPersonId");
   if (r.failed || !act) return { ok: false, errors: r.errors };
   const roster = await loadRoster(ORGANISATION_CODE);
@@ -706,7 +706,7 @@ export async function tableScope(_prev: FormState, data: FormData): Promise<Form
       data: { meetingId: s.meeting.id, subject, domain: SCOPE_DOMAIN, matterKind: "SCOPE", matterRef: l.ex.reference, bqVersionId: version.id, act, tabledByPersonId, tabledAt, sequence },
     });
     await audit(tx, l.org.id, "CommitteeDecision", row.id, label(l, `Scope matter, bill version ${version.versionNo}`), "CREATE",
-      scopeTabledAudit({ subject, versionNo: version.versionNo, sitting: s.meeting.reference, committee: s.meeting.committee.nameEn, act: ACT_LABEL[act] ?? act, tabledBy: tabledByPersonId ? (s.names[tabledByPersonId] ?? null) : null, tabledOn: s.today! }));
+      scopeTabledAudit({ subject, versionNo: version.versionNo, sitting: s.meeting.reference, committee: s.meeting.committee.nameEn, act: ACT_LABEL[act] ?? "An act the portal does not name", tabledBy: tabledByPersonId ? (s.names[tabledByPersonId] ?? null) : null, tabledOn: s.today! }));
     return { ok: true, message: `Tabled at ${s.meeting.reference}. It is decided there, at the sitting.` };
   });
   if (result.ok) {

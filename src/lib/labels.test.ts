@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { actLabel } from "@/components/ui/act";
 
+import { AUTHORITY_ACTS } from "./authority/types";
 import { ACT_LABEL, actWithCode, condLabel, routedOnLabel } from "./labels";
 
 describe("an authority act reads as words with its DAL code (ruling CO-9, FR-APR-003)", () => {
@@ -26,5 +27,12 @@ describe("what a route was chosen on (Phase 1 carry 4)", () => {
   });
   it("says the value alone when it has none, never a vague pronoun", () => {
     for (const none of [null, undefined, ""]) expect(routedOnLabel(none)).toBe("The requisition's value alone");
+  });
+});
+
+describe("one act vocabulary: the grammar's list and the words agree", () => {
+  it("every act in AUTHORITY_ACTS has words, and ACT_LABEL names no other", () => {
+    expect([...AUTHORITY_ACTS].sort()).toEqual(Object.keys(ACT_LABEL).sort());
+    for (const a of AUTHORITY_ACTS) expect(ACT_LABEL[a]).toBeTruthy();
   });
 });
