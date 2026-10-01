@@ -32,6 +32,17 @@ export function parseSen(value: string): Sen {
   return sign === "-" ? -sen : sen;
 }
 
+/**
+ * The largest amount a money column holds. Every money column is `Decimal(18, 2)`: 18
+ * digits, 2 after the point, so 16 before it. A larger figure would be refused by
+ * Postgres as a numeric overflow, after every check had passed. This is the column's
+ * precision, not a policy threshold, so it is a constant here rather than configuration.
+ */
+export const MONEY_COLUMN_MAX_SEN: Sen = 10n ** 18n - 1n;
+
+/// Whether an amount fits a `Decimal(18, 2)` column, either sign.
+export const fitsMoneyColumn = (sen: Sen): boolean => (sen < 0n ? -sen : sen) <= MONEY_COLUMN_MAX_SEN;
+
 /// Read a Decimal from the database. Prisma renders it as a plain decimal string.
 export function senFromDecimal(value: { toString(): string } | null | undefined): Sen {
   if (value == null) return 0n;

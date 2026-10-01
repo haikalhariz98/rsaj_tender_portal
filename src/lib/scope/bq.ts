@@ -13,7 +13,7 @@
  */
 
 import { dayIn } from "@/lib/dates";
-import { senToDecimalString, type Sen } from "@/lib/money";
+import { fitsMoneyColumn, senToDecimalString, type Sen } from "@/lib/money";
 import { lineAmount } from "@/lib/requisition/lines";
 import type { ExerciseStatus } from "@/lib/method/types";
 
@@ -27,7 +27,36 @@ export function itemAmount(quantity: string | null, rate: Sen | null): Sen | nul
 }
 
 /// Whether a quantity is one the bill accepts: a non-negative decimal, three places at most.
+/// Its size is judged apart (`lineSizeFaults`), so a too-large quantity says so, not "not a number".
 export const isQuantity = (q: string) => /^\d+(?:\.\d{1,3})?$/.test(q.replace(/,/g, "").trim());
+
+/// `BqItem.quantity` is `Decimal(18, 3)`: 15 digits before the point.
+export const QUANTITY_COLUMN_MAX_WHOLE = 10n ** 15n - 1n;
+
+/// Whether a quantity (as `isQuantity` accepts it) fits its column. Leading zeros do not count.
+export function quantityFits(q: string): boolean {
+  const whole = q.replace(/,/g, "").trim().split(".")[0];
+  return /^\d+$/.test(whole) && BigInt(whole) <= QUANTITY_COLUMN_MAX_WHOLE;
+}
+
+export type LineSizeField = "quantity" | "rate" | "amount";
+
+/**
+ * Whether a line's figures fit the columns they are stored in (quantity `Decimal(18, 3)`,
+ * rate and amount `Decimal(18, 2)`), so a figure that would overflow is refused by name
+ * rather than failing the save. The amount is checked too: two figures that each fit can
+ * multiply past the column.
+ */
+export function lineSizeFaults(quantity: string | null, rate: Sen | null): (Finding<"TOO_LARGE"> & { field: LineSizeField })[] {
+  const out: (Finding<"TOO_LARGE"> & { field: LineSizeField })[] = [];
+  if (quantity != null && isQuantity(quantity) && !quantityFits(quantity)) out.push({ code: "TOO_LARGE", level: "block", field: "quantity", data: { field: "quantity" } });
+  if (rate != null && !fitsMoneyColumn(rate)) out.push({ code: "TOO_LARGE", level: "block", field: "rate", data: { field: "rate" } });
+  if (out.length === 0) {
+    const amount = itemAmount(quantity, rate);
+    if (amount != null && !fitsMoneyColumn(amount)) out.push({ code: "TOO_LARGE", level: "block", field: "amount", data: { field: "amount" } });
+  }
+  return out;
+}
 
 /// A figure typed beside a computed one: reported when it differs, never used.
 export function keyedMismatch(keyed: Sen | null, computed: Sen | null): { keyed: Sen; computed: Sen | null } | null {

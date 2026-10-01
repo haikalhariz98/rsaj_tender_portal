@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { formatSen, parseSen } from "@/lib/money";
 
-import { bqTotals, currentBq, draftEditFaults, exerciseAllowsBq, finaliseFaults, holdingOn, isQuantity, itemAmount, keyedMismatch, reviseFaults, sharePct, startBqFaults, totalsSnapshot, unpricedBq, type BqVersionFacts } from "./bq";
+import { bqTotals, currentBq, draftEditFaults, exerciseAllowsBq, finaliseFaults, holdingOn, isQuantity, itemAmount, keyedMismatch, lineSizeFaults, quantityFits, reviseFaults, sharePct, startBqFaults, totalsSnapshot, unpricedBq, type BqVersionFacts } from "./bq";
 import { UNSET_SCOPE_POLICY, type BqLine, type ScopePolicy } from "./types";
 
 const sen = parseSen;
@@ -201,5 +201,30 @@ describe("the unpriced bill 6.4 issues to tenderers (OD-8)", () => {
     expect(u.versionNo).toBe(2);
     expect(u.sections[0].items[1]).toEqual({ itemRef: "B", description: "Pipe laying", unit: "m", kind: "MEASURED", quantity: "1250.5", provisional: false });
     expect(JSON.stringify(u)).not.toMatch(/rate|amount|total|18240|317973/);
+  });
+});
+
+describe("a line's figures fit their columns (quantity Decimal(18, 3), rate and amount Decimal(18, 2))", () => {
+  const fields = (q: string | null, r: bigint | null) => lineSizeFaults(q, r).map((f) => [f.code, f.field]);
+  it("a quantity of 15 digits before the point fits; 16 do not; leading zeros and commas do not count", () => {
+    expect(quantityFits("999999999999999.999")).toBe(true);
+    expect(quantityFits("1000000000000000")).toBe(false);
+    expect(quantityFits("000000000000000000001.5")).toBe(true);
+    expect(quantityFits("999,999,999,999,999")).toBe(true);
+    expect(fields("999999999999999.999", null)).toEqual([]);
+    expect(fields("1000000000000000", null)).toEqual([["TOO_LARGE", "quantity"]]);
+  });
+  it("a rate of 16 digits before the point fits; 17 do not", () => {
+    expect(fields(null, parseSen("9999999999999999.99"))).toEqual([]);
+    expect(fields(null, parseSen("10000000000000000.00"))).toEqual([["TOO_LARGE", "rate"]]);
+  });
+  it("two figures that each fit can multiply past the amount's column: refused as the amount", () => {
+    expect(fields("1", parseSen("9999999999999999.99"))).toEqual([]);
+    expect(fields("1.001", parseSen("9999999999999999.99"))).toEqual([["TOO_LARGE", "amount"]]);
+    expect(fields("100000000", parseSen("100000000.00"))).toEqual([["TOO_LARGE", "amount"]]);
+    expect(fields("99999999", parseSen("100000000.00"))).toEqual([]);
+  });
+  it("a quantity that is not a quantity is QUANTITY_INVALID's to say, not a size", () => {
+    expect(fields("abc", parseSen("1.00"))).toEqual([]);
   });
 });

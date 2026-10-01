@@ -36,6 +36,10 @@ const est = (x: Partial<EstimateFacts & { id: string }> = {}): EstimateFacts & {
 describe("preparing and amending (FR-EST-007, 009; OD-2; X-1)", () => {
   it("version 1 by its preparer, a positive figure, needs no reason", () => {
     expect(blocks(versionFaults({ value: sen("330000.00"), personId: "p11", reason: "" }, null, ctx()))).toEqual([]);
+    // The figure must fit CompanyEstimateVersion.value, Decimal(18, 2): refused by code, never echoed.
+    expect(blocks(versionFaults({ value: sen("9999999999999999.99"), personId: "p11", reason: "" }, null, ctx()))).toEqual([]);
+    expect(blocks(versionFaults({ value: sen("10000000000000000.00"), personId: "p11", reason: "" }, null, ctx()))).toEqual(["TOO_LARGE"]);
+    expect(actionResult(versionFaults({ value: sen("10000000000000000.00"), personId: "p11", reason: "" }, null, ctx()))).toEqual({ ok: false, codes: ["TOO_LARGE"] });
   });
   it("a second Person amending gets SECOND_PREPARER", () => {
     expect(blocks(versionFaults({ value: sen("1.00"), personId: "p10", reason: "Rates revised." }, est(), ctx()))).toEqual(["SECOND_PREPARER"]);

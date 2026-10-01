@@ -12,7 +12,7 @@
  * later never touches it (`priceFromSchedule`). Days are the organisation's, YYYY-MM-DD.
  */
 
-import type { Sen } from "@/lib/money";
+import { fitsMoneyColumn, type Sen } from "@/lib/money";
 
 import type { Finding } from "./types";
 
@@ -102,6 +102,7 @@ export type ScheduleFault =
   | "CODE_TAKEN"
   | "ITEM_DESCRIPTION_REQUIRED"
   | "RATE_NEGATIVE"
+  | "TOO_LARGE"
   | "ISSUE_NO_ITEMS"
   | "EFFECTIVE_REQUIRED"
   | "EFFECTIVE_NOT_AFTER_CURRENT"
@@ -134,6 +135,8 @@ export function itemFaults(item: { code: string; descriptionEn: string; rate: Se
   else if (issue.items.some((x) => x.code === item.code.trim() && (item.id == null || x.id !== item.id))) out.push({ code: "CODE_TAKEN", level: "block", field: "code" });
   if (!item.descriptionEn.trim()) out.push({ code: "ITEM_DESCRIPTION_REQUIRED", level: "block", field: "descriptionEn" });
   if (item.rate != null && item.rate < 0n) out.push({ code: "RATE_NEGATIVE", level: "block", field: "rate" });
+  // RateScheduleItem.rate is Decimal(18, 2): a larger rate would overflow the column.
+  else if (item.rate != null && !fitsMoneyColumn(item.rate)) out.push({ code: "TOO_LARGE", level: "block", field: "rate", data: { field: "rate" } });
   return out;
 }
 

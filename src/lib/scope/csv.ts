@@ -19,7 +19,7 @@
 
 import { MoneyFormatError, parseSen, senToDecimalString, type Sen } from "@/lib/money";
 
-import { bqTotals, isQuantity, itemAmount, keyedMismatch, unpricedBq, type FrozenBq } from "./bq";
+import { bqTotals, isQuantity, itemAmount, keyedMismatch, lineSizeFaults, unpricedBq, type FrozenBq } from "./bq";
 import type { BqItemKind, BqLine, Finding } from "./types";
 
 // ------------------------------------------------------------------ records
@@ -147,6 +147,7 @@ export type BqCsvFault =
   | "KIND_UNKNOWN"
   | "QUANTITY_INVALID"
   | "RATE_INVALID"
+  | "TOO_LARGE"
   | "AMOUNT_INVALID"
   | "PROVISIONAL_UNKNOWN"
   | "PROVISIONAL_NOT_MEASURED";
@@ -255,6 +256,8 @@ export function parseBqCsv(text: string): ParsedBqCsv {
         faults.push({ code: "AMOUNT_INVALID", level: "warn", line: at, data: { amount: amountText } });
       }
     }
+    // Each figure, and quantity × rate, must fit the column it is stored in.
+    for (const f of lineSizeFaults(quantity ?? null, rate)) faults.push({ code: "TOO_LARGE", level: "block", line: at, data: { field: f.field } });
     if (!number) continue;
     let s = sections.find((x) => x.number === number);
     if (!s) {

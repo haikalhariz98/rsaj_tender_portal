@@ -11,6 +11,8 @@ import {
   subtractSen,
   compareAmounts,
   senFromAmount,
+  fitsMoneyColumn,
+  MONEY_COLUMN_MAX_SEN,
 } from "./money";
 
 describe("parsing", () => {
@@ -135,5 +137,17 @@ describe("formatMoney: one display format", () => {
     expect(formatMoney(parseSen("300000"))).toBe("RM300,000");
     expect(formatMoney(parseSen("300000.01"))).toBe("RM300,000.01");
     expect(formatMoney(parseSen("0.50"))).toBe("RM0.50");
+  });
+});
+
+describe("fitsMoneyColumn: the Decimal(18, 2) a money column holds", () => {
+  it("16 digits before the point fit; 17 do not; either sign", () => {
+    expect(fitsMoneyColumn(parseSen("9999999999999999.99"))).toBe(true);
+    expect(fitsMoneyColumn(MONEY_COLUMN_MAX_SEN)).toBe(true);
+    expect(fitsMoneyColumn(MONEY_COLUMN_MAX_SEN + 1n)).toBe(false);
+    expect(fitsMoneyColumn(parseSen("10000000000000000.00"))).toBe(false);
+    expect(fitsMoneyColumn(-MONEY_COLUMN_MAX_SEN)).toBe(true);
+    expect(fitsMoneyColumn(-MONEY_COLUMN_MAX_SEN - 1n)).toBe(false);
+    expect(fitsMoneyColumn(0n)).toBe(true);
   });
 });

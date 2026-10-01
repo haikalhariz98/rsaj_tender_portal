@@ -67,6 +67,9 @@ describe("editing and issuing", () => {
   it("an item needs a code unique in the issue, a description and a rate not below zero", () => {
     const d = issue("d", 2, "DRAFT", null);
     expect(itemFaults({ code: "P2", descriptionEn: "Valve", rate: sen("0.00") }, d)).toEqual([]);
+    // RateScheduleItem.rate is Decimal(18, 2): 16 digits before the point, no more.
+    expect(itemFaults({ code: "P2", descriptionEn: "Valve", rate: sen("9999999999999999.99") }, d)).toEqual([]);
+    expect(itemFaults({ code: "P2", descriptionEn: "Valve", rate: sen("10000000000000000.00") }, d)).toEqual([{ code: "TOO_LARGE", level: "block", field: "rate", data: { field: "rate" } }]);
     expect(codes(itemFaults({ code: "P1", descriptionEn: "Valve", rate: sen("1.00") }, d))).toEqual(["CODE_TAKEN"]);
     expect(itemFaults({ code: "P1", descriptionEn: "Valve", rate: sen("1.00"), id: "same" }, { ...d, items: [{ ...d.items[0], id: "same" }] })).toEqual([]);
     expect(codes(itemFaults({ code: " ", descriptionEn: "", rate: -1n }, d))).toEqual(["ITEM_CODE_REQUIRED", "ITEM_DESCRIPTION_REQUIRED", "RATE_NEGATIVE"]);

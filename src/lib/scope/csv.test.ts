@@ -130,6 +130,12 @@ describe("parseBqCsv: every rule refuses on its own, with its line, and nothing 
     expect(blocks(one("1,A,1.1,Pipe,m,,-1,2.00,,").faults)).toEqual(["QUANTITY_INVALID"]);
     expect(blocks(one("1,A,1.1,Pipe,m,,1,2.005,,").faults)).toEqual(["RATE_INVALID"]);
     expect(blocks(one("1,A,1.1,Pipe,m,,1,-2.00,,").faults)).toEqual(["RATE_INVALID"]);
+    // Each figure, and quantity × rate, must fit its column; the line says which.
+    expect(one("1,A,1.1,Pipe,m,,999999999999999.999,,,").faults).toEqual([]);
+    expect(one("1,A,1.1,Pipe,m,,1000000000000000,,,").faults).toEqual([{ code: "TOO_LARGE", level: "block", line: 2, data: { field: "quantity" } }]);
+    expect(one("1,A,1.1,Pipe,m,,,10000000000000000.00,,").faults).toEqual([{ code: "TOO_LARGE", level: "block", line: 2, data: { field: "rate" } }]);
+    expect(one("1,A,1.1,Pipe,m,,2,9999999999999999.99,,").faults).toEqual([{ code: "TOO_LARGE", level: "block", line: 2, data: { field: "amount" } }]);
+    expect(csvFaultText({ code: "TOO_LARGE", level: "block", line: 2, data: { field: "amount" } })).toBe("Line 2: Quantity times rate is too large to record: a line's amount holds at most 16 digits before the decimal point.");
     expect(blocks(one("1,A,1.1,Pipe,m,,1,2.00,,maybe").faults)).toEqual(["PROVISIONAL_UNKNOWN"]);
     expect(blocks(one("1,A,1.1,Pipe,m,Prime cost sum,1,2.00,,Yes").faults)).toEqual(["PROVISIONAL_NOT_MEASURED"]);
     // An amount that is not an amount is not compared; it warns and is ignored.

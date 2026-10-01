@@ -97,6 +97,14 @@ export const LEAD_STATE_BADGE: Readonly<Record<LeadState, { label: string; tone:
   TIME_ZONE_NOT_SET: { label: "Time zone not set", tone: "warn" },
 };
 
+/// A figure past its column's precision (Decimal(18, 3) quantities, Decimal(18, 2) money): fixed sentences, never the figure.
+const TOO_LARGE_TEXT = "The figure is too large to record: an amount holds at most 16 digits before the decimal point.";
+const SIZE_TEXT: Readonly<Record<string, string>> = {
+  quantity: "The quantity is too large to record: at most 15 digits before the decimal point.",
+  rate: "The rate is too large to record: at most 16 digits before the decimal point.",
+  amount: "Quantity times rate is too large to record: a line's amount holds at most 16 digits before the decimal point.",
+};
+
 export type ScopeCode =
   | FinaliseFault
   | DraftFault
@@ -239,6 +247,7 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   CHANGED: "The record changed while this was being saved. Reload and try again.",
   QUANTITY_INVALID: "Give the quantity as a number, to three decimal places at most.",
   RATE_INVALID: "Give the rate as an amount, to the sen.",
+  TOO_LARGE: (d) => SIZE_TEXT[d.field as string] ?? TOO_LARGE_TEXT,
   VALUE_INVALID: "Give the estimate as an amount, to the sen.",
   PROVENANCE_REQUIRED: "Say where this comes from: stated, observed or assumed.",
   CODE_TAKEN: "That code is already used.",
@@ -338,6 +347,7 @@ const CSV_TEXT: Readonly<Record<BqCsvFault, (d: Record<string, string | number |
   DESCRIPTION_REQUIRED: () => "Give the line's description.",
   KIND_UNKNOWN: (d) => `“${d.kind ?? ""}” is not a kind of line. Use Measured work, Prime cost sum or Provisional sum, or leave it blank for measured work.`,
   QUANTITY_INVALID: (d) => `“${d.quantity ?? ""}” is not a quantity: a number, to three decimal places at most.`,
+  TOO_LARGE: (d) => SIZE_TEXT[d.field as string] ?? TOO_LARGE_TEXT,
   RATE_INVALID: (d) => `“${d.rate ?? ""}” is not a rate: an amount to the sen, not below zero.`,
   AMOUNT_INVALID: (d) => `“${d.amount ?? ""}” is not an amount, so it is not compared. Amounts are worked out from quantity and rate.`,
   PROVISIONAL_UNKNOWN: (d) => `“${d.provisional ?? ""}” is not Yes or No.`,

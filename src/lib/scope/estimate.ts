@@ -22,7 +22,7 @@ import { dayIn } from "@/lib/dates";
 import { lowers } from "@/lib/documents/classification";
 import type { SecurityClass } from "@/lib/documents/types";
 import type { ExerciseStatus } from "@/lib/method/types";
-import type { Sen } from "@/lib/money";
+import { fitsMoneyColumn, type Sen } from "@/lib/money";
 
 import { sharePct } from "./bq";
 import type { EstimateState, Finding, ScopePolicy } from "./types";
@@ -72,6 +72,7 @@ export function exerciseAllowsEstimate(status: ExerciseStatus): "OPEN" | "EXERCI
 
 export type VersionFault =
   | "NOT_POSITIVE"
+  | "TOO_LARGE"
   | "PERSON_REQUIRED"
   | "SECOND_PREPARER"
   | "REASON_REQUIRED"
@@ -99,6 +100,8 @@ export function versionFaults(
   if (est?.state === "VOID") out.push({ code: "VOID", level: "block" });
   if (est?.state === "DISCLOSED") out.push({ code: "DISCLOSED", level: "block" });
   if (i.value == null || i.value <= 0n) out.push({ code: "NOT_POSITIVE", level: "block" });
+  // CompanyEstimateVersion.value is Decimal(18, 2). The code alone goes back: never the figure.
+  else if (!fitsMoneyColumn(i.value)) out.push({ code: "TOO_LARGE", level: "block" });
   if (!i.personId) out.push({ code: "PERSON_REQUIRED", level: "block" });
   else if (est && i.personId !== est.preparerPersonId) out.push({ code: "SECOND_PREPARER", level: "block" });
   if (est && !i.reason.trim()) out.push({ code: "REASON_REQUIRED", level: "block" });

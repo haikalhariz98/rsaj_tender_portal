@@ -9,7 +9,7 @@ import { writeAudit, type Tx } from "@/lib/audit/record";
 import { dayToDate, storedDay, todayIn } from "@/lib/dates";
 import { parseSen, senToDecimalString, type Sen } from "@/lib/money";
 import { ENTITY, bqExportAudit, bqImportAudit, rateFromText, scopeTabledAudit, bqHeaderAudit, bqStatusAudit, estimateCreatedAudit, estimateEventAudit, estimateStateAudit, estimateVersionAudit, itemAudit, sectionAudit, verificationAudit, verificationClearedAudit } from "@/lib/scope/audit-view";
-import { bqTotals, draftEditFaults, finaliseFaults, holdingOn, isQuantity, itemAmount, qualificationSnapshot, reviseFaults, startBqFaults, totalsSnapshot } from "@/lib/scope/bq";
+import { bqTotals, draftEditFaults, finaliseFaults, holdingOn, isQuantity, itemAmount, lineSizeFaults, qualificationSnapshot, reviseFaults, startBqFaults, totalsSnapshot } from "@/lib/scope/bq";
 import { actionResult, lodgeFaults, retainFaults, startFault, versionFaults, voidFault } from "@/lib/scope/estimate";
 import { writeEstimateVersion } from "@/lib/scope/estimate-store";
 import { csvFaultText, ESTIMATE_STATE_LABEL, keyedMismatchText, PANEL_STATE_LABEL, scopeFaultText, type ScopeCode } from "@/lib/scope/labels";
@@ -240,6 +240,9 @@ export async function saveBqItem(_prev: FormState, data: FormData): Promise<Form
       priced = p.priced;
     }
     const rate: Sen | null = priced ? priced.rate : rateRaw == null ? null : parseSen(rateRaw);
+    // Each figure, and quantity × rate, must fit its column; refused by name, never an overflow.
+    const size = lineSizeFaults(quantity, rate);
+    if (size.length) return { ok: false, errors: Object.fromEntries(size.map((f) => [f.field === "rate" ? (priced ? "scheduleItem" : "rate") : "quantity", scopeFaultText(f)])) };
     const amount = itemAmount(quantity, rate);
     const row = {
       sectionId: section.id, itemRef, description, unit, kind, provisional, sortOrder,
