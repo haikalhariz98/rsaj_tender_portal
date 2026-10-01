@@ -22,7 +22,7 @@
 import { createHash } from "node:crypto";
 
 import type { PrismaClient } from "../src/generated/prisma/client";
-import { attached, detached, documentCreated, filed, holdPlaced, repinned, versionCreated, versionWithdrawn } from "../src/lib/documents/audit-view";
+import { attached, detached, documentCreated, filed, holdPlaced, repinAudit, versionCreated, versionWithdrawn } from "../src/lib/documents/audit-view";
 import { PURPOSE_LABEL } from "../src/lib/documents/labels";
 import type { AttachmentPurpose, SecurityClass } from "../src/lib/documents/types";
 import { initialsLogo } from "../src/lib/organisation/png";
@@ -187,7 +187,11 @@ export async function loadDocuments(db: Db, organisationId: string) {
       if (a.detached?.replacedBy) {
         const next = d.attachments.find((x) => x.id === a.detached!.replacedBy)!;
         const nv = d.versions.find((x) => x.id === next.versionId)!;
-        entry("DocumentAttachment", next.id, label, "UPDATE", a.detached.at, repinned({ purpose: a.purpose, title: d.title, fromVersion: v.n, toVersion: nv.n, toSha256: sha(nv.bytes) }), a.detached.reason.replace(/^Replaced by version \d+: /, ""));
+        // As attachNewVersion writes it: the old attachment closed, the new one opened, each under its own id.
+        const why = a.detached.reason.replace(/^Replaced by version \d+: /, "");
+        for (const e of repinAudit({ purpose: a.purpose, title: d.title, owner: a.ownerLabel, reason: why, from: { attachmentId: a.id, versionNo: v.n }, to: { attachmentId: next.id, versionNo: nv.n, sha256: sha(nv.bytes) } })) {
+          entry("DocumentAttachment", e.entityId, label, e.action, a.detached.at, e.changes, why);
+        }
       } else if (a.detached) {
         entry("DocumentAttachment", a.id, label, "UPDATE", a.detached.at, detached({ purpose: a.purpose, title: d.title, versionNo: v.n, reason: a.detached.reason }), a.detached.reason);
       }

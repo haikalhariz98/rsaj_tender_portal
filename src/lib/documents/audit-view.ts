@@ -49,8 +49,33 @@ export function detached(i: { purpose: AttachmentPurpose; title: string; version
   return diffFields({ purpose: PURPOSE_LABEL[i.purpose], document: i.title, attached: "yes" }, { purpose: PURPOSE_LABEL[i.purpose], document: i.title, attached: "no", detachedBecause: i.reason });
 }
 
-export function repinned(i: { purpose: AttachmentPurpose; title: string; fromVersion: number; toVersion: number; toSha256: string }): FieldChange[] {
-  return diffFields({ purpose: PURPOSE_LABEL[i.purpose], version: i.fromVersion }, { purpose: PURPOSE_LABEL[i.purpose], version: i.toVersion, fingerprint: i.toSha256 });
+/// The reason an attachment closed by a new version carries (BD-DS-17).
+export const replacedBecause = (toVersion: number, reason: string) => `Replaced by version ${toVersion}: ${reason}`;
+
+export interface AuditEntryPlan {
+  entityId: string;
+  action: "CREATE" | "UPDATE";
+  changes: FieldChange[];
+}
+
+/**
+ * A new version moving a pin (OD-8, BD-DS-17), as the trail records it: two entries,
+ * each under its own attachment's id — the old attachment closed (UPDATE), naming the
+ * version that replaced it and why, and the new one opened (CREATE). Each attachment's
+ * history then reads whole on its own (review carry 6).
+ */
+export function repinAudit(i: {
+  purpose: AttachmentPurpose;
+  title: string;
+  owner: string;
+  reason: string;
+  from: { attachmentId: string; versionNo: number };
+  to: { attachmentId: string; versionNo: number; sha256: string };
+}): [AuditEntryPlan, AuditEntryPlan] {
+  return [
+    { entityId: i.from.attachmentId, action: "UPDATE", changes: detached({ purpose: i.purpose, title: i.title, versionNo: i.from.versionNo, reason: replacedBecause(i.to.versionNo, i.reason) }) },
+    { entityId: i.to.attachmentId, action: "CREATE", changes: attached({ purpose: i.purpose, title: i.title, versionNo: i.to.versionNo, sha256: i.to.sha256, owner: i.owner }) },
+  ];
 }
 
 export function reclassified(i: { from: SecurityClass | null; to: SecurityClass }): FieldChange[] {

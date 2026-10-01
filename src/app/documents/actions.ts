@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/record-editor";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { attachFault, detachFault, reliedOnAttachment, repinFault } from "@/lib/documents/attach";
-import { attached, detached, filed, holdPlaced, holdReleased, reclassified, repinned, versionWithdrawn } from "@/lib/documents/audit-view";
+import { attached, detached, filed, holdPlaced, holdReleased, reclassified, repinAudit, replacedBecause, versionWithdrawn } from "@/lib/documents/audit-view";
 import { reclassifyFault, reclassifyKind } from "@/lib/documents/classification";
 import { holdFaults, releaseFaults } from "@/lib/documents/hold";
 import { documentFaultText, FINGERPRINT_STATEMENT, PURPOSE_LABEL } from "@/lib/documents/labels";
@@ -172,10 +172,13 @@ export async function attachNewVersion(_prev: FormState, data: FormData): Promis
     if (!to) return refuse([{ code: "VERSION_UNKNOWN", level: "block" }]);
     const faults = repinFault({ purpose: a.purpose, owner: o.facts, reason, attachment: { detachedAt: a.detachedAt, versionId: a.versionId, documentId: a.version.documentId }, to });
     if (faults.length) return refuse(faults);
-    await tx.documentAttachment.update({ where: { id: a.id }, data: { detachedAt: new Date(), detachReason: `Replaced by version ${to.versionNo}: ${reason}` } });
+    await tx.documentAttachment.update({ where: { id: a.id }, data: { detachedAt: new Date(), detachReason: replacedBecause(to.versionNo, reason) } });
     const row = await tx.documentAttachment.create({ data: { organisationId: o.organisationId, purpose: a.purpose, versionId: to.id, [col]: ref.id } });
-    await writeAudit(tx, { organisationId: o.organisationId, entity: "DocumentAttachment", entityId: row.id, entityLabel: `${o.label} · ${PURPOSE_LABEL[a.purpose]}`, reason }, "UPDATE",
-      repinned({ purpose: a.purpose, title: to.document.title, fromVersion: a.version.versionNo, toVersion: to.versionNo, toSha256: to.sha256 }));
+    // Each attachment's trail under its own id: the old one closed, the new one opened.
+    const entityLabel = `${o.label} · ${PURPOSE_LABEL[a.purpose]}`;
+    for (const e of repinAudit({ purpose: a.purpose, title: to.document.title, owner: o.label, reason, from: { attachmentId: a.id, versionNo: a.version.versionNo }, to: { attachmentId: row.id, versionNo: to.versionNo, sha256: to.sha256 } })) {
+      await writeAudit(tx, { organisationId: o.organisationId, entity: "DocumentAttachment", entityId: e.entityId, entityLabel, reason }, e.action, e.changes);
+    }
     const after = o.afterChange ? await o.afterChange(tx) : null;
     return { ok: true, message: after ?? undefined };
   });
