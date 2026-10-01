@@ -24,6 +24,7 @@ import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { ableToAct, holdersFor } from "@/lib/requisition/holders";
 import { recordOf, type DecisionRow } from "@/lib/requisition/repo";
+import { windowGate } from "@/lib/window/gate";
 import type { ApprovalStatus, RequisitionStatus, StepDecision } from "@/lib/requisition/types";
 import type { LiabilityBand } from "@/lib/securities/liability";
 import { Prisma } from "@/generated/prisma/client";
@@ -228,6 +229,8 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
     ex.contractTypeCode ? client.contractType.findFirst({ where: { organisationId: org.id, code: ex.contractTypeCode } }) : Promise.resolve(null),
   ]);
   const method = cfg.config.methods.find((m) => m.code === ex.sourcingMethodCode) ?? null;
+  // 6.5 (X-9): the window's phase now and any pending change, for the gate.
+  const exerciseWindow = windowGate(ex, await client.exerciseWindow.findUnique({ where: { exerciseId: ex.id }, select: { purchaseFromDay: true, purchaseCloseDay: true } }), new Date(), org.timeZone);
   const unitPath = pathTo(units as unknown as OrgUnit[], req.sectionUnitCode || req.requestingUnitCode, on).reverse().map((u) => u.code);
   const holdersOf = (code: string) => holdersFor(code, unitPath, roster, delegations, org.today ?? storedDay(on));
   const people = new Map(roster.people.map((p) => [p.id, p]));
@@ -280,6 +283,7 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
       title: ex.title,
       status: ex.status,
       packKindSnapshot: ex.packKindSnapshot,
+      window: exerciseWindow,
       regime: ex.regime,
       appointmentRuleKey: ex.appointmentRuleKey,
       appointmentRuleLabel: bands?.appointment.ruleLabel ?? null,

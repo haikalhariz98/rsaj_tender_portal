@@ -22,6 +22,7 @@ import { exerciseCitationFault } from "@/lib/award/citation";
 import { despatchFaults } from "@/lib/award/distribution";
 import { evaluateAward } from "@/lib/award/evaluate";
 import { awardOpenRefusal, exerciseOpenForAward } from "@/lib/award/gate";
+import { readWindowGate } from "@/lib/window/repo";
 import { awardValueFaults, instrumentFor } from "@/lib/award/instrument";
 import { AWARD_STATUS_LABEL, awardFindingText, BOND_FAULT_TEXT, DESPATCH_FAULT_TEXT, INSURANCE_FAULT_TEXT, SIGNER_FAULT_TEXT } from "@/lib/award/labels";
 import { renderedText } from "@/lib/award/merge";
@@ -151,8 +152,9 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
     const result = await withLockedExerciseForAward(exerciseId, async (tx, l): Promise<FormState> => {
       const { org, ex, req } = l;
       if (!org.today) return NO_ZONE;
-      // X-9: an exercise with a tender or quotation pack needs its documents approved for tendering.
-      if (!exerciseOpenForAward(ex.status, ex.packKindSnapshot)) return { ok: false, message: awardOpenRefusal(ex.packKindSnapshot) };
+      // X-9 (6.5): an exercise with a tender or quotation pack needs its invitation window closed, with no change pending.
+      const gate = await readWindowGate(ex, org.timeZone, tx);
+      if (!exerciseOpenForAward(ex.status, ex.packKindSnapshot, gate)) return { ok: false, message: awardOpenRefusal(ex.packKindSnapshot, ex.status, gate) };
       const live = await tx.award.findFirst({ where: { exerciseId: ex.id, status: { in: [...LIVE_STATUSES] } }, select: { reference: true } });
       if (live) return { ok: false, message: `This exercise already has a live award, ${live.reference}. Cancel it first to open another.` };
       const config = await loadAwardConfig(org.id, tx);

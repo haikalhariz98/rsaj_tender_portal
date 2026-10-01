@@ -7,6 +7,7 @@
  * database or the clock.
  */
 
+import type { WindowGate } from "@/lib/window/gate";
 import { regimeFor } from "@/lib/authority/resolve";
 import type { DecisionRecord } from "@/lib/committee/record";
 import type { FunderContext } from "@/lib/method/approval";
@@ -103,6 +104,8 @@ export interface AwardFacts {
     status: string;
     /// X-9: the pack kind recorded on the move into preparation; null before document assembly.
     packKindSnapshot: PackKind | null;
+    /// 6.5 (X-9): the window's phase and pending change. Absent: not judged, so not open.
+    window?: WindowGate | null;
     regime: string | null;
     appointmentRuleKey: string | null;
     appointmentRuleLabel: string | null;
@@ -232,7 +235,7 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
   const judgedOn = f.method?.requiresDossier ? snapshotFaults(f.dossierEvidence?.snapshot ?? null, new Set(f.dossierEvidence?.withdrawnVersionIds ?? []), true) : [];
   const submit: Finding[] = [
     ...noIssue,
-    ...(route ? submitFaults({ status: a.status, today: f.today, exerciseStatus: f.exercise.status, exercisePackKind: f.exercise.packKindSnapshot, openRoute: f.appointment?.status === "PENDING", method: f.method, dossier, route, nameRoutes: f.nameRoutes ?? [] }) : []),
+    ...(route ? submitFaults({ status: a.status, today: f.today, exerciseStatus: f.exercise.status, exercisePackKind: f.exercise.packKindSnapshot, exerciseWindow: f.exercise.window ?? null, openRoute: f.appointment?.status === "PENDING", method: f.method, dossier, route, nameRoutes: f.nameRoutes ?? [] }) : []),
     ...("fault" in instrument ? [{ code: instrument.fault, level: "block" as const, data: { regime: instrument.regime } }] : []),
     ...changed,
     ...valueFaults,
@@ -306,6 +309,7 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
     today: f.today,
     exerciseStatus: f.exercise.status,
     exercisePackKind: f.exercise.packKindSnapshot,
+    exerciseWindow: f.exercise.window ?? null,
     commitment,
     sourcingPermitted: f.requisition.sourcingPermitted,
     instrument,

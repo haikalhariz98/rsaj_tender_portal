@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { awardOpenRefusal, exerciseOpenForAward } from "@/lib/award/gate";
+import { readWindowGate } from "@/lib/window/repo";
 import { INSTRUMENT_LABEL, awardFindingText } from "@/lib/award/labels";
 import { awardHeadroom, instrumentFor } from "@/lib/award/instrument";
 import { loadAwardPolicy } from "@/lib/award/repo";
@@ -58,7 +59,9 @@ export default async function NewAwardPage(props: PageProps<"/awards/new">) {
   // The dossier's evidence as the document store counts it: the note shows only while there is none.
   const dossierEvidence = method?.requiresDossier ? exerciseEvidence(await attachmentFacts({ kind: "exercise", id: ex.id }, undefined, ["DOSSIER_EVIDENCE"])).dossier : 0;
   const instrument = instrumentFor(ex.regime, policy);
-  const blocker = !exerciseOpenForAward(ex.status, ex.packKindSnapshot) ? awardOpenRefusal(ex.packKindSnapshot) : live ? `This exercise already has a live award, ${live.reference}.` : "fault" in instrument ? awardFindingText({ code: instrument.fault, level: "block", data: { regime: instrument.regime } }) : null;
+  // X-9 (6.5): the window's phase and any pending change, read now.
+  const gate = await readWindowGate(ex, org.timeZone);
+  const blocker = !exerciseOpenForAward(ex.status, ex.packKindSnapshot, gate) ? awardOpenRefusal(ex.packKindSnapshot, ex.status, gate) : live ? `This exercise already has a live award, ${live.reference}.` : "fault" in instrument ? awardFindingText({ code: instrument.fault, level: "block", data: { regime: instrument.regime } }) : null;
   if (blocker) {
     return (
       <>

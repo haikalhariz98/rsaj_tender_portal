@@ -77,6 +77,8 @@ import { AWARD_STATUS_LABEL, AWARD_STATUS_TONE, awardFindingText, DOSSIER_EVIDEN
 import { loadAwardPolicy } from "@/lib/award/repo";
 import { ENTITY as TENDER_ENTITY } from "@/lib/tender-docs/audit-view";
 import { awardOpenRefusal, exerciseOpenForAward } from "@/lib/award/gate";
+import type { WindowGate } from "@/lib/window/gate";
+import { readWindowGate } from "@/lib/window/repo";
 import { tenderingRouteLabel, trailLabel } from "@/lib/tender-docs/labels";
 import type { PackKind } from "@/lib/tender-docs/types";
 import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
@@ -116,6 +118,8 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const l = await loadExercise(id);
   if (!l) notFound();
   const { ex, req, org } = l;
+  // X-9 (6.5): the award gate reads the window's phase now and any pending change.
+  const windowGateNow = await readWindowGate(ex, org.timeZone);
   const today = org.today;
   const on = today ? dayToDate(today) : new Date();
   const draft = ex.status === "DRAFT";
@@ -427,6 +431,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
           exerciseId={ex.id}
           status={ex.status}
           packKind={ex.packKindSnapshot}
+          window={windowGateNow}
           awards={awards}
           // Whether an award can be opened here at all, and whether it could then go for approval.
           opening={(() => {
@@ -555,13 +560,13 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
 
 // --------------------------------------------------------------------- award
 
-function AwardTab({ exerciseId, status, packKind, awards, opening, dossier }: { exerciseId: string; status: string; packKind: PackKind | null; opening: string | null; dossier: boolean; awards: { id: string; reference: string; awardeeName: string; awardedValue: { toString(): string }; status: string; instrumentKind: string; cancelReason: string; contract: { number: string } | null }[] }) {
+function AwardTab({ exerciseId, status, packKind, window, awards, opening, dossier }: { exerciseId: string; status: string; packKind: PackKind | null; window: WindowGate; opening: string | null; dossier: boolean; awards: { id: string; reference: string; awardeeName: string; awardedValue: { toString(): string }; status: string; instrumentKind: string; cancelReason: string; contract: { number: string } | null }[] }) {
   const live = awards.find((a) => a.status !== "CANCELLED") ?? null;
   const cancelled = awards.filter((a) => a.status === "CANCELLED");
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<AwardIcon size={17} />} title="The award" subtitle={live ? "Its approval, instrument, return and securities are on the award's own record." : awardOpenRefusal(packKind)} />
+        <CardHeader icon={<AwardIcon size={17} />} title="The award" subtitle={live ? "Its approval, instrument, return and securities are on the award's own record." : awardOpenRefusal(packKind, status, window)} />
         <CardBody>
           {live ? (
             <div className="flex flex-col gap-4">
@@ -580,8 +585,8 @@ function AwardTab({ exerciseId, status, packKind, awards, opening, dossier }: { 
                 <ButtonLink href={`/awards/${live.id}`} variant="secondary" size="sm">Open the award</ButtonLink>
               </div>
             </div>
-          ) : !exerciseOpenForAward(status, packKind) ? (
-            <EmptyState size="sm" title="Not awarded">{status === "CANCELLED" ? "The exercise is cancelled." : status === "DRAFT" ? "The exercise must move into preparation first." : awardOpenRefusal(packKind)}</EmptyState>
+          ) : !exerciseOpenForAward(status, packKind, window) ? (
+            <EmptyState size="sm" title="Not awarded">{status === "CANCELLED" ? "The exercise is cancelled." : status === "DRAFT" ? "The exercise must move into preparation first." : awardOpenRefusal(packKind, status, window)}</EmptyState>
           ) : opening ? (
             <EmptyState size="sm" title="No award is opened here" action={<Button size="sm" variant="primary" disabled aria-describedby="award-start-note">Start the award</Button>}>
               <span id="award-start-note">{opening}</span>

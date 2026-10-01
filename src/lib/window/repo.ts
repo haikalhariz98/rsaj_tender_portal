@@ -15,6 +15,7 @@ import { nameRoutesOf } from "@/lib/method/approval";
 import { loadRequirements, loadTenderPolicy } from "@/lib/tender-docs/repo";
 
 import { feeBasisTotal } from "./fee";
+import { windowGate, type WindowGate } from "./gate";
 import type { TemplateFacts } from "./fields";
 import type { CalendarFacts, ChannelFacts, EventFacts, FeeFloorFacts, WindowPolicyFacts } from "./types";
 import { UNSET_WINDOW_POLICY } from "./types";
@@ -191,3 +192,17 @@ export async function windowData(organisationId: string, ex: ExerciseForWindow, 
 }
 
 export type WindowData = Awaited<ReturnType<typeof windowData>>;
+
+/**
+ * The award gate's facts for one exercise, read now (X-9): for a screen, or inside an action on
+ * the exercise it has locked (every window write locks the exercise first, so the days read are
+ * the locked ones).
+ */
+export async function readWindowGate(
+  ex: { id: string; status: import("@/lib/method/types").ExerciseStatus; closingAt: Date | null; approvalInstances: readonly { domain: string; awardId?: string | null; status: string }[] },
+  timeZone: string | null,
+  client: Tx = db,
+): Promise<WindowGate> {
+  const w = await client.exerciseWindow.findUnique({ where: { exerciseId: ex.id }, select: { purchaseFromDay: true, purchaseCloseDay: true } });
+  return windowGate(ex, w, new Date(), timeZone);
+}

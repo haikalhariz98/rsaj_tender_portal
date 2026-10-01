@@ -97,6 +97,7 @@ const CLOSING_KEY_READERS: Record<string, string> = {
   "src/lib/window/repo.ts": "reads the exercise's closing for the window's rules; writes nothing",
   "src/lib/window/judge.ts": "passes the closing to the phase and the instruments; writes nothing",
   "src/lib/window/read.ts": "shows the closing's history from the stored dates; writes nothing",
+  "src/lib/window/gate.ts": "derives the award gate's phase from the closing; writes nothing",
 };
 
 describe("X-2: the closing is written nowhere else, by any route (carry a)", () => {

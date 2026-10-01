@@ -10,6 +10,7 @@
  */
 
 import type { PackKind } from "@/lib/method/types";
+import type { WindowGate } from "@/lib/window/gate";
 import type { RequiredBond } from "@/lib/securities/bond";
 import type { CommitmentFault } from "@/lib/requisition/commitment";
 
@@ -40,23 +41,30 @@ export interface DocumentState {
 }
 
 /**
- * X-9: the state an exercise's award needs, by the pack kind it was prepared under. An
+ * X-9: the stage an exercise's award needs, by the pack kind it was prepared under. An
  * exercise prepared before document assembly (no snapshot) or with no pack keeps the
- * Phase 1 path: in preparation. One that assembles a tender or quotation pack needs its
- * documents approved for tendering (Q-2 A), until 6.5 replaces this with the window.
- * Accepted and issued awards are not judged again.
+ * Phase 1 path: in preparation. 6.5 tightens 6.4's position (approved for tendering): one that
+ * assembles a tender or quotation pack is awarded only once it was advertised or invited, its
+ * window's phase is CLOSED (derived now, ADR 0014), and no change to the window is with approval.
+ * 6.7 replaces this interim gate. Accepted and issued awards are not judged again.
  */
-export function awardableStatus(packKindSnapshot: PackKind | null): "DOCUMENTS_IN_PREPARATION" | "APPROVED_FOR_TENDERING" {
-  return packKindSnapshot === "TENDER" || packKindSnapshot === "QUOTATION" ? "APPROVED_FOR_TENDERING" : "DOCUMENTS_IN_PREPARATION";
+export function awardableStatus(packKindSnapshot: PackKind | null): "DOCUMENTS_IN_PREPARATION" | "WINDOW_CLOSED" {
+  return packKindSnapshot === "TENDER" || packKindSnapshot === "QUOTATION" ? "WINDOW_CLOSED" : "DOCUMENTS_IN_PREPARATION";
 }
 
-export const exerciseOpenForAward = (status: string, packKindSnapshot: PackKind | null) => status === awardableStatus(packKindSnapshot);
+/// `window`: the window's phase and pending change (`windowGate`). Not given: not judged, never open.
+export function exerciseOpenForAward(status: string, packKindSnapshot: PackKind | null, window: WindowGate | null = null): boolean {
+  if (awardableStatus(packKindSnapshot) === "DOCUMENTS_IN_PREPARATION") return status === "DOCUMENTS_IN_PREPARATION";
+  return (status === "ADVERTISED" || status === "INVITED") && window?.phase === "CLOSED" && !window.changePending;
+}
 
 /// Why an award is not opened on the exercise, by what it needs.
-export const awardOpenRefusal = (packKindSnapshot: PackKind | null) =>
-  awardableStatus(packKindSnapshot) === "APPROVED_FOR_TENDERING"
-    ? "An award is opened only once the exercise's tender documents are approved for tendering."
-    : "An award is opened only on an exercise in preparation, with its classification decided.";
+export function awardOpenRefusal(packKindSnapshot: PackKind | null, status: string | null = null, window: WindowGate | null = null): string {
+  if (awardableStatus(packKindSnapshot) === "DOCUMENTS_IN_PREPARATION") return "An award is opened only on an exercise in preparation, with its classification decided.";
+  if (status !== "ADVERTISED" && status !== "INVITED") return "An award is opened only once the exercise was advertised or invited and its invitation window has closed.";
+  if (window?.changePending) return "A change to the invitation window is with approval: an award waits for its decision.";
+  return "An award is opened only once the invitation window has closed.";
+}
 
 export interface IssueInput {
   status: AwardStatus;
@@ -64,6 +72,8 @@ export interface IssueInput {
   exerciseStatus: string;
   /// The exercise's pack kind as recorded on the move into preparation (X-9). Null: before document assembly.
   exercisePackKind: PackKind | null;
+  /// 6.5 (X-9): the window's phase and pending change. Not given: not judged, so not open.
+  exerciseWindow?: WindowGate | null;
   commitment: CommitmentFault | null;
   sourcingPermitted: boolean | null;
   instrument: { kind: InstrumentKind } | { fault: InstrumentFault };
@@ -132,7 +142,7 @@ export function issueFaults(i: IssueInput): Finding[] {
 
   if (i.status !== "APPROVED") f("NOT_APPROVED_YET", { status: i.status });
   if (i.today == null) f("TIME_ZONE_UNSET");
-  if (!exerciseOpenForAward(i.exerciseStatus, i.exercisePackKind)) f("EXERCISE_NOT_OPEN", { status: i.exerciseStatus, needs: awardableStatus(i.exercisePackKind) });
+  if (!exerciseOpenForAward(i.exerciseStatus, i.exercisePackKind, i.exerciseWindow ?? null)) f("EXERCISE_NOT_OPEN", { status: i.exerciseStatus, needs: awardableStatus(i.exercisePackKind), changePending: i.exerciseWindow?.changePending ? "yes" : null });
 
   // FR-REQ-016: no commitment against a requisition that has not completed its approval.
   if (i.commitment?.code === "NOT_APPROVED") f("REQUISITION_NOT_APPROVED", { step: i.commitment.outstanding });

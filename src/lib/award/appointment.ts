@@ -17,6 +17,8 @@ import { invitationFault, resolveUnderFunder, type FunderContext } from "@/lib/m
 import { dossierFault } from "@/lib/method/justification";
 import { APPOINTMENT_DOMAIN, type Method, type PackKind } from "@/lib/method/types";
 
+import type { WindowGate } from "@/lib/window/gate";
+
 import { awardableStatus, exerciseOpenForAward } from "./gate";
 import type { Finding } from "./types";
 
@@ -97,6 +99,8 @@ export type SubmitFault =
   | "TIME_ZONE_UNSET"
   | "EXERCISE_NOT_IN_PREPARATION"
   | "EXERCISE_NOT_APPROVED_FOR_TENDERING"
+  | "EXERCISE_WINDOW_NOT_CLOSED"
+  | "WINDOW_CHANGE_PENDING"
   | "ANOTHER_ROUTE_OPEN"
   | RouteFault
   | "REASON_REQUIRED"
@@ -122,6 +126,8 @@ export function submitFaults(i: {
   exerciseStatus: string;
   /// X-9: the exercise's pack kind as recorded on the move into preparation; null before document assembly.
   exercisePackKind: PackKind | null;
+  /// 6.5 (X-9): the window's phase and pending change. Not given: not judged, so not open.
+  exerciseWindow?: WindowGate | null;
   openRoute: boolean;
   method: (Pick<Method, "requiresDossier"> & Partial<Pick<Method, "requiresNameApproval">>) | null;
   dossier: { justificationReasonCode: string | null; dossierReference: string | null; evidenceAttachments: number };
@@ -133,7 +139,10 @@ export function submitFaults(i: {
   if (i.status !== "DRAFT") return [f("NOT_DRAFT")];
   const out: Finding<SubmitFault>[] = [];
   if (i.today == null) out.push(f("TIME_ZONE_UNSET"));
-  if (!exerciseOpenForAward(i.exerciseStatus, i.exercisePackKind)) out.push(f(awardableStatus(i.exercisePackKind) === "APPROVED_FOR_TENDERING" ? "EXERCISE_NOT_APPROVED_FOR_TENDERING" : "EXERCISE_NOT_IN_PREPARATION"));
+  if (!exerciseOpenForAward(i.exerciseStatus, i.exercisePackKind, i.exerciseWindow ?? null)) {
+    if (awardableStatus(i.exercisePackKind) === "DOCUMENTS_IN_PREPARATION") out.push(f("EXERCISE_NOT_IN_PREPARATION"));
+    else out.push(f(i.exerciseWindow?.changePending && (i.exerciseStatus === "ADVERTISED" || i.exerciseStatus === "INVITED") ? "WINDOW_CHANGE_PENDING" : "EXERCISE_WINDOW_NOT_CLOSED"));
+  }
   if (i.openRoute) out.push(f("ANOTHER_ROUTE_OPEN"));
   if (i.method) for (const d of dossierFault(i.method, i.dossier)) out.push(f(d.code as SubmitFault));
   if (i.method?.requiresNameApproval) {
