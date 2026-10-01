@@ -5,6 +5,8 @@ import { PrismaClient } from "../src/generated/prisma/client";
 
 import { loadAwards, loadAwardSetup, wipeAwards } from "./demo-award";
 import { loadSittingTrail } from "./demo-sitting-trail";
+import { inspectLogo } from "../src/lib/organisation/logo";
+import { initialsLogo } from "../src/lib/organisation/png";
 
 /**
  * A demonstration dataset, loaded deliberately and never by default.
@@ -36,6 +38,31 @@ const ORG_CODE = process.env.ORGANISATION_CODE ?? "ORG";
 /// cleared by the wipe only if it is still this value.
 const DEMO_TIME_ZONE = "Asia/Kuala_Lumpur";
 const P = "demo_";
+
+/// Invented identity details, set only on fields the organisation has not filled in and
+/// cleared by the wipe only where they still hold these values. The legal name is never
+/// touched. Details carry no provenance column, so nothing here is marked ASSUMED: every
+/// value is invented and says so (".invalid" addresses, zeros for numbers).
+const DEMO_DETAILS = {
+  nameMs: "Demo Utiliti Berhad",
+  shortName: "Demo Utilities",
+  registrationNo: "200001010001 (000001-D)",
+  taxIdentificationNo: "C00000000000",
+  sstRegistrationNo: "W00-0000-00000000",
+  addressLine1: "1 Demo Avenue",
+  addressLine2: null,
+  postcode: "00000",
+  city: "Demo City",
+  state: "Demo State",
+  country: "Demo Country",
+  phone: "+00 0-000 0000",
+  email: "procurement@demo.invalid",
+  website: "https://www.demo.invalid",
+} as const;
+const DEMO_LOGO_ID = `${P}logo`;
+/// A drawn logo: white initials on a colour. Deterministic, so the wipe can tell it from
+/// one somebody uploaded in its place.
+const demoLogoBytes = () => initialsLogo("DU", [30, 64, 175]);
 const day = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
 async function organisation() {
@@ -386,7 +413,31 @@ async function wipe() {
   await db.authorityRole.deleteMany({ where: demo });
   await db.person.deleteMany({ where: demo });
 
+  // The logo. The row is the organisation's one logo, so an upload made after the demo
+  // loaded replaced the demo's bytes in this same row. That one is real: it keeps its
+  // place under a fresh id (and its trail with it) and only a logo still drawn by the
+  // demo is removed. Nothing depends on a logo, so there is nothing to refuse over.
+  const demoLogo = await db.organisationLogo.findUnique({ where: { id: DEMO_LOGO_ID }, select: { id: true, sha256: true } });
+  if (demoLogo) {
+    const drawn = inspectLogo(demoLogoBytes());
+    if (drawn.ok && drawn.sha256 === demoLogo.sha256) {
+      await db.organisationLogo.delete({ where: { id: demoLogo.id } });
+    } else {
+      const kept = `logo_${Date.now().toString(36)}`;
+      await db.organisationLogo.update({ where: { id: demoLogo.id }, data: { id: kept } });
+      await db.auditEntry.updateMany({ where: { entity: "OrganisationLogo", entityId: demoLogo.id }, data: { entityId: kept } });
+      console.log("The logo was replaced after the demo loaded, so it was kept.");
+    }
+  }
+
   await db.auditEntry.deleteMany({ where: { organisationId: org.id, entityId: { startsWith: P } } });
+  // Restore the details the demo filled in, where they still hold the demo's values.
+  const filled = Object.fromEntries(
+    Object.entries(DEMO_DETAILS)
+      .filter(([f, v]) => v !== null && (org as Record<string, unknown>)[f] === v)
+      .map(([f]) => [f, null]),
+  );
+  if (Object.keys(filled).length > 0) await db.organisation.update({ where: { id: org.id }, data: filled });
   if (org.timeZone === DEMO_TIME_ZONE) await db.organisation.update({ where: { id: org.id }, data: { timeZone: null } });
 
   console.log("Demo data removed. The organisation and any real configuration are untouched.");
@@ -405,6 +456,18 @@ async function load() {
 
   const from = day("2024-01-01");
   if (!org.timeZone) await db.organisation.update({ where: { id: org.id }, data: { timeZone: DEMO_TIME_ZONE } });
+
+  // Identity details and a drawn logo, only where the organisation has none of its own.
+  const unset = Object.fromEntries(Object.entries(DEMO_DETAILS).filter(([f, v]) => v !== null && (org as Record<string, unknown>)[f] == null));
+  if (Object.keys(unset).length > 0) await db.organisation.update({ where: { id: org.id }, data: unset });
+  if (!(await db.organisationLogo.findUnique({ where: { organisationId: org.id }, select: { id: true } }))) {
+    const bytes = demoLogoBytes();
+    const check = inspectLogo(bytes);
+    if (!check.ok) throw new Error("The demo logo is not a valid logo.");
+    await db.organisationLogo.create({
+      data: { id: DEMO_LOGO_ID, organisationId: org.id, bytes: new Uint8Array(bytes), mediaType: check.mediaType, sizeBytes: check.sizeBytes, sha256: check.sha256, width: check.width, height: check.height },
+    });
+  }
 
   // ------------------------------------------------------------------- people
   await db.person.createMany({
