@@ -63,6 +63,8 @@ async function load(exerciseId: string) {
 
 type Loaded = NonNullable<Awaited<ReturnType<typeof load>>>;
 
+const WEEKDAY_NAME = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
 /// The window's rules, each with its value, where it comes from and its source (or "Not set").
 function rulesShown(d: WindowData) {
   const p = d.policy;
@@ -75,7 +77,8 @@ function rulesShown(d: WindowData) {
     { label: "Last day of sale before the closing", value: days(p.purchaseCutoffDays), from: provenance(p.dateRulesProvenance), source },
     { label: "Default closing time", value: p.defaultClosingTime ?? NOT_SET, from: provenance(p.closingTimeProvenance), source },
     { label: "Advertisement day", value: p.advertisementDayRule ? `${DAY_RULE_LABEL[p.advertisementDayRule]}${p.advertisementDayRule === "NAMED_CHANNEL" ? ` (${d.channels.find((c) => c.id === p.advertisementChannelId)?.nameEn ?? "a channel no longer configured"})` : ""}` : NOT_SET, from: provenance(p.dayRuleProvenance), source: null },
-    { label: "Holiday calendar", value: d.calendar ? `${d.calendar.name}${d.calendar.weekendDays.length ? "" : " (weekend not set)"}` : NOT_SET, from: d.calendar ? "As configured" : NOT_SET, source: null },
+    { label: "Holiday calendar", value: d.calendar ? d.calendar.name : NOT_SET, from: d.calendar ? provenance(d.calendar.provenance ?? null) : NOT_SET, source: null },
+    { label: "Weekend", value: d.calendar?.weekendDays.length ? d.calendar.weekendDays.map((n) => WEEKDAY_NAME[n - 1]).join(", ") : NOT_SET, from: d.calendar ? provenance(d.calendar.weekendProvenance ?? null) : NOT_SET, source: null },
     { label: "Mandatory attendance", value: p.mandatoryAttendancePermitted == null ? "Not set: no event is mandatory" : p.mandatoryAttendancePermitted ? "May be made mandatory" : "Not permitted", from: provenance(p.attendanceProvenance), source: null },
   ];
 }
@@ -139,7 +142,7 @@ export async function windowTab(exerciseId: string) {
       amount: money(w?.feeAmount),
       floor: (() => {
         const f = d.floors.find((x) => x.regime === ex.regime);
-        return f ? `${formatMoney(f.minimum)} (${provenance(f.provenance)}${f.governingSource ? `, ${f.governingSource}` : ""})` : NOT_SET;
+        return f ? { amount: formatMoney(f.minimum), from: provenance(f.provenance), source: f.governingSource || null } : null;
       })(),
       basis: (w?.feeLines ?? []).map((l) => ({ id: l.id, cost: FEE_COST_KIND_LABEL[l.kind], description: l.description, quantity: l.quantity?.toString() ?? null, unitCost: l.unitCost ? money(l.unitCost) : null, amount: money(l.amount), raw: { kind: l.kind, description: l.description, quantity: l.quantity?.toString() ?? "", unitCost: l.unitCost?.toString() ?? "", amount: l.quantity ? "" : l.amount.toString() } })),
       basisTotal: w ? formatMoney(basisTotalOf(w)) : formatMoney(0n),
@@ -338,6 +341,7 @@ export async function addendaTab(exerciseId: string) {
     /// How many a draft issued now would go to: the register as it stands (FR-ADV-012).
     willGoTo: recipients.length,
     draft: allowed(addendumWindowFault(phase)),
+    windowClosed: addendumWindowFault(phase)?.code === "AFTER_CLOSING",
     addenda: (w?.addenda ?? []).map((a) => {
       const signedCopies = a.attachments.filter((x) => !x.detachedAt && !x.version.withdrawnAt).length;
       const rendered = a.status === "DRAFT" ? renderAddendum(d, ex, org.timeZone, { number: nextAddendumNumber(w!.addenda), title: a.title, whatChanged: a.whatChanged, issuedOn: org.today }) : null;

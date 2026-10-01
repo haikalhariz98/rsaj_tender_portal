@@ -161,7 +161,7 @@ describe("an unprepared window's blockers fold under the first", () => {
   const f = (code: string) => ({ code, level: "block" as const });
   it("every item fault becomes one 'Prepare the window', first; the others stand", () => {
     const out = foldUnpreparedWindow([f("INSPECTION_PLACE_MISSING"), f("CLOSING_NOT_SET"), f("PAYMENT_METHODS_MISSING"), f("FEE_NOT_SET")], false);
-    expect(out.map((x) => x.code)).toEqual(["WINDOW_NOT_PREPARED", "CLOSING_NOT_SET"]);
+    expect(out.map((x) => x.code)).toEqual(["WINDOW_ITEMS_NOT_PREPARED", "CLOSING_NOT_SET"]);
     expect(windowFindingText(out[0])).toMatch(/^Prepare the window/);
     expect(windowFindingText(out[0])).toContain("3 items");
   });

@@ -93,6 +93,9 @@ export interface CalendarFacts {
   name: string;
   /// ISO weekdays, 1 Monday to 7 Sunday. Empty: not set.
   weekendDays: readonly number[];
+  /// Where the weekend came from, and where the calendar did; null/absent: not recorded.
+  weekendProvenance?: Provenance | null;
+  provenance?: Provenance | null;
   years: readonly { year: number; complete: boolean }[];
   holidays: readonly { day: string; nameEn: string }[];
 }

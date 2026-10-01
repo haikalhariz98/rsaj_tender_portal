@@ -54,6 +54,8 @@ export async function loadCalendar(calendarId: string | null, client: Tx = db): 
     id: c.id,
     name: c.name,
     weekendDays: c.weekendDays,
+    weekendProvenance: c.weekendProvenance as Provenance | null,
+    provenance: c.provenance as Provenance | null,
     years: c.years.map((y) => ({ year: y.year, complete: y.complete })),
     holidays: c.holidays.map((h) => ({ day: storedDay(h.day), nameEn: h.nameEn })),
   };

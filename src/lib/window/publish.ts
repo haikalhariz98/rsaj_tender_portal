@@ -194,6 +194,6 @@ export function foldUnpreparedWindow(findings: readonly Finding[], hasWindow: bo
   if (hasWindow) return [...findings];
   const folded = findings.filter((f) => ITEM_FAULTS.has(f.code));
   if (folded.length === 0) return [...findings];
-  const first: Finding = { code: "WINDOW_NOT_PREPARED", level: "block", data: { count: folded.length } };
+  const first: Finding = { code: "WINDOW_ITEMS_NOT_PREPARED", level: "block", data: { count: folded.length } };
   return [first, ...findings.filter((f) => !ITEM_FAULTS.has(f.code))];
 }

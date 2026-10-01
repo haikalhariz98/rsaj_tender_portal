@@ -269,7 +269,6 @@ export default async function InvitationControlsPage() {
                 <CardHeader
                   icon={<ClockIcon size={17} />}
                   title={<span className="inline-flex flex-wrap items-center gap-2">{cal.name}{cal.retired && <Badge tone="neutral">{cal.retired}</Badge>}</span>}
-                  subtitle={`Weekend: ${cal.weekend}.`}
                   actions={
                     <span className="flex flex-wrap items-center gap-1">
                       <HistoryButton iconOnly entity="HolidayCalendar" entityId={cal.id} label={cal.name} />
@@ -278,6 +277,13 @@ export default async function InvitationControlsPage() {
                     </span>
                   }
                 />
+                {cal.weekend !== "Not set" && (
+                  <div className="flex flex-wrap items-center gap-2 border-b border-line/70 px-5 py-3 text-[13.5px] sm:px-6">
+                    <span className="font-semibold text-ink">Weekend</span>
+                    <span className="text-ink-2">{cal.weekend}</span>
+                    <ProvenanceBadge value={raw?.weekendProvenance ?? null} />
+                  </div>
+                )}
                 {cal.weekend === "Not set" && (
                   <CardBody className="border-b border-line/70">
                     <Callout tone="warn" title="Weekend days not set">A closing cannot be checked against this calendar until its weekend days are set.</Callout>

@@ -110,7 +110,7 @@ export function windowFindingText(f: Finding): string {
     case "TIME_ZONE_UNSET":
       return "The organisation's time zone is not set, so no day can be judged. Set it under Configuration, Organisation.";
 
-    case "WINDOW_NOT_PREPARED":
+    case "WINDOW_ITEMS_NOT_PREPARED":
       return `Prepare the window: where the documents are inspected and bought, the hours, the days of sale, how the fee is paid and the fee (${d.count} items not written yet).`;
 
     // ---- the advertisement day and channels (FR-ADV-001, OD-3)

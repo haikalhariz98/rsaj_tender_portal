@@ -38,7 +38,7 @@ export function AddendaSection({ d, c }: { d: Addenda; c: WindowContext }) {
     return (
       <Card>
         <EmptyState size="sm" title="No addendum">
-          {d.draft.allowed ? "A change to the documents during the window is made by an addendum. Draft one here: it is numbered when issued and goes to everyone on the sale register." : d.draft.reason}
+          {d.draft.allowed ? "A change to the documents during the window is made by an addendum. Draft one here: it is numbered when issued and goes to everyone on the sale register." : d.windowClosed ? "None was issued. The window has closed." : d.draft.reason}
         </EmptyState>
       </Card>
     );

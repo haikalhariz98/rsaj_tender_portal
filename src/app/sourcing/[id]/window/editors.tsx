@@ -446,7 +446,7 @@ export function RecordReceiptDrawer({ exerciseId, saleId, name }: { exerciseId: 
 // ------------------------------------------------------------------ briefings and site visits
 
 export function ScheduleEventDrawer({ exerciseId, allowed, mandatoryOffered }: { exerciseId: string; allowed: Allowed; mandatoryOffered: boolean }) {
-  if (!allowed.allowed) return <Blocked label="Schedule an event" reason={allowed.reason} primary />;
+  if (!allowed.allowed) return <Blocked label="Schedule an event" reason={allowed.reason} primary noteId={EXERCISE_NOTE_ID} />;
   return (
     <RecordEditor
       title="Schedule a briefing or site visit"
@@ -545,7 +545,7 @@ export function RecordAttendanceDrawer({ exerciseId, eventId, label, parties, in
 // ------------------------------------------------------------------ addenda
 
 export function AddendumDrawer({ exerciseId, allowed, draft, closingChanges }: { exerciseId: string; allowed: Allowed; draft?: { id: string; label: string; title: string; whatChanged: string }; closingChanges: Option[] }) {
-  if (!allowed.allowed) return draft ? null : <Blocked label="Draft an addendum" reason={allowed.reason} primary />;
+  if (!allowed.allowed) return draft ? null : <Blocked label="Draft an addendum" reason={allowed.reason} primary noteId={EXERCISE_NOTE_ID} />;
   return (
     <RecordEditor
       title={draft ? `Edit ${draft.label}` : "Draft an addendum"}
