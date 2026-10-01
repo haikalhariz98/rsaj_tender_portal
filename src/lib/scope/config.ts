@@ -45,6 +45,17 @@ export function scopePolicyFaults(p: PolicyDraft, known: { qualifications: reado
   return out;
 }
 
+/// What is stored: each provenance only beside a value. A value cleared takes its provenance
+/// with it, so "Not set" never reads as stated, observed or assumed (as `scopeRuleToSave`).
+export function scopePolicyToSave<P extends PolicyDraft>(p: P): P {
+  return {
+    ...p,
+    measurementStandardProvenance: p.measurementStandardLabel == null ? null : p.measurementStandardProvenance,
+    estimateLeadProvenance: p.estimateLeadDays == null ? null : p.estimateLeadProvenance,
+    panelSignatoryLimitProvenance: p.panelSignatoryLimit == null ? null : p.panelSignatoryLimitProvenance,
+  };
+}
+
 /// What a holding's trail calls its qualification: the qualification's name, never its code;
 /// one no longer configured says so.
 export function qualificationName(rows: readonly { code: string; nameEn: string }[], code: string): string {

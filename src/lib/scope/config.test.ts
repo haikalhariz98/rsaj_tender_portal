@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CONFIG_FAULT_TEXT, holdingFault, qualificationName, scopePolicyFaults, scopeRuleFaults, scopeRuleToSave, SCOPE_RULE_FAULT_TEXT, type PolicyDraft } from "./config";
+import { CONFIG_FAULT_TEXT, holdingFault, qualificationName, scopePolicyFaults, scopePolicyToSave, scopeRuleFaults, scopeRuleToSave, SCOPE_RULE_FAULT_TEXT, type PolicyDraft } from "./config";
 
 const unset: PolicyDraft = {
   measurementStandardLabel: null, measurementStandardProvenance: null, bqPreparerQualificationCode: null, estimateLeadDays: null, estimateLeadProvenance: null,
@@ -66,5 +66,20 @@ describe("a holding's trail names its qualification", () => {
     expect(qualificationName(rows, "QQM")).toBe("Qualified quantity measurer");
     expect(qualificationName(rows, "OLD_CODE")).toBe("A qualification no longer configured");
     expect(qualificationName([], "QQM")).not.toContain("QQM");
+  });
+});
+
+describe("saving the scope policy: a cleared value takes its provenance with it", () => {
+  it("each provenance is kept only beside its value", () => {
+    const cleared = scopePolicyToSave({ ...unset, measurementStandardProvenance: "STATED", estimateLeadProvenance: "ASSUMED", panelSignatoryLimitProvenance: "OBSERVED" });
+    expect(cleared.measurementStandardProvenance).toBeNull();
+    expect(cleared.estimateLeadProvenance).toBeNull();
+    expect(cleared.panelSignatoryLimitProvenance).toBeNull();
+    const set = scopePolicyToSave({ ...unset, measurementStandardLabel: "SMM", measurementStandardProvenance: "STATED", estimateLeadDays: 0, estimateLeadProvenance: "ASSUMED", panelSignatoryLimit: 6, panelSignatoryLimitProvenance: "OBSERVED" });
+    expect([set.measurementStandardProvenance, set.estimateLeadProvenance, set.panelSignatoryLimitProvenance]).toEqual(["STATED", "ASSUMED", "OBSERVED"]);
+  });
+  it("other fields pass through unchanged", () => {
+    const p = { ...unset, bqPreparerQualificationCode: "QQM", notes: "kept" };
+    expect(scopePolicyToSave(p)).toEqual(p);
   });
 });

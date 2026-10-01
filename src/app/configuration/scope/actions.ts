@@ -8,7 +8,7 @@ import { writeAudit, type Tx } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import { storedDay } from "@/lib/dates";
 import { ORGANISATION_CODE } from "@/lib/org";
-import { CONFIG_FAULT_TEXT, holdingFault, qualificationName, scopePolicyFaults, scopeRuleFaults, scopeRuleToSave, SCOPE_RULE_FAULT_TEXT } from "@/lib/scope/config";
+import { CONFIG_FAULT_TEXT, holdingFault, qualificationName, scopePolicyFaults, scopePolicyToSave, scopeRuleFaults, scopeRuleToSave, SCOPE_RULE_FAULT_TEXT } from "@/lib/scope/config";
 import { RATE_ENTITY } from "@/lib/scope/audit-view";
 import { RATE_SCHEDULE_STATUS_LABEL, scopeFaultText } from "@/lib/scope/labels";
 import { issueFaults, itemFaults, nextIssueNo, scheduleEditFault, startIssueFaults } from "@/lib/scope/rates";
@@ -62,7 +62,7 @@ export async function saveScopePolicy(_prev: FormState, data: FormData): Promise
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const r = new FormReader(data);
-  const v = {
+  const typed = {
     measurementStandardLabel: r.optionalText("measurementStandardLabel"),
     measurementStandardProvenance: r.choice("measurementStandardProvenance", "Provenance", PROVENANCE),
     bqPreparerQualificationCode: r.optionalText("bqPreparerQualificationCode"),
@@ -80,6 +80,8 @@ export async function saveScopePolicy(_prev: FormState, data: FormData): Promise
     notes: r.text("notes", "Notes", { max: 2000 }),
   };
   if (r.failed) return { ok: false, errors: r.errors };
+  // A cleared value takes its provenance with it.
+  const v = scopePolicyToSave(typed);
   return db.$transaction(async (tx) => {
     // The first save creates the row, so the organisation is locked before it.
     await lockOrganisation(tx, orgId);
