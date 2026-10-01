@@ -182,3 +182,16 @@ withdrawn v1 and live v2), another dossier exercise left without to keep BD-4's 
 award; a recommendation on one demo delegation; one SULIT document (listed, not downloadable); one legal hold; one staged unfiled
 upload. Wipe deletes access events, holds, attachments, versions, documents, then only blobs no non-demo version references; refuses,
 listing them, when a non-demo row points at a demo document.
+
+## Build decisions
+
+Taken during the build (steps 2–6 and the demo); each for review at acceptance.
+
+| # | Decision | Why | Review |
+| --- | --- | --- | --- |
+| BD-DS-1 | The shared classification enum is named `SecurityClass` (PUBLIC / INTERNAL / SULIT), the name 6.2's plan already uses, not this plan's `DocumentClassification`. `DocumentClass.classification` and `Document.classificationSnapshot` use it; 6.2's `CompanyEstimate` adopts it as is. | Scope ruling: one enum shared with 6.2. Taking 6.2's name means neither plan's model text has to change beyond this one. | — |
+| BD-DS-2 | `Award.returnScanSnapshot Json?` beside `dossierEvidenceSnapshot`: the scan pins an award was accepted on. Null on an ACCEPTED award means it was accepted before scans were required (OD-5); no backfill. | OD-5 needs a durable mark of "accepted at landing" that a later BD-24 correction cannot erase, and the plan's own rule is that a judged record snapshots its pins. | PO |
+| BD-DS-3 | `DocumentAccessEvent.versionId` is nullable, with `offeredFilename` and `offeredBytes`: a refused upload has no version but is still logged as REFUSED. `organisationId` is on every new table. | §2 asks refused types and sizes to be logged; without a nullable version they could not be. | — |
+| BD-DS-4 | `DisposalMethod` is DESTROY / TRANSFER_TO_ARCHIVES / REVIEW, product vocabulary with nothing shipped set. `Document.filedAt` records when a staged document was first attached. | The plan names the column, not the values; these are the three outcomes a records schedule uses. Nothing is disposed of in this build. | PO |
+| BD-DS-5 | Besides the two owner CHECKs: version numbers from 1, sizes not negative, a blob's size equals its bytes, and a withdrawal, a detachment and a hold or release each carry a non-blank reason — all CHECKs in the migration. Every document-store foreign key is RESTRICT, including to the organisation, so nothing cascades bytes away. | The reasons are required by the plan; the database refuses a row the application would refuse. OD-9 (no triggers) is unchanged: these constrain inserts' shape, not updates of history. | — |
+| BD-DS-6 | Tooling: the WASM schema engine panicked on the schema's first CHECK constraints because the session adapter read Postgres `"char"` as text. `docs/notes/cloud-build/tools/adapter-pg-patched.cjs` now reads it as a character, as the native engine does; `verify.sh` ends with an empty diff and the CHECKs are present in the rebuilt database. | Environment only; the migration SQL is unchanged by it. Confirm on the native engine at acceptance as for earlier migrations. | — |

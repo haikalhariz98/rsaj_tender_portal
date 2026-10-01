@@ -244,8 +244,11 @@ function fieldToColumnType(fieldTypeId) {
     case ScalarColumnType.CIDR:
     case ScalarColumnType.XML:
     case AdditionalScalarColumnType.NAME:
-    case 18:
       return import_driver_adapter_utils.ColumnTypeEnum.Text;
+    // Postgres "char" (oid 18, e.g. pg_constraint.contype) is read as a character, as the
+    // native engine reads it. Read as text, the describer panics on any CHECK constraint.
+    case 18:
+      return import_driver_adapter_utils.ColumnTypeEnum.Character;
     case ScalarColumnType.BYTEA:
       return import_driver_adapter_utils.ColumnTypeEnum.Bytes;
     case ArrayColumnType.INT2_ARRAY:

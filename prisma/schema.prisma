@@ -227,6 +227,13 @@ model Organisation {
   auditExports          AuditExport[]
   coreRoutingLevels     CoreRoutingLevel[]
   coreRoutingSteps      CoreRoutingStep[]
+  documentStorePolicy   DocumentStorePolicy?
+  blobs                 BlobContent[]
+  documents             Document[]
+  documentVersions      DocumentVersion[]
+  documentAttachments   DocumentAttachment[]
+  legalHolds            LegalHold[]
+  documentAccessEvents  DocumentAccessEvent[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -293,6 +300,9 @@ model Person {
   policiesVerified      InsurancePolicy[]    @relation("PolicyVerifiedBy")
   rejectionChoices      ApprovalInstance[]   @relation("RejectionChosenBy")
   conflictsDeclared     ApprovalStep[]       @relation("ConflictDeclaredBy")
+  documentVersionsRecorded DocumentVersion[] @relation("VersionRecordedBy")
+  legalHoldsPlaced         LegalHold[]       @relation("HoldPlacedBy")
+  legalHoldsReleased       LegalHold[]       @relation("HoldReleasedBy")
 
   @@unique([organisationId, staffNo])
   @@index([organisationId, name])
@@ -645,8 +655,10 @@ model Meeting {
   /// where. A minuted sitting renders from this, never from today's configuration.
   registerSnapshot Json?
 
-  attendance MeetingAttendance[]
-  decisions  CommitteeDecision[]
+  attendance  MeetingAttendance[]
+  decisions   CommitteeDecision[]
+  /// Signed minutes (FR-CTE-004), attached once the sitting is minuted.
+  attachments DocumentAttachment[]
 
   @@unique([committeeId, reference])
   @@index([committeeId, meetingDate])
@@ -940,11 +952,21 @@ model DocumentClass {
   /// Whether release outside the organisation needs approval.
   releaseNeedsApproval Boolean @default(false)
 
+  /// How a document of this class is classified (NFR-SEC-002). Null means nobody has
+  /// set it: an unclassified document is listed but never served (OD-2).
+  classification            SecurityClass?
+  /// What starts the retention clock. Null: not set, and retention never elapses.
+  retentionTrigger          RetentionTrigger?
+  disposalMethod            DisposalMethod?
+  /// The office whose authority a disposal needs, by AuthorityRole.code.
+  disposalAuthorityRoleCode String?
+
   provenance Provenance @default(ASSUMED)
   notes      String     @default("")
   sortOrder  Int        @default(0)
 
   templates DocumentTemplate[]
+  documents Document[]
 
   @@unique([organisationId, code])
 }
@@ -1120,6 +1142,8 @@ model Delegation {
 
   approvalSteps ApprovalStep[]
   awardsSigned  Award[]
+  /// The absent holder's signed recommendation (FR-APR-012, OD-6).
+  attachments   DocumentAttachment[]
 
   @@index([organisationId, effectiveFrom])
   @@index([fromPersonId])
@@ -2579,6 +2603,8 @@ model SourcingExercise {
   approvalInstances ApprovalInstance[]
   committeeDecisions CommitteeDecision[]
   awards            Award[]
+  /// Dossier evidence (FR-MTD-009) and the coordination scope document (FR-REQ-013).
+  attachments       DocumentAttachment[]
 
   @@unique([organisationId, reference])
   @@unique([organisationId, dossierReference])
@@ -2857,6 +2883,12 @@ model Award {
   issuedAt      DateTime?
   /// Every policy value the issue was judged under, with provenance. Rendered from, never re-derived.
   issueSnapshot Json?
+  /// The dossier evidence the award was sent for approval on: each pinned version's id,
+  /// fingerprint and title (FR-MTD-009). Null for an award sent before attachments existed.
+  dossierEvidenceSnapshot Json?
+  /// The return scans the award was accepted on (OD-5, NFR-SIG-002). Null on an accepted
+  /// award means it was accepted before scans were required, and it is never re-judged.
+  returnScanSnapshot      Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2867,6 +2899,8 @@ model Award {
   conditions        AwardCondition[]
   contract          Contract?
   approvalInstances ApprovalInstance[]
+  /// Scans of what the awardee returned (FR-AWD-003, 008).
+  attachments       DocumentAttachment[]
 
   @@unique([organisationId, reference])
   @@unique([organisationId, erpCommitmentNo])
@@ -3297,4 +3331,242 @@ model AuditExport {
   generatedAt DateTime @default(now())
 
   @@index([organisationId, generatedAt])
+}
+
+// ------------------------------------------------------------------ document store
+//
+// Platform module (ADR 0011, plan platform-document-store.md). Files are immutable,
+// content-addressed versions behind a storage façade; owners link to them through
+// typed nullable keys, never a polymorphic (type, id). Nothing here is ever deleted
+// by the product: a correction is a new version, a withdrawal is recorded with a
+// reason, and no disposal run exists.
+
+/// How a record is classified (NFR-SEC-002). One vocabulary, shared with 6.2's
+/// company estimate (scope ruling).
+enum SecurityClass {
+  PUBLIC
+  INTERNAL
+  SULIT
+}
+
+/// What starts a class's retention clock (NFR-RET-001).
+enum RetentionTrigger {
+  RECEIVED
+  OWNER_CLOSED
+  CONTRACT_FINAL_ACCOUNT
+}
+
+/// What happens to a record once its retention has run and nothing holds it.
+enum DisposalMethod {
+  DESTROY
+  TRANSFER_TO_ARCHIVES
+  REVIEW
+}
+
+/// STAGED until its first attachment: listed "Received, not filed", never auto-deleted.
+enum DocumentStatus {
+  STAGED
+  FILED
+}
+
+/// Every version is NOT_SCANNED: malware scanning is deferred (OD-4).
+enum ScanState {
+  NOT_SCANNED
+  CLEAN
+  THREAT
+}
+
+/// Why a version is attached to its owner. Closed: a new purpose arrives by migration
+/// with its module, and its owner pairing is checked in lib and by a CHECK constraint.
+enum AttachmentPurpose {
+  SIGNED_MINUTES
+  DOSSIER_EVIDENCE
+  COORDINATION_SCOPE
+  HOLDER_RECOMMENDATION
+  SIGNED_LETTER
+  DECLARATION
+  AUTHORISATION
+  ACCEPTANCE_PAGE
+}
+
+enum DocumentAccessKind {
+  DOWNLOADED
+  REFUSED
+  VERIFIED
+  INTEGRITY_FAILED
+}
+
+/// The organisation's upload rules (OD-3). Shipped absent: with no row, or with either
+/// value unset, uploads are refused naming the setting. The deployment's own ceiling
+/// (DOCUMENT_MAX_BYTES) caps `maxBytes` and is a technical limit, not policy.
+model DocumentStorePolicy {
+  id             String       @id @default(cuid())
+  organisationId String       @unique
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// Media types allowed, a subset of those the product can recognise from content.
+  allowedMediaTypes String[]
+  /// Largest file accepted, in bytes. Null: not set, and nothing is accepted.
+  maxBytes          BigInt?
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+  updatedAt  DateTime   @updatedAt
+}
+
+/// The bytes, once per organisation per SHA-256. Kept apart from the metadata so a list
+/// never pulls file content, and keyed per organisation so one customer cannot learn
+/// that another holds the same file.
+model BlobContent {
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  sha256   String   @db.Char(64)
+  byteSize BigInt
+  bytes    Bytes
+  storedAt DateTime @default(now())
+
+  versions DocumentVersion[]
+
+  @@id([organisationId, sha256])
+}
+
+/// A document: a title, its class, and the classification and retention it was
+/// created under, snapshotted so a later class edit never rewrites it.
+model Document {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  title           String
+  documentClassId String
+  documentClass   DocumentClass @relation(fields: [documentClassId], references: [id], onDelete: Restrict)
+
+  /// The class's classification when the document was created; set once afterwards if
+  /// it was unset, and raised with a reason. Null: unclassified, never served.
+  classificationSnapshot SecurityClass?
+  /// The class's retention, trigger, disposal method and authority, as created.
+  retentionSnapshot      Json
+  status                 DocumentStatus @default(STAGED)
+  createdAt              DateTime       @default(now())
+  filedAt                DateTime?
+
+  versions DocumentVersion[]
+  holds    LegalHold[]
+
+  @@index([organisationId, status])
+  @@index([documentClassId])
+}
+
+/// One immutable version. No update path: a correction is a new version, a withdrawal
+/// is two columns set once with a reason, and the bytes are never deleted.
+model DocumentVersion {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  versionNo  Int
+
+  sha256   String      @db.Char(64)
+  blob     BlobContent @relation(fields: [organisationId, sha256], references: [organisationId, sha256], onDelete: Restrict)
+  byteSize BigInt
+  /// As sniffed from the bytes, never as declared.
+  mediaType        String
+  /// The name as the uploader's file had it. Shown, never used as a path.
+  originalFilename String
+  /// The paper's own received day, in the organisation's days. Never in the future.
+  receivedOn       DateTime?
+  /// Who recorded it, named: recorded on behalf of, not signed.
+  recordedByPersonId String
+  recordedBy         Person   @relation("VersionRecordedBy", fields: [recordedByPersonId], references: [id], onDelete: Restrict)
+  note               String   @default("")
+  /// Server time.
+  storedAt           DateTime @default(now())
+  scanState          ScanState @default(NOT_SCANNED)
+
+  withdrawnAt     DateTime?
+  withdrawnReason String    @default("")
+
+  attachments  DocumentAttachment[]
+  accessEvents DocumentAccessEvent[]
+
+  @@unique([documentId, versionNo])
+  @@index([organisationId, sha256])
+}
+
+/// A version pinned to one owner for one purpose. Exactly one owner key is set (CHECK
+/// num_nonnulls), and the purpose must suit the owner (CHECK, and attachFault in lib).
+model DocumentAttachment {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  purpose   AttachmentPurpose
+  versionId String
+  version   DocumentVersion   @relation(fields: [versionId], references: [id], onDelete: Restrict)
+
+  meetingId    String?
+  meeting      Meeting?          @relation(fields: [meetingId], references: [id], onDelete: Restrict)
+  exerciseId   String?
+  exercise     SourcingExercise? @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  awardId      String?
+  award        Award?            @relation(fields: [awardId], references: [id], onDelete: Restrict)
+  delegationId String?
+  delegation   Delegation?       @relation(fields: [delegationId], references: [id], onDelete: Restrict)
+
+  attachedAt   DateTime  @default(now())
+  detachedAt   DateTime?
+  detachReason String    @default("")
+
+  @@index([meetingId])
+  @@index([exerciseId])
+  @@index([awardId])
+  @@index([delegationId])
+  @@index([versionId])
+}
+
+/// A legal hold (NFR-RET-002): placed and released with reasons, and while it stands
+/// no disposal may touch the document.
+model LegalHold {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Restrict)
+
+  reason           String
+  placedByPersonId String
+  placedBy         Person   @relation("HoldPlacedBy", fields: [placedByPersonId], references: [id], onDelete: Restrict)
+  placedAt         DateTime @default(now())
+
+  releasedAt         DateTime?
+  releaseReason      String    @default("")
+  releasedByPersonId String?
+  releasedBy         Person?   @relation("HoldReleasedBy", fields: [releasedByPersonId], references: [id], onDelete: Restrict)
+
+  @@index([documentId])
+}
+
+/// Append-only: every download, refusal, verification and integrity failure. A refused
+/// upload has no version, so `versionId` is null and what was offered is kept instead.
+model DocumentAccessEvent {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  versionId String?
+  version   DocumentVersion? @relation(fields: [versionId], references: [id], onDelete: Restrict)
+
+  kind       DocumentAccessKind
+  reasonCode String             @default("")
+  /// For a refused upload: the name and size as offered. Never the bytes.
+  offeredFilename String?
+  offeredBytes    BigInt?
+  at              DateTime @default(now())
+
+  @@index([organisationId, at])
+  @@index([versionId])
 }

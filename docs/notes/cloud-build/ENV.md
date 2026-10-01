@@ -30,3 +30,9 @@ Dev server: `npm run dev` (port 3000). Never push, never contact outside service
 Second run (2026-10-01): the tools now live in `docs/notes/cloud-build/tools/`; copy them to the scratchpad, replace
 `/tmp/claude-0/sew` with that directory, and `npm i @prisma/schema-engine-wasm@7.9.0-1.e922089b7d7502aff4249d5da3420f6fa55fc6ad`
 there. `npm ci --ignore-scripts` then `PRISMA_SCHEMA_ENGINE_BINARY=/bin/true npx prisma generate`.
+
+Document store (2026-10-01): the first CHECK constraints in the schema made the WASM describer panic
+("Getting constraint_type ... as char failed"), because the patched adapter read Postgres `"char"` (oid 18,
+`pg_constraint.contype`) as text. `tools/adapter-pg-patched.cjs` now reads it as a character, as the native
+engine does; with it `verify.sh` again ends with an empty diff and the CHECKs are present in the rebuilt
+database. Prisma does not model CHECK constraints, so they live only in the migration SQL.
