@@ -223,6 +223,20 @@ export function routeCoreFields(core: CoreChainRecord | undefined, at: Date) {
   };
 }
 
+/**
+ * Whether a persisted route's chain was in fact generated from the core routing.
+ *
+ * `coreChainFlag` is the rule's flag as it stood, not the outcome: a flagged rule whose
+ * approver had no core row fell back to the chain as entered (CORE_ROW_MISSING) and
+ * stored no core row. A generated chain always stores the row it came from, so the flag
+ * and a recorded row together are the outcome — derived from the route's own snapshot.
+ */
+export function chainWasGenerated(route: { coreChainFlag: boolean | null; coreRoutingSnapshot: unknown }): boolean {
+  if (route.coreChainFlag !== true) return false;
+  const level = route.coreRoutingSnapshot as Partial<CoreLevel> | null | undefined;
+  return typeof level?.approverCode === "string" && level.approverCode !== "";
+}
+
 /// A persisted step's origin: set on a generated chain's steps, null otherwise.
 export function stepOrigin(step: Pick<ApprovalStep, "origin">): ChainOrigin | null {
   return step.origin ?? null;

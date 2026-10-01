@@ -4,6 +4,7 @@ import { DAL_CORE_ROUTING, DAL_FIXTURE } from "./dal-fixture";
 import {
   ACT_RANK,
   atLeastAsStrong,
+  chainWasGenerated,
   copyCoreRouting,
   coreChainFaultsAcross,
   coreLevelFaults,
@@ -314,6 +315,30 @@ describe("(22) what a route stores, and how an earlier route reads", () => {
     const fields = routeCoreFields(r.core, at);
     expect(fields).toEqual({ coreSnapshotAt: at, coreChainFlag: true, coreChainReason: null, coreRoutingSnapshot: DAL_CORE_ROUTING[3] });
     expect(routeCoreText({ ...fields, coreRoutingSnapshot: fields.coreRoutingSnapshot }, name).en).toBe("Generated from the core routing for Chief Executive Officer (§2.2.1).");
+  });
+
+  it("a flagged rule that fell back for want of a core row is never said to be taken from the core routing", () => {
+    // The same 420k requisition, on an issue with no core row for the CEO.
+    const ceo = DAL_CORE_ROUTING[3].approverCode;
+    const r = resolveApproval({ ...DAL_FIXTURE, coreRouting: DAL_CORE_ROUTING.filter((l) => l.approverCode !== ceo) }, { domain: "requisition", value: 420_000 });
+    expect(r.warnings.map((w) => w.code)).toContain("CORE_NOT_CHECKED");
+    expect(r.chain.map(stepOrigin).every((o) => o == null)).toBe(true);
+    const fields = routeCoreFields(r.core, at);
+    // The rule's flag is stored as it stood; nothing was generated, so no core row.
+    expect(fields).toEqual({ coreSnapshotAt: at, coreChainFlag: true, coreChainReason: null });
+    const route = { ...fields, coreRoutingSnapshot: null };
+    expect(chainWasGenerated(route)).toBe(false);
+    const text = routeCoreText(route, name);
+    expect(text.en).toBe(
+      "Chain as entered on the rule, not checked against core routing: the rule takes its chain from the core routing, but this issue recorded no core routing for its approving office when the route opened.",
+    );
+    for (const words of [text.en, text.ms]) expect(words).not.toMatch(/Generated from|Taken from|Dijana daripada|Diambil daripada/);
+    expect(text.ms).toMatch(/^Rantaian seperti yang dimasukkan/);
+    // Generated means the flag and a recorded core row together.
+    expect(chainWasGenerated({ coreChainFlag: true, coreRoutingSnapshot: DAL_CORE_ROUTING[3] })).toBe(true);
+    expect(chainWasGenerated({ coreChainFlag: true, coreRoutingSnapshot: {} })).toBe(false);
+    expect(chainWasGenerated({ coreChainFlag: false, coreRoutingSnapshot: DAL_CORE_ROUTING[3] })).toBe(false);
+    expect(chainWasGenerated({ coreChainFlag: null, coreRoutingSnapshot: null })).toBe(false);
   });
 
   it("a route as entered stores the decision and its reason, and no core row (ruling C4)", () => {

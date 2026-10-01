@@ -4,7 +4,7 @@
  * never their codes.
  */
 
-import type { CoreChainFault, CoreLevelFault } from "./core-routing";
+import { chainWasGenerated, type CoreChainFault, type CoreLevelFault } from "./core-routing";
 import type { ChainOrigin, CoreLevel } from "./types";
 
 export type Words = { en: string; ms: string };
@@ -131,7 +131,9 @@ export function coreLevelFaultText(fault: CoreLevelFault, office: string): strin
 /**
  * What a persisted route says about its chain (ruling C4): an earlier route "Not
  * recorded", an unset flag "not checked", "as entered" with the reason it was recorded
- * under, or the core row it was generated from — all from the route's own snapshot.
+ * under, a flagged rule that fell back to its chain as entered because its approver had
+ * no core row, or the core row it was generated from — all from the route's own snapshot.
+ * "Taken from the core routing" is said only where a core row was recorded.
  */
 export function routeCoreText(
   route: { coreSnapshotAt: Date | null; coreChainFlag: boolean | null; coreChainReason: string | null; coreRoutingSnapshot: unknown },
@@ -147,9 +149,14 @@ export function routeCoreText(
       ms: `Rantaian seperti yang dimasukkan pada peraturan, direkodkan sebagai tidak diambil daripada laluan teras: ${why || "sebab tidak direkodkan"}.`,
     };
   }
-  const level = route.coreRoutingSnapshot as Partial<CoreLevel> | null;
-  if (!level?.approverCode)
-    return { en: "Taken from the core routing, but the core row it used was not recorded.", ms: "Diambil daripada laluan teras, tetapi baris teras yang digunakan tidak direkodkan." };
+  // Flagged, but nothing generated: every route opener refuses a core chain fault, so
+  // the one fallback a route can open under is a missing core row for its approver.
+  if (!chainWasGenerated(route))
+    return {
+      en: "Chain as entered on the rule, not checked against core routing: the rule takes its chain from the core routing, but this issue recorded no core routing for its approving office when the route opened.",
+      ms: "Rantaian seperti yang dimasukkan pada peraturan, tidak disemak terhadap laluan teras: peraturan mengambil rantaiannya daripada laluan teras, tetapi isu ini tidak merekodkan laluan teras bagi pejabat pelulusnya semasa laluan dibuka.",
+    };
+  const level = route.coreRoutingSnapshot as CoreLevel;
   const office = officeName(level.approverCode);
   const clause = level.clause ? ` (${level.clause})` : "";
   return { en: `Generated from the core routing for ${office.en}${clause}.`, ms: `Dijana daripada laluan teras bagi ${office.ms}${clause}.` };
