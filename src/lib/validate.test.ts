@@ -32,6 +32,19 @@ describe("required fields", () => {
   });
 });
 
+describe("dates", () => {
+  it("reads a real day as midnight UTC of that day", () => {
+    expect(form({ d: "2028-02-29" }).date("d", "Date")?.toISOString()).toBe("2028-02-29T00:00:00.000Z");
+  });
+  it("refuses an impossible day rather than rolling it into the next month", () => {
+    for (const bad of ["2026-11-31", "2026-02-30", "2026-02-29", "2026-13-01", "29/10/2026"]) {
+      const r = form({ d: bad });
+      expect(r.date("d", "Date"), bad).toBe(null);
+      expect(r.errors.d, bad).toBe("Date is not a date.");
+    }
+  });
+});
+
 describe("codes", () => {
   it("accepts letters, numbers, hyphen and underscore", () => {
     const r = form({ code: "open_tender-2" });

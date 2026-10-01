@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { rejectionOutcome } from "@/lib/authority/rejection";
@@ -88,6 +91,22 @@ describe("X-2: the start and closing the approving step records", () => {
     expect(codes(approvalDatesFault({ ...ok, closingTime: "" }))).toEqual(["DATES_REQUIRED"]);
     expect(codes(approvalDatesFault({ ...ok, closingTime: "24:00" }))).toEqual(["CLOSING_TIME_NOT_VALID"]);
     expect(codes(approvalDatesFault({ ...ok, closingDay: "29/10/2026" }))).toEqual(["DATE_NOT_VALID"]);
+  });
+  it("an impossible day is refused, never rolled into the next month (the closing would move)", () => {
+    // Date reads 2026-11-31 as 1 December and 2026-02-30 as 2 March; neither is a day.
+    expect(codes(approvalDatesFault({ ...ok, closingDay: "2026-11-31" }))).toEqual(["DATE_NOT_VALID"]);
+    expect(codes(approvalDatesFault({ ...ok, startOn: "2026-02-30" }))).toEqual(["DATE_NOT_VALID"]);
+    expect(codes(approvalDatesFault({ ...ok, startOn: "2026-11-30", closingDay: "2026-11-31" }))).toEqual(["DATE_NOT_VALID"]);
+    expect(approvalDatesFault({ ...ok, closingDay: "2026-11-31" }).closingAt).toBeNull();
+    // The last real day of each month passes.
+    expect(approvalDatesFault({ ...ok, startOn: "2026-11-02", closingDay: "2026-11-30" }).closingAt?.toISOString()).toBe("2026-11-30T06:30:00.000Z");
+  });
+  it("the approving step reads the start and closing day as dates, not as plain text", () => {
+    const src = readFileSync(join(process.cwd(), "src/app/sourcing/[id]/documents/actions.ts"), "utf8");
+    const body = src.slice(src.indexOf("export async function recordTenderingDecision"));
+    expect(body).toMatch(/r\.date\("startOn"/);
+    expect(body).toMatch(/r\.date\("closingDay"/);
+    expect(body).not.toMatch(/optionalText\("(startOn|closingDay)"\)/);
   });
   it("the start may be today, not before; closing must be after the start day", () => {
     expect(codes(approvalDatesFault({ ...ok, startOn: "2026-10-01" }))).toEqual([]);

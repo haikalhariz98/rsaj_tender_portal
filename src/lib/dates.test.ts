@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { dayIn, dayToDate, isTimeZone, storedDay } from "./dates";
+import { dayIn, dayToDate, isDay, isTimeZone, storedDay } from "./dates";
 
 describe("dayIn", () => {
   it("between 00:00 and 08:00 in UTC+8 the local day is already tomorrow's UTC day", () => {
@@ -47,5 +47,17 @@ describe("todayIn", () => {
     const { todayIn } = await import("./dates");
     expect(todayIn(new Date("2026-03-01T23:30:00Z"), null)).toBeNull();
     expect(todayIn(new Date("2026-03-01T23:30:00Z"), "Asia/Kuala_Lumpur")).toBe("2026-03-02");
+  });
+});
+
+describe("isDay: a real calendar day, by the round trip", () => {
+  it("accepts real days, the last of each month, and 29 February in a leap year", () => {
+    for (const d of ["2026-10-01", "2026-11-30", "2026-02-28", "2028-02-29", "2026-12-31"]) expect(isDay(d), d).toBe(true);
+  });
+  it("refuses a day Date would roll into the next month", () => {
+    for (const d of ["2026-11-31", "2026-02-30", "2026-02-29", "2026-04-31"]) expect(isDay(d), d).toBe(false);
+  });
+  it("refuses what is not YYYY-MM-DD", () => {
+    for (const d of ["2026-13-01", "2026-00-10", "2026-1-1", "29/10/2026", "", "2026-10-01T00:00"]) expect(isDay(d), d).toBe(false);
   });
 });

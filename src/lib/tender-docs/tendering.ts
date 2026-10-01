@@ -14,7 +14,7 @@
  */
 
 import type { RejectionOutcome } from "@/lib/authority/rejection";
-import { dayIn } from "@/lib/dates";
+import { dayIn, isDay } from "@/lib/dates";
 import { exerciseRoutePreview, withRequester, type AppointmentPreview, type FunderContext, type RequesterOnName } from "@/lib/method/approval";
 import { TENDERING_APPROVAL_DOMAIN, type Method } from "@/lib/method/types";
 import { leadTime, type LeadState } from "@/lib/scope/estimate";
@@ -68,7 +68,6 @@ export function returnOutcome(): RejectionOutcome & { apply: "RETURN_TO_ORIGINAT
 /// How the trail says who decided the rejection's destination.
 export const RETURN_DECIDED_BY = "the procedure: returned for amendment (§7.3.2)";
 
-const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 /// The UTC offset (ms) of a zone at an instant.
@@ -104,7 +103,8 @@ export function approvalDatesFault(i: { startOn: string | null; closingDay: stri
   const f = (code: DatesFault): { faults: Finding<DatesFault>[]; closingAt: null } => ({ faults: [{ code, level: "block" }], closingAt: null });
   if (!i.timeZone || !i.today) return f("TIME_ZONE_NOT_SET");
   if (!i.startOn || !i.closingDay || !i.closingTime) return f("DATES_REQUIRED");
-  if (!DAY.test(i.startOn) || !DAY.test(i.closingDay) || Number.isNaN(Date.parse(`${i.startOn}T00:00:00Z`)) || Number.isNaN(Date.parse(`${i.closingDay}T00:00:00Z`))) return f("DATE_NOT_VALID");
+  // A real day each, by the round trip: 2026-11-31 is refused, never read as 1 December.
+  if (!isDay(i.startOn) || !isDay(i.closingDay)) return f("DATE_NOT_VALID");
   if (!TIME.test(i.closingTime)) return f("CLOSING_TIME_NOT_VALID");
   const faults: Finding<DatesFault>[] = [];
   if (i.startOn < i.today) faults.push({ code: "START_IN_PAST", level: "block" });

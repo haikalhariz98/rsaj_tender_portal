@@ -659,8 +659,11 @@ export async function recordTenderingDecision(_prev: FormState, data: FormData):
   const on = r.date("decidedOn", "Decided on", { required: true });
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (decision === "REJECTED" && !reason) r.reject("reason", "Say why the documents are returned.");
-  const startOn = r.optionalText("startOn");
-  const closingDay = r.optionalText("closingDay");
+  // Read as dates (a real day each, never rolled into the next month), then judged as days.
+  const startDate = r.date("startOn", "Tendering starts on");
+  const closingDate = r.date("closingDay", "Closing day");
+  const startOn = startDate ? storedDay(startDate) : null;
+  const closingDay = closingDate ? storedDay(closingDate) : null;
   const closingTime = r.optionalText("closingTime");
   if (r.failed || !decision || !on) return { ok: false, errors: r.errors };
 

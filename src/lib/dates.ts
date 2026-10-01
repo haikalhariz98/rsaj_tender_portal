@@ -53,6 +53,15 @@ export function dayToDate(day: string): Date {
   return new Date(`${day}T00:00:00.000Z`);
 }
 
+/// Whether a string names a real calendar day, YYYY-MM-DD. `Date` rolls an impossible day
+/// into the next month (2026-11-31 reads as 1 December, 2026-02-30 as 2 March), so the day
+/// must survive the round trip unchanged; 29 February only in a leap year.
+export function isDay(day: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
+  const d = dayToDate(day);
+  return !Number.isNaN(d.getTime()) && storedDay(d) === day;
+}
+
 /// Whether a name is an IANA time zone this runtime knows.
 export function isTimeZone(name: string): boolean {
   try {

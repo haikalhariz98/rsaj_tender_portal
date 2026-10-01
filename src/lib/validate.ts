@@ -10,6 +10,7 @@
  * this product must not do — so a missing required field is an error, never a guess.
  */
 
+import { dayToDate, isDay } from "@/lib/dates";
 import { fitsMoneyColumn, parseSen } from "@/lib/money";
 
 export type FieldErrors = Record<string, string>;
@@ -117,12 +118,12 @@ export class FormReader {
       if (opts.required) this.errors[name] = `${label} is required.`;
       return null;
     }
-    const d = new Date(v + "T00:00:00.000Z");
-    if (Number.isNaN(d.getTime())) {
+    // A real day only: an impossible one (31 November) is refused, never rolled into the next month.
+    if (!isDay(v)) {
       this.errors[name] = `${label} is not a date.`;
       return null;
     }
-    return d;
+    return dayToDate(v);
   }
 
   choice<T extends string>(
