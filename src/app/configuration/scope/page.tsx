@@ -13,7 +13,7 @@ import { SlidersIcon } from "@/components/icons";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { exerciseOrg } from "@/lib/method/repo";
-import { unsetCount, visibleRows } from "@/lib/scope/config";
+import { POLICY_FIELDS_HOLDING_WORK_BACK, unsetCount, visibleRows } from "@/lib/scope/config";
 import { NOT_SET } from "@/lib/scope/labels";
 import { scopeConfiguration } from "@/lib/scope/read";
 
@@ -64,10 +64,12 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
   const policyRow = await db.scopePolicy.findUnique({ where: { organisationId: org.id }, select: { id: true } });
   const p = c.policy.raw;
   const f = (label: string) => c.policy.fields.find((x) => x.label === label)!;
-  // The header counts every setting that reads as not set on this page: each policy field, and each
-  // rule (estimate, scope approval, bill basis) that is unset or names no committee, retired rows left out.
+  // The header counts only settings whose absence holds work back (62-C4): the policy fields that stop a
+  // bill being finalised, and each rule (estimate, scope approval, bill basis) that is unset or names no
+  // committee, retired rows left out. An optional setting keeps its own "Not set" line below and is not
+  // counted; an unset override office means no late estimate is accepted, and is never counted.
   const unset = unsetCount({
-    policyValues: c.policy.fields.map((x) => x.value),
+    policyValues: c.policy.fields.filter((x) => POLICY_FIELDS_HOLDING_WORK_BACK.includes(x.label)).map((x) => x.value),
     rules: [
       ...c.methods.map((m) => ({ unset: m.raw === "unset", retired: m.retired })),
       ...c.bases.map((x) => ({ unset: x.raw === "unset", retired: x.retired })),
@@ -124,7 +126,7 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
     <>
       <PageHeader
         title="Scope and estimate"
-        badge={unset > 0 ? <Badge tone="warn" dot>{`${unset} not set`}</Badge> : <Badge tone="ok" dot>All set</Badge>}
+        badge={unset > 0 ? <Badge tone="warn" dot>{`${unset} holding work back`}</Badge> : <Badge tone="ok" dot>Nothing holding work back</Badge>}
         subtitle="How bills of quantities, specification panels and company estimates are judged."
         actions={
           <>

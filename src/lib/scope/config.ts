@@ -138,5 +138,12 @@ export function unsetCount(i: { policyValues: readonly string[]; rules: readonly
   return i.policyValues.filter(isUnsetValue).length + i.rules.filter((r) => r.unset && !r.retired).length;
 }
 
+/// The policy fields whose absence holds work back (62-C4): a bill cannot be finalised without its
+/// standard and its preparer's qualification. The rest keep their own "Not set" line and are not
+/// counted: the estimate's lead time is a warning until 6.7, the two offices matter once sign-in
+/// exists, the two lists and the benchmark's name fall back to words, "no limit" on verifiers is an
+/// answer, and an unset override office means no late estimate is accepted, which is never a gap.
+export const POLICY_FIELDS_HOLDING_WORK_BACK: readonly string[] = ["Measurement standard", "Qualification a bill's preparer holds"];
+
 /// The rows a list shows: the retired ones only when asked for.
 export const visibleRows = <T,>(rows: readonly T[], isRetired: (r: T) => boolean, showRetired: boolean): T[] => (showRetired ? [...rows] : rows.filter((r) => !isRetired(r)));
