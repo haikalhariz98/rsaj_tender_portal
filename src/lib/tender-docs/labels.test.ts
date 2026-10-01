@@ -104,7 +104,7 @@ describe("the tendering route card says the documents were returned, not refused
   it("a rejected route reads Returned for amendment; other statuses as an exercise route", () => {
     expect(tenderingRouteLabel("REJECTED", [])).toBe("Returned for amendment");
     expect(tenderingRouteLabel("REJECTED", [])).not.toMatch(/refused/i);
-    expect(tenderingRouteLabel("PENDING", [])).toBe("With approval for tendering");
+    expect(tenderingRouteLabel("PENDING", [])).toBe("Awaiting approval for tendering");
     expect(tenderingRouteLabel("APPROVED", [])).toBe("Approved for tendering");
     expect(tenderingRouteLabel("RECALLED", [{ code: "WITHDRAWN_ON_CANCEL" }])).toBe("Withdrawn: exercise cancelled");
   });
@@ -124,7 +124,7 @@ describe("the tendering route card says the documents were returned, not refused
 
 describe("one label per state, wherever it is shown (UX 2)", () => {
   it("the route, the pack, the exercise and the step say the same words", () => {
-    expect(TENDERING_STATE_LABEL).toEqual({ WITH_APPROVAL: "With approval for tendering", APPROVED: "Approved for tendering", RETURNED: "Returned for amendment" });
+    expect(TENDERING_STATE_LABEL).toEqual({ WITH_APPROVAL: "Awaiting approval for tendering", APPROVED: "Approved for tendering", RETURNED: "Returned for amendment" });
     expect(tenderingRouteLabel("PENDING", [])).toBe(PACK_STATUS_LABEL.SUBMITTED);
     expect(tenderingRouteLabel("PENDING", [])).toBe(EXERCISE_STATUS_LABEL.PENDING_APPROVAL_FOR_TENDERING);
     expect(tenderingRouteLabel("APPROVED", [])).toBe(PACK_STATUS_LABEL.APPROVED);

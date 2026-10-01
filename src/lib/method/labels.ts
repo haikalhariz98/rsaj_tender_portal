@@ -16,7 +16,7 @@ import type { ContractTypeState, DeliverableKind, ExerciseStatus, Finding, Propo
 /// label for one state wherever it is shown, so the badge, the step, the callout, the list and
 /// the dashboard never say it two ways.
 export const TENDERING_STATE_LABEL = {
-  WITH_APPROVAL: "With approval for tendering",
+  WITH_APPROVAL: "Awaiting approval for tendering",
   APPROVED: "Approved for tendering",
   RETURNED: "Returned for amendment",
 } as const;
