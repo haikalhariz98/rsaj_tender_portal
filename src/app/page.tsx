@@ -247,7 +247,7 @@ export default async function Dashboard() {
               columns={[
                 { key: "item", label: "Requisition", mobile: "primary" },
                 { key: "on", label: "Waiting on", width: "200px", hideBelow: "md", mobile: "meta" },
-                { key: "value", label: "Value", width: "132px", numeric: true, mobile: "meta" },
+                { key: "value", label: "Value", width: "132px", numeric: true, sulit: true, mobile: "meta" },
                 { key: "waiting", label: "Waiting", width: "104px", numeric: true, mobile: "meta" },
               ]}
               rows={data.requisitions.map((q) => ({
@@ -256,7 +256,7 @@ export default async function Dashboard() {
                 cells: {
                   item: { kind: "link", text: q.title, href: `/requisitions/${q.id}`, sub: q.reference },
                   on: q.waitingOn ? { kind: "stack", title: q.waitingOn, sub: q.escalatedFrom ? `escalated from ${q.escalatedFrom}` : undefined } : { kind: "text", text: "No step pending", dim: true },
-                  value: { kind: "money", value: q.value },
+                  value: { kind: "money", value: q.estimatedValue },
                   waiting: { kind: "badge", text: q.waitingDays == null ? "Not counted" : `${q.waitingDays}d` },
                 },
               }))}

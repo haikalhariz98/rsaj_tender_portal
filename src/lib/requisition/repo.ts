@@ -263,7 +263,7 @@ export async function listRequisitions() {
     org,
     rows: rows.map((r) => ({
       ...r,
-      value: num(r.estimatedValue)!,
+      estimatedValue: num(r.estimatedValue)!,
       unitName: unitName.get(r.requestingUnitCode) ?? "A unit no longer configured",
       routeName: r.fundingRouteCode ? (routes.find((x) => x.code === r.fundingRouteCode)?.nameEn ?? "A route no longer configured") : null,
       verdict: r.budgetChecks[0]?.verdict ?? null,

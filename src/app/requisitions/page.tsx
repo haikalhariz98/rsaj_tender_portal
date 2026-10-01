@@ -37,11 +37,11 @@ export default async function RequisitionsPage() {
       ],
       // A finance-system number finds the requisition, as its own reference does.
       search: [r.title, r.reference, r.erpRequisitionNo, r.erpNoteNo, r.unitName, r.routeName, statusText].filter(Boolean).join(" "),
-      sortKeys: { value: r.value, required: r.dateRequired.getTime(), title: r.title },
+      sortKeys: { value: r.estimatedValue, required: r.dateRequired.getTime(), title: r.title },
       cells: {
         title: { kind: "link", text: r.title, href: `/requisitions/${r.id}`, sub: erp ? `${erp} · ${r.reference}` : r.reference },
         department: { kind: "stack", title: r.unitName, sub: r.routeName ?? "Funding route not set" },
-        value: { kind: "money", value: r.value },
+        value: { kind: "money", value: r.estimatedValue },
         status: { kind: "badge", text: statusText, tone: TONE[statusTone] },
         // One column for both checks: each chip names its own check, and the title keeps
         // the width.
@@ -123,7 +123,7 @@ export default async function RequisitionsPage() {
           columns={[
             { key: "title", label: "Requisition", sortable: true, mobile: "primary" },
             { key: "department", label: "Department and funding", width: "18%", hideBelow: "2xl" },
-            { key: "value", label: "Value", width: "120px", numeric: true, sortable: true, mobile: "meta" },
+            { key: "value", label: "Value", width: "120px", numeric: true, sortable: true, sulit: true, mobile: "meta" },
             { key: "status", label: "Status", width: "208px", sortable: true, mobile: "meta" },
             { key: "checks", label: "Checks", width: "204px", hideBelow: "md", mobile: "meta" },
             { key: "required", label: "Required by", width: "112px", sortable: true, hideBelow: "2xl", mobile: "meta" },

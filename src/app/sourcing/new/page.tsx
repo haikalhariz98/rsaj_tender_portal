@@ -83,7 +83,7 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
     const closed = judged.filter((x) => x.fault && x.fault.code !== "TIME_ZONE_UNSET");
     const columns = (third: string) => [
       { key: "title", label: "Requisition", mobile: "primary" as const },
-      { key: "approved", label: "Approved value", width: "150px", mobile: "meta" as const },
+      { key: "approved", label: "Approved value", width: "150px", sulit: true, mobile: "meta" as const },
       { key: "open", label: third, width: "240px", mobile: "meta" as const },
     ];
     return (

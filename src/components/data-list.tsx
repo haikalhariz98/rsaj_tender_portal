@@ -16,6 +16,7 @@ import { iconButtonClass } from "@/components/ui/button";
 import { cx } from "@/components/ui/cx";
 import { EmptyState, Meter } from "@/components/ui/feedback";
 import { Select } from "@/components/ui/select";
+import { VALUE_SULIT_LABEL } from "@/lib/documents/labels";
 import { formatRM } from "@/lib/format";
 import { needsPaging, PAGE_SIZES } from "@/lib/paging";
 
@@ -71,8 +72,29 @@ export interface Column {
   /// `hide` columns are left out. A column with no flag counts as `hide`. Desktop is
   /// unchanged. Sorting is a table feature and is not offered in the stacked layout.
   mobile?: "primary" | "meta" | "hide";
+  /// The column shows a SULIT figure that nothing yet restricts (6.2 OD-8): its header
+  /// carries the SULIT chip, and the list offers no export in any form. Search, filters
+  /// and sort stay. Files that must leave are built on the server and recorded, never
+  /// downloaded from a list (NFR-SEC-002, NFR-AUD-004). The registry of fields that
+  /// require this flag is `src/lib/sulit-fields.ts`; a test scans the screens for it.
+  sulit?: boolean;
 }
 
+/// Whether a list may offer a client export: never when any column is SULIT.
+export function canExport(columns: readonly Column[]): boolean {
+  return !columns.some((c) => c.sulit);
+}
+
+/// The chip a SULIT column's header carries: "SULIT" to the eye, the whole sentence to a
+/// screen reader and in the tooltip, so a narrow column keeps the words.
+function SulitMark() {
+  return (
+    <Chip tone="err" wrap={false} title={VALUE_SULIT_LABEL} className="px-2 py-0 text-[11px] leading-5 font-semibold">
+      <span aria-hidden="true">SULIT</span>
+      <span className="sr-only">{VALUE_SULIT_LABEL}</span>
+    </Chip>
+  );
+}
 const HIDE_BELOW = {
   md: "hidden md:table-cell",
   lg: "hidden lg:table-cell",
@@ -365,7 +387,31 @@ export function DataList({
     );
   }
 
+  const sortButton = (c: Column) => (
+    <button
+      type="button"
+      onClick={() => toggleSort(c.key)}
+      title={c.label}
+      className={cx(
+        // Held to the column: a heading wider than a narrow column is
+        // cut with an ellipsis rather than spilling into the next one.
+        "inline-flex max-w-full min-w-0 items-center gap-1 rounded-md align-middle hover:text-ink",
+        c.numeric ? "text-right" : "text-left",
+        sort?.key === c.key && "text-ink",
+      )}
+    >
+      <span className="min-w-0 break-words">{c.label}</span>
+      <span aria-hidden="true" className={cx("shrink-0 text-[9px]", sort?.key !== c.key && "opacity-40")}>
+        {sort?.key === c.key && sort.dir === "desc" ? "▼" : "▲"}
+      </span>
+    </button>
+  );
+
+  const exportable = canExport(columns);
+
   function exportCsv() {
+    // The guard lives here as well as in the button: no path out of a SULIT list.
+    if (!exportable) return;
     const header = columns.map((c) => c.label);
     // The whole filtered list, not just the page being looked at.
     const lines = visible.map((r) => columns.map((c) => cellText(r.cells[c.key])));
@@ -488,6 +534,7 @@ export function DataList({
                 </button>
               ))}
             </div>
+            {exportable && (
             <button
               type="button"
               onClick={exportCsv}
@@ -497,6 +544,7 @@ export function DataList({
             >
               <DownloadIcon size={16} />
             </button>
+            )}
           </div>
         </div>
       )}
@@ -557,7 +605,10 @@ export function DataList({
                     <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-2.5">
                       {mobileMeta.map((c) => (
                         <div key={c.key} className="min-w-0">
-                          <dt className="text-[11.5px] font-semibold text-ink-3">{c.label}</dt>
+                          <dt className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] font-semibold text-ink-3">
+                            {c.label}
+                            {c.sulit && <SulitMark />}
+                          </dt>
                           <dd className={cx("mt-0.5 min-w-0 text-[13.5px] [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal", c.numeric && "tabular-nums")}>
                             <CellView cell={row.cells[c.key]} />
                           </dd>
@@ -632,27 +683,13 @@ export function DataList({
                       c.hideBelow && HIDE_BELOW[c.hideBelow],
                     )}
                   >
-                    {c.sortable ? (
-                      <button
-                        type="button"
-                        onClick={() => toggleSort(c.key)}
-                        title={c.label}
-                        className={cx(
-                          // Held to the column: a heading wider than a narrow column is
-                          // cut with an ellipsis rather than spilling into the next one.
-                          "inline-flex max-w-full min-w-0 items-center gap-1 rounded-md align-middle hover:text-ink",
-                          c.numeric ? "text-right" : "text-left",
-                          sort?.key === c.key && "text-ink",
-                        )}
-                      >
-                        <span className="min-w-0 break-words">{c.label}</span>
-                        <span
-                          aria-hidden="true"
-                          className={cx("shrink-0 text-[9px]", sort?.key !== c.key && "opacity-40")}
-                        >
-                          {sort?.key === c.key && sort.dir === "desc" ? "▼" : "▲"}
-                        </span>
-                      </button>
+                    {c.sulit ? (
+                      <span className={cx("flex flex-col gap-1", c.numeric ? "items-end" : "items-start")}>
+                        {c.sortable ? sortButton(c) : c.label}
+                        <SulitMark />
+                      </span>
+                    ) : c.sortable ? (
+                      sortButton(c)
                     ) : (
                       c.label
                     )}

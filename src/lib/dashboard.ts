@@ -34,7 +34,8 @@ export interface RequisitionWaiting {
   id: string;
   reference: string;
   title: string;
-  value: number | null;
+  /// The department estimate: SULIT (6.2 OD-8), so the list that shows it flags the column.
+  estimatedValue: number | null;
   /// The office acting for the first undecided step: the one it was escalated to, else its own.
   waitingOn: string | null;
   /// The office the step was written for, where it was escalated away from it.
@@ -127,7 +128,7 @@ export async function loadDashboard(asOf: Date = new Date()) {
         id: i.requisition!.id,
         reference: i.requisition!.reference,
         title: i.requisition!.title,
-        value: num(i.requisition!.estimatedValue),
+        estimatedValue: num(i.requisition!.estimatedValue),
         waitingOn: o?.officeLabel ?? null,
         escalatedFrom: o?.escalatedFrom ?? null,
         waitingSince: o?.waitingSince ?? null,
