@@ -1,8 +1,33 @@
 # Phase 1 close-out — committee gate, rejection destination, escalation, acceptance checklist
 
-**Status:** proposed, for the product owner's go. Written against `0f99974` on `build-all-modules`, while 6.11 is
-being fixed, so nothing here touches award code until 6.11 is accepted (step 6). Spec: §6.1, §6.9, §6.10, §13.3, B4.
-Line references are at `0f99974`. The sourcing and award actions are being edited by the 6.11 fixes, so re-find them by name.
+**Status:** ruled 2026-10-01 (decisions log, entries "· close-out ·" and "· 6.9 ·"), 6.11 accepted at `861dd06`; being
+built on `build-all-modules`. Written against `0f99974`; line references there. The rulings below **override** anything
+in the body that reads otherwise. Spec: §6.1, §6.9 (incl. §6.9.3 and Appendix B), §6.10, §13.3, B4.
+
+## Rulings applied (decisions log, 2026-10-01; these override the body of this plan)
+
+| # | Ruling (DL entry) | What it changes here | Where it lands |
+|---|---|---|---|
+| Scope | Approved: FR-REQ-012 gate, FR-APR-016 destination, FR-APR-009, FR-APR-010 escalation + worklist, the state-machine fix, a 6.9 verification pass, FR-APR-015 export, FR-APR-012 re-delegation refusal, money fixes. | FR-APR-015 and FR-APR-012 partial builds join the scope (below); the 6.9 pass is C5 + CO-9. | §1, §3, §4 |
+| C1 | `transitionFault` is asked **inside** `moveStatus`/`mustMove`, so no status write can bypass it. | Finding 1 is fixed at the root, not per caller: one `moveRequisition` helper in `src/lib/requisition/move.ts` asks the pure check on the locked row and refuses; every requisition status write (requisition, sourcing and award actions) goes through it. `citeCommitteeDecision` now lands on REJECTED first. A REJECTED → PENDING_APPROVAL move without a successor route stays refused, tested. | `status.ts`, `move.ts`, actions |
+| C2 | Gate input never defaults to pass. | `committeeGateRequired` null blocks opening an exercise, naming the setting; an undetermined requisition blocks; a not-carried decision with no outcome snapshot blocks; no code path reads null as false. Existing 6.3 fixtures that open exercises gain a gate finding of NONE, as the minimal faithful update, flagged. | `gate.ts`, `exercise.ts` |
+| C3 | No edits while a successor route is open; carried committee citations are not re-citations. | Every edit/funding/ERP write on a requisition with a PENDING successor route is refused (it already is by status; tested on the helper). A carried step copies the decision and points at the original step (`carriedFromStepId`); it never writes `committeeDecisionId`, so `ALREADY_CITED` is not tripped and the original citation is not counted twice. | `successorSteps`, actions |
+| C4 | `SUPERIOR_ALREADY_ON_ROUTE` fault, tested. | Escalation to an office that already has a step on the same route is refused (one office, one person, one step), with the exit named. | `escalation.ts` |
+| C5 | All 13 §6.9.3 worked routing examples as regression tests on a **test-only fixture, never seeded**; fix or log any the engine can't reproduce. | §6.9.3 lists fourteen rows (the interim-payment row carries two values); all fourteen are encoded, with Appendix B as the fixture. | `authority/dal-fixture.ts`, `worked-examples.test.ts` |
+| C6 | Dashboard sums in sen; one-sen engine boundary tests through the real converters. | `committedValue` summed in sen. Engine tests at RM15,000.00/.01, RM300,000.00/.01 under both D3 settings and RM500,000.00/.01, through `num()`/`load.ts`'s Decimal → number path. Moving `resolve.ts` to sen only if they fail. | `dashboard.ts`, `boundary-sen.test.ts` |
+| CO-1 | Gate after DAL approval, before the first exercise; ASSUMED, shown on screen. | As §2/§3. | gate card |
+| CO-2 | Perlu / Tidak Perlu / Tidak lulus = the committee's carried label + `NotApprovedOutcome` (LOOP/TERMINAL); no second carried outcome, no waiver. Question to RSAJ. | As §2. | `Committee.carriedLabelEn/Ms` |
+| CO-3 | A committee's snapshotted not-carried outcome governs (LOOP → originator, TERMINAL → terminate); `RejectionDestination` governs person steps. | As §3 `rejectionOutcome`. | `rejection.ts` |
+| CO-4 | Destination snapshotted at route open, shown as "If rejected: …" beside the pending step; older routes backfill null. | A successor route copies its predecessor's snapshot (build decision BD-5). | `ApprovalInstance` |
+| CO-5 | Unset: the officer chooses, recorded as OFFICER_CHOICE (Person, reason, not signed); destinations ship empty; mechanism met; configured destinations an RSAJ go-live condition (B4). Supersedes 6.1 BD-5. | Reopen/Close after rejection become the recorded choice. | all three routes |
+| CO-6 | FR-APR-009 = step escalation CONFLICT_DECLARED (declarer, declaration, recorded on behalf, not signed); allowed on mandatory person steps (ASSUMED); **refused for vacancy on mandatory steps**; never on committee steps. Question to RSAJ. | Fault `MANDATORY_VACANCY`. | `escalation.ts` |
+| CO-7 | FR-APR-010 partly met: pending-step escalation with reason and an office worklist at `/approvals` (ALLOWED_EXTRA); personal queues and notification deferred to sign-in. | As §5. | `/approvals` |
+| CO-8 | Re-designated out of Phase 1: FR-MTD-008 enforcement → 6.5; FR-MTD-012 → 6.4/6.12/6.13; FR-MTD-013 → 6.4; FR-APR-010 delivery → sign-in. **Condition:** until 6.5, award submission refuses a name-approval method without an APPROVED, non-withdrawn name route (`invitationFault`), tested. Acceptance does not wait on document storage; BD-4 stands and the acceptance record says dossier-method awards (incl. emergency direct purchase) route but cannot be awarded in the system. | Step 6 adds the condition. | `award/appointment.ts` `submitFaults`; `phase1-acceptance.md` |
+| CO-9 | 6.9 Musts accepted only on a code-reviewer pass with the 13 worked examples as regression tests, one entry per Must. **Act badges show the label plus the DAL code** ("Mandatory recommendation (MR)"). FR-APR-014 (S) and FR-APR-018 (S) logged deferred with a reason. | `actLabel` carries the code. | `components/ui/act.tsx` |
+| 6.9 · FR-APR-015 | Partly met: trail immutable in the application; **export with a SHA-256 digest, the export itself audited in the same transaction**; DB-level edit refusal deferred to sign-in and demo tooling; the screen says the digest proves the file, not the database. Known: `AuditEntry` cascades on Organisation delete (revisit with tenancy). | New: `AuditExport` row, `audit/export.ts`, Configuration › Audit trail. | §2, §3, §5 |
+| 6.9 · FR-APR-012 | Partly met: upward reversion at routing; pending steps move by escalation (NO_AVAILABLE_HOLDER), flagged on the worklist; automatic move on marking absent deferred to sign-in; **a delegation by an unavailable grantor is refused unless the holder's recommendation is recorded** (text, "not attached"). Tested. | New: `Delegation.holderRecommendation*`, fault `ABSENT_GRANTOR_NO_RECOMMENDATION`. | `people/delegation.ts` |
+| Sequencing | Phase 2 modules are not presented for acceptance before Phase 1 is accepted. | Close-out → Phase 1 acceptance → 6.2. | — |
+| Open follow-ups carried in | 6.10 withdraw-from-agenda (6.11 BD-31), numbering (`series.ts`) and budget periods (`periods.ts`) on the organisation's day, not UTC. | Built here (§4a). | `committee/matter.ts`, `series.ts`, `periods.ts` |
 
 ## 0. What this closes, and what reading the code found
 
@@ -32,6 +57,11 @@ code also turned up five things the close-out has to settle:
 | FR-APR-016 | M | Reject with a reason on every step. Then the officer picks Reopen or Close (requisition), re-request (name approval), or Draft (award) | A per-matter-type `RejectionDestination` that ships unset. It is snapshotted when the route opens and applied when a step rejects. Unset → the officer chooses, and that is recorded as a choice, never as policy |
 | FR-APR-010 | M | Absence and self-approval escalate at resolution. NO_RULE refuses and names the escalation. No escalation of a pending step. No queue | Escalate a **pending** step to the office's configured superior (`escalatesToCode`) with a reason. Requisition submission applies absence. An **office worklist** at `/approvals`. Personal delivery waits for sign-in (CO-7) |
 | FR-APR-009 | M | Not built | The same step escalation, with kind CONFLICT_DECLARED, the declarer and the declaration on the trail (CO-6) |
+| FR-APR-015 | M | Rows immutable in the application, written in the same transaction as the change | Export of the trail with a SHA-256 digest of the file; the export is itself audited in the same transaction (6.9 ruling). Partly met |
+| FR-APR-012 | M | Upward reversion at routing | A delegation by an unavailable grantor is refused unless the holder's recommendation is recorded (text, "not attached"); pending steps move by escalation, flagged on the worklist (6.9 ruling). Partly met |
+| FR-APR-001–008, 013, 019, 020 | M | Built before the autonomous build; no log line | Verification pass (CO-9): the §6.9.3 worked examples as regression tests (C5); act badges show label + DAL code |
+| 6.10 follow-up (FR-CTE-004) | M | A pending tabled matter can only be deferred (6.11 BD-31) | Withdraw a pending matter from the agenda before the sitting opens, with a reason, audited |
+| Follow-up (AGENTS "gaps stay honest") | — | `series.ts` and `periods.ts` read the UTC day | They take the organisation's day; unset zone blocks the date-sensitive act |
 
 ## 2. Data model — one migration `phase1_closeout`, additive, every new column nullable, zero rows shipped
 
@@ -75,6 +105,17 @@ configuration (LESSONS). Money is Decimal(18,2).
 - `ApprovalStep`: `actingRoleCode?`, `actingRoleLabel?`, `escalation StepEscalation?`, `escalationReason?`,
   `escalatedOn?`, `declaredByPersonId?`. `roleCode` is never rewritten. Holders are judged on
   `actingRoleCode ?? roleCode`.
+
+**Added by the rulings (same migration)**
+- `ApprovalInstance.rejectionChoices RejectionDestinationKind[]` and `rejectionChoiceWhy String?`: what the officer was
+  offered when the route rejected with no applicable destination (CO-5). Non-empty and nothing applied = awaiting the
+  choice. Older routes backfill `[]`.
+- `ApprovalStep.escalationCount Int @default(0)`: hops, so `TOO_MANY_HOPS` does not depend on reading the trail.
+- `AuditExport` (FR-APR-015): `organisationId, fromDay, toDay, rowCount, sha256, fileName, generatedAt`. The rows of the
+  file are not stored: the digest proves the file, not the database.
+- `Delegation.holderRecommendation String?`, `holderRecommendedOn DateTime?` (FR-APR-012).
+- `CommitteeDecision.withdrawnAt DateTime?`, `withdrawnReason String @default("")` (6.10 follow-up). A withdrawn matter
+  keeps its row and is left out of the agenda, votes, quorum and minuting.
 
 **State machine (`src/lib/requisition/status.ts`)**
 - Add REJECTED → PENDING_APPROVAL, allowed only with a successor route.
@@ -149,11 +190,12 @@ configuration (LESSONS). Money is Decimal(18,2).
 | 3 | workflow-engineer | §4 for requisitions and name approval, including the finding-1 fix and absence at submission |
 | 4 | frontend-engineer | §5 requisition, exercise and `/approvals` screens |
 | 5 | frontend-engineer | §5 configuration screens. Save validation by hand (no schema library) |
-| 6 | workflow-engineer | **After 6.11 is accepted**: wire the appointment route to `applyRejection` and `escalateStep`. Award TERMINATE means Cancelled under BD-17 |
+| 6 | workflow-engineer | (6.11 accepted at `861dd06`.) Wire the appointment route to the rejection outcome and `escalateStep`. Award TERMINATE means Cancelled under BD-17. **CO-8 condition:** award submission refuses a name-approval method without an APPROVED, non-withdrawn name route |
+| 6a | domain-engineer | The rulings' additions: FR-APR-015 export, FR-APR-012 delegation refusal, the 6.9.3 worked examples (C5), sen boundary tests and dashboard sums (C6), act badges (CO-9), withdraw-from-agenda, organisation's day in numbering and periods |
 | 7 | domain-engineer | Demo data (§8). Wipe in dependency order, refusing when non-demo rows depend on demo rows |
 | 8 | code-reviewer, ux-reviewer, product-owner | `npm test`, typecheck and lint. Browser pass. Acceptance. Log entries |
 
-## 7. Open decisions for the product owner
+## 7. Open decisions for the product owner — all ruled 2026-10-01 (see "Rulings applied"; kept for the record)
 
 | # | Question | Options | Recommendation |
 |---|---|---|---|
@@ -181,7 +223,7 @@ configuration (LESSONS). Money is Decimal(18,2).
   - `demo_rq29`: rejected while unset, officer's choice recorded.
 - **Destinations and escalations.** `demo_rd1` (requisition: return to the Head of Division's step); name approval unset. One step escalated for a vacancy, one for a conflict.
 
-## 9. Phase 1 acceptance checklist (§13.3). DL = `docs/notes/decisions-log.md` line at `0f99974`
+## 9. Phase 1 acceptance checklist (§13.3) — superseded by `docs/notes/phase1-acceptance.md`, kept as written at `0f99974`
 
 | Module | Must | Status | Citation |
 |---|---|---|---|
@@ -217,3 +259,7 @@ configuration (LESSONS). Money is Decimal(18,2).
 | 6.12 | FR-CON-003–007, 009, 011–014 | Deferred to Phase 4a | DL L123 |
 
 Phase 1 is accepted when every **Open** row is closed or carries a logged ruling, 6.11 is accepted, and CO-8/CO-9 are ruled.
+
+## 10. Build decisions (flagged for the product owner; most consequential first)
+
+Recorded as the build makes them. Each is flagged **Needs a ruling** where it settles something the rulings did not.
