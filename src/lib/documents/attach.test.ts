@@ -246,3 +246,39 @@ describe("6.2 Q-1: the signed specification panel form, on its panel, SULIT", ()
     expect(documentFaultText(f[0])).toMatch(/^The specification panel was verified on this scan/);
   });
 });
+
+describe("6.2 Q-3: a bill's imported CSV, on the bill version, attached only by the import", () => {
+  const bq = (x: Partial<Extract<OwnerFacts, { kind: "bqVersion" }>> = {}): OwnerFacts => ({ kind: "bqVersion", exerciseStatus: "DRAFT", status: "DRAFT", ...x });
+
+  it("belongs on a bill version only, and a bill version takes nothing else", () => {
+    expect(purposeFits("BQ_IMPORT_SOURCE", bq())).toBe(true);
+    expect(purposeFits("BQ_IMPORT_SOURCE", exercise())).toBe(false);
+    expect(purposeFits("SPEC_PANEL_FORM", bq())).toBe(false);
+  });
+  it("is refused from anywhere but the import, naming where to import it", () => {
+    const f = attachFault({ purpose: "BQ_IMPORT_SOURCE", owner: bq(), version: live, documentClass: internal });
+    expect(f).toEqual([{ code: "ATTACHED_BY_OWNER_ACT", level: "block", data: { purpose: "BQ_IMPORT_SOURCE" } }]);
+    expect(documentFaultText(f[0])).toMatch(/importing it on the bill of quantities/);
+    expect(attachFault({ purpose: "BQ_IMPORT_SOURCE", owner: bq(), version: live, documentClass: internal, byOwnerAct: true })).toEqual([]);
+  });
+  it("takes any classification the officer chose (doc-store OD-7): no purpose floor", () => {
+    expect(attachFault({ purpose: "BQ_IMPORT_SOURCE", owner: bq(), version: live, documentClass: { classification: "PUBLIC" }, byOwnerAct: true })).toEqual([]);
+    expect(attachFault({ purpose: "BQ_IMPORT_SOURCE", owner: bq(), version: live, documentClass: { classification: "SULIT" }, byOwnerAct: true })).toEqual([]);
+  });
+  it("a draft is open; a finalised or superseded version keeps its file; a cancelled exercise takes nothing", () => {
+    expect(ownerState("BQ_IMPORT_SOURCE", bq())).toEqual({ state: "OPEN" });
+    expect(ownerState("BQ_IMPORT_SOURCE", bq({ status: "FINALISED" }))).toEqual({ state: "FROZEN", exit: "BQ_FINALISED" });
+    expect(ownerState("BQ_IMPORT_SOURCE", bq({ status: "SUPERSEDED" }))).toEqual({ state: "FROZEN", exit: "BQ_FINALISED" });
+    expect(ownerState("BQ_IMPORT_SOURCE", bq({ exerciseStatus: "CANCELLED" }))).toEqual({ state: "FROZEN", exit: "EXERCISE_CANCELLED" });
+    const f = attachFault({ purpose: "BQ_IMPORT_SOURCE", owner: bq({ status: "FINALISED" }), version: live, documentClass: internal, byOwnerAct: true });
+    expect(codes(f)).toEqual(["OWNER_FROZEN"]);
+    expect(documentFaultText(f[0])).toMatch(/start a revision/);
+  });
+  it("every imported file is relied on, even beside another: replaced by a new version, never simply taken off", () => {
+    expect(reliedOn("BQ_IMPORT_SOURCE", bq(), 1)).toBe("IMPORTED_FROM_IT");
+    expect(reliedOn("BQ_IMPORT_SOURCE", bq(), 2)).toBe("IMPORTED_FROM_IT");
+    const f = detachFault({ purpose: "BQ_IMPORT_SOURCE", owner: bq(), reason: "wrong file", reliedOn: "IMPORTED_FROM_IT" });
+    expect(codes(f)).toEqual(["RELIED_ON"]);
+    expect(documentFaultText(f[0])).toMatch(/^Lines of the bill were imported from this file/);
+  });
+});

@@ -70,6 +70,17 @@ describe("ownerHref", () => {
     expect(ownerHref("specificationPanel", "panel1", "ex1")).toBe("/sourcing/ex1");
     expect(ownerHref("specificationPanel", "panel1")).toBe("/sourcing");
   });
+  it("a bill version is shown in its exercise's Bill of quantities section", () => {
+    expect(ownerHref("bqVersion", "v1", "ex1")).toBe("/sourcing/ex1?tab=scope&section=bq");
+    expect(ownerHref("bqVersion", "v1")).toBe("/sourcing");
+  });
+});
+
+describe("6.2 Q-3: a bill's imported file is never offered as a place to attach", () => {
+  it("a bill version lists no purpose, so nothing is filed against it from the received list", () => {
+    const [t] = attachTargets([{ id: "v1", label: "DEMO/SX/15/2026 · Bill of quantities, version 1", facts: { kind: "bqVersion", exerciseStatus: "DRAFT", status: "DRAFT" } }]);
+    expect(t.purposes).toEqual([]);
+  });
 });
 
 describe("attachableVersion", () => {

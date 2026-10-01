@@ -2,7 +2,7 @@ import { RecordEditor, type Field } from "@/components/record-editor";
 import { Button, buttonClass } from "@/components/ui/button";
 import { ACT_LABEL, matterLabel } from "@/lib/labels";
 import matters from "@/lib/labels.json";
-import { MATTER_KIND_LABEL, MATTER_KINDS, MINUTES_EDITOR_DESCRIPTION, NOT_APPROVED_KIND_LABEL } from "@/lib/committee/labels";
+import { MATTER_KIND_LABEL, MINUTES_EDITOR_DESCRIPTION, SITTING_TABLED_MATTER_KINDS, NOT_APPROVED_KIND_LABEL } from "@/lib/committee/labels";
 
 import {
   changeStatus,
@@ -266,7 +266,7 @@ export function TableMatter({
           name: "matterKind",
           label: "Concerns a record of kind",
           placeholder: "Not linked to a record",
-          options: MATTER_KINDS.map((k) => ({ value: k, label: MATTER_KIND_LABEL[k] })),
+          options: SITTING_TABLED_MATTER_KINDS.map((k) => ({ value: k, label: MATTER_KIND_LABEL[k] })),
         },
         { kind: "text", name: "matterRef", label: "Record reference", mono: true },
         { kind: "money", name: "amount", label: "Amount" },

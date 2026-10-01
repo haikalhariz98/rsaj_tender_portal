@@ -122,6 +122,9 @@ enum MatterKind {
   LATE_TENDER
   CONTRACT
   VARIATION
+  /// 6.2 OD-9, FR-REQ-014: a finalised bill of quantities tabled for scope approval,
+  /// named by CommitteeDecision.bqVersionId.
+  SCOPE
 }
 
 /// Where a rejected matter goes (FR-APR-016, ADR 0009). The product ships no
@@ -248,6 +251,8 @@ model Organisation {
   companyEstimates      CompanyEstimate[]
   companyEstimateVersions CompanyEstimateVersion[]
   estimateEvents        EstimateEvent[]
+  rateSchedules         RateSchedule[]
+  rateScheduleItems     RateScheduleItem[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -323,6 +328,7 @@ model Person {
   estimatesPrepared        CompanyEstimate[]        @relation("EstimatePreparer")
   estimateVersionsPrepared CompanyEstimateVersion[] @relation("EstimateVersionPreparer")
   estimateEvents           EstimateEvent[]
+  rateSchedulesIssued      RateSchedule[]           @relation("RateScheduleIssuedBy")
 
   @@unique([organisationId, staffNo])
   @@index([organisationId, name])
@@ -741,6 +747,10 @@ model CommitteeDecision {
   /// one gate or one route step, never both.
   requisitionGateId String?
   requisitionGate   RequisitionGate? @relation(fields: [requisitionGateId], references: [id], onDelete: Restrict)
+  /// The bill of quantities version a SCOPE matter tables for scope approval (6.2 OD-9,
+  /// FR-REQ-014): a typed key, set only on a SCOPE matter (CHECK in the migration).
+  bqVersionId String?
+  bqVersion   BqVersion?       @relation(fields: [bqVersionId], references: [id], onDelete: SetNull)
 
   /// Withdrawn from the agenda before the sitting opened (6.10 follow-up). The row is
   /// kept, and the matter is left out of the votes, the quorum and the minuting.
@@ -787,6 +797,7 @@ model CommitteeDecision {
   @@index([requisitionId])
   @@index([exerciseId])
   @@index([requisitionGateId])
+  @@index([bqVersionId])
 }
 
 /// A member standing aside from one matter. Excluded from that matter's vote and
@@ -1768,6 +1779,14 @@ model SourcingMethod {
   /// own provenance, since the row's may be STATED while this answer is assumed.
   requiresCompanyEstimate           Boolean?
   requiresCompanyEstimateProvenance Provenance?
+  /// 6.2 OD-9, FR-REQ-014: whether an exercise sourced this way has its finalised bill's
+  /// scope approved by a committee before its documents go for approval. Null: not set, and
+  /// packFaults blocks naming it (never read as "not required"). Its own provenance, as
+  /// requiresCompanyEstimate's. The committee (Committee.code) that approves it; unset while
+  /// the rule says yes also blocks.
+  scopeApprovalRequired             Boolean?
+  scopeApprovalProvenance           Provenance?
+  scopeCommitteeCode                String?
   /// The numbering series (NumberingSeries.key) a dossier reference is issued from.
   dossierSeriesKey String?
 
@@ -3421,6 +3440,8 @@ enum AttachmentPurpose {
   SIGNED_MINUTES
   /// 6.2 Q-1: the signed specification panel form, on its panel. SULIT.
   SPEC_PANEL_FORM
+  /// 6.2 Q-3: a bill of quantities' imported CSV as received, on the bill's version.
+  BQ_IMPORT_SOURCE
   DOSSIER_EVIDENCE
   COORDINATION_SCOPE
   HOLDER_RECOMMENDATION
@@ -3558,6 +3579,9 @@ model DocumentAttachment {
   delegation   Delegation?       @relation(fields: [delegationId], references: [id], onDelete: Restrict)
   specificationPanelId String?
   specificationPanel   SpecificationPanel? @relation(fields: [specificationPanelId], references: [id], onDelete: Restrict)
+  /// 6.2 Q-3: a bill of quantities version, for the CSV it was imported from.
+  bqVersionId          String?
+  bqVersion            BqVersion?          @relation(fields: [bqVersionId], references: [id], onDelete: Restrict)
 
   attachedAt   DateTime  @default(now())
   detachedAt   DateTime?
@@ -3568,6 +3592,7 @@ model DocumentAttachment {
   @@index([awardId])
   @@index([delegationId])
   @@index([specificationPanelId])
+  @@index([bqVersionId])
   @@index([versionId])
 }
 
@@ -3818,6 +3843,10 @@ model BqVersion {
   sections        BqSection[]
   panels          SpecificationPanel[]
   estimateVersions CompanyEstimateVersion[]
+  /// SCOPE matters that table this version (6.2 OD-9).
+  scopeMatters    CommitteeDecision[]
+  /// The CSV files it was imported from (6.2 Q-3).
+  attachments     DocumentAttachment[]
 
   @@unique([exerciseId, versionNo])
 }
@@ -3853,9 +3882,67 @@ model BqItem {
   amount         Decimal?     @db.Decimal(18, 2)
   provisional    Boolean      @default(false)
   rateSource     BqRateSource @default(ENTERED)
+  /// FR-EST-004: where rateSource is SCHEDULE, the issue the rate was taken from and what it
+  /// said, as it read on the day the line was priced. Superseding the issue never touches them.
+  rateScheduleId                String?
+  rateSchedule                  RateSchedule? @relation(fields: [rateScheduleId], references: [id], onDelete: Restrict)
+  rateItemCode                  String?
+  scheduleLabelSnapshot         String?
+  scheduleIssueSnapshot         String?
+  scheduleEffectiveFromSnapshot DateTime?
   sortOrder      Int          @default(0)
 
   @@index([sectionId])
+  @@index([rateScheduleId])
+}
+
+enum RateScheduleStatus {
+  DRAFT
+  ISSUED
+  SUPERSEDED
+}
+
+/// FR-EST-004: a schedule of rates, issue by issue. Issues of one schedule share its label;
+/// issuing one supersedes the issue in force before it. A draft is edited; an issued or
+/// superseded issue is frozen, and a line priced from it keeps what it said.
+model RateSchedule {
+  id               String             @id @default(cuid())
+  organisationId   String
+  organisation     Organisation       @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  label            String
+  issueNo          Int
+  status           RateScheduleStatus @default(DRAFT)
+  /// The organisation's day the issue takes effect from. Set at issue.
+  effectiveFrom    DateTime?
+  issuedOn         DateTime?
+  issuedByPersonId String?
+  issuedBy         Person?            @relation("RateScheduleIssuedBy", fields: [issuedByPersonId], references: [id], onDelete: Restrict)
+  supersededOn     DateTime?
+  governingSource  String             @default("")
+  provenance       Provenance
+  notes            String             @default("")
+  createdAt        DateTime           @default(now())
+
+  items   RateScheduleItem[]
+  bqItems BqItem[]
+
+  @@unique([organisationId, label, issueNo])
+}
+
+model RateScheduleItem {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  scheduleId     String
+  schedule       RateSchedule @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+  code           String
+  descriptionEn  String
+  descriptionMs  String?
+  unit           String       @default("")
+  rate           Decimal      @db.Decimal(18, 2)
+  sortOrder      Int          @default(0)
+
+  @@unique([scheduleId, code])
 }
 
 /// The specification panel (FR-EST-005): its form's facts, the bill it certifies, and the

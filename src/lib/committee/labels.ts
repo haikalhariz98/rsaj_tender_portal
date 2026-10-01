@@ -56,10 +56,16 @@ export const MATTER_KIND_LABEL = {
   LATE_TENDER: "Late tender admission",
   CONTRACT: "Contract",
   VARIATION: "Variation",
+  SCOPE: "Scope (bill of quantities)",
 } as const;
 
 export type MatterKind = keyof typeof MATTER_KIND_LABEL;
 export const MATTER_KINDS = Object.keys(MATTER_KIND_LABEL) as MatterKind[];
+
+/// Kinds tabled from the sitting's own drawer. A SCOPE matter names the bill version it
+/// tables by a typed key, so it is tabled from the exercise's Scope section, which knows the
+/// version (6.2 OD-9); the sitting's drawer neither offers it nor accepts it.
+export const SITTING_TABLED_MATTER_KINDS = MATTER_KINDS.filter((k) => k !== "SCOPE");
 
 export const POSITION_LABEL = {
   CHAIRMAN: "Chairman",

@@ -23,6 +23,7 @@ export type AccessKind = "DOWNLOADED" | "REFUSED" | "VERIFIED" | "INTEGRITY_FAIL
 export type AttachmentPurpose =
   | "SIGNED_MINUTES"
   | "SPEC_PANEL_FORM"
+  | "BQ_IMPORT_SOURCE"
   | "DOSSIER_EVIDENCE"
   | "COORDINATION_SCOPE"
   | "HOLDER_RECOMMENDATION"
@@ -34,6 +35,7 @@ export type AttachmentPurpose =
 export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
   "SIGNED_MINUTES",
   "SPEC_PANEL_FORM",
+  "BQ_IMPORT_SOURCE",
   "DOSSIER_EVIDENCE",
   "COORDINATION_SCOPE",
   "HOLDER_RECOMMENDATION",
@@ -45,13 +47,14 @@ export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
 
 /// The owners a document can be attached to. New owners arrive by migration with their
 /// module (MatterKind precedent); each is a typed key on DocumentAttachment.
-export type OwnerKind = "meeting" | "exercise" | "award" | "delegation" | "specificationPanel";
-export const OWNER_KINDS: readonly OwnerKind[] = ["meeting", "exercise", "award", "delegation", "specificationPanel"];
+export type OwnerKind = "meeting" | "exercise" | "award" | "delegation" | "specificationPanel" | "bqVersion";
+export const OWNER_KINDS: readonly OwnerKind[] = ["meeting", "exercise", "award", "delegation", "specificationPanel", "bqVersion"];
 
 /// Which owner each purpose belongs to. The migration's CHECK says the same.
 export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
   SIGNED_MINUTES: "meeting",
   SPEC_PANEL_FORM: "specificationPanel",
+  BQ_IMPORT_SOURCE: "bqVersion",
   DOSSIER_EVIDENCE: "exercise",
   COORDINATION_SCOPE: "exercise",
   HOLDER_RECOMMENDATION: "delegation",
@@ -62,14 +65,20 @@ export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
 };
 
 /// The column on DocumentAttachment that names each owner.
-export type OwnerColumn = "meetingId" | "exerciseId" | "awardId" | "delegationId" | "specificationPanelId";
+export type OwnerColumn = "meetingId" | "exerciseId" | "awardId" | "delegationId" | "specificationPanelId" | "bqVersionId";
 export const OWNER_COLUMN: Readonly<Record<OwnerKind, OwnerColumn>> = {
   meeting: "meetingId",
   exercise: "exerciseId",
   award: "awardId",
   delegation: "delegationId",
   specificationPanel: "specificationPanelId",
+  bqVersion: "bqVersionId",
 };
+
+/// Purposes attached only by their owner's own act, never from the shared attach choice: a
+/// bill's imported CSV is attached by the import that reads it, in the same transaction (6.2
+/// Q-3), so the file on a bill is always the one its lines came from.
+export const OWNER_ACT_PURPOSES: readonly AttachmentPurpose[] = ["BQ_IMPORT_SOURCE"];
 
 /// The classification a purpose's document must carry to be attached (6.2 Q-1: the signed
 /// specification panel form is SULIT). A purpose not listed takes any classification.

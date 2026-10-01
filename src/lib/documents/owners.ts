@@ -20,10 +20,10 @@ import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { requisitionOfExercise, withLockedRequisitionForSourcing } from "@/lib/method/repo";
 import { lockDelegation } from "@/lib/people/lock";
-import { exerciseOfPanel, lockPanelRow, withLockedExerciseScope } from "@/lib/scope/lock";
+import { exerciseOfBqVersion, exerciseOfPanel, lockBqRows, lockPanelRow, withLockedExerciseScope } from "@/lib/scope/lock";
 
 import { reliedOn, type OwnerFacts, type Reliance } from "./attach";
-import { awardFacts, delegationFacts, exerciseFacts, exerciseMethodFlags, meetingFacts, panelFacts } from "./owner-facts";
+import { awardFacts, bqVersionFacts, delegationFacts, exerciseFacts, exerciseMethodFlags, meetingFacts, panelFacts } from "./owner-facts";
 import type { OwnerRef } from "./repo";
 import { documentOrg } from "./service";
 import type { AttachmentPurpose } from "./types";
@@ -121,6 +121,26 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
         });
       });
     }
+    case "bqVersion": {
+      // 6.2 Q-3: requisition, exercise, then the bill's versions, as the scope actions lock them.
+      const exerciseId = await exerciseOfBqVersion(ref.id);
+      if (!exerciseId) return null;
+      return withLockedExerciseScope(exerciseId, async (tx, l) => {
+        await lockBqRows(tx, exerciseId);
+        const v = await tx.bqVersion.findFirst({ where: { id: ref.id, exerciseId, organisationId: l.org.id }, select: { status: true, versionNo: true } });
+        if (!v) return null;
+        const facts = bqVersionFacts({ status: v.status, exercise: { status: l.ex.status } });
+        return fn(tx, {
+          ref,
+          organisationId: l.org.id,
+          today: l.org.today,
+          label: `${l.ex.reference} · Bill of quantities, version ${v.versionNo}`,
+          facts,
+          paths: [`/sourcing/${exerciseId}`],
+          reliance: (purpose, live) => reliedOn(purpose, facts, live),
+        });
+      });
+    }
     case "delegation":
       return db.$transaction(async (tx) => {
         const org = await documentOrg(tx);
@@ -144,11 +164,12 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
 }
 
 /// Which owner an attachment belongs to.
-export function ownerOf(a: { meetingId: string | null; exerciseId: string | null; awardId: string | null; delegationId: string | null; specificationPanelId?: string | null }): OwnerRef | null {
+export function ownerOf(a: { meetingId: string | null; exerciseId: string | null; awardId: string | null; delegationId: string | null; specificationPanelId?: string | null; bqVersionId?: string | null }): OwnerRef | null {
   if (a.meetingId) return { kind: "meeting", id: a.meetingId };
   if (a.exerciseId) return { kind: "exercise", id: a.exerciseId };
   if (a.awardId) return { kind: "award", id: a.awardId };
   if (a.delegationId) return { kind: "delegation", id: a.delegationId };
   if (a.specificationPanelId) return { kind: "specificationPanel", id: a.specificationPanelId };
+  if (a.bqVersionId) return { kind: "bqVersion", id: a.bqVersionId };
   return null;
 }

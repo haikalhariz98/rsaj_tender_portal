@@ -71,3 +71,13 @@ describe("attachment owners: schema, CHECK and lib agree (X-6)", () => {
     expect(values).toEqual([...ATTACHMENT_PURPOSES]);
   });
 });
+
+describe("6.2 Q-3: the bill version is an owner, everywhere at once", () => {
+  it("bqVersionId is counted by one_owner and BQ_IMPORT_SOURCE pairs with it", () => {
+    const one = latestCheck("DocumentAttachment_one_owner");
+    expect(one).toMatch(/"bqVersionId"/);
+    expect(latestCheck("DocumentAttachment_purpose_owner")).toMatch(/\("purpose"\s*=\s*'BQ_IMPORT_SOURCE'\s*AND\s*"bqVersionId"\s+IS NOT NULL\)/);
+    expect(OWNER_COLUMN.bqVersion).toBe("bqVersionId");
+    expect(PURPOSE_OWNER.BQ_IMPORT_SOURCE).toBe("bqVersion");
+  });
+});

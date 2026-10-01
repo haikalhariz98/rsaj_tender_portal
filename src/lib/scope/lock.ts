@@ -28,6 +28,12 @@ export async function exerciseOfPanel(panelId: string): Promise<string | null> {
   return p?.exerciseId ?? null;
 }
 
+/// The bill version's exercise, read without a lock, to know what to lock.
+export async function exerciseOfBqVersion(versionId: string): Promise<string | null> {
+  const v = await db.bqVersion.findUnique({ where: { id: versionId }, select: { exerciseId: true } });
+  return v?.exerciseId ?? null;
+}
+
 /// Lock the panel's row, after its exercise's. Call inside `withLockedExerciseScope`.
 export async function lockPanelRow(tx: Tx, panelId: string): Promise<void> {
   await tx.$queryRaw`SELECT id FROM "SpecificationPanel" WHERE id = ${panelId} FOR UPDATE`;

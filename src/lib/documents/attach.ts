@@ -11,7 +11,7 @@
 import { isLive } from "./evidence";
 import type { ExerciseStatus } from "@/lib/method/types";
 
-import { PURPOSE_CLASSIFICATION, PURPOSE_OWNER, type AttachmentPurpose, type Finding, type SecurityClass } from "./types";
+import { OWNER_ACT_PURPOSES, PURPOSE_CLASSIFICATION, PURPOSE_OWNER, type AttachmentPurpose, type Finding, type SecurityClass } from "./types";
 
 export type MeetingStatus = "SCHEDULED" | "IN_PROGRESS" | "MINUTED" | "CANCELLED";
 /// X-8: the one ExerciseStatus type, from the method module, never restated here.
@@ -43,7 +43,9 @@ export type OwnerFacts =
     }
   | { kind: "delegation"; ended: boolean }
   /// 6.2: a specification panel, judged with its exercise's status.
-  | { kind: "specificationPanel"; exerciseStatus: ExerciseStatus; status: "DRAFT" | "VERIFIED" };
+  | { kind: "specificationPanel"; exerciseStatus: ExerciseStatus; status: "DRAFT" | "VERIFIED" }
+  /// 6.2 Q-3: a bill of quantities version, judged with its exercise's status.
+  | { kind: "bqVersion"; exerciseStatus: ExerciseStatus; status: "DRAFT" | "FINALISED" | "SUPERSEDED" };
 
 /// The two things a sourcing method can ask an exercise to keep a document for.
 export interface ExerciseMethodFlags {
@@ -82,7 +84,8 @@ export type OwnerExit =
   | "AWARD_APPROVED"
   | "AWARD_NOT_ISSUED"
   | "AWARD_CANCELLED"
-  | "DELEGATION_ENDED";
+  | "DELEGATION_ENDED"
+  | "BQ_FINALISED";
 
 export type AttachFault =
   | "PURPOSE_NOT_FOR_OWNER"
@@ -93,6 +96,7 @@ export type AttachFault =
   | "CLASS_NOT_SET"
   | "CLASSIFICATION_NOT_SET"
   | "CLASSIFICATION_BELOW_PURPOSE"
+  | "ATTACHED_BY_OWNER_ACT"
   | "ALREADY_ATTACHED";
 
 /// Whether the purpose belongs on this owner at all.
@@ -127,6 +131,10 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): { sta
       return owner.ended ? { state: "FROZEN", exit: "DELEGATION_ENDED" } : { state: "OPEN" };
     case "specificationPanel":
       return owner.exerciseStatus === "CANCELLED" ? { state: "FROZEN", exit: "EXERCISE_CANCELLED" } : { state: "OPEN" };
+    case "bqVersion":
+      // A finalised or superseded bill keeps the file it was imported from, as it stands.
+      if (owner.exerciseStatus === "CANCELLED") return { state: "FROZEN", exit: "EXERCISE_CANCELLED" };
+      return owner.status === "DRAFT" ? { state: "OPEN" } : { state: "FROZEN", exit: "BQ_FINALISED" };
   }
 }
 
@@ -140,11 +148,15 @@ export interface AttachInput {
   documentClassification?: SecurityClass | null;
   /// The same document is already attached, live, to this owner for this purpose.
   alreadyAttached?: boolean;
+  /// True when the owner's own act attaches it (the bill's import); a purpose in
+  /// OWNER_ACT_PURPOSES is refused from anywhere else.
+  byOwnerAct?: boolean;
 }
 
 export function attachFault(i: AttachInput): Finding<AttachFault>[] {
   const out: Finding<AttachFault>[] = [];
   if (!purposeFits(i.purpose, i.owner)) return [{ code: "PURPOSE_NOT_FOR_OWNER", level: "block", data: { purpose: i.purpose, owner: i.owner.kind } }];
+  if (OWNER_ACT_PURPOSES.includes(i.purpose) && !i.byOwnerAct) return [{ code: "ATTACHED_BY_OWNER_ACT", level: "block", data: { purpose: i.purpose } }];
   if (!methodKeeps(i.purpose, i.owner)) return [{ code: "PURPOSE_NOT_FOR_METHOD", level: "block", data: { purpose: i.purpose, reason: i.owner.kind === "exercise" && i.owner.method == null ? "METHOD_NOT_CONFIGURED" : "METHOD_DOES_NOT_ASK" } }];
   const st = ownerState(i.purpose, i.owner);
   if (st.state === "NOT_READY") out.push({ code: "OWNER_NOT_READY", level: "block", data: { exit: st.exit } });
@@ -167,7 +179,9 @@ export type Reliance =
   /// A delegation standing on the absent holder's attached recommendation, its last live one (OD-6).
   | "GRANTED_ON_IT"
   /// 6.2 Q-1: a verified specification panel standing on its signed form's scan, its last live one.
-  | "VERIFIED_ON_IT";
+  | "VERIFIED_ON_IT"
+  /// 6.2 Q-3: a bill's lines were imported from this file.
+  | "IMPORTED_FROM_IT";
 
 export type DetachFault = "REASON_REQUIRED" | "RELIED_ON" | "OWNER_FROZEN" | "ALREADY_DETACHED";
 
@@ -195,6 +209,9 @@ export function detachFault(i: { purpose: AttachmentPurpose; owner: OwnerFacts; 
  * and the screens disable Detach by it, so the two give the same reason.
  */
 export function reliedOn(purpose: AttachmentPurpose, owner: OwnerFacts, liveOfPurpose: number): Reliance | null {
+  // Q-3: each imported file is what some of the bill's lines came from, so none is a
+  // duplicate: a wrong one is replaced by a new version, never simply taken off.
+  if (owner.kind === "bqVersion") return purpose === "BQ_IMPORT_SOURCE" ? "IMPORTED_FROM_IT" : null;
   if (liveOfPurpose > 1) return null;
   if (owner.kind === "award") return awardReliance(purpose, owner);
   // OD-6: a delegation stands on its attached recommendation; the last live one is

@@ -11,7 +11,7 @@
 
 import { methodKeeps, ownerState, purposeFits, type OwnerFacts } from "./attach";
 import { EXIT_TEXT, PURPOSE_LABEL } from "./labels";
-import { ATTACHMENT_PURPOSES, type AttachmentPurpose, type OwnerKind } from "./types";
+import { ATTACHMENT_PURPOSES, OWNER_ACT_PURPOSES, type AttachmentPurpose, type OwnerKind } from "./types";
 
 export const OWNER_KIND_LABEL: Readonly<Record<OwnerKind, string>> = {
   meeting: "Committee sitting",
@@ -19,6 +19,7 @@ export const OWNER_KIND_LABEL: Readonly<Record<OwnerKind, string>> = {
   award: "Award",
   delegation: "Delegation",
   specificationPanel: "Specification panel",
+  bqVersion: "Bill of quantities",
 };
 
 /// Where an owner's own screen is, for a link from a document to the record it is on.
@@ -35,6 +36,8 @@ export function ownerHref(kind: OwnerKind, id: string, exerciseId?: string): str
       return "/configuration/users";
     case "specificationPanel":
       return exerciseId ? `/sourcing/${exerciseId}` : "/sourcing";
+    case "bqVersion":
+      return exerciseId ? `/sourcing/${exerciseId}?tab=scope&section=bq` : "/sourcing";
   }
 }
 
@@ -69,7 +72,8 @@ const NOTHING_KEPT = "Nothing is kept against this record: its method asks for n
 
 export function attachTargets(owners: readonly TargetOwner[]): (TargetRecord & { nothingKept: string | null })[] {
   return owners.map((o) => {
-    const kept = ATTACHMENT_PURPOSES.filter((p) => purposeFits(p, o.facts) && methodKeeps(p, o.facts));
+    // A purpose its owner's own act attaches (the bill's import) is never offered here.
+    const kept = ATTACHMENT_PURPOSES.filter((p) => !OWNER_ACT_PURPOSES.includes(p) && purposeFits(p, o.facts) && methodKeeps(p, o.facts));
     const purposes = kept.map((value) => {
       const st = ownerState(value, o.facts);
       return { value, label: PURPOSE_LABEL[value], open: st.state === "OPEN", reason: st.state === "OPEN" ? null : EXIT_TEXT[st.exit] };

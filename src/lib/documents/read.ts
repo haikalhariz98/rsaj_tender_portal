@@ -13,7 +13,7 @@ import { detachFault, ownerState, purposeFits, reliedOn, reliedOnAttachment, rep
 import { isLive } from "./evidence";
 import { accessReasonText, ACCESS_STATEMENT, documentFaultText, DOWNLOAD_REFUSAL_TEXT, EXIT_TEXT, FINGERPRINT_STATEMENT } from "./labels";
 import { effectiveCap } from "./limits";
-import { awardFacts, delegationFacts, exerciseFacts, exerciseMethodFlags, meetingFacts, panelFacts } from "./owner-facts";
+import { awardFacts, bqVersionFacts, delegationFacts, exerciseFacts, exerciseMethodFlags, meetingFacts, panelFacts } from "./owner-facts";
 import { type OwnerRef } from "./repo";
 import { attachTargets, ownerHref } from "./targets";
 import { retentionOf, documentOrg, loadStorePolicy } from "./service";
@@ -52,6 +52,10 @@ export async function readOwner(ref: OwnerRef): Promise<{ facts: OwnerFacts; lab
     case "specificationPanel": {
       const p = await db.specificationPanel.findFirst({ where: { id: ref.id, organisationId: org.id }, select: { status: true, exercise: { select: { status: true, reference: true } } } });
       return p ? { facts: panelFacts(p), label: `${p.exercise.reference} · Specification panel` } : null;
+    }
+    case "bqVersion": {
+      const v = await db.bqVersion.findFirst({ where: { id: ref.id, organisationId: org.id }, select: { status: true, versionNo: true, exercise: { select: { status: true, reference: true } } } });
+      return v ? { facts: bqVersionFacts(v), label: `${v.exercise.reference} · Bill of quantities, version ${v.versionNo}` } : null;
     }
   }
 }
@@ -131,7 +135,7 @@ export async function documentDrawer(documentId: string) {
         orderBy: { versionNo: "desc" },
         select: {
           ...versionSelect,
-          attachments: { select: { id: true, purpose: true, attachedAt: true, detachedAt: true, detachReason: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true, meeting: { select: { reference: true } }, exercise: { select: { reference: true } }, award: { select: { reference: true } }, delegation: { select: { fromPerson: { select: { name: true } }, toPerson: { select: { name: true } } } }, specificationPanel: { select: { exerciseId: true, exercise: { select: { reference: true } } } } } },
+          attachments: { select: { id: true, purpose: true, attachedAt: true, detachedAt: true, detachReason: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true, meeting: { select: { reference: true } }, exercise: { select: { reference: true } }, award: { select: { reference: true } }, delegation: { select: { fromPerson: { select: { name: true } }, toPerson: { select: { name: true } } } }, specificationPanel: { select: { exerciseId: true, exercise: { select: { reference: true } } } }, bqVersionId: true, bqVersion: { select: { versionNo: true, exerciseId: true, exercise: { select: { reference: true } } } } } },
           accessEvents: { orderBy: { at: "desc" }, take: 50, select: { id: true, kind: true, reasonCode: true, at: true } },
         },
       },
@@ -147,13 +151,14 @@ export async function documentDrawer(documentId: string) {
   const ids = [d.id, ...d.versions.map((v) => v.id), ...d.versions.flatMap((v) => v.attachments.map((a) => a.id)), ...d.holds.map((h) => h.id)];
   const history = await db.auditEntry.findMany({ where: { organisationId: org.id, entityId: { in: ids } }, orderBy: { at: "desc" }, take: 200 });
   const ownerLabel = (a: (typeof d.versions)[number]["attachments"][number]) =>
-    a.meeting?.reference ?? a.exercise?.reference ?? a.award?.reference ?? (a.delegation ? `Delegation · ${a.delegation.fromPerson.name} to ${a.delegation.toPerson.name}` : a.specificationPanel ? `${a.specificationPanel.exercise.reference} · Specification panel` : "A record");
+    a.meeting?.reference ?? a.exercise?.reference ?? a.award?.reference ?? (a.delegation ? `Delegation · ${a.delegation.fromPerson.name} to ${a.delegation.toPerson.name}` : a.specificationPanel ? `${a.specificationPanel.exercise.reference} · Specification panel` : a.bqVersion ? `${a.bqVersion.exercise.reference} · Bill of quantities, version ${a.bqVersion.versionNo}` : "A record");
   const hrefOf = (a: (typeof d.versions)[number]["attachments"][number]) =>
     a.meetingId ? ownerHref("meeting", a.meetingId)
       : a.exerciseId ? ownerHref("exercise", a.exerciseId)
       : a.awardId ? ownerHref("award", a.awardId)
       : a.delegationId ? ownerHref("delegation", a.delegationId)
       : a.specificationPanelId ? ownerHref("specificationPanel", a.specificationPanelId, a.specificationPanel?.exerciseId)
+      : a.bqVersionId ? ownerHref("bqVersion", a.bqVersionId, a.bqVersion?.exerciseId)
       : "/documents";
   return {
     id: d.id,
@@ -239,6 +244,10 @@ export async function attachTargetsOf(kind: OwnerRef["kind"]) {
       ]);
       return { records: attachTargets(rows.map((p) => ({ id: p.id, label: `${p.exercise.reference} · ${p.exercise.title}`, href: ownerHref("specificationPanel", p.id, p.exerciseId), facts: panelFacts(p) }))), total };
     }
+    case "bqVersion":
+      // Q-3: a bill's file is attached only by importing it there (OWNER_ACT_PURPOSES), so
+      // no bill is offered as a place to attach a received document.
+      return { records: [], total: 0 };
   }
 }
 

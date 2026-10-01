@@ -166,3 +166,11 @@ describe("6.2: a specification panel's signed form goes with the panel's exercis
     expect(p.demoDocuments.map((d) => d.id)).toEqual(["demo_doc20"]);
   });
 });
+
+describe("6.2 Q-3: a bill's imported file goes with the bill's exercise", () => {
+  it("a demo bill version, or one the wipe removes with its exercise, is on the demo side; a real one is not", () => {
+    expect(onDemoSide(on({ bqVersionId: "demo_bqv9" }), side())).toBe(true);
+    expect(onDemoSide(on({ bqVersionId: "cm_bqv1" }), side({ removedBqVersionIds: new Set(["cm_bqv1"]) }))).toBe(true);
+    expect(onDemoSide(on({ bqVersionId: "cm_bqv1" }), side())).toBe(false);
+  });
+});
