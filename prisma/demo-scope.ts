@@ -33,7 +33,7 @@
  */
 
 import type { PrismaClient } from "../src/generated/prisma/client";
-import { estimateCreatedAudit, estimateEventAudit, estimateStateAudit, estimateVersionAudit, bqStatusAudit, itemAudit, rateFromText, verificationAudit, ENTITY, RATE_ENTITY, SCOPE_ENTITIES } from "../src/lib/scope/audit-view";
+import { estimateCreatedAudit, estimateEventAudit, estimateStateAudit, estimateVersionAudit, bqFinalisedAudit, bqStatusAudit, itemAudit, rateFromText, verificationAudit, ENTITY, RATE_ENTITY, SCOPE_ENTITIES } from "../src/lib/scope/audit-view";
 import { diffFields } from "../src/lib/audit/diff";
 import { formatDate } from "../src/lib/format";
 import { bqTotals, itemAmount, totalsSnapshot } from "../src/lib/scope/bq";
@@ -280,7 +280,7 @@ export async function loadScope(db: Db, organisationId: string) {
         if (!b.revisionReason) entry(ENTITY.bqItem, id, `${b.reference} · Bill of quantities v${b.versionNo} · ${l.itemRef}`, "CREATE", sch ? at(`${PRICED_ON}T11:00`) : created, itemAudit(null, { ...l, ...(rateFrom ? { rateFrom } : {}) }));
       }
     }
-    if (finalised) entry(ENTITY.bqVersion, b.id, vLabel, "UPDATE", at(`${b.finalisedOn}T15:00`), bqStatusAudit("DRAFT", "FINALISED", { total: totals!.total, buildersWorks: totals!.buildersWorks, firmValue: totals!.firmValue ?? "Not stated", standard: DEMO_SCOPE_POLICY.measurementStandardLabel, preparerQualification: "Qualified quantity measurer" }));
+    if (finalised) entry(ENTITY.bqVersion, b.id, vLabel, "UPDATE", at(`${b.finalisedOn}T15:00`), bqFinalisedAudit(bqTotals(lines, b.excluded), { standard: DEMO_SCOPE_POLICY.measurementStandardLabel, preparerQualification: "Qualified quantity measurer" }));
   }
 
   // ---------------------------------------------------------------- panels

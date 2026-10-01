@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseSen } from "@/lib/money";
 
-import { ENTITY, SCOPE_ENTITY_LABEL, bqExportAudit, bqImportAudit, estimateEventAudit, estimateVersionAudit, historyChange, itemAudit, rateFromText, scopeTabledAudit, verificationAudit } from "./audit-view";
+import { ENTITY, SCOPE_ENTITY_LABEL, bqExportAudit, bqFinalisedAudit, listValueLabel, panelAudit, type PanelAuditFacts, bqImportAudit, estimateEventAudit, estimateVersionAudit, historyChange, itemAudit, rateFromText, scopeTabledAudit, verificationAudit } from "./audit-view";
 
 describe("the estimate's audit rows: 'Sealed (version N)', never the figure or the reason", () => {
   it("an amendment's row contains neither the value's digits nor the reason text", () => {
@@ -79,5 +79,53 @@ describe("increment 2 audit rows", () => {
 describe("History names every 6.2 record in words", () => {
   it("every entity 6.2 writes has a label", () => {
     for (const e of [...Object.values(ENTITY), "CommitteeDecision", "RateSchedule", "RateScheduleItem"]) expect(SCOPE_ENTITY_LABEL[e], e).toBeTruthy();
+  });
+});
+
+describe("finalising: the totals are money in words, never raw decimals", () => {
+  it("total, builders' works and firm value formatted; an unstated firm value says so", () => {
+    const t = { total: parseSen("317973.70"), buildersWorks: parseSen("293473.70"), firmValue: parseSen("297591.20") };
+    expect(bqFinalisedAudit(t, { standard: "Standard method", preparerQualification: "Qualified measurer" })).toEqual([
+      { field: "status", before: "Draft", after: "Finalised" },
+      { field: "total", before: null, after: "RM317,973.70" },
+      { field: "buildersWorks", before: null, after: "RM293,473.70" },
+      { field: "firmValue", before: null, after: "RM297,591.20" },
+      { field: "standard", before: null, after: "Standard method" },
+      { field: "preparerQualification", before: null, after: "Qualified measurer" },
+    ]);
+    const unstated = bqFinalisedAudit({ ...t, firmValue: null }, { standard: null, preparerQualification: null });
+    expect(unstated.find((c) => c.field === "firmValue")?.after).toBe("Not stated");
+    expect(JSON.stringify(unstated)).not.toContain("317973.70");
+  });
+});
+
+describe("the panel's trail: list values by name, never their code", () => {
+  const kinds = [{ code: "WORKS_MEASURED", nameEn: "Measured works" }, { code: "WORKS_DESIGN", nameEn: "Design and build" }];
+  const facts = (x: Partial<PanelAuditFacts> = {}): PanelAuditFacts => ({
+    contractKind: null, contractKindOther: "", projectStatus: null, projectStatusOther: "", currentRevisionNo: null, currentRevisionOn: null,
+    revisedRevisionNo: null, revisedRevisionOn: null, completionPeriodText: "", bqVersionNo: null, ...x,
+  });
+  it("listValueLabel: the value's name; a code gone from the list says so; none is null", () => {
+    expect(listValueLabel(kinds, "WORKS_MEASURED")).toBe("Measured works");
+    expect(listValueLabel(kinds, "RETIRED_CODE")).toBe("A value no longer on the list");
+    expect(listValueLabel(kinds, null)).toBeNull();
+  });
+  it("a changed kind is recorded by name, before and after; unchanged facts are not recorded", () => {
+    const before = facts({ contractKind: listValueLabel(kinds, "WORKS_MEASURED"), currentRevisionOn: new Date("2026-09-01T00:00:00Z"), bqVersionNo: 1 });
+    const after = facts({ contractKind: listValueLabel(kinds, "WORKS_DESIGN"), currentRevisionOn: new Date("2026-09-01T00:00:00Z"), bqVersionNo: 2 });
+    const rows = panelAudit(before, after);
+    expect(rows).toEqual([
+      { field: "contractKind", before: "Measured works", after: "Design and build" },
+      { field: "certifiesBill", before: "version 1", after: "version 2" },
+    ]);
+    expect(JSON.stringify(rows)).not.toMatch(/WORKS_/);
+  });
+  it("on creation every fact given is recorded, days as days", () => {
+    expect(panelAudit(null, facts({ projectStatus: "New works", currentRevisionNo: "A", currentRevisionOn: new Date("2026-09-14T00:00:00Z"), completionPeriodText: "Twelve weeks" }))).toEqual([
+      { field: "projectStatus", before: null, after: "New works" },
+      { field: "currentRevision", before: null, after: "A" },
+      { field: "currentRevisionOn", before: null, after: "2026-09-14" },
+      { field: "completionPeriod", before: null, after: "Twelve weeks" },
+    ]);
   });
 });

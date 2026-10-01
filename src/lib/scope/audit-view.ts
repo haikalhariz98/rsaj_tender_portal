@@ -12,10 +12,11 @@
  */
 
 import { diffFields, type FieldChange } from "@/lib/audit/diff";
+import { storedDay } from "@/lib/dates";
 import { formatSen, type Sen } from "@/lib/money";
 
-import { itemAmount } from "./bq";
-import { ATTESTED, BQ_STATUS_LABEL, EVENT_KIND_LABEL, ITEM_KIND_LABEL, sealedVersion, SCOPED_BY_LABEL } from "./labels";
+import { itemAmount, type BqTotals } from "./bq";
+import { ATTESTED, BQ_STATUS_LABEL, EVENT_KIND_LABEL, firmValueText, ITEM_KIND_LABEL, sealedVersion, SCOPED_BY_LABEL } from "./labels";
 import type { BqItemKind, BqScopedBy, BqStatus, EstimateEventKind } from "./types";
 
 export const ENTITY = {
@@ -182,7 +183,49 @@ export function bqStatusAudit(before: BqStatus | null, after: BqStatus, extra: R
   return diffFields(before ? { status: BQ_STATUS_LABEL[before] } : null, { status: BQ_STATUS_LABEL[after], ...extra });
 }
 
+/// Finalising a draft: its totals as money in words (never raw decimals), the standard and the preparer's qualification.
+export function bqFinalisedAudit(t: Pick<BqTotals, "total" | "buildersWorks" | "firmValue">, i: { standard: string | null; preparerQualification: string | null }): FieldChange[] {
+  return bqStatusAudit("DRAFT", "FINALISED", { total: formatSen(t.total), buildersWorks: formatSen(t.buildersWorks), firmValue: firmValueText(t.firmValue), standard: i.standard, preparerQualification: i.preparerQualification });
+}
+
 // ------------------------------------------------------------------ panel
+
+/// The name a value of a configured list is recorded under, never its code; a code no longer on the list says so.
+export function listValueLabel(values: readonly { code: string; nameEn: string }[], code: string | null): string | null {
+  if (code == null) return null;
+  return values.find((v) => v.code === code)?.nameEn ?? "A value no longer on the list";
+}
+
+/// The panel's facts as its trail records them: list values by name (`listValueLabel`), days as days.
+export interface PanelAuditFacts {
+  contractKind: string | null;
+  contractKindOther: string;
+  projectStatus: string | null;
+  projectStatusOther: string;
+  currentRevisionNo: string | null;
+  currentRevisionOn: Date | null;
+  revisedRevisionNo: string | null;
+  revisedRevisionOn: Date | null;
+  completionPeriodText: string;
+  bqVersionNo: number | null;
+}
+
+/// Saving the panel: each fact that changed, before and after (all of them on creation).
+export function panelAudit(before: PanelAuditFacts | null, after: PanelAuditFacts): FieldChange[] {
+  const view = (p: PanelAuditFacts) => ({
+    contractKind: p.contractKind, contractKindSpecified: p.contractKindOther || null, projectStatus: p.projectStatus, projectStatusSpecified: p.projectStatusOther || null,
+    currentRevision: p.currentRevisionNo, currentRevisionOn: p.currentRevisionOn, revisedRevision: p.revisedRevisionNo, revisedRevisionOn: p.revisedRevisionOn,
+    completionPeriod: p.completionPeriodText || null, certifiesBill: p.bqVersionNo == null ? null : `version ${p.bqVersionNo}`,
+  });
+  const b = before ? view(before) : null;
+  const a = view(after);
+  const s = (v: unknown) => (v == null ? null : v instanceof Date ? storedDay(v) : String(v));
+  return (Object.keys(a) as (keyof typeof a)[]).flatMap((k) => {
+    const x = s(b ? b[k] : null);
+    const y = s(a[k]);
+    return x === y ? [] : [{ field: k, before: x, after: y }];
+  });
+}
 
 export function verificationAudit(i: { column: string; personName: string; verifiedOn: string; note: string }): FieldChange[] {
   return diffFields(null, { column: i.column, verifiedBy: named(i.personName), verifiedOn: i.verifiedOn, ...(i.note ? { note: i.note } : {}) });

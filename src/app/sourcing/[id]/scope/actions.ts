@@ -8,7 +8,7 @@ import type { FieldChange } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { dayToDate, storedDay, todayIn } from "@/lib/dates";
 import { parseSen, senToDecimalString, type Sen } from "@/lib/money";
-import { ENTITY, bqExportAudit, bqImportAudit, rateFromText, scopeTabledAudit, bqHeaderAudit, bqStatusAudit, estimateCreatedAudit, estimateEventAudit, estimateStateAudit, estimateVersionAudit, itemAudit, sectionAudit, verificationAudit, verificationClearedAudit } from "@/lib/scope/audit-view";
+import { ENTITY, bqExportAudit, bqFinalisedAudit, listValueLabel, panelAudit, type PanelAuditFacts, bqImportAudit, rateFromText, scopeTabledAudit, bqHeaderAudit, bqStatusAudit, estimateCreatedAudit, estimateEventAudit, estimateStateAudit, estimateVersionAudit, itemAudit, sectionAudit, verificationAudit, verificationClearedAudit } from "@/lib/scope/audit-view";
 import { bqTotals, draftEditFaults, finaliseFaults, holdingOn, isQuantity, itemAmount, lineSizeFaults, qualificationSnapshot, reviseFaults, startBqFaults, totalsSnapshot } from "@/lib/scope/bq";
 import { actionResult, lodgeFaults, retainFaults, startFault, versionFaults, voidFault } from "@/lib/scope/estimate";
 import { writeEstimateVersion } from "@/lib/scope/estimate-store";
@@ -299,7 +299,8 @@ export async function finaliseBq(_prev: FormState, data: FormData): Promise<Form
     const day = today(l)!;
     const code = policy.bqPreparerQualificationCode!;
     const holding = holdingOn(holdings, v.preparerPersonId!, code, day, qualifications)!;
-    const totals = totalsSnapshot(bqTotals(lines, v.provisionalExcludedFromFirm));
+    const computed = bqTotals(lines, v.provisionalExcludedFromFirm);
+    const totals = totalsSnapshot(computed);
     const qualification = qualificationSnapshot(holding, qualifications.find((q) => q.code === code), day);
     for (const prev of versions.filter((x) => x.status === "FINALISED")) {
       await tx.bqVersion.update({ where: { id: prev.id }, data: { status: "SUPERSEDED" } });
@@ -310,7 +311,7 @@ export async function finaliseBq(_prev: FormState, data: FormData): Promise<Form
       data: { status: "FINALISED", finalisedAt: new Date(), totalsSnapshot: totals, standardLabelSnapshot: policy.measurementStandardLabel, preparerQualificationSnapshot: qualification },
     });
     await audit(tx, l.org.id, ENTITY.bqVersion, v.id, label(l, `Bill of quantities v${v.versionNo}`), "UPDATE",
-      bqStatusAudit("DRAFT", "FINALISED", { total: totals.total, buildersWorks: totals.buildersWorks, firmValue: totals.firmValue ?? "Not stated", standard: policy.measurementStandardLabel, preparerQualification: qualification.name }));
+      bqFinalisedAudit(computed, { standard: policy.measurementStandardLabel, preparerQualification: qualification.name }));
     return { ok: true };
   });
 }
@@ -390,13 +391,22 @@ export async function savePanel(_prev: FormState, data: FormData): Promise<FormS
       contractKindCode: kind, contractKindOther, projectStatusCode: status, projectStatusOther, currentRevisionNo, currentRevisionOn, revisedRevisionNo, revisedRevisionOn, completionPeriodText, bqVersionId: bq?.id ?? null,
     };
     const panelLabel = label(l, "Specification panel");
+    // The trail records a listed value by its name on the configured list, never its code.
+    const listValues = async (taxonomyCode: string | null) =>
+      taxonomyCode ? tx.taxonomyValue.findMany({ where: { taxonomy: { organisationId: l.org.id, code: taxonomyCode } }, select: { code: true, nameEn: true } }) : [];
+    const kinds = await listValues(policy.panelContractKindTaxonomyCode);
+    const statuses = await listValues(policy.panelProjectStatusTaxonomyCode);
+    const facts = (p: Omit<PanelAuditFacts, "contractKind" | "projectStatus"> & { contractKindCode: string | null; projectStatusCode: string | null }): PanelAuditFacts => ({
+      ...p, contractKind: listValueLabel(kinds, p.contractKindCode), projectStatus: listValueLabel(statuses, p.projectStatusCode),
+    });
+    const afterFacts = facts({ ...after, bqVersionNo: bq?.versionNo ?? null });
     if (!before) {
       const p = await tx.specificationPanel.create({ data: { organisationId: l.org.id, exerciseId, ...after } });
-      await audit(tx, l.org.id, ENTITY.panel, p.id, panelLabel, "CREATE", panelChanges(null, { ...after, bqVersionNo: bq?.versionNo ?? null }));
+      await audit(tx, l.org.id, ENTITY.panel, p.id, panelLabel, "CREATE", panelAudit(null, afterFacts));
       return { ok: true };
     }
     const clears = editClearsVerifications({ status: before.status, verifications: before.verifications });
-    const changes = panelChanges({ ...before, bqVersionNo: before.bqVersion?.versionNo ?? null }, { ...after, bqVersionNo: bq?.versionNo ?? null });
+    const changes = panelAudit(facts({ ...before, bqVersionNo: before.bqVersion?.versionNo ?? null }), afterFacts);
     if (changes.length === 0) return { ok: true };
     await tx.specificationPanel.update({ where: { id: before.id }, data: { ...after, ...(clears ? { status: "DRAFT", verifiedAt: null, verifiedSnapshot: Prisma.DbNull } : {}) } });
     await audit(tx, l.org.id, ENTITY.panel, before.id, panelLabel, "UPDATE", [...changes, ...(before.status === "VERIFIED" ? [{ field: "status", before: "Verified", after: "Draft" }] : [])]);
@@ -408,22 +418,6 @@ export async function savePanel(_prev: FormState, data: FormData): Promise<FormS
       }
     }
     return { ok: true };
-  });
-}
-
-function panelChanges(before: Record<string, unknown> | null, after: Record<string, unknown>): FieldChange[] {
-  const view = (p: Record<string, unknown>) => ({
-    contractKind: p.contractKindCode ?? null, contractKindSpecified: p.contractKindOther || null, projectStatus: p.projectStatusCode ?? null, projectStatusSpecified: p.projectStatusOther || null,
-    currentRevision: p.currentRevisionNo ?? null, currentRevisionOn: p.currentRevisionOn ?? null, revisedRevision: p.revisedRevisionNo ?? null, revisedRevisionOn: p.revisedRevisionOn ?? null,
-    completionPeriod: p.completionPeriodText || null, certifiesBill: p.bqVersionNo == null ? null : `version ${p.bqVersionNo}`,
-  });
-  const b = before ? view(before) : null;
-  const a = view(after);
-  return Object.keys(a).flatMap((k) => {
-    const x = b ? b[k as keyof typeof b] : null;
-    const y = a[k as keyof typeof a];
-    const s = (v: unknown) => (v == null ? null : v instanceof Date ? storedDay(v) : String(v));
-    return s(x) === s(y) ? [] : [{ field: k, before: s(x), after: s(y) }];
   });
 }
 
