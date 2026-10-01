@@ -290,6 +290,7 @@ export function DataList({
   exportName = "export",
   toolbar = true,
   stackBelow = "md",
+  onViewChange,
 }: {
   columns: Column[];
   rows: Row[];
@@ -323,6 +324,9 @@ export function DataList({
   /// Where the stacked list gives way to the table. `xl` for a list whose columns need
   /// more than a laptop's card (configuration lists beside the sidebar at 1024).
   stackBelow?: "md" | "xl";
+  /// Told when a view is picked ("" for all records), so a heading beside the list can say
+  /// which list this is. The list keeps the state; this only reports it.
+  onViewChange?: (id: string) => void;
 }) {
   const [compact, setCompact] = useState(false);
   const [page, setPage] = useState(0);
@@ -452,7 +456,10 @@ export function DataList({
               aria-label="View"
               searchable={false}
               value={view === "all" ? "" : view}
-              onChange={(e) => setView(e.target.value || "all")}
+              onChange={(e) => {
+                setView(e.target.value || "all");
+                onViewChange?.(e.target.value);
+              }}
             >
               <option value="">All records</option>
               {views.map((v) => (

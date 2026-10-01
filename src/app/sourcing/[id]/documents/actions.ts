@@ -208,7 +208,7 @@ export async function startPack(_prev: FormState, data: FormData): Promise<FormS
           if (!v || a.detachedAt) continue;
           if (attachFault({ purpose: "TENDER_PART", owner: facts, version: v, documentClass: v.document.documentClass, documentClassification: v.document.classificationSnapshot }).some((f) => f.level === "block")) continue;
           const att = await tx.documentAttachment.create({ data: { organisationId: l.org.id, purpose: "TENDER_PART", versionId: v.id, tenderPackPartId: row.id } });
-          const owner = label(l, `Tender pack v${versionNo} · part ${p.printedNumber}, ${p.labelEn}`);
+          const owner = label(l, `Tender documents v${versionNo} · part ${p.printedNumber}, ${p.labelEn}`);
           await audit(tx, l.org.id, "DocumentAttachment", att.id, `${owner} · Tender document part`, "CREATE", attached({ purpose: "TENDER_PART", title: v.document.title, versionNo: v.versionNo, sha256: v.sha256, owner }));
         }
         if (state === "READY" && !(await tx.documentAttachment.count({ where: { tenderPackPartId: row.id, detachedAt: null } }))) {

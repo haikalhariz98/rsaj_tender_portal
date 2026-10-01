@@ -12,11 +12,20 @@ import type { TermsState } from "./bands";
 import type { AppointmentState, NameApprovalState } from "./approval";
 import type { ContractTypeState, DeliverableKind, ExerciseStatus, Finding, ProposalState, Regime } from "./types";
 
+/// The three states the tender documents, their route and the exercise share (6.4 UX 2): one
+/// label for one state wherever it is shown, so the badge, the step, the callout, the list and
+/// the dashboard never say it two ways.
+export const TENDERING_STATE_LABEL = {
+  WITH_APPROVAL: "With approval for tendering",
+  APPROVED: "Approved for tendering",
+  RETURNED: "Returned for amendment",
+} as const;
+
 export const EXERCISE_STATUS_LABEL: Record<ExerciseStatus, string> = {
   DRAFT: "Draft",
   DOCUMENTS_IN_PREPARATION: "Documents in preparation",
-  PENDING_APPROVAL_FOR_TENDERING: "Pending approval for tendering",
-  APPROVED_FOR_TENDERING: "Approved for tendering",
+  PENDING_APPROVAL_FOR_TENDERING: TENDERING_STATE_LABEL.WITH_APPROVAL,
+  APPROVED_FOR_TENDERING: TENDERING_STATE_LABEL.APPROVED,
   CANCELLED: "Cancelled",
 };
 export const EXERCISE_STATUS_ORDER: readonly ExerciseStatus[] = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING", "APPROVED_FOR_TENDERING", "CANCELLED"];

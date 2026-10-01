@@ -1,13 +1,15 @@
-import { DataList, type Row } from "@/components/data-list";
-import { GlobeIcon, PlusIcon } from "@/components/icons";
+import type { Row } from "@/components/data-list";
+import { PlusIcon } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button";
-import { Card, CardFooter, CardHeader } from "@/components/ui/card";
+import { CardFooter } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { nameRoutesOf } from "@/lib/method/approval";
 import { EXERCISE_STATUS_LABEL, EXERCISE_STATUS_ORDER, EXERCISE_STATUS_TONE, REGIME_SHORT, TERM } from "@/lib/method/labels";
 import { EXERCISES_PAGE, listExercises, loadMethodConfig } from "@/lib/method/repo";
 import type { ExerciseStatus, Regime } from "@/lib/method/types";
+
+import { ExerciseList } from "./exercise-list";
 
 export const dynamic = "force-dynamic";
 
@@ -63,9 +65,8 @@ export default async function SourcingPage() {
         title="Sourcing"
         subtitle="Exercises opened on approved requisitions: value band, method, contract type and basis."
         meta={[
-          `${rows.filter((r) => r.status === "DRAFT").length} drafts`,
-          `${rows.filter((r) => r.status === "DOCUMENTS_IN_PREPARATION").length} in preparation`,
-          `${rows.filter((r) => r.status === "PENDING_APPROVAL_FOR_TENDERING").length} with approval for tendering`,
+          // The state's own label, as the dashboard counts it: one name for one state.
+          ...(["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING"] as const).map((s) => `${rows.filter((r) => r.status === s).length} ${EXERCISE_STATUS_LABEL[s].toLowerCase()}`),
           `${awaitingName} awaiting name approval`,
           `${rows.filter((r) => r.onBoundary && r.status !== "CANCELLED").length} on the boundary`,
         ]}
@@ -82,36 +83,33 @@ export default async function SourcingPage() {
         An exercise is classified here: its three value bands, sourcing method, contract type and basis, and who approves the name and the appointment. Its tender documents are prepared and approved here; invitation, bids and evaluation are still recorded outside the portal.
       </Callout>
 
-      <Card className="overflow-hidden">
-        <CardHeader icon={<GlobeIcon size={17} />} title="All exercises" subtitle="Newest first. Search finds an exercise by its reference or its requisition's." divided={false} />
-        <DataList
-          flat
-          selectable={false}
-          exportName="sourcing-exercises"
-          searchPlaceholder="Search by title or reference"
-          emptyTitle="No sourcing exercises yet"
-          emptyBody="Open one from an approved requisition."
-          views={[
-            { id: "drafts", label: "Drafts" },
-            { id: "preparing", label: "In preparation" },
-            { id: "approval", label: "With approval" },
-            { id: "boundary", label: "On the boundary" },
-            { id: "name", label: `${TERM.nameApproval} in progress` },
-          ]}
-          filters={[{ key: "status", label: "Status", order: EXERCISE_STATUS_ORDER.map((s) => EXERCISE_STATUS_LABEL[s]) }]}
-          rowAction={{ label: "Open", hrefTemplate: "/sourcing/{id}" }}
-          rowOpens
-          columns={[
-            { key: "title", label: "Exercise", sortable: true, mobile: "primary" },
-            { key: "method", label: "Method and contract type", width: "22%", hideBelow: "2xl" },
-            { key: "value", label: "Value", width: "124px", numeric: true, sortable: true, sulit: true, mobile: "meta" },
-            { key: "status", label: "Status", width: "240px", sortable: true, mobile: "meta" },
-            { key: "checks", label: "Band and checks", width: "220px", hideBelow: "md", mobile: "meta" },
-          ]}
-          rows={list}
-        />
-        {total > rows.length && <CardFooter className="text-[12.5px] text-ink-3">Showing the latest {EXERCISES_PAGE} of {total}.</CardFooter>}
-      </Card>
+      <ExerciseList
+        flat
+        selectable={false}
+        exportName="sourcing-exercises"
+        searchPlaceholder="Search by title or reference"
+        emptyTitle="No sourcing exercises yet"
+        emptyBody="Open one from an approved requisition."
+        views={[
+          { id: "drafts", label: EXERCISE_STATUS_LABEL.DRAFT },
+          { id: "preparing", label: EXERCISE_STATUS_LABEL.DOCUMENTS_IN_PREPARATION },
+          { id: "approval", label: EXERCISE_STATUS_LABEL.PENDING_APPROVAL_FOR_TENDERING },
+          { id: "boundary", label: "On the boundary" },
+          { id: "name", label: `${TERM.nameApproval} in progress` },
+        ]}
+        filters={[{ key: "status", label: "Status", order: EXERCISE_STATUS_ORDER.map((s) => EXERCISE_STATUS_LABEL[s]) }]}
+        rowAction={{ label: "Open", hrefTemplate: "/sourcing/{id}" }}
+        rowOpens
+        columns={[
+          { key: "title", label: "Exercise", sortable: true, mobile: "primary" },
+          { key: "method", label: "Method and contract type", width: "22%", hideBelow: "2xl" },
+          { key: "value", label: "Value", width: "124px", numeric: true, sortable: true, sulit: true, mobile: "meta" },
+          { key: "status", label: "Status", width: "240px", sortable: true, mobile: "meta" },
+          { key: "checks", label: "Band and checks", width: "220px", hideBelow: "md", mobile: "meta" },
+        ]}
+        rows={list}
+        footer={total > rows.length ? <CardFooter className="text-[12.5px] text-ink-3">Showing the latest {EXERCISES_PAGE} of {total}.</CardFooter> : undefined}
+      />
     </>
   );
 }

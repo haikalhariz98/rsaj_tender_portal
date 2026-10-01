@@ -31,4 +31,4 @@ export const PACK_PART_FACTS_SELECT = {
 
 /// The part as the trail and the screens name it: its exercise's reference, never an id.
 export const packPartLabel = (p: { printedNumber: string; labelSnapshot: string; pack: { versionNo: number; exercise: { reference: string } } }) =>
-  `${p.pack.exercise.reference} · Tender pack v${p.pack.versionNo} · part ${p.printedNumber}, ${p.labelSnapshot}`;
+  `${p.pack.exercise.reference} · Tender documents v${p.pack.versionNo} · part ${p.printedNumber}, ${p.labelSnapshot}`;

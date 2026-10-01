@@ -143,7 +143,8 @@ export function routeCoreText(
   if (route.coreChainFlag == null)
     return { en: "Chain as entered on the rule, not checked against core routing: nobody had decided whether the rule takes its chain from it.", ms: "Rantaian seperti yang dimasukkan pada peraturan, tidak disemak terhadap laluan teras: belum diputuskan sama ada peraturan mengambil rantaiannya daripadanya." };
   if (route.coreChainFlag === false) {
-    const why = route.coreChainReason?.trim();
+    // A reason typed as a sentence already ends in a full stop; the sentence supplies its own.
+    const why = route.coreChainReason?.trim().replace(/[.\s]+$/, "");
     return {
       en: `Chain as entered on the rule, recorded as not taken from the core routing: ${why || "reason not recorded"}.`,
       ms: `Rantaian seperti yang dimasukkan pada peraturan, direkodkan sebagai tidak diambil daripada laluan teras: ${why || "sebab tidak direkodkan"}.`,

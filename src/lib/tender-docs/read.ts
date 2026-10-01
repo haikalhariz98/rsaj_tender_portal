@@ -6,7 +6,7 @@
  * lock, so a disabled button and a refused post give the same reason. Reads only.
  */
 
-import { dayToDate, todayIn } from "@/lib/dates";
+import { dayToDate, storedDay, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { ACT_LABEL } from "@/lib/labels";
@@ -30,11 +30,16 @@ import { CONFIG_TIME_ZONE_NOT_SET, configHoldingWorkBack, partRetiredOn } from "
 import { packFieldValues } from "./fields";
 import { appendixText, packManifest, unpricedBqText } from "./freeze";
 import {
+  appendixCardOf,
   appendixFaultText,
   BEHAVIOUR_AFTER_AWARD_WHERE,
   behaviourFaultText,
+  findingHref,
   LAD_KIND_LABEL,
+  type AppendixState,
+  NOT_APPLICABLE_BEFORE_ASSEMBLY,
   NOT_SET,
+  periodText,
   PACK_KIND_LABEL,
   PACK_STATUS_LABEL,
   PART_CONTENT_LABEL,
@@ -46,17 +51,17 @@ import {
   submitFindingTexts,
   TENDER_DOCS_CONFIG_PATH,
   tenderingRouteLabel,
+  tenderingStepLabel,
   UPLIFT_KIND_LABEL,
   yesNoNotSet,
 } from "./labels";
 import { blockingOf, isLivePack, markReadyFaults, omitFaults, packEditFault, startPackFaults, submitFaults, nextPack } from "./pack";
-import { pickTemplateView } from "./part-view";
+import { distinctOffices, pickTemplateView } from "./part-view";
 import { formatPct } from "./percent";
 import { appendixFactsOf, loadConfiguredParts, loadPacks, loadTemplates, loadTenderPolicy, partFactsOf, pinnedFilesOf, profileOf, scopeReadiness, type PackRow } from "./repo";
 import { tenderingRouteForRequester, timeIn } from "./tendering";
 import { liveClauses } from "./clauses";
 import { conditionFieldValues, conditionStamp, readConditionsSnapshot } from "./conditions";
-import { conditionsFixHref } from "./conditions-labels";
 import { packWhitelist } from "./fields";
 import { tableDocumentManifest } from "./freeze";
 import { loadConditions } from "./repo";
@@ -71,18 +76,6 @@ const judged = (fs: readonly Finding[], text: (f: Finding) => string = partFault
 const money = (s: bigint | null) => (s == null ? NOT_SET : formatSen(s));
 const provenance = (p: string | null | undefined) => (p ? ((PROVENANCE_LABEL as Record<string, string>)[p] ?? NOT_SET) : NOT_SET);
 const RECORDED_ON_BEHALF = "recorded on behalf of, not signed";
-
-/// Where each submission finding's family is fixed, for a link.
-const FIX_HREF = (exerciseId: string) => ({
-  edit: `/sourcing/${exerciseId}?tab=documents`,
-  readiness: `/sourcing/${exerciseId}?tab=documents#parts`,
-  scope: `/sourcing/${exerciseId}?tab=scope`,
-  appendix: `/sourcing/${exerciseId}/appendix`,
-  behaviour: "/configuration/reference-data",
-  conditions: `/sourcing/${exerciseId}?tab=documents#conditions`,
-  dates: `/sourcing/${exerciseId}?tab=documents#submit`,
-  route: "/configuration/approval-matrix",
-});
 
 /// What the exercise's pack kind reads as. Null: prepared before document assembly existed.
 export function packKindText(kind: PackKind | null): string {
@@ -112,6 +105,8 @@ export async function documentsTab(exerciseId: string) {
   if (!c) return null;
   const { ex, org, req, packs } = c;
   const kind = ex.packKindSnapshot;
+  /// Prepared before document assembly existed: no pack kind was ever recorded and none will be. Not "not set": nothing is missing.
+  const legacy = kind == null && ex.status !== "DRAFT";
   const basis = ex.contractBasisCode ? await db.contractBasis.findFirst({ where: { organisationId: org.id, code: ex.contractBasisCode }, select: { nameEn: true } }) : null;
   const latest = packs[0] ?? null;
   const live = packs.find((p) => isLivePack(p.status)) ?? null;
@@ -159,7 +154,6 @@ export async function documentsTab(exerciseId: string) {
           conditions,
         })
       : null;
-  const hrefs = FIX_HREF(ex.id);
   const profile = profileOf(ex.classificationSnapshot);
   const behaviourFindings = shown ? behaviourFaults(profile, { appendix, primeCostSums: scope.bill?.primeCostSums ?? null, parts: shown.parts.map(partFactsOf) }) : [];
   const valueText = (k: string) => {
@@ -171,18 +165,18 @@ export async function documentsTab(exerciseId: string) {
   return {
     exercise: { id: ex.id, reference: ex.reference, title: ex.title, status: EXERCISE_STATUS_LABEL[ex.status] },
     facts: {
-      documentPack: packKindText(kind),
-      contractBasis: basis?.nameEn ?? NOT_SET,
-      standardForm: shown?.formLabelSnapshot ?? (composition && !("fault" in composition) ? (formLabel(composition.parts, (code) => c.templates.find((t) => t.code === code)?.nameEn ?? null) ?? NOT_SET) : NOT_SET),
-      version: shown ? `Version ${shown.versionNo}` : "None yet",
+      documentPack: legacy ? NOT_APPLICABLE_BEFORE_ASSEMBLY : packKindText(kind),
+      contractBasis: basis?.nameEn ?? (legacy ? NOT_APPLICABLE_BEFORE_ASSEMBLY : NOT_SET),
+      standardForm: shown?.formLabelSnapshot ?? (composition && !("fault" in composition) ? (formLabel(composition.parts, (code) => c.templates.find((t) => t.code === code)?.nameEn ?? null) ?? NOT_SET) : legacy ? NOT_APPLICABLE_BEFORE_ASSEMBLY : NOT_SET),
+      version: shown ? `Version ${shown.versionNo}` : legacy ? NOT_APPLICABLE_BEFORE_ASSEMBLY : "None yet",
       status: shown ? PACK_STATUS_LABEL[shown.status] : "Not started",
     },
     start: start.length ? { allowed: false as const, reason: start.map(startFaultText).join(" ") } : { allowed: true as const, label: next.copyFrom ? `Start version ${next.versionNo} from the returned version ${next.copyFrom.versionNo}` : "Start the tender documents" },
     pack: shown ? packView(shown, c, ex.id, editable, content) : null,
     readiness: submit
-      ? submitFindingTexts(submit).map((t) => ({ level: t.level, text: t.text, href: t.family === "conditions" ? conditionsFixHref(t.code, ex.id) : hrefs[t.family] }))
+      ? submitFindingTexts(submit).map((t) => ({ level: t.level, text: t.text, href: findingHref(ex.id, t.family, t.finding) }))
       : [],
-    submit: submit ? (blockingOf(submit).length ? { allowed: false as const, reason: "The findings above block it." } : { allowed: true as const }) : { allowed: false as const, reason: shown?.status === "DRAFT" ? "The organisation's time zone is not set, so the documents cannot be judged. Set it under Configuration, Organisation." : shown ? `This version is ${PACK_STATUS_LABEL[shown.status].toLowerCase()}.` : "Start the tender documents first." },
+    submit: submit ? (blockingOf(submit).length ? { allowed: false as const, reason: "The findings below block it." } : { allowed: true as const }) : { allowed: false as const, reason: shown?.status === "DRAFT" ? "The organisation's time zone is not set, so the documents cannot be judged. Set it under Configuration, Organisation." : shown ? `This version is ${PACK_STATUS_LABEL[shown.status].toLowerCase()}.` : "Start the tender documents first." },
     behaviours: {
       checkedHere: BEHAVIOURS_CHECKED_HERE.map((k) => ({ label: BEHAVIOUR_LABEL[k], value: valueText(k), findings: behaviourFindings.filter((f) => f.data?.behaviour === k || behaviourKeyOf(f.code) === k).map(behaviourFaultText) })),
       afterAward: BEHAVIOURS_AFTER_AWARD.map((b) => ({ label: BEHAVIOUR_LABEL[b.key], value: valueText(b.key), where: BEHAVIOUR_AFTER_AWARD_WHERE[b.where] })),
@@ -201,6 +195,11 @@ export async function documentsTab(exerciseId: string) {
       returnedBecause: p.status === "RETURNED" ? p.returnedReason : null,
       voidBecause: p.status === "VOID" ? p.voidReason : null,
     })),
+    /// What the submitter proposed, as the decision form's own values, so approving needs no retyping.
+    proposed:
+      shown?.status === "SUBMITTED" && shown.proposedStartOn && shown.proposedClosingAt && org.timeZone
+        ? { startOn: storedDay(shown.proposedStartOn), closingDay: storedDayIn(shown.proposedClosingAt, org.timeZone), closingTime: timeIn(shown.proposedClosingAt, org.timeZone) }
+        : null,
     printHref: shown ? `/sourcing/${ex.id}/documents/print` : null,
     appendixHref: shown?.appendix ? `/sourcing/${ex.id}/appendix` : null,
   };
@@ -250,7 +249,7 @@ function packView(p: PackRow, c: NonNullable<Awaited<ReturnType<typeof context>>
           markReady: judged(markReadyFaults(facts, p.status, c.ex.status, content)),
           omit: judged(omitFaults(facts, p.status, c.ex.status, "reason given")),
           reopen: editable ? (row.state === "NOT_STARTED" ? { allowed: false as const, reason: "This part is not marked ready or omitted." } : { allowed: true as const }) : judged([packEditFault(p.status, c.ex.status)!]),
-          pickTemplate: pickTemplateView({ source: row.source, content: row.content, templateId: row.templateId, printedNumber: row.printedNumber, label: row.labelSnapshot }, c.templates, editable ? null : packEditFault(p.status, c.ex.status)),
+          pickTemplate: pickTemplateView({ source: row.source, content: row.content, templateId: row.templateId, printedNumber: row.printedNumber, label: row.labelSnapshot }, c.templates, editable ? null : packEditFault(p.status, c.ex.status), suitedTemplateCodes(c.configured, row.role)),
         },
         frozen: frozenEntry
           ? {
@@ -269,6 +268,12 @@ function withWindowNote<R extends { decide: object | null } | null>(route: R, su
   const stated = submitted ? readConditionsSnapshot(submitted.conditionsSnapshot)?.windowStated : null;
   const note = stated ? `The frozen notice states the registrations' validity window from ${formatDate(stated.startOn)} to ${formatDate(stated.closingDay)}. Approving records those days; other days need the documents returned for amendment.` : null;
   return { ...route, decide: { ...route.decide, windowNote: note } };
+}
+
+/// The templates the configuration names for parts of a role; null where it names none, so nothing is narrowed to an empty list.
+function suitedTemplateCodes(configured: readonly { role: string; templateCode: string | null }[], role: string): ReadonlySet<string> | null {
+  const codes = new Set(configured.filter((x) => x.role === role && x.templateCode).map((x) => x.templateCode as string));
+  return codes.size > 0 ? codes : null;
 }
 
 async function routeView(ex: NonNullable<Awaited<ReturnType<typeof loadExercise>>>["ex"], org: { id: string; today: string | null }, req: { sectionUnitCode: string | null; requestingUnitCode: string; requestingPersonId: string }) {
@@ -295,7 +300,7 @@ async function routeView(ex: NonNullable<Awaited<ReturnType<typeof loadExercise>
       id: s.id,
       office: s.actingRoleLabel ?? s.roleLabel,
       act: ACT_LABEL[s.act] ?? "Acts",
-      decision: s.decision === "DONE" ? "Done" : s.decision === "REJECTED" ? "Rejected" : "Pending",
+      decision: tenderingStepLabel(s.decision),
       decidedBy: s.decidedByName ? `${s.decidedByName}, ${RECORDED_ON_BEHALF}` : null,
       decidedOn: s.decidedOn ? formatDate(s.decidedOn) : null,
       reason: s.reason || null,
@@ -311,7 +316,7 @@ export async function appendixPage(exerciseId: string) {
   const c = await context(exerciseId);
   if (!c) return null;
   const pack = c.packs.find((p) => isLivePack(p.status)) ?? c.packs.find((p) => p.status === "APPROVED") ?? c.packs[0] ?? null;
-  if (!pack?.appendix) return { exercise: { id: c.ex.id, reference: c.ex.reference, title: c.ex.title }, appendix: null, why: pack ? "This pack's parts have no Appendix to the Conditions of Contract." : "Start the tender documents first." };
+  if (!pack?.appendix) return { exercise: { id: c.ex.id, reference: c.ex.reference, title: c.ex.title }, appendix: null, why: pack ? "This pack's parts have no Appendix to the Conditions of Contract." : c.ex.status === "DRAFT" ? "Move the exercise into preparation first, then start the tender documents." : "Start the tender documents first." };
   const a = appendixFactsOf(pack.appendix);
   const editable = packEditFault(pack.status, c.ex.status);
   const profile = profileOf(c.ex.classificationSnapshot);
@@ -321,6 +326,8 @@ export async function appendixPage(exerciseId: string) {
   return {
     exercise: { id: c.ex.id, reference: c.ex.reference, title: c.ex.title },
     version: pack.versionNo,
+    /// Where the pack stands, for the page's tense: being entered, frozen, or the exercise not yet in preparation.
+    state: (editable == null ? "EDITING" : editable.code === "PACK_NOT_DRAFT" ? "FROZEN" : "NOT_IN_PREPARATION") as AppendixState,
     status: appendixComplete(a) ? "Complete" : "Being entered",
     edit: editable ? { allowed: false as const, reason: partFaultText(editable) } : { allowed: true as const },
     offices: c.roles.filter((r) => !r.isCommittee).map((r) => ({ value: r.code, label: r.nameEn })),
@@ -333,7 +340,7 @@ export async function appendixPage(exerciseId: string) {
       wcMinimum: money(a.wcMinimum),
       uplift: a.worksInsuranceUpliftKind == null ? NOT_SET : a.worksInsuranceUpliftKind === "AMOUNT" ? `${UPLIFT_KIND_LABEL.AMOUNT}: ${money(a.worksInsuranceUpliftAmount)}` : `${UPLIFT_KIND_LABEL.PERCENT}: ${a.worksInsuranceUpliftPct ? formatPct(a.worksInsuranceUpliftPct) : NOT_SET}`,
       excess: money(a.insuranceExcess),
-      tail: p.insurance.extraMonths == null ? `Insurance beyond the defects liability period: ${NOT_SET}` : `Insurance runs ${p.insurance.extraMonths} months ${p.insurance.extraDays} days beyond the defects liability period (${provenance(p.insuranceExtraProvenance).toLowerCase()}).`,
+      tail: p.insurance.extraMonths == null ? `Insurance beyond the defects liability period: ${NOT_SET}` : `Insurance runs ${periodText(p.insurance.extraMonths, p.insurance.extraDays ?? 0)} beyond the defects liability period (${provenance(p.insuranceExtraProvenance).toLowerCase()}).`,
     },
     lad: {
       value: lad.kind === "NOT_SET" ? NOT_SET : lad.kind === "AMOUNT" ? `${formatSen(lad.sen)} a day` : `${formatPct(lad.pct)} of the contract sum a day`,
@@ -344,19 +351,21 @@ export async function appendixPage(exerciseId: string) {
     },
     sectional: { value: yesNoNotSet(a.sectionalCompletion), sections: pack.appendix.sections.map((s) => ({ id: s.id, description: s.description, raw: { description: s.description, ladKind: s.ladKind ?? "", ladAmount: s.ladAmount ? senToDecimalString(parseSen(s.ladAmount.toString())) : "", ladPct: s.ladPct ? s.ladPct.toString() : "", sortOrder: String(s.sortOrder) }, lad: s.ladKind == null ? NOT_SET : s.ladKind === "AMOUNT_PER_DAY" ? (s.ladAmount ? `${formatSen(parseSen(s.ladAmount.toString()))} a day` : NOT_SET) : s.ladPct ? `${formatPct(s.ladPct.toString())} of the contract sum a day` : NOT_SET })) },
     dlp: {
-      value: a.dlpApplies == null ? NOT_SET : a.dlpApplies ? (a.dlpMonths == null ? NOT_SET : `${a.dlpMonths} months`) : "Does not apply",
+      value: a.dlpApplies == null ? NOT_SET : a.dlpApplies ? (a.dlpMonths == null ? NOT_SET : periodText(a.dlpMonths, 0)) : "Does not apply",
       /// FR-MTD-012: hidden, with the reason, where the contract type has none.
       hidden: dlpRule === false ? "The contract type has no defects liability period." : null,
       typeNotSet: dlpRule == null ? behaviourFaultText({ code: "BEHAVIOUR_NOT_SET", level: "block", data: { behaviour: "defectsLiabilityApplies" } }) : null,
     },
     interim: {
       first: money(a.firstInterimMinimum),
+      /// The policy states the first certificate's minimum as a rule, not a flat figure: where the figure entered is the rule's floor, the rule is what is said.
+      firstRule: p.firstCertificateFloor != null && p.firstCertificatePct != null && a.firstInterimMinimum != null && a.firstInterimMinimum === p.firstCertificateFloor ? `The lesser of ${formatSen(p.firstCertificateFloor)} and ${formatPct(p.firstCertificatePct)} of the builders' works value` : null,
       later: money(a.subsequentInterimMinimum),
       honourDays: a.honourCertificateDays == null ? NOT_SET : `${a.honourCertificateDays} days`,
       /// The policy's rule in words, with its provenance: computed against the awarded value, never the department's bill (SULIT).
       suggestion: p.firstCertificateFloor != null && p.firstCertificatePct != null ? `The policy's first-certificate minimum is the lesser of ${formatSen(p.firstCertificateFloor)} and ${formatPct(p.firstCertificatePct)} of the builders' works value (${provenance(p.firstCertificateProvenance).toLowerCase()}).` : null,
     },
-    findings: appendixFaults(a).map(appendixFaultText),
+    findings: appendixFaults(a).map((f) => ({ level: f.level, text: appendixFaultText(f), card: appendixCardOf(f) })),
     raw: {
       tplMinimum: a.tplMinimum == null ? "" : senToDecimalString(a.tplMinimum),
       wcMinimum: a.wcMinimum == null ? "" : senToDecimalString(a.wcMinimum),
@@ -388,7 +397,9 @@ export async function printView(exerciseId: string, set: "pack" | "table" = "pac
   const c = await context(exerciseId);
   if (!c) return null;
   const pack = c.packs.find((p) => p.status === "APPROVED") ?? c.packs.find((p) => isLivePack(p.status)) ?? null;
-  if (!pack) return null;
+  // No pack to print: the page says so and links back, rather than reading as a missing page.
+  if (!pack) return { none: true as const, exercise: { id: c.ex.id, reference: c.ex.reference, title: c.ex.title }, why: c.ex.packKindSnapshot == null && c.ex.status !== "DRAFT" ? "This exercise was prepared before tender document assembly, so its documents were prepared outside the portal." : "No tender documents have been started for this exercise, so there is nothing to print yet." };
+  const title = `${PACK_KIND_LABEL[pack.packKind]}: ${c.ex.title}`;
   const watermark = pack.status === "APPROVED" ? null : pack.status === "SUBMITTED" ? "With approval, not issued" : "Draft, not issued";
   const manifest = packManifest(pack.manifest);
   // FR-DOC-010 (the part built here): the Tender Table Document is the parts flagged for it, ready.
@@ -397,6 +408,7 @@ export async function printView(exerciseId: string, set: "pack" | "table" = "pac
     const snapshot = readConditionsSnapshot(pack.conditionsSnapshot);
     return {
       exercise: { id: c.ex.id, reference: c.ex.reference, title: c.ex.title },
+      title,
       version: pack.versionNo,
       document,
       form: pack.formLabelSnapshot ?? NOT_SET,
@@ -427,6 +439,7 @@ export async function printView(exerciseId: string, set: "pack" | "table" = "pac
   const shownParts = set === "table" ? pack.parts.filter((p) => p.inTableDocument === true && p.state !== "OMITTED") : pack.parts;
   return {
     exercise: { id: c.ex.id, reference: c.ex.reference, title: c.ex.title },
+    title,
     version: pack.versionNo,
     document,
     form: pack.formLabelSnapshot ?? NOT_SET,
@@ -440,7 +453,7 @@ export async function printView(exerciseId: string, set: "pack" | "table" = "pac
         p.source === "TEMPLATE" && p.template
           ? (["MS", "EN"] as const).flatMap((lang) => {
               const body = lang === "MS" ? p.template!.bodyMs : p.template!.bodyEn;
-              return body?.trim() ? [{ language: lang === "MS" ? "Malay" : "English", paragraphs: stamped(renderedText(renderWith(body, { ...fields, ...(byLang?.[lang] ?? {}) }, whitelist)), stamp?.[lang]).split("\n\n"), fidelity: `From ${p.template!.nameEn}, text version ${p.template!.bodyVersion}, as it stands now.` }] : [];
+              return body?.trim() ? [{ language: lang === "MS" ? "Malay" : "English", paragraphs: stamped(renderedText(renderWith(body, { ...fields, ...(byLang?.[lang] ?? {}) }, whitelist)), stamp?.[lang]).split("\n\n"), fidelity: `From ${p.template!.nameEn}${p.template!.formCode ? ` (${p.template!.formCode})` : ""}, text version ${p.template!.bodyVersion}, as it stands now.` }] : [];
             })
           : p.source === "BQ_UNPRICED" && scope.bill
             ? [{ language: "English", paragraphs: stamped(unpricedBqText(scope.bill.frozen), stamp?.EN).split("\n\n"), fidelity: "The bill of quantities, unpriced, as it stands now." }]
@@ -466,7 +479,7 @@ export async function tenderDocsConfig(showRetired = false) {
     db.sourcingMethod.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { id: true, nameEn: true, documentPackKind: true, documentPackKindProvenance: true, retiredOn: true } }),
     db.contractBasis.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { code: true, nameEn: true, retiredOn: true } }),
     db.documentTemplate.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { code: true, nameEn: true, bodyVersion: true } }),
-    db.orgUnit.findMany({ where: { organisationId: org.id }, orderBy: { nameEn: "asc" }, select: { code: true, nameEn: true } }),
+    db.orgUnit.findMany({ where: { organisationId: org.id }, orderBy: { nameEn: "asc" }, select: { code: true, nameEn: true, effectiveFrom: true, effectiveTo: true } }),
   ]);
   // The organisation's day, never UTC's: unset zone leaves a retirement not judged, and says so.
   const today = todayIn(new Date(), org.timeZone);
@@ -517,9 +530,9 @@ export async function tenderDocsConfig(showRetired = false) {
       ladDailyRateProvenance: provenance(policy.ladDailyPctProvenance),
       firstCertificate: policy.firstCertificateFloor != null && policy.firstCertificatePct != null ? `The lesser of ${formatSen(policy.firstCertificateFloor)} and ${formatPct(policy.firstCertificatePct)} of the builders' works value` : NOT_SET,
       firstCertificateProvenance: provenance(policy.firstCertificateProvenance),
-      insuranceTail: policy.insurance.extraMonths == null ? NOT_SET : `${policy.insurance.extraMonths} months ${policy.insurance.extraDays} days beyond the defects liability period`,
+      insuranceTail: policy.insurance.extraMonths == null ? NOT_SET : `${periodText(policy.insurance.extraMonths, policy.insurance.extraDays ?? 0)} beyond the defects liability period`,
       insuranceTailProvenance: provenance(policy.insuranceExtraProvenance),
-      designAndBuildTail: policy.insurance.dbExtraMonths == null ? NOT_SET : `${policy.insurance.dbExtraMonths} months ${policy.insurance.dbExtraDays} days beyond the defects liability period`,
+      designAndBuildTail: policy.insurance.dbExtraMonths == null ? NOT_SET : `${periodText(policy.insurance.dbExtraMonths, policy.insurance.dbExtraDays ?? 0)} beyond the defects liability period`,
       designAndBuildTailProvenance: provenance(policy.dbInsuranceExtraProvenance),
       governingSource: policy.governingSource || null,
     },
@@ -528,7 +541,7 @@ export async function tenderDocsConfig(showRetired = false) {
       methodPackKinds: [{ value: "TENDER", label: PACK_KIND_LABEL.TENDER }, { value: "QUOTATION", label: PACK_KIND_LABEL.QUOTATION }, { value: "NONE", label: PACK_KIND_LABEL.NONE }, { value: "unset", label: NOT_SET }],
       bases: bases.filter((b) => b.retiredOn == null).map((b) => ({ value: b.code, label: b.nameEn })),
       templates: templates.map((t) => ({ value: t.code, label: `${t.nameEn} (text version ${t.bodyVersion})` })),
-      units: units.map((u) => ({ value: u.code, label: u.nameEn })),
+      units: distinctOffices(units),
       roles: Object.entries(PART_ROLE_LABEL).map(([value, label]) => ({ value, label })),
       contents: Object.entries(PART_CONTENT_LABEL).map(([value, label]) => ({ value, label })),
       sources: Object.entries(PART_SOURCE_LABEL).map(([value, label]) => ({ value, label })),

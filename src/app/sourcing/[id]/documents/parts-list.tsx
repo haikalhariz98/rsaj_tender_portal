@@ -41,7 +41,7 @@ export interface PartRow {
 export function PartsList({ exerciseId, parts, printHref }: { exerciseId: string; parts: PartRow[]; printHref: string }) {
   const byId = new Map(parts.map((p) => [p.id, p]));
   const rows: Row[] = parts.map((p) => {
-    const sub = [p.role, `Prepared by ${p.preparedBy === "Not set" ? "not set" : p.preparedBy}`, p.template ? (p.template === "Not set" ? "No template chosen" : `Template: ${p.template}`) : null, p.omittedBecause ? `Omitted: ${p.omittedBecause}` : null].filter(Boolean).join(" · ");
+    const sub = [p.role, p.preparedBy === "Not set" ? null : `Prepared by ${p.preparedBy}`, p.template ? (p.template === "Not set" ? "No template chosen" : `Template: ${p.template}`) : null, p.omittedBecause ? `Omitted: ${p.omittedBecause}` : null].filter(Boolean).join(" · ");
     const liveFiles = p.files.filter((f) => f.live);
     const note =
       p.state === "Not ready"
@@ -58,7 +58,7 @@ export function PartsList({ exerciseId, parts, printHref }: { exerciseId: string
         what: {
           kind: "stack",
           title: `${p.mandatory === "Yes" ? "Mandatory" : p.mandatory === "No" ? "Optional" : "Mandatory: not set"} · ${p.content}`,
-          sub: `${p.source}${p.isUpload ? ` · ${liveFiles.length === 0 ? "no file attached" : `${liveFiles.length} file${liveFiles.length === 1 ? "" : "s"}`}` : ""}`,
+          sub: `${p.source}${p.isUpload ? ` · ${liveFiles.length === 0 ? (p.mandatory === "Yes" ? "Required: no file attached" : "No file attached") : `${liveFiles.length} file${liveFiles.length === 1 ? "" : "s"}`}` : ""}`,
         },
         state: { kind: "badge", text: p.state, tone: p.stateTone },
       },
@@ -90,7 +90,7 @@ export function PartsList({ exerciseId, parts, printHref }: { exerciseId: string
             {p.state === "Not ready" && <MarkReadyDrawer exerciseId={exerciseId} partId={p.id} partLabel={`${p.printedNumber}. ${p.label}`} allowed={p.markReady} />}
             {p.state === "Not ready" && <OmitPartDrawer exerciseId={exerciseId} partId={p.id} partLabel={`${p.printedNumber}. ${p.label}`} allowed={p.omit} />}
             {p.state !== "Not ready" && p.reopen.allowed && <ReopenPartDrawer exerciseId={exerciseId} partId={p.id} partLabel={`${p.printedNumber}. ${p.label}`} state={p.state} />}
-            {p.hasFrozenText && !edits && (
+            {p.hasFrozenText && !edits && !p.isUpload && (
               <Link href={`${printHref}#part-${p.printedNumber}`} className={buttonClass("ghost", "sm")} aria-label={`View ${p.printedNumber}. ${p.label} as frozen`}>
                 View as frozen
               </Link>

@@ -5,10 +5,13 @@ import { describe, expect, it } from "vitest";
 
 import { BEHAVIOUR_KEYS } from "@/lib/method/profile";
 
+import { EXERCISE_STATUS_LABEL } from "@/lib/method/labels";
+
 import { ASSURANCE_KIND_LABEL, clauseConfigFaultText, conditionsFaultText, confirmFaultText, overrideFaultText, restrictionQuestion } from "./conditions-labels";
 import { ASSURANCE_KINDS } from "./assurance";
 
-import { appendixFaultText, behaviourFaultText, datesFaultText, PACK_KIND_LABEL, PACK_STATUS_LABEL, PART_CONTENT_LABEL, PART_ROLE_LABEL, PART_SOURCE_LABEL, PART_STATE_LABEL, partFaultText, routeFaultText, startFaultText, tenderingRouteLabel } from "./labels";
+import { appendixCardOf, appendixFaultText, appendixHref, findingHref, findingsSummary, IF_REFUSED_TEXT, TENDERING_STATE_LABEL, tenderingStepLabel, tenderingRouteTone, tenderingStepTone, behaviourFaultText, datesFaultText, PACK_KIND_LABEL, PACK_STATUS_LABEL, PART_CONTENT_LABEL, PART_ROLE_LABEL, PART_SOURCE_LABEL, PART_STATE_LABEL, partFaultText, periodText, trailLabel, routeFaultText, startFaultText, tenderingRouteLabel } from "./labels";
+import { APPENDIX_FIELD_LABEL } from "./appendix";
 import { PACK_KINDS, PACK_PART_STATES, PART_CONTENTS, PART_ROLES, PART_SOURCES, TENDER_PACK_STATUSES } from "./types";
 
 /**
@@ -101,8 +104,8 @@ describe("the tendering route card says the documents were returned, not refused
   it("a rejected route reads Returned for amendment; other statuses as an exercise route", () => {
     expect(tenderingRouteLabel("REJECTED", [])).toBe("Returned for amendment");
     expect(tenderingRouteLabel("REJECTED", [])).not.toMatch(/refused/i);
-    expect(tenderingRouteLabel("PENDING", [])).toBe("In progress");
-    expect(tenderingRouteLabel("APPROVED", [])).toBe("Approved");
+    expect(tenderingRouteLabel("PENDING", [])).toBe("With approval for tendering");
+    expect(tenderingRouteLabel("APPROVED", [])).toBe("Approved for tendering");
     expect(tenderingRouteLabel("RECALLED", [{ code: "WITHDRAWN_ON_CANCEL" }])).toBe("Withdrawn: exercise cancelled");
   });
   it("the read model and the screen label the route and its earlier routes through it", () => {
@@ -116,5 +119,77 @@ describe("the tendering route card says the documents were returned, not refused
     const src = readFileSync(join(process.cwd(), "src/app/sourcing/[id]/page.tsx"), "utf8");
     expect(src).toMatch(/if \(field === "status" && tenderingRouteIds\.has\(entityId\)\) return tenderingRouteLabel\(value, null\);/);
     expect(src).toMatch(/tenderingRouteIds=\{new Set\(tenderingRoutesOf\(ex\.approvalInstances\)\.map\(\(i\) => i\.id\)\)\}/);
+  });
+});
+
+describe("one label per state, wherever it is shown (UX 2)", () => {
+  it("the route, the pack, the exercise and the step say the same words", () => {
+    expect(TENDERING_STATE_LABEL).toEqual({ WITH_APPROVAL: "With approval for tendering", APPROVED: "Approved for tendering", RETURNED: "Returned for amendment" });
+    expect(tenderingRouteLabel("PENDING", [])).toBe(PACK_STATUS_LABEL.SUBMITTED);
+    expect(tenderingRouteLabel("PENDING", [])).toBe(EXERCISE_STATUS_LABEL.PENDING_APPROVAL_FOR_TENDERING);
+    expect(tenderingRouteLabel("APPROVED", [])).toBe(PACK_STATUS_LABEL.APPROVED);
+    expect(tenderingRouteLabel("APPROVED", [])).toBe(EXERCISE_STATUS_LABEL.APPROVED_FOR_TENDERING);
+    expect(tenderingRouteLabel("REJECTED", [])).toBe(PACK_STATUS_LABEL.RETURNED);
+    expect(tenderingStepLabel("REJECTED")).toBe(PACK_STATUS_LABEL.RETURNED);
+    expect(tenderingStepLabel("DONE")).toBe("Done");
+    expect(tenderingStepLabel("PENDING")).toBe("Pending");
+  });
+  it("a returned route and step are amber, never the red of a refusal", () => {
+    expect(tenderingRouteTone("REJECTED")).toBe("warn");
+    expect(tenderingStepTone("REJECTED")).toBe("warn");
+    expect(tenderingRouteTone("APPROVED")).toBe("ok");
+    expect(tenderingStepTone("DONE")).toBe("ok");
+  });
+  it("no label in the tendering vocabulary says refused or pending approval", () => {
+    for (const w of [...Object.values(TENDERING_STATE_LABEL), ...Object.values(PACK_STATUS_LABEL), EXERCISE_STATUS_LABEL.PENDING_APPROVAL_FOR_TENDERING]) expect(w).not.toMatch(/refused|pending approval|rejected/i);
+  });
+  it("the refusal line is the one fixed sentence, with no configuration or provenance in it (Q-3)", () => {
+    expect(IF_REFUSED_TEXT).toBe("If refused: the documents come back for amendment and the exercise returns to preparation.");
+    expect(IF_REFUSED_TEXT).not.toMatch(/configured|stated|assumed|observed|provenance/i);
+  });
+  it("the findings subtitle counts what blocks and what is only to note", () => {
+    expect(findingsSummary(4, 1)).toBe("4 to put right · 1 to note");
+    expect(findingsSummary(2, 0)).toBe("2 to put right");
+    expect(findingsSummary(0, 1)).toBe("Nothing blocks submission · 1 to note");
+    expect(findingsSummary(0, 0)).toBe("Nothing blocks submission.");
+  });
+});
+
+describe("a finding links to where it is put right (UX 3, 9)", () => {
+  const fin = (code: string, data?: Record<string, string | number | null>) => ({ code, level: "block" as const, data });
+  it("an Appendix finding lands on the card that holds the field", () => {
+    expect(findingHref("e1", "appendix", fin("FIELD_NOT_SET", { field: "Liquidated damages a day" }))).toBe("/sourcing/e1/appendix#liquidated-damages");
+    expect(findingHref("e1", "appendix", fin("FIELD_NOT_SET", { field: "Minimum workmen's compensation insurance" }))).toBe("/sourcing/e1/appendix#insurance");
+    expect(findingHref("e1", "appendix", fin("SECTIONS_REQUIRED"))).toBe("/sourcing/e1/appendix#sectional-completion");
+    expect(findingHref("e1", "appendix", fin("VARIATION_LIMIT_NOT_SET", { holder: "H" }))).toBe("/sourcing/e1/appendix#variation-limits");
+    expect(appendixCardOf(fin("FIELD_NOT_SET", { field: "A field nobody named" }))).toBeNull();
+    expect(appendixHref("e1", fin("FIELD_NOT_SET", { field: "A field nobody named" }))).toBe("/sourcing/e1/appendix");
+  });
+  it("every field of the Appendix has a card", () => {
+    for (const label of Object.values(APPENDIX_FIELD_LABEL)) expect(appendixCardOf(fin("FIELD_NOT_SET", { field: label })), label).not.toBeNull();
+  });
+  it("a bill finding opens the Bill of quantities section; an estimate finding the estimate's", () => {
+    expect(findingHref("e1", "scope", fin("BQ_NOT_FINALISED"))).toBe("/sourcing/e1?tab=scope&section=bq");
+    expect(findingHref("e1", "scope", fin("BQ_REVISION_OPEN"))).toBe("/sourcing/e1?tab=scope&section=bq");
+    expect(findingHref("e1", "scope", fin("ESTIMATE_NOT_LODGED"))).toBe("/sourcing/e1?tab=scope&section=estimate");
+    expect(findingHref("e1", "scope", fin("PANEL_NOT_VERIFIED"))).toBe("/sourcing/e1?tab=scope");
+    expect(findingHref("e1", "readiness", fin("BQ_PART_WITHOUT_BQ"))).toBe("/sourcing/e1?tab=scope&section=bq");
+  });
+  it("a part finding lands on the parts, the dates on the submit card", () => {
+    expect(findingHref("e1", "readiness", fin("PART_NOT_READY"))).toBe("/sourcing/e1?tab=documents#parts");
+    expect(findingHref("e1", "dates", fin("DATES_REQUIRED"))).toBe("/sourcing/e1?tab=documents#submit");
+  });
+});
+
+describe("small wording rules (UX 22)", () => {
+  it("a period leaves out its zero part", () => {
+    expect(periodText(2, 0)).toBe("2 months");
+    expect(periodText(1, 3)).toBe("1 month 3 days");
+    expect(periodText(0, 10)).toBe("10 days");
+    expect(periodText(0, 0)).toBe("0 months");
+  });
+  it("a trail row that names the pack the old way reads as the new ones do", () => {
+    expect(trailLabel("DEMO/SX/0005/2026 · Tender pack v2 · part 9, Drawings")).toBe("DEMO/SX/0005/2026 · Tender documents v2 · part 9, Drawings");
+    expect(trailLabel("Tender documents v2 · Appendix")).toBe("Tender documents v2 · Appendix");
   });
 });

@@ -3,6 +3,8 @@ import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 import { Callout } from "@/components/ui/feedback";
 
+import { TENDERING_STATE_LABEL } from "@/lib/tender-docs/labels";
+
 import { markPartReady, omitPart, pickPartTemplate, recordTenderingDecision, reopenPart, startPack, submitPack } from "./actions";
 
 /**
@@ -151,7 +153,7 @@ export function ReopenPartDrawer({ exerciseId, partId, partLabel, state }: { exe
   );
 }
 
-export function DecideDrawer({ exerciseId, stepId, office, done, people, today, recordsDates, windowNote }: { exerciseId: string; stepId: string; office: string; done: string; people: Option[]; today: string | null; recordsDates: boolean; windowNote?: string | null }) {
+export function DecideDrawer({ exerciseId, stepId, office, done, people, today, recordsDates, proposed, windowNote }: { exerciseId: string; stepId: string; office: string; done: string; people: Option[]; today: string | null; recordsDates: boolean; proposed: { startOn: string; closingDay: string; closingTime: string } | null; windowNote?: string | null }) {
   return (
     <RecordEditor
       title={`Record ${office}'s decision`}
@@ -159,21 +161,21 @@ export function DecideDrawer({ exerciseId, stepId, office, done, people, today, 
       fields={[
         hidden("exerciseId"),
         hidden("stepId"),
-        { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "DONE", label: done }, { value: "REJECTED", label: "Return for amendment" }] },
+        { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "DONE", label: done }, { value: "REJECTED", label: TENDERING_STATE_LABEL.RETURNED }] },
         { kind: "select", name: "personId", label: "Decided by", required: true, placeholder: "Choose", options: people, hint: people.length === 0 ? "Nobody holds this office for the requisition's department today." : undefined },
         { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was submitted." },
-        { kind: "textarea", name: "reason", label: "Reason", hint: "Required when the documents are returned." },
+        { kind: "textarea", name: "reason", label: "Reason for returning them", required: true, hint: "Say what is to be amended." },
         ...(recordsDates
           ? ([
-              { kind: "date", name: "startOn", label: "Tendering starts on", hint: "Required when approving. Not before the day decided." },
-              { kind: "date", name: "closingDay", label: "Closing day", hint: "Required when approving. After the start day." },
-              { kind: "text", name: "closingTime", label: "Closing time", placeholder: "14:30", hint: "Hours and minutes, 24-hour." },
+              { kind: "date", name: "startOn", label: "Tendering starts on", required: true, hint: "As proposed when submitted; the approver may set another. Not before the day decided." },
+              { kind: "date", name: "closingDay", label: "Closing day", required: true, hint: "After the start day." },
+              { kind: "text", name: "closingTime", label: "Closing time", required: true, hint: "Hours and minutes, 24-hour (14:30)." },
               ...(windowNote ? [{ kind: "note", text: windowNote }] : []),
             ] as Field[])
           : []),
       ]}
-      values={{ exerciseId, stepId, decidedOn: today }}
-      showWhen={recordsDates ? { startOn: { name: "decision", in: ["DONE"] }, closingDay: { name: "decision", in: ["DONE"] }, closingTime: { name: "decision", in: ["DONE"] } } : undefined}
+      values={{ exerciseId, stepId, decidedOn: today, ...(recordsDates && proposed ? proposed : {}) }}
+      showWhen={{ reason: { name: "decision", in: ["REJECTED"] }, ...(recordsDates ? { startOn: { name: "decision", in: ["DONE"] }, closingDay: { name: "decision", in: ["DONE"] }, closingTime: { name: "decision", in: ["DONE"] } } : {}) }}
       action={recordTenderingDecision}
       submitLabel="Record decision"
       trigger={{ label: "Record decision", className: buttonClass("primary", "sm") }}

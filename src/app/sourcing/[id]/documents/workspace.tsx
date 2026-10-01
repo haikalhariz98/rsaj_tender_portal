@@ -10,17 +10,13 @@ import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
 import { KeyValues } from "@/components/ui/stat";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
-import { ACT_DONE_LABEL } from "@/lib/labels";
+import { ACT_DONE_LABEL, routedOnLabel } from "@/lib/labels";
 import { escalationText } from "@/lib/authority/escalation-labels";
 import { routeCoreText, stepOriginText } from "@/lib/authority/core-routing-labels";
-import { returnTargetBeforeNext, type RejectionKind } from "@/lib/authority/rejection";
-import { ifRejectedText } from "@/lib/authority/rejection-labels";
 import type { LoadedExercise } from "@/lib/method/repo";
-import { DECISION_LABEL } from "@/lib/requisition/labels";
-import { tenderingRouteLabel } from "@/lib/tender-docs/labels";
+import { findingsSummary, IF_REFUSED_TEXT, NOT_APPLICABLE_BEFORE_ASSEMBLY, TENDERING_STATE_LABEL, tenderingRouteLabel, tenderingRouteTone, tenderingStepLabel, tenderingStepTone } from "@/lib/tender-docs/labels";
 import { documentsTab } from "@/lib/tender-docs/read";
 import { conditionsTab } from "@/lib/tender-docs/read-conditions";
-import { routeTone, stepTone } from "@/lib/ui/status-tone";
 
 import { ConditionsCards } from "./conditions";
 import { DecideDrawer, StartPackDrawer, SubmitPackDrawer } from "./editors";
@@ -39,9 +35,9 @@ const GONE = (
 /// The pack's status as a badge: one colour for one meaning (status-tone).
 const PACK_TONE: Record<string, "neutral" | "brand" | "ok" | "warn" | "err"> = {
   Draft: "neutral",
-  "With approval": "brand",
-  "Approved for tendering": "ok",
-  "Returned for amendment": "warn",
+  [TENDERING_STATE_LABEL.WITH_APPROVAL]: "brand",
+  [TENDERING_STATE_LABEL.APPROVED]: "ok",
+  [TENDERING_STATE_LABEL.RETURNED]: "warn",
   Void: "neutral",
 };
 
@@ -54,7 +50,7 @@ export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }
   const [d, conditions] = await Promise.all([documentsTab(exerciseId), conditionsTab(exerciseId)]);
   if (!d) return GONE;
   const draft = d.pack?.status === "Draft";
-  const returned = d.pack?.status === "Returned for amendment" ? d.pack : null;
+  const returned = d.pack?.status === TENDERING_STATE_LABEL.RETURNED ? d.pack : null;
   const warnings = d.readiness.filter((r) => r.level !== "block").map((r) => r.text);
   const blocks = d.readiness.filter((r) => r.level === "block");
   const parts: PartRow[] = (d.pack?.parts ?? []).map((p) => ({
@@ -116,7 +112,7 @@ export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }
       <Card>
         <CardHeader
           icon={<FileIcon size={17} />}
-          title={notDecided ? "Tender documents" : d.facts.documentPack}
+          title={notDecided || d.facts.documentPack === NOT_APPLICABLE_BEFORE_ASSEMBLY ? "Tender documents" : d.facts.documentPack}
           subtitle="The documents tenderers receive, assembled from the parts configured for this pack and basis."
           actions={d.pack ? <Badge tone={PACK_TONE[d.pack.status] ?? "neutral"} dot>{d.pack.status}</Badge> : undefined}
         />
@@ -133,7 +129,6 @@ export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }
               { label: "Contract basis", value: d.facts.contractBasis },
               { label: "Standard form", value: d.facts.standardForm },
               { label: "Version", value: d.facts.version },
-              { label: "Where it stands", value: d.facts.status },
               ...(d.dates && "approvedOn" in d.dates
                 ? [
                     { label: "Tendering starts", value: d.dates.start },
@@ -149,18 +144,18 @@ export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }
             ]}
           />
           {returned && (
-            <Callout tone="warn" title="Returned for amendment">
+            <Callout tone="warn" title={TENDERING_STATE_LABEL.RETURNED}>
               {returned.returnedBecause || "No reason recorded."} Start the next version to amend it; this one stays as it was frozen.
             </Callout>
           )}
           {!d.pack && !d.start.allowed && <Callout tone="info" title="Not started">{d.start.reason}</Callout>}
-          {d.facts.status === "Approved for tendering" && <Callout tone="ok" title="Approved for tendering">The documents stand as frozen. A change from here is an addendum, which is not available yet.</Callout>}
+          {d.facts.status === TENDERING_STATE_LABEL.APPROVED && <Callout tone="ok" title={TENDERING_STATE_LABEL.APPROVED}>The documents stand as frozen. A change from here is an addendum, which is not available yet.</Callout>}
         </CardBody>
       </Card>
 
       {draft && (
         <Card id="submit" className="scroll-mt-24">
-          <CardHeader icon={<ShieldIcon size={17} />} title="Before it can go for approval" subtitle={blocks.length ? `${blocks.length} to put right. Submitting is refused until they are.` : "Nothing blocks submission."} />
+          <CardHeader icon={<ShieldIcon size={17} />} title="Before it can go for approval" subtitle={findingsSummary(blocks.length, d.readiness.length - blocks.length)} />
           <CardBody>
             {d.readiness.length === 0 ? (
               <Callout tone="ok">Every check passes. Submit it for approval.</Callout>
@@ -192,7 +187,7 @@ export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }
 
       {d.pack && conditions && <ConditionsCards c={conditions} />}
 
-      {(d.pack || routes.length > 0) && <RouteCard exerciseId={exerciseId} routes={routes} decide={d.route?.decide ?? null} today={today} timeZone={timeZone} />}
+      {(d.pack || routes.length > 0) && <RouteCard exerciseId={exerciseId} routes={routes} decide={d.route?.decide ?? null} proposed={d.proposed} today={today} timeZone={timeZone} />}
 
       {d.pack && <Card>
         <CardHeader icon={<ScaleIcon size={17} />} title="What the contract type asks of these documents" subtitle="Checked here: six. The other six are checked after award." />
@@ -252,22 +247,25 @@ export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }
 
 // ------------------------------------------------------------------ the route
 
-async function RouteCard({ exerciseId, routes, decide, today, timeZone }: { exerciseId: string; routes: Route[]; decide: NonNullable<Data["route"]>["decide"] | null; today: string | null; timeZone: string | null }) {
+async function RouteCard({ exerciseId, routes, decide, proposed, today, timeZone }: { exerciseId: string; routes: Route[]; decide: NonNullable<Data["route"]>["decide"] | null; proposed: Data["proposed"]; today: string | null; timeZone: string | null }) {
   const inst = routes[0] ?? null;
   const earlier = routes.slice(1);
   const officeName = (code: string | null) => (code ? "an office no longer configured" : null);
   if (!inst) {
     return (
       <Card>
-        <CardHeader icon={<RouteIcon size={17} />} title="Approval for Tendering" subtitle="Not submitted yet." />
+        <CardHeader icon={<RouteIcon size={17} />} title="Approval for tendering" subtitle="Not submitted yet." />
         <CardBody>
           <p className="text-[13.5px] text-ink-2">
-            Submitting opens the route the approval matrix sets for this method and value. If it is rejected, the documents are returned for amendment; the exercise stays in preparation.
+            Submitting opens the route the approval matrix sets for this method and value. {IF_REFUSED_TEXT}
           </p>
         </CardBody>
       </Card>
     );
   }
+  // The chain note below says what these two warnings say (chain as entered, not checked against the core routing): said once.
+  const CHAIN_NOTE_CODES = new Set(["CORE_AS_ENTERED", "CORE_NOT_CHECKED"]);
+  const warnings = ((inst.warnings as { code?: string; level: string; messageEn: string }[]) ?? []).filter((w) => !(inst.checkedAgainstMatrix && w.code && CHAIN_NOTE_CODES.has(w.code)));
   const people = decide?.people ?? [];
   const everyone = people.length ? people : (await db.person.findMany({ where: { organisationId: inst.organisationId, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } })).map((p) => ({ value: p.id, label: p.name }));
   return (
@@ -275,27 +273,30 @@ async function RouteCard({ exerciseId, routes, decide, today, timeZone }: { exer
       <Card className="overflow-hidden">
         <CardHeader
           icon={<RouteIcon size={17} />}
-          title="Approval for Tendering"
-          subtitle={`Submitted ${formatOrgDay(inst.openedAt, timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}: ${inst.ruleLabel ?? "a rule no longer on file"} · ${inst.ruleClause || "clause not recorded"}.`}
-          actions={<Badge tone={routeTone(inst.status)}>{tenderingRouteLabel(inst.status, inst.warnings)}</Badge>}
+          title="Approval for tendering"
+          subtitle={`Submitted ${formatOrgDay(inst.openedAt, timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}.`}
+          actions={<Badge tone={tenderingRouteTone(inst.status)}>{tenderingRouteLabel(inst.status, inst.warnings)}</Badge>}
         />
-        {((inst.warnings as { level: string; messageEn: string }[]) ?? []).length > 0 && (
-          <CardBody className="flex flex-col gap-2">
-            {(inst.warnings as { level: string; messageEn: string }[]).map((w, i) => (
-              <Callout key={i} tone={levelTone(w.level === "err" ? "block" : w.level)}>{w.messageEn}</Callout>
-            ))}
-          </CardBody>
-        )}
+        <CardBody className="flex flex-col gap-4">
+          <KeyValues
+            columns={2}
+            items={[
+              { label: "Rule", value: inst.ruleLabel ? `${inst.ruleLabel}${inst.ruleClause ? ` · ${inst.ruleClause}` : ""}` : "Not recorded" },
+              { label: "Routed on", value: routedOnLabel(inst.cond) },
+            ]}
+          />
+          {warnings.map((w, i) => (
+            <Callout key={i} tone={levelTone(w.level === "err" ? "block" : w.level)}>{w.messageEn}</Callout>
+          ))}
+        </CardBody>
         {inst.status === "PENDING" && (
           <p className="border-t border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">
-            Steps are decided in order: each waits for the one before it.{" "}
-            {ifRejectedText({ snapshotAt: inst.rejectionSnapshotAt, kind: inst.rejectionKind as RejectionKind | null, returnToOffice: officeName(inst.rejectionReturnToRoleCode), provenance: inst.rejectionProvenance }, false, returnTargetBeforeNext(inst))}{" "}
-            A rejection returns the documents for amendment; the exercise stays in preparation.
+            Steps are decided in order: each waits for the one before it. {IF_REFUSED_TEXT}
           </p>
         )}
         {inst.status === "REJECTED" && (
           <div className="border-t border-line px-5 py-3 sm:px-6">
-            <Callout tone="warn" title="Returned for amendment">
+            <Callout tone="warn" title={TENDERING_STATE_LABEL.RETURNED}>
               {inst.rejectionReason || "No reason recorded."} The documents are amended in the next version.
             </Callout>
           </div>
@@ -328,17 +329,17 @@ async function RouteCard({ exerciseId, routes, decide, today, timeZone }: { exer
                         ? inst.status === "PENDING"
                           ? `${earlierDone ? "Awaiting a decision." : "Waits for the step before."}${s.nonDelegable ? " Cannot be delegated." : ""}`
                           : "Not decided: the route closed."
-                        : `${DECISION_LABEL[s.decision]} · ${s.decidedByName ?? "Not recorded"} · recorded on behalf of, not signed · ${formatDate(s.decidedOn)}${s.delegation ? ` · under delegation from ${s.delegation.fromPerson.name}` : ""}${s.reason ? ` · “${s.reason}”` : ""}`}
+                        : `${tenderingStepLabel(s.decision)} · ${s.decidedByName ?? "Not recorded"} · recorded on behalf of, not signed · ${formatDate(s.decidedOn)}${s.delegation ? ` · under delegation from ${s.delegation.fromPerson.name}` : ""}${s.reason ? ` · “${s.reason}”` : ""}`}
                     </div>
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-                  {s.decision !== "PENDING" && <Badge tone={stepTone(s.decision)}>{DECISION_LABEL[s.decision]}</Badge>}
+                  {s.decision !== "PENDING" && <Badge tone={tenderingStepTone(s.decision)}>{tenderingStepLabel(s.decision)}</Badge>}
                   {inst.status === "PENDING" && s.decision === "PENDING" && !s.committeeCode && s.roleCode && (
                     <EscalateDrawer stepId={s.id} office={s.actingRoleLabel ?? s.roleLabel} mandatory={isMandatoryAct(s.act)} people={everyone} />
                   )}
                   {inst.status === "PENDING" && s.decision === "PENDING" && earlierDone && !s.committeeCode && (
-                    <DecideDrawer exerciseId={exerciseId} stepId={s.id} office={s.roleLabel} done={ACT_DONE_LABEL[s.act] ?? "Done"} people={decide?.stepId === s.id ? people : everyone} today={today} recordsDates={isLast} windowNote={decide?.stepId === s.id && "windowNote" in decide ? (decide.windowNote as string | null) : null} />
+                    <DecideDrawer exerciseId={exerciseId} stepId={s.id} office={s.roleLabel} done={ACT_DONE_LABEL[s.act] ?? "Done"} people={decide?.stepId === s.id ? people : everyone} today={today} recordsDates={isLast} proposed={proposed} windowNote={decide?.stepId === s.id && "windowNote" in decide ? (decide.windowNote as string | null) : null} />
                   )}
                 </div>
               </li>

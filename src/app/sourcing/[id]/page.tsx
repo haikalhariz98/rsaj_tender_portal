@@ -76,7 +76,7 @@ import { AWARD_STATUS_LABEL, AWARD_STATUS_TONE, awardFindingText, DOSSIER_EVIDEN
 import { loadAwardPolicy } from "@/lib/award/repo";
 import { ENTITY as TENDER_ENTITY } from "@/lib/tender-docs/audit-view";
 import { awardOpenRefusal, exerciseOpenForAward } from "@/lib/award/gate";
-import { tenderingRouteLabel } from "@/lib/tender-docs/labels";
+import { tenderingRouteLabel, trailLabel } from "@/lib/tender-docs/labels";
 import type { PackKind } from "@/lib/tender-docs/types";
 import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
 import { DECISION_LABEL, DECIDER_FAULT_TEXT, OPERATOR_LABEL } from "@/lib/requisition/labels";
@@ -1249,7 +1249,7 @@ function HistoryPanel({
               <div className="flex flex-wrap items-center gap-2 text-[13px]">
                 <Badge tone={e.action === "CREATE" ? "ok" : e.action === "DELETE" ? "err" : "info"}>{ACTION_LABEL[e.action]}</Badge>
                 <span className="font-semibold text-ink">{ENTITY_LABEL[e.entity] ?? "Record"}</span>
-                <span className="min-w-0 break-words text-ink-2">{e.entityLabel}</span>
+                <span className="min-w-0 break-words text-ink-2">{trailLabel(e.entityLabel)}</span>
                 <span className="flex-1" />
                 <span className="text-[12px] text-ink-3">{formatOrgDay(e.at, timeZone)}</span>
               </div>

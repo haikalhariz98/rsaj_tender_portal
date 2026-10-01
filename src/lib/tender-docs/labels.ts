@@ -5,24 +5,69 @@
  */
 
 import { nameRouteLabel } from "@/lib/method/approval";
-import { BEHAVIOUR_LABEL } from "@/lib/method/labels";
+import { BEHAVIOUR_LABEL, TENDERING_STATE_LABEL } from "@/lib/method/labels";
 import type { BehaviourKey } from "@/lib/method/profile";
+import { DECISION_LABEL } from "@/lib/requisition/labels";
 import { scopeFaultText } from "@/lib/scope/labels";
+import { routeTone, stepTone, type StatusTone } from "@/lib/ui/status-tone";
 
-import type { AppendixFault } from "./appendix";
-import { conditionsFaultText } from "./conditions-labels";
+import { APPENDIX_FIELD_LABEL, type AppendixField, type AppendixFault } from "./appendix";
+import { conditionsFaultText, conditionsFixHref } from "./conditions-labels";
 import type { BehaviourFault } from "./behaviour";
 import type { ContentFault, EditFault, PartActFault, ReadinessFault, RouteFault, StartFault, SubmitFindings } from "./pack";
 import type { DatesFault } from "./tendering";
 import type { AppendixStatus, Finding, LadKind, PackKind, PackPartState, PartContent, PartRole, PartSource, TenderPackStatus, UpliftKind } from "./types";
 
 export const NOT_SET = "Not set";
+/// For an exercise prepared before tender documents were assembled here: nothing is missing, so it is not "Not set".
+export const NOT_APPLICABLE_BEFORE_ASSEMBLY = "Not applicable: prepared before document assembly";
+
+/// A period in months and days, the zero part left out: "2 months", "1 month 3 days", never "2 months 0 days".
+export function periodText(months: number, days: number): string {
+  const m = `${months} ${months === 1 ? "month" : "months"}`;
+  const d = `${days} ${days === 1 ? "day" : "days"}`;
+  if (months > 0 && days > 0) return `${m} ${d}`;
+  return days > 0 ? d : m;
+}
+
+/// The pack is "Tender documents" everywhere. Trail rows written before that was settled name it
+/// "Tender pack"; they read the same as the new ones.
+export const trailLabel = (s: string) => s.replace(/\bTender pack v(\d)/g, "Tender documents v$1");
+
+export { TENDERING_STATE_LABEL };
 
 /// The Approval for Tendering route's status in words. Q-3, §7.3.2: a rejection returns the
 /// documents for amendment, so a rejected route reads "Returned for amendment", never
-/// "Refused"; every other status reads as an exercise route does.
+/// "Refused". One label per state (UX 2): the route, the pack, the exercise and the list say
+/// the same words; a route's other statuses read as an exercise route does.
 export function tenderingRouteLabel(status: string, warnings: unknown): string {
-  return status === "REJECTED" ? "Returned for amendment" : nameRouteLabel(status, warnings);
+  if (status === "REJECTED") return TENDERING_STATE_LABEL.RETURNED;
+  if (status === "PENDING") return TENDERING_STATE_LABEL.WITH_APPROVAL;
+  if (status === "APPROVED") return TENDERING_STATE_LABEL.APPROVED;
+  return nameRouteLabel(status, warnings);
+}
+
+/// A returned route needs a person to amend the documents: amber, not the red of a refusal.
+export function tenderingRouteTone(status: string): StatusTone {
+  return status === "REJECTED" ? "warn" : routeTone(status);
+}
+
+/// A step of the route: a rejection there is the documents returned for amendment.
+export function tenderingStepLabel(decision: "PENDING" | "DONE" | "REJECTED"): string {
+  return decision === "REJECTED" ? TENDERING_STATE_LABEL.RETURNED : DECISION_LABEL[decision];
+}
+export const tenderingStepTone = (decision: string): StatusTone => (decision === "REJECTED" ? "warn" : stepTone(decision));
+
+/// What happens when the route refuses, as the card says it (Q-3, §7.3.2): one fixed line, with
+/// no configured-return or provenance wording, because the procedure gives only this exit.
+export const IF_REFUSED_TEXT = "If refused: the documents come back for amendment and the exercise returns to preparation.";
+
+/// The findings card's subtitle: how many block, how many are only to note.
+export function findingsSummary(blocks: number, notes: number): string {
+  const put = `${blocks} to put right`;
+  const note = `${notes} to note`;
+  if (blocks > 0) return notes > 0 ? `${put} · ${note}` : put;
+  return notes > 0 ? `Nothing blocks submission · ${note}` : "Nothing blocks submission.";
 }
 
 export const PACK_KIND_LABEL: Readonly<Record<PackKind, string>> = {
@@ -63,9 +108,9 @@ export const PART_SOURCE_LABEL: Readonly<Record<PartSource, string>> = {
 
 export const PACK_STATUS_LABEL: Readonly<Record<TenderPackStatus, string>> = {
   DRAFT: "Draft",
-  SUBMITTED: "With approval",
-  APPROVED: "Approved for tendering",
-  RETURNED: "Returned for amendment",
+  SUBMITTED: TENDERING_STATE_LABEL.WITH_APPROVAL,
+  APPROVED: TENDERING_STATE_LABEL.APPROVED,
+  RETURNED: TENDERING_STATE_LABEL.RETURNED,
   VOID: "Void",
 };
 
@@ -102,7 +147,7 @@ const d = (f: Finding, k: string) => (f.data?.[k] == null ? "" : String(f.data[k
 
 const EDIT_TEXT: Record<EditFault, (f: Finding) => string> = {
   PACK_NOT_DRAFT: () => "This version of the tender documents is no longer a draft, so it stands as it was frozen. Changes are made on the next version, once it is returned for amendment.",
-  EXERCISE_NOT_IN_PREPARATION: () => "The tender documents change only while the exercise is in preparation.",
+  EXERCISE_NOT_IN_PREPARATION: () => "The tender documents change only while the exercise is in preparation. Move it into preparation first.",
 };
 
 const CONTENT_TEXT: Record<ContentFault, (f: Finding) => string> = {
@@ -112,7 +157,7 @@ const CONTENT_TEXT: Record<ContentFault, (f: Finding) => string> = {
   TEMPLATE_UNKNOWN_FIELD: (f) => `${f.data?.part ? `Part ${d(f, "part")}: the` : "The"} template ${d(f, "template")} names ${d(f, "fields")}, which a tender document does not fill. Correct it under Configuration, Templates.`,
   BESPOKE_FROM_LIBRARY: (f) => `Part ${d(f, "part")} is prepared for this exercise, so it cannot be drawn from the template library. It is uploaded, or comes from the bill or the Appendix.`,
   BQ_PART_WITHOUT_BQ: (f) => `Part ${d(f, "part")} issues the bill of quantities unpriced, and the exercise has no finalised bill. Finalise it on the Bill of quantities tab.`,
-  UPLOAD_MISSING: (f) => `Part ${d(f, "part")} has no file attached. Attach it to the part.`,
+  UPLOAD_MISSING: (f) => `Part ${d(f, "part")} has no file attached. Attach it to the part under Documents; it can then be marked ready.`,
   APPENDIX_INCOMPLETE: (f) => `Part ${d(f, "part")}: the Appendix is not complete yet. Complete it on the Appendix page.`,
 };
 
@@ -209,9 +254,9 @@ const ROUTE_TEXT: Record<RouteFault, (f: Finding) => string> = {
 export const routeFaultText = (f: Finding) => (ROUTE_TEXT as Record<string, (f: Finding) => string>)[f.code]?.(f) ?? "The approval for tendering cannot be routed.";
 
 /// Every submission finding in words, by its family; the scope's are 6.2's own sentences.
-export function submitFindingTexts(s: SubmitFindings): { level: Finding["level"]; text: string; family: keyof SubmitFindings; code: string }[] {
-  const out: { level: Finding["level"]; text: string; family: keyof SubmitFindings; code: string }[] = [];
-  const add = (family: keyof SubmitFindings, fs: readonly Finding[], text: (f: Finding) => string) => fs.forEach((f) => out.push({ level: f.level, text: text(f), family, code: f.code }));
+export function submitFindingTexts(s: SubmitFindings): { level: Finding["level"]; text: string; family: keyof SubmitFindings; code: string; finding: Finding }[] {
+  const out: { level: Finding["level"]; text: string; family: keyof SubmitFindings; code: string; finding: Finding }[] = [];
+  const add = (family: keyof SubmitFindings, fs: readonly Finding[], text: (f: Finding) => string) => fs.forEach((f) => out.push({ level: f.level, text: text(f), family, code: f.code, finding: f }));
   add("edit", s.edit, partFaultText);
   add("readiness", s.readiness, partFaultText);
   add("scope", s.scope, (f) => scopeFaultText(f));
@@ -221,6 +266,141 @@ export function submitFindingTexts(s: SubmitFindings): { level: Finding["level"]
   add("dates", s.dates, datesFaultText);
   add("route", s.route, routeFaultText);
   return out;
+}
+
+export type AppendixState = "EDITING" | "FROZEN" | "NOT_IN_PREPARATION";
+
+/// The Appendix page's sentences by where the pack stands (UX 12): in the present while it is being
+/// entered, in the past once it is frozen, and a way forward when the exercise is not yet in preparation.
+export function appendixCopy(state: AppendixState, version: number) {
+  switch (state) {
+    case "EDITING":
+      return {
+        subtitle: `Version ${version} of the tender documents. Each field is entered or reads Not set.`,
+        findingsTitle: "Still to enter",
+        findingsSubtitle: "The tender documents cannot be submitted for approval until each is entered.",
+        completeTitle: "The Appendix is complete",
+        completeBody: "Every field is entered. It is frozen with the tender documents when they are submitted.",
+      };
+    case "FROZEN":
+      return {
+        subtitle: `Frozen with version ${version} of the tender documents.`,
+        findingsTitle: "Not entered when it was frozen",
+        findingsSubtitle: "These stand as they were. They are put right on the next version, once the documents are returned for amendment.",
+        completeTitle: "The Appendix was complete when it was frozen",
+        completeBody: "Every field was entered. It is changed on the next version, once the documents are returned for amendment.",
+      };
+    case "NOT_IN_PREPARATION":
+      return {
+        subtitle: `Version ${version} of the tender documents. Move the exercise into preparation first, then enter the Appendix.`,
+        findingsTitle: "Still to enter",
+        findingsSubtitle: "Move the exercise into preparation first. The Appendix is entered there.",
+        completeTitle: "The Appendix is complete",
+        completeBody: "Every field is entered.",
+      };
+  }
+}
+
+/// The Appendix page's cards, by the id their anchor carries (UX 3, 9): a finding about a field
+/// links to the card that holds it, never to the top of the page.
+export const APPENDIX_CARD = {
+  officers: "officers",
+  variationLimits: "variation-limits",
+  primeCost: "prime-cost",
+  insurance: "insurance",
+  lad: "liquidated-damages",
+  sectional: "sectional-completion",
+  dlp: "defects-liability",
+  interim: "interim-certificates",
+} as const;
+export type AppendixCard = (typeof APPENDIX_CARD)[keyof typeof APPENDIX_CARD];
+
+const FIELD_CARD: Record<AppendixField, AppendixCard> = {
+  ladOfficerRoleCode: APPENDIX_CARD.officers,
+  eotOfficerRoleCode: APPENDIX_CARD.officers,
+  terminationOfficerRoleCode: APPENDIX_CARD.officers,
+  warRiskOfficerRoleCode: APPENDIX_CARD.officers,
+  arbitrationOfficerRoleCode: APPENDIX_CARD.officers,
+  variationLimits: APPENDIX_CARD.variationLimits,
+  pcSumWorksApply: APPENDIX_CARD.primeCost,
+  pcSumWorksText: APPENDIX_CARD.primeCost,
+  tplMinimum: APPENDIX_CARD.insurance,
+  wcMinimum: APPENDIX_CARD.insurance,
+  worksInsuranceUpliftKind: APPENDIX_CARD.insurance,
+  worksInsuranceUpliftAmount: APPENDIX_CARD.insurance,
+  worksInsuranceUpliftPct: APPENDIX_CARD.insurance,
+  insuranceExcess: APPENDIX_CARD.insurance,
+  ladKind: APPENDIX_CARD.lad,
+  ladAmount: APPENDIX_CARD.lad,
+  ladPct: APPENDIX_CARD.lad,
+  sectionalCompletion: APPENDIX_CARD.sectional,
+  sections: APPENDIX_CARD.sectional,
+  dlpApplies: APPENDIX_CARD.dlp,
+  dlpMonths: APPENDIX_CARD.dlp,
+  firstInterimMinimum: APPENDIX_CARD.interim,
+  subsequentInterimMinimum: APPENDIX_CARD.interim,
+  honourCertificateDays: APPENDIX_CARD.interim,
+};
+
+/// The card of the Appendix an Appendix finding is about. Findings name the field in words, so the
+/// label is looked back up; a finding about no one field (or an unknown one) has no card.
+export function appendixCardOf(f: Finding): AppendixCard | null {
+  switch (f.code) {
+    case "VARIATION_LIMIT_NOT_SET":
+      return APPENDIX_CARD.variationLimits;
+    case "PC_SUM_TEXT_REQUIRED":
+      return APPENDIX_CARD.primeCost;
+    case "SECTIONS_REQUIRED":
+    case "SECTIONS_NOT_EXPECTED":
+    case "SECTION_LAD_NOT_SET":
+      return APPENDIX_CARD.sectional;
+    case "DLP_MONTHS_NOT_EXPECTED":
+      return APPENDIX_CARD.dlp;
+  }
+  const label = f.data?.field;
+  const key = (Object.keys(APPENDIX_FIELD_LABEL) as AppendixField[]).find((k) => APPENDIX_FIELD_LABEL[k] === label);
+  return key ? FIELD_CARD[key] : null;
+}
+
+/// The Appendix page, at the card a finding is about (or the page, where it names none).
+export const appendixHref = (exerciseId: string, f: Finding) => {
+  const card = appendixCardOf(f);
+  return `/sourcing/${exerciseId}/appendix${card ? `#${card}` : ""}`;
+};
+
+const BILL_CODES = new Set(["BQ_NOT_FINALISED", "BQ_REVISION_OPEN"]);
+const ESTIMATE_CODES = new Set(["ESTIMATE_RULE_NOT_SET", "ESTIMATE_NOT_LODGED", "ESTIMATE_BEHIND"]);
+
+/// Where a submission finding is put right (UX 3): the screen and, inside it, the section or
+/// card that holds the thing, so the link lands on it rather than near it.
+export function findingHref(exerciseId: string, family: keyof SubmitFindings, f: Finding): string {
+  const ex = `/sourcing/${exerciseId}`;
+  switch (family) {
+    case "edit":
+      return `${ex}?tab=documents`;
+    case "readiness":
+      if (f.code === "BQ_PART_WITHOUT_BQ") return `${ex}?tab=scope&section=bq`;
+      if (f.code === "APPENDIX_INCOMPLETE") return `${ex}/appendix`;
+      return `${ex}?tab=documents#parts`;
+    case "scope":
+      if (f.code === "BASIS_NOT_CHOSEN") return `${ex}?tab=contract`;
+      if (BILL_CODES.has(f.code)) return `${ex}?tab=scope&section=bq`;
+      if (ESTIMATE_CODES.has(f.code)) return `${ex}?tab=scope&section=estimate`;
+      return `${ex}?tab=scope`;
+    case "appendix":
+      return appendixHref(exerciseId, f);
+    case "behaviour":
+      if (f.code === "DLP_MONTHS_REQUIRED" && f.data?.appendix !== 0) return `${ex}/appendix#${APPENDIX_CARD.dlp}`;
+      if (f.code === "DLP_NOT_FOR_TYPE") return `${ex}/appendix#${APPENDIX_CARD.dlp}`;
+      if (f.code === "NOMINATION_NOT_FOR_TYPE") return f.data?.where === "BILL" ? `${ex}?tab=scope&section=bq` : `${ex}/appendix#${APPENDIX_CARD.primeCost}`;
+      return "/configuration/reference-data";
+    case "conditions":
+      return conditionsFixHref(f.code, exerciseId);
+    case "dates":
+      return `${ex}?tab=documents#submit`;
+    case "route":
+      return "/configuration/approval-matrix";
+  }
 }
 
 /// The behaviour card's two halves: checked on the documents here, and checked after award.

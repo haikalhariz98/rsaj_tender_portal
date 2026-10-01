@@ -351,6 +351,13 @@ describe("(22) what a route stores, and how an earlier route reads", () => {
     );
   });
 
+  it("a reason that already ends in a full stop is not given a second one", () => {
+    const fields = { coreSnapshotAt: at, coreChainFlag: false, coreChainReason: "One office approves the documents: nothing to generate (demo)." };
+    const text = routeCoreText({ ...fields, coreRoutingSnapshot: null }, name);
+    expect(text.en).toBe("Chain as entered on the rule, recorded as not taken from the core routing: One office approves the documents: nothing to generate (demo).");
+    expect(text.ms).not.toMatch(/\.\.$/);
+  });
+
   it("an unset flag is stored as such and reads 'not checked', never as generated", () => {
     const r = resolveApproval(DAL_FIXTURE, { domain: "termination", method: "tender" });
     const fields = routeCoreFields(r.core, at);
