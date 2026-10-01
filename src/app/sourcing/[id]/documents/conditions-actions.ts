@@ -106,7 +106,9 @@ export async function addRequirement(_prev: FormState, data: FormData): Promise<
 export async function removeRequirement(_prev: FormState, data: FormData): Promise<FormState> {
   const exerciseId = exerciseIdOf(data);
   const id = String(data.get("id") ?? "");
-  const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
+  const r = new FormReader(data);
+  const reason = r.text("reason", "Why it is removed", { required: true, max: 2000 });
+  if (r.failed) return { ok: false, errors: r.errors };
   return locked(exerciseId, async (tx, l) => {
     const stop = frozen(l);
     if (stop) return stop;
@@ -200,7 +202,9 @@ export async function recordAssurance(_prev: FormState, data: FormData): Promise
 export async function removeAssurance(_prev: FormState, data: FormData): Promise<FormState> {
   const exerciseId = exerciseIdOf(data);
   const id = String(data.get("id") ?? "");
-  const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
+  const r = new FormReader(data);
+  const reason = r.text("reason", "Why it is removed", { required: true, max: 2000 });
+  if (r.failed) return { ok: false, errors: r.errors };
   return locked(exerciseId, async (tx, l) => {
     const pack = draftOf(l.packs);
     if (!pack || l.ex.status !== "DOCUMENTS_IN_PREPARATION") return { ok: false, message: confirmFaultText({ code: "PACK_NOT_EDITABLE", level: "block" }) };
@@ -245,7 +249,9 @@ export async function recordClauseOverride(_prev: FormState, data: FormData): Pr
 export async function removeClauseOverride(_prev: FormState, data: FormData): Promise<FormState> {
   const exerciseId = exerciseIdOf(data);
   const id = String(data.get("id") ?? "");
-  const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
+  const r = new FormReader(data);
+  const reason = r.text("reason", "Why it is withdrawn", { required: true, max: 2000 });
+  if (r.failed) return { ok: false, errors: r.errors };
   return locked(exerciseId, async (tx, l) => {
     const pack = draftOf(l.packs);
     if (!pack || l.ex.status !== "DOCUMENTS_IN_PREPARATION") return { ok: false, message: overrideFaultText({ code: "PACK_NOT_EDITABLE", level: "block" }) };
