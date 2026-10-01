@@ -29,3 +29,21 @@ describe("the dashboard's value approved, in sen (C6)", () => {
     expect(r).toEqual({ total: 18_000_000n, counted: 1, withoutAmount: 1 });
   });
 });
+
+describe("waiting days carry no fixed judgement (6.9 review ruling R5)", () => {
+  it("no screen compares a waiting or days-away count against a literal number of days", async () => {
+    const { readdirSync, readFileSync, statSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const walk = (dir: string): string[] =>
+      readdirSync(dir).flatMap((f) => {
+        const p = join(dir, f);
+        return statSync(p).isDirectory() ? (f === "generated" ? [] : walk(p)) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) ? [p] : [];
+      });
+    // A count compared with a day figure written in the code: "aged over 14 days" was
+    // one, and a threshold that varies by customer is configuration (AGENTS.md rule 1).
+    // Comparing with 0 or 1 (today, one day) is wording, not a threshold.
+    const literal = /\b(waitingDays|daysAway|daysWaiting|ageDays)\s*(>=|<=|>|<)\s*([2-9]|\d{2,})\b/;
+    const found = walk(join(process.cwd(), "src")).filter((f) => literal.test(readFileSync(f, "utf8")));
+    expect(found).toEqual([]);
+  });
+});

@@ -68,7 +68,8 @@ export default async function Dashboard() {
   // "Good afternoon, Signed".
   const firstName = shell.user?.name.split(/\s+/)[0] ?? null;
   const waiting = data.queue.length + data.requisitions.length;
-  const overdue = data.queue.filter((q) => q.waitingDays > 14).length;
+  // Waiting days are shown as a count, with no judgement: there is no configured
+  // target to call one "aged" against until FR-APR-018's targets exist (ruling R5).
 
   return (
     <>
@@ -90,11 +91,6 @@ export default async function Dashboard() {
             <CalendarIcon size={14} />
             {formatOrgDay(now, timeZone)}
           </>,
-          overdue > 0 && (
-            <Badge tone="err" dot>
-              {overdue} aged over 14 days
-            </Badge>
-          ),
         ]}
         actions={
           <>
@@ -163,10 +159,7 @@ export default async function Dashboard() {
               searchPlaceholder="Search my queue…"
               emptyTitle="Your queue is clear"
               emptyBody="Matters routed to a committee appear here the moment they are raised."
-              views={[
-                { id: "aged", label: "Aged over 14 days" },
-                { id: "financial", label: "Financial items" },
-              ]}
+              views={[{ id: "financial", label: "Financial items" }]}
               filters={[
                 { key: "type", label: "Type" },
                 { key: "with", label: "Committee" },
@@ -185,10 +178,7 @@ export default async function Dashboard() {
               rows={data.queue.map((item) => ({
                 id: item.decisionId,
                 search: `${item.subject} ${item.matterRef ?? ""} ${item.committeeName}`,
-                views: [
-                  ...(item.waitingDays > 14 ? ["aged"] : []),
-                  ...(item.amount != null ? ["financial"] : []),
-                ],
+                views: item.amount != null ? ["financial"] : [],
                 sortKeys: {
                   value: item.amount ?? -1,
                   waiting: item.waitingDays,
@@ -204,11 +194,7 @@ export default async function Dashboard() {
                   },
                   type: { kind: "text", text: matterLabel(item.domain), dim: true },
                   value: { kind: "money", value: item.amount },
-                  waiting: {
-                    kind: "badge",
-                    text: `${item.waitingDays}d`,
-                    tone: item.waitingDays > 14 ? "err" : undefined,
-                  },
+                  waiting: { kind: "badge", text: `${item.waitingDays}d` },
                   with: {
                     kind: "link",
                     text: item.committeeName,
@@ -254,7 +240,7 @@ export default async function Dashboard() {
                   item: { kind: "link", text: q.title, href: `/requisitions/${q.id}`, sub: q.reference },
                   on: q.waitingOn ? { kind: "text", text: q.waitingOn } : { kind: "text", text: "No step pending", dim: true },
                   value: { kind: "money", value: q.value },
-                  waiting: { kind: "badge", text: `${q.waitingDays}d`, tone: q.waitingDays > 14 ? "err" : undefined },
+                  waiting: { kind: "badge", text: `${q.waitingDays}d` },
                 },
               }))}
             />
@@ -294,7 +280,7 @@ export default async function Dashboard() {
               <ul className="divide-y divide-line/70 px-2 py-1.5">
                 {data.upcoming.map((m) => (
                   <li key={m.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5">
-                    <Dot tone={m.daysAway <= 2 ? "warn" : "brand"} />
+                    <Dot tone="brand" />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[13.5px] font-semibold text-ink">
                         {m.committeeName}

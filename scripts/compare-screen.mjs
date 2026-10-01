@@ -314,6 +314,13 @@ const DECIDED_ABSENT = [
     match: /splitting window/i,
     why: "the window was a guessed 30 on the approval matrix; it is no longer read, edited or shown there, and lives only in Requisition controls, unset until the customer sets it (B7)",
   },
+  {
+    // The dashboard's "{n} aged over 14 days" head fact and its "Aged over 14 days" view
+    // (6.9 review ruling R5), on the dashboard only.
+    screen: /^\/$/,
+    match: /aged over/i,
+    why: "14 days was a hard-coded threshold (AGENTS.md rule 1); waiting days are shown as a count with no judgement until FR-APR-018's configured targets exist (deferred to 6.17)",
+  },
 ];
 
 /**
