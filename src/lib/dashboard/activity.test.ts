@@ -80,6 +80,39 @@ describe("what the feed will not report", () => {
     expect(JSON.stringify(l)).not.toContain(people[0]);
   });
 
+  it("never carries a conflict declaration's text, nor who declared it, on an escalation", () => {
+    const DECLARATION = "My brother-in-law is a director of Syarikat Air Jernih, one of the bidders.";
+    const at = new Date("2026-09-10T02:00:00Z");
+    const escalated = entry({
+      entity: "ApprovalStep",
+      entityId: "s9",
+      entityLabel: "REQ/1 · Section Head",
+      reason: DECLARATION,
+      at,
+      changes: [
+        { field: "actingOffice", before: "Section Head", after: "Head of Department" },
+        { field: "escalation", before: null, after: "Conflict of interest declared" },
+        { field: "declaredBy", before: null, after: people[0] },
+        { field: "recordedOnBehalf", before: null, after: "not signed" },
+      ],
+    });
+    const l = line(escalated)!;
+    expect(l.headline).toBe("REQ/1: Section Head step passed to Head of Department");
+    expect(l.reason).toBeNull();
+    expect(JSON.stringify(l)).not.toContain(DECLARATION);
+    expect(JSON.stringify(l)).not.toContain("brother-in-law");
+    expect(JSON.stringify(l)).not.toContain(people[0]);
+
+    // Through the feed too, beside another row of the same requisition in the same act.
+    const owners = { "ApprovalStep:s9": { kind: "requisition", id: "r1", reference: "REQ/1", committee: null } as ActivityOwner };
+    const feed = activityFeed([escalated, req("DRAFT", "ENDORSED", { at })], owners, "Asia/Kuala_Lumpur");
+    expect(feed.map((x) => x.headline)).toContain("REQ/1: Section Head step passed to Head of Department");
+    const everything = JSON.stringify(feed);
+    expect(everything).not.toContain(DECLARATION);
+    expect(everything).not.toContain("brother-in-law");
+    expect(everything).not.toContain(people[0]);
+  });
+
   it("ignores an edit that changes no status", () => {
     expect(line(req("DRAFT", "DRAFT"))).toBeNull();
     expect(line(entry({ entity: "Requisition", changes: [{ field: "title", before: "A", after: "B" }] }))).toBeNull();

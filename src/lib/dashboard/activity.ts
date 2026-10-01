@@ -9,6 +9,8 @@
  * Those entities are not in `ACTIVITY_ENTITIES`, and an entry of a listed entity never
  * has its counts, voting rule or people read out of it. Lines name offices, never a
  * person, even where a row carries `decidedBy` or `signedBy`. An actor is never inferred.
+ * An escalation never carries its reason: for a declared conflict that is the
+ * declaration itself.
  */
 import { formatDate, formatOrgDay } from "@/lib/format";
 
@@ -197,7 +199,9 @@ function build(entry: ActivityEntry, owners: Record<string, ActivityOwner>, time
       if (escalation) {
         const acting = field(entry.changes, "actingOffice")?.after;
         if (!acting) return null;
-        return make("approval", ref, "", { office, step: "ESCALATED", reason: entry.reason, headline: `${ref}: ${office} step passed to ${acting}` });
+        // No reason, ever: an escalation's reason is a declared conflict's own words, or
+        // why a holder is away. The feed says the step moved and to which office.
+        return make("approval", ref, "", { office, step: "ESCALATED", headline: `${ref}: ${office} step passed to ${acting}` });
       }
       const decision = field(entry.changes, "decision");
       if (decision?.after === "DONE") return make("approval", ref, "", { office, step: "DONE", headline: `${ref}: ${office} decided` });
