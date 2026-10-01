@@ -17,10 +17,10 @@ import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues, Stat } from "@/components/ui/stat";
 import { CellStack, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { fieldLabel } from "@/lib/audit/diff";
-import { loadIssue, loadOverrideMatrix } from "@/lib/authority/load";
+import { loadIssue, loadOverrideMatrix, loadPinnedRule } from "@/lib/authority/load";
 import { MATTER_KIND_LABEL, OUTCOME_LABEL } from "@/lib/committee/labels";
 import { dayToDate, storedDay } from "@/lib/dates";
-import { formatOrgDay, formatDate, formatRM } from "@/lib/format";
+import { formatOrgDay, formatDate, formatRM, formatRouteBand } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL, condLabel } from "@/lib/labels";
 import { parseSen } from "@/lib/money";
 import { ORGANISATION_CODE } from "@/lib/org";
@@ -194,6 +194,9 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   const lastCheck = r.budgetChecks[0] ?? null;
   const inst = r.approvalInstances[0] ?? null;
   const open = inst?.status === "PENDING" ? inst : null;
+  // The band the route ran under, from the rule its pinned issue holds (FR-APR-019, R4).
+  const pinnedRule = inst?.checkedAgainstMatrix ? await loadPinnedRule(inst) : null;
+  const routeBand = inst && pinnedRule ? formatRouteBand({ min: pinnedRule.minValue, max: pinnedRule.maxValue }, { value: inst.boundaryValue, operator: inst.boundaryOperator }) : null;
   // A rejection that decided nothing waits for the officer's choice (FR-APR-016, CO-5);
   // one rejected before destinations existed is offered the same choice.
   const rejectingStep = r.status === "REJECTED" && inst?.status === "REJECTED" ? (inst.steps.find((s) => s.decision === "REJECTED") ?? null) : null;
@@ -598,6 +601,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                 }
                 preview={preview}
                 previewMatrixRoles={previewRoles}
+                routeBand={routeBand}
                 decide={(step) => {
                   if (!open || step.decision !== "PENDING") return null;
                   const earlierDone = open.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE");
@@ -1126,8 +1130,11 @@ function ApprovalPanel({
   suggestions,
   stepFaultPreview,
   today,
+  routeBand,
 }: {
   l: LoadedRequisition;
+  /// The submitted route's value band, written from its pinned rule; null: not recorded.
+  routeBand: string | null;
   /// The committee gates card (FR-REQ-012), shown once the requisition is approved.
   gates: React.ReactNode;
   /// An office's name by its code, for a rejection destination's office.
@@ -1211,6 +1218,7 @@ function ApprovalPanel({
               items={[
                 { label: "Rule", value: inst.ruleLabel ? `${inst.ruleLabel}${inst.ruleClause ? ` · ${inst.ruleClause}` : ""}` : "Not recorded" },
                 { label: "Routed on", value: inst.cond ? condLabel(inst.cond) : "Its value band" },
+                { label: "Value band", value: routeBand ?? "Band not recorded" },
                 {
                   label: "At the boundary",
                   value: inst.boundaryOperator ? OPERATOR_LABEL[inst.boundaryOperator] : "Did not apply: this rule's band does not start or end at the boundary",

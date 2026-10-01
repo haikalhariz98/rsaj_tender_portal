@@ -554,7 +554,7 @@ function ApprovalPanel({
           <CardHeader
             icon={<RouteIcon size={17} />}
             title="Approval of the appointment"
-            subtitle={`Sent ${formatOrgDay(inst.openedAt, l.org.timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}: ${inst.ruleLabel ?? "a rule no longer on file"}.`}
+            subtitle={`Sent ${formatOrgDay(inst.openedAt, l.org.timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}: ${inst.ruleLabel ?? "a rule no longer on file"} · ${inst.ruleClause || "clause not recorded"}.`}
             actions={<Badge tone={inst.status === "APPROVED" ? "ok" : inst.status === "PENDING" ? "brand" : "warn"}>{inst.status === "APPROVED" ? "Approved" : inst.status === "PENDING" ? "In progress" : inst.status === "REJECTED" ? "Refused" : "Withdrawn"}</Badge>}
           />
           {(absentLine || ((inst.warnings as { level: string; messageEn: string }[]) ?? []).length > 0) && (

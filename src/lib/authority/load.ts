@@ -2,6 +2,7 @@ import type { Tx } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import { amountOf } from "@/lib/money";
 import type { AuthorityAct, Matrix, Rule } from "./types";
+import { pinnedIssue } from "./decided-step";
 import { issuedInForce } from "./issue";
 
 /// Prisma returns Decimal for money and percentage columns. Bands are compared, not
@@ -228,4 +229,21 @@ export async function loadRuleRows(issueId: string) {
     },
   });
   return Object.fromEntries(rows.map((r) => [r.ruleKey, r]));
+}
+
+/**
+ * The rule a route was opened under, read from the issue it pinned (FR-APR-019, ruling
+ * R4). Issued issues are locked, so this is the rule as it stood. Null where the route
+ * pinned no rule (a received trail) or the rule is not found: "band not recorded".
+ */
+export async function loadPinnedRule(
+  route: { ruleKey: string | null; authorityMatrixId: string | null; matrixLabel: string | null; fundingOverrideApplied: boolean; overrideMatrixId: string | null; overrideMatrixLabel: string | null },
+  client: Tx = db,
+) {
+  const issueId = pinnedIssue(route).id;
+  if (!route.ruleKey || !issueId) return null;
+  return client.authorityRule.findFirst({
+    where: { authorityMatrixId: issueId, ruleKey: route.ruleKey },
+    select: { minValue: true, maxValue: true, contractValueMin: true, contractValueMax: true, clause: true },
+  });
 }

@@ -127,7 +127,6 @@ export function decidedStepRecord(step: StoredStep, route: StoredRoute): Decided
     : step.committeeDecisionId
       ? { kind: "COMMITTEE", name: step.decidedByName ?? "", committeeDecisionId: step.committeeDecisionId }
       : { kind: "NAMED_ONLY", name: step.decidedByName ?? "" };
-  const overridden = route.fundingOverrideApplied && route.overrideMatrixId != null;
   return {
     actor,
     office: { code: step.actingRoleCode ?? step.roleCode, label: step.actingRoleLabel ?? step.roleLabel },
@@ -138,6 +137,17 @@ export function decidedStepRecord(step: StoredStep, route: StoredRoute): Decided
     recordedAt: step.recordedAt,
     comment: step.reason,
     clause: route.ruleClause,
-    issue: overridden ? { id: route.overrideMatrixId, label: route.overrideMatrixLabel } : { id: route.authorityMatrixId, label: route.matrixLabel },
+    issue: pinnedIssue(route),
   };
+}
+
+/**
+ * The issue whose rule routed a route: the funder's rule set where it superseded the
+ * limits, else the organisation's issue. `authorityMatrixId` is the organisation's
+ * issue even where the funder's routed, so the rule a route ran under is read from here.
+ */
+export function pinnedIssue(route: Pick<StoredRoute, "authorityMatrixId" | "matrixLabel" | "fundingOverrideApplied" | "overrideMatrixId" | "overrideMatrixLabel">): { id: string | null; label: string | null } {
+  return route.fundingOverrideApplied && route.overrideMatrixId != null
+    ? { id: route.overrideMatrixId, label: route.overrideMatrixLabel }
+    : { id: route.authorityMatrixId, label: route.matrixLabel };
 }

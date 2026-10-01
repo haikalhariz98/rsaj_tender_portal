@@ -1,4 +1,5 @@
 import { dayIn } from "./dates";
+import { formatMoney, parseSen } from "./money";
 
 /// Ringgit, the way the manuals write it: "RM300,000" with no decimals unless the
 /// amount has sen.
@@ -20,6 +21,41 @@ export function formatBand(min: number | null, max: number | null): string {
   if (min == null) return `Up to ${formatRM(max)}`;
   if (max == null) return `More than ${formatRM(min)}`;
   return `More than ${formatRM(min)} and up to ${formatRM(max)}`;
+}
+
+type Amount = { toString(): string } | string;
+
+/**
+ * A route's value band as its pinned rule had it, spelled out (FR-APR-019, ruling R4):
+ * "More than RM50,000 and up to and including RM300,000".
+ *
+ * Every edge is (min, max] — more than the floor, up to and including the ceiling —
+ * except an edge exactly on the boundary, where the comparison the route stored
+ * decides: "GT" keeps (min, max]; "GTE" puts a value exactly on the boundary in the
+ * upper band, so that band starts "at least" there and the band below ends "below" it.
+ * The operator is the one stored when the route was opened (the issue's boundary
+ * setting and the rule's own switch, already combined), never re-derived from current
+ * configuration. An edge on the stored boundary with no operator recorded says so.
+ *
+ * Amounts are read in exact sen from their stored decimal text, never through a float.
+ */
+export function formatRouteBand(
+  band: { min: Amount | null; max: Amount | null },
+  boundary: { value: Amount | null; operator: "GT" | "GTE" | null },
+  currency = "RM",
+): string {
+  const sen = (a: Amount) => parseSen(a.toString());
+  const lo = band.min == null ? null : sen(band.min);
+  const hi = band.max == null ? null : sen(band.max);
+  if (lo == null && hi == null) return "Any value";
+  const b = boundary.value == null ? null : sen(boundary.value);
+  const atBoundary = (e: bigint | null) => e != null && b != null && e === b;
+  const parts: string[] = [];
+  if (lo != null) parts.push(atBoundary(lo) && boundary.operator === "GTE" ? `at least ${formatMoney(lo, currency)}` : `more than ${formatMoney(lo, currency)}`);
+  if (hi != null) parts.push(atBoundary(hi) && boundary.operator === "GTE" ? `below ${formatMoney(hi, currency)}` : `up to and including ${formatMoney(hi, currency)}`);
+  const text = parts.join(" and ");
+  const unrecorded = (atBoundary(lo) || atBoundary(hi)) && boundary.operator == null;
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}${unrecorded ? ` — which band a value of exactly ${formatMoney(b!, currency)} falls in was not recorded` : ""}`;
 }
 
 /// Ringgit shortened the way the bands are printed: RM 500, RM 50K, RM 3M.

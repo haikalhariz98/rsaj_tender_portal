@@ -929,7 +929,7 @@ function NamePanel({
           <CardHeader
             icon={<RouteIcon size={17} />}
             title={TERM.nameApproval}
-            subtitle={`Requested ${formatOrgDay(inst.openedAt, l.org.timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}.`}
+            subtitle={`Requested ${formatOrgDay(inst.openedAt, l.org.timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}: ${inst.ruleLabel ?? "a rule no longer on file"} · ${inst.ruleClause || "clause not recorded"}.`}
             actions={<Badge tone={inst.status === "APPROVED" ? "ok" : inst.status === "PENDING" ? "brand" : "warn"}>{nameRouteLabel(inst.status, inst.warnings)}</Badge>}
           />
           {((inst.warnings as { level: string; messageEn: string }[]) ?? []).length > 0 && (
