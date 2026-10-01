@@ -177,5 +177,7 @@ export function scopeCitationFault(i: {
   return out;
 }
 
-/// What a scope matter is called on the agenda: the exercise and the version, never an id.
-export const scopeMatterSubject = (exerciseReference: string, versionNo: number) => `Scope of ${exerciseReference}: bill of quantities, version ${versionNo}`;
+/// What a scope matter is called on the agenda and in the activity feed: the exercise's name
+/// first, then the version, never an id. The same words are the audit entry's label, so the
+/// matter is phrased one way wherever it is read.
+export const scopeMatterSubject = (exerciseTitle: string, versionNo: number) => `${exerciseTitle}, scope version ${versionNo}`;

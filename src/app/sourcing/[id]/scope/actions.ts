@@ -699,13 +699,13 @@ export async function tableScope(_prev: FormState, data: FormData): Promise<Form
         ? { ok: false, errors: { tabledByPersonId: TABLING_FAULT_MESSAGE[tabling.fault] } }
         : { ok: false, message: `Nothing was saved: ${TABLING_FAULT_MESSAGE[tabling.fault]}` };
     }
-    const subject = scopeMatterSubject(l.ex.reference, version.versionNo);
+    const subject = scopeMatterSubject(l.ex.title, version.versionNo);
     const tabledAt = dayToDate(s.today!);
     const sequence = s.meeting.decisions.reduce((n, d) => Math.max(n, d.sequence), 0) + 1;
     const row = await tx.committeeDecision.create({
       data: { meetingId: s.meeting.id, subject, domain: SCOPE_DOMAIN, matterKind: "SCOPE", matterRef: l.ex.reference, bqVersionId: version.id, act, tabledByPersonId, tabledAt, sequence },
     });
-    await audit(tx, l.org.id, "CommitteeDecision", row.id, label(l, `Scope matter, bill version ${version.versionNo}`), "CREATE",
+    await audit(tx, l.org.id, "CommitteeDecision", row.id, subject, "CREATE",
       scopeTabledAudit({ subject, versionNo: version.versionNo, sitting: s.meeting.reference, committee: s.meeting.committee.nameEn, act: ACT_LABEL[act] ?? "An act the portal does not name", tabledBy: tabledByPersonId ? (s.names[tabledByPersonId] ?? null) : null, tabledOn: s.today! }));
     return { ok: true, message: `Tabled at ${s.meeting.reference}. It is decided there, at the sitting.` };
   });

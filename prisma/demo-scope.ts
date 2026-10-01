@@ -39,6 +39,7 @@ import { formatDate } from "../src/lib/format";
 import { bqTotals, itemAmount, totalsSnapshot } from "../src/lib/scope/bq";
 import { formatSen, parseSen, senToDecimalString } from "../src/lib/money";
 import type { BqItemKind, BqLine } from "../src/lib/scope/types";
+import { scopeMatterSubject } from "../src/lib/scope/scope-matter";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -105,10 +106,10 @@ const SX1_SECTIONS: DemoBq["sections"] = [
   { id: `${P}bqs1`, number: "1", title: "Preliminaries", items: [["1.1", "Site establishment, temporary works and removal", "item", "1", "18500.00"]] },
   {
     id: `${P}bqs2`, number: "2", title: "Filter renewal", items: [
-      ["2.1", "Remove and dispose of spent filter media", "m3", "64.5", "210.00"],
-      ["2.2", "Supply and place graded filter media", "m3", "64.5", "1840.00"],
+      ["2.1", "Remove and dispose of spent filter media", "m³", "64.5", "210.00"],
+      ["2.2", "Supply and place graded filter media", "m³", "64.5", "1840.00"],
       ["2.3", "Replace underdrain headers", "nr", "24", "3275.50"],
-      ["2.4", "Make good filter bed concrete", "m2", "18", "412.25", "MEASURED", true],
+      ["2.4", "Make good filter bed concrete", "m²", "18", "412.25", "MEASURED", true],
     ],
   },
   { id: `${P}bqs3`, number: "3", title: "Sums", items: [["3.1", "Valve actuators, nominated supply", "sum", "1", "32000.00", "PRIME_COST_SUM"], ["3.2", "Contingencies", "sum", "1", "15000.00", "PROVISIONAL_SUM"]] },
@@ -118,8 +119,8 @@ const SX5_V1: DemoBq["sections"] = [
   { id: `${P}bqs4`, number: "1", title: "Preliminaries", items: [["1.1", "Access, scaffolding and protection of the tank", "item", "1", "9800.00"]] },
   {
     id: `${P}bqs5`, number: "2", title: "Roof and fittings", items: [
-      ["2.1", "Strip and dispose of roof sheeting", "m2", "420", "18.50"],
-      ["2.2", "New roof sheeting with insulation", "m2", "420", "142.75"],
+      ["2.1", "Strip and dispose of roof sheeting", "m²", "420", "18.50"],
+      ["2.2", "New roof sheeting with insulation", "m²", "420", "142.75"],
       ["2.3", "Stainless steel access hatches", "nr", "6", "4150.00"],
       ["2.4", "Internal ladders and handrails", "m", "36", "385.00", "MEASURED", true],
     ],
@@ -136,7 +137,7 @@ const SX5_V2: DemoBq["sections"] = SX5_V1.map((s, i) => ({
 const SX15_SECTIONS: DemoBq["sections"] = [
   {
     id: `${P}bqs10`, number: "1", title: "Repair", items: [
-      ["1.1", "Repair damaged FRP panels", "m2", "12", "960.00"],
+      ["1.1", "Repair damaged FRP panels", "m²", "12", "960.00"],
       ["1.2", "Reseal panel joints", "m", "48", "72.50"],
       ["1.3", "Leak test and repair report", "item", "1", "1850.00"],
       ["1.4", "Replacement fasteners", "sum", "1", "1000.00", "PROVISIONAL_SUM"],
@@ -163,8 +164,8 @@ const RATE_ISSUES = [
   {
     id: `${P}rs1`, issueNo: 1, status: "SUPERSEDED" as const, effectiveFrom: "2026-01-01", issuedOn: "2025-12-15", supersededOn: "2026-09-28",
     items: [
-      { id: `${P}rsi1`, code: "TK-01", descriptionEn: "Strip and dispose of roof sheeting", unit: "m2", rate: "18.50" },
-      { id: `${P}rsi2`, code: "TK-02", descriptionEn: "Roof sheeting with insulation", unit: "m2", rate: "142.75" },
+      { id: `${P}rsi1`, code: "TK-01", descriptionEn: "Strip and dispose of roof sheeting", unit: "m²", rate: "18.50" },
+      { id: `${P}rsi2`, code: "TK-02", descriptionEn: "Roof sheeting with insulation", unit: "m²", rate: "142.75" },
       { id: `${P}rsi3`, code: "TK-03", descriptionEn: "Stainless steel access hatch", unit: "nr", rate: "4150.00" },
       { id: `${P}rsi4`, code: "TK-04", descriptionEn: "Internal ladder with handrail", unit: "m", rate: "385.00" },
     ],
@@ -172,8 +173,8 @@ const RATE_ISSUES = [
   {
     id: `${P}rs2`, issueNo: 2, status: "ISSUED" as const, effectiveFrom: "2026-10-01", issuedOn: "2026-09-28", supersededOn: null,
     items: [
-      { id: `${P}rsi5`, code: "TK-01", descriptionEn: "Strip and dispose of roof sheeting", unit: "m2", rate: "19.20" },
-      { id: `${P}rsi6`, code: "TK-02", descriptionEn: "Roof sheeting with insulation", unit: "m2", rate: "148.00" },
+      { id: `${P}rsi5`, code: "TK-01", descriptionEn: "Strip and dispose of roof sheeting", unit: "m²", rate: "19.20" },
+      { id: `${P}rsi6`, code: "TK-02", descriptionEn: "Roof sheeting with insulation", unit: "m²", rate: "148.00" },
       { id: `${P}rsi7`, code: "TK-03", descriptionEn: "Stainless steel access hatch", unit: "nr", rate: "4310.00" },
       { id: `${P}rsi8`, code: "TK-04", descriptionEn: "Internal ladder with handrail", unit: "m", rate: "398.00" },
     ],
@@ -564,7 +565,7 @@ export async function loadScopeSitting(db: Db): Promise<string[]> {
   await db.committeeDecision.create({
     data: {
       id: `${P}d40`, meetingId: mt, sequence: 1, domain: "scope_approval", matterKind: "SCOPE", matterRef: "DEMO/SX/0015/2026", bqVersionId: `${P}bqv4`,
-      subject: "Scope of DEMO/SX/0015/2026: bill of quantities, version 1", act: "R", tabledByPersonId: `${P}p3`, tabledAt: day("2026-09-28"),
+      subject: scopeMatterSubject("FRP tank repair by its manufacturer", 1), act: "R", tabledByPersonId: `${P}p3`, tabledAt: day("2026-09-28"),
       outcome: "CARRIED", decisionDate: day("2026-09-30"), quorumRequired: 2, presentVoters: 2, recusedCount: 0, votingRule: "SIMPLE_MAJORITY", votingRuleProvenance: "ASSUMED",
     },
   });

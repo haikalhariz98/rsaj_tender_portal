@@ -62,7 +62,7 @@ export async function loadSittingTrail(db: PrismaClient, organisationId: string,
       if (!d.tabledAt) continue;
       if (d.bqVersion) {
         trail.push({
-          entity: "CommitteeDecision", entityId: d.id, entityLabel: `${d.bqVersion.exercise.reference} · Scope matter, bill version ${d.bqVersion.versionNo}`, action: "CREATE", at: at(d.tabledAt, 2, d.sequence),
+          entity: "CommitteeDecision", entityId: d.id, entityLabel: d.subject, action: "CREATE", at: at(d.tabledAt, 2, d.sequence),
           changes: scopeTabledAudit({ subject: d.subject, versionNo: d.bqVersion.versionNo, sitting: m.reference, committee: m.committee.nameEn, act: ACT_LABEL[d.act] ?? d.act, tabledBy: d.tabledBy?.name ?? null, tabledOn: d.tabledAt.toISOString().slice(0, 10) }),
         });
         continue;

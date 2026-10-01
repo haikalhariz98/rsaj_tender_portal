@@ -145,6 +145,6 @@ describe("scopeCitationFault: which version may be tabled at which sitting", () 
     }
   });
   it("the matter's subject names the exercise and the version", () => {
-    expect(scopeMatterSubject("DEMO/SX/15/2026", 1)).toBe("Scope of DEMO/SX/15/2026: bill of quantities, version 1");
+    expect(scopeMatterSubject("FRP tank repair by its manufacturer", 1)).toBe("FRP tank repair by its manufacturer, scope version 1");
   });
 });
