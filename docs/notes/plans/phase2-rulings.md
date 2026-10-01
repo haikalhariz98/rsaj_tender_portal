@@ -55,3 +55,42 @@ replacement, stricter); every ruling logged.
 ## For the founder's end-of-build review
 1. NFR-SEC-003 re-designation (departs from §13.4's electronic tender box). 2. 6.4 Q-1 B (award may differ from the
 Appendix with a reason). 3. The BD-7 test replacement. 4. Exercise tab grouping (X-7). 5. 6.6 OD-3 (overrode the plan).
+
+## 6.7 Bid opening — approve with conditions (ruled 2026-10-01)
+
+- **C-1 Estimate copy check redesigned.** No `checkEstimateCopy`. The officer enters the paper ANGGARAN SYARIKAT figure (or "paper copy not found in the box") as an input to `finaliseOpening`; compared only after every other finalise check has passed, in the `disclose()` transaction; both figures and the outcome (MATCH / MISMATCH / NOT_IN_BOX) frozen on the opening. A MISMATCH never refuses finalising; a refused finalise never stores, echoes or depends on the typed figure (test: refusal identical for any figure). MISMATCH / NOT_IN_BOX is an append-only finding shown on the Schedule that blocks 6.8 `startEvaluation` and the award until an explanation (its own append-only record) is recorded.
+- **C-2 Dual control (OD-1 A).** Two authorisations by distinct present panel members, server-stamped, "recorded on behalf of, not signed"; never called "dual control" on screen; authenticated half to sign-in (stated departure from §13.4). Adjourning lapses an unpaired authorisation (kept, marked lapsed); resuming needs two fresh ones — key per sitting or a lapse field, not `@@unique([openingId, personId])`. `demo_sx20` shows a lapsed one.
+- **C-3 Box timeliness.** 6.6 OD-4 is the specific rule for BOX; OD-3 governs officer-received envelopes. (a) Judged from the LOCKED event's server `recordedAt`, never an entered instant. (b) `recordedAfterClosing` stored true; the lib branches on `receivedSource = BOX_AT_OPENING`, both branches tested; label "In the box when it was locked at …". (c) Any closing-to-lock gap is a finding on the Opening tab, frozen Schedule and 6.10 bundle; no tolerance constant. ADR 0017 records it.
+- **C-4 SULIT prices (OD-3 A).** Only on Opening, Schedule, print and Evaluation, each chipped "SULIT · not restricted until sign-in"; source scan covers loaders, activity-feed builder, search, dashboard, sourcing and award lists, audit-export filters; History rows chipped.
+- **C-5** OD-2 A: disclose at finalisation; signed-schedule scan attached only after finalising.
+- **C-6** OD-7 A refined: independence rule null → panel assigned with a warning "Independence rule not set; panel not checked", frozen in `policySnapshot`; rule on with a member's unit unrecorded blocks; `Person.orgUnitCode` checked against OrgUnit codes.
+- **C-7** `Award.awardeePartyId?` (ExerciseParty, Restrict); the gate compares parties, never free-text registration; empty never matches; interim 6.7 gate needs the awardee among `evaluationSet()`.
+- **C-8** 6.7 replaces the interim award gate (X-9); existing CLOSED-pass gate tests rewritten stricter (add a finalised opening with its scan) and listed; Phase 1 exercises untouched.
+- **C-9** Cancellation: `cancelFaults` accepts OPENED, and OPENING_IN_PROGRESS only once adjourned, via `window_change` with reason and refund answer; opening rows kept; undisclosed estimate stays sealed; BD-29 stands; own flagged commit to 6.5.
+- **C-10** 6.6 counts and screens read `receivedSource` and label BOX rows; the 6.6 OD-2 scan becomes "only `openEnvelope` writes `partyId`"; own listed commit.
+- **C-11** "Supersede a 6.8 report" is 6.8's hook, not built in 6.7.
+- **C-12** Step 0 re-checks §0.2 interfaces against as-built 6.2/6.4/6.5/6.6; divergence comes back for a re-ruling. ADR 0017.
+- **C-13** Standard gates; demo ids grepped incl. arithmetic ones; no RSAJ figure STATED.
+- Open questions: OD-1 A (C-2); OD-2 A (C-1/C-5); OD-3 A (C-4); OD-4 A — unpurchased-bid consequence per method, nullable, blocks only where such a bid exists, demo REPORT ASSUMED, question to RSAJ; OD-5 A supplementary opening, versions kept; OD-6 A own `Opening` record; OD-7 C-6; OD-8 A "Bids and opening" tab group; OD-9 switch, unset blocks finalising, ASSUMED readings shown, question to RSAJ; OD-10 A corrections before finalising with reason and audit; OD-11 refused at 14:30:00, allowed from 14:30:01.
+
+## 6.8 Evaluation — approve with conditions (ruled 2026-10-01)
+
+- **E-1 OD-1 B (not A).** No late pin. An exercise with no snapshot reads "Published before evaluation models existed"; `startEvaluation` refuses naming cancel and replace (FR-ADV-016).
+- **E-2** Model chosen on 6.5's Invitation › Window card, pinned in the publish transaction; EVALUATION_MODEL_NOT_SET names the setting; 6.5 publish tests change only by adding a pinned model to fixtures (flagged, own commit). Go-live: RSAJ issues a model per method in use (D1).
+- **E-3** SULIT as C-4; uploads SULIT, not downloadable; FR-EVL-014 partial.
+- **E-4** Scorer must be appointed to that stage's side (NOT_ON_TEAM); SAME_PERSON_BOTH_SIDES stays; "recorded on behalf of, not signed".
+- **E-5** `scoreDecimals` unset blocks; half-up ASSUMED; the figure judged against a pass mark is the figure shown; internal 4-place fixed point, composite from unrounded stage figures; TA 109 85.01 tested.
+- **E-6** Monthly balances `Decimal(18,2)`.
+- **E-7** Finalising a 6.7 supplementary opening once any evaluation version exists opens version n+1 in the same transaction and supersedes the current one; unchanged bidders' scores carried and labelled; hook in 6.7's finalise, own commit.
+- **E-8** `bundleFault` (6.10 `tableMatter`, 6.11 citation) and the NOT_CARRIED LOOP trigger only for exercises published through 6.5, own commits with new tests; CO-3 unchanged otherwise; `returnsToStage` a Select of product keys rendered by label (free text a legacy warning); TERMINAL never reopens.
+- **E-9** Award gate: EVALUATED, an issued non-stale report, `awardeePartyId` equal to the recommended party. Pre-fill name, registration, address, price, period, party; price/period may differ with an audited reason ("differs from the recommendation"); party cannot differ (another tenderer → NOT_CARRIED → new version). New tests only, plus C-8's stricter rewrites, listed.
+- **E-10** `cancelFaults` also accepts UNDER_EVALUATION and EVALUATED; same route; records kept; open version closed as cancelled; terminal outcomes reach cancellation only through this action.
+- **E-11** Partial Musts logged: FR-EVL-012 CPR entered with report attached ("not from the register") until 6.16; FR-EVL-017 annexes D/F listed, not exportable while SULIT is undownloadable; FR-EVL-014 per E-3; FR-EVL-001 identity to sign-in.
+- **E-12** Demo: models and policy load first; 6.5/6.6/6.7 demo files choose a model on each published exercise (each its own listed commit); `demo_ai90`, `demo_mt14`, `demo_d43`, `demo_at60`–`63` grepped; no RSAJ figure in demo data.
+- **E-13** Step 0 interface re-check as C-12; ADR 0018; standard gates.
+- Open questions: OD-1 B; OD-2 A; OD-3 A store UNDER_EVALUATION and EVALUATED, derive the rest; OD-4 A (logged departure); OD-5 A NOT_BANDED shown, question to RSAJ; OD-6 A aspect (b) verdict gates, band a guide; OD-7 defer FR-EVL-020 to sign-in; OD-8 A per E-9; OD-9 as stated plus E-5; OD-10 A not an entitlement, question to RSAJ.
+
+## For the founder's end-of-build review (continued from the list above)
+6. FR-OPN-003: authenticated dual control re-designated to sign-in. 7. Box envelopes judged by box-lock time (exception to 6.6 OD-3); gaps shown, no tolerance. 8. Estimate copy check redesigned to happen at finalising. 9. Partly met Musts FR-EVL-001, 012, 014, 017. 10. 6.8 OD-8: award value may differ with a reason, awardee may not. 11. 6.8 OD-1 ruled against the plan (no late pin). 12. SULIT prices, scores and reports readable by any portal user until sign-in (off every broadcast surface).
+
+Questions for RSAJ: 6.7 OD-4, OD-9; 6.8 OD-5, OD-10; FR-CTE-011 independence rule; D1 evaluation models.
