@@ -45,7 +45,10 @@ export function resolveTendering(ctx: FunderContext, method: Method, value: numb
 export function tenderingRouteForRequester(ctx: FunderContext, method: Method, value: number, requester: RequesterOnName): AppointmentPreview & { tenderingState: TenderingRouteState; refusal: string | null } {
   const r = resolveTendering(ctx, method, value);
   if (r.tenderingState !== "RESOLVED") return { ...r, refusal: null };
-  return { ...r, ...withRequester(ctx, TENDERING_DOMAIN, method, value, r, requester, "tendering") };
+  const w = withRequester(ctx, TENDERING_DOMAIN, method, value, r, requester, "tendering");
+  // Escalating past the requester can land on a committee (an office whose self-approval
+  // escalates to one): judged again on the chain that would open, as the first chain was.
+  return { ...r, ...w, tenderingState: w.chain.some((s) => s.committeeCode) ? "HAS_COMMITTEE_STEP" : "RESOLVED" };
 }
 
 /// What the route stores when it opens (Q-3): a return to the originator, STATED by §7.3.2.

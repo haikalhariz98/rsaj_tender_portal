@@ -56,6 +56,22 @@ describe("the route, from configuration only", () => {
   });
 });
 
+describe("the chain after the requester's escalation is judged again (carry c)", () => {
+  it("self-approval escalating to a committee gives a committee step: refused as any committee route is", () => {
+    const dal = { ...SPEC_MATRIX, rules: [...SPEC_MATRIX.rules, tenderingRule], roles: { ...SPEC_MATRIX.roles, CP: { ...SPEC_MATRIX.roles.CP, selfApprovalEscalatesToCode: "TBC" } } } as Matrix;
+    const r = tenderingRouteForRequester({ dal, override: null, supersedes: false }, m("open_quotation"), 100_000, { ...nobody, holds: (c) => c === "CP" });
+    expect(r.chain.map((s) => s.committeeCode ?? null)).toContain("TBC");
+    expect(r.tenderingState).toBe("HAS_COMMITTEE_STEP");
+  });
+  it("escalating to an office stays resolved", () => {
+    const dal = { ...SPEC_MATRIX, rules: [...SPEC_MATRIX.rules, tenderingRule], roles: { ...SPEC_MATRIX.roles, CP: { ...SPEC_MATRIX.roles.CP, selfApprovalEscalatesToCode: "CEO" } } } as Matrix;
+    const r = tenderingRouteForRequester({ dal, override: null, supersedes: false }, m("open_quotation"), 100_000, { ...nobody, holds: (c) => c === "CP" });
+    expect(r.approverCode).toBe("CEO");
+    expect(r.tenderingState).toBe("RESOLVED");
+    expect(r.refusal).toBeNull();
+  });
+});
+
 describe("Q-3: a rejection returns the documents for amendment", () => {
   it("the route snapshots a return to the originator, STATED", () => {
     const at = new Date("2026-10-01T03:00:00Z");
