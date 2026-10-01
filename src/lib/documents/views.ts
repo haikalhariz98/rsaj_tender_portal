@@ -24,6 +24,7 @@ import {
   PURPOSE_LABEL,
   RECORDED_ON_BEHALF,
   RETENTION_TRIGGER_LABEL,
+  retentionPeriodText,
   SCAN_LABEL,
   shortFingerprint,
   STATUS_LABEL,
@@ -277,7 +278,7 @@ export function drawerView(d: Drawer, timeZone: string | null): DrawerView {
     createdOn: formatOrgDay(d.createdAt, timeZone),
     filedOn: d.filedAt ? formatOrgDay(d.filedAt, timeZone) : null,
     retention: {
-      period: r?.retentionMonths ? `${r.retentionMonths} months` : NOT_SET,
+      period: retentionPeriodText(r?.retentionMonths),
       starts: r?.retentionTrigger ? RETENTION_TRIGGER_LABEL[r.retentionTrigger] : NOT_SET,
       disposal: r?.disposalMethod ? DISPOSAL_METHOD_LABEL[r.disposalMethod] : NOT_SET,
       authority: d.disposalAuthority ?? NOT_SET,

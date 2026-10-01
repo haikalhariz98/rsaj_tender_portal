@@ -8,7 +8,7 @@ import { formatDate } from "@/lib/format";
 
 import type { OwnerExit, Reliance } from "./attach";
 import type { DownloadRefusal } from "./access";
-import type { RetentionState } from "./retention";
+import { isRetentionPeriod, type RetentionState } from "./retention";
 import type { AccessKind, AttachmentPurpose, DisposalMethod, DocumentStatus, Finding, RetentionTrigger, ScanState, SecurityClass } from "./types";
 
 /// Said once on every panel and on the drawer (plan §4). Nothing claims "restricted" or "secure".
@@ -310,6 +310,13 @@ export function documentFaultText(f: Finding): string {
 
 function withArticle(label: string): string {
   return /^[AEIOU]/.test(label) ? `an ${label}` : `a ${label}`;
+}
+
+/// A class's or snapshot's retention period: "Not set" only for null; a period that is
+/// not one (zero, from a snapshot taken before the CHECK) says so, never "Not set".
+export function retentionPeriodText(months: number | null | undefined): string {
+  if (months == null) return "Not set";
+  return isRetentionPeriod(months) ? `${months} month${months === 1 ? "" : "s"}` : `Not a period (${months} months)`;
 }
 
 /// The retention line on a document: "Not set", "Starts when …", "Retained until …", "Elapsed on …".

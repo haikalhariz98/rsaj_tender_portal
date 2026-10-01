@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { documentFaultText, retentionText } from "./labels";
+import { documentFaultText, retentionPeriodText, retentionText } from "./labels";
 import { disposalFault, isRetentionPeriod, retentionState, type RetentionRule } from "./retention";
 
 /**
@@ -35,6 +35,14 @@ describe("a retention period is at least one whole month", () => {
     }
     // Even with no trigger set: the period is wrong, and that is what is said.
     expect(retentionState(rule({ retentionMonths: 0, retentionTrigger: null }), null, "2026-10-01").state).toBe("PERIOD_INVALID");
+  });
+
+  it("the period line on the drawer: Not set only for null, zero says it is not a period", () => {
+    expect(retentionPeriodText(null)).toBe("Not set");
+    expect(retentionPeriodText(undefined)).toBe("Not set");
+    expect(retentionPeriodText(0)).toBe("Not a period (0 months)");
+    expect(retentionPeriodText(1)).toBe("1 month");
+    expect(retentionPeriodText(84)).toBe("84 months");
   });
 
   it("null alone is not set", () => {
