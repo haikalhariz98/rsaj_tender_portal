@@ -302,7 +302,7 @@ export default async function InvitationControlsPage() {
                       <li key={y.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3 text-[13.5px] sm:px-6">
                         <span className="font-semibold text-ink">{y.year}</span>
                         <Badge tone={y.complete.startsWith("Maintained") ? "ok" : "warn"}>{y.complete.startsWith("Maintained") ? "Complete" : "Not complete"}</Badge>
-                        <span className="min-w-0 flex-1 text-ink-2">{y.complete.startsWith("Maintained") ? y.source ?? "No source recorded" : y.complete}</span>
+                        <span className="order-last w-full min-w-0 text-ink-2 sm:order-none sm:w-auto sm:flex-1">{y.complete.startsWith("Maintained") ? y.source ?? "No source recorded" : y.complete}</span>
                         <ProvenanceBadge value={y.from.toUpperCase()} />
                         <HistoryButton iconOnly entity="HolidayCalendarYear" entityId={y.id} label={`${cal.name}, ${y.year}`} />
                         <YearDrawer calendarId={cal.id} calendar={cal.name} year={{ year: y.year, complete: y.complete.startsWith("Maintained"), source: y.source ?? "", provenance: y.from.toUpperCase() }} />

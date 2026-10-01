@@ -243,7 +243,10 @@ export function DeliveryDrawer({
   values: { method: string; consignmentRef: string; despatchedOn: string; acknowledgedOn: string };
   allowed?: Allowed;
 }) {
-  if (allowed && !allowed.allowed) return <Blocked label="Record delivery" reason={allowed.reason} />;
+  // Once something is recorded the act is a change to it, and says so.
+  const recorded = !!(values.method || values.consignmentRef || values.despatchedOn || values.acknowledgedOn);
+  const verb = recorded ? "Change delivery" : "Record delivery";
+  if (allowed && !allowed.allowed) return <Blocked label={verb} reason={allowed.reason} />;
   return (
     <RecordEditor
       title={`How ${who} was told`}
@@ -260,7 +263,7 @@ export function DeliveryDrawer({
       values={{ exerciseId, [idName]: id, ...values }}
       action={action}
       submitLabel="Record"
-      trigger={{ label: "Record delivery", className: ghost, ariaLabel: `Record how ${who} was told` }}
+      trigger={{ label: verb, className: ghost, ariaLabel: `${recorded ? "Change" : "Record"} how ${who} was told` }}
       size="md"
     />
   );

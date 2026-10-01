@@ -101,6 +101,8 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
   const others = d.findings.filter((f) => f.level !== "block");
   const invited = d.pathKey === "INVITED";
   const phaseBadge = live || c.status === "CANCELLED" ? <Badge tone={d.phase.tone} dot>{d.phase.label}</Badge> : undefined;
+  // A column of actions nobody can take is not shown.
+  const chanActs = !live && c.status !== "CANCELLED" && d.channels.some((x) => x.publication);
   const latest = c.routes[0] ?? null;
   const earlier = c.routes.slice(1);
   return (
@@ -215,7 +217,7 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
                   <col style={{ width: 90 }} />
                   <col style={{ width: 120 }} />
                   <col style={{ width: 130 }} />
-                  <ActionsCol labelled={2} icons={0} />
+                  {d.actions.save.allowed && <ActionsCol labelled={2} icons={0} />}
                 </colgroup>
                 <THead>
                   <Th>Cost</Th>
@@ -223,7 +225,7 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
                   <Th numeric>Quantity</Th>
                   <Th numeric>Unit cost</Th>
                   <Th numeric>Amount</Th>
-                  <Th className="text-right">Actions</Th>
+                  {d.actions.save.allowed && <Th className="text-right">Actions</Th>}
                 </THead>
                 <tbody>
                   {d.fee.basis.map((l) => (
@@ -233,12 +235,12 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
                       <Td numeric label="Quantity">{l.quantity ?? "—"}</Td>
                       <Td numeric label="Unit cost">{l.unitCost ?? "—"}</Td>
                       <Td numeric label="Amount"><span className="font-semibold">{l.amount}</span></Td>
-                      <Td>
+                      {d.actions.save.allowed && <Td>
                         <RowActions>
                           {d.actions.save.allowed && <FeeLineDrawer exerciseId={c.exerciseId} allowed={d.actions.save} kinds={FEE_COST_KINDS.map((k) => ({ value: k, label: FEE_COST_KIND_LABEL[k] }))} line={{ id: l.id, label: l.cost, values: l.raw }} />}
                           {d.actions.save.allowed && <RemoveFeeLineDrawer exerciseId={c.exerciseId} lineId={l.id} label={l.cost} />}
                         </RowActions>
-                      </Td>
+                      </Td>}
                     </Tr>
                   ))}
                 </tbody>
@@ -276,14 +278,14 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
                   <col style={{ width: 120 }} />
                   <col style={{ width: 130 }} />
                   <col style={{ width: "30%" }} />
-                  <ActionsCol labelled={1} icons={0} />
+                  {chanActs && <ActionsCol labelled={1} icons={0} />}
                 </colgroup>
                 <THead>
                   <Th>Channel</Th>
                   <Th>Required</Th>
                   <Th>Published on</Th>
                   <Th>Title, edition or address</Th>
-                  <Th className="text-right">Actions</Th>
+                  {chanActs && <Th className="text-right">Actions</Th>}
                 </THead>
                 <tbody>
                   {d.channels.map((x) => (
@@ -292,9 +294,9 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
                       <Td label="Required">{x.required === "Not set" ? <Badge tone="warn">Not set</Badge> : x.required === "Required" ? <Chip tone="brand">Required</Chip> : <span className="text-ink-2">Not required</span>}</Td>
                       <Td label="Published on">{x.publication ? x.publication.on : <Chip tone={x.required === "Required" ? "warn" : "neutral"}>{x.required === "Required" ? "Not yet published" : "Not published"}</Chip>}</Td>
                       <Td label="Title, edition or address">{x.publication?.reference || <span className="text-ink-3">—</span>}</Td>
-                      <Td>
+                      {chanActs && <Td>
                         <RowActions>{x.publication && !live && c.status !== "CANCELLED" && <RemovePublicationDrawer exerciseId={c.exerciseId} publicationId={x.publication.id} channel={x.name} />}</RowActions>
-                      </Td>
+                      </Td>}
                     </Tr>
                   ))}
                 </tbody>
