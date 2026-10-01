@@ -108,6 +108,12 @@ export interface ClosingInput extends ClosingRules {
   closingAt: Date;
   /// The last day the documents are sold, YYYY-MM-DD; null: not set.
   purchaseCloseDay: string | null;
+  /**
+   * On a closing change, the last day of sale as it stands before the change. A day already past
+   * is refused only when the change moves it: an extension asked for after the sale has closed
+   * keeps the past day it had, and that is not a new act. Absent (publication): always judged.
+   */
+  priorPurchaseCloseDay?: string | null;
 }
 
 /**
@@ -164,7 +170,8 @@ export function closingFaults(i: ClosingInput): Finding<ClosingFault>[] {
   if (i.purchaseCloseDay == null) out.push({ code: "PURCHASE_CLOSE_NOT_SET", level: "block" });
   else {
     if (p.purchaseCutoffDays != null && daysFrom(i.purchaseCloseDay, closingDay) < p.purchaseCutoffDays) out.push({ code: "PURCHASE_CUTOFF_TOO_LATE", level: "block", data: { day: i.purchaseCloseDay, cutoff: p.purchaseCutoffDays, closingDay, source } });
-    if (i.today && i.purchaseCloseDay < i.today) out.push({ code: "PURCHASE_CLOSE_IN_PAST", level: "block", data: { day: i.purchaseCloseDay } });
+    const moved = i.priorPurchaseCloseDay === undefined || i.priorPurchaseCloseDay !== i.purchaseCloseDay;
+    if (moved && i.today && i.purchaseCloseDay < i.today) out.push({ code: "PURCHASE_CLOSE_IN_PAST", level: "block", data: { day: i.purchaseCloseDay } });
   }
   return out;
 }

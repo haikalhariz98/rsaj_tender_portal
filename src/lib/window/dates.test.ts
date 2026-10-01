@@ -137,6 +137,12 @@ describe("the last day of sale (FR-ADV-007, worked example)", () => {
     expect(blocks(base({ purchaseCloseDay: null }))).toEqual(["PURCHASE_CLOSE_NOT_SET"]);
     expect(blocks(base({ today: "2026-11-21" }))).toEqual(["PURCHASE_CLOSE_IN_PAST"]);
   });
+  it("on a change, a past last day of sale is refused only when the change moves it", () => {
+    const b = base({ today: "2026-11-21" });
+    expect(blocks({ ...b, priorPurchaseCloseDay: b.purchaseCloseDay })).toEqual([]);
+    expect(blocks({ ...b, priorPurchaseCloseDay: "2026-11-01" })).toEqual(["PURCHASE_CLOSE_IN_PAST"]);
+    expect(blocks({ ...b, priorPurchaseCloseDay: null })).toEqual(["PURCHASE_CLOSE_IN_PAST"]);
+  });
 });
 
 describe("every rule unset blocks on its own, naming its setting", () => {

@@ -4,7 +4,7 @@ import { SPEC_MATRIX, SPEC_METHODS } from "@/lib/method/fixture";
 import { WINDOW_CHANGE_DOMAIN, type Method } from "@/lib/method/types";
 import type { FunderContext } from "@/lib/method/approval";
 
-import { authorityFault, cancelFaults, closingChangeFaults, resolveWindowChange, windowChangeRouteForRequester, type ClosingChangeInput } from "./change";
+import { appliedChangeFaults, authorityFault, cancelFaults, closingChangeFaults, resolveWindowChange, windowChangeRouteForRequester, type ClosingChangeInput } from "./change";
 import { klAt, SPEC_CALENDAR, SPEC_POLICY } from "./fixture";
 import { CHANGE_ROUTE_TEXT, windowFindingText } from "./labels";
 
@@ -50,6 +50,41 @@ describe("an extension", () => {
     expect(codes(closingChangeFaults(ext({ changePending: true })))).toEqual(["CHANGE_PENDING"]);
   });
   it("a new closing that is not one is refused", () => expect(codes(closingChangeFaults(ext({ toClosingAt: null })))).toEqual(["NEW_CLOSING_NOT_VALID"]));
+
+  // Worked example: closing Tue 17 Nov 14:30, sale closed after Sun 15 Nov. On Mon 16 Nov (closed
+  // for purchase) the officer asks to extend the closing to Tue 24 Nov, leaving the last day of sale
+  // where it is. The 15th is in the past, but the extension does not move it, so it is not refused.
+  it("asked while closed for purchase, keeping the last day of sale, is not refused for that past day", () => {
+    const asked = ext({ now: new Date("2026-11-16T02:00:00Z"), toPurchaseCloseDay: "2026-11-15", rules: { ...ext().rules, today: "2026-11-16" } });
+    expect(codes(closingChangeFaults(asked))).toEqual([]);
+  });
+  it("asked while closed for purchase, moving the last day of sale to another past day, is refused", () => {
+    const asked = ext({ now: new Date("2026-11-16T02:00:00Z"), toPurchaseCloseDay: "2026-11-14", rules: { ...ext().rules, today: "2026-11-16" } });
+    expect(codes(closingChangeFaults(asked))).toEqual(["PURCHASE_CLOSE_IN_PAST"]);
+  });
+  it("asked while closed for purchase, reopening the sale to a future day, passes", () => {
+    const asked = ext({ now: new Date("2026-11-16T02:00:00Z"), toPurchaseCloseDay: "2026-11-20", rules: { ...ext().rules, today: "2026-11-16" } });
+    expect(codes(closingChangeFaults(asked))).toEqual([]);
+  });
+});
+
+describe("applying an approved extension (the approving step's re-run)", () => {
+  // Closing Tue 24 Nov 14:30, last day of sale Sun 15 Nov. Asked Tue 10 Nov: closing to Tue 1 Dec,
+  // last day of sale to Thu 19 Nov. Approved Mon 23 Nov (09:00 in Kuala Lumpur): the 19th has
+  // passed, the current closing has not.
+  const asked = { ...ext(), now: new Date("2026-11-23T01:00:00Z"), currentClosingAt: klAt("2026-11-24"), currentPurchaseCloseDay: "2026-11-15", toClosingAt: klAt("2026-12-01"), toPurchaseCloseDay: "2026-11-19", rules: { ...ext().rules, today: "2026-11-23" } };
+  it("judges the last day of sale against the day it was asked for, not the day it is approved", () => {
+    expect(codes(appliedChangeFaults(asked, "2026-11-10"))).toEqual([]);
+  });
+  it("the same request asked on the 23rd would be refused for the past day", () => {
+    expect(codes(appliedChangeFaults(asked, "2026-11-23"))).toEqual(["PURCHASE_CLOSE_IN_PAST"]);
+  });
+  it("is still refused when the current closing passed while it waited", () => {
+    expect(codes(appliedChangeFaults({ ...asked, now: new Date("2026-11-24T07:00:00Z") }, "2026-11-10"))).toEqual(["CLOSING_PASSED"]);
+  });
+  it("an unchanged request is no fault at the approving step", () => {
+    expect(codes(appliedChangeFaults({ ...ext(), toClosingAt: klAt("2026-11-17"), toPurchaseCloseDay: "2026-11-15", kind: "CORRECTION", status: "APPROVED_FOR_TENDERING" }, "2026-11-10"))).toEqual([]);
+  });
 });
 
 describe("a correction before publication", () => {

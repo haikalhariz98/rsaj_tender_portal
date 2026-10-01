@@ -101,8 +101,21 @@ export function closingChangeFaults(i: ClosingChangeInput): Finding[] {
   if (same) f("UNCHANGED");
   if (i.kind === "EXTENSION" && i.currentClosingAt && i.toClosingAt.getTime() <= i.currentClosingAt.getTime()) f("NOT_LATER");
   if (i.toClosingAt.getTime() <= i.now.getTime()) f("CLOSING_PASSED");
-  const rules = closingFaults({ ...i.rules, closingAt: i.toClosingAt, purchaseCloseDay: i.toPurchaseCloseDay });
+  // A last day of sale already past is judged only when this change moves it (`priorPurchaseCloseDay`).
+  const rules = closingFaults({ ...i.rules, closingAt: i.toClosingAt, purchaseCloseDay: i.toPurchaseCloseDay, priorPurchaseCloseDay: i.currentPurchaseCloseDay });
   return [...out, ...rules];
+}
+
+/**
+ * The approving step's re-run (FR-ADV-015) before a change is applied, under the window's lock.
+ * The days are judged against the organisation's day the change was ASKED for, not the day it is
+ * approved: a last day of sale that was in the future when asked does not become a refusal because
+ * the approval took longer than it. The closing itself is still judged against `now` (the current
+ * closing passed while it waited refuses). The route it rides is not pending, and an unchanged
+ * request is no fault here (it was judged when asked).
+ */
+export function appliedChangeFaults(i: Omit<ClosingChangeInput, "changePending">, requestedOn: string): Finding[] {
+  return closingChangeFaults({ ...i, changePending: false, rules: { ...i.rules, today: requestedOn } }).filter((f) => f.level === "block" && f.code !== "UNCHANGED");
 }
 
 /// The route's status as the approving step reads it: only an approved route applies a change.

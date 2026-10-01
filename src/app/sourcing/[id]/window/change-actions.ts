@@ -27,7 +27,7 @@ import { deciderFaultText } from "@/lib/requisition/labels";
 import { voidLivePacks } from "@/lib/tender-docs/store";
 import { deliveryFaults } from "@/lib/window/addendum";
 import { changeFields, deliveryFields, ENTITY } from "@/lib/window/audit-view";
-import { cancelFaults, closingChangeFaults, noticeRecipients, windowChangeRouteForRequester, type WindowChangeCond } from "@/lib/window/change";
+import { appliedChangeFaults, cancelFaults, closingChangeFaults, noticeRecipients, windowChangeRouteForRequester, type WindowChangeCond } from "@/lib/window/change";
 import { CHANGE_REFUSED_DECIDED_BY, windowChangeRejectionSnapshot } from "@/lib/window/edit";
 import { CHANGE_ROUTE_TEXT, windowFindingText } from "@/lib/window/labels";
 import type { WindowData } from "@/lib/window/repo";
@@ -217,18 +217,20 @@ async function writeNotices(tx: Tx, l: LockedWindow, d: WindowData, parent: { cl
  */
 async function applyClosingChange(tx: Tx, l: LockedWindow, d: WindowData, change: NonNullable<WindowData["window"]>["closingChanges"][number], instId: string): Promise<string> {
   const now = new Date();
-  const fs: Finding[] = closingChangeFaults({
-    kind: change.kind,
-    status: l.ex.status,
-    now,
-    currentClosingAt: l.ex.closingAt,
-    toClosingAt: change.toClosingAt,
-    currentPurchaseCloseDay: d.window!.purchaseCloseDay ? storedDay(d.window!.purchaseCloseDay) : null,
-    toPurchaseCloseDay: change.toPurchaseCloseDay ? storedDay(change.toPurchaseCloseDay) : null,
-    reason: change.reason,
-    changePending: false,
-    rules: changeRules(l, d),
-  }).filter((f) => f.level === "block" && f.code !== "UNCHANGED");
+  const fs: Finding[] = appliedChangeFaults(
+    {
+      kind: change.kind,
+      status: l.ex.status,
+      now,
+      currentClosingAt: l.ex.closingAt,
+      toClosingAt: change.toClosingAt,
+      currentPurchaseCloseDay: d.window!.purchaseCloseDay ? storedDay(d.window!.purchaseCloseDay) : null,
+      toPurchaseCloseDay: change.toPurchaseCloseDay ? storedDay(change.toPurchaseCloseDay) : null,
+      reason: change.reason,
+      rules: changeRules(l, d),
+    },
+    storedDay(change.requestedOn),
+  );
   if (fs.length) {
     const why = fs.map(windowFindingText).join(" ");
     await tx.closingChange.update({ where: { id: change.id }, data: { refusedAt: now, refusedReason: why } });
