@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CONFIG_FAULT_TEXT, holdingFault, scopePolicyFaults, scopeRuleFaults, scopeRuleToSave, SCOPE_RULE_FAULT_TEXT, type PolicyDraft } from "./config";
+import { CONFIG_FAULT_TEXT, holdingFault, qualificationName, scopePolicyFaults, scopeRuleFaults, scopeRuleToSave, SCOPE_RULE_FAULT_TEXT, type PolicyDraft } from "./config";
 
 const unset: PolicyDraft = {
   measurementStandardLabel: null, measurementStandardProvenance: null, bqPreparerQualificationCode: null, estimateLeadDays: null, estimateLeadProvenance: null,
@@ -57,5 +57,14 @@ describe("a method's scope-approval rule (OD-9), three-state", () => {
     expect(scopeRuleToSave({ required: false, provenance: "STATED", committeeCode: "TECH" })).toEqual({ scopeApprovalRequired: false, scopeApprovalProvenance: "STATED", scopeCommitteeCode: null });
     expect(scopeRuleToSave({ required: true, provenance: "ASSUMED", committeeCode: "TECH" })).toEqual({ scopeApprovalRequired: true, scopeApprovalProvenance: "ASSUMED", scopeCommitteeCode: "TECH" });
     expect(SCOPE_RULE_FAULT_TEXT.UNKNOWN_COMMITTEE).toMatch(/Configuration, Committees/);
+  });
+});
+
+describe("a holding's trail names its qualification", () => {
+  const rows = [{ code: "QQM", nameEn: "Qualified quantity measurer" }];
+  it("by name, never by code; one no longer configured says so", () => {
+    expect(qualificationName(rows, "QQM")).toBe("Qualified quantity measurer");
+    expect(qualificationName(rows, "OLD_CODE")).toBe("A qualification no longer configured");
+    expect(qualificationName([], "QQM")).not.toContain("QQM");
   });
 });

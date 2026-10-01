@@ -8,7 +8,7 @@ import { writeAudit, type Tx } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import { storedDay } from "@/lib/dates";
 import { ORGANISATION_CODE } from "@/lib/org";
-import { CONFIG_FAULT_TEXT, holdingFault, scopePolicyFaults, scopeRuleFaults, scopeRuleToSave, SCOPE_RULE_FAULT_TEXT } from "@/lib/scope/config";
+import { CONFIG_FAULT_TEXT, holdingFault, qualificationName, scopePolicyFaults, scopeRuleFaults, scopeRuleToSave, SCOPE_RULE_FAULT_TEXT } from "@/lib/scope/config";
 import { RATE_ENTITY } from "@/lib/scope/audit-view";
 import { RATE_SCHEDULE_STATUS_LABEL, scopeFaultText } from "@/lib/scope/labels";
 import { issueFaults, itemFaults, nextIssueNo, scheduleEditFault, startIssueFaults } from "@/lib/scope/rates";
@@ -170,7 +170,9 @@ export async function savePersonQualification(_prev: FormState, data: FormData):
       const before = await tx.personQualification.findFirst({ where: { id, organisationId: orgId }, include: { person: { select: { name: true } } } });
       if (!before) return GONE;
       await tx.personQualification.update({ where: { id }, data: v });
-      await audit(tx, orgId, "PersonQualification", id, entityLabel, "UPDATE", { person: before.person.name, qualification: before.qualificationCode === qualificationCode ? q.nameEn : before.qualificationCode, validFrom: before.validFrom, validTo: before.validTo, evidence: before.evidenceNote }, view);
+      // The holding may move to another qualification: the trail names the old one too, never its code.
+      const priorRows = before.qualificationCode === qualificationCode ? [{ code: qualificationCode, nameEn: q.nameEn }] : await tx.qualification.findMany({ where: { organisationId: orgId, code: before.qualificationCode }, select: { code: true, nameEn: true } });
+      await audit(tx, orgId, "PersonQualification", id, entityLabel, "UPDATE", { person: before.person.name, qualification: qualificationName(priorRows, before.qualificationCode), validFrom: before.validFrom, validTo: before.validTo, evidence: before.evidenceNote }, view);
       return done();
     }
     const row = await tx.personQualification.create({ data: { organisationId: orgId, ...v } });

@@ -45,6 +45,12 @@ export function scopePolicyFaults(p: PolicyDraft, known: { qualifications: reado
   return out;
 }
 
+/// What a holding's trail calls its qualification: the qualification's name, never its code;
+/// one no longer configured says so.
+export function qualificationName(rows: readonly { code: string; nameEn: string }[], code: string): string {
+  return rows.find((q) => q.code === code)?.nameEn ?? "A qualification no longer configured";
+}
+
 /// A holding's period: its last day, where given, not before its first.
 export function holdingFault(validFrom: string, validTo: string | null): Finding<"PERIOD_REVERSED"> | null {
   return validTo != null && validTo < validFrom ? { code: "PERIOD_REVERSED", level: "block" } : null;
