@@ -157,3 +157,53 @@ For the product owner to rule or confirm:
 
 ## 10. Acceptance
 
+**Decision: ACCEPTED WITH CARRIES**, 2026-10-01, at `31c1923` on `build-all-modules`. Decided by the product-owner delegate on the founder's behalf, for the founder's review.
+
+**Checks at `31c1923`** (supersede the header line and the last bullet of section 8): `npm test` 98 files, 1509 tests, all passed; `npm run typecheck` clean; `npm run lint` clean (including `check-ui.mjs`). No test is skipped. The assertions removed since `3e0409a` were rewritten stricter or per ruling. Migrations rebuild with an empty diff; demo wipe/load round trip is clean; 20 Phase 1 screens at 1280 and 390 load with no sideways scroll.
+
+**Why accepted.** Every Must in sections 2 and 3 is met, partly met with a logged deferral, or re-designated by a logged ruling. FR-APR-004 is met by the R3 build (below). The test of done in section 1 holds, with its two stated limits: dossier-method awards cannot be awarded until the document store lands, and everything needing a signed-in user is deferred.
+
+**Rulings on section 8**
+- FR-APR-017 (S): partly met. Requisition recall before the first decision is built, tested and audited. Name and award routes withdraw only on change or cancellation (backlog). Who is the originator cannot be told until sign-in.
+- FR-AWD-014 (S): met in generic form. Condition kinds are configuration; conditions record required-by and met-on dates; the no-extension-of-time flag is stored on the award and shown. Contract-record display is carried to 4a and the default exclusion to the EOT module.
+- FR-APR-004: met. R3 was built per C1–C8 (`0a34b14`..`5aee530`); the code review's must-fix on it is fixed; BD-R3-1 to 13 approved.
+- INT-01, INT-02: not built; a departure from §13.3, waiting on D5. Phase 1 runs on the spec's named fallback (§9.1: operator entry, PROC captured, never minted). Reconciliation reporting is carried.
+- NFR-AUD and NFR-SEC, itemised (a departure from §13.3 "6.9 in full", on the FR-CTE-007 precedent):
+
+| Req | Status | Missing, and where it goes |
+| --- | --- | --- |
+| NFR-AUD-001 | Partly met | Before/after written in the same transaction as every change, no edit path. Missing: actor, role held, source address, reads of classified records → sign-in; penetration test → before go-live |
+| NFR-AUD-002 | Met | The route pins its issue and clause (FR-APR-019, 020) |
+| NFR-AUD-003 | Partly met | Trail export with SHA-256 (FR-APR-015). Per-case export with document versions → document store |
+| NFR-AUD-004 | Not met | SULIT access logging → sign-in (FR-MTD-007 says so on screen) |
+| NFR-AUD-005 | Partly met | Server time on every write. Decision days are typed from paper, never future, kept beside the server's recorded time; an approval made in the system → sign-in |
+| NFR-AUD-006 | Partly met | Future days refused; "decided before the route or gate opened" refused. Back-dating exceptions with an authorising officer → sign-in |
+| NFR-SEC-001, 004, 005, 006 | Not met | Sign-in (access control, admin separation and maker-checker, MFA, re-authentication) |
+| NFR-SEC-002 | Not met | Classification model → document store (shared enum), automatic SULIT → 6.2, 6.6, 6.8 |
+| NFR-SEC-003 | Not applicable in Phase 1 | Sealed bids → 6.6 |
+| NFR-SEC-007 | Not met | Type, size and malware scanning → document store (scanning a go-live condition, OD-4). Phase 1's only upload is the organisation logo |
+| NFR-SEC-008 | Go-live condition | Hosting region documented and evidenced |
+
+**Sign-in (section 6, item 10)** is ruled a go-live condition for any customer. Building it remains deferred by standing decision (`AGENTS.md`). Section 6 now reads as ten go-live conditions.
+
+**Not ruled here:** the founder's open question on vote secrecy beyond the activity feed (DL founder UI, `be00020`). It does not block acceptance.
+
+**Carried**
+
+| # | Item | Destination | Blocks |
+| --- | --- | --- | --- |
+| 1 | Recommender audit row stores the office code (export file only; no screen shows it) | Fix before document-store acceptance | Document-store acceptance |
+| 2 | `saveTimeZone` reads "before" outside a lock; `saveMatrix` duplicate-label and funding-route checks outside the lock; `saveRule` sibling checks outside the transaction | Configuration hardening, before sign-in brings concurrent users and before go-live | Go-live |
+| 3 | Configuration › Committees truncates names and scrolls sideways at 390 (carried since 6.3); configuration tables at 390 generally (BD-34, BD-R3-8) | Design-system change: a stacked list for configuration tables | Phase 2 acceptance |
+| 4 | "Routed on: Its value band" reads vaguely on the requisition route | Wording from lib labels, tested | Phase 2 acceptance |
+| 5 | Dashboard money stat spills 5px at 1280 | Shared `Stat` fix | Nothing |
+| 6 | Time-zone Select ships about 430 options (40 KB) | Load the list on demand or narrow it | Nothing |
+| 7 | INT-01/02 reconciliation report for the operator-entry path | Integration module after D5 | Go-live |
+| 8 | FR-APR-017 recall on name and award routes | Backlog (S) | Nothing |
+| 9 | FR-AWD-014 contract-record display; EOT default exclusion | 4a; EOT module | Nothing in Phase 1 |
+| 10 | Section 5's open items (6.10 at 390; `formatDate` on instants) | A grep at `31c1923` found no instant rendered with `formatDate`; re-check with item 3 | Phase 2 acceptance |
+| 11 | Everything in sections 2, 3 and 6 already deferred or re-designated, as cited | As cited | As cited |
+
+**Section 9 (document store addendum)** is filled when the document store is accepted, not now.
+
+**Next:** the document store per `docs/notes/plans/platform-document-store.md`. ADR 0011 and the plan's status are marked accepted with the rulings first. Then 6.2.

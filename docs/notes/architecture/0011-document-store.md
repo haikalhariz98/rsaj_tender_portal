@@ -1,6 +1,6 @@
 # 0011 — Documents are content-addressed, immutable versions behind a storage façade
 
-**Status:** proposed — awaiting product-owner rulings OD-1 to OD-9 in `docs/notes/plans/platform-document-store.md`. Mandated
+**Status:** accepted 2026-10-01 with rulings OD-1 to OD-9 and the scope conditions (decisions log) — see `docs/notes/plans/platform-document-store.md`. Mandated
 by CO-8 (2026-10-01). Numbered 0011 because `phase1-closeout.md` claims 0009 and 0010.
 
 ## Context

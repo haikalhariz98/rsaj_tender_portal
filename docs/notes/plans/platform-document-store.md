@@ -1,6 +1,6 @@
 # Platform module — document store — plan
 
-Status **proposed, awaiting the product owner's rulings (§7)**. Mandated by CO-8 (2026-10-01): a separate platform module with its
+Status **accepted 2026-10-01 with rulings OD-1–OD-9 and the scope conditions (decisions log, "doc store" entries); go-ahead given on Phase 1 acceptance**. Mandated by CO-8 (2026-10-01): a separate platform module with its
 own ADR, landing before RSAJ go-live and before Phase 2 acceptance. Decision record: `docs/notes/architecture/0011-document-store.md`
 (0009 and 0010 are claimed by `phase1-closeout.md`; 6.2's ADR takes the next free number when written).
 Spec: §10.1 NFR-AUD-001/003/005, §10.2 NFR-RET-001/002, §10.4 NFR-GEN-003, §10.5 NFR-SIG-002, §10.6 NFR-SEC-001/002/003/007/008,
