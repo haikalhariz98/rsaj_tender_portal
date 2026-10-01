@@ -11,7 +11,7 @@ import { diffFields, snapshotFields, type FieldChange } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { ACT_LABEL } from "@/lib/labels";
-import { latestFirst, nameRequestFault, nameRouteForRequester, requesterHolding, WITHDRAWN_ON_CANCEL, WITHDRAWN_ON_CHANGE } from "@/lib/method/approval";
+import { exerciseRouteMatter, exerciseRoutesOf, latestFirst, nameRequestFault, nameRoutesOf, nameRouteForRequester, requesterHolding, WITHDRAWN_ON_CANCEL, WITHDRAWN_ON_CHANGE } from "@/lib/method/approval";
 import { closeRejected, loadDestinations, openSuccessor, recordChoice, snapshotOf } from "@/lib/approvals/rejection-store";
 import { choiceFault, rejectionOutcome, rejectionSnapshot, REJECTION_KINDS, type RejectionKind } from "@/lib/authority/rejection";
 import { CHOICE_FAULT_TEXT } from "@/lib/authority/rejection-labels";
@@ -366,7 +366,7 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
     if (moved.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", auditPair(ex, { ...ex, ...after }), String(data.get("reason") ?? ""));
     await writeChildren(tx, l.org.id, ex, ex, v.draft.scope, ev, cfg.config);
-    const withdraw = nameRoutesToWithdraw(ex.approvalInstances, { methodChanged, valueChanged });
+    const withdraw = nameRoutesToWithdraw(nameRoutesOf(ex.approvalInstances), { methodChanged, valueChanged });
     for (const inst of withdraw.routes) {
       const warning = { code: WITHDRAWN_ON_CHANGE, level: "warn", messageEn: `${withdraw.reason} This route no longer describes the exercise, so it was withdrawn.` };
       await tx.approvalInstance.update({
@@ -497,7 +497,7 @@ export async function requestNameApproval(_prev: FormState, data: FormData): Pro
     if (!issue || !ctx) return NO_ISSUE;
     const method = cfg.config.methods.find((m) => m.code === ex.sourcingMethodCode) ?? null;
     // In draft or in preparation, and again after a refusal or withdrawal (ruling on BD-4).
-    const rf = nameRequestFault(ex.status, method, ex.approvalInstances, l.org.today);
+    const rf = nameRequestFault(ex.status, method, nameRoutesOf(ex.approvalInstances), l.org.today);
     if (rf) return refuse([rf], "Not sent:");
     const pf = nameRequestProposalFault(method!.requiresProposal, ex.proposalState);
     if (pf) return refuse([pf], "Not sent:");
@@ -585,7 +585,7 @@ export async function recordNameDecision(_prev: FormState, data: FormData): Prom
 
   return inExercise(id, async (tx, l) => {
     const ex = l.ex;
-    const inst = ex.approvalInstances.find((i) => i.status === "PENDING");
+    const inst = nameRoutesOf(ex.approvalInstances).find((i) => i.status === "PENDING");
     if (!inst || ex.status === "CANCELLED") return { ok: false, message: "No name approval is open on this exercise." };
     const step = inst.steps.find((s) => s.id === stepId);
     if (!step) return { ok: false, message: "That step is not on the open route." };
@@ -672,7 +672,7 @@ export async function chooseNameRejection(_prev: FormState, data: FormData): Pro
   return inExercise(id, async (tx, l) => {
     const ex = l.ex;
     if (!l.org.today) return { ok: false, message: findingText({ code: "TIME_ZONE_UNSET", level: "block" }) };
-    const inst = latestFirst(ex.approvalInstances)[0];
+    const inst = latestFirst(nameRoutesOf(ex.approvalInstances))[0];
     const rejecting = inst?.steps.find((s) => s.decision === "REJECTED") ?? null;
     const offered = (inst?.rejectionChoices as RejectionKind[] | undefined) ?? [];
     const supports = await nameSupports(tx, ex.id);
@@ -787,10 +787,11 @@ export async function cancelExercise(_prev: FormState, data: FormData): Promise<
     const moved = await tx.sourcingExercise.updateMany({ where: { id, status: ex.status }, data: { status: "CANCELLED", cancelReason: reason } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", diffFields({ status: ex.status }, { status: "CANCELLED" }), reason);
-    for (const inst of ex.approvalInstances.filter((i) => i.status === "PENDING")) {
+    // Every pending route of the exercise's own, of each domain (name and tendering), is withdrawn.
+    for (const inst of exerciseRoutesOf(ex.approvalInstances).filter((i) => i.status === "PENDING")) {
       const warning = { code: WITHDRAWN_ON_CANCEL, level: "info", messageEn: `Withdrawn: the exercise was cancelled — ${reason}` };
       await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
-      await audit(tx, l.org.id, "ApprovalInstance", inst.id, nameLabel(ex), "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), `The exercise was cancelled: ${reason}`);
+      await audit(tx, l.org.id, "ApprovalInstance", inst.id, `${ex.reference} · ${exerciseRouteMatter(inst.domain).auditNoun}`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), `The exercise was cancelled: ${reason}`);
     }
     return { ok: true };
   });

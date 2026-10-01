@@ -10,6 +10,7 @@ import { escalationFaultText, ESCALATION_KIND_LABEL } from "@/lib/authority/esca
 import { actingOffice, stepEscalation } from "@/lib/authority/escalation";
 import { dayToDate, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { exerciseRouteMatter } from "@/lib/method/approval";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
@@ -106,7 +107,7 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
       };
       const moved = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
       if (moved.count !== 1) return { ok: false, message: "The step changed while this was being saved. Reload and try again." };
-      const matter = inst.award ? `${inst.award.reference} · appointment` : inst.exercise ? `${inst.exercise.reference} · name approval` : `${inst.requisition?.reference ?? "Matter"}`;
+      const matter = inst.award ? `${inst.award.reference} · appointment` : inst.exercise ? `${inst.exercise.reference} · ${exerciseRouteMatter(inst.domain).auditNoun}` : `${inst.requisition?.reference ?? "Matter"}`;
       await writeAudit(tx, { organisationId: req.organisationId, entity: "ApprovalStep", entityId: step.id, entityLabel: `${matter} · ${step.roleLabel}`, reason }, "UPDATE",
         diffFields(
           { actingOffice: step.actingRoleLabel ?? step.roleLabel },

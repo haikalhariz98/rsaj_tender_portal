@@ -16,6 +16,8 @@ export type { Provenance, Regime, FundingPosture };
 /// for them is the customer's configuration.
 export const APPOINTMENT_DOMAIN = "appointment";
 export const NAME_APPROVAL_DOMAIN = "name_approval";
+/// Approval for Tendering (FR-DOC-012, 6.4): the exercise's second route of its own.
+export const TENDERING_APPROVAL_DOMAIN = "tendering_approval";
 
 export type ExerciseStatus = "DRAFT" | "DOCUMENTS_IN_PREPARATION" | "CANCELLED";
 export type DeliverableKind = "GOODS_DELIVERED" | "MEASURED_CONSTRUCTION" | "TERM_PERFORMANCE";

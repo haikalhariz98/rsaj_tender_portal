@@ -17,7 +17,7 @@ import type { ApprovalStep, CoreChainRecord, Matrix, Resolution, ResolutionWarni
 import type { Sen } from "@/lib/money";
 import { ableToAct, type Holders } from "@/lib/requisition/holders";
 
-import { APPOINTMENT_DOMAIN, NAME_APPROVAL_DOMAIN, type Finding, type Method } from "./types";
+import { APPOINTMENT_DOMAIN, NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN, type Finding, type Method } from "./types";
 
 export interface FunderContext {
   dal: Matrix;
@@ -153,6 +153,53 @@ export function resolveNameApproval(ctx: FunderContext, method: Method, value: n
   if (p.state === "NO_RULE") return { ...p, nameState: "NO_RULE" };
   if (p.chain.some((s) => s.committeeCode)) return { ...p, nameState: "HAS_COMMITTEE_STEP" };
   return { ...p, nameState: "RESOLVED" };
+}
+
+/**
+ * An exercise's own routes, told apart by domain (ruling X-5). An exercise carries the
+ * approval of its name and, from 6.4, Approval for Tendering; an award's appointment
+ * route also names the exercise but is the award's. Every reader takes its routes
+ * through this one splitter, never by `awardId` alone, so a tendering route never reads
+ * as a name route (and an approved one never satisfies `invitationFault`). A later
+ * module adds its domain here and nowhere else.
+ */
+export const EXERCISE_ROUTE_DOMAINS = [NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN] as const;
+export type ExerciseRouteDomain = (typeof EXERCISE_ROUTE_DOMAINS)[number];
+
+/// The database filter for an exercise's own routes: no award, and one of its domains.
+export const EXERCISE_ROUTES_WHERE = { awardId: null, domain: { in: [...EXERCISE_ROUTE_DOMAINS] } };
+
+const isExerciseDomain = (d: string): d is ExerciseRouteDomain => (EXERCISE_ROUTE_DOMAINS as readonly string[]).includes(d);
+
+/// An exercise's routes split by domain, in the order given. A route of another domain,
+/// or an award's, is in none of them.
+export function routesByDomain<T extends { domain: string; awardId?: string | null }>(routes: readonly T[]): Record<ExerciseRouteDomain, T[]> {
+  const out = Object.fromEntries(EXERCISE_ROUTE_DOMAINS.map((d) => [d, [] as T[]])) as Record<ExerciseRouteDomain, T[]>;
+  for (const r of routes) if (!r.awardId && isExerciseDomain(r.domain)) out[r.domain].push(r);
+  return out;
+}
+
+/// The approval-of-the-name routes (FR-MTD-008).
+export const nameRoutesOf = <T extends { domain: string; awardId?: string | null }>(routes: readonly T[]): T[] => routesByDomain(routes)[NAME_APPROVAL_DOMAIN];
+/// The Approval for Tendering routes (FR-DOC-012).
+export const tenderingRoutesOf = <T extends { domain: string; awardId?: string | null }>(routes: readonly T[]): T[] => routesByDomain(routes)[TENDERING_APPROVAL_DOMAIN];
+/// Every route of the exercise's own, of any of its domains (cancelling withdraws them all).
+export const exerciseRoutesOf = <T extends { domain: string; awardId?: string | null }>(routes: readonly T[]): T[] => {
+  const by = routesByDomain(routes);
+  return routes.filter((r) => EXERCISE_ROUTE_DOMAINS.some((d) => by[d].includes(r)));
+};
+
+/// What an exercise route is called, where it opens and how its audit rows name it.
+/// Labels only: the domain key never reaches a screen.
+export const EXERCISE_ROUTE_MATTER: Record<ExerciseRouteDomain, { kind: string; tab: string; auditNoun: string }> = {
+  [NAME_APPROVAL_DOMAIN]: { kind: "Approval of the name", tab: "name", auditNoun: "name approval" },
+  [TENDERING_APPROVAL_DOMAIN]: { kind: "Approval for tendering", tab: "documents", auditNoun: "approval for tendering" },
+};
+
+/// The label of an exercise route of any domain. A domain the product does not know
+/// reads as an approval on the exercise and opens the exercise itself.
+export function exerciseRouteMatter(domain: string): { kind: string; tab: string | null; auditNoun: string } {
+  return isExerciseDomain(domain) ? EXERCISE_ROUTE_MATTER[domain] : { kind: "Approval on the exercise", tab: null, auditNoun: "approval" };
 }
 
 export type NameFault = "NAME_NOT_REQUESTED" | "NAME_NOT_APPROVED" | "NAME_REJECTED";

@@ -14,6 +14,7 @@ import { dayToDate, storedDay } from "@/lib/dates";
 import { evidenceCount, isEvidenceSnapshot } from "@/lib/documents/evidence";
 import { attachmentFacts } from "@/lib/documents/repo";
 import { db } from "@/lib/db";
+import { nameRoutesOf } from "@/lib/method/approval";
 import { approvedRouteOf, evaluationContext, exerciseOrg, loadExercise, type ExerciseOrg, type LoadedExercise } from "@/lib/method/repo";
 import { isBandSnapshot } from "@/lib/method/snapshot";
 import { parseSen, senFromDecimal } from "@/lib/money";
@@ -300,7 +301,7 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
     policy: config.policy,
     funder: ctx?.funder ?? null,
     method,
-    nameRoutes: ex.approvalInstances.map((i) => ({ status: i.status as ApprovalStatus, openedAt: i.openedAt, createdAt: i.createdAt, id: i.id })),
+    nameRoutes: nameRoutesOf(ex.approvalInstances).map((i) => ({ status: i.status as ApprovalStatus, openedAt: i.openedAt, createdAt: i.createdAt, id: i.id })),
     routePeople: {
       absentRoleCodes: org.today ? absentOffices(officeCodes, holdersOf, available) : [],
       requesterHolds: (code) => holdersOf(code).holderIds.includes(req.requestingPersonId),

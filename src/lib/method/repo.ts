@@ -19,7 +19,7 @@ import { fundingPosture } from "@/lib/reference/vocabulary";
 import { historyChange } from "@/lib/scope/audit-view";
 
 import { byValue } from "./bands";
-import type { FunderContext } from "./approval";
+import { EXERCISE_ROUTES_WHERE, type FunderContext } from "./approval";
 import type { EvaluationContext, ExerciseDraft, MethodConfig } from "./evaluate";
 import type { ContractTypeRow, DeliverableKind, ExerciseStatus, Method, TermsBand } from "./types";
 import type { ApprovedRoute } from "./value";
@@ -111,9 +111,10 @@ const exerciseInclude = {
   overriddenBy: { select: { id: true, name: true } },
   proposalReviewer: { select: { id: true, name: true } },
   approvalInstances: {
-    // The exercise's own routes (name approval). An award's appointment route also names
-    // the exercise, but it is the award's: it never reads as a name approval (6.11).
-    where: { awardId: null },
+    // The exercise's own routes, of its own domains (ruling X-5). An award's appointment
+    // route also names the exercise, but it is the award's: it never reads as a name
+    // approval (6.11). Readers split them with `nameRoutesOf` / `tenderingRoutesOf`.
+    where: EXERCISE_ROUTES_WHERE,
     // Newest first, same-day routes by when written, then by id (review #4, BD-17).
     orderBy: [{ openedAt: "desc" as const }, { createdAt: "desc" as const }, { id: "desc" as const }],
     include: {
@@ -248,7 +249,7 @@ export async function listExercises() {
       take: EXERCISES_PAGE,
       include: {
         requisition: { select: { id: true, reference: true, erpRequisitionNo: true } },
-        approvalInstances: { where: { awardId: null }, select: { status: true, openedAt: true } },
+        approvalInstances: { where: EXERCISE_ROUTES_WHERE, select: { status: true, openedAt: true, domain: true, awardId: true } },
       },
     }),
     db.sourcingExercise.count({ where }),

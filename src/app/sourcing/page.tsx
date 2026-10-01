@@ -4,6 +4,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
+import { nameRoutesOf } from "@/lib/method/approval";
 import { EXERCISE_STATUS_LABEL, EXERCISE_STATUS_TONE, REGIME_SHORT, TERM } from "@/lib/method/labels";
 import { EXERCISES_PAGE, listExercises, loadMethodConfig } from "@/lib/method/repo";
 import type { ExerciseStatus, Regime } from "@/lib/method/types";
@@ -23,11 +24,11 @@ export default async function SourcingPage() {
   const methodName = (c: string) => cfg?.config.methods.find((m) => m.code === c)?.nameEn ?? "A method no longer configured";
   const typeName = (c: string | null) => (c ? (cfg?.config.types.find((t) => t.code === c)?.nameEn ?? "A type no longer configured") : "Not set");
 
-  const awaitingName = rows.filter((r) => r.status !== "CANCELLED" && r.approvalInstances.some((i) => i.status === "PENDING")).length;
+  const awaitingName = rows.filter((r) => r.status !== "CANCELLED" && nameRoutesOf(r.approvalInstances).some((i) => i.status === "PENDING")).length;
   const list: Row[] = rows.map((r) => {
     const status = r.status as ExerciseStatus;
-    const nameOpen = status !== "CANCELLED" && r.approvalInstances.some((i) => i.status === "PENDING");
-    const nameApproved = status !== "CANCELLED" && r.approvalInstances.some((i) => i.status === "APPROVED");
+    const nameOpen = status !== "CANCELLED" && nameRoutesOf(r.approvalInstances).some((i) => i.status === "PENDING");
+    const nameApproved = status !== "CANCELLED" && nameRoutesOf(r.approvalInstances).some((i) => i.status === "APPROVED");
     return {
       id: r.id,
       views: [

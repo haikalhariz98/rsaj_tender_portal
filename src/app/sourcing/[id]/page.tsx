@@ -31,7 +31,7 @@ import { routeTone, stepTone } from "@/lib/ui/status-tone";
 import { dayToDate } from "@/lib/dates";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
-import { latestFirst, nameRequestFault, nameRouteForRequester, nameRouteLabel, requesterHolding, resolveNameApproval } from "@/lib/method/approval";
+import { latestFirst, nameRequestFault, nameRouteForRequester, nameRouteLabel, nameRoutesOf, requesterHolding, resolveNameApproval } from "@/lib/method/approval";
 import { disagreesAtBoundary } from "@/lib/method/bands";
 import { determinationDrift } from "@/lib/method/drift";
 import { evaluateExercise } from "@/lib/method/evaluate";
@@ -158,8 +158,9 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const items = (cfg.checklist[ex.sourcingMethodCode] ?? []).filter((i) => i.retiredOn == null || i.retiredOn > on);
   const pFaults = method?.requiresProposal ? proposalFaults(items, ex.proposalAnswers, on) : [];
   const proposal = proposalView(ex.proposalState, ex.proposalRecord, items, ex.proposalAnswers, on);
-  const openName = ex.approvalInstances.find((i) => i.status === "PENDING") ?? null;
-  const approvedName = ex.approvalInstances.find((i) => i.status === "APPROVED") ?? null;
+  const nameRoutes = nameRoutesOf(ex.approvalInstances);
+  const openName = nameRoutes.find((i) => i.status === "PENDING") ?? null;
+  const approvedName = nameRoutes.find((i) => i.status === "APPROVED") ?? null;
   const live = ex.status !== "CANCELLED";
   // The route as the request would make it: with the requester's own offices escalated,
   // or refused, and refused where they alone could act for a step (FR-APR-008, R1).
@@ -175,7 +176,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const nameBlocker = !canAskName
     ? null
     : (() => {
-        const rf = nameRequestFault(ex.status, method, ex.approvalInstances, today);
+        const rf = nameRequestFault(ex.status, method, nameRoutes, today);
         if (rf) return findingText(rf);
         const pf = nameRequestProposalFault(method!.requiresProposal, ex.proposalState);
         if (pf) return findingText(pf);
@@ -388,7 +389,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
             panel: (
               <NamePanel
                 l={l}
-                current={openName ?? latestFirst(ex.approvalInstances)[0] ?? null}
+                current={openName ?? latestFirst(nameRoutes)[0] ?? null}
                 preview={nameRoute && nameRoute.nameState === "RESOLVED" && !nameRoute.refusal ? nameRoute.chain.map((s) => ({ role: issue?.matrix.roles[s.roleCode]?.nameEn ?? "An office no longer configured", act: s.act })) : null}
                 previewText={nameRoute && nameRoute.nameState !== "RESOLVED" ? NAME_STATE_TEXT[nameRoute.nameState] : (nameRoute?.refusal ?? null)}
                 suggestions={suggestions}
@@ -939,7 +940,7 @@ function NamePanel({
 }) {
   const ex = l.ex;
   const inst = current;
-  const earlier = latestFirst(ex.approvalInstances).filter((i) => i.id !== current?.id);
+  const earlier = latestFirst(nameRoutesOf(ex.approvalInstances)).filter((i) => i.id !== current?.id);
   return (
     <div className="flex flex-col gap-6">
       <Callout tone="info" title="Name approval recorded; not enforced in this phase">

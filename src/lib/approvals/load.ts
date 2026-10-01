@@ -6,6 +6,7 @@
 import { someoneCanAct } from "@/lib/authority/absence";
 import { dayToDate, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { exerciseRouteMatter } from "@/lib/method/approval";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
@@ -45,7 +46,11 @@ export async function loadWorklist() {
       r.award && r.exercise
         ? { label: `${r.award.reference} · ${r.award.awardeeName}`, kind: "Appointment", href: `/awards/${r.award.id}?tab=approval` }
         : r.exercise
-          ? { label: `${r.exercise.reference} · ${r.exercise.title}`, kind: "Approval of the name", href: `/sourcing/${r.exercise.id}?tab=name` }
+          ? (() => {
+              // Labelled by domain, never by the absence of an award (ruling X-5).
+              const m = exerciseRouteMatter(r.domain);
+              return { label: `${r.exercise.reference} · ${r.exercise.title}`, kind: m.kind, href: m.tab ? `/sourcing/${r.exercise.id}?tab=${m.tab}` : `/sourcing/${r.exercise.id}` };
+            })()
           : r.requisition
             ? { label: `${r.requisition.reference} · ${r.requisition.title}`, kind: "Requisition", href: `/requisitions/${r.requisition.id}?tab=approval` }
             : null;
