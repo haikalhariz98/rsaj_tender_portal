@@ -65,7 +65,7 @@ export function SubmitPackDrawer({ exerciseId, allowed, rows, warnings, today }:
       columns={2}
       fields={[
         hidden("exerciseId"),
-        { kind: "date", name: "startOn", label: "Tendering starts on", required: true, hint: "Today or later. The approver may set another." },
+        { kind: "date", name: "startOn", label: "Tendering starts on", required: true, hint: "Today or later. Where the notice states the validity window, it states these days, and the approver records them." },
         { kind: "date", name: "closingDay", label: "Closing day", required: true, hint: "After the start day." },
         { kind: "text", name: "closingTime", label: "Closing time", required: true, placeholder: "14:30", hint: "Hours and minutes, 24-hour, the organisation's clock." },
       ]}
@@ -151,7 +151,7 @@ export function ReopenPartDrawer({ exerciseId, partId, partLabel, state }: { exe
   );
 }
 
-export function DecideDrawer({ exerciseId, stepId, office, done, people, today, recordsDates }: { exerciseId: string; stepId: string; office: string; done: string; people: Option[]; today: string | null; recordsDates: boolean }) {
+export function DecideDrawer({ exerciseId, stepId, office, done, people, today, recordsDates, windowNote }: { exerciseId: string; stepId: string; office: string; done: string; people: Option[]; today: string | null; recordsDates: boolean; windowNote?: string | null }) {
   return (
     <RecordEditor
       title={`Record ${office}'s decision`}
@@ -168,6 +168,7 @@ export function DecideDrawer({ exerciseId, stepId, office, done, people, today, 
               { kind: "date", name: "startOn", label: "Tendering starts on", hint: "Required when approving. Not before the day decided." },
               { kind: "date", name: "closingDay", label: "Closing day", hint: "Required when approving. After the start day." },
               { kind: "text", name: "closingTime", label: "Closing time", placeholder: "14:30", hint: "Hours and minutes, 24-hour." },
+              ...(windowNote ? [{ kind: "note", text: windowNote }] : []),
             ] as Field[])
           : []),
       ]}

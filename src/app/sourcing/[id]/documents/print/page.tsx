@@ -16,7 +16,9 @@ export const dynamic = "force-dynamic";
  */
 export default async function PackPrintPage(props: PageProps<"/sourcing/[id]/documents/print">) {
   const { id } = await props.params;
-  const v = await printView(id);
+  // FR-DOC-010 (the part built here): the same pack, only the parts in the Tender Table Document.
+  const table = (await props.searchParams).set === "table";
+  const v = await printView(id, table ? "table" : "pack");
   if (!v) notFound();
   const draft = v.watermark != null;
   const frozen = !draft || v.watermark === "With approval, not issued";
@@ -25,7 +27,10 @@ export default async function PackPrintPage(props: PageProps<"/sourcing/[id]/doc
       <RecordCrumb label={v.exercise.reference} />
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3 print:hidden">
         <Link href={`/sourcing/${id}?tab=documents`}>Back to the tender documents</Link>
-        <PrintButton icon={<PrinterIcon size={15} />} />
+        <span className="flex flex-wrap items-center gap-3">
+          <Link href={table ? `/sourcing/${id}/documents/print` : `/sourcing/${id}/documents/print?set=table`}>{table ? "The whole pack" : "The Tender Table Document"}</Link>
+          <PrintButton icon={<PrinterIcon size={15} />} />
+        </span>
       </div>
       {v.watermark ? (
         <Callout tone="warn" className="mb-5 print:hidden">
@@ -44,10 +49,13 @@ export default async function PackPrintPage(props: PageProps<"/sourcing/[id]/doc
         )}
         <header className="mb-8 flex flex-wrap justify-between gap-x-6 gap-y-1 border-b border-line pb-3 text-[11.5px] text-ink-3">
           <span>{v.exercise.reference}</span>
+          <span>{v.document}</span>
           <span>{v.form}</span>
           <span>Version {v.version}</span>
           {v.watermark && <span>{v.watermark}</span>}
         </header>
+        {v.stamp && <p className="mb-8 border-2 border-ink px-4 py-2 text-center text-[15px] font-bold tracking-wide break-words text-ink">{v.stamp}</p>}
+        {v.parts.length === 0 && <p className="text-[13.5px] text-ink-3">{table ? "No part of this version is in the Tender Table Document." : "This version has no parts."}</p>}
         <div className="relative flex flex-col gap-10">
           {v.parts.map((p) => (
             <section key={p.printedNumber} id={`part-${p.printedNumber}`} className="scroll-mt-24 break-inside-avoid-page">

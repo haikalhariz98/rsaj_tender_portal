@@ -16,7 +16,9 @@ import { ORGANISATION_CODE } from "@/lib/org";
 import { senToDecimalString, parseSen } from "@/lib/money";
 import { NOT_SET } from "@/lib/tender-docs/labels";
 import { tenderDocsConfig } from "@/lib/tender-docs/read";
+import { conditionsConfig } from "@/lib/tender-docs/read-config-conditions";
 
+import { BodyDrawer, ClauseDrawer, RestoreDrawer, RetireDrawer } from "./conditions-editors";
 import { EditMethodPack, EditTenderPolicy, PartDrawer, RestorePartDrawer, RetirePartDrawer, type PartValues } from "./editors";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +26,9 @@ export const dynamic = "force-dynamic";
 /// What a setting leaves undecided while it is unset: said beside "Not set", never a zero.
 const UNSET = {
   stamp: "No wording is stamped on a restricted tender: there is none to print.",
-  assurance: "Whether the two assurance confirmations are required is undecided, so none is asked for.",
+  assurance: "Whether the two assurance confirmations are required is undecided, so no tender documents can be submitted.",
+  restriction: "The restriction is asked on each exercise as a restricted tender.",
+  permits: "Works that need the regulator's permit cannot name its type, so their documents cannot be submitted.",
   lad: "A liquidated damages rate stated as a percentage has no policy rate to be suggested from.",
   certificate: "The first interim certificate's minimum cannot be stated from policy: it is entered by hand.",
   insurance: "The end of the insurance period cannot be worked out.",
@@ -52,7 +56,7 @@ const tri = (v: boolean | null) => (v === true ? "yes" : v === false ? "no" : "u
 
 export default async function TenderDocumentsConfigurationPage({ searchParams }: { searchParams: Promise<{ retired?: string }> }) {
   const showRetired = (await searchParams).retired === "1";
-  const c = await tenderDocsConfig(showRetired);
+  const [c, k] = await Promise.all([tenderDocsConfig(showRetired), conditionsConfig(showRetired)]);
   if (!c) {
     return (
       <>
@@ -83,6 +87,9 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
     dbInsuranceExtraDays: policyRow?.dbInsuranceExtraDays == null ? "" : String(policyRow.dbInsuranceExtraDays),
     dbInsuranceExtraProvenance: policyRow?.dbInsuranceExtraProvenance ?? "",
     regulatorPermitTaxonomyCode: policyRow?.regulatorPermitTaxonomyCode ?? "",
+    restrictionLabelEn: policyRow?.restrictionLabelEn ?? "",
+    restrictionProvenance: policyRow?.restrictionProvenance ?? "",
+    assuranceProvenance: policyRow?.assuranceProvenance ?? "",
     governingSource: policyRow?.governingSource ?? "",
     notes: policyRow?.notes ?? "",
   };
@@ -115,12 +122,13 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
   const options = { packKinds: c.options.packKinds, bases: c.options.bases, templates: c.options.templates, units: c.options.units, roles: c.options.roles, contents: c.options.contents, sources: c.options.sources };
 
   const setting = (label: string, node: ReactNode) => ({ label, value: node });
+  const holding = c.holdingWorkBack + (k?.holdingWorkBack ?? 0);
 
   return (
     <>
       <PageHeader
         title="Tender documents"
-        badge={c.holdingWorkBack > 0 ? <Badge tone="warn" dot>{`${c.holdingWorkBack} holding work back`}</Badge> : <Badge tone="ok" dot>Nothing holding work back</Badge>}
+        badge={holding > 0 ? <Badge tone="warn" dot>{`${holding} holding work back`}</Badge> : <Badge tone="ok" dot>Nothing holding work back</Badge>}
         subtitle="The parts each pack assembles, the wording it carries and the figures it is judged by."
         actions={
           <>
@@ -149,7 +157,7 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
             subtitle="Unset is not zero and not a guess: it says what it leaves undecided. A figure set says where it came from."
             actions={
               <span className="flex flex-wrap items-center gap-2">
-                <EditTenderPolicy values={policyValues} />
+                <EditTenderPolicy values={policyValues} taxonomies={k?.taxonomyOptions ?? []} />
               </span>
             }
           />
@@ -159,7 +167,9 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
               items={[
                 setting("Wording stamped on a restricted tender (English)", <Setting value={p.restrictionStampEn} unset={UNSET.stamp} />),
                 setting("Wording stamped on a restricted tender (Malay)", <Setting value={p.restrictionStampMs} unset={UNSET.stamp} />),
-                setting("Assurance confirmations required", <Setting value={p.assuranceRequired} unset={UNSET.assurance} />),
+                setting("The restriction, as the exercise asks it", <Setting value={k?.policy.restrictionAskedAs ?? NOT_SET} unset={UNSET.restriction} source={k?.policy.restrictionProvenance ?? null} />),
+                setting("Assurance confirmations required", <Setting value={p.assuranceRequired} unset={UNSET.assurance} source={p.assuranceRequired === NOT_SET ? undefined : (k?.policy.assuranceProvenance ?? null)} />),
+                setting("The list of regulator permits", <Setting value={k?.policy.permitList ?? NOT_SET} unset={UNSET.permits} />),
                 setting("Liquidated damages a day", <Setting value={p.ladDailyRate} unset={UNSET.lad} source={policyRow?.ladDailyPctProvenance ?? null} />),
                 setting("First interim certificate's minimum", <Setting value={p.firstCertificate} unset={UNSET.certificate} source={policyRow?.firstCertificateProvenance ?? null} />),
                 setting("Insurance beyond the defects liability period", <Setting value={p.insuranceTail} unset={UNSET.insurance} source={policyRow?.insuranceExtraProvenance ?? null} />),
@@ -170,6 +180,106 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
             {policyRow?.notes && <p className="mt-4 text-[13px] break-words whitespace-pre-line text-ink-2">{policyRow.notes}</p>}
           </CardBody>
         </Card>
+
+        {k && (
+          <Card id="registration-bodies" className="scroll-mt-24 overflow-hidden">
+            <CardHeader
+              title={
+                <span className="inline-flex items-center gap-2">
+                  Registration bodies
+                  {k.bodies.length > 0 && <Badge outline>{k.bodies.length}</Badge>}
+                </span>
+              }
+              subtitle="The bodies a bidder registers with. Each exercise lists the registrations it requires from these, and its notice prints them."
+              actions={<BodyDrawer />}
+              divided={k.bodies.length === 0}
+            />
+            {k.bodies.length === 0 ? (
+              <EmptyState title="None configured">An exercise cannot record who may bid until its registration bodies are added.</EmptyState>
+            ) : (
+              <Table minWidth={620}>
+                <colgroup>
+                  <col />
+                  <col style={{ width: "30%" }} />
+                  <col style={{ width: 120 }} />
+                  <ActionsCol icons={1} labelled={2} />
+                </colgroup>
+                <THead>
+                  <Th>Body</Th>
+                  <Th>Stated with it</Th>
+                  <Th>Source</Th>
+                  <Th className="text-right">Actions</Th>
+                </THead>
+                <tbody>
+                  {k.bodies.map((b) => (
+                    <Tr key={b.id}>
+                      <Td label="Body"><CellStack title={b.name} sub={[b.nameMs, b.governingSource, b.retired ? `Retired${b.retiredOn ? ` from ${formatDate(b.retiredOn)}` : ""}` : null].filter(Boolean).join(" · ") || undefined} /></Td>
+                      <Td label="Stated with it">{b.statedWithIt}</Td>
+                      <Td label="Source"><ProvenanceBadge value={b.provenance} /></Td>
+                      <Td>
+                        <RowActions>
+                          <HistoryButton iconOnly entity="RegistrationBody" entityId={b.id} label={b.name} />
+                          <BodyDrawer body={{ id: b.id, name: b.name, values: b.values }} />
+                          {b.retired ? <RestoreDrawer kind="body" id={b.id} label={b.name} /> : <RetireDrawer kind="body" id={b.id} label={b.name} />}
+                        </RowActions>
+                      </Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </Card>
+        )}
+
+        {k && (
+          <Card id="clauses" className="scroll-mt-24 overflow-hidden">
+            <CardHeader
+              title={
+                <span className="inline-flex items-center gap-2">
+                  Clauses
+                  {k.clauses.length > 0 && <Badge outline>{k.clauses.length}</Badge>}
+                </span>
+              }
+              subtitle="Clauses a template cites. One every agreement carries can be left out only under a legal endorsement on the exercise."
+              actions={<ClauseDrawer />}
+              divided={k.clauses.length === 0}
+            />
+            {k.clauses.length === 0 ? (
+              <EmptyState title="None configured">No clause is required in agreements until one is added here.</EmptyState>
+            ) : (
+              <Table minWidth={620}>
+                <colgroup>
+                  <col />
+                  <col style={{ width: 170 }} />
+                  <col style={{ width: 120 }} />
+                  <ActionsCol icons={1} labelled={2} />
+                </colgroup>
+                <THead>
+                  <Th>Clause</Th>
+                  <Th>Every agreement</Th>
+                  <Th>Source</Th>
+                  <Th className="text-right">Actions</Th>
+                </THead>
+                <tbody>
+                  {k.clauses.map((x) => (
+                    <Tr key={x.id}>
+                      <Td label="Clause"><CellStack title={x.title} sub={[x.version, x.malay, x.governingSource, x.retired ? `Retired${x.retiredOn ? ` from ${formatDate(x.retiredOn)}` : ""}` : null].filter(Boolean).join(" · ")} /></Td>
+                      <Td label="Every agreement">{x.mandatory === NOT_SET ? <Badge tone="warn" title="Every submission is held back until this is set">Not set</Badge> : x.mandatory === "Yes" ? "Carries it" : "Not required"}</Td>
+                      <Td label="Source"><ProvenanceBadge value={x.provenance} /></Td>
+                      <Td>
+                        <RowActions>
+                          <HistoryButton iconOnly entity="ClauseText" entityId={x.id} label={x.title} />
+                          <ClauseDrawer clause={{ id: x.id, title: x.title, values: x.values }} />
+                          {x.retired ? <RestoreDrawer kind="clause" id={x.id} label={x.title} /> : <RetireDrawer kind="clause" id={x.id} label={x.title} />}
+                        </RowActions>
+                      </Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </Card>
+        )}
 
         <Card id="methods" className="scroll-mt-24 overflow-hidden">
           <CardHeader
@@ -217,10 +327,10 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
           )}
         </Card>
 
-        {retiredTotal > 0 || showRetired ? (
+        {retiredTotal + (k?.retiredCount ?? 0) > 0 || showRetired ? (
           <div className="-mb-3 flex justify-end">
             <ButtonLink href={showRetired ? "/configuration/tender-documents" : "/configuration/tender-documents?retired=1"} variant="ghost" size="sm">
-              {showRetired ? "Hide retired parts" : "Show retired parts"}
+              {showRetired ? "Hide retired records" : "Show retired records"}
             </ButtonLink>
           </div>
         ) : null}

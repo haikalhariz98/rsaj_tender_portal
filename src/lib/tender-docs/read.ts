@@ -188,7 +188,7 @@ export async function documentsTab(exerciseId: string) {
       afterAward: BEHAVIOURS_AFTER_AWARD.map((b) => ({ label: BEHAVIOUR_LABEL[b.key], value: valueText(b.key), where: BEHAVIOUR_AFTER_AWARD_WHERE[b.where] })),
       notRecorded: profile == null ? behaviourFaultText({ code: "PROFILE_NOT_RECORDED", level: "block" }) : null,
     },
-    route: await routeView(ex, org, req),
+    route: withWindowNote(await routeView(ex, org, req), packs.find((p) => p.status === "SUBMITTED") ?? null),
     dates: approved
       ? { start: formatDate(approved.approvedStartOn), closing: closingText(approved.approvedClosingAt, org.timeZone), approvedOn: formatDate(approved.approvedAt) }
       : shown?.status === "SUBMITTED"
@@ -261,6 +261,14 @@ function packView(p: PackRow, c: NonNullable<Awaited<ReturnType<typeof context>>
       };
     }),
   };
+}
+
+/// Increment 2: where the pack with approval froze a notice stating the validity window, the approving step is told the days it must record (BD-64-31).
+function withWindowNote<R extends { decide: object | null } | null>(route: R, submitted: PackRow | null): R {
+  if (!route?.decide) return route;
+  const stated = submitted ? readConditionsSnapshot(submitted.conditionsSnapshot)?.windowStated : null;
+  const note = stated ? `The frozen notice states the registrations' validity window from ${formatDate(stated.startOn)} to ${formatDate(stated.closingDay)}. Approving records those days; other days need the documents returned for amendment.` : null;
+  return { ...route, decide: { ...route.decide, windowNote: note } };
 }
 
 async function routeView(ex: NonNullable<Awaited<ReturnType<typeof loadExercise>>>["ex"], org: { id: string; today: string | null }, req: { sectionUnitCode: string | null; requestingUnitCode: string; requestingPersonId: string }) {

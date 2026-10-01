@@ -1,0 +1,173 @@
+/**
+ * What the Tender documents tab's increment-2 cards read: the tender's conditions (the
+ * registrations required, the restriction, the regulator permit), the assurance
+ * confirmations and the mandatory clauses — each in words, each act carrying whether it is
+ * allowed and why not, judged by the rule the action runs. Before submission it reads the
+ * live rows; once the pack is frozen it reads what was frozen (`conditionsSnapshot`), so a
+ * later configuration edit never rewrites what was judged. Reads only.
+ */
+
+import { db } from "@/lib/db";
+import { formatDate } from "@/lib/format";
+import { loadExercise } from "@/lib/method/repo";
+import { PROVENANCE_LABEL } from "@/lib/scope/labels";
+
+import { assuranceKindsFor, confirmFaults, type AssuranceKind } from "./assurance";
+import { clauseFaults, liveClauses, overrideFaults } from "./clauses";
+import { readConditionsSnapshot } from "./conditions";
+import { ASSURANCE_KIND_LABEL, CONDITIONS_FROZEN_TEXT, conditionsFaultText, confirmFaultText, overrideFaultText, restrictionQuestion } from "./conditions-labels";
+import { eligibilityEditFault, eligibilityFaults, groupsOf, noticeFaults, registrationText } from "./eligibility";
+import { NOT_SET, yesNoNotSet } from "./labels";
+import { permitFaults, permitLabel } from "./permit";
+import { loadConfirmations, loadOverrides, loadPacks, loadPermitList, loadRegistrationBodies, loadRequirements, loadTenderPolicy, loadClauses, partFactsOf, profileOf } from "./repo";
+import { restrictionFaults } from "./stamp";
+import type { Finding } from "./types";
+
+type Allowed = { allowed: true } | { allowed: false; reason: string };
+const ok: Allowed = { allowed: true };
+const no = (reason: string): Allowed => ({ allowed: false, reason });
+const provenance = (p: string | null | undefined) => (p ? ((PROVENANCE_LABEL as Record<string, string>)[p] ?? NOT_SET) : null);
+const words = (fs: readonly Finding[]) => fs.map((f) => ({ level: f.level, text: conditionsFaultText(f) }));
+const TRI = (b: boolean | null) => (b == null ? "unset" : b ? "yes" : "no");
+
+export async function conditionsTab(exerciseId: string) {
+  const l = await loadExercise(exerciseId);
+  if (!l) return null;
+  const { ex, org } = l;
+  const today = org.today;
+  const [packs, policy, bodies, requirements, clauses, people] = await Promise.all([
+    loadPacks(exerciseId),
+    loadTenderPolicy(org.id),
+    loadRegistrationBodies(org.id),
+    loadRequirements(exerciseId),
+    loadClauses(org.id),
+    db.person.findMany({ where: { organisationId: org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+  ]);
+  const list = await loadPermitList(org.id, policy.regulatorPermitTaxonomyCode, today);
+  const draft = packs.find((p) => p.status === "DRAFT") ?? null;
+  const frozenPack = packs.find((p) => p.status === "SUBMITTED" || p.status === "APPROVED") ?? null;
+  const snapshot = frozenPack ? readConditionsSnapshot(frozenPack.conditionsSnapshot) : null;
+  const editFault = eligibilityEditFault(ex.status);
+  const edit: Allowed = editFault ? no(CONDITIONS_FROZEN_TEXT) : today ? ok : no("The organisation's time zone is not set, so the tender's conditions cannot be judged. Set it under Configuration, Organisation.");
+  const parts = draft ? draft.parts.map(partFactsOf) : [];
+  const isLive = (retiredOn: string | null) => today != null && (retiredOn == null || retiredOn > today);
+  const profile = profileOf(ex.classificationSnapshot);
+  const registrationTest = profile?.find((p) => p.key === "registrationTest")?.value;
+
+  // ---- the registrations (FR-DOC-005)
+  const eligibility = {
+    groups: groupsOf(requirements).map((g, i) => ({
+      number: g[0].alternativeGroup,
+      heading: i === 0 ? (g.length > 1 ? "One of these" : "Required") : g.length > 1 ? "And one of these" : "And",
+      items: g.map((r) => ({ id: r.id, body: r.bodyLabel, qualifiers: r.qualifiers || null, qualifierLabel: r.qualifierLabel })),
+    })),
+    text: requirements.length ? registrationText(requirements, "EN") : null,
+    /// The contract type's registration test, as the exercise was decided under it: guidance for choosing the bodies.
+    typeTest: typeof registrationTest === "string" ? registrationTest : NOT_SET,
+    findings: today ? words([...eligibilityFaults(requirements, bodies, today), ...(draft ? noticeFaults(parts) : [])]) : [],
+    bodyOptions: bodies.filter((b) => isLive(b.retiredOn)).map((b) => ({ value: b.code, label: b.qualifierLabelEn ? `${b.labelEn} (state: ${b.qualifierLabelEn.toLowerCase()})` : b.labelEn })),
+    noBodies: bodies.filter((b) => isLive(b.retiredOn)).length === 0 ? "No registration bodies are configured. Add them under Configuration, Tender documents." : null,
+    nextGroup: requirements.reduce((m, r) => Math.max(m, r.alternativeGroup), 0) + 1,
+    window: snapshot?.eligibility.window ?? null,
+  };
+
+  // ---- the restriction (FR-DOC-009)
+  const restriction = {
+    question: restrictionQuestion(policy.restrictionLabelEn),
+    answer: yesNoNotSet(ex.restrictedTender),
+    raw: TRI(ex.restrictedTender),
+    stampEn: policy.restrictionStampTextEn ?? NOT_SET,
+    stampMs: policy.restrictionStampTextMs ?? NOT_SET,
+    provenance: provenance(policy.restrictionProvenance),
+    findings: words(restrictionFaults({ restricted: ex.restrictedTender, stamp: { EN: policy.restrictionStampTextEn, MS: policy.restrictionStampTextMs }, parts })),
+  };
+
+  // ---- the regulator permit (FR-DOC-006)
+  const permit = {
+    answer: yesNoNotSet(ex.regulatedActivity),
+    raw: TRI(ex.regulatedActivity),
+    permit: ex.regulatedActivity ? (permitLabel(true, ex.regulatorPermitCode, list) ?? NOT_SET) : null,
+    rawPermit: ex.regulatorPermitCode ?? "",
+    list: list?.name ?? NOT_SET,
+    options: (list?.values ?? []).filter((v) => !v.retired).map((v) => ({ value: v.code, label: v.label })),
+    findings: words(permitFaults({ regulated: ex.regulatedActivity, permitCode: ex.regulatorPermitCode, list, parts: draft ? parts : [] }).filter((f) => draft || !["INSTRUCTIONS_PART_MISSING"].includes(f.code))),
+  };
+
+  // ---- assurance (FR-DOC-014), on the draft
+  const confirmations = draft ? await loadConfirmations(draft.id) : [];
+  const startedOn = draft ? (org.timeZone ? new Intl.DateTimeFormat("en-CA", { timeZone: org.timeZone }).format(draft.createdAt) : draft.createdAt.toISOString().slice(0, 10)) : null;
+  const needed = draft ? assuranceKindsFor(parts) : [];
+  const assurance = {
+    required: policy.assuranceRequired == null ? NOT_SET : policy.assuranceRequired ? "Required" : "Not required (the organisation's decision)",
+    provenance: provenance(policy.assuranceProvenance),
+    policyNotSet: policy.assuranceRequired == null ? conditionsFaultText({ code: "ASSURANCE_POLICY_NOT_SET", level: "block" }) : null,
+    rows: (["NO_AMBIGUITY", "DRAWINGS_COORDINATED"] as const).map((kind) => {
+      const c = confirmations.find((x) => x.kind === kind) ?? null;
+      const record = draft
+        ? (() => {
+            const fs = confirmFaults({ packStatus: draft.status, exerciseStatus: ex.status, kind, parts, existing: confirmations, person: { isActive: true }, confirmedOn: today, today, packStartedOn: startedOn! });
+            return fs.length ? no(fs.map(confirmFaultText).join(" ")) : ok;
+          })()
+        : no("Start the tender documents first.");
+      return {
+        kind: kind as AssuranceKind,
+        label: ASSURANCE_KIND_LABEL[kind],
+        needed: needed.includes(kind),
+        notNeeded: draft && !needed.includes(kind) ? "The pack binds no drawings, so there is nothing to coordinate." : null,
+        confirmation: c ? { id: c.id, by: `${c.personName}, recorded on their behalf, not signed`, on: formatDate(c.confirmedOn), note: c.note || null } : null,
+        record: policy.assuranceRequired === false ? no("The organisation's policy is that the confirmations are not required.") : record,
+      };
+    }),
+    remove: draft && ex.status === "DOCUMENTS_IN_PREPARATION" ? ok : no(confirmFaultText({ code: "PACK_NOT_EDITABLE", level: "block" })),
+    /// Not carried to the next version: an amended pack is confirmed afresh.
+    frozen: snapshot ? { required: snapshot.assurance.required == null ? NOT_SET : snapshot.assurance.required ? "Required" : "Not required", confirmations: snapshot.assurance.confirmations.map((x) => ({ label: ASSURANCE_KIND_LABEL[x.kind as AssuranceKind] ?? "A confirmation", by: `${x.person}, recorded on their behalf, not signed`, on: formatDate(x.on) })) } : null,
+  };
+
+  // ---- mandatory clauses (FR-DOC-011)
+  const overrides = draft ? await loadOverrides(draft.id) : [];
+  const live = today ? liveClauses(clauses, today) : [];
+  const clauseFindings = draft && today ? clauseFaults(parts, clauses, overrides, today) : [];
+  const clauseRows = live.map((c) => {
+    const ov = overrides.find((o) => o.clauseCode === c.code) ?? null;
+    const missing = clauseFindings.filter((f) => f.level === "block" && f.data?.clause === c.titleEn);
+    const status = c.mandatoryInAgreements == null ? "Not set" : !c.mandatoryInAgreements ? "Not required in every agreement" : ov ? "Left out under an endorsement" : !draft ? "Checked once the documents are started" : missing.length ? "Missing" : "Carried";
+    const canOverride = draft && today ? overrideFaults({ packStatus: draft.status, exerciseStatus: ex.status, clause: c, today, existing: overrides, person: { isActive: true }, reason: "given" }) : [];
+    return {
+      code: c.code,
+      title: c.titleEn,
+      version: `Text version ${c.bodyVersion}`,
+      status,
+      tone: status === "Carried" ? ("ok" as const) : status === "Missing" || status === "Not set" ? ("warn" as const) : ("neutral" as const),
+      findings: missing.map(conditionsFaultText),
+      override: ov ? { id: ov.id, by: `${ov.personName}, recorded on their behalf, not signed`, reason: ov.reason } : null,
+      record: c.mandatoryInAgreements !== true ? null : !draft ? no("Start the tender documents first.") : canOverride.length ? no(canOverride.map(overrideFaultText).join(" ")) : ok,
+    };
+  });
+  const clausesView = {
+    rows: clauseRows,
+    none: live.length === 0 ? "No clauses are configured. A clause every agreement must carry is added under Configuration, Tender documents." : null,
+    remove: draft && ex.status === "DOCUMENTS_IN_PREPARATION" ? ok : no(overrideFaultText({ code: "PACK_NOT_EDITABLE", level: "block" })),
+    frozen: snapshot ? snapshot.clauses.map((c) => ({ title: c.title, version: `Text version ${c.bodyVersion}`, override: c.overriddenBy ? `Left out under an endorsement by ${c.overriddenBy}, recorded on their behalf, not signed: “${c.overrideReason ?? ""}”` : null })) : null,
+  };
+
+  return {
+    exerciseId,
+    edit,
+    hasDraft: !!draft,
+    /// The pack with approval or approved, and what it froze; null before submission or for a pack frozen before increment 2.
+    frozen: frozenPack
+      ? snapshot
+        ? { version: frozenPack.versionNo, judgedOn: formatDate(snapshot.judgedOn), eligibility: snapshot.eligibility.text ?? NOT_SET, window: snapshot.eligibility.window ?? NOT_SET, restriction: yesNoNotSet(snapshot.restriction.restricted), permit: snapshot.permit.regulated ? (snapshot.permit.permit ?? NOT_SET) : yesNoNotSet(snapshot.permit.regulated), tableDocument: snapshot.tableDocument }
+        : { version: frozenPack.versionNo, before: "Frozen before the tender's conditions were recorded with the documents." }
+      : null,
+    eligibility,
+    restriction,
+    permit,
+    assurance,
+    clauses: clausesView,
+    people: people.map((p) => ({ value: p.id, label: p.name })),
+    today,
+  };
+}
+
+export type ConditionsTab = NonNullable<Awaited<ReturnType<typeof conditionsTab>>>;

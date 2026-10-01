@@ -128,7 +128,7 @@ export function RestorePartDrawer({ id, label }: { id: string; label: string }) 
 
 // ------------------------------------------------------------------ policy
 
-export function EditTenderPolicy({ values }: { values: Record<string, string> }) {
+export function EditTenderPolicy({ values, taxonomies = [] }: { values: Record<string, string>; taxonomies?: Option[] }) {
   return (
     <RecordEditor
       title="Edit the tender documents policy"
@@ -137,8 +137,11 @@ export function EditTenderPolicy({ values }: { values: Record<string, string> })
       fields={[
         { kind: "textarea", name: "restrictionStampTextEn", label: "Wording stamped on a restricted tender (English)", hint: "As it is to be printed. Nothing is stamped while this is empty." },
         { kind: "textarea", name: "restrictionStampTextMs", label: "Wording stamped on a restricted tender (Malay)" },
+        { kind: "text", name: "restrictionLabelEn", label: "The restriction, as the exercise asks it", hint: "The question an officer answers on each exercise. Not set, it is asked as a restricted tender." },
+        provenance("restrictionProvenance", "Where the restriction's wording came from"),
         { kind: "select", name: "assuranceRequired", label: "Assurance confirmations required", placeholder: "Not set", options: [{ value: "yes", label: "Yes" }, { value: "no", label: "No, recorded as a decision" }] },
-        { kind: "note", text: "Not set holds the confirmations back: no answer is assumed." },
+        provenance("assuranceProvenance", "Where the answer came from"),
+        { kind: "note", text: "Not set holds every submission back: no answer is assumed." },
         { kind: "text", name: "ladDailyPct", label: "Liquidated damages a day, as a percentage of the contract sum", hint: pctHint(PCT_COLUMN.ladDailyPct) },
         provenance("ladDailyPctProvenance"),
         { kind: "money", name: "firstCertificateFloor", label: "First interim certificate: the amount that caps its minimum" },
@@ -152,7 +155,7 @@ export function EditTenderPolicy({ values }: { values: Record<string, string> })
         { kind: "number", name: "dbInsuranceExtraMonths", label: "Design and build, beyond the defects liability period: months", min: 0 },
         { kind: "number", name: "dbInsuranceExtraDays", label: "Design and build, beyond the defects liability period: days", min: 0 },
         provenance("dbInsuranceExtraProvenance"),
-        hidden("regulatorPermitTaxonomyCode"),
+        { kind: "select", name: "regulatorPermitTaxonomyCode", label: "The list of regulator permits", placeholder: "Not set", options: taxonomies, hint: "A classification list under Reference data, its values the permit types an exercise chooses from." },
         { kind: "text", name: "governingSource", label: "Where the policy is written", hint: "The document that sets these." },
         { kind: "textarea", name: "notes", label: "Notes" },
       ]}

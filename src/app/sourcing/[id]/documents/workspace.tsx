@@ -19,8 +19,10 @@ import type { LoadedExercise } from "@/lib/method/repo";
 import { DECISION_LABEL } from "@/lib/requisition/labels";
 import { tenderingRouteLabel } from "@/lib/tender-docs/labels";
 import { documentsTab } from "@/lib/tender-docs/read";
+import { conditionsTab } from "@/lib/tender-docs/read-conditions";
 import { routeTone, stepTone } from "@/lib/ui/status-tone";
 
+import { ConditionsCards } from "./conditions";
 import { DecideDrawer, StartPackDrawer, SubmitPackDrawer } from "./editors";
 import { PartsList, type PartRow } from "./parts-list";
 
@@ -49,7 +51,7 @@ const PACK_TONE: Record<string, "neutral" | "brand" | "ok" | "warn" | "err"> = {
  * exercise's own routes arrive from the page, which already holds them.
  */
 export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }: { exerciseId: string; today: string | null; timeZone: string | null; routes: Route[] }) {
-  const d = await documentsTab(exerciseId);
+  const [d, conditions] = await Promise.all([documentsTab(exerciseId), conditionsTab(exerciseId)]);
   if (!d) return GONE;
   const draft = d.pack?.status === "Draft";
   const returned = d.pack?.status === "Returned for amendment" ? d.pack : null;
@@ -187,6 +189,8 @@ export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }
           <PartsList exerciseId={exerciseId} parts={parts} printHref={d.printHref ?? `/sourcing/${exerciseId}/documents/print`} />
         </Card>
       )}
+
+      {d.pack && conditions && <ConditionsCards c={conditions} />}
 
       {(d.pack || routes.length > 0) && <RouteCard exerciseId={exerciseId} routes={routes} decide={d.route?.decide ?? null} today={today} timeZone={timeZone} />}
 
@@ -334,7 +338,7 @@ async function RouteCard({ exerciseId, routes, decide, today, timeZone }: { exer
                     <EscalateDrawer stepId={s.id} office={s.actingRoleLabel ?? s.roleLabel} mandatory={isMandatoryAct(s.act)} people={everyone} />
                   )}
                   {inst.status === "PENDING" && s.decision === "PENDING" && earlierDone && !s.committeeCode && (
-                    <DecideDrawer exerciseId={exerciseId} stepId={s.id} office={s.roleLabel} done={ACT_DONE_LABEL[s.act] ?? "Done"} people={decide?.stepId === s.id ? people : everyone} today={today} recordsDates={isLast} />
+                    <DecideDrawer exerciseId={exerciseId} stepId={s.id} office={s.roleLabel} done={ACT_DONE_LABEL[s.act] ?? "Done"} people={decide?.stepId === s.id ? people : everyone} today={today} recordsDates={isLast} windowNote={decide?.stepId === s.id && "windowNote" in decide ? (decide.windowNote as string | null) : null} />
                   )}
                 </div>
               </li>
