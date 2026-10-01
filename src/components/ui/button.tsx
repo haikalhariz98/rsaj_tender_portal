@@ -7,7 +7,7 @@ export type ButtonVariant = "primary" | "secondary" | "ghost" | "subtle" | "dang
 export type ButtonSize = "sm" | "md" | "lg";
 
 const BASE =
-  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full font-semibold no-underline transition " +
+  "inline-flex max-w-full shrink-0 items-center justify-center gap-2 whitespace-nowrap max-sm:text-center max-sm:whitespace-normal rounded-full font-semibold no-underline transition " +
   "hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 " +
   "disabled:cursor-not-allowed disabled:opacity-45 aria-disabled:pointer-events-none aria-disabled:opacity-45";
 
@@ -28,9 +28,10 @@ const VARIANT: Record<ButtonVariant, string> = {
 };
 
 const SIZE: Record<ButtonSize, string> = {
-  sm: "h-8 px-3.5 text-[13px]",
-  md: "h-10 px-4.5 text-sm",
-  lg: "h-12 px-6 text-[15px]",
+  // On a phone a long label wraps (the height becomes a floor) rather than leaving the screen.
+  sm: "h-8 px-3.5 text-[13px] max-sm:h-auto max-sm:min-h-8 max-sm:py-1",
+  md: "h-10 px-4.5 text-sm max-sm:h-auto max-sm:min-h-10 max-sm:py-1.5",
+  lg: "h-12 px-6 text-[15px] max-sm:h-auto max-sm:min-h-12 max-sm:py-2",
 };
 
 export function buttonClass(

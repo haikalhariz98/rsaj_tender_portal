@@ -102,7 +102,7 @@ export default async function SourcingPage() {
             { key: "title", label: "Exercise", sortable: true, mobile: "primary" },
             { key: "method", label: "Method and contract type", width: "22%", hideBelow: "2xl" },
             { key: "value", label: "Value", width: "124px", numeric: true, sortable: true, mobile: "meta" },
-            { key: "status", label: "Status", width: "176px", sortable: true, mobile: "meta" },
+            { key: "status", label: "Status", width: "240px", sortable: true, mobile: "meta" },
             { key: "checks", label: "Band and checks", width: "220px", hideBelow: "md", mobile: "meta" },
           ]}
           rows={list}
