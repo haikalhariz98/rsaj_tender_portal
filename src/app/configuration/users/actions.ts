@@ -6,6 +6,8 @@ import type { FormState } from "@/components/record-editor";
 import { diffFields } from "@/lib/audit/diff";
 import { auditedCreate, auditedDelete, auditedUpdate, writeAudit, type Tx } from "@/lib/audit/record";
 import { attachFault } from "@/lib/documents/attach";
+import { delegationFacts } from "@/lib/documents/owner-facts";
+import { todayIn } from "@/lib/dates";
 import { attached, filed } from "@/lib/documents/audit-view";
 import { documentFaultText, PURPOSE_LABEL } from "@/lib/documents/labels";
 import { lockDocument } from "@/lib/documents/service";
@@ -666,7 +668,7 @@ async function attachRecommendation(tx: Tx, orgId: string, delegationId: string,
   const doc = await tx.document.findUniqueOrThrow({ where: { id: v.documentId }, include: { documentClass: { select: { classification: true } } } });
   const d = await tx.delegation.findUniqueOrThrow({ where: { id: delegationId }, select: { effectiveTo: true, fromPerson: { select: { name: true } }, toPerson: { select: { name: true } } } });
   const already = await tx.documentAttachment.findFirst({ where: { delegationId, purpose: "HOLDER_RECOMMENDATION", detachedAt: null, version: { documentId: doc.id } }, select: { id: true } });
-  const faults = blocking(attachFault({ purpose: "HOLDER_RECOMMENDATION", owner: { kind: "delegation", ended: d.effectiveTo != null && d.effectiveTo < new Date() }, version: v, documentClass: doc.documentClass, documentClassification: doc.classificationSnapshot, alreadyAttached: !!already }));
+  const faults = blocking(attachFault({ purpose: "HOLDER_RECOMMENDATION", owner: delegationFacts(d, todayIn(new Date(), (await tx.organisation.findUniqueOrThrow({ where: { id: orgId }, select: { timeZone: true } })).timeZone) ?? new Date().toISOString().slice(0, 10)), version: v, documentClass: doc.documentClass, documentClassification: doc.classificationSnapshot, alreadyAttached: !!already }));
   if (faults.length) throw new RecommendationRefused(faults.map(documentFaultText).join(" "));
   const owner = `Delegation · ${d.fromPerson.name} to ${d.toPerson.name}`;
   const row = await tx.documentAttachment.create({ data: { organisationId: orgId, purpose: "HOLDER_RECOMMENDATION", versionId: v.id, delegationId } });

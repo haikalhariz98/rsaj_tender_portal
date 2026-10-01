@@ -61,3 +61,12 @@ describe("the Return tab's scan line", () => {
     expect(returnScansText({ required: true, missing: [], attached: 3 }).tone).toBe("ok");
   });
 });
+
+describe("an accepted award is never re-judged on its scans (plan §3)", () => {
+  it("a scan withdrawn after acceptance does not make the return read incomplete", async () => {
+    const { returnReadsComplete } = await import("./stage-two");
+    expect(returnReadsComplete("ACCEPTED", "WORK_INDENT", page, new Set())).toBe(true);
+    expect(returnReadsComplete("ISSUED", "WORK_INDENT", page, new Set())).toBe(false);
+    expect(returnReadsComplete("ISSUED", "WORK_INDENT", page, new Set(["ACCEPTANCE_PAGE"]))).toBe(true);
+  });
+});

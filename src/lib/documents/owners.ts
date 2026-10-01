@@ -15,11 +15,12 @@ import type { Tx } from "@/lib/audit/record";
 import { withLockedAward } from "@/lib/award/repo";
 import { acceptOnCompleteReturn } from "@/lib/award/return-acceptance";
 import { withLockedSitting } from "@/lib/committee/sittings";
-import { dayToDate, storedDay } from "@/lib/dates";
+import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { requisitionOfExercise, withLockedRequisitionForSourcing } from "@/lib/method/repo";
 
 import { awardReliance, type OwnerFacts, type Reliance } from "./attach";
+import { awardFacts, delegationFacts, exerciseFacts, meetingFacts } from "./owner-facts";
 import type { OwnerRef } from "./repo";
 import { documentOrg } from "./service";
 import type { AttachmentPurpose } from "./types";
@@ -51,7 +52,7 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
           organisationId: s.organisationId,
           today: s.today,
           label: `${s.meeting.reference}`,
-          facts: { kind: "meeting", status: s.meeting.status },
+          facts: meetingFacts(s.meeting),
           paths: [`/committees/${ref.id}`, "/requisitions"],
           reliance: () => null,
         }),
@@ -70,12 +71,7 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
           organisationId: l.org.id,
           today: l.org.today,
           label: `${l.ex.reference}`,
-          facts: {
-            kind: "exercise",
-            status: l.ex.status,
-            appointmentRouteOpen: awards.some((a) => a.approvalInstances.length > 0),
-            awardApproved: awards.some((a) => a.status === "APPROVED" || a.status === "ISSUED" || a.status === "ACCEPTED"),
-          },
+          facts: exerciseFacts(l.ex, awards.map((a) => ({ status: a.status, openAppointmentRoutes: a.approvalInstances.length }))),
           paths: [`/sourcing/${ref.id}`, ...awards.map((a) => `/awards/${a.id}`)],
           reliance: () => null,
         });
@@ -85,8 +81,7 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
       return withLockedAward(ref.id, (tx, l) => {
         const a = l.award;
         // OD-5: an award accepted before scans were required has no scan snapshot.
-        const scansRequired = !(a.status === "ACCEPTED" && a.returnScanSnapshot == null);
-        const facts: OwnerFacts = { kind: "award", status: a.status, instrumentKind: a.instrumentKind, scansRequired };
+        const facts: OwnerFacts = awardFacts(a);
         return fn(tx, {
           ref,
           organisationId: l.org.id,
@@ -111,13 +106,12 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
         });
         if (!d) return null;
         const today = org.today ?? storedDay(new Date());
-        const ended = d.effectiveTo != null && d.effectiveTo < dayToDate(today);
         return fn(tx, {
           ref,
           organisationId: org.id,
           today: org.today,
           label: `Delegation · ${d.fromPerson.name} to ${d.toPerson.name}`,
-          facts: { kind: "delegation", ended },
+          facts: delegationFacts(d, today),
           paths: ["/configuration/users"],
           // OD-6: a delegation stands on its attached recommendation; the last live one is
           // replaced by a new version, never simply taken off.

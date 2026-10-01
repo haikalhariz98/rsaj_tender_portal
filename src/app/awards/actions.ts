@@ -27,7 +27,7 @@ import { renderedText } from "@/lib/award/merge";
 import { awardFacts, dossierEvidenceOf, exerciseMatters, loadAwardConfig, matterRecord, withLockedAward, withLockedExerciseForAward, latestRoute, type LoadedAward } from "@/lib/award/repo";
 import { receivedOnFault } from "@/lib/award/routing";
 import { approvedOnOf, checkSignatory } from "@/lib/award/signatory";
-import { correctionScansMissing, countedReturnComplete, instrumentReturned, scansRequired, type ReturnRecord } from "@/lib/award/stage-two";
+import { correctionScansMissing, instrumentReturned, returnReadsComplete, type ReturnRecord } from "@/lib/award/stage-two";
 import { acceptOnCompleteReturn, returnRecordOf, returnScans } from "@/lib/award/return-acceptance";
 import { RETURN_SCAN_LABEL } from "@/lib/award/labels";
 import { evidenceSnapshot } from "@/lib/documents/evidence";
@@ -783,7 +783,8 @@ export async function recordReturn(_prev: FormState, data: FormData): Promise<Fo
     if (correcting) {
       const unscanned = correctionScansMissing(kind, returnRecordOf(before), rec, attached);
       if (unscanned.length) return { ok: false, message: `Not corrected: attach ${unscanned.map((x) => RETURN_SCAN_LABEL[x]).join(", ")} first. A corrected item counts only with its scan.` };
-      const complete = countedReturnComplete(kind, rec, { required: scansRequired(a.status, a.returnScanSnapshot != null), attached });
+      // Accepted awards are not re-judged on their scans: the paper return must stay complete.
+      const complete = returnReadsComplete(a.status, kind, rec, attached);
       if (!complete) return { ok: false, message: "Not corrected: the award was accepted on a complete return, and this would leave it incomplete." };
     }
     await tx.awardReturn.update({ where: { id: before.id }, data: v });

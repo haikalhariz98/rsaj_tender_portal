@@ -162,3 +162,14 @@ export function correctionScansMissing(kind: InstrumentKind, before: ReturnRecor
     return (before[k] ?? null) !== (after[k] ?? null) && !!after[k] && !attached.has(i);
   });
 }
+
+/**
+ * Whether the return reads as complete today, for the screens and the readiness gate.
+ * An accepted award was judged when it was accepted (with its scans, where they were
+ * required, kept in its snapshot) and is never re-judged: a scan withdrawn or replaced
+ * since does not undo its acceptance. Before acceptance the return counts with its scans.
+ */
+export function returnReadsComplete(status: string, kind: InstrumentKind, r: ReturnRecord, attached: ReadonlySet<string>): boolean {
+  if (status === "ACCEPTED") return returnComplete(kind, r);
+  return countedReturnComplete(kind, r, { required: true, attached });
+}

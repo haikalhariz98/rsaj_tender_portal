@@ -54,7 +54,7 @@ import {
 import { mergeFieldLabel } from "@/lib/award/fields";
 import { conditionsOutstanding, readinessGate } from "@/lib/award/readiness";
 import { awardFacts, awardHistory, exerciseMatters, latestRoute, loadAward, matterRecord, type LoadedAward } from "@/lib/award/repo";
-import { acceptancePageFaults, countedReturnComplete, instrumentReturned, RETURN_SCANS, returnState, scansMissing, scansRequired, type ReturnRecord } from "@/lib/award/stage-two";
+import { acceptancePageFaults, instrumentReturned, RETURN_SCANS, returnReadsComplete, returnState, scansMissing, scansRequired, type ReturnRecord } from "@/lib/award/stage-two";
 import { isLive } from "@/lib/documents/evidence";
 import { cancellable, editable } from "@/lib/award/status";
 import { absentFrom } from "@/lib/award/appointment";
@@ -252,10 +252,10 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
   const requirements = applicableRequirements(f.config.requirements, ex.contractTypeCode);
   const securities = award.contract?.securities ?? [];
   const policies = award.contract?.policies ?? [];
-  // OD-5: the return counts with its scans, for every award not accepted before they were required.
-  const scans = { required: scansRequired(status, award.returnScanSnapshot != null), attached: new Set(award.attachments.filter((a) => (RETURN_SCANS[kind] as readonly string[]).includes(a.purpose) && isLive(a)).map((a) => a.purpose as string)) };
+  // OD-5: before acceptance the return counts with its scans; an accepted award is not re-judged.
+  const scanned = new Set(award.attachments.filter((a) => (RETURN_SCANS[kind] as readonly string[]).includes(a.purpose) && isLive(a)).map((a) => a.purpose as string));
   const gate = readinessGate({
-    returned: ret ? countedReturnComplete(kind, ret, scans) : false,
+    returned: ret ? returnReadsComplete(status, kind, ret, scanned) : false,
     bondRequired: award.bondRequired,
     bondNotRequiredReason: award.bondNotRequiredReason,
     requiredBond: ev.requiredBond,
