@@ -20,6 +20,17 @@ export interface TaxonomyOutcome {
   candidates: string[];
 }
 
+/**
+ * The taxonomies that classify a contract: every configured one except those a policy keeps
+ * as a plain list (6.4 increment 2: the regulator permits an exercise chooses from,
+ * FR-DOC-006). A list is chosen from on its own screen; it is never derived from the type,
+ * so it never reads "Not mapped" on an exercise's classification.
+ */
+export function classificationTaxonomies<T extends { code: string }>(all: readonly T[], listCodes: readonly (string | null | undefined)[]): T[] {
+  const lists = new Set(listCodes.filter((c): c is string => !!c));
+  return all.filter((t) => !lists.has(t.code));
+}
+
 const conditions = (m: TaxonomyMapping) => (m.whenBasisCode ? 1 : 0) + (m.whenTaxonomyCode ? 1 : 0);
 
 export function deriveTaxonomies(

@@ -21,6 +21,7 @@ import { historyChange } from "@/lib/scope/audit-view";
 import { byValue } from "./bands";
 import { EXERCISE_ROUTES_WHERE, type FunderContext } from "./approval";
 import type { EvaluationContext, ExerciseDraft, MethodConfig } from "./evaluate";
+import { classificationTaxonomies } from "./taxonomy";
 import type { ContractTypeRow, DeliverableKind, ExerciseStatus, Method, TermsBand } from "./types";
 import type { ApprovedRoute } from "./value";
 
@@ -47,6 +48,8 @@ export async function loadMethodConfig(organisationId: string, client: Tx = db) 
     client.taxonomyMapping.findMany({ where }),
     client.classificationPolicy.findUnique({ where }),
   ]);
+  // 6.4 increment 2: the regulator-permit list is a list, not a classification (FR-DOC-006).
+  const permitList = (await client.tenderDocumentPolicy.findUnique({ where: { organisationId }, select: { regulatorPermitTaxonomyCode: true } }))?.regulatorPermitTaxonomyCode ?? null;
   const config: MethodConfig = {
     methods: methods.map((m) => {
       const { checklistItems, ...rest } = m;
@@ -56,7 +59,7 @@ export async function loadMethodConfig(organisationId: string, client: Tx = db) 
     reasons: reasons.map((r) => ({ ...r, provenance: r.provenance as Provenance })),
     types: types.map((t) => ({ ...t, deliverableKind: t.deliverableKind as DeliverableKind | null, provenance: t.provenance as Provenance }) as ContractTypeRow),
     bases,
-    taxonomies: taxonomies.map((t) => ({ ...t, values: t.values })),
+    taxonomies: classificationTaxonomies(taxonomies, [permitList]).map((t) => ({ ...t, values: t.values })),
     mappings: mappings.map((m) => ({ ...m, provenance: m.provenance as Provenance })),
     policy: {
       dominanceSharePct: policy?.dominanceSharePct?.toString() ?? null,

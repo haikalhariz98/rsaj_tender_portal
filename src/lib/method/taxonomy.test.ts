@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { SPEC_MAPPINGS, SPEC_TAXONOMIES } from "./fixture";
-import { deriveTaxonomies } from "./taxonomy";
+import { classificationTaxonomies, deriveTaxonomies } from "./taxonomy";
 
 const on = new Date("2026-09-30T00:00:00Z");
 const by = (o: ReturnType<typeof deriveTaxonomies>) => Object.fromEntries(o.map((x) => [x.taxonomyCode, [x.state, x.valueCode]]));
@@ -41,5 +41,13 @@ describe("the other taxonomies, from the canonical type (FR-MTD-014)", () => {
     const codes = deriveTaxonomies("WORK", "BQ", [], SPEC_MAPPINGS, SPEC_TAXONOMIES, on).map((x) => x.taxonomyCode);
     expect(codes).not.toContain("BASIS");
     expect(codes).toHaveLength(SPEC_TAXONOMIES.length);
+  });
+});
+
+describe("6.4 increment 2: a list a policy keeps is not a classification", () => {
+  it("the regulator-permit list is left out of what classifies a contract; nothing else is", () => {
+    const all = [{ code: "report" }, { code: "permits" }, { code: "evaluation" }];
+    expect(classificationTaxonomies(all, ["permits"]).map((t) => t.code)).toEqual(["report", "evaluation"]);
+    expect(classificationTaxonomies(all, [null, undefined])).toEqual(all);
   });
 });
