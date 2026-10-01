@@ -107,7 +107,7 @@ export default async function InvitationControlsPage() {
     min: rule("Minimum days from advertisement to closing"),
     time: rule("Default closing time"),
     day: rule("Advertisement day"),
-    attendance: rule("Mandatory attendance"),
+    attendance: rule(RULE_LABEL.mandatoryAttendance),
   };
 
   return (
