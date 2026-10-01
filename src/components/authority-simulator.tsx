@@ -63,10 +63,10 @@ export function AuthoritySimulator({
   /// select says so rather than offering a route the customer never agreed to.
   fundingRoutes: { code: string; label: string }[];
 }) {
-  // Start on what this customer has configured. Hard-coded "payment" and "tender"
-  // pointed the first query at a matter and method that may not exist, so the
-  // simulator opened on "no rule matches" for no reason.
-  const [domain, setDomain] = useState(domains[0]?.code ?? "");
+  // Opens on no case at all. Whatever matter it opened on, the default combination
+  // (a value, no method) often matches nothing, and a red "no rule matched" before the
+  // user has asked anything reads as a fault.
+  const [domain, setDomain] = useState("");
   const [method, setMethod] = useState("");
   const [value, setValue] = useState("620000");
   const [contractValue, setContractValue] = useState("");
@@ -93,11 +93,13 @@ export function AuthoritySimulator({
   if (funding) params.set("funding", funding);
   const key = params.toString();
 
-  const stale = answer?.key !== key;
-  const result = answer?.result ?? null;
-  const error = answer?.error ?? null;
+  const chosen = domain !== "";
+  const stale = chosen && answer?.key !== key;
+  const result = chosen ? (answer?.result ?? null) : null;
+  const error = chosen ? (answer?.error ?? null) : null;
 
   useEffect(() => {
+    if (!chosen) return;
     const controller = new AbortController();
 
     fetch(`/api/authority/resolve?${key}`, { signal: controller.signal })
@@ -112,7 +114,7 @@ export function AuthoritySimulator({
       });
 
     return () => controller.abort();
-  }, [key]);
+  }, [key, chosen]);
 
   const id = useId();
   const fid = (name: string) => `${id}-${name}`;
@@ -124,6 +126,7 @@ export function AuthoritySimulator({
         <CardBody className="flex flex-col gap-4">
           <Field label="Matter" htmlFor={fid("domain")}>
             <Select id={fid("domain")} value={domain} onChange={(e) => setDomain(e.target.value)}>
+              <option value="">Choose a matter</option>
               {domains.map((d) => (
                 <option key={d.code} value={d.code}>
                   {d.label}
@@ -237,6 +240,14 @@ export function AuthoritySimulator({
       >
         {error && <Callout tone="err">{error}</Callout>}
 
+        {!chosen && (
+          <Card tone="flat">
+            <EmptyState size="sm" title="Choose a case">
+              Pick a matter, then a value and any other detail, to see which rule decides it and who approves.
+            </EmptyState>
+          </Card>
+        )}
+
         {result?.rule && (
           <Card tone="brand">
             <CardBody>
@@ -270,7 +281,7 @@ export function AuthoritySimulator({
           </Card>
         )}
 
-        {result && result.chain.length === 0 && !error && (
+        {chosen && result && result.chain.length === 0 && !error && (
           <Card tone="flat">
             <EmptyState size="sm" title="No rule matched">
               Nothing in the authority matrix covers this combination.

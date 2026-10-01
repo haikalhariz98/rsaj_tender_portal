@@ -1,4 +1,5 @@
 import { Accordion } from "@/components/accordion";
+import { gapMatters, gapTitle } from "@/lib/authority/gaps";
 import { AuthoritySimulator } from "@/components/authority-simulator";
 import { AlertTriangle, CheckIcon, SlidersIcon } from "@/components/icons";
 import { ActBadge, RuleChain, type ChainStep } from "@/components/rule-chain";
@@ -214,7 +215,8 @@ export default async function ApprovalMatrixPage({
   const domains = [...byDomain.entries()].sort((a, b) => b[1].length - a[1].length);
 
   const fixed = matrix.rules.filter((r) => !ruleIsDelegable(r)).length;
-  const gaps = matrix.rules.filter((r) => r.isGap).length;
+  const gapList = gapMatters(matrix.rules);
+  const gaps = gapList.length;
   const committees = new Set(matrix.rules.map((r) => r.committeeCode).filter(Boolean)).size;
 
   return (
@@ -804,9 +806,9 @@ export default async function ApprovalMatrixPage({
         {gaps > 0 && (
           <Callout
             tone="warn"
-            title={`${gaps} ${gaps === 1 ? "matter has" : "matters have"} no limit set for it`}
+            title={gapTitle(gapList)}
           >
-            No limit has ever been set for who may authorise these. Work is still routed so
+            No limit has ever been set for who may authorise {gaps === 1 ? "this" : "these"}: {gapList.map((g) => g.label).join("; ")}. Work is still routed so
             nothing stalls, but the route is an assumption.
           </Callout>
         )}
