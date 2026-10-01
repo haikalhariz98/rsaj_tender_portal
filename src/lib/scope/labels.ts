@@ -189,6 +189,7 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   // bq.ts
   NOT_DRAFT: "Only a draft is changed or finalised. Start a revision to change a finalised bill.",
   EXERCISE_CANCELLED: "The exercise is cancelled, so its scope, bill and estimate are not changed.",
+  PACK_FROZEN: "The exercise's tender documents were submitted on this bill and panel, so neither changes now. They change once the documents are returned for amendment; after approval for tendering, a change is an addendum (not yet available), or cancel the exercise.",
   NO_ITEMS: "The bill has no lines. Add its sections and lines first.",
   ITEM_INCOMPLETE: (d) => `${d.count === 1 ? "One line has" : d.count != null ? `${d.count} lines have` : "Some lines have"} no description, quantity or rate${d.first ? ` (the first is ${d.first})` : ""}. Complete ${d.count === 1 ? "it" : "them"} before finalising.`,
   SCOPED_BY_NOT_SET: "Say who scoped the work.",

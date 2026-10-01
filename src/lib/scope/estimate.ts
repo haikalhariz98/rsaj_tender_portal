@@ -60,6 +60,10 @@ export function exerciseAllowsEstimate(status: ExerciseStatus): "OPEN" | "EXERCI
   switch (status) {
     case "DRAFT":
     case "DOCUMENTS_IN_PREPARATION":
+    // 6.4: the estimate stays open while the pack is with approval and after: what closes it
+    // is the closing (X-1, versionFaults), not the pack.
+    case "PENDING_APPROVAL_FOR_TENDERING":
+    case "APPROVED_FOR_TENDERING":
       return "OPEN";
     case "CANCELLED":
       return "EXERCISE_CANCELLED";

@@ -81,3 +81,23 @@ describe("6.2 Q-3: the bill version is an owner, everywhere at once", () => {
     expect(PURPOSE_OWNER.BQ_IMPORT_SOURCE).toBe("bqVersion");
   });
 });
+
+describe("6.4: the tender pack part is an owner, everywhere at once (X-6)", () => {
+  it("tenderPackPartId is counted by one_owner and TENDER_PART pairs with it", () => {
+    expect(latestCheck("DocumentAttachment_one_owner")).toMatch(/"tenderPackPartId"/);
+    expect(latestCheck("DocumentAttachment_purpose_owner")).toMatch(/\("purpose"\s*=\s*'TENDER_PART'\s*AND\s*"tenderPackPartId"\s+IS NOT NULL\)/);
+    expect(OWNER_COLUMN.tenderPackPart).toBe("tenderPackPartId");
+    expect(PURPOSE_OWNER.TENDER_PART).toBe("tenderPackPart");
+  });
+
+  it("the purpose arrived in its own migration, before the migration that rebuilt the CHECKs with it", () => {
+    const own = migrations.filter((d) => /ALTER TYPE "AttachmentPurpose" ADD VALUE 'TENDER_PART'/.test(readFileSync(join(migrationsDir, d, "migration.sql"), "utf8")));
+    const used = migrations.filter((d) => /'TENDER_PART' AND "tenderPackPartId"/.test(readFileSync(join(migrationsDir, d, "migration.sql"), "utf8")));
+    expect(own).toHaveLength(1);
+    expect(used.length).toBeGreaterThan(0);
+    expect(own[0] < used[0]).toBe(true);
+    // Its own migration holds the value and nothing else.
+    const sql = readFileSync(join(migrationsDir, own[0], "migration.sql"), "utf8").split("\n").filter((l) => l.trim() && !l.trim().startsWith("--"));
+    expect(sql).toHaveLength(1);
+  });
+});

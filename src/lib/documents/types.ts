@@ -24,6 +24,7 @@ export type AttachmentPurpose =
   | "SIGNED_MINUTES"
   | "SPEC_PANEL_FORM"
   | "BQ_IMPORT_SOURCE"
+  | "TENDER_PART"
   | "DOSSIER_EVIDENCE"
   | "COORDINATION_SCOPE"
   | "HOLDER_RECOMMENDATION"
@@ -36,6 +37,7 @@ export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
   "SIGNED_MINUTES",
   "SPEC_PANEL_FORM",
   "BQ_IMPORT_SOURCE",
+  "TENDER_PART",
   "DOSSIER_EVIDENCE",
   "COORDINATION_SCOPE",
   "HOLDER_RECOMMENDATION",
@@ -47,14 +49,15 @@ export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
 
 /// The owners a document can be attached to. New owners arrive by migration with their
 /// module (MatterKind precedent); each is a typed key on DocumentAttachment.
-export type OwnerKind = "meeting" | "exercise" | "award" | "delegation" | "specificationPanel" | "bqVersion";
-export const OWNER_KINDS: readonly OwnerKind[] = ["meeting", "exercise", "award", "delegation", "specificationPanel", "bqVersion"];
+export type OwnerKind = "meeting" | "exercise" | "award" | "delegation" | "specificationPanel" | "bqVersion" | "tenderPackPart";
+export const OWNER_KINDS: readonly OwnerKind[] = ["meeting", "exercise", "award", "delegation", "specificationPanel", "bqVersion", "tenderPackPart"];
 
 /// Which owner each purpose belongs to. The migration's CHECK says the same.
 export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
   SIGNED_MINUTES: "meeting",
   SPEC_PANEL_FORM: "specificationPanel",
   BQ_IMPORT_SOURCE: "bqVersion",
+  TENDER_PART: "tenderPackPart",
   DOSSIER_EVIDENCE: "exercise",
   COORDINATION_SCOPE: "exercise",
   HOLDER_RECOMMENDATION: "delegation",
@@ -65,7 +68,7 @@ export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
 };
 
 /// The column on DocumentAttachment that names each owner.
-export type OwnerColumn = "meetingId" | "exerciseId" | "awardId" | "delegationId" | "specificationPanelId" | "bqVersionId";
+export type OwnerColumn = "meetingId" | "exerciseId" | "awardId" | "delegationId" | "specificationPanelId" | "bqVersionId" | "tenderPackPartId";
 export const OWNER_COLUMN: Readonly<Record<OwnerKind, OwnerColumn>> = {
   meeting: "meetingId",
   exercise: "exerciseId",
@@ -73,6 +76,7 @@ export const OWNER_COLUMN: Readonly<Record<OwnerKind, OwnerColumn>> = {
   delegation: "delegationId",
   specificationPanel: "specificationPanelId",
   bqVersion: "bqVersionId",
+  tenderPackPart: "tenderPackPartId",
 };
 
 /// Purposes attached only by their owner's own act, never from the shared attach choice: a

@@ -167,6 +167,7 @@ export function holdingOn(holdings: readonly QualificationHolding[], personId: s
 export type FinaliseFault =
   | "NOT_DRAFT"
   | "EXERCISE_CANCELLED"
+  | "PACK_FROZEN"
   | "NO_ITEMS"
   | "ITEM_INCOMPLETE"
   | "SECTION_NUMBER_REPEATED"
@@ -212,7 +213,8 @@ export function finaliseFaults(
 ): Finding<FinaliseFault>[] {
   if (v.status !== "DRAFT") return [{ code: "NOT_DRAFT", level: "block" }];
   const out: Finding<FinaliseFault>[] = [];
-  if (ctx.exerciseStatus === "CANCELLED") out.push({ code: "EXERCISE_CANCELLED", level: "block" });
+  const allows = exerciseAllowsBq(ctx.exerciseStatus);
+  if (allows !== "OPEN") out.push({ code: allows, level: "block" });
   if (v.lines.length === 0) out.push({ code: "NO_ITEMS", level: "block" });
   const incomplete = v.lines.filter((l) => !l.description.trim() || itemAmount(l.quantity, l.rate) == null);
   if (incomplete.length) out.push({ code: "ITEM_INCOMPLETE", level: "block", data: { count: incomplete.length, first: incomplete[0].itemRef || null } });
@@ -242,11 +244,16 @@ export function qualificationSnapshot(holding: QualificationHolding, qualificati
  * ExerciseStatus (X-8): 6.4 adds its states here (the pack under approval refuses), and the
  * compiler names this switch when it does.
  */
-export function exerciseAllowsBq(status: ExerciseStatus): "OPEN" | "EXERCISE_CANCELLED" {
+export function exerciseAllowsBq(status: ExerciseStatus): "OPEN" | "PACK_FROZEN" | "EXERCISE_CANCELLED" {
   switch (status) {
     case "DRAFT":
     case "DOCUMENTS_IN_PREPARATION":
       return "OPEN";
+    // 6.4: the tender pack froze on this bill and panel; a change waits for its return for
+    // amendment (or, once approved, for an addendum, 6.5).
+    case "PENDING_APPROVAL_FOR_TENDERING":
+    case "APPROVED_FOR_TENDERING":
+      return "PACK_FROZEN";
     case "CANCELLED":
       return "EXERCISE_CANCELLED";
     default: {
@@ -256,12 +263,13 @@ export function exerciseAllowsBq(status: ExerciseStatus): "OPEN" | "EXERCISE_CAN
   }
 }
 
-export type DraftFault = "EXERCISE_CANCELLED" | "NOT_DRAFT" | "DRAFT_EXISTS" | "ALREADY_STARTED" | "NOTHING_FINALISED" | "REASON_REQUIRED";
+export type DraftFault = "EXERCISE_CANCELLED" | "PACK_FROZEN" | "NOT_DRAFT" | "DRAFT_EXISTS" | "ALREADY_STARTED" | "NOTHING_FINALISED" | "REASON_REQUIRED";
 
 /// Editing a version's lines or header: a draft only, on an exercise that is open.
 export function draftEditFaults(v: { status: BqStatus }, exerciseStatus: ExerciseStatus): Finding<DraftFault>[] {
   const out: Finding<DraftFault>[] = [];
-  if (exerciseAllowsBq(exerciseStatus) !== "OPEN") out.push({ code: "EXERCISE_CANCELLED", level: "block" });
+  const allows = exerciseAllowsBq(exerciseStatus);
+  if (allows !== "OPEN") out.push({ code: allows, level: "block" });
   if (v.status !== "DRAFT") out.push({ code: "NOT_DRAFT", level: "block" });
   return out;
 }
@@ -269,7 +277,8 @@ export function draftEditFaults(v: { status: BqStatus }, exerciseStatus: Exercis
 /// Starting the exercise's first bill: none yet, on an exercise that is open.
 export function startBqFaults(versions: readonly { status: BqStatus }[], exerciseStatus: ExerciseStatus): Finding<DraftFault>[] {
   const out: Finding<DraftFault>[] = [];
-  if (exerciseAllowsBq(exerciseStatus) !== "OPEN") out.push({ code: "EXERCISE_CANCELLED", level: "block" });
+  const allows = exerciseAllowsBq(exerciseStatus);
+  if (allows !== "OPEN") out.push({ code: allows, level: "block" });
   if (versions.length > 0) out.push({ code: "ALREADY_STARTED", level: "block" });
   return out;
 }
@@ -281,7 +290,8 @@ export function startBqFaults(versions: readonly { status: BqStatus }[], exercis
  */
 export function reviseFaults(versions: readonly { status: BqStatus }[], exerciseStatus: ExerciseStatus, reason: string): Finding<DraftFault>[] {
   const out: Finding<DraftFault>[] = [];
-  if (exerciseAllowsBq(exerciseStatus) !== "OPEN") out.push({ code: "EXERCISE_CANCELLED", level: "block" });
+  const allows = exerciseAllowsBq(exerciseStatus);
+  if (allows !== "OPEN") out.push({ code: allows, level: "block" });
   if (versions.some((v) => v.status === "DRAFT")) out.push({ code: "DRAFT_EXISTS", level: "block" });
   else if (!versions.some((v) => v.status === "FINALISED")) out.push({ code: "NOTHING_FINALISED", level: "block" });
   if (!reason.trim()) out.push({ code: "REASON_REQUIRED", level: "block" });

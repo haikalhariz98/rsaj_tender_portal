@@ -15,6 +15,17 @@
 import { formatDate, formatOrgDay } from "@/lib/format";
 
 import type { FieldChange } from "@/lib/audit/diff";
+import { EXERCISE_STATUSES, type ExerciseStatus } from "@/lib/method/types";
+
+/// The feed's line for an exercise's move into each state (X-8: exhaustive). A return to
+/// preparation from approval for tendering is the documents returned for amendment (Q-3).
+const EXERCISE_MOVE_HEADLINE: Record<ExerciseStatus, (ref: string, from: string | null) => string | null> = {
+  DRAFT: () => null,
+  DOCUMENTS_IN_PREPARATION: (ref, from) => (from === "PENDING_APPROVAL_FOR_TENDERING" ? `Exercise ${ref}: tender documents returned for amendment` : `Exercise ${ref} moved into preparation`),
+  PENDING_APPROVAL_FOR_TENDERING: (ref) => `Exercise ${ref}: tender documents sent for approval`,
+  APPROVED_FOR_TENDERING: (ref) => `Exercise ${ref} approved for tendering`,
+  CANCELLED: (ref) => `Exercise ${ref} cancelled`,
+};
 
 /// The only entities the feed reads. Everything else, including `Vote`,
 /// `DecisionRecusal`, `MeetingAttendance` and every configuration entity, is absent on
@@ -216,9 +227,10 @@ function build(entry: ActivityEntry, owners: Record<string, ActivityOwner>, time
         return make("exercise", ref, "", { title, headline: req ? `Exercise ${ref} opened for ${req}` : `Exercise ${ref} opened` });
       }
       if (entry.action !== "UPDATE" || !s) return null;
-      if (s.after === "DOCUMENTS_IN_PREPARATION") return make("exercise", ref, "", { title, to: s.after, from: s.before, headline: `Exercise ${ref} moved into preparation` });
-      if (s.after === "CANCELLED") return make("exercise", ref, "", { title, to: s.after, from: s.before, reason: entry.reason, headline: `Exercise ${ref} cancelled` });
-      return null;
+      const to = (EXERCISE_STATUSES as readonly string[]).includes(s.after ?? "") ? (s.after as ExerciseStatus) : null;
+      const headline = to ? EXERCISE_MOVE_HEADLINE[to](ref, s.before) : null;
+      if (!headline) return null;
+      return make("exercise", ref, "", { title, to: s.after, from: s.before, ...(to === "CANCELLED" || (to === "DOCUMENTS_IN_PREPARATION" && s.before === "PENDING_APPROVAL_FOR_TENDERING") ? { reason: entry.reason } : {}), headline });
     }
     case "Meeting": {
       const created = entry.action === "CREATE";

@@ -7,6 +7,7 @@
 
 import { isClassificationSnapshot } from "@/lib/method/snapshot";
 import { verifiedScanVersionIds } from "@/lib/scope/panel";
+import type { PartSource, TenderPackStatus } from "@/lib/tender-docs/types";
 
 import type { AwardStatus, ExerciseMethodFlags, ExerciseStatus, InstrumentKind, MeetingStatus, OwnerFacts } from "./attach";
 import { isLive } from "./evidence";
@@ -64,6 +65,14 @@ export const PANEL_FACTS_SELECT = {
 
 /// 6.2 Q-3: a bill of quantities version, with its exercise's status.
 export const bqVersionFacts = (v: { status: "DRAFT" | "FINALISED" | "SUPERSEDED"; exercise: { status: ExerciseStatus } }): OwnerFacts => ({ kind: "bqVersion", exerciseStatus: v.exercise.status, status: v.status });
+
+/// 6.4: a tender pack's part, with its pack's and exercise's status and where its content comes from.
+export const tenderPackPartFacts = (p: { source: PartSource; pack: { status: TenderPackStatus; exercise: { status: ExerciseStatus } } }): OwnerFacts => ({
+  kind: "tenderPackPart",
+  exerciseStatus: p.pack.exercise.status,
+  packStatus: p.pack.status,
+  source: p.source,
+});
 
 /// Ended once its last day has passed, in the organisation's days.
 export function delegationFacts(d: { effectiveTo: Date | null }, today: string): OwnerFacts {

@@ -22,6 +22,7 @@ import { remainingOf } from "@/lib/method/value";
 import { evaluateExercise, saveBlockers, type Evaluation, type ExerciseDraft } from "@/lib/method/evaluate";
 import { transitionFault, openFault } from "@/lib/method/exercise";
 import { DELIVERABLE_LABEL, findingText, EXERCISE_STATUS_LABEL } from "@/lib/method/labels";
+import { PACK_KIND_LABEL } from "@/lib/tender-docs/labels";
 import { behaviourProfile } from "@/lib/method/profile";
 import { nameRequestProposalFault, proposalFaults, proposalRecordOf, proposalReopen, proposalStateFor, proposalTransition } from "@/lib/method/proposal";
 import { classificationSnapshotOf, determinationColumns } from "@/lib/method/snapshot";
@@ -718,6 +719,8 @@ export async function moveToPreparation(_prev: FormState, data: FormData): Promi
         proposalState: ex.proposalState,
         ambiguousTaxonomies: ev.taxonomies.filter((x) => x.state === "AMBIGUOUS").length,
         blockingFaults: 0,
+        // 6.4: what the method assembles, read under the lock; unset blocks.
+        packKind: ev.method?.documentPackKind ?? null,
       });
       if (t.length > 0 || blocking.length > 0) return refuse([...t, ...blocking], "Not moved into preparation:");
       // The committee gate still stands between approval and sourcing (FR-REQ-012, C2).
@@ -751,11 +754,13 @@ export async function moveToPreparation(_prev: FormState, data: FormData): Promi
         preparedAt: on,
         dossierReference,
         classificationSnapshot: snapshot as unknown as Prisma.InputJsonValue,
+        // 6.4: the pack kind as decided; never backfilled for an exercise prepared before.
+        packKindSnapshot: ev.method!.documentPackKind!,
         ...fresh,
       };
       const moved = await tx.sourcingExercise.updateMany({ where: { id, status: "DRAFT", updatedAt: ex.updatedAt }, data: after });
       if (moved.count !== 1) throw new Refusal(CHANGED);
-      await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", auditPair(ex, { ...ex, ...after, classificationRecorded: "yes" }));
+      await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", [...auditPair(ex, { ...ex, ...after, classificationRecorded: "yes" }), ...diffFields({ documentPack: null }, { documentPack: PACK_KIND_LABEL[after.packKindSnapshot] })]);
       await writeChildren(tx, l.org.id, ex, ex, draftOf(ex).scope, ev, cfg.config);
       if (l.req.status === "APPROVED") {
         // Through the requisition's own state machine (ruling C1); a refusal throws.

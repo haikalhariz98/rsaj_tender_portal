@@ -10,6 +10,7 @@
 
 import { isLive } from "./evidence";
 import type { ExerciseStatus } from "@/lib/method/types";
+import type { PartSource, TenderPackStatus } from "@/lib/tender-docs/types";
 
 import { OWNER_ACT_PURPOSES, PURPOSE_CLASSIFICATION, PURPOSE_OWNER, type AttachmentPurpose, type Finding, type SecurityClass } from "./types";
 
@@ -47,7 +48,10 @@ export type OwnerFacts =
   /// signed form (one entry per attachment), so reliance falls only on a scan it was verified on.
   | { kind: "specificationPanel"; exerciseStatus: ExerciseStatus; status: "DRAFT" | "VERIFIED"; verifiedScanVersionIds: readonly string[]; liveScanVersionIds: readonly string[] }
   /// 6.2 Q-3: a bill of quantities version, judged with its exercise's status.
-  | { kind: "bqVersion"; exerciseStatus: ExerciseStatus; status: "DRAFT" | "FINALISED" | "SUPERSEDED" };
+  | { kind: "bqVersion"; exerciseStatus: ExerciseStatus; status: "DRAFT" | "FINALISED" | "SUPERSEDED" }
+  /// 6.4: a tender pack's part, judged with its pack's and exercise's status. Only a part whose
+  /// content is uploaded (source UPLOAD) keeps a file.
+  | { kind: "tenderPackPart"; exerciseStatus: ExerciseStatus; packStatus: TenderPackStatus; source: PartSource };
 
 /// Whether an exercise's status freezes what it (and its panel and bill) holds. Exhaustive
 /// (X-8): a status added to ExerciseStatus fails to compile here until it is decided.
@@ -55,6 +59,10 @@ export function exerciseFrozen(status: ExerciseStatus): boolean {
   switch (status) {
     case "DRAFT":
     case "DOCUMENTS_IN_PREPARATION":
+    // 6.4: the exercise's own documents stay open while its pack is with approval and after;
+    // the pack's parts freeze with the pack (`tenderPackPart`), not with the exercise.
+    case "PENDING_APPROVAL_FOR_TENDERING":
+    case "APPROVED_FOR_TENDERING":
       return false;
     case "CANCELLED":
       return true;
@@ -103,7 +111,8 @@ export type OwnerExit =
   | "AWARD_NOT_ISSUED"
   | "AWARD_CANCELLED"
   | "DELEGATION_ENDED"
-  | "BQ_FINALISED";
+  | "BQ_FINALISED"
+  | "PACK_FROZEN";
 
 export type AttachFault =
   | "PURPOSE_NOT_FOR_OWNER"
@@ -121,6 +130,9 @@ export type AttachFault =
 export function purposeFits(purpose: AttachmentPurpose, owner: OwnerFacts): boolean {
   if (PURPOSE_OWNER[purpose] !== owner.kind) return false;
   if (owner.kind === "award") return RETURN_PURPOSES[owner.instrumentKind].includes(purpose);
+  // 6.4: a part keeps a file only where its content is uploaded; a template, the bill or the
+  // Appendix is frozen from its own source (FR-DOC-003).
+  if (owner.kind === "tenderPackPart") return owner.source === "UPLOAD";
   return true;
 }
 
@@ -153,6 +165,11 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): { sta
       // A finalised or superseded bill keeps the file it was imported from, as it stands.
       if (exerciseFrozen(owner.exerciseStatus)) return { state: "FROZEN", exit: "EXERCISE_CANCELLED" };
       return owner.status === "DRAFT" ? { state: "OPEN" } : { state: "FROZEN", exit: "BQ_FINALISED" };
+    case "tenderPackPart":
+      // 6.4 (ADR 0013): a pack's parts change only while it is a draft. Submitted, approved or
+      // returned, it stands as frozen; a return opens a new draft, where the file is replaced.
+      if (exerciseFrozen(owner.exerciseStatus)) return { state: "FROZEN", exit: "EXERCISE_CANCELLED" };
+      return owner.packStatus === "DRAFT" ? { state: "OPEN" } : { state: "FROZEN", exit: "PACK_FROZEN" };
   }
 }
 

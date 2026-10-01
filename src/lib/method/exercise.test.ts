@@ -50,7 +50,7 @@ describe("the committee gate before the first exercise (FR-REQ-012, rulings CO-1
 });
 
 describe("leaving Draft", () => {
-  const ready = { today: "2026-09-30", methodSet: true, typeSet: true, basisSet: true, proposalRequired: false, ambiguousTaxonomies: 0, blockingFaults: 0 };
+  const ready = { today: "2026-09-30", methodSet: true, typeSet: true, basisSet: true, proposalRequired: false, ambiguousTaxonomies: 0, blockingFaults: 0, packKind: "TENDER" as const };
   it("needs method, contract type and basis", () => {
     expect(transitionFault("DRAFT", "DOCUMENTS_IN_PREPARATION", ready)).toEqual([]);
     expect(codes(transitionFault("DRAFT", "DOCUMENTS_IN_PREPARATION", { ...ready, typeSet: false, basisSet: false }))).toEqual(["TYPE_NOT_SET", "BASIS_NOT_SET"]);

@@ -1,17 +1,21 @@
 /**
- * The sourcing exercise's first states (spec §7.3.2, ruling R-6).
+ * The sourcing exercise's states (spec §7.3.2, ruling R-6; 6.4 adds the tendering states).
  *
  * Draft: created against an approved requisition whose funding route lets the
  * organisation procure. It leaves Draft for Documents in preparation once method,
- * basis and contract type are set and nothing blocks. Cancelled is an assumption —
- * §7.3.2 gives it no SOP path — and is terminal. Pure: `openFault` and
+ * basis, contract type and the method's document pack are set and nothing blocks. From
+ * there the tender pack is submitted (Pending approval for tendering), and the route's
+ * approving step either approves it with the start and closing recorded (Approved for
+ * tendering) or returns it for amendment (back to Documents in preparation, Q-3). Each of
+ * those moves is made by one act only (`via`). Cancelled is an assumption — §7.3.2
+ * gives it no SOP path — reachable from every state before it, and terminal. Pure: `openFault` and
  * `transitionFault` say why a move cannot be made, and every action asks them on data
  * read under the requisition's row lock.
  */
 
 import type { GateFinding } from "@/lib/requisition/gate";
 
-import type { ExerciseStatus, Finding, ProposalState } from "./types";
+import type { ExerciseStatus, Finding, PackKind, ProposalState } from "./types";
 
 export type OpenFault =
   | "TIME_ZONE_UNSET"
@@ -62,13 +66,23 @@ export type TransitionFault =
   | "BASIS_NOT_SET"
   | "PROPOSAL_NOT_REVIEWED"
   | "TAXONOMY_AMBIGUOUS"
-  | "BLOCKING_FAULTS";
+  | "BLOCKING_FAULTS"
+  | "DOCUMENTS_RULE_NOT_SET"
+  | "NOT_BY_THIS_ACT"
+  | "PACK_NOT_READY"
+  | "DATES_REQUIRED";
 
 export const EXERCISE_TRANSITIONS: Record<ExerciseStatus, readonly ExerciseStatus[]> = {
   DRAFT: ["DOCUMENTS_IN_PREPARATION", "CANCELLED"],
-  DOCUMENTS_IN_PREPARATION: ["CANCELLED"],
+  DOCUMENTS_IN_PREPARATION: ["PENDING_APPROVAL_FOR_TENDERING", "CANCELLED"],
+  PENDING_APPROVAL_FOR_TENDERING: ["APPROVED_FOR_TENDERING", "DOCUMENTS_IN_PREPARATION", "CANCELLED"],
+  APPROVED_FOR_TENDERING: ["CANCELLED"],
   CANCELLED: [],
 };
+
+/// The one act that makes each tendering move (§7.3.2): submitting the pack, the route's
+/// approving step, and a rejection that returns the pack for amendment.
+export type TenderingAct = "SUBMISSION" | "APPROVAL" | "RETURN";
 
 export interface TransitionContext {
   today: string | null;
@@ -81,6 +95,23 @@ export interface TransitionContext {
   ambiguousTaxonomies?: number;
   /// Blocking findings from the other checks (value, selection, justification, scope).
   blockingFaults?: number;
+  /// 6.4: the method's document pack kind, for the move into preparation. Null or not given:
+  /// not set, and the move is refused naming the setting (never read as "no pack").
+  packKind?: PackKind | null;
+  /// 6.4: the act making a tendering move. A tendering move by any other act is refused.
+  via?: TenderingAct;
+  /// 6.4: blocking findings of the pack's submission checks (`submitFaults`). Not given: not judged, refused.
+  packFaults?: number;
+  /// 6.4: the approving step recorded the start and closing (FR-DOC-012).
+  datesSet?: boolean;
+}
+
+/// Which act makes a move between two states, where only one may.
+function actFor(from: ExerciseStatus, to: ExerciseStatus): TenderingAct | null {
+  if (from === "DOCUMENTS_IN_PREPARATION" && to === "PENDING_APPROVAL_FOR_TENDERING") return "SUBMISSION";
+  if (from === "PENDING_APPROVAL_FOR_TENDERING" && to === "APPROVED_FOR_TENDERING") return "APPROVAL";
+  if (from === "PENDING_APPROVAL_FOR_TENDERING" && to === "DOCUMENTS_IN_PREPARATION") return "RETURN";
+  return null;
 }
 
 /// Every reason the move cannot be made, so a screen can say them all at once.
@@ -90,6 +121,13 @@ export function transitionFault(from: ExerciseStatus, to: ExerciseStatus, ctx: T
   if (!EXERCISE_TRANSITIONS[from].includes(to)) return [f("NOT_ALLOWED", { from, to })];
   if (ctx.today == null) return [f("TIME_ZONE_UNSET")];
   if (to === "CANCELLED") return (ctx.reason ?? "").trim() ? [] : [f("CANCEL_REASON_REQUIRED")];
+  const act = actFor(from, to);
+  if (act) {
+    if (ctx.via !== act) return [f("NOT_BY_THIS_ACT", { act })];
+    if (act === "SUBMISSION" && ctx.packFaults !== 0) return [f("PACK_NOT_READY", { count: ctx.packFaults ?? null })];
+    if (act === "APPROVAL" && !ctx.datesSet) return [f("DATES_REQUIRED")];
+    return [];
+  }
   const out: Finding<TransitionFault>[] = [];
   if (!ctx.methodSet) out.push(f("METHOD_NOT_SET"));
   if (!ctx.typeSet) out.push(f("TYPE_NOT_SET"));
@@ -97,5 +135,7 @@ export function transitionFault(from: ExerciseStatus, to: ExerciseStatus, ctx: T
   if (ctx.proposalRequired && ctx.proposalState !== "REVIEWED") out.push(f("PROPOSAL_NOT_REVIEWED"));
   if ((ctx.ambiguousTaxonomies ?? 0) > 0) out.push(f("TAXONOMY_AMBIGUOUS", { count: ctx.ambiguousTaxonomies ?? 0 }));
   if ((ctx.blockingFaults ?? 0) > 0) out.push(f("BLOCKING_FAULTS", { count: ctx.blockingFaults ?? 0 }));
+  // 6.4: the method's document pack decides what preparation assembles; unset blocks.
+  if (ctx.packKind == null) out.push(f("DOCUMENTS_RULE_NOT_SET"));
   return out;
 }

@@ -17,7 +17,7 @@ import type { ApprovalStep, CoreChainRecord, Matrix, Resolution, ResolutionWarni
 import type { Sen } from "@/lib/money";
 import { ableToAct, type Holders } from "@/lib/requisition/holders";
 
-import { APPOINTMENT_DOMAIN, NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN, type Finding, type Method } from "./types";
+import { APPOINTMENT_DOMAIN, NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN, type ExerciseStatus, type Finding, type Method } from "./types";
 
 export interface FunderContext {
   dal: Matrix;
@@ -254,7 +254,7 @@ export type NameRequestFault = "NAME_EXERCISE_CANCELLED" | "NAME_NOT_ASKED" | "N
  * a route was refused or withdrawn; never while one is open or approved.
  */
 export function nameRequestFault(
-  status: "DRAFT" | "DOCUMENTS_IN_PREPARATION" | "CANCELLED",
+  status: ExerciseStatus,
   method: Pick<Method, "requiresNameApproval"> | null,
   instances: readonly { status: string; rejectionApplied?: string | null; rejectionChoices?: readonly string[] }[],
   today: string | null,

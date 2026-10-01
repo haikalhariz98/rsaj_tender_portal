@@ -46,6 +46,9 @@ export interface PlanAttachment {
   /// 6.2 Q-3: a bill of quantities version, on the demo side when it is demo data or its
   /// exercise is (a version goes with its exercise, `removedBqVersionIds`).
   bqVersionId?: string | null;
+  /// 6.4: a tender pack's part, on the demo side when it is demo data or its exercise is
+  /// (a pack and its parts go with their exercise, `removedPackPartIds`).
+  tenderPackPartId?: string | null;
 }
 
 export interface PlanDocument {
@@ -71,6 +74,8 @@ export interface WipeSide {
   removedPanelIds?: ReadonlySet<string>;
   /// 6.2 Q-3: bill versions made through the screens on exercises the wipe removes.
   removedBqVersionIds?: ReadonlySet<string>;
+  /// 6.4: tender pack parts made through the screens on exercises the wipe removes.
+  removedPackPartIds?: ReadonlySet<string>;
 }
 
 /**
@@ -110,7 +115,7 @@ export interface DocumentWipePlan {
 
 /// Whether an attachment's record is demo data or removed with it.
 export function onDemoSide(a: PlanAttachment, side: WipeSide): boolean {
-  const keys = [a.meetingId, a.exerciseId, a.awardId, a.delegationId, a.specificationPanelId ?? null, a.bqVersionId ?? null].filter((k): k is string => k != null);
+  const keys = [a.meetingId, a.exerciseId, a.awardId, a.delegationId, a.specificationPanelId ?? null, a.bqVersionId ?? null, a.tenderPackPartId ?? null].filter((k): k is string => k != null);
   // An attachment has exactly one owner (a CHECK); a row with none is never the demo's.
   if (keys.length === 0) return false;
   return keys.every(
@@ -121,7 +126,8 @@ export function onDemoSide(a: PlanAttachment, side: WipeSide): boolean {
       (a.meetingId === k && (side.removedMeetingIds?.has(k) ?? false)) ||
       (a.delegationId === k && (side.removedDelegationIds?.has(k) ?? false)) ||
       (a.specificationPanelId === k && (side.removedPanelIds?.has(k) ?? false)) ||
-      (a.bqVersionId === k && (side.removedBqVersionIds?.has(k) ?? false)),
+      (a.bqVersionId === k && (side.removedBqVersionIds?.has(k) ?? false)) ||
+      (a.tenderPackPartId === k && (side.removedPackPartIds?.has(k) ?? false)),
   );
 }
 

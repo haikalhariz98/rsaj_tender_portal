@@ -21,9 +21,10 @@ import { db } from "@/lib/db";
 import { requisitionOfExercise, withLockedRequisitionForSourcing } from "@/lib/method/repo";
 import { lockDelegation } from "@/lib/people/lock";
 import { exerciseOfBqVersion, exerciseOfPanel, lockBqRows, lockPanelRow, withLockedExerciseScope } from "@/lib/scope/lock";
+import { exerciseOfPackPart, lockPackRows, PACK_PART_FACTS_SELECT, packPartLabel } from "@/lib/tender-docs/owner";
 
 import { reliedOn, type OwnerFacts, type Reliance } from "./attach";
-import { awardFacts, bqVersionFacts, delegationFacts, exerciseFacts, exerciseMethodFlags, meetingFacts, PANEL_FACTS_SELECT, panelFacts } from "./owner-facts";
+import { awardFacts, bqVersionFacts, delegationFacts, exerciseFacts, exerciseMethodFlags, meetingFacts, PANEL_FACTS_SELECT, panelFacts, tenderPackPartFacts } from "./owner-facts";
 import type { OwnerRef } from "./repo";
 import { documentOrg } from "./service";
 import type { AttachmentPurpose } from "./types";
@@ -143,6 +144,26 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
         });
       });
     }
+    case "tenderPackPart": {
+      // 6.4: requisition, exercise, then the exercise's packs, as the pack actions lock them.
+      const exerciseId = await exerciseOfPackPart(ref.id);
+      if (!exerciseId) return null;
+      return withLockedExerciseScope(exerciseId, async (tx, l) => {
+        await lockPackRows(tx, exerciseId);
+        const p = await tx.tenderPackPart.findFirst({ where: { id: ref.id, organisationId: l.org.id, pack: { exerciseId } }, select: PACK_PART_FACTS_SELECT });
+        if (!p) return null;
+        const facts = tenderPackPartFacts({ source: p.source, pack: { status: p.pack.status, exercise: { status: l.ex.status } } });
+        return fn(tx, {
+          ref,
+          organisationId: l.org.id,
+          today: l.org.today,
+          label: packPartLabel(p),
+          facts,
+          paths: [`/sourcing/${exerciseId}`],
+          reliance: (purpose, live, versionId) => reliedOn(purpose, facts, live, versionId),
+        });
+      });
+    }
     case "delegation":
       return db.$transaction(async (tx) => {
         const org = await documentOrg(tx);
@@ -166,12 +187,13 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
 }
 
 /// Which owner an attachment belongs to.
-export function ownerOf(a: { meetingId: string | null; exerciseId: string | null; awardId: string | null; delegationId: string | null; specificationPanelId?: string | null; bqVersionId?: string | null }): OwnerRef | null {
+export function ownerOf(a: { meetingId: string | null; exerciseId: string | null; awardId: string | null; delegationId: string | null; specificationPanelId?: string | null; bqVersionId?: string | null; tenderPackPartId?: string | null }): OwnerRef | null {
   if (a.meetingId) return { kind: "meeting", id: a.meetingId };
   if (a.exerciseId) return { kind: "exercise", id: a.exerciseId };
   if (a.awardId) return { kind: "award", id: a.awardId };
   if (a.delegationId) return { kind: "delegation", id: a.delegationId };
   if (a.specificationPanelId) return { kind: "specificationPanel", id: a.specificationPanelId };
   if (a.bqVersionId) return { kind: "bqVersion", id: a.bqVersionId };
+  if (a.tenderPackPartId) return { kind: "tenderPackPart", id: a.tenderPackPartId };
   return null;
 }

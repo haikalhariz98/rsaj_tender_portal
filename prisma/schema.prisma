@@ -253,6 +253,14 @@ model Organisation {
   estimateEvents        EstimateEvent[]
   rateSchedules         RateSchedule[]
   rateScheduleItems     RateScheduleItem[]
+  tenderDocumentParts   TenderDocumentPart[]
+  tenderDocumentPolicy  TenderDocumentPolicy?
+  tenderPacks           TenderPack[]
+  tenderPackParts       TenderPackPart[]
+  tenderPackDocuments   TenderPackDocument[]
+  conditionsAppendices  ConditionsAppendix[]
+  appendixVariationLimits AppendixVariationLimit[]
+  appendixSections      AppendixSection[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -1041,6 +1049,8 @@ model DocumentTemplate {
   policiesCoveringMemo AwardPolicy[]              @relation("PolicyCoveringMemoTemplate")
   letterVariants       AppointmentLetterVariant[]
   awardDocuments       AwardDocument[]
+  tenderPackParts      TenderPackPart[]
+  tenderPackDocuments  TenderPackDocument[]
 
   @@unique([organisationId, code])
 }
@@ -1792,6 +1802,10 @@ model SourcingMethod {
   /// and tabling and packFaults block naming it. Its own provenance, as the committee's answer.
   scopeAct                          AuthorityAct?
   scopeActProvenance                Provenance?
+  /// 6.4 (FR-DOC-001, 013): the tender pack an exercise sourced this way assembles. Null: not
+  /// set, and the move into preparation blocks naming it. NONE: no pack (a direct appointment).
+  documentPackKind                  PackKind?
+  documentPackKindProvenance        Provenance?
   /// The numbering series (NumberingSeries.key) a dossier reference is issued from.
   dossierSeriesKey String?
 
@@ -2254,6 +2268,8 @@ model ApprovalInstance {
   supersededBy              ApprovalInstance?         @relation("Successor")
 
   steps ApprovalStep[]
+  /// 6.4: the tender pack this Approval for Tendering route approves.
+  tenderPack TenderPack?
 
   @@index([organisationId, matterKind])
   @@index([requisitionId])
@@ -2372,6 +2388,10 @@ model CoreRoutingStep {
 enum ExerciseStatus {
   DRAFT
   DOCUMENTS_IN_PREPARATION
+  /// 6.4 (§7.3.2): the tender pack is frozen and with the Approval for Tendering route.
+  PENDING_APPROVAL_FOR_TENDERING
+  /// 6.4 (§7.3.2): approved for tendering, with its start and closing recorded (X-2).
+  APPROVED_FOR_TENDERING
   CANCELLED
 }
 
@@ -2651,9 +2671,21 @@ model SourcingExercise {
   classificationSnapshot Json?
   preparedAt             DateTime?
 
+  /// 6.4: the method's pack kind, written on the move into preparation. Null: prepared before
+  /// document assembly existed (never backfilled from configuration); such an exercise keeps
+  /// the Phase 1 award path (X-9).
+  packKindSnapshot       PackKind?
+  /// 6.4 (FR-DOC-012, X-2): DATE START and CLOSING DATE, written by the step that approves
+  /// tendering and frozen on the approved pack in the same act. `closingAt` has two writers
+  /// only: that step and 6.5's applied closing change (source-scanned).
+  tenderingStartOn       DateTime?
+  closingAt              DateTime?
+  approvedForTenderingAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  tenderPacks       TenderPack[]
   scopeParts        ExerciseScopePart[]
   proposalAnswers   ExerciseProposalAnswer[]
   taxonomyValues    ExerciseTaxonomyValue[]
@@ -3447,6 +3479,8 @@ enum AttachmentPurpose {
   SPEC_PANEL_FORM
   /// 6.2 Q-3: a bill of quantities' imported CSV as received, on the bill's version.
   BQ_IMPORT_SOURCE
+  /// 6.4: an uploaded part of a tender pack (drawings, a specification), on the pack's part.
+  TENDER_PART
   DOSSIER_EVIDENCE
   COORDINATION_SCOPE
   HOLDER_RECOMMENDATION
@@ -3587,6 +3621,9 @@ model DocumentAttachment {
   /// 6.2 Q-3: a bill of quantities version, for the CSV it was imported from.
   bqVersionId          String?
   bqVersion            BqVersion?          @relation(fields: [bqVersionId], references: [id], onDelete: Restrict)
+  /// 6.4: a tender pack's part, for the file that is the part (drawings, a specification).
+  tenderPackPartId     String?
+  tenderPackPart       TenderPackPart?     @relation(fields: [tenderPackPartId], references: [id], onDelete: Restrict)
 
   attachedAt   DateTime  @default(now())
   detachedAt   DateTime?
@@ -3598,6 +3635,7 @@ model DocumentAttachment {
   @@index([delegationId])
   @@index([specificationPanelId])
   @@index([bqVersionId])
+  @@index([tenderPackPartId])
   @@index([versionId])
 }
 
@@ -3852,6 +3890,8 @@ model BqVersion {
   scopeMatters    CommitteeDecision[]
   /// The CSV files it was imported from (6.2 Q-3).
   attachments     DocumentAttachment[]
+  /// 6.4: the tender packs that issue this version, unpriced.
+  tenderPacks     TenderPack[]
 
   @@unique([exerciseId, versionNo])
 }
@@ -4064,4 +4104,353 @@ model EstimateEvent {
   at             DateTime          @default(now())
 
   @@index([estimateId])
+}
+
+// ------------------------------------------------------------------ 6.4 tender documents
+
+/// What a sourcing method assembles for tenderers (FR-DOC-001, 013). Closed product vocabulary.
+enum PackKind {
+  TENDER
+  QUOTATION
+  /// No pack: the method appoints without tenderers (direct, emergency).
+  NONE
+}
+
+/// What a configured part is, so rules can recognise it (BD-DS-4 precedent). Closed vocabulary.
+enum PartRole {
+  INVITATION
+  INSTRUCTIONS
+  FORM_OF_TENDER
+  CONDITIONS
+  APPENDIX
+  LOA_SPECIMEN
+  BOND_FORMS
+  SPECIFICATION
+  BILL_OF_QUANTITIES
+  SUMMARY_AND_RATES
+  REGISTRATION_BACKGROUND
+  DECLARATION
+  DRAWINGS
+  OTHER
+}
+
+/// Standard text from the library, bespoke to the exercise, or both (FR-DOC-003).
+enum PartContent {
+  STANDARD
+  BESPOKE
+  MIXED
+}
+
+/// Where a part's content comes from.
+enum PartSource {
+  TEMPLATE
+  BQ_UNPRICED
+  APPENDIX
+  UPLOAD
+}
+
+enum TenderPackStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  RETURNED
+  VOID
+}
+
+enum PackPartState {
+  NOT_STARTED
+  READY
+  OMITTED
+}
+
+enum AppendixStatus {
+  DRAFT
+  COMPLETE
+}
+
+/// How liquidated damages are stated in the Appendix (Q-6): an amount a day, or a percentage
+/// of the contract sum a day, resolved at award against the awarded sum.
+enum LadKind {
+  AMOUNT_PER_DAY
+  PERCENT_OF_SUM_PER_DAY
+}
+
+enum UpliftKind {
+  AMOUNT
+  PERCENT
+}
+
+/// A part of the tender pack, as the customer configures it per pack kind and contract basis
+/// (FR-DOC-001, 002, 013). Ships empty: a customer's part list is a go-live seed (Q-8).
+model TenderDocumentPart {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  code              String
+  packKind          PackKind
+  /// Null: the part applies on any basis. A basis-specific row replaces an any-basis row of the same role.
+  contractBasisCode String?
+  /// As printed on the pack's list of contents, e.g. "7a".
+  printedNumber     String
+  sortOrder         Int         @default(0)
+  labelEn           String
+  labelMs           String?
+  role              PartRole
+  content           PartContent
+  source            PartSource
+  /// Null: not set, and a pack using it cannot be submitted (never read as "optional").
+  mandatory         Boolean?
+  /// Whether the part is in the Tender Table Document (FR-DOC-010). Null: not set.
+  inTableDocument   Boolean?
+  /// The office that prepares it (OrgUnit.code). Null: not set.
+  ownerOrgUnitCode  String?
+  /// The library template a STANDARD or MIXED part draws (DocumentTemplate.code).
+  templateCode      String?
+
+  governingSource String     @default("")
+  provenance      Provenance @default(ASSUMED)
+  notes           String     @default("")
+  retiredOn       DateTime?
+
+  @@unique([organisationId, code])
+  @@index([organisationId, packKind])
+}
+
+/// The tender documents' policy (FR-DOC-004, 009, 014; §8.3, §8.6, §8.10). One row per
+/// organisation, every value nullable: unset blocks or reads "Not set", never a default.
+model TenderDocumentPolicy {
+  id             String       @id @default(cuid())
+  organisationId String       @unique
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  /// The restriction stamp merged into generated parts (FR-DOC-009). The customer's wording.
+  restrictionStampTextEn String?
+  restrictionStampTextMs String?
+  /// Whether the two assurance confirmations are required (FR-DOC-014, increment 2).
+  assuranceRequired      Boolean?
+  /// §8.6: the daily rate an Appendix's LAD is suggested at, as a percentage of the sum.
+  ladDailyPct            Decimal?    @db.Decimal(9, 6)
+  ladDailyPctProvenance  Provenance?
+  /// §8.3: the first interim certificate's minimum: the lesser of a floor and a percentage of the value.
+  firstCertificateFloor      Decimal?    @db.Decimal(18, 2)
+  firstCertificatePct        Decimal?    @db.Decimal(9, 4)
+  firstCertificateProvenance Provenance?
+  /// §8.10: how far insurance runs beyond the defects liability period.
+  insuranceExtraMonths       Int?
+  insuranceExtraDays         Int?
+  insuranceExtraProvenance   Provenance?
+  /// The same for a design-and-build contract.
+  dbInsuranceExtraMonths     Int?
+  dbInsuranceExtraDays       Int?
+  dbInsuranceExtraProvenance Provenance?
+  /// FR-DOC-006 (increment 2): the taxonomy listing regulator permits.
+  regulatorPermitTaxonomyCode String?
+
+  governingSource String @default("")
+  notes           String @default("")
+}
+
+/// A version of an exercise's tender pack (FR-DOC-001). At most one DRAFT or SUBMITTED per
+/// exercise (lib and lock; a partial unique index behind them). Frozen on submission; a
+/// returned pack stays as it was and a new DRAFT is copied from it (Q-3, ADR 0013).
+model TenderPack {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId     String
+  exercise       SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  versionNo      Int
+  status         TenderPackStatus @default(DRAFT)
+
+  packKind            PackKind
+  contractBasisCode   String
+  /// The parts as resolved from configuration when the pack started, with their provenance.
+  compositionSnapshot Json
+  /// The standard form the conditions part names (FR-MTD-013).
+  formLabelSnapshot   String?
+
+  /// The bill of quantities version issued unpriced, pinned at submission.
+  bqVersionId String?
+  bqVersion   BqVersion? @relation(fields: [bqVersionId], references: [id], onDelete: Restrict)
+
+  proposedStartOn   DateTime?
+  proposedClosingAt DateTime?
+  submittedAt       DateTime?
+  frozenAt          DateTime?
+  /// Per part: what it was frozen from (template and body version, bill version, Appendix,
+  /// document version and sha256).
+  manifest          Json?
+  /// The readiness findings it was submitted under (none blocking).
+  faultsSnapshot    Json?
+
+  approvalInstanceId String?           @unique
+  approvalInstance   ApprovalInstance? @relation(fields: [approvalInstanceId], references: [id], onDelete: Restrict)
+
+  returnedReason String    @default("")
+  returnedAt     DateTime?
+  /// A draft or submitted pack ends VOID when its exercise is cancelled.
+  voidReason     String    @default("")
+  /// X-2: the dates the approving step recorded, frozen here in the same act.
+  approvedStartOn   DateTime?
+  approvedClosingAt DateTime?
+  approvedAt        DateTime?
+
+  /// The returned pack this draft was started from.
+  copiedFromPackId String?     @unique
+  copiedFrom       TenderPack? @relation("PackCopiedFrom", fields: [copiedFromPackId], references: [id], onDelete: Restrict)
+  copiedInto       TenderPack? @relation("PackCopiedFrom")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  parts     TenderPackPart[]
+  documents TenderPackDocument[]
+  appendix  ConditionsAppendix?
+
+  @@unique([exerciseId, versionNo])
+  @@index([organisationId, status])
+}
+
+/// A part of a pack, as resolved from configuration when the pack started.
+model TenderPackPart {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  packId         String
+  pack           TenderPack   @relation(fields: [packId], references: [id], onDelete: Restrict)
+
+  partCode         String
+  printedNumber    String
+  sortOrder        Int
+  labelSnapshot    String
+  labelMsSnapshot  String?
+  role             PartRole
+  content          PartContent
+  source           PartSource
+  /// As configured when the pack started. Null: not set (blocks submission).
+  mandatory        Boolean?
+  inTableDocument  Boolean?
+  ownerOrgUnitCode String?
+  /// The configured template's code, and the template picked for this pack.
+  templateCode     String?
+  templateId       String?
+  template         DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: Restrict)
+
+  state         PackPartState @default(NOT_STARTED)
+  omittedReason String        @default("")
+
+  attachments DocumentAttachment[]
+
+  @@unique([packId, partCode])
+}
+
+/// A part's text as frozen at submission (ADR 0008 shape): a template rendered with its
+/// fields, the unpriced bill, or the Appendix. Never re-rendered.
+model TenderPackDocument {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  packId         String
+  pack           TenderPack   @relation(fields: [packId], references: [id], onDelete: Restrict)
+
+  partCode             String
+  source               PartSource
+  templateId           String?
+  template             DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  templateCode         String?
+  templateName         String?
+  templateFormCode     String            @default("")
+  templateRevisionDate DateTime?
+  templateBodyVersion  Int?
+  language             DocumentLanguage
+  fields               Json
+  renderedText         String            @db.Text
+  frozenAt             DateTime
+
+  @@unique([packId, partCode, language])
+}
+
+/// The Appendix to the Conditions of Contract (FR-DOC-004, §8.10): the contract baseline the
+/// award reads (Q-1). Every field three-state: null reads "Not set". Copied forward on return.
+model ConditionsAppendix {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  packId         String         @unique
+  pack           TenderPack     @relation(fields: [packId], references: [id], onDelete: Restrict)
+  status         AppendixStatus @default(DRAFT)
+
+  /// Officers empowered, by AuthorityRole.code with the office's name as it stood.
+  ladOfficerRoleCode          String?
+  ladOfficerLabel             String?
+  eotOfficerRoleCode          String?
+  eotOfficerLabel             String?
+  terminationOfficerRoleCode  String?
+  terminationOfficerLabel     String?
+  warRiskOfficerRoleCode      String?
+  warRiskOfficerLabel         String?
+  arbitrationOfficerRoleCode  String?
+  arbitrationOfficerLabel     String?
+
+  /// Prime cost sums for works: whether any apply (null: not answered) and what they are.
+  pcSumWorksApply Boolean?
+  pcSumWorksText  String   @default("")
+
+  tplMinimum                 Decimal?    @db.Decimal(18, 2)
+  wcMinimum                  Decimal?    @db.Decimal(18, 2)
+  worksInsuranceUpliftKind   UpliftKind?
+  worksInsuranceUpliftAmount Decimal?    @db.Decimal(18, 2)
+  worksInsuranceUpliftPct    Decimal?    @db.Decimal(9, 4)
+  insuranceExcess            Decimal?    @db.Decimal(18, 2)
+
+  ladKind   LadKind?
+  ladAmount Decimal? @db.Decimal(18, 2)
+  ladPct    Decimal? @db.Decimal(9, 6)
+
+  sectionalCompletion Boolean?
+  dlpApplies          Boolean?
+  dlpMonths           Int?
+
+  firstInterimMinimum      Decimal? @db.Decimal(18, 2)
+  subsequentInterimMinimum Decimal? @db.Decimal(18, 2)
+  honourCertificateDays    Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  variationLimits AppendixVariationLimit[]
+  sections        AppendixSection[]
+}
+
+/// A variation limit in the Appendix: an office or a committee, and its limit.
+model AppendixVariationLimit {
+  id             String             @id @default(cuid())
+  organisationId String
+  organisation   Organisation       @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  appendixId     String
+  appendix       ConditionsAppendix @relation(fields: [appendixId], references: [id], onDelete: Restrict)
+
+  roleCode      String?
+  committeeCode String?
+  /// The office's or committee's name as it stood.
+  label         String
+  /// Null: not set.
+  limit         Decimal? @db.Decimal(18, 2)
+  sortOrder     Int      @default(0)
+}
+
+/// A section for sectional completion, with its own LAD.
+model AppendixSection {
+  id             String             @id @default(cuid())
+  organisationId String
+  organisation   Organisation       @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  appendixId     String
+  appendix       ConditionsAppendix @relation(fields: [appendixId], references: [id], onDelete: Restrict)
+
+  description String
+  ladKind     LadKind?
+  ladAmount   Decimal? @db.Decimal(18, 2)
+  ladPct      Decimal? @db.Decimal(9, 6)
+  sortOrder   Int      @default(0)
 }

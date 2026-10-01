@@ -152,6 +152,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
           proposalState: ex.proposalState,
           ambiguousTaxonomies: ev?.taxonomies.filter((t) => t.state === "AMBIGUOUS").length ?? 0,
           blockingFaults: blocking.length,
+          packKind: method?.documentPackKind ?? null,
         }),
       ]
     : [];

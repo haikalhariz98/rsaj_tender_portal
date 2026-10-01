@@ -41,11 +41,16 @@ export interface PanelFacts {
 
 /// Whether the exercise allows the panel to be edited or verified, by its status. Exhaustive
 /// (X-8): a status added to ExerciseStatus fails to compile here until it is decided.
-export function exerciseAllowsPanel(status: ExerciseStatus): "OPEN" | "EXERCISE_CANCELLED" {
+export function exerciseAllowsPanel(status: ExerciseStatus): "OPEN" | "PACK_FROZEN" | "EXERCISE_CANCELLED" {
   switch (status) {
     case "DRAFT":
     case "DOCUMENTS_IN_PREPARATION":
       return "OPEN";
+    // 6.4: the tender pack froze on this bill and panel; a change waits for its return for
+    // amendment (or, once approved, for an addendum, 6.5).
+    case "PENDING_APPROVAL_FOR_TENDERING":
+    case "APPROVED_FOR_TENDERING":
+      return "PACK_FROZEN";
     case "CANCELLED":
       return "EXERCISE_CANCELLED";
     default: {
@@ -118,6 +123,7 @@ export function verifyPanelFault(state: PanelState): Finding<MarkVerifiedFault> 
 
 export type PanelFault =
   | "EXERCISE_CANCELLED"
+  | "PACK_FROZEN"
   | "COLUMNS_NOT_SET"
   | "COLUMN_UNVERIFIED"
   | "OVER_SIGNATORY_LIMIT"
@@ -138,7 +144,8 @@ export function panelFaults(
   ctx: { columns: readonly PanelColumn[]; policy: ScopePolicy; today: string | null; exerciseStatus: ExerciseStatus; bqRequired: boolean | null },
 ): Finding<PanelFault>[] {
   const out: Finding<PanelFault>[] = [];
-  if (exerciseAllowsPanel(ctx.exerciseStatus) !== "OPEN") out.push({ code: "EXERCISE_CANCELLED", level: "block" });
+  const allows = exerciseAllowsPanel(ctx.exerciseStatus);
+  if (allows !== "OPEN") out.push({ code: allows, level: "block" });
   const columns = columnsInForce(ctx.columns, ctx.today);
   const standing = standingVerifications(p.verifications);
   if (columns.length === 0) out.push({ code: "COLUMNS_NOT_SET", level: "block" });
@@ -157,7 +164,7 @@ export function panelFaults(
   return out;
 }
 
-export type VerifyFault = "EXERCISE_CANCELLED" | "PERSON_REQUIRED" | "COLUMN_UNKNOWN" | "ALREADY_VERIFIED" | "DAY_REQUIRED" | "DAY_IN_FUTURE" | "TIME_ZONE_NOT_SET" | "PANEL_VERIFIED";
+export type VerifyFault = "EXERCISE_CANCELLED" | "PACK_FROZEN" | "PERSON_REQUIRED" | "COLUMN_UNKNOWN" | "ALREADY_VERIFIED" | "DAY_REQUIRED" | "DAY_IN_FUTURE" | "TIME_ZONE_NOT_SET" | "PANEL_VERIFIED";
 
 /// Recording one column's verification, attested on behalf of the Person named, on a day not after today.
 export function verifyFaults(
@@ -166,7 +173,8 @@ export function verifyFaults(
   ctx: { columns: readonly PanelColumn[]; today: string | null; exerciseStatus: ExerciseStatus },
 ): Finding<VerifyFault>[] {
   const out: Finding<VerifyFault>[] = [];
-  if (exerciseAllowsPanel(ctx.exerciseStatus) !== "OPEN") out.push({ code: "EXERCISE_CANCELLED", level: "block" });
+  const allows = exerciseAllowsPanel(ctx.exerciseStatus);
+  if (allows !== "OPEN") out.push({ code: allows, level: "block" });
   if (p.status === "VERIFIED") out.push({ code: "PANEL_VERIFIED", level: "block" });
   if (!columnsInForce(ctx.columns, ctx.today).some((c) => c.code === i.columnCode)) out.push({ code: "COLUMN_UNKNOWN", level: "block" });
   else if (standingVerifications(p.verifications).some((v) => v.columnCode === i.columnCode)) out.push({ code: "ALREADY_VERIFIED", level: "block" });
@@ -184,6 +192,7 @@ export function editClearsVerifications(p: Pick<PanelFacts, "status" | "verifica
 
 /// Editing the panel's facts is refused only on a cancelled exercise (a verified panel may be
 /// edited: its verifications are cleared, audited, and it returns to a draft).
-export function panelEditFault(exerciseStatus: ExerciseStatus): Finding<"EXERCISE_CANCELLED">[] {
-  return exerciseAllowsPanel(exerciseStatus) !== "OPEN" ? [{ code: "EXERCISE_CANCELLED", level: "block" }] : [];
+export function panelEditFault(exerciseStatus: ExerciseStatus): Finding<"EXERCISE_CANCELLED" | "PACK_FROZEN">[] {
+  const allows = exerciseAllowsPanel(exerciseStatus);
+  return allows !== "OPEN" ? [{ code: allows, level: "block" }] : [];
 }

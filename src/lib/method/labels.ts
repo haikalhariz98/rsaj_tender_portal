@@ -15,13 +15,17 @@ import type { ContractTypeState, DeliverableKind, ExerciseStatus, Finding, Propo
 export const EXERCISE_STATUS_LABEL: Record<ExerciseStatus, string> = {
   DRAFT: "Draft",
   DOCUMENTS_IN_PREPARATION: "Documents in preparation",
+  PENDING_APPROVAL_FOR_TENDERING: "Pending approval for tendering",
+  APPROVED_FOR_TENDERING: "Approved for tendering",
   CANCELLED: "Cancelled",
 };
-export const EXERCISE_STATUS_ORDER: readonly ExerciseStatus[] = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "CANCELLED"];
+export const EXERCISE_STATUS_ORDER: readonly ExerciseStatus[] = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING", "APPROVED_FOR_TENDERING", "CANCELLED"];
 export const EXERCISE_STATUS_TONE: Record<ExerciseStatus, "brand" | "info" | "neutral"> = {
   // As a requisition's draft reads (UX low).
   DRAFT: "neutral",
   DOCUMENTS_IN_PREPARATION: "info",
+  PENDING_APPROVAL_FOR_TENDERING: "info",
+  APPROVED_FOR_TENDERING: "brand",
   CANCELLED: "neutral",
 };
 /// §7.3.2 gives cancellation no SOP path; the screen says so wherever it shows it.
@@ -291,6 +295,18 @@ export function findingText(f: Finding): string {
       return "A classification needs a choice on the Contract type tab.";
     case "BLOCKING_FAULTS":
       return "The exercise has faults to correct: see the Classification tab.";
+    case "DOCUMENTS_RULE_NOT_SET":
+      return "The sourcing method does not say which tender documents it assembles. Set its document pack under Configuration, Reference data, Sourcing methods.";
+    case "NOT_BY_THIS_ACT":
+      return d.act === "SUBMISSION"
+        ? "The exercise goes for approval for tendering only by submitting its tender documents, on the Tender documents tab."
+        : d.act === "APPROVAL"
+          ? "The exercise is approved for tendering only by the approving step of its route, which records the start and closing."
+          : "The exercise returns to preparation only when its route for tendering is rejected.";
+    case "PACK_NOT_READY":
+      return "The tender documents are not ready: see what the Tender documents tab says blocks them.";
+    case "DATES_REQUIRED":
+      return "Record the tendering start and closing date with the approving decision.";
     case "DETERMINATION_CHANGED":
       return `Since it was last saved, the configuration now gives a different result for ${d.changes}. Open Edit and save it again, so the change is recorded, then move it.`;
     case "NAME_EXERCISE_CANCELLED":

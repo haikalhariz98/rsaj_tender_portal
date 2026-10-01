@@ -96,6 +96,6 @@ describe("attachableVersion", () => {
 
 describe("the kinds offered for a received document", () => {
   it("are every owner kind but the bill version, whose only purpose its import attaches", () => {
-    expect(ATTACHABLE_OWNER_KINDS).toEqual(["meeting", "exercise", "award", "delegation", "specificationPanel"]);
+    expect(ATTACHABLE_OWNER_KINDS).toEqual(["meeting", "exercise", "award", "delegation", "specificationPanel", "tenderPackPart"]);
   });
 });

@@ -24,10 +24,11 @@ export const OWNER_KIND_LABEL: Readonly<Record<OwnerKind, string>> = {
   delegation: "Delegation",
   specificationPanel: "Specification panel",
   bqVersion: "Bill of quantities",
+  tenderPackPart: "Tender document part",
 };
 
 /// Where an owner's own screen is, for a link from a document to the record it is on.
-/// A specification panel is shown on its exercise's screen: pass the exercise's id as `exerciseId`.
+/// A specification panel, a bill version and a tender pack part are shown on their exercise's screen: pass the exercise's id as `exerciseId`.
 export function ownerHref(kind: OwnerKind, id: string, exerciseId?: string): string {
   switch (kind) {
     case "meeting":
@@ -42,6 +43,8 @@ export function ownerHref(kind: OwnerKind, id: string, exerciseId?: string): str
       return exerciseId ? `/sourcing/${exerciseId}` : "/sourcing";
     case "bqVersion":
       return exerciseId ? `/sourcing/${exerciseId}?tab=scope&section=bq` : "/sourcing";
+    case "tenderPackPart":
+      return exerciseId ? `/sourcing/${exerciseId}?tab=documents` : "/sourcing";
   }
 }
 

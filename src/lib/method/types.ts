@@ -19,7 +19,12 @@ export const NAME_APPROVAL_DOMAIN = "name_approval";
 /// Approval for Tendering (FR-DOC-012, 6.4): the exercise's second route of its own.
 export const TENDERING_APPROVAL_DOMAIN = "tendering_approval";
 
-export type ExerciseStatus = "DRAFT" | "DOCUMENTS_IN_PREPARATION" | "CANCELLED";
+/// The exercise's states (§7.3.2). 6.4 adds the two tendering states; every map over them is
+/// exhaustive (X-8), so a state added here fails to compile until each map decides it.
+export const EXERCISE_STATUSES = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING", "APPROVED_FOR_TENDERING", "CANCELLED"] as const;
+export type ExerciseStatus = (typeof EXERCISE_STATUSES)[number];
+/// What a sourcing method assembles for tenderers (6.4, FR-DOC-001, 013).
+export type PackKind = "TENDER" | "QUOTATION" | "NONE";
 export type DeliverableKind = "GOODS_DELIVERED" | "MEASURED_CONSTRUCTION" | "TERM_PERFORMANCE";
 export const DELIVERABLE_KINDS: readonly DeliverableKind[] = ["GOODS_DELIVERED", "MEASURED_CONSTRUCTION", "TERM_PERFORMANCE"];
 export type ProposalState = "DRAFT" | "SUBMITTED" | "REVIEWED";
@@ -41,6 +46,9 @@ export interface MethodBehaviour {
   requiresDossier: boolean;
   requiresCoordinationRecord: boolean;
   dossierSeriesKey: string | null;
+  /// 6.4: the tender pack the method assembles. Null or absent: not set, and the move into
+  /// preparation blocks naming it (never read as "no pack").
+  documentPackKind?: PackKind | null;
 }
 
 export type Method = SourcingMethod & MethodBehaviour;

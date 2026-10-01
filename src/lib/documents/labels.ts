@@ -66,6 +66,7 @@ export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
   SIGNED_MINUTES: "Signed minutes",
   SPEC_PANEL_FORM: "Signed specification panel form",
   BQ_IMPORT_SOURCE: "Imported bill of quantities file",
+  TENDER_PART: "Tender document part",
   DOSSIER_EVIDENCE: "Dossier evidence",
   COORDINATION_SCOPE: "Coordination meeting scope document",
   HOLDER_RECOMMENDATION: "Absent holder's signed recommendation",
@@ -138,6 +139,7 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
   AWARD_CANCELLED: "The award is cancelled, so nothing more is attached to it.",
   DELEGATION_ENDED: "The delegation has ended, so nothing more is attached to it.",
   BQ_FINALISED: "This version of the bill is finalised and keeps the file it was imported from. To import another, start a revision of the bill.",
+  PACK_FROZEN: "This tender pack was submitted and stands as it was frozen. A change is made on the next version, once the documents are returned for amendment.",
 };
 
 const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {

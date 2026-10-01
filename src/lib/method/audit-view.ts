@@ -15,6 +15,8 @@ import { issueAuditNames, keyedAuditNames } from "./drift";
 const AUDIT_SKIP = new Set([
   "bandSnapshot", "bandWarnings", "classificationSnapshot", "proposalRecord", "determinedAt", "authorityMatrixId", "updatedAt", "createdAt", "id", "organisationId",
   "requisitionId", "appointmentRuleKey", "termsBandKey", "requisitionRuleKey", "matrixLabel",
+  // 6.4: written on the move into preparation with its label (`documentPack`), never its code.
+  "packKindSnapshot",
 ]);
 const MONEY = new Set(["estimatedValue", "boundaryValue"]);
 

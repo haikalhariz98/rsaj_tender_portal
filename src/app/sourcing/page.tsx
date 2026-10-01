@@ -5,13 +5,12 @@ import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { nameRoutesOf } from "@/lib/method/approval";
-import { EXERCISE_STATUS_LABEL, EXERCISE_STATUS_TONE, REGIME_SHORT, TERM } from "@/lib/method/labels";
+import { EXERCISE_STATUS_LABEL, EXERCISE_STATUS_ORDER, EXERCISE_STATUS_TONE, REGIME_SHORT, TERM } from "@/lib/method/labels";
 import { EXERCISES_PAGE, listExercises, loadMethodConfig } from "@/lib/method/repo";
 import type { ExerciseStatus, Regime } from "@/lib/method/types";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_ORDER: ExerciseStatus[] = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "CANCELLED"];
 const TONE = { brand: "brand", info: "info", neutral: undefined } as const;
 
 /**
@@ -96,7 +95,7 @@ export default async function SourcingPage() {
             { id: "boundary", label: "On the boundary" },
             { id: "name", label: `${TERM.nameApproval} in progress` },
           ]}
-          filters={[{ key: "status", label: "Status", order: STATUS_ORDER.map((s) => EXERCISE_STATUS_LABEL[s]) }]}
+          filters={[{ key: "status", label: "Status", order: EXERCISE_STATUS_ORDER.map((s) => EXERCISE_STATUS_LABEL[s]) }]}
           rowAction={{ label: "Open", hrefTemplate: "/sourcing/{id}" }}
           rowOpens
           columns={[
