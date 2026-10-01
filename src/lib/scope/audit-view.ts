@@ -31,6 +31,22 @@ export const ENTITY = {
   bqExport: "BqCsvExport",
 } as const;
 
+/// What each 6.2 record is called in a History list (codes never reach a screen).
+export const SCOPE_ENTITY_LABEL: Readonly<Record<string, string>> = {
+  [ENTITY.bqVersion]: "Bill of quantities",
+  [ENTITY.bqSection]: "Bill section",
+  [ENTITY.bqItem]: "Bill line",
+  [ENTITY.panel]: "Specification panel",
+  [ENTITY.verification]: "Panel verification",
+  [ENTITY.estimate]: "Company estimate",
+  [ENTITY.estimateVersion]: "Company estimate version",
+  [ENTITY.estimateEvent]: "Company estimate custody",
+  [ENTITY.bqExport]: "Bill exported",
+  CommitteeDecision: "Committee matter",
+  RateSchedule: "Schedule of rates",
+  RateScheduleItem: "Schedule of rates item",
+};
+
 /// Increment 2: schedules of rates are configuration, labelled by their own name, not an exercise's.
 export const RATE_ENTITY = { schedule: "RateSchedule", item: "RateScheduleItem" } as const;
 

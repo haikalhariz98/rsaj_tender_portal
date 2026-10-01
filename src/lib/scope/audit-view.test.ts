@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseSen } from "@/lib/money";
 
-import { bqExportAudit, bqImportAudit, estimateEventAudit, estimateVersionAudit, historyChange, itemAudit, rateFromText, scopeTabledAudit, verificationAudit } from "./audit-view";
+import { ENTITY, SCOPE_ENTITY_LABEL, bqExportAudit, bqImportAudit, estimateEventAudit, estimateVersionAudit, historyChange, itemAudit, rateFromText, scopeTabledAudit, verificationAudit } from "./audit-view";
 
 describe("the estimate's audit rows: 'Sealed (version N)', never the figure or the reason", () => {
   it("an amendment's row contains neither the value's digits nor the reason text", () => {
@@ -73,5 +73,11 @@ describe("increment 2 audit rows", () => {
   it("a scope matter tabled names the sitting and who tabled it, attested", () => {
     const rows = scopeTabledAudit({ subject: "Scope of X: bill of quantities, version 1", versionNo: 1, sitting: "SIT/1", committee: "Technical Committee", act: "Approve", tabledBy: "Aminah", tabledOn: "2026-09-29" });
     expect(rows).toContainEqual({ field: "tabledBy", before: null, after: "Aminah (recorded on behalf of, not signed)" });
+  });
+});
+
+describe("History names every 6.2 record in words", () => {
+  it("every entity 6.2 writes has a label", () => {
+    for (const e of [...Object.values(ENTITY), "CommitteeDecision", "RateSchedule", "RateScheduleItem"]) expect(SCOPE_ENTITY_LABEL[e], e).toBeTruthy();
   });
 });

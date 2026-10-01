@@ -1,5 +1,6 @@
 import { exerciseEvidence, type ExerciseEvidence } from "@/lib/documents/evidence";
 import { DOCUMENT_ENTITY_LABEL } from "@/lib/documents/audit-view";
+import { SCOPE_ENTITY_LABEL } from "@/lib/scope/audit-view";
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
 import { attachmentFacts } from "@/lib/documents/repo";
 import { exercisePurposes } from "@/lib/documents/targets";
@@ -1093,6 +1094,8 @@ function NamePanel({
 const ENTITY_LABEL: Record<string, string> = {
   // Attachments and the documents behind them (document store).
   ...DOCUMENT_ENTITY_LABEL,
+  // 6.2: the bill, panel, estimate, their exports and scope matters, labelled with the exercise.
+  ...SCOPE_ENTITY_LABEL,
   SourcingExercise: "Exercise",
   ExerciseScopePart: "Scope",
   ExerciseProposalAnswer: "Proposal item",

@@ -86,9 +86,9 @@ describe("exports carry no sealed or SULIT figure (OD-1, OD-8, the SULIT guard)"
     const fn = body(source(ACTIONS), "exportBqCsv");
     expect(fn).toMatch(/bqToCsv\(/);
     expect(fn).not.toMatch(/estimat|readSealedFigures|amount\s*:\s*true|include\s*:/i);
-    // In the product, the only file builder is the one the export act calls. (The demo builds
-    // its invented evidence file with it too, under prisma/, and that file holds a bill only.)
-    expect(matching(/\bbqToCsv\(/, (f) => f.startsWith("src/") && !isTest(f) && f !== "src/lib/scope/csv.ts")).toEqual([ACTIONS]);
+    // The only file builders: the export act, and the demo's invented evidence file (a bill only).
+    // Any other caller, anywhere, fails here.
+    expect(matching(/\bbqToCsv\(/, (f) => !isTest(f) && f !== "src/lib/scope/csv.ts").sort()).toEqual(["prisma/demo-scope.ts", ACTIONS].sort());
   });
   it("nothing in a client component builds a bill's file: exports are built on the server", () => {
     const clients = files.filter((f) => f.startsWith("src/") && !isTest(f) && /^["']use client["']/m.test(source(f)));
