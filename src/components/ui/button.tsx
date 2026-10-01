@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes, ComponentProps, ReactNode } from "react";
 
 import { cx } from "./cx";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "subtle" | "danger" | "link";
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "subtle" | "danger" | "destructive" | "link";
 export type ButtonSize = "sm" | "md" | "lg";
 
 const BASE =
@@ -21,6 +21,9 @@ const VARIANT: Record<ButtonVariant, string> = {
   ghost: "text-ink-2 hover:bg-ink/5 hover:text-ink",
   subtle: "bg-brand-50 text-brand-800 hover:bg-brand-100",
   danger: "bg-rose-600 text-white hover:bg-rose-700",
+  /// The trigger of a destructive act (Cancel requisition, Discard draft): quiet until the
+  /// drawer asks for a reason, but unmistakable. Every such trigger looks like this.
+  destructive: "text-rose-700 hover:bg-rose-50 hover:text-rose-800",
   link: "px-0! text-brand-700 hover:text-brand-800 hover:underline",
 };
 

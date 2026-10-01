@@ -150,7 +150,7 @@ export default async function SittingPage({
       <RecordCrumb label={m.reference} />
       <PageHeader
         eyebrow={<Link href="/committees">Committee sitting</Link>}
-        title={m.reference}
+        title={s.committeeName}
         badge={
           <Badge tone={TONE[MEETING_STATUS_TONE[m.status]]} dot>
             {MEETING_STATUS_LABEL[m.status]}
@@ -158,8 +158,9 @@ export default async function SittingPage({
         }
         subtitle={cancelled ? `Cancelled: ${m.cancelledReason}` : undefined}
         meta={[
+          <span key="ref" className="font-mono text-[12.5px]">{m.reference}</span>,
           <Link key="c" href={`/configuration/committees/${c.code}`}>
-            {s.committeeName}
+            Committee set-up
           </Link>,
           formatDate(m.meetingDate),
           quorumFact,

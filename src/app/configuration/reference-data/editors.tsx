@@ -387,7 +387,7 @@ export function RetireEntry({
       destructive={{ reasonLabel: "Why is it being retired?" }}
       trigger={{
         label: "Retire",
-        className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800"),
+        className: buttonClass("destructive", "sm"),
       }}
       size="sm"
     />
@@ -511,7 +511,7 @@ export function RetireChecklistItem({ id, label }: { id: string; label: string }
       action={retireChecklistItem}
       submitLabel="Retire"
       destructive={{ reasonLabel: "Why is it being retired?" }}
-      trigger={{ label: "Retire", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
+      trigger={{ label: "Retire", className: buttonClass("destructive", "sm") }}
       size="sm"
     />
   );
@@ -643,7 +643,7 @@ export function RemoveMapping({ id, label }: { id: string; label: string }) {
       action={removeTaxonomyMapping}
       submitLabel="Remove"
       destructive={{ reasonLabel: "Why is it coming out?" }}
-      trigger={{ label: "Remove", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
+      trigger={{ label: "Remove", className: buttonClass("destructive", "sm") }}
       size="sm"
     />
   );

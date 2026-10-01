@@ -64,7 +64,7 @@ export function MoveToPreparationDrawer({ id, blocker, summary }: { id: string; 
 }
 
 export function CancelExerciseDrawer({ id, blocker }: { id: string; blocker?: string | null }) {
-  if (blocker) return <Blocked label="Cancel exercise" reason={blocker} noteId={EXERCISE_NOTE_ID} />;
+  if (blocker) return <Blocked label="Cancel exercise" reason={blocker} noteId={EXERCISE_NOTE_ID} destructive />;
   return (
     <RecordEditor
       title="Cancel this exercise"
@@ -75,7 +75,7 @@ export function CancelExerciseDrawer({ id, blocker }: { id: string; blocker?: st
       destructive={{ reasonLabel: "Why it is cancelled" }}
       submitLabel="Cancel exercise"
       cancelLabel="Keep the exercise"
-      trigger={{ label: "Cancel exercise", className: buttonClass("secondary", "sm") }}
+      trigger={{ label: "Cancel exercise", className: buttonClass("destructive", "sm") }}
       size="sm"
     />
   );

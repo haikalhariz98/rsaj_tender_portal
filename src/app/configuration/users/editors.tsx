@@ -624,7 +624,7 @@ export function EndAssignment({ id, label }: { id: string; label: string }) {
       destructive={{ reasonLabel: "Why is it ending?" }}
       trigger={{
         label: "End",
-        className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800"),
+        className: buttonClass("destructive", "sm"),
       }}
       size="sm"
     />

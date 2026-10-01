@@ -166,7 +166,7 @@ export function ReleaseCommitment({ id, reference }: { id: string; reference: st
       action={releaseCommitment}
       submitLabel="Release"
       destructive={{ reasonLabel: "Why is it being released?" }}
-      trigger={{ label: "Release", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
+      trigger={{ label: "Release", className: buttonClass("destructive", "sm") }}
       size="sm"
     />
   );
@@ -182,7 +182,7 @@ export function EndAllocation({ id, label }: { id: string; label: string }) {
       action={endAllocation}
       submitLabel="End it"
       destructive={{ reasonLabel: "Why is it ending?" }}
-      trigger={{ label: "End", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
+      trigger={{ label: "End", className: buttonClass("destructive", "sm") }}
       size="sm"
     />
   );

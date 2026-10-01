@@ -49,10 +49,10 @@ export function PageHeader({
         className,
       )}
     >
-      {/* The title block keeps a floor of 26rem (or the full row on a phone): when the
+      {/* The title block keeps a floor of 40rem (or the full row on a phone): when the
           actions do not fit beside it they wrap onto their own row below, instead of
           squeezing the title into a narrow column. */}
-      <div className="min-w-[min(100%,26rem)] flex-1">
+      <div className="min-w-[min(100%,40rem)] flex-1">
         {eyebrow && (
           <div className="mb-1.5 text-[12px] font-semibold tracking-wide text-brand-700 uppercase [&_a]:no-underline">
             {eyebrow}
@@ -86,7 +86,7 @@ export function PageHeader({
         )}
       </div>
       {(actions || actionsNote) && (
-        <div className={cx("flex max-w-full min-w-0 flex-col items-start gap-1.5", actionsBelow ? "basis-full" : "sm:items-end")}>
+        <div className={cx("flex max-w-full min-w-0 flex-col items-start gap-1.5", actionsBelow ? "basis-full" : "sm:ml-auto sm:items-end")}>
           {actions && (
             <div
               role={actionsNote ? "group" : undefined}

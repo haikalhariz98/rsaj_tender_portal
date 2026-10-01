@@ -675,7 +675,7 @@ export function DiscardDraft({ id, label }: { id: string; label: string }) {
       action={discardDraft}
       submitLabel="Discard draft"
       destructive={{ reasonLabel: "Why is it being discarded?" }}
-      trigger={{ label: "Discard draft", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
+      trigger={{ label: "Discard draft", className: buttonClass("destructive", "sm") }}
       size="sm"
     />
   );

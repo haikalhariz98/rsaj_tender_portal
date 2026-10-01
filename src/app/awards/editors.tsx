@@ -389,7 +389,7 @@ export function CancelAwardDrawer({ id, issued, consequence }: { id: string; iss
       destructive={{ reasonLabel: "Why it is cancelled" }}
       submitLabel="Cancel award"
       cancelLabel="Keep the award"
-      trigger={{ label: "Cancel award", className: buttonClass("secondary", "sm") }}
+      trigger={{ label: "Cancel award", className: buttonClass("destructive", "sm") }}
       size="sm"
     />
   );

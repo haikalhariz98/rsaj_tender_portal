@@ -215,7 +215,7 @@ export function RetireRow({ entity, id, label, today }: { entity: string; id: st
       action={retireRow}
       submitLabel="Retire"
       destructive={{ reasonLabel: "Why is it being retired?" }}
-      trigger={{ label: "Retire", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
+      trigger={{ label: "Retire", className: buttonClass("destructive", "sm") }}
       size="sm"
     />
   );

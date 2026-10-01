@@ -463,12 +463,9 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
             {restricted && <Badge tone="warn">{`Restricted · ${RESTRICTION_NOTE.toLowerCase()}`}</Badge>}
           </>
         }
-        subtitle={
-          <>
-            <span className="font-mono text-[12.5px]">{ex.reference}</span> · for <Link href={`/requisitions/${req.id}?tab=sourcing`}>{req.reference}</Link>
-          </>
-        }
         meta={[
+          <span key="ref" className="font-mono text-[12.5px]">{ex.reference}</span>,
+          <span key="for">for <Link href={`/requisitions/${req.id}?tab=sourcing`}>{req.reference}</Link></span>,
           <span key="v" className="tabular-nums">{money(ex.estimatedValue)}</span>,
           methodName,
           decided?.contractType.nameEn ?? typeName(ex.contractTypeCode) ?? "Contract type not set",

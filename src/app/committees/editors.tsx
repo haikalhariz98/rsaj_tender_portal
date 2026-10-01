@@ -148,7 +148,7 @@ export function CancelSitting({ meetingId }: { meetingId: string }) {
       destructive={{ reasonLabel: "Why is the sitting cancelled?" }}
       trigger={{
         label: "Cancel sitting",
-        className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800"),
+        className: buttonClass("destructive", "sm"),
       }}
       size="sm"
     />
@@ -424,7 +424,7 @@ export function WithdrawMatter({ decisionId, subject }: { decisionId: string; su
       action={withdrawMatter}
       destructive={{ reasonLabel: "Why is it withdrawn?" }}
       submitLabel="Withdraw from the agenda"
-      trigger={{ label: "Withdraw from agenda", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
+      trigger={{ label: "Withdraw from agenda", className: buttonClass("destructive", "sm") }}
       size="sm"
     />
   );

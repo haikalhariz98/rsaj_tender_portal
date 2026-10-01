@@ -33,19 +33,20 @@ import {
 type Option = { value: string; label: string };
 
 /// A control the rules say cannot be used yet, with the reason beside it.
-export function Blocked({ label, reason, primary, noteId }: { label: string; reason: string; primary?: boolean; noteId?: string }) {
+export function Blocked({ label, reason, primary, destructive, noteId }: { label: string; reason: string; primary?: boolean; destructive?: boolean; noteId?: string }) {
+  const variant = destructive ? "destructive" : primary ? "primary" : "secondary";
   // In a page header the reason is stated once, under the action row (PageHeader's
   // `actionsNote`), and the button points at it rather than carrying its own copy.
   if (noteId) {
     return (
-      <Button size="sm" variant={primary ? "primary" : "secondary"} disabled title={reason} aria-describedby={noteId}>
+      <Button size="sm" variant={variant} disabled title={reason} aria-describedby={noteId}>
         {label}
       </Button>
     );
   }
   return (
     <span className="inline-flex max-w-full items-center gap-2">
-      <Button size="sm" variant={primary ? "primary" : "secondary"} disabled title={reason}>
+      <Button size="sm" variant={variant} disabled title={reason}>
         {label}
       </Button>
       <span className="max-w-64 text-[12px] leading-tight text-ink-3">{reason}</span>
@@ -278,7 +279,7 @@ export function CancelDrawer({ id }: { id: string }) {
       action={cancelRequisition}
       submitLabel="Cancel requisition"
       destructive={{ reasonLabel: "Why is it cancelled?" }}
-      trigger={{ label: "Cancel requisition", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
+      trigger={{ label: "Cancel requisition", className: buttonClass("destructive", "sm") }}
       size="sm"
     />
   );
@@ -507,7 +508,7 @@ export function CloseWithoutSourcingDrawer({ id, commitment }: { id: string; com
       action={closeWithoutSourcing}
       submitLabel="Close without sourcing"
       destructive={{ reasonLabel: "Why is it closed?" }}
-      trigger={{ label: "Close without sourcing", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
+      trigger={{ label: "Close without sourcing", className: buttonClass("destructive", "sm") }}
       size="sm"
     />
   );

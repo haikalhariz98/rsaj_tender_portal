@@ -312,20 +312,16 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
             {AWARD_STATUS_LABEL[status]}
           </Badge>
         }
-        subtitle={
-          <>
-            <span className="font-mono text-[12.5px]">{award.reference}</span> · for <Link href={`/sourcing/${ex.id}?tab=award`}>{ex.reference}</Link>
-          </>
-        }
+        subtitle={ex.title}
         meta={[
-          ex.title,
+          <span key="ref" className="font-mono text-[12.5px]">{award.reference}</span>,
+          <span key="for">for <Link href={`/sourcing/${ex.id}?tab=award`}>{ex.reference}</Link></span>,
           <span key="v" className="tabular-nums">{money(award.awardedValue)}</span>,
           INSTRUMENT_SHORT[kind],
           // Who signs: named once it is signed, the office until then; a cancelled award states neither.
           status === "CANCELLED" ? null : award.signatoryName ? `Signed by ${award.signatoryName}, ${award.signatoryRoleLabel ?? "office not recorded"}` : ev.signatory?.ok ? `To be signed by the ${ev.signatory.roleLabel}` : "Signatory not resolved",
           award.contract ? `Contract ${award.contract.number}` : status === "CANCELLED" ? null : "No contract number yet",
         ]}
-        actionsBelow
         actions={actions}
         actionsNote={headerNote}
         actionsNoteId={AWARD_NOTE_ID}

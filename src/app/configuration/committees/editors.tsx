@@ -403,7 +403,7 @@ export function VacateSeat({ id, label, exOfficio = false }: { id: string; label
       destructive={{ reasonLabel: exOfficio ? "Why is the office leaving the committee?" : "Why is it being vacated?" }}
       trigger={{
         label: verb,
-        className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800"),
+        className: buttonClass("destructive", "sm"),
       }}
       size="sm"
     />
@@ -526,7 +526,7 @@ export function RetireNotApprovedOutcome({ id, label }: { id: string; label: str
       destructive={{ reasonLabel: "Why is it being retired?" }}
       trigger={{
         label: "Retire",
-        className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800"),
+        className: buttonClass("destructive", "sm"),
       }}
       size="sm"
     />
