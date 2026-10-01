@@ -32,12 +32,12 @@ export interface OwnerKey {
   label: string;
 }
 
-const STORED_NOT_FILED = "The file itself is stored and listed under Configuration, Documents, Received, not filed. Press the button again to retry only the attaching.";
+export const STORED_NOT_FILED = "The file itself is stored and listed under Configuration, Documents, Received, not filed. Press the button again to retry only the attaching.";
 
 /// A file is the same file if its name, size and time are: a retry after a refusal reuses what was stored.
 const fileKey = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
 
-function useStagedRef() {
+export function useStagedRef() {
   return useRef<{ key: string; versionId: string; documentId: string } | null>(null);
 }
 
@@ -80,7 +80,7 @@ function uploadFields(upload: UploadView, opts: { newDocument: boolean; titleHin
 }
 
 /// Stage the file (or reuse what an earlier press stored). Never throws: a refusal is a form state.
-async function stage(data: FormData, stagedRef: ReturnType<typeof useStagedRef>, extra: Record<string, string>): Promise<{ ok: true; versionId: string; warnings: string[] } | { ok: false; state: FormState }> {
+export async function stage(data: FormData, stagedRef: ReturnType<typeof useStagedRef>, extra: Record<string, string>): Promise<{ ok: true; versionId: string; warnings: string[] } | { ok: false; state: FormState }> {
   const file = data.get("file");
   if (!(file instanceof File) || (file.size === 0 && !file.name)) return { ok: false, state: { ok: false, errors: { file: "Choose a file to upload." } } };
   const key = fileKey(file);

@@ -87,6 +87,8 @@ async function build(which: string, React: typeof import("react")) {
       offices,
       capabilities: CAPABILITIES,
       status: "Ended",
+      // The signed recommendation's upload choices: none configured, as a fresh organisation has them.
+      upload: { classes: [], people: [], refusals: [], accept: "", allowedTypes: [], capText: null, receivedHint: "" },
     });
   }
 

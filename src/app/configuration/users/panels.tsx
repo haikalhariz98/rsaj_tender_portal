@@ -1,5 +1,7 @@
 "use client";
 
+import { OwnerDocumentsButton } from "@/components/attachments/owner-documents-button";
+import type { UploadView } from "@/lib/documents/views";
 import { recommendationLabel } from "@/lib/people/labels";
 import { formatDate } from "@/lib/format";
 import { useState, useTransition } from "react";
@@ -73,6 +75,8 @@ export interface UsersData {
   capabilities: Capability[];
   grants: Grant[];
   delegations: Delegation[];
+  /// What the delegation form needs to attach the signed recommendation.
+  upload: UploadView;
 }
 
 export function UsersTabs({ initial, ...data }: UsersData & { initial?: string }) {
@@ -573,7 +577,7 @@ function GroupRows({
 
 // -------------------------------------------------------------------- Delegation
 
-function DelegationPanel({ people, offices, delegations, capabilities }: UsersData) {
+function DelegationPanel({ people, offices, delegations, capabilities, upload }: UsersData) {
   const on = new Date();
   const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? "Not on record";
   const officeName = (code: string) => offices.find((o) => o.code === code)?.nameEn ?? code;
@@ -625,7 +629,7 @@ function DelegationPanel({ people, offices, delegations, capabilities }: UsersDa
           icon={<SwapIcon size={17} />}
           title="Delegation"
           subtitle="One officer acting for another, for a period. Not the same as authority passing upward when a holder cannot act."
-          actions={<AddDelegation people={people} offices={offices} capabilities={capabilities} />}
+          actions={<AddDelegation people={people} offices={offices} capabilities={capabilities} upload={upload} />}
           divided={false}
         />
         <DataList
@@ -654,13 +658,17 @@ function DelegationPanel({ people, offices, delegations, capabilities }: UsersDa
             const delegation = delegations.find((d) => d.id === id);
             if (!delegation) return null;
             return (
-              <EditDelegation
-                delegation={delegation}
-                people={people}
-                offices={offices}
-                capabilities={capabilities}
-                status={STATUS_LABEL[statusOf(delegation, on)]}
-              />
+              <>
+                <EditDelegation
+                  delegation={delegation}
+                  people={people}
+                  offices={offices}
+                  capabilities={capabilities}
+                  status={STATUS_LABEL[statusOf(delegation, on)]}
+                  upload={upload}
+                />
+                <OwnerDocumentsButton owner={{ kind: "delegation", id }} label={`${nameOf(delegation.fromPersonId)} to ${nameOf(delegation.toPersonId)}`} />
+              </>
             );
           }}
         />

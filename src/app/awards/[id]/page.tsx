@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { AwardIcon, CheckIcon, ClipboardIcon, ClockIcon, FileIcon, InboxIcon, PrinterIcon, RouteIcon, ShieldIcon, SlidersIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import { OwnerAttachments } from "@/components/attachments/owner-attachments";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
@@ -881,6 +882,23 @@ function DistributionPanel({ l, ev }: { l: LoadedAward; ev: AwardEvaluation }) {
 // -------------------------------------------------------------------- return
 
 function ReturnPanel({ l, ret, people }: { l: LoadedAward; ret: ReturnRecord | null; people: { value: string; label: string }[] }) {
+  const { award } = l;
+  // OD-5: the return counts with its scans, except for an award accepted before they were required.
+  const scansAreRequired = scansRequired(award.status, award.returnScanSnapshot != null);
+  return (
+    <div className="flex flex-col gap-6">
+      <ReturnRecordCard l={l} ret={ret} people={people} />
+      <OwnerAttachments
+        owner={{ kind: "award", id: award.id }}
+        title="Scans of what came back"
+        subtitle="Each returned item counts toward the return, and toward acceptance, only with its signed scan attached."
+        required={Object.fromEntries(RETURN_SCANS[award.instrumentKind as InstrumentKind].map((p) => [p, scansAreRequired]))}
+      />
+    </div>
+  );
+}
+
+function ReturnRecordCard({ l, ret, people }: { l: LoadedAward; ret: ReturnRecord | null; people: { value: string; label: string }[] }) {
   const { award } = l;
   const loa = award.instrumentKind === "LETTER_OF_ACCEPTANCE";
   if (!ret || !award.awardReturn) {

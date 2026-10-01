@@ -33,8 +33,14 @@ export function AttachmentPanel({
   past,
   upload,
   statement,
-}: PanelView & { title?: string; subtitle?: string }) {
-  const [notice, setNotice] = useState<Notice | null>(null);
+  onChanged,
+}: PanelView & { title?: string; subtitle?: string; /// Called after any act succeeds or reports, for a host that holds its own copy of the panel (a drawer).
+  onChanged?: () => void }) {
+  const [notice, setNoticeState] = useState<Notice | null>(null);
+  const setNotice = (n: Notice | null) => {
+    setNoticeState(n);
+    if (n) onChanged?.();
+  };
   const key: OwnerKey = owner;
   const refused = upload.refusals.length > 0;
   const byId = new Map(items.map((i) => [i.attachmentId, i]));

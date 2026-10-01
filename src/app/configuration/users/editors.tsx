@@ -1,4 +1,11 @@
-import { RECOMMENDATION_HINT } from "@/lib/people/labels";
+"use client";
+
+import { useCallback } from "react";
+
+import { EMPTY_FORM_STATE } from "@/components/record-editor";
+import { stage, STORED_NOT_FILED, useStagedRef } from "@/components/attachments/upload-actions";
+import type { UploadView } from "@/lib/documents/views";
+import { RECOMMENDATION_HINT, recommendationLabel } from "@/lib/people/labels";
 import {
   CheckIcon,
   HelpCircle,
@@ -13,7 +20,7 @@ import { Badge, Chip, Dot, type Tone } from "@/components/ui/badge";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import { Callout } from "@/components/ui/feedback";
 import { Switch } from "@/components/ui/field";
-import { RecordEditor, type Field } from "@/components/record-editor";
+import { RecordEditor, type Field, type SaveAction } from "@/components/record-editor";
 import type { Capability } from "@/lib/people/capabilities";
 import { statusOf, type Delegation } from "@/lib/people/delegation";
 import type { Assignment, Office, Person } from "@/lib/people/types";
@@ -471,7 +478,9 @@ function delegationFields(
   people: Person[],
   offices: Office[],
   capabilities: Capability[],
+  upload: UploadView,
   status?: string,
+  attachedNote?: string | null,
 ): Field[] {
   const persons = people
     .filter((p) => p.isActive)
@@ -528,6 +537,7 @@ function delegationFields(
       hint: RECOMMENDATION_HINT,
     },
     { kind: "date", name: "holderRecommendedOn", label: "Recommended on" },
+    ...recommendationUploadFields(upload, attachedNote),
     {
       kind: "readonly",
       name: "status",
@@ -536,6 +546,58 @@ function delegationFields(
       hint: "Read from the period, never set by hand.",
     },
   ];
+}
+
+/// The signed recommendation itself: a scan, stored and attached to the delegation in the
+/// same save (OD-6). Its class and who is recording it are asked for because the portal
+/// invents neither.
+function recommendationUploadFields(upload: UploadView, attachedNote?: string | null): Field[] {
+  return [
+    ...(attachedNote ? ([{ kind: "note", text: `The recommendation on record: ${attachedNote}. Choose a file below to attach another.` }] as Field[]) : []),
+    ...(upload.refusals.length ? ([{ kind: "note", text: `Uploads are refused until this is set. ${upload.refusals.join(" ")}` }] as Field[]) : []),
+    {
+      kind: "file",
+      name: "file",
+      label: "Signed recommendation (scan)",
+      accept: upload.accept || undefined,
+      hint: [upload.allowedTypes.length ? `Allowed: ${upload.allowedTypes.join(", ")}.` : null, upload.capText ? `${upload.capText}.` : null, "Needed where the person delegating is away."].filter(Boolean).join(" "),
+    },
+    { kind: "select", name: "documentClassId", label: "Class of the scan", placeholder: "Choose a class", options: upload.classes, hint: "Needed when a file is chosen." },
+    { kind: "select", name: "recordedByPersonId", label: "Scan recorded by", placeholder: "Choose who is recording it", options: upload.people, hint: "Recorded on their behalf, not signed. Needed when a file is chosen." },
+  ];
+}
+
+/**
+ * The delegation form's save: the scan, if one is chosen, goes to the upload route
+ * (a Server Action cannot take it), and only its version id goes to `saveDelegation`.
+ * A save refused after the file was stored keeps the stored version, so pressing Save
+ * again retries only the save.
+ */
+function useDelegationSave(people: Person[]): SaveAction {
+  const stagedRef = useStagedRef();
+  return useCallback<SaveAction>(
+    async (_prev, data) => {
+      const next = new FormData();
+      for (const [k, v] of data.entries()) if (k !== "file" && k !== "documentClassId" && k !== "recordedByPersonId") next.append(k, v);
+      let staged = false;
+      const file = data.get("file");
+      if (file instanceof File && file.name) {
+        const from = people.find((p) => p.id === String(data.get("fromPersonId") ?? ""));
+        const up = new FormData();
+        for (const k of ["file", "documentClassId", "recordedByPersonId"]) up.set(k, data.get(k) ?? "");
+        up.set("title", `Signed recommendation of ${from?.name ?? "the absent holder"}`);
+        const s = await stage(up, stagedRef, {});
+        if (!s.ok) return s.state;
+        next.set("recommendationVersionId", s.versionId);
+        staged = true;
+      }
+      const r = await saveDelegation(EMPTY_FORM_STATE, next);
+      if (r.ok) stagedRef.current = null;
+      else if (staged) return { ...r, message: [r.message, STORED_NOT_FILED.replace("attaching", "saving")].filter(Boolean).join(" ") };
+      return r;
+    },
+    [people, stagedRef],
+  );
 }
 
 const DELEGATION_NOTE = (
@@ -548,20 +610,23 @@ export function AddDelegation({
   people,
   offices,
   capabilities,
+  upload,
 }: {
   people: Person[];
   offices: Office[];
   capabilities: Capability[];
+  upload: UploadView;
 }) {
+  const save = useDelegationSave(people);
   return (
     <RecordEditor
       title="New delegation"
       description="Delegation"
       icon={<SwapIcon size={18} />}
-      fields={delegationFields(people, offices, capabilities)}
+      fields={delegationFields(people, offices, capabilities, upload)}
       columns={2}
       sections={DELEGATION_NOTE}
-      action={saveDelegation}
+      action={save}
       submitLabel="Save"
       trigger={{ label: "New delegation", icon: true }}
       size="lg"
@@ -575,13 +640,16 @@ export function EditDelegation({
   offices,
   capabilities,
   status,
+  upload,
 }: {
   delegation: Delegation;
   people: Person[];
   offices: Office[];
   capabilities: Capability[];
   status: string;
+  upload: UploadView;
 }) {
+  const save = useDelegationSave(people);
   return (
     <RecordEditor
       title="Delegation"
@@ -589,11 +657,11 @@ export function EditDelegation({
       icon={<SwapIcon size={18} />}
       fields={[
         { kind: "hidden", name: "id" },
-        ...delegationFields(people, offices, capabilities, status),
+        ...delegationFields(people, offices, capabilities, upload, status, recommendationLabel(delegation)),
       ]}
       columns={2}
       sections={DELEGATION_NOTE}
-      action={saveDelegation}
+      action={save}
       trigger={{ label: "Edit delegation", iconOnly: <PencilIcon size={15} /> }}
       size="lg"
       values={{

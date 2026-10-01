@@ -2,6 +2,7 @@ import Link from "next/link";
 import { DOCUMENT_ENTITY_LABEL } from "@/lib/documents/audit-view";
 import { notFound } from "next/navigation";
 
+import { OwnerAttachments } from "@/components/attachments/owner-attachments";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 
 import { AlertTriangle, CalendarIcon, ClockIcon, FileIcon, UsersIcon } from "@/components/icons";
@@ -655,6 +656,7 @@ function MinutesPanel({ s }: { s: LoadedSitting }) {
   const m = s.meeting;
   const minutesState = signedMinutesState(m.status, m.attachments.filter(isLive).length);
   return (
+    <div className="flex flex-col gap-6">
     <Card>
       <CardHeader
         icon={<CalendarIcon size={17} />}
@@ -682,6 +684,13 @@ function MinutesPanel({ s }: { s: LoadedSitting }) {
         />
       </CardBody>
     </Card>
+    <OwnerAttachments
+      owner={{ kind: "meeting", id: m.id }}
+      title="Signed minutes"
+      subtitle="The wet-signed copy, scanned and attached once the sitting is minuted. Minuting does not wait for it."
+      required={{ SIGNED_MINUTES: true }}
+    />
+    </div>
   );
 }
 

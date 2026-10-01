@@ -1,10 +1,14 @@
 import { loadDelegations, loadGrants, loadRoster } from "@/lib/people/load";
 import { holdingsOn, rosterFaults } from "@/lib/people/roster";
 import { inForce } from "@/lib/people/delegation";
+import { uploadContext } from "@/lib/documents/read";
+import { uploadView } from "@/lib/documents/views";
 import { ORGANISATION_CODE } from "@/lib/org";
 
 import { UsersTabs } from "./panels";
 import { PageHeader } from "@/components/ui/page-header";
+
+const EMPTY_UPLOAD = { classes: [], people: [], allowedMediaTypes: [], maxBytes: null, ceiling: null, cap: null, refusals: [], timeZoneSet: false, statement: "" };
 
 export const dynamic = "force-dynamic";
 
@@ -23,10 +27,11 @@ export default async function UsersPage({
 }) {
   const on = new Date();
   const { tab } = await searchParams;
-  const [roster, grants, delegations] = await Promise.all([
+  const [roster, grants, delegations, upload] = await Promise.all([
     loadRoster(ORGANISATION_CODE),
     loadGrants(ORGANISATION_CODE),
     loadDelegations(ORGANISATION_CODE),
+    uploadContext(),
   ]);
 
   const holdings = holdingsOn(roster, on).map((h) => ({
@@ -62,6 +67,7 @@ export default async function UsersPage({
         capabilities={grants.capabilities}
         grants={grants.grants}
         delegations={delegations}
+        upload={uploadView(upload ?? EMPTY_UPLOAD)}
       />
     </>
   );

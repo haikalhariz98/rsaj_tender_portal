@@ -258,8 +258,8 @@ const DELEGATION_FAULTS: Record<DelegationFault, { field: string; message: strin
       "They are recorded as away, so their authority has reverted upward. It is delegated again only on the absent holder's recommendation: record it, with its date.",
   },
   ABSENT_GRANTOR_RECOMMENDATION_NOT_ATTACHED: {
-    // Shown against the recommendation, which the editor always carries.
-    field: "holderRecommendation",
+    // Shown against the file field the editor carries for the signed recommendation.
+    field: "file",
     message: RECOMMENDATION_NOT_ATTACHED,
   },
   MANDATORY_ACT: {

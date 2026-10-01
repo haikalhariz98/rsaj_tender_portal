@@ -91,7 +91,7 @@ function Drawer({ data, reload, onClose }: { data: DrawerView | null | undefined
   );
 
   return (
-    <div className={DRAWER_SCRIM} onPointerDown={(e) => e.target === e.currentTarget && onClose()} onSubmit={(e) => e.stopPropagation()}>
+    <div className={DRAWER_SCRIM} onPointerDown={(e) => e.target === e.currentTarget && onClose()} onSubmit={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
       <aside ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-label={data ? `Document: ${data.title}` : "Document"} className={drawerPanelClass("lg", "outline-none")}>
         <DrawerHeader
           icon={<FileIcon size={17} />}
