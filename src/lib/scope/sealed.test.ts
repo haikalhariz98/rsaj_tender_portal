@@ -45,7 +45,7 @@ describe("one accessor reads the sealed columns", () => {
   });
   it("no file that touches the estimate selects a value or a reason", () => {
     // db.ts names them only to omit them (checked above).
-    const touching = files.filter((f) => f !== STORE && f !== "src/lib/db.ts" && !isTest(f) && /companyEstimate/i.test(source(f)));
+    const touching = files.filter((f) => f !== STORE && f !== "src/lib/db.ts" && !isTest(f) && /companyEstimate|estimateVersion/i.test(source(f)));
     expect(touching.length).toBeGreaterThan(0);
     expect(touching.filter((f) => /\b(value|reason)\s*:\s*true\b/.test(source(f)))).toEqual([]);
   });
