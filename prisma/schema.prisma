@@ -124,6 +124,27 @@ enum MatterKind {
   VARIATION
 }
 
+/// Where a rejected matter goes (FR-APR-016, ADR 0009). The product ships no
+/// destination: which one applies to which matter is the customer's policy (B4).
+enum RejectionDestinationKind {
+  RETURN_TO_ORIGINATOR /// Back to whoever raised it, to be reworked and sent again.
+  RETURN_TO_STEP /// Back to a named earlier step: a successor route opens from there.
+  TERMINATE /// The matter ends.
+}
+
+/// Who said where a rejected matter went. An officer's choice is never shown as policy.
+enum RejectionSource {
+  CONFIGURED /// The destination configured for the matter type, as it stood when the route opened.
+  COMMITTEE_OUTCOME /// The committee's own not-carried outcome, as snapshotted with its decision.
+  OFFICER_CHOICE /// Nothing applied, so the officer chose, recorded on behalf of a named Person.
+}
+
+/// Why a pending step was moved to another office (FR-APR-009, FR-APR-010).
+enum StepEscalation {
+  NO_AVAILABLE_HOLDER /// Nobody able to act holds the office: it reverts upward.
+  CONFLICT_DECLARED /// The holder declared a conflict and recused: one level up.
+}
+
 /// A customer. Every configuration table hangs off this, so serving a second
 /// organisation is a seed rather than a schema change.
 model Organisation {
@@ -184,6 +205,9 @@ model Organisation {
   approvedIssuers        ApprovedIssuer[]
   insuranceRequirements  InsuranceRequirement[]
   liabilityBands         LiabilityBand[]
+  rejectionDestinations RejectionDestination[]
+  committeeGateRules    CommitteeGateRule[]
+  auditExports          AuditExport[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -248,6 +272,8 @@ model Person {
   returnsReceived       AwardReturn[]        @relation("ReturnReceivedBy")
   securitiesVerified    SecurityInstrument[] @relation("SecurityVerifiedBy")
   policiesVerified      InsurancePolicy[]    @relation("PolicyVerifiedBy")
+  rejectionChoices      ApprovalInstance[]   @relation("RejectionChosenBy")
+  conflictsDeclared     ApprovalStep[]       @relation("ConflictDeclaredBy")
 
   @@unique([organisationId, staffNo])
   @@index([organisationId, name])
@@ -519,6 +545,11 @@ model Committee {
   alternateMayVoteForRecused           Boolean?
   alternateMayVoteForRecusedProvenance Provenance?
 
+  /// What this body calls a carried decision, as the customer writes it (an RSAJ
+  /// committee would say "Perlu"). Null renders "Carried": never a borrowed word.
+  carriedLabelEn String?
+  carriedLabelMs String?
+
   members             CommitteeMember[]
   meetings            Meeting[]
   notApprovedOutcomes NotApprovedOutcome[]
@@ -645,6 +676,15 @@ model CommitteeDecision {
   exerciseId    String?
   exercise      SourcingExercise? @relation(fields: [exerciseId], references: [id], onDelete: SetNull)
   approvalStep  ApprovalStep?
+  /// The committee gate this matter answers (FR-REQ-012, ADR 0010). A decision serves
+  /// one gate or one route step, never both.
+  requisitionGateId String?
+  requisitionGate   RequisitionGate? @relation(fields: [requisitionGateId], references: [id], onDelete: Restrict)
+
+  /// Withdrawn from the agenda before the sitting opened (6.10 follow-up). The row is
+  /// kept, and the matter is left out of the votes, the quorum and the minuting.
+  withdrawnAt     DateTime?
+  withdrawnReason String    @default("")
 
   /// Who tabled the matter, and when. An attestation, not an authenticated act,
   /// until sign-in exists.
@@ -685,6 +725,7 @@ model CommitteeDecision {
   @@index([meetingId])
   @@index([requisitionId])
   @@index([exerciseId])
+  @@index([requisitionGateId])
 }
 
 /// A member standing aside from one matter. Excluded from that matter's vote and
@@ -1041,6 +1082,12 @@ model Delegation {
   noSubDelegation Boolean @default(true)
 
   provenance Provenance @default(ASSUMED)
+
+  /// Where the grantor is away, authority has reverted upward, and a re-delegation is
+  /// allowed only on the absent holder's recommendation (FR-APR-012). Recorded as text:
+  /// the signed recommendation is not attached until there is document storage.
+  holderRecommendation String?
+  holderRecommendedOn  DateTime?
 
   approvalSteps ApprovalStep[]
   awardsSigned  Award[]
@@ -1541,6 +1588,12 @@ model FundingRoute {
   approvalCommitsBudget           Boolean?
   approvalCommitsBudgetProvenance Provenance?
 
+  /// Whether an approved requisition on this route must pass a committee gate before
+  /// its first sourcing exercise (FR-REQ-012, ruling CO-1). Null: nobody has said, and
+  /// it blocks opening an exercise. False: no gate. True: the route's gate rules apply.
+  committeeGateRequired           Boolean?
+  committeeGateProvenance         Provenance?
+
   governingSource String     @default("")
   provenance      Provenance @default(ASSUMED)
   notes           String     @default("")
@@ -1813,6 +1866,15 @@ model Requisition {
   /// The COMMITMENT movement written on approval, where the settings call for one.
   commitmentMovementId String?
 
+  /// When the committee gates were determined (FR-REQ-012), and whether the route
+  /// required one then. Both null on a requisition approved before gates existed, or
+  /// while the route's setting was unset: undetermined, never passed.
+  gatesDeterminedOn      DateTime?
+  gateRequired           Boolean?
+  gateRequiredProvenance Provenance?
+  /// Why an approved requisition was closed without sourcing (a gate ended it).
+  closedReason String @default("")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1823,6 +1885,7 @@ model Requisition {
   approvalInstances  ApprovalInstance[]
   committeeDecisions CommitteeDecision[]
   exercises          SourcingExercise[]
+  gates              RequisitionGate[]
 
   @@unique([organisationId, reference])
   @@unique([organisationId, erpRequisitionNo])
@@ -2028,6 +2091,31 @@ model ApprovalInstance {
   /// When the row was written: orders two routes opened on the same day.
   createdAt DateTime @default(now())
 
+  /// The rejection destination as it stood when the route opened (FR-APR-016, ruling
+  /// CO-4). `rejectionSnapshotAt` null: the route predates the snapshot ("not
+  /// recorded"). Set with a null kind: nothing was configured ("not set").
+  rejectionSnapshotAt       DateTime?
+  rejectionDestinationId    String?
+  rejectionDestination      RejectionDestination? @relation(fields: [rejectionDestinationId], references: [id], onDelete: Restrict)
+  rejectionKind             RejectionDestinationKind?
+  rejectionReturnToRoleCode String?
+  rejectionProvenance       Provenance?
+  /// What was applied when a step rejected, and on whose say.
+  rejectionApplied          RejectionDestinationKind?
+  rejectionSource           RejectionSource?
+  rejectionChosenByPersonId String?
+  rejectionChosenBy         Person?                   @relation("RejectionChosenBy", fields: [rejectionChosenByPersonId], references: [id], onDelete: Restrict)
+  rejectionReason           String                    @default("")
+  /// Offered to the officer when nothing applied (ruling CO-5). Non-empty with nothing
+  /// applied means the choice is awaited.
+  rejectionChoices          RejectionDestinationKind[] @default([])
+  rejectionChoiceWhy        String?
+  /// The route this one continues, where a rejection returned the matter to an earlier
+  /// step (ADR 0009: re-routing opens a new instance).
+  supersedesInstanceId      String?                   @unique
+  supersedes                ApprovalInstance?         @relation("Successor", fields: [supersedesInstanceId], references: [id], onDelete: Restrict)
+  supersededBy              ApprovalInstance?         @relation("Successor")
+
   steps ApprovalStep[]
 
   @@index([organisationId, matterKind])
@@ -2069,6 +2157,24 @@ model ApprovalStep {
   committeeDecisionId String?            @unique
   committeeDecision   CommitteeDecision? @relation(fields: [committeeDecisionId], references: [id], onDelete: Restrict)
   recordedAt          DateTime?
+
+  /// A decision carried onto a successor route from the step it was taken on. Read
+  /// only; it renders "decided on the earlier route" and is never a fresh citation.
+  carriedFromStepId String?       @unique
+  carriedFrom       ApprovalStep? @relation("Carried", fields: [carriedFromStepId], references: [id], onDelete: Restrict)
+  carriedTo         ApprovalStep? @relation("Carried")
+
+  /// The office now acting for the step, where it was escalated (FR-APR-009/010).
+  /// `roleCode` is never rewritten: holders are judged on `actingRoleCode ?? roleCode`.
+  actingRoleCode     String?
+  actingRoleLabel    String?
+  escalation         StepEscalation?
+  escalationReason   String?
+  escalatedOn        DateTime?
+  escalationCount    Int             @default(0)
+  /// Who declared a conflict on the step, recorded on their behalf, not signed.
+  declaredByPersonId String?
+  declaredBy         Person?         @relation("ConflictDeclaredBy", fields: [declaredByPersonId], references: [id], onDelete: Restrict)
 
   @@unique([instanceId, sequence])
 }
@@ -2987,4 +3093,100 @@ model InsurancePolicy {
   requirementSnapshot   Json?
 
   createdAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------- Phase 1 close-out
+
+/// Where a rejected matter of one type goes (FR-APR-016, ADR 0009). Effective-dated
+/// and snapshotted onto each route when it opens. The product ships none (B4).
+model RejectionDestination {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// The matter type: an AuthorityRule.domain (requisition, name_approval, appointment).
+  domain           String
+  kind             RejectionDestinationKind
+  /// For RETURN_TO_STEP: the office whose earlier step the matter returns to.
+  returnToRoleCode String?
+
+  governingSource String     @default("")
+  provenance      Provenance @default(ASSUMED)
+  notes           String     @default("")
+  effectiveFrom   DateTime
+  effectiveTo     DateTime?
+  createdAt       DateTime   @default(now())
+
+  instances ApprovalInstance[]
+
+  @@unique([organisationId, domain, effectiveFrom])
+  @@index([organisationId, domain])
+}
+
+/// A committee gate a funding route's approved requisitions must pass before sourcing
+/// (FR-REQ-012, ADR 0010). Outside every approval matrix; the product ships none.
+model CommitteeGateRule {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  fundingRouteCode String
+  /// The body that decides the gate, by Committee.code.
+  committeeCode    String
+  subjectEn        String
+  subjectMs        String?
+  act              AuthorityAct
+  /// The gate applies to a requisition approved for strictly more than this. Null: any value.
+  aboveValue       Decimal?     @db.Decimal(18, 2)
+
+  governingSource String     @default("")
+  provenance      Provenance @default(ASSUMED)
+  effectiveFrom   DateTime
+  effectiveTo     DateTime?
+  sortOrder       Int        @default(0)
+
+  gates RequisitionGate[]
+
+  @@unique([organisationId, fundingRouteCode, committeeCode, effectiveFrom])
+  @@index([organisationId, fundingRouteCode])
+}
+
+/// One gate a requisition must pass, as the rule read when it was determined.
+model RequisitionGate {
+  id            String      @id @default(cuid())
+  requisitionId String
+  requisition   Requisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  gateRuleId    String
+  gateRule      CommitteeGateRule @relation(fields: [gateRuleId], references: [id], onDelete: Restrict)
+
+  committeeCode  String
+  committeeLabel String
+  subjectEn      String
+  act            AuthorityAct
+  aboveValue     Decimal?    @db.Decimal(18, 2)
+  ruleProvenance Provenance
+  determinedOn   DateTime
+
+  decisions CommitteeDecision[]
+
+  @@unique([requisitionId, gateRuleId])
+}
+
+/// One export of the audit trail (FR-APR-015). The digest proves the file that was
+/// handed over, not the database: the rows are not copied here.
+model AuditExport {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// The organisation's days the export covers, inclusive.
+  fromDay     DateTime
+  toDay       DateTime
+  rowCount    Int
+  /// SHA-256 of the file's bytes, as lowercase hex.
+  sha256      String
+  fileName    String
+  generatedAt DateTime @default(now())
+
+  @@index([organisationId, generatedAt])
 }
