@@ -153,7 +153,8 @@ describe("no exercise-route reader filters on awardId alone (source scan, ruling
     // An exercise's loaded routes are read through nameRoutesOf / tenderingRoutesOf /
     // exerciseRoutesOf / routesByDomain. The history's id list (every route is history)
     // is the one direct read.
-    const SPLIT = /(nameRoutesOf|tenderingRoutesOf|exerciseRoutesOf|routesByDomain)\(\s*$/;
+    // The routes may be reached through the locked context (`l.ex.approvalInstances`).
+    const SPLIT = /(nameRoutesOf|tenderingRoutesOf|exerciseRoutesOf|routesByDomain)\(\s*(?:\w+\.)?$/;
     const offenders: string[] = [];
     for (const f of files) {
       const rel = relative(ROOT, f);

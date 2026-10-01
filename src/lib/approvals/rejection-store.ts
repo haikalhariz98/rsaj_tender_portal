@@ -29,9 +29,11 @@ interface Who {
 
 /**
  * Close a route as rejected and record what the rejection decided: the destination
- * applied and on whose say, or what the officer is offered to choose from.
+ * applied and on whose say, or what the officer is offered to choose from. `decidedBy`
+ * names the say where it is neither a configured destination nor a committee's outcome
+ * (6.4: the procedure returns the documents for amendment, Q-3).
  */
-export async function closeRejected(tx: Tx, who: Who, inst: { id: string; status: string }, outcome: RejectionOutcome, reason: string) {
+export async function closeRejected(tx: Tx, who: Who, inst: { id: string; status: string }, outcome: RejectionOutcome, reason: string, decidedBy?: string) {
   const data: Prisma.ApprovalInstanceUpdateInput =
     "apply" in outcome
       ? { status: "REJECTED", closedAt: new Date(), rejectionApplied: outcome.apply, rejectionSource: outcome.source, rejectionReason: reason }
@@ -42,7 +44,7 @@ export async function closeRejected(tx: Tx, who: Who, inst: { id: string; status
     diffFields(
       { status: inst.status },
       "apply" in outcome
-        ? { status: "REJECTED", goesTo: REJECTION_KIND_LABEL[outcome.apply], decidedBy: outcome.source === "COMMITTEE_OUTCOME" ? "the committee's outcome" : "the configured destination" }
+        ? { status: "REJECTED", goesTo: REJECTION_KIND_LABEL[outcome.apply], decidedBy: decidedBy ?? (outcome.source === "COMMITTEE_OUTCOME" ? "the committee's outcome" : "the configured destination") }
         : { status: "REJECTED", goesTo: "awaiting the officer's choice" },
     ));
 }

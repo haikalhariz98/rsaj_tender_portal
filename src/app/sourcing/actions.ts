@@ -23,6 +23,7 @@ import { evaluateExercise, saveBlockers, type Evaluation, type ExerciseDraft } f
 import { transitionFault, openFault } from "@/lib/method/exercise";
 import { DELIVERABLE_LABEL, findingText, EXERCISE_STATUS_LABEL } from "@/lib/method/labels";
 import { PACK_KIND_LABEL } from "@/lib/tender-docs/labels";
+import { voidLivePacks } from "@/lib/tender-docs/store";
 import { behaviourProfile } from "@/lib/method/profile";
 import { nameRequestProposalFault, proposalFaults, proposalRecordOf, proposalReopen, proposalStateFor, proposalTransition } from "@/lib/method/proposal";
 import { classificationSnapshotOf, determinationColumns } from "@/lib/method/snapshot";
@@ -654,6 +655,13 @@ async function sendNameRejected(tx: Tx, l: { org: ExerciseOrg; ex: ExerciseRow }
     const moved = await tx.sourcingExercise.updateMany({ where: { id: ex.id, status: ex.status }, data: { status: "CANCELLED", cancelReason: `Name refused: ${reason}` } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, l.org.id, "SourcingExercise", ex.id, labelOf(ex), "UPDATE", diffFields({ status: ex.status }, { status: "CANCELLED" }), `The name was refused and the exercise ends: ${reason}`);
+    // 6.4: the exercise's live pack ends with it, and any other route of its own still open is withdrawn (X-5).
+    await voidLivePacks(tx, l, `The name was refused and the exercise ends: ${reason}`);
+    for (const inst of exerciseRoutesOf(ex.approvalInstances).filter((i) => i.status === "PENDING" && i.id !== instId)) {
+      const warning = { code: WITHDRAWN_ON_CANCEL, level: "info", messageEn: `Withdrawn: the exercise ended when its name was refused — ${reason}` };
+      await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
+      await audit(tx, l.org.id, "ApprovalInstance", inst.id, `${ex.reference} · ${exerciseRouteMatter(inst.domain).auditNoun}`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), `The exercise ended: ${reason}`);
+    }
   }
   // Back to whoever asked: the name may be asked again, and nothing else moves.
 }
@@ -792,6 +800,8 @@ export async function cancelExercise(_prev: FormState, data: FormData): Promise<
     const moved = await tx.sourcingExercise.updateMany({ where: { id, status: ex.status }, data: { status: "CANCELLED", cancelReason: reason } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", diffFields({ status: ex.status }, { status: "CANCELLED" }), reason);
+    // 6.4: a draft pack, or one with approval, is voided with the exercise; an approved one stays as history.
+    await voidLivePacks(tx, l, reason);
     // Every pending route of the exercise's own, of each domain (name and tendering), is withdrawn.
     for (const inst of exerciseRoutesOf(ex.approvalInstances).filter((i) => i.status === "PENDING")) {
       const warning = { code: WITHDRAWN_ON_CANCEL, level: "info", messageEn: `Withdrawn: the exercise was cancelled — ${reason}` };

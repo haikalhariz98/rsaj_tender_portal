@@ -8,6 +8,7 @@ import { auditedCreate, writeAudit } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { renderTemplate } from "@/lib/award/merge";
+import { PACK_WHITELIST } from "@/lib/tender-docs/fields";
 import { FormReader } from "@/lib/validate";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
@@ -73,8 +74,10 @@ export async function saveTemplate(_prev: FormState, data: FormData): Promise<Fo
   };
   // Every merge field a body names must be one the portal fills: an unknown one is
   // refused here, where it can be put right, rather than at issue.
+  // A template serves an award's letters or a tender pack's parts (6.4): a field neither
+  // fills is refused; each instrument re-checks its own whitelist when it is issued or frozen.
   for (const k of ["bodyMs", "bodyEn"] as const) {
-    const unknown = v[k] ? renderTemplate(v[k]!, {}).unknown : [];
+    const unknown = v[k] ? renderTemplate(v[k]!, {}).unknown.filter((u) => !PACK_WHITELIST.has(u)) : [];
     if (unknown.length) r.reject(k, `The portal does not fill ${unknown.map((u) => `{{${u}}}`).join(", ")}. Use the merge fields listed below.`);
   }
   if (v.bodyMs && v.bodyEn && !v.primaryLanguage) r.reject("primaryLanguage", "With text in both languages, say which is issued first.");
