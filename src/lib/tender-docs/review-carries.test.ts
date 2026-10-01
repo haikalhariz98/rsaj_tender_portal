@@ -45,6 +45,8 @@ describe("print and route polish (source scan)", () => {
     expect(readSrc).toMatch(/approvedLine: pack\.status === "APPROVED"/);
   });
   it("the Tender Table Document has its own title and a link from the tab", () => {
+    // The source text itself, placeholder and all, is what this scan looks for.
+    // eslint-disable-next-line no-template-curly-in-string
     expect(read("src/app/sourcing/[id]/documents/print/page.tsx")).toContain("Tender Table Document: ${v.exercise.title}");
     expect(read("src/app/sourcing/[id]/documents/workspace.tsx")).toContain("?set=table");
   });

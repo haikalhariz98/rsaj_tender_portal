@@ -123,7 +123,7 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
               { label: invited ? "Invited on" : "Advertised on", value: d.dates.advertisedOn },
               { label: "First day of sale", value: d.dates.firstDayOfSale },
               { label: "Last day of sale", value: d.dates.lastDayOfSale },
-              { label: "Where it stands", value: `${d.phase.label}${d.phase.submissionOpen ? ". ${cap(d.bid.many)} may be submitted" : ""}` },
+              { label: "Where it stands", value: `${d.phase.label}${d.phase.submissionOpen ? `. ${cap(d.bid.many)} may be submitted` : ""}` },
               { label: "Tender Table Document", value: d.tableDocument },
               ...(d.dates.publishedAt ? [{ label: "Published", value: `${d.dates.publishedAt} · recorded on behalf of the officer, not signed` }] : []),
               { label: "The estimate's lead time", value: <span className={d.lead.warn ? "text-amber-800" : undefined}>{d.lead.text}</span> },
