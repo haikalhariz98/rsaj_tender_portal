@@ -1,8 +1,10 @@
+import type { ReactNode } from "react";
+
 import { SparkleIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/feedback";
+import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 
 /**
@@ -16,10 +18,13 @@ export function NotBuilt({
   title,
   summary,
   willInclude,
+  note,
 }: {
   title: string;
   summary: string;
   willInclude: string[];
+  /// What a reader can do today instead, said above the plan (a link to where it lives now).
+  note?: ReactNode;
 }) {
   return (
     <>
@@ -32,6 +37,8 @@ export function NotBuilt({
         }
         subtitle={summary}
       />
+
+      {note && <Callout tone="info" className="mb-6">{note}</Callout>}
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Card>

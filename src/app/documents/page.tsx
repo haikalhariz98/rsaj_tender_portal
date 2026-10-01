@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { NotBuilt } from "@/components/not-built";
 
 export default function DocumentsPage() {
@@ -5,6 +7,11 @@ export default function DocumentsPage() {
     <NotBuilt
       title="Documents"
       summary="Certificates, letters and routing sheets issued and received."
+      note={
+        <>
+          Stored documents are listed on each record, and unfiled ones under <Link href="/configuration/documents">Configuration › Documents</Link>.
+        </>
+      }
       willInclude={[
         "Library: the generated document register with versions and controlled copies",
         "Templates: the certificates and routing sheets, to printed-form fidelity, in Malay and English",
