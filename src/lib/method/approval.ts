@@ -106,6 +106,11 @@ const EMPTY = (state: AppointmentState, methodCode: string | null): AppointmentP
   warnings: [],
 });
 
+/// The route of `domain` for a method at a value, under the funder's rule set where it supersedes.
+export function exerciseRoutePreview(ctx: FunderContext, domain: string, method: Method, value: number): AppointmentPreview {
+  return preview(ctx, domain, method, value);
+}
+
 function preview(ctx: FunderContext, domain: string, method: Method, value: number): AppointmentPreview {
   if (!method.authorityMethodKey) return EMPTY("NO_METHOD_KEY", method.code);
   const r = resolveUnderFunder(ctx, { domain, method: method.authorityMethodKey, value });
@@ -305,29 +310,40 @@ export function nameRouteForRequester(
   value: number,
   requester: RequesterOnName,
 ): (AppointmentPreview & { nameState: NameApprovalState }) & { refusal: string | null } {
-  let r = resolveNameApproval(ctx, method, value);
+  const r = resolveNameApproval(ctx, method, value);
   if (r.nameState !== "RESOLVED") return { ...r, refusal: null };
+  return { ...r, ...withRequester(ctx, NAME_APPROVAL_DOMAIN, method, value, r, requester, "the name") };
+}
+
+/**
+ * An exercise route of `domain`, resolved, with the requester in mind (FR-APR-008):
+ * self-approval escalates or is refused naming the setting; a step only the requester
+ * could act for is refused naming the way out. `what` is what the approving office
+ * approves, in the refusal's words ("the name", "tendering").
+ */
+export function withRequester(
+  ctx: FunderContext,
+  domain: string,
+  method: Method,
+  value: number,
+  resolved: AppointmentPreview,
+  requester: RequesterOnName,
+  what: string,
+): Pick<AppointmentPreview, "approverCode" | "chain" | "warnings"> & { refusal: string | null } {
+  let r: Pick<AppointmentPreview, "approverCode" | "chain" | "warnings" | "source"> = resolved;
   if (r.approverCode && requester.holds(r.approverCode)) {
     const self = r.approverCode;
-    const q = { domain: NAME_APPROVAL_DOMAIN, method: method.authorityMethodKey, value, actorRoleCode: self };
+    const q = { domain, method: method.authorityMethodKey, value, actorRoleCode: self };
     const e = resolveUnderFunder(ctx, q);
     const refused = e.warnings.find((w) => w.code === "SELF_APPROVAL" && w.level === "err");
     if (refused || !e.resolution.approverCode) {
       const name = ctx.dal.roles[self]?.nameEn ?? "the approving office";
-      return { ...r, refusal: `The requisition's requester holds the office that approves the name (${name}), and no office is set to approve in its place. Set where self-approval escalates to for that office under Users & roles, then request again.` };
+      return { approverCode: r.approverCode, chain: r.chain, warnings: r.warnings, refusal: `The requisition's requester holds the office that approves ${what} (${name}), and no office is set to approve in its place. Set where self-approval escalates to for that office under Users & roles, then request again.` };
     }
-    r = {
-      ...r,
-      approverCode: e.resolution.approverCode,
-      chain: e.resolution.chain,
-      warnings: e.warnings,
-    };
+    r = { ...r, approverCode: e.resolution.approverCode, chain: e.resolution.chain, warnings: e.warnings };
   }
   const roles = r.source === "OVERRIDE" && ctx.override ? ctx.override.matrix.roles : ctx.dal.roles;
   const only = requesterOnlySteps(r.chain, requester.id, requester.ableToAct);
-  if (only.length > 0) {
-    const refusal = only.map((s) => requesterOnlyText(s, roles[s.roleCode]?.nameEn ?? ctx.dal.roles[s.roleCode]?.nameEn ?? "an office no longer configured", "requisition", ctx.dal.policy.clauses?.selfApproval)).join(" ");
-    return { ...r, refusal };
-  }
-  return { ...r, refusal: null };
+  const refusal = only.length > 0 ? only.map((s) => requesterOnlyText(s, roles[s.roleCode]?.nameEn ?? ctx.dal.roles[s.roleCode]?.nameEn ?? "an office no longer configured", "requisition", ctx.dal.policy.clauses?.selfApproval)).join(" ") : null;
+  return { approverCode: r.approverCode, chain: r.chain, warnings: r.warnings, refusal };
 }

@@ -296,7 +296,7 @@ export function findingText(f: Finding): string {
     case "BLOCKING_FAULTS":
       return "The exercise has faults to correct: see the Classification tab.";
     case "DOCUMENTS_RULE_NOT_SET":
-      return "The sourcing method does not say which tender documents it assembles. Set its document pack under Configuration, Reference data, Sourcing methods.";
+      return "The sourcing method does not say which tender documents it assembles. Set its document pack under Configuration, Tender documents, Sourcing methods.";
     case "NOT_BY_THIS_ACT":
       return d.act === "SUBMISSION"
         ? "The exercise goes for approval for tendering only by submitting its tender documents, on the Tender documents tab."
