@@ -11,6 +11,7 @@ import { writeAudit } from "@/lib/audit/record";
 import { diffFields, snapshotFields } from "@/lib/audit/diff";
 import { DELIVERABLE_KINDS } from "@/lib/method/types";
 import { contractTypeConfigFaults, dominanceShareFault, methodConfigFaults } from "@/lib/method/config";
+import { PERMIT_LIST_MAPPING_FAULT_TEXT, permitListMappingFaults } from "@/lib/method/taxonomy";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const PATH = "/configuration/reference-data";
@@ -567,9 +568,18 @@ export async function saveTaxonomyMapping(_prev: FormState, data: FormData): Pro
   const row = { ...v, provenance: v.provenance! };
   // The trail names what it maps: codes are configuration keys.
   const named = { contractType: type!.nameEn, classification: tax!.nameEn, value: tax!.values.find((x) => x.code === v.valueCode)?.nameEn ?? null, basis: basis?.nameEn ?? null, conditionedOnAnother: v.whenTaxonomyCode ? "yes" : "no", provenance: row.provenance, governingSource: row.governingSource };
-  await auditedCreate({ organisationId: orgId, entity: "TaxonomyMapping", entityLabel: `${type!.nameEn} — ${tax!.nameEn}`, reason: String(data.get("reason") ?? "") }, named, (tx) =>
-    tx.taxonomyMapping.create({ data: { organisationId: orgId, ...row } }),
-  );
+  const result = await db.$transaction(async (tx): Promise<FormState | null> => {
+    // 64-C1: the tender-documents policy saves under the same lock, so the permit list read here
+    // is the one in force when the row is written.
+    await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${orgId} FOR UPDATE`;
+    const permitList = (await tx.tenderDocumentPolicy.findUnique({ where: { organisationId: orgId }, select: { regulatorPermitTaxonomyCode: true } }))?.regulatorPermitTaxonomyCode ?? null;
+    const permitFaults = permitListMappingFaults(v, permitList);
+    if (permitFaults.length) return { ok: false, errors: Object.fromEntries(permitFaults.map((f) => [f.field, PERMIT_LIST_MAPPING_FAULT_TEXT[f.code]])) };
+    const created = await tx.taxonomyMapping.create({ data: { organisationId: orgId, ...row } });
+    await writeAudit(tx, { organisationId: orgId, entity: "TaxonomyMapping", entityId: created.id, entityLabel: `${type!.nameEn} — ${tax!.nameEn}`, reason: String(data.get("reason") ?? "") }, "CREATE", diffFields(null, named));
+    return null;
+  });
+  if (result) return result;
   revalidatePath(PATH);
   return { ok: true };
 }

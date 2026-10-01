@@ -8,7 +8,7 @@
 import { NO_LIMIT, NOT_SET } from "./labels";
 import type { Finding, Provenance } from "./types";
 
-export type ConfigFault = "PROVENANCE_REQUIRED" | "LEAD_NEGATIVE" | "LIMIT_BELOW_ONE" | "UNKNOWN_QUALIFICATION" | "UNKNOWN_OFFICE" | "UNKNOWN_LIST" | "PERIOD_REVERSED";
+export type ConfigFault = "PROVENANCE_REQUIRED" | "LEAD_NEGATIVE" | "LIMIT_BELOW_ONE" | "UNKNOWN_QUALIFICATION" | "UNKNOWN_OFFICE" | "UNKNOWN_LIST" | "PERMIT_LIST" | "PERIOD_REVERSED";
 
 export interface PolicyDraft {
   measurementStandardLabel: string | null;
@@ -25,8 +25,12 @@ export interface PolicyDraft {
   panelProjectStatusTaxonomyCode: string | null;
 }
 
-/// Field-keyed faults, so the form marks the field.
-export function scopePolicyFaults(p: PolicyDraft, known: { qualifications: readonly string[]; offices: readonly string[]; lists: readonly string[] }): (Finding<ConfigFault> & { field: string })[] {
+/**
+ * Field-keyed faults, so the form marks the field. `permitList` is the taxonomy the
+ * tender-documents policy names as its regulator-permit list (64-C1): it is left out of
+ * classification, so no exercise carries a value in it and the panel must not read it.
+ */
+export function scopePolicyFaults(p: PolicyDraft, known: { qualifications: readonly string[]; offices: readonly string[]; lists: readonly string[]; permitList?: string | null }): (Finding<ConfigFault> & { field: string })[] {
   const out: (Finding<ConfigFault> & { field: string })[] = [];
   const need = (set: boolean, prov: Provenance | null, field: string) => {
     if (set && prov == null) out.push({ code: "PROVENANCE_REQUIRED", level: "block", field });
@@ -42,6 +46,7 @@ export function scopePolicyFaults(p: PolicyDraft, known: { qualifications: reado
   }
   for (const f of ["panelContractKindTaxonomyCode", "panelProjectStatusTaxonomyCode"] as const) {
     if (p[f] != null && !known.lists.includes(p[f]!)) out.push({ code: "UNKNOWN_LIST", level: "block", field: f });
+    else if (p[f] != null && known.permitList != null && p[f] === known.permitList) out.push({ code: "PERMIT_LIST", level: "block", field: f });
   }
   return out;
 }
@@ -75,6 +80,7 @@ export const CONFIG_FAULT_TEXT: Readonly<Record<ConfigFault, string>> = {
   UNKNOWN_QUALIFICATION: "That qualification is not configured. Add it under Qualifications first.",
   UNKNOWN_OFFICE: "That is not an office. Choose one from Users & roles.",
   UNKNOWN_LIST: "That list is not configured. Add it under Configuration, Reference data.",
+  PERMIT_LIST: "That list is the permit list named under Configuration, Tender documents. Permits are chosen on each exercise and no exercise is classified in it, so the specification panel would find no value there. Choose another list, or name a different permit list there first.",
   PERIOD_REVERSED: "The last day cannot be before the first.",
 };
 

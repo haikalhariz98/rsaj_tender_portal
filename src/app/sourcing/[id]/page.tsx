@@ -58,6 +58,7 @@ import {
   TYPE_STATE_LABEL,
   evidenceChip,
 } from "@/lib/method/labels";
+import { ignoredMappingsText, ignoredPermitListMappings } from "@/lib/method/taxonomy";
 import { behaviourProfile, type BehaviourValue } from "@/lib/method/profile";
 import { nameRequestProposalFault, proposalFaults, proposalView } from "@/lib/method/proposal";
 import { draftOf, evaluationContext, exerciseHistory, loadExercise, type LoadedExercise } from "@/lib/method/repo";
@@ -310,6 +311,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
           decided={decided}
           live={ev ? { derivation: ev.derivation, type: ev.type, taxonomies: ev.taxonomies } : null}
           config={config}
+          permitList={cfg.permitList}
           typeName={typeName}
           overriddenBy={ex.overriddenBy?.name ?? null}
           requesterType={typeName(req.contractTypeCode)}
@@ -814,6 +816,7 @@ function ContractPanel({
   decided,
   live,
   config,
+  permitList,
   typeName,
   overriddenBy,
   requesterType,
@@ -824,6 +827,8 @@ function ContractPanel({
   decided: ClassificationSnapshot | null;
   live: { derivation: { state: string; code: string | null; sharePct: string | null }; type: { state: string | null; code: string | null }; taxonomies: { taxonomyCode: string; state: string; valueCode: string | null; candidates: string[] }[] } | null;
   config: Awaited<ReturnType<typeof evaluationContext>>["cfg"]["config"];
+  /// The list the tender-documents policy keeps as its permit list (64-C1): never a classification.
+  permitList: { code: string; nameEn: string } | null;
   typeName: (c: string | null) => string | null;
   overriddenBy: string | null;
   requesterType: string | null;
@@ -839,6 +844,10 @@ function ContractPanel({
   const derivedName = decided?.contractType.derivedName ?? typeName(live?.derivation.code ?? ex.derivedContractTypeCode);
   const basis = decided?.basis ?? config.bases.find((b) => b.code === ex.contractBasisCode) ?? null;
   const tax = (code: string) => config.taxonomies.find((t) => t.code === code);
+  // 64-C1: mappings set up before the permit list was refused as a classification are ignored by
+  // derivation; the live view says so rather than staying silent. A decided record renders as recorded.
+  const liveType = live?.type.code ?? ex.contractTypeCode;
+  const ignored = !decided && permitList && liveType ? ignoredPermitListMappings(config.mappings, permitList.code, liveType) : [];
   return (
     <div className="flex flex-col gap-6">
       <Card>
@@ -896,6 +905,13 @@ function ContractPanel({
 
       <Card className="overflow-hidden">
         <CardHeader icon={<ClipboardIcon size={17} />} title="Other classifications" subtitle="Derived from the type and basis rather than asked again. The basis itself is always chosen." />
+        {ignored.length > 0 && permitList && (
+          <CardBody className="border-b border-line/70">
+            <Callout tone="warn" action={<ButtonLink href="/configuration/reference-data" size="sm">Open Reference data</ButtonLink>}>
+              {ignoredMappingsText(ignored.length, permitList.nameEn)}
+            </Callout>
+          </CardBody>
+        )}
         {decided ? (
           <ul className="divide-y divide-line/70">
             {decided.taxonomies.map((t) => (

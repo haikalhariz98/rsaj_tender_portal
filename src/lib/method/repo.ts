@@ -67,7 +67,9 @@ export async function loadMethodConfig(organisationId: string, client: Tx = db) 
     },
   };
   const checklist = Object.fromEntries(methods.map((m) => [m.code, m.checklistItems]));
-  return { config, checklist, rows: { methods, reasons, types, bases, taxonomies, mappings, policy } };
+  // 64-C1: the permit list by name, so a screen can say which mappings it makes inert.
+  const permitListRow = permitList ? (taxonomies.find((t) => t.code === permitList) ?? null) : null;
+  return { config, checklist, permitList: permitListRow ? { code: permitListRow.code, nameEn: permitListRow.nameEn } : null, rows: { methods, reasons, types, bases, taxonomies, mappings, policy } };
 }
 
 export type LoadedMethodConfig = Awaited<ReturnType<typeof loadMethodConfig>>;

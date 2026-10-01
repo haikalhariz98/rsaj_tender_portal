@@ -90,8 +90,10 @@ export async function saveScopePolicy(_prev: FormState, data: FormData): Promise
     const qualifications = await tx.qualification.findMany({ where: { organisationId: orgId, retiredOn: null }, select: { code: true, nameEn: true } });
     const offices = await tx.authorityRole.findMany({ where: { organisationId: orgId, isCommittee: false }, select: { code: true, nameEn: true } });
     const lists = await tx.classificationTaxonomy.findMany({ where: { organisationId: orgId }, select: { code: true, nameEn: true } });
+    // 64-C1: the permit list in force, read under the organisation's lock the tender policy saves under.
+    const permitList = (await tx.tenderDocumentPolicy.findUnique({ where: { organisationId: orgId }, select: { regulatorPermitTaxonomyCode: true } }))?.regulatorPermitTaxonomyCode ?? null;
     const before = await tx.scopePolicy.findUnique({ where: { organisationId: orgId } });
-    const faults = scopePolicyFaults(v, { qualifications: qualifications.map((q) => q.code), offices: offices.map((o) => o.code), lists: lists.map((t) => t.code) });
+    const faults = scopePolicyFaults(v, { qualifications: qualifications.map((q) => q.code), offices: offices.map((o) => o.code), lists: lists.map((t) => t.code), permitList });
     if (faults.length) return { ok: false, errors: Object.fromEntries(faults.map((f) => [f.field, CONFIG_FAULT_TEXT[f.code]])) };
     const row = await tx.scopePolicy.upsert({ where: { organisationId: orgId }, create: { organisationId: orgId, ...v }, update: v });
     // The trail names what a code points at, never the code (AGENTS.md rule 5).
