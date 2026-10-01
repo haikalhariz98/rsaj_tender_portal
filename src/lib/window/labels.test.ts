@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { ADDENDUM_STATUS_LABEL, CERT_SIGHTED_LABEL, CHANGE_ROUTE_TEXT, CHECK_STATE_LABEL, CLOSING_CHANGE_KIND_LABEL, DAY_RULE_LABEL, DELIVERY_METHOD_LABEL, FEE_COST_KIND_LABEL, PARTY_SOURCE_LABEL, PATH_LABEL, PHASE_LABEL, SETTING_LABEL, SITE_EVENT_KIND_LABEL, TABLE_AVAILABILITY_LABEL, tableAvailabilityText, UNWORDED, windowFindingText } from "./labels";
+import { advertisedOnlyNote, RULE_LABEL, ADDENDUM_STATUS_LABEL, CERT_SIGHTED_LABEL, CHANGE_ROUTE_TEXT, CHECK_STATE_LABEL, CLOSING_CHANGE_KIND_LABEL, DAY_RULE_LABEL, DELIVERY_METHOD_LABEL, FEE_COST_KIND_LABEL, PARTY_SOURCE_LABEL, PATH_LABEL, PHASE_LABEL, SETTING_LABEL, SITE_EVENT_KIND_LABEL, TABLE_AVAILABILITY_LABEL, tableAvailabilityText, UNWORDED, windowFindingText } from "./labels";
 import { ADDENDUM_STATUSES, ADVERTISEMENT_DAY_RULES, CERT_SIGHTED, CHECK_STATES, CLOSING_CHANGE_KINDS, DELIVERY_METHODS, FEE_COST_KINDS, PARTY_SOURCES, SITE_EVENT_KINDS, WINDOW_PATHS } from "./types";
 import { WINDOW_PHASES } from "./phase";
 
@@ -70,5 +70,13 @@ describe("the Tender Table Document's availability in words", () => {
     expect(tableAvailabilityText("WITHDRAWN", "07 Oct 2026")).toBe("Withdrawn: the exercise was cancelled on 07 Oct 2026");
     expect(tableAvailabilityText("WITHDRAWN", null)).toBe(TABLE_AVAILABILITY_LABEL.WITHDRAWN);
     expect(tableAvailabilityText("AVAILABLE", "07 Oct 2026")).toBe(TABLE_AVAILABILITY_LABEL.AVAILABLE);
+  });
+});
+
+describe("rules on the invited path", () => {
+  it("a rule about advertising is marked on an invited window, and only there", () => {
+    expect(advertisedOnlyNote("Margin for a late newspaper", "INVITED")).toMatch(/advertised windows only/);
+    expect(advertisedOnlyNote("Margin for a late newspaper", "ADVERTISED")).toBeNull();
+    expect(advertisedOnlyNote(RULE_LABEL.purchaseCutoff, "INVITED")).toBeNull();
   });
 });

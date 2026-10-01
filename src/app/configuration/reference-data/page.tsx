@@ -23,6 +23,7 @@ import {
 import { loadMethodConfig } from "@/lib/method/repo";
 import { behaviourProfile } from "@/lib/method/profile";
 import { DELIVERABLE_LABEL } from "@/lib/method/labels";
+import { PATH_LABEL } from "@/lib/window/labels";
 import type { DeliverableKind } from "@/lib/method/types";
 import { KeyValues } from "@/components/ui/stat";
 import { CardBody } from "@/components/ui/card";
@@ -708,8 +709,8 @@ function Bands({ method }: { method: SourcingMethod }) {
 function approachOf(m: SourcingMethod): string {
   if (!m.requiresFreshSourcing) return "Called off an existing contract";
   const parts = [
-    m.requiresAdvertisement && "Advertised",
-    m.invitesNamedSuppliers && "Named suppliers invited",
+    m.requiresAdvertisement && PATH_LABEL.ADVERTISED,
+    m.invitesNamedSuppliers && PATH_LABEL.INVITED,
   ].filter(Boolean) as string[];
   return parts.length > 0 ? parts.join(" · ") : "Approached directly";
 }

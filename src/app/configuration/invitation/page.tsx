@@ -8,6 +8,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
+import { RULE_LABEL } from "@/lib/window/labels";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
@@ -139,12 +140,12 @@ export default async function InvitationControlsPage() {
                 setting("Minimum days from advertisement to closing", <Setting value={days(p.minAdvertisementDays)} unset={UNSET.min} source={p.dateRulesProvenance} />),
                 setting("Target days from advertisement to closing", <Setting value={days(p.targetAdvertisementDays)} unset={UNSET.target} source={p.dateRulesProvenance} />),
                 setting("Margin for a late newspaper", <Setting value={days(p.newspaperWarnDays)} unset={UNSET.margin} source={p.dateRulesProvenance} />),
-                setting("Days between the last day of sale and the closing", <Setting value={days(p.purchaseCutoffDays)} unset={UNSET.cutoff} source={p.dateRulesProvenance} />),
+                setting(RULE_LABEL.purchaseCutoff, <Setting value={days(p.purchaseCutoffDays)} unset={UNSET.cutoff} source={p.dateRulesProvenance} />),
                 setting("Where the date rules are written", p.dateRuleSource || "No source is cited: the messages that refuse a date cite none"),
                 setting("Default closing time", <Setting value={r.time.value} unset={UNSET.time} source={p.closingTimeProvenance} />),
-                setting("The advertisement day", <Setting value={r.day.value} unset={UNSET.dayRule} source={p.dayRuleProvenance} />),
+                setting("Advertisement day", <Setting value={r.day.value} unset={UNSET.dayRule} source={p.dayRuleProvenance} />),
                 setting("Holiday calendar", <Setting value={named(c.calendars, p.calendarId)?.name ?? "Not set"} unset={UNSET.calendar} />),
-                setting("Mandatory attendance at a briefing", <Setting value={r.attendance.value} unset={UNSET.attendance} source={p.attendanceProvenance} />),
+                setting(RULE_LABEL.mandatoryAttendance, <Setting value={r.attendance.value} unset={UNSET.attendance} source={p.attendanceProvenance} />),
                 setting("Template for the published notice", <Setting value={c.policy.templates.notice} unset={UNSET.template} />),
                 setting("Template for a letter of invitation", <Setting value={c.policy.templates.invitation} unset={UNSET.template} />),
                 setting("Template for an addendum", <Setting value={c.policy.templates.addendum} unset={UNSET.template} />),

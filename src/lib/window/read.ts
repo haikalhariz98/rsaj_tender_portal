@@ -28,13 +28,13 @@ import { windowEditFault } from "./edit";
 import { attendanceCsv, isMandatory, mandatoryPermittedFor } from "./events";
 import { inviteeEditFault, inviteeListFault, regKey } from "./invitees";
 import { closingDay, judgePublish, nameRoutesWithLists, pathOf, phaseOf, proposedInvitees, renderAddendum } from "./judge";
-import { ADDENDUM_STATUS_LABEL, CLOSING_CHANGE_KIND_LABEL, DAY_RULE_LABEL, DELIVERY_METHOD_LABEL, FEE_COST_KIND_LABEL, NOTIFIED_LABEL, PARTY_SOURCE_LABEL, PATH_LABEL, PHASE_LABEL, PHASE_TONE, SITE_EVENT_KIND_LABEL, tableAvailabilityText, windowFindingText } from "./labels";
+import { ADDENDUM_STATUS_LABEL, CLOSING_CHANGE_KIND_LABEL, DAY_RULE_LABEL, DELIVERY_METHOD_LABEL, FEE_COST_KIND_LABEL, NOTIFIED_LABEL, PARTY_SOURCE_LABEL, PATH_LABEL, PHASE_LABEL, RULE_LABEL, advertisedOnlyNote, PHASE_TONE, SITE_EVENT_KIND_LABEL, tableAvailabilityText, windowFindingText } from "./labels";
 import { closingHistory, sinceApprovedLines, standingEntry, tableDocumentAvailability, tablePrintRefusal, type TableAvailability, type WindowPhase } from "./phase";
 import { basisTotalOf, eventFactsOf, loadCalendar, loadChannels, loadFloors, loadWindowPolicy, windowData, type WindowData } from "./repo";
 import { foldUnpreparedWindow } from "./publish";
 import { annotationLines, isAnnotation, voidSaleFault } from "./sale";
 import { saleChecks } from "./sale-checks";
-import type { Finding, Provenance } from "./types";
+import type { Finding, Provenance, WindowPath } from "./types";
 
 const NOT_SET = "Not set";
 const PROVENANCE_LABEL: Record<Provenance, string> = { STATED: "Stated", OBSERVED: "Observed", ASSUMED: "Assumed" };
@@ -66,7 +66,13 @@ type Loaded = NonNullable<Awaited<ReturnType<typeof load>>>;
 const WEEKDAY_NAME = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 /// The window's rules, each with its value, where it comes from and its source (or "Not set").
-function rulesShown(d: WindowData) {
+function rulesShown(d: WindowData, path: WindowPath | null = null) {
+  // On the invited path no advertisement is made, so the rules about one are marked, not hidden: they are
+  // still the organisation's settings, and the window is judged by none of them.
+  return ruleRows(d).map((r) => ({ ...r, note: advertisedOnlyNote(r.label, path) }));
+}
+
+function ruleRows(d: WindowData) {
   const p = d.policy;
   const source = p.dateRuleSource.trim() || null;
   const days = (n: number | null) => (n == null ? NOT_SET : `${n} day${n === 1 ? "" : "s"}`);
@@ -74,12 +80,12 @@ function rulesShown(d: WindowData) {
     { label: "Minimum days from advertisement to closing", value: days(p.minAdvertisementDays), from: provenance(p.dateRulesProvenance), source },
     { label: "Target days from advertisement to closing", value: days(p.targetAdvertisementDays), from: provenance(p.dateRulesProvenance), source },
     { label: "Margin for a late newspaper", value: days(p.newspaperWarnDays), from: provenance(p.dateRulesProvenance), source },
-    { label: "Last day of sale before the closing", value: days(p.purchaseCutoffDays), from: provenance(p.dateRulesProvenance), source },
+    { label: RULE_LABEL.purchaseCutoff, value: days(p.purchaseCutoffDays), from: provenance(p.dateRulesProvenance), source },
     { label: "Default closing time", value: p.defaultClosingTime ?? NOT_SET, from: provenance(p.closingTimeProvenance), source },
     { label: "Advertisement day", value: p.advertisementDayRule ? `${DAY_RULE_LABEL[p.advertisementDayRule]}${p.advertisementDayRule === "NAMED_CHANNEL" ? ` (${d.channels.find((c) => c.id === p.advertisementChannelId)?.nameEn ?? "a channel no longer configured"})` : ""}` : NOT_SET, from: provenance(p.dayRuleProvenance), source: null },
     { label: "Holiday calendar", value: d.calendar ? d.calendar.name : NOT_SET, from: d.calendar ? provenance(d.calendar.provenance ?? null) : NOT_SET, source: null },
     { label: "Weekend", value: d.calendar?.weekendDays.length ? d.calendar.weekendDays.map((n) => WEEKDAY_NAME[n - 1]).join(", ") : NOT_SET, from: d.calendar ? provenance(d.calendar.weekendProvenance ?? null) : NOT_SET, source: null },
-    { label: "Mandatory attendance", value: p.mandatoryAttendancePermitted == null ? "Not set: no event is mandatory" : p.mandatoryAttendancePermitted ? "May be made mandatory" : "Not permitted", from: provenance(p.attendanceProvenance), source: null },
+    { label: RULE_LABEL.mandatoryAttendance, value: p.mandatoryAttendancePermitted == null ? "Not set: no event is mandatory" : p.mandatoryAttendancePermitted ? "May be made mandatory" : "Not permitted", from: provenance(p.attendanceProvenance), source: null },
   ];
 }
 
@@ -132,7 +138,7 @@ export async function windowTab(exerciseId: string) {
       publishedAt: w?.publishedAt ? formatOrgDateTime(w.publishedAt, tz) : null,
     },
     lead: { text: leadTimeText(lead), warn: lead.warn },
-    rules: rulesShown(d),
+    rules: rulesShown(d, path),
     frozenRules: w?.policySnapshot ? "The rules this window was published under are kept with it." : null,
     items: w
       ? { inspectionPlace: w.inspectionPlace, purchasePlace: w.purchasePlace, inspectionHours: w.inspectionHours, purchaseFromDay: w.purchaseFromDay ? storedDay(w.purchaseFromDay) : "", purchaseCloseDay: w.purchaseCloseDay ? storedDay(w.purchaseCloseDay) : "", feeAmount: w.feeAmount?.toString() ?? "", feePaymentMethods: w.feePaymentMethods, submissionPlace: w.submissionPlace, closingTimeReason: w.closingTimeReason }

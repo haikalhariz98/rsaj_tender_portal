@@ -72,7 +72,7 @@ export async function saveWindowPolicy(_prev: FormState, data: FormData): Promis
     advertisementChannelId: r.optionalText("advertisementChannelId"),
     dayRuleProvenance: r.choice("dayRuleProvenance", "Where the advertisement-day rule comes from", PROVENANCE),
     calendarId: r.optionalText("calendarId"),
-    mandatoryAttendancePermitted: tri(r.choice("mandatoryAttendancePermitted", "Mandatory attendance permitted", TRI)),
+    mandatoryAttendancePermitted: tri(r.choice("mandatoryAttendancePermitted", "Mandatory attendance at a briefing", TRI)),
     attendanceProvenance: r.choice("attendanceProvenance", "Where the attendance rule comes from", PROVENANCE),
     noticeTemplateId: r.optionalText("noticeTemplateId"),
     invitationTemplateId: r.optionalText("invitationTemplateId"),

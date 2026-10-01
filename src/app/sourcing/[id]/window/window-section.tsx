@@ -331,6 +331,7 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
                   <FromBadge text={r.from} />
                   {r.source && <span className="text-[12.5px] break-words text-ink-3">{r.source}</span>}
                 </span>
+                {r.note && <span className="text-[12.5px] text-ink-3">{r.note}</span>}
               </span>
             </li>
           ))}

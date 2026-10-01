@@ -1,5 +1,6 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { RULE_LABEL } from "@/lib/window/labels";
 
 import { importHolidayYear, removeFeeFloor, removeHoliday, saveCalendar, saveCalendarYear, saveChannel, saveFeeFloor, saveHoliday, saveWindowPolicy, setCalendarRetired, setChannelRetired } from "./actions";
 
@@ -37,7 +38,7 @@ export function EditWindowPolicy({ values, channels, calendars, templates }: { v
         { kind: "number", name: "minAdvertisementDays", label: "Minimum days from advertisement to closing", min: 0 },
         { kind: "number", name: "targetAdvertisementDays", label: "Target days from advertisement to closing", min: 0, hint: "Below it is a warning, not a refusal." },
         { kind: "number", name: "newspaperWarnDays", label: "Margin for a late newspaper (days)", min: 0 },
-        { kind: "number", name: "purchaseCutoffDays", label: "Days between the last day of sale and the closing", min: 0, hint: "Exactly this many passes." },
+        { kind: "number", name: "purchaseCutoffDays", label: RULE_LABEL.purchaseCutoff, min: 0, hint: "Exactly this many passes." },
         provenance("dateRulesProvenance", "Where the date rules come from"),
         { kind: "text", name: "dateRuleSource", label: "The source the date rules cite", hint: "Quoted in the messages that refuse a date. Leave empty to cite none." },
         { kind: "text", name: "defaultClosingTime", label: "Default closing time", placeholder: "14:30", hint: "24-hour. Another time needs a reason on the window." },
@@ -46,7 +47,7 @@ export function EditWindowPolicy({ values, channels, calendars, templates }: { v
         { kind: "select", name: "advertisementChannelId", label: "The named channel", placeholder: "None", options: channels, hint: "Only where one channel is named. It must be a required channel." },
         provenance("dayRuleProvenance", "Where the advertisement-day rule comes from"),
         { kind: "select", name: "calendarId", label: "Holiday calendar", placeholder: "Not set", options: calendars },
-        { kind: "select", name: "mandatoryAttendancePermitted", label: "May attendance at a briefing be made mandatory", placeholder: "Not set", options: [{ value: "yes", label: "Yes, it may be" }, { value: "no", label: "No, it may not" }, { value: "unset", label: "Not set: no event is mandatory" }] },
+        { kind: "select", name: "mandatoryAttendancePermitted", label: RULE_LABEL.mandatoryAttendance, placeholder: "Not set", options: [{ value: "yes", label: "Yes, it may be" }, { value: "no", label: "No, it may not" }, { value: "unset", label: "Not set: no event is mandatory" }] },
         provenance("attendanceProvenance", "Where the attendance rule comes from"),
         { kind: "select", name: "noticeTemplateId", label: "Template for the published notice", placeholder: "Not set", options: templates },
         { kind: "select", name: "invitationTemplateId", label: "Template for a letter of invitation", placeholder: "Not set", options: templates },

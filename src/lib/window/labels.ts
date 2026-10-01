@@ -17,6 +17,19 @@ import { CONFIG_UNWORDED, configFaultText } from "./config";
 
 const SETTINGS = "Configuration, Invitation controls";
 
+/// One name per window rule, wherever it is shown (the exercise's rules list and Configuration).
+export const RULE_LABEL = {
+  purchaseCutoff: "Days between the last day of sale and the closing",
+  mandatoryAttendance: "Mandatory attendance at a briefing",
+} as const;
+
+const ADVERTISED_ONLY: ReadonlySet<string> = new Set(["Minimum days from advertisement to closing", "Target days from advertisement to closing", "Margin for a late newspaper", "Advertisement day"]);
+
+/// A rule about advertising, shown on an invited window, says it does not apply there (marked, not hidden).
+export function advertisedOnlyNote(label: string, path: "ADVERTISED" | "INVITED" | null): string | null {
+  return path === "INVITED" && ADVERTISED_ONLY.has(label) ? "Applies to advertised windows only; this one is by invitation." : null;
+}
+
 export const PATH_LABEL: Record<WindowPath, string> = { ADVERTISED: "By advertisement", INVITED: "By invitation" };
 export const FEE_COST_KIND_LABEL: Record<FeeCostKind, string> = {
   PAPER_A4: "A4 paper",
