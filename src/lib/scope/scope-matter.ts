@@ -100,15 +100,19 @@ export function scopeApproval(
 
   const decided = inDecisionOrder(mine.filter((m) => m.record && m.record.outcome !== "DEFERRED"));
   const last = decided[decided.length - 1] ?? null;
+  const waiting = [...mine.filter((m) => m.record == null)].sort((a, b) => t(a.tabledAt, -Infinity) - t(b.tabledAt, -Infinity) || (a.id < b.id ? -1 : 1));
+  const w = waiting[waiting.length - 1] ?? null;
+  // A matter tabled again on or after the last decision (after an outcome that could not be
+  // read) is what the version now waits on: the earlier decision no longer speaks for it,
+  // and while it waits the version is not tabled a third time.
+  const lastDecided = last ? decidedOn(last) : null;
+  if (w && (last == null || lastDecided == null || (w.tabledAt != null && w.tabledAt.getTime() >= lastDecided.getTime()))) return { state: "PENDING", decisive: w, ...base };
   if (last) {
     const r = last.record!;
     if (r.outcome === "CARRIED") return { state: "APPROVED", decisive: last, ...base };
     if (!r.notApproved) return { state: "OUTCOME_NOT_RECORDED", decisive: last, ...base };
     return { state: r.notApproved.kind === "LOOP" ? "RETURNED" : "ENDED", decisive: last, ...base };
   }
-  const waiting = [...mine.filter((m) => m.record == null)].sort((a, b) => t(a.tabledAt, -Infinity) - t(b.tabledAt, -Infinity) || (a.id < b.id ? -1 : 1));
-  const w = waiting[waiting.length - 1] ?? null;
-  if (w) return { state: "PENDING", decisive: w, ...base };
   const deferred = inDecisionOrder(mine.filter((m) => m.record?.outcome === "DEFERRED"));
   if (deferred.length) return { state: "DEFERRED", decisive: deferred[deferred.length - 1], ...base };
   return { state: "NOT_TABLED", decisive: null, ...base };

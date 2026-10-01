@@ -109,6 +109,16 @@ describe("scopeCitationFault: which version may be tabled at which sitting", () 
     expect(judge({ matters: [matter("d1", { record: record("NOT_CARRIED", "2026-09-25", { nameEn: "Return", kind: "LOOP" }) })] })).toEqual(["SCOPE_RETURNED"]);
     expect(judge({ matters: [matter("d1", { record: record("NOT_CARRIED", "2026-09-25", { nameEn: "End", kind: "TERMINAL" }) })] })).toEqual(["SCOPE_ENDED"]);
   });
+  it("unreadable, re-tabled, a further tabling is refused: the re-tabled matter is what it waits on", () => {
+    const unreadable = matter("d1", { record: record("NOT_CARRIED", "2026-09-25") });
+    const again = matter("d2", { tabledAt: day("2026-09-28"), sittingReference: "SIT/2" });
+    expect(scopeApproval(rule, [v1], [unreadable, again])).toMatchObject({ state: "PENDING", decisive: { id: "d2" } });
+    expect(judge({ matters: [unreadable, again] })).toEqual(["SCOPE_ALREADY_WAITING"]);
+    // Tabled again on the day of the unreadable decision counts too.
+    expect(scopeApproval(rule, [v1], [unreadable, matter("d2", { tabledAt: day("2026-09-25") })]).state).toBe("PENDING");
+    // Once the re-tabled matter is carried, it is approved.
+    expect(scopeApproval(rule, [v1], [unreadable, matter("d2", { tabledAt: day("2026-09-28"), record: record("CARRIED", "2026-09-30") })]).state).toBe("APPROVED");
+  });
   it("a deferred matter, a withdrawn one, or an unreadable outcome may be tabled again", () => {
     expect(judge({ matters: [matter("d1", { record: record("DEFERRED", "2026-09-25") })] })).toEqual([]);
     expect(judge({ matters: [matter("d1", { withdrawn: true })] })).toEqual([]);
