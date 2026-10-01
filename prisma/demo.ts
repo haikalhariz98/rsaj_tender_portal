@@ -1140,6 +1140,25 @@ async function loadRequisitions(organisationId: string, from: Date) {
     },
   });
 
+  // An unissued revision of the demo limits, so the rule editor has a draft to open.
+  // Invented for review: not drawn from any source, and it routes nothing until issued.
+  // Its rules and steps are demo_ rows, so the wipe removes them with the demo ones.
+  await db.authorityMatrix.create({
+    data: {
+      id: `${P}mx3`, organisationId, label: "Demo limits, draft revision (invented, for review)", effectiveFrom: day("2027-01-01"), issuedAt: null,
+      boundaryValue: "300000", boundaryInclusive: true, quotationFloor: "20000", tenderFloor: "300000", requisitionBoundary: "50000", currency: "MYR",
+    },
+  });
+  await db.authorityRule.createMany({
+    data: [
+      { id: `${P}rule_draft1`, authorityMatrixId: `${P}mx3`, ruleKey: "demo.purchase.low", domain: "purchase", maxValue: "20000", labelEn: "Purchase, below the quotation floor (invented draft)", approverCode: "SEC_PRE", clause: "DEMO DRAFT 1.1", sortOrder: 1 },
+      { id: `${P}rule_draft2`, authorityMatrixId: `${P}mx3`, ruleKey: "demo.purchase.mid", domain: "purchase", minValue: "20000", maxValue: "300000", followsBoundarySwitch: true, labelEn: "Purchase, quotation band (invented draft)", approverCode: "FD", committeeCode: "QUOTE_CTTE", committeeAct: "MR", clause: "DEMO DRAFT 1.2", sortOrder: 2 },
+    ],
+  });
+  await db.authorityRuleStep.createMany({
+    data: [{ id: `${P}st_draft1`, authorityRuleId: `${P}rule_draft2`, roleCode: "HOD_CP", act: "R", sequence: 1 }],
+  });
+
   await db.codeFormat.createMany({
     data: [
       { id: `${P}f3`, organisationId, key: "erp_requisition_no", pattern: "XR\\d{10}", example: "XR2026000101", description: "XR and ten digits, running on across years.", provenance: "ASSUMED" },
