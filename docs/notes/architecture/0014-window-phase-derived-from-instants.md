@@ -1,7 +1,7 @@
 # 0014 — The invitation window's phase is derived from stored instants; only acts are statuses
 
-**Status:** proposed 2026-10-01 with 6.5, under ruling OD-2 A (`docs/notes/plans/6.5-invitation-window.md` §8;
-decisions log "· 6.5 ·" entry) and X-2, X-8, X-9, X-11 (`docs/notes/plans/phase2-rulings.md`).
+**Status:** Accepted (product owner, 2026-10-01; proposed with 6.5, under ruling OD-2 A (`docs/notes/plans/6.5-invitation-window.md` §8;
+decisions log "· 6.5 ·" entry) and X-2, X-8, X-9, X-11 (`docs/notes/plans/phase2-rulings.md`).)
 
 ## Context
 

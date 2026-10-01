@@ -1,8 +1,8 @@
 # 0015 — The name route approves a frozen invitee list
 
-**Status:** proposed 2026-10-01 with 6.5, under rulings OD-4 A and OD-12 (`docs/notes/plans/6.5-invitation-window.md` §8;
+**Status:** Accepted (product owner, 2026-10-01; proposed with 6.5, under rulings OD-4 A and OD-12 (`docs/notes/plans/6.5-invitation-window.md` §8;
 decisions log "· 6.5 ·" entry) and the NameRouteInvitee Restrict ruling. Builds on 6.3's name route and the
-close-out condition CO-8 (`invitationFault`).
+close-out condition CO-8 (`invitationFault`).)
 
 ## Context
 
