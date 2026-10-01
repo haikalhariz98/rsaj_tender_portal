@@ -104,7 +104,9 @@ function zoneOffsetAt(t: number, timeZone: string): number {
 /**
  * The instant a wall-clock day and time names in the organisation's zone: "2026-11-17", "14:30",
  * "Asia/Kuala_Lumpur" is 06:30 UTC. A null zone gives null, never UTC (ruling §9.5); so does a day
- * or time that is not one.
+ * or time that is not one, and a wall-clock time the zone skips (the hour lost when summer time
+ * starts): the instant found must read back as the same day and time, or there is none. A time the
+ * zone shows twice (the hour repeated when summer time ends) is one of the two, and reads back.
  */
 export function instantAt(day: string, time: string, timeZone: string | null): Date | null {
   if (!timeZone || !isDay(day) || !isClockTime(time)) return null;
@@ -113,7 +115,8 @@ export function instantAt(day: string, time: string, timeZone: string | null): D
   const wall = Date.UTC(y, m - 1, d, hh, mm);
   let t = wall - zoneOffsetAt(wall, timeZone);
   t = wall - zoneOffsetAt(t, timeZone);
-  return new Date(t);
+  const at = new Date(t);
+  return dayIn(at, timeZone) === day && clockTimeIn(at, timeZone) === time ? at : null;
 }
 
 /// The clock time an instant reads in the zone, "14:30". Null zone: null, never UTC's clock.

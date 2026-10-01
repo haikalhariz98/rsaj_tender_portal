@@ -4,7 +4,7 @@ import type { FormState } from "@/components/record-editor";
 import { Prisma } from "@/generated/prisma/client";
 import { diffFields } from "@/lib/audit/diff";
 import type { Tx } from "@/lib/audit/record";
-import { dayToDate, instantAt, storedDay } from "@/lib/dates";
+import { dayToDate, instantAt, isClockTime, storedDay } from "@/lib/dates";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { manualFeeReceipt } from "@/lib/integration/fee-receipt";
 import { addendaForNewPurchaser, addendumWindowFault, deliveryFaults, issueFaults, nextAddendumNumber, recipientsFor } from "@/lib/window/addendum";
@@ -219,7 +219,7 @@ export async function scheduleEvent(_prev: FormState, data: FormData): Promise<F
     if (!d.window) return NO_WINDOW;
     const startsAt = instantAt(storedDay(on), time, l.org.timeZone);
     if (!l.org.timeZone) return NO_ZONE;
-    if (!startsAt) return { ok: false, errors: { time: "Give the time on the 24-hour clock, such as 10:00." } };
+    if (!startsAt) return { ok: false, errors: { time: isClockTime(time) ? "That time does not occur on that day in the organisation's time zone (the clocks go forward). Give another time." : "Give the time on the 24-hour clock, such as 10:00." } };
     const ev = { kind, startsAt, place, mandatory: tri(mandatory), cancelled: false };
     const blocks = eventFaults(ev, d.policy.mandatoryAttendancePermitted, l.ex.closingAt).filter((f) => f.code === "MANDATORY_NOT_PERMITTED" || f.code === "EVENT_AFTER_CLOSING");
     if (blocks.length) return refuse(blocks, "Not scheduled:");

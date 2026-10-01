@@ -24,6 +24,18 @@ describe("instantAt", () => {
     expect(instantAt("2026-07-01", "14:30", "Europe/London")?.toISOString()).toBe("2026-07-01T13:30:00.000Z");
     expect(instantAt("2026-12-01", "14:30", "Europe/London")?.toISOString()).toBe("2026-12-01T14:30:00.000Z");
   });
+  it("a time the zone skips when summer time starts is no instant: null, never the hour after", () => {
+    expect(instantAt("2026-03-29", "01:30", "Europe/London")).toBeNull();
+    expect(instantAt("2026-03-08", "02:30", "America/New_York")).toBeNull();
+    // Either side of the gap is a time.
+    expect(instantAt("2026-03-29", "00:59", "Europe/London")?.toISOString()).toBe("2026-03-29T00:59:00.000Z");
+    expect(instantAt("2026-03-29", "02:00", "Europe/London")?.toISOString()).toBe("2026-03-29T01:00:00.000Z");
+  });
+  it("a time the zone shows twice when summer time ends is one of the two, and reads back", () => {
+    const t = instantAt("2026-10-25", "01:30", "Europe/London")!;
+    expect(["2026-10-25T00:30:00.000Z", "2026-10-25T01:30:00.000Z"]).toContain(t.toISOString());
+    expect(clockTimeIn(t, "Europe/London")).toBe("01:30");
+  });
 });
 
 describe("counting days", () => {
