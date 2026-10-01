@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { actLabel } from "@/components/ui/act";
 
-import { ACT_LABEL, actWithCode } from "./labels";
+import { ACT_LABEL, actWithCode, condLabel, routedOnLabel } from "./labels";
 
 describe("an authority act reads as words with its DAL code (ruling CO-9, FR-APR-003)", () => {
   it("names every act and shows the manual's code beside it", () => {
@@ -16,5 +16,15 @@ describe("an authority act reads as words with its DAL code (ruling CO-9, FR-APR
   });
   it("never shows a code it does not know as if it were one", () => {
     expect(actWithCode("ZZ")).toBe("Unknown act");
+  });
+});
+
+describe("what a route was chosen on (Phase 1 carry 4)", () => {
+  it("names the condition when the rule has one", () => {
+    expect(routedOnLabel("over_budget")).toBe(condLabel("over_budget"));
+    expect(routedOnLabel("over_budget")).toBe("When over budget");
+  });
+  it("says the value alone when it has none, never a vague pronoun", () => {
+    for (const none of [null, undefined, ""]) expect(routedOnLabel(none)).toBe("The requisition's value alone");
   });
 });

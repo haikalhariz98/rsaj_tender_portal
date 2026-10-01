@@ -24,7 +24,7 @@ import { MATTER_KIND_LABEL, OUTCOME_LABEL, SIGNED_MINUTES_LABEL, SIGNED_MINUTES_
 import { RECORDED_ON_BEHALF_SENTENCE } from "@/lib/documents/labels";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { formatOrgDay, formatDate, formatRM, formatRouteBand } from "@/lib/format";
-import { ACT_DONE_LABEL, ACT_LABEL, condLabel } from "@/lib/labels";
+import { ACT_DONE_LABEL, ACT_LABEL, condLabel, routedOnLabel } from "@/lib/labels";
 import { parseSen } from "@/lib/money";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
@@ -1278,7 +1278,7 @@ function ApprovalPanel({
               items={[
                 { label: "Rule", value: inst.ruleLabel ? `${inst.ruleLabel}${inst.ruleClause ? ` · ${inst.ruleClause}` : ""}` : "Not recorded" },
                 { label: "Chain beneath the approver", value: routeCoreText(inst, (c) => { const n = officeName(c) ?? "an office no longer configured"; return { en: n, ms: n }; }).en },
-                { label: "Routed on", value: inst.cond ? condLabel(inst.cond) : "Its value band" },
+                { label: "Routed on", value: routedOnLabel(inst.cond) },
                 { label: "Value band", value: routeBand ?? "Band not recorded" },
                 {
                   label: "At the boundary",

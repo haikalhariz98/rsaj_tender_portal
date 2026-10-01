@@ -73,3 +73,9 @@ const CONDS: Record<string, string> = {
 export function condLabel(code: string): string {
   return CONDS[code] ?? code.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 }
+
+/// What a route was chosen on. A rule with no condition is chosen by the requisition's value
+/// alone, which the line below it ("Value band") then spells out.
+export function routedOnLabel(cond: string | null | undefined): string {
+  return cond ? condLabel(cond) : "The requisition's value alone";
+}
