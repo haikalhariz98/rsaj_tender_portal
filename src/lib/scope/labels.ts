@@ -272,7 +272,8 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   OTHER_COMMITTEE: "That sitting is of another committee. Scope is tabled at a sitting of the committee the sourcing method names.",
   OTHER_ACT: "Scope is tabled under the act the sourcing method names, and no other. Change the act under Configuration, Scope and estimate if it is wrong.",
   SITTING_CLOSED: "That sitting is minuted or cancelled, so nothing more is tabled at it. Choose a sitting that is scheduled or in progress, or schedule one under Committees.",
-  SCOPE_ALREADY_WAITING: (d) => `This version is already tabled${d.sitting ? ` at ${d.sitting}` : ""} and waiting for the decision.`,
+  SCOPE_ALREADY_WAITING: (d) =>
+    `This version is already tabled${d.sitting ? ` at ${d.sitting}` : ""} and waiting for the decision.${d.tabledUnderEarlierRule ? " It was tabled under the rule configured then; to table it under today's, withdraw it from that sitting first." : ""}`,
   SCOPE_ALREADY_APPROVED: "The scope of this version is already approved.",
   SCOPE_RETURNED: "The committee returned this version. Start a revision of the bill, finalise it, and table the new version.",
   SCOPE_ENDED: "The committee ended this matter, so this version is not tabled again. Revise the bill and table the new version, or cancel the exercise.",
@@ -366,7 +367,10 @@ export const SCOPE_STATE_BADGE: Readonly<Record<ScopeApprovalState, { label: str
 };
 
 /// The scope card's sentence: the state, the version and where it was decided or waits.
-export function scopeApprovalLine(a: ScopeApproval, committee: string | null, formatDay: (d: Date) => string = (d) => formatDate(d)): string {
+/// `committee` is today's; a matter decided or waiting is named by its own sitting's
+/// committee (62-C1), which is today's unless configuration has moved on.
+export function scopeApprovalLine(a: ScopeApproval, today: string | null, formatDay: (d: Date) => string = (d) => formatDate(d)): string {
+  const committee = a.decisive?.record?.committee ?? a.decisive?.committeeName ?? today;
   const v = a.versionNo != null ? `Version ${a.versionNo} of the bill` : "The bill";
   const where = a.decisive?.record ? `${a.decisive.record.meetingReference}${a.decisive.record.decisionDate ? `, ${formatDay(a.decisive.record.decisionDate)}` : ""}` : (a.decisive?.sittingReference ?? null);
   const earlier = a.earlierApprovedVersionNo != null && a.state !== "APPROVED" ? ` Version ${a.earlierApprovedVersionNo} was approved; a finalised revision is approved in its own right.` : "";
@@ -387,12 +391,25 @@ export function scopeApprovalLine(a: ScopeApproval, committee: string | null, fo
   }
 }
 
-/// Beside a matter decided under another act or committee than the rule names: listed, never counted.
-export const SCOPE_NOT_COUNTING = ", but not under the act and committee set, so it does not count";
+/**
+ * The scope card's warning where configuration has moved on since the deciding matter was
+ * tabled (62-C1): both rules named, in words. A decision stands as taken under the rule it
+ * was tabled under; a matter still waiting is decided under it too, or withdrawn and tabled
+ * again under today's. `tabled` and `now` are "<act> by the <committee>" phrases, `now`
+ * null where today's committee or act is not set.
+ */
+export function scopeRuleMovedNote(i: { decided: boolean; tabled: string; now: string | null; sitting: string | null }): string {
+  const then = `This matter was tabled under the rule configured then: ${i.tabled}.`;
+  const now = i.now ? ` Configuration now says: ${i.now}.` : " Configuration now leaves the committee or its act not set.";
+  const exit = i.decided
+    ? " The decision stands as it was taken; the rule configured today applies to what is tabled next."
+    : ` It is decided under the rule it was tabled under. To table the bill under today's rule instead, withdraw it${i.sitting ? ` from ${i.sitting}` : ""} and table it again.`;
+  return then + now + exit;
+}
 
-/// The card's addition where the finalised bill was decided only under another act: a carried
-/// recommendation is not the approval (overrides BD-62-16).
-export const scopeOtherActNote = (actWords: string) => `A decision under another act does not count: the scope is approved only by a matter carried under ${actWords}.`;
+/// "<act> by the <committee>", for naming a rule in words (never codes).
+export const scopeRuleWords = (actWords: string | null, committee: string | null) =>
+  actWords && committee ? `${actWords} by the ${committee}` : null;
 
 export const RATE_SCHEDULE_STATUS_LABEL: Readonly<Record<RateScheduleStatus, string>> = { DRAFT: "Draft", ISSUED: "Issued", SUPERSEDED: "Superseded" };
 

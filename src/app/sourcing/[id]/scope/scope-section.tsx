@@ -156,6 +156,8 @@ export function ScopeSection({ d }: { d: Data }) {
         />
         <CardBody className="flex flex-col gap-5">
           <Callout tone={approval.state === "APPROVED" ? "ok" : approval.state === "NOT_REQUIRED" ? "neutral" : approval.badge.tone === "err" ? "err" : approval.state === "PENDING" ? "info" : "warn"}>{approval.line}</Callout>
+          {/* 62-C1: configuration has moved on since the deciding matter was tabled; both rules named. */}
+          {approval.moved && <Callout tone="warn" title="The rule has changed since this was tabled">{approval.moved}</Callout>}
           <KeyValues
             columns={3}
             items={[

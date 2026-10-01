@@ -86,13 +86,18 @@ describe("packFaults: scope approval (increment 2, OD-9, FR-REQ-014)", () => {
     expect(scopeFaultText(judge({ scope: "ACT_NOT_SET" })[0])).toMatch(/act the committee discharges.*Configuration, Scope and estimate/);
     expect(scopeFaultText(judge({ scope: "RULE_NOT_SET" })[0])).toMatch(/Configuration, Scope and estimate/);
   });
-  it("a carried recommendation (R) under a configured approval (A) does not let the documents go", () => {
+  it("62-C1: a matter carried under the act configured when it was tabled lets the documents go after the act moves; an unset act blocks only with nothing decided", () => {
     const record = { committee: "Technical Committee", meetingReference: "SIT/1", meetingDate: new Date("2026-09-25T00:00:00Z"), subject: "Scope", matterRef: null, outcome: "CARRIED" as const, decisionDate: new Date("2026-09-25T00:00:00Z"), quorum: { required: 2, present: 2, recused: 0 }, votingRule: { rule: "SIMPLE_MAJORITY" as const, provenance: "ASSUMED" as const }, notApproved: null, note: "", votes: [] };
     const carriedR = { id: "d1", bqVersionId: "v1", committeeCode: "TECH", act: "R", withdrawn: false, sittingCancelled: false, tabledAt: new Date("2026-09-20T00:00:00Z"), record };
+    // Was SCOPE_NOT_APPROVED (read against today's act): tabled when the method's act was R
+    // (tabling writes the configured act and no other), carried, it stays approved after A.
     const scope = scopeApproval({ scopeApprovalRequired: true, scopeCommitteeCode: "TECH", scopeAct: "A" }, [{ id: "v1", versionNo: 1, status: "FINALISED" }], [carriedR]).state;
-    expect(codes(judge({ scope }))).toEqual(["SCOPE_NOT_APPROVED"]);
-    // An unset act blocks too, naming the setting rather than the matter.
-    const unset = scopeApproval({ scopeApprovalRequired: true, scopeCommitteeCode: "TECH", scopeAct: null }, [{ id: "v1", versionNo: 1, status: "FINALISED" }], [{ ...carriedR, act: "A" }]).state;
+    expect(codes(judge({ scope }))).toEqual([]);
+    // Was SCOPE_ACT_NOT_SET with a carried matter: unsetting the act later does not undo it.
+    const unsetAfter = scopeApproval({ scopeApprovalRequired: true, scopeCommitteeCode: "TECH", scopeAct: null }, [{ id: "v1", versionNo: 1, status: "FINALISED" }], [{ ...carriedR, act: "A" }]).state;
+    expect(codes(judge({ scope: unsetAfter }))).toEqual([]);
+    // With nothing decided, an unset act blocks, naming the setting rather than the matter.
+    const unset = scopeApproval({ scopeApprovalRequired: true, scopeCommitteeCode: "TECH", scopeAct: null }, [{ id: "v1", versionNo: 1, status: "FINALISED" }], []).state;
     expect(codes(judge({ scope: unset }))).toEqual(["SCOPE_ACT_NOT_SET"]);
   });
   it("every other state blocks until the finalised bill's scope matter is carried, saying where it stands", () => {

@@ -51,8 +51,8 @@ import {
   CSV_EXPORT_NOTE,
   CSV_IMPORT_NOTE,
   scopeApprovalLine,
-  scopeOtherActNote,
-  SCOPE_NOT_COUNTING,
+  scopeRuleMovedNote,
+  scopeRuleWords,
 } from "./labels";
 import { packFaults, type PackFault } from "./pack";
 import { issueText, schedulesInForce } from "./rates";
@@ -65,7 +65,7 @@ import { TABLING_FAULT_MESSAGE } from "@/lib/committee/labels";
 import { ACT_LABEL } from "@/lib/labels";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster } from "@/lib/people/load";
-import { countsFor, scopeApproval } from "./scope-matter";
+import { scopeApproval } from "./scope-matter";
 import { columnsInForce, panelFaults, panelState, standingVerifications, verifyPanelFault } from "./panel";
 import { blocking, type BqScopedBy, type Finding } from "./types";
 
@@ -237,19 +237,25 @@ async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>,
     if (!t.ok) reasons.push(t.fault === "NOT_TABLED" ? "Nobody holds the committee's Secretariat office today, so nobody may table the scope. Assign the office under Configuration, Users & roles." : TABLING_FAULT_MESSAGE[t.fault]);
   }
   const OUTCOME: Record<string, string> = { PENDING: "Waiting for the decision", CARRIED: "Carried", NOT_CARRIED: "Not carried", DEFERRED: "Deferred" };
-  // The configured act in words (overrides BD-62-16): only a matter under it speaks for approval.
+  // The configured act in words (overrides BD-62-16): tabling writes it, and only it.
   const actWords = rule?.scopeAct ? (ACT_LABEL[rule.scopeAct] ?? "An act the portal does not name") : null;
-  const counted = new Set(rule ? a.scopeMatters.filter((m) => countsFor(rule, m)).map((m) => m.id) : []);
-  // A decision under another act (or committee) is listed, and said not to count: a carried
-  // recommendation must never read as the approval.
-  const notCounting = (m: { id: string; withdrawnAt: Date | null; outcome: string; meeting: { status: string } }) =>
-    rule?.scopeApprovalRequired === true && !m.withdrawnAt && !(m.meeting.status === "CANCELLED" && m.outcome === "PENDING") && !counted.has(m.id);
-  const otherActDecided = finalised != null && rows.some((m) => m.bqVersion?.versionNo === finalised.versionNo && m.outcome !== "PENDING" && notCounting(m));
-  const line = scopeApprovalLine(approval, committeeName);
+  const actName = (act: string) => ACT_LABEL[act] ?? "An act the portal does not name";
+  // 62-C1: each matter speaks under the rule it was tabled under. Where configuration has
+  // moved on since the deciding matter was tabled, the card warns and names both rules.
+  const move = approval.movedOn;
+  const moved = move && approval.decisive
+    ? scopeRuleMovedNote({
+        decided: move.decided,
+        tabled: scopeRuleWords(actName(move.tabled.act), approval.decisive.committeeName ?? "committee of its sitting")!,
+        now: scopeRuleWords(actWords, committeeName),
+        sitting: approval.decisive.sittingReference ?? null,
+      })
+    : null;
   return {
     state: approval.state,
     badge: SCOPE_STATE_BADGE[approval.state],
-    line: approval.state === "NOT_TABLED" && otherActDecided && actWords ? `${line} ${scopeOtherActNote(actWords)}` : line,
+    line: scopeApprovalLine(approval, committeeName),
+    moved,
     rule: {
       required: rule == null ? "The sourcing method is no longer configured" : rule.scopeApprovalRequired == null ? NOT_SET : rule.scopeApprovalRequired ? "Yes" : "No",
       provenance: rule?.scopeApprovalRequired == null ? null : provenanceText(rule.scopeApprovalProvenance),
@@ -265,12 +271,12 @@ async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>,
       sitting: m.meeting.reference,
       sittingHref: `/committees/${m.meetingId}`,
       committee: m.meeting.committee.nameEn,
-      act: ACT_LABEL[m.act] ?? "An act the portal does not name",
+      act: actName(m.act),
       tabledOn: m.tabledAt ? storedDay(m.tabledAt) : null,
       tabledBy: m.tabledBy ? `${m.tabledBy.name}, ${ATTESTED}` : null,
       // An undecided matter at a cancelled sitting counts for nothing (scopeApproval), as a withdrawn one.
-      outcome: m.withdrawnAt ? "Withdrawn" : m.meeting.status === "CANCELLED" && m.outcome === "PENDING" ? "Sitting cancelled, not decided" : `${OUTCOME[m.outcome] ?? "Outcome not known"}${notCounting(m) ? SCOPE_NOT_COUNTING : ""}`,
-      outcomeTone: (m.withdrawnAt || (m.meeting.status === "CANCELLED" && m.outcome === "PENDING") || notCounting(m) ? "neutral" : m.outcome === "CARRIED" ? "ok" : m.outcome === "NOT_CARRIED" ? "err" : m.outcome === "DEFERRED" ? "warn" : "info") as "ok" | "err" | "warn" | "info" | "neutral",
+      outcome: m.withdrawnAt ? "Withdrawn" : m.meeting.status === "CANCELLED" && m.outcome === "PENDING" ? "Sitting cancelled, not decided" : (OUTCOME[m.outcome] ?? "Outcome not known"),
+      outcomeTone: (m.withdrawnAt || (m.meeting.status === "CANCELLED" && m.outcome === "PENDING") ? "neutral" : m.outcome === "CARRIED" ? "ok" : m.outcome === "NOT_CARRIED" ? "err" : m.outcome === "DEFERRED" ? "warn" : "info") as "ok" | "err" | "warn" | "info" | "neutral",
       decidedOn: m.decisionDate ? storedDay(m.decisionDate) : null,
       notApproved: m.notApprovedOutcomeNameEn,
     })),

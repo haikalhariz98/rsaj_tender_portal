@@ -148,7 +148,7 @@ export async function loadScopeMatters(exerciseId: string, client: Tx = db): Pro
     orderBy: [{ tabledAt: "asc" }, { id: "asc" }],
     include: { meeting: { include: { committee: { select: { code: true, nameEn: true } } } }, votes: { include: { person: { select: { name: true } } } } },
   });
-  return rows.map((d) => ({ id: d.id, bqVersionId: d.bqVersionId, committeeCode: d.meeting.committee.code, act: d.act, withdrawn: d.withdrawnAt != null, sittingCancelled: d.meeting.status === "CANCELLED", tabledAt: d.tabledAt, record: recordOf(d), sittingReference: d.meeting.reference }));
+  return rows.map((d) => ({ id: d.id, bqVersionId: d.bqVersionId, committeeCode: d.meeting.committee.code, act: d.act, withdrawn: d.withdrawnAt != null, sittingCancelled: d.meeting.status === "CANCELLED", tabledAt: d.tabledAt, record: recordOf(d), sittingReference: d.meeting.reference, committeeName: d.meeting.committee.nameEn }));
 }
 
 /// The organisation's schedules of rates, issue by issue, as `rates.ts` reads them (days as YYYY-MM-DD).
