@@ -1,0 +1,114 @@
+/// The pure part of the shared Select: what a search keeps, where the arrow keys land,
+/// what typing a letter jumps to, and how several chosen values ride one form field.
+/// The component renders; it does not decide any of this.
+
+export type Opt = {
+  value: string;
+  label: string;
+  disabled?: boolean;
+  /// A second line under the label; searched as well.
+  sub?: string;
+};
+
+/// A search box appears above this many choosable options, unless the caller says.
+export const SEARCH_THRESHOLD = 7;
+
+/// The empty option ("Not set") is a way to clear, not something to search through, so
+/// it does not count towards the threshold.
+export function wantsSearch(options: readonly Opt[], override?: boolean): boolean {
+  if (override !== undefined) return override;
+  return options.filter((o) => o.value !== "").length > SEARCH_THRESHOLD;
+}
+
+const norm = (s: string) => s.toLocaleLowerCase().normalize("NFKD").replace(/\p{M}/gu, "");
+
+/// Options matching every word of the query, in the label or the second line. An empty
+/// query keeps everything. The order is the caller's.
+export function filterOptions<T extends Opt>(options: readonly T[], query: string): T[] {
+  const words = norm(query).split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [...options];
+  return options.filter((o) => {
+    const hay = norm(`${o.label} ${o.sub ?? ""}`);
+    return words.every((w) => hay.includes(w));
+  });
+}
+
+export type MoveKey = "ArrowDown" | "ArrowUp" | "Home" | "End" | "PageDown" | "PageUp";
+
+const PAGE = 8;
+
+/// The index the active row moves to, skipping disabled options and staying put at either
+/// end (no wrap: a list that wraps hides where it ends). `from` is -1 when nothing is
+/// active yet. Returns -1 when no option can be chosen.
+export function moveActive(options: readonly Opt[], from: number, key: MoveKey): number {
+  const ok = (i: number) => i >= 0 && i < options.length && !options[i].disabled;
+  const scan = (start: number, step: 1 | -1) => {
+    for (let i = start; i >= 0 && i < options.length; i += step) if (ok(i)) return i;
+    return -1;
+  };
+  let target: number;
+  switch (key) {
+    case "Home":
+      return scan(0, 1);
+    case "End":
+      return scan(options.length - 1, -1);
+    case "ArrowDown":
+      target = scan(from + 1, 1);
+      break;
+    case "ArrowUp":
+      target = scan(from < 0 ? options.length - 1 : from - 1, -1);
+      break;
+    case "PageDown":
+      target = scan(Math.min(options.length - 1, Math.max(from, 0) + PAGE), -1);
+      if (target <= from) target = scan(from + 1, 1);
+      break;
+    case "PageUp":
+      target = scan(Math.max(0, (from < 0 ? options.length : from) - PAGE), 1);
+      if (target >= from && from >= 0) target = scan(from - 1, -1);
+      break;
+  }
+  return target === -1 ? (ok(from) ? from : -1) : target;
+}
+
+/// The first choosable option at or after `from` whose label starts with `typed`,
+/// wrapping once; a repeated single letter cycles through the options starting with it,
+/// as a native select does. -1 when none.
+export function typeahead(options: readonly Opt[], typed: string, from: number): number {
+  const t = norm(typed);
+  if (!t) return -1;
+  const cycling = t.length > 1 && [...t].every((c) => c === t[0]);
+  const needle = cycling ? t[0] : t;
+  const begin = cycling || t.length === 1 ? from + 1 : Math.max(from, 0);
+  for (let n = 0; n < options.length; n++) {
+    const i = (begin + n) % options.length;
+    const o = options[i];
+    if (!o.disabled && norm(o.label).startsWith(needle)) return i;
+  }
+  return -1;
+}
+
+/// Add the value when absent, remove it when present. Order is the order chosen.
+export function toggleValue(values: readonly string[], value: string): string[] {
+  return values.includes(value) ? values.filter((v) => v !== value) : [...values, value];
+}
+
+/// Several values ride one form field, newline-separated: a comma can appear in a
+/// customer's own code, a newline cannot. One field, never N entries under one name,
+/// because a server action reading a form takes the first and drops the rest silently.
+export function joinValues(values: readonly string[]): string {
+  return values.join("\n");
+}
+
+/// Reads what joinValues wrote (and tolerates CRLF, stray space and blank lines).
+export function splitValues(posted: FormDataEntryValue | string | null | undefined): string[] {
+  if (typeof posted !== "string") return [];
+  return posted
+    .split(/\r?\n/)
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+/// "{n} options" / "No matches", for the polite live region.
+export function resultsAnnouncement(count: number): string {
+  return count === 0 ? "No matches" : count === 1 ? "1 option" : `${count} options`;
+}

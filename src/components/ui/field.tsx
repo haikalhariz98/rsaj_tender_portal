@@ -1,24 +1,13 @@
-import type {
-  InputHTMLAttributes,
-  ReactNode,
-  SelectHTMLAttributes,
-  TextareaHTMLAttributes,
-} from "react";
+"use client";
 
+import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
+
+import { CONTROL, inputClass, type ControlSize } from "./control";
 import { cx } from "./cx";
+import { fieldAria, useFieldContext } from "./field-context";
 
-const CONTROL =
-  "w-full min-w-0 rounded-control border border-line-2 bg-surface text-ink shadow-[0_1px_2px_rgb(15_23_42/0.04)] " +
-  "placeholder:text-ink-4 transition outline-none " +
-  "hover:border-ink-4 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 " +
-  "disabled:cursor-not-allowed disabled:bg-sunken disabled:text-ink-3 " +
-  "aria-invalid:border-rose-400 aria-invalid:focus:ring-rose-500/15";
-
-const HEIGHT = { sm: "h-8 px-3 text-[13px]", md: "h-10 px-3.5 text-[14px]" } as const;
-
-export function inputClass(size: keyof typeof HEIGHT = "md", extra?: string) {
-  return cx(CONTROL, HEIGHT[size], extra);
-}
+export { inputClass };
+export { Option, Select } from "./select";
 
 export function Input({
   size = "md",
@@ -28,12 +17,13 @@ export function Input({
   className,
   ...props
 }: Omit<InputHTMLAttributes<HTMLInputElement>, "size"> & {
-  size?: keyof typeof HEIGHT;
+  size?: ControlSize;
   mono?: boolean;
   numeric?: boolean;
   /// Drawn inside the box on the left — a search glass, say.
   icon?: ReactNode;
 }) {
+  const ctx = useFieldContext();
   const input = (
     <input
       className={inputClass(
@@ -41,6 +31,7 @@ export function Input({
         cx(mono && "font-mono text-[13px]", numeric && "text-right tabular-nums", icon && "pl-9", className),
       )}
       {...props}
+      {...fieldAria(ctx, props)}
     />
   );
   if (!icon) return input;
@@ -62,8 +53,9 @@ export function AffixInput({
 }: Omit<InputHTMLAttributes<HTMLInputElement>, "size" | "prefix"> & {
   prefix?: ReactNode;
   suffix?: ReactNode;
-  size?: keyof typeof HEIGHT;
+  size?: ControlSize;
 }) {
+  const ctx = useFieldContext();
   return (
     <div className={cx("relative flex items-center", className)}>
       {prefix && (
@@ -74,6 +66,7 @@ export function AffixInput({
       <input
         className={inputClass(size, cx(prefix && "pl-11", suffix && "pr-14", "tabular-nums"))}
         {...props}
+        {...fieldAria(ctx, props)}
       />
       {suffix && (
         <span className="pointer-events-none absolute right-3.5 text-[13px] font-semibold text-ink-3">
@@ -84,33 +77,13 @@ export function AffixInput({
   );
 }
 
-export function Select({
-  size = "md",
-  className,
-  children,
-  ...props
-}: Omit<SelectHTMLAttributes<HTMLSelectElement>, "size"> & { size?: keyof typeof HEIGHT }) {
-  return (
-    <select
-      className={inputClass(
-        size,
-        cx(
-          "cursor-pointer appearance-none bg-[url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2366756d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E\")] bg-[position:right_0.75rem_center] bg-no-repeat pr-9",
-          className,
-        ),
-      )}
-      {...props}
-    >
-      {children}
-    </select>
-  );
-}
-
 export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const ctx = useFieldContext();
   return (
     <textarea
       className={cx(CONTROL, "min-h-24 px-3.5 py-2.5 text-[14px] leading-relaxed", className)}
       {...props}
+      {...fieldAria(ctx, props)}
     />
   );
 }
