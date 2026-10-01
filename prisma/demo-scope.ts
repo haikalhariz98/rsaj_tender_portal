@@ -379,6 +379,9 @@ export async function checkScope() {
   const repo = await import("../src/lib/scope/repo");
   const { exerciseOrg } = await import("../src/lib/method/repo");
   const { panelState } = await import("../src/lib/scope/panel");
+  const { checkTabling, secretariatHoldersOn } = await import("../src/lib/committee/tabling");
+  const { loadRoster } = await import("../src/lib/people/load");
+  const { ORGANISATION_CODE } = await import("../src/lib/org");
   const { lodgementBehind } = await import("../src/lib/scope/estimate");
   const { blocking } = await import("../src/lib/scope/types");
   const { db: lib } = await import("../src/lib/db");
@@ -417,7 +420,21 @@ export async function checkScope() {
       // X-4: the scope matter was citable when it was tabled, and its decision approves the finalised bill.
       const matters = await repo.loadScopeMatters(exerciseId);
       const bill = versions.find((v) => v.id === `${P}bqv4`)!;
-      fail("sx15's scope tabling", scopeCitationFault({ exercise: { id: exerciseId, status: ex.status }, rule: rules.method, version: bill, sitting: { committeeCode: "TECH_CTTE", frozen: false }, matters: matters.filter((m) => m.id !== `${P}d40`) }));
+      // X-10 c: demo_d40 passes the act's own checks as tableScope runs them — the citation at
+      // its own sitting (of its committee, not yet minuted on the tabling day) against the
+      // matters before it, and the Secretariat holder rule on the tabling day.
+      const d40 = await lib.committeeDecision.findUniqueOrThrow({
+        where: { id: `${P}d40` },
+        select: { tabledAt: true, tabledByPersonId: true, meeting: { select: { minutedAt: true, committee: { select: { code: true, secretariatRoleCode: true } } } } },
+      });
+      if (!d40.tabledAt) throw new Error("Demo demo_d40 has no tabling day.");
+      const tabledOn = d40.tabledAt.toISOString().slice(0, 10);
+      const frozen = d40.meeting.minutedAt != null && d40.meeting.minutedAt.getTime() <= d40.tabledAt.getTime();
+      fail("sx15's scope tabling (demo_d40)", scopeCitationFault({ exercise: { id: exerciseId, status: ex.status }, rule: rules.method, version: bill, sitting: { committeeCode: d40.meeting.committee.code, frozen }, matters: matters.filter((m) => m.id !== `${P}d40`) }));
+      const secretariat = d40.meeting.committee.secretariatRoleCode;
+      const roster = await loadRoster(ORGANISATION_CODE);
+      const tabling = checkTabling({ secretariatRoleCode: secretariat, tabledByPersonId: d40.tabledByPersonId, holderIdsOnDate: secretariatHoldersOn(roster, secretariat, tabledOn).map((h) => h.id), tablingDay: tabledOn });
+      if (!tabling.ok) throw new Error(`Demo demo_d40 fails its tabling check: ${tabling.fault}`);
       const state = scopeApproval(rules.method, versions, matters).state;
       if (state !== "APPROVED") throw new Error(`Demo sx15's scope reads ${state}, not approved.`);
       // Q-3: the file it was imported from reads back, with the product's rule, as the bill's lines.
