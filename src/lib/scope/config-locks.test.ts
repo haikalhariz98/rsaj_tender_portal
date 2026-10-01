@@ -33,6 +33,7 @@ describe("configuration creates lock the organisation before their duplicate che
     ["saveBqTemplate", "tx.bqTemplate.findFirst({ where: { organisationId: orgId, code: code! }"],
     ["saveSpecPanelColumn", "tx.specPanelColumn.findFirst({ where: { organisationId: orgId, code: code! }"],
     ["saveScopePolicy", "tx.scopePolicy.upsert("],
+    ["startRateIssue", "startIssueFaults(issues, label)"],
   ] as const) {
     it(`${name}: the lock comes before ${check.split("(")[0]}`, () => {
       const b = body(name);

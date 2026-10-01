@@ -372,6 +372,9 @@ export async function startRateIssue(_prev: FormState, data: FormData): Promise<
   const notes = r.text("notes", "Notes", { max: 2000 });
   if (r.failed || !provenance) return { ok: false, errors: r.errors };
   return db.$transaction(async (tx) => {
+    // A new schedule's label has no rows to lock yet: the organisation is locked first, so
+    // two starts of one new label run one after the other and the second sees the first.
+    await lockOrganisation(tx, orgId);
     await lockSchedule(tx, orgId, label);
     const issues = await loadRateIssues(orgId, tx);
     const faults = startIssueFaults(issues, label);
