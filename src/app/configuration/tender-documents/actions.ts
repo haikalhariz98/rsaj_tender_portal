@@ -10,6 +10,7 @@ import { storedDay, todayIn } from "@/lib/dates";
 import { formatSen, parseSen } from "@/lib/money";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { ENTITY } from "@/lib/tender-docs/audit-view";
+import { CONDITIONS_POLICY_FAULT_TEXT, conditionsPolicyFaults } from "@/lib/tender-docs/config-conditions";
 import { methodPackFault, PART_CONFIG_FAULT_TEXT, partConfigFaults, POLICY_FAULT_TEXT, policyFaults, policyFaultText } from "@/lib/tender-docs/config";
 import { NOT_SET, PACK_KIND_LABEL, PART_CONTENT_LABEL, PART_ROLE_LABEL, PART_SOURCE_LABEL, yesNoNotSet } from "@/lib/tender-docs/labels";
 import { formatPct } from "@/lib/tender-docs/percent";
@@ -185,7 +186,11 @@ export async function restoreTenderPart(_prev: FormState, data: FormData): Promi
 const policyWords = (p: Record<string, unknown>) => ({
   restrictionStampEn: (p.restrictionStampTextEn as string | null) ?? NOT_SET,
   restrictionStampMs: (p.restrictionStampTextMs as string | null) ?? NOT_SET,
+  restrictionAskedAs: (p.restrictionLabelEn as string | null) ?? NOT_SET,
+  restrictionComesFrom: prov(p.restrictionProvenance as string | null),
   assuranceRequired: yesNoNotSet(p.assuranceRequired as boolean | null),
+  assuranceComesFrom: prov(p.assuranceProvenance as string | null),
+  regulatorPermitList: (p.regulatorPermitTaxonomyName as string | null) ?? NOT_SET,
   ladDailyRate: p.ladDailyPct == null ? NOT_SET : formatPct(String(p.ladDailyPct)),
   ladDailyRateComesFrom: prov(p.ladDailyPctProvenance as string | null),
   firstCertificateFloor: p.firstCertificateFloor == null ? NOT_SET : formatSen(parseSen(String(p.firstCertificateFloor))),
@@ -206,7 +211,10 @@ export async function saveTenderPolicy(_prev: FormState, data: FormData): Promis
   const v = {
     restrictionStampTextEn: r.optionalText("restrictionStampTextEn"),
     restrictionStampTextMs: r.optionalText("restrictionStampTextMs"),
+    restrictionLabelEn: r.optionalText("restrictionLabelEn"),
+    restrictionProvenance: r.choice("restrictionProvenance", "Where it comes from", PROVENANCE),
     assuranceRequired: tri(r.choice("assuranceRequired", "Assurance confirmations required", TRI)),
+    assuranceProvenance: r.choice("assuranceProvenance", "Where it comes from", PROVENANCE),
     ladDailyPct: r.optionalText("ladDailyPct"),
     ladDailyPctProvenance: r.choice("ladDailyPctProvenance", "Where it comes from", PROVENANCE),
     firstCertificateFloor: r.money("firstCertificateFloor", "First certificate floor"),
@@ -225,6 +233,10 @@ export async function saveTenderPolicy(_prev: FormState, data: FormData): Promis
   if (r.failed) return { ok: false, errors: r.errors };
   const faults = policyFaults(v);
   if (faults.length) return { ok: false, errors: Object.fromEntries(faults.map((f) => [String(f.data?.field), policyFaultText(f)])) };
+  const taxonomies = (await db.classificationTaxonomy.findMany({ where: { organisationId: org.id }, select: { code: true, nameEn: true } }));
+  const more = conditionsPolicyFaults(v, taxonomies.map((t) => t.code));
+  if (more.length) return { ok: false, errors: Object.fromEntries(more.map((f) => [String(f.data?.field), CONDITIONS_POLICY_FAULT_TEXT[f.code]])) };
+  const taxonomyName = (code: string | null | undefined) => (code ? (taxonomies.find((t) => t.code === code)?.nameEn ?? "A list no longer configured") : null);
   // A provenance only with its value: an answer removed takes its provenance with it.
   const value = {
     ...v,
@@ -232,13 +244,15 @@ export async function saveTenderPolicy(_prev: FormState, data: FormData): Promis
     firstCertificateProvenance: v.firstCertificateFloor == null ? null : v.firstCertificateProvenance,
     insuranceExtraProvenance: v.insuranceExtraMonths == null ? null : v.insuranceExtraProvenance,
     dbInsuranceExtraProvenance: v.dbInsuranceExtraMonths == null ? null : v.dbInsuranceExtraProvenance,
+    restrictionProvenance: v.restrictionLabelEn || v.restrictionStampTextEn || v.restrictionStampTextMs ? v.restrictionProvenance : null,
+    assuranceProvenance: v.assuranceRequired == null ? null : v.assuranceProvenance,
   };
   const reason = String(data.get("reason") ?? "");
   return db.$transaction(async (tx): Promise<FormState> => {
     await lockOrganisation(tx, org.id);
     const before = await tx.tenderDocumentPolicy.findUnique({ where: { organisationId: org.id } });
     const row = before ? await tx.tenderDocumentPolicy.update({ where: { id: before.id }, data: value }) : await tx.tenderDocumentPolicy.create({ data: { organisationId: org.id, ...value } });
-    const changes = diffFields(before ? policyWords(before) : null, policyWords(value));
+    const changes = diffFields(before ? policyWords({ ...before, regulatorPermitTaxonomyName: taxonomyName(before.regulatorPermitTaxonomyCode) }) : null, policyWords({ ...value, regulatorPermitTaxonomyName: taxonomyName(value.regulatorPermitTaxonomyCode) }));
     if (!before || changes.length) await writeAudit(tx, { organisationId: org.id, entity: ENTITY.policy, entityId: row.id, entityLabel: "Tender documents policy", reason }, before ? "UPDATE" : "CREATE", changes);
     return done();
   });
