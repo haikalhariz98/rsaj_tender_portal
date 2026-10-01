@@ -15,8 +15,8 @@ describe("retention state (NFR-RET-001)", () => {
     expect(retentionState(rule({ retentionMonths: null, retentionTrigger: null }), null, "2999-12-31")).toEqual({ state: "NOT_SET", missing: ["PERIOD", "TRIGGER"] });
     expect(retentionText(retentionState(rule({ retentionMonths: null }), null, "2026-10-01"))).toBe("Not set");
   });
-  it("zero months is not a period: it reads as not set", () => {
-    expect(retentionState(rule({ retentionMonths: 0 }), "2020-01-01", "2026-10-01").state).toBe("NOT_SET");
+  it("zero months is not a period: it is never read as not set, nor elapses (BD-DS-10 as ruled)", () => {
+    expect(retentionState(rule({ retentionMonths: 0 }), "2020-01-01", "2026-10-01")).toEqual({ state: "PERIOD_INVALID", months: 0 });
   });
   it("the clock waits for its trigger", () => {
     expect(retentionState(rule(), null, "2026-10-01")).toEqual({ state: "TRIGGER_NOT_REACHED", trigger: "CONTRACT_FINAL_ACCOUNT" });

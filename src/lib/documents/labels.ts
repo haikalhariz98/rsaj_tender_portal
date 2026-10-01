@@ -229,6 +229,8 @@ export function documentFaultText(f: Finding): string {
     // retention.ts
     case "RETENTION_NOT_SET":
       return "Its retention is not set, so it is never disposed of. Set the period and what starts it on the class.";
+    case "RETENTION_PERIOD_INVALID":
+      return `Its retention period of ${d.months} months is not a period, so it is never disposed of. A period is at least one month: correct it on the class.`;
     case "TRIGGER_NOT_REACHED":
       return "What starts its retention has not happened yet.";
     case "RETENTION_RUNNING":
@@ -283,6 +285,8 @@ export function retentionText(s: RetentionState, trigger?: RetentionTrigger | nu
   switch (s.state) {
     case "NOT_SET":
       return "Not set";
+    case "PERIOD_INVALID":
+      return `Not a period (${s.months} months): never disposed of until it is corrected on the class`;
     case "TRIGGER_NOT_REACHED":
       return `Not started: ${RETENTION_TRIGGER_LABEL[trigger ?? s.trigger].replace(/^From/, "runs from").toLowerCase()}`;
     case "RUNNING":

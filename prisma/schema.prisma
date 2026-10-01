@@ -944,7 +944,8 @@ model DocumentClass {
   nameMs String?
 
   /// Null means nobody has set a retention period. That is not the same as zero, and
-  /// the system must never dispose of a record on an assumption.
+  /// the system must never dispose of a record on an assumption. A set period is at
+  /// least one month: zero is refused by a CHECK in the migration (BD-DS-10 as ruled).
   retentionMonths Int?
 
   /// Whether issued copies are numbered and recalled.
@@ -1139,6 +1140,10 @@ model Delegation {
   /// the signed recommendation is not attached until there is document storage.
   holderRecommendation String?
   holderRecommendedOn  DateTime?
+  /// True where, when the document store landed, the recommendation was recorded as text
+  /// and no signed recommendation had ever been attached (OD-6 legacy). Set once by the
+  /// migration's backfill; never written by the application.
+  recommendationTextOnlyAtLanding Boolean @default(false)
 
   approvalSteps ApprovalStep[]
   awardsSigned  Award[]

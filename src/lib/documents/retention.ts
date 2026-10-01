@@ -6,6 +6,12 @@
  * An unset period or trigger never elapses — "not set" is not "zero". The clock runs
  * from the trigger day: a retention of N months from day D elapses on D plus N months
  * (month-end clamped), and is RUNNING until the day before.
+ *
+ * BD-DS-10 as ruled: a period is a whole number of months, at least one. The database
+ * refuses anything else on the class (CHECK `DocumentClass_retention_positive`), so zero
+ * is never read as "not set": a period that is not one — only possible in a snapshot
+ * taken before the CHECK — reads PERIOD_INVALID, which never elapses and blocks disposal
+ * naming it.
  */
 
 import { addMonths } from "@/lib/securities/period";
@@ -23,20 +29,25 @@ export interface RetentionRule {
 
 export type RetentionState =
   | { state: "NOT_SET"; missing: ("PERIOD" | "TRIGGER")[] }
+  | { state: "PERIOD_INVALID"; months: number }
   | { state: "TRIGGER_NOT_REACHED"; trigger: RetentionTrigger }
   | { state: "RUNNING"; elapsesOn: string }
   | { state: "ELAPSED"; elapsedOn: string };
 
 /// `triggerDay`: the day the class's trigger happened for this document, or null if it has not.
 export function retentionState(rule: Pick<RetentionRule, "retentionMonths" | "retentionTrigger">, triggerDay: string | null, today: string): RetentionState {
+  if (rule.retentionMonths != null && !isRetentionPeriod(rule.retentionMonths)) return { state: "PERIOD_INVALID", months: rule.retentionMonths };
   const missing: ("PERIOD" | "TRIGGER")[] = [];
-  if (rule.retentionMonths == null || rule.retentionMonths < 1) missing.push("PERIOD");
+  if (rule.retentionMonths == null) missing.push("PERIOD");
   if (rule.retentionTrigger == null) missing.push("TRIGGER");
   if (missing.length) return { state: "NOT_SET", missing };
   if (triggerDay == null) return { state: "TRIGGER_NOT_REACHED", trigger: rule.retentionTrigger! };
   const elapsesOn = addMonths(triggerDay, rule.retentionMonths!);
   return today >= elapsesOn ? { state: "ELAPSED", elapsedOn: elapsesOn } : { state: "RUNNING", elapsesOn };
 }
+
+/// A retention period as the CHECK allows it: a whole number of months, at least one.
+export const isRetentionPeriod = (months: number) => Number.isInteger(months) && months >= 1;
 
 export function isRetentionRule(x: unknown): x is RetentionRule {
   if (!x || typeof x !== "object") return false;
@@ -46,6 +57,7 @@ export function isRetentionRule(x: unknown): x is RetentionRule {
 
 export type DisposalFault =
   | "RETENTION_NOT_SET"
+  | "RETENTION_PERIOD_INVALID"
   | "TRIGGER_NOT_REACHED"
   | "RETENTION_RUNNING"
   | "ON_LEGAL_HOLD"
@@ -69,6 +81,7 @@ export function disposalFault(
   const out: Finding<DisposalFault>[] = [];
   const st = retentionState(doc.retention, doc.triggerDay, today);
   if (st.state === "NOT_SET") out.push({ code: "RETENTION_NOT_SET", level: "block", data: { missing: st.missing.join(",") } });
+  if (st.state === "PERIOD_INVALID") out.push({ code: "RETENTION_PERIOD_INVALID", level: "block", data: { months: st.months } });
   if (st.state === "TRIGGER_NOT_REACHED") out.push({ code: "TRIGGER_NOT_REACHED", level: "block", data: { trigger: st.trigger } });
   if (st.state === "RUNNING") out.push({ code: "RETENTION_RUNNING", level: "block", data: { until: st.elapsesOn } });
   const standing = holds.filter((h) => h.releasedAt == null).length;
