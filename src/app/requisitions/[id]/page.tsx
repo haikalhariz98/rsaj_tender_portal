@@ -230,6 +230,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   let preview: ReturnType<typeof resolveRequisitionRoute> | null = null;
   let previewRoles: Record<string, { nameEn: string }> = {};
   let previewNote: string | null = null;
+  let previewRefusal: string | null = null;
   if (PRE_SUBMIT.includes(r.status)) {
     const stale = lastCheck && today ? isStale(ageDay(lastCheck), policy.budgetRecheckDays, today) : false;
     if (!today) submitBlocker = transitionFaultText({ code: "TIME_ZONE_UNSET" });
@@ -284,7 +285,10 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
         const valueSen = parseSen(r.estimatedValue.toString());
         const onlyRequester = requesterOnlySteps(preview.resolution.chain, r.requestingPersonId, (c) => ableToAct(holdersFor(c, path, roster, delegations, today), r.requestingPersonId, valueSen, available));
         const office = (c: string) => (override?.matrix.roles[c] ?? dal.matrix.roles[c])?.nameEn ?? "an office no longer configured";
-        if (onlyRequester.length > 0) submitBlocker ??= onlyRequester.map((x) => requesterOnlyText(x, office(x.roleCode), "requisition", dal.matrix.policy.clauses?.selfApproval)).join(" ");
+        if (onlyRequester.length > 0) {
+          previewRefusal = onlyRequester.map((x) => requesterOnlyText(x, office(x.roleCode), "requisition", dal.matrix.policy.clauses?.selfApproval)).join(" ");
+          submitBlocker ??= previewRefusal;
+        }
       }
     }
   }
@@ -624,6 +628,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                 preview={preview}
                 previewMatrixRoles={previewRoles}
                 previewNote={previewNote}
+                previewRefusal={previewRefusal}
                 routeBand={routeBand}
                 decide={(step) => {
                   if (!open || step.decision !== "PENDING") return null;
@@ -1155,7 +1160,10 @@ function ApprovalPanel({
   today,
   routeBand,
   previewNote,
+  previewRefusal,
 }: {
+  /// Why this route would be refused at submission: a step only the requester could act for (R1).
+  previewRefusal: string | null;
   /// Said on the preview where a newer issue is in force today than on the raised-on day.
   previewNote: string | null;
   l: LoadedRequisition;
@@ -1184,7 +1192,11 @@ function ApprovalPanel({
           <CardBody className="flex flex-col gap-4">
             {preview ? (
               <>
-                <p className="text-[13.5px] text-ink-2">If it were submitted today, the approval matrix in force on the day it was raised would route it:</p>
+                <p className="text-[13.5px] text-ink-2">
+                  {previewRefusal
+                    ? "If it were submitted today, it would be refused (below). The approval matrix in force on the day it was raised gives this route:"
+                    : "If it were submitted today, the approval matrix in force on the day it was raised would route it:"}
+                </p>
                 {preview.resolution.chain.length > 0 ? (
                   <ol className="flex flex-col gap-2">
                     {preview.resolution.chain.map((s, i) => (
@@ -1201,6 +1213,7 @@ function ApprovalPanel({
                     {f.messageEn}
                   </Callout>
                 ))}
+                {previewRefusal && <Callout tone="err">{previewRefusal}</Callout>}
                 {previewNote && <Callout tone="info">{previewNote}</Callout>}
                 {preview.warnings.filter((w) => w.level !== "err").map((w) => (
                   <Callout key={w.messageEn} tone="warn">
