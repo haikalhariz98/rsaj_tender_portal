@@ -183,7 +183,11 @@ export async function attachNewVersion(_prev: FormState, data: FormData): Promis
 export async function withdrawVersion(_prev: FormState, data: FormData): Promise<FormState> {
   const versionId = String(data.get("versionId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
-  const v0 = await db.documentVersion.findUnique({ where: { id: versionId }, select: { documentId: true } });
+  const org = await documentOrg();
+  if (!org) return refuse([{ code: "NO_ORGANISATION", level: "block" }]);
+  // Looked up within the organisation: another organisation's id reads as unknown, in the
+  // same words as a missing one (audit C-5).
+  const v0 = await db.documentVersion.findFirst({ where: { id: versionId, organisationId: org.id }, select: { documentId: true } });
   if (!v0) return refuse([{ code: "VERSION_UNKNOWN", level: "block" }]);
   return inDocument(v0.documentId, async (tx, orgId) => {
     const v = await tx.documentVersion.findFirstOrThrow({ where: { id: versionId, organisationId: orgId }, include: { document: { select: { title: true } } } });
@@ -241,7 +245,10 @@ export async function releaseLegalHold(_prev: FormState, data: FormData): Promis
   const holdId = String(data.get("holdId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   const personId = String(data.get("personId") ?? "").trim() || null;
-  const h0 = await db.legalHold.findUnique({ where: { id: holdId }, select: { documentId: true } });
+  const org = await documentOrg();
+  if (!org) return refuse([{ code: "NO_ORGANISATION", level: "block" }]);
+  // Within the organisation, so another's hold id reads as missing does (audit C-5).
+  const h0 = await db.legalHold.findFirst({ where: { id: holdId, organisationId: org.id }, select: { documentId: true } });
   if (!h0) return GONE;
   return inDocument(h0.documentId, async (tx, orgId) => {
     const hold = await tx.legalHold.findFirstOrThrow({ where: { id: holdId, organisationId: orgId }, include: { document: { select: { title: true } } } });
