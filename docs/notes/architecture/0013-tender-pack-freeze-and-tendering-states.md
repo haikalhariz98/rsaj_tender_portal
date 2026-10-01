@@ -63,3 +63,18 @@ exercise's routes were told apart only by `awardId: null`; a second exercise rou
 - Awards on exercises prepared before 6.4 are judged exactly as before; accepted and issued awards are not judged again.
 - Partial indexes and CHECKs are not modelled by Prisma: they live in the migration SQL and are confirmed in `pg_indexes` /
   `pg_constraint` after a rebuild.
+
+## Increment 2 (2026-10-01)
+
+- **The tender's conditions freeze with the pack.** Eligibility (configured `RegistrationBody` rows, requirements grouped as
+  alternatives), the restriction answer and its stamp, the regulator permit, the mandatory clauses and their overrides, and the
+  assurance confirmations are judged at submission as one family (`conditionsFaults`) and frozen on the pack as
+  `conditionsSnapshot`, in words. Null means frozen before increment 2 and is never backfilled.
+- **The stamp is applied at freeze**, at the head of every text the portal generates, in that text's language; uploaded files
+  are not generated here and are only warned about. Clause citations (`{{clause:code}}`) render the clause's words and record
+  its text version in the manifest.
+- **The validity window is frozen with the proposed days.** Where a frozen document states it, the approving step must record
+  those days (`frozenWindowFault`); other days mean returning the documents for amendment. Where none states it, the approver
+  is as free as in increment 1.
+- The Tender Table Document is the frozen parts flagged for it (`tableDocumentManifest`); its publication window is 6.5's and its
+  inspection log arrives with sign-in.
