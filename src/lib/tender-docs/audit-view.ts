@@ -26,7 +26,24 @@ export const ENTITY = {
 const money = (s: bigint | null) => (s == null ? NOT_SET : formatSen(s));
 const pctText = (p: string | null) => (p == null ? NOT_SET : formatPct(p));
 
+/// Liquidated damages in words: how they are stated, and the figure of that kind.
+const ladText = (kind: AppendixFacts["ladKind"], amount: bigint | null, pct: string | null) =>
+  kind == null ? NOT_SET : kind === "AMOUNT_PER_DAY" ? `${LAD_KIND_LABEL.AMOUNT_PER_DAY}: ${money(amount)}` : `${LAD_KIND_LABEL.PERCENT_OF_SUM_PER_DAY}: ${pctText(pct)}`;
+
+/// The variation limits as one line, in their order: each holder by name, and its limit formatted.
+function variationLimitsText(a: AppendixFacts, office: (code: string | null) => string): string {
+  if (a.variationLimits.length === 0) return NOT_SET;
+  return a.variationLimits.map((v) => `${v.label || office(v.roleCode ?? v.committeeCode)}: ${money(v.limit)}`).join("; ");
+}
+
+/// The sections as one line, in their order: each description and its liquidated damages.
+function sectionsText(a: AppendixFacts): string {
+  if (a.sections.length === 0) return NOT_SET;
+  return a.sections.map((s) => `${s.description || "A section with no description"}: ${ladText(s.ladKind, s.ladAmount, s.ladPct)}`).join("; ");
+}
+
 /// The Appendix in words, field by field, for its trail. `office` names an office or committee by code.
+/// The variation limits and the sections are part of it: adding, changing or removing one is a change of the Appendix.
 export function appendixAuditView(a: AppendixFacts, office: (code: string | null) => string): Record<string, string | null> {
   return {
     ladOfficer: a.ladOfficerRoleCode ? office(a.ladOfficerRoleCode) : NOT_SET,
@@ -34,13 +51,15 @@ export function appendixAuditView(a: AppendixFacts, office: (code: string | null
     terminationOfficer: a.terminationOfficerRoleCode ? office(a.terminationOfficerRoleCode) : NOT_SET,
     warRiskOfficer: a.warRiskOfficerRoleCode ? office(a.warRiskOfficerRoleCode) : NOT_SET,
     arbitrationOfficer: a.arbitrationOfficerRoleCode ? office(a.arbitrationOfficerRoleCode) : NOT_SET,
+    variationLimits: variationLimitsText(a, office),
     primeCostSumWork: a.pcSumWorksApply == null ? NOT_SET : a.pcSumWorksApply ? a.pcSumWorksText || "Yes" : "None",
     thirdPartyMinimum: money(a.tplMinimum),
     workmensCompensationMinimum: money(a.wcMinimum),
     worksInsuranceUplift: a.worksInsuranceUpliftKind == null ? NOT_SET : a.worksInsuranceUpliftKind === "AMOUNT" ? `${UPLIFT_KIND_LABEL.AMOUNT}: ${money(a.worksInsuranceUpliftAmount)}` : `${UPLIFT_KIND_LABEL.PERCENT}: ${pctText(a.worksInsuranceUpliftPct)}`,
     insuranceExcess: money(a.insuranceExcess),
-    liquidatedDamages: a.ladKind == null ? NOT_SET : a.ladKind === "AMOUNT_PER_DAY" ? `${LAD_KIND_LABEL.AMOUNT_PER_DAY}: ${money(a.ladAmount)}` : `${LAD_KIND_LABEL.PERCENT_OF_SUM_PER_DAY}: ${pctText(a.ladPct)}`,
+    liquidatedDamages: ladText(a.ladKind, a.ladAmount, a.ladPct),
     sectionalCompletion: yesNoNotSet(a.sectionalCompletion),
+    sections: sectionsText(a),
     defectsLiabilityPeriod: a.dlpApplies == null ? NOT_SET : a.dlpApplies ? (a.dlpMonths == null ? NOT_SET : `${a.dlpMonths} months`) : "Does not apply",
     firstInterimMinimum: money(a.firstInterimMinimum),
     laterInterimMinimum: money(a.subsequentInterimMinimum),
