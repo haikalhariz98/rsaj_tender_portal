@@ -254,3 +254,21 @@ describe("saving an export in the browser: once per audited export", () => {
     expect(exportToSave({ ok: true, file: "a", fileName: "x.csv" }, null)).toBe(false);
   });
 });
+
+describe("a cell a spreadsheet could read as a formula: warned, read as text, never blocking", () => {
+  const H = "Section,Section title,Item,Description,Unit,Kind,Quantity,Rate,Amount,Provisional";
+  it("= + - @ at the start of a cell warns on its line, naming the columns", () => {
+    const p = parseBqCsv(`${H}\n1,A,1.1,"=HYPERLINK(""x"")",m,,1,2.00,,\n1,A,@1.2,- 150mm pipe,m,,1,2.00,,`);
+    expect(p.faults).toEqual([
+      { code: "FORMULA_LIKE_CELL", level: "warn", line: 2, data: { columns: "Description" } },
+      { code: "FORMULA_LIKE_CELL", level: "warn", line: 3, data: { columns: "Item, Description" } },
+    ]);
+    expect(p.sections[0].items[0].description).toBe('=HYPERLINK("x")');
+    expect(csvFaultText(p.faults[0])).toMatch(/^Line 2: Description: starts with = \+ - or @/);
+  });
+  it("a cell the export guarded with an apostrophe is not warned; the round trip is unchanged", () => {
+    const p = parseBqCsv(`${H}\n1,A,1.1,'=SUM(A1),m,,1,2.00,,`);
+    expect(p.faults).toEqual([]);
+    expect(p.sections[0].items[0].description).toBe("=SUM(A1)");
+  });
+});

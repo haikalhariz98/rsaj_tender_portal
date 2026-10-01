@@ -163,6 +163,7 @@ export type BqCsvFault =
   | "TOO_LARGE"
   | "TEXT_TOO_LONG"
   | "TOO_MANY_LINES"
+  | "FORMULA_LIKE_CELL"
   | "AMOUNT_INVALID"
   | "PROVISIONAL_UNKNOWN"
   | "PROVISIONAL_NOT_MEASURED";
@@ -243,6 +244,11 @@ export function parseBqCsv(text: string): ParsedBqCsv {
     const rateText = get(r.cells, "Rate");
     const amountText = get(r.cells, "Amount");
     const provText = get(r.cells, "Provisional").toLowerCase();
+    // A cell a spreadsheet could read as a formula (not one the export guarded with an
+    // apostrophe): imported as text, and said, so the officer knows the file holds one. The
+    // stored file is evidence and is kept exactly as received.
+    const formulaLike = BQ_CSV_COLUMNS.filter((c) => index.has(c) && /^[=+\-@]/.test((r.cells[index.get(c)!] ?? "").trimStart()));
+    if (formulaLike.length) faults.push({ code: "FORMULA_LIKE_CELL", level: "warn", line: at, data: { columns: formulaLike.join(", ") } });
     for (const [column, max] of Object.entries(BQ_CSV_TEXT_MAX) as [BqCsvColumn, number][]) {
       if (get(r.cells, column).length > max) faults.push({ code: "TEXT_TOO_LONG", level: "block", line: at, data: { column, max } });
     }

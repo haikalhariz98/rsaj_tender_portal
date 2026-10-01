@@ -356,6 +356,7 @@ const CSV_TEXT: Readonly<Record<BqCsvFault, (d: Record<string, string | number |
   QUANTITY_INVALID: (d) => `“${d.quantity ?? ""}” is not a quantity: a number, to three decimal places at most.`,
   TOO_LARGE: (d) => SIZE_TEXT[d.field as string] ?? TOO_LARGE_TEXT,
   TEXT_TOO_LONG: (d) => `The ${CSV_COLUMN_WORDS[String(d.column)] ?? "text"} is longer than ${Number(d.max ?? 0).toLocaleString("en-GB")} characters, the most the bill takes. Shorten it in the file.`,
+  FORMULA_LIKE_CELL: (d) => `${d.columns ?? "A cell"}: starts with = + - or @, which a spreadsheet may read as a formula. It is read as text here, and the file is kept exactly as received; open it with care.`,
   TOO_MANY_LINES: (d) => `The file has ${Number(d.lines ?? 0).toLocaleString("en-GB")} lines; one import takes at most ${Number(d.max ?? 0).toLocaleString("en-GB")}. Nothing was imported. Import the bill in a file of that length or less, and enter the rest of its lines on the draft.`,
   RATE_INVALID: (d) => `“${d.rate ?? ""}” is not a rate: an amount to the sen, not below zero.`,
   AMOUNT_INVALID: (d) => `“${d.amount ?? ""}” is not an amount, so it is not compared. Amounts are worked out from quantity and rate.`,
