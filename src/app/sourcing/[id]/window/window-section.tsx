@@ -155,7 +155,6 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
             actions={blocks.some((f) => /Invitation controls/.test(f.text)) ? <ButtonLink href={SETTINGS_HREF} variant="secondary" size="sm">Open Invitation controls</ButtonLink> : undefined}
           />
           <CardBody className="flex flex-col gap-2">
-            {!d.hasWindow && <Callout tone="warn">The window is not prepared yet. Prepare it first: its items, days of sale and fee.</Callout>}
             {d.findings.length === 0 && d.hasWindow ? (
               <Callout tone="ok">Every check passes. {d.actions.publishLabel}.</Callout>
             ) : (

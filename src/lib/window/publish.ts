@@ -180,3 +180,20 @@ export function publishFaults(i: PublishInput): PublishResult {
 }
 
 export const publishBlocks = (r: PublishResult) => blocking(r.findings);
+
+/// What an unprepared window leaves empty: each of these is the same fact, that the window's items
+/// are not written yet.
+const ITEM_FAULTS: ReadonlySet<string> = new Set(["INSPECTION_PLACE_MISSING", "PURCHASE_PLACE_MISSING", "INSPECTION_HOURS_MISSING", "PURCHASE_FROM_NOT_SET", "PAYMENT_METHODS_MISSING", "SUBMISSION_PLACE_MISSING", "FEE_NOT_SET"]);
+
+/**
+ * Before the window is prepared every one of its items is missing, and listing each says the same
+ * thing six times. They fold under one first finding, "Prepare the window" (UX U5); the others
+ * (the closing, the channels, the template) stand on their own. A prepared window is returned as is.
+ */
+export function foldUnpreparedWindow(findings: readonly Finding[], hasWindow: boolean): Finding[] {
+  if (hasWindow) return [...findings];
+  const folded = findings.filter((f) => ITEM_FAULTS.has(f.code));
+  if (folded.length === 0) return [...findings];
+  const first: Finding = { code: "WINDOW_NOT_PREPARED", level: "block", data: { count: folded.length } };
+  return [first, ...findings.filter((f) => !ITEM_FAULTS.has(f.code))];
+}

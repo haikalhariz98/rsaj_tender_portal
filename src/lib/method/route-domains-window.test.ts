@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { exerciseRouteMatter, historyRouteLabel, exerciseRoutePreview, exerciseRoutesOf, invitationFault, nameRoutesOf, routesByDomain, tenderingRoutesOf, windowChangeRoutesOf, type FunderContext } from "./approval";
+import { exerciseRouteMatter, historyFieldHidden, historyRouteLabel, exerciseRoutePreview, exerciseRoutesOf, invitationFault, nameRoutesOf, routesByDomain, tenderingRoutesOf, windowChangeRoutesOf, type FunderContext } from "./approval";
 import { SPEC_MATRIX, SPEC_METHODS } from "./fixture";
 import { NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN, WINDOW_CHANGE_DOMAIN, type Method } from "./types";
 
@@ -44,6 +44,15 @@ describe("the History names a route's rows by its domain, not as a name approval
     expect(historyRouteLabel(WINDOW_CHANGE_DOMAIN, "step")).toBe("Step of the approval of the change to the invitation window");
     expect(historyRouteLabel(NAME_APPROVAL_DOMAIN, "step")).toBe("Step of the name approval");
     expect(historyRouteLabel("tendering_approval", "route")).not.toMatch(/name/i);
+  });
+});
+
+describe("the History's fields by route domain", () => {
+  it("hides the funder's-rules field on a window change only", () => {
+    expect(historyFieldHidden(WINDOW_CHANGE_DOMAIN, "fundingOverrideApplied")).toBe(true);
+    expect(historyFieldHidden(NAME_APPROVAL_DOMAIN, "fundingOverrideApplied")).toBe(false);
+    expect(historyFieldHidden(WINDOW_CHANGE_DOMAIN, "rule")).toBe(false);
+    expect(historyFieldHidden(undefined, "fundingOverrideApplied")).toBe(false);
   });
 });
 

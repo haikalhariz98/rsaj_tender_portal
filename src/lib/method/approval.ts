@@ -225,6 +225,12 @@ export function historyRouteLabel(domain: string, part: "route" | "step"): strin
   return part === "step" ? `Step of the ${name.charAt(0).toLowerCase()}${name.slice(1)}` : name;
 }
 
+/// A field the History leaves out of a route's rows by the route's domain: a funder's rules never
+/// bear on a change to the window, so "Funding override applied" is not shown beside one (UX U3).
+export function historyFieldHidden(domain: string | undefined, field: string): boolean {
+  return domain === WINDOW_CHANGE_DOMAIN && field === "fundingOverrideApplied";
+}
+
 export type NameFault = "NAME_NOT_REQUESTED" | "NAME_NOT_APPROVED" | "NAME_REJECTED";
 
 type RouteOrder = { openedAt: Date; createdAt?: Date | null; id?: string };

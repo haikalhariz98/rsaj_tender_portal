@@ -4,7 +4,7 @@ import { parseSen } from "@/lib/money";
 
 import { event, klAt, NEWSPAPER, NOTICE_BOARD, SPEC_CALENDAR, SPEC_CHANNELS, SPEC_FLOORS, SPEC_POLICY, WEBSITE } from "./fixture";
 import { windowFindingText } from "./labels";
-import { publishFaults, windowPathOf, type PublishInput } from "./publish";
+import { foldUnpreparedWindow, publishFaults, windowPathOf, type PublishInput } from "./publish";
 
 /**
  * FR-ADV-001–008 and FR-MTD-008 at publication: every reason at once, each alone below; all clear
@@ -154,5 +154,19 @@ describe("the path from the method's flags", () => {
     expect(windowPathOf({ requiresAdvertisement: true, invitesNamedSuppliers: true })).toBeNull();
     expect(windowPathOf({ requiresAdvertisement: false, invitesNamedSuppliers: false })).toBeNull();
     expect(windowPathOf(null)).toBeNull();
+  });
+});
+
+describe("an unprepared window's blockers fold under the first", () => {
+  const f = (code: string) => ({ code, level: "block" as const });
+  it("every item fault becomes one 'Prepare the window', first; the others stand", () => {
+    const out = foldUnpreparedWindow([f("INSPECTION_PLACE_MISSING"), f("CLOSING_NOT_SET"), f("PAYMENT_METHODS_MISSING"), f("FEE_NOT_SET")], false);
+    expect(out.map((x) => x.code)).toEqual(["WINDOW_NOT_PREPARED", "CLOSING_NOT_SET"]);
+    expect(windowFindingText(out[0])).toMatch(/^Prepare the window/);
+    expect(windowFindingText(out[0])).toContain("3 items");
+  });
+  it("a prepared window's findings are returned as they are", () => {
+    const fs = [f("INSPECTION_PLACE_MISSING")];
+    expect(foldUnpreparedWindow(fs, true)).toEqual(fs);
   });
 });

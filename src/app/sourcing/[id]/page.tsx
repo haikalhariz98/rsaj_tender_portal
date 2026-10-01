@@ -30,7 +30,7 @@ import { routeTone, stepTone } from "@/lib/ui/status-tone";
 import { dayToDate } from "@/lib/dates";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
-import { exerciseRoutesOf, historyRouteLabel, latestFirst, nameRequestFault, nameRouteForRequester, nameRouteLabel, nameRoutesOf, requesterHolding, resolveNameApproval, tenderingRoutesOf, windowChangeRoutesOf } from "@/lib/method/approval";
+import { exerciseRoutesOf, historyFieldHidden, historyRouteLabel, latestFirst, nameRequestFault, nameRouteForRequester, nameRouteLabel, nameRoutesOf, requesterHolding, resolveNameApproval, tenderingRoutesOf, windowChangeRoutesOf } from "@/lib/method/approval";
 import { disagreesAtBoundary } from "@/lib/method/bands";
 import { determinationDrift } from "@/lib/method/drift";
 import { evaluateExercise } from "@/lib/method/evaluate";
@@ -1312,9 +1312,10 @@ function HistoryPanel({
   };
   // Keys the page cannot name are configuration: left out, as are ids (UX 4).
   const NAMED_KEYS = new Set(["sourcingMethodCode", "proposedMethodCode", "contractTypeCode", "derivedContractTypeCode", "contractBasisCode", "justificationReasonCode"]);
-  const shown = (field: string, ch: { before: string | null; after: string | null }, action: string) =>
+  const shown = (field: string, ch: { before: string | null; after: string | null }, action: string, entityId: string) =>
     (!/(Code|Key)$/.test(field) || NAMED_KEYS.has(field)) &&
     (!/Id$/.test(field) || field === "overriddenByPersonId" || field === "proposalReviewerPersonId") &&
+    !historyFieldHidden(routeDomains.get(entityId), field) &&
     // A creation lists what it was given, not every empty field.
     (action !== "CREATE" || (ch.after != null && ch.after !== "" && ch.after !== "false")) &&
     (action !== "UPDATE" || ch.before !== ch.after);
@@ -1343,7 +1344,7 @@ function HistoryPanel({
               </div>
               {e.changes.length > 0 && (
                 <ul className="text-[12.5px] break-words text-ink-3">
-                  {e.changes.filter((ch) => shown(ch.field, ch, e.action)).map((ch) => (
+                  {e.changes.filter((ch) => shown(ch.field, ch, e.action, e.entityId)).map((ch) => (
                     <li key={ch.field}>
                       {FIELD_NAME[ch.field] ?? fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{chipped(ch.field, ch.before, e.entityId, e.entity)} → </>}
                       <span className="text-ink-2">{chipped(ch.field, e.action === "DELETE" ? ch.before : ch.after, e.entityId, e.entity)}</span>

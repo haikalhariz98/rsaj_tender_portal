@@ -31,6 +31,7 @@ import { closingDay, judgePublish, nameRoutesWithLists, pathOf, phaseOf, propose
 import { ADDENDUM_STATUS_LABEL, CLOSING_CHANGE_KIND_LABEL, DAY_RULE_LABEL, DELIVERY_METHOD_LABEL, FEE_COST_KIND_LABEL, NOTIFIED_LABEL, PARTY_SOURCE_LABEL, PATH_LABEL, PHASE_LABEL, PHASE_TONE, SITE_EVENT_KIND_LABEL, tableAvailabilityText, windowFindingText } from "./labels";
 import { closingHistory, sinceApprovedLines, standingEntry, tableDocumentAvailability, tablePrintRefusal, type TableAvailability, type WindowPhase } from "./phase";
 import { basisTotalOf, eventFactsOf, loadCalendar, loadChannels, loadFloors, loadWindowPolicy, windowData, type WindowData } from "./repo";
+import { foldUnpreparedWindow } from "./publish";
 import { annotationLines, isAnnotation, voidSaleFault } from "./sale";
 import { saleChecks } from "./sale-checks";
 import type { Finding, Provenance } from "./types";
@@ -164,7 +165,7 @@ export async function windowTab(exerciseId: string) {
           edit: allowed(inviteeEditFault(ex.status)),
         }
       : null,
-    findings: words(j.result.findings),
+    findings: words(foldUnpreparedWindow(j.result.findings, !!w)),
     notice: w?.noticeText ? { text: w.noticeText, template: w.noticeTemplateCode ? `${d.templates.notice?.nameEn ?? "A template"}, text version ${w.noticeTemplateBodyVersion}` : null } : j.notice?.text ? { text: j.notice.text, template: null, preview: true } : null,
     history: history.map((h, i) => ({ stands: standingEntry(history.length, phase.phase) === i, what: h.source === "APPROVED" ? "Approved for tendering" : CLOSING_CHANGE_KIND_LABEL[h.source], closing: formatOrgDateTime(h.closingAt, tz), lastDayOfSale: h.purchaseCloseDay ? day(h.purchaseCloseDay) : null, on: h.at ? formatOrgDateTime(h.at, tz) : NOT_SET, reason: h.reason || null })),
     changes: (w?.closingChanges ?? []).map((c) => {
