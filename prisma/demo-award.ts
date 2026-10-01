@@ -625,7 +625,13 @@ export async function loadAwards(db: Db, organisationId: string) {
  * templates go. Refuses (listing them) where awards that are not demo data hang off
  * demo rows, unless the dependents are to be removed too.
  */
-export async function wipeAwards(db: Db, organisationId: string, removeDependents: boolean): Promise<boolean> {
+/// Whether awards stand in the wipe's way, checked before anything is removed (the
+/// document store's wipe runs between this check and the awards' removal).
+export async function awardWipeRefused(db: Db, organisationId: string, removeDependents: boolean): Promise<boolean> {
+  return !(await awardsHanging(db, organisationId, removeDependents)).ok;
+}
+
+async function awardsHanging(db: Db, organisationId: string, removeDependents: boolean) {
   const demoRef = { startsWith: P };
   const hanging = await db.award.findMany({
     where: {
@@ -656,8 +662,16 @@ export async function wipeAwards(db: Db, organisationId: string, removeDependent
         "Nothing was removed. Deal with them first, or run the wipe again with --remove-dependents.",
       ].join("\n"),
     );
-    return false;
+    return { ok: false as const, hanging, linked };
   }
+  return { ok: true as const, hanging, linked };
+}
+
+export async function wipeAwards(db: Db, organisationId: string, removeDependents: boolean): Promise<boolean> {
+  const demoRef = { startsWith: P };
+  const check = await awardsHanging(db, organisationId, removeDependents);
+  if (!check.ok) return false;
+  const { hanging, linked } = check;
   const awards = await db.award.findMany({
     where: { organisationId, OR: [{ id: demoRef }, { exerciseId: demoRef }, { id: { in: hanging.map((h) => h.id) } }] },
     select: { id: true, reference: true, documents: { select: { id: true } }, distributions: { select: { id: true } }, awardReturn: { select: { id: true } }, conditions: { select: { id: true } }, approvalInstances: { select: { id: true, steps: { select: { id: true } } } }, contract: { select: { id: true, securities: { select: { id: true } }, policies: { select: { id: true } }, ownershipEvents: { select: { id: true } } } } },

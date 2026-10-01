@@ -3,7 +3,8 @@ import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 
-import { loadAwards, loadAwardSetup, wipeAwards } from "./demo-award";
+import { awardWipeRefused, loadAwards, loadAwardSetup, wipeAwards } from "./demo-award";
+import { documentWipeRefused, loadDocuments, wipeDocuments } from "./demo-documents";
 import { loadSittingTrail } from "./demo-sitting-trail";
 import { inspectLogo } from "../src/lib/organisation/logo";
 import { initialsLogo } from "../src/lib/organisation/png";
@@ -126,6 +127,13 @@ async function wipe() {
   const org = await organisation();
   const demo = { id: { startsWith: P } };
 
+  // The document store first (plan §9): a record that is not demo data pinned to a demo
+  // document, or a real document on a demo record, refuses the wipe before anything goes.
+  if (await documentWipeRefused(db, org.id, REMOVE_DEPENDENTS)) {
+    process.exitCode = 1;
+    return;
+  }
+
   // A requisition raised on the demo (by a demo person, against a demo budget code or
   // down a demo rule set) cannot outlive the demo rows it points at. It is not demo
   // data, so the wipe refuses and lists it (ruling BD-27). Only with
@@ -243,6 +251,13 @@ async function wipe() {
   // 6.11: awards on demo exercises, and awards that are not demo data but point at demo
   // rows (refused, listing them, unless --remove-dependents), then the award configuration.
   // Before anything else is removed: a refusal here removes nothing.
+  if (await awardWipeRefused(db, org.id, REMOVE_DEPENDENTS)) {
+    process.exitCode = 1;
+    return;
+  }
+  // Attachments pin meetings, exercises, awards and delegations: the documents go before
+  // any of them (their keys refuse a delete).
+  await wipeDocuments(db, org.id);
   if (!(await wipeAwards(db, org.id, REMOVE_DEPENDENTS))) {
     process.exitCode = 1;
     return;
@@ -393,7 +408,10 @@ async function wipe() {
 
   await db.notificationRule.deleteMany({ where: demo });
   await db.documentTemplate.deleteMany({ where: demo });
-  await db.documentClass.deleteMany({ where: demo });
+  // A demo class that a real document was filed under stays: documents are never removed.
+  const keptClasses = await db.documentClass.findMany({ where: { ...demo, documents: { some: {} } }, select: { nameEn: true } });
+  await db.documentClass.deleteMany({ where: { ...demo, documents: { none: {} } } });
+  if (keptClasses.length) console.log(`Kept demo document class(es) with real documents filed under them: ${keptClasses.map((c) => c.nameEn).join(", ")}.`);
   await db.numberingSeries.deleteMany({ where: demo });
 
   await db.fundingRoute.deleteMany({ where: demo });
@@ -1000,8 +1018,9 @@ async function load() {
 
   await db.documentClass.createMany({
     data: [
-      { id: `${P}dc1`, organisationId, code: "contract", nameEn: "Contract documents", retentionMonths: 84, controlledCopy: true, releaseNeedsApproval: true, provenance: "STATED", sortOrder: 1 },
-      { id: `${P}dc2`, organisationId, code: "certificate", nameEn: "Certificates", retentionMonths: 84, controlledCopy: true, provenance: "STATED", sortOrder: 2 },
+      // Document store (§9): Internal, assumed; SULIT; and correspondence left unclassified.
+      { id: `${P}dc1`, organisationId, code: "contract", nameEn: "Contract documents", retentionMonths: 84, controlledCopy: true, releaseNeedsApproval: true, classification: "INTERNAL", retentionTrigger: "CONTRACT_FINAL_ACCOUNT", disposalMethod: "REVIEW", provenance: "STATED", notes: "Classification Internal is assumed for the demo.", sortOrder: 1 },
+      { id: `${P}dc2`, organisationId, code: "certificate", nameEn: "Certificates", retentionMonths: 84, controlledCopy: true, classification: "SULIT", provenance: "STATED", sortOrder: 2 },
       { id: `${P}dc3`, organisationId, code: "correspondence", nameEn: "Correspondence", provenance: "ASSUMED", sortOrder: 3 },
     ],
   });
@@ -1027,7 +1046,7 @@ async function load() {
   await loadMethodSelection(organisationId, from);
   const awardExercises = await loadAwardSetup(db, organisationId, from);
 
-  await determineExercises([`${P}sx1`, `${P}sx2`, `${P}sx3`, `${P}sx4`, `${P}sx5`, `${P}sx6`, ...awardExercises]);
+  await determineExercises([`${P}sx1`, `${P}sx2`, `${P}sx3`, `${P}sx4`, `${P}sx5`, `${P}sx6`, `${P}sx7`, ...awardExercises]);
   await loadAwards(db, organisationId);
   await nameRouteTrail(organisationId);
   await loadCloseout(organisationId);
@@ -1035,6 +1054,8 @@ async function load() {
   // Their History: the trail the sitting actions would have written (6.10 local review 4).
   await loadSittingTrail(db, organisationId, minuted);
   await snapshotMinuted(minuted);
+  // Documents last: they attach to sittings, exercises, awards and delegations.
+  await loadDocuments(db, organisationId);
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
   console.log("Remove it with: npm run demo:wipe");
@@ -1597,8 +1618,8 @@ async function loadMethodSelection(organisationId: string, from: Date) {
   await db.classificationPolicy.create({ data: { id: `${P}cp1`, organisationId, dominanceSharePct: "60.0000", provenance: "ASSUMED", notes: "Invented demo threshold." } });
   await db.numberingSeries.createMany({
     data: [
-      { id: `${P}n5`, organisationId, key: "exercise", nameEn: "Sourcing exercises", pattern: "DEMO/SX/{SERIAL}/{YEAR}", padding: 4, resetOn: "CALENDAR_YEAR", nextSerial: 7, serialPeriod: "2026", provenance: "ASSUMED" },
-      { id: `${P}n6`, organisationId, key: "direct_appointment", nameEn: "Direct appointment dossiers", pattern: "DEMO/DA/{SERIAL}/{YEAR}", padding: 4, resetOn: "CALENDAR_YEAR", nextSerial: 2, serialPeriod: "2026", provenance: "OBSERVED" },
+      { id: `${P}n5`, organisationId, key: "exercise", nameEn: "Sourcing exercises", pattern: "DEMO/SX/{SERIAL}/{YEAR}", padding: 4, resetOn: "CALENDAR_YEAR", nextSerial: 8, serialPeriod: "2026", provenance: "ASSUMED" },
+      { id: `${P}n6`, organisationId, key: "direct_appointment", nameEn: "Direct appointment dossiers", pattern: "DEMO/DA/{SERIAL}/{YEAR}", padding: 4, resetOn: "CALENDAR_YEAR", nextSerial: 3, serialPeriod: "2026", provenance: "OBSERVED" },
     ],
   });
 
@@ -1714,6 +1735,12 @@ async function loadMethodSelection(organisationId: string, from: Date) {
       }),
       ex(5, 14, "Roof works and tank fittings", "150000.00", "open_quotation", { contractBasisCode: "bq", createdAt: day("2026-09-18") }),
       ex(6, 13, "Spare filter nozzles", "15000.00", "direct", { status: "CANCELLED", cancelReason: "The nozzles were supplied under the filter works instead.", createdAt: day("2026-09-04") }),
+      // A second direct appointment, its dossier evidence not attached: BD-4's block stays visible.
+      ex(7, 14, "Chlorine analyser spares from the sole agent", "9500.00", "selective_direct", {
+        status: "DOCUMENTS_IN_PREPARATION", methodReason: "The analyser's maker supplies its spares only through its sole agent.",
+        justificationReasonCode: "sole_distributor", justificationText: "The installed analyser accepts only its maker's spares.", evidenceNote: "Agent's letter of appointment, to be scanned.",
+        dossierReference: "DEMO/DA/0002/2026", contractBasisCode: "ds", createdAt: day("2026-09-05"),
+      }),
     ],
   });
   const part = (n: number, i: number, kind: "GOODS_DELIVERED" | "MEASURED_CONSTRUCTION" | "TERM_PERFORMANCE", amount: string, description: string) => ({ id: `${P}sx${n}p${i}`, exerciseId: `${P}sx${n}`, deliverableKind: kind, amount, description, sortOrder: i });
@@ -1726,6 +1753,7 @@ async function loadMethodSelection(organisationId: string, from: Date) {
       part(5, 1, "MEASURED_CONSTRUCTION", "105000.00", "Roof replacement"),
       part(5, 2, "GOODS_DELIVERED", "45000.00", "Tank fittings and hatches"),
       part(6, 1, "GOODS_DELIVERED", "15000.00", "Filter nozzles"),
+      part(7, 1, "GOODS_DELIVERED", "9500.00", "Analyser sensor spares"),
     ],
   });
   // The emergency's report form was ambiguous for works on a bill of quantities: chosen once.
