@@ -73,7 +73,7 @@ import {
 } from "@/lib/requisition/repo";
 import { resolveRequisitionRoute } from "@/lib/requisition/route";
 import { returnedRouteCitationNotes } from "@/lib/requisition/committee-step";
-import { choicesFor, earlierSteps, type RejectionKind } from "@/lib/authority/rejection";
+import { choicesFor, earlierSteps, returnTargetBefore, type RejectionKind } from "@/lib/authority/rejection";
 import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import { GATE_DOMAIN } from "@/lib/requisition/gate";
 import { unpostedIntakeReason, type UnpostedReason } from "@/lib/requisition/budget";
@@ -1301,6 +1301,7 @@ function ApprovalPanel({
                             {ifRejectedText(
                               { snapshotAt: inst.rejectionSnapshotAt, kind: inst.rejectionKind as RejectionKind | null, returnToOffice: officeName(inst.rejectionReturnToRoleCode), provenance: inst.rejectionProvenance },
                               !!s.committeeCode,
+                              returnTargetBefore(inst, s.sequence),
                             )}
                           </span>
                         )}

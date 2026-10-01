@@ -7,7 +7,7 @@ import { Tabs } from "@/components/tabs";
 import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
 import { EscalateDrawer } from "@/app/approvals/editors";
 import { escalationText } from "@/lib/authority/escalation-labels";
-import { earlierSteps, type RejectionKind } from "@/lib/authority/rejection";
+import { earlierSteps, returnTargetBeforeNext, type RejectionKind } from "@/lib/authority/rejection";
 import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import { Badge, Chip } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -944,7 +944,7 @@ function NamePanel({
           {inst.status === "PENDING" && (
             <p className="border-t border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">
               Steps are decided in order: each waits for the one before it.{" "}
-              {ifRejectedText({ snapshotAt: inst.rejectionSnapshotAt, kind: inst.rejectionKind as RejectionKind | null, returnToOffice: officeName(inst.rejectionReturnToRoleCode), provenance: inst.rejectionProvenance }, false)}
+              {ifRejectedText({ snapshotAt: inst.rejectionSnapshotAt, kind: inst.rejectionKind as RejectionKind | null, returnToOffice: officeName(inst.rejectionReturnToRoleCode), provenance: inst.rejectionProvenance }, false, returnTargetBeforeNext(inst))}
               {inst.supersedesInstanceId ? " This route continues a refused one from an earlier step; the steps before it keep their decisions." : ""}
             </p>
           )}

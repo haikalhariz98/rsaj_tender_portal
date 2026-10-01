@@ -98,6 +98,26 @@ export function earlierSteps<T extends RouteStep>(steps: readonly T[], rejecting
   return steps.filter((s) => s.sequence < rejectingSeq).sort((a, b) => a.sequence - b.sequence);
 }
 
+/**
+ * For a route read as a whole: whether a configured return to a step can apply to the
+ * next step awaiting a decision — a step of the named office comes before it. Undefined
+ * where that does not arise (no return to a step, or nothing pending).
+ */
+export function returnTargetBeforeNext(route: { rejectionKind: string | null; rejectionReturnToRoleCode: string | null; steps: readonly (RouteStep & { decision: string })[] }): boolean | undefined {
+  const next = [...route.steps].sort((a, b) => a.sequence - b.sequence).find((s) => s.decision === "PENDING");
+  return next ? returnTargetBefore(route, next.sequence) : undefined;
+}
+
+/**
+ * Said of one step: whether a configured return to a step could apply if this step
+ * rejected — a step of the named office comes before it (the same test
+ * `rejectionOutcome` applies). Undefined where the route returns nowhere in particular.
+ */
+export function returnTargetBefore(route: { rejectionKind: string | null; rejectionReturnToRoleCode: string | null; steps: readonly RouteStep[] }, sequence: number): boolean | undefined {
+  if (route.rejectionKind !== "RETURN_TO_STEP") return undefined;
+  return earlierSteps(route.steps, sequence).some((s) => s.roleCode === route.rejectionReturnToRoleCode);
+}
+
 /// What the officer may choose among: the kinds this matter supports, and a return to a
 /// step only where there is an earlier step to return to.
 export function choicesFor(supports: readonly RejectionKind[], steps: readonly RouteStep[], rejectingSeq: number): RejectionKind[] {

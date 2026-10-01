@@ -27,10 +27,16 @@ export const PROVENANCE_WORD: Record<string, string> = { STATED: "stated", OBSER
 export function ifRejectedText(
   route: { snapshotAt: Date | null; kind: RejectionKind | null; returnToOffice: string | null; provenance: string | null },
   committeeStep: boolean,
+  /// Said of one step: whether the office a return names has a step before it. A return
+  /// to a step that is not earlier cannot be applied, so the officer chooses
+  /// (`rejectionOutcome`, STEP_NOT_ON_ROUTE). Omitted: said of the route as a whole.
+  targetBefore?: boolean,
 ): string {
   if (committeeStep) return "If not carried: the committee's own not-carried outcome decides — a loop returns it to whoever raised it, a terminal outcome ends it.";
   if (!route.snapshotAt) return "If rejected: where it goes was not recorded when this route opened — the officer will choose.";
   if (!route.kind) return "If rejected: not set — the officer will choose, and the choice is recorded as theirs.";
+  if (route.kind === "RETURN_TO_STEP" && targetBefore === false)
+    return `If rejected here: the configured return is to the ${route.returnToOffice ?? "office no longer configured"}'s step, and there is none before this one — the officer will choose.`;
   const how = route.provenance ? ` (configured, ${PROVENANCE_WORD[route.provenance] ?? "source not recorded"})` : " (configured)";
   return `If rejected: ${destinationText(route.kind, route.returnToOffice).replace(/^R/, "r").replace(/^T/, "t")}${how}.`;
 }

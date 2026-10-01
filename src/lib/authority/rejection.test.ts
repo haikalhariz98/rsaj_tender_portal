@@ -9,6 +9,8 @@ import {
   rejectionOutcome,
   rejectionSnapshot,
   REJECTION_KINDS,
+  returnTargetBefore,
+  returnTargetBeforeNext,
   successorSteps,
   type DecidedStep,
   type DestinationRow,
@@ -194,10 +196,48 @@ describe("the destination in words", () => {
     expect(ifRejectedText({ snapshotAt: on, kind: "RETURN_TO_STEP", returnToOffice: "Head of Division", provenance: "ASSUMED" }, false)).toBe("If rejected: returns to the Head of Division's step (configured, assumed).");
     expect(ifRejectedText({ snapshotAt: on, kind: null, returnToOffice: null, provenance: null }, false)).toMatch(/not set — the officer will choose/);
     expect(ifRejectedText({ snapshotAt: null, kind: null, returnToOffice: null, provenance: null }, false)).toMatch(/not recorded/);
+    // Said of a step with no step of the named office before it: the return cannot apply.
+    const toDiv = { snapshotAt: on, kind: "RETURN_TO_STEP" as const, returnToOffice: "Head of Division", provenance: "ASSUMED" };
+    expect(ifRejectedText(toDiv, false, false)).toBe("If rejected here: the configured return is to the Head of Division's step, and there is none before this one — the officer will choose.");
+    expect(ifRejectedText(toDiv, false, true)).toBe("If rejected: returns to the Head of Division's step (configured, assumed).");
     expect(ifRejectedText({ snapshotAt: on, kind: "TERMINATE", returnToOffice: null, provenance: null }, true)).toMatch(/committee's own/);
   });
   it("never shows an officer's choice as policy", () => {
     expect(appliedText("TERMINATE", "OFFICER_CHOICE", null, "Aminah")).toMatch(/chosen by Aminah.*not signed.*not policy/);
     expect(appliedText("RETURN_TO_ORIGINATOR", "COMMITTEE_OUTCOME", null, null)).toMatch(/committee's not-carried outcome/);
+  });
+});
+
+describe("returnTargetBeforeNext", () => {
+  const steps = [
+    { sequence: 1, roleCode: "SEC_PRE", decision: "DONE" },
+    { sequence: 2, roleCode: "HOD_CP", decision: "PENDING" },
+    { sequence: 3, roleCode: "FD", decision: "PENDING" },
+  ];
+  it("says whether the named office has a step before the next one pending", () => {
+    expect(returnTargetBeforeNext({ rejectionKind: "RETURN_TO_STEP", rejectionReturnToRoleCode: "SEC_PRE", steps })).toBe(true);
+    expect(returnTargetBeforeNext({ rejectionKind: "RETURN_TO_STEP", rejectionReturnToRoleCode: "HOD_CP", steps })).toBe(false);
+  });
+  it("does not arise for other destinations or a route with nothing pending", () => {
+    expect(returnTargetBeforeNext({ rejectionKind: "TERMINATE", rejectionReturnToRoleCode: null, steps })).toBeUndefined();
+    expect(returnTargetBeforeNext({ rejectionKind: "RETURN_TO_STEP", rejectionReturnToRoleCode: "SEC_PRE", steps: steps.map((s) => ({ ...s, decision: "DONE" })) })).toBeUndefined();
+  });
+});
+
+describe("returnTargetBefore", () => {
+  const steps = [
+    { sequence: 1, roleCode: "HOD" },
+    { sequence: 2, roleCode: "HODIV" },
+    { sequence: 3, roleCode: "CEO" },
+  ];
+  const toDiv = { rejectionKind: "RETURN_TO_STEP", rejectionReturnToRoleCode: "HODIV", steps };
+  it("is true only for a step with a step of the named office before it", () => {
+    expect(returnTargetBefore(toDiv, 3)).toBe(true);
+    expect(returnTargetBefore(toDiv, 2)).toBe(false);
+    expect(returnTargetBefore(toDiv, 1)).toBe(false);
+  });
+  it("does not arise for a route that returns nowhere in particular", () => {
+    expect(returnTargetBefore({ ...toDiv, rejectionKind: "RETURN_TO_ORIGINATOR", rejectionReturnToRoleCode: null }, 3)).toBeUndefined();
+    expect(returnTargetBefore({ ...toDiv, rejectionKind: null }, 3)).toBeUndefined();
   });
 });

@@ -63,7 +63,7 @@ import { boundarySentence, REGIME_LABEL } from "@/lib/method/labels";
 import type { Regime } from "@/lib/method/types";
 import { formatMoney, parseSen, senFromDecimal } from "@/lib/money";
 import { DECISION_LABEL } from "@/lib/requisition/labels";
-import { earlierSteps, type RejectionKind } from "@/lib/authority/rejection";
+import { earlierSteps, returnTargetBeforeNext, type RejectionKind } from "@/lib/authority/rejection";
 import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import { derivedAnnualValue } from "@/lib/securities/bond";
 import { expiryAlert } from "@/lib/securities/expiry";
@@ -568,7 +568,7 @@ function ApprovalPanel({
           {inst.status === "PENDING" && (
             <p className="border-t border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">
               Steps are decided in order. A committee&apos;s step is discharged by citing its decision on this exercise.{" "}
-              {ifRejectedText({ snapshotAt: inst.rejectionSnapshotAt, kind: inst.rejectionKind as RejectionKind | null, returnToOffice: inst.rejectionReturnToRoleCode ? roleName(inst.rejectionReturnToRoleCode) : null, provenance: inst.rejectionProvenance }, false)}
+              {ifRejectedText({ snapshotAt: inst.rejectionSnapshotAt, kind: inst.rejectionKind as RejectionKind | null, returnToOffice: inst.rejectionReturnToRoleCode ? roleName(inst.rejectionReturnToRoleCode) : null, provenance: inst.rejectionProvenance }, false, returnTargetBeforeNext(inst))}
               {inst.supersedesInstanceId ? " This route continues a refused one from an earlier step; the steps before it keep their decisions." : ""}
             </p>
           )}
