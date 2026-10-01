@@ -3,20 +3,31 @@
 //   node pmig.mjs deploy            apply pending migrations
 //   node pmig.mjs diff              SQL from the live DB to prisma/schema.prisma
 //   node pmig.mjs create <name>     write a new migration dir with that diff
+//
+// The tools directory is the one this file lives in (override: PEROLEHAN_TOOLS_DIR); it holds
+// adapter-pg-patched.cjs and node_modules/@prisma/schema-engine-wasm. The repository defaults
+// to /home/user/repo (override: PEROLEHAN_REPO). Run with NODE_PATH=<repo>/node_modules.
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
-const REPO = "/home/user/repo";
+import { fileURLToPath, pathToFileURL } from "node:url";
+const TOOLS = process.env.PEROLEHAN_TOOLS_DIR || path.dirname(fileURLToPath(import.meta.url));
+const REPO = process.env.PEROLEHAN_REPO || "/home/user/repo";
+const ENGINE = path.join(TOOLS, "node_modules/@prisma/schema-engine-wasm");
+const ADAPTER = path.join(TOOLS, "adapter-pg-patched.cjs");
+for (const f of [path.join(ENGINE, "schema_engine_bg.js"), path.join(ENGINE, "schema_engine_bg.wasm"), ADAPTER, path.join(REPO, "prisma/schema.prisma")]) {
+  if (!fs.existsSync(f)) { console.error(`pmig.mjs: not found: ${f}. Set up the tools directory as docs/notes/cloud-build/ENV.md says (or set PEROLEHAN_TOOLS_DIR / PEROLEHAN_REPO).`); process.exit(1); }
+}
 const require = createRequire(REPO + "/package.json");
-const bg = await import("/tmp/claude-0/sew/node_modules/@prisma/schema-engine-wasm/schema_engine_bg.js");
-const bytes = fs.readFileSync("/tmp/claude-0/sew/node_modules/@prisma/schema-engine-wasm/schema_engine_bg.wasm");
+const bg = await import(pathToFileURL(path.join(ENGINE, "schema_engine_bg.js")).href);
+const bytes = fs.readFileSync(path.join(ENGINE, "schema_engine_bg.wasm"));
 const { instance } = await WebAssembly.instantiate(bytes, { "./schema_engine_bg.js": bg });
 bg.__wbg_set_wasm(instance.exports);
 instance.exports.__wbindgen_start?.();
 
 const env = Object.fromEntries(fs.readFileSync(REPO + "/.env", "utf8").split("\n").filter(l => /^[A-Z_]+=/.test(l)).map(l => { const i = l.indexOf("="); return [l.slice(0, i), l.slice(i + 1).replace(/^"|"$/g, "")]; }));
 const url = process.env.DATABASE_URL || env.DATABASE_URL;
-const { PrismaPg } = require("/tmp/claude-0/sew/adapter-pg-patched.cjs");
+const { PrismaPg } = require(ADAPTER);
 const { bindMigrationAwareSqlAdapterFactory } = require("@prisma/driver-adapter-utils");
 const factory = new PrismaPg({ connectionString: url });
 const shadowUrl = url.replace(/\/([a-z_]+)\?/, "/$1_shadow?");
