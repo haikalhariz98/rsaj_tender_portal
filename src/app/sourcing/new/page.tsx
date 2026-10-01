@@ -10,6 +10,7 @@ import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { dayToDate } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { gatesForRequisition } from "@/lib/requisition/repo";
 import { openFault } from "@/lib/method/exercise";
 import { exerciseFormOptions } from "@/lib/method/form-options";
 import { findingText } from "@/lib/method/labels";
@@ -60,12 +61,13 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
       include: { approvalInstances: { select: { status: true, value: true, ruleKey: true, ruleLabel: true, checkedAgainstMatrix: true } }, exercises: { select: { estimatedValue: true, status: true } } },
     });
     // Open to an exercise, or not and why (UX 7): only the first list can be chosen.
-    const judged = reqs.map((q) => {
+    const judged = await Promise.all(reqs.map(async (q) => {
       const approved = approvedRouteOf(q);
       const remaining = remainingOf(approved, q.exercises.map((x, i) => ({ id: String(i), value: parseSen(x.estimatedValue.toString()), status: x.status as ExerciseStatus })));
-      const fault = openFault({ status: q.status, sourcingPermitted: q.sourcingPermitted, approvedRoute: !!approved, remaining }, { today: org.today, methodsConfigured: true });
+      const gate = (await gatesForRequisition(q.id))?.finding ?? { code: "GATES_NOT_DETERMINED" as const, why: "NOT_CHECKED" as const };
+      const fault = openFault({ status: q.status, sourcingPermitted: q.sourcingPermitted, approvedRoute: !!approved, remaining }, { today: org.today, methodsConfigured: true, gate });
       return { q, approved, remaining, fault };
-    });
+    }));
     const row = (x: (typeof judged)[number], link: boolean): Row => ({
       id: x.q.id,
       search: `${x.q.reference} ${x.q.title}`,
@@ -127,7 +129,8 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
   const options = await exerciseFormOptions(org.id, on, l.req.fundingPosture);
   const approved = approvedRouteOf(l.req);
   const remaining = remainingOf(approved, l.req.exercises.map((x) => ({ id: x.id, value: parseSen(x.estimatedValue.toString()), status: x.status as ExerciseStatus })));
-  const fault = openFault({ status: l.req.status, sourcingPermitted: l.req.sourcingPermitted, approvedRoute: !!approved, remaining }, { today: org.today, methodsConfigured: options.methods.length > 0 });
+  const gate = (await gatesForRequisition(l.req.id))?.finding ?? { code: "GATES_NOT_DETERMINED" as const, why: "NOT_CHECKED" as const };
+  const fault = openFault({ status: l.req.status, sourcingPermitted: l.req.sourcingPermitted, approvedRoute: !!approved, remaining }, { today: org.today, methodsConfigured: options.methods.length > 0, gate });
   return (
     <>
       {header}

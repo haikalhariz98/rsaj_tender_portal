@@ -9,12 +9,14 @@ import type { Tx } from "@/lib/audit/record";
 import type { BudgetCode as PureBudgetCode } from "@/lib/budget/codes";
 import { decisionRecord, type DecisionRecord } from "@/lib/committee/record";
 import { isRegisterSnapshot } from "@/lib/committee/assess-sitting";
-import { todayIn } from "@/lib/dates";
+import { dayToDate, todayIn } from "@/lib/dates";
+import { senFromDecimal } from "@/lib/money";
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 import type { CodeFormat, OrgUnit, OrgUnitKind } from "@/lib/organisation/types";
 import type { FundingRouteRow } from "@/lib/requisition/funding";
 import type { Lookups, RequisitionDraft } from "@/lib/requisition/fields";
+import { gateFinding, gatesFor, gateState, type GateFinding, type GateMatter, type GateRuleRow, type GateState } from "@/lib/requisition/gate";
 import { SPLIT_KEYS, UNSET_POLICY, type Provenance, type RequisitionPolicy, type SplitKey } from "@/lib/requisition/types";
 
 export const num = (v: { toString(): string } | null | undefined): number | null => (v == null ? null : Number(v.toString()));
@@ -120,8 +122,21 @@ const include = {
     },
   },
   committeeDecisions: {
-    include: { meeting: { include: { committee: { select: { nameEn: true, code: true } } } }, votes: { include: { person: { select: { name: true } } } } },
+    include: {
+      meeting: { include: { committee: { select: { nameEn: true, code: true, carriedLabelEn: true } } } },
+      votes: { include: { person: { select: { name: true } } } },
+      approvalStep: { select: { id: true } },
+    },
     orderBy: { tabledAt: "desc" as const },
+  },
+  // The committee gates (FR-REQ-012) and the matters cited against each.
+  gates: {
+    orderBy: { committeeLabel: "asc" as const },
+    include: {
+      decisions: {
+        include: { meeting: { include: { committee: { select: { nameEn: true, code: true, carriedLabelEn: true } } } }, votes: { include: { person: { select: { name: true } } } } },
+      },
+    },
   },
 };
 
@@ -364,4 +379,54 @@ export async function linkMatchingMatters(tx: Tx, organisationId: string, requis
     linked++;
   }
   return linked;
+}
+
+/// The gate rules of an organisation, as the pure check reads them.
+export async function loadGateRules(organisationId: string, client: Tx = db): Promise<GateRuleRow[]> {
+  const rows = await client.committeeGateRule.findMany({ where: { organisationId }, orderBy: [{ sortOrder: "asc" }, { effectiveFrom: "asc" }] });
+  return rows.map((r) => ({ ...r, act: r.act as string, aboveValue: r.aboveValue?.toString() ?? null, provenance: r.provenance as Provenance }));
+}
+
+/// A gate's matters, as `gateState` reads them: from `decisionRecord()` only.
+export function gateMattersOf(gate: LoadedRequisition["req"]["gates"][number]): GateMatter[] {
+  return gate.decisions.map((d) => ({ id: d.id, tabledAt: d.tabledAt, withdrawn: d.withdrawnAt != null, record: recordOf(d) }));
+}
+
+/**
+ * Where every gate of a requisition stands, and what that says about opening an
+ * exercise (ruling C2). Undetermined is never clear: why it is undetermined is read
+ * from the route's setting and rules as they stand now, so the blocker names what to
+ * set. Read inside the caller's transaction where it guards a write.
+ */
+export async function gatesForRequisition(
+  requisitionId: string,
+  client: Tx = db,
+): Promise<{ gates: { id: string; committeeLabel: string; state: GateState; decisive: GateMatter | null }[]; finding: GateFinding } | null> {
+  const req = await client.requisition.findUnique({
+    where: { id: requisitionId },
+    select: {
+      organisationId: true,
+      fundingRouteCode: true,
+      gatesDeterminedOn: true,
+      estimatedValue: true,
+      organisation: { select: { timeZone: true } },
+      approvalInstances: { where: { status: "APPROVED" }, select: { value: true }, take: 1 },
+      gates: { orderBy: { committeeLabel: "asc" }, include: { decisions: { include: { meeting: { include: { committee: { select: { nameEn: true } } } }, votes: { include: { person: { select: { name: true } } } } } } } },
+    },
+  });
+  if (!req) return null;
+  const gates = req.gates.map((g) => ({
+    id: g.id,
+    committeeLabel: g.committeeLabel,
+    ...gateState(g.decisions.map((d) => ({ id: d.id, tabledAt: d.tabledAt, withdrawn: d.withdrawnAt != null, record: recordOf(d) }))),
+  }));
+  if (req.gatesDeterminedOn) return { gates, finding: gateFinding(true, "NOT_CHECKED", gates) };
+  const route = req.fundingRouteCode
+    ? await client.fundingRoute.findFirst({ where: { organisationId: req.organisationId, code: req.fundingRouteCode }, select: { code: true, committeeGateRequired: true } })
+    : null;
+  const today = todayIn(new Date(), req.organisation.timeZone);
+  const on = today ? dayToDate(today) : new Date();
+  const live = gatesFor(route, await loadGateRules(req.organisationId, client), senFromDecimal(req.approvalInstances[0]?.value ?? req.estimatedValue), on);
+  const why = live.state === "NOT_SET" ? "NOT_SET" : live.state === "RULE_MISSING" ? "RULE_MISSING" : "NOT_CHECKED";
+  return { gates, finding: gateFinding(false, why, gates) };
 }

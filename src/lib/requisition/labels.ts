@@ -7,6 +7,7 @@ import type { FieldFault } from "./fields";
 import type { EndorsementFault } from "./endorsement";
 import type { FundingFault } from "./funding";
 import type { DeciderFault } from "./holders";
+import type { GateCitationFault, GateState } from "./gate";
 import type { TransitionFault } from "./status";
 import type { BudgetVerdict, OrgUnitKind, RequisitionStatus, SplitKey } from "./types";
 
@@ -341,3 +342,48 @@ export function undecidedStepText(route: { status: string; warnings: unknown }, 
   if (route.status === "APPROVED") return "Not decided — route closed as approved";
   return "Not decided — route closed";
 }
+
+// ------------------------------------------------------------- committee gate
+
+/// A gate's state in words (FR-REQ-012). Never a code on screen.
+export const GATE_STATE_LABEL: Record<GateState, string> = {
+  AWAITING: "Awaiting the committee",
+  PASSED: "Passed",
+  RETURNED: "Returned for revision",
+  ENDED: "Ended",
+  OUTCOME_NOT_RECORDED: "Outcome not recorded",
+};
+
+export const GATE_STATE_TONE: Record<GateState, "neutral" | "brand" | "ok" | "warn" | "err"> = {
+  AWAITING: "brand",
+  PASSED: "ok",
+  RETURNED: "warn",
+  ENDED: "err",
+  OUTCOME_NOT_RECORDED: "err",
+};
+
+/**
+ * A decided gate matter's outcome under the committee's own words (ruling CO-2): a
+ * carried decision by the body's carried label ("Carried" where none is set), a
+ * not-carried one by the outcome snapshotted with it.
+ */
+export function gateOutcomeLabel(record: { outcome: "CARRIED" | "NOT_CARRIED" | "DEFERRED"; notApproved: { nameEn: string } | null } | null, carriedLabel: string | null): string {
+  if (!record) return "Not yet decided";
+  if (record.outcome === "CARRIED") return carriedLabel?.trim() || "Carried";
+  if (record.outcome === "DEFERRED") return "Deferred";
+  return record.notApproved?.nameEn ?? "Not carried · no outcome recorded";
+}
+
+export const GATE_CITATION_TEXT: Record<GateCitationFault, string> = {
+  NOT_THIS_REQUISITION: "That matter was not tabled against this requisition.",
+  NOT_GATE_DOMAIN: "That matter was not tabled as a committee gate for a requisition. Table it with the matter “Committee gate” and this requisition's reference.",
+  OTHER_COMMITTEE: "That matter is before a different committee from the one this gate names.",
+  OTHER_ACT: "The committee was asked for a different act from the one this gate needs.",
+  CITED_ON_ROUTE_STEP: "That decision discharges a step of the approval route. One decision answers one step or one gate, never both.",
+  ALREADY_CITED: "That matter is already cited against a gate.",
+  WITHDRAWN: "That matter was withdrawn from the agenda.",
+  DECIDED_BEFORE_GATE: "The committee decided that matter before the gate was determined.",
+  GATE_PASSED: "This gate has already passed.",
+  GATE_ENDED: "This gate has ended the requisition. Close it without sourcing.",
+  NOT_AFTER_RETURN: "The gate was returned for revision by a later decision. Only a matter decided after the return can move it: table the revised paper again.",
+};

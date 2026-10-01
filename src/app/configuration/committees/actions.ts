@@ -141,6 +141,10 @@ export async function saveCommittee(_prev: FormState, data: FormData): Promise<F
     votingRuleProvenance: votingRule ? votingRuleProvenance : null,
     alternateMayVoteForRecused,
     alternateMayVoteForRecusedProvenance: alternateMayVoteForRecused == null ? null : alternateMayVoteForRecusedProvenance,
+    // What this body calls a carried decision (ruling CO-2: an RSAJ committee would say
+    // "Perlu"). Unset reads "Carried", never a borrowed word.
+    carriedLabelEn: r.optionalText("carriedLabelEn"),
+    carriedLabelMs: r.optionalText("carriedLabelMs"),
   };
 
   const parsed = r.finish(v);

@@ -120,6 +120,14 @@ function committeeFields(editing: boolean, offices: OfficeOption[]): Field[] {
       options: PROVENANCE_OPTIONS,
     },
     {
+      kind: "text",
+      name: "carriedLabelEn",
+      label: "Name for a carried decision",
+      placeholder: "Not set — reads “Carried”",
+      hint: "What this body calls a decision it carries, as its minutes write it. A not-carried decision is named by its not-approved outcome.",
+    },
+    { kind: "text", name: "carriedLabelMs", label: "Name for a carried decision (Malay)", placeholder: "Not set" },
+    {
       kind: "select",
       name: "secretariatRoleCode",
       label: "Secretariat office",
@@ -183,6 +191,8 @@ export interface CommitteeValues {
   votingRuleProvenance: string | null;
   alternateMayVoteForRecused: boolean | null;
   alternateMayVoteForRecusedProvenance: string | null;
+  carriedLabelEn?: string | null;
+  carriedLabelMs?: string | null;
 }
 
 export function EditCommittee({ committee, offices }: { committee: CommitteeValues; offices: OfficeOption[] }) {
@@ -216,6 +226,8 @@ export function EditCommittee({ committee, offices }: { committee: CommitteeValu
         alternateMayVoteForRecused:
           committee.alternateMayVoteForRecused == null ? null : committee.alternateMayVoteForRecused ? "yes" : "no",
         alternateMayVoteForRecusedProvenance: committee.alternateMayVoteForRecusedProvenance,
+        carriedLabelEn: committee.carriedLabelEn ?? null,
+        carriedLabelMs: committee.carriedLabelMs ?? null,
       }}
     />
   );

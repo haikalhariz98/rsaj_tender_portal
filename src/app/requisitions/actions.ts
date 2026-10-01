@@ -27,6 +27,7 @@ import { deciderFaults, holdersFor, requesterHoldsApprover } from "@/lib/requisi
 import { intakeFaults, type ExternalRequisition, type ReceivedStep } from "@/lib/requisition/intake";
 import {
   DECIDER_FAULT_TEXT,
+  GATE_CITATION_TEXT,
   deciderFaultText,
   endorsementFaultText,
   fieldFaultText,
@@ -37,7 +38,10 @@ import {
   TIER_LABEL,
   transitionFaultText,
 } from "@/lib/requisition/labels";
+import { anyGateEnded, gateCitationFault, gatesFor, gateState, type GatesFinding } from "@/lib/requisition/gate";
 import {
+  gateMattersOf,
+  loadGateRules,
   loadControls,
   loadLookups,
   loadPolicy,
@@ -1038,6 +1042,141 @@ async function approve(tx: Tx, l: LoadedRequisition, instanceId: string, gate: E
   await mustMove(tx, l, "APPROVED", { today: l.org.today }, { commitmentMovementId });
   await audit(tx, l.org.id, "Requisition", req.id, labelOf(req), "UPDATE",
     diffFields({ status: from }, { status: "APPROVED" }));
+  // The committee gates are determined as the route closes approved (FR-REQ-012, CO-1).
+  await determineGates(tx, l, parseSen(req.estimatedValue.toString()));
+}
+
+// ------------------------------------------------------------- committee gate
+
+/**
+ * Determine an approved requisition's committee gates (FR-REQ-012, ADR 0010) from its
+ * funding route's setting and the gate rules in force, and store what each rule read.
+ * Unset, or a gate required with no rule in force, writes nothing: the requisition
+ * stays undetermined and opening an exercise is refused, naming the setting (C2).
+ */
+async function determineGates(tx: Tx, l: LoadedRequisition, approved: bigint): Promise<GatesFinding> {
+  const req = l.req;
+  const on = l.org.today ? dayToDate(l.org.today) : new Date();
+  const route = req.fundingRouteCode
+    ? await tx.fundingRoute.findFirst({ where: { organisationId: l.org.id, code: req.fundingRouteCode }, select: { code: true, committeeGateRequired: true, committeeGateProvenance: true } })
+    : null;
+  const found = gatesFor(route, await loadGateRules(l.org.id, tx), approved, on);
+  if (found.state === "NOT_SET" || found.state === "RULE_MISSING") return found;
+  const after = { gatesDeterminedOn: on, gateRequired: route!.committeeGateRequired, gateRequiredProvenance: route!.committeeGateProvenance };
+  await tx.requisition.update({ where: { id: req.id }, data: after });
+  await audit(tx, l.org.id, "Requisition", req.id, labelOf(req), "UPDATE",
+    diffFields({ gatesDeterminedOn: null, gateRequired: null }, { gatesDeterminedOn: on, gateRequired: route!.committeeGateRequired, gates: found.state === "RULES" ? found.rules.length : 0 }));
+  if (found.state === "RULES") {
+    const committees = await tx.committee.findMany({ where: { organisationId: l.org.id, code: { in: found.rules.map((r) => r.committeeCode) } }, select: { code: true, nameEn: true } });
+    for (const rule of found.rules) {
+      const committeeLabel = committees.find((c) => c.code === rule.committeeCode)?.nameEn ?? "A committee no longer configured";
+      const row = await tx.requisitionGate.create({
+        data: {
+          requisitionId: req.id,
+          gateRuleId: rule.id,
+          committeeCode: rule.committeeCode,
+          committeeLabel,
+          subjectEn: rule.subjectEn,
+          act: rule.act as (typeof ACTS)[number],
+          aboveValue: rule.aboveValue,
+          ruleProvenance: rule.provenance,
+          determinedOn: on,
+        },
+      });
+      await audit(tx, l.org.id, "RequisitionGate", row.id, `${req.reference} · gate: ${committeeLabel}`, "CREATE",
+        diffFields(null, { committee: committeeLabel, subject: rule.subjectEn, act: rule.act, aboveValue: rule.aboveValue, provenance: rule.provenance, determinedOn: on }));
+    }
+  }
+  return found;
+}
+
+const GATES_NOT_SET =
+  "Whether this requisition's funding route needs a committee gate is not set, so its gates cannot be determined. Set “Needs a committee gate” on the funding route under Configuration, Reference data, then check again.";
+const GATE_RULE_MISSING =
+  "This requisition's funding route needs a committee gate, and no gate rule is in force for it. Add the rule under Configuration, Requisition controls, then check again.";
+
+/// Determine the gates of a requisition approved before gates existed, or while the route's setting was unset.
+export async function checkCommitteeGates(_prev: FormState, data: FormData): Promise<FormState> {
+  const id = String(data.get("id") ?? "");
+  return inRequisition(id, async (tx, l): Promise<FormState> => {
+    if (!["APPROVED", "SOURCING"].includes(l.req.status)) return { ok: false, message: "Committee gates are checked once the requisition is approved." };
+    if (l.req.gatesDeterminedOn) return { ok: false, message: "This requisition's committee gates are already determined." };
+    if (!l.org.today) return NO_ZONE;
+    const approved = l.req.approvalInstances.find((i) => i.status === "APPROVED");
+    if (!approved) return { ok: false, message: "This requisition has no approved route on record, so there is no approved value to judge its gates by." };
+    const found = await determineGates(tx, l, parseSen(approved.value.toString()));
+    if (found.state === "NOT_SET") return { ok: false, message: GATES_NOT_SET };
+    if (found.state === "RULE_MISSING") return { ok: false, message: GATE_RULE_MISSING };
+    return { ok: true };
+  });
+}
+
+/// Cite a committee's decision against one of the requisition's gates (FR-REQ-012).
+export async function citeGateDecision(_prev: FormState, data: FormData): Promise<FormState> {
+  const id = String(data.get("id") ?? "");
+  const gateId = String(data.get("gateId") ?? "");
+  const decisionId = String(data.get("committeeDecisionId") ?? "");
+  if (!decisionId) return { ok: false, errors: { committeeDecisionId: "Choose the committee's matter." } };
+  return inRequisition(id, async (tx, l): Promise<FormState> => {
+    const gate = l.req.gates.find((g) => g.id === gateId);
+    if (!gate) return { ok: false, message: "That gate is not on this requisition." };
+    const matter = l.req.committeeDecisions.find((d) => d.id === decisionId);
+    if (!matter) return { ok: false, errors: { committeeDecisionId: "That matter was not tabled against this requisition." } };
+    const current = gateState(gateMattersOf(gate));
+    const record = recordOf(matter);
+    const fault = gateCitationFault(
+      {
+        id: matter.id,
+        requisitionId: matter.requisitionId,
+        matterKind: matter.matterKind,
+        domain: matter.domain,
+        committeeCode: matter.meeting.committee.code,
+        act: matter.act,
+        requisitionGateId: matter.requisitionGateId,
+        citedOnStep: matter.approvalStep != null,
+        withdrawn: matter.withdrawnAt != null,
+        decidedOn: record ? (record.decisionDate ?? record.meetingDate) : null,
+      },
+      { id: gate.id, requisitionId: l.req.id, committeeCode: gate.committeeCode, act: gate.act, determinedOn: gate.determinedOn },
+      current,
+    );
+    if (fault) return { ok: false, errors: { committeeDecisionId: GATE_CITATION_TEXT[fault] } };
+    const linked = await tx.committeeDecision.updateMany({ where: { id: matter.id, requisitionGateId: null }, data: { requisitionGateId: gate.id } });
+    if (linked.count !== 1) return CHANGED;
+    await audit(tx, l.org.id, "RequisitionGate", gate.id, `${l.req.reference} · gate: ${gate.committeeLabel}`, "UPDATE",
+      diffFields({ matter: null }, { matter: `${matter.meeting.reference} · ${matter.subject}`, outcome: matter.outcome }));
+    return { ok: true };
+  });
+}
+
+/**
+ * Close an approved requisition without sourcing, where a committee gate ended it
+ * (FR-REQ-012). The commitment its approval wrote, if any, is released on the record —
+ * it stays on the ledger, marked released. Any other abandonment stays with RSAJ.
+ */
+export async function closeWithoutSourcing(_prev: FormState, data: FormData): Promise<FormState> {
+  const id = String(data.get("id") ?? "");
+  const reason = String(data.get("reason") ?? "").trim();
+  if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
+  return inRequisition(id, async (tx, l): Promise<FormState> => {
+    const gates = l.req.gates.map((g) => ({ committeeLabel: g.committeeLabel, state: gateState(gateMattersOf(g)).state }));
+    const ctx = { today: l.org.today, reason, gateEnded: anyGateEnded(gates) };
+    const fault = transitionFault(l.req.status, "CLOSED", ctx);
+    if (fault) return { ok: false, message: transitionFaultText(fault) };
+    const today = dayToDate(l.org.today!);
+    await mustMove(tx, l, "CLOSED", ctx, { closedReason: reason });
+    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: "APPROVED", closedReason: "" }, { status: "CLOSED", closedReason: reason }), reason);
+    if (l.req.commitmentMovementId) {
+      const movement = await tx.budgetMovement.findUnique({ where: { id: l.req.commitmentMovementId } });
+      if (movement && !movement.releasedOn) {
+        const note = `Released: ${l.req.reference} closed without sourcing — ${reason}`;
+        await tx.budgetMovement.update({ where: { id: movement.id }, data: { releasedOn: today, releaseNote: note } });
+        await audit(tx, l.org.id, "BudgetMovement", movement.id, `${l.req.budgetCode?.code ?? "Budget code"} · commitment for ${l.req.reference}`, "UPDATE",
+          diffFields({ releasedOn: null, releaseNote: "" }, { releasedOn: today, releaseNote: note }), reason);
+      }
+    }
+    return { ok: true };
+  });
 }
 
 /**

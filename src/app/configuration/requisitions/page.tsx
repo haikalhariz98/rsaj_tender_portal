@@ -11,7 +11,13 @@ import { db } from "@/lib/db";
 import { SOURCE_LABEL, SPLIT_KEY_LABEL, TIER_LABEL } from "@/lib/requisition/labels";
 import { loadControls, loadPolicy, requisitionOrg } from "@/lib/requisition/repo";
 
-import { EditCheckSource, EditErpFormat, EditPolicy } from "./editors";
+import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
+import { actLabel } from "@/components/ui/act";
+import { formatDate } from "@/lib/format";
+import { formatMoney, parseSen } from "@/lib/money";
+import { storedDay } from "@/lib/dates";
+
+import { EditCheckSource, EditErpFormat, EditPolicy, GateRuleEditor } from "./editors";
 
 export const dynamic = "force-dynamic";
 
@@ -50,12 +56,20 @@ export default async function RequisitionControlsPage() {
       </>
     );
   }
-  const [policy, controls, formats, offices] = await Promise.all([
+  const [policy, controls, formats, offices, gateRules, routeRows, committeeRows] = await Promise.all([
     loadPolicy(org.id),
     loadControls(org.id),
     db.codeFormat.findMany({ where: { organisationId: org.id, key: { in: ["erp_requisition_no", "erp_note_no"] } } }),
     db.authorityRole.findMany({ where: { organisationId: org.id, isCommittee: false }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { code: true, nameEn: true } }),
+    db.committeeGateRule.findMany({ where: { organisationId: org.id }, orderBy: [{ fundingRouteCode: "asc" }, { sortOrder: "asc" }, { effectiveFrom: "asc" }] }),
+    db.fundingRoute.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { code: true, nameEn: true, retiredOn: true, committeeGateRequired: true } }),
+    db.committee.findMany({ where: { organisationId: org.id }, orderBy: { nameEn: "asc" }, select: { code: true, nameEn: true, retiredOn: true } }),
   ]);
+  const routeName = (code: string) => routeRows.find((x) => x.code === code)?.nameEn ?? "A route no longer configured";
+  const committeeName = (code: string) => committeeRows.find((x) => x.code === code)?.nameEn ?? "A committee no longer configured";
+  const routeOptions = routeRows.filter((x) => !x.retiredOn).map((x) => ({ value: x.code, label: x.nameEn }));
+  const committeeOptions = committeeRows.filter((x) => !x.retiredOn).map((x) => ({ value: x.code, label: x.nameEn }));
+  const gatedWithoutRule = routeRows.filter((x) => !x.retiredOn && x.committeeGateRequired === true && !gateRules.some((g) => g.fundingRouteCode === x.code && g.effectiveTo == null));
   const justifier = policy.splitJustifyingRoleCode ? (offices.find((o) => o.code === policy.splitJustifyingRoleCode)?.nameEn ?? "An office no longer configured") : null;
   const unset = [
     policy.endorsementTiers.length === 0,
@@ -276,6 +290,86 @@ export default async function RequisitionControlsPage() {
               ]}
             />
           </CardBody>
+        </Card>
+
+        <Card className="overflow-hidden">
+          <CardHeader
+            icon={<ShieldIcon size={17} />}
+            title="Committee gates"
+            subtitle="Committees an approved requisition must pass before its first sourcing exercise, by funding route. Outside the approval matrix; placed after approval as an assumption awaiting the customer's confirmation."
+            actions={<GateRuleEditor routes={routeOptions} committees={committeeOptions} />}
+          />
+          {gatedWithoutRule.length > 0 && (
+            <CardBody className="border-b border-line">
+              <Callout tone="warn" title="A route needs a gate and has no rule">
+                {gatedWithoutRule.map((x) => x.nameEn).join(", ")} {gatedWithoutRule.length === 1 ? "is" : "are"} set to need a committee gate, and no rule is in force for {gatedWithoutRule.length === 1 ? "it" : "them"}. No exercise can be opened on a requisition approved there until one is added.
+              </Callout>
+            </CardBody>
+          )}
+          {gateRules.length === 0 ? (
+            <EmptyState size="sm" title="No committee gate">
+              None ships with the product. Whether a funding route needs one is set on the route under Reference data; a route left unset blocks opening an exercise.
+            </EmptyState>
+          ) : (
+            <Table minWidth={760}>
+              <colgroup>
+                <col />
+                <col style={{ width: "22%" }} />
+                <col style={{ width: "16%" }} />
+                <col style={{ width: "17%" }} />
+                <ActionsCol icons={0} labelled={1} />
+              </colgroup>
+              <THead>
+                <Th>Route and committee</Th>
+                <Th>What is put to it</Th>
+                <Th>Applies above</Th>
+                <Th>In force</Th>
+                <Th className="text-right">Actions</Th>
+              </THead>
+              <tbody>
+                {gateRules.map((g) => (
+                  <Tr key={g.id}>
+                    <Td>
+                      <CellStack title={committeeName(g.committeeCode)} sub={`${routeName(g.fundingRouteCode)} · ${actLabel(g.act)}`} wrap />
+                    </Td>
+                    <Td className="text-ink-2">
+                      <span className="break-words">{g.subjectEn}</span>
+                      <div className="mt-1">
+                        <ProvenanceBadge value={g.provenance} />
+                      </div>
+                    </Td>
+                    <Td className="tabular-nums text-ink-2">{g.aboveValue ? formatMoney(parseSen(g.aboveValue.toString())) : "Any value"}</Td>
+                    <Td className="text-ink-2">
+                      {formatDate(g.effectiveFrom)}
+                      {g.effectiveTo ? ` to ${formatDate(g.effectiveTo)}` : " onwards"}
+                    </Td>
+                    <Td>
+                      <RowActions>
+                        <GateRuleEditor
+                          routes={routeOptions}
+                          committees={committeeOptions}
+                          rule={{
+                            id: g.id,
+                            fundingRouteCode: g.fundingRouteCode,
+                            committeeCode: g.committeeCode,
+                            subjectEn: g.subjectEn,
+                            subjectMs: g.subjectMs,
+                            act: g.act,
+                            aboveValue: g.aboveValue?.toString() ?? null,
+                            governingSource: g.governingSource,
+                            provenance: g.provenance,
+                            effectiveFrom: storedDay(g.effectiveFrom),
+                            effectiveTo: g.effectiveTo ? storedDay(g.effectiveTo) : null,
+                            sortOrder: g.sortOrder,
+                          }}
+                        />
+                      </RowActions>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
         </Card>
 
         {policy.notes && (

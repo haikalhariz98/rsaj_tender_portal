@@ -9,21 +9,42 @@
  * read under the requisition's row lock.
  */
 
+import type { GateFinding } from "@/lib/requisition/gate";
+
 import type { ExerciseStatus, Finding, ProposalState } from "./types";
 
-export type OpenFault = "TIME_ZONE_UNSET" | "REQUISITION_NOT_APPROVED" | "SOURCING_NOT_PERMITTED" | "SOURCING_NOT_RECORDED" | "NO_APPROVED_ROUTE" | "FULLY_IN_EXERCISES" | "METHODS_NOT_SET";
+export type OpenFault =
+  | "TIME_ZONE_UNSET"
+  | "REQUISITION_NOT_APPROVED"
+  | "SOURCING_NOT_PERMITTED"
+  | "SOURCING_NOT_RECORDED"
+  | "NO_APPROVED_ROUTE"
+  | "FULLY_IN_EXERCISES"
+  | "METHODS_NOT_SET"
+  | "GATES_NOT_DETERMINED"
+  | "GATE_AWAITING"
+  | "GATE_RETURNED"
+  | "GATE_ENDED"
+  | "GATE_OUTCOME_NOT_RECORDED";
 
-/// Whether an exercise may be opened on a requisition.
+/**
+ * Whether an exercise may be opened on a requisition. The committee gate (FR-REQ-012)
+ * must be clear: `ctx.gate` is required, and a caller that has not looked — undefined
+ * at run time — is refused as undetermined, never passed (ruling C2).
+ */
 export function openFault(
   /// `remaining`: the approved value not yet in a live exercise, in sen, where known.
   req: { status: string; sourcingPermitted: boolean | null; approvedRoute: boolean; remaining?: bigint | null },
-  ctx: { today: string | null; methodsConfigured: boolean },
+  ctx: { today: string | null; methodsConfigured: boolean; gate: GateFinding },
 ): Finding<OpenFault> | null {
   const f = (code: OpenFault, data?: Finding["data"]): Finding<OpenFault> => ({ code, level: "block", ...(data ? { data } : {}) });
   if (req.status !== "APPROVED" && req.status !== "SOURCING") return f("REQUISITION_NOT_APPROVED", { status: req.status });
   if (req.sourcingPermitted === false) return f("SOURCING_NOT_PERMITTED");
   if (req.sourcingPermitted == null) return f("SOURCING_NOT_RECORDED");
   if (!req.approvedRoute) return f("NO_APPROVED_ROUTE");
+  const gate: GateFinding = ctx.gate ?? { code: "GATES_NOT_DETERMINED", why: "NOT_CHECKED" };
+  if (gate.code === "GATES_NOT_DETERMINED") return f("GATES_NOT_DETERMINED", { why: gate.why });
+  if (gate.code !== "CLEAR") return f(gate.code, { committee: gate.committee });
   // Its live exercises already hold all it was approved for (UX 7, ruling R-16).
   if (req.remaining != null && req.remaining <= 0n) return f("FULLY_IN_EXERCISES");
   if (ctx.today == null) return f("TIME_ZONE_UNSET");

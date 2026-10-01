@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { AlertTriangle, ChartIcon, ClipboardIcon, ClockIcon, GlobeIcon, RouteIcon, ShieldIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
-import { ActBadge } from "@/components/ui/act";
+import { ActBadge, actLabel } from "@/components/ui/act";
 import { Badge, Chip } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -31,6 +31,9 @@ import { fundingGate } from "@/lib/requisition/funding";
 import { deciderFaults, holdersFor, requesterHoldsApprover } from "@/lib/requisition/holders";
 import {
   approvalRouteLabel,
+  GATE_STATE_LABEL,
+  GATE_STATE_TONE,
+  gateOutcomeLabel,
   returnedAtApproval,
   trailRouteStatusLabel,
   undecidedStepText,
@@ -62,10 +65,12 @@ import {
   num,
   recordOf,
   requisitionHistory,
+  gatesForRequisition,
   type LoadedRequisition,
 } from "@/lib/requisition/repo";
 import { resolveRequisitionRoute } from "@/lib/requisition/route";
 import { returnedRouteCitationNotes } from "@/lib/requisition/committee-step";
+import { GATE_DOMAIN } from "@/lib/requisition/gate";
 import { unpostedIntakeReason, type UnpostedReason } from "@/lib/requisition/budget";
 import { splitApprovalFault, splitStateLabel } from "@/lib/requisition/splitting";
 import { transitionFault } from "@/lib/requisition/status";
@@ -76,8 +81,11 @@ import {
   CancelDrawer,
   ChangeFundingDrawer,
   CheckBudgetDrawer,
+  CheckGatesDrawer,
   CiteCommitteeDrawer,
+  CiteGateDrawer,
   CloseDrawer,
+  CloseWithoutSourcingDrawer,
   DecisionDrawer,
   ErpRefsDrawer,
   HEADER_NOTE_ID,
@@ -104,6 +112,7 @@ const TONE = { neutral: "neutral", brand: "brand", ok: "ok", warn: "warn", err: 
 const ORGANISATION_HREF = "/configuration/organisation";
 const CONTROLS_HREF = "/configuration/requisitions";
 const BUDGET_HREF = "/configuration/budget";
+const REFERENCE_HREF = "/configuration/reference-data";
 const PRE_SUBMIT = ["REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET"];
 const TERMINAL = ["CANCELLED", "CLOSED"];
 
@@ -148,7 +157,14 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   const approvedRoute = l.req.approvalInstances.find((i) => i.status === "APPROVED") ?? null;
   const inExercises = addSen(...exercises.filter((x) => x.status !== "CANCELLED").map((x) => parseSen(x.estimatedValue.toString())));
   const remaining = approvedRoute ? parseSen(approvedRoute.value.toString()) - inExercises : null;
-  const exerciseFault = openFault({ status: l.req.status, sourcingPermitted: l.req.sourcingPermitted, approvedRoute: !!approvedRoute, remaining }, { today: l.org.today, methodsConfigured: methodCount > 0 });
+  const gateView = (await gatesForRequisition(id)) ?? { gates: [], finding: { code: "GATES_NOT_DETERMINED" as const, why: "NOT_CHECKED" as const } };
+  const exerciseFault = openFault({ status: l.req.status, sourcingPermitted: l.req.sourcingPermitted, approvedRoute: !!approvedRoute, remaining }, { today: l.org.today, methodsConfigured: methodCount > 0, gate: gateView.finding });
+  // Sittings still open for tabling a gate matter: the earliest that has not passed.
+  const sittings = await db.meeting.findMany({
+    where: { committee: { organisationId: l.org.id }, status: { in: ["SCHEDULED", "IN_PROGRESS"] }, ...(today ? { meetingDate: { gte: dayToDate(today) } } : {}) },
+    orderBy: [{ meetingDate: "asc" }, { id: "asc" }],
+    select: { id: true, committee: { select: { code: true } } },
+  });
 
   // Names for codes: units by their latest name, business codes with their names.
   const unitName = (code: string | null) => {
@@ -524,6 +540,19 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
             panel: (
               <ApprovalPanel
                 l={l}
+                gates={
+                  <GatesCard
+                    l={l}
+                    view={gateView}
+                    exerciseBlock={exerciseFault && exerciseFault.code.startsWith("GATE") ? findingText(exerciseFault) : null}
+                    tableHref={(committeeCode, subject, act) => {
+                      const sitting = sittings.find((x) => x.committee.code === committeeCode);
+                      return sitting
+                        ? `/committees/${sitting.id}?${new URLSearchParams({ tab: "agenda", table: "1", subject, domain: GATE_DOMAIN, act, matterKind: "REQUISITION", matterRef: r.reference, amount: r.estimatedValue.toString() }).toString()}`
+                        : null;
+                    }}
+                  />
+                }
                 preview={preview}
                 previewMatrixRoles={previewRoles}
                 decide={(step) => {
@@ -1046,6 +1075,7 @@ type Step = LoadedRequisition["req"]["approvalInstances"][number]["steps"][numbe
 
 function ApprovalPanel({
   l,
+  gates,
   preview,
   previewMatrixRoles,
   decide,
@@ -1054,6 +1084,8 @@ function ApprovalPanel({
   today,
 }: {
   l: LoadedRequisition;
+  /// The committee gates card (FR-REQ-012), shown once the requisition is approved.
+  gates: React.ReactNode;
   preview: ReturnType<typeof resolveRequisitionRoute> | null;
   previewMatrixRoles: Record<string, { nameEn: string }>;
   decide: (s: Step) => string | null;
@@ -1249,6 +1281,8 @@ function ApprovalPanel({
         </ol>
       </Card>
 
+      {inst.status === "APPROVED" && gates}
+
       {inst.status === "APPROVED" && inst.checkedAgainstMatrix && (
         <Callout tone={r.commitmentMovementId ? "ok" : "info"} title={r.commitmentMovementId ? "Budget committed on approval" : "No commitment written"}>
           {r.commitmentMovementId
@@ -1292,6 +1326,131 @@ function ApprovalPanel({
         </Card>
       )}
     </div>
+  );
+}
+
+/**
+ * The committee gates between approval and the first exercise (FR-REQ-012, ADR 0010).
+ * Each gate's state is read from the sitting's record of the matters cited against it,
+ * and the outcome is named in the committee's own words (ruling CO-2).
+ */
+function GatesCard({
+  l,
+  view,
+  exerciseBlock,
+  tableHref,
+}: {
+  l: LoadedRequisition;
+  view: NonNullable<Awaited<ReturnType<typeof gatesForRequisition>>>;
+  exerciseBlock: string | null;
+  tableHref: (committeeCode: string, subject: string, act: string) => string | null;
+}) {
+  const r = l.req;
+  const live = ["APPROVED", "SOURCING"].includes(r.status);
+  const undetermined = view.finding.code === "GATES_NOT_DETERMINED";
+  const ended = view.gates.some((g) => g.state === "ENDED");
+  const notSetText = undetermined
+    ? findingText({ code: "GATES_NOT_DETERMINED", level: "block", data: { why: view.finding.code === "GATES_NOT_DETERMINED" ? view.finding.why : null } })
+    : null;
+  const actions = (
+    <>
+      {live && undetermined && <CheckGatesDrawer id={r.id} blocker={l.org.today ? null : transitionFaultText({ code: "TIME_ZONE_UNSET" })} />}
+      {r.status === "APPROVED" && ended && <CloseWithoutSourcingDrawer id={r.id} commitment={r.commitmentMovementId ? formatRM(num(r.estimatedValue)) : null} />}
+    </>
+  );
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader
+        icon={<ShieldIcon size={17} />}
+        title="Committee gates"
+        subtitle="Between approval and the first sourcing exercise, outside the approval matrix. Placed here as an assumption, awaiting the customer's confirmation."
+        actions={actions}
+      />
+      {undetermined ? (
+        <CardBody>
+          <Callout
+            tone="warn"
+            title={r.status === "CLOSED" ? "Not determined" : "Not determined: no exercise can be opened"}
+            action={
+              view.finding.code === "GATES_NOT_DETERMINED" && view.finding.why !== "NOT_CHECKED" ? (
+                <ButtonLink href={view.finding.why === "NOT_SET" ? REFERENCE_HREF : CONTROLS_HREF} size="sm">
+                  {view.finding.why === "NOT_SET" ? "Set on the funding route" : "Add a gate rule"}
+                </ButtonLink>
+              ) : undefined
+            }
+          >
+            {notSetText}
+          </Callout>
+        </CardBody>
+      ) : view.gates.length === 0 ? (
+        <EmptyState size="sm" title="No committee gate">
+          {r.gateRequired === false ? "Its funding route has no committee gate." : "No gate rule applies at its approved value."} Determined {formatOrgDay(r.gatesDeterminedOn!, "UTC")}.
+        </EmptyState>
+      ) : (
+        <ul className="divide-y divide-line/70">
+          {view.gates.map((g) => {
+            const gate = r.gates.find((x) => x.id === g.id)!;
+            const cited = gate.decisions;
+            const decisive = g.decisive;
+            const citable = r.committeeDecisions.filter(
+              (d) => d.domain === GATE_DOMAIN && d.meeting.committee.code === gate.committeeCode && !d.requisitionGateId && !d.approvalStep && !d.withdrawnAt,
+            );
+            const open = live && (g.state === "AWAITING" || g.state === "RETURNED" || g.state === "OUTCOME_NOT_RECORDED");
+            const href = open ? tableHref(gate.committeeCode, gate.subjectEn, gate.act) : null;
+            return (
+              <li key={g.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-6">
+                <div className="flex min-w-0 items-start gap-3">
+                  <ActBadge act={gate.act} />
+                  <div className="min-w-0">
+                    <div className="font-semibold break-words text-ink">
+                      {gate.committeeLabel} <span className="font-normal text-ink-3">· {gate.subjectEn}</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-ink-3">
+                      <span>{actLabel(gate.act)}</span>
+                      <span>· rule</span>
+                      <ProvenanceBadge value={gate.ruleProvenance} />
+                    </div>
+                    {cited.length === 0 ? (
+                      <div className="text-[12.5px] text-ink-3">No matter cited yet. Table it at a sitting as a committee gate, then cite the decision.</div>
+                    ) : (
+                      <ul className="mt-1 flex flex-col gap-0.5 text-[12.5px] text-ink-2">
+                        {cited.map((d) => {
+                          const rec = recordOf(d);
+                          return (
+                            <li key={d.id}>
+                              <Link href={`/committees/${d.meetingId}`}>{d.meeting.reference}</Link> · {d.withdrawnAt ? "withdrawn from the agenda" : gateOutcomeLabel(rec, d.meeting.committee.carriedLabelEn)}
+                              {rec ? ` · ${formatDate(rec.decisionDate ?? rec.meetingDate)}` : ""}
+                              {decisive?.id === d.id ? " · decides the gate" : ""}
+                              {rec ? " · minutes recorded as text, signed copy not attached" : ""}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+                  <Badge tone={TONE[GATE_STATE_TONE[g.state]]}>{GATE_STATE_LABEL[g.state]}</Badge>
+                  {open && (
+                    <CiteGateDrawer
+                      id={r.id}
+                      gateId={g.id}
+                      committee={gate.committeeLabel}
+                      decisions={citable.map((d) => ({ value: d.id, label: `${d.meeting.reference} · ${d.subject} · ${OUTCOME_LABEL[d.outcome]}` }))}
+                      blocker={citable.length === 0 ? `No matter before the ${gate.committeeLabel} is tabled against this requisition as a committee gate and not yet cited.` : null}
+                    />
+                  )}
+                  {open && citable.length === 0 && (href ? <ButtonLink href={href} size="sm" variant="secondary">Table at a sitting</ButtonLink> : <ButtonLink href="/committees" size="sm" variant="secondary">Schedule a sitting</ButtonLink>)}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {exerciseBlock && !undetermined && (
+        <div className="border-t border-line px-5 py-3 text-[12.5px] text-ink-2 sm:px-6">{exerciseBlock}</div>
+      )}
+    </Card>
   );
 }
 

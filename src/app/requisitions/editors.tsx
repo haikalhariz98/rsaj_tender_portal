@@ -5,8 +5,11 @@ import {
   cancelRequisition,
   changeFunding,
   checkBudget,
+  checkCommitteeGates,
   citeCommitteeDecision,
+  citeGateDecision,
   closeRequisition,
+  closeWithoutSourcing,
   markEndorsed,
   recallRequisition,
   recordDecision,
@@ -431,6 +434,60 @@ export function ExternalAuthorityDrawer({ id, label, current }: { id: string; la
       reason={current ? { label: "Why is the recorded reference changing?" } : undefined}
       trigger={{ label: current ? `Change ${label.toLowerCase()}` : `Record ${label.toLowerCase()}`, className: buttonClass(current ? "secondary" : "primary", "sm") }}
       size="md"
+    />
+  );
+}
+
+// ------------------------------------------------------------- committee gate
+
+export function CheckGatesDrawer({ id, blocker }: { id: string; blocker: string | null }) {
+  if (blocker) return <Blocked label="Check committee gates" reason={blocker} />;
+  return (
+    <RecordEditor
+      title="Check committee gates"
+      description="Reads the funding route's committee gate setting and the gate rules in force now, and records which gates this approved requisition must pass before sourcing. Unset is not a pass: it is refused, naming the setting."
+      fields={[hidden("id")]}
+      values={{ id }}
+      action={checkCommitteeGates}
+      submitLabel="Check gates"
+      trigger={{ label: "Check committee gates", className: buttonClass("primary", "sm") }}
+      size="sm"
+    />
+  );
+}
+
+export function CiteGateDrawer({ id, gateId, committee, decisions, blocker }: { id: string; gateId: string; committee: string; decisions: Option[]; blocker: string | null }) {
+  if (blocker) return <Blocked label="Cite the decision" reason={blocker} />;
+  return (
+    <RecordEditor
+      title={`Cite the ${committee}'s decision on the gate`}
+      description="A matter tabled against this requisition as a committee gate, before this committee. Where the gate stands is read from the sitting's record of it: carried passes, a loop returns it for revision, a terminal outcome ends it."
+      fields={[
+        hidden("id"),
+        hidden("gateId"),
+        { kind: "select", name: "committeeDecisionId", label: "Matter", required: true, placeholder: "Choose", options: decisions },
+      ]}
+      values={{ id, gateId }}
+      action={citeGateDecision}
+      submitLabel="Cite decision"
+      trigger={{ label: "Cite the decision", className: buttonClass("primary", "sm") }}
+      size="md"
+    />
+  );
+}
+
+export function CloseWithoutSourcingDrawer({ id, commitment }: { id: string; commitment: string | null }) {
+  return (
+    <RecordEditor
+      title="Close without sourcing"
+      description={`A committee gate ended this requisition, so it is not sourced. Closed is final.${commitment ? ` The commitment its approval wrote (${commitment}) is released on the ledger, and stays on it marked released.` : ""}`}
+      fields={[hidden("id")]}
+      values={{ id }}
+      action={closeWithoutSourcing}
+      submitLabel="Close without sourcing"
+      destructive={{ reasonLabel: "Why is it closed?" }}
+      trigger={{ label: "Close without sourcing", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
+      size="sm"
     />
   );
 }

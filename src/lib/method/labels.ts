@@ -257,6 +257,21 @@ export function findingText(f: Finding): string {
       return "The requisition's live exercises already hold all of its approved value. Reduce or cancel one of them to open another.";
     case "SOURCING_NOT_RECORDED":
       return "Whether this requisition's funding route lets the organisation procure was not recorded when it was submitted, so no exercise can be opened.";
+    // exercise.ts — the committee gate (FR-REQ-012, ruling C2)
+    case "GATES_NOT_DETERMINED":
+      return d.why === "NOT_SET"
+        ? "Whether this requisition's funding route needs a committee gate before sourcing is not set, so no exercise can be opened. Set “Needs a committee gate” on the funding route under Configuration, Reference data, then check the committee gates."
+        : d.why === "RULE_MISSING"
+          ? "This requisition's funding route needs a committee gate, and no gate rule is in force for it, so no exercise can be opened. Add the gate rule under Configuration, Requisition controls, then check the committee gates."
+          : "This requisition's committee gates have not been checked, so no exercise can be opened. Check the committee gates on its Approval tab.";
+    case "GATE_AWAITING":
+      return `The ${d.committee ?? "committee"} has not yet passed this requisition at its gate. Table it at a sitting and cite the decision on the requisition's Approval tab.`;
+    case "GATE_RETURNED":
+      return `The ${d.committee ?? "committee"} returned this requisition for revision at its gate. Revise the paper, table it again, and cite the new decision.`;
+    case "GATE_ENDED":
+      return `The ${d.committee ?? "committee"} ended this requisition at its gate, so it is not sourced. Close it without sourcing from its Approval tab.`;
+    case "GATE_OUTCOME_NOT_RECORDED":
+      return `The ${d.committee ?? "committee"} did not carry the matter, and its decision records no outcome saying whether it loops back or ends. Table the matter again.`;
     case "TERMINAL":
       return "A cancelled exercise stays cancelled.";
     case "NOT_ALLOWED":

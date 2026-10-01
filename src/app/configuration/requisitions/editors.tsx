@@ -3,7 +3,9 @@ import { buttonClass } from "@/components/ui/button";
 import { SPLIT_KEY_LABEL, TIER_LABEL } from "@/lib/requisition/labels";
 import { SPLIT_KEYS, type RequisitionPolicy } from "@/lib/requisition/types";
 
-import { saveBudgetCheckSource, saveErpFormat, savePolicy } from "./actions";
+import { ACT_LABEL } from "@/lib/labels";
+
+import { saveBudgetCheckSource, saveErpFormat, saveGateRule, savePolicy } from "./actions";
 
 const TRI = [
   { value: "yes", label: "Yes" },
@@ -150,6 +152,48 @@ export function EditErpFormat({
       action={saveErpFormat}
       reason={{ label: "Why is the format changing?" }}
       trigger={{ label: "Set format", className: buttonClass("secondary", "sm") }}
+      size="md"
+    />
+  );
+}
+
+/// A committee gate rule (FR-REQ-012). Added, or edited with a reason: ending one is
+/// setting "In force to".
+export function GateRuleEditor({
+  rule,
+  routes,
+  committees,
+}: {
+  rule?: { id: string; fundingRouteCode: string; committeeCode: string; subjectEn: string; subjectMs: string | null; act: string; aboveValue: string | null; governingSource: string; provenance: string; effectiveFrom: string; effectiveTo: string | null; sortOrder: number };
+  routes: { value: string; label: string }[];
+  committees: { value: string; label: string }[];
+}) {
+  return (
+    <RecordEditor
+      title={rule ? "Edit committee gate" : "Add committee gate"}
+      description="A committee an approved requisition on this funding route must pass before its first sourcing exercise. Outside the approval matrix. A requisition already approved keeps the gates it was given."
+      fields={[
+        { kind: "hidden", name: "id" },
+        { kind: "select", name: "fundingRouteCode", label: "Funding route", required: true, placeholder: "Choose", options: routes, orphanLabel: "A route no longer configured" },
+        { kind: "select", name: "committeeCode", label: "Committee", required: true, placeholder: "Choose", options: committees, orphanLabel: "A committee no longer configured" },
+        { kind: "text", name: "subjectEn", label: "What is put to it", required: true, placeholder: "e.g. Project proposal and technical working paper" },
+        { kind: "text", name: "subjectMs", label: "What is put to it (Malay)" },
+        { kind: "select", name: "act", label: "The committee's act", required: true, placeholder: "Choose", options: Object.entries(ACT_LABEL).map(([value, label]) => ({ value, label: `${label} (${value})` })) },
+        { kind: "money", name: "aboveValue", label: "Applies to requisitions approved above", hint: "Strictly above. Empty: at any value." },
+        { kind: "text", name: "governingSource", label: "Source document" },
+        { kind: "select", name: "provenance", label: "Where this comes from", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS },
+        { kind: "date", name: "effectiveFrom", label: "In force from", required: true },
+        { kind: "date", name: "effectiveTo", label: "In force to", hint: "Set to end the rule. The day itself is not covered." },
+        { kind: "number", name: "sortOrder", label: "Order", min: 0 },
+      ]}
+      values={
+        rule
+          ? { ...rule, sortOrder: String(rule.sortOrder) }
+          : {}
+      }
+      action={saveGateRule}
+      reason={rule ? { label: "Why is the gate changing?" } : undefined}
+      trigger={rule ? { label: "Edit", className: buttonClass("ghost", "sm") } : { label: "Add committee gate", icon: true, className: buttonClass("secondary", "sm") }}
       size="md"
     />
   );

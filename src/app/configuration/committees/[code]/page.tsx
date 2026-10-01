@@ -237,6 +237,17 @@ export default async function CommitteePage({
                     label: "Secretariat",
                     value: secretariat ?? <GapValue text="Nobody may table a matter." />,
                   },
+                  {
+                    label: "A carried decision is called",
+                    value: committee.carriedLabelEn ? (
+                      <span>
+                        {committee.carriedLabelEn}
+                        {committee.carriedLabelMs ? ` · ${committee.carriedLabelMs}` : ""}
+                      </span>
+                    ) : (
+                      <span className="text-ink-3">Not set — it reads “Carried”</span>
+                    ),
+                  },
                 ]}
               />
               {committee.notes && (

@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import { openFault, transitionFault } from "./exercise";
 
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
-const ok = { today: "2026-09-30", methodsConfigured: true };
+// Close-out ruling C2: the gate is a required input. These fixtures predate the gate and
+// describe a requisition with no gate to pass — the minimal faithful update (flagged).
+const ok = { today: "2026-09-30", methodsConfigured: true, gate: { code: "CLEAR" } as const };
 
 describe("opening an exercise (spec §7.3.2, ruling R-6)", () => {
   it("only against an approved requisition whose route lets the organisation procure", () => {
@@ -24,6 +26,26 @@ describe("a requisition fully in exercises (UX 7)", () => {
     expect(openFault({ status: "SOURCING", sourcingPermitted: true, approvedRoute: true, remaining: 0n }, ok)?.code).toBe("FULLY_IN_EXERCISES");
     expect(openFault({ status: "SOURCING", sourcingPermitted: true, approvedRoute: true, remaining: 1n }, ok)).toBeNull();
     expect(openFault({ status: "APPROVED", sourcingPermitted: true, approvedRoute: true, remaining: null }, ok)).toBeNull();
+  });
+});
+
+describe("the committee gate before the first exercise (FR-REQ-012, rulings CO-1, C2)", () => {
+  const approved = { status: "APPROVED", sourcingPermitted: true, approvedRoute: true };
+  it("never opens on an undetermined gate, whatever the reason", () => {
+    for (const why of ["NOT_SET", "RULE_MISSING", "NOT_CHECKED"] as const) {
+      expect(openFault(approved, { ...ok, gate: { code: "GATES_NOT_DETERMINED", why } })).toMatchObject({ code: "GATES_NOT_DETERMINED", data: { why } });
+    }
+  });
+  it("reads a caller that did not look as undetermined, never as a pass", () => {
+    expect(openFault(approved, { today: "2026-09-30", methodsConfigured: true } as never)?.code).toBe("GATES_NOT_DETERMINED");
+  });
+  it("refuses while a gate is awaited, returned, ended or unreadable", () => {
+    for (const code of ["GATE_AWAITING", "GATE_RETURNED", "GATE_ENDED", "GATE_OUTCOME_NOT_RECORDED"] as const) {
+      expect(openFault(approved, { ...ok, gate: { code, committee: "Technical Committee" } })).toMatchObject({ code, data: { committee: "Technical Committee" } });
+    }
+  });
+  it("still says first that the funding route does not let the organisation procure (F4/F5)", () => {
+    expect(openFault({ ...approved, sourcingPermitted: false }, { ...ok, gate: { code: "GATES_NOT_DETERMINED", why: "NOT_SET" } })?.code).toBe("SOURCING_NOT_PERMITTED");
   });
 });
 

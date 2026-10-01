@@ -114,5 +114,9 @@
   "vehicle_rm": {
     "en": "Vehicle Repair & Maintenance",
     "ms": "Baik Pulih & Penyelenggaraan Kenderaan"
+  },
+  "committee_gate": {
+    "en": "Committee gate",
+    "ms": "Get jawatankuasa"
   }
 }

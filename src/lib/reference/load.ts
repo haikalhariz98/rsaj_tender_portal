@@ -52,6 +52,8 @@ export async function loadReferenceData(organisationCode: string): Promise<Refer
       externalAuthorityRefLabel: r.externalAuthorityRefLabel,
       approvalCommitsBudget: r.approvalCommitsBudget,
       approvalCommitsBudgetProvenance: r.approvalCommitsBudgetProvenance as Provenance | null,
+      committeeGateRequired: r.committeeGateRequired,
+      committeeGateProvenance: r.committeeGateProvenance as Provenance | null,
       trigger: r.trigger,
       governingSource: r.governingSource,
       provenance: r.provenance as Provenance,

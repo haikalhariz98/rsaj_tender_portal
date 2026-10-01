@@ -182,6 +182,9 @@ export default async function ReferenceDataPage() {
                           ? "Approval commits the budget"
                           : "Approval commits no budget"}
                     </div>
+                    <div className="mt-1 truncate text-[12px] text-ink-3">
+                      {r.committeeGateRequired == null ? "Committee gate not set" : r.committeeGateRequired ? "Committee gate before sourcing" : "No committee gate"}
+                    </div>
                     {r.requiresExternalAuthorityRef && (
                       <div className="mt-1 truncate text-[12px] text-ink-3" title={`Waits for ${r.externalAuthorityRefLabel ?? "an external authority"}`}>
                         Waits for {r.externalAuthorityRefLabel ?? "an external authority"}

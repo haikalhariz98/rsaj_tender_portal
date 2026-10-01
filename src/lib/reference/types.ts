@@ -24,6 +24,10 @@ export interface FundingRoute {
   /// Whether approving a matter on this route commits the organisation's budget. Null: not set.
   approvalCommitsBudget?: boolean | null;
   approvalCommitsBudgetProvenance?: Provenance | null;
+  /// Whether approved requisitions on this route pass a committee gate before sourcing
+  /// (FR-REQ-012). Null: not set, which blocks opening an exercise.
+  committeeGateRequired?: boolean | null;
+  committeeGateProvenance?: Provenance | null;
   trigger: string;
   governingSource: string;
   provenance: Provenance;

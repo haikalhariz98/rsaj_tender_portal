@@ -41,6 +41,7 @@ import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { deciderFaults, holdersFor } from "@/lib/requisition/holders";
 import { deciderFaultText, transitionFaultText } from "@/lib/requisition/labels";
 import { MoveRefused, moveRequisition } from "@/lib/requisition/move";
+import { gatesForRequisition } from "@/lib/requisition/repo";
 import { FormReader } from "@/lib/validate";
 
 /**
@@ -268,9 +269,11 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
   try {
     const result = await withLockedRequisitionForSourcing(requisitionId, null, async (tx, l): Promise<FormState> => {
       const { issue, cfg, ctx } = await evaluationContext(l.org, l.req, null, tx);
+      // The committee gate (FR-REQ-012), read under the requisition's lock: never a pass by default (C2).
+      const gate = (await gatesForRequisition(l.req.id, tx))?.finding ?? { code: "GATES_NOT_DETERMINED" as const, why: "NOT_CHECKED" as const };
       const fault = openFault(
         { status: l.req.status, sourcingPermitted: l.req.sourcingPermitted, approvedRoute: !!ctx?.approved, remaining: ctx ? remainingOf(ctx.approved, ctx.siblings) : null },
-        { today: l.org.today, methodsConfigured: cfg.config.methods.length > 0 },
+        { today: l.org.today, methodsConfigured: cfg.config.methods.length > 0, gate },
       );
       if (fault) return refuse([fault], "No exercise was opened:");
       if (!issue || !ctx) return NO_ISSUE;
@@ -639,6 +642,12 @@ export async function moveToPreparation(_prev: FormState, data: FormData): Promi
         blockingFaults: 0,
       });
       if (t.length > 0 || blocking.length > 0) return refuse([...t, ...blocking], "Not moved into preparation:");
+      // The committee gate still stands between approval and sourcing (FR-REQ-012, C2).
+      const gate = (await gatesForRequisition(l.req.id, tx))?.finding ?? { code: "GATES_NOT_DETERMINED" as const, why: "NOT_CHECKED" as const };
+      if (gate.code !== "CLEAR") {
+        const g = openFault({ status: "APPROVED", sourcingPermitted: true, approvedRoute: true }, { today: l.org.today, methodsConfigured: true, gate });
+        if (g) return refuse([g], "Not moved into preparation:");
+      }
       const on = dayToDate(l.org.today!);
       const committeeName = (code: string) => issue.matrix.roles[code]?.nameEn ?? "A committee no longer configured";
       // What the configuration now judges differently is not rewritten unseen: refused,

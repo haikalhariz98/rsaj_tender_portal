@@ -56,6 +56,13 @@ function readFundingRoute(data: FormData, taken: string[], storedCode: string | 
       return c == null ? null : c === "yes";
     })(),
     approvalCommitsBudgetProvenance: r.choice("approvalCommitsBudgetProvenance", "Where that comes from", PROVENANCE),
+    // FR-REQ-012: whether approved requisitions on the route pass a committee gate
+    // before sourcing. Unset is its own answer, and blocks opening an exercise.
+    committeeGateRequired: (() => {
+      const c = r.choice("committeeGateRequired", "Needs a committee gate", ["yes", "no"] as const);
+      return c == null ? null : c === "yes";
+    })(),
+    committeeGateProvenance: r.choice("committeeGateProvenance", "Where that comes from", PROVENANCE),
     trigger: r.text("trigger", "Triggered by", { max: 240 }),
     governingSource: r.text("governingSource", "Source", { max: 240 }),
     provenance: r.choice("provenance", "Provenance", PROVENANCE, { required: true }),
@@ -65,6 +72,9 @@ function readFundingRoute(data: FormData, taken: string[], storedCode: string | 
   // A decided setting says where it came from, as every policy value does.
   if (value.approvalCommitsBudget != null && !value.approvalCommitsBudgetProvenance) {
     r.reject("approvalCommitsBudgetProvenance", "Say where this comes from.");
+  }
+  if (value.committeeGateRequired != null && !value.committeeGateProvenance) {
+    r.reject("committeeGateProvenance", "Say where this comes from.");
   }
   // A matter held for an external authority must be told what it is waiting for.
   if (value.requiresExternalAuthorityRef && !value.externalAuthorityRefLabel) {

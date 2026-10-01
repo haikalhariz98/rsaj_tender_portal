@@ -6,6 +6,8 @@ import type { FormState } from "@/components/record-editor";
 import { diffFields } from "@/lib/audit/diff";
 import { writeAudit } from "@/lib/audit/record";
 import { db } from "@/lib/db";
+import { parseSen, senToDecimalString } from "@/lib/money";
+import { gateRuleFaults, type GateRuleFault } from "@/lib/requisition/gate";
 import { requisitionOrg } from "@/lib/requisition/repo";
 import { SPLIT_KEYS, type SplitKey } from "@/lib/requisition/types";
 import { FormReader } from "@/lib/validate";
@@ -150,5 +152,69 @@ export async function saveErpFormat(_prev: FormState, data: FormData): Promise<F
   revalidatePath(PATH);
   revalidatePath("/requisitions");
   revalidatePath("/configuration/awards");
+  return { ok: true };
+}
+
+// ------------------------------------------------------------- committee gate rules
+
+const ACTS = ["P", "JP", "R", "JR", "MR", "MJR", "A", "MA"] as const;
+
+const GATE_RULE_TEXT: Record<GateRuleFault, { field: string; message: string }> = {
+  ROUTE_UNKNOWN: { field: "fundingRouteCode", message: "Choose a funding route on file." },
+  COMMITTEE_UNKNOWN: { field: "committeeCode", message: "Choose a committee on file." },
+  ENDS_BEFORE_IT_STARTS: { field: "effectiveTo", message: "It must end after it starts." },
+  OVERLAPS: { field: "effectiveFrom", message: "This committee already answers this route's gate over part of that period. End the other rule first, or start this one after it." },
+};
+
+/**
+ * A committee gate rule (FR-REQ-012, ADR 0010): which committee passes an approved
+ * requisition on a funding route before its first exercise, above what value. The
+ * customer's policy; none ships. A requisition's gates are a snapshot of the rules as
+ * they read when it was approved, so an edit here changes nothing already determined.
+ */
+export async function saveGateRule(_prev: FormState, data: FormData): Promise<FormState> {
+  const org = await requisitionOrg();
+  if (!org) return NO_ORG;
+  const id = String(data.get("id") ?? "");
+  const r = new FormReader(data);
+  const v = {
+    fundingRouteCode: r.text("fundingRouteCode", "Funding route", { required: true }),
+    committeeCode: r.text("committeeCode", "Committee", { required: true }),
+    subjectEn: r.text("subjectEn", "What is put to it", { required: true, max: 240 }),
+    subjectMs: r.optionalText("subjectMs"),
+    act: r.choice("act", "The committee's act", ACTS, { required: true }),
+    aboveValue: r.money("aboveValue", "Applies above"),
+    governingSource: r.text("governingSource", "Source", { max: 240 }),
+    provenance: r.choice("provenance", "Provenance", PROVENANCE, { required: true }),
+    effectiveFrom: r.date("effectiveFrom", "In force from", { required: true }),
+    effectiveTo: r.date("effectiveTo", "In force to"),
+    sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
+  };
+  const reason = r.text("reason", "Reason", { max: 2000 });
+  if (r.failed || !v.effectiveFrom || !v.act || !v.provenance) return { ok: false, errors: r.errors };
+  const [routes, committees, others] = await Promise.all([
+    db.fundingRoute.findMany({ where: { organisationId: org.id, retiredOn: null }, select: { code: true } }),
+    db.committee.findMany({ where: { organisationId: org.id, retiredOn: null }, select: { code: true } }),
+    db.committeeGateRule.findMany({ where: { organisationId: org.id } }),
+  ]);
+  const faults = gateRuleFaults({ id: id || "new", ...v, effectiveFrom: v.effectiveFrom, effectiveTo: v.effectiveTo }, others, {
+    routes: routes.map((x) => x.code),
+    committees: committees.map((x) => x.code),
+  });
+  if (faults.length > 0) return { ok: false, errors: Object.fromEntries(faults.map((f) => [GATE_RULE_TEXT[f].field, GATE_RULE_TEXT[f].message])) };
+  const write = { ...v, act: v.act, provenance: v.provenance, effectiveFrom: v.effectiveFrom, aboveValue: v.aboveValue ? senToDecimalString(parseSen(v.aboveValue)) : null };
+  await db.$transaction(async (tx) => {
+    if (!id) {
+      const row = await tx.committeeGateRule.create({ data: { organisationId: org.id, ...write } });
+      await writeAudit(tx, { organisationId: org.id, entity: "CommitteeGateRule", entityId: row.id, entityLabel: `Committee gate: ${v.subjectEn}`, reason }, "CREATE", diffFields(null, write));
+      return;
+    }
+    const before = await tx.committeeGateRule.findFirst({ where: { id, organisationId: org.id } });
+    if (!before) return;
+    await tx.committeeGateRule.update({ where: { id }, data: write });
+    const changes = diffFields({ ...before, aboveValue: before.aboveValue?.toString() ?? null }, write);
+    if (changes.length > 0) await writeAudit(tx, { organisationId: org.id, entity: "CommitteeGateRule", entityId: id, entityLabel: `Committee gate: ${v.subjectEn}`, reason }, "UPDATE", changes);
+  });
+  revalidatePath(PATH);
   return { ok: true };
 }

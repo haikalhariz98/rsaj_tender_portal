@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { approvalRouteLabel, RETURNED_AT_APPROVAL_LABEL, returnedAtApproval, trailRouteStatusLabel, undecidedStepText } from "./labels";
+import { approvalRouteLabel, GATE_CITATION_TEXT, GATE_STATE_LABEL, gateOutcomeLabel, RETURNED_AT_APPROVAL_LABEL, returnedAtApproval, trailRouteStatusLabel, transitionFaultText, undecidedStepText } from "./labels";
 
 describe("an approval route's status label (BD-24 display ruling)", () => {
   const returned = [{ code: "SPLIT_NOT_SET", level: "warn" }, { code: "RETURNED_AT_APPROVAL", level: "err" }];
@@ -49,5 +49,25 @@ describe("an undecided step, by its route's state (6.1 acceptance item)", () => 
     for (const status of ["RECALLED", "REJECTED", "APPROVED"]) {
       expect(undecidedStepText({ status, warnings: [] }, false)).not.toMatch(/Awaiting/);
     }
+  });
+});
+
+describe("the committee gate in words (FR-REQ-012, ruling CO-2)", () => {
+  it("names a carried decision by the committee's own word, else Carried, and a not-carried one by its outcome", () => {
+    const carried = { outcome: "CARRIED" as const, notApproved: null };
+    expect(gateOutcomeLabel(carried, "Perlu")).toBe("Perlu");
+    expect(gateOutcomeLabel(carried, null)).toBe("Carried");
+    expect(gateOutcomeLabel(carried, "  ")).toBe("Carried");
+    expect(gateOutcomeLabel({ outcome: "NOT_CARRIED", notApproved: { nameEn: "Tidak lulus" } }, "Perlu")).toBe("Tidak lulus");
+    expect(gateOutcomeLabel({ outcome: "NOT_CARRIED", notApproved: null }, null)).toBe("Not carried · no outcome recorded");
+    expect(gateOutcomeLabel(null, "Perlu")).toBe("Not yet decided");
+  });
+  it("labels every gate state and citation fault without a code", () => {
+    for (const t of [...Object.values(GATE_STATE_LABEL), ...Object.values(GATE_CITATION_TEXT)]) expect(t).not.toMatch(/\b[A-Z]{2,}_[A-Z_]+\b/);
+    expect(Object.keys(GATE_STATE_LABEL)).toHaveLength(5);
+  });
+  it("words the close-out transition faults", () => {
+    expect(transitionFaultText({ code: "SUCCESSOR_REQUIRED" })).toMatch(/Reopen it as a draft/);
+    expect(transitionFaultText({ code: "GATE_NOT_ENDED" })).toMatch(/committee gate/);
   });
 });
