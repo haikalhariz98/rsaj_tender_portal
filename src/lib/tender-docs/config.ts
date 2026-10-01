@@ -5,7 +5,7 @@
  * reads "No parts configured", and a setting not set says what it holds back.
  */
 
-import { isPct } from "./percent";
+import { isPct, PCT_COLUMN, pctRefusal, type PctField } from "./percent";
 import type { ConfiguredPart, Finding } from "./types";
 
 export type PartConfigFault =
@@ -70,7 +70,8 @@ export type PolicyFault = "PCT_NOT_VALID" | "AMOUNT_NOT_VALID" | "PERIOD_NOT_VAL
 /**
  * The policy as saved. A value given needs where it comes from; a pair (floor and
  * percentage; months and days) is set whole or not at all, so a half-set rule never reads
- * as set. Percentages to six places; periods whole and not negative.
+ * as set. Each percentage within its column's places and below its bound; periods whole
+ * and not negative.
  */
 export function policyFaults(p: {
   ladDailyPct: string | null;
@@ -88,11 +89,11 @@ export function policyFaults(p: {
   const out: Finding<PolicyFault>[] = [];
   const f = (code: PolicyFault, field: string) => out.push({ code, level: "block", data: { field } });
   if (p.ladDailyPct != null) {
-    if (!isPct(p.ladDailyPct)) f("PCT_NOT_VALID", "ladDailyPct");
+    if (!isPct(p.ladDailyPct, PCT_COLUMN.ladDailyPct)) f("PCT_NOT_VALID", "ladDailyPct");
     if (!p.ladDailyPctProvenance) f("PROVENANCE_REQUIRED", "ladDailyPctProvenance");
   }
   if ((p.firstCertificateFloor == null) !== (p.firstCertificatePct == null)) f("PAIR_INCOMPLETE", p.firstCertificateFloor == null ? "firstCertificateFloor" : "firstCertificatePct");
-  if (p.firstCertificatePct != null && !isPct(p.firstCertificatePct)) f("PCT_NOT_VALID", "firstCertificatePct");
+  if (p.firstCertificatePct != null && !isPct(p.firstCertificatePct, PCT_COLUMN.firstCertificatePct)) f("PCT_NOT_VALID", "firstCertificatePct");
   if ((p.firstCertificateFloor != null || p.firstCertificatePct != null) && !p.firstCertificateProvenance) f("PROVENANCE_REQUIRED", "firstCertificateProvenance");
   for (const [m, d, prov, key] of [
     [p.insuranceExtraMonths, p.insuranceExtraDays, p.insuranceExtraProvenance, "insuranceExtra"],
@@ -106,12 +107,26 @@ export function policyFaults(p: {
 }
 
 export const POLICY_FAULT_TEXT: Readonly<Record<PolicyFault, string>> = {
-  PCT_NOT_VALID: "Give a percentage, up to six decimal places.",
+  /// Worded per field by `policyFaultText`, from the field's column.
+  PCT_NOT_VALID: "Give a percentage.",
   AMOUNT_NOT_VALID: "Give an amount in ringgit and sen.",
   PERIOD_NOT_VALID: "Give whole months and days, not negative.",
   PROVENANCE_REQUIRED: "Say where this value comes from.",
   PAIR_INCOMPLETE: "Set both halves of this rule, or neither.",
 };
+
+/// The policy's percentage fields, as the form labels them.
+const POLICY_PCT_LABEL: Readonly<Record<Extract<PctField, "ladDailyPct" | "firstCertificatePct">, string>> = {
+  ladDailyPct: "The liquidated damages rate",
+  firstCertificatePct: "The first certificate's percentage",
+};
+
+/// A policy finding's text. A percentage names its bound and places, from its column.
+export function policyFaultText(f: Finding<PolicyFault>): string {
+  const field = String(f.data?.field ?? "");
+  if (f.code === "PCT_NOT_VALID" && (field === "ladDailyPct" || field === "firstCertificatePct")) return pctRefusal(POLICY_PCT_LABEL[field], PCT_COLUMN[field]);
+  return POLICY_FAULT_TEXT[f.code];
+}
 
 /// A method's document pack, as saved: the kind and where that answer comes from, or not set.
 export function methodPackFault(kind: string | null, provenance: string | null): Finding<"PROVENANCE_REQUIRED"> | null {

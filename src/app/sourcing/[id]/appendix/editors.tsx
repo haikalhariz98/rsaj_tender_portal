@@ -1,6 +1,7 @@
 import { Blocked } from "@/app/requisitions/editors";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { PCT_COLUMN, pctHint } from "@/lib/tender-docs/percent";
 
 import { removeAppendixSection, removeVariationLimit, saveAppendix, saveAppendixSection, saveVariationLimit } from "../documents/actions";
 
@@ -35,13 +36,13 @@ function fieldsOf(offices: Option[], officerLabels: Record<string, string>): Rec
       { kind: "money", name: "wcMinimum", label: "Minimum workmen's compensation insurance" },
       { kind: "select", name: "worksInsuranceUpliftKind", label: "Works insurance uplift is stated as", placeholder: "Not set", options: [{ value: "AMOUNT", label: "An amount" }, { value: "PERCENT", label: "A percentage of the contract sum" }] },
       { kind: "money", name: "worksInsuranceUpliftAmount", label: "Uplift amount" },
-      { kind: "text", name: "worksInsuranceUpliftPct", label: "Uplift percentage", hint: "Up to six decimal places." },
+      { kind: "text", name: "worksInsuranceUpliftPct", label: "Uplift percentage", hint: pctHint(PCT_COLUMN.worksInsuranceUpliftPct) },
       { kind: "money", name: "insuranceExcess", label: "Permitted insurance excess" },
     ],
     lad: [
       { kind: "select", name: "ladKind", label: "Liquidated damages are stated as", placeholder: "Not set", options: LAD_KINDS },
       { kind: "money", name: "ladAmount", label: "Amount a day" },
-      { kind: "text", name: "ladPct", label: "Percentage of the contract sum a day", hint: "Up to six decimal places. It is applied at award, to the awarded sum." },
+      { kind: "text", name: "ladPct", label: "Percentage of the contract sum a day", hint: `${pctHint(PCT_COLUMN.ladPct)} It is applied at award, to the awarded sum.` },
     ],
     sectional: [{ kind: "select", name: "sectionalCompletion", label: "Sectional completion", placeholder: "Not set", options: [{ value: "yes", label: "Applies" }, { value: "no", label: "Does not apply" }] }],
     dlp: [
@@ -152,7 +153,7 @@ export function SectionDrawer({ exerciseId, section, allowed }: { exerciseId: st
         { kind: "text", name: "description", label: "Section", required: true },
         { kind: "select", name: "ladKind", label: "Its liquidated damages are stated as", placeholder: "Not set", options: LAD_KINDS },
         { kind: "money", name: "ladAmount", label: "Amount a day" },
-        { kind: "text", name: "ladPct", label: "Percentage of the section's sum a day", hint: "Up to six decimal places." },
+        { kind: "text", name: "ladPct", label: "Percentage of the section's sum a day", hint: pctHint(PCT_COLUMN.sectionLadPct) },
         { kind: "number", name: "sortOrder", label: "Order", min: 0 },
       ]}
       values={{ exerciseId, id: section?.id ?? "", ...(section?.raw ?? {}) }}

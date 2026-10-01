@@ -38,7 +38,7 @@ import { appendixText, freezePack } from "@/lib/tender-docs/freeze";
 import { appendixFaultText, datesFaultText, PACK_KIND_LABEL, partFaultText, startFaultText, submitFindingTexts } from "@/lib/tender-docs/labels";
 import { lockPackRows } from "@/lib/tender-docs/owner";
 import { allOf, blockingOf, markReadyFaults, nextPack, omitFaults, packEditFault, pickTemplateFaults, startPackFaults, submitFaults } from "@/lib/tender-docs/pack";
-import { isPct } from "@/lib/tender-docs/percent";
+import { isPct, PCT_COLUMN, pctRefusal, type PctField } from "@/lib/tender-docs/percent";
 import { appendixFactsOf, loadConfiguredParts, loadPacks, loadTemplates, partFactsOf, pinnedFilesOf, profileOf, scopeReadiness, templateFactsOf, type PackRow } from "@/lib/tender-docs/repo";
 import { approvalDatesFault, estimateLeadWarning, RETURN_DECIDED_BY, returnOutcome, TENDERING_DOMAIN, tenderingRejectionSnapshot, tenderingRouteForRequester } from "@/lib/tender-docs/tendering";
 import type { Finding } from "@/lib/tender-docs/types";
@@ -339,9 +339,10 @@ export async function saveAppendix(_prev: FormState, data: FormData): Promise<Fo
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const office = (name: string) => r.optionalText(name);
-  const pctField = (name: string, labelText: string) => {
+  // Each percentage to its own column's places and bound: never rounded or overflowed on save.
+  const pctField = (name: PctField, labelText: string) => {
     const v = r.optionalText(name);
-    if (v != null && !isPct(v)) r.reject(name, `${labelText} must be a percentage, up to six decimal places.`);
+    if (v != null && !isPct(v, PCT_COLUMN[name])) r.reject(name, pctRefusal(labelText, PCT_COLUMN[name]));
     return v;
   };
   const v = {
@@ -443,7 +444,7 @@ export async function saveAppendixSection(_prev: FormState, data: FormData): Pro
   const ladKind = r.choice("ladKind", "How its liquidated damages are stated", ["AMOUNT_PER_DAY", "PERCENT_OF_SUM_PER_DAY"] as const);
   const ladAmount = r.money("ladAmount", "Liquidated damages a day");
   const ladPct = r.optionalText("ladPct");
-  if (ladPct != null && !isPct(ladPct)) r.reject("ladPct", "Liquidated damages must be a percentage, up to six decimal places.");
+  if (ladPct != null && !isPct(ladPct, PCT_COLUMN.sectionLadPct)) r.reject("ladPct", pctRefusal("Liquidated damages", PCT_COLUMN.sectionLadPct));
   const sortOrder = r.int("sortOrder", "Order", { min: 0 }) ?? 0;
   if (r.failed) return { ok: false, errors: r.errors };
   return inPacks(exerciseId, async (tx, l, packs) => {

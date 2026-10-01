@@ -1,5 +1,6 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { PCT_COLUMN, pctHint } from "@/lib/tender-docs/percent";
 
 import { restoreTenderPart, retireTenderPart, saveMethodDocumentPack, saveTenderPart, saveTenderPolicy } from "./actions";
 
@@ -138,10 +139,10 @@ export function EditTenderPolicy({ values }: { values: Record<string, string> })
         { kind: "textarea", name: "restrictionStampTextMs", label: "Wording stamped on a restricted tender (Malay)" },
         { kind: "select", name: "assuranceRequired", label: "Assurance confirmations required", placeholder: "Not set", options: [{ value: "yes", label: "Yes" }, { value: "no", label: "No, recorded as a decision" }] },
         { kind: "note", text: "Not set holds the confirmations back: no answer is assumed." },
-        { kind: "text", name: "ladDailyPct", label: "Liquidated damages a day, as a percentage of the contract sum", hint: "Up to six decimal places." },
+        { kind: "text", name: "ladDailyPct", label: "Liquidated damages a day, as a percentage of the contract sum", hint: pctHint(PCT_COLUMN.ladDailyPct) },
         provenance("ladDailyPctProvenance"),
         { kind: "money", name: "firstCertificateFloor", label: "First interim certificate: the amount that caps its minimum" },
-        { kind: "text", name: "firstCertificatePct", label: "First interim certificate: percentage of the builders' works value" },
+        { kind: "text", name: "firstCertificatePct", label: "First interim certificate: percentage of the builders' works value", hint: pctHint(PCT_COLUMN.firstCertificatePct) },
         provenance("firstCertificateProvenance"),
         { kind: "note", text: "Set both the amount and the percentage, or neither. The minimum is the lesser of the two, worked out at award." },
         { kind: "number", name: "insuranceExtraMonths", label: "Insurance beyond the defects liability period: months", min: 0 },

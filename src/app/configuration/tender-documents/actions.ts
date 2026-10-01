@@ -10,7 +10,7 @@ import { storedDay, todayIn } from "@/lib/dates";
 import { formatSen, parseSen } from "@/lib/money";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { ENTITY } from "@/lib/tender-docs/audit-view";
-import { methodPackFault, PART_CONFIG_FAULT_TEXT, partConfigFaults, POLICY_FAULT_TEXT, policyFaults } from "@/lib/tender-docs/config";
+import { methodPackFault, PART_CONFIG_FAULT_TEXT, partConfigFaults, POLICY_FAULT_TEXT, policyFaults, policyFaultText } from "@/lib/tender-docs/config";
 import { NOT_SET, PACK_KIND_LABEL, PART_CONTENT_LABEL, PART_ROLE_LABEL, PART_SOURCE_LABEL, yesNoNotSet } from "@/lib/tender-docs/labels";
 import { formatPct } from "@/lib/tender-docs/percent";
 import { PACK_KINDS, PART_CONTENTS, PART_ROLES, PART_SOURCES, type ConfiguredPart, type Provenance } from "@/lib/tender-docs/types";
@@ -221,7 +221,7 @@ export async function saveTenderPolicy(_prev: FormState, data: FormData): Promis
   };
   if (r.failed) return { ok: false, errors: r.errors };
   const faults = policyFaults(v);
-  if (faults.length) return { ok: false, errors: Object.fromEntries(faults.map((f) => [String(f.data?.field), POLICY_FAULT_TEXT[f.code]])) };
+  if (faults.length) return { ok: false, errors: Object.fromEntries(faults.map((f) => [String(f.data?.field), policyFaultText(f)])) };
   // A provenance only with its value: an answer removed takes its provenance with it.
   const value = {
     ...v,

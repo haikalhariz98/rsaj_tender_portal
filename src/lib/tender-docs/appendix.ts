@@ -16,7 +16,7 @@
 import type { Sen } from "@/lib/money";
 import { addPeriod, type Day } from "@/lib/securities/period";
 
-import { isPct, parsePct, pctOf } from "./percent";
+import { isPct, parsePct, PCT_COLUMN, pctOf, type PctColumn } from "./percent";
 import type { AppendixStatus, Finding, LadKind, UpliftKind } from "./types";
 
 export interface AppendixSectionFacts {
@@ -133,12 +133,13 @@ export type AppendixFault =
 const notSet = (field: AppendixField): Finding<AppendixFault> => ({ code: "FIELD_NOT_SET", level: "block", data: { field: APPENDIX_FIELD_LABEL[field] } });
 const notValid = (field: AppendixField): Finding<AppendixFault> => ({ code: "FIELD_NOT_VALID", level: "block", data: { field: APPENDIX_FIELD_LABEL[field] } });
 
-/// LAD, or a section's: the kind, and the value of that kind. Unset either way blocks.
-function ladFaults(kind: LadKind | null, amount: Sen | null, pct: string | null): "KIND" | "VALUE" | "PCT_INVALID" | null {
+/// LAD, or a section's: the kind, and the value of that kind. Unset either way blocks; a
+/// percentage must fit the column it is kept in.
+function ladFaults(kind: LadKind | null, amount: Sen | null, pct: string | null, column: PctColumn): "KIND" | "VALUE" | "PCT_INVALID" | null {
   if (kind == null) return "KIND";
   if (kind === "AMOUNT_PER_DAY") return amount == null ? "VALUE" : null;
   if (pct == null) return "VALUE";
-  return isPct(pct) ? null : "PCT_INVALID";
+  return isPct(pct, column) ? null : "PCT_INVALID";
 }
 
 /**
@@ -160,17 +161,17 @@ export function appendixFaults(a: AppendixFacts): Finding<AppendixFault>[] {
   else if (a.worksInsuranceUpliftKind === "AMOUNT" && a.worksInsuranceUpliftAmount == null) out.push(notSet("worksInsuranceUpliftAmount"));
   else if (a.worksInsuranceUpliftKind === "PERCENT") {
     if (a.worksInsuranceUpliftPct == null) out.push(notSet("worksInsuranceUpliftPct"));
-    else if (!isPct(a.worksInsuranceUpliftPct)) out.push(notValid("worksInsuranceUpliftPct"));
+    else if (!isPct(a.worksInsuranceUpliftPct, PCT_COLUMN.worksInsuranceUpliftPct)) out.push(notValid("worksInsuranceUpliftPct"));
   }
   if (a.insuranceExcess == null) out.push(notSet("insuranceExcess"));
-  const lad = ladFaults(a.ladKind, a.ladAmount, a.ladPct);
+  const lad = ladFaults(a.ladKind, a.ladAmount, a.ladPct, PCT_COLUMN.ladPct);
   if (lad === "KIND") out.push(notSet("ladKind"));
   else if (lad === "VALUE") out.push(notSet(a.ladKind === "AMOUNT_PER_DAY" ? "ladAmount" : "ladPct"));
   else if (lad === "PCT_INVALID") out.push(notValid("ladPct"));
   if (a.sectionalCompletion == null) out.push(notSet("sectionalCompletion"));
   else if (a.sectionalCompletion && a.sections.length === 0) out.push({ code: "SECTIONS_REQUIRED", level: "block" });
   else if (!a.sectionalCompletion && a.sections.length > 0) out.push({ code: "SECTIONS_NOT_EXPECTED", level: "block" });
-  if (a.sectionalCompletion) for (const s of a.sections) if (ladFaults(s.ladKind, s.ladAmount, s.ladPct)) out.push({ code: "SECTION_LAD_NOT_SET", level: "block", data: { section: s.description || "A section with no description" } });
+  if (a.sectionalCompletion) for (const s of a.sections) if (ladFaults(s.ladKind, s.ladAmount, s.ladPct, PCT_COLUMN.sectionLadPct)) out.push({ code: "SECTION_LAD_NOT_SET", level: "block", data: { section: s.description || "A section with no description" } });
   if (a.dlpApplies == null) out.push(notSet("dlpApplies"));
   else if (a.dlpApplies && a.dlpMonths == null) out.push(notSet("dlpMonths"));
   else if (!a.dlpApplies && a.dlpMonths != null) out.push({ code: "DLP_MONTHS_NOT_EXPECTED", level: "block" });
