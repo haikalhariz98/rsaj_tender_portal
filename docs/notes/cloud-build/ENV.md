@@ -5,6 +5,8 @@ native schema engine is missing. `prisma migrate dev` / `migrate deploy` / `db s
 Postgres 16 runs locally (a fresh container has no `perolehan` role: create it as a login superuser with password `perolehan`, then `createdb -O perolehan perolehan` and `perolehan_shadow`); if it is down (container restart) run `service postgresql start`. DB `perolehan`, user/pass `perolehan`.
 
 - Generate the client:   `PRISMA_SCHEMA_ENGINE_BINARY=/bin/true npx prisma generate`
+  After generating, restart a running `npm run dev`: the client is cached on `globalThis` (`src/lib/db.ts`),
+  so hot reload keeps the old one, which lacks new models, columns and global `omit`s.
 - Seed:                  `PRISMA_SCHEMA_ENGINE_BINARY=/bin/true npx tsx prisma/seed.ts`
 - Demo data:             `PRISMA_SCHEMA_ENGINE_BINARY=/bin/true npm run demo:load` (and `demo:wipe`)
 - Apply migrations:      `STRIP_COMMENTS=1 NODE_PATH=/home/user/repo/node_modules node /tmp/claude-0/sew/pmig.mjs deploy`
