@@ -24,7 +24,7 @@ import { blocking, type ChannelFacts, type EventFacts, type Finding, type Public
 import { advertisementDay, closingFaults } from "./dates";
 import { eventFaults } from "./events";
 import { feeFaults } from "./fee";
-import type { TemplateState } from "./fields";
+import { fieldsInWords, type TemplateState } from "./fields";
 import { invitedListFaults } from "./invitees";
 import type { Sen } from "@/lib/money";
 import type { ExerciseStatus, PackKind } from "@/lib/method/types";
@@ -173,8 +173,8 @@ export function publishFaults(i: PublishInput): PublishResult {
   else if (t.state === "NO_TEXT") f("TEMPLATE_TEXT_NOT_SET", { instrument: path === "INVITED" ? "INVITATION" : "NOTICE" });
   else if (t.state === "NO_LANGUAGE") f("TEMPLATE_LANGUAGE_NOT_SET", { instrument: path === "INVITED" ? "INVITATION" : "NOTICE" });
   else {
-    if (t.unknown.length) f("TEMPLATE_UNKNOWN_FIELD", { fields: t.unknown.join(", ") });
-    if (t.missing.length) f("TEMPLATE_INCOMPLETE", { fields: t.missing.join(", ") });
+    if (t.unknown.length) f("TEMPLATE_UNKNOWN_FIELD", { fields: fieldsInWords(path === "INVITED" ? "INVITATION" : "NOTICE", t.unknown) });
+    if (t.missing.length) f("TEMPLATE_INCOMPLETE", { fields: fieldsInWords(path === "INVITED" ? "INVITATION" : "NOTICE", t.missing) });
   }
   return { findings: out, advertisementDay: adDay };
 }

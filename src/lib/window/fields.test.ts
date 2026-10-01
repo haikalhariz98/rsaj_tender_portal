@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseSen } from "@/lib/money";
 
-import { addendumFieldValues, inviteeFieldValues, issueLanguage, renderInstrument, WINDOW_FIELD_KEYS, windowFieldValues, windowWhitelist, type TemplateFacts, type WindowFieldContext } from "./fields";
+import { addendumFieldValues, fieldsInWords, inviteeFieldValues, issueLanguage, renderInstrument, WINDOW_FIELD_KEYS, windowFieldValues, windowWhitelist, type TemplateFacts, type WindowFieldContext } from "./fields";
 import { klAt } from "./fixture";
 
 /**
@@ -96,5 +96,16 @@ describe("the whitelists", () => {
     expect(windowWhitelist("INVITATION").has("invitee.name")).toBe(true);
     expect(windowWhitelist("ADDENDUM").has("addendum.whatChanged")).toBe(true);
     for (const k of ["window.closing", "invitee.address", "addendum.number", "eligibility.window"]) expect(WINDOW_FIELD_KEYS.has(k)).toBe(true);
+  });
+});
+
+describe("a finding's fields in words", () => {
+  it("a field the instrument fills reads as its label, never its key", () => {
+    expect(fieldsInWords("NOTICE", ["window.inspectionPlace", "window.fee"])).toBe("where the documents are inspected, document fee");
+    expect(fieldsInWords("NOTICE", ["window.fee"])).not.toMatch(/window\./);
+  });
+  it("a name the template wrote that the instrument does not fill is shown as typed, to be found in the template", () => {
+    expect(fieldsInWords("NOTICE", ["invitee.name"])).toBe("{{invitee.name}}");
+    expect(fieldsInWords("INVITATION", ["invitee.name"])).toBe("invitee");
   });
 });

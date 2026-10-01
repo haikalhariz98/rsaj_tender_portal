@@ -11,6 +11,7 @@
  * recipient's copy is recorded as despatched or given. Pure.
  */
 
+import { fieldsInWords } from "./fields";
 import type { WindowPhase } from "./phase";
 import type { Finding } from "./types";
 
@@ -63,8 +64,8 @@ export function issueFaults(i: {
   if (i.template.state === "NOT_SET") out.push({ code: "TEMPLATE_NOT_SET", level: "block", data: { instrument: "ADDENDUM" } });
   else if (i.template.state === "NO_TEXT") out.push({ code: "TEMPLATE_TEXT_NOT_SET", level: "block", data: { instrument: "ADDENDUM" } });
   else {
-    if (i.template.unknown.length) out.push({ code: "TEMPLATE_UNKNOWN_FIELD", level: "block", data: { fields: i.template.unknown.join(", ") } });
-    if (i.template.missing.length) out.push({ code: "TEMPLATE_INCOMPLETE", level: "block", data: { fields: i.template.missing.join(", ") } });
+    if (i.template.unknown.length) out.push({ code: "TEMPLATE_UNKNOWN_FIELD", level: "block", data: { fields: fieldsInWords("ADDENDUM", i.template.unknown) } });
+    if (i.template.missing.length) out.push({ code: "TEMPLATE_INCOMPLETE", level: "block", data: { fields: fieldsInWords("ADDENDUM", i.template.missing) } });
     // FR-DOC-009: a restricted exercise's addendum carries the configured stamp, in its language.
     if (i.template.stampMissing) out.push({ code: "STAMP_NOT_SET", level: "block" });
   }

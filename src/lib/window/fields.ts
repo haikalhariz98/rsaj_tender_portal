@@ -66,6 +66,17 @@ export const windowWhitelist = (instrument: Instrument): MergeWhitelist => {
   return { has: (k) => fs.some((f) => f.key === k), label: (k) => fs.find((f) => f.key === k)?.labelEn ?? "A field" };
 };
 
+/**
+ * A finding's list of merge fields, in words. A field the instrument fills reads as its label
+ * ("Where the documents are inspected"), never its key; a name the template wrote that the
+ * instrument does not know is shown as typed in braces, because that is what the officer must find
+ * and correct in the template.
+ */
+export function fieldsInWords(instrument: Instrument, keys: readonly string[]): string {
+  const known = WINDOW_MERGE_FIELDS[instrument];
+  return keys.map((k) => known.find((f) => f.key === k)?.labelEn.toLowerCase() ?? `{{${k}}}`).join(", ");
+}
+
 export interface WindowFieldContext {
   organisationName: string;
   exerciseReference: string;
