@@ -59,3 +59,12 @@ export function readinessGate(i: {
   }
   return { ready: items.every((x) => x.state === "MET"), items };
 }
+
+/**
+ * How many conditions still stand between the award and signing: each gate item that is
+ * not met (not set counts, as it never reads as met) and each customer condition not
+ * yet satisfied. Zero means nothing is outstanding, not that nothing is recorded.
+ */
+export function conditionsOutstanding(gateItems: readonly { state: string }[], conditions: readonly { satisfiedOn: Date | null }[]): number {
+  return gateItems.filter((i) => i.state !== "MET").length + conditions.filter((c) => !c.satisfiedOn).length;
+}

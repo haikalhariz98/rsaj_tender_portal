@@ -49,7 +49,7 @@ import {
   WC_CHECK_LABEL,
 } from "@/lib/award/labels";
 import { mergeFieldLabel } from "@/lib/award/fields";
-import { readinessGate } from "@/lib/award/readiness";
+import { conditionsOutstanding, readinessGate } from "@/lib/award/readiness";
 import { awardFacts, awardHistory, exerciseMatters, latestRoute, loadAward, matterRecord, type LoadedAward } from "@/lib/award/repo";
 import { acceptancePageFaults, instrumentReturned, returnComplete, returnState, type ReturnRecord } from "@/lib/award/stage-two";
 import { cancellable, editable } from "@/lib/award/status";
@@ -279,7 +279,8 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
       id: "conditions",
       label: "Conditions",
       icon: <CheckIcon size={15} />,
-      count: award.conditions.length,
+      // What still stands between the award and signing, not how many are recorded.
+      count: conditionsOutstanding(gate.items, award.conditions) || undefined,
       panel: (
         <ConditionsPanel
           l={l}
