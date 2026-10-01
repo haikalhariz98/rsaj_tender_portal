@@ -30,6 +30,7 @@ import { latestFirst, nameRequestFault, nameRouteForRequester, nameRouteLabel, r
 import { disagreesAtBoundary } from "@/lib/method/bands";
 import { determinationDrift } from "@/lib/method/drift";
 import { evaluateExercise } from "@/lib/method/evaluate";
+import { dossierEvidenceMissing } from "@/lib/method/justification";
 import { transitionFault } from "@/lib/method/exercise";
 import {
   APPOINTMENT_STATE_TEXT,
@@ -397,7 +398,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
             const i = instrumentFor(ex.regime, awardPolicy);
             return "fault" in i ? awardFindingText({ code: i.fault, level: "block", data: { regime: i.regime } }) : null;
           })()}
-          dossier={!!(flags?.requiresDossier) && evidence.dossier === 0}
+          dossier={dossierEvidenceMissing(flags, { justificationReasonCode: ex.justificationReasonCode, dossierReference: ex.dossierReference, evidenceAttachments: evidence.dossier })}
         />
       ),
     },

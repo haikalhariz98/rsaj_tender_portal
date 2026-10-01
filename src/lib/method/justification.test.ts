@@ -1,8 +1,11 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { SPEC_METHODS, SPEC_REASONS } from "./fixture";
 import { findingText } from "./labels";
-import { dossierFault, justificationFaults, reasonsFor, type JustificationDraft } from "./justification";
+import { dossierEvidenceMissing, dossierFault, justificationFaults, reasonsFor, type JustificationDraft } from "./justification";
 
 // The exercise's evidence as the document store counts it (scope ruling: a required input).
 const none = { dossier: 0, scope: 0 };
@@ -41,5 +44,27 @@ describe("the emergency coordination record (FR-REQ-013)", () => {
   it("needs the trigger and the meeting date; the scope document is not attached", () => {
     expect(codes(justificationFaults(m("emergency"), d(), SPEC_REASONS, on, none))).toEqual(["COORDINATION_RECORD_REQUIRED", "SCOPE_DOCUMENT_NOT_ATTACHED"]);
     expect(codes(justificationFaults(m("emergency"), d({ emergencyTrigger: "Main burst", coordinationMeetingOn: "2026-09-02" }), SPEC_REASONS, on, none))).toEqual(["SCOPE_DOCUMENT_NOT_ATTACHED"]);
+  });
+});
+
+describe("the dossier evidence note on the Award tab and the new-award form (review carry 7)", () => {
+  const numbered = { justificationReasonCode: "X", dossierReference: "DA/1" };
+  it("shows while dossierFault finds no live evidence, and not once one is attached", () => {
+    expect(dossierEvidenceMissing(m("selective_direct"), { ...numbered, evidenceAttachments: 0 })).toBe(true);
+    expect(dossierEvidenceMissing(m("selective_direct"), { ...numbered, evidenceAttachments: 1 })).toBe(false);
+  });
+  it("is the evidence finding only: a missing reason or reference does not raise it", () => {
+    expect(dossierEvidenceMissing(m("selective_direct"), { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 1 })).toBe(false);
+  });
+  it("never for a method without a dossier, or with no method", () => {
+    expect(dossierEvidenceMissing(m("direct"), { ...numbered, evidenceAttachments: 0 })).toBe(false);
+    expect(dossierEvidenceMissing(null, { ...numbered, evidenceAttachments: 0 })).toBe(false);
+  });
+  it("both screens ask it, never a count of their own (source scan)", () => {
+    for (const p of ["src/app/sourcing/[id]/page.tsx", "src/app/awards/new/page.tsx"]) {
+      const text = readFileSync(join(process.cwd(), p), "utf8");
+      expect(text, p).toMatch(/dossier=\{dossierEvidenceMissing\(/);
+      expect(text, p).not.toMatch(/dossier=\{[^}]*=== 0\}/);
+    }
   });
 });

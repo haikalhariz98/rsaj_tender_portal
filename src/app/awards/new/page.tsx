@@ -12,6 +12,7 @@ import { LIVE_STATUSES } from "@/lib/award/status";
 import { db } from "@/lib/db";
 import { exerciseEvidence } from "@/lib/documents/evidence";
 import { attachmentFacts } from "@/lib/documents/repo";
+import { dossierEvidenceMissing } from "@/lib/method/justification";
 import { REGIME_LABEL } from "@/lib/method/labels";
 import { approvedRouteOf, loadExercise, loadMethodConfig } from "@/lib/method/repo";
 import { isBandSnapshot } from "@/lib/method/snapshot";
@@ -98,7 +99,7 @@ export default async function NewAwardPage(props: PageProps<"/awards/new">) {
         exercise={{ id: ex.id, facts }}
         cancelHref={`/sourcing/${ex.id}?tab=award`}
         valueHint={headroom == null ? "The requisition has no approved value on record, so nothing can be awarded against it." : `Up to ${formatMoney(headroom)}: what the requisition's approval covers${siblings.length ? ", less its other awards" : ""}. In ringgit, to at most two decimal places.`}
-        dossier={!!method?.requiresDossier && dossierEvidence === 0}
+        dossier={dossierEvidenceMissing(method, { justificationReasonCode: ex.justificationReasonCode, dossierReference: ex.dossierReference, evidenceAttachments: dossierEvidence })}
       />
     </>
   );

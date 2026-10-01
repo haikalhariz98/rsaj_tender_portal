@@ -69,3 +69,13 @@ export function dossierFault(method: Pick<Method, "requiresDossier">, ex: { just
   if (ex.evidenceAttachments < 1) out.push({ code: "EVIDENCE_NOT_ATTACHED", level: "block" });
   return out;
 }
+
+/**
+ * Whether the "attach the dossier evidence, then send" note shows: `dossierFault`'s
+ * evidence finding, asked of the same rule that refuses submission and issue, so the
+ * screen never counts attachments its own way (review carry 7). Only the evidence
+ * finding: a missing reason or reference has its own words elsewhere.
+ */
+export function dossierEvidenceMissing(method: Pick<Method, "requiresDossier"> | null | undefined, ex: { justificationReasonCode: string | null; dossierReference: string | null; evidenceAttachments: number }): boolean {
+  return !!method && dossierFault(method, ex).some((f) => f.code === "EVIDENCE_NOT_ATTACHED");
+}
