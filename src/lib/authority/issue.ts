@@ -72,3 +72,53 @@ export function onRoute<T extends { fundingRouteCode: string | null }>(
 ): T[] {
   return issues.filter((i) => (i.fundingRouteCode ?? null) === (fundingRouteCode ?? null));
 }
+
+/**
+ * Which day picks the issue a route runs under (FR-APR-020, ruling R2).
+ *
+ * A requisition routes under the limits in force on the day it was raised — not the day
+ * it is submitted — so a new issue coming into force between the two does not change
+ * the route its raiser was working to. `raisedOn` is set at creation and not edited
+ * after, so the day cannot be moved to choose an issue. A name-approval route and an
+ * award's appointment route are matters of their own day: they route under the issue in
+ * force when they are submitted. Holders and absence are always read on the submission
+ * day: who can act is a fact of the day the route opens.
+ */
+export type RoutedMatter = "REQUISITION" | "NAME_APPROVAL" | "AWARD";
+
+export function issueDayFor(matter: RoutedMatter, days: { raisedOn: Date; submittedOn: Date }): Date {
+  return startOfDay(matter === "REQUISITION" ? days.raisedOn : days.submittedOn);
+}
+
+/// The issue in force on a day among issued periods: from its start day, up to (not
+/// including) its end day — the same reading as `issuedInForce`.
+export function inForceOn<T extends IssuePeriod>(issues: readonly T[], day: Date): T | null {
+  const d = startOfDay(day);
+  const live = issues.filter((i) => startOfDay(i.effectiveFrom) <= d && (i.effectiveTo == null || i.effectiveTo > d));
+  return live.sort((a, b) => b.effectiveFrom.getTime() - a.effectiveFrom.getTime())[0] ?? null;
+}
+
+/**
+ * Said on the route where the issue it ran under is not the one in force on the day it
+ * was submitted, so nobody mistakes the older limits for an error. Null where they are
+ * the same issue, or where no issue is in force at submission.
+ */
+export function newerIssueNote(
+  routedUnder: { id: string; label: string },
+  inForceAtSubmission: { id: string; label: string } | null,
+  raisedOnText: string,
+): { code: "NEWER_ISSUE_IN_FORCE"; level: "info"; messageEn: string; messageMs: string } | null {
+  if (!inForceAtSubmission || inForceAtSubmission.id === routedUnder.id) return null;
+  return {
+    code: "NEWER_ISSUE_IN_FORCE",
+    level: "info",
+    messageEn: `Routed under “${routedUnder.label}”, the issue in force on ${raisedOnText}, when the requisition was raised. “${inForceAtSubmission.label}” is in force on the day it was submitted; a requisition keeps the limits it was raised under.`,
+    messageMs: `Dihalakan di bawah “${routedUnder.label}”, terbitan yang berkuat kuasa pada ${raisedOnText}, ketika permohonan dibuat. “${inForceAtSubmission.label}” berkuat kuasa pada hari ia dihantar; permohonan kekal di bawah had semasa ia dibuat.`,
+  };
+}
+
+/// The refusal where no issue was in force on the day the requisition was raised. It
+/// names that day and never falls back to today; the exit is a new requisition.
+export function noIssueOnRaisedText(raisedOnText: string): string {
+  return `No approval matrix was in force on ${raisedOnText}, the day this requisition was raised, so it cannot be routed: a requisition routes under the limits in force when it was raised, and an issue is never back-dated. Cancel it and raise a new requisition to route under the issue in force now.`;
+}

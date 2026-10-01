@@ -17,7 +17,8 @@ import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues, Stat } from "@/components/ui/stat";
 import { CellStack, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { fieldLabel } from "@/lib/audit/diff";
-import { loadIssue, loadOverrideMatrix, loadPinnedRule } from "@/lib/authority/load";
+import { issueDayFor, newerIssueNote, noIssueOnRaisedText } from "@/lib/authority/issue";
+import { loadIssue, loadMatrixVersion, loadOverrideMatrix, loadPinnedRule } from "@/lib/authority/load";
 import { MATTER_KIND_LABEL, OUTCOME_LABEL } from "@/lib/committee/labels";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { formatOrgDay, formatDate, formatRM, formatRouteBand } from "@/lib/format";
@@ -227,6 +228,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   let overBudget: { invocation: boolean; controlNotSet: boolean; auto: boolean; ifRechecked?: boolean } | null = null;
   let preview: ReturnType<typeof resolveRequisitionRoute> | null = null;
   let previewRoles: Record<string, { nameEn: string }> = {};
+  let previewNote: string | null = null;
   if (PRE_SUBMIT.includes(r.status)) {
     const stale = lastCheck && today ? isStale(ageDay(lastCheck), policy.budgetRecheckDays, today) : false;
     if (!today) submitBlocker = transitionFaultText({ code: "TIME_ZONE_UNSET" });
@@ -247,11 +249,22 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
         overBudget = { invocation: true, controlNotSet: controls.availabilityCheck !== "blocking", auto: false, ifRechecked: true };
       }
     }
-    const dal = await loadIssue(ORGANISATION_CODE, on, undefined, null);
-    if (!dal) submitBlocker ??= "No approval matrix is in force.";
+    // Routed under the issue in force on the day it was raised (FR-APR-020, ruling R2),
+    // as submission will route it; who can act is read on today.
+    const issueDay = issueDayFor("REQUISITION", { raisedOn: r.raisedOn, submittedOn: on });
+    const dal = await loadIssue(ORGANISATION_CODE, issueDay, undefined, null);
+    if (!dal) submitBlocker ??= noIssueOnRaisedText(formatDate(issueDay));
     else {
       previewRoles = dal.matrix.roles;
-      const override = gate.supersedesAuthority && r.fundingRouteCode ? await loadOverrideMatrix(ORGANISATION_CODE, r.fundingRouteCode, on) : null;
+      const override = gate.supersedesAuthority && r.fundingRouteCode ? await loadOverrideMatrix(ORGANISATION_CODE, r.fundingRouteCode, issueDay) : null;
+      previewNote =
+        [
+          newerIssueNote(dal, await loadMatrixVersion(ORGANISATION_CODE, on), formatDate(issueDay)),
+          override && r.fundingRouteCode ? newerIssueNote(override, await loadMatrixVersion(ORGANISATION_CODE, on, r.fundingRouteCode), formatDate(issueDay)) : null,
+        ]
+          .filter((n) => n != null)
+          .map((n) => n.messageEn)
+          .join(" ") || null;
       const path = pathTo(lookups.units, unit, on).reverse().map((u) => u.code);
       // As submission will judge it: an office with nobody able to act reverts upward.
       const byId = new Map(roster.people.map((p) => [p.id, p]));
@@ -601,6 +614,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                 }
                 preview={preview}
                 previewMatrixRoles={previewRoles}
+                previewNote={previewNote}
                 routeBand={routeBand}
                 decide={(step) => {
                   if (!open || step.decision !== "PENDING") return null;
@@ -1131,7 +1145,10 @@ function ApprovalPanel({
   stepFaultPreview,
   today,
   routeBand,
+  previewNote,
 }: {
+  /// Said on the preview where a newer issue is in force today than on the raised-on day.
+  previewNote: string | null;
   l: LoadedRequisition;
   /// The submitted route's value band, written from its pinned rule; null: not recorded.
   routeBand: string | null;
@@ -1158,7 +1175,7 @@ function ApprovalPanel({
           <CardBody className="flex flex-col gap-4">
             {preview ? (
               <>
-                <p className="text-[13.5px] text-ink-2">If it were submitted today, the approval matrix would route it:</p>
+                <p className="text-[13.5px] text-ink-2">If it were submitted today, the approval matrix in force on the day it was raised would route it:</p>
                 {preview.resolution.chain.length > 0 ? (
                   <ol className="flex flex-col gap-2">
                     {preview.resolution.chain.map((s, i) => (
@@ -1175,6 +1192,7 @@ function ApprovalPanel({
                     {f.messageEn}
                   </Callout>
                 ))}
+                {previewNote && <Callout tone="info">{previewNote}</Callout>}
                 {preview.warnings.filter((w) => w.level !== "err").map((w) => (
                   <Callout key={w.messageEn} tone="warn">
                     {w.messageEn}

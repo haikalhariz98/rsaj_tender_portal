@@ -7,7 +7,9 @@ import type { FormState } from "@/components/record-editor";
 import type { Prisma } from "@/generated/prisma/client";
 import { diffFields, snapshotFields, type FieldChange } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
-import { loadIssue, loadOverrideMatrix } from "@/lib/authority/load";
+import { issueDayFor, newerIssueNote, noIssueOnRaisedText } from "@/lib/authority/issue";
+import { loadIssue, loadMatrixVersion, loadOverrideMatrix } from "@/lib/authority/load";
+import { formatDate } from "@/lib/format";
 import { postingRefusal } from "@/lib/budget/periods";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
@@ -787,10 +789,17 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
       return { ok: false, message: `${stale}${text.charAt(0).toUpperCase()}${text.slice(1)}` };
     }
 
-    // The route (FR-REQ-006/008/009), under the organisation's issue in force today.
-    const dal = await loadIssue(ORGANISATION_CODE, today, undefined, null, tx);
-    if (!dal) return { ok: false, message: "No approval matrix is in force, so the requisition cannot be routed." };
-    const override = gate.supersedesAuthority && req.fundingRouteCode ? await loadOverrideMatrix(ORGANISATION_CODE, req.fundingRouteCode, today, tx) : null;
+    // The route (FR-REQ-006/008/009), under the issue and funder's rule set in force on
+    // the day the requisition was raised (FR-APR-020, ruling R2); who can act, today.
+    const issueDay = issueDayFor("REQUISITION", { raisedOn: req.raisedOn, submittedOn: today });
+    const dal = await loadIssue(ORGANISATION_CODE, issueDay, undefined, null, tx);
+    if (!dal) return { ok: false, message: noIssueOnRaisedText(formatDate(issueDay)) };
+    const override = gate.supersedesAuthority && req.fundingRouteCode ? await loadOverrideMatrix(ORGANISATION_CODE, req.fundingRouteCode, issueDay, tx) : null;
+    // Where a newer issue is in force on the submission day, the route says so.
+    const newer = [
+      newerIssueNote(dal, await loadMatrixVersion(ORGANISATION_CODE, today, null, tx), formatDate(issueDay)),
+      override && req.fundingRouteCode ? newerIssueNote(override, await loadMatrixVersion(ORGANISATION_CODE, today, req.fundingRouteCode, tx), formatDate(issueDay)) : null,
+    ].filter((n) => n != null);
     const value = num(req.estimatedValue)!;
     const unitPath = pathTo(lookups.units, unitOf(req), today).reverse().map((u) => u.code);
     // FR-APR-010/012: an office with nobody able to act on the day reverts upward at
@@ -841,6 +850,7 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
     const roleLabel = (code: string) => issue.matrix.roles[code]?.nameEn ?? dal.matrix.roles[code]?.nameEn ?? "An office no longer configured";
     const warnings = [
       ...resolved.warnings,
+      ...newer,
       ...(disposition.controlNotSet
         ? [{ code: "CONTROL_NOT_SET", level: "warn", messageEn: "Over budget with the availability check not set: the over-budget route was invoked by the officer.", messageMs: "Melebihi bajet dan kawalan semakan belum ditetapkan: laluan melebihi bajet digunakan oleh pegawai." }]
         : []),

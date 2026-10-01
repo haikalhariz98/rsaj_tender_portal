@@ -154,17 +154,17 @@ export async function loadIssue(
  * The resolver has no business knowing a row's primary key, but the screen that edits
  * the thresholds does.
  */
-export async function loadMatrixVersion(organisationCode: string, asOf: Date = new Date()) {
-  const organisation = await db.organisation.findUnique({
+export async function loadMatrixVersion(organisationCode: string, asOf: Date = new Date(), fundingRouteCode: string | null = null, client: Tx = db) {
+  const organisation = await client.organisation.findUnique({
     where: { code: organisationCode },
     select: { id: true },
   });
   if (!organisation) return null;
 
-  return db.authorityMatrix.findFirst({
+  return client.authorityMatrix.findFirst({
     where: {
       organisationId: organisation.id,
-      ...issuedInForce(asOf),
+      ...issuedInForce(asOf, fundingRouteCode),
     },
     orderBy: { effectiveFrom: "desc" },
     select: { id: true, label: true, effectiveFrom: true, effectiveTo: true },
