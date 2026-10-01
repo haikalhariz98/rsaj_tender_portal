@@ -4,7 +4,7 @@ import { scopeFaultText } from "./labels";
 import { packFaults, type PackInput } from "./pack";
 
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
-const ready: PackInput = { basis: { requiresBq: true }, method: { requiresCompanyEstimate: true }, bq: [{ status: "FINALISED" }], panel: "VERIFIED", estimate: { state: "LODGED", behind: false } };
+const ready: PackInput = { basis: { requiresBq: true }, method: { requiresCompanyEstimate: true }, bq: [{ status: "FINALISED" }], panel: "VERIFIED", estimate: { state: "LODGED", behind: false }, scope: "APPROVED" };
 const judge = (x: Partial<PackInput> = {}) => packFaults({ ...ready, ...x });
 
 describe("packFaults: what 6.4 enforces when the documents go for approval (OD-4)", () => {
@@ -36,7 +36,30 @@ describe("packFaults: what 6.4 enforces when the documents go for approval (OD-4
     expect(judge({ method: { requiresCompanyEstimate: false }, estimate: null })).toEqual([]);
   });
   it("each finding names where to fix it", () => {
-    const all = packFaults({ basis: { requiresBq: null }, method: { requiresCompanyEstimate: null }, bq: [], panel: "NONE", estimate: null });
+    const all = packFaults({ basis: { requiresBq: null }, method: { requiresCompanyEstimate: null }, bq: [], panel: "NONE", estimate: null, scope: "NOT_REQUIRED" });
     for (const f of all) expect(scopeFaultText(f)).toMatch(/Configuration|tab|Scope|Company estimate|Contract type/);
+  });
+});
+
+describe("packFaults: scope approval (increment 2, OD-9, FR-REQ-014)", () => {
+  it("approved, or not required by the method: nothing to say", () => {
+    expect(judge({ scope: "APPROVED" })).toEqual([]);
+    expect(judge({ scope: "NOT_REQUIRED" })).toEqual([]);
+  });
+  it("an unset rule blocks naming it, never reads as not required; a rule with no committee blocks naming that", () => {
+    expect(codes(judge({ scope: "RULE_NOT_SET" }))).toEqual(["SCOPE_RULE_NOT_SET"]);
+    expect(codes(judge({ scope: "COMMITTEE_NOT_SET" }))).toEqual(["SCOPE_COMMITTEE_NOT_SET"]);
+    expect(scopeFaultText(judge({ scope: "RULE_NOT_SET" })[0])).toMatch(/Configuration, Scope and estimate/);
+  });
+  it("every other state blocks until the finalised bill's scope matter is carried, saying where it stands", () => {
+    for (const s of ["NO_FINALISED_BILL", "NOT_TABLED", "PENDING", "DEFERRED", "RETURNED", "ENDED", "OUTCOME_NOT_RECORDED"] as const) {
+      const f = judge({ scope: s });
+      expect(codes(f), s).toEqual(["SCOPE_NOT_APPROVED"]);
+      expect(f[0].data, s).toEqual({ state: s });
+      expect(scopeFaultText(f[0]), s).toMatch(/Scope/);
+    }
+  });
+  it("a method no longer configured is said once, not again for scope", () => {
+    expect(codes(judge({ method: null, scope: "METHOD_NOT_CONFIGURED" }))).toEqual(["METHOD_NOT_CONFIGURED"]);
   });
 });

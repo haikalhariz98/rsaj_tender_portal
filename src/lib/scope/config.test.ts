@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CONFIG_FAULT_TEXT, holdingFault, scopePolicyFaults, type PolicyDraft } from "./config";
+import { CONFIG_FAULT_TEXT, holdingFault, scopePolicyFaults, scopeRuleFaults, scopeRuleToSave, SCOPE_RULE_FAULT_TEXT, type PolicyDraft } from "./config";
 
 const unset: PolicyDraft = {
   measurementStandardLabel: null, measurementStandardProvenance: null, bqPreparerQualificationCode: null, estimateLeadDays: null, estimateLeadProvenance: null,
@@ -38,5 +38,24 @@ describe("the scope policy's own checks", () => {
   });
   it("every fault has words", () => {
     for (const t of Object.values(CONFIG_FAULT_TEXT)) expect(t).toMatch(/\.$/);
+  });
+});
+
+describe("a method's scope-approval rule (OD-9), three-state", () => {
+  const known = { committees: ["TECH", "BOARD"] };
+  it("a set answer needs its provenance; not set needs none", () => {
+    expect(scopeRuleFaults({ required: null, provenance: null, committeeCode: null }, known)).toEqual([]);
+    expect(scopeRuleFaults({ required: false, provenance: null, committeeCode: null }, known).map((f) => f.code)).toEqual(["PROVENANCE_REQUIRED"]);
+    expect(scopeRuleFaults({ required: true, provenance: "ASSUMED", committeeCode: "TECH" }, known)).toEqual([]);
+  });
+  it("a committee named with a yes must be configured; a yes with none is saved and reads Committee not set", () => {
+    expect(scopeRuleFaults({ required: true, provenance: "ASSUMED", committeeCode: "GONE" }, known).map((f) => f.field)).toEqual(["scopeCommitteeCode"]);
+    expect(scopeRuleFaults({ required: true, provenance: "ASSUMED", committeeCode: null }, known)).toEqual([]);
+  });
+  it("stores provenance only with an answer and a committee only with a yes", () => {
+    expect(scopeRuleToSave({ required: null, provenance: "STATED", committeeCode: "TECH" })).toEqual({ scopeApprovalRequired: null, scopeApprovalProvenance: null, scopeCommitteeCode: null });
+    expect(scopeRuleToSave({ required: false, provenance: "STATED", committeeCode: "TECH" })).toEqual({ scopeApprovalRequired: false, scopeApprovalProvenance: "STATED", scopeCommitteeCode: null });
+    expect(scopeRuleToSave({ required: true, provenance: "ASSUMED", committeeCode: "TECH" })).toEqual({ scopeApprovalRequired: true, scopeApprovalProvenance: "ASSUMED", scopeCommitteeCode: "TECH" });
+    expect(SCOPE_RULE_FAULT_TEXT.UNKNOWN_COMMITTEE).toMatch(/Configuration, Committees/);
   });
 });

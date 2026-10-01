@@ -178,6 +178,10 @@ export async function loadScope(db: Db, organisationId: string) {
   const est = (ids: string[], value: boolean) => db.sourcingMethod.updateMany({ where: { id: { in: ids } }, data: { requiresCompanyEstimate: value, requiresCompanyEstimateProvenance: "ASSUMED" } });
   await est([`${P}sm1`, `${P}sm2`, `${P}sm5`, `${P}sm6`], true);
   await est([`${P}sm3`, `${P}sm7`, `${P}sm8`], false);
+  // OD-9: scope approval by the Technical Committee for the specialist method only, assumed;
+  // emergency left unset, so its exercises show the rule as not set.
+  await db.sourcingMethod.update({ where: { id: `${P}sm8` }, data: { scopeApprovalRequired: true, scopeApprovalProvenance: "ASSUMED", scopeCommitteeCode: "TECH_CTTE" } });
+  await db.sourcingMethod.updateMany({ where: { id: { in: [`${P}sm1`, `${P}sm2`, `${P}sm3`, `${P}sm4`, `${P}sm5`, `${P}sm6`, `${P}sm7`] } }, data: { scopeApprovalRequired: false, scopeApprovalProvenance: "ASSUMED" } });
   await db.contractBasis.update({ where: { id: `${P}cb1` }, data: { requiresBq: true, requiresBqProvenance: "ASSUMED" } });
   await db.contractBasis.update({ where: { id: `${P}cb2` }, data: { requiresBq: false, requiresBqProvenance: "ASSUMED" } });
 
@@ -299,6 +303,7 @@ export async function checkScope() {
   const { finaliseFaults } = await import("../src/lib/scope/bq");
   const { panelFaults } = await import("../src/lib/scope/panel");
   const { packFaults } = await import("../src/lib/scope/pack");
+  const { scopeApproval } = await import("../src/lib/scope/scope-matter");
   const { versionFaults } = await import("../src/lib/scope/estimate");
   const repo = await import("../src/lib/scope/repo");
   const { exerciseOrg } = await import("../src/lib/method/repo");
@@ -339,7 +344,8 @@ export async function checkScope() {
       // X-10 c: 6.4 builds its pack v1 on sx5, so its scope must be ready but for scope approval.
       const live = estimates.find((x) => x.state !== "VOID");
       const facts = live ? repo.estimateFactsOf(live) : null;
-      const f = packFaults({ basis: rules.basis, method: rules.method, bq: versions, panel: panelState(panel), estimate: facts ? { state: facts.state, behind: lodgementBehind(facts) } : null });
+      const scope = scopeApproval(rules.method, versions, await repo.loadScopeMatters(exerciseId)).state;
+      const f = packFaults({ basis: rules.basis, method: rules.method, bq: versions, panel: panelState(panel), estimate: facts ? { state: facts.state, behind: lodgementBehind(facts) } : null, scope });
       fail("sx5's readiness for 6.4", blocking(f));
     }
   }

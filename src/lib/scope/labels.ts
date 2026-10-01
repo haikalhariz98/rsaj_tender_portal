@@ -10,7 +10,10 @@ import { formatSen, type Sen } from "@/lib/money";
 import type { DraftFault, FinaliseFault } from "./bq";
 import type { ClassificationFault, DiscloseFault, LeadState, LodgeFault, OverrideFault, RetainFault, StartFault, VersionFault, ViewFault, VoidFault } from "./estimate";
 import type { PackFault } from "./pack";
+import type { BqCsvFault } from "./csv";
 import type { PanelFault, PanelState, VerifyFault } from "./panel";
+import type { PriceFault, RateScheduleStatus, ScheduleFault } from "./rates";
+import type { ScopeApproval, ScopeApprovalState, ScopeCitationFault } from "./scope-matter";
 import type { BqItemKind, BqRateSource, BqScopedBy, BqStatus, EstimateEventKind, EstimateState, Finding } from "./types";
 
 /// Where the scope and estimate rules are set.
@@ -109,6 +112,9 @@ export type ScopeCode =
   | DiscloseFault
   | ViewFault
   | PackFault
+  | ScopeCitationFault
+  | PriceFault
+  | ScheduleFault
   // The acts themselves.
   | "NO_ORGANISATION"
   | "EXERCISE_GONE"
@@ -121,7 +127,13 @@ export type ScopeCode =
   | "PROVENANCE_REQUIRED"
   | "CODE_TAKEN"
   | "DESCRIPTION_REQUIRED"
-  | "SECTION_REQUIRED";
+  | "SECTION_REQUIRED"
+  | "SITTING_GONE"
+  | "FILE_NOT_CSV"
+  | "FILE_UNREADABLE"
+  | "FILE_REFUSED"
+  | "DRAFT_NOT_EMPTY"
+  | "NO_DRAFT";
 
 const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | number | null>) => string)>> = {
   // bq.ts
@@ -189,6 +201,32 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   ESTIMATE_RULE_NOT_SET: `Whether this sourcing method needs a company estimate is not set. ${SET_IT}`,
   ESTIMATE_NOT_LODGED: "The company estimate is not lodged. Prepare and lodge it under Scope and estimate, Company estimate.",
   ESTIMATE_BEHIND: "The estimate was amended after it was lodged. Lodge the current version.",
+  SCOPE_RULE_NOT_SET: `Whether this sourcing method needs its scope approved by a committee is not set. ${SET_IT}`,
+  SCOPE_COMMITTEE_NOT_SET: `This sourcing method needs its scope approved by a committee, and which committee is not set. ${SET_IT}`,
+  SCOPE_NOT_APPROVED: (d) => `The scope is not approved: ${SCOPE_STATE_TEXT[(d.state as ScopeApprovalState) ?? "NOT_TABLED"] ?? SCOPE_STATE_TEXT.NOT_TABLED} See Scope and estimate, Scope.`,
+  // scope-matter.ts
+  SCOPE_NOT_REQUIRED: "This sourcing method does not ask for its scope to be approved by a committee, so nothing is tabled.",
+  VERSION_NOT_FINALISED: "Only the finalised bill is tabled. Finalise the draft first.",
+  OTHER_EXERCISE: "That bill belongs to another exercise.",
+  OTHER_COMMITTEE: "That sitting is of another committee. Scope is tabled at a sitting of the committee the sourcing method names.",
+  SITTING_CLOSED: "That sitting is minuted or cancelled, so nothing more is tabled at it. Choose a sitting that is scheduled or in progress, or schedule one under Committees.",
+  SCOPE_ALREADY_WAITING: (d) => `This version is already tabled${d.sitting ? ` at ${d.sitting}` : ""} and waiting for the decision.`,
+  SCOPE_ALREADY_APPROVED: "The scope of this version is already approved.",
+  SCOPE_RETURNED: "The committee returned this version. Start a revision of the bill, finalise it, and table the new version.",
+  SCOPE_ENDED: "The committee ended this matter, so this version is not tabled again. Revise the bill and table the new version, or cancel the exercise.",
+  // rates.ts
+  SCHEDULE_NOT_IN_FORCE: (d) => `No issue of ${d.schedule ?? "that schedule"} is in force on ${d.on ? formatDate(String(d.on)) : "today"}. Issue one under Configuration, Scope and estimate, or enter the rate.`,
+  ITEM_NOT_IN_ISSUE: (d) => `Issue ${d.issue ?? ""} of ${d.schedule ?? "the schedule"} has no item ${d.item ?? "of that code"}. Choose an item of the issue in force.`,
+  ISSUE_FROZEN: "This issue is issued, so it is not changed. Start a new issue of the schedule.",
+  LABEL_REQUIRED: "Name the schedule.",
+  ITEM_CODE_REQUIRED: "Give the item's code.",
+  ITEM_DESCRIPTION_REQUIRED: "Give the item's description.",
+  RATE_NEGATIVE: "A rate is not below zero.",
+  ISSUE_NO_ITEMS: "The issue has no items. Add them before issuing it.",
+  EFFECTIVE_REQUIRED: "Give the day the issue takes effect from.",
+  EFFECTIVE_NOT_AFTER_CURRENT: (d) => `Issue ${d.issue ?? ""} took effect on ${d.current ? formatDate(String(d.current)) : "an earlier day"}. A new issue takes effect after that day.`,
+  ISSUER_REQUIRED: "Name who issued it, recorded on their behalf, not signed.",
+  ISSUE_DRAFT_EXISTS: "A draft issue of this schedule is already open. Carry on with it, or issue it first.",
   // the acts
   NO_ORGANISATION: "No organisation is configured. Run npm run setup first.",
   EXERCISE_GONE: "That exercise no longer exists.",
@@ -202,6 +240,12 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   CODE_TAKEN: "That code is already used.",
   DESCRIPTION_REQUIRED: "Give the line's description.",
   SECTION_REQUIRED: "Choose the section.",
+  SITTING_GONE: "That sitting no longer exists. Choose another.",
+  FILE_NOT_CSV: "The file stored is not a CSV file. Upload the bill as a .csv file.",
+  FILE_UNREADABLE: "The stored file could not be read back. Upload it again.",
+  FILE_REFUSED: "The file was not imported. Correct it and upload it again.",
+  DRAFT_NOT_EMPTY: "The draft already has lines. Tick “Replace the draft's lines” to import over them, or remove them first.",
+  NO_DRAFT: "A file is imported into a draft. Start the bill, or a revision of it, first.",
 };
 
 export const SCOPE_CODES = Object.keys(TEXT) as ScopeCode[];
@@ -213,3 +257,101 @@ export function scopeFaultText(f: Finding | ScopeCode): string {
   if (t == null) return "This was refused.";
   return typeof t === "function" ? t(data ?? {}) : t;
 }
+
+// ------------------------------------------------------------------ scope approval (increment 2)
+
+/// What each state of scope approval says, with its way forward.
+export const SCOPE_STATE_TEXT: Readonly<Record<ScopeApprovalState, string>> = {
+  METHOD_NOT_CONFIGURED: "the exercise's sourcing method is no longer configured.",
+  RULE_NOT_SET: `whether this sourcing method needs its scope approved is not set. ${SET_IT}`,
+  NOT_REQUIRED: "this sourcing method does not ask for its scope to be approved by a committee.",
+  COMMITTEE_NOT_SET: `which committee approves the scope is not set. ${SET_IT}`,
+  NO_FINALISED_BILL: "there is no finalised bill to table yet. Finalise the bill of quantities first.",
+  NOT_TABLED: "the finalised bill has not been tabled. Table it at a sitting of the committee.",
+  PENDING: "the finalised bill is tabled and waiting for the committee's decision.",
+  DEFERRED: "the committee deferred it. Table it again at a later sitting.",
+  APPROVED: "approved by the committee.",
+  RETURNED: "the committee returned it. Revise the bill, finalise the revision and table it.",
+  ENDED: "the committee ended the matter. Revise the bill and table the new version, or cancel the exercise.",
+  OUTCOME_NOT_RECORDED: "the committee did not carry it and no outcome was recorded, so it cannot be read either way. Table it again.",
+};
+
+export const SCOPE_STATE_BADGE: Readonly<Record<ScopeApprovalState, { label: string; tone: "ok" | "warn" | "err" | "neutral" | "info" }>> = {
+  METHOD_NOT_CONFIGURED: { label: "Method not configured", tone: "err" },
+  RULE_NOT_SET: { label: "Rule not set", tone: "warn" },
+  NOT_REQUIRED: { label: "Not required", tone: "neutral" },
+  COMMITTEE_NOT_SET: { label: "Committee not set", tone: "warn" },
+  NO_FINALISED_BILL: { label: "No finalised bill", tone: "warn" },
+  NOT_TABLED: { label: "Not tabled", tone: "warn" },
+  PENDING: { label: "Waiting for the decision", tone: "info" },
+  DEFERRED: { label: "Deferred", tone: "warn" },
+  APPROVED: { label: "Approved", tone: "ok" },
+  RETURNED: { label: "Returned", tone: "err" },
+  ENDED: { label: "Ended", tone: "err" },
+  OUTCOME_NOT_RECORDED: { label: "Outcome not recorded", tone: "err" },
+};
+
+/// The scope card's sentence: the state, the version and where it was decided or waits.
+export function scopeApprovalLine(a: ScopeApproval, committee: string | null, formatDay: (d: Date) => string = (d) => formatDate(d)): string {
+  const v = a.versionNo != null ? `Version ${a.versionNo} of the bill` : "The bill";
+  const where = a.decisive?.record ? `${a.decisive.record.meetingReference}${a.decisive.record.decisionDate ? `, ${formatDay(a.decisive.record.decisionDate)}` : ""}` : (a.decisive?.sittingReference ?? null);
+  const earlier = a.earlierApprovedVersionNo != null && a.state !== "APPROVED" ? ` Version ${a.earlierApprovedVersionNo} was approved; a finalised revision is approved in its own right.` : "";
+  switch (a.state) {
+    case "APPROVED":
+      return `${v}: approved by the ${committee ?? "committee"}${where ? ` at ${where}` : ""}.`;
+    case "PENDING":
+      return `${v}: tabled${where ? ` at ${where}` : ""}, waiting for the ${committee ?? "committee"}'s decision.${earlier}`;
+    case "RETURNED":
+    case "ENDED":
+    case "OUTCOME_NOT_RECORDED":
+    case "DEFERRED":
+      return `${v}: ${SCOPE_STATE_TEXT[a.state]}${where ? ` (${where})` : ""}${earlier}`;
+    case "NOT_TABLED":
+      return `${v}: not tabled yet. Table it at a sitting of the ${committee ?? "committee"}.${earlier}`;
+    default:
+      return `Scope approval: ${SCOPE_STATE_TEXT[a.state]}${earlier}`;
+  }
+}
+
+export const RATE_SCHEDULE_STATUS_LABEL: Readonly<Record<RateScheduleStatus, string>> = { DRAFT: "Draft", ISSUED: "Issued", SUPERSEDED: "Superseded" };
+
+// ------------------------------------------------------------------ CSV (increment 2, OD-5)
+
+const CSV_TEXT: Readonly<Record<BqCsvFault, (d: Record<string, string | number | null>) => string>> = {
+  NOT_UTF8: () => "The file is not UTF-8 text. Save it from the spreadsheet as “CSV UTF-8”.",
+  EMPTY_FILE: () => "The file is empty.",
+  UNTERMINATED_QUOTE: () => "A quoted cell is never closed.",
+  STRAY_QUOTE: () => "A quote mark sits inside a cell that is not quoted. Quote the whole cell, doubling the quote inside it.",
+  NO_HEADER: () => `The first row is not a header. It names the columns: ${["Section", "Section title", "Item", "Description", "Unit", "Kind", "Quantity", "Rate", "Amount", "Provisional"].join(", ")}.`,
+  COLUMN_MISSING: (d) => `The header has no ${d.column ?? "required"} column.`,
+  COLUMN_REPEATED: (d) => `The header names ${d.column ?? "a column"} twice.`,
+  COLUMN_UNKNOWN: (d) => `The column “${d.column ?? ""}” is not one the bill reads, so it is ignored.`,
+  NO_LINES: () => "The file has a header and no lines.",
+  WRONG_CELL_COUNT: (d) => `This row has ${d.found ?? "a different number of"} cells; the header has ${d.expected ?? "another number"}.`,
+  SECTION_REQUIRED: () => "Give the line's section number.",
+  SECTION_TITLE_DIFFERS: (d) => `Section ${d.section ?? ""} is given another title${d.first ? ` on line ${d.first}` : ""}. Use one title per section.`,
+  DESCRIPTION_REQUIRED: () => "Give the line's description.",
+  KIND_UNKNOWN: (d) => `“${d.kind ?? ""}” is not a kind of line. Use Measured work, Prime cost sum or Provisional sum, or leave it blank for measured work.`,
+  QUANTITY_INVALID: (d) => `“${d.quantity ?? ""}” is not a quantity: a number, to three decimal places at most.`,
+  RATE_INVALID: (d) => `“${d.rate ?? ""}” is not a rate: an amount to the sen, not below zero.`,
+  AMOUNT_INVALID: (d) => `“${d.amount ?? ""}” is not an amount, so it is not compared. Amounts are worked out from quantity and rate.`,
+  PROVISIONAL_UNKNOWN: (d) => `“${d.provisional ?? ""}” is not Yes or No.`,
+  PROVISIONAL_NOT_MEASURED: () => "Only measured work is marked provisional. Prime cost and provisional sums are their own kinds.",
+};
+
+export const CSV_FAULT_CODES = Object.keys(CSV_TEXT) as BqCsvFault[];
+
+/// A CSV finding in words, with the line it is on.
+export function csvFaultText(f: Finding & { line?: number }): string {
+  const t = (CSV_TEXT as Record<string, (d: Record<string, string | number | null>) => string>)[f.code];
+  const words = t ? t(f.data ?? {}) : "This line was refused.";
+  return f.line != null ? `Line ${f.line}: ${words}` : words;
+}
+
+/// A typed amount that is not the one worked out: reported and ignored.
+export const keyedMismatchText = (m: { line: number; keyed: Sen; computed: Sen | null }) =>
+  `Line ${m.line}: the file says ${formatSen(m.keyed)}; quantity times rate is ${m.computed == null ? "not worked out (a quantity or rate is missing)" : formatSen(m.computed)}. The file's amount is ignored.`;
+
+/// The Bill of quantities section's words for import and export.
+export const CSV_IMPORT_NOTE = "The file is kept with this version of the bill, as received. Amounts are worked out from quantity and rate; an Amount column is only compared, and differences are listed.";
+export const CSV_EXPORT_NOTE = "Built by the portal from the bill's lines only, and recorded in its history. The unpriced file has no rate or amount column.";

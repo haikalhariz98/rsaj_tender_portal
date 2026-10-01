@@ -10,9 +10,11 @@ import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { parseSen } from "@/lib/money";
 import type { Provenance } from "@/lib/reference/types";
+import { recordOf } from "@/lib/requisition/repo";
 
 import type { EstimateFacts } from "./estimate";
 import type { PanelColumn } from "./panel";
+import type { ScopeMatter } from "./scope-matter";
 import type { BqItemKind, BqLine, EstimateState, QualificationHolding, QualificationRow, ScopePolicy } from "./types";
 import { UNSET_SCOPE_POLICY } from "./types";
 
@@ -127,9 +129,23 @@ export function estimateFactsOf(e: { id: string; state: string; preparerPersonId
 /// The exercise's method and basis flags as configured (null where no longer configured).
 export async function loadScopeRules(organisationId: string, ex: { sourcingMethodCode: string; contractBasisCode: string | null }, client: Tx = db) {
   // One after the other: inside a transaction the client is one connection.
-  const method = await client.sourcingMethod.findFirst({ where: { organisationId, code: ex.sourcingMethodCode }, select: { nameEn: true, requiresCompanyEstimate: true, requiresCompanyEstimateProvenance: true } });
+  const method = await client.sourcingMethod.findFirst({ where: { organisationId, code: ex.sourcingMethodCode }, select: { nameEn: true, requiresCompanyEstimate: true, requiresCompanyEstimateProvenance: true, scopeApprovalRequired: true, scopeApprovalProvenance: true, scopeCommitteeCode: true } });
   const basis = ex.contractBasisCode ? await client.contractBasis.findFirst({ where: { organisationId, code: ex.contractBasisCode }, select: { nameEn: true, requiresBq: true, requiresBqProvenance: true } }) : null;
   return { method, basis };
+}
+
+/**
+ * The SCOPE matters naming any of the exercise's bill versions (OD-9), as `scopeApproval`
+ * reads them: each decision only through `decisionRecord()` (`recordOf`, the builder the
+ * gates and the routing sheet use), with its committee and sitting.
+ */
+export async function loadScopeMatters(exerciseId: string, client: Tx = db): Promise<ScopeMatter[]> {
+  const rows = await client.committeeDecision.findMany({
+    where: { matterKind: "SCOPE", bqVersion: { exerciseId } },
+    orderBy: [{ tabledAt: "asc" }, { id: "asc" }],
+    include: { meeting: { include: { committee: { select: { code: true, nameEn: true } } } }, votes: { include: { person: { select: { name: true } } } } },
+  });
+  return rows.map((d) => ({ id: d.id, bqVersionId: d.bqVersionId, committeeCode: d.meeting.committee.code, withdrawn: d.withdrawnAt != null, tabledAt: d.tabledAt, record: recordOf(d), sittingReference: d.meeting.reference }));
 }
 
 /// An active person of the organisation, by id, or null.

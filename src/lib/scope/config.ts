@@ -59,3 +59,28 @@ export const CONFIG_FAULT_TEXT: Readonly<Record<ConfigFault, string>> = {
   UNKNOWN_LIST: "That list is not configured. Add it under Configuration, Reference data.",
   PERIOD_REVERSED: "The last day cannot be before the first.",
 };
+
+export type ScopeRuleFault = "PROVENANCE_REQUIRED" | "UNKNOWN_COMMITTEE";
+
+/**
+ * A method's scope-approval rule (OD-9), three-state: yes, no or not set. A set answer says
+ * where it comes from; a committee, where the answer is yes, must be one configured (left
+ * empty it reads "Committee not set" and blocks, never a guess). A committee named beside
+ * "no" or "not set" is not kept (`scopeRuleToSave`).
+ */
+export function scopeRuleFaults(r: { required: boolean | null; provenance: Provenance | null; committeeCode: string | null }, known: { committees: readonly string[] }): (Finding<ScopeRuleFault> & { field: string })[] {
+  const out: (Finding<ScopeRuleFault> & { field: string })[] = [];
+  if (r.required != null && r.provenance == null) out.push({ code: "PROVENANCE_REQUIRED", level: "block", field: "scopeApprovalProvenance" });
+  if (r.required === true && r.committeeCode != null && !known.committees.includes(r.committeeCode)) out.push({ code: "UNKNOWN_COMMITTEE", level: "block", field: "scopeCommitteeCode" });
+  return out;
+}
+
+/// What is stored: provenance only with an answer, a committee only with a yes.
+export function scopeRuleToSave(r: { required: boolean | null; provenance: Provenance | null; committeeCode: string | null }) {
+  return { scopeApprovalRequired: r.required, scopeApprovalProvenance: r.required == null ? null : r.provenance, scopeCommitteeCode: r.required === true ? r.committeeCode : null };
+}
+
+export const SCOPE_RULE_FAULT_TEXT: Readonly<Record<ScopeRuleFault, string>> = {
+  PROVENANCE_REQUIRED: CONFIG_FAULT_TEXT.PROVENANCE_REQUIRED,
+  UNKNOWN_COMMITTEE: "That committee is not configured. Choose one from Configuration, Committees.",
+};

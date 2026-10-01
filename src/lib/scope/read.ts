@@ -17,7 +17,7 @@ import { formatSen, parseSen, senToDecimalString } from "@/lib/money";
 import { exerciseOrg } from "@/lib/method/repo";
 
 import { bqTotals, currentBq, draftEditFaults, finaliseFaults, reviseFaults, startBqFaults } from "./bq";
-import { estimateFactsOf as factsOf, loadBqVersions, loadEstimates, loadHoldings, loadPanel, loadPanelColumns, loadQualifications, loadScopePolicy, loadScopeRules, linesOf, lineOf } from "./repo";
+import { estimateFactsOf as factsOf, loadBqVersions, loadEstimates, loadScopeMatters, loadHoldings, loadPanel, loadPanelColumns, loadQualifications, loadScopePolicy, loadScopeRules, linesOf, lineOf } from "./repo";
 import { leadTime, lodgeFaults, lodgementBehind, retainFaults, startFault, versionFaults, voidFault } from "./estimate";
 import {
   ATTESTED,
@@ -44,6 +44,7 @@ import {
   SCOPE_CONFIG_PATH,
 } from "./labels";
 import { packFaults, type PackFault } from "./pack";
+import { scopeApproval } from "./scope-matter";
 import { columnsInForce, panelFaults, panelState, standingVerifications } from "./panel";
 import { blocking, type BqScopedBy, type Finding } from "./types";
 
@@ -68,6 +69,9 @@ const PACK_HREF = (exerciseId: string): Readonly<Record<PackFault, string>> => (
   ESTIMATE_RULE_NOT_SET: SCOPE_CONFIG_PATH,
   ESTIMATE_NOT_LODGED: `/sourcing/${exerciseId}?tab=scope&section=estimate`,
   ESTIMATE_BEHIND: `/sourcing/${exerciseId}?tab=scope&section=estimate`,
+  SCOPE_RULE_NOT_SET: SCOPE_CONFIG_PATH,
+  SCOPE_COMMITTEE_NOT_SET: SCOPE_CONFIG_PATH,
+  SCOPE_NOT_APPROVED: `/sourcing/${exerciseId}?tab=scope&section=scope`,
 });
 
 async function loadAll(exerciseId: string) {
@@ -75,14 +79,16 @@ async function loadAll(exerciseId: string) {
   if (!org) return null;
   const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { id: true, reference: true, title: true, status: true, sourcingMethodCode: true, contractBasisCode: true } });
   if (!ex) return null;
-  const [policy, versions, panel, estimates, rules] = await Promise.all([
+  const [policy, versions, panel, estimates, rules, scopeMatters] = await Promise.all([
     loadScopePolicy(org.id),
     loadBqVersions(ex.id),
     loadPanel(ex.id),
     loadEstimates(ex.id),
     loadScopeRules(org.id, ex),
+    loadScopeMatters(ex.id),
   ]);
-  return { org, ex, policy, versions, panel, estimates, rules };
+  const approval = scopeApproval(rules.method, versions, scopeMatters);
+  return { org, ex, policy, versions, panel, estimates, rules, scopeMatters, approval };
 }
 
 /// The live estimate's facts for packFaults (or null).
@@ -124,6 +130,7 @@ export async function scopeTab(exerciseId: string) {
     bq: versions,
     panel: state,
     estimate: live ? { state: live.state, behind: lodgementBehind(live) } : null,
+    scope: a.approval.state,
   });
   const hrefs = PACK_HREF(ex.id);
   return {
