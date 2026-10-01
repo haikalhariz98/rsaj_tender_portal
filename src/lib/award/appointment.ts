@@ -12,7 +12,7 @@
  */
 
 import { requesterOnlySteps, requesterOnlyText, type AbleToAct } from "@/lib/authority/requester-only";
-import type { ApprovalStep, ResolutionWarning } from "@/lib/authority/types";
+import type { ApprovalStep, CoreChainRecord, ResolutionWarning } from "@/lib/authority/types";
 import { invitationFault, resolveUnderFunder, type FunderContext } from "@/lib/method/approval";
 import { dossierFault } from "@/lib/method/justification";
 import { APPOINTMENT_DOMAIN, type Method } from "@/lib/method/types";
@@ -33,6 +33,8 @@ export type AppointmentRoute =
       source: "DAL" | "OVERRIDE";
       overrideIssue: { id: string; label: string } | null;
       warnings: ResolutionWarning[];
+      /// The core routing behind the chain, for the route's snapshot (FR-APR-004).
+      core?: CoreChainRecord;
     }
   | { ok: false; fault: RouteFault; ruleKey: string | null; ruleLabel: string | null; messages: string[] };
 
@@ -82,6 +84,7 @@ export function appointmentRoute(ctx: FunderContext, method: Method | null, valu
     source: r.source,
     overrideIssue: r.overrideIssue,
     warnings: r.warnings,
+    core: r.resolution.core,
   };
 }
 

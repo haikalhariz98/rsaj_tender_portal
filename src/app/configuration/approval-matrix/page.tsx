@@ -4,7 +4,8 @@ import { AlertTriangle, CheckIcon, SlidersIcon } from "@/components/icons";
 import { ActBadge, RuleChain, type ChainStep } from "@/components/rule-chain";
 import { listIssues, loadMatrix, loadRuleRows, type IssueSummary } from "@/lib/authority/load";
 import { listCommittees } from "@/lib/committee/repo";
-import { approverAct, edgeAtBoundary, ruleIsDelegable } from "@/lib/authority/resolve";
+import { edgeAtBoundary, ruleChain, ruleIsDelegable } from "@/lib/authority/resolve";
+import { originLabel } from "@/lib/authority/core-routing-labels";
 import { formatPercentBand, formatValueBand } from "@/lib/format";
 import { actWithCode, condLabel, matterLabel, methodLabel } from "@/lib/labels";
 import { ORGANISATION_CODE, ORGANISATION_NAME } from "@/lib/org";
@@ -155,18 +156,15 @@ export default async function ApprovalMatrixPage({
       ? null
       : (matrix.roles[code]?.nameEn ?? committeeNames.get(code) ?? "Unknown office or committee");
 
-  const chainFor = (rule: Rule): ChainStep[] => {
-    const steps: ChainStep[] = [];
-    if (rule.proposerCode) steps.push({ role: roleName(rule.proposerCode)!, act: "P" });
-    for (const rec of rule.recommenders) steps.push({ role: roleName(rec.roleCode)!, act: rec.act });
-    if (rule.approverCode) {
-      steps.push({
-        role: roleName(rule.approverCode)!,
-        act: approverAct(rule),
-      });
-    }
-    return steps;
-  };
+  // The resolver's own chain for each rule — generated from the core routing where the
+  // rule takes it from there — never the rule's fields restated (6.9 ruling C3). A
+  // generated step says where it came from.
+  const chainFor = (rule: Rule): ChainStep[] =>
+    ruleChain(matrix, rule).steps.map((s) => ({
+      role: roleName(s.roleCode)!,
+      act: s.act,
+      ...(s.origin ? { meta: originLabel(s.origin) } : {}),
+    }));
 
   const byDomain = new Map<string, Rule[]>();
   for (const rule of matrix.rules) {

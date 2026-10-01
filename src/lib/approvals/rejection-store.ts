@@ -103,6 +103,11 @@ export async function openSuccessor(tx: Tx, who: Who, rejectedId: string, return
       rejectionKind: r.rejectionKind,
       rejectionReturnToRoleCode: r.rejectionReturnToRoleCode,
       rejectionProvenance: r.rejectionProvenance,
+      // The core routing as the approval first opened under it (FR-APR-004, C4).
+      coreSnapshotAt: r.coreSnapshotAt,
+      coreChainFlag: r.coreChainFlag,
+      coreChainReason: r.coreChainReason,
+      coreRoutingSnapshot: (r.coreRoutingSnapshot ?? undefined) as Prisma.InputJsonValue | undefined,
       supersedesInstanceId: r.id,
       status: "PENDING",
       openedAt,
@@ -110,7 +115,7 @@ export async function openSuccessor(tx: Tx, who: Who, rejectedId: string, return
         create: successorSteps(
           r.steps.map((s) => ({ ...s, act: s.act as string, decision: s.decision as string })),
           returnToSeq,
-        ).map((s) => ({ ...s, act: s.act as Prisma.ApprovalStepCreateWithoutInstanceInput["act"], decision: s.decision as Prisma.ApprovalStepCreateWithoutInstanceInput["decision"] })),
+        ).map((s) => ({ ...s, act: s.act as Prisma.ApprovalStepCreateWithoutInstanceInput["act"], decision: s.decision as Prisma.ApprovalStepCreateWithoutInstanceInput["decision"], chainOrigin: s.chainOrigin as Prisma.ApprovalStepCreateWithoutInstanceInput["chainOrigin"] })),
       },
     },
   });

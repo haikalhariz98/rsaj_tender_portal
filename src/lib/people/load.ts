@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 
 import type { Roster } from "./roster";
 import type { Assignment, Office, Person } from "./types";
-import { issuedInForce } from "@/lib/authority/issue";
+import { loadIssue } from "@/lib/authority/load";
+import { routedOffices } from "@/lib/authority/resolve";
 
 /**
  * Load the roster.
@@ -30,7 +31,7 @@ export async function loadRoster(organisationCode: string, client: Tx = db): Pro
   });
   if (!organisation) return EMPTY;
 
-  const [people, offices, rules, recommenders] = await Promise.all([
+  const [people, offices, issue] = await Promise.all([
     client.person.findMany({
       where: { organisationId: organisation.id },
       orderBy: [{ isActive: "desc" }, { name: "asc" }],
@@ -40,27 +41,12 @@ export async function loadRoster(organisationCode: string, client: Tx = db): Pro
       where: { organisationId: organisation.id },
       orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }],
     }),
-    client.authorityRule.findMany({
-      where: { authorityMatrix: { organisationId: organisation.id, ...issuedInForce(new Date()) } },
-      select: { proposerCode: true, approverCode: true, committeeCode: true },
-    }),
-    client.authorityRuleStep.findMany({
-      where: {
-        authorityRule: {
-          authorityMatrix: { organisationId: organisation.id, ...issuedInForce(new Date()) },
-        },
-      },
-      select: { roleCode: true },
-    }),
+    // The organisation's issue in force today, read as the resolver reads it, so an
+    // office the core routing puts beneath an approver counts as routed (6.9 C3).
+    loadIssue(organisationCode, new Date(), undefined, null, client),
   ]);
 
-  const routed = new Set<string>();
-  for (const rule of rules) {
-    for (const code of [rule.proposerCode, rule.approverCode, rule.committeeCode]) {
-      if (code) routed.add(code);
-    }
-  }
-  for (const step of recommenders) routed.add(step.roleCode);
+  const routed = new Set<string>(issue ? routedOffices(issue.matrix) : []);
 
   return {
     people: people.map((p) => ({

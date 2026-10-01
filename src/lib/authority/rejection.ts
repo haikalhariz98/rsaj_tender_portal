@@ -189,6 +189,9 @@ export interface DecidedStep {
   reason: string;
   receivedOn: Date | null;
   recordedAt: Date | null;
+  /// Where the step came from on a generated chain (FR-APR-004). Optional: a step read
+  /// before core routing existed has none.
+  chainOrigin?: string | null;
 }
 
 /**
@@ -202,7 +205,7 @@ export function successorSteps(steps: readonly DecidedStep[], returnToSeq: numbe
   return [...steps]
     .sort((a, b) => a.sequence - b.sequence)
     .map((s) => {
-      const base = { sequence: s.sequence, roleCode: s.roleCode, roleLabel: s.roleLabel, act: s.act, committeeCode: s.committeeCode, nonDelegable: s.nonDelegable, sourceRuleKey: s.sourceRuleKey };
+      const base = { sequence: s.sequence, roleCode: s.roleCode, roleLabel: s.roleLabel, act: s.act, committeeCode: s.committeeCode, nonDelegable: s.nonDelegable, sourceRuleKey: s.sourceRuleKey, chainOrigin: s.chainOrigin ?? null };
       if (s.sequence >= returnToSeq) return { ...base, decision: "PENDING" as const, carriedFromStepId: null };
       return {
         ...base,

@@ -1,5 +1,6 @@
 "use server";
 
+import { routeCoreFields, stepOrigin } from "@/lib/authority/core-routing";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -547,6 +548,8 @@ export async function requestNameApproval(_prev: FormState, data: FormData): Pro
         openedAt: on,
         // Where a refusal would send it, as configured now (FR-APR-016, ruling CO-4).
         ...rejectionSnapshot(await loadDestinations(tx, l.org.id), NAME_APPROVAL_DOMAIN, on, new Date()),
+        // The core routing behind the chain, as it stood (FR-APR-004, ruling C4).
+        ...routeCoreFields(res.core, new Date()),
         steps: {
           create: res.chain.map((s, i) => ({
             sequence: i + 1,
@@ -556,6 +559,7 @@ export async function requestNameApproval(_prev: FormState, data: FormData): Pro
             committeeCode: s.committeeCode ?? null,
             nonDelegable: s.nonDelegable,
             sourceRuleKey: s.sourceRuleKey,
+            chainOrigin: stepOrigin(s),
           })),
         },
       },

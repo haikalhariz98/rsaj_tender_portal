@@ -1,7 +1,7 @@
 import type { Tx } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import { amountOf } from "@/lib/money";
-import type { AuthorityAct, Matrix, Rule } from "./types";
+import type { AuthorityAct, CoreLevel, Matrix, Provenance, Rule } from "./types";
 import { pinnedIssue } from "./decided-step";
 import { issuedInForce } from "./issue";
 
@@ -74,6 +74,11 @@ export async function loadIssue(
         include: { recommenders: { orderBy: { sequence: "asc" } } },
         orderBy: { sortOrder: "asc" },
       },
+      // The issue's own core routing (FR-APR-004): never another issue's.
+      coreRouting: {
+        include: { steps: { orderBy: { sequence: "asc" } } },
+        orderBy: [{ sortOrder: "asc" }, { approverCode: "asc" }],
+      },
     },
   });
   if (!version) return null;
@@ -112,6 +117,21 @@ export async function loadIssue(
       roleCode: rec.roleCode,
       act: rec.act as AuthorityAct,
     })),
+    generateCoreChain: r.generateCoreChain,
+    coreChainReason: r.coreChainReason,
+  }));
+
+  const coreRouting: CoreLevel[] = version.coreRouting.map((l) => ({
+    approverCode: l.approverCode,
+    clause: l.clause,
+    provenance: l.provenance as Provenance,
+    ...(l.note ? { note: l.note } : {}),
+    steps: l.steps.map((st) => ({
+      roleCode: st.roleCode,
+      act: st.act as AuthorityAct,
+      provenance: st.provenance as Provenance,
+      ...(st.note ? { note: st.note } : {}),
+    })),
   }));
 
   const matrix: Matrix = {
@@ -143,6 +163,7 @@ export async function loadIssue(
       ]),
     ),
     rules,
+    coreRouting,
   };
   return { id: version.id, label: version.label, matrix };
 }
@@ -230,6 +251,29 @@ export async function loadRuleRows(issueId: string) {
   });
   return Object.fromEntries(rows.map((r) => [r.ruleKey, r]));
 }
+
+/**
+ * Row ids for one issue's core routing, by approving office — for the screen that edits
+ * it. Kept out of `Matrix` for the same reason as `loadRuleRows`.
+ */
+export async function loadCoreRows(issueId: string) {
+  const rows = await db.coreRoutingLevel.findMany({
+    where: { authorityMatrixId: issueId },
+    select: {
+      id: true,
+      approverCode: true,
+      clause: true,
+      provenance: true,
+      note: true,
+      sortOrder: true,
+      steps: { orderBy: { sequence: "asc" }, select: { id: true, roleCode: true, act: true, sequence: true, provenance: true, note: true } },
+    },
+    orderBy: [{ sortOrder: "asc" }, { approverCode: "asc" }],
+  });
+  return rows;
+}
+
+export type CoreRow = Awaited<ReturnType<typeof loadCoreRows>>[number];
 
 /**
  * The rule a route was opened under, read from the issue it pinned (FR-APR-019, ruling

@@ -39,7 +39,10 @@ export function resolveSignatory(matrix: Matrix, q: { kind: InstrumentKind; valu
     ruleKey: r.rule.ruleKey,
     ruleLabel: r.rule.labelEn,
     clause: r.rule.clause,
-    recommenders: r.rule.recommenders.map((x) => ({ roleCode: x.roleCode, roleLabel: name(x.roleCode), act: x.act })),
+    // Everyone before the signatory on the resolver's own chain — generated from the core
+    // routing where the rule takes it from there — never the rule's fields restated
+    // (6.9 ruling C3).
+    recommenders: r.chain.slice(0, -1).map((x) => ({ roleCode: x.roleCode, roleLabel: name(x.roleCode), act: x.act })),
     // The engine's own reading: a fixed rule, a mandatory approval or a mandatory
     // recommendation is not delegated.
     delegable: ruleIsDelegable(r.rule),

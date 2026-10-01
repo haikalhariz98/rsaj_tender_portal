@@ -12,7 +12,7 @@
 
 import { requesterOnlySteps, requesterOnlyText, type AbleToAct } from "@/lib/authority/requester-only";
 import { resolveApproval } from "@/lib/authority/resolve";
-import type { ApprovalStep, Matrix, Resolution, ResolutionWarning, ResolveQuery } from "@/lib/authority/types";
+import type { ApprovalStep, CoreChainRecord, Matrix, Resolution, ResolutionWarning, ResolveQuery } from "@/lib/authority/types";
 
 import type { Sen } from "@/lib/money";
 import { ableToAct, type Holders } from "@/lib/requisition/holders";
@@ -86,6 +86,8 @@ export interface AppointmentPreview {
   overrideIssue: { id: string; label: string } | null;
   /// The engine's warnings, already worded.
   warnings: ResolutionWarning[];
+  /// The core routing behind the chain, for a route's snapshot (FR-APR-004).
+  core?: CoreChainRecord;
 }
 
 const EMPTY = (state: AppointmentState, methodCode: string | null): AppointmentPreview => ({
@@ -123,6 +125,7 @@ function preview(ctx: FunderContext, domain: string, method: Method, value: numb
     source: r.source,
     overrideIssue: r.overrideIssue,
     warnings: r.warnings,
+    core: r.resolution.core,
   };
 }
 
