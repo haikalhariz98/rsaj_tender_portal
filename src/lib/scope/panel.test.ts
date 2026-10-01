@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { columnsInForce, editClearsVerifications, panelEditFault, panelFaults, panelState, verifyFaults, type PanelColumn, type PanelFacts } from "./panel";
+import { columnsInForce, editClearsVerifications, panelEditFault, panelFaults, panelState, verifiedScanVersionIds, verifyFaults, verifyPanelFault, type PanelColumn, type PanelFacts } from "./panel";
 import { UNSET_SCOPE_POLICY, type ScopePolicy } from "./types";
 
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
@@ -67,11 +67,38 @@ describe("verifying the panel (FR-EST-005, Q-1)", () => {
 });
 
 describe("the panel as a reader takes it", () => {
+  // Faithful update (BD-62-26): the input names the live scans and the snapshot, not a count.
+  const snap = (...versionIds: string[]) => ({ scans: versionIds.map((versionId, i) => ({ versionId, title: "Signed form", versionNo: i + 1 })) });
   it("a verified panel whose scan has gone is not verified", () => {
     expect(panelState(null)).toBe("NONE");
-    expect(panelState({ status: "DRAFT", liveSulitScans: 1 })).toBe("DRAFT");
-    expect(panelState({ status: "VERIFIED", liveSulitScans: 1 })).toBe("VERIFIED");
-    expect(panelState({ status: "VERIFIED", liveSulitScans: 0 })).toBe("SCAN_GONE");
+    expect(panelState({ status: "DRAFT", liveScanVersionIds: ["v1"], verifiedSnapshot: null })).toBe("DRAFT");
+    expect(panelState({ status: "VERIFIED", liveScanVersionIds: ["v1"], verifiedSnapshot: snap("v1") })).toBe("VERIFIED");
+    expect(panelState({ status: "VERIFIED", liveScanVersionIds: [], verifiedSnapshot: snap("v1") })).toBe("SCAN_GONE");
+  });
+  it("BD-62-26: verified only while a scan named in its snapshot is live; another scan never re-verifies it", () => {
+    // One of two verified scans withdrawn: the other still stands.
+    expect(panelState({ status: "VERIFIED", liveScanVersionIds: ["v2"], verifiedSnapshot: snap("v1", "v2") })).toBe("VERIFIED");
+    // A different document attached after the verified scan was withdrawn.
+    expect(panelState({ status: "VERIFIED", liveScanVersionIds: ["other-doc-v1"], verifiedSnapshot: snap("v1") })).toBe("SCAN_GONE");
+    // A new version of the same document (re-pinned): not the scan it was verified on.
+    expect(panelState({ status: "VERIFIED", liveScanVersionIds: ["v1-second-version"], verifiedSnapshot: snap("v1") })).toBe("SCAN_GONE");
+  });
+  it("a verified panel with no snapshot, or one naming no scan, is never read as verified", () => {
+    expect(panelState({ status: "VERIFIED", liveScanVersionIds: ["v1"], verifiedSnapshot: null })).toBe("SCAN_GONE");
+    expect(panelState({ status: "VERIFIED", liveScanVersionIds: ["v1"], verifiedSnapshot: { scans: "v1" } })).toBe("SCAN_GONE");
+    expect(panelState({ status: "VERIFIED", liveScanVersionIds: ["v1"], verifiedSnapshot: { scans: [{ title: "no id" }] } })).toBe("SCAN_GONE");
+    expect(verifiedScanVersionIds(snap("a", "b"))).toEqual(["a", "b"]);
+    expect(verifiedScanVersionIds(undefined)).toEqual([]);
+  });
+  it("marking verified: a draft may, a panel whose scan has gone may again, a standing verified one may not", () => {
+    expect(verifyPanelFault("DRAFT")).toBeNull();
+    expect(verifyPanelFault("SCAN_GONE")).toBeNull();
+    expect(verifyPanelFault("VERIFIED")).toEqual({ code: "PANEL_ALREADY_VERIFIED", level: "block" });
+    expect(verifyPanelFault("NONE")).toEqual({ code: "PANEL_NOT_STARTED", level: "block" });
+  });
+  it("re-verifying from SCAN_GONE is judged like a first verification: it needs a live scan", () => {
+    expect(codes(judge(panel({ status: "VERIFIED", liveSulitScans: 0 })))).toEqual(["SCAN_REQUIRED"]);
+    expect(judge(panel({ status: "VERIFIED", liveSulitScans: 1 }))).toEqual([]);
   });
   it("editing clears standing verifications (and a verified panel's)", () => {
     expect(editClearsVerifications({ status: "DRAFT", verifications: [] })).toBe(false);

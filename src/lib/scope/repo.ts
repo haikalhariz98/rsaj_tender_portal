@@ -89,10 +89,12 @@ export async function loadPanel(exerciseId: string, client: Tx = db) {
     },
   });
   if (!p) return null;
-  const liveSulitScans = await client.documentAttachment.count({
+  const live = await client.documentAttachment.findMany({
     where: { specificationPanelId: p.id, purpose: "SPEC_PANEL_FORM", detachedAt: null, version: { withdrawnAt: null, document: { classificationSnapshot: "SULIT" } } },
+    select: { versionId: true },
   });
-  return { ...p, liveSulitScans };
+  // BD-62-26: which scans are live, so a verified panel is judged on the ones its snapshot names.
+  return { ...p, liveSulitScans: live.length, liveScanVersionIds: live.map((a) => a.versionId) };
 }
 
 export type PanelRow = NonNullable<Awaited<ReturnType<typeof loadPanel>>>;

@@ -60,7 +60,7 @@ import { ACT_LABEL } from "@/lib/labels";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster } from "@/lib/people/load";
 import { scopeApproval } from "./scope-matter";
-import { columnsInForce, panelFaults, panelState, standingVerifications } from "./panel";
+import { columnsInForce, panelFaults, panelState, standingVerifications, verifyPanelFault } from "./panel";
 import { blocking, type BqScopedBy, type Finding } from "./types";
 
 type Allowed = { allowed: true } | { allowed: false; reason: string };
@@ -128,7 +128,7 @@ export async function scopeTab(exerciseId: string) {
     code ? (listOf(listCode).find((v) => v.value === code)?.label ?? "A value no longer on the list") : other.trim() ? `Specified: ${other.trim()}` : NOT_SET;
   const { finalised, draft } = currentBq(versions);
   const shown = finalised ?? draft;
-  const state = panelState(panel ? { status: panel.status, liveSulitScans: panel.liveSulitScans } : null);
+  const state = panelState(panel ? { status: panel.status, liveScanVersionIds: panel.liveScanVersionIds, verifiedSnapshot: panel.verifiedSnapshot } : null);
   const inForce = columnsInForce(columns, org.today);
   const standing = panel ? standingVerifications(panel.verifications) as typeof panel.verifications : [];
   const pFaults = panel
@@ -182,7 +182,9 @@ export async function scopeTab(exerciseId: string) {
         bqVersionId: panel?.bqVersion?.id ?? "",
       },
       findings: pFaults.map((f) => ({ level: f.level, text: scopeFaultText(f) })),
-      verify: panel ? (panel.status === "VERIFIED" ? ({ allowed: false, reason: "The panel is verified." } as Allowed) : judged(pFaults)) : ({ allowed: false, reason: "Save the panel's details first." } as Allowed),
+      // BD-62-26: a draft, or a verified panel whose scan has gone, may be (re-)verified; one standing verified may not.
+      verify: verifyPanelFault(state) ? judged([verifyPanelFault(state)!]) : judged(pFaults),
+      reverify: state === "SCAN_GONE",
       options: { contractKinds: listOf(policy.panelContractKindTaxonomyCode), projectStatuses: listOf(policy.panelProjectStatusTaxonomyCode), bills: versions.filter((v) => v.status === "FINALISED").map((v) => ({ value: v.id, label: `Version ${v.versionNo}` })), people, columns: inForce.map((c) => ({ value: c.code, label: c.labelEn })) },
       statement: `Verifications are attested: each is ${ATTESTED}.`,
     },

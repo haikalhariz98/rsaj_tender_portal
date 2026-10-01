@@ -45,14 +45,59 @@ export const columnsInForce = (columns: readonly PanelColumn[], day: string | nu
 /// The verifications standing: not cleared by a later edit.
 export const standingVerifications = (vs: readonly PanelVerificationFact[]) => vs.filter((v) => v.clearedAt == null);
 
-/// The panel as a reader should take it. A VERIFIED panel whose scan has since been withdrawn
-/// or taken off is not verified: it says so and must be verified again (Q-1).
+/// The panel as a reader should take it (BD-62-26). A VERIFIED panel counts as verified only
+/// while a scan named in its `verifiedSnapshot` is live: once each of those is withdrawn or
+/// taken off it reads SCAN_GONE, and a different scan attached since (another document, or
+/// another version of the same one) never re-verifies it. The exit is to verify it again
+/// (`verifyPanelFault`), which re-judges it and freezes the scans live then.
 export type PanelState = "NONE" | "DRAFT" | "VERIFIED" | "SCAN_GONE";
 
-export function panelState(p: Pick<PanelFacts, "status" | "liveSulitScans"> | null): PanelState {
+/// The document versions a verified panel's snapshot names. A missing or malformed snapshot names none.
+export function verifiedScanVersionIds(snapshot: unknown): string[] {
+  if (typeof snapshot !== "object" || snapshot === null || !("scans" in snapshot)) return [];
+  const scans = (snapshot as { scans: unknown }).scans;
+  if (!Array.isArray(scans)) return [];
+  return scans.flatMap((s) => (typeof s === "object" && s !== null && typeof (s as { versionId?: unknown }).versionId === "string" ? [(s as { versionId: string }).versionId] : []));
+}
+
+export function panelState(p: { status: PanelStatus; liveScanVersionIds: readonly string[]; verifiedSnapshot: unknown } | null): PanelState {
   if (!p) return "NONE";
-  if (p.status === "DRAFT") return "DRAFT";
-  return p.liveSulitScans > 0 ? "VERIFIED" : "SCAN_GONE";
+  switch (p.status) {
+    case "DRAFT":
+      return "DRAFT";
+    case "VERIFIED": {
+      const named = verifiedScanVersionIds(p.verifiedSnapshot);
+      return named.some((id) => p.liveScanVersionIds.includes(id)) ? "VERIFIED" : "SCAN_GONE";
+    }
+    default: {
+      const never: never = p.status;
+      return never;
+    }
+  }
+}
+
+export type MarkVerifiedFault = "PANEL_NOT_STARTED" | "PANEL_ALREADY_VERIFIED";
+
+/**
+ * Whether the panel may be marked verified at all, by its state: a draft may, and so may a
+ * panel whose verified scan is gone (verified again, explicitly and audited, with a fresh
+ * snapshot of the scans live then). One already standing verified may not. What it is
+ * judged on is `panelFaults`.
+ */
+export function verifyPanelFault(state: PanelState): Finding<MarkVerifiedFault> | null {
+  switch (state) {
+    case "NONE":
+      return { code: "PANEL_NOT_STARTED", level: "block" };
+    case "VERIFIED":
+      return { code: "PANEL_ALREADY_VERIFIED", level: "block" };
+    case "DRAFT":
+    case "SCAN_GONE":
+      return null;
+    default: {
+      const never: never = state;
+      return never;
+    }
+  }
 }
 
 export type PanelFault =

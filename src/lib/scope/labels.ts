@@ -11,7 +11,7 @@ import type { DraftFault, FinaliseFault } from "./bq";
 import type { ClassificationFault, DiscloseFault, LeadState, LodgeFault, OverrideFault, RetainFault, StartFault, VersionFault, ViewFault, VoidFault } from "./estimate";
 import type { PackFault } from "./pack";
 import type { BqCsvFault } from "./csv";
-import type { PanelFault, PanelState, VerifyFault } from "./panel";
+import type { MarkVerifiedFault, PanelFault, PanelState, VerifyFault } from "./panel";
 import type { PriceFault, RateScheduleStatus, ScheduleFault } from "./rates";
 import type { ScopeApproval, ScopeApprovalState, ScopeCitationFault } from "./scope-matter";
 import type { BqItemKind, BqRateSource, BqScopedBy, BqStatus, EstimateEventKind, EstimateState, Finding } from "./types";
@@ -33,7 +33,7 @@ export const PANEL_STATE_LABEL: Readonly<Record<PanelState, string>> = {
   NONE: "Not started",
   DRAFT: "Draft",
   VERIFIED: "Verified",
-  SCAN_GONE: "Verified, but its signed form is no longer attached",
+  SCAN_GONE: "Verified, but the scan it was verified on is no longer live",
 };
 export const ESTIMATE_STATE_LABEL: Readonly<Record<EstimateState, string>> = { DRAFT: "Being prepared", LODGED: "Lodged", DISCLOSED: "Disclosed at opening", VOID: "Void" };
 export const EVENT_KIND_LABEL: Readonly<Record<EstimateEventKind, string>> = {
@@ -101,6 +101,7 @@ export type ScopeCode =
   | FinaliseFault
   | DraftFault
   | PanelFault
+  | MarkVerifiedFault
   | VerifyFault
   | VersionFault
   | StartFault
@@ -170,6 +171,8 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   DAY_REQUIRED: "Give the day it was verified.",
   DAY_IN_FUTURE: "The day it was verified cannot be after today.",
   PANEL_VERIFIED: "The panel is verified. Edit it to clear its verifications before recording another.",
+  PANEL_NOT_STARTED: "Save the panel's details first.",
+  PANEL_ALREADY_VERIFIED: "The panel is verified, on a scan that is still attached.",
   // estimate.ts
   NOT_POSITIVE: "Give the estimate as an amount above zero, to the sen.",
   PERSON_REQUIRED: "Name the person this is recorded on behalf of.",
@@ -197,7 +200,7 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   BASIS_BQ_NOT_SET: `Whether the contract basis is let on a bill of quantities is not set. ${SET_IT}`,
   BQ_REVISION_OPEN: "A revision of the bill is being drafted; the finalised version is the one that goes with the documents.",
   PANEL_NOT_VERIFIED: "The specification panel is not verified. Complete it under Scope and estimate, Scope.",
-  PANEL_SCAN_GONE: "The panel's signed form is no longer attached. Attach it again and verify the panel again.",
+  PANEL_SCAN_GONE: "The scan of the signed form the panel was verified on has been withdrawn or taken off, so the panel no longer counts as verified. A scan attached since does not count by itself: make sure a SULIT scan of the signed form is attached, then use Mark verified on the panel to verify it again.",
   METHOD_NOT_CONFIGURED: "The exercise's sourcing method is no longer configured. Configure it under Configuration, Reference data.",
   ESTIMATE_RULE_NOT_SET: `Whether this sourcing method needs a company estimate is not set. ${SET_IT}`,
   ESTIMATE_NOT_LODGED: "The company estimate is not lodged. Prepare and lodge it under Scope and estimate, Company estimate.",

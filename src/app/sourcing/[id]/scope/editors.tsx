@@ -114,12 +114,12 @@ export function VerifyColumnDrawer({ exerciseId, column, columnLabel, people }: 
   );
 }
 
-export function MarkVerifiedDrawer({ exerciseId, verify, scans }: { exerciseId: string; verify: Allowed; scans: number }) {
+export function MarkVerifiedDrawer({ exerciseId, verify, scans, reverify = false }: { exerciseId: string; verify: Allowed; scans: number; reverify?: boolean }) {
   if (!verify.allowed) return <Blocked label="Mark verified" reason={verify.reason} />;
   return (
     <RecordEditor
-      title="Mark the panel verified"
-      description={`Every column is verified by a named person, and ${scans === 1 ? "the signed form is" : "the signed forms are"} attached and filed as SULIT. The panel is frozen as it stands; editing it later clears its verifications.`}
+      title={reverify ? "Verify the panel again" : "Mark the panel verified"}
+      description={`${reverify ? "The scan the panel was verified on is no longer live. Verifying again records the scans attached now in its place, and the trail keeps the earlier ones. " : ""}Every column is verified by a named person, and ${scans === 1 ? "the signed form is" : "the signed forms are"} attached and filed as SULIT. The panel is frozen as it stands; editing it later clears its verifications.`}
       fields={[hidden("exerciseId")]}
       values={{ exerciseId }}
       action={markPanelVerified}

@@ -12,9 +12,9 @@ import { ENTITY, bqExportAudit, bqImportAudit, rateFromText, scopeTabledAudit, b
 import { bqTotals, draftEditFaults, finaliseFaults, holdingOn, isQuantity, itemAmount, qualificationSnapshot, reviseFaults, startBqFaults, totalsSnapshot } from "@/lib/scope/bq";
 import { actionResult, lodgeFaults, retainFaults, startFault, versionFaults, voidFault } from "@/lib/scope/estimate";
 import { writeEstimateVersion } from "@/lib/scope/estimate-store";
-import { csvFaultText, ESTIMATE_STATE_LABEL, keyedMismatchText, scopeFaultText, type ScopeCode } from "@/lib/scope/labels";
+import { csvFaultText, ESTIMATE_STATE_LABEL, keyedMismatchText, PANEL_STATE_LABEL, scopeFaultText, type ScopeCode } from "@/lib/scope/labels";
 import { lockBqRows, lockEstimateRow, lockLiveEstimateRows, lockPanelRow, withLockedExerciseScope, type LockedExercise } from "@/lib/scope/lock";
-import { columnsInForce, editClearsVerifications, panelEditFault, panelFaults, standingVerifications, verifyFaults } from "@/lib/scope/panel";
+import { columnsInForce, editClearsVerifications, panelEditFault, panelFaults, panelState, standingVerifications, verifyFaults, verifyPanelFault } from "@/lib/scope/panel";
 import { activePerson, estimateFactsOf, lineOf, linesOf, loadBqVersions, loadEstimates, loadHoldings, loadPanel, loadPanelColumns, loadQualifications, loadRateIssues, loadScopeMatters, loadScopePolicy, loadScopeRules } from "@/lib/scope/repo";
 import { priceFromSchedule, type PricedFromSchedule } from "@/lib/scope/rates";
 import { formatDate } from "@/lib/format";
@@ -462,7 +462,10 @@ export async function markPanelVerified(_prev: FormState, data: FormData): Promi
     if (!existing) return { ok: false, message: "Save the panel's details first." };
     await lockPanelRow(tx, existing.id);
     const p = (await loadPanel(exerciseId, tx))!;
-    if (p.status === "VERIFIED") return { ok: false, message: "The panel is already verified." };
+    // BD-62-26: a draft, or a verified panel whose scan has gone, may be verified (again); one standing verified may not.
+    const state = panelState({ status: p.status, liveScanVersionIds: p.liveScanVersionIds, verifiedSnapshot: p.verifiedSnapshot });
+    const stateFault = verifyPanelFault(state);
+    if (stateFault) return refuse([stateFault]);
     const columns = await loadPanelColumns(l.org.id, tx);
     const policy = await loadScopePolicy(l.org.id, tx);
     const rules = await loadScopeRules(l.org.id, l.ex, tx);
@@ -481,12 +484,16 @@ export async function markPanelVerified(_prev: FormState, data: FormData): Promi
       scans: scans.map((s) => ({ versionId: s.versionId, title: s.version.document.title, versionNo: s.version.versionNo })),
       bqVersionNo: p.bqVersion?.versionNo ?? null,
     };
+    // Verifying again rewrites the snapshot with the scans live now; the trail keeps what it was verified on before.
+    const prior = state === "SCAN_GONE" ? (p.verifiedSnapshot as { verifications?: { column: string; person: string }[]; scans?: { title: string; versionNo: number }[] } | null) : null;
+    const verifiersText = (vs: readonly { column: string; person: string }[]) => vs.map((v) => `${v.column}: ${v.person}`).join("; ") + " (recorded on behalf of, not signed)";
+    const scansText = (ss: readonly { title: string; versionNo: number }[]) => ss.map((s) => `${s.title}, version ${s.versionNo} (${CLASSIFICATION_LABEL.SULIT})`).join("; ");
     await tx.specificationPanel.update({ where: { id: p.id }, data: { status: "VERIFIED", verifiedAt: new Date(), verifiedSnapshot: snapshot } });
     await audit(tx, l.org.id, ENTITY.panel, p.id, label(l, "Specification panel"), "UPDATE", [
-      { field: "status", before: "Draft", after: "Verified" },
-      { field: "verifiedBy", before: null, after: snapshot.verifications.map((v) => `${v.column}: ${v.person}`).join("; ") + " (recorded on behalf of, not signed)" },
-      { field: "signedForm", before: null, after: snapshot.scans.map((s) => `${s.title}, version ${s.versionNo} (${CLASSIFICATION_LABEL.SULIT})`).join("; ") },
-    ]);
+      { field: "status", before: PANEL_STATE_LABEL[state], after: PANEL_STATE_LABEL.VERIFIED },
+      { field: "verifiedBy", before: prior?.verifications ? verifiersText(prior.verifications) : null, after: verifiersText(snapshot.verifications) },
+      { field: "signedForm", before: prior?.scans ? scansText(prior.scans) : null, after: scansText(snapshot.scans) },
+    ], state === "SCAN_GONE" ? "Verified again: the scan it was verified on is no longer live." : "");
     const warns = faults.filter((f) => f.level === "warn").map((f) => scopeFaultText(f));
     return { ok: true, message: warns.join(" ") || undefined };
   });

@@ -65,7 +65,7 @@ export function ScopeSection({ d }: { d: Data }) {
           <CardBody className="flex flex-col gap-5">
             <div className="flex flex-wrap items-start gap-3">
               <EditPanelDrawer exerciseId={exercise.id} isNew={false} raw={panel.raw} kinds={panel.options.contractKinds} statuses={panel.options.projectStatuses} bills={panel.options.bills} clearsVerifications={panel.state === "VERIFIED" || panel.columns.some((c) => c.verifiedBy != null)} />
-              <MarkVerifiedDrawer exerciseId={exercise.id} verify={panel.verify} scans={panel.signedFormScans} />
+              <MarkVerifiedDrawer exerciseId={exercise.id} verify={panel.verify} scans={panel.signedFormScans} reverify={panel.reverify} />
             </div>
             {panel.findings.length > 0 && (
               <div className="flex flex-col gap-2">
@@ -132,7 +132,7 @@ export function ScopeSection({ d }: { d: Data }) {
         <OwnerAttachments
           owner={{ kind: "specificationPanel", id: panel.id }}
           title="Signed panel form"
-          subtitle="Scanned and filed as SULIT. The panel can be marked verified only while a live scan of its signed form is attached."
+          subtitle="Scanned and filed as SULIT. A verified panel stands only while the scan it was verified on is live; another scan attached later counts once the panel is verified again."
           only={["SPEC_PANEL_FORM"]}
           required={{ SPEC_PANEL_FORM: true }}
         />

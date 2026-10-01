@@ -402,6 +402,8 @@ export async function checkScope() {
     const rules = await repo.loadScopeRules(org.id, ex);
     if (panel?.status === "VERIFIED") {
       fail(`panel ${exerciseId}`, panelFaults({ ...panel, bq: panel.bqVersion }, { columns, policy, today: panel.verifiedAt!.toISOString().slice(0, 10), exerciseStatus: ex.status, bqRequired: rules.basis?.requiresBq ?? null }));
+      // BD-62-26: a verified demo panel stands on a live scan its snapshot names.
+      if (panelState(panel) !== "VERIFIED") throw new Error(`Demo panel ${exerciseId} reads ${panelState(panel)}: its snapshot names no live scan.`);
     }
     const estimates = await repo.loadEstimates(exerciseId);
     for (const e of estimates) {
