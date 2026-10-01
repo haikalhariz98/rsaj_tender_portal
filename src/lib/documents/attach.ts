@@ -9,10 +9,13 @@
  */
 
 import { isLive } from "./evidence";
-import { PURPOSE_OWNER, type AttachmentPurpose, type Finding, type SecurityClass } from "./types";
+import type { ExerciseStatus } from "@/lib/method/types";
+
+import { PURPOSE_CLASSIFICATION, PURPOSE_OWNER, type AttachmentPurpose, type Finding, type SecurityClass } from "./types";
 
 export type MeetingStatus = "SCHEDULED" | "IN_PROGRESS" | "MINUTED" | "CANCELLED";
-export type ExerciseStatus = "DRAFT" | "DOCUMENTS_IN_PREPARATION" | "CANCELLED";
+/// X-8: the one ExerciseStatus type, from the method module, never restated here.
+export type { ExerciseStatus };
 export type AwardStatus = "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "ISSUED" | "ACCEPTED" | "CANCELLED";
 export type InstrumentKind = "LETTER_OF_ACCEPTANCE" | "WORK_INDENT";
 
@@ -38,7 +41,9 @@ export type OwnerFacts =
       /// False only for an award accepted before return scans were required (OD-5).
       scansRequired: boolean;
     }
-  | { kind: "delegation"; ended: boolean };
+  | { kind: "delegation"; ended: boolean }
+  /// 6.2: a specification panel, judged with its exercise's status.
+  | { kind: "specificationPanel"; exerciseStatus: ExerciseStatus; status: "DRAFT" | "VERIFIED" };
 
 /// The two things a sourcing method can ask an exercise to keep a document for.
 export interface ExerciseMethodFlags {
@@ -87,6 +92,7 @@ export type AttachFault =
   | "VERSION_WITHDRAWN"
   | "CLASS_NOT_SET"
   | "CLASSIFICATION_NOT_SET"
+  | "CLASSIFICATION_BELOW_PURPOSE"
   | "ALREADY_ATTACHED";
 
 /// Whether the purpose belongs on this owner at all.
@@ -119,6 +125,8 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): { sta
       return { state: "OPEN" };
     case "delegation":
       return owner.ended ? { state: "FROZEN", exit: "DELEGATION_ENDED" } : { state: "OPEN" };
+    case "specificationPanel":
+      return owner.exerciseStatus === "CANCELLED" ? { state: "FROZEN", exit: "EXERCISE_CANCELLED" } : { state: "OPEN" };
   }
 }
 
@@ -142,8 +150,12 @@ export function attachFault(i: AttachInput): Finding<AttachFault>[] {
   if (st.state === "NOT_READY") out.push({ code: "OWNER_NOT_READY", level: "block", data: { exit: st.exit } });
   if (st.state === "FROZEN") out.push({ code: "OWNER_FROZEN", level: "block", data: { exit: st.exit } });
   if (i.version.withdrawnAt != null) out.push({ code: "VERSION_WITHDRAWN", level: "block" });
+  const classification = i.documentClass ? (i.documentClassification === undefined ? i.documentClass.classification : i.documentClassification) : null;
   if (!i.documentClass) out.push({ code: "CLASS_NOT_SET", level: "block" });
-  else if ((i.documentClassification === undefined ? i.documentClass.classification : i.documentClassification) == null) out.push({ code: "CLASSIFICATION_NOT_SET", level: "warn" });
+  else if (classification == null) out.push({ code: "CLASSIFICATION_NOT_SET", level: "warn" });
+  // 6.2 Q-1: a purpose that must be held at a classification is refused below it (or unset).
+  const required = PURPOSE_CLASSIFICATION[i.purpose];
+  if (i.documentClass && required && classification !== required) out.push({ code: "CLASSIFICATION_BELOW_PURPOSE", level: "block", data: { purpose: i.purpose, required, classification } });
   if (i.alreadyAttached) out.push({ code: "ALREADY_ATTACHED", level: "block" });
   return out;
 }
@@ -153,7 +165,9 @@ export type Reliance =
   /// An award accepted on its return scans (OD-5): the scan is part of what it was accepted on.
   | "ACCEPTED_ON_IT"
   /// A delegation standing on the absent holder's attached recommendation, its last live one (OD-6).
-  | "GRANTED_ON_IT";
+  | "GRANTED_ON_IT"
+  /// 6.2 Q-1: a verified specification panel standing on its signed form's scan, its last live one.
+  | "VERIFIED_ON_IT";
 
 export type DetachFault = "REASON_REQUIRED" | "RELIED_ON" | "OWNER_FROZEN" | "ALREADY_DETACHED";
 
@@ -186,6 +200,8 @@ export function reliedOn(purpose: AttachmentPurpose, owner: OwnerFacts, liveOfPu
   // OD-6: a delegation stands on its attached recommendation; the last live one is
   // replaced by a new version, never simply taken off.
   if (owner.kind === "delegation") return purpose === "HOLDER_RECOMMENDATION" ? "GRANTED_ON_IT" : null;
+  // Q-1: a verified panel's last live scan is replaced by a new version, never simply taken off.
+  if (owner.kind === "specificationPanel") return purpose === "SPEC_PANEL_FORM" && owner.status === "VERIFIED" ? "VERIFIED_ON_IT" : null;
   return null;
 }
 

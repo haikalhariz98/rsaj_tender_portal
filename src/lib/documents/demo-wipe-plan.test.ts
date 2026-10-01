@@ -153,3 +153,16 @@ describe("carry D4: sittings and delegations made through the screens on demo re
     expect(documentWipePlan([both], withThem, true).hard).toEqual([{ kind: "DEMO_PERSON_DOCUMENT_ON_REAL_RECORD", title: "Title of cm_doc7" }]);
   });
 });
+
+describe("6.2: a specification panel's signed form goes with the panel's exercise", () => {
+  it("a demo panel, or one the wipe removes with its exercise, is on the demo side; a real one is not", () => {
+    expect(onDemoSide(on({ specificationPanelId: "demo_spp1" }), side())).toBe(true);
+    expect(onDemoSide(on({ specificationPanelId: "cm_spp1" }), side({ removedPanelIds: new Set(["cm_spp1"]) }))).toBe(true);
+    expect(onDemoSide(on({ specificationPanelId: "cm_spp1" }), side())).toBe(false);
+  });
+  it("the demo's SULIT scan on its own panel is removed with the demo, not refused", () => {
+    const p = documentWipePlan([doc("demo_doc20", [on({ specificationPanelId: "demo_spp1" }, "demo_da20", "SPEC_PANEL_FORM")])], side(), false);
+    expect(p).toMatchObject({ refused: false, hard: [], soft: [] });
+    expect(p.demoDocuments.map((d) => d.id)).toEqual(["demo_doc20"]);
+  });
+});

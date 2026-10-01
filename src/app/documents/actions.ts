@@ -82,7 +82,7 @@ async function inDocument(documentId: string, fn: (tx: Tx, orgId: string) => Pro
 async function attachmentOwner(attachmentId: string): Promise<OwnerRef | null> {
   const org = await documentOrg();
   if (!org) return null;
-  const a = await db.documentAttachment.findFirst({ where: { id: attachmentId, organisationId: org.id }, select: { meetingId: true, exerciseId: true, awardId: true, delegationId: true } });
+  const a = await db.documentAttachment.findFirst({ where: { id: attachmentId, organisationId: org.id }, select: { meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true } });
   return a ? ownerOf(a) : null;
 }
 

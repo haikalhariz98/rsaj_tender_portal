@@ -210,3 +210,39 @@ describe("only a live attachment is relied on (review carry 5)", () => {
     expect(asked).toBe(false);
   });
 });
+
+describe("6.2 Q-1: the signed specification panel form, on its panel, SULIT", () => {
+  const panel = (x: Partial<Extract<OwnerFacts, { kind: "specificationPanel" }>> = {}): OwnerFacts => ({ kind: "specificationPanel", exerciseStatus: "DRAFT", status: "DRAFT", ...x });
+  const sulit = { classification: "SULIT" as const };
+
+  it("belongs on a panel only, and a panel takes nothing else", () => {
+    expect(purposeFits("SPEC_PANEL_FORM", panel())).toBe(true);
+    expect(purposeFits("SPEC_PANEL_FORM", exercise())).toBe(false);
+    expect(purposeFits("DOSSIER_EVIDENCE", panel())).toBe(false);
+    expect(methodKeeps("SPEC_PANEL_FORM", panel())).toBe(true);
+  });
+  it("attached only when the document is SULIT: Internal, Public and unset are refused, naming the way out", () => {
+    expect(attachFault({ purpose: "SPEC_PANEL_FORM", owner: panel(), version: live, documentClass: sulit })).toEqual([]);
+    const f = attachFault({ purpose: "SPEC_PANEL_FORM", owner: panel(), version: live, documentClass: internal });
+    expect(f).toEqual([{ code: "CLASSIFICATION_BELOW_PURPOSE", level: "block", data: { purpose: "SPEC_PANEL_FORM", required: "SULIT", classification: "INTERNAL" } }]);
+    expect(documentFaultText(f[0])).toBe("Signed specification panel form is kept SULIT, and this document is Internal. Raise its classification to SULIT on the document, or upload it again under a class classified SULIT.");
+    expect(codes(attachFault({ purpose: "SPEC_PANEL_FORM", owner: panel(), version: live, documentClass: sulit, documentClassification: "PUBLIC" }))).toEqual(["CLASSIFICATION_BELOW_PURPOSE"]);
+    expect(codes(attachFault({ purpose: "SPEC_PANEL_FORM", owner: panel(), version: live, documentClass: { classification: null } }))).toEqual(["CLASSIFICATION_NOT_SET", "CLASSIFICATION_BELOW_PURPOSE"]);
+    // The document's own (raised) classification is what counts, not its class's.
+    expect(attachFault({ purpose: "SPEC_PANEL_FORM", owner: panel(), version: live, documentClass: internal, documentClassification: "SULIT" })).toEqual([]);
+    // Other purposes are untouched by the rule.
+    expect(attachFault({ purpose: "SIGNED_MINUTES", owner: minuted, version: live, documentClass: { classification: "PUBLIC" } })).toEqual([]);
+  });
+  it("a cancelled exercise's panel takes nothing more", () => {
+    expect(ownerState("SPEC_PANEL_FORM", panel({ exerciseStatus: "CANCELLED" }))).toEqual({ state: "FROZEN", exit: "EXERCISE_CANCELLED" });
+    expect(ownerState("SPEC_PANEL_FORM", panel({ exerciseStatus: "DOCUMENTS_IN_PREPARATION", status: "VERIFIED" }))).toEqual({ state: "OPEN" });
+  });
+  it("a verified panel stands on its last live scan: replaced by a new version, never simply taken off", () => {
+    expect(reliedOn("SPEC_PANEL_FORM", panel({ status: "VERIFIED" }), 1)).toBe("VERIFIED_ON_IT");
+    expect(reliedOn("SPEC_PANEL_FORM", panel({ status: "VERIFIED" }), 2)).toBeNull();
+    expect(reliedOn("SPEC_PANEL_FORM", panel({ status: "DRAFT" }), 1)).toBeNull();
+    const f = detachFault({ purpose: "SPEC_PANEL_FORM", owner: panel({ status: "VERIFIED" }), reason: "wrong file", reliedOn: "VERIFIED_ON_IT" });
+    expect(codes(f)).toEqual(["RELIED_ON"]);
+    expect(documentFaultText(f[0])).toMatch(/^The specification panel was verified on this scan/);
+  });
+});

@@ -234,6 +234,20 @@ model Organisation {
   documentAttachments   DocumentAttachment[]
   legalHolds            LegalHold[]
   documentAccessEvents  DocumentAccessEvent[]
+  scopePolicy           ScopePolicy?
+  qualifications        Qualification[]
+  personQualifications  PersonQualification[]
+  bqTemplates           BqTemplate[]
+  bqTemplateSections    BqTemplateSection[]
+  specPanelColumns      SpecPanelColumn[]
+  bqVersions            BqVersion[]
+  bqSections            BqSection[]
+  bqItems               BqItem[]
+  specificationPanels   SpecificationPanel[]
+  specPanelVerifications SpecPanelVerification[]
+  companyEstimates      CompanyEstimate[]
+  companyEstimateVersions CompanyEstimateVersion[]
+  estimateEvents        EstimateEvent[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -303,6 +317,12 @@ model Person {
   documentVersionsRecorded DocumentVersion[] @relation("VersionRecordedBy")
   legalHoldsPlaced         LegalHold[]       @relation("HoldPlacedBy")
   legalHoldsReleased       LegalHold[]       @relation("HoldReleasedBy")
+  qualificationsHeld       PersonQualification[]
+  bqVersionsPrepared       BqVersion[]              @relation("BqPreparer")
+  panelVerifications       SpecPanelVerification[]
+  estimatesPrepared        CompanyEstimate[]        @relation("EstimatePreparer")
+  estimateVersionsPrepared CompanyEstimateVersion[] @relation("EstimateVersionPreparer")
+  estimateEvents           EstimateEvent[]
 
   @@unique([organisationId, staffNo])
   @@index([organisationId, name])
@@ -1743,6 +1763,11 @@ model SourcingMethod {
   restrictedAccess           Boolean @default(false)
   requiresDossier            Boolean @default(false)
   requiresCoordinationRecord Boolean @default(false)
+  /// 6.2 OD-6: whether an exercise sourced this way needs a lodged company estimate before
+  /// its documents go for approval. Null: not set, and packFaults blocks naming it. Its
+  /// own provenance, since the row's may be STATED while this answer is assumed.
+  requiresCompanyEstimate           Boolean?
+  requiresCompanyEstimateProvenance Provenance?
   /// The numbering series (NumberingSeries.key) a dossier reference is issued from.
   dossierSeriesKey String?
 
@@ -2433,6 +2458,10 @@ model ContractBasis {
   nameMs            String?
   /// The standard contract form the basis selects, as the customer names it.
   standardFormLabel String?
+  /// 6.2: whether a contract on this basis is let on a bill of quantities. Null: not set,
+  /// and packFaults blocks naming it. Its own provenance, as on the method's flag.
+  requiresBq           Boolean?
+  requiresBqProvenance Provenance?
 
   governingSource String     @default("")
   provenance      Provenance @default(ASSUMED)
@@ -2610,6 +2639,11 @@ model SourcingExercise {
   awards            Award[]
   /// Dossier evidence (FR-MTD-009) and the coordination scope document (FR-REQ-013).
   attachments       DocumentAttachment[]
+  /// 6.2: the bill of quantities' versions, the specification panel and the company
+  /// estimates (at most one not void). On the exercise until Project arrives (OD-10).
+  bqVersions         BqVersion[]
+  specificationPanel SpecificationPanel?
+  companyEstimates   CompanyEstimate[]
 
   @@unique([organisationId, reference])
   @@unique([organisationId, dossierReference])
@@ -3385,6 +3419,8 @@ enum ScanState {
 /// with its module, and its owner pairing is checked in lib and by a CHECK constraint.
 enum AttachmentPurpose {
   SIGNED_MINUTES
+  /// 6.2 Q-1: the signed specification panel form, on its panel. SULIT.
+  SPEC_PANEL_FORM
   DOSSIER_EVIDENCE
   COORDINATION_SCOPE
   HOLDER_RECOMMENDATION
@@ -3520,6 +3556,8 @@ model DocumentAttachment {
   award        Award?            @relation(fields: [awardId], references: [id], onDelete: Restrict)
   delegationId String?
   delegation   Delegation?       @relation(fields: [delegationId], references: [id], onDelete: Restrict)
+  specificationPanelId String?
+  specificationPanel   SpecificationPanel? @relation(fields: [specificationPanelId], references: [id], onDelete: Restrict)
 
   attachedAt   DateTime  @default(now())
   detachedAt   DateTime?
@@ -3529,6 +3567,7 @@ model DocumentAttachment {
   @@index([exerciseId])
   @@index([awardId])
   @@index([delegationId])
+  @@index([specificationPanelId])
   @@index([versionId])
 }
 
@@ -3574,4 +3613,363 @@ model DocumentAccessEvent {
 
   @@index([organisationId, at])
   @@index([versionId])
+}
+
+// ------------------------------------------------------------------ 6.2 scope, BQ and company estimate
+//
+// Plan docs/notes/plans/6.2-scope-bq-estimate.md, rulings OD-1..OD-10 and the sealed-figure
+// rule (ADR 0012). The bill, the panel and the estimate sit on the exercise (OD-10). The
+// estimate's figure and its amendment reasons are read by one accessor only
+// (src/lib/scope/estimate-store.ts); the application client omits them everywhere else.
+
+/// A bill of quantities version's life: one draft at a time, finalised once, superseded
+/// when a revision is finalised after it.
+enum BqStatus {
+  DRAFT
+  FINALISED
+  SUPERSEDED
+}
+
+/// Who scoped the work the bill measures (FR-EST-001).
+enum BqScopedBy {
+  IMPLEMENTING_DEPARTMENT
+  SPECIALIST_CONTRACTOR
+  COORDINATION_MEETING
+}
+
+/// A measured line, a prime cost sum or a provisional sum (FR-EST-002).
+enum BqItemKind {
+  MEASURED
+  PRIME_COST_SUM
+  PROVISIONAL_SUM
+}
+
+/// Where a line's rate came from. SCHEDULE arrives with increment 2.
+enum BqRateSource {
+  ENTERED
+  SCHEDULE
+}
+
+enum PanelStatus {
+  DRAFT
+  VERIFIED
+}
+
+/// The company estimate's life (FR-EST-006 to 010, OD-2).
+enum EstimateState {
+  DRAFT
+  LODGED
+  DISCLOSED
+  VOID
+}
+
+enum EstimateEventKind {
+  PREPARED
+  AMENDED
+  LODGED
+  RETAINED
+  LATE_OVERRIDE
+  DISCLOSED
+  VOIDED
+}
+
+/// The organisation's scope and estimate rules. Shipped absent; every field unset blocks
+/// what it governs, naming itself, and is never read as a default.
+model ScopePolicy {
+  id             String       @id @default(cuid())
+  organisationId String       @unique
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// The measurement standard a bill follows, as the customer names it (FR-EST-003).
+  measurementStandardLabel      String?
+  measurementStandardProvenance Provenance?
+  /// Qualification.code a bill's preparer must hold on the finalising day.
+  bqPreparerQualificationCode   String?
+  /// Days before the closing day by which the estimate's last version is made (OD-3).
+  estimateLeadDays              Int?
+  estimateLeadProvenance        Provenance?
+  /// Offices that hold the estimate's copies and may audit it (custodyList, for sign-in).
+  estimateCustodianRoleCode     String?
+  estimateAuditRoleCode         String?
+  /// The office that may override a late estimate (6.7). Null: no override.
+  estimateOverrideRoleCode      String?
+  /// Most verifiers a specification panel names. Null: no limit set (a warning, not a block).
+  panelSignatoryLimit           Int?
+  panelSignatoryLimitProvenance Provenance?
+  /// ClassificationTaxonomy codes the panel's contract kind and project status come from.
+  panelContractKindTaxonomyCode  String?
+  panelProjectStatusTaxonomyCode String?
+  /// What the opening benchmark row is called (OD-8, 6.7).
+  benchmarkLabelEn String?
+  benchmarkLabelMs String?
+
+  notes     String   @default("")
+  updatedAt DateTime @updatedAt
+}
+
+/// A qualification the organisation recognises (FR-EST-003), such as a measurer's.
+model Qualification {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code            String
+  nameEn          String
+  nameMs          String?
+  governingSource String     @default("")
+  provenance      Provenance @default(ASSUMED)
+  retiredOn       DateTime?
+
+  @@unique([organisationId, code])
+}
+
+/// A person holding a qualification over days (validTo inclusive; null: open-ended).
+model PersonQualification {
+  id                String       @id @default(cuid())
+  organisationId    String
+  organisation      Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  personId          String
+  person            Person       @relation(fields: [personId], references: [id], onDelete: Restrict)
+  qualificationCode String
+  validFrom         DateTime
+  validTo           DateTime?
+  evidenceNote      String       @default("")
+
+  @@index([personId])
+  @@index([organisationId, qualificationCode])
+}
+
+/// The section headings a bill starts from. None shipped.
+model BqTemplate {
+  id              String           @id @default(cuid())
+  organisationId  String
+  organisation    Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  code            String
+  nameEn          String
+  nameMs          String?
+  deliverableKind DeliverableKind?
+  provenance      Provenance       @default(ASSUMED)
+  retiredOn       DateTime?
+
+  sections BqTemplateSection[]
+
+  @@unique([organisationId, code])
+}
+
+model BqTemplateSection {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  templateId     String
+  template       BqTemplate   @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  number         String
+  titleEn        String
+  titleMs        String?
+  sortOrder      Int          @default(0)
+
+  @@index([templateId])
+}
+
+/// A verification column on the specification panel form (FR-EST-005). None shipped.
+model SpecPanelColumn {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  code           String
+  labelEn        String
+  labelMs        String?
+  orgUnitCode    String?
+  sortOrder      Int          @default(0)
+  provenance     Provenance   @default(ASSUMED)
+  retiredOn      DateTime?
+
+  @@unique([organisationId, code])
+}
+
+/// One version of an exercise's bill of quantities. Amounts and totals are computed in
+/// lib, never keyed; a finalised version is frozen with its totals and preparer snapshot.
+model BqVersion {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId     String
+  exercise       SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  versionNo      Int
+  status         BqStatus         @default(DRAFT)
+  templateCode   String?
+
+  scopedBy       BqScopedBy?
+  scopeStatement String      @default("")
+  /// Three-state: yes, no (departures required), or not answered (null).
+  followsStandard       Boolean?
+  departuresText        String   @default("")
+  standardLabelSnapshot String?
+  preparerPersonId      String?
+  preparer              Person?  @relation("BqPreparer", fields: [preparerPersonId], references: [id], onDelete: Restrict)
+  /// The qualification the preparer held on the finalising day, as it read then.
+  preparerQualificationSnapshot Json?
+  /// OD-7: whether provisional quantities are left out of the firm value. Null: not stated.
+  provisionalExcludedFromFirm   Boolean?
+  finalisedAt    DateTime?
+  totalsSnapshot Json?
+  revisionReason String    @default("")
+  createdAt      DateTime  @default(now())
+
+  sections        BqSection[]
+  panels          SpecificationPanel[]
+  estimateVersions CompanyEstimateVersion[]
+
+  @@unique([exerciseId, versionNo])
+}
+
+model BqSection {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  versionId      String
+  version        BqVersion    @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  number         String
+  title          String
+  sortOrder      Int          @default(0)
+
+  items BqItem[]
+
+  @@index([versionId])
+}
+
+model BqItem {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  sectionId      String
+  section        BqSection    @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  itemRef        String       @default("")
+  description    String
+  unit           String       @default("")
+  kind           BqItemKind   @default(MEASURED)
+  quantity       Decimal?     @db.Decimal(18, 3)
+  rate           Decimal?     @db.Decimal(18, 2)
+  /// Written only from lib (itemAmount), never keyed.
+  amount         Decimal?     @db.Decimal(18, 2)
+  provisional    Boolean      @default(false)
+  rateSource     BqRateSource @default(ENTERED)
+  sortOrder      Int          @default(0)
+
+  @@index([sectionId])
+}
+
+/// The specification panel (FR-EST-005): its form's facts, the bill it certifies, and the
+/// verifications attested against each configured column. VERIFIED only with a live SULIT
+/// scan of the signed form attached (Q-1).
+model SpecificationPanel {
+  id                 String           @id @default(cuid())
+  organisationId     String
+  organisation       Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId         String           @unique
+  exercise           SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  contractKindCode   String?
+  contractKindOther  String           @default("")
+  projectStatusCode  String?
+  projectStatusOther String           @default("")
+  currentRevisionNo  String?
+  currentRevisionOn  DateTime?
+  revisedRevisionNo  String?
+  revisedRevisionOn  DateTime?
+  completionPeriodText String         @default("")
+  bqVersionId        String?
+  bqVersion          BqVersion?       @relation(fields: [bqVersionId], references: [id], onDelete: Restrict)
+  status             PanelStatus      @default(DRAFT)
+  verifiedAt         DateTime?
+  /// What it was verified on: columns, verifiers, the scan's version, the limit.
+  verifiedSnapshot   Json?
+
+  verifications SpecPanelVerification[]
+  attachments   DocumentAttachment[]
+}
+
+/// One column's verification, attested: recorded on behalf of, not signed. Cleared (never
+/// deleted) when the panel is edited after.
+model SpecPanelVerification {
+  id                  String             @id @default(cuid())
+  organisationId      String
+  organisation        Organisation       @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  panelId             String
+  panel               SpecificationPanel @relation(fields: [panelId], references: [id], onDelete: Restrict)
+  columnCode          String
+  columnLabelSnapshot String
+  personId            String
+  person              Person             @relation(fields: [personId], references: [id], onDelete: Restrict)
+  verifiedOn          DateTime
+  note                String             @default("")
+  recordedAt          DateTime           @default(now())
+  clearedAt           DateTime?
+
+  @@index([panelId])
+}
+
+/// The company estimate (FR-EST-006): SULIT from creation and never lowered (a CHECK). At
+/// most one not void per exercise (OD-2): lib, the exercise lock, and a partial unique index.
+model CompanyEstimate {
+  id               String           @id @default(cuid())
+  organisationId   String
+  organisation     Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId       String
+  exercise         SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  preparerPersonId String
+  preparer         Person           @relation("EstimatePreparer", fields: [preparerPersonId], references: [id], onDelete: Restrict)
+  classification   SecurityClass    @default(SULIT)
+  state            EstimateState    @default(DRAFT)
+  currentVersionNo Int              @default(1)
+  lodgedAt         DateTime?
+  retainedPlace    String           @default("")
+  disclosedAt      DateTime?
+  voidedAt         DateTime?
+  voidReason       String           @default("")
+  createdAt        DateTime         @default(now())
+
+  versions CompanyEstimateVersion[]
+  events   EstimateEvent[]
+
+  @@index([exerciseId])
+}
+
+/// One immutable version of the estimate. `value` and `reason` are sealed: omitted by the
+/// application client, read only through readSealedFigures (ADR 0012).
+model CompanyEstimateVersion {
+  id               String          @id @default(cuid())
+  organisationId   String
+  organisation     Organisation    @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  estimateId       String
+  estimate         CompanyEstimate @relation(fields: [estimateId], references: [id], onDelete: Restrict)
+  versionNo        Int
+  value            Decimal         @db.Decimal(18, 2)
+  /// The organisation's day at save, never typed.
+  preparedOn       DateTime
+  preparerPersonId String
+  preparer         Person          @relation("EstimateVersionPreparer", fields: [preparerPersonId], references: [id], onDelete: Restrict)
+  reason           String          @default("")
+  bqVersionId      String?
+  bqVersion        BqVersion?      @relation(fields: [bqVersionId], references: [id], onDelete: Restrict)
+  createdAt        DateTime        @default(now())
+
+  @@unique([estimateId, versionNo])
+}
+
+/// Append-only custody and lifecycle events. Never a figure.
+model EstimateEvent {
+  id             String            @id @default(cuid())
+  organisationId String
+  organisation   Organisation      @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  estimateId     String
+  estimate       CompanyEstimate   @relation(fields: [estimateId], references: [id], onDelete: Restrict)
+  kind           EstimateEventKind
+  personId       String?
+  person         Person?           @relation(fields: [personId], references: [id], onDelete: Restrict)
+  capacity       String            @default("")
+  note           String            @default("")
+  versionNo      Int?
+  copyNo         Int?
+  at             DateTime          @default(now())
+
+  @@index([estimateId])
 }

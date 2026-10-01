@@ -22,6 +22,7 @@ export type AccessKind = "DOWNLOADED" | "REFUSED" | "VERIFIED" | "INTEGRITY_FAIL
 
 export type AttachmentPurpose =
   | "SIGNED_MINUTES"
+  | "SPEC_PANEL_FORM"
   | "DOSSIER_EVIDENCE"
   | "COORDINATION_SCOPE"
   | "HOLDER_RECOMMENDATION"
@@ -32,6 +33,7 @@ export type AttachmentPurpose =
 
 export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
   "SIGNED_MINUTES",
+  "SPEC_PANEL_FORM",
   "DOSSIER_EVIDENCE",
   "COORDINATION_SCOPE",
   "HOLDER_RECOMMENDATION",
@@ -43,12 +45,13 @@ export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
 
 /// The owners a document can be attached to. New owners arrive by migration with their
 /// module (MatterKind precedent); each is a typed key on DocumentAttachment.
-export type OwnerKind = "meeting" | "exercise" | "award" | "delegation";
-export const OWNER_KINDS: readonly OwnerKind[] = ["meeting", "exercise", "award", "delegation"];
+export type OwnerKind = "meeting" | "exercise" | "award" | "delegation" | "specificationPanel";
+export const OWNER_KINDS: readonly OwnerKind[] = ["meeting", "exercise", "award", "delegation", "specificationPanel"];
 
 /// Which owner each purpose belongs to. The migration's CHECK says the same.
 export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
   SIGNED_MINUTES: "meeting",
+  SPEC_PANEL_FORM: "specificationPanel",
   DOSSIER_EVIDENCE: "exercise",
   COORDINATION_SCOPE: "exercise",
   HOLDER_RECOMMENDATION: "delegation",
@@ -59,11 +62,19 @@ export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
 };
 
 /// The column on DocumentAttachment that names each owner.
-export const OWNER_COLUMN: Readonly<Record<OwnerKind, "meetingId" | "exerciseId" | "awardId" | "delegationId">> = {
+export type OwnerColumn = "meetingId" | "exerciseId" | "awardId" | "delegationId" | "specificationPanelId";
+export const OWNER_COLUMN: Readonly<Record<OwnerKind, OwnerColumn>> = {
   meeting: "meetingId",
   exercise: "exerciseId",
   award: "awardId",
   delegation: "delegationId",
+  specificationPanel: "specificationPanelId",
+};
+
+/// The classification a purpose's document must carry to be attached (6.2 Q-1: the signed
+/// specification panel form is SULIT). A purpose not listed takes any classification.
+export const PURPOSE_CLASSIFICATION: Readonly<Partial<Record<AttachmentPurpose, SecurityClass>>> = {
+  SPEC_PANEL_FORM: "SULIT",
 };
 
 /// The types the product can tell from a file's own bytes. Office files and ZIP are not

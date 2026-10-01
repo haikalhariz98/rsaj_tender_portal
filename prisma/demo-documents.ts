@@ -251,8 +251,11 @@ export interface RemovedWithDemo {
  * it with `documentWipePlan` (src/lib/documents/demo-wipe-plan.ts). Reads only.
  */
 export async function planDocumentWipe(db: Db, organisationId: string, removed: RemovedWithDemo, removeDependents: boolean): Promise<DocumentWipePlan> {
+  // 6.2: a panel goes with its exercise, whatever its own id.
+  const removedPanelIds = (await db.specificationPanel.findMany({ where: { organisationId, NOT: { id: demoRef }, OR: [{ exerciseId: demoRef }, { exerciseId: { in: removed.exerciseIds } }] }, select: { id: true } })).map((p) => p.id);
   const onDemoSideOwner = {
     OR: [
+      { specificationPanelId: demoRef }, { specificationPanelId: { in: removedPanelIds } },
       { meetingId: demoRef }, { exerciseId: demoRef }, { awardId: demoRef }, { delegationId: demoRef },
       { exerciseId: { in: removed.exerciseIds } }, { awardId: { in: removed.awardIds } },
       { meetingId: { in: removed.meetingIds } }, { delegationId: { in: removed.delegationIds } },
@@ -271,7 +274,7 @@ export async function planDocumentWipe(db: Db, organisationId: string, removed: 
     orderBy: { id: "asc" },
     select: {
       id: true, title: true,
-      versions: { select: { id: true, sha256: true, recordedByPersonId: true, attachments: { select: { id: true, purpose: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true } } } },
+      versions: { select: { id: true, sha256: true, recordedByPersonId: true, attachments: { select: { id: true, purpose: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true } } } },
       holds: { select: { id: true, placedByPersonId: true, releasedByPersonId: true } },
     },
   });
@@ -283,7 +286,7 @@ export async function planDocumentWipe(db: Db, organisationId: string, removed: 
     versions: d.versions.map((v) => ({ id: v.id, sha256: v.sha256, attachments: v.attachments.map((a) => ({ ...a, purpose: a.purpose as AttachmentPurpose })) })),
     holds: d.holds.map((h) => ({ id: h.id })),
   }));
-  return documentWipePlan(docs, { isDemo: (id) => id.startsWith(P), removedExerciseIds: new Set(removed.exerciseIds), removedAwardIds: new Set(removed.awardIds), removedMeetingIds: new Set(removed.meetingIds), removedDelegationIds: new Set(removed.delegationIds) }, removeDependents);
+  return documentWipePlan(docs, { isDemo: (id) => id.startsWith(P), removedExerciseIds: new Set(removed.exerciseIds), removedAwardIds: new Set(removed.awardIds), removedMeetingIds: new Set(removed.meetingIds), removedDelegationIds: new Set(removed.delegationIds), removedPanelIds: new Set(removedPanelIds) }, removeDependents);
 }
 
 const LINE_TEXT = (l: PlanLine) => {

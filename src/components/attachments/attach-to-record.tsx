@@ -97,7 +97,7 @@ export function AttachToRecordButton({
       // The document is filed, so it leaves "Received, not filed" and whatever listed it: the
       // officer is taken to the record it now belongs to, which is where it can be seen.
       close();
-      router.push(ownerHref(kind, record.id));
+      router.push(record.href ?? ownerHref(kind, record.id));
     });
   };
 

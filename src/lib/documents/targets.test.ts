@@ -66,6 +66,10 @@ describe("ownerHref", () => {
     expect(ownerHref("exercise", "x")).toBe("/sourcing/x");
     expect(ownerHref("award", "x")).toBe("/awards/x");
   });
+  it("a specification panel is shown on its exercise's screen", () => {
+    expect(ownerHref("specificationPanel", "panel1", "ex1")).toBe("/sourcing/ex1");
+    expect(ownerHref("specificationPanel", "panel1")).toBe("/sourcing");
+  });
 });
 
 describe("attachableVersion", () => {

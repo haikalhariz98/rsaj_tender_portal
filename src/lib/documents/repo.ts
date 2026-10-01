@@ -51,7 +51,7 @@ export async function attachmentFactsFor(kind: OwnerKind, ids: readonly string[]
   const col = OWNER_COLUMN[kind];
   const rows = await client.documentAttachment.findMany({
     where: { [col]: { in: [...ids] }, ...(purposes ? { purpose: { in: [...purposes] } } : {}) },
-    select: { ...factSelect, meetingId: true, exerciseId: true, awardId: true, delegationId: true },
+    select: { ...factSelect, meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true },
     orderBy: [{ attachedAt: "asc" }, { id: "asc" }],
   });
   for (const r of rows) {

@@ -64,6 +64,7 @@ export const STATUS_LABEL: Readonly<Record<DocumentStatus, string>> = { STAGED: 
 
 export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
   SIGNED_MINUTES: "Signed minutes",
+  SPEC_PANEL_FORM: "Signed specification panel form",
   DOSSIER_EVIDENCE: "Dossier evidence",
   COORDINATION_SCOPE: "Coordination meeting scope document",
   HOLDER_RECOMMENDATION: "Absent holder's signed recommendation",
@@ -136,6 +137,7 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
 const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {
   ACCEPTED_ON_IT: "The award was accepted on this scan, so it is not taken off. To correct it, attach a new version, with the reason.",
   GRANTED_ON_IT: "The delegation stands on this recommendation, so it is not taken off. To correct it, attach a new version, with the reason.",
+  VERIFIED_ON_IT: "The specification panel was verified on this scan, so it is not taken off. To correct it, attach a new version, with the reason.",
 };
 
 export const DOWNLOAD_REFUSAL_TEXT: Readonly<Record<DownloadRefusal, string>> = {
@@ -273,6 +275,8 @@ export function documentFaultText(f: Finding): string {
       return "That document class is not configured. Choose one from the list.";
     case "CLASSIFICATION_NOT_SET":
       return "This document's classification is not set, so it is listed but not opened in the portal. Set it on the document, or on its class under Configuration, Documents.";
+    case "CLASSIFICATION_BELOW_PURPOSE":
+      return `${PURPOSE_LABEL[d.purpose as AttachmentPurpose] ?? "That kind of document"} is kept ${classificationLabel(d.required as SecurityClass)}, and this document is ${d.classification ? classificationLabel(d.classification as SecurityClass) : "not classified"}. Raise its classification to ${classificationLabel(d.required as SecurityClass)} on the document, or upload it again under a class classified ${classificationLabel(d.required as SecurityClass)}.`;
     case "ALREADY_ATTACHED":
       return "That document is already attached here.";
     case "RELIED_ON":

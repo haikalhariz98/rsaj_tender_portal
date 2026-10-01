@@ -18,11 +18,24 @@ export const OWNER_KIND_LABEL: Readonly<Record<OwnerKind, string>> = {
   exercise: "Sourcing exercise",
   award: "Award",
   delegation: "Delegation",
+  specificationPanel: "Specification panel",
 };
 
 /// Where an owner's own screen is, for a link from a document to the record it is on.
-export function ownerHref(kind: OwnerKind, id: string): string {
-  return kind === "meeting" ? `/committees/${id}` : kind === "exercise" ? `/sourcing/${id}` : kind === "award" ? `/awards/${id}` : "/configuration/users";
+/// A specification panel is shown on its exercise's screen: pass the exercise's id as `exerciseId`.
+export function ownerHref(kind: OwnerKind, id: string, exerciseId?: string): string {
+  switch (kind) {
+    case "meeting":
+      return `/committees/${id}`;
+    case "exercise":
+      return `/sourcing/${id}`;
+    case "award":
+      return `/awards/${id}`;
+    case "delegation":
+      return "/configuration/users";
+    case "specificationPanel":
+      return exerciseId ? `/sourcing/${exerciseId}` : "/sourcing";
+  }
 }
 
 export { exercisePurposes } from "./attach";
@@ -31,6 +44,7 @@ export interface TargetOwner {
   id: string;
   /// Its reference, never an id.
   label: string;
+  href?: string;
   /// An exercise's facts carry what its method keeps (`method`), read the way the attach act reads it.
   facts: OwnerFacts;
 }
@@ -47,6 +61,8 @@ export interface TargetRecord {
   id: string;
   label: string;
   purposes: TargetPurpose[];
+  /// Where the record's own screen is, where its id alone does not say (a panel is on its exercise).
+  href?: string;
 }
 
 const NOTHING_KEPT = "Nothing is kept against this record: its method asks for no document.";
@@ -58,7 +74,7 @@ export function attachTargets(owners: readonly TargetOwner[]): (TargetRecord & {
       const st = ownerState(value, o.facts);
       return { value, label: PURPOSE_LABEL[value], open: st.state === "OPEN", reason: st.state === "OPEN" ? null : EXIT_TEXT[st.exit] };
     });
-    return { id: o.id, label: o.label, purposes, nothingKept: purposes.length === 0 ? NOTHING_KEPT : null };
+    return { id: o.id, label: o.label, purposes, nothingKept: purposes.length === 0 ? NOTHING_KEPT : null, ...(o.href ? { href: o.href } : {}) };
   });
 }
 

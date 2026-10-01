@@ -38,6 +38,9 @@ export function awardFacts(a: { status: AwardStatus; instrumentKind: InstrumentK
   return { kind: "award", status: a.status, instrumentKind: a.instrumentKind, scansRequired: !(a.status === "ACCEPTED" && a.returnScanSnapshot == null) };
 }
 
+/// 6.2: a specification panel, with its exercise's status.
+export const panelFacts = (p: { status: "DRAFT" | "VERIFIED"; exercise: { status: ExerciseStatus } }): OwnerFacts => ({ kind: "specificationPanel", exerciseStatus: p.exercise.status, status: p.status });
+
 /// Ended once its last day has passed, in the organisation's days.
 export function delegationFacts(d: { effectiveTo: Date | null }, today: string): OwnerFacts {
   return { kind: "delegation", ended: d.effectiveTo != null && d.effectiveTo.toISOString().slice(0, 10) < today };

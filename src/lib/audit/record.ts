@@ -1,3 +1,5 @@
+import type { ITXClientDenyList } from "@prisma/client/runtime/client";
+
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 
@@ -12,7 +14,10 @@ import { diffFields, snapshotFields, type FieldChange } from "./diff";
  * must not be mistaken later for a null that means the record was lost.
  */
 
-export type Tx = Prisma.TransactionClient;
+/// The application client inside a transaction. Derived from `db` itself, not from
+/// `Prisma.TransactionClient`, so it carries the client's global omit (the sealed estimate
+/// figure, ADR 0012): a query through a Tx can no more read it than one through `db`.
+export type Tx = Omit<typeof db, ITXClientDenyList>;
 
 export interface AuditContext {
   organisationId: string;
