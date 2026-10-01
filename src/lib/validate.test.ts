@@ -83,6 +83,15 @@ describe("money", () => {
     }
   });
 
+  it("an amount must fit a Decimal(18, 2) column: 16 digits before the point, not 17", () => {
+    expect(form({ v: "9999999999999999.99" }).money("v", "Value")).toBe("9999999999999999.99");
+    expect(form({ v: "9,999,999,999,999,999.99" }).money("v", "Value")).toBe("9999999999999999.99");
+    const r = form({ v: "10000000000000000" });
+    expect(r.money("v", "Value")).toBeNull();
+    expect(r.errors.v).toBe("Value is too large to record: at most 16 digits before the decimal point.");
+    expect(form({ v: "0000000000000000001.00" }).money("v", "Value")).toBe("0000000000000000001.00");
+  });
+
   it("accepts zero, which is a real amount", () => {
     const r = form({ v: "0" });
     expect(r.money("v", "Value")).toBe("0");

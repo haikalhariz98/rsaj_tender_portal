@@ -10,6 +10,8 @@
  * this product must not do — so a missing required field is an error, never a guess.
  */
 
+import { fitsMoneyColumn, parseSen } from "@/lib/money";
+
 export type FieldErrors = Record<string, string>;
 
 export interface Valid<T> {
@@ -98,6 +100,12 @@ export class FormReader {
     }
     if (!/^\d+(\.\d{1,2})?$/.test(v)) {
       this.errors[name] = `${label} must be an amount, to at most two decimal places.`;
+      return null;
+    }
+    // Every money column is Decimal(18, 2): a larger amount is refused here, by name, rather
+    // than failing the save as a numeric overflow.
+    if (!fitsMoneyColumn(parseSen(v))) {
+      this.errors[name] = `${label} is too large to record: at most 16 digits before the decimal point.`;
       return null;
     }
     return v;

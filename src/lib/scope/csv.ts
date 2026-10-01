@@ -118,6 +118,19 @@ export function parseCsv(text: string): { records: { line: number; cells: string
 export const BQ_CSV_COLUMNS = ["Section", "Section title", "Item", "Description", "Unit", "Kind", "Quantity", "Rate", "Amount", "Provisional"] as const;
 export type BqCsvColumn = (typeof BQ_CSV_COLUMNS)[number];
 const REQUIRED: readonly BqCsvColumn[] = ["Section", "Description", "Quantity"];
+
+/**
+ * The longest text each column takes: the same limits as the bill's editor (saveBqSection,
+ * saveBqItem), so an imported line could have been typed.
+ */
+export const BQ_CSV_TEXT_MAX: Readonly<Partial<Record<BqCsvColumn, number>>> = { Section: 20, "Section title": 300, Item: 40, Description: 4000, Unit: 40 };
+
+/**
+ * The most lines one import takes. A platform limit, not policy: every line is written
+ * and audited in one transaction under the exercise's lock, and that transaction has a
+ * time limit. A longer bill is refused before anything is stored, naming the limit.
+ */
+export const BQ_CSV_MAX_LINES = 2000;
 const UNPRICED_COLUMNS: readonly BqCsvColumn[] = BQ_CSV_COLUMNS.filter((c) => c !== "Rate" && c !== "Amount");
 
 /// How each kind is written in a file, and what is read as it (labels, never the stored code alone).
@@ -148,6 +161,8 @@ export type BqCsvFault =
   | "QUANTITY_INVALID"
   | "RATE_INVALID"
   | "TOO_LARGE"
+  | "TEXT_TOO_LONG"
+  | "TOO_MANY_LINES"
   | "AMOUNT_INVALID"
   | "PROVISIONAL_UNKNOWN"
   | "PROVISIONAL_NOT_MEASURED";
@@ -228,6 +243,9 @@ export function parseBqCsv(text: string): ParsedBqCsv {
     const rateText = get(r.cells, "Rate");
     const amountText = get(r.cells, "Amount");
     const provText = get(r.cells, "Provisional").toLowerCase();
+    for (const [column, max] of Object.entries(BQ_CSV_TEXT_MAX) as [BqCsvColumn, number][]) {
+      if (get(r.cells, column).length > max) faults.push({ code: "TEXT_TOO_LONG", level: "block", line: at, data: { column, max } });
+    }
     if (!number) faults.push({ code: "SECTION_REQUIRED", level: "block", line: at });
     if (!description) faults.push({ code: "DESCRIPTION_REQUIRED", level: "block", line: at });
     const kind: BqItemKind | undefined = kindText ? KIND_READ[norm(kindText)] : "MEASURED";
@@ -273,6 +291,7 @@ export function parseBqCsv(text: string): ParsedBqCsv {
     s.items.push({ itemRef: get(r.cells, "Item"), description, unit: get(r.cells, "Unit"), kind: kind ?? "MEASURED", quantity: quantity ?? null, rate, provisional: !!provisional });
   }
   if (lineCount === 0) faults.push({ code: "NO_LINES", level: "block", line: header.line });
+  if (lineCount > BQ_CSV_MAX_LINES) faults.push({ code: "TOO_MANY_LINES", level: "block", line: header.line, data: { lines: lineCount, max: BQ_CSV_MAX_LINES } });
   // A section with no title of its own reads as its number.
   for (const s of sections) if (!s.title) s.title = `Section ${s.number}`;
   return { sections, faults, keyedMismatches, priced, lineCount };

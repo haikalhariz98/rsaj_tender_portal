@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { formatSen, parseSen } from "@/lib/money";
 
 import { bqTotals, type FrozenBq } from "./bq";
-import { bqCsvFilename, bqToCsv, csvCell, decodeCsv, importSummary, parseBqCsv, parseCsv } from "./csv";
+import { BQ_CSV_MAX_LINES, BQ_CSV_TEXT_MAX, bqCsvFilename, bqToCsv, csvCell, decodeCsv, importSummary, parseBqCsv, parseCsv } from "./csv";
 import { CSV_FAULT_CODES, csvFaultText, keyedMismatchText } from "./labels";
 import type { BqLine } from "./types";
 
@@ -219,5 +219,25 @@ describe("the file's name", () => {
   it("is the exercise's reference and the version, never an id", () => {
     expect(bqCsvFilename("DEMO/SX/15/2026", 2, false)).toBe("DEMO-SX-15-2026-bill-v2-unpriced.csv");
     expect(bqCsvFilename("DEMO/SX/15/2026", 1, true)).toBe("DEMO-SX-15-2026-bill-v1-priced.csv");
+  });
+});
+
+describe("import bounds: what the editor takes, and what one import records", () => {
+  const H = "Section,Section title,Item,Description,Unit,Kind,Quantity,Rate,Amount,Provisional";
+  const row = (cells: Partial<Record<"sec" | "title" | "item" | "desc" | "unit", string>> = {}) =>
+    [cells.sec ?? "1", cells.title ?? "A", cells.item ?? "1.1", cells.desc ?? "Pipe", cells.unit ?? "m", "", "1", "2.00", "", ""].join(",");
+  it("text up to the editor's limits is taken; one character over is refused, naming the column", () => {
+    expect(BQ_CSV_TEXT_MAX).toEqual({ Section: 20, "Section title": 300, Item: 40, Description: 4000, Unit: 40 });
+    expect(parseBqCsv(`${H}\n${row({ sec: "x".repeat(20), title: "t".repeat(300), item: "i".repeat(40), desc: "d".repeat(4000), unit: "u".repeat(40) })}`).faults).toEqual([]);
+    const over = parseBqCsv(`${H}\n${row({ sec: "x".repeat(21), title: "t".repeat(301), item: "i".repeat(41), desc: "d".repeat(4001), unit: "u".repeat(41) })}`);
+    expect(over.faults.map((f) => [f.code, f.data?.column])).toEqual([["TEXT_TOO_LONG", "Section"], ["TEXT_TOO_LONG", "Section title"], ["TEXT_TOO_LONG", "Item"], ["TEXT_TOO_LONG", "Description"], ["TEXT_TOO_LONG", "Unit"]]);
+    expect(csvFaultText(over.faults[0])).toBe("Line 2: The section number is longer than 20 characters, the most the bill takes. Shorten it in the file.");
+  });
+  it(`at most ${BQ_CSV_MAX_LINES} lines in one import: exactly that many is taken, one more is refused`, () => {
+    const lines = (n: number) => [H, ...Array.from({ length: n }, () => row())].join("\n");
+    expect(parseBqCsv(lines(BQ_CSV_MAX_LINES)).faults).toEqual([]);
+    const over = parseBqCsv(lines(BQ_CSV_MAX_LINES + 1));
+    expect(over.faults).toEqual([{ code: "TOO_MANY_LINES", level: "block", line: 1, data: { lines: BQ_CSV_MAX_LINES + 1, max: BQ_CSV_MAX_LINES } }]);
+    expect(csvFaultText(over.faults[0])).toMatch(/^Line 1: The file has 2,001 lines; one import takes at most 2,000\. Nothing was imported\./);
   });
 });

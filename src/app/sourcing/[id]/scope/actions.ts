@@ -35,6 +35,7 @@ import { loadRoster } from "@/lib/people/load";
 import { bqCsvFilename, bqToCsv, decodeCsv, parseBqCsv } from "@/lib/scope/csv";
 import { scopeCitationFault, scopeMatterSubject, SCOPE_DOMAIN } from "@/lib/scope/scope-matter";
 import { backstopCode } from "@/lib/scope/unique-violation";
+import { transactionTimedOut } from "@/lib/scope/tx-timeout";
 import { FormReader } from "@/lib/validate";
 
 /**
@@ -83,6 +84,8 @@ async function inExercise(exerciseId: string, fn: (tx: Tx, l: LockedExercise) =>
     // one draft bill). Any other unique violation is not a rule's refusal: rethrown.
     const backstop = backstopCode(e);
     if (backstop) return refuseCodes([backstop]);
+    // The transaction ran out of time and rolled back: say so, never an error page.
+    if (transactionTimedOut(e)) return { ok: false, message: scopeFaultText("TIMED_OUT") };
     throw e;
   }
   if (result?.ok) {

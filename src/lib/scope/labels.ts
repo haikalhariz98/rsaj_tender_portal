@@ -97,6 +97,9 @@ export const LEAD_STATE_BADGE: Readonly<Record<LeadState, { label: string; tone:
   TIME_ZONE_NOT_SET: { label: "Time zone not set", tone: "warn" },
 };
 
+/// A CSV column as a sentence names it.
+const CSV_COLUMN_WORDS: Readonly<Record<string, string>> = { Section: "section number", "Section title": "section title", Item: "item reference", Description: "description", Unit: "unit" };
+
 /// A figure past its column's precision (Decimal(18, 3) quantities, Decimal(18, 2) money): fixed sentences, never the figure.
 const TOO_LARGE_TEXT = "The figure is too large to record: an amount holds at most 16 digits before the decimal point.";
 const SIZE_TEXT: Readonly<Record<string, string>> = {
@@ -131,6 +134,7 @@ export type ScopeCode =
   | "PERSON_UNKNOWN"
   | "CHANGED"
   | "QUANTITY_INVALID"
+  | "TIMED_OUT"
   | "RATE_INVALID"
   | "VALUE_INVALID"
   | "PROVENANCE_REQUIRED"
@@ -249,6 +253,7 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   QUANTITY_INVALID: "Give the quantity as a number, to three decimal places at most.",
   SECTION_NUMBER_REPEATED: (d) => `Section ${d.numbers ?? ""} is used more than once in this version. Give each section its own number, or move the lines into one section and remove the other.`,
   RATE_INVALID: "Give the rate as an amount, to the sen.",
+  TIMED_OUT: "Nothing was saved: this took longer than one save is allowed, so all of it was undone. Try again; for an import, a shorter file goes through.",
   TOO_LARGE: (d) => SIZE_TEXT[d.field as string] ?? TOO_LARGE_TEXT,
   VALUE_INVALID: "Give the estimate as an amount, to the sen.",
   PROVENANCE_REQUIRED: "Say where this comes from: stated, observed or assumed.",
@@ -350,6 +355,8 @@ const CSV_TEXT: Readonly<Record<BqCsvFault, (d: Record<string, string | number |
   KIND_UNKNOWN: (d) => `“${d.kind ?? ""}” is not a kind of line. Use Measured work, Prime cost sum or Provisional sum, or leave it blank for measured work.`,
   QUANTITY_INVALID: (d) => `“${d.quantity ?? ""}” is not a quantity: a number, to three decimal places at most.`,
   TOO_LARGE: (d) => SIZE_TEXT[d.field as string] ?? TOO_LARGE_TEXT,
+  TEXT_TOO_LONG: (d) => `The ${CSV_COLUMN_WORDS[String(d.column)] ?? "text"} is longer than ${Number(d.max ?? 0).toLocaleString("en-GB")} characters, the most the bill takes. Shorten it in the file.`,
+  TOO_MANY_LINES: (d) => `The file has ${Number(d.lines ?? 0).toLocaleString("en-GB")} lines; one import takes at most ${Number(d.max ?? 0).toLocaleString("en-GB")}. Nothing was imported. Import the bill in a file of that length or less, and enter the rest of its lines on the draft.`,
   RATE_INVALID: (d) => `“${d.rate ?? ""}” is not a rate: an amount to the sen, not below zero.`,
   AMOUNT_INVALID: (d) => `“${d.amount ?? ""}” is not an amount, so it is not compared. Amounts are worked out from quantity and rate.`,
   PROVISIONAL_UNKNOWN: (d) => `“${d.provisional ?? ""}” is not Yes or No.`,
