@@ -46,6 +46,8 @@ const ENTITIES = new Set([
   "BqTemplateSection",
   "SpecPanelColumn",
   "ContractBasis",
+  "TenderDocumentPart",
+  "TenderDocumentPolicy",
 ]);
 
 export interface HistoryEntry {

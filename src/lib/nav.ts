@@ -156,6 +156,13 @@ export const CONFIG_SECTIONS: {
         built: true,
       },
       {
+        href: "/configuration/tender-documents",
+        label: "Tender documents",
+        description: "The parts each pack assembles, the wording it carries and the figures it is judged by.",
+        icon: "files",
+        built: true,
+      },
+      {
         href: "/configuration/requisitions",
         label: "Requisition controls",
         description: "Endorsement tiers, the splitting check, budget re-checks and registration.",
