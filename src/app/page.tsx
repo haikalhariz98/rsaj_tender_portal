@@ -22,6 +22,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Stat } from "@/components/ui/stat";
 import Link from "next/link";
 import type { ActivityKind } from "@/lib/dashboard/activity";
+import { WAITING_RULE_TEXT } from "@/lib/approvals/queue";
 import { loadDashboard } from "@/lib/dashboard";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { matterLabel } from "@/lib/labels";
@@ -130,7 +131,9 @@ export default async function Dashboard() {
           icon={<ClockIcon size={17} />}
           hint={
             waiting > 0
-              ? `oldest ${Math.max(data.queue[0]?.waitingDays ?? 0, data.requisitions[0]?.waitingDays ?? 0)} days`
+              ? data.oldestWaiting == null
+                ? "waiting time not counted"
+                : `oldest ${data.oldestWaiting} ${data.oldestWaiting === 1 ? "day" : "days"}`
               : "queue is clear"
           }
         />
@@ -228,7 +231,7 @@ export default async function Dashboard() {
             <CardHeader
               icon={<ClockIcon size={17} />}
               title="Requisitions awaiting approval"
-              subtitle="Open approval routes, oldest first, with the step each waits on."
+              subtitle={`Open approval routes, longest wait first, with the office acting for each step. ${WAITING_RULE_TEXT}`}
               divided={false}
               actions={
                 <ButtonLink href="/approvals" variant="ghost" size="sm">
@@ -256,9 +259,9 @@ export default async function Dashboard() {
                 search: `${q.title} ${q.reference}`,
                 cells: {
                   item: { kind: "link", text: q.title, href: `/requisitions/${q.id}`, sub: q.reference },
-                  on: q.waitingOn ? { kind: "text", text: q.waitingOn } : { kind: "text", text: "No step pending", dim: true },
+                  on: q.waitingOn ? { kind: "stack", title: q.waitingOn, sub: q.escalatedFrom ? `escalated from ${q.escalatedFrom}` : undefined } : { kind: "text", text: "No step pending", dim: true },
                   value: { kind: "money", value: q.value },
-                  waiting: { kind: "badge", text: `${q.waitingDays}d` },
+                  waiting: { kind: "badge", text: q.waitingDays == null ? "Not counted" : `${q.waitingDays}d` },
                 },
               }))}
             />

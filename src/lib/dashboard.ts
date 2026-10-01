@@ -1,5 +1,7 @@
 import { committedSen } from "@/lib/dashboard-sums";
 import { ACTIVITY_ENTITIES, activityFeed, type ActivityEntry, type ActivityOwner } from "@/lib/dashboard/activity";
+import { openStepOf, oldestWaitingDays } from "@/lib/approvals/queue";
+import { todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
 import type { FieldChange } from "@/lib/audit/diff";
 import { ORGANISATION_CODE } from "@/lib/org";
@@ -31,10 +33,14 @@ export interface RequisitionWaiting {
   reference: string;
   title: string;
   value: number | null;
-  /// The office or committee of the first undecided step.
+  /// The office acting for the first undecided step: the one it was escalated to, else its own.
   waitingOn: string | null;
-  openedAt: Date;
-  waitingDays: number;
+  /// The office the step was written for, where it was escalated away from it.
+  escalatedFrom: string | null;
+  /// The organisation's day the step opened (`openStepOf`), and whole days since; null
+  /// while no time zone is set.
+  waitingSince: string | null;
+  waitingDays: number | null;
 }
 
 /**
@@ -100,25 +106,34 @@ export async function loadDashboard(asOf: Date = new Date()) {
     take: 5,
   });
 
+  const timeZone = await organisationTimeZone();
+  const today = todayIn(asOf, timeZone);
   const pendingRequisitions = await db.approvalInstance.findMany({
     where: { organisationId: org.id, status: "PENDING", requisition: { status: "PENDING_APPROVAL" } },
     include: {
       requisition: { select: { id: true, reference: true, title: true, estimatedValue: true } },
-      steps: { where: { decision: "PENDING" }, orderBy: { sequence: "asc" }, take: 1 },
+      steps: { orderBy: { sequence: "asc" } },
     },
-    orderBy: { openedAt: "asc" },
   });
+  // The step each route waits on, who acts for it and how long it has waited: one
+  // reading, shared with the worklist. Oldest first; a wait that is not counted last.
   const requisitions: RequisitionWaiting[] = pendingRequisitions
     .filter((i) => i.requisition)
-    .map((i) => ({
-      id: i.requisition!.id,
-      reference: i.requisition!.reference,
-      title: i.requisition!.title,
-      value: num(i.requisition!.estimatedValue),
-      waitingOn: i.steps[0]?.roleLabel ?? null,
-      openedAt: i.openedAt,
-      waitingDays: Math.max(0, Math.floor((asOf.getTime() - i.openedAt.getTime()) / DAY)),
-    }));
+    .map((i) => {
+      const o = openStepOf(i, today);
+      return {
+        id: i.requisition!.id,
+        reference: i.requisition!.reference,
+        title: i.requisition!.title,
+        value: num(i.requisition!.estimatedValue),
+        waitingOn: o?.officeLabel ?? null,
+        escalatedFrom: o?.escalatedFrom ?? null,
+        waitingSince: o?.waitingSince ?? null,
+        waitingDays: o?.waitingDays ?? null,
+      };
+    })
+    .sort((a, b) => (b.waitingDays ?? -1) - (a.waitingDays ?? -1) || a.reference.localeCompare(b.reference));
+  const oldestWaiting = oldestWaitingDays([...requisitions.map((r) => r.waitingDays), ...queue.map((q) => q.waitingDays)]);
 
   const committees = await db.committee.count({ where: { organisationId: org.id } });
   const withoutQuorum = await db.committee.count({
@@ -128,6 +143,7 @@ export async function loadDashboard(asOf: Date = new Date()) {
   return {
     queue,
     requisitions,
+    oldestWaiting,
     activity,
     committedSen: committed.total,
     committedWithoutAmount: committed.withoutAmount,

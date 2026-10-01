@@ -64,6 +64,40 @@ export function nextStep<T extends { sequence: number; decision: string }>(steps
   return [...steps].sort((a, b) => a.sequence - b.sequence).find((s) => s.decision === "PENDING") ?? null;
 }
 
+/// The rule for how long a step has waited, said once for every screen that shows it.
+export const WAITING_RULE_TEXT = "Waiting counts from when the step opened: the day the step before it was decided, or the day the route opened for the first step. Escalating a step to another office does not restart it.";
+
+/// The oldest wait among those counted; null when none is (no time zone, or nothing waiting).
+export function oldestWaitingDays(days: readonly (number | null)[]): number | null {
+  const counted = days.filter((d): d is number => d != null);
+  return counted.length === 0 ? null : Math.max(...counted);
+}
+
+/**
+ * The step an open route waits on, with the office acting for it and how long it has
+ * waited on the organisation's day. The one reading of "who has it, and for how long":
+ * the worklist and the dashboard both ask here, so they cannot disagree. The acting
+ * office is the one the step was escalated to, else its own; the wait runs from the day
+ * the step opened and is not restarted by escalation.
+ */
+export function openStepOf(
+  route: { steps: QueueStep["steps"]; openedAt: Date },
+  today: string | null,
+) {
+  const s = nextStep(route.steps);
+  if (!s) return null;
+  const before = [...route.steps].filter((x) => x.sequence < s.sequence && x.decidedOn).sort((a, b) => b.sequence - a.sequence)[0];
+  const since = day(before?.decidedOn ?? route.openedAt);
+  return {
+    step: s,
+    officeCode: s.actingRoleCode ?? s.roleCode,
+    officeLabel: s.actingRoleLabel ?? s.roleLabel,
+    escalatedFrom: s.actingRoleCode ? s.roleLabel : null,
+    waitingSince: since,
+    waitingDays: today ? Math.max(0, daysBetween(since, today)) : null,
+  };
+}
+
 export function officeQueue(
   routes: readonly QueueStep[],
   today: string | null,
@@ -72,27 +106,25 @@ export function officeQueue(
 ): { officeLabel: string; items: QueueItem[] }[] {
   const items: QueueItem[] = [];
   for (const r of routes) {
-    const s = nextStep(r.steps);
-    if (!s) continue;
-    const before = [...r.steps].filter((x) => x.sequence < s.sequence && x.decidedOn).sort((a, b) => b.sequence - a.sequence)[0];
-    const since = day(before?.decidedOn ?? r.openedAt);
-    const office = s.actingRoleCode ?? s.roleCode;
+    const o = openStepOf(r, today);
+    if (!o) continue;
+    const s = o.step;
     items.push({
       routeId: r.routeId,
       stepId: s.id,
       matterLabel: r.matterLabel,
       matterKindLabel: r.matterKindLabel,
       href: r.href,
-      officeCode: office,
-      officeLabel: s.actingRoleLabel ?? s.roleLabel,
-      escalatedFrom: s.actingRoleCode ? s.roleLabel : null,
+      officeCode: o.officeCode,
+      officeLabel: o.officeLabel,
+      escalatedFrom: o.escalatedFrom,
       escalation: s.escalation,
       escalationReason: s.escalationReason,
       act: s.act,
       committee: !!s.committeeCode,
-      waitingSince: since,
-      waitingDays: today ? Math.max(0, daysBetween(since, today)) : null,
-      noneAvailable: noneAvailable(r.routeId, office, !!s.committeeCode),
+      waitingSince: o.waitingSince,
+      waitingDays: o.waitingDays,
+      noneAvailable: noneAvailable(r.routeId, o.officeCode, !!s.committeeCode),
     });
   }
   const groups = new Map<string, QueueItem[]>();

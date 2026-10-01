@@ -5,6 +5,7 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { loadWorklist } from "@/lib/approvals/load";
+import { WAITING_RULE_TEXT } from "@/lib/approvals/queue";
 import { ESCALATION_KIND_LABEL } from "@/lib/authority/escalation-labels";
 import { dayToDate } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
@@ -59,7 +60,7 @@ export default async function ApprovalsPage() {
         </Callout>
       )}
       <Card className="overflow-hidden">
-        <CardHeader icon={<RouteIcon size={17} />} title="By office" subtitle="Grouped by the office acting for each step. Filter by office, or narrow to what was escalated or has nobody able to act." divided={false} />
+        <CardHeader icon={<RouteIcon size={17} />} title="By office" subtitle={`Grouped by the office acting for each step. Filter by office, or narrow to what was escalated or has nobody able to act. ${WAITING_RULE_TEXT}`} divided={false} />
         {rows.length === 0 ? (
           <EmptyState title="Nothing awaits a decision">No approval route is open.</EmptyState>
         ) : (
