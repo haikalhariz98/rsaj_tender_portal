@@ -20,8 +20,8 @@
  * - demo_sx1 (open quotation, bill): moved into preparation; pack v1 approved through route
  *   demo_ai60, decided by Chen Wei Ling on 28 September; tendering starts 12 October and
  *   closes 29 October at 14:30. Its estimate's lead reads Ready against that closing.
- * - demo_sx5 (open quotation, bill): pack v1 submitted on 29 September and returned on the
- *   30th ("Drawings missing the valve schedule"); v2 a draft, its Appendix half entered and its
+ * - demo_sx5 (open quotation, bill): pack v1 submitted on 29 September through route
+ *   demo_ai61b and returned on the 30th ("Drawings missing the valve schedule"); v2 a draft, its Appendix half entered and its
  *   drawings not ready (the carried set taken off).
  * - demo_sx15 (specialist, quotation pack): v1 submitted on 1 October, after its scope was
  *   approved at the Technical Committee's sitting of 30 September; route demo_ai61 pending
@@ -189,7 +189,7 @@ export async function loadTenderDocs(db: Db, organisationId: string) {
   await submit(db, organisationId, { packId: `${P}tpk1`, routeId: `${P}ai60`, at: at("2026-09-25T15:00"), startOn: "2026-10-12", closingDay: "2026-10-29", closingTime: "14:30" }, entry);
   await decide(db, organisationId, { packId: `${P}tpk1`, decision: "DONE", personId: `${P}p3`, decidedOn: "2026-09-28", at: at("2026-09-28T10:00"), reason: "", dates: { startOn: "2026-10-12", closingDay: "2026-10-29", closingTime: "14:30" } }, entry);
 
-  await submit(db, organisationId, { packId: `${P}tpk2`, routeId: `${P}ai62x`, at: at("2026-09-29T15:00"), startOn: "2026-10-05", closingDay: "2026-10-20", closingTime: "12:00" }, entry);
+  await submit(db, organisationId, { packId: `${P}tpk2`, routeId: `${P}ai61b`, at: at("2026-09-29T15:00"), startOn: "2026-10-05", closingDay: "2026-10-20", closingTime: "12:00" }, entry);
   await decide(db, organisationId, { packId: `${P}tpk2`, decision: "REJECTED", personId: `${P}p3`, decidedOn: "2026-09-30", at: at("2026-09-30T08:30"), reason: "Drawings missing the valve schedule." }, entry);
   // v2, continuing v1 as startPack writes it: parts, files and Appendix carried.
   await startPack(db, organisationId, { id: `${P}tpk3`, exerciseId: `${P}sx5`, versionNo: 2, at: at("2026-09-30T08:45"), copyFrom: `${P}tpk2` }, entry);
