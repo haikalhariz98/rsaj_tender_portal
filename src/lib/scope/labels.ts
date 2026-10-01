@@ -50,10 +50,10 @@ export const sealedVersion = (versionNo: number) => `Sealed (version ${versionNo
 /// OD-7 and the BQ tab (OD-8).
 export const FIRM_NOT_STATED = "Not stated";
 export const BQ_READABLE_STATEMENT = "Priced rates and totals are readable by anyone with access to the portal; the bill issued to tenderers is unpriced.";
-/// The Company estimate tab (OD-1, 6.2 conditions: names the Phase 3 electronic tender box).
+/// The Company estimate section (OD-1, 6.2 conditions: names the Phase 3 electronic tender box).
 export const ESTIMATE_SEALED_STATEMENT =
   "The figure is withheld from every screen, including this one, until the bids are opened. Nobody signs in yet, so the portal cannot stop someone reading it from the database: sealed storage arrives with the electronic tender box (Phase 3).";
-/// The Scope tab's readiness card (OD-4).
+/// The Scope section's readiness card (OD-4).
 export const PACK_CARD_HEADING = "Checked when the documents go for approval, not yet enforced";
 export const ATTESTED = "recorded on behalf of, not signed";
 export const NOT_SET = "Not set";
@@ -173,11 +173,11 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   BASIS_NOT_CHOSEN: "Choose the exercise's contract basis on its Contract type tab.",
   BASIS_BQ_NOT_SET: `Whether the contract basis is let on a bill of quantities is not set. ${SET_IT}`,
   BQ_REVISION_OPEN: "A revision of the bill is being drafted; the finalised version is the one that goes with the documents.",
-  PANEL_NOT_VERIFIED: "The specification panel is not verified. Complete it on the Scope tab.",
+  PANEL_NOT_VERIFIED: "The specification panel is not verified. Complete it under Scope and estimate, Scope.",
   PANEL_SCAN_GONE: "The panel's signed form is no longer attached. Attach it again and verify the panel again.",
   METHOD_NOT_CONFIGURED: "The exercise's sourcing method is no longer configured. Configure it under Configuration, Reference data.",
   ESTIMATE_RULE_NOT_SET: `Whether this sourcing method needs a company estimate is not set. ${SET_IT}`,
-  ESTIMATE_NOT_LODGED: "The company estimate is not lodged. Prepare and lodge it on the Company estimate tab.",
+  ESTIMATE_NOT_LODGED: "The company estimate is not lodged. Prepare and lodge it under Scope and estimate, Company estimate.",
   ESTIMATE_BEHIND: "The estimate was amended after it was lodged. Lodge the current version.",
   // the acts
   NO_ORGANISATION: "No organisation is configured. Run npm run setup first.",

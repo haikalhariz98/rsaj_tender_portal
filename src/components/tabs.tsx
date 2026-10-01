@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 /**
@@ -15,7 +17,17 @@ export interface TabSpec {
   icon?: ReactNode;
   /// A count beside the label, where the tab is a list.
   count?: number;
-  panel: ReactNode;
+  /// What the tab shows. A tab with `sections` is loaded by the server one section at a
+  /// time, so its panel is only there while it is the one being looked at: leave it
+  /// null otherwise and selecting the tab asks the server for it.
+  panel?: ReactNode;
+  /// A second level under the tab, for a group of views that belong together (Scope,
+  /// Bill of quantities, Company estimate). Each section is a link to
+  /// `?tab=<tab>&section=<section>`, so it can be shared and survives a refresh, and the
+  /// server renders only the section the address names.
+  sections?: { id: string; label: string }[];
+  /// The section the server rendered. Only read for the tab that has `sections`.
+  section?: string;
 }
 
 export function Tabs({
@@ -29,6 +41,16 @@ export function Tabs({
   label?: string;
 }) {
   const [active, setActive] = useState(initial ?? tabs[0]?.id);
+  // The address names the tab: when a navigation (a section link, a shared URL) brings a
+  // different one, follow it. Adjusting state while rendering, as React recommends, rather
+  // than in an effect that would paint the old tab first.
+  const [seen, setSeen] = useState(initial);
+  if (initial !== seen) {
+    setSeen(initial);
+    setActive(initial ?? tabs[0]?.id);
+  }
+  const router = useRouter();
+  const pathname = usePathname();
   // A long strip drops its icons and tightens below the widest screens, so every tab
   // fits beside the sidebar instead of scrolling the last ones out of sight.
   const dense = tabs.length > 6;
@@ -72,9 +94,17 @@ export function Tabs({
    * is what makes a tab shareable and survive a refresh.
    */
   const select = (id: string) => {
+    const next = tabs.find((t) => t.id === id);
     setActive(id);
+    // A tab with sections is loaded by the server, one section at a time: go and get it.
+    if (next?.sections?.length) {
+      if (id !== current?.id) router.push(sectionHref(pathname, id, next.sections[0].id), { scroll: false });
+      return;
+    }
     const url = new URL(window.location.href);
     url.searchParams.set("tab", id);
+    // Another tab's section is not this tab's.
+    url.searchParams.delete("section");
     window.history.replaceState(null, "", url);
   };
 
@@ -134,8 +164,33 @@ export function Tabs({
       </div>
 
       <div role="tabpanel" className="min-w-0">
-        {current?.panel}
+        {current?.sections?.length ? (
+          <div className="flex min-w-0 flex-col gap-5">
+            <nav aria-label={`${current.label} sections`} className="flex max-w-full gap-1 overflow-x-auto border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {current.sections.map((s) => {
+                const on = s.id === (current.section ?? current.sections![0].id);
+                return (
+                  <Link
+                    key={s.id}
+                    href={sectionHref(pathname, current.id, s.id)}
+                    scroll={false}
+                    aria-current={on ? "page" : undefined}
+                    className={`-mb-px shrink-0 border-b-2 px-3.5 py-2.5 text-[13.5px] font-semibold whitespace-nowrap transition hover:text-ink hover:no-underline ${on ? "border-brand-600 text-ink" : "border-transparent text-ink-3"}`}
+                  >
+                    {s.label}
+                  </Link>
+                );
+              })}
+            </nav>
+            {current.panel ?? <p className="text-[13.5px] text-ink-3" role="status">Loading…</p>}
+          </div>
+        ) : (
+          current?.panel
+        )}
       </div>
     </div>
   );
 }
+
+/// Where a section of a tab is: the same page, with the tab and the section named.
+const sectionHref = (pathname: string, tab: string, section: string) => `${pathname}?tab=${encodeURIComponent(tab)}&section=${encodeURIComponent(section)}`;

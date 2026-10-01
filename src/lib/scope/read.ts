@@ -58,14 +58,14 @@ const yesNo = (b: boolean | null) => (b == null ? NOT_SET : b ? "Yes" : "No");
 const PACK_HREF = (exerciseId: string): Readonly<Record<PackFault, string>> => ({
   BASIS_NOT_CHOSEN: `/sourcing/${exerciseId}?tab=contract`,
   BASIS_BQ_NOT_SET: SCOPE_CONFIG_PATH,
-  BQ_NOT_FINALISED: `/sourcing/${exerciseId}?tab=bq`,
-  BQ_REVISION_OPEN: `/sourcing/${exerciseId}?tab=bq`,
-  PANEL_NOT_VERIFIED: `/sourcing/${exerciseId}?tab=scope`,
-  PANEL_SCAN_GONE: `/sourcing/${exerciseId}?tab=scope`,
+  BQ_NOT_FINALISED: `/sourcing/${exerciseId}?tab=scope&section=bq`,
+  BQ_REVISION_OPEN: `/sourcing/${exerciseId}?tab=scope&section=bq`,
+  PANEL_NOT_VERIFIED: `/sourcing/${exerciseId}?tab=scope&section=scope`,
+  PANEL_SCAN_GONE: `/sourcing/${exerciseId}?tab=scope&section=scope`,
   METHOD_NOT_CONFIGURED: "/configuration/reference-data",
   ESTIMATE_RULE_NOT_SET: SCOPE_CONFIG_PATH,
-  ESTIMATE_NOT_LODGED: `/sourcing/${exerciseId}?tab=estimate`,
-  ESTIMATE_BEHIND: `/sourcing/${exerciseId}?tab=estimate`,
+  ESTIMATE_NOT_LODGED: `/sourcing/${exerciseId}?tab=scope&section=estimate`,
+  ESTIMATE_BEHIND: `/sourcing/${exerciseId}?tab=scope&section=estimate`,
 });
 
 async function loadAll(exerciseId: string) {
