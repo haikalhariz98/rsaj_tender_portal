@@ -1,0 +1,3924 @@
+diff -ru (screen below)
+--- before
++++ after
+@@ -1,3 +1,127 @@
+-404
+-404
+-This page could not be found.
++200
++Invitation controls
++Everything set
++
++The rules for advertising, inviting, selling the documents and closing.
++
++History
++Edit the rules
++The window rules
++
++The dates, the closing time, the advertisement day and what a notice, a letter and an addendum are written from.
++
++Not set is not zero and not a guess: it says what it leaves undecided. A value set says where it came from.
++
++Minimum days from advertisement to closing
++7 days
++Assumed
++Target days from advertisement to closing
++10 days
++Assumed
++Margin for a late newspaper
++2 days
++Assumed
++Days between the last day of sale and the closing
++2 days
++Assumed
++Where the date rules are written
++Demo procedure 5 (invented)
++Default closing time
++15:00
++Assumed
++Advertisement day
++The latest day among the required channels
++Assumed
++Holiday calendar
++Demo state calendar
++Mandatory attendance at a briefing
++May be made mandatory
++Assumed
++Template for the published notice
++Demo notice of invitation (window)
++Template for a letter of invitation
++Demo letter of invitation
++Template for an addendum
++Demo addendum
++
++Invented demo values, not a recommendation.
++
++The templates' wording is written under Templates.
++
++Publication channels
++3
++
++Where an advertised exercise's notice appears. It is advertised only once every required channel carries it.
++
++Add a channel
++Channel	Required	Source	Actions
++
++Demo Daily (newspaper)
++Demo procedure 5 (invented)
++	Required	Assumed	
++Edit
++Retire
++
++
++Head office notice board
++Demo procedure 5 (invented)
++	Required	Assumed	
++Edit
++Retire
++
++
++Organisation website
++Demo procedure 5 (invented)
++	Required	Assumed	
++Edit
++Retire
++The least document fee
++2
++
++The window's fee is refused below the least for its band. A band with none holds its publication back.
++
++Set a least fee
++Band	Least fee	Source	Actions
++
++Quotation band
++Demo procedure 5 (invented)
++	RM40	Assumed	
++Edit
++Remove
++
++
++Tender band
++Demo procedure 5 (invented)
++	RM200	Assumed	
++Edit
++Remove
++Holiday calendars
++
++A closing may not fall on a weekend day or a public holiday. A year not maintained in full blocks a closing in it.
++
++Add a calendar
++Demo state calendar
++Edit
++Retire
++Weekend
++Saturday, Sunday
++Assumed
++
++Years
++
++Add a year
++Import a year
++Add a holiday
++2026
++Complete
++Demo state gazette (invented)
++Assumed
++Edit
++2027
++Not complete
++Not complete: a closing in this year is refused
++Assumed
++Edit
++4 public holidays
++
++Closing and publication are judged against these as they stand at the time; what a published window was judged under is kept with it. See every change in the audit trail
+diff -ru (screen below)
+--- before
++++ after
+@@ -12,7 +12,7 @@
+ oldest 67 days
+ Sourcing exercises
+ 15
+-1 draft · 9 documents in preparation · 1 with approval for tendering · 1 approved for tendering · 2 advertised · 1 invited · 2 cancelled
++1 draft · 9 documents in preparation · 1 awaiting approval for tendering · 1 approved for tendering · 2 advertised · 1 invited · 2 cancelled, not counted
+ Value approved
+ RM5,221,000
+ across 9 decided matters
+diff -ru (screen below)
+--- before
++++ after
+@@ -2,6 +2,7 @@
+ SOURCING
+ Reservoir inlet main and inlet works, Demo Heights
+ Advertised
++Closed
+ •
+ DEMO/SX/0016/2026
+ •
+@@ -15,46 +16,30 @@
+ Works
+ •
+ Tender
++•
++Closed 01 Oct 2026 · 15:00
++Draft an addendum
++Extend the closing
+ Cancel exercise
+-Sourcing runs outside the portal in this phase
+-The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
++
++Draft an addendum: The window has closed, so no addendum is issued.
++Extend the closing: The closing has passed, so it can no longer be moved.
++
++Bids and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Award
+ Access
+ 0
+ History
+ 87
+-Three band families
+-
+-Determined 02 Oct 2026 under Demo limits, issue 1.
+-
+-Requisition band
+-Requisition, above RM250,000
+-The rule the requisition was approved under.
+-Method band
+-Tender band
+-Proposed: Open tender.
+-Contract terms band
+-Not applicable
+-Not applicable: the terms bands on the approval matrix cover other bands, not this one.
+-Value
+-RM640,000
+-SULIT · not restricted until sign-in
+-Method and who approves the appointment
+-
+-Open tender
+-
+-Method
+-Open tender · as proposed
+-
+-Approval of the appointment
+-
+-Tender Board
+-Approve (A)
+-
+-Tender, above RM300,000 · DEMO 4.2
+-
+-Chain as entered, not checked against core routing: nobody has decided whether “Tender, above RM300,000” takes its chain from the core routing. Decide it on the rule in the approval matrix.
++Window
++Sale register
++Briefing
++Addenda
++No addendum
++None was issued. The window has closed.
+diff -ru (screen below)
+--- before
++++ after
+@@ -2,6 +2,7 @@
+ SOURCING
+ Reservoir inlet main and inlet works, Demo Heights
+ Advertised
++Closed
+ •
+ DEMO/SX/0016/2026
+ •
+@@ -15,46 +16,61 @@
+ Works
+ •
+ Tender
++•
++Closed 01 Oct 2026 · 15:00
++Schedule an event
++Extend the closing
+ Cancel exercise
+-Sourcing runs outside the portal in this phase
+-The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
++
++Schedule an event: The window is published, so this stands as published. A change now is an addendum, or a change to the closing.
++Extend the closing: The closing has passed, so it can no longer be moved.
++
++Bids and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Award
+ Access
+ 0
+ History
+ 87
+-Three band families
+-
+-Determined 02 Oct 2026 under Demo limits, issue 1.
+-
+-Requisition band
+-Requisition, above RM250,000
+-The rule the requisition was approved under.
+-Method band
+-Tender band
+-Proposed: Open tender.
+-Contract terms band
+-Not applicable
+-Not applicable: the terms bands on the approval matrix cover other bands, not this one.
+-Value
+-RM640,000
+-SULIT · not restricted until sign-in
+-Method and who approves the appointment
+-
+-Open tender
+-
+-Method
+-Open tender · as proposed
+-
+-Approval of the appointment
+-
+-Tender Board
+-Approve (A)
+-
+-Tender, above RM300,000 · DEMO 4.2
+-
+-Chain as entered, not checked against core routing: nobody has decided whether “Tender, above RM300,000” takes its chain from the core routing. Decide it on the rule in the approval matrix.
++Window
++Sale register
++Briefing
++Addenda
++Tender briefing, 25 Sep 2026 · 10:00
++
++Demo Heights reservoir, site office
++
++Held 25 Sep 2026
++Attendance register (CSV)
++Mandatory: the documents are sold only to those who attended
++Record attendance
++Contractor	Representative	Recorded
++
++Contoh Bina Sdn Bhd
++201001000101 (000101-A)
++	Ahmad bin Demo	
++25 Sep 2026 · 12:10
++Daniel Anak Jelani (recorded on their behalf, not signed)
++
++
++Sampel Kejuruteraan Enterprise
++DM0000102-X
++	Lim Contoh	
++25 Sep 2026 · 12:15
++Daniel Anak Jelani (recorded on their behalf, not signed)
++Attendance sheets
++
++The signed sheet from each briefing or site visit, kept with the exercise.
++
++Stored and listed. Anyone who can reach the portal can open a document that is not SULIT; there is no sign-in to restrict it.
++Signed attendance sheet
++Nothing attached
++Optional
++Upload
++Nothing is attached yet
++Upload one with the Upload button on its line above. It is stored, then attached to this record.
+diff -ru (screen below)
+--- before
++++ after
+@@ -2,6 +2,7 @@
+ SOURCING
+ Reservoir inlet main and inlet works, Demo Heights
+ Advertised
++Closed
+ •
+ DEMO/SX/0016/2026
+ •
+@@ -15,13 +16,19 @@
+ Works
+ •
+ Tender
++•
++Closed 01 Oct 2026 · 15:00
+ Cancel exercise
+-Sourcing runs outside the portal in this phase
+-The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
++
++Cancel exercise: A published exercise is cancelled from the Invitation tab: it goes to approval with a reason and an answer on the fees.
++
++Bids and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Award
+ Access
+ 0
+@@ -32,7 +39,7 @@
+ Every change to this exercise and what is under it. Nobody is signed in, so no change is attributed.
+ 
+ Created
+-Record
++Sale of the documents
+ DEMO/SX/0016/2026 · Sale · Sampel Kejuruteraan Enterprise
+ 29 Sep 2026
+ Purchaser: Sampel Kejuruteraan Enterprise
+@@ -44,9 +51,9 @@
+ Amount: RM200
+ Payment method: Cash at the finance counter
+ Issued by: Daniel Anak Jelani
+-Recorded: on behalf of, not signed
++Recorded: not signed
+ Created
+-Record
++Sale of the documents
+ DEMO/SX/0016/2026 · Sale · Contoh Bina Sdn Bhd
+ 28 Sep 2026
+ Purchaser: Contoh Bina Sdn Bhd
+@@ -59,17 +66,17 @@
+ Payment method: Bank draft
+ Finance receipt: FR/26/004188
+ Issued by: Daniel Anak Jelani
+-Recorded: on behalf of, not signed
++Recorded: not signed
+ Created
+-Record
++Attendance
+ DEMO/SX/0016/2026 · Tender briefing · Sampel Kejuruteraan Enterprise
+ 25 Sep 2026
+ Contractor: Sampel Kejuruteraan Enterprise
+ Representative: Lim Contoh
+ Recorded by: Daniel Anak Jelani
+-Recorded: on behalf of, not signed
++Recorded: not signed
+ Created
+-Record
++Contractor
+ DEMO/SX/0016/2026 · Contractor Sampel Kejuruteraan Enterprise
+ 25 Sep 2026
+ Contractor: Sampel Kejuruteraan Enterprise
+@@ -79,7 +86,7 @@
+ Telephone: +00 0-000 0102
+ Fax: +00 0-000 0103
+ Created
+-Record
++Contractor
+ DEMO/SX/0016/2026 · Contractor Contoh Bina Sdn Bhd
+ 25 Sep 2026
+ Contractor: Contoh Bina Sdn Bhd
+@@ -89,20 +96,20 @@
+ Telephone: +00 0-000 0101
+ Email: tender@contohbina.invalid
+ Created
+-Record
++Attendance
+ DEMO/SX/0016/2026 · Tender briefing · Contoh Bina Sdn Bhd
+ 25 Sep 2026
+ Contractor: Contoh Bina Sdn Bhd
+ Representative: Ahmad bin Demo
+ Recorded by: Daniel Anak Jelani
+-Recorded: on behalf of, not signed
++Recorded: not signed
+ Changed
+-Record
++Briefing or site visit
+ DEMO/SX/0016/2026 · Tender briefing
+ 25 Sep 2026
+ Held on: — → 25 Sep 2026
+ Changed
+-Record
++Invitation window
+ DEMO/SX/0016/2026 · Invitation window
+ 24 Sep 2026
+ Advertised on: — → 24 Sep 2026
+@@ -114,34 +121,34 @@
+ 24 Sep 2026
+ Status: Approved for tendering → Advertised
+ Created
+-Record
++Publication
+ DEMO/SX/0016/2026 · Publication · Organisation website
+ 24 Sep 2026
+ Channel: Organisation website
+ Published on: 24 Sep 2026
+ Reference: https://www.demo.invalid/tenders/DEMO-SX-0016-2026
+ Recorded by: Daniel Anak Jelani
+-Recorded: on behalf of, not signed
++Recorded: not signed
+ Created
+-Record
++Publication
+ DEMO/SX/0016/2026 · Publication · Head office notice board
+ 24 Sep 2026
+ Channel: Head office notice board
+ Published on: 24 Sep 2026
+ Reference: Head office notice board, ground floor
+ Recorded by: Daniel Anak Jelani
+-Recorded: on behalf of, not signed
++Recorded: not signed
+ Created
+-Record
++Publication
+ DEMO/SX/0016/2026 · Publication · Demo Daily (newspaper)
+ 24 Sep 2026
+ Channel: Demo Daily (newspaper)
+ Published on: 24 Sep 2026
+ Reference: Demo Daily, page 26
+ Recorded by: Daniel Anak Jelani
+-Recorded: on behalf of, not signed
++Recorded: not signed
+ Created
+-Record
++Briefing or site visit
+ DEMO/SX/0016/2026 · Tender briefing
+ 24 Sep 2026
+ Event: Tender briefing
+@@ -150,21 +157,21 @@
+ Mandatory: Yes
+ Notes: Bring proof of the firm's registration.
+ Created
+-Record
++Fee basis
+ DEMO/SX/0016/2026 · Fee basis
+ 24 Sep 2026
+ Cost: Administration
+ Description: Issue and register
+ Amount: RM50
+ Created
+-Record
++Fee basis
+ DEMO/SX/0016/2026 · Fee basis
+ 24 Sep 2026
+ Cost: Binding, with the folding of drawings
+ Description: Two volumes, drawings folded
+ Amount: RM30
+ Created
+-Record
++Fee basis
+ DEMO/SX/0016/2026 · Fee basis
+ 24 Sep 2026
+ Cost: A1 paper
+@@ -173,7 +180,7 @@
+ Unit cost: RM4.50
+ Amount: RM63
+ Created
+-Record
++Fee basis
+ DEMO/SX/0016/2026 · Fee basis
+ 24 Sep 2026
+ Cost: A4 paper
+@@ -182,7 +189,7 @@
+ Unit cost: RM0.10
+ Amount: RM42
+ Created
+-Record
++Invitation window
+ DEMO/SX/0016/2026 · Invitation window
+ 24 Sep 2026
+ Path: By advertisement
+@@ -195,7 +202,7 @@
+ Fee payment methods: Bank draft or cheque to Demo Utilities Sdn Bhd, or cash at the counter
+ Submission place: The tender box, ground floor, 1 Demo Avenue
+ Changed
+-Name approval step
++Step of the approval for tendering
+ DEMO/SX/0016/2026 · Head of Contract & Procurement
+ 24 Sep 2026
+ Decision: Pending → Done
+@@ -206,7 +213,7 @@
+ Exercise
+ DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+ 24 Sep 2026
+-Status: With approval for tendering → Approved for tendering
++Status: Awaiting approval for tendering → Approved for tendering
+ Tendering starts: — → 24 Sep 2026
+ Closing: — → 01 Oct 2026
+ Changed
+@@ -217,10 +224,10 @@
+ Approved start: — → 24 Sep 2026
+ Approved closing: — → 01 Oct 2026
+ Changed
+-Name approval
++Approval for tendering
+ DEMO/SX/0016/2026 · approval for tendering
+ 24 Sep 2026
+-Status: With approval for tendering → Approved for tendering
++Status: Awaiting approval for tendering → Approved for tendering
+ Created
+ Frozen text
+ DEMO/SX/0016/2026 · Tender documents v1 · part 1
+@@ -232,7 +239,7 @@
+ Exercise
+ DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+ 23 Sep 2026
+-Status: Documents in preparation → With approval for tendering
++Status: Documents in preparation → Awaiting approval for tendering
+ Changed
+ Tender documents
+ DEMO/SX/0016/2026 · Tender documents v1
+@@ -243,7 +250,7 @@
+ Parts frozen: — → 5
+ Files pinned: — → 7
+ Created
+-Name approval
++Approval for tendering
+ DEMO/SX/0016/2026 · approval for tendering
+ 23 Sep 2026
+ Matrix: Demo limits, issue 1
+diff -ru (screen below)
+--- before
++++ after
+@@ -2,6 +2,7 @@
+ SOURCING
+ Reservoir inlet main and inlet works, Demo Heights
+ Advertised
++Closed
+ •
+ DEMO/SX/0016/2026
+ •
+@@ -15,13 +16,19 @@
+ Works
+ •
+ Tender
++•
++Closed 01 Oct 2026 · 15:00
+ Cancel exercise
+-Sourcing runs outside the portal in this phase
+-The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
++
++Cancel exercise: A published exercise is cancelled from the Invitation tab: it goes to approval with a reason and an answer on the fees.
++
++Bids and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Award
+ Access
+ 0
+diff -ru (screen below)
+--- before
++++ after
+@@ -2,6 +2,7 @@
+ SOURCING
+ Reservoir inlet main and inlet works, Demo Heights
+ Advertised
++Closed
+ •
+ DEMO/SX/0016/2026
+ •
+@@ -15,46 +16,87 @@
+ Works
+ •
+ Tender
++•
++Closed 01 Oct 2026 · 15:00
++Record a sale
++Extend the closing
+ Cancel exercise
+-Sourcing runs outside the portal in this phase
+-The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
++
++Record a sale: The documents are no longer on sale.
++Extend the closing: The closing has passed, so it can no longer be moved.
++
++Bids and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Award
+ Access
+ 0
+ History
+ 87
+-Three band families
+-
+-Determined 02 Oct 2026 under Demo limits, issue 1.
+-
+-Requisition band
+-Requisition, above RM250,000
+-The rule the requisition was approved under.
+-Method band
+-Tender band
+-Proposed: Open tender.
+-Contract terms band
+-Not applicable
+-Not applicable: the terms bands on the approval matrix cover other bands, not this one.
+-Value
+-RM640,000
+-SULIT · not restricted until sign-in
+-Method and who approves the appointment
+-
+-Open tender
+-
+-Method
+-Open tender · as proposed
+-
+-Approval of the appointment
+-
+-Tender Board
+-Approve (A)
+-
+-Tender, above RM300,000 · DEMO 4.2
++Window
++Sale register
++Briefing
++Addenda
++1 sale has no finance receipt number yet
++The number is typed in from finance's receipt. Until then the sale stays on the list of receipts to collect: Sampel Kejuruteraan Enterprise (sold 29 Sep 2026, RM200).
++Sale register
++
++2 sets sold at RM200. Closed.
++
++See the addenda
++Registration and suspension are not checked
++The supplier register is not built yet, so a contractor's registration and any suspension cannot be checked here. Each sale carries that warning on to bid receipt and evaluation.
++All records
++All records
++Live sales
++Receipt to collect
++Void
++Purchaser
++▲
++	Receipt and amount	
++Sold on
++▲
++	Checks	Addenda acknowledged	Actions
++
++Contoh Bina Sdn Bhd
++201001000101 (000101-A)
++	
++FR/26/004188
++RM200 · Bank draft
++	
++28 Sep 2026
++	
++Authority: sighted
++Registration: not checked
++Suspension: not checked
++	
++0 of 0
++	
++Label
++Void
++
++The window has closed, so the sale stands.
++
++Sampel Kejuruteraan Enterprise
++DM0000102-X
++	
++Not recorded
++RM200 · Cash at the finance counter
++	
++29 Sep 2026
++	
++Authority: sighted
++Registration: not checked
++Suspension: not checked
++	
++0 of 0
++	
++Label
++Record receipt
++Void
+ 
+-Chain as entered, not checked against core routing: nobody has decided whether “Tender, above RM300,000” takes its chain from the core routing. Decide it on the rule in the approval matrix.
++The window has closed, so the sale stands.
+diff -ru (screen below)
+--- before
++++ after
+@@ -2,6 +2,7 @@
+ SOURCING
+ Reservoir inlet main and inlet works, Demo Heights
+ Advertised
++Closed
+ •
+ DEMO/SX/0016/2026
+ •
+@@ -15,46 +16,181 @@
+ Works
+ •
+ Tender
++•
++Closed 01 Oct 2026 · 15:00
++Extend the closing
+ Cancel exercise
+-Sourcing runs outside the portal in this phase
+-The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
++
++Extend the closing: The closing has passed, so it can no longer be moved.
++
++Bids and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Award
+ Access
+ 0
+ History
+ 87
+-Three band families
+-
+-Determined 02 Oct 2026 under Demo limits, issue 1.
+-
+-Requisition band
+-Requisition, above RM250,000
+-The rule the requisition was approved under.
+-Method band
+-Tender band
+-Proposed: Open tender.
+-Contract terms band
+-Not applicable
+-Not applicable: the terms bands on the approval matrix cover other bands, not this one.
+-Value
+-RM640,000
+-SULIT · not restricted until sign-in
+-Method and who approves the appointment
+-
+-Open tender
+-
+-Method
+-Open tender · as proposed
+-
+-Approval of the appointment
+-
+-Tender Board
+-Approve (A)
++Window
++Sale register
++Briefing
++Addenda
++The window
++
++By advertisement. Where it stands is worked out from the dates, never typed.
++
++Closed
++Tendering starts
++24 Sep 2026
++Closes
++01 Oct 2026 · 15:00
++Advertised on
++24 Sep 2026
++First day of sale
++24 Sep 2026
++Last day of sale
++29 Sep 2026
++Where it stands
++Closed
++Tender Table Document
++Withdrawn: the window has closed
++Published
++24 Sep 2026 · 11:00 · recorded on behalf of the officer, not signed
++The estimate's lead time
++Ready: the last version was made on 22 Sep 2026, on or before 24 Sep 2026.
++
++The rules this window was published under are kept with it.
++
++This exercise replaces DEMO/SX/0019/2026, which was cancelled.
++
++What the notice states, and the fee
++
++The window is published, so this stands as published. A change now is an addendum, or a change to the closing.
++
++Documents inspected at
++Contract & Procurement, level 3, 1 Demo Avenue
++Documents bought at
++Finance counter, ground floor, 1 Demo Avenue
++Hours
++Monday to Friday, 9.00 am to 4.00 pm
++Tenders submitted at
++The tender box, ground floor, 1 Demo Avenue
++Document fee
++RM200
++How the fee is paid
++Bank draft or cheque to Demo Utilities Sdn Bhd, or cash at the counter
++The least the fee may be
++RM200
++Assumed
++Demo procedure 5 (invented)
++Registrations asked of a tenderer
++the Demo Companies Registry; the Demo Contractors Board (grade D4, category civil works)
++
++What a set costs to make
++
++The fee is entered, not worked out from this.
++
++Cost	Description	Quantity	Unit cost	Amount
++
++A4 paper
++	Conditions, specification and forms	420	RM0.10	RM42
++
++A1 paper
++	Drawings	14	RM4.50	RM63
++
++Binding, with the folding of drawings
++	Two volumes, drawings folded	—	—	RM30
++
++Administration
++	Issue and register	—	—	RM50
++
++The basis comes to RM185.
++
++Channels and publications
++
++Advertised on 24 Sep 2026: the day is worked out from the publications under the rule below.
++
++Channel	Required	Published on	Title, edition or address
++
++Demo Daily (newspaper)
++Daniel Anak Jelani (recorded on their behalf, not signed)
++	
++Required
++	24 Sep 2026	Demo Daily, page 26
++
++Head office notice board
++Daniel Anak Jelani (recorded on their behalf, not signed)
++	
++Required
++	24 Sep 2026	Head office notice board, ground floor
++
++Organisation website
++Daniel Anak Jelani (recorded on their behalf, not signed)
++	
++Required
++	24 Sep 2026	https://www.demo.invalid/tenders/DEMO-SX-0016-2026
++Proofs of publication
++
++A cutting, a screen print or a photograph of the board, kept with the exercise.
++
++Stored and listed. Anyone who can reach the portal can open a document that is not SULIT; there is no sign-in to restrict it.
++Proof of publication
++Nothing attached
++Optional
++Upload
++Nothing is attached yet
++Upload one with the Upload button on its line above. It is stored, then attached to this record.
++The closing, and its changes
++
++The closing set when the documents were approved, and every change since. A change is kept beside the closing it replaced.
++
++01 Oct 2026 · 15:00
++Stands now
++Approved for tendering
++Recorded 24 Sep 2026 · 08:00
++The rules this window is judged by
++
++Each value is the organisation's setting, with where it comes from. Not set blocks the act it governs.
++
++Open Invitation controls
++Minimum days from advertisement to closing
++7 days
++Assumed
++Demo procedure 5 (invented)
++Target days from advertisement to closing
++10 days
++Assumed
++Demo procedure 5 (invented)
++Margin for a late newspaper
++2 days
++Assumed
++Demo procedure 5 (invented)
++Days between the last day of sale and the closing
++2 days
++Assumed
++Demo procedure 5 (invented)
++Default closing time
++15:00
++Assumed
++Demo procedure 5 (invented)
++Advertisement day
++The latest day among the required channels
++Assumed
++Holiday calendar
++Demo state calendar
++Assumed
++Weekend
++Saturday, Sunday
++Assumed
++Mandatory attendance at a briefing
++May be made mandatory
++Assumed
++The notice
+ 
+-Tender, above RM300,000 · DEMO 4.2
++Frozen when published, from Demo notice of invitation (window), text version 1.
+ 
+-Chain as entered, not checked against core routing: nobody has decided whether “Tender, above RM300,000” takes its chain from the core routing. Decide it on the rule in the approval matrix.
++Read the notice
+diff -ru (screen below)
+--- before
++++ after
+@@ -2,6 +2,7 @@
+ SOURCING
+ Valve chamber rebuilding, Zone B
+ Invited
++Open for purchase
+ •
+ DEMO/SX/0017/2026
+ •
+@@ -15,51 +16,27 @@
+ Works
+ •
+ Quotation
++•
++Closes 14 Oct 2026 · 15:00
++Draft an addendum
++Extend the closing
+ Cancel exercise
+-Sourcing runs outside the portal in this phase
+-The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
++Bids and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Name approval
+ Award
+ Access
+ 0
+ History
+ 85
+-Three band families
+-
+-Determined 02 Oct 2026 under Demo limits, issue 1.
+-
+-Requisition band
+-Requisition, RM40,000 to RM250,000
+-The rule the requisition was approved under.
+-Method band
+-Quotation band
+-Proposed: Open quotation.
+-Contract terms band
+-Extended terms
+-Retention: applies. Defects liability: applies.
+-Value
+-RM180,000
+-SULIT · not restricted until sign-in
+-Method and who approves the appointment
+-
+-Selective quotation
+-
+-Method
+-Selective quotation · overridden
+-Why this method
+-The chambers sit on live mains: only firms that have worked on the zone's network are invited.
+-
+-Approval of the appointment
+-
+-Quotation Committee
+-Mandatory recommendation (MR)
+-Chief Executive
+-Approve (A)
+-
+-Quotation, RM15,000 to RM300,000 · DEMO 4.3
+-
+-Chain as entered, not checked against core routing: nobody has decided whether “Quotation, RM15,000 to RM300,000” takes its chain from the core routing. Decide it on the rule in the approval matrix.
++Window
++Sale register
++Briefing
++Addenda
++No addendum
++A change to the documents during the window is made by an addendum. Draft one here: it is numbered when issued and goes to everyone on the sale register.
+diff -ru (screen below)
+--- before
++++ after
+@@ -2,6 +2,7 @@
+ SOURCING
+ Valve chamber rebuilding, Zone B
+ Invited
++Open for purchase
+ •
+ DEMO/SX/0017/2026
+ •
+@@ -15,51 +16,30 @@
+ Works
+ •
+ Quotation
++•
++Closes 14 Oct 2026 · 15:00
++Schedule an event
++Extend the closing
+ Cancel exercise
+-Sourcing runs outside the portal in this phase
+-The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
++
++Schedule an event: The window is published, so this stands as published. A change now is an addendum, or a change to the closing.
++
++Bids and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Name approval
+ Award
+ Access
+ 0
+ History
+ 85
+-Three band families
+-
+-Determined 02 Oct 2026 under Demo limits, issue 1.
+-
+-Requisition band
+-Requisition, RM40,000 to RM250,000
+-The rule the requisition was approved under.
+-Method band
+-Quotation band
+-Proposed: Open quotation.
+-Contract terms band
+-Extended terms
+-Retention: applies. Defects liability: applies.
+-Value
+-RM180,000
+-SULIT · not restricted until sign-in
+-Method and who approves the appointment
+-
+-Selective quotation
+-
+-Method
+-Selective quotation · overridden
+-Why this method
+-The chambers sit on live mains: only firms that have worked on the zone's network are invited.
+-
+-Approval of the appointment
+-
+-Quotation Committee
+-Mandatory recommendation (MR)
+-Chief Executive
+-Approve (A)
+-
+-Quotation, RM15,000 to RM300,000 · DEMO 4.3
+-
+-Chain as entered, not checked against core routing: nobody has decided whether “Quotation, RM15,000 to RM300,000” takes its chain from the core routing. Decide it on the rule in the approval matrix.
++Window
++Sale register
++Briefing
++Addenda
++No briefing or site visit
++None is scheduled. Why one cannot be added now is stated at the top of the page.
+diff -ru (screen below)
+--- before
++++ after
+@@ -2,6 +2,7 @@
+ SOURCING
+ Valve chamber rebuilding, Zone B
+ Invited
++Open for purchase
+ •
+ DEMO/SX/0017/2026
+ •
+@@ -15,13 +16,19 @@
+ Works
+ •
+ Quotation
++•
++Closes 14 Oct 2026 · 15:00
+ Cancel exercise
+-Sourcing runs outside the portal in this phase
+-The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
++
++Cancel exercise: A published exercise is cancelled from the Invitation tab: it goes to approval with a reason and an answer on the fees.
++
++Bids and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Name approval
+ Award
+ Access
+@@ -33,7 +40,7 @@
+ Every change to this exercise and what is under it. Nobody is signed in, so no change is attributed.
+ 
+ Created
+-Record
++Sale of the documents
+ DEMO/SX/0017/2026 · Sale · Contoh Bina Sdn Bhd
+ 28 Sep 2026
+ Purchaser: Contoh Bina Sdn Bhd
+@@ -46,9 +53,9 @@
+ Payment method: Bank draft
+ Finance receipt: FR/26/004230
+ Issued by: Daniel Anak Jelani
+-Recorded: on behalf of, not signed
++Recorded: not signed
+ Changed
+-Record
++Letter of invitation
+ DEMO/SX/0017/2026 · Letter of invitation · Contoh Bina Sdn Bhd
+ 25 Sep 2026
+ Sent by: — → Registered post
+@@ -56,34 +63,34 @@
+ Sent on: — → 24 Sep 2026
+ Acknowledged on: — → 25 Sep 2026
+ Changed
+-Record
++Letter of invitation
+ DEMO/SX/0017/2026 · Letter of invitation · Demo Paip Services
+ 24 Sep 2026
+ Sent by: — → By hand
+ Sent on: — → 24 Sep 2026
+ Created
+-Record
++Letter of invitation
+ DEMO/SX/0017/2026 · Letter of invitation · Teladan Mekanikal Sdn Bhd
+ 23 Sep 2026
+ Invitee: Teladan Mekanikal Sdn Bhd
+ Frozen from: Demo letter of invitation, text version 1
+ Language: English
+ Created
+-Record
++Letter of invitation
+ DEMO/SX/0017/2026 · Letter of invitation · Contoh Bina Sdn Bhd
+ 23 Sep 2026
+ Invitee: Contoh Bina Sdn Bhd
+ Frozen from: Demo letter of invitation, text version 1
+ Language: English
+ Changed
+-Record
++Invitation window
+ DEMO/SX/0017/2026 · Invitation window
+ 23 Sep 2026
+ Invited on: — → 23 Sep 2026
+ Letters: — → 3
+ Rules recorded: — → Yes
+ Created
+-Record
++Letter of invitation
+ DEMO/SX/0017/2026 · Letter of invitation · Demo Paip Services
+ 23 Sep 2026
+ Invitee: Demo Paip Services
+@@ -95,14 +102,14 @@
+ 23 Sep 2026
+ Status: Approved for tendering → Invited
+ Created
+-Record
++Fee basis
+ DEMO/SX/0017/2026 · Fee basis
+ 22 Sep 2026
+ Cost: Administration
+ Description: Issue and register
+ Amount: RM20
+ Created
+-Record
++Fee basis
+ DEMO/SX/0017/2026 · Fee basis
+ 22 Sep 2026
+ Cost: A3 paper
+@@ -111,7 +118,7 @@
+ Unit cost: RM1.50
+ Amount: RM9
+ Created
+-Record
++Fee basis
+ DEMO/SX/0017/2026 · Fee basis
+ 22 Sep 2026
+ Cost: A4 paper
+@@ -120,7 +127,7 @@
+ Unit cost: RM0.10
+ Amount: RM15
+ Created
+-Record
++Invitation window
+ DEMO/SX/0017/2026 · Invitation window
+ 22 Sep 2026
+ Path: By invitation
+@@ -133,7 +140,7 @@
+ Fee payment methods: Bank draft or cheque to Demo Utilities Sdn Bhd
+ Submission place: The quotation box, Northern Region office, 12 Depot Road
+ Changed
+-Name approval step
++Step of the name approval
+ DEMO/SX/0017/2026 · Finance Director
+ 22 Sep 2026
+ Decision: Pending → Done
+@@ -146,7 +153,7 @@
+ 22 Sep 2026
+ Status: In progress → Approved
+ Changed
+-Name approval step
++Step of the name approval
+ DEMO/SX/0017/2026 · Quotation Committee
+ 21 Sep 2026
+ Decision: Pending → Done
+@@ -155,7 +162,7 @@
+ Decided on: — → 21 Sep 2026
+ Minuted: — → Yes
+ Changed
+-Name approval step
++Step of the name approval
+ DEMO/SX/0017/2026 · Head of Division
+ 18 Sep 2026
+ Decision: Pending → Done
+@@ -163,7 +170,7 @@
+ Decided on: — → 18 Sep 2026
+ Recorded: — → on behalf of, not signed
+ Changed
+-Name approval step
++Step of the name approval
+ DEMO/SX/0017/2026 · Head of Department
+ 18 Sep 2026
+ Decision: Pending → Done
+@@ -172,7 +179,7 @@
+ Recorded: — → on behalf of, not signed
+ Under delegation: — → Yes
+ Changed
+-Name approval step
++Step of the name approval
+ DEMO/SX/0017/2026 · Head of Department
+ 17 Sep 2026
+ Decision: Pending → Done
+@@ -207,7 +214,7 @@
+ Funding override applied: No
+ Invitees: 3
+ Created
+-Record
++Contractor
+ DEMO/SX/0017/2026 · Invitee Teladan Mekanikal Sdn Bhd
+ 17 Sep 2026
+ Contractor: Teladan Mekanikal Sdn Bhd
+@@ -216,7 +223,7 @@
+ Address: 55 Jalan Teladan, 00000 Demo South
+ Telephone: +00 0-000 0105
+ Created
+-Record
++Contractor
+ DEMO/SX/0017/2026 · Invitee Demo Paip Services
+ 17 Sep 2026
+ Contractor: Demo Paip Services
+@@ -226,7 +233,7 @@
+ Telephone: +00 0-000 0104
+ Email: office@demopaip.invalid
+ Created
+-Record
++Contractor
+ DEMO/SX/0017/2026 · Invitee Contoh Bina Sdn Bhd
+ 17 Sep 2026
+ Contractor: Contoh Bina Sdn Bhd
+@@ -243,19 +250,19 @@
+ Approved start: — → 18 Sep 2026
+ Approved closing: — → 14 Oct 2026
+ Changed
+-Name approval
++Approval for tendering
+ DEMO/SX/0017/2026 · approval for tendering
+ 17 Sep 2026
+-Status: With approval for tendering → Approved for tendering
++Status: Awaiting approval for tendering → Approved for tendering
+ Changed
+ Exercise
+ DEMO/SX/0017/2026 · Valve chamber rebuilding, Zone B
+ 17 Sep 2026
+-Status: With approval for tendering → Approved for tendering
++Status: Awaiting approval for tendering → Approved for tendering
+ Tendering starts: — → 18 Sep 2026
+ Closing: — → 14 Oct 2026
+ Changed
+-Name approval step
++Step of the approval for tendering
+ DEMO/SX/0017/2026 · Head of Contract & Procurement
+ 17 Sep 2026
+ Decision: Pending → Done
+@@ -294,7 +301,7 @@
+ Exercise
+ DEMO/SX/0017/2026 · Valve chamber rebuilding, Zone B
+ 16 Sep 2026
+-Status: Documents in preparation → With approval for tendering
++Status: Documents in preparation → Awaiting approval for tendering
+ Changed
+ Tender documents
+ DEMO/SX/0017/2026 · Tender documents v1
+@@ -305,7 +312,7 @@
+ Parts frozen: — → 5
+ Files pinned: — → 4
+ Created
+-Name approval
++Approval for tendering
+ DEMO/SX/0017/2026 · approval for tendering
+ 16 Sep 2026
+ Matrix: Demo limits, issue 1
+diff -ru (screen below)
+--- before
++++ after
+@@ -2,6 +2,7 @@
+ SOURCING
+ Valve chamber rebuilding, Zone B
+ Invited
++Open for purchase
+ •
+ DEMO/SX/0017/2026
+ •
+@@ -15,21 +16,50 @@
+ Works
+ •
+ Quotation
++•
++Closes 14 Oct 2026 · 15:00
+ Cancel exercise
+-Sourcing runs outside the portal in this phase
+-The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
++
++Cancel exercise: A published exercise is cancelled from the Invitation tab: it goes to approval with a reason and an answer on the fees.
++
++Bids and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Name approval
+ Award
+ Access
+ 0
+ History
+ 85
+-Name approval recorded; not enforced in this phase
+-Invitation happens outside the portal in this phase, so the portal records the name approval but cannot hold an invitation back until it is given.
++The name is approved for a list, and invitation is held to it
++The letters of invitation go only to the contractors on the list the name was approved for. Changing the list withdraws the approval until the name is asked for again, and once the exercise is invited the list is frozen. Where the route has a committee step, it is discharged by citing the committee's decision.
++The invitee list
++
++Frozen: the exercise is invited.
++
++Open the Invitation tab
++
++As it stands
++
++Contoh Bina Sdn Bhd
++201001000101 (000101-A)
++Demo Paip Services
++201501000104 (000104-D)
++Teladan Mekanikal Sdn Bhd
++200801000105 (000105-T)
++
++As the name was asked for
++
++Contoh Bina Sdn Bhd
++201001000101 (000101-A)
++Demo Paip Services
++201501000104 (000104-D)
++Teladan Mekanikal Sdn Bhd
++200801000105 (000105-T)
+ Name approval
+ 
+ Requested 17 Sep 2026 under Demo limits, issue 1: Name approval, selective quotation · DEMO 4.5.
+@@ -49,7 +79,7 @@
+ Done · Gopal Nair · recorded on behalf of, not signed · 18 Sep 2026
+ Done
+ Quotation Committee · Recommend (R)
+-Done · Quotation Committee · recorded on behalf of, not signed · 21 Sep 2026
++Done · Quotation Committee · the committee's decision, DEMO/SQ/1A/2026: Firms proposed for invitation: valve chamber rebuilding, Zone B · 21 Sep 2026
+ Done
+ Finance Director · Approve (A)
+ Done · Bala Krishnan · recorded on behalf of, not signed · 22 Sep 2026
+diff -ru (screen below)
+--- before
++++ after
+@@ -2,6 +2,7 @@
+ SOURCING
+ Valve chamber rebuilding, Zone B
+ Invited
++Open for purchase
+ •
+ DEMO/SX/0017/2026
+ •
+@@ -15,51 +16,60 @@
+ Works
+ •
+ Quotation
++•
++Closes 14 Oct 2026 · 15:00
++Record a sale
++Extend the closing
+ Cancel exercise
+-Sourcing runs outside the portal in this phase
+-The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
++Bids and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Name approval
+ Award
+ Access
+ 0
+ History
+ 85
+-Three band families
+-
+-Determined 02 Oct 2026 under Demo limits, issue 1.
+-
+-Requisition band
+-Requisition, RM40,000 to RM250,000
+-The rule the requisition was approved under.
+-Method band
+-Quotation band
+-Proposed: Open quotation.
+-Contract terms band
+-Extended terms
+-Retention: applies. Defects liability: applies.
+-Value
+-RM180,000
+-SULIT · not restricted until sign-in
+-Method and who approves the appointment
+-
+-Selective quotation
+-
+-Method
+-Selective quotation · overridden
+-Why this method
+-The chambers sit on live mains: only firms that have worked on the zone's network are invited.
+-
+-Approval of the appointment
+-
+-Quotation Committee
+-Mandatory recommendation (MR)
+-Chief Executive
+-Approve (A)
+-
+-Quotation, RM15,000 to RM300,000 · DEMO 4.3
+-
+-Chain as entered, not checked against core routing: nobody has decided whether “Quotation, RM15,000 to RM300,000” takes its chain from the core routing. Decide it on the rule in the approval matrix.
++Window
++Sale register
++Briefing
++Addenda
++Sale register
++
++1 set sold at RM60. Open for purchase.
++
++See the addenda
++Registration and suspension are not checked
++The supplier register is not built yet, so a contractor's registration and any suspension cannot be checked here. Each sale carries that warning on to bid receipt and evaluation.
++All records
++All records
++Live sales
++Receipt to collect
++Void
++Purchaser
++▲
++	Receipt and amount	
++Sold on
++▲
++	Checks	Addenda acknowledged	Actions
++
++Contoh Bina Sdn Bhd
++201001000101 (000101-A)
++	
++FR/26/004230
++RM60 · Bank draft
++	
++28 Sep 2026
++	
++Authority: sighted
++Registration: not checked
++Suspension: not checked
++	
++0 of 0
++	
++Label
++Void
+diff -ru (screen below)
+--- before
++++ after
+@@ -2,6 +2,7 @@
+ SOURCING
+ Valve chamber rebuilding, Zone B
+ Invited
++Open for purchase
+ •
+ DEMO/SX/0017/2026
+ •
+@@ -15,51 +16,190 @@
+ Works
+ •
+ Quotation
++•
++Closes 14 Oct 2026 · 15:00
++Extend the closing
+ Cancel exercise
+-Sourcing runs outside the portal in this phase
+-The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
++Bids and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Name approval
+ Award
+ Access
+ 0
+ History
+ 85
+-Three band families
+-
+-Determined 02 Oct 2026 under Demo limits, issue 1.
+-
+-Requisition band
+-Requisition, RM40,000 to RM250,000
+-The rule the requisition was approved under.
+-Method band
+-Quotation band
+-Proposed: Open quotation.
+-Contract terms band
+-Extended terms
+-Retention: applies. Defects liability: applies.
+-Value
+-RM180,000
+-SULIT · not restricted until sign-in
+-Method and who approves the appointment
+-
+-Selective quotation
+-
+-Method
+-Selective quotation · overridden
+-Why this method
+-The chambers sit on live mains: only firms that have worked on the zone's network are invited.
+-
+-Approval of the appointment
+-
+-Quotation Committee
+-Mandatory recommendation (MR)
+-Chief Executive
+-Approve (A)
+-
+-Quotation, RM15,000 to RM300,000 · DEMO 4.3
+-
+-Chain as entered, not checked against core routing: nobody has decided whether “Quotation, RM15,000 to RM300,000” takes its chain from the core routing. Decide it on the rule in the approval matrix.
++Window
++Sale register
++Briefing
++Addenda
++The window
++
++By invitation. Where it stands is worked out from the dates, never typed.
++
++Open for purchase
++Tendering starts
++18 Sep 2026
++Closes
++14 Oct 2026 · 15:00
++Invited on
++23 Sep 2026
++First day of sale
++23 Sep 2026
++Last day of sale
++09 Oct 2026
++Where it stands
++Open for purchase. Quotations may be submitted
++Tender Table Document
++Available for inspection until the closing
++Published
++23 Sep 2026 · 10:00 · recorded on behalf of the officer, not signed
++The estimate's lead time
++Ready: the last version was made on 15 Sep 2026, on or before 07 Oct 2026.
++
++The rules this window was published under are kept with it.
++
++What the notice states, and the fee
++
++The window is published, so this stands as published. A change now is an addendum, or a change to the closing.
++
++Documents inspected at
++Northern Region office, 12 Depot Road
++Documents bought at
++Northern Region office, 12 Depot Road
++Hours
++Monday to Friday, 9.00 am to 4.00 pm
++Quotations submitted at
++The quotation box, Northern Region office, 12 Depot Road
++Document fee
++RM60
++How the fee is paid
++Bank draft or cheque to Demo Utilities Sdn Bhd
++The least the fee may be
++RM40
++Assumed
++Demo procedure 5 (invented)
++Registrations asked of a supplier
++the Demo Companies Registry; the Demo Contractors Board (grade D2, category civil works)
++
++What a set costs to make
++
++The fee is entered, not worked out from this.
++
++Cost	Description	Quantity	Unit cost	Amount
++
++A4 paper
++	Conditions, specification and forms	150	RM0.10	RM15
++
++A3 paper
++	Drawings	6	RM1.50	RM9
++
++Administration
++	Issue and register	—	—	RM20
++
++The basis comes to RM44.
++
++Invitees and letters of invitation
++
++The list is frozen: the exercise is invited. The way out is cancelling and a replacement exercise.
++
++Contractor	On the approved list	Letter of invitation	Actions
++
++Contoh Bina Sdn Bhd
++201001000101 (000101-A)
++	
++On the approved list
++	
++Frozen 23 Sep 2026 · 10:00
++Sent 24 Sep 2026, registered post
++	
++Change delivery
++
++
++Demo Paip Services
++201501000104 (000104-D)
++	
++On the approved list
++	
++Frozen 23 Sep 2026 · 10:00
++Sent 24 Sep 2026, by hand
++	
++Change delivery
++
++
++Teladan Mekanikal Sdn Bhd
++200801000105 (000105-T)
++	
++On the approved list
++	
++Frozen 23 Sep 2026 · 10:00
++Delivery not recorded
++	
++Record delivery
++
++A letter's text is frozen when it is issued, from the configured template. Delivery is recorded by the officer; the portal sends nothing.
++
++The name, and the list it was approved for
++
++Name approval: Approved. The approved list is the proposed list.
++
++Open the name approval
++Contoh Bina Sdn Bhd
++201001000101 (000101-A)
++Demo Paip Services
++201501000104 (000104-D)
++Teladan Mekanikal Sdn Bhd
++200801000105 (000105-T)
++The closing, and its changes
++
++The closing set when the documents were approved, and every change since. A change is kept beside the closing it replaced.
++
++14 Oct 2026 · 15:00
++Stands now
++Approved for tendering
++Recorded 17 Sep 2026 · 08:00
++The rules this window is judged by
++
++Each value is the organisation's setting, with where it comes from. Not set blocks the act it governs.
++
++Open Invitation controls
++Minimum days from advertisement to closing
++7 days
++Assumed
++Demo procedure 5 (invented)
++Applies to advertised windows only; this one is by invitation.
++Target days from advertisement to closing
++10 days
++Assumed
++Demo procedure 5 (invented)
++Applies to advertised windows only; this one is by invitation.
++Margin for a late newspaper
++2 days
++Assumed
++Demo procedure 5 (invented)
++Applies to advertised windows only; this one is by invitation.
++Days between the last day of sale and the closing
++2 days
++Assumed
++Demo procedure 5 (invented)
++Default closing time
++15:00
++Assumed
++Demo procedure 5 (invented)
++Advertisement day
++The latest day among the required channels
++Assumed
++Applies to advertised windows only; this one is by invitation.
++Holiday calendar
++Demo state calendar
++Assumed
++Weekend
++Saturday, Sunday
++Assumed
++Mandatory attendance at a briefing
++May be made mandatory
++Assumed
+diff -ru (screen below)
+--- before
++++ after
+@@ -2,6 +2,7 @@
+ SOURCING
+ Pipe bridge repainting, Sungai Demo
+ Advertised
++Open for purchase
+ •
+ DEMO/SX/0018/2026
+ •
+@@ -15,48 +16,53 @@
+ Works
+ •
+ Quotation
++•
++Closes 14 Oct 2026 · 15:00
++Draft an addendum
++Extend the closing
+ Cancel exercise
+-Sourcing runs outside the portal in this phase
+-The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
++Bids and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Award
+ Access
+ 0
+ History
+ 93
+-Three band families
+-
+-Determined 02 Oct 2026 under Demo limits, issue 1.
+-
+-Requisition band
+-Requisition, RM40,000 to RM250,000
+-The rule the requisition was approved under.
+-Method band
+-Quotation band
+-Proposed: Open quotation.
+-Contract terms band
+-Extended terms
+-Retention: applies. Defects liability: applies.
+-Value
+-RM150,000
+-SULIT · not restricted until sign-in
+-Method and who approves the appointment
+-
+-Open quotation
+-
+-Method
+-Open quotation · as proposed
+-
+-Approval of the appointment
+-
+-Quotation Committee
+-Mandatory recommendation (MR)
+-Chief Executive
+-Approve (A)
+-
+-Quotation, RM15,000 to RM300,000 · DEMO 4.3
+-
+-Chain as entered, not checked against core routing: nobody has decided whether “Quotation, RM15,000 to RM300,000” takes its chain from the core routing. Decide it on the rule in the approval matrix.
++Window
++Sale register
++Briefing
++Addenda
++
++1 issued. Issued addenda are numbered one after the other, with no gap.
++
++Addendum 1 · Revised access scaffold drawing
++
++Issued 24 Sep 2026.
++
++Issued
++2 of 3 notified
++What it changes
++Drawing DEMO-D-07 is replaced by revision B: the scaffold to the pipe bridge's east span is independent of the bridge. Price the independent scaffold.
++Signed copy
++Attached
++Read the addendum as issued
++
++Delivery is recorded by the officer. The portal sends nothing.
++
++Rekaan Maju Construction
++With the documents
++With the documents
++Demo Paip Services
++Recorded as sent 24 Sep 2026, registered post · consignment RR 0001 8001 6MY
++Recorded as sent
++Acknowledged 25 Sep 2026
++Change delivery
++Teladan Mekanikal Sdn Bhd
++Delivery not recorded yet
++Not recorded
++Record delivery
+diff -ru (screen below)
+--- before
++++ after
+@@ -2,6 +2,7 @@
+ SOURCING
+ Pipe bridge repainting, Sungai Demo
+ Advertised
++Open for purchase
+ •
+ DEMO/SX/0018/2026
+ •
+@@ -15,48 +16,29 @@
+ Works
+ •
+ Quotation
++•
++Closes 14 Oct 2026 · 15:00
++Schedule an event
++Extend the closing
+ Cancel exercise
+-Sourcing runs outside the portal in this phase
+-The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
++
++Schedule an event: The window is published, so this stands as published. A change now is an addendum, or a change to the closing.
++
++Bids and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Award
+ Access
+ 0
+ History
+ 93
+-Three band families
+-
+-Determined 02 Oct 2026 under Demo limits, issue 1.
+-
+-Requisition band
+-Requisition, RM40,000 to RM250,000
+-The rule the requisition was approved under.
+-Method band
+-Quotation band
+-Proposed: Open quotation.
+-Contract terms band
+-Extended terms
+-Retention: applies. Defects liability: applies.
+-Value
+-RM150,000
+-SULIT · not restricted until sign-in
+-Method and who approves the appointment
+-
+-Open quotation
+-
+-Method
+-Open quotation · as proposed
+-
+-Approval of the appointment
+-
+-Quotation Committee
+-Mandatory recommendation (MR)
+-Chief Executive
+-Approve (A)
+-
+-Quotation, RM15,000 to RM300,000 · DEMO 4.3
+-
+-Chain as entered, not checked against core routing: nobody has decided whether “Quotation, RM15,000 to RM300,000” takes its chain from the core routing. Decide it on the rule in the approval matrix.
++Window
++Sale register
++Briefing
++Addenda
++No briefing or site visit
++None is scheduled. Why one cannot be added now is stated at the top of the page.
+diff -ru (screen below)
+--- before
++++ after
+@@ -2,6 +2,7 @@
+ SOURCING
+ Pipe bridge repainting, Sungai Demo
+ Advertised
++Open for purchase
+ •
+ DEMO/SX/0018/2026
+ •
+@@ -15,13 +16,19 @@
+ Works
+ •
+ Quotation
++•
++Closes 14 Oct 2026 · 15:00
+ Cancel exercise
+-Sourcing runs outside the portal in this phase
+-The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
++
++Cancel exercise: A published exercise is cancelled from the Invitation tab: it goes to approval with a reason and an answer on the fees.
++
++Bids and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Award
+ Access
+ 0
+@@ -32,21 +39,21 @@
+ Every change to this exercise and what is under it. Nobody is signed in, so no change is attributed.
+ 
+ Changed
+-Record
++Notice of a change
+ DEMO/SX/0018/2026 · Notice · Rekaan Maju Construction
+ 01 Oct 2026
+ Sent by: — → By hand
+ Sent on: — → 01 Oct 2026
+ Acknowledged on: — → 01 Oct 2026
+ Changed
+-Record
++Notice of a change
+ DEMO/SX/0018/2026 · Notice · Demo Paip Services
+ 01 Oct 2026
+ Sent by: — → Registered post
+ Consignment: — → RR 0001 8044 6MY
+ Sent on: — → 01 Oct 2026
+ Changed
+-Record
++Closing change
+ DEMO/SX/0018/2026 · Closing extension
+ 30 Sep 2026
+ Outcome: — → Applied
+@@ -60,18 +67,18 @@
+ Reason: Bidders asked for time to price the independent scaffold in addendum 1.
+ 
+ Changed
+-Name approval
++Approval of the change to the invitation window
+ DEMO/SX/0018/2026 · window change
+ 30 Sep 2026
+ Status: In progress → Approved
+ Created
+-Record
++Notice of a change
+ DEMO/SX/0018/2026 · Closing extended · Rekaan Maju Construction
+ 30 Sep 2026
+ Recipient: Rekaan Maju Construction
+ Notice: Closing extended
+ Changed
+-Name approval step
++Step of the approval of the change to the invitation window
+ DEMO/SX/0018/2026 · Head of Division
+ 30 Sep 2026
+ Decision: Pending → Done
+@@ -79,19 +86,19 @@
+ Decided on: — → 30 Sep 2026
+ Recorded: — → on behalf of, not signed
+ Created
+-Record
++Notice of a change
+ DEMO/SX/0018/2026 · Closing extended · Demo Paip Services
+ 30 Sep 2026
+ Recipient: Demo Paip Services
+ Notice: Closing extended
+ Created
+-Record
++Notice of a change
+ DEMO/SX/0018/2026 · Closing extended · Teladan Mekanikal Sdn Bhd
+ 30 Sep 2026
+ Recipient: Teladan Mekanikal Sdn Bhd
+ Notice: Closing extended
+ Created
+-Record
++Closing change
+ DEMO/SX/0018/2026 · Closing extension
+ 29 Sep 2026
+ Change: Extension
+@@ -104,17 +111,16 @@
+ Reason: Bidders asked for time to price the independent scaffold in addendum 1.
+ 
+ Created
+-Name approval
++Approval of the change to the invitation window
+ DEMO/SX/0018/2026 · window change
+ 29 Sep 2026
+ Matter: Extension of the closing to 14 Oct 2026 · 15:00
+ Matrix: Demo limits, issue 1
+ Rule: Change to the invitation window, quotation
+ Route: Head of Division (approve)
+-Funding override applied: No
+ If refused: not made; may be asked again
+ Changed
+-Record
++Addendum copy
+ DEMO/SX/0018/2026 · Addendum 1 · Demo Paip Services
+ 25 Sep 2026
+ Sent by: — → Registered post
+@@ -122,7 +128,7 @@
+ Sent on: — → 24 Sep 2026
+ Acknowledged on: — → 25 Sep 2026
+ Created
+-Record
++Sale of the documents
+ DEMO/SX/0018/2026 · Sale · Rekaan Maju Construction
+ 25 Sep 2026
+ Purchaser: Rekaan Maju Construction
+@@ -137,15 +143,15 @@
+ Payment method: Bank draft
+ Finance receipt: FR/26/004240
+ Issued by: Daniel Anak Jelani
+-Recorded: on behalf of, not signed
++Recorded: not signed
+ Created
+-Record
++Addendum copy
+ DEMO/SX/0018/2026 · Addendum 1 · Rekaan Maju Construction
+ 25 Sep 2026
+ Recipient: Rekaan Maju Construction
+ Given: with the documents
+ Created
+-Record
++Contractor
+ DEMO/SX/0018/2026 · Contractor Rekaan Maju Construction
+ 25 Sep 2026
+ Contractor: Rekaan Maju Construction
+@@ -154,21 +160,21 @@
+ Address: 7 Jalan Rekaan, 00000 Demo North
+ Telephone: +00 0-000 0106
+ Created
+-Record
++Addendum copy
+ DEMO/SX/0018/2026 · Addendum 1 · Teladan Mekanikal Sdn Bhd
+ 24 Sep 2026
+ Recipient: Teladan Mekanikal Sdn Bhd
+ Changed
+-Record
++Addendum
+ DEMO/SX/0018/2026 · Addendum 1, Revised access scaffold drawing
+ 24 Sep 2026
+-Status: Closed → Closed
++Status: Draft → Issued
+ Number: — → 1
+ Issued on: — → 24 Sep 2026
+ Frozen from: — → Demo addendum, text version 1
+ Recipients: — → 2
+ Created
+-Record
++Addendum copy
+ DEMO/SX/0018/2026 · Addendum 1 · Demo Paip Services
+ 24 Sep 2026
+ Recipient: Demo Paip Services
+@@ -182,14 +188,14 @@
+ Fingerprint: e6f530507891fac68d768e2b27b609503a7e7a7f3b53247f06b3e65255d2a6c2
+ Attached to: DEMO/SX/0018/2026 · Addendum (draft), Revised access scaffold drawing
+ Created
+-Record
++Addendum
+ DEMO/SX/0018/2026 · Addendum (draft), Revised access scaffold drawing
+ 23 Sep 2026
+ Title: Revised access scaffold drawing
+ What changed: Drawing DEMO-D-07 is replaced by revision B: the scaffold to the pipe bridge's east span is independent of the bridge. Price the independent scaffold.
+-Status: Closed
++Status: Draft
+ Created
+-Record
++Contractor
+ DEMO/SX/0018/2026 · Contractor Teladan Mekanikal Sdn Bhd
+ 22 Sep 2026
+ Contractor: Teladan Mekanikal Sdn Bhd
+@@ -198,7 +204,7 @@
+ Address: 55 Jalan Teladan, 00000 Demo South
+ Telephone: +00 0-000 0105
+ Created
+-Record
++Sale of the documents
+ DEMO/SX/0018/2026 · Sale · Teladan Mekanikal Sdn Bhd
+ 22 Sep 2026
+ Purchaser: Teladan Mekanikal Sdn Bhd
+@@ -213,9 +219,9 @@
+ Payment method: Cheque
+ Finance receipt: FR/26/004215
+ Issued by: Daniel Anak Jelani
+-Recorded: on behalf of, not signed
++Recorded: not signed
+ Created
+-Record
++Sale of the documents
+ DEMO/SX/0018/2026 · Sale · Demo Paip Services
+ 21 Sep 2026
+ Purchaser: Demo Paip Services
+@@ -230,9 +236,9 @@
+ Payment method: Bank draft
+ Finance receipt: FR/26/004201
+ Issued by: Daniel Anak Jelani
+-Recorded: on behalf of, not signed
++Recorded: not signed
+ Created
+-Record
++Contractor
+ DEMO/SX/0018/2026 · Contractor Demo Paip Services
+ 21 Sep 2026
+ Contractor: Demo Paip Services
+@@ -242,7 +248,7 @@
+ Telephone: +00 0-000 0104
+ Email: office@demopaip.invalid
+ Changed
+-Record
++Invitation window
+ DEMO/SX/0018/2026 · Invitation window
+ 18 Sep 2026
+ Advertised on: — → 18 Sep 2026
+@@ -254,41 +260,41 @@
+ 18 Sep 2026
+ Status: Approved for tendering → Advertised
+ Created
+-Record
++Publication
+ DEMO/SX/0018/2026 · Publication · Organisation website
+ 18 Sep 2026
+ Channel: Organisation website
+ Published on: 18 Sep 2026
+ Reference: https://www.demo.invalid/tenders/DEMO-SX-0018-2026
+ Recorded by: Daniel Anak Jelani
+-Recorded: on behalf of, not signed
++Recorded: not signed
+ Created
+-Record
++Publication
+ DEMO/SX/0018/2026 · Publication · Head office notice board
+ 18 Sep 2026
+ Channel: Head office notice board
+ Published on: 18 Sep 2026
+ Reference: Head office notice board, ground floor
+ Recorded by: Daniel Anak Jelani
+-Recorded: on behalf of, not signed
++Recorded: not signed
+ Created
+-Record
++Publication
+ DEMO/SX/0018/2026 · Publication · Demo Daily (newspaper)
+ 18 Sep 2026
+ Channel: Demo Daily (newspaper)
+ Published on: 18 Sep 2026
+ Reference: Demo Daily, page 28
+ Recorded by: Daniel Anak Jelani
+-Recorded: on behalf of, not signed
++Recorded: not signed
+ Created
+-Record
++Fee basis
+ DEMO/SX/0018/2026 · Fee basis
+ 17 Sep 2026
+ Cost: Administration
+ Description: Issue and register
+ Amount: RM20
+ Created
+-Record
++Fee basis
+ DEMO/SX/0018/2026 · Fee basis
+ 17 Sep 2026
+ Cost: A3 paper
+@@ -297,7 +303,7 @@
+ Unit cost: RM1.50
+ Amount: RM9
+ Created
+-Record
++Fee basis
+ DEMO/SX/0018/2026 · Fee basis
+ 17 Sep 2026
+ Cost: A4 paper
+@@ -306,7 +312,7 @@
+ Unit cost: RM0.10
+ Amount: RM15
+ Created
+-Record
++Invitation window
+ DEMO/SX/0018/2026 · Invitation window
+ 17 Sep 2026
+ Path: By advertisement
+@@ -326,7 +332,7 @@
+ Approved start: — → 17 Sep 2026
+ Approved closing: — → 07 Oct 2026
+ Changed
+-Name approval step
++Step of the approval for tendering
+ DEMO/SX/0018/2026 · Head of Contract & Procurement
+ 17 Sep 2026
+ Decision: Pending → Done
+@@ -337,16 +343,16 @@
+ Exercise
+ DEMO/SX/0018/2026 · Pipe bridge repainting, Sungai Demo
+ 17 Sep 2026
+-Status: With approval for tendering → Approved for tendering
++Status: Awaiting approval for tendering → Approved for tendering
+ Tendering starts: — → 17 Sep 2026
+ Closing: — → 07 Oct 2026
+ Changed
+-Name approval
++Approval for tendering
+ DEMO/SX/0018/2026 · approval for tendering
+ 17 Sep 2026
+-Status: With approval for tendering → Approved for tendering
++Status: Awaiting approval for tendering → Approved for tendering
+ Created
+-Name approval
++Approval for tendering
+ DEMO/SX/0018/2026 · approval for tendering
+ 16 Sep 2026
+ Matrix: Demo limits, issue 1
+@@ -365,7 +371,7 @@
+ Exercise
+ DEMO/SX/0018/2026 · Pipe bridge repainting, Sungai Demo
+ 16 Sep 2026
+-Status: Documents in preparation → With approval for tendering
++Status: Documents in preparation → Awaiting approval for tendering
+ Changed
+ Tender documents
+ DEMO/SX/0018/2026 · Tender documents v1
+diff -ru (screen below)
+--- before
++++ after
+@@ -2,6 +2,7 @@
+ SOURCING
+ Pipe bridge repainting, Sungai Demo
+ Advertised
++Open for purchase
+ •
+ DEMO/SX/0018/2026
+ •
+@@ -15,13 +16,19 @@
+ Works
+ •
+ Quotation
++•
++Closes 14 Oct 2026 · 15:00
+ Cancel exercise
+-Sourcing runs outside the portal in this phase
+-The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
++
++Cancel exercise: A published exercise is cancelled from the Invitation tab: it goes to approval with a reason and an answer on the fees.
++
++Bids and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Award
+ Access
+ 0
+diff -ru (screen below)
+--- before
++++ after
+@@ -2,6 +2,7 @@
+ SOURCING
+ Pipe bridge repainting, Sungai Demo
+ Advertised
++Open for purchase
+ •
+ DEMO/SX/0018/2026
+ •
+@@ -15,48 +16,100 @@
+ Works
+ •
+ Quotation
++•
++Closes 14 Oct 2026 · 15:00
++Record a sale
++Extend the closing
+ Cancel exercise
+-Sourcing runs outside the portal in this phase
+-The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
++Bids and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Award
+ Access
+ 0
+ History
+ 93
+-Three band families
+-
+-Determined 02 Oct 2026 under Demo limits, issue 1.
+-
+-Requisition band
+-Requisition, RM40,000 to RM250,000
+-The rule the requisition was approved under.
+-Method band
+-Quotation band
+-Proposed: Open quotation.
+-Contract terms band
+-Extended terms
+-Retention: applies. Defects liability: applies.
+-Value
+-RM150,000
+-SULIT · not restricted until sign-in
+-Method and who approves the appointment
+-
+-Open quotation
+-
+-Method
+-Open quotation · as proposed
+-
+-Approval of the appointment
+-
+-Quotation Committee
+-Mandatory recommendation (MR)
+-Chief Executive
+-Approve (A)
+-
+-Quotation, RM15,000 to RM300,000 · DEMO 4.3
+-
+-Chain as entered, not checked against core routing: nobody has decided whether “Quotation, RM15,000 to RM300,000” takes its chain from the core routing. Decide it on the rule in the approval matrix.
++Window
++Sale register
++Briefing
++Addenda
++Sale register
++
++3 sets sold at RM60. Open for purchase.
++
++See the addenda
++Registration and suspension are not checked
++The supplier register is not built yet, so a contractor's registration and any suspension cannot be checked here. Each sale carries that warning on to bid receipt and evaluation.
++Restricted to bidders on the demo priority register
++The original or a certified copy of the purchaser's status certificate, and the day it is valid until. A sale is refused if the certificate is not shown or has expired. Sales are recorded on behalf of the officer, not signed.
++All records
++All records
++Live sales
++Receipt to collect
++Void
++Purchaser
++▲
++	Receipt and amount	
++Sold on
++▲
++	Checks	Addenda acknowledged	Actions
++
++Demo Paip Services
++201501000104 (000104-D)
++	
++FR/26/004201
++RM60 · Bank draft
++	
++21 Sep 2026
++	
++Authority: sighted
++Status certificate: original shown, valid until 23 Mar 2027
++Registration: not checked
++Suspension: not checked
++	
++1 of 1
++	
++Label
++Void
++
++
++Teladan Mekanikal Sdn Bhd
++200801000105 (000105-T)
++	
++FR/26/004215
++RM60 · Cheque
++	
++22 Sep 2026
++	
++Authority: sighted
++Status certificate: certified copy shown, valid until 06 Oct 2026. It expires before the closing (14 Oct 2026)
++Registration: not checked
++Suspension: not checked
++	
++0 of 1
++	
++Label
++Void
++
++
++Rekaan Maju Construction
++DM0000106-K
++	
++FR/26/004240
++RM60 · Bank draft
++	
++25 Sep 2026
++	
++Authority: sighted
++Status certificate: original shown, valid until 13 Jul 2027
++Registration: not checked
++Suspension: not checked
++	
++0 of 1
++	
++Label
++Void
+diff -ru (screen below)
+--- before
++++ after
+@@ -2,6 +2,7 @@
+ SOURCING
+ Pipe bridge repainting, Sungai Demo
+ Advertised
++Open for purchase
+ •
+ DEMO/SX/0018/2026
+ •
+@@ -15,48 +16,210 @@
+ Works
+ •
+ Quotation
++•
++Closes 14 Oct 2026 · 15:00
++Extend the closing
+ Cancel exercise
+-Sourcing runs outside the portal in this phase
+-The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
++Bids and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Award
+ Access
+ 0
+ History
+ 93
+-Three band families
+-
+-Determined 02 Oct 2026 under Demo limits, issue 1.
+-
+-Requisition band
+-Requisition, RM40,000 to RM250,000
+-The rule the requisition was approved under.
+-Method band
+-Quotation band
+-Proposed: Open quotation.
+-Contract terms band
+-Extended terms
+-Retention: applies. Defects liability: applies.
+-Value
+-RM150,000
+-SULIT · not restricted until sign-in
+-Method and who approves the appointment
+-
+-Open quotation
+-
+-Method
+-Open quotation · as proposed
+-
+-Approval of the appointment
+-
+-Quotation Committee
+-Mandatory recommendation (MR)
+-Chief Executive
+-Approve (A)
++Window
++Sale register
++Briefing
++Addenda
++The window
++
++By advertisement. Where it stands is worked out from the dates, never typed.
++
++Open for purchase
++Tendering starts
++17 Sep 2026
++Closes
++14 Oct 2026 · 15:00
++Advertised on
++18 Sep 2026
++First day of sale
++18 Sep 2026
++Last day of sale
++12 Oct 2026
++Where it stands
++Open for purchase. Quotations may be submitted
++Tender Table Document
++Available for inspection until the closing
++Published
++18 Sep 2026 · 10:00 · recorded on behalf of the officer, not signed
++The estimate's lead time
++Ready: the last version was made on 15 Sep 2026, on or before 07 Oct 2026.
++
++The rules this window was published under are kept with it.
++
++What the notice states, and the fee
++
++The window is published, so this stands as published. A change now is an addendum, or a change to the closing.
++
++Documents inspected at
++Northern Region office, 12 Depot Road
++Documents bought at
++Northern Region office, 12 Depot Road
++Hours
++Monday to Friday, 9.00 am to 4.00 pm
++Quotations submitted at
++The quotation box, Northern Region office, 12 Depot Road
++Document fee
++RM60
++How the fee is paid
++Bank draft or cheque to Demo Utilities Sdn Bhd
++The least the fee may be
++RM40
++Assumed
++Demo procedure 5 (invented)
++Registrations asked of a supplier
++the Demo Companies Registry; the Demo Contractors Board (grade D2, category painting works)
++
++What a set costs to make
++
++The fee is entered, not worked out from this.
++
++Cost	Description	Quantity	Unit cost	Amount
++
++A4 paper
++	Conditions, specification and forms	150	RM0.10	RM15
++
++A3 paper
++	Drawings	6	RM1.50	RM9
++
++Administration
++	Issue and register	—	—	RM20
++
++The basis comes to RM44.
++
++Channels and publications
++
++Advertised on 18 Sep 2026: the day is worked out from the publications under the rule below.
++
++Channel	Required	Published on	Title, edition or address
++
++Demo Daily (newspaper)
++Daniel Anak Jelani (recorded on their behalf, not signed)
++	
++Required
++	18 Sep 2026	Demo Daily, page 28
++
++Head office notice board
++Daniel Anak Jelani (recorded on their behalf, not signed)
++	
++Required
++	18 Sep 2026	Head office notice board, ground floor
++
++Organisation website
++Daniel Anak Jelani (recorded on their behalf, not signed)
++	
++Required
++	18 Sep 2026	https://www.demo.invalid/tenders/DEMO-SX-0018-2026
++Proofs of publication
++
++A cutting, a screen print or a photograph of the board, kept with the exercise.
++
++Stored and listed. Anyone who can reach the portal can open a document that is not SULIT; there is no sign-in to restrict it.
++Proof of publication
++Nothing attached
++Optional
++Upload
++Nothing is attached yet
++Upload one with the Upload button on its line above. It is stored, then attached to this record.
++The closing, and its changes
++
++The closing set when the documents were approved, and every change since. A change is kept beside the closing it replaced.
++
++07 Oct 2026 · 15:00
++Approved for tendering
++Recorded 17 Sep 2026 · 08:00
++14 Oct 2026 · 15:00
++Stands now
++Extension
++Recorded 30 Sep 2026 · 11:00 · last day of sale 12 Oct 2026 · “Bidders asked for time to price the independent scaffold in addendum 1.”
++Extension
++Applied 30 Sep 2026 · 11:00
++07 Oct 2026 · 15:00 → 14 Oct 2026 · 15:00 · last day of sale 12 Oct 2026 · “Bidders asked for time to price the independent scaffold in addendum 1.”
++
++Purchasers told of the extension. Delivery is recorded by the officer; the portal sends nothing.
++
++Demo Paip Services
++Recorded as sent 01 Oct 2026, registered post · consignment RR 0001 8044 6MY
++Recorded as sent
++Change delivery
++Teladan Mekanikal Sdn Bhd
++Delivery not recorded yet
++Not recorded
++Record delivery
++Rekaan Maju Construction
++Recorded as sent 01 Oct 2026, by hand
++Recorded as sent
++Acknowledged 01 Oct 2026
++Change delivery
++Approval of the change
++
++Asked 29 Sep 2026 under Demo limits, issue 1.
++
++Approved
++Rule
++Change to the invitation window, quotation · DEMO 5.3
++Asked for
++An extension of the closing
++
++Chain beneath the approver: Chain as entered on the rule, recorded as not taken from the core routing: One office approves a change to the window: nothing to generate (demo).
++
++Head of Division · Approve (A)
++Done · Gopal Nair · recorded on behalf of, not signed · 30 Sep 2026
++Done
++The rules this window is judged by
++
++Each value is the organisation's setting, with where it comes from. Not set blocks the act it governs.
++
++Open Invitation controls
++Minimum days from advertisement to closing
++7 days
++Assumed
++Demo procedure 5 (invented)
++Target days from advertisement to closing
++10 days
++Assumed
++Demo procedure 5 (invented)
++Margin for a late newspaper
++2 days
++Assumed
++Demo procedure 5 (invented)
++Days between the last day of sale and the closing
++2 days
++Assumed
++Demo procedure 5 (invented)
++Default closing time
++15:00
++Assumed
++Demo procedure 5 (invented)
++Advertisement day
++The latest day among the required channels
++Assumed
++Holiday calendar
++Demo state calendar
++Assumed
++Weekend
++Saturday, Sunday
++Assumed
++Mandatory attendance at a briefing
++May be made mandatory
++Assumed
++The notice
+ 
+-Quotation, RM15,000 to RM300,000 · DEMO 4.3
++Frozen when published, from Demo notice of invitation (window), text version 1.
+ 
+-Chain as entered, not checked against core routing: nobody has decided whether “Quotation, RM15,000 to RM300,000” takes its chain from the core routing. Decide it on the rule in the approval matrix.
++Read the notice
+diff -ru (screen below)
+--- before
++++ after
+@@ -15,45 +15,27 @@
+ Works
+ •
+ Tender
++•
++Was to close 07 Oct 2026 · 15:00
++Draft an addendum
++
++Draft an addendum: The exercise is cancelled, so its records stand.
++
+ Cancelled
+ The scope is to be re-let with the reservoir inlet works added; the exercise is re-advertised as DEMO/SX/0016/2026. The procedure does not cover cancelling an exercise: this is recorded as the organisation's own step.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Award
+ Access
+ 0
+ History
+ 89
+-Three band families
+-
+-Determined 02 Oct 2026 under Demo limits, issue 1.
+-
+-Requisition band
+-Requisition, above RM250,000
+-The rule the requisition was approved under.
+-Method band
+-Tender band
+-Proposed: Open tender.
+-Contract terms band
+-Not applicable
+-Not applicable: the terms bands on the approval matrix cover other bands, not this one.
+-Value
+-RM640,000
+-SULIT · not restricted until sign-in
+-Method and who approves the appointment
+-
+-Open tender
+-
+-Method
+-Open tender · as proposed
+-
+-Approval of the appointment
+-
+-Tender Board
+-Approve (A)
+-
+-Tender, above RM300,000 · DEMO 4.2
+-
+-Chain as entered, not checked against core routing: nobody has decided whether “Tender, above RM300,000” takes its chain from the core routing. Decide it on the rule in the approval matrix.
++Window
++Sale register
++Briefing
++Addenda
++No addendum
++The exercise is cancelled, so its records stand.
+diff -ru (screen below)
+--- before
++++ after
+@@ -15,45 +15,27 @@
+ Works
+ •
+ Tender
++•
++Was to close 07 Oct 2026 · 15:00
++Schedule an event
++
++Schedule an event: The exercise is cancelled, so its records stand.
++
+ Cancelled
+ The scope is to be re-let with the reservoir inlet works added; the exercise is re-advertised as DEMO/SX/0016/2026. The procedure does not cover cancelling an exercise: this is recorded as the organisation's own step.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Award
+ Access
+ 0
+ History
+ 89
+-Three band families
+-
+-Determined 02 Oct 2026 under Demo limits, issue 1.
+-
+-Requisition band
+-Requisition, above RM250,000
+-The rule the requisition was approved under.
+-Method band
+-Tender band
+-Proposed: Open tender.
+-Contract terms band
+-Not applicable
+-Not applicable: the terms bands on the approval matrix cover other bands, not this one.
+-Value
+-RM640,000
+-SULIT · not restricted until sign-in
+-Method and who approves the appointment
+-
+-Open tender
+-
+-Method
+-Open tender · as proposed
+-
+-Approval of the appointment
+-
+-Tender Board
+-Approve (A)
+-
+-Tender, above RM300,000 · DEMO 4.2
+-
+-Chain as entered, not checked against core routing: nobody has decided whether “Tender, above RM300,000” takes its chain from the core routing. Decide it on the rule in the approval matrix.
++Window
++Sale register
++Briefing
++Addenda
++No briefing or site visit
++None is scheduled. Why one cannot be added now is stated at the top of the page.
+diff -ru (screen below)
+--- before
++++ after
+@@ -15,12 +15,15 @@
+ Works
+ •
+ Tender
++•
++Was to close 07 Oct 2026 · 15:00
+ Cancelled
+ The scope is to be re-let with the reservoir inlet works added; the exercise is re-advertised as DEMO/SX/0016/2026. The procedure does not cover cancelling an exercise: this is recorded as the organisation's own step.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Award
+ Access
+ 0
+@@ -31,7 +34,7 @@
+ Every change to this exercise and what is under it. Nobody is signed in, so no change is attributed.
+ 
+ Changed
+-Record
++Notice of a change
+ DEMO/SX/0019/2026 · Notice · Contoh Bina Sdn Bhd
+ 24 Sep 2026
+ Sent by: — → Registered post
+@@ -39,13 +42,13 @@
+ Sent on: — → 22 Sep 2026
+ Acknowledged on: — → 24 Sep 2026
+ Created
+-Record
++Notice of a change
+ DEMO/SX/0019/2026 · Exercise cancelled · Contoh Bina Sdn Bhd
+ 21 Sep 2026
+ Recipient: Contoh Bina Sdn Bhd
+ Notice: Exercise cancelled
+ Changed
+-Name approval step
++Step of the approval of the change to the invitation window
+ DEMO/SX/0019/2026 · Head of Division
+ 21 Sep 2026
+ Decision: Pending → Done
+@@ -53,7 +56,7 @@
+ Decided on: — → 21 Sep 2026
+ Recorded: — → on behalf of, not signed
+ Changed
+-Record
++Cancellation
+ DEMO/SX/0019/2026 · Cancellation
+ 21 Sep 2026
+ Outcome: — → Applied
+@@ -67,12 +70,12 @@
+ Reason: The scope is to be re-let with the reservoir inlet works added; the exercise is re-advertised as DEMO/SX/0016/2026.
+ 
+ Changed
+-Name approval
++Approval of the change to the invitation window
+ DEMO/SX/0019/2026 · window change
+ 21 Sep 2026
+ Status: In progress → Approved
+ Created
+-Record
++Cancellation
+ DEMO/SX/0019/2026 · Cancellation
+ 21 Sep 2026
+ Reason: The scope is to be re-let with the reservoir inlet works added; the exercise is re-advertised as DEMO/SX/0016/2026.
+@@ -81,17 +84,16 @@
+ Reason: The scope is to be re-let with the reservoir inlet works added; the exercise is re-advertised as DEMO/SX/0016/2026.
+ 
+ Created
+-Name approval
++Approval of the change to the invitation window
+ DEMO/SX/0019/2026 · window change
+ 21 Sep 2026
+ Matter: Cancellation of the published exercise
+ Matrix: Demo limits, issue 1
+ Rule: Change to the invitation window, tender
+ Route: Head of Division (approve)
+-Funding override applied: No
+ If refused: not made; may be asked again
+ Created
+-Record
++Sale of the documents
+ DEMO/SX/0019/2026 · Sale · Contoh Bina Sdn Bhd
+ 18 Sep 2026
+ Purchaser: Contoh Bina Sdn Bhd
+@@ -104,9 +106,9 @@
+ Payment method: Cheque
+ Finance receipt: FR/26/004101
+ Issued by: Daniel Anak Jelani
+-Recorded: on behalf of, not signed
++Recorded: not signed
+ Created
+-Record
++Contractor
+ DEMO/SX/0019/2026 · Contractor Contoh Bina Sdn Bhd
+ 18 Sep 2026
+ Contractor: Contoh Bina Sdn Bhd
+@@ -116,7 +118,7 @@
+ Telephone: +00 0-000 0101
+ Email: tender@contohbina.invalid
+ Changed
+-Record
++Invitation window
+ DEMO/SX/0019/2026 · Invitation window
+ 17 Sep 2026
+ Advertised on: — → 17 Sep 2026
+@@ -128,48 +130,48 @@
+ 17 Sep 2026
+ Status: Approved for tendering → Advertised
+ Created
+-Record
++Publication
+ DEMO/SX/0019/2026 · Publication · Organisation website
+ 17 Sep 2026
+ Channel: Organisation website
+ Published on: 17 Sep 2026
+ Reference: https://www.demo.invalid/tenders/DEMO-SX-0019-2026
+ Recorded by: Daniel Anak Jelani
+-Recorded: on behalf of, not signed
++Recorded: not signed
+ Created
+-Record
++Publication
+ DEMO/SX/0019/2026 · Publication · Head office notice board
+ 17 Sep 2026
+ Channel: Head office notice board
+ Published on: 17 Sep 2026
+ Reference: Head office notice board, ground floor
+ Recorded by: Daniel Anak Jelani
+-Recorded: on behalf of, not signed
++Recorded: not signed
+ Created
+-Record
++Publication
+ DEMO/SX/0019/2026 · Publication · Demo Daily (newspaper)
+ 17 Sep 2026
+ Channel: Demo Daily (newspaper)
+ Published on: 17 Sep 2026
+ Reference: Demo Daily, page 29
+ Recorded by: Daniel Anak Jelani
+-Recorded: on behalf of, not signed
++Recorded: not signed
+ Created
+-Record
++Fee basis
+ DEMO/SX/0019/2026 · Fee basis
+ 17 Sep 2026
+ Cost: Administration
+ Description: Issue and register
+ Amount: RM50
+ Created
+-Record
++Fee basis
+ DEMO/SX/0019/2026 · Fee basis
+ 17 Sep 2026
+ Cost: Binding, with the folding of drawings
+ Description: Two volumes, drawings folded
+ Amount: RM30
+ Created
+-Record
++Fee basis
+ DEMO/SX/0019/2026 · Fee basis
+ 17 Sep 2026
+ Cost: A1 paper
+@@ -178,7 +180,7 @@
+ Unit cost: RM4.50
+ Amount: RM63
+ Created
+-Record
++Fee basis
+ DEMO/SX/0019/2026 · Fee basis
+ 17 Sep 2026
+ Cost: A4 paper
+@@ -187,7 +189,7 @@
+ Unit cost: RM0.10
+ Amount: RM42
+ Created
+-Record
++Invitation window
+ DEMO/SX/0019/2026 · Invitation window
+ 17 Sep 2026
+ Path: By advertisement
+@@ -203,16 +205,16 @@
+ Exercise
+ DEMO/SX/0019/2026 · Reservoir inlet main renewal, Demo Heights
+ 17 Sep 2026
+-Status: With approval for tendering → Approved for tendering
++Status: Awaiting approval for tendering → Approved for tendering
+ Tendering starts: — → 17 Sep 2026
+ Closing: — → 07 Oct 2026
+ Changed
+-Name approval
++Approval for tendering
+ DEMO/SX/0019/2026 · approval for tendering
+ 17 Sep 2026
+-Status: With approval for tendering → Approved for tendering
++Status: Awaiting approval for tendering → Approved for tendering
+ Changed
+-Name approval step
++Step of the approval for tendering
+ DEMO/SX/0019/2026 · Head of Contract & Procurement
+ 17 Sep 2026
+ Decision: Pending → Done
+@@ -258,7 +260,7 @@
+ Exercise
+ DEMO/SX/0019/2026 · Reservoir inlet main renewal, Demo Heights
+ 16 Sep 2026
+-Status: Documents in preparation → With approval for tendering
++Status: Documents in preparation → Awaiting approval for tendering
+ Changed
+ Tender documents
+ DEMO/SX/0019/2026 · Tender documents v1
+@@ -269,7 +271,7 @@
+ Parts frozen: — → 5
+ Files pinned: — → 7
+ Created
+-Name approval
++Approval for tendering
+ DEMO/SX/0019/2026 · approval for tendering
+ 16 Sep 2026
+ Matrix: Demo limits, issue 1
+diff -ru (screen below)
+--- before
++++ after
+@@ -15,12 +15,15 @@
+ Works
+ •
+ Tender
++•
++Was to close 07 Oct 2026 · 15:00
+ Cancelled
+ The scope is to be re-let with the reservoir inlet works added; the exercise is re-advertised as DEMO/SX/0016/2026. The procedure does not cover cancelling an exercise: this is recorded as the organisation's own step.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Award
+ Access
+ 0
+diff -ru (screen below)
+--- before
++++ after
+@@ -15,45 +15,62 @@
+ Works
+ •
+ Tender
++•
++Was to close 07 Oct 2026 · 15:00
++Record a sale
++
++Record a sale: The documents are no longer on sale.
++
+ Cancelled
+ The scope is to be re-let with the reservoir inlet works added; the exercise is re-advertised as DEMO/SX/0016/2026. The procedure does not cover cancelling an exercise: this is recorded as the organisation's own step.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Award
+ Access
+ 0
+ History
+ 89
+-Three band families
+-
+-Determined 02 Oct 2026 under Demo limits, issue 1.
+-
+-Requisition band
+-Requisition, above RM250,000
+-The rule the requisition was approved under.
+-Method band
+-Tender band
+-Proposed: Open tender.
+-Contract terms band
+-Not applicable
+-Not applicable: the terms bands on the approval matrix cover other bands, not this one.
+-Value
+-RM640,000
+-SULIT · not restricted until sign-in
+-Method and who approves the appointment
+-
+-Open tender
+-
+-Method
+-Open tender · as proposed
+-
+-Approval of the appointment
+-
+-Tender Board
+-Approve (A)
+-
+-Tender, above RM300,000 · DEMO 4.2
++Window
++Sale register
++Briefing
++Addenda
++Sale register
++
++1 set sold at RM200. Cancelled.
++
++See the addenda
++Registration and suspension are not checked
++The supplier register is not built yet, so a contractor's registration and any suspension cannot be checked here. Each sale carries that warning on to bid receipt and evaluation.
++All records
++All records
++Live sales
++Receipt to collect
++Void
++Purchaser
++▲
++	Receipt and amount	
++Sold on
++▲
++	Checks	Addenda acknowledged	Actions
++
++Contoh Bina Sdn Bhd
++201001000101 (000101-A)
++	
++FR/26/004101
++RM200 · Cheque
++	
++18 Sep 2026
++	
++Authority: sighted
++Registration: not checked
++Suspension: not checked
++	
++0 of 0
++	
++Label
++Void
+ 
+-Chain as entered, not checked against core routing: nobody has decided whether “Tender, above RM300,000” takes its chain from the core routing. Decide it on the rule in the approval matrix.
++The exercise is cancelled, so its records stand.
+diff -ru (screen below)
+--- before
++++ after
+@@ -15,45 +15,202 @@
+ Works
+ •
+ Tender
++•
++Was to close 07 Oct 2026 · 15:00
+ Cancelled
+ The scope is to be re-let with the reservoir inlet works added; the exercise is re-advertised as DEMO/SX/0016/2026. The procedure does not cover cancelling an exercise: this is recorded as the organisation's own step.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Award
+ Access
+ 0
+ History
+ 89
+-Three band families
+-
+-Determined 02 Oct 2026 under Demo limits, issue 1.
+-
+-Requisition band
+-Requisition, above RM250,000
+-The rule the requisition was approved under.
+-Method band
+-Tender band
+-Proposed: Open tender.
+-Contract terms band
+-Not applicable
+-Not applicable: the terms bands on the approval matrix cover other bands, not this one.
+-Value
+-RM640,000
+-SULIT · not restricted until sign-in
+-Method and who approves the appointment
+-
+-Open tender
++Window
++Sale register
++Briefing
++Addenda
++The window
+ 
+-Method
+-Open tender · as proposed
++By advertisement. Where it stands is worked out from the dates, never typed.
+ 
+-Approval of the appointment
+-
+-Tender Board
+-Approve (A)
++Cancelled
++Tendering starts
++17 Sep 2026
++Closes
++07 Oct 2026 · 15:00
++Advertised on
++17 Sep 2026
++First day of sale
++17 Sep 2026
++Last day of sale
++05 Oct 2026
++Where it stands
++Cancelled
++Tender Table Document
++Withdrawn: the exercise was cancelled on 21 Sep 2026
++Published
++17 Sep 2026 · 11:00 · recorded on behalf of the officer, not signed
++The estimate's lead time
++Ready: the last version was made on 15 Sep 2026, on or before 30 Sep 2026.
++
++The rules this window was published under are kept with it.
++
++Replaced by DEMO/SX/0016/2026.
++
++What the notice states, and the fee
++
++The exercise is cancelled, so its records stand.
++
++Documents inspected at
++Contract & Procurement, level 3, 1 Demo Avenue
++Documents bought at
++Finance counter, ground floor, 1 Demo Avenue
++Hours
++Monday to Friday, 9.00 am to 4.00 pm
++Tenders submitted at
++The tender box, ground floor, 1 Demo Avenue
++Document fee
++RM200
++How the fee is paid
++Bank draft or cheque to Demo Utilities Sdn Bhd, or cash at the counter
++The least the fee may be
++RM200
++Assumed
++Demo procedure 5 (invented)
++Registrations asked of a tenderer
++the Demo Companies Registry; the Demo Contractors Board (grade D4, category civil works)
++
++What a set costs to make
++
++The fee is entered, not worked out from this.
++
++Cost	Description	Quantity	Unit cost	Amount
++
++A4 paper
++	Conditions, specification and forms	420	RM0.10	RM42
++
++A1 paper
++	Drawings	14	RM4.50	RM63
++
++Binding, with the folding of drawings
++	Two volumes, drawings folded	—	—	RM30
++
++Administration
++	Issue and register	—	—	RM50
++
++The basis comes to RM185.
++
++Channels and publications
++
++Advertised on 17 Sep 2026: the day is worked out from the publications under the rule below.
++
++Channel	Required	Published on	Title, edition or address
++
++Demo Daily (newspaper)
++Daniel Anak Jelani (recorded on their behalf, not signed)
++	
++Required
++	17 Sep 2026	Demo Daily, page 29
++
++Head office notice board
++Daniel Anak Jelani (recorded on their behalf, not signed)
++	
++Required
++	17 Sep 2026	Head office notice board, ground floor
++
++Organisation website
++Daniel Anak Jelani (recorded on their behalf, not signed)
++	
++Required
++	17 Sep 2026	https://www.demo.invalid/tenders/DEMO-SX-0019-2026
++Proofs of publication
++
++A cutting, a screen print or a photograph of the board, kept with the exercise.
++
++Stored and listed. Anyone who can reach the portal can open a document that is not SULIT; there is no sign-in to restrict it.
++The exercise is cancelled, so nothing more is attached to it.
++Proof of publication
++Closed
++Optional
++Upload
++Nothing is attached yet
++Documents can be attached once the record allows it, as said above.
++The closing, and its changes
++
++The closing set when the documents were approved, and every change since. A change is kept beside the closing it replaced.
++
++07 Oct 2026 · 15:00
++Approved for tendering
++Recorded 17 Sep 2026 · 08:00
++Cancellation of the exercise
++Applied 21 Sep 2026 · 15:00
++“The scope is to be re-let with the reservoir inlet works added; the exercise is re-advertised as DEMO/SX/0016/2026.” · fees refunded: Yes
++
++Holders of the documents told of the cancellation. Delivery is recorded by the officer; the portal sends nothing.
++
++Contoh Bina Sdn Bhd
++Recorded as sent 22 Sep 2026, registered post · consignment RR 0001 4101 6MY
++Recorded as sent
++Acknowledged 24 Sep 2026
++Change delivery
++Approval of the change
++
++Asked 21 Sep 2026 under Demo limits, issue 1.
++
++Approved
++Rule
++Change to the invitation window, tender · DEMO 5.3
++Asked for
++The cancellation of the published exercise
++
++Chain beneath the approver: Chain as entered on the rule, recorded as not taken from the core routing: One office approves a change to the window: nothing to generate (demo).
++
++Head of Division · Approve (A)
++Done · Gopal Nair · recorded on behalf of, not signed · 21 Sep 2026
++Done
++The rules this window is judged by
++
++Each value is the organisation's setting, with where it comes from. Not set blocks the act it governs.
++
++Open Invitation controls
++Minimum days from advertisement to closing
++7 days
++Assumed
++Demo procedure 5 (invented)
++Target days from advertisement to closing
++10 days
++Assumed
++Demo procedure 5 (invented)
++Margin for a late newspaper
++2 days
++Assumed
++Demo procedure 5 (invented)
++Days between the last day of sale and the closing
++2 days
++Assumed
++Demo procedure 5 (invented)
++Default closing time
++15:00
++Assumed
++Demo procedure 5 (invented)
++Advertisement day
++The latest day among the required channels
++Assumed
++Holiday calendar
++Demo state calendar
++Assumed
++Weekend
++Saturday, Sunday
++Assumed
++Mandatory attendance at a briefing
++May be made mandatory
++Assumed
++The notice
+ 
+-Tender, above RM300,000 · DEMO 4.2
++Frozen when published, from Demo notice of invitation (window), text version 1.
+ 
+-Chain as entered, not checked against core routing: nobody has decided whether “Tender, above RM300,000” takes its chain from the core routing. Decide it on the rule in the approval matrix.
++Read the notice
+diff -ru (screen below)
+--- before
++++ after
+@@ -8,30 +8,36 @@
+ •
+ 9 documents in preparation
+ •
+-1 with approval for tendering
++1 awaiting approval for tendering
++•
++2 advertised
++•
++1 invited
+ •
+ 1 awaiting name approval
+ •
+ 1 on the boundary
+ New exercise
+-Sourcing runs outside the portal in this phase
+-An exercise is classified here: its three value bands, sourcing method, contract type and basis, and who approves the name and the appointment. Its tender documents are prepared and approved here; invitation, bids and evaluation are still recorded outside the portal.
++Bids and evaluation run outside the portal in this phase
++An exercise is classified here: its three value bands, sourcing method, contract type and basis, and who approves the name and the appointment. Its tender documents are prepared and approved here, and its window is recorded here: advertisement or invitation, sale of the documents, briefings and addenda. Receiving bids and evaluation are still recorded outside the portal.
+ All exercises
+ 
+-Newest first. Search finds an exercise by its reference or its requisition's.
++Listed by the day each exercise was opened, newest first, until you sort by a column. Search finds an exercise by its reference or its requisition's.
+ 
+ All records
+ All records
+ Draft
+ Documents in preparation
+-With approval for tendering
++Awaiting approval for tendering
++Open for purchase
++Closing within 7 days
+ On the boundary
+ Name approval in progress
+ Status
+ Any status
+ Draft
+ Documents in preparation
+-With approval for tendering
++Awaiting approval for tendering
+ Approved for tendering
+ Advertised
+ Invited
+@@ -43,134 +49,136 @@
+ ▲
+ SULIT
+ SULIT · not restricted until sign-in
+-	
++	Closing	
+ Status
+ ▲
+-	Band and checks	
++	
+ Actions
+ 
+ 
+ FRP tank repair by its manufacturer
+ DEMO/SX/0015/2026 · Specialist or sole source
+-	RM18,000	With approval for tendering	
+-Quotation
+-	
++	RM18,000	
++Not set yet
++	Awaiting approval for tendering	
+ 
+ 
+ Reservoir inlet main and inlet works, Demo Heights
+ DEMO/SX/0016/2026 · Open tender
+-	RM640,000	Advertised	
+-Tender
+-	
++	RM640,000	
++01 Oct 2026 · 15:00
++Closed
++	Advertised	
+ 
+ 
+ Roof works and tank fittings
+ DEMO/SX/0005/2026 · Open quotation
+-	RM150,000	Documents in preparation	
+-Quotation
+-	
++	RM150,000	
++Not set yet
++	Documents in preparation	
+ 
+ 
+ Reservoir inlet main renewal, Demo Heights
+ DEMO/SX/0019/2026 · Open tender
+-	RM640,000	Cancelled	
+-Tender
+-	
++	RM640,000	
++07 Oct 2026 · 15:00
++Cancelled
++	Cancelled	
+ 
+ 
+ Pipe bridge repainting, Sungai Demo
+ DEMO/SX/0018/2026 · Open quotation
+-	RM150,000	Advertised	
+-Quotation
+-	
++	RM150,000	
++14 Oct 2026 · 15:00
++Open for purchase
++	Advertised	
+ 
+ 
+ Valve chamber rebuilding, Zone B
+ DEMO/SX/0017/2026 · Selective quotation
+-	RM180,000	Invited	
+-Quotation
+-Name approval given
+-	
++	RM180,000	
++14 Oct 2026 · 15:00
++Open for purchase
++	Invited	
+ 
+ 
+ Tank relining by a specialist contractor
+ DEMO/SX/0003/2026 · Selected tender
+-	RM420,000	Draft	
+-Tender
+-Name approval in progress
+-Restricted · not enforced until sign-in
+-	
++	RM420,000	
++Not set yet
++	Draft	
+ 
+ 
+ Filter renewal works
+ DEMO/SX/0001/2026 · Open quotation
+-	RM300,000	Approved for tendering	
+-Quotation
+-On the boundary · not ruled
+-	
++	RM300,000	
++29 Oct 2026 · 14:30
++Not yet published
++	Approved for tendering	
+ 
+ 
+ Chlorine analyser spares from the sole agent
+ DEMO/SX/0007/2026 · Selective direct appointment
+-	RM9,500	Documents in preparation	
+-Below quotation
+-	
++	RM9,500	
++Not set yet
++	Documents in preparation	
+ 
+ 
+ Spare filter nozzles
+ DEMO/SX/0006/2026 · Direct appointment
+-	RM15,000	Cancelled	
+-Below quotation
+-	
++	RM15,000	
++No closing
++Cancelled before one was set
++	Cancelled	
+ 
+ 
+ Emergency repair of the trunk main
+ DEMO/SX/0004/2026 · Emergency works
+-	RM12,000	Documents in preparation	
+-Below quotation
+-	
++	RM12,000	
++Not set yet
++	Documents in preparation	
+ 
+ 
+ Valve keys and chamber covers
+ DEMO/SX/0014/2026 · Open quotation
+-	RM40,000	Documents in preparation	
+-Quotation
+-	
++	RM40,000	
++Not set yet
++	Documents in preparation	
+ 
+ 
+ Meter chamber upgrades
+ DEMO/SX/0013/2026 · Open quotation
+-	RM200,000	Documents in preparation	
+-Quotation
+-	
++	RM200,000	
++Not set yet
++	Documents in preparation	
+ 
+ 
+ Reservoir rehabilitation
+ DEMO/SX/0012/2026 · Open tender
+-	RM2,800,000	Documents in preparation	
+-Tender
+-	
++	RM2,800,000	
++Not set yet
++	Documents in preparation	
+ 
+ 
+ Trunk main renewal, Zone C
+ DEMO/SX/0011/2026 · Open tender
+-	RM1,700,000	Documents in preparation	
+-Tender
+-	
++	RM1,700,000	
++Not set yet
++	Documents in preparation	
+ 
+ 
+ Pumping station refurbishment
+ DEMO/SX/0010/2026 · Open tender
+-	RM1,300,000	Documents in preparation	
+-Tender
+-	
++	RM1,300,000	
++Not set yet
++	Documents in preparation	
+ 
+ 
+ Dosing controllers from the sole distributor
+ DEMO/SX/0002/2026 · Selective direct appointment
+-	RM9,000	Documents in preparation	
+-Below quotation
+-	
++	RM9,000	
++Not set yet
++	Documents in preparation	
+ Showing 1-17 of 17
+ Rows
+ 25
+diff -ru (screen below)
+--- before
++++ after
+@@ -15,58 +15,145 @@
+ Works
+ •
+ Quotation
++•
++Closes 29 Oct 2026 · 14:30
++Correct the closing
++Publish the advertisement
+ Cancel exercise
+-Sourcing runs outside the portal in this phase
+-The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
++
++Publish the advertisement: The window's items are not prepared yet. Prepare the window below first.
++
++Bids and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Award
+ Access
+ 0
+ History
+ 75
+-Three band families
+-
+-Determined 02 Oct 2026 under Demo limits, issue 1.
+-
+-Requisition band
+-Requisition, above RM250,000
+-The rule the requisition was approved under.
+-Method band
+-Quotation band
+-Proposed: Open quotation.
+-Contract terms band
+-Extended terms
+-Retention: applies. Defects liability: applies.
+-Value
+-RM300,000
+-SULIT · not restricted until sign-in
+-At the boundary
+-A value exactly on RM300,000 falls in the quotation band (assumed; not yet ruled).
++Window
++Sale register
++Briefing
++Addenda
++The window
++
++By advertisement. Prepared here, then published.
++
++Tendering starts
++12 Oct 2026
++Closes
++29 Oct 2026 · 14:30
++Advertised on
++Not known yet
++First day of sale
++Not set
++Last day of sale
++Not set
++Where it stands
++Not yet published
++Tender Table Document
++Not yet available: available for inspection from publication to the closing
++The estimate's lead time
++Ready: the last version was made on 22 Sep 2026, on or before 22 Oct 2026.
++Before it can be published
++
++7 to put right, 1 to note.
++
++Prepare the window: where the documents are inspected and bought, the hours, the days of sale, how the fee is paid and the fee (7 items not written yet).
++Not yet published through Demo Daily (newspaper): an advertised exercise is published through every required channel. Record its publication.
++Not yet published through Head office notice board: an advertised exercise is published through every required channel. Record its publication.
++Not yet published through Organisation website: an advertised exercise is published through every required channel. Record its publication.
++The advertisement date is not known yet, so the days to the closing are checked at publication.
++The closing time 14:30 is not the default 15:00. Give the reason for another time, or correct the closing.
++The last day the documents are sold is not set. Set it on the window.
++The text names fields with nothing recorded for them: advertisement date, validity window, where the documents are inspected, where the documents are bought, inspection and purchase hours, first day of sale, last day of sale, document fee, how the fee is paid, where tenders are submitted. Record them, or change the template.
++What the notice states, and the fee
++
++The notice's items, and what a set of the documents costs and why.
++
++Prepare the window
++Not prepared yet
++The window has no items yet: where the documents are inspected and bought, the days of sale and the fee.
++Channels and publications
++
++The notice is advertised only once every required channel carries it.
++
++Channel	Required	Published on	Title, edition or address
++
++Demo Daily (newspaper)
++	
++Required
++	
++Not yet published
++	—
++
++Head office notice board
++	
++Required
++	
++Not yet published
++	—
++
++Organisation website
++	
++Required
++	
++Not yet published
++	—
++
++Still to be published through: Demo Daily (newspaper), Head office notice board, Organisation website.
++
++The closing, and its changes
++
++The closing set when the documents were approved, and every change since. A change is kept beside the closing it replaced.
++
++29 Oct 2026 · 14:30
++Stands now
++Approved for tendering
++Recorded 28 Sep 2026 · 08:00
++The rules this window is judged by
++
++Each value is the organisation's setting, with where it comes from. Not set blocks the act it governs.
++
++Open Invitation controls
++Minimum days from advertisement to closing
++7 days
+ Assumed
+-Appointment rule: the same side as its band. Terms band: no edge at the boundary.
+-Method and who approves the appointment
+-
+-Open quotation
+-
+-Method
+-Open quotation · as proposed
+-
+-Approval of the appointment
+-
+-Quotation Committee
+-Mandatory recommendation (MR)
+-Chief Executive
+-Approve (A)
+-
+-Quotation, RM15,000 to RM300,000 · DEMO 4.3
+-
+-Chain as entered, not checked against core routing: nobody has decided whether “Quotation, RM15,000 to RM300,000” takes its chain from the core routing. Decide it on the rule in the approval matrix.
+-Checks, as recorded on 02 Oct 2026
++Demo procedure 5 (invented)
++Target days from advertisement to closing
++10 days
++Assumed
++Demo procedure 5 (invented)
++Margin for a late newspaper
++2 days
++Assumed
++Demo procedure 5 (invented)
++Days between the last day of sale and the closing
++2 days
++Assumed
++Demo procedure 5 (invented)
++Default closing time
++15:00
++Assumed
++Demo procedure 5 (invented)
++Advertisement day
++The latest day among the required channels
++Assumed
++Holiday calendar
++Demo state calendar
++Assumed
++Weekend
++Saturday, Sunday
++Assumed
++Mandatory attendance at a briefing
++May be made mandatory
++Assumed
++The notice
+ 
+-Recorded with the exercise.
++As it would read if published now. It is frozen when it is published.
+ 
+-This value is exactly where the quotation and tender bands meet. A value exactly on RM300,000 falls in the quotation band (assumed; not yet ruled). It is recorded as an exception until the ruling is written into the approval matrix.
+-This exercise's value is in a different band from the requisition's live exercises together (RM321,000). Check that the work is not being split below a threshold.
++Read the notice
+diff -ru (screen below)
+--- before
++++ after
+@@ -1,7 +1,7 @@
+ 200
+ SOURCING
+ FRP tank repair by its manufacturer
+-With approval for tendering
++Awaiting approval for tendering
+ •
+ DEMO/SX/0015/2026
+ •
+@@ -16,12 +16,13 @@
+ •
+ Quotation
+ Cancel exercise
+-Sourcing runs outside the portal in this phase
+-The exercise is classified and its tender documents are prepared and approved here. Invitation, bids and evaluation are recorded outside the portal until the sourcing window is built.
++Bids and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
++Invitation
+ Award
+ Access
+ 0
+@@ -31,7 +32,7 @@
+ 
+ The documents tenderers receive, assembled from the parts configured for this pack and basis.
+ 
+-With approval for tendering
++Awaiting approval for tendering
+ Open the Appendix
+ Print the pack
+ Tender Table Document
+@@ -43,6 +44,8 @@
+ Demo conditions of contract (bill of quantities)
+ Version
+ Version 1
++Tender Table Document
++Not yet available: available for inspection from publication to the closing
+ Restricted
+ Yes
+ Proposed start
+@@ -199,7 +202,7 @@
+ 
+ Version 1, submitted 01 Oct 2026 under Demo limits, issue 1.
+ 
+-With approval for tendering
++Awaiting approval for tendering
+ Rule
+ Approval for tendering, specialist or sole source · DEMO 4.1
+ Routed on
+@@ -237,5 +240,5 @@
+ Each version stays as it was frozen; a change after a return is a new version.
+ 
+ Version 1
+-With approval for tendering
++Awaiting approval for tendering
+ Submitted 01 Oct 2026
