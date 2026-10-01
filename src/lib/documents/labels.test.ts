@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { versionCreated, attached, policyView } from "./audit-view";
 import { accessReasonText, CLASSIFICATION_LABEL, documentFaultText, WITHDRAW_NOTE, formatBytes, mediaLabel, PURPOSE_LABEL, shortFingerprint, STATUS_LABEL } from "./labels";
-import { megabytesToBytes, policyFaults } from "./policy";
+import { bytesToMegabytes, megabytesToBytes, policyFaults } from "./policy";
 import { ATTACHMENT_PURPOSES, KNOWN_MEDIA_TYPES, SECURITY_CLASSES } from "./types";
 
 // Every code the document store's rules, store and handlers return has its own words.
@@ -76,5 +76,14 @@ describe("the access log never shows a code", () => {
   it("the withdraw note says withdrawal does not stop downloads and names the way to", () => {
     expect(WITHDRAW_NOTE).toMatch(/does NOT stop/);
     expect(WITHDRAW_NOTE).toMatch(/SULIT/);
+  });
+});
+
+describe("megabytes on the upload rules form", () => {
+  it("reads 1 MB as 1,048,576 bytes both ways", () => {
+    expect(bytesToMegabytes(20971520n)).toBe("20");
+    expect(bytesToMegabytes(1572864n)).toBe("1.5");
+    expect(bytesToMegabytes(megabytesToBytes("0.25")!)).toBe("0.25");
+    expect(megabytesToBytes(bytesToMegabytes(20971520n))).toBe(20971520n);
   });
 });

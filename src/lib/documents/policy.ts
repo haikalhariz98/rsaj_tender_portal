@@ -26,3 +26,11 @@ export function megabytesToBytes(mb: string): bigint | null {
   const bytes = (whole * 1000n + frac) * 1048576n / 1000n;
   return bytes > 0n ? bytes : null;
 }
+
+/// Bytes as megabytes for a form to show, 1 MB = 1,048,576 bytes, trailing zeros dropped (the inverse of the above for whole and three-decimal values).
+export function bytesToMegabytes(bytes: bigint): string {
+  const thousandths = (bytes * 1000n) / 1048576n;
+  const whole = thousandths / 1000n;
+  const frac = (thousandths % 1000n).toString().padStart(3, "0").replace(/0+$/, "");
+  return frac ? `${whole}.${frac}` : `${whole}`;
+}

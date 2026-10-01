@@ -12,6 +12,7 @@ import { DISPOSAL_METHODS, RETENTION_TRIGGERS, SECURITY_CLASSES } from "@/lib/do
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { FormReader } from "@/lib/validate";
+import { splitValues } from "@/lib/ui/select-logic";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const PATH = "/configuration/documents";
@@ -122,7 +123,8 @@ export async function saveStorePolicy(_prev: FormState, data: FormData): Promise
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const r = new FormReader(data);
-  const allowedMediaTypes = [...new Set(data.getAll("allowedMediaTypes").map(String).map((x) => x.trim()).filter(Boolean))];
+  // The form posts the chosen types as one newline-joined value (see RecordEditor "tokens"); a direct post may repeat the field.
+  const allowedMediaTypes = [...new Set(data.getAll("allowedMediaTypes").flatMap((v) => splitValues(v)))];
   const mb = r.optionalText("maxMegabytes");
   const maxBytes = mb ? megabytesToBytes(mb) : null;
   if (mb && maxBytes == null) r.reject("maxMegabytes", "Give the largest file in megabytes, above zero, to at most three decimal places.");

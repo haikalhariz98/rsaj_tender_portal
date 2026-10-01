@@ -21,6 +21,14 @@ export interface DocumentClass {
   provenance: string;
   notes: string;
   sortOrder: number;
+  /// Null: not set. A document of an unclassified class is listed but never opened.
+  classification: "PUBLIC" | "INTERNAL" | "SULIT" | null;
+  /// Null: not set. What starts the retention clock.
+  retentionTrigger: "RECEIVED" | "OWNER_CLOSED" | "CONTRACT_FINAL_ACCOUNT" | null;
+  /// Null: not set. How a document is disposed of when its retention ends (nothing is, in this build).
+  disposalMethod: "DESTROY" | "TRANSFER_TO_ARCHIVES" | "REVIEW" | null;
+  /// Null: not set. The office, by code, whose authority a disposal needs.
+  disposalAuthorityRoleCode: string | null;
 }
 
 export interface DocumentTemplate {
@@ -77,6 +85,10 @@ export async function loadDocumentClasses(organisationCode: string): Promise<Doc
     provenance: r.provenance as string,
     notes: r.notes,
     sortOrder: r.sortOrder,
+    classification: r.classification,
+    retentionTrigger: r.retentionTrigger,
+    disposalMethod: r.disposalMethod,
+    disposalAuthorityRoleCode: r.disposalAuthorityRoleCode,
   }));
 }
 
