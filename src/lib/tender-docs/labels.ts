@@ -4,6 +4,7 @@
  * says what to do and where.
  */
 
+import { nameRouteLabel } from "@/lib/method/approval";
 import { BEHAVIOUR_LABEL } from "@/lib/method/labels";
 import type { BehaviourKey } from "@/lib/method/profile";
 import { scopeFaultText } from "@/lib/scope/labels";
@@ -15,6 +16,13 @@ import type { DatesFault } from "./tendering";
 import type { AppendixStatus, Finding, LadKind, PackKind, PackPartState, PartContent, PartRole, PartSource, TenderPackStatus, UpliftKind } from "./types";
 
 export const NOT_SET = "Not set";
+
+/// The Approval for Tendering route's status in words. Q-3, §7.3.2: a rejection returns the
+/// documents for amendment, so a rejected route reads "Returned for amendment", never
+/// "Refused"; every other status reads as an exercise route does.
+export function tenderingRouteLabel(status: string, warnings: unknown): string {
+  return status === "REJECTED" ? "Returned for amendment" : nameRouteLabel(status, warnings);
+}
 
 export const PACK_KIND_LABEL: Readonly<Record<PackKind, string>> = {
   TENDER: "Tender documents",

@@ -15,9 +15,9 @@ import { escalationText } from "@/lib/authority/escalation-labels";
 import { routeCoreText, stepOriginText } from "@/lib/authority/core-routing-labels";
 import { returnTargetBeforeNext, type RejectionKind } from "@/lib/authority/rejection";
 import { ifRejectedText } from "@/lib/authority/rejection-labels";
-import { nameRouteLabel } from "@/lib/method/approval";
 import type { LoadedExercise } from "@/lib/method/repo";
 import { DECISION_LABEL } from "@/lib/requisition/labels";
+import { tenderingRouteLabel } from "@/lib/tender-docs/labels";
 import { documentsTab } from "@/lib/tender-docs/read";
 import { routeTone, stepTone } from "@/lib/ui/status-tone";
 
@@ -273,7 +273,7 @@ async function RouteCard({ exerciseId, routes, decide, today, timeZone }: { exer
           icon={<RouteIcon size={17} />}
           title="Approval for Tendering"
           subtitle={`Submitted ${formatOrgDay(inst.openedAt, timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}: ${inst.ruleLabel ?? "a rule no longer on file"} · ${inst.ruleClause || "clause not recorded"}.`}
-          actions={<Badge tone={routeTone(inst.status)}>{nameRouteLabel(inst.status, inst.warnings)}</Badge>}
+          actions={<Badge tone={routeTone(inst.status)}>{tenderingRouteLabel(inst.status, inst.warnings)}</Badge>}
         />
         {((inst.warnings as { level: string; messageEn: string }[]) ?? []).length > 0 && (
           <CardBody className="flex flex-col gap-2">
@@ -348,7 +348,7 @@ async function RouteCard({ exerciseId, routes, decide, today, timeZone }: { exer
           <ul className="divide-y divide-line/70">
             {earlier.map((e) => (
               <li key={e.id} className="flex flex-wrap items-center gap-2 px-5 py-3 text-[13px] sm:px-6">
-                <Badge tone="neutral">{nameRouteLabel(e.status, e.warnings)}</Badge>
+                <Badge tone="neutral">{tenderingRouteLabel(e.status, e.warnings)}</Badge>
                 <span className="text-ink-2">
                   Submitted {formatOrgDay(e.openedAt, timeZone)} · {e.steps.map((s) => s.roleLabel).join(" → ")}
                   {e.rejectionReason ? ` · “${e.rejectionReason}”` : ""}

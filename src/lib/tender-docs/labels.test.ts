@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { BEHAVIOUR_KEYS } from "@/lib/method/profile";
 
-import { appendixFaultText, behaviourFaultText, datesFaultText, PACK_KIND_LABEL, PACK_STATUS_LABEL, PART_CONTENT_LABEL, PART_ROLE_LABEL, PART_SOURCE_LABEL, PART_STATE_LABEL, partFaultText, routeFaultText, startFaultText } from "./labels";
+import { appendixFaultText, behaviourFaultText, datesFaultText, PACK_KIND_LABEL, PACK_STATUS_LABEL, PART_CONTENT_LABEL, PART_ROLE_LABEL, PART_SOURCE_LABEL, PART_STATE_LABEL, partFaultText, routeFaultText, startFaultText, tenderingRouteLabel } from "./labels";
 import { PACK_KINDS, PACK_PART_STATES, PART_CONTENTS, PART_ROLES, PART_SOURCES, TENDER_PACK_STATUSES } from "./types";
 
 /**
@@ -73,5 +73,22 @@ describe("restriction and stamp wording comes from configuration, never a custom
     // The restriction itself, anywhere the tender documents are made: it is configuration.
     const tenderDocs = all.filter((p) => /src\/lib\/tender-docs|src\/app\/sourcing|configuration\/tender-documents|demo-tender-docs/.test(relative(root, p)));
     expect(tenderDocs.filter((p) => /bumiputera/i.test(readFileSync(p, "utf8"))).map((p) => relative(root, p))).toEqual([]);
+  });
+});
+
+describe("the tendering route card says the documents were returned, not refused (carry d)", () => {
+  it("a rejected route reads Returned for amendment; other statuses as an exercise route", () => {
+    expect(tenderingRouteLabel("REJECTED", [])).toBe("Returned for amendment");
+    expect(tenderingRouteLabel("REJECTED", [])).not.toMatch(/refused/i);
+    expect(tenderingRouteLabel("PENDING", [])).toBe("In progress");
+    expect(tenderingRouteLabel("APPROVED", [])).toBe("Approved");
+    expect(tenderingRouteLabel("RECALLED", [{ code: "WITHDRAWN_ON_CANCEL" }])).toBe("Withdrawn: exercise cancelled");
+  });
+  it("the read model and the screen label the route and its earlier routes through it", () => {
+    for (const f of ["src/lib/tender-docs/read.ts", "src/app/sourcing/[id]/documents/workspace.tsx"]) {
+      const src = readFileSync(join(process.cwd(), f), "utf8");
+      expect(src, f).not.toMatch(/nameRouteLabel\(/);
+      expect(src.match(/tenderingRouteLabel\(/g)?.length, f).toBe(2);
+    }
   });
 });

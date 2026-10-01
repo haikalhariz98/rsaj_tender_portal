@@ -10,7 +10,7 @@ import { dayToDate, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { ACT_LABEL } from "@/lib/labels";
-import { tenderingRoutesOf, latestFirst, nameRouteLabel, requesterHolding } from "@/lib/method/approval";
+import { tenderingRoutesOf, latestFirst, requesterHolding } from "@/lib/method/approval";
 import { BEHAVIOUR_LABEL, EXERCISE_STATUS_LABEL } from "@/lib/method/labels";
 import { evaluationContext, loadExercise } from "@/lib/method/repo";
 import { formatSen, parseSen, senToDecimalString } from "@/lib/money";
@@ -45,6 +45,7 @@ import {
   startFaultText,
   submitFindingTexts,
   TENDER_DOCS_CONFIG_PATH,
+  tenderingRouteLabel,
   UPLIFT_KIND_LABEL,
   yesNoNotSet,
 } from "./labels";
@@ -268,7 +269,7 @@ async function routeView(ex: NonNullable<Awaited<ReturnType<typeof loadExercise>
   }
   const last = pending ? current.steps.every((s) => s.id === pending.id || s.decision === "DONE") : false;
   return {
-    status: nameRouteLabel(current.status, current.warnings),
+    status: tenderingRouteLabel(current.status, current.warnings),
     rule: current.ruleLabel ?? NOT_SET,
     matrix: current.matrixLabel ?? NOT_SET,
     ifRejected: "Returned for amendment",
@@ -282,7 +283,7 @@ async function routeView(ex: NonNullable<Awaited<ReturnType<typeof loadExercise>
       reason: s.reason || null,
     })),
     decide: pending ? { stepId: pending.id, office: pending.actingRoleLabel ?? pending.roleLabel, people, recordsDates: last, committee: !!pending.committeeCode } : null,
-    earlier: routes.slice(1).map((r) => ({ openedOn: formatDate(r.openedAt), status: nameRouteLabel(r.status, r.warnings), reason: r.rejectionReason || null })),
+    earlier: routes.slice(1).map((r) => ({ openedOn: formatDate(r.openedAt), status: tenderingRouteLabel(r.status, r.warnings), reason: r.rejectionReason || null })),
   };
 }
 
