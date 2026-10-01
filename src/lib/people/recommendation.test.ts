@@ -14,7 +14,7 @@ const d = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 const TEXT = "Recommended by the Section Head in her email of 25 September, before her leave.";
 
 const facts = (x: Partial<RecommendationFacts> = {}): RecommendationFacts => ({ holderRecommendation: TEXT, recommendationTextOnlyAtLanding: false, liveAttachments: 0, everAttachments: 0, ...x });
-const terms = (x: Partial<DelegationTerms> = {}): DelegationTerms => ({ toPersonId: "p4", effectiveTo: d("2026-10-16"), capabilityCodes: ["run_sourcing", "approve_po"], ...x });
+const terms = (x: Partial<DelegationTerms> = {}): DelegationTerms => ({ fromPersonId: "p5", roleCode: "SEC_PRE", toPersonId: "p4", effectiveFrom: d("2026-09-28"), effectiveTo: d("2026-10-16"), capabilityCodes: ["run_sourcing", "approve_po"], ...x });
 const legacy = (x: Partial<RecommendationFacts & DelegationTerms> = {}) => ({ ...facts({ recommendationTextOnlyAtLanding: true }), ...terms(), ...x });
 
 describe("how a delegation's recommendation stands", () => {
@@ -71,6 +71,19 @@ describe("which edits end legacy standing", () => {
   it("a different delegate ends it", () => {
     expect(legacyEndedBy(terms(), terms({ toPersonId: "p9" }))).toEqual(["DELEGATE_CHANGED"]);
   });
+  // Review must-fix 2 (FR-APR-012): the recommendation comes from the absent holder of that
+  // office, so text recorded for one grantor or office does not carry over to another.
+  it("a different grantor ends it", () => {
+    expect(legacyEndedBy(terms(), terms({ fromPersonId: "p8" }))).toEqual(["GRANTOR_CHANGED"]);
+  });
+  it("a different office ends it", () => {
+    expect(legacyEndedBy(terms(), terms({ roleCode: "HOD_ENG" }))).toEqual(["OFFICE_CHANGED"]);
+  });
+  it("the start date: same or later stands, one day earlier ends", () => {
+    expect(legacyEndedBy(terms(), terms({ effectiveFrom: d("2026-09-28") }))).toEqual([]);
+    expect(legacyEndedBy(terms(), terms({ effectiveFrom: d("2026-09-29") }))).toEqual([]);
+    expect(legacyEndedBy(terms(), terms({ effectiveFrom: d("2026-09-27") }))).toEqual(["START_MOVED_EARLIER"]);
+  });
   it("capabilities: adding one or handing over the whole office ends it; removing one or narrowing the whole office does not", () => {
     expect(legacyEndedBy(terms(), terms({ capabilityCodes: ["run_sourcing", "approve_po", "sign_loa"] }))).toEqual(["CAPABILITIES_WIDENED"]);
     expect(legacyEndedBy(terms(), terms({ capabilityCodes: ["run_sourcing", "sign_loa"] }))).toEqual(["CAPABILITIES_WIDENED"]);
@@ -83,6 +96,7 @@ describe("which edits end legacy standing", () => {
   });
   it("several at once are all named", () => {
     expect(legacyEndedBy(terms(), terms({ effectiveTo: null, toPersonId: "p9", capabilityCodes: [] }))).toEqual(["END_OPENED", "DELEGATE_CHANGED", "CAPABILITIES_WIDENED"]);
+    expect(legacyEndedBy(terms(), terms({ effectiveFrom: d("2026-09-01"), fromPersonId: "p8", roleCode: "HOD_ENG" }))).toEqual(["START_MOVED_EARLIER", "GRANTOR_CHANGED", "OFFICE_CHANGED"]);
   });
 });
 
@@ -102,6 +116,11 @@ describe("standing on text before attachments", () => {
   });
   it("an extension, an opened end, a new delegate or wider capabilities end it", () => {
     for (const t of [terms({ effectiveTo: d("2026-10-17") }), terms({ effectiveTo: null }), terms({ toPersonId: "p9" }), terms({ capabilityCodes: [] })]) {
+      expect(standsOnTextBeforeAttachments(legacy(), t)).toBe(false);
+    }
+  });
+  it("an earlier start, a new grantor or a new office end it", () => {
+    for (const t of [terms({ effectiveFrom: d("2026-09-27") }), terms({ fromPersonId: "p8" }), terms({ roleCode: "HOD_ENG" })]) {
       expect(standsOnTextBeforeAttachments(legacy(), t)).toBe(false);
     }
   });
@@ -129,6 +148,16 @@ describe("with faultsIn: the attachment is required once legacy standing ends (O
   it("changing the delegate asks for it", () => {
     expect(judge({ ...base, toPersonId: "p6" })).toContain("ABSENT_GRANTOR_RECOMMENDATION_NOT_ATTACHED");
   });
+  it("changing the grantor asks for it", () => {
+    expect(judge({ ...base, fromPersonId: "p8" })).toContain("ABSENT_GRANTOR_RECOMMENDATION_NOT_ATTACHED");
+  });
+  it("changing the office asks for it", () => {
+    expect(judge({ ...base, roleCode: "HOD_ENG" })).toContain("ABSENT_GRANTOR_RECOMMENDATION_NOT_ATTACHED");
+  });
+  it("moving the start a day earlier asks for it; a day later does not", () => {
+    expect(judge({ ...base, effectiveFrom: d("2026-09-27") })).toContain("ABSENT_GRANTOR_RECOMMENDATION_NOT_ATTACHED");
+    expect(judge({ ...base, effectiveFrom: d("2026-09-29") })).not.toContain("ABSENT_GRANTOR_RECOMMENDATION_NOT_ATTACHED");
+  });
   it("widening the capabilities asks for it", () => {
     expect(judge({ ...base, capabilityCodes: ["run_sourcing", "approve_po", "sign_loa"] })).toContain("ABSENT_GRANTOR_RECOMMENDATION_NOT_ATTACHED");
   });
@@ -144,6 +173,8 @@ describe("the editor's note matches the record's state", () => {
     const n = recommendationNote({ holderRecommendation: TEXT, recommendationTextOnlyAtLanding: true, effectiveTo: null })!;
     expect(n).toMatch(/^The recommendation on record: recorded as text before attachments existed · no end date\. It stands on its text until/);
     expect(n).toMatch(/signed recommendation is needed/);
+    expect(n).toMatch(/start date is moved earlier/);
+    expect(n).toMatch(/the person delegating, the role or the delegate changes/);
   });
   it("nothing on record, no note", () => {
     expect(recommendationNote({ holderRecommendation: "" })).toBeNull();

@@ -69,7 +69,7 @@ describe("lockDelegation: the lock, then the read", () => {
     const read = calls[1] as Extract<Call, { kind: "read" }>;
     expect(read.args.where).toEqual({ id: "dg3", organisationId: "org1" });
     expect(read.args.select).toBe(LOCKED_DELEGATION_SELECT);
-    for (const k of ["toPersonId", "effectiveTo", "capabilityCodes", "holderRecommendation", "recommendationTextOnlyAtLanding"]) expect(LOCKED_DELEGATION_SELECT, k).toHaveProperty(k, true);
+    for (const k of ["fromPersonId", "roleCode", "toPersonId", "effectiveFrom", "effectiveTo", "capabilityCodes", "holderRecommendation", "recommendationTextOnlyAtLanding"]) expect(LOCKED_DELEGATION_SELECT, k).toHaveProperty(k, true);
     // Every attachment of the purpose, live or not: "no longer attached" needs the ones that are not.
     expect(LOCKED_DELEGATION_SELECT.attachments.where).toEqual({ purpose: "HOLDER_RECOMMENDATION" });
   });

@@ -16,7 +16,10 @@ import type { DelegationTerms, RecommendationFacts } from "./recommendation";
 export const LOCKED_DELEGATION_SELECT = {
   id: true,
   organisationId: true,
+  fromPersonId: true,
+  roleCode: true,
   toPersonId: true,
+  effectiveFrom: true,
   effectiveTo: true,
   capabilityCodes: true,
   holderRecommendation: true,

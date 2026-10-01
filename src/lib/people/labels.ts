@@ -57,7 +57,7 @@ export function recommendationNote(d: Shown): string | null {
     case "NO_LONGER_ATTACHED":
       return `The recommendation on record: ${label}. Choose a file below to attach it again.`;
     case "TEXT_BEFORE_ATTACHMENTS":
-      return `The recommendation on record: ${label}. It stands on its text until the end date is moved later or opened, the delegate changes or more is delegated; then the signed recommendation is needed. Choose a file below to attach it.`;
+      return `The recommendation on record: ${label}. It stands on its text until the end date is moved later or opened, the start date is moved earlier, the person delegating, the role or the delegate changes, or more is delegated; then the signed recommendation is needed. Choose a file below to attach it.`;
     default:
       return `The recommendation on record: ${label}. Choose a file below to attach it.`;
   }

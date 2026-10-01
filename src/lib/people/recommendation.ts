@@ -11,8 +11,12 @@
  *   its version withdrawn) reads "signed recommendation no longer attached", and stands
  *   on nothing but an attachment again.
  * - A legacy delegation stands on its text until an edit moves its end date later, opens
- *   its end, changes the delegate or widens what is delegated. That edit is a new grant
- *   in substance, and the signed recommendation is then required (OD-6).
+ *   its end, moves its start earlier, changes the delegate, changes the grantor or the
+ *   office it delegates from, or widens what is delegated. That edit is a new grant in
+ *   substance, and the signed recommendation is then required (OD-6). The grantor and the
+ *   office matter because FR-APR-012's recommendation comes from the absent holder of that
+ *   office: text recorded for one holder or office says nothing of another (review
+ *   must-fix 2).
  */
 
 /// What is known of a delegation's recommendation, as stored.
@@ -49,22 +53,31 @@ export function recommendationStanding(f: RecommendationFacts): RecommendationSt
 
 /// The terms of a delegation an edit can change in a way that ends legacy standing.
 export interface DelegationTerms {
+  /// The grantor: the absent holder whose recommendation the text records.
+  fromPersonId: string;
+  /// The office delegated from.
+  roleCode: string;
   toPersonId: string;
+  effectiveFrom: Date;
   effectiveTo: Date | null;
   /// Empty is the whole office: wider than any listed subset.
   capabilityCodes: readonly string[];
 }
 
-export type LegacyEnd = "END_MOVED_LATER" | "END_OPENED" | "DELEGATE_CHANGED" | "CAPABILITIES_WIDENED";
+export type LegacyEnd = "END_MOVED_LATER" | "END_OPENED" | "START_MOVED_EARLIER" | "GRANTOR_CHANGED" | "OFFICE_CHANGED" | "DELEGATE_CHANGED" | "CAPABILITIES_WIDENED";
 
 /**
  * Which of the ruled changes an edit makes. Moving the end earlier, closing an open end,
- * removing capabilities or narrowing the whole office to a list are not among them.
+ * moving the start later, removing capabilities or narrowing the whole office to a list
+ * are not among them: each only narrows what the text already covered.
  */
 export function legacyEndedBy(before: DelegationTerms, after: DelegationTerms): LegacyEnd[] {
   const out: LegacyEnd[] = [];
   if (before.effectiveTo != null && after.effectiveTo == null) out.push("END_OPENED");
   if (before.effectiveTo != null && after.effectiveTo != null && after.effectiveTo.getTime() > before.effectiveTo.getTime()) out.push("END_MOVED_LATER");
+  if (after.effectiveFrom.getTime() < before.effectiveFrom.getTime()) out.push("START_MOVED_EARLIER");
+  if (after.fromPersonId !== before.fromPersonId) out.push("GRANTOR_CHANGED");
+  if (after.roleCode !== before.roleCode) out.push("OFFICE_CHANGED");
   if (after.toPersonId !== before.toPersonId) out.push("DELEGATE_CHANGED");
   const wasWhole = before.capabilityCodes.length === 0;
   const isWhole = after.capabilityCodes.length === 0;

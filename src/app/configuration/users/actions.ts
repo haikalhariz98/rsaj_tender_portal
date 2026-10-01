@@ -399,7 +399,8 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
       // OD-6: the signed recommendation is attached in the same act as the delegation it
       // grants (a version staged by the upload, its id in the form), or was attached since.
       // A delegation marked text-only when the store landed stands on its text, until an
-      // edit extends or opens its end, changes the delegate or widens what is delegated.
+      // edit extends or opens its end, moves its start earlier, changes the grantor, the office
+      // or the delegate, or widens what is delegated (`legacyEndedBy`).
       const faults = faultsIn(
         proposed,
         existing.map(asDelegation),
