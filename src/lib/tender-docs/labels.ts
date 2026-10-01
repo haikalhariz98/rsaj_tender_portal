@@ -192,7 +192,7 @@ const START_TEXT: Record<StartFault, (f: Finding) => string> = {
   PREPARED_BEFORE_ASSEMBLY: () => "This exercise was prepared before tender document assembly existed, so it keeps the earlier path: its documents are prepared outside the portal and its award opens as before.",
   NO_PACK_FOR_METHOD: () => "This exercise's method assembles no tender documents, so there is no pack to prepare.",
   LIVE_PACK_EXISTS: () => "A version of the tender documents is already being prepared or is with approval.",
-  PACK_APPROVED: () => "The tender documents are approved for tendering. A change now is an addendum (not yet available).",
+  PACK_APPROVED: () => "The tender documents are approved for tendering. A change now is an addendum, issued on the Invitation tab once the exercise is published.",
   NO_PACK: () => "This exercise's method assembles no tender documents.",
   BASIS_NOT_SET: () => "The contract basis is not set, and the pack's parts follow it. Set it on the exercise's Contract type tab.",
   COMPOSITION_NOT_SET: () => `No parts are configured for this pack kind and contract basis. ${SET_PARTS}`,
