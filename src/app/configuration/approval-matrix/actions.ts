@@ -117,6 +117,17 @@ async function lockIssue(tx: Tx, authorityMatrixId: string) {
   await tx.$queryRaw`SELECT id FROM "AuthorityMatrix" WHERE id = ${authorityMatrixId} FOR UPDATE`;
 }
 
+/// Lock the issue a core row belongs to, found by the row's id, and return the issue's
+/// id — or null when the row is gone. Only the owning issue is read before the lock: the
+/// row and its steps are read again under it, so a step another writer added or removed
+/// meanwhile is seen, never deleted or checked against unseen.
+async function lockIssueOfCoreLevel(tx: Tx, levelId: string, organisationId: string): Promise<string | null> {
+  const owner = await tx.coreRoutingLevel.findFirst({ where: { id: levelId, organisationId }, select: { authorityMatrixId: true } });
+  if (!owner) return null;
+  await lockIssue(tx, owner.authorityMatrixId);
+  return owner.authorityMatrixId;
+}
+
 /// An issue as the resolver reads it, inside the caller's transaction.
 async function issueIn(tx: Tx, authorityMatrixId: string) {
   return loadIssue(ORGANISATION_CODE, new Date(), authorityMatrixId, null, tx);
@@ -1007,25 +1018,31 @@ export async function removeCoreLevel(_prev: FormState, data: FormData): Promise
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
-  const result = await db.$transaction(async (tx): Promise<FormState> => {
-    const level = await tx.coreRoutingLevel.findFirst({ where: { id, organisationId: orgId }, include: { steps: true } });
-    if (!level) return { ok: false, message: "That core routing row no longer exists." };
-    await lockIssue(tx, level.authorityMatrixId);
-    const matrix = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: level.authorityMatrixId }, select: { label: true, issuedAt: true } });
+  const result = await refusable(() => db.$transaction(async (tx): Promise<FormState> => {
+    const gone: FormState = { ok: false, message: "That core routing row no longer exists." };
+    const authorityMatrixId = await lockIssueOfCoreLevel(tx, id, orgId);
+    if (!authorityMatrixId) return gone;
+    // The row and its steps as they stand under the lock: every step deleted is one read here.
+    const level = await tx.coreRoutingLevel.findFirst({ where: { id, authorityMatrixId }, include: { steps: { orderBy: { sequence: "asc" } } } });
+    if (!level) return gone;
+    const matrix = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: authorityMatrixId }, select: { label: true, issuedAt: true } });
     if (matrix.issuedAt) return FROZEN;
-    const roles = (await issueIn(tx, level.authorityMatrixId))?.matrix.roles ?? {};
+    const roles = (await issueIn(tx, authorityMatrixId))?.matrix.roles ?? {};
     const name = (code: string) => officeIn(roles, code);
     const label = coreRoutingEntryLabel(matrix.label, name(level.approverCode));
     for (const step of level.steps) {
-      await tx.coreRoutingStep.delete({ where: { id: step.id } });
       await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingStep", entityId: step.id, entityLabel: `${label} — ${name(step.roleCode)}`, reason }, "DELETE",
         snapshotFields({ office: name(step.roleCode), act: actWithCode(step.act), sequence: step.sequence, provenance: step.provenance, note: step.note }));
     }
+    // Exactly the steps audited above, or nothing: a step that is not one of them would
+    // go unrecorded, so the whole removal rolls back instead.
+    const removed = await tx.coreRoutingStep.deleteMany({ where: { coreRoutingLevelId: level.id } });
+    if (removed.count !== level.steps.length) throw new Refused({ ok: false, message: "The row's steps changed while this was being saved. Reload and try again." });
     await tx.coreRoutingLevel.delete({ where: { id } });
     await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingLevel", entityId: id, entityLabel: label, reason }, "DELETE",
       snapshotFields({ approverCode: name(level.approverCode), clause: level.clause, provenance: level.provenance, note: level.note, steps: level.steps.length }));
     return { ok: true };
-  });
+  }));
   if (!result.ok) return result;
   revalidatePath(PATH);
   return { ok: true };
@@ -1046,12 +1063,15 @@ export async function saveCoreStep(_prev: FormState, data: FormData): Promise<Fo
   if (r.failed || !act || !provenance) return { ok: false, errors: r.errors };
 
   const result = await db.$transaction(async (tx): Promise<FormState> => {
-    const level = await tx.coreRoutingLevel.findFirst({ where: { id: levelId, organisationId: orgId }, include: { steps: { orderBy: { sequence: "asc" } } } });
-    if (!level) return { ok: false, message: "That core routing row no longer exists." };
-    await lockIssue(tx, level.authorityMatrixId);
-    const matrix = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: level.authorityMatrixId }, select: { label: true, issuedAt: true } });
+    const gone: FormState = { ok: false, message: "That core routing row no longer exists." };
+    const authorityMatrixId = await lockIssueOfCoreLevel(tx, levelId, orgId);
+    if (!authorityMatrixId) return gone;
+    // Its steps as they stand under the lock: the place and the chain are checked on these.
+    const level = await tx.coreRoutingLevel.findFirst({ where: { id: levelId, authorityMatrixId }, include: { steps: { orderBy: { sequence: "asc" } } } });
+    if (!level) return gone;
+    const matrix = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: authorityMatrixId }, select: { label: true, issuedAt: true } });
     if (matrix.issuedAt) return FROZEN;
-    const roles = (await issueIn(tx, level.authorityMatrixId))?.matrix.roles ?? {};
+    const roles = (await issueIn(tx, authorityMatrixId))?.matrix.roles ?? {};
     const sequence = asked ?? (level.steps.at(-1)?.sequence ?? 0) + 1;
     if (level.steps.some((st) => st.sequence === sequence)) {
       return { ok: false, errors: { sequence: `Place ${sequence} is taken by ${officeIn(roles, level.steps.find((st) => st.sequence === sequence)!.roleCode)}. Choose another place, or leave it empty to add at the end.` } };
@@ -1077,12 +1097,17 @@ export async function removeCoreStep(_prev: FormState, data: FormData): Promise<
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
   const result = await db.$transaction(async (tx): Promise<FormState> => {
-    const step = await tx.coreRoutingStep.findFirst({ where: { id, organisationId: orgId }, include: { level: true } });
-    if (!step) return { ok: false, message: "That step no longer exists." };
-    await lockIssue(tx, step.level.authorityMatrixId);
-    const matrix = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: step.level.authorityMatrixId }, select: { label: true, issuedAt: true } });
+    const gone: FormState = { ok: false, message: "That step no longer exists." };
+    const owner = await tx.coreRoutingStep.findFirst({ where: { id, organisationId: orgId }, select: { level: { select: { authorityMatrixId: true } } } });
+    if (!owner) return gone;
+    const authorityMatrixId = owner.level.authorityMatrixId;
+    await lockIssue(tx, authorityMatrixId);
+    // The step as it stands under the lock: what is deleted is what is audited.
+    const step = await tx.coreRoutingStep.findFirst({ where: { id, level: { authorityMatrixId } }, include: { level: true } });
+    if (!step) return gone;
+    const matrix = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: authorityMatrixId }, select: { label: true, issuedAt: true } });
     if (matrix.issuedAt) return FROZEN;
-    const roles = (await issueIn(tx, step.level.authorityMatrixId))?.matrix.roles ?? {};
+    const roles = (await issueIn(tx, authorityMatrixId))?.matrix.roles ?? {};
     await tx.coreRoutingStep.delete({ where: { id } });
     await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingStep", entityId: id, entityLabel: coreRoutingEntryLabel(matrix.label, officeIn(roles, step.level.approverCode), officeIn(roles, step.roleCode)), reason }, "DELETE",
       snapshotFields({ office: officeIn(roles, step.roleCode), act: actWithCode(step.act), sequence: step.sequence, provenance: step.provenance, note: step.note }));
