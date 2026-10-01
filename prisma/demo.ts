@@ -62,7 +62,7 @@ async function removeTrailByReference(organisationId: string, references: string
       organisationId,
       OR: [
         {
-          entity: { in: ["RequisitionEndorsement", "RequisitionLine", "RequisitionBudgetCheck", "RequisitionSplitCheck", "ApprovalInstance", "ApprovalStep"] },
+          entity: { in: ["RequisitionEndorsement", "RequisitionLine", "RequisitionBudgetCheck", "RequisitionSplitCheck", "RequisitionGate", "ApprovalInstance", "ApprovalStep"] },
           OR: references.map((ref) => ({ entityLabel: { startsWith: `${ref} ·` } })),
         },
         { entity: "BudgetMovement", OR: references.map((ref) => ({ entityLabel: { endsWith: ` for ${ref}` } })) },
@@ -75,6 +75,17 @@ async function removeTrailByReference(organisationId: string, references: string
     },
   });
   return gone.count;
+}
+
+/**
+ * Clear the links between routes of one matter before they go: a successor route points
+ * at the route it continues, and its carried steps at the steps they were taken on. The
+ * links restrict deletion, so a matter re-routed through the screens could not otherwise
+ * be removed.
+ */
+async function unlinkRoutes(where: object) {
+  await db.approvalStep.updateMany({ where: { instance: where, NOT: { carriedFromStepId: null } }, data: { carriedFromStepId: null } });
+  await db.approvalInstance.updateMany({ where: { ...where, NOT: { supersedesInstanceId: null } }, data: { supersedesInstanceId: null } });
 }
 
 async function wipe() {
@@ -101,12 +112,17 @@ async function wipe() {
               OR: [
                 { authorityMatrixId: demoRef },
                 { overrideMatrixId: demoRef },
-                { steps: { some: { OR: [{ decidedByPersonId: demoRef }, { delegationId: demoRef }, { committeeDecisionId: demoRef }] } } },
+                { steps: { some: { OR: [{ decidedByPersonId: demoRef }, { delegationId: demoRef }, { committeeDecisionId: demoRef }, { declaredByPersonId: demoRef }] } } },
+                // Close-out: a route snapshotted under a demo destination, or a choice recorded for a demo person.
+                { rejectionDestinationId: demoRef },
+                { rejectionChosenByPersonId: demoRef },
               ],
             },
           },
         },
         { endorsements: { some: { personId: demoRef } } },
+        // A gate determined under a demo gate rule.
+        { gates: { some: { gateRuleId: demoRef } } },
       ],
     },
     select: {
@@ -134,7 +150,7 @@ async function wipe() {
         { overriddenByPersonId: demoRef },
         { proposalReviewerPersonId: demoRef },
         { participants: { some: { personId: demoRef } } },
-        { approvalInstances: { some: { OR: [{ authorityMatrixId: demoRef }, { overrideMatrixId: demoRef }, { steps: { some: { OR: [{ decidedByPersonId: demoRef }, { delegationId: demoRef }] } } }] } } },
+        { approvalInstances: { some: { OR: [{ authorityMatrixId: demoRef }, { overrideMatrixId: demoRef }, { rejectionDestinationId: demoRef }, { rejectionChosenByPersonId: demoRef }, { steps: { some: { OR: [{ decidedByPersonId: demoRef }, { delegationId: demoRef }, { declaredByPersonId: demoRef }] } } }] } } },
       ],
     },
     select: {
@@ -154,13 +170,15 @@ async function wipe() {
         // A route on no requisition under the demo limits — unless it is a name approval
         // recorded on a demo exercise, which goes with that exercise below.
         { requisitionId: null, NOT: { exerciseId: demoRef }, OR: [{ authorityMatrixId: demoRef }, { overrideMatrixId: demoRef }] },
+        // Close-out: any other route snapshotted under a demo rejection destination.
+        { requisitionId: null, NOT: { exerciseId: demoRef }, awardId: null, rejectionDestinationId: demoRef },
       ],
     },
     select: { id: true, requisitionId: true, exerciseId: true, matrixLabel: true, steps: { select: { id: true } } },
   });
   // Real committee matters linked to a demo requisition: the link would be cleared.
   const linkedMatters = await db.committeeDecision.findMany({
-    where: { NOT: { id: demoRef }, requisitionId: demoRef },
+    where: { NOT: { id: demoRef }, OR: [{ requisitionId: demoRef }, { requisitionGate: { OR: [{ requisitionId: demoRef }, { gateRuleId: demoRef }] } }] },
     select: { id: true, subject: true, matterRef: true },
   });
   const orphanRoutes = hangingInstances.filter((i) => i.requisitionId == null && (i.exerciseId == null || !hangingExerciseIds.includes(i.exerciseId)));
@@ -200,6 +218,7 @@ async function wipe() {
   const hangingMovementIds = hanging.flatMap((r) => (r.commitmentMovementId ? [r.commitmentMovementId] : []));
   const byReq = { requisitionId: { in: hangingIds } };
   const byEx = { exerciseId: { in: hangingExerciseIds } };
+  await unlinkRoutes({ id: { in: hangingInstanceIds } });
   await db.approvalStep.deleteMany({ where: { instanceId: { in: hangingInstanceIds } } });
   await db.approvalInstance.deleteMany({ where: { id: { in: hangingInstanceIds } } });
   await db.exerciseScopePart.deleteMany({ where: byEx });
@@ -211,7 +230,7 @@ async function wipe() {
   await db.requisitionBudgetCheck.deleteMany({ where: byReq });
   await db.requisitionEndorsement.deleteMany({ where: byReq });
   await db.requisitionLine.deleteMany({ where: byReq });
-  await db.committeeDecision.updateMany({ where: byReq, data: { requisitionId: null } });
+  await db.committeeDecision.updateMany({ where: { OR: [byReq, { requisitionGate: byReq }] }, data: { requisitionId: null, requisitionGateId: null } });
   await db.budgetMovement.deleteMany({ where: { id: { in: hangingMovementIds } } });
   await db.requisition.deleteMany({ where: { id: { in: hangingIds } } });
   const hangingEntities = [
@@ -229,7 +248,7 @@ async function wipe() {
     console.log(`Removed ${hanging.length} requisition(s), ${hangingExercises.length} exercise(s), ${orphanRoutes.length} other route(s) and ${gone.count} audit entr${gone.count === 1 ? "y" : "ies"}.`);
   }
   if (linkedMatters.length) {
-    await db.committeeDecision.updateMany({ where: { id: { in: linkedMatters.map((m) => m.id) } }, data: { requisitionId: null } });
+    await db.committeeDecision.updateMany({ where: { id: { in: linkedMatters.map((m) => m.id) } }, data: { requisitionId: null, requisitionGateId: null } });
     console.log(`Cleared ${linkedMatters.length} committee matter link(s) to demo requisitions.`);
   }
 
@@ -252,6 +271,7 @@ async function wipe() {
     .flatMap((x) => [...x.scopeParts, ...x.proposalAnswers, ...x.taxonomyValues, ...x.participants, ...x.approvalInstances, ...x.approvalInstances.flatMap((i) => i.steps)])
     .map((x) => x.id)
     .filter((x) => !x.startsWith(P));
+  await unlinkRoutes(onDemoEx);
   await db.approvalStep.deleteMany({ where: { instance: onDemoEx } });
   await db.approvalInstance.deleteMany({ where: onDemoEx });
   await db.exerciseScopePart.deleteMany({ where: { OR: [demo, onDemoEx] } });
@@ -284,6 +304,7 @@ async function wipe() {
     ])
     .map((x) => x.id)
     .filter((x) => !x.startsWith(P));
+  await unlinkRoutes({ OR: [demo, onDemo] });
   await db.approvalStep.deleteMany({ where: { OR: [demo, { instance: onDemo }] } });
   await db.approvalInstance.deleteMany({ where: { OR: [demo, onDemo] } });
   await db.requisitionSplitCheck.deleteMany({ where: { OR: [demo, onDemo] } });
@@ -294,9 +315,15 @@ async function wipe() {
   // An endorsement withdrawn on a demo requisition is gone, but its trail is not: its
   // entries are labelled with the requisition's reference.
   await removeTrailByReference(org.id, recorded.map((q) => q.reference));
+  // A matter cited against a gate holds the gate: release it before the gate goes with its requisition.
+  await db.committeeDecision.updateMany({ where: { OR: [demo, { requisitionGate: { requisitionId: demoRef } }] }, data: { requisitionGateId: null } });
   await db.committeeDecision.updateMany({ where: demo, data: { requisitionId: null } });
   await db.requisition.deleteMany({ where: demo });
   await db.requisitionPolicy.deleteMany({ where: demo });
+  // Close-out configuration, once no route or gate stands on it.
+  await db.committeeGateRule.deleteMany({ where: demo });
+  await db.rejectionDestination.deleteMany({ where: demo });
+  await db.auditExport.deleteMany({ where: demo });
 
   await db.vote.deleteMany({ where: demo });
   await db.decisionRecusal.deleteMany({ where: demo });
@@ -924,7 +951,8 @@ async function load() {
   await determineExercises([`${P}sx1`, `${P}sx2`, `${P}sx3`, `${P}sx4`, `${P}sx5`, `${P}sx6`, ...awardExercises]);
   await loadAwards(db, organisationId);
   await nameRouteTrail(organisationId);
-  await snapshotMinuted([`${P}mt2`, `${P}mt5`, `${P}mt6`, `${P}mt7`]);
+  await loadCloseout(organisationId);
+  await snapshotMinuted([`${P}mt2`, `${P}mt5`, `${P}mt6`, `${P}mt7`, `${P}mt8`, `${P}mt9`]);
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
   console.log("Remove it with: npm run demo:wipe");
@@ -1606,6 +1634,324 @@ async function loadMethodSelection(organisationId: string, from: Date) {
           { id: `${P}as20_5`, sequence: 5, roleCode: "CEO", roleLabel: "Chief Executive", act: "A", sourceRuleKey: "demo.name.tender" },
         ],
       },
+    },
+  });
+}
+
+/**
+ * The Phase 1 close-out (committee gates, rejection destinations, step escalation, the
+ * holder's recommendation). Invented throughout, like every demo figure.
+ *
+ * - A funding route that needs a committee gate, two gate rules on it, and a committee
+ *   that decides gates, with its own carried label and not-carried outcomes. Operating
+ *   and capital budgets say they have no gate; funder-led and supervision stay unset.
+ * - Three requisitions on that route: one awaiting its gates, one returned then passed,
+ *   one ended by its gate and closed without sourcing (commitment released).
+ * - A requisition destination (return to the Head of Division's step), snapshotted on
+ *   the routes opened after it took effect; one rejection applied (a successor route),
+ *   one decided by the officer's recorded choice, one awaiting it.
+ * - A conflict declared on a pending step and escalated one level up.
+ *
+ * The gate requisitions are on their own account and budget code, raised more than the
+ * splitting window apart, so their stored split checks are what the policy would find.
+ */
+async function loadCloseout(organisationId: string) {
+  const REQ = (n: number) => `DEMO/REQ/${String(n).padStart(4, "0")}/2026`;
+
+  // ------------------------------------------------------------- funding routes
+  await db.fundingRoute.updateMany({ where: { id: { in: [`${P}fr1`, `${P}fr2`] } }, data: { committeeGateRequired: false, committeeGateProvenance: "ASSUMED" } });
+  await db.fundingRoute.create({
+    data: {
+      id: `${P}fr5`, organisationId, code: "capital_projects", nameEn: "Capital projects", approvalCommitsBudget: true, approvalCommitsBudgetProvenance: "ASSUMED",
+      committeeGateRequired: true, committeeGateProvenance: "ASSUMED", trigger: "Capital project approved in the plan", governingSource: "Demo policy 3.3", provenance: "ASSUMED", sortOrder: 5,
+    },
+  });
+  await db.accountCode.createMany({
+    data: [
+      { id: `${P}ac6`, organisationId, code: "7500500", nameEn: "Capital works", provenance: "ASSUMED", sortOrder: 6, effectiveFrom: day("2024-01-01") },
+      { id: `${P}ac7`, organisationId, code: "6300300", nameEn: "Minor works", provenance: "ASSUMED", sortOrder: 7, effectiveFrom: day("2024-01-01") },
+    ],
+  });
+  await db.budgetCode.createMany({
+    data: [
+      { id: `${P}bcode10`, organisationId, code: "CAP26-060", descriptionEn: "Northern capital projects", type: "Capital", owningUnitCode: "NTH", accountCode: "7500500", holderPersonId: `${P}p9`, effectiveFrom: day("2026-01-01"), effectiveTo: day("2027-01-01") },
+      { id: `${P}bcode11`, organisationId, code: "OPX26-063", descriptionEn: "Northern minor works", type: "Operating", owningUnitCode: "NTH", accountCode: "6300300", holderPersonId: `${P}p9`, effectiveFrom: day("2026-01-01"), effectiveTo: day("2027-01-01") },
+    ],
+  });
+  await db.budgetMovement.createMany({
+    data: [
+      { id: `${P}bm40`, budgetCodeId: `${P}bcode10`, kind: "ORIGINAL", amount: "3000000.00", occurredOn: day("2026-01-01"), reference: "BR26-060" },
+      { id: `${P}bm41`, budgetCodeId: `${P}bcode11`, kind: "ORIGINAL", amount: "200000.00", occurredOn: day("2026-01-01"), reference: "BR26-063" },
+      // Written when rq26, rq27 and rq25 were approved; rq27's released when its gate ended it.
+      { id: `${P}bm42`, budgetCodeId: `${P}bcode10`, kind: "COMMITMENT", amount: "140000.00", occurredOn: day("2026-06-26"), reference: REQ(33), description: "Telemetry for the northern reservoirs" },
+      {
+        id: `${P}bm43`, budgetCodeId: `${P}bcode10`, kind: "COMMITMENT", amount: "90000.00", occurredOn: day("2026-08-12"), reference: REQ(34), description: "Second clear-water main, Taman Demo",
+        releasedOn: day("2026-09-26"), releaseNote: `Released: ${REQ(34)} closed without sourcing — the Capital Works Committee found the second main not required.`,
+      },
+      { id: `${P}bm44`, budgetCodeId: `${P}bcode10`, kind: "COMMITMENT", amount: "320000.00", occurredOn: day("2026-09-25"), reference: REQ(32), description: "Booster station, Bukit Demo upper zone" },
+    ],
+  });
+
+  // ------------------------------------------------- the committee that decides gates
+  await db.committee.create({
+    data: {
+      id: `${P}c5`, organisationId, code: "CAPWORKS_CTTE", nameEn: "Capital Works Committee", nameMs: "Jawatankuasa Kerja Modal",
+      mandate: "Scrutinises capital projects after approval and before sourcing.", governingSource: "Demo constitution cl. 6", action: "RECOMMENDS",
+      quorum: 2, quorumProvenance: "ASSUMED", compositionProvenance: "ASSUMED", secretariatRoleCode: "HOD_CP", votingRule: "SIMPLE_MAJORITY", votingRuleProvenance: "ASSUMED",
+      carriedLabelEn: "Supported", carriedLabelMs: "Disokong",
+    },
+  });
+  await db.committeeMember.createMany({
+    data: [
+      { id: `${P}m20`, committeeId: `${P}c5`, seatRoleCode: "CEO", position: "CHAIRMAN", provenance: "ASSUMED", effectiveFrom: day("2024-01-01") },
+      { id: `${P}m21`, committeeId: `${P}c5`, seatRoleCode: "FD", position: "MEMBER", provenance: "ASSUMED", effectiveFrom: day("2024-01-01") },
+      { id: `${P}m22`, committeeId: `${P}c5`, personId: `${P}p3`, position: "SECRETARY", provenance: "ASSUMED", effectiveFrom: day("2024-01-01") },
+    ],
+  });
+  await db.notApprovedOutcome.createMany({
+    data: [
+      { id: `${P}nao5`, organisationId, code: "cwc_revise", nameEn: "Revise and re-table", nameMs: "Semak dan bentang semula", kind: "LOOP", committeeId: `${P}c5`, governingSource: "Demo constitution cl. 6.4(a)", provenance: "ASSUMED", sortOrder: 5 },
+      { id: `${P}nao6`, organisationId, code: "cwc_not_required", nameEn: "Not required", nameMs: "Tidak diperlukan", kind: "TERMINAL", committeeId: `${P}c5`, governingSource: "Demo constitution cl. 6.4(b)", provenance: "ASSUMED", sortOrder: 6 },
+    ],
+  });
+  await db.committeeGateRule.createMany({
+    data: [
+      { id: `${P}gr1`, organisationId, fundingRouteCode: "capital_projects", committeeCode: "CAPWORKS_CTTE", subjectEn: "Capital works scrutiny", subjectMs: "Penelitian kerja modal", act: "R", governingSource: "Demo policy 3.3(a)", provenance: "ASSUMED", effectiveFrom: day("2026-06-01"), sortOrder: 1 },
+      { id: `${P}gr2`, organisationId, fundingRouteCode: "capital_projects", committeeCode: "TECH_CTTE", subjectEn: "Technical review", act: "R", aboveValue: "250000.00", governingSource: "Demo policy 3.3(b)", provenance: "ASSUMED", effectiveFrom: day("2026-06-01"), sortOrder: 2 },
+    ],
+  });
+
+  // ------------------------------------------------------- rejection destinations
+  await db.rejectionDestination.create({
+    data: {
+      id: `${P}rd1`, organisationId, domain: "requisition", kind: "RETURN_TO_STEP", returnToRoleCode: "DIV_HEAD", governingSource: "Demo policy 3.5", provenance: "ASSUMED",
+      notes: "Invented: a rejected requisition goes back to the Head of Division's step.", effectiveFrom: day("2026-07-01"),
+    },
+  });
+  const snap = (opened: string) => ({ rejectionSnapshotAt: day(opened), rejectionDestinationId: `${P}rd1`, rejectionKind: "RETURN_TO_STEP" as const, rejectionReturnToRoleCode: "DIV_HEAD", rejectionProvenance: "ASSUMED" as const });
+  // The pending routes opened after it took effect carry it, as submission writes it.
+  await db.approvalInstance.update({ where: { id: `${P}ai3` }, data: snap("2026-07-28") });
+  await db.approvalInstance.update({ where: { id: `${P}ai4` }, data: snap("2026-09-18") });
+  await db.approvalInstance.update({ where: { id: `${P}ai5` }, data: snap("2026-09-24") });
+
+  // ------------------------------------------------------------- the requisitions
+  const chains = {
+    6: { key: "demo.requisition.2", label: "Requisition, RM1,000 to RM40,000", clause: "DEMO 3.1(b)", steps: [["DEPT_HEAD", "Head of Department", "R"], ["DIV_HEAD", "Head of Division", "A"]] },
+    7: { key: "demo.requisition.3", label: "Requisition, RM40,000 to RM250,000", clause: "DEMO 3.1(c)", steps: [["DEPT_HEAD", "Head of Department", "P"], ["DIV_HEAD", "Head of Division", "R"], ["FD", "Finance Director", "A"]] },
+    8: { key: "demo.requisition.4", label: "Requisition, above RM250,000", clause: "DEMO 3.1(d)", steps: [["DEPT_HEAD", "Head of Department", "P"], ["DIV_HEAD", "Head of Division", "R"], ["FD", "Finance Director", "MR"], ["CEO", "Chief Executive", "A"]] },
+  } as const;
+  const deciders: Record<string, [string, string]> = { DEPT_HEAD: ["p9", "Imran Hakim"], DIV_HEAD: ["p7", "Gopal Nair"], FD: ["p2", "Bala Krishnan"], CEO: ["p1", "Aisyah Rahman"] };
+  type Spec = {
+    id: number; n: number; title: string; value: string; route: string; account: string; code: number; raised: string; endorsed: [string, string]; checked: string; balance: string;
+    rule: 6 | 7 | 8; decided: string[]; rejectedOn?: string; reason?: string; status: string; commitment?: string;
+    justification: string; need: string; deptHead?: [string, string];
+  };
+  const specs: Spec[] = [
+    { id: 25, n: 32, title: "Booster station, Bukit Demo upper zone", value: "320000.00", route: "capital_projects", account: "7500500", code: 10, raised: "2026-09-16", endorsed: ["2026-09-17", "2026-09-18"], checked: "2026-09-21", balance: "2770000.00",
+      rule: 8, decided: ["2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25"], status: "APPROVED", commitment: `${P}bm44`,
+      justification: "The upper zone loses pressure at peak demand.", need: "A booster station feeding the upper zone." },
+    { id: 26, n: 33, title: "Telemetry for the northern reservoirs", value: "140000.00", route: "capital_projects", account: "7500500", code: 10, raised: "2026-06-15", endorsed: ["2026-06-16", "2026-06-17"], checked: "2026-06-19", balance: "3000000.00",
+      rule: 7, decided: ["2026-06-22", "2026-06-24", "2026-06-26"], status: "APPROVED", commitment: `${P}bm42`,
+      justification: "Reservoir levels are read by hand twice a day.", need: "Levels and flows reported to the control room." },
+    { id: 27, n: 34, title: "Second clear-water main, Taman Demo", value: "90000.00", route: "capital_projects", account: "7500500", code: 10, raised: "2026-07-31", endorsed: ["2026-08-01", "2026-08-03"], checked: "2026-08-04", balance: "2860000.00",
+      rule: 7, decided: ["2026-08-06", "2026-08-10", "2026-08-12"], status: "CLOSED", commitment: `${P}bm43`,
+      justification: "A single main feeds the estate.", need: "A second main so the estate stays supplied during repairs." },
+    { id: 28, n: 35, title: "District meters, zone C", value: "60000.00", route: "opex", account: "6300300", code: 11, raised: "2026-07-20", endorsed: ["2026-07-21", "2026-07-22"], checked: "2026-07-23", balance: "200000.00",
+      rule: 7, decided: ["2026-07-27", "2026-07-30"], rejectedOn: "2026-08-05", reason: "The meters specified do not match the zone's pipe sizes. The Head of Division to review the specification.", status: "PENDING_APPROVAL",
+      justification: "Zone C's night flow cannot be measured.", need: "Meters at the zone's four inlets." },
+    { id: 29, n: 36, title: "Pipe repair clamps", value: "20000.00", route: "opex", account: "6300300", code: 11, raised: "2026-05-25", endorsed: ["2026-05-26", "2026-05-27"], checked: "2026-06-01", balance: "200000.00",
+      rule: 6, decided: ["2026-06-03"], rejectedOn: "2026-06-05", reason: "Clamps are held on the term contract. Raise against it instead.", status: "DRAFT", deptHead: ["p6", "Faridah Osman"],
+      justification: "Clamps run out during the monsoon.", need: "Repair clamps, 100 mm to 300 mm." },
+    { id: 30, n: 37, title: "Hydrant replacement, Taman Demo", value: "22000.00", route: "opex", account: "6300300", code: 11, raised: "2026-09-14", endorsed: ["2026-09-15", "2026-09-16"], checked: "2026-09-17", balance: "200000.00",
+      rule: 6, decided: ["2026-09-21"], rejectedOn: "2026-09-24", reason: "The hydrants are the fire authority's to replace under the bulk supply agreement.", status: "REJECTED",
+      justification: "Six hydrants failed their annual test.", need: "Working hydrants on the estate's ring main." },
+  ];
+  const code = (n: number) => (n === 10 ? "CAP26-060" : "OPX26-063");
+  for (const s of specs) {
+    const rq = `${P}rq${s.id}`;
+    const chain = chains[s.rule];
+    const dept = s.deptHead ?? ["p9", "Imran Hakim"];
+    await db.requisition.create({
+      data: {
+        id: rq, organisationId, reference: REQ(s.n), origin: "PORTAL", erpRequisitionNo: `XR20260002${s.n}`, erpNoteNo: `RN/2026/02${s.n}`, erpRefSource: "MANUAL", erpRefRecordedAt: day(s.raised),
+        requestingUnitCode: "NTH", sectionUnitCode: "NTH-MNT", requestingPersonId: `${P}p11`, title: s.title, justification: s.justification, needStatement: s.need,
+        costCentreCode: "CC-200", accountCode: s.account, budgetCodeId: `${P}bcode${s.code}`, siteCode: "NTH-WKS", placeOfDelivery: "Northern network", dateRequired: day("2027-03-31"),
+        estimatedValue: s.value, raisedOn: day(s.raised), fundingRouteCode: s.route, fundingSupersedesAuthority: false, sourcingPermitted: true, fundingPosture: "PROCURES",
+        status: s.status as "APPROVED", commitmentMovementId: s.commitment ?? null,
+        ...(s.route === "capital_projects" ? { gatesDeterminedOn: day(s.decided[s.decided.length - 1]), gateRequired: true, gateRequiredProvenance: "ASSUMED" as const } : {}),
+        ...(s.id === 27 ? { closedReason: "The Capital Works Committee found the second main not required: the estate's ring main is to be looped instead." } : {}),
+        lines: { create: [{ id: `${rq}l1`, lineNo: 1, description: s.title, estimatedAmount: s.value }] },
+      },
+    });
+    await db.requisitionEndorsement.createMany({
+      data: [
+        { id: `${P}en${s.id}a`, requisitionId: rq, tier: "SECTION", unitCode: "NTH-MNT", personId: `${P}p10`, endorsedOn: day(s.endorsed[0]) },
+        { id: `${P}en${s.id}b`, requisitionId: rq, tier: "DEPARTMENT", unitCode: "NTH", personId: `${P}${dept[0]}`, endorsedOn: day(s.endorsed[1]) },
+      ],
+    });
+    const balance = BigInt(s.balance.replace(".", ""));
+    const value = BigInt(s.value.replace(".", ""));
+    const actual = s.code === 10 ? 300_000_000n : 20_000_000n;
+    const fmt = (x: bigint) => `${x / 100n}.${String(x % 100n).padStart(2, "0")}`;
+    await db.requisitionBudgetCheck.create({
+      data: {
+        id: `${P}bk${s.id}`, requisitionId: rq, checkedAt: day(s.checked), asAt: day(s.checked), source: "PORTAL_LEDGER", budgetCodeId: `${P}bcode${s.code}`, budgetCodeCode: code(s.code),
+        requestedAmount: s.value, actualBudget: fmt(actual), balanceAsAt: s.balance, approvedAccount: fmt(actual - balance), approvedAccountProvenance: "ASSUMED", projectedBalance: fmt(balance - value), verdict: "WITHIN",
+      },
+    });
+    await db.requisitionSplitCheck.create({
+      data: { id: `${P}sp${s.id}`, requisitionId: rq, checkedAt: day(s.checked), state: "CLEAR", windowDays: 45, matchOn: ["unit", "accountCode"], aggregateAcrossYear: false, policyProvenance: "ASSUMED", relatedRequisitionIds: [], relatedReferences: [] },
+    });
+    // The route as opened: under the destination where it was in force that day.
+    const afterDestination = s.checked >= "2026-07-01";
+    const rejected = s.rejectedOn != null;
+    const rejectingSeq = rejected ? s.decided.length + 1 : null;
+    await db.approvalInstance.create({
+      data: {
+        id: `${P}ai${s.id}`, organisationId, matterKind: "REQUISITION", requisitionId: rq, domain: "requisition", value: s.value,
+        authorityMatrixId: `${P}mx1`, matrixLabel: "Demo limits, issue 1", ruleKey: chain.key, ruleLabel: chain.label, ruleClause: chain.clause,
+        boundaryValue: "300000", boundaryInclusive: true, ruleFollowsBoundarySwitch: false, boundaryOperator: null, fundingRouteCode: s.route,
+        budgetCheckId: `${P}bk${s.id}`, budgetVerdict: "WITHIN", availabilityCheck: "blocking", splitCheckId: `${P}sp${s.id}`, splitState: "CLEAR",
+        checkedAgainstMatrix: true, openedAt: day(s.checked), commitOnApproval: true, routeCommitsBudget: !rejected,
+        ...(afterDestination ? snap(s.checked) : {}),
+        ...(rejected
+          ? {
+              status: "REJECTED" as const, closedAt: day(s.rejectedOn!), rejectionReason: s.reason!,
+              // rq28: the destination applied. rq30: it named a step not before the rejecting one, so the officer chooses.
+              // rq29: rejected before destinations existed; the officer's choice recorded since.
+              ...(s.id === 28 ? { rejectionApplied: "RETURN_TO_STEP" as const, rejectionSource: "CONFIGURED" as const } : {}),
+              ...(s.id === 30 ? { rejectionChoices: ["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP", "TERMINATE"] as ("RETURN_TO_ORIGINATOR" | "RETURN_TO_STEP" | "TERMINATE")[], rejectionChoiceWhy: "STEP_NOT_ON_ROUTE" } : {}),
+              ...(s.id === 29 ? { rejectionApplied: "RETURN_TO_ORIGINATOR" as const, rejectionSource: "OFFICER_CHOICE" as const, rejectionChosenByPersonId: `${P}p3` } : {}),
+            }
+          : { status: "APPROVED" as const, closedAt: day(s.decided[s.decided.length - 1]) }),
+        steps: {
+          create: chain.steps.map(([roleCode, roleLabel, act], i) => {
+            const [pid, name] = roleCode === "DEPT_HEAD" ? dept : deciders[roleCode];
+            const base = { id: `${P}as${s.id}_${i + 1}`, sequence: i + 1, roleCode, roleLabel, act, nonDelegable: act === "MR", sourceRuleKey: chain.key };
+            if (i < s.decided.length) return { ...base, decision: "DONE" as const, decidedByPersonId: `${P}${pid}`, decidedByName: name, decidedOn: day(s.decided[i]), recordedAt: day(s.decided[i]) };
+            if (i + 1 === rejectingSeq) return { ...base, decision: "REJECTED" as const, decidedByPersonId: `${P}${pid}`, decidedByName: name, decidedOn: day(s.rejectedOn!), recordedAt: day(s.rejectedOn!), reason: s.reason! };
+            return { ...base, decision: "PENDING" as const };
+          }),
+        },
+      },
+    });
+  }
+
+  // rq28's successor: the same approval continued from the Head of Division's step,
+  // the department's step carried with its decision (ADR 0009).
+  const c7 = chains[7];
+  await db.approvalInstance.create({
+    data: {
+      id: `${P}ai28s`, organisationId, matterKind: "REQUISITION", requisitionId: `${P}rq28`, domain: "requisition", value: "60000.00",
+      authorityMatrixId: `${P}mx1`, matrixLabel: "Demo limits, issue 1", ruleKey: c7.key, ruleLabel: c7.label, ruleClause: c7.clause,
+      boundaryValue: "300000", boundaryInclusive: true, ruleFollowsBoundarySwitch: false, boundaryOperator: null, fundingRouteCode: "opex",
+      budgetCheckId: `${P}bk28`, budgetVerdict: "WITHIN", availabilityCheck: "blocking", splitCheckId: `${P}sp28`, splitState: "CLEAR", checkedAgainstMatrix: true,
+      ...snap("2026-07-23"), supersedesInstanceId: `${P}ai28`, status: "PENDING", openedAt: day("2026-08-05"),
+      steps: {
+        create: [
+          { id: `${P}as28s_1`, sequence: 1, roleCode: "DEPT_HEAD", roleLabel: "Head of Department", act: "P", sourceRuleKey: c7.key, decision: "DONE", decidedByPersonId: `${P}p9`, decidedByName: "Imran Hakim", decidedOn: day("2026-07-27"), recordedAt: day("2026-07-27"), carriedFromStepId: `${P}as28_1` },
+          { id: `${P}as28s_2`, sequence: 2, roleCode: "DIV_HEAD", roleLabel: "Head of Division", act: "R", sourceRuleKey: c7.key, decision: "PENDING" },
+          { id: `${P}as28s_3`, sequence: 3, roleCode: "FD", roleLabel: "Finance Director", act: "A", sourceRuleKey: c7.key, decision: "PENDING" },
+        ],
+      },
+    },
+  });
+
+  // ---------------------------------------------------------------- the gates
+  const gate = (id: string, rq: number, committeeCode: string, committeeLabel: string, subjectEn: string, rule: string, aboveValue: string | null, on: string) => ({
+    id: `${P}${id}`, requisitionId: `${P}rq${rq}`, gateRuleId: `${P}${rule}`, committeeCode, committeeLabel, subjectEn, act: "R" as const, aboveValue, ruleProvenance: "ASSUMED" as const, determinedOn: day(on),
+  });
+  await db.requisitionGate.createMany({
+    data: [
+      gate("rg25a", 25, "CAPWORKS_CTTE", "Capital Works Committee", "Capital works scrutiny", "gr1", null, "2026-09-25"),
+      // Above RM250,000 the Technical Committee too, which has no quorum or voting rule set.
+      gate("rg25b", 25, "TECH_CTTE", "Technical Committee", "Technical review", "gr2", "250000.00", "2026-09-25"),
+      gate("rg26", 26, "CAPWORKS_CTTE", "Capital Works Committee", "Capital works scrutiny", "gr1", null, "2026-06-26"),
+      gate("rg27", 27, "CAPWORKS_CTTE", "Capital Works Committee", "Capital works scrutiny", "gr1", null, "2026-08-12"),
+    ],
+  });
+  await db.meeting.createMany({
+    data: [
+      {
+        id: `${P}mt8`, committeeId: `${P}c5`, reference: "DEMO/CWC/1/2026", meetingDate: day("2026-07-16"), status: "MINUTED", minutedAt: day("2026-07-17"),
+        agenda: "Reservoir telemetry.", minutes: "The Committee asked for the telemetry scheme to be revised to cover the service reservoirs as well, and re-tabled.",
+      },
+      {
+        id: `${P}mt9`, committeeId: `${P}c5`, reference: "DEMO/CWC/2/2026", meetingDate: day("2026-09-24"), status: "MINUTED", minutedAt: day("2026-09-25"),
+        agenda: "Reservoir telemetry, revised. Second clear-water main, Taman Demo.",
+        minutes: "The Committee supported the revised telemetry scheme. It found the second main not required, the ring main being looped instead.",
+      },
+      { id: `${P}mt10`, committeeId: `${P}c5`, reference: "DEMO/CWC/3/2026", meetingDate: day("2026-10-20"), status: "SCHEDULED", agenda: "Booster station, Bukit Demo upper zone." },
+    ],
+  });
+  await db.meetingAttendance.createMany({
+    data: [
+      { id: `${P}at30`, meetingId: `${P}mt8`, personId: `${P}p1`, attended: true },
+      { id: `${P}at31`, meetingId: `${P}mt8`, personId: `${P}p2`, attended: true },
+      { id: `${P}at32`, meetingId: `${P}mt8`, personId: `${P}p3`, attended: true },
+      { id: `${P}at33`, meetingId: `${P}mt9`, personId: `${P}p1`, attended: true },
+      { id: `${P}at34`, meetingId: `${P}mt9`, personId: `${P}p2`, attended: true },
+      { id: `${P}at35`, meetingId: `${P}mt9`, personId: `${P}p3`, attended: true },
+    ],
+  });
+  const gateMatter = (id: string, meeting: string, seq: number, rq: number, n: number, amount: string, subject: string, tabled: string, gateId: string, decided?: object) => ({
+    id: `${P}${id}`, meetingId: `${P}${meeting}`, sequence: seq, domain: "committee_gate", subject, matterKind: "REQUISITION" as const, matterRef: REQ(n), requisitionId: `${P}rq${rq}`,
+    requisitionGateId: `${P}${gateId}`, amount, act: "R" as const, tabledByPersonId: `${P}p3`, tabledAt: day(tabled), ...decided,
+  });
+  const decidedOn = (on: string) => ({ decisionDate: day(on), quorumRequired: 2, presentVoters: 2, recusedCount: 0, votingRule: "SIMPLE_MAJORITY" as const, votingRuleProvenance: "ASSUMED" as const });
+  await db.committeeDecision.createMany({
+    data: [
+      gateMatter("d20", "mt8", 1, 26, 33, "140000", "Capital works scrutiny: telemetry for the northern reservoirs", "2026-07-09", "rg26", {
+        ...decidedOn("2026-07-16"), outcome: "NOT_CARRIED", notApprovedOutcomeId: `${P}nao5`, notApprovedOutcomeNameEn: "Revise and re-table", notApprovedOutcomeKind: "LOOP",
+        outcomeNote: "Revise to cover the service reservoirs as well.",
+      }),
+      gateMatter("d21", "mt9", 1, 26, 33, "140000", "Capital works scrutiny: telemetry for the northern reservoirs, revised", "2026-09-17", "rg26", { ...decidedOn("2026-09-24"), outcome: "CARRIED" }),
+      gateMatter("d22", "mt9", 2, 27, 34, "90000", "Capital works scrutiny: second clear-water main, Taman Demo", "2026-09-17", "rg27", {
+        ...decidedOn("2026-09-24"), outcome: "NOT_CARRIED", notApprovedOutcomeId: `${P}nao6`, notApprovedOutcomeNameEn: "Not required", notApprovedOutcomeKind: "TERMINAL",
+        outcomeNote: "The ring main is to be looped instead.",
+      }),
+      gateMatter("d23", "mt10", 1, 25, 32, "320000", "Capital works scrutiny: booster station, Bukit Demo upper zone", "2026-09-28", "rg25a"),
+    ],
+  });
+  const v = (id: string, d: string, p: string, choice: "SETUJU" | "TIDAK_SETUJU", on: string) => ({ id: `${P}${id}`, decisionId: `${P}${d}`, personId: `${P}${p}`, choice, votedAt: day(on), recordedAt: day(on) });
+  await db.vote.createMany({
+    data: [
+      v("v30", "d20", "p1", "TIDAK_SETUJU", "2026-07-16"), v("v31", "d20", "p2", "TIDAK_SETUJU", "2026-07-16"),
+      v("v32", "d21", "p1", "SETUJU", "2026-09-24"), v("v33", "d21", "p2", "SETUJU", "2026-09-24"),
+      v("v34", "d22", "p1", "TIDAK_SETUJU", "2026-09-24"), v("v35", "d22", "p2", "TIDAK_SETUJU", "2026-09-24"),
+    ],
+  });
+  await db.numberingSeries.update({ where: { id: `${P}n1` }, data: { nextSerial: 38 } });
+
+  // Approved before gates were checked on approval: their routes have no gate, as
+  // determined. rq7 is left undetermined, so "Check committee gates" has work to do;
+  // rq9's supervision route is unset, so checking it says so.
+  const approved = await db.requisition.findMany({
+    where: { id: { startsWith: P }, status: { in: ["APPROVED", "SOURCING"] }, fundingRouteCode: { in: ["opex", "capex"] }, gatesDeterminedOn: null, NOT: { id: `${P}rq7` } },
+    select: { id: true, approvalInstances: { where: { status: "APPROVED" }, select: { closedAt: true } } },
+  });
+  for (const r of approved) {
+    const on = r.approvalInstances[0]?.closedAt;
+    if (on) await db.requisition.update({ where: { id: r.id }, data: { gatesDeterminedOn: on, gateRequired: false, gateRequiredProvenance: "ASSUMED" } });
+  }
+
+  // ------------------------------------------------------- a conflict, escalated
+  // The Head of Division declares an interest in the booster pump and stands aside: the
+  // step escalates one level, to the Finance Director, who is not on the route (C4).
+  await db.approvalStep.update({
+    where: { id: `${P}as3_2` },
+    data: {
+      actingRoleCode: "FD", actingRoleLabel: "Finance Director", escalation: "CONFLICT_DECLARED", escalationCount: 1, escalatedOn: day("2026-09-29"),
+      escalationReason: "A relative supplies the pump offered. Declared and stood aside.", declaredByPersonId: `${P}p7`,
+    },
+  });
+
+  // ------------------------------------- a delegation by a holder who is away
+  await db.delegation.create({
+    data: {
+      id: `${P}dg3`, organisationId, fromPersonId: `${P}p5`, toPersonId: `${P}p4`, roleCode: "SEC_PRE", capabilityCodes: ["run_sourcing"], valueCeiling: "50000.00",
+      reason: "Medical leave", effectiveFrom: day("2026-09-28"), effectiveTo: day("2026-10-16"), provenance: "STATED",
+      holderRecommendation: "Recommended by the Section Head in her email of 25 September, before her leave.", holderRecommendedOn: day("2026-09-25"),
     },
   });
 }

@@ -640,6 +640,8 @@ export async function wipeAwards(db: Db, organisationId: string, removeDependent
         { conditions: { some: { kindId: demoRef } } },
         { contract: { OR: [{ securities: { some: { OR: [{ issuerId: demoRef }, { verifiedByPersonId: demoRef }] } } }, { policies: { some: { OR: [{ issuerId: demoRef }, { verifiedByPersonId: demoRef }] } } }] } },
         { awardReturn: { receivedByPersonId: demoRef } },
+        // Close-out: a route snapshotted under a demo destination, a choice or a declaration naming a demo person.
+        { approvalInstances: { some: { OR: [{ rejectionDestinationId: demoRef }, { rejectionChosenByPersonId: demoRef }, { steps: { some: { declaredByPersonId: demoRef } } }] } } },
       ],
     },
     select: { id: true, reference: true, awardeeName: true },
@@ -667,6 +669,9 @@ export async function wipeAwards(db: Db, organisationId: string, removeDependent
     ...(a.contract ? [a.contract.id, ...a.contract.securities.map((x) => x.id), ...a.contract.policies.map((x) => x.id), ...a.contract.ownershipEvents.map((x) => x.id)] : []),
   ]);
   const byAward = { awardId: { in: ids } };
+  // A successor route (a rejection returned to an earlier step) points at the route it continues.
+  await db.approvalStep.updateMany({ where: { instance: byAward, NOT: { carriedFromStepId: null } }, data: { carriedFromStepId: null } });
+  await db.approvalInstance.updateMany({ where: { ...byAward, NOT: { supersedesInstanceId: null } }, data: { supersedesInstanceId: null } });
   await db.approvalStep.deleteMany({ where: { instance: byAward } });
   await db.approvalInstance.deleteMany({ where: byAward });
   await db.securityInstrument.deleteMany({ where: { contract: byAward } });
