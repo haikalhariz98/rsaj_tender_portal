@@ -11,7 +11,7 @@ import { Callout } from "@/components/ui/feedback";
 import type { AttachmentItemView, PanelView, SlotView } from "@/lib/documents/views";
 
 import { DocumentButton } from "./document-drawer";
-import { UploadButton, type Notice, type OwnerKey } from "./upload-actions";
+import { NewVersionButton, UploadButton, type Notice, type OwnerKey } from "./upload-actions";
 
 /**
  * The one place a record's documents are shown and changed, for every owner (plan §6):
@@ -111,7 +111,7 @@ export function AttachmentPanel({
         {frozen && <Callout tone="warn">{frozen.reason}</Callout>}
         <ul className="flex flex-col divide-y divide-line/70 rounded-2xl border border-line">
           {slots.map((s) => (
-            <SlotRow key={s.purpose} s={s} owner={key} upload={upload} refused={refused} showReason={!frozen} onNotice={setNotice} />
+            <SlotRow key={s.purpose} s={s} item={items.find((i) => i.purpose === s.purpose) ?? null} owner={key} upload={upload} refused={refused} showReason={!frozen} onNotice={setNotice} />
           ))}
           {slots.length === 0 && <li className="px-4 py-3 text-[13.5px] text-ink-3">No document is kept against this record.</li>}
         </ul>
@@ -128,7 +128,7 @@ export function AttachmentPanel({
           actionsWidth={160}
           exportName="documents"
           emptyTitle="Nothing is attached yet"
-          emptyBody={slots.some((s) => s.state === "OPEN") ? "Upload the first document with the button above. It is stored, then attached to this record." : "Documents can be attached once the record allows it, as said above."}
+          emptyBody={slots.some((s) => s.state === "OPEN") ? "Upload one with the Upload button on its line above. It is stored, then attached to this record." : "Documents can be attached once the record allows it, as said above."}
           actions={(id) => <RowActions item={byId.get(id)!} owner={key} upload={upload} onNotice={setNotice} />}
         />
       </div>
@@ -146,7 +146,7 @@ export function AttachmentPanel({
   );
 }
 
-function SlotRow({ s, owner, upload, refused, showReason, onNotice }: { s: SlotView; owner: OwnerKey; upload: PanelView["upload"]; refused: boolean; showReason: boolean; onNotice: (n: Notice) => void }) {
+function SlotRow({ s, item, owner, upload, refused, showReason, onNotice }: { s: SlotView; item: AttachmentItemView | null; owner: OwnerKey; upload: PanelView["upload"]; refused: boolean; showReason: boolean; onNotice: (n: Notice) => void }) {
   const open = s.state === "OPEN" && !refused;
   return (
     <li className="flex flex-wrap items-start gap-x-4 gap-y-2 px-4 py-3.5">
@@ -164,13 +164,7 @@ function SlotRow({ s, owner, upload, refused, showReason, onNotice }: { s: SlotV
         ))}
       </div>
       <div className="shrink-0 max-sm:w-full">
-        {open ? (
-          <UploadButton owner={owner} slot={s} upload={upload} onNotice={onNotice} />
-        ) : (
-          <Button size="sm" variant="secondary" disabled aria-label={`Upload ${s.label}`} title={s.reason ?? "Uploads are refused until the setting above is made"}>
-            Upload
-          </Button>
-        )}
+        <SlotButton s={s} item={item} owner={owner} upload={upload} refused={refused} open={open} onNotice={onNotice} />
       </div>
     </li>
   );
@@ -193,5 +187,27 @@ function RowActions({ item, owner, upload, onNotice }: { item: AttachmentItemVie
       )}
       <DocumentButton documentId={item.documentId} label={item.title} onRecord={{ owner, item, upload, onNotice }} iconOnly />
     </>
+  );
+}
+
+/// The slot's one button: Upload while it is empty, then what its capacity says (`slotAct`):
+/// a new version of the one document, or another document.
+function SlotButton({ s, item, owner, upload, refused, open, onNotice }: { s: SlotView; item: AttachmentItemView | null; owner: OwnerKey; upload: PanelView["upload"]; refused: boolean; open: boolean; onNotice: (n: Notice) => void }) {
+  if (s.act === "NEW_VERSION" && item?.newVersion) {
+    return item.newVersion.allowed && !refused ? (
+      <NewVersionButton owner={owner} item={item} upload={upload} onNotice={onNotice} prominent />
+    ) : (
+      <Button size="sm" variant="secondary" disabled aria-label={`New version of ${item.title}`} title={item.newVersion.allowed ? upload.refusals[0] : item.newVersion.reason}>
+        New version
+      </Button>
+    );
+  }
+  const label = s.act === "ADD_ANOTHER" ? "Add another" : "Upload";
+  return open ? (
+    <UploadButton owner={owner} slot={s} upload={upload} onNotice={onNotice} label={label} />
+  ) : (
+    <Button size="sm" variant="secondary" disabled aria-label={`${label} ${s.label}`} title={s.reason ?? "Uploads are refused until the setting above is made"}>
+      {label}
+    </Button>
   );
 }

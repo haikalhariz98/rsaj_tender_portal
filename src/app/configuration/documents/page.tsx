@@ -257,7 +257,7 @@ export default async function DocumentsConfigPage() {
                     <Td label="Received"><CellStack wrap title={formatOrgDay(d.createdAt, tz)} sub={v ? `${v.recordedBy.name} · recorded on behalf of, not signed` : undefined} /></Td>
                     <Td>
                       <RowActions>
-                        <AttachToRecordButton documentId={d.id} versionId={attachableVersion(d.versions)} title={d.title} unclassified={d.classificationSnapshot == null} />
+                        <AttachToRecordButton versionId={attachableVersion(d.versions)} title={d.title} unclassified={d.classificationSnapshot == null} />
                         <DocumentButton documentId={d.id} label={d.title} />
                       </RowActions>
                     </Td>

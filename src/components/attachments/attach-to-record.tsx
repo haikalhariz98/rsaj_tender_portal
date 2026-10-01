@@ -27,12 +27,10 @@ type Targets = NonNullable<Awaited<ReturnType<typeof loadAttachTargets>>>;
  * showed it (and the drawer opened from it), so the record is where it can now be seen.
  */
 export function AttachToRecordButton({
-  documentId,
   versionId,
   title,
   unclassified,
 }: {
-  documentId: string;
   /// The version to attach: the newest that is not withdrawn. Null: every version is withdrawn, so none can be.
   versionId: string | null;
   title: string;

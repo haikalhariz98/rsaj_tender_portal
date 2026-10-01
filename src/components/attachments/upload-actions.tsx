@@ -97,7 +97,8 @@ export async function stage(data: FormData, stagedRef: ReturnType<typeof useStag
 const withNotes = (message: string | undefined, warnings: string[]) => [message, ...warnings].filter(Boolean).join(" ") || undefined;
 
 /// Upload a file and attach it to a slot of the record.
-export function UploadButton({ owner, slot, upload, onNotice }: { owner: OwnerKey; slot: SlotView; upload: UploadView; onNotice: OnNotice }) {
+export function UploadButton({ owner, slot, upload, onNotice, label = "Upload" }: { owner: OwnerKey; slot: SlotView; upload: UploadView; onNotice: OnNotice; /// "Add another" where the slot already holds a document and holds several.
+  label?: string }) {
   const stagedRef = useStagedRef();
   const action = useCallback<SaveAction>(
     async (_prev, data) => {
@@ -123,14 +124,15 @@ export function UploadButton({ owner, slot, upload, onNotice }: { owner: OwnerKe
       fields={uploadFields(upload, { newDocument: true, titleHint: slot.label })}
       action={action}
       submitLabel="Upload and attach"
-      trigger={{ label: "Upload", ariaLabel: `Upload ${slot.label}`, icon: true, className: buttonClass("secondary", "sm") }}
+      trigger={{ label, ariaLabel: `${label} ${slot.label}`, icon: true, className: buttonClass("secondary", "sm") }}
       size="md"
     />
   );
 }
 
 /// Upload a corrected file as the next version of a document, and move this record's pin to it.
-export function NewVersionButton({ owner, item, upload, onNotice }: { owner: OwnerKey; item: AttachmentItemView; upload: UploadView; onNotice: OnNotice }) {
+export function NewVersionButton({ owner, item, upload, onNotice, prominent = false }: { owner: OwnerKey; item: AttachmentItemView; upload: UploadView; onNotice: OnNotice; /// On a slot line, where it stands in for Upload: the same look.
+  prominent?: boolean }) {
   const stagedRef = useStagedRef();
   const action = useCallback<SaveAction>(
     async (_prev, data) => {
@@ -158,7 +160,7 @@ export function NewVersionButton({ owner, item, upload, onNotice }: { owner: Own
       reason={{ label: "Why is it being replaced?" }}
       action={action}
       submitLabel="Upload new version"
-      trigger={{ label: "New version", ariaLabel: `New version of ${item.title}`, className: buttonClass("ghost", "sm") }}
+      trigger={{ label: "New version", ariaLabel: `New version of ${item.title}`, className: buttonClass(prominent ? "secondary" : "ghost", "sm") }}
       size="md"
     />
   );

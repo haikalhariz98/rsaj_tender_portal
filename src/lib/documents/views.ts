@@ -18,7 +18,6 @@ import {
   classificationChoiceText,
   classChoiceText,
   classificationBadge,
-  classificationLabel,
   DISPOSAL_METHOD_LABEL,
   documentFaultText,
   formatBytes,
@@ -80,6 +79,15 @@ export interface AttachmentItemView {
   newVersion: Allowance | null;
 }
 
+/// The purposes that hold one document at a time: a signed copy, a signed scan, the one recommendation. Corrected by a new version, not added to. Dossier evidence and the scope document are several documents.
+export const HOLDS_ONE_DOCUMENT: ReadonlySet<AttachmentPurpose> = new Set<AttachmentPurpose>(["SIGNED_MINUTES", "HOLDER_RECOMMENDATION", "SIGNED_LETTER", "DECLARATION", "AUTHORISATION", "ACCEPTANCE_PAGE"]);
+
+/// What a slot offers: upload while it is empty, then a new version where it holds one document, or another where it holds several.
+export type SlotAct = "UPLOAD" | "NEW_VERSION" | "ADD_ANOTHER";
+export function slotAct(purpose: AttachmentPurpose, live: number): SlotAct {
+  return live === 0 ? "UPLOAD" : HOLDS_ONE_DOCUMENT.has(purpose) ? "NEW_VERSION" : "ADD_ANOTHER";
+}
+
 export interface SlotView {
   purpose: AttachmentPurpose;
   label: string;
@@ -88,13 +96,16 @@ export interface SlotView {
   /// Why it is not open, in words. Null while open.
   reason: string | null;
   live: number;
+  /// What the slot's button does, from what it holds (`slotAct`).
+  act: SlotAct;
   /// Where the slot stands, as a badge: attached, outstanding, not yet, closed.
   status: { text: string; tone: Tone };
   findings: { tone: "warn" | "info" | "err"; text: string }[];
 }
 
 /// A slot's badge from what the read decided (its state) and what the caller says (required).
-export function slotStatus(s: { state: "OPEN" | "NOT_READY" | "FROZEN"; live: number; required: boolean }): { text: string; tone: Tone } {
+export function slotStatus(s: { state: "OPEN" | "NOT_READY" | "FROZEN"; live: number; required: boolean }, whileEmpty?: { text: string; tone: Tone }): { text: string; tone: Tone } {
+  if (s.live === 0 && s.state === "OPEN" && whileEmpty) return whileEmpty;
   if (s.live > 0) return { text: s.live === 1 ? "Attached" : `${s.live} attached`, tone: "ok" };
   if (s.state === "NOT_READY") return { text: "Not yet", tone: "neutral" };
   if (s.state === "FROZEN") return { text: "Closed", tone: "neutral" };
@@ -145,6 +156,10 @@ export interface PanelOptions {
   only?: readonly AttachmentPurpose[];
   /// Which are required on this record (the caller's own rule, from its own facts).
   required?: Partial<Record<AttachmentPurpose, boolean>>;
+  /// What a slot is called on this screen, where the screen's own words differ from the store's (a record's items are called what its card above calls them).
+  labels?: Partial<Record<AttachmentPurpose, string>>;
+  /// A slot's badge while nothing is attached, where the owner knows better than "Outstanding" (the paper has not come back).
+  statuses?: Partial<Record<AttachmentPurpose, { text: string; tone: Tone }>>;
   /// Extra lines under a slot (the caller's own findings, already in words).
   findings?: Partial<Record<AttachmentPurpose, { tone: "warn" | "info" | "err"; text: string }[]>>;
 }
@@ -156,7 +171,7 @@ export function panelView(p: Panel, u: Upload, timeZone: string | null, opts: Pa
     .sort((a, b) => (opts.only ? opts.only.indexOf(a.purpose) - opts.only.indexOf(b.purpose) : 0))
     .map((s) => {
       const required = opts.required?.[s.purpose] ?? false;
-      return { purpose: s.purpose, label: PURPOSE_LABEL[s.purpose], required, state: s.state, reason: s.reason, live: s.live, status: slotStatus({ state: s.state, live: s.live, required }), findings: opts.findings?.[s.purpose] ?? [] };
+      return { purpose: s.purpose, label: opts.labels?.[s.purpose] ?? PURPOSE_LABEL[s.purpose], required, state: s.state, reason: s.reason, live: s.live, act: slotAct(s.purpose, s.live), status: slotStatus({ state: s.state, live: s.live, required }, opts.statuses?.[s.purpose]), findings: opts.findings?.[s.purpose] ?? [] };
     });
   const all = p.items.filter((i) => shown(i.purpose)).map((i) => itemView(i, timeZone));
   const frozenAll = slots.length > 0 && slots.every((s) => s.state === "FROZEN") && new Set(slots.map((s) => s.reason)).size === 1;

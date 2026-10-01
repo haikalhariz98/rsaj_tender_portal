@@ -259,7 +259,7 @@ function Summary({ d, onDone }: { d: DrawerView; onDone: (n: Notice) => void }) 
       />
       {d.staged && (
         <div className="flex flex-col items-start gap-1.5">
-          <AttachToRecordButton documentId={d.id} versionId={d.attachVersionId} title={d.title} unclassified={d.classificationUnset} />
+          <AttachToRecordButton versionId={d.attachVersionId} title={d.title} unclassified={d.classificationUnset} />
           <p className="text-[12.5px] text-ink-3">Received, not filed. Attach it to the record it belongs to, as what it is kept as there.</p>
         </div>
       )}
