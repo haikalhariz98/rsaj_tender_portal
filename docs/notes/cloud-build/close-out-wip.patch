@@ -1,4 +1,4 @@
-﻿From 402cbba315f1487bc5354bce520093ec4b68b251 Mon Sep 17 00:00:00 2001
+From 402cbba315f1487bc5354bce520093ec4b68b251 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 1 Oct 2026 02:20:24 +0000
 Subject: [PATCH] WIP: Phase 1 close-out, uncommitted when the session moved
