@@ -21,6 +21,7 @@ import {
   issueRefusal,
   originLabel,
   routeCoreText,
+  stepOriginText,
 } from "./core-routing-labels";
 import { resolveApproval } from "./resolve";
 import type { AuthorityAct, CoreLevel, Rule } from "./types";
@@ -357,5 +358,16 @@ describe("the words, in English and Malay (codes never on screen)", () => {
     expect(w.ms).toContain("Ketua Bahagian");
     expect(`${w.en} ${w.ms}`).not.toMatch(/WEAKENS|HODIV/);
     expect(issueRefusal("CORE_ROW_MISSING", "Big purchase", "Chairman")).not.toMatch(/CORE_ROW_MISSING|CM\b/);
+  });
+});
+
+describe("a route step's origin line", () => {
+  it("shows only on a generated route's generated steps", () => {
+    expect(stepOriginText({ coreChainFlag: true }, { chainOrigin: "CORE_STRENGTHENED" })).toBe("Strengthened by this rule");
+    expect(stepOriginText({ coreChainFlag: true }, { chainOrigin: "CORE" }, "ms")).toBe("Daripada laluan teras");
+    // the approver's step on a generated route, a chain as entered, an earlier route
+    expect(stepOriginText({ coreChainFlag: true }, { chainOrigin: null })).toBeNull();
+    expect(stepOriginText({ coreChainFlag: false }, { chainOrigin: "RULE" })).toBeNull();
+    expect(stepOriginText({ coreChainFlag: null }, { chainOrigin: null })).toBeNull();
   });
 });

@@ -8,6 +8,7 @@ import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
 import { EscalateDrawer } from "@/app/approvals/editors";
 import { escalationText } from "@/lib/authority/escalation-labels";
 import { earlierSteps, returnTargetBeforeNext, type RejectionKind } from "@/lib/authority/rejection";
+import { routeCoreText, stepOriginText } from "@/lib/authority/core-routing-labels";
 import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import { Badge, Chip } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -973,6 +974,11 @@ function NamePanel({
             }
             return null;
           })()}
+          {inst.checkedAgainstMatrix && (
+            <p className="border-t border-line px-5 py-2.5 text-[12.5px] break-words text-ink-3 sm:px-6">
+              Chain beneath the approver: {routeCoreText(inst, (c) => { const n = officeName(c) ?? "an office no longer configured"; return { en: n, ms: n }; }).en}
+            </p>
+          )}
           <ol className="divide-y divide-line/70 border-t border-line">
             {inst.steps.map((s) => {
               const earlierDone = inst.steps.filter((x) => x.sequence < s.sequence).every((x) => x.decision === "DONE");
@@ -985,6 +991,7 @@ function NamePanel({
                       <div className="font-semibold break-words text-ink">
                         {s.roleLabel} <span className="font-normal text-ink-3">· {actLabel(s.act)}</span>
                       </div>
+                      {stepOriginText(inst, s) && <div className="text-[12.5px] text-ink-3">{stepOriginText(inst, s)}</div>}
                       {s.escalation && (
                         <div className="text-[12.5px] break-words text-amber-800">
                           {escalationText({ roleLabel: s.roleLabel, actingRoleLabel: s.actingRoleLabel, escalation: s.escalation, escalationReason: s.escalationReason, declaredByName: s.declaredBy?.name ?? null })}

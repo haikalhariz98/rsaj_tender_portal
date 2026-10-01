@@ -154,3 +154,11 @@ export function routeCoreText(
   const clause = level.clause ? ` (${level.clause})` : "";
   return { en: `Generated from the core routing for ${office.en}${clause}.`, ms: `Dijana daripada laluan teras bagi ${office.ms}${clause}.` };
 }
+
+/// Said beside one step of a persisted route: where a generated chain's step came from.
+/// Nothing on a chain as entered (the route says so once), on the approver's step, or on
+/// an earlier route (the route reads "Not recorded" once).
+export function stepOriginText(route: { coreChainFlag: boolean | null }, step: { chainOrigin: string | null }, lang: Lang = "en"): string | null {
+  if (route.coreChainFlag !== true || !step.chainOrigin) return null;
+  return originLabel(step.chainOrigin, lang);
+}

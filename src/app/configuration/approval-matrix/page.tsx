@@ -2,10 +2,12 @@ import { Accordion } from "@/components/accordion";
 import { AuthoritySimulator } from "@/components/authority-simulator";
 import { AlertTriangle, CheckIcon, SlidersIcon } from "@/components/icons";
 import { ActBadge, RuleChain, type ChainStep } from "@/components/rule-chain";
-import { listIssues, loadMatrix, loadRuleRows, type IssueSummary } from "@/lib/authority/load";
+import { listIssues, loadCoreRows, loadMatrix, loadRuleRows, type IssueSummary } from "@/lib/authority/load";
 import { listCommittees } from "@/lib/committee/repo";
 import { edgeAtBoundary, ruleChain, ruleIsDelegable } from "@/lib/authority/resolve";
-import { originLabel } from "@/lib/authority/core-routing-labels";
+import { APPROVES_ALONE, chainChoiceLabel, coreLevelFaultText, issueRefusal, originLabel } from "@/lib/authority/core-routing-labels";
+import { coreChainFaultsAcross, coreLevelFaults } from "@/lib/authority/core-routing";
+import { actLabel } from "@/components/ui/act";
 import { formatPercentBand, formatValueBand } from "@/lib/format";
 import { actWithCode, condLabel, matterLabel, methodLabel } from "@/lib/labels";
 import { ORGANISATION_CODE, ORGANISATION_NAME } from "@/lib/org";
@@ -14,17 +16,22 @@ import { loadReferenceData } from "@/lib/reference/load";
 import { activeOn } from "@/lib/reference/vocabulary";
 import { loadRoster } from "@/lib/people/load";
 import {
+  AddCoreLevel,
+  AddCoreStep,
   AddMatrix,
   AddRecommender,
   AddRule,
   AddTermsBand,
   DiscardDraft,
+  EditCoreLevel,
   EditMatrix,
   EndRejectionDestination,
   SetRejectionDestination,
   EditRule,
   EditTermsBand,
   IssueDraft,
+  RemoveCoreLevel,
+  RemoveCoreStep,
   RemoveRecommender,
   RemoveTermsBand,
   StartRevision,
@@ -145,6 +152,24 @@ export default async function ApprovalMatrixPage({
     db.authorityMatrix.findUniqueOrThrow({ where: { id: selected.id }, select: { boundaryProvenance: true, boundarySource: true } }),
   ]);
   const consistency = bandConsistencyFaults(matrix, termsBands);
+  // The core routing (FR-APR-004): this issue's own rows, in the offices' order, and the
+  // flagged rules that would not issue against it.
+  const officeName = (code: string) => matrix.roles[code]?.nameEn ?? "An office no longer configured";
+  const officeOrder = new Map(roster.offices.map((o, i) => [o.code, i]));
+  const coreRows = (await loadCoreRows(selected.id)).sort(
+    (a, b) => (officeOrder.get(a.approverCode) ?? 999) - (officeOrder.get(b.approverCode) ?? 999) || a.sortOrder - b.sortOrder,
+  );
+  const coreRefusals = [
+    ...(matrix.coreRouting ?? []).flatMap((level) =>
+      coreLevelFaults(level, matrix.roles).map((f) => ({ key: `level-${level.approverCode}-${f.fault}-${f.roleCode}`, rule: null as Rule | null, text: `The core routing for ${officeName(level.approverCode)}: ${coreLevelFaultText(f.fault, officeName(f.roleCode))}` })),
+    ),
+    ...coreChainFaultsAcross(matrix.rules, matrix.coreRouting ?? [], matrix.roles).map((f) => ({
+      key: `rule-${f.rule.ruleKey}`,
+      rule: f.rule as Rule | null,
+      text: issueRefusal(f.fault, f.rule.labelEn, f.roleCode ? officeName(f.roleCode) : "its approver"),
+    })),
+  ];
+  const refusedDomains = new Set(coreRefusals.map((x) => x.rule?.domain).filter(Boolean));
   const requisitionRules = matrix.rules.filter((r) => r.domain === "requisition" && !r.cond).sort((a, b) => (a.minValue ?? -1) - (b.minValue ?? -1));
   const appointmentRules = matrix.rules.filter((r) => r.domain === "appointment");
 
@@ -165,6 +190,20 @@ export default async function ApprovalMatrixPage({
       act: s.act,
       ...(s.origin ? { meta: originLabel(s.origin) } : {}),
     }));
+
+  /// Where a rule's chain beneath the approver comes from, in words, with what the
+  /// resolver says about it: not set, generated, as entered with its reason, or a fault.
+  const chainNote = (rule: Rule) => {
+    const { warnings } = ruleChain(matrix, rule);
+    const fault = warnings.find((w) => w.level === "err");
+    const unchecked = warnings.find((w) => w.code === "CORE_NOT_CHECKED");
+    if (fault) return <Badge tone="err">Does not fit the core routing</Badge>;
+    if (rule.generateCoreChain === true && unchecked)
+      return <span className="text-amber-800">{`${chainChoiceLabel(true)} · no core routing for ${officeName(rule.approverCode ?? "")} on this issue`}</span>;
+    if (rule.generateCoreChain === false) return <span>{`${chainChoiceLabel(false)} · ${rule.coreChainReason ?? "reason not recorded"}`}</span>;
+    if (rule.generateCoreChain === true) return <span>{chainChoiceLabel(true)}</span>;
+    return <span>{`Chain beneath: ${chainChoiceLabel(null).toLowerCase()} · not checked against core routing`}</span>;
+  };
 
   const byDomain = new Map<string, Rule[]>();
   for (const rule of matrix.rules) {
@@ -514,6 +553,95 @@ export default async function ApprovalMatrixPage({
           )}
         </Card>
 
+        <Card className="overflow-hidden">
+          <CardHeader
+            icon={<SlidersIcon size={17} />}
+            title="Core routing"
+            subtitle="The chain every approval carries beneath it, by the office that approves."
+            actions={editable ? <AddCoreLevel matrixId={matrixId} offices={offices} /> : <Badge outline>{coreRows.length} {coreRows.length === 1 ? "office" : "offices"}</Badge>}
+          />
+          {coreRefusals.length > 0 && (
+            <div className="px-5 pb-4 sm:px-6">
+              <Callout tone="err" title={coreRefusals.length === 1 ? "One rule or row would stop this issue being issued" : `${coreRefusals.length} rules or rows would stop this issue being issued`}>
+                <ul className="mt-1 flex flex-col gap-2">
+                  {coreRefusals.map((x) => (
+                    <li key={x.key} className="flex flex-wrap items-start gap-2">
+                      <span className="min-w-0 flex-1 break-words">{x.text}</span>
+                      {editable && x.rule && ruleRows[x.rule.ruleKey] && (
+                        <RuleActions rule={x.rule} row={ruleRows[x.rule.ruleKey]} matrixId={matrixId} offices={offices} />
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </Callout>
+            </div>
+          )}
+          {coreRows.length === 0 ? (
+            <EmptyState size="sm" title="Not set">
+              Until core routing is recorded, every route uses the chain entered on its rule and says it has not been checked.
+              {editable ? " Add a row for each office that approves." : " Record it on a new issue."}
+            </EmptyState>
+          ) : (
+            <Table minWidth={editable ? 820 : 720}>
+              <colgroup>
+                <col style={{ width: "22%" }} />
+                <col />
+                <col style={{ width: "18%" }} />
+                {editable && <ActionsCol icons={3} />}
+              </colgroup>
+              <THead>
+                <Th>Approved by</Th>
+                <Th>Chain beneath</Th>
+                <Th>Source</Th>
+                {editable && <Th className="text-right">Change</Th>}
+              </THead>
+              <tbody>
+                {coreRows.map((level) => (
+                  <Tr key={level.id}>
+                    <Td className="align-top">
+                      <div className="font-semibold break-words text-ink">{officeName(level.approverCode)}</div>
+                      {level.note && <div className="text-[12.5px] break-words text-ink-3">{level.note}</div>}
+                    </Td>
+                    <Td className="align-top">
+                      {level.steps.length === 0 ? (
+                        <span className="text-[13px] text-ink-2">{APPROVES_ALONE.en}</span>
+                      ) : (
+                        <ol className="flex flex-col gap-1.5">
+                          {level.steps.map((step, i) => (
+                            <li key={step.id} className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
+                              <ActBadge act={step.act} step={i + 1} />
+                              <span className="font-medium break-words text-ink">{officeName(step.roleCode)}</span>
+                              <span className="text-ink-3">· {actLabel(step.act)}</span>
+                              {step.provenance !== level.provenance && <ProvenanceBadge value={step.provenance} />}
+                              {step.note && <span className="text-[12.5px] break-words text-ink-3">· {step.note}</span>}
+                              {editable && <RemoveCoreStep id={step.id} label={`${officeName(step.roleCode)} from the core routing for ${officeName(level.approverCode)}`} />}
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </Td>
+                    <Td className="align-top">
+                      <div className="flex min-w-0 flex-col items-start gap-1">
+                        <ProvenanceBadge value={level.provenance} />
+                        {level.clause && <span className="max-w-full break-words text-[12.5px] text-ink-3">{level.clause}</span>}
+                      </div>
+                    </Td>
+                    {editable && (
+                      <Td className="align-top">
+                        <RowActions>
+                          <AddCoreStep levelId={level.id} officeName={officeName(level.approverCode)} offices={offices} />
+                          <EditCoreLevel matrixId={matrixId} offices={offices} level={level} officeName={officeName(level.approverCode)} />
+                          <RemoveCoreLevel id={level.id} officeName={officeName(level.approverCode)} />
+                        </RowActions>
+                      </Td>
+                    )}
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Card>
+
         <Card>
           <CardHeader
             icon={<SlidersIcon size={17} />}
@@ -534,7 +662,7 @@ export default async function ApprovalMatrixPage({
                 key={domain}
                 title={matterLabel(domain)}
                 meta={`${rules.length} ${rules.length === 1 ? "rule" : "rules"}`}
-                defaultOpen={i === 0}
+                defaultOpen={i === 0 || refusedDomains.has(domain)}
               >
                 <Table minWidth={editable ? 920 : 820}>
                   <colgroup>
@@ -551,7 +679,7 @@ export default async function ApprovalMatrixPage({
                     <Th>Route</Th>
                     <Th>Committee</Th>
                     <Th>Delegation</Th>
-                    {editable && <Th className="text-right"><span className="sr-only">Change</span></Th>}
+                    {editable && <Th className="text-right">Change</Th>}
                   </THead>
                   <tbody>
                     {rules.map((rule, r) => {
@@ -598,6 +726,7 @@ export default async function ApprovalMatrixPage({
                           </Td>
                           <Td className="align-top">
                             <RuleChain steps={chainFor(rule)} />
+                            <div className="mt-1 text-[12.5px] break-words text-ink-3">{chainNote(rule)}</div>
                             {editable && (ruleRows[rule.ruleKey]?.recommenders.length ?? 0) > 0 && (
                               <div className="mt-1.5 flex flex-wrap gap-1">
                                 {ruleRows[rule.ruleKey]!.recommenders.map((step) => {
@@ -809,6 +938,8 @@ function RuleActions({
           note: rule.note,
           clause: rule.clause,
           sortOrder: rule.sortOrder,
+          generateCoreChain: rule.generateCoreChain ?? null,
+          coreChainReason: rule.coreChainReason ?? null,
         }}
       />
       <AddRecommender ruleId={row.id} offices={offices} />

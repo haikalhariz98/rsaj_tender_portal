@@ -77,6 +77,7 @@ import { resolveRequisitionRoute } from "@/lib/requisition/route";
 import { returnedRouteCitationNotes } from "@/lib/requisition/committee-step";
 import { choicesFor, earlierSteps, returnTargetBefore, type RejectionKind } from "@/lib/authority/rejection";
 import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
+import { routeCoreText, stepOriginText } from "@/lib/authority/core-routing-labels";
 import { GATE_DOMAIN } from "@/lib/requisition/gate";
 import { unpostedIntakeReason, type UnpostedReason } from "@/lib/requisition/budget";
 import { splitApprovalFault, splitStateLabel } from "@/lib/requisition/splitting";
@@ -1257,6 +1258,7 @@ function ApprovalPanel({
               columns={2}
               items={[
                 { label: "Rule", value: inst.ruleLabel ? `${inst.ruleLabel}${inst.ruleClause ? ` · ${inst.ruleClause}` : ""}` : "Not recorded" },
+                { label: "Chain beneath the approver", value: routeCoreText(inst, (c) => { const n = officeName(c) ?? "an office no longer configured"; return { en: n, ms: n }; }).en },
                 { label: "Routed on", value: inst.cond ? condLabel(inst.cond) : "Its value band" },
                 { label: "Value band", value: routeBand ?? "Band not recorded" },
                 {
@@ -1335,6 +1337,7 @@ function ApprovalPanel({
                     <div className="font-semibold break-words text-ink">
                       {s.roleLabel} <span className="font-normal text-ink-3">· {actLabel(s.act)}</span>
                     </div>
+                    {stepOriginText(inst, s) && <div className="text-[12.5px] text-ink-3">{stepOriginText(inst, s)}</div>}
                     {s.escalation && (
                       <div className="text-[12.5px] break-words text-amber-800">
                         {escalationText({ roleLabel: s.roleLabel, actingRoleLabel: s.actingRoleLabel, escalation: s.escalation, escalationReason: s.escalationReason, declaredByName: s.declaredBy?.name ?? null })}

@@ -1,11 +1,16 @@
 import { PencilIcon, PlusIcon, XIcon } from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
+import { CHAIN_CHOICE_LABEL } from "@/lib/authority/core-routing-labels";
 
 import {
   discardDraft,
   endRejectionDestination,
   issueDraft,
+  removeCoreLevel,
+  removeCoreStep,
+  saveCoreLevel,
+  saveCoreStep,
   saveRejectionDestination,
   removeRecommender,
   removeTermsBand,
@@ -295,10 +300,31 @@ function ruleFields(offices: { code: string; nameEn: string }[]): Field[] {
       required: true,
       hint: "The clause this row came from. Every routing decision cites it.",
     },
+    {
+      kind: "select",
+      name: "generateCoreChain",
+      label: "Chain beneath the approver",
+      placeholder: CHAIN_CHOICE_LABEL.NOT_SET.en,
+      options: [
+        { value: "yes", label: CHAIN_CHOICE_LABEL.GENERATED.en },
+        { value: "no", label: CHAIN_CHOICE_LABEL.AS_ENTERED.en },
+      ],
+      hint: "Generated: the issue's core routing for the approving office comes first, and this rule may only strengthen its steps or add its own. As entered: the proposer and recommenders below are the whole chain. Not set: the route warns that its chain was not checked.",
+    },
+    {
+      kind: "text",
+      name: "coreChainReason",
+      label: "Why the chain is as entered",
+      required: true,
+      hint: "Required for “As entered on this rule”: a decision not to check, kept with every route — the clause that states this chain, for example.",
+    },
     { kind: "number", name: "sortOrder", label: "Order", min: 0 },
     { kind: "textarea", name: "note", label: "Note" },
   ];
 }
+
+/// The reason is asked only while the chain is "as entered".
+const RULE_SHOW_WHEN = { coreChainReason: { name: "generateCoreChain", in: ["no"] } };
 
 export function AddRule({
   matrixId,
@@ -314,6 +340,7 @@ export function AddRule({
       fields={ruleFields(offices)}
       values={{ authorityMatrixId: matrixId }}
       action={saveRule}
+      showWhen={RULE_SHOW_WHEN}
       submitLabel="Add rule"
       trigger={{ label: "Add rule", icon: true, className: buttonClass("secondary", "sm") }}
       size="lg"
@@ -342,6 +369,8 @@ export interface RuleValues {
   note: string;
   clause: string;
   sortOrder: number;
+  generateCoreChain: boolean | null;
+  coreChainReason: string | null;
 }
 
 export function EditRule({
@@ -358,6 +387,7 @@ export function EditRule({
       title={`Edit ${rule.labelEn}`}
       fields={[{ kind: "hidden", name: "id" }, ...ruleFields(offices)]}
       action={saveRule}
+      showWhen={RULE_SHOW_WHEN}
       trigger={{ label: "Edit rule", iconOnly: <PencilIcon size={15} />, className: iconButtonClass("sm") }}
       size="lg"
       values={{
@@ -382,6 +412,8 @@ export function EditRule({
         clause: rule.clause,
         sortOrder: String(rule.sortOrder),
         note: rule.note,
+        generateCoreChain: rule.generateCoreChain == null ? null : rule.generateCoreChain ? "yes" : "no",
+        coreChainReason: rule.coreChainReason,
       }}
     />
   );
@@ -714,6 +746,128 @@ export function EndRejectionDestination({ id, label }: { id: string; label: stri
       destructive={{ reasonLabel: "Why is it cleared?" }}
       submitLabel="Clear destination"
       trigger={{ label: "Clear", className: buttonClass("ghost", "sm") }}
+      size="sm"
+    />
+  );
+}
+
+// ------------------------------------------------------------------ core routing
+
+const PROVENANCE_OPTIONS = [
+  { value: "STATED", label: "Stated — written in a governing document" },
+  { value: "OBSERVED", label: "Observed — seen in practice" },
+  { value: "ASSUMED", label: "Assumed — a working choice awaiting sign-off" },
+];
+
+/// The four acts the core routing holds beneath an approver (6.9 note D-4).
+const CORE_ACT_OPTIONS = ACT_OPTIONS.filter((o) => ["P", "JP", "R", "JR"].includes(o.value));
+
+function coreLevelFields(offices: { code: string; nameEn: string }[]): Field[] {
+  return [
+    { kind: "hidden", name: "authorityMatrixId" },
+    {
+      kind: "select",
+      name: "approverCode",
+      label: "Approved by",
+      required: true,
+      placeholder: "Choose",
+      options: offices.map((o) => ({ value: o.code, label: o.nameEn })),
+      orphanLabel: "An office no longer configured",
+      hint: "The office whose approvals carry this chain beneath them. The offices beneath it are added on the row.",
+    },
+    { kind: "text", name: "clause", label: "Clause", hint: "Where your manual states this chain." },
+    { kind: "select", name: "provenance", label: "Where this comes from", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS },
+    { kind: "textarea", name: "note", label: "Note" },
+  ];
+}
+
+export function AddCoreLevel({ matrixId, offices }: { matrixId: string; offices: { code: string; nameEn: string }[] }) {
+  return (
+    <RecordEditor
+      title="Add a core routing row"
+      description="The chain every approval by one office carries beneath it. With no offices added, the office approves alone."
+      fields={coreLevelFields(offices)}
+      values={{ authorityMatrixId: matrixId }}
+      action={saveCoreLevel}
+      submitLabel="Add row"
+      trigger={{ label: "Add core routing", icon: true, className: buttonClass("secondary", "sm") }}
+      size="md"
+    />
+  );
+}
+
+export function EditCoreLevel({
+  matrixId,
+  offices,
+  level,
+  officeName,
+}: {
+  matrixId: string;
+  offices: { code: string; nameEn: string }[];
+  level: { id: string; approverCode: string; clause: string; provenance: string; note: string };
+  officeName: string;
+}) {
+  return (
+    <RecordEditor
+      title={`Edit the core routing for ${officeName}`}
+      fields={[{ kind: "hidden", name: "id" }, ...coreLevelFields(offices)]}
+      values={{ id: level.id, authorityMatrixId: matrixId, approverCode: level.approverCode, clause: level.clause, provenance: level.provenance, note: level.note }}
+      action={saveCoreLevel}
+      trigger={{ label: `Edit the core routing for ${officeName}`, iconOnly: <PencilIcon size={14} />, className: iconButtonClass("sm") }}
+      size="md"
+    />
+  );
+}
+
+export function RemoveCoreLevel({ id, officeName }: { id: string; officeName: string }) {
+  return (
+    <RecordEditor
+      title={`Remove the core routing for ${officeName}`}
+      description="Takes this row and every office beneath it off the draft. A rule that takes its chain from the core routing for this office will not issue until a row is recorded again."
+      fields={[{ kind: "hidden", name: "id" }]}
+      values={{ id }}
+      action={removeCoreLevel}
+      submitLabel="Remove row"
+      destructive={{ reasonLabel: "Why is it coming out?" }}
+      trigger={{ label: `Remove the core routing for ${officeName}`, iconOnly: <XIcon size={14} />, className: iconButtonClass("sm") }}
+      size="sm"
+    />
+  );
+}
+
+export function AddCoreStep({ levelId, officeName, offices }: { levelId: string; officeName: string; offices: { code: string; nameEn: string }[] }) {
+  return (
+    <RecordEditor
+      title={`Add an office beneath ${officeName}`}
+      description="An office that acts before the approver on every approval it gives, in order."
+      fields={[
+        { kind: "hidden", name: "coreRoutingLevelId" },
+        { kind: "select", name: "roleCode", label: "Office", required: true, placeholder: "Choose", options: offices.map((o) => ({ value: o.code, label: o.nameEn })) },
+        { kind: "select", name: "act", label: "Acts as", required: true, placeholder: "Choose", options: CORE_ACT_OPTIONS, hint: "The core routing holds proposing and recommending. A mandatory recommendation belongs on the rule that needs it." },
+        { kind: "number", name: "sequence", label: "Place in the chain", min: 1, hint: "1 is first. Leave empty to add it at the end." },
+        { kind: "select", name: "provenance", label: "Where this comes from", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS },
+        { kind: "text", name: "note", label: "Note" },
+      ]}
+      values={{ coreRoutingLevelId: levelId }}
+      action={saveCoreStep}
+      submitLabel="Add office"
+      trigger={{ label: `Add an office beneath ${officeName}`, iconOnly: <PlusIcon size={15} />, className: iconButtonClass("sm") }}
+      size="sm"
+    />
+  );
+}
+
+export function RemoveCoreStep({ id, label }: { id: string; label: string }) {
+  return (
+    <RecordEditor
+      title={`Remove ${label}`}
+      description="Takes this office out of the core routing row on the draft."
+      fields={[{ kind: "hidden", name: "id" }]}
+      values={{ id }}
+      action={removeCoreStep}
+      submitLabel="Remove"
+      destructive={{ reasonLabel: "Why is it coming out?" }}
+      trigger={{ label: `Remove ${label}`, iconOnly: <XIcon size={13} />, className: iconButtonClass("sm", false, "size-6") }}
       size="sm"
     />
   );
