@@ -4,7 +4,10 @@ import { notFound } from "next/navigation";
 import { PrintButton } from "@/app/awards/[id]/print/[kind]/print-button";
 import { PrinterIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
-import { Callout } from "@/components/ui/feedback";
+import { ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Callout, EmptyState } from "@/components/ui/feedback";
+import { PageHeader } from "@/components/ui/page-header";
 import { printView } from "@/lib/tender-docs/read";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +23,19 @@ export default async function PackPrintPage(props: PageProps<"/sourcing/[id]/doc
   const table = (await props.searchParams).set === "table";
   const v = await printView(id, table ? "table" : "pack");
   if (!v) notFound();
+  if ("none" in v) {
+    return (
+      <>
+        <RecordCrumb label={v.exercise.reference} />
+        <PageHeader eyebrow={<Link href={`/sourcing/${id}?tab=documents`}>Back to the tender documents</Link>} title="Nothing to print" meta={[<span key="ref" className="font-mono text-[12.5px]">{v.exercise.reference}</span>, v.exercise.title]} />
+        <Card>
+          <EmptyState title="No tender documents to print" action={<ButtonLink href={`/sourcing/${id}?tab=documents`} variant="secondary" size="sm">Back to the tender documents</ButtonLink>}>
+            {v.why}
+          </EmptyState>
+        </Card>
+      </>
+    );
+  }
   const draft = v.watermark != null;
   const frozen = !draft || v.watermark === "With approval, not issued";
   return (
@@ -47,6 +63,7 @@ export default async function PackPrintPage(props: PageProps<"/sourcing/[id]/doc
             <span className="-rotate-30 text-center text-[7cqw] leading-none font-bold tracking-wider whitespace-nowrap text-ink/[0.09]">{v.watermark}</span>
           </div>
         )}
+        <h1 className="mb-6 text-[22px] leading-tight font-bold text-ink">{v.title}</h1>
         <header className="mb-8 flex flex-wrap justify-between gap-x-6 gap-y-1 border-b border-line pb-3 text-[11.5px] text-ink-3">
           <span>{v.exercise.reference}</span>
           <span>{v.document}</span>
@@ -76,7 +93,7 @@ export default async function PackPrintPage(props: PageProps<"/sourcing/[id]/doc
                 <ul className="text-[13px] text-ink-2">
                   {p.files.map((f) => (
                     <li key={f.title}>
-                      File bound in: {f.title}, version {f.versionNo}. Fingerprint {f.fingerprint.slice(0, 12)}.
+                      File bound in: {f.title}, version {f.versionNo}.
                     </li>
                   ))}
                 </ul>

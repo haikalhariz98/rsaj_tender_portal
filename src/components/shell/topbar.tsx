@@ -113,8 +113,16 @@ export function Topbar({
   if (recordName && last && printAt < 0 && !SEGMENT_LABEL[lastSegment] && lastSegment !== "edit" && lastSegment !== "new") last.label = recordName;
   // A record's own crumb, where the page names it and a sub-page sits under it.
   if (recordName && lastSegment === "edit" && crumbs.length >= 2) crumbs[crumbs.length - 2].label = recordName;
+  // A page under a record (an exercise's Appendix) names the record, not "Details": the crumb before a
+  // known section word is the record's key.
+  if (recordName && printAt < 0 && lastSegment !== "edit" && SEGMENT_LABEL[lastSegment] && crumbs.length >= 3) {
+    const keyAt = crumbs.length - 2;
+    if (!SEGMENT_LABEL[segments[keyAt]]) crumbs[keyAt].label = recordName;
+  }
   if (recordName && printAt > 0) {
-    crumbs[printAt - 1].label = recordName;
+    // The record's key is the crumb that names it; a section between it and the print ("Documents") keeps its own word.
+    const keyAt = segments.findIndex((sg, i) => i > 0 && !SEGMENT_LABEL[sg]);
+    crumbs[keyAt > 0 && keyAt < printAt ? keyAt : printAt - 1].label = recordName;
     crumbs[printAt].label = "Print";
   }
 

@@ -9,7 +9,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { KeyValues } from "@/components/ui/stat";
-import { NOT_SET } from "@/lib/tender-docs/labels";
+import { APPENDIX_CARD, appendixCopy, NOT_SET } from "@/lib/tender-docs/labels";
 import { appendixPage } from "@/lib/tender-docs/read";
 
 import { AppendixDrawer, LimitDrawer, RemoveLimitDrawer, RemoveSectionDrawer, SectionDrawer } from "./editors";
@@ -32,7 +32,7 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
   const back = `/sourcing/${id}?tab=documents`;
   const header = (extra?: { badge?: ReactNode; actions?: ReactNode; note?: ReactNode; subtitle?: string }) => (
     <PageHeader
-      eyebrow={<Link href={back}>Tender documents</Link>}
+      eyebrow={<Link href={back}>Back to the tender documents</Link>}
       title="Appendix to the Conditions of Contract"
       badge={extra?.badge}
       subtitle={extra?.subtitle ?? "The contract's particulars, stated for the tender and frozen with it."}
@@ -66,41 +66,46 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
   const officerLabels = Object.fromEntries(a.officers.map((o) => [o.name, o.label]));
   const drawer = (group: Parameters<typeof AppendixDrawer>[0]["group"], title: string) => <AppendixDrawer exerciseId={id} group={group} allowed={allowed} values={rawValues} offices={a.offices} officerLabels={officerLabels} title={title} />;
   const complete = a.status === "Complete";
+  const copy = appendixCopy(a.state, a.version);
 
   return (
     <>
       <RecordCrumb label={a.exercise.reference} />
       {header({
         badge: <Badge tone={complete ? "ok" : "warn"} dot>{a.status}</Badge>,
-        subtitle: `Version ${a.version} of the tender documents. Each field is entered or reads Not set.`,
+        subtitle: copy.subtitle,
         actions: <AppendixDrawer exerciseId={id} group="all" allowed={allowed} values={rawValues} offices={a.offices} officerLabels={officerLabels} title="Edit the Appendix" primary />,
         note: allowed.allowed ? undefined : <span><span className="font-semibold text-ink-2">Edit the Appendix:</span> {allowed.reason}</span>,
       })}
 
       <div className="flex flex-col gap-6">
         {a.findings.length > 0 ? (
-          <Card>
-            <CardHeader icon={<ShieldIcon size={17} />} title="Still to enter" subtitle="The tender documents cannot be submitted for approval until each is entered." />
+          <Card id="still-to-enter" className="scroll-mt-24">
+            <CardHeader icon={<ShieldIcon size={17} />} title={copy.findingsTitle} subtitle={copy.findingsSubtitle} />
             <CardBody>
               <ul className="flex flex-col gap-2">
-                {a.findings.map((f) => (
-                  <li key={f}><Callout tone="warn">{f}</Callout></li>
+                {a.findings.map((f, i) => (
+                  <li key={i}>
+                    <Callout tone={f.level === "block" ? "err" : f.level === "info" ? "info" : "warn"} action={f.card ? <a href={`#${f.card}`} className="text-[13px] font-semibold">Go to it</a> : undefined}>
+                      {f.text}
+                    </Callout>
+                  </li>
                 ))}
               </ul>
             </CardBody>
           </Card>
         ) : (
-          <Callout tone="ok" title="The Appendix is complete">Every field is entered. It is frozen with the tender documents when they are submitted.</Callout>
+          <Callout tone="ok" title={copy.completeTitle}>{copy.completeBody}</Callout>
         )}
 
-        <Card>
+        <Card id={APPENDIX_CARD.officers} className="scroll-mt-24">
           <CardHeader icon={<FileIcon size={17} />} title="Officers empowered" subtitle="Who the contract names to act for the employer." actions={drawer("officers", "Edit the officers empowered")} />
           <CardBody>
             <KeyValues columns={2} items={a.officers.map((o) => ({ label: o.label, value: val(o.value) }))} />
           </CardBody>
         </Card>
 
-        <Card className="overflow-hidden">
+        <Card id={APPENDIX_CARD.variationLimits} className="scroll-mt-24 overflow-hidden">
           <CardHeader icon={<ScaleIcon size={17} />} title="Variation limits" subtitle="How much of a variation each office or committee may approve." actions={<LimitDrawer exerciseId={id} holders={a.holders} allowed={allowed} />} divided={a.variationLimits.length === 0} />
           {a.variationLimits.length === 0 ? (
             <EmptyState size="sm" title="No limits entered">Add the offices and committees that may approve a variation, with the most each may approve.</EmptyState>
@@ -122,14 +127,14 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
           )}
         </Card>
 
-        <Card>
+        <Card id={APPENDIX_CARD.primeCost} className="scroll-mt-24">
           <CardHeader icon={<FileIcon size={17} />} title="Prime cost sum work" subtitle="Work the contractor may tender for under a prime cost sum." actions={drawer("pc", "Edit prime cost sum work")} />
           <CardBody>
             <KeyValues columns={1} items={[{ label: "Prime cost sum work", value: val(a.primeCostSums.value) }]} />
           </CardBody>
         </Card>
 
-        <Card>
+        <Card id={APPENDIX_CARD.insurance} className="scroll-mt-24">
           <CardHeader icon={<ShieldIcon size={17} />} title="Insurance" subtitle="The least cover the contractor must hold." actions={drawer("insurance", "Edit the insurance")} />
           <CardBody className="flex flex-col gap-4">
             <KeyValues
@@ -145,7 +150,7 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
           </CardBody>
         </Card>
 
-        <Card>
+        <Card id={APPENDIX_CARD.lad} className="scroll-mt-24">
           <CardHeader icon={<ClockIcon size={17} />} title="Liquidated damages" subtitle="What the contractor pays for each day of delay." actions={drawer("lad", "Edit liquidated damages")} />
           <CardBody className="flex flex-col gap-4">
             <KeyValues columns={2} items={[{ label: "Stated as", value: val(a.lad.kind) }, { label: "Rate", value: val(a.lad.value) }]} />
@@ -154,11 +159,14 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
           </CardBody>
         </Card>
 
-        <Card className="overflow-hidden">
+        <Card id={APPENDIX_CARD.sectional} className="scroll-mt-24 overflow-hidden">
           <CardHeader icon={<ClockIcon size={17} />} title="Sectional completion" subtitle="Whether parts of the work are completed, and paid for delay, separately." actions={<span className="flex flex-wrap items-center gap-2">{drawer("sectional", "Edit sectional completion")}<SectionDrawer exerciseId={id} allowed={allowed} /></span>} />
           <CardBody>
             <KeyValues columns={1} items={[{ label: "Sectional completion", value: val(a.sectional.value === "Yes" ? "Applies" : a.sectional.value === "No" ? "Does not apply" : a.sectional.value) }]} />
           </CardBody>
+          {a.sectional.value === "Yes" && a.sectional.sections.length === 0 && (
+            <EmptyState size="sm" title="No sections entered">Sectional completion applies, so each section is entered with its liquidated damages. Use Add a section above.</EmptyState>
+          )}
           {a.sectional.sections.length > 0 && (
             <ul className="divide-y divide-line/70 border-t border-line">
               {a.sectional.sections.map((s) => (
@@ -177,7 +185,7 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
           )}
         </Card>
 
-        <Card>
+        <Card id={APPENDIX_CARD.dlp} className="scroll-mt-24">
           <CardHeader icon={<ClockIcon size={17} />} title="Defects liability period" subtitle="How long the contractor puts right defects after completion." actions={a.dlp.hidden ? undefined : drawer("dlp", "Edit the defects liability period")} />
           <CardBody>
             {a.dlp.hidden ? (
@@ -191,13 +199,23 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
           </CardBody>
         </Card>
 
-        <Card>
+        <Card id={APPENDIX_CARD.interim} className="scroll-mt-24">
           <CardHeader icon={<ScaleIcon size={17} />} title="Interim certificates" subtitle="What may be certified, and how soon a certificate is honoured." actions={drawer("interim", "Edit the interim certificates")} />
           <CardBody className="flex flex-col gap-4">
             <KeyValues
               columns={2}
               items={[
-                { label: "Minimum for the first certificate", value: val(a.interim.first) },
+                {
+                  label: "Minimum for the first certificate",
+                  value: a.interim.firstRule ? (
+                    <span className="flex flex-col gap-0.5">
+                      <span className="break-words">{a.interim.firstRule}</span>
+                      <span className="text-[12.5px] text-ink-3">Entered as {a.interim.first} for the tender documents.</span>
+                    </span>
+                  ) : (
+                    val(a.interim.first)
+                  ),
+                },
                 { label: "Minimum for later certificates", value: val(a.interim.later) },
                 { label: "Days to honour a certificate", value: val(a.interim.honourDays) },
               ]}

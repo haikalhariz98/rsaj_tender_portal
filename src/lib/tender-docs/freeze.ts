@@ -15,7 +15,7 @@ import { renderedText, renderWith, type MergeWhitelist } from "@/lib/templates/m
 import { APPENDIX_FIELD_LABEL, type AppendixFacts } from "./appendix";
 import { clausesCited, type ClauseFacts } from "./clauses";
 import { PACK_WHITELIST } from "./fields";
-import { LAD_KIND_LABEL, NOT_SET, UPLIFT_KIND_LABEL, yesNoNotSet } from "./labels";
+import { NOT_SET, periodText } from "./labels";
 import { formatPct } from "./percent";
 import { stamped, type StampWords } from "./stamp";
 import type { DocumentLanguage, PackPartFacts, PackPartState, PartRole, PartSource } from "./types";
@@ -86,8 +86,8 @@ export function appendixText(a: AppendixFacts, office: (code: string | null) => 
     a.worksInsuranceUpliftKind == null
       ? NOT_SET
       : a.worksInsuranceUpliftKind === "AMOUNT"
-        ? `${UPLIFT_KIND_LABEL.AMOUNT}: ${money(a.worksInsuranceUpliftAmount)}`
-        : `${UPLIFT_KIND_LABEL.PERCENT}: ${a.worksInsuranceUpliftPct == null ? NOT_SET : formatPct(a.worksInsuranceUpliftPct)}`;
+        ? money(a.worksInsuranceUpliftAmount)
+        : (a.worksInsuranceUpliftPct == null ? NOT_SET : `${formatPct(a.worksInsuranceUpliftPct)} of the contract sum`);
   const lines = [
     "Appendix to the Conditions of Contract",
     `${L.ladOfficerRoleCode}: ${office(a.ladOfficerRoleCode)}`,
@@ -101,10 +101,10 @@ export function appendixText(a: AppendixFacts, office: (code: string | null) => 
     `${L.wcMinimum}: ${money(a.wcMinimum)}`,
     `${L.worksInsuranceUpliftKind}: ${uplift}`,
     `${L.insuranceExcess}: ${money(a.insuranceExcess)}`,
-    `Liquidated damages: ${a.ladKind == null ? NOT_SET : `${LAD_KIND_LABEL[a.ladKind]}, ${lad(a.ladKind, a.ladAmount, a.ladPct)}`}`,
-    `${L.sectionalCompletion}: ${yesNoNotSet(a.sectionalCompletion)}`,
+    `Liquidated damages: ${lad(a.ladKind, a.ladAmount, a.ladPct)}`,
+    `${L.sectionalCompletion}: ${a.sectionalCompletion == null ? NOT_SET : a.sectionalCompletion ? "Applies" : "Does not apply"}`,
     ...(a.sectionalCompletion ? a.sections.map((s) => `  ${s.description}: ${lad(s.ladKind, s.ladAmount, s.ladPct)}`) : []),
-    `${L.dlpApplies}: ${a.dlpApplies == null ? NOT_SET : a.dlpApplies ? (a.dlpMonths == null ? NOT_SET : `${a.dlpMonths} months`) : "Does not apply"}`,
+    `${L.dlpApplies}: ${a.dlpApplies == null ? NOT_SET : a.dlpApplies ? (a.dlpMonths == null ? NOT_SET : periodText(a.dlpMonths, 0)) : "Does not apply"}`,
     `${L.firstInterimMinimum}: ${money(a.firstInterimMinimum)}`,
     `${L.subsequentInterimMinimum}: ${money(a.subsequentInterimMinimum)}`,
     `${L.honourCertificateDays}: ${a.honourCertificateDays == null ? NOT_SET : `${a.honourCertificateDays} days`}`,

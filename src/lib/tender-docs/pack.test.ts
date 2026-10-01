@@ -275,7 +275,10 @@ describe("freezing renders each template part from its body version and pins eve
       firstInterimMinimum: sen("1000.00"), subsequentInterimMinimum: sen("1000.00"), honourCertificateDays: 30,
     };
     const text = appendixText(a, (c) => (c === "HOD_CP" ? "Head of Contract & Procurement" : c === "CEO" ? "Chief Executive" : "Not set"));
-    expect(text).toContain("Liquidated damages: A percentage of the contract sum a day, 0.025% of the contract sum a day, fixed at award");
+    expect(text).toContain("Liquidated damages: 0.025% of the contract sum a day, fixed at award");
+    expect(text).not.toContain("A percentage of the contract sum a day, ");
+    expect(text).toContain("Sectional completion: Does not apply");
+    expect(text).toContain("10% of the contract sum");
     expect(text).toContain("Defects liability period: 12 months");
     expect(text).not.toMatch(/HOD_CP|PERCENT_OF_SUM_PER_DAY/);
   });
