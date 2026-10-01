@@ -53,6 +53,9 @@ export interface PanelMatter {
   matterRef: string | null;
   /// Where the linked record opens, when the matter names one on record.
   matterHref?: string | null;
+  /// What of the record the matter concerns, in words, after its reference (a scope
+  /// matter's bill version). Null where the reference says it all.
+  recordNote?: string | null;
   amount: number | null;
   act: string;
   mandatory: boolean;
@@ -144,6 +147,7 @@ export function DecisionPanel({
               ) : (
                 <span className="font-mono text-[12px]">{matter.matterRef}</span>
               ))}
+            {matter.recordNote ? `, ${matter.recordNote}` : ""}
           </span>
         ) : (
           <span>Not linked to a record{matter.matterRef ? ` · ${matter.matterRef}` : ""}</span>

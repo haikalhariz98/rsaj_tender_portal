@@ -49,6 +49,7 @@ import type { VotingSeat } from "@/lib/committee/sitting";
 import { loadSitting, sittingHistory, type LoadedSitting } from "@/lib/committee/sittings";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 import { actWithCode, matterLabel } from "@/lib/labels";
+import { scopeMatterRecordNote } from "@/lib/scope/labels";
 import { formatMoney, parseSen } from "@/lib/money";
 
 import {
@@ -374,7 +375,8 @@ function AgendaPanel({ s, prefill }: { s: LoadedSitting; prefill?: Record<string
       matterLabel: matterLabel(d.domain),
       kindLabel: d.matterKind ? MATTER_KIND_LABEL[d.matterKind] : null,
       matterRef: d.matterRef,
-      matterHref: d.exerciseId ? `/sourcing/${d.exerciseId}` : d.requisitionId ? `/requisitions/${d.requisitionId}` : null,
+      matterHref: d.bqVersion ? `/sourcing/${d.bqVersion.exerciseId}?tab=scope&section=scope` : d.exerciseId ? `/sourcing/${d.exerciseId}` : d.requisitionId ? `/requisitions/${d.requisitionId}` : null,
+      recordNote: d.bqVersion ? scopeMatterRecordNote(d.bqVersion) : null,
       amount: d.amount,
       act: d.act,
       mandatory: MANDATORY_ACTS.has(d.act),

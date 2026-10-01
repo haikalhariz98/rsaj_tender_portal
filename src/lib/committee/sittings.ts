@@ -128,6 +128,8 @@ export async function loadSitting(id: string, client: Tx = db, preloaded?: Roste
           recusals: { include: { person: true } },
           tabledBy: true,
           dependsOn: { select: { id: true, subject: true, outcome: true } },
+          // 6.2 OD-9: the bill version a SCOPE matter tables, to name and link it.
+          bqVersion: { select: { versionNo: true, status: true, exerciseId: true } },
         },
       },
     },

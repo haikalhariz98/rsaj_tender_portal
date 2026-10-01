@@ -17,7 +17,7 @@ import { formatSen, parseSen, senToDecimalString } from "@/lib/money";
 import { exerciseOrg } from "@/lib/method/repo";
 
 import { bqTotals, currentBq, draftEditFaults, finaliseFaults, reviseFaults, startBqFaults } from "./bq";
-import { estimateFactsOf as factsOf, loadBqVersions, loadEstimates, loadScopeMatters, loadHoldings, loadPanel, loadPanelColumns, loadQualifications, loadScopePolicy, loadScopeRules, linesOf, lineOf } from "./repo";
+import { estimateFactsOf as factsOf, loadBqVersions, loadEstimates, loadRateIssues, loadScopeMatters, loadHoldings, loadPanel, loadPanelColumns, loadQualifications, loadScopePolicy, loadScopeRules, linesOf, lineOf } from "./repo";
 import { leadTime, lodgeFaults, lodgementBehind, retainFaults, startFault, versionFaults, voidFault } from "./estimate";
 import {
   ATTESTED,
@@ -42,8 +42,23 @@ import {
   SEALED_TEXT,
   scopeFaultText,
   SCOPE_CONFIG_PATH,
+  SCOPE_STATE_BADGE,
+  RATE_SCHEDULE_STATUS_LABEL,
+  CSV_EXPORT_NOTE,
+  CSV_IMPORT_NOTE,
+  scopeApprovalLine,
 } from "./labels";
 import { packFaults, type PackFault } from "./pack";
+import { issueText, schedulesInForce } from "./rates";
+import { rateFromText } from "./audit-view";
+import { uploadContext } from "@/lib/documents/read";
+import { formatBytes } from "@/lib/documents/labels";
+import { scopeCitationFault } from "./scope-matter";
+import { checkTabling, secretariatHoldersOn } from "@/lib/committee/tabling";
+import { TABLING_FAULT_MESSAGE } from "@/lib/committee/labels";
+import { ACT_LABEL } from "@/lib/labels";
+import { ORGANISATION_CODE } from "@/lib/org";
+import { loadRoster } from "@/lib/people/load";
 import { scopeApproval } from "./scope-matter";
 import { columnsInForce, panelFaults, panelState, standingVerifications } from "./panel";
 import { blocking, type BqScopedBy, type Finding } from "./types";
@@ -172,6 +187,80 @@ export async function scopeTab(exerciseId: string) {
       statement: `Verifications are attested: each is ${ATTESTED}.`,
     },
     readiness: { heading: PACK_CARD_HEADING, findings: pack.map((f) => ({ level: f.level, text: scopeFaultText(f), href: hrefs[f.code] })) },
+    approval: await approvalView(a, people),
+  };
+}
+
+const ACT_OPTIONS = Object.entries(ACT_LABEL).map(([value, label]) => ({ value, label }));
+
+/**
+ * The Scope section's scope-approval card (OD-9, FR-REQ-014): where approval stands, the
+ * rule it was read under (with provenance), every SCOPE matter on the exercise's bills, and
+ * whether the finalised bill can be tabled now, at which sittings, by whom — judged by the
+ * same `scopeCitationFault` and Secretariat rule the act runs under its locks.
+ */
+async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>, people: { id: string; name: string }[]) {
+  const { org, ex, rules, versions, approval } = a;
+  const rule = rules.method;
+  const code = rule?.scopeCommitteeCode ?? null;
+  const committee = code ? await db.committee.findFirst({ where: { organisationId: org.id, code }, select: { id: true, nameEn: true, secretariatRoleCode: true } }) : null;
+  const [sittings, roster, rows] = await Promise.all([
+    committee ? db.meeting.findMany({ where: { committeeId: committee.id, status: { in: ["SCHEDULED", "IN_PROGRESS"] } }, orderBy: [{ meetingDate: "asc" }, { reference: "asc" }], select: { id: true, reference: true, meetingDate: true } }) : Promise.resolve([]),
+    loadRoster(ORGANISATION_CODE),
+    db.committeeDecision.findMany({
+      where: { matterKind: "SCOPE", bqVersion: { exerciseId: ex.id } },
+      orderBy: [{ tabledAt: "desc" }, { id: "desc" }],
+      select: { id: true, meetingId: true, outcome: true, withdrawnAt: true, tabledAt: true, decisionDate: true, notApprovedOutcomeNameEn: true, bqVersion: { select: { versionNo: true } }, meeting: { select: { reference: true, meetingDate: true, committee: { select: { nameEn: true } } } }, tabledBy: { select: { name: true } } },
+    }),
+  ]);
+  const holders = committee ? secretariatHoldersOn(roster, committee.secretariatRoleCode, org.today) : [];
+  const finalised = versions.find((v) => v.status === "FINALISED") ?? null;
+  const committeeName = committee?.nameEn ?? (code ? "A committee no longer configured" : null);
+  const reasons: string[] = [];
+  if (!finalised) reasons.push(scopeFaultText("VERSION_NOT_FINALISED"));
+  else {
+    const f = scopeCitationFault({ exercise: { id: ex.id, status: ex.status }, rule, version: finalised, sitting: { committeeCode: code ?? "", frozen: false }, matters: a.scopeMatters.filter((m) => m.bqVersionId === finalised.id) });
+    reasons.push(...blocking(f).map((x) => scopeFaultText(x)));
+  }
+  if (reasons.length === 0 && committee && sittings.length === 0) reasons.push(scopeFaultText({ code: "NO_OPEN_SITTING", level: "block", data: { committee: committee.nameEn } }));
+  if (reasons.length === 0 && committee) {
+    const t = checkTabling({ secretariatRoleCode: committee.secretariatRoleCode, tabledByPersonId: holders[0]?.id ?? null, holderIdsOnDate: holders.map((h) => h.id), tablingDay: org.today });
+    if (!t.ok) reasons.push(t.fault === "NOT_TABLED" ? "Nobody holds the committee's Secretariat office today, so nobody may table the scope. Assign the office under Configuration, Users & roles." : TABLING_FAULT_MESSAGE[t.fault]);
+  }
+  const OUTCOME: Record<string, string> = { PENDING: "Waiting for the decision", CARRIED: "Carried", NOT_CARRIED: "Not carried", DEFERRED: "Deferred" };
+  return {
+    state: approval.state,
+    badge: SCOPE_STATE_BADGE[approval.state],
+    line: scopeApprovalLine(approval, committeeName),
+    rule: {
+      required: rule == null ? "The sourcing method is no longer configured" : rule.scopeApprovalRequired == null ? NOT_SET : rule.scopeApprovalRequired ? "Yes" : "No",
+      provenance: rule?.scopeApprovalRequired == null ? null : provenanceText(rule.scopeApprovalProvenance),
+      committee: rule?.scopeApprovalRequired ? (committeeName ?? NOT_SET) : null,
+    },
+    configHref: SCOPE_CONFIG_PATH,
+    matters: rows.map((m) => ({
+      id: m.id,
+      version: `Version ${m.bqVersion?.versionNo ?? "?"}`,
+      sitting: m.meeting.reference,
+      sittingHref: `/committees/${m.meetingId}`,
+      committee: m.meeting.committee.nameEn,
+      tabledOn: m.tabledAt ? storedDay(m.tabledAt) : null,
+      tabledBy: m.tabledBy ? `${m.tabledBy.name}, ${ATTESTED}` : null,
+      outcome: m.withdrawnAt ? "Withdrawn" : OUTCOME[m.outcome] ?? m.outcome,
+      outcomeTone: (m.withdrawnAt ? "neutral" : m.outcome === "CARRIED" ? "ok" : m.outcome === "NOT_CARRIED" ? "err" : m.outcome === "DEFERRED" ? "warn" : "info") as "ok" | "err" | "warn" | "info" | "neutral",
+      decidedOn: m.decisionDate ? storedDay(m.decisionDate) : null,
+      notApproved: m.notApprovedOutcomeNameEn,
+    })),
+    table: {
+      allowed: (reasons.length ? { allowed: false, reason: reasons.join(" ") } : { allowed: true }) as Allowed,
+      versionId: finalised?.id ?? null,
+      versionNo: finalised?.versionNo ?? null,
+      committee: committeeName,
+      sittings: sittings.map((x) => ({ value: x.id, label: `${x.reference}, ${formatDate(storedDay(x.meetingDate))}` })),
+      holders: holders.map((h) => ({ value: h.id, label: h.name })),
+      acts: ACT_OPTIONS,
+      people: people.length,
+    },
   };
 }
 
@@ -181,11 +270,16 @@ export async function bqTab(exerciseId: string) {
   const a = await loadAll(exerciseId);
   if (!a) return null;
   const { org, ex, policy, versions } = a;
-  const [qualifications, templates, people] = await Promise.all([
+  const [qualifications, templates, people, rateIssues, upload] = await Promise.all([
     loadQualifications(org.id),
     db.bqTemplate.findMany({ where: { organisationId: org.id, retiredOn: null }, orderBy: { nameEn: "asc" }, select: { code: true, nameEn: true } }),
     db.person.findMany({ where: { organisationId: org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    loadRateIssues(org.id),
+    uploadContext(),
   ]);
+  // FR-EST-004: the items of every schedule's issue in force today, for pricing a line.
+  const inForce = org.today ? schedulesInForce(rateIssues, org.today) : [];
+  const scheduleItems = inForce.flatMap((i) => i.items.map((it) => ({ value: `${i.id}|${it.code}`, label: `${i.label}, ${issueText(i.issueNo)}: ${it.code} ${it.descriptionEn} (${money(it.rate)}${it.unit ? ` per ${it.unit}` : ""})` })));
   const { finalised, draft } = currentBq(versions);
   const current = draft ?? finalised;
   const holdings = current?.preparerPersonId ? await loadHoldings(org.id, db, [current.preparerPersonId]) : [];
@@ -237,8 +331,11 @@ export async function bqTab(exerciseId: string) {
           return {
             id: i.id, itemRef: i.itemRef, description: i.description, unit: i.unit, kind: ITEM_KIND_LABEL[l.kind],
             quantity: l.quantity ?? NOT_SET, rate: l.rate == null ? NOT_SET : money(l.rate), amount: i.amount == null ? NOT_SET : formatSen(parseSen(i.amount.toString())),
-            chips: l.provisional ? [PROVISIONAL_CHIP] : [], rateSource: RATE_SOURCE_LABEL[i.rateSource],
-            raw: { itemRef: i.itemRef, description: i.description, unit: i.unit, kind: l.kind, quantity: l.quantity ?? "", rate: l.rate == null ? "" : senToDecimalString(l.rate), provisional: l.provisional, sortOrder: String(i.sortOrder) },
+            chips: l.provisional ? [PROVISIONAL_CHIP] : [],
+            rateSource: i.rateSource === "SCHEDULE" && i.scheduleLabelSnapshot && i.scheduleIssueSnapshot && i.rateItemCode
+              ? `${RATE_SOURCE_LABEL.SCHEDULE}: ${rateFromText({ label: i.scheduleLabelSnapshot, issue: i.scheduleIssueSnapshot, effectiveFrom: i.scheduleEffectiveFromSnapshot ? storedDay(i.scheduleEffectiveFromSnapshot) : "", itemCode: i.rateItemCode }, (x) => (x ? formatDate(x) : NOT_SET))}`
+              : RATE_SOURCE_LABEL[i.rateSource],
+            raw: { itemRef: i.itemRef, description: i.description, unit: i.unit, kind: l.kind, quantity: l.quantity ?? "", rate: l.rate == null ? "" : senToDecimalString(l.rate), provisional: l.provisional, sortOrder: String(i.sortOrder), scheduleItem: i.rateSource === "SCHEDULE" ? "keep" : "" },
           };
         }),
       })),
@@ -259,7 +356,25 @@ export async function bqTab(exerciseId: string) {
       // A reason is asked for in the dialog; the button is judged without it.
       revise: judged(reviseFaults(versions, ex.status, "given")),
     },
-    options: { templates: templates.map((t) => ({ value: t.code, label: t.nameEn })), people, scopedBy: Object.entries(SCOPED_BY_LABEL).map(([value, label]) => ({ value, label })), kinds: Object.entries(ITEM_KIND_LABEL).map(([value, label]) => ({ value, label })) },
+    options: { templates: templates.map((t) => ({ value: t.code, label: t.nameEn })), people, scopedBy: Object.entries(SCOPED_BY_LABEL).map(([value, label]) => ({ value, label })), kinds: Object.entries(ITEM_KIND_LABEL).map(([value, label]) => ({ value, label })), scheduleItems },
+    schedulesNote: org.today == null ? scopeFaultText("TIME_ZONE_NOT_SET") : inForce.length === 0 ? "No schedule of rates is in force today, so every rate is entered. Schedules are issued under Configuration, Scope and estimate." : `In force today: ${inForce.map((i) => `${i.label}, ${issueText(i.issueNo)} (from ${formatDate(i.effectiveFrom!)})`).join("; ")}.`,
+    csv: {
+      importNote: CSV_IMPORT_NOTE,
+      exportNote: CSV_EXPORT_NOTE,
+      /// Import goes into the draft: the same rule as editing it, plus the upload rules being set.
+      import: !draft
+        ? ({ allowed: false, reason: scopeFaultText("NO_DRAFT") } as Allowed)
+        : !judged(draftEditFaults(draft, ex.status)).allowed
+          ? judged(draftEditFaults(draft, ex.status))
+          : upload && upload.refusals.length
+            ? ({ allowed: false, reason: upload.refusals.join(" ") } as Allowed)
+            : !upload?.allowedMediaTypes.includes("text/csv")
+              ? ({ allowed: false, reason: "The upload rules do not allow CSV files. Add CSV under Configuration, Documents, Upload rules." } as Allowed)
+              : ({ allowed: true } as Allowed),
+      draft: draft ? { id: draft.id, versionNo: draft.versionNo, lines: linesOf(draft).length } : null,
+      exportable: versions.map((v) => ({ value: v.id, label: `Version ${v.versionNo} (${BQ_STATUS_LABEL[v.status].toLowerCase()})` })),
+      upload: upload ? { classes: upload.classes.map((c) => ({ value: c.id, label: c.classification ? `${c.nameEn} (${CLASSIFICATION_LABEL[c.classification]})` : `${c.nameEn} (classification not set)` })), people: upload.people.map((p) => ({ value: p.id, label: p.name })), capText: upload.cap ? `Up to ${formatBytes(upload.cap.bytes)}.` : null } : null,
+    },
   };
 }
 
@@ -328,12 +443,16 @@ export async function scopeConfiguration() {
     loadHoldings(org.id),
     db.bqTemplate.findMany({ where: { organisationId: org.id }, orderBy: { nameEn: "asc" }, include: { sections: { orderBy: { sortOrder: "asc" } } } }),
     loadPanelColumns(org.id),
-    db.sourcingMethod.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { id: true, nameEn: true, requiresCompanyEstimate: true, requiresCompanyEstimateProvenance: true, retiredOn: true } }),
+    db.sourcingMethod.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { id: true, nameEn: true, requiresCompanyEstimate: true, requiresCompanyEstimateProvenance: true, scopeApprovalRequired: true, scopeApprovalProvenance: true, scopeCommitteeCode: true, retiredOn: true } }),
     db.contractBasis.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { id: true, nameEn: true, requiresBq: true, requiresBqProvenance: true, retiredOn: true } }),
     db.authorityRole.findMany({ where: { organisationId: org.id, isCommittee: false }, orderBy: { sortOrder: "asc" }, select: { code: true, nameEn: true } }),
     db.classificationTaxonomy.findMany({ where: { organisationId: org.id }, orderBy: { sortOrder: "asc" }, select: { code: true, nameEn: true } }),
     db.person.findMany({ where: { organisationId: org.id }, orderBy: { name: "asc" }, select: { id: true, name: true, isActive: true } }),
     db.orgUnit.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { code: true, nameEn: true, effectiveTo: true } }),
+  ]);
+  const [committees, rateIssues] = await Promise.all([
+    db.committee.findMany({ where: { organisationId: org.id }, orderBy: { nameEn: "asc" }, select: { code: true, nameEn: true, retiredOn: true } }),
+    loadRateIssues(org.id),
   ]);
   const nameOf = (rows: readonly { code: string; nameEn: string }[], code: string | null) => (code == null ? NOT_SET : (rows.find((r) => r.code === code)?.nameEn ?? "A row no longer configured"));
   const personName = (id: string) => people.find((p) => p.id === id)?.name ?? "A person no longer on record";
@@ -376,7 +495,40 @@ export async function scopeConfiguration() {
     })),
     columns: columns.map((c) => ({ id: c.id, label: c.labelEn, labelMs: c.labelMs ?? "", unit: c.orgUnitCode ? (units.find((u) => u.code === c.orgUnitCode)?.nameEn ?? "A unit no longer in the structure") : null, orgUnitCode: c.orgUnitCode ?? "", sortOrder: String(c.sortOrder), provenance: provenanceText(c.provenance), rawProvenance: c.provenance as string, retiredOn: c.retiredOn })),
     methods: methods.map((m) => ({ id: m.id, name: m.nameEn, needsEstimate: yesNo(m.requiresCompanyEstimate), raw: m.requiresCompanyEstimate == null ? "unset" : m.requiresCompanyEstimate ? "yes" : "no", rawProvenance: m.requiresCompanyEstimateProvenance ?? "", provenance: m.requiresCompanyEstimate == null ? null : provenanceText(m.requiresCompanyEstimateProvenance), retired: m.retiredOn != null })),
+    scopeRules: methods.map((m) => ({
+      id: m.id,
+      name: m.nameEn,
+      required: m.scopeApprovalRequired == null ? NOT_SET : m.scopeApprovalRequired ? "Yes" : "No",
+      committee: m.scopeApprovalRequired ? (m.scopeCommitteeCode ? nameOf(committees, m.scopeCommitteeCode) : "Committee not set") : null,
+      provenance: m.scopeApprovalRequired == null ? null : provenanceText(m.scopeApprovalProvenance),
+      raw: { scopeApprovalRequired: m.scopeApprovalRequired == null ? "unset" : m.scopeApprovalRequired ? "yes" : "no", scopeApprovalProvenance: m.scopeApprovalProvenance ?? "", scopeCommitteeCode: m.scopeCommitteeCode ?? "" },
+      retired: m.retiredOn != null,
+    })),
+    schedules: [...new Set(rateIssues.map((i) => i.label))].map((label) => {
+      const issues = rateIssues.filter((i) => i.label === label).sort((a, b) => b.issueNo - a.issueNo);
+      const current = org.today ? schedulesInForce(issues, org.today)[0] ?? null : null;
+      return {
+        label,
+        inForce: current ? `${issueText(current.issueNo)}, in force from ${formatDate(current.effectiveFrom!)}` : org.today ? "No issue in force today" : "Not known: the organisation's time zone is not set",
+        issues: issues.map((i) => ({
+          id: i.id,
+          title: `${issueText(i.issueNo)}`,
+          status: RATE_SCHEDULE_STATUS_LABEL[i.status],
+          statusTone: (i.status === "ISSUED" ? "ok" : i.status === "DRAFT" ? "info" : "neutral") as "ok" | "info" | "neutral",
+          effective: i.effectiveFrom ? formatDate(i.effectiveFrom) : NOT_SET,
+          issued: i.issuedOn ? `${formatDate(i.issuedOn)}${i.issuedBy ? `, by ${i.issuedBy} (${ATTESTED})` : ""}` : null,
+          superseded: i.supersededOn ? formatDate(i.supersededOn) : null,
+          provenance: provenanceText(i.provenance),
+          rawProvenance: i.provenance as string,
+          governingSource: i.governingSource || null,
+          draft: i.status === "DRAFT",
+          inForceNow: current?.id === i.id,
+          items: i.items.map((it) => ({ id: it.id, code: it.code, description: it.descriptionEn, unit: it.unit || null, rate: money(it.rate), raw: { code: it.code, descriptionEn: it.descriptionEn, unit: it.unit, rate: senToDecimalString(it.rate), sortOrder: String(it.sortOrder) } })),
+        })),
+      };
+    }),
     bases: bases.map((b) => ({ id: b.id, name: b.nameEn, letOnBill: yesNo(b.requiresBq), raw: b.requiresBq == null ? "unset" : b.requiresBq ? "yes" : "no", rawProvenance: b.requiresBqProvenance ?? "", provenance: b.requiresBq == null ? null : provenanceText(b.requiresBqProvenance), retired: b.retiredOn != null })),
-    options: { units: units.filter((u) => u.effectiveTo == null).map((u) => ({ value: u.code, label: u.nameEn })), offices: offices.map((o) => ({ value: o.code, label: o.nameEn })), lists: lists.map((l) => ({ value: l.code, label: l.nameEn })), qualifications: qualifications.filter((q) => q.retiredOn == null).map((q) => ({ value: q.code, label: q.nameEn })), people: people.filter((p) => p.isActive).map((p) => ({ value: p.id, label: p.name })) },
+    options: { units: units.filter((u) => u.effectiveTo == null).map((u) => ({ value: u.code, label: u.nameEn })), offices: offices.map((o) => ({ value: o.code, label: o.nameEn })), lists: lists.map((l) => ({ value: l.code, label: l.nameEn })), qualifications: qualifications.filter((q) => q.retiredOn == null).map((q) => ({ value: q.code, label: q.nameEn })), people: people.filter((p) => p.isActive).map((p) => ({ value: p.id, label: p.name })), committees: committees.filter((c) => c.retiredOn == null).map((c) => ({ value: c.code, label: c.nameEn })) },
+    today: org.today,
   };
 }

@@ -16,7 +16,7 @@ import { NOT_SET } from "@/lib/scope/labels";
 import { scopeConfiguration } from "@/lib/scope/read";
 
 import { Section } from "../records-ui";
-import { ColumnDrawer, EditBasisRule, EditMethodRule, EditScopePolicy, HoldingDrawer, QualificationDrawer, TemplateDrawer, TemplateSectionDrawer } from "./editors";
+import { ColumnDrawer, DiscardRateIssueDrawer, EditBasisRule, EditMethodRule, EditMethodScopeRule, EditScopePolicy, HoldingDrawer, IssueRateScheduleDrawer, QualificationDrawer, RateItemDrawer, RemoveRateItemDrawer, StartRateIssueDrawer, TemplateDrawer, TemplateSectionDrawer } from "./editors";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +66,8 @@ export default async function ScopeConfigurationPage() {
   const leadUnset = p.estimateLeadDays == null;
   const methodsUnset = c.methods.filter((m) => m.raw === "unset" && !m.retired).length;
   const basesUnset = c.bases.filter((b) => b.raw === "unset" && !b.retired).length;
-  const unset = [standardUnset, qualificationUnset, leadUnset].filter(Boolean).length + methodsUnset + basesUnset;
+  const scopeRulesUnset = c.scopeRules.filter((m) => (m.raw.scopeApprovalRequired === "unset" || (m.raw.scopeApprovalRequired === "yes" && !m.raw.scopeCommitteeCode)) && !m.retired).length;
+  const unset = [standardUnset, qualificationUnset, leadUnset].filter(Boolean).length + methodsUnset + basesUnset + scopeRulesUnset;
 
   const policyValues: Record<string, string> = {
     measurementStandardLabel: p.measurementStandardLabel ?? "",
@@ -168,6 +169,41 @@ export default async function ScopeConfigurationPage() {
                     <RowActions>
                       <HistoryButton iconOnly entity="SourcingMethod" entityId={m.id} label={m.name} />
                       <EditMethodRule id={m.id} name={m.name} raw={m.raw} provenance={m.rawProvenance} />
+                    </RowActions>
+                  </Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
+        </Section>
+
+        <Section title="Which methods need their scope approved by a committee" blurb="Where a method does, the finalised bill is tabled at a sitting of the committee named, and the documents cannot go for approval until it is carried. Not set holds that check back, naming this setting; it is never read as No." empty="No sourcing methods are configured. Add them under Reference data." count={c.scopeRules.length}>
+          <Table minWidth={640}>
+            <colgroup>
+              <col />
+              <col style={{ width: "18%" }} />
+              <col style={{ width: "24%" }} />
+              <col style={{ width: "16%" }} />
+              <ActionsCol icons={1} labelled={1} />
+            </colgroup>
+            <THead>
+              <Th>Method</Th>
+              <Th>Scope approved</Th>
+              <Th>By</Th>
+              <Th>Source</Th>
+              <Th className="text-right">Actions</Th>
+            </THead>
+            <tbody>
+              {c.scopeRules.map((m) => (
+                <Tr key={m.id}>
+                  <Td label="Method"><CellStack title={m.name} sub={m.retired ? "Retired" : undefined} /></Td>
+                  <Td label="Scope approved">{m.raw.scopeApprovalRequired === "unset" ? <Badge tone="warn">Not set</Badge> : m.required}</Td>
+                  <Td label="By">{m.committee == null ? <span className="text-ink-3">—</span> : m.raw.scopeCommitteeCode ? m.committee : <Badge tone="warn">{m.committee}</Badge>}</Td>
+                  <Td label="Source">{m.raw.scopeApprovalRequired === "unset" ? <span className="text-ink-3">—</span> : <ProvenanceBadge value={m.raw.scopeApprovalProvenance} />}</Td>
+                  <Td>
+                    <RowActions>
+                      <HistoryButton iconOnly entity="SourcingMethod" entityId={m.id} label={m.name} />
+                      <EditMethodScopeRule id={m.id} name={m.name} raw={m.raw} committees={c.options.committees} />
                     </RowActions>
                   </Td>
                 </Tr>
@@ -336,6 +372,91 @@ export default async function ScopeConfigurationPage() {
               ))}
             </tbody>
           </Table>
+        </Section>
+
+        <Section
+          title="Schedules of rates"
+          blurb="Issued issue by issue. A line of a bill priced from a schedule takes the rate of the issue in force that day and keeps it, with the issue it came from; a later issue never changes it. None ships with the product."
+          empty="No schedule of rates is configured, so every rate in a bill is entered."
+          count={c.schedules.length}
+          action={<StartRateIssueDrawer />}
+        >
+          <div className="flex flex-col divide-y divide-line">
+            {c.schedules.map((sch) => (
+              <div key={sch.label} className="flex flex-col gap-4 px-5 py-5 max-sm:px-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <CellStack title={sch.label} sub={sch.inForce} />
+                  {!sch.issues.some((i) => i.draft) && <StartRateIssueDrawer label={sch.label} />}
+                </div>
+                {sch.issues.map((i) => (
+                  <div key={i.id} className="overflow-hidden rounded-2xl border border-line">
+                    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line bg-sunken px-4 py-3">
+                      <div className="flex min-w-0 flex-col gap-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="text-[14px] font-semibold text-ink">{i.title}</span>
+                          <Badge tone={i.statusTone} dot>{i.status}</Badge>
+                          {i.inForceNow && <Badge tone="brand">In force today</Badge>}
+                          <ProvenanceBadge value={i.rawProvenance} />
+                        </span>
+                        <span className="text-[12.5px] break-words text-ink-3">
+                          {i.draft ? "Not issued yet." : `Takes effect from ${i.effective}. Issued ${i.issued}.${i.superseded ? ` Superseded ${i.superseded}.` : ""}`}
+                          {i.governingSource ? ` ${i.governingSource}.` : ""}
+                        </span>
+                      </div>
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <HistoryButton iconOnly entity="RateSchedule" entityId={i.id} label={`${sch.label}, ${i.title}`} />
+                        {i.draft && (
+                          <>
+                            <RateItemDrawer scheduleId={i.id} title={`${sch.label}, ${i.title}`} />
+                            <DiscardRateIssueDrawer scheduleId={i.id} title={`${sch.label}, ${i.title}`} />
+                            <IssueRateScheduleDrawer scheduleId={i.id} title={`${sch.label}, ${i.title}`} people={people} today={c.today} />
+                          </>
+                        )}
+                      </span>
+                    </div>
+                    {i.items.length === 0 ? (
+                      <p className="px-4 py-3 text-[13px] text-ink-3">No items yet.{i.draft ? " Add them before issuing it." : ""}</p>
+                    ) : (
+                      <Table minWidth={560}>
+                        <colgroup>
+                          <col style={{ width: 96 }} />
+                          <col />
+                          <col style={{ width: 80 }} />
+                          <col style={{ width: 128 }} />
+                          {i.draft && <ActionsCol icons={0} labelled={2} />}
+                        </colgroup>
+                        <THead>
+                          <Th>Code</Th>
+                          <Th>Description</Th>
+                          <Th>Unit</Th>
+                          <Th numeric>Rate (RM)</Th>
+                          {i.draft && <Th className="text-right">Actions</Th>}
+                        </THead>
+                        <tbody>
+                          {i.items.map((it) => (
+                            <Tr key={it.id}>
+                              <Td label="Code" className="font-mono text-[12.5px] text-ink-2">{it.code}</Td>
+                              <Td label="Description" className="break-words">{it.description}</Td>
+                              <Td label="Unit" className="text-ink-2">{it.unit ?? "—"}</Td>
+                              <Td label="Rate (RM)" numeric className="font-semibold text-ink">{it.rate}</Td>
+                              {i.draft && (
+                                <Td>
+                                  <RowActions>
+                                    <RateItemDrawer scheduleId={i.id} title={`${sch.label}, ${i.title}`} item={{ id: it.id, code: it.code, raw: it.raw }} />
+                                    <RemoveRateItemDrawer scheduleId={i.id} item={{ id: it.id, code: it.code }} />
+                                  </RowActions>
+                                </Td>
+                              )}
+                            </Tr>
+                          ))}
+                        </tbody>
+                      </Table>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
         </Section>
       </div>
     </>

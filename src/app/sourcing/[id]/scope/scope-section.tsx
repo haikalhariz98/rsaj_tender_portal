@@ -1,7 +1,8 @@
 import Link from "next/link";
 
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
-import { ClipboardIcon, ShieldIcon, UsersIcon } from "@/components/icons";
+import { DataList } from "@/components/data-list";
+import { ClipboardIcon, ScaleIcon, ShieldIcon, UsersIcon } from "@/components/icons";
 import { Badge, type Tone } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -9,9 +10,9 @@ import { Callout, EmptyState } from "@/components/ui/feedback";
 import { KeyValues } from "@/components/ui/stat";
 import { formatDate } from "@/lib/format";
 import type { scopeTab } from "@/lib/scope/read";
-import { SCOPE_CONFIG_PATH } from "@/lib/scope/labels";
+import { NOT_SET, SCOPE_CONFIG_PATH } from "@/lib/scope/labels";
 
-import { EditPanelDrawer, MarkVerifiedDrawer, VerifyColumnDrawer } from "./editors";
+import { EditPanelDrawer, MarkVerifiedDrawer, TableScopeDrawer, VerifyColumnDrawer } from "./editors";
 
 type Data = NonNullable<Awaited<ReturnType<typeof scopeTab>>>;
 
@@ -24,7 +25,7 @@ const levelTone = (l: string) => (l === "block" || l === "err" ? "err" : l === "
  * verified only with a live SULIT scan of its signed form.
  */
 export function ScopeSection({ d }: { d: Data }) {
-  const { panel, scope, readiness, exercise } = d;
+  const { panel, scope, readiness, exercise, approval } = d;
   const bqHref = `/sourcing/${exercise.id}?tab=scope&section=bq`;
   const columnsUnset = panel.id != null && panel.columns.length === 0;
   return (
@@ -143,6 +144,60 @@ export function ScopeSection({ d }: { d: Data }) {
           </EmptyState>
         </Card>
       )}
+
+      <Card className="overflow-hidden">
+        <CardHeader
+          icon={<ScaleIcon size={17} />}
+          title="Scope approval"
+          subtitle="Whether the finalised bill's scope is approved by the committee the sourcing method names, read from the decision at its sitting."
+          actions={<Badge tone={approval.badge.tone} dot>{approval.badge.label}</Badge>}
+        />
+        <CardBody className="flex flex-col gap-5">
+          <Callout tone={approval.state === "APPROVED" ? "ok" : approval.state === "NOT_REQUIRED" ? "neutral" : approval.badge.tone === "err" ? "err" : approval.state === "PENDING" ? "info" : "warn"}>{approval.line}</Callout>
+          <KeyValues
+            columns={3}
+            items={[
+              { label: "Approved by a committee", value: approval.rule.required === NOT_SET ? <span className="flex flex-col items-start gap-1"><Badge tone="warn">Not set</Badge><Link href={approval.configHref} className="text-[12.5px] font-semibold">Set it under Configuration</Link></span> : approval.rule.required },
+              { label: "Committee", value: approval.rule.committee ?? "—" },
+              { label: "Where the rule came from", value: approval.rule.provenance ?? "—" },
+            ]}
+          />
+          {/* Offered only where tabling is the next step; every other state's callout above says what is next. */}
+          {["NOT_TABLED", "DEFERRED", "OUTCOME_NOT_RECORDED"].includes(approval.state) && (
+            <div className="flex flex-wrap items-center gap-3">
+              <TableScopeDrawer exerciseId={exercise.id} table={approval.table} />
+            </div>
+          )}
+        </CardBody>
+        {approval.matters.length > 0 && (
+          <div className="border-t border-line">
+            <DataList
+              flat
+              selectable={false}
+              searchable={false}
+              toolbar={false}
+              exportName="scope-matters"
+              emptyTitle="Nothing tabled"
+              columns={[
+                { key: "version", label: "Bill", width: "14%", mobile: "primary" },
+                { key: "sitting", label: "Sitting", width: "26%", mobile: "meta" },
+                { key: "tabled", label: "Tabled", mobile: "meta" },
+                { key: "outcome", label: "Decision", width: "22%", mobile: "meta" },
+              ]}
+              rows={approval.matters.map((m) => ({
+                id: m.id,
+                search: `${m.version} ${m.sitting}`,
+                cells: {
+                  version: { kind: "text", text: m.version },
+                  sitting: { kind: "link", text: m.sitting, href: m.sittingHref, sub: m.committee },
+                  tabled: { kind: "text", text: m.tabledOn ? `${formatDate(m.tabledOn)}${m.tabledBy ? `, by ${m.tabledBy}` : ""}` : "—", dim: true },
+                  outcome: { kind: "badge", text: m.decidedOn ? `${m.outcome}, ${formatDate(m.decidedOn)}` : m.outcome, tone: m.outcomeTone === "neutral" ? undefined : m.outcomeTone },
+                },
+              }))}
+            />
+          </div>
+        )}
+      </Card>
 
       <Card>
         <CardHeader icon={<ShieldIcon size={17} />} title={readiness.heading} subtitle="What the documents' approval will look for. Nothing here stops anyone today." />

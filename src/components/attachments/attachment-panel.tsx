@@ -128,7 +128,13 @@ export function AttachmentPanel({
           actionsWidth={160}
           exportName="documents"
           emptyTitle="Nothing is attached yet"
-          emptyBody={slots.some((s) => s.state === "OPEN") ? "Upload one with the Upload button on its line above. It is stored, then attached to this record." : "Documents can be attached once the record allows it, as said above."}
+          emptyBody={
+            slots.some((s) => s.state === "OPEN" && s.attachedBy == null)
+              ? "Upload one with the Upload button on its line above. It is stored, then attached to this record."
+              : slots.length > 0 && slots.every((s) => s.attachedBy != null)
+                ? "Documents here are attached by the step named above, never uploaded on their own."
+                : "Documents can be attached once the record allows it, as said above."
+          }
           actions={(id) => <RowActions item={byId.get(id)!} owner={key} upload={upload} onNotice={setNotice} />}
         />
       </div>

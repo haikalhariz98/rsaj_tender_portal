@@ -221,7 +221,11 @@ export async function saveBqItem(_prev: FormState, data: FormData): Promise<Form
     // A rate from a schedule is taken from the issue in force on the organisation's day,
     // read in this transaction, and kept with what the issue said (priceFromSchedule).
     let priced: PricedFromSchedule | null = null;
-    if (scheduleItem) {
+    if (scheduleItem === "keep") {
+      // An edit that leaves a schedule-priced line's rate as it was priced: what the issue said then stands.
+      if (before?.rateSource !== "SCHEDULE" || !before.rateScheduleId || !before.rateItemCode || before.rate == null) return { ok: false, errors: { scheduleItem: scopeFaultText("CHANGED") } };
+      priced = { rate: parseSen(before.rate.toString()), rateScheduleId: before.rateScheduleId, rateItemCode: before.rateItemCode, scheduleLabelSnapshot: before.scheduleLabelSnapshot ?? "", scheduleIssueSnapshot: before.scheduleIssueSnapshot ?? "", scheduleEffectiveFromSnapshot: before.scheduleEffectiveFromSnapshot ? storedDay(before.scheduleEffectiveFromSnapshot) : "" };
+    } else if (scheduleItem) {
       const [issueId, code] = scheduleItem.split("|");
       const issues = await loadRateIssues(l.org.id, tx);
       const chosen = issues.find((i) => i.id === issueId);

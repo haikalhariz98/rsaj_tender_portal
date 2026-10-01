@@ -1,7 +1,7 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 
-import { saveBasisBqRule, saveBqTemplate, saveBqTemplateSection, saveMethodEstimateRule, savePersonQualification, saveQualification, saveScopePolicy, saveSpecPanelColumn } from "./actions";
+import { discardRateIssue, issueRateSchedule, removeRateItem, saveBasisBqRule, saveBqTemplate, saveBqTemplateSection, saveMethodEstimateRule, saveMethodScopeRule, savePersonQualification, saveQualification, saveRateItem, saveScopePolicy, saveSpecPanelColumn, startRateIssue } from "./actions";
 
 /**
  * Configuration › Scope and estimate drawers. No field carries a default: an unset value
@@ -213,6 +213,130 @@ export function ColumnDrawer({ units, c }: { units: Option[]; c?: { id: string; 
       submitLabel={c ? "Save" : "Add the column"}
       trigger={c ? { label: "Edit", className: ghost, ariaLabel: `Edit ${c.label}` } : { label: "Add a column", icon: true, className: secondary }}
       size="md"
+    />
+  );
+}
+
+// ------------------------------------------------------------------ increment 2
+
+/// OD-9: whether a method's scope is approved by a committee, and which. Not set blocks, naming this setting.
+export function EditMethodScopeRule({ id, name, raw, committees }: { id: string; name: string; raw: { scopeApprovalRequired: string; scopeApprovalProvenance: string; scopeCommitteeCode: string }; committees: Option[] }) {
+  return (
+    <RecordEditor
+      title={`Is the scope approved by a committee under ${name}?`}
+      description="Where it is, the finalised bill is tabled at a sitting of that committee and carried before the documents go for approval. Not set blocks that check, naming this setting; it is never read as No."
+      fields={[
+        hidden("id"),
+        { kind: "select", name: "scopeApprovalRequired", label: "Scope approved by a committee", required: true, placeholder: "Choose", placeholderDisabled: true, options: [...TRI, { value: "unset", label: "Not set" }] },
+        { kind: "select", name: "scopeCommitteeCode", label: "The committee that approves it", placeholder: "Not set", options: committees, hint: "Left empty with Yes, the check reads “Committee not set” and blocks." },
+        provenance("scopeApprovalProvenance", "Where this came from", false),
+        { kind: "note", text: "Say where the answer came from whenever it is Yes or No." },
+      ]}
+      values={{ id, ...raw }}
+      showWhen={{ scopeCommitteeCode: { name: "scopeApprovalRequired", in: ["yes"] } }}
+      action={saveMethodScopeRule}
+      submitLabel="Save"
+      trigger={{ label: "Edit", className: ghost, ariaLabel: `Edit the scope approval rule for ${name}` }}
+      size="md"
+    />
+  );
+}
+
+/// FR-EST-004: a new schedule, or the next issue of one (its items copied from the latest issue).
+export function StartRateIssueDrawer({ label }: { label?: string }) {
+  return (
+    <RecordEditor
+      title={label ? `Start the next issue of ${label}` : "Add a schedule of rates"}
+      description={label ? "A draft, with the latest issue's items copied in to edit. It takes effect only when it is issued." : "A draft first issue. Add its items, then issue it with the day it takes effect from."}
+      fields={[
+        ...(label ? [hidden("label")] : [{ kind: "text", name: "label", label: "Schedule", required: true, hint: "As the organisation names it." } as Field]),
+        provenance("provenance", "Where its rates come from", true),
+        { kind: "text", name: "governingSource", label: "Governing source", hint: "The circular or letter that issues it, if any." },
+        { kind: "textarea", name: "notes", label: "Notes" },
+      ]}
+      values={label ? { label } : undefined}
+      action={startRateIssue}
+      submitLabel={label ? "Start the issue" : "Add the schedule"}
+      trigger={label ? { label: "Next issue", className: secondary, ariaLabel: `Start the next issue of ${label}` } : { label: "Add a schedule", icon: true, className: secondary }}
+      size="md"
+    />
+  );
+}
+
+export function RateItemDrawer({ scheduleId, title, item }: { scheduleId: string; title: string; item?: { id: string; code: string; raw: Record<string, string> } }) {
+  return (
+    <RecordEditor
+      title={item ? `Edit item ${item.code}` : `Add an item to ${title}`}
+      description="An issued issue is never changed; its items are edited only while it is a draft."
+      columns={2}
+      fields={[
+        hidden("scheduleId"),
+        hidden("itemId"),
+        { kind: "text", name: "code", label: "Code", required: true, mono: true },
+        { kind: "text", name: "unit", label: "Unit", placeholder: "e.g. m, m³, item" },
+        { kind: "textarea", name: "descriptionEn", label: "Description", required: true },
+        { kind: "money", name: "rate", label: "Rate", required: true },
+        { kind: "number", name: "sortOrder", label: "Order", min: 0 },
+      ]}
+      values={{ scheduleId, itemId: item?.id ?? "", ...(item?.raw ?? {}) }}
+      action={saveRateItem}
+      submitLabel={item ? "Save the item" : "Add the item"}
+      trigger={item ? { label: "Edit", className: ghost, ariaLabel: `Edit item ${item.code}` } : { label: "Add an item", icon: true, className: secondary, ariaLabel: `Add an item to ${title}` }}
+      size="lg"
+    />
+  );
+}
+
+export function RemoveRateItemDrawer({ scheduleId, item }: { scheduleId: string; item: { id: string; code: string } }) {
+  return (
+    <RecordEditor
+      title={`Remove item ${item.code}`}
+      description="Taken off the draft issue. Its whole row is kept in the history."
+      fields={[hidden("scheduleId"), hidden("itemId")]}
+      values={{ scheduleId, itemId: item.id }}
+      danger
+      cancelLabel="Keep the item"
+      action={removeRateItem}
+      submitLabel="Remove the item"
+      trigger={{ label: "Remove", className: buttonClass("destructive", "sm"), ariaLabel: `Remove item ${item.code}` }}
+      size="sm"
+    />
+  );
+}
+
+export function IssueRateScheduleDrawer({ scheduleId, title, people, today }: { scheduleId: string; title: string; people: Option[]; today: string | null }) {
+  return (
+    <RecordEditor
+      title={`Issue ${title}`}
+      description="From the day it takes effect, lines priced from this schedule take its rates. The issue in force before it is superseded today; lines already priced from it keep what it said."
+      fields={[
+        hidden("scheduleId"),
+        { kind: "date", name: "effectiveFrom", label: "Takes effect from", required: true, hint: "The organisation's day. After the day the current issue took effect." },
+        { kind: "select", name: "issuedByPersonId", label: "Issued by", required: true, placeholder: "Choose", options: people, hint: "Recorded on their behalf, not signed." },
+        ...(today ? [] : [{ kind: "note", text: "Set the organisation's time zone under Configuration, Organisation first: the day it is issued is the organisation's." } as Field]),
+      ]}
+      values={{ scheduleId }}
+      action={issueRateSchedule}
+      submitLabel="Issue it"
+      trigger={{ label: "Issue", className: buttonClass("primary", "sm"), ariaLabel: `Issue ${title}` }}
+      size="md"
+    />
+  );
+}
+
+export function DiscardRateIssueDrawer({ scheduleId, title }: { scheduleId: string; title: string }) {
+  return (
+    <RecordEditor
+      title={`Discard the draft ${title}`}
+      description="The draft and its items are removed. Every row is kept in the history. An issued issue is never discarded."
+      fields={[hidden("scheduleId")]}
+      values={{ scheduleId }}
+      danger
+      cancelLabel="Keep the draft"
+      action={discardRateIssue}
+      submitLabel="Discard the draft"
+      trigger={{ label: "Discard", className: buttonClass("destructive", "sm"), ariaLabel: `Discard the draft ${title}` }}
+      size="sm"
     />
   );
 }

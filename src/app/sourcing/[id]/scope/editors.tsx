@@ -18,6 +18,7 @@ import {
   savePanel,
   startBq,
   startBqRevision,
+  tableScope,
   voidEstimate,
 } from "./actions";
 
@@ -233,17 +234,23 @@ export function ItemDrawer({
   sectionId,
   sectionName,
   item,
+  scheduleItems = [],
 }: {
   exerciseId: string;
   versionId: string;
   sections: Option[];
   kinds: Option[];
+  /// FR-EST-004: items of the schedules in force today, as "<issue>|<code>".
+  scheduleItems?: Option[];
   /// The section a new line starts in.
   sectionId: string;
   /// Names the section on the button for a screen reader, where every section has an "Add a line".
   sectionName?: string;
-  item?: { id: string; label: string; raw: { itemRef: string; description: string; unit: string; kind: string; quantity: string; rate: string; provisional: boolean; sortOrder: string } };
+  item?: { id: string; label: string; raw: { itemRef: string; description: string; unit: string; kind: string; quantity: string; rate: string; provisional: boolean; sortOrder: string; scheduleItem?: string } };
 }) {
+  // A line already priced from a schedule may keep that pricing as it stands (the issue it came from may have been superseded since).
+  const keep: Option[] = item?.raw.scheduleItem === "keep" ? [{ value: "keep", label: "Keep the rate as priced from the schedule" }] : [];
+  const scheduleOptions = [...keep, ...scheduleItems];
   return (
     <RecordEditor
       title={item ? `Edit line ${item.label}` : "Add a line"}
@@ -259,7 +266,10 @@ export function ItemDrawer({
         { kind: "text", name: "unit", label: "Unit", placeholder: "e.g. m, m³, item" },
         { kind: "select", name: "kind", label: "Kind of line", required: true, placeholder: "Choose", options: kinds },
         { kind: "text", name: "quantity", label: "Quantity", hint: "Up to three decimal places. Prime cost and provisional sums have none." },
-        { kind: "money", name: "rate", label: "Rate" },
+        ...(scheduleOptions.length > 0
+          ? [{ kind: "select", name: "scheduleItem", label: "Rate from a schedule", placeholder: "No: the rate is entered below", options: scheduleOptions, hint: "The rate of the issue in force today, kept with the line. A later issue never changes it." } as Field]
+          : []),
+        { kind: "money", name: "rate", label: "Rate", hint: scheduleOptions.length > 0 ? "Entered by hand. Ignored where a schedule item is chosen above." : undefined },
         { kind: "switch", name: "provisional", label: "Provisional quantity", hint: "Measured work only: the quantity may change when it is measured on site." },
         { kind: "number", name: "sortOrder", label: "Order", min: 0 },
       ]}
@@ -447,6 +457,36 @@ export function VoidEstimateDrawer({ exerciseId, estimateId, preparerName, peopl
       submitLabel="Void the company estimate"
       cancelLabel="Keep the estimate"
       trigger={{ label: "Void the company estimate", className: buttonClass("destructive", "sm") }}
+      size="md"
+    />
+  );
+}
+
+
+/// OD-9, FR-REQ-014: table the finalised bill's scope at a sitting of the committee the method names.
+export function TableScopeDrawer({
+  exerciseId,
+  table,
+}: {
+  exerciseId: string;
+  table: { allowed: Allowed; versionId: string | null; versionNo: number | null; committee: string | null; sittings: Option[]; holders: Option[]; acts: Option[] };
+}) {
+  if (!table.allowed.allowed || !table.versionId) return <Blocked label="Table the scope" reason={table.allowed.allowed ? "There is no finalised bill to table." : table.allowed.reason} primary />;
+  return (
+    <RecordEditor
+      title={`Table version ${table.versionNo} of the bill for scope approval`}
+      description={`A matter at a sitting of the ${table.committee ?? "committee"}, naming this version. It is decided there; tabling is by a holder of the committee's Secretariat office, recorded on their behalf, not signed.`}
+      fields={[
+        hidden("exerciseId"),
+        hidden("versionId"),
+        { kind: "select", name: "meetingId", label: "Sitting", required: true, placeholder: "Choose", options: table.sittings, hint: "Sittings of the committee that are scheduled or in progress." },
+        { kind: "select", name: "act", label: "The committee's act", required: true, placeholder: "Choose", options: table.acts },
+        { kind: "select", name: "tabledByPersonId", label: "Tabled by", required: true, placeholder: table.holders.length === 0 ? "Nobody holds the Secretariat office" : "Choose", options: table.holders },
+      ]}
+      values={{ exerciseId, versionId: table.versionId }}
+      action={tableScope}
+      submitLabel="Table the scope"
+      trigger={{ label: "Table the scope", className: buttonClass("primary", "sm") }}
       size="md"
     />
   );

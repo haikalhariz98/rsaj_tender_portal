@@ -133,7 +133,8 @@ export type ScopeCode =
   | "FILE_UNREADABLE"
   | "FILE_REFUSED"
   | "DRAFT_NOT_EMPTY"
-  | "NO_DRAFT";
+  | "NO_DRAFT"
+  | "NO_OPEN_SITTING";
 
 const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | number | null>) => string)>> = {
   // bq.ts
@@ -246,6 +247,7 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   FILE_REFUSED: "The file was not imported. Correct it and upload it again.",
   DRAFT_NOT_EMPTY: "The draft already has lines. Tick “Replace the draft's lines” to import over them, or remove them first.",
   NO_DRAFT: "A file is imported into a draft. Start the bill, or a revision of it, first.",
+  NO_OPEN_SITTING: (d) => `No sitting of the ${d.committee ?? "committee"} is scheduled or in progress. Schedule one under Committees, then table the scope there.`,
 };
 
 export const SCOPE_CODES = Object.keys(TEXT) as ScopeCode[];
@@ -355,3 +357,7 @@ export const keyedMismatchText = (m: { line: number; keyed: Sen; computed: Sen |
 /// The Bill of quantities section's words for import and export.
 export const CSV_IMPORT_NOTE = "The file is kept with this version of the bill, as received. Amounts are worked out from quantity and rate; an Amount column is only compared, and differences are listed.";
 export const CSV_EXPORT_NOTE = "Built by the portal from the bill's lines only, and recorded in its history. The unpriced file has no rate or amount column.";
+
+/// A scope matter's bill version, as the sitting names it beside the exercise's reference.
+export const scopeMatterRecordNote = (v: { versionNo: number; status: BqStatus }) =>
+  `bill of quantities, version ${v.versionNo}${v.status === "SUPERSEDED" ? ", since superseded by a revision" : ""}`;

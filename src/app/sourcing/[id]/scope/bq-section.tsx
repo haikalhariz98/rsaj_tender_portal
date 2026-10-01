@@ -8,6 +8,9 @@ import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/c
 import { formatDate } from "@/lib/format";
 import type { bqTab } from "@/lib/scope/read";
 
+import { OwnerAttachments } from "@/components/attachments/owner-attachments";
+
+import { ExportCsvForm, ImportCsvDrawer } from "./csv-tools";
 import { EditBqHeaderDrawer, FinaliseBqDrawer, ItemDrawer, RemoveItemDrawer, RemoveSectionDrawer, ReviseBqDrawer, SectionDrawer, StartBqDrawer } from "./editors";
 
 type Data = NonNullable<Awaited<ReturnType<typeof bqTab>>>;
@@ -32,7 +35,7 @@ export function BqSection({ d }: { d: Data }) {
         <Card>
           <CardHeader icon={<ScaleIcon size={17} />} title="Bill of quantities" subtitle="Sections of measured work, prime cost sums and provisional sums, each priced from a quantity and a rate." />
           <EmptyState size="sm" title="No bill of quantities yet" action={<StartBqDrawer exerciseId={exerciseId} templates={d.options.templates} allowed={d.actions.start} />}>
-            Start a draft and enter its sections and lines by hand. It is finalised, with its preparer&apos;s qualification checked, before the documents go for approval.
+            Start a draft, then enter its sections and lines by hand or import them from a CSV file. It is finalised, with its preparer&apos;s qualification checked, before the documents go for approval.
           </EmptyState>
         </Card>
       </div>
@@ -126,7 +129,7 @@ export function BqSection({ d }: { d: Data }) {
                 actions={
                   editable ? (
                     <span className="flex flex-wrap items-center gap-1">
-                      <ItemDrawer exerciseId={exerciseId} versionId={v.id} sections={sections} kinds={d.options.kinds} sectionId={s.id} sectionName={s.number} />
+                      <ItemDrawer exerciseId={exerciseId} versionId={v.id} sections={sections} kinds={d.options.kinds} sectionId={s.id} sectionName={s.number} scheduleItems={d.options.scheduleItems} />
                       <SectionDrawer exerciseId={exerciseId} versionId={v.id} section={{ id: s.id, number: s.number, title: s.title, sortOrder: s.sortOrder }} />
                       <RemoveSectionDrawer exerciseId={exerciseId} versionId={v.id} section={{ id: s.id, number: s.number, title: s.title }} lines={s.items.length} />
                     </span>
@@ -178,7 +181,7 @@ export function BqSection({ d }: { d: Data }) {
                         {editable && (
                           <Td>
                             <RowActions>
-                              <ItemDrawer exerciseId={exerciseId} versionId={v.id} sections={sections} kinds={d.options.kinds} sectionId={s.id} item={{ id: i.id, label: itemLabel(i), raw: i.raw }} />
+                              <ItemDrawer exerciseId={exerciseId} versionId={v.id} sections={sections} kinds={d.options.kinds} sectionId={s.id} item={{ id: i.id, label: itemLabel(i), raw: i.raw }} scheduleItems={d.options.scheduleItems} />
                               <RemoveItemDrawer exerciseId={exerciseId} versionId={v.id} itemId={i.id} label={itemLabel(i)} />
                             </RowActions>
                           </Td>
@@ -197,6 +200,37 @@ export function BqSection({ d }: { d: Data }) {
           )}
         </>
       )}
+
+      <Card>
+        <CardHeader icon={<FileIcon size={17} />} title="CSV and schedules of rates" subtitle="Import the department's bill into the draft, or export a version, built by the portal. Rates may be taken from a schedule in force." />
+        <CardBody className="flex flex-col gap-5">
+          <div className="flex flex-col gap-2">
+            <p className="text-[12px] font-semibold text-ink-3">Import</p>
+            <p className="text-[13px] text-ink-2">{d.csv.importNote}</p>
+            <div className="flex flex-wrap items-center gap-3">
+              <ImportCsvDrawer exerciseId={exerciseId} draft={d.csv.draft} upload={d.csv.upload} allowed={d.csv.import} note={d.csv.importNote} />
+              {!d.csv.import.allowed && <span className="text-[13px] text-ink-3">{d.csv.import.reason}</span>}
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 border-t border-line pt-5">
+            <p className="text-[12px] font-semibold text-ink-3">Export</p>
+            <ExportCsvForm exerciseId={exerciseId} versions={d.csv.exportable} note={d.csv.exportNote} />
+          </div>
+          <div className="flex flex-col gap-1 border-t border-line pt-5">
+            <p className="text-[12px] font-semibold text-ink-3">Schedules of rates</p>
+            <p className="text-[13px] text-ink-2">{d.schedulesNote}</p>
+          </div>
+        </CardBody>
+      </Card>
+
+      <OwnerAttachments
+        owner={{ kind: "bqVersion", id: v.id }}
+        title={`Files version ${v.versionNo} was imported from`}
+        subtitle="Kept as received, with the class the officer chose. Lines imported from a file stand on it: it is replaced only by importing again."
+        only={["BQ_IMPORT_SOURCE"]}
+        attachedBy={{ BQ_IMPORT_SOURCE: "Attached by Import from CSV, above, in the same step as the lines." }}
+        statuses={{ BQ_IMPORT_SOURCE: { text: "None: entered by hand", tone: "neutral" } }}
+      />
 
       <Card className="overflow-hidden">
         <CardHeader icon={<ClipboardIcon size={17} />} title="Versions" subtitle="A finalised version is never changed. A revision is a new draft that replaces it when it is finalised." divided={false} />
