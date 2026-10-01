@@ -17,6 +17,7 @@ import { cx } from "@/components/ui/cx";
 import { EmptyState, Meter } from "@/components/ui/feedback";
 import { Select } from "@/components/ui/select";
 import { formatRM } from "@/lib/format";
+import { needsPaging, PAGE_SIZES } from "@/lib/paging";
 
 /**
  * The list chrome around every table: a view selector, search, sort, row selection,
@@ -335,6 +336,8 @@ export function DataList({
     return out;
   }, [rows, view, query, sort, chosen]);
 
+  // Paging controls say nothing when everything fits on one page at every size.
+  const showFooter = needsPaging(visible.length);
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
   const current = Math.min(page, pageCount - 1);
   const start = current * pageSize;
@@ -750,7 +753,7 @@ export function DataList({
         </>
       )}
 
-      {visible.length > 0 && (
+      {showFooter && (
         <div className="flex flex-wrap items-center gap-3 border-t border-line px-4 py-3 text-[13px] text-ink-3 sm:px-5">
           <span className="tabular-nums">
             {`Showing ${start + 1}-${Math.min(start + pageSize, visible.length)} of ${visible.length}`}
@@ -767,7 +770,7 @@ export function DataList({
                 setPage(0);
               }}
             >
-              {[10, 25, 50].map((n) => (
+              {PAGE_SIZES.map((n) => (
                 <option key={n} value={String(n)}>
                   {n}
                 </option>
