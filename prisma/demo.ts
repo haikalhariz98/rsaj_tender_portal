@@ -4,6 +4,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 
 import { loadAwards, loadAwardSetup, wipeAwards } from "./demo-award";
+import { loadSittingTrail } from "./demo-sitting-trail";
 
 /**
  * A demonstration dataset, loaded deliberately and never by default.
@@ -955,7 +956,10 @@ async function load() {
   await loadAwards(db, organisationId);
   await nameRouteTrail(organisationId);
   await loadCloseout(organisationId);
-  await snapshotMinuted([`${P}mt2`, `${P}mt5`, `${P}mt6`, `${P}mt7`, `${P}mt8`, `${P}mt9`]);
+  const minuted = [`${P}mt2`, `${P}mt5`, `${P}mt6`, `${P}mt7`, `${P}mt8`, `${P}mt9`];
+  // Their History: the trail the sitting actions would have written (6.10 local review 4).
+  await loadSittingTrail(db, organisationId, minuted);
+  await snapshotMinuted(minuted);
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
   console.log("Remove it with: npm run demo:wipe");

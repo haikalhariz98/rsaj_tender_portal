@@ -42,6 +42,7 @@ import type { VotingSeat } from "@/lib/committee/sitting";
 import { loadSitting, sittingHistory, type LoadedSitting } from "@/lib/committee/sittings";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 import { actWithCode, matterLabel } from "@/lib/labels";
+import { formatMoney, parseSen } from "@/lib/money";
 
 import {
   CancelSitting,
@@ -706,6 +707,8 @@ function HistoryPanel({
     if (field === "outcome") return OUTCOME_LABEL[value as keyof typeof OUTCOME_LABEL] ?? value;
     if (field === "choice") return CHOICE_LABEL[value] ?? value;
     if (field === "act") return actWithCode(value);
+    // Money is recorded as typed; it reads as the portal writes money everywhere.
+    if (field === "amount" && /^\d+(\.\d{1,2})?$/.test(value)) return formatMoney(parseSen(value));
     if (field === "domain") return matterLabel(value);
     if (field === "matterKind") return MATTER_KIND_LABEL[value as keyof typeof MATTER_KIND_LABEL] ?? value;
     if (field === "votingRule") return VOTING_RULE_LABEL[value as keyof typeof VOTING_RULE_LABEL] ?? value;
