@@ -98,6 +98,7 @@ export const MEDIA_LABEL: Readonly<Record<string, string>> = {
   "image/png": "PNG image",
   "image/jpeg": "JPEG image",
   "image/tiff": "TIFF image",
+  "text/csv": "CSV file",
   "application/zip": "ZIP archive or Office file",
   "text/html": "web page",
   "image/svg+xml": "SVG drawing",

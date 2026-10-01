@@ -91,3 +91,46 @@ describe("refusing what the policy or the bytes do not allow", () => {
     expect(unknownPolicyTypes(["application/pdf", "application/msword"])).toEqual(["application/msword"]);
   });
 });
+
+describe("a CSV is told by its bytes (6.2 Q-3, the bill of quantities as received)", () => {
+  const CSV = bytes("Section,Item,Description,Unit,Kind,Quantity,Rate\r\n1,1.1,Preliminaries,item,MEASURED,1,45000.00\r\n");
+  const csvPolicy: StorePolicy = { ...policy, allowedMediaTypes: [...policy.allowedMediaTypes, "text/csv"] };
+
+  it("clean UTF-8 whose first line has a comma is a CSV, with or without a byte-order mark", () => {
+    expect(sniffMediaType(CSV)).toBe("text/csv");
+    expect(sniffMediaType(bytes(0xef, 0xbb, 0xbf, "a,b\n1,2"))).toBe("text/csv");
+    expect(sniffMediaType(bytes("Kerja paip,m,1250.5\n"))).toBe("text/csv");
+  });
+  it("text with no comma on its first line, binary bytes and broken UTF-8 are not", () => {
+    expect(sniffMediaType(bytes("Just some text"))).toBeNull();
+    expect(sniffMediaType(bytes("heading only\na,b"))).toBeNull();
+    expect(sniffMediaType(bytes("a,b", 0x00, "c"))).toBeNull();
+    expect(sniffMediaType(bytes("a,b", 0x1b, "[31m"))).toBeNull();
+    expect(sniffMediaType(bytes("a,b", 0xff, 0xfe))).toBeNull();
+    expect(sniffMediaType(bytes("   \n  "))).toBeNull();
+  });
+  it("a multi-byte character cut off at the end of the window is not held against the file", () => {
+    const head = bytes("a,b\n", ..."é".repeat(300).split("").flatMap((c) => [...Buffer.from(c, "utf8")])).subarray(0, 511);
+    expect(sniffMediaType(head)).toBe("text/csv");
+  });
+  it("markup named .csv is still refused as markup", () => {
+    const html = bytes("<html><body>a,b</body></html>");
+    expect(sniffMediaType(html)).toBe("text/html");
+    expect(mediaFault(sniffMediaType(html), { filename: "bill.csv" }, csvPolicy)?.code).toBe("MARKUP_NEVER_ACCEPTED");
+  });
+  it("is refused where the policy leaves CSV out, and accepted where it lists it", () => {
+    expect(mediaFault(sniffMediaType(CSV), { filename: "bill.csv" }, policy)?.code).toBe("TYPE_NOT_ALLOWED");
+    expect(mediaFault(sniffMediaType(CSV), { filename: "bill.csv", contentType: "text/csv" }, csvPolicy)).toBeNull();
+  });
+  it("what browsers declare for a .csv is taken as CSV; a CSV called .pdf is not", () => {
+    for (const declared of ["application/vnd.ms-excel", "text/plain", "application/csv", "text/x-csv"]) {
+      expect(mediaFault(sniffMediaType(CSV), { filename: "bill.csv", contentType: declared }, csvPolicy), declared).toBeNull();
+    }
+    expect(mediaFault(sniffMediaType(CSV), { filename: "bill.pdf" }, csvPolicy)?.code).toBe("DECLARED_TYPE_MISMATCH");
+    expect(mediaFault(sniffMediaType(PDF), { filename: "a.pdf", contentType: "application/vnd.ms-excel" }, csvPolicy)?.code).toBe("DECLARED_TYPE_MISMATCH");
+    expect(typeFromName("BILL.CSV")).toBe("text/csv");
+  });
+  it("a policy may list CSV", () => {
+    expect(unknownPolicyTypes(["text/csv"])).toEqual([]);
+  });
+});

@@ -27,7 +27,29 @@ export function sniffMediaType(head: Uint8Array): Sniffed {
   const text = new TextDecoder("utf-8", { fatal: false }).decode(head.subarray(0, SNIFF_BYTES)).replace(/^﻿/, "").trimStart().toLowerCase();
   if (text.startsWith("<svg") || (text.startsWith("<?xml") && text.includes("<svg"))) return "image/svg+xml";
   if (/^<(!doctype html|html|head|body|script|iframe|a\s|div|p>|meta|title|style|!--)/.test(text)) return "text/html";
+  if (looksLikeCsv(head)) return "text/csv";
   return null;
+}
+
+/**
+ * CSV has no signature, so it is told by what it is not (6.2 Q-3): the opening bytes are
+ * valid UTF-8 (a character cut off at the end of the window is not held against it), carry
+ * no control character other than tab, carriage return and line feed, and the first line
+ * holds a comma, the delimiter. Plain prose with no comma on its first line is not a CSV.
+ * Judged after the markup checks, so a page of HTML named `.csv` is still refused as markup.
+ */
+function looksLikeCsv(head: Uint8Array): boolean {
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(head, { stream: true });
+  } catch {
+    return false;
+  }
+  text = text.replace(/^\uFEFF/, "");
+  if (!text.trim()) return false;
+  if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(text)) return false;
+  const firstLine = text.split(/\r?\n/, 1)[0];
+  return firstLine.includes(",");
 }
 
 const EXTENSION_TYPE: Readonly<Record<string, KnownMediaType>> = {
@@ -38,6 +60,7 @@ const EXTENSION_TYPE: Readonly<Record<string, KnownMediaType>> = {
   jpe: "image/jpeg",
   tif: "image/tiff",
   tiff: "image/tiff",
+  csv: "text/csv",
 };
 
 /// The type a file's name claims, by its extension. Null: no extension the product knows.
@@ -46,11 +69,17 @@ export function typeFromName(filename: string): KnownMediaType | null {
   return m ? (EXTENSION_TYPE[m[1].toLowerCase()] ?? null) : null;
 }
 
+const CSV_ALIASES = ["application/vnd.ms-excel", "application/csv", "text/x-csv", "text/comma-separated-values", "text/plain"];
+
 /// The type the client declared, normalised. Null where it declared nothing useful.
 export function typeFromHeader(contentType: string | null | undefined): string | null {
   const t = (contentType ?? "").split(";")[0].trim().toLowerCase();
   if (!t || t === "application/octet-stream") return null;
-  return t === "image/jpg" || t === "image/pjpeg" ? "image/jpeg" : t;
+  if (t === "image/jpg" || t === "image/pjpeg") return "image/jpeg";
+  // What browsers declare for a .csv: Windows with Excel installed says "an Excel file" for
+  // it. The bytes have already been read as CSV, so these are only other names for it.
+  if (CSV_ALIASES.includes(t)) return "text/csv";
+  return t;
 }
 
 export type MediaFault =

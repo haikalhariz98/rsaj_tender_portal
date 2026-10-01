@@ -75,4 +75,5 @@ export const EXTENSION_FOR: Readonly<Record<string, string>> = {
   "image/png": "png",
   "image/jpeg": "jpg",
   "image/tiff": "tif",
+  "text/csv": "csv",
 };

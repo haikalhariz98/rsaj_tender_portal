@@ -79,7 +79,9 @@ export const PURPOSE_CLASSIFICATION: Readonly<Partial<Record<AttachmentPurpose, 
 
 /// The types the product can tell from a file's own bytes. Office files and ZIP are not
 /// among them: a ZIP signature cannot tell a DOCX from anything else. HTML and SVG never.
-export const KNOWN_MEDIA_TYPES = ["application/pdf", "image/png", "image/jpeg", "image/tiff"] as const;
+/// CSV (6.2 Q-3, a bill of quantities as received) is told by its bytes being clean UTF-8
+/// text whose first line has a comma (`sniffMediaType`).
+export const KNOWN_MEDIA_TYPES = ["application/pdf", "image/png", "image/jpeg", "image/tiff", "text/csv"] as const;
 export type KnownMediaType = (typeof KNOWN_MEDIA_TYPES)[number];
 export const isKnownMediaType = (t: string): t is KnownMediaType => (KNOWN_MEDIA_TYPES as readonly string[]).includes(t);
 
