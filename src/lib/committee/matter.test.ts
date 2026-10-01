@@ -11,6 +11,7 @@ import {
   type MatterInput,
 } from "./matter";
 import { tallyVotes, type VoteChoice } from "./quorum";
+import { blockerShort as shortReason } from "./labels";
 
 /*
  * A body of three voting seats (A, B, C) unless a case says otherwise. Quorum and
@@ -416,5 +417,68 @@ describe("withdrawing a matter from the agenda (6.10 follow-up, 6.11 BD-31)", ()
     expect(liveOutcomes([{ outcome: "PENDING", withdrawnAt: new Date() }, { outcome: "CARRIED", withdrawnAt: null }])).toEqual(["CARRIED"]);
     expect(canVote({ meetingStatus: "IN_PROGRESS", meetingDate: new Date("2026-10-01"), today: "2026-10-01", outcome: "PENDING", tabled: true, personId: "p1", presentVoterIds: ["p1"], recusedIds: [], choice: "SETUJU", votedAt: "2026-10-01", withdrawn: true })).toEqual({ ok: false, fault: "MATTER_WITHDRAWN" });
     expect(checkRecusal({ meetingStatus: "SCHEDULED", outcome: "PENDING", role: "VOTING", alreadyRecused: false, hasVoted: false, withdrawn: true })).toEqual({ ok: false, fault: "MATTER_WITHDRAWN" });
+  });
+});
+
+describe("assessMatter: a sitting that has not started (6.10 local review 1)", () => {
+  // Scheduled: nobody recorded present, nobody voted. The same inputs on a sitting in
+  // progress are a real shortfall; before it opens they are only the absence of a register.
+  const empty: MatterInput = { ...base, quorum: 2, occupants: [], votes: [] };
+
+  it("in progress, an empty register is not quorate and votes are outstanding", () => {
+    const a = assessMatter({ ...empty, sittingStatus: "IN_PROGRESS" });
+    expect(a.registerTaken).toBe(true);
+    expect(a.blockers).toContain("QUORUM_NOT_MET");
+    expect(a.blockers).toContain("VOTES_OUTSTANDING");
+    expect(a.messageEn).toContain("0 of 2");
+    expect(a.messageEn).toContain("2 short");
+  });
+
+  it("absent a status, the matter is judged as open (the write paths)", () => {
+    expect(assessMatter(empty).blockers).toEqual(assessMatter({ ...empty, sittingStatus: "IN_PROGRESS" }).blockers);
+    expect(assessMatter(empty).registerTaken).toBe(true);
+  });
+
+  it("scheduled, it says the sitting has not started instead of not quorate", () => {
+    const a = assessMatter({ ...empty, sittingStatus: "SCHEDULED" });
+    expect(a.registerTaken).toBe(false);
+    expect(a.canRecord).toBe(false);
+    expect(a.blockers).toEqual(["SITTING_NOT_STARTED"]);
+    expect(a.blockers).not.toContain("QUORUM_NOT_MET");
+    expect(a.blockers).not.toContain("VOTES_OUTSTANDING");
+    expect(a.messageEn).toContain("has not started");
+    expect(a.messageEn).not.toContain("short");
+    expect(shortReason(a)).toBe("The sitting has not started");
+  });
+
+  it("scheduled, a mandatory act is not yet short of its full body", () => {
+    const a = assessMatter({ ...empty, act: "MR", sittingStatus: "SCHEDULED" });
+    expect(a.uncoveredSeatIds).toHaveLength(3);
+    expect(a.blockers).toEqual(["SITTING_NOT_STARTED"]);
+    const open = assessMatter({ ...empty, act: "MR", sittingStatus: "IN_PROGRESS" });
+    expect(open.blockers).toContain("MANDATORY_ACT_NOT_FULL_BODY");
+  });
+
+  it("scheduled, what configuration and the agenda settle still blocks", () => {
+    const a = assessMatter({ ...empty, quorum: null, votingRule: null, tabled: false, dependencyOutcome: "PENDING", sittingStatus: "SCHEDULED" });
+    expect(a.blockers).toEqual([
+      "SITTING_NOT_STARTED",
+      "NOT_TABLED",
+      "DEPENDENCY_PENDING",
+      "QUORUM_UNCONFIGURED",
+      "VOTING_RULE_UNCONFIGURED",
+    ]);
+    expect(a.quorum.state).toBe("UNCONFIGURED");
+  });
+
+  it("scheduled, the unanswered alternate question still blocks", () => {
+    const withAlt = { ...empty, seats: [...seats("A", "C"), { seatId: "seat-B", holderId: "B", hasAlternate: true }] };
+    const a = assessMatter({ ...withAlt, recusedIds: ["B"], sittingStatus: "SCHEDULED" });
+    expect(a.blockers).toEqual(["SITTING_NOT_STARTED", "ALTERNATE_FOR_RECUSED_UNCONFIGURED"]);
+  });
+
+  it("minuted and cancelled sittings keep their register", () => {
+    expect(assessMatter({ ...empty, sittingStatus: "MINUTED" }).registerTaken).toBe(true);
+    expect(assessMatter({ ...empty, sittingStatus: "CANCELLED" }).blockers).toContain("QUORUM_NOT_MET");
   });
 });

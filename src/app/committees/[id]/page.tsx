@@ -105,6 +105,9 @@ export default async function SittingPage({
     <span className="inline-flex items-center gap-1.5">
       Quorum <Badge tone="warn">Not set</Badge>
     </span>
+  ) : !a.registerTaken ? (
+    // Not started: no register yet, so the requirement only, never "0 of N present".
+    <span>Quorum {quorum} required</span>
   ) : (
       <span className="inline-flex items-center gap-2">
         <span>
@@ -381,6 +384,7 @@ function AgendaPanel({ s, prefill }: { s: LoadedSitting; prefill?: Record<string
       messageEn: assessment.messageEn,
       quorumMessage: assessment.quorum.messageEn,
       tally: assessment.tally,
+      registerTaken: assessment.registerTaken,
       ineligibleVotes,
       decided,
     };

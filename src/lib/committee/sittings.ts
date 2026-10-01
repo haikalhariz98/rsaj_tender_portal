@@ -169,7 +169,7 @@ export async function loadSitting(id: string, client: Tx = db, preloaded?: Roste
   const register = snapshot
     ? snapshot.register
     : resolveRegister({ meetingDate: meeting.meetingDate, seats: c.members, roster, attendance: meeting.attendance });
-  const assessment = assessFromRegister(register, rules, matters);
+  const assessment = assessFromRegister(register, rules, matters, meeting.status);
 
   const names: Record<string, string> = snapshot
     ? { ...Object.fromEntries(roster.people.map((p) => [p.id, p.name])), ...snapshot.names }

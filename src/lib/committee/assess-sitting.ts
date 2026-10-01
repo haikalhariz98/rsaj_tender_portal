@@ -12,7 +12,7 @@
 
 import type { Roster } from "@/lib/people/roster";
 
-import { assessMatter, type DecisionOutcome, type MatterAssessment, type VotingRule } from "./matter";
+import { assessMatter, type DecisionOutcome, type MatterAssessment, type MeetingStatus, type VotingRule } from "./matter";
 import type { VoteChoice } from "./quorum";
 import {
   alternatesOn,
@@ -63,6 +63,9 @@ export interface SittingRules {
 
 export interface SittingAssessment extends Register {
   matters: Record<string, MatterAssessment>;
+  /// False while the sitting has not started (SCHEDULED): no register has been taken,
+  /// so "0 of N present" would read as a shortfall that is not one.
+  registerTaken: boolean;
 }
 
 export function resolveRegister(i: {
@@ -84,10 +87,14 @@ export function withAttendance(r: Register, attendance: readonly AttendanceRecor
   return { ...r, present: presentVoters({ ...r, attendance }) };
 }
 
+/// `status` is the sitting's; absent, it is taken to be open (the write paths, which
+/// only run on a sitting in progress). It is never part of `SittingRules`, which are
+/// frozen into the minuted snapshot.
 export function assessFromRegister(
   register: Register,
   rules: SittingRules,
   matters: readonly SittingMatter[],
+  status?: MeetingStatus,
 ): SittingAssessment {
   const seats = register.voting.map((s) => ({
     seatId: s.seatId,
@@ -107,9 +114,10 @@ export function assessFromRegister(
       recusedIds: m.recusedIds,
       votes: m.votes,
       dependencyOutcome: m.dependencyOutcome,
+      sittingStatus: status,
     });
   }
-  return { ...register, matters: out };
+  return { ...register, matters: out, registerTaken: status !== "SCHEDULED" };
 }
 
 export function assessSitting(i: {
@@ -121,11 +129,13 @@ export function assessSitting(i: {
   alternateMayVoteForRecused?: boolean | null;
   attendance: readonly AttendanceRecord[];
   matters: readonly SittingMatter[];
+  status?: MeetingStatus;
 }): SittingAssessment {
   return assessFromRegister(
     resolveRegister(i),
     { quorum: i.quorum, votingRule: i.votingRule, alternateMayVoteForRecused: i.alternateMayVoteForRecused ?? null },
     i.matters,
+    i.status,
   );
 }
 

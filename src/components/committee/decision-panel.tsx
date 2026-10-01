@@ -70,6 +70,9 @@ export interface PanelMatter {
   messageEn: string;
   quorumMessage: string;
   tally: { setuju: number; tidakSetuju: number; notVoted: number };
+  /// False while the sitting has not started: no register yet, so no quorum count,
+  /// no tally and no shortfall are shown.
+  registerTaken: boolean;
   /// Votes on record that do not count, with why. Shown so INELIGIBLE_VOTE never
   /// blocks invisibly.
   ineligibleVotes: { name: string; why: string }[];
@@ -169,7 +172,7 @@ export function DecisionPanel({
         )}
       </div>
 
-      {matter.voters.length === 0 ? (
+      {!matter.registerTaken ? null : matter.voters.length === 0 ? (
         <p className="text-[13px] text-ink-3">
           No voting member is recorded as present, so no vote can be recorded.
         </p>
@@ -191,7 +194,7 @@ export function DecisionPanel({
 
       {/* While configuration makes the matter undecidable, a tally reads as progress
           toward a result the body cannot reach: one sentence instead. */}
-      {!matter.gapLine || matter.decided ? (
+      {matter.registerTaken && (!matter.gapLine || matter.decided) ? (
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-[12.5px] text-ink-3">{matter.quorumMessage}</span>
           <span className="flex-1" />
@@ -242,7 +245,7 @@ export function DecisionPanel({
       ) : matter.gapLine ? (
         <p className="text-[13px] font-medium text-amber-800">{matter.gapLine}</p>
       ) : (
-        <Callout tone="warn">
+        <Callout tone={matter.registerTaken ? "warn" : "info"}>
           {matter.messageEn}
           {matter.blockers.length > 1 && (
             <span className="mt-1 block text-[12.5px]">Also: {matter.blockers.slice(1).join(", ").toLowerCase()}.</span>

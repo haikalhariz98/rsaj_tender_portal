@@ -95,6 +95,7 @@ export function matterCount(tabled: number, pending: number): string {
 }
 
 export const BLOCKER_LABEL: Record<MatterBlocker, string> = {
+  SITTING_NOT_STARTED: "Sitting not started",
   NOT_TABLED: "Not tabled",
   DEPENDENCY_PENDING: "Waits on another matter",
   QUORUM_UNCONFIGURED: "Quorum not set",
@@ -201,6 +202,8 @@ export function blockerShort(a: {
   const b = a.blockers[0];
   if (!b) return null;
   switch (b) {
+    case "SITTING_NOT_STARTED":
+      return "The sitting has not started";
     case "QUORUM_NOT_MET": {
       const n = a.quorum.shortfall ?? 0;
       return `Needs ${n} more voting ${n === 1 ? "member" : "members"} present`;

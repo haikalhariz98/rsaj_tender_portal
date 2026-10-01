@@ -225,3 +225,27 @@ describe("acceptance send-back 2: a decided matter keeps the alternate rule it w
     expect(live.matters.C.blockers).toContain("ALTERNATE_FOR_RECUSED_UNCONFIGURED");
   });
 });
+
+describe("assessFromRegister: the sitting's status (6.10 local review 1)", () => {
+  const matter = { id: "X", act: "R", tabled: true, outcome: "PENDING" as const, dependencyOutcome: null, recusedIds: [], votes: [] };
+  const register = resolveRegister({ meetingDate: d("2026-03-01"), seats, roster, attendance: [] });
+  const rules = { quorum: 2, votingRule: "SIMPLE_MAJORITY" as const, alternateMayVoteForRecused: null };
+
+  it("a scheduled sitting has no register yet: not started, never not quorate", () => {
+    const a = assessFromRegister(register, rules, [matter], "SCHEDULED");
+    expect(a.registerTaken).toBe(false);
+    expect(a.matters.X.registerTaken).toBe(false);
+    expect(a.matters.X.blockers).toEqual(["SITTING_NOT_STARTED"]);
+  });
+
+  it("the same sitting in progress, with nobody recorded, is not quorate", () => {
+    const a = assessFromRegister(register, rules, [matter], "IN_PROGRESS");
+    expect(a.registerTaken).toBe(true);
+    expect(a.matters.X.blockers).toContain("QUORUM_NOT_MET");
+  });
+
+  it("assessSitting passes the status through", () => {
+    const a = assessSitting({ meetingDate: d("2026-03-01"), seats, roster, quorum: 2, votingRule: "SIMPLE_MAJORITY", attendance: [], matters: [matter], status: "SCHEDULED" });
+    expect(a.matters.X.blockers).toEqual(["SITTING_NOT_STARTED"]);
+  });
+});

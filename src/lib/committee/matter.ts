@@ -27,6 +27,7 @@ export type MeetingStatus = "SCHEDULED" | "IN_PROGRESS" | "MINUTED" | "CANCELLED
 export { MANDATORY_ACTS };
 
 export type MatterBlocker =
+  | "SITTING_NOT_STARTED"
   | "NOT_TABLED"
   | "DEPENDENCY_PENDING"
   | "QUORUM_UNCONFIGURED"
@@ -55,6 +56,10 @@ export interface MatterInput {
   votes: readonly { personId: string; choice: VoteChoice }[];
   /// The outcome of the matter this one depends on, or null where it depends on none.
   dependencyOutcome: DecisionOutcome | null;
+  /// The sitting's status. A SCHEDULED sitting has not opened, so no register has been
+  /// taken: its quorum and votes are not yet counted, and an empty register is not a
+  /// shortfall. Absent, the sitting is taken to be open — the write paths only run then.
+  sittingStatus?: MeetingStatus;
 }
 
 export interface MatterAssessment {
@@ -77,6 +82,9 @@ export interface MatterAssessment {
   excusedSeatIds: string[];
   /// Voting seats that no present, non-recused member covers.
   uncoveredSeatIds: string[];
+  /// False while the sitting has not started: there is no register yet, so the quorum
+  /// count and the tally say nothing and are not shown.
+  registerTaken: boolean;
   messageEn: string;
 }
 
@@ -132,19 +140,24 @@ export function assessMatter(i: MatterInput): MatterAssessment {
   const tally = tallyVotes(eligible, entitledIds.length);
 
   const mandatory = MANDATORY_ACTS.has(i.act);
+  // Before the sitting opens nobody has been recorded present. What depends on the
+  // register — quorum met, votes cast, the full body present — is not yet a fault, so
+  // it is not reported as one; what configuration or the agenda already settles is.
+  const registerTaken = i.sittingStatus !== "SCHEDULED";
   const blockers: MatterBlocker[] = [];
+  if (!registerTaken) blockers.push("SITTING_NOT_STARTED");
   if (!i.tabled) blockers.push("NOT_TABLED");
   if (i.dependencyOutcome === "PENDING" || i.dependencyOutcome === "DEFERRED") {
     blockers.push("DEPENDENCY_PENDING");
   }
   if (quorum.state === "UNCONFIGURED") blockers.push("QUORUM_UNCONFIGURED");
-  if (quorum.state === "NOT_MET") blockers.push("QUORUM_NOT_MET");
+  if (registerTaken && quorum.state === "NOT_MET") blockers.push("QUORUM_NOT_MET");
   if (i.votingRule == null) blockers.push("VOTING_RULE_UNCONFIGURED");
   if (alternateQuestion) blockers.push("ALTERNATE_FOR_RECUSED_UNCONFIGURED");
   if (ineligible > 0) blockers.push("INELIGIBLE_VOTE");
   // Stricter than assessDecision: every present, non-recused voter votes (FR-CTE-005).
-  if (tally.notVoted > 0 || tally.cast === 0) blockers.push("VOTES_OUTSTANDING");
-  if (mandatory && uncoveredSeatIds.length > 0) blockers.push("MANDATORY_ACT_NOT_FULL_BODY");
+  if (registerTaken && (tally.notVoted > 0 || tally.cast === 0)) blockers.push("VOTES_OUTSTANDING");
+  if (registerTaken && mandatory && uncoveredSeatIds.length > 0) blockers.push("MANDATORY_ACT_NOT_FULL_BODY");
 
   const computed = i.votingRule != null && tally.cast > 0 ? combine(i.votingRule, tally) : null;
 
@@ -160,6 +173,7 @@ export function assessMatter(i: MatterInput): MatterAssessment {
     ineligibleVoterIds,
     excusedSeatIds,
     uncoveredSeatIds,
+    registerTaken,
     messageEn: describe(blockers, quorum, tally, computed, uncoveredSeatIds.length),
   };
 }
@@ -177,6 +191,8 @@ function describe(
       return computed === "CARRIED"
         ? `Carried — ${tally.setuju} setuju, ${tally.tidakSetuju} tidak setuju.`
         : `Not carried — ${tally.setuju} setuju, ${tally.tidakSetuju} tidak setuju.`;
+    case "SITTING_NOT_STARTED":
+      return "The sitting has not started, so no register has been taken. Quorum and votes are counted once it is in progress.";
     case "NOT_TABLED":
       return "Not tabled yet. A holder of the Secretariat office must table the matter first.";
     case "DEPENDENCY_PENDING":
