@@ -40,18 +40,26 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/api/documents/v
     await logAccess({ organisationId: org.id, kind: "INTEGRITY_FAILED", reasonCode: bytes ? "DIGEST_MISMATCH" : "BYTES_MISSING", versionId: version.id });
     return plain(500, "The stored file does not match its fingerprint, so it is not served. This has been logged; report it to whoever runs the portal.");
   }
+  // Everything that can fail is built before the download is logged: an entry saying a
+  // file was downloaded must never be written for a response that was not sent (audit M-2).
+  let response: Response;
+  try {
+    response = new Response(new Uint8Array(bytes), {
+      status: 200,
+      headers: {
+        "Content-Type": version.mediaType,
+        "Content-Length": String(bytes.byteLength),
+        "Content-Disposition": dispositionFilename(version.originalFilename, EXTENSION_FOR[version.mediaType] ?? "bin"),
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Cache-Control": "private, no-store",
+      },
+    });
+  } catch {
+    return plain(500, "The file could not be prepared for download, so it was not served and no download was logged. Report it to whoever runs the portal.");
+  }
   await logAccess({ organisationId: org.id, kind: "DOWNLOADED", versionId: version.id });
-  return new Response(new Uint8Array(bytes), {
-    status: 200,
-    headers: {
-      "Content-Type": version.mediaType,
-      "Content-Length": String(bytes.byteLength),
-      "Content-Disposition": dispositionFilename(version.originalFilename, EXTENSION_FOR[version.mediaType] ?? "bin"),
-      "X-Content-Type-Options": "nosniff",
-      "Content-Security-Policy": "default-src 'none'; sandbox",
-      "Cache-Control": "private, no-store",
-    },
-  });
+  return response;
 }
 
 function plain(status: number, text: string) {
