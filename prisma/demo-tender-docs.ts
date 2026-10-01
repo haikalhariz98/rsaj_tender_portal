@@ -260,11 +260,13 @@ export async function loadTenderDocs(db: Db, organisationId: string) {
 }
 
 // ------------------------------------------------------------------ the acts, as the actions write them
+// Exported for 6.5's demo (demo-window.ts), which takes its own exercises through the same acts
+// before their invitation windows; `confirm` is judged against the day it is given (the load day).
 
-type Add = (entity: string, entityId: string, entityLabel: string, action: Entry["action"], when: Date, changes: object[], reason?: string) => void;
+export type Add = (entity: string, entityId: string, entityLabel: string, action: Entry["action"], when: Date, changes: object[], reason?: string) => void;
 
 /// Move a draft exercise into preparation as moveToPreparation does: the same checks, the decided record, the pack kind.
-async function moveIntoPreparation(db: Db, organisationId: string, id: string, on: string, choices: Record<string, string>, entry: Add) {
+export async function moveIntoPreparation(db: Db, organisationId: string, id: string, on: string, choices: Record<string, string>, entry: Add) {
   const repo = await import("../src/lib/method/repo");
   const { evaluateExercise } = await import("../src/lib/method/evaluate");
   const { transitionFault } = await import("../src/lib/method/exercise");
@@ -311,7 +313,7 @@ async function moveIntoPreparation(db: Db, organisationId: string, id: string, o
 }
 
 /// Start a pack as startPack writes it: the composition resolved from configuration on the day, or carried from the returned version.
-async function startPack(db: Db, organisationId: string, p: { id: string; exerciseId: string; versionNo: number; at: Date; copyFrom?: string }, entry: Add) {
+export async function startPack(db: Db, organisationId: string, p: { id: string; exerciseId: string; versionNo: number; at: Date; copyFrom?: string }, entry: Add) {
   const { loadConfiguredParts, loadTemplates, loadPacks } = await import("../src/lib/tender-docs/repo");
   const { startPackFaults, nextPack } = await import("../src/lib/tender-docs/pack");
   const ex = await db.sourcingExercise.findUniqueOrThrow({ where: { id: p.exerciseId }, select: { reference: true, status: true, packKindSnapshot: true, contractBasisCode: true } });
@@ -361,7 +363,7 @@ const officeNames = async (db: Db, organisationId: string) => {
 };
 
 /// Enter the Appendix as saveAppendix and saveVariationLimit write it.
-async function enterAppendix(db: Db, organisationId: string, packId: string, ref: string, v: Record<string, unknown>, when: Date, entry: Add) {
+export async function enterAppendix(db: Db, organisationId: string, packId: string, ref: string, v: Record<string, unknown>, when: Date, entry: Add) {
   const { loadPacks, appendixFactsOf } = await import("../src/lib/tender-docs/repo");
   const office = await officeNames(db, organisationId);
   const pack = await db.tenderPack.findUniqueOrThrow({ where: { id: packId }, select: { exerciseId: true, versionNo: true } });
@@ -377,7 +379,7 @@ async function enterAppendix(db: Db, organisationId: string, packId: string, ref
 }
 
 /// Mark every part ready, each judged by markReadyFaults as the action judges it.
-async function markAllReady(db: Db, organisationId: string, packId: string, ref: string, when: Date, entry: Add) {
+export async function markAllReady(db: Db, organisationId: string, packId: string, ref: string, when: Date, entry: Add) {
   const { loadPacks, partFactsOf, appendixFactsOf, scopeReadiness } = await import("../src/lib/tender-docs/repo");
   const { markReadyFaults } = await import("../src/lib/tender-docs/pack");
   const pack = await db.tenderPack.findUniqueOrThrow({ where: { id: packId }, select: { exerciseId: true } });
@@ -400,7 +402,7 @@ async function markAllReady(db: Db, organisationId: string, packId: string, ref:
 }
 
 /// Submit as submitPack does: every submission check on the rows as they stand, the freeze, the route.
-async function submit(db: Db, organisationId: string, s: { packId: string; routeId: string; at: Date; startOn: string; closingDay: string; closingTime: string }, entry: Add) {
+export async function submit(db: Db, organisationId: string, s: { packId: string; routeId: string; at: Date; startOn: string; closingDay: string; closingTime: string }, entry: Add) {
   const repo = await import("../src/lib/method/repo");
   const { loadRoster, loadDelegations } = await import("../src/lib/people/load");
   const { holdersFor } = await import("../src/lib/requisition/holders");
@@ -477,7 +479,7 @@ async function submit(db: Db, organisationId: string, s: { packId: string; route
 }
 
 /// Decide the route's step as recordTenderingDecision does: 6.1's decider checks; the approving step records the dates.
-async function decide(db: Db, organisationId: string, d: { packId: string; decision: "DONE" | "REJECTED"; personId: string; decidedOn: string; at: Date; reason: string; dates?: { startOn: string; closingDay: string; closingTime: string } }, entry: Add) {
+export async function decide(db: Db, organisationId: string, d: { packId: string; decision: "DONE" | "REJECTED"; personId: string; decidedOn: string; at: Date; reason: string; dates?: { startOn: string; closingDay: string; closingTime: string } }, entry: Add) {
   const repo = await import("../src/lib/method/repo");
   const { loadRoster, loadDelegations } = await import("../src/lib/people/load");
   const { holdersFor, deciderFaults } = await import("../src/lib/requisition/holders");
@@ -555,7 +557,7 @@ async function reviseAppendix(db: Db, organisationId: string, packId: string, re
 // ------------------------------------------------------------------ increment 2: the acts, as the tab's actions write them
 
 /// Record the registrations bidders must hold, each judged by requirementFaults as addRequirement judges it.
-async function conditionsFor(db: Db, organisationId: string, exerciseId: string, ref: string, rows: { body: string; qualifiers?: string; group: number }[], when: Date, entry: Add) {
+export async function conditionsFor(db: Db, organisationId: string, exerciseId: string, ref: string, rows: { body: string; qualifiers?: string; group: number }[], when: Date, entry: Add) {
   const { requirementFaults } = await import("../src/lib/tender-docs/eligibility");
   const { loadRegistrationBodies } = await import("../src/lib/tender-docs/repo");
   const bodies = await loadRegistrationBodies(organisationId);
@@ -571,7 +573,7 @@ async function conditionsFor(db: Db, organisationId: string, exerciseId: string,
 }
 
 /// Answer the restriction and the regulator permit, as saveRestriction and savePermit write them.
-async function answer(db: Db, organisationId: string, exerciseId: string, ref: string, a: { restrictedTender: boolean | null; regulatedActivity: boolean | null; regulatorPermitCode: string | null }, when: Date, entry: Add) {
+export async function answer(db: Db, organisationId: string, exerciseId: string, ref: string, a: { restrictedTender: boolean | null; regulatedActivity: boolean | null; regulatorPermitCode: string | null }, when: Date, entry: Add) {
   const { permitSaveFaults, permitLabel } = await import("../src/lib/tender-docs/permit");
   const { loadPermitList } = await import("../src/lib/tender-docs/repo");
   const { yesNoNotSet } = await import("../src/lib/tender-docs/labels");
@@ -584,7 +586,7 @@ async function answer(db: Db, organisationId: string, exerciseId: string, ref: s
 }
 
 /// Record an assurance confirmation, judged by confirmFaults as recordAssurance judges it.
-async function confirm(db: Db, organisationId: string, packId: string, ref: string, kind: "NO_AMBIGUITY" | "DRAWINGS_COORDINATED", personId: string, on: string, when: Date, entry: Add) {
+export async function confirm(db: Db, organisationId: string, packId: string, ref: string, kind: "NO_AMBIGUITY" | "DRAWINGS_COORDINATED", personId: string, on: string, when: Date, entry: Add, today = "2026-10-01") {
   const { confirmFaults } = await import("../src/lib/tender-docs/assurance");
   const { ASSURANCE_KIND_LABEL } = await import("../src/lib/tender-docs/conditions-labels");
   const { loadPacks, partFactsOf, loadConfirmations } = await import("../src/lib/tender-docs/repo");
@@ -592,7 +594,7 @@ async function confirm(db: Db, organisationId: string, packId: string, ref: stri
   const row = (await loadPacks(pack.exerciseId)).find((p) => p.id === packId)!;
   const person = await db.person.findUniqueOrThrow({ where: { id: personId }, select: { name: true, isActive: true } });
   const started = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur" }).format(pack.createdAt);
-  const f = confirmFaults({ packStatus: row.status, exerciseStatus: pack.exercise.status, kind, parts: row.parts.map(partFactsOf), existing: await loadConfirmations(packId), person, confirmedOn: on, today: "2026-10-01", packStartedOn: started });
+  const f = confirmFaults({ packStatus: row.status, exerciseStatus: pack.exercise.status, kind, parts: row.parts.map(partFactsOf), existing: await loadConfirmations(packId), person, confirmedOn: on, today, packStartedOn: started });
   if (f.length) throw new Error(`Demo confirmation on ${packId} refused: ${f.map((x) => x.code).join(", ")}`);
   const id = `${packId}_as_${kind === "NO_AMBIGUITY" ? 1 : 2}`;
   await db.packAssurance.create({ data: { id, organisationId, packId, kind, personId, confirmedOn: day(on), recordedAt: when } });
