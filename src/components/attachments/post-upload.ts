@@ -47,6 +47,7 @@ export function fieldOfRefusal(code: string): "file" | "title" | "documentClassI
     case "NO_FILE":
     case "EMPTY":
     case "TOO_LARGE":
+    case "NAME_TOO_LONG":
     case "TYPE_NOT_RECOGNISED":
     case "ARCHIVE_NOT_ACCEPTED":
     case "MARKUP_NEVER_ACCEPTED":

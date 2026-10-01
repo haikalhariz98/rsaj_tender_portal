@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { dispositionFilename, downloadDecision } from "./access";
+import { dispositionFilename, downloadDecision, filenameFault, MAX_FILENAME_CODE_POINTS, MAX_SERVED_FILENAME_CODE_POINTS, servedFilename } from "./access";
 import { reclassifyFault, reclassifyKind } from "./classification";
 import { ACCESS_STATEMENT, documentFaultText, DOWNLOAD_REFUSAL_TEXT, SCAN_LABEL } from "./labels";
 
@@ -41,6 +41,49 @@ describe("the download's file name", () => {
   });
   it("an empty name falls back to a plain one", () => {
     expect(dispositionFilename("...", "png")).toContain(`filename="document.png"`);
+  });
+});
+
+describe("the served name is built from the stored type, never the uploader's extension (audit M-1)", () => {
+  it("a 176-character stem with .hta.pdf is served ending .pdf, not .hta", () => {
+    const name = servedFilename("x".repeat(176) + ".hta.pdf", "pdf");
+    expect(name.endsWith(".pdf")).toBe(true);
+    expect(name).not.toMatch(/\.hta/);
+    expect(Array.from(name).length).toBeLessThanOrEqual(MAX_SERVED_FILENAME_CODE_POINTS);
+    expect(dispositionFilename("x".repeat(176) + ".hta.pdf", "pdf")).toMatch(/filename="x+\.pdf";/);
+  });
+  it("so does a 185-character stem, and every length around the old cut", () => {
+    for (let n = 150; n <= 200; n++) {
+      const name = servedFilename("x".repeat(n) + ".hta.pdf", "pdf");
+      expect(name.endsWith(".pdf"), String(n)).toBe(true);
+      expect(Array.from(name).length).toBeLessThanOrEqual(MAX_SERVED_FILENAME_CODE_POINTS);
+    }
+    expect(servedFilename("x".repeat(185) + ".hta.pdf", "pdf")).toBe("x".repeat(176) + ".pdf");
+  });
+  it("a short name keeps its stem and takes the stored type's extension, whatever it was sent as", () => {
+    expect(servedFilename("report.pdf", "pdf")).toBe("report.pdf");
+    expect(servedFilename("report.exe", "pdf")).toBe("report.pdf");
+    expect(servedFilename("scan", "png")).toBe("scan.png");
+    expect(servedFilename("evil.hta.pdf", "pdf")).toBe("evil.hta.pdf");
+  });
+  it("trims by code point, so an emoji at the cut is whole or gone", () => {
+    const name = servedFilename("a".repeat(175) + "😀😀.pdf", "pdf");
+    expect(name).toBe("a".repeat(175) + "😀.pdf");
+    expect(Array.from(name).length).toBe(MAX_SERVED_FILENAME_CODE_POINTS);
+    expect(servedFilename("a".repeat(176) + "😀.pdf", "pdf")).toBe("a".repeat(176) + ".pdf");
+  });
+  it("a trimmed stem does not end in a dot or a space", () => {
+    expect(servedFilename("a".repeat(175) + " .b.pdf", "pdf")).toBe("a".repeat(175) + ".pdf");
+  });
+  it("takes out the marks that make a name read backwards", () => {
+    expect(servedFilename("fdp.\u202Eexe", "pdf")).not.toMatch(/\u202e/);
+  });
+  it("a name over the storage limit is refused, never cut", () => {
+    expect(filenameFault("a".repeat(MAX_FILENAME_CODE_POINTS))).toBeNull();
+    expect(filenameFault("a".repeat(MAX_FILENAME_CODE_POINTS + 1))?.code).toBe("NAME_TOO_LONG");
+    // 255 emoji are 510 UTF-16 units but 255 code points: they fit.
+    expect(filenameFault("😀".repeat(MAX_FILENAME_CODE_POINTS))).toBeNull();
+    expect(filenameFault("😀".repeat(MAX_FILENAME_CODE_POINTS + 1))?.code).toBe("NAME_TOO_LONG");
   });
 });
 

@@ -197,6 +197,8 @@ export function documentFaultText(f: Finding): string {
       return "The file is empty.";
     case "TOO_LARGE":
       return d.cap ? `The file is larger than the ${formatBytes(String(d.cap))} allowed${d.from === "CEILING" ? " by this deployment" : ""}. It was not stored.` : "The file is larger than allowed. It was not stored.";
+    case "NAME_TOO_LONG":
+      return `The file's name is ${d.length ?? "more"} characters long, and a name may have at most ${d.max ?? 255}. It was not stored. Rename the file with a shorter name and upload it again.`;
     case "LENGTH_INVALID":
       return "The upload's declared length is not a number. It was not read.";
     // versioning.ts

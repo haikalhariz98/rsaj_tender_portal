@@ -10,6 +10,7 @@ import { dayToDate, storedDay, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 
+import { filenameFault } from "./access";
 import { documentCreated, versionCreated } from "./audit-view";
 import { receivedOnFault } from "./received";
 import { isRetentionRule, type RetentionRule } from "./retention";
@@ -46,7 +47,8 @@ export async function logAccess(
       kind: e.kind,
       reasonCode: e.reasonCode ?? "",
       versionId: e.versionId ?? null,
-      offeredFilename: e.offeredFilename ? e.offeredFilename.slice(0, 255) : null,
+      // A log field, so cut (by code point, never through a surrogate pair), unlike a stored name.
+      offeredFilename: e.offeredFilename ? Array.from(e.offeredFilename).slice(0, 255).join("") : null,
       offeredBytes: e.offeredBytes ?? null,
     },
   });
@@ -114,6 +116,8 @@ export const retentionOf = (snapshot: unknown): RetentionRule | null => (isReten
 export async function storeUpload(i: UploadInput): Promise<UploadResult> {
   const received = receivedOnFault(i.receivedOn, i.org.today);
   if (received) throw new UploadRefusal(received);
+  const nameFault = filenameFault(i.originalFilename);
+  if (nameFault) throw new UploadRefusal(nameFault);
   return db.$transaction(
     async (tx) => {
       const person = await tx.person.findFirst({ where: { id: i.recordedByPersonId, organisationId: i.org.id, isActive: true }, select: { id: true, name: true } });
@@ -172,7 +176,7 @@ export async function storeUpload(i: UploadInput): Promise<UploadResult> {
           sha256: i.sha256,
           byteSize: BigInt(i.bytes.byteLength),
           mediaType: i.mediaType,
-          originalFilename: i.originalFilename.slice(0, 255),
+          originalFilename: i.originalFilename,
           receivedOn: i.receivedOn ? dayToDate(i.receivedOn) : null,
           recordedByPersonId: person.id,
           note: i.note,

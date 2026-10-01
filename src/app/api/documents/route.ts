@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 
+import { filenameFault } from "@/lib/documents/access";
 import { readBounded } from "@/lib/documents/body";
 import { documentFaultText } from "@/lib/documents/labels";
 import { effectiveCap, readLimit, requestLengthFault, sizeFault } from "@/lib/documents/limits";
@@ -58,6 +59,8 @@ export async function POST(req: NextRequest) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const size = BigInt(bytes.byteLength);
   const at = { filename: file.name, bytes: size };
+  const nameFault = filenameFault(file.name);
+  if (nameFault) return refuse(422, nameFault, at);
   const tooBig = sizeFault(size, policy, ceiling);
   if (tooBig) return refuse(tooBig.code === "TOO_LARGE" ? 413 : 422, tooBig, at);
   const sniffed = sniffMediaType(bytes.subarray(0, SNIFF_BYTES));
