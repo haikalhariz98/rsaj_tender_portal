@@ -420,7 +420,7 @@ export async function loadAwards(db: Db, organisationId: string) {
   });
   // The classification is locked from each award's first submission (FR-MTD-011).
   for (const [sx, on] of [[10, "2026-09-22"], [11, "2026-09-09"], [12, "2026-09-09"], [13, "2026-09-09"], [14, "2026-09-09"]] as const) {
-    await db.sourcingExercise.update({ where: { id: `${P}sx${sx}` }, data: { classificationLockedAt: day(on) } });
+    await db.sourcingExercise.update({ where: { id: `${P}sx${sx}` }, data: { classificationLockedAt: new Date(`${on}T02:00:00Z`) } });
   }
 
   // The appointment routes, as the submission resolved them and the decisions discharged them.

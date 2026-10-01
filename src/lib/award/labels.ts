@@ -82,6 +82,16 @@ export const ACCEPTANCE_FAULT_LABEL = {
 
 const regime = (r: unknown) => (typeof r === "string" && r in REGIME_SHORT ? REGIME_SHORT[r as Regime].toLowerCase() : "an undetermined");
 const instrumentName = (k: unknown) => (INSTRUMENT_SHORT[k as InstrumentKind] ?? "different instrument").toLowerCase().replace(/^letter of acceptance$/, "Letter of Acceptance");
+/// Where a Malay letter's missing name is set: an office's or committee's Malay name on
+/// its office (the role the approval matrix routes to), or the liquidated damages unit.
+function malayNameHelp(fields: string[]): string {
+  const parts: string[] = [];
+  if (fields.some((k) => k === "signatory.office" || k === "approver.office")) parts.push("an office's Malay name (BM) is set on the office under Configuration, Users & roles — the office the approval matrix routes to");
+  if (fields.includes("committee.name")) parts.push("a committee's Malay name (BM) is set on the committee's office under Configuration, Users & roles");
+  if (fields.includes("terms.lad")) parts.push("the liquidated damages unit is written in Malay only when it is per day, per week or per month — choose it in the award's terms");
+  return parts.length ? ` In a Malay letter: ${parts.join("; ")}.` : "";
+}
+
 const docName = (k: unknown) => DOCUMENT_LABEL[k as DocumentKind] ?? "a document";
 
 /// Where a fault is put right, for the link beside it.
@@ -123,7 +133,7 @@ export function awardFindingText(f: Finding): string {
     case "INSTRUMENT_NOT_SET":
       return `No award instrument is set for the ${regime(d.regime)} band. Set it under Award controls; nothing is assumed.`;
     case "INSTRUMENT_CHANGED":
-      return `This award was opened as a ${instrumentName(d.opened)}, and the award controls now name a ${instrumentName(d.now)} for its band. Its text and its return follow what it was opened as, so it is neither sent nor issued: cancel it and open a new award on the exercise.`;
+      return `This award was opened as a ${instrumentName(d.opened)}, and the award controls now name a ${instrumentName(d.now)} for its band. Its text and its return follow what it was opened as, so it is neither sent nor issued: cancel it and open a new award on the exercise. The new award goes through the appointment's approval again, with a fresh decision of the committee its route names.`;
     case "VALUE_NOT_POSITIVE":
       return "The awarded value must be more than nothing.";
     case "NO_APPROVED_ROUTE":
@@ -204,8 +214,11 @@ export function awardFindingText(f: Finding): string {
       return `The template “${d.template}” has no text, so the ${docName(d.kind).toLowerCase()} cannot be generated. Write it under Templates.`;
     case "TEMPLATE_LANGUAGE_NOT_SET":
       return `The template “${d.template}” has text in both languages and no language set to issue first. Set it under Templates.`;
-    case "TEMPLATE_INCOMPLETE":
-      return `The ${docName(d.kind).toLowerCase()} would be issued with ${String(d.fields ?? "").split(",").filter(Boolean).map((k) => mergeFieldLabel(k).toLowerCase()).join(", ")} not recorded. Record them first.`;
+    case "TEMPLATE_INCOMPLETE": {
+      const fields = String(d.fields ?? "").split(",").filter(Boolean);
+      const where = d.language === "MS" ? malayNameHelp(fields) : "";
+      return `The ${docName(d.kind).toLowerCase()} would be issued with ${fields.map((k) => mergeFieldLabel(k).toLowerCase()).join(", ")} not recorded. Record them first.${where}`;
+    }
     case "ISSUE_VALUE_UNFILLED":
       return `The ${docName(d.kind).toLowerCase()} would be frozen with ${String(d.fields ?? "").split(",").filter((k) => k && k !== "unknown").map((k) => mergeFieldLabel(k).toLowerCase()).join(", ") || "a value"} still reading as the preview's placeholder. Nothing was issued.`;
     case "TEMPLATE_UNKNOWN_FIELD":
@@ -227,7 +240,7 @@ export function awardFindingText(f: Finding): string {
     case "BOND_REASON_REQUIRED":
       return "Record why no performance bond is required.";
     case "BOND_BASIS_NOT_SET":
-      return "The performance bond's basis is not set: choose what it is a percentage of, and the percentage. It is decided per contract and never defaulted.";
+      return "The performance bond's basis is not set: choose what it is a percentage of, and a percentage above 0. 0% is not a bond — where none is wanted, answer that no bond is required and say why.";
     case "CONTRACT_SERIES_NOT_SET":
       return "The contract type names no numbering series, so no contract number can be drawn. Set the contract series on the contract type under Reference data.";
     case "QUOTATION_KEY_NOT_SET":

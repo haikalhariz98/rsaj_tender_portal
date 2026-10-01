@@ -89,7 +89,7 @@ export function EditTermsDrawer({
   values: Values;
   regulatedLabel: string | null;
   /// Whether the exercise's terms band asks for retention and a defects liability
-  /// period; false hides the field, null (undecided) keeps it.
+  /// period; false says so beside the field, which stays on the form.
   asked: { retention: boolean | null; dlp: boolean | null };
   label?: string;
 }) {
@@ -142,13 +142,10 @@ export function EditTermsDrawer({
           ],
           orphanLabel: "As recorded before",
         },
-        ...(asked.retention === false
-          ? []
-          : ([
-              { kind: "text", name: "retentionPercent", label: "Retention percentage", placeholder: "e.g. 5" },
-              { kind: "text", name: "retentionCapPercent", label: "Retention limit, percentage of the contract sum", placeholder: "e.g. 5" },
-            ] as Field[])),
-        ...(asked.dlp === false ? [] : ([{ kind: "number", name: "dlpMonths", label: "Defects liability period, months", min: 0 }] as Field[])),
+        // Always on the form, so a save never clears them: where the terms band does not ask, it says so.
+        { kind: "text", name: "retentionPercent", label: "Retention percentage", placeholder: "e.g. 5", hint: asked.retention === false ? "Not asked by the exercise's terms band." : undefined },
+        { kind: "text", name: "retentionCapPercent", label: "Retention limit, percentage of the contract sum", placeholder: "e.g. 5" },
+        { kind: "number", name: "dlpMonths", label: "Defects liability period, months", min: 0, hint: asked.dlp === false ? "Not asked by the exercise's terms band; the insurance period still counts it." : undefined },
         { kind: "select", name: "termsProvenance", label: "Where the terms came from", placeholder: "Not recorded", options: PROVENANCE },
         {
           kind: "select",

@@ -17,6 +17,17 @@ export function parsePercent(pct: string): bigint {
   return BigInt(m[1]) * 10_000n + BigInt((m[2] ?? "").padEnd(4, "0"));
 }
 
+/// Whether a percentage string is a percentage above nothing ("0", "0.0000" are not),
+/// read exactly. The one rule for "a bond of 0% is no bond" (BD-28).
+export function percentAboveZero(pct: string | null): boolean {
+  if (pct == null) return false;
+  try {
+    return parsePercent(pct) > 0n;
+  } catch {
+    return false;
+  }
+}
+
 /// `pct` per cent of `sen`, rounded half up to the sen.
 export function pctOfSen(sen: Sen, pct: string): Sen {
   const n = sen * parsePercent(pct);

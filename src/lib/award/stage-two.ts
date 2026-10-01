@@ -95,5 +95,6 @@ export function returnComplete(kind: InstrumentKind, r: ReturnRecord): boolean {
 /// acceptance page's signatory — which is what ends cancellation (BD-17).
 export function instrumentReturned(kind: InstrumentKind, r: { signedLetterReceivedOn: string | Date | null; signatoryName: string } | null): boolean {
   if (!r) return false;
-  return kind === "LETTER_OF_ACCEPTANCE" ? !!r.signedLetterReceivedOn : !!r.signatoryName.trim();
+  // An acceptance page is back once its received day or its signatory is recorded.
+  return kind === "LETTER_OF_ACCEPTANCE" ? !!r.signedLetterReceivedOn : !!r.signedLetterReceivedOn || !!r.signatoryName.trim();
 }

@@ -10,7 +10,7 @@
 
 import type { Sen } from "@/lib/money";
 
-import { pctOfSen, ratioOfSen } from "./money";
+import { pctOfSen, percentAboveZero, ratioOfSen } from "./money";
 import { addMonths, type Day } from "./period";
 
 export type BondBasis = "CONTRACT_PRICE" | "ANNUAL_VALUE" | "STATED_AMOUNT";
@@ -24,7 +24,7 @@ export function requiredBond(b: { basis: BondBasis | null; percent: string | nul
   if (b.basis === "STATED_AMOUNT") return b.basisAmount == null || b.basisAmount <= 0n ? { state: "NOT_SET", missing: ["BASIS_AMOUNT"] } : { state: "SET", amount: b.basisAmount, basis: b.basis };
   const missing: ("PERCENT" | "BASIS_AMOUNT")[] = [];
   // A bond of nothing is not a decision about the bond: a zero percentage reads as not set.
-  if (b.percent == null || !(Number(b.percent) > 0)) missing.push("PERCENT");
+  if (!percentAboveZero(b.percent)) missing.push("PERCENT");
   if (b.basis === "ANNUAL_VALUE" && b.basisAmount == null) missing.push("BASIS_AMOUNT");
   if (missing.length || b.percent == null) return { state: "NOT_SET", missing };
   const base = b.basis === "CONTRACT_PRICE" ? b.contractPrice : b.basisAmount!;
@@ -45,11 +45,18 @@ export interface Issuer {
   retiredOn: Date | null;
 }
 
+/// Where an issuer stood on the approved list on a day: on it, retired from it by then,
+/// or never on it. The one rule the checks and the register both read.
+export type IssuerStanding = "ON_LIST" | "RETIRED" | "NOT_ON_LIST";
+export function issuerStanding(issuer: Pick<Issuer, "retiredOn"> | null, on: Day): IssuerStanding {
+  if (!issuer) return "NOT_ON_LIST";
+  return issuer.retiredOn == null || issuer.retiredOn.toISOString().slice(0, 10) > on ? "ON_LIST" : "RETIRED";
+}
+
 /// Whether an issuer is on the approved list on a day.
 export function issuerApproved(issuerId: string | null, issuers: readonly Issuer[], on: Day): boolean {
   if (!issuerId) return false;
-  const i = issuers.find((x) => x.id === issuerId);
-  return !!i && (i.retiredOn == null || i.retiredOn.toISOString().slice(0, 10) > on);
+  return issuerStanding(issuers.find((x) => x.id === issuerId) ?? null, on) === "ON_LIST";
 }
 
 /**

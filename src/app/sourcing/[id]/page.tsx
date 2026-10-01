@@ -485,7 +485,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
         )}
         {ex.classificationLockedAt && (
           <Callout tone="info" title="Classification locked by its award">
-            Since {formatDate(ex.classificationLockedAt)} the contract type is fixed: it changes only by a controlled change, which arrives with the post-award modules.
+            Since {formatOrgDay(ex.classificationLockedAt, org.timeZone)} the contract type is fixed: it changes only by a controlled change, which arrives with the post-award modules.
           </Callout>
         )}
         {draft && !today && (

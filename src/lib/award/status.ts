@@ -49,8 +49,10 @@ export function awardTransition(
   return null;
 }
 
-/// Statuses in which the award holds value against its requisition.
-export const LIVE_STATUSES: readonly AwardStatus[] = ["DRAFT", "PENDING_APPROVAL", "APPROVED", "ISSUED", "ACCEPTED"];
+/// An award is live until it is cancelled: it holds value against its requisition and
+/// stands on its exercise. The one rule; `LIVE_STATUSES` is it as a list for queries.
+export const isLiveAward = (s: AwardStatus) => s !== "CANCELLED";
+export const LIVE_STATUSES: readonly AwardStatus[] = (["DRAFT", "PENDING_APPROVAL", "APPROVED", "ISSUED", "ACCEPTED", "CANCELLED"] as const).filter(isLiveAward);
 
 /// What may still be edited: the awardee, value and period only in Draft (they are what
 /// the appointment approves); the letter's terms and the bond until issue.
@@ -67,5 +69,5 @@ export function cancellable(status: AwardStatus, ctx: { returned: boolean; comme
  * the requisition and its route names the exercise. The award is cancelled first.
  */
 export function exerciseCancelBlockedBy<T extends { status: AwardStatus }>(awards: readonly T[]): T | null {
-  return awards.find((a) => a.status !== "CANCELLED") ?? null;
+  return awards.find((a) => isLiveAward(a.status)) ?? null;
 }

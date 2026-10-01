@@ -4,7 +4,9 @@ import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { INSURANCE_KIND_LABEL, REGISTER_STATUS_LABEL, REGISTER_STATUS_TONE, SECURITY_KIND_LABEL } from "@/lib/award/labels";
-import { listRegister, REGISTER_PAGE } from "@/lib/award/repo";
+import { listRegister, REGISTER_PAGE, type RegisterView } from "@/lib/award/repo";
+import { ButtonLink } from "@/components/ui/button";
+import { issuerStanding } from "@/lib/securities/bond";
 import { storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { expiryAlert } from "@/lib/securities/expiry";
@@ -15,22 +17,36 @@ export const dynamic = "force-dynamic";
  * The securities and insurance register across contracts (FR-AWD-012, 013). Expiry
  * alerts come from the notification rule's offsets and are shown, not sent.
  */
-export default async function SecuritiesPage() {
-  const { org, securities, policies, config, total, counts } = await listRegister();
+const VIEWS: { id: RegisterView; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "expiring", label: "Expiring or expired" },
+  { id: "unverified", label: "Lodged, not verified" },
+];
+
+export default async function SecuritiesPage({ searchParams }: { searchParams: Promise<{ page?: string; view?: string }> }) {
+  const sp = await searchParams;
+  const view = (VIEWS.find((v) => v.id === sp.view)?.id ?? "all") as RegisterView;
+  const requested = Math.max(0, Number.parseInt(sp.page ?? "0", 10) || 0);
+  const { org, securities, policies, order, config, total, page, counts } = await listRegister(requested, view);
+  const pages = Math.max(1, Math.ceil(total / REGISTER_PAGE));
+  const href = (v: RegisterView, p = 0) => `/securities?${new URLSearchParams({ ...(v !== "all" ? { view: v } : {}), ...(p ? { page: String(p) } : {}) }).toString()}`.replace(/\?$/, "");
   const today = org?.today ?? null;
   const offsets = config?.expiryOffsets ?? [];
   const alertOf = (d: Date | null) => (today ? expiryAlert(d ? storedDay(d) : null, offsets, today) : null);
   const chip = (a: ReturnType<typeof alertOf>) =>
     !a ? [] : a.state === "EXPIRED" ? [{ text: `Expired ${a.daysAgo} days ago`, tone: "err" as const }] : a.state === "DUE" ? [{ text: `Expires in ${a.daysLeft} days`, tone: "warn" as const }] : a.state === "NO_EXPIRY" ? [{ text: "No expiry recorded", tone: "warn" as const }] : [];
-  // The approved list as it stood when it was lodged: an issuer retired since is said so.
-  const onList = (i: { retiredOn: Date | null } | null, lodgedOn: Date) =>
-    !i ? "Not on the approved list" : i.retiredOn == null ? "On the approved list" : i.retiredOn > lodgedOn ? `On the list when lodged; retired ${formatDate(i.retiredOn)}` : "Retired from the list before it was lodged";
+  // Where the issuer stood on the approved list when it was lodged (the checks' own rule), and since.
+  const onList = (i: { retiredOn: Date | null } | null, lodgedOn: Date) => {
+    const at = issuerStanding(i, storedDay(lodgedOn));
+    if (at === "NOT_ON_LIST") return "Not on the approved list";
+    if (at === "RETIRED") return "Retired from the list before it was lodged";
+    return i?.retiredOn ? `On the list when lodged; retired ${formatDate(i.retiredOn)}` : "On the approved list";
+  };
   const unsorted: Row[] = [
     ...securities.map((s) => {
       const a = s.status === "REJECTED" ? null : alertOf(s.expiresOn);
       return {
         id: s.id,
-        views: [...(s.status === "LODGED" ? ["unverified"] : []), ...(a && (a.state === "DUE" || a.state === "EXPIRED" || a.state === "NO_EXPIRY") ? ["expiring"] : [])],
         search: [SECURITY_KIND_LABEL[s.kind], s.contract.number, s.contract.award.awardeeName, s.issuer?.name ?? s.issuerNameAsWritten, s.instrumentRef].join(" "),
         sortKeys: { value: Number(s.value.toString()), expiry: s.expiresOn?.getTime() ?? Number.MIN_SAFE_INTEGER },
         cells: {
@@ -46,7 +62,6 @@ export default async function SecuritiesPage() {
       const a = p.status === "REJECTED" ? null : alertOf(p.periodEnd);
       return {
         id: p.id,
-        views: [...(p.status === "LODGED" ? ["unverified"] : []), ...(a && (a.state === "DUE" || a.state === "EXPIRED") ? ["expiring"] : [])],
         search: [INSURANCE_KIND_LABEL[p.kind], p.contract.number, p.contract.award.awardeeName, p.issuer?.name ?? p.issuerNameAsWritten, p.policyNo].join(" "),
         sortKeys: { value: Number(p.sumInsured.toString()), expiry: p.periodEnd.getTime() },
         cells: {
@@ -59,8 +74,9 @@ export default async function SecuritiesPage() {
       };
     }),
   ];
-  // Soonest to expire first, across both kinds; no expiry recorded comes first, needing attention.
-  const rows = unsorted.sort((a, b) => Number(a.sortKeys?.expiry ?? 0) - Number(b.sortKeys?.expiry ?? 0)).slice(0, REGISTER_PAGE);
+  // In the database's order: live first, then long expired, then rejected; soonest to expire first.
+  const byId = new Map(unsorted.map((r) => [r.id, r]));
+  const rows = order.map((o) => byId.get(o.id)).filter((r): r is Row => !!r);
   return (
     <>
       <PageHeader title="Securities" subtitle="Bonds, guarantees and insurance policies lodged on contracts, and when each runs out." meta={[`${counts.unverified} lodged, not verified`, `${counts.expiring} expiring or expired`, offsets.length ? `Reminders at ${offsets.join(", ")} days` : "No expiry reminders set"]} />
@@ -68,18 +84,25 @@ export default async function SecuritiesPage() {
         Expiry reminders are worked out from the notification rule for expiring securities and shown on this register. Nothing is sent from the portal in this phase.
       </Callout>
       <Card className="overflow-hidden">
-        <CardHeader icon={<ShieldIcon size={17} />} title="The register" subtitle="Soonest to expire first. Each is lodged and verified on its award's Securities tab." divided={false} />
+        <CardHeader icon={<ShieldIcon size={17} />} title="The register" subtitle="Live ones first, soonest to expire first; then those long expired, then those rejected. Each is lodged and verified on its award's Securities tab."
+          actions={
+            <span className="flex flex-wrap gap-1.5">
+              {VIEWS.map((v) => (
+                <ButtonLink key={v.id} href={href(v.id)} size="sm" variant={v.id === view ? "secondary" : "ghost"} aria-current={v.id === view ? "page" : undefined}>
+                  {`${v.label} (${counts[v.id]})`}
+                </ButtonLink>
+              ))}
+            </span>
+          }
+          divided={false}
+        />
         <DataList
           flat
           selectable={false}
           exportName="securities"
           searchPlaceholder="Search by contract, awardee or issuer"
-          emptyTitle="Nothing lodged yet"
+          emptyTitle={view === "all" ? "Nothing lodged yet" : "Nothing in this view"}
           emptyBody="Securities and policies are lodged on an award once its instrument is issued."
-          views={[
-            { id: "expiring", label: "Expiring" },
-            { id: "unverified", label: "Not verified" },
-          ]}
           columns={[
             { key: "what", label: "Security", sortable: false, mobile: "primary" },
             { key: "issuer", label: "Issuer", width: "22%", hideBelow: "xl" },
@@ -89,7 +112,19 @@ export default async function SecuritiesPage() {
           ]}
           rows={rows}
         />
-        {total > rows.length && <CardFooter className="text-[12.5px] text-ink-3">Showing the {rows.length} soonest to expire of {total}.</CardFooter>}
+        {total > 0 && (
+          <CardFooter className="flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-ink-3">
+            <span>
+              Showing {page * REGISTER_PAGE + 1}–{page * REGISTER_PAGE + rows.length} of {total}
+            </span>
+            {pages > 1 && (
+              <span className="flex gap-2">
+                {page > 0 && <ButtonLink href={href(view, page - 1)} size="sm" variant="ghost">Previous</ButtonLink>}
+                {page + 1 < pages && <ButtonLink href={href(view, page + 1)} size="sm" variant="ghost">Next</ButtonLink>}
+              </span>
+            )}
+          </CardFooter>
+        )}
       </Card>
     </>
   );

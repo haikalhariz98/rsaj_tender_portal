@@ -9,7 +9,7 @@ import { exerciseCitationFault } from "./citation";
 import { AWARD_MATRIX, AWARD_MATRIX_GTE } from "./fixture";
 import { awardValueFaults, instrumentFor } from "./instrument";
 import { approvedOnOf, resolveSignatory, checkSignatory } from "./signatory";
-import { awardTransition, cancellable, exerciseCancelBlockedBy } from "./status";
+import { awardTransition, cancellable, exerciseCancelBlockedBy, isLiveAward, LIVE_STATUSES } from "./status";
 import { instrumentReturned } from "./stage-two";
 import { regimeFor } from "@/lib/authority/resolve";
 
@@ -173,6 +173,8 @@ describe("the appointment route at award (6.3 BD-3, FR-APR-010)", () => {
     // BD-2: the screen names the office treated as absent, from the route's warnings.
     expect(r.ok && absentFrom(r.warnings)).toEqual(["CEO"]);
     expect(absentFrom(null)).toEqual([]);
+    // Only an ABSENCE warning names an absent office; another warning's "from" does not.
+    expect(absentFrom([{ code: "SELF_APPROVAL", from: "CEO" }, { code: "ABSENCE", from: "FD" }, { code: "ABSENCE", from: "FD" }])).toEqual(["FD"]);
   });
   it("the requester holding the approving office escalates it, or is refused with nowhere to go", () => {
     expect(appointmentRoute(ctx, quotation, 180_000, { absentRoleCodes: [], requesterHolds: (c) => c === "CEO" })).toMatchObject({ ok: false, fault: "ROUTE_ERROR" });
@@ -258,10 +260,22 @@ describe("cancelling, read once", () => {
     expect(instrumentReturned("LETTER_OF_ACCEPTANCE", { signedLetterReceivedOn: null, signatoryName: "Ali" })).toBe(false);
     expect(instrumentReturned("WORK_INDENT", { signedLetterReceivedOn: null, signatoryName: " Ali " })).toBe(true);
     expect(instrumentReturned("WORK_INDENT", null)).toBe(false);
+    // An acceptance page is back once its received day is recorded, signatory or not.
+    expect(instrumentReturned("WORK_INDENT", { signedLetterReceivedOn: "2026-09-29", signatoryName: "" })).toBe(true);
+    expect(instrumentReturned("WORK_INDENT", { signedLetterReceivedOn: null, signatoryName: "" })).toBe(false);
   });
   it("an exercise is not cancelled while a live award stands on it, naming it", () => {
     expect(exerciseCancelBlockedBy([{ reference: "AW/1", status: "CANCELLED" as const }, { reference: "AW/2", status: "DRAFT" as const }])).toEqual({ reference: "AW/2", status: "DRAFT" });
     expect(exerciseCancelBlockedBy([{ reference: "AW/1", status: "CANCELLED" as const }])).toBeNull();
     expect(exerciseCancelBlockedBy([])).toBeNull();
+  });
+});
+
+describe("one rule for a live award", () => {
+  it("live until cancelled, and the query list is that rule", () => {
+    expect(isLiveAward("ACCEPTED")).toBe(true);
+    expect(isLiveAward("CANCELLED")).toBe(false);
+    expect(LIVE_STATUSES).not.toContain("CANCELLED");
+    expect(LIVE_STATUSES).toHaveLength(5);
   });
 });

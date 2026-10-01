@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { parseSen } from "@/lib/money";
 
-import { bondFaults, derivedAnnualValue, requiredBond, checkedOnFault } from "./bond";
+import { bondFaults, derivedAnnualValue, requiredBond, checkedOnFault, issuerStanding } from "./bond";
+import { percentAboveZero } from "./money";
 
 const PRICE = parseSen("1077508.60");
 
@@ -67,5 +68,22 @@ describe("verifying a bond (FR-AWD-012)", () => {
   it("refuses an expiry before completion plus the validity months, and an unset validity", () => {
     expect(bondFaults({ ...ok, expiresOn: "2029-02-28" }, req, issuers, "2028-03-01", 12)).toEqual(["EXPIRES_TOO_EARLY"]);
     expect(bondFaults(ok, req, issuers, "2028-03-01", null)).toEqual(["VALIDITY_NOT_SET"]);
+  });
+});
+
+describe("single rules the register and the checks share", () => {
+  it("a percentage above zero, read exactly", () => {
+    expect(percentAboveZero("5")).toBe(true);
+    expect(percentAboveZero("0.0001")).toBe(true);
+    expect(percentAboveZero("0")).toBe(false);
+    expect(percentAboveZero("0.0000")).toBe(false);
+    expect(percentAboveZero(null)).toBe(false);
+    expect(percentAboveZero("abc")).toBe(false);
+  });
+  it("an issuer's standing on a day: on the list, retired by then, or never on it", () => {
+    expect(issuerStanding({ retiredOn: null }, "2026-09-30")).toBe("ON_LIST");
+    expect(issuerStanding({ retiredOn: new Date("2026-10-01T00:00:00Z") }, "2026-09-30")).toBe("ON_LIST");
+    expect(issuerStanding({ retiredOn: new Date("2026-09-30T00:00:00Z") }, "2026-09-30")).toBe("RETIRED");
+    expect(issuerStanding(null, "2026-09-30")).toBe("NOT_ON_LIST");
   });
 });

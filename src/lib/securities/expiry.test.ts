@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { expiryAlert, alertingUpTo } from "./expiry";
+import { expiryAlert, alertingUpTo, longExpiredBefore, registerRank } from "./expiry";
 
 describe("expiry alerts from the notification rule's offsets", () => {
   it("offsets 30 and 7 with seven days left give the seven-day alert", () => {
@@ -27,5 +27,17 @@ describe("counting what is expiring", () => {
     const up = alertingUpTo([30], "2026-10-01");
     expect(expiryAlert(up, [30], "2026-10-01").state).toBe("DUE");
     expect(expiryAlert("2026-11-01", [30], "2026-10-01").state).toBe("NONE");
+  });
+});
+
+describe("the register's order", () => {
+  it("live first, then long expired, then rejected; long expired is past the largest reminder offset", () => {
+    const cutoff = longExpiredBefore([30, 60], "2026-10-01");
+    expect(cutoff).toBe("2026-08-02");
+    expect(registerRank({ status: "VERIFIED", expiresOn: "2026-09-01" }, cutoff)).toBe(0);
+    expect(registerRank({ status: "LODGED", expiresOn: null }, cutoff)).toBe(0);
+    expect(registerRank({ status: "VERIFIED", expiresOn: "2026-08-01" }, cutoff)).toBe(1);
+    expect(registerRank({ status: "REJECTED", expiresOn: "2027-01-01" }, cutoff)).toBe(2);
+    expect(longExpiredBefore([], "2026-10-01")).toBe("2026-10-01");
   });
 });

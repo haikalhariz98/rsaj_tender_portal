@@ -23,7 +23,8 @@ import { holdersFor } from "@/lib/requisition/holders";
 import { recordOf, type DecisionRow } from "@/lib/requisition/repo";
 import type { ApprovalStatus, RequisitionStatus, StepDecision } from "@/lib/requisition/types";
 import type { LiabilityBand } from "@/lib/securities/liability";
-import { alertingUpTo } from "@/lib/securities/expiry";
+import { Prisma } from "@/generated/prisma/client";
+import { alertingUpTo, longExpiredBefore } from "@/lib/securities/expiry";
 import { applicableRequirements, type Requirement } from "@/lib/securities/insurance";
 
 import { absentOffices } from "./appointment";
@@ -346,7 +347,8 @@ export async function listAwards() {
     // Issued and not accepted: acceptance comes in the same act as the completing return (BD-12).
     db.award.count({ where: { ...where, status: "ISSUED" } }),
     before
-      ? db.award.count({ where: { ...where, instrumentKind: "WORK_INDENT", status: { in: ["ISSUED", "ACCEPTED"] }, commencedOn: null, indentReceivedOn: { lt: dayToDate(before) } } })
+      ? // The badge's own rule (indentExpiryRaised): any award not cancelled, not commenced.
+        db.award.count({ where: { ...where, instrumentKind: "WORK_INDENT", status: { not: "CANCELLED" }, commencedOn: null, indentReceivedOn: { lt: dayToDate(before) } } })
       : Promise.resolve(0),
   ]);
   return { org, rows, total, policy, counts: { pending, ready, awaitingReturn, expired } };
@@ -376,27 +378,49 @@ export async function awardHistory(l: LoadedAward) {
 }
 
 export const REGISTER_PAGE = 50;
+export type RegisterView = "all" | "expiring" | "unverified";
 
 /**
- * The register across contracts, soonest to expire first: the first page of each table
- * (a security with no expiry recorded sorts first — it needs attention), merged, and
- * the header's counts taken in the database so they cover every row, not the page.
+ * The register across contracts, paged in the database: securities and policies as one
+ * list, live rows first, then those long expired, then rejected — soonest to expire
+ * first within each (`registerRank`). The views and the header's counts are the same
+ * database conditions, so a view always holds what its count says.
  */
-export async function listRegister() {
+export async function listRegister(page = 0, view: RegisterView = "all") {
   const org = await exerciseOrg();
-  if (!org) return { org: null, securities: [], policies: [], config: null, total: 0, counts: { unverified: 0, expiring: 0 } };
+  const empty = { org: null, securities: [], policies: [], order: [] as { kind: "S" | "P"; id: string }[], config: null, total: 0, page: 0, counts: { all: 0, unverified: 0, expiring: 0 } };
+  if (!org) return empty;
   const config = await loadAwardConfig(org.id);
-  const contract = { contract: { organisationId: org.id } };
+  const today = org.today;
+  // Without the organisation's day nothing is "expiring": the count and the view agree on none.
+  const upTo = today ? dayToDate(alertingUpTo(config.expiryOffsets, today)) : null;
+  const cutoff = dayToDate(longExpiredBefore(config.expiryOffsets, today ?? "9999-12-31"));
+  const secView = view === "unverified" ? Prisma.sql`AND s.status = 'LODGED'` : view === "expiring" ? (upTo ? Prisma.sql`AND s.status <> 'REJECTED' AND (s."expiresOn" IS NULL OR s."expiresOn" <= ${upTo})` : Prisma.sql`AND FALSE`) : Prisma.empty;
+  const polView = view === "unverified" ? Prisma.sql`AND p.status = 'LODGED'` : view === "expiring" ? (upTo ? Prisma.sql`AND p.status <> 'REJECTED' AND p."periodEnd" <= ${upTo}` : Prisma.sql`AND FALSE`) : Prisma.empty;
+  const rows = Prisma.sql`
+    SELECT 'S' AS kind, s.id, CASE WHEN s.status = 'REJECTED' THEN 2 WHEN s."expiresOn" IS NOT NULL AND s."expiresOn" < ${cutoff} THEN 1 ELSE 0 END AS rank, s."expiresOn" AS ends
+      FROM "SecurityInstrument" s JOIN "Contract" c ON c.id = s."contractId" WHERE c."organisationId" = ${org.id} ${secView}
+    UNION ALL
+    SELECT 'P' AS kind, p.id, CASE WHEN p.status = 'REJECTED' THEN 2 WHEN p."periodEnd" < ${cutoff} THEN 1 ELSE 0 END AS rank, p."periodEnd" AS ends
+      FROM "InsurancePolicy" p JOIN "Contract" c ON c.id = p."contractId" WHERE c."organisationId" = ${org.id} ${polView}`;
+  const count = async (v: RegisterView) => {
+    const sv = v === "unverified" ? Prisma.sql`AND s.status = 'LODGED'` : v === "expiring" ? (upTo ? Prisma.sql`AND s.status <> 'REJECTED' AND (s."expiresOn" IS NULL OR s."expiresOn" <= ${upTo})` : Prisma.sql`AND FALSE`) : Prisma.empty;
+    const pv = v === "unverified" ? Prisma.sql`AND p.status = 'LODGED'` : v === "expiring" ? (upTo ? Prisma.sql`AND p.status <> 'REJECTED' AND p."periodEnd" <= ${upTo}` : Prisma.sql`AND FALSE`) : Prisma.empty;
+    const r = await db.$queryRaw<{ n: bigint }[]>`
+      SELECT (SELECT count(*) FROM "SecurityInstrument" s JOIN "Contract" c ON c.id = s."contractId" WHERE c."organisationId" = ${org.id} ${sv})
+           + (SELECT count(*) FROM "InsurancePolicy" p JOIN "Contract" c ON c.id = p."contractId" WHERE c."organisationId" = ${org.id} ${pv}) AS n`;
+    return Number(r[0]?.n ?? 0);
+  };
+  const [all, unverified, expiring] = await Promise.all([count("all"), count("unverified"), count("expiring")]);
+  const total = view === "all" ? all : view === "unverified" ? unverified : expiring;
+  const last = Math.max(0, Math.ceil(total / REGISTER_PAGE) - 1);
+  const p = Math.min(Math.max(0, page), last);
+  const order = await db.$queryRaw<{ kind: "S" | "P"; id: string }[]>`
+    SELECT kind, id FROM (${rows}) r ORDER BY rank, ends ASC NULLS FIRST, id LIMIT ${REGISTER_PAGE} OFFSET ${p * REGISTER_PAGE}`;
   const include = { issuer: { select: { name: true, retiredOn: true } }, contract: { select: { number: true, status: true, award: { select: { id: true, reference: true, awardeeName: true } } } } } as const;
-  const upTo = org.today ? dayToDate(alertingUpTo(config.expiryOffsets, org.today)) : null;
-  const [securities, policies, nSec, nPol, unverified, expSec, expPol] = await Promise.all([
-    db.securityInstrument.findMany({ where: contract, include, orderBy: [{ expiresOn: { sort: "asc", nulls: "first" } }, { id: "asc" }], take: REGISTER_PAGE }),
-    db.insurancePolicy.findMany({ where: contract, include, orderBy: [{ periodEnd: "asc" }, { id: "asc" }], take: REGISTER_PAGE }),
-    db.securityInstrument.count({ where: contract }),
-    db.insurancePolicy.count({ where: contract }),
-    Promise.all([db.securityInstrument.count({ where: { ...contract, status: "LODGED" } }), db.insurancePolicy.count({ where: { ...contract, status: "LODGED" } })]).then(([a, b]) => a + b),
-    upTo ? db.securityInstrument.count({ where: { ...contract, status: { not: "REJECTED" }, OR: [{ expiresOn: null }, { expiresOn: { lte: upTo } }] } }) : Promise.resolve(0),
-    upTo ? db.insurancePolicy.count({ where: { ...contract, status: { not: "REJECTED" }, periodEnd: { lte: upTo } } }) : Promise.resolve(0),
+  const [securities, policies] = await Promise.all([
+    db.securityInstrument.findMany({ where: { id: { in: order.filter((o) => o.kind === "S").map((o) => o.id) } }, include }),
+    db.insurancePolicy.findMany({ where: { id: { in: order.filter((o) => o.kind === "P").map((o) => o.id) } }, include }),
   ]);
-  return { org, securities, policies, config, total: nSec + nPol, counts: { unverified, expiring: expSec + expPol } };
+  return { org, securities, policies, order, config, total, page: p, counts: { all, unverified, expiring } };
 }

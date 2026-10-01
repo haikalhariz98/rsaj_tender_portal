@@ -59,8 +59,9 @@ export function awardValueFaults(i: ValueInput): Finding<ValueFault>[] {
   if (i.value <= 0n) return [{ code: "VALUE_NOT_POSITIVE", level: "block" }];
   if (i.approvedValue == null) out.push({ code: "NO_APPROVED_ROUTE", level: "block" });
   else {
+    // Over what is left of the approval, read through the one headroom rule.
     const together = addSen(i.value, ...i.otherAwards);
-    if (together > i.approvedValue) {
+    if (i.value > awardHeadroom(i.approvedValue, i.otherAwards)!) {
       out.push({ code: "EXCEEDS_APPROVED_VALUE", level: "block", data: { approved: formatMoney(i.approvedValue), together: formatMoney(together), others: i.otherAwards.length } });
     }
   }

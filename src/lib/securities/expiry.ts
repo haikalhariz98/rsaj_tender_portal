@@ -27,3 +27,16 @@ export function expiryAlert(expiresOn: Day | null, offsets: readonly number[], t
 export function alertingUpTo(offsets: readonly number[], today: Day): Day {
   return offsets.length ? addDays(today, Math.max(...offsets)) : addDays(today, -1);
 }
+
+/**
+ * Where a register row sorts: live rows first (0), then those long expired — past the
+ * largest reminder offset, or past at all where none is set (1) — then rejected ones
+ * (2). Within a rank, soonest to expire first, with no expiry recorded leading.
+ */
+export function longExpiredBefore(offsets: readonly number[], today: Day): Day {
+  return offsets.length ? addDays(today, -Math.max(...offsets)) : today;
+}
+export function registerRank(row: { status: string; expiresOn: Day | null }, cutoff: Day): 0 | 1 | 2 {
+  if (row.status === "REJECTED") return 2;
+  return row.expiresOn != null && row.expiresOn < cutoff ? 1 : 0;
+}

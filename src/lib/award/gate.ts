@@ -34,6 +34,8 @@ export interface DocumentState {
   unknown: string[];
   /// Fields of the text being frozen still reading "(allocated on issue)" (BD-14).
   unfilled: string[];
+  /// The language it issues in, where its text is known.
+  language?: "MS" | "EN" | null;
 }
 
 export interface IssueInput {
@@ -143,7 +145,7 @@ export function issueFaults(i: IssueInput): Finding[] {
     else if (d.state === "NO_LANGUAGE") f("TEMPLATE_LANGUAGE_NOT_SET", { kind: d.kind, template: d.templateName });
     else {
       if (d.unknown.length) f("TEMPLATE_UNKNOWN_FIELD", { kind: d.kind, template: d.templateName, count: d.unknown.length });
-      if (d.missing.length) f("TEMPLATE_INCOMPLETE", { kind: d.kind, template: d.templateName, fields: d.missing.join(",") });
+      if (d.missing.length) f("TEMPLATE_INCOMPLETE", { kind: d.kind, template: d.templateName, fields: d.missing.join(","), language: d.language ?? null });
       if (d.unfilled.length) f("ISSUE_VALUE_UNFILLED", { kind: d.kind, fields: d.unfilled.join(",") });
     }
   }

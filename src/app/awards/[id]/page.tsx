@@ -53,7 +53,8 @@ import { acceptancePageFaults, instrumentReturned, returnComplete, returnState, 
 import { cancellable, editable } from "@/lib/award/status";
 import { absentFrom } from "@/lib/award/appointment";
 import type { AwardStatus, Finding, InstrumentKind } from "@/lib/award/types";
-import { storedDay } from "@/lib/dates";
+import { dayToDate, storedDay } from "@/lib/dates";
+import { APPOINTMENT_DOMAIN } from "@/lib/method/types";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
 import { boundarySentence, REGIME_LABEL } from "@/lib/method/labels";
@@ -124,7 +125,8 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
     awardHistory(l),
     exerciseMatters(ex.id),
     // Sittings still open for tabling, for a committee step's "Table at a sitting".
-    db.meeting.findMany({ where: { committee: { organisationId: org.id }, status: { in: ["SCHEDULED", "IN_PROGRESS"] } }, orderBy: { meetingDate: "asc" }, select: { id: true, reference: true, meetingDate: true, committee: { select: { code: true } } } }),
+    // The earliest that has not already passed.
+    db.meeting.findMany({ where: { committee: { organisationId: org.id }, status: { in: ["SCHEDULED", "IN_PROGRESS"] }, ...(today ? { meetingDate: { gte: dayToDate(today) } } : {}) }, orderBy: [{ meetingDate: "asc" }, { id: "asc" }], select: { id: true, reference: true, meetingDate: true, committee: { select: { code: true } } } }),
   ]);
   const ev = evaluateAward(f.facts);
   const status = award.status as AwardStatus;
@@ -574,7 +576,7 @@ function ApprovalPanel({
               const needsTabling = !mine.some((m) => m.outcome === "PENDING" || m.outcome === "CARRIED" || m.outcome === "DEFERRED");
               const sitting = sittings.find((x) => x.committee.code === s.committeeCode);
               const tableHref = sitting
-                ? `/committees/${sitting.id}?${new URLSearchParams({ tab: "agenda", table: "1", subject: `Appointment of ${award.awardeeName} for ${ex.title}`, domain: "appointment", act: s.act, matterKind: "EXERCISE", matterRef: ex.reference, amount: award.awardedValue.toString() }).toString()}`
+                ? `/committees/${sitting.id}?${new URLSearchParams({ tab: "agenda", table: "1", subject: `Appointment of ${award.awardeeName} for ${ex.title}`, domain: APPOINTMENT_DOMAIN, act: s.act, matterKind: "EXERCISE", matterRef: ex.reference, amount: award.awardedValue.toString() }).toString()}`
                 : null;
               return (
                 <li key={s.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-6">

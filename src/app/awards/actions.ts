@@ -10,6 +10,8 @@ import { writeAudit, type Tx } from "@/lib/audit/record";
 import { boundaryOperatorFor, regimeFor } from "@/lib/authority/resolve";
 import { appointmentRoute } from "@/lib/award/appointment";
 import { awardAuditCreate, awardAuditPair } from "@/lib/award/audit-view";
+import { termsUpdate } from "@/lib/award/terms";
+import { percentAboveZero } from "@/lib/securities/money";
 import { icNumberFault } from "@/lib/award/mask";
 import { exerciseCitationFault } from "@/lib/award/citation";
 import { despatchFaults } from "@/lib/award/distribution";
@@ -249,22 +251,19 @@ export async function updateAwardTerms(_prev: FormState, data: FormData): Promis
     wcBasis: r.choice("wcBasis", "Workmen's compensation basis", ["UNCOVERED_WAGES", "PERCENT_OF_CONTRACT"] as const),
   };
   if (bondRequired === false && !v.bondNotRequiredReason) r.reject("bondNotRequiredReason", "Say why no performance bond is required.");
-  if (bondRequired && v.bondPercent != null && !(Number(v.bondPercent) > 0)) r.reject("bondPercent", "A bond of 0% is no bond: give the percentage, or record that no bond is required, with the reason.");
+  if (bondRequired && v.bondPercent != null && !percentAboveZero(v.bondPercent)) r.reject("bondPercent", "0% is not a bond: give the percentage, or answer that no bond is required and say why.");
   if (bondRequired === false && !v.bondBasisProvenance) r.reject("bondBasisProvenance", "Say where the decision that no bond is required came from.");
   if (bondRequired && v.bondBasis === "ANNUAL_VALUE" && v.bondBasisAmount && !v.bondBasisProvenance) r.reject("bondBasisProvenance", "An entered one-year value needs its provenance.");
   if (r.failed) return { ok: false, errors: r.errors };
   return inAward(id, async (tx, l) => {
     if (!editable(l.award.status as AwardStatus).terms) return { ok: false, message: "The terms are fixed once the instrument is issued: they are in its text." };
-    const after = {
+    // Only what the form carried is written: a field it did not show keeps its stored value.
+    const present = new Set([...data.keys()]);
+    const after = termsUpdate(present, {
       ...v,
-      // Kept only where they mean something: no basis without a bond, no reason with one.
-      bondNotRequiredReason: bondRequired === false ? v.bondNotRequiredReason : "",
-      bondBasis: bondRequired ? v.bondBasis : null,
-      bondPercent: bondRequired && v.bondBasis !== "STATED_AMOUNT" ? v.bondPercent : null,
-      bondBasisAmount: bondRequired && v.bondBasis !== "CONTRACT_PRICE" && v.bondBasisAmount ? senToDecimalString(parseSen(v.bondBasisAmount)) : null,
-      bondValidityExtraMonths: bondRequired ? v.bondValidityExtraMonths : null,
+      bondBasisAmount: v.bondBasisAmount ? senToDecimalString(parseSen(v.bondBasisAmount)) : null,
       ladAmount: v.ladAmount ? senToDecimalString(parseSen(v.ladAmount)) : null,
-    };
+    });
     const moved = await tx.award.updateMany({ where: { id, status: l.award.status, updatedAt: l.award.updatedAt }, data: after });
     if (moved.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, l.org.id, "Award", id, labelOf(l.award), "UPDATE", awardAuditPair(l.award, { ...l.award, ...after }), String(data.get("reason") ?? ""));
@@ -340,8 +339,10 @@ export async function submitAward(_prev: FormState, data: FormData): Promise<For
     await mustMove(tx, l, "PENDING_APPROVAL");
     await audit(tx, l.org.id, "Award", id, labelOf(l.award), "UPDATE", diffFields({ status: l.award.status }, { status: "PENDING_APPROVAL" }));
     // FR-MTD-011: the contract type is fixed from the award on; changed only by a controlled change.
+    // The moment it was locked; shown as the organisation's day (formatOrgDay).
     if (!l.ex.classificationLockedAt) {
-      await tx.sourcingExercise.update({ where: { id: l.ex.id }, data: { classificationLockedAt: on } });
+      const lockedAt = new Date();
+      await tx.sourcingExercise.update({ where: { id: l.ex.id }, data: { classificationLockedAt: lockedAt } });
       await audit(tx, l.org.id, "SourcingExercise", l.ex.id, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ classificationLockedAt: null }, { classificationLockedAt: on }), `Award ${l.award.reference} sent for approval.`);
     }
     return { ok: true };
