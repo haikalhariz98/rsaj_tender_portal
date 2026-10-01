@@ -98,6 +98,7 @@ export function HistoryButton({
                         <Badge tone={ACTION[e.action].tone}>{ACTION[e.action].label}</Badge>
                         <span className="text-[12.5px] text-ink-3">{e.when}</span>
                       </div>
+                      {e.part && <p className="mt-1.5 text-[13px] font-semibold break-words text-ink">{e.part}</p>}
                       <p className="mt-1 text-[12.5px] text-ink-3">
                         {e.actorName ?? (e.unattributed ? "Not attributed — sign-in is not built yet" : "Unknown")}
                       </p>

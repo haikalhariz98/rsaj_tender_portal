@@ -60,6 +60,9 @@ const NAMED_FIELDS: Record<string, string> = {
   standingInForSeatId: "Standing in for",
   dependsOnDecisionId: "Depends on",
   notApprovedOutcomeId: "Outcome if not carried",
+  // An approving office's row and a step's office, as the screens print them.
+  approverCode: "Approved by",
+  roleCode: "Office",
   // Core routing (FR-APR-004): the rule editor's own words.
   generateCoreChain: "Chain from core routing",
   coreChainReason: "Why the chain is as entered",

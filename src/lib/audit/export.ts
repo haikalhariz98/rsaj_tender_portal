@@ -19,6 +19,9 @@ import { createHash } from "node:crypto";
 
 import { dayIn } from "@/lib/dates";
 
+import { CORE_ROUTING_ENTITY_NAME } from "./core-routing-trail";
+import { fieldLabel } from "./diff";
+
 export interface ExportRow {
   id: string;
   at: Date;
@@ -33,6 +36,21 @@ export interface ExportRow {
 }
 
 export const EXPORT_COLUMNS = ["Entry", "Recorded at (UTC)", "Organisation's day", "Record type", "Record", "Record id", "Action", "Changes", "Reason", "Recorded by"] as const;
+
+/// A record type as a person reads it: "AuthorityRule" is "Authority rule", the core
+/// routing types have their own names. The model name is a code and stays out of the file.
+export function recordTypeLabel(entity: string): string {
+  const own = (CORE_ROUTING_ENTITY_NAME as Record<string, string>)[entity];
+  if (own) return own;
+  const spaced = entity.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+/// The changes with field names as the History drawer reads them, not as stored.
+function labelledChanges(changes: unknown): unknown {
+  if (!Array.isArray(changes)) return changes ?? [];
+  return changes.map((c) => (c && typeof c === "object" && "field" in c ? { ...c, field: fieldLabel(String((c as { field: unknown }).field)) } : c));
+}
 
 /// One CSV field: quoted where it holds a comma, a quote or a line break.
 function field(v: string): string {
@@ -52,11 +70,11 @@ export function auditCsv(rows: readonly ExportRow[], timeZone: string): string {
         r.id,
         r.at.toISOString(),
         dayIn(r.at, timeZone),
-        r.entity,
+        recordTypeLabel(r.entity),
         r.entityLabel,
         r.entityId,
         r.action,
-        JSON.stringify(r.changes ?? []),
+        JSON.stringify(labelledChanges(r.changes)),
         r.reason,
         r.unattributed ? "Not attributed: no sign-in" : (r.actorName ?? "A person no longer on record"),
       ]

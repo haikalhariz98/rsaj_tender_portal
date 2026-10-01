@@ -130,7 +130,7 @@ export interface AuditRow {
 /// The trail for one row, or for the whole organisation when no entity is given.
 export async function loadAudit(
   organisationCode: string,
-  opts: { entity?: string; entityId?: string; take?: number } = {},
+  opts: { entity?: string; entityId?: string; take?: number; entities?: readonly string[]; labelPrefix?: string } = {},
 ): Promise<AuditRow[]> {
   const organisation = await db.organisation.findUnique({
     where: { code: organisationCode },
@@ -143,6 +143,8 @@ export async function loadAudit(
       organisationId: organisation.id,
       ...(opts.entity ? { entity: opts.entity } : {}),
       ...(opts.entityId ? { entityId: opts.entityId } : {}),
+      ...(opts.entities ? { entity: { in: [...opts.entities] } } : {}),
+      ...(opts.labelPrefix ? { entityLabel: { startsWith: opts.labelPrefix } } : {}),
     },
     orderBy: { at: "desc" },
     take: opts.take ?? 50,

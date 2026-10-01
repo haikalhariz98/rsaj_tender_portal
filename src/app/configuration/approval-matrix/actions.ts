@@ -11,6 +11,7 @@ import { boundaryFaultsAcross, boundaryRuleFault, rulesTiedWith } from "@/lib/au
 import type { AuthorityAct, CoreLevel, Rule } from "@/lib/authority/types";
 import type { Tx } from "@/lib/audit/record";
 import { loadIssue } from "@/lib/authority/load";
+import { coreRoutingEntryLabel } from "@/lib/audit/core-routing-trail";
 import { copyCoreRouting, CORE_ACTS, coreChainFaultsAcross, coreLevelFaults, coreLevelFor, ruleCoreFault, type CoreLevelRow } from "@/lib/authority/core-routing";
 import { coreLevelFaultText, issueRefusal, ruleSaveRefusal } from "@/lib/authority/core-routing-labels";
 import { destinationRowFaults, type RejectionKind } from "@/lib/authority/rejection";
@@ -927,8 +928,8 @@ export async function discardDraft(_prev: FormState, data: FormData): Promise<Fo
     // The core routing, step by step and row by row (FR-APR-004).
     const officeName = (code: string) => offices.get(code) ?? "An office no longer configured";
     for (const { steps, ...level } of draft.coreRouting) {
-      for (const step of steps) await del("CoreRoutingStep", step.id, `${draft.label} — core routing: ${officeName(level.approverCode)} — ${officeName(step.roleCode)}`, { ...step, roleCode: officeName(step.roleCode) });
-      await del("CoreRoutingLevel", level.id, `${draft.label} — core routing: ${officeName(level.approverCode)}`, { ...level, approverCode: officeName(level.approverCode) });
+      for (const step of steps) await del("CoreRoutingStep", step.id, coreRoutingEntryLabel(draft.label, officeName(level.approverCode), officeName(step.roleCode)), { ...step, roleCode: officeName(step.roleCode) });
+      await del("CoreRoutingLevel", level.id, coreRoutingEntryLabel(draft.label, officeName(level.approverCode)), { ...level, approverCode: officeName(level.approverCode) });
     }
     const { rules, termsBands, coreRouting, ...issue } = draft;
     await writeAudit(tx, { organisationId: orgId, entity: "AuthorityMatrix", entityId: id, entityLabel: draft.label, reason }, "DELETE",
@@ -981,7 +982,7 @@ export async function saveCoreLevel(_prev: FormState, data: FormData): Promise<F
       const level: CoreLevel = { approverCode: write.approverCode, clause: write.clause, provenance: write.provenance, steps: (before?.steps ?? []).map((st) => ({ roleCode: st.roleCode, act: st.act as AuthorityAct, provenance: st.provenance })) };
       const fault = coreLevelFaults(level, roles)[0];
       if (fault) return { ok: false, errors: { approverCode: coreLevelFaultText(fault.fault, officeIn(roles, fault.roleCode)) } };
-      const label = `${matrix.label} — core routing: ${officeIn(roles, write.approverCode)}`;
+      const label = coreRoutingEntryLabel(matrix.label, officeIn(roles, write.approverCode));
       const shown = { ...write, approverCode: officeIn(roles, write.approverCode) };
       if (!before) {
         const row = await tx.coreRoutingLevel.create({ data: { organisationId: orgId, authorityMatrixId, ...write } });
@@ -1014,7 +1015,7 @@ export async function removeCoreLevel(_prev: FormState, data: FormData): Promise
     if (matrix.issuedAt) return FROZEN;
     const roles = (await issueIn(tx, level.authorityMatrixId))?.matrix.roles ?? {};
     const name = (code: string) => officeIn(roles, code);
-    const label = `${matrix.label} — core routing: ${name(level.approverCode)}`;
+    const label = coreRoutingEntryLabel(matrix.label, name(level.approverCode));
     for (const step of level.steps) {
       await tx.coreRoutingStep.delete({ where: { id: step.id } });
       await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingStep", entityId: step.id, entityLabel: `${label} — ${name(step.roleCode)}`, reason }, "DELETE",
@@ -1059,7 +1060,7 @@ export async function saveCoreStep(_prev: FormState, data: FormData): Promise<Fo
     const fault = coreLevelFaults({ approverCode: level.approverCode, clause: level.clause, provenance: level.provenance, steps }, roles).find((f) => f.roleCode === roleCode);
     if (fault) return { ok: false, errors: { roleCode: coreLevelFaultText(fault.fault, officeIn(roles, fault.roleCode)) } };
     const row = await tx.coreRoutingStep.create({ data: { organisationId: orgId, coreRoutingLevelId: level.id, roleCode, act, sequence, provenance, note } });
-    await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingStep", entityId: row.id, entityLabel: `${matrix.label} — core routing: ${officeIn(roles, level.approverCode)} — ${officeIn(roles, roleCode)}`, reason: String(data.get("reason") ?? "") }, "CREATE",
+    await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingStep", entityId: row.id, entityLabel: coreRoutingEntryLabel(matrix.label, officeIn(roles, level.approverCode), officeIn(roles, roleCode)), reason: String(data.get("reason") ?? "") }, "CREATE",
       diffFields(null, { office: officeIn(roles, roleCode), act: actWithCode(act), sequence, provenance, note }));
     return { ok: true };
   });
@@ -1083,7 +1084,7 @@ export async function removeCoreStep(_prev: FormState, data: FormData): Promise<
     if (matrix.issuedAt) return FROZEN;
     const roles = (await issueIn(tx, step.level.authorityMatrixId))?.matrix.roles ?? {};
     await tx.coreRoutingStep.delete({ where: { id } });
-    await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingStep", entityId: id, entityLabel: `${matrix.label} — core routing: ${officeIn(roles, step.level.approverCode)} — ${officeIn(roles, step.roleCode)}`, reason }, "DELETE",
+    await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingStep", entityId: id, entityLabel: coreRoutingEntryLabel(matrix.label, officeIn(roles, step.level.approverCode), officeIn(roles, step.roleCode)), reason }, "DELETE",
       snapshotFields({ office: officeIn(roles, step.roleCode), act: actWithCode(step.act), sequence: step.sequence, provenance: step.provenance, note: step.note }));
     return { ok: true };
   });

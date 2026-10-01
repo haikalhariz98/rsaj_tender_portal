@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { auditCsv, entriesOnDays, exportFault, sha256Hex, type ExportRow } from "./export";
+import { auditCsv, entriesOnDays, exportFault, recordTypeLabel, sha256Hex, type ExportRow } from "./export";
 
 const row = (id: string, at: string, over: Partial<ExportRow> = {}): ExportRow => ({
   id,
@@ -75,5 +75,31 @@ describe("the trail is immutable in the application (FR-APR-015)", () => {
   it("no source under src/ updates, upserts or deletes an audit entry", () => {
     const offenders = files(join(process.cwd(), "src")).filter((f) => /auditEntry\s*\.\s*(update|updateMany|upsert|delete|deleteMany)\s*\(/.test(readFileSync(f, "utf8")));
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("the export names things in words", () => {
+  it("reads a core routing entry by its labels, with no model name or field key", () => {
+    const file = auditCsv(
+      [
+        row("c", "2026-09-30T01:00:00Z", {
+          entity: "CoreRoutingLevel",
+          entityLabel: "Issue 3 — core routing: Director",
+          action: "CREATE",
+          changes: [{ field: "approverCode", before: null, after: "Director" }],
+        }),
+      ],
+      "UTC",
+    );
+    expect(file).toContain("Core routing row,Issue 3 — core routing: Director");
+    expect(file).toContain("Approved by");
+    expect(file).not.toContain("CoreRoutingLevel");
+    expect(file).not.toContain("approverCode");
+  });
+
+  it("spaces any other model name", () => {
+    expect(recordTypeLabel("CoreRoutingStep")).toBe("Core routing step");
+    expect(recordTypeLabel("AuthorityRule")).toBe("Authority rule");
+    expect(recordTypeLabel("Requisition")).toBe("Requisition");
   });
 });

@@ -1,5 +1,6 @@
 "use server";
 
+import { CORE_ROUTING_ENTITIES, CORE_ROUTING_ENTITY_NAME, coreRoutingEntryName, coreRoutingTrailPrefix } from "@/lib/audit/core-routing-trail";
 import { loadAudit } from "@/lib/audit/record";
 import {
   MATTER_KIND_LABEL,
@@ -46,6 +47,9 @@ export interface HistoryEntry {
   reason: string;
   actorName: string | null;
   unattributed: boolean;
+  /// For an entry about a part of the record rather than the record itself (an issue's
+  /// core routing row or step): which part, in words. Null for the record's own entries.
+  part: string | null;
   changes: { field: string; before: string | null; after: string | null }[];
 }
 
@@ -105,14 +109,21 @@ async function valueReader(entity = ""): Promise<(field: string, value: string |
   };
 }
 
-/// One record's history, newest first.
+/// One record's history, newest first. An issue's history also holds the entries of its
+/// core routing rows and steps (found by their label, which begins with the issue's), so
+/// a row or step that has since been removed is still reachable.
 export async function historyOf(entity: string, entityId: string): Promise<HistoryEntry[]> {
   if (!ENTITIES.has(entity) || !entityId) return [];
-  const [rows, read, org] = await Promise.all([
+  const issue = entity === "AuthorityMatrix" ? await db.authorityMatrix.findUnique({ where: { id: entityId }, select: { label: true } }) : null;
+  const [own, core, read, org] = await Promise.all([
     loadAudit(ORGANISATION_CODE, { entity, entityId, take: 100 }),
+    issue
+      ? loadAudit(ORGANISATION_CODE, { entities: CORE_ROUTING_ENTITIES, labelPrefix: coreRoutingTrailPrefix(issue.label), take: 100 })
+      : Promise.resolve([]),
     valueReader(entity),
     db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { timeZone: true } }),
   ]);
+  const rows = [...own, ...core].sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, 100);
   return rows.map((r) => ({
     id: r.id,
     action: r.action,
@@ -121,6 +132,7 @@ export async function historyOf(entity: string, entityId: string): Promise<Histo
     reason: r.reason,
     actorName: r.actorName,
     unattributed: r.unattributed,
+    part: issue && r.entity in CORE_ROUTING_ENTITY_NAME ? (coreRoutingEntryName(r.entityLabel, issue.label) ?? "Core routing") : null,
     changes: r.changes.map((c) => ({
       field: c.field,
       before: read(c.field, c.before == null ? null : String(c.before)),
