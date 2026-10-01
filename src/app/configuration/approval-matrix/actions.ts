@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import type { FormState } from "@/components/record-editor";
-import { auditedCreate, auditedDelete, auditedUpdate, writeAudit } from "@/lib/audit/record";
+import { auditedCreate, auditedUpdate, writeAudit } from "@/lib/audit/record";
 import { diffFields, snapshotFields } from "@/lib/audit/diff";
 import { issueFault, onRoute, predecessorOf, startOfDay } from "@/lib/authority/issue";
 import { boundaryFaultsAcross, boundaryRuleFault, rulesTiedWith } from "@/lib/authority/resolve";
@@ -249,13 +249,20 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
 
   // Moving the boundary can put an existing rule's edge on it (code review, item 7), and
   // flipping which side it falls on changes what every rule on it means (round 3, k):
-  // either one re-checks the rules against it.
-  const moved = before && boundaryValue && compareAmounts(boundaryValue, before.boundaryValue.toString()) !== 0;
-  const flipped = before && v.boundaryInclusive !== before.boundaryInclusive;
-  if (before && boundaryValue && (moved || flipped)) {
-    const rows = await db.authorityRule.findMany({ where: { authorityMatrixId: before.id } });
-    const refusal = boundaryRefusal(rows, boundaryValue) ?? (await termsRefusal(before.id, boundaryValue));
-    if (refusal) r.reject(moved ? onForm("boundaryValue") : "boundaryInclusive", refusal);
+  // either one re-checks the rules against it. Checked here for the form, and again on
+  // the locked issue when the change is written.
+  const boundaryMove = async (stored: { id: string; boundaryValue: unknown; boundaryInclusive: boolean }, client: Tx): Promise<{ field: string; message: string } | null> => {
+    if (!boundaryValue) return null;
+    const moved = compareAmounts(boundaryValue, String(stored.boundaryValue)) !== 0;
+    const flipped = v.boundaryInclusive !== stored.boundaryInclusive;
+    if (!moved && !flipped) return null;
+    const rows = await client.authorityRule.findMany({ where: { authorityMatrixId: stored.id } });
+    const refusal = boundaryRefusal(rows, boundaryValue) ?? (await termsRefusal(stored.id, boundaryValue, client));
+    return refusal ? { field: moved ? onForm("boundaryValue") : "boundaryInclusive", message: refusal } : null;
+  };
+  if (before) {
+    const refusal = await boundaryMove(before, db);
+    if (refusal) r.reject(refusal.field, refusal.message);
   }
 
   const parsed = r.finish(v);
@@ -276,18 +283,30 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
     revalidatePath(PATH);
     redirect(`${PATH}?issue=${created.id}`);
   } else if (before) {
-    await auditedUpdate(
-      { ...ctx, entityId: before.id },
-      {
-        ...before,
-        boundaryValue: before.boundaryValue.toString(),
-        quotationFloor: before.quotationFloor.toString(),
-        tenderFloor: before.tenderFloor.toString(),
-        requisitionBoundary: before.requisitionBoundary.toString(),
-      },
-      v,
-      (tx) => tx.authorityMatrix.update({ where: { id: before.id }, data: v }),
-    );
+    // Under the issue's lock: it may have been issued, or its rules changed, since the
+    // form was checked. The trail's "before" is the row as it stood under the lock.
+    const saved = await db.$transaction(async (tx): Promise<FormState> => {
+      await lockIssue(tx, before.id);
+      const locked = await tx.authorityMatrix.findFirst({ where: { id: before.id, organisationId: orgId } });
+      if (!locked) return { ok: false, message: "That issue no longer exists." };
+      if (locked.issuedAt) return FROZEN;
+      const refusal = await boundaryMove(locked, tx);
+      if (refusal) return { ok: false, errors: { [refusal.field]: refusal.message } };
+      await tx.authorityMatrix.update({ where: { id: locked.id }, data: v });
+      const changes = diffFields(
+        {
+          ...locked,
+          boundaryValue: locked.boundaryValue.toString(),
+          quotationFloor: locked.quotationFloor.toString(),
+          tenderFloor: locked.tenderFloor.toString(),
+          requisitionBoundary: locked.requisitionBoundary.toString(),
+        },
+        v,
+      );
+      if (changes.length > 0) await writeAudit(tx, { ...ctx, entityId: locked.id }, "UPDATE", changes);
+      return { ok: true };
+    });
+    if (!saved.ok) return saved;
   }
 
   revalidatePath(PATH);
@@ -583,25 +602,29 @@ export async function removeRecommender(_prev: FormState, data: FormData): Promi
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
-  const step = await db.authorityRuleStep.findFirst({
-    where: { id, authorityRule: { authorityMatrix: { organisationId: orgId } } },
-    include: { authorityRule: { select: { labelEn: true, authorityMatrix: { select: { issuedAt: true } } } } },
+  const reason = String(data.get("reason") ?? "");
+  const result = await db.$transaction(async (tx): Promise<FormState> => {
+    const gone: FormState = { ok: false, message: "That step no longer exists." };
+    // Only the owning issue before its lock; the step and the frozen check under it.
+    const owner = await tx.authorityRuleStep.findFirst({
+      where: { id, authorityRule: { authorityMatrix: { organisationId: orgId } } },
+      select: { authorityRule: { select: { authorityMatrixId: true } } },
+    });
+    if (!owner) return gone;
+    const authorityMatrixId = owner.authorityRule.authorityMatrixId;
+    await lockIssue(tx, authorityMatrixId);
+    const step = await tx.authorityRuleStep.findFirst({ where: { id, authorityRule: { authorityMatrixId } }, include: { authorityRule: { select: { labelEn: true } } } });
+    if (!step) return gone;
+    const matrix = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: authorityMatrixId }, select: { issuedAt: true } });
+    if (matrix.issuedAt) return FROZEN;
+    // The office by its name, in the label and the record: never its code.
+    const office = (await tx.authorityRole.findFirst({ where: { organisationId: orgId, code: step.roleCode }, select: { nameEn: true } }))?.nameEn ?? "An office no longer configured";
+    await tx.authorityRuleStep.delete({ where: { id: step.id } });
+    await writeAudit(tx, { organisationId: orgId, entity: "AuthorityRuleStep", entityId: step.id, entityLabel: `${step.authorityRule.labelEn} — ${office}`, reason }, "DELETE",
+      snapshotFields({ roleCode: office, act: actWithCode(step.act), sequence: step.sequence }));
+    return { ok: true };
   });
-  if (!step) return { ok: false, message: "That step no longer exists." };
-  if (step.authorityRule.authorityMatrix.issuedAt) return FROZEN;
-
-  const { authorityRule, ...row } = step;
-  await auditedDelete(
-    {
-      organisationId: orgId,
-      entity: "AuthorityRuleStep",
-      entityId: step.id,
-      entityLabel: `${authorityRule.labelEn} — ${step.roleCode}`,
-      reason: String(data.get("reason") ?? ""),
-    },
-    row,
-    (tx) => tx.authorityRuleStep.delete({ where: { id: step.id } }),
-  );
+  if (!result.ok) return result;
 
   revalidatePath(PATH);
   return { ok: true };
