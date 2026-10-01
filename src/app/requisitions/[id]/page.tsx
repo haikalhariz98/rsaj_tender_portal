@@ -8,7 +8,7 @@ import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
 import { EscalateDrawer } from "@/app/approvals/editors";
 import { escalationText } from "@/lib/authority/escalation-labels";
 import { absentOffices } from "@/lib/authority/absence";
-import { Badge, Chip } from "@/components/ui/badge";
+import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
@@ -489,7 +489,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
           <span key="ref" className="font-mono text-[12.5px]">
             {r.erpRequisitionNo ? erpFirst : `${r.reference} · finance system no. not recorded`}
           </span>,
-          <span key="v" className="tabular-nums">{formatRM(num(r.estimatedValue))}</span>,
+          <SulitValue key="v">{formatRM(num(r.estimatedValue))}</SulitValue>,
           `Required by ${formatDate(r.dateRequired)}`,
           route ? route.nameEn : "Funding route not set",
         ]}
@@ -846,7 +846,7 @@ function Overview({
               { label: "Site", value: facts.site },
               { label: "Place of delivery", value: r.placeOfDelivery || <span className="text-ink-3">Not set</span> },
               { label: "Date required", value: formatDate(r.dateRequired) },
-              { label: "Estimated value", value: <span className="tabular-nums">{formatRM(num(r.estimatedValue))}</span> },
+              { label: "Estimated value", value: <SulitValue>{formatRM(num(r.estimatedValue))}</SulitValue> },
               { label: "Raised on", value: formatDate(r.raisedOn) },
               { label: "Entered", value: r.origin === "EXTERNAL" ? "Received by hand from the finance system" : "Raised in the portal" },
             ]}

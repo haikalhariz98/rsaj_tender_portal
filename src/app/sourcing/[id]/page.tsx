@@ -17,7 +17,7 @@ import { escalationText } from "@/lib/authority/escalation-labels";
 import { earlierSteps, returnTargetBeforeNext, type RejectionKind } from "@/lib/authority/rejection";
 import { routeCoreText, stepOriginText } from "@/lib/authority/core-routing-labels";
 import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
-import { Badge, Chip } from "@/components/ui/badge";
+import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
@@ -478,7 +478,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
         meta={[
           <span key="ref" className="font-mono text-[12.5px]">{ex.reference}</span>,
           <span key="for">for <Link href={`/requisitions/${req.id}?tab=sourcing`}>{req.reference}</Link></span>,
-          <span key="v" className="tabular-nums">{money(ex.estimatedValue)}</span>,
+          <SulitValue key="v">{money(ex.estimatedValue)}</SulitValue>,
           methodName,
           decided?.contractType.nameEn ?? typeName(ex.contractTypeCode) ?? "Contract type not set",
           ex.regime ? REGIME_SHORT[ex.regime as Regime] : "Regime not determined",
@@ -679,7 +679,7 @@ function ClassificationPanel({
             columns={2}
             className="border-t border-line pt-6"
             items={[
-              { label: "Value", value: <span className="tabular-nums">{money(ex.estimatedValue)}</span> },
+              { label: "Value", value: <SulitValue>{money(ex.estimatedValue)}</SulitValue> },
               ...(bands.boundary.onBoundary
                 ? [
                     {

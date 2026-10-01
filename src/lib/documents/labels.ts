@@ -15,6 +15,10 @@ import type { AccessKind, AttachmentPurpose, DisposalMethod, DocumentStatus, Fin
 export const ACCESS_STATEMENT =
   "Stored and listed. Anyone who can reach the portal can open a document that is not SULIT; there is no sign-in to restrict it.";
 
+/// Beside a value that is SULIT by the organisation's own rule but cannot yet be held back
+/// from a reader (6.2 OD-8): there is no sign-in to say who is reading.
+export const VALUE_SULIT_LABEL = "SULIT · not restricted until sign-in";
+
 /// What a fingerprint proves, and what it does not (OD-9).
 export const FINGERPRINT_STATEMENT =
   "The fingerprint proves the file matches what was stored. It does not prove the database itself is untouched.";

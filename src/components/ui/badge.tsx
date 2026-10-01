@@ -1,5 +1,7 @@
 import type { HTMLAttributes, ReactNode } from "react";
 
+import { VALUE_SULIT_LABEL } from "@/lib/documents/labels";
+
 import { cx } from "./cx";
 
 /// Tones share their names with the old design system's modifiers (ok, warn, err,
@@ -101,6 +103,17 @@ export function Chip({
     >
       {icon}
       <span className={wrap ? "min-w-0 break-words" : "truncate"}>{children}</span>
+    </span>
+  );
+}
+
+/// A value the organisation treats as SULIT, where nothing yet stops anyone who can reach
+/// the portal from reading it. The chip says so rather than implying a restriction.
+export function SulitValue({ children }: { children: ReactNode }) {
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+      <span className="tabular-nums">{children}</span>
+      <Chip tone="err">{VALUE_SULIT_LABEL}</Chip>
     </span>
   );
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { versionCreated, attached, policyView } from "./audit-view";
-import { accessReasonText, CLASSIFICATION_LABEL, classChoiceText, classificationBadge, documentFaultText, endSentence, plural, withdrawnLine, WITHDRAW_NOTE, formatBytes, mediaLabel, PURPOSE_LABEL, shortFingerprint, STATUS_LABEL } from "./labels";
+import { accessReasonText, CLASSIFICATION_LABEL, classChoiceText, classificationBadge, documentFaultText, endSentence, plural, withdrawnLine, WITHDRAW_NOTE, formatBytes, mediaLabel, PURPOSE_LABEL, shortFingerprint, STATUS_LABEL, VALUE_SULIT_LABEL } from "./labels";
 import { bytesToMegabytes, megabytesToBytes, policyFaults } from "./policy";
 import { ATTACHMENT_PURPOSES, KNOWN_MEDIA_TYPES, SECURITY_CLASSES } from "./types";
 
@@ -145,5 +145,11 @@ describe("small sentences", () => {
     expect(classificationBadge("SULIT")).toBe("SULIT");
     expect(classChoiceText("Correspondence", null)).toBe("Correspondence · classification not set — it will not open in the portal");
     expect(classChoiceText("Contract documents", "INTERNAL")).toBe("Contract documents · Internal");
+  });
+});
+
+describe("the SULIT chip on a value that is not yet restricted (6.2 OD-8)", () => {
+  it("says it is SULIT and that nothing restricts it until sign-in", () => {
+    expect(VALUE_SULIT_LABEL).toBe("SULIT · not restricted until sign-in");
   });
 });
