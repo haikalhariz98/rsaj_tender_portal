@@ -136,7 +136,7 @@ export function Topbar({
         <MenuIcon size={20} />
       </button>
 
-      <nav aria-label="Breadcrumb" className="flex min-w-0 shrink-0 items-center gap-1.5 text-[13.5px] max-md:shrink">
+      <nav aria-label="Breadcrumb" className="flex min-w-0 shrink items-center gap-1.5 text-[13.5px]">
         {all.map((crumb, i) => {
           const last = i === all.length - 1;
           return (
@@ -171,13 +171,10 @@ export function Topbar({
         disabled
         aria-label="Search"
         title="Search is not built yet"
-        className="hidden h-10 w-64 min-w-10 shrink cursor-not-allowed overflow-hidden items-center gap-2.5 rounded-full border border-line bg-surface px-4 text-[13.5px] text-ink-4 md:flex"
+        className="hidden h-10 w-56 shrink-0 2xl:w-64 cursor-not-allowed items-center gap-2.5 overflow-hidden rounded-full border border-line bg-surface px-4 text-[13.5px] text-ink-4 md:flex"
       >
         <SearchIcon size={16} />
         <span className="flex-1 truncate text-left">Search</span>
-        <kbd className="rounded-md bg-sunken px-1.5 py-0.5 font-sans text-[11px] font-semibold text-ink-3">
-          Ctrl K
-        </kbd>
       </button>
 
       <button
@@ -227,7 +224,7 @@ export function Topbar({
           <Avatar size="sm">
             <UserIcon size={15} />
           </Avatar>
-          <span className="hidden truncate text-[12.5px] text-ink-3 lg:inline">
+          <span className="hidden truncate text-[12.5px] text-ink-3 2xl:inline">
             Sign-in not built yet
           </span>
         </span>
