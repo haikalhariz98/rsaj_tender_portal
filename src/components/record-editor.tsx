@@ -117,6 +117,7 @@ export function RecordEditor({
   reason: reasonAsked,
   danger,
   confirm,
+  submitBlock,
   size = "md",
   defaultOpen = false,
 }: {
@@ -155,6 +156,9 @@ export function RecordEditor({
   /// that cannot be shown again once it is saved. Nothing is kept: closing the form, or
   /// saving, forgets what was typed.
   confirm?: { fields: string[]; heading: string; note: string; submitLabel: string };
+  /// Why the act cannot go ahead yet, judged by the caller from what the form holds: the button
+  /// is off and the words stand beside it, so a disabled button is never left unexplained.
+  submitBlock?: string | null;
   /// Drawer width. The form opens from the right, as the prototype does.
   size?: "sm" | "md" | "lg" | "xl";
   /// Opens on arrival — for a link from another record that asks for this act with
@@ -371,14 +375,20 @@ export function RecordEditor({
                 </div>
               </div>
 
-              <footer className="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
+              <footer className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2 border-t border-line px-6 py-4">
+                {submitBlock && (
+                  <p id="record-submit-block" role="status" className="min-w-0 flex-1 basis-56 text-[13px] text-ink-2">
+                    {submitBlock}
+                  </p>
+                )}
                 <button type="button" className={buttonClass("ghost", "md")} onClick={() => (review ? setReview(null) : setOpen(false))}>
                   {review ? "Change it" : cancelLabel}
                 </button>
                 <button
                   type="submit"
                   className={buttonClass(destructive || danger ? "danger" : "primary", "md")}
-                  disabled={pending || blocked}
+                  disabled={pending || blocked || !!submitBlock}
+                  aria-describedby={submitBlock ? "record-submit-block" : undefined}
                 >
                   {!destructive && !danger && <SaveIcon size={15} />}
                   {pending ? "Saving…" : review && confirm ? confirm.submitLabel : submitLabel}
