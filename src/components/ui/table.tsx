@@ -7,27 +7,39 @@ import { cx } from "./cx";
  * to `DataList` without looking different from it. Anything a reader has to find
  * things in is a `DataList`.
  */
+/// Below its stacking breakpoint a table's rows become blocks of labelled cells. A table
+/// that needs more than a laptop's content column (`WIDE`) stacks below `xl`, so nothing
+/// scrolls sideways at 1024 either; the rest stack below `md`. The classes are spelled out
+/// whole so Tailwind sees them.
+const WIDE = 680;
+const STACK_MD =
+  "max-md:block max-md:!min-w-0 max-md:[&_.truncate]:overflow-visible max-md:[&_.truncate]:text-clip max-md:[&_.truncate]:whitespace-normal max-md:[&_.truncate]:break-words max-md:[&_colgroup]:hidden max-md:[&_tbody]:block max-md:[&_td]:block max-md:[&_td]:py-1.5 max-md:[&_thead]:hidden max-md:[&_tr]:block max-md:[&_tr]:px-0 max-md:[&_tr]:py-2.5";
+const STACK_XL =
+  "max-xl:block max-xl:!min-w-0 max-xl:[&_.truncate]:overflow-visible max-xl:[&_.truncate]:text-clip max-xl:[&_.truncate]:whitespace-normal max-xl:[&_.truncate]:break-words max-xl:[&_colgroup]:hidden max-xl:[&_tbody]:block max-xl:[&_td]:block max-xl:[&_td]:py-1.5 max-xl:[&_thead]:hidden max-xl:[&_tr]:block max-xl:[&_tr]:px-0 max-xl:[&_tr]:py-2.5";
+
 export function Table({
   children,
   className,
   minWidth = 640,
-  stack = false,
+  stack = true,
 }: {
   children: ReactNode;
   className?: string;
-  /// Below this the table scrolls sideways rather than crushing its columns.
+  /// Below this the table stacks (see `stack`) rather than crushing its columns.
   minWidth?: number;
-  /// Below `md` each row becomes a block of its cells, every cell headed by its `Td`
-  /// `label`, instead of a table that scrolls sideways. Give every data `Td` a label.
+  /// Each row becomes a block of its cells, every cell headed by its `Td` `label`, instead
+  /// of a table that scrolls sideways. On by default: give every data `Td` a label. Turn it
+  /// off only for a table whose rows mean nothing apart from their columns.
   stack?: boolean;
 }) {
+  const wide = minWidth > WIDE;
   return (
     <div className="overflow-x-auto">
       <table
+        data-stack={stack ? (wide ? "xl" : "md") : undefined}
         className={cx(
-          "w-full table-fixed border-collapse text-[13.5px]",
-          stack &&
-            "max-md:block max-md:!min-w-0 max-md:[&_colgroup]:hidden max-md:[&_tbody]:block max-md:[&_td]:block max-md:[&_td]:py-1.5 max-md:[&_thead]:hidden max-md:[&_tr]:block max-md:[&_tr]:px-0 max-md:[&_tr]:py-2.5",
+          "group/t w-full table-fixed border-collapse text-[13.5px]",
+          stack && (wide ? STACK_XL : STACK_MD),
           className,
         )}
         style={{ minWidth }}
@@ -87,23 +99,23 @@ export function Td({
     <td
       className={cx(
         "px-4 py-3 align-middle first:pl-5 last:pr-5 sm:first:pl-6 sm:last:pr-6",
-        numeric && "text-right tabular-nums max-md:text-left",
+        numeric && "text-right tabular-nums group-data-[stack=md]/t:max-md:text-left group-data-[stack=xl]/t:max-xl:text-left",
         className,
       )}
       {...props}
     >
-      {label && <span className="mb-0.5 block text-[11.5px] font-semibold text-ink-3 md:hidden">{label}</span>}
+      {label && <span className="mb-0.5 hidden text-[11.5px] font-semibold text-ink-3 group-data-[stack=md]/t:max-md:block group-data-[stack=xl]/t:max-xl:block">{label}</span>}
       {children}
     </td>
   );
 }
 
-/// A title with a quieter line beneath — the shape most first columns take.
+/// A title with a quieter line beneath — the shape most first columns take. Both lines
+/// wrap rather than cut: a name is what a row is read by.
 export function CellStack({
   title,
   sub,
   mono,
-  wrap,
   aside,
 }: {
   title: ReactNode;
@@ -113,22 +125,19 @@ export function CellStack({
   sub?: ReactNode;
   /// The sub line is a reference or pattern, set in the code face.
   mono?: boolean;
-  /// Let a name wrap rather than cut it, where the column is narrow and the name is
-  /// the thing the row is read by.
-  wrap?: boolean;
 }) {
   return (
     <div className="min-w-0">
       {aside ? (
         <div className="flex min-w-0 items-center gap-2">
-          <div className={cx(wrap ? "break-words" : "truncate", "min-w-0 font-semibold text-ink")}>{title}</div>
+          <div className={cx("break-words", "min-w-0 font-semibold text-ink")}>{title}</div>
           <span className="shrink-0">{aside}</span>
         </div>
       ) : (
-        <div className={cx(wrap ? "break-words" : "truncate", "font-semibold text-ink")}>{title}</div>
+        <div className={cx("break-words", "font-semibold text-ink")}>{title}</div>
       )}
       {sub && (
-        <div className={cx(wrap ? "break-words" : "truncate", "text-[12.5px] text-ink-3", mono && "font-mono text-[12px]")}>{sub}</div>
+        <div className={cx("break-words", "text-[12.5px] text-ink-3", mono && "font-mono text-[12px]")}>{sub}</div>
       )}
     </div>
   );

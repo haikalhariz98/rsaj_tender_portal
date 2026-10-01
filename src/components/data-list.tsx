@@ -267,6 +267,7 @@ export function DataList({
   emptyBody,
   exportName = "export",
   toolbar = true,
+  stackBelow = "md",
 }: {
   columns: Column[];
   rows: Row[];
@@ -297,6 +298,9 @@ export function DataList({
   /// False for a short read-only list inside a card, where views, search, density and
   /// export would be chrome with nothing to act on.
   toolbar?: boolean;
+  /// Where the stacked list gives way to the table. `xl` for a list whose columns need
+  /// more than a laptop's card (configuration lists beside the sidebar at 1024).
+  stackBelow?: "md" | "xl";
 }) {
   const [compact, setCompact] = useState(false);
   const [page, setPage] = useState(0);
@@ -521,7 +525,7 @@ export function DataList({
       ) : (
         <>
         {stacked && (
-          <ul className="divide-y divide-line/70 border-t border-line md:hidden">
+          <ul className={cx("divide-y divide-line/70 border-t border-line", stackBelow === "xl" ? "xl:hidden" : "md:hidden")}>
             {paged.map((row) => (
               <li
                 key={row.id}
@@ -580,7 +584,7 @@ export function DataList({
             ))}
           </ul>
         )}
-        <div className={cx("relative overflow-x-auto", stacked && "hidden md:block")}>
+        <div className={cx("relative overflow-x-auto", stacked && (stackBelow === "xl" ? "hidden xl:block" : "hidden md:block"))}>
           {/* Relative so a positioned descendant is clipped here rather than by the
               page: without it a wide table scrolled the whole screen at phone width. */}
           <table className="w-full min-w-[640px] table-fixed border-collapse text-[13.5px]">
