@@ -157,7 +157,7 @@ export function DecideDrawer({ exerciseId, stepId, office, done, people, today, 
   return (
     <RecordEditor
       title={`Record ${office}'s decision`}
-      description={`Name who decided: recorded on their behalf, not signed. They must hold the office for the requisition's department, or a delegation of it. A refusal returns the documents for amendment.${recordsDates ? " This is the last step: it records the dates tendering starts and closes." : ""}`}
+      description={`Name who decided: recorded on behalf of, not signed. They must hold the office for the requisition's department, or a delegation of it. A refusal returns the documents for amendment.${recordsDates ? " This is the last step: it records the dates tendering starts and closes." : ""}`}
       fields={[
         hidden("exerciseId"),
         hidden("stepId"),

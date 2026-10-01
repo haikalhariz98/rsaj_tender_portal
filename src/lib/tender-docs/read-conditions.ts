@@ -10,13 +10,15 @@
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { loadExercise } from "@/lib/method/repo";
+import { RECORDED_ON_BEHALF } from "@/lib/documents/labels";
 import { PROVENANCE_LABEL } from "@/lib/scope/labels";
 
 import { assuranceKindsFor, confirmFaults, type AssuranceKind } from "./assurance";
 import { clauseFaults, liveClauses, overrideFaults } from "./clauses";
 import { readConditionsSnapshot } from "./conditions";
 import { ASSURANCE_KIND_LABEL, CONDITIONS_FROZEN_TEXT, conditionsFaultText, confirmFaultText, overrideFaultText, restrictionQuestion } from "./conditions-labels";
-import { eligibilityEditFault, eligibilityFaults, groupsOf, noticeFaults, registrationText } from "./eligibility";
+import { eligibilityEditFault, eligibilityFaults, noticeFaults, registrationText } from "./eligibility";
+import { assuranceRequiredText, BEFORE_CONDITIONS_TEXT, frozenConditionsView, groupHeadings } from "./frozen-view";
 import { NOT_SET, yesNoNotSet } from "./labels";
 import { permitFaults, permitLabel } from "./permit";
 import { loadConfirmations, loadOverrides, loadPacks, loadPermitList, loadRegistrationBodies, loadRequirements, loadTenderPolicy, loadClauses, partFactsOf, profileOf } from "./repo";
@@ -35,8 +37,29 @@ export async function conditionsTab(exerciseId: string) {
   if (!l) return null;
   const { ex, org } = l;
   const today = org.today;
-  const [packs, policy, bodies, requirements, clauses, people] = await Promise.all([
-    loadPacks(exerciseId),
+  const packs = await loadPacks(exerciseId);
+  const frozenPack = packs.find((p) => p.status === "SUBMITTED" || p.status === "APPROVED") ?? null;
+
+  // Once the documents are with approval or approved, every card is built from what was frozen on the
+  // pack, and from nothing live (code review C1): no finding, badge or label is read from configuration.
+  if (frozenPack) {
+    const snapshot = readConditionsSnapshot(frozenPack.conditionsSnapshot);
+    if (snapshot) return { mode: "frozen" as const, exerciseId, frozen: frozenConditionsView(snapshot, frozenPack.versionNo) };
+    // Frozen before the conditions were recorded with the documents: say so, and show what the exercise itself recorded.
+    const [policy, recorded] = await Promise.all([loadTenderPolicy(org.id), loadRequirements(exerciseId)]);
+    const list = await loadPermitList(org.id, policy.regulatorPermitTaxonomyCode, today);
+    return {
+      mode: "before" as const,
+      exerciseId,
+      version: frozenPack.versionNo,
+      before: BEFORE_CONDITIONS_TEXT,
+      groups: groupHeadings(recorded, (r) => ({ body: r.bodyLabel, qualifiers: r.qualifiers || null })),
+      restriction: { question: restrictionQuestion(policy.restrictionLabelEn), answer: yesNoNotSet(ex.restrictedTender) },
+      permit: { answer: yesNoNotSet(ex.regulatedActivity), type: ex.regulatedActivity ? (permitLabel(true, ex.regulatorPermitCode, list) ?? NOT_SET) : null },
+    };
+  }
+
+  const [policy, bodies, requirements, clauses, people] = await Promise.all([
     loadTenderPolicy(org.id),
     loadRegistrationBodies(org.id),
     loadRequirements(exerciseId),
@@ -45,8 +68,6 @@ export async function conditionsTab(exerciseId: string) {
   ]);
   const list = await loadPermitList(org.id, policy.regulatorPermitTaxonomyCode, today);
   const draft = packs.find((p) => p.status === "DRAFT") ?? null;
-  const frozenPack = packs.find((p) => p.status === "SUBMITTED" || p.status === "APPROVED") ?? null;
-  const snapshot = frozenPack ? readConditionsSnapshot(frozenPack.conditionsSnapshot) : null;
   const editFault = eligibilityEditFault(ex.status);
   const edit: Allowed = editFault ? no(CONDITIONS_FROZEN_TEXT) : today ? ok : no("The organisation's time zone is not set, so the tender's conditions cannot be judged. Set it under Configuration, Organisation.");
   const parts = draft ? draft.parts.map(partFactsOf) : [];
@@ -56,19 +77,18 @@ export async function conditionsTab(exerciseId: string) {
 
   // ---- the registrations (FR-DOC-005)
   const eligibility = {
-    groups: groupsOf(requirements).map((g, i) => ({
-      number: g[0].alternativeGroup,
-      heading: i === 0 ? (g.length > 1 ? "One of these" : "Required") : g.length > 1 ? "And one of these" : "And",
-      items: g.map((r) => ({ id: r.id, body: r.bodyLabel, qualifiers: r.qualifiers || null, qualifierLabel: r.qualifierLabel })),
-    })),
+    groups: groupHeadings(requirements, (r) => ({ id: r.id, body: r.bodyLabel, qualifiers: r.qualifiers || null, qualifierLabel: r.qualifierLabel })),
     text: requirements.length ? registrationText(requirements, "EN") : null,
     /// The contract type's registration test, as the exercise was decided under it: guidance for choosing the bodies.
     typeTest: typeof registrationTest === "string" ? registrationTest : NOT_SET,
     findings: today ? words([...eligibilityFaults(requirements, bodies, today), ...(draft ? noticeFaults(parts) : [])]) : [],
     bodyOptions: bodies.filter((b) => isLive(b.retiredOn)).map((b) => ({ value: b.code, label: b.qualifierLabelEn ? `${b.labelEn} (state: ${b.qualifierLabelEn.toLowerCase()})` : b.labelEn })),
     noBodies: bodies.filter((b) => isLive(b.retiredOn)).length === 0 ? "No registration bodies are configured. Add them under Configuration, Tender documents." : null,
-    nextGroup: requirements.reduce((m, r) => Math.max(m, r.alternativeGroup), 0) + 1,
-    window: snapshot?.eligibility.window ?? null,
+    /// Where a new registration goes: a requirement of its own, or an alternative to one already listed (the officer never types a group number).
+    groupOptions: [
+      { value: String(requirements.reduce((m, r) => Math.max(m, r.alternativeGroup), 0) + 1), label: "A new requirement" },
+      ...groupHeadings(requirements, (r) => r.bodyLabel).map((g) => ({ value: String(g.number), label: `An alternative to: ${g.items.join(" or ")}` })),
+    ],
   };
 
   // ---- the restriction (FR-DOC-009)
@@ -98,7 +118,7 @@ export async function conditionsTab(exerciseId: string) {
   const startedOn = draft ? (org.timeZone ? new Intl.DateTimeFormat("en-CA", { timeZone: org.timeZone }).format(draft.createdAt) : draft.createdAt.toISOString().slice(0, 10)) : null;
   const needed = draft ? assuranceKindsFor(parts) : [];
   const assurance = {
-    required: policy.assuranceRequired == null ? NOT_SET : policy.assuranceRequired ? "Required" : "Not required (the organisation's decision)",
+    required: assuranceRequiredText(policy.assuranceRequired),
     provenance: provenance(policy.assuranceProvenance),
     policyNotSet: policy.assuranceRequired == null ? conditionsFaultText({ code: "ASSURANCE_POLICY_NOT_SET", level: "block" }) : null,
     rows: (["NO_AMBIGUITY", "DRAWINGS_COORDINATED"] as const).map((kind) => {
@@ -114,13 +134,11 @@ export async function conditionsTab(exerciseId: string) {
         label: ASSURANCE_KIND_LABEL[kind],
         needed: needed.includes(kind),
         notNeeded: draft && !needed.includes(kind) ? "The pack binds no drawings, so there is nothing to coordinate." : null,
-        confirmation: c ? { id: c.id, by: `${c.personName}, recorded on their behalf, not signed`, on: formatDate(c.confirmedOn), note: c.note || null } : null,
+        confirmation: c ? { id: c.id, by: `${c.personName} · ${RECORDED_ON_BEHALF}`, on: formatDate(c.confirmedOn), note: c.note || null } : null,
         record: policy.assuranceRequired === false ? no("The organisation's policy is that the confirmations are not required.") : record,
       };
     }),
     remove: draft && ex.status === "DOCUMENTS_IN_PREPARATION" ? ok : no(confirmFaultText({ code: "PACK_NOT_EDITABLE", level: "block" })),
-    /// Not carried to the next version: an amended pack is confirmed afresh.
-    frozen: snapshot ? { required: snapshot.assurance.required == null ? NOT_SET : snapshot.assurance.required ? "Required" : "Not required", confirmations: snapshot.assurance.confirmations.map((x) => ({ label: ASSURANCE_KIND_LABEL[x.kind as AssuranceKind] ?? "A confirmation", by: `${x.person}, recorded on their behalf, not signed`, on: formatDate(x.on) })) } : null,
   };
 
   // ---- mandatory clauses (FR-DOC-011)
@@ -139,7 +157,7 @@ export async function conditionsTab(exerciseId: string) {
       status,
       tone: status === "Carried" ? ("ok" as const) : status === "Missing" || status === "Not set" ? ("warn" as const) : ("neutral" as const),
       findings: missing.map(conditionsFaultText),
-      override: ov ? { id: ov.id, by: `${ov.personName}, recorded on their behalf, not signed`, reason: ov.reason } : null,
+      override: ov ? { id: ov.id, by: `${ov.personName} · ${RECORDED_ON_BEHALF}`, reason: ov.reason } : null,
       record: c.mandatoryInAgreements !== true ? null : !draft ? no("Start the tender documents first.") : canOverride.length ? no(canOverride.map(overrideFaultText).join(" ")) : ok,
     };
   });
@@ -147,19 +165,13 @@ export async function conditionsTab(exerciseId: string) {
     rows: clauseRows,
     none: live.length === 0 ? "No clauses are configured. A clause every agreement must carry is added under Configuration, Tender documents." : null,
     remove: draft && ex.status === "DOCUMENTS_IN_PREPARATION" ? ok : no(overrideFaultText({ code: "PACK_NOT_EDITABLE", level: "block" })),
-    frozen: snapshot ? snapshot.clauses.map((c) => ({ title: c.title, version: `Text version ${c.bodyVersion}`, override: c.overriddenBy ? `Left out under an endorsement by ${c.overriddenBy}, recorded on their behalf, not signed: “${c.overrideReason ?? ""}”` : null })) : null,
   };
 
   return {
+    mode: "live" as const,
     exerciseId,
     edit,
     hasDraft: !!draft,
-    /// The pack with approval or approved, and what it froze; null before submission or for a pack frozen before increment 2.
-    frozen: frozenPack
-      ? snapshot
-        ? { version: frozenPack.versionNo, judgedOn: formatDate(snapshot.judgedOn), eligibility: snapshot.eligibility.text ?? NOT_SET, window: snapshot.eligibility.window ?? NOT_SET, restriction: yesNoNotSet(snapshot.restriction.restricted), permit: snapshot.permit.regulated ? (snapshot.permit.permit ?? NOT_SET) : yesNoNotSet(snapshot.permit.regulated), tableDocument: snapshot.tableDocument }
-        : { version: frozenPack.versionNo, before: "Frozen before the tender's conditions were recorded with the documents." }
-      : null,
     eligibility,
     restriction,
     permit,
@@ -171,3 +183,4 @@ export async function conditionsTab(exerciseId: string) {
 }
 
 export type ConditionsTab = NonNullable<Awaited<ReturnType<typeof conditionsTab>>>;
+export type LiveConditions = Extract<ConditionsTab, { mode: "live" }>;

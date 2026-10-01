@@ -185,7 +185,7 @@ export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }
         </Card>
       )}
 
-      {d.pack && conditions && <ConditionsCards c={conditions} />}
+      {conditions && (d.pack || d.exercise.status === "Draft") && <ConditionsCards c={conditions} packless={!d.pack} />}
 
       {(d.pack || routes.length > 0) && <RouteCard exerciseId={exerciseId} routes={routes} decide={d.route?.decide ?? null} proposed={d.proposed} today={today} timeZone={timeZone} />}
 

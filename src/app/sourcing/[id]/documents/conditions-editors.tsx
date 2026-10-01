@@ -21,19 +21,19 @@ const THREE: Option[] = [
   { value: "unset", label: "Not answered" },
 ];
 
-export function AddRequirementDrawer({ exerciseId, allowed, bodies, nextGroup, typeTest }: { exerciseId: string; allowed: Allowed; bodies: Option[]; nextGroup: number; typeTest: string }) {
+export function AddRequirementDrawer({ exerciseId, allowed, bodies, groups, typeTest }: { exerciseId: string; allowed: Allowed; bodies: Option[]; groups: Option[]; typeTest: string }) {
   if (!allowed.allowed) return <Blocked label="Add a registration" reason={allowed.reason} />;
   return (
     <RecordEditor
       title="Add a registration bidders must hold"
-      description={`Requirements in the same group are alternatives: any one is enough. Every group is required. The contract type's registration test: ${typeTest}.`}
+      description={`A new requirement is needed in addition to the others; an alternative is an option for one already listed, and any one of them is enough. The contract type's registration test: ${typeTest}.`}
       fields={[
         hidden("exerciseId"),
         { kind: "select", name: "bodyCode", label: "Registration body", required: true, placeholder: "Choose", options: bodies },
         { kind: "text", name: "qualifiers", label: "What is required with it", hint: "As the notice should print it: the grade, category and specialisation, or the field codes. Empty for a body that takes nothing." },
-        { kind: "number", name: "alternativeGroup", label: "Group", required: true, min: 1, hint: `Use an existing group's number for an alternative, or ${nextGroup} for a new requirement.` },
+        { kind: "select", name: "alternativeGroup", label: "How it counts", required: true, options: groups },
       ]}
-      values={{ exerciseId }}
+      values={{ exerciseId, alternativeGroup: groups[0]?.value ?? "" }}
       action={addRequirement}
       submitLabel="Add the registration"
       trigger={{ label: "Add a registration", icon: true, className: secondary }}
@@ -104,7 +104,7 @@ export function ConfirmAssuranceDrawer({ exerciseId, kind, label, people, allowe
   return (
     <RecordEditor
       title={`Confirmed: ${label.toLowerCase()}`}
-      description="Name who confirmed it and the day: recorded on their behalf, not signed. It belongs to this version; an amended version is confirmed again."
+      description="Name who confirmed it and the day: recorded on behalf of, not signed. It belongs to this version; an amended version is confirmed again."
       fields={[
         hidden("exerciseId"),
         hidden("kind"),
@@ -144,7 +144,7 @@ export function OverrideClauseDrawer({ exerciseId, clauseCode, title, people, al
   return (
     <RecordEditor
       title={`Go without the ${title.toLowerCase()}`}
-      description="Only a legal endorsement lets an agreement go without a clause every agreement must carry. Name who gave it and why: recorded on their behalf, not signed. It holds for this version only."
+      description="Only a legal endorsement lets an agreement go without a clause every agreement must carry. Name who gave it and why: recorded on behalf of, not signed. Who may give the endorsement is not checked, because no policy names them. It holds for this version only."
       fields={[
         hidden("exerciseId"),
         hidden("clauseCode"),

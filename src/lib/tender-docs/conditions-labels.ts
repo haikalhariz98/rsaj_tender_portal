@@ -53,10 +53,10 @@ const TEXT: Record<ConditionsFault, (f: Finding) => string> = {
   CLAUSE_MISSING: (f) => `Part ${d(f, "part")}: the template ${d(f, "template")} does not cite the clause ${d(f, "clause")}. Cite it under Configuration, Templates, or record a legal endorsement to go without it ${TAB}.`,
   CLAUSE_NOT_CHECKABLE: (f) => `Part ${d(f, "part")} is an uploaded file, so the clause ${d(f, "clause")} cannot be seen in it. Draw the part from a template that cites it, or record a legal endorsement ${TAB}.`,
   CLAUSE_LANGUAGE_MISSING: (f) => `Part ${d(f, "part")} cites the clause ${d(f, "clause")} in ${d(f, "language")}, and the clause has no ${d(f, "language")} text. Add it ${CONFIG}, under Clauses.`,
-  CLAUSE_OVERRIDDEN: (f) => `The clause ${d(f, "clause")} is left out under a legal endorsement by ${d(f, "person")} (recorded on their behalf, not signed): “${d(f, "reason")}”.`,
+  CLAUSE_OVERRIDDEN: (f) => `The clause ${d(f, "clause")} is left out under a legal endorsement by ${d(f, "person")} (recorded on behalf of, not signed): “${d(f, "reason")}”.`,
   // FR-DOC-014
   ASSURANCE_POLICY_NOT_SET: () => `Whether the documents need the two assurance confirmations is not set, and no answer is assumed. Set it ${CONFIG}, under Policy.`,
-  ASSURANCE_MISSING: (f) => `Not yet confirmed: ${ASSURANCE_KIND_LABEL[d(f, "kind") as AssuranceKind]?.toLowerCase() ?? "an assurance"}. Record who confirmed it and when ${TAB}, under Assurance.`,
+  ASSURANCE_MISSING: (f) => `Not yet confirmed: ${ASSURANCE_KIND_LABEL[d(f, "kind") as AssuranceKind]?.toLowerCase() ?? "an assurance"}. Record who confirmed it and when under Assurance below.`,
   ASSURANCE_NOT_REQUIRED: () => "The organisation's policy is that the assurance confirmations are not required: recorded as its decision.",
   // FR-DOC-010
   TABLE_DOCUMENT_UNSET: (f) => `Whether part ${d(f, "part")} is in the Tender Table Document is not set. Set it on the part ${CONFIG}.`,
