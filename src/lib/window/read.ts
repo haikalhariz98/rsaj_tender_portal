@@ -28,7 +28,7 @@ import { windowEditFault } from "./edit";
 import { attendanceCsv, isMandatory, mandatoryPermittedFor } from "./events";
 import { inviteeEditFault, inviteeListFault, regKey } from "./invitees";
 import { closingDay, judgePublish, nameRoutesWithLists, pathOf, phaseOf, proposedInvitees, renderAddendum } from "./judge";
-import { ADDENDUM_STATUS_LABEL, CLOSING_CHANGE_KIND_LABEL, DAY_RULE_LABEL, DELIVERY_METHOD_LABEL, FEE_COST_KIND_LABEL, NOTIFIED_LABEL, PARTY_SOURCE_LABEL, PATH_LABEL, PHASE_LABEL, RULE_LABEL, advertisedOnlyNote, PHASE_TONE, SITE_EVENT_KIND_LABEL, tableAvailabilityText, windowFindingText } from "./labels";
+import { ADDENDUM_STATUS_LABEL, CLOSING_CHANGE_KIND_LABEL, DAY_RULE_LABEL, DELIVERY_METHOD_LABEL, FEE_COST_KIND_LABEL, NOTIFIED_LABEL, PARTY_SOURCE_LABEL, PATH_LABEL, PHASE_LABEL, RULE_LABEL, advertisedOnlyNote, bidNouns, PHASE_TONE, SITE_EVENT_KIND_LABEL, tableAvailabilityText, windowFindingText } from "./labels";
 import { closingHistory, sinceApprovedLines, standingEntry, tableDocumentAvailability, tablePrintRefusal, type TableAvailability, type WindowPhase } from "./phase";
 import { basisTotalOf, eventFactsOf, loadCalendar, loadChannels, loadFloors, loadWindowPolicy, windowData, type WindowData } from "./repo";
 import { foldUnpreparedWindow } from "./publish";
@@ -123,6 +123,7 @@ export async function windowTab(exerciseId: string) {
   const tabActs = await closingActions(x);
   return {
     exercise: { id: ex.id, reference: ex.reference, title: ex.title, status: EXERCISE_STATUS_LABEL[ex.status], regime: ex.regime ? REGIME_LABEL[ex.regime as Regime] : NOT_SET, restricted: ex.restrictedTender == null ? "Not answered" : ex.restrictedTender ? d.tender.restrictionLabel ?? "Restricted" : "Not restricted" },
+    bid: bidNouns(ex.packKindSnapshot),
     hasWindow: !!w,
     path: path ? PATH_LABEL[path] : "Not set: the method says both or neither",
     pathKey: path,

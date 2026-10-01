@@ -30,6 +30,11 @@ export function advertisedOnlyNote(label: string, path: "ADVERTISED" | "INVITED"
   return path === "INVITED" && ADVERTISED_ONLY.has(label) ? "Applies to advertised windows only; this one is by invitation." : null;
 }
 
+/// What a bid is called for the pack kind the exercise is run on: a quotation exercise receives quotations, not tenders.
+export function bidNouns(packKind: string | null | undefined): { one: string; many: string; bidder: string } {
+  return packKind === "QUOTATION" ? { one: "quotation", many: "quotations", bidder: "supplier" } : { one: "tender", many: "tenders", bidder: "tenderer" };
+}
+
 export const PATH_LABEL: Record<WindowPath, string> = { ADVERTISED: "By advertisement", INVITED: "By invitation" };
 export const FEE_COST_KIND_LABEL: Record<FeeCostKind, string> = {
   PAPER_A4: "A4 paper",

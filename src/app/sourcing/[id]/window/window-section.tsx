@@ -55,6 +55,7 @@ export interface WindowContext {
   suggestions: (roleCode: string | null) => Person[];
 }
 
+const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
 const published = (status: string) => status === "ADVERTISED" || status === "INVITED";
 
 /**
@@ -120,7 +121,7 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
               { label: invited ? "Invited on" : "Advertised on", value: d.dates.advertisedOn },
               { label: "First day of sale", value: d.dates.firstDayOfSale },
               { label: "Last day of sale", value: d.dates.lastDayOfSale },
-              { label: "Where it stands", value: `${d.phase.label}${d.phase.submissionOpen ? ". Tenders may be submitted" : ""}` },
+              { label: "Where it stands", value: `${d.phase.label}${d.phase.submissionOpen ? ". ${cap(d.bid.many)} may be submitted" : ""}` },
               { label: "Tender Table Document", value: d.tableDocument },
               ...(d.dates.publishedAt ? [{ label: "Published", value: `${d.dates.publishedAt} · recorded on behalf of the officer, not signed` }] : []),
               { label: "The estimate's lead time", value: <span className={d.lead.warn ? "text-amber-800" : undefined}>{d.lead.text}</span> },
@@ -185,12 +186,12 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
                 { label: "Documents inspected at", value: d.items.inspectionPlace || "Not recorded" },
                 { label: "Documents bought at", value: d.items.purchasePlace || "Not recorded" },
                 { label: "Hours", value: d.items.inspectionHours || "Not recorded" },
-                { label: "Tenders submitted at", value: d.items.submissionPlace || "Not recorded" },
+                { label: `${cap(d.bid.many)} submitted at`, value: d.items.submissionPlace || "Not recorded" },
                 { label: "Document fee", value: <span className="font-semibold tabular-nums">{d.fee.amount}</span> },
                 { label: "How the fee is paid", value: d.items.feePaymentMethods || "Not recorded" },
                 { label: "The least the fee may be", value: d.fee.floor == null ? <span className="flex flex-wrap items-center gap-2"><Badge tone="warn">Not set</Badge><span className="text-[12.5px] text-ink-3">No minimum is set for this band, so the window cannot be published.</span></span> : <span className="flex flex-wrap items-center gap-2"><span>{d.fee.floor.amount}</span><FromBadge text={d.fee.floor.from} />{d.fee.floor.source && <span className="text-[12.5px] break-words text-ink-3">{d.fee.floor.source}</span>}</span> },
                 ...(d.items.closingTimeReason ? [{ label: "Why the closing time differs", value: d.items.closingTimeReason }] : []),
-                ...(d.registrations.length ? [{ label: "Registrations asked of a tenderer", value: d.registrations.join("; ") }] : []),
+                ...(d.registrations.length ? [{ label: `Registrations asked of a ${d.bid.bidder}`, value: d.registrations.join("; ") }] : []),
               ]}
             />
           </CardBody>

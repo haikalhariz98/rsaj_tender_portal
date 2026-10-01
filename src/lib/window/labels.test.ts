@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { advertisedOnlyNote, RULE_LABEL, ADDENDUM_STATUS_LABEL, CERT_SIGHTED_LABEL, CHANGE_ROUTE_TEXT, CHECK_STATE_LABEL, CLOSING_CHANGE_KIND_LABEL, DAY_RULE_LABEL, DELIVERY_METHOD_LABEL, FEE_COST_KIND_LABEL, PARTY_SOURCE_LABEL, PATH_LABEL, PHASE_LABEL, SETTING_LABEL, SITE_EVENT_KIND_LABEL, TABLE_AVAILABILITY_LABEL, tableAvailabilityText, UNWORDED, windowFindingText } from "./labels";
+import { advertisedOnlyNote, bidNouns, RULE_LABEL, ADDENDUM_STATUS_LABEL, CERT_SIGHTED_LABEL, CHANGE_ROUTE_TEXT, CHECK_STATE_LABEL, CLOSING_CHANGE_KIND_LABEL, DAY_RULE_LABEL, DELIVERY_METHOD_LABEL, FEE_COST_KIND_LABEL, PARTY_SOURCE_LABEL, PATH_LABEL, PHASE_LABEL, SETTING_LABEL, SITE_EVENT_KIND_LABEL, TABLE_AVAILABILITY_LABEL, tableAvailabilityText, UNWORDED, windowFindingText } from "./labels";
 import { ADDENDUM_STATUSES, ADVERTISEMENT_DAY_RULES, CERT_SIGHTED, CHECK_STATES, CLOSING_CHANGE_KINDS, DELIVERY_METHODS, FEE_COST_KINDS, PARTY_SOURCES, SITE_EVENT_KINDS, WINDOW_PATHS } from "./types";
 import { WINDOW_PHASES } from "./phase";
 
@@ -78,5 +78,13 @@ describe("rules on the invited path", () => {
     expect(advertisedOnlyNote("Margin for a late newspaper", "INVITED")).toMatch(/advertised windows only/);
     expect(advertisedOnlyNote("Margin for a late newspaper", "ADVERTISED")).toBeNull();
     expect(advertisedOnlyNote(RULE_LABEL.purchaseCutoff, "INVITED")).toBeNull();
+  });
+});
+
+describe("what a bid is called", () => {
+  it("a quotation exercise receives quotations; any other, tenders", () => {
+    expect(bidNouns("QUOTATION").many).toBe("quotations");
+    expect(bidNouns("TENDER").many).toBe("tenders");
+    expect(bidNouns(null).many).toBe("tenders");
   });
 });
