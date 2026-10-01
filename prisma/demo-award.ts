@@ -634,7 +634,10 @@ export type AwardWipeCheck = Awaited<ReturnType<typeof checkAwards>>;
 /// `hangingExerciseIds`: exercises that are not demo data but are removed with it (opened
 /// on a demo requisition, naming demo people): their awards go too, or the exercise's
 /// removal would meet its award's key after the documents and awards had gone.
-export async function checkAwards(db: Db, organisationId: string, removeDependents: boolean, hangingExerciseIds: readonly string[]) {
+/// `screenMade` (carry D4): matters at sittings made through the screens on demo committees,
+/// and delegations made through the screens naming demo people, both removed with the demo:
+/// an award signed under such a delegation, or routed through a step citing either, goes too.
+export async function checkAwards(db: Db, organisationId: string, removeDependents: boolean, hangingExerciseIds: readonly string[], screenMade: { decisionIds: readonly string[]; delegationIds: readonly string[] } = { decisionIds: [], delegationIds: [] }) {
   const demoRef = { startsWith: P };
   const hanging = await db.award.findMany({
     where: {
@@ -652,12 +655,15 @@ export async function checkAwards(db: Db, organisationId: string, removeDependen
         { awardReturn: { receivedByPersonId: demoRef } },
         // Close-out: a route snapshotted under a demo destination, a choice or a declaration naming a demo person.
         { approvalInstances: { some: { OR: [{ rejectionDestinationId: demoRef }, { rejectionChosenByPersonId: demoRef }, { steps: { some: { declaredByPersonId: demoRef } } }] } } },
+        // Carry D4.
+        { signatoryDelegationId: { in: [...screenMade.delegationIds] } },
+        { approvalInstances: { some: { steps: { some: { OR: [{ committeeDecisionId: { in: [...screenMade.decisionIds] } }, { delegationId: { in: [...screenMade.delegationIds] } }] } } } } },
       ],
     },
     select: { id: true, reference: true, awardeeName: true },
     orderBy: { reference: "asc" },
   });
-  const linked = await db.committeeDecision.findMany({ where: { NOT: { id: demoRef }, exerciseId: demoRef }, select: { id: true, subject: true, matterRef: true } });
+  const linked = await db.committeeDecision.findMany({ where: { NOT: [{ id: demoRef }, { id: { in: [...screenMade.decisionIds] } }], exerciseId: demoRef }, select: { id: true, subject: true, matterRef: true } });
   const refused = (hanging.length > 0 || linked.length > 0) && !removeDependents;
   return { refused, hanging, linked };
 }

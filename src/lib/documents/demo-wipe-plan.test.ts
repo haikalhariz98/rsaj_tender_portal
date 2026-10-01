@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { documentWipePlan, onDemoSide, type PlanAttachment, type PlanDocument, type WipeSide } from "./demo-wipe-plan";
+import { documentWipePlan, onDemoSide, removedWithDemo, type PlanAttachment, type PlanDocument, type WipeSide } from "./demo-wipe-plan";
 
 /**
  * Review must-fix 3: the demo wipe judges documents after it knows which records
@@ -98,5 +98,58 @@ describe("no partial wipe: what stays real still refuses, whatever the flag", ()
   it("a real document with nothing on the demo side is not touched", () => {
     const p = documentWipePlan([doc("real_doc2", [on({ awardId: "real_aw1" })])], hangingAward, false);
     expect(p).toMatchObject({ refused: false, hard: [], soft: [], demoDocuments: [], demoPersonDocuments: [], takeOff: [] });
+  });
+});
+
+describe("carry D4: sittings and delegations made through the screens on demo records", () => {
+  // A sitting scheduled through the screens on the demo Tender Board (cm_mt1), minuted,
+  // its signed minutes recorded on behalf of a demo person; a delegation entered through
+  // Users & roles between two demo people (cm_dg1), its holder's recommendation attached.
+  const minutes = doc("cm_doc5", [on({ meetingId: "cm_mt1" }, "cm_att5", "SIGNED_MINUTES")], true);
+  const recommendation = doc("cm_doc6", [on({ delegationId: "cm_dg1" }, "cm_att6", "HOLDER_RECOMMENDATION")], true);
+  const removed = removedWithDemo(
+    {
+      meetings: [{ id: "cm_mt1", committeeId: "demo_c1" }, { id: "demo_mt1", committeeId: "demo_c1" }, { id: "cm_mt2", committeeId: "real_c1" }],
+      delegations: [
+        { id: "cm_dg1", fromPersonId: "demo_p2", toPersonId: "demo_p3" },
+        { id: "cm_dg2", fromPersonId: "real_p1", toPersonId: "demo_p3" },
+        { id: "cm_dg3", fromPersonId: "real_p1", toPersonId: "real_p2" },
+        { id: "demo_dg1", fromPersonId: "demo_p2", toPersonId: "demo_p3" },
+      ],
+    },
+    isDemo,
+  );
+  const withThem = side({ removedMeetingIds: new Set(removed.meetingIds), removedDelegationIds: new Set(removed.delegationIds) });
+
+  it("a sitting goes with its demo committee; a delegation with a demo person at either end; demo rows and real ones are not listed", () => {
+    expect(removed).toEqual({ meetingIds: ["cm_mt1"], delegationIds: ["cm_dg1", "cm_dg2"] });
+  });
+  it("judged without them (the old wipe), the signed minutes and the recommendation refused for good", () => {
+    const p = documentWipePlan([minutes, recommendation], side(), true);
+    expect(p.refused).toBe(true);
+    expect(p.hard.map((l) => l.kind)).toEqual(["DEMO_PERSON_DOCUMENT_ON_REAL_RECORD", "DEMO_PERSON_DOCUMENT_ON_REAL_RECORD"]);
+  });
+  it("with --remove-dependents, both documents are removed whole and nothing is refused", () => {
+    const p = documentWipePlan([minutes, recommendation], withThem, true);
+    expect(p.refused).toBe(false);
+    expect(p.hard).toEqual([]);
+    expect(p.demoPersonDocuments.map((d) => d.id)).toEqual(["cm_doc5", "cm_doc6"]);
+  });
+  it("without it, refused and listed (the sitting and the delegation are listed by the wipe too), nothing removed", () => {
+    const p = documentWipePlan([minutes, recommendation], withThem, false);
+    expect(p.refused).toBe(true);
+    expect(p.hard).toEqual([]);
+    expect(p.soft.map((l) => l.kind)).toEqual(["DEMO_PERSON_DOCUMENT", "DEMO_PERSON_DOCUMENT"]);
+  });
+  it("an id in the other kind's set does not count, and a real sitting stays real", () => {
+    expect(onDemoSide(on({ delegationId: "cm_mt1" }), withThem)).toBe(false);
+    expect(onDemoSide(on({ meetingId: "cm_dg1" }), withThem)).toBe(false);
+    expect(onDemoSide(on({ meetingId: "cm_mt2" }), withThem)).toBe(false);
+    expect(onDemoSide(on({ meetingId: "cm_mt1" }), withThem)).toBe(true);
+    expect(onDemoSide(on({ delegationId: "cm_dg2" }), withThem)).toBe(true);
+  });
+  it("the same minutes also attached to a real sitting still refuse, whatever the flag", () => {
+    const both = doc("cm_doc7", [on({ meetingId: "cm_mt1" }, "y1", "SIGNED_MINUTES"), on({ meetingId: "cm_mt2" }, "y2", "SIGNED_MINUTES")], true);
+    expect(documentWipePlan([both], withThem, true).hard).toEqual([{ kind: "DEMO_PERSON_DOCUMENT_ON_REAL_RECORD", title: "Title of cm_doc7" }]);
   });
 });

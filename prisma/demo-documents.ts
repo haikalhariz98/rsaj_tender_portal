@@ -239,6 +239,9 @@ const demoRef = { startsWith: P };
 export interface RemovedWithDemo {
   exerciseIds: string[];
   awardIds: string[];
+  /// Carry D4: sittings on demo committees and delegations naming demo people, made through the screens.
+  meetingIds: string[];
+  delegationIds: string[];
 }
 
 /**
@@ -252,6 +255,7 @@ export async function planDocumentWipe(db: Db, organisationId: string, removed: 
     OR: [
       { meetingId: demoRef }, { exerciseId: demoRef }, { awardId: demoRef }, { delegationId: demoRef },
       { exerciseId: { in: removed.exerciseIds } }, { awardId: { in: removed.awardIds } },
+      { meetingId: { in: removed.meetingIds } }, { delegationId: { in: removed.delegationIds } },
     ],
   };
   const rows = await db.document.findMany({
@@ -279,7 +283,7 @@ export async function planDocumentWipe(db: Db, organisationId: string, removed: 
     versions: d.versions.map((v) => ({ id: v.id, sha256: v.sha256, attachments: v.attachments.map((a) => ({ ...a, purpose: a.purpose as AttachmentPurpose })) })),
     holds: d.holds.map((h) => ({ id: h.id })),
   }));
-  return documentWipePlan(docs, { isDemo: (id) => id.startsWith(P), removedExerciseIds: new Set(removed.exerciseIds), removedAwardIds: new Set(removed.awardIds) }, removeDependents);
+  return documentWipePlan(docs, { isDemo: (id) => id.startsWith(P), removedExerciseIds: new Set(removed.exerciseIds), removedAwardIds: new Set(removed.awardIds), removedMeetingIds: new Set(removed.meetingIds), removedDelegationIds: new Set(removed.delegationIds) }, removeDependents);
 }
 
 const LINE_TEXT = (l: PlanLine) => {

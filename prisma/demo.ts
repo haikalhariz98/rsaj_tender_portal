@@ -6,6 +6,7 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import { checkAwards, loadAwards, loadAwardSetup, reportAwardRefusal, wipeAwards } from "./demo-award";
 import { loadDocuments, planDocumentWipe, reportDocumentRefusal, wipeDocuments } from "./demo-documents";
 import { loadSittingTrail } from "./demo-sitting-trail";
+import { removedWithDemo } from "../src/lib/documents/demo-wipe-plan";
 import { inspectLogo } from "../src/lib/organisation/logo";
 import { initialsLogo } from "../src/lib/organisation/png";
 
@@ -138,6 +139,35 @@ async function wipe() {
   // --remove-dependents does it remove those records and their audit entries, and it
   // says which.
   const demoRef = { startsWith: P };
+
+  // Carry D4: a sitting scheduled through the screens on a demo committee, and a delegation
+  // entered through the screens naming a demo person, go with the demo (their committee or
+  // person goes), with --remove-dependents; without it they are listed and refused. What
+  // relied on them (a requisition or exercise whose step or gate cites a matter decided at
+  // such a sitting, a route step or award signed under such a delegation) goes with them.
+  const screenRows = await db.meeting.findMany({
+    where: { committeeId: demoRef, NOT: { id: demoRef } },
+    select: {
+      id: true, committeeId: true, reference: true, committee: { select: { nameEn: true } },
+      attendance: { select: { id: true } },
+      decisions: { select: { id: true, requisitionId: true, exerciseId: true, requisitionGate: { select: { requisitionId: true } }, votes: { select: { id: true } }, recusals: { select: { id: true } } } },
+    },
+    orderBy: { reference: "asc" },
+  });
+  const screenDelegationRows = await db.delegation.findMany({
+    where: { organisationId: org.id, NOT: { id: demoRef }, OR: [{ fromPersonId: demoRef }, { toPersonId: demoRef }] },
+    select: { id: true, fromPersonId: true, toPersonId: true, fromPerson: { select: { name: true } }, toPerson: { select: { name: true } } },
+  });
+  const screenMade = removedWithDemo({ meetings: screenRows, delegations: screenDelegationRows }, (id) => id.startsWith(P));
+  const screenSittings = screenRows.filter((m) => screenMade.meetingIds.includes(m.id));
+  const screenDelegations = screenDelegationRows.filter((d) => screenMade.delegationIds.includes(d.id));
+  const screenDecisions = screenSittings.flatMap((m) => m.decisions);
+  const screenDecisionIds = screenDecisions.map((d) => d.id);
+  const screenDelegationIds = screenMade.delegationIds;
+  const citedRequisitionIds = [...new Set(screenDecisions.flatMap((d) => [d.requisitionId, d.requisitionGate?.requisitionId ?? null]).filter((x): x is string => x != null && !x.startsWith(P)))];
+  const citedExerciseIds = [...new Set(screenDecisions.map((d) => d.exerciseId).filter((x): x is string => x != null && !x.startsWith(P)))];
+  const onScreenMade = [{ committeeDecisionId: { in: screenDecisionIds } }, { delegationId: { in: screenDelegationIds } }];
+
   const hanging = await db.requisition.findMany({
     where: {
       organisationId: org.id,
@@ -163,6 +193,10 @@ async function wipe() {
         { endorsements: { some: { personId: demoRef } } },
         // A gate determined under a demo gate rule.
         { gates: { some: { gateRuleId: demoRef } } },
+        // Carry D4: a matter at a screen-made sitting on a demo committee names it, or a
+        // step cites such a matter or was taken under a screen-made delegation.
+        { id: { in: citedRequisitionIds } },
+        { approvalInstances: { some: { steps: { some: { OR: onScreenMade } } } } },
       ],
     },
     select: {
@@ -191,6 +225,9 @@ async function wipe() {
         { proposalReviewerPersonId: demoRef },
         { participants: { some: { personId: demoRef } } },
         { approvalInstances: { some: { OR: [{ authorityMatrixId: demoRef }, { overrideMatrixId: demoRef }, { rejectionDestinationId: demoRef }, { rejectionChosenByPersonId: demoRef }, { steps: { some: { OR: [{ decidedByPersonId: demoRef }, { delegationId: demoRef }, { declaredByPersonId: demoRef }] } } }] } } },
+        // Carry D4: named by a matter at a screen-made sitting, or its own route relied on one.
+        { id: { in: citedExerciseIds } },
+        { approvalInstances: { some: { awardId: null, steps: { some: { OR: onScreenMade } } } } },
       ],
     },
     select: {
@@ -212,13 +249,16 @@ async function wipe() {
         { requisitionId: null, NOT: { exerciseId: demoRef }, OR: [{ authorityMatrixId: demoRef }, { overrideMatrixId: demoRef }] },
         // Close-out: any other route snapshotted under a demo rejection destination.
         { requisitionId: null, NOT: { exerciseId: demoRef }, awardId: null, rejectionDestinationId: demoRef },
+        // Carry D4: any other route with a step on a screen-made sitting's matter or delegation.
+        { requisitionId: null, NOT: { exerciseId: demoRef }, awardId: null, steps: { some: { OR: onScreenMade } } },
       ],
     },
     select: { id: true, requisitionId: true, exerciseId: true, matrixLabel: true, steps: { select: { id: true } } },
   });
   // Real committee matters linked to a demo requisition: the link would be cleared.
   const linkedMatters = await db.committeeDecision.findMany({
-    where: { NOT: { id: demoRef }, OR: [{ requisitionId: demoRef }, { requisitionGate: { OR: [{ requisitionId: demoRef }, { gateRuleId: demoRef }] } }] },
+    // A matter at a screen-made sitting goes with its sitting (carry D4), so it is not listed here.
+    where: { NOT: [{ id: demoRef }, { id: { in: screenDecisionIds } }], OR: [{ requisitionId: demoRef }, { requisitionGate: { OR: [{ requisitionId: demoRef }, { gateRuleId: demoRef }] } }] },
     select: { id: true, subject: true, matterRef: true },
   });
   const orphanRoutes = hangingInstances.filter((i) => i.requisitionId == null && (i.exerciseId == null || !hangingExerciseIds.includes(i.exerciseId)));
@@ -228,14 +268,16 @@ async function wipe() {
     ...hangingExercises.map((x) => `  sourcing exercise ${x.reference} · ${x.title}`),
     ...orphanRoutes.map((i) => `  approval route ${i.id} under ${i.matrixLabel ?? "a demo rule set"}`),
     ...linkedMatters.map((m) => `  committee matter ${m.matterRef ?? m.subject} (link to a demo requisition)`),
+    ...screenSittings.map((m) => `  committee sitting ${m.reference} on the demo ${m.committee.nameEn}, with its attendance, matters and votes`),
+    ...screenDelegations.map((d) => `  delegation from ${d.fromPerson.name} to ${d.toPerson.name}, which names a demo person`),
   ];
 
   // 6.11: awards on demo exercises or on the exercises above, and awards that are not demo
   // data but point at demo rows (refused, listing them, unless --remove-dependents).
-  const awardCheck = await checkAwards(db, org.id, REMOVE_DEPENDENTS, hangingExerciseIds);
+  const awardCheck = await checkAwards(db, org.id, REMOVE_DEPENDENTS, hangingExerciseIds, { decisionIds: screenDecisionIds, delegationIds: screenDelegationIds });
   // The document store (plan §9, review must-fix 3): judged with the exercises and awards
   // removed above on the demo's side.
-  const documentPlan = await planDocumentWipe(db, org.id, { exerciseIds: hangingExerciseIds, awardIds: awardCheck.hanging.map((a) => a.id) }, REMOVE_DEPENDENTS);
+  const documentPlan = await planDocumentWipe(db, org.id, { exerciseIds: hangingExerciseIds, awardIds: awardCheck.hanging.map((a) => a.id), meetingIds: screenMade.meetingIds, delegationIds: screenDelegationIds }, REMOVE_DEPENDENTS);
 
   const requisitionsRefused = lines.length > 0 && !REMOVE_DEPENDENTS;
   if (requisitionsRefused) {
@@ -245,7 +287,8 @@ async function wipe() {
         ...lines,
         "Nothing was removed. Deal with them first, or run the wipe again with --remove-dependents",
         "(npm run demo:wipe -- --remove-dependents) to remove the requisitions and routes above with their lines,",
-        "endorsements, checks, steps, commitments and audit entries, and clear the committee matters' links.",
+        "endorsements, checks, steps, commitments and audit entries, remove the sittings and delegations above with",
+        "theirs, and clear the committee matters' links.",
       ].join("\n"),
     );
   }
@@ -373,6 +416,21 @@ async function wipe() {
   await db.rejectionDestination.deleteMany({ where: demo });
   await db.auditExport.deleteMany({ where: demo });
 
+  // Carry D4: the screen-made sittings and delegations, after every route that cited
+  // them (hanging, demo and award routes alike) has gone.
+  if (screenSittings.length || screenDelegations.length) {
+    const sittingEntities = screenSittings.flatMap((m) => [m.id, ...m.attendance.map((a) => a.id), ...m.decisions.flatMap((d) => [d.id, ...d.votes.map((v) => v.id), ...d.recusals.map((r) => r.id)])]);
+    const bySitting = { decision: { meetingId: { in: screenMade.meetingIds } } };
+    await db.vote.deleteMany({ where: bySitting });
+    await db.decisionRecusal.deleteMany({ where: bySitting });
+    await db.committeeDecision.updateMany({ where: { dependsOnDecisionId: { in: screenDecisionIds } }, data: { dependsOnDecisionId: null } });
+    await db.committeeDecision.deleteMany({ where: { id: { in: screenDecisionIds } } });
+    await db.meetingAttendance.deleteMany({ where: { meetingId: { in: screenMade.meetingIds } } });
+    await db.meeting.deleteMany({ where: { id: { in: screenMade.meetingIds } } });
+    await db.delegation.deleteMany({ where: { id: { in: screenDelegationIds } } });
+    const gone = await db.auditEntry.deleteMany({ where: { organisationId: org.id, entityId: { in: [...sittingEntities, ...screenDelegationIds] } } });
+    console.log(`--remove-dependents: removed ${screenSittings.length} sitting(s) and ${screenDelegations.length} delegation(s) made on demo records, and ${gone.count} audit entr${gone.count === 1 ? "y" : "ies"}.`);
+  }
   await db.vote.deleteMany({ where: demo });
   await db.decisionRecusal.deleteMany({ where: demo });
   // A matter may depend on another: clear the links before removing either.

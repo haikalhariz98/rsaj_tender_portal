@@ -18,6 +18,13 @@
  * - Any other document attached to a demo-side record has those attachments taken off
  *   with `--remove-dependents`; the document and its other attachments are kept.
  *
+ * Carry D4 (2026-10-01): a sitting made through the screens on a demo committee, and a
+ * delegation made through the screens that names a demo person at either end, cannot
+ * outlive the demo either (the committee and the person go). They are on the demo side
+ * too, removed with `--remove-dependents` like a screen-made award (`removedWithDemo`
+ * decides which they are), so their signed minutes or holder's recommendation no longer
+ * turn the wipe into a refusal with no way out.
+ *
  * Every attachment row counts, detached ones included: a detached attachment still names
  * its record, and removing it would cut that record's history.
  *
@@ -50,6 +57,25 @@ export interface WipeSide {
   /// Records that are not demo data but that --remove-dependents removes with the demo.
   removedExerciseIds: ReadonlySet<string>;
   removedAwardIds: ReadonlySet<string>;
+  /// Carry D4: sittings made through the screens on a demo committee.
+  removedMeetingIds?: ReadonlySet<string>;
+  /// Carry D4: delegations made through the screens that name a demo person.
+  removedDelegationIds?: ReadonlySet<string>;
+}
+
+/**
+ * Carry D4: which records made through the screens go with the demo although their ids
+ * are not demo data. A sitting goes with its committee; a delegation with either of its
+ * people (neither can stand without the other end). Everything else is judged elsewhere.
+ */
+export function removedWithDemo(
+  rows: { meetings: readonly { id: string; committeeId: string }[]; delegations: readonly { id: string; fromPersonId: string; toPersonId: string }[] },
+  isDemo: (id: string) => boolean,
+): { meetingIds: string[]; delegationIds: string[] } {
+  return {
+    meetingIds: rows.meetings.filter((m) => !isDemo(m.id) && isDemo(m.committeeId)).map((m) => m.id),
+    delegationIds: rows.delegations.filter((d) => !isDemo(d.id) && (isDemo(d.fromPersonId) || isDemo(d.toPersonId))).map((d) => d.id),
+  };
 }
 
 export type PlanLine =
@@ -81,7 +107,9 @@ export function onDemoSide(a: PlanAttachment, side: WipeSide): boolean {
     (k) =>
       side.isDemo(k) ||
       (a.exerciseId === k && side.removedExerciseIds.has(k)) ||
-      (a.awardId === k && side.removedAwardIds.has(k)),
+      (a.awardId === k && side.removedAwardIds.has(k)) ||
+      (a.meetingId === k && (side.removedMeetingIds?.has(k) ?? false)) ||
+      (a.delegationId === k && (side.removedDelegationIds?.has(k) ?? false)),
   );
 }
 
