@@ -8,14 +8,14 @@ import { Accordion } from "@/components/accordion";
 import { EyeIcon, FileIcon } from "@/components/icons";
 import { EMPTY_FORM_STATE, RecordEditor, type SaveAction } from "@/components/record-editor";
 import { Badge, Chip } from "@/components/ui/badge";
-import { Button, buttonClass } from "@/components/ui/button";
+import { Button, buttonClass, iconButtonClass } from "@/components/ui/button";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { KeyValues } from "@/components/ui/stat";
 import { RECLASSIFY_NOTE, WITHDRAW_NOTE } from "@/lib/documents/labels";
-import type { DrawerView, DrawerVersionView } from "@/lib/documents/views";
+import type { AttachmentItemView, DrawerView, DrawerVersionView, UploadView } from "@/lib/documents/views";
 
-import { VerifyButton, type Notice } from "./upload-actions";
+import { DetachButton, NewVersionButton, VerifyButton, type Notice, type OnNotice, type OwnerKey } from "./upload-actions";
 
 /**
  * One document, read in full: its versions (each with its full fingerprint, scan state,
@@ -27,11 +27,18 @@ export function DocumentButton({
   documentId,
   label,
   variant = "ghost",
+  onRecord,
+  iconOnly = false,
 }: {
   documentId: string;
   /// What the document is called, for the button's name.
   label: string;
   variant?: "ghost" | "secondary";
+  /// Opened from a record's list: the attachment on that record, so its acts (a new version,
+  /// taking it off) are offered here, with the reasons they may not be.
+  onRecord?: RecordContext;
+  /// For a table row: the eye alone, named by `Details of …`, so the row needs no room for the word.
+  iconOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<DrawerView | null | undefined>(undefined);
@@ -48,8 +55,9 @@ export function DocumentButton({
       <button
         type="button"
         ref={opener}
-        className={buttonClass(variant, "sm")}
+        className={iconOnly ? iconButtonClass("sm") : buttonClass(variant, "sm")}
         aria-label={`Details of ${label}`}
+        title={iconOnly ? `Details of ${label}` : undefined}
         onClick={() => {
           setOpen(true);
           setData(undefined);
@@ -57,14 +65,22 @@ export function DocumentButton({
         }}
       >
         <EyeIcon size={15} />
-        Details
+        {!iconOnly && "Details"}
       </button>
-      {open && createPortal(<Drawer data={data} reload={reload} onClose={close} />, document.body)}
+      {open && createPortal(<Drawer data={data} reload={reload} onClose={close} onRecord={onRecord} />, document.body)}
     </>
   );
 }
 
-function Drawer({ data, reload, onClose }: { data: DrawerView | null | undefined; reload: () => Promise<void>; onClose: () => void }) {
+/// The attachment a drawer was opened from, and what its acts report to.
+export interface RecordContext {
+  owner: OwnerKey;
+  item: AttachmentItemView;
+  upload: UploadView;
+  onNotice: OnNotice;
+}
+
+function Drawer({ data, reload, onClose, onRecord }: { data: DrawerView | null | undefined; reload: () => Promise<void>; onClose: () => void; onRecord?: RecordContext }) {
   const dialog = useRef<HTMLElement>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
 
@@ -113,6 +129,7 @@ function Drawer({ data, reload, onClose }: { data: DrawerView | null | undefined
                 {data.statements.access} {data.statements.fingerprint}
               </Callout>
               <Summary d={data} onDone={done} />
+              {onRecord && <OnRecord ctx={onRecord} onDone={done} />}
               <Section title="Versions" blurb="A correction is a new version. Nothing is ever deleted: a withdrawn version is marked, with its reason.">
                 <ul className="flex flex-col gap-3">
                   {data.versions.map((v) => (
@@ -137,6 +154,54 @@ function Drawer({ data, reload, onClose }: { data: DrawerView | null | undefined
         </div>
       </aside>
     </div>
+  );
+}
+
+/// What can be done with this attachment on the record the drawer was opened from. A refused
+/// act stays visible, disabled, with the words why: the same reasons the rules give when pressed.
+function OnRecord({ ctx, onDone }: { ctx: RecordContext; onDone: (n: Notice) => void }) {
+  const { owner, item, upload } = ctx;
+  const report = useCallback(
+    (n: Notice) => {
+      onDone(n);
+      ctx.onNotice(n);
+    },
+    [onDone, ctx],
+  );
+  const refused = upload.refusals.length > 0;
+  const replace = item.newVersion?.allowed && !refused;
+  const replaceReason = item.newVersion && !item.newVersion.allowed ? item.newVersion.reason : refused ? upload.refusals[0] : null;
+  const detachReason = item.detach && !item.detach.allowed ? item.detach.reason : null;
+  if (!item.newVersion && !item.detach) return null;
+  return (
+    <Section title={`On ${owner.label}`} blurb={`${item.purposeLabel}, version ${item.versionNo}.`}>
+      <div className="flex flex-col gap-3">
+        {item.newVersion && (
+          <div className="flex flex-col items-start gap-1.5">
+            {replace ? (
+              <NewVersionButton owner={owner} item={item} upload={upload} onNotice={report} />
+            ) : (
+              <Button size="sm" variant="secondary" disabled aria-describedby={`nv-${item.attachmentId}`}>
+                New version
+              </Button>
+            )}
+            {replaceReason && <p id={`nv-${item.attachmentId}`} className="text-[12.5px] text-ink-3">{replaceReason}</p>}
+          </div>
+        )}
+        {item.detach && (
+          <div className="flex flex-col items-start gap-1.5">
+            {item.detach.allowed ? (
+              <DetachButton owner={owner} item={item} onNotice={report} />
+            ) : (
+              <Button size="sm" variant="destructive" disabled aria-describedby={`dt-${item.attachmentId}`}>
+                Detach
+              </Button>
+            )}
+            {detachReason && <p id={`dt-${item.attachmentId}`} className="text-[12.5px] text-ink-3">{detachReason}</p>}
+          </div>
+        )}
+      </div>
+    </Section>
   );
 }
 

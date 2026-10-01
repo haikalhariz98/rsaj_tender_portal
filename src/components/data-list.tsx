@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 
 import {
   ChevronRight,
@@ -42,7 +42,9 @@ export type Cell =
   | { kind: "badges"; items: string[]; max?: number }
   /// Toned chips stacked in one cell, for a column that summarises several checks
   /// ("Within budget" over "No split found") rather than spending a column on each.
-  | { kind: "chips"; items: { text: string; tone?: "ok" | "warn" | "err" | "info" | "brand" }[] }
+  /// A chip with `nowrap` keeps to one line from `md` up (its column must be sized to hold
+  /// it); on a phone it still wraps.
+  | { kind: "chips"; items: { text: string; tone?: "ok" | "warn" | "err" | "info" | "brand"; nowrap?: boolean }[] }
   /// A filled bar with the figure beside it, and a marker at the configured warning
   /// threshold. Null percent renders as not set — a code with no allocation has not
   /// used none of its budget, and a bar drawn at zero says it has.
@@ -96,6 +98,9 @@ export interface Row {
   search: string;
   /// Named views this row belongs to, beyond "all".
   views?: string[];
+  /// A sentence about the row that needs the row's full width — why an action beside it is
+  /// disabled, say. Shown under the row, never squeezed into the actions column.
+  note?: string;
 }
 
 export interface View {
@@ -220,7 +225,7 @@ function CellView({ cell, nowrap = false }: { cell: Cell | undefined; nowrap?: b
       ) : (
         <span className="flex flex-col items-start gap-1">
           {cell.items.map((item) => (
-            <Chip key={item.text} tone={item.tone} title={item.text}>
+            <Chip key={item.text} tone={item.tone} title={item.text} className={item.nowrap ? "md:whitespace-nowrap" : undefined}>
               {item.text}
             </Chip>
           ))}
@@ -556,6 +561,7 @@ export function DataList({
                       ))}
                     </dl>
                   )}
+                  {row.note && <p className="mt-2.5 text-[12.5px] leading-snug text-ink-3">{row.note}</p>}
                   {actions && (
                     <div className="mt-3 flex flex-wrap items-center gap-1">{actions(row.id)}</div>
                   )}
@@ -659,11 +665,12 @@ export function DataList({
             </thead>
             <tbody>
               {paged.map((row) => (
+                <Fragment key={row.id}>
                 <tr
-                  key={row.id}
                   tabIndex={rowOpens ? 0 : undefined}
                   className={cx(
-                    "group border-b border-line/70 transition last:border-b-0 hover:bg-brand-50/40",
+                    "group border-b border-line/70 transition hover:bg-brand-50/40",
+                    row.note ? "border-b-0" : "last:border-b-0",
                     selected.has(row.id) && "bg-brand-50/60",
                     rowOpens && "cursor-pointer",
                   )}
@@ -746,6 +753,14 @@ export function DataList({
                     </td>
                   )}
                 </tr>
+                {row.note && (
+                  <tr className="border-b border-line/70 last:border-b-0">
+                    <td colSpan={columns.length + (selectable ? 1 : 0) + (rowAction || actions ? 1 : 0)} className="px-4 pb-3 text-[12.5px] leading-snug text-ink-3">
+                      {row.note}
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

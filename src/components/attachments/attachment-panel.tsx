@@ -11,7 +11,7 @@ import { Callout } from "@/components/ui/feedback";
 import type { AttachmentItemView, PanelView, SlotView } from "@/lib/documents/views";
 
 import { DocumentButton } from "./document-drawer";
-import { DetachButton, NewVersionButton, UploadButton, VerifyButton, type Notice, type OwnerKey } from "./upload-actions";
+import { UploadButton, type Notice, type OwnerKey } from "./upload-actions";
 
 /**
  * The one place a record's documents are shown and changed, for every owner (plan §6):
@@ -48,8 +48,9 @@ export function AttachmentPanel({
   const columns: Column[] = [
     { key: "doc", label: "Document", mobile: "primary" },
     { key: "class", label: "Classification", width: "112px", mobile: "meta" },
-    { key: "version", label: "Version and scan", width: "180px", mobile: "meta" },
-    { key: "received", label: "Received on", width: "170px", mobile: "meta" },
+    // Wide enough for the malware chip, "Not scanned for malware — scanning not built", on one line.
+    { key: "version", label: "Version and scan", width: "348px", mobile: "meta" },
+    { key: "received", label: "Received on", width: "132px", mobile: "meta" },
   ];
 
   const rows: Row[] = items.map((i) => ({
@@ -64,12 +65,13 @@ export function AttachmentPanel({
           ...(i.withdrawn ? [{ text: `Withdrawn ${i.withdrawn.on}`, tone: "err" as const }] : []),
           ...(i.newerVersionNo ? [{ text: `Version ${i.newerVersionNo} exists, not pinned`, tone: "info" as const }] : []),
           ...(i.hold ? [{ text: "Legal hold", tone: "err" as const }] : []),
-          { text: i.scan.text, tone: i.scan.tone === "neutral" ? undefined : i.scan.tone },
+          { text: i.scan.text, tone: i.scan.tone === "neutral" ? undefined : i.scan.tone, nowrap: true },
         ],
       },
       received: { kind: "stack", title: i.receivedOn ?? "Not recorded", sub: i.recordedBy },
     },
     search: `${i.title} ${i.className} ${i.purposeLabel} ${i.fileName}`,
+    note: i.download.allowed ? undefined : i.download.reason,
   }));
 
   const pastColumns: Column[] = [
@@ -123,7 +125,7 @@ export function AttachmentPanel({
           toolbar={items.length > 8}
           columns={columns}
           rows={rows}
-          actionsWidth={150}
+          actionsWidth={160}
           exportName="documents"
           emptyTitle="Nothing is attached yet"
           emptyBody={slots.some((s) => s.state === "OPEN") ? "Upload the first document with the button above. It is stored, then attached to this record." : "Documents can be attached once the record allows it, as said above."}
@@ -174,45 +176,22 @@ function SlotRow({ s, owner, upload, refused, showReason, onNotice }: { s: SlotV
   );
 }
 
+/// A row carries what a reader reaches for: the file, and the details. Verifying, replacing and
+/// taking off are acts on this record, so they sit in the drawer, beside the reasons they may be
+/// unavailable; a disabled download's reason is the row's note.
 function RowActions({ item, owner, upload, onNotice }: { item: AttachmentItemView; owner: OwnerKey; upload: PanelView["upload"]; onNotice: (n: Notice) => void }) {
-  const refused = upload.refusals.length > 0;
-  const reasons = [
-    item.download.allowed ? null : item.download.reason,
-    item.newVersion && !item.newVersion.allowed ? item.newVersion.reason : null,
-    item.detach && !item.detach.allowed ? item.detach.reason : null,
-  ].filter((r): r is string => !!r);
   return (
-    <div className="flex w-full flex-col items-end gap-1.5 whitespace-normal">
-      <div className="flex flex-wrap items-center justify-end gap-1">
-        <DocumentButton documentId={item.documentId} label={item.title} />
-        {item.download.allowed ? (
-          <a href={item.download.href} className={buttonClass("secondary", "sm")} aria-label={`Download ${item.title}`}>
-            Download
-          </a>
-        ) : (
-          <Button size="sm" variant="secondary" disabled aria-label={`Download ${item.title}`}>
-            Download
-          </Button>
-        )}
-        <VerifyButton versionId={item.versionId} onNotice={onNotice} />
-        {item.newVersion?.allowed && !refused && <NewVersionButton owner={owner} item={item} upload={upload} onNotice={onNotice} />}
-        {item.newVersion && (!item.newVersion.allowed || refused) && (
-          <Button size="sm" variant="ghost" disabled aria-label={`New version of ${item.title}`}>
-            New version
-          </Button>
-        )}
-        {item.detach?.allowed && <DetachButton owner={owner} item={item} onNotice={onNotice} />}
-        {item.detach && !item.detach.allowed && (
-          <Button size="sm" variant="destructive" disabled aria-label={`Detach ${item.title} from ${owner.label}`}>
-            Detach
-          </Button>
-        )}
-      </div>
-      {reasons.map((r) => (
-        <p key={r} className="max-w-[22ch] text-right text-[12px] leading-snug text-ink-3">
-          {r}
-        </p>
-      ))}
-    </div>
+    <>
+      {item.download.allowed ? (
+        <a href={item.download.href} className={buttonClass("secondary", "sm")} aria-label={`Download ${item.title}`}>
+          Download
+        </a>
+      ) : (
+        <Button size="sm" variant="secondary" disabled aria-label={`Download ${item.title}`}>
+          Download
+        </Button>
+      )}
+      <DocumentButton documentId={item.documentId} label={item.title} onRecord={{ owner, item, upload, onNotice }} iconOnly />
+    </>
   );
 }
