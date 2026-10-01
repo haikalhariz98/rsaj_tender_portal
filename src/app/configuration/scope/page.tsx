@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { HistoryButton } from "@/components/history-drawer";
 import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
@@ -12,6 +13,7 @@ import { SlidersIcon } from "@/components/icons";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { exerciseOrg } from "@/lib/method/repo";
+import { unsetCount, visibleRows } from "@/lib/scope/config";
 import { NOT_SET } from "@/lib/scope/labels";
 import { scopeConfiguration } from "@/lib/scope/read";
 
@@ -45,7 +47,8 @@ const UNSET: Record<string, string> = {
 
 const day = (d: string | null) => (d ? formatDate(d) : "");
 
-export default async function ScopeConfigurationPage() {
+export default async function ScopeConfigurationPage({ searchParams }: { searchParams: Promise<{ retired?: string }> }) {
+  const showRetired = (await searchParams).retired === "1";
   const org = await exerciseOrg();
   const c = org ? await scopeConfiguration() : null;
   if (!org || !c) {
@@ -61,13 +64,28 @@ export default async function ScopeConfigurationPage() {
   const policyRow = await db.scopePolicy.findUnique({ where: { organisationId: org.id }, select: { id: true } });
   const p = c.policy.raw;
   const f = (label: string) => c.policy.fields.find((x) => x.label === label)!;
-  const standardUnset = p.measurementStandardLabel == null;
-  const qualificationUnset = p.bqPreparerQualificationCode == null;
+  // The header counts every setting that reads as not set on this page: each policy field, and each
+  // rule (estimate, scope approval, bill basis) that is unset or names no committee, retired rows left out.
+  const unset = unsetCount({
+    policyValues: c.policy.fields.map((x) => x.value),
+    rules: [
+      ...c.methods.map((m) => ({ unset: m.raw === "unset", retired: m.retired })),
+      ...c.bases.map((x) => ({ unset: x.raw === "unset", retired: x.retired })),
+      ...c.scopeRules.map((m) => ({ unset: m.raw.scopeApprovalRequired === "unset" || (m.raw.scopeApprovalRequired === "yes" && !m.raw.scopeCommitteeCode), retired: m.retired })),
+    ],
+  });
+  // Retired rows sit behind "Show retired": they are history, not something to set.
+  const rows = {
+    methods: visibleRows(c.methods, (m) => m.retired, showRetired),
+    scopeRules: visibleRows(c.scopeRules, (m) => m.retired, showRetired),
+    bases: visibleRows(c.bases, (m) => m.retired, showRetired),
+    qualifications: visibleRows(c.qualifications, (m) => m.retiredOn != null, showRetired),
+    templates: visibleRows(c.templates, (m) => m.retiredOn != null, showRetired),
+    columns: visibleRows(c.columns, (m) => m.retiredOn != null, showRetired),
+  };
+  const retiredCount = c.methods.filter((m) => m.retired).length + c.bases.filter((m) => m.retired).length + c.qualifications.filter((m) => m.retiredOn != null).length + c.templates.filter((m) => m.retiredOn != null).length + c.columns.filter((m) => m.retiredOn != null).length;
+  const emptyText = (all: readonly unknown[], shown: readonly unknown[], text: string) => (all.length > 0 && shown.length === 0 ? "Every row here is retired. Choose Show retired to see them." : text);
   const leadUnset = p.estimateLeadDays == null;
-  const methodsUnset = c.methods.filter((m) => m.raw === "unset" && !m.retired).length;
-  const basesUnset = c.bases.filter((b) => b.raw === "unset" && !b.retired).length;
-  const scopeRulesUnset = c.scopeRules.filter((m) => (m.raw.scopeApprovalRequired === "unset" || (m.raw.scopeApprovalRequired === "yes" && !m.raw.scopeCommitteeCode)) && !m.retired).length;
-  const unset = [standardUnset, qualificationUnset, leadUnset].filter(Boolean).length + methodsUnset + basesUnset + scopeRulesUnset;
 
   const policyValues: Record<string, string> = {
     measurementStandardLabel: p.measurementStandardLabel ?? "",
@@ -116,6 +134,14 @@ export default async function ScopeConfigurationPage() {
         }
       />
 
+      {retiredCount > 0 && (
+        <div className="-mt-3 mb-4 flex justify-end">
+          <ButtonLink href={showRetired ? "/configuration/scope" : "/configuration/scope?retired=1"} variant="ghost" size="sm">
+            {showRetired ? "Hide retired" : `Show retired (${retiredCount})`}
+          </ButtonLink>
+        </div>
+      )}
+
       <div className="flex flex-col gap-6">
         {leadUnset && (
           <Callout tone="warn" title="Estimate lead time is not set">
@@ -145,7 +171,7 @@ export default async function ScopeConfigurationPage() {
           </CardBody>
         </Card>
 
-        <Section title="Which methods need a company estimate" blurb="Where a method does, the documents cannot go for approval until the estimate is lodged. Not set holds that check back, naming this setting; it is never read as No." empty="No sourcing methods are configured. Add them under Reference data." count={c.methods.length}>
+        <Section id="estimate-rules" title="Which methods need a company estimate" blurb="Where a method does, the documents cannot go for approval until the estimate is lodged. Not set holds that check back, naming this setting; it is never read as No." empty={emptyText(c.methods, rows.methods, "No sourcing methods are configured. Add them under Reference data.")} count={rows.methods.length}>
           <Table minWidth={560}>
             <colgroup>
               <col />
@@ -160,7 +186,7 @@ export default async function ScopeConfigurationPage() {
               <Th className="text-right">Actions</Th>
             </THead>
             <tbody>
-              {c.methods.map((m) => (
+              {rows.methods.map((m) => (
                 <Tr key={m.id}>
                   <Td label="Method"><CellStack title={m.name} sub={m.retired ? "Retired" : undefined} /></Td>
                   <Td label="Needs an estimate">{m.raw === "unset" ? <Badge tone="warn">Not set</Badge> : m.needsEstimate}</Td>
@@ -177,7 +203,7 @@ export default async function ScopeConfigurationPage() {
           </Table>
         </Section>
 
-        <Section title="Which methods need their scope approved by a committee" blurb="Where a method does, the finalised bill is tabled at a sitting of the committee named, and the documents cannot go for approval until it is carried. Not set holds that check back, naming this setting; it is never read as No." empty="No sourcing methods are configured. Add them under Reference data." count={c.scopeRules.length}>
+        <Section id="scope-rules" title="Which methods need their scope approved by a committee" blurb="Where a method does, the finalised bill is tabled at a sitting of the committee named, and the documents cannot go for approval until it is carried. Not set holds that check back, naming this setting; it is never read as No." empty={emptyText(c.scopeRules, rows.scopeRules, "No sourcing methods are configured. Add them under Reference data.")} count={rows.scopeRules.length}>
           <Table minWidth={640}>
             <colgroup>
               <col />
@@ -194,7 +220,7 @@ export default async function ScopeConfigurationPage() {
               <Th className="text-right">Actions</Th>
             </THead>
             <tbody>
-              {c.scopeRules.map((m) => (
+              {rows.scopeRules.map((m) => (
                 <Tr key={m.id}>
                   <Td label="Method"><CellStack title={m.name} sub={m.retired ? "Retired" : undefined} /></Td>
                   <Td label="Scope approved">{m.raw.scopeApprovalRequired === "unset" ? <Badge tone="warn">Not set</Badge> : m.required}</Td>
@@ -212,7 +238,7 @@ export default async function ScopeConfigurationPage() {
           </Table>
         </Section>
 
-        <Section title="Which contract bases are let on a bill of quantities" blurb="Where a basis is, a finalised bill must go with the documents. Not set holds that check back, naming this setting." empty="No contract bases are configured. Add them under Reference data." count={c.bases.length}>
+        <Section id="bill-bases" title="Which contract bases are let on a bill of quantities" blurb="Where a basis is, a finalised bill must go with the documents. Not set holds that check back, naming this setting." empty={emptyText(c.bases, rows.bases, "No contract bases are configured. Add them under Reference data.")} count={rows.bases.length}>
           <Table minWidth={560}>
             <colgroup>
               <col />
@@ -227,7 +253,7 @@ export default async function ScopeConfigurationPage() {
               <Th className="text-right">Actions</Th>
             </THead>
             <tbody>
-              {c.bases.map((b) => (
+              {rows.bases.map((b) => (
                 <Tr key={b.id}>
                   <Td label="Contract basis"><CellStack title={b.name} sub={b.retired ? "Retired" : undefined} /></Td>
                   <Td label="Let on a bill">{b.raw === "unset" ? <Badge tone="warn">Not set</Badge> : b.letOnBill}</Td>
@@ -244,7 +270,7 @@ export default async function ScopeConfigurationPage() {
           </Table>
         </Section>
 
-        <Section title="Qualifications" blurb="What a bill's preparer must hold, and who holds it, day by day. A holding counts from its first day to its last." empty="No qualifications are recorded, so nobody can be judged qualified to prepare a bill." count={c.qualifications.length} action={<QualificationDrawer />}>
+        <Section title="Qualifications" blurb="What a bill's preparer must hold, and who holds it, day by day. A holding counts from its first day to its last." empty={emptyText(c.qualifications, rows.qualifications, "No qualifications are recorded, so nobody can be judged qualified to prepare a bill.")} count={rows.qualifications.length} action={<QualificationDrawer />}>
           <Table minWidth={720}>
             <colgroup>
               <col style={{ width: "30%" }} />
@@ -259,7 +285,7 @@ export default async function ScopeConfigurationPage() {
               <Th className="text-right">Actions</Th>
             </THead>
             <tbody>
-              {c.qualifications.map((q) => (
+              {rows.qualifications.map((q) => (
                 <Tr key={q.id}>
                   <Td label="Qualification"><CellStack title={q.name} sub={[q.governingSource || null, q.retiredOn ? `Retired from ${day(q.retiredOn)}` : null].filter(Boolean).join(" · ") || undefined} /></Td>
                   <Td label="Held by">
@@ -294,7 +320,7 @@ export default async function ScopeConfigurationPage() {
           </Table>
         </Section>
 
-        <Section title="Bill templates" blurb="Section headings a new bill can start from. A template brings no lines." empty="No templates are configured: a bill's sections are added by hand." count={c.templates.length} action={<TemplateDrawer />}>
+        <Section title="Bill templates" blurb="Section headings a new bill can start from. A template brings no lines." empty={emptyText(c.templates, rows.templates, "No templates are configured: a bill's sections are added by hand.")} count={rows.templates.length} action={<TemplateDrawer />}>
           <Table minWidth={720}>
             <colgroup>
               <col style={{ width: "30%" }} />
@@ -309,7 +335,7 @@ export default async function ScopeConfigurationPage() {
               <Th className="text-right">Actions</Th>
             </THead>
             <tbody>
-              {c.templates.map((t) => (
+              {rows.templates.map((t) => (
                 <Tr key={t.id}>
                   <Td label="Template"><CellStack title={t.name} sub={t.retiredOn ? `Retired from ${day(t.retiredOn)}` : undefined} /></Td>
                   <Td label="Sections">
@@ -342,7 +368,7 @@ export default async function ScopeConfigurationPage() {
           </Table>
         </Section>
 
-        <Section title="Specification panel columns" blurb="The columns of the signed panel form. Each is verified by a named person, recorded on behalf of, not signed. With none configured nothing can be verified." empty="No columns are configured, so no panel can be verified." count={c.columns.length} action={<ColumnDrawer units={c.options.units} />}>
+        <Section title="Specification panel columns" blurb="The columns of the signed panel form. Each is verified by a named person, recorded on behalf of, not signed. With none configured nothing can be verified." empty={emptyText(c.columns, rows.columns, "No columns are configured, so no panel can be verified.")} count={rows.columns.length} action={<ColumnDrawer units={c.options.units} />}>
           <Table minWidth={640}>
             <colgroup>
               <col />
@@ -357,7 +383,7 @@ export default async function ScopeConfigurationPage() {
               <Th className="text-right">Actions</Th>
             </THead>
             <tbody>
-              {c.columns.map((col) => (
+              {rows.columns.map((col) => (
                 <Tr key={col.id}>
                   <Td label="Column"><CellStack title={col.label} sub={col.retiredOn ? `Retired from ${day(col.retiredOn)}` : undefined} /></Td>
                   <Td label="Unit" className="text-ink-2">{col.unit ?? "Not tied to a unit"}</Td>

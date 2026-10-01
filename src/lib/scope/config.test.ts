@@ -83,3 +83,22 @@ describe("saving the scope policy: a cleared value takes its provenance with it"
     expect(scopePolicyToSave(p)).toEqual(p);
   });
 });
+
+describe("unsetCount and visibleRows", () => {
+  it("counts every policy field that reads as unset, and every rule not set and not retired", async () => {
+    const { unsetCount, visibleRows, isUnsetValue } = await import("./config");
+    expect(isUnsetValue("Not set")).toBe(true);
+    expect(isUnsetValue("Not set: no late estimate is accepted")).toBe(true);
+    expect(isUnsetValue("No limit set")).toBe(true);
+    expect(isUnsetValue("7 days")).toBe(false);
+    expect(
+      unsetCount({
+        policyValues: ["Demo standard", "Not set", "Not set: no late estimate is accepted", "6", "No limit set"],
+        rules: [{ unset: true, retired: false }, { unset: true, retired: true }, { unset: false, retired: false }],
+      }),
+    ).toBe(4);
+    const rows = [{ n: "a", r: false }, { n: "b", r: true }];
+    expect(visibleRows(rows, (x) => x.r, false).map((x) => x.n)).toEqual(["a"]);
+    expect(visibleRows(rows, (x) => x.r, true).map((x) => x.n)).toEqual(["a", "b"]);
+  });
+});

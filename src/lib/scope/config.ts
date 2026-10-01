@@ -5,6 +5,7 @@
  * configured row. Nothing here supplies a default: an empty field stays "Not set".
  */
 
+import { NO_LIMIT, NOT_SET } from "./labels";
 import type { Finding, Provenance } from "./types";
 
 export type ConfigFault = "PROVENANCE_REQUIRED" | "LEAD_NEGATIVE" | "LIMIT_BELOW_ONE" | "UNKNOWN_QUALIFICATION" | "UNKNOWN_OFFICE" | "UNKNOWN_LIST" | "PERIOD_REVERSED";
@@ -101,3 +102,16 @@ export const SCOPE_RULE_FAULT_TEXT: Readonly<Record<ScopeRuleFault, string>> = {
   PROVENANCE_REQUIRED: CONFIG_FAULT_TEXT.PROVENANCE_REQUIRED,
   UNKNOWN_COMMITTEE: "That committee is not configured. Choose one from Configuration, Committees.",
 };
+
+/// A policy field's value reads as unset: "Not set", "Not set: no late estimate is accepted", or no limit.
+export const isUnsetValue = (v: string) => v === NOT_SET || v.startsWith(`${NOT_SET}:`) || v === NO_LIMIT;
+
+/// How many settings the page shows as not set, for its header: every policy field that reads as
+/// unset, and every rule (a method's estimate rule, its scope rule, a basis's bill rule) not set
+/// and not retired. A retired row is not a decision anyone is waiting on.
+export function unsetCount(i: { policyValues: readonly string[]; rules: readonly { unset: boolean; retired: boolean }[] }): number {
+  return i.policyValues.filter(isUnsetValue).length + i.rules.filter((r) => r.unset && !r.retired).length;
+}
+
+/// The rows a list shows: the retired ones only when asked for.
+export const visibleRows = <T,>(rows: readonly T[], isRetired: (r: T) => boolean, showRetired: boolean): T[] => (showRetired ? [...rows] : rows.filter((r) => !isRetired(r)));
