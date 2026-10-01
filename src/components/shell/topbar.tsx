@@ -62,6 +62,7 @@ const NESTED_LABEL: Record<string, string> = {
   "configuration/requisitions": "Requisition controls",
   "requisitions/new": "New requisition",
   "configuration/awards": "Award controls",
+  "configuration/scope": "Scope and estimate",
   "awards/new": "New award",
 };
 

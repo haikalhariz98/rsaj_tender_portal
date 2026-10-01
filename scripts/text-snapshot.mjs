@@ -45,6 +45,7 @@ const ROUTES = [
   "/committees",
   "/configuration/requisitions",
   "/configuration/awards",
+  "/configuration/scope",
   "/configuration/audit",
   ...["people", "roles", "permissions", "delegation"].map((t) => `/configuration/users?tab=${t}`),
   ...["codes", "periods", "allocations", "availability", "controls", "finance"].map(

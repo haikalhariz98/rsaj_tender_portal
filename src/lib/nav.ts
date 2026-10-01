@@ -149,6 +149,13 @@ export const CONFIG_SECTIONS: {
         built: true,
       },
       {
+        href: "/configuration/scope",
+        label: "Scope and estimate",
+        description: "The standard bills follow, who may prepare them, specification panels and the company estimate's lead time.",
+        icon: "tools",
+        built: true,
+      },
+      {
         href: "/configuration/requisitions",
         label: "Requisition controls",
         description: "Endorsement tiers, the splitting check, budget re-checks and registration.",

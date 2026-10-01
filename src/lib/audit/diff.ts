@@ -62,6 +62,20 @@ const NAMED_FIELDS: Record<string, string> = {
   notApprovedOutcomeId: "Outcome if not carried",
   // An approving office's row and a step's office, as the screens print them.
   approverCode: "Approved by",
+  // Scope and estimate policy: an office or list is named, never coded.
+  bqPreparerQualificationCode: "Qualification a bill's preparer holds",
+  estimateLeadDays: "Estimate made this many days before closing",
+  estimateCustodianRoleCode: "Office holding the estimate's copies",
+  estimateAuditRoleCode: "Office auditing the estimate",
+  estimateOverrideRoleCode: "Office that may accept a late estimate",
+  panelSignatoryLimit: "Most verifiers on a specification panel",
+  panelContractKindTaxonomyCode: "List of contract kinds",
+  panelProjectStatusTaxonomyCode: "List of project statuses",
+  requiresCompanyEstimate: "Needs a company estimate",
+  requiresBq: "Let on a bill of quantities",
+  orgUnitCode: "Unit whose officer verifies",
+  qualificationCode: "Qualification",
+  deliverableKind: "What the contract delivers",
   roleCode: "Office",
   // Core routing (FR-APR-004): the rule editor's own words.
   generateCoreChain: "Chain from core routing",

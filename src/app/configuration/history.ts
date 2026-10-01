@@ -38,6 +38,13 @@ const ENTITIES = new Set([
   "Requisition",
   "RequisitionPolicy",
   "FinanceIntegration",
+  "ScopePolicy",
+  "Qualification",
+  "PersonQualification",
+  "BqTemplate",
+  "BqTemplateSection",
+  "SpecPanelColumn",
+  "ContractBasis",
 ]);
 
 export interface HistoryEntry {
@@ -75,18 +82,23 @@ const ENTITY_VALUE_LABEL: Record<string, Record<string, Record<string, string>>>
   FinanceIntegration: { budgetCheckSource: SOURCE_LABEL },
   DocumentClass: { classification: CLASSIFICATION_LABEL, retentionTrigger: RETENTION_TRIGGER_LABEL, disposalMethod: DISPOSAL_METHOD_LABEL },
 };
+/// Yes or No where a stored flag is a boolean.
+const FLAG_FIELDS = new Set(["requiresCompanyEstimate", "requiresBq"]);
+const DELIVERABLE_VALUE: Record<string, string> = { GOODS_DELIVERED: "Goods delivered", MEASURED_CONSTRUCTION: "Measured construction", TERM_PERFORMANCE: "Performance over a term" };
 const OFFICE_FIELDS = new Set(["secretariatRoleCode", "seatRoleCode", "disposalAuthorityRoleCode"]);
 
 /// A reader that turns stored codes and ids into what they stand for.
 async function valueReader(entity = ""): Promise<(field: string, value: string | null) => string | null> {
   const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true } });
   if (!org) return (_f, v) => v;
-  const [offices, people, committees, outcomes] = await Promise.all([
+  const [offices, people, committees, outcomes, orgUnits] = await Promise.all([
     db.authorityRole.findMany({ where: { organisationId: org.id }, select: { code: true, nameEn: true } }),
     db.person.findMany({ where: { organisationId: org.id }, select: { id: true, name: true } }),
     db.committee.findMany({ where: { organisationId: org.id }, select: { id: true, nameEn: true } }),
     db.notApprovedOutcome.findMany({ where: { organisationId: org.id }, select: { id: true, nameEn: true } }),
+    db.orgUnit.findMany({ where: { organisationId: org.id }, select: { code: true, nameEn: true } }),
   ]);
+  const units = new Map(orgUnits.map((u) => [u.code, u.nameEn]));
   const office = new Map(offices.map((o) => [o.code, o.nameEn]));
   const ids: Record<string, Map<string, string>> = {
     personId: new Map(people.map((p) => [p.id, p.name])),
@@ -103,6 +115,9 @@ async function valueReader(entity = ""): Promise<(field: string, value: string |
     if (entity === "RequisitionPolicy" && field === "splittingMatchOn") {
       return value ? value.split(", ").map((k) => SPLIT_KEY_LABEL[k as keyof typeof SPLIT_KEY_LABEL] ?? k).join(", ") : "Not set";
     }
+    if (FLAG_FIELDS.has(field)) return value === "true" ? "Yes" : value === "false" ? "No" : value;
+    if (field === "deliverableKind" && DELIVERABLE_VALUE[value]) return DELIVERABLE_VALUE[value];
+    if (field === "orgUnitCode") return units.get(value) ?? "A unit no longer in the structure";
     if (VALUE_LABEL[field]?.[value]) return VALUE_LABEL[field][value];
     if (/Provenance$|^provenance$/.test(field)) return PROVENANCE[value] ?? value;
     if (OFFICE_FIELDS.has(field)) return office.get(value) ?? "An office no longer configured";
