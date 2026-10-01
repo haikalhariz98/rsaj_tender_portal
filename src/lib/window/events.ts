@@ -15,6 +15,21 @@ import type { EventFacts, Finding } from "./types";
 
 export type EventFault = "EVENT_TIME_MISSING" | "EVENT_PLACE_MISSING" | "EVENT_AFTER_CLOSING" | "MANDATORY_NOT_PERMITTED" | "MANDATORY_NOT_ANSWERED" | "MANDATORY_NOT_OFFERED";
 
+/**
+ * Whether mandatory attendance is permitted for THIS window. Once published, the answer is the one
+ * the window was published under (`policySnapshot.attendance.mandatoryPermitted`), never today's
+ * configuration: the notice stated which events were mandatory, and a later policy edit must not
+ * open or close the sale on it. Before publication it is the live policy. A published window whose
+ * snapshot does not record the answer reads null with `recorded: false` — never the live policy.
+ */
+export function mandatoryPermittedFor(w: { publishedAt: Date | null; policySnapshot: unknown } | null, live: boolean | null): { permitted: boolean | null; frozen: boolean; recorded: boolean } {
+  if (!w?.publishedAt) return { permitted: live, frozen: false, recorded: true };
+  const attendance = (w.policySnapshot as { attendance?: { mandatoryPermitted?: unknown } } | null)?.attendance;
+  const v = attendance?.mandatoryPermitted;
+  if (v === true || v === false || (attendance && v === null)) return { permitted: v, frozen: true, recorded: true };
+  return { permitted: null, frozen: true, recorded: false };
+}
+
 /// Whether the event's answer counts: only where the policy permits mandatory attendance.
 export const isMandatory = (e: Pick<EventFacts, "mandatory" | "cancelled">, permitted: boolean | null) => permitted === true && e.mandatory === true && !e.cancelled;
 

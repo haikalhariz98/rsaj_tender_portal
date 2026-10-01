@@ -10,7 +10,7 @@ import { manualFeeReceipt } from "@/lib/integration/fee-receipt";
 import { addendaForNewPurchaser, addendumWindowFault, deliveryFaults, issueFaults, nextAddendumNumber, recipientsFor } from "@/lib/window/addendum";
 import { addendumFields, deliveryFields, ENTITY, eventFields, partyFields, saleFields } from "@/lib/window/audit-view";
 import { invitedSaleFault, windowEditFault } from "@/lib/window/edit";
-import { eventFaults, heldFault } from "@/lib/window/events";
+import { eventFaults, heldFault, mandatoryPermittedFor } from "@/lib/window/events";
 import { regKey } from "@/lib/window/invitees";
 import { lockAddendumRows, lockSaleRows } from "@/lib/window/lock";
 import { closingDay, pathOf, phaseOf, renderAddendum } from "@/lib/window/judge";
@@ -100,7 +100,8 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
       partyId: known?.id ?? null,
       alreadySold: !!known && w.sales.some((s) => s.partyId === known.id && !s.voidedAt),
       events: eventFactsOf(w),
-      mandatoryPermitted: d.policy.mandatoryAttendancePermitted,
+      // A published window is judged by the answer it was published under (its policy snapshot).
+      mandatoryPermitted: mandatoryPermittedFor(w, d.policy.mandatoryAttendancePermitted).permitted,
       receiptNo,
       receiptTaken: taken,
       feeSet: w.feeAmount != null,

@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
-import { attendanceCsv, attendanceFaults, eventFaults, heldFault, isMandatory } from "./events";
+import { attendanceCsv, attendanceFaults, eventFaults, heldFault, isMandatory, mandatoryPermittedFor } from "./events";
 import { event, klAt } from "./fixture";
 import { windowFindingText } from "./labels";
 
@@ -82,5 +85,35 @@ describe("the attendance register as CSV (Lampiran E)", () => {
     expect(lines[3]).toBe('Place,"Room 2, Level 3"');
     expect(lines[8]).toBe("1,Alpha Works,A-1,Siti,Officer One,06 Nov 2026");
     expect(lines[9]).toBe(`2,'=HYPERLINK(1),B-2,"Ali ""Boss""",Officer One,06 Nov 2026`);
+  });
+});
+
+describe("a published window's mandatory attendance is the answer it was published under", () => {
+  const published = (attendance: unknown) => ({ publishedAt: new Date("2026-11-03T01:00:00Z"), policySnapshot: { v: 1, attendance } });
+  it("before publication the live policy answers", () => {
+    expect(mandatoryPermittedFor(null, true)).toEqual({ permitted: true, frozen: false, recorded: true });
+    expect(mandatoryPermittedFor({ publishedAt: null, policySnapshot: null }, false)).toEqual({ permitted: false, frozen: false, recorded: true });
+  });
+  it("after publication the snapshot answers, whatever the policy says today", () => {
+    expect(mandatoryPermittedFor(published({ mandatoryPermitted: true }), false).permitted).toBe(true);
+    expect(mandatoryPermittedFor(published({ mandatoryPermitted: false }), true).permitted).toBe(false);
+    expect(mandatoryPermittedFor(published({ mandatoryPermitted: null }), true)).toEqual({ permitted: null, frozen: true, recorded: true });
+  });
+  it("a snapshot that does not record it reads not recorded, never today's policy", () => {
+    expect(mandatoryPermittedFor({ publishedAt: new Date(), policySnapshot: null }, true)).toEqual({ permitted: null, frozen: true, recorded: false });
+    expect(mandatoryPermittedFor(published(undefined), true)).toEqual({ permitted: null, frozen: true, recorded: false });
+  });
+  it("the sale gate holds after the policy is switched off: a party absent from the held mandatory briefing is still refused", () => {
+    const held = [{ ...event({ mandatory: true }), heldOn: "2026-11-06", attendeePartyIds: ["p1"] }];
+    const permitted = mandatoryPermittedFor(published({ mandatoryPermitted: true }), false).permitted;
+    expect(codes(attendanceFaults("p2", held, permitted))).toEqual(["ATTENDANCE_REQUIRED"]);
+    expect(attendanceFaults("p1", held, permitted)).toEqual([]);
+  });
+  it("the sale act, the briefing screen, its register export and the instruments read it (source scan)", () => {
+    const read = (f: string) => readFileSync(join(process.cwd(), f), "utf8");
+    const actions = read("src/app/sourcing/[id]/window/register-actions.ts");
+    expect(actions).toMatch(/mandatoryPermitted: mandatoryPermittedFor\(w, d\.policy\.mandatoryAttendancePermitted\)\.permitted/);
+    expect(read("src/lib/window/read.ts").match(/mandatoryPermittedFor\(d\.window, d\.policy\.mandatoryAttendancePermitted\)/g)).toHaveLength(2);
+    expect(read("src/lib/window/judge.ts")).toMatch(/mandatoryPermitted: mandatoryPermittedFor\(w, d\.policy\.mandatoryAttendancePermitted\)\.permitted/);
   });
 });

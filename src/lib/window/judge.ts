@@ -10,6 +10,7 @@ import { parseSen } from "@/lib/money";
 
 import { addendumFieldValues, inviteeFieldValues, renderInstrument, windowFieldValues, type WindowFieldContext } from "./fields";
 import { regKey } from "./invitees";
+import { mandatoryPermittedFor } from "./events";
 import { windowPhase } from "./phase";
 import { publishFaults, windowPathOf, type PublishInput } from "./publish";
 import { basisTotalOf, eventFactsOf, type ExerciseForWindow, type PartyRow, type WindowData } from "./repo";
@@ -59,7 +60,7 @@ export function fieldContext(d: WindowData, ex: ExerciseDates & { reference: str
     feePaymentMethods: w?.feePaymentMethods ?? "",
     submissionPlace: w?.submissionPlace ?? "",
     events: (w?.events ?? []).map((e) => ({ kind: e.kind, startsAt: e.startsAt, place: e.place, mandatory: e.mandatory, cancelled: e.cancelledAt != null })),
-    mandatoryPermitted: d.policy.mandatoryAttendancePermitted,
+    mandatoryPermitted: mandatoryPermittedFor(w, d.policy.mandatoryAttendancePermitted).permitted,
   };
 }
 

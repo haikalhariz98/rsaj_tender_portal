@@ -25,7 +25,7 @@ import { addendumWindowFault, issueFaults, nextAddendumNumber, notified, recipie
 import { closingChangeFaults, cancelFaults, closingMayMove } from "./change";
 import { advertisementDay, requiredChannels } from "./dates";
 import { windowEditFault } from "./edit";
-import { attendanceCsv, isMandatory } from "./events";
+import { attendanceCsv, isMandatory, mandatoryPermittedFor } from "./events";
 import { inviteeEditFault, inviteeListFault, regKey } from "./invitees";
 import { closingDay, judgePublish, nameRoutesWithLists, pathOf, phaseOf, proposedInvitees, renderAddendum } from "./judge";
 import { ADDENDUM_STATUS_LABEL, CERT_SIGHTED_LABEL, CHECK_STATE_LABEL, CLOSING_CHANGE_KIND_LABEL, DAY_RULE_LABEL, DELIVERY_METHOD_LABEL, FEE_COST_KIND_LABEL, NOTIFIED_LABEL, PARTY_SOURCE_LABEL, PATH_LABEL, PHASE_LABEL, PHASE_TONE, SITE_EVENT_KIND_LABEL, TABLE_AVAILABILITY_LABEL, windowFindingText } from "./labels";
@@ -254,7 +254,8 @@ export async function briefingTab(exerciseId: string) {
   const x = await load(exerciseId);
   if (!x) return null;
   const { org, ex, d } = x;
-  const permitted = d.policy.mandatoryAttendancePermitted;
+  const attendance = mandatoryPermittedFor(d.window, d.policy.mandatoryAttendancePermitted);
+  const permitted = attendance.permitted;
   const events = d.window?.events ?? [];
   const facts = d.window ? eventFactsOf(d.window) : [];
   return {
@@ -268,7 +269,7 @@ export async function briefingTab(exerciseId: string) {
       kind: SITE_EVENT_KIND_LABEL[e.kind],
       starts: formatOrgDateTime(e.startsAt, org.timeZone),
       place: e.place,
-      attendance: permitted !== true ? `Not mandatory: mandatory attendance ${permitted == null ? "not set" : "is not permitted"}` : e.mandatory == null ? "Not answered" : isMandatory(facts[i], permitted) ? "Mandatory: the documents are sold only to those who attended" : "Not mandatory",
+      attendance: permitted !== true ? `Not mandatory: mandatory attendance ${!attendance.recorded ? "not recorded with the published window" : permitted == null ? "not set" : "is not permitted"}${attendance.frozen && attendance.recorded ? " when the window was published" : ""}` : e.mandatory == null ? "Not answered" : isMandatory(facts[i], permitted) ? "Mandatory: the documents are sold only to those who attended" : "Not mandatory",
       held: e.heldOn ? day(e.heldOn) : null,
       cancelled: e.cancelledAt ? `Cancelled: ${e.cancelReason}` : null,
       register: e.attendance.map((a) => ({ contractor: a.party.name, registrationNo: a.party.registrationNo, representative: a.representative, recordedBy: `${a.recordedBy.name} (recorded on their behalf, not signed)`, recordedOn: formatOrgDateTime(a.recordedAt, org.timeZone) })),
@@ -283,7 +284,7 @@ export async function attendanceRegisterCsv(exerciseId: string, eventId: string)
   const { org, ex, d } = x;
   const e = d.window?.events.find((v) => v.id === eventId);
   if (!e) return null;
-  const permitted = d.policy.mandatoryAttendancePermitted;
+  const permitted = mandatoryPermittedFor(d.window, d.policy.mandatoryAttendancePermitted).permitted;
   const csv = attendanceCsv(
     { exerciseReference: ex.reference, kindLabel: SITE_EVENT_KIND_LABEL[e.kind], startsText: formatOrgDateTime(e.startsAt, org.timeZone), place: e.place, heldText: e.heldOn ? day(e.heldOn) : "Not held", mandatoryText: permitted === true && e.mandatory === true ? "Mandatory" : "Not mandatory" },
     e.attendance.map((a) => ({ name: a.party.name, registrationNo: a.party.registrationNo, representative: a.representative, recordedBy: a.recordedBy.name, recordedText: formatOrgDateTime(a.recordedAt, org.timeZone) })),

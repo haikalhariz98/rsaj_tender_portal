@@ -64,7 +64,7 @@ import { cancelFaults, closingChangeFaults, noticeRecipients, windowChangeRouteF
 import { policyFaults } from "../src/lib/window/config";
 import { policySnapshot } from "../src/lib/window/dates";
 import { invitedSaleFault, publicationFault, windowChangeRejectionSnapshot, windowEditFault } from "../src/lib/window/edit";
-import { eventFaults, heldFault } from "../src/lib/window/events";
+import { eventFaults, heldFault, mandatoryPermittedFor } from "../src/lib/window/events";
 import { lineAmount } from "../src/lib/window/fee";
 import { approvedNameRoute, inviteeEditFault, nameListFault, regKey } from "../src/lib/window/invitees";
 import { closingDay, judgePublish, nameRoutesWithLists, pathOf, phaseOf, proposedInvitees, renderAddendum } from "../src/lib/window/judge";
@@ -849,7 +849,7 @@ class Acts {
     const fs: Finding[] = saleFaults({
       phase, soldOn: today, closingDay: closingDay(l.ex.closingAt, this.tz), restricted: l.ex.restrictedTender, certSighted: s.certSighted ?? null, certValidUntil: s.certValidUntil ?? null, authoritySighted: true,
       registrationCheck: "NOT_CHECKED", suspensionCheck: "NOT_CHECKED", partyId: known?.id ?? null, alreadySold: !!known && w.sales.some((x) => x.partyId === known.id && !x.voidedAt),
-      events: (await import("../src/lib/window/repo")).eventFactsOf(w), mandatoryPermitted: d.policy.mandatoryAttendancePermitted, receiptNo: s.receiptNo, receiptTaken: taken, feeSet: w.feeAmount != null, collectedBy: s.collectedBy, paymentMethod: s.paymentMethod,
+      events: (await import("../src/lib/window/repo")).eventFactsOf(w), mandatoryPermitted: mandatoryPermittedFor(w, d.policy.mandatoryAttendancePermitted).permitted, receiptNo: s.receiptNo, receiptTaken: taken, feeSet: w.feeAmount != null, collectedBy: s.collectedBy, paymentMethod: s.paymentMethod,
     });
     if (s.receiptNo) for (const rf of manualFeeReceipt.check({ number: s.receiptNo, recordedOn: today }, { pattern: null, today, taken: false })) fs.push({ code: rf, level: "block" });
     this.fail(`selling the documents of ${l.ex.reference}`, fs);
@@ -1207,7 +1207,7 @@ export async function checkWindowDemo(db: Db) {
       const gate = windowGate(l.ex, d.window, now, l.org.timeZone);
       if (gate.phase !== "CLOSED" || gate.changePending) fail("sx16's award gate is not open.");
       // The contractor who missed the mandatory briefing is refused a set (FR-ADV-013), had the window been open.
-      const missed = saleFaults({ phase: "OPEN_FOR_PURCHASE", soldOn: storedDay(d.window!.purchaseFromDay!), closingDay: null, restricted: false, certSighted: null, certValidUntil: null, authoritySighted: true, registrationCheck: "NOT_CHECKED", suspensionCheck: "NOT_CHECKED", partyId: null, alreadySold: false, events: eventFactsOf(d.window!), mandatoryPermitted: d.policy.mandatoryAttendancePermitted, receiptNo: "X", receiptTaken: false, feeSet: true, collectedBy: "x", paymentMethod: "x" });
+      const missed = saleFaults({ phase: "OPEN_FOR_PURCHASE", soldOn: storedDay(d.window!.purchaseFromDay!), closingDay: null, restricted: false, certSighted: null, certValidUntil: null, authoritySighted: true, registrationCheck: "NOT_CHECKED", suspensionCheck: "NOT_CHECKED", partyId: null, alreadySold: false, events: eventFactsOf(d.window!), mandatoryPermitted: mandatoryPermittedFor(d.window, d.policy.mandatoryAttendancePermitted).permitted, receiptNo: "X", receiptTaken: false, feeSet: true, collectedBy: "x", paymentMethod: "x" });
       if (!missed.some((f) => f.code === "ATTENDANCE_REQUIRED")) fail("a contractor absent from sx16's mandatory briefing would not be refused.");
       if (d.window!.sales.filter((s) => !s.financeReceiptNo).length !== 1) fail("sx16 should have one sale awaiting its receipt.");
     }
