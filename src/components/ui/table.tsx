@@ -11,15 +11,27 @@ export function Table({
   children,
   className,
   minWidth = 640,
+  stack = false,
 }: {
   children: ReactNode;
   className?: string;
   /// Below this the table scrolls sideways rather than crushing its columns.
   minWidth?: number;
+  /// Below `md` each row becomes a block of its cells, every cell headed by its `Td`
+  /// `label`, instead of a table that scrolls sideways. Give every data `Td` a label.
+  stack?: boolean;
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className={cx("w-full table-fixed border-collapse text-[13.5px]", className)} style={{ minWidth }}>
+      <table
+        className={cx(
+          "w-full table-fixed border-collapse text-[13.5px]",
+          stack &&
+            "max-md:block max-md:!min-w-0 max-md:[&_colgroup]:hidden max-md:[&_tbody]:block max-md:[&_td]:block max-md:[&_td]:py-1.5 max-md:[&_thead]:hidden max-md:[&_tr]:block max-md:[&_tr]:px-0 max-md:[&_tr]:py-2.5",
+          className,
+        )}
+        style={{ minWidth }}
+      >
         {children}
       </table>
     </div>
@@ -63,13 +75,26 @@ export function Tr({ className, ...props }: HTMLAttributes<HTMLTableRowElement>)
 export function Td({
   className,
   numeric,
+  label,
+  children,
   ...props
-}: TdHTMLAttributes<HTMLTableCellElement> & { numeric?: boolean }) {
+}: TdHTMLAttributes<HTMLTableCellElement> & {
+  numeric?: boolean;
+  /// What this cell is, shown above it where its table stacks (`<Table stack>`).
+  label?: string;
+}) {
   return (
     <td
-      className={cx("px-4 py-3 align-middle first:pl-5 last:pr-5 sm:first:pl-6 sm:last:pr-6", numeric && "text-right tabular-nums", className)}
+      className={cx(
+        "px-4 py-3 align-middle first:pl-5 last:pr-5 sm:first:pl-6 sm:last:pr-6",
+        numeric && "text-right tabular-nums max-md:text-left",
+        className,
+      )}
       {...props}
-    />
+    >
+      {label && <span className="mb-0.5 block text-[11.5px] font-semibold text-ink-3 md:hidden">{label}</span>}
+      {children}
+    </td>
   );
 }
 

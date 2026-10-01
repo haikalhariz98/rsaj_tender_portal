@@ -659,11 +659,11 @@ function CostCentresView({ costCentres, units, sites, people, on }: Organisation
           { key: "site", label: "Site" },
         ]}
         columns={[
-          { key: "centre", label: "Cost centre", width: "30%", sortable: true },
-          { key: "unit", label: "Belongs to · activity", width: "22%", sortable: true },
-          { key: "site", label: "Site", width: "18%", sortable: true },
-          { key: "owner", label: "Owner", width: "18%" },
-          { key: "status", label: "Status", width: "12%" },
+          { key: "centre", label: "Cost centre", sortable: true, mobile: "primary" },
+          { key: "unit", label: "Belongs to · activity", width: "180px", sortable: true, mobile: "meta" },
+          { key: "site", label: "Site", width: "140px", sortable: true, mobile: "meta" },
+          { key: "owner", label: "Owner", width: "168px", mobile: "meta" },
+          { key: "status", label: "Status", width: "104px", mobile: "meta" },
         ]}
         rows={rows}
         actions={(code) => {
@@ -727,12 +727,12 @@ function SitesView({ sites, costCentres, units, on }: OrganisationPanelData) {
           { key: "unit", label: "Unit" },
         ]}
         columns={[
-          { key: "site", label: "Site", width: "26%", sortable: true },
-          { key: "kind", label: "Kind", width: "14%" },
-          { key: "where", label: "Town", width: "20%", sortable: true },
-          { key: "unit", label: "Looked after by", width: "20%" },
-          { key: "centres", label: "Cost centres", width: "10%", numeric: true, sortable: true },
-          { key: "status", label: "Status", width: "10%" },
+          { key: "site", label: "Site", sortable: true, mobile: "primary" },
+          { key: "kind", label: "Kind", width: "96px", mobile: "meta" },
+          { key: "where", label: "Town", width: "132px", sortable: true, mobile: "meta" },
+          { key: "unit", label: "Looked after by", width: "164px", mobile: "meta" },
+          { key: "centres", label: "Cost centres", width: "104px", numeric: true, sortable: true, mobile: "meta" },
+          { key: "status", label: "Status", width: "104px", mobile: "meta" },
         ]}
         rows={rows}
         actions={(code) => {

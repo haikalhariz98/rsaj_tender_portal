@@ -505,7 +505,7 @@ export default async function ApprovalMatrixPage({
               {editable ? " Add them here." : " Add them on a new issue."}
             </EmptyState>
           ) : (
-            <Table minWidth={editable ? 820 : 720}>
+            <Table stack minWidth={editable ? 820 : 720}>
               <colgroup>
                 <col style={{ width: "18%" }} />
                 <col />
@@ -525,16 +525,16 @@ export default async function ApprovalMatrixPage({
               <tbody>
                 {termsBands.map((t) => (
                   <Tr key={t.id}>
-                    <Td className="align-top font-semibold tabular-nums">{formatValueBand(t.minValue, t.maxValue)}</Td>
-                    <Td className="align-top break-words">
+                    <Td label="Value band" className="align-top font-semibold tabular-nums">{formatValueBand(t.minValue, t.maxValue)}</Td>
+                    <Td label="Terms set" className="align-top break-words">
                       {t.labelEn}
                       {t.insuranceNote && <div className="text-[12.5px] text-ink-3">{t.insuranceNote}</div>}
                     </Td>
-                    <Td className="align-top text-[13px] text-ink-2">{t.regime ? REGIME_LABEL[t.regime as Regime] : "Every regime"}</Td>
-                    <Td className="align-top text-[13px] text-ink-2">
+                    <Td label="Applies in" className="align-top text-[13px] text-ink-2">{t.regime ? REGIME_LABEL[t.regime as Regime] : "Every regime"}</Td>
+                    <Td label="Retention · defects" className="align-top text-[13px] text-ink-2">
                       {t.retentionApplies == null ? "Not set" : t.retentionApplies ? "Retention" : "No retention"} · {t.defectsLiabilityApplies == null ? "not set" : t.defectsLiabilityApplies ? "defects liability" : "no defects liability"}
                     </Td>
-                    <Td className="align-top">
+                    <Td label="Source" className="align-top">
                       <div className="flex min-w-0 flex-col items-start gap-1">
                         <ProvenanceBadge value={t.provenance} />
                         {t.clause && <span className="max-w-full truncate text-[12.5px] text-ink-3">{t.clause}</span>}
@@ -584,7 +584,7 @@ export default async function ApprovalMatrixPage({
               {editable ? " Add a row for each office that approves." : " Record it on a new issue."}
             </EmptyState>
           ) : (
-            <Table minWidth={editable ? 820 : 720}>
+            <Table stack minWidth={editable ? 820 : 720}>
               <colgroup>
                 <col style={{ width: "22%" }} />
                 <col />
@@ -600,11 +600,11 @@ export default async function ApprovalMatrixPage({
               <tbody>
                 {coreRows.map((level) => (
                   <Tr key={level.id}>
-                    <Td className="align-top">
+                    <Td label="Approved by" className="align-top">
                       <div className="font-semibold break-words text-ink">{officeName(level.approverCode)}</div>
                       {level.note && <div className="text-[12.5px] break-words text-ink-3">{level.note}</div>}
                     </Td>
-                    <Td className="align-top">
+                    <Td label="Chain beneath" className="align-top">
                       {level.steps.length === 0 ? (
                         <span className="text-[13px] text-ink-2">{APPROVES_ALONE.en}</span>
                       ) : (
@@ -622,7 +622,7 @@ export default async function ApprovalMatrixPage({
                         </ol>
                       )}
                     </Td>
-                    <Td className="align-top">
+                    <Td label="Source" className="align-top">
                       <div className="flex min-w-0 flex-col items-start gap-1">
                         <ProvenanceBadge value={level.provenance} />
                         {level.clause && <span className="max-w-full break-words text-[12.5px] text-ink-3">{level.clause}</span>}
@@ -666,7 +666,7 @@ export default async function ApprovalMatrixPage({
                 meta={`${rules.length} ${rules.length === 1 ? "rule" : "rules"}`}
                 defaultOpen={i === 0 || refusedDomains.has(domain)}
               >
-                <Table minWidth={editable ? 920 : 820}>
+                <Table stack minWidth={editable ? 920 : 820}>
                   <colgroup>
                     <col style={{ width: editable ? "13%" : "15%" }} />
                     <col style={{ width: editable ? "13%" : "14%" }} />
@@ -696,7 +696,7 @@ export default async function ApprovalMatrixPage({
                       const committee = rule.committeeCode ? roleName(rule.committeeCode) : null;
                       return (
                         <Tr key={r}>
-                          <Td className="align-top">
+                          <Td label="Value band" className="align-top">
                             <div className="font-semibold break-words text-ink tabular-nums">
                               {band}
                             </div>
@@ -723,10 +723,10 @@ export default async function ApprovalMatrixPage({
                               </div>
                             )}
                           </Td>
-                          <Td className="align-top text-[13px] text-ink-2 [overflow-wrap:normal]">
+                          <Td label="Method" className="align-top text-[13px] text-ink-2 [overflow-wrap:normal]">
                             {rule.method ? methodName(rule.method) : "Any method"}
                           </Td>
-                          <Td className="align-top">
+                          <Td label="Route" className="align-top">
                             <RuleChain steps={chainFor(rule)} />
                             <div className="mt-1 text-[12.5px] break-words text-ink-3">{chainNote(rule)}</div>
                             {editable && (ruleRows[rule.ruleKey]?.recommenders.length ?? 0) > 0 && (
@@ -751,7 +751,7 @@ export default async function ApprovalMatrixPage({
                               </div>
                             )}
                           </Td>
-                          <Td className="align-top">
+                          <Td label="Committee" className="align-top">
                             {committee ? (
                               <div className="flex min-w-0 flex-col items-start gap-1">
                                 <span className="text-[13px] font-semibold break-words text-ink">
@@ -770,7 +770,7 @@ export default async function ApprovalMatrixPage({
                               <span className="text-ink-4">—</span>
                             )}
                           </Td>
-                          <Td className="align-top">
+                          <Td label="Delegation" className="align-top">
                             {!ruleIsDelegable(rule) ? (
                               <Badge tone="warn">
                                 <AlertTriangle size={12} />
@@ -820,7 +820,7 @@ export default async function ApprovalMatrixPage({
               title="When a matter is rejected"
               subtitle="Where a matter goes when a step rejects it, by matter type. None ships: unset, the officer chooses and the choice is recorded as theirs. A committee step follows the committee's own not-carried outcome."
             />
-            <Table minWidth={720}>
+            <Table stack minWidth={720}>
               <colgroup>
                 <col style={{ width: "24%" }} />
                 <col />
@@ -843,8 +843,8 @@ export default async function ApprovalMatrixPage({
                   const label = matterLabel(domain);
                   return (
                     <Tr key={domain}>
-                      <Td className="font-semibold text-ink">{label}</Td>
-                      <Td className="text-ink-2">
+                      <Td label="Matter type" className="font-semibold text-ink">{label}</Td>
+                      <Td label="Where it goes" className="text-ink-2">
                         {row ? (
                           <span className="break-words">{destinationText(row.kind, office)}</span>
                         ) : (
@@ -854,8 +854,8 @@ export default async function ApprovalMatrixPage({
                           </span>
                         )}
                       </Td>
-                      <Td>{row ? <ProvenanceBadge value={row.provenance} /> : <span className="text-ink-3">—</span>}</Td>
-                      <Td className="text-ink-2">{row ? formatDate(row.effectiveFrom) : "—"}</Td>
+                      <Td label="Source">{row ? <ProvenanceBadge value={row.provenance} /> : <span className="text-ink-3">—</span>}</Td>
+                      <Td label="Since" className="text-ink-2">{row ? formatDate(row.effectiveFrom) : "—"}</Td>
                       <Td>
                         <RowActions>
                           <SetRejectionDestination domain={domain} label={label} offices={offices} current={row ? { kind: row.kind, returnToRoleCode: row.returnToRoleCode } : null} />
