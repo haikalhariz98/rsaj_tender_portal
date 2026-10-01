@@ -13,7 +13,9 @@ import {
 } from "@/lib/committee/assess-sitting";
 import {
   attendanceFaultText,
+  RECORD_TABLED_DOMAIN_TEXT,
   SITTING_TABLED_MATTER_KINDS,
+  sittingTablesDomain,
   OUTCOME_FAULT_MESSAGE,
   TABLING_FAULT_MESSAGE,
   TRANSITION_FAULT_MESSAGE,
@@ -365,6 +367,7 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
   const r = new FormReader(data);
   const subject = r.text("subject", "Subject", { required: true, max: 400 });
   const domain = r.text("domain", "Matter", { required: true, max: 60 });
+  if (domain && !sittingTablesDomain(domain)) r.reject("domain", RECORD_TABLED_DOMAIN_TEXT);
   const matterKind = r.choice("matterKind", "Record kind", SITTING_TABLED_MATTER_KINDS);
   const matterRef = r.optionalText("matterRef");
   if (matterKind && !matterRef) r.reject("matterRef", "Give the reference of the record the matter concerns.");

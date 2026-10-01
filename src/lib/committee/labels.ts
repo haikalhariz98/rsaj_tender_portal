@@ -67,6 +67,12 @@ export const MATTER_KINDS = Object.keys(MATTER_KIND_LABEL) as MatterKind[];
 /// version (6.2 OD-9); the sitting's drawer neither offers it nor accepts it.
 export const SITTING_TABLED_MATTER_KINDS = MATTER_KINDS.filter((k) => k !== "SCOPE");
 
+/// Matter domains tabled only from their own record, for the same reason: a scope-approval
+/// matter tabled from the sitting would name no bill version, so its decision could never count.
+export const RECORD_TABLED_DOMAINS: readonly string[] = ["scope_approval"];
+export const RECORD_TABLED_DOMAIN_TEXT = "Scope approval is tabled from the exercise, under Scope and estimate, Scope, which names the bill version the committee decides on.";
+export const sittingTablesDomain = (domain: string) => !RECORD_TABLED_DOMAINS.includes(domain);
+
 export const POSITION_LABEL = {
   CHAIRMAN: "Chairman",
   DEPUTY_CHAIRMAN: "Deputy Chairman",

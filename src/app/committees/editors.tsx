@@ -2,7 +2,7 @@ import { RecordEditor, type Field } from "@/components/record-editor";
 import { Button, buttonClass } from "@/components/ui/button";
 import { ACT_LABEL, matterLabel } from "@/lib/labels";
 import matters from "@/lib/labels.json";
-import { MATTER_KIND_LABEL, MINUTES_EDITOR_DESCRIPTION, SITTING_TABLED_MATTER_KINDS, NOT_APPROVED_KIND_LABEL } from "@/lib/committee/labels";
+import { MATTER_KIND_LABEL, MINUTES_EDITOR_DESCRIPTION, SITTING_TABLED_MATTER_KINDS, sittingTablesDomain, NOT_APPROVED_KIND_LABEL } from "@/lib/committee/labels";
 
 import {
   changeStatus,
@@ -230,7 +230,7 @@ export function RecordAttendanceEditor({
   );
 }
 
-const DOMAIN_OPTIONS = Object.keys(matters).map((code) => ({ value: code, label: matterLabel(code) }));
+const DOMAIN_OPTIONS = Object.keys(matters).filter(sittingTablesDomain).map((code) => ({ value: code, label: matterLabel(code) }));
 
 export function TableMatter({
   meetingId,
