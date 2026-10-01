@@ -5,6 +5,7 @@ import { readBounded } from "@/lib/documents/body";
 import { documentFaultText } from "@/lib/documents/labels";
 import { effectiveCap, readLimit, requestLengthFault, sizeFault } from "@/lib/documents/limits";
 import { mediaFault, sniffMediaType, SNIFF_BYTES } from "@/lib/documents/media";
+import { uploadRequestFault, UPLOAD_HEADER } from "@/lib/documents/request-guard";
 import { documentOrg, loadStorePolicy, logAccess, storeUpload, UploadRefusal } from "@/lib/documents/service";
 import { blobStore, deploymentCeiling, sha256Hex } from "@/lib/documents/store";
 import type { Finding } from "@/lib/documents/types";
@@ -17,7 +18,8 @@ import type { Finding } from "@/lib/documents/types";
  * Multipart form fields: `file`, `title`, `documentClassId`, `recordedByPersonId`,
  * optional `receivedOn` (YYYY-MM-DD), `note`, `documentId`.
  *
- * Refused before the body is read: an unset policy or ceiling, and a declared length
+ * Refused before anything else, and never logged: a request that is not same-origin
+ * or lacks the `X-Perolehan-Upload` header (CSRF, audit M-3). Refused before the body is read: an unset policy or ceiling, and a declared length
  * over the cap (413). A body with no length is counted as it arrives and cut off at the
  * same limit. Then the file's own size against the exact cap, its type sniffed from its
  * bytes against the allow-list and its declared name and type, and its SHA-256. One
@@ -25,6 +27,16 @@ import type { Finding } from "@/lib/documents/types";
  * refusal is logged as a REFUSED access event with what was offered (never the bytes).
  */
 export async function POST(req: NextRequest) {
+  // First, before the organisation is read, a body is read or anything is logged: a
+  // cross-site request writes nothing (audit M-3).
+  const guard = uploadRequestFault({
+    secFetchSite: req.headers.get("sec-fetch-site"),
+    origin: req.headers.get("origin"),
+    host: req.headers.get("host"),
+    uploadHeader: req.headers.get(UPLOAD_HEADER),
+  });
+  if (guard) return refusal(403, { code: guard, level: "block" });
+
   const org = await documentOrg();
   if (!org) return refusal(503, { code: "NO_ORGANISATION", level: "block" });
   const declaredLength = req.headers.get("content-length");

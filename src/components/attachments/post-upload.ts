@@ -8,6 +8,8 @@
  * beside). It is never rendered: the `message` is the words.
  */
 
+import { UPLOAD_HEADER, UPLOAD_HEADER_VALUE } from "@/lib/documents/request-guard";
+
 export type UploadAnswer =
   | { ok: true; versionId: string; documentId: string; warnings: string[] }
   | { ok: false; code: string; message: string };
@@ -24,8 +26,9 @@ export async function postUpload(data: FormData, extra: Record<string, string> =
   for (const [k, v] of Object.entries(extra)) body.set(k, v);
   let res: Response;
   try {
-    // No Content-Type of our own: the browser writes the multipart boundary.
-    res = await fetch("/api/documents", { method: "POST", body });
+    // No Content-Type of our own: the browser writes the multipart boundary. The custom
+    // header is one a cross-site page cannot send; the route refuses an upload without it.
+    res = await fetch("/api/documents", { method: "POST", body, headers: { [UPLOAD_HEADER]: UPLOAD_HEADER_VALUE } });
   } catch {
     return { ok: false, code: "NETWORK", message: "The upload did not reach the portal. Check the connection and try again." };
   }
