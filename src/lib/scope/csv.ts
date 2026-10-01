@@ -337,6 +337,15 @@ export function bqToCsv(frozen: FrozenBq, opts: { priced: boolean }): string {
   return "﻿" + rows.map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
 }
 
+/**
+ * Whether the browser saves the file an export returned: once per export the server
+ * recorded, keyed on that request's own id, never on the file's digest — two exports of the
+ * same bill are two audited exports with the same digest, and each is saved.
+ */
+export function exportToSave(result: { ok: boolean; file?: string; fileName?: string; exportId?: string }, lastSavedId: string | null): boolean {
+  return result.ok && !!result.file && !!result.fileName && !!result.exportId && result.exportId !== lastSavedId;
+}
+
 /// The file's name: the exercise's reference and the version, never an id.
 export function bqCsvFilename(exerciseReference: string, versionNo: number, priced: boolean): string {
   const ref = exerciseReference.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "exercise";

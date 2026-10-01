@@ -8,7 +8,7 @@ import { Button, buttonClass } from "@/components/ui/button";
 import { Callout } from "@/components/ui/feedback";
 import { Field, Select } from "@/components/ui/field";
 import { formatSen } from "@/lib/money";
-import { importSummary, parseBqCsv, type ParsedBqCsv } from "@/lib/scope/csv";
+import { exportToSave, importSummary, parseBqCsv, type ParsedBqCsv } from "@/lib/scope/csv";
 import { csvFaultText, keyedMismatchText } from "@/lib/scope/labels";
 
 import { exportBqCsv, importBqCsv, type BqExportResult } from "./actions";
@@ -178,8 +178,8 @@ export function ExportCsvForm({ exerciseId, versions, note }: { exerciseId: stri
   const [saved, setSaved] = useState<string | null>(null);
   const last = useRef<string | null>(null);
   useEffect(() => {
-    if (!state.ok || !state.file || !state.fileName || last.current === state.sha256) return;
-    last.current = state.sha256 ?? null;
+    if (!exportToSave(state, last.current) || !state.file || !state.fileName) return;
+    last.current = state.exportId ?? null;
     const url = URL.createObjectURL(new Blob([state.file], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;

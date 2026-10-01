@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { formatSen, parseSen } from "@/lib/money";
 
 import { bqTotals, type FrozenBq } from "./bq";
-import { BQ_CSV_MAX_LINES, BQ_CSV_TEXT_MAX, bqCsvFilename, bqToCsv, csvCell, decodeCsv, importSummary, parseBqCsv, parseCsv } from "./csv";
+import { BQ_CSV_MAX_LINES, BQ_CSV_TEXT_MAX, bqCsvFilename, exportToSave, bqToCsv, csvCell, decodeCsv, importSummary, parseBqCsv, parseCsv } from "./csv";
 import { CSV_FAULT_CODES, csvFaultText, keyedMismatchText } from "./labels";
 import type { BqLine } from "./types";
 
@@ -239,5 +239,18 @@ describe("import bounds: what the editor takes, and what one import records", ()
     const over = parseBqCsv(lines(BQ_CSV_MAX_LINES + 1));
     expect(over.faults).toEqual([{ code: "TOO_MANY_LINES", level: "block", line: 1, data: { lines: BQ_CSV_MAX_LINES + 1, max: BQ_CSV_MAX_LINES } }]);
     expect(csvFaultText(over.faults[0])).toMatch(/^Line 1: The file has 2,001 lines; one import takes at most 2,000\. Nothing was imported\./);
+  });
+});
+
+describe("saving an export in the browser: once per audited export", () => {
+  const r = (exportId: string) => ({ ok: true, file: "a,b\r\n", fileName: "x.csv", sha256: "same-digest", exportId });
+  it("a second export of the same bill, with the same digest, is saved too; a re-render of one is not", () => {
+    expect(exportToSave(r("e1"), null)).toBe(true);
+    expect(exportToSave(r("e1"), "e1")).toBe(false);
+    expect(exportToSave(r("e2"), "e1")).toBe(true);
+  });
+  it("nothing is saved from a refusal or a result without its id", () => {
+    expect(exportToSave({ ok: false }, null)).toBe(false);
+    expect(exportToSave({ ok: true, file: "a", fileName: "x.csv" }, null)).toBe(false);
   });
 });

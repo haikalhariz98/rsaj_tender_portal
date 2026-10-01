@@ -1,5 +1,7 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
+
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
@@ -823,6 +825,8 @@ export interface BqExportResult {
   file?: string;
   fileName?: string;
   sha256?: string;
+  /// This request's own id, so the browser saves each audited export once (`exportToSave`).
+  exportId?: string;
 }
 
 /**
@@ -852,7 +856,7 @@ export async function exportBqCsv(_prev: BqExportResult, data: FormData): Promis
     const sha256 = sha256Hex(new TextEncoder().encode(file));
     const lines = frozen.sections.reduce((n, s) => n + s.items.length, 0);
     await audit(tx, l.org.id, ENTITY.bqExport, v.id, label(l, `Bill of quantities v${v.versionNo} · CSV export`), "CREATE", bqExportAudit({ versionNo: v.versionNo, priced, fileName, sha256, lines }));
-    out = { ok: true, file, fileName, sha256 };
+    out = { ok: true, file, fileName, sha256, exportId: randomUUID() };
     return { ok: true };
   });
   return result.ok ? out : { ok: false, message: result.message };
