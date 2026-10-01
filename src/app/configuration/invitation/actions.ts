@@ -272,7 +272,8 @@ export async function saveCalendar(_prev: FormState, data: FormData): Promise<Fo
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "").trim() || null;
   const r = new FormReader(data);
-  const weekendDays = data.getAll("weekendDays").map((x) => Number(x)).filter((x) => !Number.isNaN(x));
+  // The shared multi-select posts its choices as one newline-joined value.
+  const weekendDays = data.getAll("weekendDays").flatMap((x) => String(x).split("\n")).filter((x) => x.trim() !== "").map((x) => Number(x)).filter((x) => !Number.isNaN(x));
   const v = {
     code: r.code("code", "Code"),
     name: r.text("name", "Name", { required: true, max: 240 }),

@@ -163,6 +163,13 @@ export const CONFIG_SECTIONS: {
         built: true,
       },
       {
+        href: "/configuration/invitation",
+        label: "Invitation controls",
+        description: "The window's date rules, publication channels, least fees and holiday calendars.",
+        icon: "globe",
+        built: true,
+      },
+      {
         href: "/configuration/requisitions",
         label: "Requisition controls",
         description: "Endorsement tiers, the splitting check, budget re-checks and registration.",

@@ -48,6 +48,13 @@ const ENTITIES = new Set([
   "ContractBasis",
   "TenderDocumentPart",
   "TenderDocumentPolicy",
+  // 6.5: Invitation controls.
+  "WindowPolicy",
+  "PublicationChannel",
+  "DocumentFeeFloor",
+  "HolidayCalendar",
+  "HolidayCalendarYear",
+  "PublicHoliday",
 ]);
 
 export interface HistoryEntry {

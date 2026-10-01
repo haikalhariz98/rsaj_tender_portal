@@ -31,6 +31,7 @@ const SEGMENT_LABEL: Record<string, string> = {
   templates: "Templates",
   "reference-data": "Reference data",
   "tender-documents": "Tender documents",
+  invitation: "Invitation controls",
   appendix: "Appendix",
   notifications: "Notifications",
   sourcing: "Sourcing",
