@@ -86,9 +86,12 @@ describe("§6.9.3 worked routing examples", () => {
     const high = trace({ domain: "payment", method: "tender", value: 620_000, contractValue: 9_000_000 });
     noErrors(high.r);
     expect(high.chain).toEqual(["CEO:A"]);
+    // The spec's §6.9.3 text: item 16a above RM500,000, item 16c up to RM100,000.
+    expect(high.r.rule?.clause).toBe("§3.1.4.4 item 16a");
     const low = trace({ domain: "payment", method: "tender", value: 80_000, contractValue: 9_000_000 });
     noErrors(low.r);
     expect(low.chain).toEqual(["HODIV:A"]);
+    expect(low.r.rule?.clause).toBe("§3.1.4.4 item 16c");
   });
 
   it("11. Extension of time with financial impact not caused by an authority requirement → VOC MR → Tender Board Committee A (§3.1.4.4 item 10a(i))", () => {
@@ -98,8 +101,12 @@ describe("§6.9.3 worked routing examples", () => {
   });
 
   it("12. Waiver of 40% of an LAD amount, tender regime → Tender Board Committee A; at 25% → CEO A — a percentage of the LAD, not the contract sum (§3.1.4.4 item 12)", () => {
-    expect(trace({ domain: "lad_waiver", method: "tender", pct: 40, contractValue: 9_000_000 }).chain).toEqual(["TBC:A"]);
-    expect(trace({ domain: "lad_waiver", method: "tender", pct: 25, contractValue: 9_000_000 }).chain).toEqual(["CEO:A"]);
+    const above = trace({ domain: "lad_waiver", method: "tender", pct: 40, contractValue: 9_000_000 });
+    noErrors(above.r);
+    expect(above.chain).toEqual(["TBC:A"]);
+    const within = trace({ domain: "lad_waiver", method: "tender", pct: 25, contractValue: 9_000_000 });
+    noErrors(within.r);
+    expect(within.chain).toEqual(["CEO:A"]);
   });
 
   it("13. Termination, tender regime → C&P P → HoDiv R → CEO A, as the DAL has it (§3.1.4.4 item 13; SK008 §7.5.1 conflicts — D2)", () => {
@@ -109,7 +116,11 @@ describe("§6.9.3 worked routing examples", () => {
   });
 
   it("14. Advance payment, any value, tender regime → C&P P → HoDiv R → CEO A; no value band, and no row at all in the quotation regime (§3.1.4.4 item 15)", () => {
-    for (const value of [1, 50_000, 25_000_000]) expect(trace({ domain: "advance_payment", method: "tender", value }).chain).toEqual(["CP:P", "HODIV:R", "CEO:A"]);
+    for (const value of [1, 50_000, 25_000_000]) {
+      const { r, chain } = trace({ domain: "advance_payment", method: "tender", value });
+      noErrors(r);
+      expect(chain).toEqual(["CP:P", "HODIV:R", "CEO:A"]);
+    }
     const quotation = resolveApproval(DAL_FIXTURE, { domain: "advance_payment", method: "quotation", value: 50_000 });
     expect(quotation.rule).toBeNull();
     expect(quotation.warnings.map((w) => w.code)).toEqual(["NO_RULE"]);

@@ -25,6 +25,7 @@ import { blocking, erpRefFaults, requisitionFaults, type DraftLine, type Requisi
 import { fundingGate } from "@/lib/requisition/funding";
 import { absentOffices } from "@/lib/authority/absence";
 import { actingOffice } from "@/lib/authority/escalation";
+import { committeeCitationWrite, personDecisionWrite } from "@/lib/authority/decided-step";
 import { deciderFaults, holdersFor, requesterHoldsApprover } from "@/lib/requisition/holders";
 import { intakeFaults, type ExternalRequisition, type ReceivedStep } from "@/lib/requisition/intake";
 import {
@@ -1239,7 +1240,7 @@ export async function recordDecision(_prev: FormState, data: FormData): Promise<
       refresh(id);
       return gate.state;
     }
-    const after = { decision, decidedByPersonId: personId, decidedByName: person!.name, decidedOn: on, delegationId: check.delegationId, reason, recordedAt: new Date() };
+    const after = personDecisionWrite({ decision, person: { id: personId, name: person!.name }, decidedOn: on, delegationId: check.delegationId, reason, recordedAt: new Date() });
     const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
     if (done.count !== 1) return CHANGED;
     await audit(tx, l.org.id, "ApprovalStep", step.id, `${l.req.reference} · ${step.roleLabel}`, "UPDATE",
@@ -1307,7 +1308,7 @@ export async function citeCommitteeDecision(_prev: FormState, data: FormData): P
       refresh(id);
       return gate.state;
     }
-    const after = { decision: s.decision, decidedByName: s.citation!.committee, decidedOn: s.decidedOn, committeeDecisionId: matter.id, recordedAt: new Date() };
+    const after = committeeCitationWrite({ decision: s.decision, committeeName: s.citation!.committee, decidedOn: s.decidedOn, committeeDecisionId: matter.id, recordedAt: new Date() });
     const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
     if (done.count !== 1) return CHANGED;
     await audit(tx, l.org.id, "ApprovalStep", step.id, `${l.req.reference} · ${step.roleLabel}`, "UPDATE",

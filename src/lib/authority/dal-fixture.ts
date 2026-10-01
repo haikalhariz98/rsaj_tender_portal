@@ -8,6 +8,15 @@ import type { Matrix, Rule } from "./types";
  * ship with it (AGENTS.md). It exists so the engine is held to the printed examples:
  * if a change to the resolver stops reproducing one, a test fails. Office codes are
  * this fixture's own shorthand; every figure is the appendix's.
+ *
+ * Slashed codes (6.9 ruling on FR-APR-003). The appendix writes some steps with two
+ * codes, which the act grammar does not hold. This fixture reads them as follows — test
+ * only readings, never shipped as a rule; the joint partner office is not modelled and
+ * is a question to the customer:
+ *   "JR/R" → JR: a joint recommendation (the partner being the Administration
+ *            Division, e.g. §3.1.4.2 item 1 above RM5M: HoDiv JR).
+ *   "JR/P" → P: Contract & Procurement heads the chain, so it proposes (e.g. items 13
+ *            and 15: CP P → HoDiv R → CEO A).
  */
 
 const rule = (r: Partial<Rule> & Pick<Rule, "ruleKey" | "domain">): Rule => ({

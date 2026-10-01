@@ -42,6 +42,7 @@ import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { actingOffice } from "@/lib/authority/escalation";
+import { personDecisionWrite } from "@/lib/authority/decided-step";
 import { deciderFaults, holdersFor } from "@/lib/requisition/holders";
 import { deciderFaultText, transitionFaultText } from "@/lib/requisition/labels";
 import { MoveRefused, moveRequisition } from "@/lib/requisition/move";
@@ -608,7 +609,7 @@ export async function recordNameDecision(_prev: FormState, data: FormData): Prom
       const texts = check.faults.map((f) => deciderFaultText(f, person?.name ?? null));
       return ["TIME_ZONE_UNSET", "COMMITTEE_STEP", "NOT_PENDING", "OUT_OF_ORDER"].includes(check.faults[0]) ? { ok: false, message: texts.join(" ") } : { ok: false, errors: { personId: texts.join(" ") } };
     }
-    const after = { decision, decidedByPersonId: person!.id, decidedByName: person!.name, decidedOn: on, delegationId: check.delegationId, reason, recordedAt: new Date() };
+    const after = personDecisionWrite({ decision, person: { id: person!.id, name: person!.name }, decidedOn: on, delegationId: check.delegationId, reason, recordedAt: new Date() });
     const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
     if (done.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, l.org.id, "ApprovalStep", step.id, `${ex.reference} · ${step.roleLabel}`, "UPDATE",

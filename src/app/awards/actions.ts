@@ -37,6 +37,7 @@ import { parseSen, senFromDecimal, senToDecimalString } from "@/lib/money";
 import { NumberingError, issueReference } from "@/lib/numbering/issue";
 import { committeeStepFrom } from "@/lib/requisition/committee-step";
 import { actingOffice } from "@/lib/authority/escalation";
+import { committeeCitationWrite, personDecisionWrite } from "@/lib/authority/decided-step";
 import { deciderFaults, holdersFor } from "@/lib/requisition/holders";
 import { deciderFaultText } from "@/lib/requisition/labels";
 import { bondFaults, bondRequiredUntil, checkedOnFault, requiredBond } from "@/lib/securities/bond";
@@ -478,7 +479,7 @@ export async function decideAppointmentStep(_prev: FormState, data: FormData): P
     }
     const rf = receivedOnFault(received ? storedDay(received) : null, decidedOn, l.org.today!, storedDay(inst.openedAt));
     if (rf) return { ok: false, errors: { receivedOn: ({ RECEIVED_AFTER_DECISION: "The day received cannot be after the decision.", RECEIVED_IN_FUTURE: "The day received cannot be after today.", RECEIVED_BEFORE_ROUTE: "The day received cannot be before the award went for approval." } as const)[rf] } };
-    const after = { decision, decidedByPersonId: person!.id, decidedByName: person!.name, decidedOn: on, receivedOn: received, delegationId: check.delegationId, reason, recordedAt: new Date() };
+    const after = personDecisionWrite({ decision, person: { id: person!.id, name: person!.name }, decidedOn: on, receivedOn: received, delegationId: check.delegationId, reason, recordedAt: new Date() });
     const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
     if (done.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, l.org.id, "ApprovalStep", step.id, `${l.award.reference} · ${step.roleLabel}`, "UPDATE",
@@ -529,7 +530,7 @@ export async function citeAppointmentDecision(_prev: FormState, data: FormData):
     if (fault) return { ok: false, errors: { committeeDecisionId: TEXT[fault] } };
     const s = committeeStepFrom(record);
     if (s.decision === "PENDING") return { ok: false, errors: { committeeDecisionId: record ? "The committee deferred the matter. Cite it once it is decided." : "The committee has not decided the matter yet." } };
-    const after = { decision: s.decision, decidedByName: s.citation!.committee, decidedOn: s.decidedOn, committeeDecisionId: matter.id, recordedAt: new Date() };
+    const after = committeeCitationWrite({ decision: s.decision, committeeName: s.citation!.committee, decidedOn: s.decidedOn, committeeDecisionId: matter.id, recordedAt: new Date() });
     const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
     if (done.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, l.org.id, "ApprovalStep", step.id, `${l.award.reference} · ${step.roleLabel}`, "UPDATE",
