@@ -181,6 +181,8 @@ export function awardFindingText(f: Finding): string {
       return "Only a draft award is sent for approval.";
     case "EXERCISE_NOT_IN_PREPARATION":
       return "The exercise must be in preparation, with its classification decided, before its award goes for approval.";
+    case "EXERCISE_NOT_APPROVED_FOR_TENDERING":
+      return "The exercise's tender documents must be approved for tendering before its award goes for approval.";
     case "ANOTHER_ROUTE_OPEN":
       return "An approval route is already open for this award.";
     case "DEPENDS_ON_METHOD":
@@ -211,7 +213,7 @@ export function awardFindingText(f: Finding): string {
     case "NOT_APPROVED_YET":
       return "Only an approved award is issued.";
     case "EXERCISE_NOT_OPEN":
-      return "The exercise is no longer in preparation.";
+      return d.needs === "APPROVED_FOR_TENDERING" ? "The exercise's tender documents are not approved for tendering, so no award is issued on it." : "The exercise is no longer in preparation.";
     case "REQUISITION_NOT_APPROVED":
       return d.step ? `The requisition has not completed its approval: ${d.step} has not yet decided. Nothing is issued against it until it has.` : "The requisition has not completed its approval. Nothing is issued against it until it has.";
     case "REQUISITION_NOT_ROUTED":

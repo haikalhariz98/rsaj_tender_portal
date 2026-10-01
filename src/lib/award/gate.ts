@@ -9,6 +9,7 @@
  * by `checkSignatory` in the issue itself, once named.
  */
 
+import type { PackKind } from "@/lib/method/types";
 import type { RequiredBond } from "@/lib/securities/bond";
 import type { CommitmentFault } from "@/lib/requisition/commitment";
 
@@ -38,10 +39,31 @@ export interface DocumentState {
   language?: "MS" | "EN" | null;
 }
 
+/**
+ * X-9: the state an exercise's award needs, by the pack kind it was prepared under. An
+ * exercise prepared before document assembly (no snapshot) or with no pack keeps the
+ * Phase 1 path: in preparation. One that assembles a tender or quotation pack needs its
+ * documents approved for tendering (Q-2 A), until 6.5 replaces this with the window.
+ * Accepted and issued awards are not judged again.
+ */
+export function awardableStatus(packKindSnapshot: PackKind | null): "DOCUMENTS_IN_PREPARATION" | "APPROVED_FOR_TENDERING" {
+  return packKindSnapshot === "TENDER" || packKindSnapshot === "QUOTATION" ? "APPROVED_FOR_TENDERING" : "DOCUMENTS_IN_PREPARATION";
+}
+
+export const exerciseOpenForAward = (status: string, packKindSnapshot: PackKind | null) => status === awardableStatus(packKindSnapshot);
+
+/// Why an award is not opened on the exercise, by what it needs.
+export const awardOpenRefusal = (packKindSnapshot: PackKind | null) =>
+  awardableStatus(packKindSnapshot) === "APPROVED_FOR_TENDERING"
+    ? "An award is opened only once the exercise's tender documents are approved for tendering."
+    : "An award is opened only on an exercise in preparation, with its classification decided.";
+
 export interface IssueInput {
   status: AwardStatus;
   today: string | null;
   exerciseStatus: string;
+  /// The exercise's pack kind as recorded on the move into preparation (X-9). Null: before document assembly.
+  exercisePackKind: PackKind | null;
   commitment: CommitmentFault | null;
   sourcingPermitted: boolean | null;
   instrument: { kind: InstrumentKind } | { fault: InstrumentFault };
@@ -110,7 +132,7 @@ export function issueFaults(i: IssueInput): Finding[] {
 
   if (i.status !== "APPROVED") f("NOT_APPROVED_YET", { status: i.status });
   if (i.today == null) f("TIME_ZONE_UNSET");
-  if (i.exerciseStatus !== "DOCUMENTS_IN_PREPARATION") f("EXERCISE_NOT_OPEN", { status: i.exerciseStatus });
+  if (!exerciseOpenForAward(i.exerciseStatus, i.exercisePackKind)) f("EXERCISE_NOT_OPEN", { status: i.exerciseStatus, needs: awardableStatus(i.exercisePackKind) });
 
   // FR-REQ-016: no commitment against a requisition that has not completed its approval.
   if (i.commitment?.code === "NOT_APPROVED") f("REQUISITION_NOT_APPROVED", { step: i.commitment.outstanding });

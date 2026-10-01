@@ -12,7 +12,7 @@ import type { DecisionRecord } from "@/lib/committee/record";
 import type { FunderContext } from "@/lib/method/approval";
 import { snapshotFaults } from "@/lib/documents/evidence";
 import { dossierFault } from "@/lib/method/justification";
-import type { Method } from "@/lib/method/types";
+import type { Method, PackKind } from "@/lib/method/types";
 import { commitmentFault, type CommitmentFault } from "@/lib/requisition/commitment";
 import type { ApprovalStatus, RequisitionStatus, StepDecision } from "@/lib/requisition/types";
 import { bondRequiredUntil, requiredBond, type BondBasis, type RequiredBond } from "@/lib/securities/bond";
@@ -101,6 +101,8 @@ export interface AwardFacts {
     reference: string;
     title: string;
     status: string;
+    /// X-9: the pack kind recorded on the move into preparation; null before document assembly.
+    packKindSnapshot: PackKind | null;
     regime: string | null;
     appointmentRuleKey: string | null;
     appointmentRuleLabel: string | null;
@@ -230,7 +232,7 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
   const judgedOn = f.method?.requiresDossier ? snapshotFaults(f.dossierEvidence?.snapshot ?? null, new Set(f.dossierEvidence?.withdrawnVersionIds ?? []), true) : [];
   const submit: Finding[] = [
     ...noIssue,
-    ...(route ? submitFaults({ status: a.status, today: f.today, exerciseStatus: f.exercise.status, openRoute: f.appointment?.status === "PENDING", method: f.method, dossier, route, nameRoutes: f.nameRoutes ?? [] }) : []),
+    ...(route ? submitFaults({ status: a.status, today: f.today, exerciseStatus: f.exercise.status, exercisePackKind: f.exercise.packKindSnapshot, openRoute: f.appointment?.status === "PENDING", method: f.method, dossier, route, nameRoutes: f.nameRoutes ?? [] }) : []),
     ...("fault" in instrument ? [{ code: instrument.fault, level: "block" as const, data: { regime: instrument.regime } }] : []),
     ...changed,
     ...valueFaults,
@@ -303,6 +305,7 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
     status: a.status,
     today: f.today,
     exerciseStatus: f.exercise.status,
+    exercisePackKind: f.exercise.packKindSnapshot,
     commitment,
     sourcingPermitted: f.requisition.sourcingPermitted,
     instrument,

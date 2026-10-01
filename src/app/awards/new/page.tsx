@@ -5,6 +5,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
+import { awardOpenRefusal, exerciseOpenForAward } from "@/lib/award/gate";
 import { INSTRUMENT_LABEL, awardFindingText } from "@/lib/award/labels";
 import { awardHeadroom, instrumentFor } from "@/lib/award/instrument";
 import { loadAwardPolicy } from "@/lib/award/repo";
@@ -57,7 +58,7 @@ export default async function NewAwardPage(props: PageProps<"/awards/new">) {
   // The dossier's evidence as the document store counts it: the note shows only while there is none.
   const dossierEvidence = method?.requiresDossier ? exerciseEvidence(await attachmentFacts({ kind: "exercise", id: ex.id }, undefined, ["DOSSIER_EVIDENCE"])).dossier : 0;
   const instrument = instrumentFor(ex.regime, policy);
-  const blocker = ex.status !== "DOCUMENTS_IN_PREPARATION" ? "An award is opened only on an exercise in preparation." : live ? `This exercise already has a live award, ${live.reference}.` : "fault" in instrument ? awardFindingText({ code: instrument.fault, level: "block", data: { regime: instrument.regime } }) : null;
+  const blocker = !exerciseOpenForAward(ex.status, ex.packKindSnapshot) ? awardOpenRefusal(ex.packKindSnapshot) : live ? `This exercise already has a live award, ${live.reference}.` : "fault" in instrument ? awardFindingText({ code: instrument.fault, level: "block", data: { regime: instrument.regime } }) : null;
   if (blocker) {
     return (
       <>

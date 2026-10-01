@@ -14,6 +14,7 @@ const clear: IssueInput = {
   status: "APPROVED",
   today: "2026-09-30",
   exerciseStatus: "DOCUMENTS_IN_PREPARATION",
+  exercisePackKind: null,
   commitment: null,
   sourcingPermitted: true,
   instrument: { kind: "LETTER_OF_ACCEPTANCE" },

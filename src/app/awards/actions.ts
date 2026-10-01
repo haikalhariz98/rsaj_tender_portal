@@ -21,6 +21,7 @@ import { icNumberFault } from "@/lib/award/mask";
 import { exerciseCitationFault } from "@/lib/award/citation";
 import { despatchFaults } from "@/lib/award/distribution";
 import { evaluateAward } from "@/lib/award/evaluate";
+import { awardOpenRefusal, exerciseOpenForAward } from "@/lib/award/gate";
 import { awardValueFaults, instrumentFor } from "@/lib/award/instrument";
 import { AWARD_STATUS_LABEL, awardFindingText, BOND_FAULT_TEXT, DESPATCH_FAULT_TEXT, INSURANCE_FAULT_TEXT, SIGNER_FAULT_TEXT } from "@/lib/award/labels";
 import { renderedText } from "@/lib/award/merge";
@@ -150,7 +151,8 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
     const result = await withLockedExerciseForAward(exerciseId, async (tx, l): Promise<FormState> => {
       const { org, ex, req } = l;
       if (!org.today) return NO_ZONE;
-      if (ex.status !== "DOCUMENTS_IN_PREPARATION") return { ok: false, message: "An award is opened only on an exercise in preparation, with its classification decided." };
+      // X-9: an exercise with a tender or quotation pack needs its documents approved for tendering.
+      if (!exerciseOpenForAward(ex.status, ex.packKindSnapshot)) return { ok: false, message: awardOpenRefusal(ex.packKindSnapshot) };
       const live = await tx.award.findFirst({ where: { exerciseId: ex.id, status: { in: [...LIVE_STATUSES] } }, select: { reference: true } });
       if (live) return { ok: false, message: `This exercise already has a live award, ${live.reference}. Cancel it first to open another.` };
       const config = await loadAwardConfig(org.id, tx);

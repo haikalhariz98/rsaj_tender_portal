@@ -15,8 +15,9 @@ import { requesterOnlySteps, requesterOnlyText, type AbleToAct } from "@/lib/aut
 import type { ApprovalStep, CoreChainRecord, ResolutionWarning } from "@/lib/authority/types";
 import { invitationFault, resolveUnderFunder, type FunderContext } from "@/lib/method/approval";
 import { dossierFault } from "@/lib/method/justification";
-import { APPOINTMENT_DOMAIN, type Method } from "@/lib/method/types";
+import { APPOINTMENT_DOMAIN, type Method, type PackKind } from "@/lib/method/types";
 
+import { awardableStatus, exerciseOpenForAward } from "./gate";
 import type { Finding } from "./types";
 
 export type RouteFault = "DEPENDS_ON_METHOD" | "NO_METHOD_KEY" | "NO_RULE" | "ROUTE_ERROR" | "REQUESTER_ONLY";
@@ -95,6 +96,7 @@ export type SubmitFault =
   | "NOT_DRAFT"
   | "TIME_ZONE_UNSET"
   | "EXERCISE_NOT_IN_PREPARATION"
+  | "EXERCISE_NOT_APPROVED_FOR_TENDERING"
   | "ANOTHER_ROUTE_OPEN"
   | RouteFault
   | "REASON_REQUIRED"
@@ -118,6 +120,8 @@ export function submitFaults(i: {
   status: string;
   today: string | null;
   exerciseStatus: string;
+  /// X-9: the exercise's pack kind as recorded on the move into preparation; null before document assembly.
+  exercisePackKind: PackKind | null;
   openRoute: boolean;
   method: (Pick<Method, "requiresDossier"> & Partial<Pick<Method, "requiresNameApproval">>) | null;
   dossier: { justificationReasonCode: string | null; dossierReference: string | null; evidenceAttachments: number };
@@ -129,7 +133,7 @@ export function submitFaults(i: {
   if (i.status !== "DRAFT") return [f("NOT_DRAFT")];
   const out: Finding<SubmitFault>[] = [];
   if (i.today == null) out.push(f("TIME_ZONE_UNSET"));
-  if (i.exerciseStatus !== "DOCUMENTS_IN_PREPARATION") out.push(f("EXERCISE_NOT_IN_PREPARATION"));
+  if (!exerciseOpenForAward(i.exerciseStatus, i.exercisePackKind)) out.push(f(awardableStatus(i.exercisePackKind) === "APPROVED_FOR_TENDERING" ? "EXERCISE_NOT_APPROVED_FOR_TENDERING" : "EXERCISE_NOT_IN_PREPARATION"));
   if (i.openRoute) out.push(f("ANOTHER_ROUTE_OPEN"));
   if (i.method) for (const d of dossierFault(i.method, i.dossier)) out.push(f(d.code as SubmitFault));
   if (i.method?.requiresNameApproval) {

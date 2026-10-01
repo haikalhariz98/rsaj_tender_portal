@@ -279,6 +279,7 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
       reference: ex.reference,
       title: ex.title,
       status: ex.status,
+      packKindSnapshot: ex.packKindSnapshot,
       regime: ex.regime,
       appointmentRuleKey: ex.appointmentRuleKey,
       appointmentRuleLabel: bands?.appointment.ruleLabel ?? null,
