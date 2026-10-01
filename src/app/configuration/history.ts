@@ -12,6 +12,7 @@ import {
   CHOICE_LABEL,
 } from "@/lib/committee/labels";
 import { db } from "@/lib/db";
+import { CLASSIFICATION_LABEL, DISPOSAL_METHOD_LABEL, RETENTION_TRIGGER_LABEL } from "@/lib/documents/labels";
 import { SOURCE_LABEL, SPLIT_KEY_LABEL, STATUS_LABEL, TIER_LABEL } from "@/lib/requisition/labels";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { formatOrgDateTime } from "@/lib/format";
@@ -26,6 +27,7 @@ const ENTITIES = new Set([
   "CommitteeMember",
   "ContractType",
   "DocumentClass",
+  "DocumentStorePolicy",
   "DocumentTemplate",
   "FundingRoute",
   "Meeting",
@@ -71,8 +73,9 @@ const PROVENANCE: Record<string, string> = { STATED: "Stated", OBSERVED: "Observ
 const ENTITY_VALUE_LABEL: Record<string, Record<string, Record<string, string>>> = {
   Requisition: { status: STATUS_LABEL, origin: { PORTAL: "Raised in the portal", EXTERNAL: "Received from the finance system" } },
   FinanceIntegration: { budgetCheckSource: SOURCE_LABEL },
+  DocumentClass: { classification: CLASSIFICATION_LABEL, retentionTrigger: RETENTION_TRIGGER_LABEL, disposalMethod: DISPOSAL_METHOD_LABEL },
 };
-const OFFICE_FIELDS = new Set(["secretariatRoleCode", "seatRoleCode"]);
+const OFFICE_FIELDS = new Set(["secretariatRoleCode", "seatRoleCode", "disposalAuthorityRoleCode"]);
 
 /// A reader that turns stored codes and ids into what they stand for.
 async function valueReader(entity = ""): Promise<(field: string, value: string | null) => string | null> {

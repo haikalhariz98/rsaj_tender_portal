@@ -107,7 +107,7 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
 
 const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {
   ACCEPTED_ON_IT: "The award was accepted on this scan, so it is not taken off. To correct it, attach a new version, with the reason.",
-  GRANTED_ON_IT: "The delegation was granted on this recommendation, so it is not taken off. To correct it, attach a new version, with the reason.",
+  GRANTED_ON_IT: "The delegation stands on this recommendation, so it is not taken off. To correct it, attach a new version, with the reason.",
 };
 
 export const DOWNLOAD_REFUSAL_TEXT: Readonly<Record<DownloadRefusal, string>> = {

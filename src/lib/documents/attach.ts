@@ -123,7 +123,7 @@ export function attachFault(i: AttachInput): Finding<AttachFault>[] {
 export type Reliance =
   /// An award accepted on its return scans (OD-5): the scan is part of what it was accepted on.
   | "ACCEPTED_ON_IT"
-  /// A delegation granted on the absent holder's attached recommendation (OD-6).
+  /// A delegation standing on the absent holder's attached recommendation, its last live one (OD-6).
   | "GRANTED_ON_IT";
 
 export type DetachFault = "REASON_REQUIRED" | "RELIED_ON" | "OWNER_FROZEN" | "ALREADY_DETACHED";
