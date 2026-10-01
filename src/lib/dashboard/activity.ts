@@ -326,6 +326,13 @@ function fold(group: Fact[]): ActivityLine[] {
       const rest = group.filter((f) => f !== step && f !== cancelled);
       return [make(cancelled, `Exercise ${cancelled.subject} cancelled: ${office} refused the name`, []), ...rest.map((f) => f.line)];
     }
+    // 6.4 (Q-3): a rejection on the Approval for Tendering route returns the documents for amendment.
+    const returned = others.find((f) => f.line.kind === "exercise" && f.to === "DOCUMENTS_IN_PREPARATION" && f.from === "PENDING_APPROVAL_FOR_TENDERING");
+    if (returned) {
+      const rest = group.filter((f) => f !== step && f !== returned);
+      // The step's own reason: the exercise's repeats the headline ("Tender documents returned for amendment: …").
+      return [{ ...make(returned, `Exercise ${returned.subject}: tender documents returned for amendment at ${office}`, []), reason: step.line.reason ?? returned.line.reason }, ...rest.map((f) => f.line)];
+    }
     return group.map((f) => f.line);
   }
 
@@ -333,6 +340,12 @@ function fold(group: Fact[]): ActivityLine[] {
   if (approved) {
     const rest = group.filter((f) => f !== step && f !== approved);
     return [make(approved, `${approved.subject} approved at ${office}`, []), ...rest.map((f) => f.line)];
+  }
+  // 6.4: the step that completes the Approval for Tendering route moves the exercise: one line, the outcome.
+  const forTendering = others.find((f) => f.line.kind === "exercise" && f.to === "APPROVED_FOR_TENDERING");
+  if (forTendering) {
+    const rest = group.filter((f) => f !== step && f !== forTendering);
+    return [make(forTendering, `Exercise ${forTendering.subject} approved for tendering at ${office}`, []), ...rest.map((f) => f.line)];
   }
   return group.map((f) => f.line);
 }

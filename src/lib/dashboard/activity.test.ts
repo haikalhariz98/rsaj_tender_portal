@@ -274,6 +274,20 @@ describe("one act is one line", () => {
     expect(feed([step("s2", "SX/1 · name approval · Head of Department", "REJECTED"), cancel])).toEqual(["Exercise SX/1 cancelled: Head of Department refused the name"]);
   });
 
+  it("6.4: the step that approves an exercise for tendering reads as the outcome, not as the office deciding", () => {
+    const approved = entry({ entity: "SourcingExercise", entityId: "x1", entityLabel: "SX/1 · Filter works", changes: to("PENDING_APPROVAL_FOR_TENDERING", "APPROVED_FOR_TENDERING"), at: at(4) });
+    const lines = feed([step("s2", "SX/1 · Head of Contract & Procurement", "DONE"), approved]);
+    expect(lines).toEqual(["Exercise SX/1 approved for tendering at Head of Contract & Procurement"]);
+    expect(lines.join()).not.toMatch(/decided/);
+  });
+
+  it("6.4: a rejection on the tendering route reads as the documents returned for amendment, with the reason", () => {
+    const back = entry({ entity: "SourcingExercise", entityId: "x1", entityLabel: "SX/1 · Filter works", changes: to("PENDING_APPROVAL_FOR_TENDERING", "DOCUMENTS_IN_PREPARATION"), at: at(4), reason: "Tender documents returned for amendment: Drawings missing the valve schedule." });
+    const lines = activityFeed([step("s2", "SX/1 · Head of Contract & Procurement", "REJECTED", 0, "Drawings missing the valve schedule."), back], owners, null);
+    expect(lines.map((l) => l.headline)).toEqual(["Exercise SX/1: tender documents returned for amendment at Head of Contract & Procurement"]);
+    expect(lines[0].reason).toBe("Drawings missing the valve schedule.");
+  });
+
   it("a step that is not the last stays its own line, and unrelated acts stay apart", () => {
     expect(feed([step("s1", "REQ/1 · Section Head", "DONE")])).toEqual(["REQ/1: Section Head decided"]);
     // The same owner, but a day apart: two acts.
