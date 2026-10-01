@@ -3,6 +3,30 @@
 The founder's machine reviews each module the cloud returns. Fix these as part of the next
 work, one commit per item, and say in the module report which commit fixed which item.
 
+## For the founder to confirm
+
+**Native-engine check of the document store migrations** (acceptance condition, decisions
+log 2026-10-01). The cloud build applies migrations through a patched WASM engine
+(`docs/notes/cloud-build/ENV.md`, BD-DS-6); confirm on the native Prisma engine that
+`20261001055855_document_store` and `20261001073742_document_store_rulings` apply and that
+their CHECK constraints exist. Prisma does not model CHECK constraints, so an empty diff
+alone does not prove them.
+
+1. `npx prisma migrate deploy` applies both, with no failed migration.
+2. `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`
+   prints an empty migration.
+3. In psql:
+   `select conrelid::regclass, conname from pg_constraint where contype = 'c' and connamespace = 'public'::regnamespace order by 1, 2;`
+   lists exactly these nine (as the rebuilt cloud database does):
+   - from `document_store`: `BlobContent_size_matches`, `DocumentVersion_size_not_negative`,
+     `DocumentVersion_version_positive`, `DocumentVersion_withdrawal_reason`,
+     `DocumentAttachment_detach_reason`, `DocumentAttachment_one_owner`,
+     `DocumentAttachment_purpose_owner`, `LegalHold_reasons`;
+   - from `document_store_rulings`: `DocumentClass_retention_positive`.
+4. Optionally, `select count(*) from "Delegation" where "recommendationTextOnlyAtLanding"`
+   shows how many delegations the backfill marked as recorded on text before attachments
+   existed (none in the demo data).
+
 ## Verified locally (2026-10-01)
 
 - All migrations through `20261001011312_phase1_closeout` apply on the native Prisma
