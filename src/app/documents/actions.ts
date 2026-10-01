@@ -195,7 +195,9 @@ export async function withdrawVersion(_prev: FormState, data: FormData): Promise
   });
 }
 
-/// Set an unset classification once, or raise one, with a reason. Never lowered from SULIT.
+/// Set an unset classification once, or raise one, with a reason. Never lowered, never
+/// unset, and an unset one never set below its class's classification as it stands now
+/// (BD-DS-11 as ruled, security audit C-4).
 export async function reclassifyDocument(_prev: FormState, data: FormData): Promise<FormState> {
   const documentId = String(data.get("documentId") ?? "");
   const r = new FormReader(data);
@@ -203,8 +205,12 @@ export async function reclassifyDocument(_prev: FormState, data: FormData): Prom
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
   return inDocument(documentId, async (tx, orgId) => {
-    const doc = await tx.document.findUniqueOrThrow({ where: { id: documentId } });
-    const faults = reclassifyFault(doc.classificationSnapshot, next, reason);
+    // The class's classification as it stands now: the class row is held (FOR SHARE) so a
+    // concurrent edit of the class waits for this act, then read under the document's lock.
+    const { documentClassId } = await tx.document.findUniqueOrThrow({ where: { id: documentId }, select: { documentClassId: true } });
+    await tx.$queryRaw`SELECT id FROM "DocumentClass" WHERE id = ${documentClassId} FOR SHARE`;
+    const doc = await tx.document.findUniqueOrThrow({ where: { id: documentId }, include: { documentClass: { select: { classification: true } } } });
+    const faults = reclassifyFault(doc.classificationSnapshot, next, reason, doc.documentClass.classification);
     if (faults.length) return refuse(faults);
     await tx.document.update({ where: { id: doc.id }, data: { classificationSnapshot: next } });
     await writeAudit(tx, { organisationId: orgId, entity: "Document", entityId: doc.id, entityLabel: docLabel(doc.title), reason: `${reclassifyKind(doc.classificationSnapshot, next!) === "SET" ? "Classification set" : reclassifyKind(doc.classificationSnapshot, next!) === "RAISED" ? "Classification raised" : "Classification lowered"}: ${reason}` }, "UPDATE",

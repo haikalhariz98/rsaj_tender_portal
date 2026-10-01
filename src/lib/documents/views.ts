@@ -9,10 +9,12 @@ import { fieldLabel } from "@/lib/audit/diff";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 
 import { DOCUMENT_ENTITY_LABEL } from "./audit-view";
+import { documentClassificationChoices } from "./classification";
 
 import {
   ACCESS_KIND_LABEL,
   ACCESS_STATEMENT,
+  classificationChoiceText,
   classificationLabel,
   DISPOSAL_METHOD_LABEL,
   documentFaultText,
@@ -229,6 +231,11 @@ export interface DrawerView {
   classificationTone: Tone;
   /// Whether a classification can still be set by hand (it is unset).
   classificationUnset: boolean;
+  /// What the classification form offers, judged by the same check the save runs: the
+  /// allowed changes, and the rest disabled with the reason (BD-DS-11 as ruled, C-4).
+  classificationChoices: { value: string; label: string; disabled: boolean }[];
+  /// Where no change can be made at all, why, in words; null where one can.
+  classificationLocked: string | null;
   status: string;
   createdOn: string;
   filedOn: string | null;
@@ -242,6 +249,17 @@ export interface DrawerView {
 
 type Drawer = NonNullable<Awaited<ReturnType<typeof documentDrawer>>>;
 
+/// The document's classification form: the choices, and why none can be made where so.
+export function classificationForm(current: SecurityClass | null, classClassification: SecurityClass | null): Pick<DrawerView, "classificationChoices" | "classificationLocked"> {
+  const choices = documentClassificationChoices(current, classClassification).filter((c) => c.value != null);
+  const classificationChoices = choices.map((c) => ({ value: c.value!, label: classificationChoiceText(c), disabled: !c.allowed }));
+  if (choices.some((c) => c.allowed)) return { classificationChoices, classificationLocked: null };
+  // Nothing is higher than where it stands, and lowering is refused: say so, with the way out.
+  const lower = choices.find((c) => c.refusal && c.refusal.code !== "UNCHANGED");
+  const why = lower?.refusal ? { ...lower.refusal, data: { ...lower.refusal.data, to: null } } : null;
+  return { classificationChoices, classificationLocked: why ? documentFaultText(why) : null };
+}
+
 const NOT_SET = "Not set";
 const ACTION_LABEL = { CREATE: "Recorded", UPDATE: "Changed", DELETE: "Removed" } as const;
 
@@ -254,6 +272,7 @@ export function drawerView(d: Drawer, timeZone: string | null): DrawerView {
     classification: classificationLabel(d.classification),
     classificationTone: classificationTone(d.classification),
     classificationUnset: d.classification == null,
+    ...classificationForm(d.classification, d.documentClass.classification),
     status: STATUS_LABEL[d.status],
     createdOn: formatOrgDay(d.createdAt, timeZone),
     filedOn: d.filedAt ? formatOrgDay(d.filedAt, timeZone) : null,

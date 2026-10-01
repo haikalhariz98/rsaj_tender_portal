@@ -2,9 +2,10 @@ import { PencilIcon } from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import type { DocumentClass } from "@/lib/records/load";
 
-import { CLASSIFICATION_LABEL, DISPOSAL_METHOD_LABEL, MEDIA_LABEL, RETENTION_TRIGGER_LABEL } from "@/lib/documents/labels";
+import { classClassificationChoices } from "@/lib/documents/classification";
+import { CLASS_CLASSIFICATION_HINT, classificationChoiceText, DISPOSAL_METHOD_LABEL, MEDIA_LABEL, RETENTION_TRIGGER_LABEL } from "@/lib/documents/labels";
 import { bytesToMegabytes } from "@/lib/documents/policy";
-import { DISPOSAL_METHODS, KNOWN_MEDIA_TYPES, RETENTION_TRIGGERS, SECURITY_CLASSES } from "@/lib/documents/types";
+import { DISPOSAL_METHODS, KNOWN_MEDIA_TYPES, RETENTION_TRIGGERS, type SecurityClass } from "@/lib/documents/types";
 import { buttonClass } from "@/components/ui/button";
 
 import { releaseLegalHold } from "@/app/documents/actions";
@@ -19,7 +20,23 @@ const PROVENANCE_OPTIONS = [
   { value: "ASSUMED", label: "Assumed — a working default, needs sign-off" },
 ];
 
-function classFields(editing: boolean, offices: OfficeOption[]): Field[] {
+/// The class's classification field: only the changes the rule allows can be chosen; the
+/// rest are listed with the reason (BD-DS-11 as ruled). Judged by the same lib check the save runs.
+function classificationField(current: SecurityClass | null): Field {
+  const choices = classClassificationChoices(current);
+  const unset = choices.find((c) => c.value == null)!;
+  return {
+    kind: "select",
+    name: "classification",
+    label: "Classification",
+    placeholder: classificationChoiceText(unset),
+    placeholderDisabled: !unset.allowed,
+    options: choices.filter((c) => c.value != null).map((c) => ({ value: c.value!, label: classificationChoiceText(c), disabled: !c.allowed })),
+    hint: current == null ? "Taken by each document when it is filed. SULIT and not set are listed but never opened in the portal. Once set, it is not taken away or lowered by one person." : CLASS_CLASSIFICATION_HINT,
+  };
+}
+
+function classFields(editing: boolean, offices: OfficeOption[], classification: SecurityClass | null = null): Field[] {
   return [
     ...(editing
       ? []
@@ -41,14 +58,7 @@ function classFields(editing: boolean, offices: OfficeOption[]): Field[] {
       options: RETENTION_TRIGGERS.map((t) => ({ value: t, label: RETENTION_TRIGGER_LABEL[t] })),
       hint: "What starts the clock on the period above. Not set means it never starts, so nothing is disposed of.",
     },
-    {
-      kind: "select",
-      name: "classification",
-      label: "Classification",
-      placeholder: "Not set",
-      options: SECURITY_CLASSES.map((c) => ({ value: c, label: CLASSIFICATION_LABEL[c] })),
-      hint: "Taken by each document when it is filed. SULIT and not set are listed but never opened in the portal.",
-    },
+    classificationField(classification),
     {
       kind: "select",
       name: "disposalMethod",
@@ -105,7 +115,7 @@ export function EditDocumentClass({ row, offices }: { row: DocumentClass; office
   return (
     <RecordEditor
       title={`Edit ${row.nameEn}`}
-      fields={[{ kind: "hidden", name: "id" }, ...classFields(true, offices)]}
+      fields={[{ kind: "hidden", name: "id" }, ...classFields(true, offices, row.classification)]}
       action={saveDocumentClass}
       trigger={{ label: `Edit ${row.nameEn}`, iconOnly: <PencilIcon size={15} /> }}
       values={{

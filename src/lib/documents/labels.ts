@@ -136,7 +136,32 @@ export const DETACH_NOTE =
 
 /// Said on the classification form: what recording one does.
 export const RECLASSIFY_NOTE =
-  "Setting a classification, or raising it, is recorded with your reason. Raising it to SULIT stops the document being opened in the portal. A SULIT document is not lowered by one person.";
+  "Setting a classification, or raising it, is recorded with your reason. Raising it to SULIT stops the document being opened in the portal. No classification is lowered by one person, and a set one is never taken away.";
+
+/// The way out of a refused lowering (BD-DS-11 as ruled): never a second person faked.
+export const REUPLOAD_EXIT =
+  "If it belongs at a lower classification, upload it again as a new document under the right class, then withdraw the old version, with the reason.";
+
+/// Said on a class's classification field once it is set.
+export const CLASS_CLASSIFICATION_HINT =
+  "Taken by each document when it is filed. SULIT and not set are listed but never opened in the portal. Once set, it is not taken away, and it is not lowered by one person: lowering needs a second approver, which arrives with sign-in.";
+
+/// A classification choice as a form lists it: its label, and where it is not offered, why.
+export function classificationChoiceText(c: { value: SecurityClass | null; allowed: boolean; refusal: Finding | null }): string {
+  const label = classificationLabel(c.value);
+  if (c.allowed || !c.refusal) return label;
+  switch (c.refusal.code) {
+    case "UNCHANGED":
+      return `${label} — its classification now`;
+    case "CANNOT_UNSET":
+    case "CLASS_CLASSIFICATION_UNSET":
+      return `${label} — a set classification is not taken away`;
+    case "BELOW_CLASS_CLASSIFICATION":
+      return `${label} — below its class's classification, needs a second approver`;
+    default:
+      return `${label} — lowering needs a second approver`;
+  }
+}
 
 /// Said on the new-version form: the new version moves the pin, the old one stays.
 export const NEW_VERSION_NOTE =
@@ -220,7 +245,14 @@ export function documentFaultText(f: Finding): string {
     case "CANNOT_UNSET":
       return "A classification, once set, is not taken away. Choose Public, Internal or SULIT.";
     case "DOWNGRADE_FROM_SULIT":
-      return "A SULIT document is not lowered by one person: that needs a second approver, which arrives with sign-in. If it was classified in error, upload a correctly classified copy as a new document and withdraw this one, with the reason.";
+    case "DOWNGRADE_FROM_INTERNAL":
+      return `Lowering it${d.from ? ` from ${classificationLabel(d.from as SecurityClass)}` : ""}${d.to ? ` to ${classificationLabel(d.to as SecurityClass)}` : ""} needs a second approver, which arrives with sign-in: no classification is lowered by one person. ${REUPLOAD_EXIT}`;
+    case "BELOW_CLASS_CLASSIFICATION":
+      return `Its class is now classified ${classificationLabel(d.classification as SecurityClass)}, so it is not set lower than that by one person: that needs a second approver, which arrives with sign-in. Set it to ${classificationLabel(d.classification as SecurityClass)} or higher. ${REUPLOAD_EXIT}`;
+    case "CLASS_CLASSIFICATION_UNSET":
+      return `A class's classification, once set, is not taken away: documents filed under it took it. Keep it at ${classificationLabel(d.from as SecurityClass)}, or raise it.`;
+    case "CLASS_DOWNGRADE":
+      return `Lowering a class's classification${d.from ? ` from ${classificationLabel(d.from as SecurityClass)}` : ""}${d.to ? ` to ${classificationLabel(d.to as SecurityClass)}` : ""} needs a second approver, which arrives with sign-in. To file documents at a lower classification, use or add a class classified that way, upload them again under it, then withdraw the old versions, with the reason.`;
     // hold.ts
     case "ALREADY_ON_HOLD":
       return "A legal hold already stands on this document. Release it first to record a different reason.";

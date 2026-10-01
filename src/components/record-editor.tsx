@@ -54,6 +54,9 @@ export type Field =
       options: { value: string; label: string; disabled?: boolean }[];
       /// Shown as the unchosen option. Never pre-selects anything.
       placeholder?: string;
+      /// The unchosen option is shown but cannot be chosen: a value, once set, is not
+      /// taken back to empty. Say why in `placeholder`, as a disabled option does.
+      placeholderDisabled?: boolean;
       /// How a stored value that is no longer among the options reads. Without it the
       /// value itself is shown, which is right where the value is already a label and
       /// wrong where it is a code.
@@ -420,7 +423,7 @@ function FieldInput({
     return (
       <Field label={field.label} required={required} htmlFor={id} hint={hint} error={error}>
         <Select id={id} name={field.name} defaultValue={current} aria-invalid={error ? true : undefined}>
-          <option value="">{field.placeholder ?? "Not set"}</option>
+          <option value="" disabled={field.placeholderDisabled && current !== ""}>{field.placeholder ?? "Not set"}</option>
           {orphaned && <option value={current}>{field.orphanLabel ?? current}</option>}
           {field.options.map((o) => (
             <option key={o.value} value={o.value} disabled={o.disabled}>

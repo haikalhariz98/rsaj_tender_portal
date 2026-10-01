@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
 import { diffFields } from "@/lib/audit/diff";
-import { auditedCreate, auditedUpdate, writeAudit } from "@/lib/audit/record";
+import { auditedCreate, writeAudit } from "@/lib/audit/record";
+import { classClassificationFault } from "@/lib/documents/classification";
 import { policyView } from "@/lib/documents/audit-view";
 import { documentFaultText } from "@/lib/documents/labels";
 import { megabytesToBytes, policyFaults } from "@/lib/documents/policy";
@@ -102,11 +103,22 @@ export async function saveDocumentClass(_prev: FormState, data: FormData): Promi
       tx.documentClass.create({ data: { organisationId: orgId, ...write } }),
     );
   } else {
-    const before = await db.documentClass.findUnique({ where: { id } });
-    if (!before) return { ok: false, message: "That class no longer exists." };
-    await auditedUpdate({ ...ctx, entityId: id }, before, v, (tx) =>
-      tx.documentClass.update({ where: { id }, data: write }),
-    );
+    // On the locked row: a set classification is never unset, and is not lowered by one
+    // person (BD-DS-11 as ruled). Unchanged is no change: the editor posts it back.
+    const refused = await db.$transaction(async (tx): Promise<FormState | null> => {
+      await tx.$queryRaw`SELECT id FROM "DocumentClass" WHERE id = ${id} FOR UPDATE`;
+      const before = await tx.documentClass.findUnique({ where: { id } });
+      if (!before) return { ok: false, message: "That class no longer exists." };
+      if (present.has("classification")) {
+        const faults = classClassificationFault(before.classification, classification ?? null);
+        if (faults.length) return { ok: false, errors: { classification: faults.map(documentFaultText).join(" ") } };
+      }
+      await tx.documentClass.update({ where: { id }, data: write });
+      const changes = diffFields(before, v);
+      if (changes.length) await writeAudit(tx, { ...ctx, entityId: id }, "UPDATE", changes);
+      return null;
+    });
+    if (refused) return refused;
   }
 
   revalidatePath(PATH);

@@ -12,8 +12,7 @@ import { Button, buttonClass } from "@/components/ui/button";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { KeyValues } from "@/components/ui/stat";
-import { CLASSIFICATION_LABEL, RECLASSIFY_NOTE, WITHDRAW_NOTE } from "@/lib/documents/labels";
-import { SECURITY_CLASSES } from "@/lib/documents/types";
+import { RECLASSIFY_NOTE, WITHDRAW_NOTE } from "@/lib/documents/labels";
 import type { DrawerView, DrawerVersionView } from "@/lib/documents/views";
 
 import { VerifyButton, type Notice } from "./upload-actions";
@@ -182,19 +181,28 @@ function Summary({ d, onDone }: { d: DrawerView; onDone: (n: Notice) => void }) 
         ]}
       />
       <div>
-        <RecordEditor
-          title={`Classification of ${d.title}`}
-          description={d.classificationUnset ? "Not set, so it is listed but never opened in the portal." : `Now ${d.classification}.`}
-          fields={[
-            { kind: "note", text: RECLASSIFY_NOTE },
-            { kind: "select", name: "classification", label: "Classification", required: true, placeholder: "Choose", options: SECURITY_CLASSES.map((c) => ({ value: c, label: CLASSIFICATION_LABEL[c] })) },
-          ]}
-          reason={{ label: "Why is it being classified this way?" }}
-          action={reclassify}
-          submitLabel="Record classification"
-          trigger={{ label: d.classificationUnset ? "Set classification" : "Change classification", className: buttonClass("secondary", "sm") }}
-          size="sm"
-        />
+        {d.classificationLocked ? (
+          <div className="flex flex-col items-start gap-1.5">
+            <Button size="sm" variant="secondary" disabled aria-describedby={`cls-${d.id}`}>
+              Change classification
+            </Button>
+            <p id={`cls-${d.id}`} className="text-[12.5px] text-ink-3">{d.classificationLocked}</p>
+          </div>
+        ) : (
+          <RecordEditor
+            title={`Classification of ${d.title}`}
+            description={d.classificationUnset ? "Not set, so it is listed but never opened in the portal." : `Now ${d.classification}.`}
+            fields={[
+              { kind: "note", text: RECLASSIFY_NOTE },
+              { kind: "select", name: "classification", label: "Classification", required: true, placeholder: "Choose", options: d.classificationChoices },
+            ]}
+            reason={{ label: "Why is it being classified this way?" }}
+            action={reclassify}
+            submitLabel="Record classification"
+            trigger={{ label: d.classificationUnset ? "Set classification" : "Change classification", className: buttonClass("secondary", "sm") }}
+            size="sm"
+          />
+        )}
       </div>
     </div>
   );
