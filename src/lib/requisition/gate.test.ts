@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { DecisionRecord } from "@/lib/committee/record";
 import { parseSen } from "@/lib/money";
 
-import { anyGateEnded, gateCitationFault, gateFinding, gateRuleFaults, gatesFor, gateState, GATE_DOMAIN, type GateMatter, type GateRuleRow } from "./gate";
+import { anyGateEnded, gateCitationFault, gateFinding, gateOpenReason, gateRuleFaults, gatesFor, gateState, GATE_DOMAIN, type GateMatter, type GateRuleRow } from "./gate";
 
 // Invented committees and route: the gate is the customer's policy, never a default.
 const on = new Date("2026-10-01T00:00:00Z");
@@ -94,6 +94,36 @@ describe("where a gate stands (gateState, from decisionRecord only)", () => {
     const later = matter("m2", record("NOT_CARRIED", "2026-10-20", LOOP));
     const earlier = matter("m1", record("CARRIED", "2026-10-05"));
     expect(gateState([later, earlier]).state).toBe("RETURNED");
+  });
+});
+
+describe("an open gate's reason (gateOpenReason)", () => {
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const tabled = (id: string, day: string, r: DecisionRecord | null = null, withdrawn = false): GateMatter => ({
+    id, tabledAt: new Date(`${day}T00:00:00Z`), withdrawn, record: r, sittingReference: `SIT/${id}`,
+  });
+  const reason = (matters: GateMatter[], citableCount = 0) => gateOpenReason({ committeeLabel: "Works Committee", matters, citableCount, formatDay: fmt });
+
+  it("a matter tabled and undecided means the gate is waiting: names the sitting and the day, offers no tabling", () => {
+    expect(reason([tabled("m1", "2026-09-28")])).toEqual({ text: "Tabled at SIT/m1 on 2026-09-28 — waiting for the decision", canTable: false });
+  });
+
+  it("the most recently tabled waiting matter speaks", () => {
+    expect(reason([tabled("m1", "2026-09-01"), tabled("m2", "2026-09-28")]).text).toContain("SIT/m2");
+  });
+
+  it("a withdrawn or already decided matter is not waiting: with nothing citable the gate still asks for a matter", () => {
+    const r = reason([tabled("m1", "2026-09-28", null, true), tabled("m2", "2026-09-10", record("NOT_CARRIED", "2026-09-20", LOOP))]);
+    expect(r.canTable).toBe(true);
+    expect(r.text).toContain("No matter before the Works Committee is tabled");
+  });
+
+  it("a deferred matter has been heard, so the gate is not waiting on it", () => {
+    expect(reason([tabled("m1", "2026-09-28", record("DEFERRED", "2026-10-05"))]).canTable).toBe(true);
+  });
+
+  it("with a matter citable and none waiting there is nothing to say and nothing to table", () => {
+    expect(reason([], 1)).toEqual({ text: null, canTable: false });
   });
 });
 

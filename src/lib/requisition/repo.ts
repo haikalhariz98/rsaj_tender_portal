@@ -391,7 +391,7 @@ export async function loadGateRules(organisationId: string, client: Tx = db): Pr
 
 /// A gate's matters, as `gateState` reads them: from `decisionRecord()` only.
 export function gateMattersOf(gate: LoadedRequisition["req"]["gates"][number]): GateMatter[] {
-  return gate.decisions.map((d) => ({ id: d.id, tabledAt: d.tabledAt, withdrawn: d.withdrawnAt != null, record: recordOf(d) }));
+  return gate.decisions.map((d) => ({ id: d.id, tabledAt: d.tabledAt, withdrawn: d.withdrawnAt != null, record: recordOf(d), sittingReference: d.meeting.reference }));
 }
 
 /**

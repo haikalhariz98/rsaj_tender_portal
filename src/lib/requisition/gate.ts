@@ -73,6 +73,8 @@ export interface GateMatter {
   tabledAt: Date | null;
   withdrawn: boolean;
   record: DecisionRecord | null;
+  /// The sitting it is tabled at, for saying where the gate is waiting.
+  sittingReference?: string;
 }
 
 const decidedOn = (m: GateMatter) => m.record?.decisionDate ?? m.record?.meetingDate ?? null;
@@ -97,6 +99,41 @@ export function gateState(matters: readonly GateMatter[]): { state: GateState; d
   if (r.outcome === "CARRIED") return { state: "PASSED", decisive: last };
   if (!r.notApproved) return { state: "OUTCOME_NOT_RECORDED", decisive: last };
   return { state: r.notApproved.kind === "LOOP" ? "RETURNED" : "ENDED", decisive: last };
+}
+
+/**
+ * The matter a gate is waiting on: tabled against it, not withdrawn, and with no decision
+ * recorded yet. A deferred matter has been heard, so it is not this; when several are
+ * waiting, the most recently tabled speaks.
+ */
+export function waitingMatter(matters: readonly GateMatter[]): GateMatter | null {
+  const t = (d: Date | null) => d?.getTime() ?? Number.NEGATIVE_INFINITY;
+  const waiting = matters.filter((m) => !m.withdrawn && m.record == null).sort((a, b) => t(a.tabledAt) - t(b.tabledAt) || (a.id < b.id ? -1 : 1));
+  return waiting[waiting.length - 1] ?? null;
+}
+
+/**
+ * What an open gate says beside its badge, and whether tabling a matter is still the
+ * next step. A gate that already has a matter waiting at a sitting never offers to table
+ * another; one with nothing cited and nothing citable says what is missing.
+ */
+export function gateOpenReason(input: {
+  committeeLabel: string;
+  matters: readonly GateMatter[];
+  /// Matters tabled against the requisition for this committee that could be cited now.
+  citableCount: number;
+  formatDay: (d: Date) => string;
+}): { text: string | null; canTable: boolean } {
+  const waiting = waitingMatter(input.matters);
+  if (waiting) {
+    const where = waiting.sittingReference ? `Tabled at ${waiting.sittingReference}` : "Tabled at a sitting";
+    const on = waiting.tabledAt ? ` on ${input.formatDay(waiting.tabledAt)}` : "";
+    return { text: `${where}${on} — waiting for the decision`, canTable: false };
+  }
+  if (input.citableCount === 0) {
+    return { text: `No matter before the ${input.committeeLabel} is tabled against this requisition as a committee gate and not yet cited.`, canTable: true };
+  }
+  return { text: null, canTable: false };
 }
 
 export type GateCitationFault =

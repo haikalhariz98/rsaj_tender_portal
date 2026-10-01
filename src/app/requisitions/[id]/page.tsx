@@ -68,6 +68,7 @@ import {
   loadPolicy,
   loadRequisition,
   num,
+  gateMattersOf,
   recordOf,
   requisitionHistory,
   gatesForRequisition,
@@ -78,7 +79,7 @@ import { returnedRouteCitationNotes } from "@/lib/requisition/committee-step";
 import { choicesFor, earlierSteps, returnTargetBefore, type RejectionKind } from "@/lib/authority/rejection";
 import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import { routeCoreText, stepOriginText } from "@/lib/authority/core-routing-labels";
-import { GATE_DOMAIN } from "@/lib/requisition/gate";
+import { GATE_DOMAIN, gateOpenReason } from "@/lib/requisition/gate";
 import { unpostedIntakeReason, type UnpostedReason } from "@/lib/requisition/budget";
 import { splitApprovalFault, splitStateLabel } from "@/lib/requisition/splitting";
 import { SUCCESSOR_OPEN_TEXT, successorOpenFault, transitionFault } from "@/lib/requisition/status";
@@ -1537,9 +1538,10 @@ function GatesCard({
               (d) => d.domain === GATE_DOMAIN && d.meeting.committee.code === gate.committeeCode && !d.requisitionGateId && !d.approvalStep && !d.withdrawnAt,
             );
             const open = live && (g.state === "AWAITING" || g.state === "RETURNED" || g.state === "OUTCOME_NOT_RECORDED");
-            const href = open ? tableHref(gate.committeeCode, gate.subjectEn, gate.act) : null;
+            const reason = open ? gateOpenReason({ committeeLabel: gate.committeeLabel, matters: gateMattersOf(gate), citableCount: citable.length, formatDay: formatDate }) : null;
+            const href = reason?.canTable ? tableHref(gate.committeeCode, gate.subjectEn, gate.act) : null;
             return (
-              <li key={g.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-6">
+              <li key={g.id} className="flex flex-col gap-3 px-5 py-4 sm:px-6">
                 <div className="flex min-w-0 items-start gap-3">
                   <ActBadge act={gate.act} />
                   <div className="min-w-0">
@@ -1551,38 +1553,45 @@ function GatesCard({
                       <span>· rule</span>
                       <ProvenanceBadge value={gate.ruleProvenance} />
                     </div>
-                    {cited.length === 0 ? (
-                      <div className="text-[12.5px] text-ink-3">No matter cited yet. Table it at a sitting as a committee gate, then cite the decision.</div>
-                    ) : (
-                      <ul className="mt-1 flex flex-col gap-0.5 text-[12.5px] text-ink-2">
-                        {cited.map((d) => {
-                          const rec = recordOf(d);
-                          return (
-                            <li key={d.id}>
-                              <Link href={`/committees/${d.meetingId}`}>{d.meeting.reference}</Link> · {d.withdrawnAt ? "withdrawn from the agenda" : gateOutcomeLabel(rec, d.meeting.committee.carriedLabelEn)}
-                              {rec ? ` · ${formatDate(rec.decisionDate ?? rec.meetingDate)}` : ""}
-                              {decisive?.id === d.id ? " · decides the gate" : ""}
-                              {rec ? " · minutes recorded as text, signed copy not attached" : ""}
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
                   </div>
                 </div>
-                <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 sm:pl-9">
                   <Badge tone={TONE[GATE_STATE_TONE[g.state]]}>{GATE_STATE_LABEL[g.state]}</Badge>
+                  {reason?.text && <span id={`gate-note-${g.id}`} className="min-w-0 flex-1 basis-56 text-[12.5px] text-ink-2">{reason.text}</span>}
                   {open && (
-                    <CiteGateDrawer
-                      id={r.id}
-                      gateId={g.id}
-                      committee={gate.committeeLabel}
-                      decisions={citable.map((d) => ({ value: d.id, label: `${d.meeting.reference} · ${d.subject} · ${OUTCOME_LABEL[d.outcome]}` }))}
-                      blocker={citable.length === 0 ? `No matter before the ${gate.committeeLabel} is tabled against this requisition as a committee gate and not yet cited.` : null}
-                    />
+                    <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
+                      {citable.length === 0 ? (
+                        <Blocked label="Cite the decision" reason={reason?.text ?? "No matter is tabled for this gate yet."} noteId={`gate-note-${g.id}`} />
+                      ) : (
+                        <CiteGateDrawer
+                          id={r.id}
+                          gateId={g.id}
+                          committee={gate.committeeLabel}
+                          decisions={citable.map((d) => ({ value: d.id, label: `${d.meeting.reference} · ${d.subject} · ${OUTCOME_LABEL[d.outcome]}` }))}
+                          blocker={null}
+                        />
+                      )}
+                      {reason?.canTable && (href ? <ButtonLink href={href} size="sm" variant="secondary">Table at a sitting</ButtonLink> : <ButtonLink href="/committees" size="sm" variant="secondary">Schedule a sitting</ButtonLink>)}
+                    </div>
                   )}
-                  {open && citable.length === 0 && (href ? <ButtonLink href={href} size="sm" variant="secondary">Table at a sitting</ButtonLink> : <ButtonLink href="/committees" size="sm" variant="secondary">Schedule a sitting</ButtonLink>)}
                 </div>
+                {cited.length === 0 ? (
+                  <div className="text-[12.5px] text-ink-3 sm:pl-9">No matter cited yet. Table it at a sitting as a committee gate, then cite the decision.</div>
+                ) : (
+                  <ul className="flex flex-col gap-0.5 text-[12.5px] text-ink-2 sm:pl-9">
+                    {cited.map((d) => {
+                      const rec = recordOf(d);
+                      return (
+                        <li key={d.id}>
+                          <Link href={`/committees/${d.meetingId}`}>{d.meeting.reference}</Link> · {d.withdrawnAt ? "withdrawn from the agenda" : gateOutcomeLabel(rec, d.meeting.committee.carriedLabelEn)}
+                          {rec ? ` · ${formatDate(rec.decisionDate ?? rec.meetingDate)}` : ""}
+                          {decisive?.id === d.id ? " · decides the gate" : ""}
+                          {rec ? " · minutes recorded as text, signed copy not attached" : ""}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </li>
             );
           })}
