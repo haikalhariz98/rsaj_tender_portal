@@ -696,13 +696,13 @@ function DelegationPanel({ people, offices, delegations, capabilities, upload }:
                 (d) => d.fromPersonId === p.id && statusOf(d, on) === "IN_FORCE",
               );
               return (
-                <li key={p.id} className="flex min-w-0 items-center gap-3 py-2.5">
+                <li key={p.id} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
                   <Avatar name={p.name} size="sm" />
-                  <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-ink" title={p.name}>
+                  <span className="min-w-0 flex-1 basis-32 text-[13.5px] font-semibold break-words text-ink">
                     {p.name}
                   </span>
                   {cover ? (
-                    <span className="shrink-0 text-[13px] text-ink-3">
+                    <span className="text-[13px] text-ink-3">
                       covered by {nameOf(cover.toPersonId)}
                     </span>
                   ) : (
