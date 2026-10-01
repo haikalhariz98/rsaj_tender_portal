@@ -16,6 +16,12 @@ migration folder was proved by rebuilding a throwaway database from it and diffi
 against `schema.prisma` (empty diff). Before relying on them, run `npx prisma migrate
 dev` on a normal machine against Postgres 17 and confirm it reports no drift.
 
+**Resolved 2026-10-01 (local machine).** With the native Prisma 7.9.1 engine on PostgreSQL
+17.10, `prisma migrate deploy` applied all 23 migration folders (through
+`20261001011312_phase1_closeout`) to a fresh throwaway database with none failed or rolled
+back, and `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma`
+reported an empty migration (exit 0). The migrations are good on the native toolchain.
+
 ## Decisions
 
 - 2026-10-01 · doc store · OD-9: immutability enforced in the application; SHA-256 fingerprint re-checked on every download and Verify, mismatch refused and logged; DB triggers deferred to sign-in and demo tooling; screens say the fingerprint proves the file matches what was stored, not that the database is untouched. Spec: NFR-AUD-001, 003, FR-APR-015.
