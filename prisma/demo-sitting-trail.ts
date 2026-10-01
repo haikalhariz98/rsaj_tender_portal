@@ -21,6 +21,8 @@ const at = (d: Date, hours: number, minutes = 0) => new Date(d.getTime() + hours
 
 export async function loadSittingTrail(db: PrismaClient, organisationId: string, meetingIds: string[]) {
   const { diffFields } = await import("../src/lib/audit/diff");
+  const { scopeTabledAudit } = await import("../src/lib/scope/audit-view");
+  const { ACT_LABEL } = await import("../src/lib/labels");
 
   for (const meetingId of meetingIds) {
     const m = await db.meeting.findUnique({
@@ -36,6 +38,7 @@ export async function loadSittingTrail(db: PrismaClient, organisationId: string,
             tabledBy: true,
             requisition: { select: { reference: true } },
             exercise: { select: { reference: true } },
+            bqVersion: { select: { versionNo: true, exercise: { select: { reference: true } } } },
           },
         },
       },
@@ -54,9 +57,16 @@ export async function loadSittingTrail(db: PrismaClient, organisationId: string,
       changes: diffFields(null, { committee: m.committee.nameEn, meetingDate: m.meetingDate, agenda: m.agenda, reference: m.reference }),
     });
 
-    // Each matter tabled (tableMatter).
+    // Each matter tabled (tableMatter; a scope matter from its exercise, tableScope).
     for (const d of m.decisions) {
       if (!d.tabledAt) continue;
+      if (d.bqVersion) {
+        trail.push({
+          entity: "CommitteeDecision", entityId: d.id, entityLabel: `${d.bqVersion.exercise.reference} · Scope matter, bill version ${d.bqVersion.versionNo}`, action: "CREATE", at: at(d.tabledAt, 2, d.sequence),
+          changes: scopeTabledAudit({ subject: d.subject, versionNo: d.bqVersion.versionNo, sitting: m.reference, committee: m.committee.nameEn, act: ACT_LABEL[d.act] ?? d.act, tabledBy: d.tabledBy?.name ?? null, tabledOn: d.tabledAt.toISOString().slice(0, 10) }),
+        });
+        continue;
+      }
       trail.push({
         entity: "CommitteeDecision", entityId: d.id, entityLabel: d.subject, action: "CREATE", at: at(d.tabledAt, 2, d.sequence),
         changes: diffFields(null, {

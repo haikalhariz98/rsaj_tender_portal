@@ -20,8 +20,12 @@
  * - demo_sx3 (drawings and specification): panel a draft with one column unverified; one
  *   estimate void (its preparer moved before lodgement), a fresh one being prepared.
  * - demo_sx15 (X-4): FRP tank repair by its manufacturer, scoped by the specialist, its bill
- *   finalised. Its scope matter (demo_d40 at demo_mt11, Technical Committee) needs
- *   MatterKind.SCOPE and arrives with increment 2 (BD-62-9).
+ *   finalised, imported from the specialist's CSV (kept as demo_doc9, demo-documents). Its scope
+ *   matter demo_d40 is tabled at the Technical Committee's sitting demo_mt11 and carried
+ *   (increment 2, `loadScopeSitting`).
+ * - Increment 2: scope approval required for the specialist method by the Technical
+ *   Committee, not for the others, emergency unset; one schedule of rates in two issues, sx5's
+ *   roof lines priced from issue 1 and kept after issue 2 superseded it.
  * - demo_sx2, sx4 and sx7 keep no bill, panel or estimate: the empty states.
  *
  * Estimate versions are written with their figures (the demo's own client has no omit) and
@@ -29,9 +33,11 @@
  */
 
 import type { PrismaClient } from "../src/generated/prisma/client";
-import { estimateCreatedAudit, estimateEventAudit, estimateStateAudit, estimateVersionAudit, bqStatusAudit, itemAudit, verificationAudit, ENTITY, SCOPE_ENTITIES } from "../src/lib/scope/audit-view";
+import { estimateCreatedAudit, estimateEventAudit, estimateStateAudit, estimateVersionAudit, bqStatusAudit, itemAudit, rateFromText, verificationAudit, ENTITY, RATE_ENTITY, SCOPE_ENTITIES } from "../src/lib/scope/audit-view";
+import { diffFields } from "../src/lib/audit/diff";
+import { formatDate } from "../src/lib/format";
 import { bqTotals, itemAmount, totalsSnapshot } from "../src/lib/scope/bq";
-import { parseSen, senToDecimalString } from "../src/lib/money";
+import { formatSen, parseSen, senToDecimalString } from "../src/lib/money";
 import type { BqItemKind, BqLine } from "../src/lib/scope/types";
 
 type Db = PrismaClient;
@@ -145,6 +151,38 @@ const BQS: DemoBq[] = [
   { id: `${P}bqv4`, exerciseId: `${P}sx15`, reference: "DEMO/SX/0015/2026", versionNo: 1, status: "FINALISED", scopedBy: "SPECIALIST_CONTRACTOR", scope: "Repair the cracked FRP panels of the sectional tank and reseal its joints, as scoped by the tank's maker on site.", followsStandard: true, excluded: null, createdOn: "2026-09-25", finalisedOn: "2026-09-26", sections: SX15_SECTIONS },
 ];
 
+/**
+ * FR-EST-004 (increment 2): one invented schedule, two issues. Issue 1 took effect on
+ * 1 January 2026; issue 2 was issued on 28 September 2026 to take effect on 1 October 2026,
+ * superseding issue 1 that day. sx5's roof lines were priced from issue 1 on 18 September and
+ * keep its rates, in version 1 and in the draft revision copied from it (X-10 a: every act is
+ * dated on or before the load day; only the effective day is a scheduled date).
+ */
+const RATE_LABEL = "Demo schedule of rates for tank works";
+const RATE_ISSUES = [
+  {
+    id: `${P}rs1`, issueNo: 1, status: "SUPERSEDED" as const, effectiveFrom: "2026-01-01", issuedOn: "2025-12-15", supersededOn: "2026-09-28",
+    items: [
+      { id: `${P}rsi1`, code: "TK-01", descriptionEn: "Strip and dispose of roof sheeting", unit: "m2", rate: "18.50" },
+      { id: `${P}rsi2`, code: "TK-02", descriptionEn: "Roof sheeting with insulation", unit: "m2", rate: "142.75" },
+      { id: `${P}rsi3`, code: "TK-03", descriptionEn: "Stainless steel access hatch", unit: "nr", rate: "4150.00" },
+      { id: `${P}rsi4`, code: "TK-04", descriptionEn: "Internal ladder with handrail", unit: "m", rate: "385.00" },
+    ],
+  },
+  {
+    id: `${P}rs2`, issueNo: 2, status: "ISSUED" as const, effectiveFrom: "2026-10-01", issuedOn: "2026-09-28", supersededOn: null,
+    items: [
+      { id: `${P}rsi5`, code: "TK-01", descriptionEn: "Strip and dispose of roof sheeting", unit: "m2", rate: "19.20" },
+      { id: `${P}rsi6`, code: "TK-02", descriptionEn: "Roof sheeting with insulation", unit: "m2", rate: "148.00" },
+      { id: `${P}rsi7`, code: "TK-03", descriptionEn: "Stainless steel access hatch", unit: "nr", rate: "4310.00" },
+      { id: `${P}rsi8`, code: "TK-04", descriptionEn: "Internal ladder with handrail", unit: "m", rate: "398.00" },
+    ],
+  },
+];
+/// Lines priced from issue 1, by section and item: the schedule item's code.
+const SCHEDULE_PRICED: Record<string, Record<string, string>> = { [`${P}bqs5`]: { "2.1": "TK-01", "2.2": "TK-02" }, [`${P}bqs8`]: { "2.1": "TK-01", "2.2": "TK-02" } };
+const PRICED_ON = "2026-09-18";
+
 const PREPARER = { id: `${P}p11`, name: "Nurul Izzah Kamal" };
 const CUSTODIAN = { id: `${P}p3`, name: "Chen Wei Ling" };
 
@@ -185,6 +223,29 @@ export async function loadScope(db: Db, organisationId: string) {
   await db.contractBasis.update({ where: { id: `${P}cb1` }, data: { requiresBq: true, requiresBqProvenance: "ASSUMED" } });
   await db.contractBasis.update({ where: { id: `${P}cb2` }, data: { requiresBq: false, requiresBqProvenance: "ASSUMED" } });
 
+  // ---------------------------------------------------------------- schedules of rates (increment 2)
+  for (const r of RATE_ISSUES) {
+    const title = `Schedule of rates · ${RATE_LABEL}, issue ${r.issueNo}`;
+    await db.rateSchedule.create({
+      data: {
+        id: r.id, organisationId, label: RATE_LABEL, issueNo: r.issueNo, status: r.status, effectiveFrom: day(r.effectiveFrom), issuedOn: day(r.issuedOn), issuedByPersonId: CUSTODIAN.id,
+        supersededOn: r.supersededOn ? day(r.supersededOn) : null, governingSource: "Demo circular on tank works rates (invented)", provenance: "ASSUMED", notes: "Invented demo rates, not a recommendation.", createdAt: at(`${r.issuedOn}T09:00`),
+      },
+    });
+    entry(RATE_ENTITY.schedule, r.id, title, "CREATE", at(`${r.issuedOn}T09:00`), diffFields(null, { schedule: RATE_LABEL, issue: r.issueNo, status: "Draft", provenance: "ASSUMED", governingSource: "Demo circular on tank works rates (invented)" }));
+    for (const [i, it] of r.items.entries()) {
+      await db.rateScheduleItem.create({ data: { id: it.id, organisationId, scheduleId: r.id, code: it.code, descriptionEn: it.descriptionEn, unit: it.unit, rate: it.rate, sortOrder: i + 1 } });
+      entry(RATE_ENTITY.item, it.id, `${title} · ${it.code}`, "CREATE", at(`${r.issuedOn}T09:0${i + 1}`), diffFields(null, { code: it.code, description: it.descriptionEn, unit: it.unit, rate: formatSen(parseSen(it.rate)) }));
+    }
+    entry(RATE_ENTITY.schedule, r.id, title, "UPDATE", at(`${r.issuedOn}T10:00`), diffFields({ status: "Draft" }, { status: "Issued", effectiveFrom: r.effectiveFrom, issuedOn: r.issuedOn, issuedBy: `${CUSTODIAN.name} (recorded on behalf of, not signed)`, items: r.items.length }));
+    if (r.supersededOn) entry(RATE_ENTITY.schedule, r.id, title, "UPDATE", at(`${r.supersededOn}T10:00`), diffFields({ status: "Issued" }, { status: "Superseded", supersededBy: "issue 2", supersededOn: r.supersededOn }));
+  }
+  const rs1 = RATE_ISSUES[0];
+  const scheduleOf = (sectionId: string, ref: string) => {
+    const code = SCHEDULE_PRICED[sectionId]?.[ref];
+    return code ? { code, item: rs1.items.find((x) => x.code === code)! } : null;
+  };
+
   // ---------------------------------------------------------------- bills
   for (const b of BQS) {
     const lines = b.sections.flatMap((s) => s.items.map(line));
@@ -209,8 +270,14 @@ export async function loadScope(db: Db, organisationId: string) {
         const l = line(it);
         const amount = itemAmount(l.quantity, l.rate);
         const id = `${s.id}i${ii + 1}`;
-        await db.bqItem.create({ data: { id, organisationId, sectionId: s.id, itemRef: l.itemRef, description: l.description, unit: l.unit, kind: l.kind, quantity: l.quantity, rate: senToDecimalString(l.rate!), amount: amount == null ? null : senToDecimalString(amount), provisional: l.provisional, sortOrder: ii + 1 } });
-        if (!b.revisionReason) entry(ENTITY.bqItem, id, `${b.reference} · Bill of quantities v${b.versionNo} · ${l.itemRef}`, "CREATE", created, itemAudit(null, l));
+        const sch = scheduleOf(s.id, l.itemRef);
+        if (sch && parseSen(sch.item.rate) !== l.rate) throw new Error(`Demo line ${id} is said to be priced from the schedule at a rate the schedule does not give.`);
+        const priced = sch
+          ? { rateSource: "SCHEDULE" as const, rateScheduleId: rs1.id, rateItemCode: sch.code, scheduleLabelSnapshot: RATE_LABEL, scheduleIssueSnapshot: `Issue ${rs1.issueNo}`, scheduleEffectiveFromSnapshot: day(rs1.effectiveFrom) }
+          : {};
+        await db.bqItem.create({ data: { id, organisationId, sectionId: s.id, itemRef: l.itemRef, description: l.description, unit: l.unit, kind: l.kind, quantity: l.quantity, rate: senToDecimalString(l.rate!), amount: amount == null ? null : senToDecimalString(amount), provisional: l.provisional, sortOrder: ii + 1, ...priced } });
+        const rateFrom = sch ? rateFromText({ label: RATE_LABEL, issue: `Issue ${rs1.issueNo}`, effectiveFrom: rs1.effectiveFrom, itemCode: sch.code }, formatDate) : undefined;
+        if (!b.revisionReason) entry(ENTITY.bqItem, id, `${b.reference} · Bill of quantities v${b.versionNo} · ${l.itemRef}`, "CREATE", sch ? at(`${PRICED_ON}T11:00`) : created, itemAudit(null, { ...l, ...(rateFrom ? { rateFrom } : {}) }));
       }
     }
     if (finalised) entry(ENTITY.bqVersion, b.id, vLabel, "UPDATE", at(`${b.finalisedOn}T15:00`), bqStatusAudit("DRAFT", "FINALISED", { total: totals!.total, buildersWorks: totals!.buildersWorks, firmValue: totals!.firmValue ?? "Not stated", standard: DEMO_SCOPE_POLICY.measurementStandardLabel, preparerQualification: "Qualified quantity measurer" }));
@@ -303,7 +370,9 @@ export async function checkScope() {
   const { finaliseFaults } = await import("../src/lib/scope/bq");
   const { panelFaults } = await import("../src/lib/scope/panel");
   const { packFaults } = await import("../src/lib/scope/pack");
-  const { scopeApproval } = await import("../src/lib/scope/scope-matter");
+  const { scopeApproval, scopeCitationFault } = await import("../src/lib/scope/scope-matter");
+  const { priceFromSchedule } = await import("../src/lib/scope/rates");
+  const { parseBqCsv } = await import("../src/lib/scope/csv");
   const { versionFaults } = await import("../src/lib/scope/estimate");
   const repo = await import("../src/lib/scope/repo");
   const { exerciseOrg } = await import("../src/lib/method/repo");
@@ -338,6 +407,30 @@ export async function checkScope() {
     for (const e of estimates) {
       for (const v of e.versions) {
         fail(`estimate ${e.id} v${v.versionNo}`, versionFaults({ value: 1n, personId: v.preparerPersonId, reason: v.versionNo === 1 ? "" : "sealed" }, v.versionNo === 1 ? null : { state: "DRAFT", preparerPersonId: e.preparerPersonId }, { closingAt: null, timeZone: org.timeZone, exerciseStatus: ex.status, now: v.createdAt }));
+      }
+    }
+    if (exerciseId === `${P}sx15`) {
+      // X-4: the scope matter was citable when it was tabled, and its decision approves the finalised bill.
+      const matters = await repo.loadScopeMatters(exerciseId);
+      const bill = versions.find((v) => v.id === `${P}bqv4`)!;
+      fail("sx15's scope tabling", scopeCitationFault({ exercise: { id: exerciseId, status: ex.status }, rule: rules.method, version: bill, sitting: { committeeCode: "TECH_CTTE", frozen: false }, matters: matters.filter((m) => m.id !== `${P}d40`) }));
+      const state = scopeApproval(rules.method, versions, matters).state;
+      if (state !== "APPROVED") throw new Error(`Demo sx15's scope reads ${state}, not approved.`);
+      // Q-3: the file it was imported from reads back, with the product's rule, as the bill's lines.
+      const file = await lib.documentAttachment.findFirst({ where: { bqVersionId: bill.id, purpose: "BQ_IMPORT_SOURCE", detachedAt: null }, select: { version: { select: { sha256: true } } } });
+      const blob = file ? await lib.blobContent.findFirst({ where: { sha256: file.version.sha256 } }) : null;
+      const same = (x: unknown) => JSON.stringify(x, (_k, v) => (typeof v === "bigint" ? v.toString() : v));
+      const parsed = blob ? parseBqCsv(Buffer.from(blob.bytes).toString("utf8")) : null;
+      if (!parsed || parsed.faults.some((f) => f.level === "block") || same(parsed.sections.flatMap((x) => x.items)) !== same(repo.linesOf(bill))) {
+        throw new Error("Demo sx15's imported file does not read back as its bill's lines.");
+      }
+    }
+    if (exerciseId === `${P}sx5`) {
+      // FR-EST-004: each schedule-priced line is what the issue in force on its pricing day gave.
+      const issues = await repo.loadRateIssues(org.id);
+      for (const v of versions) for (const sec of v.sections) for (const it of sec.items.filter((i) => i.rateSource === "SCHEDULE")) {
+        const p = priceFromSchedule(issues, it.scheduleLabelSnapshot ?? "", it.rateItemCode ?? "", PRICED_ON);
+        if (!p.ok || p.priced.rateScheduleId !== it.rateScheduleId || p.priced.rate !== parseSen(it.rate!.toString())) throw new Error(`Demo line ${it.id} is not what its schedule gave on ${PRICED_ON}.`);
       }
     }
     if (exerciseId === `${P}sx5`) {
@@ -382,6 +475,12 @@ export async function wipeScope(db: Db, organisationId: string, exerciseIds: rea
   await db.bqVersion.deleteMany({ where: { id: { in: versionIds } } });
   if (ids.length) await db.auditEntry.deleteMany({ where: { organisationId, entityId: { in: ids } } });
 
+  // Increment 2: the demo's schedules of rates (lines priced from them went with their bills).
+  const rateIds = (await db.rateSchedule.findMany({ where: { organisationId, id: demoRef }, select: { id: true, items: { select: { id: true } } } })).flatMap((r) => [r.id, ...r.items.map((i) => i.id)]);
+  await db.rateScheduleItem.deleteMany({ where: { scheduleId: demoRef } });
+  await db.rateSchedule.deleteMany({ where: { id: demoRef } });
+  if (rateIds.length) await db.auditEntry.deleteMany({ where: { organisationId, entityId: { in: rateIds } } });
+
   // Configuration the demo created.
   const holdings = await db.personQualification.findMany({ where: { organisationId, OR: [{ id: demoRef }, { personId: demoRef }] }, select: { id: true } });
   await db.personQualification.deleteMany({ where: { id: { in: holdings.map((h) => h.id) } } });
@@ -413,4 +512,69 @@ export async function wipeScope(db: Db, organisationId: string, exerciseIds: rea
 /// Holdings recorded through the screens for demo people (not demo data): listed by the wipe, removed with --remove-dependents.
 export async function screenHoldingsOnDemo(db: Db, organisationId: string) {
   return db.personQualification.findMany({ where: { organisationId, NOT: { id: demoRef }, personId: demoRef }, select: { id: true, person: { select: { name: true } }, qualificationCode: true } });
+}
+
+// ------------------------------------------------------------------ increment 2: the scope matter (X-4)
+
+/**
+ * demo_sx15's finalised bill (version 1, finalised 26 September) tabled for scope approval as
+ * SCOPE matter demo_d40 at the Technical Committee's sitting demo_mt11 (X-4), carried. Tabled
+ * on 28 September by the Secretariat's holder, decided at the sitting on 30 September and
+ * minuted on 1 October, the load day (X-10 a). The committee's quorum, voting rule and seats are
+ * set with it, in demo.ts. Its History is written by the sitting trail, as tableScope and the
+ * sitting acts write it. Returns the sitting, for the trail and the register snapshot.
+ */
+export async function loadScopeSitting(db: Db): Promise<string[]> {
+  const mt = `${P}mt11`;
+  await db.meeting.create({
+    data: {
+      id: mt, committeeId: `${P}c4`, reference: "DEMO/TC/1/2026", meetingDate: day("2026-09-30"), status: "MINUTED", minutedAt: day("2026-10-01"),
+      agenda: "Scope of the FRP tank repair by its manufacturer (DEMO/SX/0015/2026).",
+      minutes: "The Committee examined the manufacturer's scope of repair and its bill of quantities, version 1, and recommended the scope as tabled.",
+    },
+  });
+  await db.meetingAttendance.createMany({
+    data: [
+      { id: `${P}at40`, meetingId: mt, personId: `${P}p1`, attended: true },
+      { id: `${P}at41`, meetingId: mt, personId: `${P}p2`, attended: true },
+      { id: `${P}at42`, meetingId: mt, personId: `${P}p3`, attended: true },
+    ],
+  });
+  await db.committeeDecision.create({
+    data: {
+      id: `${P}d40`, meetingId: mt, sequence: 1, domain: "scope_approval", matterKind: "SCOPE", matterRef: "DEMO/SX/0015/2026", bqVersionId: `${P}bqv4`,
+      subject: "Scope of DEMO/SX/0015/2026: bill of quantities, version 1", act: "R", tabledByPersonId: `${P}p3`, tabledAt: day("2026-09-28"),
+      outcome: "CARRIED", decisionDate: day("2026-09-30"), quorumRequired: 2, presentVoters: 2, recusedCount: 0, votingRule: "SIMPLE_MAJORITY", votingRuleProvenance: "ASSUMED",
+    },
+  });
+  await db.vote.createMany({
+    data: [
+      { id: `${P}v40`, decisionId: `${P}d40`, personId: `${P}p1`, choice: "SETUJU", votedAt: day("2026-09-30"), recordedAt: day("2026-09-30") },
+      { id: `${P}v41`, decisionId: `${P}d40`, personId: `${P}p2`, choice: "SETUJU", votedAt: day("2026-09-30"), recordedAt: day("2026-09-30") },
+    ],
+  });
+  return [mt];
+}
+
+/**
+ * What the wipe would leave pointing at the demo's increment-2 rows, judged before anything
+ * is removed. Hard: a bill line not on the demo's side priced from a demo schedule (its
+ * snapshot keeps the issue by key, and no line is rewritten by a wipe). Soft: a committee
+ * matter not on the demo's side that names a demo bill version (its link would be cleared).
+ */
+export async function scopeWipeDependents(db: Db, exerciseIds: readonly string[], screenDecisionIds: readonly string[]) {
+  const onDemoSide = { OR: [{ exerciseId: demoRef }, { exerciseId: { in: [...exerciseIds] } }] };
+  const lines = await db.bqItem.findMany({ where: { rateScheduleId: demoRef, NOT: { section: { version: onDemoSide } } }, select: { itemRef: true, description: true, section: { select: { version: { select: { versionNo: true, exercise: { select: { reference: true } } } } } } } });
+  const matters = await db.committeeDecision.findMany({ where: { NOT: [{ id: demoRef }, { id: { in: [...screenDecisionIds] } }, { meetingId: demoRef }], bqVersion: onDemoSide }, select: { subject: true } });
+  return {
+    hard: lines.map((l) => `  bill line ${l.itemRef || l.description} of ${l.section.version.exercise.reference}, version ${l.section.version.versionNo}, priced from a demo schedule of rates`),
+    soft: matters.map((m) => `  committee matter ${m.subject} (link to a demo bill of quantities)`),
+  };
+}
+
+/// The bill sx15's version 1 was imported from (Q-3): the specialist's priced CSV, built by the
+/// product's own export from the same lines, so the file and the bill agree to the sen.
+export async function sx15BillCsv(): Promise<string> {
+  const { bqToCsv } = await import("../src/lib/scope/csv");
+  return bqToCsv({ versionNo: 1, sections: SX15_SECTIONS.map((s) => ({ number: s.number, title: s.title, items: s.items.map(line) })) }, { priced: true });
 }

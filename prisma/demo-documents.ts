@@ -30,6 +30,8 @@ import { PURPOSE_LABEL } from "../src/lib/documents/labels";
 import { documentWipePlan, type DocumentWipePlan, type PlanDocument, type PlanLine } from "../src/lib/documents/demo-wipe-plan";
 import type { AttachmentPurpose, SecurityClass } from "../src/lib/documents/types";
 import { initialsLogo } from "../src/lib/organisation/png";
+import { bqImportAudit } from "../src/lib/scope/audit-view";
+import { sx15BillCsv } from "./demo-scope";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -38,7 +40,9 @@ const at = (iso: string) => new Date(`${iso}:00.000Z`);
 const sha = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
 
 export const DEMO_POLICY_ID = `${P}docpolicy`;
-const DEMO_POLICY = { allowedMediaTypes: ["application/pdf", "image/png", "image/jpeg"], maxBytes: 20n * 1024n * 1024n };
+const DEMO_POLICY = { allowedMediaTypes: ["application/pdf", "image/png", "image/jpeg", "text/csv"], maxBytes: 20n * 1024n * 1024n };
+/// Every set of upload rules a demo load has written, so a wipe after an upgrade still knows its own.
+const DEMO_POLICY_HISTORY = [DEMO_POLICY, { allowedMediaTypes: ["application/pdf", "image/png", "image/jpeg"], maxBytes: 20n * 1024n * 1024n }];
 
 // ------------------------------------------------------------------ the bytes
 
@@ -98,14 +102,14 @@ interface DemoDoc {
   classification: SecurityClass | null;
   createdAt: string;
   versions: DemoVersion[];
-  attachments: { id: string; purpose: AttachmentPurpose; owner: { meetingId?: string; exerciseId?: string; awardId?: string; delegationId?: string; specificationPanelId?: string }; ownerLabel: string; versionId: string; at: string; detached?: { at: string; reason: string; replacedBy?: string } }[];
+  attachments: { id: string; purpose: AttachmentPurpose; owner: { meetingId?: string; exerciseId?: string; awardId?: string; delegationId?: string; specificationPanelId?: string; bqVersionId?: string }; ownerLabel: string; versionId: string; at: string; detached?: { at: string; reason: string; replacedBy?: string } }[];
   hold?: { id: string; reason: string; at: string; personId: string; personName: string };
 }
 
 export async function loadDocuments(db: Db, organisationId: string) {
   // Upload rules, only where the organisation has none of its own (OD-3: demo values ASSUMED).
   if (!(await db.documentStorePolicy.findUnique({ where: { organisationId } }))) {
-    await db.documentStorePolicy.create({ data: { id: DEMO_POLICY_ID, organisationId, ...DEMO_POLICY, provenance: "ASSUMED", notes: "Demo upload rules: PDF, PNG and JPEG up to 20 MB. Invented, not a recommendation." } });
+    await db.documentStorePolicy.create({ data: { id: DEMO_POLICY_ID, organisationId, ...DEMO_POLICY, provenance: "ASSUMED", notes: "Demo upload rules: PDF, PNG, JPEG and CSV up to 20 MB. Invented, not a recommendation." } });
   }
 
   const recorder = { id: `${P}p3`, name: "Chen Wei Ling" };
@@ -149,6 +153,12 @@ export async function loadDocuments(db: Db, organisationId: string) {
       versions: [{ id: `${P}doc${7 + i}v1`, n: 1, bytes: demoPdf([`Specification panel form (demo, SULIT) — DEMO/SX/${ref}/2026`, "Prepared, checked and approved for issue, signed on paper.", "Listed, never opened in the portal before sign-in."]), mediaType: "application/pdf", filename: `panel-form-${ref}.pdf`, receivedOn: i === 0 ? "2026-09-14" : "2026-09-22", storedAt: i === 0 ? "2026-09-14T15:30" : "2026-09-22T15:30" }],
       attachments: [{ id: `${P}doc${7 + i}a1`, purpose: "SPEC_PANEL_FORM" as const, owner: { specificationPanelId: `${P}spp${i === 0 ? 1 : 5}` }, ownerLabel: `DEMO/SX/${ref}/2026 · Specification panel`, versionId: `${P}doc${7 + i}v1`, at: i === 0 ? "2026-09-14T15:35" : "2026-09-22T15:35" }],
     })),
+    // 6.2 Q-3: the bill sx15's version 1 was imported from, kept as received (INTERNAL, the officer's choice).
+    {
+      id: `${P}doc9`, title: "Bill of quantities from the tank's manufacturer, DEMO/SX/0015/2026", ...internal, createdAt: "2026-09-25T09:30",
+      versions: [{ id: `${P}doc9v1`, n: 1, bytes: Buffer.from(await sx15BillCsv(), "utf8"), mediaType: "text/csv", filename: "frp-tank-repair-bill.csv", receivedOn: "2026-09-24", storedAt: "2026-09-25T09:30" }],
+      attachments: [{ id: `${P}doc9a1`, purpose: "BQ_IMPORT_SOURCE", owner: { bqVersionId: `${P}bqv4` }, ownerLabel: "DEMO/SX/0015/2026 · Bill of quantities v1", versionId: `${P}doc9v1`, at: "2026-09-25T09:35" }],
+    },
     {
       id: `${P}doc6`, title: "Contractor's covering letter", classId: `${P}dc3`, className: "Correspondence", classification: null, createdAt: "2026-09-29T10:30",
       versions: [{ id: `${P}doc6v1`, n: 1, bytes: demoPdf(["Contractor's covering letter (demo)", "Received, not yet filed against any record."]), mediaType: "application/pdf", filename: "covering-letter.pdf", receivedOn: "2026-09-29", storedAt: "2026-09-29T10:30" }],
@@ -211,6 +221,15 @@ export async function loadDocuments(db: Db, organisationId: string) {
       await db.legalHold.create({ data: { id: d.hold.id, organisationId, documentId: d.id, reason: d.hold.reason, placedByPersonId: d.hold.personId, placedAt: at(d.hold.at) } });
       entry("LegalHold", d.hold.id, `Document · ${d.title} · legal hold`, "CREATE", d.hold.at, holdPlaced({ reason: d.hold.reason, placedBy: d.hold.personName }), d.hold.reason);
     }
+  }
+  // The import that attached doc9 also recorded what it added on the bill (importBqCsv).
+  {
+    const d = docs.find((x) => x.id === `${P}doc9`)!;
+    const v = d.versions[0];
+    const { parseBqCsv } = await import("../src/lib/scope/csv");
+    const parsed = parseBqCsv(v.bytes.toString("utf8"));
+    entry("BqVersion", `${P}bqv4`, "DEMO/SX/0015/2026 · Bill of quantities v1", "UPDATE", "2026-09-25T09:35",
+      bqImportAudit({ file: v.filename, documentTitle: d.title, versionNo: 1, sha256: sha(v.bytes), sections: parsed.sections.length, lines: parsed.lineCount, replacedLines: 0, mismatches: parsed.keyedMismatches.length, priced: parsed.priced }));
   }
   await db.auditEntry.createMany({ data: audit as never });
 
@@ -379,7 +398,8 @@ export async function wipeDocuments(db: Db, organisationId: string, plan: Docume
 
   const policy = await db.documentStorePolicy.findUnique({ where: { id: DEMO_POLICY_ID } });
   if (policy) {
-    const unchanged = policy.maxBytes === DEMO_POLICY.maxBytes && policy.allowedMediaTypes.join(",") === DEMO_POLICY.allowedMediaTypes.join(",");
+    // The demo's values as loaded now, or as an earlier build loaded them (before 6.2 added CSV).
+    const unchanged = DEMO_POLICY_HISTORY.some((d) => policy.maxBytes === d.maxBytes && policy.allowedMediaTypes.join(",") === d.allowedMediaTypes.join(","));
     if (unchanged) await db.documentStorePolicy.delete({ where: { id: DEMO_POLICY_ID } });
     else {
       const kept = `policy_${Date.now().toString(36)}`;

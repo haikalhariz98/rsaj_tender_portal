@@ -5,7 +5,7 @@ import { PrismaClient } from "../src/generated/prisma/client";
 
 import { checkAwards, loadAwards, loadAwardSetup, reportAwardRefusal, wipeAwards } from "./demo-award";
 import { loadDocuments, planDocumentWipe, reportDocumentRefusal, wipeDocuments } from "./demo-documents";
-import { checkScope, loadScope, loadScopeExercises, SCOPE_ENTITIES, screenHoldingsOnDemo, wipeScope } from "./demo-scope";
+import { checkScope, loadScope, loadScopeExercises, loadScopeSitting, SCOPE_ENTITIES, scopeWipeDependents, screenHoldingsOnDemo, wipeScope } from "./demo-scope";
 import { loadSittingTrail } from "./demo-sitting-trail";
 import { removedWithDemo } from "../src/lib/documents/demo-wipe-plan";
 import { inspectLogo } from "../src/lib/organisation/logo";
@@ -270,6 +270,8 @@ async function wipe() {
   });
   const orphanRoutes = hangingInstances.filter((i) => i.requisitionId == null && (i.exerciseId == null || !hangingExerciseIds.includes(i.exerciseId)));
 
+  // 6.2 increment 2: bill lines priced from a demo schedule (refused outright) and matters naming a demo bill.
+  const scopeDependents = await scopeWipeDependents(db, hangingExerciseIds, screenDecisionIds);
   const lines = [
     ...hanging.map((r) => `  requisition ${r.reference} · ${r.title}`),
     ...hangingExercises.map((x) => `  sourcing exercise ${x.reference} · ${x.title}`),
@@ -278,6 +280,7 @@ async function wipe() {
     ...screenSittings.map((m) => `  committee sitting ${m.reference} on the demo ${m.committee.nameEn}, with its attendance, matters and votes`),
     ...screenDelegations.map((d) => `  delegation from ${d.fromPerson.name} to ${d.toPerson.name}, which names a demo person`),
     ...screenHoldings.map((h) => `  qualification held by ${h.person.name}, a demo person`),
+    ...scopeDependents.soft,
   ];
 
   // 6.11: awards on demo exercises or on the exercises above, and awards that are not demo
@@ -300,9 +303,12 @@ async function wipe() {
       ].join("\n"),
     );
   }
+  if (scopeDependents.hard.length) {
+    console.error(["Refused whatever the flag: these bill lines are not demo data and were priced from a demo schedule of rates, which keeps their price's source; no wipe rewrites a bill line:", ...scopeDependents.hard, "Nothing was removed. Re-enter or re-price those lines first."].join("\n"));
+  }
   const documentsRefused = reportDocumentRefusal(documentPlan);
   const awardsRefused = reportAwardRefusal(awardCheck);
-  if (requisitionsRefused || documentsRefused || awardsRefused) {
+  if (requisitionsRefused || documentsRefused || awardsRefused || scopeDependents.hard.length) {
     process.exitCode = 1;
     return;
   }
@@ -1124,6 +1130,10 @@ async function load() {
   await snapshotMinuted(minuted);
   // 6.2: bills, panels and estimates, before the documents that attach to the panels.
   await loadScope(db, organisationId);
+  // 6.2 increment 2 (X-4): sx15's scope matter at the Technical Committee, with its trail and register.
+  const scopeSittings = await loadScopeSitting(db);
+  await loadSittingTrail(db, organisationId, scopeSittings);
+  await snapshotMinuted(scopeSittings);
   // Documents last: they attach to sittings, exercises, awards, delegations and panels.
   await loadDocuments(db, organisationId);
   // X-10 c: every 6.2 row passes the checks of its act, judged once the scans are attached.
@@ -1539,7 +1549,17 @@ async function loadMethodSelection(organisationId: string, from: Date) {
       id: `${P}c4`, organisationId, code: "TECH_CTTE", nameEn: "Technical Committee", nameMs: "Jawatankuasa Teknikal",
       mandate: "Considers specialist and sole-source scopes.", governingSource: "Demo constitution cl. 6", action: "RECOMMENDS",
       compositionProvenance: "ASSUMED", secretariatRoleCode: "HOD_CP",
+      // 6.2 increment 2 (X-4): the committee sits on demo_sx15's scope (demo_mt11), so its
+      // quorum, voting rule and seats are set, all assumed.
+      quorum: 2, quorumProvenance: "ASSUMED", votingRule: "SIMPLE_MAJORITY", votingRuleProvenance: "ASSUMED",
     },
+  });
+  await db.committeeMember.createMany({
+    data: [
+      { id: `${P}m40`, committeeId: `${P}c4`, seatRoleCode: "CEO", position: "CHAIRMAN", provenance: "ASSUMED", effectiveFrom: day("2024-01-01") },
+      { id: `${P}m41`, committeeId: `${P}c4`, seatRoleCode: "FD", position: "MEMBER", provenance: "ASSUMED", effectiveFrom: day("2024-01-01") },
+      { id: `${P}m42`, committeeId: `${P}c4`, personId: `${P}p3`, position: "SECRETARY", provenance: "ASSUMED", effectiveFrom: day("2024-01-01") },
+    ],
   });
 
   // The method family on the demo issue. Every edge at RM300,000 follows the switch.
@@ -2103,7 +2123,7 @@ async function loadCloseout(organisationId: string) {
   await db.requisitionGate.createMany({
     data: [
       gate("rg25a", 25, "CAPWORKS_CTTE", "Capital Works Committee", "Capital works scrutiny", "gr1", null, "2026-09-25"),
-      // Above RM250,000 the Technical Committee too, which has no quorum or voting rule set.
+      // Above RM250,000 the Technical Committee too; nothing is tabled against this gate yet.
       gate("rg25b", 25, "TECH_CTTE", "Technical Committee", "Technical review", "gr2", "250000.00", "2026-09-25"),
       gate("rg26", 26, "CAPWORKS_CTTE", "Capital Works Committee", "Capital works scrutiny", "gr1", null, "2026-06-26"),
       gate("rg27", 27, "CAPWORKS_CTTE", "Capital Works Committee", "Capital works scrutiny", "gr1", null, "2026-08-12"),
