@@ -60,7 +60,7 @@ export default async function SourcingPage() {
     <>
       <PageHeader
         title="Sourcing"
-        subtitle="Exercises opened against approved requisitions: their value bands, method, contract type and basis."
+        subtitle="Exercises opened on approved requisitions: value band, method, contract type and basis."
         meta={[
           `${rows.filter((r) => r.status === "DRAFT").length} drafts`,
           `${rows.filter((r) => r.status === "DOCUMENTS_IN_PREPARATION").length} in preparation`,

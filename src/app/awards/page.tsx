@@ -71,7 +71,7 @@ export default async function AwardsPage() {
     <>
       <PageHeader
         title="Awards"
-        subtitle="Awards of exercises in preparation: their approval, the instrument, what came back, and the securities on their contracts."
+        subtitle="Awards from exercises: approval, the instrument issued, what came back, and securities."
         meta={[`${counts.pending} awaiting approval`, `${counts.ready} approved, not issued`, `${counts.awaitingReturn} awaiting return`, plural(counts.expired, "indent expired", "indents expired")]}
       />
       <Callout tone="info" className="mb-6" title="Opened from the exercise">

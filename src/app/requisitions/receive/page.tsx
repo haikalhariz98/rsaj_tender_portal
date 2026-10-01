@@ -20,7 +20,7 @@ export default async function ReceiveRequisitionPage() {
       <PageHeader
         eyebrow={<Link href="/requisitions">Requisitions</Link>}
         title="Receive from finance system"
-        subtitle="A requisition already approved in the finance system, recorded here so everything downstream can link to it."
+        subtitle="A requisition approved in the finance system, recorded here so later work can link to it."
       />
       {!org || !options ? (
         <Card>

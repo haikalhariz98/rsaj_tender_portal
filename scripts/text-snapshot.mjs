@@ -34,6 +34,18 @@ const ROUTES = [
   "/configuration/numbering",
   "/configuration/reference-data",
   "/configuration/templates",
+  "/requisitions",
+  "/requisitions/new",
+  "/requisitions/receive",
+  "/sourcing/new",
+  "/awards",
+  "/awards/new",
+  "/approvals",
+  "/securities",
+  "/committees",
+  "/configuration/requisitions",
+  "/configuration/awards",
+  "/configuration/audit",
   ...["people", "roles", "permissions", "delegation"].map((t) => `/configuration/users?tab=${t}`),
   ...["codes", "periods", "allocations", "availability", "controls", "finance"].map(
     (t) => `/configuration/budget?tab=${t}`,
@@ -60,6 +72,17 @@ function lines(html) {
     }
   });
   return outLines.join("\n") + "\n";
+}
+
+// One record from each list (and its edit screen), found by following the first link.
+for (const [list, re] of [
+  ["/requisitions", /href="(\/requisitions\/(?!new|receive)[0-9A-Za-z_-]{4,})"/],
+  ["/sourcing", /href="(\/sourcing\/[0-9A-Za-z_-]{4,})"/],
+  ["/awards", /href="(\/awards\/[0-9A-Za-z_-]{4,})"/],
+  ["/committees", /href="(\/committees\/[0-9A-Za-z_-]{4,})"/],
+]) {
+  const hit = re.exec(await (await fetch(base + list)).text());
+  if (hit) ROUTES.push(hit[1], ...(list === "/awards" || list === "/committees" ? [] : [`${hit[1]}/edit`]));
 }
 
 mkdirSync(out, { recursive: true });

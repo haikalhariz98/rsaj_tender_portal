@@ -1,6 +1,9 @@
 import { useId, type ReactNode } from "react";
 
+import { cutAtWord } from "@/lib/ui/cut-text";
+
 import { cx } from "./cx";
+import { MoreText } from "./more-text";
 
 /// The head of every screen: a large friendly title, a sentence under it, an
 /// optional row of facts, and the screen's actions on the right.
@@ -61,7 +64,11 @@ export function PageHeader({
           </h1>
           {badge}
         </div>
-        {subtitle && <p className="mt-1.5 max-w-[70ch] text-[15px] text-ink-2">{subtitle}</p>}
+        {subtitle && (
+          <p className="relative mt-1.5 max-w-[70ch] text-[15px] text-ink-2">
+            <Subtitle>{subtitle}</Subtitle>
+          </p>
+        )}
         {facts.length > 0 && (
           // Each fact carries its separator in a left gutter; the row is shifted left by
           // that gutter and clipped sideways only, so a fact starting a wrapped line shows
@@ -97,6 +104,22 @@ export function PageHeader({
         </div>
       )}
     </header>
+  );
+}
+
+/// A string subtitle past SUBTITLE_LIMIT is cut on a word boundary, with an information
+/// button for the rest. The full text stays in the page for screen readers and text
+/// snapshots; the visible cut is hidden from them, so it is heard once. JSX subtitles are
+/// never cut: a cut through a link is unsafe.
+function Subtitle({ children }: { children: ReactNode }) {
+  if (typeof children !== "string") return <>{children}</>;
+  const { text, cut } = cutAtWord(children);
+  if (!cut) return <>{children}</>;
+  return (
+    <>
+      <span className="sr-only">{children}</span>
+      <span aria-hidden="true">{text}…</span> <MoreText text={children} />
+    </>
   );
 }
 

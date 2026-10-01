@@ -47,7 +47,7 @@ export default async function ApprovalsPage() {
     <>
       <PageHeader
         title="Awaiting decision"
-        subtitle="Every open approval's next step, under the office that decides it: requisitions, approvals of the name and appointments."
+        subtitle="Every open approval's next step, grouped by the office that decides it."
         meta={[`${all.length} ${all.length === 1 ? "step" : "steps"} waiting`, `${w?.groups.length ?? 0} ${w?.groups.length === 1 ? "office" : "offices"}`, `${escalated} escalated`, `${nobody} with nobody able to act`]}
       />
       <Callout tone="info" className="mb-6" title="The office's list, not yours">

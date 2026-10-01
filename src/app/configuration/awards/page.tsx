@@ -105,7 +105,7 @@ export default async function AwardControlsPage() {
       <PageHeader
         title="Award controls"
         badge={unset > 0 ? <Badge tone="warn" dot>{`${unset} not set`}</Badge> : <Badge tone="ok" dot>All set</Badge>}
-        subtitle="Which instrument awards each band, the templates it is generated from, who receives copies, the appointment-letter variants, and what the securities register checks against."
+        subtitle="Instruments by band, their templates, who receives copies, and the letter variants."
         meta={[
           <span key="p" className="inline-flex items-center gap-1.5">
             Where these controls come from <ProvenanceBadge value={p.provenance} />

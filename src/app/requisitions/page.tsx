@@ -58,7 +58,7 @@ export default async function RequisitionsPage() {
     <>
       <PageHeader
         title="Requisitions"
-        subtitle="Requests to spend: raised and endorsed here, or received from the finance system, checked against the budget and routed for approval."
+        subtitle="Requests to spend, raised here or received from finance, checked and routed for approval."
         meta={[
           `${counts.open} open`,
           `${counts.pending} pending approval`,

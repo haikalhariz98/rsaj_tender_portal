@@ -19,7 +19,7 @@ export default async function NewRequisitionPage() {
       <PageHeader
         eyebrow={<Link href="/requisitions">Requisitions</Link>}
         title="New requisition"
-        subtitle="Saved as a draft with its own reference. It is endorsed, registered, budget-checked and submitted from its record."
+        subtitle="Saved as a draft with its own reference; endorse, check and submit it from its record."
       />
       {!org || !options ? (
         <Card>

@@ -41,7 +41,7 @@ export default async function AuditTrailPage() {
     <>
       <PageHeader
         title="Audit trail"
-        subtitle="Every change, with what it was before and after, recorded in the same transaction as the change itself."
+        subtitle="Every change, its before and after, recorded in the same act as the change."
         meta={[`${count} ${count === 1 ? "entry" : "entries"}`, first ? `since ${formatOrgDay(first.at, org.timeZone)}` : "nothing recorded yet", `${exports.length} ${exports.length === 1 ? "export" : "exports"}`]}
       />
       <div className="flex flex-col gap-6">

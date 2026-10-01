@@ -24,7 +24,7 @@ export default async function EditExercisePage(props: PageProps<"/sourcing/[id]/
   const header = (
     <>
       <RecordCrumb label={ex.reference} />
-      <PageHeader eyebrow={<Link href="/sourcing">Sourcing</Link>} title={`Edit ${ex.title}`} subtitle={<>A draft&apos;s value, method, scope, contract type and basis — <Link href={`/sourcing/${ex.id}`}>{ex.reference}</Link>. The bands are judged again on save.</>} />
+      <PageHeader eyebrow={<Link href={`/sourcing/${ex.id}`}>{ex.reference}</Link>} title={`Edit ${ex.title}`} subtitle="A draft's value, method, scope, contract type and basis; bands are judged again on save." />
     </>
   );
   if (ex.status !== "DRAFT") {

@@ -312,10 +312,11 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
         }
         subtitle={
           <>
-            <span className="font-mono text-[12.5px]">{award.reference}</span> · for <Link href={`/sourcing/${ex.id}?tab=award`}>{ex.reference}</Link>, {ex.title}
+            <span className="font-mono text-[12.5px]">{award.reference}</span> · for <Link href={`/sourcing/${ex.id}?tab=award`}>{ex.reference}</Link>
           </>
         }
         meta={[
+          ex.title,
           <span key="v" className="tabular-nums">{money(award.awardedValue)}</span>,
           INSTRUMENT_SHORT[kind],
           // Who signs: named once it is signed, the office until then; a cancelled award states neither.

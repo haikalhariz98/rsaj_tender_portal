@@ -88,7 +88,7 @@ export default async function RequisitionControlsPage() {
       <PageHeader
         title="Requisition controls"
         badge={unset > 0 ? <Badge tone="warn" dot>{`${unset} not set`}</Badge> : <Badge tone="ok" dot>All set</Badge>}
-        subtitle="Whose endorsement a requisition needs, when it registers, where its budget check comes from, and how a split is caught."
+        subtitle="Endorsements, registration, where the budget check comes from, and how a split is caught."
         meta={[
           <span key="p" className="inline-flex items-center gap-1.5">
             Where these controls come from <ProvenanceBadge value={policy.provenance} />
