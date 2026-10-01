@@ -76,7 +76,7 @@ export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }
     omit: p.actions.omit,
     reopen: p.actions.reopen,
     pickTemplate: p.actions.pickTemplate,
-    templateId: "",
+    templateId: p.actions.pickTemplate.allowed ? p.actions.pickTemplate.current : "",
   }));
   // A draft has no pack kind yet: it is recorded when the exercise moves into preparation.
   const notDecided = d.exercise.status === "Draft" && !d.pack;

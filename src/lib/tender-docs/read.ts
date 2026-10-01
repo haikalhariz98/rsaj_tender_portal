@@ -50,6 +50,7 @@ import {
   yesNoNotSet,
 } from "./labels";
 import { blockingOf, isLivePack, markReadyFaults, omitFaults, packEditFault, startPackFaults, submitFaults, nextPack } from "./pack";
+import { pickTemplateView } from "./part-view";
 import { formatPct } from "./percent";
 import { appendixFactsOf, loadConfiguredParts, loadPacks, loadTemplates, loadTenderPolicy, partFactsOf, pinnedFilesOf, profileOf, scopeReadiness, type PackRow } from "./repo";
 import { tenderingRouteForRequester, timeIn } from "./tendering";
@@ -237,10 +238,7 @@ function packView(p: PackRow, c: NonNullable<Awaited<ReturnType<typeof context>>
           markReady: judged(markReadyFaults(facts, p.status, c.ex.status, content)),
           omit: judged(omitFaults(facts, p.status, c.ex.status, "reason given")),
           reopen: editable ? (row.state === "NOT_STARTED" ? { allowed: false as const, reason: "This part is not marked ready or omitted." } : { allowed: true as const }) : judged([packEditFault(p.status, c.ex.status)!]),
-          pickTemplate:
-            row.source === "TEMPLATE" && row.content !== "BESPOKE" && editable
-              ? { allowed: true as const, options: c.templates.map((t) => ({ value: t.id, label: `${t.nameEn} (text version ${t.bodyVersion})` })) }
-              : { allowed: false as const, reason: row.source !== "TEMPLATE" ? "This part does not draw a library template." : row.content === "BESPOKE" ? partFaultText({ code: "BESPOKE_FROM_LIBRARY", level: "block", data: { part: `${row.printedNumber}. ${row.labelSnapshot}` } }) : partFaultText(packEditFault(p.status, c.ex.status)!) },
+          pickTemplate: pickTemplateView({ source: row.source, content: row.content, templateId: row.templateId, printedNumber: row.printedNumber, label: row.labelSnapshot }, c.templates, editable ? null : packEditFault(p.status, c.ex.status)),
         },
         frozen: frozenEntry
           ? {
