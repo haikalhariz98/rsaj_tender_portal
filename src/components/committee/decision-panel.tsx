@@ -7,7 +7,7 @@ import { useId, useState, useTransition, type ReactNode } from "react";
 
 import { ActWithLabel } from "@/components/ui/act";
 import { Avatar } from "@/components/ui/avatar";
-import { Badge, Chip } from "@/components/ui/badge";
+import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardBody } from "@/components/ui/card";
 import { cx } from "@/components/ui/cx";
@@ -126,7 +126,9 @@ export function DecisionPanel({
           {matter.subject}
         </span>
         {matter.amount != null && (
-          <span className="text-[13.5px] font-semibold text-ink tabular-nums">{formatRM(matter.amount)}</span>
+          // A requisition's gate matter is pre-filled from its estimated value, which is SULIT; an amount
+          // on any matter is shown the same way, since the sitting cannot tell them apart.
+          <span className="text-[13.5px] font-semibold text-ink"><SulitValue>{formatRM(matter.amount)}</SulitValue></span>
         )}
         <Badge tone={OUTCOME_TONE[matter.outcome]} dot>
           {matter.outcomeLabel}

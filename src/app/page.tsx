@@ -188,7 +188,7 @@ export default async function Dashboard() {
               columns={[
                 { key: "item", label: "Item", sortable: true, mobile: "primary" },
                 { key: "type", label: "Type", width: "140px", sortable: true, hideBelow: "lg", mobile: "meta" },
-                { key: "value", label: "Value", width: "132px", numeric: true, sortable: true, mobile: "meta" },
+                { key: "value", label: "Value", width: "132px", numeric: true, sortable: true, sulit: true, mobile: "meta" },
                 { key: "waiting", label: "Waiting", width: "104px", numeric: true, sortable: true, mobile: "meta" },
                 { key: "with", label: "With", width: "190px", hideBelow: "md", mobile: "meta" },
               ]}
