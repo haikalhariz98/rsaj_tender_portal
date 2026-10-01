@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { attachFault, awardReliance, detachFault, reliedOn, ownerState, purposeFits, repinFault, type OwnerFacts } from "./attach";
+import { attachFault, awardReliance, detachFault, reliedOn, reliedOnAttachment, ownerState, purposeFits, repinFault, type OwnerFacts } from "./attach";
 import { documentFaultText } from "./labels";
 
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
@@ -133,5 +133,31 @@ describe("what is relied on is one rule for the act and the screen", () => {
     expect(reliedOn("HOLDER_RECOMMENDATION", { kind: "delegation", ended: false }, 2)).toBeNull();
     expect(reliedOn("SIGNED_MINUTES", minuted, 1)).toBeNull();
     expect(reliedOn("DOSSIER_EVIDENCE", exercise(), 1)).toBeNull();
+  });
+});
+
+describe("only a live attachment is relied on (review carry 5)", () => {
+  const W = new Date("2026-09-30T00:00:00.000Z");
+  const accepted = award({ status: "ACCEPTED" });
+  const recommendation: OwnerFacts = { kind: "delegation", ended: false };
+  it("a live last scan of an accepted award, and a live last recommendation, are relied on", () => {
+    expect(reliedOnAttachment({ detachedAt: null, version: { withdrawnAt: null } }, () => reliedOn("DECLARATION", accepted, 1))).toBe("ACCEPTED_ON_IT");
+    expect(reliedOnAttachment({ detachedAt: null, version: { withdrawnAt: null } }, () => reliedOn("HOLDER_RECOMMENDATION", recommendation, 1))).toBe("GRANTED_ON_IT");
+  });
+  it("a pin whose version was withdrawn is not, though no live one remains (the count is 0)", () => {
+    expect(reliedOn("DECLARATION", accepted, 0)).toBe("ACCEPTED_ON_IT"); // what the act asked before
+    expect(reliedOnAttachment({ detachedAt: null, version: { withdrawnAt: W } }, () => reliedOn("DECLARATION", accepted, 0))).toBeNull();
+    expect(reliedOnAttachment({ detachedAt: null, version: { withdrawnAt: W } }, () => reliedOn("HOLDER_RECOMMENDATION", recommendation, 0))).toBeNull();
+  });
+  it("so detachFault lets the withdrawn pin come off with a reason, and still refuses the live last one", () => {
+    const withdrawn = reliedOnAttachment({ detachedAt: null, version: { withdrawnAt: W } }, () => reliedOn("DECLARATION", accepted, 0));
+    expect(detachFault({ purpose: "DECLARATION", owner: accepted, reason: "Version withdrawn; taking the pin off", reliedOn: withdrawn })).toEqual([]);
+    const live = reliedOnAttachment({ detachedAt: null, version: { withdrawnAt: null } }, () => reliedOn("DECLARATION", accepted, 1));
+    expect(codes(detachFault({ purpose: "DECLARATION", owner: accepted, reason: "Wrong page", reliedOn: live }))).toEqual(["RELIED_ON"]);
+  });
+  it("one already off is not relied on either, and the owner's rule is not asked", () => {
+    let asked = false;
+    expect(reliedOnAttachment({ detachedAt: W, version: { withdrawnAt: null } }, () => ((asked = true), "ACCEPTED_ON_IT"))).toBeNull();
+    expect(asked).toBe(false);
   });
 });

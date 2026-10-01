@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
 import { writeAudit, type Tx } from "@/lib/audit/record";
-import { attachFault, detachFault, repinFault } from "@/lib/documents/attach";
+import { attachFault, detachFault, reliedOnAttachment, repinFault } from "@/lib/documents/attach";
 import { attached, detached, filed, holdPlaced, holdReleased, reclassified, repinned, versionWithdrawn } from "@/lib/documents/audit-view";
 import { reclassifyFault, reclassifyKind } from "@/lib/documents/classification";
 import { holdFaults, releaseFaults } from "@/lib/documents/hold";
@@ -134,10 +134,11 @@ export async function detachDocument(_prev: FormState, data: FormData): Promise<
   const ref = await attachmentOwner(attachmentId);
   if (!ref) return GONE;
   return inOwner(ref, async (tx, o) => {
-    const a = await tx.documentAttachment.findFirst({ where: { id: attachmentId, organisationId: o.organisationId, [OWNER_COLUMN[ref.kind]]: ref.id }, include: { version: { select: { versionNo: true, document: { select: { title: true } } } } } });
+    const a = await tx.documentAttachment.findFirst({ where: { id: attachmentId, organisationId: o.organisationId, [OWNER_COLUMN[ref.kind]]: ref.id }, include: { version: { select: { versionNo: true, withdrawnAt: true, document: { select: { title: true } } } } } });
     if (!a) return GONE;
     const live = await tx.documentAttachment.count({ where: { [OWNER_COLUMN[ref.kind]]: ref.id, purpose: a.purpose, detachedAt: null, version: { withdrawnAt: null } } });
-    const faults = detachFault({ purpose: a.purpose, owner: o.facts, reason, reliedOn: a.detachedAt ? null : o.reliance(a.purpose, live), detachedAt: a.detachedAt });
+    // Only a live attachment can be relied on: a withdrawn pin always comes off.
+    const faults = detachFault({ purpose: a.purpose, owner: o.facts, reason, reliedOn: reliedOnAttachment(a, () => o.reliance(a.purpose, live)), detachedAt: a.detachedAt });
     if (faults.length) return refuse(faults);
     await tx.documentAttachment.update({ where: { id: a.id }, data: { detachedAt: new Date(), detachReason: reason } });
     await writeAudit(tx, { organisationId: o.organisationId, entity: "DocumentAttachment", entityId: a.id, entityLabel: `${o.label} · ${PURPOSE_LABEL[a.purpose]}`, reason }, "UPDATE",

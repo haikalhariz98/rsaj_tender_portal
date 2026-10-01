@@ -8,6 +8,7 @@
  * the way out (`exit`), because a state must always have one.
  */
 
+import { isLive } from "./evidence";
 import { PURPOSE_OWNER, type AttachmentPurpose, type Finding, type SecurityClass } from "./types";
 
 export type MeetingStatus = "SCHEDULED" | "IN_PROGRESS" | "MINUTED" | "CANCELLED";
@@ -158,6 +159,17 @@ export function reliedOn(purpose: AttachmentPurpose, owner: OwnerFacts, liveOfPu
   // replaced by a new version, never simply taken off.
   if (owner.kind === "delegation") return purpose === "HOLDER_RECOMMENDATION" ? "GRANTED_ON_IT" : null;
   return null;
+}
+
+/**
+ * Whether this attachment itself is relied on. Only a live one can be: a pin whose version
+ * was withdrawn, or one already off the record, is not what a judged record stands on
+ * now, so taking it off is never refused for reliance — even where it is the owner's
+ * only attachment of the purpose and `reliedOn` would count it as the last (review carry
+ * 5). `relied` is the owner's rule (`reliedOn`), asked only for a live attachment.
+ */
+export function reliedOnAttachment(a: { detachedAt: Date | null; version: { withdrawnAt: Date | null } }, relied: () => Reliance | null): Reliance | null {
+  return isLive(a) ? relied() : null;
 }
 
 /// Whether an award's acceptance relied on a scan of this purpose (OD-5).
