@@ -152,6 +152,22 @@ model Organisation {
   code      String   @unique
   name      String
   nameMs    String?
+  /// Identity details for reports, letters and the shell. All optional, none seeded:
+  /// the hints on the form are examples, never defaults. Formats are checked loosely
+  /// because the product is resold and a body may hold neither number.
+  shortName           String?
+  registrationNo      String?
+  taxIdentificationNo String?
+  sstRegistrationNo   String?
+  addressLine1        String?
+  addressLine2        String?
+  postcode            String?
+  city                String?
+  state               String?
+  country             String?
+  phone               String?
+  email               String?
+  website             String?
   /// The IANA time zone the organisation keeps its dates in (for example
   /// Asia/Kuala_Lumpur). Null means nobody has set one. It is not UTC: acts that
   /// depend on "today" (starting a sitting, tabling, voting) wait until it is set.
@@ -159,6 +175,7 @@ model Organisation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  logo            OrganisationLogo?
   roles           AuthorityRole[]
   matrices        AuthorityMatrix[]
   people          Person[]
@@ -1104,6 +1121,27 @@ model Delegation {
 /// here. `actorPersonId` is null while sign-in does not exist; `unattributed` says so
 /// explicitly, because a null that means "nobody was recorded" and a null that means
 /// "the record was lost" must not look alike on a screen.
+/// The organisation's logo, one row each. Kept out of the document store because that
+/// store serves attachments only and a logo must render inline. Only PNG, JPEG and WebP
+/// are accepted, decided by the file's own bytes and never by its name or declared type.
+model OrganisationLogo {
+  id             String       @id @default(cuid())
+  organisationId String       @unique
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  bytes     Bytes
+  /// image/png, image/jpeg or image/webp, as sniffed.
+  mediaType String
+  sizeBytes Int
+  /// Fingerprint of the bytes. A new upload is a new address, so nothing needs busting.
+  sha256    String
+  width     Int
+  height    Int
+  uploadedAt DateTime @default(now())
+
+  @@index([sha256])
+}
+
 model AuditEntry {
   id             String       @id @default(cuid())
   organisationId String
