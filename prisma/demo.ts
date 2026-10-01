@@ -369,6 +369,9 @@ async function wipe() {
   await db.authorityRule.deleteMany({ where: demo });
   // Terms bands on a demo issue belong to it, whoever added them.
   await db.termsBand.deleteMany({ where: { OR: [demo, { authorityMatrixId: demoRef }] } });
+  // So does its core routing: steps first, then the rows (FR-APR-004).
+  await db.coreRoutingStep.deleteMany({ where: { OR: [demo, { level: { authorityMatrixId: demoRef } }] } });
+  await db.coreRoutingLevel.deleteMany({ where: { OR: [demo, { authorityMatrixId: demoRef }] } });
   await db.authorityMatrix.deleteMany({ where: demo });
 
   await db.financeVariance.deleteMany({ where: demo });
@@ -1078,9 +1081,13 @@ async function loadRequisitions(organisationId: string, from: Date) {
   await db.authorityRule.createMany({
     data: [
       { id: `${P}rule5`, ...band, ruleKey: "demo.requisition.1", maxValue: "1000", labelEn: "Requisition, up to RM1,000", approverCode: "DEPT_HEAD", clause: "DEMO 3.1(a)", sortOrder: 5 },
-      { id: `${P}rule6`, ...band, ruleKey: "demo.requisition.2", minValue: "1000", maxValue: "40000", labelEn: "Requisition, RM1,000 to RM40,000", approverCode: "DIV_HEAD", clause: "DEMO 3.1(b)", sortOrder: 6 },
-      { id: `${P}rule7`, ...band, ruleKey: "demo.requisition.3", minValue: "40000", maxValue: "250000", labelEn: "Requisition, RM40,000 to RM250,000", proposerCode: "DEPT_HEAD", approverCode: "FD", clause: "DEMO 3.1(c)", sortOrder: 7 },
-      { id: `${P}rule8`, ...band, ruleKey: "demo.requisition.4", minValue: "250000", labelEn: "Requisition, above RM250,000", proposerCode: "DEPT_HEAD", approverCode: "CEO", clause: "DEMO 3.1(d)", sortOrder: 8 },
+      // .2 to .4 take their chains from the demo core routing below (FR-APR-004): .3 and
+      // .4 name no proposer of their own — the core routing puts the Head of Department
+      // first — and add only what they strengthen. .1 and the over-budget rule are left
+      // undecided, as an issue ships, and warn that their chain was not checked.
+      { id: `${P}rule6`, ...band, ruleKey: "demo.requisition.2", minValue: "1000", maxValue: "40000", labelEn: "Requisition, RM1,000 to RM40,000", approverCode: "DIV_HEAD", generateCoreChain: true, clause: "DEMO 3.1(b)", sortOrder: 6 },
+      { id: `${P}rule7`, ...band, ruleKey: "demo.requisition.3", minValue: "40000", maxValue: "250000", labelEn: "Requisition, RM40,000 to RM250,000", approverCode: "FD", generateCoreChain: true, clause: "DEMO 3.1(c)", sortOrder: 7 },
+      { id: `${P}rule8`, ...band, ruleKey: "demo.requisition.4", minValue: "250000", labelEn: "Requisition, above RM250,000", approverCode: "CEO", generateCoreChain: true, clause: "DEMO 3.1(d)", sortOrder: 8 },
       { id: `${P}rule9`, ...band, ruleKey: "demo.requisition.over_budget", cond: "over_budget", labelEn: "Requisition over budget", approverCode: "BOARD", committeeCode: "BOARD", committeeAct: "A", clause: "DEMO 3.2", sortOrder: 9 },
     ],
   });
@@ -1091,6 +1098,29 @@ async function loadRequisitions(organisationId: string, from: Date) {
       { id: `${P}st6`, authorityRuleId: `${P}rule8`, roleCode: "DIV_HEAD", act: "R", sequence: 1 },
       { id: `${P}st7`, authorityRuleId: `${P}rule8`, roleCode: "FD", act: "MR", sequence: 2 },
       { id: `${P}st8`, authorityRuleId: `${P}rule9`, roleCode: "CEO", act: "MR", sequence: 1 },
+    ],
+  });
+  // The demo issue's core routing: invented, ASSUMED, the chain beneath each approving
+  // office. The flagged requisition rules generate exactly the chains the demo routes
+  // below were opened with.
+  const coreLevel = (n: number, approverCode: string, sortOrder: number) => ({
+    id: `${P}core${n}`, organisationId, authorityMatrixId: `${P}mx1`, approverCode, clause: "DEMO 2.2", provenance: "ASSUMED" as const, sortOrder,
+    note: "Invented for the demo.",
+  });
+  await db.coreRoutingLevel.createMany({
+    data: [coreLevel(1, "DEPT_HEAD", 1), coreLevel(2, "DIV_HEAD", 2), coreLevel(3, "FD", 3), coreLevel(4, "CEO", 4)],
+  });
+  const coreStep = (n: number, level: number, roleCode: string, act: "P" | "R", sequence: number) => ({
+    id: `${P}cs${n}`, organisationId, coreRoutingLevelId: `${P}core${level}`, roleCode, act, sequence, provenance: "ASSUMED" as const,
+  });
+  await db.coreRoutingStep.createMany({
+    data: [
+      coreStep(1, 2, "DEPT_HEAD", "R", 1),
+      coreStep(2, 3, "DEPT_HEAD", "P", 1),
+      coreStep(3, 3, "DIV_HEAD", "R", 2),
+      coreStep(4, 4, "DEPT_HEAD", "P", 1),
+      coreStep(5, 4, "DIV_HEAD", "R", 2),
+      coreStep(6, 4, "FD", "R", 3),
     ],
   });
 
@@ -1802,6 +1832,17 @@ async function loadCloseout(organisationId: string) {
   const snap = (opened: string) => ({ rejectionSnapshotAt: day(opened), rejectionDestinationId: `${P}rd1`, rejectionKind: "RETURN_TO_STEP" as const, rejectionReturnToRoleCode: "DIV_HEAD", rejectionProvenance: "ASSUMED" as const });
   // The pending routes opened after it took effect carry it, as submission writes it.
   await db.approvalInstance.update({ where: { id: `${P}ai3` }, data: snap("2026-07-28") });
+  // The pending route on demo.requisition.2 opened with the core routing recorded: its
+  // chain was generated from the Head of Division's row, as submission now writes it.
+  // Every other demo route predates that and reads "Not recorded".
+  await db.approvalInstance.update({
+    where: { id: `${P}ai3` },
+    data: {
+      coreSnapshotAt: day("2026-07-28"), coreChainFlag: true, coreChainReason: null,
+      coreRoutingSnapshot: { approverCode: "DIV_HEAD", clause: "DEMO 2.2", provenance: "ASSUMED", note: "Invented for the demo.", steps: [{ roleCode: "DEPT_HEAD", act: "R", provenance: "ASSUMED" }] },
+    },
+  });
+  await db.approvalStep.update({ where: { id: `${P}as3_1` }, data: { chainOrigin: "CORE" } });
   await db.approvalInstance.update({ where: { id: `${P}ai4` }, data: snap("2026-09-18") });
   await db.approvalInstance.update({ where: { id: `${P}ai5` }, data: snap("2026-09-24") });
 
