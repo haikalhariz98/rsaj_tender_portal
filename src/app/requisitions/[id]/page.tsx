@@ -20,7 +20,8 @@ import { fieldLabel } from "@/lib/audit/diff";
 import { routeTone, stepTone } from "@/lib/ui/status-tone";
 import { issueDayFor, newerIssueNote, noIssueOnRaisedText } from "@/lib/authority/issue";
 import { loadIssue, loadMatrixVersion, loadOverrideMatrix, loadPinnedRule } from "@/lib/authority/load";
-import { GATE_MINUTES_NOTE, MATTER_KIND_LABEL, OUTCOME_LABEL, signedMinutesState } from "@/lib/committee/labels";
+import { MATTER_KIND_LABEL, OUTCOME_LABEL, SIGNED_MINUTES_LABEL, SIGNED_MINUTES_TONE, signedMinutesState } from "@/lib/committee/labels";
+import { RECORDED_ON_BEHALF_SENTENCE } from "@/lib/documents/labels";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { formatOrgDay, formatDate, formatRM, formatRouteBand } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL, condLabel } from "@/lib/labels";
@@ -964,7 +965,7 @@ function Overview({
                     </Td>
                     <Td>
                       {e ? (
-                        <CellStack title={`${e.person.name} · ${formatDate(e.endorsedOn)}`} sub={e.note || "Recorded on their behalf, not signed"} />
+                        <CellStack title={`${e.person.name} · ${formatDate(e.endorsedOn)}`} sub={e.note || RECORDED_ON_BEHALF_SENTENCE} />
                       ) : (
                         <Badge tone="warn">Awaiting</Badge>
                       )}
@@ -1595,15 +1596,18 @@ function GatesCard({
                 {cited.length === 0 ? (
                   <div className="text-[12.5px] text-ink-3 sm:pl-9">No matter cited yet. Table it at a sitting as a committee gate, then cite the decision.</div>
                 ) : (
-                  <ul className="flex flex-col gap-0.5 text-[12.5px] text-ink-2 sm:pl-9">
+                  <ul className="flex flex-col gap-2 text-[12.5px] text-ink-2 sm:pl-9">
                     {cited.map((d) => {
                       const rec = recordOf(d);
+                      const minutes = signedMinutesState(d.meeting.status, d.meeting.attachments.length);
                       return (
-                        <li key={d.id}>
-                          <Link href={`/committees/${d.meetingId}`}>{d.meeting.reference}</Link> · {d.withdrawnAt ? "withdrawn from the agenda" : gateOutcomeLabel(rec, d.meeting.committee.carriedLabelEn)}
-                          {rec ? ` · ${formatDate(rec.decisionDate ?? rec.meetingDate)}` : ""}
-                          {decisive?.id === d.id ? " · decides the gate" : ""}
-                          {rec ? ` · ${GATE_MINUTES_NOTE[signedMinutesState(d.meeting.status, d.meeting.attachments.length)]}` : ""}
+                        <li key={d.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span>
+                            <Link href={`/committees/${d.meetingId}`}>{d.meeting.reference}</Link> · {d.withdrawnAt ? "withdrawn from the agenda" : gateOutcomeLabel(rec, d.meeting.committee.carriedLabelEn)}
+                            {rec ? ` · ${formatDate(rec.decisionDate ?? rec.meetingDate)}` : ""}
+                            {decisive?.id === d.id ? " · decides the gate" : ""}
+                          </span>
+                          {rec && <Chip tone={SIGNED_MINUTES_TONE[minutes]}>{SIGNED_MINUTES_LABEL[minutes]}</Chip>}
                         </li>
                       );
                     })}
@@ -1634,7 +1638,7 @@ function CommitteeMatters({ l }: { l: LoadedRequisition }) {
           return (
             <li key={d.id} className="flex flex-wrap items-center gap-2 px-5 py-3 text-[13px] sm:px-6">
               <Badge tone={d.outcome === "CARRIED" ? "ok" : d.outcome === "PENDING" ? "brand" : "warn"}>{OUTCOME_LABEL[d.outcome]}</Badge>
-              <span className="min-w-0 truncate font-semibold text-ink">{d.subject}</span>
+              <span className="min-w-0 font-semibold break-words text-ink">{d.subject}</span>
               <span className="text-ink-3">
                 {rec ? rec.committee : d.meeting.committee.nameEn} · <Link href={`/committees/${d.meetingId}`}>{d.meeting.reference}</Link>
                 {d.matterKind ? ` · ${MATTER_KIND_LABEL[d.matterKind]}` : ""}
