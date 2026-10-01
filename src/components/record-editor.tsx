@@ -141,7 +141,13 @@ export function RecordEditor({
   /// its fields filled in (an award's committee step tabling its matter).
   defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [open, setOpenState] = useState(defaultOpen);
+  // Closing forgets what the officer chose in the selects that drive `showWhen`: the
+  // form reopens from the stored values.
+  const setOpen = (v: boolean) => {
+    setOpenState(v);
+    if (!v) setLive({});
+  };
   const [state, setState] = useState<FormState>(EMPTY_FORM_STATE);
   const [pending, startTransition] = useTransition();
   const [reason, setReason] = useState("");
@@ -278,10 +284,12 @@ export function RecordEditor({
                             {field.text}
                           </p>
                         ) : (
-                          // `contents` keeps the field in the form's grid exactly as it would sit unwrapped.
-                          <div key={field.name} className={shown(field.name) ? "contents" : "hidden"}>
+                          // `contents` keeps the field in the form's grid exactly as it would sit
+                          // unwrapped. A hidden field's fieldset is disabled: it is not submitted and
+                          // not required, so the action leaves its stored value alone.
+                          <fieldset key={field.name} disabled={!shown(field.name)} className={shown(field.name) ? "contents" : "hidden"}>
                             <FieldInput field={field} value={values?.[field.name] ?? null} error={state.errors?.[field.name]} />
-                          </div>
+                          </fieldset>
                         ),
                       )}
                   </div>

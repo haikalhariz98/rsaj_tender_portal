@@ -13,6 +13,7 @@ import {
 import { db } from "@/lib/db";
 import { SOURCE_LABEL, SPLIT_KEY_LABEL, STATUS_LABEL, TIER_LABEL } from "@/lib/requisition/labels";
 import { ORGANISATION_CODE } from "@/lib/org";
+import { formatOrgDateTime } from "@/lib/format";
 
 /// The entities whose history a screen may ask for. Anything else is refused rather
 /// than read, so the action cannot be used to page through the whole trail.
@@ -40,6 +41,8 @@ export interface HistoryEntry {
   id: string;
   action: "CREATE" | "UPDATE" | "DELETE";
   at: string;
+  /// The moment, as the organisation reads it (its day and its clock).
+  when: string;
   reason: string;
   actorName: string | null;
   unattributed: boolean;
@@ -105,14 +108,16 @@ async function valueReader(entity = ""): Promise<(field: string, value: string |
 /// One record's history, newest first.
 export async function historyOf(entity: string, entityId: string): Promise<HistoryEntry[]> {
   if (!ENTITIES.has(entity) || !entityId) return [];
-  const [rows, read] = await Promise.all([
+  const [rows, read, org] = await Promise.all([
     loadAudit(ORGANISATION_CODE, { entity, entityId, take: 100 }),
     valueReader(entity),
+    db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { timeZone: true } }),
   ]);
   return rows.map((r) => ({
     id: r.id,
     action: r.action,
     at: r.at.toISOString(),
+    when: formatOrgDateTime(r.at, org?.timeZone ?? null),
     reason: r.reason,
     actorName: r.actorName,
     unattributed: r.unattributed,

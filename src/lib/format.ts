@@ -85,6 +85,17 @@ export function formatOrgDay(instant: Date | null | undefined, timeZone: string 
   return timeZone ? day : `${day} (UTC — time zone not set)`;
 }
 
+/**
+ * An instant as the organisation reads it: its day and the time on its clock,
+ * "01 Oct 2026 · 04:00". With the zone unset both are UTC and it says so (ruling BD-32).
+ */
+export function formatOrgDateTime(instant: Date | null | undefined, timeZone: string | null): string {
+  if (!instant) return "—";
+  const time = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: timeZone ?? "UTC" }).format(instant);
+  const day = dayText(new Date(`${dayIn(instant, timeZone)}T00:00:00.000Z`));
+  return timeZone ? `${day} · ${time}` : `${day} · ${time} (UTC — time zone not set)`;
+}
+
 /// Two initials for an avatar. Malaysian names often carry bin/binti/a/l — those are
 /// connectors, not name parts, so they are skipped.
 const CONNECTORS = new Set(["bin", "binti", "bt", "a/l", "a/p", "al", "ap"]);

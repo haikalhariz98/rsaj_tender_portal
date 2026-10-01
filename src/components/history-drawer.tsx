@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
 import { fieldLabel } from "@/lib/audit/diff";
-import { formatDate } from "@/lib/format";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 
 const ACTION: Record<HistoryEntry["action"], { label: string; tone: "ok" | "info" | "err" }> = {
@@ -97,10 +96,7 @@ export function HistoryButton({
                       <span className="absolute top-1.5 -left-[25px] size-2.5 rounded-full bg-brand-500 ring-4 ring-surface" />
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge tone={ACTION[e.action].tone}>{ACTION[e.action].label}</Badge>
-                        <span className="text-[12.5px] text-ink-3">
-                          {formatDate(new Date(e.at))} ·{" "}
-                          {new Date(e.at).toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}
-                        </span>
+                        <span className="text-[12.5px] text-ink-3">{e.when}</span>
                       </div>
                       <p className="mt-1 text-[12.5px] text-ink-3">
                         {e.actorName ?? (e.unattributed ? "Not attributed — sign-in is not built yet" : "Unknown")}

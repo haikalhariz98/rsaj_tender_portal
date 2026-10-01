@@ -64,12 +64,13 @@ export function PageHeader({
         {subtitle && <p className="mt-1.5 max-w-[70ch] text-[15px] text-ink-2">{subtitle}</p>}
         {facts.length > 0 && (
           // Each fact carries its separator in a left gutter; the row is shifted left by
-          // that gutter and clipped, so a fact starting a wrapped line shows no stray "•".
-          <div className="mt-3 overflow-hidden">
+          // that gutter and clipped sideways only, so a fact starting a wrapped line shows
+          // no stray "•". The 4px clip margin keeps a focused link's ring whole.
+          <div className="mt-3 overflow-x-clip [overflow-clip-margin:4px]">
             <div className="-ml-4 flex flex-wrap items-center gap-y-1.5 text-[13px] text-ink-3">
               {facts.map((f, i) => (
                 <span key={i} className="relative inline-flex min-w-0 items-center gap-1.5 pl-4">
-                  <span className="absolute left-1.5 text-ink-4" aria-hidden="true">•</span>
+                  <span className="absolute left-1 text-ink-4" aria-hidden="true">•</span>
                   {f}
                 </span>
               ))}

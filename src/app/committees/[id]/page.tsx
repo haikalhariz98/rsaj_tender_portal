@@ -39,7 +39,7 @@ import { MANDATORY_ACTS } from "@/lib/committee/matter";
 import { isFrozen, meetingTransition } from "@/lib/committee/meeting";
 import type { VotingSeat } from "@/lib/committee/sitting";
 import { loadSitting, sittingHistory, type LoadedSitting } from "@/lib/committee/sittings";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 import { ACT_LABEL, matterLabel } from "@/lib/labels";
 
 import {
@@ -639,7 +639,8 @@ function MinutesPanel({ s }: { s: LoadedSitting }) {
               label: "Signed minutes",
               value: <Badge tone="warn">Not attached: document storage not built</Badge>,
             },
-            { label: "Minuted on", value: m.minutedAt ? formatDate(m.minutedAt) : "Not minuted" },
+            // An instant: read as the organisation's day.
+            { label: "Minuted on", value: m.minutedAt ? formatOrgDay(m.minutedAt, s.timeZone) : "Not minuted" },
             ...(m.status === "CANCELLED" ? [{ label: "Cancelled because", value: m.cancelledReason }] : []),
           ]}
         />
@@ -725,7 +726,7 @@ function HistoryPanel({
                 <span className="font-semibold text-ink">{ENTITY_LABEL[e.entity] ?? "Record"}</span>
                 <span className="min-w-0 truncate text-ink-2">{e.entityLabel}</span>
                 <span className="flex-1" />
-                <span className="text-[12px] text-ink-3">{formatDate(e.at)}</span>
+                <span className="text-[12px] text-ink-3">{formatOrgDateTime(e.at, s.timeZone)}</span>
               </div>
               {e.changes.length > 0 && (
                 <ul className="text-[12.5px] text-ink-3">
