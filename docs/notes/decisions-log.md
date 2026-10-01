@@ -24,6 +24,7 @@ reported an empty migration (exit 0). The migrations are good on the native tool
 
 ## Decisions
 
+- 2026-10-01 · close-out · WIP patch (`close-out-wip.patch`) reviewed: applied whole ("If rejected" says when a configured return to a step cannot apply from the step being decided, on requisition, name-approval and award routes); one change — the requisition page's inline restatement of the rule replaced by `returnTargetBefore` in `src/lib/authority/rejection.ts`, tested. Nothing discarded. Commit 0828ac4. Spec: FR-APR-016, AGENTS.md rule 3.
 - 2026-10-01 · doc store · OD-9: immutability enforced in the application; SHA-256 fingerprint re-checked on every download and Verify, mismatch refused and logged; DB triggers deferred to sign-in and demo tooling; screens say the fingerprint proves the file matches what was stored, not that the database is untouched. Spec: NFR-AUD-001, 003, FR-APR-015.
 - 2026-10-01 · doc store · OD-8: attachments pin a version; a new version moves the pin in one audited act with a reason, refused while the owner is frozen; judged records keep the versions they were judged on. Spec: NFR-SIG-001, 002.
 - 2026-10-01 · doc store · OD-7: officer picks any configured class at upload; none configured refuses naming Configuration > Documents; unset classification warns. Spec: NFR-SEC-002, NFR-RET-001.
