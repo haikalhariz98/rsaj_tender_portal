@@ -88,3 +88,52 @@ export function greetingAt(instant: Date, timeZone: string | null): string {
   if (hour < 18) return "Good afternoon";
   return "Good evening";
 }
+
+const CLOCK = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+/// Whether a string is a clock time, "HH:MM" on the 24-hour clock.
+export const isClockTime = (time: string) => CLOCK.test(time);
+
+/// The UTC offset (ms) of a zone at an instant.
+function zoneOffsetAt(t: number, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(new Date(t));
+  const get = (k: string) => Number(parts.find((p) => p.type === k)?.value);
+  return Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second")) - t;
+}
+
+/**
+ * The instant a wall-clock day and time names in the organisation's zone: "2026-11-17", "14:30",
+ * "Asia/Kuala_Lumpur" is 06:30 UTC. A null zone gives null, never UTC (ruling §9.5); so does a day
+ * or time that is not one.
+ */
+export function instantAt(day: string, time: string, timeZone: string | null): Date | null {
+  if (!timeZone || !isDay(day) || !isClockTime(time)) return null;
+  const [y, m, d] = day.split("-").map(Number);
+  const [hh, mm] = time.split(":").map(Number);
+  const wall = Date.UTC(y, m - 1, d, hh, mm);
+  let t = wall - zoneOffsetAt(wall, timeZone);
+  t = wall - zoneOffsetAt(t, timeZone);
+  return new Date(t);
+}
+
+/// The clock time an instant reads in the zone, "14:30". Null zone: null, never UTC's clock.
+export function clockTimeIn(instant: Date, timeZone: string | null): string | null {
+  if (!timeZone) return null;
+  return new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(instant);
+}
+
+/// A day `n` days after (or before, for negative `n`) another, as YYYY-MM-DD.
+export function dayPlus(day: string, n: number): string {
+  return storedDay(new Date(dayToDate(day).getTime() + n * 86_400_000));
+}
+
+/// Whole days from `from` to `to` (both YYYY-MM-DD): 2026-11-03 to 2026-11-17 is 14.
+export function daysFrom(from: string, to: string): number {
+  return Math.round((dayToDate(to).getTime() - dayToDate(from).getTime()) / 86_400_000);
+}
+
+/// The ISO weekday of a day: 1 Monday to 7 Sunday.
+export function isoWeekday(day: string): number {
+  const d = dayToDate(day).getUTCDay();
+  return d === 0 ? 7 : d;
+}

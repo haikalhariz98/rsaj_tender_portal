@@ -1,0 +1,178 @@
+/**
+ * Publishing the window: advertised (FR-ADV-001, 003–008) or invited (FR-ADV-002, FR-MTD-008),
+ * from approval for tendering (FR-DOC-012), judged as one family of findings so the screen says
+ * every reason at once and the act re-runs it under its locks. Pure.
+ *
+ * The path is the method's (`requiresAdvertisement` / `invitesNamedSuppliers`); both or neither
+ * is not a path, and blocks naming the method setting — no method code is named here.
+ *
+ * Advertised: every required channel carries a publication, recorded on or before today, and the
+ * advertisement day is derived from them under the policy's rule (OD-3). Invited: no public
+ * channel is recorded, and the letters go to exactly the approved list — the name's approval
+ * (`invitationFault`) and its frozen invitees (`inviteeListFault`, OD-4) — on the day they issue,
+ * which is the window's advertisement day for the date rules (BD-65-3).
+ *
+ * The notice's items (FR-ADV-003): (a) the registrations, read from 6.4's requirements as entered
+ * (OD-13); (b) where inspected and bought; (c) the days and hours of inspection and purchase;
+ * (d) the fee and how it is paid; (g) where submitted (the closing is 6.4's approved date, moved
+ * only by an applied closing change). (e) and (f) are the site events, optional, each with its
+ * day, time and place. Then the fee against its floor (OD-6), every date rule (OD-7), the events'
+ * mandatory answers (OD-8) and the instrument's configured template.
+ */
+
+import { blocking, type ChannelFacts, type EventFacts, type Finding, type PublicationFacts, type WindowPath, type WindowPolicyFacts, type CalendarFacts, type FeeFloorFacts } from "./types";
+import { advertisementDay, closingFaults } from "./dates";
+import { eventFaults } from "./events";
+import { feeFaults } from "./fee";
+import type { TemplateState } from "./fields";
+import { invitedListFaults } from "./invitees";
+import type { Sen } from "@/lib/money";
+import type { ExerciseStatus, PackKind } from "@/lib/method/types";
+
+export type PathFault = "PATH_NOT_SET";
+
+/// The window's path from the method's flags. Both or neither: not set, and nothing is published.
+export function windowPathOf(m: { requiresAdvertisement: boolean; invitesNamedSuppliers: boolean } | null): WindowPath | null {
+  if (!m) return null;
+  if (m.requiresAdvertisement === m.invitesNamedSuppliers) return null;
+  return m.requiresAdvertisement ? "ADVERTISED" : "INVITED";
+}
+
+export type PublishFault =
+  | "NOT_APPROVED_FOR_TENDERING"
+  | "NO_TENDER_DOCUMENTS"
+  | "PATH_NOT_SET"
+  | "PATH_CHANGED"
+  | "RESTRICTION_NOT_ANSWERED"
+  | "STAMP_NOT_SET"
+  | "ELIGIBILITY_MISSING"
+  | "INSPECTION_PLACE_MISSING"
+  | "PURCHASE_PLACE_MISSING"
+  | "INSPECTION_HOURS_MISSING"
+  | "PURCHASE_FROM_NOT_SET"
+  | "PURCHASE_DAYS_OUT_OF_ORDER"
+  | "PURCHASE_FROM_BEFORE_ADVERTISEMENT"
+  | "PAYMENT_METHODS_MISSING"
+  | "SUBMISSION_PLACE_MISSING"
+  | "CLOSING_NOT_SET"
+  | "BEFORE_TENDERING_START"
+  | "PUBLICATION_IN_FUTURE"
+  | "PUBLIC_CHANNEL_ON_INVITED"
+  | "TEMPLATE_NOT_SET"
+  | "TEMPLATE_TEXT_NOT_SET"
+  | "TEMPLATE_LANGUAGE_NOT_SET"
+  | "TEMPLATE_INCOMPLETE"
+  | "TEMPLATE_UNKNOWN_FIELD"
+  | "TIME_ZONE_UNSET";
+
+export interface PublishInput {
+  status: ExerciseStatus;
+  packKind: PackKind | null;
+  /// The method's path now, and the window's as first written.
+  methodPath: WindowPath | null;
+  windowPath: WindowPath | null;
+  restricted: boolean | null;
+  requirements: number;
+  window: {
+    inspectionPlace: string;
+    purchasePlace: string;
+    inspectionHours: string;
+    /// YYYY-MM-DD.
+    purchaseFromDay: string | null;
+    purchaseCloseDay: string | null;
+    fee: Sen | null;
+    feePaymentMethods: string;
+    submissionPlace: string;
+    closingTimeReason: string;
+  };
+  events: readonly EventFacts[];
+  policy: WindowPolicyFacts;
+  calendar: CalendarFacts | null;
+  channels: readonly ChannelFacts[];
+  records: readonly PublicationFacts[];
+  closingAt: Date | null;
+  /// 6.4's DATE START, YYYY-MM-DD.
+  tenderingStartOn: string | null;
+  timeZone: string | null;
+  today: string | null;
+  regime: string | null;
+  floors: readonly FeeFloorFacts[];
+  basisTotal: Sen;
+  /// The instrument's template as rendered for this window: the notice (advertised) or a letter (invited).
+  template: { state: TemplateState; missing: readonly string[]; unknown: readonly string[]; stampMissing: boolean };
+  /// The invited path's list and name routes.
+  invited: {
+    method: { requiresNameApproval: boolean };
+    nameRoutes: Parameters<typeof invitedListFaults>[1];
+    proposed: readonly { registrationNo: string }[];
+  } | null;
+}
+
+export interface PublishResult {
+  findings: Finding[];
+  /// The advertisement day the publication would be judged and recorded with; null while not known.
+  advertisementDay: string | null;
+}
+
+export function publishFaults(i: PublishInput): PublishResult {
+  const out: Finding[] = [];
+  const f = (code: PublishFault, data?: Finding["data"]) => out.push({ code, level: "block", ...(data ? { data } : {}) });
+  if (!i.today || !i.timeZone) f("TIME_ZONE_UNSET");
+  if (i.status !== "APPROVED_FOR_TENDERING") f("NOT_APPROVED_FOR_TENDERING", { status: i.status });
+  if (i.packKind !== "TENDER" && i.packKind !== "QUOTATION") f("NO_TENDER_DOCUMENTS");
+  const path = i.windowPath ?? i.methodPath;
+  if (!i.methodPath) f("PATH_NOT_SET");
+  else if (i.windowPath && i.windowPath !== i.methodPath) f("PATH_CHANGED", { was: i.windowPath, now: i.methodPath });
+
+  // FR-DOC-009 / 6.4: the restriction answered, and stamped where it is restricted.
+  if (i.restricted == null) f("RESTRICTION_NOT_ANSWERED");
+  if (i.template.stampMissing) f("STAMP_NOT_SET");
+
+  // FR-ADV-003: the notice's items.
+  if (i.requirements === 0) f("ELIGIBILITY_MISSING");
+  const w = i.window;
+  if (!w.inspectionPlace.trim()) f("INSPECTION_PLACE_MISSING");
+  if (!w.purchasePlace.trim()) f("PURCHASE_PLACE_MISSING");
+  if (!w.inspectionHours.trim()) f("INSPECTION_HOURS_MISSING");
+  if (!w.purchaseFromDay) f("PURCHASE_FROM_NOT_SET");
+  if (w.purchaseFromDay && w.purchaseCloseDay && w.purchaseFromDay > w.purchaseCloseDay) f("PURCHASE_DAYS_OUT_OF_ORDER");
+  if (!w.feePaymentMethods.trim()) f("PAYMENT_METHODS_MISSING");
+  if (!w.submissionPlace.trim()) f("SUBMISSION_PLACE_MISSING");
+  if (!i.closingAt) f("CLOSING_NOT_SET");
+  for (const e of i.events) out.push(...eventFaults(e, i.policy.mandatoryAttendancePermitted, i.closingAt));
+
+  // FR-ADV-008: the fee against its floor.
+  out.push(...feeFaults({ fee: w.fee, regime: i.regime, floors: i.floors, basisTotal: i.basisTotal }));
+
+  // The channels (advertised) or the list (invited), and the advertisement day.
+  let adDay: string | null = null;
+  if (path === "ADVERTISED") {
+    const today = i.today ?? "9999-12-31";
+    const d = advertisementDay(i.records, i.channels, i.policy, today);
+    out.push(...d.faults);
+    for (const r of i.records.filter((x) => i.today && x.publishedOn > i.today)) f("PUBLICATION_IN_FUTURE", { channel: i.channels.find((c) => c.id === r.channelId)?.nameEn ?? null, day: r.publishedOn });
+    adDay = d.day;
+  } else if (path === "INVITED") {
+    if (i.records.length > 0) f("PUBLIC_CHANNEL_ON_INVITED", { count: i.records.length });
+    if (i.invited) out.push(...invitedListFaults(i.invited.method, i.invited.nameRoutes, i.invited.proposed));
+    adDay = i.today;
+  }
+  if (adDay && i.tenderingStartOn && adDay < i.tenderingStartOn) f("BEFORE_TENDERING_START", { day: adDay, start: i.tenderingStartOn });
+  if (adDay && w.purchaseFromDay && w.purchaseFromDay < adDay) f("PURCHASE_FROM_BEFORE_ADVERTISEMENT", { day: w.purchaseFromDay, advertisedOn: adDay });
+
+  // FR-ADV-004–007: every date rule, from the advertisement day.
+  if (i.closingAt) out.push(...closingFaults({ advertisementDay: adDay, closingAt: i.closingAt, purchaseCloseDay: w.purchaseCloseDay, closingTimeReason: w.closingTimeReason, timeZone: i.timeZone, policy: i.policy, calendar: i.calendar, today: i.today }));
+
+  // The instrument's configured text (ADR 0008).
+  const t = i.template;
+  if (t.state === "NOT_SET") f("TEMPLATE_NOT_SET", { instrument: path === "INVITED" ? "INVITATION" : "NOTICE" });
+  else if (t.state === "NO_TEXT") f("TEMPLATE_TEXT_NOT_SET", { instrument: path === "INVITED" ? "INVITATION" : "NOTICE" });
+  else if (t.state === "NO_LANGUAGE") f("TEMPLATE_LANGUAGE_NOT_SET", { instrument: path === "INVITED" ? "INVITATION" : "NOTICE" });
+  else {
+    if (t.unknown.length) f("TEMPLATE_UNKNOWN_FIELD", { fields: t.unknown.join(", ") });
+    if (t.missing.length) f("TEMPLATE_INCOMPLETE", { fields: t.missing.join(", ") });
+  }
+  return { findings: out, advertisementDay: adDay };
+}
+
+export const publishBlocks = (r: PublishResult) => blocking(r.findings);

@@ -86,6 +86,13 @@ const CLOSING_KEY_READERS: Record<string, string> = {
   "src/lib/scope/read.ts": "selects the closing for the estimate tab",
   "prisma/demo-tender-docs.ts": "the demo's approving step, mirroring the action; its load checks the dates against the pack",
   "prisma/demo-scope.ts": "judges the demo's estimates with no closing yet",
+  // 6.5 (faithful update, flagged): the window's pure rules read the closing they are given.
+  "src/lib/window/dates.ts": "judges a closing against the date rules; writes nothing",
+  "src/lib/window/change.ts": "judges a proposed closing against the date rules; writes nothing",
+  "src/lib/window/phase.ts": "derives the phase and the closing's history from the stored dates; writes nothing",
+  "src/lib/window/publish.ts": "passes the closing to the date rules at publication; writes nothing",
+  "src/lib/window/events.ts": "judges an event against the closing it is given; writes nothing",
+  "src/lib/window/fields.ts": "states the closing in an instrument's words; writes nothing",
 };
 
 describe("X-2: the closing is written nowhere else, by any route (carry a)", () => {
