@@ -34,6 +34,7 @@ import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster } from "@/lib/people/load";
 import { bqCsvFilename, bqToCsv, decodeCsv, parseBqCsv } from "@/lib/scope/csv";
 import { scopeCitationFault, scopeMatterSubject, SCOPE_DOMAIN } from "@/lib/scope/scope-matter";
+import { backstopCode } from "@/lib/scope/unique-violation";
 import { FormReader } from "@/lib/validate";
 
 /**
@@ -78,8 +79,10 @@ async function inExercise(exerciseId: string, fn: (tx: Tx, l: LockedExercise) =>
     result = await withLockedExerciseScope(exerciseId, fn);
   } catch (e) {
     if (e instanceof Refusal) return e.state;
-    // OD-2's backstop: the partial unique index refused a second live estimate.
-    if (e && typeof e === "object" && "code" in e && (e as { code?: string }).code === "P2002") return refuseCodes(["LIVE_ESTIMATE_EXISTS"]);
+    // A backstop index refused what another act got in first (OD-2's one live estimate,
+    // one draft bill). Any other unique violation is not a rule's refusal: rethrown.
+    const backstop = backstopCode(e);
+    if (backstop) return refuseCodes([backstop]);
     throw e;
   }
   if (result?.ok) {
