@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { formatDate } from "@/lib/format";
 import { STATUS_LABEL, STATUS_ORDER, STATUS_TONE, VERDICT_LABEL, VERDICT_TONE } from "@/lib/requisition/labels";
 import { listRequisitions, REQUISITIONS_PAGE } from "@/lib/requisition/repo";
+import { SENT_BACK_LABEL } from "@/lib/requisition/sent-back";
 import { splitStateLabel } from "@/lib/requisition/splitting";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,8 @@ export default async function RequisitionsPage() {
   const list: Row[] = rows.map((r) => {
     const split = splitStateLabel(r.split?.state ?? null, !!r.split?.overrideJustification);
     const erp = r.erpRequisitionNo ?? null;
+    const statusText = r.sentBack ? SENT_BACK_LABEL : STATUS_LABEL[r.status];
+    const statusTone = r.sentBack ? "warn" : STATUS_TONE[r.status];
     return {
       id: r.id,
       views: [
@@ -33,13 +36,13 @@ export default async function RequisitionsPage() {
         ...(r.status === "OVER_BUDGET" ? ["over"] : []),
       ],
       // A finance-system number finds the requisition, as its own reference does.
-      search: [r.title, r.reference, r.erpRequisitionNo, r.erpNoteNo, r.unitName, r.routeName, STATUS_LABEL[r.status]].filter(Boolean).join(" "),
+      search: [r.title, r.reference, r.erpRequisitionNo, r.erpNoteNo, r.unitName, r.routeName, statusText].filter(Boolean).join(" "),
       sortKeys: { value: r.value, required: r.dateRequired.getTime(), title: r.title },
       cells: {
         title: { kind: "link", text: r.title, href: `/requisitions/${r.id}`, sub: erp ? `${erp} · ${r.reference}` : r.reference },
         department: { kind: "stack", title: r.unitName, sub: r.routeName ?? "Funding route not set" },
         value: { kind: "money", value: r.value },
-        status: { kind: "badge", text: STATUS_LABEL[r.status], tone: TONE[STATUS_TONE[r.status]] },
+        status: { kind: "badge", text: statusText, tone: TONE[statusTone] },
         // One column for both checks: each chip names its own check, and the title keeps
         // the width.
         checks: {
@@ -114,7 +117,7 @@ export default async function RequisitionsPage() {
             { id: "drafts", label: "Drafts" },
             { id: "over", label: "Over budget" },
           ]}
-          filters={[{ key: "status", label: "Status", order: STATUS_ORDER.map((s) => STATUS_LABEL[s]) }]}
+          filters={[{ key: "status", label: "Status", order: [SENT_BACK_LABEL, ...STATUS_ORDER.map((s) => STATUS_LABEL[s])] }]}
           rowAction={{ label: "Open", hrefTemplate: "/requisitions/{id}" }}
           rowOpens
           columns={[

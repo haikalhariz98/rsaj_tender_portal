@@ -79,6 +79,7 @@ import { returnedRouteCitationNotes } from "@/lib/requisition/committee-step";
 import { choicesFor, earlierSteps, returnTargetBefore, type RejectionKind } from "@/lib/authority/rejection";
 import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import { routeCoreText, stepOriginText } from "@/lib/authority/core-routing-labels";
+import { SENT_BACK_LABEL, sentBackBy } from "@/lib/requisition/sent-back";
 import { GATE_DOMAIN, gateOpenReason } from "@/lib/requisition/gate";
 import { unpostedIntakeReason, type UnpostedReason } from "@/lib/requisition/budget";
 import { splitApprovalFault, splitStateLabel } from "@/lib/requisition/splitting";
@@ -396,6 +397,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
 
   const recallBlock = r.status === "PENDING_APPROVAL" ? transitionFault(r.status, "RECALLED", { today, anyStepDone: open?.steps.some((s) => s.decision !== "PENDING") ?? false }) : null;
   const locked = !["DRAFT"].includes(r.status);
+  const sentBack = sentBackBy(r.status, r.approvalInstances, r.returnedOn);
   const erpFirst = r.erpRequisitionNo ? `${r.erpRequisitionNo} · ${r.reference}` : r.reference;
 
   // Why a header action is unavailable, stated once under the action row.
@@ -474,8 +476,8 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
         title={r.title}
         badge={
           <>
-            <Badge tone={TONE[STATUS_TONE[r.status]]} dot>
-              {STATUS_LABEL[r.status]}
+            <Badge tone={sentBack ? "warn" : TONE[STATUS_TONE[r.status]]} dot>
+              {sentBack ? SENT_BACK_LABEL : STATUS_LABEL[r.status]}
             </Badge>
             {r.origin === "EXTERNAL" && <Badge tone="info">Received from the finance system</Badge>}
           </>
@@ -524,6 +526,20 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
         <Callout tone="warn" className="mb-6" title={awaitingChoice ? "Rejected: where it goes next is the officer's choice" : "Rejected"}>
           {inst.rejectionReason ? `“${inst.rejectionReason}” ` : ""}
           {awaitingChoice ? (inst.rejectionChoices.length > 0 ? CHOICE_WHY_TEXT[awaitingChoice.why] : "It was rejected before rejection destinations were recorded, so the officer chooses where it goes. The choice is recorded as theirs, not as policy.") : null}
+        </Callout>
+      )}
+      {sentBack && (
+        <Callout
+          tone="warn"
+          className="mb-6"
+          title={SENT_BACK_LABEL}
+          action={
+            <ButtonLink href={`/requisitions/${r.id}?tab=approval`} size="sm" variant="secondary">
+              See the rejection
+            </ButtonLink>
+          }
+        >
+          {sentBack.reason ? `Rejected at approval and returned to whoever raised it: “${sentBack.reason}”` : "Rejected at approval and returned to whoever raised it. No reason was recorded."} Change it, then endorse and submit it again.
         </Callout>
       )}
       {r.status === "CLOSED" && r.closedReason && (

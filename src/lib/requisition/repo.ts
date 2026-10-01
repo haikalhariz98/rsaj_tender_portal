@@ -16,6 +16,7 @@ import { ORGANISATION_CODE } from "@/lib/org";
 import type { CodeFormat, OrgUnit, OrgUnitKind } from "@/lib/organisation/types";
 import type { FundingRouteRow } from "@/lib/requisition/funding";
 import type { Lookups, RequisitionDraft } from "@/lib/requisition/fields";
+import { sentBackBy } from "@/lib/requisition/sent-back";
 import { gateFinding, gatesFor, gateState, type GateFinding, type GateMatter, type GateRuleRow, type GateState } from "@/lib/requisition/gate";
 import { SPLIT_KEYS, UNSET_POLICY, type Provenance, type RequisitionPolicy, type SplitKey } from "@/lib/requisition/types";
 
@@ -228,6 +229,8 @@ export async function listRequisitions() {
       include: {
         budgetChecks: { orderBy: { checkedAt: "desc" }, take: 1, select: { verdict: true } },
         splitChecks: { orderBy: { checkedAt: "desc" }, take: 1, select: { state: true, overrideJustification: true } },
+        // Every route, for whether a draft was sent back: a rejected route is a small row.
+        approvalInstances: { select: { status: true, openedAt: true, closedAt: true, rejectionApplied: true, rejectionReason: true } },
       },
     }),
     db.requisition.count({ where }),
@@ -260,6 +263,7 @@ export async function listRequisitions() {
       routeName: r.fundingRouteCode ? (routes.find((x) => x.code === r.fundingRouteCode)?.nameEn ?? "A route no longer configured") : null,
       verdict: r.budgetChecks[0]?.verdict ?? null,
       split: r.splitChecks[0] ?? null,
+      sentBack: sentBackBy(r.status, r.approvalInstances, r.returnedOn),
     })),
     total,
     counts: { open, pending, overBudget, flagged },
