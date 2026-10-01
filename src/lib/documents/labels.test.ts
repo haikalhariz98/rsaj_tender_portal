@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { versionCreated, attached, policyView } from "./audit-view";
-import { accessReasonText, CLASSIFICATION_LABEL, documentFaultText, WITHDRAW_NOTE, formatBytes, mediaLabel, PURPOSE_LABEL, shortFingerprint, STATUS_LABEL } from "./labels";
+import { accessReasonText, CLASSIFICATION_LABEL, classChoiceText, classificationBadge, documentFaultText, endSentence, plural, withdrawnLine, WITHDRAW_NOTE, formatBytes, mediaLabel, PURPOSE_LABEL, shortFingerprint, STATUS_LABEL } from "./labels";
 import { bytesToMegabytes, megabytesToBytes, policyFaults } from "./policy";
 import { ATTACHMENT_PURPOSES, KNOWN_MEDIA_TYPES, SECURITY_CLASSES } from "./types";
 
@@ -118,5 +118,32 @@ describe("megabytes on the upload rules form", () => {
     expect(bytesToMegabytes(525n + 1048576n)).toBe("1.001");
     expect(bytesToMegabytes(1n)).toBe("0.001");
     expect(bytesToMegabytes(0n)).toBe("0");
+  });
+});
+
+describe("small sentences", () => {
+  it("never says 1 events", () => {
+    expect(plural(1, "event")).toBe("1 event");
+    expect(plural(0, "event")).toBe("0 events");
+    expect(plural(9, "entry", "entries")).toBe("9 entries");
+    expect(plural(1, "entry", "entries")).toBe("1 entry");
+  });
+
+  it("ends a reason with one full stop, not two", () => {
+    expect(endSentence("Rescanned with both pages.")).toBe("Rescanned with both pages.");
+    expect(endSentence("Rescanned with both pages")).toBe("Rescanned with both pages.");
+    expect(withdrawnLine("04 Sep 2026", "The scan was missing its second page.", true)).toBe("Withdrawn on 04 Sep 2026: The scan was missing its second page. It can still be downloaded.");
+    expect(withdrawnLine("04 Sep 2026", "Wrong file", false)).toBe("Withdrawn on 04 Sep 2026: Wrong file.");
+  });
+
+  it("says a withdrawal without a reason is without one, once", () => {
+    expect(withdrawnLine("04 Sep 2026", "  ", false)).toBe("Withdrawn on 04 Sep 2026, with no reason recorded.");
+  });
+
+  it("says of what a classification is not set", () => {
+    expect(classificationBadge(null)).toBe("Classification not set");
+    expect(classificationBadge("SULIT")).toBe("SULIT");
+    expect(classChoiceText("Correspondence", null)).toBe("Correspondence · classification not set — it will not open in the portal");
+    expect(classChoiceText("Contract documents", "INTERNAL")).toBe("Contract documents · Internal");
   });
 });

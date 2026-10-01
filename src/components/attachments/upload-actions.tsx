@@ -119,7 +119,7 @@ export function UploadButton({ owner, slot, upload, onNotice }: { owner: OwnerKe
   return (
     <RecordEditor
       title={`Upload: ${slot.label}`}
-      description={`Attached to ${owner.label}. The file is stored, then attached in one step.`}
+      description={`Will be attached to ${owner.label} as ${slot.label}. The file is stored, then attached in one step.`}
       fields={uploadFields(upload, { newDocument: true, titleHint: slot.label })}
       action={action}
       submitLabel="Upload and attach"
@@ -176,9 +176,9 @@ export function DetachButton({ owner, item, onNotice }: { owner: OwnerKey; item:
   );
   return (
     <RecordEditor
-      title={`Detach ${item.title} from ${owner.label}`}
-      description={`${item.purposeLabel}, version ${item.versionNo}`}
-      fields={[{ kind: "hidden", name: "attachmentId" }, { kind: "note", text: DETACH_NOTE }]}
+      title="Detach this document"
+      description={item.title}
+      fields={[{ kind: "hidden", name: "attachmentId" }, { kind: "note", text: `${item.purposeLabel}, version ${item.versionNo}, on ${owner.label}. ${DETACH_NOTE}` }]}
       values={{ attachmentId: item.attachmentId }}
       destructive={{ reasonLabel: "Why is it being taken off?" }}
       cancelLabel="Keep it attached"

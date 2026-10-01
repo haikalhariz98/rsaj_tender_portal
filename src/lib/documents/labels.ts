@@ -32,6 +32,28 @@ export const RECORDED_ON_BEHALF = "recorded on behalf of, not signed";
 export const CLASSIFICATION_LABEL: Readonly<Record<SecurityClass, string>> = { PUBLIC: "Public", INTERNAL: "Internal", SULIT: "SULIT" };
 export const classificationLabel = (c: SecurityClass | null | undefined) => (c ? CLASSIFICATION_LABEL[c] : "Not set");
 
+/// Where a badge stands alone, "Not set" would not say of what: say it.
+export const classificationBadge = (c: SecurityClass | null | undefined) => (c ? CLASSIFICATION_LABEL[c] : "Classification not set");
+
+/// A class in a list of choices: its classification, or the words for its absence and what follows from it.
+export const classChoiceText = (name: string, c: SecurityClass | null | undefined) =>
+  c ? `${name} · ${CLASSIFICATION_LABEL[c]}` : `${name} · classification not set — it will not open in the portal`;
+
+/// "1 event", "2 events": a count is never "1 events".
+export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/// A reason or a note ends its sentence once: "Rescanned." stays, "Rescanned" gains the stop.
+export const endSentence = (s: string) => {
+  const t = s.trim();
+  return /[.!?]$/.test(t) ? t : `${t}.`;
+};
+
+/// A withdrawn version's one line: when, why, and what it still allows. The reason is said here only.
+export function withdrawnLine(on: string, reason: string, canStillDownload: boolean): string {
+  const why = reason.trim() ? `: ${endSentence(reason)}` : ", with no reason recorded.";
+  return `Withdrawn on ${on}${why}${canStillDownload ? " It can still be downloaded." : ""}`;
+}
+
 export const STATUS_LABEL: Readonly<Record<DocumentStatus, string>> = { STAGED: "Received, not filed", FILED: "Filed" };
 
 export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {

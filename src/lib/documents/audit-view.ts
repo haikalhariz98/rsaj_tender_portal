@@ -103,3 +103,72 @@ export function policyView(p: { allowedMediaTypes: readonly string[]; maxBytes: 
     notes: p.notes || null,
   };
 }
+
+// ----------------------------------------------------------------------- reading the trail
+
+/// The changes that are only a reason, said again: the reason is shown once, on the entry.
+const REASON_FIELDS = new Set(["reason", "withdrawnBecause", "detachedBecause", "releasedBecause"]);
+
+export interface TrailEntry {
+  entity: string;
+  /// How the trail names it: "Document · Title · version 2", "DEMO/SX/0002/2026 · Dossier evidence".
+  entityLabel: string;
+  action: "CREATE" | "UPDATE" | "DELETE" | string;
+  reason: string | null;
+  changes: readonly FieldChange[];
+}
+
+const valueOf = (changes: readonly FieldChange[], field: string) => changes.find((c) => c.field === field)?.after ?? null;
+
+/// The record an attachment's entry is about: the first part of its label.
+const ownerOfLabel = (entityLabel: string) => entityLabel.split(" · ")[0];
+
+/// What an entry says happened, as a sentence a reader takes in at a glance.
+export function trailLabel(e: Pick<TrailEntry, "entity" | "entityLabel" | "action" | "changes">): string {
+  const create = e.action === "CREATE";
+  switch (e.entity) {
+    case "Document":
+      if (create) return "Document received";
+      if (e.changes.some((c) => c.field === "status")) return "Filed";
+      if (e.changes.some((c) => c.field === "classification")) return "Classification changed";
+      return "Document changed";
+    case "DocumentVersion": {
+      const v = valueOf(e.changes, "version") ?? /version (\d+)$/.exec(e.entityLabel)?.[1];
+      const n = v ? `Version ${v}` : "A version";
+      if (create) return `${n} recorded`;
+      return valueOf(e.changes, "withdrawn") === "yes" ? `${n} withdrawn` : `${n} changed`;
+    }
+    case "DocumentAttachment":
+      return create ? `Attached to ${ownerOfLabel(e.entityLabel)}` : `Taken off ${ownerOfLabel(e.entityLabel)}`;
+    case "LegalHold":
+      return create ? "Legal hold placed" : "Legal hold released";
+    default:
+      return create ? "Recorded" : "Changed";
+  }
+}
+
+/// A change the sentence label already says, so the list under it does not repeat it.
+function saidByLabel(e: Pick<TrailEntry, "entity" | "action">, field: string): boolean {
+  return (
+    (e.entity === "LegalHold" && field === "legalHold") ||
+    (e.entity === "DocumentVersion" && e.action !== "CREATE" && field === "withdrawn") ||
+    (e.entity === "DocumentAttachment" && e.action !== "CREATE" && field === "attached") ||
+    (e.entity === "DocumentAttachment" && e.action === "CREATE" && field === "attachedTo") ||
+    (e.entity === "Document" && e.action !== "CREATE" && field === "status")
+  );
+}
+
+/**
+ * One trail entry as the drawer reads it: a sentence label, one reason (the entry's own, or
+ * the one its changes carry, never both), and the changes that say something the label does
+ * not. Values that are days read as days, in the format used everywhere (`day`).
+ */
+export function trailEntry(e: TrailEntry, day: (iso: string) => string): { label: string; reason: string | null; changes: FieldChange[] } {
+  const carried = e.changes.find((c) => REASON_FIELDS.has(c.field) && c.after)?.after ?? null;
+  const asDay = (v: string | null) => (v != null && /^\d{4}-\d{2}-\d{2}$/.test(v) ? day(v) : v);
+  return {
+    label: trailLabel(e),
+    reason: e.reason?.trim() || carried,
+    changes: e.changes.filter((c) => !REASON_FIELDS.has(c.field) && !saidByLabel(e, c.field)).map((c) => ({ ...c, before: asDay(c.before), after: asDay(c.after) })),
+  };
+}

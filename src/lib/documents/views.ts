@@ -8,7 +8,7 @@
 import { fieldLabel } from "@/lib/audit/diff";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 
-import { DOCUMENT_ENTITY_LABEL } from "./audit-view";
+import { trailEntry } from "./audit-view";
 import { documentClassificationChoices } from "./classification";
 import { attachableVersion } from "./targets";
 
@@ -16,6 +16,8 @@ import {
   ACCESS_KIND_LABEL,
   ACCESS_STATEMENT,
   classificationChoiceText,
+  classChoiceText,
+  classificationBadge,
   classificationLabel,
   DISPOSAL_METHOD_LABEL,
   documentFaultText,
@@ -128,7 +130,7 @@ type Upload = NonNullable<Awaited<ReturnType<typeof uploadContext>>>;
 
 export function uploadView(u: Upload): UploadView {
   return {
-    classes: u.classes.map((c) => ({ value: c.id, label: `${c.nameEn} · ${classificationLabel(c.classification)}` })),
+    classes: u.classes.map((c) => ({ value: c.id, label: classChoiceText(c.nameEn, c.classification) })),
     people: u.people.map((p) => ({ value: p.id, label: p.name })),
     refusals: u.refusals,
     accept: u.allowedMediaTypes.join(","),
@@ -182,7 +184,7 @@ export function itemView(i: Item, timeZone: string | null): AttachmentItemView {
     documentId: i.document.id,
     title: i.document.title,
     className: i.document.className,
-    classification: classificationLabel(i.document.classification),
+    classification: classificationBadge(i.document.classification),
     classificationTone: classificationTone(i.document.classification),
     versionId: v.id,
     versionNo: v.versionNo,
@@ -248,7 +250,8 @@ export interface DrawerView {
   retention: { period: string; starts: string; disposal: string; authority: string };
   versions: DrawerVersionView[];
   holds: { id: string; reason: string; placedBy: string; placedOn: string; standing: boolean; released: { by: string; on: string; reason: string } | null }[];
-  history: { id: string; entity: string; action: string; at: string; reason: string | null; changes: { field: string; before: string | null; after: string | null }[] }[];
+  /// Newest first. `label` says what happened in a sentence; `reason` is the one reason, once.
+  history: { id: string; label: string; tone: Tone; at: string; reason: string | null; changes: { field: string; before: string | null; after: string | null }[] }[];
   people: { value: string; label: string }[];
   statements: { access: string; fingerprint: string };
 }
@@ -267,7 +270,6 @@ export function classificationForm(current: SecurityClass | null, classClassific
 }
 
 const NOT_SET = "Not set";
-const ACTION_LABEL = { CREATE: "Recorded", UPDATE: "Changed", DELETE: "Removed" } as const;
 
 export function drawerView(d: Drawer, timeZone: string | null): DrawerView {
   const r = d.retention;
@@ -275,7 +277,7 @@ export function drawerView(d: Drawer, timeZone: string | null): DrawerView {
     id: d.id,
     title: d.title,
     className: d.documentClass.nameEn,
-    classification: classificationLabel(d.classification),
+    classification: classificationBadge(d.classification),
     classificationTone: classificationTone(d.classification),
     classificationUnset: d.classification == null,
     ...classificationForm(d.classification, d.documentClass.classification),
@@ -322,14 +324,17 @@ export function drawerView(d: Drawer, timeZone: string | null): DrawerView {
       standing: h.releasedAt == null,
       released: h.releasedAt ? { by: h.releasedBy ? `${h.releasedBy.name} · ${RECORDED_ON_BEHALF}` : "Not recorded", on: formatOrgDay(h.releasedAt, timeZone), reason: h.releaseReason ?? "" } : null,
     })),
-    history: d.history.map((e) => ({
-      id: e.id,
-      entity: DOCUMENT_ENTITY_LABEL[e.entity] ?? "Record",
-      action: ACTION_LABEL[e.action as keyof typeof ACTION_LABEL] ?? "Changed",
-      at: formatOrgDateTime(e.at, timeZone),
-      reason: e.reason,
-      changes: e.changes.map((c) => ({ field: fieldLabel(c.field), before: c.before, after: c.after })),
-    })),
+    history: d.history.map((e) => {
+      const t = trailEntry({ entity: e.entity, entityLabel: e.entityLabel, action: e.action, reason: e.reason, changes: e.changes }, formatDate);
+      return {
+        id: e.id,
+        label: t.label,
+        tone: e.action === "CREATE" ? "ok" : e.action === "DELETE" ? "err" : "info",
+        at: formatOrgDateTime(e.at, timeZone),
+        reason: t.reason,
+        changes: t.changes.map((c) => ({ field: fieldLabel(c.field), before: c.before, after: c.after })),
+      };
+    }),
     people: d.people.map((p) => ({ value: p.id, label: p.name })),
     statements: d.statements,
   };

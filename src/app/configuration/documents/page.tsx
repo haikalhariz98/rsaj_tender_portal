@@ -9,6 +9,7 @@ import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { db } from "@/lib/db";
 import {
+  classificationBadge,
   classificationLabel,
   DISPOSAL_METHOD_LABEL,
   formatBytes,
@@ -252,7 +253,7 @@ export default async function DocumentsConfigPage() {
                   <Tr key={d.id}>
                     <Td><CellStack wrap title={d.title} sub={v?.originalFilename} /></Td>
                     <Td label="Class" className="text-ink-2">{d.documentClass.nameEn}</Td>
-                    <Td label="Classification"><Badge tone={classificationTone(d.classificationSnapshot)}>{classificationLabel(d.classificationSnapshot)}</Badge></Td>
+                    <Td label="Classification"><Badge tone={classificationTone(d.classificationSnapshot)}>{classificationBadge(d.classificationSnapshot)}</Badge></Td>
                     <Td label="Received"><CellStack wrap title={formatOrgDay(d.createdAt, tz)} sub={v ? `${v.recordedBy.name} · recorded on behalf of, not signed` : undefined} /></Td>
                     <Td>
                       <RowActions>

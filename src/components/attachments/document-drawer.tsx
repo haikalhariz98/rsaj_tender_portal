@@ -12,7 +12,7 @@ import { Button, buttonClass, iconButtonClass } from "@/components/ui/button";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { KeyValues } from "@/components/ui/stat";
-import { RECLASSIFY_NOTE, WITHDRAW_NOTE } from "@/lib/documents/labels";
+import { endSentence, plural, RECLASSIFY_NOTE, WITHDRAW_NOTE, withdrawnLine } from "@/lib/documents/labels";
 import type { AttachmentItemView, DrawerView, DrawerVersionView, UploadView } from "@/lib/documents/views";
 
 import { AttachToRecordButton } from "./attach-to-record";
@@ -113,7 +113,18 @@ function Drawer({ data, reload, onClose, onRecord }: { data: DrawerView | null |
           icon={<FileIcon size={17} />}
           title={data ? data.title : "Document"}
           badge={data ? <Badge tone={data.classificationTone}>{data.classification}</Badge> : undefined}
-          subtitle={data ? `${data.className} · ${data.status}` : undefined}
+          subtitle={
+            data ? (
+              <>
+                <span>{`${data.className} · ${data.status}`}</span>
+                {data.holds.some((h) => h.standing) && (
+                  <span className="mt-1.5 block">
+                    <Badge tone="err">Legal hold in force</Badge>
+                  </span>
+                )}
+              </>
+            ) : undefined
+          }
           onClose={onClose}
         />
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
@@ -144,10 +155,10 @@ function Drawer({ data, reload, onClose, onRecord }: { data: DrawerView | null |
               <Section title="Legal holds" blurb="A hold stops it ever being disposed of, whatever its retention says.">
                 <Holds d={data} onDone={done} />
               </Section>
-              <Accordion title="Who opened it" meta={`${data.versions.reduce((n, v) => n + v.accessEvents.length, 0)} events`}>
+              <Accordion title="Downloads, refusals and checks" meta={plural(data.versions.reduce((n, v) => n + v.accessEvents.length, 0), "event")}>
                 <AccessEvents d={data} />
               </Accordion>
-              <Accordion title="History" meta={`${data.history.length} entries`}>
+              <Accordion title="History" meta={plural(data.history.length, "entry", "entries")}>
                 <History d={data} />
               </Accordion>
             </div>
@@ -236,7 +247,7 @@ function Summary({ d, onDone }: { d: DrawerView; onDone: (n: Notice) => void }) 
       <KeyValues
         columns={2}
         items={[
-          { label: "Classification", value: <Badge tone={d.classificationTone}>{d.classification}</Badge> },
+          { label: "Classification", value: <Badge tone={d.classificationTone}>{d.classificationUnset ? "Not set" : d.classification}</Badge> },
           { label: "Class", value: d.className },
           { label: "Received into the portal", value: d.createdOn },
           { label: "Filed", value: d.filedOn ?? "Not yet: it is listed under Received, not filed" },
@@ -296,10 +307,10 @@ function VersionCard({ v, onDone }: { v: DrawerVersionView; onDone: (n: Notice) 
     <li className="rounded-2xl border border-line p-4">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[14px] font-bold text-ink">Version {v.versionNo}</span>
-        {v.withdrawn && <Badge tone="err">Withdrawn {v.withdrawn.on}</Badge>}
+        {v.withdrawn && <Badge tone="err">Withdrawn</Badge>}
         <Chip tone={v.scan.tone === "neutral" ? undefined : v.scan.tone}>{v.scan.text}</Chip>
       </div>
-      {v.withdrawn && <p className="mt-1.5 text-[13px] text-ink-2">Withdrawn because: {v.withdrawn.reason || "no reason recorded"}</p>}
+      {v.withdrawn && <p className="mt-1.5 text-[13px] text-ink-2">{withdrawnLine(v.withdrawn.on, v.withdrawn.reason, v.download.allowed)}</p>}
       <KeyValues
         className="mt-3"
         columns={2}
@@ -344,11 +355,6 @@ function VersionCard({ v, onDone }: { v: DrawerVersionView; onDone: (n: Notice) 
           {v.download.reason}
         </p>
       )}
-      {v.withdrawn && v.download.allowed && (
-        <p className="mt-2 text-[12.5px] text-ink-3">
-          This version was withdrawn on {v.withdrawn.on}: {v.withdrawn.reason || "no reason recorded"}. It can still be downloaded.
-        </p>
-      )}
     </li>
   );
 }
@@ -369,7 +375,7 @@ function Attachments({ d }: { d: DrawerView }) {
             <span className="text-ink-3">· {a.label} · version {a.versionNo}</span>
           </span>
           <span className="text-ink-3">
-            {a.takenOff ? `Attached ${a.attachedOn}. Taken off ${a.takenOff.on}: ${a.takenOff.reason || "no reason recorded"}` : `Attached ${a.attachedOn}`}
+            {a.takenOff ? `Attached ${a.attachedOn}. Taken off ${a.takenOff.on}${a.takenOff.reason ? `: ${endSentence(a.takenOff.reason)}` : ", with no reason recorded."}` : `Attached ${a.attachedOn}`}
           </span>
         </li>
       ))}
@@ -412,7 +418,7 @@ function Holds({ d, onDone }: { d: DrawerView; onDone: (n: Notice) => void }) {
           {d.holds.map((h) => (
             <li key={h.id} className="flex flex-col gap-1 px-4 py-3 text-[13px]">
               <span className="flex flex-wrap items-center gap-2">
-                <Badge tone={h.standing ? "err" : "neutral"}>{h.standing ? "Standing" : "Released"}</Badge>
+                <Badge tone={h.standing ? "err" : "neutral"}>{h.standing ? "In force" : "Released"}</Badge>
                 <span className="font-semibold text-ink">{h.reason}</span>
               </span>
               <span className="text-ink-3">
@@ -487,15 +493,14 @@ function History({ d }: { d: DrawerView }) {
       {d.history.map((e) => (
         <li key={e.id} className="flex flex-col gap-1 px-5 py-3 text-[13px]">
           <span className="flex flex-wrap items-center gap-2">
-            <Badge tone={e.action === "Recorded" ? "ok" : e.action === "Removed" ? "err" : "info"}>{e.action}</Badge>
-            <span className="font-semibold text-ink">{e.entity}</span>
+            <Badge tone={e.tone}>{e.label}</Badge>
             <span className="text-ink-3">{e.at}</span>
           </span>
           {e.changes.length > 0 && (
             <ul className="text-[12.5px] text-ink-3">
               {e.changes.map((c) => (
                 <li key={c.field} className="break-words">
-                  {c.field}: {e.action === "Changed" && c.before != null && <>{c.before} → </>}
+                  {c.field}: {c.before != null && c.before !== c.after && <>{c.before} → </>}
                   <span className="text-ink-2">{c.after ?? "empty"}</span>
                 </li>
               ))}
