@@ -91,14 +91,15 @@ export function SubmitPackDrawer({ exerciseId, allowed, rows, warnings, today }:
   );
 }
 
-export function RefreshFlagsDrawer({ exerciseId, refresh }: { exerciseId: string; refresh: RefreshView }) {
+/// `confirmedChanges` is the key of the list shown: the act writes only that list (64-C2).
+export function RefreshFlagsDrawer({ exerciseId, refresh, confirmedChanges }: { exerciseId: string; refresh: RefreshView; confirmedChanges: string }) {
   if (!refresh.allowed) return <Blocked label={REFRESH_LABEL} reason={refresh.reason} />;
   return (
     <RecordEditor
       title={REFRESH_LABEL}
       description="A version keeps the answers it was started with. Where the configuration has since said whether a part is mandatory, or is in the Tender Table Document, they are taken into this draft. A frozen version is never changed."
-      fields={[hidden("exerciseId")]}
-      values={{ exerciseId }}
+      fields={[hidden("exerciseId"), hidden("confirmedChanges")]}
+      values={{ exerciseId, confirmedChanges }}
       sections={
         <ul className="flex list-disc flex-col gap-1 pl-5 text-[13px] text-ink-2">
           {refresh.changes.map((c) => (

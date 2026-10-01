@@ -60,3 +60,24 @@ export function refreshView(parts: readonly (FlagFacts & { partCode: string; pri
   }
   return unsetFlagCount(parts) > 0 ? { allowed: false, reason: CONFIG_STILL_UNSET } : null;
 }
+
+/**
+ * 64-C2: the refresh writes only the change list the officer confirmed. The drawer carries the
+ * list it showed as a key; the act recomputes the list under the pack's lock and refuses when
+ * the two differ (configuration saved, or another refresh taken, in between), so nothing the
+ * officer did not see is written. The key is the effect, part by part and answer by answer
+ * (from and to), in part order; the words shown are not part of it.
+ */
+export function changeListKey(changes: readonly FlagChange[]): string {
+  const entries = [...changes]
+    .sort((a, b) => (a.partCode < b.partCode ? -1 : a.partCode > b.partCode ? 1 : 0))
+    .map((c) => [c.partCode, c.mandatory ? [c.mandatory.from, c.mandatory.to] : null, c.inTableDocument ? [c.inTableDocument.from, c.inTableDocument.to] : null]);
+  return JSON.stringify(entries);
+}
+
+export const CHANGED_SINCE_OPENED = "Configuration changed since you opened this; review again.";
+
+/// Null where the confirmed list is the list computed now; otherwise the refusal. A missing confirmation never matches.
+export function confirmedChangesFault(confirmed: string | null | undefined, current: readonly FlagChange[]): typeof CHANGED_SINCE_OPENED | null {
+  return confirmed != null && confirmed === changeListKey(current) ? null : CHANGED_SINCE_OPENED;
+}

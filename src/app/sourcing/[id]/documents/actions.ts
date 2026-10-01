@@ -38,7 +38,7 @@ import { appendixText, freezePack } from "@/lib/tender-docs/freeze";
 import { appendixFaultText, datesFaultText, PACK_KIND_LABEL, partFaultText, startFaultText, submitFindingTexts } from "@/lib/tender-docs/labels";
 import { lockPackRows } from "@/lib/tender-docs/owner";
 import { allOf, blockingOf, markReadyFaults, nextPack, omitFaults, packEditFault, pickTemplateFaults, startPackFaults, submitFaults } from "@/lib/tender-docs/pack";
-import { CONFIG_STILL_UNSET, flagChanges } from "@/lib/tender-docs/refresh";
+import { CONFIG_STILL_UNSET, confirmedChangesFault, flagChanges } from "@/lib/tender-docs/refresh";
 import { isPct, PCT_COLUMN, pctRefusal, type PctField } from "@/lib/tender-docs/percent";
 import { liveClauses } from "@/lib/tender-docs/clauses";
 import { conditionFieldValues, conditionsSnapshot, conditionStamp, readConditionsSnapshot } from "@/lib/tender-docs/conditions";
@@ -272,15 +272,20 @@ export async function markPartReady(_prev: FormState, data: FormData): Promise<F
  * as it stands (code review C2, BD-64-39). A draft keeps the answers it was started with; where
  * the configuration did not say then, nothing else could unblock it. Only an answer the
  * configuration now gives is taken, each part audited; a frozen version is never refreshed.
+ * The officer confirms the list the drawer showed; a different list now is refused (64-C2).
  */
 export async function refreshPartFlags(_prev: FormState, data: FormData): Promise<FormState> {
   const exerciseId = exerciseIdOf(data);
+  const confirmed = data.get("confirmedChanges");
   return inPacks(exerciseId, async (tx, l, packs) => {
     const pack = draftOf(packs);
     if (!pack) return NO_PACK;
     const edit = packEditFault(pack.status, l.ex.status);
     if (edit) return refuse([edit]);
     const changes = flagChanges(pack.parts.map(partFactsOf), await loadConfiguredParts(l.org.id, tx));
+    // 64-C2: only the list the officer confirmed is written; recomputed here, under the lock.
+    const changed = confirmedChangesFault(typeof confirmed === "string" ? confirmed : null, changes);
+    if (changed) return { ok: false, message: changed };
     if (changes.length === 0) return { ok: false, message: `Nothing to refresh: ${CONFIG_STILL_UNSET}` };
     for (const c of changes) {
       const part = pack.parts.find((x) => x.partCode === c.partCode)!;

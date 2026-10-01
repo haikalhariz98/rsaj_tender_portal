@@ -59,7 +59,7 @@ import {
 } from "./labels";
 import { blockingOf, isLivePack, markReadyFaults, omitFaults, packEditFault, startPackFaults, submitFaults, nextPack } from "./pack";
 import { distinctOffices, pickTemplateView } from "./part-view";
-import { refreshView } from "./refresh";
+import { changeListKey, flagChanges, refreshView } from "./refresh";
 import { formatPct } from "./percent";
 import { appendixFactsOf, loadConfiguredParts, loadPacks, loadTemplates, loadTenderPolicy, partFactsOf, pinnedFilesOf, profileOf, scopeReadiness, type PackRow } from "./repo";
 import { decisionWindow, tenderingRouteForRequester, timeIn } from "./tendering";
@@ -233,6 +233,8 @@ function packView(p: PackRow, c: NonNullable<Awaited<ReturnType<typeof context>>
     returnedBecause: p.status === "RETURNED" ? p.returnedReason : null,
     /// Draft only: take the parts' two answers from the configuration as it stands (BD-64-39), or why that cannot help yet.
     refresh: editable && p.status === "DRAFT" ? refreshView(p.parts.map(partFactsOf), c.configured) : null,
+    /// The list that refresh shows, as the key the officer confirms with it (64-C2).
+    refreshKey: editable && p.status === "DRAFT" ? changeListKey(flagChanges(p.parts.map(partFactsOf), c.configured)) : null,
     parts: p.parts.map((row) => {
       const facts = partFactsOf(row);
       const frozenDocs = p.documents.filter((d) => d.partCode === row.partCode);
