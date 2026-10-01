@@ -249,7 +249,7 @@ export async function loadWindowDemo(db: Db, organisationId: string, hooks: Wind
     // The route asks the Head of Department to propose and then to recommend jointly, and the
     // demo's region has one: on the day of the joint recommendation he is away at a commissioning,
     // and his office is delegated to the Section Head for that day (6.1's delegation, judged by faultsIn).
-    await delegateForTheDay(db, organisationId, `${P}dg5`, W(10), W(10), T(W(10), "08:00"), entry);
+    await delegateForTheDay(db, organisationId, `${P}dg5`, W(10), W(9), T(W(10), "08:00"), entry);
     // The people before the committee on one day, the committee's sitting the next, the rest after it.
     const hours = ["10:00", "11:00", "12:00", "14:00", "15:00"];
     await acts.decideNext(`${P}ai69`, W(11), T(W(11), "15:00"));
@@ -644,7 +644,7 @@ const COMPLETE_APPENDIX = { ladOfficerRoleCode: "HOD_CP", eotOfficerRoleCode: "H
 
 // ------------------------------------------------------------------ the delegation for the joint recommendation
 
-/// saveDelegation's write: the whole Head of Department office, for one day, from its holder to the Section Head; every fault from faultsIn.
+/// saveDelegation's write: the whole Head of Department office, from its start to the end day, from its holder to the Section Head; every fault from faultsIn.
 async function delegateForTheDay(db: Db, organisationId: string, id: string, from: string, to: string, at: Date, entry: Add) {
   const { faultsIn } = await import("../src/lib/people/delegation");
   const v = {
