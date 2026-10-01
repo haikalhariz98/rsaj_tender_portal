@@ -624,14 +624,17 @@ export async function loadAwards(db: Db, organisationId: string) {
  * The award's part of the wipe, run before exercises, requisitions, people and
  * templates go. Refuses (listing them) where awards that are not demo data hang off
  * demo rows, unless the dependents are to be removed too.
+ *
+ * Checked once, before anything is removed (the document store's plan needs the awards
+ * it lists, and runs between this check and the awards' removal); `wipeAwards` carries
+ * out this same check, never a second one.
  */
-/// Whether awards stand in the wipe's way, checked before anything is removed (the
-/// document store's wipe runs between this check and the awards' removal).
-export async function awardWipeRefused(db: Db, organisationId: string, removeDependents: boolean): Promise<boolean> {
-  return !(await awardsHanging(db, organisationId, removeDependents)).ok;
-}
+export type AwardWipeCheck = Awaited<ReturnType<typeof checkAwards>>;
 
-async function awardsHanging(db: Db, organisationId: string, removeDependents: boolean) {
+/// `hangingExerciseIds`: exercises that are not demo data but are removed with it (opened
+/// on a demo requisition, naming demo people): their awards go too, or the exercise's
+/// removal would meet its award's key after the documents and awards had gone.
+export async function checkAwards(db: Db, organisationId: string, removeDependents: boolean, hangingExerciseIds: readonly string[]) {
   const demoRef = { startsWith: P };
   const hanging = await db.award.findMany({
     where: {
@@ -639,6 +642,7 @@ async function awardsHanging(db: Db, organisationId: string, removeDependents: b
       NOT: { id: demoRef },
       OR: [
         { exerciseId: demoRef },
+        { exerciseId: { in: [...hangingExerciseIds] } },
         { signatoryPersonId: demoRef },
         { signatoryDelegationId: demoRef },
         { variantId: demoRef },
@@ -651,26 +655,30 @@ async function awardsHanging(db: Db, organisationId: string, removeDependents: b
       ],
     },
     select: { id: true, reference: true, awardeeName: true },
+    orderBy: { reference: "asc" },
   });
   const linked = await db.committeeDecision.findMany({ where: { NOT: { id: demoRef }, exerciseId: demoRef }, select: { id: true, subject: true, matterRef: true } });
-  if ((hanging.length || linked.length) && !removeDependents) {
-    console.error(
-      [
-        "Refused: these records are not demo data, but point at demo records, so the demo cannot be removed under them:",
-        ...hanging.map((a) => `  award ${a.reference} · ${a.awardeeName}`),
-        ...linked.map((m) => `  committee matter ${m.matterRef ?? m.subject} (link to a demo exercise)`),
-        "Nothing was removed. Deal with them first, or run the wipe again with --remove-dependents.",
-      ].join("\n"),
-    );
-    return { ok: false as const, hanging, linked };
-  }
-  return { ok: true as const, hanging, linked };
+  const refused = (hanging.length > 0 || linked.length > 0) && !removeDependents;
+  return { refused, hanging, linked };
 }
 
-export async function wipeAwards(db: Db, organisationId: string, removeDependents: boolean): Promise<boolean> {
+/// Print why the awards refuse the wipe, if they do.
+export function reportAwardRefusal(check: AwardWipeCheck): boolean {
+  if (!check.refused) return false;
+  console.error(
+    [
+      "Refused: these records are not demo data, but point at demo records, so the demo cannot be removed under them:",
+      ...check.hanging.map((a) => `  award ${a.reference} · ${a.awardeeName}`),
+      ...check.linked.map((m) => `  committee matter ${m.matterRef ?? m.subject} (link to a demo exercise)`),
+      "Nothing was removed. Deal with them first, or run the wipe again with --remove-dependents.",
+    ].join("\n"),
+  );
+  return true;
+}
+
+export async function wipeAwards(db: Db, organisationId: string, check: AwardWipeCheck): Promise<void> {
+  if (check.refused) throw new Error("wipeAwards called with a refused check");
   const demoRef = { startsWith: P };
-  const check = await awardsHanging(db, organisationId, removeDependents);
-  if (!check.ok) return false;
   const { hanging, linked } = check;
   const awards = await db.award.findMany({
     where: { organisationId, OR: [{ id: demoRef }, { exerciseId: demoRef }, { id: { in: hanging.map((h) => h.id) } }] },
@@ -712,5 +720,4 @@ export async function wipeAwards(db: Db, organisationId: string, removeDependent
   await db.liabilityBand.deleteMany({ where: demo });
   await db.approvedIssuer.deleteMany({ where: demo });
   await db.committeeDecision.updateMany({ where: demo, data: { exerciseId: null } });
-  return true;
 }

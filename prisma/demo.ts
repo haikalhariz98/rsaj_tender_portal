@@ -3,8 +3,8 @@ import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 
-import { awardWipeRefused, loadAwards, loadAwardSetup, wipeAwards } from "./demo-award";
-import { documentWipeRefused, loadDocuments, wipeDocuments } from "./demo-documents";
+import { checkAwards, loadAwards, loadAwardSetup, reportAwardRefusal, wipeAwards } from "./demo-award";
+import { loadDocuments, planDocumentWipe, reportDocumentRefusal, wipeDocuments } from "./demo-documents";
 import { loadSittingTrail } from "./demo-sitting-trail";
 import { inspectLogo } from "../src/lib/organisation/logo";
 import { initialsLogo } from "../src/lib/organisation/png";
@@ -127,12 +127,10 @@ async function wipe() {
   const org = await organisation();
   const demo = { id: { startsWith: P } };
 
-  // The document store first (plan §9): a record that is not demo data pinned to a demo
-  // document, or a real document on a demo record, refuses the wipe before anything goes.
-  if (await documentWipeRefused(db, org.id, REMOVE_DEPENDENTS)) {
-    process.exitCode = 1;
-    return;
-  }
+  // Every refusal is decided before anything is removed (no partial wipe): first which
+  // records that are not demo data --remove-dependents would remove with the demo
+  // (requisitions, exercises, awards), then the documents, judged with those records on
+  // the demo's side, so a screen-made award with its scans attached is wiped, not refused.
 
   // A requisition raised on the demo (by a demo person, against a demo budget code or
   // down a demo rule set) cannot outlive the demo rows it points at. It is not demo
@@ -225,43 +223,44 @@ async function wipe() {
   });
   const orphanRoutes = hangingInstances.filter((i) => i.requisitionId == null && (i.exerciseId == null || !hangingExerciseIds.includes(i.exerciseId)));
 
-  if (hanging.length || hangingExercises.length || orphanRoutes.length || linkedMatters.length) {
-    const lines = [
-      ...hanging.map((r) => `  requisition ${r.reference} · ${r.title}`),
-      ...hangingExercises.map((x) => `  sourcing exercise ${x.reference} · ${x.title}`),
-      ...orphanRoutes.map((i) => `  approval route ${i.id} under ${i.matrixLabel ?? "a demo rule set"}`),
-      ...linkedMatters.map((m) => `  committee matter ${m.matterRef ?? m.subject} (link to a demo requisition)`),
-    ];
-    if (!REMOVE_DEPENDENTS) {
-      console.error(
-        [
-          "Refused: these records are not demo data, but point at demo records, so the demo cannot be removed under them:",
-          ...lines,
-          "Nothing was removed. Deal with them first, or run the wipe again with --remove-dependents",
-          "(npm run demo:wipe -- --remove-dependents) to remove the requisitions and routes above with their lines,",
-          "endorsements, checks, steps, commitments and audit entries, and clear the committee matters' links.",
-        ].join("\n"),
-      );
-      process.exitCode = 1;
-      return;
-    }
-    console.log(["--remove-dependents: removing these records, which point at demo records, with their audit entries:", ...lines].join("\n"));
-  }
+  const lines = [
+    ...hanging.map((r) => `  requisition ${r.reference} · ${r.title}`),
+    ...hangingExercises.map((x) => `  sourcing exercise ${x.reference} · ${x.title}`),
+    ...orphanRoutes.map((i) => `  approval route ${i.id} under ${i.matrixLabel ?? "a demo rule set"}`),
+    ...linkedMatters.map((m) => `  committee matter ${m.matterRef ?? m.subject} (link to a demo requisition)`),
+  ];
 
-  // 6.11: awards on demo exercises, and awards that are not demo data but point at demo
-  // rows (refused, listing them, unless --remove-dependents), then the award configuration.
-  // Before anything else is removed: a refusal here removes nothing.
-  if (await awardWipeRefused(db, org.id, REMOVE_DEPENDENTS)) {
+  // 6.11: awards on demo exercises or on the exercises above, and awards that are not demo
+  // data but point at demo rows (refused, listing them, unless --remove-dependents).
+  const awardCheck = await checkAwards(db, org.id, REMOVE_DEPENDENTS, hangingExerciseIds);
+  // The document store (plan §9, review must-fix 3): judged with the exercises and awards
+  // removed above on the demo's side.
+  const documentPlan = await planDocumentWipe(db, org.id, { exerciseIds: hangingExerciseIds, awardIds: awardCheck.hanging.map((a) => a.id) }, REMOVE_DEPENDENTS);
+
+  const requisitionsRefused = lines.length > 0 && !REMOVE_DEPENDENTS;
+  if (requisitionsRefused) {
+    console.error(
+      [
+        "Refused: these records are not demo data, but point at demo records, so the demo cannot be removed under them:",
+        ...lines,
+        "Nothing was removed. Deal with them first, or run the wipe again with --remove-dependents",
+        "(npm run demo:wipe -- --remove-dependents) to remove the requisitions and routes above with their lines,",
+        "endorsements, checks, steps, commitments and audit entries, and clear the committee matters' links.",
+      ].join("\n"),
+    );
+  }
+  const documentsRefused = reportDocumentRefusal(documentPlan);
+  const awardsRefused = reportAwardRefusal(awardCheck);
+  if (requisitionsRefused || documentsRefused || awardsRefused) {
     process.exitCode = 1;
     return;
   }
-  // Attachments pin meetings, exercises, awards and delegations: the documents go before
-  // any of them (their keys refuse a delete).
-  await wipeDocuments(db, org.id);
-  if (!(await wipeAwards(db, org.id, REMOVE_DEPENDENTS))) {
-    process.exitCode = 1;
-    return;
-  }
+  if (lines.length) console.log(["--remove-dependents: removing these records, which point at demo records, with their audit entries:", ...lines].join("\n"));
+
+  // Nothing refused: removal starts here. Attachments pin meetings, exercises, awards and
+  // delegations: the documents go before any of them (their keys refuse a delete).
+  await wipeDocuments(db, org.id, documentPlan);
+  await wipeAwards(db, org.id, awardCheck);
 
   const hangingInstanceIds = hangingInstances.map((i) => i.id);
   const hangingMovementIds = hanging.flatMap((r) => (r.commitmentMovementId ? [r.commitmentMovementId] : []));

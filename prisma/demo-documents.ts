@@ -13,10 +13,10 @@
  *   document (listed, never served); one legal hold; one staged upload not yet filed.
  *
  * The wipe removes access events, holds, attachments, versions and documents, then only
- * the blobs no version left behind still references. It refuses, listing them, when a
- * record that is not demo data points at a demo document, or a document that is not demo
- * data is attached to a demo record (unless --remove-dependents, which takes those
- * attachments off and keeps the documents: bytes are never deleted for the demo).
+ * the blobs no version left behind still references. What it does with each document is
+ * planned by `documentWipePlan` (src/lib/documents/demo-wipe-plan.ts), after demo.ts has
+ * worked out which records --remove-dependents removes with the demo, and refused —
+ * before anything is removed — where something real would remain.
  */
 
 import { createHash } from "node:crypto";
@@ -24,6 +24,7 @@ import { createHash } from "node:crypto";
 import type { PrismaClient } from "../src/generated/prisma/client";
 import { attached, detached, documentCreated, filed, holdPlaced, repinAudit, versionCreated, versionWithdrawn } from "../src/lib/documents/audit-view";
 import { PURPOSE_LABEL } from "../src/lib/documents/labels";
+import { documentWipePlan, type DocumentWipePlan, type PlanDocument, type PlanLine } from "../src/lib/documents/demo-wipe-plan";
 import type { AttachmentPurpose, SecurityClass } from "../src/lib/documents/types";
 import { initialsLogo } from "../src/lib/organisation/png";
 
@@ -229,61 +230,79 @@ async function retentionOfClass(db: Db, classId: string) {
 // ------------------------------------------------------------------ wipe
 
 const demoRef = { startsWith: P };
-const onDemoOwner = { OR: [{ meetingId: demoRef }, { exerciseId: demoRef }, { awardId: demoRef }, { delegationId: demoRef }] };
-/// No owner key is a demo one. Spelled out per key: in SQL a null key never matches a
-/// negated LIKE, so `NOT: onDemoOwner` would silently drop exactly the real records.
-const notOnDemoOwner = { AND: (["meetingId", "exerciseId", "awardId", "delegationId"] as const).map((k) => ({ OR: [{ [k]: null }, { NOT: { [k]: demoRef } }] })) };
 
-/// Documents that are not demo data but name a demo person: a version recorded on a demo
-/// person's behalf, or a hold placed or released by one. In a demo environment every
-/// upload names a demo person, so these are what the screens added while the demo stood.
-const namesDemoPerson = {
-  OR: [{ versions: { some: { recordedByPersonId: demoRef } } }, { holds: { some: { OR: [{ placedByPersonId: demoRef }, { releasedByPersonId: demoRef }] } } }],
-};
-
-async function dependents(db: Db, organisationId: string) {
-  // A real record's attachment pinned to a demo document: never removed for the demo.
-  const pointing = await db.documentAttachment.findMany({
-    where: { organisationId, version: { documentId: demoRef }, ...notOnDemoOwner },
-    select: { id: true, purpose: true, version: { select: { document: { select: { title: true } } } } },
-  });
-  // Documents not demo data that name a demo person: removed whole with --remove-dependents,
-  // unless one is attached to a real record (then never).
-  const naming = await db.document.findMany({
-    where: { organisationId, NOT: { id: demoRef }, ...namesDemoPerson },
-    select: { id: true, title: true, versions: { select: { id: true, sha256: true, attachments: { select: { id: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true } } } }, holds: { select: { id: true } } },
-  });
-  const onReal = (a: { meetingId: string | null; exerciseId: string | null; awardId: string | null; delegationId: string | null }) =>
-    [a.meetingId, a.exerciseId, a.awardId, a.delegationId].some((x) => x != null && !x.startsWith(P));
-  const pinnedToReal = naming.filter((d) => d.versions.some((v) => v.attachments.some(onReal)));
-  // Documents not demo data, naming no demo person, attached to a demo record: the
-  // attachment comes off with --remove-dependents; the document stays.
-  const onDemo = await db.documentAttachment.findMany({
-    where: { organisationId, ...onDemoOwner, NOT: { version: { documentId: demoRef } }, version: { document: { NOT: namesDemoPerson } } },
-    select: { id: true, purpose: true, version: { select: { document: { select: { title: true } } } } },
-  });
-  return { pointing, naming, pinnedToReal, onDemo };
+/// The records --remove-dependents removes with the demo although they are not demo data
+/// (computed in demo.ts before anything is judged or removed).
+export interface RemovedWithDemo {
+  exerciseIds: string[];
+  awardIds: string[];
 }
 
 /**
- * Whether the documents stand in the wipe's way. Checked before anything is removed.
- * Always refused (listing them): a real record's attachment pinned to a demo document,
- * and a document naming a demo person that is attached to a real record. Refused unless
- * --remove-dependents: a document added through the screens that names a demo person
- * (removed whole), and a real document attached to a demo record (taken off, kept).
+ * Read every document the wipe must judge — the demo's own, those naming a demo person
+ * (a version recorded on one's behalf, a hold placed or released by one: what the screens
+ * add in a demo environment), and any attached to a record on the demo side — and plan
+ * it with `documentWipePlan` (src/lib/documents/demo-wipe-plan.ts). Reads only.
  */
-export async function documentWipeRefused(db: Db, organisationId: string, removeDependents: boolean): Promise<boolean> {
-  const { pointing, naming, pinnedToReal, onDemo } = await dependents(db, organisationId);
-  const hard = pointing.length + pinnedToReal.length;
-  if (!hard && (removeDependents || (!naming.length && !onDemo.length))) return false;
+export async function planDocumentWipe(db: Db, organisationId: string, removed: RemovedWithDemo, removeDependents: boolean): Promise<DocumentWipePlan> {
+  const onDemoSideOwner = {
+    OR: [
+      { meetingId: demoRef }, { exerciseId: demoRef }, { awardId: demoRef }, { delegationId: demoRef },
+      { exerciseId: { in: removed.exerciseIds } }, { awardId: { in: removed.awardIds } },
+    ],
+  };
+  const rows = await db.document.findMany({
+    where: {
+      organisationId,
+      OR: [
+        { id: demoRef },
+        { versions: { some: { recordedByPersonId: demoRef } } },
+        { holds: { some: { OR: [{ placedByPersonId: demoRef }, { releasedByPersonId: demoRef }] } } },
+        { versions: { some: { attachments: { some: onDemoSideOwner } } } },
+      ],
+    },
+    orderBy: { id: "asc" },
+    select: {
+      id: true, title: true,
+      versions: { select: { id: true, sha256: true, recordedByPersonId: true, attachments: { select: { id: true, purpose: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true } } } },
+      holds: { select: { id: true, placedByPersonId: true, releasedByPersonId: true } },
+    },
+  });
+  const isDemo = (id: string | null) => id != null && id.startsWith(P);
+  const docs: PlanDocument[] = rows.map((d) => ({
+    id: d.id,
+    title: d.title,
+    namesDemoPerson: d.versions.some((v) => isDemo(v.recordedByPersonId)) || d.holds.some((h) => isDemo(h.placedByPersonId) || isDemo(h.releasedByPersonId)),
+    versions: d.versions.map((v) => ({ id: v.id, sha256: v.sha256, attachments: v.attachments.map((a) => ({ ...a, purpose: a.purpose as AttachmentPurpose })) })),
+    holds: d.holds.map((h) => ({ id: h.id })),
+  }));
+  return documentWipePlan(docs, { isDemo: (id) => id.startsWith(P), removedExerciseIds: new Set(removed.exerciseIds), removedAwardIds: new Set(removed.awardIds) }, removeDependents);
+}
+
+const LINE_TEXT = (l: PlanLine) => {
+  switch (l.kind) {
+    case "DEMO_DOCUMENT_ON_REAL_RECORD": return `  an attachment (${PURPOSE_LABEL[l.purpose]}) of the demo document “${l.title}” on a record that is not demo data`;
+    case "DEMO_PERSON_DOCUMENT_ON_REAL_RECORD": return `  the document “${l.title}”, which names a demo person and is attached to a record that is not demo data`;
+    case "DEMO_PERSON_DOCUMENT": return `  the document “${l.title}”, recorded on behalf of (or held by) a demo person`;
+    case "OTHER_DOCUMENT_ON_DEMO_RECORD": return `  the document “${l.title}”, attached to a demo record as ${PURPOSE_LABEL[l.purpose]}`;
+  }
+};
+
+/**
+ * Print why the documents refuse the wipe, if they do. Always refused (listing them): a
+ * demo document attached to a record the wipe keeps, and a document naming a demo person
+ * attached to one. Refused unless --remove-dependents: a document added through the
+ * screens that names a demo person (removed whole), and another document attached to a
+ * demo-side record (taken off, kept). Records --remove-dependents removes are demo-side.
+ */
+export function reportDocumentRefusal(plan: DocumentWipePlan): boolean {
+  if (!plan.refused) return false;
   console.error(
     [
       "Refused: these records are not demo data, but point at demo records, so the demo cannot be removed under them:",
-      ...pointing.map((a) => `  an attachment (${PURPOSE_LABEL[a.purpose]}) of the demo document “${a.version.document.title}” on a record that is not demo data`),
-      ...pinnedToReal.map((d) => `  the document “${d.title}”, which names a demo person and is attached to a record that is not demo data`),
-      ...naming.filter((d) => !pinnedToReal.includes(d)).map((d) => `  the document “${d.title}”, recorded on behalf of (or held by) a demo person`),
-      ...onDemo.map((a) => `  the document “${a.version.document.title}”, attached to a demo record as ${PURPOSE_LABEL[a.purpose]}`),
-      hard
+      ...plan.hard.map(LINE_TEXT),
+      ...plan.soft.map(LINE_TEXT),
+      plan.hard.length
         ? "Nothing was removed. Take those attachments off the records that are not demo data first: nothing attached to a real record is removed for the demo."
         : "Nothing was removed. Deal with them first, or run the wipe again with --remove-dependents, which removes the documents recorded for demo people (with their versions, holds and access log) and takes the other documents off the demo records, keeping them.",
     ].join("\n"),
@@ -311,27 +330,33 @@ async function removeDocuments(db: Db, organisationId: string, docs: { id: strin
 }
 
 /**
- * Remove the demo documents and everything recorded under them, in dependency order:
- * access events, holds, attachments, versions, documents — then only the blobs no
- * remaining version references. With --remove-dependents (the refusal above allowed it),
- * first the documents the screens added for demo people, and the attachments of other
- * real documents on demo records (those documents kept). Then the demo upload rules, if
- * they still hold the demo's values (a policy edited since is real, and is kept).
+ * Carry out a plan that was not refused, in dependency order: with --remove-dependents
+ * (the plan allowed it), first the documents the screens added for demo people, and the
+ * attachments of other documents on demo-side records (those documents kept); then the
+ * demo's own documents — access events, holds, attachments, versions, documents, then only
+ * the blobs no remaining version references. Then the demo upload rules, if they still
+ * hold the demo's values (a policy edited since is real, and is kept).
+ *
+ * Access events with no version (a refused upload: too long a name, a refused type or
+ * size) record no person and no record, so the wipe cannot tell the demo's from real ones;
+ * they are kept, and counted.
  */
-export async function wipeDocuments(db: Db, organisationId: string) {
-  const { naming, onDemo } = await dependents(db, organisationId);
+export async function wipeDocuments(db: Db, organisationId: string, plan: DocumentWipePlan) {
+  if (plan.refused) throw new Error("wipeDocuments called with a refused plan");
+  const { demoPersonDocuments: naming, takeOff, demoDocuments } = plan;
   if (naming.length) {
     await removeDocuments(db, organisationId, naming);
     console.log(`--remove-dependents: removed ${naming.length} document(s) recorded for demo people: ${naming.map((d) => `“${d.title}”`).join(", ")}.`);
   }
-  if (onDemo.length) {
-    await db.documentAttachment.deleteMany({ where: { id: { in: onDemo.map((a) => a.id) } } });
-    await db.auditEntry.deleteMany({ where: { organisationId, entityId: { in: onDemo.map((a) => a.id) } } });
-    console.log(`--remove-dependents: took ${onDemo.length} attachment(s) of other documents off demo records; the documents are kept.`);
+  if (takeOff.length) {
+    await db.documentAttachment.deleteMany({ where: { id: { in: takeOff.map((a) => a.id) } } });
+    await db.auditEntry.deleteMany({ where: { organisationId, entityId: { in: takeOff.map((a) => a.id) } } });
+    console.log(`--remove-dependents: took ${takeOff.length} attachment(s) of other documents off demo records; the documents are kept.`);
   }
-  const docs = await db.document.findMany({ where: { organisationId, id: demoRef }, select: { id: true, versions: { select: { id: true, sha256: true, attachments: { select: { id: true } } } }, holds: { select: { id: true } } } });
-  await removeDocuments(db, organisationId, docs);
+  await removeDocuments(db, organisationId, demoDocuments);
   await db.documentAccessEvent.deleteMany({ where: { id: demoRef } });
+  const unplaced = await db.documentAccessEvent.count({ where: { organisationId, versionId: null } });
+  if (unplaced) console.log(`Kept ${unplaced} refused-upload log entr${unplaced === 1 ? "y" : "ies"} with no stored version: they name no person or record, so the demo's cannot be told from real ones.`);
 
   const policy = await db.documentStorePolicy.findUnique({ where: { id: DEMO_POLICY_ID } });
   if (policy) {
