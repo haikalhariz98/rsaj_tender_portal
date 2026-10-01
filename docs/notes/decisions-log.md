@@ -6,7 +6,7 @@ decision · reason · spec ID.
 
 ## Where the build stopped
 
-Phase 1 started 2026-09-30. **6.10 committee sittings: accepted. 6.1 requisition: accepted (4d1b426). 6.3 method selection: accepted (cd9eca1).** Next: 6.11 award + registers (in progress; plan ruled, must be revised against built 6.1/6.3) — all three planned and ruled on (plans in docs/notes/plans/). Open follow-ups: 6.10 at 390px — card titles cut beside buttons, act chips break mid-word; act badges / avatar initials read like codes (6.1, 6.3); numbering (series.ts) and budget periods (periods.ts) take the day from UTC; shared-UI polish items (users table at 390px, numbering pattern cells, template/notification chips, approval-matrix committee chip).
+Phase 1 started 2026-09-30. **6.10 committee sittings: accepted. 6.1 requisition: accepted (4d1b426). 6.3 method selection: accepted (cd9eca1). 6.11 award + registers: accepted (861dd06).** Next: Phase 1 close-out (plan docs/notes/plans/phase1-closeout.md, ruled), then Phase 1 acceptance, then 6.2 (plan ruled), then a document-store platform module before Phase 2 acceptance — all three planned and ruled on (plans in docs/notes/plans/). Open follow-ups: 6.10 at 390px — card titles cut beside buttons, act chips break mid-word; act badges / avatar initials read like codes (6.1, 6.3); numbering (series.ts) and budget periods (periods.ts) take the day from UTC; shared-UI polish items (users table at 390px, numbering pattern cells, template/notification chips, approval-matrix committee chip).
 
 **Environment caveat for the founder.** This session ran on PostgreSQL 16 (no Docker) and
 could not download Prisma's native schema engine (binaries.prisma.sh is blocked by the
@@ -18,6 +18,11 @@ dev` on a normal machine against Postgres 17 and confirm it reports no drift.
 
 ## Decisions
 
+- 2026-10-01 · 6.11 · Award ACCEPTED at 861dd06 (1101 tests, typecheck and lint clean; migrations, demo round trip and 141 page loads clean). Conditions met; re-review musts closed. Open, carried: 4a recorded check of uncovered-wages WC before signature relies on the readiness gate; 6.10 withdraw-from-agenda; numbering/periods UTC day. Next: Phase 1 close-out. Spec: §6.11, §13.9.
+- 2026-10-01 · 6.11 · BD-38 approved: an acceptance page counts as returned once its received day or signatory is recorded; acceptance still needs the complete page; expired-indent header count uses the badge's rule. Spec: FR-AWD-008, 009.
+- 2026-10-01 · 6.11 · BD-37 approved: classificationLockedAt stored as the submission instant, shown via formatOrgDay; history drawer, sitting trail and minutedAt on the organisation's clock; votes and tabling dates remain days. Spec: FR-MTD-011.
+- 2026-10-01 · 6.11 · BD-36 approved: securities register pages in the database (live, then long expired, then rejected; soonest to expire first); views use the same conditions as header counts. Spec: FR-AWD-012, FR-CON-001.
+- 2026-10-01 · 6.11 · BD-35 approved: a terms save writes only the fields the form carried; answering the bond question is the one deliberate clearing; retention/DLP stay on the form marked "not asked", never stored as zero. Spec: FR-AWD-012, AGENTS.md.
 - 2026-10-01 · 6.11 · Fix round 1 and UX round (98c6643, 400a1c1, 4c0074a) PROVISIONALLY ACCEPTED: 1085 tests, typecheck and lint clean. Final acceptance on: code re-review result; INSTRUMENT_CHANGED states the new approval and committee decision; Malay-name refusal says where to set it; classificationLockedAt via formatOrgDay and a formatDate test. Spec: §6.11, §13.9.
 - 2026-10-01 · shared UI · Follow-up: timestamps rendered through formatDate (home activity, committee minutedAt and trail) show the UTC day; move to formatOrgDay with the open UTC-day items.
 - 2026-10-01 · 6.11 · Three changed tests accepted as strengthened: contractNumberSource takes the award and asserts the indent number; acceptance fixture gains the received day with a test of its absence; Malay LAD expects "sehari" (English still asserted for EN).
