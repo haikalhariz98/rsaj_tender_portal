@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { UPLOAD_HEADER_VALUE, uploadRequestFault, type UploadRequestFacts } from "./request-guard";
+import { downloadRequestFault, UPLOAD_HEADER_VALUE, uploadRequestFault, type UploadRequestFacts } from "./request-guard";
 
 const ok: UploadRequestFacts = { secFetchSite: "same-origin", origin: "http://localhost:3000", host: "localhost:3000", uploadHeader: UPLOAD_HEADER_VALUE };
 
@@ -33,5 +33,15 @@ describe("who may upload (audit M-3)", () => {
   });
   it("a cross-site request is refused as such even when it also lacks the header", () => {
     expect(uploadRequestFault({ ...ok, secFetchSite: "cross-site", uploadHeader: null })).toBe("NOT_SAME_ORIGIN");
+  });
+});
+
+describe("who may download (audit C-2)", () => {
+  it("a cross-site request is refused", () => {
+    expect(downloadRequestFault("cross-site")).toBe("CROSS_SITE");
+    expect(downloadRequestFault(" Cross-Site ")).toBe("CROSS_SITE");
+  });
+  it("same-origin, same-site, a typed address and a client that sends no header pass", () => {
+    for (const v of ["same-origin", "same-site", "none", null, ""]) expect(downloadRequestFault(v), String(v)).toBeNull();
   });
 });

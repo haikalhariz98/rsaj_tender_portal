@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { dispositionFilename, downloadDecision, EXTENSION_FOR } from "@/lib/documents/access";
 import { DOWNLOAD_REFUSAL_TEXT } from "@/lib/documents/labels";
 import { documentOrg, logAccess } from "@/lib/documents/service";
+import { downloadRequestFault } from "@/lib/documents/request-guard";
 import { blobStore, sha256Hex } from "@/lib/documents/store";
 
 /**
@@ -14,7 +15,9 @@ import { blobStore, sha256Hex } from "@/lib/documents/store";
  * sandbox policy and no caching, and the download is logged. A withdrawn version is
  * still served: it is withdrawn, not deleted, and the drawer lists it as withdrawn.
  */
-export async function GET(_req: NextRequest, ctx: RouteContext<"/api/documents/versions/[id]">) {
+export async function GET(req: NextRequest, ctx: RouteContext<"/api/documents/versions/[id]">) {
+  // Before anything is read or logged: a download another site started writes nothing (audit C-2).
+  if (downloadRequestFault(req.headers.get("sec-fetch-site"))) return plain(403, "This file is opened from the portal's own pages. Open the portal and download it from there.");
   const { id } = await ctx.params;
   const org = await documentOrg();
   if (!org) return plain(503, "No organisation is configured.");
@@ -60,6 +63,15 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/api/documents/v
   }
   await logAccess({ organisationId: org.id, kind: "DOWNLOADED", versionId: version.id });
   return response;
+}
+
+/**
+ * Next answers HEAD with the GET handler when none is exported, which would read the
+ * bytes and log a download for a request that sends none. HEAD is refused outright:
+ * no database read, no bytes, no log entry (audit C-2).
+ */
+export async function HEAD() {
+  return new Response(null, { status: 405, headers: { Allow: "GET", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
 }
 
 function plain(status: number, text: string) {

@@ -55,3 +55,15 @@ function originMatchesHost(origin: string | null, host: string | null): boolean 
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
   return parsed.host.toLowerCase() === host.trim().toLowerCase();
 }
+
+/**
+ * Whether a download may proceed: refused when the browser says the request was started
+ * by another site (an `<img>`, a form or a link on a page elsewhere), so a hostile page
+ * cannot make visitors' browsers fill the access log. Everything else passes: same-origin
+ * and same-site, `none` (a typed address or a bookmark) and an absent header (non-browser
+ * clients, and browsers that predate it). Refused requests are not logged: logging them
+ * would hand the hostile page the very flood it was after.
+ */
+export function downloadRequestFault(secFetchSite: string | null): "CROSS_SITE" | null {
+  return secFetchSite?.trim().toLowerCase() === "cross-site" ? "CROSS_SITE" : null;
+}

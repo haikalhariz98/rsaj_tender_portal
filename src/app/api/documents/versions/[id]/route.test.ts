@@ -26,9 +26,9 @@ vi.mock("@/lib/documents/store", async () => {
   };
 });
 
-import { GET } from "./route";
+import { GET, HEAD } from "./route";
 
-const call = () => GET(new Request("http://localhost/api/documents/versions/v1") as never, { params: Promise.resolve({ id: "v1" }) } as never);
+const call = (headers: Record<string, string> = {}) => GET(new Request("http://localhost/api/documents/versions/v1", { headers }) as never, { params: Promise.resolve({ id: "v1" }) } as never);
 const version = (originalFilename: string) => ({ id: "v1", sha256: SHA, byteSize: 6n, mediaType: "application/pdf", originalFilename, scanState: "NOT_SCANNED", document: { classificationSnapshot: "PUBLIC" } });
 const downloads = () => logAccess.mock.calls.filter((c) => (c[0] as { kind: string }).kind === "DOWNLOADED");
 
@@ -73,5 +73,28 @@ describe("the download route's file name (audit M-2)", () => {
     expect(logAccess).not.toHaveBeenCalled();
     expect((await res.text()).length).toBeGreaterThan(0);
     expect(res.headers.get("content-disposition")).toBeNull();
+  });
+});
+
+describe("what the download route refuses before it reads or logs anything (audit C-2)", () => {
+  it("HEAD is 405, reads nothing and logs nothing", async () => {
+    const res = await HEAD();
+    expect(res.status).toBe(405);
+    expect(res.headers.get("allow")).toBe("GET");
+    expect(findFirst).not.toHaveBeenCalled();
+    expect(logAccess).not.toHaveBeenCalled();
+  });
+  it("a cross-site GET is 403, reads nothing and logs nothing", async () => {
+    findFirst.mockResolvedValue(version("x.pdf"));
+    const res = await call({ "sec-fetch-site": "cross-site" });
+    expect(res.status).toBe(403);
+    expect(findFirst).not.toHaveBeenCalled();
+    expect(logAccess).not.toHaveBeenCalled();
+  });
+  it("a same-origin GET, and one with no header, are served and logged", async () => {
+    findFirst.mockResolvedValue(version("x.pdf"));
+    expect((await call({ "sec-fetch-site": "same-origin" })).status).toBe(200);
+    expect((await call()).status).toBe(200);
+    expect(downloads()).toHaveLength(2);
   });
 });
