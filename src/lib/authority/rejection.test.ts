@@ -193,13 +193,13 @@ describe("saving a destination (destinationRowFaults)", () => {
 
 describe("the destination in words", () => {
   it("tells the approver what happens, from the snapshot, and says unset plainly", () => {
-    expect(ifRejectedText({ snapshotAt: on, kind: "RETURN_TO_STEP", returnToOffice: "Head of Division", provenance: "ASSUMED" }, false)).toBe("If rejected: returns to the Head of Division's step (configured, assumed).");
+    expect(ifRejectedText({ snapshotAt: on, kind: "RETURN_TO_STEP", returnToOffice: "Head of Division", provenance: "ASSUMED" }, false)).toBe("If rejected: returns to the Head of Division's step (configured; source: assumed).");
     expect(ifRejectedText({ snapshotAt: on, kind: null, returnToOffice: null, provenance: null }, false)).toMatch(/not set — the officer will choose/);
     expect(ifRejectedText({ snapshotAt: null, kind: null, returnToOffice: null, provenance: null }, false)).toMatch(/not recorded/);
     // Said of a step with no step of the named office before it: the return cannot apply.
     const toDiv = { snapshotAt: on, kind: "RETURN_TO_STEP" as const, returnToOffice: "Head of Division", provenance: "ASSUMED" };
-    expect(ifRejectedText(toDiv, false, false)).toBe("If rejected here: the configured return is to the Head of Division's step, and there is none before this one — the officer will choose.");
-    expect(ifRejectedText(toDiv, false, true)).toBe("If rejected: returns to the Head of Division's step (configured, assumed).");
+    expect(ifRejectedText(toDiv, false, false)).toBe("If rejected at this step: the configured return is to the Head of Division, but no step of that office comes before this one — the officer will choose where it goes.");
+    expect(ifRejectedText(toDiv, false, true)).toBe("If rejected: returns to the Head of Division's step (configured; source: assumed).");
     expect(ifRejectedText({ snapshotAt: on, kind: "TERMINATE", returnToOffice: null, provenance: null }, true)).toMatch(/committee's own/);
   });
   it("never shows an officer's choice as policy", () => {

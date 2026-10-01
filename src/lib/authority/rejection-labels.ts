@@ -36,8 +36,8 @@ export function ifRejectedText(
   if (!route.snapshotAt) return "If rejected: where it goes was not recorded when this route opened — the officer will choose.";
   if (!route.kind) return "If rejected: not set — the officer will choose, and the choice is recorded as theirs.";
   if (route.kind === "RETURN_TO_STEP" && targetBefore === false)
-    return `If rejected here: the configured return is to the ${route.returnToOffice ?? "office no longer configured"}'s step, and there is none before this one — the officer will choose.`;
-  const how = route.provenance ? ` (configured, ${PROVENANCE_WORD[route.provenance] ?? "source not recorded"})` : " (configured)";
+    return `If rejected at this step: the configured return is to the ${route.returnToOffice ?? "office no longer configured"}, but no step of that office comes before this one — the officer will choose where it goes.`;
+  const how = route.provenance ? ` (configured; source: ${PROVENANCE_WORD[route.provenance] ?? "not recorded"})` : " (configured)";
   return `If rejected: ${destinationText(route.kind, route.returnToOffice).replace(/^R/, "r").replace(/^T/, "t")}${how}.`;
 }
 
