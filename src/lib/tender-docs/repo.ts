@@ -5,6 +5,7 @@
  * Money arrives as Decimal and leaves as sen; percentages as their decimal strings.
  */
 
+import { taxonomyUses } from "./config-conditions";
 import type { Tx } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import { isLive } from "@/lib/documents/evidence";
@@ -241,13 +242,29 @@ export async function loadClauses(organisationId: string, client: Tx = db): Prom
   return rows.map((r) => ({ ...r, provenance: r.provenance as Provenance, retiredOn: r.retiredOn ? storedDay(r.retiredOn) : null }));
 }
 
+/// Where each configured taxonomy is in use (mapping rows, exercises classified, policies naming it): what a permit list must not be (C2).
+export async function loadTaxonomyUses(organisationId: string, client: Tx = db) {
+  const [taxonomies, mappings, exerciseValues, scope] = await Promise.all([
+    client.classificationTaxonomy.findMany({ where: { organisationId }, select: { code: true } }),
+    client.taxonomyMapping.findMany({ where: { organisationId }, select: { taxonomyCode: true, whenTaxonomyCode: true } }),
+    client.exerciseTaxonomyValue.findMany({ where: { exercise: { organisationId } }, select: { taxonomyCode: true } }),
+    client.scopePolicy.findUnique({ where: { organisationId }, select: { panelContractKindTaxonomyCode: true, panelProjectStatusTaxonomyCode: true } }),
+  ]);
+  return taxonomyUses(
+    taxonomies.map((t) => t.code),
+    mappings,
+    exerciseValues,
+    scope ? [{ name: "specification panel's contract kind", codes: [scope.panelContractKindTaxonomyCode] }, { name: "specification panel's project status", codes: [scope.panelProjectStatusTaxonomyCode] }] : [],
+  );
+}
+
 /// The configured list of permit types: the taxonomy the policy names. Null: none named, or no longer configured.
 export async function loadPermitList(organisationId: string, taxonomyCode: string | null, today: string | null, client: Tx = db): Promise<PermitList | null> {
   if (!taxonomyCode) return null;
   const t = await client.classificationTaxonomy.findFirst({ where: { organisationId, code: taxonomyCode }, include: { values: { orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] } } });
   if (!t) return null;
   const retired = (d: Date | null) => d != null && (today == null || storedDay(d) <= today);
-  return { name: t.nameEn, values: t.values.map((v) => ({ code: v.code, label: v.nameEn, retired: retired(v.retiredOn) })) };
+  return { name: t.nameEn, values: t.values.map((v) => ({ code: v.code, label: v.nameEn, labelMs: v.nameMs, retired: retired(v.retiredOn) })) };
 }
 
 export async function loadOverrides(packId: string, client: Tx = db) {

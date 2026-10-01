@@ -135,7 +135,7 @@ const CLAUSE = {
   bodyMs: "Integriti (klausa demo). Kontraktor tidak boleh menawarkan, memberi atau bersetuju memberi apa-apa hadiah atau faedah kepada mana-mana pegawai Majikan berhubung dengan Kontrak ini.",
   mandatoryInAgreements: true, sortOrder: 1,
 };
-const PERMITS = { id: `${P}tx4`, code: "demo_permits", nameEn: "Demo regulator permits", values: [{ id: `${P}tv9`, code: "class_1", nameEn: "Demo permit class 1" }, { id: `${P}tv10`, code: "class_2", nameEn: "Demo permit class 2" }, { id: `${P}tv11`, code: "class_3", nameEn: "Demo permit class 3" }] };
+const PERMITS = { id: `${P}tx4`, code: "demo_permits", nameEn: "Demo regulator permits", values: [{ id: `${P}tv9`, code: "class_1", nameEn: "Demo permit class 1", nameMs: "Permit demo kelas 1" }, { id: `${P}tv10`, code: "class_2", nameEn: "Demo permit class 2", nameMs: "Permit demo kelas 2" }, { id: `${P}tv11`, code: "class_3", nameEn: "Demo permit class 3" }] };
 
 const METHOD_PACKS: Record<string, "TENDER" | "QUOTATION" | "NONE"> = {
   [`${P}sm1`]: "TENDER", [`${P}sm5`]: "TENDER",
@@ -579,7 +579,7 @@ async function answer(db: Db, organisationId: string, exerciseId: string, ref: s
   if (permitSaveFaults(a.regulatedActivity, a.regulatorPermitCode, list).length) throw new Error(`Demo permit on ${exerciseId} refused.`);
   const ex = await db.sourcingExercise.update({ where: { id: exerciseId }, data: a, select: { title: true } });
   const label = `${ref} · ${ex.title}`;
-  if (a.restrictedTender != null) entry("SourcingExercise", exerciseId, label, "UPDATE", when, diffFields({ restrictedTender: "Not set" }, { restrictedTender: yesNoNotSet(a.restrictedTender) }), DEMO_POLICY.restrictionLabelEn);
+  if (a.restrictedTender != null) entry("SourcingExercise", exerciseId, label, "UPDATE", when, diffFields({ restrictedTender: "Not set" }, { restrictedTender: yesNoNotSet(a.restrictedTender) }));
   entry("SourcingExercise", exerciseId, label, "UPDATE", when, diffFields({ needsRegulatorPermit: "Not set", permitType: null }, { needsRegulatorPermit: yesNoNotSet(a.regulatedActivity), permitType: a.regulatedActivity ? permitLabel(true, a.regulatorPermitCode, list) : null }));
 }
 

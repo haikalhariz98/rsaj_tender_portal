@@ -10,20 +10,21 @@ import { ORGANISATION_CODE } from "@/lib/org";
 import { PROVENANCE_LABEL } from "@/lib/scope/labels";
 
 import { partRetiredOn } from "./config";
-import { conditionsHoldingWorkBack } from "./config-conditions";
+import { conditionsHoldingWorkBack, permitListUseFaults } from "./config-conditions";
 import { NOT_SET, yesNoNotSet } from "./labels";
-import { loadClauses, loadRegistrationBodies, loadTenderPolicy } from "./repo";
+import { loadClauses, loadRegistrationBodies, loadTaxonomyUses, loadTenderPolicy } from "./repo";
 
 const provenance = (p: string | null | undefined) => (p ? ((PROVENANCE_LABEL as Record<string, string>)[p] ?? NOT_SET) : NOT_SET);
 
 export async function conditionsConfig(showRetired = false) {
   const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, timeZone: true } });
   if (!org) return null;
-  const [bodies, clauses, policy, taxonomies] = await Promise.all([
+  const [bodies, clauses, policy, taxonomies, uses] = await Promise.all([
     loadRegistrationBodies(org.id),
     loadClauses(org.id),
     loadTenderPolicy(org.id),
     db.classificationTaxonomy.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { code: true, nameEn: true, _count: { select: { values: true } } } }),
+    loadTaxonomyUses(org.id),
   ]);
   const today = todayIn(new Date(), org.timeZone);
   const retired = (r: string | null) => partRetiredOn(r, today) === true;
@@ -65,6 +66,7 @@ export async function conditionsConfig(showRetired = false) {
       permitList: list ? `${list.nameEn} (${list._count.values} types)` : policy.regulatorPermitTaxonomyCode ? "A list no longer configured" : NOT_SET,
       provenanceText: { restriction: provenance(policy.restrictionProvenance), assurance: provenance(policy.assuranceProvenance) },
     },
-    taxonomyOptions: taxonomies.map((t) => ({ value: t.code, label: t.nameEn })),
+    /// Only plain lists: a taxonomy contract types are mapped into, exercises are classified in or a policy reads is a classification (C2). The one already chosen stays so it can be seen and changed.
+    taxonomyOptions: taxonomies.filter((t) => t.code === policy.regulatorPermitTaxonomyCode || permitListUseFaults(uses.get(t.code)).length === 0).map((t) => ({ value: t.code, label: t.nameEn })),
   };
 }

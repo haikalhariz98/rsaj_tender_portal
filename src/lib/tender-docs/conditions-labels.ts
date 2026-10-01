@@ -44,6 +44,7 @@ const TEXT: Record<ConditionsFault, (f: Finding) => string> = {
   PERMIT_NOT_CHOSEN: () => `The works need the regulator's permit: choose its type ${TAB}, under Tender conditions.`,
   PERMIT_NOT_ON_LIST: () => `The permit type chosen is no longer on the configured list. Choose another ${TAB}.`,
   INSTRUCTIONS_PART_MISSING: () => `The pack has no instructions to tenderers to state the permit in. Add an instructions part for this pack kind ${CONFIG}.`,
+  PERMIT_NAME_MS_MISSING: (f) => `Part ${d(f, "part")} has Malay text, and the permit type ${d(f, "permit")} has no Malay name, so the Malay instructions would not name it. Add the name under Configuration, Reference data, or choose another type ${TAB}.`,
   PERMIT_NOT_IN_INSTRUCTIONS: (f) => `Part ${d(f, "part")}: the template ${d(f, "template")} does not name {{permit.type}}, so the instructions would not state the permit. Add it under Configuration, Templates, or choose another template.`,
   INSTRUCTIONS_NOT_CHECKED: (f) => `Part ${d(f, "part")} is an uploaded file, which the portal cannot read: check that it states the regulator's permit and its type.`,
   PERMIT_FIELD_NOT_REGULATED: (f) => `Part ${d(f, "part")}: the template ${d(f, "template")} names the regulator's permit, and the works are recorded as not needing one. Choose a template without it, or correct the answer ${TAB}.`,
@@ -71,6 +72,7 @@ export function conditionsFixHref(code: string, exerciseId: string): string {
   // The answers on a draft's parts are taken into it by the refresh on the Parts card.
   if (code === "TABLE_DOCUMENT_UNSET" || code === "TABLE_DOCUMENT_EMPTY") return `/sourcing/${exerciseId}?tab=documents#parts`;
   if (config.includes(code)) return "/configuration/tender-documents";
+  if (code === "PERMIT_NAME_MS_MISSING") return "/configuration/reference-data";
   if (["NOTICE_LACKS_ELIGIBILITY", "PERMIT_NOT_IN_INSTRUCTIONS", "PERMIT_FIELD_NOT_REGULATED"].includes(code)) return `/sourcing/${exerciseId}?tab=documents#parts`;
   if (code.startsWith("ASSURANCE")) return `/sourcing/${exerciseId}?tab=documents#assurance`;
   if (code.startsWith("CLAUSE") || code === "AGREEMENT_PART_MISSING") return `/sourcing/${exerciseId}?tab=documents#clauses`;

@@ -62,8 +62,7 @@ export const statesWindow = (parts: readonly PackPartFacts[]) => parts.some((p) 
  */
 export function conditionFieldValues(c: ConditionsInput, window: { startOn: string; closingDay: string } | null): Record<DocumentLanguage, Record<string, string>> {
   const live = liveClauses(c.clauses.clauses, c.today);
-  const permit = permitLabel(c.permit.regulated, c.permit.permitCode, c.permit.list) ?? "";
-  const one = (lang: DocumentLanguage) => ({ ...eligibilityFieldValues(c.eligibility.requirements, window, lang), [PERMIT_FIELD]: permit, ...clauseFieldValues(live, lang) });
+  const one = (lang: DocumentLanguage) => ({ ...eligibilityFieldValues(c.eligibility.requirements, window, lang), [PERMIT_FIELD]: permitLabel(c.permit.regulated, c.permit.permitCode, c.permit.list, lang) ?? "", ...clauseFieldValues(live, lang) });
   return { EN: one("EN"), MS: one("MS") };
 }
 

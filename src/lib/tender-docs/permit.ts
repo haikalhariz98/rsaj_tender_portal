@@ -10,12 +10,13 @@ import { fieldsNamed } from "@/lib/templates/merge";
 
 import { bodiesOf } from "./eligibility";
 import { PERMIT_FIELD } from "./fields";
-import type { Finding, PackPartFacts } from "./types";
+import type { DocumentLanguage, Finding, PackPartFacts } from "./types";
 
 /// The configured permit types: the taxonomy the policy names, with its values. Null: the policy names none, or a taxonomy no longer configured.
 export interface PermitList {
   name: string;
-  values: readonly { code: string; label: string; retired: boolean }[];
+  values: readonly { code: string; label: string; /// The type's name in Malay; empty where the list has none.
+    labelMs?: string | null; retired: boolean }[];
 }
 
 export type PermitFault =
@@ -26,6 +27,7 @@ export type PermitFault =
   | "INSTRUCTIONS_PART_MISSING"
   | "PERMIT_NOT_IN_INSTRUCTIONS"
   | "INSTRUCTIONS_NOT_CHECKED"
+  | "PERMIT_NAME_MS_MISSING"
   | "PERMIT_FIELD_NOT_REGULATED";
 
 /// The answer and the type as saved: a type only where the answer is yes, from the configured list.
@@ -36,10 +38,16 @@ export function permitSaveFaults(regulated: boolean | null, permitCode: string |
   return [];
 }
 
-/// The permit's name in the documents, or null where none is to be named.
-export function permitLabel(regulated: boolean | null, permitCode: string | null, list: PermitList | null): string | null {
+/**
+ * The permit's name in the documents, in the language they are issued in, or null where none is
+ * to be named or the list has no name in that language (a Malay document never prints the
+ * English name in its place: `permitFaults` blocks first).
+ */
+export function permitLabel(regulated: boolean | null, permitCode: string | null, list: PermitList | null, lang: DocumentLanguage = "EN"): string | null {
   if (regulated !== true || !permitCode) return null;
-  return list?.values.find((v) => v.code === permitCode)?.label ?? null;
+  const v = list?.values.find((x) => x.code === permitCode);
+  if (!v) return null;
+  return lang === "MS" ? v.labelMs?.trim() || null : v.label;
 }
 
 /**
@@ -58,6 +66,11 @@ export function permitFaults(i: { regulated: boolean | null; permitCode: string 
   else if (!i.permitCode) out.push({ code: "PERMIT_NOT_CHOSEN", level: "block" });
   else if (!i.list.values.some((v) => v.code === i.permitCode && !v.retired)) out.push({ code: "PERMIT_NOT_ON_LIST", level: "block" });
   const instructions = live.filter((p) => p.role === "INSTRUCTIONS");
+  // A Malay instruction naming the permit needs the type's Malay name, as a cited clause needs its Malay text.
+  const chosen = i.list?.values.find((v) => v.code === i.permitCode && !v.retired);
+  if (chosen && !chosen.labelMs?.trim()) {
+    for (const p of instructions) if (p.source === "TEMPLATE" && p.template?.bodyMs?.trim()) out.push({ code: "PERMIT_NAME_MS_MISSING", level: "block", data: { part: `${p.printedNumber}. ${p.label}`, permit: chosen.label } });
+  }
   if (instructions.length === 0) out.push({ code: "INSTRUCTIONS_PART_MISSING", level: "block" });
   for (const p of instructions) {
     const part = `${p.printedNumber}. ${p.label}`;

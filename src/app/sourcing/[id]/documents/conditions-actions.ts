@@ -10,7 +10,7 @@ import { requisitionOfExercise, withLockedRequisitionForSourcing, type ExerciseO
 import { transactionTimedOut } from "@/lib/scope/tx-timeout";
 import { ASSURANCE_KINDS, confirmFaults } from "@/lib/tender-docs/assurance";
 import { liveClauses, overrideFaults } from "@/lib/tender-docs/clauses";
-import { ASSURANCE_KIND_LABEL, CONDITIONS_FROZEN_TEXT, conditionsFaultText, confirmFaultText, overrideFaultText, restrictionQuestion } from "@/lib/tender-docs/conditions-labels";
+import { ASSURANCE_KIND_LABEL, CONDITIONS_FROZEN_TEXT, conditionsFaultText, confirmFaultText, overrideFaultText } from "@/lib/tender-docs/conditions-labels";
 import { eligibilityEditFault, requirementFaults } from "@/lib/tender-docs/eligibility";
 import { NOT_SET, yesNoNotSet } from "@/lib/tender-docs/labels";
 import { lockPackRows } from "@/lib/tender-docs/owner";
@@ -136,10 +136,9 @@ export async function saveRestriction(_prev: FormState, data: FormData): Promise
     if (stop) return stop;
     const value = tri(answer);
     if (value === l.ex.restrictedTender) return { ok: true };
-    const policy = await loadTenderPolicy(l.org.id, tx);
     await tx.sourcingExercise.update({ where: { id: exerciseId }, data: { restrictedTender: value } });
-    // In the customer's words for the restriction, as the screen asks it.
-    await audit(tx, l.org.id, "SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ restrictedTender: yesNoNotSet(l.ex.restrictedTender) }, { restrictedTender: yesNoNotSet(value) }), restrictionQuestion(policy.restrictionLabelEn));
+    // The question the screen asks is the customer's wording of a field, not a reason: no reason is recorded (nobody gave one).
+    await audit(tx, l.org.id, "SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ restrictedTender: yesNoNotSet(l.ex.restrictedTender) }, { restrictedTender: yesNoNotSet(value) }));
     return { ok: true };
   });
 }

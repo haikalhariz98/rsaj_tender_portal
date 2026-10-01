@@ -10,7 +10,8 @@ import { storedDay, todayIn } from "@/lib/dates";
 import { formatSen, parseSen } from "@/lib/money";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { ENTITY } from "@/lib/tender-docs/audit-view";
-import { CONDITIONS_POLICY_FAULT_TEXT, conditionsPolicyFaults } from "@/lib/tender-docs/config-conditions";
+import { conditionsPolicyFaults, conditionsPolicyFaultText } from "@/lib/tender-docs/config-conditions";
+import { loadTaxonomyUses } from "@/lib/tender-docs/repo";
 import { methodPackFault, PART_CONFIG_FAULT_TEXT, partConfigFaults, POLICY_FAULT_TEXT, policyFaults, policyFaultText } from "@/lib/tender-docs/config";
 import { NOT_SET, PACK_KIND_LABEL, PART_CONTENT_LABEL, PART_ROLE_LABEL, PART_SOURCE_LABEL, yesNoNotSet } from "@/lib/tender-docs/labels";
 import { formatPct } from "@/lib/tender-docs/percent";
@@ -233,10 +234,6 @@ export async function saveTenderPolicy(_prev: FormState, data: FormData): Promis
   if (r.failed) return { ok: false, errors: r.errors };
   const faults = policyFaults(v);
   if (faults.length) return { ok: false, errors: Object.fromEntries(faults.map((f) => [String(f.data?.field), policyFaultText(f)])) };
-  const taxonomies = (await db.classificationTaxonomy.findMany({ where: { organisationId: org.id }, select: { code: true, nameEn: true } }));
-  const more = conditionsPolicyFaults(v, taxonomies.map((t) => t.code));
-  if (more.length) return { ok: false, errors: Object.fromEntries(more.map((f) => [String(f.data?.field), CONDITIONS_POLICY_FAULT_TEXT[f.code]])) };
-  const taxonomyName = (code: string | null | undefined) => (code ? (taxonomies.find((t) => t.code === code)?.nameEn ?? "A list no longer configured") : null);
   // A provenance only with its value: an answer removed takes its provenance with it.
   const value = {
     ...v,
@@ -250,6 +247,11 @@ export async function saveTenderPolicy(_prev: FormState, data: FormData): Promis
   const reason = String(data.get("reason") ?? "");
   return db.$transaction(async (tx): Promise<FormState> => {
     await lockOrganisation(tx, org.id);
+    // Read under the lock: the list named is a plain list, not a taxonomy contracts are classified in (C2).
+    const taxonomies = await tx.classificationTaxonomy.findMany({ where: { organisationId: org.id }, select: { code: true, nameEn: true } });
+    const more = conditionsPolicyFaults(v, taxonomies.map((t) => t.code), await loadTaxonomyUses(org.id, tx));
+    if (more.length) return { ok: false, errors: Object.fromEntries(more.map((f) => [String(f.data?.field), conditionsPolicyFaultText(f)])) };
+    const taxonomyName = (code: string | null | undefined) => (code ? (taxonomies.find((t) => t.code === code)?.nameEn ?? "A list no longer configured") : null);
     const before = await tx.tenderDocumentPolicy.findUnique({ where: { organisationId: org.id } });
     const row = before ? await tx.tenderDocumentPolicy.update({ where: { id: before.id }, data: value }) : await tx.tenderDocumentPolicy.create({ data: { organisationId: org.id, ...value } });
     const changes = diffFields(before ? policyWords({ ...before, regulatorPermitTaxonomyName: taxonomyName(before.regulatorPermitTaxonomyCode) }) : null, policyWords({ ...value, regulatorPermitTaxonomyName: taxonomyName(value.regulatorPermitTaxonomyCode) }));
