@@ -32,7 +32,8 @@ exercise's routes were told apart only by `awardId: null`; a second exercise rou
    the pack becomes RETURNED with the reason and the exercise goes back into preparation. The next version is started from it
    explicitly: its parts' states, templates and omissions, its uploaded files (each attachment judged again) and its Appendix
    are carried; the returned version stays as it was frozen. Ending the exercise is the separate cancel act, which voids a live
-   pack and withdraws every pending route of the exercise's own (X-5).
+   pack and withdraws every pending route of the exercise's own (X-5). A name refusal that ends the exercise does the same: it
+   also voids the live pack (its status stays as it is), and the pack's void always carries its reason (a CHECK, `TenderPack_void_reason`).
 4. **The tendering states are moved by one act each.** `transitionFault` names the act for each move (`via`): submission
    (DOCUMENTS_IN_PREPARATION → PENDING_APPROVAL_FOR_TENDERING, only with no blocking finding), the approving step (→
    APPROVED_FOR_TENDERING, only with the dates) and a rejection (→ DOCUMENTS_IN_PREPARATION). `moveExercise` is the one writer
