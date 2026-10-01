@@ -106,5 +106,7 @@ export interface AttachmentFact {
   id: string;
   purpose: AttachmentPurpose;
   detachedAt: Date | null;
+  /// When it was attached. Read where a screen says what came "since"; the rules never need it.
+  attachedAt?: Date;
   version: VersionFact & { documentId: string; title: string };
 }

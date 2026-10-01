@@ -3,6 +3,9 @@
  * generated here — one-page PDFs reading "DEMO — invented document, not a real record"
  * and a small drawn PNG. Nothing comes from a client's documents.
  *
+ * - Every dossier or scope document is attached AFTER its exercise was determined (8 Sep): the
+ *   exercise recorded "not attached" on that day, and a screen that says so since then is only
+ *   honest if the attachment really came later. No recorded act is dated after the load day.
  * - Classes: demo_dc1 Internal (assumed), demo_dc2 SULIT, demo_dc3 classification unset
  *   (set where the classes are created, in demo.ts). Upload rules PDF/PNG/JPEG, 20 MB,
  *   ASSUMED — only where the organisation has none of its own.
@@ -114,14 +117,14 @@ export async function loadDocuments(db: Db, organisationId: string) {
       attachments: [{ id: `${P}doc1a1`, purpose: "SIGNED_MINUTES", owner: { meetingId: `${P}mt8` }, ownerLabel: "DEMO/CWC/1/2026", versionId: `${P}doc1v1`, at: "2026-09-08T10:20" }],
     },
     {
-      id: `${P}doc2`, title: "Distributor's letter of sole authority", ...internal, createdAt: "2026-09-03T09:00",
+      id: `${P}doc2`, title: "Distributor's letter of sole authority", ...internal, createdAt: "2026-09-09T09:00",
       versions: [
-        { id: `${P}doc2v1`, n: 1, bytes: demoPdf(["Distributor's letter of sole authority — page 1 of 2", "Dosing controllers (demo)"]), mediaType: "application/pdf", filename: "sole-authority-letter.pdf", receivedOn: "2026-08-12", storedAt: "2026-09-03T09:00", withdrawn: { at: "2026-09-04T11:30", reason: "The scan was missing its second page." } },
-        { id: `${P}doc2v2`, n: 2, bytes: demoPdf(["Distributor's letter of sole authority — pages 1 and 2", "Dosing controllers (demo)", "Rescanned with both pages."]), mediaType: "application/pdf", filename: "sole-authority-letter-complete.pdf", receivedOn: "2026-08-12", storedAt: "2026-09-04T11:20" },
+        { id: `${P}doc2v1`, n: 1, bytes: demoPdf(["Distributor's letter of sole authority — page 1 of 2", "Dosing controllers (demo)"]), mediaType: "application/pdf", filename: "sole-authority-letter.pdf", receivedOn: "2026-08-12", storedAt: "2026-09-09T09:00", withdrawn: { at: "2026-09-10T11:30", reason: "The scan was missing its second page." } },
+        { id: `${P}doc2v2`, n: 2, bytes: demoPdf(["Distributor's letter of sole authority — pages 1 and 2", "Dosing controllers (demo)", "Rescanned with both pages."]), mediaType: "application/pdf", filename: "sole-authority-letter-complete.pdf", receivedOn: "2026-08-12", storedAt: "2026-09-10T11:20" },
       ],
       attachments: [
-        { id: `${P}doc2a1`, purpose: "DOSSIER_EVIDENCE", owner: { exerciseId: `${P}sx2` }, ownerLabel: "DEMO/SX/0002/2026", versionId: `${P}doc2v1`, at: "2026-09-03T09:05", detached: { at: "2026-09-04T11:25", reason: "Replaced by version 2: Rescanned with both pages.", replacedBy: `${P}doc2a2` } },
-        { id: `${P}doc2a2`, purpose: "DOSSIER_EVIDENCE", owner: { exerciseId: `${P}sx2` }, ownerLabel: "DEMO/SX/0002/2026", versionId: `${P}doc2v2`, at: "2026-09-04T11:25" },
+        { id: `${P}doc2a1`, purpose: "DOSSIER_EVIDENCE", owner: { exerciseId: `${P}sx2` }, ownerLabel: "DEMO/SX/0002/2026", versionId: `${P}doc2v1`, at: "2026-09-09T09:05", detached: { at: "2026-09-10T11:25", reason: "Replaced by version 2: Rescanned with both pages.", replacedBy: `${P}doc2a2` } },
+        { id: `${P}doc2a2`, purpose: "DOSSIER_EVIDENCE", owner: { exerciseId: `${P}sx2` }, ownerLabel: "DEMO/SX/0002/2026", versionId: `${P}doc2v2`, at: "2026-09-10T11:25" },
       ],
       hold: { id: `${P}doc2h1`, reason: "Internal audit query on direct appointments (invented for the demo).", at: "2026-09-25T15:00", personId: `${P}p3`, personName: "Chen Wei Ling" },
     },
@@ -136,9 +139,9 @@ export async function loadDocuments(db: Db, organisationId: string) {
       attachments: [{ id: `${P}doc4a1`, purpose: "HOLDER_RECOMMENDATION", owner: { delegationId: `${P}dg3` }, ownerLabel: "Delegation · Eng Siew Mei to Daniel Anak Jelani", versionId: `${P}doc4v1`, at: "2026-09-26T08:45" }],
     },
     {
-      id: `${P}doc5`, title: "Coordination meeting scope and cost note", classId: `${P}dc2`, className: "Certificates", classification: "SULIT", createdAt: "2026-09-03T16:00",
-      versions: [{ id: `${P}doc5v1`, n: 1, bytes: demoPdf(["Coordination meeting scope and cost note (demo, SULIT)", "Burst trunk main, upper zone", "Listed, never opened in the portal before sign-in."]), mediaType: "application/pdf", filename: "scope-and-cost-note.pdf", receivedOn: "2026-09-02", storedAt: "2026-09-03T16:00" }],
-      attachments: [{ id: `${P}doc5a1`, purpose: "COORDINATION_SCOPE", owner: { exerciseId: `${P}sx4` }, ownerLabel: "DEMO/SX/0004/2026", versionId: `${P}doc5v1`, at: "2026-09-03T16:05" }],
+      id: `${P}doc5`, title: "Coordination meeting scope and cost note", classId: `${P}dc2`, className: "Certificates", classification: "SULIT", createdAt: "2026-09-09T16:00",
+      versions: [{ id: `${P}doc5v1`, n: 1, bytes: demoPdf(["Coordination meeting scope and cost note (demo, SULIT)", "Burst trunk main, upper zone", "Listed, never opened in the portal before sign-in."]), mediaType: "application/pdf", filename: "scope-and-cost-note.pdf", receivedOn: "2026-09-02", storedAt: "2026-09-09T16:00" }],
+      attachments: [{ id: `${P}doc5a1`, purpose: "COORDINATION_SCOPE", owner: { exerciseId: `${P}sx4` }, ownerLabel: "DEMO/SX/0004/2026", versionId: `${P}doc5v1`, at: "2026-09-09T16:05" }],
     },
     {
       id: `${P}doc6`, title: "Contractor's covering letter", classId: `${P}dc3`, className: "Correspondence", classification: null, createdAt: "2026-09-29T10:30",

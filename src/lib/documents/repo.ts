@@ -24,6 +24,7 @@ const factSelect = {
   id: true,
   purpose: true,
   detachedAt: true,
+  attachedAt: true,
   version: { select: { id: true, documentId: true, versionNo: true, sha256: true, withdrawnAt: true, document: { select: { title: true } } } },
 } as const;
 
@@ -38,6 +39,7 @@ export async function attachmentFacts(owner: OwnerRef, client: Tx = db, purposes
     id: r.id,
     purpose: r.purpose,
     detachedAt: r.detachedAt,
+    attachedAt: r.attachedAt,
     version: { id: r.version.id, documentId: r.version.documentId, versionNo: r.version.versionNo, sha256: r.version.sha256, withdrawnAt: r.version.withdrawnAt, title: r.version.document.title },
   }));
 }
@@ -59,6 +61,7 @@ export async function attachmentFactsFor(kind: OwnerKind, ids: readonly string[]
       id: r.id,
       purpose: r.purpose,
       detachedAt: r.detachedAt,
+      attachedAt: r.attachedAt,
       version: { id: r.version.id, documentId: r.version.documentId, versionNo: r.version.versionNo, sha256: r.version.sha256, withdrawnAt: r.version.withdrawnAt, title: r.version.document.title },
     });
   }

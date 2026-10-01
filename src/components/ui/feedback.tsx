@@ -50,7 +50,9 @@ export function EmptyState({
   );
 }
 
-const CALLOUT: Record<Exclude<Tone, "neutral" | "brand">, { box: string; icon: ReactNode }> = {
+const CALLOUT: Record<Exclude<Tone, "brand">, { box: string; icon: ReactNode }> = {
+  /// A statement of record that asks nothing of the reader: no alert role, no colour of concern.
+  neutral: { box: "border-line bg-sunken text-ink-2 [&_.ico]:text-ink-3", icon: <InfoIcon size={18} /> },
   info: { box: "border-sky-200 bg-sky-50 text-sky-900 [&_.ico]:text-sky-600", icon: <InfoIcon size={18} /> },
   ok: { box: "border-emerald-200 bg-emerald-50 text-emerald-900 [&_.ico]:text-emerald-600", icon: <CheckIcon size={18} /> },
   warn: { box: "border-amber-200 bg-amber-50 text-amber-900 [&_.ico]:text-amber-600", icon: <AlertTriangle size={18} /> },
@@ -67,7 +69,7 @@ export function Callout({
   action,
   className,
 }: {
-  tone?: "info" | "ok" | "warn" | "err";
+  tone?: "neutral" | "info" | "ok" | "warn" | "err";
   title?: ReactNode;
   children?: ReactNode;
   icon?: ReactNode;

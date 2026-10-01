@@ -2,6 +2,8 @@ import { exerciseEvidence, type ExerciseEvidence } from "@/lib/documents/evidenc
 import { DOCUMENT_ENTITY_LABEL } from "@/lib/documents/audit-view";
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
 import { attachmentFacts } from "@/lib/documents/repo";
+import { resolutionText, supersession } from "@/lib/documents/supersession";
+import type { AttachmentFact } from "@/lib/documents/types";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -118,7 +120,8 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
     loadAwardPolicy(org.id),
   ]);
   // Dossier evidence and the scope document, as the document store counts them.
-  const evidence = exerciseEvidence(await attachmentFacts({ kind: "exercise", id: ex.id }, db, ["DOSSIER_EVIDENCE", "COORDINATION_SCOPE"]));
+  const evidenceFacts = await attachmentFacts({ kind: "exercise", id: ex.id }, db, ["DOSSIER_EVIDENCE", "COORDINATION_SCOPE"]);
+  const evidence = exerciseEvidence(evidenceFacts);
   const config = cfg.config;
   const method = config.methods.find((m) => m.code === ex.sourcingMethodCode) ?? null;
   const decided = isClassificationSnapshot(ex.classificationSnapshot) ? ex.classificationSnapshot : null;
@@ -283,7 +286,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       id: "classification",
       label: "Classification",
       icon: <SlidersIcon size={15} />,
-      panel: <ClassificationPanel l={l} evidence={evidence} bands={bands} findings={ev ? ev.findings : ((ex.bandWarnings as unknown as Finding[]) ?? [])} live={!!ev} methodName={methodName} flags={flags} reasonName={decided ? (decided.justification?.reasonName ?? null) : (config.reasons.find((r) => r.code === ex.justificationReasonCode)?.nameEn ?? null)} />,
+      panel: <ClassificationPanel l={l} evidence={evidence} evidenceFacts={evidenceFacts} timeZone={org.timeZone} bands={bands} findings={ev ? ev.findings : ((ex.bandWarnings as unknown as Finding[]) ?? [])} live={!!ev} methodName={methodName} flags={flags} reasonName={decided ? (decided.justification?.reasonName ?? null) : (config.reasons.find((r) => r.code === ex.justificationReasonCode)?.nameEn ?? null)} />,
     },
     {
       id: "contract",
@@ -612,6 +615,8 @@ function RouteList({ route }: { route: RouteSnap }) {
 function ClassificationPanel({
   l,
   evidence,
+  evidenceFacts,
+  timeZone,
   bands,
   findings,
   live,
@@ -621,6 +626,9 @@ function ClassificationPanel({
 }: {
   l: LoadedExercise;
   evidence: ExerciseEvidence;
+  /// The exercise's attachments, to say what has come since a recorded check was made.
+  evidenceFacts: AttachmentFact[];
+  timeZone: string | null;
   bands: BandSnapshot | null;
   findings: Finding[];
   live: boolean;
@@ -636,8 +644,13 @@ function ClassificationPanel({
       </Card>
     );
   }
-  const blocking = findings.filter((f) => f.level === "block");
-  const others = findings.filter((f) => f.level !== "block");
+  // A check recorded with the exercise is a statement about the day it was recorded: where
+  // a live attachment has since satisfied it, it reads as history, not as a warning.
+  const judged = !live && ex.determinedAt ? supersession(findings, evidenceFacts, ex.determinedAt) : findings.map((finding) => ({ finding, superseded: null }));
+  const standing = judged.filter((j) => !j.superseded).map((j) => j.finding);
+  const superseded = judged.flatMap((j) => (j.superseded ? [j.superseded] : []));
+  const blocking = standing.filter((f) => f.level === "block");
+  const others = standing.filter((f) => f.level !== "block");
   return (
     <div className="flex flex-col gap-6">
       <Card>
@@ -735,13 +748,18 @@ function ClassificationPanel({
         />
       )}
 
-      {(blocking.length > 0 || others.length > 0) && (
+      {(blocking.length > 0 || others.length > 0 || superseded.length > 0) && (
         <Card>
-          <CardHeader icon={<ShieldIcon size={17} />} title={live ? "Checks, as they stand today" : "Checks, as recorded"} subtitle={blocking.length ? "What must be put right before documents go into preparation, and what is recorded with it." : "Recorded with the exercise."} />
+          <CardHeader icon={<ShieldIcon size={17} />} title={live ? "Checks, as they stand today" : ex.determinedAt ? `Checks, as recorded on ${formatDate(ex.determinedAt)}` : "Checks, as recorded"} subtitle={blocking.length ? "What must be put right before documents go into preparation, and what is recorded with it." : "Recorded with the exercise."} />
           <CardBody className="flex flex-col gap-2">
             {[...blocking, ...others].map((f, i) => (
               <Callout key={i} tone={tone(f.level)}>
                 {findingText(f)}
+              </Callout>
+            ))}
+            {superseded.map((r) => (
+              <Callout key={r.subject} tone="neutral">
+                {resolutionText(r, timeZone)}
               </Callout>
             ))}
           </CardBody>
