@@ -50,6 +50,9 @@ export function exerciseAllowsPanel(status: ExerciseStatus): "OPEN" | "PACK_FROZ
     // amendment (or, once approved, for an addendum, 6.5).
     case "PENDING_APPROVAL_FOR_TENDERING":
     case "APPROVED_FOR_TENDERING":
+    // 6.5: published on the frozen pack; a change is an addendum.
+    case "ADVERTISED":
+    case "INVITED":
       return "PACK_FROZEN";
     case "CANCELLED":
       return "EXERCISE_CANCELLED";

@@ -32,7 +32,7 @@ describe("ExerciseStatus: schema, lib and maps agree", () => {
     expect([...EXERCISE_STATUS_ORDER].sort()).toEqual([...EXERCISE_STATUSES].sort());
   });
 
-  it.each(["PENDING_APPROVAL_FOR_TENDERING", "APPROVED_FOR_TENDERING"])("%s arrived alone in its own migration, before any use", (value) => {
+  it.each(["PENDING_APPROVAL_FOR_TENDERING", "APPROVED_FOR_TENDERING", "ADVERTISED", "INVITED"])("%s arrived alone in its own migration, before any use", (value) => {
     const own = migrations.filter((m) => new RegExp(`ALTER TYPE "ExerciseStatus" ADD VALUE '${value}'`).test(sqlOf(m)));
     expect(own).toHaveLength(1);
     expect(statements(own[0])).toHaveLength(1);

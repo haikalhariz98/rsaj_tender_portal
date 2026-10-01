@@ -64,6 +64,9 @@ export function exerciseAllowsEstimate(status: ExerciseStatus): "OPEN" | "EXERCI
     // is the closing (X-1, versionFaults), not the pack.
     case "PENDING_APPROVAL_FOR_TENDERING":
     case "APPROVED_FOR_TENDERING":
+    // 6.5: still open while the window runs; the closing closes it (versionFaults).
+    case "ADVERTISED":
+    case "INVITED":
       return "OPEN";
     case "CANCELLED":
       return "EXERCISE_CANCELLED";

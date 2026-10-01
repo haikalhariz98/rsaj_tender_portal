@@ -70,19 +70,24 @@ export type TransitionFault =
   | "DOCUMENTS_RULE_NOT_SET"
   | "NOT_BY_THIS_ACT"
   | "PACK_NOT_READY"
-  | "DATES_REQUIRED";
+  | "DATES_REQUIRED"
+  | "PUBLISH_NOT_READY";
 
 export const EXERCISE_TRANSITIONS: Record<ExerciseStatus, readonly ExerciseStatus[]> = {
   DRAFT: ["DOCUMENTS_IN_PREPARATION", "CANCELLED"],
   DOCUMENTS_IN_PREPARATION: ["PENDING_APPROVAL_FOR_TENDERING", "CANCELLED"],
   PENDING_APPROVAL_FOR_TENDERING: ["APPROVED_FOR_TENDERING", "DOCUMENTS_IN_PREPARATION", "CANCELLED"],
-  APPROVED_FOR_TENDERING: ["CANCELLED"],
+  APPROVED_FOR_TENDERING: ["ADVERTISED", "INVITED", "CANCELLED"],
+  // 6.5: once published, the exercise is cancelled only through its window_change route (FR-ADV-016).
+  ADVERTISED: ["CANCELLED"],
+  INVITED: ["CANCELLED"],
   CANCELLED: [],
 };
 
 /// The one act that makes each tendering move (§7.3.2): submitting the pack, the route's
-/// approving step, and a rejection that returns the pack for amendment.
-export type TenderingAct = "SUBMISSION" | "APPROVAL" | "RETURN";
+/// approving step, and a rejection that returns the pack for amendment; 6.5's publication (or
+/// invitation), and the approving step of a cancellation on the window_change route.
+export type TenderingAct = "SUBMISSION" | "APPROVAL" | "RETURN" | "PUBLICATION" | "WINDOW_CANCELLATION";
 
 export interface TransitionContext {
   today: string | null;
@@ -104,6 +109,8 @@ export interface TransitionContext {
   packFaults?: number;
   /// 6.4: the approving step recorded the start and closing (FR-DOC-012).
   datesSet?: boolean;
+  /// 6.5: blocking findings of the publication checks (`publishFaults`). Not given: not judged, refused.
+  publishFaults?: number;
 }
 
 /// Which act makes a move between two states, where only one may.
@@ -111,6 +118,8 @@ function actFor(from: ExerciseStatus, to: ExerciseStatus): TenderingAct | null {
   if (from === "DOCUMENTS_IN_PREPARATION" && to === "PENDING_APPROVAL_FOR_TENDERING") return "SUBMISSION";
   if (from === "PENDING_APPROVAL_FOR_TENDERING" && to === "APPROVED_FOR_TENDERING") return "APPROVAL";
   if (from === "PENDING_APPROVAL_FOR_TENDERING" && to === "DOCUMENTS_IN_PREPARATION") return "RETURN";
+  if (from === "APPROVED_FOR_TENDERING" && (to === "ADVERTISED" || to === "INVITED")) return "PUBLICATION";
+  if ((from === "ADVERTISED" || from === "INVITED") && to === "CANCELLED") return "WINDOW_CANCELLATION";
   return null;
 }
 
@@ -120,14 +129,17 @@ export function transitionFault(from: ExerciseStatus, to: ExerciseStatus, ctx: T
   if (from === "CANCELLED") return [f("TERMINAL")];
   if (!EXERCISE_TRANSITIONS[from].includes(to)) return [f("NOT_ALLOWED", { from, to })];
   if (ctx.today == null) return [f("TIME_ZONE_UNSET")];
-  if (to === "CANCELLED") return (ctx.reason ?? "").trim() ? [] : [f("CANCEL_REASON_REQUIRED")];
+  // The act is asked first: an advertised or invited exercise is cancelled only by its route (6.5).
   const act = actFor(from, to);
   if (act) {
     if (ctx.via !== act) return [f("NOT_BY_THIS_ACT", { act })];
     if (act === "SUBMISSION" && ctx.packFaults !== 0) return [f("PACK_NOT_READY", { count: ctx.packFaults ?? null })];
     if (act === "APPROVAL" && !ctx.datesSet) return [f("DATES_REQUIRED")];
+    if (act === "PUBLICATION" && ctx.publishFaults !== 0) return [f("PUBLISH_NOT_READY", { count: ctx.publishFaults ?? null })];
+    if (act === "WINDOW_CANCELLATION" && !(ctx.reason ?? "").trim()) return [f("CANCEL_REASON_REQUIRED")];
     return [];
   }
+  if (to === "CANCELLED") return (ctx.reason ?? "").trim() ? [] : [f("CANCEL_REASON_REQUIRED")];
   const out: Finding<TransitionFault>[] = [];
   if (!ctx.methodSet) out.push(f("METHOD_NOT_SET"));
   if (!ctx.typeSet) out.push(f("TYPE_NOT_SET"));

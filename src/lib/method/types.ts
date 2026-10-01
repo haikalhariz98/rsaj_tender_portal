@@ -18,10 +18,14 @@ export const APPOINTMENT_DOMAIN = "appointment";
 export const NAME_APPROVAL_DOMAIN = "name_approval";
 /// Approval for Tendering (FR-DOC-012, 6.4): the exercise's second route of its own.
 export const TENDERING_APPROVAL_DOMAIN = "tendering_approval";
+/// A change to the invitation window after approval for tendering: a closing correction or
+/// extension, or cancelling an advertised or invited exercise (6.5 OD-5, FR-ADV-015, 016).
+export const WINDOW_CHANGE_DOMAIN = "window_change";
 
-/// The exercise's states (§7.3.2). 6.4 adds the two tendering states; every map over them is
-/// exhaustive (X-8), so a state added here fails to compile until each map decides it.
-export const EXERCISE_STATUSES = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING", "APPROVED_FOR_TENDERING", "CANCELLED"] as const;
+/// The exercise's states (§7.3.2). 6.4 adds the two tendering states, 6.5 the two acts that open
+/// the window (advertised, invited); every map over them is exhaustive (X-8), so a state added here
+/// fails to compile until each map decides it. The window's phases are derived, never states (ADR 0014).
+export const EXERCISE_STATUSES = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING", "APPROVED_FOR_TENDERING", "ADVERTISED", "INVITED", "CANCELLED"] as const;
 export type ExerciseStatus = (typeof EXERCISE_STATUSES)[number];
 /// What a sourcing method assembles for tenderers (6.4, FR-DOC-001, 013).
 export type PackKind = "TENDER" | "QUOTATION" | "NONE";

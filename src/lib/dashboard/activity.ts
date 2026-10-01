@@ -24,6 +24,8 @@ const EXERCISE_MOVE_HEADLINE: Record<ExerciseStatus, (ref: string, from: string 
   DOCUMENTS_IN_PREPARATION: (ref, from) => (from === "PENDING_APPROVAL_FOR_TENDERING" ? `Exercise ${ref}: tender documents returned for amendment` : `Exercise ${ref} moved into preparation`),
   PENDING_APPROVAL_FOR_TENDERING: (ref) => `Exercise ${ref}: tender documents sent for approval`,
   APPROVED_FOR_TENDERING: (ref) => `Exercise ${ref} approved for tendering`,
+  ADVERTISED: (ref) => `Exercise ${ref} advertised`,
+  INVITED: (ref) => `Exercise ${ref}: letters of invitation issued`,
   CANCELLED: (ref) => `Exercise ${ref} cancelled`,
 };
 

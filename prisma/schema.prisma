@@ -266,6 +266,26 @@ model Organisation {
   clauseTexts           ClauseText[]
   clauseOverrides       ClauseOverride[]
   packAssurances        PackAssurance[]
+  windowPolicy          WindowPolicy?
+  publicationChannels   PublicationChannel[]
+  documentFeeFloors     DocumentFeeFloor[]
+  holidayCalendars      HolidayCalendar[]
+  holidayCalendarYears  HolidayCalendarYear[]
+  publicHolidays        PublicHoliday[]
+  exerciseWindows       ExerciseWindow[]
+  windowFeeLines        WindowFeeLine[]
+  closingChanges        ClosingChange[]
+  windowCancellations   WindowCancellation[]
+  publicationRecords    PublicationRecord[]
+  exerciseParties       ExerciseParty[]
+  nameRouteInvitees     NameRouteInvitee[]
+  invitationLetters     InvitationLetter[]
+  documentSales         DocumentSale[]
+  siteEvents            SiteEvent[]
+  siteEventAttendances  SiteEventAttendance[]
+  addenda               Addendum[]
+  addendumRecipients    AddendumRecipient[]
+  windowNotices         WindowNotice[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -344,6 +364,9 @@ model Person {
   packAssurancesConfirmed  PackAssurance[]
   estimateEvents           EstimateEvent[]
   rateSchedulesIssued      RateSchedule[]           @relation("RateScheduleIssuedBy")
+  publicationsRecorded     PublicationRecord[]      @relation("PublicationRecordedBy")
+  documentSalesIssued      DocumentSale[]           @relation("SaleIssuedBy")
+  attendanceRecorded       SiteEventAttendance[]    @relation("AttendanceRecordedBy")
 
   @@unique([organisationId, staffNo])
   @@index([organisationId, name])
@@ -1058,6 +1081,10 @@ model DocumentTemplate {
   awardDocuments       AwardDocument[]
   tenderPackParts      TenderPackPart[]
   tenderPackDocuments  TenderPackDocument[]
+  windowNoticePolicies     WindowPolicy[]     @relation("WindowNoticeTemplate")
+  windowInvitationPolicies WindowPolicy[]     @relation("WindowInvitationTemplate")
+  windowAddendumPolicies   WindowPolicy[]     @relation("WindowAddendumTemplate")
+  invitationLetters        InvitationLetter[]
 
   @@unique([organisationId, code])
 }
@@ -2277,6 +2304,12 @@ model ApprovalInstance {
   steps ApprovalStep[]
   /// 6.4: the tender pack this Approval for Tendering route approves.
   tenderPack TenderPack?
+  /// 6.5: the invitee list a name route approves (ADR 0015), the letters issued on it, and the
+  /// closing change or cancellation a window_change route decides.
+  nameRouteInvitees  NameRouteInvitee[]
+  invitationLetters  InvitationLetter[]  @relation("LetterNameRoute")
+  closingChange      ClosingChange?      @relation("ClosingChangeRoute")
+  windowCancellation WindowCancellation? @relation("WindowCancellationRoute")
 
   @@index([organisationId, matterKind])
   @@index([requisitionId])
@@ -2399,6 +2432,11 @@ enum ExerciseStatus {
   PENDING_APPROVAL_FOR_TENDERING
   /// 6.4 (§7.3.2): approved for tendering, with its start and closing recorded (X-2).
   APPROVED_FOR_TENDERING
+  /// 6.5 (§7.3.2): published through every required channel; the window's phases follow from
+  /// its stored instants, never a stored state (ADR 0014).
+  ADVERTISED
+  /// 6.5 (§7.3.2): the approved invitees' letters issued (FR-ADV-002); never published.
+  INVITED
   CANCELLED
 }
 
@@ -2699,6 +2737,11 @@ model SourcingExercise {
   regulatedActivity      Boolean?
   regulatorPermitCode    String?
 
+  /// 6.5 (FR-ADV-016): the cancelled exercise this one replaces, a new case linked to it.
+  replacesExerciseId     String?
+  replaces               SourcingExercise?  @relation("ExerciseReplaces", fields: [replacesExerciseId], references: [id], onDelete: SetNull)
+  replacedBy             SourcingExercise[] @relation("ExerciseReplaces")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2719,6 +2762,9 @@ model SourcingExercise {
   companyEstimates   CompanyEstimate[]
   /// 6.4 increment 2 (FR-DOC-005): the registrations a bidder must hold.
   registrationRequirements ExerciseRegistrationRequirement[]
+  /// 6.5: the invitation window and the parties on the exercise.
+  window  ExerciseWindow?
+  parties ExerciseParty[]
 
   @@unique([organisationId, reference])
   @@unique([organisationId, dossierReference])
@@ -4604,4 +4650,574 @@ model PackAssurance {
   recordedAt     DateTime
 
   @@unique([packId, kind])
+}
+
+// ------------------------------------------------- 6.5 advertisement, invitation and the window
+
+/// How an exercise reaches its tenderers (FR-ADV-001, 002), from its method's flags when the
+/// window is first written.
+enum WindowPath {
+  ADVERTISED
+  INVITED
+}
+
+/// A line of the document fee's cost basis (FR-ADV-008).
+enum FeeCostKind {
+  PAPER_A4
+  PAPER_A3
+  PAPER_A1
+  PAPER_A0
+  COPYING
+  BINDING
+  ADMIN
+  OTHER
+}
+
+enum SiteEventKind {
+  BRIEFING
+  SITE_VISIT
+}
+
+/// What the purchaser's representative showed of the restriction's status certificate (FR-ADV-010).
+enum CertSighted {
+  ORIGINAL
+  CERTIFIED_COPY
+  NOT_SHOWN
+}
+
+/// A check the portal cannot make yet reads NOT_CHECKED, never CLEAR (6.5 OD-9).
+enum CheckState {
+  NOT_CHECKED
+  CLEAR
+  FAILED
+}
+
+/// How a party first came onto the exercise.
+enum PartySource {
+  PROPOSED_INVITEE
+  ATTENDEE
+  PURCHASER
+}
+
+/// Which day is the advertisement day when channels publish on different days (6.5 OD-3).
+enum AdvertisementDayRule {
+  LATEST_REQUIRED_CHANNEL
+  NAMED_CHANNEL
+}
+
+/// A change to the closing after approval for tendering (X-2: 6.4's approved dates are the
+/// pack's, so there is no APPROVED kind). A correction fixes a date the rules refuse before
+/// publication; an extension moves it later after publication (FR-ADV-015).
+enum ClosingChangeKind {
+  CORRECTION
+  EXTENSION
+}
+
+enum AddendumStatus {
+  DRAFT
+  ISSUED
+  VOID
+}
+
+/// The organisation's invitation-window rules (FR-ADV-004–008, 013). One row, shipped empty:
+/// every null is "not set", shown as such, and blocks the act it governs (6.5 OD-3, OD-7, OD-8).
+model WindowPolicy {
+  id             String       @id @default(cuid())
+  organisationId String       @unique
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  /// Days from the advertisement day to the closing day: the floor refused, the target warned.
+  minAdvertisementDays    Int?
+  targetAdvertisementDays Int?
+  /// The margin a late newspaper may take before the floor is breached: warned within it.
+  newspaperWarnDays       Int?
+  /// The last day the documents are sold is at least this many days before the closing day.
+  purchaseCutoffDays      Int?
+  dateRulesProvenance     Provenance?
+  /// "HH:MM", prefilled for every regime; another time needs a reason (FR-ADV-006).
+  defaultClosingTime      String?
+  closingTimeProvenance   Provenance?
+  advertisementDayRule    AdvertisementDayRule?
+  /// The channel whose day is the advertisement day, where the rule names one.
+  advertisementChannelId  String?
+  advertisementChannel    PublicationChannel?   @relation("PolicyAdvertisementChannel", fields: [advertisementChannelId], references: [id], onDelete: Restrict)
+  dayRuleProvenance       Provenance?
+  /// The weekend days and public holidays a closing day is judged against (FR-ADV-005).
+  calendarId              String?
+  calendar                HolidayCalendar?      @relation(fields: [calendarId], references: [id], onDelete: Restrict)
+  /// Whether an event may be made mandatory at all (D8, OQ-03). Null: not set, so none is.
+  mandatoryAttendancePermitted Boolean?
+  attendanceProvenance         Provenance?
+  noticeTemplateId     String?
+  noticeTemplate       DocumentTemplate? @relation("WindowNoticeTemplate", fields: [noticeTemplateId], references: [id], onDelete: Restrict)
+  invitationTemplateId String?
+  invitationTemplate   DocumentTemplate? @relation("WindowInvitationTemplate", fields: [invitationTemplateId], references: [id], onDelete: Restrict)
+  addendumTemplateId   String?
+  addendumTemplate     DocumentTemplate? @relation("WindowAddendumTemplate", fields: [addendumTemplateId], references: [id], onDelete: Restrict)
+  /// The written source the date rules are cited by in their messages. Empty: no citation.
+  dateRuleSource String   @default("")
+  notes          String   @default("")
+  updatedAt      DateTime @updatedAt
+}
+
+/// A channel an open tender is published through (FR-ADV-001). Shipped empty.
+model PublicationChannel {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  code   String
+  nameEn String
+  nameMs String?
+  /// Whether every advertised exercise must be published here. Null: not set, and blocks.
+  requiredWhenAdvertised Boolean?
+
+  governingSource String     @default("")
+  provenance      Provenance @default(ASSUMED)
+  notes           String     @default("")
+  sortOrder       Int        @default(0)
+  retiredOn       DateTime?
+
+  policiesNaming WindowPolicy[]      @relation("PolicyAdvertisementChannel")
+  publications   PublicationRecord[]
+
+  @@unique([organisationId, code])
+}
+
+/// The least a set of documents is sold for, per regime (FR-ADV-008, 6.5 OD-6). Shipped empty.
+model DocumentFeeFloor {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  /// As SourcingExercise.regime: below, quotation, tender.
+  regime  String
+  minimum Decimal @db.Decimal(18, 2)
+
+  governingSource String     @default("")
+  provenance      Provenance @default(ASSUMED)
+  notes           String     @default("")
+
+  @@unique([organisationId, regime])
+}
+
+/// A maintained calendar of weekend days and public holidays (FR-ADV-005). Shipped empty.
+model HolidayCalendar {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  code String
+  name String
+  /// ISO weekdays, 1 Monday to 7 Sunday. Empty: not set, and blocks.
+  weekendDays        Int[]       @default([])
+  weekendProvenance  Provenance?
+
+  governingSource String     @default("")
+  provenance      Provenance @default(ASSUMED)
+  notes           String     @default("")
+  sortOrder       Int        @default(0)
+  retiredOn       DateTime?
+
+  years    HolidayCalendarYear[]
+  holidays PublicHoliday[]
+  policies WindowPolicy[]
+
+  @@unique([organisationId, code])
+}
+
+/// Whether a year's holidays are maintained in full. A closing in a year not complete blocks (6.5 OD-7).
+model HolidayCalendarYear {
+  id             String          @id @default(cuid())
+  organisationId String
+  organisation   Organisation    @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  calendarId     String
+  calendar       HolidayCalendar @relation(fields: [calendarId], references: [id], onDelete: Restrict)
+
+  year     Int
+  complete Boolean    @default(false)
+  /// Where the year's list was taken from (a gazette, a circular).
+  source     String     @default("")
+  provenance Provenance @default(ASSUMED)
+
+  @@unique([calendarId, year])
+}
+
+model PublicHoliday {
+  id             String          @id @default(cuid())
+  organisationId String
+  organisation   Organisation    @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  calendarId     String
+  calendar       HolidayCalendar @relation(fields: [calendarId], references: [id], onDelete: Restrict)
+
+  day        DateTime
+  nameEn     String
+  nameMs     String?
+  gazetteRef String     @default("")
+  provenance Provenance @default(ASSUMED)
+
+  @@unique([calendarId, day])
+}
+
+/// An exercise's invitation window (§7.1): the notice's items, the fee and its basis, the purchase
+/// days. One per exercise. No status column: the exercise's status records the acts (ADVERTISED,
+/// INVITED, CANCELLED) and the phases are derived from the stored instants (ADR 0014).
+model ExerciseWindow {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId     String           @unique
+  exercise       SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  path WindowPath
+  /// Why the closing time differs from the policy's default (FR-ADV-006). Empty: it does not.
+  closingTimeReason String    @default("")
+  purchaseFromDay   DateTime?
+  purchaseCloseDay  DateTime?
+  // The notice's items (FR-ADV-003): (b), (c), (d), (g). (a) is the exercise's registrations
+  // (6.4, OD-13); (e) and (f) are the site events.
+  inspectionPlace   String    @default("")
+  purchasePlace     String    @default("")
+  inspectionHours   String    @default("")
+  feeAmount         Decimal?  @db.Decimal(18, 2)
+  feePaymentMethods String    @default("")
+  submissionPlace   String    @default("")
+
+  /// Derived at publication from the publication records (OD-3) or the invitation day, then kept.
+  advertisementDay DateTime?
+  publishedAt      DateTime?
+  /// Every rule value the publication was judged under, with its provenance.
+  policySnapshot   Json?
+  /// The notice as published (advertised path), frozen from the configured template (ADR 0008).
+  noticeText          String? @db.Text
+  noticeTemplateCode  String?
+  noticeTemplateBodyVersion Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  feeLines       WindowFeeLine[]
+  closingChanges ClosingChange[]
+  cancellations  WindowCancellation[]
+  publications   PublicationRecord[]
+  letters        InvitationLetter[]
+  sales          DocumentSale[]
+  events         SiteEvent[]
+  addenda        Addendum[]
+}
+
+/// A line of the fee's cost basis. The amount is written only from src/lib (quantity × unit cost,
+/// rounded once, or a lump sum).
+model WindowFeeLine {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  windowId       String
+  window         ExerciseWindow @relation(fields: [windowId], references: [id], onDelete: Cascade)
+
+  kind        FeeCostKind
+  description String      @default("")
+  quantity    Decimal?    @db.Decimal(18, 3)
+  unitCost    Decimal?    @db.Decimal(18, 2)
+  amount      Decimal     @db.Decimal(18, 2)
+  sortOrder   Int         @default(0)
+}
+
+/// A change to the closing after approval for tendering, decided on its own route (domain
+/// window_change, OD-5). Append-only. `SourcingExercise.closingAt` is written from it only when
+/// it is applied (X-2: the closing's second writer).
+model ClosingChange {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  windowId       String
+  window         ExerciseWindow @relation(fields: [windowId], references: [id], onDelete: Restrict)
+
+  kind                 ClosingChangeKind
+  fromClosingAt        DateTime
+  toClosingAt          DateTime
+  fromPurchaseCloseDay DateTime?
+  toPurchaseCloseDay   DateTime?
+  reason               String
+  approvalInstanceId   String?           @unique
+  approvalInstance     ApprovalInstance? @relation("ClosingChangeRoute", fields: [approvalInstanceId], references: [id], onDelete: Restrict)
+  requestedOn          DateTime
+  appliedAt            DateTime?
+  /// Refused when its route was refused, or when the approving step found the rules now refuse it.
+  refusedAt            DateTime?
+  refusedReason        String            @default("")
+  /// The date rules as judged when it was requested, in words.
+  faultsSnapshot       Json              @default("[]")
+  createdAt            DateTime          @default(now())
+
+  notices WindowNotice[]
+  addenda Addendum[]
+}
+
+/// Cancelling an advertised or invited exercise (FR-ADV-016), decided on the window_change route.
+model WindowCancellation {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  windowId       String
+  window         ExerciseWindow @relation(fields: [windowId], references: [id], onDelete: Restrict)
+
+  reason             String
+  /// Whether the document fees are refunded. Answered before it is asked for.
+  feeRefund          Boolean
+  approvalInstanceId String?           @unique
+  approvalInstance   ApprovalInstance? @relation("WindowCancellationRoute", fields: [approvalInstanceId], references: [id], onDelete: Restrict)
+  requestedOn        DateTime
+  appliedAt          DateTime?
+  refusedAt          DateTime?
+  refusedReason      String            @default("")
+  createdAt          DateTime          @default(now())
+
+  notices WindowNotice[]
+}
+
+/// One publication of an advertised exercise on a channel (FR-ADV-001). Proof is attached to the
+/// exercise (purpose PUBLICATION_PROOF).
+model PublicationRecord {
+  id             String             @id @default(cuid())
+  organisationId String
+  organisation   Organisation       @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  windowId       String
+  window         ExerciseWindow     @relation(fields: [windowId], references: [id], onDelete: Restrict)
+  channelId      String
+  channel        PublicationChannel @relation(fields: [channelId], references: [id], onDelete: Restrict)
+
+  /// The channel's name as it read when recorded.
+  channelName        String
+  publishedOn        DateTime
+  /// The title and edition, the board, or the address it was published at.
+  reference          String   @default("")
+  recordedByPersonId String
+  recordedBy         Person   @relation("PublicationRecordedBy", fields: [recordedByPersonId], references: [id], onDelete: Restrict)
+  recordedAt         DateTime @default(now())
+
+  @@unique([windowId, channelId])
+}
+
+/// A contractor on an exercise: proposed for invitation, attending an event, or buying the
+/// documents. The one row sales, attendance, letters, addenda and 6.6's envelopes point at.
+/// `vendorId` has no key until the supplier register exists (6.15).
+model ExerciseParty {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId     String
+  exercise       SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  source         PartySource
+  name           String
+  registrationNo String
+  address        String   @default("")
+  phone          String   @default("")
+  fax            String   @default("")
+  email          String   @default("")
+  vendorId       String?
+  createdAt      DateTime @default(now())
+
+  letters          InvitationLetter[]
+  sales            DocumentSale[]
+  attendance       SiteEventAttendance[]
+  addendumCopies   AddendumRecipient[]
+  notices          WindowNotice[]
+
+  @@unique([exerciseId, registrationNo])
+}
+
+/// The invitee list a name route approves, written once when the name is requested (ADR 0015).
+model NameRouteInvitee {
+  id                 String           @id @default(cuid())
+  organisationId     String
+  organisation       Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  approvalInstanceId String
+  approvalInstance   ApprovalInstance @relation(fields: [approvalInstanceId], references: [id], onDelete: Restrict)
+
+  name           String
+  registrationNo String
+  sortOrder      Int    @default(0)
+
+  @@unique([approvalInstanceId, registrationNo])
+}
+
+/// One addressed letter of invitation (FR-ADV-002), its text frozen at issue (ADR 0008).
+model InvitationLetter {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  windowId       String
+  window         ExerciseWindow   @relation(fields: [windowId], references: [id], onDelete: Restrict)
+  partyId        String
+  party          ExerciseParty    @relation(fields: [partyId], references: [id], onDelete: Restrict)
+  /// The approved name route the invitee was on. Null where the method asks no approval of the name.
+  nameRouteId    String?
+  nameRoute      ApprovalInstance? @relation("LetterNameRoute", fields: [nameRouteId], references: [id], onDelete: Restrict)
+
+  method         DeliveryMethod?
+  consignmentRef String          @default("")
+  despatchedOn   DateTime?
+  acknowledgedOn DateTime?
+
+  templateId          String?
+  template            DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  templateCode        String
+  templateBodyVersion Int
+  language            DocumentLanguage
+  fields              Json
+  renderedText        String           @db.Text
+  frozenAt            DateTime
+
+  @@unique([windowId, partyId])
+}
+
+/// One sale of the documents (FR-ADV-009–012). Checks are what was sighted, attested; the register
+/// checks read NOT_CHECKED until the supplier register exists (OD-9).
+model DocumentSale {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  windowId       String
+  window         ExerciseWindow @relation(fields: [windowId], references: [id], onDelete: Restrict)
+  partyId        String
+  party          ExerciseParty  @relation(fields: [partyId], references: [id], onDelete: Restrict)
+
+  /// The organisation's day the sale was recorded on, stamped by the server.
+  soldOn      DateTime
+  collectedBy String
+  authoritySighted          Boolean
+  /// Asked only where the exercise is restricted (FR-DOC-009).
+  restrictionCertSighted    CertSighted?
+  restrictionCertValidUntil DateTime?
+  registrationCheck CheckState @default(NOT_CHECKED)
+  suspensionCheck   CheckState @default(NOT_CHECKED)
+  checkNote         String     @default("")
+  /// The window's fee as it stood.
+  amount            Decimal    @db.Decimal(18, 2)
+  paymentMethod     String
+  /// The finance system's receipt number, consumed, never minted (OD-11). Null: not yet recorded.
+  financeReceiptNo  String?
+  receiptRecordedOn DateTime?
+  issuedByPersonId  String
+  issuedBy          Person     @relation("SaleIssuedBy", fields: [issuedByPersonId], references: [id], onDelete: Restrict)
+  /// FR-ADV-011: the purchaser's particulars and the closing as stated, with the issuing officer.
+  annotation        Json
+  voidedAt          DateTime?
+  voidReason        String     @default("")
+  createdAt         DateTime   @default(now())
+
+  @@unique([organisationId, financeReceiptNo])
+  @@index([windowId])
+}
+
+/// A tender briefing or site visit (FR-ADV-003 (e)/(f), FR-ADV-013).
+model SiteEvent {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  windowId       String
+  window         ExerciseWindow @relation(fields: [windowId], references: [id], onDelete: Restrict)
+
+  kind     SiteEventKind
+  startsAt DateTime
+  place    String
+  /// Answered per event, only where the policy permits mandatory attendance (OD-8). Null: not answered.
+  mandatory    Boolean?
+  heldOn       DateTime?
+  notes        String    @default("")
+  cancelledAt  DateTime?
+  cancelReason String    @default("")
+  createdAt    DateTime  @default(now())
+
+  attendance SiteEventAttendance[]
+}
+
+model SiteEventAttendance {
+  id             String        @id @default(cuid())
+  organisationId String
+  organisation   Organisation  @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  eventId        String
+  event          SiteEvent     @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  partyId        String
+  party          ExerciseParty @relation(fields: [partyId], references: [id], onDelete: Restrict)
+
+  representative     String
+  recordedByPersonId String
+  recordedBy         Person   @relation("AttendanceRecordedBy", fields: [recordedByPersonId], references: [id], onDelete: Restrict)
+  recordedAt         DateTime @default(now())
+
+  @@unique([eventId, partyId])
+}
+
+/// A corrigendum or addendum issued during the window (FR-ADV-014). Numbered per exercise when
+/// issued, under the window's lock; the signed copy is attached (purpose ADDENDUM_SIGNED).
+model Addendum {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  windowId       String
+  window         ExerciseWindow @relation(fields: [windowId], references: [id], onDelete: Restrict)
+
+  number          Int?
+  title           String
+  whatChanged     String         @db.Text
+  status          AddendumStatus @default(DRAFT)
+  issuedOn        DateTime?
+  closingChangeId String?
+  closingChange   ClosingChange? @relation(fields: [closingChangeId], references: [id], onDelete: Restrict)
+  renderedText        String?    @db.Text
+  templateCode        String?
+  templateBodyVersion Int?
+  frozenAt            DateTime?
+  voidReason      String         @default("")
+  createdAt       DateTime       @default(now())
+
+  recipients AddendumRecipient[]
+
+  @@unique([windowId, number])
+}
+
+/// One copy of an addendum and how it went: recorded, not sent (INT-09 is not built).
+model AddendumRecipient {
+  id             String        @id @default(cuid())
+  organisationId String
+  organisation   Organisation  @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  addendumId     String
+  addendum       Addendum      @relation(fields: [addendumId], references: [id], onDelete: Restrict)
+  partyId        String
+  party          ExerciseParty @relation(fields: [partyId], references: [id], onDelete: Restrict)
+
+  /// Given with the documents to a later purchaser, rather than sent.
+  withDocuments  Boolean         @default(false)
+  method         DeliveryMethod?
+  consignmentRef String          @default("")
+  despatchedOn   DateTime?
+  acknowledgedOn DateTime?
+  note           String          @default("")
+
+  @@unique([addendumId, partyId])
+}
+
+/// One purchaser's or invitee's notice of a closing change or of the cancellation: recorded, not sent.
+model WindowNotice {
+  id             String              @id @default(cuid())
+  organisationId String
+  organisation   Organisation        @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  closingChangeId String?
+  closingChange   ClosingChange?      @relation(fields: [closingChangeId], references: [id], onDelete: Restrict)
+  cancellationId  String?
+  cancellation    WindowCancellation? @relation(fields: [cancellationId], references: [id], onDelete: Restrict)
+  partyId        String
+  party          ExerciseParty       @relation(fields: [partyId], references: [id], onDelete: Restrict)
+
+  method         DeliveryMethod?
+  consignmentRef String          @default("")
+  despatchedOn   DateTime?
+  acknowledgedOn DateTime?
+  note           String          @default("")
+
+  @@unique([closingChangeId, partyId])
+  @@unique([cancellationId, partyId])
 }

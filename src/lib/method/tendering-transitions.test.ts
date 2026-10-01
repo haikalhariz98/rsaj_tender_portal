@@ -58,6 +58,8 @@ describe("the tendering moves, each by one act", () => {
     expect(codes(transitionFault("DOCUMENTS_IN_PREPARATION", "APPROVED_FOR_TENDERING", { today, via: "APPROVAL", datesSet: true }))).toEqual(["NOT_ALLOWED"]);
     expect(codes(transitionFault("DRAFT", "PENDING_APPROVAL_FOR_TENDERING", { today, via: "SUBMISSION", packFaults: 0 }))).toEqual(["NOT_ALLOWED"]);
     expect(codes(transitionFault("CANCELLED", "DOCUMENTS_IN_PREPARATION", { today, via: "RETURN" }))).toEqual(["TERMINAL"]);
-    expect(EXERCISE_TRANSITIONS.APPROVED_FOR_TENDERING).toEqual(["CANCELLED"]);
+    // 6.5 (faithful update, flagged): approved for tendering now opens the window — advertised or
+    // invited, each only by publishing (window-transitions.test.ts) — or is cancelled. Still no way back.
+    expect(EXERCISE_TRANSITIONS.APPROVED_FOR_TENDERING).toEqual(["ADVERTISED", "INVITED", "CANCELLED"]);
   });
 });

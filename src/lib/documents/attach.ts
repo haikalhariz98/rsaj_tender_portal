@@ -64,6 +64,9 @@ export function exerciseFrozen(status: ExerciseStatus): boolean {
     // the pack's parts freeze with the pack (`tenderPackPart`), not with the exercise.
     case "PENDING_APPROVAL_FOR_TENDERING":
     case "APPROVED_FOR_TENDERING":
+    // 6.5: published, the exercise keeps its publication proofs and attendance sheets.
+    case "ADVERTISED":
+    case "INVITED":
       return false;
     case "CANCELLED":
       return true;
