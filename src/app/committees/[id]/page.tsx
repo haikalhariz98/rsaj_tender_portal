@@ -761,7 +761,7 @@ function HistoryPanel({
                   {ACTION_LABEL[e.action]}
                 </Badge>
                 <span className="font-semibold text-ink">{ENTITY_LABEL[e.entity] ?? "Record"}</span>
-                <span className="min-w-0 truncate text-ink-2">{e.entityLabel}</span>
+                <span className="min-w-0 break-words text-ink-2">{e.entityLabel}</span>
                 <span className="flex-1" />
                 <span className="text-[12px] text-ink-3">{formatOrgDateTime(e.at, s.timeZone)}</span>
               </div>

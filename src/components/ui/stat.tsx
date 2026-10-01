@@ -57,7 +57,7 @@ export function Stat({
       >
         {value ?? "—"}
       </div>
-      {hint && <div className="mt-2.5 line-clamp-2 text-[12.5px] text-ink-3">{hint}</div>}
+      {hint && <div className="mt-2.5 break-words text-[12.5px] text-ink-3">{hint}</div>}
     </>
   );
   const cls = cx(
