@@ -12,7 +12,7 @@ import { documentFaultText, FINGERPRINT_STATEMENT, PURPOSE_LABEL } from "@/lib/d
 import { ownerOf, withLockedOwner, type LockedOwner } from "@/lib/documents/owners";
 import type { OwnerRef } from "@/lib/documents/repo";
 import { documentDrawer, ownerPanel, uploadContext } from "@/lib/documents/read";
-import { documentOrg, lockDocument, logAccess } from "@/lib/documents/service";
+import { documentOrg, lockDocument, lockVersion, LOCKED_VERSION_SELECT, logAccess } from "@/lib/documents/service";
 import { blobStore, sha256Hex } from "@/lib/documents/store";
 import { ATTACHMENT_PURPOSES, blocking, OWNER_COLUMN, OWNER_KINDS, SECURITY_CLASSES, type Finding } from "@/lib/documents/types";
 import { withdrawFault } from "@/lib/documents/versioning";
@@ -103,9 +103,10 @@ export async function attachDocument(_prev: FormState, data: FormData): Promise<
   if (r.failed || !kind || !purpose) return { ok: false, errors: r.errors };
   const ref: OwnerRef = { kind, id: ownerId };
   return inOwner(ref, async (tx, o) => {
-    const v = await tx.documentVersion.findFirst({ where: { id: versionId, organisationId: o.organisationId }, select: { id: true, documentId: true, versionNo: true, sha256: true, withdrawnAt: true } });
+    // The document is locked before the version is judged (`lockVersion`): a withdrawal
+    // committed while this act waited is seen here, never pinned.
+    const v = await lockVersion(tx, versionId, o.organisationId);
     if (!v) return refuse([{ code: "VERSION_UNKNOWN", level: "block" }]);
-    await lockDocument(tx, v.documentId);
     const doc = await tx.document.findUniqueOrThrow({ where: { id: v.documentId }, include: { documentClass: { select: { classification: true } } } });
     const col = OWNER_COLUMN[kind];
     const already = await tx.documentAttachment.findFirst({ where: { [col]: ownerId, purpose, detachedAt: null, version: { documentId: doc.id } }, select: { id: true } });
@@ -162,9 +163,12 @@ export async function attachNewVersion(_prev: FormState, data: FormData): Promis
     const col = OWNER_COLUMN[ref.kind];
     const a = await tx.documentAttachment.findFirst({ where: { id: attachmentId, organisationId: o.organisationId, [col]: ref.id }, include: { version: { select: { id: true, documentId: true, versionNo: true } } } });
     if (!a) return GONE;
-    const to = await tx.documentVersion.findFirst({ where: { id: versionId, organisationId: o.organisationId }, select: { id: true, documentId: true, versionNo: true, sha256: true, withdrawnAt: true, document: { select: { title: true } } } });
-    if (!to) return refuse([{ code: "VERSION_UNKNOWN", level: "block" }]);
+    // The pinned document is locked first, then the version to move to is read and judged:
+    // a withdrawal committed while this act waited is seen, never pinned. A version of
+    // another document is refused (NOT_SAME_DOCUMENT) whatever its state.
     await lockDocument(tx, a.version.documentId);
+    const to = await tx.documentVersion.findFirst({ where: { id: versionId, organisationId: o.organisationId }, select: { ...LOCKED_VERSION_SELECT, document: { select: { title: true } } } });
+    if (!to) return refuse([{ code: "VERSION_UNKNOWN", level: "block" }]);
     const faults = repinFault({ purpose: a.purpose, owner: o.facts, reason, attachment: { detachedAt: a.detachedAt, versionId: a.versionId, documentId: a.version.documentId }, to });
     if (faults.length) return refuse(faults);
     await tx.documentAttachment.update({ where: { id: a.id }, data: { detachedAt: new Date(), detachReason: `Replaced by version ${to.versionNo}: ${reason}` } });

@@ -10,7 +10,7 @@ import { delegationFacts } from "@/lib/documents/owner-facts";
 import { todayIn } from "@/lib/dates";
 import { attached, filed } from "@/lib/documents/audit-view";
 import { documentFaultText, PURPOSE_LABEL } from "@/lib/documents/labels";
-import { lockDocument } from "@/lib/documents/service";
+import { lockVersion } from "@/lib/documents/service";
 import { blocking } from "@/lib/documents/types";
 import { RECOMMENDATION_NOT_ATTACHED } from "@/lib/people/labels";
 import { db } from "@/lib/db";
@@ -667,9 +667,10 @@ class RecommendationRefused extends Error {}
  * document's filing and their audit rows share the transaction.
  */
 async function attachRecommendation(tx: Tx, orgId: string, delegationId: string, versionId: string) {
-  const v = await tx.documentVersion.findFirst({ where: { id: versionId, organisationId: orgId }, select: { id: true, documentId: true, versionNo: true, sha256: true, withdrawnAt: true } });
+  // The document is locked before the version is judged (`lockVersion`): a withdrawal
+  // committed while this act waited is seen here, never pinned.
+  const v = await lockVersion(tx, versionId, orgId);
   if (!v) throw new RecommendationRefused(documentFaultText({ code: "VERSION_UNKNOWN", level: "block" }));
-  await lockDocument(tx, v.documentId);
   const doc = await tx.document.findUniqueOrThrow({ where: { id: v.documentId }, include: { documentClass: { select: { classification: true } } } });
   // Under the Delegation row lock (the same helper the generic attach uses): attachFault
   // judges what is read here, after the lock, never a read made before it.

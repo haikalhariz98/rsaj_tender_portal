@@ -11,6 +11,7 @@ import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 
 import { filenameFault } from "./access";
+import { lockDocument } from "./lock";
 import { documentCreated, versionCreated } from "./audit-view";
 import { receivedOnFault } from "./received";
 import { isRetentionRule, type RetentionRule } from "./retention";
@@ -54,10 +55,7 @@ export async function logAccess(
   });
 }
 
-/// Lock a document's row for the rest of the transaction. Owners are locked first, always.
-export async function lockDocument(tx: Tx, documentId: string): Promise<void> {
-  await tx.$queryRaw`SELECT id FROM "Document" WHERE id = ${documentId} FOR UPDATE`;
-}
+export { lockDocument, lockVersion, LOCKED_VERSION_SELECT, type LockedVersion } from "./lock";
 
 export class UploadRefusal extends Error {
   constructor(readonly finding: Finding, readonly status = 422) {
