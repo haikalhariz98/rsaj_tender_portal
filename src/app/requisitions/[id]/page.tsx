@@ -78,7 +78,7 @@ import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } fr
 import { GATE_DOMAIN } from "@/lib/requisition/gate";
 import { unpostedIntakeReason, type UnpostedReason } from "@/lib/requisition/budget";
 import { splitApprovalFault, splitStateLabel } from "@/lib/requisition/splitting";
-import { transitionFault } from "@/lib/requisition/status";
+import { SUCCESSOR_OPEN_TEXT, successorOpenFault, transitionFault } from "@/lib/requisition/status";
 import type { OrgUnitKind } from "@/lib/requisition/types";
 
 import {
@@ -1722,7 +1722,12 @@ function ChecksPanel({
             <Callout tone="warn">{gate.faults.join(" ")}</Callout>
           )}
           <div className="flex flex-wrap items-center gap-2">
-            {route?.requires && !["CANCELLED", "CLOSED"].includes(r.status) && <ExternalAuthorityDrawer id={r.id} label={label} current={r.externalAuthorityRef} />}
+            {route?.requires && !["CANCELLED", "CLOSED"].includes(r.status) &&
+              (successorOpenFault(r.approvalInstances) ? (
+                <Blocked label={`Record ${label.toLowerCase()}`} reason={SUCCESSOR_OPEN_TEXT} />
+              ) : (
+                <ExternalAuthorityDrawer id={r.id} label={label} current={r.externalAuthorityRef} />
+              ))}
             {!["DRAFT", "CANCELLED", "CLOSED", "FULFILLED", "PENDING_APPROVAL"].includes(r.status) && <ChangeFundingDrawer id={r.id} current={r.fundingRouteCode} routes={routes} />}
           </div>
         </CardBody>
@@ -1746,7 +1751,12 @@ function ChecksPanel({
             </Callout>
           )}
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            {!["CANCELLED", "CLOSED"].includes(r.status) && <ErpRefsDrawer id={r.id} proc={r.erpRequisitionNo} nm={r.erpNoteNo} examples={erpExamples} />}
+            {!["CANCELLED", "CLOSED"].includes(r.status) &&
+              (successorOpenFault(r.approvalInstances) ? (
+                <Blocked label="Record finance numbers" reason={SUCCESSOR_OPEN_TEXT} />
+              ) : (
+                <ErpRefsDrawer id={r.id} proc={r.erpRequisitionNo} nm={r.erpNoteNo} examples={erpExamples} />
+              ))}
           </div>
         </CardBody>
       </Card>

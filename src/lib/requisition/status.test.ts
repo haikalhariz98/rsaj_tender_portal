@@ -94,3 +94,12 @@ describe("the close-out edges (ruling C1, FR-APR-016, FR-REQ-012)", () => {
     expect(transitionFault("REJECTED", "CLOSED", { today, reason: "Terminated" })).toBeNull();
   });
 });
+
+describe("no edits while a successor route is open (ruling C3)", () => {
+  it("refuses while a route continuing a rejected one is pending, and not otherwise", async () => {
+    const { successorOpenFault } = await import("./status");
+    expect(successorOpenFault([{ status: "PENDING", supersedesInstanceId: "r1" }, { status: "REJECTED", supersedesInstanceId: null }])).toBe("SUCCESSOR_OPEN");
+    expect(successorOpenFault([{ status: "PENDING", supersedesInstanceId: null }])).toBeNull();
+    expect(successorOpenFault([{ status: "APPROVED", supersedesInstanceId: "r1" }])).toBeNull();
+  });
+});

@@ -62,7 +62,7 @@ import { closeRejected, loadDestinations, openSuccessor, recordChoice, snapshotO
 import { choiceFault, choicesFor, rejectionOutcome, rejectionSnapshot, REJECTION_KINDS, type RejectionKind, type RejectionOutcome } from "@/lib/authority/rejection";
 import { CHOICE_FAULT_TEXT } from "@/lib/authority/rejection-labels";
 import { MoveRefused, moveRequisition } from "@/lib/requisition/move";
-import { transitionFault, type TransitionContext } from "@/lib/requisition/status";
+import { SUCCESSOR_OPEN_TEXT, successorOpenFault, transitionFault, type TransitionContext } from "@/lib/requisition/status";
 import { REQUISITION_DOMAIN, type OrgUnitKind, type RequisitionStatus } from "@/lib/requisition/types";
 import { ACT_LABEL } from "@/lib/labels";
 import { FormReader } from "@/lib/validate";
@@ -504,6 +504,7 @@ export async function recordErpRefs(_prev: FormState, data: FormData): Promise<F
   if (!proc && !nm) return { ok: false, errors: { erpRequisitionNo: "Enter at least one number." } };
   return inRequisition(id, async (tx, l): Promise<FormState> => {
     if (["CANCELLED", "CLOSED"].includes(l.req.status)) return { ok: false, message: "A cancelled or closed requisition cannot change." };
+    if (successorOpenFault(l.req.approvalInstances)) return { ok: false, message: SUCCESSOR_OPEN_TEXT };
     const replacing = (l.req.erpRequisitionNo && proc && proc !== l.req.erpRequisitionNo) || (l.req.erpNoteNo && nm && nm !== l.req.erpNoteNo);
     if (replacing && !reason) return { ok: false, errors: { reason: "Say why a number already recorded is being changed." } };
     const errors = await saveErpRefs(tx, l, proc, nm);
@@ -596,6 +597,7 @@ export async function recordExternalAuthority(_prev: FormState, data: FormData):
   if (r.failed) return { ok: false, errors: r.errors };
   return inRequisition(id, async (tx, l): Promise<FormState> => {
     if (["CANCELLED", "CLOSED"].includes(l.req.status)) return { ok: false, message: "A cancelled or closed requisition cannot change." };
+    if (successorOpenFault(l.req.approvalInstances)) return { ok: false, message: SUCCESSOR_OPEN_TEXT };
     if (l.req.externalAuthorityRef && !reason) return { ok: false, errors: { reason: "Say why the recorded reference is being changed." } };
     await tx.requisition.update({ where: { id }, data: { externalAuthorityRef: ref } });
     await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ externalAuthorityRef: l.req.externalAuthorityRef }, { externalAuthorityRef: ref }), reason);

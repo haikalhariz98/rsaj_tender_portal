@@ -150,3 +150,16 @@ export function transitionFault(
       return null;
   }
 }
+
+/**
+ * Close-out ruling C3: nothing on a requisition is edited while a successor route is
+ * open — the route continues an approval of the requisition as it stood, and carries
+ * decisions taken on it. Its status already holds the draft's fields; this holds the
+ * edits allowed beside an approval (finance numbers, the external authority).
+ */
+export function successorOpenFault(routes: readonly { status: string; supersedesInstanceId: string | null }[]): "SUCCESSOR_OPEN" | null {
+  return routes.some((r) => r.status === "PENDING" && r.supersedesInstanceId) ? "SUCCESSOR_OPEN" : null;
+}
+
+export const SUCCESSOR_OPEN_TEXT =
+  "This requisition's approval continues on a route returned to an earlier step, which carries decisions taken on it as it stood. Nothing on it is edited until that route closes.";
