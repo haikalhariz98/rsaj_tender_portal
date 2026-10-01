@@ -140,3 +140,43 @@ describe("the Appendix B fixture is for tests only (C5)", () => {
     expect(importers).toEqual([]);
   });
 });
+
+describe("§6.9.3 examples and the core routing (FR-APR-004, ruling on departure 2)", () => {
+  const ruleOf = (key: string) => DAL_FIXTURE.rules.find((r) => r.ruleKey === key)!;
+
+  it("(21) examples 1 and 2 take their chains from the core routing; example 5 is as entered, with its stated reason", () => {
+    expect(ruleOf("REQ_ABOVE_300K").generateCoreChain).toBe(true);
+    expect(ruleOf("OS_15K_TO_300K").generateCoreChain).toBe(true);
+    expect(ruleOf("DP_ABOVE_5M").generateCoreChain).toBe(false);
+    expect(ruleOf("DP_ABOVE_5M").coreChainReason).toBe("§3.1.4.2 item 1 states the chain; §2.2.1 is silent above the CEO");
+  });
+
+  it("(20) example 1's chain is generated: the rule itself names neither the Head of Department nor a proposer", () => {
+    const rule = ruleOf("REQ_ABOVE_300K");
+    expect(rule.proposerCode).toBeNull();
+    expect(rule.recommenders.some((x) => x.roleCode === "HOD")).toBe(false);
+    const { r } = trace({ domain: "requisition", value: 420_000 });
+    expect(r.chain.map((s) => s.origin ?? null)).toEqual(["CORE", "CORE_STRENGTHENED", "CORE_STRENGTHENED", null]);
+    expect(r.core?.level?.approverCode).toBe("CEO");
+  });
+
+  it("(20) example 2's chain is generated: the Head of Department and FD come from §2.2.1, HoDiv's joint proposal is an act the rule sets", () => {
+    const rule = ruleOf("OS_15K_TO_300K");
+    expect(rule.proposerCode).toBeNull();
+    expect(rule.recommenders.map((x) => x.roleCode)).toEqual(["HODIV", "QC"]);
+    const { r } = trace({ domain: "appointment", method: "open_selective", value: 180_000 });
+    expect(r.chain.map((s) => s.origin ?? null)).toEqual(["CORE", "CORE_ACT_SET", "CORE", "RULE", null]);
+  });
+
+  it("(20) example 5 is recorded as entered, and the fixture states no core row above the CEO", () => {
+    const { r } = trace({ domain: "appointment", method: "direct", value: 6_000_000 });
+    expect(r.warnings.filter((w) => w.code.startsWith("CORE_")).map((w) => [w.code, w.level])).toEqual([["CORE_AS_ENTERED", "info"]]);
+    expect(r.core).toEqual({ flag: false, reason: "§3.1.4.2 item 1 states the chain; §2.2.1 is silent above the CEO", level: null });
+    expect((DAL_FIXTURE.coreRouting ?? []).map((l) => l.approverCode)).toEqual(["HOD", "HODIV", "FD", "CEO"]);
+  });
+
+  it("an example left undecided still has no error: it warns that its chain was not checked", () => {
+    const { r } = trace({ domain: "termination", method: "tender", value: 1_000_000 });
+    expect(r.warnings.filter((w) => w.code === "CORE_NOT_CHECKED").map((w) => w.level)).toEqual(["warn"]);
+  });
+});

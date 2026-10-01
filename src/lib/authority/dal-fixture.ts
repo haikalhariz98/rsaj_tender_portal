@@ -1,4 +1,4 @@
-import type { Matrix, Rule } from "./types";
+import type { CoreLevel, Matrix, Rule } from "./types";
 
 /**
  * The rows of the specification's Appendix B (DAL Issue A, Revision 00) that the
@@ -17,6 +17,14 @@ import type { Matrix, Rule } from "./types";
  *            Division, e.g. §3.1.4.2 item 1 above RM5M: HoDiv JR).
  *   "JR/P" → P: Contract & Procurement heads the chain, so it proposes (e.g. items 13
  *            and 15: CP P → HoDiv R → CEO A).
+ *
+ * Core routing (FR-APR-004, 6.9 R3). B.2's four rows of §2.2.1, STATED. Nothing above
+ * the Chief Executive: §2.2.1 is silent there, and a row the fixture invented would be
+ * copied from the very clause example 5 checks (ruling on departure 2). Examples 1 and 2
+ * take their chains from these rows, with their rules trimmed to what §3.1.4 adds, so
+ * the generation is what reproduces the printed chain. Example 5 is decided "as
+ * entered", with its reason. Every other rule is left undecided (null), as an issue
+ * ships, and its route warns that the chain was not checked.
  */
 
 const rule = (r: Partial<Rule> & Pick<Rule, "ruleKey" | "domain">): Rule => ({
@@ -43,6 +51,8 @@ const rule = (r: Partial<Rule> & Pick<Rule, "ruleKey" | "domain">): Rule => ({
   clause: "Appendix B",
   sortOrder: 0,
   recommenders: [],
+  generateCoreChain: null,
+  coreChainReason: null,
   ...r,
 });
 
@@ -54,6 +64,24 @@ const role = (code: string, nameEn: string, isCommittee = false, escalatesToCode
   escalatesToCode,
   selfApprovalEscalatesToCode: null,
 });
+
+/// §2.2.1 as Appendix B.2 prints it: the chain beneath each approving office.
+const core = (approverCode: string, steps: [string, "P" | "JP" | "R" | "JR", string?][]): CoreLevel => ({
+  approverCode,
+  clause: "§2.2.1",
+  provenance: "STATED",
+  steps: steps.map(([roleCode, act, note]) => ({ roleCode, act, provenance: "STATED", ...(note ? { note } : {}) })),
+});
+
+export const DAL_CORE_ROUTING: CoreLevel[] = [
+  core("HOD", []),
+  core("HODIV", [["HOD", "R"]]),
+  core("FD", [["HOD", "P"], ["HODIV", "R"]]),
+  core("CEO", [["HOD", "P"], ["HODIV", "P", "or jointly propose"], ["FD", "R"]]),
+];
+
+/// Example 5's rule states its own chain above the CEO, where §2.2.1 is silent.
+export const EXAMPLE_5_REASON = "§3.1.4.2 item 1 states the chain; §2.2.1 is silent above the CEO";
 
 const K = 1_000;
 const M = 1_000_000;
@@ -72,6 +100,7 @@ export const DAL_FIXTURE: Matrix = {
     requisitionBoundary: 50 * K,
     currency: "MYR",
   },
+  coreRouting: DAL_CORE_ROUTING,
   roles: Object.fromEntries(
     [
       role("HOD", "Head of Department", false, "HODIV"),
@@ -91,7 +120,9 @@ export const DAL_FIXTURE: Matrix = {
     rule({ ruleKey: "REQ_UP_TO_500", domain: "requisition", maxValue: 500, approverCode: "HOD", followsBoundarySwitch: false, clause: "§3.1.4.1" }),
     rule({ ruleKey: "REQ_500_TO_50K", domain: "requisition", minValue: 500, maxValue: 50 * K, recommenders: [{ roleCode: "HOD", act: "R" }], approverCode: "HODIV", followsBoundarySwitch: false, clause: "§3.1.4.1" }),
     rule({ ruleKey: "REQ_50K_TO_300K", domain: "requisition", minValue: 50 * K, maxValue: 300 * K, proposerCode: "HOD", recommenders: [{ roleCode: "HODIV", act: "R" }], approverCode: "FD", followsBoundarySwitch: false, clause: "§3.1.4.1" }),
-    rule({ ruleKey: "REQ_ABOVE_300K", domain: "requisition", minValue: 300 * K, proposerCode: "HOD", recommenders: [{ roleCode: "HODIV", act: "R" }, { roleCode: "FD", act: "MR" }], approverCode: "CEO", followsBoundarySwitch: false, clause: "§3.1.4.1" }),
+    // Example 1: generated. The rule adds only what §3.1.4.1 strengthens — HoDiv
+    // recommends where §2.2.1 has it propose, FD's recommendation is mandatory.
+    rule({ ruleKey: "REQ_ABOVE_300K", domain: "requisition", minValue: 300 * K, recommenders: [{ roleCode: "HODIV", act: "R" }, { roleCode: "FD", act: "MR" }], approverCode: "CEO", followsBoundarySwitch: false, generateCoreChain: true, clause: "§3.1.4.1" }),
 
     // B.4 §3.1.4.2 item 1 Direct purchase (proprietary and emergency).
     rule({ ruleKey: "DP_UP_TO_500", domain: "appointment", method: "direct", maxValue: 500, approverCode: "HOD", clause: "§3.1.4.2 item 1" }),
@@ -100,12 +131,15 @@ export const DAL_FIXTURE: Matrix = {
     rule({ ruleKey: "DP_15K_TO_300K", domain: "appointment", method: "direct", minValue: 15 * K, maxValue: 300 * K, proposerCode: "HOD", recommenders: [{ roleCode: "HODIV", act: "JP" }, { roleCode: "FD", act: "R" }, { roleCode: "QC", act: "MR" }], approverCode: "CEO", committeeCode: "QC", committeeAct: "MR", nonDelegable: true, clause: "§3.1.4.2 item 1" }),
     rule({ ruleKey: "DP_300K_TO_3M", domain: "appointment", method: "direct", minValue: 300 * K, maxValue: 3 * M, approverCode: "TBC", committeeCode: "TBC", committeeAct: "A", clause: "§3.1.4.2 item 1" }),
     rule({ ruleKey: "DP_3M_TO_5M", domain: "appointment", method: "direct", minValue: 3 * M, maxValue: 5 * M, recommenders: [{ roleCode: "TBC", act: "MR" }], approverCode: "CM", committeeCode: "TBC", committeeAct: "MR", clause: "§3.1.4.2 item 1" }),
-    rule({ ruleKey: "DP_ABOVE_5M", domain: "appointment", method: "direct", minValue: 5 * M, proposerCode: "HOD", recommenders: [{ roleCode: "HODIV", act: "JR" }, { roleCode: "TBC", act: "MR" }], approverCode: "BOD", committeeCode: "TBC", committeeAct: "MR", clause: "§3.1.4.2 item 1" }),
+    // Example 5: as entered, decided so with its reason (ruling on departure 2).
+    rule({ ruleKey: "DP_ABOVE_5M", domain: "appointment", method: "direct", minValue: 5 * M, proposerCode: "HOD", recommenders: [{ roleCode: "HODIV", act: "JR" }, { roleCode: "TBC", act: "MR" }], approverCode: "BOD", committeeCode: "TBC", committeeAct: "MR", generateCoreChain: false, coreChainReason: EXAMPLE_5_REASON, clause: "§3.1.4.2 item 1" }),
 
     // B.5 §3.1.4.2 item 2 Open and selective: no Chairman or Board row at any value.
     rule({ ruleKey: "OS_UP_TO_5K", domain: "appointment", method: "open_selective", maxValue: 5 * K, recommenders: [{ roleCode: "HOD", act: "R" }], approverCode: "HODIV", clause: "§3.1.4.2 item 2" }),
     rule({ ruleKey: "OS_5K_TO_15K", domain: "appointment", method: "open_selective", minValue: 5 * K, maxValue: 15 * K, proposerCode: "HOD", recommenders: [{ roleCode: "HODIV", act: "R" }], approverCode: "FD", clause: "§3.1.4.2 item 2" }),
-    rule({ ruleKey: "OS_15K_TO_300K", domain: "appointment", method: "open_selective", minValue: 15 * K, maxValue: 300 * K, proposerCode: "HOD", recommenders: [{ roleCode: "HODIV", act: "JP" }, { roleCode: "FD", act: "R" }, { roleCode: "QC", act: "MR" }], approverCode: "CEO", committeeCode: "QC", committeeAct: "MR", nonDelegable: true, clause: "§3.1.4.2 item 2" }),
+    // Example 2: generated. The rule sets HoDiv's act to a joint proposal (the same
+    // rank as §2.2.1's proposal) and adds the Quotation Committee's MR.
+    rule({ ruleKey: "OS_15K_TO_300K", domain: "appointment", method: "open_selective", minValue: 15 * K, maxValue: 300 * K, recommenders: [{ roleCode: "HODIV", act: "JP" }, { roleCode: "QC", act: "MR" }], approverCode: "CEO", committeeCode: "QC", committeeAct: "MR", nonDelegable: true, generateCoreChain: true, clause: "§3.1.4.2 item 2" }),
     rule({ ruleKey: "OS_ABOVE_300K", domain: "appointment", method: "open_selective", minValue: 300 * K, approverCode: "TBC", committeeCode: "TBC", committeeAct: "A", clause: "§3.1.4.2 item 2" }),
 
     // B.6 §3.1.4.3 item 5 Quotation VO: one dimension, and no MR up to 20%.

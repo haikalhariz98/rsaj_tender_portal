@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { DAL_CORE_ROUTING, DAL_FIXTURE } from "./dal-fixture";
 import { TEST_MATRIX } from "./fixture";
 import {
   approverAct,
@@ -455,5 +456,103 @@ describe("re-checking an issue's rules at the boundary (code review, item 7)", (
     expect(boundaryFaultsAcross(rules, matrix.policy)).toEqual([]);
     const moved = boundaryFaultsAcross(rules, { boundaryValue: 100_000 });
     expect(moved.map((x) => [x.rule.ruleKey, x.fault])).toEqual([["PAY_LOW", "BOUNDARY_SWITCH_UNDECIDED"]]);
+  });
+});
+
+describe("core routing at resolution (FR-APR-004)", () => {
+  // The payment rule CLERK P → MANAGER R → CHIEF A, under each choice of flag.
+  const withPayRule = (patch: Partial<Matrix["rules"][number]>, coreRouting: Matrix["coreRouting"] = []): Matrix => ({
+    ...matrix,
+    coreRouting,
+    rules: matrix.rules.map((r) => (r.ruleKey === "PAY_HIGH" ? { ...r, ...patch } : r)),
+  });
+  const pay = (m: Matrix) => resolveApproval(m, { domain: "payment", method: "tender", value: 620_000 });
+  const core = (m: ReturnType<typeof pay>) => m.warnings.filter((w) => w.code.startsWith("CORE_"));
+
+  it("(14) unset: the chain as entered, with one warning that it was not checked, naming the rule", () => {
+    const r = pay(withPayRule({ generateCoreChain: null }));
+    expect(trace(r.chain)).toEqual(["CLERK:P", "MANAGER:R", "CHIEF:A"]);
+    expect(core(r).map((w) => [w.code, w.level])).toEqual([["CORE_NOT_CHECKED", "warn"]]);
+    expect(core(r)[0].messageEn).toContain("“PAY_HIGH”");
+    expect(core(r)[0].messageMs).toMatch(/^Rantaian seperti yang dimasukkan/);
+    expect(r.core).toEqual({ flag: null, reason: null, level: null });
+  });
+
+  it("(15) false: the chain as entered, recorded as a decision, with its reason carried", () => {
+    const r = pay(withPayRule({ generateCoreChain: false, coreChainReason: "The manual states this chain" }));
+    expect(core(r).map((w) => [w.code, w.level])).toEqual([["CORE_AS_ENTERED", "info"]]);
+    expect(r.core).toEqual({ flag: false, reason: "The manual states this chain", level: null });
+  });
+
+  it("(16) true with an empty core table: the chain as entered, warning that this issue records no core routing for the approver", () => {
+    const r = pay(withPayRule({ generateCoreChain: true }, []));
+    expect(trace(r.chain)).toEqual(["CLERK:P", "MANAGER:R", "CHIEF:A"]);
+    expect(core(r).map((w) => [w.code, w.level])).toEqual([["CORE_NOT_CHECKED", "warn"]]);
+    expect(core(r)[0].messageEn).toContain("no core routing for Chief");
+    expect(r.warnings.filter((w) => w.level === "err")).toEqual([]);
+  });
+
+  it("true with a core row: the row is generated beneath the approver, and every step says where it came from", () => {
+    const row = { approverCode: "CHIEF", clause: "C-1", provenance: "STATED" as const, steps: [{ roleCode: "MANAGER", act: "P" as const, provenance: "STATED" as const }, { roleCode: "DIRECTOR", act: "R" as const, provenance: "STATED" as const }] };
+    const r = pay(withPayRule({ generateCoreChain: true, proposerCode: null, recommenders: [{ roleCode: "MANAGER", act: "R" }] }, [row]));
+    expect(trace(r.chain)).toEqual(["MANAGER:R", "DIRECTOR:R", "CHIEF:A"]);
+    expect(r.chain.map((s) => s.origin ?? null)).toEqual(["CORE_STRENGTHENED", "CORE", null]);
+    expect(core(r)).toEqual([]);
+    expect(r.core?.level).toEqual(row);
+  });
+
+  it("(17) no rule: no core warning at all", () => {
+    const r = resolveApproval({ ...matrix, coreRouting: [] }, { domain: "nothing_like_this" });
+    expect(r.warnings.map((w) => w.code)).toEqual(["NO_RULE"]);
+  });
+
+  it("(18) a flagged rule that weakens a core step is an error, and the chain stays as entered", () => {
+    const row = { approverCode: "CHIEF", clause: "", provenance: "ASSUMED" as const, steps: [{ roleCode: "MANAGER", act: "R" as const, provenance: "ASSUMED" as const }] };
+    const r = pay(withPayRule({ generateCoreChain: true, proposerCode: "MANAGER", recommenders: [] }, [row]));
+    expect(core(r).map((w) => [w.code, w.level])).toEqual([["CORE_CHAIN_FAULT", "err"]]);
+    expect(core(r)[0].messageEn).toContain("gives Manager a lesser act or a different place");
+    expect(trace(r.chain)).toEqual(["MANAGER:P", "CHIEF:A"]);
+  });
+
+  it("core warnings come after the engine's own, so their places are unchanged", () => {
+    const r = resolveApproval(withPayRule({ generateCoreChain: null }), { domain: "payment", method: "tender", value: 620_000, fundingSupersedesAuthority: true });
+    expect(r.warnings.map((w) => w.code)).toEqual(["GOV_OVERRIDE", "CORE_NOT_CHECKED"]);
+  });
+});
+
+describe("(19) self-approval on a generated chain puts no office in it twice (note D-6)", () => {
+  // The fixture's offices with the self-approval escalations this test needs: FD to the
+  // CEO, HoDiv to FD. Invented for the test; the appendix states none.
+  const roles = {
+    ...DAL_FIXTURE.roles,
+    FD: { ...DAL_FIXTURE.roles.FD, selfApprovalEscalatesToCode: "CEO" },
+    HODIV: { ...DAL_FIXTURE.roles.HODIV, selfApprovalEscalatesToCode: "FD" },
+  };
+  const base = DAL_FIXTURE.rules[0];
+  const m = (r: Partial<Matrix["rules"][number]>): Matrix => ({
+    ...DAL_FIXTURE,
+    roles,
+    coreRouting: DAL_CORE_ROUTING,
+    rules: [{ ...base, ruleKey: "T", domain: "t", minValue: null, maxValue: null, proposerCode: null, recommenders: [], generateCoreChain: true, ...r }],
+  });
+
+  it("FD approves, FD acts: FD recommends once, appended after the rule's committee; nothing from the CEO's row is spliced in", () => {
+    const r = resolveApproval(m({ approverCode: "FD", recommenders: [{ roleCode: "QC", act: "MR" }] }), { domain: "t", actorRoleCode: "FD" });
+    expect(trace(r.chain)).toEqual(["HOD:P", "HODIV:R", "QC:MR", "FD:R", "CEO:A"]);
+    expect(r.chain.filter((s) => s.roleCode === "FD")).toHaveLength(1);
+  });
+
+  it("HoDiv approves, HoDiv acts: HOD:R, HODIV:R, FD:A", () => {
+    const r = resolveApproval(m({ approverCode: "HODIV" }), { domain: "t", actorRoleCode: "HODIV" });
+    expect(trace(r.chain)).toEqual(["HOD:R", "HODIV:R", "FD:A"]);
+  });
+
+  it("where the actor's office already has a step, the downgrade merges into it, keeping the stronger act", () => {
+    const resolve = resolveApproval;
+    // As entered (the flag decided false), FD already proposes beneath its own approval.
+    const asEntered = m({ approverCode: "FD", generateCoreChain: false, coreChainReason: "test", proposerCode: "FD", recommenders: [{ roleCode: "HODIV", act: "MR" }] });
+    expect(trace(resolve(asEntered, { domain: "t", actorRoleCode: "FD" }).chain)).toEqual(["FD:R", "HODIV:MR", "CEO:A"]);
+    const strong = m({ approverCode: "HODIV", generateCoreChain: false, coreChainReason: "test", recommenders: [{ roleCode: "HODIV", act: "MR" }] });
+    expect(trace(resolve(strong, { domain: "t", actorRoleCode: "HODIV" }).chain)).toEqual(["HODIV:MR", "FD:A"]);
   });
 });

@@ -1,6 +1,7 @@
 import type {
   ApprovalStep,
   AuthorityAct,
+  CoreChainRecord,
   Matrix,
   Policy,
   Regime,
@@ -11,6 +12,8 @@ import type {
 } from "./types";
 import { MANDATORY_ACTS } from "./types";
 import { senFromAmount } from "@/lib/money";
+import { ACT_RANK, generateChain } from "./core-routing";
+import { AS_ENTERED_INFO, coreFaultWarning, NO_LONGER_CONFIGURED, notDecidedWarning, type Words } from "./core-routing-labels";
 
 /// Maximum upward hops when escalating past absent holders. Guards against a cycle
 /// in a mis-seeded escalation map.
@@ -380,27 +383,11 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
     });
   }
 
-  const chain: ApprovalStep[] = [];
-
-  if (rule.proposerCode) {
-    chain.push({
-      roleCode: rule.proposerCode,
-      act: "P",
-      nonDelegable: false,
-      sourceRuleKey: rule.ruleKey,
-    });
-  }
-
-  for (const rec of rule.recommenders) {
-    const role = matrix.roles[rec.roleCode];
-    chain.push({
-      roleCode: rec.roleCode,
-      act: rec.act,
-      ...(role?.isCommittee ? { committeeCode: rec.roleCode } : {}),
-      nonDelegable: MANDATORY_ACTS.has(rec.act),
-      sourceRuleKey: rule.ruleKey,
-    });
-  }
+  // The chain beneath the approver: generated from the core routing where the rule
+  // takes it from there, otherwise as entered on the rule (FR-APR-004). Its warnings
+  // go last, so the engine's own warnings keep their places.
+  const beneath = chainBeneath(matrix, rule);
+  const chain: ApprovalStep[] = [...beneath.steps];
 
   // An office resolved from the contract value (a superintending officer, say) is not
   // special-cased here: it is rows banded on contract value, like any other band.
@@ -435,13 +422,21 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
         from: approver,
         to: escalated,
       });
-      chain.push({
-        roleCode: approver,
-        act: "R",
-        nonDelegable: false,
-        sourceRuleKey: rule.ruleKey,
-        note: "downgraded",
-      });
+      // The actor is downgraded to recommend. Where their office already has a step in
+      // the chain, the downgrade merges into it (the stronger act kept) rather than
+      // putting one office in the chain twice (6.9 note D-6, ruling OQ-6).
+      const at = chain.findIndex((x) => x.roleCode === approver);
+      if (at < 0) {
+        chain.push({
+          roleCode: approver,
+          act: "R",
+          nonDelegable: false,
+          sourceRuleKey: rule.ruleKey,
+          note: "downgraded",
+        });
+      } else if (ACT_RANK[chain[at].act] < ACT_RANK.R) {
+        chain[at] = { ...chain[at], act: "R", nonDelegable: false, note: "downgraded" };
+      }
       approver = escalated;
     }
   }
@@ -522,6 +517,8 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
     });
   }
 
+  warnings.push(...beneath.warnings);
+
   return {
     rule,
     boundaryOperator: boundaryOperatorFor(rule, matrix.policy),
@@ -532,7 +529,119 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
     committeeCode: rule.committeeCode,
     nonDelegable: rule.nonDelegable,
     query,
+    core: beneath.core,
   };
+}
+
+/// An office's name in both languages, never its code.
+function officeWords(matrix: Matrix, code: string | null): Words {
+  const role = code ? matrix.roles[code] : undefined;
+  return role ? { en: role.nameEn, ms: role.nameMs } : NO_LONGER_CONFIGURED;
+}
+
+/**
+ * The steps beneath a rule's approver, and what the route must say about where they came
+ * from (FR-APR-004).
+ *
+ * Flagged (`generateCoreChain === true`): generated from the issue's core row for the
+ * rule's own approver. With no row for it, the chain as entered stands and warns it was
+ * not checked; a rule that would weaken, reorder or duplicate a core step is an error.
+ * Unset: as entered, warning that nobody has decided. False: as entered, recorded so.
+ */
+export function chainBeneath(
+  matrix: Matrix,
+  rule: Rule,
+): { steps: ApprovalStep[]; warnings: ResolutionWarning[]; core: CoreChainRecord } {
+  const flag = rule.generateCoreChain ?? null;
+  const reason = rule.coreChainReason ?? null;
+  const label: Words = { en: rule.labelEn, ms: rule.labelMs ?? rule.labelEn };
+  const warn = (code: ResolutionWarning["code"], level: ResolutionWarning["level"], w: Words): ResolutionWarning => ({
+    code,
+    level,
+    messageEn: w.en,
+    messageMs: w.ms,
+    clause: rule.clause,
+  });
+
+  if (flag === true) {
+    const g = generateChain(rule, matrix.coreRouting, matrix.roles);
+    if (g.ok) {
+      const steps = g.steps.map((x): ApprovalStep => ({ ...x }));
+      return { steps, warnings: [], core: { flag, reason, level: g.level } };
+    }
+    const w = coreFaultWarning(g.fault, label, officeWords(matrix, g.roleCode ?? null));
+    return {
+      steps: asEntered(matrix, rule),
+      warnings: [warn(g.fault === "CORE_ROW_MISSING" ? "CORE_NOT_CHECKED" : "CORE_CHAIN_FAULT", g.fault === "CORE_ROW_MISSING" ? "warn" : "err", w)],
+      core: { flag, reason, level: null },
+    };
+  }
+  return {
+    steps: asEntered(matrix, rule),
+    warnings: [flag === false ? warn("CORE_AS_ENTERED", "info", AS_ENTERED_INFO) : warn("CORE_NOT_CHECKED", "warn", notDecidedWarning(label))],
+    core: { flag, reason, level: null },
+  };
+}
+
+/// The chain as entered on the rule: its proposer, then its recommenders, in order.
+function asEntered(matrix: Matrix, rule: Rule): ApprovalStep[] {
+  const chain: ApprovalStep[] = [];
+  if (rule.proposerCode) {
+    chain.push({
+      roleCode: rule.proposerCode,
+      act: "P",
+      nonDelegable: false,
+      sourceRuleKey: rule.ruleKey,
+    });
+  }
+  for (const rec of rule.recommenders) {
+    const role = matrix.roles[rec.roleCode];
+    chain.push({
+      roleCode: rec.roleCode,
+      act: rec.act,
+      ...(role?.isCommittee ? { committeeCode: rec.roleCode } : {}),
+      nonDelegable: MANDATORY_ACTS.has(rec.act),
+      sourceRuleKey: rule.ruleKey,
+    });
+  }
+  return chain;
+}
+
+/**
+ * A rule's chain as the resolver builds it, before any matter's self-approval or absence
+ * moves the approval: the steps beneath, then the approver. Every reader that shows or
+ * counts a rule's offices reads this rather than the rule's fields (6.9 ruling C3).
+ */
+export function ruleChain(
+  matrix: Matrix,
+  rule: Rule,
+): { steps: ApprovalStep[]; warnings: ResolutionWarning[]; core: CoreChainRecord } {
+  const beneath = chainBeneath(matrix, rule);
+  const steps = [...beneath.steps];
+  if (rule.approverCode) {
+    const role = matrix.roles[rule.approverCode];
+    steps.push({
+      roleCode: rule.approverCode,
+      act: approverAct(rule),
+      ...(role?.isCommittee ? { committeeCode: rule.approverCode } : {}),
+      nonDelegable: rule.approverMandatory,
+      sourceRuleKey: rule.ruleKey,
+    });
+  }
+  return { steps, warnings: beneath.warnings, core: beneath.core };
+}
+
+/**
+ * Every office an issue routes to: each rule's chain as the resolver builds it, its
+ * approver and its committee. What makes a vacancy blocking rather than untidy.
+ */
+export function routedOffices(matrix: Matrix): string[] {
+  const out = new Set<string>();
+  for (const rule of matrix.rules) {
+    for (const s of ruleChain(matrix, rule).steps) out.add(s.roleCode);
+    if (rule.committeeCode) out.add(rule.committeeCode);
+  }
+  return [...out];
 }
 
 /**

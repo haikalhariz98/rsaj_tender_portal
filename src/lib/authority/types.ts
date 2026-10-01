@@ -49,6 +49,47 @@ export interface Rule {
   clause: string;
   sortOrder: number;
   recommenders: Recommender[];
+  /// Whether the chain beneath the approver is generated from the issue's core routing
+  /// (FR-APR-004). Null or absent: nobody has decided, and the route warns that its
+  /// chain was not checked. False is a decision ("as entered"), with its reason.
+  generateCoreChain?: boolean | null;
+  coreChainReason?: string | null;
+}
+
+export type Provenance = "STATED" | "OBSERVED" | "ASSUMED";
+
+/// An office beneath the approver in the core routing, in order. Its act is one of
+/// P, JP, R, JR (6.9 note D-4); anything else is a fault `coreLevelFaults` reports.
+export interface CoreStep {
+  roleCode: string;
+  act: AuthorityAct;
+  provenance: Provenance;
+  note?: string;
+}
+
+/// One approving office's row of the core routing rule (§2.2.1). No steps means the
+/// office approves alone, which is not the same as having no row.
+export interface CoreLevel {
+  approverCode: string;
+  clause: string;
+  provenance: Provenance;
+  note?: string;
+  steps: CoreStep[];
+}
+
+/// Where a step of a generated chain came from (6.9 ruling C1): the core routing as it
+/// stands, a core step the rule raised to a stronger act, a core step the rule set to
+/// another act of the same rank, or a step the rule adds.
+export type ChainOrigin = "CORE" | "CORE_STRENGTHENED" | "CORE_ACT_SET" | "RULE";
+
+/// What a resolution records about core routing, for the route's snapshot.
+export interface CoreChainRecord {
+  /// The rule's flag as it stood: null not decided, false as entered, true generated.
+  flag: boolean | null;
+  /// The reason recorded for "as entered".
+  reason: string | null;
+  /// The core row the chain was generated from; null where it was not generated.
+  level: CoreLevel | null;
 }
 
 /// Thresholds that travel with the DAL issue rather than with the code.
@@ -78,6 +119,9 @@ export interface Matrix {
   policy: Policy;
   roles: Record<string, Role>;
   rules: Rule[];
+  /// The issue's core routing. Absent or empty: not set, so no chain is generated
+  /// and a rule that asks for one warns that its chain was not checked.
+  coreRouting?: CoreLevel[];
 }
 
 export type Regime = "tender" | "quotation" | "below";
@@ -93,7 +137,10 @@ export interface ResolutionWarning {
     | "SELF_APPROVAL"
     | "ABSENCE"
     | "GOV_OVERRIDE"
-    | "BOUNDARY_SWITCH_UNDECIDED";
+    | "BOUNDARY_SWITCH_UNDECIDED"
+    | "CORE_NOT_CHECKED"
+    | "CORE_CHAIN_FAULT"
+    | "CORE_AS_ENTERED";
   level: WarningLevel;
   messageEn: string;
   messageMs: string;
@@ -111,6 +158,8 @@ export interface ApprovalStep {
   /// The rule this step came from, so every step is traceable to a clause.
   sourceRuleKey: string;
   note?: string;
+  /// Set only on a chain generated from core routing; absent on a chain as entered.
+  origin?: ChainOrigin;
 }
 
 export interface ResolveQuery {
@@ -151,4 +200,6 @@ export interface Resolution {
   committeeCode: string | null;
   nonDelegable: boolean;
   query: ResolveQuery;
+  /// Set wherever a rule matched: the flag, reason and core row behind the chain.
+  core?: CoreChainRecord;
 }
