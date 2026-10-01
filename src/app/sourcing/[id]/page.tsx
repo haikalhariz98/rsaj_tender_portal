@@ -76,6 +76,7 @@ import { AWARD_STATUS_LABEL, AWARD_STATUS_TONE, awardFindingText, DOSSIER_EVIDEN
 import { loadAwardPolicy } from "@/lib/award/repo";
 import { ENTITY as TENDER_ENTITY } from "@/lib/tender-docs/audit-view";
 import { awardOpenRefusal, exerciseOpenForAward } from "@/lib/award/gate";
+import { tenderingRouteLabel } from "@/lib/tender-docs/labels";
 import type { PackKind } from "@/lib/tender-docs/types";
 import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
 import { DECISION_LABEL, DECIDER_FAULT_TEXT, OPERATOR_LABEL } from "@/lib/requisition/labels";
@@ -484,6 +485,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
           methodName={(c) => config.methods.find((m) => m.code === c)?.nameEn ?? "A method no longer configured"}
           basisName={(c) => config.bases.find((b) => b.code === c)?.nameEn ?? null}
           reasonName={(c) => config.reasons.find((r) => r.code === c)?.nameEn ?? null}
+          tenderingRouteIds={new Set(tenderingRoutesOf(ex.approvalInstances).map((i) => i.id))}
         />
       ),
     },
@@ -1177,6 +1179,7 @@ function HistoryPanel({
   methodName,
   basisName,
   reasonName,
+  tenderingRouteIds,
 }: {
   entries: Awaited<ReturnType<typeof exerciseHistory>>["entries"];
   total: number;
@@ -1186,11 +1189,14 @@ function HistoryPanel({
   methodName: (c: string) => string;
   basisName: (c: string) => string | null;
   reasonName: (c: string) => string | null;
+  /// The exercise's Approval for Tendering routes: a rejection there reads "Returned for amendment" (Q-3).
+  tenderingRouteIds: ReadonlySet<string>;
 }) {
   // The department estimate (a registered SULIT field) reads with the SULIT chip in the trail too.
-  const chipped = (field: string, value: string | null) => (isSulitField(field) && value ? <SulitValue>{read(field, value)}</SulitValue> : read(field, value));
-  const read = (field: string, value: string | null): string => {
+  const chipped = (field: string, value: string | null, entityId: string) => (isSulitField(field) && value ? <SulitValue>{read(field, value, entityId)}</SulitValue> : read(field, value, entityId));
+  const read = (field: string, value: string | null, entityId: string): string => {
     if (value == null || value === "") return "—";
+    if (field === "status" && tenderingRouteIds.has(entityId)) return tenderingRouteLabel(value, null);
     if (field === "dominantSharePct") return Number(value) >= 100 ? "One deliverable" : `${pct(value)}%`;
     if (field === "contractBasisCode") return basisName(value) ?? "A basis no longer configured";
     if (field === "justificationReasonCode") return reasonName(value) ?? "A reason no longer configured";
@@ -1251,8 +1257,8 @@ function HistoryPanel({
                 <ul className="text-[12.5px] break-words text-ink-3">
                   {e.changes.filter((ch) => shown(ch.field, ch, e.action)).map((ch) => (
                     <li key={ch.field}>
-                      {FIELD_NAME[ch.field] ?? fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{chipped(ch.field, ch.before)} → </>}
-                      <span className="text-ink-2">{chipped(ch.field, e.action === "DELETE" ? ch.before : ch.after)}</span>
+                      {FIELD_NAME[ch.field] ?? fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{chipped(ch.field, ch.before, e.entityId)} → </>}
+                      <span className="text-ink-2">{chipped(ch.field, e.action === "DELETE" ? ch.before : ch.after, e.entityId)}</span>
                     </li>
                   ))}
                 </ul>

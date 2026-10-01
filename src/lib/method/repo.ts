@@ -277,6 +277,7 @@ export async function exerciseHistory(l: LoadedExercise) {
     entries: rows.map((e) => ({
       id: e.id,
       entity: e.entity,
+      entityId: e.entityId,
       entityLabel: e.entityLabel,
       action: e.action,
       at: e.at,

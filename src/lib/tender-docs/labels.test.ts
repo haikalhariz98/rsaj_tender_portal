@@ -91,4 +91,9 @@ describe("the tendering route card says the documents were returned, not refused
       expect(src.match(/tenderingRouteLabel\(/g)?.length, f).toBe(2);
     }
   });
+  it("the exercise's History reads a tendering route's status through it, by the route's id", () => {
+    const src = readFileSync(join(process.cwd(), "src/app/sourcing/[id]/page.tsx"), "utf8");
+    expect(src).toMatch(/if \(field === "status" && tenderingRouteIds\.has\(entityId\)\) return tenderingRouteLabel\(value, null\);/);
+    expect(src).toMatch(/tenderingRouteIds=\{new Set\(tenderingRoutesOf\(ex\.approvalInstances\)\.map\(\(i\) => i\.id\)\)\}/);
+  });
 });
