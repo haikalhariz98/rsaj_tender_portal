@@ -5,6 +5,8 @@
  * own transaction, so a sibling-sum check and the write it guards see the same data.
  */
 
+import { exerciseEvidence, NO_EVIDENCE } from "@/lib/documents/evidence";
+import { attachmentFacts } from "@/lib/documents/repo";
 import type { Tx } from "@/lib/audit/record";
 import { loadIssue, loadOverrideMatrix } from "@/lib/authority/load";
 import { dayToDate, storedDay, todayIn } from "@/lib/dates";
@@ -212,6 +214,8 @@ export async function evaluationContext(
   // The posture as snapshotted on the requisition at submission, else the route's now.
   const posture = (req.fundingPosture as EvaluationContext["posture"]) ?? (route ? fundingPosture({ ...route, provenance: route.provenance as Provenance }) : null);
   const siblings = await client.sourcingExercise.findMany({ where: { requisitionId: req.id }, select: { id: true, estimatedValue: true, status: true } });
+  // The exercise's dossier evidence and scope document, counted by the document store.
+  const evidence = ex ? exerciseEvidence(await attachmentFacts({ kind: "exercise", id: ex.id }, client, ["DOSSIER_EVIDENCE", "COORDINATION_SCOPE"])) : NO_EVIDENCE;
   const ctx: EvaluationContext = {
     funder,
     termsBands: issue.terms,
@@ -224,6 +228,7 @@ export async function evaluationContext(
     lockedAt: ex?.classificationLockedAt ?? null,
     currentTypeCode: ex?.contractTypeCode ?? null,
     picks: ex?.taxonomyValues ?? [],
+    evidence,
   };
   return { issue, cfg, ctx, on };
 }

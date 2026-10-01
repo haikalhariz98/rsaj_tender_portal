@@ -1,0 +1,267 @@
+/**
+ * Every word the document store puts on a screen, in a response or in a refusal.
+ * Codes, purposes, media types and classification values are configuration keys and
+ * never reach a screen (AGENTS.md rule 5): each has its label here.
+ */
+
+import { formatDate } from "@/lib/format";
+
+import type { OwnerExit, Reliance } from "./attach";
+import type { DownloadRefusal } from "./access";
+import type { RetentionState } from "./retention";
+import type { AccessKind, AttachmentPurpose, DisposalMethod, DocumentStatus, Finding, RetentionTrigger, ScanState, SecurityClass } from "./types";
+
+/// Said once on every panel and on the drawer (plan §4). Nothing claims "restricted" or "secure".
+export const ACCESS_STATEMENT =
+  "Stored and listed. Anyone who can reach the portal can open a document that is not SULIT; there is no sign-in to restrict it.";
+
+/// What a fingerprint proves, and what it does not (OD-9).
+export const FINGERPRINT_STATEMENT =
+  "The fingerprint proves the file matches what was stored. It does not prove the database itself is untouched.";
+
+/// Every version, until scanning is built (OD-4).
+export const SCAN_LABEL: Readonly<Record<ScanState, string>> = {
+  NOT_SCANNED: "Not scanned for malware — scanning not built",
+  CLEAN: "Scanned, nothing found",
+  THREAT: "Malware found — not served",
+};
+
+/// Who recorded a version: a named Person, on whose behalf it was recorded. Not a signature.
+export const RECORDED_ON_BEHALF = "recorded on behalf of, not signed";
+
+export const CLASSIFICATION_LABEL: Readonly<Record<SecurityClass, string>> = { PUBLIC: "Public", INTERNAL: "Internal", SULIT: "SULIT" };
+export const classificationLabel = (c: SecurityClass | null | undefined) => (c ? CLASSIFICATION_LABEL[c] : "Not set");
+
+export const STATUS_LABEL: Readonly<Record<DocumentStatus, string>> = { STAGED: "Received, not filed", FILED: "Filed" };
+
+export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
+  SIGNED_MINUTES: "Signed minutes",
+  DOSSIER_EVIDENCE: "Dossier evidence",
+  COORDINATION_SCOPE: "Coordination meeting scope document",
+  HOLDER_RECOMMENDATION: "Absent holder's signed recommendation",
+  SIGNED_LETTER: "Signed letter of acceptance",
+  DECLARATION: "Signed successful bidder declaration",
+  AUTHORISATION: "Letter of authorisation",
+  ACCEPTANCE_PAGE: "Signed acceptance page",
+};
+
+export const ACCESS_KIND_LABEL: Readonly<Record<AccessKind, string>> = {
+  DOWNLOADED: "Downloaded",
+  REFUSED: "Refused",
+  VERIFIED: "Fingerprint verified",
+  INTEGRITY_FAILED: "Fingerprint did not match",
+};
+
+export const RETENTION_TRIGGER_LABEL: Readonly<Record<RetentionTrigger, string>> = {
+  RECEIVED: "From the day it was received",
+  OWNER_CLOSED: "From the day the record it belongs to closed",
+  CONTRACT_FINAL_ACCOUNT: "From the contract's final account",
+};
+
+export const DISPOSAL_METHOD_LABEL: Readonly<Record<DisposalMethod, string>> = {
+  DESTROY: "Destroy",
+  TRANSFER_TO_ARCHIVES: "Transfer to the archives",
+  REVIEW: "Review before deciding",
+};
+
+export const MEDIA_LABEL: Readonly<Record<string, string>> = {
+  "application/pdf": "PDF",
+  "image/png": "PNG image",
+  "image/jpeg": "JPEG image",
+  "image/tiff": "TIFF image",
+  "application/zip": "ZIP archive or Office file",
+  "text/html": "web page",
+  "image/svg+xml": "SVG drawing",
+};
+export const mediaLabel = (t: string | null | undefined) => (t ? (MEDIA_LABEL[t] ?? "a type the portal does not recognise") : "a type the portal does not recognise");
+
+/// 1,234 bytes · 12.3 KB · 4.5 MB — binary multiples, one decimal.
+export function formatBytes(n: bigint | number | string): string {
+  const b = typeof n === "bigint" ? n : BigInt(String(n));
+  if (b < 1024n) return `${b.toLocaleString("en-GB")} bytes`;
+  const units = ["KB", "MB", "GB"];
+  let unit = -1;
+  let whole = b;
+  let tenths = 0n;
+  while (whole >= 1024n && unit < units.length - 1) {
+    tenths = ((whole % 1024n) * 10n) / 1024n;
+    whole = whole / 1024n;
+    unit++;
+  }
+  return `${whole.toLocaleString("en-GB")}${tenths ? `.${tenths}` : ""} ${units[unit]}`;
+}
+
+/// The first and last few characters of a fingerprint, for a list. The full one is on the drawer.
+export const shortFingerprint = (sha256: string) => (sha256.length > 16 ? `${sha256.slice(0, 8)}…${sha256.slice(-4)}` : sha256);
+
+export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
+  MINUTE_FIRST: "The signed minutes are attached once the sitting is minuted.",
+  SITTING_CANCELLED: "The sitting was cancelled, so nothing is attached to it.",
+  EXERCISE_CANCELLED: "The exercise is cancelled, so nothing more is attached to it.",
+  ROUTE_OPEN: "The award's appointment route is open and was sent on this evidence. Wait for its decision, or withdraw it, before changing the dossier.",
+  AWARD_APPROVED: "An award on this exercise is approved on this evidence. To change the dossier, cancel that award and open another, which is judged afresh.",
+  AWARD_NOT_ISSUED: "The awardee's returned documents are attached once the instrument is issued.",
+  AWARD_CANCELLED: "The award is cancelled, so nothing more is attached to it.",
+  DELEGATION_ENDED: "The delegation has ended, so nothing more is attached to it.",
+};
+
+const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {
+  ACCEPTED_ON_IT: "The award was accepted on this scan, so it is not taken off. To correct it, attach a new version, with the reason.",
+  GRANTED_ON_IT: "The delegation was granted on this recommendation, so it is not taken off. To correct it, attach a new version, with the reason.",
+};
+
+export const DOWNLOAD_REFUSAL_TEXT: Readonly<Record<DownloadRefusal, string>> = {
+  SULIT: "SULIT documents are listed but not opened in the portal until there is sign-in to say who is reading. The request was refused and logged.",
+  UNCLASSIFIED: "This document's classification is not set, so it is not opened in the portal. Set its classification first. The request was refused and logged.",
+  THREAT: "Malware was found in this file, so it is not opened. The request was refused and logged.",
+};
+
+/// The text for any finding this module's rules, the store and the route handlers return.
+export function documentFaultText(f: Finding): string {
+  const d = f.data ?? {};
+  switch (f.code) {
+    // media.ts
+    case "TYPES_NOT_SET":
+      return "No file types are allowed yet. Set the allowed types under Configuration, Documents, Upload rules.";
+    case "TYPE_NOT_RECOGNISED":
+      return "The portal cannot tell what this file is from its contents. Upload it as a PDF, or as a PNG, JPEG or TIFF image.";
+    case "ARCHIVE_NOT_ACCEPTED":
+      return "This file is a ZIP archive or an Office file, which the portal cannot tell apart from its contents. Save it as a PDF and upload that.";
+    case "MARKUP_NEVER_ACCEPTED":
+      return "Web pages and SVG drawings are never accepted. Save it as a PDF and upload that.";
+    case "TYPE_NOT_ALLOWED":
+      return `This file is ${withArticle(mediaLabel(String(d.sniffed)))}, which the organisation's upload rules do not allow. The allowed types are set under Configuration, Documents, Upload rules.`;
+    case "NAME_WITHOUT_TYPE":
+      return `The file's contents are ${withArticle(mediaLabel(String(d.sniffed)))}, but its name does not say so. Rename it with the matching extension and upload it again.`;
+    case "DECLARED_TYPE_MISMATCH":
+      return `The file's contents are ${withArticle(mediaLabel(String(d.sniffed)))}, but it was sent as ${withArticle(mediaLabel(String(d.declared)))}. It was not stored. Check it is the file you meant, and give it its right name.`;
+    // limits.ts
+    case "SIZE_NOT_SET":
+      return "No largest file size is set, so nothing is accepted. Set it under Configuration, Documents, Upload rules.";
+    case "CEILING_NOT_SET":
+      return "The deployment's largest upload (DOCUMENT_MAX_BYTES) is not set, so nothing is accepted. Whoever runs the portal sets it.";
+    case "CEILING_INVALID":
+      return "The deployment's largest upload (DOCUMENT_MAX_BYTES) is not a whole number of bytes. Whoever runs the portal corrects it.";
+    case "EMPTY":
+      return "The file is empty.";
+    case "TOO_LARGE":
+      return d.cap ? `The file is larger than the ${formatBytes(String(d.cap))} allowed${d.from === "CEILING" ? " by this deployment" : ""}. It was not stored.` : "The file is larger than allowed. It was not stored.";
+    case "LENGTH_INVALID":
+      return "The upload's declared length is not a number. It was not read.";
+    // versioning.ts
+    case "IDENTICAL_TO_VERSION_N":
+      return `This file is identical to version ${d.n}. Nothing was added.`;
+    case "DOCUMENT_WITHDRAWN":
+      return "Every version of this document is withdrawn, so it takes no more. Upload the file as a new document.";
+    case "ALREADY_WITHDRAWN":
+      return "This version is already withdrawn.";
+    // received.ts
+    case "RECEIVED_ON_INVALID":
+      return "The received day is not a date.";
+    case "TIME_ZONE_UNSET":
+      return "Set the organisation's time zone under Configuration, Organisation before typing a received day: it is judged against today, which is not assumed to be UTC. Or leave the day blank.";
+    case "RECEIVED_ON_FUTURE":
+      return "The received day cannot be after today.";
+    // attach.ts
+    case "PURPOSE_NOT_FOR_OWNER":
+      return `${PURPOSE_LABEL[d.purpose as AttachmentPurpose] ?? "That kind of document"} does not belong on this record.`;
+    case "OWNER_NOT_READY":
+    case "OWNER_FROZEN":
+      return EXIT_TEXT[d.exit as OwnerExit] ?? "This record takes no attachments now.";
+    case "VERSION_WITHDRAWN":
+      return "That version is withdrawn, so it is not attached. Attach a version that stands.";
+    case "CLASS_NOT_SET":
+      return "Choose the document's class. If none is offered, add one under Configuration, Documents.";
+    case "CLASSES_NOT_CONFIGURED":
+      return "No document classes are configured, so nothing can be filed. Add one under Configuration, Documents.";
+    case "CLASS_UNKNOWN":
+      return "That document class is not configured. Choose one from the list.";
+    case "CLASSIFICATION_NOT_SET":
+      return "This document's classification is not set, so it is listed but not opened in the portal. Set it on the document, or on its class under Configuration, Documents.";
+    case "ALREADY_ATTACHED":
+      return "That document is already attached here.";
+    case "RELIED_ON":
+      return RELIANCE_TEXT[d.by as Reliance] ?? "Something was decided on this attachment, so it is not taken off.";
+    case "ALREADY_DETACHED":
+      return "That attachment has already been taken off.";
+    case "NOT_SAME_DOCUMENT":
+      return "A new version must be of the same document.";
+    case "ALREADY_PINNED":
+      return "That version is the one already attached.";
+    // classification.ts
+    case "UNCHANGED":
+      return "That is already its classification.";
+    case "CANNOT_UNSET":
+      return "A classification, once set, is not taken away. Choose Public, Internal or SULIT.";
+    case "DOWNGRADE_FROM_SULIT":
+      return "A SULIT document is not lowered by one person: that needs a second approver, which arrives with sign-in. If it was classified in error, upload a correctly classified copy as a new document and withdraw this one, with the reason.";
+    // hold.ts
+    case "ALREADY_ON_HOLD":
+      return "A legal hold already stands on this document. Release it first to record a different reason.";
+    case "NOT_ON_HOLD":
+      return "No legal hold stands on this document.";
+    // retention.ts
+    case "RETENTION_NOT_SET":
+      return "Its retention is not set, so it is never disposed of. Set the period and what starts it on the class.";
+    case "TRIGGER_NOT_REACHED":
+      return "What starts its retention has not happened yet.";
+    case "RETENTION_RUNNING":
+      return `It is retained until ${formatDate(String(d.until))}.`;
+    case "ON_LEGAL_HOLD":
+      return "A legal hold stands on it.";
+    case "OBLIGATION_OUTSTANDING":
+      return `${d.obligation} is still outstanding on the record it belongs to.`;
+    case "DISPOSAL_METHOD_NOT_SET":
+      return "How it is disposed of is not set on its class.";
+    case "DISPOSAL_AUTHORITY_NOT_SET":
+      return "Whose authority a disposal needs is not set on its class.";
+    // policy.ts
+    case "TYPE_NOT_RECOGNISABLE":
+      return "Only types the portal can recognise from a file's contents may be allowed: PDF, PNG, JPEG and TIFF.";
+    case "SIZE_INVALID":
+      return "The largest file size must be a whole number of bytes above zero.";
+    // the upload and the acts
+    case "NO_ORGANISATION":
+      return "No organisation is configured. Run npm run setup first.";
+    case "NO_FILE":
+      return "Choose a file to upload.";
+    case "TITLE_REQUIRED":
+      return "Give the document a title.";
+    case "PERSON_REQUIRED":
+      return "Name who is recording it.";
+    case "PERSON_UNKNOWN":
+      return "Choose someone on record and active.";
+    case "DOCUMENT_UNKNOWN":
+      return "That document no longer exists.";
+    case "VERSION_UNKNOWN":
+      return "That version no longer exists.";
+    case "REQUEST_UNREADABLE":
+      return "The upload could not be read. Try again.";
+    case "DRIVER_UNKNOWN":
+      return "The deployment's document store driver (DOCUMENT_STORE_DRIVER) is not one the portal has. Whoever runs the portal corrects it.";
+    case "DRIVER_NOT_BUILT":
+      return "The deployment's document store driver (DOCUMENT_STORE_DRIVER) is not built yet. Whoever runs the portal sets it to postgres.";
+    case "REASON_REQUIRED":
+      return "Give the reason.";
+    default:
+      return "This was refused.";
+  }
+}
+
+function withArticle(label: string): string {
+  return /^[AEIOU]/.test(label) ? `an ${label}` : `a ${label}`;
+}
+
+/// The retention line on a document: "Not set", "Starts when …", "Retained until …", "Elapsed on …".
+export function retentionText(s: RetentionState, trigger?: RetentionTrigger | null): string {
+  switch (s.state) {
+    case "NOT_SET":
+      return "Not set";
+    case "TRIGGER_NOT_REACHED":
+      return `Not started: ${RETENTION_TRIGGER_LABEL[trigger ?? s.trigger].replace(/^From/, "runs from").toLowerCase()}`;
+    case "RUNNING":
+      return `Retained until ${formatDate(s.elapsesOn)}`;
+    case "ELAPSED":
+      return `Retention elapsed on ${formatDate(s.elapsedOn)} — nothing is disposed of by the portal`;
+  }
+}

@@ -11,6 +11,8 @@
 
 import type { Sen } from "@/lib/money";
 
+import { NO_EVIDENCE, type ExerciseEvidence } from "@/lib/documents/evidence";
+
 import type { FunderContext } from "./approval";
 import { determineBands, type BandDetermination } from "./bands";
 import { contractTypeChoice, defaultContractType, scopeFaults, type Derivation, type TypeChoice } from "./contract-type";
@@ -78,6 +80,9 @@ export interface EvaluationContext {
   lockedAt: Date | null;
   currentTypeCode: string | null;
   picks: readonly { taxonomyCode: string; valueCode: string; pick: TaxonomyPick }[];
+  /// The exercise's dossier evidence and scope document, as the document store counts
+  /// them. Not given (a new exercise, or a caller that has not counted): none — never a pass.
+  evidence?: ExerciseEvidence;
 }
 
 export interface Evaluation {
@@ -135,7 +140,7 @@ export function evaluateExercise(d: ExerciseDraft, ctx: EvaluationContext): Eval
       { methods: ctx.config.methods, regime: bands.regime, posture: ctx.posture, on: ctx.on },
     ),
   );
-  if (method) findings.push(...justificationFaults(method, d, ctx.config.reasons, ctx.on));
+  if (method) findings.push(...justificationFaults(method, d, ctx.config.reasons, ctx.on, ctx.evidence ?? NO_EVIDENCE));
 
   findings.push(...scopeFaults(d.scope, d.value));
   const derivation = defaultContractType(

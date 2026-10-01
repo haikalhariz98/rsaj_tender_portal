@@ -1,0 +1,89 @@
+/**
+ * What a file is, decided by its own bytes (NFR-SEC-007).
+ *
+ * The client's name and declared type are never trusted for what is stored: the type
+ * kept is the sniffed one. They are still compared, and a file whose bytes disagree
+ * with its name or declared type is refused naming both — a PDF called `.png` is either
+ * a mistake or a disguise, and neither is filed.
+ */
+
+import { isKnownMediaType, type Finding, type KnownMediaType, type StorePolicy } from "./types";
+
+/// What a file's opening bytes say it is. The last three are recognised only to be refused.
+export type Sniffed = KnownMediaType | "application/zip" | "text/html" | "image/svg+xml" | null;
+
+/// How many opening bytes `sniffMediaType` looks at.
+export const SNIFF_BYTES = 512;
+
+const startsWith = (b: Uint8Array, sig: readonly number[], at = 0) => b.length >= at + sig.length && sig.every((x, i) => b[at + i] === x);
+
+export function sniffMediaType(head: Uint8Array): Sniffed {
+  if (startsWith(head, [0x25, 0x50, 0x44, 0x46, 0x2d])) return "application/pdf"; // %PDF-
+  if (startsWith(head, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image/png";
+  if (startsWith(head, [0xff, 0xd8, 0xff])) return "image/jpeg";
+  if (startsWith(head, [0x49, 0x49, 0x2a, 0x00]) || startsWith(head, [0x4d, 0x4d, 0x00, 0x2a])) return "image/tiff";
+  if (startsWith(head, [0x50, 0x4b, 0x03, 0x04]) || startsWith(head, [0x50, 0x4b, 0x05, 0x06]) || startsWith(head, [0x50, 0x4b, 0x07, 0x08])) return "application/zip";
+  // Markup, after any byte-order mark and white space.
+  const text = new TextDecoder("utf-8", { fatal: false }).decode(head.subarray(0, SNIFF_BYTES)).replace(/^﻿/, "").trimStart().toLowerCase();
+  if (text.startsWith("<svg") || (text.startsWith("<?xml") && text.includes("<svg"))) return "image/svg+xml";
+  if (/^<(!doctype html|html|head|body|script|iframe|a\s|div|p>|meta|title|style|!--)/.test(text)) return "text/html";
+  return null;
+}
+
+const EXTENSION_TYPE: Readonly<Record<string, KnownMediaType>> = {
+  pdf: "application/pdf",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  jpe: "image/jpeg",
+  tif: "image/tiff",
+  tiff: "image/tiff",
+};
+
+/// The type a file's name claims, by its extension. Null: no extension the product knows.
+export function typeFromName(filename: string): KnownMediaType | null {
+  const m = /\.([A-Za-z0-9]{1,8})$/.exec(filename.trim());
+  return m ? (EXTENSION_TYPE[m[1].toLowerCase()] ?? null) : null;
+}
+
+/// The type the client declared, normalised. Null where it declared nothing useful.
+export function typeFromHeader(contentType: string | null | undefined): string | null {
+  const t = (contentType ?? "").split(";")[0].trim().toLowerCase();
+  if (!t || t === "application/octet-stream") return null;
+  return t === "image/jpg" || t === "image/pjpeg" ? "image/jpeg" : t;
+}
+
+export type MediaFault =
+  | "TYPES_NOT_SET"
+  | "TYPE_NOT_RECOGNISED"
+  | "ARCHIVE_NOT_ACCEPTED"
+  | "MARKUP_NEVER_ACCEPTED"
+  | "TYPE_NOT_ALLOWED"
+  | "NAME_WITHOUT_TYPE"
+  | "DECLARED_TYPE_MISMATCH";
+
+/**
+ * Whether a file of the sniffed type may be stored under the policy, given what its
+ * name and the client declared. One fault, the first that applies: an unset policy
+ * before anything about the file, then what the bytes are, then whether they agree
+ * with what was declared.
+ */
+export function mediaFault(sniffed: Sniffed, declared: { filename: string; contentType?: string | null }, policy: StorePolicy): Finding<MediaFault> | null {
+  const f = (code: MediaFault, data?: Finding["data"]): Finding<MediaFault> => ({ code, level: "block", ...(data ? { data } : {}) });
+  if (policy.allowedMediaTypes.length === 0) return f("TYPES_NOT_SET");
+  if (sniffed === "application/zip") return f("ARCHIVE_NOT_ACCEPTED");
+  if (sniffed === "text/html" || sniffed === "image/svg+xml") return f("MARKUP_NEVER_ACCEPTED");
+  if (sniffed == null || !isKnownMediaType(sniffed)) return f("TYPE_NOT_RECOGNISED");
+  if (!policy.allowedMediaTypes.includes(sniffed)) return f("TYPE_NOT_ALLOWED", { sniffed });
+  const byName = typeFromName(declared.filename);
+  if (!byName) return f("NAME_WITHOUT_TYPE", { sniffed, filename: declared.filename });
+  if (byName !== sniffed) return f("DECLARED_TYPE_MISMATCH", { sniffed, declared: byName });
+  const byHeader = typeFromHeader(declared.contentType);
+  if (byHeader && byHeader !== sniffed) return f("DECLARED_TYPE_MISMATCH", { sniffed, declared: byHeader });
+  return null;
+}
+
+/// Whether a policy's allowed types are all ones the product can recognise.
+export function unknownPolicyTypes(types: readonly string[]): string[] {
+  return types.filter((t) => !isKnownMediaType(t));
+}
