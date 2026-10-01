@@ -1,4 +1,4 @@
-import { liveAttachmentWhere } from "@/lib/documents/repo";
+import { isLive } from "@/lib/documents/evidence";
 import type { Tx } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 
@@ -153,6 +153,10 @@ export interface StoredDelegation {
   holderRecommendedOn?: Date | null;
   /// Whether the signed recommendation is attached, live (OD-6).
   recommendationAttached?: boolean;
+  /// Whether one was ever attached, live or not: one no longer attached reads so.
+  recommendationEverAttached?: boolean;
+  /// Marked by the migration: recorded as text before attachments existed. Read only.
+  recommendationTextOnlyAtLanding?: boolean;
 }
 
 export async function loadDelegations(organisationCode: string, client: Tx = db): Promise<StoredDelegation[]> {
@@ -165,7 +169,7 @@ export async function loadDelegations(organisationCode: string, client: Tx = db)
   const rows = await client.delegation.findMany({
     where: { organisationId: organisation.id },
     orderBy: { effectiveFrom: "desc" },
-    include: { attachments: { where: liveAttachmentWhere("HOLDER_RECOMMENDATION"), select: { id: true } } },
+    include: { attachments: { where: { purpose: "HOLDER_RECOMMENDATION" }, select: { detachedAt: true, version: { select: { withdrawnAt: true } } } } },
   });
 
   return rows.map((d) => ({
@@ -182,6 +186,8 @@ export async function loadDelegations(organisationCode: string, client: Tx = db)
     effectiveTo: d.effectiveTo,
     holderRecommendation: d.holderRecommendation,
     holderRecommendedOn: d.holderRecommendedOn,
-    recommendationAttached: d.attachments.length > 0,
+    recommendationAttached: d.attachments.some(isLive),
+    recommendationEverAttached: d.attachments.length > 0,
+    recommendationTextOnlyAtLanding: d.recommendationTextOnlyAtLanding,
   }));
 }

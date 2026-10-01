@@ -29,6 +29,10 @@ export interface Delegation extends Effective {
   holderRecommendedOn?: Date | null;
   /// Whether the signed recommendation is attached, live (OD-6). Read for display.
   recommendationAttached?: boolean;
+  /// Whether one was ever attached, live or not. Read for display.
+  recommendationEverAttached?: boolean;
+  /// The migration's mark: recorded as text before attachments existed. Read, never written.
+  recommendationTextOnlyAtLanding?: boolean;
 }
 
 export type DelegationStatus = "IN_FORCE" | "SCHEDULED" | "ENDED";
@@ -99,6 +103,8 @@ export interface DelegationContext {
   recommendationAttached?: boolean;
   /// A delegation recorded on a text recommendation before attachments existed: it
   /// stands to its end date on the text, labelled, and may have the scan attached later.
+  /// The caller decides it with `standsOnTextBeforeAttachments` (recommendation.ts), from
+  /// the stored mark, never from the text.
   recordedBeforeAttachments?: boolean;
 }
 

@@ -16,6 +16,8 @@ import { RECOMMENDATION_NOT_ATTACHED } from "@/lib/people/labels";
 import { db } from "@/lib/db";
 import { periodsOverlap } from "@/lib/effective";
 import { faultsIn, type Delegation, type DelegationFault } from "@/lib/people/delegation";
+import { lockDelegation } from "@/lib/people/lock";
+import { standsOnTextBeforeAttachments } from "@/lib/people/recommendation";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { checkPeriod, FormReader } from "@/lib/validate";
 import { issuedInForce } from "@/lib/authority/issue";
@@ -269,6 +271,41 @@ const DELEGATION_FAULTS: Record<DelegationFault, { field: string; message: strin
   },
 };
 
+/// A stored delegation row as `faultsIn` reads it.
+function asDelegation(row: {
+  id: string;
+  fromPersonId: string;
+  toPersonId: string;
+  roleCode: string;
+  capabilityCodes: string[];
+  valueCeiling: unknown;
+  reason: string;
+  reasonMs: string;
+  noSubDelegation: boolean;
+  effectiveFrom: Date;
+  effectiveTo: Date | null;
+}): Delegation {
+  return {
+    id: row.id,
+    fromPersonId: row.fromPersonId,
+    toPersonId: row.toPersonId,
+    roleCode: row.roleCode,
+    capabilityCodes: row.capabilityCodes,
+    valueCeiling: row.valueCeiling?.toString() ?? null,
+    reason: row.reason,
+    reasonMs: row.reasonMs,
+    noSubDelegation: row.noSubDelegation,
+    effectiveFrom: row.effectiveFrom,
+    effectiveTo: row.effectiveTo,
+  };
+}
+
+class DelegationRefused extends Error {
+  constructor(readonly state: FormState) {
+    super(state.message ?? "Refused");
+  }
+}
+
 /**
  * Save a delegation.
  *
@@ -309,103 +346,13 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
   const parsed = r.finish(v);
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
-  const [existing, held, grantorSpells, mandatory, grantor] = await Promise.all([
-    db.delegation.findMany({
-      where: { organisationId: orgId, ...(id ? { NOT: { id } } : {}) },
-    }),
-    db.capability.findMany({
-      where: { organisationId: orgId, roles: { some: { roleCode } } },
-      select: { code: true },
-    }),
-    db.roleAssignment.findMany({
-      where: { personId: fromPersonId, roleCode, person: { organisationId: orgId } },
-      select: { effectiveFrom: true, effectiveTo: true },
-    }),
-    // Any rule in force that gives this office a mandatory act, as approver or as a
-    // recommender.
-    db.authorityRule.count({
-      where: {
-        authorityMatrix: { organisationId: orgId, ...issuedInForce(new Date()) },
-        OR: [
-          { approverCode: roleCode, approverMandatory: true },
-          { recommenders: { some: { roleCode, act: { in: ["MR", "MJR", "MA"] } } } },
-        ],
-      },
-    }),
-    db.person.findFirst({ where: { id: fromPersonId, organisationId: orgId }, select: { isAvailable: true } }),
-  ]);
-
-  // Holds the office across the whole delegation: some assignment begins by its start
-  // and runs at least to its end.
-  const grantorHoldsOffice = grantorSpells.some(
-    (s) =>
-      s.effectiveFrom <= v.effectiveFrom &&
-      (s.effectiveTo == null || (v.effectiveTo != null && s.effectiveTo >= v.effectiveTo)),
-  );
-
-  const asDelegation = (row: {
-    id: string;
-    fromPersonId: string;
-    toPersonId: string;
-    roleCode: string;
-    capabilityCodes: string[];
-    valueCeiling: unknown;
-    reason: string;
-    reasonMs: string;
-    noSubDelegation: boolean;
-    effectiveFrom: Date;
-    effectiveTo: Date | null;
-  }): Delegation => ({
-    id: row.id,
-    fromPersonId: row.fromPersonId,
-    toPersonId: row.toPersonId,
-    roleCode: row.roleCode,
-    capabilityCodes: row.capabilityCodes,
-    valueCeiling: row.valueCeiling?.toString() ?? null,
-    reason: row.reason,
-    reasonMs: row.reasonMs,
-    noSubDelegation: row.noSubDelegation,
-    effectiveFrom: row.effectiveFrom,
-    effectiveTo: row.effectiveTo,
-  });
-
+  const recommendationVersionId = r.optionalText("recommendationVersionId");
   const proposed: Delegation = {
     id: id || "proposed",
     ...v,
     valueCeiling: null,
     noSubDelegation: true,
   };
-
-  // OD-6: the signed recommendation is attached in the same act as the delegation it
-  // grants (a version staged by the upload, its id in the form), or was attached since.
-  // A delegation recorded on text alone before attachments existed stands on its text.
-  const recommendationVersionId = r.optionalText("recommendationVersionId");
-  const before = id ? await db.delegation.findUnique({ where: { id }, include: { attachments: { where: { purpose: "HOLDER_RECOMMENDATION" }, select: { detachedAt: true, version: { select: { withdrawnAt: true } } } } } }) : null;
-  if (id && !before) return { ok: false, message: "That delegation no longer exists." };
-  const liveAttached = (before?.attachments ?? []).some((a) => a.detachedAt == null && a.version.withdrawnAt == null);
-  const recordedBeforeAttachments = !!before && !!before.holderRecommendation?.trim() && (before.attachments ?? []).length === 0;
-
-  const faults = faultsIn(
-    proposed,
-    existing.map(asDelegation),
-    held.map((c) => c.code),
-    {
-      grantorHoldsOffice,
-      officeHasMandatoryActs: mandatory > 0,
-      grantorUnavailable: grantor ? !grantor.isAvailable : false,
-      holderRecommendation: v.holderRecommendation,
-      recommendationAttached: liveAttached || !!recommendationVersionId,
-      recordedBeforeAttachments,
-    },
-  );
-  if (faults.length) {
-    const errors: Record<string, string> = {};
-    for (const fault of faults) {
-      const { field, message } = DELEGATION_FAULTS[fault];
-      errors[field] = message;
-    }
-    return { ok: false, errors };
-  }
 
   const label = "Delegation";
   const ctx = {
@@ -417,13 +364,70 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
 
   try {
     await db.$transaction(async (tx) => {
+      // The delegation's row is locked first (on an edit), and every read that feeds the
+      // decision is made after it, in this transaction (LESSONS: re-validate on locked rows).
+      const stored = id ? await lockDelegation(tx, id, orgId) : null;
+      if (id && !stored) throw new DelegationRefused({ ok: false, message: "That delegation no longer exists." });
+
+      const existing = await tx.delegation.findMany({ where: { organisationId: orgId, ...(id ? { NOT: { id } } : {}) } });
+      const held = await tx.capability.findMany({ where: { organisationId: orgId, roles: { some: { roleCode } } }, select: { code: true } });
+      const grantorSpells = await tx.roleAssignment.findMany({
+        where: { personId: fromPersonId, roleCode, person: { organisationId: orgId } },
+        select: { effectiveFrom: true, effectiveTo: true },
+      });
+      // Any rule in force that gives this office a mandatory act, as approver or as a
+      // recommender.
+      const mandatory = await tx.authorityRule.count({
+        where: {
+          authorityMatrix: { organisationId: orgId, ...issuedInForce(new Date()) },
+          OR: [
+            { approverCode: roleCode, approverMandatory: true },
+            { recommenders: { some: { roleCode, act: { in: ["MR", "MJR", "MA"] } } } },
+          ],
+        },
+      });
+      const grantor = await tx.person.findFirst({ where: { id: fromPersonId, organisationId: orgId }, select: { isAvailable: true } });
+
+      // Holds the office across the whole delegation: some assignment begins by its start
+      // and runs at least to its end.
+      const grantorHoldsOffice = grantorSpells.some(
+        (s) =>
+          s.effectiveFrom <= v.effectiveFrom &&
+          (s.effectiveTo == null || (v.effectiveTo != null && s.effectiveTo >= v.effectiveTo)),
+      );
+
+      // OD-6: the signed recommendation is attached in the same act as the delegation it
+      // grants (a version staged by the upload, its id in the form), or was attached since.
+      // A delegation marked text-only when the store landed stands on its text, until an
+      // edit extends or opens its end, changes the delegate or widens what is delegated.
+      const faults = faultsIn(
+        proposed,
+        existing.map(asDelegation),
+        held.map((c) => c.code),
+        {
+          grantorHoldsOffice,
+          officeHasMandatoryActs: mandatory > 0,
+          grantorUnavailable: grantor ? !grantor.isAvailable : false,
+          holderRecommendation: v.holderRecommendation,
+          recommendationAttached: (stored?.liveAttachments ?? 0) > 0 || !!recommendationVersionId,
+          recordedBeforeAttachments: standsOnTextBeforeAttachments(stored, v),
+        },
+      );
+      if (faults.length) {
+        const errors: Record<string, string> = {};
+        for (const fault of faults) {
+          const { field, message } = DELEGATION_FAULTS[fault];
+          errors[field] = message;
+        }
+        throw new DelegationRefused({ ok: false, errors });
+      }
+
       let delegationId = id;
       if (!id) {
         const row = await tx.delegation.create({ data: { organisationId: orgId, ...v } });
         await writeAudit(tx, { ...ctx, entityId: row.id }, "CREATE", diffFields(null, v));
         delegationId = row.id;
       } else {
-        await tx.$queryRaw`SELECT id FROM "Delegation" WHERE id = ${id} FOR UPDATE`;
         const locked = await tx.delegation.findUniqueOrThrow({ where: { id } });
         await tx.delegation.update({ where: { id }, data: v });
         const changes = diffFields(locked, v);
@@ -432,6 +436,7 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
       if (recommendationVersionId) await attachRecommendation(tx, orgId, delegationId, recommendationVersionId);
     });
   } catch (e) {
+    if (e instanceof DelegationRefused) return e.state;
     if (e instanceof RecommendationRefused) return { ok: false, errors: { recommendationVersionId: e.message } };
     throw e;
   }
@@ -666,7 +671,10 @@ async function attachRecommendation(tx: Tx, orgId: string, delegationId: string,
   if (!v) throw new RecommendationRefused(documentFaultText({ code: "VERSION_UNKNOWN", level: "block" }));
   await lockDocument(tx, v.documentId);
   const doc = await tx.document.findUniqueOrThrow({ where: { id: v.documentId }, include: { documentClass: { select: { classification: true } } } });
-  const d = await tx.delegation.findUniqueOrThrow({ where: { id: delegationId }, select: { effectiveTo: true, fromPerson: { select: { name: true } }, toPerson: { select: { name: true } } } });
+  // Under the Delegation row lock (the same helper the generic attach uses): attachFault
+  // judges what is read here, after the lock, never a read made before it.
+  const d = await lockDelegation(tx, delegationId, orgId);
+  if (!d) throw new RecommendationRefused("That delegation no longer exists.");
   const already = await tx.documentAttachment.findFirst({ where: { delegationId, purpose: "HOLDER_RECOMMENDATION", detachedAt: null, version: { documentId: doc.id } }, select: { id: true } });
   const faults = blocking(attachFault({ purpose: "HOLDER_RECOMMENDATION", owner: delegationFacts(d, todayIn(new Date(), (await tx.organisation.findUniqueOrThrow({ where: { id: orgId }, select: { timeZone: true } })).timeZone) ?? new Date().toISOString().slice(0, 10)), version: v, documentClass: doc.documentClass, documentClassification: doc.classificationSnapshot, alreadyAttached: !!already }));
   if (faults.length) throw new RecommendationRefused(faults.map(documentFaultText).join(" "));

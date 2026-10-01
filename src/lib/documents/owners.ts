@@ -3,7 +3,7 @@
  * for a write (LESSONS: re-validate on locked rows): a sitting by its Meeting row
  * (`withLockedSitting`); an exercise by its requisition, then itself
  * (`withLockedRequisitionForSourcing`); an award by requisition, exercise, award
- * (`withLockedAward`); a delegation by its own row. The owner is locked before any
+ * (`withLockedAward`); a delegation by its own row (`lockDelegation`). The owner is locked before any
  * document row, always, so two acts never take the same locks in opposite orders.
  *
  * Under the lock each adapter reads the facts `attachFault` / `detachFault` judge, and
@@ -18,6 +18,7 @@ import { withLockedSitting } from "@/lib/committee/sittings";
 import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { requisitionOfExercise, withLockedRequisitionForSourcing } from "@/lib/method/repo";
+import { lockDelegation } from "@/lib/people/lock";
 
 import { reliedOn, type OwnerFacts, type Reliance } from "./attach";
 import { awardFacts, delegationFacts, exerciseFacts, meetingFacts } from "./owner-facts";
@@ -98,11 +99,8 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
       return db.$transaction(async (tx) => {
         const org = await documentOrg(tx);
         if (!org) return null;
-        await tx.$queryRaw`SELECT id FROM "Delegation" WHERE id = ${ref.id} FOR UPDATE`;
-        const d = await tx.delegation.findFirst({
-          where: { id: ref.id, organisationId: org.id },
-          select: { id: true, effectiveTo: true, fromPerson: { select: { name: true } }, toPerson: { select: { name: true } } },
-        });
+        // The Delegation row lock and the read under it, shared with saveDelegation.
+        const d = await lockDelegation(tx, ref.id, org.id);
         if (!d) return null;
         const today = org.today ?? storedDay(new Date());
         const facts = delegationFacts(d, today);

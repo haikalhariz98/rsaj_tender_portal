@@ -584,6 +584,7 @@ function DelegationPanel({ people, offices, delegations, capabilities, upload }:
 
   const rows: Row[] = delegations.map((d) => {
     const status = statusOf(d, on);
+    const recommendation = recommendationLabel(d);
     return {
       id: d.id,
       views: [status.toLowerCase().replace("_", "")],
@@ -607,8 +608,8 @@ function DelegationPanel({ people, offices, delegations, capabilities, upload }:
           title: `${day(d.effectiveFrom)} — ${d.effectiveTo ? day(d.effectiveTo) : "open"}`,
           sub: d.valueCeiling ? `up to RM${d.valueCeiling}` : "no ceiling set",
         },
-        reason: d.holderRecommendation || d.recommendationAttached
-          ? { kind: "stack", title: d.reason || "No reason recorded", sub: `On the absent holder's recommendation${d.holderRecommendedOn ? ` of ${formatDate(d.holderRecommendedOn)}` : ""} · ${recommendationLabel(d)}` }
+        reason: recommendation
+          ? { kind: "stack", title: d.reason || "No reason recorded", sub: `On the absent holder's recommendation${d.holderRecommendedOn ? ` of ${formatDate(d.holderRecommendedOn)}` : ""} · ${recommendation}` }
           : { kind: "text", text: d.reason || "—", dim: !d.reason },
         status:
           status === "IN_FORCE"
