@@ -77,6 +77,7 @@ import { derivedAnnualValue } from "@/lib/securities/bond";
 import { expiryAlert } from "@/lib/securities/expiry";
 import { applicableRequirements, derivedLimit, wcSumCheck } from "@/lib/securities/insurance";
 import { db } from "@/lib/db";
+import { tablingQuery } from "@/lib/committee/table-prefill";
 
 import {
   AddConditionDrawer,
@@ -633,7 +634,7 @@ function ApprovalPanel({
               const needsTabling = !mine.some((m) => m.outcome === "PENDING" || m.outcome === "CARRIED" || m.outcome === "DEFERRED");
               const sitting = sittings.find((x) => x.committee.code === s.committeeCode);
               const tableHref = sitting
-                ? `/committees/${sitting.id}?${new URLSearchParams({ tab: "agenda", table: "1", subject: `Appointment of ${award.awardeeName} for ${ex.title}`, domain: APPOINTMENT_DOMAIN, act: s.act, matterKind: "EXERCISE", matterRef: ex.reference, amount: award.awardedValue.toString() }).toString()}`
+                ? `/committees/${sitting.id}?${tablingQuery({ subject: `Appointment of ${award.awardeeName} for ${ex.title}`, domain: APPOINTMENT_DOMAIN, act: s.act, matterKind: "EXERCISE", matterRef: ex.reference, source: { kind: "award", id: award.id } })}`
                 : null;
               return (
                 <li key={s.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-6">

@@ -19,6 +19,7 @@ import { earlierSteps, returnTargetBeforeNext, type RejectionKind } from "@/lib/
 import { routeCoreText, stepOriginText } from "@/lib/authority/core-routing-labels";
 import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
+import { isSulitField } from "@/lib/sulit-fields";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
@@ -1164,6 +1165,8 @@ function HistoryPanel({
   basisName: (c: string) => string | null;
   reasonName: (c: string) => string | null;
 }) {
+  // The department estimate (a registered SULIT field) reads with the SULIT chip in the trail too.
+  const chipped = (field: string, value: string | null) => (isSulitField(field) && value ? <SulitValue>{read(field, value)}</SulitValue> : read(field, value));
   const read = (field: string, value: string | null): string => {
     if (value == null || value === "") return "—";
     if (field === "dominantSharePct") return Number(value) >= 100 ? "One deliverable" : `${pct(value)}%`;
@@ -1226,8 +1229,8 @@ function HistoryPanel({
                 <ul className="text-[12.5px] break-words text-ink-3">
                   {e.changes.filter((ch) => shown(ch.field, ch, e.action)).map((ch) => (
                     <li key={ch.field}>
-                      {FIELD_NAME[ch.field] ?? fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{read(ch.field, ch.before)} → </>}
-                      <span className="text-ink-2">{read(ch.field, e.action === "DELETE" ? ch.before : ch.after)}</span>
+                      {FIELD_NAME[ch.field] ?? fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{chipped(ch.field, ch.before)} → </>}
+                      <span className="text-ink-2">{chipped(ch.field, e.action === "DELETE" ? ch.before : ch.after)}</span>
                     </li>
                   ))}
                 </ul>

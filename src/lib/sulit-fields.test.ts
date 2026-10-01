@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { dataListRegions, SULIT_FIELDS, sulitFieldsIn, unflaggedSulitFields } from "./sulit-fields";
+import { dataListRegions, isSulitField, SULIT_FIELDS, sulitFieldsIn, unflaggedSulitFields } from "./sulit-fields";
 
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -53,4 +53,23 @@ describe("no screen lists a SULIT field in an unflagged DataList", () => {
     }
     expect(bad).toEqual([]);
   });
+});
+
+describe("a History trail shows a registered SULIT field's change with the chip (6.2 condition 3)", () => {
+  it("isSulitField names the registered fields exactly", () => {
+    expect(isSulitField("estimatedValue")).toBe(true);
+    expect(isSulitField("estimatedValueBand")).toBe(false);
+    expect(isSulitField("subject")).toBe(false);
+  });
+  // The trails that show a requisition's or an exercise's department estimate as it changed.
+  for (const file of ["src/app/requisitions/[id]/page.tsx", "src/app/sourcing/[id]/page.tsx"]) {
+    it(file, () => {
+      const src = readFileSync(join(process.cwd(), file), "utf8");
+      const history = src.slice(src.indexOf("function HistoryPanel("));
+      expect(history, "the History reads the SULIT registry and chips what it names").toMatch(/isSulitField\(field\) && value \? <SulitValue>/);
+      // Every value the trail prints goes through the chipping reader, never the bare one.
+      expect(history).not.toMatch(/\{read\(ch\.field/);
+      expect(history).toMatch(/\{chipped\(ch\.field/);
+    });
+  }
 });

@@ -27,6 +27,10 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "cprPercent", what: "a contractor performance percentage" },
 ];
 
+/// Whether a stored field (an audit change's field name) is a registered SULIT field: a History
+/// that shows its change shows it with the SULIT chip.
+export const isSulitField = (field: string): boolean => SULIT_FIELDS.some((f) => f.field === field);
+
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /// The registered fields a piece of source mentions as whole words.

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { DOCUMENT_ENTITY_LABEL } from "@/lib/documents/audit-view";
 import { notFound } from "next/navigation";
 
@@ -9,7 +10,7 @@ import { AlertTriangle, CalendarIcon, ClockIcon, FileIcon, UsersIcon } from "@/c
 import { DecisionPanel, type PanelMatter } from "@/components/committee/decision-panel";
 import { Tabs } from "@/components/tabs";
 import { Avatar } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+import { Badge, SulitValue } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState, Meter } from "@/components/ui/feedback";
@@ -47,6 +48,8 @@ import { liveOutcomes, MANDATORY_ACTS } from "@/lib/committee/matter";
 import { isFrozen, meetingTransition } from "@/lib/committee/meeting";
 import type { VotingSeat } from "@/lib/committee/sitting";
 import { loadSitting, sittingHistory, type LoadedSitting } from "@/lib/committee/sittings";
+import { tablePrefillFromQuery } from "@/lib/committee/table-prefill";
+import { tablingAmount } from "@/lib/committee/repo";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 import { actWithCode, matterLabel } from "@/lib/labels";
 import { scopeMatterRecordNote } from "@/lib/scope/labels";
@@ -90,8 +93,12 @@ export default async function SittingPage({
 }) {
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const tab = sp.tab;
-  // A record asking for a matter to be tabled (an award's committee step) links here with it filled in.
-  const prefill = sp.table === "1" ? Object.fromEntries((["subject", "domain", "act", "matterKind", "matterRef", "amount"] as const).filter((k) => sp[k]).map((k) => [k, sp[k]!])) : undefined;
+  // A record asking for a matter to be tabled (a requisition's gate, an award's committee step)
+  // links here with it filled in. The link names the record; its amount is read here, on the
+  // server, never carried in the URL (a requisition's is the SULIT department estimate).
+  const asked = tablePrefillFromQuery(sp);
+  const askedAmount = asked ? await tablingAmount(asked.source) : null;
+  const prefill = asked ? { ...asked.values, ...(askedAmount != null ? { amount: askedAmount } : {}) } : undefined;
   const s = await loadSitting(id);
   if (!s) notFound();
 
@@ -755,6 +762,9 @@ function HistoryPanel({
     if (field === "tabledByPersonId") return nameOf(value);
     return value;
   };
+  // A matter's amount may be a requisition's department estimate (SULIT); the trail cannot tell
+  // one matter's amount from another's, so every amount it shows carries the chip, as on the agenda.
+  const shown = (field: string, value: string | null): ReactNode => (field === "amount" && value ? <SulitValue>{read(field, value)}</SulitValue> : read(field, value));
 
   return (
     <Card className="overflow-hidden">
@@ -789,8 +799,8 @@ function HistoryPanel({
                 <ul className="text-[12.5px] text-ink-3">
                   {shownChanges(e.changes).map((ch) => (
                     <li key={ch.field}>
-                      {fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{read(ch.field, ch.before)} → </>}
-                      <span className="text-ink-2">{read(ch.field, ch.after)}</span>
+                      {fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{shown(ch.field, ch.before)} → </>}
+                      <span className="text-ink-2">{shown(ch.field, ch.after)}</span>
                     </li>
                   ))}
                 </ul>

@@ -2,12 +2,31 @@ import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { seatsInForce } from "./seats";
 import { issuedInForce } from "@/lib/authority/issue";
+import type { TablingSource } from "./table-prefill";
 
 const num = (v: { toString(): string } | null) => (v == null ? null : Number(v.toString()));
 
 async function organisationId(code = ORGANISATION_CODE) {
   const org = await db.organisation.findUnique({ where: { code }, select: { id: true } });
   return org?.id ?? null;
+}
+
+/**
+ * The amount a record's tabling link asks the drawer to start from, read here on the server
+ * rather than carried in the URL (table-prefill.ts): a requisition's estimated value (a gate
+ * matter's amount must equal it), or an award's awarded value. The record must be the
+ * organisation's; otherwise nothing is filled in. The figure is the stored decimal, unrounded.
+ */
+export async function tablingAmount(source: TablingSource): Promise<string | null> {
+  if (!source) return null;
+  const organisation = await organisationId();
+  if (!organisation) return null;
+  if (source.kind === "requisition") {
+    const r = await db.requisition.findFirst({ where: { id: source.id, organisationId: organisation }, select: { estimatedValue: true } });
+    return r ? r.estimatedValue.toString() : null;
+  }
+  const a = await db.award.findFirst({ where: { id: source.id, organisationId: organisation }, select: { awardedValue: true } });
+  return a?.awardedValue != null ? a.awardedValue.toString() : null;
 }
 
 export async function listCommittees() {

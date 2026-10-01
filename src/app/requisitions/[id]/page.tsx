@@ -9,6 +9,7 @@ import { EscalateDrawer } from "@/app/approvals/editors";
 import { escalationText } from "@/lib/authority/escalation-labels";
 import { absentOffices } from "@/lib/authority/absence";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
+import { isSulitField } from "@/lib/sulit-fields";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
@@ -21,6 +22,7 @@ import { routeTone, stepTone } from "@/lib/ui/status-tone";
 import { issueDayFor, newerIssueNote, noIssueOnRaisedText } from "@/lib/authority/issue";
 import { loadIssue, loadMatrixVersion, loadOverrideMatrix, loadPinnedRule } from "@/lib/authority/load";
 import { MATTER_KIND_LABEL, OUTCOME_LABEL, SIGNED_MINUTES_LABEL, SIGNED_MINUTES_TONE, signedMinutesState } from "@/lib/committee/labels";
+import { tablingQuery } from "@/lib/committee/table-prefill";
 import { RECORDED_ON_BEHALF_SENTENCE } from "@/lib/documents/labels";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { formatOrgDay, formatDate, formatRM, formatRouteBand } from "@/lib/format";
@@ -640,7 +642,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                     tableHref={(committeeCode, subject, act) => {
                       const sitting = sittings.find((x) => x.committee.code === committeeCode);
                       return sitting
-                        ? `/committees/${sitting.id}?${new URLSearchParams({ tab: "agenda", table: "1", subject, domain: GATE_DOMAIN, act, matterKind: "REQUISITION", matterRef: r.reference, amount: r.estimatedValue.toString() }).toString()}`
+                        ? `/committees/${sitting.id}?${tablingQuery({ subject, domain: GATE_DOMAIN, act, matterKind: "REQUISITION", matterRef: r.reference, source: { kind: "requisition", id: r.id } })}`
                         : null;
                     }}
                   />
@@ -1888,6 +1890,8 @@ function HistoryPanel({
   labelFor: (field: string, value: string) => string | null;
 }) {
   type Entry = (typeof entries)[number];
+  // The department estimate (a registered SULIT field) reads with the SULIT chip in the trail too.
+  const chipped = (field: string, value: string | null, e: Entry) => (isSulitField(field) && value ? <SulitValue>{read(field, value, e)}</SulitValue> : read(field, value, e));
   const read = (field: string, value: string | null, e: Entry): string => {
     if (value == null || value === "") return "—";
     const named = labelFor(field, value);
@@ -1946,8 +1950,8 @@ function HistoryPanel({
                 <ul className="text-[12.5px] break-words text-ink-3">
                   {e.changes.filter((ch) => shown(ch.field, ch)).map((ch) => (
                     <li key={ch.field}>
-                      {knownFieldName(ch.field) ?? fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{read(ch.field, ch.before, e)} → </>}
-                      <span className="text-ink-2">{read(ch.field, e.action === "DELETE" ? ch.before : ch.after, e)}</span>
+                      {knownFieldName(ch.field) ?? fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{chipped(ch.field, ch.before, e)} → </>}
+                      <span className="text-ink-2">{chipped(ch.field, e.action === "DELETE" ? ch.before : ch.after, e)}</span>
                     </li>
                   ))}
                 </ul>
