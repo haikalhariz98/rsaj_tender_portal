@@ -570,7 +570,8 @@ export async function saveRecommender(_prev: FormState, data: FormData): Promise
         entityLabel: `${rule.labelEn} — ${office?.nameEn ?? "An office no longer configured"}`,
         reason: String(data.get("reason") ?? ""),
       },
-      parsed.value,
+      // The office by its name, as removing a recommender records it: never its code.
+      { roleCode: office?.nameEn ?? "An office no longer configured", act: actWithCode(parsed.value.act), sequence: parsed.value.sequence },
       async (tx) => {
         // The same check as saving the rule, on the chain as it would stand, under the
         // issue's lock (6.9 departure 1).
