@@ -60,11 +60,14 @@ export function servedFilename(original: string, ext: string): string {
 }
 
 /// The Content-Disposition value for a download: always an attachment (RFC 6266), the name
-/// in an ASCII form and in RFC 5987 form.
+/// in an ASCII form and in RFC 5987 form, which percent-encodes ' ( ) * as well as what
+/// `encodeURIComponent` does (it leaves those four bare, and RFC 5987 does not allow them
+/// in an attr-char), so every client parses it the same way (security audit C-3).
 export function dispositionFilename(original: string, ext: string): string {
   const name = servedFilename(original, ext);
   const ascii = name.replace(/[^\x20-\x7e]/gu, "_").replace(/[;%]/g, "_");
-  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
+  const encoded = encodeURIComponent(name).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
 }
 
 export const EXTENSION_FOR: Readonly<Record<string, string>> = {

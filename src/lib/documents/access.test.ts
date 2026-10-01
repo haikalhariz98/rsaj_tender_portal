@@ -39,6 +39,13 @@ describe("the download's file name", () => {
     expect(h).toContain(`filename="Minit mesyuarat _ Ogos.pdf"`);
     expect(h).toContain("filename*=UTF-8''Minit%20mesyuarat%20%E2%80%94%20Ogos.pdf");
   });
+  it("the UTF-8 form percent-encodes ' ( ) * too, so only RFC 5987 attr-chars stay bare (audit C-3)", () => {
+    const h = dispositionFilename("Ali's (final) *draft*.pdf", "pdf");
+    const encoded = /filename\*=UTF-8''(.+)$/.exec(h)![1];
+    expect(encoded).toBe("Ali%27s%20%28final%29%20%2Adraft%2A.pdf");
+    expect(encoded).toMatch(/^[A-Za-z0-9!#$&+\-.^_`|~%]+$/);
+    expect(decodeURIComponent(encoded)).toBe("Ali's (final) *draft*.pdf");
+  });
   it("an empty name falls back to a plain one", () => {
     expect(dispositionFilename("...", "png")).toContain(`filename="document.png"`);
   });
