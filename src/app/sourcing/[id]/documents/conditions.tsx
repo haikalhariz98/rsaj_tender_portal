@@ -47,6 +47,8 @@ function Row({ title, value, action, children }: { title: string; value?: React.
 
 export function ConditionsCards({ c }: { c: ConditionsTab }) {
   const frozen = c.frozen && "eligibility" in c.frozen ? c.frozen : null;
+  // Once the documents are with approval or approved, the conditions stand as frozen: no controls, the callout says so.
+  const live = c.frozen == null;
   return (
     <>
       <Card id="conditions" className="scroll-mt-24 overflow-hidden">
@@ -54,7 +56,7 @@ export function ConditionsCards({ c }: { c: ConditionsTab }) {
           icon={<UsersIcon size={17} />}
           title="Tender conditions"
           subtitle="Who may bid, whether the tender is restricted, and the regulator's permit. Unanswered is never read as no."
-          actions={<AddRequirementDrawer exerciseId={c.exerciseId} allowed={c.eligibility.noBodies ? { allowed: false, reason: c.eligibility.noBodies } : c.edit} bodies={c.eligibility.bodyOptions} nextGroup={c.eligibility.nextGroup} typeTest={c.eligibility.typeTest} />}
+          actions={live && <AddRequirementDrawer exerciseId={c.exerciseId} allowed={c.eligibility.noBodies ? { allowed: false, reason: c.eligibility.noBodies } : c.edit} bodies={c.eligibility.bodyOptions} nextGroup={c.eligibility.nextGroup} typeTest={c.eligibility.typeTest} />}
         />
         <CardBody className="flex flex-col gap-5">
           {frozen && (
@@ -63,6 +65,7 @@ export function ConditionsCards({ c }: { c: ConditionsTab }) {
             </Callout>
           )}
           {c.frozen && "before" in c.frozen && <Callout tone="info">{c.frozen.before}</Callout>}
+          {c.frozen && <p className="text-[12.5px] text-ink-3">The conditions change only before the documents go for approval; a returned version is amended in the next.</p>}
           <div>
             <p className="mb-2 text-[12px] font-semibold text-ink-3">Registrations bidders must hold</p>
             {c.eligibility.groups.length === 0 ? (
@@ -81,7 +84,7 @@ export function ConditionsCards({ c }: { c: ConditionsTab }) {
                             <span className="font-semibold">{r.body}</span>
                             {r.qualifiers && <span className="text-ink-2"> · {r.qualifiers}</span>}
                           </span>
-                          <RemoveRequirementDrawer exerciseId={c.exerciseId} id={r.id} label={r.body} allowed={c.edit} />
+                          {live && <RemoveRequirementDrawer exerciseId={c.exerciseId} id={r.id} label={r.body} allowed={c.edit} />}
                         </li>
                       ))}
                     </ul>
@@ -94,7 +97,7 @@ export function ConditionsCards({ c }: { c: ConditionsTab }) {
             </p>
           </div>
           <ul className="divide-y divide-line/70 rounded-2xl border border-line">
-            <Row title={c.restriction.question} value={<Value v={c.restriction.answer} />} action={<RestrictionDrawer exerciseId={c.exerciseId} question={c.restriction.question} raw={c.restriction.raw} allowed={c.edit} />}>
+            <Row title={c.restriction.question} value={<Value v={c.restriction.answer} />} action={live && <RestrictionDrawer exerciseId={c.exerciseId} question={c.restriction.question} raw={c.restriction.raw} allowed={c.edit} />}>
               {c.restriction.answer === "Yes" && (
                 <span className="text-[12.5px] break-words text-ink-3">
                   Stamped on every generated document: {c.restriction.stampEn === NOT_SET ? "English wording not set" : `“${c.restriction.stampEn}”`}
@@ -102,7 +105,7 @@ export function ConditionsCards({ c }: { c: ConditionsTab }) {
                 </span>
               )}
             </Row>
-            <Row title="Needs the regulator's permit" value={<Value v={c.permit.answer} />} action={<PermitDrawer exerciseId={c.exerciseId} raw={c.permit.raw} rawPermit={c.permit.rawPermit} options={c.permit.options} list={c.permit.list} allowed={c.edit} />}>
+            <Row title="Needs the regulator's permit" value={<Value v={c.permit.answer} />} action={live && <PermitDrawer exerciseId={c.exerciseId} raw={c.permit.raw} rawPermit={c.permit.rawPermit} options={c.permit.options} list={c.permit.list} allowed={c.edit} />}>
               {c.permit.permit != null && (
                 <span className="text-[12.5px] text-ink-3">
                   Permit type: {c.permit.permit === NOT_SET ? "not chosen" : c.permit.permit}
