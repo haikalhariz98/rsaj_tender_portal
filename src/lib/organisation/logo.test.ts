@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { inspectLogo, logoFaultText, LOGO_MAX_BYTES, showsNameBesideLogo } from "./logo";
+import { showsNameBesideLogo } from "./details";
+import { inspectLogo, logoFaultText, LOGO_MAX_BYTES } from "./logo";
 import { initialsLogo } from "./png";
 
 const bytes = (...n: number[]) => Uint8Array.from(n);

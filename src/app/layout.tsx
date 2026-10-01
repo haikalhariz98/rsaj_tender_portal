@@ -3,7 +3,7 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 
 import { AppShell } from "@/components/shell/app-shell";
 import { loadShell } from "@/lib/shell";
-import { ORGANISATION_NAME, ORGANISATION_STRAPLINE } from "@/lib/org";
+import { ORGANISATION_STRAPLINE } from "@/lib/org";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -24,7 +24,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={jakarta.variable} style={{ colorScheme: "light" }}>
       <body>
         <AppShell
-          organisation={ORGANISATION_NAME}
+          organisation={shell.organisation}
           strapline={ORGANISATION_STRAPLINE}
           counts={shell.counts}
           user={shell.user}

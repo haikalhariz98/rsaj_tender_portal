@@ -3,10 +3,13 @@
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
-import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
+import { diffFields } from "@/lib/audit/diff";
+import { auditedCreate, auditedDelete, auditedUpdate, writeAudit } from "@/lib/audit/record";
 import { isTimeZone } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { inForceOn } from "@/lib/effective";
+import { DETAIL_FIELDS, detailsFaults, normaliseDetails, type DetailField } from "@/lib/organisation/details";
+import { inspectLogo, LOGO_MAX_BYTES, logoFaultText } from "@/lib/organisation/logo";
 import { placementFault } from "@/lib/organisation/structure";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { checkPeriod, FormReader } from "@/lib/validate";
@@ -292,5 +295,116 @@ export async function saveTimeZone(_prev: FormState, data: FormData): Promise<Fo
     (tx) => tx.organisation.update({ where: { id: org.id }, data: { timeZone } }),
   );
   revalidatePath(PATH);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------- details
+
+/// The name, logo and details are in the shell on every screen, so a save refreshes the
+/// root layout and not only this page.
+function refreshEverywhere() {
+  revalidatePath("/", "layout");
+  revalidatePath(PATH);
+}
+
+/**
+ * Save the organisation's identity details. The legal name is the only required field.
+ * The change is audited, before and after, in the same transaction as the write. Issued
+ * documents keep the details they were issued with: nothing here reaches them.
+ */
+export async function saveDetails(_prev: FormState, data: FormData): Promise<FormState> {
+  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE } });
+  if (!org) return NO_ORG;
+
+  const input = Object.fromEntries(DETAIL_FIELDS.map((f) => [f, String(data.get(f) ?? "")])) as Record<DetailField, string>;
+  const faults = detailsFaults(input);
+  if (Object.keys(faults).length > 0) return { ok: false, errors: faults as Record<string, string> };
+
+  const after = normaliseDetails(input);
+  const before = Object.fromEntries(DETAIL_FIELDS.map((f) => [f, org[f]]));
+  const { changed } = await auditedUpdate(
+    { organisationId: org.id, entity: "Organisation", entityId: org.id, entityLabel: org.name, reason: String(data.get("reason") ?? "") },
+    before,
+    after,
+    (tx) => tx.organisation.update({ where: { id: org.id }, data: after }),
+  );
+  refreshEverywhere();
+  return { ok: true, message: changed ? "Saved. The new details show across the portal now." : "Nothing changed." };
+}
+
+// ------------------------------------------------------------------------- logo
+
+const MEDIA_LABEL = { "image/png": "PNG", "image/jpeg": "JPEG", "image/webp": "WebP" } as const;
+
+/// How a logo reads in the trail: its fingerprint, type, size and dimensions, never its bytes.
+function logoFacts(l: { sha256: string; mediaType: string; sizeBytes: number; width: number; height: number }) {
+  return {
+    fingerprint: l.sha256,
+    type: MEDIA_LABEL[l.mediaType as keyof typeof MEDIA_LABEL] ?? "Image",
+    size: `${Math.ceil(l.sizeBytes / 1024)} KB`,
+    dimensions: `${l.width} × ${l.height}`,
+  };
+}
+
+/// Replace the logo. Only PNG, JPEG or WebP, judged by the file's bytes, up to 512 KB.
+export async function uploadLogo(_prev: FormState, data: FormData): Promise<FormState> {
+  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, name: true } });
+  if (!org) return NO_ORG;
+
+  const file = data.get("logo");
+  if (!(file instanceof File) || file.size === 0) return { ok: false, errors: { logo: logoFaultText("EMPTY", 0) } };
+  // Refused on the declared size before the bytes are read into memory.
+  if (file.size > LOGO_MAX_BYTES) return { ok: false, errors: { logo: logoFaultText("TOO_LARGE", file.size) } };
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const check = inspectLogo(bytes);
+  if (!check.ok) return { ok: false, errors: { logo: logoFaultText(check.fault, check.sizeBytes) } };
+
+  const outcome = await db.$transaction(async (tx) => {
+    const prior = await tx.organisationLogo.findUnique({ where: { organisationId: org.id }, select: { sha256: true, mediaType: true, sizeBytes: true, width: true, height: true } });
+    if (prior?.sha256 === check.sha256) return "SAME" as const;
+    const row = {
+      bytes: Buffer.from(bytes),
+      mediaType: check.mediaType,
+      sizeBytes: check.sizeBytes,
+      sha256: check.sha256,
+      width: check.width,
+      height: check.height,
+      uploadedAt: new Date(),
+    };
+    const saved = await tx.organisationLogo.upsert({
+      where: { organisationId: org.id },
+      create: { organisationId: org.id, ...row },
+      update: row,
+      select: { id: true },
+    });
+    await writeAudit(
+      tx,
+      { organisationId: org.id, entity: "OrganisationLogo", entityId: saved.id, entityLabel: org.name },
+      prior ? "UPDATE" : "CREATE",
+      diffFields(prior ? logoFacts(prior) : null, logoFacts(check)),
+    );
+    return "SAVED" as const;
+  });
+
+  if (outcome === "SAVED") refreshEverywhere();
+  return { ok: true, message: outcome === "SAVED" ? "Saved. The new logo shows across the portal now." : "That is already the logo." };
+}
+
+/// Remove the logo; the product mark is shown again. A reason is required.
+export async function removeLogo(_prev: FormState, data: FormData): Promise<FormState> {
+  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, name: true } });
+  if (!org) return NO_ORG;
+  const reason = String(data.get("reason") ?? "").trim();
+  if (!reason) return { ok: false, errors: { reason: "Say why the logo is being removed." } };
+  const logo = await db.organisationLogo.findUnique({ where: { organisationId: org.id }, select: { id: true, sha256: true, mediaType: true, sizeBytes: true, width: true, height: true } });
+  if (!logo) return { ok: false, message: "There is no logo to remove." };
+
+  await auditedDelete(
+    { organisationId: org.id, entity: "OrganisationLogo", entityId: logo.id, entityLabel: org.name, reason },
+    logoFacts(logo),
+    (tx) => tx.organisationLogo.delete({ where: { id: logo.id } }),
+  );
+  refreshEverywhere();
   return { ok: true };
 }

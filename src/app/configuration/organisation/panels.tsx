@@ -21,6 +21,7 @@ import { KeyValues } from "@/components/ui/stat";
 import { formatDate } from "@/lib/format";
 import { activeOn } from "@/lib/effective";
 import { nextTier } from "@/lib/organisation/structure";
+import { DETAIL_LABEL, type Details } from "@/lib/organisation/details";
 import type { CostCentre, OrgUnit, OrgUnitKind, Site, UnitNode } from "@/lib/organisation/types";
 
 import {
@@ -28,10 +29,12 @@ import {
   AddOrgUnit,
   AddSite,
   EditCostCentre,
+  EditDetails,
   EditOrgUnit,
   EditSite,
   KIND_LABEL,
 } from "./editors";
+import { LogoCard, type LogoInfo } from "./logo-card";
 
 /**
  * Organisation: the structure, and the cost centres and sites hung off it.
@@ -45,6 +48,8 @@ import {
 type Person = { id: string; name: string; isActive: boolean };
 
 export interface OrganisationPanelData {
+  details: Details;
+  logo: LogoInfo | null;
   roots: UnitNode[];
   detached: UnitNode[];
   units: OrgUnit[];
@@ -97,6 +102,7 @@ export function OrganisationScreen(data: OrganisationPanelData) {
       label="Organisation"
       initial={data.view ?? undefined}
       tabs={[
+        { id: "details", label: "Details", panel: <DetailsView details={data.details} logo={data.logo} /> },
         { id: "structure", label: "Structure", count: data.units.length, panel: <StructureView {...data} /> },
         {
           id: "cost-centres",
@@ -107,6 +113,44 @@ export function OrganisationScreen(data: OrganisationPanelData) {
         { id: "sites", label: "Sites", count: data.sites.length, panel: <SitesView {...data} /> },
       ]}
     />
+  );
+}
+
+// ----------------------------------------------------------------------- details
+
+const NOT_SET = <span className="text-ink-4">Not set</span>;
+
+/// The identity the portal, reports and letters carry. Unset reads "Not set", never blank.
+function DetailsView({ details, logo }: { details: Details; logo: LogoInfo | null }) {
+  const value = (v: string | null) => v ?? NOT_SET;
+  const address = [details.addressLine1, details.addressLine2, [details.postcode, details.city].filter(Boolean).join(" "), details.state, details.country].filter(Boolean);
+  return (
+    <div className="flex flex-col gap-5">
+      <Card>
+        <CardHeader title="Organisation details" subtitle="Carried on reports and letters, and shown across the portal." actions={<EditDetails details={details} />} />
+        <CardBody className="flex flex-col gap-5">
+          <KeyValues
+            columns={2}
+            items={[
+              { label: DETAIL_LABEL.name, value: details.name },
+              { label: DETAIL_LABEL.nameMs, value: value(details.nameMs) },
+              { label: DETAIL_LABEL.shortName, value: value(details.shortName) },
+              { label: DETAIL_LABEL.registrationNo, value: value(details.registrationNo) },
+              { label: DETAIL_LABEL.taxIdentificationNo, value: value(details.taxIdentificationNo) },
+              { label: DETAIL_LABEL.sstRegistrationNo, value: value(details.sstRegistrationNo) },
+              { label: "Registered address", value: address.length ? <span className="whitespace-pre-line">{address.join("\n")}</span> : NOT_SET },
+              { label: DETAIL_LABEL.phone, value: value(details.phone) },
+              { label: DETAIL_LABEL.email, value: value(details.email) },
+              { label: DETAIL_LABEL.website, value: value(details.website) },
+            ]}
+          />
+          <Callout tone="info">
+            Documents already issued keep the details they were issued with. Changing them here does not rewrite those documents.
+          </Callout>
+        </CardBody>
+      </Card>
+      <LogoCard logo={logo} />
+    </div>
   );
 }
 

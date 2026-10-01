@@ -147,3 +147,9 @@ export function detailsFaults(input: DetailsInput): Partial<Record<DetailField, 
 export function displayName(org: { name: string; shortName: string | null }): string {
   return org.shortName?.trim() || org.name;
 }
+
+/// Beside a logo narrower than 2:1 there is room for the name. Kept here, not with the
+/// logo checks, because the sidebar uses it and those read bytes with node:crypto.
+export function showsNameBesideLogo(width: number, height: number): boolean {
+  return height > 0 && width / height < 2;
+}

@@ -8,9 +8,9 @@
  */
 import { createHash } from "node:crypto";
 
-export const LOGO_MAX_BYTES = 512 * 1024;
-/// Suggested, not enforced: a logo shorter than this looks soft on a high-density screen.
-export const LOGO_SUGGESTED_HEIGHT = 128;
+import { LOGO_MAX_BYTES } from "./logo-limits";
+
+export { LOGO_MAX_BYTES, LOGO_SUGGESTED_HEIGHT } from "./logo-limits";
 
 export type LogoMediaType = "image/png" | "image/jpeg" | "image/webp";
 
@@ -124,9 +124,4 @@ export function inspectLogo(bytes: Uint8Array): LogoCheck {
   if (!size || size.width < 1 || size.height < 1 || size.width > 16384 || size.height > 16384) return refuse("UNREADABLE");
 
   return { ok: true, mediaType, ...size, sizeBytes, sha256: createHash("sha256").update(bytes).digest("hex") };
-}
-
-/// Beside a logo narrower than 2:1 there is room for the short name.
-export function showsNameBesideLogo(width: number, height: number): boolean {
-  return height > 0 && width / height < 2;
 }

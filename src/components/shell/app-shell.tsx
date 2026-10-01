@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 
-import type { ShellUser } from "@/lib/shell";
+import type { ShellOrganisation, ShellUser } from "@/lib/shell";
 
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
@@ -16,7 +16,7 @@ export function AppShell({
   user,
   children,
 }: {
-  organisation: string;
+  organisation: ShellOrganisation;
   strapline: string;
   counts: Record<string, number>;
   user: ShellUser | null;
@@ -62,7 +62,7 @@ export function AppShell({
 
       <div className="flex min-h-dvh min-w-0 flex-col lg:pl-68 print:pl-0">
         <Topbar
-          organisation={organisation}
+          organisation={organisation.name}
           user={user}
           hasAlerts={hasAlerts}
           onMenu={() => setOpen(true)}

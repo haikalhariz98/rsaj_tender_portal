@@ -25,6 +25,8 @@ import {
   XIcon,
 } from "@/components/icons";
 import { cx } from "@/components/ui/cx";
+import { showsNameBesideLogo } from "@/lib/organisation/details";
+import type { ShellOrganisation } from "@/lib/shell";
 import {
   CONFIG_SECTIONS,
   navFor,
@@ -67,7 +69,7 @@ export function Sidebar({
   onNavigate,
   onClose,
 }: {
-  organisation: string;
+  organisation: ShellOrganisation;
   strapline: string;
   /// Outstanding-work counts keyed by href, shown as a badge on the nav item.
   counts: Record<string, number>;
@@ -116,7 +118,9 @@ export function Sidebar({
     router.push(to === "supplier" ? SUPPLIER_NAV[0].items[0].href : STAFF_NAV[0].items[0].href);
   };
 
-  const workspaceName = workspace === "supplier" ? "Supplier portal" : organisation;
+  const orgName = organisation.name;
+  const logo = organisation.logo;
+  const workspaceName = workspace === "supplier" ? "Supplier portal" : orgName;
 
   // Each section owns its subtree; the two workspace roots need an exact match so
   // /supplier/bids does not light Home as well.
@@ -126,10 +130,22 @@ export function Sidebar({
   return (
     <nav className="flex h-full flex-col gap-2 px-4 pt-5 pb-4" aria-label="Main">
       <div className="flex items-center gap-2.5 px-2 pb-3">
-        <span className="grid size-9 place-items-center rounded-xl bg-brand-700 text-white shadow-brand">
-          <GavelIcon size={18} />
-        </span>
-        <span className="text-[17px] font-extrabold tracking-tight text-ink">Perolehan</span>
+        {logo ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element -- the address is the logo's own fingerprint, so there is nothing for the image optimiser to add */}
+            <img src={`/organisation/logo/${logo.sha}`} alt={showsNameBesideLogo(logo.width, logo.height) ? "" : orgName} className="max-h-9 max-w-[148px] object-contain" />
+            {showsNameBesideLogo(logo.width, logo.height) && (
+              <span className="min-w-0 truncate text-[15px] font-extrabold tracking-tight text-ink">{orgName}</span>
+            )}
+          </>
+        ) : (
+          <>
+            <span className="grid size-9 place-items-center rounded-xl bg-brand-700 text-white shadow-brand">
+              <GavelIcon size={18} />
+            </span>
+            <span className="text-[17px] font-extrabold tracking-tight text-ink">Perolehan</span>
+          </>
+        )}
         {onClose && (
           <button
             type="button"
@@ -187,7 +203,7 @@ export function Sidebar({
             <div className="px-3 pt-2 pb-1 text-[11.5px] font-semibold text-ink-3">Viewing as</div>
             {(
               [
-                ["internal", organisation, BuildingIcon],
+                ["internal", orgName, BuildingIcon],
                 ["supplier", "Supplier portal", UserIcon],
               ] as const
             ).map(([id, label, Ico]) => (

@@ -5,7 +5,9 @@ import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import type { CostCentre, OrgUnit, OrgUnitKind, Site } from "@/lib/organisation/types";
 
-import { saveCostCentre, saveOrgUnit, saveSite, saveTimeZone } from "./actions";
+import { DETAIL_LABEL, type Details } from "@/lib/organisation/details";
+
+import { saveCostCentre, saveDetails, saveOrgUnit, saveSite, saveTimeZone } from "./actions";
 
 type Person = { id: string; name: string; isActive: boolean };
 
@@ -355,6 +357,47 @@ export function EditTimeZone({ timeZone }: { timeZone: string | null }) {
       reason={{ label: "Why is it changing?" }}
       trigger={{ label: timeZone ? "Change time zone" : "Set time zone", className: buttonClass("secondary", "sm") }}
       size="sm"
+    />
+  );
+}
+
+/// The organisation's identity details. The hints are examples, never defaults: nothing
+/// is filled in for the customer, and only the legal name is required.
+export function EditDetails({ details }: { details: Details }) {
+  const text = (name: keyof Details, hint?: string, placeholder?: string): Field => ({
+    kind: "text",
+    name,
+    label: DETAIL_LABEL[name],
+    hint,
+    placeholder,
+    required: name === "name",
+  });
+  return (
+    <RecordEditor
+      title="Edit organisation details"
+      description="Shown across the portal and carried on reports and letters. Documents already issued keep the details they were issued with."
+      fields={[
+        text("name", "As registered, e.g. Syarikat Contoh Sdn. Bhd."),
+        text("nameMs", "Used on Malay documents."),
+        text("shortName", "Shown at the top left and on report headers."),
+        text("registrationNo", "SSM: 12 digits, e.g. 201901012345 (old form 1234567-A)."),
+        text("taxIdentificationNo", "LHDN TIN, e.g. C1234567890."),
+        text("sstRegistrationNo", "If registered, e.g. W10-1808-32000123."),
+        text("addressLine1"),
+        text("addressLine2"),
+        text("postcode", "Postcode: 5 digits, e.g. 50450."),
+        text("city"),
+        text("state"),
+        text("country"),
+        text("phone", "e.g. +60 3-1234 5678"),
+        text("email", "e.g. procurement@example.com.my"),
+        text("website", "e.g. https://www.example.com.my"),
+      ]}
+      values={{ ...details }}
+      action={saveDetails}
+      trigger={{ label: "Edit details", className: buttonClass("secondary", "sm") }}
+      size="lg"
+      columns={2}
     />
   );
 }

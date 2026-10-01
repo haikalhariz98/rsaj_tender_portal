@@ -8,7 +8,11 @@ import { ORGANISATION_CODE } from "@/lib/org";
 
 import { db } from "@/lib/db";
 
+import { formatOrgDay } from "@/lib/format";
+import { DETAIL_FIELDS, normaliseDetails } from "@/lib/organisation/details";
+
 import { EditTimeZone } from "./editors";
+import type { LogoInfo } from "./logo-card";
 import { OrganisationScreen } from "./panels";
 
 export const dynamic = "force-dynamic";
@@ -28,8 +32,23 @@ export default async function OrganisationPage({
     loadOrganisationData(ORGANISATION_CODE),
   ]);
 
-  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { timeZone: true } });
+  // The logo's metadata only: its bytes are served from their own address.
+  const org = await db.organisation.findUnique({
+    where: { code: ORGANISATION_CODE },
+    include: { logo: { select: { sha256: true, mediaType: true, sizeBytes: true, width: true, height: true, uploadedAt: true } } },
+  });
   const timeZone = org?.timeZone ?? null;
+  const details = org ? normaliseDetails({ ...Object.fromEntries(DETAIL_FIELDS.map((f) => [f, org[f]])) }) : null;
+  const logo: LogoInfo | null = org?.logo
+    ? {
+        sha: org.logo.sha256,
+        mediaType: org.logo.mediaType,
+        sizeKb: Math.ceil(org.logo.sizeBytes / 1024),
+        width: org.logo.width,
+        height: org.logo.height,
+        uploadedOn: formatOrgDay(org.logo.uploadedAt, timeZone),
+      }
+    : null;
   const { roots, detached, faults } = buildStructure(data.units, on);
   const units = activeOn(data.units, on);
 
@@ -87,6 +106,8 @@ export default async function OrganisationPage({
       )}
 
       <OrganisationScreen
+        details={details ?? normaliseDetails({})}
+        logo={logo}
         roots={roots}
         detached={detached}
         units={units}

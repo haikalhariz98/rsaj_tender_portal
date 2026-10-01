@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
-import { ORGANISATION_CODE } from "@/lib/org";
+import { displayName } from "@/lib/organisation/details";
+import { ORGANISATION_CODE, ORGANISATION_NAME } from "@/lib/org";
 
 export interface ShellUser {
   name: string;
@@ -19,19 +20,29 @@ export interface ShellUser {
  * exist this returned whichever name sorts first and presented them as the signed-in
  * user: a guess wearing the shape of a fact.
  */
+/// How the organisation shows in the frame. `name` is the short name where there is one,
+/// else the legal name. `logo` is null until one is uploaded: the product mark is shown.
+export interface ShellOrganisation {
+  name: string;
+  logo: { sha: string; width: number; height: number } | null;
+}
+
 export async function loadShell(): Promise<{
   user: ShellUser | null;
   counts: Record<string, number>;
+  organisation: ShellOrganisation;
 }> {
+  // The environment name is only for a deployment with no organisation row yet.
   const fallback = {
     user: null,
     counts: {} as Record<string, number>,
+    organisation: { name: ORGANISATION_NAME, logo: null } as ShellOrganisation,
   };
 
   try {
     const org = await db.organisation.findUnique({
       where: { code: ORGANISATION_CODE },
-      select: { id: true },
+      select: { id: true, name: true, shortName: true, logo: { select: { sha256: true, width: true, height: true } } },
     });
     if (!org) return fallback;
 
@@ -48,6 +59,10 @@ export async function loadShell(): Promise<{
       // sign-in exists, and naming an arbitrary officer would misattribute the screen.
       user: null as ShellUser | null,
       counts: pending > 0 ? { "/": pending } : {},
+      organisation: {
+        name: displayName(org),
+        logo: org.logo ? { sha: org.logo.sha256, width: org.logo.width, height: org.logo.height } : null,
+      },
     };
   } catch {
     return fallback;
