@@ -23,6 +23,9 @@ export interface Delegation extends Effective {
   /// The same reason in Malay.
   reasonMs: string;
   noSubDelegation: boolean;
+  /// The absent holder's recommendation to re-delegate (FR-APR-012), as text. Not attached.
+  holderRecommendation?: string | null;
+  holderRecommendedOn?: Date | null;
 }
 
 export type DelegationStatus = "IN_FORCE" | "SCHEDULED" | "ENDED";
@@ -70,7 +73,8 @@ export type DelegationFault =
   | "ENDS_BEFORE_IT_STARTS"
   | "UNBOUNDED"
   | "GRANTOR_DOES_NOT_HOLD"
-  | "MANDATORY_ACT";
+  | "MANDATORY_ACT"
+  | "ABSENT_GRANTOR_NO_RECOMMENDATION";
 
 /**
  * What the caller knows about the office being delegated, beyond its capabilities.
@@ -81,6 +85,11 @@ export interface DelegationContext {
   grantorHoldsOffice?: boolean;
   /// Whether an approval rule gives the office a mandatory act (MR, MJR, MA).
   officeHasMandatoryActs?: boolean;
+  /// Whether the grantor is away (`Person.isAvailable` false). Authority has then
+  /// reverted upward, and passes down again only on the absent holder's recommendation.
+  grantorUnavailable?: boolean;
+  /// The absent holder's recommendation to re-delegate, as recorded (FR-APR-012).
+  holderRecommendation?: string | null;
 }
 
 /**
@@ -107,6 +116,11 @@ export function faultsIn(
   }
 
   if (context.grantorHoldsOffice === false) faults.push("GRANTOR_DOES_NOT_HOLD");
+
+  // FR-APR-012, DAL p.42: on a holder's absence authority reverts upward; it is passed
+  // down again only where the absent holder has recommended it. Recorded as text — the
+  // signed recommendation is not attached until there is document storage.
+  if (context.grantorUnavailable && !(context.holderRecommendation ?? "").trim()) faults.push("ABSENT_GRANTOR_NO_RECOMMENDATION");
 
   // A mandatory step cannot be delegated, skipped or substituted. Handing over the
   // whole office would hand over that step with it; a listed subset of capabilities

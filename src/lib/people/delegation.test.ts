@@ -152,3 +152,15 @@ describe("faults refused at entry", () => {
     ]);
   });
 });
+
+describe("re-delegation during absence (FR-APR-012, 6.9 ruling)", () => {
+  const proposed = { id: "new", fromPersonId: "p1", toPersonId: "p2", roleCode: "HOD", capabilityCodes: [], valueCeiling: null, reason: "", reasonMs: "", noSubDelegation: true, effectiveFrom: new Date("2026-10-01"), effectiveTo: new Date("2026-10-15") };
+  it("is refused when the grantor is away and the absent holder's recommendation is not recorded", () => {
+    expect(faultsIn(proposed, [], [], { grantorUnavailable: true })).toContain("ABSENT_GRANTOR_NO_RECOMMENDATION");
+    expect(faultsIn(proposed, [], [], { grantorUnavailable: true, holderRecommendation: "  " })).toContain("ABSENT_GRANTOR_NO_RECOMMENDATION");
+  });
+  it("is allowed on the recorded recommendation, and never asked of a grantor who is present", () => {
+    expect(faultsIn(proposed, [], [], { grantorUnavailable: true, holderRecommendation: "I recommend Encik Rahman act for me while I am away." })).not.toContain("ABSENT_GRANTOR_NO_RECOMMENDATION");
+    expect(faultsIn(proposed, [], [], { grantorUnavailable: false })).not.toContain("ABSENT_GRANTOR_NO_RECOMMENDATION");
+  });
+});

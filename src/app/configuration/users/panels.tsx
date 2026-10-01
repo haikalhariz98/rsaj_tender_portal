@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDate } from "@/lib/format";
 import { useState, useTransition } from "react";
 
 import {
@@ -601,7 +602,9 @@ function DelegationPanel({ people, offices, delegations, capabilities }: UsersDa
           title: `${day(d.effectiveFrom)} — ${d.effectiveTo ? day(d.effectiveTo) : "open"}`,
           sub: d.valueCeiling ? `up to RM${d.valueCeiling}` : "no ceiling set",
         },
-        reason: { kind: "text", text: d.reason || "—", dim: !d.reason },
+        reason: d.holderRecommendation
+          ? { kind: "stack", title: d.reason || "No reason recorded", sub: `On the absent holder's recommendation${d.holderRecommendedOn ? ` of ${formatDate(d.holderRecommendedOn)}` : ""} · recorded as text, not attached` }
+          : { kind: "text", text: d.reason || "—", dim: !d.reason },
         status:
           status === "IN_FORCE"
             ? { kind: "chip", text: "In force", tone: "ok" }

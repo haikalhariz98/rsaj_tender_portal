@@ -521,6 +521,13 @@ function delegationFields(
     { kind: "text", name: "reason", label: "Reason (EN)" },
     { kind: "text", name: "reasonMs", label: "Reason (BM)" },
     {
+      kind: "textarea",
+      name: "holderRecommendation",
+      label: "The absent holder's recommendation",
+      hint: "Needed where the person delegating is recorded as away: their authority has reverted upward, and is delegated again only on their recommendation. Recorded as text — the signed copy is not attached.",
+    },
+    { kind: "date", name: "holderRecommendedOn", label: "Recommended on" },
+    {
       kind: "readonly",
       name: "status",
       label: "Status",
@@ -598,6 +605,8 @@ export function EditDelegation({
         capabilityCodes: delegation.capabilityCodes.join("\n"),
         reason: delegation.reason,
         reasonMs: delegation.reasonMs,
+        holderRecommendation: delegation.holderRecommendation ?? null,
+        holderRecommendedOn: day(delegation.holderRecommendedOn ?? null),
       }}
     />
   );

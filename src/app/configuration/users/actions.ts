@@ -242,6 +242,11 @@ const DELEGATION_FAULTS: Record<DelegationFault, { field: string; message: strin
     field: "fromPersonId",
     message: "They do not hold this role over that whole period, so they cannot delegate it.",
   },
+  ABSENT_GRANTOR_NO_RECOMMENDATION: {
+    field: "holderRecommendation",
+    message:
+      "They are recorded as away, so their authority has reverted upward. It is delegated again only on the absent holder's recommendation: record it, with its date.",
+  },
   MANDATORY_ACT: {
     field: "capabilityCodes",
     message:
@@ -282,12 +287,16 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
     reasonMs: r.optionalText("reasonMs") ?? "",
     effectiveFrom: effectiveFrom!,
     effectiveTo,
+    // FR-APR-012: the absent holder's recommendation, recorded as text, not attached.
+    holderRecommendation: r.optionalText("holderRecommendation"),
+    holderRecommendedOn: r.date("holderRecommendedOn", "Recommended on"),
   };
+  if (v.holderRecommendation && !v.holderRecommendedOn) r.reject("holderRecommendedOn", "Give the date of the recommendation.");
 
   const parsed = r.finish(v);
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
-  const [existing, held, grantorSpells, mandatory] = await Promise.all([
+  const [existing, held, grantorSpells, mandatory, grantor] = await Promise.all([
     db.delegation.findMany({
       where: { organisationId: orgId, ...(id ? { NOT: { id } } : {}) },
     }),
@@ -310,6 +319,7 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
         ],
       },
     }),
+    db.person.findFirst({ where: { id: fromPersonId, organisationId: orgId }, select: { isAvailable: true } }),
   ]);
 
   // Holds the office across the whole delegation: some assignment begins by its start
@@ -357,7 +367,7 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
     proposed,
     existing.map(asDelegation),
     held.map((c) => c.code),
-    { grantorHoldsOffice, officeHasMandatoryActs: mandatory > 0 },
+    { grantorHoldsOffice, officeHasMandatoryActs: mandatory > 0, grantorUnavailable: grantor ? !grantor.isAvailable : false, holderRecommendation: v.holderRecommendation },
   );
   if (faults.length) {
     const errors: Record<string, string> = {};

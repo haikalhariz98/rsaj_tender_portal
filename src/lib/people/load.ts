@@ -161,6 +161,9 @@ export interface StoredDelegation {
   noSubDelegation: boolean;
   effectiveFrom: Date;
   effectiveTo: Date | null;
+  /// The absent holder's recommendation to re-delegate (FR-APR-012), as text.
+  holderRecommendation?: string | null;
+  holderRecommendedOn?: Date | null;
 }
 
 export async function loadDelegations(organisationCode: string, client: Tx = db): Promise<StoredDelegation[]> {
@@ -187,5 +190,7 @@ export async function loadDelegations(organisationCode: string, client: Tx = db)
     noSubDelegation: d.noSubDelegation,
     effectiveFrom: d.effectiveFrom,
     effectiveTo: d.effectiveTo,
+    holderRecommendation: d.holderRecommendation,
+    holderRecommendedOn: d.holderRecommendedOn,
   }));
 }
