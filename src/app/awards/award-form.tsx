@@ -18,7 +18,7 @@ import { createAward } from "./actions";
  * every rule is the action's. The exercise's classification is shown read-only: the
  * award reads it and never copies it.
  */
-export function AwardForm({ exercise, cancelHref }: { exercise: { id: string; facts: { label: string; value: string }[] }; cancelHref: string }) {
+export function AwardForm({ exercise, cancelHref, valueHint, dossier }: { exercise: { id: string; facts: { label: string; value: string }[] }; cancelHref: string; valueHint: string; dossier: boolean }) {
   const [state, setState] = useState<FormState>({ ok: false });
   const [pending, startTransition] = useTransition();
   const [v, setV] = useState<Record<string, string>>({ completionUnit: "" });
@@ -28,6 +28,11 @@ export function AwardForm({ exercise, cancelHref }: { exercise: { id: string; fa
     <form onSubmit={(e) => { const data = formDataOf(e); startTransition(async () => setState(await createAward(state, data))); }} className="flex flex-col gap-6">
       <input type="hidden" name="exerciseId" value={exercise.id} />
       {state.message && <Callout tone="err">{state.message}</Callout>}
+      {dossier && (
+        <Callout tone="warn" title="It cannot yet be sent for approval">
+          A direct appointment is approved only with its supporting evidence attached to the dossier, and the portal cannot store documents yet. The award can be opened and kept as a draft.
+        </Callout>
+      )}
       <Card>
         <CardHeader title="The exercise" subtitle="As classified. The award reads these from the exercise's record." />
         <CardBody>
@@ -53,7 +58,7 @@ export function AwardForm({ exercise, cancelHref }: { exercise: { id: string; fa
       <Card>
         <CardHeader title="Value and period" subtitle="Within what the requisition's approval covers, and in the exercise's band." />
         <CardBody className="grid gap-4 sm:grid-cols-2">
-          <Field label="Awarded value" required htmlFor="awardedValue" hint="In ringgit, to at most two decimal places." error={err("awardedValue")}>
+          <Field label="Awarded value" required htmlFor="awardedValue" hint={valueHint} error={err("awardedValue")}>
             <Input id="awardedValue" name="awardedValue" inputMode="decimal" value={v.awardedValue ?? ""} onChange={set("awardedValue")} />
           </Field>
           <Field label="Stated start date" htmlFor="startDate" hint="Can be set later, before issue." error={err("startDate")}>

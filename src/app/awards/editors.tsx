@@ -1,6 +1,8 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 
+import { INSURANCE_KIND_LABEL } from "@/lib/award/labels";
+
 import { Blocked } from "../requisitions/editors";
 import {
   addCondition,
@@ -76,7 +78,22 @@ export function EditDetailsDrawer({ id, values }: { id: string; values: Values }
   );
 }
 
-export function EditTermsDrawer({ id, values, regulatedLabel, label = "Edit terms" }: { id: string; values: Values; regulatedLabel: string | null; label?: string }) {
+export function EditTermsDrawer({
+  id,
+  values,
+  regulatedLabel,
+  asked,
+  label = "Edit terms",
+}: {
+  id: string;
+  values: Values;
+  regulatedLabel: string | null;
+  /// Whether the exercise's terms band asks for retention and a defects liability
+  /// period; false hides the field, null (undecided) keeps it.
+  asked: { retention: boolean | null; dlp: boolean | null };
+  label?: string;
+}) {
+  const bond = { name: "bondRequired", in: ["yes"] } as const;
   return (
     <RecordEditor
       title="The terms, the bond and the start"
@@ -92,9 +109,9 @@ export function EditTermsDrawer({ id, values, regulatedLabel, label = "Edit term
           options: YES_NO,
           hint: "A recipient of the instrument's copies may depend on it.",
         },
-        { kind: "note", text: "The performance bond (D4): decided per contract and never defaulted." },
+        { kind: "note", text: "The performance bond: decided for this contract, never filled in for you." },
         { kind: "select", name: "bondRequired", label: "Performance bond required", placeholder: "Not decided", options: YES_NO },
-        { kind: "textarea", name: "bondNotRequiredReason", label: "Why no bond is required", hint: "Required when no bond is required. Shown on the readiness gate." },
+        { kind: "textarea", name: "bondNotRequiredReason", label: "Why no bond is required", hint: "Shown on the conditions before signing." },
         {
           kind: "select",
           name: "bondBasis",
@@ -106,30 +123,54 @@ export function EditTermsDrawer({ id, values, regulatedLabel, label = "Edit term
             { value: "STATED_AMOUNT", label: "A stated amount, entered below" },
           ],
         },
-        { kind: "text", name: "bondPercent", label: "Bond percentage", placeholder: "e.g. 5" },
-        { kind: "money", name: "bondBasisAmount", label: "One-year value, or the stated amount", hint: "Entered, never derived: a derived figure is shown beside it for comparison." },
+        { kind: "text", name: "bondPercent", label: "Bond percentage", placeholder: "e.g. 5", hint: "More than 0. For a stated amount, leave it empty." },
+        { kind: "money", name: "bondBasisAmount", label: "One-year value, or the stated amount", hint: "Entered, never worked out for you: a figure from the sum and period is shown beside it for comparison." },
         { kind: "number", name: "bondValidityExtraMonths", label: "Months it must run past completion", min: 0 },
         { kind: "select", name: "bondBasisProvenance", label: "Where the bond decision came from", placeholder: "Not recorded", options: PROVENANCE },
         { kind: "textarea", name: "bondBasisNote", label: "Bond note" },
         { kind: "note", text: "The letter's terms, quoted by the instrument." },
         { kind: "money", name: "ladAmount", label: "Liquidated damages" },
-        { kind: "text", name: "ladUnit", label: "Liquidated damages per", placeholder: "e.g. per day" },
-        { kind: "text", name: "retentionPercent", label: "Retention percentage", placeholder: "e.g. 5" },
-        { kind: "text", name: "retentionCapPercent", label: "Retention limit, percentage of the contract sum", placeholder: "e.g. 5" },
-        { kind: "number", name: "dlpMonths", label: "Defects liability period, months", min: 0 },
+        {
+          kind: "select",
+          name: "ladUnit",
+          label: "Liquidated damages per",
+          placeholder: "Not set",
+          options: [
+            { value: "per day", label: "Per day" },
+            { value: "per week", label: "Per week" },
+            { value: "per month", label: "Per month" },
+          ],
+          orphanLabel: "As recorded before",
+        },
+        ...(asked.retention === false
+          ? []
+          : ([
+              { kind: "text", name: "retentionPercent", label: "Retention percentage", placeholder: "e.g. 5" },
+              { kind: "text", name: "retentionCapPercent", label: "Retention limit, percentage of the contract sum", placeholder: "e.g. 5" },
+            ] as Field[])),
+        ...(asked.dlp === false ? [] : ([{ kind: "number", name: "dlpMonths", label: "Defects liability period, months", min: 0 }] as Field[])),
         { kind: "select", name: "termsProvenance", label: "Where the terms came from", placeholder: "Not recorded", options: PROVENANCE },
         {
           kind: "select",
           name: "wcBasis",
-          label: "Workmen's compensation set on",
+          label: "How workmen's compensation is calculated",
           placeholder: "Not set",
           options: [
-            { value: "UNCOVERED_WAGES", label: "The wages of employees not covered by social security" },
-            { value: "PERCENT_OF_CONTRACT", label: "A percentage of the contract sum" },
+            { value: "UNCOVERED_WAGES", label: "On the wages of employees not covered by social security" },
+            { value: "PERCENT_OF_CONTRACT", label: "As a percentage of the contract sum" },
           ],
-          hint: "The procedure and the observed award pack differ (D4): chosen for this award.",
+          hint: "Chosen for this award. On uncovered wages the declared sum cannot be checked, so the policy never counts as met.",
         },
       ]}
+      showWhen={{
+        bondNotRequiredReason: { name: "bondRequired", in: ["no"] },
+        bondBasis: bond,
+        bondPercent: bond,
+        bondBasisAmount: bond,
+        bondValidityExtraMonths: bond,
+        bondBasisProvenance: { name: "bondRequired", in: ["yes", "no"] },
+        bondBasisNote: { name: "bondRequired", in: ["yes", "no"] },
+      }}
       values={{ id, ...values }}
       action={updateAwardTerms}
       submitLabel="Save terms"
@@ -187,13 +228,14 @@ export function DecideStepDrawer({ id, stepId, roleLabel, act, done, people, tod
   );
 }
 
-export function CiteDecisionDrawer({ id, stepId, committee, matters }: { id: string; stepId: string; committee: string; matters: Option[] }) {
-  if (matters.length === 0) return <Blocked label="Cite decision" reason={`No matter on this exercise has been tabled before the ${committee}. Table it at a sitting, giving the exercise's reference.`} />;
+export function CiteDecisionDrawer({ id, stepId, committee, matters }: { id: string; stepId: string; committee: string; matters: (Option & { disabled?: boolean })[] }) {
+  if (matters.length === 0) return <Blocked label="Cite decision" reason={`No matter on this exercise has been tabled before the ${committee} yet. Table it at a sitting first.`} />;
+  if (matters.every((m) => m.disabled)) return <Blocked label="Cite decision" reason={`The ${committee} has not decided the matter tabled on this exercise yet.`} />;
   return (
     <RecordEditor
       title={`Cite the ${committee}'s decision`}
       description="A committee's step is discharged by its decision on this exercise, as the sitting recorded it — never by a person."
-      fields={[hidden("id"), hidden("stepId"), { kind: "select", name: "committeeDecisionId", label: "The matter", required: true, placeholder: "Choose", options: matters }]}
+      fields={[hidden("id"), hidden("stepId"), { kind: "select", name: "committeeDecisionId", label: "The matter", required: true, placeholder: "Choose", options: matters, hint: "A matter not decided yet is listed but cannot be chosen." }]}
       values={{ id, stepId }}
       action={citeAppointmentDecision}
       submitLabel="Cite decision"
@@ -206,18 +248,19 @@ export function CiteDecisionDrawer({ id, stepId, committee, matters }: { id: str
 export function RecordCommitmentDrawer({ id, indent, example, today }: { id: string; indent: boolean; example: string | null; today: string | null }) {
   return (
     <RecordEditor
-      title={indent ? "Record the indent number" : "Record the commitment number"}
-      description="The finance system's number, as it returned it. The portal consumes it and never issues one."
+      title="Record the commitment number"
+      description={indent ? "The indent number the finance system returned, typed in as it reads. The portal never makes one up." : "The finance system's number for this commitment, typed in as it reads. The portal never makes one up."}
       fields={[
         hidden("id"),
-        { kind: "text", name: "erpCommitmentNo", label: indent ? "Indent number" : "Number", required: true, mono: true, hint: example ? `For example ${example}.` : "No format is set for it, so it is not checked." },
-        { kind: "select", name: "erpCommitmentKind", label: "Kind", required: true, placeholder: "Choose", options: indent ? [{ value: "INDENT", label: "Indent" }] : [{ value: "INDENT", label: "Indent" }, { value: "PURCHASE_ORDER", label: "Purchase order" }] },
+        ...(indent ? [hidden("erpCommitmentKind")] : []),
+        { kind: "text", name: "erpCommitmentNo", label: indent ? "Commitment number (the indent's)" : "Commitment number", required: true, mono: true, hint: example ? `For example ${example}.` : "No format is set for it, so it is not checked." },
+        ...(indent ? [] : ([{ kind: "select", name: "erpCommitmentKind", label: "It is", required: true, placeholder: "Choose", options: [{ value: "INDENT", label: "An indent" }, { value: "PURCHASE_ORDER", label: "A purchase order" }] }] as Field[])),
         { kind: "date", name: "receivedOn", label: "Received on", required: true, hint: indent ? "The indent's validity runs from this day." : undefined },
       ]}
       values={{ id, erpCommitmentKind: indent ? "INDENT" : null, receivedOn: today }}
       action={recordCommitment}
       submitLabel="Record number"
-      trigger={{ label: indent ? "Record indent number" : "Record commitment number", className: buttonClass("secondary", "sm") }}
+      trigger={{ label: "Record commitment number", className: buttonClass("secondary", "sm") }}
       size="md"
     />
   );
@@ -275,7 +318,7 @@ export function DespatchDrawer({ id, row }: { id: string; row: { id: string; nam
   );
 }
 
-export function ReturnDrawer({ id, loa, values, people }: { id: string; loa: boolean; values: Values; people: Option[] }) {
+export function ReturnDrawer({ id, loa, values, people, correcting }: { id: string; loa: boolean; values: Values; people: Option[]; correcting: boolean }) {
   const loaFields: Field[] = [
     { kind: "date", name: "signedLetterReceivedOn", label: "Signed letter received" },
     { kind: "date", name: "declarationReceivedOn", label: "Signed successful bidder's declaration received" },
@@ -283,8 +326,9 @@ export function ReturnDrawer({ id, loa, values, people }: { id: string; loa: boo
   ];
   const pageFields: Field[] = [
     { kind: "note", text: "The acceptance page, as the contractor returned it. The identity card number is shown in full only here and on the Return tab; masking elsewhere is not access control until sign-in exists." },
+    { kind: "date", name: "signedLetterReceivedOn", label: "Acceptance page received on" },
     { kind: "text", name: "signatoryName", label: "Contractor's signatory" },
-    { kind: "text", name: "icNumber", label: "Identity card number", mono: true },
+    { kind: "text", name: "icNumber", label: "Identity card number", mono: true, hint: "Twelve digits, with or without the hyphens: 900101-14-5678." },
     { kind: "text", name: "occupation", label: "Occupation" },
     { kind: "textarea", name: "address", label: "Address" },
     { kind: "text", name: "capacity", label: "Signed in the capacity of" },
@@ -295,8 +339,12 @@ export function ReturnDrawer({ id, loa, values, people }: { id: string; loa: boo
   ];
   return (
     <RecordEditor
-      title="Record what came back"
-      description="On paper: nothing is attached. The return that completes the instrument moves the award to Accepted."
+      title={correcting ? "Correct the return" : "Record what came back"}
+      description={
+        correcting
+          ? "The award is accepted on this return. A correction is kept in the history with its reason, and cannot leave the return incomplete."
+          : "On paper: nothing is attached. The return that completes the instrument moves the award to Accepted."
+      }
       fields={[
         hidden("id"),
         ...(loa ? loaFields : pageFields),
@@ -305,8 +353,9 @@ export function ReturnDrawer({ id, loa, values, people }: { id: string; loa: boo
       ]}
       values={{ id, ...values }}
       action={recordReturn}
-      submitLabel="Record"
-      trigger={{ label: "Record return", className: buttonClass("primary", "sm") }}
+      reason={correcting ? { label: "Why it is corrected" } : undefined}
+      submitLabel={correcting ? "Save correction" : "Record"}
+      trigger={{ label: correcting ? "Correct the return" : "Record return", className: buttonClass(correcting ? "secondary" : "primary", "sm") }}
       size="lg"
     />
   );
@@ -341,6 +390,7 @@ export function CancelAwardDrawer({ id, issued, consequence }: { id: string; iss
       action={cancelAward}
       destructive={{ reasonLabel: "Why it is cancelled" }}
       submitLabel="Cancel award"
+      cancelLabel="Keep the award"
       trigger={{ label: "Cancel award", className: buttonClass("secondary", "sm") }}
       size="sm"
     />
@@ -413,7 +463,7 @@ export function LodgeSecurityDrawer({ id, issuers, today }: { id: string; issuer
 export function ReviewDrawer({ id, targetId, kind, name, people, today }: { id: string; targetId: string; kind: "security" | "policy"; name: string; people: Option[]; today: string | null }) {
   return (
     <RecordEditor
-      title={`Check the ${name.toLowerCase()}`}
+      title={`Check the ${name.charAt(0).toLowerCase()}${name.slice(1)}`}
       description="Verified only where every check passes; the refusal says which did not. Name who checked it: recorded on their behalf, not signed."
       fields={[
         hidden("id"),
@@ -433,13 +483,7 @@ export function ReviewDrawer({ id, targetId, kind, name, people, today }: { id: 
 }
 
 export function LodgePolicyDrawer({ id, issuers, today }: { id: string; issuers: Option[]; today: string | null }) {
-  const KINDS: Option[] = [
-    { value: "WORKS", label: "Works" },
-    { value: "PUBLIC_LIABILITY", label: "Public liability" },
-    { value: "WORKMENS_COMPENSATION", label: "Workmen's compensation" },
-    { value: "CAR", label: "Contractor's all risks" },
-    { value: "EAR", label: "Erection all risks" },
-  ];
+  const KINDS: Option[] = Object.entries(INSURANCE_KIND_LABEL).map(([value, label]) => ({ value, label }));
   return (
     <RecordEditor
       title="Lodge an insurance policy"
@@ -447,7 +491,7 @@ export function LodgePolicyDrawer({ id, issuers, today }: { id: string; issuers:
       fields={[
         hidden("id"),
         { kind: "select", name: "kind", label: "Kind", required: true, placeholder: "Choose", options: KINDS },
-        { kind: "select", name: "substitutesFor", label: "Accepted in place of", placeholder: "Nothing", options: [{ value: "WORKS", label: "The works policy" }] },
+        { kind: "select", name: "substitutesFor", label: "Accepted in place of", placeholder: "Nothing", options: [{ value: "WORKS", label: `The ${INSURANCE_KIND_LABEL.WORKS.toLowerCase()}` }] },
         { kind: "select", name: "issuerId", label: "Insurer, from the approved list", placeholder: "Not on the list", options: issuers },
         { kind: "text", name: "issuerNameAsWritten", label: "Insurer as written on it" },
         { kind: "text", name: "policyNo", label: "Policy number", mono: true },

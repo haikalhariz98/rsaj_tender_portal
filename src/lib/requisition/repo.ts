@@ -140,7 +140,25 @@ export type RequisitionRow = LoadedRequisition["req"];
  * The decision record of a committee matter, as 6.10 cites it: from the minuted
  * sitting's snapshot of its committee's name where there is one.
  */
-export function recordOf(d: RequisitionRow["committeeDecisions"][number]): DecisionRecord | null {
+/// The fields of a committee matter its decision record is built from.
+export interface DecisionRow {
+  subject: string;
+  matterRef: string | null;
+  outcome: "PENDING" | "CARRIED" | "NOT_CARRIED" | "DEFERRED";
+  decisionDate: Date | null;
+  quorumRequired: number | null;
+  presentVoters: number | null;
+  recusedCount: number | null;
+  votingRule: "SIMPLE_MAJORITY" | "UNANIMOUS" | null;
+  votingRuleProvenance: string | null;
+  outcomeNote: string;
+  notApprovedOutcomeNameEn: string | null;
+  notApprovedOutcomeKind: "LOOP" | "TERMINAL" | null;
+  meeting: { reference: string; meetingDate: Date; status: string; registerSnapshot: unknown; committee: { nameEn: string } };
+  votes: { person: { name: string }; choice: string; comment: string; votedAt: Date }[];
+}
+
+export function recordOf(d: DecisionRow): DecisionRecord | null {
   const snap = d.meeting.status === "MINUTED" && isRegisterSnapshot(d.meeting.registerSnapshot) ? d.meeting.registerSnapshot : null;
   return decisionRecord({
     meeting: { reference: d.meeting.reference, meetingDate: d.meeting.meetingDate, committeeName: snap?.committeeName ?? d.meeting.committee.nameEn },

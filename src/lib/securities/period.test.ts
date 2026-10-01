@@ -28,6 +28,13 @@ describe("how long a policy must run (§8.10)", () => {
     expect(requiredInsuranceEnd("2026-03-01", { n: 24, unit: "MONTHS" }, 12, { months: 3, days: 28 })).toEqual({ state: "SET", day: "2029-06-29" });
   });
 
+  it("starting on the 31st, the months are summed and clamped once — never clamp upon clamp", () => {
+    // 31 Jan + 1 month completion + 1 month DLP + 1 month tail = 31 Jan + 3 months = 30 Apr.
+    expect(requiredInsuranceEnd("2026-01-31", { n: 1, unit: "MONTHS" }, 1, { months: 1, days: 0 })).toEqual({ state: "SET", day: "2026-04-30" });
+    // Clamping at each step would give 28 Feb → 28 Mar → 28 Apr.
+    expect(addMonths(addMonths(addMonths("2026-01-31", 1), 1), 1)).toBe("2026-04-28");
+  });
+
   it("an unset defects liability period is not zero", () => {
     expect(requiredInsuranceEnd("2026-03-01", { n: 24, unit: "MONTHS" }, null, { months: 3, days: 14 })).toEqual({ state: "NOT_SET", missing: ["DLP"] });
   });

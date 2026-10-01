@@ -1,4 +1,6 @@
 import Link from "next/link";
+
+import { ButtonLink } from "@/components/ui/button";
 import type { ReactNode } from "react";
 
 import { AwardIcon, FileIcon, InboxIcon, ShieldIcon } from "@/components/icons";
@@ -137,7 +139,7 @@ export default async function AwardControlsPage() {
                   label: "The indent number's format",
                   value: (
                     <span className="flex flex-col items-start gap-1.5">
-                      {c.indentFormat ? <span>{c.indentFormat.description || "Checked against a set shape"}{c.indentFormat.example ? `, for example ${c.indentFormat.example}` : ""}</span> : <><Badge tone="warn">Not set</Badge><span className="text-[12.5px] text-ink-3">An indent number is recorded as typed, not checked.</span></>}
+                      {c.indentFormat ? <span>{(c.indentFormat.description || "Checked against a set shape").replace(/[.\s]+$/, "")}{c.indentFormat.example ? `, for example ${c.indentFormat.example}.` : "."}</span> : <><Badge tone="warn">Not set</Badge><span className="text-[12.5px] text-ink-3">An indent number is recorded as typed, not checked.</span></>}
                       <EditErpFormat formatKey="erp_indent_no" label="Indent number" current={c.indentFormat ? { pattern: c.indentFormat.pattern, example: c.indentFormat.example, description: c.indentFormat.description, provenance: c.indentFormat.provenance } : null} />
                     </span>
                   ),
@@ -148,14 +150,14 @@ export default async function AwardControlsPage() {
         </Card>
 
         <Card>
-          <CardHeader icon={<FileIcon size={17} />} title="Templates" subtitle="The documents are generated from these templates' text, set under Templates, and frozen when issued. The appointment letter's template comes from its variant." actions={<Link href="/configuration/templates">Templates</Link>} />
+          <CardHeader icon={<FileIcon size={17} />} title="Templates" subtitle="The documents are generated from these templates' text, set under Templates, and frozen when issued. The appointment letter's template comes from its variant." actions={<ButtonLink href="/configuration/templates" size="sm" variant="secondary">Open Templates</ButtonLink>} />
           <CardBody>
             <KeyValues
               columns={3}
               items={[
-                { label: "Letter of Acceptance", value: <Setting value={templateName(p.loaTemplateId)} unset="A Letter of Acceptance cannot be issued." /> },
-                { label: "Successful bidder's declaration", value: <Setting value={templateName(p.declarationTemplateId)} unset="A Letter of Acceptance cannot be issued without it." /> },
-                { label: "Indent covering memo", value: <Setting value={templateName(p.coveringMemoTemplateId)} unset="An indent award cannot be issued." /> },
+                { label: "For the Letter of Acceptance", value: <Setting value={templateName(p.loaTemplateId)} unset="A Letter of Acceptance cannot be issued." /> },
+                { label: "For the successful bidder's declaration", value: <Setting value={templateName(p.declarationTemplateId)} unset="A Letter of Acceptance cannot be issued without it." /> },
+                { label: "For the indent covering memo", value: <Setting value={templateName(p.coveringMemoTemplateId)} unset="An indent award cannot be issued." /> },
               ]}
             />
           </CardBody>
@@ -229,7 +231,7 @@ export default async function AwardControlsPage() {
           </Table>
         </Section>
 
-        <Section title="Conditions precedent" subtitle="What must be in place before work may start. One marked so gives no extension of time for its delay; the extension-of-time module reads it." icon={<AwardIcon size={17} />} count={c.conditionKinds.length} action={<AddConditionKind />} empty="No conditions are set.">
+        <Section title="Conditions precedent" subtitle="What must be in place before work may start. A delay in one marked so does not earn the contractor more time." icon={<AwardIcon size={17} />} count={c.conditionKinds.length} action={<AddConditionKind />} empty="No conditions are set.">
           <Table>
             <colgroup>
               <col />

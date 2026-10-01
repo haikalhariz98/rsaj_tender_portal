@@ -12,7 +12,7 @@
 import type { RequiredBond } from "@/lib/securities/bond";
 import type { CommitmentFault } from "@/lib/requisition/commitment";
 
-import type { NumberSource } from "./contract-number";
+import type { NumberFault, NumberSource } from "./contract-number";
 import type { ListFault } from "./distribution";
 import type { IndentState } from "./indent";
 import type { InstrumentFault } from "./instrument";
@@ -32,6 +32,8 @@ export interface DocumentState {
   templateName: string | null;
   missing: string[];
   unknown: string[];
+  /// Fields of the text being frozen still reading "(allocated on issue)" (BD-14).
+  unfilled: string[];
 }
 
 export interface IssueInput {
@@ -53,6 +55,8 @@ export interface IssueInput {
   bond: { required: boolean | null; reason: string; basis: RequiredBond };
   contractNumber: NumberSource;
   startDate: string | null;
+  /// Whether a workmen's compensation policy is required, and how the award sets it.
+  wc: { required: boolean; basis: string | null };
 }
 
 export type IssueFault =
@@ -68,6 +72,7 @@ export type IssueFault =
   | "NO_COMMITTEE_APPROVAL_IN_ROUTE"
   | InstrumentFault
   | "SIGNATORY_UNRESOLVED"
+  | "SIGNATORY_NOT_FOR_INSTRUMENT"
   | "SIGNATORY_AMBIGUOUS"
   | "SIGNATORY_GAP"
   | "SIGNATORY_BOUNDARY_UNDECIDED"
@@ -81,6 +86,7 @@ export type IssueFault =
   | "TEMPLATE_LANGUAGE_NOT_SET"
   | "TEMPLATE_INCOMPLETE"
   | "TEMPLATE_UNKNOWN_FIELD"
+  | "ISSUE_VALUE_UNFILLED"
   | "VARIANT_NONE"
   | "VARIANT_AMBIGUOUS"
   | "TERMS_NOT_SET"
@@ -90,9 +96,11 @@ export type IssueFault =
   | "BOND_NOT_DECIDED"
   | "BOND_REASON_REQUIRED"
   | "BOND_BASIS_NOT_SET"
-  | "CONTRACT_SERIES_NOT_SET"
-  | "QUOTATION_KEY_NOT_SET"
-  | "START_DATE_REQUIRED";
+  | NumberFault
+  | "INSTRUMENT_CHANGED"
+  | "START_DATE_REQUIRED"
+  | "WC_BASIS_REQUIRED"
+  | "INDENT_EXPIRES_BEFORE_START";
 
 export function issueFaults(i: IssueInput): Finding[] {
   const out: Finding[] = [];
@@ -123,6 +131,8 @@ export function issueFaults(i: IssueInput): Finding[] {
     if (!i.indent.number) f("INDENT_NUMBER_REQUIRED");
     else if (i.indent.formatOk === false) f("INDENT_NUMBER_FORMAT");
     if (i.indent.state.state === "EXPIRED") f("INDENT_EXPIRED", { expiresOn: i.indent.state.expiresOn });
+    // An indent that lapses before the stated start cannot carry the work it orders.
+    else if ("expiresOn" in i.indent.state && i.startDate && i.startDate > i.indent.state.expiresOn) f("INDENT_EXPIRES_BEFORE_START", { expiresOn: i.indent.state.expiresOn, startDate: i.startDate });
   }
 
   if ("fault" in i.distribution) f(i.distribution.fault);
@@ -134,6 +144,7 @@ export function issueFaults(i: IssueInput): Finding[] {
     else {
       if (d.unknown.length) f("TEMPLATE_UNKNOWN_FIELD", { kind: d.kind, template: d.templateName, count: d.unknown.length });
       if (d.missing.length) f("TEMPLATE_INCOMPLETE", { kind: d.kind, template: d.templateName, fields: d.missing.join(",") });
+      if (d.unfilled.length) f("ISSUE_VALUE_UNFILLED", { kind: d.kind, fields: d.unfilled.join(",") });
     }
   }
 
@@ -154,5 +165,8 @@ export function issueFaults(i: IssueInput): Finding[] {
 
   if ("fault" in i.contractNumber) f(i.contractNumber.fault);
   if (!i.startDate) f("START_DATE_REQUIRED");
+  // The letter states the insurance it asks for; how workmen's compensation is set
+  // cannot be changed once it is issued.
+  if (i.wc.required && !i.wc.basis) f("WC_BASIS_REQUIRED");
   return out;
 }

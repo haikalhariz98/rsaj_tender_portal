@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { expiryAlert } from "./expiry";
+import { expiryAlert, alertingUpTo } from "./expiry";
 
 describe("expiry alerts from the notification rule's offsets", () => {
   it("offsets 30 and 7 with seven days left give the seven-day alert", () => {
@@ -17,5 +17,15 @@ describe("expiry alerts from the notification rule's offsets", () => {
   });
   it("no expiry recorded is said, not alerted", () => {
     expect(expiryAlert(null, [30], "2026-09-30")).toEqual({ state: "NO_EXPIRY" });
+  });
+});
+
+describe("counting what is expiring", () => {
+  it("is everything up to today plus the largest offset, or only the expired with none set — as expiryAlert reads it", () => {
+    expect(alertingUpTo([30, 60, 90], "2026-10-01")).toBe("2026-12-30");
+    expect(alertingUpTo([], "2026-10-01")).toBe("2026-09-30");
+    const up = alertingUpTo([30], "2026-10-01");
+    expect(expiryAlert(up, [30], "2026-10-01").state).toBe("DUE");
+    expect(expiryAlert("2026-11-01", [30], "2026-10-01").state).toBe("NONE");
   });
 });

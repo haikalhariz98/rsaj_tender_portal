@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import type { FormState } from "@/components/record-editor";
 import { Prisma } from "@/generated/prisma/client";
+import { exerciseCancelBlockedBy } from "@/lib/award/status";
 import { diffFields, snapshotFields, type FieldChange } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { dayToDate, storedDay } from "@/lib/dates";
@@ -694,6 +695,9 @@ export async function cancelExercise(_prev: FormState, data: FormData): Promise<
     const ex = l.ex;
     const t = transitionFault(ex.status, "CANCELLED", { today: l.org.today, reason });
     if (t.length > 0) return t[0].code === "CANCEL_REASON_REQUIRED" ? { ok: false, errors: { reason: findingText(t[0]) } } : refuse(t, "Not cancelled:");
+    // A live award holds its value against the requisition and names this exercise: it is cancelled first.
+    const live = exerciseCancelBlockedBy(await tx.award.findMany({ where: { exerciseId: ex.id }, select: { reference: true, status: true } }));
+    if (live) return { ok: false, message: `Not cancelled: award ${live.reference} stands on this exercise. Cancel the award first, from its own record.` };
     const moved = await tx.sourcingExercise.updateMany({ where: { id, status: ex.status }, data: { status: "CANCELLED", cancelReason: reason } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", diffFields({ status: ex.status }, { status: "CANCELLED" }), reason);

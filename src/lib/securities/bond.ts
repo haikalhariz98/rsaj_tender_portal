@@ -21,9 +21,10 @@ export type RequiredBond =
 
 export function requiredBond(b: { basis: BondBasis | null; percent: string | null; basisAmount: Sen | null; contractPrice: Sen }): RequiredBond {
   if (!b.basis) return { state: "NOT_SET", missing: ["BASIS"] };
-  if (b.basis === "STATED_AMOUNT") return b.basisAmount == null ? { state: "NOT_SET", missing: ["BASIS_AMOUNT"] } : { state: "SET", amount: b.basisAmount, basis: b.basis };
+  if (b.basis === "STATED_AMOUNT") return b.basisAmount == null || b.basisAmount <= 0n ? { state: "NOT_SET", missing: ["BASIS_AMOUNT"] } : { state: "SET", amount: b.basisAmount, basis: b.basis };
   const missing: ("PERCENT" | "BASIS_AMOUNT")[] = [];
-  if (b.percent == null) missing.push("PERCENT");
+  // A bond of nothing is not a decision about the bond: a zero percentage reads as not set.
+  if (b.percent == null || !(Number(b.percent) > 0)) missing.push("PERCENT");
   if (b.basis === "ANNUAL_VALUE" && b.basisAmount == null) missing.push("BASIS_AMOUNT");
   if (missing.length || b.percent == null) return { state: "NOT_SET", missing };
   const base = b.basis === "CONTRACT_PRICE" ? b.contractPrice : b.basisAmount!;
@@ -76,4 +77,11 @@ export function bondFaults(
 /// The day a bond must run to: completion plus the validity months. Null: not set.
 export function bondRequiredUntil(completion: Day | null, extraMonths: number | null): Day | null {
   return completion && extraMonths != null ? addMonths(completion, extraMonths) : null;
+}
+
+/// A lodged security or policy is checked on a day not before it was lodged and not after today.
+export function checkedOnFault(on: Day, lodgedOn: Day, today: Day): "BEFORE_LODGED" | "FUTURE" | null {
+  if (on > today) return "FUTURE";
+  if (on < lodgedOn) return "BEFORE_LODGED";
+  return null;
 }

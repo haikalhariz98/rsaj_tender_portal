@@ -7,6 +7,9 @@ import { formatDay, mergeFieldsFor, templateText, type MergeContext } from "./fi
 import { issueFaults, type IssueInput } from "./gate";
 import { renderTemplate, renderedText } from "./merge";
 
+const LOA = { kind: "LETTER_OF_ACCEPTANCE" as const, commitmentNo: null, commitmentKind: null };
+const INDENT = { kind: "WORK_INDENT" as const, commitmentNo: "XI202600812", commitmentKind: "INDENT" as const };
+
 const clear: IssueInput = {
   status: "APPROVED",
   today: "2026-09-30",
@@ -20,12 +23,13 @@ const clear: IssueInput = {
   signatory: { ok: true, roleCode: "FD", roleLabel: "Functional Director", ruleKey: "k", ruleLabel: "l", clause: "c", recommenders: [], delegable: false },
   indent: null,
   distribution: { rows: [{}] },
-  documents: [{ kind: "LETTER_OF_ACCEPTANCE", state: "OK", templateName: "LoA", missing: [], unknown: [] }],
+  documents: [{ kind: "LETTER_OF_ACCEPTANCE", state: "OK", templateName: "LoA", missing: [], unknown: [], unfilled: [] }],
   variant: null,
   terms: null,
   bond: { required: true, reason: "", basis: { state: "SET", amount: parseSen("1"), basis: "CONTRACT_PRICE" } },
   contractNumber: { source: "SERIES", seriesKey: "contract" },
   startDate: "2026-10-01",
+  wc: { required: false, basis: null },
 };
 const codes = (x: Partial<IssueInput>) => issueFaults({ ...clear, ...x }).map((f) => f.code);
 
@@ -56,6 +60,13 @@ describe("the issue gate (FR-AWD-001 and what issue depends on)", () => {
     expect(codes({ ...indent, indent: { number: "XI202600812", formatOk: true, state: { state: "EXPIRED", expiresOn: "2026-09-28" } } })).toEqual(["INDENT_EXPIRED"]);
   });
 
+  it("an indent that expires before the stated start date refuses issue", () => {
+    const indent = { instrument: { kind: "WORK_INDENT" as const }, variant: { state: "SELECTED" as const, variant: {} as never }, terms: { retentionAsked: false, dlpAsked: false, retentionSet: false, dlpSet: false }, appointment: { status: "APPROVED", pendingStep: null, committeeSteps: [] } };
+    const valid = { number: "XI202600812", formatOk: true, state: { state: "VALID" as const, expiresOn: "2026-10-10" } };
+    expect(codes({ ...indent, indent: valid, startDate: "2026-10-11" })).toEqual(["INDENT_EXPIRES_BEFORE_START"]);
+    expect(codes({ ...indent, indent: valid, startDate: "2026-10-10" })).toEqual([]);
+  });
+
   it("an indent's variant and the terms its band asks for", () => {
     const indent = { instrument: { kind: "WORK_INDENT" as const }, indent: { number: "X", formatOk: true, state: { state: "VALID" as const, expiresOn: "2026-10-10" } }, appointment: { status: "APPROVED", pendingStep: null, committeeSteps: [] } };
     expect(codes({ ...indent, variant: { state: "TERMS_NOT_SET" }, terms: { retentionAsked: null, dlpAsked: null, retentionSet: false, dlpSet: false } })).toEqual(["TERMS_NOT_SET", "TERMS_UNDECIDED"]);
@@ -68,7 +79,7 @@ describe("the issue gate (FR-AWD-001 and what issue depends on)", () => {
   });
 
   it("a template missing, empty, undecided in language, or with a field unfilled refuses", () => {
-    const d = (x: object) => ({ documents: [{ kind: "LETTER_OF_ACCEPTANCE" as const, state: "OK" as const, templateName: "LoA", missing: [], unknown: [], ...x }] });
+    const d = (x: object) => ({ documents: [{ kind: "LETTER_OF_ACCEPTANCE" as const, state: "OK" as const, templateName: "LoA", missing: [], unknown: [], unfilled: [], ...x }] });
     expect(codes(d({ state: "TEMPLATE_NOT_SET" }))).toEqual(["TEMPLATE_NOT_SET"]);
     expect(codes(d({ state: "NO_TEXT" }))).toEqual(["TEMPLATE_TEXT_NOT_SET"]);
     expect(codes(d({ state: "NO_LANGUAGE" }))).toEqual(["TEMPLATE_LANGUAGE_NOT_SET"]);
@@ -89,6 +100,35 @@ describe("the issue gate (FR-AWD-001 and what issue depends on)", () => {
     expect(codes({ instrument: { fault: "INSTRUMENT_NOT_SET" } })).toContain("INSTRUMENT_NOT_SET");
   });
 
+  it("each remaining rule refuses on its own", () => {
+    expect(codes({ commitment: { code: "NO_APPROVAL_ROUTE" } as never })).toEqual(["REQUISITION_NOT_ROUTED"]);
+    expect(codes({ sourcingPermitted: null })).toEqual(["SOURCING_NOT_RECORDED"]);
+    expect(codes({ today: null })).toEqual(["TIME_ZONE_UNSET"]);
+    expect(codes({ signatory: { ok: false, fault: "SIGNATORY_GAP" } })).toEqual(["SIGNATORY_GAP"]);
+    expect(codes({ signatory: { ok: false, fault: "SIGNATORY_BOUNDARY_UNDECIDED" } })).toEqual(["SIGNATORY_BOUNDARY_UNDECIDED"]);
+    expect(codes({ contractNumber: { fault: "INDENT_NUMBER_NOT_AN_INDENT" } })).toEqual(["INDENT_NUMBER_NOT_AN_INDENT"]);
+    expect(codes({ valueFaults: [{ code: "INSTRUMENT_CHANGED", level: "block" }] })).toEqual(["INSTRUMENT_CHANGED"]);
+  });
+
+  it("an indent whose band asks for a defects liability period refuses without one", () => {
+    const indent = { instrument: { kind: "WORK_INDENT" as const }, indent: { number: "X", formatOk: true, state: { state: "VALID" as const, expiresOn: "2026-10-10" } }, appointment: { status: "APPROVED", pendingStep: null, committeeSteps: [] }, variant: { state: "SELECTED" as const, variant: {} as never } };
+    expect(codes({ ...indent, terms: { retentionAsked: false, dlpAsked: true, retentionSet: false, dlpSet: false } })).toEqual(["DLP_REQUIRED"]);
+    expect(codes({ ...indent, terms: { retentionAsked: false, dlpAsked: true, retentionSet: false, dlpSet: true } })).toEqual([]);
+  });
+
+  it("a committee's mandatory approval counts as the approving act a Letter of Acceptance needs", () => {
+    expect(codes({ appointment: { status: "APPROVED", pendingStep: null, committeeSteps: [{ committee: "Tender Board", act: "MA", outcome: "CARRIED" }] } })).toEqual([]);
+  });
+
+  it("FR-MTD-009: a dossier fault is re-checked at issue and refuses", () => {
+    expect(codes({ dossierFaults: [{ code: "EVIDENCE_NOT_ATTACHED", level: "block" }] })).toEqual(["EVIDENCE_NOT_ATTACHED"]);
+    expect(codes({ dossierFaults: [{ code: "SOMETHING_ADVISORY", level: "warn" }] })).toEqual([]);
+  });
+
+  it("BD-14: a text about to be frozen with a placeholder left refuses", () => {
+    expect(codes({ documents: [{ kind: "LETTER_OF_ACCEPTANCE", state: "OK", templateName: "LoA", missing: [], unknown: [], unfilled: ["contract.number"] }] })).toEqual(["ISSUE_VALUE_UNFILLED"]);
+  });
+
   it("only an approved award is issued, from an exercise still open", () => {
     expect(codes({ status: "PENDING_APPROVAL" })).toEqual(["NOT_APPROVED_YET"]);
     expect(codes({ exerciseStatus: "CANCELLED" })).toEqual(["EXERCISE_NOT_OPEN"]);
@@ -97,13 +137,20 @@ describe("the issue gate (FR-AWD-001 and what issue depends on)", () => {
 
 describe("where the contract number comes from (FR-CON-002, OQ-11)", () => {
   it("a tender award draws from its contract type's series; none set refuses", () => {
-    expect(contractNumberSource("tender", null, "contract")).toEqual({ source: "SERIES", seriesKey: "contract" });
-    expect(contractNumberSource("tender", "INDENT_NUMBER", null)).toEqual({ fault: "CONTRACT_SERIES_NOT_SET" });
+    expect(contractNumberSource("tender", null, "contract", LOA)).toEqual({ source: "SERIES", seriesKey: "contract" });
+    expect(contractNumberSource("tender", "INDENT_NUMBER", null, LOA)).toEqual({ fault: "CONTRACT_SERIES_NOT_SET" });
   });
   it("a quotation award follows the setting, and unset refuses", () => {
-    expect(contractNumberSource("quotation", null, "contract")).toEqual({ fault: "QUOTATION_KEY_NOT_SET" });
-    expect(contractNumberSource("quotation", "INDENT_NUMBER", null)).toEqual({ source: "INDENT_NUMBER" });
-    expect(contractNumberSource("quotation", "CONTRACT_SERIES", "contract")).toEqual({ source: "SERIES", seriesKey: "contract" });
+    expect(contractNumberSource("quotation", null, "contract", INDENT)).toEqual({ fault: "QUOTATION_KEY_NOT_SET" });
+    expect(contractNumberSource("quotation", "INDENT_NUMBER", null, INDENT)).toEqual({ source: "INDENT_NUMBER", number: "XI202600812" });
+    expect(contractNumberSource("quotation", "CONTRACT_SERIES", "contract", INDENT)).toEqual({ source: "SERIES", seriesKey: "contract" });
+  });
+  it("numbers from the indent only an indent award whose indent number is recorded — never a purchase order's, never nothing", () => {
+    expect(contractNumberSource("quotation", "INDENT_NUMBER", "contract", LOA)).toEqual({ fault: "INDENT_NUMBER_NOT_AN_INDENT" });
+    expect(contractNumberSource("quotation", "INDENT_NUMBER", "contract", { kind: "LETTER_OF_ACCEPTANCE", commitmentNo: "PO-1", commitmentKind: "PURCHASE_ORDER" })).toEqual({ fault: "INDENT_NUMBER_NOT_AN_INDENT" });
+    expect(contractNumberSource("quotation", "INDENT_NUMBER", "contract", { kind: "WORK_INDENT", commitmentNo: null, commitmentKind: null })).toEqual({ fault: "INDENT_NUMBER_NOT_RECORDED" });
+    expect(contractNumberSource("quotation", "INDENT_NUMBER", "contract", { kind: "WORK_INDENT", commitmentNo: "  ", commitmentKind: "INDENT" })).toEqual({ fault: "INDENT_NUMBER_NOT_RECORDED" });
+    expect(contractNumberSource("quotation", "INDENT_NUMBER", "contract", { kind: "WORK_INDENT", commitmentNo: "PO-1", commitmentKind: "PURCHASE_ORDER" })).toEqual({ fault: "INDENT_NUMBER_NOT_RECORDED" });
   });
 });
 
@@ -144,7 +191,7 @@ describe("merge values", () => {
     bond: { amount: null, percent: "5.0000", basis: "ANNUAL_VALUE", validityMonths: 12 },
     indent: { number: null, receivedOn: null, expiresOn: null },
     committee: null,
-    approver: { office: "Chief Executive", receivedOn: null, name: "A", decidedOn: "2026-08-03" },
+    approver: { office: { en: "Chief Executive", ms: "Ketua Pegawai Eksekutif" }, receivedOn: null, name: "A", decidedOn: "2026-08-03" },
   };
   it("formats money in sen, days in the template's language, periods in words", () => {
     const f = mergeFieldsFor(ctx);
@@ -152,7 +199,9 @@ describe("merge values", () => {
     expect(f["award.issueDate"]).toBe("3 Ogos 2026");
     expect(f["award.completionPeriod"]).toBe("24 bulan");
     expect(f["terms.retention"]).toBe("5%");
-    expect(f["terms.lad"]).toBe("RM500.00 per day");
+    // A Malay letter says the unit in Malay (UX review: "per day" read in English in a Malay letter).
+    expect(f["terms.lad"]).toBe("RM500.00 sehari");
+    expect(mergeFieldsFor({ ...ctx, lang: "EN" })["terms.lad"]).toBe("RM500.00 per day");
     expect(f["bond.basis"]).toBe("5% daripada nilai setahun kontrak");
     expect(formatDay("2026-08-03", "EN")).toBe("3 August 2026");
   });
@@ -161,6 +210,12 @@ describe("merge values", () => {
     expect(f["approver.receivedOn"]).toBe("");
     expect(f["committee.meetingDate"]).toBe("");
     expect(f["contract.number"]).toBe("");
+  });
+  it("a Malay letter takes the Malay names, and a name with no Malay set is missing — never the English", () => {
+    expect(mergeFieldsFor(ctx)["approver.office"]).toBe("Ketua Pegawai Eksekutif");
+    expect(mergeFieldsFor({ ...ctx, lang: "EN" })["approver.office"]).toBe("Chief Executive");
+    expect(mergeFieldsFor({ ...ctx, approver: { ...ctx.approver!, office: { en: "Chief Executive", ms: null } } })["approver.office"]).toBe("");
+    expect(mergeFieldsFor({ ...ctx, signatory: { name: "B", office: { en: "Finance Director", ms: "Pengarah Kewangan" } } })["signatory.office"]).toBe("Pengarah Kewangan");
   });
   it("has no IC number field", () => {
     expect(Object.keys(mergeFieldsFor(ctx)).some((k) => /\.(ic|icnumber|identity)/i.test(k))).toBe(false);

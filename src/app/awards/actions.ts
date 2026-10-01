@@ -5,11 +5,12 @@ import { redirect } from "next/navigation";
 
 import type { FormState } from "@/components/record-editor";
 import type { Prisma } from "@/generated/prisma/client";
-import { diffFields, snapshotFields, type FieldChange } from "@/lib/audit/diff";
+import { diffFields, type FieldChange } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { boundaryOperatorFor, regimeFor } from "@/lib/authority/resolve";
 import { appointmentRoute } from "@/lib/award/appointment";
 import { awardAuditCreate, awardAuditPair } from "@/lib/award/audit-view";
+import { icNumberFault } from "@/lib/award/mask";
 import { exerciseCitationFault } from "@/lib/award/citation";
 import { despatchFaults } from "@/lib/award/distribution";
 import { evaluateAward } from "@/lib/award/evaluate";
@@ -18,12 +19,11 @@ import { AWARD_STATUS_LABEL, awardFindingText, BOND_FAULT_TEXT, DESPATCH_FAULT_T
 import { renderedText } from "@/lib/award/merge";
 import { awardFacts, exerciseMatters, loadAwardConfig, matterRecord, withLockedAward, withLockedExerciseForAward, latestRoute, type LoadedAward } from "@/lib/award/repo";
 import { receivedOnFault } from "@/lib/award/routing";
-import { checkSignatory } from "@/lib/award/signatory";
-import { returnComplete, type ReturnRecord } from "@/lib/award/stage-two";
+import { approvedOnOf, checkSignatory } from "@/lib/award/signatory";
+import { instrumentReturned, returnComplete, type ReturnRecord } from "@/lib/award/stage-two";
 import { awardTransition, editable, LIVE_STATUSES } from "@/lib/award/status";
 import type { AwardStatus, Finding, InstrumentKind } from "@/lib/award/types";
 import { dayToDate, storedDay } from "@/lib/dates";
-import { db } from "@/lib/db";
 import { manualCommitment } from "@/lib/integration/award-commitment";
 import { ACT_LABEL } from "@/lib/labels";
 import { approvedRouteOf, evaluationContext } from "@/lib/method/repo";
@@ -32,8 +32,8 @@ import { NumberingError, issueReference } from "@/lib/numbering/issue";
 import { committeeStepFrom } from "@/lib/requisition/committee-step";
 import { deciderFaults, holdersFor } from "@/lib/requisition/holders";
 import { deciderFaultText } from "@/lib/requisition/labels";
-import { bondFaults, requiredBond } from "@/lib/securities/bond";
-import { applicableRequirements, insuranceFaults } from "@/lib/securities/insurance";
+import { bondFaults, bondRequiredUntil, checkedOnFault, requiredBond } from "@/lib/securities/bond";
+import { applicableRequirements, countsAs, insuranceFaults, wcSumCheck } from "@/lib/securities/insurance";
 import { completionDay } from "@/lib/securities/period";
 import { FormReader } from "@/lib/validate";
 
@@ -248,7 +248,8 @@ export async function updateAwardTerms(_prev: FormState, data: FormData): Promis
     termsProvenance: r.choice("termsProvenance", "Where the terms came from", PROVENANCE),
     wcBasis: r.choice("wcBasis", "Workmen's compensation basis", ["UNCOVERED_WAGES", "PERCENT_OF_CONTRACT"] as const),
   };
-  if (bondRequired === false && !v.bondNotRequiredReason) r.reject("bondNotRequiredReason", "Say why no performance bond is required (6.11 ruling).");
+  if (bondRequired === false && !v.bondNotRequiredReason) r.reject("bondNotRequiredReason", "Say why no performance bond is required.");
+  if (bondRequired && v.bondPercent != null && !(Number(v.bondPercent) > 0)) r.reject("bondPercent", "A bond of 0% is no bond: give the percentage, or record that no bond is required, with the reason.");
   if (bondRequired === false && !v.bondBasisProvenance) r.reject("bondBasisProvenance", "Say where the decision that no bond is required came from.");
   if (bondRequired && v.bondBasis === "ANNUAL_VALUE" && v.bondBasisAmount && !v.bondBasisProvenance) r.reject("bondBasisProvenance", "An entered one-year value needs its provenance.");
   if (r.failed) return { ok: false, errors: r.errors };
@@ -525,25 +526,26 @@ export async function issueAward(_prev: FormState, data: FormData): Promise<Form
       const signedOn = storedDay(signed);
       const person = f.roster.people.find((p) => p.id === personId) ?? null;
       const route = latestRoute(a)!;
-      const check = checkSignatory(sig, person, holdersFor(sig.roleCode, f.unitPath, f.roster, f.delegations, signedOn), { today, signedOn, approvedOn: route.closedAt ? storedDay(route.closedAt) : null, value: senFromDecimal(a.awardedValue) });
+      const check = checkSignatory(sig, person, holdersFor(sig.roleCode, f.unitPath, f.roster, f.delegations, signedOn), { today, signedOn, approvedOn: approvedOnOf(route), value: senFromDecimal(a.awardedValue) });
       if (check.faults.length) return { ok: false, errors: { signatoryPersonId: check.faults.map((x) => (x === "FUTURE_DATE" || x === "BEFORE_APPROVAL" || x === "NO_TIME_ZONE" ? SIGNER_FAULT_TEXT[x] : `${person?.name ?? "That person"} ${SIGNER_FAULT_TEXT[x]}`)).join(" ") } };
 
       // The contract number (FR-CON-002): the series, or the indent's own number.
       const src = pre.contractNumber;
       if ("fault" in src) return refuse([{ code: src.fault, level: "block" }], "Not issued:");
       const on = dayToDate(today);
-      const number = src.source === "SERIES" ? await issueReference(tx, l.org.id, src.seriesKey, on) : a.erpCommitmentNo!;
-      if (await tx.contract.findFirst({ where: { organisationId: l.org.id, number }, select: { id: true } })) return { ok: false, message: `Contract number ${number} is already allocated to another contract.` };
+      const number = src.source === "SERIES" ? await issueReference(tx, l.org.id, src.seriesKey, on) : src.number;
+      // From here a refusal throws, so the transaction rolls back and the number drawn is not consumed.
+      if (await tx.contract.findFirst({ where: { organisationId: l.org.id, number }, select: { id: true } })) throw new Refusal({ ok: false, message: `Contract number ${number} is already allocated to another contract.` });
 
       // The documents, rendered with the values only the issue fills, and frozen.
       const ev = evaluateAward(f.facts, { contractNumber: number, issueDate: today, signatoryName: person!.name });
       const bad = ev.documents.filter((d) => d.state !== "OK" || d.missing.length || d.unknown.length);
-      if (bad.length) return refuse(issueFaultsOf(ev), "Not issued:");
+      if (bad.length || ev.issueFaults.length) throw new Refusal(refuse(issueFaultsOf(ev), "Not issued:"));
       const contract = await tx.contract.create({ data: { organisationId: l.org.id, number, numberSource: src.source, seriesKey: src.source === "SERIES" ? src.seriesKey : null, numberedOn: on, awardId: a.id, contractSum: a.awardedValue } });
       await audit(tx, l.org.id, "Contract", contract.id, `${a.reference} · contract ${number}`, "CREATE", diffFields(null, { number, numberSource: src.source, numberedOn: on, contractSum: senToDecimalString(senFromDecimal(a.awardedValue)), yearReading: "issue date, assumed" }));
       const policy = f.config.policy;
       const handover = await tx.caseOwnershipEvent.create({ data: { contractId: contract.id, fromUnitCode: policy.preContractUnitCode, toUnitCode: policy.postContractUnitCode, on, note: policy.preContractUnitCode && policy.postContractUnitCode ? "" : "Sections not set: the handover is recorded without them." } });
-      await audit(tx, l.org.id, "CaseOwnershipEvent", handover.id, `${a.reference} · case handed over`, "CREATE", diffFields(null, { from: policy.preContractUnitCode, to: policy.postContractUnitCode, on }));
+      await audit(tx, l.org.id, "CaseOwnershipEvent", handover.id, `${a.reference} · case handed over`, "CREATE", diffFields(null, { from: f.config.unitName(policy.preContractUnitCode), to: f.config.unitName(policy.postContractUnitCode), on }));
       if ("rows" in ev.distribution) {
         for (const row of ev.distribution.rows) {
           const d = await tx.awardDistribution.create({ data: { awardId: a.id, ...row } });
@@ -656,11 +658,16 @@ export async function recordReturn(_prev: FormState, data: FormData): Promise<Fo
     witnessName: r.text("witnessName", "Witness", { max: 240 }),
     witnessSigned: yesNo("witnessSigned", "Witness signed"),
   };
+  if (icNumberFault(v.icNumber)) r.reject("icNumber", "An identity card number is twelve digits, with or without the hyphens: 900101-14-5678.");
+  const correction = String(data.get("reason") ?? "").trim();
   if (r.failed) return { ok: false, errors: r.errors };
   return inAward(id, async (tx, l) => {
     const a = l.award;
     if (!l.org.today) return NO_ZONE;
-    if (a.status !== "ISSUED" || !a.awardReturn || !a.issuedAt) return { ok: false, message: a.status === "ACCEPTED" ? "The return is complete and the award accepted; it is kept as recorded." : "The return is recorded once the instrument is issued." };
+    // An accepted award's return may be corrected, with a reason, but never left incomplete.
+    const correcting = a.status === "ACCEPTED";
+    if (!(a.status === "ISSUED" || correcting) || !a.awardReturn || !a.issuedAt) return { ok: false, message: "The return is recorded once the instrument is issued." };
+    if (correcting && !correction) return { ok: false, errors: { reason: "Say why the return is corrected." } };
     const issued = storedDay(a.issuedAt);
     const errors: Record<string, string> = {};
     for (const k of ["signedLetterReceivedOn", "declarationReceivedOn", "authorisationReceivedOn"] as const) {
@@ -677,7 +684,6 @@ export async function recordReturn(_prev: FormState, data: FormData): Promise<Fo
     const before = a.awardReturn;
     await tx.awardReturn.update({ where: { id: before.id }, data: v });
     const view = (x: Record<string, unknown>) => ({ ...x, receivedByPersonId: undefined, receivedBy: x.receivedByPersonId ? (x.receivedByPersonId === receivedBy?.id ? receivedBy?.name : before.receivedBy?.name) : null });
-    await audit(tx, l.org.id, "AwardReturn", before.id, `${a.reference} · return`, "UPDATE", awardAuditPair(view(before), view({ ...before, ...v })));
     const rec: ReturnRecord = {
       ...v,
       signedLetterReceivedOn: v.signedLetterReceivedOn ? storedDay(v.signedLetterReceivedOn) : null,
@@ -685,7 +691,9 @@ export async function recordReturn(_prev: FormState, data: FormData): Promise<Fo
       authorisationReceivedOn: v.authorisationReceivedOn ? storedDay(v.authorisationReceivedOn) : null,
     };
     const complete = returnComplete(a.instrumentKind as InstrumentKind, rec);
-    if (complete) {
+    if (correcting && !complete) throw new Refusal({ ok: false, message: "Not corrected: the award was accepted on a complete return, and this would leave it incomplete." });
+    await audit(tx, l.org.id, "AwardReturn", before.id, `${a.reference} · return`, "UPDATE", awardAuditPair(view(before), view({ ...before, ...v })), correcting ? `Corrected: ${correction}` : "");
+    if (complete && !correcting) {
       const t = awardTransition("ISSUED", "ACCEPTED", { today: l.org.today, returnComplete: true });
       if (!t) {
         await mustMove(tx, l, "ACCEPTED");
@@ -728,7 +736,7 @@ export async function cancelAward(_prev: FormState, data: FormData): Promise<For
     const a = l.award;
     const f = await awardFacts(l, tx);
     const ev = evaluateAward(f.facts);
-    const returned = !!a.awardReturn && (a.instrumentKind === "LETTER_OF_ACCEPTANCE" ? !!a.awardReturn.signedLetterReceivedOn : !!a.awardReturn.signatoryName);
+    const returned = instrumentReturned(a.instrumentKind as InstrumentKind, a.awardReturn);
     const t = awardTransition(a.status as AwardStatus, "CANCELLED", { today: l.org.today, reason, returned, commenced: !!a.commencedOn });
     if (t === "CANCEL_REASON_REQUIRED") return { ok: false, errors: { reason: "A reason is required." } };
     if (t === "TIME_ZONE_UNSET") return NO_ZONE;
@@ -790,6 +798,8 @@ export async function satisfyCondition(_prev: FormState, data: FormData): Promis
 
 // ------------------------------------------------------------ the registers
 
+const CHECKED_ON_TEXT = { FUTURE: "Not after today.", BEFORE_LODGED: "Not before the day it was lodged." } as const;
+
 const registerOpen = (l: LoadedAward) => (l.award.contract && l.award.contract.status !== "CANCELLED" ? l.award.contract : null);
 
 /// Lodge a bond or guarantee on the award's contract (FR-AWD-012). Verified separately.
@@ -838,7 +848,8 @@ export async function reviewSecurity(_prev: FormState, data: FormData): Promise<
     if (!c || !s) return { ok: false, message: "That security is not on this award's open contract." };
     if (s.status !== "LODGED") return { ok: false, message: "It has already been checked." };
     if (!l.org.today) return NO_ZONE;
-    if (storedDay(on) > l.org.today) return { ok: false, errors: { on: "Not after today." } };
+    const when = checkedOnFault(storedDay(on), storedDay(s.lodgedOn), l.org.today);
+    if (when) return { ok: false, errors: { on: CHECKED_ON_TEXT[when] } };
     const person = await tx.person.findFirst({ where: { id: personId, organisationId: l.org.id, isActive: true }, select: { id: true, name: true } });
     if (!person) return { ok: false, errors: { personId: "Choose someone on record and active." } };
     const a = l.award;
@@ -852,7 +863,7 @@ export async function reviewSecurity(_prev: FormState, data: FormData): Promise<
       if (faults.length) return { ok: false, message: `Not verified: ${faults.map((x) => BOND_FAULT_TEXT[x]).join(" ")}` };
     }
     const after = outcome === "VERIFIED"
-      ? { status: "VERIFIED" as const, verifiedOn: on, verifiedByPersonId: person.id, requiredValue: req.state === "SET" ? senToDecimalString(req.amount) : null, basis: a.bondBasis, basisPercent: a.bondPercent, basisAmount: a.bondBasisAmount, basisProvenance: a.bondBasisProvenance, requiredUntil: completion && a.bondValidityExtraMonths != null ? dayToDate((await import("@/lib/securities/bond")).bondRequiredUntil(completion, a.bondValidityExtraMonths)!) : null }
+      ? { status: "VERIFIED" as const, verifiedOn: on, verifiedByPersonId: person.id, requiredValue: req.state === "SET" ? senToDecimalString(req.amount) : null, basis: a.bondBasis, basisPercent: a.bondPercent, basisAmount: a.bondBasisAmount, basisProvenance: a.bondBasisProvenance, requiredUntil: completion && a.bondValidityExtraMonths != null ? dayToDate(bondRequiredUntil(completion, a.bondValidityExtraMonths)!) : null }
       : { status: "REJECTED" as const, verifiedOn: on, verifiedByPersonId: person.id, rejectedReason: reason };
     await tx.securityInstrument.update({ where: { id: s.id }, data: after });
     await audit(tx, l.org.id, "SecurityInstrument", s.id, `${a.reference} · ${s.kind.toLowerCase().replace(/_/g, " ")}`, "UPDATE", diffFields({ status: s.status }, { status: after.status, checkedBy: person.name, checkedOn: on, recordedOnBehalf: "not signed", requiredValue: "requiredValue" in after ? after.requiredValue : undefined }), reason);
@@ -912,23 +923,24 @@ export async function reviewPolicy(_prev: FormState, data: FormData): Promise<Fo
     if (!c || !p) return { ok: false, message: "That policy is not on this award's open contract." };
     if (p.status !== "LODGED") return { ok: false, message: "It has already been checked." };
     if (!l.org.today) return NO_ZONE;
-    if (storedDay(on) > l.org.today) return { ok: false, errors: { on: "Not after today." } };
+    const when = checkedOnFault(storedDay(on), storedDay(p.lodgedOn), l.org.today);
+    if (when) return { ok: false, errors: { on: CHECKED_ON_TEXT[when] } };
     const person = await tx.person.findFirst({ where: { id: personId, organisationId: l.org.id, isActive: true }, select: { id: true, name: true } });
     if (!person) return { ok: false, errors: { personId: "Choose someone on record and active." } };
     const a = l.award;
     const config = await loadAwardConfig(l.org.id, tx);
-    const reqs = applicableRequirements(config.requirements, l.ex.contractTypeCode);
-    const counts = (p.kind === "CAR" || p.kind === "EAR") && p.substitutesFor === "WORKS" ? "WORKS" : p.kind;
+    const reqs = applicableRequirements(config.requirements, l.ex.contractTypeCode, on);
+    const counts = countsAs(p);
     const requirement = reqs.find((x) => x.kind === counts) ?? null;
     if (outcome === "VERIFIED") {
       const faults = insuranceFaults(
         { kind: p.kind, substitutesFor: p.substitutesFor, issuerId: p.issuerId, lodgedOn: storedDay(p.lodgedOn), sumInsured: senFromDecimal(p.sumInsured), appendixAmount: p.appendixAmount ? senFromDecimal(p.appendixAmount) : null, requiredLimit: p.requiredLimit ? senFromDecimal(p.requiredLimit) : null, raisedJustification: p.raisedJustification, periodEnd: storedDay(p.periodEnd) },
-        { requirement, contractPrice: senFromDecimal(a.awardedValue), bands: config.bands, wcBasis: a.wcBasis, issuers: config.issuers, start: a.startDate ? storedDay(a.startDate) : null, completion: { n: a.completionPeriod, unit: a.completionUnit }, dlpMonths: a.dlpMonths },
+        { requirement, contractPrice: senFromDecimal(a.awardedValue), bands: config.bands, wcBasis: a.wcBasis, issuers: config.issuers, start: a.startDate ? storedDay(a.startDate) : null, completion: { n: a.completionPeriod, unit: a.completionUnit }, dlpMonths: a.dlpMonths, on: dayToDate(storedDay(on)) },
       );
       if (faults.length) return { ok: false, message: `Not verified: ${faults.map((x) => INSURANCE_FAULT_TEXT[x]).join(" ")}` };
     }
     const after = outcome === "VERIFIED"
-      ? { status: "VERIFIED" as const, verifiedOn: on, verifiedByPersonId: person.id, requirementSnapshot: (requirement ? { name: requirement.nameEn, tailMonths: requirement.tailMonths, tailDays: requirement.tailDays, percent: requirement.percent, dlpMonths: a.dlpMonths, wcBasis: a.wcBasis } : null) as Prisma.InputJsonValue }
+      ? { status: "VERIFIED" as const, verifiedOn: on, verifiedByPersonId: person.id, requirementSnapshot: (requirement ? { name: requirement.nameEn, tailMonths: requirement.tailMonths, tailDays: requirement.tailDays, percent: requirement.percent, dlpMonths: a.dlpMonths, wcBasis: a.wcBasis, sumChecked: p.kind === "WORKMENS_COMPENSATION" ? wcSumCheck(a.wcBasis) === "CHECKED" : true } : null) as Prisma.InputJsonValue }
       : { status: "REJECTED" as const, verifiedOn: on, verifiedByPersonId: person.id, rejectedReason: reason };
     await tx.insurancePolicy.update({ where: { id: p.id }, data: after });
     await audit(tx, l.org.id, "InsurancePolicy", p.id, `${a.reference} · ${p.kind.toLowerCase().replace(/_/g, " ")} policy`, "UPDATE", diffFields({ status: p.status }, { status: after.status, checkedBy: person.name, checkedOn: on, recordedOnBehalf: "not signed" }), reason);
@@ -936,5 +948,3 @@ export async function reviewPolicy(_prev: FormState, data: FormData): Promise<Fo
   });
 }
 
-void snapshotFields;
-void db;

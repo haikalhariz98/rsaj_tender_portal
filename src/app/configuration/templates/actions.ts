@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
-import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
+import { diffFields } from "@/lib/audit/diff";
+import { auditedCreate, writeAudit } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { renderTemplate } from "@/lib/award/merge";
@@ -95,14 +96,20 @@ export async function saveTemplate(_prev: FormState, data: FormData): Promise<Fo
       tx.documentTemplate.create({ data: { organisationId: orgId, ...created } }),
     );
   } else {
-    const before = await db.documentTemplate.findUnique({ where: { id } });
-    if (!before) return { ok: false, message: "That template no longer exists." };
-    // A changed body is a new version, so an issued document names the text it was made from.
-    const bodyChanged = (before.bodyMs ?? null) !== write.bodyMs || (before.bodyEn ?? null) !== write.bodyEn || (before.primaryLanguage ?? null) !== write.primaryLanguage;
-    const versioned = { ...write, bodyVersion: bodyChanged ? before.bodyVersion + 1 : before.bodyVersion };
-    await auditedUpdate({ ...ctx, entityId: id }, before, versioned, (tx) =>
-      tx.documentTemplate.update({ where: { id }, data: versioned }),
-    );
+    // The row is locked and re-read inside the write, so two saves never both take the
+    // same next version: a changed body is a new version, which an issued document names.
+    const gone = await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "DocumentTemplate" WHERE id = ${id} FOR UPDATE`;
+      const before = await tx.documentTemplate.findUnique({ where: { id } });
+      if (!before) return true;
+      const bodyChanged = (before.bodyMs ?? null) !== write.bodyMs || (before.bodyEn ?? null) !== write.bodyEn || (before.primaryLanguage ?? null) !== write.primaryLanguage;
+      const versioned = { ...write, bodyVersion: bodyChanged ? before.bodyVersion + 1 : before.bodyVersion };
+      await tx.documentTemplate.update({ where: { id }, data: versioned });
+      const changes = diffFields(before, versioned);
+      if (changes.length > 0) await writeAudit(tx, { ...ctx, entityId: id }, "UPDATE", changes);
+      return false;
+    });
+    if (gone) return { ok: false, message: "That template no longer exists." };
   }
 
   revalidatePath(PATH);

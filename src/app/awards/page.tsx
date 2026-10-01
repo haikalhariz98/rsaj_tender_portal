@@ -22,7 +22,7 @@ const day = (d: Date | null) => (d ? storedDay(d) : null);
  * tab of its exercise; this is the work list beside it.
  */
 export default async function AwardsPage() {
-  const { org, rows, total, policy } = await listAwards();
+  const { org, rows, total, policy, counts } = await listAwards();
   const today = org?.today ?? null;
   const list: Row[] = rows.map((r) => {
     const status = r.status as AwardStatus;
@@ -48,8 +48,8 @@ export default async function AwardsPage() {
       search: [r.awardeeName, r.reference, r.exercise.reference, r.exercise.title, r.contract?.number, AWARD_STATUS_LABEL[status]].filter(Boolean).join(" "),
       sortKeys: { value: Number(r.awardedValue.toString()), awardee: r.awardeeName },
       cells: {
-        awardee: { kind: "link", text: r.awardeeName, href: `/awards/${r.id}`, sub: `${r.reference} · ${r.exercise.reference}` },
-        instrument: { kind: "stack", title: INSTRUMENT_SHORT[kind], sub: r.contract ? `Contract ${r.contract.number}` : "No contract number yet" },
+        awardee: { kind: "link", text: r.awardeeName, href: `/awards/${r.id}`, sub: r.exercise.title },
+        instrument: { kind: "stack", title: r.reference, sub: `${INSTRUMENT_SHORT[kind]} · ${r.contract ? `contract ${r.contract.number}` : "no contract number yet"}` },
         value: { kind: "money", value: Number(r.awardedValue.toString()) },
         status: { kind: "badge", text: AWARD_STATUS_LABEL[status], tone: TONE[AWARD_STATUS_TONE[status]] },
         checks: {
@@ -65,14 +65,14 @@ export default async function AwardsPage() {
       },
     };
   });
-  const count = (v: string) => list.filter((x) => x.views?.includes(v)).length;
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
   return (
     <>
       <PageHeader
         title="Awards"
         subtitle="Awards of exercises in preparation: their approval, the instrument, what came back, and the securities on their contracts."
-        meta={[`${count("pending")} awaiting approval`, `${count("ready")} approved, not issued`, `${count("return")} awaiting return`, `${count("expired")} indents expired`]}
+        meta={[`${counts.pending} awaiting approval`, `${counts.ready} approved, not issued`, `${counts.awaitingReturn} awaiting return`, plural(counts.expired, "indent expired", "indents expired")]}
       />
       <Callout tone="info" className="mb-6" title="Opened from the exercise">
         An award is opened from its exercise&apos;s Award tab. Issue is available only once the appointment is approved and every committee&apos;s decision is on record.
@@ -100,10 +100,10 @@ export default async function AwardsPage() {
           rowOpens
           columns={[
             { key: "awardee", label: "Awardee", sortable: true, mobile: "primary" },
-            { key: "instrument", label: "Instrument", width: "20%", hideBelow: "xl" },
+            { key: "instrument", label: "Reference", width: "20%", hideBelow: "2xl" },
             { key: "value", label: "Value", width: "132px", numeric: true, sortable: true, mobile: "meta" },
             { key: "status", label: "Status", width: "176px", sortable: true, mobile: "meta" },
-            { key: "checks", label: "What is outstanding", width: "210px", hideBelow: "md", mobile: "meta" },
+            { key: "checks", label: "Where it stands", width: "210px", hideBelow: "md", mobile: "meta" },
           ]}
           rows={list}
         />

@@ -16,7 +16,7 @@ const facts = (x: Partial<AwardFacts> = {}): AwardFacts => ({
     status: "APPROVED", reference: "AW/1", instrumentKind: "LETTER_OF_ACCEPTANCE", value: parseSen("2100000"), awardeeName: "Demo Works Sdn Bhd", awardeeRegistrationNo: "0000000-X", awardeeAddress: "1 Demo Lane",
     completionPeriod: 24, completionUnit: "MONTHS", startDate: "2026-11-01", commencedOn: null, regulatedActivity: false,
     bondRequired: true, bondNotRequiredReason: "", bondBasis: "CONTRACT_PRICE", bondPercent: "5", bondBasisAmount: null, bondValidityExtraMonths: 12,
-    ladAmount: null, ladUnit: "", retentionPercent: null, retentionCapPercent: null, dlpMonths: 12, erpCommitmentNo: null, indentReceivedOn: null, signatoryName: null, issuedOn: null, contractNumber: null,
+    ladAmount: null, ladUnit: "", retentionPercent: null, retentionCapPercent: null, dlpMonths: 12, erpCommitmentNo: null, erpCommitmentKind: null, indentReceivedOn: null, signatoryName: null, issuedOn: null, contractNumber: null, wcBasis: null,
   },
   exercise: { reference: "SX/1", title: "Works", status: "DOCUMENTS_IN_PREPARATION", regime: "tender", appointmentRuleKey: "APP_TENDER", appointmentRuleLabel: "Tender", termsBandKey: null, termsState: "NONE_IN_REGIME", terms: null, contractTypeCode: "works", estimate: parseSen("2200000"), justificationReasonCode: null, dossierReference: null },
   requisition: { reference: "RQ/1", status: "SOURCING", sourcingPermitted: true, approvedValue: parseSen("2500000"), route: { status: "APPROVED", steps: [{ sequence: 1, roleLabel: "Chief Executive", decision: "DONE" }] } },
@@ -34,6 +34,7 @@ const facts = (x: Partial<AwardFacts> = {}): AwardFacts => ({
   ],
   indentPattern: null,
   contractSeriesKey: "contract",
+  wcRequired: false,
   ...x,
 });
 
@@ -82,5 +83,51 @@ describe("evaluating an award", () => {
 
   it("with no issue in force nothing can be judged, and it says so", () => {
     expect(evaluateAward(facts({ funder: null })).issueFaults.map((x) => x.code)).toContain("NO_ISSUE_IN_FORCE");
+  });
+
+  it("an award opened as a Letter of Acceptance is judged as one when the policy now names an indent — its committee check still applies — and refused as changed", () => {
+    const base = facts();
+    const f = facts({
+      policy: { ...base.policy, tenderInstrument: "WORK_INDENT" },
+      appointment: { ...base.appointment!, steps: [{ ...base.appointment!.steps[0], act: "MR" }] },
+    });
+    const ev = evaluateAward(f);
+    const codes = ev.issueFaults.map((x) => x.code);
+    expect(codes).toContain("INSTRUMENT_CHANGED");
+    expect(codes).toContain("NO_COMMITTEE_APPROVAL_IN_ROUTE");
+    expect(ev.issueFaults.find((x) => x.code === "INSTRUMENT_CHANGED")!.data).toEqual({ opened: "LETTER_OF_ACCEPTANCE", now: "WORK_INDENT" });
+    expect(ev.documents.map((d) => d.kind)).toEqual(["LETTER_OF_ACCEPTANCE", "SUCCESSFUL_BIDDER_DECLARATION"]);
+    expect(evaluateAward({ ...f, award: { ...f.award, status: "DRAFT" } }).submitFaults.map((x) => x.code)).toContain("INSTRUMENT_CHANGED");
+  });
+
+  it("an award opened as an indent is judged as one when the policy now names a Letter of Acceptance — its indent checks still apply — and refused as changed", () => {
+    const base = facts();
+    const f = facts({ award: { ...base.award, instrumentKind: "WORK_INDENT" }, policy: { ...base.policy, tenderInstrument: "LETTER_OF_ACCEPTANCE" } });
+    const ev = evaluateAward(f);
+    const codes = ev.issueFaults.map((x) => x.code);
+    expect(codes).toContain("INSTRUMENT_CHANGED");
+    expect(codes).toContain("INDENT_NUMBER_REQUIRED");
+    expect(ev.documents.map((d) => d.kind)).not.toContain("SUCCESSFUL_BIDDER_DECLARATION");
+  });
+
+  it("FR-MTD-009: a dossier method's faults refuse issue too, not only submission", () => {
+    const direct = SPEC_METHODS.find((m) => m.requiresDossier)!;
+    const codes = evaluateAward(facts({ method: direct })).issueFaults.map((x) => x.code);
+    expect(codes).toContain("EVIDENCE_NOT_ATTACHED");
+  });
+
+  it("BD-14: the text is not frozen while a value only the issue fills is missing", () => {
+    const ok = evaluateAward(facts(), { contractNumber: "KP/T/004/2026", issueDate: "2026-09-30", signatoryName: "Bala Krishnan" });
+    expect(ok.documents[0].unfilled).toEqual([]);
+    const bad = evaluateAward(facts(), { contractNumber: "", issueDate: "2026-09-30", signatoryName: "Bala Krishnan" });
+    expect(bad.documents[0].unfilled).toEqual(["contract.number"]);
+    expect(bad.issueFaults.map((x) => x.code)).toContain("ISSUE_VALUE_UNFILLED");
+    // The preview shows the placeholder by design and is not held to it.
+    expect(evaluateAward(facts()).documents[0].unfilled).toEqual([]);
+  });
+
+  it("a workmen's compensation requirement with no basis set on the award refuses issue", () => {
+    expect(evaluateAward(facts({ wcRequired: true })).issueFaults.map((x) => x.code)).toEqual(["WC_BASIS_REQUIRED"]);
+    expect(evaluateAward(facts({ wcRequired: true, award: { ...facts().award, wcBasis: "UNCOVERED_WAGES" } })).issueFaults).toEqual([]);
   });
 });

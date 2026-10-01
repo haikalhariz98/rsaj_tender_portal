@@ -4,6 +4,7 @@ import { acceptancePageFaults, EMPTY_RETURN, returnComplete, returnState, type R
 
 const page: ReturnRecord = {
   ...EMPTY_RETURN,
+  signedLetterReceivedOn: "2026-09-25",
   signatoryName: "A. Contractor",
   icNumber: "000000-00-0001",
   occupation: "Director",
@@ -35,6 +36,10 @@ describe("the acceptance page (FR-AWD-008)", () => {
     for (const [k, code] of [["signatoryName", "SIGNATORY_NAME"], ["icNumber", "IC_NUMBER"], ["occupation", "OCCUPATION"], ["address", "ADDRESS"], ["capacity", "CAPACITY"], ["witnessName", "WITNESS_NAME"]] as const) {
       expect(acceptancePageFaults({ ...page, [k]: "" })).toEqual([code]);
     }
+  });
+  it("the day the page was received is required, as for a Letter of Acceptance", () => {
+    expect(acceptancePageFaults({ ...page, signedLetterReceivedOn: null })).toEqual(["RECEIVED_ON"]);
+    expect(returnComplete("WORK_INDENT", { ...page, signedLetterReceivedOn: null })).toBe(false);
   });
   it("a stamp not recorded is not the same as a stamp not affixed", () => {
     expect(acceptancePageFaults({ ...page, stampAffixed: null })).toEqual(["STAMP_NOT_RECORDED"]);

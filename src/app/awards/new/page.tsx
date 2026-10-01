@@ -6,15 +6,15 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { INSTRUMENT_LABEL, awardFindingText } from "@/lib/award/labels";
-import { instrumentFor } from "@/lib/award/instrument";
+import { awardHeadroom, instrumentFor } from "@/lib/award/instrument";
 import { loadAwardPolicy } from "@/lib/award/repo";
 import { LIVE_STATUSES } from "@/lib/award/status";
 import { db } from "@/lib/db";
 import { REGIME_LABEL } from "@/lib/method/labels";
-import { loadExercise, loadMethodConfig } from "@/lib/method/repo";
+import { approvedRouteOf, loadExercise, loadMethodConfig } from "@/lib/method/repo";
 import { isBandSnapshot } from "@/lib/method/snapshot";
 import type { Regime } from "@/lib/method/types";
-import { formatMoney, parseSen } from "@/lib/money";
+import { formatMoney, parseSen, senFromDecimal } from "@/lib/money";
 
 import { AwardForm } from "../award-form";
 
@@ -43,11 +43,14 @@ export default async function NewAwardPage(props: PageProps<"/awards/new">) {
     );
   }
   const { ex, org } = l;
-  const [policy, cfg, live] = await Promise.all([
+  const [policy, cfg, live, siblings] = await Promise.all([
     loadAwardPolicy(org.id),
     loadMethodConfig(org.id),
     db.award.findFirst({ where: { exerciseId: ex.id, status: { in: [...LIVE_STATUSES] } }, select: { id: true, reference: true } }),
+    db.award.findMany({ where: { exercise: { requisitionId: l.req.id }, status: { in: [...LIVE_STATUSES] } }, select: { awardedValue: true } }),
   ]);
+  const headroom = awardHeadroom(approvedRouteOf(l.req)?.value ?? null, siblings.map((s) => senFromDecimal(s.awardedValue)));
+  const method = cfg.config.methods.find((m) => m.code === ex.sourcingMethodCode) ?? null;
   const instrument = instrumentFor(ex.regime, policy);
   const blocker = ex.status !== "DOCUMENTS_IN_PREPARATION" ? "An award is opened only on an exercise in preparation." : live ? `This exercise already has a live award, ${live.reference}.` : "fault" in instrument ? awardFindingText({ code: instrument.fault, level: "block", data: { regime: instrument.regime } }) : null;
   if (blocker) {
@@ -55,7 +58,19 @@ export default async function NewAwardPage(props: PageProps<"/awards/new">) {
       <>
         {header}
         <Card>
-          <EmptyState title="No award can be opened here" action={live ? <ButtonLink href={`/awards/${live.id}`} size="sm">Open the award</ButtonLink> : <ButtonLink href={"fault" in instrument ? "/configuration/awards" : `/sourcing/${ex.id}`} size="sm">{"fault" in instrument ? "Award controls" : "Back to the exercise"}</ButtonLink>}>
+          <EmptyState
+            title="No award can be opened here"
+            action={
+              live ? (
+                <ButtonLink href={`/awards/${live.id}`} size="sm">Open the award</ButtonLink>
+              ) : (
+                <span className="flex flex-wrap justify-center gap-2">
+                  <ButtonLink href={`/sourcing/${ex.id}?tab=award`} size="sm">Back to the exercise</ButtonLink>
+                  {"fault" in instrument && instrument.fault === "INSTRUMENT_NOT_SET" && <ButtonLink href="/configuration/awards" size="sm" variant="ghost">Award controls</ButtonLink>}
+                </span>
+              )
+            }
+          >
             {blocker}
           </EmptyState>
         </Card>
@@ -65,7 +80,7 @@ export default async function NewAwardPage(props: PageProps<"/awards/new">) {
   const bands = isBandSnapshot(ex.bandSnapshot) ? ex.bandSnapshot : null;
   const facts = [
     { label: "Exercise", value: `${ex.reference} · ${ex.title}` },
-    { label: "Method", value: cfg.config.methods.find((m) => m.code === ex.sourcingMethodCode)?.nameEn ?? "A method no longer configured" },
+    { label: "Method", value: method?.nameEn ?? "A method no longer configured" },
     { label: "Contract type", value: cfg.config.types.find((t) => t.code === ex.contractTypeCode)?.nameEn ?? "Not set" },
     { label: "Band", value: ex.regime ? REGIME_LABEL[ex.regime as Regime] : "Not determined" },
     { label: "Contract terms band", value: bands?.terms.label ?? (ex.termsState === "NONE_IN_REGIME" ? "Not applicable" : "Not set") },
@@ -75,7 +90,12 @@ export default async function NewAwardPage(props: PageProps<"/awards/new">) {
   return (
     <>
       {header}
-      <AwardForm exercise={{ id: ex.id, facts }} cancelHref={`/sourcing/${ex.id}?tab=award`} />
+      <AwardForm
+        exercise={{ id: ex.id, facts }}
+        cancelHref={`/sourcing/${ex.id}?tab=award`}
+        valueHint={headroom == null ? "The requisition has no approved value on record, so nothing can be awarded against it." : `Up to ${formatMoney(headroom)}: what the requisition's approval covers${siblings.length ? ", less its other awards" : ""}. In ringgit, to at most two decimal places.`}
+        dossier={!!method?.requiresDossier}
+      />
     </>
   );
 }

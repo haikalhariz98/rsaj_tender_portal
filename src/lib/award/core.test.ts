@@ -4,12 +4,13 @@ import { SPEC_METHODS } from "@/lib/method/fixture";
 import { parseSen } from "@/lib/money";
 import type { Holders } from "@/lib/requisition/holders";
 
-import { absentOffices, appointmentRoute, submitFaults } from "./appointment";
+import { absentFrom, absentOffices, appointmentRoute, submitFaults } from "./appointment";
 import { exerciseCitationFault } from "./citation";
 import { AWARD_MATRIX, AWARD_MATRIX_GTE } from "./fixture";
 import { awardValueFaults, instrumentFor } from "./instrument";
-import { resolveSignatory, checkSignatory } from "./signatory";
-import { awardTransition } from "./status";
+import { approvedOnOf, resolveSignatory, checkSignatory } from "./signatory";
+import { awardTransition, cancellable, exerciseCancelBlockedBy } from "./status";
+import { instrumentReturned } from "./stage-two";
 import { regimeFor } from "@/lib/authority/resolve";
 
 const RM = parseSen;
@@ -85,6 +86,28 @@ describe("the signatory (FR-AWD-002, DAL §3.1.4.4 item 5)", () => {
     const m = { ...AWARD_MATRIX, rules: [...AWARD_MATRIX.rules, { ...AWARD_MATRIX.rules.find((r) => r.ruleKey === "SIG_LOA_3M")!, ruleKey: "SIG_DUP", approverCode: "CEO" }] };
     expect(sign(2_100_000, "LETTER_OF_ACCEPTANCE", m)).toBe("SIGNATORY_AMBIGUOUS");
   });
+  it("a row recorded as a known gap refuses: a signatory is never an assumption", () => {
+    const m = { ...AWARD_MATRIX, rules: AWARD_MATRIX.rules.map((r) => (r.ruleKey === "SIG_LOA_3M" ? { ...r, isGap: true } : r)) };
+    expect(sign(2_100_000, "LETTER_OF_ACCEPTANCE", m)).toBe("SIGNATORY_GAP");
+  });
+  it("an edge on the boundary nobody has decided refuses", () => {
+    const m = { ...AWARD_MATRIX, rules: AWARD_MATRIX.rules.map((r) => (r.ruleKey === "SIG_INDENT" ? { ...r, followsBoundarySwitch: null } : r)) };
+    expect(sign(300_000, "WORK_INDENT", m)).toBe("SIGNATORY_BOUNDARY_UNDECIDED");
+  });
+  it("a general signatory row, naming no instrument, is not used for either instrument, and says what to configure", () => {
+    const general = { ...AWARD_MATRIX.rules.find((r) => r.ruleKey === "SIG_INDENT")!, ruleKey: "SIG_GENERAL", cond: null, minValue: null, maxValue: null };
+    const m = { ...AWARD_MATRIX, rules: [...AWARD_MATRIX.rules.filter((r) => r.domain !== "award_signatory"), general] };
+    expect(sign(200_000, "WORK_INDENT", m)).toBe("SIGNATORY_NOT_FOR_INSTRUMENT");
+    expect(sign(2_100_000, "LETTER_OF_ACCEPTANCE", m)).toBe("SIGNATORY_NOT_FOR_INSTRUMENT");
+  });
+  it("delegable as the engine reads it: a mandatory approval or a mandatory recommendation is not delegated", () => {
+    const with_ = (x: object) => ({ ...AWARD_MATRIX, rules: AWARD_MATRIX.rules.map((r) => (r.ruleKey === "SIG_INDENT" ? { ...r, ...x } : r)) });
+    const d = (m: typeof AWARD_MATRIX) => { const s = resolveSignatory(m, { kind: "WORK_INDENT", value: 200_000 }); return s.ok && s.delegable; };
+    expect(d(AWARD_MATRIX)).toBe(true);
+    expect(d(with_({ approverMandatory: true }))).toBe(false);
+    expect(d(with_({ recommenders: [{ roleCode: "CP", act: "MR" }] }))).toBe(false);
+    expect(d(with_({ nonDelegable: true }))).toBe(false);
+  });
 
   const holders = (ids: string[], delegates: { personId: string; ceiling?: string | null }[] = []): Holders => ({
     scope: null,
@@ -102,6 +125,15 @@ describe("the signatory (FR-AWD-002, DAL §3.1.4.4 item 5)", () => {
     const h = holders(["p_fd"], [{ personId: "p_dep", ceiling: "1000000" }]);
     expect(checkSignatory({ delegable: false }, { id: "p_dep", isActive: true }, h, ctx).faults).toEqual(["DELEGATION_NOT_PERMITTED"]);
     expect(checkSignatory({ delegable: true }, { id: "p_dep", isActive: true }, h, ctx).faults).toEqual(["OVER_CEILING"]);
+  });
+  it("a holder who has left is refused", () => {
+    expect(checkSignatory({ delegable: false }, { id: "p_fd", isActive: false }, holders(["p_fd"]), ctx).faults).toEqual(["INACTIVE"]);
+  });
+  it("the approval's day is the latest day a step was decided, as the organisation reckons it — not the route's UTC closing time", () => {
+    const steps = [{ decision: "DONE", decidedOn: new Date("2026-09-18T00:00:00Z") }, { decision: "DONE", decidedOn: new Date("2026-09-20T00:00:00Z") }];
+    expect(approvedOnOf({ status: "APPROVED", steps })).toBe("2026-09-20");
+    expect(approvedOnOf({ status: "PENDING", steps })).toBeNull();
+    expect(approvedOnOf(null)).toBeNull();
   });
   it("never after today, never before the approval", () => {
     expect(checkSignatory({ delegable: false }, { id: "p_fd", isActive: true }, holders(["p_fd"]), { ...ctx, signedOn: "2026-10-01" }).faults).toEqual(["FUTURE_DATE"]);
@@ -138,6 +170,9 @@ describe("the appointment route at award (6.3 BD-3, FR-APR-010)", () => {
     const r = appointmentRoute({ ...ctx, dal: m }, quotation, 180_000, { absentRoleCodes: ["CEO"], requesterHolds: () => false });
     expect(r.ok && r.approverCode).toBe("CHAIR");
     expect(r.ok && r.warnings.some((w) => w.code === "ABSENCE")).toBe(true);
+    // BD-2: the screen names the office treated as absent, from the route's warnings.
+    expect(r.ok && absentFrom(r.warnings)).toEqual(["CEO"]);
+    expect(absentFrom(null)).toEqual([]);
   });
   it("the requester holding the approving office escalates it, or is refused with nowhere to go", () => {
     expect(appointmentRoute(ctx, quotation, 180_000, { absentRoleCodes: [], requesterHolds: (c) => c === "CEO" })).toMatchObject({ ok: false, fault: "ROUTE_ERROR" });
@@ -157,6 +192,10 @@ describe("the appointment route at award (6.3 BD-3, FR-APR-010)", () => {
   it("an unresolved route refuses submission, naming it", () => {
     const f = submitFaults({ status: "DRAFT", today: "2026-09-30", exerciseStatus: "DOCUMENTS_IN_PREPARATION", openRoute: false, method: { requiresDossier: false }, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route: appointmentRoute(ctx, tender, 100_000, nobody) });
     expect(f.map((x) => x.code)).toEqual(["NO_RULE"]);
+  });
+  it("a second route is not opened while one is open", () => {
+    const f = submitFaults({ status: "DRAFT", today: "2026-09-30", exerciseStatus: "DOCUMENTS_IN_PREPARATION", openRoute: true, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route: appointmentRoute(ctx, quotation, 180_000, nobody) });
+    expect(f.map((x) => x.code)).toEqual(["ANOTHER_ROUTE_OPEN"]);
   });
   it("only a draft is submitted, only from an exercise in preparation", () => {
     const r = appointmentRoute(ctx, quotation, 180_000, nobody);
@@ -204,4 +243,25 @@ describe("the award's states", () => {
     expect(t("ISSUED", "ACCEPTED", { today, returnComplete: true })).toBeNull();
   });
   it("nothing moves without the organisation's day", () => expect(t("DRAFT", "PENDING_APPROVAL", { today: null })).toBe("TIME_ZONE_UNSET"));
+});
+
+describe("cancelling, read once", () => {
+  it("the page offers cancellation on the rule the action enforces", () => {
+    expect(cancellable("DRAFT", { returned: false, commenced: false })).toBe(true);
+    expect(cancellable("ISSUED", { returned: true, commenced: false })).toBe(false);
+    expect(cancellable("ISSUED", { returned: false, commenced: true })).toBe(false);
+    expect(cancellable("ACCEPTED", { returned: false, commenced: false })).toBe(false);
+    expect(cancellable("CANCELLED", { returned: false, commenced: false })).toBe(false);
+  });
+  it("returned means the signed letter back, or the acceptance page's signatory recorded", () => {
+    expect(instrumentReturned("LETTER_OF_ACCEPTANCE", { signedLetterReceivedOn: "2026-09-01", signatoryName: "" })).toBe(true);
+    expect(instrumentReturned("LETTER_OF_ACCEPTANCE", { signedLetterReceivedOn: null, signatoryName: "Ali" })).toBe(false);
+    expect(instrumentReturned("WORK_INDENT", { signedLetterReceivedOn: null, signatoryName: " Ali " })).toBe(true);
+    expect(instrumentReturned("WORK_INDENT", null)).toBe(false);
+  });
+  it("an exercise is not cancelled while a live award stands on it, naming it", () => {
+    expect(exerciseCancelBlockedBy([{ reference: "AW/1", status: "CANCELLED" as const }, { reference: "AW/2", status: "DRAFT" as const }])).toEqual({ reference: "AW/2", status: "DRAFT" });
+    expect(exerciseCancelBlockedBy([{ reference: "AW/1", status: "CANCELLED" as const }])).toBeNull();
+    expect(exerciseCancelBlockedBy([])).toBeNull();
+  });
 });

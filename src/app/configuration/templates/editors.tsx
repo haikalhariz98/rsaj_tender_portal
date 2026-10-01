@@ -52,16 +52,16 @@ function templateFields(editing: boolean, classes: DocumentClass[]): Field[] {
     { kind: "textarea", name: "notes", label: "Notes" },
     {
       kind: "note",
-      text: `The text the portal issues on this template: plain paragraphs, a blank line between them, with merge fields in double braces. None ships: an empty text cannot be issued. Merge fields: ${MERGE_FIELDS.map((f) => `{{${f.key}}} ${f.labelEn.toLowerCase()}`).join("; ")}.`,
+      text: "The text the portal issues on this template: plain paragraphs, a blank line between them, with merge fields in double braces — listed below the form. None ships: an empty text cannot be issued.",
     },
     { kind: "textarea", name: "bodyMs", label: "Text (Malay)" },
     { kind: "textarea", name: "bodyEn", label: "Text (English)" },
     {
       kind: "select",
       name: "primaryLanguage",
-      label: "Issued first in",
+      label: "Issued in",
       placeholder: "Not set",
-      hint: "Needed only where both texts are written.",
+      hint: "Needed only where both texts are written: the document is issued in this one, the other is kept for reference.",
       options: [
         { value: "MS", label: "Malay" },
         { value: "EN", label: "English" },
@@ -70,12 +70,29 @@ function templateFields(editing: boolean, classes: DocumentClass[]): Field[] {
   ];
 }
 
+/// The merge fields a body may name, as a list to copy from.
+function MergeFieldList() {
+  return (
+    <details className="rounded-xl border border-line px-4 py-3 text-[13px]">
+      <summary className="cursor-pointer font-semibold text-ink-2">Merge fields a text may use</summary>
+      <ul className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-2">
+        {MERGE_FIELDS.map((f) => (
+          <li key={f.key} className="min-w-0 break-words">
+            <code className="font-mono text-[12px] text-ink">{`{{${f.key}}}`}</code> <span className="text-ink-3">{f.labelEn}</span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 export function AddTemplate({ classes }: { classes: DocumentClass[] }) {
   return (
     <RecordEditor
       title="Add a template"
       description="A form the portal issues, and the printed original it stands next to."
       fields={templateFields(false, classes)}
+      sections={<MergeFieldList />}
       action={saveTemplate}
       size="lg"
       submitLabel="Add template"
@@ -95,6 +112,7 @@ export function EditTemplate({
     <RecordEditor
       title={`Edit ${row.nameEn}`}
       fields={[{ kind: "hidden", name: "id" }, ...templateFields(true, classes)]}
+      sections={<MergeFieldList />}
       action={saveTemplate}
       size="lg"
       trigger={{ label: `Edit ${row.nameEn}`, iconOnly: <PencilIcon size={15} /> }}

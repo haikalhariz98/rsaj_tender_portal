@@ -18,6 +18,7 @@ import { bondRequiredUntil, requiredBond, type BondBasis, type RequiredBond } fr
 import { completionDay } from "@/lib/securities/period";
 import { matchesFormat } from "@/lib/integration/award-commitment";
 import type { Sen } from "@/lib/money";
+import { bandingNumber } from "@/lib/method/bands";
 
 import { appointmentRoute, submitFaults, type AppointmentRoute, type RoutePeople } from "./appointment";
 import { commencementState } from "./commencement";
@@ -26,8 +27,8 @@ import { distributionList, type Recipient } from "./distribution";
 import { mergeFieldsFor, templateText, type MergeContext } from "./fields";
 import { issueFaults, type DocumentState } from "./gate";
 import { indentState } from "./indent";
-import { awardValueFaults, instrumentFor } from "./instrument";
-import { renderTemplate, type Rendered } from "./merge";
+import { awardValueFaults, instrumentChange, instrumentFor } from "./instrument";
+import { renderedText, renderTemplate, type Rendered } from "./merge";
 import { approverBlock, committeeBlock } from "./routing";
 import { resolveSignatory } from "./signatory";
 import { DOCUMENTS_FOR, type AwardPolicy, type AwardStatus, type DocumentKind, type DocumentLanguage, type Finding, type InstrumentKind, type NonCommencement, type PeriodUnit } from "./types";
@@ -88,10 +89,12 @@ export interface AwardFacts {
     retentionCapPercent: string | null;
     dlpMonths: number | null;
     erpCommitmentNo: string | null;
+    erpCommitmentKind: "INDENT" | "PURCHASE_ORDER" | null;
     indentReceivedOn: string | null;
     signatoryName: string | null;
     issuedOn: string | null;
     contractNumber: string | null;
+    wcBasis: "UNCOVERED_WAGES" | "PERCENT_OF_CONTRACT" | null;
   };
   exercise: {
     reference: string;
@@ -129,6 +132,8 @@ export interface AwardFacts {
   templates: readonly TemplateRow[];
   indentPattern: string | null;
   contractSeriesKey: string | null;
+  /// Whether the contract's insurance requirements include workmen's compensation.
+  wcRequired: boolean;
 }
 
 export interface DocumentPreview extends DocumentState {
@@ -172,12 +177,29 @@ export interface IssueValues {
 
 const PENDING_ON_ISSUE = { EN: "(allocated on issue)", MS: "(diperuntukkan semasa dikeluarkan)" } as const;
 const NAMED_ON_ISSUE = { EN: "(named on issue)", MS: "(dinamakan semasa dikeluarkan)" } as const;
+const ON_ISSUE: readonly string[] = [...Object.values(PENDING_ON_ISSUE), ...Object.values(NAMED_ON_ISSUE)];
+
+/**
+ * The fields of a text about to be frozen that still read as the preview's
+ * "(allocated on issue)" or "(named on issue)". The issue fills them; any left is a
+ * value the issue did not have, and the text is not frozen with it (BD-14).
+ */
+export function unfilledOnIssue(text: string, fields: Readonly<Record<string, string>>): string[] {
+  if (!ON_ISSUE.some((p) => text.includes(p))) return [];
+  const keys = Object.entries(fields).filter(([, v]) => ON_ISSUE.includes(v)).map(([k]) => k);
+  return keys.length ? keys : ["unknown"];
+}
 
 export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluation {
   const a = f.award;
-  const valueNum = Number(a.value) / 100;
-  const instrument = instrumentFor(f.exercise.regime, f.policy);
-  const kind: InstrumentKind = "kind" in instrument ? instrument.kind : a.instrumentKind;
+  const valueNum = bandingNumber(a.value);
+  // Everything is judged on the instrument the award was opened with, which its text
+  // and its Stage Two return follow. Where the policy now names another, the award is
+  // refused until it is cancelled and opened again (INSTRUMENT_CHANGED), never re-read.
+  const policyInstrument = instrumentFor(f.exercise.regime, f.policy);
+  const kind: InstrumentKind = a.instrumentKind;
+  const changed = instrumentChange(kind, policyInstrument);
+  const instrument: { kind: InstrumentKind } | Extract<typeof policyInstrument, { fault: unknown }> = "fault" in policyInstrument ? policyInstrument : { kind };
 
   // The route and the regime, re-judged for the awarded value under the issue in force.
   const route = f.funder ? appointmentRoute(f.funder, f.method, valueNum, f.routePeople) : null;
@@ -200,6 +222,7 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
     ...noIssue,
     ...(route ? submitFaults({ status: a.status, today: f.today, exerciseStatus: f.exercise.status, openRoute: f.appointment?.status === "PENDING", method: f.method, dossier, route }) : []),
     ...("fault" in instrument ? [{ code: instrument.fault, level: "block" as const, data: { regime: instrument.regime } }] : []),
+    ...changed,
     ...valueFaults,
   ];
 
@@ -221,6 +244,9 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
   const lastCommittee = [...steps].reverse().find((s) => s.committeeCode);
   const committee = lastCommittee ? committeeBlock(lastCommittee.cited?.record ?? null, lastCommittee.cited?.minuted ?? false) : null;
   const approver = approverBlock(steps);
+  const approverStep = [...steps].reverse().find((x) => (x.act === "A" || x.act === "MA") && !x.committeeCode);
+  // A role's or committee's Malay name, from the matrix in force (a Malay letter uses it).
+  const msName = (code: string | null) => (code ? (f.funder?.dal.roles[code]?.nameMs?.trim() || null) : null);
 
   // The documents, rendered as they would be issued.
   const templateFor = (d: DocumentKind): string | null =>
@@ -229,7 +255,7 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
   const documents: DocumentPreview[] = DOCUMENTS_FOR[kind].map((dk) => {
     const tid = templateFor(dk);
     const t = tid ? (f.templates.find((x) => x.id === tid) ?? null) : null;
-    const base = { kind: dk, template: t, templateName: t?.nameEn ?? null, missing: [], unknown: [], language: null, rendered: null, fields: {} };
+    const base = { kind: dk, template: t, templateName: t?.nameEn ?? null, missing: [], unknown: [], unfilled: [], language: null, rendered: null, fields: {} };
     if (!t) return { ...base, state: "TEMPLATE_NOT_SET" as const };
     const text = templateText(t);
     if ("fault" in text) return { ...base, state: text.fault };
@@ -237,25 +263,27 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
     const ctx: MergeContext = {
       lang: L,
       organisationName: f.organisationName,
-      award: { reference: a.reference, value: a.value, issueDate: issue?.issueDate ?? a.issuedOn ?? f.today, completionPeriod: a.completionPeriod, completionUnit: a.completionUnit, startDate: a.startDate },
+      award: { reference: a.reference, value: a.value, issueDate: issue?.issueDate || a.issuedOn || f.today, completionPeriod: a.completionPeriod, completionUnit: a.completionUnit, startDate: a.startDate },
       awardee: { name: a.awardeeName, registrationNo: a.awardeeRegistrationNo, address: a.awardeeAddress },
       exercise: { reference: f.exercise.reference, title: f.exercise.title },
       requisitionReference: f.requisition.reference,
-      contractNumber: issue?.contractNumber ?? a.contractNumber ?? PENDING_ON_ISSUE[L],
-      signatory: { name: issue?.signatoryName ?? a.signatoryName ?? NAMED_ON_ISSUE[L], office: signatory?.ok ? signatory.roleLabel : null },
+      contractNumber: issue?.contractNumber || a.contractNumber || PENDING_ON_ISSUE[L],
+      signatory: { name: issue?.signatoryName || a.signatoryName || NAMED_ON_ISSUE[L], office: signatory?.ok ? { en: signatory.roleLabel, ms: msName(signatory.roleCode) } : null },
       terms: { ladAmount: a.ladAmount, ladUnit: a.ladUnit, retentionPercent: a.retentionPercent, retentionCapPercent: a.retentionCapPercent, dlpMonths: a.dlpMonths },
       bond: { amount: bond.state === "SET" ? bond.amount : null, percent: a.bondPercent, basis: a.bondBasis, validityMonths: a.bondValidityExtraMonths },
       indent: { number: a.erpCommitmentNo, receivedOn: a.indentReceivedOn, expiresOn: indent && "expiresOn" in indent ? indent.expiresOn : null },
-      committee: committee?.state === "DECIDED" ? { name: committee.committee, meetingReference: committee.meetingReference, meetingDate: day(committee.meetingDate)!, outcome: committee.outcome, decisionDate: day(committee.decisionDate) } : null,
-      approver: approver ? { office: approver.roleLabel, receivedOn: day(approver.receivedOn), name: approver.approverName, decidedOn: day(approver.decidedOn) } : null,
+      committee: committee?.state === "DECIDED" ? { name: { en: committee.committee, ms: msName(lastCommittee?.committeeCode ?? null) }, meetingReference: committee.meetingReference, meetingDate: day(committee.meetingDate)!, outcome: committee.outcome, decisionDate: day(committee.decisionDate) } : null,
+      approver: approver ? { office: { en: approver.roleLabel, ms: msName(approverStep?.roleCode ?? null) }, receivedOn: day(approver.receivedOn), name: approver.approverName, decidedOn: day(approver.decidedOn) } : null,
     };
     const fields = mergeFieldsFor(ctx);
     const rendered = renderTemplate(text.body, fields);
-    return { ...base, state: "OK" as const, language: L, rendered, fields, missing: rendered.missing, unknown: rendered.unknown };
+    // Only the text being frozen is held to it: the preview shows the placeholders by design.
+    const unfilled = issue ? unfilledOnIssue(renderedText(rendered), fields) : [];
+    return { ...base, state: "OK" as const, language: L, rendered, fields, missing: rendered.missing, unknown: rendered.unknown, unfilled };
   });
 
   const distribution = distributionList(f.recipients, kind, a.regulatedActivity, a.awardeeName);
-  const contractNumber = contractNumberSource(f.exercise.regime, f.policy.quotationContractKey, f.contractSeriesKey);
+  const contractNumber = contractNumberSource(f.exercise.regime, f.policy.quotationContractKey, f.contractSeriesKey, { kind, commitmentNo: a.erpCommitmentNo, commitmentKind: a.erpCommitmentKind });
   const commitment = commitmentFault({ status: f.requisition.status }, f.requisition.route);
   const consequence = variant?.state === "SELECTED" ? variant.variant.nonCommencement : null;
   const commencement = kind === "WORK_INDENT" && f.today ? commencementState(a.startDate, a.commencedOn, f.policy.commencementGraceDays, f.today, consequence) : null;
@@ -268,7 +296,7 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
     commitment,
     sourcingPermitted: f.requisition.sourcingPermitted,
     instrument,
-    valueFaults: [...noIssue, ...valueFaults],
+    valueFaults: [...noIssue, ...changed, ...valueFaults],
     // FR-MTD-009: re-checked at issue, as at submission.
     dossierFaults: f.method ? dossierFault(f.method, dossier) : [],
     appointment: {
@@ -285,6 +313,7 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
     bond: { required: a.bondRequired, reason: a.bondNotRequiredReason, basis: bond },
     contractNumber,
     startDate: a.startDate,
+    wc: { required: f.wcRequired, basis: a.wcBasis },
   });
 
   return {

@@ -114,3 +114,9 @@ export function submitFaults(i: {
   if (!i.route.ok) out.push(f(i.route.fault, { rule: i.route.ruleLabel, messages: i.route.messages.join(" ") || null }));
   return out;
 }
+
+/// The offices a route treated as absent, from its recorded warnings (BD-2): each
+/// absence the engine reverted upward from, or could not.
+export function absentFrom(warnings: readonly { code?: string; from?: string }[] | null | undefined): string[] {
+  return [...new Set((warnings ?? []).filter((w) => w.code === "ABSENCE" && w.from).map((w) => w.from!))];
+}

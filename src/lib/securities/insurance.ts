@@ -70,6 +70,15 @@ export interface PolicyInput {
   periodEnd: Day;
 }
 
+/**
+ * Whether a workmen's compensation policy's sum is checked (BD-15). On a percentage of
+ * the contract sum it is; on the wages of employees not covered by social security the
+ * declared wages are not known to the portal, so it is NOT_CHECKED — shown as not
+ * checked, never as passed, and it never meets the readiness gate. Unset is NOT_SET.
+ */
+export type WcCheck = "CHECKED" | "NOT_CHECKED" | "NOT_SET";
+export const wcSumCheck = (basis: WcBasis | null): WcCheck => (basis === "PERCENT_OF_CONTRACT" ? "CHECKED" : basis === "UNCOVERED_WAGES" ? "NOT_CHECKED" : "NOT_SET");
+
 export interface PolicyContext {
   requirement: Requirement | null;
   contractPrice: Sen;
@@ -79,6 +88,8 @@ export interface PolicyContext {
   start: Day | null;
   completion: { n: number; unit: PeriodUnit };
   dlpMonths: number | null;
+  /// The day the policy is judged on: retired bands no longer apply after it.
+  on?: Date;
 }
 
 export function insuranceFaults(p: PolicyInput, c: PolicyContext): InsuranceFault[] {
@@ -91,7 +102,7 @@ export function insuranceFaults(p: PolicyInput, c: PolicyContext): InsuranceFaul
     if (p.sumInsured < c.contractPrice + (p.appendixAmount ?? 0n)) out.push("SUM_BELOW_REQUIRED");
   }
   if (as === "PUBLIC_LIABILITY") {
-    const l = liabilityLimit(c.bands, c.contractPrice);
+    const l = liabilityLimit(c.bands, c.contractPrice, c.on);
     if (l.state === "NOT_SET") out.push("LIMIT_NOT_SET");
     else if (l.state === "NO_BAND") out.push("NO_BAND");
     else if (l.state === "AMBIGUOUS") out.push("AMBIGUOUS_BAND");
@@ -117,6 +128,6 @@ export function insuranceFaults(p: PolicyInput, c: PolicyContext): InsuranceFaul
 }
 
 /// The public-liability limit a policy must meet, as the register shows it.
-export function derivedLimit(bands: readonly LiabilityBand[], price: Sen) {
-  return liabilityLimit(bands, price);
+export function derivedLimit(bands: readonly LiabilityBand[], price: Sen, on?: Date) {
+  return liabilityLimit(bands, price, on);
 }

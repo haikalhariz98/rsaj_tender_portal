@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { parseSen } from "@/lib/money";
 
 import { SK004_LIABILITY_BANDS } from "./fixture";
-import { applicableRequirements, insuranceFaults, type PolicyContext, type PolicyInput, type Requirement } from "./insurance";
+import { applicableRequirements, insuranceFaults, type PolicyContext, type PolicyInput, type Requirement, wcSumCheck } from "./insurance";
 
 const RM = parseSen;
 const req = (code: string, kind: Requirement["kind"], extra: Partial<Requirement> = {}): Requirement => ({ code, nameEn: code, kind, contractTypeCode: null, required: true, percent: null, tailMonths: 3, tailDays: 14, ...extra });
@@ -68,5 +68,13 @@ describe("verifying a policy", () => {
   });
   it("an insurer not on the approved list is refused", () => {
     expect(insuranceFaults(policy({ issuerId: null }), ctx())).toEqual(["ISSUER_NOT_APPROVED"]);
+  });
+});
+
+describe("workmen's compensation on uncovered wages (BD-15)", () => {
+  it("is not checked, never passed; a percentage basis is checked; unset is not set", () => {
+    expect(wcSumCheck("UNCOVERED_WAGES")).toBe("NOT_CHECKED");
+    expect(wcSumCheck("PERCENT_OF_CONTRACT")).toBe("CHECKED");
+    expect(wcSumCheck(null)).toBe("NOT_SET");
   });
 });

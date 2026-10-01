@@ -20,6 +20,16 @@ describe("the public-liability limit, (min, max] (SK004 §7.3.3(c) as transcribe
   it("RM1,000,000.00 is the sixth band: RM150,000", () => expect(limit("1000000.00")).toBe(RM("150000")));
   it("RM2.1 million is above RM1 million: RM200,000", () => expect(limit("2100000")).toBe(RM("200000")));
 
+  it("a price two bands both hold is ambiguous, naming both — never the first", () => {
+    const b = (code: string, min: string | null, max: string | null): LiabilityBand => ({ code, minValue: min ? RM(min) : null, maxValue: max ? RM(max) : null, limit: RM("1") });
+    expect(liabilityLimit([b("a", null, "100"), b("b", "90", null)], RM("95"))).toEqual({ state: "AMBIGUOUS", bands: ["a", "b"] });
+  });
+  it("a band retired by the day judged on no longer applies", () => {
+    const retired = bands.map((x) => ({ ...x, retiredOn: new Date("2026-09-01T00:00:00Z") }));
+    expect(liabilityLimit(retired, RM("50000"), new Date("2026-09-30T00:00:00Z"))).toEqual({ state: "NOT_SET" });
+    expect(liabilityLimit(retired, RM("50000"), new Date("2026-08-30T00:00:00Z")).state).toBe("SET");
+  });
+
   it("no bands configured is not set, never a limit", () => expect(liabilityLimit([], RM("50000"))).toEqual({ state: "NOT_SET" }));
 
   it("checks the set: the printed table's five sen gaps are listed", () => {

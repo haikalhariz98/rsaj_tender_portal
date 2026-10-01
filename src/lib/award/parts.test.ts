@@ -87,8 +87,9 @@ describe("the readiness gate (FR-CON-008)", () => {
     bondNotRequiredReason: "",
     requiredBond: { state: "SET" as const, amount: parseSen("26937.70"), basis: "ANNUAL_VALUE" as const },
     bonds: [{ kind: "PERFORMANCE_BOND", status: "VERIFIED", value: parseSen("26937.70") }],
-    requirements: [{ code: "works", nameEn: "Works", kind: "WORKS" as const, contractTypeCode: null, required: true, percent: null, tailMonths: 3, tailDays: 14 }],
+    requirements: [{ code: "works", nameEn: "Works", kind: "WORKS" as InsuranceKind, contractTypeCode: null, required: true, percent: null, tailMonths: 3, tailDays: 14 }],
     policies: [{ kind: "CAR" as InsuranceKind, substitutesFor: "WORKS" as InsuranceKind | null, status: "VERIFIED" }],
+    wcBasis: null as "UNCOVERED_WAGES" | "PERCENT_OF_CONTRACT" | null,
   };
   const state = (x: Partial<typeof base>, key: string) => readinessGate({ ...base, ...x }).items.find((i) => i.key === key)!.state;
   it("is ready when all three are met, a CAR policy standing in for works", () => {
@@ -108,6 +109,20 @@ describe("the readiness gate (FR-CON-008)", () => {
   });
   it("no requirements configured is not set", () => {
     expect(state({ requirements: [] }, "INSURANCE")).toBe("NOT_SET");
+  });
+  it("BD-15: a verified workmen's compensation policy on uncovered wages is not checked, so never met", () => {
+    const wc = { code: "wc", nameEn: "Workmen's compensation", kind: "WORKMENS_COMPENSATION" as const, contractTypeCode: null, required: true, percent: null, tailMonths: 3, tailDays: 14 };
+    const x = { requirements: [...base.requirements, wc], policies: [...base.policies, { kind: "WORKMENS_COMPENSATION" as InsuranceKind, substitutesFor: null, status: "VERIFIED" }] };
+    const uncovered = readinessGate({ ...base, ...x, wcBasis: "UNCOVERED_WAGES" });
+    expect(uncovered.ready).toBe(false);
+    expect(uncovered.items.find((i) => i.key === "INSURANCE")).toEqual({ key: "INSURANCE", state: "NOT_SET", detail: ["WC_NOT_CHECKED"] });
+    expect(readinessGate({ ...base, ...x, wcBasis: "PERCENT_OF_CONTRACT" }).ready).toBe(true);
+    expect(state({ ...x, wcBasis: null }, "INSURANCE")).toBe("NOT_SET");
+  });
+  it("says which requirements are not lodged at all and which are lodged but not verified", () => {
+    const pl = { code: "pl", nameEn: "Public liability", kind: "PUBLIC_LIABILITY" as const, contractTypeCode: null, required: true, percent: null, tailMonths: 3, tailDays: 14 };
+    const g = readinessGate({ ...base, requirements: [...base.requirements, pl], policies: [{ kind: "WORKS", substitutesFor: null, status: "LODGED" }] });
+    expect(g.items.find((i) => i.key === "INSURANCE")!.detail).toEqual(["LODGED:Works", "NOT_LODGED:Public liability"]);
   });
   it("is cumulative: an instrument not returned holds the gate", () => {
     expect(readinessGate({ ...base, returned: false }).ready).toBe(false);
@@ -131,5 +146,16 @@ describe("the routing-sheet blocks (FR-CTE-014)", () => {
     expect(receivedOnFault("2026-09-02", "2026-09-03", "2026-09-30", "2026-09-01")).toBeNull();
     expect(receivedOnFault("2026-09-04", "2026-09-03", "2026-09-30", "2026-09-01")).toBe("RECEIVED_AFTER_DECISION");
     expect(receivedOnFault("2026-10-04", "2026-10-05", "2026-09-30", "2026-09-01")).toBe("RECEIVED_IN_FUTURE");
+    expect(receivedOnFault("2026-08-31", "2026-09-03", "2026-09-30", "2026-09-01")).toBe("RECEIVED_BEFORE_ROUTE");
+    expect(receivedOnFault(null, "2026-09-03", "2026-09-30", "2026-09-01")).toBeNull();
+  });
+  it("the approver's block never picks a committee's step, even one that approves", () => {
+    const steps = [
+      { act: "A", committeeCode: null, roleLabel: "Chief Executive", receivedOn: null, decidedByName: "A. Rahman", decidedOn: new Date("2026-09-01T00:00:00Z"), decision: "DONE" },
+      { act: "A", committeeCode: "TBC", roleLabel: "Tender Board", receivedOn: null, decidedByName: "Tender Board", decidedOn: new Date("2026-09-03T00:00:00Z"), decision: "DONE" },
+    ];
+    expect(approverBlock(steps)?.roleLabel).toBe("Chief Executive");
+    expect(approverBlock([steps[1]])).toBeNull();
+    expect(approverBlock([{ ...steps[0], act: "MA" }])?.roleLabel).toBe("Chief Executive");
   });
 });

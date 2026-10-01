@@ -9,14 +9,14 @@
  * delegation of it where the rule allows one; any other signature is refused.
  */
 
-import { resolveApproval } from "@/lib/authority/resolve";
+import { resolveApproval, ruleIsDelegable } from "@/lib/authority/resolve";
 import type { Matrix } from "@/lib/authority/types";
 import { parseSen, type Sen } from "@/lib/money";
 import type { Holders } from "@/lib/requisition/holders";
 
 import { SIGNATORY_DOMAIN, type InstrumentKind } from "./types";
 
-export type SignatoryFault = "SIGNATORY_UNRESOLVED" | "SIGNATORY_AMBIGUOUS" | "SIGNATORY_GAP" | "SIGNATORY_BOUNDARY_UNDECIDED";
+export type SignatoryFault = "SIGNATORY_UNRESOLVED" | "SIGNATORY_NOT_FOR_INSTRUMENT" | "SIGNATORY_AMBIGUOUS" | "SIGNATORY_GAP" | "SIGNATORY_BOUNDARY_UNDECIDED";
 
 export type Signatory =
   | { ok: true; roleCode: string; roleLabel: string; ruleKey: string; ruleLabel: string; clause: string; recommenders: { roleCode: string; roleLabel: string; act: string }[]; delegable: boolean }
@@ -24,7 +24,10 @@ export type Signatory =
 
 export function resolveSignatory(matrix: Matrix, q: { kind: InstrumentKind; value: number }): Signatory {
   const r = resolveApproval(matrix, { domain: SIGNATORY_DOMAIN, cond: q.kind, value: q.value });
-  if (!r.rule || !r.rule.approverCode || r.rule.domain !== SIGNATORY_DOMAIN || r.rule.cond !== q.kind) return { ok: false, fault: "SIGNATORY_UNRESOLVED" };
+  if (!r.rule || !r.rule.approverCode || r.rule.domain !== SIGNATORY_DOMAIN) return { ok: false, fault: "SIGNATORY_UNRESOLVED" };
+  // A signatory row names the instrument it signs. A general row (no instrument) is
+  // not read as covering both: which office signs which instrument is the customer's.
+  if (r.rule.cond !== q.kind) return { ok: false, fault: "SIGNATORY_NOT_FOR_INSTRUMENT" };
   if (r.warnings.some((w) => w.code === "AMBIGUOUS")) return { ok: false, fault: "SIGNATORY_AMBIGUOUS" };
   if (r.rule.isGap) return { ok: false, fault: "SIGNATORY_GAP" };
   if (r.warnings.some((w) => w.code === "BOUNDARY_SWITCH_UNDECIDED")) return { ok: false, fault: "SIGNATORY_BOUNDARY_UNDECIDED" };
@@ -37,7 +40,9 @@ export function resolveSignatory(matrix: Matrix, q: { kind: InstrumentKind; valu
     ruleLabel: r.rule.labelEn,
     clause: r.rule.clause,
     recommenders: r.rule.recommenders.map((x) => ({ roleCode: x.roleCode, roleLabel: name(x.roleCode), act: x.act })),
-    delegable: !r.rule.nonDelegable,
+    // The engine's own reading: a fixed rule, a mandatory approval or a mandatory
+    // recommendation is not delegated.
+    delegable: ruleIsDelegable(r.rule),
   };
 }
 
@@ -70,4 +75,15 @@ export function checkSignatory(
     }
   }
   return { faults, delegationId };
+}
+
+/**
+ * The day the appointment was approved, as the organisation reckons days: the latest
+ * day a step of the approved route was decided. The route's own closing timestamp is
+ * the moment it was saved, in UTC, and is not a day.
+ */
+export function approvedOnOf(route: { status: string; steps: readonly { decision: string; decidedOn: Date | null }[] } | null): string | null {
+  if (!route || route.status !== "APPROVED") return null;
+  const days = route.steps.filter((s) => s.decision === "DONE" && s.decidedOn).map((s) => s.decidedOn!.toISOString().slice(0, 10));
+  return days.length ? days.sort().at(-1)! : null;
 }

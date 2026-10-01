@@ -27,7 +27,7 @@ export const MERGE_FIELDS: readonly { key: string; labelEn: string }[] = [
   { key: "requisition.reference", labelEn: "Requisition reference" },
   { key: "contract.number", labelEn: "Contract number" },
   { key: "signatory.name", labelEn: "Signatory" },
-  { key: "signatory.office", labelEn: "Signatory's office" },
+  { key: "signatory.office", labelEn: "Signatory's office, in the letter's language" },
   { key: "terms.lad", labelEn: "Liquidated damages" },
   { key: "terms.retention", labelEn: "Retention" },
   { key: "terms.retentionCap", labelEn: "Retention limit" },
@@ -38,12 +38,12 @@ export const MERGE_FIELDS: readonly { key: string; labelEn: string }[] = [
   { key: "indent.number", labelEn: "Indent number" },
   { key: "indent.receivedOn", labelEn: "Indent received on" },
   { key: "indent.expiresOn", labelEn: "Indent expires on" },
-  { key: "committee.name", labelEn: "Committee" },
+  { key: "committee.name", labelEn: "Committee, in the letter's language" },
   { key: "committee.meetingReference", labelEn: "Committee sitting" },
   { key: "committee.meetingDate", labelEn: "Committee meeting date" },
   { key: "committee.outcome", labelEn: "Committee outcome" },
   { key: "committee.decisionDate", labelEn: "Committee decision date" },
-  { key: "approver.office", labelEn: "Approver's office" },
+  { key: "approver.office", labelEn: "Approver's office, in the letter's language" },
   { key: "approver.receivedOn", labelEn: "Date received by the approver" },
   { key: "approver.name", labelEn: "Approver" },
   { key: "approver.decidedOn", labelEn: "Date approved" },
@@ -74,6 +74,22 @@ const BASIS = {
   MS: { CONTRACT_PRICE: "daripada harga kontrak", ANNUAL_VALUE: "daripada nilai setahun kontrak", STATED_AMOUNT: "sebagai amaun yang dinyatakan" },
 } as const;
 
+/// A name as configured in both languages. A Malay letter takes the Malay name; where
+/// none is set the field is empty — missing, and issue refused — never the English one.
+export interface Named {
+  en: string;
+  ms: string | null;
+}
+const inLang = (n: Named | null | undefined, L: DocumentLanguage) => (!n ? "" : L === "MS" ? (n.ms?.trim() ?? "") : n.en);
+
+/// "Liquidated damages per …" in the letter's language; a unit not on the list is not translated.
+const LAD_UNIT: Record<string, { EN: string; MS: string }> = {
+  "per day": { EN: "per day", MS: "sehari" },
+  "per week": { EN: "per week", MS: "seminggu" },
+  "per month": { EN: "per month", MS: "sebulan" },
+};
+const ladUnit = (u: string, L: DocumentLanguage) => (LAD_UNIT[u.trim().toLowerCase()]?.[L] ?? (L === "EN" ? u : ""));
+
 export interface MergeContext {
   lang: DocumentLanguage;
   organisationName: string;
@@ -82,12 +98,12 @@ export interface MergeContext {
   exercise: { reference: string; title: string };
   requisitionReference: string;
   contractNumber: string | null;
-  signatory: { name: string | null; office: string | null };
+  signatory: { name: string | null; office: Named | null };
   terms: { ladAmount: Sen | null; ladUnit: string; retentionPercent: string | null; retentionCapPercent: string | null; dlpMonths: number | null };
   bond: { amount: Sen | null; percent: string | null; basis: "CONTRACT_PRICE" | "ANNUAL_VALUE" | "STATED_AMOUNT" | null; validityMonths: number | null };
   indent: { number: string | null; receivedOn: string | null; expiresOn: string | null };
-  committee: { name: string; meetingReference: string; meetingDate: string; outcome: "CARRIED" | "NOT_CARRIED" | "DEFERRED"; decisionDate: string | null } | null;
-  approver: { office: string; receivedOn: string | null; name: string | null; decidedOn: string | null } | null;
+  committee: { name: Named; meetingReference: string; meetingDate: string; outcome: "CARRIED" | "NOT_CARRIED" | "DEFERRED"; decisionDate: string | null } | null;
+  approver: { office: Named; receivedOn: string | null; name: string | null; decidedOn: string | null } | null;
 }
 
 export function mergeFieldsFor(c: MergeContext): Record<string, string> {
@@ -108,8 +124,8 @@ export function mergeFieldsFor(c: MergeContext): Record<string, string> {
     "requisition.reference": c.requisitionReference,
     "contract.number": c.contractNumber ?? "",
     "signatory.name": c.signatory.name ?? "",
-    "signatory.office": c.signatory.office ?? "",
-    "terms.lad": c.terms.ladAmount == null ? "" : `${formatSen(c.terms.ladAmount)}${c.terms.ladUnit ? ` ${c.terms.ladUnit}` : ""}`,
+    "signatory.office": inLang(c.signatory.office, L),
+    "terms.lad": c.terms.ladAmount == null || (c.terms.ladUnit && !ladUnit(c.terms.ladUnit, L)) ? "" : `${formatSen(c.terms.ladAmount)}${c.terms.ladUnit ? ` ${ladUnit(c.terms.ladUnit, L)}` : ""}`,
     "terms.retention": pct(c.terms.retentionPercent),
     "terms.retentionCap": pct(c.terms.retentionCapPercent),
     "terms.dlp": c.terms.dlpMonths == null ? "" : formatPeriod(c.terms.dlpMonths, "MONTHS", L),
@@ -119,12 +135,12 @@ export function mergeFieldsFor(c: MergeContext): Record<string, string> {
     "indent.number": c.indent.number ?? "",
     "indent.receivedOn": day(c.indent.receivedOn),
     "indent.expiresOn": day(c.indent.expiresOn),
-    "committee.name": c.committee?.name ?? "",
+    "committee.name": inLang(c.committee?.name, L),
     "committee.meetingReference": c.committee?.meetingReference ?? "",
     "committee.meetingDate": day(c.committee?.meetingDate ?? null),
     "committee.outcome": c.committee ? OUTCOME[L][c.committee.outcome] : "",
     "committee.decisionDate": day(c.committee?.decisionDate ?? null),
-    "approver.office": c.approver?.office ?? "",
+    "approver.office": inLang(c.approver?.office, L),
     "approver.receivedOn": day(c.approver?.receivedOn ?? null),
     "approver.name": c.approver?.name ?? "",
     "approver.decidedOn": day(c.approver?.decidedOn ?? null),

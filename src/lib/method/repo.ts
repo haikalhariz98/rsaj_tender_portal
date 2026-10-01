@@ -107,6 +107,9 @@ const exerciseInclude = {
   overriddenBy: { select: { id: true, name: true } },
   proposalReviewer: { select: { id: true, name: true } },
   approvalInstances: {
+    // The exercise's own routes (name approval). An award's appointment route also names
+    // the exercise, but it is the award's: it never reads as a name approval (6.11).
+    where: { awardId: null },
     // Newest first, same-day routes by when written, then by id (review #4, BD-17).
     orderBy: [{ openedAt: "desc" as const }, { createdAt: "desc" as const }, { id: "desc" as const }],
     include: {
@@ -237,7 +240,7 @@ export async function listExercises() {
       take: EXERCISES_PAGE,
       include: {
         requisition: { select: { id: true, reference: true, erpRequisitionNo: true } },
-        approvalInstances: { select: { status: true, openedAt: true } },
+        approvalInstances: { where: { awardId: null }, select: { status: true, openedAt: true } },
       },
     }),
     db.sourcingExercise.count({ where }),

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseSen } from "@/lib/money";
 
-import { bondFaults, derivedAnnualValue, requiredBond } from "./bond";
+import { bondFaults, derivedAnnualValue, requiredBond, checkedOnFault } from "./bond";
 
 const PRICE = parseSen("1077508.60");
 
@@ -29,6 +29,16 @@ describe("the performance bond's required amount (D4, §8.10 worked examples)", 
     expect(requiredBond({ basis: "ANNUAL_VALUE", percent: "5", basisAmount: null, contractPrice: PRICE })).toEqual({ state: "NOT_SET", missing: ["BASIS_AMOUNT"] });
   });
 
+  it("a zero percentage, or a stated amount of nothing, is not set — a bond of nothing is no decision", () => {
+    expect(requiredBond({ basis: "CONTRACT_PRICE", percent: "0", basisAmount: null, contractPrice: parseSen("100000") })).toEqual({ state: "NOT_SET", missing: ["PERCENT"] });
+    expect(requiredBond({ basis: "CONTRACT_PRICE", percent: "0.0000", basisAmount: null, contractPrice: parseSen("100000") }).state).toBe("NOT_SET");
+    expect(requiredBond({ basis: "STATED_AMOUNT", percent: null, basisAmount: 0n, contractPrice: parseSen("100000") }).state).toBe("NOT_SET");
+  });
+  it("a security is checked on a day not before it was lodged, and not after today", () => {
+    expect(checkedOnFault("2026-09-20", "2026-09-21", "2026-09-30")).toBe("BEFORE_LODGED");
+    expect(checkedOnFault("2026-10-01", "2026-09-21", "2026-09-30")).toBe("FUTURE");
+    expect(checkedOnFault("2026-09-21", "2026-09-21", "2026-09-30")).toBeNull();
+  });
   it("a stated amount is the amount", () => {
     expect(requiredBond({ basis: "STATED_AMOUNT", percent: null, basisAmount: parseSen("40000"), contractPrice: PRICE })).toEqual({ state: "SET", amount: parseSen("40000"), basis: "STATED_AMOUNT" });
   });

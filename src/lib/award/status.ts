@@ -55,3 +55,17 @@ export const LIVE_STATUSES: readonly AwardStatus[] = ["DRAFT", "PENDING_APPROVAL
 /// What may still be edited: the awardee, value and period only in Draft (they are what
 /// the appointment approves); the letter's terms and the bond until issue.
 export const editable = (s: AwardStatus) => ({ details: s === "DRAFT", terms: s === "DRAFT" || s === "PENDING_APPROVAL" || s === "APPROVED" });
+
+/// Whether the award may be cancelled from where it stands, reason and day aside: the
+/// page offers it on the same rule the action enforces.
+export function cancellable(status: AwardStatus, ctx: { returned: boolean; commenced: boolean }): boolean {
+  return awardTransition(status, "CANCELLED", { today: "-", reason: "-", ...ctx }) == null;
+}
+
+/**
+ * An exercise is not cancelled under a live award: the award holds its value against
+ * the requisition and its route names the exercise. The award is cancelled first.
+ */
+export function exerciseCancelBlockedBy<T extends { status: AwardStatus }>(awards: readonly T[]): T | null {
+  return awards.find((a) => a.status !== "CANCELLED") ?? null;
+}

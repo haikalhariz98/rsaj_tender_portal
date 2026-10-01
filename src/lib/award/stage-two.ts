@@ -51,6 +51,7 @@ export function returnState(r: ReturnRecord): { complete: boolean; missing: Retu
 }
 
 export type AcceptanceFault =
+  | "RECEIVED_ON"
   | "SIGNATORY_NAME"
   | "IC_NUMBER"
   | "OCCUPATION"
@@ -64,8 +65,11 @@ export type AcceptanceFault =
   | "WITNESS_SIGNATURE_NOT_RECORDED"
   | "WITNESS_NOT_SIGNED";
 
+/// The acceptance page comes back with the appointment letter; the day it was received
+/// is kept where a Letter of Acceptance keeps its signed letter's.
 export function acceptancePageFaults(r: ReturnRecord): AcceptanceFault[] {
   const out: AcceptanceFault[] = [];
+  if (!r.signedLetterReceivedOn) out.push("RECEIVED_ON");
   if (!r.signatoryName.trim()) out.push("SIGNATORY_NAME");
   if (!r.icNumber.trim()) out.push("IC_NUMBER");
   if (!r.occupation.trim()) out.push("OCCUPATION");
@@ -85,4 +89,11 @@ export function acceptancePageFaults(r: ReturnRecord): AcceptanceFault[] {
 /// Acceptance, the acceptance page for an appointment letter.
 export function returnComplete(kind: InstrumentKind, r: ReturnRecord): boolean {
   return kind === "LETTER_OF_ACCEPTANCE" ? returnState(r).complete : acceptancePageFaults(r).length === 0;
+}
+
+/// Whether the instrument has come back signed at all — the signed letter, or the
+/// acceptance page's signatory — which is what ends cancellation (BD-17).
+export function instrumentReturned(kind: InstrumentKind, r: { signedLetterReceivedOn: string | Date | null; signatoryName: string } | null): boolean {
+  if (!r) return false;
+  return kind === "LETTER_OF_ACCEPTANCE" ? !!r.signedLetterReceivedOn : !!r.signatoryName.trim();
 }

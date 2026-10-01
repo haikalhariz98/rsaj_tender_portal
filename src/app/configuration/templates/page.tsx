@@ -7,10 +7,21 @@ import { AddTemplate, EditTemplate } from "./editors";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { HistoryButton } from "@/components/history-drawer";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : "—");
+const day = (d: Date | null) => (d ? formatDate(d) : "—");
+const LANG = { MS: "Malay", EN: "English" } as const;
+/// What a template's text is, and which language an issued document takes — a template
+/// with both texts issues in one of them, never both.
+function textLine(t: { bodyMs: string | null; bodyEn: string | null; primaryLanguage: "MS" | "EN" | null; bodyVersion: number }): string {
+  const ms = !!t.bodyMs?.trim();
+  const en = !!t.bodyEn?.trim();
+  if (!ms && !en) return "Text not configured";
+  if (ms && en) return `Text in Malay and English, version ${t.bodyVersion} · ${t.primaryLanguage ? `issued in ${LANG[t.primaryLanguage]}` : "language to issue in not set"}`;
+  return `Text in ${ms ? "Malay" : "English"}, version ${t.bodyVersion}`;
+}
 
 export default async function TemplatesPage() {
   const [templates, classes] = await Promise.all([
@@ -18,6 +29,7 @@ export default async function TemplatesPage() {
     loadDocumentClasses(ORGANISATION_CODE),
   ]);
   const unclassified = templates.filter((t) => t.documentClassId == null);
+  const withText = templates.filter((t) => t.bodyMs?.trim() || t.bodyEn?.trim()).length;
 
   return (
     <>
@@ -37,7 +49,7 @@ export default async function TemplatesPage() {
         <Stat
           label="Templates"
           value={templates.length === 0 ? null : templates.length}
-          hint={templates.length === 0 ? "Nothing is issued yet" : "Available to issue"}
+          hint={templates.length === 0 ? "Nothing is issued yet" : withText === templates.length ? "Each has its text" : `${withText} with text; ${templates.length - withText} without, so not issued`}
         />
         <Stat
           label="Classified"
@@ -91,9 +103,10 @@ export default async function TemplatesPage() {
                 <Tr key={t.id}>
                   <Td title={t.nameMs ? `${t.nameEn} — ${t.nameMs}` : t.nameEn}>
                     <CellStack
+                      wrap
                       title={t.nameEn}
                       aside={t.bilingual ? <Badge outline>bilingual</Badge> : undefined}
-                      sub={[t.nameMs, t.bodyMs || t.bodyEn ? `Text: ${[t.bodyMs ? "Malay" : null, t.bodyEn ? "English" : null].filter(Boolean).join(" and ")}, version ${t.bodyVersion}` : "Text not configured"].filter(Boolean).join(" · ")}
+                      sub={[t.nameMs, textLine(t)].filter(Boolean).join(" · ")}
                     />
                   </Td>
                   <Td className="truncate font-mono text-[12.5px] text-ink-2" title={t.formCode || undefined}>

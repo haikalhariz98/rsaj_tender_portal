@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { commencementState } from "./commencement";
-import { indentState } from "./indent";
+import { indentState, expiredIfReceivedBefore } from "./indent";
 
 describe("the indent's validity (FR-AWD-006)", () => {
   it("received 1 September with 14 days' validity expires on 15 September: valid that day, expired the next", () => {
@@ -37,5 +37,15 @@ describe("when an expired indent is raised", () => {
     expect(indentExpiryRaised(expired, "2026-09-22", "ACCEPTED")).toBe(false);
     expect(indentExpiryRaised(expired, null, "CANCELLED")).toBe(false);
     expect(indentExpiryRaised({ state: "VALID", expiresOn: "2026-10-25" }, null, "ISSUED")).toBe(false);
+  });
+});
+
+describe("counting expired indents", () => {
+  it("agrees with the indent's own state on either side of the line", () => {
+    const before = expiredIfReceivedBefore(14, "2026-10-01")!;
+    expect(before).toBe("2026-09-17");
+    expect(indentState("2026-09-17", 14, "2026-10-01").state).toBe("VALID");
+    expect(indentState("2026-09-16", 14, "2026-10-01").state).toBe("EXPIRED");
+    expect(expiredIfReceivedBefore(null, "2026-10-01")).toBeNull();
   });
 });

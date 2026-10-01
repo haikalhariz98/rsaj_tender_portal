@@ -9,8 +9,7 @@
  */
 
 import type { Tx } from "@/lib/audit/record";
-import { isRegisterSnapshot } from "@/lib/committee/assess-sitting";
-import { decisionRecord, type DecisionRecord } from "@/lib/committee/record";
+import type { DecisionRecord } from "@/lib/committee/record";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { approvedRouteOf, evaluationContext, exerciseOrg, loadExercise, type ExerciseOrg, type LoadedExercise } from "@/lib/method/repo";
@@ -21,11 +20,14 @@ import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { holdersFor } from "@/lib/requisition/holders";
+import { recordOf, type DecisionRow } from "@/lib/requisition/repo";
 import type { ApprovalStatus, RequisitionStatus, StepDecision } from "@/lib/requisition/types";
 import type { LiabilityBand } from "@/lib/securities/liability";
-import type { Requirement } from "@/lib/securities/insurance";
+import { alertingUpTo } from "@/lib/securities/expiry";
+import { applicableRequirements, type Requirement } from "@/lib/securities/insurance";
 
 import { absentOffices } from "./appointment";
+import { expiredIfReceivedBefore } from "./indent";
 import type { Recipient } from "./distribution";
 import type { AwardFacts, RouteStepFact, TemplateRow } from "./evaluate";
 import { LIVE_STATUSES } from "./status";
@@ -63,25 +65,10 @@ export const awardInclude = {
   variant: { select: { id: true, nameEn: true } },
 };
 
-/// A committee matter as the routing sheet may cite it: only through `decisionRecord()`.
-export function matterRecord(d: {
-  subject: string; matterRef: string | null; outcome: "PENDING" | "CARRIED" | "NOT_CARRIED" | "DEFERRED"; decisionDate: Date | null; quorumRequired: number | null; presentVoters: number | null; recusedCount: number | null;
-  votingRule: "SIMPLE_MAJORITY" | "UNANIMOUS" | null; votingRuleProvenance: string | null; outcomeNote: string; notApprovedOutcomeNameEn: string | null; notApprovedOutcomeKind: "LOOP" | "TERMINAL" | null;
-  meeting: { reference: string; meetingDate: Date; status: string; registerSnapshot: unknown; committee: { nameEn: string } };
-  votes: { person: { name: string }; choice: string; comment: string; votedAt: Date }[];
-}): { record: DecisionRecord | null; minuted: boolean } {
-  const snap = d.meeting.status === "MINUTED" && isRegisterSnapshot(d.meeting.registerSnapshot) ? d.meeting.registerSnapshot : null;
-  return {
-    minuted: d.meeting.status === "MINUTED",
-    record: decisionRecord({
-      meeting: { reference: d.meeting.reference, meetingDate: d.meeting.meetingDate, committeeName: snap?.committeeName ?? d.meeting.committee.nameEn },
-      decision: {
-        subject: d.subject, matterRef: d.matterRef, outcome: d.outcome, decisionDate: d.decisionDate, quorumRequired: d.quorumRequired, presentVoters: d.presentVoters, recusedCount: d.recusedCount,
-        votingRule: d.votingRule, votingRuleProvenance: d.votingRuleProvenance, outcomeNote: d.outcomeNote, notApprovedOutcomeNameEn: d.notApprovedOutcomeNameEn, notApprovedOutcomeKind: d.notApprovedOutcomeKind,
-      },
-      votes: d.votes.map((v) => ({ name: v.person.name, choice: v.choice, comment: v.comment, votedAt: v.votedAt })),
-    }),
-  };
+/// A committee matter as the routing sheet may cite it: only through `decisionRecord()`,
+/// built by the one builder the requisition's committee steps use.
+export function matterRecord(d: DecisionRow): { record: DecisionRecord | null; minuted: boolean } {
+  return { minuted: d.meeting.status === "MINUTED", record: recordOf(d) };
 }
 
 export async function loadAward(id: string, client: Tx = db) {
@@ -157,7 +144,7 @@ export async function loadAwardPolicy(organisationId: string, client: Tx = db): 
 export async function loadAwardConfig(organisationId: string, client: Tx = db) {
   const where = { organisationId };
   const order = [{ sortOrder: "asc" as const }, { code: "asc" as const }];
-  const [policy, recipients, variants, templates, conditionKinds, requirements, bands, issuers, expiring, indentFormat, expiredRule] = await Promise.all([
+  const [policy, recipients, variants, templates, conditionKinds, requirements, bands, issuers, expiring, indentFormat, expiredRule, units] = await Promise.all([
     loadAwardPolicy(organisationId, client),
     client.distributionRecipient.findMany({ where, orderBy: order }),
     client.appointmentLetterVariant.findMany({ where, orderBy: order }),
@@ -169,7 +156,9 @@ export async function loadAwardConfig(organisationId: string, client: Tx = db) {
     client.notificationRule.findFirst({ where: { organisationId, eventKey: "security.expiring", isActive: true } }),
     client.codeFormat.findFirst({ where: { organisationId, key: "erp_indent_no" } }),
     client.notificationRule.findFirst({ where: { organisationId, eventKey: "award.indent.expired", isActive: true } }),
+    client.orgUnit.findMany({ where, select: { code: true, nameEn: true } }),
   ]);
+  const unitNames = new Map(units.map((u) => [u.code, u.nameEn]));
   return {
     policy,
     recipientRows: recipients,
@@ -188,6 +177,8 @@ export async function loadAwardConfig(organisationId: string, client: Tx = db) {
     expiryRule: expiring,
     indentExpiredRule: expiredRule,
     indentFormat,
+    /// A section's name for a configured code; codes never reach a screen.
+    unitName: (code: string | null) => (code ? (unitNames.get(code) ?? "A section no longer configured") : null),
   };
 }
 
@@ -269,6 +260,8 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
       retentionCapPercent: dec(award.retentionCapPercent),
       dlpMonths: award.dlpMonths,
       erpCommitmentNo: award.erpCommitmentNo,
+      erpCommitmentKind: award.erpCommitmentKind,
+      wcBasis: award.wcBasis,
       indentReceivedOn: day(award.indentReceivedOn),
       signatoryName: award.signatoryName,
       issuedOn: day(award.issuedAt),
@@ -310,6 +303,7 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
     templates: config.templates,
     indentPattern: config.indentFormat?.pattern ?? null,
     contractSeriesKey: contractType?.contractSeriesKey ?? null,
+    wcRequired: applicableRequirements(config.requirements, ex.contractTypeCode).some((r) => r.kind === "WORKMENS_COMPENSATION"),
   };
   return { facts, issue, cfg, config, method, roster, delegations, unitPath, holdersOf, contractType, org: org as ExerciseOrg };
 }
@@ -323,11 +317,18 @@ export async function exerciseMatters(exerciseId: string, client: Tx = db) {
 
 export const AWARDS_PAGE = 100;
 
+/**
+ * The latest page of awards, and the header's counts taken in the database so they
+ * cover every award, not the page: awaiting approval, approved and not issued, issued
+ * and awaiting their return, and indents expired before work commenced.
+ */
 export async function listAwards() {
   const org = await exerciseOrg();
-  if (!org) return { org: null, rows: [], total: 0 };
+  if (!org) return { org: null, rows: [], total: 0, policy: null, counts: { pending: 0, ready: 0, awaitingReturn: 0, expired: 0 } };
   const where = { organisationId: org.id };
-  const [rows, total, policy] = await Promise.all([
+  const policy = await loadAwardPolicy(org.id);
+  const before = org.today ? expiredIfReceivedBefore(policy.indentValidityDays, org.today) : null;
+  const [rows, total, pending, ready, awaitingReturn, expired] = await Promise.all([
     db.award.findMany({
       where,
       orderBy: [{ createdAt: "desc" }, { reference: "desc" }],
@@ -340,9 +341,15 @@ export async function listAwards() {
       },
     }),
     db.award.count({ where }),
-    loadAwardPolicy(org.id),
+    db.award.count({ where: { ...where, status: "PENDING_APPROVAL" } }),
+    db.award.count({ where: { ...where, status: "APPROVED" } }),
+    // Issued and not accepted: acceptance comes in the same act as the completing return (BD-12).
+    db.award.count({ where: { ...where, status: "ISSUED" } }),
+    before
+      ? db.award.count({ where: { ...where, instrumentKind: "WORK_INDENT", status: { in: ["ISSUED", "ACCEPTED"] }, commencedOn: null, indentReceivedOn: { lt: dayToDate(before) } } })
+      : Promise.resolve(0),
   ]);
-  return { org, rows, total, policy };
+  return { org, rows, total, policy, counts: { pending, ready, awaitingReturn, expired } };
 }
 
 export const HISTORY_PAGE = 200;
@@ -368,14 +375,28 @@ export async function awardHistory(l: LoadedAward) {
   };
 }
 
-/// Every contract's securities and policies, for the register.
+export const REGISTER_PAGE = 50;
+
+/**
+ * The register across contracts, soonest to expire first: the first page of each table
+ * (a security with no expiry recorded sorts first — it needs attention), merged, and
+ * the header's counts taken in the database so they cover every row, not the page.
+ */
 export async function listRegister() {
   const org = await exerciseOrg();
-  if (!org) return { org: null, securities: [], policies: [], config: null };
-  const [securities, policies, config] = await Promise.all([
-    db.securityInstrument.findMany({ where: { contract: { organisationId: org.id } }, include: { issuer: { select: { name: true } }, contract: { select: { number: true, status: true, award: { select: { id: true, reference: true, awardeeName: true } } } } }, orderBy: { expiresOn: "asc" } }),
-    db.insurancePolicy.findMany({ where: { contract: { organisationId: org.id } }, include: { issuer: { select: { name: true } }, contract: { select: { number: true, status: true, award: { select: { id: true, reference: true, awardeeName: true } } } } }, orderBy: { periodEnd: "asc" } }),
-    loadAwardConfig(org.id),
+  if (!org) return { org: null, securities: [], policies: [], config: null, total: 0, counts: { unverified: 0, expiring: 0 } };
+  const config = await loadAwardConfig(org.id);
+  const contract = { contract: { organisationId: org.id } };
+  const include = { issuer: { select: { name: true, retiredOn: true } }, contract: { select: { number: true, status: true, award: { select: { id: true, reference: true, awardeeName: true } } } } } as const;
+  const upTo = org.today ? dayToDate(alertingUpTo(config.expiryOffsets, org.today)) : null;
+  const [securities, policies, nSec, nPol, unverified, expSec, expPol] = await Promise.all([
+    db.securityInstrument.findMany({ where: contract, include, orderBy: [{ expiresOn: { sort: "asc", nulls: "first" } }, { id: "asc" }], take: REGISTER_PAGE }),
+    db.insurancePolicy.findMany({ where: contract, include, orderBy: [{ periodEnd: "asc" }, { id: "asc" }], take: REGISTER_PAGE }),
+    db.securityInstrument.count({ where: contract }),
+    db.insurancePolicy.count({ where: contract }),
+    Promise.all([db.securityInstrument.count({ where: { ...contract, status: "LODGED" } }), db.insurancePolicy.count({ where: { ...contract, status: "LODGED" } })]).then(([a, b]) => a + b),
+    upTo ? db.securityInstrument.count({ where: { ...contract, status: { not: "REJECTED" }, OR: [{ expiresOn: null }, { expiresOn: { lte: upTo } }] } }) : Promise.resolve(0),
+    upTo ? db.insurancePolicy.count({ where: { ...contract, status: { not: "REJECTED" }, periodEnd: { lte: upTo } } }) : Promise.resolve(0),
   ]);
-  return { org, securities, policies, config };
+  return { org, securities, policies, config, total: nSec + nPol, counts: { unverified, expiring: expSec + expPol } };
 }

@@ -62,8 +62,9 @@ export default async function PrintPage(props: PageProps<"/awards/[id]/print/[ki
       )}
       <article className="relative mx-auto max-w-[800px] overflow-hidden rounded-card border border-line bg-surface px-6 py-10 shadow-card sm:px-14 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
         {!frozen && (
-          <div aria-hidden="true" className="pointer-events-none absolute inset-0 grid place-items-center overflow-hidden select-none print:fixed">
-            <span className="-rotate-30 text-[64px] font-bold tracking-widest whitespace-nowrap text-ink/[0.07] sm:text-[96px]">Draft — not issued</span>
+          // Sized to the sheet (container units), so the whole word stays on it at any width.
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 grid place-items-center overflow-hidden select-none [container-type:size] print:fixed">
+            <span className="-rotate-30 text-center text-[8cqw] leading-none font-bold tracking-wider whitespace-nowrap text-ink/[0.09]">Draft — not issued</span>
           </div>
         )}
         <header className="mb-8 flex flex-wrap justify-between gap-x-6 gap-y-1 border-b border-line pb-3 text-[11.5px] text-ink-3">

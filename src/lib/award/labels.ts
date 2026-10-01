@@ -7,6 +7,8 @@
 import { findingText as methodFindingText, REGIME_SHORT } from "@/lib/method/labels";
 import type { Regime } from "@/lib/method/types";
 
+import { formatDate } from "@/lib/format";
+
 import { mergeFieldLabel } from "./fields";
 import type { AwardStatus, DeliveryMethod, DocumentKind, DocumentLanguage, Finding, InstrumentKind, NonCommencement, PeriodUnit, QuotationContractKey } from "./types";
 
@@ -51,9 +53,11 @@ export const COMMITMENT_KIND_LABEL = { INDENT: "Indent", PURCHASE_ORDER: "Purcha
 export const BOND_BASIS_LABEL = { CONTRACT_PRICE: "Percentage of the contract price", ANNUAL_VALUE: "Percentage of a one-year value", STATED_AMOUNT: "A stated amount" } as const;
 export const SECURITY_KIND_LABEL = { PERFORMANCE_BOND: "Performance bond", ADVANCE_PAYMENT_GUARANTEE: "Advance payment guarantee", DESIGN_GUARANTEE_BOND: "Design guarantee bond", RETENTION_BOND: "Retention bond" } as const;
 export const SECURITY_FORM_LABEL = { BANK_GUARANTEE: "Bank guarantee", INSURANCE_GUARANTEE: "Insurance guarantee", CASH: "Cash", BANKERS_DRAFT: "Banker's draft" } as const;
-export const INSURANCE_KIND_LABEL = { WORKS: "Works", PUBLIC_LIABILITY: "Public liability", WORKMENS_COMPENSATION: "Workmen's compensation", CAR: "Contractor's all risks", EAR: "Erection all risks" } as const;
-export const WC_BASIS_LABEL = { UNCOVERED_WAGES: "Wages of employees not covered by social security", PERCENT_OF_CONTRACT: "A percentage of the contract sum" } as const;
+export const INSURANCE_KIND_LABEL = { WORKS: "Works insurance", PUBLIC_LIABILITY: "Public liability insurance", WORKMENS_COMPENSATION: "Workmen's compensation insurance", CAR: "Contractor's all risks insurance", EAR: "Erection all risks insurance" } as const;
+export const WC_BASIS_LABEL = { UNCOVERED_WAGES: "On the wages of employees not covered by social security", PERCENT_OF_CONTRACT: "As a percentage of the contract sum" } as const;
 export const REGISTER_STATUS_LABEL = { LODGED: "Lodged, not verified", VERIFIED: "Verified", REJECTED: "Rejected" } as const;
+/// A workmen's compensation policy's sum, as the register shows it (BD-15).
+export const WC_CHECK_LABEL = { CHECKED: "Sum checked against the contract sum", NOT_CHECKED: "Sum not checked: declared on uncovered wages", NOT_SET: "Sum not checked: how it is calculated is not set" } as const;
 export const REGISTER_STATUS_TONE = { LODGED: "warn", VERIFIED: "ok", REJECTED: "err" } as const;
 export const ISSUER_KIND_LABEL = { BANK: "Bank", INSURER: "Insurer", TAKAFUL: "Takaful operator" } as const;
 export const CONTRACT_STATUS_LABEL = { NUMBER_ALLOCATED: "Number allocated", CANCELLED: "Cancelled — number kept as a gap" } as const;
@@ -61,6 +65,7 @@ export const GATE_LABEL = { RETURNED: "Instrument returned signed", BOND: "Perfo
 export const GATE_STATE_LABEL = { MET: "Met", NOT_MET: "Not met", NOT_SET: "Not set" } as const;
 export const RETURN_ITEM_LABEL = { SIGNED_LETTER: "the signed letter", DECLARATION: "the signed successful bidder's declaration", AUTHORISATION: "the letter of authorisation" } as const;
 export const ACCEPTANCE_FAULT_LABEL = {
+  RECEIVED_ON: "the day it was received",
   SIGNATORY_NAME: "the contractor's signatory",
   IC_NUMBER: "the identity card number",
   OCCUPATION: "the occupation",
@@ -76,12 +81,14 @@ export const ACCEPTANCE_FAULT_LABEL = {
 } as const;
 
 const regime = (r: unknown) => (typeof r === "string" && r in REGIME_SHORT ? REGIME_SHORT[r as Regime].toLowerCase() : "an undetermined");
+const instrumentName = (k: unknown) => (INSTRUMENT_SHORT[k as InstrumentKind] ?? "different instrument").toLowerCase().replace(/^letter of acceptance$/, "Letter of Acceptance");
 const docName = (k: unknown) => DOCUMENT_LABEL[k as DocumentKind] ?? "a document";
 
 /// Where a fault is put right, for the link beside it.
 export const FIX_AT: Record<string, { href: string; label: string }> = {
   INSTRUMENT_NOT_SET: { href: "/configuration/awards", label: "Award controls" },
   QUOTATION_KEY_NOT_SET: { href: "/configuration/awards", label: "Award controls" },
+  INDENT_NUMBER_NOT_AN_INDENT: { href: "/configuration/awards", label: "Award controls" },
   RECIPIENTS_NOT_SET: { href: "/configuration/awards", label: "Award controls" },
   TEMPLATE_NOT_SET: { href: "/configuration/awards", label: "Award controls" },
   VARIANT_NONE: { href: "/configuration/awards", label: "Award controls" },
@@ -90,6 +97,7 @@ export const FIX_AT: Record<string, { href: string; label: string }> = {
   TEMPLATE_LANGUAGE_NOT_SET: { href: "/configuration/templates", label: "Templates" },
   TEMPLATE_UNKNOWN_FIELD: { href: "/configuration/templates", label: "Templates" },
   SIGNATORY_UNRESOLVED: { href: "/configuration/approval-matrix", label: "Approval matrix" },
+  SIGNATORY_NOT_FOR_INSTRUMENT: { href: "/configuration/approval-matrix", label: "Approval matrix" },
   SIGNATORY_AMBIGUOUS: { href: "/configuration/approval-matrix", label: "Approval matrix" },
   SIGNATORY_GAP: { href: "/configuration/approval-matrix", label: "Approval matrix" },
   SIGNATORY_BOUNDARY_UNDECIDED: { href: "/configuration/approval-matrix", label: "Approval matrix" },
@@ -114,16 +122,20 @@ export function awardFindingText(f: Finding): string {
       return "Below the quotation floor there is no award instrument in the portal: such a matter is ordered directly.";
     case "INSTRUMENT_NOT_SET":
       return `No award instrument is set for the ${regime(d.regime)} band. Set it under Award controls; nothing is assumed.`;
+    case "INSTRUMENT_CHANGED":
+      return `This award was opened as a ${instrumentName(d.opened)}, and the award controls now name a ${instrumentName(d.now)} for its band. Its text and its return follow what it was opened as, so it is neither sent nor issued: cancel it and open a new award on the exercise.`;
     case "VALUE_NOT_POSITIVE":
       return "The awarded value must be more than nothing.";
     case "NO_APPROVED_ROUTE":
       return "The requisition has no approved route on record, so there is no approved value to award against.";
     case "EXCEEDS_APPROVED_VALUE":
-      return `With the requisition's other awards this comes to ${d.together}, above the ${d.approved} its approval covered. Reduce the awarded value, cancel another award, or raise a further requisition for the difference.`;
+      return Number(d.others ?? 0) > 0
+        ? `With the requisition's other awards this comes to ${d.together}, above the ${d.approved} its approval covered. Reduce the awarded value, cancel another award, or raise a further requisition for the difference.`
+        : `This is above the ${d.approved} the requisition's approval covered. Reduce the awarded value, or raise a further requisition for the difference.`;
     case "VALUE_OUTSIDE_EXERCISE_REGIME":
-      return `At this value the award falls in the ${regime(d.fresh)} band, not the ${regime(d.exercise)} band the exercise was classified in. It cannot be awarded until the exercise is classified again at this value.`;
+      return `At this value the award falls in the ${regime(d.fresh)} band, not the ${regime(d.exercise)} band the exercise was classified in. The classification is fixed once an award goes for approval, so it cannot be awarded on this exercise: cancel the award, and open a new exercise at this value.`;
     case "APPOINTMENT_BAND_CHANGED":
-      return `At this value the appointment would be approved under “${d.fresh ?? "another rule"}”, not “${d.exercise ?? "the rule"}” the exercise was classified under. Classify the exercise again at this value first.`;
+      return `At this value the appointment would be approved under “${d.fresh ?? "another rule"}”, not “${d.exercise ?? "the rule"}” the exercise was classified under. The classification is fixed once an award goes for approval: cancel the award, and open a new exercise at this value.`;
     case "ABOVE_ESTIMATE":
       return `Above the exercise's estimate of ${d.estimate} by ${d.difference}, within what the requisition's approval covered. The difference is not posted to the budget ledger: it waits for the finance system's commitment.`;
     // appointment.ts
@@ -168,6 +180,8 @@ export function awardFindingText(f: Finding): string {
       return "A Letter of Acceptance needs an approving committee's decision, and this appointment's route has none. Correct the appointment rule on the approval matrix.";
     case "SIGNATORY_UNRESOLVED":
       return "No signatory rule covers this instrument at this value, so nobody may sign it. Add the signatory rule on the approval matrix; the portal does not route round the gap.";
+    case "SIGNATORY_NOT_FOR_INSTRUMENT":
+      return "The signatory rule that matches names no instrument, so it is not read as covering this one. On the approval matrix, give each signatory rule the instrument it signs as its condition (Letter of Acceptance, or work indent).";
     case "SIGNATORY_AMBIGUOUS":
       return "More than one signatory rule matches this instrument at this value. Correct the overlapping rules on the approval matrix.";
     case "SIGNATORY_GAP":
@@ -175,11 +189,11 @@ export function awardFindingText(f: Finding): string {
     case "SIGNATORY_BOUNDARY_UNDECIDED":
       return "The signatory rule has an edge on the boundary and nobody has decided whether it follows the boundary switch. Decide it on the approval matrix.";
     case "INDENT_NUMBER_REQUIRED":
-      return "Record the finance system's indent number and the day it was received first. The portal consumes it and never issues one.";
+      return "Record the indent's commitment number, as the finance system gave it, and the day it was received.";
     case "INDENT_NUMBER_FORMAT":
       return "The indent number does not match the finance system's format.";
     case "INDENT_EXPIRED":
-      return `The indent expired on ${d.expiresOn}. The user department must ask Contract & Procurement to cancel it; cancel this award and raise a fresh indent.`;
+      return `The indent expired on ${typeof d.expiresOn === "string" ? formatDate(d.expiresOn) : "its expiry day"}. The user department must ask Contract & Procurement to cancel it; cancel this award and raise a fresh indent.`;
     case "RECIPIENTS_NOT_SET":
       return "Nobody is set to receive a copy of this instrument. Set the distribution list under Award controls.";
     case "REGULATED_NOT_ANSWERED":
@@ -192,6 +206,8 @@ export function awardFindingText(f: Finding): string {
       return `The template “${d.template}” has text in both languages and no language set to issue first. Set it under Templates.`;
     case "TEMPLATE_INCOMPLETE":
       return `The ${docName(d.kind).toLowerCase()} would be issued with ${String(d.fields ?? "").split(",").filter(Boolean).map((k) => mergeFieldLabel(k).toLowerCase()).join(", ")} not recorded. Record them first.`;
+    case "ISSUE_VALUE_UNFILLED":
+      return `The ${docName(d.kind).toLowerCase()} would be frozen with ${String(d.fields ?? "").split(",").filter((k) => k && k !== "unknown").map((k) => mergeFieldLabel(k).toLowerCase()).join(", ") || "a value"} still reading as the preview's placeholder. Nothing was issued.`;
     case "TEMPLATE_UNKNOWN_FIELD":
       return `The template “${d.template}” names ${d.count} field${d.count === 1 ? "" : "s"} the portal does not fill. Correct it under Templates.`;
     case "VARIANT_NONE":
@@ -216,6 +232,14 @@ export function awardFindingText(f: Finding): string {
       return "The contract type names no numbering series, so no contract number can be drawn. Set the contract series on the contract type under Reference data.";
     case "QUOTATION_KEY_NOT_SET":
       return "Where a quotation award's contract number comes from is not set. Set it under Award controls.";
+    case "INDENT_NUMBER_NOT_AN_INDENT":
+      return "Quotation contracts are set to take the indent's own number, and this award is not issued as a work indent, so it has none. A purchase order's number is never used: change where quotation contract numbers come from under Award controls.";
+    case "INDENT_NUMBER_NOT_RECORDED":
+      return "The contract takes the indent's own number, and no indent number is recorded on the award. Record it first.";
+    case "WC_BASIS_REQUIRED":
+      return "The contract must carry workmen's compensation, and the award does not say how it is calculated. Set it in the award's terms: it cannot be changed once the letter is issued.";
+    case "INDENT_EXPIRES_BEFORE_START":
+      return `The indent expires on ${typeof d.expiresOn === "string" ? formatDate(d.expiresOn) : "its expiry day"}, before the stated start date of ${typeof d.startDate === "string" ? formatDate(d.startDate) : "the works"}. Bring the start date forward, or have a fresh indent raised.`;
     case "START_DATE_REQUIRED":
       return "Record the stated start date: the commencement clock and the insurance period run from it.";
     default:
@@ -245,7 +269,7 @@ export const DESPATCH_FAULT_TEXT = {
 export const BOND_FAULT_TEXT = {
   ISSUER_NOT_APPROVED: "The issuer is not on the approved list on the day it was lodged.",
   EXPIRY_REQUIRED: "The expiry date is not recorded.",
-  BASIS_NOT_SET: "The bond's basis is not set on the award (D4), so what it must cover is not known.",
+  BASIS_NOT_SET: "The bond's basis is not set on the award, so what it must cover is not known.",
   BELOW_REQUIRED: "Its value is below the amount required.",
   VALIDITY_NOT_SET: "How long past completion it must run is not set on the award, or the start date is not recorded.",
   EXPIRES_TOO_EARLY: "It expires before completion plus the validity months.",
@@ -253,7 +277,7 @@ export const BOND_FAULT_TEXT = {
 
 export const INSURANCE_FAULT_TEXT = {
   ISSUER_NOT_APPROVED: "The insurer is not on the approved list on the day it was lodged.",
-  BAD_SUBSTITUTION: "Only a contractor's or erection all-risks policy may stand in for the works policy.",
+  BAD_SUBSTITUTION: "Only contractor's or erection all risks insurance may stand in for the works insurance.",
   SUM_BELOW_REQUIRED: "The sum insured is below what is required.",
   LIMIT_NOT_SET: "No liability bands are configured, so the limit cannot be derived. Set them under Award controls.",
   NO_BAND: "The contract price falls between the configured liability bands. It is refused, never placed: correct the bands under Award controls.",
@@ -261,7 +285,7 @@ export const INSURANCE_FAULT_TEXT = {
   LIMIT_LOWERED: "The limit cannot be set below the one derived from the bands.",
   LIMIT_JUSTIFICATION_REQUIRED: "A limit raised above the derived one needs its justification recorded.",
   BELOW_LIMIT: "The sum insured is below the limit it must meet.",
-  WC_BASIS_NOT_SET: "The award does not say how workmen's compensation is set (D4). Choose it on the award's Securities tab.",
+  WC_BASIS_NOT_SET: "The award does not say how workmen's compensation is calculated. Set it in the award's terms.",
   WC_PERCENT_NOT_SET: "The requirement gives no percentage of the contract sum for workmen's compensation.",
   PERIOD_NOT_SET: "How long it must run cannot be worked out: the start date, the defects liability period or the requirement's tail is not recorded.",
   PERIOD_TOO_SHORT: "It ends before the day it must run to.",

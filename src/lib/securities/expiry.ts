@@ -3,7 +3,7 @@
  * notification rule's offsets. Computed and shown; nothing is sent (6.11 ruling).
  */
 
-import { daysFrom, type Day } from "./period";
+import { addDays, daysFrom, type Day } from "./period";
 
 export type ExpiryAlert =
   | { state: "NO_EXPIRY" }
@@ -19,4 +19,11 @@ export function expiryAlert(expiresOn: Day | null, offsets: readonly number[], t
   const reached = offsets.filter((o) => left <= o);
   if (reached.length === 0) return { state: "NONE", daysLeft: left };
   return { state: "DUE", offset: Math.min(...reached), daysLeft: left };
+}
+
+/// The last expiry day that raises an alert today: today plus the largest offset, or —
+/// with no offsets set — yesterday, so only what has already expired. Lets a register
+/// count what is expiring in the database, by the same rule `expiryAlert` applies.
+export function alertingUpTo(offsets: readonly number[], today: Day): Day {
+  return offsets.length ? addDays(today, Math.max(...offsets)) : addDays(today, -1);
 }

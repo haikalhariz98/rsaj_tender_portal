@@ -34,4 +34,15 @@ export function awardAuditView(x: Record<string, unknown>): Record<string, unkno
 }
 
 export const awardAuditCreate = (row: Record<string, unknown>, extra: Record<string, unknown> = {}): FieldChange[] => [...diffFields(null, awardAuditView(row)), ...diffFields(null, extra)];
-export const awardAuditPair = (before: Record<string, unknown>, after: Record<string, unknown>): FieldChange[] => diffFields(awardAuditView(before), awardAuditView(after));
+/**
+ * Masking comes before the diff, so two numbers ending in the same four digits would
+ * read as no change. Where the raw numbers differ the change is recorded all the same,
+ * still masked: "changed (••••••••1234)".
+ */
+export function awardAuditPair(before: Record<string, unknown>, after: Record<string, unknown>): FieldChange[] {
+  const b = awardAuditView(before);
+  const a = awardAuditView(after);
+  const raw = (x: unknown) => String(x ?? "").trim();
+  if ("icNumber" in after && raw(before.icNumber) !== raw(after.icNumber) && b.icNumber === a.icNumber) a.icNumber = `changed (${a.icNumber})`;
+  return diffFields(b, a);
+}

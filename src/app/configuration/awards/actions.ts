@@ -238,10 +238,15 @@ export async function saveBand(_prev: FormState, data: FormData): Promise<FormSt
   if (r.failed) return { ok: false, errors: r.errors };
   const money = (x: string | null) => (x ? senToDecimalString(parseSen(x)) : null);
   const w = { ...v, minValue: money(v.minValue), maxValue: money(v.maxValue), limitAmount: money(v.limitAmount)!, provenance: v.provenance! };
-  const set = [...existing.filter((b) => b.id !== id && b.retiredOn == null).map((b) => ({ code: b.code, minValue: b.minValue ? parseSen(b.minValue.toString()) : null, maxValue: b.maxValue ? parseSen(b.maxValue.toString()) : null, limit: 0n })), { code: w.code, minValue: w.minValue ? parseSen(w.minValue) : null, maxValue: w.maxValue ? parseSen(w.maxValue) : null, limit: 0n }];
-  const overlap = bandSetFaults(set).find((f) => f.kind === "OVERLAP" && (f.a === w.code || f.b === w.code));
-  if (overlap) return { ok: false, errors: { minValue: "This band would overlap another: a contract price would fall in both. Adjust its edges." } };
-  return db.$transaction(async (tx) => {
+  return db.$transaction(async (tx): Promise<FormState> => {
+    // One band set per organisation: saves are serialised on it, and the overlap check
+    // reads the set inside the write, so two saves can never each pass alone and overlap.
+    const lockKey = `liability_band:${o.id}`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`;
+    const live = await tx.liabilityBand.findMany({ where: { organisationId: o.id, retiredOn: null, NOT: id ? { id } : undefined } });
+    const set = [...live.map((b) => ({ code: b.code, minValue: b.minValue ? parseSen(b.minValue.toString()) : null, maxValue: b.maxValue ? parseSen(b.maxValue.toString()) : null, limit: 0n })), { code: w.code, minValue: w.minValue ? parseSen(w.minValue) : null, maxValue: w.maxValue ? parseSen(w.maxValue) : null, limit: 0n }];
+    const overlap = bandSetFaults(set).find((f) => f.kind === "OVERLAP" && (f.a === w.code || f.b === w.code));
+    if (overlap) return { ok: false, errors: { minValue: "This band would overlap another: a contract price would fall in both. Adjust its edges." } };
     const before = id ? await tx.liabilityBand.findUnique({ where: { id } }) : null;
     const row = id ? await tx.liabilityBand.update({ where: { id }, data: w }) : await tx.liabilityBand.create({ data: { organisationId: o.id, ...w } });
     await audit(tx, o.id, "LiabilityBand", row.id, `Liability band ${w.code}`, before, w, reason);

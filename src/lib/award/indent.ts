@@ -32,3 +32,9 @@ export const INDENT_READING = "Valid through its expiry day (the day of receipt 
 export function indentExpiryRaised(state: IndentState | null, commencedOn: Day | null, status: string): boolean {
   return state?.state === "EXPIRED" && !commencedOn && status !== "CANCELLED";
 }
+
+/// An indent received before this day has expired today: lets a list count expired
+/// indents in the database by the same reading as `indentState`. Null: validity unset.
+export function expiredIfReceivedBefore(validityDays: number | null, today: Day): Day | null {
+  return validityDays == null ? null : addDays(today, -validityDays);
+}

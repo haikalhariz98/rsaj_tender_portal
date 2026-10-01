@@ -25,6 +25,16 @@ export function instrumentFor(regime: Regime | string | null, policy: Pick<Award
   return kind ? { kind } : { fault: "INSTRUMENT_NOT_SET", regime };
 }
 
+/**
+ * The instrument an award was opened with, against the one the policy names now. A
+ * change of policy never re-reads an open award: its text, its return and its checks
+ * follow what it was opened as, and it is refused until cancelled and opened again.
+ */
+export function instrumentChange(stored: InstrumentKind, now: { kind: InstrumentKind } | { fault: InstrumentFault }): Finding<"INSTRUMENT_CHANGED">[] {
+  if (!("kind" in now) || now.kind === stored) return [];
+  return [{ code: "INSTRUMENT_CHANGED", level: "block", data: { opened: stored, now: now.kind } }];
+}
+
 export type ValueFault = "NO_APPROVED_ROUTE" | "EXCEEDS_APPROVED_VALUE" | "VALUE_OUTSIDE_EXERCISE_REGIME" | "APPOINTMENT_BAND_CHANGED" | "ABOVE_ESTIMATE" | "VALUE_NOT_POSITIVE";
 
 export interface ValueInput {
@@ -60,4 +70,12 @@ export function awardValueFaults(i: ValueInput): Finding<ValueFault>[] {
   }
   if (i.value > i.estimate) out.push({ code: "ABOVE_ESTIMATE", level: "warn", data: { estimate: formatMoney(i.estimate), difference: formatMoney(i.value - i.estimate) } });
   return out;
+}
+
+/// How much more may be awarded on the requisition: its approved value less its other
+/// live awards. Null where nothing is approved; never below nothing.
+export function awardHeadroom(approvedValue: Sen | null, otherAwards: readonly Sen[]): Sen | null {
+  if (approvedValue == null) return null;
+  const left = approvedValue - addSen(0n, ...otherAwards);
+  return left > 0n ? left : 0n;
 }

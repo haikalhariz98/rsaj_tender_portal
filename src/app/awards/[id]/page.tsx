@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AwardIcon, CheckIcon, ClipboardIcon, ClockIcon, FileIcon, InboxIcon, PrinterIcon, RouteIcon, ShieldIcon, SlidersIcon } from "@/components/icons";
+import { Button } from "@/components/ui/button";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { ActBadge } from "@/components/ui/act";
@@ -43,13 +44,14 @@ import {
   SECURITY_FORM_LABEL,
   SECURITY_KIND_LABEL,
   WC_BASIS_LABEL,
+  WC_CHECK_LABEL,
 } from "@/lib/award/labels";
-import { MASKING_NOTE } from "@/lib/award/mask";
 import { mergeFieldLabel } from "@/lib/award/fields";
 import { readinessGate } from "@/lib/award/readiness";
 import { awardFacts, awardHistory, exerciseMatters, latestRoute, loadAward, matterRecord, type LoadedAward } from "@/lib/award/repo";
-import { acceptancePageFaults, returnState, type ReturnRecord } from "@/lib/award/stage-two";
-import { editable } from "@/lib/award/status";
+import { acceptancePageFaults, instrumentReturned, returnComplete, returnState, type ReturnRecord } from "@/lib/award/stage-two";
+import { cancellable, editable } from "@/lib/award/status";
+import { absentFrom } from "@/lib/award/appointment";
 import type { AwardStatus, Finding, InstrumentKind } from "@/lib/award/types";
 import { storedDay } from "@/lib/dates";
 import { formatDate, formatOrgDay } from "@/lib/format";
@@ -60,8 +62,8 @@ import { formatMoney, parseSen, senFromDecimal } from "@/lib/money";
 import { DECISION_LABEL } from "@/lib/requisition/labels";
 import { derivedAnnualValue } from "@/lib/securities/bond";
 import { expiryAlert } from "@/lib/securities/expiry";
-import { applicableRequirements } from "@/lib/securities/insurance";
-import { derivedLimit } from "@/lib/securities/insurance";
+import { applicableRequirements, derivedLimit, wcSumCheck } from "@/lib/securities/insurance";
+import { db } from "@/lib/db";
 
 import {
   AddConditionDrawer,
@@ -117,7 +119,13 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
   if (!l) notFound();
   const { award, ex, org } = l;
   const today = org.today;
-  const [f, history, matters] = await Promise.all([awardFacts(l), awardHistory(l), exerciseMatters(ex.id)]);
+  const [f, history, matters, sittings] = await Promise.all([
+    awardFacts(l),
+    awardHistory(l),
+    exerciseMatters(ex.id),
+    // Sittings still open for tabling, for a committee step's "Table at a sitting".
+    db.meeting.findMany({ where: { committee: { organisationId: org.id }, status: { in: ["SCHEDULED", "IN_PROGRESS"] } }, orderBy: { meetingDate: "asc" }, select: { id: true, reference: true, meetingDate: true, committee: { select: { code: true } } } }),
+  ]);
   const ev = evaluateAward(f.facts);
   const status = award.status as AwardStatus;
   const kind = award.instrumentKind as InstrumentKind;
@@ -143,8 +151,7 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
   const submitBlocker = status === "DRAFT" && submitBlocks.length ? "See what stops it, below." : null;
   const issueReady = status === "APPROVED" && ev.issueFaults.length === 0 && ev.signatory?.ok;
   const canRecordCommitment = ["APPROVED", "ISSUED", "ACCEPTED"].includes(status) && !award.erpCommitmentNo;
-  const returned = !!award.awardReturn && (loa ? !!award.awardReturn.signedLetterReceivedOn : !!award.awardReturn.signatoryName);
-  const canCancel = status === "DRAFT" || status === "PENDING_APPROVAL" || status === "APPROVED" || (status === "ISSUED" && !returned && !award.commencedOn);
+  const canCancel = cancellable(status, { returned: instrumentReturned(kind, award.awardReturn), commenced: !!award.commencedOn });
   const termsValues = {
     startDate: day(award.startDate),
     regulatedActivity: yesNo(award.regulatedActivity),
@@ -175,9 +182,14 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
           values={{ awardeeName: award.awardeeName, awardeeRegistrationNo: award.awardeeRegistrationNo, awardeeAddress: award.awardeeAddress, awardedValue: award.awardedValue.toString(), completionPeriod: String(award.completionPeriod), completionUnit: award.completionUnit }}
         />
       )}
-      {edits.terms && <EditTermsDrawer id={award.id} values={termsValues} regulatedLabel={policy.regulatedActivityLabel} />}
+      {edits.terms && <EditTermsDrawer id={award.id} values={termsValues} regulatedLabel={policy.regulatedActivityLabel} asked={{ retention: ev.terms?.retentionAsked ?? null, dlp: ev.terms?.dlpAsked ?? null }} />}
       {status === "DRAFT" && <SubmitAwardDrawer id={award.id} blocker={submitBlocker} route={routePreview} />}
       {canRecordCommitment && <RecordCommitmentDrawer id={award.id} indent={!loa} example={f.config.indentFormat?.example || null} today={today} />}
+      {status === "APPROVED" && !(issueReady && ev.signatory?.ok) && (
+        <Button size="sm" variant="primary" disabled aria-describedby={AWARD_NOTE_ID}>
+          Issue
+        </Button>
+      )}
       {issueReady && ev.signatory?.ok && (
         <IssueDrawer
           id={award.id}
@@ -187,9 +199,9 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
           summary={[
             ["Instrument", INSTRUMENT_LABEL[kind]],
             ["Documents", ev.documents.map((d) => DOCUMENT_LABEL[d.kind]).join(", ")],
-            ["Contract number", "fault" in ev.contractNumber ? NOT_SET : ev.contractNumber.source === "SERIES" ? "The next in its contract type's series" : `The indent's own number, ${award.erpCommitmentNo}`],
+            ["Contract number", "fault" in ev.contractNumber ? NOT_SET : ev.contractNumber.source === "SERIES" ? "The next in its contract type's series" : `The indent's own number, ${ev.contractNumber.number}`],
             ["Copies to", "rows" in ev.distribution ? ev.distribution.rows.map((r) => r.recipientName).join(", ") : NOT_SET],
-            ["Case handed to", policy.postContractUnitCode ?? "Sections not set: recorded without them"],
+            ["Case handed to", f.config.unitName(policy.postContractUnitCode) ?? "Sections not set: recorded without them"],
           ]}
         />
       )}
@@ -204,7 +216,7 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
       </span>
     ) : status === "APPROVED" && !issueReady ? (
       <span>
-        <span className="font-semibold text-ink-2">Issue:</span> not available until everything below is in place.
+        <span className="font-semibold text-ink-2">Issue:</span> not yet — {ev.issueFaults.length === 1 ? "one thing below is" : `${ev.issueFaults.length} things below are`} not in place.
       </span>
     ) : null;
 
@@ -229,22 +241,23 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
   const securities = award.contract?.securities ?? [];
   const policies = award.contract?.policies ?? [];
   const gate = readinessGate({
-    returned: ret ? (loa ? returnState(ret).complete : acceptancePageFaults(ret).length === 0) : false,
+    returned: ret ? returnComplete(kind, ret) : false,
     bondRequired: award.bondRequired,
     bondNotRequiredReason: award.bondNotRequiredReason,
     requiredBond: ev.requiredBond,
     bonds: securities.map((s) => ({ kind: s.kind, status: s.status, value: senFromDecimal(s.value) })),
     requirements,
     policies: policies.map((p) => ({ kind: p.kind, substitutesFor: p.substitutesFor, status: p.status })),
+    wcBasis: award.wcBasis,
   });
 
   const tabs = [
-    { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel l={l} ev={ev} methodName={methodName} typeName={typeName} policyLabel={policy.regulatedActivityLabel} validityDays={policy.indentValidityDays} expiredRule={!!f.config.indentExpiredRule} /> },
+    { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel l={l} ev={ev} methodName={methodName} typeName={typeName} policyLabel={policy.regulatedActivityLabel} validityDays={policy.indentValidityDays} expiredRule={!!f.config.indentExpiredRule} unitName={f.config.unitName} /> },
     {
       id: "approval",
       label: "Approval",
       icon: <RouteIcon size={15} />,
-      panel: <ApprovalPanel l={l} ev={ev} suggestions={suggestions} today={today} matters={matters} roleName={(c) => f.issue?.matrix.roles[c]?.nameEn ?? "An office no longer configured"} />,
+      panel: <ApprovalPanel l={l} ev={ev} suggestions={suggestions} today={today} matters={matters} sittings={sittings} roleName={(c) => f.issue?.matrix.roles[c]?.nameEn ?? "An office no longer configured"} />,
     },
     { id: "instrument", label: "Instrument", icon: <FileIcon size={15} />, count: issued ? award.documents.length : undefined, panel: <InstrumentPanel l={l} ev={ev} /> },
     {
@@ -297,9 +310,11 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
         meta={[
           <span key="v" className="tabular-nums">{money(award.awardedValue)}</span>,
           INSTRUMENT_SHORT[kind],
-          ev.signatory?.ok ? `Signed by the ${ev.signatory.roleLabel}` : "Signatory not resolved",
-          award.contract ? `Contract ${award.contract.number}` : "No contract number yet",
+          // Who signs: named once it is signed, the office until then; a cancelled award states neither.
+          status === "CANCELLED" ? null : award.signatoryName ? `Signed by ${award.signatoryName}, ${award.signatoryRoleLabel ?? "office not recorded"}` : ev.signatory?.ok ? `To be signed by the ${ev.signatory.roleLabel}` : "Signatory not resolved",
+          award.contract ? `Contract ${award.contract.number}` : status === "CANCELLED" ? null : "No contract number yet",
         ]}
+        actionsBelow
         actions={actions}
         actionsNote={headerNote}
         actionsNoteId={AWARD_NOTE_ID}
@@ -349,7 +364,7 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
 
 // ------------------------------------------------------------------ overview
 
-function OverviewPanel({ l, ev, methodName, typeName, policyLabel, validityDays, expiredRule }: { l: LoadedAward; ev: AwardEvaluation; methodName: string; typeName: string; policyLabel: string | null; validityDays: number | null; expiredRule: boolean }) {
+function OverviewPanel({ l, ev, methodName, typeName, policyLabel, validityDays, expiredRule, unitName }: { l: LoadedAward; ev: AwardEvaluation; methodName: string; typeName: string; policyLabel: string | null; validityDays: number | null; expiredRule: boolean; unitName: (code: string | null) => string | null }) {
   const { award, ex, req } = l;
   const kind = award.instrumentKind as InstrumentKind;
   const c = award.contract;
@@ -358,7 +373,7 @@ function OverviewPanel({ l, ev, methodName, typeName, policyLabel, validityDays,
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<AwardIcon size={17} />} title="The award" subtitle={`${INSTRUMENT_LABEL[kind]}. The exercise's classification is read from its record, never copied.`} />
+        <CardHeader icon={<AwardIcon size={17} />} title="The award" subtitle={`${INSTRUMENT_LABEL[kind]}. The band, method and contract type are the exercise's, shown as it records them.`} />
         <CardBody>
           <KeyValues
             columns={2}
@@ -377,13 +392,12 @@ function OverviewPanel({ l, ev, methodName, typeName, policyLabel, validityDays,
               { label: "Stated start date", value: award.startDate ? formatDate(award.startDate) : notSet() },
               { label: "Completion", value: ev.completion ? formatDate(ev.completion) : notSet("Not known until the start date is set") },
               { label: policyLabel ? `${policyLabel}?` : "The regulated activity?", value: award.regulatedActivity == null ? notSet("Not answered") : award.regulatedActivity ? "Yes" : "No" },
-              { label: "Status of the exercise", value: "Awarded is shown from the award: the exercise's own status moves when the sourcing window is built." },
             ]}
           />
         </CardBody>
       </Card>
       <Card>
-        <CardHeader icon={<FileIcon size={17} />} title="Contract and commitment" subtitle="The contract number is drawn when the instrument is issued; the finance system's number is consumed, never issued." />
+        <CardHeader icon={<FileIcon size={17} />} title="Contract and commitment" subtitle="The contract number is given when the instrument is issued. The commitment number comes from the finance system and is typed in here." />
         <CardBody>
           <KeyValues
             columns={2}
@@ -401,14 +415,14 @@ function OverviewPanel({ l, ev, methodName, typeName, policyLabel, validityDays,
               { label: "Contract sum", value: c ? <span className="tabular-nums">{money(c.contractSum)}</span> : notSet("On issue") },
               {
                 label: "Case handed over",
-                value: handover ? `${formatDate(handover.on)}${handover.fromUnitCode || handover.toUnitCode ? ` · ${handover.fromUnitCode ?? "not set"} to ${handover.toUnitCode ?? "not set"}` : " · sections not set"}` : notSet("On issue"),
+                value: handover ? `${formatDate(handover.on)}${handover.fromUnitCode || handover.toUnitCode ? ` · from ${unitName(handover.fromUnitCode) ?? "a section not set"} to ${unitName(handover.toUnitCode) ?? "a section not set"}` : " · sections not set"}` : notSet("On issue"),
               },
               {
-                label: "Finance system's number",
+                label: "Commitment number",
                 value: award.erpCommitmentNo ? (
                   <span className="flex flex-col">
                     <span className="font-mono text-[13px]">{award.erpCommitmentNo}</span>
-                    <span className="text-[12.5px] text-ink-3">{`${award.erpCommitmentKind ? COMMITMENT_KIND_LABEL[award.erpCommitmentKind] : ""} · typed by an officer${ev.indentFormatOk === null ? " · no format set, not checked" : ""}`}</span>
+                    <span className="text-[12.5px] text-ink-3">{`${award.erpCommitmentKind ? `The ${COMMITMENT_KIND_LABEL[award.erpCommitmentKind].toLowerCase()}'s` : "The finance system's"} · typed in by an officer${ev.indentFormatOk === null ? " · no format set, so not checked" : ""}`}</span>
                   </span>
                 ) : (
                   notSet("Not recorded")
@@ -418,7 +432,9 @@ function OverviewPanel({ l, ev, methodName, typeName, policyLabel, validityDays,
                 ? [
                     {
                       label: "Indent validity",
-                      value: !indent || indent.state === "NOT_RECEIVED" ? notSet("Runs from the indent's receipt") : indent.state === "NOT_SET" ? notSet("Validity not set") : (
+                      value: !indent || indent.state === "NOT_RECEIVED" ? notSet("Runs from the indent's receipt") : indent.state === "NOT_SET" ? notSet("Validity not set") : award.commencedOn && day(award.commencedOn)! <= indent.expiresOn ? (
+                        `Used — work commenced ${formatDate(award.commencedOn)}, before it expired on ${formatDate(indent.expiresOn)}`
+                      ) : (
                         <span className="flex flex-col items-start gap-1">
                           <span>{`${indent.state === "EXPIRED" ? "Expired" : "Valid"} · expires ${formatDate(indent.expiresOn)} (${validityDays} days from receipt)`}</span>
                           <span className="text-[12.5px] text-ink-3">{INDENT_READING}{indent.state === "EXPIRED" && !expiredRule ? " No notification rule names who is told." : ""}</span>
@@ -442,6 +458,7 @@ function OverviewPanel({ l, ev, methodName, typeName, policyLabel, validityDays,
             columns={2}
             items={[
               { label: "Liquidated damages", value: award.ladAmount ? `${money(award.ladAmount)}${award.ladUnit ? ` ${award.ladUnit}` : ""}` : notSet() },
+              { label: "Workmen's compensation", value: award.wcBasis ? WC_BASIS_LABEL[award.wcBasis] : notSet("How it is calculated is not set — set it in Edit terms") },
               { label: "Retention", value: award.retentionPercent ? `${pct(award.retentionPercent)}${award.retentionCapPercent ? `, limited to ${pct(award.retentionCapPercent)} of the sum` : ""}` : ev.terms?.retentionAsked === false ? "Not asked by its terms band" : notSet() },
               { label: "Defects liability period", value: award.dlpMonths != null ? periodText(award.dlpMonths, "MONTHS") : ev.terms?.dlpAsked === false ? "Not asked by its terms band" : notSet() },
               { label: "Terms band", value: ex.termsBandKey ? (l.ex.bandSnapshot as { terms?: { label?: string } } | null)?.terms?.label ?? "As recorded on the exercise" : ex.termsState === "NONE_IN_REGIME" ? "Not applicable in this band" : notSet() },
@@ -457,33 +474,63 @@ function OverviewPanel({ l, ev, methodName, typeName, policyLabel, validityDays,
 
 // ------------------------------------------------------------------ approval
 
-function ApprovalPanel({ l, ev, suggestions, today, matters, roleName }: { l: LoadedAward; ev: AwardEvaluation; suggestions: (c: string | null) => { value: string; label: string }[]; today: string | null; matters: Awaited<ReturnType<typeof exerciseMatters>>; roleName: (code: string) => string }) {
-  const { award } = l;
+function ApprovalPanel({
+  l,
+  ev,
+  suggestions,
+  today,
+  matters,
+  sittings,
+  roleName,
+}: {
+  l: LoadedAward;
+  ev: AwardEvaluation;
+  suggestions: (c: string | null) => { value: string; label: string }[];
+  today: string | null;
+  matters: Awaited<ReturnType<typeof exerciseMatters>>;
+  sittings: { id: string; reference: string; meetingDate: Date; committee: { code: string } }[];
+  roleName: (code: string) => string;
+}) {
+  const { award, ex } = l;
+  const status = award.status as AwardStatus;
   const inst = latestRoute(award);
   const earlier = award.approvalInstances.filter((i) => i.id !== inst?.id);
   const cited = new Set(award.approvalInstances.flatMap((i) => i.steps.map((s) => s.committeeDecisionId)).filter(Boolean));
   const sig = ev.signatory;
   const cb = ev.committee;
   const ab = ev.approver;
+  const OUTCOME = { PENDING: "not decided yet", CARRIED: "carried", DEFERRED: "deferred", NOT_CARRIED: "not carried" } as const;
+  // BD-2: the offices the route treated as absent, named from its own warnings.
+  const absent = absentFrom((inst ? (inst.warnings as { code?: string; from?: string }[]) : ev.route?.ok ? ev.route.warnings : null) ?? []);
+  const absentLine = absent.length > 0 && (
+    <p className="text-[13px] break-words text-ink-2">
+      <span className="font-semibold">Treated as absent{inst ? " when it was sent" : " today"}:</span> {absent.map(roleName).join(", ")}. Nobody holding the office, nor a delegate of it, was available, so its authority went upward.
+    </p>
+  );
+  const amountText = (a: { toString(): string } | null) => (a == null ? "the decision states no amount" : `at ${money(a)}`);
+  const lastCommitteeStep = inst ? [...inst.steps].reverse().find((s) => s.committeeCode) : undefined;
   return (
     <div className="flex flex-col gap-6">
       {!inst ? (
         <Card>
-          <CardHeader icon={<RouteIcon size={17} />} title="Who approves the appointment" subtitle="Resolved when the award is sent for approval, for the awarded value, under the approval matrix then in force." />
+          <CardHeader icon={<RouteIcon size={17} />} title="Who approves the appointment" subtitle={status === "CANCELLED" ? "No route was resolved." : "Resolved when the award is sent for approval, for the awarded value, under the approval matrix then in force."} />
           <CardBody className="flex flex-col gap-3">
-            {ev.route?.ok ? (
+            {status === "CANCELLED" ? (
+              <p className="text-[13.5px] text-ink-2">Cancelled before it was sent for approval — no route was resolved, and nobody was asked to approve it.</p>
+            ) : ev.route?.ok ? (
               <>
                 <p className="text-[13.5px] text-ink-2">If it were sent today, it would go:</p>
                 <ol className="flex flex-col gap-1.5">
                   {ev.route.chain.map((s, i) => (
                     <li key={i} className="flex min-w-0 items-center gap-2 text-[13.5px]">
-                      <ActBadge act={s.act} />
+                      <ActBadge act={s.act} step={i + 1} />
                       <span className="min-w-0 font-semibold break-words text-ink">{roleName(s.roleCode)}</span>
                       <span className="text-ink-3">{ACT_LABEL[s.act]}{s.committeeCode ? ", as a committee decision" : ""}</span>
                     </li>
                   ))}
                 </ol>
                 <p className="text-[12.5px] break-words text-ink-3">{`${ev.route.ruleLabel}${ev.route.clause ? ` · ${ev.route.clause}` : ""}`}</p>
+                {absentLine}
                 {ev.route.warnings.map((w, i) => (
                   <Callout key={i} tone={tone(w.level)}>{w.messageEn}</Callout>
                 ))}
@@ -503,26 +550,36 @@ function ApprovalPanel({ l, ev, suggestions, today, matters, roleName }: { l: Lo
             subtitle={`Sent ${formatOrgDay(inst.openedAt, l.org.timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}: ${inst.ruleLabel ?? "a rule no longer on file"}.`}
             actions={<Badge tone={inst.status === "APPROVED" ? "ok" : inst.status === "PENDING" ? "brand" : "warn"}>{inst.status === "APPROVED" ? "Approved" : inst.status === "PENDING" ? "In progress" : inst.status === "REJECTED" ? "Refused" : "Withdrawn"}</Badge>}
           />
-          {((inst.warnings as { level: string; messageEn: string }[]) ?? []).length > 0 && (
+          {(absentLine || ((inst.warnings as { level: string; messageEn: string }[]) ?? []).length > 0) && (
             <CardBody className="flex flex-col gap-2">
-              {(inst.warnings as { level: string; messageEn: string }[]).map((w, i) => (
+              {absentLine}
+              {((inst.warnings as { level: string; messageEn: string }[]) ?? []).map((w, i) => (
                 <Callout key={i} tone={tone(w.level)}>{w.messageEn}</Callout>
               ))}
             </CardBody>
           )}
           {inst.status === "PENDING" && <p className="border-t border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">Steps are decided in order. A committee&apos;s step is discharged by citing its decision on this exercise.</p>}
           <ol className="divide-y divide-line/70 border-t border-line">
-            {inst.steps.map((s) => {
+            {inst.steps.map((s, stepIndex) => {
               const earlierDone = inst.steps.filter((x) => x.sequence < s.sequence).every((x) => x.decision === "DONE");
               const citedRecord = s.committeeDecision ? matterRecord(s.committeeDecision) : null;
               const open = inst.status === "PENDING" && s.decision === "PENDING" && earlierDone;
-              const offered = matters
-                .filter((m) => m.meeting.committee.code === s.committeeCode && !cited.has(m.id))
-                .map((m) => ({ value: m.id, label: `${m.meeting.reference} · ${m.subject} · ${m.outcome === "PENDING" ? "not decided yet" : m.outcome === "CARRIED" ? "carried" : m.outcome === "DEFERRED" ? "deferred" : "not carried"}` }));
+              const mine = matters.filter((m) => m.meeting.committee.code === s.committeeCode && !cited.has(m.id));
+              const offered = mine.map((m) => ({
+                value: m.id,
+                label: `${m.meeting.reference} · ${m.subject} · ${OUTCOME[m.outcome]}${m.outcome === "PENDING" ? " — cannot be cited until decided" : ""}`,
+                disabled: m.outcome === "PENDING",
+              }));
+              // Nothing tabled that could still discharge the step: offer to table it, filled in.
+              const needsTabling = !mine.some((m) => m.outcome === "PENDING" || m.outcome === "CARRIED" || m.outcome === "DEFERRED");
+              const sitting = sittings.find((x) => x.committee.code === s.committeeCode);
+              const tableHref = sitting
+                ? `/committees/${sitting.id}?${new URLSearchParams({ tab: "agenda", table: "1", subject: `Appointment of ${award.awardeeName} for ${ex.title}`, domain: "appointment", act: s.act, matterKind: "EXERCISE", matterRef: ex.reference, amount: award.awardedValue.toString() }).toString()}`
+                : null;
               return (
                 <li key={s.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-6">
                   <div className="flex min-w-0 items-start gap-3">
-                    <ActBadge act={s.act} />
+                    <ActBadge act={s.act} step={stepIndex + 1} />
                     <div className="min-w-0">
                       <div className="font-semibold break-words text-ink">
                         {s.roleLabel} <span className="font-normal text-ink-3">· {ACT_LABEL[s.act]}{s.committeeCode ? ", as a committee decision" : ""}</span>
@@ -533,13 +590,19 @@ function ApprovalPanel({ l, ev, suggestions, today, matters, roleName }: { l: Lo
                             ? `${earlierDone ? "Awaiting a decision." : "Waits for the step before."}${s.nonDelegable ? " Cannot be delegated." : ""}`
                             : "Not decided: the route closed."
                           : s.committeeCode && citedRecord?.record
-                            ? `${DECISION_LABEL[s.decision]} · ${citedRecord.record.committee} at ${citedRecord.record.meetingReference}, ${formatDate(citedRecord.record.decisionDate ?? citedRecord.record.meetingDate)} · ${citedRecord.minuted ? "minuted" : "not yet minuted"}`
+                            ? `${DECISION_LABEL[s.decision]} · ${citedRecord.record.committee} at ${citedRecord.record.meetingReference}, ${formatDate(citedRecord.record.decisionDate ?? citedRecord.record.meetingDate)} · ${amountText(s.committeeDecision?.amount ?? null)} · ${citedRecord.minuted ? "minuted" : "not yet minuted"}`
                             : `${DECISION_LABEL[s.decision]} · ${s.decidedByName ?? "Not recorded"} · recorded on behalf of, not signed · ${formatDate(s.decidedOn)} · received ${s.receivedOn ? formatDate(s.receivedOn) : "not recorded"}${s.delegation ? ` · under delegation from ${s.delegation.fromPerson.name}` : ""}${s.reason ? ` · “${s.reason}”` : ""}`}
                       </div>
+                      {open && s.committeeCode && needsTabling && (
+                        <div className="mt-1 text-[12.5px] break-words text-ink-3">
+                          {sitting ? `Not tabled yet. The ${s.roleLabel}'s next open sitting is ${sitting.reference}, ${formatDate(sitting.meetingDate)}.` : `Not tabled yet, and no sitting of the ${s.roleLabel} is scheduled.`}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
                     {s.decision !== "PENDING" && <Badge tone={s.decision === "DONE" ? "ok" : "err"}>{DECISION_LABEL[s.decision]}</Badge>}
+                    {open && s.committeeCode && needsTabling && (tableHref ? <ButtonLink href={tableHref} size="sm" variant="secondary">Table at a sitting</ButtonLink> : <ButtonLink href="/committees" size="sm" variant="secondary">Schedule a sitting</ButtonLink>)}
                     {open && (s.committeeCode ? (
                       <CiteDecisionDrawer id={award.id} stepId={s.id} committee={s.roleLabel} matters={offered} />
                     ) : (
@@ -554,7 +617,7 @@ function ApprovalPanel({ l, ev, suggestions, today, matters, roleName }: { l: Lo
       )}
 
       <Card>
-        <CardHeader icon={<ClipboardIcon size={17} />} title="Routing sheet" subtitle="The committee's block and the approver's, read from the decision record and the route — never keyed. They are frozen into the covering memo when it is issued." />
+        <CardHeader icon={<ClipboardIcon size={17} />} title="Routing sheet" subtitle="The committee's part and the approver's, taken from the committee's decision and the route as recorded. They are fixed into the covering memo when it is issued." />
         <CardBody className="grid gap-5 md:grid-cols-2">
           <div className="flex flex-col gap-2">
             <p className="text-[12px] font-semibold text-ink-3">Committee</p>
@@ -564,12 +627,13 @@ function ApprovalPanel({ l, ev, suggestions, today, matters, roleName }: { l: Lo
                   { label: "Committee", value: cb.committee },
                   { label: "Sitting", value: `${cb.meetingReference}, ${formatDate(cb.meetingDate)}` },
                   { label: "Outcome", value: cb.outcome === "CARRIED" ? "Carried" : cb.outcome === "DEFERRED" ? "Deferred" : "Not carried" },
+                  { label: "Amount", value: lastCommitteeStep?.committeeDecision ? (lastCommitteeStep.committeeDecision.amount == null ? "The decision states no amount" : money(lastCommitteeStep.committeeDecision.amount)) : notSet("Not recorded") },
                   { label: "Decided on", value: cb.decisionDate ? formatDate(cb.decisionDate) : notSet("Not recorded") },
                   { label: "Minutes", value: cb.minuted ? "Minuted" : "Not yet minuted — the decision stands on the record" },
                 ]}
               />
             ) : (
-              <p className="text-[13.5px] text-ink-3">{cb ? "Not decided yet." : "The route has no committee step."}</p>
+              <p className="text-[13.5px] text-ink-3">{cb ? "Not decided yet." : status === "CANCELLED" && !inst ? "No route, so no committee." : "The route has no committee step."}</p>
             )}
           </div>
           <div className="flex flex-col gap-2">
@@ -584,42 +648,44 @@ function ApprovalPanel({ l, ev, suggestions, today, matters, roleName }: { l: Lo
                 ]}
               />
             ) : (
-              <p className="text-[13.5px] text-ink-3">{inst ? "The route's approval is a committee's." : "Resolved when the award is sent for approval."}</p>
+              <p className="text-[13.5px] text-ink-3">{inst ? "The route's approval is a committee's." : status === "CANCELLED" ? "No route, so no approver." : "Resolved when the award is sent for approval."}</p>
             )}
           </div>
         </CardBody>
       </Card>
 
-      <Card>
-        <CardHeader icon={<FileIcon size={17} />} title="Who signs the instrument" subtitle="From the signatory rules on the approval matrix, at the awarded value. No rule, two rules or a known gap refuses: a signatory is never assumed." />
-        <CardBody>
-          {award.signatoryName ? (
-            <KeyValues
-              columns={2}
-              items={[
-                { label: "Signed by", value: `${award.signatoryName} · recorded on behalf of, not signed` },
-                { label: "Office", value: award.signatoryRoleLabel ?? "Not recorded" },
-                { label: "Signed on", value: formatDate(award.signedOn) },
-                { label: "Rule", value: award.signatoryRuleLabel ?? "Not recorded" },
-              ]}
-            />
-          ) : sig?.ok ? (
-            <KeyValues
-              columns={2}
-              items={[
-                { label: "Office", value: sig.roleLabel },
-                { label: "Rule", value: `${sig.ruleLabel}${sig.clause ? ` · ${sig.clause}` : ""}` },
-                { label: "Recommended by", value: sig.recommenders.length ? sig.recommenders.map((r) => r.roleLabel).join(", ") : "No recommendation in the rule" },
-                { label: "Delegation", value: sig.delegable ? "A delegate of the office may sign" : "Only a holder of the office may sign" },
-              ]}
-            />
-          ) : (
-            <Callout tone="warn">
-              {awardFindingText({ code: sig?.ok === false ? sig.fault : "NO_ISSUE_IN_FORCE", level: "block" })} <Link href="/configuration/approval-matrix">Approval matrix</Link>
-            </Callout>
-          )}
-        </CardBody>
-      </Card>
+      {status !== "CANCELLED" || award.signatoryName ? (
+        <Card>
+          <CardHeader icon={<FileIcon size={17} />} title="Who signs the instrument" subtitle="Set by the signatory rules on the approval matrix for this instrument and value. If no rule fits, two rules fit, or the rule is a known gap, nobody may sign until the matrix is corrected." />
+          <CardBody>
+            {award.signatoryName ? (
+              <KeyValues
+                columns={2}
+                items={[
+                  { label: "Signed by", value: `${award.signatoryName} · recorded on behalf of, not signed` },
+                  { label: "Office", value: award.signatoryRoleLabel ?? "Not recorded" },
+                  { label: "Signed on", value: formatDate(award.signedOn) },
+                  { label: "Rule", value: award.signatoryRuleLabel ?? "Not recorded" },
+                ]}
+              />
+            ) : sig?.ok ? (
+              <KeyValues
+                columns={2}
+                items={[
+                  { label: "To be signed by", value: `The ${sig.roleLabel}` },
+                  { label: "Rule", value: `${sig.ruleLabel}${sig.clause ? ` · ${sig.clause}` : ""}` },
+                  { label: "Recommended by", value: sig.recommenders.length ? sig.recommenders.map((r) => r.roleLabel).join(", ") : "No recommendation in the rule" },
+                  { label: "Delegation", value: sig.delegable ? "A delegate of the office may sign" : "Only a holder of the office may sign" },
+                ]}
+              />
+            ) : (
+              <Callout tone="warn">
+                {awardFindingText({ code: sig?.ok === false ? sig.fault : "NO_ISSUE_IN_FORCE", level: "block" })} <Link href="/configuration/approval-matrix">Approval matrix</Link>
+              </Callout>
+            )}
+          </CardBody>
+        </Card>
+      ) : null}
 
       {earlier.length > 0 && (
         <Card className="overflow-hidden">
@@ -769,7 +835,7 @@ function ReturnPanel({ l, ret, people }: { l: LoadedAward; ret: ReturnRecord | n
         icon={<ClipboardIcon size={17} />}
         title={loa ? "What came back (integrity pact, second stage)" : "The acceptance page"}
         subtitle={loa ? (state.complete ? "All three documents are back." : `Still to come: ${state.missing.map((m) => RETURN_ITEM_LABEL[m]).join(", ")}.`) : page.length === 0 ? "Every field is recorded." : `Still to record: ${page.map((x) => ACCEPTANCE_FAULT_LABEL[x]).join(", ")}.`}
-        actions={award.status === "ISSUED" ? <ReturnDrawer id={award.id} loa={loa} people={people} values={{ ...ret, contractorSigned: yesNo(ret.contractorSigned), stampAffixed: yesNo(ret.stampAffixed), witnessSigned: yesNo(ret.witnessSigned), receivedByPersonId: r.receivedByPersonId, whereHeld: r.whereHeld }} /> : undefined}
+        actions={award.status === "ISSUED" || award.status === "ACCEPTED" ? <ReturnDrawer id={award.id} loa={loa} people={people} correcting={award.status === "ACCEPTED"} values={{ ...ret, contractorSigned: yesNo(ret.contractorSigned), stampAffixed: yesNo(ret.stampAffixed), witnessSigned: yesNo(ret.witnessSigned), receivedByPersonId: r.receivedByPersonId, whereHeld: r.whereHeld }} /> : undefined}
       />
       <CardBody className="flex flex-col gap-5">
         {loa ? (
@@ -783,10 +849,11 @@ function ReturnPanel({ l, ret, people }: { l: LoadedAward; ret: ReturnRecord | n
           />
         ) : (
           <>
-            <Callout tone="info">The identity card number is shown in full here only. {MASKING_NOTE}</Callout>
+            <Callout tone="info">The identity card number is shown in full here only; everywhere else it is masked. Masking is not access control: who may see the number is enforced once sign-in exists.</Callout>
             <KeyValues
               columns={2}
               items={[
+                { label: "Acceptance page received", value: ret.signedLetterReceivedOn ? `Received ${formatDate(ret.signedLetterReceivedOn)}` : notSet("Not received") },
                 { label: "Contractor's signatory", value: ret.signatoryName || notSet("Not recorded") },
                 { label: "Identity card number", value: ret.icNumber ? <span className="font-mono text-[13px]">{ret.icNumber}</span> : notSet("Not recorded") },
                 { label: "Occupation", value: ret.occupation || notSet("Not recorded") },
@@ -823,9 +890,18 @@ function ConditionsPanel({ l, gate, kinds, today }: { l: LoadedAward; gate: Retu
     BOND_NOT_DECIDED: "Whether a bond is required is not decided.",
     REASON_NOT_RECORDED: "No bond is required, but the reason is not recorded.",
     NOT_REQUIRED: `No bond required: ${award.bondNotRequiredReason}`,
-    BASIS_NOT_SET: "The bond's basis is not set (D4).",
+    BASIS_NOT_SET: "The bond's basis is not set.",
     NOT_VERIFIED: "No verified performance bond covers the required amount.",
     REQUIREMENTS_NOT_SET: "No insurance requirements are configured, so what must be verified is not known.",
+    WC_NOT_CHECKED: "Workmen's compensation is calculated on uncovered wages, so its sum cannot be checked: it never counts as met.",
+    WC_BASIS_NOT_SET: "How workmen's compensation is calculated is not set on the award.",
+  };
+  // Insurance detail: what is not lodged at all, and what is lodged but not verified.
+  const insuranceDetail = (detail: string[]) => {
+    const of = (p: string) => detail.filter((d) => d.startsWith(p)).map((d) => d.slice(p.length));
+    const notLodged = of("NOT_LODGED:");
+    const lodged = of("LODGED:");
+    return [notLodged.length ? `Not lodged: ${notLodged.join(", ")}.` : null, lodged.length ? `Lodged, not verified: ${lodged.join(", ")}.` : null, ...detail.filter((d) => !d.includes(":")).map((d) => DETAIL[d] ?? null)].filter(Boolean).join(" ");
   };
   return (
     <div className="flex flex-col gap-6">
@@ -836,7 +912,7 @@ function ConditionsPanel({ l, gate, kinds, today }: { l: LoadedAward; gate: Retu
             <li key={i.key} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 sm:px-6">
               <span className="min-w-0">
                 <span className="block text-[13.5px] font-semibold text-ink">{GATE_LABEL[i.key]}</span>
-                {i.detail.length > 0 && <span className="block text-[12.5px] break-words text-ink-3">{i.key === "INSURANCE" && i.state === "NOT_MET" ? `Not yet verified: ${i.detail.join(", ")}.` : i.detail.map((d) => DETAIL[d] ?? d).join(" ")}</span>}
+                {i.detail.length > 0 && <span className="block text-[12.5px] break-words text-ink-3">{i.key === "INSURANCE" ? insuranceDetail(i.detail) : i.detail.map((d) => DETAIL[d] ?? "").join(" ")}</span>}
               </span>
               <Chip tone={i.state === "MET" ? "ok" : i.state === "NOT_SET" ? "warn" : "err"}>{GATE_STATE_LABEL[i.state]}</Chip>
             </li>
@@ -892,7 +968,7 @@ function SecuritiesPanel({
   const issuers = f.config.issuers.filter((i) => i.retiredOn == null).map((i) => ({ value: i.id, label: i.name }));
   const months = award.completionUnit === "MONTHS" ? award.completionPeriod : null;
   const derived = derivedAnnualValue(senFromDecimal(award.awardedValue), months);
-  const pl = derivedLimit(f.config.bands, senFromDecimal(award.awardedValue));
+  const pl = derivedLimit(f.config.bands, senFromDecimal(award.awardedValue), today ? new Date(`${today}T00:00:00Z`) : undefined);
   const offsets = f.config.expiryOffsets;
   const alert = (d: Date | null) => {
     if (!today) return null;
@@ -902,20 +978,22 @@ function SecuritiesPanel({
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<ShieldIcon size={17} />} title="The performance bond" subtitle="Decided per contract (D4): what it is a percentage of, the percentage and how long it must run. Never defaulted." actions={editable(award.status as AwardStatus).terms ? <EditTermsDrawer id={award.id} values={termsValues} regulatedLabel={f.config.policy.regulatedActivityLabel} label="Edit bond" /> : undefined} />
+        <CardHeader icon={<ShieldIcon size={17} />} title="The performance bond" subtitle="Decided for this contract: what it is a percentage of, the percentage and how long it must run. Never filled in for you." actions={editable(award.status as AwardStatus).terms ? <EditTermsDrawer id={award.id} values={termsValues} regulatedLabel={f.config.policy.regulatedActivityLabel} asked={{ retention: ev.terms?.retentionAsked ?? null, dlp: ev.terms?.dlpAsked ?? null }} label="Edit bond" /> : undefined} />
         <CardBody className="flex flex-col gap-5">
           {award.bondRequired == null ? (
             <Callout tone="warn" title="Not decided">Whether this contract needs a performance bond is not decided. Nothing is assumed.</Callout>
           ) : award.bondRequired === false ? (
             <Callout tone="info" title="No bond required">{award.bondNotRequiredReason || "The reason is not recorded."} {award.bondBasisProvenance && <ProvenanceBadge value={award.bondBasisProvenance} />}</Callout>
           ) : ev.requiredBond.state === "NOT_SET" ? (
-            <Callout tone="warn" title="Bond basis not set (D4)">The procedure and the observed award pack give different bases. Choose what this contract&apos;s bond is a percentage of, and the percentage.</Callout>
+            <Callout tone="warn" title="Bond basis not set">The procedure and the observed award pack give different bases. Choose what this contract&apos;s bond is a percentage of, and the percentage.</Callout>
           ) : null}
+          {award.bondRequired !== false && (
           <div className="grid gap-4 md:grid-cols-3">
             <Stat variant="inset" size="sm" tone="neutral" label="Required amount" value={ev.requiredBond.state === "SET" ? formatMoney(ev.requiredBond.amount) : null} hint={award.bondBasis ? `${BOND_BASIS_LABEL[award.bondBasis]}${award.bondPercent ? `, ${pct(award.bondPercent)}` : ""}` : "Basis not set"} />
             <Stat variant="inset" size="sm" tone="neutral" label="One-year value, as entered" value={award.bondBasisAmount && award.bondBasis === "ANNUAL_VALUE" ? money(award.bondBasisAmount) : null} hint={derived ? `Derived from the sum and period: ${formatMoney(derived)}. For comparison only.` : "No derived figure: the period is not in months."} />
             <Stat variant="inset" size="sm" tone="neutral" label="Must run until" value={ev.bondUntil ? formatDate(ev.bondUntil) : null} hint={award.bondValidityExtraMonths != null ? `Completion plus ${award.bondValidityExtraMonths} months.` : "Months past completion not set."} />
           </div>
+          )}
           {award.bondBasisProvenance && award.bondRequired && (
             <p className="text-[12.5px] text-ink-3">
               Where the basis came from: <ProvenanceBadge value={award.bondBasisProvenance} /> {award.bondBasisNote}
@@ -953,7 +1031,7 @@ function SecuritiesPanel({
         <CardHeader
           icon={<ShieldIcon size={17} />}
           title="Insurance"
-          subtitle={requirements.length ? `Required for this contract: ${requirements.map((r) => r.nameEn).join(", ")}. Workmen's compensation set on: ${award.wcBasis ? WC_BASIS_LABEL[award.wcBasis].toLowerCase() : "not set"}.` : "No insurance requirements are configured, so what must be verified is not known."}
+          subtitle={requirements.length ? `Required for this contract: ${requirements.map((r) => r.nameEn).join(", ")}.${requirements.some((r) => r.kind === "WORKMENS_COMPENSATION") ? ` How workmen's compensation is calculated: ${award.wcBasis ? WC_BASIS_LABEL[award.wcBasis].toLowerCase() : "not set — set it in Edit terms"}.` : ""}` : "No insurance requirements are configured, so what must be verified is not known."}
           actions={open ? <LodgePolicyDrawer id={award.id} issuers={issuers} today={today} /> : undefined}
           divided={(c?.policies.length ?? 0) > 0 || true}
         />
@@ -976,15 +1054,15 @@ function SecuritiesPanel({
             {c.policies.map((p) => (
               <li key={p.id} className="flex flex-col gap-2 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <span className="min-w-0">
-                  <span className="block text-[13.5px] font-semibold break-words text-ink">{`${INSURANCE_KIND_LABEL[p.kind]}${p.substitutesFor ? ` in place of the ${INSURANCE_KIND_LABEL[p.substitutesFor].toLowerCase()} policy` : ""} · ${money(p.sumInsured)}`}</span>
+                  <span className="block text-[13.5px] font-semibold break-words text-ink">{`${INSURANCE_KIND_LABEL[p.kind]}${p.substitutesFor ? ` in place of the ${INSURANCE_KIND_LABEL[p.substitutesFor].toLowerCase()}` : ""} · ${money(p.sumInsured)}`}</span>
                   <span className="block text-[12.5px] break-words text-ink-3">
-                    {[p.issuer?.name ?? `${p.issuerNameAsWritten || "Insurer"} (not on the approved list)`, p.policyNo || null, `${formatDate(p.periodStart)} to ${formatDate(p.periodEnd)}`, p.status === "REJECTED" ? `rejected: ${p.rejectedReason}` : p.verifiedBy ? `checked by ${p.verifiedBy.name}, ${formatDate(p.verifiedOn)}` : null].filter(Boolean).join(" · ")}
+                    {[p.issuer?.name ?? `${p.issuerNameAsWritten || "Insurer"} (not on the approved list)`, p.policyNo || null, `${formatDate(p.periodStart)} to ${formatDate(p.periodEnd)}`, p.kind === "WORKMENS_COMPENSATION" ? WC_CHECK_LABEL[wcSumCheck(award.wcBasis)].toLowerCase() : null, p.status === "REJECTED" ? `rejected: ${p.rejectedReason}` : p.verifiedBy ? `checked by ${p.verifiedBy.name}, ${formatDate(p.verifiedOn)}` : null].filter(Boolean).join(" · ")}
                   </span>
                 </span>
                 <span className="flex shrink-0 flex-wrap items-center gap-2">
                   {p.status !== "REJECTED" && alert(p.periodEnd)}
                   <Chip tone={REGISTER_STATUS_TONE[p.status]}>{REGISTER_STATUS_LABEL[p.status]}</Chip>
-                  {open && p.status === "LODGED" && <ReviewDrawer id={award.id} targetId={p.id} kind="policy" name={`${INSURANCE_KIND_LABEL[p.kind]} policy`} people={people} today={today} />}
+                  {open && p.status === "LODGED" && <ReviewDrawer id={award.id} targetId={p.id} kind="policy" name={INSURANCE_KIND_LABEL[p.kind]} people={people} today={today} />}
                 </span>
               </li>
             ))}
@@ -1035,16 +1113,33 @@ const FIELD_NAME: Record<string, string> = {
   retentionCapPercent: "Retention limit",
   dlpMonths: "Defects liability, months",
   wcBasis: "Workmen's compensation basis",
-  erpCommitmentNo: "Finance system's number",
-  erpCommitmentKind: "Kind",
+  erpCommitmentNo: "Commitment number",
+  erpCommitmentKind: "It is",
   indentReceivedOn: "Indent received",
   icNumber: "Identity card number",
+  ladUnit: "Liquidated damages per",
+  yearReading: "Year in the number",
+  from: "From",
+  to: "To",
+  numberSource: "Numbered from",
+  numberedOn: "Numbered on",
+  contractSum: "Contract sum",
+  textVersion: "Text version",
+  formCode: "Form",
+  frozen: "Text fixed",
   recordedOnBehalf: "Recorded",
   classificationLockedAt: "Classification locked",
 };
 const MONEY_FIELDS = new Set(["awardedValue", "bondBasisAmount", "ladAmount", "value", "sumInsured", "contractSum", "requiredValue", "appendixAmount", "requiredLimit"]);
+/// A status reads by what it is the status of: a route is "Approved", an award "Approved, not issued".
+const STATUS_TEXT: Record<string, Record<string, string>> = {
+  Award: AWARD_STATUS_LABEL,
+  ApprovalInstance: { PENDING: "In progress", APPROVED: "Approved", REJECTED: "Refused", RECALLED: "Withdrawn" },
+  SecurityInstrument: REGISTER_STATUS_LABEL,
+  InsurancePolicy: REGISTER_STATUS_LABEL,
+  Contract: CONTRACT_STATUS_LABEL,
+};
 const ENUM_TEXT: Record<string, Record<string, string>> = {
-  status: { ...AWARD_STATUS_LABEL, PENDING: "In progress", REJECTED: "Refused", RECALLED: "Withdrawn", VERIFIED: "Verified", LODGED: "Lodged", NUMBER_ALLOCATED: "Number allocated" },
   instrumentKind: INSTRUMENT_LABEL,
   instrument: INSTRUMENT_LABEL,
   completionUnit: { DAYS: "Days", WEEKS: "Weeks", MONTHS: "Months" },
@@ -1062,8 +1157,10 @@ const ENUM_TEXT: Record<string, Record<string, string>> = {
 };
 
 function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<ReturnType<typeof awardHistory>>["entries"]; total: number; timeZone: string | null }) {
-  const read = (field: string, value: string | null): string => {
+  const read = (field: string, value: string | null, entity: string): string => {
     if (value == null || value === "") return "—";
+    if (field === "status" && STATUS_TEXT[entity]?.[value]) return STATUS_TEXT[entity][value];
+    if (field === "yearReading") return "The year of issue — an assumed reading, to be confirmed";
     if (ENUM_TEXT[field]?.[value]) return ENUM_TEXT[field][value];
     if (MONEY_FIELDS.has(field) && /^-?\d+(\.\d+)?$/.test(value)) return formatMoney(parseSen(value));
     if (/Percent$/.test(field) && /^\d+(\.\d+)?$/.test(value)) return pct(value)!;
@@ -1100,8 +1197,8 @@ function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<ReturnTyp
                 <ul className="text-[12.5px] break-words text-ink-3">
                   {e.changes.filter((ch) => shown(ch.field, ch, e.action)).map((ch) => (
                     <li key={ch.field}>
-                      {FIELD_NAME[ch.field] ?? fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{read(ch.field, ch.before)} → </>}
-                      <span className="text-ink-2">{read(ch.field, e.action === "DELETE" ? ch.before : ch.after)}</span>
+                      {FIELD_NAME[ch.field] ?? fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{read(ch.field, ch.before, e.entity)} → </>}
+                      <span className="text-ink-2">{read(ch.field, e.action === "DELETE" ? ch.before : ch.after, e.entity)}</span>
                     </li>
                   ))}
                 </ul>
