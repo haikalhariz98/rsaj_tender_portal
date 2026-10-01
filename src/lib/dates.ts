@@ -30,6 +30,18 @@ export function todayIn(instant: Date, timeZone: string | null): string | null {
   return timeZone ? dayIn(instant, timeZone) : null;
 }
 
+/**
+ * The organisation's day for an instant, in the form days are stored and compared in
+ * (midnight UTC of that day). Null while no zone is set: the day is not assumed to be
+ * UTC's. Numbering periods and budget periods are judged on this, never on the
+ * server's clock read in UTC — 07:00 on 1 January in Kuala Lumpur is still 31 December
+ * in UTC, and a reference issued then belongs to the new year.
+ */
+export function organisationDay(instant: Date, timeZone: string | null): Date | null {
+  const d = todayIn(instant, timeZone);
+  return d ? dayToDate(d) : null;
+}
+
 /// A calendar date as stored — midnight UTC of the day typed — back to YYYY-MM-DD.
 /// A date field is a day, not an instant, so no zone applies.
 export function storedDay(date: Date): string {

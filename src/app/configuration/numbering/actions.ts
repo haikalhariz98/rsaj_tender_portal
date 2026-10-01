@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
 import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
+import { organisationDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { afterConfiguring, patternFaults, serialFor, type Series } from "@/lib/numbering/series";
 import { ORGANISATION_CODE } from "@/lib/org";
@@ -78,7 +79,14 @@ export async function saveSeries(_prev: FormState, data: FormData): Promise<Form
     }
   }
 
-  const now = new Date();
+  // The serial's period is stamped on the organisation's day, never the UTC one; unset,
+  // no period can be stamped, so nothing is saved (6.10 §9.5 follow-up).
+  const zone = (await db.organisation.findUnique({ where: { id: orgId }, select: { timeZone: true } }))?.timeZone ?? null;
+  const day = organisationDay(new Date(), zone);
+  if (!day) {
+    return { ok: false, message: "A series' serial belongs to the period of the organisation's day, and its time zone is not set. Set it under Configuration, Organisation first." };
+  }
+  const now = day;
   const stored = current ? await db.numberingSeries.findUnique({ where: { id } }) : null;
   const storedSeries: Series | null = stored;
 

@@ -232,3 +232,24 @@ describe("saving a series", () => {
     expect(serialFor(series({ ...s, resetOn: "CALENDAR_YEAR" }), on)).toBe(231);
   });
 });
+
+describe("the period is the organisation's day, not UTC's (open follow-up from 6.10 §9.5)", async () => {
+  const { organisationDay } = await import("@/lib/dates");
+  // 01:30 on 1 January 2027 in Kuala Lumpur is still 31 December 2026 in UTC.
+  const newYearKL = new Date("2026-12-31T17:30:00Z");
+  it("issues a calendar-year reference in the organisation's new year", () => {
+    const on = organisationDay(newYearKL, "Asia/Kuala_Lumpur")!;
+    expect(periodFor(series(), on)).toBe("2027");
+    expect(previewNext(series({ nextSerial: 41, serialPeriod: "2026" }), on)).toBe("001/2027");
+    // Read naively in UTC the same instant would still number into 2026.
+    expect(periodFor(series(), newYearKL)).toBe("2026");
+  });
+  it("starts a financial year on the organisation's first day of it", () => {
+    const fy = series({ resetOn: "FINANCIAL_YEAR", financialYearStartMonth: 4 });
+    const firstOfApril = organisationDay(new Date("2027-03-31T16:30:00Z"), "Asia/Kuala_Lumpur")!;
+    expect(periodFor(fy, firstOfApril)).toBe("2027");
+  });
+  it("has no day at all while the zone is unset", () => {
+    expect(organisationDay(newYearKL, null)).toBeNull();
+  });
+});

@@ -23,7 +23,7 @@ import { meetingTransition, sittingPermits, type SittingAct } from "@/lib/commit
 import { registerRole } from "@/lib/committee/sitting";
 import { organisationId, withLockedSitting, type LoadedSitting } from "@/lib/committee/sittings";
 import { checkTabling, secretariatHoldersOn } from "@/lib/committee/tabling";
-import { dayToDate, storedDay } from "@/lib/dates";
+import { dayToDate, organisationDay, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { afterIssuing, formatReference, patternFaults, serialFor } from "@/lib/numbering/series";
 import { MATTER_REF_TEXT, resolveMatterRef } from "@/lib/requisition/matter-link";
@@ -127,6 +127,12 @@ export async function scheduleSitting(_prev: FormState, data: FormData): Promise
   if (!usable && !typed) {
     r.reject("reference", "No numbering series for sittings is configured, so type the reference.");
   }
+  // The series numbers by the organisation's day, never the UTC one (6.10 §9.5 follow-up).
+  const zone = (await db.organisation.findUnique({ where: { id: orgId }, select: { timeZone: true } }))?.timeZone ?? null;
+  const day = organisationDay(new Date(), zone);
+  if (usable && !typed && !day) {
+    r.reject("reference", "The sittings series numbers by the organisation's day, and its time zone is not set. Set it under Configuration, Organisation, or type the reference.");
+  }
   if (typed && committee) {
     const clash = await db.meeting.findFirst({ where: { committeeId: committee.id, reference: typed } });
     if (clash) r.reject("reference", "This committee already has a sitting with that reference.");
@@ -141,7 +147,7 @@ export async function scheduleSitting(_prev: FormState, data: FormData): Promise
     async (tx) => {
       let reference = typed;
       if (!reference && usable) {
-        const on = new Date();
+        const on = day!;
         reference = formatReference(usable, on, serialFor(usable, on));
         const next = afterIssuing(usable, on);
         await tx.numberingSeries.update({

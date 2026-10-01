@@ -67,6 +67,10 @@ export function patternFaults(series: Pick<Series, "pattern" | "resetOn">): Patt
 }
 
 /**
+ * Every `on` in this module is the organisation's day in its stored form — midnight UTC
+ * of that day (`organisationDay`, `dayToDate`) — so reading its UTC fields reads the
+ * organisation's calendar. An instant from the server's clock is never passed here.
+ *
  * The period a date falls in, for reset purposes.
  *
  * A financial year is labelled by the calendar year it starts in, so a year beginning

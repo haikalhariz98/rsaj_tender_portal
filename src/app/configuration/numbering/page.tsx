@@ -2,6 +2,8 @@ import { AlertTriangle } from "@/components/icons";
 import { loadSeries } from "@/lib/numbering/load";
 import { patternFaults, periodFor, previewNext, serialFor } from "@/lib/numbering/series";
 import { ORGANISATION_CODE } from "@/lib/org";
+import { organisationDay } from "@/lib/dates";
+import { organisationTimeZone } from "@/lib/org-time";
 
 import { ProvenanceChip, Section } from "../records-ui";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
@@ -20,7 +22,11 @@ const RESET_LABEL: Record<string, string> = {
 };
 
 export default async function NumberingPage() {
-  const on = new Date();
+  // Previews are drawn on the organisation's day, never the UTC one; with no zone set
+  // the period a serial belongs to is not known, so none is shown (6.10 §9.5 follow-up).
+  const zone = await organisationTimeZone();
+  const day = organisationDay(new Date(), zone);
+  const on = day ?? new Date();
   const series = await loadSeries(ORGANISATION_CODE);
   const faulty = series.filter((s) => patternFaults(s).length > 0);
 
@@ -38,6 +44,12 @@ export default async function NumberingPage() {
         subtitle="How exercise, contract and certificate references are formed."
       />
 
+      {!day && (
+        <Callout tone="warn" title="The organisation's time zone is not set" className="mb-6">
+          Which period a serial belongs to is decided on the organisation&apos;s day, which is not assumed to be UTC. Next references are not
+          previewed, and a series cannot be saved, until the zone is set under Organisation.
+        </Callout>
+      )}
       {faulty.length > 0 && (
         <Callout tone="err" title="A pattern would produce references that collide" className="mb-6">
           <ul className="mt-1.5 flex flex-col gap-1.5">
@@ -105,6 +117,8 @@ export default async function NumberingPage() {
                   <Td className="[overflow-wrap:anywhere]">
                     {next == null ? (
                       <Badge tone="warn">Would collide</Badge>
+                    ) : !day ? (
+                      <span className="text-[12.5px] text-ink-3">Not shown: time zone not set</span>
                     ) : (
                       <span className="font-mono text-[12.5px] tabular-nums text-ink">{next}</span>
                     )}

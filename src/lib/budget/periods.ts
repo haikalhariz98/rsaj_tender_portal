@@ -122,7 +122,9 @@ export function refusalToReopen(period: Period): "ALREADY_OPEN" | null {
  * inside a closed period is accepted — including a back-dated one. A period nobody
  * has opened yet is not refused: not opening a month is not a decision to shut it.
  * Dates are compared by day. `endsOn` is exclusive, as every period in the project
- * is: January ends on the first of February, which belongs to February.
+ * is: January ends on the first of February, which belongs to February. `on` is the
+ * organisation's day in its stored form (`organisationDay`) or a day typed on a form —
+ * never an instant from the server's clock, which would read the UTC day.
  */
 export function postingRefusal(periods: readonly Period[], on: Date): Period | null {
   const day = Date.UTC(on.getUTCFullYear(), on.getUTCMonth(), on.getUTCDate());

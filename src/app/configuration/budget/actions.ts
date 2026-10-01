@@ -7,6 +7,7 @@ import { snapshotFields } from "@/lib/audit/diff";
 import { auditedCreate, auditedUpdate, writeAudit } from "@/lib/audit/record";
 import { allocationFor } from "@/lib/budget/availability";
 import { loadBudget } from "@/lib/budget/load";
+import { organisationDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { checkPeriod, FormReader } from "@/lib/validate";
@@ -502,7 +503,8 @@ export async function transferBetweenCodes(_prev: FormState, data: FormData): Pr
       counterpartCode: m.counterpartCode,
     })),
     fromId,
-    new Date(),
+    // What is available is judged on the organisation's day, not the UTC one.
+    organisationDay(new Date(), (await db.organisation.findUnique({ where: { id: orgId }, select: { timeZone: true } }))?.timeZone ?? null) ?? new Date(),
   ).available;
 
   const faults = transferFaults(fromId, toId, amount!, available);

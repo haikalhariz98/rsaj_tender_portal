@@ -12,6 +12,8 @@ import { formatCompactRM } from "@/lib/format";
 import { loadOrganisationData } from "@/lib/organisation/load";
 import { loadRoster } from "@/lib/people/load";
 import { ORGANISATION_CODE } from "@/lib/org";
+import { organisationDay } from "@/lib/dates";
+import { organisationTimeZone } from "@/lib/org-time";
 
 import { BudgetTabs } from "./panels";
 import { PageHeader } from "@/components/ui/page-header";
@@ -29,7 +31,11 @@ export default async function BudgetPage({
 }: {
   searchParams: Promise<{ tab?: string; year?: string }>;
 }) {
-  const on = new Date();
+  // Balances and the year are as at the organisation's day, not the UTC one (6.10 §9.5
+  // follow-up). With no zone set the UTC day is used, and the header says so.
+  const zone = await organisationTimeZone();
+  const orgDay = organisationDay(new Date(), zone);
+  const on = orgDay ?? new Date();
   const [{ tab, year: yearParam }, budget, periods, org, roster, finance] = await Promise.all([
     searchParams,
     loadBudgetCodes(ORGANISATION_CODE),
@@ -60,7 +66,7 @@ export default async function BudgetPage({
   const shownYear = Number.isInteger(asked) ? asked : defaultYear(periods.periods);
 
   const totals = totalsAcross(budget.codes, budget.movements, on);
-  const year = String(on.getFullYear());
+  const year = `${on.getUTCFullYear()}${orgDay ? "" : " (UTC: time zone not set)"}`;
 
   return (
     <>

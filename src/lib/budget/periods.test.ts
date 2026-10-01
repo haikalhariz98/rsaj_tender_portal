@@ -175,3 +175,19 @@ describe("posting into a period", () => {
     expect(postingRefusal([jan, feb, mar], new Date("2027-06-01"))).toBeNull();
   });
 });
+
+describe("posting is judged on the organisation's day (open follow-up from 6.10 §9.5)", async () => {
+  const { organisationDay } = await import("@/lib/dates");
+  const CLOSED_AT = new Date("2026-02-02T09:00:00Z");
+  const p = (code: string, startsOn: string, endsOn: string, closedOn: Date | null) => ({
+    id: code, year: 2026, code, nameEn: code, nameMs: null, startsOn: new Date(startsOn), endsOn: new Date(endsOn), openedOn: new Date("2026-01-01"), closedOn, sortOrder: 0,
+  });
+  const jan = p("P01", "2026-01-01", "2026-02-01", CLOSED_AT);
+  const feb = p("P02", "2026-02-01", "2026-03-01", null);
+  it("takes 01:00 on 1 February in Kuala Lumpur as February's, though UTC still says 31 January", () => {
+    const instant = new Date("2026-01-31T17:00:00Z");
+    expect(postingRefusal([jan, feb], organisationDay(instant, "Asia/Kuala_Lumpur")!)).toBeNull();
+    // The same instant read in UTC would have been refused into closed January.
+    expect(postingRefusal([jan, feb], instant)?.id).toBe("P01");
+  });
+});
