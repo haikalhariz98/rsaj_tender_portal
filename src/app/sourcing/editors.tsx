@@ -4,6 +4,7 @@ import { buttonClass } from "@/components/ui/button";
 import { Blocked } from "../requisitions/editors";
 import {
   addParticipant,
+  chooseNameRejection,
   cancelExercise,
   chooseTaxonomyValue,
   moveToPreparation,
@@ -255,6 +256,29 @@ export function RemoveParticipantDrawer({ id, participantId, name }: { id: strin
       submitLabel="Remove participant"
       trigger={{ label: "Remove", className: buttonClass("ghost", "sm") }}
       size="sm"
+    />
+  );
+}
+
+/// Where a refused name goes next, where the refusal decided nothing (FR-APR-016, CO-5).
+export function NameChoiceDrawer({ id, kinds, steps, people }: { id: string; kinds: { value: string; label: string }[]; steps: { value: string; label: string }[]; people: { value: string; label: string }[] }) {
+  return (
+    <RecordEditor
+      title="Where the refused name goes next"
+      description="No destination applied to this refusal, so the officer chooses. The choice is recorded as theirs, on behalf of the person named, not signed — it is not the organisation's policy."
+      fields={[
+        { kind: "hidden", name: "id" },
+        { kind: "select", name: "kind", label: "Where it goes", required: true, placeholder: "Choose", options: kinds },
+        { kind: "select", name: "returnToSeq", label: "The step it returns to", required: true, placeholder: "Choose", options: steps, hint: "The route continues from this step; the steps before it keep their decisions." },
+        { kind: "select", name: "personId", label: "Chosen by", required: true, placeholder: "Choose", options: people },
+        { kind: "textarea", name: "reason", label: "Why it goes there" },
+      ]}
+      showWhen={{ returnToSeq: { name: "kind", in: ["RETURN_TO_STEP"] } }}
+      values={{ id }}
+      action={chooseNameRejection}
+      submitLabel="Record the choice"
+      trigger={{ label: "Choose where it goes", className: buttonClass("primary", "sm") }}
+      size="md"
     />
   );
 }

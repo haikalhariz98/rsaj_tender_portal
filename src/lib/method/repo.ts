@@ -113,6 +113,7 @@ const exerciseInclude = {
     // Newest first, same-day routes by when written, then by id (review #4, BD-17).
     orderBy: [{ openedAt: "desc" as const }, { createdAt: "desc" as const }, { id: "desc" as const }],
     include: {
+      rejectionChosenBy: { select: { name: true } },
       steps: {
         orderBy: { sequence: "asc" as const },
         include: { delegation: { select: { id: true, valueCeiling: true, fromPerson: { select: { name: true } } } } },

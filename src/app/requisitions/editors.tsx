@@ -8,7 +8,7 @@ import {
   checkCommitteeGates,
   citeCommitteeDecision,
   citeGateDecision,
-  closeRequisition,
+  chooseWhereItGoes,
   closeWithoutSourcing,
   markEndorsed,
   recallRequisition,
@@ -300,18 +300,39 @@ export function ReopenDrawer({ id }: { id: string }) {
   );
 }
 
-export function CloseDrawer({ id }: { id: string }) {
+/**
+ * Where a rejected requisition goes next, chosen by the officer where the rejection
+ * decided nothing (FR-APR-016, ruling CO-5). Recorded as their choice, on behalf of the
+ * Person named — never as the organisation's policy.
+ */
+export function WhereItGoesDrawer({
+  id,
+  kinds,
+  steps,
+  people,
+}: {
+  id: string;
+  kinds: Option[];
+  steps: Option[];
+  people: Option[];
+}) {
   return (
     <RecordEditor
-      title="Close the requisition"
-      description="Rejected and not going further. Closed is final."
-      fields={[hidden("id")]}
+      title="Where it goes next"
+      description="No destination applied to this rejection, so the officer chooses. The choice is recorded as theirs, on behalf of the person named, not signed — it is not the organisation's policy."
+      fields={[
+        hidden("id"),
+        { kind: "select", name: "kind", label: "Where it goes", required: true, placeholder: "Choose", options: kinds },
+        { kind: "select", name: "returnToSeq", label: "The step it returns to", required: true, placeholder: "Choose", options: steps, hint: "The route continues from this step; the steps before it keep their decisions." },
+        { kind: "select", name: "personId", label: "Chosen by", required: true, placeholder: "Choose", options: people },
+        { kind: "textarea", name: "reason", label: "Why it goes there" },
+      ]}
+      showWhen={{ returnToSeq: { name: "kind", in: ["RETURN_TO_STEP"] } }}
       values={{ id }}
-      action={closeRequisition}
-      submitLabel="Close"
-      destructive={{ reasonLabel: "Why is it closed?" }}
-      trigger={{ label: "Close requisition", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
-      size="sm"
+      action={chooseWhereItGoes}
+      submitLabel="Record the choice"
+      trigger={{ label: "Choose where it goes", className: buttonClass("primary", "sm") }}
+      size="md"
     />
   );
 }

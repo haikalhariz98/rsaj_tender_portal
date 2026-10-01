@@ -165,6 +165,13 @@ export function awardFindingText(f: Finding): string {
       return `The appointment's route cannot be relied on: ${d.messages ?? "the approval matrix raised an error"}`;
     case "EVIDENCE_NOT_ATTACHED":
       return "A direct appointment is not approved without supporting evidence attached (its dossier), and the portal cannot store documents yet. This award cannot go for approval in the portal until it can; keep it as a draft, or cancel it.";
+    // Close-out ruling CO-8: until 6.5 enforces it at invitation, at submission.
+    case "NAME_NOT_REQUESTED":
+      return "This method asks for approval of the name, and none has been requested (or the last request was withdrawn). Request it on the exercise's Name approval tab; the award goes for approval once the name is approved.";
+    case "NAME_NOT_APPROVED":
+      return "This method asks for approval of the name, and that approval is still in progress. The award goes for approval once the name is approved.";
+    case "NAME_REJECTED":
+      return "The name was refused. It is asked again, or goes where the refusal sent it, on the exercise's Name approval tab; the award goes for approval once a name is approved.";
     // gate.ts
     case "NOT_APPROVED_YET":
       return "Only an approved award is issued.";

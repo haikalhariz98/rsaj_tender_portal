@@ -155,6 +155,11 @@ describe("requesting the name (ruling on BD-4)", () => {
     expect(nameRequestFault("DRAFT", m("open_tender"), [], "2026-09-30")?.code).toBe("NAME_NOT_ASKED");
     expect(nameRequestFault("DRAFT", m("selected_tender"), [], null)?.code).toBe("TIME_ZONE_UNSET");
   });
+  it("waits for the officer's choice where a refusal decided nothing (FR-APR-016, CO-5)", async () => {
+    const { nameRequestFault } = await import("./approval");
+    expect(nameRequestFault("DRAFT", m("selected_tender"), [{ status: "REJECTED", rejectionApplied: null, rejectionChoices: ["RETURN_TO_ORIGINATOR"] }], "2026-09-30")?.code).toBe("NAME_REJECTION_UNRESOLVED");
+    expect(nameRequestFault("DRAFT", m("selected_tender"), [{ status: "REJECTED", rejectionApplied: "RETURN_TO_ORIGINATOR", rejectionChoices: ["RETURN_TO_ORIGINATOR"] }], "2026-09-30")).toBeNull();
+  });
 });
 
 describe("a requester who holds a step of the name's route (review #5)", () => {

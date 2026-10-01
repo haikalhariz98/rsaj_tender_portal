@@ -297,6 +297,8 @@ export function findingText(f: Finding): string {
     case "NAME_NOT_ASKED":
       return "This exercise's method does not ask for name approval.";
     // actions
+    case "NAME_REJECTION_UNRESOLVED":
+      return "The name was refused and where it goes next is the officer's choice. Record the choice on the Name approval tab first.";
     case "NAME_ALREADY_REQUESTED":
       return "Name approval is already requested.";
     case "NAME_ROUTE_UNAVAILABLE":

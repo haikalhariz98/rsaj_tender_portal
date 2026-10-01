@@ -192,7 +192,7 @@ export function nameRouteLabel(status: string, warnings: unknown): string {
   return ({ PENDING: "In progress", APPROVED: "Approved", REJECTED: "Refused" } as Record<string, string>)[status] ?? "Closed";
 }
 
-export type NameRequestFault = "NAME_EXERCISE_CANCELLED" | "NAME_NOT_ASKED" | "NAME_ALREADY_REQUESTED" | "TIME_ZONE_UNSET";
+export type NameRequestFault = "NAME_EXERCISE_CANCELLED" | "NAME_NOT_ASKED" | "NAME_ALREADY_REQUESTED" | "NAME_REJECTION_UNRESOLVED" | "TIME_ZONE_UNSET";
 
 /**
  * Whether the name may be sent for approval now. While the exercise is a draft or in
@@ -202,13 +202,16 @@ export type NameRequestFault = "NAME_EXERCISE_CANCELLED" | "NAME_NOT_ASKED" | "N
 export function nameRequestFault(
   status: "DRAFT" | "DOCUMENTS_IN_PREPARATION" | "CANCELLED",
   method: Pick<Method, "requiresNameApproval"> | null,
-  instances: readonly { status: string }[],
+  instances: readonly { status: string; rejectionApplied?: string | null; rejectionChoices?: readonly string[] }[],
   today: string | null,
 ): Finding<NameRequestFault> | null {
   if (status === "CANCELLED") return { code: "NAME_EXERCISE_CANCELLED", level: "block" };
   if (!method?.requiresNameApproval) return { code: "NAME_NOT_ASKED", level: "block" };
   if (today == null) return { code: "TIME_ZONE_UNSET", level: "block" };
   if (instances.some((i) => i.status === "PENDING" || i.status === "APPROVED")) return { code: "NAME_ALREADY_REQUESTED", level: "block" };
+  // A refusal whose destination is the officer's choice is answered first (FR-APR-016,
+  // ruling CO-5): asking again would choose "back to the originator" without saying so.
+  if (instances.some((i) => i.status === "REJECTED" && !i.rejectionApplied && (i.rejectionChoices?.length ?? 0) > 0)) return { code: "NAME_REJECTION_UNRESOLVED", level: "block" };
   return null;
 }
 

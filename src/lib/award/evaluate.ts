@@ -127,6 +127,8 @@ export interface AwardFacts {
   routePeople: RoutePeople;
   /// The award's latest appointment route.
   appointment: { status: ApprovalStatus; openedAt: Date; steps: readonly RouteStepFact[] } | null;
+  /// The exercise's name-approval routes, for the CO-8 condition on submission.
+  nameRoutes?: readonly { status: ApprovalStatus; openedAt: Date; createdAt?: Date | null; id?: string }[];
   recipients: readonly Recipient[];
   variants: readonly Variant[];
   templates: readonly TemplateRow[];
@@ -220,7 +222,7 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
   const dossier = { justificationReasonCode: f.exercise.justificationReasonCode, dossierReference: f.exercise.dossierReference, evidenceAttachments: 0 };
   const submit: Finding[] = [
     ...noIssue,
-    ...(route ? submitFaults({ status: a.status, today: f.today, exerciseStatus: f.exercise.status, openRoute: f.appointment?.status === "PENDING", method: f.method, dossier, route }) : []),
+    ...(route ? submitFaults({ status: a.status, today: f.today, exerciseStatus: f.exercise.status, openRoute: f.appointment?.status === "PENDING", method: f.method, dossier, route, nameRoutes: f.nameRoutes ?? [] }) : []),
     ...("fault" in instrument ? [{ code: instrument.fault, level: "block" as const, data: { regime: instrument.regime } }] : []),
     ...changed,
     ...valueFaults,

@@ -108,8 +108,9 @@ const include = {
   budgetChecks: { orderBy: { checkedAt: "desc" as const } },
   splitChecks: { orderBy: { checkedAt: "desc" as const }, include: { overriddenBy: { select: { name: true } } } },
   approvalInstances: {
-    orderBy: { openedAt: "desc" as const },
+    orderBy: [{ openedAt: "desc" as const }, { createdAt: "desc" as const }, { id: "desc" as const }],
     include: {
+      rejectionChosenBy: { select: { name: true } },
       steps: {
         orderBy: { sequence: "asc" as const },
         include: {

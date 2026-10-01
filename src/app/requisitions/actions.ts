@@ -56,9 +56,12 @@ import {
 } from "@/lib/requisition/repo";
 import { resolveRequisitionRoute } from "@/lib/requisition/route";
 import { assessSplitting, justifierFaults, splitApprovalFault, type JustifierFault, type SplitSubject } from "@/lib/requisition/splitting";
+import { closeRejected, loadDestinations, openSuccessor, recordChoice, snapshotOf } from "@/lib/approvals/rejection-store";
+import { choiceFault, choicesFor, rejectionOutcome, rejectionSnapshot, REJECTION_KINDS, type RejectionKind, type RejectionOutcome } from "@/lib/authority/rejection";
+import { CHOICE_FAULT_TEXT } from "@/lib/authority/rejection-labels";
 import { MoveRefused, moveRequisition } from "@/lib/requisition/move";
 import { transitionFault, type TransitionContext } from "@/lib/requisition/status";
-import type { OrgUnitKind, RequisitionStatus } from "@/lib/requisition/types";
+import { REQUISITION_DOMAIN, type OrgUnitKind, type RequisitionStatus } from "@/lib/requisition/types";
 import { ACT_LABEL } from "@/lib/labels";
 import { FormReader } from "@/lib/validate";
 
@@ -439,11 +442,13 @@ export async function returnRequisition(_prev: FormState, data: FormData): Promi
   });
 }
 
-/// Returned, recalled or rejected, back to Draft.
+/// Returned or recalled, back to Draft. A rejected one goes where its rejection says
+/// (FR-APR-016): `chooseWhereItGoes`, recorded as the officer's choice.
 export async function reopenDraft(_prev: FormState, data: FormData): Promise<FormState> {
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   return inRequisition(id, async (tx, l): Promise<FormState> => {
+    if (l.req.status === "REJECTED") return { ok: false, message: "A rejected requisition goes where its rejection says. Choose where it goes next on its Approval tab, which records the choice and who made it." };
     const fault = transitionFault(l.req.status, "DRAFT", { today: l.org.today });
     if (fault) return { ok: false, message: transitionFaultText(fault) };
     const from = l.req.status;
@@ -463,21 +468,6 @@ export async function cancelRequisition(_prev: FormState, data: FormData): Promi
     const before = { status: l.req.status, cancelReason: l.req.cancelReason };
     await mustMove(tx, l, "CANCELLED", { today: l.org.today, reason }, { cancelReason: reason });
     await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields(before, { status: "CANCELLED", cancelReason: reason }), reason);
-    return { ok: true };
-  });
-}
-
-/// Rejected to Closed. Reason mandatory.
-export async function closeRequisition(_prev: FormState, data: FormData): Promise<FormState> {
-  const id = String(data.get("id") ?? "");
-  const reason = String(data.get("reason") ?? "").trim();
-  if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
-  return inRequisition(id, async (tx, l): Promise<FormState> => {
-    const fault = transitionFault(l.req.status, "CLOSED", { today: l.org.today, reason });
-    if (fault) return { ok: false, message: transitionFaultText(fault) };
-    const from = l.req.status;
-    await mustMove(tx, l, "CLOSED", { today: l.org.today, reason });
-    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: "CLOSED" }), reason);
     return { ok: true };
   });
 }
@@ -880,6 +870,8 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
         warnings: warnings as unknown as Prisma.InputJsonValue,
         status: "PENDING",
         openedAt: today,
+        // Where a rejection would send it, as configured now (FR-APR-016, ruling CO-4).
+        ...rejectionSnapshot(await loadDestinations(tx, l.org.id), REQUISITION_DOMAIN, today, new Date()),
         steps: {
           create: resolved.resolution.chain.map((s, i) => ({
             sequence: i + 1,
@@ -1242,11 +1234,10 @@ export async function recordDecision(_prev: FormState, data: FormData): Promise<
       diffFields({ decision: step.decision }, { decision, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);
 
     if (decision === "REJECTED") {
-      await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "REJECTED", closedAt: new Date() } });
-      await audit(tx, l.org.id, "ApprovalInstance", inst.id, `${l.req.reference} · approval route`, "UPDATE", diffFields({ status: inst.status }, { status: "REJECTED" }), reason);
-      const from = l.req.status;
-      await mustMove(tx, l, "REJECTED", { today: l.org.today, reason });
-      await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: "REJECTED" }), reason);
+      // FR-APR-016: the destination snapshotted at open says where it goes; unset, the
+      // officer chooses. Rejection is never refused.
+      const outcome = rejectionOutcome({ snapshot: snapshotOf(inst), committee: null, steps: inst.steps, rejectingSeq: step.sequence, supports: REQUISITION_SUPPORTS });
+      await rejectAndApply(tx, l, inst, outcome, reason);
       return { ok: true };
     }
     if (gate?.kind === "ok") await approve(tx, l, inst.id, gate);
@@ -1311,23 +1302,87 @@ export async function citeCommitteeDecision(_prev: FormState, data: FormData): P
       diffFields({ decision: step.decision }, { decision: s.decision, committee: s.citation!.committee, sitting: s.citation!.meetingReference, decidedOn: s.decidedOn }));
 
     if (s.decision === "REJECTED") {
-      await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "REJECTED", closedAt: new Date() } });
-      await audit(tx, l.org.id, "ApprovalInstance", inst.id, `${l.req.reference} · approval route`, "UPDATE", diffFields({ status: inst.status }, { status: "REJECTED" }));
-      // Every rejection lands on Rejected first (ruling C1: there is no Pending → Draft
-      // or Pending → Closed edge). The not-approved outcome then says where it goes: a
-      // loop to Draft, or closed. Where the decision recorded none, it stays Rejected
-      // for the officer to decide.
+      // Every rejection lands on Rejected first (ruling C1). The committee's own
+      // not-carried outcome, as snapshotted with its decision, then governs where it
+      // goes (ruling CO-3): a loop back to the originator, a terminal outcome ends it.
       const why = `Not carried by ${s.citation!.committee} at ${s.citation!.meetingReference}`;
-      const from = l.req.status;
-      await mustMove(tx, l, "REJECTED", { today: l.org.today, reason: why });
-      await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: "REJECTED" }), why);
-      if (s.requisitionGoesTo) {
-        await mustMove(tx, l, s.requisitionGoesTo, { today: l.org.today, reason: why });
-        await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: "REJECTED" }, { status: s.requisitionGoesTo }), why);
-      }
+      const outcome = rejectionOutcome({ snapshot: snapshotOf(inst), committee: record?.notApproved ?? null, steps: inst.steps, rejectingSeq: step.sequence, supports: REQUISITION_SUPPORTS });
+      await rejectAndApply(tx, l, inst, outcome, why);
       return { ok: true };
     }
     if (gate?.kind === "ok") await approve(tx, l, inst.id, gate);
+    return { ok: true };
+  });
+}
+
+// ------------------------------------------------------------ rejection (FR-APR-016)
+
+/// Where a rejected requisition can go: back to its originator (Draft), back to an
+/// earlier step on a successor route, or closed.
+const REQUISITION_SUPPORTS: readonly RejectionKind[] = ["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP", "TERMINATE"];
+const routeLabelOf = (l: LoadedRequisition) => `${l.req.reference} · approval route`;
+type OpenRoute = NonNullable<ReturnType<typeof openInstance>>;
+
+/// Close the route as rejected, move the requisition to Rejected, and send it where the
+/// outcome says — or leave it there for the officer's choice.
+async function rejectAndApply(tx: Tx, l: LoadedRequisition, inst: OpenRoute, outcome: RejectionOutcome, reason: string) {
+  await closeRejected(tx, { organisationId: l.org.id, routeLabel: routeLabelOf(l) }, inst, outcome, reason);
+  const from = l.req.status;
+  await mustMove(tx, l, "REJECTED", { today: l.org.today, reason });
+  await audit(tx, l.org.id, "Requisition", l.req.id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: "REJECTED" }), reason);
+  if ("apply" in outcome) await sendRejected(tx, l, inst.id, outcome.apply, outcome.returnToSeq ?? null, reason);
+}
+
+/// Move a rejected requisition to its destination, through the state machine.
+async function sendRejected(tx: Tx, l: LoadedRequisition, instId: string, kind: RejectionKind, returnToSeq: number | null, reason: string) {
+  const today = l.org.today;
+  if (kind === "RETURN_TO_ORIGINATOR") {
+    await mustMove(tx, l, "DRAFT", { today });
+    await audit(tx, l.org.id, "Requisition", l.req.id, labelOf(l.req), "UPDATE", diffFields({ status: "REJECTED" }, { status: "DRAFT" }), `Returned to whoever raised it: ${reason}`);
+  } else if (kind === "TERMINATE") {
+    await mustMove(tx, l, "CLOSED", { today, reason }, { closedReason: reason });
+    await audit(tx, l.org.id, "Requisition", l.req.id, labelOf(l.req), "UPDATE", diffFields({ status: "REJECTED", closedReason: "" }, { status: "CLOSED", closedReason: reason }), reason);
+  } else {
+    // C3: the successor opens under the requisition's lock; while it is open nothing on
+    // the requisition can be edited (its status is Pending approval again).
+    await openSuccessor(tx, { organisationId: l.org.id, routeLabel: routeLabelOf(l) }, instId, returnToSeq!, dayToDate(today!));
+    await mustMove(tx, l, "PENDING_APPROVAL", { today, successor: true });
+    await audit(tx, l.org.id, "Requisition", l.req.id, labelOf(l.req), "UPDATE", diffFields({ status: "REJECTED" }, { status: "PENDING_APPROVAL" }), `Returned to an earlier step: ${reason}`);
+  }
+}
+
+/**
+ * Where a rejected requisition goes, chosen by the officer where its rejection decided
+ * nothing (ruling CO-5): recorded as OFFICER_CHOICE on behalf of a named Person, with
+ * a reason — never as policy. Also the exit for a requisition rejected before
+ * destinations existed.
+ */
+export async function chooseWhereItGoes(_prev: FormState, data: FormData): Promise<FormState> {
+  const id = String(data.get("id") ?? "");
+  const r = new FormReader(data);
+  const kind = r.choice("kind", "Where it goes", REJECTION_KINDS);
+  const seq = r.int("returnToSeq", "Step", { min: 1 });
+  const personId = r.optionalText("personId");
+  const reason = r.text("reason", "Reason", { max: 2000 });
+  if (r.failed) return { ok: false, errors: r.errors };
+  return inRequisition(id, async (tx, l): Promise<FormState> => {
+    if (l.req.status !== "REJECTED") return { ok: false, message: "Only a rejected requisition waits for where it goes next." };
+    if (!l.org.today) return NO_ZONE;
+    const inst = l.req.approvalInstances[0];
+    const rejecting = inst?.steps.find((s) => s.decision === "REJECTED") ?? null;
+    const offered = inst && inst.rejectionChoices.length > 0 ? (inst.rejectionChoices as RejectionKind[]) : choicesFor(REQUISITION_SUPPORTS, inst?.steps ?? [], rejecting?.sequence ?? 1);
+    const fault = choiceFault(
+      { status: inst?.status ?? "", applied: (inst?.rejectionApplied as RejectionKind | null) ?? null, offered, steps: inst?.steps ?? [], rejectingSeq: rejecting?.sequence ?? null },
+      { kind, returnToSeq: seq, personId, reason },
+    );
+    if (fault) {
+      const field = { NOT_OFFERED: "kind", STEP_REQUIRED: "returnToSeq", STEP_NOT_EARLIER: "returnToSeq", PERSON_REQUIRED: "personId", REASON_REQUIRED: "reason" } as Record<string, string>;
+      return field[fault] ? { ok: false, errors: { [field[fault]]: CHOICE_FAULT_TEXT[fault] } } : { ok: false, message: CHOICE_FAULT_TEXT[fault] };
+    }
+    const person = await tx.person.findFirst({ where: { id: personId!, organisationId: l.org.id, isActive: true }, select: { id: true, name: true } });
+    if (!person) return { ok: false, errors: { personId: "Choose someone on record and active." } };
+    await recordChoice(tx, { organisationId: l.org.id, routeLabel: routeLabelOf(l) }, inst!.id, kind!, person.id, person.name, reason);
+    await sendRejected(tx, l, inst!.id, kind!, kind === "RETURN_TO_STEP" ? seq : null, reason);
     return { ok: true };
   });
 }

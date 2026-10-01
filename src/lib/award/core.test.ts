@@ -199,6 +199,20 @@ describe("the appointment route at award (6.3 BD-3, FR-APR-010)", () => {
     const f = submitFaults({ status: "DRAFT", today: "2026-09-30", exerciseStatus: "DOCUMENTS_IN_PREPARATION", openRoute: true, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route: appointmentRoute(ctx, quotation, 180_000, nobody) });
     expect(f.map((x) => x.code)).toEqual(["ANOTHER_ROUTE_OPEN"]);
   });
+  it("CO-8: a name-approval method is not submitted without an approved, non-withdrawn name route", () => {
+    const r = appointmentRoute(ctx, quotation, 180_000, nobody);
+    const base = { status: "DRAFT", today: "2026-09-30", exerciseStatus: "DOCUMENTS_IN_PREPARATION", openRoute: false, method: { requiresDossier: false, requiresNameApproval: true }, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route: r };
+    const day = (d: string) => new Date(`${d}T00:00:00Z`);
+    expect(submitFaults({ ...base }).map((x) => x.code)).toEqual(["NAME_NOT_REQUESTED"]);
+    expect(submitFaults({ ...base, nameRoutes: [] }).map((x) => x.code)).toEqual(["NAME_NOT_REQUESTED"]);
+    expect(submitFaults({ ...base, nameRoutes: [{ status: "PENDING", openedAt: day("2026-09-01") }] }).map((x) => x.code)).toEqual(["NAME_NOT_APPROVED"]);
+    expect(submitFaults({ ...base, nameRoutes: [{ status: "REJECTED", openedAt: day("2026-09-01") }] }).map((x) => x.code)).toEqual(["NAME_REJECTED"]);
+    // Approved, then withdrawn on a change: the latest route speaks.
+    expect(submitFaults({ ...base, nameRoutes: [{ status: "APPROVED", openedAt: day("2026-09-01") }, { status: "RECALLED", openedAt: day("2026-09-10") }] }).map((x) => x.code)).toEqual(["NAME_NOT_REQUESTED"]);
+    expect(submitFaults({ ...base, nameRoutes: [{ status: "APPROVED", openedAt: day("2026-09-01") }] })).toEqual([]);
+    // A method that does not ask for the name is not held by it.
+    expect(submitFaults({ ...base, method: { requiresDossier: false, requiresNameApproval: false } })).toEqual([]);
+  });
   it("only a draft is submitted, only from an exercise in preparation", () => {
     const r = appointmentRoute(ctx, quotation, 180_000, nobody);
     const base = { status: "DRAFT", today: "2026-09-30", exerciseStatus: "DRAFT", openRoute: false, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route: r };

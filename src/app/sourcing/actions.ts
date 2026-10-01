@@ -10,7 +10,10 @@ import { diffFields, snapshotFields, type FieldChange } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { ACT_LABEL } from "@/lib/labels";
-import { nameRequestFault, nameRouteForRequester, requesterHolding, WITHDRAWN_ON_CANCEL, WITHDRAWN_ON_CHANGE } from "@/lib/method/approval";
+import { latestFirst, nameRequestFault, nameRouteForRequester, requesterHolding, WITHDRAWN_ON_CANCEL, WITHDRAWN_ON_CHANGE } from "@/lib/method/approval";
+import { closeRejected, loadDestinations, openSuccessor, recordChoice, snapshotOf } from "@/lib/approvals/rejection-store";
+import { choiceFault, rejectionOutcome, rejectionSnapshot, REJECTION_KINDS, type RejectionKind } from "@/lib/authority/rejection";
+import { CHOICE_FAULT_TEXT } from "@/lib/authority/rejection-labels";
 import { auditCreate, auditPair } from "@/lib/method/audit-view";
 import { determinationDrift } from "@/lib/method/drift";
 import { keptForMethod, nameRoutesToWithdraw } from "@/lib/method/config";
@@ -31,7 +34,7 @@ import {
   type ExerciseRow,
   type SourcingRequisition,
 } from "@/lib/method/repo";
-import { DELIVERABLE_KINDS, type DeliverableKind, type Finding } from "@/lib/method/types";
+import { DELIVERABLE_KINDS, NAME_APPROVAL_DOMAIN, type DeliverableKind, type Finding } from "@/lib/method/types";
 import { parseSen, senToDecimalString } from "@/lib/money";
 import { NumberingError, issueReference } from "@/lib/numbering/issue";
 import { ORGANISATION_CODE } from "@/lib/org";
@@ -540,6 +543,8 @@ export async function requestNameApproval(_prev: FormState, data: FormData): Pro
         warnings: res.warnings as unknown as Prisma.InputJsonValue,
         status: "PENDING",
         openedAt: on,
+        // Where a refusal would send it, as configured now (FR-APR-016, ruling CO-4).
+        ...rejectionSnapshot(await loadDestinations(tx, l.org.id), NAME_APPROVAL_DOMAIN, on, new Date()),
         steps: {
           create: res.chain.map((s, i) => ({
             sequence: i + 1,
@@ -605,11 +610,76 @@ export async function recordNameDecision(_prev: FormState, data: FormData): Prom
     if (done.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, l.org.id, "ApprovalStep", step.id, `${ex.reference} · ${step.roleLabel}`, "UPDATE",
       diffFields({ decision: step.decision }, { decision, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);
-    const closes = decision === "REJECTED" ? "REJECTED" : inst.steps.every((s) => s.id === step.id || s.decision === "DONE") ? "APPROVED" : null;
-    if (closes) {
-      await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: closes, closedAt: new Date() } });
-      await audit(tx, l.org.id, "ApprovalInstance", inst.id, nameLabel(ex), "UPDATE", diffFields({ status: inst.status }, { status: closes }), reason);
+    if (decision === "REJECTED") {
+      // FR-APR-016: the destination snapshotted at open says where it goes; unset, the
+      // officer chooses. A refusal is never refused.
+      const supports = await nameSupports(tx, ex.id);
+      const outcome = rejectionOutcome({ snapshot: snapshotOf(inst), committee: null, steps: inst.steps, rejectingSeq: step.sequence, supports });
+      await closeRejected(tx, { organisationId: l.org.id, routeLabel: nameLabel(ex) }, inst, outcome, reason);
+      if ("apply" in outcome) await sendNameRejected(tx, l, inst.id, outcome.apply, outcome.returnToSeq ?? null, reason);
+      return { ok: true };
     }
+    if (inst.steps.every((s) => s.id === step.id || s.decision === "DONE")) {
+      await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "APPROVED", closedAt: new Date() } });
+      await audit(tx, l.org.id, "ApprovalInstance", inst.id, nameLabel(ex), "UPDATE", diffFields({ status: inst.status }, { status: "APPROVED" }), reason);
+    }
+    return { ok: true };
+  });
+}
+
+/// Where a refused name can go: back to whoever asked (it may be asked again), back to
+/// an earlier step, or the exercise ends — but not while an award stands on it.
+async function nameSupports(tx: Tx, exerciseId: string): Promise<RejectionKind[]> {
+  const live = exerciseCancelBlockedBy(await tx.award.findMany({ where: { exerciseId }, select: { reference: true, status: true } }));
+  return live ? ["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP"] : ["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP", "TERMINATE"];
+}
+
+/// Send a refused name where its rejection says.
+async function sendNameRejected(tx: Tx, l: { org: ExerciseOrg; ex: ExerciseRow }, instId: string, kind: RejectionKind, returnToSeq: number | null, reason: string) {
+  const ex = l.ex;
+  if (kind === "RETURN_TO_STEP") {
+    await openSuccessor(tx, { organisationId: l.org.id, routeLabel: nameLabel(ex) }, instId, returnToSeq!, dayToDate(l.org.today!));
+  } else if (kind === "TERMINATE") {
+    const t = transitionFault(ex.status, "CANCELLED", { today: l.org.today, reason });
+    if (t.length > 0) throw new Refusal(refuse(t, "The exercise cannot end:"));
+    const moved = await tx.sourcingExercise.updateMany({ where: { id: ex.id, status: ex.status }, data: { status: "CANCELLED", cancelReason: `Name refused: ${reason}` } });
+    if (moved.count !== 1) throw new Refusal(CHANGED);
+    await audit(tx, l.org.id, "SourcingExercise", ex.id, labelOf(ex), "UPDATE", diffFields({ status: ex.status }, { status: "CANCELLED" }), `The name was refused and the exercise ends: ${reason}`);
+  }
+  // Back to whoever asked: the name may be asked again, and nothing else moves.
+}
+
+/**
+ * Where a refused name goes, chosen by the officer where the refusal decided nothing
+ * (FR-APR-016, ruling CO-5): recorded as their choice on behalf of a named Person.
+ */
+export async function chooseNameRejection(_prev: FormState, data: FormData): Promise<FormState> {
+  const id = String(data.get("id") ?? "");
+  const r = new FormReader(data);
+  const kind = r.choice("kind", "Where it goes", REJECTION_KINDS);
+  const seq = r.int("returnToSeq", "Step", { min: 1 });
+  const personId = r.optionalText("personId");
+  const reason = r.text("reason", "Reason", { max: 2000 });
+  if (r.failed) return { ok: false, errors: r.errors };
+  return inExercise(id, async (tx, l) => {
+    const ex = l.ex;
+    if (!l.org.today) return { ok: false, message: findingText({ code: "TIME_ZONE_UNSET", level: "block" }) };
+    const inst = latestFirst(ex.approvalInstances)[0];
+    const rejecting = inst?.steps.find((s) => s.decision === "REJECTED") ?? null;
+    const offered = (inst?.rejectionChoices as RejectionKind[] | undefined) ?? [];
+    const supports = await nameSupports(tx, ex.id);
+    const fault = choiceFault(
+      { status: inst?.status ?? "", applied: (inst?.rejectionApplied as RejectionKind | null) ?? null, offered: offered.filter((k) => supports.includes(k)), steps: inst?.steps ?? [], rejectingSeq: rejecting?.sequence ?? null },
+      { kind, returnToSeq: seq, personId, reason },
+    );
+    if (fault) {
+      const field = { NOT_OFFERED: "kind", STEP_REQUIRED: "returnToSeq", STEP_NOT_EARLIER: "returnToSeq", PERSON_REQUIRED: "personId", REASON_REQUIRED: "reason" } as Record<string, string>;
+      return field[fault] ? { ok: false, errors: { [field[fault]]: CHOICE_FAULT_TEXT[fault] } } : { ok: false, message: CHOICE_FAULT_TEXT[fault] };
+    }
+    const person = await tx.person.findFirst({ where: { id: personId!, organisationId: l.org.id, isActive: true }, select: { id: true, name: true } });
+    if (!person) return { ok: false, errors: { personId: "Choose someone on record and active." } };
+    await recordChoice(tx, { organisationId: l.org.id, routeLabel: nameLabel(ex) }, inst!.id, kind!, person.id, person.name, reason);
+    await sendNameRejected(tx, l, inst!.id, kind!, kind === "RETURN_TO_STEP" ? seq : null, reason);
     return { ok: true };
   });
 }

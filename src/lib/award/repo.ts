@@ -56,6 +56,7 @@ export const awardInclude = {
   approvalInstances: {
     orderBy: [{ openedAt: "desc" as const }, { createdAt: "desc" as const }, { id: "desc" as const }],
     include: {
+      rejectionChosenBy: { select: { name: true } },
       steps: {
         orderBy: { sequence: "asc" as const },
         include: { committeeDecision: { include: decisionInclude }, delegation: { select: { id: true, fromPerson: { select: { name: true } } } } },
@@ -294,6 +295,7 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
     policy: config.policy,
     funder: ctx?.funder ?? null,
     method,
+    nameRoutes: ex.approvalInstances.map((i) => ({ status: i.status as ApprovalStatus, openedAt: i.openedAt, createdAt: i.createdAt, id: i.id })),
     routePeople: {
       absentRoleCodes: org.today ? absentOffices(officeCodes, holdersOf, available) : [],
       requesterHolds: (code) => holdersOf(code).holderIds.includes(req.requestingPersonId),

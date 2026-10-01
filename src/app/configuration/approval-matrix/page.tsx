@@ -19,6 +19,8 @@ import {
   AddTermsBand,
   DiscardDraft,
   EditMatrix,
+  EndRejectionDestination,
+  SetRejectionDestination,
   EditRule,
   EditTermsBand,
   IssueDraft,
@@ -37,6 +39,8 @@ import { ButtonLink } from "@/components/ui/button";
 import { Callout } from "@/components/ui/feedback";
 import { cx } from "@/components/ui/cx";
 import type { Rule } from "@/lib/authority/types";
+import { destinationFor, REJECTION_DOMAINS, type DestinationRow, type RejectionKind } from "@/lib/authority/rejection";
+import { destinationText } from "@/lib/authority/rejection-labels";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -78,6 +82,10 @@ export default async function ApprovalMatrixPage({
     sourcingMethods.find((m) => m.authorityMethodKey === code)?.nameEn ?? methodLabel(code);
 
   const roster = await loadRoster(ORGANISATION_CODE);
+  const orgRow = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true } });
+  const destinations: DestinationRow[] = orgRow
+    ? (await db.rejectionDestination.findMany({ where: { organisationId: orgRow.id } })).map((d) => ({ ...d, kind: d.kind as RejectionKind, provenance: d.provenance as DestinationRow["provenance"] }))
+    : [];
   const offices = roster.offices.map((o) => ({ code: o.code, nameEn: o.nameEn }));
 
   // Which issue to show: the one asked for, else the one in force, else a draft. A
@@ -676,7 +684,64 @@ export default async function ApprovalMatrixPage({
           </Callout>
         )}
 
-{!selectedRoute && (
+        {!selectedRoute && (
+          <Card className="overflow-hidden">
+            <CardHeader
+              icon={<SlidersIcon size={17} />}
+              title="When a matter is rejected"
+              subtitle="Where a matter goes when a step rejects it, by matter type. None ships: unset, the officer chooses and the choice is recorded as theirs. A committee step follows the committee's own not-carried outcome."
+            />
+            <Table minWidth={720}>
+              <colgroup>
+                <col style={{ width: "24%" }} />
+                <col />
+                <col style={{ width: "15%" }} />
+                <col style={{ width: "15%" }} />
+                <ActionsCol icons={0} labelled={2} />
+              </colgroup>
+              <THead>
+                <Th>Matter type</Th>
+                <Th>Where it goes</Th>
+                <Th>Source</Th>
+                <Th>Since</Th>
+                <Th className="text-right">Actions</Th>
+              </THead>
+              <tbody>
+                {REJECTION_DOMAINS.map((domain) => {
+                  const found = destinationFor(destinations, domain, on);
+                  const row = found.set ? found.row : null;
+                  const office = row?.returnToRoleCode ? (offices.find((o) => o.code === row.returnToRoleCode)?.nameEn ?? "An office no longer configured") : null;
+                  const label = matterLabel(domain);
+                  return (
+                    <Tr key={domain}>
+                      <Td className="font-semibold text-ink">{label}</Td>
+                      <Td className="text-ink-2">
+                        {row ? (
+                          <span className="break-words">{destinationText(row.kind, office)}</span>
+                        ) : (
+                          <span className="flex flex-col items-start gap-1">
+                            <Badge tone="warn">Not set</Badge>
+                            <span className="text-[12.5px] text-ink-3">The officer chooses, recorded as their choice.</span>
+                          </span>
+                        )}
+                      </Td>
+                      <Td>{row ? <ProvenanceBadge value={row.provenance} /> : <span className="text-ink-3">—</span>}</Td>
+                      <Td className="text-ink-2">{row ? formatDate(row.effectiveFrom) : "—"}</Td>
+                      <Td>
+                        <RowActions>
+                          <SetRejectionDestination domain={domain} label={label} offices={offices} current={row ? { kind: row.kind, returnToRoleCode: row.returnToRoleCode } : null} />
+                          {row && <EndRejectionDestination id={row.id} label={label} />}
+                        </RowActions>
+                      </Td>
+                    </Tr>
+                  );
+                })}
+              </tbody>
+            </Table>
+          </Card>
+        )}
+
+        {!selectedRoute && (
                 <Card tone="brand">
           <CardHeader
             icon={<SlidersIcon size={17} />}

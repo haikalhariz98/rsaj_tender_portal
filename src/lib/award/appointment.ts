@@ -12,7 +12,7 @@
  */
 
 import type { ApprovalStep, ResolutionWarning } from "@/lib/authority/types";
-import { resolveUnderFunder, type FunderContext } from "@/lib/method/approval";
+import { invitationFault, resolveUnderFunder, type FunderContext } from "@/lib/method/approval";
 import { dossierFault } from "@/lib/method/justification";
 import { APPOINTMENT_DOMAIN, type Method } from "@/lib/method/types";
 
@@ -87,22 +87,39 @@ export function absentOffices(
   });
 }
 
-export type SubmitFault = "NOT_DRAFT" | "TIME_ZONE_UNSET" | "EXERCISE_NOT_IN_PREPARATION" | "ANOTHER_ROUTE_OPEN" | RouteFault | "REASON_REQUIRED" | "DOSSIER_UNNUMBERED" | "EVIDENCE_NOT_ATTACHED";
+export type SubmitFault =
+  | "NOT_DRAFT"
+  | "TIME_ZONE_UNSET"
+  | "EXERCISE_NOT_IN_PREPARATION"
+  | "ANOTHER_ROUTE_OPEN"
+  | RouteFault
+  | "REASON_REQUIRED"
+  | "DOSSIER_UNNUMBERED"
+  | "EVIDENCE_NOT_ATTACHED"
+  | "NAME_NOT_REQUESTED"
+  | "NAME_NOT_APPROVED"
+  | "NAME_REJECTED";
 
 /**
  * Whether an award may be sent for the appointment's approval. The awarded value's own
  * faults (`awardValueFaults`) and the instrument's are added by the caller; the
  * dossier a direct appointment keeps must pass `dossierFault` (FR-MTD-009), which with
  * no document storage it cannot yet (build decision BD-4).
+ *
+ * Until 6.5 enforces it at invitation, a method that asks for approval of the name is
+ * not sent for the appointment's approval without an approved, non-withdrawn name route
+ * (close-out ruling CO-8, `invitationFault`). Routes not given are none: never a pass.
  */
 export function submitFaults(i: {
   status: string;
   today: string | null;
   exerciseStatus: string;
   openRoute: boolean;
-  method: Pick<Method, "requiresDossier"> | null;
+  method: (Pick<Method, "requiresDossier"> & Partial<Pick<Method, "requiresNameApproval">>) | null;
   dossier: { justificationReasonCode: string | null; dossierReference: string | null; evidenceAttachments: number };
   route: AppointmentRoute;
+  /// The exercise's name-approval routes (its own, not an award's).
+  nameRoutes?: readonly ({ status: "PENDING" | "APPROVED" | "REJECTED" | "RECALLED"; openedAt: Date; createdAt?: Date | null; id?: string })[];
 }): Finding<SubmitFault>[] {
   const f = (code: SubmitFault, data?: Finding["data"]): Finding<SubmitFault> => ({ code, level: "block", ...(data ? { data } : {}) });
   if (i.status !== "DRAFT") return [f("NOT_DRAFT")];
@@ -111,6 +128,10 @@ export function submitFaults(i: {
   if (i.exerciseStatus !== "DOCUMENTS_IN_PREPARATION") out.push(f("EXERCISE_NOT_IN_PREPARATION"));
   if (i.openRoute) out.push(f("ANOTHER_ROUTE_OPEN"));
   if (i.method) for (const d of dossierFault(i.method, i.dossier)) out.push(f(d.code as SubmitFault));
+  if (i.method?.requiresNameApproval) {
+    const name = invitationFault({ requiresNameApproval: true }, i.nameRoutes ?? []);
+    if (name) out.push(f(name.code));
+  }
   if (!i.route.ok) out.push(f(i.route.fault, { rule: i.route.ruleLabel, messages: i.route.messages.join(" ") || null }));
   return out;
 }

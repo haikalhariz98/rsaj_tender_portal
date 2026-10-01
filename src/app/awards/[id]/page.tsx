@@ -5,7 +5,7 @@ import { AwardIcon, CheckIcon, ClipboardIcon, ClockIcon, FileIcon, InboxIcon, Pr
 import { Button } from "@/components/ui/button";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
-import { ActBadge } from "@/components/ui/act";
+import { ActBadge, actLabel } from "@/components/ui/act";
 import { Badge, Chip } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -61,6 +61,8 @@ import { boundarySentence, REGIME_LABEL } from "@/lib/method/labels";
 import type { Regime } from "@/lib/method/types";
 import { formatMoney, parseSen, senFromDecimal } from "@/lib/money";
 import { DECISION_LABEL } from "@/lib/requisition/labels";
+import { earlierSteps, type RejectionKind } from "@/lib/authority/rejection";
+import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import { derivedAnnualValue } from "@/lib/securities/bond";
 import { expiryAlert } from "@/lib/securities/expiry";
 import { applicableRequirements, derivedLimit, wcSumCheck } from "@/lib/securities/insurance";
@@ -69,6 +71,7 @@ import { db } from "@/lib/db";
 import {
   AddConditionDrawer,
   AWARD_NOTE_ID,
+  AwardChoiceDrawer,
   CancelAwardDrawer,
   CiteDecisionDrawer,
   CommencementDrawer,
@@ -560,7 +563,46 @@ function ApprovalPanel({
               ))}
             </CardBody>
           )}
-          {inst.status === "PENDING" && <p className="border-t border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">Steps are decided in order. A committee&apos;s step is discharged by citing its decision on this exercise.</p>}
+          {inst.status === "PENDING" && (
+            <p className="border-t border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">
+              Steps are decided in order. A committee&apos;s step is discharged by citing its decision on this exercise.{" "}
+              {ifRejectedText({ snapshotAt: inst.rejectionSnapshotAt, kind: inst.rejectionKind as RejectionKind | null, returnToOffice: inst.rejectionReturnToRoleCode ? roleName(inst.rejectionReturnToRoleCode) : null, provenance: inst.rejectionProvenance }, false)}
+              {inst.supersedesInstanceId ? " This route continues a refused one from an earlier step; the steps before it keep their decisions." : ""}
+            </p>
+          )}
+          {inst.status === "REJECTED" && (() => {
+            const rejecting = inst.steps.find((x) => x.decision === "REJECTED");
+            if (inst.rejectionApplied && inst.rejectionSource) {
+              return (
+                <div className="border-t border-line px-5 py-3 sm:px-6">
+                  <Callout tone="warn" title="Where the refusal sent it">
+                    {appliedText(inst.rejectionApplied as RejectionKind, inst.rejectionSource, inst.rejectionReturnToRoleCode ? roleName(inst.rejectionReturnToRoleCode) : null, inst.rejectionChosenBy?.name ?? null)}
+                  </Callout>
+                </div>
+              );
+            }
+            if (inst.rejectionChoices.length > 0 && rejecting && status === "PENDING_APPROVAL") {
+              return (
+                <div className="border-t border-line px-5 py-3 sm:px-6">
+                  <Callout
+                    tone="warn"
+                    title="Where the refused appointment goes next is the officer's choice"
+                    action={
+                      <AwardChoiceDrawer
+                        id={award.id}
+                        kinds={(inst.rejectionChoices as RejectionKind[]).map((k) => ({ value: k, label: REJECTION_KIND_LABEL[k] }))}
+                        steps={earlierSteps(inst.steps, rejecting.sequence).map((x) => ({ value: String(x.sequence), label: `${x.sequence}. ${x.roleLabel} · ${actLabel(x.act)}` }))}
+                        people={suggestions(null)}
+                      />
+                    }
+                  >
+                    {CHOICE_WHY_TEXT[(inst.rejectionChoiceWhy as keyof typeof CHOICE_WHY_TEXT | null) ?? "NOT_SET"]} The award stays pending approval until the choice is recorded, or it is cancelled.
+                  </Callout>
+                </div>
+              );
+            }
+            return null;
+          })()}
           <ol className="divide-y divide-line/70 border-t border-line">
             {inst.steps.map((s, stepIndex) => {
               const earlierDone = inst.steps.filter((x) => x.sequence < s.sequence).every((x) => x.decision === "DONE");
@@ -591,7 +633,9 @@ function ApprovalPanel({
                           ? inst.status === "PENDING"
                             ? `${earlierDone ? "Awaiting a decision." : "Waits for the step before."}${s.nonDelegable ? " Cannot be delegated." : ""}`
                             : "Not decided: the route closed."
-                          : s.committeeCode && citedRecord?.record
+                          : s.carriedFromStepId
+                            ? `${DECISION_LABEL[s.decision]} · ${s.decidedByName ?? "Not recorded"} · ${formatDate(s.decidedOn)} · decided on the earlier route and carried onto this one`
+                            : s.committeeCode && citedRecord?.record
                             ? `${DECISION_LABEL[s.decision]} · ${citedRecord.record.committee} at ${citedRecord.record.meetingReference}, ${formatDate(citedRecord.record.decisionDate ?? citedRecord.record.meetingDate)} · ${amountText(s.committeeDecision?.amount ?? null)} · ${citedRecord.minuted ? "minuted" : "not yet minuted"}`
                             : `${DECISION_LABEL[s.decision]} · ${s.decidedByName ?? "Not recorded"} · recorded on behalf of, not signed · ${formatDate(s.decidedOn)} · received ${s.receivedOn ? formatDate(s.receivedOn) : "not recorded"}${s.delegation ? ` · under delegation from ${s.delegation.fromPerson.name}` : ""}${s.reason ? ` · “${s.reason}”` : ""}`}
                       </div>

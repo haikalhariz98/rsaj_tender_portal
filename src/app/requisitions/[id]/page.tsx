@@ -70,6 +70,8 @@ import {
 } from "@/lib/requisition/repo";
 import { resolveRequisitionRoute } from "@/lib/requisition/route";
 import { returnedRouteCitationNotes } from "@/lib/requisition/committee-step";
+import { choicesFor, earlierSteps, type RejectionKind } from "@/lib/authority/rejection";
+import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import { GATE_DOMAIN } from "@/lib/requisition/gate";
 import { unpostedIntakeReason, type UnpostedReason } from "@/lib/requisition/budget";
 import { splitApprovalFault, splitStateLabel } from "@/lib/requisition/splitting";
@@ -84,7 +86,6 @@ import {
   CheckGatesDrawer,
   CiteCommitteeDrawer,
   CiteGateDrawer,
-  CloseDrawer,
   CloseWithoutSourcingDrawer,
   DecisionDrawer,
   ErpRefsDrawer,
@@ -96,6 +97,7 @@ import {
   RecordEndorsementDrawer,
   RegisterDrawer,
   ReopenDrawer,
+  WhereItGoesDrawer,
   ReturnDrawer,
   SubmitDrawer,
 } from "../editors";
@@ -189,6 +191,17 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   const lastCheck = r.budgetChecks[0] ?? null;
   const inst = r.approvalInstances[0] ?? null;
   const open = inst?.status === "PENDING" ? inst : null;
+  // A rejection that decided nothing waits for the officer's choice (FR-APR-016, CO-5);
+  // one rejected before destinations existed is offered the same choice.
+  const rejectingStep = r.status === "REJECTED" && inst?.status === "REJECTED" ? (inst.steps.find((s) => s.decision === "REJECTED") ?? null) : null;
+  const awaitingChoice =
+    rejectingStep && inst && !inst.rejectionApplied
+      ? {
+          offered: inst.rejectionChoices.length > 0 ? (inst.rejectionChoices as RejectionKind[]) : choicesFor(["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP", "TERMINATE"], inst.steps, rejectingStep.sequence),
+          why: (inst.rejectionChoiceWhy as keyof typeof CHOICE_WHY_TEXT | null) ?? "NOT_SET",
+          steps: earlierSteps(inst.steps, rejectingStep.sequence).map((s) => ({ value: String(s.sequence), label: `${s.sequence}. ${s.roleLabel} · ${actLabel(s.act)}` })),
+        }
+      : null;
 
   const endorseBlock = transitionFault(r.status, "ENDORSED", {
     today,
@@ -398,8 +411,15 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
         </>
       )}
       {r.status === "PENDING_APPROVAL" && <RecallDrawer id={r.id} blocker={recallBlock ? transitionFaultText(recallBlock) : null} />}
-      {["RETURNED", "RECALLED", "REJECTED"].includes(r.status) && <ReopenDrawer id={r.id} />}
-      {r.status === "REJECTED" && <CloseDrawer id={r.id} />}
+      {["RETURNED", "RECALLED"].includes(r.status) && <ReopenDrawer id={r.id} />}
+      {awaitingChoice && (
+        <WhereItGoesDrawer
+          id={r.id}
+          kinds={awaitingChoice.offered.map((k) => ({ value: k, label: REJECTION_KIND_LABEL[k] }))}
+          steps={awaitingChoice.steps}
+          people={people}
+        />
+      )}
       {["DRAFT", "ENDORSED", "RETURNED", "REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET"].includes(r.status) && <CancelDrawer id={r.id} />}
     </>
   );
@@ -456,6 +476,17 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
               {n}
             </span>
           ))}
+        </Callout>
+      )}
+      {r.status === "REJECTED" && inst && (
+        <Callout tone="warn" className="mb-6" title={awaitingChoice ? "Rejected: where it goes next is the officer's choice" : "Rejected"}>
+          {inst.rejectionReason ? `“${inst.rejectionReason}” ` : ""}
+          {awaitingChoice ? (inst.rejectionChoices.length > 0 ? CHOICE_WHY_TEXT[awaitingChoice.why] : "It was rejected before rejection destinations were recorded, so the officer chooses where it goes. The choice is recorded as theirs, not as policy.") : null}
+        </Callout>
+      )}
+      {r.status === "CLOSED" && r.closedReason && (
+        <Callout tone="info" className="mb-6" title="Closed">
+          {r.closedReason}
         </Callout>
       )}
       {r.status === "RETURNED" && (
@@ -540,6 +571,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
             panel: (
               <ApprovalPanel
                 l={l}
+                officeName={(code) => (code ? (roster.offices.find((o) => o.code === code)?.nameEn ?? "An office no longer configured") : null)}
                 gates={
                   <GatesCard
                     l={l}
@@ -1076,6 +1108,7 @@ type Step = LoadedRequisition["req"]["approvalInstances"][number]["steps"][numbe
 function ApprovalPanel({
   l,
   gates,
+  officeName,
   preview,
   previewMatrixRoles,
   decide,
@@ -1086,6 +1119,8 @@ function ApprovalPanel({
   l: LoadedRequisition;
   /// The committee gates card (FR-REQ-012), shown once the requisition is approved.
   gates: React.ReactNode;
+  /// An office's name by its code, for a rejection destination's office.
+  officeName: (code: string | null) => string | null;
   preview: ReturnType<typeof resolveRequisitionRoute> | null;
   previewMatrixRoles: Record<string, { nameEn: string }>;
   decide: (s: Step) => string | null;
@@ -1206,6 +1241,16 @@ function ApprovalPanel({
               This trail was typed in from the finance system. The portal did not route it and does not vouch for it.
             </Callout>
           )}
+          {inst.supersedesInstanceId && (
+            <Callout tone="info" title="Continues a rejected route">
+              The route before this one was rejected and returned to an earlier step. The steps before that step keep the decisions taken on it; the rest are decided again.
+            </Callout>
+          )}
+          {inst.status === "REJECTED" && inst.rejectionApplied && inst.rejectionSource && (
+            <Callout tone="warn" title="Where the rejection sent it">
+              {appliedText(inst.rejectionApplied as RejectionKind, inst.rejectionSource, officeName(inst.rejectionReturnToRoleCode), inst.rejectionChosenBy?.name ?? null)}
+            </Callout>
+          )}
           {warnings.length > 0 && (
             <ul className="flex flex-col gap-2">
               {warnings.map((w, i) => (
@@ -1235,6 +1280,18 @@ function ApprovalPanel({
                       <div className="text-[12.5px] text-ink-3">
                         {undecidedStepText(inst, !!s.committeeCode)}
                         {s.nonDelegable && " Cannot be delegated."}
+                        {open && (
+                          <span className="mt-0.5 block text-ink-2">
+                            {ifRejectedText(
+                              { snapshotAt: inst.rejectionSnapshotAt, kind: inst.rejectionKind as RejectionKind | null, returnToOffice: officeName(inst.rejectionReturnToRoleCode), provenance: inst.rejectionProvenance },
+                              !!s.committeeCode,
+                            )}
+                          </span>
+                        )}
+                      </div>
+                    ) : s.carriedFromStepId ? (
+                      <div className="text-[12.5px] text-ink-2">
+                        {DECISION_LABEL[s.decision]} · {s.decidedByName ?? "Not recorded"} · {formatDate(s.decidedOn)} · decided on the earlier route and carried onto this one
                       </div>
                     ) : committee && record ? (
                       <div className="text-[12.5px] text-ink-2">
@@ -1319,6 +1376,19 @@ function ApprovalPanel({
                       {n}
                     </p>
                   ))}
+                  {e.status === "REJECTED" && e.rejectionApplied && e.rejectionSource && (
+                    <p className="text-[12.5px] text-ink-2">
+                      {appliedText(
+                        e.rejectionApplied as RejectionKind,
+                        e.rejectionSource,
+                        e.rejectionApplied === "RETURN_TO_STEP"
+                          ? (r.approvalInstances.find((x) => x.supersedesInstanceId === e.id)?.steps.find((x) => !x.carriedFromStepId)?.roleLabel ?? officeName(e.rejectionReturnToRoleCode))
+                          : null,
+                        e.rejectionChosenBy?.name ?? null,
+                      )}
+                      {e.rejectionReason ? ` Reason: “${e.rejectionReason}”` : ""}
+                    </p>
+                  )}
                 </li>
               );
             })}

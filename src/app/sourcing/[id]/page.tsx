@@ -4,7 +4,9 @@ import { notFound } from "next/navigation";
 import { AwardIcon, ClipboardIcon, ClockIcon, FileIcon, RouteIcon, ShieldIcon, SlidersIcon, UsersIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
-import { ActBadge } from "@/components/ui/act";
+import { ActBadge, actLabel } from "@/components/ui/act";
+import { earlierSteps, type RejectionKind } from "@/lib/authority/rejection";
+import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import { Badge, Chip } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -66,6 +68,7 @@ import {
   ChooseTaxonomyDrawer,
   EXERCISE_NOTE_ID,
   MoveToPreparationDrawer,
+  NameChoiceDrawer,
   NameDecisionDrawer,
   ProposalAnswersDrawer,
   RemoveParticipantDrawer,
@@ -363,6 +366,8 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
                 previewNotes={requesterNotes}
                 suggestions={suggestions}
                 today={today}
+                people={roster.people.filter((p) => p.isActive).map((p) => ({ value: p.id, label: p.name }))}
+                officeName={(code) => (code ? (roster.offices.find((o) => o.code === code)?.nameEn ?? "An office no longer configured") : null)}
               />
             ),
           },
@@ -870,7 +875,11 @@ function NamePanel({
   previewNotes,
   suggestions,
   today,
+  people,
+  officeName,
 }: {
+  people: { value: string; label: string }[];
+  officeName: (code: string | null) => string | null;
   l: LoadedExercise;
   current: LoadedExercise["ex"]["approvalInstances"][number] | null;
   preview: { role: string; act: string }[] | null;
@@ -930,7 +939,46 @@ function NamePanel({
               ))}
             </CardBody>
           )}
-          {inst.status === "PENDING" && <p className="border-t border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">Steps are decided in order: each waits for the one before it.</p>}
+          {inst.status === "PENDING" && (
+            <p className="border-t border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">
+              Steps are decided in order: each waits for the one before it.{" "}
+              {ifRejectedText({ snapshotAt: inst.rejectionSnapshotAt, kind: inst.rejectionKind as RejectionKind | null, returnToOffice: officeName(inst.rejectionReturnToRoleCode), provenance: inst.rejectionProvenance }, false)}
+              {inst.supersedesInstanceId ? " This route continues a refused one from an earlier step; the steps before it keep their decisions." : ""}
+            </p>
+          )}
+          {inst.status === "REJECTED" && (() => {
+            const rejecting = inst.steps.find((x) => x.decision === "REJECTED");
+            if (inst.rejectionApplied && inst.rejectionSource) {
+              return (
+                <div className="border-t border-line px-5 py-3 sm:px-6">
+                  <Callout tone="warn" title="Where the refusal sent it">
+                    {appliedText(inst.rejectionApplied as RejectionKind, inst.rejectionSource, officeName(inst.rejectionReturnToRoleCode), inst.rejectionChosenBy?.name ?? null)}
+                  </Callout>
+                </div>
+              );
+            }
+            if (inst.rejectionChoices.length > 0 && rejecting) {
+              return (
+                <div className="border-t border-line px-5 py-3 sm:px-6">
+                  <Callout
+                    tone="warn"
+                    title="Where the refused name goes next is the officer's choice"
+                    action={
+                      <NameChoiceDrawer
+                        id={ex.id}
+                        kinds={(inst.rejectionChoices as RejectionKind[]).map((k) => ({ value: k, label: REJECTION_KIND_LABEL[k] }))}
+                        steps={earlierSteps(inst.steps, rejecting.sequence).map((x) => ({ value: String(x.sequence), label: `${x.sequence}. ${x.roleLabel} · ${actLabel(x.act)}` }))}
+                        people={people}
+                      />
+                    }
+                  >
+                    {CHOICE_WHY_TEXT[(inst.rejectionChoiceWhy as keyof typeof CHOICE_WHY_TEXT | null) ?? "NOT_SET"]}
+                  </Callout>
+                </div>
+              );
+            }
+            return null;
+          })()}
           <ol className="divide-y divide-line/70 border-t border-line">
             {inst.steps.map((s) => {
               const earlierDone = inst.steps.filter((x) => x.sequence < s.sequence).every((x) => x.decision === "DONE");

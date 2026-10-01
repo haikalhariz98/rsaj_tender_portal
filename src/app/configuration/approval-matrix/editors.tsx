@@ -4,7 +4,9 @@ import { buttonClass, iconButtonClass } from "@/components/ui/button";
 
 import {
   discardDraft,
+  endRejectionDestination,
   issueDraft,
+  saveRejectionDestination,
   removeRecommender,
   removeTermsBand,
   saveTermsBand,
@@ -642,6 +644,76 @@ export function DiscardDraft({ id, label }: { id: string; label: string }) {
       submitLabel="Discard draft"
       destructive={{ reasonLabel: "Why is it being discarded?" }}
       trigger={{ label: "Discard draft", className: buttonClass("ghost", "sm", "text-rose-700 hover:bg-rose-50 hover:text-rose-800") }}
+      size="sm"
+    />
+  );
+}
+
+const DESTINATION_OPTIONS = [
+  { value: "RETURN_TO_ORIGINATOR", label: "Return to whoever raised it" },
+  { value: "RETURN_TO_STEP", label: "Return to an earlier step" },
+  { value: "TERMINATE", label: "End the matter" },
+];
+
+/// Where a rejected matter of one type goes (FR-APR-016). A new destination from a day;
+/// routes already open keep the one they opened with.
+export function SetRejectionDestination({ domain, label, offices, current }: { domain: string; label: string; offices: { code: string; nameEn: string }[]; current: { kind: string; returnToRoleCode: string | null } | null }) {
+  return (
+    <RecordEditor
+      title={`When a ${label.toLowerCase()} is rejected`}
+      description="Where the matter goes when a step rejects it. Routes already open keep the destination they opened with; a committee's own not-carried outcome still governs a committee step."
+      fields={[
+        { kind: "hidden", name: "domain" },
+        { kind: "select", name: "kind", label: "Where it goes", required: true, placeholder: "Choose", options: DESTINATION_OPTIONS },
+        {
+          kind: "select",
+          name: "returnToRoleCode",
+          label: "The office whose step it returns to",
+          required: true,
+          placeholder: "Choose",
+          options: offices.map((o) => ({ value: o.code, label: o.nameEn })),
+          hint: "The earliest step of this office before the rejecting one. Where the route has none, the officer chooses.",
+        },
+        { kind: "text", name: "governingSource", label: "Source document" },
+        {
+          kind: "select",
+          name: "provenance",
+          label: "Where this comes from",
+          required: true,
+          placeholder: "Choose",
+          options: [
+            { value: "STATED", label: "Stated — written in a governing document" },
+            { value: "OBSERVED", label: "Observed — seen in practice" },
+            { value: "ASSUMED", label: "Assumed — a working choice awaiting sign-off" },
+          ],
+        },
+        { kind: "date", name: "effectiveFrom", label: "Takes effect", required: true },
+        { kind: "textarea", name: "notes", label: "Notes" },
+      ]}
+      showWhen={{ returnToRoleCode: { name: "kind", in: ["RETURN_TO_STEP"] } }}
+      values={{ domain, kind: current?.kind ?? null, returnToRoleCode: current?.returnToRoleCode ?? null }}
+      action={saveRejectionDestination}
+      reason={{ label: "Why is it changing?" }}
+      trigger={{ label: current ? "Change" : "Set", className: buttonClass(current ? "ghost" : "secondary", "sm") }}
+      size="md"
+    />
+  );
+}
+
+export function EndRejectionDestination({ id, label }: { id: string; label: string }) {
+  return (
+    <RecordEditor
+      title={`Clear: when a ${label.toLowerCase()} is rejected`}
+      description="From that day no destination is set, and the officer chooses where a rejected matter goes. Routes already open keep theirs."
+      fields={[
+        { kind: "hidden", name: "id" },
+        { kind: "date", name: "effectiveTo", label: "Not set from", required: true },
+      ]}
+      values={{ id }}
+      action={endRejectionDestination}
+      destructive={{ reasonLabel: "Why is it cleared?" }}
+      submitLabel="Clear destination"
+      trigger={{ label: "Clear", className: buttonClass("ghost", "sm") }}
       size="sm"
     />
   );

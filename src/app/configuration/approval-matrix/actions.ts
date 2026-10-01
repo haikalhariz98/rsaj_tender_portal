@@ -9,6 +9,9 @@ import { diffFields, snapshotFields } from "@/lib/audit/diff";
 import { issueFault, onRoute, predecessorOf, startOfDay } from "@/lib/authority/issue";
 import { boundaryFaultsAcross, boundaryRuleFault, rulesTiedWith } from "@/lib/authority/resolve";
 import type { Rule } from "@/lib/authority/types";
+import { destinationRowFaults, type RejectionKind } from "@/lib/authority/rejection";
+import { DESTINATION_FAULT_TEXT } from "@/lib/authority/rejection-labels";
+import { matterLabel } from "@/lib/labels";
 import { db } from "@/lib/db";
 import { compareAmounts } from "@/lib/money";
 import { findingText } from "@/lib/method/labels";
@@ -801,4 +804,76 @@ export async function discardDraft(_prev: FormState, data: FormData): Promise<Fo
   if (!result.ok) return result;
   revalidatePath(PATH);
   redirect(PATH);
+}
+
+// ------------------------------------------------------- rejection destinations
+
+const DESTINATION_KINDS = ["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP", "TERMINATE"] as const;
+
+/**
+ * Where a rejected matter of one type goes (FR-APR-016, B4). The customer's policy:
+ * none ships. A change takes effect from a day and ends the destination it replaces
+ * then, with a reason; every route already open keeps the destination it opened with
+ * (ruling CO-4).
+ */
+export async function saveRejectionDestination(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return { ok: false, message: "No organisation is configured. Run npm run setup first." };
+  const r = new FormReader(data);
+  const v = {
+    domain: r.text("domain", "Matter type", { required: true }),
+    kind: r.choice("kind", "Where it goes", DESTINATION_KINDS, { required: true }),
+    returnToRoleCode: r.optionalText("returnToRoleCode"),
+    governingSource: r.text("governingSource", "Source", { max: 240 }),
+    provenance: r.choice("provenance", "Provenance", ["STATED", "OBSERVED", "ASSUMED"] as const, { required: true }),
+    notes: r.text("notes", "Notes", { max: 2000 }),
+    effectiveFrom: r.date("effectiveFrom", "Takes effect", { required: true }),
+  };
+  const reason = r.text("reason", "Reason", { required: true, max: 2000 });
+  if (r.failed || !v.kind || !v.provenance || !v.effectiveFrom) return { ok: false, errors: r.errors };
+  const write = { ...v, kind: v.kind, provenance: v.provenance, effectiveFrom: v.effectiveFrom };
+  const [others, offices] = await Promise.all([
+    db.rejectionDestination.findMany({ where: { organisationId: orgId } }),
+    db.authorityRole.findMany({ where: { organisationId: orgId, isCommittee: false }, select: { code: true } }),
+  ]);
+  const faults = destinationRowFaults({ id: "new", ...write, effectiveTo: null }, others.map((o) => ({ ...o, kind: o.kind as RejectionKind })), offices.map((o) => o.code));
+  if (faults.length > 0) return { ok: false, errors: Object.fromEntries(faults.map((f) => [DESTINATION_FAULT_TEXT[f].field, DESTINATION_FAULT_TEXT[f].message])) };
+  const label = `When rejected: ${matterLabel(v.domain)}`;
+  await db.$transaction(async (tx) => {
+    // The destination this one replaces ends the day this one takes effect.
+    const replaced = await tx.rejectionDestination.findMany({
+      where: { organisationId: orgId, domain: v.domain, effectiveFrom: { lt: v.effectiveFrom! }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: v.effectiveFrom! } }] },
+    });
+    for (const old of replaced) {
+      await tx.rejectionDestination.update({ where: { id: old.id }, data: { effectiveTo: v.effectiveFrom } });
+      await writeAudit(tx, { organisationId: orgId, entity: "RejectionDestination", entityId: old.id, entityLabel: label, reason }, "UPDATE", diffFields({ effectiveTo: old.effectiveTo }, { effectiveTo: v.effectiveFrom }));
+    }
+    const row = await tx.rejectionDestination.create({ data: { organisationId: orgId, ...write, returnToRoleCode: write.returnToRoleCode ?? null } });
+    await writeAudit(tx, { organisationId: orgId, entity: "RejectionDestination", entityId: row.id, entityLabel: label, reason }, "CREATE",
+      diffFields(null, { domain: matterLabel(v.domain), kind: v.kind, returnToRoleCode: write.returnToRoleCode, provenance: v.provenance, effectiveFrom: v.effectiveFrom, governingSource: v.governingSource }));
+  });
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/// Back to not set from a day: the officer chooses again from then (ruling CO-5).
+export async function endRejectionDestination(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return { ok: false, message: "No organisation is configured. Run npm run setup first." };
+  const r = new FormReader(data);
+  const id = r.text("id", "Destination", { required: true });
+  const on = r.date("effectiveTo", "Ends", { required: true });
+  const reason = r.text("reason", "Reason", { required: true, max: 2000 });
+  if (r.failed || !on) return { ok: false, errors: r.errors };
+  const row = await db.rejectionDestination.findFirst({ where: { id, organisationId: orgId } });
+  if (!row) return { ok: false, message: "That destination no longer exists." };
+  if (on <= row.effectiveFrom) return { ok: false, errors: { effectiveTo: "It must end after it took effect." } };
+  await auditedUpdate(
+    { organisationId: orgId, entity: "RejectionDestination", entityId: id, entityLabel: `When rejected: ${matterLabel(row.domain)}`, reason },
+    { effectiveTo: row.effectiveTo },
+    { effectiveTo: on },
+    (tx) => tx.rejectionDestination.update({ where: { id }, data: { effectiveTo: on } }),
+  );
+  revalidatePath(PATH);
+  return { ok: true };
 }

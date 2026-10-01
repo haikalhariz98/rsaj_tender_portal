@@ -9,6 +9,10 @@ import { diffFields, type FieldChange } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { boundaryOperatorFor, regimeFor } from "@/lib/authority/resolve";
 import { appointmentRoute } from "@/lib/award/appointment";
+import { closeRejected, loadDestinations, openSuccessor, recordChoice, snapshotOf } from "@/lib/approvals/rejection-store";
+import { choiceFault, rejectionOutcome, rejectionSnapshot, REJECTION_KINDS, type RejectionKind } from "@/lib/authority/rejection";
+import { CHOICE_FAULT_TEXT } from "@/lib/authority/rejection-labels";
+import { APPOINTMENT_DOMAIN } from "@/lib/method/types";
 import { awardAuditCreate, awardAuditPair } from "@/lib/award/audit-view";
 import { termsUpdate } from "@/lib/award/terms";
 import { percentAboveZero } from "@/lib/securities/money";
@@ -321,6 +325,8 @@ export async function submitAward(_prev: FormState, data: FormData): Promise<For
         warnings: route.warnings as unknown as Prisma.InputJsonValue,
         status: "PENDING",
         openedAt: on,
+        // Where a refusal would send it, as configured now (FR-APR-016, ruling CO-4).
+        ...rejectionSnapshot(await loadDestinations(tx, l.org.id), APPOINTMENT_DOMAIN, on, new Date()),
         steps: {
           create: route.chain.map((s, i) => ({
             sequence: i + 1,
@@ -349,16 +355,80 @@ export async function submitAward(_prev: FormState, data: FormData): Promise<For
   });
 }
 
-/// Close the route when its last step is done, or send the award back to Draft when a step refuses.
-async function afterStep(tx: Tx, l: LoadedAward, instId: string, decision: "DONE" | "REJECTED", stepId: string, reason: string) {
+/// Where a refused appointment can go: back to Draft to be reworked, back to an earlier
+/// step on a successor route, or the award ends (Cancelled, under BD-17's rules).
+const AWARD_SUPPORTS: readonly RejectionKind[] = ["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP", "TERMINATE"];
+
+/**
+ * Close the route when its last step is done. When a step refuses, the destination
+ * snapshotted at open — or, on a committee step, the committee's own not-carried
+ * outcome — says where the award goes (FR-APR-016); where nothing applies the award
+ * waits, still pending approval, for the officer's choice (ruling CO-5).
+ */
+async function afterStep(tx: Tx, l: LoadedAward, instId: string, decision: "DONE" | "REJECTED", stepId: string, reason: string, committee: { kind: "LOOP" | "TERMINAL" } | null = null) {
   const inst = l.award.approvalInstances.find((i) => i.id === instId)!;
-  const closes = decision === "REJECTED" ? "REJECTED" : inst.steps.every((s) => s.id === stepId || s.decision === "DONE") ? "APPROVED" : null;
-  if (!closes) return;
-  await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: closes, closedAt: new Date() } });
-  await audit(tx, l.org.id, "ApprovalInstance", inst.id, routeLabel(l.award), "UPDATE", diffFields({ status: inst.status }, { status: closes }), reason);
-  const to: AwardStatus = closes === "APPROVED" ? "APPROVED" : "DRAFT";
-  await mustMove(tx, l, to);
-  await audit(tx, l.org.id, "Award", l.award.id, labelOf(l.award), "UPDATE", diffFields({ status: l.award.status }, { status: to }), closes === "REJECTED" ? `The appointment was refused: ${reason}` : "");
+  if (decision === "REJECTED") {
+    const step = inst.steps.find((s) => s.id === stepId)!;
+    const outcome = rejectionOutcome({ snapshot: snapshotOf(inst), committee, steps: inst.steps, rejectingSeq: step.sequence, supports: AWARD_SUPPORTS });
+    await closeRejected(tx, { organisationId: l.org.id, routeLabel: routeLabel(l.award) }, inst, outcome, reason);
+    if ("apply" in outcome) await sendAwardRejected(tx, l, inst.id, outcome.apply, outcome.returnToSeq ?? null, reason);
+    return;
+  }
+  if (!inst.steps.every((s) => s.id === stepId || s.decision === "DONE")) return;
+  await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "APPROVED", closedAt: new Date() } });
+  await audit(tx, l.org.id, "ApprovalInstance", inst.id, routeLabel(l.award), "UPDATE", diffFields({ status: inst.status }, { status: "APPROVED" }), reason);
+  await mustMove(tx, l, "APPROVED");
+  await audit(tx, l.org.id, "Award", l.award.id, labelOf(l.award), "UPDATE", diffFields({ status: l.award.status }, { status: "APPROVED" }));
+}
+
+/// Send a refused appointment where its rejection says.
+async function sendAwardRejected(tx: Tx, l: LoadedAward, instId: string, kind: RejectionKind, returnToSeq: number | null, reason: string) {
+  const a = l.award;
+  if (kind === "RETURN_TO_ORIGINATOR") {
+    await mustMove(tx, l, "DRAFT");
+    await audit(tx, l.org.id, "Award", a.id, labelOf(a), "UPDATE", diffFields({ status: a.status }, { status: "DRAFT" }), `The appointment was refused: ${reason}`);
+  } else if (kind === "TERMINATE") {
+    const t = awardTransition(a.status as AwardStatus, "CANCELLED", { today: l.org.today, reason });
+    if (t) throw new Refusal({ ok: false, message: "The award cannot be cancelled from where it stands." });
+    await mustMove(tx, l, "CANCELLED", { cancelReason: `The appointment was refused: ${reason}` });
+    await audit(tx, l.org.id, "Award", a.id, labelOf(a), "UPDATE", diffFields({ status: a.status }, { status: "CANCELLED" }), `The appointment was refused and the award ends: ${reason}`);
+  } else {
+    // The award stays pending approval; the route continues from the earlier step.
+    await openSuccessor(tx, { organisationId: l.org.id, routeLabel: routeLabel(a) }, instId, returnToSeq!, dayToDate(l.org.today!));
+  }
+}
+
+/**
+ * Where a refused appointment goes, chosen by the officer where the refusal decided
+ * nothing (FR-APR-016, ruling CO-5): recorded as their choice on behalf of a named Person.
+ */
+export async function chooseAwardRejection(_prev: FormState, data: FormData): Promise<FormState> {
+  const id = String(data.get("id") ?? "");
+  const r = new FormReader(data);
+  const kind = r.choice("kind", "Where it goes", REJECTION_KINDS);
+  const seq = r.int("returnToSeq", "Step", { min: 1 });
+  const personId = r.optionalText("personId");
+  const reason = r.text("reason", "Reason", { max: 2000 });
+  if (r.failed) return { ok: false, errors: r.errors };
+  return inAward(id, async (tx, l) => {
+    if (!l.org.today) return NO_ZONE;
+    const inst = latestRoute(l.award);
+    if (l.award.status !== "PENDING_APPROVAL") return { ok: false, message: "This award is not waiting for where a refusal sends it." };
+    const rejecting = inst?.steps.find((s) => s.decision === "REJECTED") ?? null;
+    const fault = choiceFault(
+      { status: inst?.status ?? "", applied: (inst?.rejectionApplied as RejectionKind | null) ?? null, offered: (inst?.rejectionChoices as RejectionKind[] | undefined) ?? [], steps: inst?.steps ?? [], rejectingSeq: rejecting?.sequence ?? null },
+      { kind, returnToSeq: seq, personId, reason },
+    );
+    if (fault) {
+      const field = { NOT_OFFERED: "kind", STEP_REQUIRED: "returnToSeq", STEP_NOT_EARLIER: "returnToSeq", PERSON_REQUIRED: "personId", REASON_REQUIRED: "reason" } as Record<string, string>;
+      return field[fault] ? { ok: false, errors: { [field[fault]]: CHOICE_FAULT_TEXT[fault] } } : { ok: false, message: CHOICE_FAULT_TEXT[fault] };
+    }
+    const person = await tx.person.findFirst({ where: { id: personId!, organisationId: l.org.id, isActive: true }, select: { id: true, name: true } });
+    if (!person) return { ok: false, errors: { personId: "Choose someone on record and active." } };
+    await recordChoice(tx, { organisationId: l.org.id, routeLabel: routeLabel(l.award) }, inst!.id, kind!, person.id, person.name, reason);
+    await sendAwardRejected(tx, l, inst!.id, kind!, kind === "RETURN_TO_STEP" ? seq : null, reason);
+    return { ok: true };
+  });
 }
 
 /**
@@ -461,7 +531,7 @@ export async function citeAppointmentDecision(_prev: FormState, data: FormData):
     if (done.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, l.org.id, "ApprovalStep", step.id, `${l.award.reference} · ${step.roleLabel}`, "UPDATE",
       diffFields({ decision: step.decision }, { decision: s.decision, committee: s.citation!.committee, sitting: s.citation!.meetingReference, decidedOn: s.decidedOn, minuted: minuted ? "yes" : "no" }));
-    await afterStep(tx, l, inst.id, s.decision === "DONE" ? "DONE" : "REJECTED", step.id, s.decision === "REJECTED" ? `Not carried by ${s.citation!.committee} at ${s.citation!.meetingReference}` : "");
+    await afterStep(tx, l, inst.id, s.decision === "DONE" ? "DONE" : "REJECTED", step.id, s.decision === "REJECTED" ? `Not carried by ${s.citation!.committee} at ${s.citation!.meetingReference}` : "", record?.notApproved ?? null);
     return { ok: true };
   });
 }
