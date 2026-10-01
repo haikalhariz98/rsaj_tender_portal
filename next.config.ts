@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
+import { headerRules } from "./src/lib/security-headers";
+
 const nextConfig: NextConfig = {
+  async headers() {
+    return headerRules();
+  },
   experimental: {
     serverActions: {
       // Next reads and parses a Server Action's whole body before the action runs, and

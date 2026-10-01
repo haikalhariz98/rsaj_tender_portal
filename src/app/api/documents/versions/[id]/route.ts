@@ -5,6 +5,7 @@ import { DOWNLOAD_REFUSAL_TEXT } from "@/lib/documents/labels";
 import { documentOrg, logAccess } from "@/lib/documents/service";
 import { downloadLimiter, RETRY_AFTER_SECONDS } from "@/lib/documents/concurrency";
 import { downloadRequestFault } from "@/lib/documents/request-guard";
+import { DOWNLOAD_POLICY } from "@/lib/security-headers";
 import { blobStore, sha256Hex } from "@/lib/documents/store";
 
 /**
@@ -69,7 +70,7 @@ async function download(ctx: RouteContext<"/api/documents/versions/[id]">) {
         "Content-Length": String(bytes.byteLength),
         "Content-Disposition": dispositionFilename(version.originalFilename, EXTENSION_FOR[version.mediaType] ?? "bin"),
         "X-Content-Type-Options": "nosniff",
-        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Security-Policy": DOWNLOAD_POLICY,
         "Cache-Control": "private, no-store",
       },
     });
