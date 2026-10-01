@@ -31,7 +31,7 @@ export function RouteSteps({
   /// The controls beside a step (escalate, decide, cite). Given where the step stands in the route.
   action: (s: Step, at: { earlierDone: boolean; isLast: boolean }) => ReactNode;
   /// How a decided step reads after its label, where the route words it differently (a cited committee decision).
-  decided?: (s: Step) => string | null;
+  decided?: (s: Step) => ReactNode;
 }) {
   return (
     <ol className="divide-y divide-line/70 border-t border-line">

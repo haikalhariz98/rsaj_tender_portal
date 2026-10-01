@@ -1138,7 +1138,16 @@ function NamePanel({
             inst={inst}
             stepLabel={(x) => DECISION_LABEL[x]}
             stepTone={stepTone}
-            decided={(s) => (s.committeeCode ? `${DECISION_LABEL[s.decision]} · ${s.decidedByName ?? "The committee"} · the committee's decision, cited from its sitting · ${formatDate(s.decidedOn)}` : null)}
+            decided={(s) => {
+              if (!s.committeeCode) return null;
+              const m = matters.find((x) => x.id === s.committeeDecisionId);
+              return (
+                <>
+                  {DECISION_LABEL[s.decision]} · {s.decidedByName ?? "The committee"} · the committee&apos;s decision
+                  {m ? <>, <Link href={`/committees/${m.meetingId}`}>{m.meeting.reference}</Link>: {m.subject}</> : ", cited from its sitting"} · {formatDate(s.decidedOn)}
+                </>
+              );
+            }}
             action={(s, { earlierDone }) => {
               const blocker = inst.status !== "PENDING" || s.decision !== "PENDING" ? null : !today ? DECIDER_FAULT_TEXT.TIME_ZONE_UNSET : null;
               const open = inst.status === "PENDING" && s.decision === "PENDING" && earlierDone;
