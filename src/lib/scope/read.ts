@@ -356,7 +356,7 @@ export async function bqTab(exerciseId: string) {
       start: judged(startBqFaults(versions, ex.status)),
       edit: draft ? judged(draftEditFaults(draft, ex.status)) : ({ allowed: false, reason: "Start the bill, or a revision, to edit it." } as Allowed),
       finalise: draft
-        ? judged(finaliseFaults({ status: draft.status, scopedBy: draft.scopedBy, followsStandard: draft.followsStandard, departuresText: draft.departuresText, preparerPersonId: draft.preparerPersonId, lines: linesOf(draft) }, { policy, holdings, qualifications, today: org.today, exerciseStatus: ex.status }))
+        ? judged(finaliseFaults({ status: draft.status, scopedBy: draft.scopedBy, followsStandard: draft.followsStandard, departuresText: draft.departuresText, preparerPersonId: draft.preparerPersonId, lines: linesOf(draft), sectionNumbers: draft.sections.map((s) => s.number) }, { policy, holdings, qualifications, today: org.today, exerciseStatus: ex.status }))
         : ({ allowed: false, reason: "There is no draft to finalise." } as Allowed),
       // A reason is asked for in the dialog; the button is judged without it.
       revise: judged(reviseFaults(versions, ex.status, "given")),
@@ -376,7 +376,7 @@ export async function bqTab(exerciseId: string) {
             : !upload?.allowedMediaTypes.includes("text/csv")
               ? ({ allowed: false, reason: "The upload rules do not allow CSV files. Add CSV under Configuration, Documents, Upload rules." } as Allowed)
               : ({ allowed: true } as Allowed),
-      draft: draft ? { id: draft.id, versionNo: draft.versionNo, lines: linesOf(draft).length } : null,
+      draft: draft ? { id: draft.id, versionNo: draft.versionNo, lines: linesOf(draft).length, sections: draft.sections.length } : null,
       exportable: versions.map((v) => ({ value: v.id, label: `Version ${v.versionNo} (${BQ_STATUS_LABEL[v.status].toLowerCase()})` })),
       upload: upload ? { classes: upload.classes.map((c) => ({ value: c.id, label: c.classification ? `${c.nameEn} (${CLASSIFICATION_LABEL[c.classification]})` : `${c.nameEn} (classification not set)` })), people: upload.people.map((p) => ({ value: p.id, label: p.name })), capText: upload.cap ? `Up to ${formatBytes(upload.cap.bytes)}.` : null } : null,
     },

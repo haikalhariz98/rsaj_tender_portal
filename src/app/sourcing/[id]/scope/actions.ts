@@ -297,7 +297,7 @@ export async function finaliseBq(_prev: FormState, data: FormData): Promise<Form
     const qualifications = await loadQualifications(l.org.id, tx);
     const holdings = v.preparerPersonId ? await loadHoldings(l.org.id, tx, [v.preparerPersonId]) : [];
     const lines = linesOf(v);
-    const faults = finaliseFaults({ status: v.status, scopedBy: v.scopedBy, followsStandard: v.followsStandard, departuresText: v.departuresText, preparerPersonId: v.preparerPersonId, lines }, { policy, holdings, qualifications, today: today(l), exerciseStatus: l.ex.status });
+    const faults = finaliseFaults({ status: v.status, scopedBy: v.scopedBy, followsStandard: v.followsStandard, departuresText: v.departuresText, preparerPersonId: v.preparerPersonId, lines, sectionNumbers: v.sections.map((s) => s.number) }, { policy, holdings, qualifications, today: today(l), exerciseStatus: l.ex.status });
     if (blocking(faults).length) return refuse(faults);
     const day = today(l)!;
     const code = policy.bqPreparerQualificationCode!;
@@ -773,6 +773,14 @@ export async function importBqCsv(_prev: FormState, data: FormData): Promise<For
         }
         await tx.bqSection.delete({ where: { id: sec.id } });
         await audit(tx, l.org.id, ENTITY.bqSection, sec.id, label(l, `${vLabel} · section ${sec.number}`), "DELETE", sectionAudit(null, { number: sec.number, title: sec.title }));
+      }
+    } else {
+      // A draft with no lines may still hold empty sections (a template's headings): the
+      // file's sections take their place, so none is doubled. Each removal is audited.
+      const why = `Replaced by the sections of the imported file, ${stored.originalFilename}.`;
+      for (const sec of existing) {
+        await tx.bqSection.delete({ where: { id: sec.id } });
+        await audit(tx, l.org.id, ENTITY.bqSection, sec.id, label(l, `${vLabel} · section ${sec.number}`), "DELETE", sectionAudit(null, { number: sec.number, title: sec.title }), why);
       }
     }
     let order = 0;

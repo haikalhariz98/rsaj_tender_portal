@@ -169,6 +169,7 @@ export type FinaliseFault =
   | "EXERCISE_CANCELLED"
   | "NO_ITEMS"
   | "ITEM_INCOMPLETE"
+  | "SECTION_NUMBER_REPEATED"
   | "SCOPED_BY_NOT_SET"
   | "STANDARD_NOT_SET"
   | "STANDARD_UNANSWERED"
@@ -185,6 +186,19 @@ export interface BqVersionFacts {
   departuresText: string;
   preparerPersonId: string | null;
   lines: readonly BqLine[];
+  /// Every section's number, in order. A number used twice makes the bill ambiguous.
+  sectionNumbers: readonly string[];
+}
+
+/// Section numbers used more than once in a version (trimmed), each once, in order of first repeat.
+export function repeatedSectionNumbers(numbers: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const repeated: string[] = [];
+  for (const n of numbers.map((x) => x.trim())) {
+    if (seen.has(n) && !repeated.includes(n)) repeated.push(n);
+    seen.add(n);
+  }
+  return repeated;
 }
 
 /**
@@ -202,6 +216,8 @@ export function finaliseFaults(
   if (v.lines.length === 0) out.push({ code: "NO_ITEMS", level: "block" });
   const incomplete = v.lines.filter((l) => !l.description.trim() || itemAmount(l.quantity, l.rate) == null);
   if (incomplete.length) out.push({ code: "ITEM_INCOMPLETE", level: "block", data: { count: incomplete.length, first: incomplete[0].itemRef || null } });
+  const repeated = repeatedSectionNumbers(v.sectionNumbers);
+  if (repeated.length) out.push({ code: "SECTION_NUMBER_REPEATED", level: "block", data: { numbers: repeated.join(", ") } });
   if (v.scopedBy == null) out.push({ code: "SCOPED_BY_NOT_SET", level: "block" });
   if (ctx.policy.measurementStandardLabel == null) out.push({ code: "STANDARD_NOT_SET", level: "block" });
   if (v.followsStandard == null) out.push({ code: "STANDARD_UNANSWERED", level: "block" });

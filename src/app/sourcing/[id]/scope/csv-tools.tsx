@@ -99,7 +99,7 @@ export function ImportCsvDrawer({
   note,
 }: {
   exerciseId: string;
-  draft: { id: string; versionNo: number; lines: number } | null;
+  draft: { id: string; versionNo: number; lines: number; sections: number } | null;
   upload: { classes: Option[]; people: Option[]; capText: string | null } | null;
   allowed: Allowed;
   note: string;
@@ -153,6 +153,7 @@ export function ImportCsvDrawer({
         { kind: "select", name: "documentClassId", label: "Class", required: true, placeholder: "Choose a class", options: upload.classes, hint: "Decides its classification and how long it is kept. A priced bill may be SULIT to the organisation; choose accordingly." },
         { kind: "select", name: "recordedByPersonId", label: "Recorded by", required: true, placeholder: "Choose who is recording it", options: upload.people, hint: "Recorded on their behalf, not signed: nobody is signed in." },
         { kind: "date", name: "receivedOn", label: "Received on", hint: "The day the department's bill was received. Leave it blank if it is not known." },
+        ...(draft.lines === 0 && draft.sections > 0 ? [{ kind: "note" as const, text: `The draft's ${draft.sections} empty ${draft.sections === 1 ? "section is" : "sections are"} removed and the file's sections take their place. Each removal is kept in the history.` }] : []),
         ...(draft.lines > 0 ? [{ kind: "switch" as const, name: "replace", label: `Replace the draft's ${draft.lines} ${draft.lines === 1 ? "line" : "lines"}`, hint: "Each removed line is kept in the history. Without this, a draft that has lines is not imported into." }] : []),
       ]}
       values={{ title: `Bill of quantities, version ${draft.versionNo}, as received` }}

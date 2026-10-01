@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { formatSen, parseSen } from "@/lib/money";
 
-import { bqTotals, currentBq, draftEditFaults, exerciseAllowsBq, finaliseFaults, holdingOn, isQuantity, itemAmount, keyedMismatch, lineSizeFaults, quantityFits, reviseFaults, sharePct, startBqFaults, totalsSnapshot, unpricedBq, type BqVersionFacts } from "./bq";
+import { bqTotals, currentBq, draftEditFaults, exerciseAllowsBq, finaliseFaults, holdingOn, isQuantity, itemAmount, keyedMismatch, lineSizeFaults, quantityFits, repeatedSectionNumbers, reviseFaults, sharePct, startBqFaults, totalsSnapshot, unpricedBq, type BqVersionFacts } from "./bq";
 import { UNSET_SCOPE_POLICY, type BqLine, type ScopePolicy } from "./types";
 
 const sen = parseSen;
@@ -121,10 +121,16 @@ describe("finalising a draft (FR-EST-001, 003)", () => {
   const policy: ScopePolicy = { ...UNSET_SCOPE_POLICY, measurementStandardLabel: "A measurement standard", bqPreparerQualificationCode: "QS" };
   const holdings = [{ personId: "p11", qualificationCode: "QS", validFrom: "2025-01-01", validTo: "2026-09-30" }];
   const qualifications = [{ code: "QS", nameEn: "Qualified measurer", retiredOn: null }];
-  const draft = (x: Partial<BqVersionFacts> = {}): BqVersionFacts => ({ status: "DRAFT", scopedBy: "IMPLEMENTING_DEPARTMENT", followsStandard: true, departuresText: "", preparerPersonId: "p11", lines: example, ...x });
+  const draft = (x: Partial<BqVersionFacts> = {}): BqVersionFacts => ({ status: "DRAFT", scopedBy: "IMPLEMENTING_DEPARTMENT", followsStandard: true, departuresText: "", preparerPersonId: "p11", lines: example, sectionNumbers: ["1", "2", "3", "4"], ...x });
   const judge = (v: BqVersionFacts, x: Partial<Parameters<typeof finaliseFaults>[1]> = {}) =>
     codes(finaliseFaults(v, { policy, holdings, qualifications, today: "2026-09-30", exerciseStatus: "DRAFT", ...x }));
 
+  it("a section number used twice in the version is refused, naming it (an import into a template's sections must not double them)", () => {
+    expect(judge(draft({ sectionNumbers: ["1", "2", "1", "3", " 2 "] }))).toEqual(["SECTION_NUMBER_REPEATED"]);
+    expect(finaliseFaults(draft({ sectionNumbers: ["1", "2", "1"] }), { policy, holdings, qualifications, today: "2026-09-30", exerciseStatus: "DRAFT" })[0]).toEqual({ code: "SECTION_NUMBER_REPEATED", level: "block", data: { numbers: "1" } });
+    expect(repeatedSectionNumbers(["1", "2", "1", "3", " 2 ", "1"])).toEqual(["1", "2"]);
+    expect(repeatedSectionNumbers(["1", "1.1", "10"])).toEqual([]);
+  });
   it("a complete draft by a qualified preparer finalises", () => {
     expect(judge(draft())).toEqual([]);
     // Departing from the standard, with the departures stated.

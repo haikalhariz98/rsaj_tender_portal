@@ -247,6 +247,7 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   PERSON_UNKNOWN: "Choose someone on record and active.",
   CHANGED: "The record changed while this was being saved. Reload and try again.",
   QUANTITY_INVALID: "Give the quantity as a number, to three decimal places at most.",
+  SECTION_NUMBER_REPEATED: (d) => `Section ${d.numbers ?? ""} is used more than once in this version. Give each section its own number, or move the lines into one section and remove the other.`,
   RATE_INVALID: "Give the rate as an amount, to the sen.",
   TOO_LARGE: (d) => SIZE_TEXT[d.field as string] ?? TOO_LARGE_TEXT,
   VALUE_INVALID: "Give the estimate as an amount, to the sen.",

@@ -398,7 +398,7 @@ export async function checkScope() {
     const versions = await repo.loadBqVersions(exerciseId);
     for (const v of versions.filter((x) => x.status !== "DRAFT")) {
       const on = v.finalisedAt!.toISOString().slice(0, 10);
-      fail(`bill ${exerciseId} v${v.versionNo}`, finaliseFaults({ status: "DRAFT", scopedBy: v.scopedBy, followsStandard: v.followsStandard, departuresText: v.departuresText, preparerPersonId: v.preparerPersonId, lines: repo.linesOf(v) }, { policy, holdings, qualifications, today: on, exerciseStatus: ex.status }));
+      fail(`bill ${exerciseId} v${v.versionNo}`, finaliseFaults({ status: "DRAFT", scopedBy: v.scopedBy, followsStandard: v.followsStandard, departuresText: v.departuresText, preparerPersonId: v.preparerPersonId, lines: repo.linesOf(v), sectionNumbers: v.sections.map((s) => s.number) }, { policy, holdings, qualifications, today: on, exerciseStatus: ex.status }));
     }
     const panel = await repo.loadPanel(exerciseId);
     const rules = await repo.loadScopeRules(org.id, ex);
