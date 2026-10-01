@@ -11,6 +11,45 @@ work alone. Read `AGENTS.md`, `docs/notes/handoff.md` and this file before anyth
   specification — the `.md` is the text) and `docs/prototype/` (the clickable prototype
   and per-screen specs). Read them; never copy them anywhere outside this repository.
 
+## Resuming (second cloud run, from 2026-10-01)
+
+The first run's work came back to the founder's machine and was reviewed there. Start by
+reading, in order: the top of `docs/notes/decisions-log.md` ("Where the build stopped"),
+`docs/notes/cloud-build/LESSONS.md` (the standard every module was held to — apply it from
+the start), `docs/notes/cloud-build/ENV.md`, and `docs/notes/cloud-build/local-review.md`.
+
+- **Environment.** If Prisma's engine download is blocked again, use the WASM-engine
+  workaround in `docs/notes/cloud-build/ENV.md`; the tools are in
+  `docs/notes/cloud-build/tools/` (copy them to your scratchpad and fix the paths inside).
+  The founder has verified every migration on the native engine and Postgres 17.
+- **Next work, in order:** finish the Phase 1 close-out
+  (`docs/notes/plans/phase1-closeout.md`). Its last unfinished, unreviewed commit is saved
+  as `docs/notes/cloud-build/close-out-wip.patch` — review it, apply what is right
+  (`git apply`), discard the rest, and record which. Then the Phase 1 acceptance
+  checklist and acceptance; then the document store
+  (`docs/notes/plans/platform-document-store.md`); then 6.2 and the rest of Phase 2; then
+  Phases 3–6.
+- Fix the items in `docs/notes/cloud-build/local-review.md` as part of the close-out.
+
+## Returning the work — every module, without fail
+
+The repo has **no remote** and must never be pushed. Teleporting a session does **not**
+bring commits back, so the founder only sees what you send as files.
+
+1. **Commit everything as you go.** Never end a step, a module or the session with
+   uncommitted changes. Unfinished work at a stopping point goes on a branch
+   `wip/<module>` as one commit marked "WIP … not reviewed", never on `build-all-modules`.
+2. **At each module acceptance** (and in any case at least every two hours of work):
+   - `git bundle create perolehan-build.bundle build-all-modules` (add any `wip/*`
+     branches), in the repo root; `git bundle verify` it; never commit it.
+   - Screenshots for the founder's UI review: every new or changed screen, and one
+     sibling screen per area, at 1280 and 390 px wide, with demo data loaded, named
+     `<module>-<screen>-<width>.png`. Zip them as `<module>-screens.zip` in the repo root
+     (never commit it).
+   - Send the bundle and the zip with SendUserFile (display: attach), and say in one line
+     the tip hash and `git rev-list --count 985025a..build-all-modules`.
+3. Then write the module's entry under "## Modules" (below) and carry on.
+
 ## Decisions: consult, don't ask
 
 Do not stop to ask the founder anything. For every decision the spec leaves open, before

@@ -1,0 +1,163 @@
+﻿From 402cbba315f1487bc5354bce520093ec4b68b251 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 1 Oct 2026 02:20:24 +0000
+Subject: [PATCH] WIP: Phase 1 close-out, uncommitted when the session moved
+ (not reviewed)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014vBHyhPHtWeasK1Qe8FWfU
+---
+ src/app/awards/[id]/page.tsx          |  4 ++--
+ src/app/requisitions/[id]/page.tsx    |  1 +
+ src/app/sourcing/[id]/page.tsx        |  4 ++--
+ src/lib/authority/rejection-labels.ts |  6 ++++++
+ src/lib/authority/rejection.test.ts   | 21 +++++++++++++++++++++
+ src/lib/authority/rejection.ts        | 12 ++++++++++++
+ 6 files changed, 44 insertions(+), 4 deletions(-)
+
+diff --git a/src/app/awards/[id]/page.tsx b/src/app/awards/[id]/page.tsx
+index b78b023..48e131c 100644
+--- a/src/app/awards/[id]/page.tsx
++++ b/src/app/awards/[id]/page.tsx
+@@ -63,7 +63,7 @@ import { boundarySentence, REGIME_LABEL } from "@/lib/method/labels";
+ import type { Regime } from "@/lib/method/types";
+ import { formatMoney, parseSen, senFromDecimal } from "@/lib/money";
+ import { DECISION_LABEL } from "@/lib/requisition/labels";
+-import { earlierSteps, type RejectionKind } from "@/lib/authority/rejection";
++import { earlierSteps, returnTargetBeforeNext, type RejectionKind } from "@/lib/authority/rejection";
+ import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
+ import { derivedAnnualValue } from "@/lib/securities/bond";
+ import { expiryAlert } from "@/lib/securities/expiry";
+@@ -568,7 +568,7 @@ function ApprovalPanel({
+           {inst.status === "PENDING" && (
+             <p className="border-t border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">
+               Steps are decided in order. A committee&apos;s step is discharged by citing its decision on this exercise.{" "}
+-              {ifRejectedText({ snapshotAt: inst.rejectionSnapshotAt, kind: inst.rejectionKind as RejectionKind | null, returnToOffice: inst.rejectionReturnToRoleCode ? roleName(inst.rejectionReturnToRoleCode) : null, provenance: inst.rejectionProvenance }, false)}
++              {ifRejectedText({ snapshotAt: inst.rejectionSnapshotAt, kind: inst.rejectionKind as RejectionKind | null, returnToOffice: inst.rejectionReturnToRoleCode ? roleName(inst.rejectionReturnToRoleCode) : null, provenance: inst.rejectionProvenance }, false, returnTargetBeforeNext(inst))}
+               {inst.supersedesInstanceId ? " This route continues a refused one from an earlier step; the steps before it keep their decisions." : ""}
+             </p>
+           )}
+diff --git a/src/app/requisitions/[id]/page.tsx b/src/app/requisitions/[id]/page.tsx
+index 1c00ada..3f2e2ef 100644
+--- a/src/app/requisitions/[id]/page.tsx
++++ b/src/app/requisitions/[id]/page.tsx
+@@ -1301,6 +1301,7 @@ function ApprovalPanel({
+                             {ifRejectedText(
+                               { snapshotAt: inst.rejectionSnapshotAt, kind: inst.rejectionKind as RejectionKind | null, returnToOffice: officeName(inst.rejectionReturnToRoleCode), provenance: inst.rejectionProvenance },
+                               !!s.committeeCode,
++                              inst.steps.some((x) => x.sequence < s.sequence && x.roleCode === inst.rejectionReturnToRoleCode),
+                             )}
+                           </span>
+                         )}
+diff --git a/src/app/sourcing/[id]/page.tsx b/src/app/sourcing/[id]/page.tsx
+index 4db2e20..5433a7c 100644
+--- a/src/app/sourcing/[id]/page.tsx
++++ b/src/app/sourcing/[id]/page.tsx
+@@ -7,7 +7,7 @@ import { Tabs } from "@/components/tabs";
+ import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
+ import { EscalateDrawer } from "@/app/approvals/editors";
+ import { escalationText } from "@/lib/authority/escalation-labels";
+-import { earlierSteps, type RejectionKind } from "@/lib/authority/rejection";
++import { earlierSteps, returnTargetBeforeNext, type RejectionKind } from "@/lib/authority/rejection";
+ import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
+ import { Badge, Chip } from "@/components/ui/badge";
+ import { Button, ButtonLink } from "@/components/ui/button";
+@@ -944,7 +944,7 @@ function NamePanel({
+           {inst.status === "PENDING" && (
+             <p className="border-t border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">
+               Steps are decided in order: each waits for the one before it.{" "}
+-              {ifRejectedText({ snapshotAt: inst.rejectionSnapshotAt, kind: inst.rejectionKind as RejectionKind | null, returnToOffice: officeName(inst.rejectionReturnToRoleCode), provenance: inst.rejectionProvenance }, false)}
++              {ifRejectedText({ snapshotAt: inst.rejectionSnapshotAt, kind: inst.rejectionKind as RejectionKind | null, returnToOffice: officeName(inst.rejectionReturnToRoleCode), provenance: inst.rejectionProvenance }, false, returnTargetBeforeNext(inst))}
+               {inst.supersedesInstanceId ? " This route continues a refused one from an earlier step; the steps before it keep their decisions." : ""}
+             </p>
+           )}
+diff --git a/src/lib/authority/rejection-labels.ts b/src/lib/authority/rejection-labels.ts
+index 78d0c5d..f6c1d8e 100644
+--- a/src/lib/authority/rejection-labels.ts
++++ b/src/lib/authority/rejection-labels.ts
+@@ -27,10 +27,16 @@ export const PROVENANCE_WORD: Record<string, string> = { STATED: "stated", OBSER
+ export function ifRejectedText(
+   route: { snapshotAt: Date | null; kind: RejectionKind | null; returnToOffice: string | null; provenance: string | null },
+   committeeStep: boolean,
++  /// Said of one step: whether the office a return names has a step before it. A return
++  /// to a step that is not earlier cannot be applied, so the officer chooses
++  /// (`rejectionOutcome`, STEP_NOT_ON_ROUTE). Omitted: said of the route as a whole.
++  targetBefore?: boolean,
+ ): string {
+   if (committeeStep) return "If not carried: the committee's own not-carried outcome decides — a loop returns it to whoever raised it, a terminal outcome ends it.";
+   if (!route.snapshotAt) return "If rejected: where it goes was not recorded when this route opened — the officer will choose.";
+   if (!route.kind) return "If rejected: not set — the officer will choose, and the choice is recorded as theirs.";
++  if (route.kind === "RETURN_TO_STEP" && targetBefore === false)
++    return `If rejected here: the configured return is to the ${route.returnToOffice ?? "office no longer configured"}'s step, and there is none before this one — the officer will choose.`;
+   const how = route.provenance ? ` (configured, ${PROVENANCE_WORD[route.provenance] ?? "source not recorded"})` : " (configured)";
+   return `If rejected: ${destinationText(route.kind, route.returnToOffice).replace(/^R/, "r").replace(/^T/, "t")}${how}.`;
+ }
+diff --git a/src/lib/authority/rejection.test.ts b/src/lib/authority/rejection.test.ts
+index 6b32617..f7c0c9f 100644
+--- a/src/lib/authority/rejection.test.ts
++++ b/src/lib/authority/rejection.test.ts
+@@ -9,6 +9,7 @@ import {
+   rejectionOutcome,
+   rejectionSnapshot,
+   REJECTION_KINDS,
++  returnTargetBeforeNext,
+   successorSteps,
+   type DecidedStep,
+   type DestinationRow,
+@@ -194,6 +195,10 @@ describe("the destination in words", () => {
+     expect(ifRejectedText({ snapshotAt: on, kind: "RETURN_TO_STEP", returnToOffice: "Head of Division", provenance: "ASSUMED" }, false)).toBe("If rejected: returns to the Head of Division's step (configured, assumed).");
+     expect(ifRejectedText({ snapshotAt: on, kind: null, returnToOffice: null, provenance: null }, false)).toMatch(/not set — the officer will choose/);
+     expect(ifRejectedText({ snapshotAt: null, kind: null, returnToOffice: null, provenance: null }, false)).toMatch(/not recorded/);
++    // Said of a step with no step of the named office before it: the return cannot apply.
++    const toDiv = { snapshotAt: on, kind: "RETURN_TO_STEP" as const, returnToOffice: "Head of Division", provenance: "ASSUMED" };
++    expect(ifRejectedText(toDiv, false, false)).toBe("If rejected here: the configured return is to the Head of Division's step, and there is none before this one — the officer will choose.");
++    expect(ifRejectedText(toDiv, false, true)).toBe("If rejected: returns to the Head of Division's step (configured, assumed).");
+     expect(ifRejectedText({ snapshotAt: on, kind: "TERMINATE", returnToOffice: null, provenance: null }, true)).toMatch(/committee's own/);
+   });
+   it("never shows an officer's choice as policy", () => {
+@@ -201,3 +206,19 @@ describe("the destination in words", () => {
+     expect(appliedText("RETURN_TO_ORIGINATOR", "COMMITTEE_OUTCOME", null, null)).toMatch(/committee's not-carried outcome/);
+   });
+ });
++
++describe("returnTargetBeforeNext", () => {
++  const steps = [
++    { sequence: 1, roleCode: "SEC_PRE", decision: "DONE" },
++    { sequence: 2, roleCode: "HOD_CP", decision: "PENDING" },
++    { sequence: 3, roleCode: "FD", decision: "PENDING" },
++  ];
++  it("says whether the named office has a step before the next one pending", () => {
++    expect(returnTargetBeforeNext({ rejectionKind: "RETURN_TO_STEP", rejectionReturnToRoleCode: "SEC_PRE", steps })).toBe(true);
++    expect(returnTargetBeforeNext({ rejectionKind: "RETURN_TO_STEP", rejectionReturnToRoleCode: "HOD_CP", steps })).toBe(false);
++  });
++  it("does not arise for other destinations or a route with nothing pending", () => {
++    expect(returnTargetBeforeNext({ rejectionKind: "TERMINATE", rejectionReturnToRoleCode: null, steps })).toBeUndefined();
++    expect(returnTargetBeforeNext({ rejectionKind: "RETURN_TO_STEP", rejectionReturnToRoleCode: "SEC_PRE", steps: steps.map((s) => ({ ...s, decision: "DONE" })) })).toBeUndefined();
++  });
++});
+diff --git a/src/lib/authority/rejection.ts b/src/lib/authority/rejection.ts
+index c9cd8dc..0d59cce 100644
+--- a/src/lib/authority/rejection.ts
++++ b/src/lib/authority/rejection.ts
+@@ -98,6 +98,18 @@ export function earlierSteps<T extends RouteStep>(steps: readonly T[], rejecting
+   return steps.filter((s) => s.sequence < rejectingSeq).sort((a, b) => a.sequence - b.sequence);
+ }
+ 
++/**
++ * For a route read as a whole: whether a configured return to a step can apply to the
++ * next step awaiting a decision — a step of the named office comes before it. Undefined
++ * where that does not arise (no return to a step, or nothing pending).
++ */
++export function returnTargetBeforeNext(route: { rejectionKind: string | null; rejectionReturnToRoleCode: string | null; steps: readonly (RouteStep & { decision: string })[] }): boolean | undefined {
++  if (route.rejectionKind !== "RETURN_TO_STEP") return undefined;
++  const next = [...route.steps].sort((a, b) => a.sequence - b.sequence).find((s) => s.decision === "PENDING");
++  if (!next) return undefined;
++  return earlierSteps(route.steps, next.sequence).some((s) => s.roleCode === route.rejectionReturnToRoleCode);
++}
++
+ /// What the officer may choose among: the kinds this matter supports, and a return to a
+ /// step only where there is an earlier step to return to.
+ export function choicesFor(supports: readonly RejectionKind[], steps: readonly RouteStep[], rejectingSeq: number): RejectionKind[] {
+-- 
+2.55.0.windows.3
+
