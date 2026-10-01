@@ -33,6 +33,9 @@ import {
   leadTimeText,
   NO_LIMIT,
   signatoriesText,
+  sharePercentText,
+  estimateEmptyState,
+  leadConfiguredText,
   NOT_SET,
   PACK_CARD_HEADING,
   PANEL_STATE_LABEL,
@@ -76,19 +79,19 @@ const yesNo = (b: boolean | null) => (b == null ? NOT_SET : b ? "Yes" : "No");
 /// Where each readiness finding is fixed, for a link.
 const PACK_HREF = (exerciseId: string): Readonly<Record<PackFault, string>> => ({
   BASIS_NOT_CHOSEN: `/sourcing/${exerciseId}?tab=contract`,
-  BASIS_BQ_NOT_SET: SCOPE_CONFIG_PATH,
-  BQ_NOT_FINALISED: `/sourcing/${exerciseId}?tab=scope&section=bq`,
-  BQ_REVISION_OPEN: `/sourcing/${exerciseId}?tab=scope&section=bq`,
-  PANEL_NOT_VERIFIED: `/sourcing/${exerciseId}?tab=scope&section=scope`,
-  PANEL_SCAN_GONE: `/sourcing/${exerciseId}?tab=scope&section=scope`,
-  PANEL_BILL_SUPERSEDED: `/sourcing/${exerciseId}?tab=scope&section=scope`,
+  BASIS_BQ_NOT_SET: `${SCOPE_CONFIG_PATH}#bill-bases`,
+  BQ_NOT_FINALISED: `/sourcing/${exerciseId}?tab=scope&section=bq#bill-version`,
+  BQ_REVISION_OPEN: `/sourcing/${exerciseId}?tab=scope&section=bq#bill-version`,
+  PANEL_NOT_VERIFIED: `/sourcing/${exerciseId}?tab=scope&section=scope#specification-panel`,
+  PANEL_SCAN_GONE: `/sourcing/${exerciseId}?tab=scope&section=scope#signed-panel-form`,
+  PANEL_BILL_SUPERSEDED: `/sourcing/${exerciseId}?tab=scope&section=scope#specification-panel`,
   METHOD_NOT_CONFIGURED: "/configuration/reference-data",
-  ESTIMATE_RULE_NOT_SET: SCOPE_CONFIG_PATH,
-  ESTIMATE_NOT_LODGED: `/sourcing/${exerciseId}?tab=scope&section=estimate`,
-  ESTIMATE_BEHIND: `/sourcing/${exerciseId}?tab=scope&section=estimate`,
-  SCOPE_RULE_NOT_SET: SCOPE_CONFIG_PATH,
-  SCOPE_COMMITTEE_NOT_SET: SCOPE_CONFIG_PATH,
-  SCOPE_NOT_APPROVED: `/sourcing/${exerciseId}?tab=scope&section=scope`,
+  ESTIMATE_RULE_NOT_SET: `${SCOPE_CONFIG_PATH}#estimate-rules`,
+  ESTIMATE_NOT_LODGED: `/sourcing/${exerciseId}?tab=scope&section=estimate#company-estimate`,
+  ESTIMATE_BEHIND: `/sourcing/${exerciseId}?tab=scope&section=estimate#company-estimate`,
+  SCOPE_RULE_NOT_SET: `${SCOPE_CONFIG_PATH}#scope-rules`,
+  SCOPE_COMMITTEE_NOT_SET: `${SCOPE_CONFIG_PATH}#scope-rules`,
+  SCOPE_NOT_APPROVED: `/sourcing/${exerciseId}?tab=scope&section=scope#scope-approval`,
 });
 
 async function loadAll(exerciseId: string) {
@@ -289,6 +292,11 @@ export async function bqTab(exerciseId: string) {
   const { finalised, draft } = currentBq(versions);
   const current = draft ?? finalised;
   const holdings = current?.preparerPersonId ? await loadHoldings(org.id, db, [current.preparerPersonId]) : [];
+  // The day a later issue replaced the one a line was priced from, where it has.
+  const supersededOn = (scheduleId: string | null) => {
+    const r = scheduleId ? rateIssues.find((x) => x.id === scheduleId) : null;
+    return r && r.status === "SUPERSEDED" ? r.supersededOn : null;
+  };
   const view = (v: NonNullable<typeof current>) => {
     const lines = linesOf(v);
     const t = bqTotals(lines, v.provisionalExcludedFromFirm);
@@ -305,7 +313,7 @@ export async function bqTab(exerciseId: string) {
         provisionalSums: money(t.provisionalSums),
         buildersWorks: money(t.buildersWorks),
         firmValue: firmValueText(t.firmValue),
-        provisionalShare: t.provisionalSharePct == null ? NOT_SET : `${t.provisionalSharePct}%`,
+        provisionalShare: t.provisionalSharePct == null ? NOT_SET : sharePercentText(t.provisionalSharePct),
         incompleteLines: t.incompleteLines,
       },
       header: {
@@ -339,7 +347,7 @@ export async function bqTab(exerciseId: string) {
             quantity: l.quantity ?? NOT_SET, rate: l.rate == null ? NOT_SET : money(l.rate), amount: i.amount == null ? NOT_SET : formatSen(parseSen(i.amount.toString())),
             chips: l.provisional ? [PROVISIONAL_CHIP] : [],
             rateSource: i.rateSource === "SCHEDULE" && i.scheduleLabelSnapshot && i.scheduleIssueSnapshot && i.rateItemCode
-              ? `${RATE_SOURCE_LABEL.SCHEDULE}: ${rateFromText({ label: i.scheduleLabelSnapshot, issue: i.scheduleIssueSnapshot, effectiveFrom: i.scheduleEffectiveFromSnapshot ? storedDay(i.scheduleEffectiveFromSnapshot) : "", itemCode: i.rateItemCode }, (x) => (x ? formatDate(x) : NOT_SET))}`
+              ? `${RATE_SOURCE_LABEL.SCHEDULE}: ${rateFromText({ label: i.scheduleLabelSnapshot, issue: i.scheduleIssueSnapshot, effectiveFrom: i.scheduleEffectiveFromSnapshot ? storedDay(i.scheduleEffectiveFromSnapshot) : "", itemCode: i.rateItemCode, supersededOn: supersededOn(i.rateScheduleId) }, (x) => (x ? formatDate(x) : NOT_SET))}`
               : RATE_SOURCE_LABEL[i.rateSource],
             raw: { itemRef: i.itemRef, description: i.description, unit: i.unit, kind: l.kind, quantity: l.quantity ?? "", rate: l.rate == null ? "" : senToDecimalString(l.rate), provisional: l.provisional, sortOrder: String(i.sortOrder), scheduleItem: i.rateSource === "SCHEDULE" ? "keep" : "" },
           };
@@ -406,7 +414,8 @@ export async function estimateTab(exerciseId: string) {
       preparer: `${e.preparer.name}, ${ATTESTED}`,
       preparerName: e.preparer.name,
       preparerPersonId: e.preparerPersonId,
-      preparedOn: e.versions[0] ? storedDay(e.versions[0].preparedOn) : null,
+      startedOn: e.versions[0] ? storedDay(e.versions[0].preparedOn) : null,
+      currentVersionOn: last ? storedDay(last.preparedOn) : null,
       currentVersionNo: e.currentVersionNo,
       lodgedVersionNo: facts.lodgedVersionNo,
       lodgementBehind: lodgementBehind(facts),
@@ -416,7 +425,7 @@ export async function estimateTab(exerciseId: string) {
       voidReason: e.state === "VOID" ? e.voidReason : null,
       versions: e.versions.map((v) => ({ versionNo: v.versionNo, preparedOn: storedDay(v.preparedOn), preparer: v.preparer.name, value: SEALED_TEXT, reason: v.versionNo === 1 ? null : SEALED_TEXT })),
       events: e.events.map((x) => ({ id: x.id, kind: EVENT_KIND_LABEL[x.kind], by: x.person ? `${x.person.name}, ${ATTESTED}` : null, capacity: x.capacity || null, versionNo: x.versionNo, copyNo: x.copyNo, note: x.kind === "VOIDED" || x.kind === "RETAINED" ? x.note || null : null, at: x.at })),
-      lead: { badge: LEAD_STATE_BADGE[lead.state], text: leadTimeText(lead), reading: LEAD_READING },
+      lead: { badge: LEAD_STATE_BADGE[lead.state], text: leadTimeText(lead), configured: leadConfiguredText(policy.estimateLeadDays), reading: LEAD_READING },
       actions: {
         amend: asked(versionFaults({ value: 1n, personId: e.preparerPersonId, reason: "given" }, facts, { closingAt, timeZone: org.timeZone, exerciseStatus: ex.status, now })),
         lodge: judged(lodgeFaults(facts, { personId: "given" }, ex.status)),
@@ -436,6 +445,8 @@ export async function estimateTab(exerciseId: string) {
     live: liveRow ? view(liveRow) : null,
     voided: estimates.filter((x) => x.state === "VOID").map(view),
     prepare,
+    empty: estimateEmptyState(a.rules.method ? { required: a.rules.method.requiresCompanyEstimate, provenance: a.rules.method.requiresCompanyEstimateProvenance } : null, estimates.some((x) => x.state === "VOID")),
+    configHref: SCOPE_CONFIG_PATH,
     people,
   };
 }

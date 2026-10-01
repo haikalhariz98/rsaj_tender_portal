@@ -310,6 +310,19 @@ export function importSummary(p: ParsedBqCsv) {
   return { sections: p.sections.length, lines: lines.length, priced: p.priced, total: t.total, incompleteLines: t.incompleteLines };
 }
 
+/// What the file said that the import does not use, in two groups so each callout says what is
+/// true of all it lists: the amounts typed in the file (compared with quantity times rate, never
+/// used) and everything else the file noticed (an unknown column, a formula-looking cell, a
+/// provisional flag on a sum). Blocking faults are not here.
+export function importNotices(p: ParsedBqCsv) {
+  const warns = p.faults.filter((f) => f.level !== "block");
+  return {
+    amountFaults: warns.filter((f) => f.code === "AMOUNT_INVALID"),
+    mismatches: p.keyedMismatches,
+    other: warns.filter((f) => f.code !== "AMOUNT_INVALID"),
+  };
+}
+
 /// Why the import's button is off, judged in the browser with the order the server judges in
 /// (a file it refuses first, then a draft that has lines and no Replace), so the officer is
 /// told before sending anything. Null: nothing stands in the way, or no file is chosen yet (the

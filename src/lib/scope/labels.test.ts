@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { BQ_SCOPED_BY, BQ_ITEM_KINDS } from "./types";
-import { BQ_READABLE_STATEMENT, ESTIMATE_SEALED_STATEMENT, ESTIMATE_STATE_LABEL, EVENT_KIND_LABEL, firmValueText, ITEM_KIND_LABEL, LEAD_STATE_BADGE, leadTimeText, PACK_CARD_HEADING, PANEL_STATE_LABEL, SCOPE_CODES, scopeFaultText, SCOPED_BY_LABEL, sealedVersion, signatoriesText } from "./labels";
+import { BQ_READABLE_STATEMENT, ESTIMATE_SEALED_STATEMENT, ESTIMATE_STATE_LABEL, EVENT_KIND_LABEL, firmValueText, ITEM_KIND_LABEL, LEAD_STATE_BADGE, leadTimeText, PACK_CARD_HEADING, PANEL_STATE_LABEL, SCOPE_CODES, scopeFaultText, SCOPED_BY_LABEL, sealedVersion, signatoriesText, sharePercentText, estimateEmptyState, leadConfiguredText } from "./labels";
 
 describe("every code has words, and no words are a code (AGENTS.md rule 5)", () => {
   it("each code renders a sentence that is not the code", () => {
@@ -80,5 +80,42 @@ describe("signatoriesText", () => {
     expect(signatoriesText(3, 6)).toBe("3 (at most 6)");
     expect(signatoriesText(0, 6)).toBe("0 (at most 6)");
     expect(signatoriesText(3, null)).toBe("3 · No limit set");
+  });
+});
+
+describe("sharePercentText: a share to one decimal place, half up, from the exact string", () => {
+  it("rounds without floats", () => {
+    expect(sharePercentText("6.4101")).toBe("6.4%");
+    expect(sharePercentText("35.0000")).toBe("35.0%");
+    expect(sharePercentText("6.45")).toBe("6.5%");
+    expect(sharePercentText("6.449999")).toBe("6.4%");
+    expect(sharePercentText("99.96")).toBe("100.0%");
+    expect(sharePercentText("0.04")).toBe("0.0%");
+    expect(sharePercentText("0.05")).toBe("0.1%");
+    expect(sharePercentText("100")).toBe("100.0%");
+    expect(sharePercentText("12.3")).toBe("12.3%");
+  });
+});
+
+describe("estimateEmptyState: the empty Company estimate section follows the method's rule", () => {
+  it("not needed says where that came from; not set is never 'not needed'; needed asks for one", () => {
+    expect(estimateEmptyState({ required: false, provenance: "ASSUMED" }, false).title).toBe("Not needed for this method (assumed)");
+    expect(estimateEmptyState({ required: false, provenance: "STATED" }, false).title).toBe("Not needed for this method (stated)");
+    expect(estimateEmptyState({ required: false, provenance: null }, false).title).toBe("Not needed for this method");
+    const unset = estimateEmptyState({ required: null, provenance: null }, false);
+    expect(unset.state).toBe("RULE_NOT_SET");
+    expect(unset.title).toBe("Whether one is needed is not set");
+    expect(unset.body).toContain("Configuration, Scope and estimate");
+    expect(estimateEmptyState({ required: true, provenance: "ASSUMED" }, false).state).toBe("NEEDED");
+    expect(estimateEmptyState({ required: true, provenance: null }, true).body).toMatch(/voided/);
+    expect(estimateEmptyState(null, false).state).toBe("METHOD_GONE");
+  });
+});
+
+describe("leadConfiguredText", () => {
+  it("states the configured days, or that none is configured", () => {
+    expect(leadConfiguredText(7)).toBe("The configured lead is 7 days before the closing day.");
+    expect(leadConfiguredText(1)).toBe("The configured lead is 1 day before the closing day.");
+    expect(leadConfiguredText(null)).toBe("No lead time is configured.");
   });
 });

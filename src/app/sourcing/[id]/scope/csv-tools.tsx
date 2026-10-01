@@ -8,7 +8,7 @@ import { Button, buttonClass } from "@/components/ui/button";
 import { Callout } from "@/components/ui/feedback";
 import { Field, Select } from "@/components/ui/field";
 import { formatSen } from "@/lib/money";
-import { exportToSave, importBlock, importSummary, parseBqCsv, type ParsedBqCsv } from "@/lib/scope/csv";
+import { exportToSave, importBlock, importNotices, importSummary, parseBqCsv, type ParsedBqCsv } from "@/lib/scope/csv";
 import { csvFaultText, IMPORT_BLOCK_TEXT, keyedMismatchText } from "@/lib/scope/labels";
 
 import { exportBqCsv, importBqCsv, type BqExportResult } from "./actions";
@@ -32,7 +32,7 @@ type Allowed = { allowed: true } | { allowed: false; reason: string };
 function Preview({ parsed }: { parsed: ParsedBqCsv | null }) {
   if (!parsed) return <p className="text-[13px] text-ink-3">Choose a file to see what it holds before anything is stored.</p>;
   const blocks = parsed.faults.filter((f) => f.level === "block");
-  const warns = parsed.faults.filter((f) => f.level !== "block");
+  const notices = importNotices(parsed);
   const s = importSummary(parsed);
   return (
     <div className="flex flex-col gap-2">
@@ -51,14 +51,24 @@ function Preview({ parsed }: { parsed: ParsedBqCsv | null }) {
           {s.priced ? `Total ${formatSen(s.total)}${s.incompleteLines ? `; ${s.incompleteLines} without a rate or quantity yet` : ""}.` : "The file has no Rate column: rates are entered after it is imported."}
         </Callout>
       )}
-      {(warns.length > 0 || parsed.keyedMismatches.length > 0) && (
-        <Callout tone="warn" title="Said, and not used">
+      {(notices.mismatches.length > 0 || notices.amountFaults.length > 0) && (
+        <Callout tone="warn" title="Amounts in the file were ignored">
           <ul className="flex list-disc flex-col gap-1 pl-4">
-            {warns.map((f, i) => (
-              <li key={`w${i}`}>{csvFaultText(f)}</li>
+            {notices.amountFaults.map((f, i) => (
+              <li key={`a${i}`}>{csvFaultText(f)}</li>
             ))}
-            {parsed.keyedMismatches.slice(0, 8).map((m) => (
+            {notices.mismatches.slice(0, 8).map((m) => (
               <li key={`m${m.line}`}>{keyedMismatchText(m)}</li>
+            ))}
+            {notices.mismatches.length > 8 && <li>And {notices.mismatches.length - 8} more.</li>}
+          </ul>
+        </Callout>
+      )}
+      {notices.other.length > 0 && (
+        <Callout tone="warn" title="Also noticed in the file">
+          <ul className="flex list-disc flex-col gap-1 pl-4">
+            {notices.other.map((f, i) => (
+              <li key={`w${i}`}>{csvFaultText(f)}</li>
             ))}
           </ul>
         </Callout>

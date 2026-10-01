@@ -134,8 +134,10 @@ const itemFields = (i: ItemAuditFacts) => ({
 export const itemAudit = (before: ItemAuditFacts | null, after: ItemAuditFacts): FieldChange[] => diffFields(before ? itemFields(before) : null, itemFields(after));
 
 /// What a schedule-priced line keeps, in words: the schedule, the issue, the day it took effect and the item.
-export const rateFromText = (s: { label: string; issue: string; effectiveFrom: string; itemCode: string }, formatDay: (d: string) => string) =>
-  `${s.label}, ${s.issue} (in force from ${formatDay(s.effectiveFrom)}), item ${s.itemCode}`;
+/// `supersededOn`: the day a later issue replaced this one. The line keeps its price (FR-EST-004),
+/// and says so, rather than reading as if the issue were still the one in force.
+export const rateFromText = (s: { label: string; issue: string; effectiveFrom: string; itemCode: string; supersededOn?: string | null }, formatDay: (d: string) => string) =>
+  `${s.label}, ${s.issue} (in force from ${formatDay(s.effectiveFrom)}${s.supersededOn ? `, superseded on ${formatDay(s.supersededOn)}; the line keeps this price` : ""}), item ${s.itemCode}`;
 
 /// A bill's CSV import: the file, what it added, and what it reported.
 export function bqImportAudit(i: { file: string; documentTitle: string; versionNo: number; sha256: string; sections: number; lines: number; replacedLines: number; mismatches: number; priced: boolean }): FieldChange[] {

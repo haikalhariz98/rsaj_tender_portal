@@ -50,7 +50,7 @@ export function ScopeSection({ d }: { d: Data }) {
         </CardBody>
       </Card>
 
-      <Card>
+      <Card id="specification-panel" className="scroll-mt-24">
         <CardHeader
           icon={<UsersIcon size={17} />}
           title="Specification panel"
@@ -129,6 +129,7 @@ export function ScopeSection({ d }: { d: Data }) {
       </Card>
 
       {panel.id ? (
+        <div id="signed-panel-form" className="scroll-mt-24">
         <OwnerAttachments
           owner={{ kind: "specificationPanel", id: panel.id }}
           title="Signed panel form"
@@ -136,6 +137,7 @@ export function ScopeSection({ d }: { d: Data }) {
           only={["SPEC_PANEL_FORM"]}
           required={{ SPEC_PANEL_FORM: true }}
         />
+        </div>
       ) : (
         <Card>
           <CardHeader icon={<ShieldIcon size={17} />} title="Signed panel form" subtitle="Scanned and filed as SULIT." />
@@ -145,7 +147,7 @@ export function ScopeSection({ d }: { d: Data }) {
         </Card>
       )}
 
-      <Card className="overflow-hidden">
+      <Card id="scope-approval" className="scroll-mt-24 overflow-hidden">
         <CardHeader
           icon={<ScaleIcon size={17} />}
           title="Scope approval"
@@ -200,7 +202,7 @@ export function ScopeSection({ d }: { d: Data }) {
       </Card>
 
       <Card>
-        <CardHeader icon={<ShieldIcon size={17} />} title={readiness.heading} subtitle="What the documents' approval will look for. Nothing here stops anyone today." />
+        <CardHeader icon={<ShieldIcon size={17} />} title={readiness.heading} subtitle="What the documents' approval will look for. Nothing here stops anyone today, so each is a warning, not a refusal." />
         <CardBody>
           {readiness.findings.length === 0 ? (
             <Callout tone="ok">Nothing is outstanding on the checks that exist today.</Callout>
@@ -208,7 +210,7 @@ export function ScopeSection({ d }: { d: Data }) {
             <ul className="flex flex-col gap-2">
               {readiness.findings.map((f, i) => (
                 <li key={i}>
-                  <Callout tone={levelTone(f.level)} action={<Link href={f.href} className="text-[13px] font-semibold">Go there</Link>}>
+                  <Callout tone={f.level === "info" ? "info" : "warn"} action={<Link href={f.href} className="text-[13px] font-semibold">Go there</Link>}>
                     {f.text}
                   </Callout>
                 </li>

@@ -1,6 +1,7 @@
 import { DataList } from "@/components/data-list";
 import { ClockIcon, ShieldIcon } from "@/components/icons";
 import { Badge, Chip } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { KeyValues } from "@/components/ui/stat";
@@ -27,14 +28,23 @@ export function EstimateSection({ d }: { d: Data }) {
       <Callout tone="warn" title="Sealed on screen, not yet in storage">{d.statement}</Callout>
 
       {!e ? (
-        <Card>
+        <Card id="company-estimate" className="scroll-mt-24">
           <CardHeader
             icon={<ShieldIcon size={17} />}
             title={<span className="inline-flex flex-wrap items-center gap-2">Company estimate <Chip tone="err">{d.badge}</Chip></span>}
             subtitle="Prepared by one officer, amended with reasons, lodged into the sealed set before the bids are opened."
           />
-          <EmptyState size="sm" title="No company estimate yet" action={<PrepareEstimateDrawer exerciseId={exerciseId} people={people} allowed={d.prepare} />}>
-            {d.voided.length > 0 ? "The earlier estimate was voided. A new officer prepares a fresh one from version 1." : "Prepare it before the tender documents go for approval, where the sourcing method asks for one."}
+          <EmptyState
+            size="sm"
+            title={d.empty.title}
+            action={
+              <span className="flex flex-wrap items-center justify-center gap-3">
+                {d.empty.state === "RULE_NOT_SET" && <ButtonLink href={d.configHref} size="sm" variant="secondary">Set it under Configuration</ButtonLink>}
+                <PrepareEstimateDrawer exerciseId={exerciseId} people={people} allowed={d.prepare} />
+              </span>
+            }
+          >
+            {d.empty.body}
           </EmptyState>
         </Card>
       ) : (
@@ -67,7 +77,7 @@ function Live({ e, d, exerciseId, people }: { e: Estimate; d: Data; exerciseId: 
   const closed = e.state === "Void" || e.state === "Disclosed at opening";
   return (
     <>
-      <Card>
+      <Card id="company-estimate" className="scroll-mt-24">
         <CardHeader
           icon={<ShieldIcon size={17} />}
           title={<span className="inline-flex flex-wrap items-center gap-2">Company estimate <Chip tone="err">{d.badge}</Chip></span>}
@@ -82,8 +92,8 @@ function Live({ e, d, exerciseId, people }: { e: Estimate; d: Data; exerciseId: 
             columns={3}
             items={[
               { label: "Prepared by", value: e.preparer },
-              { label: "Prepared on", value: e.preparedOn ? formatDate(e.preparedOn) : "—" },
-              { label: "Current version", value: String(e.currentVersionNo) },
+              { label: "Started on", value: e.startedOn ? formatDate(e.startedOn) : "—" },
+              { label: "Current version", value: `Version ${e.currentVersionNo}${e.currentVersionOn ? `, made on ${formatDate(e.currentVersionOn)}` : ""}` },
               { label: "Lodged version", value: e.lodgedVersionNo ? `Version ${e.lodgedVersionNo}` : "Not lodged yet" },
               // The place on the estimate is the last copy recorded, which is of the version named.
               { label: "Retained copy", value: e.retainedVersionNo != null ? `Version ${e.retainedVersionNo}, at ${e.retainedPlace ?? "a place not recorded"}` : "Not recorded" },
@@ -91,7 +101,7 @@ function Live({ e, d, exerciseId, people }: { e: Estimate; d: Data; exerciseId: 
           />
           {!closed && (
             <div className="flex flex-wrap items-start gap-3 border-t border-line pt-5">
-              <AmendEstimateDrawer exerciseId={exerciseId} estimateId={e.id} preparerName={e.preparerName} preparerPersonId={e.preparerPersonId} versionNo={e.currentVersionNo} allowed={e.actions.amend} />
+              <AmendEstimateDrawer exerciseId={exerciseId} estimateId={e.id} preparerName={e.preparerName} preparerPersonId={e.preparerPersonId} versionNo={e.currentVersionNo} lodged={lodged} allowed={e.actions.amend} />
               {(!lodged || e.lodgementBehind) && <LodgeEstimateDrawer exerciseId={exerciseId} estimateId={e.id} versionNo={e.currentVersionNo} people={people} allowed={e.actions.lodge} again={e.lodgementBehind} />}
               {e.retainedCopyDue && <RetainCopyDrawer exerciseId={exerciseId} estimateId={e.id} people={people} allowed={e.actions.retain} versionNo={e.lodgedVersionNo} />}
               <VoidEstimateDrawer exerciseId={exerciseId} estimateId={e.id} preparerName={e.preparerName} people={people} allowed={e.actions.void} />
@@ -104,6 +114,7 @@ function Live({ e, d, exerciseId, people }: { e: Estimate; d: Data; exerciseId: 
         <CardHeader icon={<ClockIcon size={17} />} title="Lead time" subtitle="How long before closing the last version has to be made." actions={<Badge tone={e.lead.badge.tone} dot>{e.lead.badge.label}</Badge>} />
         <CardBody className="flex flex-col gap-1.5">
           <p className="text-[13.5px] text-ink">{e.lead.text}</p>
+          <p className="text-[13.5px] text-ink">{e.lead.configured}</p>
           <p className="text-[12.5px] text-ink-3">{e.lead.reading}</p>
         </CardBody>
       </Card>

@@ -1,6 +1,7 @@
 import { Blocked } from "@/app/requisitions/editors";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { AMEND_LODGED_NOTE } from "@/lib/scope/labels";
 
 import {
   amendEstimate,
@@ -373,7 +374,7 @@ export function PrepareEstimateDrawer({ exerciseId, people, allowed }: { exercis
   );
 }
 
-export function AmendEstimateDrawer({ exerciseId, estimateId, preparerName, preparerPersonId, versionNo, allowed }: { exerciseId: string; estimateId: string; preparerName: string; preparerPersonId: string; versionNo: number; allowed: Allowed }) {
+export function AmendEstimateDrawer({ exerciseId, estimateId, preparerName, preparerPersonId, versionNo, lodged, allowed }: { exerciseId: string; estimateId: string; preparerName: string; preparerPersonId: string; versionNo: number; lodged: boolean; allowed: Allowed }) {
   if (!allowed.allowed) return <Blocked label="Amend the estimate" reason={allowed.reason} />;
   return (
     <RecordEditor
@@ -385,7 +386,8 @@ export function AmendEstimateDrawer({ exerciseId, estimateId, preparerName, prep
         hidden("personId"),
         { kind: "readonly", name: "amendedBy", label: "Amended by", text: preparerName, hint: "The preparer. Recorded on behalf of, not signed." },
         { kind: "money", name: "value", label: "New company estimate", required: true, sealed: true, hint: "To the sen. Sealed on saving." },
-        { kind: "textarea", name: "reason", label: "Why it is amended", hint: "Required. Sealed with the figure: it is not recorded in the audit trail or shown on any screen." },
+        ...(lodged ? [{ kind: "note" as const, text: AMEND_LODGED_NOTE }] : []),
+        { kind: "textarea", name: "reason", label: "Why it is amended", required: true, hint: "Sealed with the figure: it is not recorded in the audit trail or shown on any screen." },
       ]}
       values={{ exerciseId, estimateId, personId: preparerPersonId }}
       confirm={FIGURE_CONFIRM}

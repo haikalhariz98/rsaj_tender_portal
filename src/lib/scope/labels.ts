@@ -91,6 +91,38 @@ export function leadTimeText(l: { state: LeadState; lastPermittedDay?: string; l
   }
 }
 
+/// The lead time the organisation has configured, in a sentence, so the line says how many days
+/// its reading uses rather than leaving the officer to look it up.
+export const leadConfiguredText = (days: number | null) =>
+  days == null ? "No lead time is configured." : `The configured lead is ${days} ${days === 1 ? "day" : "days"} before the closing day.`;
+
+/// A share as a percentage to one decimal place, half up, from the exact decimal string lib holds
+/// ("6.4101" reads "6.4"; "35.0000" reads "35.0"). Display only: the exact figure stays in lib.
+export function sharePercentText(exact: string): string {
+  const m = /^(\d+)(?:\.(\d*))?$/.exec(exact.trim());
+  if (!m) return exact;
+  const frac = (m[2] ?? "").padEnd(2, "0");
+  const tenths = BigInt(m[1] + frac[0]) + (frac[1] >= "5" ? 1n : 0n);
+  const s = tenths.toString().padStart(2, "0");
+  return `${s.slice(0, -1)}.${s.slice(-1)}%`;
+}
+
+/// What the Company estimate section's empty state says, by the method's rule for an estimate: not
+/// needed (with where that came from), not set (never read as "not needed"), or needed.
+export type EstimateEmpty = "NOT_NEEDED" | "RULE_NOT_SET" | "METHOD_GONE" | "NEEDED";
+export function estimateEmptyState(rule: { required: boolean | null; provenance: string | null } | null, voidedBefore: boolean): { state: EstimateEmpty; title: string; body: string } {
+  if (rule == null) return { state: "METHOD_GONE", title: "No company estimate yet", body: "The exercise's sourcing method is no longer configured, so whether an estimate is needed is not known. Configure it under Configuration, Reference data." };
+  if (rule.required == null) return { state: "RULE_NOT_SET", title: "Whether one is needed is not set", body: `Whether this sourcing method needs a company estimate is not set. ${SET_IT}` };
+  if (rule.required === false) {
+    const how = rule.provenance ? (PROVENANCE_LABEL as Record<string, string>)[rule.provenance]?.toLowerCase() : null;
+    return { state: "NOT_NEEDED", title: `Not needed for this method${how ? ` (${how})` : ""}`, body: "The sourcing method does not ask for a company estimate. One can still be prepared if the department wants it." };
+  }
+  return { state: "NEEDED", title: "No company estimate yet", body: voidedBefore ? "The earlier estimate was voided. A new officer prepares a fresh one from version 1." : "Prepare it before the tender documents go for approval: this sourcing method asks for one." };
+}
+
+/// Said on the Amend drawer for an estimate already lodged: the lodged copy is then behind.
+export const AMEND_LODGED_NOTE = "This estimate is already lodged. Amending it makes a new version, and the new version has to be lodged again before the documents go for approval.";
+
 /// The lead-time state as a short badge, and how seriously it reads.
 export const LEAD_STATE_BADGE: Readonly<Record<LeadState, { label: string; tone: "ok" | "warn" | "err" | "neutral" }>> = {
   READY: { label: "Ready", tone: "ok" },
@@ -400,4 +432,4 @@ export const CSV_EXPORT_NOTE = "Built by the portal from the bill's lines only, 
 
 /// A scope matter's bill version, as the sitting names it beside the exercise's reference.
 export const scopeMatterRecordNote = (v: { versionNo: number; status: BqStatus }) =>
-  `bill of quantities, version ${v.versionNo}${v.status === "SUPERSEDED" ? ", since superseded by a revision" : ""}`;
+  `version ${v.versionNo}${v.status === "SUPERSEDED" ? ", since superseded by a revision" : ""}`;

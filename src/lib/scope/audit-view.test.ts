@@ -55,6 +55,9 @@ describe("increment 2 audit rows", () => {
     const base = { itemRef: "2.1", description: "Pipe", unit: "m", kind: "MEASURED" as const, quantity: "10", rate: 18240n, provisional: false };
     const from = rateFromText({ label: "Pipe works", issue: "Issue 2", effectiveFrom: "2026-07-01", itemCode: "P1" }, (d) => d);
     expect(from).toBe("Pipe works, Issue 2 (in force from 2026-07-01), item P1");
+    // A superseded issue is said, and the line is said to keep its price; the audit row's words are unchanged without it.
+    expect(rateFromText({ label: "Pipe works", issue: "Issue 2", effectiveFrom: "2026-07-01", itemCode: "P1", supersededOn: "2026-09-28" }, (d) => d)).toBe("Pipe works, Issue 2 (in force from 2026-07-01, superseded on 2026-09-28; the line keeps this price), item P1");
+    expect(rateFromText({ label: "Pipe works", issue: "Issue 2", effectiveFrom: "2026-07-01", itemCode: "P1", supersededOn: null }, (d) => d)).toBe(from);
     const rows = itemAudit({ ...base, rateFrom: null }, { ...base, rateFrom: from });
     expect(rows).toContainEqual({ field: "rateFrom", before: "Entered", after: from });
     // Increment 1's rows are unchanged when no source is given.

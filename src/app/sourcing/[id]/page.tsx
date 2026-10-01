@@ -528,7 +528,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
         )}
       </div>
 
-      <Tabs initial={tab} label="Exercise" tabs={tabs} />
+      <Tabs initial={tab} label="Exercise" tabs={tabs} dense />
     </>
   );
 }

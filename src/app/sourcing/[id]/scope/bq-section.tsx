@@ -1,5 +1,5 @@
 import { DataList } from "@/components/data-list";
-import { ClipboardIcon, FileIcon, ScaleIcon } from "@/components/icons";
+import { ClipboardIcon, FileIcon, FilesIcon, ScaleIcon, ShieldIcon, SlidersIcon, ToolsIcon } from "@/components/icons";
 import { Badge, Chip } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
@@ -54,16 +54,16 @@ export function BqSection({ d }: { d: Data }) {
         <Callout tone="info">Version {d.finalised.versionNo} is finalised and stands until this draft is finalised.</Callout>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
         <Stat label="Lines" value={v.stats.lines} hint={v.stats.incompleteLines > 0 ? `${v.stats.incompleteLines} not complete yet` : "All have a quantity or a sum, and a rate"} tone={v.stats.incompleteLines > 0 ? "warn" : "brand"} icon={<ClipboardIcon size={16} />} />
-        <Stat label="Total" value={v.stats.total} hint={`Builders' works ${v.stats.buildersWorks}`} />
-        <Stat label="Firm value" value={dash(v.stats.firmValue)} hint={v.header.provisionalLeftOut === "Not stated" ? "Not stated: whether provisional quantities are left out is not said" : `Provisional quantities ${v.header.provisionalLeftOut === "Yes" ? "left out" : "counted in"}`} tone={v.stats.firmValue === "Not stated" ? "warn" : "brand"} />
-        <Stat label="Provisional quantities" value={v.stats.provisionalQuantities} hint={`${v.stats.provisionalShare} of the total`} />
-        <Stat label="Prime cost sums" value={v.stats.primeCostSums} />
-        <Stat label="Provisional sums" value={v.stats.provisionalSums} />
+        <Stat label="Total" value={v.stats.total} hint={`Builders' works ${v.stats.buildersWorks}`} icon={<ScaleIcon size={16} />} />
+        <Stat label="Firm value" value={dash(v.stats.firmValue)} hint={v.header.provisionalLeftOut === "Not stated" ? "Not stated: whether provisional quantities are left out is not said" : `Provisional quantities ${v.header.provisionalLeftOut === "Yes" ? "left out" : "counted in"}`} tone={v.stats.firmValue === "Not stated" ? "warn" : "brand"} icon={<ShieldIcon size={16} />} />
+        <Stat label="Provisional quantities" value={v.stats.provisionalQuantities} hint={`${v.stats.provisionalShare} of the total`} icon={<SlidersIcon size={16} />} />
+        <Stat label="Prime cost sums" value={v.stats.primeCostSums} icon={<FilesIcon size={16} />} />
+        <Stat label="Provisional sums" value={v.stats.provisionalSums} icon={<ToolsIcon size={16} />} />
       </div>
 
-      <Card>
+      <Card id="bill-version" className="scroll-mt-24">
         <CardHeader
           icon={<ScaleIcon size={17} />}
           title={
@@ -137,14 +137,14 @@ export function BqSection({ d }: { d: Data }) {
                 }
               />
               {s.items.length > 0 && (
-                <Table minWidth={780}>
+                <Table minWidth={900}>
                   <colgroup>
-                    <col style={{ width: 72 }} />
-                    <col />
-                    <col style={{ width: 72 }} />
-                    <col style={{ width: 108 }} />
-                    <col style={{ width: 120 }} />
-                    <col style={{ width: 132 }} />
+                    <col style={{ width: 56 }} />
+                    <col style={{ minWidth: 300 }} />
+                    <col style={{ width: 60 }} />
+                    <col style={{ width: 88 }} />
+                    <col style={{ width: 112 }} />
+                    <col style={{ width: 124 }} />
                     {editable && <ActionsCol icons={0} labelled={2} />}
                   </colgroup>
                   <THead>
@@ -164,9 +164,9 @@ export function BqSection({ d }: { d: Data }) {
                           <CellStack
                             title={i.description}
                             sub={
-                              <span className="flex flex-wrap items-center gap-1.5">
+                              <span className="flex flex-col items-start gap-1">
                                 <span>{i.kind}</span>
-                                <span>· {i.rateSource}</span>
+                                <span>{i.rateSource}</span>
                                 {i.chips.map((c) => (
                                   <Chip key={c} tone="warn">{c}</Chip>
                                 ))}
@@ -228,6 +228,7 @@ export function BqSection({ d }: { d: Data }) {
         title={`Files version ${v.versionNo} was imported from`}
         subtitle="Kept as received, with the class the officer chose. Lines imported from a file stand on it: it is replaced only by importing again."
         only={["BQ_IMPORT_SOURCE"]}
+        collapseWhenEmpty
         attachedBy={{ BQ_IMPORT_SOURCE: "Attached by Import from CSV, above, in the same step as the lines." }}
         statuses={{ BQ_IMPORT_SOURCE: { text: "None: entered by hand", tone: "neutral" } }}
       />

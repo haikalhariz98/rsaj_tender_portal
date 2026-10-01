@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { formatSen, parseSen } from "@/lib/money";
 
 import { bqTotals, type FrozenBq } from "./bq";
-import { importBlock, BQ_CSV_MAX_LINES, BQ_CSV_TEXT_MAX, bqCsvFilename, exportToSave, bqToCsv, csvCell, decodeCsv, importSummary, parseBqCsv, parseCsv } from "./csv";
+import { importBlock, importNotices, BQ_CSV_MAX_LINES, BQ_CSV_TEXT_MAX, bqCsvFilename, exportToSave, bqToCsv, csvCell, decodeCsv, importSummary, parseBqCsv, parseCsv } from "./csv";
 import { CSV_FAULT_CODES, csvFaultText, keyedMismatchText } from "./labels";
 import type { BqLine } from "./types";
 
@@ -289,5 +289,21 @@ describe("importBlock: why the import's button is off", () => {
   });
   it("no file chosen is not a block: the file field asks for it", () => {
     expect(importBlock(null, { draftLines: 3, replace: false })).toBeNull();
+  });
+});
+
+describe("importNotices: what the file said that is not used, grouped by what is true of all of it", () => {
+  const head = "Section,Section title,Item,Description,Unit,Kind,Quantity,Rate,Amount,Provisional,Remarks\n";
+  const p = parseBqCsv(head + "1,Prelims,1.1,Site set-up,item,Measured work,2,100.00,999.00,No,note\n1,Prelims,1.2,Hoarding,m,Measured work,3,10.00,abc,No,\n");
+  it("amounts typed in the file (a mismatch, one that is not an amount) are one group; an unknown column is another", () => {
+    const n = importNotices(p);
+    expect(n.mismatches.map((m) => m.line)).toEqual([2]);
+    expect(codes(n.amountFaults)).toEqual(["AMOUNT_INVALID"]);
+    expect(codes(n.other)).toEqual(["COLUMN_UNKNOWN"]);
+  });
+  it("a blocking fault is in neither group", () => {
+    const bad = parseBqCsv("Section,Description\n");
+    const n = importNotices(bad);
+    expect([...n.amountFaults, ...n.other].some((f) => f.level === "block")).toBe(false);
   });
 });
