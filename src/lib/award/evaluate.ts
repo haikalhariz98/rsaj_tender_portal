@@ -22,6 +22,7 @@ import { matchesFormat } from "@/lib/integration/award-commitment";
 import type { Sen } from "@/lib/money";
 import { bandingNumber } from "@/lib/method/bands";
 
+import { baselineOf, differences, type Baseline, type Difference, type FrozenTender, type Reasons } from "./appendix-baseline";
 import { appointmentRoute, submitFaults, type AppointmentRoute, type RoutePeople } from "./appointment";
 import { commencementState } from "./commencement";
 import { contractNumberSource } from "./contract-number";
@@ -97,7 +98,12 @@ export interface AwardFacts {
     issuedOn: string | null;
     contractNumber: string | null;
     wcBasis: "UNCOVERED_WAGES" | "PERCENT_OF_CONTRACT" | null;
+    /// 64-C4: the reason recorded for each term stated differently from the tender Appendix.
+    appendixReasons?: Reasons;
   };
+  /// 64-C4 (6.4 Q-1 B): the exercise's approved pack's frozen Appendix and regulated-activity
+  /// answer. Not given or null: no frozen Appendix, nothing compared, the award as before.
+  tender?: FrozenTender | null;
   exercise: {
     reference: string;
     title: string;
@@ -178,6 +184,8 @@ export interface AwardEvaluation {
   committee: ReturnType<typeof committeeBlock> | null;
   approver: ReturnType<typeof approverBlock>;
   issueFaults: Finding[];
+  /// 64-C4: the tender baseline at the awarded sum and the terms stated differently; null without a frozen Appendix.
+  appendix: { baseline: Baseline; differences: Difference[] } | null;
 }
 
 /// Values only the issue fills: shown as such on the preview, real in the frozen text.
@@ -303,6 +311,10 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
   const consequence = variant?.state === "SELECTED" ? variant.variant.nonCommencement : null;
   const commencement = kind === "WORK_INDENT" && f.today ? commencementState(a.startDate, a.commencedOn, f.policy.commencementGraceDays, f.today, consequence) : null;
 
+  // 64-C4: the frozen Appendix, resolved against the awarded sum (Q-6), and what the award states otherwise.
+  const baseline = f.tender ? baselineOf(f.tender, a.value) : null;
+  const appendix = baseline ? { baseline, differences: differences(baseline, a, a.appendixReasons ?? {}) } : null;
+
   const pending = steps.find((s) => s.decision === "PENDING");
   const faults = issueFaults({
     status: a.status,
@@ -331,6 +343,7 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
     contractNumber,
     startDate: a.startDate,
     wc: { required: f.wcRequired, basis: a.wcBasis },
+    appendixDifferences: appendix?.differences ?? null,
   });
 
   return {
@@ -356,5 +369,6 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
     committee,
     approver,
     issueFaults: faults,
+    appendix,
   };
 }

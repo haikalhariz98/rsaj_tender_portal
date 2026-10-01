@@ -9,6 +9,7 @@ import type { Regime } from "@/lib/method/types";
 
 import { formatDate } from "@/lib/format";
 
+import { BASELINE_FIELD_LABEL, type BaselineField } from "./appendix-baseline";
 import { mergeFieldLabel } from "./fields";
 import type { AwardStatus, DeliveryMethod, DocumentKind, DocumentLanguage, Finding, InstrumentKind, NonCommencement, PeriodUnit, QuotationContractKey } from "./types";
 
@@ -309,6 +310,11 @@ export function awardFindingText(f: Finding): string {
       return `The indent expires on ${typeof d.expiresOn === "string" ? formatDate(d.expiresOn) : "its expiry day"}, before the stated start date of ${typeof d.startDate === "string" ? formatDate(d.startDate) : "the works"}. Bring the start date forward, or have a fresh indent raised.`;
     case "START_DATE_REQUIRED":
       return "Record the stated start date: the commencement clock and the insurance period run from it.";
+    // appendix-baseline.ts (64-C4, 6.4 Q-1 B)
+    case "APPENDIX_DIFFERENCE_UNEXPLAINED":
+      return d.field === "regulated"
+        ? "Whether the works are the regulated activity differs from the tender's answer, and no reason is recorded. In Edit terms, answer as the tender did, or record why it differs."
+        : `${BASELINE_FIELD_LABEL[d.field as BaselineField] ?? "A term"}: differs from the tender Appendix, and no reason is recorded. In Edit terms, state it as the Appendix does, or record why it differs.`;
     default:
       return methodFindingText(f);
   }

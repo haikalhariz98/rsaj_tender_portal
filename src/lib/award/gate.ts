@@ -14,6 +14,7 @@ import type { WindowGate } from "@/lib/window/gate";
 import type { RequiredBond } from "@/lib/securities/bond";
 import type { CommitmentFault } from "@/lib/requisition/commitment";
 
+import { differenceFindings, type Difference } from "./appendix-baseline";
 import type { NumberFault, NumberSource } from "./contract-number";
 import type { ListFault } from "./distribution";
 import type { IndentState } from "./indent";
@@ -91,6 +92,10 @@ export interface IssueInput {
   startDate: string | null;
   /// Whether a workmen's compensation policy is required, and how the award sets it.
   wc: { required: boolean; basis: string | null };
+  /// 64-C4 (6.4 Q-1 B): where the exercise froze a tender Appendix, the award's terms
+  /// stated differently from it (`appendix-baseline.ts`). Not given: no frozen Appendix,
+  /// nothing compared, as before.
+  appendixDifferences?: readonly Difference[] | null;
 }
 
 export type IssueFault =
@@ -134,7 +139,8 @@ export type IssueFault =
   | "INSTRUMENT_CHANGED"
   | "START_DATE_REQUIRED"
   | "WC_BASIS_REQUIRED"
-  | "INDENT_EXPIRES_BEFORE_START";
+  | "INDENT_EXPIRES_BEFORE_START"
+  | "APPENDIX_DIFFERENCE_UNEXPLAINED";
 
 export function issueFaults(i: IssueInput): Finding[] {
   const out: Finding[] = [];
@@ -202,5 +208,7 @@ export function issueFaults(i: IssueInput): Finding[] {
   // The letter states the insurance it asks for; how workmen's compensation is set
   // cannot be changed once it is issued.
   if (i.wc.required && !i.wc.basis) f("WC_BASIS_REQUIRED");
+  // A term stated differently from the tender Appendix is issued only with its reason.
+  if (i.appendixDifferences) out.push(...differenceFindings(i.appendixDifferences));
   return out;
 }
