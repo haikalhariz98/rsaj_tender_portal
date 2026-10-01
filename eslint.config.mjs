@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored environment tooling (a patched Prisma adapter), not application code.
+    "docs/notes/cloud-build/tools/**",
   ]),
 ]);
 
