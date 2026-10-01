@@ -154,6 +154,59 @@ For the product owner to rule or confirm:
 
 ## 9. Document store addendum
 
+**Accepted with carries 2026-10-01 at `f60e04b`**, conditional on the founder's native-engine confirmation of the document_store and document_store_rulings migrations (carry D1). Decided by the product-owner delegate on the founder's behalf, for the founder's review. Checks at `f60e04b`: `npm test` 131 files, 2192 tests, all passed; `npm run typecheck` and `npm run lint` clean; no test skipped. Plan: `docs/notes/plans/platform-document-store.md` (OD-1–OD-9, BD-DS-1–46); ADR 0011.
+
+**What this changes in Phase 1's record**
+
+- **BD-4 lifted.** Section 1's first limit and section 3's "routes but cannot be awarded" no longer hold. A dossier-method award (emergency direct purchase included) can be sent and issued once at least one live DOSSIER_EVIDENCE attachment exists. Submission snapshots the pins (`Award.dossierEvidenceSnapshot`). Issue is refused with no snapshot, or where a snapshotted version was withdrawn since, naming cancel and open again (BD-DS-21). Section 1's second limit (sign-in) stands.
+- Phase 1 carry 1 (recommender audit row stored the office code): closed by `f112872`.
+- Test edits flagged per plan §3: `justification.test.ts` "evidence is never a pass" gained an explicit evidence count of 0 and kept its assertion. New tests cover: one live attachment clears it; detached or withdrawn does not; issue is refused with no snapshot or a withdrawn pin. `award/core.test.ts` dossier fixtures unchanged in value. No existing assertion was weakened.
+
+| Req | Pri | Was | Now |
+| --- | --- | --- | --- |
+| FR-CTE-004 | M | Met; signed-minutes attachment deferred | Met. Signed minutes attach to a minuted sitting; reads Attached / Outstanding / "Attached once the sitting is minuted"; minuting never waits on them (BD-DS-24) |
+| FR-REQ-012 | M | Met; minutes as text, attachment deferred | Met. The gate card reads the cited sitting's signed copy |
+| FR-REQ-013 | M | Met | Met; the coordination scope document can be attached (display only) |
+| FR-MTD-009 | S | Partly met; attachments missing | Met. dossierFault passes on one or more live attachments; judged awards keep their pins |
+| FR-APR-012 | M | Partly met; recommendation as text | Partly met. A new downward re-delegation by an absent holder is refused without an attached recommendation (OD-6). Earlier text-only delegations stand, labelled, until an edit opens or extends the end, moves the start earlier, or changes the grantor, office or delegate, or widens what is delegated (BD-DS-40). Still missing: automatic move of pending steps on marking absent, and line-management rules (sign-in) |
+| FR-AWD-003, 008 | M | Met | Met, stricter (OD-5). A returned item counts only with its scan attached, for every award not ACCEPTED at landing; accepted awards are not re-judged (BD-DS-28) |
+| FR-REQ-010 | M | Partly met | Unchanged. The anggaran harga pack still waits on D5 |
+
+**NFR rows (supersede the section 10 table where they differ)**
+
+| Req | Status | Missing, and where it goes |
+| --- | --- | --- |
+| NFR-AUD-001 | Partly met | Every upload, attach, detach, new version, withdrawal, hold and reclassification audited before/after in its transaction; downloads and refusals logged. Missing: actor → sign-in |
+| NFR-AUD-003 | Partly met | Per-version SHA-256, re-checked on every download and Verify; mismatch refused and logged. Missing: per-case export with document versions (FR-APR-015 extension) |
+| NFR-AUD-004 | Not met | SULIT bytes are never served (OD-2); access logging per person → sign-in |
+| NFR-AUD-005 | Partly met | Stored-at is server time; "received on" is the organisation's day, never future, and an unset time zone refuses it |
+| NFR-SIG-002 | Partly met | Wet-signed scan bound to its record by pinned version and digest; substitution only as a new version with a reason. Missing: binding to a signed-in identity |
+| NFR-RET-001 | Partly met | Class carries trigger, method and authority (shipped unset); retentionState and disposalFault built and tested, worked example included. Nothing is ever disposed of: no disposal run |
+| NFR-RET-002 | Met | Legal hold placed and released with reason and named person, shown on the document and every panel; blocks disposalFault |
+| NFR-SEC-001 | Not met | Sign-in. Screens state anyone reaching the portal can open a non-SULIT document |
+| NFR-SEC-002 | Partly met | SecurityClass on the class, snapshotted on the document; every downgrade refused until maker-checker; a set classification never unset. Missing: automatic SULIT → 6.2, 6.6, 6.8; maker-checker → sign-in |
+| NFR-SEC-003 | Not met | Re-designated to Phase 3 with sign-in and D6 (DL 6.6 OD-1); ADR 0011 and the plan's "6.6" read as Phase 3. The store is not sealed storage |
+| NFR-SEC-007 | Partly met | Content-sniffed type allow-list and size cap from organisation policy, unset refuses; refusals logged. Missing: malware scanning (every version NOT_SCANNED), a go-live condition |
+| NFR-SEC-008 | Go-live condition | Bytes stay in the deployment's Postgres; hosting evidence still needed |
+| INT-13 | Partly met | BlobStore façade with the Postgres driver; filesystem, S3 and Azure later as drivers; Public Server coexistence is a migration deliverable |
+
+**Section 6, item 9** now reads: Document store landed. Before go-live set allowed types and largest file, document classes with classification and retention, and a malware scanner; size the deployment ceiling and the concurrency caps on the target host.
+
+**Disclosed:** before the no-hand-edit rule, a builder deleted its own test rows from DocumentAccessEvent in the dev database. Later, a hand-run of scratch scripts changed the demo organisation's short name through audited actions, restored by reload. Neither touched shipped data.
+
+**Carries**
+
+| # | Item | Destination | Blocks |
+| --- | --- | --- | --- |
+| D1 | Native-engine confirmation of `document_store` and `document_store_rulings`: migrate deploy, empty diff, the nine CHECKs in pg_constraint | Founder, local review | First Phase 2 migration (X-6 rebuilds the attachment-owner CHECK) |
+| D2 | What happened to security audit C-6 and code-review items | Recorded in the decisions log (C-6 declined until sign-in; must-fix 1–3 and should-fix 4 fixed) | Closed |
+| D3 | Text-snapshot and sibling check of the doc-store UI | Recorded in the decisions log | Closed |
+| D4 | Wipe planner treats screen-made sittings and delegations as real records (hard refusal, no exit) | 6.2 step 0 | Phase 2 acceptance |
+| D5 | Delegation and attachment tables scroll inside their card at 1024 | Phase 1 carry 3 | Phase 2 acceptance |
+| D6 | "Recorded on their behalf" wording in upload-actions, document-drawer, requisitions, escalation and rejection labels; component hints into `labels.ts` | Wording pass, tested | Phase 2 acceptance |
+| D7 | No test pins the recommender audit row to the office name | Approval-matrix test | Nothing |
+| D8 | Access events with no version kept by the wipe and counted | Revisit with sign-in | Nothing |
+| D9 | Concurrency defaults and memory multiples measured on the target host | Devops, before go-live | Go-live |
 
 ## 10. Acceptance
 
