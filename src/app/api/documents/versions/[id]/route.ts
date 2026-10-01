@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { dispositionFilename, downloadDecision, EXTENSION_FOR } from "@/lib/documents/access";
 import { DOWNLOAD_REFUSAL_TEXT } from "@/lib/documents/labels";
 import { documentOrg, logAccess } from "@/lib/documents/service";
+import { downloadLimiter, RETRY_AFTER_SECONDS } from "@/lib/documents/concurrency";
 import { downloadRequestFault } from "@/lib/documents/request-guard";
 import { blobStore, sha256Hex } from "@/lib/documents/store";
 
@@ -18,6 +19,18 @@ import { blobStore, sha256Hex } from "@/lib/documents/store";
 export async function GET(req: NextRequest, ctx: RouteContext<"/api/documents/versions/[id]">) {
   // Before anything is read or logged: a download another site started writes nothing (audit C-2).
   if (downloadRequestFault(req.headers.get("sec-fetch-site"))) return plain(403, "This file is opened from the portal's own pages. Open the portal and download it from there.");
+  // The cap on downloads in flight (audit C-1): each holds a whole file in memory. Over it,
+  // 503 with Retry-After, and no access event: nothing was asked of the store.
+  const slot = downloadLimiter().tryAcquire();
+  if (!slot) return busy();
+  try {
+    return await download(ctx);
+  } finally {
+    slot();
+  }
+}
+
+async function download(ctx: RouteContext<"/api/documents/versions/[id]">) {
   const { id } = await ctx.params;
   const org = await documentOrg();
   if (!org) return plain(503, "No organisation is configured.");
@@ -47,7 +60,9 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/documents/ve
   // file was downloaded must never be written for a response that was not sent (audit M-2).
   let response: Response;
   try {
-    response = new Response(new Uint8Array(bytes), {
+    // The array the store returned, not a copy of it. The Postgres driver returns the
+    // database driver's own ArrayBuffer-backed Buffer.
+    response = new Response(bytes as Uint8Array<ArrayBuffer>, {
       status: 200,
       headers: {
         "Content-Type": version.mediaType,
@@ -74,6 +89,10 @@ export async function HEAD() {
   return new Response(null, { status: 405, headers: { Allow: "GET", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
 }
 
-function plain(status: number, text: string) {
-  return new Response(text, { status, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
+function busy() {
+  return plain(503, "The portal is busy with other files. Nothing was logged. Wait a few seconds and try again.", { "Retry-After": String(RETRY_AFTER_SECONDS) });
+}
+
+function plain(status: number, text: string, extra: Record<string, string> = {}) {
+  return new Response(text, { status, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", ...extra } });
 }

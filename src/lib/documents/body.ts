@@ -34,3 +34,37 @@ export async function readBounded(body: ReadableStream<Uint8Array> | null, limit
   }
   return { ok: true, bytes: out };
 }
+
+export interface LimitedBody {
+  /// The body, passed through chunk by chunk and errored the moment it passes the limit.
+  stream: ReadableStream<Uint8Array>;
+  /// Bytes seen so far.
+  seen(): bigint;
+  /// Whether the limit was passed (the stream is then errored, and parsing it fails).
+  exceeded(): boolean;
+}
+
+/**
+ * The same bound as `readBounded`, without holding the body ourselves: chunks pass
+ * through to whoever parses the stream (the multipart parser), which is then the only
+ * holder of the bytes. `readBounded` joined the chunks into one array, which was then
+ * copied into a Blob for the parser to read again (audit C-1).
+ */
+export function limitBody(body: ReadableStream<Uint8Array> | null, limit: bigint): LimitedBody {
+  let total = 0n;
+  let over = false;
+  const counted = new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      total += BigInt(chunk.byteLength);
+      if (total > limit) {
+        over = true;
+        controller.error(new Error("The body is over its limit."));
+        return;
+      }
+      controller.enqueue(chunk);
+    },
+  });
+  // A missing body is an empty one.
+  const stream = (body ?? new ReadableStream<Uint8Array>({ start: (c) => c.close() })).pipeThrough(counted);
+  return { stream, seen: () => total, exceeded: () => over };
+}

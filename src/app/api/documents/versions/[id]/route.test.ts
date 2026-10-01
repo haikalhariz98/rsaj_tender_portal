@@ -26,6 +26,8 @@ vi.mock("@/lib/documents/store", async () => {
   };
 });
 
+import { downloadLimiter } from "@/lib/documents/concurrency";
+
 import { GET, HEAD } from "./route";
 
 const call = (headers: Record<string, string> = {}) => GET(new Request("http://localhost/api/documents/versions/v1", { headers }) as never, { params: Promise.resolve({ id: "v1" }) } as never);
@@ -96,5 +98,25 @@ describe("what the download route refuses before it reads or logs anything (audi
     expect((await call({ "sec-fetch-site": "same-origin" })).status).toBe(200);
     expect((await call()).status).toBe(200);
     expect(downloads()).toHaveLength(2);
+  });
+});
+
+describe("the cap on downloads in flight (audit C-1)", () => {
+  it("over it is 503 with Retry-After, reads nothing and logs nothing; under it, served again", async () => {
+    findFirst.mockResolvedValue(version("x.pdf"));
+    const l = downloadLimiter();
+    const held: (() => void)[] = [];
+    for (let s = l.tryAcquire(); s; s = l.tryAcquire()) held.push(s);
+    try {
+      const res = await call();
+      expect(res.status).toBe(503);
+      expect(Number(res.headers.get("retry-after"))).toBeGreaterThan(0);
+      expect(findFirst).not.toHaveBeenCalled();
+      expect(logAccess).not.toHaveBeenCalled();
+    } finally {
+      held.forEach((r) => r());
+    }
+    expect((await call()).status).toBe(200);
+    expect(l.active()).toBe(0);
   });
 });

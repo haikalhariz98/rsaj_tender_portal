@@ -17,6 +17,9 @@ export class BlobAddressError extends Error {
   }
 }
 
+/// A Buffer over the same memory, not a copy of it.
+const asBuffer = (b: Uint8Array) => Buffer.from(b.buffer, b.byteOffset, b.byteLength);
+
 export const postgresBlobStore: BlobStore = {
   driver: "postgres",
   transactional: true,
@@ -26,7 +29,7 @@ export const postgresBlobStore: BlobStore = {
     const size = BigInt(bytes.byteLength);
     await tx.$executeRaw`
       INSERT INTO "BlobContent" ("organisationId", "sha256", "byteSize", "bytes", "storedAt")
-      VALUES (${organisationId}, ${sha256}, ${size}, ${Buffer.from(bytes)}, now())
+      VALUES (${organisationId}, ${sha256}, ${size}, ${asBuffer(bytes)}, now())
       ON CONFLICT ("organisationId", "sha256") DO NOTHING`;
   },
   async get(organisationId: string, sha256: string) {
@@ -34,6 +37,7 @@ export const postgresBlobStore: BlobStore = {
     // Read lazily: the façade is importable where no database is configured (tests).
     const { db } = await import("@/lib/db");
     const row = await db.blobContent.findUnique({ where: { organisationId_sha256: { organisationId, sha256 } }, select: { bytes: true } });
-    return row ? new Uint8Array(row.bytes) : null;
+    // The driver's own array, not a copy of it: a 50 MB file is held once, not twice.
+    return row ? row.bytes : null;
   },
 };
