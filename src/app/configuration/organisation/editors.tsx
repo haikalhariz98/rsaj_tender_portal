@@ -4,6 +4,7 @@ import { BuildingIcon, PencilIcon } from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import type { CostCentre, OrgUnit, OrgUnitKind, Site } from "@/lib/organisation/types";
+import { timeZoneLabel } from "@/lib/time-zone-label";
 
 import { DETAIL_LABEL, type Details } from "@/lib/organisation/details";
 
@@ -338,18 +339,27 @@ export function EditSite({ site, units }: { site: Site; units: OrgUnit[] }) {
 }
 
 /// The organisation's time zone. No value is proposed: which zone is the customer's.
-export function EditTimeZone({ timeZone }: { timeZone: string | null }) {
+export function EditTimeZone({
+  timeZone,
+  options,
+}: {
+  timeZone: string | null;
+  /// Every zone, already labelled ("Malaysia (Kuala Lumpur, UTC+8)"); the value is the stored name.
+  options: { value: string; label: string }[];
+}) {
   return (
     <RecordEditor
       title="Time zone"
       description="The zone dates such as today are judged in: whether a vote sheet is dated in the future, the day a matter is tabled."
       fields={[
         {
-          kind: "text",
+          kind: "select",
           name: "timeZone",
           label: "Time zone",
-          placeholder: "Region/City",
-          hint: "An IANA name. Left empty, it is not set: sittings cannot start, table or vote until it is.",
+          placeholder: "Not set",
+          options,
+          orphanLabel: timeZone ? timeZoneLabel(timeZone) : undefined,
+          hint: "Search by country or city. Left unset, sittings cannot start, table or vote until it is chosen.",
         },
       ]}
       values={{ timeZone }}

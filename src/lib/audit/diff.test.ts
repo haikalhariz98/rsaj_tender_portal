@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { diffFields, fieldLabel, renderValue, snapshotFields } from "./diff";
+import { diffFields, fieldLabel, foldPeriodChanges, renderValue, snapshotFields } from "./diff";
 
 describe("rendering a value for the trail", () => {
   it("keeps null and empty apart", () => {
@@ -98,5 +98,34 @@ describe("field labels", () => {
     expect(fieldLabel("id")).toBe("Id");
     expect(fieldLabel("generateCoreChain")).toBe("Chain from core routing");
     expect(fieldLabel("coreChainReason")).toBe("Why the chain is as entered");
+  });
+});
+
+describe("field labels that were column names", () => {
+  it("reads a sitting's matter the way the agenda does", () => {
+    expect(fieldLabel("domain")).toBe("Matter type");
+    expect(fieldLabel("matterKind")).toBe("Kind of matter");
+    expect(fieldLabel("sequence")).toBe("Place on the agenda");
+  });
+  it("says where a value came from, not that it has provenance", () => {
+    expect(fieldLabel("votingRuleProvenance")).toBe("Where the voting rule comes from");
+  });
+});
+
+describe("a period and its unit", () => {
+  it("folds into one change that reads '18 months'", () => {
+    const out = foldPeriodChanges([
+      { field: "completionPeriod", before: null, after: "18" },
+      { field: "completionUnit", before: null, after: "MONTHS" },
+      { field: "other", before: "a", after: "b" },
+    ]);
+    expect(out).toEqual([
+      { field: "completionPeriod", before: null, after: "18 months" },
+      { field: "other", before: "a", after: "b" },
+    ]);
+  });
+  it("leaves a lone change alone", () => {
+    const one = [{ field: "completionPeriod", before: "12", after: "18" }];
+    expect(foldPeriodChanges(one)).toBe(one);
   });
 });

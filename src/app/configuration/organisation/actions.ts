@@ -283,7 +283,7 @@ export async function saveTimeZone(_prev: FormState, data: FormData): Promise<Fo
   const r = new FormReader(data);
   const timeZone = r.optionalText("timeZone");
   if (timeZone && !isTimeZone(timeZone)) {
-    r.reject("timeZone", "Not a time zone name. Use the IANA form, for example Asia/Kuala_Lumpur.");
+    r.reject("timeZone", "That is not a time zone this system knows. Choose one from the list.");
   }
   const parsed = r.finish({ timeZone });
   if (!parsed.ok) return { ok: false, errors: parsed.errors };

@@ -66,6 +66,13 @@ const NAMED_FIELDS: Record<string, string> = {
   // Core routing (FR-APR-004): the rule editor's own words.
   generateCoreChain: "Chain from core routing",
   coreChainReason: "Why the chain is as entered",
+  // A sitting's matter: the agenda's own words.
+  domain: "Matter type",
+  matterKind: "Kind of matter",
+  sequence: "Place on the agenda",
+  // A rate and the unit it is charged per read as one thing.
+  ladUnit: "Liquidated damages charged",
+  completionUnit: "Completion period counted in",
 };
 
 /// Field names are configuration-ish keys; screens render labels. A reference to a
@@ -76,6 +83,11 @@ export function fieldLabel(field: string): string {
   // The bilingual pairs read as the forms print them: "Name (EN)", "Name (BM)".
   const lang = /En$/.test(field) ? " (EN)" : /Ms$/.test(field) ? " (BM)" : "";
   if (lang) return fieldLabel(field.slice(0, -2)) + lang;
+  // Where a rule's value came from (STATED, OBSERVED, ASSUMED): "Voting rule provenance"
+  // reads as what it is, not as the column's name.
+  const source = /^(.+)Provenance$/.exec(field);
+  if (source) return `Where the ${fieldLabel(source[1]).toLowerCase()} comes from`;
+  if (field === "provenance") return "Where it comes from";
   const ref = /^(.+[a-z0-9])Id(s?)$/.exec(field);
   if (ref) return fieldLabel(ref[1]) + ref[2];
   const spaced = field
@@ -83,4 +95,22 @@ export function fieldLabel(field: string): string {
     .replace(/_/g, " ")
     .toLowerCase();
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+/**
+ * A period and the unit it is counted in are one fact: "Completion period: 18 months",
+ * not "Completion period: 18" over "Counted in: Months". Where a change set holds both,
+ * the unit's change is folded into the period's reading; where only one moved, there is
+ * nothing to fold and both stay as they are.
+ */
+export function foldPeriodChanges<C extends { field: string; before: string | null; after: string | null }>(
+  changes: C[],
+): C[] {
+  const period = changes.find((c) => c.field === "completionPeriod");
+  const unit = changes.find((c) => c.field === "completionUnit");
+  if (!period || !unit) return changes;
+  const say = (n: string | null, u: string | null) =>
+    n == null || n === "" ? n : `${n}${u ? ` ${u.toLowerCase()}` : ""}`;
+  const folded = { ...period, before: say(period.before, unit.before ?? unit.after), after: say(period.after, unit.after ?? unit.before) };
+  return changes.filter((c) => c !== unit).map((c) => (c === period ? folded : c));
 }

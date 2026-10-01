@@ -15,7 +15,7 @@ import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues, Stat } from "@/components/ui/stat";
-import { fieldLabel } from "@/lib/audit/diff";
+import { fieldLabel, foldPeriodChanges } from "@/lib/audit/diff";
 import { CONTRACT_YEAR_READING } from "@/lib/award/contract-number";
 import { distributionComplete } from "@/lib/award/distribution";
 import { evaluateAward, type AwardEvaluation } from "@/lib/award/evaluate";
@@ -1160,7 +1160,6 @@ const FIELD_NAME: Record<string, string> = {
   awardeeAddress: "Address",
   awardedValue: "Awarded value",
   completionPeriod: "Completion period",
-  completionUnit: "Counted in",
   instrumentKind: "Instrument",
   instrument: "Instrument",
   startDate: "Start date",
@@ -1182,7 +1181,6 @@ const FIELD_NAME: Record<string, string> = {
   erpCommitmentKind: "It is",
   indentReceivedOn: "Indent received",
   icNumber: "Identity card number",
-  ladUnit: "Liquidated damages per",
   yearReading: "Year in the number",
   from: "From",
   to: "To",
@@ -1260,7 +1258,7 @@ function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<ReturnTyp
               </div>
               {e.changes.length > 0 && (
                 <ul className="text-[12.5px] break-words text-ink-3">
-                  {e.changes.filter((ch) => shown(ch.field, ch, e.action)).map((ch) => (
+                  {foldPeriodChanges(e.changes).filter((ch) => shown(ch.field, ch, e.action)).map((ch) => (
                     <li key={ch.field}>
                       {FIELD_NAME[ch.field] ?? fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{read(ch.field, ch.before, e.entity)} → </>}
                       <span className="text-ink-2">{read(ch.field, e.action === "DELETE" ? ch.before : ch.after, e.entity)}</span>

@@ -11,6 +11,7 @@ import { db } from "@/lib/db";
 import { formatOrgDay } from "@/lib/format";
 import { DETAIL_FIELDS, normaliseDetails } from "@/lib/organisation/details";
 
+import { timeZoneLabel, timeZoneOptions } from "@/lib/time-zone-label";
 import { EditTimeZone } from "./editors";
 import type { LogoInfo } from "./logo-card";
 import { OrganisationScreen } from "./panels";
@@ -79,11 +80,11 @@ export default async function OrganisationPage({
       />
 
       {timeZone ? (
-        <Callout tone="info" className="mb-5" title={`Dates are judged in ${timeZone}`} action={<EditTimeZone timeZone={timeZone} />}>
+        <Callout tone="info" className="mb-5" title={`Dates are judged in ${timeZoneLabel(timeZone)}`} action={<EditTimeZone timeZone={timeZone} options={timeZoneOptions()} />}>
           Today, for a vote sheet or a tabling, is the day in this zone.
         </Callout>
       ) : (
-        <Callout tone="warn" className="mb-5" title="Time zone not set" action={<EditTimeZone timeZone={null} />}>
+        <Callout tone="warn" className="mb-5" title="Time zone not set" action={<EditTimeZone timeZone={null} options={timeZoneOptions()} />}>
           &ldquo;Today&rdquo; is not assumed to be UTC. Until the zone the organisation keeps its dates in is set,
           committee sittings cannot start, matters cannot be tabled and votes cannot be recorded.
         </Callout>
