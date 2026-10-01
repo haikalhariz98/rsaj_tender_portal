@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 
 import { loadOwnerPanel } from "@/app/documents/actions";
 import { FileIcon } from "@/components/icons";
-import { buttonClass } from "@/components/ui/button";
+import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 import { EmptyState } from "@/components/ui/feedback";
 import type { PanelOptions, PanelView } from "@/lib/documents/views";
@@ -17,7 +17,8 @@ import { AttachmentPanel } from "./attachment-panel";
  * its own for them (a delegation in Users & roles). Loaded when opened. The panel inside
  * is the shared one: the same decisions, the same reasons.
  */
-export function OwnerDocumentsButton({ owner, label, options }: { owner: { kind: "meeting" | "exercise" | "award" | "delegation"; id: string }; label: string; options?: PanelOptions }) {
+export function OwnerDocumentsButton({ owner, label, options, iconOnly = false }: { owner: { kind: "meeting" | "exercise" | "award" | "delegation"; id: string }; label: string; options?: PanelOptions; /// For a table row: the icon alone, named by `Documents of …`, so the row needs no room for the word.
+  iconOnly?: boolean }) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<PanelView | null | undefined>(undefined);
   const opener = useRef<HTMLButtonElement>(null);
@@ -40,8 +41,9 @@ export function OwnerDocumentsButton({ owner, label, options }: { owner: { kind:
       <button
         type="button"
         ref={opener}
-        className={buttonClass("ghost", "sm")}
+        className={iconOnly ? iconButtonClass("sm") : buttonClass("ghost", "sm")}
         aria-label={`Documents of ${label}`}
+        title={iconOnly ? `Documents of ${label}` : undefined}
         onClick={async () => {
           setOpen(true);
           setView(undefined);
@@ -49,7 +51,7 @@ export function OwnerDocumentsButton({ owner, label, options }: { owner: { kind:
         }}
       >
         <FileIcon size={15} />
-        Documents
+        {!iconOnly && "Documents"}
       </button>
       {open &&
         createPortal(

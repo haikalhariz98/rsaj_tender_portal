@@ -2,7 +2,7 @@
 
 import { OwnerDocumentsButton } from "@/components/attachments/owner-documents-button";
 import type { UploadView } from "@/lib/documents/views";
-import { recommendationLabel } from "@/lib/people/labels";
+import { delegationCeilingText, delegationPeriodText, recommendationLabel } from "@/lib/people/labels";
 import { formatDate } from "@/lib/format";
 import { useState, useTransition } from "react";
 
@@ -605,8 +605,8 @@ function DelegationPanel({ people, offices, delegations, capabilities, upload }:
               },
         period: {
           kind: "stack",
-          title: `${day(d.effectiveFrom)} — ${d.effectiveTo ? day(d.effectiveTo) : "open"}`,
-          sub: d.valueCeiling ? `up to RM${d.valueCeiling}` : "no ceiling set",
+          title: delegationPeriodText(d),
+          sub: delegationCeilingText(d.valueCeiling),
         },
         reason: recommendation
           ? { kind: "stack", title: d.reason || "No reason recorded", sub: `On the absent holder's recommendation${d.holderRecommendedOn ? ` of ${formatDate(d.holderRecommendedOn)}` : ""} · ${recommendation}` }
@@ -646,13 +646,16 @@ function DelegationPanel({ people, offices, delegations, capabilities, upload }:
             { id: "ended", label: "Ended" },
           ]}
           columns={[
-            { key: "from", label: "From", width: "20%", sortable: true },
-            { key: "to", label: "To", width: "16%", sortable: true },
-            { key: "what", label: "What is delegated", width: "20%" },
-            { key: "period", label: "Period", width: "18%" },
-            { key: "reason", label: "Reason", width: "14%" },
-            { key: "status", label: "Status", width: "12%" },
+            // Pixels, with the reason left to take what remains: percentages beside a fixed
+            // actions column added up to more than the card.
+            { key: "from", label: "From", width: "132px", sortable: true, mobile: "primary" },
+            { key: "to", label: "To", width: "132px", sortable: true, mobile: "meta" },
+            { key: "what", label: "What is delegated", width: "148px", mobile: "meta" },
+            { key: "period", label: "Period", width: "128px", mobile: "meta" },
+            { key: "reason", label: "Reason", mobile: "meta" },
+            { key: "status", label: "Status", width: "112px", mobile: "meta" },
           ]}
+          actionsWidth={96}
           rows={rows}
           rowOpens
           actions={(id) => {
@@ -668,7 +671,7 @@ function DelegationPanel({ people, offices, delegations, capabilities, upload }:
                   status={STATUS_LABEL[statusOf(delegation, on)]}
                   upload={upload}
                 />
-                <OwnerDocumentsButton owner={{ kind: "delegation", id }} label={`${nameOf(delegation.fromPersonId)} to ${nameOf(delegation.toPersonId)}`} />
+                <OwnerDocumentsButton owner={{ kind: "delegation", id }} label={`${nameOf(delegation.fromPersonId)} to ${nameOf(delegation.toPersonId)}`} iconOnly />
               </>
             );
           }}
