@@ -1,3 +1,4 @@
+import { committedSen } from "@/lib/dashboard-sums";
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 
@@ -88,9 +89,8 @@ export async function loadDashboard(asOf: Date = new Date()) {
     .sort((a, b) => b.waitingDays - a.waitingDays);
 
   const decided = decisions.filter((d) => d.outcome === "CARRIED");
-  const committedValue = decided
-    .filter((d) => d.domain === "appointment")
-    .reduce((sum, d) => sum + (num(d.amount) ?? 0), 0);
+  // Summed in sen, never through a float (ruling C6).
+  const committed = committedSen(decisions);
 
   const activity: ActivityItem[] = decisions
     .flatMap((d) =>
@@ -143,7 +143,8 @@ export async function loadDashboard(asOf: Date = new Date()) {
     queue,
     requisitions,
     activity,
-    committedValue,
+    committedSen: committed.total,
+    committedWithoutAmount: committed.withoutAmount,
     decidedCount: decided.length,
     meetings,
     committees,

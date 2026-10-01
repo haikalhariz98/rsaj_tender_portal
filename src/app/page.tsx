@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/money";
 import {
   CalendarIcon,
   ClockIcon,
@@ -20,7 +21,7 @@ import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { Stat } from "@/components/ui/stat";
 import { loadDashboard } from "@/lib/dashboard";
-import { formatDate, formatOrgDay, formatRM } from "@/lib/format";
+import { formatDate, formatOrgDay } from "@/lib/format";
 import { matterLabel } from "@/lib/labels";
 import { loadShell } from "@/lib/shell";
 import { greetingAt } from "@/lib/dates";
@@ -128,10 +129,10 @@ export default async function Dashboard() {
         />
         <Stat
           label="Value approved"
-          value={formatRM(data.committedValue)}
+          value={formatMoney(data.committedSen)}
           tone="info"
           icon={<GavelIcon size={17} />}
-          hint={`across ${data.decidedCount} decided matters`}
+          hint={`across ${data.decidedCount} decided matters${data.committedWithoutAmount ? ` · ${data.committedWithoutAmount} stated no amount` : ""}`}
         />
         <Stat
           label="Votes outstanding"

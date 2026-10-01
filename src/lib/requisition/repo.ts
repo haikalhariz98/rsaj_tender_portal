@@ -10,7 +10,7 @@ import type { BudgetCode as PureBudgetCode } from "@/lib/budget/codes";
 import { decisionRecord, type DecisionRecord } from "@/lib/committee/record";
 import { isRegisterSnapshot } from "@/lib/committee/assess-sitting";
 import { dayToDate, todayIn } from "@/lib/dates";
-import { senFromDecimal } from "@/lib/money";
+import { amountOf, senFromDecimal } from "@/lib/money";
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 import type { CodeFormat, OrgUnit, OrgUnitKind } from "@/lib/organisation/types";
@@ -19,7 +19,7 @@ import type { Lookups, RequisitionDraft } from "@/lib/requisition/fields";
 import { gateFinding, gatesFor, gateState, type GateFinding, type GateMatter, type GateRuleRow, type GateState } from "@/lib/requisition/gate";
 import { SPLIT_KEYS, UNSET_POLICY, type Provenance, type RequisitionPolicy, type SplitKey } from "@/lib/requisition/types";
 
-export const num = (v: { toString(): string } | null | undefined): number | null => (v == null ? null : Number(v.toString()));
+export const num = (v: { toString(): string } | null | undefined): number | null => (v == null ? null : amountOf(v));
 
 /// The organisation's id, zone and today (null while no zone is set).
 export async function requisitionOrg(client: Tx = db) {

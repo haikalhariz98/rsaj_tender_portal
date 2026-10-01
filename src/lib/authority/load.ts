@@ -1,12 +1,13 @@
 import type { Tx } from "@/lib/audit/record";
 import { db } from "@/lib/db";
+import { amountOf } from "@/lib/money";
 import type { AuthorityAct, Matrix, Rule } from "./types";
 import { issuedInForce } from "./issue";
 
 /// Prisma returns Decimal for money and percentage columns. Bands are compared, not
 /// accumulated, so a number is safe here — every DAL threshold is well inside 2^53.
 const num = (value: { toString(): string } | null): number | null =>
-  value == null ? null : Number(value.toString());
+  value == null ? null : amountOf(value);
 
 export class NoActiveMatrixError extends Error {
   constructor() {
@@ -114,11 +115,11 @@ export async function loadIssue(
 
   const matrix: Matrix = {
     policy: {
-      boundaryValue: Number(version.boundaryValue.toString()),
+      boundaryValue: amountOf(version.boundaryValue),
       boundaryInclusive: version.boundaryInclusive,
-      quotationFloor: Number(version.quotationFloor.toString()),
-      tenderFloor: Number(version.tenderFloor.toString()),
-      requisitionBoundary: Number(version.requisitionBoundary.toString()),
+      quotationFloor: amountOf(version.quotationFloor),
+      tenderFloor: amountOf(version.tenderFloor),
+      requisitionBoundary: amountOf(version.requisitionBoundary),
       currency: version.currency,
       clauses: {
         noRule: version.noRuleClause,

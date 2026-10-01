@@ -56,6 +56,16 @@ export function senFromAmount(value: number): Sen {
   return BigInt(Math.round(value * 100));
 }
 
+/**
+ * A Decimal read from the database, as the number the approval engine compares a band
+ * with. The one bridge from a stored amount to the engine (ruling C6): the engine
+ * turns it straight back into sen (`senFromAmount`) before comparing, so a value one
+ * sen either side of a threshold lands where the threshold says. Never for arithmetic.
+ */
+export function amountOf(value: { toString(): string }): number {
+  return Number(value.toString());
+}
+
 /// Two amounts written as decimal strings, compared exactly.
 export function compareAmounts(a: string, b: string): -1 | 0 | 1 {
   return compareSen(parseSen(a), parseSen(b));
