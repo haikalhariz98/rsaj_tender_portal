@@ -24,10 +24,13 @@ import { evaluateAward } from "@/lib/award/evaluate";
 import { awardValueFaults, instrumentFor } from "@/lib/award/instrument";
 import { AWARD_STATUS_LABEL, awardFindingText, BOND_FAULT_TEXT, DESPATCH_FAULT_TEXT, INSURANCE_FAULT_TEXT, SIGNER_FAULT_TEXT } from "@/lib/award/labels";
 import { renderedText } from "@/lib/award/merge";
-import { awardFacts, exerciseMatters, loadAwardConfig, matterRecord, withLockedAward, withLockedExerciseForAward, latestRoute, type LoadedAward } from "@/lib/award/repo";
+import { awardFacts, dossierEvidenceOf, exerciseMatters, loadAwardConfig, matterRecord, withLockedAward, withLockedExerciseForAward, latestRoute, type LoadedAward } from "@/lib/award/repo";
 import { receivedOnFault } from "@/lib/award/routing";
 import { approvedOnOf, checkSignatory } from "@/lib/award/signatory";
-import { instrumentReturned, returnComplete, type ReturnRecord } from "@/lib/award/stage-two";
+import { correctionScansMissing, countedReturnComplete, instrumentReturned, scansRequired, type ReturnRecord } from "@/lib/award/stage-two";
+import { acceptOnCompleteReturn, returnRecordOf, returnScans } from "@/lib/award/return-acceptance";
+import { RETURN_SCAN_LABEL } from "@/lib/award/labels";
+import { evidenceSnapshot } from "@/lib/documents/evidence";
 import { awardTransition, editable, LIVE_STATUSES } from "@/lib/award/status";
 import type { AwardStatus, Finding, InstrumentKind } from "@/lib/award/types";
 import { dayToDate, storedDay } from "@/lib/dates";
@@ -350,8 +353,11 @@ export async function submitAward(_prev: FormState, data: FormData): Promise<For
     });
     await audit(tx, l.org.id, "ApprovalInstance", instance.id, routeLabel(l.award), "CREATE",
       diffFields(null, { matrix: r.issue.label, rule: rule.labelEn, route: route.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "), fundingOverrideApplied: route.source === "OVERRIDE", escalated: route.warnings.some((w) => w.code === "ABSENCE" || w.code === "SELF_APPROVAL") ? "yes" : null }));
-    await mustMove(tx, l, "PENDING_APPROVAL");
-    await audit(tx, l.org.id, "Award", id, labelOf(l.award), "UPDATE", diffFields({ status: l.award.status }, { status: "PENDING_APPROVAL" }));
+    // FR-MTD-009: a direct appointment is sent on the dossier evidence attached now, and
+    // the pins are kept: issue refuses if one of them is withdrawn since (scope ruling).
+    const dossier = r.method?.requiresDossier ? evidenceSnapshot((await dossierEvidenceOf(l.ex.id, null, tx)).attachments, ["DOSSIER_EVIDENCE"], l.org.today!) : null;
+    await mustMove(tx, l, "PENDING_APPROVAL", dossier ? { dossierEvidenceSnapshot: dossier as unknown as Prisma.InputJsonValue } : {});
+    await audit(tx, l.org.id, "Award", id, labelOf(l.award), "UPDATE", diffFields({ status: l.award.status }, { status: "PENDING_APPROVAL", dossierEvidence: dossier ? dossier.pins.map((p) => `${p.title} (version ${p.versionNo})`).join("; ") : null }));
     // FR-MTD-011: the contract type is fixed from the award on; changed only by a controlled change.
     // The moment it was locked; shown as the organisation's day (formatOrgDay).
     if (!l.ex.classificationLockedAt) {
@@ -763,25 +769,29 @@ export async function recordReturn(_prev: FormState, data: FormData): Promise<Fo
     }
     if (Object.keys(errors).length) return { ok: false, errors };
     const before = a.awardReturn;
-    await tx.awardReturn.update({ where: { id: before.id }, data: v });
-    const view = (x: Record<string, unknown>) => ({ ...x, receivedByPersonId: undefined, receivedBy: x.receivedByPersonId ? (x.receivedByPersonId === receivedBy?.id ? receivedBy?.name : before.receivedBy?.name) : null });
+    const kind = a.instrumentKind as InstrumentKind;
     const rec: ReturnRecord = {
       ...v,
       signedLetterReceivedOn: v.signedLetterReceivedOn ? storedDay(v.signedLetterReceivedOn) : null,
       declarationReceivedOn: v.declarationReceivedOn ? storedDay(v.declarationReceivedOn) : null,
       authorisationReceivedOn: v.authorisationReceivedOn ? storedDay(v.authorisationReceivedOn) : null,
     };
-    const complete = returnComplete(a.instrumentKind as InstrumentKind, rec);
-    if (correcting && !complete) throw new Refusal({ ok: false, message: "Not corrected: the award was accepted on a complete return, and this would leave it incomplete." });
-    await audit(tx, l.org.id, "AwardReturn", before.id, `${a.reference} · return`, "UPDATE", awardAuditPair(view(before), view({ ...before, ...v })), correcting ? `Corrected: ${correction}` : "");
-    if (complete && !correcting) {
-      const t = awardTransition("ISSUED", "ACCEPTED", { today: l.org.today, returnComplete: true });
-      if (!t) {
-        await mustMove(tx, l, "ACCEPTED");
-        await audit(tx, l.org.id, "Award", a.id, labelOf(a), "UPDATE", diffFields({ status: a.status }, { status: "ACCEPTED" }), a.instrumentKind === "LETTER_OF_ACCEPTANCE" ? "All three documents returned." : "The acceptance page is complete.");
-      }
+    // OD-5: an item counts toward completeness only with its scan attached, for every
+    // award not accepted before scans were required; a correction (BD-24) needs a scan
+    // only for the item it corrects.
+    const { attached } = await returnScans(a.id, kind, tx);
+    if (correcting) {
+      const unscanned = correctionScansMissing(kind, returnRecordOf(before), rec, attached);
+      if (unscanned.length) return { ok: false, message: `Not corrected: attach ${unscanned.map((x) => RETURN_SCAN_LABEL[x]).join(", ")} first. A corrected item counts only with its scan.` };
+      const complete = countedReturnComplete(kind, rec, { required: scansRequired(a.status, a.returnScanSnapshot != null), attached });
+      if (!complete) return { ok: false, message: "Not corrected: the award was accepted on a complete return, and this would leave it incomplete." };
     }
-    return { ok: true };
+    await tx.awardReturn.update({ where: { id: before.id }, data: v });
+    const view = (x: Record<string, unknown>) => ({ ...x, receivedByPersonId: undefined, receivedBy: x.receivedByPersonId ? (x.receivedByPersonId === receivedBy?.id ? receivedBy?.name : before.receivedBy?.name) : null });
+    await audit(tx, l.org.id, "AwardReturn", before.id, `${a.reference} · return`, "UPDATE", awardAuditPair(view(before), view({ ...before, ...v })), correcting ? `Corrected: ${correction}` : "");
+    // The return that completes the instrument, every item with its scan, accepts it in the same act (BD-12).
+    const accepted = correcting ? null : await acceptOnCompleteReturn(tx, l, rec);
+    return { ok: true, message: accepted ?? undefined };
   });
 }
 

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DOCUMENT_ENTITY_LABEL } from "@/lib/documents/audit-view";
 import { notFound } from "next/navigation";
 
 import { AwardIcon, CheckIcon, ClipboardIcon, ClockIcon, FileIcon, InboxIcon, PrinterIcon, RouteIcon, ShieldIcon, SlidersIcon } from "@/components/icons";
@@ -44,6 +45,7 @@ import {
   REGISTER_STATUS_LABEL,
   REGISTER_STATUS_TONE,
   RETURN_ITEM_LABEL,
+  returnScansText,
   SECURITY_FORM_LABEL,
   SECURITY_KIND_LABEL,
   WC_BASIS_LABEL,
@@ -52,7 +54,8 @@ import {
 import { mergeFieldLabel } from "@/lib/award/fields";
 import { conditionsOutstanding, readinessGate } from "@/lib/award/readiness";
 import { awardFacts, awardHistory, exerciseMatters, latestRoute, loadAward, matterRecord, type LoadedAward } from "@/lib/award/repo";
-import { acceptancePageFaults, instrumentReturned, returnComplete, returnState, type ReturnRecord } from "@/lib/award/stage-two";
+import { acceptancePageFaults, countedReturnComplete, instrumentReturned, RETURN_SCANS, returnState, scansMissing, scansRequired, type ReturnRecord } from "@/lib/award/stage-two";
+import { isLive } from "@/lib/documents/evidence";
 import { cancellable, editable } from "@/lib/award/status";
 import { absentFrom } from "@/lib/award/appointment";
 import type { AwardStatus, Finding, InstrumentKind } from "@/lib/award/types";
@@ -249,8 +252,10 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
   const requirements = applicableRequirements(f.config.requirements, ex.contractTypeCode);
   const securities = award.contract?.securities ?? [];
   const policies = award.contract?.policies ?? [];
+  // OD-5: the return counts with its scans, for every award not accepted before they were required.
+  const scans = { required: scansRequired(status, award.returnScanSnapshot != null), attached: new Set(award.attachments.filter((a) => (RETURN_SCANS[kind] as readonly string[]).includes(a.purpose) && isLive(a)).map((a) => a.purpose as string)) };
   const gate = readinessGate({
-    returned: ret ? returnComplete(kind, ret) : false,
+    returned: ret ? countedReturnComplete(kind, ret, scans) : false,
     bondRequired: award.bondRequired,
     bondNotRequiredReason: award.bondNotRequiredReason,
     requiredBond: ev.requiredBond,
@@ -889,6 +894,9 @@ function ReturnPanel({ l, ret, people }: { l: LoadedAward; ret: ReturnRecord | n
   }
   const r = award.awardReturn;
   const state = returnState(ret);
+  const kind = award.instrumentKind as InstrumentKind;
+  const scans = { required: scansRequired(award.status, award.returnScanSnapshot != null), attached: new Set(award.attachments.filter((a) => isLive(a)).map((a) => a.purpose as string)) };
+  const scanLine = returnScansText({ required: scans.required, missing: scansMissing(kind, ret, scans.attached), attached: award.attachments.filter((a) => (RETURN_SCANS[kind] as readonly string[]).includes(a.purpose) && isLive(a)).length });
   const page = acceptancePageFaults(ret);
   const tri = (v: boolean | null) => (v == null ? notSet("Not recorded") : v ? "Yes" : "No — recorded as not done");
   return (
@@ -935,7 +943,7 @@ function ReturnPanel({ l, ret, people }: { l: LoadedAward; ret: ReturnRecord | n
           items={[
             { label: "Received by", value: r.receivedBy ? `${r.receivedBy.name} · recorded on behalf of, not signed` : notSet("Not recorded") },
             { label: "Originals held at", value: r.whereHeld || notSet("Not recorded") },
-            { label: "Attachments", value: <Chip tone="warn">Paper only — nothing is attached in this phase</Chip> },
+            { label: "Scans", value: <Chip tone={scanLine.tone}>{scanLine.text}</Chip> },
           ]}
         />
       </CardBody>
@@ -1138,6 +1146,8 @@ function SecuritiesPanel({
 // ------------------------------------------------------------------- history
 
 const ENTITY_LABEL: Record<string, string> = {
+  // Attachments and the documents behind them (document store).
+  ...DOCUMENT_ENTITY_LABEL,
   Award: "Award",
   ApprovalInstance: "Approval route",
   ApprovalStep: "Approval step",

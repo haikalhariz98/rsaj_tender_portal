@@ -1,3 +1,6 @@
+import { exerciseEvidence, type ExerciseEvidence } from "@/lib/documents/evidence";
+import { DOCUMENT_ENTITY_LABEL } from "@/lib/documents/audit-view";
+import { attachmentFacts } from "@/lib/documents/repo";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -46,6 +49,7 @@ import {
   TAXONOMY_STATE_LABEL,
   TERMS_STATE_TEXT,
   TYPE_STATE_LABEL,
+  evidenceChip,
 } from "@/lib/method/labels";
 import { behaviourProfile, type BehaviourValue } from "@/lib/method/profile";
 import { nameRequestProposalFault, proposalFaults, proposalView } from "@/lib/method/proposal";
@@ -61,7 +65,7 @@ import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { holdersFor } from "@/lib/requisition/holders";
 import { instrumentFor } from "@/lib/award/instrument";
 import { exerciseCancelBlockedBy } from "@/lib/award/status";
-import { AWARD_STATUS_LABEL, AWARD_STATUS_TONE, awardFindingText, INSTRUMENT_SHORT } from "@/lib/award/labels";
+import { AWARD_STATUS_LABEL, AWARD_STATUS_TONE, awardFindingText, DOSSIER_EVIDENCE_NEEDED, INSTRUMENT_SHORT } from "@/lib/award/labels";
 import { loadAwardPolicy } from "@/lib/award/repo";
 import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
 import { DECISION_LABEL, DECIDER_FAULT_TEXT, OPERATOR_LABEL } from "@/lib/requisition/labels";
@@ -111,6 +115,8 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
     db.award.findMany({ where: { exerciseId: ex.id }, orderBy: { createdAt: "desc" }, select: { id: true, reference: true, awardeeName: true, awardedValue: true, status: true, instrumentKind: true, cancelReason: true, contract: { select: { number: true } } } }),
     loadAwardPolicy(org.id),
   ]);
+  // Dossier evidence and the scope document, as the document store counts them.
+  const evidence = exerciseEvidence(await attachmentFacts({ kind: "exercise", id: ex.id }, db, ["DOSSIER_EVIDENCE", "COORDINATION_SCOPE"]));
   const config = cfg.config;
   const method = config.methods.find((m) => m.code === ex.sourcingMethodCode) ?? null;
   const decided = isClassificationSnapshot(ex.classificationSnapshot) ? ex.classificationSnapshot : null;
@@ -275,7 +281,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       id: "classification",
       label: "Classification",
       icon: <SlidersIcon size={15} />,
-      panel: <ClassificationPanel l={l} bands={bands} findings={ev ? ev.findings : ((ex.bandWarnings as unknown as Finding[]) ?? [])} live={!!ev} methodName={methodName} flags={flags} reasonName={decided ? (decided.justification?.reasonName ?? null) : (config.reasons.find((r) => r.code === ex.justificationReasonCode)?.nameEn ?? null)} />,
+      panel: <ClassificationPanel l={l} evidence={evidence} bands={bands} findings={ev ? ev.findings : ((ex.bandWarnings as unknown as Finding[]) ?? [])} live={!!ev} methodName={methodName} flags={flags} reasonName={decided ? (decided.justification?.reasonName ?? null) : (config.reasons.find((r) => r.code === ex.justificationReasonCode)?.nameEn ?? null)} />,
     },
     {
       id: "contract",
@@ -390,7 +396,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
             const i = instrumentFor(ex.regime, awardPolicy);
             return "fault" in i ? awardFindingText({ code: i.fault, level: "block", data: { regime: i.regime } }) : null;
           })()}
-          dossier={!!(flags?.requiresDossier)}
+          dossier={!!(flags?.requiresDossier) && evidence.dossier === 0}
         />
       ),
     },
@@ -543,12 +549,12 @@ function AwardTab({ exerciseId, status, awards, opening, dossier }: { exerciseId
           ) : status === "DOCUMENTS_IN_PREPARATION" ? (
             <div className="flex flex-col gap-4">
               {dossier && (
-                <Callout tone="warn" title="An award on this method cannot yet be sent for approval">
-                  A direct appointment is approved only with its supporting evidence attached to the dossier, and the portal cannot store documents yet. An award can be opened and kept as a draft; it cannot go for approval or be issued until evidence can be attached.
+                <Callout tone="warn" title={DOSSIER_EVIDENCE_NEEDED.title}>
+                  {DOSSIER_EVIDENCE_NEEDED.body}
                 </Callout>
               )}
               <EmptyState size="sm" title="Not awarded yet" action={<ButtonLink href={`/awards/new?exercise=${exerciseId}`} size="sm" variant="primary">Start the award</ButtonLink>}>
-                {dossier ? "Record the awardee and the awarded value. It stays a draft until evidence can be attached." : "Record the awardee and the awarded value; the award is then sent for the appointment's approval."}
+                {dossier ? DOSSIER_EVIDENCE_NEEDED.short : "Record the awardee and the awarded value; the award is then sent for the appointment's approval."}
               </EmptyState>
             </div>
           ) : (
@@ -603,6 +609,7 @@ function RouteList({ route }: { route: RouteSnap }) {
 
 function ClassificationPanel({
   l,
+  evidence,
   bands,
   findings,
   live,
@@ -611,6 +618,7 @@ function ClassificationPanel({
   reasonName,
 }: {
   l: LoadedExercise;
+  evidence: ExerciseEvidence;
   bands: BandSnapshot | null;
   findings: Finding[];
   live: boolean;
@@ -693,7 +701,7 @@ function ClassificationPanel({
                 ? [
                     { label: "Reason", value: reasonName ?? "Not recorded" },
                     { label: "Dossier reference", value: ex.dossierReference ? <span className="font-mono text-[13px]">{ex.dossierReference}</span> : "Numbered when it moves into preparation" },
-                    { label: "Supporting evidence", value: <span className="flex flex-col gap-1"><span>{ex.evidenceNote || "No note"}</span><Chip tone="warn">Not attached</Chip></span> },
+                    { label: "Supporting evidence", value: <span className="flex flex-col gap-1"><span>{ex.evidenceNote || "No note"}</span><Chip tone={evidenceChip(evidence.dossier, "dossier").tone}>{evidenceChip(evidence.dossier, "dossier").text}</Chip></span> },
                   ]
                 : []),
               ...(flags?.requiresCoordinationRecord
@@ -701,7 +709,7 @@ function ClassificationPanel({
                     { label: "Emergency trigger", value: ex.emergencyTrigger || "Not recorded" },
                     { label: "Coordination meeting", value: ex.coordinationMeetingOn ? formatDate(ex.coordinationMeetingOn) : "Not recorded" },
                     { label: "Attended by", value: ex.coordinationAttendees || "Not recorded" },
-                    { label: "Scope fixed", value: <span className="flex flex-col gap-1"><span>{ex.coordinationScopeNote || "No note"}</span><Chip tone="warn">Scope document not attached</Chip></span> },
+                    { label: "Scope fixed", value: <span className="flex flex-col gap-1"><span>{ex.coordinationScopeNote || "No note"}</span><Chip tone={evidenceChip(evidence.scope, "scope").tone}>{evidenceChip(evidence.scope, "scope").text}</Chip></span> },
                     { label: "Bill of quantities", value: ex.bqReference ?? "Not recorded" },
                   ]
                 : []),
@@ -1041,6 +1049,8 @@ function NamePanel({
 // ------------------------------------------------------------------- history
 
 const ENTITY_LABEL: Record<string, string> = {
+  // Attachments and the documents behind them (document store).
+  ...DOCUMENT_ENTITY_LABEL,
   SourcingExercise: "Exercise",
   ExerciseScopePart: "Scope",
   ExerciseProposalAnswer: "Proposal item",

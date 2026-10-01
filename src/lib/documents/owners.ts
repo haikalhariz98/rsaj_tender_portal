@@ -13,6 +13,7 @@
 
 import type { Tx } from "@/lib/audit/record";
 import { withLockedAward } from "@/lib/award/repo";
+import { acceptOnCompleteReturn } from "@/lib/award/return-acceptance";
 import { withLockedSitting } from "@/lib/committee/sittings";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
@@ -95,6 +96,8 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
           paths: [`/awards/${a.id}`, "/awards"],
           // Only the last live scan of an item is relied on; a duplicate may come off.
           reliance: (purpose, live) => (live <= 1 ? awardReliance(purpose, facts) : null),
+          // OD-5, BD-12: the scan that completes the return accepts the award in the same act.
+          afterChange: (tx) => acceptOnCompleteReturn(tx, l),
         });
       });
     case "delegation":

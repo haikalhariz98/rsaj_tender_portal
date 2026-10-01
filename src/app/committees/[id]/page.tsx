@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DOCUMENT_ENTITY_LABEL } from "@/lib/documents/audit-view";
 import { notFound } from "next/navigation";
 
 import { RecordCrumb } from "@/components/shell/record-crumb";
@@ -35,7 +36,11 @@ import {
   POSITION_LABEL,
   TRANSITION_FAULT_MESSAGE,
   VOTING_RULE_LABEL,
+  signedMinutesState,
+  SIGNED_MINUTES_LABEL,
+  SIGNED_MINUTES_TONE,
 } from "@/lib/committee/labels";
+import { isLive } from "@/lib/documents/evidence";
 import { liveOutcomes, MANDATORY_ACTS } from "@/lib/committee/matter";
 import { isFrozen, meetingTransition } from "@/lib/committee/meeting";
 import type { VotingSeat } from "@/lib/committee/sitting";
@@ -648,6 +653,7 @@ function AttendancePanel({ s }: { s: LoadedSitting }) {
 
 function MinutesPanel({ s }: { s: LoadedSitting }) {
   const m = s.meeting;
+  const minutesState = signedMinutesState(m.status, m.attachments.filter(isLive).length);
   return (
     <Card>
       <CardHeader
@@ -667,7 +673,7 @@ function MinutesPanel({ s }: { s: LoadedSitting }) {
           items={[
             {
               label: "Signed minutes",
-              value: <Badge tone="warn">Not attached: document storage not built</Badge>,
+              value: <Badge tone={SIGNED_MINUTES_TONE[minutesState]}>{SIGNED_MINUTES_LABEL[minutesState]}</Badge>,
             },
             // An instant: read as the organisation's day.
             { label: "Minuted on", value: m.minutedAt ? formatOrgDay(m.minutedAt, s.timeZone) : "Not minuted" },
@@ -683,6 +689,8 @@ function MinutesPanel({ s }: { s: LoadedSitting }) {
 
 const ACTION_LABEL = { CREATE: "Recorded", UPDATE: "Changed", DELETE: "Removed" } as const;
 const ENTITY_LABEL: Record<string, string> = {
+  // Attachments and the documents behind them (document store).
+  ...DOCUMENT_ENTITY_LABEL,
   Meeting: "Sitting",
   MeetingAttendance: "Attendance",
   CommitteeDecision: "Matter",

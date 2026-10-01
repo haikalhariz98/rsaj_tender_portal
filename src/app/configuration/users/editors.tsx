@@ -1,3 +1,4 @@
+import { RECOMMENDATION_HINT } from "@/lib/people/labels";
 import {
   CheckIcon,
   HelpCircle,
@@ -524,7 +525,7 @@ function delegationFields(
       kind: "textarea",
       name: "holderRecommendation",
       label: "The absent holder's recommendation",
-      hint: "Needed where the person delegating is recorded as away: their authority has reverted upward, and is delegated again only on their recommendation. Recorded as text — the signed copy is not attached.",
+      hint: RECOMMENDATION_HINT,
     },
     { kind: "date", name: "holderRecommendedOn", label: "Recommended on" },
     {

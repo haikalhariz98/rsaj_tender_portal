@@ -10,6 +10,8 @@ import { awardHeadroom, instrumentFor } from "@/lib/award/instrument";
 import { loadAwardPolicy } from "@/lib/award/repo";
 import { LIVE_STATUSES } from "@/lib/award/status";
 import { db } from "@/lib/db";
+import { exerciseEvidence } from "@/lib/documents/evidence";
+import { attachmentFacts } from "@/lib/documents/repo";
 import { REGIME_LABEL } from "@/lib/method/labels";
 import { approvedRouteOf, loadExercise, loadMethodConfig } from "@/lib/method/repo";
 import { isBandSnapshot } from "@/lib/method/snapshot";
@@ -51,6 +53,8 @@ export default async function NewAwardPage(props: PageProps<"/awards/new">) {
   ]);
   const headroom = awardHeadroom(approvedRouteOf(l.req)?.value ?? null, siblings.map((s) => senFromDecimal(s.awardedValue)));
   const method = cfg.config.methods.find((m) => m.code === ex.sourcingMethodCode) ?? null;
+  // The dossier's evidence as the document store counts it: the note shows only while there is none.
+  const dossierEvidence = method?.requiresDossier ? exerciseEvidence(await attachmentFacts({ kind: "exercise", id: ex.id }, undefined, ["DOSSIER_EVIDENCE"])).dossier : 0;
   const instrument = instrumentFor(ex.regime, policy);
   const blocker = ex.status !== "DOCUMENTS_IN_PREPARATION" ? "An award is opened only on an exercise in preparation." : live ? `This exercise already has a live award, ${live.reference}.` : "fault" in instrument ? awardFindingText({ code: instrument.fault, level: "block", data: { regime: instrument.regime } }) : null;
   if (blocker) {
@@ -94,7 +98,7 @@ export default async function NewAwardPage(props: PageProps<"/awards/new">) {
         exercise={{ id: ex.id, facts }}
         cancelHref={`/sourcing/${ex.id}?tab=award`}
         valueHint={headroom == null ? "The requisition has no approved value on record, so nothing can be awarded against it." : `Up to ${formatMoney(headroom)}: what the requisition's approval covers${siblings.length ? ", less its other awards" : ""}. In ringgit, to at most two decimal places.`}
-        dossier={!!method?.requiresDossier}
+        dossier={!!method?.requiresDossier && dossierEvidence === 0}
       />
     </>
   );

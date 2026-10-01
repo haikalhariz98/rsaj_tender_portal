@@ -164,3 +164,22 @@ describe("re-delegation during absence (FR-APR-012, 6.9 ruling)", () => {
     expect(faultsIn(proposed, [], [], { grantorUnavailable: false })).not.toContain("ABSENT_GRANTOR_NO_RECOMMENDATION");
   });
 });
+
+describe("the absent holder's recommendation is attached (OD-6, document store)", () => {
+  const proposed = { id: "new", fromPersonId: "p1", toPersonId: "p2", roleCode: "HOD", capabilityCodes: [], valueCeiling: null, reason: "", reasonMs: "", noSubDelegation: true, effectiveFrom: new Date("2026-10-01"), effectiveTo: new Date("2026-10-15") };
+  const text = "I recommend Encik Rahman act for me while I am away.";
+  it("a new re-delegation by an absent holder is refused without the signed recommendation attached, even with the text", () => {
+    expect(faultsIn(proposed, [], [], { grantorUnavailable: true, holderRecommendation: text, recommendationAttached: false })).toContain("ABSENT_GRANTOR_RECOMMENDATION_NOT_ATTACHED");
+  });
+  it("is allowed with the recommendation attached and its summary recorded", () => {
+    const f = faultsIn(proposed, [], [], { grantorUnavailable: true, holderRecommendation: text, recommendationAttached: true });
+    expect(f).not.toContain("ABSENT_GRANTOR_RECOMMENDATION_NOT_ATTACHED");
+    expect(f).not.toContain("ABSENT_GRANTOR_NO_RECOMMENDATION");
+  });
+  it("one recorded as text before attachments existed stands on its text", () => {
+    expect(faultsIn(proposed, [], [], { grantorUnavailable: true, holderRecommendation: text, recommendationAttached: false, recordedBeforeAttachments: true })).not.toContain("ABSENT_GRANTOR_RECOMMENDATION_NOT_ATTACHED");
+  });
+  it("a grantor who is present is never asked for it", () => {
+    expect(faultsIn(proposed, [], [], { grantorUnavailable: false, recommendationAttached: false })).not.toContain("ABSENT_GRANTOR_RECOMMENDATION_NOT_ATTACHED");
+  });
+});

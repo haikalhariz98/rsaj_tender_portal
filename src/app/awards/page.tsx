@@ -6,7 +6,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { indentExpiryRaised, indentState } from "@/lib/award/indent";
 import { AWARD_STATUS_LABEL, AWARD_STATUS_TONE, INSTRUMENT_SHORT } from "@/lib/award/labels";
 import { AWARDS_PAGE, listAwards } from "@/lib/award/repo";
-import { returnComplete } from "@/lib/award/stage-two";
+import { countedReturnComplete, scansRequired } from "@/lib/award/stage-two";
+import { isLive } from "@/lib/documents/evidence";
 import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
 import { storedDay } from "@/lib/dates";
 
@@ -29,7 +30,9 @@ export default async function AwardsPage() {
     const kind = r.instrumentKind as InstrumentKind;
     const issued = status === "ISSUED" || status === "ACCEPTED";
     const ret = r.awardReturn;
-    const back = ret ? returnComplete(kind, { ...ret, signedLetterReceivedOn: day(ret.signedLetterReceivedOn), declarationReceivedOn: day(ret.declarationReceivedOn), authorisationReceivedOn: day(ret.authorisationReceivedOn) }) : false;
+    // OD-5: counted with its scans, unless accepted before scans were required.
+    const scans = { required: scansRequired(r.status, r.returnScanSnapshot != null), attached: new Set(r.attachments.filter(isLive).map((a) => a.purpose as string)) };
+    const back = ret ? countedReturnComplete(kind, { ...ret, signedLetterReceivedOn: day(ret.signedLetterReceivedOn), declarationReceivedOn: day(ret.declarationReceivedOn), authorisationReceivedOn: day(ret.authorisationReceivedOn) }, scans) : false;
     const indent = kind === "WORK_INDENT" && today ? indentState(day(r.indentReceivedOn), policy?.indentValidityDays ?? null, today) : null;
     const secs = r.contract?.securities ?? [];
     const pols = r.contract?.policies ?? [];

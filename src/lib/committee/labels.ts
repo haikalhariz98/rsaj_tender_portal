@@ -252,3 +252,42 @@ export const WITHDRAW_FAULT_MESSAGE: Record<import("./matter").WithdrawFault, st
   HAS_DEPENDENTS: "Another matter on the agenda waits on this one, so it stays. Withdraw that matter first, or defer this one at the sitting.",
   REASON_REQUIRED: "Say why it is withdrawn.",
 };
+
+// ------------------------------------------------------------ signed minutes (FR-CTE-004)
+
+export type SignedMinutesState = "ATTACHED" | "OUTSTANDING" | "AFTER_MINUTING" | "CANCELLED";
+
+/**
+ * Where a sitting's signed minutes stand. They are attached once it is minuted (signing
+ * follows minuting, so minuting does not wait on them); a minuted sitting without a live
+ * signed copy shows it outstanding.
+ */
+export function signedMinutesState(status: string, liveSignedCopies: number): SignedMinutesState {
+  if (status === "CANCELLED") return "CANCELLED";
+  if (status !== "MINUTED") return "AFTER_MINUTING";
+  return liveSignedCopies > 0 ? "ATTACHED" : "OUTSTANDING";
+}
+
+export const SIGNED_MINUTES_LABEL: Record<SignedMinutesState, string> = {
+  ATTACHED: "Signed copy attached",
+  OUTSTANDING: "Signed copy outstanding",
+  AFTER_MINUTING: "Attached once the sitting is minuted",
+  CANCELLED: "None: the sitting was cancelled",
+};
+
+export const SIGNED_MINUTES_TONE: Record<SignedMinutesState, "ok" | "warn" | "neutral"> = {
+  ATTACHED: "ok",
+  OUTSTANDING: "warn",
+  AFTER_MINUTING: "neutral",
+  CANCELLED: "neutral",
+};
+
+/// The gate card's line on a cited decision's sitting (FR-REQ-012).
+export const GATE_MINUTES_NOTE: Record<SignedMinutesState, string> = {
+  ATTACHED: "minutes recorded as text, signed copy attached",
+  OUTSTANDING: "minutes recorded as text, signed copy outstanding",
+  AFTER_MINUTING: "minutes recorded as text, signed copy attached once minuted",
+  CANCELLED: "the sitting was cancelled",
+};
+
+export const MINUTES_EDITOR_DESCRIPTION = "The minutes as text. The signed copy is attached to the sitting once it is minuted.";

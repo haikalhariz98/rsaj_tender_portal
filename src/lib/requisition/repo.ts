@@ -5,6 +5,7 @@
  * see the same data (the pattern 6.10's sittings use).
  */
 
+import { liveAttachmentWhere } from "@/lib/documents/repo";
 import type { Tx } from "@/lib/audit/record";
 import type { BudgetCode as PureBudgetCode } from "@/lib/budget/codes";
 import { decisionRecord, type DecisionRecord } from "@/lib/committee/record";
@@ -137,7 +138,11 @@ const include = {
     orderBy: { committeeLabel: "asc" as const },
     include: {
       decisions: {
-        include: { meeting: { include: { committee: { select: { nameEn: true, code: true, carriedLabelEn: true } } } }, votes: { include: { person: { select: { name: true } } } } },
+        include: {
+          // The sitting's signed minutes, as the document store defines attached (FR-REQ-012 gate card).
+          meeting: { include: { committee: { select: { nameEn: true, code: true, carriedLabelEn: true } }, attachments: { where: liveAttachmentWhere("SIGNED_MINUTES"), select: { id: true } } } },
+          votes: { include: { person: { select: { name: true } } } },
+        },
       },
     },
   },

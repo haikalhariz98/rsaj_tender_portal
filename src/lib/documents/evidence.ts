@@ -11,7 +11,7 @@
 
 import type { AttachmentFact, AttachmentPurpose, Finding } from "./types";
 
-export const isLive = (a: Pick<AttachmentFact, "detachedAt" | "version">) => a.detachedAt == null && a.version.withdrawnAt == null;
+export const isLive = (a: { detachedAt: Date | null; version: { withdrawnAt: Date | null } }) => a.detachedAt == null && a.version.withdrawnAt == null;
 
 export function evidenceCount(attachments: readonly AttachmentFact[], purpose: AttachmentPurpose): number {
   return attachments.filter((a) => a.purpose === purpose && isLive(a)).length;

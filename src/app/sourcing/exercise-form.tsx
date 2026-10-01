@@ -12,6 +12,7 @@ import { AffixInput, Field, Input, Select, Textarea } from "@/components/ui/fiel
 import { formDataOf } from "@/components/ui/form-submit";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues } from "@/components/ui/stat";
+import { EVIDENCE_NOTE_HINT, SCOPE_NOTE_HINT } from "@/lib/method/labels";
 import type { Presented } from "@/lib/method/present";
 
 import { createExercise, updateExercise } from "./actions";
@@ -236,7 +237,7 @@ export function ExerciseForm({
                   required: true,
                   placeholder: reasons.length ? "Choose" : "No reasons configured",
                 })}
-                {text("evidenceNote", "Supporting evidence", { area: true, hint: "What exists and where. Documents cannot be attached in the portal yet, so this is not attached." })}
+                {text("evidenceNote", "Supporting evidence", { area: true, hint: EVIDENCE_NOTE_HINT })}
               </>
             )}
             {method?.requiresCoordinationRecord && (
@@ -245,7 +246,7 @@ export function ExerciseForm({
                 {text("coordinationMeetingOn", "Coordination meeting", { type: "date", required: true })}
                 {text("bqReference", "Bill of quantities reference", { mono: true })}
                 {text("coordinationAttendees", "Who attended", { area: true })}
-                {text("coordinationScopeNote", "Scope the meeting fixed", { area: true, hint: "The scope document itself is not attached: documents cannot be stored in the portal yet." })}
+                {text("coordinationScopeNote", "Scope the meeting fixed", { area: true, hint: SCOPE_NOTE_HINT })}
               </>
             )}
             {method && !method.requiresFreshSourcing && text("parentContractRef", "Parent contract", { required: true, mono: true, hint: "The contract this is called off. Its remaining capacity is not tracked until contracts are in the portal." })}

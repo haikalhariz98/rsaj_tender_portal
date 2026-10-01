@@ -2,7 +2,7 @@ import { RecordEditor, type Field } from "@/components/record-editor";
 import { Button, buttonClass } from "@/components/ui/button";
 import { ACT_LABEL, matterLabel } from "@/lib/labels";
 import matters from "@/lib/labels.json";
-import { MATTER_KIND_LABEL, MATTER_KINDS, NOT_APPROVED_KIND_LABEL } from "@/lib/committee/labels";
+import { MATTER_KIND_LABEL, MATTER_KINDS, MINUTES_EDITOR_DESCRIPTION, NOT_APPROVED_KIND_LABEL } from "@/lib/committee/labels";
 
 import {
   changeStatus,
@@ -159,7 +159,7 @@ export function EditMinutes({ meetingId, minutes }: { meetingId: string; minutes
   return (
     <RecordEditor
       title="Minutes"
-      description="The minutes as text. A signed copy cannot be attached yet: document storage is not built."
+      description={MINUTES_EDITOR_DESCRIPTION}
       fields={[
         { kind: "hidden", name: "meetingId" },
         { kind: "textarea", name: "minutes", label: "Minutes" },

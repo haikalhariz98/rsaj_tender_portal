@@ -63,6 +63,30 @@ export const ISSUER_KIND_LABEL = { BANK: "Bank", INSURER: "Insurer", TAKAFUL: "T
 export const CONTRACT_STATUS_LABEL = { NUMBER_ALLOCATED: "Number allocated", CANCELLED: "Cancelled — number kept as a gap" } as const;
 export const GATE_LABEL = { RETURNED: "Instrument returned signed", BOND: "Performance bond lodged and verified", INSURANCE: "Every required policy lodged and verified" } as const;
 export const GATE_STATE_LABEL = { MET: "Met", NOT_MET: "Not met", NOT_SET: "Not set" } as const;
+/// The scans a return is bound to (OD-5), and what an award accepted before them reads.
+export const RETURN_SCAN_LABEL = { SIGNED_LETTER: "the signed letter's scan", DECLARATION: "the signed declaration's scan", AUTHORISATION: "the letter of authorisation's scan", ACCEPTANCE_PAGE: "the acceptance page's scan" } as const;
+export const ACCEPTED_BEFORE_SCANS = "Accepted before scans were required";
+
+/// The return drawer's description (FR-AWD-003, 008; OD-5; BD-24).
+export const RETURN_DRAWER_NOTE = {
+  recording: "The day each item came back, as the paper shows it. An item counts once its scan is attached to the award; the return that completes the instrument, every item with its scan, moves the award to Accepted.",
+  correcting: "The award is accepted on this return. A correction is kept in the history with its reason, cannot leave the return incomplete, and needs the scan of the item it corrects.",
+} as const;
+
+/// The Return tab's attachments line: what is scanned, what is outstanding.
+export function returnScansText(i: { required: boolean; missing: readonly (keyof typeof RETURN_SCAN_LABEL)[]; attached: number }): { text: string; tone: "ok" | "warn" | "neutral" } {
+  if (!i.required) return { text: `${ACCEPTED_BEFORE_SCANS}${i.attached ? ` · ${i.attached} attached since` : ""}`, tone: "neutral" };
+  if (i.missing.length) return { text: `Received on paper, scan not attached: ${i.missing.map((m) => RETURN_SCAN_LABEL[m]).join(", ")}. An item counts once its scan is attached.`, tone: "warn" };
+  return i.attached ? { text: `Every item received has its scan attached (${i.attached})`, tone: "ok" } : { text: "Nothing received yet", tone: "neutral" };
+}
+
+/// The award tab and the award form, where a direct appointment's dossier has no evidence (replaces BD-4's copy).
+export const DOSSIER_EVIDENCE_NEEDED = {
+  title: "Attach the dossier evidence before it goes for approval",
+  body: "A direct appointment is approved only with its supporting evidence attached to the dossier. The award can be opened now and kept as a draft; it is sent for approval once at least one document is attached to the exercise's dossier evidence.",
+  short: "Record the awardee and the awarded value. It is sent for approval once the dossier has its evidence attached.",
+} as const;
+
 export const RETURN_ITEM_LABEL = { SIGNED_LETTER: "the signed letter", DECLARATION: "the signed successful bidder's declaration", AUTHORISATION: "the letter of authorisation" } as const;
 export const ACCEPTANCE_FAULT_LABEL = {
   RECEIVED_ON: "the day it was received",
@@ -166,7 +190,12 @@ export function awardFindingText(f: Finding): string {
     case "REQUESTER_ONLY":
       return d.messages ? String(d.messages) : "The requisition's requester is the only officer able to act for a step of the appointment's route, and nobody decides a step of a matter they raised. Record a delegation of that office to another officer under Users & roles, or have another officer raise the requisition.";
     case "EVIDENCE_NOT_ATTACHED":
-      return "A direct appointment is not approved without supporting evidence attached (its dossier), and the portal cannot store documents yet. This award cannot go for approval in the portal until it can; keep it as a draft, or cancel it.";
+      return "A direct appointment is not approved without supporting evidence attached to its dossier. Attach at least one document to the exercise's dossier evidence, then send the award for approval.";
+    // The dossier evidence the award was sent on (FR-MTD-009, scope ruling): re-checked at issue.
+    case "EVIDENCE_NOT_SNAPSHOTTED":
+      return "This direct appointment was sent for approval without a record of the evidence it was approved on, so it is not issued. Cancel this award and open it again: the new award is sent for approval on the evidence attached to the dossier.";
+    case "EVIDENCE_WITHDRAWN_SINCE_JUDGED":
+      return `“${d.title ?? "A document"}”${d.versionNo ? ` (version ${d.versionNo})` : ""}, part of the evidence this appointment was approved on, has since been withdrawn, so the award is not issued. Cancel this award and open it again, so the appointment is approved on the evidence that stands.`;
     // Close-out ruling CO-8: until 6.5 enforces it at invitation, at submission.
     case "NAME_NOT_REQUESTED":
       return "This method asks for approval of the name, and none has been requested (or the last request was withdrawn). Request it on the exercise's Name approval tab; the award goes for approval once the name is approved.";

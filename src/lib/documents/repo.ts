@@ -13,6 +13,13 @@ import { OWNER_COLUMN } from "./types";
 
 export type OwnerRef = { kind: OwnerKind; id: string };
 
+/**
+ * `isLive` as a query filter, for screens that list many owners at once: not detached,
+ * and its pinned version not withdrawn. The one definition of "attached" (plan §3) in
+ * database form; a module filters with this rather than writing its own.
+ */
+export const liveAttachmentWhere = (purpose: AttachmentPurpose) => ({ purpose, detachedAt: null, version: { withdrawnAt: null } });
+
 const factSelect = {
   id: true,
   purpose: true,

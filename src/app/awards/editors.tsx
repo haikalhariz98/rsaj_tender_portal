@@ -1,7 +1,7 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 
-import { INSURANCE_KIND_LABEL } from "@/lib/award/labels";
+import { INSURANCE_KIND_LABEL, RETURN_DRAWER_NOTE } from "@/lib/award/labels";
 
 import { Blocked } from "../requisitions/editors";
 import {
@@ -340,8 +340,8 @@ export function ReturnDrawer({ id, loa, values, people, correcting }: { id: stri
       title={correcting ? "Correct the return" : "Record what came back"}
       description={
         correcting
-          ? "The award is accepted on this return. A correction is kept in the history with its reason, and cannot leave the return incomplete."
-          : "On paper: nothing is attached. The return that completes the instrument moves the award to Accepted."
+          ? RETURN_DRAWER_NOTE.correcting
+          : RETURN_DRAWER_NOTE.recording
       }
       fields={[
         hidden("id"),

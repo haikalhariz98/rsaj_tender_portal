@@ -3,7 +3,14 @@
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
-import { auditedCreate, auditedDelete, auditedUpdate } from "@/lib/audit/record";
+import { diffFields } from "@/lib/audit/diff";
+import { auditedCreate, auditedDelete, auditedUpdate, writeAudit, type Tx } from "@/lib/audit/record";
+import { attachFault } from "@/lib/documents/attach";
+import { attached, filed } from "@/lib/documents/audit-view";
+import { documentFaultText, PURPOSE_LABEL } from "@/lib/documents/labels";
+import { lockDocument } from "@/lib/documents/service";
+import { blocking } from "@/lib/documents/types";
+import { RECOMMENDATION_NOT_ATTACHED } from "@/lib/people/labels";
 import { db } from "@/lib/db";
 import { periodsOverlap } from "@/lib/effective";
 import { faultsIn, type Delegation, type DelegationFault } from "@/lib/people/delegation";
@@ -248,6 +255,11 @@ const DELEGATION_FAULTS: Record<DelegationFault, { field: string; message: strin
     message:
       "They are recorded as away, so their authority has reverted upward. It is delegated again only on the absent holder's recommendation: record it, with its date.",
   },
+  ABSENT_GRANTOR_RECOMMENDATION_NOT_ATTACHED: {
+    // Shown against the recommendation, which the editor always carries.
+    field: "holderRecommendation",
+    message: RECOMMENDATION_NOT_ATTACHED,
+  },
   MANDATORY_ACT: {
     field: "capabilityCodes",
     message:
@@ -285,7 +297,8 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
     reasonMs: r.optionalText("reasonMs") ?? "",
     effectiveFrom: effectiveFrom!,
     effectiveTo,
-    // FR-APR-012: the absent holder's recommendation, recorded as text, not attached.
+    // FR-APR-012: the absent holder's recommendation, its summary as text; the signed
+    // copy is attached (OD-6, `recommendationVersionId`).
     holderRecommendation: r.optionalText("holderRecommendation"),
     holderRecommendedOn: r.date("holderRecommendedOn", "Recommended on"),
   };
@@ -361,11 +374,27 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
     noSubDelegation: true,
   };
 
+  // OD-6: the signed recommendation is attached in the same act as the delegation it
+  // grants (a version staged by the upload, its id in the form), or was attached since.
+  // A delegation recorded on text alone before attachments existed stands on its text.
+  const recommendationVersionId = r.optionalText("recommendationVersionId");
+  const before = id ? await db.delegation.findUnique({ where: { id }, include: { attachments: { where: { purpose: "HOLDER_RECOMMENDATION" }, select: { detachedAt: true, version: { select: { withdrawnAt: true } } } } } }) : null;
+  if (id && !before) return { ok: false, message: "That delegation no longer exists." };
+  const liveAttached = (before?.attachments ?? []).some((a) => a.detachedAt == null && a.version.withdrawnAt == null);
+  const recordedBeforeAttachments = !!before && !!before.holderRecommendation?.trim() && (before.attachments ?? []).length === 0;
+
   const faults = faultsIn(
     proposed,
     existing.map(asDelegation),
     held.map((c) => c.code),
-    { grantorHoldsOffice, officeHasMandatoryActs: mandatory > 0, grantorUnavailable: grantor ? !grantor.isAvailable : false, holderRecommendation: v.holderRecommendation },
+    {
+      grantorHoldsOffice,
+      officeHasMandatoryActs: mandatory > 0,
+      grantorUnavailable: grantor ? !grantor.isAvailable : false,
+      holderRecommendation: v.holderRecommendation,
+      recommendationAttached: liveAttached || !!recommendationVersionId,
+      recordedBeforeAttachments,
+    },
   );
   if (faults.length) {
     const errors: Record<string, string> = {};
@@ -384,16 +413,25 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
     reason: v.reason,
   };
 
-  if (!id) {
-    await auditedCreate(ctx, v, (tx) =>
-      tx.delegation.create({ data: { organisationId: orgId, ...v } }),
-    );
-  } else {
-    const before = await db.delegation.findUnique({ where: { id } });
-    if (!before) return { ok: false, message: "That delegation no longer exists." };
-    await auditedUpdate({ ...ctx, entityId: id }, before, v, (tx) =>
-      tx.delegation.update({ where: { id }, data: v }),
-    );
+  try {
+    await db.$transaction(async (tx) => {
+      let delegationId = id;
+      if (!id) {
+        const row = await tx.delegation.create({ data: { organisationId: orgId, ...v } });
+        await writeAudit(tx, { ...ctx, entityId: row.id }, "CREATE", diffFields(null, v));
+        delegationId = row.id;
+      } else {
+        await tx.$queryRaw`SELECT id FROM "Delegation" WHERE id = ${id} FOR UPDATE`;
+        const locked = await tx.delegation.findUniqueOrThrow({ where: { id } });
+        await tx.delegation.update({ where: { id }, data: v });
+        const changes = diffFields(locked, v);
+        if (changes.length) await writeAudit(tx, { ...ctx, entityId: id }, "UPDATE", changes);
+      }
+      if (recommendationVersionId) await attachRecommendation(tx, orgId, delegationId, recommendationVersionId);
+    });
+  } catch (e) {
+    if (e instanceof RecommendationRefused) return { ok: false, errors: { recommendationVersionId: e.message } };
+    throw e;
   }
 
   revalidatePath(PATH);
@@ -611,4 +649,31 @@ export async function endAssignment(_prev: FormState, data: FormData): Promise<F
 
   revalidatePath(PATH);
   return { ok: true };
+}
+
+class RecommendationRefused extends Error {}
+
+/**
+ * Attach the absent holder's signed recommendation (a staged or filed version) to the
+ * delegation, in the caller's transaction, with the delegation's row already written
+ * (and locked, on an edit). `attachFault` runs on what is read here; the attachment, the
+ * document's filing and their audit rows share the transaction.
+ */
+async function attachRecommendation(tx: Tx, orgId: string, delegationId: string, versionId: string) {
+  const v = await tx.documentVersion.findFirst({ where: { id: versionId, organisationId: orgId }, select: { id: true, documentId: true, versionNo: true, sha256: true, withdrawnAt: true } });
+  if (!v) throw new RecommendationRefused(documentFaultText({ code: "VERSION_UNKNOWN", level: "block" }));
+  await lockDocument(tx, v.documentId);
+  const doc = await tx.document.findUniqueOrThrow({ where: { id: v.documentId }, include: { documentClass: { select: { classification: true } } } });
+  const d = await tx.delegation.findUniqueOrThrow({ where: { id: delegationId }, select: { effectiveTo: true, fromPerson: { select: { name: true } }, toPerson: { select: { name: true } } } });
+  const already = await tx.documentAttachment.findFirst({ where: { delegationId, purpose: "HOLDER_RECOMMENDATION", detachedAt: null, version: { documentId: doc.id } }, select: { id: true } });
+  const faults = blocking(attachFault({ purpose: "HOLDER_RECOMMENDATION", owner: { kind: "delegation", ended: d.effectiveTo != null && d.effectiveTo < new Date() }, version: v, documentClass: doc.documentClass, documentClassification: doc.classificationSnapshot, alreadyAttached: !!already }));
+  if (faults.length) throw new RecommendationRefused(faults.map(documentFaultText).join(" "));
+  const owner = `Delegation · ${d.fromPerson.name} to ${d.toPerson.name}`;
+  const row = await tx.documentAttachment.create({ data: { organisationId: orgId, purpose: "HOLDER_RECOMMENDATION", versionId: v.id, delegationId } });
+  await writeAudit(tx, { organisationId: orgId, entity: "DocumentAttachment", entityId: row.id, entityLabel: `${owner} · ${PURPOSE_LABEL.HOLDER_RECOMMENDATION}` }, "CREATE",
+    attached({ purpose: "HOLDER_RECOMMENDATION", title: doc.title, versionNo: v.versionNo, sha256: v.sha256, owner }));
+  if (doc.status === "STAGED") {
+    await tx.document.update({ where: { id: doc.id }, data: { status: "FILED", filedAt: new Date() } });
+    await writeAudit(tx, { organisationId: orgId, entity: "Document", entityId: doc.id, entityLabel: `Document · ${doc.title}` }, "UPDATE", filed());
+  }
 }

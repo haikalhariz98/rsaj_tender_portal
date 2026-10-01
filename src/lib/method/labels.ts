@@ -225,13 +225,13 @@ export function findingText(f: Finding): string {
     case "REASON_UNKNOWN":
       return "That reason is not offered for this method.";
     case "EVIDENCE_NOT_ATTACHED":
-      return "Supporting evidence is not attached: documents cannot be stored in the portal yet. The evidence note records what exists; it is not a pass.";
+      return "Supporting evidence is not attached to the dossier. Attach it to the exercise's dossier evidence; the evidence note records what exists, and it is not a pass.";
     case "DOSSIER_UNNUMBERED":
       return "The justification dossier has no reference yet. It is numbered when the exercise moves into preparation.";
     case "COORDINATION_RECORD_REQUIRED":
       return "An emergency needs its trigger and the date of the coordination meeting that fixed the scope.";
     case "SCOPE_DOCUMENT_NOT_ATTACHED":
-      return "The scope document from the coordination meeting is not attached: documents cannot be stored in the portal yet.";
+      return "The scope document from the coordination meeting is not attached. Attach it to the exercise.";
     // contract-type.ts
     case "SCOPE_REQUIRED":
       return "Record at least one scope line: what is delivered, and its value.";
@@ -311,3 +311,12 @@ export function findingText(f: Finding): string {
 
 /// Faults, as one sentence each, with the cancel reason worded for its act.
 export const findingsText = (fs: readonly Finding[]) => fs.map(findingText);
+
+/// The exercise's evidence lines (FR-MTD-009, FR-REQ-013): what is attached, as the document store counts it.
+export function evidenceChip(count: number, what: "dossier" | "scope"): { text: string; tone: "ok" | "warn" } {
+  if (count > 0) return { text: count === 1 ? "1 document attached" : `${count} documents attached`, tone: "ok" };
+  return { text: what === "dossier" ? "Not attached" : "Scope document not attached", tone: "warn" };
+}
+
+export const EVIDENCE_NOTE_HINT = "What exists and where. The documents themselves are attached to the exercise's dossier evidence; this note is not a pass.";
+export const SCOPE_NOTE_HINT = "What the meeting fixed. The scope document itself is attached to the exercise.";

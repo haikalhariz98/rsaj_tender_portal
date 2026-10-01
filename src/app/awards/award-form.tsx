@@ -10,6 +10,7 @@ import { Callout } from "@/components/ui/feedback";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { formDataOf } from "@/components/ui/form-submit";
 import { KeyValues } from "@/components/ui/stat";
+import { DOSSIER_EVIDENCE_NEEDED } from "@/lib/award/labels";
 
 import { createAward } from "./actions";
 
@@ -29,8 +30,8 @@ export function AwardForm({ exercise, cancelHref, valueHint, dossier }: { exerci
       <input type="hidden" name="exerciseId" value={exercise.id} />
       {state.message && <Callout tone="err">{state.message}</Callout>}
       {dossier && (
-        <Callout tone="warn" title="It cannot yet be sent for approval">
-          A direct appointment is approved only with its supporting evidence attached to the dossier, and the portal cannot store documents yet. The award can be opened and kept as a draft.
+        <Callout tone="warn" title={DOSSIER_EVIDENCE_NEEDED.title}>
+          {DOSSIER_EVIDENCE_NEEDED.body}
         </Callout>
       )}
       <Card>

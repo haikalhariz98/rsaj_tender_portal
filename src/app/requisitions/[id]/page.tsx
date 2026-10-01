@@ -20,7 +20,7 @@ import { fieldLabel } from "@/lib/audit/diff";
 import { routeTone, stepTone } from "@/lib/ui/status-tone";
 import { issueDayFor, newerIssueNote, noIssueOnRaisedText } from "@/lib/authority/issue";
 import { loadIssue, loadMatrixVersion, loadOverrideMatrix, loadPinnedRule } from "@/lib/authority/load";
-import { MATTER_KIND_LABEL, OUTCOME_LABEL } from "@/lib/committee/labels";
+import { GATE_MINUTES_NOTE, MATTER_KIND_LABEL, OUTCOME_LABEL, signedMinutesState } from "@/lib/committee/labels";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { formatOrgDay, formatDate, formatRM, formatRouteBand } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL, condLabel } from "@/lib/labels";
@@ -1603,7 +1603,7 @@ function GatesCard({
                           <Link href={`/committees/${d.meetingId}`}>{d.meeting.reference}</Link> · {d.withdrawnAt ? "withdrawn from the agenda" : gateOutcomeLabel(rec, d.meeting.committee.carriedLabelEn)}
                           {rec ? ` · ${formatDate(rec.decisionDate ?? rec.meetingDate)}` : ""}
                           {decisive?.id === d.id ? " · decides the gate" : ""}
-                          {rec ? " · minutes recorded as text, signed copy not attached" : ""}
+                          {rec ? ` · ${GATE_MINUTES_NOTE[signedMinutesState(d.meeting.status, d.meeting.attachments.length)]}` : ""}
                         </li>
                       );
                     })}

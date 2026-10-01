@@ -10,6 +10,7 @@
 import { regimeFor } from "@/lib/authority/resolve";
 import type { DecisionRecord } from "@/lib/committee/record";
 import type { FunderContext } from "@/lib/method/approval";
+import { snapshotFaults } from "@/lib/documents/evidence";
 import { dossierFault } from "@/lib/method/justification";
 import type { Method } from "@/lib/method/types";
 import { commitmentFault, type CommitmentFault } from "@/lib/requisition/commitment";
@@ -136,6 +137,10 @@ export interface AwardFacts {
   contractSeriesKey: string | null;
   /// Whether the contract's insurance requirements include workmen's compensation.
   wcRequired: boolean;
+  /// The exercise's dossier evidence as the document store counts it, the pins the award
+  /// was sent for approval on, and which of those versions are withdrawn now. Not given:
+  /// none — never a pass (FR-MTD-009, scope ruling).
+  dossierEvidence?: { count: number; snapshot: unknown; withdrawnVersionIds: readonly string[] };
 }
 
 export interface DocumentPreview extends DocumentState {
@@ -219,7 +224,10 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
     otherAwards: f.otherAwards,
   });
   const noIssue: Finding[] = f.funder ? [] : [{ code: "NO_ISSUE_IN_FORCE", level: "block" }];
-  const dossier = { justificationReasonCode: f.exercise.justificationReasonCode, dossierReference: f.exercise.dossierReference, evidenceAttachments: 0 };
+  const dossier = { justificationReasonCode: f.exercise.justificationReasonCode, dossierReference: f.exercise.dossierReference, evidenceAttachments: f.dossierEvidence?.count ?? 0 };
+  // At issue the evidence the appointment was approved on must still stand: a dossier
+  // award with no snapshot, or one whose pinned version was since withdrawn, is refused.
+  const judgedOn = f.method?.requiresDossier ? snapshotFaults(f.dossierEvidence?.snapshot ?? null, new Set(f.dossierEvidence?.withdrawnVersionIds ?? []), true) : [];
   const submit: Finding[] = [
     ...noIssue,
     ...(route ? submitFaults({ status: a.status, today: f.today, exerciseStatus: f.exercise.status, openRoute: f.appointment?.status === "PENDING", method: f.method, dossier, route, nameRoutes: f.nameRoutes ?? [] }) : []),
@@ -300,7 +308,7 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
     instrument,
     valueFaults: [...noIssue, ...changed, ...valueFaults],
     // FR-MTD-009: re-checked at issue, as at submission.
-    dossierFaults: f.method ? dossierFault(f.method, dossier) : [],
+    dossierFaults: f.method ? [...dossierFault(f.method, dossier), ...judgedOn] : [],
     appointment: {
       status: f.appointment?.status ?? null,
       pendingStep: pending?.roleLabel ?? null,

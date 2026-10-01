@@ -23,9 +23,12 @@ export interface Delegation extends Effective {
   /// The same reason in Malay.
   reasonMs: string;
   noSubDelegation: boolean;
-  /// The absent holder's recommendation to re-delegate (FR-APR-012), as text. Not attached.
+  /// The absent holder's recommendation to re-delegate (FR-APR-012): its summary, as text.
+  /// The signed recommendation itself is a document attached to the delegation (OD-6).
   holderRecommendation?: string | null;
   holderRecommendedOn?: Date | null;
+  /// Whether the signed recommendation is attached, live (OD-6). Read for display.
+  recommendationAttached?: boolean;
 }
 
 export type DelegationStatus = "IN_FORCE" | "SCHEDULED" | "ENDED";
@@ -74,7 +77,8 @@ export type DelegationFault =
   | "UNBOUNDED"
   | "GRANTOR_DOES_NOT_HOLD"
   | "MANDATORY_ACT"
-  | "ABSENT_GRANTOR_NO_RECOMMENDATION";
+  | "ABSENT_GRANTOR_NO_RECOMMENDATION"
+  | "ABSENT_GRANTOR_RECOMMENDATION_NOT_ATTACHED";
 
 /**
  * What the caller knows about the office being delegated, beyond its capabilities.
@@ -90,6 +94,12 @@ export interface DelegationContext {
   grantorUnavailable?: boolean;
   /// The absent holder's recommendation to re-delegate, as recorded (FR-APR-012).
   holderRecommendation?: string | null;
+  /// Whether the signed recommendation is attached, live (OD-6). Not given: not looked
+  /// at, and the attachment rule stays silent, as every other optional fact here does.
+  recommendationAttached?: boolean;
+  /// A delegation recorded on a text recommendation before attachments existed: it
+  /// stands to its end date on the text, labelled, and may have the scan attached later.
+  recordedBeforeAttachments?: boolean;
 }
 
 /**
@@ -118,9 +128,11 @@ export function faultsIn(
   if (context.grantorHoldsOffice === false) faults.push("GRANTOR_DOES_NOT_HOLD");
 
   // FR-APR-012, DAL p.42: on a holder's absence authority reverts upward; it is passed
-  // down again only where the absent holder has recommended it. Recorded as text — the
-  // signed recommendation is not attached until there is document storage.
+  // down again only where the absent holder has recommended it — the summary as text,
+  // and (OD-6) the signed recommendation attached. One recorded on text alone before
+  // attachments existed stands.
   if (context.grantorUnavailable && !(context.holderRecommendation ?? "").trim()) faults.push("ABSENT_GRANTOR_NO_RECOMMENDATION");
+  if (context.grantorUnavailable && context.recommendationAttached === false && !context.recordedBeforeAttachments) faults.push("ABSENT_GRANTOR_RECOMMENDATION_NOT_ATTACHED");
 
   // A mandatory step cannot be delegated, skipped or substituted. Handing over the
   // whole office would hand over that step with it; a listed subset of capabilities

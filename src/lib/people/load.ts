@@ -1,3 +1,4 @@
+import { liveAttachmentWhere } from "@/lib/documents/repo";
 import type { Tx } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 
@@ -150,6 +151,8 @@ export interface StoredDelegation {
   /// The absent holder's recommendation to re-delegate (FR-APR-012), as text.
   holderRecommendation?: string | null;
   holderRecommendedOn?: Date | null;
+  /// Whether the signed recommendation is attached, live (OD-6).
+  recommendationAttached?: boolean;
 }
 
 export async function loadDelegations(organisationCode: string, client: Tx = db): Promise<StoredDelegation[]> {
@@ -162,6 +165,7 @@ export async function loadDelegations(organisationCode: string, client: Tx = db)
   const rows = await client.delegation.findMany({
     where: { organisationId: organisation.id },
     orderBy: { effectiveFrom: "desc" },
+    include: { attachments: { where: liveAttachmentWhere("HOLDER_RECOMMENDATION"), select: { id: true } } },
   });
 
   return rows.map((d) => ({
@@ -178,5 +182,6 @@ export async function loadDelegations(organisationCode: string, client: Tx = db)
     effectiveTo: d.effectiveTo,
     holderRecommendation: d.holderRecommendation,
     holderRecommendedOn: d.holderRecommendedOn,
+    recommendationAttached: d.attachments.length > 0,
   }));
 }

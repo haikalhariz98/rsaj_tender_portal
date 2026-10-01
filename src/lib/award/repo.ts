@@ -11,6 +11,8 @@
 import type { Tx } from "@/lib/audit/record";
 import type { DecisionRecord } from "@/lib/committee/record";
 import { dayToDate, storedDay } from "@/lib/dates";
+import { evidenceCount, isEvidenceSnapshot } from "@/lib/documents/evidence";
+import { attachmentFacts } from "@/lib/documents/repo";
 import { db } from "@/lib/db";
 import { approvedRouteOf, evaluationContext, exerciseOrg, loadExercise, type ExerciseOrg, type LoadedExercise } from "@/lib/method/repo";
 import { isBandSnapshot } from "@/lib/method/snapshot";
@@ -65,6 +67,8 @@ export const awardInclude = {
   },
   signatoryPerson: { select: { id: true, name: true } },
   variant: { select: { id: true, nameEn: true } },
+  // Return scans (OD-5), live and past; "attached" is `isLive`.
+  attachments: { select: { id: true, purpose: true, detachedAt: true, version: { select: { withdrawnAt: true } } }, orderBy: { attachedAt: "asc" as const } },
 };
 
 /// A committee matter as the routing sheet may cite it: only through `decisionRecord()`,
@@ -233,6 +237,7 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
   const reqRoute = req.approvalInstances.find((i) => i.domain === "requisition") ?? null;
   const reqSteps = reqRoute ? await client.approvalStep.findMany({ where: { instanceId: reqRoute.id }, select: { sequence: true, roleLabel: true, decision: true } }) : [];
   const approved = approvedRouteOf({ approvalInstances: req.approvalInstances.filter((i) => i.domain === "requisition") });
+  const dossierEvidence = await dossierEvidenceOf(ex.id, award.dossierEvidenceSnapshot, client);
 
   const facts: AwardFacts = {
     today: org.today,
@@ -309,11 +314,23 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
     indentPattern: config.indentFormat?.pattern ?? null,
     contractSeriesKey: contractType?.contractSeriesKey ?? null,
     wcRequired: applicableRequirements(config.requirements, ex.contractTypeCode).some((r) => r.kind === "WORKMENS_COMPENSATION"),
+    dossierEvidence,
   };
   return { facts, issue, cfg, config, method, roster, delegations, unitPath, holdersOf, contractType, org: org as ExerciseOrg };
 }
 
 export type AwardFactsResult = Awaited<ReturnType<typeof awardFacts>>;
+
+/**
+ * The exercise's dossier evidence as the document store counts it, and — for the pins
+ * the award was sent for approval on — which versions have been withdrawn since.
+ */
+export async function dossierEvidenceOf(exerciseId: string, snapshot: unknown, client: Tx = db) {
+  const attachments = await attachmentFacts({ kind: "exercise", id: exerciseId }, client, ["DOSSIER_EVIDENCE"]);
+  const pinned = isEvidenceSnapshot(snapshot) ? snapshot.pins.map((p) => p.versionId) : [];
+  const withdrawn = pinned.length ? await client.documentVersion.findMany({ where: { id: { in: pinned }, withdrawnAt: { not: null } }, select: { id: true } }) : [];
+  return { count: evidenceCount(attachments, "DOSSIER_EVIDENCE"), snapshot, withdrawnVersionIds: withdrawn.map((w) => w.id), attachments };
+}
 
 /// The exercise's committee matters, for citing on a committee step.
 export async function exerciseMatters(exerciseId: string, client: Tx = db) {
@@ -342,6 +359,7 @@ export async function listAwards() {
         exercise: { select: { id: true, reference: true, title: true, regime: true } },
         contract: { select: { number: true, securities: { select: { status: true, kind: true } }, policies: { select: { status: true } } } },
         awardReturn: true,
+        attachments: { select: { purpose: true, detachedAt: true, version: { select: { withdrawnAt: true } } } },
         approvalInstances: { select: { status: true, domain: true, openedAt: true, createdAt: true }, orderBy: { openedAt: "desc" } },
       },
     }),

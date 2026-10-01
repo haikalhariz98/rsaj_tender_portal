@@ -4,6 +4,7 @@ import { SPEC_METHODS } from "@/lib/method/fixture";
 import { parseSen } from "@/lib/money";
 
 import { evaluateAward, type AwardFacts } from "./evaluate";
+import { awardFindingText } from "./labels";
 import { AWARD_MATRIX } from "./fixture";
 
 const tender = SPEC_METHODS.find((m) => m.code === "open_tender")!;
@@ -129,5 +130,41 @@ describe("evaluating an award", () => {
   it("a workmen's compensation requirement with no basis set on the award refuses issue", () => {
     expect(evaluateAward(facts({ wcRequired: true })).issueFaults.map((x) => x.code)).toEqual(["WC_BASIS_REQUIRED"]);
     expect(evaluateAward(facts({ wcRequired: true, award: { ...facts().award, wcBasis: "UNCOVERED_WAGES" } })).issueFaults).toEqual([]);
+  });
+});
+
+describe("FR-MTD-009 with the document store: the dossier's evidence, counted and snapshotted", () => {
+  const direct = SPEC_METHODS.find((m) => m.requiresDossier)!;
+  const dossierEx = { ...facts().exercise, justificationReasonCode: "SOLE_DISTRIBUTOR", dossierReference: "DA/1" };
+  const pin = { attachmentId: "a1", documentId: "d1", versionId: "v1", versionNo: 1, sha256: "a".repeat(64), title: "OEM sole distributor letter", purpose: "DOSSIER_EVIDENCE" };
+  const snapshot = { v: 1, purposes: ["DOSSIER_EVIDENCE"], takenOn: "2026-09-15", pins: [pin] };
+  const codesOf = (x: Partial<AwardFacts>) => evaluateAward(facts({ method: direct, exercise: dossierEx, ...x })).issueFaults.map((f) => f.code);
+
+  it("one live attachment, sent for approval on it and still standing: nothing from the dossier refuses issue", () => {
+    const codes = codesOf({ dossierEvidence: { count: 1, snapshot, withdrawnVersionIds: [] } });
+    expect(codes).not.toContain("EVIDENCE_NOT_ATTACHED");
+    expect(codes).not.toContain("EVIDENCE_NOT_SNAPSHOTTED");
+    expect(codes).not.toContain("EVIDENCE_WITHDRAWN_SINCE_JUDGED");
+  });
+  it("a dossier award with no snapshot is refused at issue, naming cancel and reopen", () => {
+    const ev = evaluateAward(facts({ method: direct, exercise: dossierEx, dossierEvidence: { count: 1, snapshot: null, withdrawnVersionIds: [] } }));
+    const f = ev.issueFaults.find((x) => x.code === "EVIDENCE_NOT_SNAPSHOTTED")!;
+    expect(f).toBeTruthy();
+    expect(awardFindingText(f)).toMatch(/Cancel this award and open it again/);
+  });
+  it("a snapshotted version withdrawn since refuses issue, naming the document and cancel and reopen", () => {
+    const ev = evaluateAward(facts({ method: direct, exercise: dossierEx, dossierEvidence: { count: 1, snapshot, withdrawnVersionIds: ["v1"] } }));
+    const f = ev.issueFaults.find((x) => x.code === "EVIDENCE_WITHDRAWN_SINCE_JUDGED")!;
+    expect(awardFindingText(f)).toMatch(/OEM sole distributor letter/);
+    expect(awardFindingText(f)).toMatch(/Cancel this award and open it again/);
+  });
+  it("submission passes on one live attachment and refuses on none", () => {
+    const draft = { ...facts().award, status: "DRAFT" as const };
+    const sub = (count: number) => evaluateAward(facts({ method: direct, exercise: dossierEx, award: draft, appointment: null, dossierEvidence: { count, snapshot: null, withdrawnVersionIds: [] } })).submitFaults.map((x) => x.code);
+    expect(sub(1)).not.toContain("EVIDENCE_NOT_ATTACHED");
+    expect(sub(0)).toContain("EVIDENCE_NOT_ATTACHED");
+  });
+  it("a method that keeps no dossier asks nothing of the snapshot", () => {
+    expect(evaluateAward(facts({ dossierEvidence: { count: 0, snapshot: null, withdrawnVersionIds: [] } })).issueFaults).toEqual([]);
   });
 });

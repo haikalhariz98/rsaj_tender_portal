@@ -98,3 +98,67 @@ export function instrumentReturned(kind: InstrumentKind, r: { signedLetterReceiv
   // An acceptance page is back once its received day or its signatory is recorded.
   return kind === "LETTER_OF_ACCEPTANCE" ? !!r.signedLetterReceivedOn : !!r.signedLetterReceivedOn || !!r.signatoryName.trim();
 }
+
+// ------------------------------------------------------------- return scans (OD-5)
+
+/// The scan each returned item is bound to (NFR-SIG-002): one per item of a Letter of
+/// Acceptance's return, the acceptance page for an appointment letter.
+export type ReturnScan = "SIGNED_LETTER" | "DECLARATION" | "AUTHORISATION" | "ACCEPTANCE_PAGE";
+
+export const RETURN_SCANS: Readonly<Record<InstrumentKind, readonly ReturnScan[]>> = {
+  LETTER_OF_ACCEPTANCE: ["SIGNED_LETTER", "DECLARATION", "AUTHORISATION"],
+  WORK_INDENT: ["ACCEPTANCE_PAGE"],
+};
+
+const ITEM_DAY: Readonly<Record<ReturnItem, "signedLetterReceivedOn" | "declarationReceivedOn" | "authorisationReceivedOn">> = {
+  SIGNED_LETTER: "signedLetterReceivedOn",
+  DECLARATION: "declarationReceivedOn",
+  AUTHORISATION: "authorisationReceivedOn",
+};
+
+const ACCEPTANCE_FIELDS: readonly (keyof ReturnRecord)[] = [
+  "signedLetterReceivedOn", "signatoryName", "icNumber", "occupation", "address", "capacity", "contractorSigned", "stampAffixed", "witnessName", "witnessSigned",
+];
+
+const pageRecorded = (r: ReturnRecord) => ACCEPTANCE_FIELDS.some((k) => r[k] != null && r[k] !== "");
+
+/**
+ * Whether return scans are required of this award (OD-5): of every award not ACCEPTED
+ * when the document store landed. An award accepted before then has no scan snapshot,
+ * and is labelled "accepted before scans were required"; it is never re-judged.
+ */
+export function scansRequired(status: string, hasScanSnapshot: boolean): boolean {
+  return !(status === "ACCEPTED" && !hasScanSnapshot);
+}
+
+/// The items recorded as received whose scan is not attached.
+export function scansMissing(kind: InstrumentKind, r: ReturnRecord, attached: ReadonlySet<string>): ReturnScan[] {
+  if (kind === "WORK_INDENT") return pageRecorded(r) && !attached.has("ACCEPTANCE_PAGE") ? ["ACCEPTANCE_PAGE"] : [];
+  return (Object.keys(ITEM_DAY) as ReturnItem[]).filter((i) => !!r[ITEM_DAY[i]] && !attached.has(i));
+}
+
+/**
+ * Whether the return is complete as it counts (OD-5): every item received, and — where
+ * scans are required — each with its scan attached. The paper's received days still
+ * decide `instrumentReturned` (BD-17); this decides completeness and acceptance.
+ */
+export function countedReturnComplete(kind: InstrumentKind, r: ReturnRecord, scans: { required: boolean; attached: ReadonlySet<string> }): boolean {
+  if (!returnComplete(kind, r)) return false;
+  return !scans.required || scansMissing(kind, r, scans.attached).length === 0;
+}
+
+/**
+ * A correction to an accepted award's return (BD-24) needs a scan only for the item it
+ * corrects: an item whose received day changed (Letter of Acceptance), or the acceptance
+ * page if any of its fields changed. Returned: the corrected items with no scan attached.
+ */
+export function correctionScansMissing(kind: InstrumentKind, before: ReturnRecord, after: ReturnRecord, attached: ReadonlySet<string>): ReturnScan[] {
+  if (kind === "WORK_INDENT") {
+    const changed = ACCEPTANCE_FIELDS.some((k) => (before[k] ?? "") !== (after[k] ?? ""));
+    return changed && pageRecorded(after) && !attached.has("ACCEPTANCE_PAGE") ? ["ACCEPTANCE_PAGE"] : [];
+  }
+  return (Object.keys(ITEM_DAY) as ReturnItem[]).filter((i) => {
+    const k = ITEM_DAY[i];
+    return (before[k] ?? null) !== (after[k] ?? null) && !!after[k] && !attached.has(i);
+  });
+}
