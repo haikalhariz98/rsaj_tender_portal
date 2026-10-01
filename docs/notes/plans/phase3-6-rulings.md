@@ -88,3 +88,55 @@ the annexes (ADR 0025). 18. B2 built as a mechanism though the spec says "cannot
 6.15: D6 and SK002 §7.7; registration approval authority and value basis (OQ-07); OD-4; OD-5; OD-6 consequence; blacklisting
 authority and first-offence period; CIDB/MOF lists as seed. 6.12: OD-3 (B8); WC basis (D4); controlled-copy list; legal office.
 6.13: OD-A2, OD-A6, OD-A5, OD-A4, OD-A7; B2 eligibility and percentage; OD-B2; D2 for Part B. 6.14: OD-3 calendar or working days.
+
+# Rulings — plans 6.16, 6.17 and the DataList SULIT guard (product owner, 2026-10-01)
+
+**Build order (amended):** DataList SULIT guard and the 6.2 OD-8 list close-out (now) → Phase 2 rest → 6.15a → 6.12 → 6.14 inc 1 →
+6.13 Part A → 6.14 inc 2 → 6.13 Part B → Phase 6 (6.16 → 6.17 inc 1 → 6.17 inc 2; Phase 6 acceptance = 6.17 inc 2).
+**ADRs:** 0026 (6.16), 0027 reports as live read models, 0028 case extract (6.17); the full 6.13 Part B plan takes 0029 and up.
+
+## DataList SULIT guard — lands now, one design-system commit
+The gap is live: `/sourcing` and `/requisitions` show the department-estimate value (SULIT per 6.2 OD-8) in plain, exportable columns,
+and the dashboard shows it too. A column flag `sulit: true` puts the SULIT chip ("not restricted until sign-in") in the header and
+removes Export from that list (search, filters, sort stay). No audited client export before sign-in; files that must leave are built
+on the server and recorded (6.17 §4). Test keyed on a SULIT-field registry (requisition and exercise estimated values, company estimate,
+opening prices, corrected prices, scores, cprPercent): a source scan over `src/app` fails if any reaches a DataList row unflagged; a
+component test checks a flagged column means no Export button. Dashboard value chipped in the same commit.
+
+## 6.16 Contractor performance — approve with conditions
+OD-1 A (6.14 certificate kind); OD-2 A narrowly: the stored 4-place total is judged and shown as stored on 6.16 and the 6.8 CPR input
+only; `formFaults` adds TOTAL_NOT_EXACT (refuses forms whose totals are not exact at 4 places); OD-3 A; OD-4 overridden to a switch
+`PerformancePolicy.ladReportBasis` (RATE_OF_RECORD | FORM_FORMULA) null, both figures always shown, null refuses the assessor's
+signature only where the totals differ to the sen; form percentage is `PerformanceForm.ladDailyPct` (null; 0.025% fixture only); tests
+pin 8,081.31 (formula, rounded once at total) and 8,081.40 (rate of record 269.38 × 30); step 0 confirms the workbook S36/R38 cells have
+no ROUND; correct the plan's rule-1 table row. OD-5 A ASSUMED (days from LAD lines on issued certificates; waived shown apart). OD-6 A.
+OD-7 switch with NOT_SCORED_WITH_REASON only, null; EXTERNAL_REPORT not built; not-scored reads "Not assessed" in 6.8, never 0 or Gagal;
+stage verdict NOT_ASSESSED. OD-8 switch null; classification snapshotted per report. OD-9 A. OD-10 A ("Verifier's office not checked:
+rule not set" printed). OD-11 A.
+Conditions: step 0 confirms the DataList guard and re-checks 6.13 B interfaces (its full plan ruled first); ADR 0026; test-only fixture
+of the seven RSAJ forms where the sources hold them, all issue clean, IT form passes FR-CPR-004's three cases at 0.15/0.075; new
+CertificateKind reaches every list/total in its own commit, test proves a filed report changes no payment/retention/LAD figure; 6.8,
+6.13 B, 6.15 hooks each own flagged commit, new tests only; go-live: classification, forms, category rules, verifier offices set before
+any contract reaches a stage (FR-FIN-014); standard gates.
+
+## 6.17 Reporting — approve with conditions
+OD-1 A (FR-APR-018 partial S); OD-2 A new ApprovalTarget per step; OD-3 A (savings off `/reports` until sign-in: count and links only);
+OD-4 B (named votes on the committee's own report page and Board export only); OD-5 A; OD-6 A; OD-7 switch null; OD-8 A live queries;
+OD-9 A (no budget year → ask); OD-10 as listed, question to the Head of C&P.
+Conditions: NFR-SEC-001 logged partial Must; the sealed-figure scan over `src/lib/reports/**` lists `case-extract.ts` as its one
+exception with the reason; performance and vendor tabs follow each report's stored classification ("SULIT: on the supplier's record");
+a stage covered by a 6.14 routing target takes no CycleStageTarget (test); the extract screen says the digest is in the same database
+with no outside anchor; ADRs 0027, 0028; spend built last or deferred with a log line; the R5 test stays; standard gates.
+
+## Founder's end-of-build list (continuing)
+25. Non-SULIT list exports remain unaudited browser downloads — audit all exports? 26. Dashboard estimated value chipped — remove it
+instead? 27. 6.16 OD-4 LAD basis switch overrides the plan; unset blocks most reports with LAD days. 28. 6.16 OD-2 CPR at stored
+precision (exception to E-5). 29. 6.16 OD-7 no external-report path. 30. FR-CPR-006 signatures wait for sign-in; verifier seniority
+unchecked. 31. Contract closure depends on performance configuration. 32. 6.17 no automatic escalation. 33. Savings off /reports until
+sign-in. 34. Named votes on the committee report and Board export (joins vote secrecy). 35. Case extract readable by anyone until sign-in.
+36. Case-extract tamper evidence is a digest in the same database; SULIT bytes left out.
+
+## Questions to RSAJ
+6.16: the seven forms, SA-G guides and bands as seed; OD-4; OD-5; OD-7; OD-8; the "more than one year" threshold; verifier offices;
+contract-type/classification → form mapping; operative language per category. 6.17: D14 service levels; stage targets; OD-7 forecast;
+OD-10 dimensions; OQ-17 commitment figure; "missing statutory documents".
