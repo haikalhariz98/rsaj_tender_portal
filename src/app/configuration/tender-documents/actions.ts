@@ -30,6 +30,7 @@ const PROVENANCE_WORDS: Record<(typeof PROVENANCE)[number], string> = { STATED: 
 const PATH = "/configuration/tender-documents";
 const NO_ORG: FormState = { ok: false, message: "No organisation is configured. Run npm run setup before adding records." };
 const GONE: FormState = { ok: false, message: "That record no longer exists. Reload the page." };
+const RESTORE_NO_ZONE: FormState = { ok: false, message: "The organisation's time zone is not set, so whether another live part already takes this one's role cannot be judged. Set it under Configuration, Organisation, then restore the part." };
 const TRI = ["yes", "no", "unset"] as const;
 const tri = (v: string | null): boolean | null => (v === "yes" ? true : v === "no" ? false : null);
 const prov = (p: string | null | undefined) => (p ? (PROVENANCE_WORDS[p as (typeof PROVENANCE)[number]] ?? NOT_SET) : NOT_SET);
@@ -160,7 +161,9 @@ export async function restoreTenderPart(_prev: FormState, data: FormData): Promi
     await lockOrganisation(tx, org.id);
     const before = await tx.tenderDocumentPart.findFirst({ where: { id, organisationId: org.id } });
     if (!before) return GONE;
+    // Whether another live part takes the role is judged on the organisation's day; unset blocks, never UTC's day.
     const today = todayIn(new Date(), org.timeZone);
+    if (!today) return RESTORE_NO_ZONE;
     const others = await tx.tenderDocumentPart.findMany({ where: { organisationId: org.id } });
     const [bases, templates, units] = [
       await tx.contractBasis.findMany({ where: { organisationId: org.id }, select: { code: true } }),
@@ -168,7 +171,7 @@ export async function restoreTenderPart(_prev: FormState, data: FormData): Promi
       await tx.orgUnit.findMany({ where: { organisationId: org.id }, select: { code: true } }),
     ];
     // Restoring must not put two live parts in one role at one reach.
-    const clash = partConfigFaults({ ...before, provenance: before.provenance as Provenance, id }, { others: others.map((o) => ({ ...o, retiredOn: o.retiredOn ? storedDay(o.retiredOn) : null })), bases: bases.map((b) => b.code), templates: templates.map((t) => t.code), units: units.map((u) => u.code), today: today ?? storedDay(new Date()) });
+    const clash = partConfigFaults({ ...before, provenance: before.provenance as Provenance, id }, { others: others.map((o) => ({ ...o, retiredOn: o.retiredOn ? storedDay(o.retiredOn) : null })), bases: bases.map((b) => b.code), templates: templates.map((t) => t.code), units: units.map((u) => u.code), today });
     const role = clash.find((f) => f.code === "ROLE_TAKEN");
     if (role) return { ok: false, message: PART_CONFIG_FAULT_TEXT.ROLE_TAKEN };
     await tx.tenderDocumentPart.update({ where: { id }, data: { retiredOn: null } });

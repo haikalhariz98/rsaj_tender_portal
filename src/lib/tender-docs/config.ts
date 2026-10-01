@@ -128,6 +128,31 @@ export function policyFaultText(f: Finding<PolicyFault>): string {
   return POLICY_FAULT_TEXT[f.code];
 }
 
+/**
+ * Whether a configured part is retired on the organisation's day: retired from that day or
+ * earlier (a pack started that day does not take it, as `resolveComposition` reads it).
+ * The day is the organisation's, never UTC's: with its time zone unset there is no day, so
+ * a part with a retirement day cannot be judged and reads `null` (not known), never a guess.
+ */
+export function partRetiredOn(retiredOn: string | null, today: string | null): boolean | null {
+  if (retiredOn == null) return false;
+  if (today == null) return null;
+  return retiredOn <= today;
+}
+
+/**
+ * How many settings hold work back (62-C4's rule for the header): a method in use whose
+ * document pack is not set (its exercises cannot move into preparation), and a part not
+ * retired whose "mandatory" is not set (a pack on it cannot be submitted). A part whose
+ * retirement cannot be judged (time zone unset) is counted: it may still hold work back.
+ */
+export function configHoldingWorkBack(methods: readonly { retired: boolean; documentPackKind: string | null }[], parts: readonly { retiredOn: string | null; mandatory: boolean | null }[], today: string | null): number {
+  return methods.filter((m) => !m.retired && m.documentPackKind == null).length + parts.filter((p) => partRetiredOn(p.retiredOn, today) !== true && p.mandatory == null).length;
+}
+
+/// Said where the organisation's day is needed and its time zone is not set (names the setting).
+export const CONFIG_TIME_ZONE_NOT_SET = "The organisation's time zone is not set, so whether a part's retirement has taken effect cannot be judged. Set it under Configuration, Organisation.";
+
 /// A method's document pack, as saved: the kind and where that answer comes from, or not set.
 export function methodPackFault(kind: string | null, provenance: string | null): Finding<"PROVENANCE_REQUIRED"> | null {
   return kind != null && !provenance ? { code: "PROVENANCE_REQUIRED", level: "block", data: { field: "documentPackKindProvenance" } } : null;

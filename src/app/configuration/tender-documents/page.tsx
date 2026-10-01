@@ -136,6 +136,11 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
             {c.empty}
           </Callout>
         )}
+        {c.timeZoneNotSet && (
+          <Callout tone="warn" title="Time zone not set">
+            {c.timeZoneNotSet}
+          </Callout>
+        )}
 
         <Card id="policy" className="scroll-mt-24">
           <CardHeader

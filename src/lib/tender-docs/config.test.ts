@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
-import { methodPackFault, partConfigFaults, policyFaults } from "./config";
+import { configHoldingWorkBack, methodPackFault, partConfigFaults, partRetiredOn, policyFaults } from "./config";
 import { SK001_TENDER_PARTS } from "./sk001-fixture";
 
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
@@ -49,5 +52,47 @@ describe("the policy, as saved", () => {
     expect(methodPackFault("TENDER", null)?.code).toBe("PROVENANCE_REQUIRED");
     expect(methodPackFault("TENDER", "ASSUMED")).toBeNull();
     expect(methodPackFault(null, null)).toBeNull();
+  });
+});
+
+describe("retirement and the header count, on the organisation's day (carry b)", () => {
+  it("retired from the day itself or earlier; a later day is still live", () => {
+    expect(partRetiredOn(null, "2026-10-01")).toBe(false);
+    expect(partRetiredOn("2026-10-01", "2026-10-01")).toBe(true);
+    expect(partRetiredOn("2026-09-30", "2026-10-01")).toBe(true);
+    expect(partRetiredOn("2026-10-02", "2026-10-01")).toBe(false);
+  });
+  it("07:30 in Kuala Lumpur on 1 October is still 30 September in UTC: the organisation's day decides", () => {
+    // The caller passes todayIn(now, zone); UTC's day would read the part as still live.
+    expect(partRetiredOn("2026-10-01", "2026-10-01")).toBe(true);
+    expect(partRetiredOn("2026-10-01", "2026-09-30")).toBe(false);
+  });
+  it("with the time zone unset a part with a retirement day is not judged, never guessed", () => {
+    expect(partRetiredOn("2026-10-01", null)).toBeNull();
+    expect(partRetiredOn(null, null)).toBe(false);
+  });
+  it("counts methods with no pack set and live parts with mandatory not set; a part not judged counts", () => {
+    const methods = [{ retired: false, documentPackKind: null }, { retired: true, documentPackKind: null }, { retired: false, documentPackKind: "TENDER" }];
+    const parts = [
+      { retiredOn: null, mandatory: null },
+      { retiredOn: "2026-10-01", mandatory: null },
+      { retiredOn: "2026-10-02", mandatory: null },
+      { retiredOn: null, mandatory: true },
+    ];
+    expect(configHoldingWorkBack(methods, parts, "2026-10-01")).toBe(1 + 2);
+    expect(configHoldingWorkBack(methods, parts, "2026-09-30")).toBe(1 + 3);
+    expect(configHoldingWorkBack(methods, parts, null)).toBe(1 + 3);
+  });
+  it("the screen and the restore act read the organisation's day, never UTC's, and the act blocks when it is unset", () => {
+    const read = readFileSync(join(process.cwd(), "src/lib/tender-docs/read.ts"), "utf8");
+    const config = read.slice(read.indexOf("export async function tenderDocsConfig"));
+    expect(config).toMatch(/todayIn\(new Date\(\), org\.timeZone\)/);
+    expect(config).not.toMatch(/storedDay\(new Date\(\)\)/);
+    expect(config).toMatch(/configHoldingWorkBack\(/);
+    const acts = readFileSync(join(process.cwd(), "src/app/configuration/tender-documents/actions.ts"), "utf8");
+    const restore = acts.slice(acts.indexOf("export async function restoreTenderPart"), acts.indexOf("// ---", acts.indexOf("export async function restoreTenderPart")));
+    expect(restore).toMatch(/if \(!today\) return RESTORE_NO_ZONE;/);
+    expect(restore).not.toMatch(/storedDay\(new Date\(\)\)/);
+    expect(acts).toMatch(/RESTORE_NO_ZONE: FormState = \{ ok: false, message: "The organisation's time zone is not set,[^"]*Set it under Configuration, Organisation/);
   });
 });

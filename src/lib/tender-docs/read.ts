@@ -6,7 +6,7 @@
  * lock, so a disabled button and a refused post give the same reason. Reads only.
  */
 
-import { dayToDate, storedDay } from "@/lib/dates";
+import { dayToDate, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { ACT_LABEL } from "@/lib/labels";
@@ -26,6 +26,7 @@ import { renderedText, renderWith } from "@/lib/templates/merge";
 import { APPENDIX_FIELD_LABEL, appendixComplete, appendixFaults, ladDaily, type AppendixFacts } from "./appendix";
 import { BEHAVIOURS_AFTER_AWARD, BEHAVIOURS_CHECKED_HERE, behaviourFaults } from "./behaviour";
 import { formLabel, resolveComposition } from "./composition";
+import { CONFIG_TIME_ZONE_NOT_SET, configHoldingWorkBack, partRetiredOn } from "./config";
 import { PACK_WHITELIST, packFieldValues } from "./fields";
 import { appendixText, packManifest, unpricedBqText } from "./freeze";
 import {
@@ -434,10 +435,12 @@ export async function tenderDocsConfig(showRetired = false) {
     db.documentTemplate.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { code: true, nameEn: true, bodyVersion: true } }),
     db.orgUnit.findMany({ where: { organisationId: org.id }, orderBy: { nameEn: "asc" }, select: { code: true, nameEn: true } }),
   ]);
-  const today = storedDay(new Date());
+  // The organisation's day, never UTC's: unset zone leaves a retirement not judged, and says so.
+  const today = todayIn(new Date(), org.timeZone);
+  const retired = (p: { retiredOn: string | null }) => partRetiredOn(p.retiredOn, today);
   const basisName = (code: string | null) => (code ? (bases.find((b) => b.code === code)?.nameEn ?? "A basis no longer configured") : "Every basis");
   const groups = (["TENDER", "QUOTATION"] as const).map((k) => {
-    const rows = parts.filter((p) => p.packKind === k && (showRetired || p.retiredOn == null || p.retiredOn > today));
+    const rows = parts.filter((p) => p.packKind === k && (showRetired || retired(p) !== true));
     return {
       packKind: PACK_KIND_LABEL[k],
       byBasis: [...new Set(rows.map((r) => r.contractBasisCode ?? ""))].sort().map((b) => ({
@@ -455,7 +458,7 @@ export async function tenderDocsConfig(showRetired = false) {
           preparedBy: r.ownerOrgUnitCode ? (units.find((u) => u.code === r.ownerOrgUnitCode)?.nameEn ?? "An office no longer configured") : NOT_SET,
           provenance: provenance(r.provenance),
           governingSource: r.governingSource || null,
-          retired: r.retiredOn != null && r.retiredOn <= today,
+          retired: retired(r) === true,
           raw: { ...r, retiredOn: r.retiredOn },
         })),
       })),
@@ -464,10 +467,12 @@ export async function tenderDocsConfig(showRetired = false) {
   // Settings whose absence holds work back (62-C4's rule for headers): a method with its pack
   // not set blocks its exercises' move into preparation; a part with "mandatory" not set blocks submission.
   const methodRows = methods.map((m) => ({ id: m.id, name: m.nameEn, documentPack: m.documentPackKind ? PACK_KIND_LABEL[m.documentPackKind] : NOT_SET, provenance: provenance(m.documentPackKindProvenance), retired: m.retiredOn != null, raw: { documentPackKind: m.documentPackKind ?? "unset", documentPackKindProvenance: m.documentPackKindProvenance ?? "" } }));
-  const holdingWorkBack = methodRows.filter((m) => !m.retired && m.documentPack === NOT_SET).length + parts.filter((p) => (p.retiredOn == null || p.retiredOn > today) && p.mandatory == null).length;
+  const holdingWorkBack = configHoldingWorkBack(methods.map((m) => ({ retired: m.retiredOn != null, documentPackKind: m.documentPackKind })), parts, today);
   return {
     path: TENDER_DOCS_CONFIG_PATH,
     holdingWorkBack,
+    /// Set only where the time zone is not: a part's retirement cannot be judged until it is.
+    timeZoneNotSet: today == null && parts.some((p) => p.retiredOn != null) ? CONFIG_TIME_ZONE_NOT_SET : null,
     groups,
     empty: parts.length === 0 ? "No parts are configured. Tender and quotation documents cannot be started until the parts for each pack kind are added." : null,
     methods: methodRows,
