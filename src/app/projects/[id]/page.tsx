@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ReadinessGateList } from "@/components/contract/readiness-gate";
-import { AwardIcon, CheckIcon, ClockIcon, FileIcon, ShieldIcon, ToolsIcon } from "@/components/icons";
+import { AwardIcon, CheckIcon, ClockIcon, FileIcon, FilesIcon, ShieldIcon, ToolsIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
@@ -31,6 +31,7 @@ import { formatMoney, parseSen, senFromDecimal } from "@/lib/money";
 import { isSulitField } from "@/lib/sulit-fields";
 
 import { BaselinePanel } from "./baseline-panel";
+import { DocumentsPanel } from "./documents-panel";
 import { StartPreparationDrawer, WcCheckDrawer } from "./editors";
 import { FormationPanel, FORMATION_SECTIONS, type FormationSection } from "./formation-panels";
 
@@ -47,16 +48,18 @@ const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err",
  * would refuse is said beside the act's button, from the same rule the act runs.
  */
 export default async function ContractPage(props: PageProps<"/projects/[id]">) {
-  const [{ id }, { tab, section }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string; section?: string }>]);
+  const [{ id }, { tab, section, page }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string; section?: string; page?: string }>]);
   const l = await loadContract(id);
   if (!l) notFound();
   const c = l.contract;
   const status = c.status as ContractStatus;
   const today = l.org.timeZone ? dayOf(new Date(), l.org.timeZone) : null;
-  const [people, history, facts] = await Promise.all([
+  const [people, history, facts, certificates] = await Promise.all([
     db.person.findMany({ where: { organisationId: l.org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     contractHistory(l),
     today ? signingFacts(l, null, today) : Promise.resolve(null),
+    // 6.14 increment 1: the contract's certificates, counted for the Documents tab.
+    db.certificate.count({ where: { contractId: c.id } }),
   ]);
   const peopleOptions: Option[] = people.map((p) => ({ value: p.id, label: p.name }));
   const phase = facts?.phase ?? status;
@@ -74,6 +77,8 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
     },
     { id: "baseline", label: "Baseline", icon: <FileIcon size={15} />, count: c.baselines.filter((b) => b.version != null).length, lazy: true, panel: tab === "baseline" && facts ? <BaselinePanel l={l} facts={facts} timeZone={l.org.timeZone} /> : null },
     { id: "securities", label: "Securities", icon: <ShieldIcon size={15} />, count: c.securities.length + c.policies.length, panel: <SecuritiesPanel l={l} people={peopleOptions} today={today} /> },
+    // 6.14 increment 1 (plan §5): every certificate of the contract, by kind and status.
+    { id: "documents", label: "Documents", icon: <FilesIcon size={15} />, count: certificates, lazy: true, panel: tab === "documents" ? <DocumentsPanel contractId={c.id} page={Math.max(0, Number.parseInt(page ?? "0", 10) || 0)} /> : null },
     { id: "history", label: "History", icon: <ClockIcon size={15} />, count: history.total, panel: <HistoryPanel entries={history.entries} total={history.total} timeZone={l.org.timeZone} /> },
   ];
 
@@ -268,6 +273,11 @@ const ENTITY_LABEL: Record<string, string> = {
   CustodyMovement: "Custody movement",
   CaseOwnershipEvent: "Case handed over",
   SecurityInstrument: "Security",
+  // 6.14: a certificate's rows, written under the contract's label.
+  Certificate: "Certificate",
+  CertificateSignature: "Certificate signature",
+  CertificateOverride: "Certificate figure overridden",
+  RoutingCheck: "Routing check",
 };
 function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<ReturnType<typeof contractHistory>>["entries"]; total: number; timeZone: string | null }) {
   // Known codes in words; real values (LHDN, PS) as they are; a code without words never shown.

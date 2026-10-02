@@ -1,0 +1,71 @@
+import { DataList } from "@/components/data-list";
+import { FilesIcon } from "@/components/icons";
+import { ButtonLink } from "@/components/ui/button";
+import { Card, CardFooter, CardHeader } from "@/components/ui/card";
+import { distributionState } from "@/lib/certificate/distribution";
+import { CERT_WORDS, KIND_WORDS, STATUS_TONE, STATUS_WORDS } from "@/lib/certificate/labels";
+import { CERTIFICATES_PAGE, certificatesOfContract } from "@/lib/certificate/repo";
+import { CERTIFICATE_STATUSES } from "@/lib/certificate/types";
+import { storedDay } from "@/lib/dates";
+import { formatDate } from "@/lib/format";
+
+const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err", neutral: undefined } as const;
+
+/**
+ * The contract's Documents tab (6.14 increment 1, plan §5): every certificate of the contract, by kind and
+ * where it stands, newest first, paged. Each opens on its own page. Certificates are raised by the
+ * post-award modules (6.13); none is raised from here.
+ */
+export async function DocumentsPanel({ contractId, page }: { contractId: string; page: number }) {
+  const { rows, total } = await certificatesOfContract(contractId, page);
+  const pages = Math.ceil(total / CERTIFICATES_PAGE);
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader icon={<FilesIcon size={17} />} title="Certificates" subtitle="Every certificate of this contract, newest first. Each is raised by the post-award module it belongs to (supervision, payment, variations), and signed, numbered and distributed on its own page." divided={false} />
+      <DataList
+        flat
+        selectable={false}
+        exportName="certificates"
+        searchPlaceholder="Search by kind or number"
+        emptyTitle="No certificates yet"
+        emptyBody="A certificate appears here when a post-award module raises one on this contract."
+        filters={[{ key: "status", label: "Where it stands", order: CERTIFICATE_STATUSES.map((s) => STATUS_WORDS[s].en) }]}
+        rowAction={{ label: "Open", hrefTemplate: `/projects/${contractId}/certificates/{id}` }}
+        rowOpens
+        stackBelow="xl"
+        columns={[
+          { key: "certificate", label: "Certificate", sortable: true, mobile: "primary" },
+          { key: "status", label: "Where it stands", width: "190px", sortable: true, mobile: "meta" },
+          { key: "date", label: "Dated", width: "160px", mobile: "meta" },
+          { key: "copies", label: "Distribution", width: "220px", mobile: "meta" },
+        ]}
+        rows={rows.map((r) => {
+          const copies = distributionState(r.copies.map((c) => ({ mandatory: !!c.mandatory, ackRequired: !!c.ackRequired, despatchedOn: c.despatchedOn ? storedDay(c.despatchedOn) : null, acknowledgedOn: c.acknowledgedOn ? storedDay(c.acknowledgedOn) : null })));
+          const tone = TONE[STATUS_TONE[r.status]];
+          return {
+            id: r.id,
+            search: [KIND_WORDS[r.kind].en, r.number ?? "", STATUS_WORDS[r.status].en].join(" "),
+            sortKeys: { certificate: `${KIND_WORDS[r.kind].en} ${r.sequence ?? ""}`, status: CERTIFICATE_STATUSES.indexOf(r.status) },
+            cells: {
+              certificate: { kind: "stack", title: `${KIND_WORDS[r.kind].en}${r.sequence ? ` ${r.sequence}` : ""}`, sub: r.number ?? CERT_WORDS.numberOnIssue.en },
+              status: { kind: "badge", text: STATUS_WORDS[r.status].en, ...(tone ? { tone } : {}) },
+              date: { kind: "text", text: r.certificateDate ? formatDate(storedDay(r.certificateDate)) : "Set when signed", dim: !r.certificateDate },
+              copies: { kind: "text", text: r.status !== "ISSUED" ? "Not issued" : copies.distributed ? (copies.awaitingAck ? `Sent · ${copies.awaitingAck} acknowledgement${copies.awaitingAck === 1 ? "" : "s"} awaited` : "Sent") : `${copies.undespatchedMandatory} mandatory to send`, dim: r.status !== "ISSUED" },
+            },
+          };
+        })}
+      />
+      {pages > 1 && (
+        <CardFooter className="flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-ink-3">
+          <span>
+            Certificates {page * CERTIFICATES_PAGE + 1}–{Math.min(total, (page + 1) * CERTIFICATES_PAGE)} of {total}. Search and the filters look within this page.
+          </span>
+          <span className="flex gap-2">
+            {page > 0 && <ButtonLink href={`/projects/${contractId}?tab=documents&page=${page - 1}`} size="sm" variant="ghost">Previous</ButtonLink>}
+            {page + 1 < pages && <ButtonLink href={`/projects/${contractId}?tab=documents&page=${page + 1}`} size="sm" variant="ghost">Next</ButtonLink>}
+          </span>
+        </CardFooter>
+      )}
+    </Card>
+  );
+}
