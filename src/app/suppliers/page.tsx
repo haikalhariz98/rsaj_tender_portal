@@ -15,7 +15,7 @@ import { expiryBand, reminderDue, startsOn, worstBand, type ExpiryBand } from "@
 import { APPLICATION_KIND_LABEL, blacklistEndWords, renewalUpcomingWords, DOCUMENT_STATE_LABEL, ERP_NOT_SYNCED, EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, QUEUE_STATE_LABEL, QUEUE_STATE_TONE, REMINDER_NOT_SENT, REQUEST_KIND_LABEL, standingTone, standingWords, SUPPLIER_STATUS_LABEL, SUPPLIER_STATUS_TONE } from "@/lib/suppliers/labels";
 import { documentFacts, listSuppliers, loadSupplierConfig, supplierOrg, SUPPLIERS_PAGE } from "@/lib/suppliers/repo";
 import { queueState, type QueueState } from "@/lib/suppliers/review";
-import { barred, standing } from "@/lib/suppliers/standing";
+import { standing } from "@/lib/suppliers/standing";
 import { standingEventFacts } from "@/lib/suppliers/standing-repo";
 import type { ApplicationKind, SupplierStatus } from "@/lib/suppliers/types";
 
@@ -44,17 +44,17 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
   const bands = { criticalDays: p?.criticalDays ?? null, warningDays: p?.warningDays ?? null, upcomingDays: p?.upcomingDays ?? null };
   const bandsSet = bands.criticalDays != null && bands.warningDays != null && bands.upcomingDays != null;
   // fix R-10: each list loads only what it shows; the Expiring list reaches no further than the furthest band.
-  const data = await listSuppliers(requested, today && bandsSet ? addDays(today, bands.upcomingDays!) : null);
+  const data = await listSuppliers(requested, today, today && bandsSet ? addDays(today, bands.upcomingDays!) : null, p?.autoSuspendOnLapse ?? null);
   if (!data) {
     return <PageHeader title="Suppliers" subtitle="The supplier register." />;
   }
-  const { suppliers, watched, queue: openApplications } = data;
+  const { suppliers, expiring, standing: standingSuppliers, queue: openApplications } = data;
   const pages = Math.max(1, Math.ceil(data.total / SUPPLIERS_PAGE));
   const typeExpires = new Map(cfg.types.map((t) => [t.id, t.expires]));
 
   // a2: each supplier's standing (derived, OD-7 A) and its documents' expiry bands (FR-VND-008).
   const readings = new Map(
-    [...suppliers, ...watched].map((s) => {
+    [...suppliers, ...expiring, ...standingSuppliers].map((s) => {
       const docs = s.documents.map(documentFacts);
       const states = today ? documentStates(cfg.typeFacts, docs, today) : [];
       const st = today ? standing({ status: s.status as SupplierStatus }, s.standingEvents.map(standingEventFacts), states.filter((x) => x.mandatory).map((x) => ({ typeLabel: x.type.label, state: x.state })), { autoSuspendOnLapse: p?.autoSuspendOnLapse ?? null }, today) : null;
@@ -125,7 +125,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
   queue.sort((a, b) => String(a.sortKeys?.received ?? "").localeCompare(String(b.sortKeys?.received ?? "")));
   // ------------------------------------------------------------------ a2: expiring (FR-VND-008), shown and never sent
   const SHOWN: readonly ExpiryBand[] = ["EXPIRED", "CRITICAL", "WARNING", "UPCOMING", "BANDS_NOT_SET"];
-  const expiringRows: Row[] = watched.flatMap((s) =>
+  const expiringRows: Row[] = expiring.flatMap((s) =>
     readings
       .get(s.id)!
       .expiring.filter((e) => SHOWN.includes(e.band))
@@ -148,7 +148,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
   expiringRows.sort((a, b) => String(a.sortKeys?.expires ?? "").localeCompare(String(b.sortKeys?.expires ?? "")));
 
   // ------------------------------------------------------------------ a2: standing (FR-VND-010)
-  const standingRows: Row[] = watched.flatMap((s) => {
+  const standingRows: Row[] = standingSuppliers.flatMap((s) => {
     const st = readings.get(s.id)!.standing;
     const open = s.standingRequests.filter((r) => !r.event && !r.withdrawnAt && routeState(r.routes.map((x) => ({ status: x.status, openedAt: x.createdAt.toISOString() }))) !== "REJECTED");
     const lapseUnset = st?.notes.some((n) => n.code === "LAPSE_RULE_NOT_SET");
@@ -169,9 +169,9 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
 
   const { registered, unsynced } = data;
   const paged = data.total > SUPPLIERS_PAGE;
-  // Derived from the documents, so counted on the page shown; barred is counted from the watched suppliers (every barred supplier is one).
+  // Derived from the documents, so counted on the page shown; barred is counted in the database from the whole register (residual 1).
   const attention = register.filter((r) => r.views?.includes("attention")).length;
-  const barredCount = watched.filter((s) => { const st = readings.get(s.id)!.standing; return !!st && barred(st.standing); }).length;
+  const barredCount = data.barredCount;
 
   const tabs = [
     {
@@ -289,7 +289,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
               ]}
               rows={expiringRows}
             />
-            {data.watchedTotal > watched.length && <CardFooter className="text-[12.5px] text-ink-3">{`Read from the first ${watched.length} of ${data.watchedTotal} suppliers with a document near or past its expiry, or a standing on record, by name.`}</CardFooter>}
+            {data.expiringTotal > expiring.length && <CardFooter className="text-[12.5px] text-ink-3">{`Read from the ${expiring.length} suppliers whose documents expire soonest, of ${data.expiringTotal} with a document in force near or past its expiry.`}</CardFooter>}
           </Card>
         </div>
       ),
@@ -324,7 +324,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
             ]}
             rows={standingRows}
           />
-          {data.watchedTotal > watched.length && <CardFooter className="text-[12.5px] text-ink-3">{`Read from the first ${watched.length} of ${data.watchedTotal} suppliers with a document near or past its expiry, or a standing on record, by name.`}</CardFooter>}
+          {data.standingTotal > standingSuppliers.length && <CardFooter className="text-[12.5px] text-ink-3">{`Showing ${standingSuppliers.length} of ${data.standingTotal} suppliers barred, with a blacklisting asked for, or with the lapse rule not set; each group by name, up to ${SUPPLIERS_PAGE}.`}</CardFooter>}
         </Card>
       ),
     },
@@ -335,7 +335,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
       <PageHeader
         title="Suppliers"
         subtitle="Suppliers recorded from paper applications, their documents and decisions."
-        meta={[plural(registered, "registered", "registered"), plural(data.queueTotal, "application awaiting a decision", "applications awaiting a decision"), paged ? `${attention} with documents to see to on this page` : plural(attention, "with documents to see to", "with documents to see to"), plural(barredCount, "suspended or blacklisted", "suspended or blacklisted"), `${unsynced} ${ERP_NOT_SYNCED.en.toLowerCase()}`]}
+        meta={[plural(registered, "registered", "registered"), plural(data.queueTotal, "application awaiting a decision", "applications awaiting a decision"), paged ? `${attention} with documents to see to on this page` : plural(attention, "with documents to see to", "with documents to see to"), barredCount == null ? "Suspended or blacklisted: not judged, the time zone is not set" : plural(barredCount, "suspended or blacklisted", "suspended or blacklisted"), `${unsynced} ${ERP_NOT_SYNCED.en.toLowerCase()}`]}
         actions={<ButtonLink href="/suppliers/new" size="sm" variant="primary">Record a paper application</ButtonLink>}
       />
       <div className="mb-6 flex flex-col gap-3">

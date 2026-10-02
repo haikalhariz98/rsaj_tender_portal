@@ -31,16 +31,18 @@ describe("the supplier lists load a page, and only what they show (fix R-10)", (
     expect(body).not.toMatch(/standingEvents: true/);
   });
 
-  it("the queue and the watched suppliers are bounded and counted in the database", () => {
-    expect(body.match(/take: SUPPLIERS_PAGE/g)?.length).toBe(3);
+  it("the queue and the derived lists are bounded and counted in the database (residual 1: every findMany is taken)", () => {
+    const finds = body.match(/client\.(supplier|supplierApplication)\.findMany\(\{[^]*?\}\)/g) ?? [];
+    expect(body.match(/take: SUPPLIERS_PAGE/g)?.length).toBe(6);
     expect(body).toMatch(/client\.supplierApplication\.count\(/);
-    expect(body).toMatch(/client\.supplier\.count\(\{ where: watchWhere \}\)/);
+    expect(body).toMatch(/client\.supplier\.count\(\{ where: barredWhere \}\)/);
+    expect(finds.length).toBeGreaterThan(0);
     // The Expiring list reaches no further than the furthest band.
     expect(body).toMatch(/expiresOn: horizon \? \{ not: null, lte: dayToDate\(horizon\) \} : \{ not: null \}/);
   });
 
   it("the page reads the page number, shows where it is, and links the pages", () => {
-    expect(page).toMatch(/listSuppliers\(requested, /);
+    expect(page).toMatch(/listSuppliers\(requested, today, /);
     expect(page).toMatch(/Suppliers \{data\.page \* SUPPLIERS_PAGE \+ 1\}–/);
     expect(page).toMatch(/\/suppliers\?tab=register&page=\$\{data\.page \+ 1\}/);
   });

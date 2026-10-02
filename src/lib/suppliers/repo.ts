@@ -155,34 +155,72 @@ const listedSupplier = {
 const OPEN_APPLICATION = { status: { in: ["RECEIVED" as const, "RESUBMISSION_REQUESTED" as const] }, lapsedRecordedAt: null };
 
 /**
- * The /suppliers lists, each loading only what it shows (fix R-10, the requisitions' page pattern):
+ * Where a document is the one in force for its type on `today`, as far as one query can tell (residual 1):
+ * verified, not "not applicable", and not renewed by a verified renewal whose validity has started (M-3).
+ * A renewal lodged and not verified, or verified and starting later, leaves the old one in force, so its
+ * expiry still counts. (A chain renewed twice with an unverified link between is read one link deep; the
+ * derived reading on the rows loaded is exact.)
+ */
+export function inForceDocumentWhere(today: string): Prisma.SupplierDocumentWhereInput {
+  const T = dayToDate(today);
+  return { verification: "VERIFIED", notApplicable: false, NOT: { renewedBy: { is: { verification: "VERIFIED", OR: [{ validFrom: null }, { validFrom: { lte: T } }] } } } };
+}
+
+/**
+ * The suppliers whose standing on `today` bars them (residual 1: counted in the database from the whole
+ * register, never from a page), as `standing` derives it: registered, and a blacklisting in effect (taken
+ * effect, not lifted by a lift in effect, before its exclusive end), a suspension in effect (not reinstated
+ * by a reinstatement in effect), a registration cancelled, or, where the lapse rule is set to suspend, a
+ * mandatory document in force that has expired.
+ */
+export function barredSupplierWhere(organisationId: string, today: string, autoSuspendOnLapse: boolean | null): Prisma.SupplierWhereInput {
+  const T = dayToDate(today);
+  return {
+    organisationId,
+    status: "REGISTERED",
+    OR: [
+      { standingEvents: { some: { kind: "BLACKLIST", effectiveOn: { lte: T }, OR: [{ endsOn: null }, { endsOn: { gt: T } }], NOT: { liftedBy: { is: { effectiveOn: { lte: T } } } } } } },
+      { standingEvents: { some: { kind: "SUSPEND", effectiveOn: { lte: T }, NOT: { reinstatedBy: { is: { effectiveOn: { lte: T } } } } } } },
+      { standingEvents: { some: { kind: "REGISTRATION_CANCELLED", effectiveOn: { lte: T } } } },
+      ...(autoSuspendOnLapse === true ? [{ documents: { some: lapsedMandatoryWhere(today) } }] : []),
+    ],
+  };
+}
+
+/// A mandatory document in force that has expired (the day after its expiry day).
+export const lapsedMandatoryWhere = (today: string): Prisma.SupplierDocumentWhereInput => ({ ...inForceDocumentWhere(today), type: { mandatoryAtRegistration: true }, expiresOn: { lt: dayToDate(today) } });
+
+/**
+ * The /suppliers lists, each loading only what it shows (fix R-10, the requisitions' page pattern; residual 1):
  *
  * - the register: one page of suppliers by name (`page`, from 0), with their documents, standing events and
  *   open application only, and the total;
  * - the queue: the open applications, oldest first, up to a page, and how many there are;
- * - the watched suppliers, for the Expiring and Standing lists: those with a standing event or request, or a
- *   verified document with an expiry up to `horizon` (the furthest band from today; every expiry where the
- *   bands are not set, as the Expiring list then shows each one), by name, up to a page, and how many.
+ * - Expiring: the suppliers with a document in force expiring up to `horizon` (the furthest band; every
+ *   expiry where the bands are not set), soonest expiry first, up to a page, and how many — a renewed
+ *   document no longer keeps its supplier here;
+ * - Standing: the barred suppliers, those with a blacklisting request still open, and (lapse rule not set)
+ *   those with a mandatory document in force expired, each up to a page, and how many in all; the barred
+ *   count comes from the whole register.
  *
- * Counts that are columns are counted in the database; what is derived (standing, document states, bands)
- * is derived from the rows read, never stored.
+ * With no organisation day (`today` null) nothing is judged: the two derived lists are empty and the barred
+ * count is null. Counts that are columns are counted in the database; what is derived (standing, document
+ * states, bands) is derived from the rows read, never stored.
  */
-export async function listSuppliers(page = 0, horizon: string | null = null, client: Tx = db) {
+export async function listSuppliers(page = 0, today: string | null = null, horizon: string | null = null, autoSuspendOnLapse: boolean | null = null, client: Tx = db) {
   const org = await supplierOrg(client);
   if (!org) return null;
   const where = { organisationId: org.id };
-  const watchWhere: Prisma.SupplierWhereInput = {
-    organisationId: org.id,
-    OR: [
-      { standingEvents: { some: {} } },
-      { standingRequests: { some: {} } },
-      { documents: { some: { verification: "VERIFIED", notApplicable: false, expiresOn: horizon ? { not: null, lte: dayToDate(horizon) } : { not: null } } } },
-    ],
-  };
+  const watchedSelect = { ...listedSupplier, standingRequests: { select: { id: true, kind: true, withdrawnAt: true, event: { select: { id: true } }, routes: { select: { status: true, createdAt: true } } } } } satisfies Prisma.SupplierSelect;
   // A page past the end shows the last page.
   const total = await client.supplier.count({ where });
   const at = Math.min(Math.max(0, page), Math.max(0, Math.ceil(total / SUPPLIERS_PAGE) - 1));
-  const [suppliers, registered, unsynced, queue, queueTotal, watched, watchedTotal] = await Promise.all([
+  const expiringDoc: Prisma.SupplierDocumentWhereInput | null = today ? { ...inForceDocumentWhere(today), organisationId: org.id, expiresOn: horizon ? { not: null, lte: dayToDate(horizon) } : { not: null } } : null;
+  const barredWhere = today ? barredSupplierWhere(org.id, today, autoSuspendOnLapse) : null;
+  const openRequest: Prisma.SupplierWhereInput = { organisationId: org.id, standingRequests: { some: { event: { is: null }, withdrawnAt: null } } };
+  const lapseUnset: Prisma.SupplierWhereInput | null = today && autoSuspendOnLapse !== true ? { organisationId: org.id, status: "REGISTERED", documents: { some: lapsedMandatoryWhere(today) } } : null;
+  const standingWhere: Prisma.SupplierWhereInput | null = barredWhere ? { organisationId: org.id, OR: [barredWhere, openRequest, ...(lapseUnset ? [lapseUnset] : [])] } : null;
+  const [suppliers, registered, unsynced, queue, queueTotal, soonest, expiringTotal, barred, requested, lapsed, standingTotal, barredCount] = await Promise.all([
     client.supplier.findMany({
       where,
       orderBy: [{ registeredName: "asc" }, { id: "asc" }],
@@ -199,15 +237,19 @@ export async function listSuppliers(page = 0, horizon: string | null = null, cli
       select: { id: true, kind: true, status: true, receivedOn: true, resubmitBy: true, lapsedRecordedAt: true, routes: { select: { status: true } }, supplier: { select: { id: true, reference: true, registeredName: true } } },
     }),
     client.supplierApplication.count({ where: { ...where, ...OPEN_APPLICATION } }),
-    client.supplier.findMany({
-      where: watchWhere,
-      orderBy: [{ registeredName: "asc" }, { id: "asc" }],
-      take: SUPPLIERS_PAGE,
-      select: { ...listedSupplier, standingRequests: { select: { id: true, kind: true, withdrawnAt: true, event: { select: { id: true } }, routes: { select: { status: true, createdAt: true } } } } },
-    }),
-    client.supplier.count({ where: watchWhere }),
+    // Soonest expiry first: each supplier by its earliest expiring document in force.
+    expiringDoc ? client.supplierDocument.groupBy({ by: ["supplierId"], where: expiringDoc, _min: { expiresOn: true }, orderBy: [{ _min: { expiresOn: "asc" } }, { supplierId: "asc" }], take: SUPPLIERS_PAGE }) : Promise.resolve([]),
+    expiringDoc ? client.supplier.count({ where: { organisationId: org.id, documents: { some: expiringDoc } } }) : Promise.resolve(0),
+    barredWhere ? client.supplier.findMany({ where: barredWhere, orderBy: [{ registeredName: "asc" }, { id: "asc" }], take: SUPPLIERS_PAGE, select: watchedSelect }) : Promise.resolve([]),
+    barredWhere ? client.supplier.findMany({ where: openRequest, orderBy: [{ registeredName: "asc" }, { id: "asc" }], take: SUPPLIERS_PAGE, select: watchedSelect }) : Promise.resolve([]),
+    lapseUnset ? client.supplier.findMany({ where: lapseUnset, orderBy: [{ registeredName: "asc" }, { id: "asc" }], take: SUPPLIERS_PAGE, select: watchedSelect }) : Promise.resolve([]),
+    standingWhere ? client.supplier.count({ where: standingWhere }) : Promise.resolve(0),
+    barredWhere ? client.supplier.count({ where: barredWhere }) : Promise.resolve(null),
   ]);
-  return { org, page: at, suppliers, total, registered, unsynced, queue, queueTotal, watched, watchedTotal };
+  const expiringRows = soonest.length ? await client.supplier.findMany({ where: { id: { in: soonest.map((g) => g.supplierId) } }, select: watchedSelect }) : [];
+  const expiring = soonest.map((g) => expiringRows.find((x) => x.id === g.supplierId)!).filter(Boolean);
+  const standing = [...new Map([...barred, ...requested, ...lapsed].map((x) => [x.id, x])).values()].sort((a, b) => a.registeredName.localeCompare(b.registeredName) || a.id.localeCompare(b.id));
+  return { org, page: at, suppliers, total, registered, unsynced, queue, queueTotal, expiring, expiringTotal, standing, standingTotal, barredCount };
 }
 
 /// The supplier's History: every audit row on the supplier, its contacts, applications (and their routes and steps), decisions and documents.
