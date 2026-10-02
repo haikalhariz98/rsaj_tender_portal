@@ -5,11 +5,9 @@ import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { PHASE_TONE, PHASE_WORDS } from "@/lib/contract/labels";
-import { CONTRACT_PAGE, contractGate, listContracts, liveOf } from "@/lib/contract/load";
-import { loadContract } from "@/lib/contract/repo";
-import { CONTRACT_PHASES, phaseOf, type ContractPhase } from "@/lib/contract/status";
+import { CONTRACT_PAGE, endorsedPhases, listContracts } from "@/lib/contract/load";
+import { CONTRACT_PHASES, type ContractPhase } from "@/lib/contract/status";
 import type { ContractStatus } from "@/lib/contract/types";
-import { db } from "@/lib/db";
 import { storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 
@@ -22,19 +20,14 @@ const DERIVE_CAP = 200;
 /**
  * Projects (OD-6 A): the contracts after award, each forming, executed or running. The header's counts
  * are taken in the database over every contract; "awaiting conditions" and "ready to sign" are derived
- * from each legally endorsed contract's readiness gate and its company resolution, never stored.
+ * from each legally endorsed contract's readiness gate and its company resolution, never stored: the
+ * configuration read once and the endorsed contracts' gate rows in one query (6.12 review).
  */
 export default async function ProjectsPage(props: PageProps<"/projects">) {
   const { page: p } = (await props.searchParams) as { page?: string };
   const page = Math.max(0, Number.parseInt(p ?? "0", 10) || 0);
   const data = await listContracts(page);
-  const endorsed = data.org ? await db.contract.findMany({ where: { organisationId: data.org.id, status: "LEGALLY_ENDORSED" }, select: { id: true }, take: DERIVE_CAP }) : [];
-  const derived = new Map<string, ContractPhase>();
-  for (const e of endorsed) {
-    const l = await loadContract(e.id);
-    if (!l) continue;
-    derived.set(e.id, phaseOf("LEGALLY_ENDORSED", await contractGate(l), liveOf(l.contract, "COMPANY_RESOLUTION").length > 0));
-  }
+  const derived: Map<string, ContractPhase> = data.org ? await endorsedPhases(data.org.id, DERIVE_CAP) : new Map();
   const ready = [...derived.values()].filter((x) => x === "READY_TO_SIGN").length;
   const awaiting = [...derived.values()].filter((x) => x === "AWAITING_CONDITIONS").length;
   const pages = Math.ceil(data.total / CONTRACT_PAGE);
@@ -42,7 +35,8 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
   const rows: Row[] = data.rows.map((r) => {
     const status = r.status as ContractStatus;
     const phase = derived.get(r.id) ?? (status as ContractPhase);
-    const completion = r.baselines[0]?.dateForCompletion ?? null;
+    // The version in force today, read through baselineFor (ADR 0021).
+    const completion = r.dateForCompletion;
     return {
       id: r.id,
       views: [
@@ -68,7 +62,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
       <PageHeader
         title="Projects"
         subtitle="Contracts after award: formed, signed, stamped and distributed, on a fixed baseline."
-        meta={[`${data.counts.preparing} in preparation`, `${data.counts.legal} with the legal office`, `${awaiting} awaiting conditions`, `${ready} ready to sign`, `${data.counts.executed} executed`]}
+        meta={[`${data.counts.preparing} in preparation`, `${data.counts.returned} returned for amendment`, `${data.counts.legal} with the legal office`, `${awaiting} awaiting conditions`, `${ready} ready to sign`, `${data.counts.executed} executed`]}
       />
       <Callout tone="info" className="mb-6" title="Still to come here">
         Contract administration after signature arrives with the later modules: possession of site, supervision and site records, variations, extensions of time and liquidated damages (post-award lifecycle); valuations, interim certificates, retention and the payment waterfall (certificates); completion, defects and the final account. Each contract&apos;s baseline here is what they will read.

@@ -201,7 +201,11 @@ function CheckCard({ l, check: k, people, today, editable, preparationOn, applic
               <li key={x.id} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <span className="min-w-0">
                   <span className="block text-[13.5px] font-semibold break-words text-ink">{[x.itemRef, x.description].filter(Boolean).join(" · ")}</span>
-                  <span className="block text-[12.5px] break-words text-ink-3 tabular-nums">{`${money(x.tendered)} as tendered → ${money(x.corrected)} corrected · ${x.reason}`}</span>
+                  {/* The priced figures are SULIT (6.8's correctedPrice precedent): shown with the chip. */}
+                  <span className="flex flex-wrap items-center gap-x-2 text-[12.5px] break-words text-ink-3">
+                    <SulitValue>{`${money(x.tendered)} as tendered → ${money(x.corrected)} corrected`}</SulitValue>
+                    <span>{x.reason}</span>
+                  </span>
                 </span>
                 {editable && !done && <RemoveLineDrawer id={c.id} checkId={k.id} lineId={x.id} label={`correction ${x.itemRef}`} />}
               </li>
@@ -216,8 +220,9 @@ function CheckCard({ l, check: k, people, today, editable, preparationOn, applic
           {rates.length > 0 && (
             <ul className="divide-y divide-line/70 border-t border-line">
               {rates.map((x) => {
-                const above = fl?.state === "JUDGED" && fl.above.some((y) => y.itemRef === x.itemRef && y.tenderedRate === x.tenderedRate);
-                const at = fl?.state === "JUDGED" && fl.atRatio.some((y) => y.itemRef === x.itemRef && y.tenderedRate === x.tenderedRate);
+                // By the line itself: two lines with the same item and rate are two lines (6.12 review).
+                const above = fl?.state === "JUDGED" && fl.above.some((y) => y.id === x.id);
+                const at = fl?.state === "JUDGED" && fl.atRatio.some((y) => y.id === x.id);
                 return (
                   <li key={x.id} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                     <span className="min-w-0">

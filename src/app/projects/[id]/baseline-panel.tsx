@@ -7,6 +7,7 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { enterFault, type BaselineValues, type EnteredGroup } from "@/lib/contract/baseline";
+import { correctableFaults } from "@/lib/contract/baseline-entry";
 import { contractFaultText } from "@/lib/contract/fault-text";
 import type { signingFacts } from "@/lib/contract/judge";
 import { BASELINE_FIELD_WORDS, REASON_WORDS, SOURCE_WORDS } from "@/lib/contract/labels";
@@ -56,7 +57,7 @@ function rowsOf(b: BaselineValues): FieldRow[] {
     { key: "buildersWorksValue", group: null, value: rm(b.buildersWorksValue), source: b.buildersWorksValue != null ? "DERIVED" : null, unset: "The contract sum less the prime cost and provisional sums, once those are stated" },
     { key: "firstInterim", group: "firstInterim", value: rm(b.firstInterimMinimum), source: b.firstInterimSource },
     { key: "subsequentInterim", group: "subsequentInterim", value: rm(b.subsequentInterimMinimum), source: b.subsequentInterimSource },
-    { key: "honourDays", group: "honourDays", value: b.honourCertificateDays == null ? null : period(b.honourCertificateDays, "DAYS"), source: b.honourSource },
+    { key: "honourDays", group: "honourDays", value: b.honourCertificateDays == null ? null : period(b.honourCertificateDays, "DAYS"), source: b.honourSource, unset: "Not set: the module that reads it refuses its own act until it is" },
     {
       key: "sectional",
       group: "sectional",
@@ -140,7 +141,11 @@ export function BaselinePanel({ l, facts, timeZone }: { l: LoadedContract; facts
                 </span>
                 <span className="flex shrink-0 flex-wrap items-center gap-2">
                   {canEnter && <BaselineEntryDrawer id={c.id} group={r.group!} label={BASELINE_FIELD_WORDS[r.key].en} mode="draft" />}
-                  {correcting && r.group && <BaselineEntryDrawer id={c.id} group={r.group} label={BASELINE_FIELD_WORDS[r.key].en} mode="correct" />}
+                  {correcting && r.group && inputs && (() => {
+                    // R-3: the act's own rule; a value something states is not corrected here, and says why.
+                    const stated = correctableFaults(r.group, inputs);
+                    return stated.length ? <Blocked label="Correct" reason={stated.map(contractFaultText).join(" ")} /> : <BaselineEntryDrawer id={c.id} group={r.group} label={BASELINE_FIELD_WORDS[r.key].en} mode="correct" />;
+                  })()}
                 </span>
               </li>
             );

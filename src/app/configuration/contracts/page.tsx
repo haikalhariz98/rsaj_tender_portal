@@ -10,6 +10,7 @@ import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { SIGNATORY_DOMAIN } from "@/lib/award/types";
+import { rowInForce } from "@/lib/contract/in-force";
 import { loadContractConfig } from "@/lib/contract/load";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
@@ -60,9 +61,12 @@ export default async function ContractControlsPage() {
   for (const r of rules) if (r.cond && !INSTRUMENTS.includes(r.cond)) byCond.set(r.cond, [...(byCond.get(r.cond) ?? []), r.labelEn]);
   const conditions = [...byCond].map(([value, labels]) => ({ value, label: labels.join("; ") }));
   const condLabel = (c: string | null) => (c ? (byCond.get(c)?.join("; ") ?? "Rows no longer on the approval matrix in force") : null);
-  const bases = cfg.bases.filter((b) => b.retiredOn == null).map((b) => ({ value: b.code, label: b.nameEn }));
   const basisName = (code: string) => cfg.bases.find((b) => b.code === code)?.nameEn ?? "A basis no longer configured";
-  const unset = [p?.legalOfficeCode, p?.signatoryCond, p?.controlledCopyStampEn].filter((x) => !x).length + (cfg.recipients.some((r) => !r.retiredOn) ? 0 : 1);
+  // R-6: a row "retired from" a later day is still in force today; on that day it is not (exclusive end), as elsewhere.
+  const live = (x: { retiredOn: Date | null }) => (org.today ? rowInForce(x, org.today) : x.retiredOn === null);
+  const retiredWords = (x: { retiredOn: Date | null }) => (x.retiredOn ? (live(x) ? `retires from ${formatDate(x.retiredOn)}` : `retired from ${formatDate(x.retiredOn)}`) : null);
+  const bases = cfg.bases.filter(live).map((b) => ({ value: b.code, label: b.nameEn }));
+  const unset = [p?.legalOfficeCode, p?.signatoryCond, p?.controlledCopyStampEn].filter((x) => !x).length + (cfg.recipients.some(live) ? 0 : 1);
   const values = {
     legalOfficeCode: p?.legalOfficeCode ?? null,
     signatoryCond: p?.signatoryCond ?? null,
@@ -101,7 +105,7 @@ export default async function ContractControlsPage() {
                 { label: "Legal office", value: <Setting value={cfg.unitName(p?.legalOfficeCode ?? null)} unset="Preparation does not start: nothing could go for legal review." /> },
                 { label: "The contract agreement's signatory", value: <Setting value={condLabel(p?.signatoryCond ?? null)} unset="Preparation does not start: nobody could be resolved to sign." /> },
                 { label: "Controlled-copy stamp", value: <Setting value={[p?.controlledCopyStampEn, p?.controlledCopyStampMs].filter(Boolean).join(" / ") || null} unset="Preparation does not start: no copy could be stamped." /> },
-                { label: "Front-loading ratio", value: <Setting value={values.frontLoadingRatio ? `Rates above ${values.frontLoadingRatio} times the estimate's are listed` : null} unset="Allowed: the front-loading check is the officer's judgement alone, and says so." /> },
+                { label: "Front-loading ratio", value: <Setting value={values.frontLoadingRatio ? `Rates above ${values.frontLoadingRatio} times the estimate's are listed. A rate exactly at ${values.frontLoadingRatio} times is listed apart, for the officer's judgement: which side of the ratio counts is not set.` : null} unset="Allowed: the front-loading check is the officer's judgement alone, and says so." /> },
               ]}
             />
           </CardBody>
@@ -128,14 +132,14 @@ export default async function ContractControlsPage() {
               <tbody>
                 {cfg.parts.map((x) => (
                   <Tr key={x.id}>
-                    <Td label="Part"><CellStack title={[x.printedNumber, x.labelEn].filter(Boolean).join(". ")} sub={[x.labelMs, x.retiredOn ? `retired ${formatDate(x.retiredOn)}` : null].filter(Boolean).join(" · ") || undefined} /></Td>
+                    <Td label="Part"><CellStack title={[x.printedNumber, x.labelEn].filter(Boolean).join(". ")} sub={[x.labelMs, retiredWords(x)].filter(Boolean).join(" · ") || undefined} /></Td>
                     <Td label="Basis" className="text-ink-2">{basisName(x.contractBasisCode)}</Td>
                     <Td label="Source"><ProvenanceBadge value={x.provenance} /></Td>
                     <Td>
                       <RowActions>
                         <HistoryButton iconOnly entity="ContractDocumentPart" entityId={x.id} label={x.labelEn} />
                         <EditDocumentPart id={x.id} name={x.labelEn} bases={bases} values={{ contractBasisCode: x.contractBasisCode, printedNumber: x.printedNumber, labelEn: x.labelEn, labelMs: x.labelMs, provenance: x.provenance, sortOrder: String(x.sortOrder), notes: x.notes }} />
-                        {!x.retiredOn && <RetireContractRow entity="ContractDocumentPart" id={x.id} label={x.labelEn} today={org.today} />}
+                        {x.retiredOn === null && <RetireContractRow entity="ContractDocumentPart" id={x.id} label={x.labelEn} today={org.today} />}
                       </RowActions>
                     </Td>
                   </Tr>
@@ -164,13 +168,13 @@ export default async function ContractControlsPage() {
               <tbody>
                 {cfg.recipients.map((x) => (
                   <Tr key={x.id}>
-                    <Td label="Recipient"><CellStack title={x.nameEn} sub={[x.copyForm || null, x.mandatory ? "Mandatory" : "Optional", x.onlyWithConsultingEngineer ? "only where a consulting engineer is engaged" : null, x.retiredOn ? `retired ${formatDate(x.retiredOn)}` : null].filter(Boolean).join(" · ")} /></Td>
+                    <Td label="Recipient"><CellStack title={x.nameEn} sub={[x.copyForm || null, x.mandatory ? "Mandatory" : "Optional", x.onlyWithConsultingEngineer ? "only where a consulting engineer is engaged" : null, retiredWords(x)].filter(Boolean).join(" · ")} /></Td>
                     <Td label="Source"><ProvenanceBadge value={x.provenance} /></Td>
                     <Td>
                       <RowActions>
                         <HistoryButton iconOnly entity="ControlledCopyRecipient" entityId={x.id} label={x.nameEn} />
                         <EditCopyRecipient id={x.id} name={x.nameEn} values={{ nameEn: x.nameEn, nameMs: x.nameMs, copyForm: x.copyForm, mandatory: x.mandatory, onlyWithConsultingEngineer: x.onlyWithConsultingEngineer, provenance: x.provenance, sortOrder: String(x.sortOrder), notes: x.notes }} />
-                        {!x.retiredOn && <RetireContractRow entity="ControlledCopyRecipient" id={x.id} label={x.nameEn} today={org.today} />}
+                        {x.retiredOn === null && <RetireContractRow entity="ControlledCopyRecipient" id={x.id} label={x.nameEn} today={org.today} />}
                       </RowActions>
                     </Td>
                   </Tr>

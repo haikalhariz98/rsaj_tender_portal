@@ -5,7 +5,7 @@ import { ReadinessGateList } from "@/components/contract/readiness-gate";
 import { AwardIcon, CheckIcon, ClockIcon, FileIcon, ShieldIcon, ToolsIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
-import { Badge, Chip } from "@/components/ui/badge";
+import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { Blocked } from "@/components/ui/blocked";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -14,12 +14,13 @@ import { PageHeader } from "@/components/ui/page-header";
 import { KeyValues } from "@/components/ui/stat";
 import { fieldLabel } from "@/lib/audit/diff";
 import { INSURANCE_KIND_LABEL, REGISTER_STATUS_LABEL, REGISTER_STATUS_TONE, SECURITY_KIND_LABEL, WC_BASIS_LABEL } from "@/lib/award/labels";
-import { CONTRACT_YEAR_READING } from "@/lib/award/contract-number";
 import { contractFaultText } from "@/lib/contract/fault-text";
 import { arithmeticVariance } from "@/lib/contract/formation";
 import { signingFacts } from "@/lib/contract/judge";
-import { CHECK_WORDS, COMPARISON_WORDS, CUSTODY_KIND_WORDS, DECISION_WORDS, DIRECTION_WORDS, OUTCOME_WORDS, PARTY_WORDS, PHASE_TONE, PHASE_WORDS, PROVENANCE_WORDS, REASON_WORDS, SOURCE_WORDS } from "@/lib/contract/labels";
-import { contractHistory, loadContractConfig } from "@/lib/contract/load";
+import { historyValue } from "@/lib/contract/history-words";
+import { CONTRACT_YEAR_WORDS, contractYearReading } from "@/lib/contract/issue-year";
+import { PHASE_TONE, PHASE_WORDS } from "@/lib/contract/labels";
+import { contractHistory, loadContractConfig, preparationSettings } from "@/lib/contract/load";
 import { readFormationSnapshot, startFaults } from "@/lib/contract/preparation";
 import { loadContract, type LoadedContract } from "@/lib/contract/repo";
 import { briefingMissing } from "@/lib/contract/sign";
@@ -122,20 +123,23 @@ async function OverviewPanel({ l, facts, today }: { l: LoadedContract; facts: Fa
   let start: { blocker: string | null; frozen: string } | null = null;
   if (status === "NUMBER_ALLOCATED") {
     const cfg = await loadContractConfig(l.org.id);
-    const basis = cfg.bases.find((b) => b.code === l.ex.contractBasisCode) ?? null;
+    // The same reading the start act makes, on the organisation's day (R-6); with no zone, today's settings are not judged.
+    const settings = today ? preparationSettings(cfg, l.ex.contractBasisCode, today) : null;
+    const basis = settings?.basis ?? null;
     const p = cfg.policy;
     const fs = startFaults({
       status,
       awardStatus: l.award.status,
       today,
       basis: { code: l.ex.contractBasisCode, name: basis?.nameEn ?? null, requiresBq: basis?.requiresBq ?? null },
-      parts: cfg.parts.filter((x) => x.contractBasisCode === l.ex.contractBasisCode && x.retiredOn == null).length,
-      policy: { legalOfficeCode: p?.legalOfficeCode ?? null, legalOfficeKnown: !!(p?.legalOfficeCode && cfg.units.some((u) => u.code === p.legalOfficeCode && u.effectiveTo == null)), signatoryCond: p?.signatoryCond ?? null, controlledCopyStampEn: p?.controlledCopyStampEn ?? null },
-      recipients: cfg.recipients.filter((r) => r.retiredOn == null).length,
+      parts: settings?.parts.length ?? 0,
+      policy: { legalOfficeCode: p?.legalOfficeCode ?? null, legalOfficeKnown: settings?.legalOfficeKnown ?? false, signatoryCond: p?.signatoryCond ?? null, controlledCopyStampEn: p?.controlledCopyStampEn ?? null },
+      recipients: settings?.recipients.length ?? 0,
     });
     start = { blocker: fs.length ? fs.map(contractFaultText).join(" ") : null, frozen: "the legal office, the front-loading ratio, the controlled-copy stamp and recipients, the signatory condition, and the basis's checks and document parts" };
   }
-  const contractYear = /(\d{4})\D*$/.exec(c.number)?.[1] ?? null;
+  // S-1: the year the number was issued is the organisation's day of issue, never digits read from the number.
+  const year = contractYearReading(c);
   return (
     <div className="flex flex-col gap-6">
       {start && (
@@ -149,7 +153,7 @@ async function OverviewPanel({ l, facts, today }: { l: LoadedContract; facts: Fa
           <KeyValues
             columns={2}
             items={[
-              { label: "Contract number", value: <span className="flex flex-col items-start gap-1"><span className="font-mono text-[13px]">{c.number}</span><span className="text-[12.5px] text-ink-3">{CONTRACT_YEAR_READING}</span></span> },
+              { label: "Contract number", value: <span className="flex flex-col items-start gap-1"><span className="font-mono text-[13px]">{c.number}</span>{year.seriesNumber && <span className="text-[12.5px] text-ink-3">{CONTRACT_YEAR_WORDS.series(year.issueYear).en}</span>}</span> },
               { label: "Contractor", value: l.award.awardeeName },
               { label: "Contract sum", value: <span className="flex flex-col items-start gap-1"><span className="tabular-nums">{formatMoney(senFromDecimal(c.contractSum))}</span><span className="text-[12.5px] text-ink-3">The Letter of Acceptance&apos;s sum (assumed: corrections do not change it).</span></span> },
               { label: "Arithmetic corrections", value: variance == null ? notSet("None recorded") : <span className="tabular-nums">{`${variance < 0n ? "−" : "+"}${formatMoney(variance < 0n ? -variance : variance)} against the tendered figures, shown, not applied`}</span> },
@@ -158,7 +162,8 @@ async function OverviewPanel({ l, facts, today }: { l: LoadedContract; facts: Fa
                 value: c.contractDate ? (
                   <span className="flex flex-col items-start gap-1">
                     <span>{formatDate(day(c.contractDate))}</span>
-                    <span className="text-[12.5px] text-ink-3">The day the signature for the employer was recorded{contractYear ? `; the number carries the year ${contractYear}` : ""}.</span>
+                    <span className="text-[12.5px] text-ink-3">The day the signature for the employer was recorded.</span>
+                    {year.yearsDiffer && <Chip tone="warn">{CONTRACT_YEAR_WORDS.differs(year.issueYear, year.contractDateYear!).en}</Chip>}
                     {c.contractDateCorrectedFrom && <Chip tone="info">{`Corrected from ${formatDate(day(c.contractDateCorrectedFrom))}: ${c.contractDateCorrectionReason}`}</Chip>}
                   </span>
                 ) : notSet("Not signed: the day of the signature act, never typed"),
@@ -265,23 +270,11 @@ const ENTITY_LABEL: Record<string, string> = {
   CaseOwnershipEvent: "Case handed over",
   SecurityInstrument: "Security",
 };
-const STATUS_WORDS: Record<string, string> = Object.fromEntries(Object.entries(PHASE_WORDS).map(([k, v]) => [k, v.en]));
-/// Every stored code the trail may carry, in words (rule 5: codes never reach a screen).
-const CODE_WORDS: Record<string, string> = Object.fromEntries(
-  [OUTCOME_WORDS, DECISION_WORDS, PARTY_WORDS, CHECK_WORDS, REASON_WORDS, DIRECTION_WORDS, CUSTODY_KIND_WORDS, PROVENANCE_WORDS, COMPARISON_WORDS, SOURCE_WORDS].flatMap((m) => Object.entries(m).map(([k, v]) => [k, v.en])),
-);
-const OTHER_CODES: Record<string, string> = { READY: "As tendered", CANCELLED_BY_ALTERNATIVE: "Cancelled by the accepted alternative", BY_HAND: "By hand", REGISTERED_POST: "Registered post", COLLECTION: "Collected", AMOUNT_PER_DAY: "An amount a day", PERCENT_OF_SUM_PER_DAY: "A percentage of the contract sum a day" };
-
 function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<ReturnType<typeof contractHistory>>["entries"]; total: number; timeZone: string | null }) {
-  const read = (field: string, value: string | null): string => {
-    if (value == null || value === "") return "—";
-    if (field === "status" && STATUS_WORDS[value]) return STATUS_WORDS[value];
-    if (/^\d{4}-\d{2}-\d{2}/.test(value)) return formatDate(value);
-    if (value === "true" || value === "yes") return "Yes";
-    if (value === "false" || value === "no") return "No";
-    if (/^[A-Z][A-Z_]+$/.test(value)) return CODE_WORDS[value] ?? OTHER_CODES[value] ?? "—";
-    return value;
-  };
+  // Known codes in words; real values (LHDN, PS) as they are; a code without words never shown.
+  const read = (field: string, value: string | null): string => historyValue(field, value, formatDate);
+  // A registered SULIT field's value carries the chip, as on the sibling History panels.
+  const chipped = (field: string, value: string | null) => (isSulitField(field) && value ? <SulitValue>{read(field, value)}</SulitValue> : read(field, value));
   return (
     <Card className="overflow-hidden">
       <CardHeader icon={<ClockIcon size={17} />} title="History" subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this contract and what is under it. "}Nobody is signed in, so no change is attributed. Identity-card numbers are masked here.`} divided={entries.length === 0} />
@@ -302,9 +295,8 @@ function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<ReturnTyp
                 <ul className="text-[12.5px] break-words text-ink-3">
                   {e.changes.filter((ch) => !/(Code|Key|Id)$/.test(ch.field)).map((ch) => (
                     <li key={ch.field}>
-                      {fieldLabel(ch.field)}
-                      {isSulitField(ch.field) ? " (SULIT)" : ""}: {e.action === "UPDATE" && <>{read(ch.field, ch.before)} → </>}
-                      <span className="text-ink-2">{read(ch.field, e.action === "DELETE" ? ch.before : ch.after)}</span>
+                      {fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{chipped(ch.field, ch.before)} → </>}
+                      <span className="text-ink-2">{chipped(ch.field, e.action === "DELETE" ? ch.before : ch.after)}</span>
                     </li>
                   ))}
                 </ul>
