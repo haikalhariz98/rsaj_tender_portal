@@ -1,7 +1,7 @@
 # 0017 — The opening is a record of a paper opening: two recorded authorisations, the box judged by its lock, offers written only by the opening's acts
 
-**Status:** Proposed with 6.7 (2026-10-02), under the 6.7 rulings C-1..C-13 and OD-1..OD-11
-(`docs/notes/plans/phase2-rulings.md` §6.7; decisions log "· 6.7 ·" entries). Plan: `docs/notes/plans/6.7-bid-opening.md`.
+**Status:** Accepted (product owner, 2026-10-02, with 6.7 at 8361948; proposed with 6.7 (2026-10-02), under the 6.7 rulings C-1..C-13 and OD-1..OD-11
+(`docs/notes/plans/phase2-rulings.md` §6.7; decisions log "· 6.7 ·" entries). Plan: `docs/notes/plans/6.7-bid-opening.md`.)
 Builds on ADR 0012 (the sealed estimate), 0014 (the window's phase from instants) and 0016 (the envelope register).
 
 ## Context

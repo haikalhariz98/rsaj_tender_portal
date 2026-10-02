@@ -1,7 +1,7 @@
 # 0013 — The tender pack is frozen at submission; the tendering states are moved by one act each
 
-**Status:** proposed 2026-10-01 with 6.4 increment 1, under the rulings X-1, X-2, X-5, X-6, X-8, X-9 and 6.4 Q-1 to Q-8
-(`docs/notes/plans/phase2-rulings.md`; decisions log "· 6.4 ·" entries). Plan: `docs/notes/plans/6.4-tender-documents.md`.
+**Status:** Accepted (product owner, 2026-10-01, with 6.4 at 591d850; proposed 2026-10-01 with 6.4 increment 1, under the rulings X-1, X-2, X-5, X-6, X-8, X-9 and 6.4 Q-1 to Q-8
+(`docs/notes/plans/phase2-rulings.md`; decisions log "· 6.4 ·" entries). Plan: `docs/notes/plans/6.4-tender-documents.md`.)
 
 ## Context
 

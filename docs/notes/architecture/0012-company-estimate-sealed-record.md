@@ -1,7 +1,7 @@
 # 0012 — The company estimate is a sealed record: one accessor, omitted everywhere else
 
-**Status:** proposed 2026-10-01 with 6.2 increment 1, under the rulings OD-1, OD-2, OD-9, OD-10 and the sealed-figure rule
-(decisions log, "· 6.2 ·" entries; `docs/notes/plans/phase2-rulings.md` X-1, X-3). Plan: `docs/notes/plans/6.2-scope-bq-estimate.md`.
+**Status:** Accepted (product owner, 2026-10-01, with 6.2 at 716c474; proposed 2026-10-01 with 6.2 increment 1, under the rulings OD-1, OD-2, OD-9, OD-10 and the sealed-figure rule
+(decisions log, "· 6.2 ·" entries; `docs/notes/plans/phase2-rulings.md` X-1, X-3). Plan: `docs/notes/plans/6.2-scope-bq-estimate.md`.)
 
 ## Context
 

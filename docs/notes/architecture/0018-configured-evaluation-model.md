@@ -1,7 +1,7 @@
 # 0018 — Evaluation runs a configured model, pinned at publication and executed from its frozen snapshot
 
-**Status:** Proposed with 6.8 (2026-10-02), under the 6.8 rulings E-1..E-13 and OD-1..OD-10
-(`docs/notes/plans/phase2-rulings.md` §6.8; decisions log "· 6.8 ·" entries). Plan: `docs/notes/plans/6.8-evaluation.md`.
+**Status:** Accepted (product owner, 2026-10-02, with 6.8 at c664f59; proposed with 6.8 (2026-10-02), under the 6.8 rulings E-1..E-13 and OD-1..OD-10
+(`docs/notes/plans/phase2-rulings.md` §6.8; decisions log "· 6.8 ·" entries). Plan: `docs/notes/plans/6.8-evaluation.md`.)
 Builds on ADR 0012 (the sealed estimate), 0016 (the envelope register) and 0017 (the paper opening record).
 
 ## Context
