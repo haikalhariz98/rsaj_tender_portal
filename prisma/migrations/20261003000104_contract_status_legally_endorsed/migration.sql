@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "ContractStatus" ADD VALUE 'LEGALLY_ENDORSED';

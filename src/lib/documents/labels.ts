@@ -97,6 +97,12 @@ export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
   SUPPLIER_DOCUMENT: "Scan of the supplier's document",
   SUPPLIER_DECLARATION: "Supplier's signed declaration",
   SUPPLIER_EPAYMENT_FORM: "Supplier's E-Payment form",
+  COMPANY_RESOLUTION: "Contractor's company resolution",
+  LEGAL_SUBMISSION: "Sent for legal review",
+  LEGAL_COMMENTS: "Legal office's comments",
+  RECONCILIATION: "Signed reconciliation record",
+  SIGNED_CONTRACT: "Signed Contract Document",
+  STAMPING_CERTIFICATE: "Stamping certificate",
   HOLDER_RECOMMENDATION: "Absent holder's signed recommendation",
   SIGNED_LETTER: "Signed letter of acceptance",
   DECLARATION: "Signed successful bidder declaration",
@@ -182,6 +188,13 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
   MEETING_CLOSED: "The meeting was closed on its minutes and the tenderer's confirmation, and stands as closed. A further meeting is recorded as another round.",
   DOCUMENT_RENEWED: "This document has been renewed, so it keeps the scan it was lodged with. Attach the renewal's scan to the renewal, on the supplier's Documents tab.",
   APPLICATION_DECIDED: "The application is decided and stands on what it was decided on. A further application is opened on the supplier's Applications tab.",
+  CONTRACT_CANCELLED: "The contract was cancelled with its award and keeps what it has.",
+  CONTRACT_NOT_IN_PREPARATION: "Nothing is kept on the contract until its preparation starts, on the contract's Formation tab.",
+  LEGAL_REVIEW_PENDING: "The contract is with the legal office on what was sent. If it comes back for amendment, attach the amended papers then.",
+  LEGALLY_ENDORSED: "The legal office endorsed the contract on what was sent, which is kept as it was.",
+  LEGAL_NOT_SUBMITTED: "The legal office's comments are kept once the contract has been sent for review.",
+  CONTRACT_NOT_EXECUTED: "This is kept once the contract is executed, by the RSAJ signature on the Formation tab.",
+  CONTRACT_EXECUTED: "The contract is executed and keeps what it was executed on.",
 };
 
 const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {
@@ -194,6 +207,7 @@ const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {
   CPR_ON_IT: "The contractor performance percentage was entered from this report, so it is not taken off. To correct it, attach a new version, with the reason.",
   DOCUMENT_VERIFIED_ON_IT: "The document was verified on this scan, so it is not taken off. To correct it, attach a new version, with the reason.",
   SENT_ON_IT: "The application was sent for decision on this signed declaration, so it is not taken off. To correct it, attach a new version, with the reason.",
+  RESOLUTION_ON_IT: "The contractor's signature was recorded on this company resolution, so it is not taken off. To correct it, attach a new version, with the reason.",
 };
 
 export const DOWNLOAD_REFUSAL_TEXT: Readonly<Record<DownloadRefusal, string>> = {

@@ -13,6 +13,8 @@ import type { Regime } from "@/lib/method/types";
 import { formatDate } from "@/lib/format";
 
 import { formatMoney } from "@/lib/money";
+import { CONTRACT_STATUS_WORDS } from "@/lib/contract/labels";
+import type { ContractStatus } from "@/lib/contract/types";
 import { formatPct } from "@/lib/tender-docs/percent";
 
 import { BASELINE_FIELD_LABEL, type Baseline, type BaselineField } from "./appendix-baseline";
@@ -67,7 +69,8 @@ export const REGISTER_STATUS_LABEL = { LODGED: "Lodged, not verified", VERIFIED:
 export const WC_CHECK_LABEL = { CHECKED: "Sum checked against the contract sum", NOT_CHECKED: "Sum not checked: declared on uncovered wages", NOT_SET: "Sum not checked: how it is calculated is not set" } as const;
 export const REGISTER_STATUS_TONE = { LODGED: "warn", VERIFIED: "ok", REJECTED: "err" } as const;
 export const ISSUER_KIND_LABEL = { BANK: "Bank", INSURER: "Insurer", TAKAFUL: "Takaful operator" } as const;
-export const CONTRACT_STATUS_LABEL = { NUMBER_ALLOCATED: "Number allocated", CANCELLED: "Cancelled — number kept as a gap" } as const;
+/// 6.12 (X-8): every contract state, from the contract's own words.
+export const CONTRACT_STATUS_LABEL: Readonly<Record<ContractStatus, string>> = Object.fromEntries(Object.entries(CONTRACT_STATUS_WORDS).map(([k, v]) => [k, v.en])) as Record<ContractStatus, string>;
 export const GATE_LABEL = { RETURNED: "Instrument returned signed", BOND: "Performance bond lodged and verified", INSURANCE: "Every required policy lodged and verified" } as const;
 export const GATE_STATE_LABEL = { MET: "Met", NOT_MET: "Not met", NOT_SET: "Not set" } as const;
 /// The scans a return is bound to (OD-5), and what an award accepted before them reads.

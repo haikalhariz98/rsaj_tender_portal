@@ -340,6 +340,24 @@ model Organisation {
   standingRequests   StandingRequest[]
   standingEvents     StandingEvent[]
   specialPermissions SpecialPermission[]
+  /// 6.12: contract formation and the baseline.
+  contractPolicy           ContractPolicy?
+  contractDocumentParts    ContractDocumentPart[]
+  contractAssemblyParts    ContractAssemblyPart[]
+  contractReconciliations  ContractReconciliation[]
+  reconciliationAmendments ReconciliationAmendment[]
+  formationChecks          FormationCheck[]
+  arithmeticCorrections    ArithmeticCorrection[]
+  rateComparisons          RateComparison[]
+  legalReviews             LegalReview[]
+  contractSignatures       ContractSignature[]
+  integrityBriefings       IntegrityBriefing[]
+  contractBaselines        ContractBaseline[]
+  contractSections         ContractSection[]
+  controlledCopyRecipients ControlledCopyRecipient[]
+  issuedCopies             IssuedCopy[]
+  custodyItems             CustodyItem[]
+  custodyMovements         CustodyMovement[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -470,6 +488,16 @@ model Person {
   standingRecorded     StandingEvent[]     @relation("StandingRecordedBy")
   permissionsRequested SpecialPermission[] @relation("PermissionRequestedBy")
   permissionsGranted   SpecialPermission[] @relation("PermissionGrantedBy")
+  /// 6.12: formation acts, recorded on their behalf.
+  wcChecks               InsurancePolicy[]         @relation("PolicyWcCheckedBy")
+  reconciliationsChecked ContractReconciliation[]  @relation("ReconciliationCheckedBy")
+  amendmentsSigned       ReconciliationAmendment[] @relation("AmendmentSignedBy")
+  formationChecks        FormationCheck[]          @relation("FormationCheckBy")
+  legalSubmissions       LegalReview[]             @relation("LegalSubmittedBy")
+  legalReviews           LegalReview[]             @relation("LegalReviewedBy")
+  contractSignatures     ContractSignature[]       @relation("ContractSignedBy")
+  custodyHeld            CustodyItem[]             @relation("CustodyHeldBy")
+  custodyMoves           CustodyMovement[]         @relation("CustodyMovedBy")
 }
 
 /// Who holds an authority office, and when.
@@ -1358,6 +1386,8 @@ model Delegation {
 
   approvalSteps ApprovalStep[]
   awardsSigned  Award[]
+  /// 6.12: RSAJ contract signatures made under this delegation.
+  contractSignatures ContractSignature[] @relation("ContractSignatureDelegation")
   /// The absent holder's signed recommendation (FR-APR-012, OD-6).
   attachments   DocumentAttachment[]
 
@@ -3114,10 +3144,18 @@ enum IssuerKind {
   TAKAFUL
 }
 
-/// 4a adds the rest of §7.3.3.
+/// §7.3.3 up to Active (6.12). AWAITING_CONDITIONS and READY_TO_SIGN are derived, never stored
+/// (`src/lib/contract/status.ts`). ACTIVE is written only by 6.13's possession act.
 enum ContractStatus {
   NUMBER_ALLOCATED
   CANCELLED
+  IN_PREPARATION
+  PENDING_LEGAL_ENDORSEMENT
+  RETURNED_FOR_AMENDMENT
+  LEGALLY_ENDORSED
+  EXECUTED
+  STAMPED
+  ACTIVE
 }
 
 enum ContractNumberSource {
@@ -3469,9 +3507,41 @@ model Contract {
 
   createdAt DateTime @default(now())
 
+  // 6.12 (§7.3.3, FR-CON-003–014): formation, execution and the baseline.
+  /// When preparation started (the server's clock), and what it started under: the legal office, the
+  /// front-loading ratio, the stamp wording, the signatory condition, the basis's checks and the document
+  /// parts, each as configured that day with its provenance. Read from here afterwards, never live (ADR 0021).
+  preparationStartedAt DateTime?
+  formationSnapshot    Json?
+  /// FR-CON-012: whether a consulting engineer is engaged. Null: not answered, and distribution is refused.
+  consultingEngineer   Boolean?
+  /// FR-CON-009 (OD-1 A): the organisation's day of the recorded RSAJ signature act, never a form field.
+  /// A correction moves it to an earlier day with a reason; the day it was first is kept beside it.
+  contractDate                 DateTime?
+  contractDateRecordedAt       DateTime?
+  contractDateCorrectedFrom    DateTime?
+  contractDateCorrectionReason String    @default("")
+  /// Everything the RSAJ signature was judged under (the gate, the checks, the legal endorsement, the
+  /// signatory and the first day it was ready to sign). Rendered from, never re-derived.
+  executedSnapshot Json?
+  /// FR-CON-011: stamped at LHDN. STAMPED is refused without both.
+  stampedOn   DateTime?
+  stampingRef String    @default("")
+  stampedAt   DateTime?
+
   securities      SecurityInstrument[]
   policies        InsurancePolicy[]
   ownershipEvents CaseOwnershipEvent[]
+  assemblyParts   ContractAssemblyPart[]
+  reconciliations ContractReconciliation[]
+  checks          FormationCheck[]
+  legalReviews    LegalReview[]
+  signatures      ContractSignature[]
+  briefing        IntegrityBriefing?
+  baselines       ContractBaseline[]
+  copies          IssuedCopy[]
+  custodyItems    CustodyItem[]
+  attachments     DocumentAttachment[]
 
   @@unique([organisationId, number])
 }
@@ -3542,6 +3612,8 @@ model SecurityInstrument {
   requiredUntil   DateTime?
 
   createdAt DateTime @default(now())
+
+  custodyItem CustodyItem?
 }
 
 /// Which policies a contract must carry (FR-AWD-013). The customer's list; ships empty.
@@ -3619,8 +3691,18 @@ model InsurancePolicy {
   rejectedReason        String          @default("")
   /// What it was judged against at verification.
   requirementSnapshot   Json?
+  /// 6.12 (BD-20 carry): workmen's compensation on uncovered wages, checked before signature. Recorded, not
+  /// judged: no configured basis compares the declared wages with the sum insured (D4).
+  wcCheckedOn              DateTime?
+  wcCheckedByPersonId      String?
+  wcCheckedBy              Person?   @relation("PolicyWcCheckedBy", fields: [wcCheckedByPersonId], references: [id], onDelete: Restrict)
+  wcDeclaredUncoveredWages Decimal?  @db.Decimal(18, 2)
+  wcCheckNote              String    @default("")
+  wcCheckRecordedAt        DateTime?
 
   createdAt DateTime @default(now())
+
+  custodyItem CustodyItem?
 }
 
 // ---------------------------------------------------------- Phase 1 close-out
@@ -3812,6 +3894,18 @@ enum AttachmentPurpose {
   DECLARATION
   AUTHORISATION
   ACCEPTANCE_PAGE
+  /// 6.12 (FR-CON-007): the contractor's company resolution or other proof of signing authority, on the contract.
+  COMPANY_RESOLUTION
+  /// 6.12 (FR-CON-006): what goes to the legal office for review, on the contract; pinned at each submission.
+  LEGAL_SUBMISSION
+  /// 6.12 (FR-CON-006): the legal office's written comments on a returned review, on the contract.
+  LEGAL_COMMENTS
+  /// 6.12 (FR-CON-004): the signed reconciliation record's scan, on the contract.
+  RECONCILIATION
+  /// 6.12 (FR-CON-009): the signed Contract Document's scan, on the contract.
+  SIGNED_CONTRACT
+  /// 6.12 (FR-CON-011): the stamping certificate's scan, on the contract.
+  STAMPING_CERTIFICATE
 }
 
 enum DocumentAccessKind {
@@ -3975,6 +4069,10 @@ model DocumentAttachment {
   supplierDocument      SupplierDocument?    @relation(fields: [supplierDocumentId], references: [id], onDelete: Restrict)
   supplierApplicationId String?
   supplierApplication   SupplierApplication? @relation(fields: [supplierApplicationId], references: [id], onDelete: Restrict)
+  /// 6.12 (X-6): a contract (the company resolution, what went to legal review and its comments, the
+  /// reconciliation's scan, the signed contract, the stamping certificate).
+  contractId            String?
+  contract              Contract?            @relation(fields: [contractId], references: [id], onDelete: Restrict)
 
   attachedAt   DateTime  @default(now())
   detachedAt   DateTime?
@@ -3996,6 +4094,7 @@ model DocumentAttachment {
   @@index([evaluationBidderId])
   @@index([supplierDocumentId])
   @@index([supplierApplicationId])
+  @@index([contractId])
   @@index([versionId])
 }
 
@@ -7330,4 +7429,489 @@ model SpecialPermission {
 
   @@index([exerciseId])
   @@index([partyId])
+}
+
+// ------------------------------------------------------------------ 6.12 contract formation and baseline
+
+/// Where a baseline value came from (OD-5). ENTERED: keyed at baseline by an officer, not from a tender
+/// Appendix, with the provenance the officer chose. DERIVED: computed from other baseline values and a
+/// configured policy (the first interim minimum from the builders' works value).
+enum BaselineSource {
+  APPENDIX
+  AWARD
+  BQ
+  DERIVED
+  ENTERED
+}
+
+/// Why a baseline version exists (OD-2 A). POSSESSION is written by 6.13's possession act.
+enum BaselineReason {
+  CONFIRMED
+  EXECUTED
+  POSSESSION
+  CORRECTION
+}
+
+enum AssemblyPartState {
+  READY
+  CANCELLED_BY_ALTERNATIVE
+}
+
+/// FR-CON-004: the three comparisons a reconciliation records.
+enum ReconciliationComparison {
+  TENDER_DOCUMENT
+  TENDER_TABLE_DOCUMENT
+  DRAWINGS
+}
+
+enum ReconciliationOutcome {
+  MATCHES
+  AMENDED
+}
+
+/// FR-CON-005: the four checks; the last two by the basis.
+enum FormationCheckKind {
+  ARITHMETIC
+  FRONT_LOADING
+  RATE_UNIFORMITY
+  SOR_ADJUSTMENT
+}
+
+enum LegalDecision {
+  ENDORSED
+  RETURNED
+}
+
+enum SignatureParty {
+  RSAJ
+  CONTRACTOR
+  WITNESS
+}
+
+enum CustodyItemKind {
+  CONTRACT
+  SECURITY
+  POLICY
+}
+
+enum CustodyDirection {
+  OUT
+  IN
+}
+
+/// How this customer forms contracts (6.12). One per organisation; every value unset until set, and an
+/// unset value refuses the act it governs, naming the setting. Ships empty.
+model ContractPolicy {
+  id             String       @id @default(cuid())
+  organisationId String       @unique
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// FR-CON-006: the legal office a contract is reviewed by, as OrgUnit.code. Null refuses submission.
+  legalOfficeCode       String?
+  /// FR-CON-005: a tendered rate above this multiple of the estimate rate is listed as front-loaded.
+  /// Null: no ratio, the officer's judgement only.
+  frontLoadingRatio     Decimal? @db.Decimal(9, 4)
+  /// FR-CON-012: the words stamped on a controlled copy. Null refuses issuing a copy.
+  controlledCopyStampEn String?
+  controlledCopyStampMs String?
+  /// OD-4 A: the `award_signatory` rows' condition for the contract agreement. Null refuses the RSAJ signature.
+  signatoryCond         String?
+
+  provenance Provenance?
+  notes      String      @default("")
+}
+
+/// A part of the Contract Document for a basis, in its prescribed order (FR-CON-003). The customer's
+/// list, as 6.4's part model; ships empty.
+model ContractDocumentPart {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  contractBasisCode String
+  code              String
+  labelEn           String
+  labelMs           String?
+  printedNumber     String  @default("")
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+  sortOrder  Int        @default(0)
+  retiredOn  DateTime?
+
+  @@unique([organisationId, contractBasisCode, code])
+}
+
+/// A part of one contract's assembly, copied from configuration when preparation started.
+model ContractAssemblyPart {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  partCode           String
+  labelSnapshot      String
+  labelMsSnapshot    String?
+  printedNumber      String            @default("")
+  sortOrder          Int               @default(0)
+  state              AssemblyPartState @default(READY)
+  /// What the accepted alternative proposal cancels, as the document states it. Required when cancelled.
+  cancelledStatement String            @default("")
+
+  @@unique([contractId, partCode])
+}
+
+/// One of the three comparisons of FR-CON-004, with the tender-stage addenda it took in.
+model ContractReconciliation {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  comparison        ReconciliationComparison
+  outcome           ReconciliationOutcome
+  /// The exercise's issued addenda as they stood when recorded (number, title, issued day).
+  addendaSnapshot   Json
+  checkedByPersonId String
+  checkedBy         Person                   @relation("ReconciliationCheckedBy", fields: [checkedByPersonId], references: [id], onDelete: Restrict)
+  checkedOn         DateTime
+  note              String                   @default("")
+  recordedAt        DateTime
+
+  amendments ReconciliationAmendment[]
+
+  @@unique([contractId, comparison])
+}
+
+/// An amendment to recorded information, signed by both sides (FR-CON-004), recorded on their behalf.
+model ReconciliationAmendment {
+  id               String                 @id @default(cuid())
+  organisationId   String
+  organisation     Organisation           @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  reconciliationId String
+  reconciliation   ContractReconciliation @relation(fields: [reconciliationId], references: [id], onDelete: Restrict)
+
+  description             String
+  contractorSignatoryName String
+  contractorSignedOn      DateTime
+  officerPersonId         String
+  officer                 Person   @relation("AmendmentSignedBy", fields: [officerPersonId], references: [id], onDelete: Restrict)
+  officerSignedOn         DateTime
+  recordedAt              DateTime
+}
+
+/// One of the four checks of FR-CON-005, complete with the officer and the day.
+model FormationCheck {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  kind                FormationCheckKind
+  completedByPersonId String?
+  completedBy         Person?            @relation("FormationCheckBy", fields: [completedByPersonId], references: [id], onDelete: Restrict)
+  completedOn         DateTime?
+  completedAt         DateTime?
+  note                String             @default("")
+  /// FRONT_LOADING: the ratio it was judged under, as configured when preparation started. Null: none set.
+  ratioSnapshot       Decimal?           @db.Decimal(9, 4)
+
+  corrections ArithmeticCorrection[]
+  rates       RateComparison[]
+
+  @@unique([contractId, kind])
+}
+
+/// An arithmetical correction (FR-CON-005 a): tendered and corrected; the variance is their difference.
+model ArithmeticCorrection {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  checkId        String
+  check          FormationCheck @relation(fields: [checkId], references: [id], onDelete: Restrict)
+
+  itemRef     String
+  description String   @default("")
+  tendered    Decimal  @db.Decimal(18, 2)
+  corrected   Decimal  @db.Decimal(18, 2)
+  reason      String
+  recordedAt  DateTime
+}
+
+/// A tendered rate set against the estimate rate (FR-CON-005 b). The estimate rate is SULIT.
+model RateComparison {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  checkId        String
+  check          FormationCheck @relation(fields: [checkId], references: [id], onDelete: Restrict)
+
+  itemRef      String
+  description  String   @default("")
+  provisional  Boolean  @default(false)
+  tenderedRate Decimal  @db.Decimal(18, 2)
+  estimateRate Decimal  @db.Decimal(18, 2)
+  recordedAt   DateTime
+}
+
+/// One iteration of legal review (FR-CON-006): submitted with the versions it went with, then endorsed
+/// or returned with comments. No limit and no timeout.
+model LegalReview {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  iteration           Int
+  officeCode          String
+  officeLabel         String
+  submittedAt         DateTime
+  submittedOn         DateTime
+  submittedByPersonId String
+  submittedBy         Person   @relation("LegalSubmittedBy", fields: [submittedByPersonId], references: [id], onDelete: Restrict)
+  /// The LEGAL_SUBMISSION versions live at submission: id, document title, version number, sha256.
+  pinnedVersions      Json
+
+  decision         LegalDecision?
+  decidedOn        DateTime?
+  decidedAt        DateTime?
+  reviewerPersonId String?
+  reviewer         Person?        @relation("LegalReviewedBy", fields: [reviewerPersonId], references: [id], onDelete: Restrict)
+  comments         String         @default("")
+
+  @@unique([contractId, iteration])
+}
+
+/// A signature on the Contract Document, recorded on the signer's behalf, not signed (no sign-in).
+model ContractSignature {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  party        SignatureParty
+  /// RSAJ: the officer who signs. The contractor's signatory and the witness are not Persons.
+  personId     String?
+  person       Person?        @relation("ContractSignedBy", fields: [personId], references: [id], onDelete: Restrict)
+  name         String
+  /// Held in full; shown masked everywhere but the Signing section's own field (6.11 R20).
+  icNumber     String         @default("")
+  capacity     String         @default("")
+  signedOn     DateTime
+  recordedAt   DateTime
+  // RSAJ: who the matrix resolved, as resolved at the act.
+  roleCode     String?
+  roleLabel    String?
+  ruleKey      String?
+  ruleLabel    String?
+  delegationId String?
+  delegation   Delegation?    @relation("ContractSignatureDelegation", fields: [delegationId], references: [id], onDelete: Restrict)
+
+  @@unique([contractId, party])
+}
+
+/// The Integrity Pact Stage Three briefing at signing (FR-CON-010).
+model IntegrityBriefing {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String       @unique
+  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  heldOn              DateTime
+  /// RSAJ's participants, as Person ids with their names as recorded.
+  participantIds      String[]
+  participantNames    String[]
+  /// The contractor's attendees, by name (not Persons).
+  contractorAttendees String[]
+  note                String   @default("")
+  recordedAt          DateTime
+}
+
+/// The contract baseline (FR-CON-014, ADR 0021). The draft (version null) is built when preparation
+/// starts; a version is confirmed before the first valuation (CONFIRMED), re-versioned at execution with
+/// only the Contract Date added (EXECUTED), and any other change is a CORRECTION version with a reason.
+/// Versions are never updated. Every later calculation reads a pinned version through `baselineFor`.
+model ContractBaseline {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  version          Int?
+  reason           BaselineReason?
+  correctionReason String          @default("")
+  /// The server's clock when the version was recorded, and the organisation's day it fell on.
+  recordedAt       DateTime?
+  recordedOn       DateTime?
+
+  contractSum       Decimal    @db.Decimal(18, 2)
+  contractDate      DateTime?
+  possessionDate    DateTime?
+  completionPeriod  Int
+  completionUnit    PeriodUnit
+  dateForCompletion DateTime?
+
+  dlpApplies Boolean?
+  dlpMonths  Int?
+  dlpSource  BaselineSource?
+
+  ladKind   LadKind?
+  ladAmount Decimal?        @db.Decimal(18, 2)
+  ladPct    Decimal?        @db.Decimal(9, 6)
+  ladUnit   String          @default("")
+  ladDaily  Decimal?        @db.Decimal(18, 2)
+  ladSource BaselineSource?
+
+  retentionApplies    Boolean?
+  retentionPercent    Decimal?        @db.Decimal(9, 4)
+  retentionCapPercent Decimal?        @db.Decimal(9, 4)
+  retentionSource     BaselineSource?
+
+  pcSums             Decimal?        @db.Decimal(18, 2)
+  provisionalSums    Decimal?        @db.Decimal(18, 2)
+  sumsSource         BaselineSource?
+  buildersWorksValue Decimal?        @db.Decimal(18, 2)
+
+  firstInterimMinimum      Decimal?        @db.Decimal(18, 2)
+  firstInterimSource       BaselineSource?
+  subsequentInterimMinimum Decimal?        @db.Decimal(18, 2)
+  subsequentInterimSource  BaselineSource?
+  honourCertificateDays    Int?
+  honourSource             BaselineSource?
+
+  unfixedMaterialsPct Decimal? @db.Decimal(9, 4)
+  onCostPct           Decimal? @db.Decimal(9, 4)
+  designWorkValue     Decimal? @db.Decimal(18, 2)
+
+  sectionalCompletion Boolean?
+  sectionalSource     BaselineSource?
+
+  /// Per entered field: the provenance the officer chose (OD-5, no default) and a note.
+  entered  Json
+  /// Every policy value it was built under, with provenance (the band, the type's behaviours, the
+  /// Appendix's pack version, the interim-minimum policy).
+  snapshot Json
+
+  sections ContractSection[]
+
+  @@unique([contractId, version])
+  @@index([contractId])
+}
+
+/// A section for sectional completion, with its own LAD, copied with each baseline version.
+model ContractSection {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  baselineId     String
+  baseline       ContractBaseline @relation(fields: [baselineId], references: [id], onDelete: Restrict)
+
+  ref         String
+  description String
+  ladKind     LadKind?
+  ladAmount   Decimal? @db.Decimal(18, 2)
+  ladPct      Decimal? @db.Decimal(9, 6)
+  ladDaily    Decimal? @db.Decimal(18, 2)
+  sortOrder   Int      @default(0)
+}
+
+/// Who receives a controlled copy of an executed contract (FR-CON-012). The customer's list; ships empty.
+model ControlledCopyRecipient {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code                       String
+  nameEn                     String
+  nameMs                     String?
+  /// What the recipient receives ("one original with drawings and a PDF").
+  copyForm                   String  @default("")
+  mandatory                  Boolean @default(true)
+  /// Only where a consulting engineer is engaged on the contract.
+  onlyWithConsultingEngineer Boolean @default(false)
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+  sortOrder  Int        @default(0)
+  retiredOn  DateTime?
+
+  copies IssuedCopy[]
+
+  @@unique([organisationId, code])
+}
+
+/// A numbered controlled copy and how it went (FR-CON-012). Its owner is a contract (6.14 adds the
+/// certificate): exactly one owner, a CHECK built by hand. Recalled copies stay; a reissue is a new number.
+model IssuedCopy {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String?
+  contract       Contract?    @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  copyNo         Int
+  recipientId    String?
+  recipient      ControlledCopyRecipient? @relation(fields: [recipientId], references: [id], onDelete: Restrict)
+  recipientName  String
+  copyForm       String                   @default("")
+  addressedTo    String                   @default("")
+  /// The stamp's words as configured when the copy was issued.
+  stampText      String
+  method         DeliveryMethod?
+  despatchedOn   DateTime?
+  acknowledgedOn DateTime?
+  recordedAt     DateTime
+  recalledOn     DateTime?
+  recallReason   String                   @default("")
+  reissueOfId    String?                  @unique
+  reissueOf      IssuedCopy?              @relation("CopyReissue", fields: [reissueOfId], references: [id], onDelete: Restrict)
+  reissuedAs     IssuedCopy?              @relation("CopyReissue")
+
+  @@unique([contractId, copyNo])
+}
+
+/// A physical original in custody (FR-CON-013): the contract, a security or a policy. CHECK: the kind
+/// names exactly its own key.
+model CustodyItem {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  kind       CustodyItemKind
+  securityId String?             @unique
+  security   SecurityInstrument? @relation(fields: [securityId], references: [id], onDelete: Restrict)
+  policyId   String?             @unique
+  policy     InsurancePolicy?    @relation(fields: [policyId], references: [id], onDelete: Restrict)
+
+  location          String
+  custodianPersonId String
+  custodian         Person   @relation("CustodyHeldBy", fields: [custodianPersonId], references: [id], onDelete: Restrict)
+  recordedAt        DateTime
+
+  movements CustodyMovement[]
+}
+
+/// A check-out or check-in of an original (FR-CON-013). Append-only.
+model CustodyMovement {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  itemId         String
+  item           CustodyItem  @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  direction  CustodyDirection
+  personId   String
+  person     Person           @relation("CustodyMovedBy", fields: [personId], references: [id], onDelete: Restrict)
+  on         DateTime
+  purpose    String           @default("")
+  recordedAt DateTime
 }

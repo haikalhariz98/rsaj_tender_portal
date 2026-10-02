@@ -10,6 +10,7 @@ import { hasEnded } from "@/lib/effective";
 import { isClassificationSnapshot } from "@/lib/method/snapshot";
 import { verifiedScanVersionIds } from "@/lib/scope/panel";
 import type { PartSource, TenderPackStatus } from "@/lib/tender-docs/types";
+import type { ContractStatus } from "@/lib/contract/types";
 
 import type { AwardStatus, EvaluationState, ExerciseMethodFlags, ExerciseStatus, InstrumentKind, MeetingStatus, OwnerFacts } from "./attach";
 import { isLive } from "./evidence";
@@ -113,6 +114,14 @@ export const evaluationBidderFacts = (b: { cprPercent: unknown; evaluation: { st
   exerciseStatus: b.evaluation.exercise.status,
   evaluationState: b.evaluation.state,
   cprEntered: b.cprPercent != null,
+});
+
+/// 6.12: a contract, where it stands, whether it has gone to legal review and whether the contractor has signed.
+export const contractFacts = (c: { status: ContractStatus; signatures: readonly { party: string }[]; legalReviews: readonly unknown[] }): OwnerFacts => ({
+  kind: "contract",
+  status: c.status,
+  legalSubmitted: c.legalReviews.length > 0,
+  contractorSigned: c.signatures.some((s) => s.party === "CONTRACTOR"),
 });
 
 /// 6.15: a supplier's document, renewed or not, verified or not.

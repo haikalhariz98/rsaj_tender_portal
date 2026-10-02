@@ -64,6 +64,8 @@ export interface PlanAttachment {
   /// 6.15: a supplier's document or application, which goes with its supplier (`removedSupplierRecordIds`).
   supplierDocumentId?: string | null;
   supplierApplicationId?: string | null;
+  /// 6.12: a contract, which goes with its award (`removedContractIds`).
+  contractId?: string | null;
 }
 
 export interface PlanDocument {
@@ -97,6 +99,8 @@ export interface WipeSide {
   removedBidRecordIds?: ReadonlySet<string>;
   /// 6.15: documents and applications made through the screens on demo suppliers.
   removedSupplierRecordIds?: ReadonlySet<string>;
+  /// 6.12: contracts removed with their demo award.
+  removedContractIds?: ReadonlySet<string>;
 }
 
 /**
@@ -136,7 +140,7 @@ export interface DocumentWipePlan {
 
 /// Whether an attachment's record is demo data or removed with it.
 export function onDemoSide(a: PlanAttachment, side: WipeSide): boolean {
-  const keys = [a.meetingId, a.exerciseId, a.awardId, a.delegationId, a.specificationPanelId ?? null, a.bqVersionId ?? null, a.tenderPackPartId ?? null, a.addendumId ?? null, a.bidWithdrawalId ?? null, a.validityExtensionId ?? null, a.openingId ?? null, a.evaluationId ?? null, a.evaluationMeetingId ?? null, a.evaluationBidderId ?? null, a.supplierDocumentId ?? null, a.supplierApplicationId ?? null].filter((k): k is string => k != null);
+  const keys = [a.meetingId, a.exerciseId, a.awardId, a.delegationId, a.specificationPanelId ?? null, a.bqVersionId ?? null, a.tenderPackPartId ?? null, a.addendumId ?? null, a.bidWithdrawalId ?? null, a.validityExtensionId ?? null, a.openingId ?? null, a.evaluationId ?? null, a.evaluationMeetingId ?? null, a.evaluationBidderId ?? null, a.supplierDocumentId ?? null, a.supplierApplicationId ?? null, a.contractId ?? null].filter((k): k is string => k != null);
   // An attachment has exactly one owner (a CHECK); a row with none is never the demo's.
   if (keys.length === 0) return false;
   return keys.every(
@@ -151,7 +155,8 @@ export function onDemoSide(a: PlanAttachment, side: WipeSide): boolean {
       (a.tenderPackPartId === k && (side.removedPackPartIds?.has(k) ?? false)) ||
       (a.addendumId === k && (side.removedAddendumIds?.has(k) ?? false)) ||
       ((a.bidWithdrawalId === k || a.validityExtensionId === k || a.openingId === k || a.evaluationId === k || a.evaluationMeetingId === k || a.evaluationBidderId === k) && (side.removedBidRecordIds?.has(k) ?? false)) ||
-      ((a.supplierDocumentId === k || a.supplierApplicationId === k) && (side.removedSupplierRecordIds?.has(k) ?? false)),
+      ((a.supplierDocumentId === k || a.supplierApplicationId === k) && (side.removedSupplierRecordIds?.has(k) ?? false)) ||
+      (a.contractId === k && (side.removedContractIds?.has(k) ?? false)),
   );
 }
 

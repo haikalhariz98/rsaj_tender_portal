@@ -10,6 +10,7 @@
 
 import { isLive } from "./evidence";
 import type { ExerciseStatus } from "@/lib/method/types";
+import type { ContractStatus } from "@/lib/contract/types";
 import { exerciseAllowsPanel } from "@/lib/scope/panel";
 import type { PartSource, TenderPackStatus } from "@/lib/tender-docs/types";
 
@@ -77,7 +78,10 @@ export type OwnerFacts =
   /// 6.15 (FR-VND-002, 004): a supplier's document. Renewed, it keeps what it has; verified, it stands on its scan.
   | { kind: "supplierDocument"; renewed: boolean; verified: boolean }
   /// 6.15 (FR-VND-006, OD-3 B): a supplier's application. Decided, it keeps what it has; sent for decision, it stands on its declaration.
-  | { kind: "supplierApplication"; open: boolean; sent: boolean };
+  | { kind: "supplierApplication"; open: boolean; sent: boolean }
+  /// 6.12 (FR-CON-006, 007, 009, 011): a contract, with where it stands, whether it has been sent for legal
+  /// review and whether the contractor's signature is recorded (which stands on the company resolution).
+  | { kind: "contract"; status: ContractStatus; legalSubmitted: boolean; contractorSigned: boolean };
 
 /// 6.8: where an evaluation version stands (the Prisma enum's values).
 export type EvaluationState = "OPEN" | "ISSUED" | "SUPERSEDED" | "CANCELLED";
@@ -169,7 +173,14 @@ export type OwnerExit =
   | "PROPOSAL_NOT_SIGNED"
   | "MEETING_CLOSED"
   | "DOCUMENT_RENEWED"
-  | "APPLICATION_DECIDED";
+  | "APPLICATION_DECIDED"
+  | "CONTRACT_CANCELLED"
+  | "CONTRACT_NOT_IN_PREPARATION"
+  | "LEGAL_REVIEW_PENDING"
+  | "LEGALLY_ENDORSED"
+  | "LEGAL_NOT_SUBMITTED"
+  | "CONTRACT_NOT_EXECUTED"
+  | "CONTRACT_EXECUTED";
 
 export type AttachFault =
   | "PURPOSE_NOT_FOR_OWNER"
@@ -280,6 +291,38 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): { sta
     case "supplierApplication":
       // 6.15: a decided application keeps what it was decided on.
       return owner.open ? { state: "OPEN" } : { state: "FROZEN", exit: "APPLICATION_DECIDED" };
+    case "contract":
+      return contractOwnerState(purpose, owner);
+  }
+}
+
+/**
+ * 6.12: where a contract stands for each of its papers. Nothing is kept before preparation starts, and a
+ * cancelled contract keeps what it has. What goes to legal review changes only while the contract is being
+ * prepared or has come back for amendment (each submission pins what was live); the legal office's
+ * comments arrive once it has been sent. The resolution and the reconciliation's scan are kept until the
+ * contract is executed; the signed contract and the stamping certificate only after.
+ */
+function contractOwnerState(purpose: AttachmentPurpose, owner: Extract<OwnerFacts, { kind: "contract" }>): { state: "OPEN" } | { state: "NOT_READY" | "FROZEN"; exit: OwnerExit } {
+  const s = owner.status;
+  if (s === "CANCELLED") return { state: "FROZEN", exit: "CONTRACT_CANCELLED" };
+  if (s === "NUMBER_ALLOCATED") return { state: "NOT_READY", exit: "CONTRACT_NOT_IN_PREPARATION" };
+  const executed = s === "EXECUTED" || s === "STAMPED" || s === "ACTIVE";
+  switch (purpose) {
+    case "LEGAL_SUBMISSION":
+      if (s === "IN_PREPARATION" || s === "RETURNED_FOR_AMENDMENT") return { state: "OPEN" };
+      return { state: "FROZEN", exit: s === "PENDING_LEGAL_ENDORSEMENT" ? "LEGAL_REVIEW_PENDING" : "LEGALLY_ENDORSED" };
+    case "LEGAL_COMMENTS":
+      if (!owner.legalSubmitted) return { state: "NOT_READY", exit: "LEGAL_NOT_SUBMITTED" };
+      return executed ? { state: "FROZEN", exit: "CONTRACT_EXECUTED" } : { state: "OPEN" };
+    case "COMPANY_RESOLUTION":
+    case "RECONCILIATION":
+      return executed ? { state: "FROZEN", exit: "CONTRACT_EXECUTED" } : { state: "OPEN" };
+    case "SIGNED_CONTRACT":
+    case "STAMPING_CERTIFICATE":
+      return executed ? { state: "OPEN" } : { state: "NOT_READY", exit: "CONTRACT_NOT_EXECUTED" };
+    default:
+      return { state: "OPEN" };
   }
 }
 
@@ -340,7 +383,9 @@ export type Reliance =
   /// 6.15 (FR-VND-004): a document verified on this scan, its last live one.
   | "DOCUMENT_VERIFIED_ON_IT"
   /// 6.15 (FR-VND-006): an application sent for decision on this signed declaration, its last live one.
-  | "SENT_ON_IT";
+  | "SENT_ON_IT"
+  /// 6.12 (FR-CON-007): the contractor's signature recorded on this company resolution, its last live one.
+  | "RESOLUTION_ON_IT";
 
 export type DetachFault = "REASON_REQUIRED" | "RELIED_ON" | "OWNER_FROZEN" | "ALREADY_DETACHED";
 
@@ -399,6 +444,8 @@ export function reliedOn(purpose: AttachmentPurpose, owner: OwnerFacts, liveOfPu
   // 6.15: a verified document stands on its scan; an application sent for decision on its signed declaration.
   if (owner.kind === "supplierDocument") return purpose === "SUPPLIER_DOCUMENT" && owner.verified ? "DOCUMENT_VERIFIED_ON_IT" : null;
   if (owner.kind === "supplierApplication") return purpose === "SUPPLIER_DECLARATION" && owner.sent ? "SENT_ON_IT" : null;
+  // 6.12: the contractor signed on the company resolution; the last live one is replaced, never taken off.
+  if (owner.kind === "contract") return purpose === "COMPANY_RESOLUTION" && owner.contractorSigned ? "RESOLUTION_ON_IT" : null;
   return null;
 }
 
