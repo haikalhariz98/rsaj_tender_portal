@@ -13,7 +13,7 @@ import { loadOpeningGate } from "@/lib/opening/gate-read";
 import { loadEvaluationGate } from "@/lib/evaluation/gate-read";
 import type { Tx } from "@/lib/audit/record";
 import type { DecisionRecord } from "@/lib/committee/record";
-import { dayIn, dayToDate, storedDay } from "@/lib/dates";
+import { dayOf, dayToDate, storedDay } from "@/lib/dates";
 import { readConditionsSnapshot } from "@/lib/tender-docs/conditions";
 import { evidenceCount, isEvidenceSnapshot } from "@/lib/documents/evidence";
 import { attachmentFacts } from "@/lib/documents/repo";
@@ -231,7 +231,8 @@ export async function frozenTenderOf(exerciseId: string, timeZone: string | null
   if (!pack || !a) return null;
   return {
     packVersion: pack.versionNo,
-    frozenOn: pack.frozenAt ? dayIn(pack.frozenAt, timeZone) : null,
+    // 68-C5 residual 4: the organisation's day the pack froze; with no zone, none (never UTC's day).
+    frozenOn: pack.frozenAt ? dayOf(pack.frozenAt, timeZone) : null,
     appendix: {
       ladKind: a.ladKind,
       ladAmount: senOrNull(a.ladAmount),
