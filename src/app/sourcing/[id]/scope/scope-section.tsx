@@ -118,7 +118,7 @@ export function ScopeSection({ d }: { d: Data }) {
                   <summary className="cursor-pointer font-semibold text-ink-3">Cleared verifications ({panel.cleared.length})</summary>
                   <ul className="mt-2 flex flex-col gap-1 pl-4">
                     {panel.cleared.map((c, i) => (
-                      <li key={i}>{c.column}, by {c.by}: cleared on {formatDate(c.clearedOn)} when the panel was edited.</li>
+                      <li key={i}>{c.column}, by {c.by}: cleared on {c.clearedOn} when the panel was edited.</li>
                     ))}
                   </ul>
                 </details>

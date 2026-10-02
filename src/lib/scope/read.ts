@@ -11,7 +11,7 @@
 
 import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatOrgDay } from "@/lib/format";
 import { CLASSIFICATION_LABEL } from "@/lib/documents/labels";
 import { formatSen, parseSen, senToDecimalString } from "@/lib/money";
 import { exerciseOrg } from "@/lib/method/repo";
@@ -174,7 +174,7 @@ export async function scopeTab(exerciseId: string) {
         const v = standing.find((x) => x.columnCode === c.code);
         return { code: c.code, label: c.labelEn, verifiedBy: v ? `${v.person.name}, ${ATTESTED}` : null, verifiedOn: v ? storedDay(v.verifiedOn) : null, note: v?.note || null };
       }),
-      cleared: panel ? panel.verifications.filter((v) => v.clearedAt != null).map((v) => ({ column: v.columnLabelSnapshot, by: v.person.name, clearedOn: storedDay(v.clearedAt!) })) : [],
+      cleared: panel ? panel.verifications.filter((v) => v.clearedAt != null).map((v) => ({ column: v.columnLabelSnapshot, by: v.person.name, clearedOn: formatOrgDay(v.clearedAt!, org.timeZone) })) : [],
       signatories: signatoriesText(signatories, policy.panelSignatoryLimit),
       signedFormScans: panel?.liveSulitScans ?? 0,
       /// What the edit form starts from: the stored values, as strings (never labels).
@@ -380,7 +380,7 @@ export async function bqTab(exerciseId: string) {
     statement: BQ_READABLE_STATEMENT,
     current: current ? view(current) : null,
     finalised: finalised && finalised !== current ? view(finalised) : null,
-    versions: versions.map((v) => ({ id: v.id, versionNo: v.versionNo, status: BQ_STATUS_LABEL[v.status], finalisedOn: v.finalisedAt ? storedDay(v.finalisedAt) : null, revisionReason: v.revisionReason || null })),
+    versions: versions.map((v) => ({ id: v.id, versionNo: v.versionNo, status: BQ_STATUS_LABEL[v.status], finalisedOn: v.finalisedAt ? formatOrgDay(v.finalisedAt, org.timeZone) : null, revisionReason: v.revisionReason || null })),
     actions: {
       start: judged(startBqFaults(versions, ex.status)),
       edit: draft ? judged(draftEditFaults(draft, ex.status)) : ({ allowed: false, reason: "Start the bill, or a revision, to edit it." } as Allowed),

@@ -5,7 +5,6 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { KeyValues, Stat } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
-import { formatDate } from "@/lib/format";
 import type { bqTab } from "@/lib/scope/read";
 
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
@@ -254,7 +253,7 @@ export function BqSection({ d }: { d: Data }) {
             cells: {
               version: { kind: "text", text: `Version ${x.versionNo}` },
               status: { kind: "badge", text: x.status, tone: x.status === "Finalised" ? "ok" : x.status === "Draft" ? "info" : undefined },
-              finalised: { kind: "text", text: x.finalisedOn ? formatDate(x.finalisedOn) : "—", dim: !x.finalisedOn },
+              finalised: { kind: "text", text: x.finalisedOn ?? "—", dim: !x.finalisedOn },
               reason: { kind: "text", text: x.revisionReason ?? (x.versionNo === 1 ? "First version" : "—"), dim: true },
             },
           }))}
