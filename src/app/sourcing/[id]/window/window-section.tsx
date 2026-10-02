@@ -198,6 +198,7 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
                 { label: "How the fee is paid", value: d.items.feePaymentMethods || "Not recorded" },
                 { label: "The least the fee may be", value: d.fee.floor == null ? <span className="flex flex-wrap items-center gap-2"><Badge tone="warn">Not set</Badge><span className="text-[12.5px] text-ink-3">No minimum is set for this band, so the window cannot be published.</span></span> : <span className="flex flex-wrap items-center gap-2"><span>{d.fee.floor.amount}</span><FromBadge text={d.fee.floor.from} />{d.fee.floor.source && <span className="text-[12.5px] break-words text-ink-3">{d.fee.floor.source}</span>}</span> },
                 ...(d.items.closingTimeReason ? [{ label: "Why the closing time differs", value: d.items.closingTimeReason }] : []),
+                { label: "Special permission", value: d.items.specialPermissionOffered === "yes" ? "Offered" : d.items.specialPermissionOffered === "no" ? "Not offered" : <span className="text-ink-3">Not stated: none is granted on this exercise</span> },
                 ...(d.registrations.length ? [{ label: `Registrations asked of a ${d.bid.bidder}`, value: d.registrations.join("; ") }] : []),
               ]}
             />

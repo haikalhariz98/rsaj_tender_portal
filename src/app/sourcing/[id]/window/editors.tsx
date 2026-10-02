@@ -37,7 +37,7 @@ const ON_BEHALF = "Name who did it: recorded on their behalf, not signed.";
 
 // ------------------------------------------------------------------ the notice's items and fee
 
-export type WindowItems = { inspectionPlace: string; purchasePlace: string; inspectionHours: string; purchaseFromDay: string; purchaseCloseDay: string; feeAmount: string; feePaymentMethods: string; submissionPlace: string; closingTimeReason: string };
+export type WindowItems = { inspectionPlace: string; purchasePlace: string; inspectionHours: string; purchaseFromDay: string; purchaseCloseDay: string; feeAmount: string; feePaymentMethods: string; submissionPlace: string; closingTimeReason: string; specialPermissionOffered: string };
 
 export function EditWindowDrawer({ exerciseId, items, allowed, first }: { exerciseId: string; items: WindowItems | null; allowed: Allowed; first: boolean }) {
   if (!allowed.allowed) return null;
@@ -57,8 +57,9 @@ export function EditWindowDrawer({ exerciseId, items, allowed, first }: { exerci
         { kind: "money", name: "feeAmount", label: "Document fee", required: true, hint: "Entered, not worked out from the basis. Judged against the minimum for its band." },
         { kind: "text", name: "feePaymentMethods", label: "How the fee is paid", required: true },
         { kind: "textarea", name: "closingTimeReason", label: "Why the closing time is not the usual one", hint: "Only if the closing time differs from the default time set under Invitation controls." },
+        { kind: "select", name: "specialPermissionOffered", label: "Special permission", options: [{ value: "unset", label: "Not stated" }, { value: "yes", label: "Offered" }, { value: "no", label: "Not offered" }], hint: "Whether the notice offers special permission to a firm short of a grade or a field code. Not stated: none is granted on this exercise." },
       ]}
-      values={{ exerciseId, ...(items ?? {}) }}
+      values={{ exerciseId, specialPermissionOffered: "unset", ...(items ?? {}) }}
       action={saveWindow}
       submitLabel="Save"
       trigger={{ label: first ? "Prepare the window" : "Edit the window", className: first ? primary : secondary }}

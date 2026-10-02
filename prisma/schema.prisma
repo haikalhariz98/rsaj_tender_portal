@@ -5198,7 +5198,8 @@ model ExerciseWindow {
   bidValidityProvenance Provenance?
   /// 6.6 (FR-BID-006): whether the documents permit alternative bids. Null: not stated.
   alternativesPermitted Boolean?
-  /// 6.15a (FR-ADV-017): whether the notice offers special permission. Null: not offered.
+  /// 6.15a (FR-ADV-017): whether the notice offers special permission. Null: not stated, and no
+  /// special permission is granted on the exercise until it is.
   specialPermissionOffered Boolean?
 
   /// Derived at publication from the publication records (OD-3) or the invitation day, then kept.

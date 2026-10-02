@@ -145,7 +145,7 @@ export async function windowTab(exerciseId: string) {
     rules: rulesShown(d, path),
     frozenRules: w?.policySnapshot ? "The rules this window was published under are kept with it." : null,
     items: w
-      ? { inspectionPlace: w.inspectionPlace, purchasePlace: w.purchasePlace, inspectionHours: w.inspectionHours, purchaseFromDay: w.purchaseFromDay ? storedDay(w.purchaseFromDay) : "", purchaseCloseDay: w.purchaseCloseDay ? storedDay(w.purchaseCloseDay) : "", feeAmount: w.feeAmount?.toString() ?? "", feePaymentMethods: w.feePaymentMethods, submissionPlace: w.submissionPlace, closingTimeReason: w.closingTimeReason }
+      ? { inspectionPlace: w.inspectionPlace, purchasePlace: w.purchasePlace, inspectionHours: w.inspectionHours, purchaseFromDay: w.purchaseFromDay ? storedDay(w.purchaseFromDay) : "", purchaseCloseDay: w.purchaseCloseDay ? storedDay(w.purchaseCloseDay) : "", feeAmount: w.feeAmount?.toString() ?? "", feePaymentMethods: w.feePaymentMethods, submissionPlace: w.submissionPlace, closingTimeReason: w.closingTimeReason, specialPermissionOffered: w.specialPermissionOffered == null ? "unset" : w.specialPermissionOffered ? "yes" : "no" }
       : null,
     registrations: d.tender.requirements.map((r) => `${r.bodyLabel}${r.qualifiers.trim() ? ` (${r.qualifiers.trim()})` : ""}`),
     fee: {

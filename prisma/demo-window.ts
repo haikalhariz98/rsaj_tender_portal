@@ -277,7 +277,8 @@ export async function loadWindowDemo(db: Db, organisationId: string, hooks: Wind
   {
     const sx = `${P}sx18`;
     await prepare(18, W(13), W(12), W(11), { startOn: W(11), closingDay: W(-3) }, works("grade D2, category painting works"), true);
-    await acts.saveWindow(sx, `${P}win18`, quotationWindow(W(10), W(-1)), T(W(11), "11:00"));
+    // 6.15a (FR-ADV-017): sx18's notice offers special permission, so 6.15a's demo can grant one on it.
+    await acts.saveWindow(sx, `${P}win18`, { ...quotationWindow(W(10), W(-1)), specialPermissionOffered: true }, T(W(11), "11:00"));
     await acts.feeLines(sx, 18, QUOTATION_FEE_BASIS, T(W(11), "11:10"));
     for (const [i, c] of CHANNELS.entries()) await acts.publication(sx, `${P}pub18_${i + 1}`, c.id, W(10), c.reference(18), T(W(10), `09:0${i}`));
     await acts.publish(sx, T(W(10), "10:00"));
@@ -614,7 +615,7 @@ export async function scopeReady(db: Db, organisationId: string, tz: string, exe
 
 // ------------------------------------------------------------------ the windows' inputs
 
-export type WindowInput = { inspectionPlace: string; purchasePlace: string; inspectionHours: string; purchaseFromDay: string; purchaseCloseDay: string; feeAmount: string; feePaymentMethods: string; submissionPlace: string; closingTimeReason: string };
+export type WindowInput = { inspectionPlace: string; purchasePlace: string; inspectionHours: string; purchaseFromDay: string; purchaseCloseDay: string; feeAmount: string; feePaymentMethods: string; submissionPlace: string; closingTimeReason: string; specialPermissionOffered?: boolean | null };
 export const tenderWindow = (from: string, to: string): WindowInput => ({
   inspectionPlace: "Contract & Procurement, level 3, 1 Demo Avenue", purchasePlace: "Finance counter, ground floor, 1 Demo Avenue", inspectionHours: "Monday to Friday, 9.00 am to 4.00 pm",
   purchaseFromDay: from, purchaseCloseDay: to, feeAmount: "200.00", feePaymentMethods: "Bank draft or cheque to Demo Utilities Sdn Bhd, or cash at the counter", submissionPlace: "The tender box, ground floor, 1 Demo Avenue", closingTimeReason: "",

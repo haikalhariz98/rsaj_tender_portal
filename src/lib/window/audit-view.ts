@@ -49,6 +49,8 @@ export function windowFields(w: {
   feeAmount: Dec;
   feePaymentMethods: string;
   submissionPlace: string;
+  /// 6.15a (FR-ADV-017): written only where the act carries it.
+  specialPermissionOffered?: boolean | null;
 }) {
   return {
     ...(w.path ? { path: PATH_LABEL[w.path] } : {}),
@@ -61,6 +63,7 @@ export function windowFields(w: {
     fee: money(w.feeAmount),
     feePaymentMethods: w.feePaymentMethods || null,
     submissionPlace: w.submissionPlace || null,
+    ...("specialPermissionOffered" in w ? { specialPermission: w.specialPermissionOffered == null ? "Not stated" : w.specialPermissionOffered ? "Offered" : "Not offered" } : {}),
   };
 }
 

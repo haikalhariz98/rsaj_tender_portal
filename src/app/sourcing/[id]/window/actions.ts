@@ -53,12 +53,15 @@ export async function saveWindow(_prev: FormState, data: FormData): Promise<Form
   const feePaymentMethods = r.text("feePaymentMethods", "How the fee is paid", { max: 400 });
   const submissionPlace = r.text("submissionPlace", "Where tenders are submitted", { max: 400 });
   const closingTimeReason = r.text("closingTimeReason", "Why the closing time differs", { max: 2000 });
+  // 6.15a (FR-ADV-017): whether the notice offers special permission; not stated is null, never "offered".
+  const offer = r.choice("specialPermissionOffered", "Special permission", ["yes", "no", "unset"] as const);
+  const specialPermissionOffered = offer === "yes" ? true : offer === "no" ? false : null;
   if (purchaseFrom && purchaseClose && purchaseFrom > purchaseClose) r.reject("purchaseCloseDay", windowFindingText({ code: "PURCHASE_DAYS_OUT_OF_ORDER", level: "block" }));
   if (r.failed) return { ok: false, errors: r.errors };
   return inWindow(exerciseId, async (tx, l, d) => {
     const ef = windowEditFault(l.ex.status, l.ex.packKindSnapshot);
     if (ef) return refuse([ef]);
-    const after = { inspectionPlace, purchasePlace, inspectionHours, purchaseFromDay: purchaseFrom, purchaseCloseDay: purchaseClose, feeAmount: fee, feePaymentMethods, submissionPlace, closingTimeReason };
+    const after = { inspectionPlace, purchasePlace, inspectionHours, purchaseFromDay: purchaseFrom, purchaseCloseDay: purchaseClose, feeAmount: fee, feePaymentMethods, submissionPlace, closingTimeReason, specialPermissionOffered };
     if (!d.window) {
       const { method } = pathOf(d);
       if (!method) return refuse([{ code: "PATH_NOT_SET", level: "block" }]);
