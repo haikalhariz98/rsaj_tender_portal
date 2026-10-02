@@ -99,7 +99,9 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
   const receiptNo = r.optionalText("financeReceiptNo");
   const personId = r.optionalText("issuedByPersonId");
   // 6.15a fix M-2: the register's supplier this contractor is, named on the sale (an explicit link, OD-9).
-  const chosenSupplierId = r.optionalText("supplierId");
+  const pickedSupplierId = r.optionalText("supplierId");
+  // Residual 6: a supplier past the form's list is named by its register reference, looked up here.
+  const supplierReference = r.optionalText("supplierReference");
   const linkReason = r.text("linkReason", "Why they are the same company", { max: 1000 });
   if (r.failed) return { ok: false, errors: r.errors };
   return receiptGuarded(() => inWindow(exerciseId, async (tx, l, d) => {
@@ -117,6 +119,10 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
     if (invited) return refuse([invited], "Not sold:");
     // 6.15a fix M-2 (flagged against 6.5): a supplier named on the form links a party not yet linked (a first
     // sale has no party yet), judged as the link act judges it, and written below, in this transaction.
+    const byReference = supplierReference ? await tx.supplier.findFirst({ where: { organisationId: l.org.id, reference: supplierReference }, select: { id: true } }) : null;
+    if (supplierReference && !byReference) return { ok: false, errors: { supplierReference: "No supplier on the register has that reference." } };
+    if (byReference && pickedSupplierId && byReference.id !== pickedSupplierId) return { ok: false, errors: { supplierReference: "That reference is not the supplier chosen above: name one." } };
+    const chosenSupplierId = pickedSupplierId ?? byReference?.id ?? null;
     const choice = saleSupplier(known?.vendorId ?? null, chosenSupplierId);
     if (choice.kind === "REFUSED") return { ok: false, errors: { supplierId: supplierFaultText(choice.fault) } };
     let linkAtSale: { supplier: { id: string; reference: string; registeredName: string }; findings: Finding[] } | null = null;

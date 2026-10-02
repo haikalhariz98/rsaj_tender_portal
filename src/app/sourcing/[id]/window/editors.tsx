@@ -378,6 +378,7 @@ export function RecordSaleDrawer({
   people,
   fee,
   suppliers = [],
+  suppliersTotal = 0,
   noteId = EXERCISE_NOTE_ID,
 }: {
   exerciseId: string;
@@ -390,6 +391,8 @@ export function RecordSaleDrawer({
   fee: string;
   /// 6.15a fix M-2: the register's registered suppliers, one of which the sale may name.
   suppliers?: Option[];
+  /// Residual 6: how many registered suppliers there are; past the list, one is named by its reference.
+  suppliersTotal?: number;
   noteId?: string;
 }) {
   if (!allowed.allowed) return <Blocked label="Record a sale" reason={allowed.reason} primary noteId={noteId} />;
@@ -411,7 +414,8 @@ export function RecordSaleDrawer({
               { kind: "text", name: "fax", label: "Fax" },
               { kind: "text", name: "email", label: "Email" },
             ] as Field[])),
-        { kind: "select", name: "supplierId", label: "Supplier on the register", placeholder: "Not named", options: suppliers, hint: "The register's supplier this contractor is. Named, a contractor not yet linked is linked to it as the sale is recorded (audited), and its registration and standing are read from the register. Needed where the register is required for a sale. A contractor already linked keeps its link." },
+        { kind: "select", name: "supplierId", label: "Supplier on the register", placeholder: "Not named", options: suppliers, hint: `The register's supplier this contractor is: type to search${suppliersTotal > suppliers.length ? ` the first ${suppliers.length} of ${suppliersTotal} by name; any other is named by its register reference below` : ""}. Named, a contractor not yet linked is linked to it as the sale is recorded (audited), and its registration and standing are read from the register. Needed where the register is required for a sale. A contractor already linked keeps its link.` },
+        ...(suppliersTotal > suppliers.length ? [{ kind: "text", name: "supplierReference", label: "Or its register reference", mono: true, hint: "Exactly as the register shows it, for a supplier not in the list above." } as Field] : []),
         { kind: "textarea", name: "linkReason", label: "Why they are the same company", hint: "Only where the contractor's registration number differs from the register's." },
         { kind: "text", name: "collectedBy", label: "Collected by", required: true, hint: "The representative who took the set." },
         { kind: "select", name: "authoritySighted", label: "Proof of the representative's authority sighted", required: true, placeholder: "Choose", placeholderDisabled: true, options: THREE, hint: "Not answered refuses the sale." },
