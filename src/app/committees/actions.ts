@@ -4,7 +4,7 @@ import { bidGate } from "@/lib/bids/repo";
 import { bidFindingText } from "@/lib/bids/labels";
 import { APPOINTMENT_DOMAIN } from "@/lib/method/types";
 import { toSecond } from "@/lib/bids/lateness";
-import { bundleFaults } from "@/lib/evaluation/bundle";
+import { bundleFaults, tabledVersionFault } from "@/lib/evaluation/bundle";
 import { loadEvaluationGate } from "@/lib/evaluation/gate-read";
 import { evaluationFindingText } from "@/lib/evaluation/labels";
 import { lockEvaluationRows } from "@/lib/evaluation/lock";
@@ -458,6 +458,8 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
     // portal reference, exactly one, and not a cancelled one.
     let exerciseId: string | null = null;
     let exerciseReference: string | null = null;
+    // 6.8 fix M-3: the evaluation version in force, its bundle checked, recorded on the appointment matter.
+    let evaluationVersion: number | null = null;
     if (matterKind === "EXERCISE" && matterRef) {
       const matches = await tx.sourcingExercise.findMany({ where: { organisationId: s.organisationId, reference: matterRef }, select: { id: true, status: true, reference: true }, take: 2 });
       if (matches.length === 1 && matches[0].status !== "CANCELLED") {
@@ -473,6 +475,10 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
         // its issued, standing report and its Kertas Cadangan, checked and recommended. Others as before.
         const bundle = bundleFaults((await loadEvaluationGate(exerciseId, tx)).bundle);
         if (bundle.length) r.reject("matterRef", bundle.map(evaluationFindingText).join(" "));
+        else {
+          const gate = await loadEvaluationGate(exerciseId, tx);
+          if (gate.bundle.applies) evaluationVersion = gate.version;
+        }
       }
       // No exercise has that reference: tabled as a manual matter, linked to no record, as before.
     }
@@ -491,10 +497,10 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
     const tabledAt = dayToDate(s.today!);
     const sequence = s.meeting.decisions.reduce((n, d) => Math.max(n, d.sequence), 0) + 1;
     const row = await tx.committeeDecision.create({
-      data: { meetingId, subject, domain, matterKind, matterRef, requisitionId, exerciseId, amount, act: act!, tabledByPersonId, tabledAt, dependsOnDecisionId, sequence },
+      data: { meetingId, subject, domain, matterKind, matterRef, requisitionId, exerciseId, amount, act: act!, tabledByPersonId, tabledAt, dependsOnDecisionId, sequence, evaluationVersion },
     });
     await audit(tx, s, "CommitteeDecision", row.id, subject, "CREATE",
-      diffFields(null, { ...v, linkedRequisition: requisitionReference, linkedExercise: exerciseReference, tabledBy: tabledByPersonId ? s.names[tabledByPersonId] : null, tabledAt, sequence }));
+      diffFields(null, { ...v, linkedRequisition: requisitionReference, linkedExercise: exerciseReference, tabledOnEvaluationVersion: evaluationVersion, tabledBy: tabledByPersonId ? s.names[tabledByPersonId] : null, tabledAt, sequence }));
     return { ok: true };
   });
 }
@@ -652,6 +658,10 @@ async function loopBack(tx: Tx, s: LoadedSitting, exerciseId: string, decisionId
   const key = chosen?.returnsToStage ?? null;
   const lf = loopFault({ kind: chosen?.kind ?? null, key });
   if (lf || !isLoopKey(key)) return lf ? evaluationFindingText(lf) : null;
+  // 6.8 fix M-3: a matter tabled on a version no longer in force opens nothing; the outcome stands as recorded.
+  const tabled = s.meeting.decisions.find((d) => d.id === decisionId)?.evaluationVersion ?? null;
+  const vf = tabledVersionFault({ applies: true, tabledOn: tabled, inForce: ev.version });
+  if (vf) return evaluationFindingText({ ...vf, code: vf.code === "TABLED_ON_EARLIER_VERSION" ? "LOOP_ON_EARLIER_VERSION" : "LOOP_VERSION_NOT_RECORDED" });
   const ex = await tx.sourcingExercise.findUniqueOrThrow({ where: { id: exerciseId }, select: { id: true, reference: true, title: true, status: true, regime: true, boundaryValue: true, boundaryOperator: true } });
   const v = await openNewVersion(tx, { organisationId: s.organisationId, exercise: ex, ceiling: ceilingOf(ex), today: s.today, timeZone: s.timeZone, now }, { trigger: "LOOP", decisionId, key, personId: null });
   return v ? `Evaluation version ${v} of ${ex.reference} is opened: ${LOOP_KEY_LABEL[key].toLowerCase()}.` : null;

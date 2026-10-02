@@ -28,7 +28,7 @@ import { bidGate } from "@/lib/bids/repo";
 import { awardeeBidderText, awardeePartyWrite, openingGateFaults } from "@/lib/opening/award-gate";
 import { loadOpeningGate } from "@/lib/opening/gate-read";
 import { recommendationDifferences } from "@/lib/evaluation/award-gate";
-import { bundleFaults } from "@/lib/evaluation/bundle";
+import { bundleFaults, tabledVersionFault } from "@/lib/evaluation/bundle";
 import { evaluationFindingText } from "@/lib/evaluation/labels";
 import { loadEvaluationGate, type EvaluationGate } from "@/lib/evaluation/gate-read";
 import { openingFindingText } from "@/lib/opening/labels";
@@ -654,6 +654,10 @@ export async function citeAppointmentDecision(_prev: FormState, data: FormData):
     // 6.8 (E-8, flagged): nor while the evaluation's bundle does not stand (its report issued and standing, the Kertas Cadangan checked and recommended).
     const bundle = bundleFaults((await loadEvaluationGate(l.ex.id, tx)).bundle);
     if (bundle.length) return { ok: false, errors: { committeeDecisionId: bundle.map(evaluationFindingText).join(" ") } };
+    // 6.8 fix M-3: and only a decision on the version in force, the one the matter was tabled on.
+    const gate = await loadEvaluationGate(l.ex.id, tx);
+    const tabledOn = tabledVersionFault({ applies: gate.bundle.applies, tabledOn: matter.evaluationVersion ?? null, inForce: gate.version });
+    if (tabledOn) return { ok: false, errors: { committeeDecisionId: evaluationFindingText(tabledOn) } };
     const s = committeeStepFrom(record);
     if (s.decision === "PENDING") return { ok: false, errors: { committeeDecisionId: record ? "The committee deferred the matter. Cite it once it is decided." : "The committee has not decided the matter yet." } };
     const after = committeeCitationWrite({ decision: s.decision, committeeName: s.citation!.committee, decidedOn: s.decidedOn, committeeDecisionId: matter.id, recordedAt: new Date() });
