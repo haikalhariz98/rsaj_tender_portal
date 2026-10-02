@@ -13,6 +13,7 @@ import { documentFaultText, PURPOSE_LABEL } from "@/lib/documents/labels";
 import { lockVersion } from "@/lib/documents/service";
 import { blocking } from "@/lib/documents/types";
 import { RECOMMENDATION_NOT_ATTACHED } from "@/lib/people/labels";
+import { endAssignment as endAssignmentDay } from "@/lib/people/end-assignment";
 import { db } from "@/lib/db";
 import { periodsOverlap } from "@/lib/effective";
 import { END_DAY_LABEL } from "@/lib/effective-text";
@@ -620,41 +621,63 @@ export async function saveAssignment(_prev: FormState, data: FormData): Promise<
   return { ok: true };
 }
 
-/// Ending an assignment closes its period. The record stays: a decision signed under
-/// it must keep resolving to the person who signed.
+/// Ending an assignment closes its period on the day the officer chooses: the first day
+/// they no longer hold it, stored as a day (end day not included, `effective.ts`) and judged
+/// against the organisation's today (`endAssignment`). The record stays: a decision signed
+/// under it must keep resolving to the person who signed.
 export async function endAssignment(_prev: FormState, data: FormData): Promise<FormState> {
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
+  const endDay = String(data.get("effectiveTo") ?? "").trim();
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
 
-  const before = await db.roleAssignment.findUnique({
-    where: { id },
-    include: { person: { select: { name: true } } },
-  });
-  if (!before) return { ok: false, message: "That assignment no longer exists." };
-  if (before.effectiveTo) return { ok: false, message: "That assignment has already ended." };
+  const judge = async (read: typeof db | Tx) => {
+    const row = await read.roleAssignment.findUnique({ where: { id }, include: { person: { select: { name: true } } } });
+    if (!row) return { row: null, result: null } as const;
+    const org = await read.organisation.findUniqueOrThrow({ where: { id: orgId }, select: { timeZone: true } });
+    return { row, result: endAssignmentDay({ effectiveFrom: row.effectiveFrom, effectiveTo: row.effectiveTo, endDay, today: todayIn(new Date(), org.timeZone) }) } as const;
+  };
+  const refusal = (result: Exclude<ReturnType<typeof endAssignmentDay>, { ok: true }>): FormState =>
+    result.field ? { ok: false, errors: { [result.field]: result.message } } : { ok: false, message: result.message };
 
-  const effectiveTo = new Date();
+  const first = await judge(db);
+  if (!first.row) return { ok: false, message: "That assignment no longer exists." };
+  if (!first.result.ok) return refusal(first.result);
+
+  const effectiveTo = first.result.effectiveTo;
   const sitting = await inProgressSittingRefusal({
-    roleCode: before.roleCode,
+    roleCode: first.row.roleCode,
     roster: (r) => ({ ...r, assignments: r.assignments.map((a) => (a.id === id ? { ...a, effectiveTo } : a)) }),
   });
   if (sitting) return { ok: false, message: sitting };
-  await auditedUpdate(
-    {
-      organisationId: orgId,
-      entity: "RoleAssignment",
-      entityId: id,
-      entityLabel: `${before.roleCode} — ${before.person.name}`,
-      reason,
-    },
-    { effectiveTo: null },
-    { effectiveTo },
-    (tx) => tx.roleAssignment.update({ where: { id }, data: { effectiveTo } }),
-  );
+
+  class Refused extends Error {
+    constructor(readonly state: FormState) {
+      super("refused");
+    }
+  }
+  try {
+    await db.$transaction(async (tx) => {
+      // Re-judged on the locked row: an end recorded while this act waited is seen here.
+      await tx.$queryRaw`SELECT id FROM "RoleAssignment" WHERE id = ${id} FOR UPDATE`;
+      const locked = await judge(tx);
+      if (!locked.row) throw new Refused({ ok: false, message: "That assignment no longer exists." });
+      if (!locked.result.ok) throw new Refused(refusal(locked.result));
+      await tx.roleAssignment.update({ where: { id }, data: { effectiveTo: locked.result.effectiveTo } });
+      await writeAudit(
+        tx,
+        { organisationId: orgId, entity: "RoleAssignment", entityId: id, entityLabel: `${locked.row.roleCode} — ${locked.row.person.name}`, reason },
+        "UPDATE",
+        diffFields({ effectiveTo: null }, { effectiveTo: locked.result.effectiveTo }),
+      );
+    });
+  } catch (e) {
+    if (e instanceof Refused) return e.state;
+    throw e;
+  }
 
   revalidatePath(PATH);
   return { ok: true };

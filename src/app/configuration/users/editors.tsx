@@ -686,8 +686,11 @@ export function EndAssignment({ id, label }: { id: string; label: string }) {
   return (
     <RecordEditor
       title={`End ${label}`}
-      description="The period closes today. Decisions already signed under it keep resolving to the signatory."
-      fields={[{ kind: "hidden", name: "id" }]}
+      description="Choose the first day they no longer hold it; that day is not included. Decisions already signed under it keep resolving to the signatory."
+      fields={[
+        { kind: "hidden", name: "id" },
+        { kind: "date", name: "effectiveTo", label: END_DAY_LABEL, required: true, hint: "Today or later. To correct a period already past, use Edit." },
+      ]}
       values={{ id }}
       action={endAssignment}
       submitLabel="End it"
