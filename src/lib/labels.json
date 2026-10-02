@@ -142,5 +142,9 @@
   "late_tender_admission": {
     "en": "Late tender admission",
     "ms": "Kemasukan tender lewat"
+  },
+  "supplier_registration": {
+    "en": "Supplier registration",
+    "ms": "Pendaftaran pembekal"
   }
 }

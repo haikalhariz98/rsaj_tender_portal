@@ -72,6 +72,10 @@ const CONDS: Record<string, string> = {
   EXTENSION: "An extension of the closing",
   CORRECTION: "A correction of the closing before publication",
   CANCELLATION: "The cancellation of the published exercise",
+  // 6.15 (OD-2 A): what a supplier's application is for.
+  NEW: "A first registration",
+  RENEWAL: "A renewal of registration",
+  UPGRADE: "An upgrade of registration",
 };
 
 export function condLabel(code: string): string {
