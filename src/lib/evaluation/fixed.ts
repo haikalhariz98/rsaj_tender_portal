@@ -80,6 +80,17 @@ export function formatFixed(v: Fixed, dp: number = FIXED_PLACES): string {
   return `${neg ? "-" : ""}${whole}${dp > 0 ? `.${frac}` : ""}`;
 }
 
+/**
+ * A mark as its scorer entered it (6.8 review 68-C2): at the evaluation's frozen places, or at more
+ * where it was entered with more — never rounded to fewer, never padded to four. 18 at two places is
+ * "18.00"; 12.125 at two places is "12.125". Null places (not frozen): exactly as entered.
+ */
+export function formatMark(v: Fixed, dp: number | null): string {
+  const frac = formatFixed(v, FIXED_PLACES).split(".")[1] ?? "";
+  const entered = frac.replace(/0+$/, "").length;
+  return formatFixed(v, Math.max(dp ?? 0, entered));
+}
+
 /// The four-place string a `Decimal(9, 4)` column is written with.
 export const fixedToDecimalString = (v: Fixed) => formatFixed(v, FIXED_PLACES);
 

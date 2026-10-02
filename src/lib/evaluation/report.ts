@@ -11,7 +11,7 @@
 import { formatMoney, type Sen } from "@/lib/money";
 
 import { evaluatedPrice, recommendedPriceOf, type BidderFacts, type EvaluationFacts } from "./facts";
-import { formatFixed, pctText } from "./fixed";
+import { formatFixed, formatMark, pctText } from "./fixed";
 import { variance, lowestPrice } from "./commercial";
 import { ranking } from "./recommend";
 import { saving as savingOf } from "./saving";
@@ -168,7 +168,7 @@ export function buildReport(i: ReportInput): ReportSnapshot {
           ...bidderLine(b),
           criteria: scoredCriteria(s).map((c) => {
             const sc = b.scores.get(`${s.code}/${c.code}`) ?? null;
-            return { criterion: c.labelEn, max: c.maxMarks, marks: sc?.marks != null ? formatFixed(sc.marks) : null, passed: sc?.passed ?? null, scoredBy: sc?.scoredBy ?? null, carried: sc?.carried ?? false, note: sc?.note ?? "" };
+            return { criterion: c.labelEn, max: c.maxMarks, marks: sc?.marks != null ? formatMark(sc.marks, dp) : null, passed: sc?.passed ?? null, scoredBy: sc?.scoredBy ?? null, carried: sc?.carried ?? false, note: sc?.note ?? "" };
           }),
           figure: fig(r?.shown ?? null),
           passed: r?.passed ?? null,

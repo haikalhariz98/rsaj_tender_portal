@@ -16,7 +16,7 @@ import { formatMoney, senFromDecimal, senToDecimalString } from "@/lib/money";
 import { aspectPrefill } from "./aspects";
 import { ceilingOf } from "./repo";
 import { evaluatedPrice, recommendedPriceOf, scoreKey, type BidderFacts, type EvaluationFacts } from "./facts";
-import { formatFixed, parseFixed, pctText } from "./fixed";
+import { formatFixed, formatMark, parseFixed, pctText } from "./fixed";
 import { evaluationFindingText, MEETING_KIND_LABEL, PHASE_LABEL, PHASE_TONE, ROUTE_LABEL, RUNNING_LABEL, SIDE_LABEL, STAGE_KIND_LABEL, STATE_LABEL, STATE_TONE, TRIGGER_LABEL, VERDICT_LABEL, VERDICT_TONE, DIRECTION_LABEL, CHANNEL_LABEL, SCALE_LABEL } from "./labels";
 import { LOOP_KEY_LABEL, isLoopKey } from "./loop";
 import { scoredCriteria, type StageSnap } from "./model";
@@ -297,7 +297,7 @@ function bidderAtStage(f: EvaluationFacts, s: StageSnap, b: BidderFacts, dp: num
   const notYet = live && live.pending.length ? [...new Set(live.pending.map(evaluationFindingText))].join(" ") : null;
   const scoreRows = scoredCriteria(s).map((cr) => {
     const sc = b.scores.get(scoreKey(s.code, cr.code)) ?? null;
-    return { code: cr.code, label: cr.labelEn, value: sc ? (sc.marks != null ? formatFixed(sc.marks, 4) : sc.passed ? "Pass" : "Fail") : null, by: sc?.scoredBy ?? null, carried: sc?.carried ?? false };
+    return { code: cr.code, label: cr.labelEn, value: sc ? (sc.marks != null ? formatMark(sc.marks, dp) : sc.passed ? "Pass" : "Fail") : null, by: sc?.scoredBy ?? null, carried: sc?.carried ?? false };
   });
   return {
     id: b.id,
