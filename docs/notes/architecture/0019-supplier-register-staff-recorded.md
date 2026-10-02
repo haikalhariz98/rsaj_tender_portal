@@ -40,7 +40,10 @@ to anyone, the opposite of FR-VND-013). The product owner ruled B.
    verified; a document not in order is never effective.
 5. **Links are explicit acts.** A party or an award is linked to a supplier only by an audited act (OD-9); nothing matches on a
    registration number, empty never matches, nothing is backfilled. The foreign keys added to `ExerciseParty.vendorId` and
-   `Award.vendorId` are added by a migration that aborts if any value is already set (condition 5).
+   `Award.vendorId` are added by a migration that aborts if any value is already set (condition 5). (6.15a fix round:
+   naming the register's supplier on a document sale is such an act, made in the sale's transaction, so a first sale can be made
+   where the register is required; an award takes its awardee party's link when the party is written, and an award linked on
+   its own is never silently relinked; one supplier is one party on an exercise.)
 6. **Decisions freeze their rules.** An application's decision, a sale's check, an opening's eligibility finding and a blacklisting
    each snapshot the policy values and labels they were judged under, and are rendered from the snapshot afterwards.
 
