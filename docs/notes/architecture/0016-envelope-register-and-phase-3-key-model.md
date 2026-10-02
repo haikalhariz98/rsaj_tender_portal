@@ -35,10 +35,13 @@ re-designated to Phase 3 with sign-in and D6 — a stated departure from §13.4'
    received it (recorded on their behalf, not signed) and its markings as written. `BidEnvelope.partyId` exists for 6.7 and is
    written by nothing in 6.6 (source scan); 6.7 C-10 narrows the scan to its one writer, `openEnvelope`. A withdrawal is matched
    by the markings its letter quotes; its letter is held SULIT.
-3. **The server's clock alone decides lateness (OD-3 as amended).** A receipt is stamped inside its transaction, to the second,
-   and judged against the locked closing (14:30:00 in time, 14:30:01 late; fractions dropped; the reading ASSUMED and shown). A
-   receipt recorded after the event keeps the officer's stated time and reason beside the stamp, labelled "entered, not
-   server-stamped", and is never judged on it. A late envelope is recorded, counted apart and goes to the committee the method
+3. **The server's clock alone decides lateness (OD-3 as amended).** A receipt is stamped once, at the act's entry before any
+   lock is asked for, to the second (code review CR-3), and judged against the closing read under the locks, so an extension
+   committed while the act waited is honoured (14:30:00 in time, 14:30:01 late; fractions dropped; the reading ASSUMED and
+   shown). Withdrawals, the correction cut-off and the box's lock are stamped the same way. `sequence` stays recording order,
+   allocated under the envelope lock; under contention it may differ from stamp order by up to a second, and is never
+   reordered. A receipt recorded after the event keeps the officer's stated time and reason beside the stamp, shown as the
+   officer's statement (the stamp labelled the server's recording time on every row, review S-1), and is never judged on it. A late envelope is recorded, counted apart and goes to the committee the method
    names; nothing deletes, rejects or sets one aside.
 4. **Custody stays physical.** The box, its lock and its key remain the control. The portal records the custody acts — the box
    locked at or after the closing by a named officer (`BoxEvent` LOCKED, server-stamped), an envelope withdrawn and handed back

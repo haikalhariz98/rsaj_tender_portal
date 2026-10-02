@@ -12,6 +12,7 @@ import { applyFaults, extensionFaults } from "@/lib/bids/extension";
 import { bidFindingText } from "@/lib/bids/labels";
 import { LATE_DOMAIN, lateMatterFault, lateMatterSubject } from "@/lib/bids/late";
 import { lockBoxRows, lockEnvelopeRows, lockExtensionRows, lockWithdrawalRows } from "@/lib/bids/lock";
+import { toSecond } from "@/lib/bids/lateness";
 import { judgeReceipt, receiptFaults } from "@/lib/bids/receipt";
 import { exerciseForBids, liveConsents, loadBidRule, loadBidWindow, loadBoxEvents, loadEnvelopes, loadExtensions, loadLateMatters, loadValidityOffsets, orgDay, validityOf } from "@/lib/bids/repo";
 import { blocking, OFFICER_CHANNELS, RECEIPT_KINDS, type EnvelopeChannel, type Finding } from "@/lib/bids/types";
@@ -35,12 +36,18 @@ import { activePerson, audit, exerciseIdOf, inWindow, label, type LockedWindow }
  * exercise's requisition, the exercise and its window (`inWindow`), then the register's rows the
  * act is about (envelopes, then withdrawals, box events or extensions), re-reads the closing, the
  * method's rules and the register under those locks, and re-runs the pure rule on the locked data.
- * The server's clock is read inside the transaction; no form field carries a time on the
- * server-stamped path. Every write is audited before and after in the same transaction. People are
+ * The server's clock is read once, at the action's entry, before any lock is asked for, and
+ * truncated to the second (`stampNow`, 6.6 CR-3); it is judged against the closing read under the
+ * locks, so an extension committed while the act waited is honoured. No form field carries a time
+ * on the server-stamped path. `sequence` stays recording order (taken under the envelope lock), so
+ * under contention it may differ from stamp order by up to a second; it is never reordered. Every write is audited before and after in the same transaction. People are
  * "recorded on their behalf, not signed": there is no sign-in.
  */
 
 const PROVENANCES = ["STATED", "OBSERVED", "ASSUMED"] as const;
+
+/// CR-3: the server's stamp for a server-stamped act, read at the act's entry, to the second.
+const stampNow = () => toSecond(new Date());
 
 const refuse = (fs: readonly Finding[], lead = "Nothing was saved:"): FormState => ({ ok: false, message: `${lead} ${blocking(fs).map(bidFindingText).join(" ")}` });
 const warnings = (fs: readonly Finding[]) => fs.filter((f) => f.level !== "block").map(bidFindingText).join(" ");
@@ -70,13 +77,11 @@ function readReceipt(r: FormReader) {
  * Record a receipt, stamped now by the server. `stated` is the after-the-fact path's: the
  * officer's stated time and reason, kept beside the stamp and never judged (OD-3 amended).
  */
-async function receive(exerciseId: string, v: ReturnType<typeof readReceipt>, stated: { at: Date; reason: string } | null): Promise<FormState> {
+async function receive(exerciseId: string, v: ReturnType<typeof readReceipt>, stated: { at: Date; reason: string } | null, now: Date): Promise<FormState> {
   return inWindow(exerciseId, async (tx, l) => {
     const r = await locked(tx, l);
     const person = await nameOf(tx, l.org.id, v.receivedByPersonId);
     const parent = v.parentEnvelopeId ? (r.envelopes.find((e) => e.id === v.parentEnvelopeId) ?? null) : undefined;
-    // The server's clock, read here, inside the transaction, after the locks.
-    const now = new Date();
     const fs = receiptFaults({ exercise: r.exercise, kind: v.kind!, channel: v.channel!, markings: v.markings, personActive: !!person, now, stated, parent: parent === undefined ? undefined : parent && { kind: parent.kind, status: parent.status } });
     if (blocking(fs).length) return refuse(fs);
     const judged = judgeReceipt(now, l.ex.closingAt!);
@@ -109,14 +114,16 @@ async function receive(exerciseId: string, v: ReturnType<typeof readReceipt>, st
 
 /// FR-BID-002: record an envelope received now. The server stamps it; there is no time on this form.
 export async function recordReceiptNow(_prev: FormState, data: FormData): Promise<FormState> {
+  const now = stampNow();
   const r = new FormReader(data);
   const v = readReceipt(r);
   if (r.failed) return { ok: false, errors: r.errors };
-  return receive(exerciseIdOf(data), v, null);
+  return receive(exerciseIdOf(data), v, null, now);
 }
 
 /// OD-3 amended: a receipt recorded after the event. The server still stamps it and the stamp decides; the officer's stated time and reason are kept beside it, shown.
 export async function recordReceiptAfterTheFact(_prev: FormState, data: FormData): Promise<FormState> {
+  const now = stampNow();
   const r = new FormReader(data);
   const v = readReceipt(r);
   const statedDay = r.text("statedDay", "Received on", { required: true, max: 10 });
@@ -128,7 +135,7 @@ export async function recordReceiptAfterTheFact(_prev: FormState, data: FormData
   const tz = await organisationTimeZone();
   const at = instantAt(statedDay, statedTime, tz);
   if (!at) return { ok: false, errors: tz ? { statedTime: "Give a time of day, as HH:MM." } : {}, message: tz ? undefined : bidFindingText({ code: "TIME_ZONE_UNSET", level: "block" }) };
-  return receive(exerciseId, v, { at, reason });
+  return receive(exerciseId, v, { at, reason }, now);
 }
 
 /**
@@ -137,6 +144,7 @@ export async function recordReceiptAfterTheFact(_prev: FormState, data: FormData
  * the box is matched at opening. The letter is attached to the withdrawal (SULIT) from its row.
  */
 export async function recordWithdrawal(_prev: FormState, data: FormData): Promise<FormState> {
+  const now = stampNow();
   const r = new FormReader(data);
   const envelopeId = r.optionalText("envelopeId");
   const markings = r.text("markings", "How the letter identifies the envelope", { required: true, max: 1000 });
@@ -148,10 +156,9 @@ export async function recordWithdrawal(_prev: FormState, data: FormData): Promis
     const person = await nameOf(tx, l.org.id, personId);
     const env = envelopeId ? reg.envelopes.find((e) => e.id === envelopeId) : null;
     if (envelopeId && !env) return { ok: false, message: "That envelope is not on this exercise." };
-    const now = new Date();
     const fs = withdrawFaults({ exercise: reg.exercise, now, envelope: env ? { kind: env.kind, late: env.late, status: env.status, withdrawn: env.withdrawal != null } : null, markings, personActive: !!person });
     if (blocking(fs).length) return refuse(fs);
-    const w = await tx.bidWithdrawal.create({ data: { organisationId: l.org.id, exerciseId: l.ex.id, receivedAt: new Date(Math.floor(now.getTime() / 1000) * 1000), receivedByPersonId: person!.id, markings, closingAtJudged: l.ex.closingAt!, envelopeId: env?.id ?? null } });
+    const w = await tx.bidWithdrawal.create({ data: { organisationId: l.org.id, exerciseId: l.ex.id, receivedAt: now, receivedByPersonId: person!.id, markings, closingAtJudged: l.ex.closingAt!, envelopeId: env?.id ?? null } });
     await audit(tx, l.org.id, BID_ENTITY.withdrawal, w.id, label(l, env ? `Withdrawal of envelope ${env.sequence}` : "Withdrawal of an envelope in the box"), "CREATE", diffFields(null, withdrawalFields({ receivedAt: w.receivedAt, markings, receivedBy: person!.name, envelopeSequence: env?.sequence ?? null }, l.org.timeZone)));
     if (env) {
       const moved = await tx.bidEnvelope.updateMany({ where: { id: env.id, status: "RECEIVED" }, data: { status: "WITHDRAWN" } });
@@ -185,6 +192,7 @@ export async function recordReturnedUnopened(_prev: FormState, data: FormData): 
 
 /// FR-BID-005: a clerical correction of the markings, the channel or the receiving officer, before the closing, with a reason.
 export async function correctEnvelope(_prev: FormState, data: FormData): Promise<FormState> {
+  const now = stampNow();
   const r = new FormReader(data);
   const envelopeId = r.text("envelopeId", "Envelope", { required: true });
   const reason = r.text("reason", "Reason", { required: true, max: 1000 });
@@ -200,10 +208,10 @@ export async function correctEnvelope(_prev: FormState, data: FormData): Promise
     const env = reg.envelopes.find((e) => e.id === envelopeId);
     if (!env) return { ok: false, message: "That envelope is not on this exercise." };
     const person = change.receivedByPersonId !== undefined ? await nameOf(tx, l.org.id, String(change.receivedByPersonId)) : env.receivedBy;
-    const fs = correctionFaults({ exercise: reg.exercise, now: new Date(), envelope: { kind: env.kind, status: env.status, channel: env.channel, markings: env.markings, receivedByPersonId: env.receivedByPersonId }, change, reason, personActive: !!person });
+    const fs = correctionFaults({ exercise: reg.exercise, now, envelope: { kind: env.kind, status: env.status, channel: env.channel, markings: env.markings, receivedByPersonId: env.receivedByPersonId }, change, reason, personActive: !!person });
     if (blocking(fs).length) return refuse(fs);
     const next = { markings: change.markings ?? env.markings, channel: (change.channel ?? env.channel) as EnvelopeChannel, receivedByPersonId: person!.id };
-    await tx.bidEnvelope.update({ where: { id: env.id }, data: { ...next, correctedAt: new Date() } });
+    await tx.bidEnvelope.update({ where: { id: env.id }, data: { ...next, correctedAt: now } });
     await audit(tx, l.org.id, BID_ENTITY.envelope, env.id, label(l, `Envelope ${env.sequence}`), "UPDATE",
       diffFields(correctionFields({ channel: env.channel, markings: env.markings, receivedBy: env.receivedBy.name }), correctionFields({ channel: next.channel, markings: next.markings, receivedBy: person!.name })), reason);
     return { ok: true };
@@ -212,6 +220,7 @@ export async function correctEnvelope(_prev: FormState, data: FormData): Promise
 
 /// Record the box locked at the closing, by a named officer, stamped now. Refused before the closing.
 export async function lockBox(_prev: FormState, data: FormData): Promise<FormState> {
+  const now = stampNow();
   const r = new FormReader(data);
   const personId = r.optionalText("personId");
   const note = r.text("note", "Note", { max: 1000 });
@@ -220,10 +229,9 @@ export async function lockBox(_prev: FormState, data: FormData): Promise<FormSta
     const reg = await locked(tx, l);
     await lockBoxRows(tx, l.ex.id);
     const person = await nameOf(tx, l.org.id, personId);
-    const now = new Date();
     const fs = lockFaults({ exercise: reg.exercise, now, events: reg.events, personActive: !!person });
     if (blocking(fs).length) return refuse(fs);
-    const at = new Date(Math.floor(now.getTime() / 1000) * 1000);
+    const at = now;
     const row = await tx.boxEvent.create({ data: { organisationId: l.org.id, exerciseId: l.ex.id, kind: "LOCKED", occurredAt: at, personId: person!.id, note } });
     await audit(tx, l.org.id, BID_ENTITY.box, row.id, label(l, "Tender box locked"), "CREATE", diffFields(null, boxFields({ at, by: person!.name, note }, l.org.timeZone)));
     return { ok: true };
