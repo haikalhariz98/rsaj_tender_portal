@@ -12,7 +12,7 @@ import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { draftFindings, loadModel, stageChoices } from "@/lib/evaluation/config-read";
 import { CAPITAL_BASE_LABEL, INPUT_LABEL, MODEL_STATUS_LABEL, MODEL_STATUS_TONE, modelFindingText, OUTCOME_LABEL, ROUTE_LABEL, SCALE_LABEL, SHORTLIST_RULE_LABEL, SIDE_LABEL, STAGE_KIND_LABEL } from "@/lib/evaluation/labels";
-import { formatDate } from "@/lib/format";
+import { formatOrgDay } from "@/lib/format";
 import { exerciseOrg } from "@/lib/method/repo";
 
 import { BandDrawer, BandSetDrawer, CriterionDrawer, DiscardDraftDrawer, FactorDrawer, IssueModelDrawer, ModelDrawer, NewVersionDrawer, RemoveBandDrawer, RemoveBandSetDrawer, RemoveCriterionDrawer, RemoveFactorDrawer, RemoveStageDrawer, RetireModelDrawer, StageDrawer } from "../editors";
@@ -57,7 +57,7 @@ export default async function EvaluationModelPage(props: PageProps<"/configurati
         eyebrow={<Link href="/configuration/evaluation">Evaluation models</Link>}
         title={label}
         badge={<Badge tone={MODEL_STATUS_TONE[m.status]} dot>{MODEL_STATUS_LABEL[m.status]}</Badge>}
-        subtitle={draft ? "A draft: change it here, then issue it. Issuing freezes it; a change after that is a new version." : m.status === "ISSUED" ? `Issued ${m.issuedAt ? formatDate(m.issuedAt) : ""}. It is read-only: exercises pin it as it was issued. A change is a new version.` : "Retired: no longer offered. Exercises that pinned it keep it."}
+        subtitle={draft ? "A draft: change it here, then issue it. Issuing freezes it; a change after that is a new version." : m.status === "ISSUED" ? `Issued ${m.issuedAt ? formatOrgDay(m.issuedAt, org.timeZone) : ""}. It is read-only: exercises pin it as it was issued. A change is a new version.` : "Retired: no longer offered. Exercises that pinned it keep it."}
         actions={
           <>
             <HistoryButton entity="EvaluationModel" entityId={m.id} label={label} />

@@ -8,7 +8,7 @@
 
 import { dayToDate, storedDay, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatOrgDay } from "@/lib/format";
 import { ACT_LABEL } from "@/lib/labels";
 import { tenderingRoutesOf, latestFirst, requesterHolding } from "@/lib/method/approval";
 import { BEHAVIOUR_LABEL, EXERCISE_STATUS_LABEL } from "@/lib/method/labels";
@@ -196,7 +196,7 @@ export async function documentsTab(exerciseId: string) {
     versions: packs.map((p) => ({
       versionNo: p.versionNo,
       status: PACK_STATUS_LABEL[p.status],
-      submittedOn: p.submittedAt ? formatDate(p.submittedAt) : null,
+      submittedOn: p.submittedAt ? formatOrgDay(p.submittedAt, c.org.timeZone) : null,
       returnedBecause: p.status === "RETURNED" ? p.returnedReason : null,
       voidBecause: p.status === "VOID" ? p.voidReason : null,
     })),
@@ -229,7 +229,7 @@ function packView(p: PackRow, c: NonNullable<Awaited<ReturnType<typeof context>>
     versionNo: p.versionNo,
     status: PACK_STATUS_LABEL[p.status],
     frozen: p.frozenAt != null,
-    frozenOn: p.frozenAt ? formatDate(p.frozenAt) : null,
+    frozenOn: p.frozenAt ? formatOrgDay(p.frozenAt, c.org.timeZone) : null,
     returnedBecause: p.status === "RETURNED" ? p.returnedReason : null,
     /// Draft only: take the parts' two answers from the configuration as it stands (BD-64-39), or why that cannot help yet.
     refresh: editable && p.status === "DRAFT" ? refreshView(p.parts.map(partFactsOf), c.configured) : null,
@@ -434,7 +434,7 @@ export async function printView(exerciseId: string, set: "pack" | "table" = "pac
         printedNumber: m.printedNumber,
         label: m.label,
         omitted: m.state === "OMITTED" ? `Omitted: ${m.omittedReason}` : null,
-        texts: pack.documents.filter((d) => d.partCode === m.partCode).map((d) => ({ language: d.language === "MS" ? "Malay" : "English", paragraphs: d.renderedText.split("\n\n"), fidelity: d.templateName ? `From ${d.templateName}${d.templateFormCode ? ` (${d.templateFormCode})` : ""}, text version ${d.templateBodyVersion}, frozen ${formatDate(d.frozenAt)}.` : `${PART_SOURCE_LABEL[d.source]}, frozen ${formatDate(d.frozenAt)}.` })),
+        texts: pack.documents.filter((d) => d.partCode === m.partCode).map((d) => ({ language: d.language === "MS" ? "Malay" : "English", paragraphs: d.renderedText.split("\n\n"), fidelity: d.templateName ? `From ${d.templateName}${d.templateFormCode ? ` (${d.templateFormCode})` : ""}, text version ${d.templateBodyVersion}, frozen ${formatOrgDay(d.frozenAt, c.org.timeZone)}.` : `${PART_SOURCE_LABEL[d.source]}, frozen ${formatOrgDay(d.frozenAt, c.org.timeZone)}.` })),
         files: m.files.map((f) => ({ title: f.title, versionNo: f.versionNo, fingerprint: f.sha256 })),
         stampNote: uploadStampNote(restrictedFrozen, m.source),
       })),
