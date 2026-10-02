@@ -125,6 +125,35 @@ export async function configureSuppliersDemo(db: Db, organisationId: string) {
   // OD-2 A: one rule on the domain, with no value band (a supplier matter is routed on no value).
   await db.authorityRule.create({ data: { id: `${P}rule120`, authorityMatrixId: `${P}mx1`, ruleKey: "demo.supplier.registration", domain: "supplier_registration", labelEn: "Supplier registration", approverCode: "HOD_CP", clause: "DEMO 7.1", sortOrder: 120, generateCoreChain: false, coreChainReason: "One office approves a supplier's registration: nothing to generate (demo)." } });
   entry("AuthorityRule", `${P}rule120`, "Supplier registration", "CREATE", later(53), diffFields(null, { rule: "Supplier registration", approver: "Head of Contract & Procurement", act: "Approve", clause: "DEMO 7.1", routedOn: "No value band (supplier matters are not routed on a value)" }));
+  // ---- a2: the standing reasons, the standing rules, two more rules on the demo matrix, the expiry reminder rule.
+  const REASONS = [
+    { id: `${P}srs1`, code: "demo_documents_not_in_order", appliesTo: "SUSPEND" as const, nameEn: "Statutory documents not in order", nameMs: "Dokumen berkanun tidak teratur" },
+    { id: `${P}srs2`, code: "demo_under_investigation", appliesTo: "SUSPEND" as const, nameEn: "Under investigation", nameMs: "Dalam siasatan" },
+    { id: `${P}srs3`, code: "demo_false_declaration", appliesTo: "BLACKLIST" as const, nameEn: "False declaration in a bid", nameMs: "Akuan palsu dalam tawaran" },
+    { id: `${P}srs4`, code: "demo_failed_to_commence", appliesTo: "BLACKLIST" as const, nameEn: "Failed to commence work after award", nameMs: "Gagal memulakan kerja selepas anugerah" },
+  ];
+  for (const [i, x] of REASONS.entries()) {
+    await db.standingReason.create({ data: { ...x, organisationId, governingSource: SOURCE, provenance: "ASSUMED", sortOrder: i + 1 } });
+    entry("StandingReason", x.id, `Standing reason · ${x.nameEn}`, "CREATE", later(60 + i), diffFields(null, { givenFor: x.appliesTo === "SUSPEND" ? "Suspension" : "Blacklisting", reason: x.nameEn, reasonInMalay: x.nameMs, governingSource: SOURCE, whereItComesFrom: "Assumed" }));
+  }
+  {
+    // The bands, the first-offence period and the restriction's evidence are set (invented, ASSUMED); the
+    // closing-day rule, suspension on lapse, a sale's need of the register and the ineligible bidder's
+    // consequence are left not set, to show what each holds back (OD-4..OD-7).
+    const rules = { criticalDays: 30, warningDays: 60, upcomingDays: 90, bandsProvenance: "ASSUMED" as const, blacklistFirstOffenceMonths: 60, blacklistProvenance: "ASSUMED" as const, restrictionEvidenceTypeId: `${P}sdt4`, restrictionProvenance: "ASSUMED" as const };
+    await db.supplierPolicy.update({ where: { organisationId }, data: rules });
+    entry("SupplierPolicy", `${P}spol1`, "Supplier register · standing rules", "UPDATE", later(65), diffFields({ expiryBands: "Not set", firstOffenceMonths: "Not set", restrictionEvidence: "Not set" }, { expiryBands: "critical within 30 days, warning within 60, upcoming within 90", bandsFrom: "Assumed", firstOffenceMonths: 60, periodFrom: "Assumed", restrictionEvidence: "Status certificate", restrictionFrom: "Assumed" }));
+  }
+  await db.authorityRule.createMany({
+    data: [
+      { id: `${P}rule121`, authorityMatrixId: `${P}mx1`, ruleKey: "demo.supplier.blacklist", domain: "supplier_blacklist", labelEn: "Supplier blacklisting, or its lifting", approverCode: "CEO", clause: "DEMO 7.2", sortOrder: 121, generateCoreChain: false, coreChainReason: "The Chief Executive decides a blacklisting alone (demo)." },
+      { id: `${P}rule122`, authorityMatrixId: `${P}mx1`, ruleKey: "demo.special.permission", domain: "special_permission", labelEn: "Special permission", approverCode: "HOD_CP", clause: "DEMO 7.3", sortOrder: 122, generateCoreChain: false, coreChainReason: "One office approves a special permission: nothing to generate (demo)." },
+    ],
+  });
+  entry("AuthorityRule", `${P}rule121`, "Supplier blacklisting, or its lifting", "CREATE", later(66), diffFields(null, { rule: "Supplier blacklisting, or its lifting", approver: "Chief Executive", act: "Approve", clause: "DEMO 7.2", routedOn: "No value band (supplier matters are not routed on a value)" }));
+  entry("AuthorityRule", `${P}rule122`, "Special permission", "CREATE", later(67), diffFields(null, { rule: "Special permission", approver: "Head of Contract & Procurement", act: "Approve", clause: "DEMO 7.3", routedOn: "No value band" }));
+  await db.notificationRule.create({ data: { id: `${P}nr7`, organisationId, eventKey: "supplier.document.expiring", nameEn: "A supplier's document is expiring", recipientRoleCodes: ["HOD_CP"], reminderOffsetDays: [90, 60, 30, 7], provenance: "ASSUMED", notes: "Demo (invented). Shown on the register, never sent.", sortOrder: 7 } });
+  entry("NotificationRule", `${P}nr7`, "Notification · A supplier's document is expiring", "CREATE", later(68), diffFields(null, { name: "A supplier's document is expiring", remindDaysBefore: "90, 60, 30, 7", provenance: "ASSUMED" }));
   await db.auditEntry.createMany({ data: trail as never });
 }
 
@@ -341,6 +370,162 @@ class Acts {
     this.entry("Supplier", supplierId, `${sup.reference} · ${sup.registeredName}`, "UPDATE", when, diffFields({ erpVendorCode: null }, { erpVendorCode: code, recordedOnBehalf: `entered ${formatOrgDateTime(when, this.tz)}, not synced by an adapter` }));
   }
 
+  // ---------------------------------------------------------------- a2 acts
+
+  /// linkPartyToSupplier, as the action judges it: the party's awards follow its link.
+  async linkParty(partyId: string, supplierId: string, reason: string, when: Date) {
+    const { linkPartyFaults } = await import("../src/lib/suppliers/link");
+    const party = await this.db.exerciseParty.findUniqueOrThrow({ where: { id: partyId }, select: { id: true, name: true, registrationNo: true, vendorId: true, exercise: { select: { reference: true } }, awards: { select: { id: true, reference: true, vendorId: true } } } });
+    const s = await this.db.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { id: true, reference: true, registeredName: true, registrationNo: true, status: true } });
+    refuse(`linking ${partyId}`, linkPartyFaults(party, s, reason));
+    await this.db.exerciseParty.update({ where: { id: partyId }, data: { vendorId: supplierId } });
+    this.entry("ExerciseParty", partyId, `${party.exercise.reference} · Party ${party.name}`, "UPDATE", when, diffFields({ supplier: null }, { supplier: `${s.reference} · ${s.registeredName}`, linkReason: reason || null, linkedBy: OFFICER.name, recordedOnBehalf: "not signed" }), reason);
+    for (const a of party.awards) {
+      if (a.vendorId) fail(`award ${a.id} already names a supplier`);
+      await this.db.award.update({ where: { id: a.id }, data: { vendorId: supplierId } });
+      this.entry("Award", a.id, `${a.reference} · Awardee's supplier`, "UPDATE", when, diffFields({ supplier: null }, { supplier: `${s.reference} · ${s.registeredName}`, linkedBy: `${OFFICER.name}, through the awardee party's link` }));
+    }
+  }
+
+  /// linkAwardToSupplier, as the action judges it (an award with no party).
+  async linkAward(awardId: string, supplierId: string, when: Date) {
+    const { linkAwardFaults } = await import("../src/lib/suppliers/link");
+    const award = await this.db.award.findUniqueOrThrow({ where: { id: awardId }, select: { id: true, reference: true, awardeePartyId: true, awardeeRegistrationNo: true, vendorId: true } });
+    const s = await this.db.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { id: true, reference: true, registeredName: true, registrationNo: true, status: true } });
+    refuse(`linking ${awardId}`, linkAwardFaults(award, s, ""));
+    await this.db.award.update({ where: { id: awardId }, data: { vendorId: supplierId } });
+    this.entry("Award", awardId, `${award.reference} · Awardee's supplier`, "UPDATE", when, diffFields({ supplier: null }, { supplier: `${s.reference} · ${s.registeredName}`, linkedBy: OFFICER.name, recordedOnBehalf: "not signed" }));
+  }
+
+  async reading(supplierId: string, on: string) {
+    const { standingOf } = await import("../src/lib/suppliers/standing-repo");
+    return (await standingOf(supplierId, this.org, on, this.db as never))!;
+  }
+
+  /// suspendSupplier, as the action judges it.
+  async suspend(id: string, supplierId: string, reasonId: string, effectiveOn: string, flagged: string[], note: string, when: Date) {
+    const { suspendFaults } = await import("../src/lib/suppliers/reinstate");
+    const today = this.dayOf(when);
+    const st = await this.reading(supplierId, today);
+    const s = await this.db.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { reference: true, registeredOn: true, documents: { select: { id: true, typeLabelSnapshot: true, reference: true } } } });
+    const reason = await this.db.standingReason.findUniqueOrThrow({ where: { id: reasonId } });
+    refuse(`suspending ${supplierId}`, suspendFaults({ reasonId, effectiveOn, personActive: true, flaggedDocumentIds: flagged }, { today, status: st.status, registeredOn: s.registeredOn ? s.registeredOn.toISOString().slice(0, 10) : null, reading: st.reading, reason: { appliesTo: reason.appliesTo, retiredOn: null }, documentIds: s.documents.map((d) => d.id) }));
+    await this.db.standingEvent.create({ data: { id, organisationId: this.org, supplierId, kind: "SUSPEND", reasonId, reasonSnapshot: reason.nameEn, effectiveOn: dayToDate(effectiveOn), flaggedDocumentIds: flagged, note, recordedByPersonId: OFFICER.id, recordedAt: when } });
+    const labels = s.documents.filter((d) => flagged.includes(d.id)).map((d) => `${d.typeLabelSnapshot}${d.reference ? ` ${d.reference}` : ""}`);
+    this.entry("StandingEvent", id, `${s.reference} · Suspension`, "CREATE", when, diffFields(null, { standing: "Suspended", reason: reason.nameEn, effectiveOn, flaggedDocuments: labels.join(", ") || null, note: note || null, recordedBy: OFFICER.name, recordedOnBehalf: "not signed" }), note);
+  }
+
+  /// A route on a supplier domain, opened as openSupplierRoute does (no value; the requester never approves).
+  async openRoute(routeId: string, owner: { standingRequestId: string } | { specialPermissionId: string }, domain: string, cond: string | null, what: { en: string; ms: string }, routeLabel: string, matter: string, ifRefused: string, when: Date) {
+    const { supplierRoute, supplierHolders } = await import("../src/lib/suppliers/route");
+    const { loadIssue } = await import("../src/lib/authority/load");
+    const { loadRoster, loadDelegations } = await import("../src/lib/people/load");
+    const { ableToAct } = await import("../src/lib/requisition/holders");
+    const { routeCoreFields, stepOrigin } = await import("../src/lib/authority/core-routing");
+    const { boundaryOperatorFor } = await import("../src/lib/authority/resolve");
+    const today = this.dayOf(when);
+    const issue = (await loadIssue(ORGANISATION_CODE, dayToDate(today), undefined, null, this.db as never)) ?? fail("no matrix in force");
+    const roster = await loadRoster(ORGANISATION_CODE, this.db as never);
+    const delegations = await loadDelegations(ORGANISATION_CODE, this.db as never);
+    const people = new Map(roster.people.map((p) => [p.id, p]));
+    const res = supplierRoute(issue.matrix, domain, cond, { id: OFFICER.id, holds: (c) => supplierHolders(c, roster, delegations, today).holderIds.includes(OFFICER.id), ableToAct: (c) => ableToAct(supplierHolders(c, roster, delegations, today), OFFICER.id, 0n, (pid) => !!people.get(pid)?.isActive && !!people.get(pid)?.isAvailable) }, what);
+    if (res.refusal) fail(`the route ${routeId}: ${res.refusal.en}`);
+    const rule = issue.matrix.rules.find((x) => x.ruleKey === res.ruleKey)!;
+    await this.db.approvalInstance.create({
+      data: {
+        id: routeId, organisationId: this.org, matterKind: "SUPPLIER", ...owner, domain, cond, value: null,
+        authorityMatrixId: issue.id, matrixLabel: issue.label, ruleKey: rule.ruleKey, ruleLabel: rule.labelEn, ruleClause: rule.clause,
+        boundaryValue: String(issue.matrix.policy.boundaryValue), boundaryInclusive: issue.matrix.policy.boundaryInclusive, ruleFollowsBoundarySwitch: rule.followsBoundarySwitch, boundaryOperator: boundaryOperatorFor(rule, issue.matrix.policy),
+        checkedAgainstMatrix: true, warnings: res.warnings as never, status: "PENDING", openedAt: dayToDate(today),
+        rejectionSnapshotAt: when, rejectionKind: "RETURN_TO_ORIGINATOR", rejectionProvenance: "ASSUMED", ...routeCoreFields(res.core, when), createdAt: when,
+        steps: { create: res.chain.map((s, i) => ({ id: `${routeId}_s${i + 1}`, sequence: i + 1, roleCode: s.roleCode, roleLabel: issue.matrix.roles[s.roleCode]?.nameEn ?? s.roleCode, act: s.act, nonDelegable: s.nonDelegable, sourceRuleKey: s.sourceRuleKey, chainOrigin: stepOrigin(s) })) },
+      },
+    });
+    this.entry("ApprovalInstance", routeId, routeLabel, "CREATE", when, diffFields(null, { matter, matrix: issue.label, rule: rule.labelEn, routedOn: "No value (supplier matters are not routed on a value)", route: res.chain.map((s) => `${issue.matrix.roles[s.roleCode]?.nameEn} (approve)`).join(" → "), ifRefused, askedBy: OFFICER.name, recordedOnBehalf: "not signed" }));
+  }
+
+  /// decideSupplierStep on every step of a route, approved by `who`: deciderFaults on each.
+  async approveRoute(routeId: string, who: { id: string; name: string }, requesterId: string, routeLabel: string, when: Date) {
+    const { deciderFaults } = await import("../src/lib/requisition/holders");
+    const { supplierHolders } = await import("../src/lib/suppliers/route");
+    const { loadRoster, loadDelegations } = await import("../src/lib/people/load");
+    const { personDecisionWrite } = await import("../src/lib/authority/decided-step");
+    const today = this.dayOf(when);
+    const inst = await this.db.approvalInstance.findUniqueOrThrow({ where: { id: routeId }, include: { steps: { orderBy: { sequence: "asc" } } } });
+    const roster = await loadRoster(ORGANISATION_CODE, this.db as never);
+    const delegations = await loadDelegations(ORGANISATION_CODE, this.db as never);
+    for (const step of inst.steps) {
+      const check = deciderFaults(step, { today, holders: supplierHolders(step.roleCode!, roster, delegations, today), person: { id: who.id, isActive: true }, requesterId, endorserIds: [], otherDeciderIds: [], earlierDone: true, decidedOn: today, openedOn: inst.openedAt.toISOString().slice(0, 10), value: 0n });
+      if (check.faults.length) fail(`deciding ${step.id}: ${check.faults.join(", ")}`);
+      await this.db.approvalStep.update({ where: { id: step.id }, data: personDecisionWrite({ decision: "DONE", person: who, decidedOn: dayToDate(today), delegationId: null, reason: "", recordedAt: when }) });
+      this.entry("ApprovalStep", step.id, `${routeLabel} · ${step.roleLabel}`, "UPDATE", when, diffFields({ decision: "PENDING" }, { decision: "DONE", decidedBy: who.name, decidedOn: today, recordedOnBehalf: "not signed" }));
+    }
+    await this.db.approvalInstance.update({ where: { id: routeId }, data: { status: "APPROVED", closedAt: when } });
+    this.entry("ApprovalInstance", routeId, routeLabel, "UPDATE", when, diffFields({ status: "PENDING" }, { status: "APPROVED" }));
+  }
+
+  /// requestBlacklisting, as the action judges it, then its route opened.
+  async requestBlacklisting(requestId: string, routeId: string, supplierId: string, reasonId: string, note: string, when: Date) {
+    const { requestBlacklistFaults } = await import("../src/lib/suppliers/blacklist");
+    const { BLACKLIST_MATTER, STANDING_REFUSED_DECIDED_BY } = await import("../src/lib/suppliers/labels");
+    const today = this.dayOf(when);
+    const st = await this.reading(supplierId, today);
+    const s = await this.db.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { reference: true, registeredName: true } });
+    const reason = await this.db.standingReason.findUniqueOrThrow({ where: { id: reasonId } });
+    refuse(`asking to blacklist ${supplierId}`, requestBlacklistFaults({ reasonId, personActive: true, sourceAward: null }, { today, supplierId, status: st.status, standing: st.reading.standing, reason: { appliesTo: reason.appliesTo, retiredOn: null }, requests: [] }));
+    await this.db.standingRequest.create({ data: { id: requestId, organisationId: this.org, supplierId, kind: "BLACKLIST", reasonId, reasonSnapshot: reason.nameEn, note, requestedByPersonId: OFFICER.id, requestedAt: when } });
+    this.entry("StandingRequest", requestId, `${s.reference} · Blacklisting asked for`, "CREATE", when, diffFields(null, { askedFor: "Blacklisting", reason: reason.nameEn, note: note || null, askedBy: OFFICER.name, recordedOnBehalf: "not signed" }), note);
+    await this.openRoute(routeId, { standingRequestId: requestId }, "supplier_blacklist", "BLACKLIST", BLACKLIST_MATTER, `${s.reference} · Blacklisting route`, `Blacklisting of ${s.registeredName}`, STANDING_REFUSED_DECIDED_BY, when);
+  }
+
+  /// recordBlacklisting, as the action judges it: the period from the policy now, frozen on the event.
+  async recordBlacklisting(eventId: string, requestId: string, effectiveOn: string, when: Date) {
+    const { recordFaults, nextOffenceNo } = await import("../src/lib/suppliers/blacklist");
+    const today = this.dayOf(when);
+    const req = await this.db.standingRequest.findUniqueOrThrow({ where: { id: requestId }, include: { supplier: { select: { id: true, reference: true, standingEvents: true } }, routes: { include: { steps: true } } } });
+    const st = await this.reading(req.supplierId, today);
+    const route = req.routes[0];
+    const approvedOn = route.steps.map((x) => x.decidedOn!.toISOString().slice(0, 10)).sort().at(-1)!;
+    const policy = await this.db.supplierPolicy.findUniqueOrThrow({ where: { organisationId: this.org } });
+    const offenceNo = nextOffenceNo(req.supplier.standingEvents);
+    const r = recordFaults({ effectiveOn, personActive: true }, { today, request: { kind: "BLACKLIST", route: route.status === "APPROVED" ? "APPROVED" : "PENDING", approvedOn, recorded: false }, standing: st.reading.standing, offenceNo, months: policy.blacklistFirstOffenceMonths });
+    refuse(`recording ${requestId}`, r.faults);
+    const ends = r.period?.kind === "ENDS" ? r.period : null;
+    await this.db.standingEvent.create({ data: { id: eventId, organisationId: this.org, supplierId: req.supplierId, kind: "BLACKLIST", reasonId: req.reasonId, reasonSnapshot: req.reasonSnapshot, effectiveOn: dayToDate(effectiveOn), endsOn: ends ? dayToDate(ends.endsOn) : null, offenceNo, periodMonths: ends?.months ?? null, requestId, note: req.note, recordedByPersonId: OFFICER.id, recordedAt: when } });
+    this.entry("StandingEvent", eventId, `${req.supplier.reference} · Blacklisting`, "CREATE", when, diffFields(null, { standing: "Blacklisted", reason: req.reasonSnapshot, effectiveOn, offence: "First offence", period: ends ? `${ends.months} months` : "Until further notice", endsOn: ends?.endsOn ?? null, freeFrom: ends?.freeFrom ?? null, recordedBy: OFFICER.name, recordedOnBehalf: "not signed" }));
+  }
+
+  /// recordSpecialPermission (internal approval), then its route; grantSpecialPermission once approved.
+  async specialPermission(id: string, routeId: string, partyId: string, bodyIds: string[], when: Date) {
+    const { specialPermissionFaults } = await import("../src/lib/suppliers/permission");
+    const { PERMISSION_MATTER, PERMISSION_REFUSED_DECIDED_BY } = await import("../src/lib/suppliers/labels");
+    const today = this.dayOf(when);
+    const party = await this.db.exerciseParty.findUniqueOrThrow({ where: { id: partyId }, include: { exercise: { select: { id: true, reference: true, window: { select: { specialPermissionOffered: true } }, registrationRequirements: { orderBy: { sortOrder: "asc" } } } }, specialPermissions: true } });
+    if (!party.vendorId) fail(`${partyId} is not linked`);
+    // The requirement on the board whose grade it relaxes (the demo Contractors Board), not the companies registry.
+    const board = await this.db.registrationBody.findUniqueOrThrow({ where: { id: bodyIds[0] }, select: { code: true } });
+    const req = party.exercise.registrationRequirements.find((r) => r.bodyCode === board.code) ?? fail(`${party.exercise.reference} states no requirement on that board`);
+    const bodies = await this.db.registrationBody.findMany({ where: { organisationId: this.org, retiredOn: null } });
+    refuse(`special permission for ${partyId}`, specialPermissionFaults({ requirementId: req.id, relaxes: "GRADE", grantingBodyIds: bodyIds, internalApproval: true, existingClassConfirmed: true, goodRecordConfirmed: true, personActive: true }, { today, offered: party.exercise.window?.specialPermissionOffered ?? null, requirementIds: party.exercise.registrationRequirements.map((r) => r.id), bodyIds: bodies.map((b) => b.id), existing: party.specialPermissions }));
+    const reqLabel = `${req.bodyLabelSnapshot}${req.qualifiers.trim() ? ` (${req.qualifiers.trim()})` : ""}`;
+    const labels = bodyIds.map((b) => bodies.find((x) => x.id === b)!.labelEn);
+    await this.db.specialPermission.create({ data: { id, organisationId: this.org, exerciseId: party.exercise.id, partyId, requirementId: req.id, requirementLabelSnapshot: reqLabel, relaxes: "GRADE", grantingBodyIds: bodyIds, grantingBodyLabels: labels, internalApproval: true, existingClassConfirmed: true, goodRecordConfirmed: true, note: "The firm holds the grade below; the board's letter permits this one exercise (demo).", requestedByPersonId: OFFICER.id, requestedAt: when } });
+    const permLabel = `${party.exercise.reference} · Special permission for ${party.name}`;
+    this.entry("SpecialPermission", id, permLabel, "CREATE", when, diffFields(null, { requirement: reqLabel, relaxes: "The grade", grantedByBodies: labels.join(", "), internalApproval: "Yes, on its route", existingClassConfirmed: "Confirmed", goodRecordConfirmed: "Confirmed", recordedBy: OFFICER.name, recordedOnBehalf: "not signed" }));
+    await this.openRoute(routeId, { specialPermissionId: id }, "special_permission", null, PERMISSION_MATTER, `${permLabel} · route`, `Special permission for ${party.name} on ${party.exercise.reference}`, PERMISSION_REFUSED_DECIDED_BY, when);
+    return permLabel;
+  }
+
+  async grantPermission(id: string, grantedOn: string, when: Date) {
+    const { grantFaults } = await import("../src/lib/suppliers/permission");
+    const today = this.dayOf(when);
+    const perm = await this.db.specialPermission.findUniqueOrThrow({ where: { id }, include: { party: { select: { name: true } }, exercise: { select: { reference: true, window: { select: { specialPermissionOffered: true } } } }, routes: { include: { steps: true } } } });
+    const approvedOn = perm.routes[0].steps.map((x) => x.decidedOn!.toISOString().slice(0, 10)).sort().at(-1)!;
+    refuse(`granting ${id}`, grantFaults({ grantedOn, personActive: true }, { today, offered: perm.exercise.window?.specialPermissionOffered ?? null, granted: !!perm.grantedOn, internalApproval: true, route: perm.routes[0].status === "APPROVED" ? "APPROVED" : "PENDING", approvedOn }));
+    await this.db.specialPermission.update({ where: { id }, data: { grantedOn: dayToDate(grantedOn), grantedByPersonId: OFFICER.id, grantedAt: when } });
+    this.entry("SpecialPermission", id, `${perm.exercise.reference} · Special permission for ${perm.party.name}`, "UPDATE", when, diffFields({ grantedOn: null }, { grantedOn, grantedBy: OFFICER.name, recordedOnBehalf: "not signed" }));
+  }
+
   /// openApplication (a renewal), as the action judges it.
   async openRenewal(supplierId: string, appId: string, receivedOn: string, declarationSignedOn: string, when: Date) {
     const { openApplicationFaults } = await import("../src/lib/suppliers/review");
@@ -460,6 +645,24 @@ export async function loadSuppliersDemo(db: Db, organisationId: string) {
   await acts.attach({ supplierApplicationId: `${P}vapp7r` }, "SUPPLIER_DECLARATION", "Signed declaration of Sampel Engineering Sdn Bhd (renewal)", `${v7.ref} · application`, T(W(4), "09:20"));
   await acts.submit(`${P}vapp7r`, `${P}ai128`, T(W(2), "10:00"));
 
+  // ---- a2 (plan §6). Links first (OD-9: explicit acts, never matched): sx16, sx18 and sx20's parties;
+  // sx16's Sampel Kejuruteraan (an applicant) and Demo Network Builders are left unlinked, to show "not checked".
+  const links: [string, string][] = [[`${P}pty2`, v1.sid], [`${P}pty14`, v2.sid], [`${P}pty12`, v4.sid], [`${P}pty7`, v2.sid], [`${P}pty8`, v3.sid], [`${P}pty9`, v4.sid], [`${P}pty11`, v3.sid], [`${P}pty10`, v4.sid]];
+  for (const [i, [party, sid]] of links.entries()) await acts.linkParty(party, sid, "", T(W(9), `09:${String(10 + i).padStart(2, "0")}`));
+  // Phase 1's awards with no party: DEMO-0001-X and DEMO-0003-X.
+  await acts.linkAward(`${P}aw1`, v5.sid, T(W(9), "10:00"));
+  await acts.linkAward(`${P}aw3`, v7.sid, T(W(9), "10:05"));
+  // vnd4 suspended by hand: its tax clearance found not to match the board's record (invented).
+  await acts.suspend(`${P}vstd1`, v4.sid, `${P}srs1`, W(5), [`${P}vdoc15`], "The tax office could not confirm the letter's number; the supplier was asked for a fresh one.", T(W(5), "11:00"));
+  // vnd5 blacklisted on its route (OD-8 A): asked, approved by the Chief Executive, recorded; a first offence of 60 months.
+  await acts.requestBlacklisting(`${P}vsr1`, `${P}ai125`, v5.sid, `${P}srs3`, "The declaration in its bid for an earlier exercise was found false (demo).", T(W(8), "10:00"));
+  await acts.approveRoute(`${P}ai125`, { id: `${P}p1`, name: "Aisyah Rahman" }, OFFICER.id, `${v5.ref} · Blacklisting route`, T(W(7), "15:00"));
+  await acts.recordBlacklisting(`${P}vstd2`, `${P}vsr1`, W(6), T(W(6), "09:30"));
+  // A special permission on sx18 for Teladan Mekanikal (FR-ADV-017): the board's letter and the organisation's own approval.
+  const permLabel = await acts.specialPermission(`${P}vsp1`, `${P}ai126`, `${P}pty8`, [`${P}rb2`], T(W(4), "10:00"));
+  await acts.approveRoute(`${P}ai126`, APPROVER, OFFICER.id, `${permLabel} · route`, T(W(3), "11:00"));
+  await acts.grantPermission(`${P}vsp1`, W(3), T(W(3), "14:00"));
+
   await acts.flush();
 }
 
@@ -481,8 +684,23 @@ export async function checkSuppliersDemo(db: Db) {
   if (queueState({ ...a6, resubmitBy: a6.resubmitBy?.toISOString().slice(0, 10) ?? null }, v6.org.today) !== "LAPSED") fail("vnd6's application does not read lapsed");
   const pending = await db.approvalInstance.count({ where: { id: `${P}ai128`, status: "PENDING" } });
   if (pending !== 1) fail("vnd7's renewal route is not pending");
-  const unrouted = await db.approvalInstance.count({ where: { id: { in: [`${P}ai120`, `${P}ai121`, `${P}ai122`, `${P}ai123`, `${P}ai124`, `${P}ai127`, `${P}ai128`] }, value: null, matterKind: "SUPPLIER" } });
-  if (unrouted !== 7) fail("a demo supplier route was routed on a value");
+  const unrouted = await db.approvalInstance.count({ where: { id: { in: [`${P}ai120`, `${P}ai121`, `${P}ai122`, `${P}ai123`, `${P}ai124`, `${P}ai125`, `${P}ai126`, `${P}ai127`, `${P}ai128`] }, value: null, matterKind: "SUPPLIER" } });
+  if (unrouted !== 9) fail("a demo supplier route was routed on a value");
+  // a2, read back as the product reads it.
+  const { standingOf } = await import("../src/lib/suppliers/standing-repo");
+  const { addDays, addMonths } = await import("../src/lib/securities/period");
+  const org = v3.org;
+  const today = org.today!;
+  const st = async (k: number) => (await standingOf(`${P}vnd${k}`, org.id, today, db as never))!.reading;
+  if ((await st(4)).standing !== "SUSPENDED") fail("vnd4 does not read suspended");
+  const b5 = await st(5);
+  const ev = await db.standingEvent.findUniqueOrThrow({ where: { id: `${P}vstd2` } });
+  if (b5.standing !== "BLACKLISTED" || b5.blacklist?.endsOn !== addDays(addMonths(ev.effectiveOn.toISOString().slice(0, 10), 60), -1)) fail("vnd5 does not read blacklisted for 60 months");
+  const r3 = await st(3);
+  if (r3.standing !== "ACTIVE" || !r3.notes.some((n) => n.code === "LAPSE_RULE_NOT_SET")) fail("vnd3 does not read “Active — lapse rule not set” (OD-7)");
+  if ((await db.exerciseParty.findUniqueOrThrow({ where: { id: `${P}pty3` } })).vendorId !== null) fail("pty3 should stay unlinked");
+  if ((await db.award.findUniqueOrThrow({ where: { id: `${P}aw7` } })).vendorId !== `${P}vnd1`) fail("aw7 does not follow its party's link");
+  if (!(await db.specialPermission.findUniqueOrThrow({ where: { id: `${P}vsp1` } })).grantedOn) fail("vsp1 is not granted");
 }
 
 // ------------------------------------------------------------------ the wipe
@@ -508,13 +726,21 @@ export async function suppliersDemoDependents(db: Db, organisationId: string) {
     },
     select: { id: true, reference: true, registeredName: true },
   });
+  // a2: links made through the screens to a demo supplier (cleared, never moved), permissions made on demo exercises or parties.
+  const screenLinks = await db.exerciseParty.findMany({ where: { organisationId, NOT: { id: demoRef }, vendorId: demoRef }, select: { id: true, name: true, exercise: { select: { reference: true } } } });
+  const screenAwardLinks = await db.award.findMany({ where: { organisationId, NOT: { id: demoRef }, vendorId: demoRef }, select: { id: true, reference: true } });
+  const screenPermissions = await db.specialPermission.findMany({ where: { organisationId, NOT: { id: demoRef }, OR: [{ exerciseId: demoRef }, { partyId: demoRef }, { party: { vendorId: demoRef } }] }, select: { id: true, party: { select: { name: true } }, exercise: { select: { reference: true } } } });
   return {
     supplierIds: hanging.map((s) => s.id),
+    permissionIds: screenPermissions.map((x) => x.id),
     valueIds: screenValues.map((v) => v.id),
     typeIds: screenTypes.map((t) => t.id),
     lines: [
       ...screenValues.map((v) => `  registration value ${v.nameEn}, added through the screens under a demo registration body`),
       ...screenTypes.map((t) => `  supplier document type ${t.nameEn}, added through the screens on a demo registration body`),
+      ...screenLinks.map((x) => `  the link of party ${x.name} on ${x.exercise.reference} to a demo supplier (cleared, the party kept)`),
+      ...screenAwardLinks.map((x) => `  the link of award ${x.reference} to a demo supplier (cleared, the award kept)`),
+      ...screenPermissions.map((x) => `  a special permission for ${x.party.name} on ${x.exercise.reference}, made through the screens`),
       ...hanging.map((s) => `  supplier ${s.reference} · ${s.registeredName}, recorded through the screens on demo people or configuration`),
       ...screenContacts.map((c) => `  a contact added through the screens to the demo supplier ${c.supplier.reference}`),
       ...screenApps.map((a) => `  an application recorded through the screens for the demo supplier ${a.supplier.reference}`),
@@ -528,7 +754,7 @@ export async function suppliersDemoDependents(db: Db, organisationId: string) {
  * suppliers that stand on the demo), then the configuration. After the documents (their scans went with the
  * document wipe), before the people and the matrix (routes and acts name them).
  */
-export async function wipeSuppliersDemo(db: Db, organisationId: string, dependents: { supplierIds: readonly string[]; valueIds: readonly string[]; typeIds: readonly string[] }) {
+export async function wipeSuppliersDemo(db: Db, organisationId: string, dependents: { supplierIds: readonly string[]; valueIds: readonly string[]; typeIds: readonly string[]; permissionIds: readonly string[] }) {
   const sup = { OR: [{ id: demoRef }, { id: { in: [...dependents.supplierIds] } }] };
   const supplierIds = (await db.supplier.findMany({ where: { organisationId, ...sup }, select: { id: true, reference: true } }));
   const ids = supplierIds.map((s) => s.id);
@@ -536,6 +762,20 @@ export async function wipeSuppliersDemo(db: Db, organisationId: string, dependen
   const docs = (await db.supplierDocument.findMany({ where: { supplierId: { in: ids } }, select: { id: true } })).map((d) => d.id);
   const routes = (await db.approvalInstance.findMany({ where: { supplierApplicationId: { in: apps } }, select: { id: true } })).map((r) => r.id);
   const decisions = (await db.applicationDecision.findMany({ where: { applicationId: { in: apps } }, select: { id: true } })).map((d) => d.id);
+  // a2: special permissions (demo, on removed suppliers' parties, or the dependents'), standing requests and events, links.
+  const permissions = (await db.specialPermission.findMany({ where: { organisationId, OR: [{ id: demoRef }, { id: { in: [...dependents.permissionIds] } }, { party: { vendorId: { in: ids } } }] }, select: { id: true } })).map((x) => x.id);
+  const requests = (await db.standingRequest.findMany({ where: { supplierId: { in: ids } }, select: { id: true } })).map((x) => x.id);
+  const events = (await db.standingEvent.findMany({ where: { supplierId: { in: ids } }, select: { id: true } })).map((x) => x.id);
+  const a2Routes = (await db.approvalInstance.findMany({ where: { OR: [{ standingRequestId: { in: requests } }, { specialPermissionId: { in: permissions } }] }, select: { id: true } })).map((r) => r.id);
+  await db.approvalStep.deleteMany({ where: { instanceId: { in: a2Routes } } });
+  await db.approvalInstance.deleteMany({ where: { id: { in: a2Routes } } });
+  await db.specialPermission.deleteMany({ where: { id: { in: permissions } } });
+  await db.standingRequest.updateMany({ where: { id: { in: requests } }, data: { liftsEventId: null } });
+  await db.standingEvent.updateMany({ where: { id: { in: events } }, data: { reinstatesEventId: null, liftsEventId: null } });
+  await db.standingEvent.deleteMany({ where: { id: { in: events } } });
+  await db.standingRequest.deleteMany({ where: { id: { in: requests } } });
+  await db.exerciseParty.updateMany({ where: { vendorId: { in: ids } }, data: { vendorId: null } });
+  await db.award.updateMany({ where: { vendorId: { in: ids } }, data: { vendorId: null } });
   await db.approvalStep.updateMany({ where: { instanceId: { in: routes }, NOT: { carriedFromStepId: null } }, data: { carriedFromStepId: null } });
   await db.approvalInstance.updateMany({ where: { id: { in: routes }, NOT: { supersedesInstanceId: null } }, data: { supersedesInstanceId: null } });
   await db.approvalStep.deleteMany({ where: { instanceId: { in: routes } } });
@@ -553,9 +793,10 @@ export async function wipeSuppliersDemo(db: Db, organisationId: string, dependen
   await db.registrationValue.deleteMany({ where: { organisationId, OR: [{ id: demoRef }, { id: { in: [...dependents.valueIds] } }] } });
   await db.supplierListValue.deleteMany({ where: { organisationId, id: demoRef } });
   await db.supplierPolicy.deleteMany({ where: { organisationId, id: demoRef } });
+  await db.standingReason.deleteMany({ where: { organisationId, id: demoRef } });
   await db.numberingSeries.deleteMany({ where: { organisationId, id: `${P}n21` } });
   await db.codeFormat.deleteMany({ where: { organisationId, id: `${P}f6` } });
-  const entities = ["Supplier", "SupplierContact", "SupplierApplication", "ApplicationDecision", "SupplierDocument", "ApprovalInstance", "ApprovalStep", "RegistrationValue", "SupplierDocumentType"];
-  await db.auditEntry.deleteMany({ where: { organisationId, entity: { in: entities }, OR: [{ entityId: { in: [...ids, ...apps, ...docs, ...routes, ...decisions, ...dependents.valueIds, ...dependents.typeIds] } }, ...supplierIds.map((s) => ({ entityLabel: { startsWith: `${s.reference} ·` } }))] } });
+  const entities = ["Supplier", "SupplierContact", "SupplierApplication", "ApplicationDecision", "SupplierDocument", "ApprovalInstance", "ApprovalStep", "RegistrationValue", "SupplierDocumentType", "StandingEvent", "StandingRequest", "SpecialPermission"];
+  await db.auditEntry.deleteMany({ where: { organisationId, entity: { in: entities }, OR: [{ entityId: { in: [...ids, ...apps, ...docs, ...routes, ...decisions, ...dependents.valueIds, ...dependents.typeIds, ...permissions, ...requests, ...events, ...a2Routes] } }, ...supplierIds.map((s) => ({ entityLabel: { startsWith: `${s.reference} ·` } }))] } });
   await db.auditEntry.deleteMany({ where: { organisationId, OR: [{ id: { startsWith: `${P}vau` } }, { id: { startsWith: `${P}vcau` } }] } });
 }
