@@ -76,6 +76,9 @@ const CONDS: Record<string, string> = {
   NEW: "A first registration",
   RENEWAL: "A renewal of registration",
   UPGRADE: "An upgrade of registration",
+  // 6.15a (OD-8 A): what a blacklisting route is asked for.
+  BLACKLIST: "A blacklisting",
+  BLACKLIST_LIFT: "The lifting of a blacklisting",
 };
 
 export function condLabel(code: string): string {

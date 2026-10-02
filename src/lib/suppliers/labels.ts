@@ -13,6 +13,14 @@ import type { LodgeFault, VerifyFault } from "./documents";
 import type { ConfigFault } from "./config";
 import type { QueueState, ReviewFault } from "./review";
 import type { VendorCodeFault } from "@/lib/integration/vendor-master";
+import type { BlacklistFault } from "./blacklist";
+import type { ConditionKind, ConditionRow, Result, Verdict } from "./eligibility";
+import type { BandFault, ExpiryBand } from "./expiry";
+import type { LinkFault } from "./link";
+import type { PermissionFault } from "./permission";
+import type { ReinstateFault, SuspendFault } from "./reinstate";
+import type { CheckState, SaleFault } from "./sale";
+import type { Standing, StandingEventKind, StandingNote, StandingReading } from "./standing";
 import type { ApplicationChannel, ApplicationKind, ApplicationOutcome, ApplicationStatus, Finding, RegistrationValueKind, SupplierListKind, SupplierStatus, VerificationState } from "./types";
 
 export interface Words {
@@ -137,7 +145,7 @@ export const ERP_NOT_SYNCED = w("Approved, not in the finance system", "Dilulusk
 const TYPE_STATE = (s: unknown) => DOCUMENT_STATE_LABEL[s as DocumentState] ?? w("not standing", "tidak berdiri");
 const SETTINGS = w("Configuration › Supplier register", "Konfigurasi › Daftar pembekal");
 
-type AnyFault = IdentityFault | LodgeFault | VerifyFault | ReviewFault | ConfigFault | VendorCodeFault;
+type AnyFault = IdentityFault | LodgeFault | VerifyFault | ReviewFault | ConfigFault | VendorCodeFault | BandFault | BlacklistFault | SuspendFault | ReinstateFault | SaleFault | LinkFault | PermissionFault | StandingNote;
 
 const TEXT: Record<AnyFault, (d: Record<string, string | number | null>) => Words> = {
   // identity (FR-VND-001)
@@ -240,7 +248,182 @@ const TEXT: Record<AnyFault, (d: Record<string, string | number | null>) => Word
   FORMAT: () => w("The code does not match the format set for the finance system's vendor codes.", "Kod tidak sepadan dengan format yang ditetapkan bagi kod vendor sistem kewangan."),
   TAKEN: () => w("That vendor code is already recorded on another supplier.", "Kod vendor itu sudah direkodkan pada pembekal lain."),
   NOT_REGISTERED: () => w("A vendor code is recorded once the supplier is registered.", "Kod vendor direkodkan setelah pembekal berdaftar."),
+  // a2: the register's policy (FR-VND-008, OD-4..OD-7, condition 4)
+  BAND_NEGATIVE: () => w("Each band is a whole number of days, from 0.", "Setiap jalur ialah bilangan hari bulat, dari 0."),
+  BANDS_PARTLY_SET: () => w("Set all three bands, or none: a band on its own cannot be read.", "Tetapkan ketiga-tiga jalur, atau tiada: satu jalur sahaja tidak boleh dibaca."),
+  BANDS_OUT_OF_ORDER: () => w("The bands run from the soonest: critical fewer days than warning, warning fewer than upcoming.", "Jalur bermula dari yang terdekat: kritikal kurang hari daripada amaran, amaran kurang daripada akan datang."),
+  BLACKLIST_PERIOD_NOT_SET: () => w(`How long a first-offence blacklisting lasts is not set, so one cannot be recorded. Set it under ${SETTINGS.en}, Standing.`, `Tempoh senarai hitam kesalahan pertama belum ditetapkan, jadi ia tidak boleh direkodkan. Tetapkan di ${SETTINGS.ms}, Kedudukan.`),
+  OFFENCE_INVALID: () => w("The offence's number cannot be read.", "Bilangan kesalahan tidak boleh dibaca."),
+  // a2: standing (FR-VND-010, OD-7, OD-8)
+  STANDING_NEEDS_REGISTRATION: () => w("Only a registered supplier is suspended or blacklisted.", "Hanya pembekal berdaftar digantung atau disenaraihitamkan."),
+  ALREADY_BLACKLISTED: () => w("The supplier is already blacklisted.", "Pembekal sudah disenaraihitamkan."),
+  NOT_BLACKLISTED: () => w("No blacklisting of this supplier is in effect.", "Tiada senarai hitam pembekal ini yang berkuat kuasa."),
+  REQUEST_OPEN: () => w("A blacklisting, or its lifting, is already asked for and not yet recorded: finish that one first.", "Senarai hitam, atau penarikannya, sudah dipohon dan belum direkodkan: selesaikan dahulu."),
+  REASON_NOT_FOR_BLACKLISTING: () => w("That reason is on the list for suspensions, not blacklistings.", "Sebab itu dalam senarai penggantungan, bukan senarai hitam."),
+  REASON_NOT_FOR_SUSPENSION: () => w("That reason is on the list for blacklistings, not suspensions.", "Sebab itu dalam senarai senarai hitam, bukan penggantungan."),
+  REASON_RETIRED: () => w("That reason is retired.", "Sebab itu telah dibersarakan."),
+  STANDING_NOTE_REQUIRED: () => w("Say why, in words: it is kept with the record.", "Nyatakan sebabnya: ia disimpan bersama rekod."),
+  AWARD_NOT_CANCELLED_FOR_BLACKLISTING: () => w("That award was not cancelled with blacklisting recommended.", "Anugerah itu tidak dibatalkan dengan cadangan senarai hitam."),
+  AWARD_NOT_THIS_SUPPLIER: () => w("That award is not linked to this supplier.", "Anugerah itu tidak dipautkan kepada pembekal ini."),
+  ROUTE_NOT_APPROVED: () => w("Its route has not approved it: it is recorded once the route's last step approves.", "Laluannya belum meluluskannya: ia direkodkan setelah langkah terakhir laluan meluluskan."),
+  ALREADY_RECORDED: () => w("This is already recorded.", "Ini sudah direkodkan."),
+  EFFECTIVE_REQUIRED: () => w("Give the day it takes effect.", "Nyatakan tarikh ia berkuat kuasa."),
+  EFFECTIVE_IN_FUTURE: () => w("The day it takes effect cannot be after today: record it on the day.", "Tarikh berkuat kuasa tidak boleh selepas hari ini: rekodkan pada hari itu."),
+  EFFECTIVE_BEFORE_DECISION: (d) => w(`It cannot take effect before its route approved it (${day(d.approvedOn)}).`, `Ia tidak boleh berkuat kuasa sebelum laluannya meluluskan (${day(d.approvedOn)}).`),
+  EFFECTIVE_BEFORE_REGISTRATION: (d) => w(`It cannot take effect before the supplier was registered (${day(d.registeredOn)}).`, `Ia tidak boleh berkuat kuasa sebelum pembekal didaftarkan (${day(d.registeredOn)}).`),
+  EFFECTIVE_BEFORE_SUSPENSION: (d) => w(`It cannot take effect before the suspension did (${day(d.since)}).`, `Ia tidak boleh berkuat kuasa sebelum penggantungan (${day(d.since)}).`),
+  ALREADY_SUSPENDED: (d) => w(`The supplier is already suspended (since ${day(d.since)}).`, `Pembekal sudah digantung (sejak ${day(d.since)}).`),
+  ALREADY_BARRED: () => w("The supplier is blacklisted or its registration cancelled: a suspension adds nothing.", "Pembekal disenaraihitamkan atau pendaftarannya dibatalkan: penggantungan tidak menambah apa-apa."),
+  DOCUMENT_NOT_ON_FILE: () => w("A document named is not on this supplier's file.", "Dokumen yang dinamakan tiada dalam fail pembekal ini."),
+  NOT_SUSPENDED: () => w("No suspension of this supplier is in effect.", "Tiada penggantungan pembekal ini yang berkuat kuasa."),
+  BLACKLISTED: () => w("The supplier is blacklisted: a blacklisting is not reinstated, it is lifted on its own route.", "Pembekal disenaraihitamkan: senarai hitam tidak dipulihkan, ia ditarik balik melalui laluannya sendiri."),
+  FLAGGED_NOT_STANDING: (d) => w(`Not reinstated: these documents the suspension was for are not verified and in force: ${d.types}.`, `Tidak dipulihkan: dokumen-dokumen yang menjadi sebab penggantungan ini belum disahkan dan berkuat kuasa: ${d.types}.`),
+  LAPSED_SINCE: (d) => w(`Not reinstated: a mandatory document has expired since: ${d.types}.`, `Tidak dipulihkan: dokumen wajib telah tamat tempoh sejak itu: ${d.types}.`),
+  CHECKLIST_INCOMPLETE: (d) => w(`Tick every line of the checklist, having seen each verified: ${d.types}.`, `Tandakan setiap baris senarai semak, setelah melihat setiap satu disahkan: ${d.types}.`),
+  LAPSE_RULE_NOT_SET: (d) => w(`Active — lapse rule not set; a mandatory document has expired${d.types ? ` (${d.types})` : ""}. Whether that suspends the supplier is set under ${SETTINGS.en}, Standing.`, `Aktif — peraturan luput belum ditetapkan; dokumen wajib telah tamat tempoh${d.types ? ` (${d.types})` : ""}. Sama ada itu menggantung pembekal ditetapkan di ${SETTINGS.ms}, Kedudukan.`),
+  MANDATORY_EXPIRED: (d) => w(`A mandatory document has expired (${d.types}); the policy does not suspend on lapse.`, `Dokumen wajib telah tamat tempoh (${d.types}); polisi tidak menggantung kerana luput.`),
+  BLACKLIST_ENDED: (d) => w(`A first-offence blacklisting ended on ${day(d.endsOn)}.`, `Senarai hitam kesalahan pertama tamat pada ${day(d.endsOn)}.`),
+  SCHEDULED: (d) => w(`${STANDING_EVENT_LABEL[d.kind as StandingEventKind]?.en ?? "A change"} takes effect on ${day(d.effectiveOn)}.`, `${STANDING_EVENT_LABEL[d.kind as StandingEventKind]?.ms ?? "Satu perubahan"} berkuat kuasa pada ${day(d.effectiveOn)}.`),
+  // a2: the sale (FR-ADV-010, OD-5)
+  SALE_NOT_REGISTERED: () => w("Not sold: the purchaser's supplier is not registered.", "Tidak dijual: pembekal pembeli tidak berdaftar."),
+  BARRED: (d) => w(`Not sold: the purchaser's supplier is ${(STANDING_LABEL[d.standing as Standing]?.en ?? "barred").toLowerCase()}.`, `Tidak dijual: pembekal pembeli ${(STANDING_LABEL[d.standing as Standing]?.ms ?? "dihalang").toLowerCase()}.`),
+  NOT_LINKED_REGISTER_REQUIRED: () => w("Not sold: a document is sold only to a purchaser on the register, and this party is not linked to one. Link it on the party first.", "Tidak dijual: dokumen dijual hanya kepada pembeli dalam daftar, dan pihak ini tidak dipautkan. Pautkan pada pihak itu dahulu."),
+  REGISTER_RULE_NOT_SET: () => w(`Not checked against the register: the party is not linked, and whether a sale needs the register is not set (${SETTINGS.en}, Standing).`, `Tidak disemak dengan daftar: pihak itu tidak dipautkan, dan sama ada jualan memerlukan daftar belum ditetapkan (${SETTINGS.ms}, Kedudukan).`),
+  NOT_LINKED: () => w("Not checked against the register: the party is not linked to a supplier.", "Tidak disemak dengan daftar: pihak itu tidak dipautkan kepada pembekal."),
+  // a2: links (OD-9)
+  ALREADY_LINKED: () => w("It is already linked to that supplier.", "Ia sudah dipautkan kepada pembekal itu."),
+  LINKED_ELSEWHERE: () => w("It is already linked to another supplier. A link is not moved.", "Ia sudah dipautkan kepada pembekal lain. Pautan tidak dipindahkan."),
+  NUMBER_DIFFERS_REASON_REQUIRED: (d) => w(`The registration number recorded (${d.recorded}) differs from the register's (${d.register}): say why they are the same company.`, `Nombor pendaftaran yang direkodkan (${d.recorded}) berbeza daripada daftar (${d.register}): nyatakan mengapa ia syarikat yang sama.`),
+  NUMBER_DIFFERS: (d) => w(`Linked although the number recorded (${d.recorded}) differs from the register's (${d.register}).`, `Dipautkan walaupun nombor yang direkodkan (${d.recorded}) berbeza daripada daftar (${d.register}).`),
+  SUPPLIER_NOT_REGISTERED: () => w("Linked to a supplier that is not registered.", "Dipautkan kepada pembekal yang tidak berdaftar."),
+  AWARD_HAS_PARTY: () => w("This award names its awardee party: link the party, and the award follows it.", "Anugerah ini menamakan pihak penerimanya: pautkan pihak itu, dan anugerah mengikutinya."),
+  SUPPLIER_REQUIRED: () => w("Choose the supplier on the register.", "Pilih pembekal dalam daftar."),
+  // a2: special permission (FR-ADV-017)
+  NOT_OFFERED: () => w("The exercise's notice does not offer special permission.", "Notis latihan tidak menawarkan kebenaran khas."),
+  OFFER_NOT_SET: () => w("Whether the exercise's notice offers special permission is not set: set it on the exercise's window.", "Sama ada notis latihan menawarkan kebenaran khas belum ditetapkan: tetapkan pada tetingkap latihan."),
+  REQUIREMENT_REQUIRED: () => w("Choose the registration requirement it relaxes.", "Pilih keperluan pendaftaran yang dilonggarkan."),
+  REQUIREMENT_NOT_ON_EXERCISE: () => w("That requirement is not this exercise's.", "Keperluan itu bukan milik latihan ini."),
+  RELAXES_REQUIRED: () => w("Say what it relaxes: the grade or the field codes.", "Nyatakan apa yang dilonggarkan: gred atau kod bidang."),
+  PERMISSION_AUTHORITY_REQUIRED: () => w("Name who grants it: a registration body outside the organisation, or the organisation's own approval.", "Namakan pemberinya: badan pendaftaran luar organisasi, atau kelulusan organisasi sendiri."),
+  CLASS_NOT_CONFIRMED: () => w("Confirm the party already holds a registration class.", "Sahkan pihak itu sudah memegang kelas pendaftaran."),
+  RECORD_NOT_CONFIRMED: () => w("Confirm the party's record is good.", "Sahkan rekod pihak itu baik."),
+  PERMISSION_DUPLICATE: () => w("A permission relaxing that already stands for this party and requirement.", "Kebenaran yang melonggarkan itu sudah ada bagi pihak dan keperluan ini."),
+  ALREADY_GRANTED: () => w("It is already granted.", "Ia sudah diberikan."),
+  INTERNAL_ROUTE_NOT_APPROVED: () => w("Its approval inside the organisation has not been given: it is granted once its route approves.", "Kelulusan dalam organisasi belum diberi: ia diberikan setelah laluannya meluluskan."),
+  GRANTED_REQUIRED: () => w("Give the day it was granted.", "Nyatakan tarikh ia diberikan."),
+  GRANTED_IN_FUTURE: () => w("The day granted cannot be after today.", "Tarikh diberikan tidak boleh selepas hari ini."),
+  GRANTED_BEFORE_APPROVAL: (d) => w(`It cannot be granted before its route approved it (${day(d.approvedOn)}).`, `Ia tidak boleh diberikan sebelum laluannya meluluskan (${day(d.approvedOn)}).`),
 };
+
+// ------------------------------------------------------------------ a2: standing, expiry and eligibility words
+
+export const STANDING_LABEL: Readonly<Record<Standing, Words>> = {
+  ACTIVE: w("Active", "Aktif"),
+  SUSPENDED: w("Suspended", "Digantung"),
+  SUSPENDED_ON_LAPSE: w("Suspended on lapse", "Digantung kerana luput"),
+  BLACKLISTED: w("Blacklisted", "Disenarai hitam"),
+  CANCELLED: w("Registration cancelled", "Pendaftaran dibatalkan"),
+  NOT_REGISTERED: w("Not registered", "Tidak berdaftar"),
+};
+export const STANDING_TONE: Readonly<Record<Standing, "ok" | "warn" | "err" | "info" | "neutral">> = { ACTIVE: "ok", SUSPENDED: "err", SUSPENDED_ON_LAPSE: "err", BLACKLISTED: "err", CANCELLED: "err", NOT_REGISTERED: "neutral" };
+
+/// OD-7 A as ruled: an active supplier with an expired mandatory document and the lapse rule unset reads exactly this.
+export const LAPSE_RULE_NOT_SET_WORDS = w("Active — lapse rule not set; a mandatory document has expired", "Aktif — peraturan luput belum ditetapkan; dokumen wajib telah tamat tempoh");
+
+/// A standing as one line: the label, or the OD-7 wording where the lapse rule is unset.
+export function standingWords(r: Pick<StandingReading, "standing" | "notes">): Words {
+  if (r.standing === "ACTIVE" && r.notes.some((n) => n.code === "LAPSE_RULE_NOT_SET")) return LAPSE_RULE_NOT_SET_WORDS;
+  return STANDING_LABEL[r.standing];
+}
+export const standingTone = (r: Pick<StandingReading, "standing" | "notes">) => (r.standing === "ACTIVE" && r.notes.some((n) => n.code === "LAPSE_RULE_NOT_SET") ? "warn" : STANDING_TONE[r.standing]);
+
+export const STANDING_EVENT_LABEL: Readonly<Record<StandingEventKind, Words>> = {
+  SUSPEND: w("Suspended", "Digantung"),
+  REINSTATE: w("Reinstated", "Dipulihkan"),
+  BLACKLIST: w("Blacklisted", "Disenarai hitam"),
+  BLACKLIST_LIFT: w("Blacklisting lifted", "Senarai hitam ditarik balik"),
+  REGISTRATION_CANCELLED: w("Registration cancelled", "Pendaftaran dibatalkan"),
+};
+
+export const REASON_USE_LABEL: Readonly<Record<"SUSPEND" | "BLACKLIST", Words>> = { SUSPEND: w("Suspension", "Penggantungan"), BLACKLIST: w("Blacklisting", "Senarai hitam") };
+export const REQUEST_KIND_LABEL: Readonly<Record<"BLACKLIST" | "BLACKLIST_LIFT", Words>> = { BLACKLIST: w("Blacklisting", "Senarai hitam"), BLACKLIST_LIFT: w("Lifting a blacklisting", "Penarikan balik senarai hitam") };
+export const CONSEQUENCE_LABEL: Readonly<Record<"ELIMINATE" | "REPORT", Words>> = { ELIMINATE: w("Eliminated at the opening", "Disingkirkan semasa pembukaan"), REPORT: w("Reported to the committee, which decides", "Dilaporkan kepada jawatankuasa, yang memutuskan") };
+export const RELAXES_LABEL: Readonly<Record<"GRADE" | "FIELD_CODE", Words>> = { GRADE: w("The grade", "Gred"), FIELD_CODE: w("The field codes", "Kod bidang") };
+export const CHECK_STATE_LABEL: Readonly<Record<CheckState, Words>> = { NOT_CHECKED: w("Not checked", "Tidak disemak"), CLEAR: w("Clear on the register", "Jelas dalam daftar"), FAILED: w("Failed on the register", "Gagal dalam daftar") };
+
+export const EXPIRY_BAND_LABEL: Readonly<Record<ExpiryBand, Words>> = {
+  EXPIRED: w("Expired", "Tamat tempoh"),
+  CRITICAL: w("Critical", "Kritikal"),
+  WARNING: w("Warning", "Amaran"),
+  UPCOMING: w("Upcoming", "Akan datang"),
+  NONE: w("Not yet near", "Belum hampir"),
+  NO_EXPIRY: w("No expiry", "Tiada tarikh tamat"),
+  BANDS_NOT_SET: w("Bands not set", "Jalur belum ditetapkan"),
+};
+export const EXPIRY_BAND_TONE: Readonly<Record<ExpiryBand, "ok" | "warn" | "err" | "info" | "neutral">> = { EXPIRED: "err", CRITICAL: "err", WARNING: "warn", UPCOMING: "info", NONE: "neutral", NO_EXPIRY: "neutral", BANDS_NOT_SET: "warn" };
+export const REMINDER_NOT_SENT = w("Reminder due, not sent", "Peringatan perlu, tidak dihantar");
+
+export const VERDICT_LABEL: Readonly<Record<Verdict, Words>> = { ELIGIBLE: w("Eligible", "Layak"), NOT_ELIGIBLE: w("Not eligible", "Tidak layak"), NOT_ASSESSED: w("Not assessed", "Tidak dinilai") };
+/// "Not assessed" is never green.
+export const VERDICT_TONE: Readonly<Record<Verdict, "ok" | "err" | "warn">> = { ELIGIBLE: "ok", NOT_ELIGIBLE: "err", NOT_ASSESSED: "warn" };
+export const RESULT_LABEL: Readonly<Record<Result, Words>> = { PASS: w("Pass", "Lulus"), FAIL: w("Fail", "Gagal"), NOT_ASSESSED: w("Not assessed", "Tidak dinilai"), PASS_BY_PERMISSION: w("Passes by special permission", "Lulus dengan kebenaran khas") };
+export const RESULT_TONE: Readonly<Record<Result, "ok" | "err" | "warn" | "info">> = { PASS: "ok", FAIL: "err", NOT_ASSESSED: "warn", PASS_BY_PERMISSION: "info" };
+export const CONDITION_LABEL: Readonly<Record<ConditionKind, Words>> = {
+  REGISTERED: w("Registered with the organisation", "Berdaftar dengan organisasi"),
+  STANDING: w("In good standing", "Berkedudukan baik"),
+  REGISTRATION: w("Registration held across the window", "Pendaftaran dipegang sepanjang tempoh"),
+  GRADE: w("Grade", "Gred"),
+  CATEGORY: w("Category", "Kategori"),
+  SPECIALISATION: w("Specialisation", "Pengkhususan"),
+  FIELD_CODES: w("Field codes", "Kod bidang"),
+  QUALIFIERS: w("What the requirement states", "Apa yang dinyatakan keperluan"),
+  RESTRICTION: w("The restriction's evidence across the window", "Bukti sekatan sepanjang tempoh"),
+};
+
+/// Why a condition reads as it does, in words.
+export function conditionWords(r: Pick<ConditionRow, "reason" | "data">): Words {
+  const d = r.data ?? {};
+  switch (r.reason) {
+    case "IS_REGISTERED": return w("Registered.", "Berdaftar.");
+    case "NOT_REGISTERED": return w("Not registered with the organisation.", "Tidak berdaftar dengan organisasi.");
+    case "IN_GOOD_STANDING": return w("Active.", "Aktif.");
+    case "BARRED": return w(`${STANDING_LABEL[d.standing as Standing]?.en ?? "Barred"}.`, `${STANDING_LABEL[d.standing as Standing]?.ms ?? "Dihalang"}.`);
+    case "LAPSE_RULE_NOT_SET": return w(`${LAPSE_RULE_NOT_SET_WORDS.en}${d.types ? ` (${d.types})` : ""}.`, `${LAPSE_RULE_NOT_SET_WORDS.ms}${d.types ? ` (${d.types})` : ""}.`);
+    case "NO_DOCUMENT_TYPE_FOR_BODY": return w(`No document type records ${d.body}'s registration (${SETTINGS.en}, Document types).`, `Tiada jenis dokumen merekodkan pendaftaran ${d.body} (${SETTINGS.ms}, Jenis dokumen).`);
+    case "QUALIFIERS_IN_WORDS": return w(`Stated in words only (“${d.qualifiers}”), not compared.`, `Dinyatakan dalam perkataan sahaja (“${d.qualifiers}”), tidak dibandingkan.`);
+    case "GRADE_MET": return w(`Holds ${d.held}; ${d.needed} or above is asked.`, `Memegang ${d.held}; ${d.needed} atau lebih diminta.`);
+    case "GRADE_BELOW": return w(`Holds ${d.held}, below the ${d.needed} asked.`, `Memegang ${d.held}, di bawah ${d.needed} yang diminta.`);
+    case "GRADE_NOT_HELD": return w(`Holds no grade; ${d.needed} is asked.`, `Tidak memegang gred; ${d.needed} diminta.`);
+    case "GRADE_RANK_NOT_SET": return w(`A grade's rank is not set (${SETTINGS.en}, Values), so ${d.needed} cannot be compared.`, `Kedudukan gred belum ditetapkan (${SETTINGS.ms}, Nilai), jadi ${d.needed} tidak boleh dibandingkan.`);
+    case "VALUE_HELD": return w(`Holds ${d.held}.`, `Memegang ${d.held}.`);
+    case "VALUE_NOT_HELD": return w(`Holds none of ${d.needed}.`, `Tidak memegang mana-mana ${d.needed}.`);
+    case "FIELD_CODES_HELD": return w("Holds every field code asked.", "Memegang setiap kod bidang yang diminta.");
+    case "FIELD_CODES_MISSING": return w(`Does not hold ${d.missing}.`, `Tidak memegang ${d.missing}.`);
+    case "RESTRICTION_NOT_STATED": return w("Whether the exercise is restricted is not stated on it.", "Sama ada latihan terhad tidak dinyatakan padanya.");
+    case "EVIDENCE_TYPE_NOT_SET": return w(`The document type that evidences the restriction is not set (${SETTINGS.en}, Standing).`, `Jenis dokumen yang membuktikan sekatan belum ditetapkan (${SETTINGS.ms}, Kedudukan).`);
+    case "COVERS_WINDOW": return w(`${d.body ? `${d.body}: ` : ""}verified and in force from the advertisement to past the closing.`, `${d.body ? `${d.body}: ` : ""}disahkan dan berkuat kuasa dari iklan hingga selepas tutup.`);
+    case "COVERS_TO_CLOSING_DAY": return w(`Expires on the closing day (${day(d.expiresOn)}), which the policy counts as valid.`, `Tamat pada hari tutup (${day(d.expiresOn)}), yang dikira sah oleh polisi.`);
+    case "NOT_PUBLISHED": return w("The window is not published yet: there is no advertisement day to judge from.", "Tetingkap belum diterbitkan: tiada tarikh iklan untuk dinilai.");
+    case "CLOSING_NOT_SET": return w("The closing is not set.", "Tarikh tutup belum ditetapkan.");
+    case "NOT_HELD": return w(`${d.body ? `${d.body}: ` : ""}no verified document on file.`, `${d.body ? `${d.body}: ` : ""}tiada dokumen disahkan dalam fail.`);
+    case "RECORDED_NOT_APPLICABLE": return w("Recorded as not applicable.", "Direkodkan sebagai tidak berkenaan.");
+    case "UNVERIFIED": return w("Lodged and not yet verified.", "Dikemukakan dan belum disahkan.");
+    case "RENEWAL_UNVERIFIED": return w("A renewal is lodged and not yet verified: judged once it is.", "Pembaharuan dikemukakan dan belum disahkan: dinilai setelah disahkan.");
+    case "STARTS_AFTER_ADVERTISEMENT": return w(`Valid only from ${day(d.from)}, after the advertisement (${day(d.advertisementDay)}).`, `Sah hanya dari ${day(d.from)}, selepas iklan (${day(d.advertisementDay)}).`);
+    case "EXPIRED_BEFORE_ADVERTISEMENT": return w(`Expired before the advertisement (${day(d.advertisementDay)}).`, `Tamat sebelum iklan (${day(d.advertisementDay)}).`);
+    case "LAPSES_BEFORE_CLOSING": return w(`Expires ${day(d.expiresOn)}, before the closing (${day(d.closingDay)}), though valid today.`, `Tamat ${day(d.expiresOn)}, sebelum tutup (${day(d.closingDay)}), walaupun sah hari ini.`);
+    case "LAPSES_ON_CLOSING_DAY": return w(`Expires on the closing day (${day(d.expiresOn)}), which the policy does not count as valid.`, `Tamat pada hari tutup (${day(d.expiresOn)}), yang tidak dikira sah oleh polisi.`);
+    case "CLOSING_DAY_RULE_NOT_SET": return w(`Expires on the closing day (${day(d.expiresOn)}), and whether that counts is not set (${SETTINGS.en}, Standing).`, `Tamat pada hari tutup (${day(d.expiresOn)}), dan sama ada itu dikira belum ditetapkan (${SETTINGS.ms}, Kedudukan).`);
+  }
+}
+
+/// What a supplier's blacklisting route is called in a refusal.
+export const BLACKLIST_MATTER = w("a supplier's blacklisting", "senarai hitam pembekal");
+/// What a special permission's route is called in a refusal.
+export const PERMISSION_MATTER = w("a special permission", "kebenaran khas");
+/// Where a refused blacklisting route goes: nothing is recorded.
+export const STANDING_REFUSED_DECIDED_BY = "nothing is recorded: the request is closed, and may be asked for again";
+export const PERMISSION_REFUSED_DECIDED_BY = "the permission is not granted: it may be asked for again";
 
 /// A finding of the register's rules, in words.
 export function supplierFaultText(f: Finding, lang: keyof Words = "en"): string {

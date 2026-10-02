@@ -54,6 +54,10 @@ export const SUPPLIER_LIST_KINDS: readonly SupplierListKind[] = ["ENTITY_TYPE", 
 
 /// The engine's route domain for a registration decision (OD-2 A). Rows ship empty.
 export const SUPPLIER_REGISTRATION_DOMAIN = "supplier_registration";
+/// a2 (OD-8 A): the route domain a blacklisting, and its lifting, are decided on. Rows ship empty.
+export const SUPPLIER_BLACKLIST_DOMAIN = "supplier_blacklist";
+/// a2 (FR-ADV-017): the route domain a special permission granted inside the organisation is decided on. Rows ship empty.
+export const SPECIAL_PERMISSION_DOMAIN = "special_permission";
 
 /// The numbering series a supplier's reference is issued from; unset refuses recording, naming it.
 export const SUPPLIER_SERIES_KEY = "supplier";

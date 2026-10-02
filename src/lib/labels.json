@@ -146,5 +146,13 @@
   "supplier_registration": {
     "en": "Supplier registration",
     "ms": "Pendaftaran pembekal"
+  },
+  "supplier_blacklist": {
+    "en": "Supplier blacklisting",
+    "ms": "Senarai hitam pembekal"
+  },
+  "special_permission": {
+    "en": "Special permission",
+    "ms": "Kebenaran khas"
   }
 }

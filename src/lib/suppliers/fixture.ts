@@ -72,3 +72,10 @@ export const SUPPLIER_MATRIX: Matrix = {
     rule({ ruleKey: "reg.upgrade", domain: "supplier_registration", cond: "UPGRADE", labelEn: "Upgrade", approverCode: "MANAGER", recommenders: [{ roleCode: "BOARD", act: "R" }] }),
   ],
 };
+
+/// Expiry bands in days (fixture, ASSUMED): critical 30, warning 60, upcoming 90.
+export const BANDS = { criticalDays: 30, warningDays: 60, upcomingDays: 90 } as const;
+/// Reminder offsets in days before expiry (fixture, ASSUMED).
+export const OFFSETS = [90, 60, 30, 7] as const;
+/// A first-offence blacklisting period (FR-TRM-017's five years, as a fixture).
+export const FIRST_OFFENCE_MONTHS = 60;
