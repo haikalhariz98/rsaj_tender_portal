@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { bidFindingText } from "./labels";
+import { bidFindingText, officerStatement, RECORDED_LATER_LABEL, RECORDING_STAMP_LABEL } from "./labels";
 
 /// Every code a bid rule can return, so a new one without words fails here.
 const CODES = [
@@ -28,5 +28,20 @@ describe("bid finding words", () => {
   });
   it("an expired validity names the day and the way out", () => {
     expect(bidFindingText({ code: "BID_VALIDITY_EXPIRED", level: "block", data: { expiry: "2027-03-17" } })).toMatch(/17 Mar 2027.*extension/);
+  });
+});
+
+describe("the receipt time on the register (6.6 review S-1)", () => {
+  it("is labelled the server's recording time, and an after-the-event recording never claims otherwise", () => {
+    expect(RECORDING_STAMP_LABEL).toBe("Server's recording time");
+    expect(RECORDED_LATER_LABEL).not.toMatch(/server-stamped|entered/i);
+  });
+  it("the officer's stated time and reason read as the officer's statement", () => {
+    expect(officerStatement("17 Nov 2026 · 14:10:00", "Handed in at the counter during an outage")).toBe(
+      "The officer's statement: received 17 Nov 2026 · 14:10:00. Why it was recorded after the event: Handed in at the counter during an outage.",
+    );
+  });
+  it("a statement with a part missing says so rather than leaving a gap", () => {
+    expect(officerStatement(null, null)).toMatch(/received at a time not recorded.*: not recorded\.$/);
   });
 });

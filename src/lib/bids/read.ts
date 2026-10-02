@@ -22,7 +22,7 @@ import { checklistFor, completenessConsequence } from "./completeness";
 import { correctionFaults } from "./correction";
 import { bidCount, competition } from "./count";
 import { applyFaults, extensionFaults, RECOMMENDED_ATTESTED } from "./extension";
-import { ADMISSION_LABEL, ALTERNATIVE_LABEL, bidFindingText, receiptTime, CHANNEL_LABEL, COMPETITION_LABEL, COMPETITION_TEXT, CONSEQUENCE_LABEL, ENVELOPE_KIND_LABEL, RETURN_LABEL, SOURCE_LABEL } from "./labels";
+import { ADMISSION_LABEL, ALTERNATIVE_LABEL, bidFindingText, receiptTime, CHANNEL_LABEL, COMPETITION_LABEL, COMPETITION_TEXT, CONSEQUENCE_LABEL, ENVELOPE_KIND_LABEL, officerStatement, RECORDED_LATER_LABEL, RECORDING_STAMP_LABEL, RETURN_LABEL } from "./labels";
 import { admission, lateAdmissionFault, lateMatterFault, needsAdmission } from "./late";
 import { LATENESS_READING } from "./lateness";
 import { exerciseFaults } from "./receipt";
@@ -105,10 +105,13 @@ export async function bidsTab(exerciseId: string) {
       channel: CHANNEL_LABEL[e.channel],
       channelCode: e.channel,
       received: time(e.receivedAt),
-      source: SOURCE_LABEL[e.receivedSource],
+      /// What the received time is, on every row: the server's recording stamp (S-1).
+      stampLabel: RECORDING_STAMP_LABEL,
       entered: e.receivedSource === "ENTERED",
+      enteredChip: e.receivedSource === "ENTERED" ? RECORDED_LATER_LABEL : null,
       stated: e.statedReceivedAt ? time(e.statedReceivedAt) : null,
       entryReason: e.entryReason || null,
+      statement: e.receivedSource === "ENTERED" ? officerStatement(e.statedReceivedAt ? time(e.statedReceivedAt) : null, e.entryReason || null) : null,
       late: e.late,
       judgedAgainst: e.closingAtJudged ? formatOrgDateTime(e.closingAtJudged, timeZone) : null,
       withdrawn: e.status === "WITHDRAWN",

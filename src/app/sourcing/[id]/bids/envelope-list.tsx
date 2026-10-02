@@ -9,9 +9,11 @@ type EnvelopeRow = BidsTab["rows"][number];
 type Option = { value: string; label: string };
 
 /**
- * The envelope register on the shared DataList: each envelope with its sequence, when it was
- * received (with whether the time is the server's stamp or entered), how it came, whether it was
- * in time, where it stands and its markings as written. A late one shows its admission. There is
+ * The envelope register on the shared DataList: each envelope with its sequence, the server's
+ * recording time (on every row, an envelope recorded after the event included: that stamp decides
+ * lateness), how it came, whether it was in time, where it stands and its markings as written. An
+ * envelope recorded after the event carries the officer's statement of when it was received, and
+ * why, under the row, as the officer's statement. A late one shows its admission. There is
  * no Delete and no Reject: an envelope is never removed, and a late one's admission is the
  * committee's. A row's acts open drawers, so the list is a client component.
  */
@@ -23,18 +25,18 @@ export function EnvelopeList({ exerciseId, rows, people, late }: { exerciseId: s
     search: `${r.sequence} ${r.markings} ${r.kind} ${r.channel}`,
     sortKeys: { sequence: r.sequence },
     note: [
-      r.entered ? `Stated by the officer as received ${r.stated}: ${r.entryReason}` : null,
+      r.statement,
       r.table && !r.table.allowed ? `Table for admission is not available: ${r.table.reason}` : null,
     ]
       .filter(Boolean)
       .join(" ") || undefined,
     cells: {
       sequence: { kind: "stack", title: `Envelope ${r.sequence}`, sub: r.alternativeTo != null ? `${r.kind}, to envelope ${r.alternativeTo}` : r.kind },
-      received: { kind: "stack", title: r.received, sub: `${r.channel} · ${r.receivedBy}` },
+      received: { kind: "stack", title: r.received, sub: `${r.stampLabel} · ${r.channel} · ${r.receivedBy}` },
       state: {
         kind: "chips",
         items: [
-          r.entered ? { text: r.source, tone: "warn" as const } : { text: r.source },
+          ...(r.enteredChip ? [{ text: r.enteredChip, tone: "warn" as const }] : []),
           ...(r.isEstimate ? [] : [{ text: r.late ? "Late" : "In time", tone: r.late ? ("err" as const) : ("ok" as const) }]),
           ...(r.withdrawn ? [{ text: "Withdrawn" }] : []),
           ...(r.returned ? [{ text: r.returned }] : []),
@@ -63,7 +65,7 @@ export function EnvelopeList({ exerciseId, rows, people, late }: { exerciseId: s
       stackBelow="xl"
       columns={[
         { key: "sequence", label: "Envelope", width: "150px", sortable: true, mobile: "primary" },
-        { key: "received", label: "Received", width: "230px", mobile: "meta" },
+        { key: "received", label: "Recorded", width: "230px", mobile: "meta" },
         { key: "state", label: "Where it stands", width: "250px", mobile: "meta" },
         { key: "markings", label: "Markings as written", mobile: "meta" },
       ]}

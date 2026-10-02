@@ -85,6 +85,19 @@ export const REGISTER_GAPS = [
   "The company estimate is held plain in the database, never shown before opening; sealed storage arrives with the electronic tender box.",
 ];
 
+/**
+ * The register's receipt time is always the server's recording stamp (OD-3 as amended), on every
+ * row, including one recorded after the event. What the officer states about an earlier receipt is
+ * the officer's statement, shown as such beside it and never judged (S-1 of the 6.6 review).
+ */
+export const RECORDING_STAMP_LABEL = "Server's recording time";
+/// The chip on an envelope recorded after the event: the stamp is still the server's; the recording came later.
+export const RECORDED_LATER_LABEL = "Recorded after the event";
+/// The officer's statement on an envelope recorded after the event, in the officer's own terms.
+export function officerStatement(stated: string | null, reason: string | null): string {
+  return `The officer's statement: received ${stated ?? "at a time not recorded"}. Why it was recorded after the event: ${reason ?? "not recorded"}.`;
+}
+
 /// An instant on the organisation's clock, to the second: lateness is judged to the second, so a receipt is shown to it.
 export function receiptTime(at: Date | null, timeZone: string | null): string {
   if (!at) return "—";

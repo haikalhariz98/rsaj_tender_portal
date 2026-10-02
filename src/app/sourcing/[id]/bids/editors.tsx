@@ -67,7 +67,7 @@ export function ReceiveLaterDrawer({ exerciseId, allowed, people, bids, noteId }
   return (
     <RecordEditor
       title="Record a receipt after the event"
-      description="For an envelope received earlier and not recorded then. The portal still stamps it now, and that stamp decides lateness: recorded after the closing, it is late. The time you state, and why it is recorded now, are kept beside it and shown to the committee, labelled as entered, not server-stamped."
+      description="For an envelope received earlier and not recorded then. The portal still stamps it now, and that stamp decides lateness: recorded after the closing, it is late. The time you state, and why it is recorded now, are kept beside it and shown to the committee as your statement, never judged."
       columns={2}
       fields={[
         ...receiptFields(people, bids),

@@ -178,7 +178,7 @@ function LateCard({ d }: { d: BidsTab }) {
             <li key={r.id} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <div className="min-w-0">
                 <div className="text-[13.5px] font-semibold text-ink">{`Envelope ${r.sequence}`}</div>
-                <div className="text-[12.5px] break-words text-ink-3">{`Recorded ${r.received} (${r.source.toLowerCase()}), judged against the closing ${r.judgedAgainst ?? "not recorded"}${r.stated ? `. Stated received ${r.stated}` : ""}`}</div>
+                <div className="text-[12.5px] break-words text-ink-3">{`${r.stampLabel}: ${r.received}, judged against the closing ${r.judgedAgainst ?? "not recorded"}.${r.statement ? ` ${r.statement}` : ""}`}</div>
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
                 {r.admission && <Chip tone={r.admission.state === "ADMITTED" ? "ok" : r.admission.state === "NOT_ADMITTED" ? "err" : "warn"}>{r.admission.sitting && r.admission.state !== "NOT_TABLED" ? `${r.admission.label} · ${r.admission.sitting}` : r.admission.label}</Chip>}
