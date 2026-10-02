@@ -79,12 +79,14 @@ import { awardOpenRefusal, exerciseOpenForAward } from "@/lib/award/gate";
 import type { WindowGate } from "@/lib/window/gate";
 import { WINDOW_ENTITIES } from "@/lib/window/audit-view";
 import { BID_ENTITIES } from "@/lib/bids/audit-view";
+import { OPENING_ENTITIES, OPENING_ENTITY_LABEL } from "@/lib/opening/audit-view";
 import { bidFindingText } from "@/lib/bids/labels";
 import { bidGate } from "@/lib/bids/repo";
 import { openingGateFaults } from "@/lib/opening/award-gate";
 import { loadOpeningGate } from "@/lib/opening/gate-read";
 import { openingFindingText } from "@/lib/opening/labels";
 import { loadBids } from "./bids/workspace";
+import { BIDS_SECTIONS, bidsSectionOf, loadOpening, loadSchedule } from "./opening/workspace";
 import { PHASE_LABEL, PHASE_TONE } from "@/lib/window/labels";
 import { closingVerb, isPublished } from "@/lib/window/phase";
 import { readWindowGate } from "@/lib/window/repo";
@@ -212,8 +214,9 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const published = isPublished(ex.status);
   // The name tab's own reads (the invitee list beside the approved one, the committee's matters to cite), only for that tab.
   const [nameList, nameMatters] = tab === "name" && flagsNeedName(ex.sourcingMethodCode, cfg.config.methods) ? await Promise.all([nameListTab(ex.id), exerciseMatters(ex.id)]) : [null, []];
-  // 6.6: the Bids received tab, read only while it is the tab being looked at; its header acts come with it.
-  const bids = tab === "bids" ? await loadBids(ex.id, ex.status) : null;
+  // 6.6, 6.7: the Bids and opening tab, read one section at a time and only while it is the tab being looked at; its header acts come with it.
+  const bidsSection = bidsSectionOf(section);
+  const bids = tab !== "bids" ? null : bidsSection === "opening" ? await loadOpening(ex.id) : bidsSection === "schedule" ? await loadSchedule(ex.id) : await loadBids(ex.id, ex.status);
   // 6.6 (X-9): what the register asks of an award, for the Award tab (only on an exercise published through 6.5).
   const bidAward = tab === "award" ? await bidGate(ex.id) : null;
   // 6.7 (C-8): what the openings ask of an award, for the Award tab (only on an exercise published through 6.5).
@@ -387,10 +390,11 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
     },
     {
       id: "bids",
-      label: "Bids received",
+      label: "Bids and opening",
+      sections: [...BIDS_SECTIONS],
+      section: bidsSection,
       icon: <InboxIcon size={15} />,
-      // Read only while it is the tab being looked at.
-      lazy: true,
+      // Read only while it is the tab being looked at, and only for the section named.
       panel: bids?.panel ?? null,
     },
     ...(flags?.requiresProposal
@@ -588,8 +592,8 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
 
       <div className="mb-6 flex flex-col gap-3">
         {ex.status !== "CANCELLED" && (
-          <Callout tone="info" title="Opening and evaluation run outside the portal in this phase">
-            The exercise is classified, its tender documents are prepared and approved, its window is recorded, and the envelopes received are registered on Bids received. Opening the bids and evaluation are recorded outside the portal until those modules are built.
+          <Callout tone="info" title="Evaluation runs outside the portal in this phase">
+            The exercise is classified, its tender documents are prepared and approved, its window is recorded, and on Bids and opening the envelopes received are registered, the bids opened and the schedule finalised. Evaluation is recorded outside the portal until its module is built.
           </Callout>
         )}
         {ex.status === "CANCELLED" && (
@@ -628,7 +632,7 @@ function AwardTab({ exerciseId, status, packKind, window, awards, opening, dossi
     <div className="flex flex-col gap-6">
       {/* 6.6 (X-9): what the envelope register asks before the award is sent or issued. */}
       {bidFaults.length > 0 && (
-        <Callout tone="warn" title="The bids received hold the award back" action={<ButtonLink href={`/sourcing/${exerciseId}?tab=bids`} size="sm" variant="secondary">Open Bids received</ButtonLink>}>
+        <Callout tone="warn" title="The bids received hold the award back" action={<ButtonLink href={`/sourcing/${exerciseId}?tab=bids&section=received`} size="sm" variant="secondary">Open the bids received</ButtonLink>}>
           {bidFaults.join(" ")} The award is not sent for approval or issued until then.
         </Callout>
       )}
@@ -1238,6 +1242,8 @@ const ENTITY_LABEL: Record<string, string> = {
   [TENDER_ENTITY.appendix]: "Appendix",
   [TENDER_ENTITY.variationLimit]: "Variation limit",
   [TENDER_ENTITY.section]: "Appendix section",
+  // 6.7: the opening; every value is already in words (a price as read and the disclosed estimate chip as SULIT).
+  ...OPENING_ENTITY_LABEL,
   // 6.5: the invitation window; every value is already in words.
   ExerciseWindow: "Invitation window",
   WindowFeeLine: "Fee basis",
@@ -1329,7 +1335,7 @@ function HistoryPanel({
   const read = (field: string, value: string | null, entityId: string, entity: string): string => {
     if (value == null || value === "") return "—";
     // A window row's values are written in words already (an addendum's "Draft", a sale's "yes"): never read as a stored code.
-    if (WINDOW_ENTITIES.includes(entity) || BID_ENTITIES.includes(entity)) return value === "yes" ? "Yes" : value === "no" ? "No" : /^\d{4}-\d{2}-\d{2}$/.test(value) ? formatDate(value) : value;
+    if (WINDOW_ENTITIES.includes(entity) || BID_ENTITIES.includes(entity) || OPENING_ENTITIES.includes(entity)) return value === "yes" ? "Yes" : value === "no" ? "No" : /^\d{4}-\d{2}-\d{2}$/.test(value) ? formatDate(value) : value;
     if (field === "status" && tenderingRouteIds.has(entityId)) return tenderingRouteLabel(value, null);
     if (field === "dominantSharePct") return Number(value) >= 100 ? "One deliverable" : `${pct(value)}%`;
     if (field === "contractBasisCode") return basisName(value) ?? "A basis no longer configured";

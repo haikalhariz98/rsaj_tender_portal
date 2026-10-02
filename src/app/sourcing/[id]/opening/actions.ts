@@ -16,6 +16,7 @@ import { estimateEventAudit, ENTITY as SCOPE_ENTITY } from "@/lib/scope/audit-vi
 import { leadTime } from "@/lib/scope/estimate";
 import { lockLiveEstimateRows } from "@/lib/scope/lock";
 import { FormReader } from "@/lib/validate";
+import { splitValues } from "@/lib/ui/select-logic";
 import { answerFields, asReadFields, authorisationFields, finaliseFields, initialFields, openedBidFields, OPENING_ENTITY, openingStartFields, signatureFields, sittingFields, verdictFields, withdrawalMatchFields } from "@/lib/opening/audit-view";
 import { boxEnvelopeJudgement, lockGap, registerBoxFaults } from "@/lib/opening/box";
 import { answerFaults, checklistFromSnapshot, openingChecklist, unansweredItems } from "@/lib/opening/checklist";
@@ -80,10 +81,11 @@ const bidOf = (c: OpeningContext, id: string) => {
 const openingLabel = (l: LockedWindow, o: Pick<OpeningRow, "kind" | "sequenceNo">) => label(l, o.kind === "MAIN" ? "Opening" : `Supplementary opening ${o.sequenceNo - 1}`);
 const nameOf = (tx: Tx, orgId: string, personId: string | null) => activePerson(tx, orgId, personId);
 
-/// The panel as posted: each picked person and whether present (checkbox `present:<id>`).
+/// The panel as posted: each picked person, and whether present (the `present` choices, or a checkbox `present:<id>`). The shared multi-select posts its choices newline-joined.
 function readPanel(data: FormData): { personId: string; present: boolean }[] {
-  const ids = [...new Set(data.getAll("panel").map(String).filter(Boolean))];
-  return ids.map((personId) => ({ personId, present: data.get(`present:${personId}`) === "on" || data.get(`present:${personId}`) === "yes" }));
+  const ids = [...new Set(data.getAll("panel").flatMap((v) => splitValues(String(v))))];
+  const present = new Set(data.getAll("present").flatMap((v) => splitValues(String(v))));
+  return ids.map((personId) => ({ personId, present: present.has(personId) || data.get(`present:${personId}`) === "on" || data.get(`present:${personId}`) === "yes" }));
 }
 
 async function pickedPeople(tx: Tx, orgId: string, picks: readonly { personId: string; present: boolean }[]) {

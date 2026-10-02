@@ -126,7 +126,8 @@ export function finaliseFields(f: { at: Date; by: string; pages: number; rows: n
     estimateDisclosed: f.disclosed ? "yes" : null,
     /// SULIT: the disclosed estimate, and the paper's figure, under the registered key.
     companyEstimate: f.lodged != null ? formatMoney(f.lodged) : null,
-    paperCopy: f.copy === "NOT_IN_BOX" ? "Not in the box" : f.paper != null ? formatMoney(f.paper) : null,
+    /// SULIT: the figure on the paper copy is the estimate's, under its own registered key.
+    estimatePaperCopy: f.copy === "NOT_IN_BOX" ? "Not in the box" : f.paper != null ? formatMoney(f.paper) : null,
     copyCheck: f.copy ? COPY_CHECK_LABEL[f.copy] : null,
   };
 }
