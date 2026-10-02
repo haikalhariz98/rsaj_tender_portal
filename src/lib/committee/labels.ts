@@ -14,6 +14,7 @@ import { SIGNATORY_DOMAIN } from "@/lib/award/types";
 import { LATE_DOMAIN } from "@/lib/bids/late";
 import { WINDOW_CHANGE_DOMAIN } from "@/lib/method/types";
 import { SCOPE_DOMAIN } from "@/lib/scope/scope-matter";
+import { EVALUATION_STAGE_DOMAIN, NEGOTIATION_DOMAIN } from "@/lib/evaluation/types";
 
 export const MEETING_STATUS_LABEL = {
   SCHEDULED: "Scheduled",
@@ -61,6 +62,8 @@ export const MATTER_KIND_LABEL = {
   CONTRACT: "Contract",
   VARIATION: "Variation",
   SCOPE: "Scope (bill of quantities)",
+  /// 6.8 (FR-EVL-005): a two-stage tender's first-stage decision on one bidder.
+  EVALUATION_STAGE: "Two-stage tender, first stage",
 } as const;
 
 export type MatterKind = keyof typeof MATTER_KIND_LABEL;
@@ -71,23 +74,28 @@ export const MATTER_KINDS = Object.keys(MATTER_KIND_LABEL) as MatterKind[];
 /// OD-9). A LATE_TENDER matter names its envelope by a typed key, so it is tabled from the Bids
 /// received tab (6.6 code review CR-1): tabled from a sitting it would name no envelope, its
 /// decision would never count and the late-admission gate would hold the award for ever.
-export const RECORD_TABLED_MATTER_KINDS: readonly MatterKind[] = ["SCOPE", "LATE_TENDER"];
+/// 6.8 (FR-EVL-005): an EVALUATION_STAGE matter names its bidder by a typed key, so it is tabled from
+/// the exercise's Evaluation tab, which knows the bidder; from a sitting its decision would unlock nothing.
+export const RECORD_TABLED_MATTER_KINDS: readonly MatterKind[] = ["SCOPE", "LATE_TENDER", "EVALUATION_STAGE"];
 
 /// Kinds tabled from the sitting's own drawer: every kind but those tabled from their record.
 export const SITTING_TABLED_MATTER_KINDS = MATTER_KINDS.filter((k) => !RECORD_TABLED_MATTER_KINDS.includes(k));
 
 /// Matter domains tabled only from their own record, for the same reasons.
-export const RECORD_TABLED_DOMAINS: readonly string[] = [SCOPE_DOMAIN, LATE_DOMAIN];
+export const RECORD_TABLED_DOMAINS: readonly string[] = [SCOPE_DOMAIN, LATE_DOMAIN, EVALUATION_STAGE_DOMAIN];
 export const RECORD_TABLED_DOMAIN_TEXT = "Scope approval is tabled from the exercise, under Scope and estimate, Scope, which names the bill version the committee decides on.";
 export const LATE_TABLED_TEXT = "Late tender admission is tabled from the exercise, in the Received section of Bids and opening, which names the envelope the committee decides on.";
+export const STAGE_ONE_TABLED_TEXT = "A two-stage tender's first-stage decision is tabled from the exercise, in the Stages section of Evaluation, which names the bidder the committee decides on.";
 
 /// Matter domains no sitting decides at all (6.6 review S-9): a committee decision on either would
 /// be read by nothing. A change to the invitation window is approved on its route, where a committee
 /// step is refused (window/change.ts HAS_COMMITTEE_STEP); the award's signatory is the office the
 /// approval matrix names (award/signatory.ts).
-export const NEVER_TABLED_DOMAINS: readonly string[] = [WINDOW_CHANGE_DOMAIN, SIGNATORY_DOMAIN];
+/// 6.8 adds the negotiation (FR-EVL-016): approved on its own route, which takes no committee step.
+export const NEVER_TABLED_DOMAINS: readonly string[] = [WINDOW_CHANGE_DOMAIN, SIGNATORY_DOMAIN, NEGOTIATION_DOMAIN];
 export const WINDOW_CHANGE_NOT_TABLED_TEXT = "A change to the invitation window is approved on its own route, from the exercise's Invitation tab; that route takes no committee step, so no sitting decides it.";
 export const SIGNATORY_NOT_TABLED_TEXT = "The award's signatory is the office the approval matrix names for the award, shown on the award; no sitting decides it.";
+export const NEGOTIATION_NOT_TABLED_TEXT = "A negotiation is approved on its own route, from the exercise's Evaluation tab, in Meetings and letters; that route takes no committee step, so no sitting decides it.";
 
 export const sittingTablesDomain = (domain: string) => !RECORD_TABLED_DOMAINS.includes(domain) && !NEVER_TABLED_DOMAINS.includes(domain);
 
@@ -97,6 +105,8 @@ export function recordTabledText(domainOrKind: string): string | null {
   if (domainOrKind === LATE_DOMAIN || domainOrKind === "LATE_TENDER") return LATE_TABLED_TEXT;
   if (domainOrKind === WINDOW_CHANGE_DOMAIN) return WINDOW_CHANGE_NOT_TABLED_TEXT;
   if (domainOrKind === SIGNATORY_DOMAIN) return SIGNATORY_NOT_TABLED_TEXT;
+  if (domainOrKind === EVALUATION_STAGE_DOMAIN || domainOrKind === "EVALUATION_STAGE") return STAGE_ONE_TABLED_TEXT;
+  if (domainOrKind === NEGOTIATION_DOMAIN) return NEGOTIATION_NOT_TABLED_TEXT;
   return null;
 }
 
