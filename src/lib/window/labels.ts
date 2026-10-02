@@ -14,6 +14,10 @@ import type { TableAvailability, WindowPhase } from "./phase";
 import type { ChangeRouteState } from "./change";
 import type { NotifiedState } from "./addendum";
 import { CONFIG_UNWORDED, configFaultText } from "./config";
+import { evaluationFindingText } from "@/lib/evaluation/labels";
+
+/// 6.8 (E-2): the codes of the evaluation model's pin, judged with the publication (`pinFaults`).
+const PIN_CODES: ReadonlySet<string> = new Set(["EVALUATION_MODEL_NOT_SET", "EVALUATION_MODEL_NOT_ISSUED", "EVALUATION_MODEL_RETIRED", "EVALUATION_ROUTE_NOT_SET", "EVALUATION_ROUTE_MISMATCH", "EVALUATION_MODEL_PINNED", "EVALUATION_MODEL_FROZEN", "CONTRACT_BASIS_NOT_SET"]);
 
 const SETTINGS = "Configuration, Invitation controls";
 
@@ -428,6 +432,8 @@ export function windowFindingText(f: Finding): string {
     case "PUBLISH_NOT_READY":
       return "The invitation is not ready to publish: see what the Invitation tab says blocks it.";
     default: {
+      // 6.8 (E-2): the evaluation model's pin is judged with the publication; its words are evaluation's.
+      if (PIN_CODES.has(f.code)) return evaluationFindingText(f);
       // Configuration's own refusals (config.ts) have their words there.
       const c = configFaultText(f);
       return c === CONFIG_UNWORDED ? UNWORDED : c;

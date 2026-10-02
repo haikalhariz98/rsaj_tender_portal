@@ -27,6 +27,7 @@ import { RouteSteps } from "../route-steps";
 import { DeliveryList, FromBadge, levelTone, SETTINGS_HREF } from "./common";
 import { tabActs } from "./tab-acts";
 import {
+  ChooseEvaluationModelDrawer,
   EditWindowDrawer,
   FeeLineDrawer,
   LetterDeliveryDrawer,
@@ -172,6 +173,8 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
           </CardBody>
         </Card>
       )}
+
+      <EvaluationModelCard d={d} c={c} />
 
       <Card>
         <CardHeader
@@ -359,6 +362,38 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
 }
 
 // ------------------------------------------------------------------ invitees and letters
+
+/// 6.8 (E-2): the evaluation model, chosen here and pinned by the publication.
+function EvaluationModelCard({ d, c }: { d: WindowTab; c: WindowContext }) {
+  const e = d.evaluation;
+  return (
+    <Card>
+      <CardHeader
+        icon={<SlidersIcon size={17} />}
+        title="Evaluation model"
+        subtitle={e.pinned ? "Pinned when the window was published: the bids are evaluated by it as it stood then." : "The model the bids will be evaluated by. Its content is pinned when the window is published."}
+        actions={e.pinned ? <Badge tone="ok">Pinned</Badge> : <ChooseEvaluationModelDrawer exerciseId={c.exerciseId} allowed={e.choose} models={e.options} current={e.current} />}
+      />
+      <CardBody className="flex flex-col gap-3">
+        {e.before ? (
+          <Callout tone="warn">{e.before}</Callout>
+        ) : (
+          <KeyValues
+            columns={3}
+            items={[
+              { label: "Model", value: e.model ? e.model.name : <Badge tone="warn">Not chosen</Badge> },
+              { label: "Its route", value: e.model?.route ?? "—" },
+              { label: "The contract basis's route", value: e.basisRoute },
+              ...(e.pinned ? [{ label: "Pinned", value: e.pinned }] : []),
+            ]}
+          />
+        )}
+        {!e.pinned && !e.before && e.suggested && <p className="text-[12.5px] text-ink-3">{e.suggested}</p>}
+        {!e.pinned && !e.before && e.choose.allowed && e.options.length === 0 && <p className="text-[12.5px] text-ink-3">No issued model takes the basis&apos;s route. Models are issued under Configuration › Evaluation models.</p>}
+      </CardBody>
+    </Card>
+  );
+}
 
 function InviteesCard({ d, c }: { d: WindowTab; c: WindowContext }) {
   const inv = d.invitees;

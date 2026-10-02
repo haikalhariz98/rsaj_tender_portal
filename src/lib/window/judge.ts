@@ -12,7 +12,7 @@ import { addendumFieldValues, inviteeFieldValues, renderInstrument, windowFieldV
 import { regKey } from "./invitees";
 import { mandatoryPermittedFor } from "./events";
 import { windowPhase } from "./phase";
-import { publishFaults, windowPathOf, type PublishInput } from "./publish";
+import { evaluationPin, publishFaults, windowPathOf, type PublishInput } from "./publish";
 import { basisTotalOf, eventFactsOf, type ExerciseForWindow, type PartyRow, type WindowData } from "./repo";
 import type { WindowPath } from "./types";
 
@@ -135,6 +135,8 @@ export function judgePublish(d: WindowData, ex: ExerciseForWindow, org: { timeZo
     basisTotal: w ? basisTotalOf(w) : 0n,
     changePending: changeRoutesOf(ex).some((r) => r.status === "PENDING"),
     invited: path === "INVITED" ? { method: { requiresNameApproval: d.method?.requiresNameApproval ?? false }, nameRoutes: nameRoutesWithLists(ex, d.invitees), proposed } : null,
+    // 6.8 (E-2): the model chosen, judged against the basis's route; pinned by the publication.
+    evaluationModel: evaluationPin(d, ex),
   };
   const ok = { state: "OK" as const, missing: [], unknown: [], stampMissing: false };
   const first = publishFaults({ ...base, template: ok });

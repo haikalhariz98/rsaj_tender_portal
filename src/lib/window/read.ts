@@ -8,6 +8,8 @@
  */
 
 import { storedDay } from "@/lib/dates";
+import { ROUTE_LABEL as EVALUATION_ROUTE_LABEL, evaluationFindingText } from "@/lib/evaluation/labels";
+import { chooseFaults } from "@/lib/evaluation/pin";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 import { uncollectedReceipts } from "@/lib/integration/fee-receipt";
@@ -198,12 +200,36 @@ export async function windowTab(exerciseId: string) {
     replaces: related.filter((r) => r.id === ex.replacesExerciseId).map((r) => ({ id: r.id, reference: r.reference }))[0] ?? null,
     replacedBy: related.filter((r) => r.replacesExerciseId === ex.id).map((r) => ({ id: r.id, reference: r.reference })),
     cancelledOn,
+    evaluation: evaluationShown(d, ex, tz),
     actions: {
       save: allowed(editFault),
       publish: firstBlock(j.result.findings) ? { allowed: false as const, reason: windowFindingText(firstBlock(j.result.findings)!) } : { allowed: true as const },
       publishLabel: path === "INVITED" ? "Issue the letters of invitation" : "Publish the advertisement",
       ...tabActs,
     },
+  };
+}
+
+/**
+ * The evaluation model on the Window card (6.8 E-1, E-2): chosen, then pinned by the publication. An
+ * exercise published before models existed says so, and names the real exit (E-1): never "set it".
+ */
+function evaluationShown(d: WindowData, ex: Loaded["ex"], tz: string | null) {
+  const e = d.evaluation;
+  const name = (m: { nameEn: string; version: number }) => `${m.nameEn}, version ${m.version}`;
+  const published = isPublished(ex.status);
+  const basisRoute = e.basis?.evaluationRoute ?? null;
+  const suggested = e.suggested ? (e.models.find((m) => m.code === e.suggested) ?? null) : null;
+  const choose = chooseFaults({ published: published || ex.evaluationModelPinnedAt != null, cancelled: ex.status === "CANCELLED", model: { status: "ISSUED", name: "" } });
+  return {
+    model: e.model ? { name: name(e.model), route: EVALUATION_ROUTE_LABEL[e.model.route] } : null,
+    basisRoute: !ex.contractBasisCode ? "No contract basis" : basisRoute ? EVALUATION_ROUTE_LABEL[basisRoute] : "Not set for this basis",
+    pinned: ex.evaluationModelPinnedAt ? formatOrgDateTime(ex.evaluationModelPinnedAt, tz) : null,
+    before: published && !ex.evaluationModelSnapshot ? "Published before evaluation models existed. It is not evaluated here: cancel it and replace it with a new exercise to evaluate it." : null,
+    suggested: suggested && suggested.id !== e.model?.id ? `The method's usual model is ${name(suggested)}.` : null,
+    options: e.models.filter((m) => !basisRoute || m.route === basisRoute).map((m) => ({ value: m.id, label: `${name(m)} (${EVALUATION_ROUTE_LABEL[m.route]})` })),
+    current: ex.evaluationModelId ?? null,
+    choose: choose.length ? { allowed: false as const, reason: evaluationFindingText(choose[0]) } : { allowed: true as const },
   };
 }
 

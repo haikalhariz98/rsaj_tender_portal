@@ -49,6 +49,8 @@ const ok: PublishInput = {
   floors: SPEC_FLOORS,
   basisTotal: parseSen("200.00"),
   template: { state: "OK", missing: [], unknown: [], stampMissing: false },
+  // 6.8 E-2 (flagged, fixtures only): a publication pins an issued evaluation model of the basis's route.
+  evaluationModel: { model: { status: "ISSUED", route: "TRADITIONAL", name: "Model" }, basis: { name: "Lump sum", route: "TRADITIONAL" }, pinned: false },
   invited: null,
 };
 const route = (status: "PENDING" | "APPROVED", invitees = [{ registrationNo: "A1" }, { registrationNo: "B2" }]) => ({ id: "n", status, openedAt: new Date("2026-10-01"), invitees });
@@ -168,5 +170,13 @@ describe("an unprepared window's blockers fold under the first", () => {
   it("a prepared window's findings are returned as they are", () => {
     const fs = [f("INSPECTION_PLACE_MISSING")];
     expect(foldUnpreparedWindow(fs, true)).toEqual(fs);
+  });
+});
+
+describe("6.8 E-2: the evaluation model is judged with the publication", () => {
+  it("not chosen, of the other route, or already pinned: each blocks the publication", () => {
+    expect(codes(publishFaults({ ...ok, evaluationModel: { ...ok.evaluationModel, model: null } }))).toEqual(["EVALUATION_MODEL_NOT_SET"]);
+    expect(codes(publishFaults({ ...ok, evaluationModel: { ...ok.evaluationModel, basis: { name: "Design and build", route: "TWO_STAGE" } } }))).toEqual(["EVALUATION_ROUTE_MISMATCH"]);
+    expect(codes(publishFaults({ ...ok, evaluationModel: { ...ok.evaluationModel, pinned: true } }))).toEqual(["EVALUATION_MODEL_PINNED"]);
   });
 });

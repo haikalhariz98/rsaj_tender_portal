@@ -258,7 +258,7 @@ const TEXT: Record<string, (f: Finding) => string> = {
   EVALUATION_ROUTE_NOT_SET: (f) => `Which evaluation route a contract on ${f.data?.basis ?? "this basis"} takes is not set. Set it under ${SETTING_AT.bases}.`,
   EVALUATION_ROUTE_MISMATCH: (f) => `${f.data?.model ?? "The model"} is for another evaluation route than ${f.data?.basis ?? "the contract basis"} takes. Choose a model for that route.`,
   EVALUATION_MODEL_PINNED: () => "The model is pinned on the exercise and does not change.",
-  EVALUATION_MODEL_FROZEN: () => "The exercise is published: its model was pinned then and does not change.",
+  EVALUATION_MODEL_FROZEN: () => "The model is no longer chosen here: a published exercise's model was pinned when it was published, and a cancelled exercise takes none.",
   CONTRACT_BASIS_NOT_SET: () => "The exercise has no contract basis, so its evaluation route cannot be told. Its basis is chosen before preparation.",
   // ---- model issue (model.ts), for Configuration
   NO_STAGES: () => "The model has no stages.",

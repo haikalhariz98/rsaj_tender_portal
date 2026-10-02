@@ -22,6 +22,7 @@ import { judgePublish, nameRoutesWithLists, pathOf, proposedInvitees } from "@/l
 import { windowFindingText } from "@/lib/window/labels";
 import { DELIVERY_METHODS, FEE_COST_KINDS, type DeliveryMethod, type FeeCostKind } from "@/lib/window/types";
 import { FormReader } from "@/lib/validate";
+import { chooseFaults } from "@/lib/evaluation/pin";
 
 import { activePerson, audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW, NO_ZONE, refuse, Refusal, notes } from "./shared";
 
@@ -255,6 +256,12 @@ export async function publishWindow(_prev: FormState, data: FormData): Promise<F
       warnings: j.result.findings.filter((f) => f.level !== "block").map((f) => ({ level: f.level, text: windowFindingText(f) })),
     });
     const w = d.window;
+    // 6.8 (E-2, FR-EVL-006): the chosen model's issued content is copied onto the exercise in this act,
+    // stamped with the publication's own moment; nothing evaluates from the model's rows after it.
+    const m = d.evaluation.model!;
+    const pinned = await tx.sourcingExercise.updateMany({ where: { id: exerciseId, evaluationModelId: m.id, evaluationModelPinnedAt: null }, data: { evaluationModelSnapshot: m.contentSnapshot as Prisma.InputJsonValue, evaluationModelPinnedAt: now } });
+    if (pinned.count !== 1) throw new Refusal(CHANGED);
+    await audit(tx, l.org.id, "SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ evaluationModelPinned: null }, { evaluationModelPinned: `${m.nameEn}, version ${m.version}` }));
     if (j.path === "ADVERTISED") {
       const t = d.templates.notice!;
       await tx.exerciseWindow.update({ where: { id: w.id }, data: { advertisementDay: dayToDate(day), publishedAt: now, policySnapshot: snapshot as unknown as Prisma.InputJsonValue, noticeText: j.notice!.text, noticeTemplateCode: t.code, noticeTemplateBodyVersion: t.bodyVersion } });
@@ -289,6 +296,28 @@ export async function publishWindow(_prev: FormState, data: FormData): Promise<F
     }
     const said = notes(j.result.findings.filter((f) => f.level === "warn"));
     return { ok: true, message: `${j.path === "ADVERTISED" ? "Advertised" : `Invited: ${proposedInvitees(d.parties).length} letters issued`}.${said ? ` ${said}` : ""}` };
+  });
+}
+
+/**
+ * Choose the evaluation model on the Window card (6.8 E-2, FR-EVL-005): an issued version, while the
+ * exercise is unpublished and not cancelled. Held on the exercise until publication pins it; its route
+ * against the basis's is judged with the publication, so the card and the act give the same reason.
+ */
+export async function chooseEvaluationModel(_prev: FormState, data: FormData): Promise<FormState> {
+  const exerciseId = exerciseIdOf(data);
+  const r = new FormReader(data);
+  const modelId = r.text("evaluationModelId", "Evaluation model", { required: true });
+  if (r.failed) return { ok: false, errors: r.errors };
+  return inWindow(exerciseId, async (tx, l, d) => {
+    const row = await tx.evaluationModel.findFirst({ where: { id: modelId, organisationId: l.org.id }, select: { id: true, nameEn: true, version: true, status: true } });
+    const fs = chooseFaults({ published: isPublished(l.ex.status) || l.ex.evaluationModelPinnedAt != null, cancelled: l.ex.status === "CANCELLED", model: row ? { status: row.status, name: `${row.nameEn}, version ${row.version}` } : null });
+    if (fs.length) return fs[0].code === "EVALUATION_MODEL_NOT_SET" ? { ok: false, errors: { evaluationModelId: windowFindingText(fs[0]) } } : refuse(fs);
+    if (l.ex.evaluationModelId === row!.id) return { ok: true };
+    const before = d.evaluation.model ? `${d.evaluation.model.nameEn}, version ${d.evaluation.model.version}` : null;
+    await tx.sourcingExercise.update({ where: { id: exerciseId }, data: { evaluationModelId: row!.id } });
+    await audit(tx, l.org.id, "SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ evaluationModel: before }, { evaluationModel: `${row!.nameEn}, version ${row!.version}` }));
+    return { ok: true };
   });
 }
 

@@ -165,6 +165,10 @@ export interface ExerciseForWindow {
   sourcingMethodCode: string;
   estimatedValue: { toString(): string };
   approvalInstances: readonly { id: string; domain: string; awardId: string | null; status: string; openedAt: Date; createdAt: Date; cond: string | null }[];
+  /// 6.8 (E-2): the evaluation model chosen, its pinned snapshot, and the contract basis its route is read from. Absent: none.
+  evaluationModelId?: string | null;
+  evaluationModelPinnedAt?: Date | null;
+  contractBasisCode?: string | null;
 }
 
 /**
@@ -190,7 +194,12 @@ export async function windowData(organisationId: string, ex: ExerciseForWindow, 
   const addendum = await loadTemplate(policy.addendumTemplateId, client);
   const nameRouteIds = nameRoutesOf(ex.approvalInstances).map((r) => r.id);
   const invitees = nameRouteIds.length ? await client.nameRouteInvitee.findMany({ where: { approvalInstanceId: { in: nameRouteIds } }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }] }) : [];
-  return { policy, calendar, channels, floors, window, parties, tender, approved, method, organisationName: org.name, templates: { notice, invitation, addendum }, invitees };
+  // 6.8 (E-2): the evaluation model chosen and the basis's route, read to pin at publication (never to evaluate: FR-EVL-007).
+  const evaluationModel = ex.evaluationModelId ? await client.evaluationModel.findFirst({ where: { id: ex.evaluationModelId, organisationId }, select: { id: true, code: true, version: true, nameEn: true, status: true, route: true, contentSnapshot: true } }) : null;
+  const basis = ex.contractBasisCode ? await client.contractBasis.findFirst({ where: { organisationId, code: ex.contractBasisCode }, select: { nameEn: true, evaluationRoute: true } }) : null;
+  const models = await client.evaluationModel.findMany({ where: { organisationId, status: "ISSUED" }, orderBy: [{ nameEn: "asc" }, { version: "desc" }], select: { id: true, code: true, version: true, nameEn: true, route: true } });
+  const suggested = ex.sourcingMethodCode ? ((await client.sourcingMethod.findFirst({ where: { organisationId, code: ex.sourcingMethodCode }, select: { defaultEvaluationModelCode: true } }))?.defaultEvaluationModelCode ?? null) : null;
+  return { policy, calendar, channels, floors, window, parties, tender, approved, method, organisationName: org.name, templates: { notice, invitation, addendum }, invitees, evaluation: { model: evaluationModel, basis, models, suggested } };
 }
 
 export type WindowData = Awaited<ReturnType<typeof windowData>>;

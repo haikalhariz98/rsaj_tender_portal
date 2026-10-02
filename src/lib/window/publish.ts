@@ -27,6 +27,8 @@ import { feeFaults } from "./fee";
 import { fieldsInWords, type TemplateState } from "./fields";
 import { invitedListFaults } from "./invitees";
 import type { Sen } from "@/lib/money";
+import { pinFaults, type PinInput } from "@/lib/evaluation/pin";
+import type { EvaluationRoute, ModelStatus } from "@/lib/evaluation/types";
 import type { ExerciseStatus, PackKind } from "@/lib/method/types";
 
 export type PathFault = "PATH_NOT_SET";
@@ -103,6 +105,8 @@ export interface PublishInput {
   template: { state: TemplateState; missing: readonly string[]; unknown: readonly string[]; stampMissing: boolean };
   /// A window_change route is pending: the closing may yet move, so nothing is published on it.
   changePending?: boolean;
+  /// 6.8 (FR-EVL-005, 006; E-2): the evaluation model chosen and the contract basis's route; publication pins it.
+  evaluationModel: PinInput;
   /// The invited path's list and name routes.
   invited: {
     method: { requiresNameApproval: boolean };
@@ -167,6 +171,9 @@ export function publishFaults(i: PublishInput): PublishResult {
   // FR-ADV-004–007: every date rule, from the advertisement day.
   if (i.closingAt) out.push(...closingFaults({ advertisementDay: adDay, closingAt: i.closingAt, purchaseCloseDay: w.purchaseCloseDay, closingTimeReason: w.closingTimeReason, timeZone: i.timeZone, policy: i.policy, calendar: i.calendar, today: i.today }));
 
+  // 6.8 (E-2): the evaluation model is chosen, issued, of the basis's route, and pinned by this act.
+  out.push(...pinFaults(i.evaluationModel));
+
   // The instrument's configured text (ADR 0008).
   const t = i.template;
   if (t.state === "NOT_SET") f("TEMPLATE_NOT_SET", { instrument: path === "INVITED" ? "INVITATION" : "NOTICE" });
@@ -196,4 +203,17 @@ export function foldUnpreparedWindow(findings: readonly Finding[], hasWindow: bo
   if (folded.length === 0) return [...findings];
   const first: Finding = { code: "WINDOW_ITEMS_NOT_PREPARED", level: "block", data: { count: folded.length } };
   return [first, ...findings.filter((f) => !ITEM_FAULTS.has(f.code))];
+}
+
+/// The evaluation model as publication judges it (6.8 E-2): chosen, issued, of the basis's route, not yet pinned.
+export function evaluationPin(
+  d: { evaluation: { model: { status: ModelStatus; route: EvaluationRoute; nameEn: string; version: number } | null; basis: { nameEn: string; evaluationRoute: EvaluationRoute | null } | null } },
+  ex: { evaluationModelPinnedAt?: Date | null; contractBasisCode?: string | null },
+): PinInput {
+  const m = d.evaluation.model;
+  return {
+    model: m ? { status: m.status, route: m.route, name: `${m.nameEn}, version ${m.version}` } : null,
+    basis: ex.contractBasisCode ? { name: d.evaluation.basis?.nameEn ?? "A basis no longer configured", route: d.evaluation.basis?.evaluationRoute ?? null } : null,
+    pinned: ex.evaluationModelPinnedAt != null,
+  };
 }

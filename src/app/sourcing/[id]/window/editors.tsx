@@ -5,7 +5,7 @@ import { Callout } from "@/components/ui/feedback";
 import { EXERCISE_NOTE_ID } from "../../editors";
 import { Facts } from "../documents/editors";
 
-import { recordLetterDelivery, proposeInvitee, publishWindow, recordPublication, removeFeeLine, removeInvitee, removePublication, saveFeeLine, saveWindow } from "./actions";
+import { chooseEvaluationModel, recordLetterDelivery, proposeInvitee, publishWindow, recordPublication, removeFeeLine, removeInvitee, removePublication, saveFeeLine, saveWindow } from "./actions";
 import { requestCancellation, requestClosingChange, recordNoticeDelivery, recordWindowChangeDecision } from "./change-actions";
 import { cancelEvent, issueAddendum, markEventHeld, recordAddendumDelivery, recordAttendance, recordReceipt, recordSale, saveAddendum, scheduleEvent, setEventMandatory, voidAddendum, voidSale } from "./register-actions";
 
@@ -87,6 +87,23 @@ export function FeeLineDrawer({ exerciseId, allowed, kinds, line }: { exerciseId
       action={saveFeeLine}
       submitLabel={line ? "Save" : "Add the cost"}
       trigger={line ? { label: "Edit", className: ghost, ariaLabel: `Edit ${line.label}` } : { label: "Add a cost", icon: true, className: secondary }}
+      size="md"
+    />
+  );
+}
+
+/// 6.8 (E-2): choose the evaluation model, an issued version; publication pins it and it does not change after.
+export function ChooseEvaluationModelDrawer({ exerciseId, allowed, models, current }: { exerciseId: string; allowed: Allowed; models: Option[]; current: string | null }) {
+  if (!allowed.allowed) return null;
+  return (
+    <RecordEditor
+      title="Choose the evaluation model"
+      description="The model the bids are evaluated by: its stages, criteria, bands and aspects. Only issued versions are offered. Its route is judged against the contract basis when the window is published, and its content is pinned on the exercise then: nothing changes it after."
+      fields={[hidden("exerciseId"), { kind: "select", name: "evaluationModelId", label: "Evaluation model", required: true, placeholder: "Choose", options: models }]}
+      values={{ exerciseId, evaluationModelId: current }}
+      action={chooseEvaluationModel}
+      submitLabel="Choose"
+      trigger={{ label: current ? "Change the model" : "Choose the model", className: current ? secondary : primary }}
       size="md"
     />
   );
