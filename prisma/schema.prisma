@@ -371,6 +371,7 @@ model Organisation {
   routingCheckDefs         RoutingCheckDef[]
   routingTargets           RoutingTarget[]
   routingChecks            RoutingCheck[]
+  awardRoutingSheets       AwardRoutingSheet[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -3358,6 +3359,9 @@ model Award {
   @@index([exerciseId])
   /// 6.15a: blacklisting asked for from this award's cancellation (FR-AWD-009).
   standingRequests StandingRequest[]
+  /// 6.14 (rulings condition, ADR 0023): the pre-award routing sheet over the appointment route, and its checks.
+  routingSheet     AwardRoutingSheet?
+  routingChecks    RoutingCheck[]
 }
 
 /// An issued document, frozen (ADR 0008). Never updated: a reissue is a new version.
@@ -8264,6 +8268,7 @@ model RoutingSheetType {
   checks       RoutingCheckDef[]
   targets      RoutingTarget[]
   certificates Certificate[]
+  awardSheets  AwardRoutingSheet[]
 
   @@unique([organisationId, code])
 }
@@ -8313,6 +8318,9 @@ model RoutingCheck {
   organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
   certificateId  String?
   certificate    Certificate? @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+  /// The pre-award sheet's checks (rulings 6.14 condition).
+  awardId        String?
+  award          Award?       @relation(fields: [awardId], references: [id], onDelete: Restrict)
 
   iteration  Int
   defOrder   Int
@@ -8326,4 +8334,22 @@ model RoutingCheck {
   recordedAt DateTime
 
   @@unique([certificateId, iteration, defOrder])
+  @@unique([awardId, iteration, defOrder])
+}
+
+/// The pre-award routing sheet's header on an award (rulings 6.14 condition, ADR 0023): its type, frozen when
+/// the sheet starts, and DATE (1). Its steps are the award's own appointment route; nothing here copies a decision.
+model AwardRoutingSheet {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  awardId        String           @unique
+  award          Award            @relation(fields: [awardId], references: [id], onDelete: Restrict)
+  typeId         String
+  type           RoutingSheetType @relation(fields: [typeId], references: [id], onDelete: Restrict)
+  /// The type, its checks and its targets as they stood when the sheet started.
+  typeSnapshot   Json
+  startedAt      DateTime
+  receivedOn         DateTime?
+  receivedRecordedAt DateTime?
 }
