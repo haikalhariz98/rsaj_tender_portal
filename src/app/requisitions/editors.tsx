@@ -33,7 +33,8 @@ import {
 type Option = { value: string; label: string };
 
 // The shared disabled control with its reason moved to the design system (6.15a fix S-4); re-exported for its users.
-export { Blocked } from "@/components/ui/blocked";
+import { Blocked } from "@/components/ui/blocked";
+export { Blocked };
 
 const hidden = (name: string): Field => ({ kind: "hidden", name });
 

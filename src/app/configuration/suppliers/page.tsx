@@ -195,7 +195,7 @@ export default async function SupplierRegisterConfigPage() {
           {cfg.types.length === 0 ? (
             <EmptyState title="None configured">No document can be lodged and no application decided until the document types are added.</EmptyState>
           ) : (
-            {/* fix S-4 (b): within the 944px content column at 1280, so Edit and Retire stay in view; the type column wraps. */}
+            // fix S-4 (b): within the 944px content column at 1280, so Edit and Retire stay in view; the type column wraps.
             <Table minWidth={900}>
               <colgroup>
                 <col />
