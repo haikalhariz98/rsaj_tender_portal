@@ -9,17 +9,19 @@
  * - Configuration (dated W(16)): people demo_p13–15 with their units; the Tender Opening Committee
  *   demo_c6 (seats demo_m60–62), an opening panel of two, excluding the Northern Region (the
  *   requesting region) and the units under it; the open tender method's bids opened by it, and a bid
- *   with no live purchase not carried; the opening policy demo_opol1 (the tenderers invited counted
- *   as purchasers; Grand Summary words in English and Malay). All ASSUMED.
+ *   with no live purchase carried and reported to the committee (OD-4 A: REPORT, ASSUMED, a question
+ *   to the customer); the opening policy demo_opol1 (the tenderers invited counted as purchasers;
+ *   Grand Summary words in English and Malay). All ASSUMED.
  * - demo_sx16 (closed W(1) 15:00, box locked 15:05): the main opening demo_op1 the same afternoon:
  *   panel demo_p13 and demo_p14, both present; two authorisations open the box; four envelopes in
  *   time opened (demo_env1 Contoh, demo_env2 Sampel, demo_env3 and demo_env5 by bidders named at
  *   opening, who bought no documents); initials, the checklist (Sampel's registration form absent:
- *   reported, the method reports an incomplete bid), verdicts (two carried, two not: no live
- *   purchase), signatures, two pages, finalised — the estimate disclosed, its paper copy not in the
- *   box (a finding, explained) — and the signed scan demo_doc100 attached. The exercise is Opened.
- *   The late demo_env4, admitted at demo_mt13 (demo_d42), is opened at the supplementary opening
- *   demo_op2 (bidder named at opening, no purchase: not carried), finalised, scan demo_doc101.
+ *   reported, the method reports an incomplete bid), verdicts (all carried; the two with no live
+ *   purchase reported), signatures, two pages, finalised — the estimate disclosed, its paper copy
+ *   not in the box (a finding, explained) — and the signed scan demo_doc100 attached. The exercise
+ *   is Opened. The late demo_env4, admitted at demo_mt13 (demo_d42), is opened at the supplementary
+ *   opening demo_op2 (bidder named at opening, no purchase: carried, reported), finalised, scan
+ *   demo_doc101.
  * - demo_sx20 (closed W(2)): the opening demo_op3 started W(1): the box opened on two
  *   authorisations, one envelope found in it registered (demo_env10, in time by the lock), then
  *   adjourned; resumed, one authorisation recorded, adjourned again (that authorisation lapses).
@@ -105,10 +107,10 @@ export async function configureOpeningDemo(db: Db, organisationId: string) {
   // The open tender method's opening rules (OD-4, C-5).
   const committees = (await db.committee.findMany({ where: { organisationId, retiredOn: null }, select: { code: true } })).map((c) => c.code);
   const method = await db.sourcingMethod.findFirstOrThrow({ where: { organisationId, code: "open_tender" }, select: { id: true, nameEn: true } });
-  const rule = { committeeCode: OPENING_COMMITTEE.code, committeeProvenance: "ASSUMED" as const, unpurchased: "ELIMINATE" as const, unpurchasedProvenance: "ASSUMED" as const };
+  const rule = { committeeCode: OPENING_COMMITTEE.code, committeeProvenance: "ASSUMED" as const, unpurchased: "REPORT" as const, unpurchasedProvenance: "ASSUMED" as const };
   refuse("the method's opening rules", methodOpeningFaults(rule, { committees }));
   await db.sourcingMethod.update({ where: { id: method.id }, data: { openingCommitteeCode: rule.committeeCode, openingCommitteeProvenance: rule.committeeProvenance, unpurchasedBidConsequence: rule.unpurchased, unpurchasedProvenance: rule.unpurchasedProvenance } });
-  entry("SourcingMethod", method.id, method.nameEn, "UPDATE", later(3), diffFields({ openingCommittee: "Not set", openingCommitteeFrom: null, aBidWithNoLivePurchase: "Not set", aBidWithNoLivePurchaseFrom: null }, { openingCommittee: OPENING_COMMITTEE.nameEn, openingCommitteeFrom: "Assumed", aBidWithNoLivePurchase: "Not carried to evaluation", aBidWithNoLivePurchaseFrom: "Assumed" }), "Invented for the demo.");
+  entry("SourcingMethod", method.id, method.nameEn, "UPDATE", later(3), diffFields({ openingCommittee: "Not set", openingCommitteeFrom: null, aBidWithNoLivePurchase: "Not set", aBidWithNoLivePurchaseFrom: null }, { openingCommittee: OPENING_COMMITTEE.nameEn, openingCommitteeFrom: "Assumed", aBidWithNoLivePurchase: "Carried, and reported to the committee", aBidWithNoLivePurchaseFrom: "Assumed" }), "Invented for the demo.");
 
   // The opening policy (OD-9, FR-OPN-010), unless the organisation already keeps one.
   if (!(await db.openingPolicy.findUnique({ where: { organisationId } }))) {
@@ -148,8 +150,8 @@ export async function loadOpeningDemo(db: Db, organisationId: string) {
   const offers16: { env: string; bidder: { partyId: string } | { name: string; registrationNo: string; id: string }; price: string; months: number; cls: string; status: string; at: string; absent?: string[]; verdict: "PASS" | "REJECT" }[] = [
     { env: `${P}env1`, bidder: { partyId: `${P}pty2` }, price: "612450.30", months: 12, cls: "Grade D4", status: "Active", at: "15:13", verdict: "PASS" },
     { env: `${P}env2`, bidder: { partyId: `${P}pty3` }, price: "655800.00", months: 14, cls: "Grade D4", status: "Active", at: "15:17", absent: ["REGISTRATION_BACKGROUND"], verdict: "PASS" },
-    { env: `${P}env3`, bidder: { id: `${P}pty12`, name: FIRMS.rekaan.name, registrationNo: FIRMS.rekaan.registrationNo }, price: "598000.00", months: 12, cls: "Grade D4", status: "Active", at: "15:21", verdict: "REJECT" },
-    { env: `${P}env5`, bidder: { id: `${P}pty13`, name: "Demo Network Builders Sdn Bhd", registrationNo: "DEMO-0007-X" }, price: "640120.00", months: 13, cls: "Grade D5", status: "Active", at: "15:25", verdict: "REJECT" },
+    { env: `${P}env3`, bidder: { id: `${P}pty12`, name: FIRMS.rekaan.name, registrationNo: FIRMS.rekaan.registrationNo }, price: "668000.00", months: 12, cls: "Grade D4", status: "Active", at: "15:21", verdict: "PASS" },
+    { env: `${P}env5`, bidder: { id: `${P}pty13`, name: "Demo Network Builders Sdn Bhd", registrationNo: "DEMO-0007-X" }, price: "640120.00", months: 13, cls: "Grade D5", status: "Active", at: "15:25", verdict: "PASS" },
   ];
   for (const [i, o] of offers16.entries()) {
     const at = T(day16, o.at);
@@ -158,7 +160,7 @@ export async function loadOpeningDemo(db: Db, organisationId: string) {
     await acts.initial(sx16, bid, CHAIR, sec(at, 60));
     await acts.initial(sx16, bid, MEMBER, sec(at, 75));
     await acts.answers(sx16, bid, o.absent ?? [], sec(at, 120));
-    await acts.verdict(sx16, bid, o.verdict, o.verdict === "REJECT" ? "No purchase of the tender documents is recorded for this bidder, and the method does not carry such a bid." : "", sec(at, 150));
+    await acts.verdict(sx16, bid, o.verdict, "", sec(at, 150));
   }
   await acts.signature(sx16, op1, CHAIR, day16, T(day16, "15:40"));
   await acts.signature(sx16, op1, MEMBER, day16, sec(T(day16, "15:40"), 30));
@@ -179,7 +181,7 @@ export async function loadOpeningDemo(db: Db, organisationId: string) {
     await acts.initial(sx16, bid, CHAIR, sec(at, 60));
     await acts.initial(sx16, bid, MEMBER, sec(at, 70));
     await acts.answers(sx16, bid, [], sec(at, 120));
-    await acts.verdict(sx16, bid, "REJECT", "No purchase of the tender documents is recorded for this bidder, and the method does not carry such a bid.", sec(at, 150));
+    await acts.verdict(sx16, bid, "PASS", "", sec(at, 150));
   }
   await acts.signature(sx16, op2, CHAIR, day16, T(day16, "16:45"));
   await acts.signature(sx16, op2, MEMBER, day16, sec(T(day16, "16:45"), 20));
@@ -605,13 +607,17 @@ export async function checkOpeningDemo(db: Db) {
   const g16 = await loadOpeningGate(`${P}sx16`);
   const faults16 = openingGateFaults(g16, `${P}pty2`).filter((f) => f.level === "block");
   if (faults16.length) fail(`sx16's openings hold its award back (${faults16.map((f) => f.code).join(", ")}).`);
-  if (!openingGateFaults(g16, `${P}pty12`).some((f) => f.code === "AWARDEE_NOT_CARRIED")) fail("a bidder not carried could be awarded on sx16.");
+  if (!openingGateFaults(g16, `${P}pty10`).some((f) => f.code === "AWARDEE_NOT_CARRIED")) fail("a party not carried at sx16's opening could be awarded on it.");
   const s16 = (await scheduleSection(`${P}sx16`)) ?? fail("sx16's schedule did not load.");
   const main = s16.openings.find((o) => o.title === "Opening") ?? fail("sx16 has no main opening.");
   if (!main.finalised || main.rows.length !== 4 || !main.summary || !main.benchmark || main.benchmark.sealed) fail("sx16's main schedule is not frozen with four offers, its Grand Summary and the disclosed estimate.");
   if (main.copy?.check !== "NOT_IN_BOX" || !main.explanation) fail("sx16's copy finding is not recorded and explained.");
   const lowest = main.summary!.rows.filter((r) => r.lowest);
-  if (lowest.length !== 1 || lowest[0].listingNo !== 1) fail("sx16's lowest qualified offer is not No. 1 (a lower offer not carried is never the lowest).");
+  if (lowest.length !== 1 || lowest[0].listingNo !== 1) fail("sx16's lowest qualified offer is not No. 1.");
+  // OD-4 (REPORT): the offers with no live purchase are carried, and reported.
+  const o16 = (await openingSection(`${P}sx16`)) ?? fail("sx16's opening did not load.");
+  const reported = o16.openings[0].offers.filter((b) => b.reported.length > 0).map((b) => b.listingNo);
+  if (reported.join() !== "2,3,4") fail(`sx16's reported offers are ${reported.join()}, not 2, 3 and 4.`);
   const supp = s16.openings.find((o) => o.title !== "Opening") ?? fail("sx16 has no supplementary opening.");
   if (!supp.finalised || supp.rows.length !== 5) fail("sx16's supplementary schedule is not version 2 with five offers.");
   // sx20: adjourned, with a lapsed authorisation and the box's envelope registered by the lock.
@@ -619,7 +625,7 @@ export async function checkOpeningDemo(db: Db) {
   const op3 = o20.openings[0] ?? fail("sx20 has no opening.");
   if (op3.phase !== "Adjourned" || !op3.resume?.allowed) fail("sx20's opening is not adjourned, ready to resume.");
   if (!op3.authorisations.some((a) => a.includes("lapsed"))) fail("sx20's unpaired authorisation did not lapse.");
-  if (!op3.envelopes.some((e) => e.source === "In the box when it was locked")) fail("sx20 has no envelope found in the box.");
+  if (!op3.envelopes.some((e) => e.source.startsWith("In the box when it was locked"))) fail("sx20 has no envelope found in the box.");
   // OD-2: only an opened envelope names a bidder.
   if (await db.bidEnvelope.count({ where: { id: demoRef, status: { not: "OPENED" }, NOT: { partyId: null } } })) fail("an envelope not opened names a party.");
   const later = await db.auditEntry.count({ where: { id: { startsWith: `${P}bauo` }, at: { gt: new Date() } } });

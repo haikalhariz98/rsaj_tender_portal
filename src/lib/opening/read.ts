@@ -164,7 +164,8 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
       sequence: e.sequence,
       kind: ENVELOPE_KIND_LABEL[e.kind],
       isAlternative: e.kind === "ALTERNATIVE",
-      source: e.receivedSource === "BOX_AT_OPENING" ? SOURCE_LABEL.BOX_AT_OPENING : `Received ${time(e.receivedAt, tz)}`,
+      // C-3 (b): a box envelope's time is the lock's, never a receipt time.
+      source: e.receivedSource === "BOX_AT_OPENING" ? `${SOURCE_LABEL.BOX_AT_OPENING} at ${time(e.receivedAt, tz)}` : `Received ${time(e.receivedAt, tz)}`,
       markings: e.markings,
       state: e.status === "OPENED" ? `Opened as No. ${bid?.listingNo ?? "—"}` : e.status === "WITHDRAWN" || withdrawnIds.has(e.id) ? "Withdrawn, not opened" : "Sealed",
       tone: (e.status === "OPENED" ? "ok" : e.status === "WITHDRAWN" ? "neutral" : "warn") as "ok" | "neutral" | "warn",
