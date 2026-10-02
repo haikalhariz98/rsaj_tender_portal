@@ -5,6 +5,8 @@
  * and a refused one always give the same reason.
  */
 
+import { dayToDate } from "@/lib/dates";
+import { hasEnded } from "@/lib/effective";
 import { isClassificationSnapshot } from "@/lib/method/snapshot";
 import { verifiedScanVersionIds } from "@/lib/scope/panel";
 import type { PartSource, TenderPackStatus } from "@/lib/tender-docs/types";
@@ -83,7 +85,8 @@ export const addendumFacts = (a: { status: "DRAFT" | "ISSUED" | "VOID"; window: 
   status: a.status,
 });
 
-/// Ended once its last day has passed, in the organisation's days.
+/// Ended once its end day has come, in the organisation's days: the end day is not
+/// included, as `inForceOn` reads it (65-C1). `hasEnded` is that rule's end half.
 export function delegationFacts(d: { effectiveTo: Date | null }, today: string): OwnerFacts {
-  return { kind: "delegation", ended: d.effectiveTo != null && d.effectiveTo.toISOString().slice(0, 10) < today };
+  return { kind: "delegation", ended: hasEnded(d, dayToDate(today)) };
 }
