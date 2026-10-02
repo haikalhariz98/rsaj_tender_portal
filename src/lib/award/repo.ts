@@ -10,6 +10,7 @@
 
 import { bidGate } from "@/lib/bids/repo";
 import { loadOpeningGate } from "@/lib/opening/gate-read";
+import { loadEvaluationGate } from "@/lib/evaluation/gate-read";
 import type { Tx } from "@/lib/audit/record";
 import type { DecisionRecord } from "@/lib/committee/record";
 import { dayIn, dayToDate, storedDay } from "@/lib/dates";
@@ -275,6 +276,8 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
   const bidsNow = await bidGate(ex.id, client);
   // 6.7 (X-9, C-7, C-8): the openings' checks, and the party the award names.
   const openingNow = await loadOpeningGate(ex.id, client);
+  // 6.8 (E-9): the evaluation's gate and the recommendation.
+  const evaluationNow = await loadEvaluationGate(ex.id, client);
   const unitPath = pathTo(units as unknown as OrgUnit[], req.sectionUnitCode || req.requestingUnitCode, on).reverse().map((u) => u.code);
   const holdersOf = (code: string) => holdersFor(code, unitPath, roster, delegations, org.today ?? storedDay(on));
   const people = new Map(roster.people.map((p) => [p.id, p]));
@@ -333,6 +336,8 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
       window: exerciseWindow,
       bids: bidsNow.published ? { lateFault: bidsNow.lateFault, validityFault: bidsNow.validityFault } : null,
       opening: openingNow.applies ? { facts: openingNow, awardeePartyId: award.awardeePartyId } : null,
+      // 6.8 (E-9, flagged): stated always (null where none applies), with the award's figures and reasons.
+      evaluation: evaluationNow.gate.applies ? { facts: evaluationNow.gate, awardeePartyId: award.awardeePartyId, award: { value: senFromDecimal(award.awardedValue), period: { value: award.completionPeriod, unit: award.completionUnit as PeriodUnit }, reasons: { value: award.recValueDiffersReason, period: award.recPeriodDiffersReason } } } : null,
       regime: ex.regime,
       appointmentRuleKey: ex.appointmentRuleKey,
       appointmentRuleLabel: bands?.appointment.ruleLabel ?? null,

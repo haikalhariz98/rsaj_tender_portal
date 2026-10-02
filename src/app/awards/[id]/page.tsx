@@ -11,6 +11,7 @@ import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
 import { EscalateDrawer } from "@/app/approvals/editors";
 import { escalationText } from "@/lib/authority/escalation-labels";
 import { Badge, Chip } from "@/components/ui/badge";
+import { recommendationDifferences } from "@/lib/evaluation/award-gate";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
@@ -209,14 +210,19 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
 
   // 6.7 (C-7): the bidders the opening carried to evaluation, where the exercise's openings apply.
   const openingGate = edits.details ? await loadOpeningGate(l.ex.id) : null;
-  const carriedParties = openingGate?.applies ? openingGate.carried.map((p) => ({ value: p.id, label: `${p.name} (${p.registrationNo})` })) : undefined;
+  // 6.8 (E-9): where the evaluation applies, the awardee is the recommended tenderer; it is the one offered.
+  const evaluationGate = f.facts.exercise.evaluation ?? null;
+  const recommendedParty = evaluationGate?.facts.issued?.recommendedPartyId ?? null;
+  const carriedParties = openingGate?.applies ? openingGate.carried.filter((p) => !recommendedParty || p.id === recommendedParty).map((p) => ({ value: p.id, label: `${p.name} (${p.registrationNo})` })) : undefined;
+  const recommendedText = evaluationGate?.facts.issued ? { valueText: formatMoney(evaluationGate.facts.issued.price) } : null;
   const actions = (
     <>
       {edits.details && (
         <EditDetailsDrawer
           id={award.id}
-          values={{ awardeePartyId: award.awardeePartyId ?? "", awardeeName: award.awardeeName, awardeeRegistrationNo: award.awardeeRegistrationNo, awardeeAddress: award.awardeeAddress, awardedValue: award.awardedValue.toString(), completionPeriod: String(award.completionPeriod), completionUnit: award.completionUnit }}
+          values={{ awardeePartyId: award.awardeePartyId ?? "", awardeeName: award.awardeeName, awardeeRegistrationNo: award.awardeeRegistrationNo, awardeeAddress: award.awardeeAddress, awardedValue: award.awardedValue.toString(), completionPeriod: String(award.completionPeriod), completionUnit: award.completionUnit, recValueDiffersReason: award.recValueDiffersReason ?? "", recPeriodDiffersReason: award.recPeriodDiffersReason ?? "" }}
           parties={carriedParties}
+          recommended={recommendedText}
         />
       )}
       {edits.terms && <EditTermsDrawer id={award.id} values={termsValues} regulatedLabel={policy.regulatedActivityLabel} asked={{ retention: ev.terms?.retentionAsked ?? null, dlp: ev.terms?.dlpAsked ?? null }} tender={tenderTexts} />}
@@ -291,7 +297,7 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
   });
 
   const tabs = [
-    { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel l={l} ev={ev} methodName={methodName} typeName={typeName} policyLabel={policy.regulatedActivityLabel} validityDays={policy.indentValidityDays} expiredRule={!!f.config.indentExpiredRule} unitName={f.config.unitName} /> },
+    { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel l={l} ev={ev} recommendation={f.facts.exercise.evaluation?.facts.issued ?? null} methodName={methodName} typeName={typeName} policyLabel={policy.regulatedActivityLabel} validityDays={policy.indentValidityDays} expiredRule={!!f.config.indentExpiredRule} unitName={f.config.unitName} /> },
     {
       id: "approval",
       label: "Approval",
@@ -420,6 +426,17 @@ function AgainstTender({ ev, field, children }: { ev: AwardEvaluation; field: Ba
   );
 }
 
+/// 6.8 (E-9): a figure against the evaluation's recommendation: "differs from the recommendation", with the recommended figure and the reason.
+function FromRecommendation({ differs, reason, recommended, children }: { differs: boolean; reason: string | null; recommended: string | null; children: React.ReactNode }) {
+  if (!recommended || !differs) return <>{children}</>;
+  return (
+    <span className="flex flex-col items-start gap-1">
+      <span className="flex flex-wrap items-center gap-2">{children}<Badge tone="warn">Differs from the recommendation</Badge></span>
+      <span className="text-[12.5px] text-ink-3">Recommended: {recommended}. {reason ? `Why: ${reason}` : "No reason recorded yet."}</span>
+    </span>
+  );
+}
+
 /// The insurance the tender Appendix states: carried to the contract, not restated by the award.
 function tenderInsurance(b: NonNullable<AwardEvaluation["appendix"]>["baseline"]) {
   const m = (x: bigint | null) => (x == null ? notSet() : formatMoney(x));
@@ -432,12 +449,14 @@ function tenderInsurance(b: NonNullable<AwardEvaluation["appendix"]>["baseline"]
   ];
 }
 
-function OverviewPanel({ l, ev, methodName, typeName, policyLabel, validityDays, expiredRule, unitName }: { l: LoadedAward; ev: AwardEvaluation; methodName: string; typeName: string; policyLabel: string | null; validityDays: number | null; expiredRule: boolean; unitName: (code: string | null) => string | null }) {
+function OverviewPanel({ l, ev, recommendation, methodName, typeName, policyLabel, validityDays, expiredRule, unitName }: { l: LoadedAward; ev: AwardEvaluation; recommendation: { price: bigint; period: { value: number; unit: "DAYS" | "WEEKS" | "MONTHS" } | null } | null; methodName: string; typeName: string; policyLabel: string | null; validityDays: number | null; expiredRule: boolean; unitName: (code: string | null) => string | null }) {
   const { award, ex, req } = l;
   const kind = award.instrumentKind as InstrumentKind;
   const c = award.contract;
   const handover = c?.ownershipEvents[0] ?? null;
   const indent = ev.indent;
+  // 6.8 (E-9): each figure that differs from the evaluation's recommendation says so, with its reason.
+  const differs = recommendation ? recommendationDifferences({ value: senFromDecimal(award.awardedValue), period: { value: award.completionPeriod, unit: award.completionUnit as "DAYS" | "WEEKS" | "MONTHS" } }, recommendation) : [];
   return (
     <div className="flex flex-col gap-6">
       <Card>
@@ -454,9 +473,9 @@ function OverviewPanel({ l, ev, methodName, typeName, policyLabel, validityDays,
               ...(ex.onBoundary && ex.boundaryOperator ? [{ label: "At the boundary", value: boundarySentence(ex.boundaryOperator, ex.boundaryValue?.toString() ?? null, (ex.boundaryProvenance ?? "ASSUMED") as "ASSUMED") }] : []),
               { label: "Awardee", value: <span className="flex flex-col"><span>{award.awardeeName}</span><span className="text-[12.5px] text-ink-3">{award.awardeeRegistrationNo || "Registration number not recorded"}</span></span> },
               { label: "Address", value: award.awardeeAddress || notSet("Not recorded") },
-              { label: "Awarded value", value: <span className="tabular-nums">{money(award.awardedValue)}</span> },
+              { label: "Awarded value", value: <FromRecommendation differs={differs.includes("value")} reason={award.recValueDiffersReason} recommended={recommendation ? formatMoney(recommendation.price) : null}><span className="tabular-nums">{money(award.awardedValue)}</span></FromRecommendation> },
               { label: "Exercise's estimate", value: <span className="tabular-nums">{money(ex.estimatedValue)}</span> },
-              { label: "Completion period", value: periodText(award.completionPeriod, award.completionUnit) },
+              { label: "Completion period", value: <FromRecommendation differs={differs.includes("period")} reason={award.recPeriodDiffersReason} recommended={recommendation?.period ? periodText(recommendation.period.value, recommendation.period.unit) : recommendation ? "No period stated" : null}>{periodText(award.completionPeriod, award.completionUnit)}</FromRecommendation> },
               { label: "Stated start date", value: award.startDate ? formatDate(award.startDate) : notSet() },
               { label: "Completion", value: ev.completion ? formatDate(ev.completion) : notSet("Not known until the start date is set") },
               { label: policyLabel ? `${policyLabel}?` : "The regulated activity?", value: <AgainstTender ev={ev} field="regulated">{award.regulatedActivity == null ? notSet("Not answered") : award.regulatedActivity ? "Yes" : "No"}</AgainstTender> },

@@ -19,10 +19,13 @@ import { createAward } from "./actions";
  * every rule is the action's. The exercise's classification is shown read-only: the
  * award reads it and never copies it.
  */
-export function AwardForm({ exercise, cancelHref, valueHint, dossier, parties }: { exercise: { id: string; facts: { label: string; value: string }[] }; cancelHref: string; valueHint: string; dossier: boolean; parties?: { id: string; name: string; registrationNo: string; address: string }[] }) {
+/// 6.8 (E-9): the evaluation's recommendation the award is pre-filled from; the bidder cannot differ, the value and period may, each with its reason.
+export type Recommended = { partyId: string; name: string; registrationNo: string; address: string; value: string; valueText: string; period: string; unit: string; version: number };
+
+export function AwardForm({ exercise, cancelHref, valueHint, dossier, parties, recommended }: { exercise: { id: string; facts: { label: string; value: string }[] }; cancelHref: string; valueHint: string; dossier: boolean; parties?: { id: string; name: string; registrationNo: string; address: string }[]; recommended?: Recommended }) {
   const [state, setState] = useState<FormState>({ ok: false });
   const [pending, startTransition] = useTransition();
-  const [v, setV] = useState<Record<string, string>>({ completionUnit: "" });
+  const [v, setV] = useState<Record<string, string>>(recommended ? { awardeePartyId: recommended.partyId, awardeeName: recommended.name, awardeeRegistrationNo: recommended.registrationNo, awardeeAddress: recommended.address, awardedValue: recommended.value, completionPeriod: recommended.period, completionUnit: recommended.unit } : { completionUnit: "" });
   const set = (k: string) => (e: { target: { value: string } }) => setV((x) => ({ ...x, [k]: e.target.value }));
   const err = (k: string) => state.errors?.[k];
   return (
@@ -76,6 +79,11 @@ export function AwardForm({ exercise, cancelHref, valueHint, dossier, parties }:
           </div>
         </CardBody>
       </Card>
+      {recommended && (
+        <Callout tone="info" title={`Pre-filled from evaluation version ${recommended.version}'s recommendation`}>
+          The awardee is the recommended tenderer and cannot differ: another tenderer is the committee&apos;s decision not to carry the appointment, and a new evaluation version. The value and period may differ, each with its reason; the award then shows it differs from the recommendation.
+        </Callout>
+      )}
       <Card>
         <CardHeader title="Value and period" subtitle="Within what the requisition's approval covers, and in the exercise's band." />
         <CardBody className="grid gap-4 sm:grid-cols-2">
@@ -96,6 +104,16 @@ export function AwardForm({ exercise, cancelHref, valueHint, dossier, parties }:
               <option value="MONTHS">Months</option>
             </Select>
           </Field>
+          {recommended && (
+            <>
+              <Field label="Why the value differs from the recommendation" htmlFor="recValueDiffersReason" hint={`Recommended: ${recommended.valueText}. Only where the awarded value is not that.`} error={err("recValueDiffersReason")}>
+                <Textarea id="recValueDiffersReason" name="recValueDiffersReason" rows={2} value={v.recValueDiffersReason ?? ""} onChange={set("recValueDiffersReason")} />
+              </Field>
+              <Field label="Why the period differs from the recommendation" htmlFor="recPeriodDiffersReason" hint="Only where the period is not the recommended one." error={err("recPeriodDiffersReason")}>
+                <Textarea id="recPeriodDiffersReason" name="recPeriodDiffersReason" rows={2} value={v.recPeriodDiffersReason ?? ""} onChange={set("recPeriodDiffersReason")} />
+              </Field>
+            </>
+          )}
         </CardBody>
       </Card>
       <div className="flex flex-wrap items-center justify-end gap-2">

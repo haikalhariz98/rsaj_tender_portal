@@ -5,7 +5,8 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
-import { awardOpenRefusal, exerciseOpenForAward } from "@/lib/award/gate";
+import { awardOpenRefusal, evaluationFindings, exerciseOpenForAward } from "@/lib/award/gate";
+import { loadEvaluationGate } from "@/lib/evaluation/gate-read";
 import { readWindowGate } from "@/lib/window/repo";
 import { openingGateFaults } from "@/lib/opening/award-gate";
 import { loadOpeningGate } from "@/lib/opening/gate-read";
@@ -22,7 +23,7 @@ import { REGIME_LABEL } from "@/lib/method/labels";
 import { approvedRouteOf, loadExercise, loadMethodConfig } from "@/lib/method/repo";
 import { isBandSnapshot } from "@/lib/method/snapshot";
 import type { Regime } from "@/lib/method/types";
-import { formatMoney, parseSen, senFromDecimal } from "@/lib/money";
+import { formatMoney, parseSen, senFromDecimal, senToDecimalString } from "@/lib/money";
 
 import { AwardForm } from "../award-form";
 
@@ -68,7 +69,10 @@ export default async function NewAwardPage(props: PageProps<"/awards/new">) {
   // 6.7 (C-7, C-8): the openings' checks; the awardee is chosen from the bidders carried to evaluation.
   const opening = await loadOpeningGate(ex.id);
   const openingBlock = openingGateFaults(opening);
-  const blocker = !exerciseOpenForAward(ex.status, ex.packKindSnapshot, gate) ? awardOpenRefusal(ex.packKindSnapshot, ex.status, gate) : openingBlock.length ? openingBlock.map(openingFindingText).join(" ") : live ? `This exercise already has a live award, ${live.reference}.` : "fault" in instrument ? awardFindingText({ code: instrument.fault, level: "block", data: { regime: instrument.regime } }) : null;
+  // 6.8 (E-9, flagged): Evaluated, its report standing; the award is pre-filled from the recommendation.
+  const evaluation = await loadEvaluationGate(ex.id);
+  const evaluationBlock = evaluation.gate.applies ? evaluationFindings({ facts: evaluation.gate, awardeePartyId: null }) : [];
+  const blocker = !exerciseOpenForAward(ex.status, ex.packKindSnapshot, gate) ? awardOpenRefusal(ex.packKindSnapshot, ex.status, gate) : openingBlock.length ? openingBlock.map(openingFindingText).join(" ") : evaluationBlock.length ? evaluationBlock.map(awardFindingText).join(" ") : live ? `This exercise already has a live award, ${live.reference}.` : "fault" in instrument ? awardFindingText({ code: instrument.fault, level: "block", data: { regime: instrument.regime } }) : null;
   if (blocker) {
     return (
       <>
@@ -113,7 +117,8 @@ export default async function NewAwardPage(props: PageProps<"/awards/new">) {
         cancelHref={`/sourcing/${ex.id}?tab=award`}
         valueHint={headroom == null ? "The requisition has no approved value on record, so nothing can be awarded against it." : `Up to ${formatMoney(headroom)}: what the requisition's approval covers${siblings.length ? ", less its other awards" : ""}. In ringgit, to at most two decimal places.`}
         dossier={dossierEvidenceMissing(method, { justificationReasonCode: ex.justificationReasonCode, dossierReference: ex.dossierReference, evidenceAttachments: dossierEvidence })}
-        parties={opening.applies ? opening.carried : undefined}
+        parties={opening.applies ? (evaluation.recommended ? opening.carried.filter((p) => p.id === evaluation.recommended!.party.id) : opening.carried) : undefined}
+        recommended={evaluation.gate.applies && evaluation.recommended ? { partyId: evaluation.recommended.party.id, name: evaluation.recommended.party.name, registrationNo: evaluation.recommended.party.registrationNo, address: evaluation.recommended.party.address, value: senToDecimalString(evaluation.recommended.price), valueText: formatMoney(evaluation.recommended.price), period: evaluation.recommended.period ? String(evaluation.recommended.period.value) : "", unit: evaluation.recommended.period?.unit ?? "", version: evaluation.version! } : undefined}
       />
     </>
   );

@@ -75,7 +75,7 @@ import { exerciseCancelBlockedBy } from "@/lib/award/status";
 import { AWARD_STATUS_LABEL, AWARD_STATUS_TONE, awardFindingText, DOSSIER_EVIDENCE_NEEDED, INSTRUMENT_SHORT } from "@/lib/award/labels";
 import { loadAwardPolicy } from "@/lib/award/repo";
 import { ENTITY as TENDER_ENTITY } from "@/lib/tender-docs/audit-view";
-import { awardOpenRefusal, exerciseOpenForAward } from "@/lib/award/gate";
+import { awardOpenRefusal, evaluationFindings, exerciseOpenForAward } from "@/lib/award/gate";
 import type { WindowGate } from "@/lib/window/gate";
 import { WINDOW_ENTITIES } from "@/lib/window/audit-view";
 import { BID_ENTITIES } from "@/lib/bids/audit-view";
@@ -84,6 +84,7 @@ import { bidFindingText } from "@/lib/bids/labels";
 import { bidGate } from "@/lib/bids/repo";
 import { openingGateFaults } from "@/lib/opening/award-gate";
 import { loadOpeningGate } from "@/lib/opening/gate-read";
+import { loadEvaluationGate } from "@/lib/evaluation/gate-read";
 import { openingFindingText } from "@/lib/opening/labels";
 import { loadBids } from "./bids/workspace";
 import { BIDS_SECTIONS, bidsSectionOf, loadOpening, loadSchedule } from "./opening/workspace";
@@ -221,6 +222,11 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const bidAward = tab === "award" ? await bidGate(ex.id) : null;
   // 6.7 (C-8): what the openings ask of an award, for the Award tab (only on an exercise published through 6.5).
   const openingAward = tab === "award" ? openingGateFaults(await loadOpeningGate(ex.id)).map(openingFindingText) : [];
+  // 6.8 (E-9, flagged): the evaluation's gate, before an award is opened.
+  const evaluationAward = tab === "award" ? await (async () => {
+    const g = await loadEvaluationGate(ex.id);
+    return g.gate.applies ? evaluationFindings({ facts: g.gate, awardeePartyId: null }).map(awardFindingText) : [];
+  })() : [];
   const inv =
     tab === "invitation"
       ? await loadInvitation(invitationSectionOf(section), { exerciseId: ex.id, reference: ex.reference, status: ex.status, today, timeZone: org.timeZone, routes: latestFirst(windowChangeRoutesOf(ex.approvalInstances)), people: activePeople, suggestions })
@@ -498,7 +504,8 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
           })()}
           dossier={dossierEvidenceMissing(flags, { justificationReasonCode: ex.justificationReasonCode, dossierReference: ex.dossierReference, evidenceAttachments: evidence.dossier })}
           bidFaults={bidAward?.published ? [bidAward.lateFault, bidAward.validityFault].filter((f) => f != null).map((f) => bidFindingText(f!)) : []}
-          openingFaults={ex.status === "OPENED" ? openingAward : []}
+          openingFaults={ex.status === "OPENED" || ex.status === "UNDER_EVALUATION" || ex.status === "EVALUATED" ? openingAward : []}
+          evaluationFaults={ex.status === "OPENED" || ex.status === "UNDER_EVALUATION" || ex.status === "EVALUATED" ? evaluationAward : []}
         />
       ),
     },
@@ -625,7 +632,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
 
 // --------------------------------------------------------------------- award
 
-function AwardTab({ exerciseId, status, packKind, window, awards, opening, dossier, bidFaults, openingFaults }: { exerciseId: string; status: string; packKind: PackKind | null; window: WindowGate; opening: string | null; dossier: boolean; bidFaults: string[]; openingFaults: string[]; awards: { id: string; reference: string; awardeeName: string; awardedValue: { toString(): string }; status: string; instrumentKind: string; cancelReason: string; contract: { number: string } | null }[] }) {
+function AwardTab({ exerciseId, status, packKind, window, awards, opening, dossier, bidFaults, openingFaults, evaluationFaults }: { exerciseId: string; status: string; packKind: PackKind | null; window: WindowGate; opening: string | null; dossier: boolean; bidFaults: string[]; openingFaults: string[]; evaluationFaults: string[]; awards: { id: string; reference: string; awardeeName: string; awardedValue: { toString(): string }; status: string; instrumentKind: string; cancelReason: string; contract: { number: string } | null }[] }) {
   const live = awards.find((a) => a.status !== "CANCELLED") ?? null;
   const cancelled = awards.filter((a) => a.status === "CANCELLED");
   return (
@@ -640,6 +647,11 @@ function AwardTab({ exerciseId, status, packKind, window, awards, opening, dossi
       {openingFaults.length > 0 && (
         <Callout tone="warn" title="The opening holds the award back" action={<ButtonLink href={`/sourcing/${exerciseId}?tab=bids&section=schedule`} size="sm" variant="secondary">Open the schedule</ButtonLink>}>
           {openingFaults.join(" ")}
+        </Callout>
+      )}
+      {evaluationFaults.length > 0 && !live && (
+        <Callout tone="warn" title="The evaluation holds the award back" action={<ButtonLink href={`/sourcing/${exerciseId}?tab=evaluation`} size="sm" variant="secondary">Open the evaluation</ButtonLink>}>
+          {evaluationFaults.join(" ")}
         </Callout>
       )}
       <Card>
@@ -664,9 +676,9 @@ function AwardTab({ exerciseId, status, packKind, window, awards, opening, dossi
             </div>
           ) : !exerciseOpenForAward(status, packKind, window) ? (
             <EmptyState size="sm" title="Not awarded">{status === "CANCELLED" ? "The exercise is cancelled." : status === "DRAFT" ? "The exercise must move into preparation first." : awardOpenRefusal(packKind, status, window)}</EmptyState>
-          ) : opening ? (
+          ) : opening || evaluationFaults.length ? (
             <EmptyState size="sm" title="No award is opened here" action={<Button size="sm" variant="primary" disabled aria-describedby="award-start-note">Start the award</Button>}>
-              <span id="award-start-note">{opening}</span>
+              <span id="award-start-note">{opening ?? evaluationFaults.join(" ")}</span>
             </EmptyState>
           ) : (
             <div className="flex flex-col gap-4">

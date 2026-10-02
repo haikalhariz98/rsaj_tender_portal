@@ -9,6 +9,9 @@
  * by `checkSignatory` in the issue itself, once named.
  */
 
+import { differenceFaults, evaluationGateFaults, recommendationDifferences, type DifferenceFault, type EvaluationGateFacts, type EvaluationGateFault } from "@/lib/evaluation/award-gate";
+import type { PeriodUnit } from "@/lib/evaluation/types";
+import type { Sen } from "@/lib/money";
 import type { PackKind } from "@/lib/method/types";
 import { openingGateFaults, type OpeningGateFacts, type OpeningGateFault } from "@/lib/opening/award-gate";
 import type { WindowGate } from "@/lib/window/gate";
@@ -52,7 +55,12 @@ export interface DocumentState {
  * finalised — and the openings' own checks (`openingGateFaults`: the signed schedule's scan, every
  * admitted late tender opened, the estimate's copy finding explained, the awardee a party carried to
  * evaluation) are asked beside it. Accepted and issued awards are not judged again.
+ * 6.8 (E-9, flagged): past the opening (Opened, Under evaluation, Evaluated) the exercise is open
+ * here, and the evaluation's own gate (`evaluationFindings`) asks that it is Evaluated, its report
+ * standing and the awardee the recommended tenderer — so an exercise published before evaluation
+ * models existed is told its real exit (cancel and replace), never "evaluate it".
  */
+const PAST_OPENING: ReadonlySet<string> = new Set(["OPENED", "UNDER_EVALUATION", "EVALUATED"]);
 export function awardableStatus(packKindSnapshot: PackKind | null): "DOCUMENTS_IN_PREPARATION" | "WINDOW_CLOSED" {
   return packKindSnapshot === "TENDER" || packKindSnapshot === "QUOTATION" ? "WINDOW_CLOSED" : "DOCUMENTS_IN_PREPARATION";
 }
@@ -60,16 +68,16 @@ export function awardableStatus(packKindSnapshot: PackKind | null): "DOCUMENTS_I
 /// `window`: the window's phase and pending change (`windowGate`). Not given: not judged, never open.
 export function exerciseOpenForAward(status: string, packKindSnapshot: PackKind | null, window: WindowGate | null = null): boolean {
   if (awardableStatus(packKindSnapshot) === "DOCUMENTS_IN_PREPARATION") return status === "DOCUMENTS_IN_PREPARATION";
-  return status === "OPENED" && window?.phase === "CLOSED" && !window.changePending;
+  return PAST_OPENING.has(status) && window?.phase === "CLOSED" && !window.changePending;
 }
 
 /// Why an award is not opened on the exercise, by what it needs.
 export function awardOpenRefusal(packKindSnapshot: PackKind | null, status: string | null = null, window: WindowGate | null = null): string {
   if (awardableStatus(packKindSnapshot) === "DOCUMENTS_IN_PREPARATION") return "An award is opened only on an exercise in preparation, with its classification decided.";
-  if (status !== "ADVERTISED" && status !== "INVITED" && status !== "OPENING_IN_PROGRESS" && status !== "OPENED") return "An award is opened only once the exercise was advertised or invited and its invitation window has closed.";
+  if (status !== "ADVERTISED" && status !== "INVITED" && status !== "OPENING_IN_PROGRESS" && !PAST_OPENING.has(status ?? "")) return "An award is opened only once the exercise was advertised or invited and its invitation window has closed.";
   if (window?.changePending) return "A change to the invitation window is with approval: an award waits for its decision.";
   // 6.7 (C-8): published, the award follows the opening's finalised schedule.
-  if (status !== "OPENED") return "An award is opened only once the bids are opened and the opening's schedule is finalised, on Bids and opening.";
+  if (!PAST_OPENING.has(status ?? "")) return "An award is opened only once the bids are opened and the opening's schedule is finalised, on Bids and opening.";
   return "An award is opened only once the invitation window has closed.";
 }
 
@@ -84,6 +92,24 @@ export type BidGateFault = "LATE_UNDECIDED" | "VALIDITY_NOT_SET" | "BID_VALIDITY
 
 /// 6.7: the openings' faults, for submission and issue alike. Not given: nothing asked (an exercise not published through 6.5, X-9).
 export const openingFindings = (o: { facts: OpeningGateFacts; awardeePartyId: string | null } | null | undefined): Finding[] => (o ? openingGateFaults(o.facts, o.awardeePartyId) : []);
+
+/**
+ * 6.8 (E-9, flagged): the evaluation's gate for an award — Evaluated, the report issued and standing,
+ * the awardee the recommended tenderer — and, once the award states a value and period, each that
+ * differs from the recommendation carries its reason. Null: not published through 6.5, nothing asked.
+ */
+export interface EvaluationForAward {
+  facts: EvaluationGateFacts;
+  awardeePartyId: string | null;
+  /// The award's value and period with the reasons recorded where they differ; absent: not compared yet.
+  award?: { value: Sen; period: { value: number; unit: PeriodUnit }; reasons: { value: string | null; period: string | null } };
+}
+export function evaluationFindings(e: EvaluationForAward | null | undefined): Finding[] {
+  if (!e) return [];
+  const out: Finding[] = evaluationGateFaults(e.facts, e.awardeePartyId);
+  if (e.award && e.facts.applies && e.facts.issued) out.push(...differenceFaults(recommendationDifferences(e.award, e.facts.issued), e.award.reasons));
+  return out;
+}
 
 /// The register's faults, for submission and issue alike. Null facts: not published through 6.5, nothing asked.
 export const bidGateFindings = (b: BidGateFacts | null | undefined): Finding[] => (b ? [b.lateFault, b.validityFault].filter((f): f is NonNullable<typeof f> => f != null) : []);
@@ -101,6 +127,9 @@ export interface IssueInput {
   /// 6.7 (X-9, C-7, C-8, flagged): the openings' checks and the awardee's party; null where none apply
   /// (not published through 6.5). Required (review R-7): a caller states it, never leaves it out.
   opening: { facts: OpeningGateFacts; awardeePartyId: string | null } | null;
+  /// 6.8 (E-9, flagged): the evaluation's gate; null or absent where none applies. The one producer
+  /// (`awardFacts`) always states it (hooks.test.ts holds it there).
+  evaluation?: EvaluationForAward | null;
   commitment: CommitmentFault | null;
   sourcingPermitted: boolean | null;
   instrument: { kind: InstrumentKind } | { fault: InstrumentFault };
@@ -168,7 +197,9 @@ export type IssueFault =
   | "INDENT_EXPIRES_BEFORE_START"
   | "APPENDIX_DIFFERENCE_UNEXPLAINED"
   | BidGateFault
-  | OpeningGateFault;
+  | OpeningGateFault
+  | EvaluationGateFault
+  | DifferenceFault;
 
 export function issueFaults(i: IssueInput): Finding[] {
   const out: Finding[] = [];
@@ -181,6 +212,8 @@ export function issueFaults(i: IssueInput): Finding[] {
   out.push(...bidGateFindings(i.bids));
   // 6.7: the openings' checks and the awardee among the parties carried to evaluation (C-7).
   out.push(...openingFindings(i.opening));
+  // 6.8 (E-9): Evaluated, the report standing, the awardee recommended, and each difference reasoned.
+  out.push(...evaluationFindings(i.evaluation));
 
   // FR-REQ-016: no commitment against a requisition that has not completed its approval.
   if (i.commitment?.code === "NOT_APPROVED") f("REQUISITION_NOT_APPROVED", { step: i.commitment.outstanding });

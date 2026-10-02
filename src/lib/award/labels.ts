@@ -5,6 +5,7 @@
  */
 
 import { openingFindingText } from "@/lib/opening/labels";
+import { evaluationFindingText } from "@/lib/evaluation/labels";
 import { bidFindingText } from "@/lib/bids/labels";
 import { findingText as methodFindingText, REGIME_SHORT } from "@/lib/method/labels";
 import type { Regime } from "@/lib/method/types";
@@ -341,6 +342,14 @@ export function awardFindingText(f: Finding): string {
     case "AWARDEE_NOT_NAMED":
     case "AWARDEE_NOT_CARRIED":
       return openingFindingText(f);
+    // 6.8 (E-9): the evaluation's gate, in the evaluation's words.
+    case "NEVER_EVALUATED":
+    case "NOT_EVALUATED":
+    case "REPORT_STALE":
+    case "AWARDEE_NOT_RECOMMENDED":
+    case "VALUE_DIFFERS_REASON_REQUIRED":
+    case "PERIOD_DIFFERS_REASON_REQUIRED":
+      return evaluationFindingText(f);
     default:
       return methodFindingText(f);
   }

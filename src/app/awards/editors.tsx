@@ -54,7 +54,7 @@ const UNITS: Option[] = [
 export const AWARD_NOTE_ID = "award-actions-note";
 
 /// 6.7 (C-7): where the exercise's openings apply, the awardee is picked from the bidders carried to evaluation.
-export function detailFields(parties?: Option[]): Field[] {
+export function detailFields(parties?: Option[], recommended?: { valueText: string } | null): Field[] {
   return [
     ...(parties ? [{ kind: "select", name: "awardeePartyId", label: "Bidder carried to evaluation", required: true, placeholder: "Choose", options: parties, hint: "The award names a bidder the opening carried to evaluation; it is compared as that bidder, never by the words typed below." } as Field] : []),
     { kind: "text", name: "awardeeName", label: "Awardee", required: true, hint: "As registered. There is no vendor master yet: the name, number and address are kept as written." },
@@ -63,15 +63,22 @@ export function detailFields(parties?: Option[]): Field[] {
     { kind: "money", name: "awardedValue", label: "Awarded value", required: true, hint: "Within what the requisition's approval covers, and in the exercise's band." },
     { kind: "number", name: "completionPeriod", label: "Completion period", required: true, min: 1 },
     { kind: "select", name: "completionUnit", label: "Counted in", required: true, placeholder: "Choose", options: UNITS },
+    // 6.8 (E-9): each figure that differs from the evaluation's recommendation carries its reason.
+    ...(recommended
+      ? ([
+          { kind: "textarea", name: "recValueDiffersReason", label: "Why the value differs from the recommendation", hint: `Recommended: ${recommended.valueText}. Only where the awarded value is not that.` },
+          { kind: "textarea", name: "recPeriodDiffersReason", label: "Why the period differs from the recommendation", hint: "Only where the period is not the recommended one." },
+        ] as Field[])
+      : []),
   ];
 }
 
-export function EditDetailsDrawer({ id, values, parties }: { id: string; values: Values; parties?: Option[] }) {
+export function EditDetailsDrawer({ id, values, parties, recommended }: { id: string; values: Values; parties?: Option[]; recommended?: { valueText: string } | null }) {
   return (
     <RecordEditor
       title="Edit the award"
       description="The awardee, the value and the period are what the appointment approves, so they change only while the award is a draft."
-      fields={[hidden("id"), ...detailFields(parties)]}
+      fields={[hidden("id"), ...detailFields(parties, recommended)]}
       values={{ id, ...values }}
       action={updateAwardDetails}
       submitLabel="Save"

@@ -21,7 +21,9 @@ import type { WindowGate } from "@/lib/window/gate";
 
 import type { OpeningGateFacts, OpeningGateFault } from "@/lib/opening/award-gate";
 
-import { awardableStatus, bidGateFindings, exerciseOpenForAward, openingFindings, type BidGateFacts, type BidGateFault } from "./gate";
+import type { DifferenceFault, EvaluationGateFault } from "@/lib/evaluation/award-gate";
+
+import { awardableStatus, bidGateFindings, evaluationFindings, exerciseOpenForAward, openingFindings, type BidGateFacts, type BidGateFault, type EvaluationForAward } from "./gate";
 import type { Finding } from "./types";
 
 export type RouteFault = "DEPENDS_ON_METHOD" | "NO_METHOD_KEY" | "NO_RULE" | "ROUTE_ERROR" | "REQUESTER_ONLY";
@@ -113,7 +115,9 @@ export type SubmitFault =
   | "NAME_NOT_APPROVED"
   | "NAME_REJECTED"
   | BidGateFault
-  | OpeningGateFault;
+  | OpeningGateFault
+  | EvaluationGateFault
+  | DifferenceFault;
 
 /**
  * Whether an award may be sent for the appointment's approval. The awarded value's own
@@ -144,6 +148,9 @@ export function submitFaults(i: {
   /// 6.7 (X-9, C-7, C-8, flagged): the openings' checks and the awardee's party; null where none apply.
   /// Required (review R-7): a caller states it, never leaves it out.
   opening: { facts: OpeningGateFacts; awardeePartyId: string | null } | null;
+  /// 6.8 (E-9, flagged): the evaluation's gate; null or absent where none applies. The one producer
+  /// (`awardFacts`) always states it (hooks.test.ts holds it there).
+  evaluation?: EvaluationForAward | null;
 }): Finding<SubmitFault>[] {
   const f = (code: SubmitFault, data?: Finding["data"]): Finding<SubmitFault> => ({ code, level: "block", ...(data ? { data } : {}) });
   if (i.status !== "DRAFT") return [f("NOT_DRAFT")];
@@ -168,6 +175,8 @@ export function submitFaults(i: {
   out.push(...(bidGateFindings(i.bids) as Finding<SubmitFault>[]));
   // 6.7: the openings' checks, and the awardee carried to evaluation (C-7).
   out.push(...(openingFindings(i.opening) as Finding<SubmitFault>[]));
+  // 6.8 (E-9): Evaluated, the report standing, the awardee recommended, and each difference reasoned.
+  out.push(...(evaluationFindings(i.evaluation) as Finding<SubmitFault>[]));
   return out;
 }
 

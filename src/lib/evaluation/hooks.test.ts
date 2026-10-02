@@ -63,3 +63,31 @@ describe("E-8: the committee's bundle and the loop-back (6.10 tableMatter, recor
     expect(config).toMatch(/if \(returnsToStage && !isLoopKey\(returnsToStage\) && returnsToStage !== current\?\.returnsToStage\) r\.reject\("returnsToStage"/);
   });
 });
+
+describe("E-9: the award follows the evaluation (6.11)", () => {
+  const repo = read("src", "lib", "award", "repo.ts");
+  const awards = read("src", "app", "awards", "actions.ts");
+  it("the one producer of the award's facts always states the evaluation's gate (null only where none applies)", () => {
+    expect(repo).toMatch(/evaluation: evaluationNow\.gate\.applies \? \{ facts: evaluationNow\.gate, awardeePartyId: award\.awardeePartyId, award: \{/);
+    const evaluate = read("src", "lib", "award", "evaluate.ts");
+    expect(evaluate.match(/evaluation: f\.exercise\.evaluation \?\? null/g)?.length).toBe(2);
+  });
+  it("opening an award asks the whole gate, with the figures and reasons posted, before anything is written", () => {
+    const create = body(awards, "createAward");
+    const check = create.indexOf("recommendationRefusal(evaluation, awardeePartyId,");
+    expect(check).toBeGreaterThan(-1);
+    expect(check).toBeLessThan(create.indexOf("issueReference("));
+  });
+  it("a draft's edit asks what its fields fix (the bidder, each difference's reason), before the write", () => {
+    const update = body(awards, "updateAwardDetails");
+    const check = update.indexOf("recommendationRefusal(evaluation,");
+    expect(update.slice(check, update.indexOf("\n", check))).toMatch(/, true\);$/);
+    expect(check).toBeLessThan(update.indexOf("tx.award.updateMany("));
+  });
+  it("citing the appointment's decision asks the evaluation's bundle, before the step is written", () => {
+    const cite = body(awards, "citeAppointmentDecision");
+    const check = cite.indexOf("bundleFaults((await loadEvaluationGate(l.ex.id, tx)).bundle)");
+    expect(check).toBeGreaterThan(-1);
+    expect(check).toBeLessThan(cite.indexOf("tx.approvalStep.updateMany("));
+  });
+});

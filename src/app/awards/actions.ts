@@ -22,11 +22,15 @@ import { icNumberFault } from "@/lib/award/mask";
 import { exerciseCitationFault } from "@/lib/award/citation";
 import { despatchFaults } from "@/lib/award/distribution";
 import { evaluateAward } from "@/lib/award/evaluate";
-import { awardOpenRefusal, exerciseOpenForAward } from "@/lib/award/gate";
+import { awardOpenRefusal, evaluationFindings, exerciseOpenForAward } from "@/lib/award/gate";
 import { readWindowGate } from "@/lib/window/repo";
 import { bidGate } from "@/lib/bids/repo";
 import { awardeeBidderText, awardeePartyWrite, openingGateFaults } from "@/lib/opening/award-gate";
 import { loadOpeningGate } from "@/lib/opening/gate-read";
+import { recommendationDifferences } from "@/lib/evaluation/award-gate";
+import { bundleFaults } from "@/lib/evaluation/bundle";
+import { evaluationFindingText } from "@/lib/evaluation/labels";
+import { loadEvaluationGate, type EvaluationGate } from "@/lib/evaluation/gate-read";
 import { openingFindingText } from "@/lib/opening/labels";
 import { bidFindingText } from "@/lib/bids/labels";
 import { awardValueFaults, instrumentFor } from "@/lib/award/instrument";
@@ -142,6 +146,32 @@ const termsOf = (a: { ladAmount: { toString(): string } | null; ladUnit: string;
 /// The tender's statement of a term, in words, for a refusal.
 const tenderStates = (field: BaselineField, t: FrozenTender, value: Sen) => tenderTermText(field, baselineOf(t, value)) ?? "nothing";
 
+// ------------------------------------------------------------------ 6.8: the recommendation (E-9)
+
+type AwardFigures = { value: Sen; period: { value: number; unit: "DAYS" | "WEEKS" | "MONTHS" }; reasons: { value: string | null; period: string | null } };
+
+/// The evaluation's refusal of an award's awardee, value or period, as field errors where a field can fix it; null: none.
+const FIELD: Record<string, string> = { AWARDEE_NOT_RECOMMENDED: "awardeePartyId", VALUE_DIFFERS_REASON_REQUIRED: "recValueDiffersReason", PERIOD_DIFFERS_REASON_REQUIRED: "recPeriodDiffersReason" };
+
+/// `fieldsOnly`: a draft's edit asks only what its fields fix (the rest is asked at submission and issue).
+function recommendationRefusal(e: EvaluationGate, awardeePartyId: string | null, award: AwardFigures, fieldsOnly = false): FormState | null {
+  if (!e.gate.applies) return null;
+  const all = evaluationFindings({ facts: e.gate, awardeePartyId, award });
+  const fs = fieldsOnly ? all.filter((f) => FIELD[f.code]) : all;
+  if (!fs.length) return null;
+  const general = fs.filter((f) => !FIELD[f.code]);
+  if (general.length) return refuse(general, "Nothing was saved:");
+  return { ok: false, errors: Object.fromEntries(fs.map((f) => [FIELD[f.code], awardFindingText(f)])) };
+}
+
+/// The reasons written: each only where its figure differs from the recommendation (cleared where it no longer does).
+function recordedReasons(e: EvaluationGate, value: Sen, period: AwardFigures["period"], reasons: AwardFigures["reasons"]) {
+  const rec = e.gate.applies ? e.gate.issued : null;
+  if (!rec) return {};
+  const diffs = recommendationDifferences({ value, period }, rec);
+  return { recValueDiffersReason: diffs.includes("value") ? reasons.value : null, recPeriodDiffersReason: diffs.includes("period") ? reasons.period : null };
+}
+
 // ------------------------------------------------------------------ opening
 
 /**
@@ -162,6 +192,7 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
     startDate: r.date("startDate", "Start date"),
   };
   const awardeePartyId = r.optionalText("awardeePartyId");
+  const reasons = { value: r.optionalText("recValueDiffersReason"), period: r.optionalText("recPeriodDiffersReason") };
   if (r.failed || !v.awardedValue || !v.completionPeriod || !v.completionUnit) return { ok: false, errors: r.errors, message: "Nothing was saved. Correct the fields marked below." };
 
   let id: string | null = null;
@@ -180,6 +211,13 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
       const naming = og.filter((f) => f.code === "AWARDEE_NOT_NAMED" || f.code === "AWARDEE_NOT_CARRIED");
       if (og.length > naming.length) return refuse(og.filter((f) => !naming.includes(f)), "No award was opened:");
       if (naming.length) return { ok: false, errors: { awardeePartyId: naming.map(openingFindingText).join(" ") } };
+      // 6.8 (E-9, flagged): Evaluated, the report standing, the awardee the recommended tenderer; a value or
+      // period that differs from the recommendation carries its reason.
+      const evaluation = await loadEvaluationGate(ex.id, tx);
+      const period = { value: v.completionPeriod!, unit: v.completionUnit! };
+      const evf = recommendationRefusal(evaluation, awardeePartyId, { value: parseSen(v.awardedValue!), period, reasons });
+      if (evf) return evf;
+      const recorded = recordedReasons(evaluation, parseSen(v.awardedValue!), period, reasons);
       const config = await loadAwardConfig(org.id, tx);
       const instrument = instrumentFor(ex.regime, config.policy);
       if ("fault" in instrument) return refuse([{ code: instrument.fault, level: "block", data: { regime: instrument.regime } }], "No award was opened:");
@@ -223,6 +261,7 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
           completionPeriod: v.completionPeriod!,
           completionUnit: v.completionUnit!,
           startDate: v.startDate,
+          ...recorded,
           ...(filled.ladAmount != null ? { ladAmount: senToDecimalString(filled.ladAmount), ladUnit: filled.ladUnit } : {}),
           ...(filled.dlpMonths != null ? { dlpMonths: filled.dlpMonths } : {}),
           ...(filled.regulatedActivity != null ? { regulatedActivity: filled.regulatedActivity } : {}),
@@ -259,6 +298,7 @@ export async function updateAwardDetails(_prev: FormState, data: FormData): Prom
   };
   const partyPosted = data.has("awardeePartyId");
   const awardeePartyId = r.optionalText("awardeePartyId");
+  const reasons = { value: r.optionalText("recValueDiffersReason"), period: r.optionalText("recPeriodDiffersReason") };
   if (r.failed) return { ok: false, errors: r.errors };
   return inAward(id, async (tx, l) => {
     // 6.7 (C-7): on an exercise whose openings apply, the awardee is a party carried to evaluation.
@@ -270,10 +310,16 @@ export async function updateAwardDetails(_prev: FormState, data: FormData): Prom
     }
     const partyWrite = opening ? awardeePartyWrite(opening, awardeePartyId) : undefined;
     if (!editable(l.award.status as AwardStatus).details) return { ok: false, message: `The awardee, value and period are fixed once the award goes for approval. This one is ${AWARD_STATUS_LABEL[l.award.status as AwardStatus].toLowerCase()}.` };
+    // 6.8 (E-9, flagged): the recommended tenderer, and each difference with its reason (the rest of the gate at submission).
+    const evaluation = await loadEvaluationGate(l.ex.id, tx);
+    const period = { value: v.completionPeriod!, unit: v.completionUnit! };
+    const evf = recommendationRefusal(evaluation, partyWrite !== undefined ? partyWrite : l.award.awardeePartyId, { value: parseSen(v.awardedValue!), period, reasons }, true);
+    if (evf) return evf;
+    const recorded = recordedReasons(evaluation, parseSen(v.awardedValue!), period, reasons);
     // 64-C4: damages the tender states as a percentage, still as resolved against the old sum, follow the new one.
     const tender = await frozenTenderOf(l.ex.id, l.org.timeZone, tx);
     const lad = tender ? ladOnValueChange(tender, senFromDecimal(l.award.awardedValue), parseSen(v.awardedValue!), termsOf(l.award)) : null;
-    const after = { ...v, awardedValue: senToDecimalString(parseSen(v.awardedValue!)), completionPeriod: v.completionPeriod!, completionUnit: v.completionUnit!, ...(lad != null ? { ladAmount: senToDecimalString(lad) } : {}), ...(partyWrite !== undefined ? { awardeePartyId: partyWrite } : {}) };
+    const after = { ...v, awardedValue: senToDecimalString(parseSen(v.awardedValue!)), completionPeriod: v.completionPeriod!, completionUnit: v.completionUnit!, ...recorded, ...(lad != null ? { ladAmount: senToDecimalString(lad) } : {}), ...(partyWrite !== undefined ? { awardeePartyId: partyWrite } : {}) };
     const { facts } = await awardFacts({ ...l, award: { ...l.award, awardedValue: after.awardedValue as never } }, tx);
     const ev = evaluateAward(facts);
     const blocks = ev.valueFaults.filter((f) => f.level === "block");
@@ -605,6 +651,9 @@ export async function citeAppointmentDecision(_prev: FormState, data: FormData):
     // 6.6 (OD-6, flagged): no appointment decision is cited while a late envelope waits for the committee's decision on admission.
     const bids = await bidGate(l.ex.id, tx);
     if (bids.lateFault) return { ok: false, errors: { committeeDecisionId: bidFindingText(bids.lateFault) } };
+    // 6.8 (E-8, flagged): nor while the evaluation's bundle does not stand (its report issued and standing, the Kertas Cadangan checked and recommended).
+    const bundle = bundleFaults((await loadEvaluationGate(l.ex.id, tx)).bundle);
+    if (bundle.length) return { ok: false, errors: { committeeDecisionId: bundle.map(evaluationFindingText).join(" ") } };
     const s = committeeStepFrom(record);
     if (s.decision === "PENDING") return { ok: false, errors: { committeeDecisionId: record ? "The committee deferred the matter. Cite it once it is decided." : "The committee has not decided the matter yet." } };
     const after = committeeCitationWrite({ decision: s.decision, committeeName: s.citation!.committee, decidedOn: s.decidedOn, committeeDecisionId: matter.id, recordedAt: new Date() });
