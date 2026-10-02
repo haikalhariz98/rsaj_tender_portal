@@ -290,6 +290,16 @@ model Organisation {
   bidWithdrawals        BidWithdrawal[]
   boxEvents             BoxEvent[]
   validityExtensions    ValidityExtension[]
+  openings                 Opening[]
+  openingSittings          OpeningSitting[]
+  openingPanelMembers      OpeningPanelMember[]
+  openingAuthorisations    OpeningAuthorisation[]
+  openedBids               OpenedBid[]
+  openedBidInitials        OpenedBidInitial[]
+  openingChecklistAnswers  OpeningChecklistAnswer[]
+  openingSignatures        OpeningSignature[]
+  estimateCopyExplanations EstimateCopyExplanation[]
+  openingPolicy            OpeningPolicy?
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -311,6 +321,10 @@ model Person {
   /// prototype lists people whose department is recorded but whose unit is not.
   department String?
   telephone  String?
+  /// 6.7 (FR-CTE-011, C-6): the unit the person sits in (OrgUnit.code, checked against the units when
+  /// saved; no key, as requestingUnitCode). Null: not recorded, and an opening panel judged by an
+  /// independence rule cannot be assigned with them.
+  orgUnitCode String?
 
   /// The office this person is presented as holding in the portal. Distinct from the
   /// authority level, which is what the approval matrix routes on: a person may sit
@@ -375,6 +389,15 @@ model Person {
   withdrawalsReceived      BidWithdrawal[]          @relation("WithdrawalReceivedBy")
   boxEventsRecorded        BoxEvent[]               @relation("BoxEventBy")
   extensionsRecorded       ValidityExtension[]      @relation("ExtensionRecordedBy")
+  withdrawalFindings       BidWithdrawal[]          @relation("WithdrawalFindingBy")
+  openingsStarted          Opening[]                @relation("OpeningStartedBy")
+  panelOverrides           Opening[]                @relation("OpeningPanelOverrideBy")
+  openingSittingsRecorded  OpeningSitting[]         @relation("OpeningSittingRecordedBy")
+  openingPanelSeats        OpeningPanelMember[]     @relation("OpeningPanelPerson")
+  openingAuthorisations    OpeningAuthorisation[]   @relation("OpeningAuthorisedBy")
+  openedBidInitials        OpenedBidInitial[]       @relation("OpenedBidInitialBy")
+  openingSignatures        OpeningSignature[]       @relation("OpeningSignedBy")
+  copyExplanations         EstimateCopyExplanation[] @relation("CopyExplainedBy")
 
   @@unique([organisationId, staffNo])
   @@index([organisationId, name])
@@ -661,9 +684,22 @@ model Committee {
   carriedLabelEn String?
   carriedLabelMs String?
 
+  /// 6.7 (FR-OPN-002): how many members an opening panel of this body has. No default: "two" is a
+  /// customer's rule, seeded at go-live. Null blocks starting an opening; another size needs an
+  /// override with its authority, reason and Person. A change is audited with a reason.
+  panelSize           Int?
+  panelSizeProvenance Provenance?
+  /// 6.7 (FR-CTE-011, C-6): whether an opening panel of this body excludes members of one unit, and
+  /// which (OrgUnit.code). Null rule: not set, and a panel is assigned with the warning "panel not
+  /// checked", frozen on the opening.
+  panelExclusionRule       Boolean?
+  panelExcludesUnitCode    String?
+  panelExclusionProvenance Provenance?
+
   members             CommitteeMember[]
   meetings            Meeting[]
   notApprovedOutcomes NotApprovedOutcome[]
+  openings            Opening[]
 
   @@unique([organisationId, code])
 }
@@ -702,6 +738,7 @@ model CommitteeMember {
   alternateFor       CommitteeMember?    @relation("AlternateFor", fields: [alternateForId], references: [id], onDelete: SetNull)
   alternates         CommitteeMember[]   @relation("AlternateFor")
   standInAttendances MeetingAttendance[] @relation("StandIn")
+  openingPanelSeats  OpeningPanelMember[]
 
   @@index([committeeId, effectiveFrom])
   @@index([personId])
@@ -801,6 +838,8 @@ model CommitteeDecision {
   /// set only on a LATE_TENDER matter (CHECK in the migration). CARRIED admits it, NOT_CARRIED does not.
   bidEnvelopeId String?
   bidEnvelope   BidEnvelope?     @relation(fields: [bidEnvelopeId], references: [id], onDelete: SetNull)
+  /// 6.7: the supplementary opening a carried admission opened (OD-5).
+  supplementaryOpening Opening?
 
   /// Withdrawn from the agenda before the sitting opened (6.10 follow-up). The row is
   /// kept, and the matter is left out of the votes, the quorum and the minuting.
@@ -1865,6 +1904,14 @@ model SourcingMethod {
   /// to the committee (false). Null: not set, and 6.7 cannot finalise an opening.
   completenessEliminates            Boolean?
   completenessProvenance            Provenance?
+  /// 6.7 (FR-OPN-001): the committee (Committee.code) whose members open bids sourced this way. Null:
+  /// not set, and an opening cannot be started, naming this setting.
+  openingCommitteeCode              String?
+  openingCommitteeProvenance        Provenance?
+  /// 6.7 (OD-4, X-11): what follows from a bid by a bidder with no live sale, or not invited. Null:
+  /// not set, and an opening holding such a bid cannot finalise, naming this setting.
+  unpurchasedBidConsequence         UnpurchasedConsequence?
+  unpurchasedProvenance             Provenance?
   /// The numbering series (NumberingSeries.key) a dossier reference is issued from.
   dossierSeriesKey String?
 
@@ -2800,6 +2847,9 @@ model SourcingExercise {
   bidWithdrawals     BidWithdrawal[]
   boxEvents          BoxEvent[]
   validityExtensions ValidityExtension[]
+  /// 6.7: the openings and the offers read at them.
+  openings           Opening[]
+  openedBids         OpenedBid[]
 
   @@unique([organisationId, reference])
   @@unique([organisationId, dossierReference])
@@ -3025,6 +3075,10 @@ model Award {
   awardeeRegistrationNo String  @default("")
   awardeeAddress        String  @default("")
   vendorId              String?
+  /// 6.7 (C-7): the exercise's party the award names, on an exercise published through 6.5. The gate
+  /// compares parties, never free-text registration; null never matches.
+  awardeePartyId        String?
+  awardeeParty          ExerciseParty? @relation(fields: [awardeePartyId], references: [id], onDelete: Restrict)
 
   awardedValue      Decimal    @db.Decimal(18, 2)
   completionPeriod  Int
@@ -3752,6 +3806,9 @@ model DocumentAttachment {
   /// 6.6 (X-6, FR-BID-010): a validity extension, for the tenderer's consent.
   validityExtensionId  String?
   validityExtension    ValidityExtension?  @relation(fields: [validityExtensionId], references: [id], onDelete: Restrict)
+  /// 6.7 (X-6, FR-OPN-006): an opening, for its signed schedule's scan (accepted only once finalised).
+  openingId            String?
+  opening              Opening?            @relation(fields: [openingId], references: [id], onDelete: Restrict)
 
   attachedAt   DateTime  @default(now())
   detachedAt   DateTime?
@@ -3767,6 +3824,7 @@ model DocumentAttachment {
   @@index([addendumId])
   @@index([bidWithdrawalId])
   @@index([validityExtensionId])
+  @@index([openingId])
   @@index([versionId])
 }
 
@@ -5110,6 +5168,9 @@ model ExerciseParty {
   /// 6.6: written only by 6.7's opening (OD-2): a register names no bidder before opening.
   envelopes        BidEnvelope[]
   consents         ValidityExtension[]
+  /// 6.7: the bids it was named on at opening, and the awards naming it as the awardee (C-7).
+  openedBids       OpenedBid[]
+  awards           Award[]
 
   @@unique([exerciseId, registrationNo])
 }
@@ -5401,9 +5462,13 @@ model BidEnvelope {
   returnNote         String    @default("")
   correctedAt        DateTime?
   createdAt          DateTime  @default(now())
+  /// 6.7 (OD-4): a bid found in the box, registered at this opening (BOX_AT_OPENING only, CHECK).
+  registeredAtOpeningId String?
+  registeredAtOpening   Opening?  @relation("EnvelopeRegisteredAtOpening", fields: [registeredAtOpeningId], references: [id], onDelete: Restrict)
 
   withdrawal      BidWithdrawal?
   admissionMatters CommitteeDecision[]
+  openedBids       OpenedBid[]
 
   @@unique([exerciseId, sequence])
   @@index([organisationId])
@@ -5431,6 +5496,12 @@ model BidWithdrawal {
   envelopeId         String?      @unique
   envelope           BidEnvelope? @relation(fields: [envelopeId], references: [id], onDelete: Restrict)
   createdAt          DateTime     @default(now())
+  /// 6.7 (X-11): a withdrawal no envelope in the box matched, explained before the opening is
+  /// finalised: the finding, its server stamp and who recorded it (on their behalf, not signed).
+  unmatchedFinding   String       @default("")
+  findingRecordedAt  DateTime?
+  findingByPersonId  String?
+  findingBy          Person?      @relation("WithdrawalFindingBy", fields: [findingByPersonId], references: [id], onDelete: Restrict)
 
   attachments DocumentAttachment[]
 
@@ -5484,4 +5555,330 @@ model ValidityExtension {
   attachments DocumentAttachment[]
 
   @@index([exerciseId])
+}
+
+// ------------------------------------------------------------------ 6.7 bid opening
+
+/// The main opening of an exercise, or a supplementary opening of one late envelope its committee
+/// admitted (FR-CTE-008, OD-5). Closed product vocabulary.
+enum OpeningKind {
+  MAIN
+  SUPPLEMENTARY
+}
+
+/// What the panel recorded for one checklist item of one bid (FR-OPN-008).
+enum ChecklistAnswer {
+  PRESENT
+  ABSENT
+  NOT_APPLICABLE
+}
+
+/// The opening's verdict on one bid: carried to evaluation, or not (FR-OPN-008, 009).
+enum OpeningVerdict {
+  PASS
+  REJECT
+}
+
+/// Whether the bidder held a live sale of the documents (X-11), or, on the invited path, an
+/// invitation letter. Computed at opening, never typed.
+enum SaleFinding {
+  LIVE_SALE
+  NO_LIVE_SALE
+  NOT_ON_INVITEE_LIST
+}
+
+/// FR-DOC-009 on paper: whether the restriction's certificate sighted at the sale was valid on the
+/// closing day. Computed at opening, never typed.
+enum RestrictionFinding {
+  NOT_RESTRICTED
+  EVIDENCED
+  NOT_EVIDENCED
+}
+
+/// OD-9: what the schedule's count of tenderers invited reads. A customer's switch, shipped unset.
+enum InvitedCountReading {
+  PURCHASERS
+  INVITEES
+}
+
+/// OD-4: what follows from a bid by a bidder with no live sale (or not invited). A customer's
+/// choice per method, shipped unset.
+enum UnpurchasedConsequence {
+  ELIMINATE
+  REPORT
+}
+
+/// C-1: the paper estimate in the box against the lodged version, compared only in the finalising
+/// transaction, after every other check passed.
+enum CopyCheck {
+  MATCH
+  MISMATCH
+  NOT_IN_BOX
+}
+
+/// FR-BID-006: an alternative bid as the opening marks it, under the window's frozen answer.
+enum AlternativeConsideration {
+  CONSIDERED
+  NOT_CONSIDERED
+}
+
+/// One opening (ADR 0017, OD-6: its own record, not a committee sitting). Every act on it is a
+/// server write, audited in its transaction; a finalised opening has no update path but the one
+/// attachment it accepts, the signed schedule's scan (FR-OPN-011, source-scanned).
+model Opening {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId     String
+  exercise       SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  kind       OpeningKind
+  /// 1 for the main opening, then each supplementary opening in turn: the schedule's version.
+  sequenceNo Int
+  committeeId           String
+  committee             Committee @relation(fields: [committeeId], references: [id], onDelete: Restrict)
+  committeeNameSnapshot String
+  /// SUPPLEMENTARY: the carried LATE_TENDER decision that admitted its envelope (CHECK).
+  admissionDecisionId String?            @unique
+  admissionDecision   CommitteeDecision? @relation(fields: [admissionDecisionId], references: [id], onDelete: Restrict)
+
+  /// The server's stamp when it was started, and by whom it was recorded (on their behalf, not signed).
+  startedAt         DateTime
+  startedByPersonId String
+  startedBy         Person    @relation("OpeningStartedBy", fields: [startedByPersonId], references: [id], onDelete: Restrict)
+  /// The second authorisation's stamp: the box opened (MAIN) or the envelope released (SUPPLEMENTARY).
+  unsealedAt        DateTime?
+  finalisedAt       DateTime?
+
+  /// MAIN: the box's LOCKED event as judged at start (C-3), and the seconds from the closing to it.
+  boxLockedAt    DateTime?
+  lockGapSeconds Int?
+
+  /// FR-OPN-002: the committee's panel size as it stood at start; null where it was not set.
+  panelSizeRequired       Int?
+  /// A panel of another size: the authority it was assigned under, why, and who recorded it.
+  panelOverrideAuthority  String  @default("")
+  panelOverrideReason     String  @default("")
+  panelOverrideByPersonId String?
+  panelOverrideBy         Person? @relation("OpeningPanelOverrideBy", fields: [panelOverrideByPersonId], references: [id], onDelete: Restrict)
+
+  /// FR-EST-007: the 6.2 lead check at start and, where it was late, the override (Person, reason).
+  estimateLead       Json?
+  /// C-1: the paper estimate's figure as typed at finalising (null: not in the box), the lodged
+  /// version's figure, and the outcome; written only by the finalising transaction, after disclosure.
+  estimatePaperAmount  Decimal?   @db.Decimal(18, 2)
+  estimateLodgedAmount Decimal?   @db.Decimal(18, 2)
+  estimateCopyCheck    CopyCheck?
+
+  /// The checklist (6.6 `checklistFor` with the parts a bidder returns) and every rule the opening
+  /// is judged under, with provenance, as they stood at start (LESSONS: snapshot the rules).
+  checklistSnapshot Json
+  policySnapshot    Json
+  minutes           String @default("") @db.Text
+  /// OD-9: the signed schedule's pages, entered.
+  schedulePages     Int?
+  /// Frozen at finalising (ADR 0008 style): the schedule, its Grand Summary and the faults judged.
+  scheduleSnapshot     Json?
+  grandSummarySnapshot Json?
+  faultsSnapshot       Json?
+  createdAt            DateTime @default(now())
+
+  sittings        OpeningSitting[]
+  panel           OpeningPanelMember[]
+  authorisations  OpeningAuthorisation[]
+  bids            OpenedBid[]
+  signatures      OpeningSignature[]
+  boxEnvelopes    BidEnvelope[]          @relation("EnvelopeRegisteredAtOpening")
+  copyExplanation EstimateCopyExplanation?
+  attachments     DocumentAttachment[]
+
+  @@unique([exerciseId, sequenceNo])
+  @@index([organisationId])
+}
+
+/// One sitting of an opening: the first from its start, each later one from a resumption. Adjourning
+/// ends it, with the reason; nothing recorded is lost (FR-OPN-011, C-2).
+model OpeningSitting {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  openingId      String
+  opening        Opening      @relation(fields: [openingId], references: [id], onDelete: Restrict)
+
+  sittingNo      Int
+  /// The server's stamps.
+  startedAt      DateTime
+  resumeReason   String    @default("")
+  adjournedAt    DateTime?
+  adjournReason  String    @default("")
+  recordedByPersonId String
+  recordedBy         Person @relation("OpeningSittingRecordedBy", fields: [recordedByPersonId], references: [id], onDelete: Restrict)
+
+  @@unique([openingId, sittingNo])
+}
+
+/// A panel member assigned to an opening from its committee's seats in force on the day (FR-OPN-001),
+/// with their unit and presence as recorded at start.
+model OpeningPanelMember {
+  id                  String           @id @default(cuid())
+  organisationId      String
+  organisation        Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  openingId           String
+  opening             Opening          @relation(fields: [openingId], references: [id], onDelete: Restrict)
+  personId            String
+  person              Person           @relation("OpeningPanelPerson", fields: [personId], references: [id], onDelete: Restrict)
+  committeeMemberId   String?
+  committeeMember     CommitteeMember? @relation(fields: [committeeMemberId], references: [id], onDelete: SetNull)
+  seatLabelSnapshot   String
+  /// The member's unit as recorded on the person at start (C-6); null: not recorded.
+  orgUnitCodeSnapshot String?
+  present             Boolean
+
+  @@unique([openingId, personId])
+}
+
+/// One panel member's authorisation to open (FR-OPN-003, C-2), a separate act stamped by the
+/// server, recorded on their behalf, not signed. Append-only; keyed per sitting, so resuming needs
+/// two fresh ones; an unpaired one is marked lapsed when its sitting is adjourned, never removed.
+model OpeningAuthorisation {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  openingId      String
+  opening        Opening      @relation(fields: [openingId], references: [id], onDelete: Restrict)
+  personId       String
+  person         Person       @relation("OpeningAuthorisedBy", fields: [personId], references: [id], onDelete: Restrict)
+  sittingNo      Int
+  recordedAt     DateTime
+  lapsedAt       DateTime?
+
+  @@unique([openingId, sittingNo, personId])
+}
+
+/// One offer as read at an opening (FR-OPN-005). The only table holding a bid's figure; written only
+/// by `openEnvelope`, `recordAlternative` and `correctAsRead` (source scan). SULIT, not restricted
+/// until sign-in (C-4).
+model OpenedBid {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId     String
+  exercise       SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  openingId      String
+  opening        Opening          @relation(fields: [openingId], references: [id], onDelete: Restrict)
+  envelopeId     String
+  envelope       BidEnvelope      @relation(fields: [envelopeId], references: [id], onDelete: Restrict)
+  /// Bil.: opening order across the exercise's openings, never the receipt sequence.
+  listingNo      Int
+  partyId        String
+  party          ExerciseParty    @relation(fields: [partyId], references: [id], onDelete: Restrict)
+  openedAt       DateTime
+
+  bidderNameAsRead         String
+  registrationClassAsRead  String @default("")
+  registrationStatusAsRead String @default("")
+  priceAsRead              Decimal     @db.Decimal(18, 2)
+  completionPeriod         Int?
+  completionUnit           PeriodUnit?
+  validityDaysStated       Int?
+
+  isAlternative     Boolean                   @default(false)
+  parentOpenedBidId String?
+  parentOpenedBid   OpenedBid?                @relation("OpenedBidAlternative", fields: [parentOpenedBidId], references: [id], onDelete: Restrict)
+  alternatives      OpenedBid[]               @relation("OpenedBidAlternative")
+  alternativeStatus AlternativeConsideration?
+
+  saleFinding        SaleFinding
+  restrictionFinding RestrictionFinding
+  /// At the verdict: the items missing and the grounds that eliminate it, as judged.
+  completeness       Json?
+  verdict            OpeningVerdict?
+  verdictReason      String    @default("")
+  verdictAt          DateTime?
+  asReadCorrectedAt  DateTime?
+
+  initials OpenedBidInitial[]
+  answers  OpeningChecklistAnswer[]
+
+  @@unique([exerciseId, listingNo])
+  @@index([openingId])
+  @@index([envelopeId])
+}
+
+/// A present panel member's initial on one bid as read (FR-OPN-006), attested.
+model OpenedBidInitial {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  openedBidId    String
+  openedBid      OpenedBid    @relation(fields: [openedBidId], references: [id], onDelete: Restrict)
+  personId       String
+  person         Person       @relation("OpenedBidInitialBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt     DateTime
+
+  @@unique([openedBidId, personId])
+}
+
+/// What the panel found for one checklist item of one bid (FR-OPN-008).
+model OpeningChecklistAnswer {
+  id                String          @id @default(cuid())
+  organisationId    String
+  organisation      Organisation    @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  openedBidId       String
+  openedBid         OpenedBid       @relation(fields: [openedBidId], references: [id], onDelete: Restrict)
+  itemKey           String
+  itemLabelSnapshot String
+  answer            ChecklistAnswer
+  recordedAt        DateTime
+
+  @@unique([openedBidId, itemKey])
+}
+
+/// A present panel member's signature on the paper schedule (FR-OPN-006), with the paper's day.
+model OpeningSignature {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  openingId      String
+  opening        Opening      @relation(fields: [openingId], references: [id], onDelete: Restrict)
+  personId       String
+  person         Person       @relation("OpeningSignedBy", fields: [personId], references: [id], onDelete: Restrict)
+  signedOn       DateTime
+  recordedAt     DateTime
+
+  @@unique([openingId, personId])
+}
+
+/// C-1: the explanation of a MISMATCH or NOT_IN_BOX copy finding. Append-only, one per opening;
+/// until it is recorded the finding holds evaluation and the award back.
+model EstimateCopyExplanation {
+  id                 String       @id @default(cuid())
+  organisationId     String
+  organisation       Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  openingId          String       @unique
+  opening            Opening      @relation(fields: [openingId], references: [id], onDelete: Restrict)
+  explanation        String       @db.Text
+  recordedByPersonId String
+  recordedBy         Person       @relation("CopyExplainedBy", fields: [recordedByPersonId], references: [id], onDelete: Restrict)
+  recordedAt         DateTime
+}
+
+/// The organisation's opening rules (OD-9, FR-OPN-010). One row, shipped absent: every null reads
+/// "not set" and blocks what it governs; an unset label renders the product's English words.
+model OpeningPolicy {
+  id             String       @id @default(cuid())
+  organisationId String       @unique
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  invitedCountReading     InvitedCountReading?
+  invitedCountProvenance  Provenance?
+  qualifiedLabelEn        String?
+  qualifiedLabelMs        String?
+  notQualifiedLabelEn     String?
+  notQualifiedLabelMs     String?
+  lowestLabelEn           String?
+  lowestLabelMs           String?
+  labelsProvenance        Provenance?
+  governingSource         String   @default("")
+  updatedAt               DateTime @updatedAt
 }
