@@ -64,7 +64,8 @@ describe("only their acts make them (§7.3.2)", () => {
 
   it("cancelling either stays the window-change route's (C-9)", () => {
     expect(EXERCISE_TRANSITIONS.OPENING_IN_PROGRESS).toEqual(["OPENED", "CANCELLED"]);
-    expect(EXERCISE_TRANSITIONS.OPENED).toEqual(["CANCELLED"]);
+    // 6.8 (X-8, flagged faithful update): opened now goes on to the evaluation; cancelling is unchanged.
+    expect(EXERCISE_TRANSITIONS.OPENED).toEqual(["UNDER_EVALUATION", "CANCELLED"]);
     for (const from of ["OPENING_IN_PROGRESS", "OPENED"] as const) {
       expect(transitionFault(from, "CANCELLED", { today, via: "WINDOW_CANCELLATION", reason: "Every bid rejected" })).toEqual([]);
       expect(codes(transitionFault(from, "CANCELLED", { today, reason: "Every bid rejected" }))).toEqual(["NOT_BY_THIS_ACT"]);

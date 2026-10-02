@@ -30,9 +30,11 @@ export const EXERCISE_STATUS_LABEL: Record<ExerciseStatus, string> = {
   INVITED: "Invited",
   OPENING_IN_PROGRESS: "Opening in progress",
   OPENED: "Opened",
+  UNDER_EVALUATION: "Under evaluation",
+  EVALUATED: "Evaluated",
   CANCELLED: "Cancelled",
 };
-export const EXERCISE_STATUS_ORDER: readonly ExerciseStatus[] = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING", "APPROVED_FOR_TENDERING", "ADVERTISED", "INVITED", "OPENING_IN_PROGRESS", "OPENED", "CANCELLED"];
+export const EXERCISE_STATUS_ORDER: readonly ExerciseStatus[] = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING", "APPROVED_FOR_TENDERING", "ADVERTISED", "INVITED", "OPENING_IN_PROGRESS", "OPENED", "UNDER_EVALUATION", "EVALUATED", "CANCELLED"];
 export const EXERCISE_STATUS_TONE: Record<ExerciseStatus, "brand" | "info" | "neutral" | "ok"> = {
   // As a requisition's draft reads (UX low).
   DRAFT: "neutral",
@@ -46,6 +48,9 @@ export const EXERCISE_STATUS_TONE: Record<ExerciseStatus, "brand" | "info" | "ne
   // 6.7: the opening under way, then done.
   OPENING_IN_PROGRESS: "brand",
   OPENED: "ok",
+  // 6.8: the evaluation under way, then its report issued.
+  UNDER_EVALUATION: "brand",
+  EVALUATED: "ok",
   CANCELLED: "neutral",
 };
 /// §7.3.2 gives cancellation no SOP path; the screen says so wherever it shows it.
@@ -328,7 +333,13 @@ export function findingText(f: Finding): string {
                 ? "The tender box is opened only on the second of two authorisations by present panel members, on the Opening tab."
                 : d.act === "OPENING_FINALISED"
                   ? "The exercise is opened only by finalising its main opening, on the Opening tab, once every check there passes."
-                  : "The exercise returns to preparation only when its route for tendering is rejected.";
+                  : d.act === "EVALUATION_STARTED"
+                    ? "The evaluation starts only on the Evaluation tab, once every check there passes."
+                    : d.act === "REPORT_ISSUED"
+                      ? "The exercise is evaluated only by issuing the evaluation report, on the Evaluation tab, once every check there passes."
+                      : d.act === "EVALUATION_REOPENED"
+                        ? "An evaluated exercise is reopened only by a new evaluation version: a committee's decision not carried that returns it to evaluation, or a supplementary opening finalised."
+                        : "The exercise returns to preparation only when its route for tendering is rejected.";
     case "PACK_NOT_READY":
       return "The tender documents are not ready: see what the Tender documents tab says blocks them.";
     case "DATES_REQUIRED":
@@ -339,6 +350,10 @@ export function findingText(f: Finding): string {
       return "The tender box is opened only once two different panel members present have each authorised it at this sitting.";
     case "OPENING_NOT_READY":
       return "The opening is not ready to finalise: see what the Opening tab says blocks it.";
+    case "EVALUATION_NOT_READY":
+      return "The evaluation cannot start: see what the Evaluation tab says blocks it.";
+    case "REPORT_NOT_READY":
+      return "The evaluation report is not ready to issue: see what the Evaluation tab says blocks it.";
     case "DETERMINATION_CHANGED":
       return `Since it was last saved, the configuration now gives a different result for ${d.changes}. Open Edit and save it again, so the change is recorded, then move it.`;
     case "NAME_EXERCISE_CANCELLED":

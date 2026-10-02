@@ -75,4 +75,5 @@ export interface ExerciseForBids {
 
 /// Whether the exercise is published (advertised or invited), the only states a bid is received in.
 /// 6.7 (X-8): the opening's two states follow publication, so they read as published here too.
-export const isPublishedStatus = (s: ExerciseStatus) => s === "ADVERTISED" || s === "INVITED" || s === "OPENING_IN_PROGRESS" || s === "OPENED";
+/// 6.8 (X-8): so do the evaluation's two.
+export const isPublishedStatus = (s: ExerciseStatus) => s === "ADVERTISED" || s === "INVITED" || s === "OPENING_IN_PROGRESS" || s === "OPENED" || s === "UNDER_EVALUATION" || s === "EVALUATED";

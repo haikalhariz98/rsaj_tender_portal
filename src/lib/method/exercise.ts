@@ -73,7 +73,9 @@ export type TransitionFault =
   | "DATES_REQUIRED"
   | "PUBLISH_NOT_READY"
   | "UNSEAL_NOT_AUTHORISED"
-  | "OPENING_NOT_READY";
+  | "OPENING_NOT_READY"
+  | "EVALUATION_NOT_READY"
+  | "REPORT_NOT_READY";
 
 export const EXERCISE_TRANSITIONS: Record<ExerciseStatus, readonly ExerciseStatus[]> = {
   DRAFT: ["DOCUMENTS_IN_PREPARATION", "CANCELLED"],
@@ -86,15 +88,21 @@ export const EXERCISE_TRANSITIONS: Record<ExerciseStatus, readonly ExerciseStatu
   ADVERTISED: ["OPENING_IN_PROGRESS", "CANCELLED"],
   INVITED: ["OPENING_IN_PROGRESS", "CANCELLED"],
   OPENING_IN_PROGRESS: ["OPENED", "CANCELLED"],
-  OPENED: ["CANCELLED"],
+  // 6.8: the evaluation starts on the pinned model (EVALUATION_STARTED); issuing its report makes it
+  // Evaluated (REPORT_ISSUED); a new version reopens it (EVALUATION_REOPENED: a NOT_CARRIED loop or a
+  // supplementary opening's finalising, FR-CTE-009, E-7). Cancelling stays the window_change route's (E-10).
+  OPENED: ["UNDER_EVALUATION", "CANCELLED"],
+  UNDER_EVALUATION: ["EVALUATED", "CANCELLED"],
+  EVALUATED: ["UNDER_EVALUATION", "CANCELLED"],
   CANCELLED: [],
 };
 
 /// The one act that makes each tendering move (§7.3.2): submitting the pack, the route's
 /// approving step, and a rejection that returns the pack for amendment; 6.5's publication (or
 /// invitation), and the approving step of a cancellation on the window_change route; 6.7's
-/// unseal (the second authorisation) and the main opening's finalising.
-export type TenderingAct = "SUBMISSION" | "APPROVAL" | "RETURN" | "PUBLICATION" | "WINDOW_CANCELLATION" | "UNSEAL" | "OPENING_FINALISED";
+/// unseal (the second authorisation) and the main opening's finalising; 6.8's start of the evaluation,
+/// the issue of its report, and a new version reopening it.
+export type TenderingAct = "SUBMISSION" | "APPROVAL" | "RETURN" | "PUBLICATION" | "WINDOW_CANCELLATION" | "UNSEAL" | "OPENING_FINALISED" | "EVALUATION_STARTED" | "REPORT_ISSUED" | "EVALUATION_REOPENED";
 
 export interface TransitionContext {
   today: string | null;
@@ -122,6 +130,10 @@ export interface TransitionContext {
   authorisations?: number;
   /// 6.7: blocking findings of the main opening's finalise checks (`finaliseFaults`). Not given: refused.
   finaliseFaults?: number;
+  /// 6.8: blocking findings of the evaluation's start checks (`startFaults`). Not given: refused.
+  startFaults?: number;
+  /// 6.8: blocking findings of the report's issue checks (`reportFaults`). Not given: refused.
+  reportFaults?: number;
 }
 
 /// Which act makes a move between two states, where only one may.
@@ -130,9 +142,12 @@ function actFor(from: ExerciseStatus, to: ExerciseStatus): TenderingAct | null {
   if (from === "PENDING_APPROVAL_FOR_TENDERING" && to === "APPROVED_FOR_TENDERING") return "APPROVAL";
   if (from === "PENDING_APPROVAL_FOR_TENDERING" && to === "DOCUMENTS_IN_PREPARATION") return "RETURN";
   if (from === "APPROVED_FOR_TENDERING" && (to === "ADVERTISED" || to === "INVITED")) return "PUBLICATION";
-  if ((from === "ADVERTISED" || from === "INVITED" || from === "OPENING_IN_PROGRESS" || from === "OPENED") && to === "CANCELLED") return "WINDOW_CANCELLATION";
+  if ((from === "ADVERTISED" || from === "INVITED" || from === "OPENING_IN_PROGRESS" || from === "OPENED" || from === "UNDER_EVALUATION" || from === "EVALUATED") && to === "CANCELLED") return "WINDOW_CANCELLATION";
   if ((from === "ADVERTISED" || from === "INVITED") && to === "OPENING_IN_PROGRESS") return "UNSEAL";
   if (from === "OPENING_IN_PROGRESS" && to === "OPENED") return "OPENING_FINALISED";
+  if (from === "OPENED" && to === "UNDER_EVALUATION") return "EVALUATION_STARTED";
+  if (from === "UNDER_EVALUATION" && to === "EVALUATED") return "REPORT_ISSUED";
+  if (from === "EVALUATED" && to === "UNDER_EVALUATION") return "EVALUATION_REOPENED";
   return null;
 }
 
@@ -153,6 +168,8 @@ export function transitionFault(from: ExerciseStatus, to: ExerciseStatus, ctx: T
     // Two distinct present panel members (FR-OPN-003, C-2); the action counts them on locked rows.
     if (act === "UNSEAL" && (ctx.authorisations ?? 0) < 2) return [f("UNSEAL_NOT_AUTHORISED", { count: ctx.authorisations ?? null })];
     if (act === "OPENING_FINALISED" && ctx.finaliseFaults !== 0) return [f("OPENING_NOT_READY", { count: ctx.finaliseFaults ?? null })];
+    if (act === "EVALUATION_STARTED" && ctx.startFaults !== 0) return [f("EVALUATION_NOT_READY", { count: ctx.startFaults ?? null })];
+    if (act === "REPORT_ISSUED" && ctx.reportFaults !== 0) return [f("REPORT_NOT_READY", { count: ctx.reportFaults ?? null })];
     return [];
   }
   if (to === "CANCELLED") return (ctx.reason ?? "").trim() ? [] : [f("CANCEL_REASON_REQUIRED")];

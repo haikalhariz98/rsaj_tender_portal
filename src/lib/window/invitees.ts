@@ -83,6 +83,9 @@ export function inviteeEditFault(status: ExerciseStatus): Finding<InviteeEditFau
     // 6.7: frozen since publication.
     case "OPENING_IN_PROGRESS":
     case "OPENED":
+    // 6.8 (X-8): under evaluation and evaluated follow the opening.
+    case "UNDER_EVALUATION":
+    case "EVALUATED":
       return { code: "LIST_FROZEN", level: "block" };
     case "CANCELLED":
       return { code: "EXERCISE_NOT_OPEN", level: "block" };

@@ -24,10 +24,11 @@ export const WINDOW_CHANGE_DOMAIN = "window_change";
 
 /// The exercise's states (§7.3.2). 6.4 adds the two tendering states, 6.5 the two acts that open
 /// the window (advertised, invited), 6.7 the two acts of the opening (the box opened on the second
-/// authorisation; the main opening finalised); every map over them is exhaustive (X-8), so a state
-/// added here fails to compile until each map decides it. The window's phases are derived, never
-/// states (ADR 0014).
-export const EXERCISE_STATUSES = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING", "APPROVED_FOR_TENDERING", "ADVERTISED", "INVITED", "OPENING_IN_PROGRESS", "OPENED", "CANCELLED"] as const;
+/// authorisation; the main opening finalised), 6.8 the two of the evaluation (started on the pinned
+/// model; its report issued); every map over them is exhaustive (X-8), so a state added here fails
+/// to compile until each map decides it. The window's phases are derived, never states (ADR 0014);
+/// clarification, negotiation and the committee stages are derived from their records (6.8 OD-3 A).
+export const EXERCISE_STATUSES = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING", "APPROVED_FOR_TENDERING", "ADVERTISED", "INVITED", "OPENING_IN_PROGRESS", "OPENED", "UNDER_EVALUATION", "EVALUATED", "CANCELLED"] as const;
 export type ExerciseStatus = (typeof EXERCISE_STATUSES)[number];
 /// What a sourcing method assembles for tenderers (6.4, FR-DOC-001, 013).
 export type PackKind = "TENDER" | "QUOTATION" | "NONE";

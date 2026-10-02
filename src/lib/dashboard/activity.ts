@@ -29,6 +29,9 @@ const EXERCISE_MOVE_HEADLINE: Record<ExerciseStatus, (ref: string, from: string 
   // 6.7: the opening's acts, never a price or a bidder (C-4).
   OPENING_IN_PROGRESS: (ref) => `Exercise ${ref}: tender box opened at its opening`,
   OPENED: (ref) => `Exercise ${ref}: opening finalised`,
+  // 6.8: the evaluation's acts, never a score, a price or a bidder (E-3).
+  UNDER_EVALUATION: (ref) => `Exercise ${ref}: under evaluation`,
+  EVALUATED: (ref) => `Exercise ${ref}: evaluation report issued`,
   CANCELLED: (ref) => `Exercise ${ref} cancelled`,
 };
 

@@ -83,6 +83,9 @@ export function exerciseFrozen(status: ExerciseStatus): boolean {
     // 6.7: opening and opened, the exercise's own documents stay open.
     case "OPENING_IN_PROGRESS":
     case "OPENED":
+    // 6.8 (X-8): under evaluation and evaluated follow the opening.
+    case "UNDER_EVALUATION":
+    case "EVALUATED":
       return false;
     case "CANCELLED":
       return true;
@@ -237,8 +240,9 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): { sta
   }
 }
 
-/// 6.7: the two states that follow publication (an exercise opened keeps a published one's documents).
-const afterOpening = (s: ExerciseStatus) => s === "OPENING_IN_PROGRESS" || s === "OPENED";
+/// 6.7: the two states that follow publication (an exercise opened keeps a published one's documents);
+/// 6.8 (X-8): and the evaluation's two.
+const afterOpening = (s: ExerciseStatus) => s === "OPENING_IN_PROGRESS" || s === "OPENED" || s === "UNDER_EVALUATION" || s === "EVALUATED";
 
 export interface AttachInput {
   purpose: AttachmentPurpose;

@@ -70,6 +70,9 @@ export function exerciseAllowsEstimate(status: ExerciseStatus): "OPEN" | "EXERCI
     // 6.7: the closing has closed it to amendment (versionFaults); disclosure is the opening's.
     case "OPENING_IN_PROGRESS":
     case "OPENED":
+    // 6.8 (X-8): under evaluation and evaluated follow the opening.
+    case "UNDER_EVALUATION":
+    case "EVALUATED":
       return "OPEN";
     case "CANCELLED":
       return "EXERCISE_CANCELLED";

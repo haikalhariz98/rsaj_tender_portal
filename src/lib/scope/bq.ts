@@ -259,6 +259,9 @@ export function exerciseAllowsBq(status: ExerciseStatus): "OPEN" | "PACK_FROZEN"
     // 6.7: opened on the frozen pack.
     case "OPENING_IN_PROGRESS":
     case "OPENED":
+    // 6.8 (X-8): under evaluation and evaluated follow the opening.
+    case "UNDER_EVALUATION":
+    case "EVALUATED":
       return "PACK_FROZEN";
     case "CANCELLED":
       return "EXERCISE_CANCELLED";

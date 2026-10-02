@@ -28,6 +28,9 @@ export function windowEditFault(status: ExerciseStatus, packKind: PackKind | nul
     // 6.7: published and since opened.
     case "OPENING_IN_PROGRESS":
     case "OPENED":
+    // 6.8 (X-8): under evaluation and evaluated follow the opening.
+    case "UNDER_EVALUATION":
+    case "EVALUATED":
       return { code: "WINDOW_PUBLISHED", level: "block" };
     case "CANCELLED":
       return { code: "EXERCISE_CANCELLED", level: "block" };
