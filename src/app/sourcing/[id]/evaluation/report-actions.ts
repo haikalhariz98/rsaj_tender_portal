@@ -86,7 +86,7 @@ export async function issueReport(_prev: FormState, data: FormData): Promise<For
     const template = templateOf(c.policy?.reportTemplate);
     const today = l.org.today;
     const base = { facts: f, exercise: { reference: l.ex.reference, title: l.ex.title }, version: e!.version, issuedOn: today ? formatDate(today) : "" };
-    const recommendation = rec && rb ? { bidderId: rec.bidderId, price: recommendedPriceOf(rb), period: rb.period, topRanked: rec.topRanked, justification: rec.justification, formedBy: rec.formedBy.name, formedOn: formatDate(storedDay(rec.formedAt)) } : null;
+    const recommendation = rec && rb ? { bidderId: rec.bidderId, price: recommendedPriceOf(rb), period: rb.period, topRanked: rec.topRanked, justification: rec.justification, formedBy: rec.formedBy.name, formedOn: formatDate(dayIn(rec.formedAt, l.org.timeZone)) } : null;
     const orgName = (lang: "EN" | "MS") => (lang === "MS" ? (org.nameMs ?? org.name) : org.name);
     // The template judged with a placeholder reference first: the series is drawn only once nothing refuses.
     const trial = recommendation ? renderEvaluationInstrument("REPORT", template, (lang) => reportFields({ ...base, reference: "(allocated on issue)", recommendation }, orgName(lang))) : { state: "OK" as const, missing: [], unknown: [], language: null, text: null };
@@ -151,7 +151,7 @@ export async function renderProposalPaper(_prev: FormState, data: FormData): Pro
     const template = templateOf(c.policy?.proposalTemplate);
     const office = (code: string | null | undefined) => (code ? (c.roster.offices.find((o) => o.code === code)?.nameEn ?? "An office no longer configured") : "");
     const rendered = renderEvaluationInstrument("PROPOSAL", template, (lang) =>
-      reportFields({ facts: f, exercise: { reference: l.ex.reference, title: l.ex.title }, version: e!.version, reference: e!.reportReference!, issuedOn: formatDate(storedDay(e!.issuedAt!)), recommendation: { bidderId: rec.bidderId, price: recommendedPriceOf(rb), period: rb.period, topRanked: rec.topRanked, justification: rec.justification } }, lang === "MS" ? (org.nameMs ?? org.name) : org.name, { "proposal.checkerOffice": office(c.policy?.checkerRoleCode), "proposal.recommenderOffice": office(c.policy?.recommenderRoleCode) }),
+      reportFields({ facts: f, exercise: { reference: l.ex.reference, title: l.ex.title }, version: e!.version, reference: e!.reportReference!, issuedOn: formatDate(dayIn(e!.issuedAt!, l.org.timeZone)), recommendation: { bidderId: rec.bidderId, price: recommendedPriceOf(rb), period: rb.period, topRanked: rec.topRanked, justification: rec.justification } }, lang === "MS" ? (org.nameMs ?? org.name) : org.name, { "proposal.checkerOffice": office(c.policy?.checkerRoleCode), "proposal.recommenderOffice": office(c.policy?.recommenderRoleCode) }),
     );
     const fs = renderFaults({ rendered: e!.proposalPaper != null, checkerRoleCode: c.policy?.checkerRoleCode ?? null, recommenderRoleCode: c.policy?.recommenderRoleCode ?? null, template: tFaults(rendered, "PROPOSAL"), personActive: !!person });
     if (fs.length) return refuse(fs, "Not produced:");
