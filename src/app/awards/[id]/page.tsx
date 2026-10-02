@@ -20,7 +20,7 @@ import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues, Stat } from "@/components/ui/stat";
 import { fieldLabel, foldPeriodChanges } from "@/lib/audit/diff";
 import { routeTone, stepTone } from "@/lib/ui/status-tone";
-import { CONTRACT_YEAR_READING } from "@/lib/award/contract-number";
+import { CONTRACT_YEAR_WORDS, contractYearReading } from "@/lib/contract/issue-year";
 import { distributionComplete } from "@/lib/award/distribution";
 import { evaluateAward, type AwardEvaluation } from "@/lib/award/evaluate";
 import { INDENT_READING, indentExpiryRaised } from "@/lib/award/indent";
@@ -509,7 +509,8 @@ function OverviewPanel({ l, ev, awardee, recommendation, methodName, typeName, p
                   <span className="flex flex-col items-start gap-1">
                     <span className="font-mono text-[13px]">{c.number}</span>
                     <Chip tone={c.status === "CANCELLED" ? "warn" : "ok"}>{CONTRACT_STATUS_LABEL[c.status]}</Chip>
-                    <span className="text-[12.5px] text-ink-3">{CONTRACT_YEAR_READING}</span>
+                    {/* 6.12 S-1/S-5: the issue year from the organisation's day of issue, only for a series number. */}
+                    {contractYearReading(c).seriesNumber && <span className="text-[12.5px] text-ink-3">{CONTRACT_YEAR_WORDS.series(contractYearReading(c).issueYear).en}</span>}
                     <Link href={`/projects/${c.id}`} className="text-[13px] font-semibold">Open the contract</Link>
                   </span>
                 ) : "fault" in ev.contractNumber ? notSet(awardFindingText({ code: ev.contractNumber.fault, level: "block" })) : ev.contractNumber.source === "SERIES" ? "Drawn from its contract type's series on issue" : "The indent's own number, on issue",

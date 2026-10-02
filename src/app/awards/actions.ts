@@ -45,6 +45,7 @@ import { RETURN_SCAN_LABEL } from "@/lib/award/labels";
 import { evidenceSnapshot } from "@/lib/documents/evidence";
 import { awardTransition, editable, LIVE_STATUSES } from "@/lib/award/status";
 import type { AwardStatus, Finding, InstrumentKind } from "@/lib/award/types";
+import { issueDayOf } from "@/lib/contract/issue-year";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { manualCommitment } from "@/lib/integration/award-commitment";
 import { ACT_LABEL } from "@/lib/labels";
@@ -737,6 +738,8 @@ export async function issueAward(_prev: FormState, data: FormData): Promise<Form
   const signed = r.date("signedOn", "Signed on", { required: true });
   if (r.failed || !signed) return { ok: false, errors: r.errors };
   try {
+    // The issue act's own instant: its organisation's day is the issue day the contract number is dated by (issueDayOf).
+    const issueActAt = new Date();
     return await inAward(id, async (tx, l) => {
       const a = l.award;
       if (!l.org.today) return NO_ZONE;
@@ -745,7 +748,8 @@ export async function issueAward(_prev: FormState, data: FormData): Promise<Form
       if (pre.issueFaults.length) return refuse(pre.issueFaults, "Not issued:");
       const sig = pre.signatory!;
       if (!sig.ok) return refuse([{ code: sig.fault, level: "block" }], "Not issued:");
-      const today = l.org.today;
+      const today = issueDayOf(issueActAt, l.org.timeZone);
+      if (!today) return NO_ZONE;
       const signedOn = storedDay(signed);
       const person = f.roster.people.find((p) => p.id === personId) ?? null;
       const route = latestRoute(a)!;

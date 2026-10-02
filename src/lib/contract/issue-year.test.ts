@@ -70,3 +70,18 @@ describe("the year a contract number was issued in", () => {
     expect(page).not.toMatch(/exec\(c\.number\)|c\.number\.(match|slice|substring)/);
   });
 });
+
+describe("the real paths read it (6.12 re-review)", () => {
+  const read = (p: string) => readFileSync(path.join(__dirname, "../../..", p), "utf8");
+  it("the award's issue act dates the number by issueDayOf of its own instant", () => {
+    const src = read("src/app/awards/actions.ts");
+    const body = src.slice(src.indexOf("export async function issueAward("), src.indexOf("\nexport async function ", src.indexOf("export async function issueAward(") + 10));
+    expect(body).toMatch(/const today = issueDayOf\(issueActAt, l\.org\.timeZone\);/);
+    expect(body.indexOf("issueDayOf(")).toBeLessThan(body.indexOf("numberedOn: on"));
+  });
+  it("the award's page gives the year note only for a series number (S-5), from contractYearReading", () => {
+    const page = read("src/app/awards/[id]/page.tsx");
+    expect(page).not.toContain("CONTRACT_YEAR_READING");
+    expect(page).toMatch(/contractYearReading\(c\)\.seriesNumber && /);
+  });
+});
