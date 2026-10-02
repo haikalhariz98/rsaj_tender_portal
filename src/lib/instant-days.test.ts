@@ -14,7 +14,7 @@ import { formatDate, formatOrgDay } from "@/lib/format";
  * (a route's openedAt, an award's issuedAt) is a stored day and is not listed.
  */
 
-const INSTANT_FIELDS = ["submittedAt", "frozenAt", "finalisedAt", "clearedAt", "createdAt", "updatedAt", "storedAt", "startedAt", "formedAt"] as const;
+const INSTANT_FIELDS = ["submittedAt", "frozenAt", "finalisedAt", "clearedAt", "createdAt", "updatedAt", "storedAt", "startedAt", "formedAt", "closedAt", "minutedAt", "withdrawnAt", "publishedAt", "recordedAt", "verdictAt"] as const;
 
 const walk = (dir: string): string[] =>
   readdirSync(join(process.cwd(), dir)).flatMap((f) => {
@@ -32,7 +32,7 @@ describe("an instant is never read as a stored day (item 10, 68-C5)", () => {
 
   it("no formatDate, storedDay or ISO slice of a server-clock field anywhere in src (source scan)", () => {
     const f = INSTANT_FIELDS.join("|");
-    const read = new RegExp(`(formatDate|storedDay)\\([A-Za-z_!.?]*\\.(${f})\\b|\\.(${f})!?\\.toISOString\\(\\)\\.slice\\(0, ?10\\)`);
+    const read = new RegExp(`(formatDate|storedDay)\\([A-Za-z_!.?]*\\b(${f})\\b|\\.(${f})!?\\.toISOString\\(\\)\\.slice\\(0, ?10\\)`);
     const hits = walk("src").filter((p) => read.test(readFileSync(join(process.cwd(), p), "utf8")));
     expect(hits).toEqual([]);
   });
