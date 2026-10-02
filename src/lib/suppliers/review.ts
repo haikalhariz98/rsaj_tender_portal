@@ -50,7 +50,14 @@ export type ReviewFault =
   | "OUTCOME_NOT_RECORDED_HERE"
   | "ALREADY_OPEN"
   | "KIND_REQUIRED"
-  | "KIND_NOT_FOR_STATUS";
+  | "KIND_NOT_FOR_STATUS"
+  | "BLACKLISTED_NO_APPLICATION"
+  | "BLACKLISTED_NOT_APPROVED";
+
+/// A blacklisting in effect on the day, as the review rules name it (FR-TRM-017). Null: none in effect.
+export type BlacklistInEffect = { effectiveOn: string; endsOn: string | null; reasonLabel: string };
+
+const blacklistData = (b: BlacklistInEffect) => ({ since: b.effectiveOn, endsOn: b.endsOn, reason: b.reasonLabel });
 
 /// One mandatory type as approval reads it.
 export interface MandatoryStanding {
@@ -71,11 +78,14 @@ export interface FileFacts {
   mandatoryNotSet: readonly string[];
   /// How many live document types are configured at all.
   typesConfigured: number;
+  /// FR-TRM-017 (6.15a fix S-2): the blacklisting in effect on the day, read from the standing; null: none.
+  blacklist: BlacklistInEffect | null;
 }
 
 /**
  * Whether the file can be approved on `today`: open, not lapsed, the signed declaration's day recorded
  * and its scan attached, every live type's mandatory switch set, and every mandatory type standing.
+ * FR-TRM-017 (fix S-2): while a blacklisting is in effect nothing is approved, naming the blacklisting.
  * Each failure names what to do. `routePending` is not judged here (the route's own last step asks this).
  */
 export function approveFaults(f: Omit<FileFacts, "routePending">, today: string | null): Finding<ReviewFault>[] {
@@ -83,6 +93,7 @@ export function approveFaults(f: Omit<FileFacts, "routePending">, today: string 
   const out: Finding<ReviewFault>[] = [];
   if (!isOpen(f)) return [{ code: "DECIDED", level: "block" }];
   if (lapseState(f, today) === "LAPSED") return [{ code: "LAPSED", level: "block", data: { resubmitBy: f.resubmitBy } }];
+  if (f.blacklist) out.push({ code: "BLACKLISTED_NOT_APPROVED", level: "block", data: blacklistData(f.blacklist) });
   if (!f.declarationSignedOn) out.push({ code: "DECLARATION_DAY_REQUIRED", level: "block" });
   if (!f.declarationScanned) out.push({ code: "DECLARATION_SCAN_REQUIRED", level: "block" });
   if (f.typesConfigured === 0) out.push({ code: "TYPES_NOT_SET", level: "block" });
@@ -152,12 +163,14 @@ export function lapseFaults(f: Pick<FileFacts, "status" | "lapsedRecordedAt" | "
 }
 
 /// Opening a further application for a supplier on the register: none open already; a first registration
-/// (NEW) only for a supplier not registered (one rejected may apply again), a renewal or upgrade only for one registered.
-export function openApplicationFaults(kind: ApplicationKind | null, supplierStatus: SupplierStatus, open: boolean): Finding<ReviewFault>[] {
+/// (NEW) only for a supplier not registered (one rejected may apply again), a renewal or upgrade only for one
+/// registered, and never while a blacklisting is in effect (FR-TRM-017, fix S-2), naming it.
+export function openApplicationFaults(kind: ApplicationKind | null, supplierStatus: SupplierStatus, open: boolean, blacklist: BlacklistInEffect | null): Finding<ReviewFault>[] {
   const out: Finding<ReviewFault>[] = [];
   if (open) out.push({ code: "ALREADY_OPEN", level: "block" });
   if (!kind) out.push({ code: "KIND_REQUIRED", level: "block" });
   else if ((kind === "NEW") !== (supplierStatus !== "REGISTERED")) out.push({ code: "KIND_NOT_FOR_STATUS", level: "block", data: { kind } });
+  if (blacklist && kind !== "NEW") out.push({ code: "BLACKLISTED_NO_APPLICATION", level: "block", data: blacklistData(blacklist) });
   return out;
 }
 
@@ -166,7 +179,7 @@ export function openApplicationFaults(kind: ApplicationKind | null, supplierStat
  * mandatory type's state from the supplier's documents. A retired type is neither required nor asked.
  */
 export function fileFacts(
-  app: Pick<FileFacts, "status" | "lapsedRecordedAt" | "resubmitBy" | "routePending" | "declarationSignedOn" | "declarationScanned">,
+  app: Pick<FileFacts, "status" | "lapsedRecordedAt" | "resubmitBy" | "routePending" | "declarationSignedOn" | "declarationScanned" | "blacklist">,
   types: readonly DocumentTypeFacts[],
   docs: readonly DocumentFacts[],
   today: string,

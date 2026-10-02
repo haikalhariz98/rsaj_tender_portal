@@ -15,6 +15,7 @@ const file: FileFacts = {
   ],
   mandatoryNotSet: [],
   typesConfigured: 4,
+  blacklist: null,
 };
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
 
@@ -127,12 +128,12 @@ describe("an officer's outcome (FR-VND-007)", () => {
 
 describe("opening a further application", () => {
   it("one at a time; a first registration only while not registered, a renewal or upgrade only once registered", () => {
-    expect(openApplicationFaults("RENEWAL", "REGISTERED", false)).toEqual([]);
-    expect(openApplicationFaults("NEW", "REJECTED", false)).toEqual([]);
-    expect(codes(openApplicationFaults("NEW", "REGISTERED", false))).toEqual(["KIND_NOT_FOR_STATUS"]);
-    expect(codes(openApplicationFaults("UPGRADE", "APPLICANT", false))).toEqual(["KIND_NOT_FOR_STATUS"]);
-    expect(codes(openApplicationFaults("RENEWAL", "REGISTERED", true))).toEqual(["ALREADY_OPEN"]);
-    expect(codes(openApplicationFaults(null, "REGISTERED", false))).toEqual(["KIND_REQUIRED"]);
+    expect(openApplicationFaults("RENEWAL", "REGISTERED", false, null)).toEqual([]);
+    expect(openApplicationFaults("NEW", "REJECTED", false, null)).toEqual([]);
+    expect(codes(openApplicationFaults("NEW", "REGISTERED", false, null))).toEqual(["KIND_NOT_FOR_STATUS"]);
+    expect(codes(openApplicationFaults("UPGRADE", "APPLICANT", false, null))).toEqual(["KIND_NOT_FOR_STATUS"]);
+    expect(codes(openApplicationFaults("RENEWAL", "REGISTERED", true, null))).toEqual(["ALREADY_OPEN"]);
+    expect(codes(openApplicationFaults(null, "REGISTERED", false, null))).toEqual(["KIND_REQUIRED"]);
   });
 });
 
@@ -141,7 +142,7 @@ describe("the file as approval reads it", () => {
     const { fileFacts } = await import("./review");
     const { TYPES, doc } = await import("./fixture");
     const types = [TYPES.companies, TYPES.works, TYPES.clearance, { ...TYPES.supply, mandatoryAtRegistration: true, retiredOn: "2026-09-01" }];
-    const f = fileFacts({ status: "RECEIVED", lapsedRecordedAt: null, resubmitBy: null, routePending: false, declarationSignedOn: "2026-09-29", declarationScanned: true }, types, [doc({ id: "c", typeId: "t_companies" })], "2026-10-01");
+    const f = fileFacts({ status: "RECEIVED", lapsedRecordedAt: null, resubmitBy: null, routePending: false, declarationSignedOn: "2026-09-29", declarationScanned: true, blacklist: null }, types, [doc({ id: "c", typeId: "t_companies" })], "2026-10-01");
     expect(f.mandatory).toEqual([
       { label: "Companies registry certificate", state: "VALID" },
       { label: "Works board certificate", state: "MISSING" },

@@ -298,7 +298,9 @@ class Acts {
     const a = await this.db.supplierApplication.findUniqueOrThrow({ where: { id: appId }, include: { supplier: { select: { id: true, reference: true, registeredName: true, status: true } }, routes: { select: { status: true } }, attachments: { select: { purpose: true, detachedAt: true, version: { select: { withdrawnAt: true } } } } } });
     const types = await this.db.supplierDocumentType.findMany({ where: { organisationId: this.org } });
     const docs = await this.db.supplierDocument.findMany({ where: { supplierId: a.supplierId } });
-    const f = fileFacts({ status: a.status as never, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: a.resubmitBy ? a.resubmitBy.toISOString().slice(0, 10) : null, routePending: a.routes.some((r) => r.status === "PENDING"), declarationSignedOn: a.declarationSignedOn ? a.declarationSignedOn.toISOString().slice(0, 10) : null, declarationScanned: a.attachments.some((x) => x.purpose === "SUPPLIER_DECLARATION" && isLive(x)) }, types.map(typeFacts), docs.map(documentFacts), today);
+    // FR-TRM-017 (fix S-2): a blacklisting in effect stops the approval, as the action reads it.
+    const blacklist = (await this.reading(a.supplierId, today)).reading.blacklist;
+    const f = fileFacts({ status: a.status as never, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: a.resubmitBy ? a.resubmitBy.toISOString().slice(0, 10) : null, routePending: a.routes.some((r) => r.status === "PENDING"), declarationSignedOn: a.declarationSignedOn ? a.declarationSignedOn.toISOString().slice(0, 10) : null, declarationScanned: a.attachments.some((x) => x.purpose === "SUPPLIER_DECLARATION" && isLive(x)), blacklist }, types.map(typeFacts), docs.map(documentFacts), today);
     return { a, f, types };
   }
 
@@ -531,7 +533,8 @@ class Acts {
     const { openApplicationFaults } = await import("../src/lib/suppliers/review");
     const { receiptFaults } = await import("../src/lib/suppliers/identity");
     const sup = await this.db.supplier.findUniqueOrThrow({ where: { id: supplierId }, include: { applications: { where: { status: { in: ["RECEIVED", "RESUBMISSION_REQUESTED"] }, lapsedRecordedAt: null } } } });
-    refuse(`opening a renewal for ${supplierId}`, [...openApplicationFaults("RENEWAL", sup.status as never, sup.applications.length > 0), ...receiptFaults({ receivedOn, channel: "POST", declarationSignedOn, recorderActive: true }, this.dayOf(when))]);
+    const blacklist = (await this.reading(supplierId, this.dayOf(when))).reading.blacklist;
+    refuse(`opening a renewal for ${supplierId}`, [...openApplicationFaults("RENEWAL", sup.status as never, sup.applications.length > 0, blacklist), ...receiptFaults({ receivedOn, channel: "POST", declarationSignedOn, recorderActive: true }, this.dayOf(when))]);
     await this.db.supplierApplication.create({ data: { id: appId, organisationId: this.org, supplierId, kind: "RENEWAL", receivedOn: dayToDate(receivedOn), channel: "POST", recordedByPersonId: OFFICER.id, recordedAt: when, declarationSignedOn: dayToDate(declarationSignedOn), createdAt: when } });
     this.entry("SupplierApplication", appId, `${sup.reference} · Application received ${formatDate(receivedOn)}`, "CREATE", when, diffFields(null, { kind: "Renewal of registration", receivedOn, channel: "By post", recordedBy: OFFICER.name, recordedOnBehalf: "not signed", declarationSignedOn }));
   }

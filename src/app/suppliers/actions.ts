@@ -31,6 +31,7 @@ import { supplierApplicationLabel, supplierDocumentLabel, supplierOfApplication,
 import { documentFacts, loadSupplierConfig, supplierOrg, typeFacts } from "@/lib/suppliers/repo";
 import { approveFaults, decisionFaults, decisionSnapshot, fileFacts, isOpen, lapseFaults, openApplicationFaults, submitFaults, type FileFacts } from "@/lib/suppliers/review";
 import { supplierHolders, supplierRoute } from "@/lib/suppliers/route";
+import { standingOf } from "@/lib/suppliers/standing-repo";
 import { APPLICATION_CHANNELS, APPLICATION_KINDS, blocking, SUPPLIER_REGISTRATION_DOMAIN, SUPPLIER_SERIES_KEY, VERIFICATION_STATES, type ApplicationKind, type Finding, type RegistrationValueKind } from "@/lib/suppliers/types";
 import { splitValues } from "@/lib/ui/select-logic";
 import { FormReader } from "@/lib/validate";
@@ -210,7 +211,10 @@ export async function openApplication(_prev: FormState, data: FormData): Promise
   return inSupplier(supplierId, async (tx, l) => {
     const open = await tx.supplierApplication.findFirst({ where: { supplierId, status: { in: ["RECEIVED", "RESUBMISSION_REQUESTED"] }, lapsedRecordedAt: null }, select: { id: true } });
     const person = await activePerson(tx, l.org.id, personId);
-    const fs: Finding[] = [...openApplicationFaults(kind, l.supplier.status as "APPLICANT" | "REGISTERED" | "REJECTED", !!open), ...receiptFaults({ receivedOn, channel, declarationSignedOn, recorderActive: !!person }, l.org.today)];
+    // FR-TRM-017 (fix S-2): the blacklisting in effect, read on the locked supplier row.
+    const st = l.org.today ? await standingOf(supplierId, l.org.id, l.org.today, tx) : null;
+    const blacklist = st?.reading.blacklist ?? null;
+    const fs: Finding[] = [...openApplicationFaults(kind, l.supplier.status as "APPLICANT" | "REGISTERED" | "REJECTED", !!open, blacklist), ...receiptFaults({ receivedOn, channel, declarationSignedOn, recorderActive: !!person }, l.org.today)];
     if (epaymentFormReceivedOn && l.org.today && epaymentFormReceivedOn > l.org.today) fs.push({ code: "IN_FUTURE", level: "block" });
     if (blocking(fs).length) return refusal(fs);
     const app = await tx.supplierApplication.create({
@@ -410,9 +414,14 @@ export async function verifyDocument(_prev: FormState, data: FormData): Promise<
 
 /// The application's file as approval judges it, read under the supplier's lock.
 async function fileOf(tx: Tx, l: LockedSupplier, a: { status: FileFacts["status"]; lapsedRecordedAt: Date | null; resubmitBy: Date | null; declarationSignedOn: Date | null; routes: { status: string }[]; attachments: { purpose: string; detachedAt: Date | null; version: { withdrawnAt: Date | null } }[] }) {
-  const [types, docs] = await Promise.all([tx.supplierDocumentType.findMany({ where: { organisationId: l.org.id } }), tx.supplierDocument.findMany({ where: { supplierId: l.supplier.id } })]);
+  const [types, docs, st] = await Promise.all([
+    tx.supplierDocumentType.findMany({ where: { organisationId: l.org.id } }),
+    tx.supplierDocument.findMany({ where: { supplierId: l.supplier.id } }),
+    // FR-TRM-017 (fix S-2): a blacklisting in effect stops the approval, on the locked rows.
+    l.org.today ? standingOf(l.supplier.id, l.org.id, l.org.today, tx) : Promise.resolve(null),
+  ]);
   const f = fileFacts(
-    { status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), routePending: a.routes.some((x) => x.status === "PENDING"), declarationSignedOn: day(a.declarationSignedOn), declarationScanned: a.attachments.some((x) => x.purpose === "SUPPLIER_DECLARATION" && isLive(x)) },
+    { status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), routePending: a.routes.some((x) => x.status === "PENDING"), declarationSignedOn: day(a.declarationSignedOn), declarationScanned: a.attachments.some((x) => x.purpose === "SUPPLIER_DECLARATION" && isLive(x)), blacklist: st?.reading.blacklist ?? null },
     types.map(typeFacts),
     docs.map(documentFacts),
     l.org.today ?? "0000-01-01",

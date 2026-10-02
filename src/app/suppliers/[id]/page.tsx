@@ -53,13 +53,13 @@ import {
   VERIFICATION_TONE,
 } from "@/lib/suppliers/labels";
 import { documentFacts, loadSupplier, loadSupplierConfig, supplierHistory, type LoadedSupplier, type SupplierConfig } from "@/lib/suppliers/repo";
-import { decisionFaults, fileFacts, isDecisionSnapshot, isOpen, openApplicationFaults, queueState, submitFaults } from "@/lib/suppliers/review";
+import { decisionFaults, fileFacts, isDecisionSnapshot, isOpen, openApplicationFaults, queueState, submitFaults, type BlacklistInEffect } from "@/lib/suppliers/review";
 import { supplierHolders, supplierRoute } from "@/lib/suppliers/route";
 import { APPLICATION_CHANNELS, APPLICATION_KINDS, blocking, SUPPLIER_REGISTRATION_DOMAIN, type ApplicationKind, type Finding, type SupplierStatus } from "@/lib/suppliers/types";
 import { routeTone, stepTone } from "@/lib/ui/status-tone";
 
 import { expiryBand } from "@/lib/suppliers/expiry";
-import { EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, standingTone, standingWords } from "@/lib/suppliers/labels";
+import { EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, renewalUpcomingWords, standingTone, standingWords } from "@/lib/suppliers/labels";
 import { standing } from "@/lib/suppliers/standing";
 import { standingEventFacts } from "@/lib/suppliers/standing-repo";
 
@@ -97,7 +97,7 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
   const tabs = [
     { id: "profile", label: "Profile", icon: <BuildingIcon size={15} />, panel: <ProfilePanel l={l} cfg={cfg} /> },
     { id: "documents", label: "Documents", icon: <FileIcon size={15} />, count: s.documents.length, panel: <DocumentsPanel l={l} cfg={cfg} people={peopleOptions} /> },
-    { id: "applications", label: "Applications", icon: <ClipboardIcon size={15} />, count: s.applications.length, panel: <ApplicationsPanel l={l} cfg={cfg} people={peopleOptions} /> },
+    { id: "applications", label: "Applications", icon: <ClipboardIcon size={15} />, count: s.applications.length, panel: <ApplicationsPanel l={l} cfg={cfg} people={peopleOptions} blacklist={reading?.blacklist ?? null} /> },
     { id: "standing", label: "Standing", icon: <ShieldIcon size={15} />, count: s.standingEvents.length, panel: <StandingPanel l={l} cfg={cfg} reading={reading} people={peopleOptions} fromAward={fromAward ?? null} /> },
     { id: "eligibility", label: "Eligibility", icon: <ScaleIcon size={15} />, panel: <EligibilityPanel l={l} exerciseId={exercise ?? null} /> },
     { id: "participation", label: "Participation", icon: <LinkIcon size={15} />, count: linkedCount, panel: <ParticipationPanel l={l} people={peopleOptions} /> },
@@ -333,11 +333,12 @@ function DocumentsPanel({ l, cfg, people }: { l: LoadedSupplier; cfg: SupplierCo
 
 // ------------------------------------------------------------------ applications
 
-async function ApplicationsPanel({ l, cfg, people }: { l: LoadedSupplier; cfg: SupplierConfig; people: Option[] }) {
+async function ApplicationsPanel({ l, cfg, people, blacklist }: { l: LoadedSupplier; cfg: SupplierConfig; people: Option[]; blacklist: BlacklistInEffect | null }) {
   const s = l.supplier;
   const today = l.org.today;
   const anyOpen = s.applications.some(isOpen);
-  const openBlocker = first([...openApplicationFaults(s.status === "REGISTERED" ? "RENEWAL" : "NEW", s.status as SupplierStatus, anyOpen)]);
+  // FR-TRM-017 (fix S-2): a blacklisting in effect stops a renewal or upgrade, and its approval.
+  const openBlocker = first([...openApplicationFaults(s.status === "REGISTERED" ? "RENEWAL" : "NEW", s.status as SupplierStatus, anyOpen, blacklist)]);
   const kinds = APPLICATION_KINDS.filter((k) => (k === "NEW") !== (s.status === "REGISTERED")).map((k) => ({ value: k, label: APPLICATION_KIND_LABEL[k].en }));
   // The route each open file would take, previewed now (the act resolves it again, with the sender in mind).
   const issue = today ? await loadIssue(ORGANISATION_CODE, dayToDate(today), undefined, null) : null;
@@ -363,7 +364,7 @@ async function ApplicationsPanel({ l, cfg, people }: { l: LoadedSupplier; cfg: S
       {s.applications.map((a) => {
         const st = queueState({ ...a, resubmitBy: day(a.resubmitBy) }, today);
         const isOpenNow = isOpen(a);
-        const f = today ? fileFacts({ status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), routePending: a.routes.some((r) => r.status === "PENDING"), declarationSignedOn: day(a.declarationSignedOn), declarationScanned: a.attachments.some((x) => x.purpose === "SUPPLIER_DECLARATION" && isLive(x)) }, cfg.typeFacts, docs, today) : null;
+        const f = today ? fileFacts({ status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), routePending: a.routes.some((r) => r.status === "PENDING"), declarationSignedOn: day(a.declarationSignedOn), declarationScanned: a.attachments.some((x) => x.purpose === "SUPPLIER_DECLARATION" && isLive(x)), blacklist }, cfg.typeFacts, docs, today) : null;
         const preview = issue && isOpenNow ? supplierRoute(issue.matrix, SUPPLIER_REGISTRATION_DOMAIN, a.kind, { id: "", holds: () => false, ableToAct: () => ({ holderIds: ["someone"], delegateIds: [] }) }, REGISTRATION_MATTER) : null;
         const submitBlocker = !today ? supplierFaultText({ code: "TIME_ZONE_UNSET", level: "block" }) : first(submitFaults(f!, today)) ?? (!issue ? "No approval matrix is in force. Issue one under Configuration › Approval matrix." : preview?.refusal?.en ?? null);
         const decideBlocker = (outcome: "RESUBMIT" | "REJECT") => first(decisionFaults({ outcome, remarks: "x", resubmitBy: null, items: [{ documentId: null, typeId: null, remarks: "x" }], personActive: true }, { status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), routePending: a.routes.some((r) => r.status === "PENDING") }, { today, documentIds: [], typeIds: [] }).filter((x) => ["TIME_ZONE_UNSET", "DECIDED", "LAPSE_UNRECORDED", "ROUTE_PENDING"].includes(x.code)));

@@ -46,6 +46,16 @@ export function blacklistEndWords(endsOn: string | null): Words {
   return w(`Last blacklisted day ${formatDate(last)} · Free from ${formatDate(endsOn)}`, `Hari terakhir disenarai hitam ${formatDate(last)} · Bebas mulai ${formatDate(endsOn)}`);
 }
 
+/// A verified renewal whose validity has not started (fix M-3): the document before it stays in force until then.
+export const renewalUpcomingWords = (validFrom: string | null) => `Renewal verified, in force from ${validFrom ? formatDate(validFrom) : "its start"}`;
+
+/// The same, inside a sentence: "last blacklisted day 30 Sep 2031, free from 01 Oct 2031".
+export function blacklistEndPhrase(endsOn: string | null): Words {
+  if (!endsOn) return w("until further notice", "sehingga notis selanjutnya");
+  const last = addDays(endsOn, -1);
+  return w(`last blacklisted day ${formatDate(last)}, free from ${formatDate(endsOn)}`, `hari terakhir disenarai hitam ${formatDate(last)}, bebas mulai ${formatDate(endsOn)}`);
+}
+
 export const VALUE_KIND_LABEL: Readonly<Record<RegistrationValueKind, Words>> = {
   GRADE: w("Grade", "Gred"),
   CATEGORY: w("Category", "Kategori"),
@@ -269,6 +279,9 @@ const TEXT: Record<AnyFault, (d: Record<string, string | number | null>) => Word
   BANDS_OUT_OF_ORDER: () => w("The bands run from the soonest: critical fewer days than warning, warning fewer than upcoming.", "Jalur bermula dari yang terdekat: kritikal kurang hari daripada amaran, amaran kurang daripada akan datang."),
   BLACKLIST_PERIOD_NOT_SET: () => w(`How long a first-offence blacklisting lasts is not set, so one cannot be recorded. Set it under ${SETTINGS.en}, Standing.`, `Tempoh senarai hitam kesalahan pertama belum ditetapkan, jadi ia tidak boleh direkodkan. Tetapkan di ${SETTINGS.ms}, Kedudukan.`),
   OFFENCE_INVALID: () => w("The offence's number cannot be read.", "Bilangan kesalahan tidak boleh dibaca."),
+  // fix S-2 (FR-TRM-017): a blacklisting in effect stops a renewal or upgrade, and its approval.
+  BLACKLISTED_NO_APPLICATION: (d) => w(`A blacklisting is in effect (since ${day(d.since)}, ${d.reason}; ${blacklistEndPhrase(typeof d.endsOn === "string" ? d.endsOn : null).en}): a renewal or upgrade is not opened while it stands.`, `Senarai hitam sedang berkuat kuasa (sejak ${day(d.since)}, ${d.reason}; ${blacklistEndPhrase(typeof d.endsOn === "string" ? d.endsOn : null).ms}): pembaharuan atau naik taraf tidak dibuka selagi ia berkuat kuasa.`),
+  BLACKLISTED_NOT_APPROVED: (d) => w(`A blacklisting is in effect (since ${day(d.since)}, ${d.reason}; ${blacklistEndPhrase(typeof d.endsOn === "string" ? d.endsOn : null).en}): an application is not approved while it stands. Reject it, or wait until the blacklisting ends or is lifted.`, `Senarai hitam sedang berkuat kuasa (sejak ${day(d.since)}, ${d.reason}; ${blacklistEndPhrase(typeof d.endsOn === "string" ? d.endsOn : null).ms}): permohonan tidak diluluskan selagi ia berkuat kuasa. Tolak, atau tunggu sehingga senarai hitam tamat atau ditarik balik.`),
   // a2: standing (FR-VND-010, OD-7, OD-8)
   STANDING_NEEDS_REGISTRATION: () => w("Only a registered supplier is suspended or blacklisted.", "Hanya pembekal berdaftar digantung atau disenaraihitamkan."),
   ALREADY_BLACKLISTED: () => w("The supplier is already blacklisted.", "Pembekal sudah disenaraihitamkan."),
