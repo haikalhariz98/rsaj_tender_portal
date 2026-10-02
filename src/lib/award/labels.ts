@@ -347,6 +347,7 @@ export function awardFindingText(f: Finding): string {
     case "NOT_EVALUATED":
     case "REPORT_STALE":
     case "AWARDEE_NOT_RECOMMENDED":
+    case "CONSENT_NOT_FROM_RECOMMENDED":
     case "VALUE_DIFFERS_REASON_REQUIRED":
     case "PERIOD_DIFFERS_REASON_REQUIRED":
       return evaluationFindingText(f);

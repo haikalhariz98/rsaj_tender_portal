@@ -9,11 +9,13 @@
 
 import type { Tx } from "@/lib/audit/record";
 import { db } from "@/lib/db";
+import { storedDay } from "@/lib/dates";
 import { senFromDecimal } from "@/lib/money";
 import { evaluationSet } from "@/lib/opening/carry";
 
 import type { EvaluationGateFacts } from "./award-gate";
 import type { BundleFacts } from "./bundle";
+import { consentCheck } from "./consent";
 import { reportStale } from "./report";
 
 export async function loadEvaluationGate(exerciseId: string, client: Tx = db) {
@@ -35,11 +37,14 @@ export async function loadEvaluationGate(exerciseId: string, client: Tx = db) {
   const throughWindow = ex.window?.publishedAt != null && (ex.packKindSnapshot === "TENDER" || ex.packKindSnapshot === "QUOTATION");
   const pinned = ex.evaluationModelSnapshot != null;
   const rec = current?.state === "ISSUED" ? current.recommendation : null;
+  // M-1: the applied extensions' consents, against the recommended tenderer (FR-BID-010).
+  const extensions = rec ? await client.validityExtension.findMany({ where: { exerciseId }, orderBy: { recordedAt: "asc" }, select: { id: true, consentPartyId: true, appliedAt: true, toExpiry: true, consentParty: { select: { name: true } } } }) : [];
+  const consent = rec ? consentCheck(extensions.map((x) => ({ id: x.id, consentPartyId: x.consentPartyId, consentPartyName: x.consentParty.name, applied: x.appliedAt != null, toExpiry: storedDay(x.toExpiry) })), rec.bidder.openedBid.party.id) : null;
   const gate: EvaluationGateFacts = {
     applies: throughWindow,
     pinned,
     exerciseStatus: ex.status,
-    issued: rec ? { stale, recommendedPartyId: rec.bidder.openedBid.party.id, price: senFromDecimal(rec.price), period: rec.completionPeriod != null && rec.completionUnit ? { value: rec.completionPeriod, unit: rec.completionUnit } : null } : null,
+    issued: rec ? { stale, recommendedPartyId: rec.bidder.openedBid.party.id, price: senFromDecimal(rec.price), period: rec.completionPeriod != null && rec.completionUnit ? { value: rec.completionPeriod, unit: rec.completionUnit } : null, consentNotFromRecommended: (consent?.faults ?? []).map((f) => ({ party: String(f.data?.party ?? ""), day: String(f.data?.day ?? "") })) } : null,
   };
   const bundle: BundleFacts = {
     applies: throughWindow && pinned,
@@ -55,3 +60,14 @@ export async function loadEvaluationGate(exerciseId: string, client: Tx = db) {
   };
 }
 export type EvaluationGate = Awaited<ReturnType<typeof loadEvaluationGate>>;
+
+/**
+ * The party recommended in the evaluation version in force (open or issued), or null where none is
+ * formed (6.8 fix M-1): a validity extension is recorded and applied only on that party's consent
+ * once it exists (FR-BID-010, 6.6 OD-7). Read inside the caller's transaction, which holds the
+ * exercise's window row, as every evaluation act does, so the two are serialised.
+ */
+export async function recommendedPartyInForce(exerciseId: string, client: Tx = db): Promise<string | null> {
+  const e = await client.evaluation.findFirst({ where: { exerciseId, state: { in: ["OPEN", "ISSUED"] } }, select: { recommendation: { select: { bidder: { select: { openedBid: { select: { partyId: true } } } } } } } });
+  return e?.recommendation?.bidder.openedBid.partyId ?? null;
+}

@@ -7,7 +7,9 @@
  * awarded value and period are pre-filled from the recommendation and may differ, each with its
  * reason, shown "differs from the recommendation" (the Board may approve a negotiated sum). An
  * exercise published before evaluation models existed can never be evaluated (E-1): its award is
- * refused, naming cancel and replace. Exercises with no window (Phase 1) are untouched. Pure.
+ * refused, naming cancel and replace. Every applied validity extension stands on the recommended
+ * tenderer's consent (FR-BID-010; 6.8 fix M-1), else the award is held. Exercises with no window
+ * (Phase 1) are untouched. Pure.
  */
 
 import type { Sen } from "@/lib/money";
@@ -21,10 +23,18 @@ export interface EvaluationGateFacts {
   pinned: boolean;
   exerciseStatus: string;
   /// The version in force, issued, or null where none is issued.
-  issued: { stale: boolean; recommendedPartyId: string; price: Sen; period: { value: number; unit: PeriodUnit } | null } | null;
+  issued: {
+    stale: boolean;
+    recommendedPartyId: string;
+    price: Sen;
+    period: { value: number; unit: PeriodUnit } | null;
+    /// 6.8 fix M-1 (FR-BID-010, 6.6 OD-7): each applied validity extension whose consent is not the
+    /// recommended tenderer's, by the consenting party's name and the day it extends to. Absent: not read.
+    consentNotFromRecommended?: readonly { party: string; day: string }[];
+  } | null;
 }
 
-export type EvaluationGateFault = "NEVER_EVALUATED" | "NOT_EVALUATED" | "REPORT_STALE" | "AWARDEE_NOT_RECOMMENDED";
+export type EvaluationGateFault = "NEVER_EVALUATED" | "NOT_EVALUATED" | "REPORT_STALE" | "AWARDEE_NOT_RECOMMENDED" | "CONSENT_NOT_FROM_RECOMMENDED";
 
 /// `awardeePartyId` undefined: the award is not yet named (opening one asks the rest).
 export function evaluationGateFaults(g: EvaluationGateFacts, awardeePartyId?: string | null): Finding<EvaluationGateFault>[] {
@@ -34,6 +44,8 @@ export function evaluationGateFaults(g: EvaluationGateFacts, awardeePartyId?: st
   const out: Finding<EvaluationGateFault>[] = [];
   if (g.issued.stale) out.push({ code: "REPORT_STALE", level: "block" });
   if (awardeePartyId !== undefined && awardeePartyId !== g.issued.recommendedPartyId) out.push({ code: "AWARDEE_NOT_RECOMMENDED", level: "block" });
+  // M-1: no award stands on a validity the recommended tenderer did not consent to.
+  for (const c of g.issued.consentNotFromRecommended ?? []) out.push({ code: "CONSENT_NOT_FROM_RECOMMENDED", level: "block", data: { party: c.party, day: c.day } });
   return out;
 }
 

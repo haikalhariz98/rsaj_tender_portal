@@ -23,6 +23,7 @@ import { sittingPermits } from "@/lib/committee/meeting";
 import { lockSittingIn } from "@/lib/committee/sittings";
 import { checkTabling, secretariatHoldersOn } from "@/lib/committee/tabling";
 import { dayToDate, instantAt, isDay, storedDay } from "@/lib/dates";
+import { recommendedPartyInForce } from "@/lib/evaluation/gate-read";
 import { formatDate } from "@/lib/format";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { organisationTimeZone } from "@/lib/org-time";
@@ -318,8 +319,9 @@ export async function recordValidityExtension(_prev: FormState, data: FormData):
       reason,
       partyKnown: !!party,
       partyId,
-      // 6.8 names the recommended tenderer; until it exists none is known, and the officer's naming is attested (OD-7).
-      recommendedPartyId: null,
+      // 6.8 fix M-1: the recommended tenderer of the version in force, once formed; until then none is
+      // known and the officer's naming is attested (OD-7). Read under the window's lock, as every evaluation act holds it.
+      recommendedPartyId: await recommendedPartyInForce(l.ex.id, tx),
       consentReceivedOn: consentOn,
       pendingExists: extensions.some((x) => x.appliedAt == null),
       personActive: !!person,
@@ -342,7 +344,7 @@ export async function applyValidityExtension(_prev: FormState, data: FormData): 
     if (!x) return { ok: false, message: "That extension is not on this exercise." };
     const { offsets } = await loadValidityOffsets(l.org.id, tx);
     const v = validityOf({ closing: l.ex.closingAt, timeZone: l.org.timeZone, days: reg.window?.bidValidityDays ?? null, extensions, offsets, now: new Date() });
-    const fs = applyFaults({ cancelled: l.ex.status === "CANCELLED", appliedAt: x.appliedAt, liveConsents: liveConsents(x), toExpiry: storedDay(x.toExpiry), currentExpiry: v.expiry });
+    const fs = applyFaults({ cancelled: l.ex.status === "CANCELLED", appliedAt: x.appliedAt, liveConsents: liveConsents(x), toExpiry: storedDay(x.toExpiry), currentExpiry: v.expiry, consent: { partyId: x.consentPartyId, recommendedPartyId: await recommendedPartyInForce(l.ex.id, tx) } });
     if (fs.length) return refuse(fs);
     const appliedAt = new Date();
     const moved = await tx.validityExtension.updateMany({ where: { id: x.id, appliedAt: null }, data: { appliedAt } });

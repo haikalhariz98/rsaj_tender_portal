@@ -5,9 +5,9 @@
  * latest applied extension governs. Allowed after expiry (§7.3.2: Validity Expired returns to Under
  * Evaluation on an extension), never before the closing (the validity runs from it).
  *
- * Only the recommended tenderer's consent is recorded. Before 6.8 there is no recommendation: the
- * officer names the party, attested, "not yet checked against an evaluation"; once 6.8 names one,
- * another party is refused (NOT_RECOMMENDED). Pure.
+ * Only the recommended tenderer's consent is recorded. Before 6.8 forms a recommendation the officer
+ * names the party, attested, "not yet checked against an evaluation"; once the version in force names
+ * one, another party is refused at recording and at applying (NOT_RECOMMENDED; 6.8 fix M-1). Pure.
  */
 
 import { isLate } from "./lateness";
@@ -63,16 +63,22 @@ export function extensionFaults(i: {
   return out;
 }
 
-export type ApplyFault = "CANCELLED" | "ALREADY_APPLIED" | "CONSENT_REQUIRED" | "NOT_LATER";
+export type ApplyFault = "CANCELLED" | "ALREADY_APPLIED" | "CONSENT_REQUIRED" | "NOT_LATER" | "NOT_RECOMMENDED";
 
-/// Applying a recorded extension: once, with its consent attached, and still later than the expiry that governs.
-export function applyFaults(i: { cancelled: boolean; appliedAt: Date | null; liveConsents: number; toExpiry: string; currentExpiry: string | null }): Finding<ApplyFault>[] {
+/**
+ * Applying a recorded extension: once, with its consent attached, and still later than the expiry
+ * that governs. 6.8 fix M-1: once 6.8 names a recommended tenderer, an extension recorded on another
+ * party's consent (before the recommendation existed) is not applied (NOT_RECOMMENDED). `consent`
+ * absent: not judged (fixtures from before 6.8); `recordValidityExtension`'s caller always states it.
+ */
+export function applyFaults(i: { cancelled: boolean; appliedAt: Date | null; liveConsents: number; toExpiry: string; currentExpiry: string | null; consent?: { partyId: string; recommendedPartyId: string | null } }): Finding<ApplyFault>[] {
   const out: Finding<ApplyFault>[] = [];
   const f = (code: ApplyFault, data?: Finding["data"]) => out.push({ code, level: "block", ...(data ? { data } : {}) });
   if (i.cancelled) f("CANCELLED");
   if (i.appliedAt) f("ALREADY_APPLIED");
   if (i.liveConsents === 0) f("CONSENT_REQUIRED");
   if (i.currentExpiry != null && i.toExpiry <= i.currentExpiry) f("NOT_LATER", { current: i.currentExpiry });
+  if (i.consent && i.consent.recommendedPartyId != null && i.consent.recommendedPartyId !== i.consent.partyId) f("NOT_RECOMMENDED");
   return out;
 }
 
