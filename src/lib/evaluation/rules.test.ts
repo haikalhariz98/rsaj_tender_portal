@@ -65,7 +65,8 @@ describe("aspects.ts (FR-EVL-003)", () => {
   });
   it("(b) shows the computed variance and suggests no verdict", () => {
     const s = aspectPrefill("PRICE_VS_ESTIMATE", { missingAtOpening: [], priceAsRead: RM("280500.00"), correctedPrice: null }, { value: RM("330000.00"), label: null });
-    expect(s).toEqual({ verdict: null, narrative: "The evaluated price is −15.00% against the company estimate." });
+    // 6.8 fix R-5 (ruled): the variance is shown beside the form, never prefilled into the narrative.
+    expect(s).toEqual({ verdict: null, narrative: "", guide: "The evaluated price is −15.00% against the company estimate." });
   });
   it("a verdict needs its narrative", () => {
     expect(codes(assessFaults({ aspectInModel: true, verdict: "SATISFACTORY", narrative: " " }))).toEqual(["NARRATIVE_REQUIRED"]);

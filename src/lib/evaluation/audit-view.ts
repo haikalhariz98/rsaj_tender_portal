@@ -1,8 +1,9 @@
 /**
  * What the evaluation's audit rows say, in words (AGENTS.md rules 4 and 5): instants on the
  * organisation's clock, days as the screens write them, money through `formatMoney`, every enum by
- * its label, never a code or an id. A score, a price, a balance, a CPR or a communication's content is
- * written under a registered SULIT key (`sulit-fields.ts`), so the History chips it and the audit
+ * its label, never a code or an id. A score, a price, a balance, a CPR, a communication's content, an
+ * aspect's narrative, a meeting's minutes or the recommended tenderer is written under a registered
+ * SULIT key (`sulit-fields.ts`), so the History chips it and the audit
  * export withholds its value (E-3). Every row's label starts with the exercise's reference, so its
  * History finds it. Pure.
  */
@@ -98,22 +99,25 @@ export const inputFields = (i: { factor: string | null; balances: readonly (Sen 
 
 export const correctionFields = (c: { price: Sen; reason: string; by: string; excluded: string }) => ({ correctedPrice: formatMoney(c.price), why: c.reason, correctedBy: onBehalf(c.by), ceiling: c.excluded || "Within the exercise's ceiling" });
 
+/// An aspect's verdict: its narrative under the SULIT key `narrative` (fix R-5: it judges the price against the estimate).
 export const aspectFields = (a: { aspect: string; kind: AspectKind; verdict: AspectVerdict; narrative: string; by: string }) => ({ aspect: `${a.aspect} (${ASPECT_KIND_LABEL[a.kind]})`, verdict: VERDICT_LABEL[a.verdict], narrative: a.narrative, assessedBy: onBehalf(a.by) });
 
 export const communicationFields = (c: { direction: CommunicationDirection; channel: CommunicationChannel; on: string | null; subject: string; content: string; by: string }) => ({ direction: DIRECTION_LABEL[c.direction], channel: CHANNEL_LABEL[c.channel], on: c.on, subject: c.subject, communicationContent: c.content, recordedBy: onBehalf(c.by) });
 
 export const meetingFields = (m: { kind: MeetingKind; round: number; heldOn: string; place: string; by: string }) => ({ meeting: `${MEETING_KIND_LABEL[m.kind]}, round ${m.round}`, heldOn: m.heldOn, place: m.place, recordedBy: onBehalf(m.by) });
 
+/// A meeting closed: its minutes under the SULIT key `meetingMinutes` (fix R-5: they may quote a price), never the bare `minutes` a sitting's rows use.
 export const closeFields = (m: { minutes: string; priceBefore: Sen | null; priceAfter: Sen | null; by: string; at: Date }, tz: string | null) => ({
-  minutes: m.minutes,
+  meetingMinutes: m.minutes,
   priceBeforeRound: m.priceBefore != null ? formatMoney(m.priceBefore) : null,
   priceAfterRound: m.priceAfter != null ? formatMoney(m.priceAfter) : null,
   closed: stamp(m.at, tz),
   closedBy: onBehalf(m.by),
 });
 
+/// The recommendation: the tenderer under the SULIT key `recommendedTenderer` (Q2, NFR-SEC-002: selected-tender information before the Board decides).
 export const recommendationFields = (r: { bidder: string; price: Sen; period: string; topRanked: boolean; justification: string; by: string }) => ({
-  recommended: r.bidder,
+  recommendedTenderer: r.bidder,
   recommendedPrice: formatMoney(r.price),
   completionPeriod: r.period,
   topRanked: r.topRanked ? "yes" : "no",

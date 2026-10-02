@@ -38,6 +38,12 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "compositeScore", what: "a bidder's composite figure (6.8)" },
   { field: "savingAmount", what: "the saving against the company estimate (6.8 FR-EVL-018)" },
   { field: "communicationContent", what: "what a written communication with a tenderer says, which may quote a price (6.8 FR-EVL-013)" },
+  // 6.8 fix R-5: free text that judges or quotes a price, kept out of the audit export.
+  { field: "narrative", what: "an aspect's narrative, which judges the price against the estimate (6.8 FR-EVL-003, fix R-5)" },
+  { field: "meetingMinutes", what: "a clarification's or a negotiation's minutes, which may quote a price (6.8 FR-EVL-015, 016, fix R-5)" },
+  // 6.8 Q2 (NFR-SEC-002, FR-EVL-014): who is recommended, before the Board decides. Not the bare word
+  // "recommended", a boolean key elsewhere that the whole-word scan would misread.
+  { field: "recommendedTenderer", what: "the tenderer an evaluation recommends, before the Board decides (6.8 Q2)" },
 ];
 
 /// Whether a stored field (an audit change's field name) is a registered SULIT field: a History

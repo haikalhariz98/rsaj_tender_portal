@@ -189,11 +189,11 @@ export function TableStageOneDrawer({ exerciseId, bidder, sittings, people: ps, 
 
 // ------------------------------------------------------------------ aspects
 
-export function AssessDrawer({ exerciseId, bidder, aspect, suggestion, people: ps }: { exerciseId: string; bidder: { id: string; listingNo: number }; aspect: { code: string; label: string }; suggestion: { verdict: string | null; narrative: string }; people: Option[] }) {
+export function AssessDrawer({ exerciseId, bidder, aspect, suggestion, people: ps }: { exerciseId: string; bidder: { id: string; listingNo: number }; aspect: { code: string; label: string }; suggestion: { verdict: string | null; narrative: string; guide?: string | null }; people: Option[] }) {
   return (
     <RecordEditor
       title={`${aspect.label}: bid No. ${bidder.listingNo}`}
-      description="A verdict and a narrative. What the opening found, or what the figures show, is offered to start from; it is recorded only when saved. A reassessment is kept beside the earlier one."
+      description={`A verdict and a narrative. What the opening found is offered to start from; it is recorded only when saved. A reassessment is kept beside the earlier one.${suggestion.guide ? ` ${suggestion.guide} (SULIT: kept out of the narrative, which goes to the History.)` : ""}`}
       fields={[hidden("exerciseId"), hidden("bidderId"), hidden("aspectCode"), { kind: "select", name: "verdict", label: "Verdict", required: true, placeholder: "Choose", options: [{ value: "SATISFACTORY", label: "Satisfactory" }, { value: "NOT_SATISFACTORY", label: "Not satisfactory" }] }, { kind: "textarea", name: "narrative", label: "Narrative", required: true }, people(who("personId", "Assessed by"), ps)]}
       values={{ exerciseId, bidderId: bidder.id, aspectCode: aspect.code, verdict: suggestion.verdict, narrative: suggestion.narrative }}
       action={assessAspect}

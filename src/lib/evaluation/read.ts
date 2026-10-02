@@ -132,7 +132,7 @@ export async function evaluationTabView(exerciseId: string) {
             verdicts: f.model.aspects.map((a) => {
               const v = b.aspects.get(a.code) ?? null;
               const suggestion = aspectPrefill(a.kind, b, f.estimate);
-              return { code: a.code, label: a.labelEn, verdict: v ? VERDICT_LABEL[v.verdict] : null, tone: v ? VERDICT_TONE[v.verdict] : null, narrative: v?.narrative ?? null, suggestion: { verdict: v?.verdict ?? suggestion.verdict, narrative: v?.narrative ?? suggestion.narrative } };
+              return { code: a.code, label: a.labelEn, verdict: v ? VERDICT_LABEL[v.verdict] : null, tone: v ? VERDICT_TONE[v.verdict] : null, narrative: v?.narrative ?? null, suggestion: { verdict: v?.verdict ?? suggestion.verdict, narrative: v?.narrative ?? suggestion.narrative, guide: suggestion.guide ?? null } };
             }),
           };
         }),
@@ -151,7 +151,7 @@ export async function evaluationTabView(exerciseId: string) {
     heldOn: formatDate(storedDay(m.heldOn)),
     place: m.place,
     closed: m.closedAt ? `Closed ${formatOrgDateTime(m.closedAt, tz)}${m.closedBy ? ` by ${m.closedBy.name}` : ""}` : null,
-    minutes: m.minutes || null,
+    meetingMinutes: m.minutes || null,
     priceBeforeRound: m.priceBefore != null ? formatMoney(senFromDecimal(m.priceBefore)) : null,
     priceAfterRound: m.priceAfter != null ? formatMoney(senFromDecimal(m.priceAfter)) : null,
     confirmations: m.attachments.filter((a) => a.purpose === "TENDERER_CONFIRMATION" && isLive(a)).length,

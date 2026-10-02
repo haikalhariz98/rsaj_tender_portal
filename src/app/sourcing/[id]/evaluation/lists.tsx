@@ -158,7 +158,7 @@ export function MeetingsList({ exerciseId, c, people }: { exerciseId: string; c:
   const rows: Row[] = c.meetings.map((m) => ({
     id: m.id,
     search: `${m.listingNo} ${m.bidder} ${m.kind}`,
-    note: [m.minutes ? `Minutes: ${m.minutes}` : null, m.closed ? null : m.confirmations ? "The tenderer's confirmation is attached." : "Attach the tenderer's written confirmation, then close it."].filter(Boolean).join(" ") || undefined,
+    note: [m.meetingMinutes ? `Minutes: ${m.meetingMinutes}` : null, m.closed ? null : m.confirmations ? "The tenderer's confirmation is attached." : "Attach the tenderer's written confirmation, then close it."].filter(Boolean).join(" ") || undefined,
     cells: {
       meeting: { kind: "stack", title: `${m.kind}, round ${m.round}`, sub: `No. ${m.listingNo}, ${m.bidder}` },
       held: { kind: "stack", title: m.heldOn, sub: m.place },
