@@ -5428,6 +5428,10 @@ model DocumentSale {
   /// 6.15a (FR-ADV-010): the register's reading at the sale, frozen. Null: sold before the register
   /// read sales, or to a party not linked to it. Never backfilled.
   eligibilitySnapshot Json?
+  /// 6.15a residual 2: recorded under the register with no supplier named for the contractor (so its
+  /// checks were not made by the register at this sale). False: a linked sale (it holds the snapshot) or
+  /// one made before the register read sales. Written at the sale, never backfilled.
+  noSupplierNamed     Boolean    @default(false)
   /// The window's fee as it stood.
   amount            Decimal    @db.Decimal(18, 2)
   paymentMethod     String

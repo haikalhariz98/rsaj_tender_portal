@@ -9,7 +9,7 @@ import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { formatMoney, parseSen } from "@/lib/money";
 import { storedDay } from "@/lib/dates";
 
-import { ADDENDUM_STATUS_LABEL, CERT_SIGHTED_LABEL, CHECK_STATE_LABEL, CLOSING_CHANGE_KIND_LABEL, DELIVERY_METHOD_LABEL, FEE_COST_KIND_LABEL, PARTY_SOURCE_LABEL, PATH_LABEL, SITE_EVENT_KIND_LABEL } from "./labels";
+import { ADDENDUM_STATUS_LABEL, CERT_SIGHTED_LABEL, CLOSING_CHANGE_KIND_LABEL, saleCheckWords, DELIVERY_METHOD_LABEL, FEE_COST_KIND_LABEL, PARTY_SOURCE_LABEL, PATH_LABEL, SITE_EVENT_KIND_LABEL } from "./labels";
 import type { AddendumStatus, CertSighted, CheckState, ClosingChangeKind, DeliveryMethod, FeeCostKind, PartySource, SiteEventKind, WindowPath } from "./types";
 
 /// The entity names the window's rows are audited under.
@@ -94,6 +94,8 @@ export const saleFields = (s: {
   restrictionCertValidUntil: Date | null;
   registrationCheck: CheckState;
   suspensionCheck: CheckState;
+  /// 6.15a residual 2: recorded under the register with no supplier named.
+  noSupplierNamed: boolean;
   amount: Dec;
   paymentMethod: string;
   financeReceiptNo: string | null;
@@ -105,8 +107,8 @@ export const saleFields = (s: {
   authoritySighted: yesNo(s.authoritySighted),
   statusCertificate: s.restrictionCertSighted ? CERT_SIGHTED_LABEL[s.restrictionCertSighted] : null,
   statusCertificateValidUntil: day(s.restrictionCertValidUntil),
-  registration: CHECK_STATE_LABEL[s.registrationCheck],
-  suspension: CHECK_STATE_LABEL[s.suspensionCheck],
+  registration: saleCheckWords(s.registrationCheck, s.noSupplierNamed),
+  suspension: saleCheckWords(s.suspensionCheck, s.noSupplierNamed),
   amount: money(s.amount),
   paymentMethod: s.paymentMethod,
   financeReceipt: s.financeReceiptNo,

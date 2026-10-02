@@ -186,6 +186,8 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
       financeReceiptNo: receiptNo,
       receiptRecordedOn: receiptNo ? soldOn : null,
       issuedByPersonId: person.id,
+      // Residual 2: under the register, a sale with no supplier named says so (never "sold before the register").
+      noSupplierNamed: !register.linked,
     };
     const sale = await tx.documentSale.create({ data: { organisationId: l.org.id, windowId: w.id, ...row, annotation: annotation as unknown as Prisma.InputJsonValue, ...(register.snapshot ? { eligibilitySnapshot: register.snapshot as unknown as Prisma.InputJsonValue } : {}) } });
     await audit(tx, l.org.id, ENTITY.sale, sale.id, label(l, `Sale · ${buyer.name}`), "CREATE", diffFields(null, { ...saleFields({ ...row, partyName: buyer.name, issuedBy: person.name }), ...(register.snapshot ? { supplierRegister: `${register.snapshot.supplierReference}: ${register.snapshot.verdict === "ELIGIBLE" ? "eligible" : register.snapshot.verdict === "NOT_ELIGIBLE" ? "not eligible" : "not assessed"}, judged ${formatDate(register.snapshot.judgedOn)}` } : {}) }));

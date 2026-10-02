@@ -304,7 +304,7 @@ export async function saleRegister(exerciseId: string) {
         amount: money(s.amount),
         soldOn: day(s.soldOn),
         paymentMethod: s.paymentMethod,
-        checks: saleChecks({ authoritySighted: s.authoritySighted, certSighted: s.restrictionCertSighted, certValidUntil: s.restrictionCertValidUntil ? storedDay(s.restrictionCertValidUntil) : null, registrationCheck: s.registrationCheck, suspensionCheck: s.suspensionCheck, registerReadOn: registerReadOn(s.eligibilitySnapshot) }, closingDay(ex.closingAt, org.timeZone)),
+        checks: saleChecks({ authoritySighted: s.authoritySighted, certSighted: s.restrictionCertSighted, certValidUntil: s.restrictionCertValidUntil ? storedDay(s.restrictionCertValidUntil) : null, registrationCheck: s.registrationCheck, suspensionCheck: s.suspensionCheck, registerReadOn: registerReadOn(s.eligibilitySnapshot), noSupplierNamed: s.noSupplierNamed }, closingDay(ex.closingAt, org.timeZone)),
         addendaAcknowledged: `${acked} of ${addenda.length}`,
         issuedBy: `${s.issuedBy.name} (recorded on their behalf, not signed)`,
         voided: s.voidedAt ? `Voided: ${s.voidReason}` : null,

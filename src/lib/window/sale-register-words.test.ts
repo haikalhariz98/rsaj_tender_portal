@@ -11,7 +11,7 @@ import { registerReadOn, saleChecks } from "./sale-checks";
  * reading frozen on it (eligibilitySnapshot), or none.
  */
 
-const sale = { authoritySighted: true, certSighted: null, certValidUntil: null };
+const sale = { authoritySighted: true, certSighted: null, certValidUntil: null, noSupplierNamed: false };
 const snapshot = { judgedOn: "2026-09-20", supplierId: "s", supplierReference: "VND-0001", standing: "ACTIVE", verdict: "ELIGIBLE", rows: [] };
 
 describe("the sale register's words follow what the sale holds (fix M-4)", () => {

@@ -53,11 +53,16 @@ export const FEE_COST_KIND_LABEL: Record<FeeCostKind, string> = {
 export const SITE_EVENT_KIND_LABEL: Record<SiteEventKind, string> = { BRIEFING: "Tender briefing", SITE_VISIT: "Site visit" };
 export const CERT_SIGHTED_LABEL: Record<CertSighted, string> = { ORIGINAL: "Original shown", CERTIFIED_COPY: "Certified copy shown", NOT_SHOWN: "Not shown" };
 export const CHECK_STATE_LABEL: Record<CheckState, string> = {
-  // 6.15a fix M-4: worded by what the sale holds (no register reading), never by the party's link now.
+  // 6.15a fix M-4, residual 2: a sale with no register reading made before the register read sales. One
+  // made under the register with no supplier named reads NOT_CHECKED_NOT_NAMED (saleCheckWords).
   NOT_CHECKED: "Not checked: sold before the supplier register checked it",
   CLEAR: "Checked: clear",
   FAILED: "Failed",
 };
+/// 6.15a residual 2: a check not made because no supplier was named for the contractor at this sale.
+export const NOT_CHECKED_NOT_NAMED = "Not checked: no supplier is named for the contractor at this sale";
+/// A sale's check in words, by what the sale holds: named-or-not decides a check not made, never the party's link now.
+export const saleCheckWords = (state: CheckState, noSupplierNamed: boolean) => (state === "NOT_CHECKED" && noSupplierNamed ? NOT_CHECKED_NOT_NAMED : CHECK_STATE_LABEL[state]);
 export const PARTY_SOURCE_LABEL: Record<PartySource, string> = { PROPOSED_INVITEE: "Proposed for invitation", ATTENDEE: "Attended an event", PURCHASER: "Bought the documents", BIDDER_AT_OPENING: "Named at opening, from its bid" };
 export const DAY_RULE_LABEL: Record<AdvertisementDayRule, string> = {
   LATEST_REQUIRED_CHANNEL: "The latest day among the required channels",

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { saleChecks } from "./sale-checks";
 
-const sale = { authoritySighted: true, certSighted: "ORIGINAL" as const, certValidUntil: "2026-10-06", registrationCheck: "NOT_CHECKED" as const, suspensionCheck: "NOT_CHECKED" as const, registerReadOn: null };
+const sale = { authoritySighted: true, certSighted: "ORIGINAL" as const, certValidUntil: "2026-10-06", registrationCheck: "NOT_CHECKED" as const, suspensionCheck: "NOT_CHECKED" as const, registerReadOn: null, noSupplierNamed: false };
 const cert = (closing: string | null, over = {}) => saleChecks({ ...sale, ...over }, closing).find((c) => c.text.startsWith("Status certificate"))!;
 
 describe("the sale register's checks", () => {

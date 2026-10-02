@@ -893,6 +893,8 @@ export class Acts {
       restrictionCertSighted: l.ex.restrictedTender ? (s.certSighted ?? null) : null, restrictionCertValidUntil: l.ex.restrictedTender && s.certValidUntil ? dayToDate(s.certValidUntil) : null,
       registrationCheck: "NOT_CHECKED" as const, suspensionCheck: "NOT_CHECKED" as const, checkNote: "", amount: w.feeAmount!, paymentMethod: s.paymentMethod,
       financeReceiptNo: s.receiptNo, receiptRecordedOn: s.receiptNo ? soldOn : null, issuedByPersonId: CLERK,
+      // The demo's sales are made before the register reads sales (6.15a): no register reading, none named.
+      noSupplierNamed: false,
     };
     await this.db.documentSale.create({ data: { id, organisationId: this.org, windowId: w.id, ...row, annotation: annotation as object, createdAt: at } });
     this.entry(ENTITY.sale, id, label(`Sale · ${buyer.name}`), "CREATE", at, diffFields(null, saleFields({ ...row, partyName: buyer.name, issuedBy: CLERK_NAME })));
