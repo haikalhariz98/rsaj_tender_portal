@@ -217,14 +217,14 @@ describe("pin.ts (FR-EVL-005, 006; E-1, E-2)", () => {
   const basis = { name: "Lump sum", route: "TRADITIONAL" as const };
   it("publication pins an issued model of the basis's route", () => {
     expect(pinFaults({ model: issued, basis, pinned: false })).toEqual([]);
-    expect(codes(pinFaults({ model: null, basis, pinned: false }))).toEqual(["MODEL_NOT_SET"]);
-    expect(codes(pinFaults({ model: { ...issued, status: "DRAFT" }, basis, pinned: false }))).toEqual(["MODEL_NOT_ISSUED"]);
-    expect(codes(pinFaults({ model: issued, basis: { ...basis, route: null }, pinned: false }))).toEqual(["ROUTE_NOT_SET"]);
-    expect(codes(pinFaults({ model: { ...issued, route: "TWO_STAGE" }, basis, pinned: false }))).toEqual(["ROUTE_MISMATCH"]);
-    expect(codes(pinFaults({ model: issued, basis, pinned: true }))).toEqual(["PINNED"]);
+    expect(codes(pinFaults({ model: null, basis, pinned: false }))).toEqual(["EVALUATION_MODEL_NOT_SET"]);
+    expect(codes(pinFaults({ model: { ...issued, status: "DRAFT" }, basis, pinned: false }))).toEqual(["EVALUATION_MODEL_NOT_ISSUED"]);
+    expect(codes(pinFaults({ model: issued, basis: { ...basis, route: null }, pinned: false }))).toEqual(["EVALUATION_ROUTE_NOT_SET"]);
+    expect(codes(pinFaults({ model: { ...issued, route: "TWO_STAGE" }, basis, pinned: false }))).toEqual(["EVALUATION_ROUTE_MISMATCH"]);
+    expect(codes(pinFaults({ model: issued, basis, pinned: true }))).toEqual(["EVALUATION_MODEL_PINNED"]);
   });
   it("the model is chosen only while unpublished", () => {
-    expect(codes(chooseFaults({ published: true, cancelled: false, model: issued }))).toEqual(["ALREADY_PUBLISHED"]);
+    expect(codes(chooseFaults({ published: true, cancelled: false, model: issued }))).toEqual(["EVALUATION_MODEL_FROZEN"]);
     expect(chooseFaults({ published: false, cancelled: false, model: issued })).toEqual([]);
   });
 });
