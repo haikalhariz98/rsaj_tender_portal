@@ -155,10 +155,11 @@ export async function recordScore(_prev: FormState, data: FormData): Promise<For
     const s = stageOf(f.model, stageCode);
     const b = f.bidders.find((x) => x.id === bidderId);
     if (!s || !b) return GONE_BIDDER;
-    const fs = scoreFaults(f, s, criterionCode, b, personId, value);
-    if (fs.length) return refuse(fs);
+    // R-8: the scorer is an active person on record before the rule runs; a deactivated member is PERSON_REQUIRED, never a crash.
+    const person = await activePerson(tx, l.org.id, personId);
+    const fs = scoreFaults(f, s, criterionCode, b, person?.id ?? null, value);
+    if (fs.length || !person) return refuse(fs.length ? fs : [{ code: "PERSON_REQUIRED", level: "block" }]);
     const prev = e!.bidders.find((x) => x.id === bidderId)!.scores.find((x) => x.stageCode === stageCode && x.criterionCode === criterionCode && !x.supersededBy) ?? null;
-    const person = (await activePerson(tx, l.org.id, personId))!;
     const row = await tx.evaluationScore.create({ data: { organisationId: l.org.id, bidderId, stageCode, criterionCode, marks: "marks" in value ? fixedToDecimalString(value.marks) : null, passed: "passed" in value ? value.passed : null, note, scoredByPersonId: person.id, recordedAt: now, supersedesId: prev?.id ?? null } });
     const criterion = s.criteria.find((x) => x.code === criterionCode)!.labelEn;
     const before = b.scores.get(scoreKey(stageCode, criterionCode));
@@ -342,14 +343,16 @@ export async function assessAspect(_prev: FormState, data: FormData): Promise<Fo
     if (!b) return GONE_BIDDER;
     const stage = f.model.stages.find((s) => s.kind === "ASPECTS");
     const aspect = f.model.aspects.find((a) => a.code === aspectCode) ?? null;
+    // R-8: the assessor is an active person on record before the rule runs; a deactivated member is PERSON_REQUIRED, never a crash.
+    const person = await activePerson(tx, l.org.id, personId);
     const fs: Finding[] = [...assessFaults({ aspectInModel: !!aspect && !!stage, verdict, narrative })];
     if (stage) {
       if (isSubmitted(f, stage.code)) fs.push({ code: "STAGE_SUBMITTED", level: "block", data: { stage: stage.labelEn } });
       fs.push(...runningFaults(f, stage, b));
-      fs.push(...personFaults(stage.side, personId, f.team, f.submissions));
+      fs.push(...personFaults(stage.side, person?.id ?? null, f.team, f.submissions));
     }
-    if (fs.length) return refuse(fs);
-    const person = (await activePerson(tx, l.org.id, personId))!;
+    if (!person && !fs.some((x) => x.code === "PERSON_REQUIRED")) fs.push({ code: "PERSON_REQUIRED", level: "block" });
+    if (fs.length || !person) return refuse(fs);
     const prev = e!.bidders.find((x) => x.id === bidderId)!.aspects.find((a) => a.aspectCode === aspectCode && !a.supersededBy) ?? null;
     const row = await tx.aspectAssessment.create({ data: { organisationId: l.org.id, bidderId, aspectCode, verdict: verdict!, narrative, assessedByPersonId: person.id, recordedAt: now, supersedesId: prev?.id ?? null } });
     await audit(tx, l.org.id, EVALUATION_ENTITY.aspect, row.id, evLabel(l, e!.version, `Aspects · bid No. ${b.listingNo}`), prev ? "UPDATE" : "CREATE",
