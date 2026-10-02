@@ -3,8 +3,8 @@
  * (typed `evaluationBidderId`), on the domain `evaluation_stage_one`, tabled from the Evaluation tab at
  * a sitting of the committee the pinned model's stage names. The committee's decision at the sitting
  * is the act: CARRIED opens the bidder's second stage, NOT_CARRIED takes it out of the running. A
- * matter pending, or decided either way, is not tabled again; a deferred one may be, at a later
- * sitting. Pure.
+ * matter pending, or decided either way, is not tabled again; a deferred one may be, at any open
+ * sitting of the committee (the rule does not ask a later one). Pure.
  */
 
 import type { StageOneOutcome } from "./facts";

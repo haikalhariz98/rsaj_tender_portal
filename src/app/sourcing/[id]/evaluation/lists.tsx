@@ -102,7 +102,7 @@ export function StageList({ exerciseId, s, open, sittings, people }: { exerciseI
       rows={rows}
       actions={(id) => {
         const r = byId.get(id)!;
-        // R-2: a deferred matter is tabled again, at a later sitting (stageOneTablingFaults allows it).
+        // R-2: a deferred matter is tabled again, at any open sitting of its committee (stageOneTablingFaults allows it).
         if (committee && open && (r.stageOne === "NOT_TABLED" || r.stageOne === "DEFERRED")) return <TableStageOneDrawer exerciseId={exerciseId} bidder={r} sittings={sittings.filter((x) => x.committeeCode === s.committee)} people={people} again={r.stageOne === "DEFERRED"} />;
         if (scorable && r.inRunning) return <ScoreDrawer exerciseId={exerciseId} stage={s} bidder={r} criteria={s.criteria} people={people} />;
         return null;

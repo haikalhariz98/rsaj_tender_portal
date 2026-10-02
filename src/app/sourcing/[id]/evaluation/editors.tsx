@@ -176,7 +176,7 @@ export function TableStageOneDrawer({ exerciseId, bidder, sittings, people: ps, 
   return (
     <RecordEditor
       title={`Table bid No. ${bidder.listingNo}'s first stage${again ? " again" : ""}`}
-      description={`${again ? "The committee deferred it: table it at a later sitting. " : ""}The committee decides each bid's first stage at its sitting; the decision there is the act. Tabled on the Secretariat holder's behalf.`}
+      description={`${again ? "The committee deferred it: table it again at a sitting. " : ""}The committee decides each bid's first stage at its sitting; the decision there is the act. Tabled on the Secretariat holder's behalf.`}
       fields={[hidden("exerciseId"), hidden("bidderId"), { kind: "select", name: "meetingId", label: "Sitting", required: true, placeholder: sittings.length ? "Choose" : "No sitting of the committee is open", options: sittings }, people(who("tabledByPersonId", "Tabled by"), ps)]}
       values={{ exerciseId, bidderId: bidder.id }}
       action={tableStageOneMatter}
