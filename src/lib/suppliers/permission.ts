@@ -40,8 +40,24 @@ export interface PermissionInput {
   personActive: boolean;
 }
 
+/// A permission already asked for on the party, as the duplicate check reads it.
+export interface ExistingPermission {
+  requirementId: string;
+  relaxes: string;
+  granted: boolean;
+  /// Its internal route's state (NONE where none was asked).
+  route: RouteState;
+}
+
+/**
+ * Whether an earlier permission still stands in the way of asking again (fix R-8): one granted, or one still
+ * on its route (pending, or approved and waiting to be granted). One its route refused is closed, so the
+ * same relaxation may be asked for again.
+ */
+export const permissionLive = (e: ExistingPermission) => e.granted || e.route === "PENDING" || e.route === "APPROVED";
+
 /// Asking for (and, with no internal route, granting) a special permission.
-export function specialPermissionFaults(i: PermissionInput, ctx: { today: string | null; offered: boolean | null; requirementIds: readonly string[]; bodyIds: readonly string[]; existing: readonly { requirementId: string; relaxes: string }[] }): Finding<PermissionFault>[] {
+export function specialPermissionFaults(i: PermissionInput, ctx: { today: string | null; offered: boolean | null; requirementIds: readonly string[]; bodyIds: readonly string[]; existing: readonly ExistingPermission[] }): Finding<PermissionFault>[] {
   if (!ctx.today) return [{ code: "TIME_ZONE_UNSET", level: "block" }];
   const out: Finding<PermissionFault>[] = [];
   if (ctx.offered == null) out.push({ code: "OFFER_NOT_SET", level: "block" });
@@ -53,7 +69,7 @@ export function specialPermissionFaults(i: PermissionInput, ctx: { today: string
   if (i.grantingBodyIds.some((b) => !ctx.bodyIds.includes(b))) out.push({ code: "BODY_NOT_CONFIGURED", level: "block" });
   if (!i.existingClassConfirmed) out.push({ code: "CLASS_NOT_CONFIRMED", level: "block" });
   if (!i.goodRecordConfirmed) out.push({ code: "RECORD_NOT_CONFIRMED", level: "block" });
-  if (i.requirementId && i.relaxes && ctx.existing.some((e) => e.requirementId === i.requirementId && e.relaxes === i.relaxes)) out.push({ code: "PERMISSION_DUPLICATE", level: "block" });
+  if (i.requirementId && i.relaxes && ctx.existing.some((e) => permissionLive(e) && e.requirementId === i.requirementId && e.relaxes === i.relaxes)) out.push({ code: "PERMISSION_DUPLICATE", level: "block" });
   if (!i.personActive) out.push({ code: "PERSON_REQUIRED", level: "block" });
   return out;
 }

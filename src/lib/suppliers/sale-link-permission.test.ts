@@ -95,7 +95,7 @@ describe("special permission (FR-ADV-017)", () => {
     expect(codes(specialPermissionFaults({ ...ok, grantingBodyIds: [] }, ctx))).toEqual(["PERMISSION_AUTHORITY_REQUIRED"]);
     expect(codes(specialPermissionFaults({ ...ok, grantingBodyIds: ["bx"] }, ctx))).toEqual(["BODY_NOT_CONFIGURED"]);
     expect(codes(specialPermissionFaults({ ...ok, requirementId: "rq9" }, ctx))).toEqual(["REQUIREMENT_NOT_ON_EXERCISE"]);
-    expect(codes(specialPermissionFaults(ok, { ...ctx, existing: [{ requirementId: "rq1", relaxes: "GRADE" }] }))).toEqual(["PERMISSION_DUPLICATE"]);
+    expect(codes(specialPermissionFaults(ok, { ...ctx, existing: [{ requirementId: "rq1", relaxes: "GRADE", granted: true, route: "NONE" as const }] }))).toEqual(["PERMISSION_DUPLICATE"]);
     expect(codes(specialPermissionFaults({ ...ok, requirementId: null, relaxes: null, personActive: false }, ctx))).toEqual(["REQUIREMENT_REQUIRED", "RELAXES_REQUIRED", "PERSON_REQUIRED"]);
   });
 
