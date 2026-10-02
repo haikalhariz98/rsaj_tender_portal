@@ -208,7 +208,7 @@ export async function bidsTab(exerciseId: string) {
     },
     late: {
       rows: late,
-      gate: gate ? bidFindingText(gate) : null,
+      gate: gate ? bidFindingText({ ...gate, data: { ...gate.data, here: "yes" } }) : null,
       committee: committee?.nameEn ?? (code ? "A committee no longer configured" : null),
       committeeProvenance: rule?.lateAdmissionProvenance ? PROVENANCE_WORD[rule.lateAdmissionProvenance] : null,
       /// Unset: what the card says, and whether configuration can still set it (only before publication).

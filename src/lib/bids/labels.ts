@@ -201,10 +201,13 @@ export function bidFindingText(f: Finding): string {
     case "LATE_UNDECIDED": {
       const n = Number(d(f, "count") ?? 0);
       const lead = `${n} late ${n === 1 ? "envelope waits" : "envelopes wait"} for the committee's decision on admission.`;
+      // Said on the Bids received tab itself ("here": yes), the way to act is below, not "on the Bids received tab".
+      const where = d(f, "here") === "yes" ? "below" : "on the Bids received tab";
+      const which = n === 1 ? "it" : "each";
       if (d(f, "committeeSet") === "no" && d(f, "asPublished")) return `${lead} ${frozenCommitteeText(d(f, "asPublished"))}`;
       return d(f, "committeeSet") === "no"
-        ? `${lead} The committee that decides it is not set: set it on the sourcing method under Configuration › Invitation, then table each on the Bids received tab.`
-        : `${lead} Table each on the Bids received tab; it is decided at the sitting, either way.`;
+        ? `${lead} The committee that decides it is not set: set it on the sourcing method under Configuration › Invitation, then table ${which} ${where}.`
+        : `${lead} Table ${which} ${where}; it is decided at the sitting, either way.`;
     }
     case "COMMITTEE_NOT_SET":
       if (d(f, "asPublished")) return frozenCommitteeText(d(f, "asPublished"));
