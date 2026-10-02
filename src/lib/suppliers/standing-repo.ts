@@ -8,6 +8,7 @@ import type { Tx } from "@/lib/audit/record";
 import { dayIn, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 
+import { awardStanding, type AwardStanding } from "./award-standing";
 import { documentStates } from "./documents";
 import { eligibility, type Eligibility, type EligibilitySnapshot, type HeldValue, type RequirementFacts } from "./eligibility";
 import { lockSupplierRow } from "./lock";
@@ -94,4 +95,17 @@ export async function eligibilityAtOpening(tx: Tx, org: { id: string; timeZone: 
   await lockSupplierRow(tx, vendorId);
   const e = await eligibilityOf(vendorId, exerciseId, { id: org.id, timeZone: org.timeZone, today: org.today }, tx);
   return e?.snapshot ?? null;
+}
+
+/// 6.15a fix S-3: each party's linked supplier and its standing on `today`, for an award's form and record. Parties not linked are absent.
+export async function partyRegister(partyIds: readonly string[], org: { id: string; today: string | null }, day: (d: string) => string, client: Tx = db): Promise<Map<string, { supplier: string; standing: AwardStanding }>> {
+  const out = new Map<string, { supplier: string; standing: AwardStanding }>();
+  if (!org.today || partyIds.length === 0) return out;
+  const parties = await client.exerciseParty.findMany({ where: { id: { in: [...partyIds] }, organisationId: org.id, vendorId: { not: null } }, select: { id: true, vendor: { select: { id: true, reference: true, registeredName: true } } } });
+  const policy = await supplierPolicyOf(org.id, client);
+  for (const p of parties) {
+    const st = await standingOf(p.vendor!.id, org.id, org.today, client, policy);
+    if (st) out.set(p.id, { supplier: `${p.vendor!.reference} · ${p.vendor!.registeredName}`, standing: awardStanding(st.reading, day) });
+  }
+  return out;
 }

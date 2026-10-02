@@ -71,6 +71,8 @@ import type { AwardStatus, Finding, InstrumentKind } from "@/lib/award/types";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { APPOINTMENT_DOMAIN } from "@/lib/method/types";
 import { formatDate, formatOrgDay } from "@/lib/format";
+import { awardStanding, type AwardStanding } from "@/lib/suppliers/award-standing";
+import { partyRegister, standingOf } from "@/lib/suppliers/standing-repo";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
 import { boundarySentence, REGIME_LABEL } from "@/lib/method/labels";
 import type { Regime } from "@/lib/method/types";
@@ -140,6 +142,9 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
   if (!l) notFound();
   const { award, ex, org } = l;
   const today = org.today;
+  // 6.15a fix S-3: the linked supplier's standing, derived on the organisation's day; barred warns, never refuses.
+  const vendorStanding = award.vendor && today ? await standingOf(award.vendor.id, org.id, today) : null;
+  const awardee = vendorStanding ? awardStanding(vendorStanding.reading, formatDate) : null;
   const [f, history, matters, sittings] = await Promise.all([
     awardFacts(l),
     awardHistory(l),
@@ -213,7 +218,10 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
   // 6.8 (E-9): where the evaluation applies, the awardee is the recommended tenderer; it is the one offered.
   const evaluationGate = f.facts.exercise.evaluation ?? null;
   const recommendedParty = evaluationGate?.facts.issued?.recommendedPartyId ?? null;
-  const carriedParties = openingGate?.applies ? openingGate.carried.filter((p) => !recommendedParty || p.id === recommendedParty).map((p) => ({ value: p.id, label: `${p.name} (${p.registrationNo})` })) : undefined;
+  // 6.15a fix S-3: each bidder's supplier standing beside its name; a barred one warns, the award is not refused.
+  const carried = openingGate?.applies ? openingGate.carried.filter((p) => !recommendedParty || p.id === recommendedParty) : null;
+  const carriedRegister = carried ? await partyRegister(carried.map((p) => p.id), org, formatDate) : new Map();
+  const carriedParties = carried ? carried.map((p) => ({ value: p.id, label: `${p.name} (${p.registrationNo})${carriedRegister.get(p.id) ? ` — ${carriedRegister.get(p.id)!.standing.words.en} on the register` : ""}` })) : undefined;
   const recommendedText = evaluationGate?.facts.issued ? { valueText: formatMoney(evaluationGate.facts.issued.price) } : null;
   const actions = (
     <>
@@ -297,12 +305,12 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
   });
 
   const tabs = [
-    { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel l={l} ev={ev} recommendation={f.facts.exercise.evaluation?.facts.issued ?? null} methodName={methodName} typeName={typeName} policyLabel={policy.regulatedActivityLabel} validityDays={policy.indentValidityDays} expiredRule={!!f.config.indentExpiredRule} unitName={f.config.unitName} /> },
+    { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel l={l} ev={ev} awardee={awardee} recommendation={f.facts.exercise.evaluation?.facts.issued ?? null} methodName={methodName} typeName={typeName} policyLabel={policy.regulatedActivityLabel} validityDays={policy.indentValidityDays} expiredRule={!!f.config.indentExpiredRule} unitName={f.config.unitName} /> },
     {
       id: "approval",
       label: "Approval",
       icon: <RouteIcon size={15} />,
-      panel: <ApprovalPanel l={l} ev={ev} suggestions={suggestions} today={today} matters={matters} sittings={sittings} roleName={(c) => f.issue?.matrix.roles[c]?.nameEn ?? "An office no longer configured"} />,
+      panel: <ApprovalPanel l={l} ev={ev} awardee={awardee} suggestions={suggestions} today={today} matters={matters} sittings={sittings} roleName={(c) => f.issue?.matrix.roles[c]?.nameEn ?? "An office no longer configured"} />,
     },
     { id: "instrument", label: "Instrument", icon: <FileIcon size={15} />, count: issued ? award.documents.length : undefined, panel: <InstrumentPanel l={l} ev={ev} /> },
     {
@@ -374,6 +382,11 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
                 : award.vendor
                   ? <> Blacklisting is asked for on the supplier&apos;s record, where its route decides it: <Link href={`/suppliers/${award.vendor.id}?tab=standing&fromAward=${award.id}`}>ask for the blacklisting of {award.vendor.registeredName}</Link>.</>
                   : " Blacklisting is asked for on the supplier's record once the awardee is linked to the supplier register (from the supplier's record, Participation).")}
+          </Callout>
+        )}
+        {awardee?.warning && status !== "CANCELLED" && (
+          <Callout tone="warn" title="The awardee's supplier is barred on the register">
+            {awardee.warning.en}
           </Callout>
         )}
         {!today && (
@@ -455,7 +468,7 @@ function tenderInsurance(b: NonNullable<AwardEvaluation["appendix"]>["baseline"]
   ];
 }
 
-function OverviewPanel({ l, ev, recommendation, methodName, typeName, policyLabel, validityDays, expiredRule, unitName }: { l: LoadedAward; ev: AwardEvaluation; recommendation: { price: bigint; period: { value: number; unit: "DAYS" | "WEEKS" | "MONTHS" } | null } | null; methodName: string; typeName: string; policyLabel: string | null; validityDays: number | null; expiredRule: boolean; unitName: (code: string | null) => string | null }) {
+function OverviewPanel({ l, ev, awardee, recommendation, methodName, typeName, policyLabel, validityDays, expiredRule, unitName }: { l: LoadedAward; ev: AwardEvaluation; awardee: AwardStanding | null; recommendation: { price: bigint; period: { value: number; unit: "DAYS" | "WEEKS" | "MONTHS" } | null } | null; methodName: string; typeName: string; policyLabel: string | null; validityDays: number | null; expiredRule: boolean; unitName: (code: string | null) => string | null }) {
   const { award, ex, req } = l;
   const kind = award.instrumentKind as InstrumentKind;
   const c = award.contract;
@@ -481,6 +494,8 @@ function OverviewPanel({ l, ev, recommendation, methodName, typeName, policyLabe
               { label: "Address", value: award.awardeeAddress || notSet("Not recorded") },
               // 6.15a (OD-9): the link to the register, made by an explicit act on the supplier's record.
               { label: "On the supplier register", value: award.vendor ? <Link href={`/suppliers/${award.vendor.id}`}>{`${award.vendor.reference} · ${award.vendor.registeredName}`}</Link> : notSet(award.awardeePartyId ? "Not linked: link the awardee party from the supplier's record" : "Not linked: link the award from the supplier's record") },
+              // 6.15a fix S-3: its standing, as the register derives it today; a barred supplier is warned of, not refused.
+              ...(award.vendor ? [{ label: "Standing on the register", value: awardee ? <span className="flex flex-col items-start gap-1"><Badge tone={awardee.tone} dot>{awardee.words.en}</Badge>{awardee.warning && <span className="text-[12.5px] break-words text-amber-900">{awardee.warning.en}</span>}</span> : notSet("Not read: the organisation's time zone is not set") }] : []),
               { label: "Awarded value", value: <FromRecommendation differs={differs.includes("value")} reason={award.recValueDiffersReason} recommended={recommendation ? formatMoney(recommendation.price) : null}><span className="tabular-nums">{money(award.awardedValue)}</span></FromRecommendation> },
               { label: "Exercise's estimate", value: <span className="tabular-nums">{money(ex.estimatedValue)}</span> },
               { label: "Completion period", value: <FromRecommendation differs={differs.includes("period")} reason={award.recPeriodDiffersReason} recommended={recommendation?.period ? periodText(recommendation.period.value, recommendation.period.unit) : recommendation ? "No period stated" : null}>{periodText(award.completionPeriod, award.completionUnit)}</FromRecommendation> },
@@ -578,6 +593,7 @@ function OverviewPanel({ l, ev, recommendation, methodName, typeName, policyLabe
 function ApprovalPanel({
   l,
   ev,
+  awardee,
   suggestions,
   today,
   matters,
@@ -586,6 +602,7 @@ function ApprovalPanel({
 }: {
   l: LoadedAward;
   ev: AwardEvaluation;
+  awardee: AwardStanding | null;
   suggestions: (c: string | null) => { value: string; label: string }[];
   today: string | null;
   matters: Awaited<ReturnType<typeof exerciseMatters>>;
@@ -658,6 +675,11 @@ function ApprovalPanel({
                 <Callout key={i} tone={tone(w.level)}>{w.messageEn}</Callout>
               ))}
             </CardBody>
+          )}
+          {inst.status === "PENDING" && awardee?.warning && (
+            <div className="border-t border-line px-5 py-3 sm:px-6">
+              <Callout tone="warn" title="Before a step is decided: the awardee's supplier is barred on the register">{awardee.warning.en}</Callout>
+            </div>
           )}
           {inst.status === "PENDING" && (
             <p className="border-t border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:px-6">

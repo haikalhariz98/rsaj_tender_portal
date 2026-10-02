@@ -57,7 +57,7 @@ export const AWARD_NOTE_ID = "award-actions-note";
 export function detailFields(parties?: Option[], recommended?: { valueText: string } | null): Field[] {
   return [
     ...(parties ? [{ kind: "select", name: "awardeePartyId", label: "Bidder carried to evaluation", required: true, placeholder: "Choose", options: parties, hint: "The award names a bidder the opening carried to evaluation; it is compared as that bidder, never by the words typed below." } as Field] : []),
-    { kind: "text", name: "awardeeName", label: "Awardee", required: true, hint: "As registered. There is no vendor master yet: the name, number and address are kept as written." },
+    { kind: "text", name: "awardeeName", label: "Awardee", required: true, hint: "As registered: the name, number and address are kept as written. The award's link to the supplier register follows its bidder's link (or is made from the supplier's record where there is no bidder)." },
     { kind: "text", name: "awardeeRegistrationNo", label: "Registration number" },
     { kind: "textarea", name: "awardeeAddress", label: "Address" },
     { kind: "money", name: "awardedValue", label: "Awarded value", required: true, hint: "Within what the requisition's approval covers, and in the exercise's band." },

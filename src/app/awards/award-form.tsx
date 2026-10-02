@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 
 import { SaveIcon } from "@/components/icons";
 import type { FormState } from "@/components/record-editor";
+import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
@@ -22,7 +23,10 @@ import { createAward } from "./actions";
 /// 6.8 (E-9): the evaluation's recommendation the award is pre-filled from; the bidder cannot differ, the value and period may, each with its reason.
 export type Recommended = { partyId: string; name: string; registrationNo: string; address: string; value: string; valueText: string; period: string; unit: string; version: number };
 
-export function AwardForm({ exercise, cancelHref, valueHint, dossier, parties, recommended }: { exercise: { id: string; facts: { label: string; value: string }[] }; cancelHref: string; valueHint: string; dossier: boolean; parties?: { id: string; name: string; registrationNo: string; address: string }[]; recommended?: Recommended }) {
+/// 6.15a fix S-3: a bidder's linked supplier and its standing on the register, as the form shows it; a barred one carries its warning.
+export type PartyRegister = { supplier: string; words: string; tone: "ok" | "warn" | "err" | "info" | "neutral"; warning: string | null };
+
+export function AwardForm({ exercise, cancelHref, valueHint, dossier, parties, recommended }: { exercise: { id: string; facts: { label: string; value: string }[] }; cancelHref: string; valueHint: string; dossier: boolean; parties?: { id: string; name: string; registrationNo: string; address: string; register: PartyRegister | null }[]; recommended?: Recommended }) {
   const [state, setState] = useState<FormState>({ ok: false });
   const [pending, startTransition] = useTransition();
   const [v, setV] = useState<Record<string, string>>(recommended ? { awardeePartyId: recommended.partyId, awardeeName: recommended.name, awardeeRegistrationNo: recommended.registrationNo, awardeeAddress: recommended.address, awardedValue: recommended.value, completionPeriod: recommended.period, completionUnit: recommended.unit } : { completionUnit: "" });
@@ -44,7 +48,7 @@ export function AwardForm({ exercise, cancelHref, valueHint, dossier, parties, r
         </CardBody>
       </Card>
       <Card>
-        <CardHeader title="The awardee" subtitle={parties ? "One of the bidders the opening carried to evaluation. Its name, number and address are kept as written." : "As registered. There is no supplier register yet: the name, number and address are kept as written."} />
+        <CardHeader title="The awardee" subtitle={parties ? "One of the bidders the opening carried to evaluation. Its name, number and address are kept as written; its link to the supplier register is its bidder's." : "As registered: the name, number and address are kept as written. With no bidder, the award is linked to the supplier register from the supplier's record."} />
         <CardBody className="grid gap-4 sm:grid-cols-2">
           {parties && (
             <div className="sm:col-span-2">
@@ -66,6 +70,20 @@ export function AwardForm({ exercise, cancelHref, valueHint, dossier, parties, r
               </Field>
             </div>
           )}
+          {(() => {
+            // 6.15a fix S-3: the chosen bidder's supplier standing; a barred one is warned of, never refused.
+            const reg = parties?.find((p) => p.id === v.awardeePartyId)?.register;
+            if (!parties || !v.awardeePartyId) return null;
+            return (
+              <div className="flex flex-col gap-2 sm:col-span-2">
+                <p className="flex flex-wrap items-center gap-2 text-[13px] text-ink-2">
+                  <span className="font-semibold">On the supplier register:</span>
+                  {reg ? <><span className="break-words">{reg.supplier}</span><Badge tone={reg.tone} dot>{reg.words}</Badge></> : <span className="text-ink-3">Not linked: the bidder is linked from the supplier&apos;s record</span>}
+                </p>
+                {reg?.warning && <Callout tone="warn" title="The bidder's supplier is barred on the register">{reg.warning}</Callout>}
+              </div>
+            );
+          })()}
           <Field label="Awardee" required htmlFor="awardeeName" error={err("awardeeName")}>
             <Input id="awardeeName" name="awardeeName" value={v.awardeeName ?? ""} onChange={set("awardeeName")} />
           </Field>

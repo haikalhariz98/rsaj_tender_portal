@@ -24,6 +24,8 @@ import { approvedRouteOf, loadExercise, loadMethodConfig } from "@/lib/method/re
 import { isBandSnapshot } from "@/lib/method/snapshot";
 import type { Regime } from "@/lib/method/types";
 import { formatMoney, parseSen, senFromDecimal, senToDecimalString } from "@/lib/money";
+import { formatDate } from "@/lib/format";
+import { partyRegister } from "@/lib/suppliers/standing-repo";
 
 import { AwardForm } from "../award-form";
 
@@ -97,6 +99,9 @@ export default async function NewAwardPage(props: PageProps<"/awards/new">) {
       </>
     );
   }
+  // 6.15a fix S-3: each bidder's linked supplier and its standing today; a barred one is warned of, not refused.
+  const carried = opening.applies ? (evaluation.recommended ? opening.carried.filter((p) => p.id === evaluation.recommended!.party.id) : opening.carried) : null;
+  const register = carried ? await partyRegister(carried.map((p) => p.id), org, formatDate) : new Map();
   const bands = isBandSnapshot(ex.bandSnapshot) ? ex.bandSnapshot : null;
   const facts = [
     { label: "Exercise", value: `${ex.reference} · ${ex.title}` },
@@ -117,7 +122,7 @@ export default async function NewAwardPage(props: PageProps<"/awards/new">) {
         cancelHref={`/sourcing/${ex.id}?tab=award`}
         valueHint={headroom == null ? "The requisition has no approved value on record, so nothing can be awarded against it." : `Up to ${formatMoney(headroom)}: what the requisition's approval covers${siblings.length ? ", less its other awards" : ""}. In ringgit, to at most two decimal places.`}
         dossier={dossierEvidenceMissing(method, { justificationReasonCode: ex.justificationReasonCode, dossierReference: ex.dossierReference, evidenceAttachments: dossierEvidence })}
-        parties={opening.applies ? (evaluation.recommended ? opening.carried.filter((p) => p.id === evaluation.recommended!.party.id) : opening.carried) : undefined}
+        parties={carried ? carried.map((p) => { const r = register.get(p.id); return { ...p, register: r ? { supplier: r.supplier, words: r.standing.words.en, tone: r.standing.tone, warning: r.standing.warning?.en ?? null } : null }; }) : undefined}
         recommended={evaluation.gate.applies && evaluation.recommended ? { partyId: evaluation.recommended.party.id, name: evaluation.recommended.party.name, registrationNo: evaluation.recommended.party.registrationNo, address: evaluation.recommended.party.address, value: senToDecimalString(evaluation.recommended.price), valueText: formatMoney(evaluation.recommended.price), period: evaluation.recommended.period ? String(evaluation.recommended.period.value) : "", unit: evaluation.recommended.period?.unit ?? "", version: evaluation.version! } : undefined}
       />
     </>
