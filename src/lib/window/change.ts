@@ -58,7 +58,8 @@ export type ChangeFault =
   | "NEW_CLOSING_NOT_VALID"
   | "AUTHORITY_NOT_RECORDED"
   | "REFUND_NOT_ANSWERED"
-  | "AWARD_STANDS";
+  | "AWARD_STANDS"
+  | "OPENING_NOT_ADJOURNED";
 
 export interface ClosingChangeInput {
   kind: ClosingChangeKind;
@@ -127,9 +128,13 @@ export function authorityFault(routeStatus: string | null): Finding<ChangeFault>
 
 /**
  * Whether cancelling a published exercise may be asked for (FR-ADV-016). `awardStands`: an award
- * on the exercise is live (6.11 BD-29: it is cancelled first, from its own record).
+ * on the exercise is live (6.11 BD-29: it is cancelled first, from its own record). 6.7 (C-9,
+ * flagged): an Opened exercise may be cancelled (the exit for an empty box, or every bid not
+ * carried), and one whose opening is in progress only once that opening is adjourned
+ * (`openingAdjourned`; not given: not adjourned). Its opening's rows are kept, and an estimate not
+ * disclosed stays sealed.
  */
-export function cancelFaults(i: { status: ExerciseStatus; reason: string; feeRefund: boolean | null; changePending: boolean; awardStands: string | null; today: string | null }): Finding<ChangeFault>[] {
+export function cancelFaults(i: { status: ExerciseStatus; reason: string; feeRefund: boolean | null; changePending: boolean; awardStands: string | null; today: string | null; openingAdjourned?: boolean }): Finding<ChangeFault>[] {
   const out: Finding<ChangeFault>[] = [];
   const f = (code: ChangeFault, data?: Finding["data"]) => out.push({ code, level: "block", ...(data ? { data } : {}) });
   if (!i.today) f("TIME_ZONE_UNSET");
@@ -138,6 +143,7 @@ export function cancelFaults(i: { status: ExerciseStatus; reason: string; feeRef
   if (i.feeRefund == null) f("REFUND_NOT_ANSWERED");
   if (i.changePending) f("CHANGE_PENDING");
   if (i.awardStands) f("AWARD_STANDS", { award: i.awardStands });
+  if (i.status === "OPENING_IN_PROGRESS" && !i.openingAdjourned) f("OPENING_NOT_ADJOURNED");
   return out;
 }
 

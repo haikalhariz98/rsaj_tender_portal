@@ -23,6 +23,7 @@ import { estimateLeadWarning } from "@/lib/tender-docs/tendering";
 
 import { addendumWindowFault, issueFaults, nextAddendumNumber, notified, recipientsFor } from "./addendum";
 import { closingChangeFaults, cancelFaults, closingMayMove } from "./change";
+import { mainOpeningAdjourned } from "@/lib/opening/gate-read";
 import { advertisementDay, requiredChannels } from "./dates";
 import { windowEditFault } from "./edit";
 import { attendanceCsv, isMandatory, mandatoryPermittedFor } from "./events";
@@ -220,7 +221,8 @@ async function closingActions(x: Loaded) {
   const extend = w && ex.closingAt ? closingChangeFaults({ kind: "EXTENSION", status: ex.status, now, currentClosingAt: ex.closingAt, toClosingAt: new Date(ex.closingAt.getTime() + 7 * 86_400_000), currentPurchaseCloseDay: w.purchaseCloseDay ? storedDay(w.purchaseCloseDay) : null, toPurchaseCloseDay: null, reason: "-", changePending: !!pending, rules: { advertisementDay: null, closingTimeReason: "", timeZone: tz, policy: d.policy, calendar: d.calendar } }) : [];
   const live = await db.award.findMany({ where: { exerciseId: ex.id }, select: { reference: true, status: true } });
   const awardLive = live.find((a) => a.status !== "CANCELLED") ?? null;
-  const cancelBlock = firstBlock(cancelFaults({ status: ex.status, reason: "-", feeRefund: true, changePending: !!pending, awardStands: awardLive?.reference ?? null, today: org.today }));
+  // 6.7 (C-9): an opening in progress is cancelled only once adjourned.
+  const cancelBlock = firstBlock(cancelFaults({ status: ex.status, reason: "-", feeRefund: true, changePending: !!pending, awardStands: awardLive?.reference ?? null, today: org.today, openingAdjourned: await mainOpeningAdjourned(ex.id) }));
   const extendBlock = ["NOT_PUBLISHED", "CLOSING_PASSED", "CHANGE_PENDING", "TIME_ZONE_UNSET"].map((c) => extend.find((f) => f.code === c)).find(Boolean) ?? null;
   return {
     closing: ex.closingAt ? formatOrgDateTime(ex.closingAt, tz) : NOT_SET,

@@ -29,3 +29,12 @@ export async function loadOpeningGate(exerciseId: string, client: Tx = db): Prom
     carried: carried.filter((p, i) => carried.findIndex((x) => x.id === p.id) === i),
   };
 }
+
+/**
+ * C-9: whether the exercise's main opening is adjourned now (its latest sitting ended), read under the
+ * caller's locks. False where there is none, or it sits.
+ */
+export async function mainOpeningAdjourned(exerciseId: string, client: Tx = db): Promise<boolean> {
+  const main = await client.opening.findFirst({ where: { exerciseId, kind: "MAIN" }, select: { sittings: { orderBy: { sittingNo: "desc" }, take: 1, select: { adjournedAt: true } } } });
+  return main?.sittings[0]?.adjournedAt != null;
+}

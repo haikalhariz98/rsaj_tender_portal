@@ -405,6 +405,9 @@ export function windowFindingText(f: Finding): string {
       return "Say whether the document fees are refunded.";
     case "AWARD_STANDS":
       return `${d.award ? `Award ${d.award}` : "An award"} stands on this exercise. Cancel the award first, from its own record.`;
+    // 6.7 (C-9): a cancellation waits for the opening in progress to be adjourned.
+    case "OPENING_NOT_ADJOURNED":
+      return "The bids are being opened. Adjourn the opening first, on Bids and opening; an opening in progress is never cancelled mid-sitting.";
     // ---- what may be written when (edit.ts)
     case "NOT_IN_PREPARATION":
       return "The window is prepared once the exercise is in preparation. Move it into preparation first.";
