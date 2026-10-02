@@ -41,7 +41,8 @@ export const STAFF_NAV: NavGroup[] = [
       // Cross-exercise work lists: what awaits approval, issue, return or a commitment number.
       { href: "/awards", label: "Awards", icon: "award", built: true },
       { href: "/securities", label: "Securities", icon: "shield", built: true },
-      { href: "/projects", label: "Projects", icon: "tools" },
+      // 6.12 (OD-6 A): the contracts after award, formed, signed and on their baseline.
+      { href: "/projects", label: "Projects", icon: "tools", built: true },
       // Not in the prototype, which shows committee votes only on each matter's own
       // record. Sittings run before those modules exist (ruling 5.1).
       { href: "/committees", label: "Committee sittings", icon: "users", built: true },
@@ -147,6 +148,13 @@ export const CONFIG_SECTIONS: {
         label: "Award controls",
         description: "Instruments, signatories' templates, distribution, letter variants, conditions, insurance and liability bands.",
         icon: "award",
+        built: true,
+      },
+      {
+        href: "/configuration/contracts",
+        label: "Contract controls",
+        description: "The legal office, the contract agreement's signatory rows, controlled copies and the Contract Document's parts.",
+        icon: "file",
         built: true,
       },
       {

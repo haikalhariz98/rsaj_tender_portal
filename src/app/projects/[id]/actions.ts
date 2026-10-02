@@ -20,7 +20,7 @@ import { formationSnapshot, readFormationSnapshot, startFaults } from "@/lib/con
 import { contractLabel, withLockedContract, type LoadedContract } from "@/lib/contract/repo";
 import { briefingFaults, contractorSignFaults, stampFaults } from "@/lib/contract/sign";
 import { contractTransition, isExecuted } from "@/lib/contract/status";
-import type { ContractStatus, Finding, FormationCheckKind, LadKind, Provenance, ReconciliationComparison } from "@/lib/contract/types";
+import type { ContractStatus, Finding, FormationCheckKind, LadKind, Provenance } from "@/lib/contract/types";
 import { confirmFaults, correctionFaults, draftFaults } from "@/lib/contract/versions";
 import { dayOf, dayToDate, storedDay } from "@/lib/dates";
 import { isLive } from "@/lib/documents/evidence";
@@ -708,11 +708,14 @@ export async function reissueCopy(_prev: FormState, data: FormData): Promise<For
 export async function registerOriginal(_prev: FormState, data: FormData): Promise<FormState> {
   const now = toSecond(new Date());
   const r = new FormReader(data);
-  const kind = r.choice("kind", "Original", ["CONTRACT", "SECURITY", "POLICY"] as const, { required: true });
-  const refId = r.optionalText("refId");
+  // The drawer offers each original as "KIND:id" (the contract's own as "CONTRACT:").
+  const [kindRaw, refRaw] = String(data.get("original") ?? "").split(":");
+  const kind = (["CONTRACT", "SECURITY", "POLICY"] as const).find((k) => k === kindRaw) ?? null;
+  if (!kind) r.reject("original", "Choose the original.");
+  const refId = refRaw?.trim() || null;
   const location = r.text("location", "Held at", { required: true, max: 400 });
   const custodianId = r.text("custodianPersonId", "Custodian", { required: true });
-  if (kind && kind !== "CONTRACT" && !refId) r.reject("refId", "Choose the bond or policy.");
+  if (kind && kind !== "CONTRACT" && !refId) r.reject("original", "Choose the bond or policy.");
   if (r.failed || !kind) return { ok: false, errors: r.errors };
   return inContract(idOf(data), now, async (c) => {
     const k = c.l.contract;

@@ -113,7 +113,7 @@ export function contractFaultWords(f: Finding): Words {
     case "GATE_NOT_MET":
       return d.item
         ? w(`Not ready to sign: ${gate(d.item).en} is ${d.state === "NOT_SET" ? "not set" : "not met"}.`, `Belum sedia untuk ditandatangani: ${gate(d.item).ms} ${d.state === "NOT_SET" ? "belum ditetapkan" : "belum dipenuhi"}.`)
-        : w("The readiness gate is not met (the instrument returned, the bond and the insurances verified): FR-PAY-014's conditions for a certificate before signature.", "Syarat kesediaan belum dipenuhi.");
+        : w("The readiness gate is not met (the instrument returned, the bond and the insurances verified): the conditions for an interim certificate before signature.", "Syarat kesediaan belum dipenuhi.");
     case "NO_RESOLUTION":
       return w("No company resolution or other proof of signing authority is on file. Attach it under Signing.", "Tiada resolusi syarikat atau bukti kuasa menandatangan. Lampirkan di Tandatangan.");
     case "ALREADY_SIGNED":
@@ -138,8 +138,8 @@ export function contractFaultWords(f: Finding): Words {
       return w("The contract is already executed.", "Kontrak telah dilaksanakan.");
     case "COMMITMENT":
       return d.fault === "NO_APPROVAL_ROUTE"
-        ? w("The requisition has no approval route, so nothing may be committed against it (FR-REQ-016).", "Permintaan tiada laluan kelulusan.")
-        : w(`The requisition is not approved${d.outstanding ? `: waiting on ${d.outstanding}` : ""}. Nothing is committed against an unapproved requisition (FR-REQ-016).`, `Permintaan belum diluluskan${d.outstanding ? `: menunggu ${d.outstanding}` : ""}.`);
+        ? w("The requisition has no approval route, so nothing may be committed against it.", "Permintaan tiada laluan kelulusan.")
+        : w(`The requisition is not approved${d.outstanding ? `: waiting on ${d.outstanding}` : ""}. Nothing is committed against an unapproved requisition.`, `Permintaan belum diluluskan${d.outstanding ? `: menunggu ${d.outstanding}` : ""}.`);
     case "SIGNATORY_COND_NOT_FROZEN":
       return w("No signatory condition was frozen when this contract's preparation started.", "Tiada syarat penandatangan dibekukan semasa penyediaan bermula.");
     case "SIGNER": {
