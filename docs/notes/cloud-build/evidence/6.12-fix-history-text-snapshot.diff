@@ -1,0 +1,24 @@
+diff -rU0 before/projects__demo_con2__tab__history.txt after/projects__demo_con2__tab__history.txt
+--- before/projects__demo_con2__tab__history.txt	2026-10-02 22:14:54.456061212 +0000
++++ after/projects__demo_con2__tab__history.txt	2026-10-02 22:17:11.620058075 +0000
+@@ -203 +203 @@
+-sums
++Prime cost and provisional sums
+@@ -213 +213 @@
+-sums, buildersWorksValue, firstInterim
++Prime cost and provisional sums, Builder's works value, First interim certificate minimum
+diff -rU0 before/projects__demo_con3__tab__history.txt after/projects__demo_con3__tab__history.txt
+--- before/projects__demo_con3__tab__history.txt	2026-10-02 22:14:55.660061184 +0000
++++ after/projects__demo_con3__tab__history.txt	2026-10-02 22:17:12.676058051 +0000
+@@ -257 +257 @@
+-contractDate
++Contract Date
+@@ -453 +453 @@
+-all
++Every value
+@@ -462 +462 @@
+-sums, subsequentInterim, sectional
++Prime cost and provisional sums, Subsequent interim certificate minimum, Sectional completion
+@@ -472 +472 @@
+-sums, buildersWorksValue, firstInterim, subsequentInterim, sectional
++Prime cost and provisional sums, Builder's works value, First interim certificate minimum, Subsequent interim certificate minimum, Sectional completion
