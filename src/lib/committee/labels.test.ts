@@ -53,3 +53,32 @@ describe("late tender admission is tabled only from the Bids received tab (6.6 C
     expect(drawer).toMatch(/SITTING_TABLED_MATTER_KINDS\.map/);
   });
 });
+
+describe("domains no sitting decides: window change and award signatory (6.6 review S-9)", () => {
+  it("the sitting's drawer does not offer them, and the refusal says where each is decided", async () => {
+    const { WINDOW_CHANGE_DOMAIN } = await import("@/lib/method/types");
+    const { SIGNATORY_DOMAIN } = await import("@/lib/award/types");
+    const { recordTabledText } = await import("./labels");
+    expect(sittingTablesDomain(WINDOW_CHANGE_DOMAIN)).toBe(false);
+    expect(sittingTablesDomain(SIGNATORY_DOMAIN)).toBe(false);
+    expect(recordTabledText(WINDOW_CHANGE_DOMAIN)).toMatch(/approved on its own route, from the exercise's Invitation tab; that route takes no committee step/);
+    expect(recordTabledText(SIGNATORY_DOMAIN)).toMatch(/office the approval matrix names for the award/);
+  });
+  it("the drawer's domain options, as built from the labels, leave out every domain a sitting does not table", async () => {
+    const matters = (await import("@/lib/labels.json")).default as Record<string, unknown>;
+    const { WINDOW_CHANGE_DOMAIN } = await import("@/lib/method/types");
+    const { SIGNATORY_DOMAIN } = await import("@/lib/award/types");
+    const { LATE_DOMAIN } = await import("@/lib/bids/late");
+    const offered = Object.keys(matters).filter(sittingTablesDomain);
+    for (const d of [WINDOW_CHANGE_DOMAIN, SIGNATORY_DOMAIN, LATE_DOMAIN, SCOPE_DOMAIN]) {
+      expect(Object.keys(matters)).toContain(d);
+      expect(offered).not.toContain(d);
+    }
+    expect(offered).toContain("committee_gate");
+  });
+  it("tableMatter's server refusal for a domain uses those words (the same reject CR-1 scans)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const body = readFileSync("src/app/committees/actions.ts", "utf8").slice(readFileSync("src/app/committees/actions.ts", "utf8").indexOf("export async function tableMatter("));
+    expect(body).toMatch(/if \(domain && !sittingTablesDomain\(domain\)\) r\.reject\("domain", recordTabledText\(domain\) \?\? RECORD_TABLED_DOMAIN_TEXT\);/);
+  });
+});

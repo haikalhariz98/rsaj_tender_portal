@@ -10,7 +10,9 @@ import type { AttendanceFault } from "./sitting";
 import type { MatterBlocker, OutcomeFault, VoteFault } from "./matter";
 import type { TablingFault } from "./tabling";
 import type { TransitionFault } from "./meeting";
+import { SIGNATORY_DOMAIN } from "@/lib/award/types";
 import { LATE_DOMAIN } from "@/lib/bids/late";
+import { WINDOW_CHANGE_DOMAIN } from "@/lib/method/types";
 import { SCOPE_DOMAIN } from "@/lib/scope/scope-matter";
 
 export const MEETING_STATUS_LABEL = {
@@ -78,12 +80,23 @@ export const SITTING_TABLED_MATTER_KINDS = MATTER_KINDS.filter((k) => !RECORD_TA
 export const RECORD_TABLED_DOMAINS: readonly string[] = [SCOPE_DOMAIN, LATE_DOMAIN];
 export const RECORD_TABLED_DOMAIN_TEXT = "Scope approval is tabled from the exercise, under Scope and estimate, Scope, which names the bill version the committee decides on.";
 export const LATE_TABLED_TEXT = "Late tender admission is tabled from the exercise, on its Bids received tab, which names the envelope the committee decides on.";
-export const sittingTablesDomain = (domain: string) => !RECORD_TABLED_DOMAINS.includes(domain);
 
-/// Where a domain or a kind tabled only from its record is tabled, said when a sitting is asked to table it.
+/// Matter domains no sitting decides at all (6.6 review S-9): a committee decision on either would
+/// be read by nothing. A change to the invitation window is approved on its route, where a committee
+/// step is refused (window/change.ts HAS_COMMITTEE_STEP); the award's signatory is the office the
+/// approval matrix names (award/signatory.ts).
+export const NEVER_TABLED_DOMAINS: readonly string[] = [WINDOW_CHANGE_DOMAIN, SIGNATORY_DOMAIN];
+export const WINDOW_CHANGE_NOT_TABLED_TEXT = "A change to the invitation window is approved on its own route, from the exercise's Invitation tab; that route takes no committee step, so no sitting decides it.";
+export const SIGNATORY_NOT_TABLED_TEXT = "The award's signatory is the office the approval matrix names for the award, shown on the award; no sitting decides it.";
+
+export const sittingTablesDomain = (domain: string) => !RECORD_TABLED_DOMAINS.includes(domain) && !NEVER_TABLED_DOMAINS.includes(domain);
+
+/// Where a domain or a kind a sitting does not table is dealt with, said when a sitting is asked to table it.
 export function recordTabledText(domainOrKind: string): string | null {
   if (domainOrKind === SCOPE_DOMAIN || domainOrKind === "SCOPE") return RECORD_TABLED_DOMAIN_TEXT;
   if (domainOrKind === LATE_DOMAIN || domainOrKind === "LATE_TENDER") return LATE_TABLED_TEXT;
+  if (domainOrKind === WINDOW_CHANGE_DOMAIN) return WINDOW_CHANGE_NOT_TABLED_TEXT;
+  if (domainOrKind === SIGNATORY_DOMAIN) return SIGNATORY_NOT_TABLED_TEXT;
   return null;
 }
 
