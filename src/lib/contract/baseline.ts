@@ -405,8 +405,9 @@ export function baselineFor<T extends VersionRow>(versions: readonly T[], on: Da
   return best;
 }
 
-/// The latest version recorded, whatever its day (what the next version is built on).
-export function latestVersion<T extends VersionRow>(versions: readonly T[]): T | null {
+/// The latest version recorded, whatever its day (what the next version is built on). With baselineFor, the
+/// only reader of "which version" (a scan keeps hand-written reads out).
+export function latestVersion<T extends { version: number | null }>(versions: readonly T[]): T | null {
   return versions.filter((v) => v.version != null).reduce<T | null>((m, v) => (!m || v.version! > m.version! ? v : m), null);
 }
 

@@ -7,7 +7,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { diffFields, snapshotFields, type FieldChange } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { toSecond } from "@/lib/bids/lateness";
-import { applyEntered, baselineFaults, buildBaseline, changedFields, derive, ENTERED_GROUPS, enteredFaults, type BaselineValues, type EnteredGroup, type EnteredProvenance, type EnteredValues } from "@/lib/contract/baseline";
+import { applyEntered, baselineFaults, buildBaseline, changedFields, derive, ENTERED_GROUPS, enteredFaults, latestVersion, type BaselineValues, type EnteredGroup, type EnteredProvenance, type EnteredValues } from "@/lib/contract/baseline";
 import { correctableFaults, groupChange } from "@/lib/contract/baseline-entry";
 import { contractDateOf, dateCorrectionFaults } from "@/lib/contract/contract-date";
 import { executedSnapshot, frozenSigningDays } from "@/lib/contract/executed-snapshot";
@@ -493,11 +493,10 @@ export async function recordRsajSignature(_prev: FormState, data: FormData): Pro
       formation: readFormationSnapshot(k.formationSnapshot),
     });
     await moveTo(c, "EXECUTED", { contractDate: dayToDate(contractDate), contractDateRecordedAt: now, executedSnapshot: snapshot as unknown as Prisma.InputJsonValue });
-    const { draft, versions } = baselineRows(k);
+    const prior = latestVersion(baselineRows(k).versions);
     const base = currentBaseline(k)!;
     const exec = { ...base, contractDate };
-    void draft;
-    await writeVersion(c, exec, "EXECUTED", "", { from: versions.length ? `version ${versions[versions.length - 1].version}` : "draft" });
+    await writeVersion(c, exec, "EXECUTED", "", { from: prior ? `version ${prior.version}` : "draft" });
     await audit(c, "ContractSignature", row.id, "signed for the employer", "CREATE", diffFields(null, { party: "RSAJ", signedBy: s.person.name, office: sig.roleLabel, rule: sig.ruleLabel, delegated: s.delegationId ? "yes" : "no", recordedOnBehalf: ON_BEHALF }));
     await audit(c, "Contract", k.id, "", "UPDATE", diffFields({ status: k.status, contractDate: null }, { status: "EXECUTED", contractDate, contractDateSource: "the day of the recorded signature act" }));
     return { ok: true };
@@ -507,16 +506,17 @@ export async function recordRsajSignature(_prev: FormState, data: FormData): Pro
 /// Write a numbered baseline version (never updated afterwards), with its sections.
 async function writeVersion(c: Ctx, v: BaselineValues, reason: "CONFIRMED" | "EXECUTED" | "CORRECTION", correctionReason: string, extra: Record<string, unknown>, enteredOverride?: Record<string, unknown>, change?: { before: Record<string, unknown>; after: Record<string, unknown> }) {
   const { versions, draft } = baselineRows(c.l.contract);
+  const prior = latestVersion(versions);
   // What was keyed, with its provenance: the version before carries it forward, else the draft.
-  const carried = enteredOverride ?? ((versions[versions.length - 1]?.entered ?? draft?.entered ?? {}) as Record<string, unknown>);
-  const version = (versions[versions.length - 1]?.version ?? 0) + 1;
+  const carried = enteredOverride ?? ((prior?.entered ?? draft?.entered ?? {}) as Record<string, unknown>);
+  const version = (prior?.version ?? 0) + 1;
   const inputs = frozenInputsOf(c.l.contract);
   const derived = inputs ? derive(v, inputs.interimPolicy) : v;
   const row = await c.tx.contractBaseline.create({
     data: { organisationId: c.l.org.id, contractId: c.l.contract.id, version, reason, correctionReason, recordedAt: c.now, recordedOn: dayToDate(c.today), ...rowOf(derived), entered: carried as Prisma.InputJsonValue, snapshot: { ...(draft?.snapshot as object), ...extra } as Prisma.InputJsonValue },
   });
   for (const s of sectionRows(derived, c.l.org.id)) await c.tx.contractSection.create({ data: { ...s, baselineId: row.id } });
-  const prev = versions[versions.length - 1] ? valuesOf(versions[versions.length - 1]) : draft ? valuesOf(draft) : null;
+  const prev = prior ? valuesOf(prior) : draft ? valuesOf(draft) : null;
   // S-3: a correction's group, before and after, is recorded in the version's own CREATE entry (never an UPDATE of a row just written).
   await audit(c, "ContractBaseline", row.id, `baseline version ${version}`, "CREATE", [...diffFields(null, { version, reason, changed: prev ? changedFields(prev, derived).join(", ") || "nothing" : "all" }), ...(change ? diffFields(change.before, change.after) : [])], correctionReason);
   return row;
@@ -897,7 +897,7 @@ export async function correctBaseline(_prev: FormState, data: FormData): Promise
   return inContract(idOf(data), now, async (c) => {
     const k = c.l.contract;
     const { versions } = baselineRows(k);
-    const latest = versions[versions.length - 1];
+    const latest = latestVersion(versions);
     const inputs = frozenInputsOf(k);
     // R-3 (BD-612-23): a value the award, the Appendix or the bill states, or a recorded rule derives, is kept as stated.
     const stated = inputs ? correctableFaults(group, inputs) : [];

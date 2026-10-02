@@ -12,7 +12,7 @@ import { db } from "@/lib/db";
 import { senFromDecimal, senToDecimalString } from "@/lib/money";
 import { commitmentFault } from "@/lib/requisition/commitment";
 
-import { baselineFaults, type BaselineValues } from "./baseline";
+import { baselineFaults, latestVersion, type BaselineValues } from "./baseline";
 import { readySince } from "./contract-date";
 import { formationFaults, type ReconciliationFacts } from "./formation";
 import { endorsement } from "./legal";
@@ -44,7 +44,7 @@ export const reviewsOf = (c: LoadedContract["contract"]) => c.legalReviews.map((
 /// The values the executed version would carry: the latest version's, else the draft's.
 export function currentBaseline(c: LoadedContract["contract"]): BaselineValues | null {
   const { draft, versions } = baselineRows(c);
-  const latest = versions[versions.length - 1] ?? null;
+  const latest = latestVersion(versions);
   return latest ? valuesOf(latest) : draft ? valuesOf(draft) : null;
 }
 

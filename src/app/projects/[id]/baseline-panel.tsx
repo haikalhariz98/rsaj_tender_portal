@@ -6,7 +6,7 @@ import { Blocked } from "@/components/ui/blocked";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { ProvenanceBadge } from "@/components/ui/provenance";
-import { enterFault, type BaselineValues, type EnteredGroup } from "@/lib/contract/baseline";
+import { enterFault, latestVersion, type BaselineValues, type EnteredGroup } from "@/lib/contract/baseline";
 import { correctableFaults } from "@/lib/contract/baseline-entry";
 import { contractFaultText } from "@/lib/contract/fault-text";
 import type { signingFacts } from "@/lib/contract/judge";
@@ -79,7 +79,7 @@ export function BaselinePanel({ l, facts, timeZone }: { l: LoadedContract; facts
   const c = l.contract;
   const status = c.status as ContractStatus;
   const { draft, versions } = baselineRows(c);
-  const latest = versions[versions.length - 1] ?? null;
+  const latest = latestVersion(versions);
   const shown = latest ?? draft;
   if (!shown) {
     return (
