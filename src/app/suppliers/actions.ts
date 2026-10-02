@@ -22,7 +22,7 @@ import { ACT_LABEL } from "@/lib/labels";
 import { NumberingError, issueReference } from "@/lib/numbering/issue";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
-import { ableToAct, deciderFaults, holdersFor, type Holders } from "@/lib/requisition/holders";
+import { ableToAct, deciderFaults } from "@/lib/requisition/holders";
 import { SUPPLIER_ENTITY } from "@/lib/suppliers/audit-view";
 import { lodgeFaults, verifyFaults } from "@/lib/suppliers/documents";
 import { applicationFaults, contactFaults, normaliseRegistrationNo, receiptFaults } from "@/lib/suppliers/identity";
@@ -30,7 +30,7 @@ import { APPLICATION_KIND_LABEL, CHANNEL_LABEL, OUTCOME_LABEL, REGISTRATION_MATT
 import { supplierApplicationLabel, supplierDocumentLabel, supplierOfApplication, supplierOfDocument } from "@/lib/suppliers/lock";
 import { documentFacts, loadSupplierConfig, supplierOrg, typeFacts } from "@/lib/suppliers/repo";
 import { approveFaults, decisionFaults, decisionSnapshot, fileFacts, isOpen, lapseFaults, openApplicationFaults, submitFaults, type FileFacts } from "@/lib/suppliers/review";
-import { supplierRoute } from "@/lib/suppliers/route";
+import { supplierHolders, supplierRoute } from "@/lib/suppliers/route";
 import { APPLICATION_CHANNELS, APPLICATION_KINDS, blocking, SUPPLIER_REGISTRATION_DOMAIN, SUPPLIER_SERIES_KEY, VERIFICATION_STATES, type ApplicationKind, type Finding, type RegistrationValueKind } from "@/lib/suppliers/types";
 import { FormReader } from "@/lib/validate";
 
@@ -420,12 +420,6 @@ async function fileOf(tx: Tx, l: LockedSupplier, a: { status: FileFacts["status"
 
 const appInclude = { supplier: { select: { reference: true } }, routes: { include: { steps: { orderBy: { sequence: "asc" as const } } } }, attachments: { select: { purpose: true, detachedAt: true, version: { select: { withdrawnAt: true } } } } };
 
-/// Holders of an office for a supplier matter: organisation-wide only (a supplier matter has no unit), and
-/// only delegations with no value ceiling (a matter routed on no value cannot be judged against one).
-const supplierHolders = (code: string, roster: Awaited<ReturnType<typeof loadRoster>>, delegations: Awaited<ReturnType<typeof loadDelegations>>, on: string): Holders => {
-  const h = holdersFor(code, [], roster, delegations, on);
-  return { ...h, delegates: h.delegates.filter((d) => d.delegation.valueCeiling == null) };
-};
 
 /**
  * Send the application for decision (OD-2 A): the file must be approvable today (every mandatory

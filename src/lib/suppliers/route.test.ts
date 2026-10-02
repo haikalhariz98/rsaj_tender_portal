@@ -61,3 +61,27 @@ describe("a supplier matter's route (OD-2 A: routing value null)", () => {
     expect(r.refusal?.en).toMatch(/Registration officer/);
   });
 });
+
+describe("who holds an office for a supplier matter", () => {
+  const from = new Date("2026-01-01T00:00:00Z");
+  const roster = {
+    people: [],
+    offices: [],
+    assignments: [
+      { id: "a1", personId: "p_org", roleCode: "MANAGER", scope: null, effectiveFrom: from, effectiveTo: null },
+      { id: "a2", personId: "p_unit", roleCode: "MANAGER", scope: "UNIT_X", effectiveFrom: from, effectiveTo: null },
+    ],
+  };
+  const delegation = (id: string, toPersonId: string, valueCeiling: string | null) => ({ id, fromPersonId: "p_org", toPersonId, roleCode: "MANAGER", capabilityCodes: [], valueCeiling, reason: "Leave", reasonMs: "Cuti", noSubDelegation: false, effectiveFrom: from, effectiveTo: null });
+
+  it("organisation-wide holders only: a supplier matter belongs to no unit", async () => {
+    const { supplierHolders } = await import("./route");
+    expect(supplierHolders("MANAGER", roster as never, [], "2026-10-01").holderIds).toEqual(["p_org"]);
+  });
+
+  it("a delegation with a value ceiling cannot be judged on a matter with no value, so it does not count", async () => {
+    const { supplierHolders } = await import("./route");
+    const h = supplierHolders("MANAGER", roster as never, [delegation("d1", "p_open", null), delegation("d2", "p_capped", "50000.00")] as never, "2026-10-01");
+    expect(h.delegates.map((d) => d.personId)).toEqual(["p_open"]);
+  });
+});

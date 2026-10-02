@@ -16,6 +16,7 @@ import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { holdersFor } from "@/lib/requisition/holders";
+import { supplierHolders } from "@/lib/suppliers/route";
 import { FormReader } from "@/lib/validate";
 
 /**
@@ -42,18 +43,24 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
 
   const found = await db.approvalStep.findUnique({
     where: { id: stepId },
-    select: { instance: { select: { id: true, requisitionId: true, exerciseId: true, awardId: true, exercise: { select: { requisitionId: true } } } } },
+    select: { instance: { select: { id: true, requisitionId: true, exerciseId: true, awardId: true, exercise: { select: { requisitionId: true } }, supplierApplicationId: true, supplierApplication: { select: { supplierId: true } } } } },
   });
   if (!found) return { ok: false, message: "That step no longer exists." };
   const route = found.instance;
   const requisitionId = route.requisitionId ?? route.exercise?.requisitionId ?? null;
-  if (!requisitionId) return { ok: false, message: "That step's matter cannot be found." };
+  // 6.15 (OD-2 A): a supplier matter's route, locked as the register's acts lock it (the supplier row, then the application).
+  const supplierId = route.supplierApplication?.supplierId ?? null;
+  if (!requisitionId && !supplierId) return { ok: false, message: "That step's matter cannot be found." };
 
   const result = await db.$transaction(
     async (tx): Promise<FormState & { paths?: string[] }> => {
-      await tx.$queryRaw`SELECT id FROM "Requisition" WHERE id = ${requisitionId} FOR UPDATE`;
+      if (requisitionId) await tx.$queryRaw`SELECT id FROM "Requisition" WHERE id = ${requisitionId} FOR UPDATE`;
       if (route.exerciseId) await tx.$queryRaw`SELECT id FROM "SourcingExercise" WHERE id = ${route.exerciseId} FOR UPDATE`;
       if (route.awardId) await tx.$queryRaw`SELECT id FROM "Award" WHERE id = ${route.awardId} FOR UPDATE`;
+      if (supplierId) {
+        await tx.$queryRaw`SELECT id FROM "Supplier" WHERE id = ${supplierId} FOR UPDATE`;
+        await tx.$queryRaw`SELECT id FROM "SupplierApplication" WHERE id = ${route.supplierApplicationId} FOR UPDATE`;
+      }
 
       const inst = await tx.approvalInstance.findUnique({
         where: { id: route.id },
@@ -62,11 +69,15 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
           requisition: { select: { id: true, reference: true } },
           exercise: { select: { id: true, reference: true } },
           award: { select: { id: true, reference: true } },
+          supplierApplication: { select: { supplier: { select: { id: true, reference: true } } } },
         },
       });
       const step = inst?.steps.find((s) => s.id === stepId);
       if (!inst || !step) return { ok: false, message: "That step no longer exists." };
-      const req = await tx.requisition.findUniqueOrThrow({ where: { id: requisitionId }, select: { organisationId: true, sectionUnitCode: true, requestingUnitCode: true, organisation: { select: { timeZone: true } } } });
+      // A supplier matter belongs to no unit: no requisition, and its offices are held organisation-wide.
+      const req = requisitionId
+        ? await tx.requisition.findUniqueOrThrow({ where: { id: requisitionId }, select: { organisationId: true, sectionUnitCode: true, requestingUnitCode: true, organisation: { select: { timeZone: true } } } })
+        : { organisationId: inst.organisationId, sectionUnitCode: "", requestingUnitCode: "", organisation: await tx.organisation.findUniqueOrThrow({ where: { id: inst.organisationId }, select: { timeZone: true } }) };
       const today = todayIn(new Date(), req.organisation.timeZone);
       const [roles, units, roster, delegations] = await Promise.all([
         tx.authorityRole.findMany({ where: { organisationId: req.organisationId }, select: { code: true, nameEn: true, escalatesToCode: true } }),
@@ -76,8 +87,8 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
       ]);
       const office = actingOffice(step);
       const on = today ? dayToDate(today) : new Date();
-      const unitPath = pathTo(units as unknown as OrgUnit[], req.sectionUnitCode || req.requestingUnitCode, on).reverse().map((u) => u.code);
-      const holders = office && today ? holdersFor(office, unitPath, roster, delegations, today) : { scope: null, holderIds: [], delegates: [] };
+      const unitPath = requisitionId ? pathTo(units as unknown as OrgUnit[], req.sectionUnitCode || req.requestingUnitCode, on).reverse().map((u) => u.code) : [];
+      const holders = office && today ? (supplierId ? supplierHolders(office, roster, delegations, today) : holdersFor(office, unitPath, roster, delegations, today)) : { scope: null, holderIds: [], delegates: [] };
       const people = new Map(roster.people.map((p) => [p.id, p]));
       const available = (pid: string) => !!people.get(pid)?.isActive && !!people.get(pid)?.isAvailable;
       const declarer = declarerId ? (people.get(declarerId) ?? null) : null;
@@ -107,7 +118,7 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
       };
       const moved = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
       if (moved.count !== 1) return { ok: false, message: "The step changed while this was being saved. Reload and try again." };
-      const matter = inst.award ? `${inst.award.reference} · appointment` : inst.exercise ? `${inst.exercise.reference} · ${exerciseRouteMatter(inst.domain).auditNoun}` : `${inst.requisition?.reference ?? "Matter"}`;
+      const matter = inst.award ? `${inst.award.reference} · appointment` : inst.exercise ? `${inst.exercise.reference} · ${exerciseRouteMatter(inst.domain).auditNoun}` : inst.supplierApplication ? `${inst.supplierApplication.supplier.reference} · Registration approval route` : `${inst.requisition?.reference ?? "Matter"}`;
       await writeAudit(tx, { organisationId: req.organisationId, entity: "ApprovalStep", entityId: step.id, entityLabel: `${matter} · ${step.roleLabel}`, reason }, "UPDATE",
         diffFields(
           { actingOffice: step.actingRoleLabel ?? step.roleLabel },
@@ -119,7 +130,7 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
             escalatedOn: after.escalatedOn,
           },
         ));
-      const paths = ["/approvals", `/requisitions/${requisitionId}`, ...(inst.exercise ? [`/sourcing/${inst.exercise.id}`] : []), ...(inst.award ? [`/awards/${inst.award.id}`] : [])];
+      const paths = ["/approvals", ...(requisitionId ? [`/requisitions/${requisitionId}`] : []), ...(inst.exercise ? [`/sourcing/${inst.exercise.id}`] : []), ...(inst.award ? [`/awards/${inst.award.id}`] : []), ...(supplierId ? [`/suppliers/${supplierId}`] : [])];
       return { ok: true, paths };
     },
     { timeout: 20_000, maxWait: 10_000 },

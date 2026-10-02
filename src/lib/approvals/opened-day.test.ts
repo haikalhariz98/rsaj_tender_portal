@@ -26,6 +26,8 @@ const WRITERS: readonly { file: string; openedAt: RegExp }[] = [
   { file: "src/app/sourcing/[id]/evaluation/meeting-actions.ts", openedAt: /openedAt: dayToDate\(l\.org\.today!\),/ },
   { file: "src/app/sourcing/[id]/window/change-actions.ts", openedAt: /openedAt: dayToDate\(l\.org\.today!\),/ },
   { file: "src/lib/integration/requisition-intake.ts", openedAt: /openedAt: dayToDate\(p\.trail\[0\]\.decidedOn\),/ },
+  // 6.15 (faithful update, flagged: the scan's own list of writers): a supplier's registration route.
+  { file: "src/app/suppliers/actions.ts", openedAt: /openedAt: dayToDate\(today\),/ },
 ];
 
 /** The text of each `approvalInstance.create({ … })` call in a file. */

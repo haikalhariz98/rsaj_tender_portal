@@ -15,6 +15,9 @@
 import { requesterOnlySteps, requesterOnlyText, type AbleToAct } from "@/lib/authority/requester-only";
 import { resolveApproval } from "@/lib/authority/resolve";
 import type { ApprovalStep, CoreChainRecord, Matrix, ResolutionWarning } from "@/lib/authority/types";
+import type { Delegation } from "@/lib/people/delegation";
+import type { Roster } from "@/lib/people/roster";
+import { holdersFor, type Holders } from "@/lib/requisition/holders";
 
 export type SupplierRouteState = "NO_RULE" | "RULE_UNSOUND" | "HAS_COMMITTEE_STEP" | "SELF_APPROVAL_NOWHERE" | "REQUESTER_ONLY" | "RESOLVED";
 
@@ -90,4 +93,15 @@ export function supplierRoute(matrix: Matrix, domain: string, cond: string | nul
     return base("REQUESTER_ONLY", { en, ms: `Pegawai yang menghantarnya sahaja boleh bertindak bagi langkah ${only.map((s) => s.sequence).join(", ")} laluan ini, dan tiada sesiapa memutuskan langkah perkara yang dibangkitkannya. ${en}` });
   }
   return base("RESOLVED", null);
+}
+
+/**
+ * The holders of an office for a supplier matter on a day: organisation-wide assignments only (a
+ * supplier matter belongs to no unit, so no unit's holder is nearer), and only delegations with no value
+ * ceiling (a matter routed on no value cannot be judged against one). The decider check, the requester
+ * check and the worklist's "nobody able to act" all read this one.
+ */
+export function supplierHolders(roleCode: string, roster: Roster, delegations: readonly Delegation[], day: string): Holders {
+  const h = holdersFor(roleCode, [], roster, delegations, day);
+  return { ...h, delegates: h.delegates.filter((d) => d.delegation.valueCeiling == null) };
 }
