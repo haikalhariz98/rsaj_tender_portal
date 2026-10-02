@@ -19,7 +19,7 @@ const codes = (fs: readonly { code: string }[]) => fs.map((f) => f.code);
 
 const template = (x: Partial<TemplateFacts> = {}): TemplateFacts => ({ id: "tpl1", code: "form_of_tender", nameEn: "Form of tender", formCode: "F-1", revisionDate: "2026-01-01", bodyEn: "Tender for {{exercise.title}} ({{exercise.reference}}).", bodyMs: null, primaryLanguage: null, bodyVersion: 3, ...x });
 const part = (x: Partial<PackPartFacts> = {}): PackPartFacts => ({
-  partCode: "p2", printedNumber: "2", sortOrder: 20, label: "Form of tender", role: "FORM_OF_TENDER", content: "STANDARD", source: "TEMPLATE", mandatory: true, inTableDocument: true, templateCode: "form_of_tender", template: template(), state: "READY", omittedReason: "", liveUploads: 0, ...x,
+  partCode: "p2", printedNumber: "2", sortOrder: 20, label: "Form of tender", role: "FORM_OF_TENDER", content: "STANDARD", source: "TEMPLATE", mandatory: true, inTableDocument: true, returnedByBidder: true, templateCode: "form_of_tender", template: template(), state: "READY", omittedReason: "", liveUploads: 0, ...x,
 });
 const declaration = part({ partCode: "p9", printedNumber: "9", label: "Declaration", role: "DECLARATION", template: template({ id: "tpl9", code: "declaration", nameEn: "Declaration", bodyEn: "I declare." }) });
 const CTX = { bqFinalised: true, appendixComplete: true };

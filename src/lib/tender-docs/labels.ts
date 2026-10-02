@@ -177,6 +177,7 @@ const READINESS_TEXT: Record<Exclude<ReadinessFault, ContentFault | "MANDATORY_U
   DECLARATION_PART_MISSING: () => `Every tender and quotation pack binds the bidder's declaration as a mandatory part, and this pack's parts have none. Add a declaration part for this pack kind under Configuration, Tender documents.`,
   DECLARATION_NOT_MANDATORY: (f) => `The bidder's declaration (part ${d(f, "part")}) must be mandatory. ${SET_PARTS_REFRESH}`,
   NO_PARTS: () => "The pack has no parts.",
+  RETURN_NOT_SET: (f) => `Whether a bidder returns part ${d(f, "part")} with the bid is not set. Approved like this, these documents keep it unset, and the bid opening will be refused when it is finalised: completeness cannot be judged against an unset answer, and the only way on then is to cancel the exercise. ${SET_PARTS_REFRESH}`,
 };
 
 /// A part's or the pack's finding, in words.

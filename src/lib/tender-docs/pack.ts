@@ -11,6 +11,7 @@
  * version starts from it. Every finding names what to do and where (labels.ts). Pure.
  */
 
+import { returnedByDefinition } from "@/lib/opening/checklist";
 import { packFaults, type PackFault, type PackInput } from "@/lib/scope/pack";
 import { renderWith, type MergeWhitelist } from "@/lib/templates/merge";
 
@@ -129,7 +130,7 @@ export function pickTemplateFaults(p: PackPartFacts, t: TemplateFacts, packStatu
 
 // ------------------------------------------------------------------ the pack's readiness
 
-export type ReadinessFault = ContentFault | "MANDATORY_UNSET" | "PART_NOT_READY" | "MANDATORY_OMITTED" | "OMIT_REASON_REQUIRED" | "DECLARATION_PART_MISSING" | "DECLARATION_NOT_MANDATORY" | "NO_PARTS";
+export type ReadinessFault = ContentFault | "MANDATORY_UNSET" | "PART_NOT_READY" | "MANDATORY_OMITTED" | "OMIT_REASON_REQUIRED" | "DECLARATION_PART_MISSING" | "DECLARATION_NOT_MANDATORY" | "NO_PARTS" | "RETURN_NOT_SET";
 
 /**
  * Everything the parts still need (FR-DOC-001): each part ready or, where not mandatory,
@@ -149,6 +150,11 @@ export function packReadiness(parts: readonly PackPartFacts[], ctx: ContentConte
       if (!p.omittedReason.trim()) out.push({ code: "OMIT_REASON_REQUIRED", level: "block", data: { part } });
     } else out.push(...partContentFaults(p, ctx));
   }
+  // Phase 2 close-out 67-C1: which mandatory parts a bidder returns is frozen with the approved pack and
+  // read at the opening (6.7), where an unset answer blocks finalising (CHECKLIST_NOT_JUDGED, exit:
+  // cancel). Said here, before approval, while it can still be set: a warning, never a refusal (6.6
+  // ruled it is not judged until the opening). The declaration is returned by definition.
+  for (const p of parts) if (p.mandatory === true && !returnedByDefinition(p.role) && p.returnedByBidder == null) out.push({ code: "RETURN_NOT_SET", level: "warn", data: { part: partName(p) } });
   const declaration = parts.find((p) => p.role === "DECLARATION");
   if (!declaration) out.push({ code: "DECLARATION_PART_MISSING", level: "block" });
   else if (declaration.mandatory !== true) out.push({ code: "DECLARATION_NOT_MANDATORY", level: "block", data: { part: partName(declaration) } });
