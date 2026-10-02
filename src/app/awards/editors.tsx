@@ -53,8 +53,10 @@ const UNITS: Option[] = [
 /// Id of the header note that states why a header action is unavailable.
 export const AWARD_NOTE_ID = "award-actions-note";
 
-export function detailFields(): Field[] {
+/// 6.7 (C-7): where the exercise's openings apply, the awardee is picked from the bidders carried to evaluation.
+export function detailFields(parties?: Option[]): Field[] {
   return [
+    ...(parties ? [{ kind: "select", name: "awardeePartyId", label: "Bidder carried to evaluation", required: true, placeholder: "Choose", options: parties, hint: "The award names a bidder the opening carried to evaluation; it is compared as that bidder, never by the words typed below." } as Field] : []),
     { kind: "text", name: "awardeeName", label: "Awardee", required: true, hint: "As registered. There is no vendor master yet: the name, number and address are kept as written." },
     { kind: "text", name: "awardeeRegistrationNo", label: "Registration number" },
     { kind: "textarea", name: "awardeeAddress", label: "Address" },
@@ -64,12 +66,12 @@ export function detailFields(): Field[] {
   ];
 }
 
-export function EditDetailsDrawer({ id, values }: { id: string; values: Values }) {
+export function EditDetailsDrawer({ id, values, parties }: { id: string; values: Values; parties?: Option[] }) {
   return (
     <RecordEditor
       title="Edit the award"
       description="The awardee, the value and the period are what the appointment approves, so they change only while the award is a draft."
-      fields={[hidden("id"), ...detailFields()]}
+      fields={[hidden("id"), ...detailFields(parties)]}
       values={{ id, ...values }}
       action={updateAwardDetails}
       submitLabel="Save"

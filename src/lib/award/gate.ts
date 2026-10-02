@@ -10,6 +10,7 @@
  */
 
 import type { PackKind } from "@/lib/method/types";
+import { openingGateFaults, type OpeningGateFacts, type OpeningGateFault } from "@/lib/opening/award-gate";
 import type { WindowGate } from "@/lib/window/gate";
 import type { RequiredBond } from "@/lib/securities/bond";
 import type { CommitmentFault } from "@/lib/requisition/commitment";
@@ -47,7 +48,10 @@ export interface DocumentState {
  * Phase 1 path: in preparation. 6.5 tightens 6.4's position (approved for tendering): one that
  * assembles a tender or quotation pack is awarded only once it was advertised or invited, its
  * window's phase is CLOSED (derived now, ADR 0014), and no change to the window is with approval.
- * 6.7 replaces this interim gate. Accepted and issued awards are not judged again.
+ * 6.7 replaces this interim gate (X-9, C-8, flagged): the exercise must be Opened — its main opening
+ * finalised — and the openings' own checks (`openingGateFaults`: the signed schedule's scan, every
+ * admitted late tender opened, the estimate's copy finding explained, the awardee a party carried to
+ * evaluation) are asked beside it. Accepted and issued awards are not judged again.
  */
 export function awardableStatus(packKindSnapshot: PackKind | null): "DOCUMENTS_IN_PREPARATION" | "WINDOW_CLOSED" {
   return packKindSnapshot === "TENDER" || packKindSnapshot === "QUOTATION" ? "WINDOW_CLOSED" : "DOCUMENTS_IN_PREPARATION";
@@ -56,14 +60,16 @@ export function awardableStatus(packKindSnapshot: PackKind | null): "DOCUMENTS_I
 /// `window`: the window's phase and pending change (`windowGate`). Not given: not judged, never open.
 export function exerciseOpenForAward(status: string, packKindSnapshot: PackKind | null, window: WindowGate | null = null): boolean {
   if (awardableStatus(packKindSnapshot) === "DOCUMENTS_IN_PREPARATION") return status === "DOCUMENTS_IN_PREPARATION";
-  return (status === "ADVERTISED" || status === "INVITED") && window?.phase === "CLOSED" && !window.changePending;
+  return status === "OPENED" && window?.phase === "CLOSED" && !window.changePending;
 }
 
 /// Why an award is not opened on the exercise, by what it needs.
 export function awardOpenRefusal(packKindSnapshot: PackKind | null, status: string | null = null, window: WindowGate | null = null): string {
   if (awardableStatus(packKindSnapshot) === "DOCUMENTS_IN_PREPARATION") return "An award is opened only on an exercise in preparation, with its classification decided.";
-  if (status !== "ADVERTISED" && status !== "INVITED") return "An award is opened only once the exercise was advertised or invited and its invitation window has closed.";
+  if (status !== "ADVERTISED" && status !== "INVITED" && status !== "OPENING_IN_PROGRESS" && status !== "OPENED") return "An award is opened only once the exercise was advertised or invited and its invitation window has closed.";
   if (window?.changePending) return "A change to the invitation window is with approval: an award waits for its decision.";
+  // 6.7 (C-8): published, the award follows the opening's finalised schedule.
+  if (status !== "OPENED") return "An award is opened only once the bids are opened and the opening's schedule is finalised, on Bids and opening.";
   return "An award is opened only once the invitation window has closed.";
 }
 
@@ -75,6 +81,9 @@ export interface BidGateFacts {
   validityFault: (Finding & { code: "VALIDITY_NOT_SET" | "BID_VALIDITY_EXPIRED" | "VALIDITY_NOT_JUDGED" }) | null;
 }
 export type BidGateFault = "LATE_UNDECIDED" | "VALIDITY_NOT_SET" | "BID_VALIDITY_EXPIRED" | "VALIDITY_NOT_JUDGED";
+
+/// 6.7: the openings' faults, for submission and issue alike. Not given: nothing asked (an exercise not published through 6.5, X-9).
+export const openingFindings = (o: { facts: OpeningGateFacts; awardeePartyId: string | null } | null | undefined): Finding[] => (o ? openingGateFaults(o.facts, o.awardeePartyId) : []);
 
 /// The register's faults, for submission and issue alike. Null facts: not published through 6.5, nothing asked.
 export const bidGateFindings = (b: BidGateFacts | null | undefined): Finding[] => (b ? [b.lateFault, b.validityFault].filter((f): f is NonNullable<typeof f> => f != null) : []);
@@ -89,6 +98,8 @@ export interface IssueInput {
   exerciseWindow?: WindowGate | null;
   /// 6.6 (X-9, flagged): late admission and the bids' validity. Not given: nothing asked.
   bids?: BidGateFacts | null;
+  /// 6.7 (X-9, C-7, C-8, flagged): the openings' checks and the awardee's party. Not given: nothing asked.
+  opening?: { facts: OpeningGateFacts; awardeePartyId: string | null } | null;
   commitment: CommitmentFault | null;
   sourcingPermitted: boolean | null;
   instrument: { kind: InstrumentKind } | { fault: InstrumentFault };
@@ -155,7 +166,8 @@ export type IssueFault =
   | "WC_BASIS_REQUIRED"
   | "INDENT_EXPIRES_BEFORE_START"
   | "APPENDIX_DIFFERENCE_UNEXPLAINED"
-  | BidGateFault;
+  | BidGateFault
+  | OpeningGateFault;
 
 export function issueFaults(i: IssueInput): Finding[] {
   const out: Finding[] = [];
@@ -166,6 +178,8 @@ export function issueFaults(i: IssueInput): Finding[] {
   if (!exerciseOpenForAward(i.exerciseStatus, i.exercisePackKind, i.exerciseWindow ?? null)) f("EXERCISE_NOT_OPEN", { status: i.exerciseStatus, needs: awardableStatus(i.exercisePackKind), changePending: i.exerciseWindow?.changePending ? "yes" : null });
   // 6.6: late envelopes decided, and the bids still valid (or extended), on an exercise published through 6.5.
   out.push(...bidGateFindings(i.bids));
+  // 6.7: the openings' checks and the awardee among the parties carried to evaluation (C-7).
+  out.push(...openingFindings(i.opening));
 
   // FR-REQ-016: no commitment against a requisition that has not completed its approval.
   if (i.commitment?.code === "NOT_APPROVED") f("REQUISITION_NOT_APPROVED", { step: i.commitment.outstanding });

@@ -8,6 +8,7 @@
  */
 
 import type { WindowGate } from "@/lib/window/gate";
+import type { OpeningGateFacts } from "@/lib/opening/award-gate";
 import type { BidGateFacts } from "./gate";
 import { regimeFor } from "@/lib/authority/resolve";
 import type { DecisionRecord } from "@/lib/committee/record";
@@ -116,6 +117,8 @@ export interface AwardFacts {
     /// 6.6 (X-9, flagged): the late-admission gate and the bids' validity, for an exercise
     /// published through 6.5. Absent or null: not published through it, nothing asked.
     bids?: BidGateFacts | null;
+    /// 6.7 (X-9, C-7, C-8, flagged): the openings' checks with the awardee's party. Absent or null: nothing asked.
+    opening?: { facts: OpeningGateFacts; awardeePartyId: string | null } | null;
     regime: string | null;
     appointmentRuleKey: string | null;
     appointmentRuleLabel: string | null;
@@ -247,7 +250,7 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
   const judgedOn = f.method?.requiresDossier ? snapshotFaults(f.dossierEvidence?.snapshot ?? null, new Set(f.dossierEvidence?.withdrawnVersionIds ?? []), true) : [];
   const submit: Finding[] = [
     ...noIssue,
-    ...(route ? submitFaults({ status: a.status, today: f.today, exerciseStatus: f.exercise.status, exercisePackKind: f.exercise.packKindSnapshot, exerciseWindow: f.exercise.window ?? null, openRoute: f.appointment?.status === "PENDING", method: f.method, dossier, route, nameRoutes: f.nameRoutes ?? [], bids: f.exercise.bids ?? null }) : []),
+    ...(route ? submitFaults({ status: a.status, today: f.today, exerciseStatus: f.exercise.status, exercisePackKind: f.exercise.packKindSnapshot, exerciseWindow: f.exercise.window ?? null, openRoute: f.appointment?.status === "PENDING", method: f.method, dossier, route, nameRoutes: f.nameRoutes ?? [], bids: f.exercise.bids ?? null, opening: f.exercise.opening ?? null }) : []),
     ...("fault" in instrument ? [{ code: instrument.fault, level: "block" as const, data: { regime: instrument.regime } }] : []),
     ...changed,
     ...valueFaults,
@@ -327,6 +330,7 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
     exercisePackKind: f.exercise.packKindSnapshot,
     exerciseWindow: f.exercise.window ?? null,
     bids: f.exercise.bids ?? null,
+    opening: f.exercise.opening ?? null,
     commitment,
     sourcingPermitted: f.requisition.sourcingPermitted,
     instrument,

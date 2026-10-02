@@ -19,7 +19,9 @@ import { APPOINTMENT_DOMAIN, type Method, type PackKind } from "@/lib/method/typ
 
 import type { WindowGate } from "@/lib/window/gate";
 
-import { awardableStatus, bidGateFindings, exerciseOpenForAward, type BidGateFacts, type BidGateFault } from "./gate";
+import type { OpeningGateFacts, OpeningGateFault } from "@/lib/opening/award-gate";
+
+import { awardableStatus, bidGateFindings, exerciseOpenForAward, openingFindings, type BidGateFacts, type BidGateFault } from "./gate";
 import type { Finding } from "./types";
 
 export type RouteFault = "DEPENDS_ON_METHOD" | "NO_METHOD_KEY" | "NO_RULE" | "ROUTE_ERROR" | "REQUESTER_ONLY";
@@ -100,6 +102,7 @@ export type SubmitFault =
   | "EXERCISE_NOT_IN_PREPARATION"
   | "EXERCISE_NOT_APPROVED_FOR_TENDERING"
   | "EXERCISE_WINDOW_NOT_CLOSED"
+  | "EXERCISE_NOT_OPENED"
   | "WINDOW_CHANGE_PENDING"
   | "ANOTHER_ROUTE_OPEN"
   | RouteFault
@@ -109,7 +112,8 @@ export type SubmitFault =
   | "NAME_NOT_REQUESTED"
   | "NAME_NOT_APPROVED"
   | "NAME_REJECTED"
-  | BidGateFault;
+  | BidGateFault
+  | OpeningGateFault;
 
 /**
  * Whether an award may be sent for the appointment's approval. The awarded value's own
@@ -137,6 +141,8 @@ export function submitFaults(i: {
   nameRoutes?: readonly ({ status: "PENDING" | "APPROVED" | "REJECTED" | "RECALLED"; openedAt: Date; createdAt?: Date | null; id?: string })[];
   /// 6.6 (X-9, flagged): late admission and the bids' validity. Not given: nothing asked.
   bids?: BidGateFacts | null;
+  /// 6.7 (X-9, C-7, C-8, flagged): the openings' checks and the awardee's party. Not given: nothing asked.
+  opening?: { facts: OpeningGateFacts; awardeePartyId: string | null } | null;
 }): Finding<SubmitFault>[] {
   const f = (code: SubmitFault, data?: Finding["data"]): Finding<SubmitFault> => ({ code, level: "block", ...(data ? { data } : {}) });
   if (i.status !== "DRAFT") return [f("NOT_DRAFT")];
@@ -144,7 +150,11 @@ export function submitFaults(i: {
   if (i.today == null) out.push(f("TIME_ZONE_UNSET"));
   if (!exerciseOpenForAward(i.exerciseStatus, i.exercisePackKind, i.exerciseWindow ?? null)) {
     if (awardableStatus(i.exercisePackKind) === "DOCUMENTS_IN_PREPARATION") out.push(f("EXERCISE_NOT_IN_PREPARATION"));
-    else out.push(f(i.exerciseWindow?.changePending && (i.exerciseStatus === "ADVERTISED" || i.exerciseStatus === "INVITED") ? "WINDOW_CHANGE_PENDING" : "EXERCISE_WINDOW_NOT_CLOSED"));
+    else {
+      const published = i.exerciseStatus === "ADVERTISED" || i.exerciseStatus === "INVITED" || i.exerciseStatus === "OPENING_IN_PROGRESS";
+      // 6.7 (C-8): published with its window closed, the award waits for the opening's finalised schedule.
+      out.push(f(i.exerciseWindow?.changePending && published ? "WINDOW_CHANGE_PENDING" : published && i.exerciseWindow?.phase === "CLOSED" ? "EXERCISE_NOT_OPENED" : "EXERCISE_WINDOW_NOT_CLOSED"));
+    }
   }
   if (i.openRoute) out.push(f("ANOTHER_ROUTE_OPEN"));
   if (i.method) for (const d of dossierFault(i.method, i.dossier)) out.push(f(d.code as SubmitFault));
@@ -155,6 +165,8 @@ export function submitFaults(i: {
   if (!i.route.ok) out.push(f(i.route.fault, { rule: i.route.ruleLabel, messages: i.route.messages.join(" ") || null }));
   // 6.6: an award is not sent for approval while a late envelope waits or the bids' validity has lapsed.
   out.push(...(bidGateFindings(i.bids) as Finding<SubmitFault>[]));
+  // 6.7: the openings' checks, and the awardee carried to evaluation (C-7).
+  out.push(...(openingFindings(i.opening) as Finding<SubmitFault>[]));
   return out;
 }
 

@@ -81,6 +81,9 @@ import { WINDOW_ENTITIES } from "@/lib/window/audit-view";
 import { BID_ENTITIES } from "@/lib/bids/audit-view";
 import { bidFindingText } from "@/lib/bids/labels";
 import { bidGate } from "@/lib/bids/repo";
+import { openingGateFaults } from "@/lib/opening/award-gate";
+import { loadOpeningGate } from "@/lib/opening/gate-read";
+import { openingFindingText } from "@/lib/opening/labels";
 import { loadBids } from "./bids/workspace";
 import { PHASE_LABEL, PHASE_TONE } from "@/lib/window/labels";
 import { closingVerb, isPublished } from "@/lib/window/phase";
@@ -213,6 +216,8 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const bids = tab === "bids" ? await loadBids(ex.id, ex.status) : null;
   // 6.6 (X-9): what the register asks of an award, for the Award tab (only on an exercise published through 6.5).
   const bidAward = tab === "award" ? await bidGate(ex.id) : null;
+  // 6.7 (C-8): what the openings ask of an award, for the Award tab (only on an exercise published through 6.5).
+  const openingAward = tab === "award" ? openingGateFaults(await loadOpeningGate(ex.id)).map(openingFindingText) : [];
   const inv =
     tab === "invitation"
       ? await loadInvitation(invitationSectionOf(section), { exerciseId: ex.id, reference: ex.reference, status: ex.status, today, timeZone: org.timeZone, routes: latestFirst(windowChangeRoutesOf(ex.approvalInstances)), people: activePeople, suggestions })
@@ -489,6 +494,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
           })()}
           dossier={dossierEvidenceMissing(flags, { justificationReasonCode: ex.justificationReasonCode, dossierReference: ex.dossierReference, evidenceAttachments: evidence.dossier })}
           bidFaults={bidAward?.published ? [bidAward.lateFault, bidAward.validityFault].filter((f) => f != null).map((f) => bidFindingText(f!)) : []}
+          openingFaults={ex.status === "OPENED" ? openingAward : []}
         />
       ),
     },
@@ -615,7 +621,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
 
 // --------------------------------------------------------------------- award
 
-function AwardTab({ exerciseId, status, packKind, window, awards, opening, dossier, bidFaults }: { exerciseId: string; status: string; packKind: PackKind | null; window: WindowGate; opening: string | null; dossier: boolean; bidFaults: string[]; awards: { id: string; reference: string; awardeeName: string; awardedValue: { toString(): string }; status: string; instrumentKind: string; cancelReason: string; contract: { number: string } | null }[] }) {
+function AwardTab({ exerciseId, status, packKind, window, awards, opening, dossier, bidFaults, openingFaults }: { exerciseId: string; status: string; packKind: PackKind | null; window: WindowGate; opening: string | null; dossier: boolean; bidFaults: string[]; openingFaults: string[]; awards: { id: string; reference: string; awardeeName: string; awardedValue: { toString(): string }; status: string; instrumentKind: string; cancelReason: string; contract: { number: string } | null }[] }) {
   const live = awards.find((a) => a.status !== "CANCELLED") ?? null;
   const cancelled = awards.filter((a) => a.status === "CANCELLED");
   return (
@@ -624,6 +630,12 @@ function AwardTab({ exerciseId, status, packKind, window, awards, opening, dossi
       {bidFaults.length > 0 && (
         <Callout tone="warn" title="The bids received hold the award back" action={<ButtonLink href={`/sourcing/${exerciseId}?tab=bids`} size="sm" variant="secondary">Open Bids received</ButtonLink>}>
           {bidFaults.join(" ")} The award is not sent for approval or issued until then.
+        </Callout>
+      )}
+      {/* 6.7 (C-8): what the openings ask before the award is opened, sent or issued. */}
+      {openingFaults.length > 0 && (
+        <Callout tone="warn" title="The opening holds the award back" action={<ButtonLink href={`/sourcing/${exerciseId}?tab=bids&section=schedule`} size="sm" variant="secondary">Open the schedule</ButtonLink>}>
+          {openingFaults.join(" ")}
         </Callout>
       )}
       <Card>

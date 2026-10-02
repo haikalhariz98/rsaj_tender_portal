@@ -60,6 +60,7 @@ import { BASELINE_FIELDS, formDefaults, type BaselineField } from "@/lib/award/a
 import { formatPct } from "@/lib/tender-docs/percent";
 import { mergeFieldLabel } from "@/lib/award/fields";
 import { conditionsOutstanding, readinessGate } from "@/lib/award/readiness";
+import { loadOpeningGate } from "@/lib/opening/gate-read";
 import { awardFacts, awardHistory, exerciseMatters, latestRoute, loadAward, matterRecord, type LoadedAward } from "@/lib/award/repo";
 import { acceptancePageFaults, instrumentReturned, RETURN_SCANS, returnReadsComplete, returnState, scansAwaitingPaper, scansMissing, scansRequired, type ReturnRecord } from "@/lib/award/stage-two";
 import { isLive } from "@/lib/documents/evidence";
@@ -206,12 +207,16 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
   const routePreview = ev.route?.ok ? ev.route.chain.map((s) => `${f.issue?.matrix.roles[s.roleCode]?.nameEn ?? "An office no longer configured"} — ${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"}${s.committeeCode ? ", as a committee decision" : ""}`) : [];
   const consequenceText = ev.consequence ? NON_COMMENCEMENT_LABEL[ev.consequence] : null;
 
+  // 6.7 (C-7): the bidders the opening carried to evaluation, where the exercise's openings apply.
+  const openingGate = edits.details ? await loadOpeningGate(l.ex.id) : null;
+  const carriedParties = openingGate?.applies ? openingGate.carried.map((p) => ({ value: p.id, label: `${p.name} (${p.registrationNo})` })) : undefined;
   const actions = (
     <>
       {edits.details && (
         <EditDetailsDrawer
           id={award.id}
-          values={{ awardeeName: award.awardeeName, awardeeRegistrationNo: award.awardeeRegistrationNo, awardeeAddress: award.awardeeAddress, awardedValue: award.awardedValue.toString(), completionPeriod: String(award.completionPeriod), completionUnit: award.completionUnit }}
+          values={{ awardeePartyId: award.awardeePartyId ?? "", awardeeName: award.awardeeName, awardeeRegistrationNo: award.awardeeRegistrationNo, awardeeAddress: award.awardeeAddress, awardedValue: award.awardedValue.toString(), completionPeriod: String(award.completionPeriod), completionUnit: award.completionUnit }}
+          parties={carriedParties}
         />
       )}
       {edits.terms && <EditTermsDrawer id={award.id} values={termsValues} regulatedLabel={policy.regulatedActivityLabel} asked={{ retention: ev.terms?.retentionAsked ?? null, dlp: ev.terms?.dlpAsked ?? null }} tender={tenderTexts} />}

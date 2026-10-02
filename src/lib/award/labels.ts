@@ -4,6 +4,7 @@
  * place it is put right, `FIX_AT` says where.
  */
 
+import { openingFindingText } from "@/lib/opening/labels";
 import { bidFindingText } from "@/lib/bids/labels";
 import { findingText as methodFindingText, REGIME_SHORT } from "@/lib/method/labels";
 import type { Regime } from "@/lib/method/types";
@@ -192,6 +193,9 @@ export function awardFindingText(f: Finding): string {
       return "The exercise must have been advertised or invited, and its invitation window must have closed, before its award goes for approval.";
     case "WINDOW_CHANGE_PENDING":
       return "A change to the exercise's invitation window is with approval. The award goes for approval once it is decided.";
+    // 6.7 (C-8): the award follows the opening's finalised schedule.
+    case "EXERCISE_NOT_OPENED":
+      return "The exercise's bids have not been opened, or its opening is not finalised. The award goes for approval once the opening's schedule is finalised, on Bids and opening.";
     case "ANOTHER_ROUTE_OPEN":
       return "An approval route is already open for this award.";
     case "DEPENDS_ON_METHOD":
@@ -225,7 +229,9 @@ export function awardFindingText(f: Finding): string {
       return d.needs === "WINDOW_CLOSED"
         ? d.changePending === "yes"
           ? "A change to the exercise's invitation window is with approval, so no award is issued on it until it is decided."
-          : "The exercise's invitation window has not closed, so no award is issued on it."
+          : d.status === "ADVERTISED" || d.status === "INVITED" || d.status === "OPENING_IN_PROGRESS"
+            ? "The exercise's bids have not been opened, or its opening is not finalised, so no award is issued on it."
+            : "The exercise's invitation window has not closed, so no award is issued on it."
         : d.needs === "APPROVED_FOR_TENDERING"
           ? "The exercise's tender documents are not approved for tendering, so no award is issued on it."
           : "The exercise is no longer in preparation.";
@@ -325,6 +331,16 @@ export function awardFindingText(f: Finding): string {
     case "BID_VALIDITY_EXPIRED":
     case "VALIDITY_NOT_JUDGED":
       return bidFindingText(f);
+    // 6.7 (C-7, C-8): the openings' checks, in the opening's words.
+    case "OPENING_NOT_STARTED":
+    case "OPENING_NOT_FINALISED":
+    case "SIGNED_SCHEDULE_NOT_ATTACHED":
+    case "ESTIMATE_COPY_UNEXPLAINED":
+    case "SUPPLEMENTARY_NOT_FINALISED":
+    case "ADMITTED_UNOPENED":
+    case "AWARDEE_NOT_NAMED":
+    case "AWARDEE_NOT_CARRIED":
+      return openingFindingText(f);
     default:
       return methodFindingText(f);
   }

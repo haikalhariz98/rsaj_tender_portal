@@ -19,7 +19,7 @@ import { createAward } from "./actions";
  * every rule is the action's. The exercise's classification is shown read-only: the
  * award reads it and never copies it.
  */
-export function AwardForm({ exercise, cancelHref, valueHint, dossier }: { exercise: { id: string; facts: { label: string; value: string }[] }; cancelHref: string; valueHint: string; dossier: boolean }) {
+export function AwardForm({ exercise, cancelHref, valueHint, dossier, parties }: { exercise: { id: string; facts: { label: string; value: string }[] }; cancelHref: string; valueHint: string; dossier: boolean; parties?: { id: string; name: string; registrationNo: string; address: string }[] }) {
   const [state, setState] = useState<FormState>({ ok: false });
   const [pending, startTransition] = useTransition();
   const [v, setV] = useState<Record<string, string>>({ completionUnit: "" });
@@ -41,8 +41,28 @@ export function AwardForm({ exercise, cancelHref, valueHint, dossier }: { exerci
         </CardBody>
       </Card>
       <Card>
-        <CardHeader title="The awardee" subtitle="As registered. There is no supplier register yet: the name, number and address are kept as written." />
+        <CardHeader title="The awardee" subtitle={parties ? "One of the bidders the opening carried to evaluation. Its name, number and address are kept as written." : "As registered. There is no supplier register yet: the name, number and address are kept as written."} />
         <CardBody className="grid gap-4 sm:grid-cols-2">
+          {parties && (
+            <div className="sm:col-span-2">
+              <Field label="Bidder carried to evaluation" required htmlFor="awardeePartyId" hint="The award is compared as this bidder, never by the words typed below (6.7)." error={err("awardeePartyId")}>
+                <Select
+                  id="awardeePartyId"
+                  name="awardeePartyId"
+                  value={v.awardeePartyId ?? ""}
+                  onChange={(e) => {
+                    const p = parties.find((x) => x.id === e.target.value);
+                    setV((x) => ({ ...x, awardeePartyId: e.target.value, ...(p ? { awardeeName: x.awardeeName || p.name, awardeeRegistrationNo: x.awardeeRegistrationNo || p.registrationNo, awardeeAddress: x.awardeeAddress || p.address } : {}) }));
+                  }}
+                >
+                  <option value="">Choose</option>
+                  {parties.map((p) => (
+                    <option key={p.id} value={p.id}>{`${p.name} (${p.registrationNo})`}</option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+          )}
           <Field label="Awardee" required htmlFor="awardeeName" error={err("awardeeName")}>
             <Input id="awardeeName" name="awardeeName" value={v.awardeeName ?? ""} onChange={set("awardeeName")} />
           </Field>

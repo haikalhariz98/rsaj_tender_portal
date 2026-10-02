@@ -25,14 +25,15 @@ describe("the state an award needs, by the pack kind the exercise was prepared u
     // 6.5 (tightened, flagged): approved for tendering is no longer enough.
     expect(exerciseOpenForAward("APPROVED_FOR_TENDERING", kind)).toBe(false);
     expect(exerciseOpenForAward("APPROVED_FOR_TENDERING", kind, closed)).toBe(false);
-    for (const s of ["ADVERTISED", "INVITED"]) {
+    // 6.7 C-8 (flagged, stricter): published and closed is no longer enough; the main opening must be finalised (Opened).
+    for (const s of ["OPENED"]) {
       expect(exerciseOpenForAward(s, kind, closed)).toBe(true);
       expect(exerciseOpenForAward(s, kind, { phase: "CLOSED_FOR_PURCHASE", changePending: false })).toBe(false);
       expect(exerciseOpenForAward(s, kind, { phase: "CLOSED", changePending: true })).toBe(false);
       // Not judged is not open.
       expect(exerciseOpenForAward(s, kind)).toBe(false);
     }
-    for (const s of ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING", "CANCELLED"]) expect(exerciseOpenForAward(s, kind, closed)).toBe(false);
+    for (const s of ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING", "ADVERTISED", "INVITED", "OPENING_IN_PROGRESS", "CANCELLED"]) expect(exerciseOpenForAward(s, kind, closed)).toBe(false);
     expect(awardOpenRefusal(kind)).toMatch(/advertised or invited and its invitation window has closed/);
     expect(awardOpenRefusal(kind, "ADVERTISED", { phase: "CLOSED", changePending: true })).toMatch(/change to the invitation window is with approval/);
   });
@@ -47,7 +48,9 @@ describe("the gates read it", () => {
     expect(sub("DOCUMENTS_IN_PREPARATION", "TENDER")).toContain("EXERCISE_WINDOW_NOT_CLOSED");
     // 6.5 (tightened, flagged): approved for tendering is refused too, until the window closes.
     expect(sub("APPROVED_FOR_TENDERING", "TENDER")).toContain("EXERCISE_WINDOW_NOT_CLOSED");
-    expect(submitFaults({ status: "DRAFT", today: "2026-10-01", exerciseStatus: "ADVERTISED", exercisePackKind: "TENDER", exerciseWindow: { phase: "CLOSED", changePending: false }, openRoute: false, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route }).map((f) => f.code)).toEqual([]);
+    // 6.7 C-8 (flagged, stricter): clear only once Opened; published and closed is refused, naming the opening.
+    expect(submitFaults({ status: "DRAFT", today: "2026-10-01", exerciseStatus: "OPENED", exercisePackKind: "TENDER", exerciseWindow: { phase: "CLOSED", changePending: false }, openRoute: false, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route }).map((f) => f.code)).toEqual([]);
+    expect(submitFaults({ status: "DRAFT", today: "2026-10-01", exerciseStatus: "ADVERTISED", exercisePackKind: "TENDER", exerciseWindow: { phase: "CLOSED", changePending: false }, openRoute: false, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route }).map((f) => f.code)).toEqual(["EXERCISE_NOT_OPENED"]);
     expect(submitFaults({ status: "DRAFT", today: "2026-10-01", exerciseStatus: "ADVERTISED", exercisePackKind: "TENDER", exerciseWindow: { phase: "CLOSED", changePending: true }, openRoute: false, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route }).map((f) => f.code)).toEqual(["WINDOW_CHANGE_PENDING"]);
     expect(awardFindingText({ code: "EXERCISE_WINDOW_NOT_CLOSED", level: "block" })).toMatch(/invitation window must have closed/);
     expect(sub("DOCUMENTS_IN_PREPARATION", null)).not.toContain("EXERCISE_NOT_IN_PREPARATION");

@@ -9,6 +9,7 @@
  */
 
 import { bidGate } from "@/lib/bids/repo";
+import { loadOpeningGate } from "@/lib/opening/gate-read";
 import type { Tx } from "@/lib/audit/record";
 import type { DecisionRecord } from "@/lib/committee/record";
 import { dayIn, dayToDate, storedDay } from "@/lib/dates";
@@ -272,6 +273,8 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
   const exerciseWindow = windowGate(ex, await client.exerciseWindow.findUnique({ where: { exerciseId: ex.id }, select: { purchaseFromDay: true, purchaseCloseDay: true } }), new Date(), org.timeZone);
   // 6.6 (X-9): late admission and the bids' validity, only for an exercise published through 6.5.
   const bidsNow = await bidGate(ex.id, client);
+  // 6.7 (X-9, C-7, C-8): the openings' checks, and the party the award names.
+  const openingNow = await loadOpeningGate(ex.id, client);
   const unitPath = pathTo(units as unknown as OrgUnit[], req.sectionUnitCode || req.requestingUnitCode, on).reverse().map((u) => u.code);
   const holdersOf = (code: string) => holdersFor(code, unitPath, roster, delegations, org.today ?? storedDay(on));
   const people = new Map(roster.people.map((p) => [p.id, p]));
@@ -329,6 +332,7 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
       packKindSnapshot: ex.packKindSnapshot,
       window: exerciseWindow,
       bids: bidsNow.published ? { lateFault: bidsNow.lateFault, validityFault: bidsNow.validityFault } : null,
+      opening: openingNow.applies ? { facts: openingNow, awardeePartyId: award.awardeePartyId } : null,
       regime: ex.regime,
       appointmentRuleKey: ex.appointmentRuleKey,
       appointmentRuleLabel: bands?.appointment.ruleLabel ?? null,

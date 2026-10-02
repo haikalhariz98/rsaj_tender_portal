@@ -7,6 +7,9 @@ import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { awardOpenRefusal, exerciseOpenForAward } from "@/lib/award/gate";
 import { readWindowGate } from "@/lib/window/repo";
+import { openingGateFaults } from "@/lib/opening/award-gate";
+import { loadOpeningGate } from "@/lib/opening/gate-read";
+import { openingFindingText } from "@/lib/opening/labels";
 import { INSTRUMENT_LABEL, awardFindingText } from "@/lib/award/labels";
 import { awardHeadroom, instrumentFor } from "@/lib/award/instrument";
 import { frozenTenderOf, loadAwardPolicy } from "@/lib/award/repo";
@@ -62,7 +65,10 @@ export default async function NewAwardPage(props: PageProps<"/awards/new">) {
   const instrument = instrumentFor(ex.regime, policy);
   // X-9 (6.5): the window's phase and any pending change, read now.
   const gate = await readWindowGate(ex, org.timeZone);
-  const blocker = !exerciseOpenForAward(ex.status, ex.packKindSnapshot, gate) ? awardOpenRefusal(ex.packKindSnapshot, ex.status, gate) : live ? `This exercise already has a live award, ${live.reference}.` : "fault" in instrument ? awardFindingText({ code: instrument.fault, level: "block", data: { regime: instrument.regime } }) : null;
+  // 6.7 (C-7, C-8): the openings' checks; the awardee is chosen from the bidders carried to evaluation.
+  const opening = await loadOpeningGate(ex.id);
+  const openingBlock = openingGateFaults(opening);
+  const blocker = !exerciseOpenForAward(ex.status, ex.packKindSnapshot, gate) ? awardOpenRefusal(ex.packKindSnapshot, ex.status, gate) : openingBlock.length ? openingBlock.map(openingFindingText).join(" ") : live ? `This exercise already has a live award, ${live.reference}.` : "fault" in instrument ? awardFindingText({ code: instrument.fault, level: "block", data: { regime: instrument.regime } }) : null;
   if (blocker) {
     return (
       <>
@@ -107,6 +113,7 @@ export default async function NewAwardPage(props: PageProps<"/awards/new">) {
         cancelHref={`/sourcing/${ex.id}?tab=award`}
         valueHint={headroom == null ? "The requisition has no approved value on record, so nothing can be awarded against it." : `Up to ${formatMoney(headroom)}: what the requisition's approval covers${siblings.length ? ", less its other awards" : ""}. In ringgit, to at most two decimal places.`}
         dossier={dossierEvidenceMissing(method, { justificationReasonCode: ex.justificationReasonCode, dossierReference: ex.dossierReference, evidenceAttachments: dossierEvidence })}
+        parties={opening.applies ? opening.carried : undefined}
       />
     </>
   );

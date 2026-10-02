@@ -25,6 +25,9 @@ import { evaluateAward } from "@/lib/award/evaluate";
 import { awardOpenRefusal, exerciseOpenForAward } from "@/lib/award/gate";
 import { readWindowGate } from "@/lib/window/repo";
 import { bidGate } from "@/lib/bids/repo";
+import { openingGateFaults } from "@/lib/opening/award-gate";
+import { loadOpeningGate } from "@/lib/opening/gate-read";
+import { openingFindingText } from "@/lib/opening/labels";
 import { bidFindingText } from "@/lib/bids/labels";
 import { awardValueFaults, instrumentFor } from "@/lib/award/instrument";
 import { AWARD_STATUS_LABEL, awardFindingText, BOND_FAULT_TEXT, DESPATCH_FAULT_TEXT, INSURANCE_FAULT_TEXT, SIGNER_FAULT_TEXT, differsRefusal, tenderTermText } from "@/lib/award/labels";
@@ -158,6 +161,7 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
     completionUnit: r.choice("completionUnit", "Unit", UNITS, { required: true }),
     startDate: r.date("startDate", "Start date"),
   };
+  const awardeePartyId = r.optionalText("awardeePartyId");
   if (r.failed || !v.awardedValue || !v.completionPeriod || !v.completionUnit) return { ok: false, errors: r.errors, message: "Nothing was saved. Correct the fields marked below." };
 
   let id: string | null = null;
@@ -170,6 +174,12 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
       if (!exerciseOpenForAward(ex.status, ex.packKindSnapshot, gate)) return { ok: false, message: awardOpenRefusal(ex.packKindSnapshot, ex.status, gate) };
       const live = await tx.award.findFirst({ where: { exerciseId: ex.id, status: { in: [...LIVE_STATUSES] } }, select: { reference: true } });
       if (live) return { ok: false, message: `This exercise already has a live award, ${live.reference}. Cancel it first to open another.` };
+      // 6.7 (C-7, C-8, flagged): the openings' checks, and the awardee a party carried to evaluation, compared as a party.
+      const opening = await loadOpeningGate(ex.id, tx);
+      const og = openingGateFaults(opening, opening.applies ? awardeePartyId : undefined);
+      const naming = og.filter((f) => f.code === "AWARDEE_NOT_NAMED" || f.code === "AWARDEE_NOT_CARRIED");
+      if (og.length > naming.length) return refuse(og.filter((f) => !naming.includes(f)), "No award was opened:");
+      if (naming.length) return { ok: false, errors: { awardeePartyId: naming.map(openingFindingText).join(" ") } };
       const config = await loadAwardConfig(org.id, tx);
       const instrument = instrumentFor(ex.regime, config.policy);
       if ("fault" in instrument) return refuse([{ code: instrument.fault, level: "block", data: { regime: instrument.regime } }], "No award was opened:");
@@ -204,6 +214,7 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
           reference,
           exerciseId: ex.id,
           instrumentKind: instrument.kind,
+          awardeePartyId: opening.applies ? awardeePartyId : null,
           awardeeName: v.awardeeName,
           awardeeRegistrationNo: v.awardeeRegistrationNo,
           awardeeAddress: v.awardeeAddress,
@@ -245,13 +256,21 @@ export async function updateAwardDetails(_prev: FormState, data: FormData): Prom
     completionPeriod: r.int("completionPeriod", "Completion period", { required: true, min: 1 }),
     completionUnit: r.choice("completionUnit", "Unit", UNITS, { required: true }),
   };
+  const partyPosted = data.has("awardeePartyId");
+  const awardeePartyId = r.optionalText("awardeePartyId");
   if (r.failed) return { ok: false, errors: r.errors };
   return inAward(id, async (tx, l) => {
+    // 6.7 (C-7): on an exercise whose openings apply, the awardee is a party carried to evaluation.
+    if (partyPosted) {
+      const opening = await loadOpeningGate(l.ex.id, tx);
+      const naming = openingGateFaults(opening, opening.applies ? awardeePartyId : undefined).filter((f) => f.code === "AWARDEE_NOT_NAMED" || f.code === "AWARDEE_NOT_CARRIED");
+      if (naming.length) return { ok: false, errors: { awardeePartyId: naming.map(openingFindingText).join(" ") } } as FormState;
+    }
     if (!editable(l.award.status as AwardStatus).details) return { ok: false, message: `The awardee, value and period are fixed once the award goes for approval. This one is ${AWARD_STATUS_LABEL[l.award.status as AwardStatus].toLowerCase()}.` };
     // 64-C4: damages the tender states as a percentage, still as resolved against the old sum, follow the new one.
     const tender = await frozenTenderOf(l.ex.id, l.org.timeZone, tx);
     const lad = tender ? ladOnValueChange(tender, senFromDecimal(l.award.awardedValue), parseSen(v.awardedValue!), termsOf(l.award)) : null;
-    const after = { ...v, awardedValue: senToDecimalString(parseSen(v.awardedValue!)), completionPeriod: v.completionPeriod!, completionUnit: v.completionUnit!, ...(lad != null ? { ladAmount: senToDecimalString(lad) } : {}) };
+    const after = { ...v, awardedValue: senToDecimalString(parseSen(v.awardedValue!)), completionPeriod: v.completionPeriod!, completionUnit: v.completionUnit!, ...(lad != null ? { ladAmount: senToDecimalString(lad) } : {}), ...(partyPosted ? { awardeePartyId } : {}) };
     const { facts } = await awardFacts({ ...l, award: { ...l.award, awardedValue: after.awardedValue as never } }, tx);
     const ev = evaluateAward(facts);
     const blocks = ev.valueFaults.filter((f) => f.level === "block");
