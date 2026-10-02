@@ -81,7 +81,7 @@ Should: FR-DOC-014 built (two assurance confirmations; unset blocks). The assura
 | Req | Pri | Status | Reason, and where the rest goes |
 | --- | --- | --- | --- |
 | FR-ADV-001 | M | Met | Channels shipped empty; none configured refuses publication |
-| FR-ADV-002 | M | Partly met | Invited path built: public channel refused, one frozen letter per approved invitee. The log does not state what is missing. The plan's row ends "no public listing yet"; the letters are recorded, not sent (INT-09) |
+| FR-ADV-002 | M | Partly met | Invited path built: public channel refused, one frozen letter per approved invitee. Missing: delivery (recorded, never sent: INT-09); 'not in the public listing' holds only because none exists, and 6.15 must check whether the exercise is open or invited. Reason ruled 2026-10-02. |
 | FR-ADV-003 to 008 | M | Met | Notice items, minimum days, calendar, closing time, purchase cut-off, fee basis and floor. Calendar and floors ship empty |
 | FR-ADV-009 | M | Partly met | Finance receipt number recorded behind a manual adapter. Missing: ledger reconciliation (D5). Online payment (INT-10) is Phase 3 |
 | FR-ADV-010 | M | Partly met | Attested checks at sale. Registration and suspension read "not checked" until the supplier register (6.15) |
@@ -108,13 +108,15 @@ Shoulds: FR-ADV-012 recorded, never sent; FR-ADV-017 deferred to 6.15 (OD-10).
 | FR-BID-005 | M | Met | No edit path; one clerical correction before closing, with reason and audit |
 | FR-BID-006 | M | Met across 6.6 and 6.7 | Permission stored here; marking an alternative happens at opening (6.7) |
 | FR-BID-007 | M | Met across 6.6 and 6.7 | Checklist rule built here (parts plus every issued addendum); applied per bidder at opening |
-| FR-BID-008 | M | Re-designated | To 6.15. It is an electronic-submission control on registration data |
+| FR-BID-008 | M | Re-designated | To 6.15c (electronic submission, gated on sign-in); DL 6.6 · OD-9, 2026-10-01 |
 | FR-BID-009 | M | Met | Validity days per exercise, no default; expiry reading ASSUMED and shown |
 | FR-BID-010 | M | Met across 6.6 and 6.8 | Extensions with attached consent here. The consent is judged against the recommended tenderer in 6.8 |
 | FR-CTE-007 (late part) | M | Met | Tabling or citing an appointment is refused while a late envelope has no decided admission. The bundle's rest is 6.8's |
 | FR-CTE-008 | M | Met | Late-tender admission tabled from its record; the committee's decision is the admission. Consequence (supplementary opening) is 6.7's |
 | FR-CTE-013 | M | Re-designated | To 6.8 (met there) |
-| NFR-SEC-003 | M | Re-designated | To Phase 3 with the electronic box (OD-1 A). Letter and quote are SULIT. Phase 1 record §10 row already reads this way |
+| NFR-SEC-003 | M | Re-designated | To Phase 3 with the electronic box (OD-1 A); DL 6.6 · OD-1. Letter and quote are SULIT. Phase 1 record §10 row already reads this way |
+
+DL Modules · 6.6's Spec line ('built FR-BID-001–011', 'NFR-SEC-003 (letter and quote SULIT)') overstates; the OD-1 and OD-9 rulings govern.
 
 Shoulds: FR-BID-004 (withdrawals) and FR-BID-011 (competition flag) built.
 
@@ -139,7 +141,7 @@ Shoulds: FR-BID-004 (withdrawals) and FR-BID-011 (competition flag) built.
 | FR-EST-007 | M | Met | Lead time refused at start unless overridden; the override is snapshotted |
 | FR-EST-008, 010 | M | Met | Disclosure runs in the finalising transaction; nothing written on refusal. Access log waits for sign-in |
 | FR-BID-006, 007 | M | Met | Alternatives and completeness applied at opening |
-| FR-DOC-009 (paper, at opening) | M | Built per the code | `NOT_EVIDENCED` finding in `src/lib/opening/verdict.ts`. The plan lists it; the log's Modules entry does not. Electronic half stays with 6.15 |
+| FR-DOC-009 (paper, at opening) | M | Met (paper half) | Per bidder, the sale's sighted certificate valid on the closing day, else NOT_EVIDENCED, a ground for rejection (SK001 7.3.4(a)); the closing-day reading is ASSUMED and shown. `opening/verdict.ts`; tests `findings.test.ts`, `verdict.test.ts`; plan 6.7 row. Left out of DL Modules · 6.7; placed by ruling 2026-10-02. Electronic half: 6.15c. |
 | FR-CTE-008 (consequence) | M | Met | A carried late tender opens a supplementary opening under the main opening's committee |
 | NFR-SEC-002 | M | Partly met | SULIT values withheld from the audit export and tested on the file's bytes. Missing: restriction of prices (sign-in). A figure typed into a free-text audit reason is not withheld (section 5) |
 
@@ -175,6 +177,13 @@ Shoulds: FR-EVL-002 and 018 built; FR-EVL-020 deferred to sign-in (OD-7).
 
 **Changes made to accepted modules**, each in its own flagged commit: X-8 fan-out `7ad5c15`; document store `ba22596`; 6.10 `a0fb345`, `6330ba8`, `f5b85b1`, `ac2afa8`, `fb41578`, `7e167da`, `bc2a788` (demo); 6.11 `6b11b3f`, `53393bf`, `ac2afa8`, `fb41578`; 6.6 `53393bf`; method routes `3964ad7`; 6.5 `e52a532`, `eaff338`; 6.7 `0369151`, `7ebc8fe`; templates `f5a42b2`, `f9e7b96`; 6.3 `52c3e90`; demos `f45a4ea`, `6a8525a`, `f7abe3a`, `b57a2de`, `68b8205`, `4e20c6f`. Lock order extended and corrected (BD-68-3): requisition, exercise, window, openings, sitting, evaluations (`lock-order.test.ts`). Tests changed, each ruled: `window/publish` (fixtures, plus a new E-2 block), `method/opening-states`, `method/route-domains`, `documents/targets`, `committee/labels` (stricter), `components/data-list-width`, `documents/owner-check` (additive), `evaluation/rules` (R-5 as ruled), `evaluation/hooks` (scans stricter, one title).
 
+### Cross-cutting: audit
+
+| Req | Pri | Status | Reason, and where the rest goes |
+| --- | --- | --- | --- |
+| NFR-AUD-001 | M | Partly met | Every Phase 2 act audited before/after in its transaction (FR-OPN-011 source scan; 67-C2). Missing, as Phase 1 §10: actor, role held, source address, reads of classified records (sign-in); penetration test (go-live) |
+| NFR-AUD-006 | M | Partly met | Server stamp decides receipt and lateness (FR-BID-002); an after-the-event receipt keeps the officer's stated time and reason, shown as a statement; days on the organisation's clock, no UTC fallback (68-C5). Missing, as Phase 1 §10: back-dating exceptions with an authorising officer (sign-in) |
+
 ### Phase 2 close-out (after 6.8)
 
 Range `dd00fa3..e060f98`, 24 commits. Items and commits are in section 4. Tests changed, both flagged: `evaluation/org-day.test.ts` (stricter: `dayOf` for `dayIn`) and `tender-docs/pack.test.ts` (a fixture default, no assertion changed). No migration. Accepted Phase 1 modules touched include: 6.9 (`1ab3073`, an issue's `issuedAt` on the organisation's clock), 6.10 (`fd3da01`), 6.11 (`bb38d5e`, `bb63b64`, `d5dcbb2`).
@@ -200,7 +209,7 @@ No test is skipped. Every changed existing test is listed per module in section 
 
 | Run | Cases | Source |
 | --- | --- | --- |
-| 6.2, 6.4, 6.5, 6.6 | run; count not logged | DL 6.6 · "Changes to accepted modules" and the module entries |
+| 6.2, 6.4, 6.5, 6.6 | run; count not logged | DL 6.6 · "Changes to accepted modules" and the module entries. No count reconstructed; the product owner's gate re-run at each acceptance stands. |
 | 6.7 build | run; count not logged | DL 6.7 · Built |
 | 6.7 fix round | 30 checks, all passed | DL 6.7 · Fix round done |
 | 6.8 build | 62, all as expected | DL 6.8 · Built |
@@ -219,6 +228,7 @@ Every carry that blocked Phase 2 acceptance is closed.
 
 | ID | Item | Closed by |
 | --- | --- | --- |
+| 62-C5 | Voluntary estimate: offered, never blocks, disclosed at finalising, copy may be left uncompared | 29b61fa (S-5); tests opening/start.test.ts (62-C5), frozen-readings.test.ts; closed by ruling 2026-10-02 |
 | 68-C3 | Award gate judges a price that differs from the recommendation against the quotation ceiling | `bb38d5e`; wording `bb63b64` |
 | 68-C5 | `storedDay` on instants in six actions | Resolved as correct: `openedAt` is the organisation's day at midnight UTC, so `storedDay` is right in every zone (proved by `dd00fa3`). The scan then found real instants read as UTC days, each fixed in its own commit: `279b9b0`, `4062931`, `84e04c9`, `1a47cca`, `fd3da01` |
 | 67-C5 | `pathTo` truncates at the first ancestor not in force | `81ca660` (`wholePathTo`; a broken path blocks as unit not recorded) |
@@ -249,14 +259,13 @@ Every carry that blocked Phase 2 acceptance is closed.
 | ID | What it is | Blocks | Owner |
 | --- | --- | --- | --- |
 | 68-C4 | The recommended tenderer is named on `/awards`, its search and `/approvals` once an award is drafted on it, before the Board's step. Founder list | Go-live | 6.11 follow-up, founder's ruling |
-| 62-C7, Phase 1 D1 | Native-engine check of the migrations (section 5) | Sign-off condition only | Founder, local review |
+| 62-C7, Phase 1 D1 | Native-engine check of the migrations (section 5) | Any non-throwaway database; go-live | Founder, local review |
 | 62-C8 | Excel import before go-live; 2,000-line cap against hosted latency; CSV safe only while downloads are forced attachments; RSAJ questions OD-2, OD-6, OD-8 and "Value approved" | Go-live | 6.2 follow-up, devops |
-| 62-C5 | Voluntary estimate where the method needs none: stays offered, never blocks. 6.7 built the "Paper copy not compared" reading (S-5, BD-67-14). The log does not mark the carry closed | Nothing | 6.7 |
 | 64-C4-b | The award's own insurance terms (a negotiated term cannot yet be stated on the award) | 6.12 | 6.12 |
-| 64-C4-c | The letter says "None", not "0 months", for a defects liability period. `lib/award/labels.ts:422` reads "None" for one that does not apply; whether that is the carried wording is not verified | Nothing | 6.11 wording step |
+| 64-C4-c | The award letter prints a defects liability period stated as none (stored as 0, BD-64-40) as '0 months': `lib/award/fields.ts:131` (`terms.dlp` via `formatPeriod`). The carry asks for 'None' in both languages. `labels.ts:422` is the on-screen tender term (already 'None'), not the letter. Verified open 2026-10-02. | Nothing | 6.11 wording step (own flagged commit, new tests only) |
 | 67-C4 | An opening started before R-4 is refused for good with wording that cannot help it. No such data exists; if found, the wording names cancellation | Nothing | 6.7 |
 | P2-C1 | Label strings added in the close-out and the maps around them are English only (the existing gap against the Malay rule) | Nothing | Bilingual pass, later |
-| Phase 1 carry 2 | `saveTimeZone`, `saveMatrix` and `saveRule` read or check outside the lock or transaction. No Phase 2 entry closes it | Go-live | Configuration hardening |
+| Phase 1 carry 2 | `saveTimeZone`, `saveMatrix` and `saveRule` read or check outside the lock or transaction. No Phase 2 entry closes it | Sign-in (concurrent users) and go-live | Configuration hardening |
 | Phase 1 carry 7 | INT-01 and INT-02 reconciliation report. Waits on the integration decision D5 (not the document carry D5 above) | Go-live | Integration module |
 | Phase 1 D9 | Concurrency defaults and memory multiples measured on the target host | Go-live | Devops |
 | Phase 1 carries 5, 6, 8, 9; D7, D8 | Dashboard stat spill; time-zone list size; FR-APR-017 on name and award routes; contract-record display and EOT default; recommender audit-row test; access events kept by the wipe | Nothing | As in the Phase 1 record. No Phase 2 entry addresses them |
@@ -282,6 +291,8 @@ Run `npx prisma migrate deploy` on a normal machine against PostgreSQL 17 with t
 - **6.8 (13):** `20261002055108_exercise_status_under_evaluation`, `20261002055110_exercise_status_evaluated`, `20261002055112_attachment_purpose_cpr_report`, `20261002055114_attachment_purpose_communication`, `20261002055116_attachment_purpose_meeting_minutes`, `20261002055119_attachment_purpose_tenderer_confirmation`, `20261002055121_attachment_purpose_report_drawings`, `20261002055123_attachment_purpose_signed_report`, `20261002055125_attachment_purpose_signed_proposal_paper`, `20261002055127_matter_kind_evaluation_stage`, `20261002055358_evaluation`, `20261002063033_evaluation_started_by_optional`, `20261002091522_committee_decision_evaluation_version`.
 
 Found while writing this record: the native check logged on 2026-10-01 covers the 23 folders through `20261001011312_phase1_closeout`. It does not cover four earlier-than-Phase-2 folders that follow: `20261001034512_organisation_details_and_logo`, `20261001040327_core_routing`, and the two document-store folders (`20261001055855_document_store`, `20261001073742_document_store_rulings`, carry D1; the check is written up in `docs/notes/cloud-build/local-review.md`). Run the check from the first folder after `phase1_closeout`, not from the first Phase 2 folder.
+
+Phase 1 carry D1 was to block the first Phase 2 migration (Phase 1 record §9). It did not: the 45 Phase 2 migrations were built on the WASM engine with D1 outstanding. The check covers all 49 folders after `20261001011312_phase1_closeout`. Until it passes, these migrations go to no database except throwaway and development ones. The pg_constraint step checks every CHECK named in those folders (14 folders carry them), including D1's nine and the rebuilt attachment-owner CHECK (X-6).
 
 ### 5.2 Founder-list rulings accumulated
 
@@ -317,7 +328,7 @@ Text-snapshot diffs (`scripts/text-snapshot.mjs`, before and after, in `docs/not
 | `phase2-closeout-text-snapshot.diff` | 798 routes, `c92b0b7` against `91e6059` | 11 of 797 screens differ; nothing dropped |
 | `phase2-closeout-residuals-text-snapshot.diff` | The same 798 routes after the residuals | Nine exercises' Tender documents tabs read "The exercise's estimated value alone" (6b); nothing else dropped |
 
-ADRs (`docs/notes/architecture/`): 0012 sealed estimate, 0013 tender pack freeze and states, 0014 window phase from instants, 0015 name route approves a frozen invitee list, **0016 envelope register and the Phase 3 key model, 0017 paper opening record, 0018 configured evaluation model**. The files for 0016, 0017 and 0018 still read "Status: Proposed". Their rulings were approved with the modules. The status line needs updating to accepted (not done here: this record changes no other file).
+0012, 0013, 0016, 0017 and 0018 marked Accepted in a separate docs commit (ruling 2026-10-02).
 
 Screenshots and bundles sent to the founder at each acceptance:
 
@@ -335,16 +346,11 @@ The 6.6 and 6.7 zips are not in the repository.
 
 ## 7. Acceptance
 
-**Decision: ACCEPTED WITH CARRIES**, 2026-10-02, at `e060f98` on `build-all-modules`, subject to section 5. The verdict is the lead's, as instructed to the author of this record.
+**Decision: ACCEPTED WITH CARRIES**, 2026-10-02, at `e060f98` on `build-all-modules`, subject to section 5. The verdict is the lead's, as instructed to the author of this record. Signed off by the product owner on the founder's behalf, 2026-10-02.
 
-**Why accepted.** Every Must in section 2 is met, partly met with a logged deferral, or re-designated by a logged ruling, with the placement exceptions below. Every carry that blocked Phase 2 is closed (section 4.1). Gates are clean on one commit (section 3). The test of done in section 1 holds, with its four stated limits.
+**Why accepted.** Every Must in section 2 is met, partly met with a logged deferral, or re-designated by a logged ruling. Every carry that blocked Phase 2 is closed (section 4.1). Gates are clean on one commit (section 3). The test of done in section 1 holds, with its four stated limits.
 
-**Musts that could not be placed from the sources.**
-- NFR-AUD-001 for 6.6, 6.7 and 6.8, and NFR-AUD-006 for 6.8: named in the modules' Spec lines (DL Modules · 6.7, DL 6.8 acceptance entry) with no per-requirement status. The Phase 1 and document-store tables (sections 9 and 10 of the Phase 1 record) carry the standing status, "partly met, actor waits for sign-in". Itemise them, or confirm that reading, before this record is final.
-- FR-ADV-002 (6.5): logged "partly met" without a reason. The reason above is read from the plan, not the log.
-- FR-DOC-009 at opening (6.7): built per the code (`NOT_EVIDENCED`), absent from the log's Modules line.
-- 62-C5: built by 6.7, not marked closed in the log.
-- 6.4 and 6.5: no acceptance bundle named in the log.
+**Musts that could not be placed:** None, after the rulings of 2026-10-02 (NFR-AUD-001/006, FR-ADV-002, FR-DOC-009, 62-C5). Acceptance bundles for 6.4 and 6.5: not established.
 
 **Not ruled here:** the founder's open question on vote secrecy beyond the activity feed (Phase 1 record, §10). The founder's open questions are held for the end by the founder's choice of the full review cycle.
 
