@@ -31,8 +31,10 @@ export function saleStandingCheck(
   const findings: Finding<SaleFault>[] = [];
   const registered = supplier.status === "REGISTERED";
   if (!registered) findings.push({ code: "SALE_NOT_REGISTERED", level: "block" });
+  // A cancelled registration fails the registration check; a suspension or blacklisting the suspension check.
+  const cancelled = registered && supplier.standing === "CANCELLED";
   const isBarred = registered && barred(supplier.standing);
   if (isBarred) findings.push({ code: "BARRED", level: "block", data: { standing: supplier.standing } });
   if (registered && !isBarred && supplier.lapseRuleNotSet) findings.push({ code: "LAPSE_RULE_NOT_SET", level: "warn" });
-  return { registrationCheck: registered ? "CLEAR" : "FAILED", suspensionCheck: !registered ? "NOT_CHECKED" : isBarred ? "FAILED" : "CLEAR", findings };
+  return { registrationCheck: registered && !cancelled ? "CLEAR" : "FAILED", suspensionCheck: !registered || cancelled ? "NOT_CHECKED" : isBarred ? "FAILED" : "CLEAR", findings };
 }

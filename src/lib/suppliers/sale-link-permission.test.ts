@@ -13,7 +13,12 @@ describe("the register's checks at a sale (FR-ADV-010, OD-5)", () => {
     expect(saleStandingCheck(active, { registerRequiredForSale: null })).toEqual({ registrationCheck: "CLEAR", suspensionCheck: "CLEAR", findings: [] });
   });
 
-  it.each(["SUSPENDED", "SUSPENDED_ON_LAPSE", "BLACKLISTED", "CANCELLED"] as const)("linked and %s: the sale is refused, the suspension check failed", (s) => {
+  it("linked and its registration cancelled: refused, the registration check failed", () => {
+    const c = saleStandingCheck({ ...active, standing: "CANCELLED" }, { registerRequiredForSale: null });
+    expect(c).toEqual({ registrationCheck: "FAILED", suspensionCheck: "NOT_CHECKED", findings: [{ code: "BARRED", level: "block", data: { standing: "CANCELLED" } }] });
+  });
+
+  it.each(["SUSPENDED", "SUSPENDED_ON_LAPSE", "BLACKLISTED"] as const)("linked and %s: the sale is refused, the suspension check failed", (s) => {
     const c = saleStandingCheck({ ...active, standing: s }, { registerRequiredForSale: null });
     expect(c).toMatchObject({ registrationCheck: "CLEAR", suspensionCheck: "FAILED" });
     expect(c.findings).toEqual([{ code: "BARRED", level: "block", data: { standing: s } }]);

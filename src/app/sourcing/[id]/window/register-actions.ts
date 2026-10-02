@@ -21,6 +21,8 @@ import { eventFactsOf, type WindowData } from "@/lib/window/repo";
 import { ATTESTABLE_CHECKS, isReceiptDuplicate, saleAnnotation, saleFaults, voidSaleFault } from "@/lib/window/sale";
 import { CERT_SIGHTED, DELIVERY_METHODS, SITE_EVENT_KINDS, type CertSighted, type CheckState, type DeliveryMethod, type Finding, type PartySource, type SiteEventKind } from "@/lib/window/types";
 import { FormReader } from "@/lib/validate";
+import { supplierFaultText } from "@/lib/suppliers/labels";
+import { registerAtSale } from "@/lib/suppliers/sale-hook";
 
 import { activePerson, audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW, NO_ZONE, notes, refuse, Refusal, type LockedWindow } from "./shared";
 
@@ -70,8 +72,13 @@ function readParty(r: FormReader) {
 /**
  * Sell the documents (FR-ADV-009–012). The sale day is the organisation's today, stamped here; the
  * amount is the window's fee as it stands; the finance receipt number is consumed (or recorded
- * later, the sale then on the reconciliation list). The register checks are attested "not checked"
- * (OD-9), a warning carried with the sale. Every issued addendum goes with the documents.
+ * later, the sale then on the reconciliation list). Every issued addendum goes with the documents.
+ *
+ * 6.15a (FR-ADV-010, OD-5): for a party linked to the supplier register, the registration and
+ * suspension checks are read from the register, the supplier row locked last, and its eligibility frozen
+ * on the sale; a supplier not registered, suspended, blacklisted or cancelled is refused. A party not
+ * linked keeps the officer's attestation ("not checked", OD-9), unless the policy requires the register
+ * for a sale, which refuses it.
  */
 export async function recordSale(_prev: FormState, data: FormData): Promise<FormState> {
   const exerciseId = exerciseIdOf(data);
@@ -101,6 +108,12 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
     if (party.partyId && !known) return { ok: false, message: "That contractor is not on this exercise." };
     const invited = invitedSaleFault(pathOf(d).path, !!known && w.letters.some((x) => x.partyId === known.id));
     if (invited) return refuse([invited], "Not sold:");
+    // 6.15a: the register, read on the locked supplier row (taken last, after the exercise side).
+    const register = await registerAtSale(tx, { id: l.org.id, timeZone: l.org.timeZone, today: l.org.today }, known?.vendorId ?? null, l.ex.id);
+    const registerBlocks = register.check.findings.filter((f) => f.level === "block");
+    if (registerBlocks.length) return { ok: false, message: `Not sold: ${registerBlocks.map((f) => supplierFaultText(f)).join(" ")}` };
+    const regCheck = register.linked ? register.check.registrationCheck : registrationCheck;
+    const suspCheck = register.linked ? register.check.suspensionCheck : suspensionCheck;
     const taken = receiptNo ? !!(await tx.documentSale.findFirst({ where: { organisationId: l.org.id, financeReceiptNo: receiptNo }, select: { id: true } })) : false;
     const fs: Finding[] = saleFaults({
       phase,
@@ -110,8 +123,8 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
       certSighted: cert,
       certValidUntil: certUntil ? storedDay(certUntil) : null,
       authoritySighted: tri(authority),
-      registrationCheck,
-      suspensionCheck,
+      registrationCheck: regCheck,
+      suspensionCheck: suspCheck,
       partyId: known?.id ?? null,
       alreadySold: !!known && w.sales.some((s) => s.partyId === known.id && !s.voidedAt),
       events: eventFactsOf(w),
@@ -136,8 +149,8 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
       authoritySighted: true,
       restrictionCertSighted: l.ex.restrictedTender ? cert : null,
       restrictionCertValidUntil: l.ex.restrictedTender ? certUntil : null,
-      registrationCheck,
-      suspensionCheck,
+      registrationCheck: regCheck,
+      suspensionCheck: suspCheck,
       checkNote,
       amount: w.feeAmount!,
       paymentMethod,
@@ -145,15 +158,15 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
       receiptRecordedOn: receiptNo ? soldOn : null,
       issuedByPersonId: person.id,
     };
-    const sale = await tx.documentSale.create({ data: { organisationId: l.org.id, windowId: w.id, ...row, annotation: annotation as unknown as Prisma.InputJsonValue } });
-    await audit(tx, l.org.id, ENTITY.sale, sale.id, label(l, `Sale · ${buyer.name}`), "CREATE", diffFields(null, saleFields({ ...row, partyName: buyer.name, issuedBy: person.name })));
+    const sale = await tx.documentSale.create({ data: { organisationId: l.org.id, windowId: w.id, ...row, annotation: annotation as unknown as Prisma.InputJsonValue, ...(register.snapshot ? { eligibilitySnapshot: register.snapshot as unknown as Prisma.InputJsonValue } : {}) } });
+    await audit(tx, l.org.id, ENTITY.sale, sale.id, label(l, `Sale · ${buyer.name}`), "CREATE", diffFields(null, { ...saleFields({ ...row, partyName: buyer.name, issuedBy: person.name }), ...(register.snapshot ? { supplierRegister: `${register.snapshot.supplierReference}: ${register.snapshot.verdict === "ELIGIBLE" ? "eligible" : register.snapshot.verdict === "NOT_ELIGIBLE" ? "not eligible" : "not assessed"}, judged ${formatDate(register.snapshot.judgedOn)}` } : {}) }));
     // Every addendum issued so far goes with the documents (FR-ADV-014).
     for (const a of addendaForNewPurchaser(w.addenda)) {
       if (a.recipients.some((x) => x.partyId === buyer.id)) continue;
       const copy = await tx.addendumRecipient.create({ data: { organisationId: l.org.id, addendumId: a.id, partyId: buyer.id, withDocuments: true } });
       await audit(tx, l.org.id, ENTITY.addendumCopy, copy.id, label(l, `Addendum ${a.number} · ${buyer.name}`), "CREATE", diffFields(null, { recipient: buyer.name, given: "with the documents" }));
     }
-    const said = notes(fs);
+    const said = [notes(fs), ...register.check.findings.filter((f) => f.level !== "block").map((f) => supplierFaultText(f))].filter(Boolean).join(" ");
     return { ok: true, message: `Sold to ${buyer.name}.${said ? ` ${said}` : ""}` };
   }), refuse([{ code: "RECEIPT_DUPLICATE", level: "block" }], "Not sold:"));
 }

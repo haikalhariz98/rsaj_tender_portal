@@ -416,8 +416,8 @@ export function RecordSaleDrawer({
               { kind: "date", name: "restrictionCertValidUntil", label: "Certificate valid until" },
             ] as Field[])
           : []),
-        { kind: "select", name: "registrationCheck", label: "Registration with the regulator", placeholder: "Not checked", options: [{ value: "FAILED", label: "Checked: failed" }], hint: "The supplier register is not built yet, so a registration cannot be shown as clear. It is carried with the sale as not checked." },
-        { kind: "select", name: "suspensionCheck", label: "Suspension", placeholder: "Not checked", options: [{ value: "FAILED", label: "Checked: suspended" }], hint: "Carried as not checked until the supplier register exists." },
+        { kind: "select", name: "registrationCheck", label: "Registration with the regulator", placeholder: "Not checked", options: [{ value: "FAILED", label: "Checked: failed" }], hint: "For a contractor linked to the supplier register, this is read from the register and what is chosen here is not used. Otherwise a registration cannot be shown as clear: it is carried with the sale as not checked." },
+        { kind: "select", name: "suspensionCheck", label: "Suspension", placeholder: "Not checked", options: [{ value: "FAILED", label: "Checked: suspended" }], hint: "Read from the supplier register for a linked contractor; otherwise carried as not checked." },
         { kind: "textarea", name: "checkNote", label: "Note on the checks" },
         { kind: "text", name: "paymentMethod", label: "How the fee was paid", required: true },
         { kind: "text", name: "financeReceiptNo", label: "Finance receipt number", mono: true, hint: "Typed as it reads on finance's receipt: the portal never makes one. Leave empty if not yet to hand: the sale then shows among the receipts to collect." },

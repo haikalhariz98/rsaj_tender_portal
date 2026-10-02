@@ -48,8 +48,8 @@ export function SaleSection({ d, c }: { d: Sales; c: WindowContext }) {
           actions={<ButtonLink href={`/sourcing/${c.exerciseId}?tab=invitation&section=addenda`} variant="ghost" size="sm">See the addenda</ButtonLink>}
         />
         <CardBody className="flex flex-col gap-3 border-t border-line">
-          <Callout tone="warn" title="Registration and suspension are not checked">
-            The supplier register is not built yet, so a contractor&apos;s registration and any suspension cannot be checked here. Each sale carries that warning on to bid receipt and evaluation.
+          <Callout tone="warn" title="Registration and suspension are checked only for a linked contractor">
+            A contractor linked to the supplier register is checked against it at the sale, and its eligibility is kept with the sale. One not linked cannot be checked here: its sale carries that warning on to bid receipt and evaluation. Link a contractor from its supplier&apos;s record under Suppliers.
           </Callout>
           {d.restricted && (
             <Callout tone="info" title={`${d.restricted.label}`}>
