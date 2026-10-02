@@ -87,7 +87,7 @@ export function CorrectPriceDrawer({ exerciseId, bidder, people: ps }: { exercis
 export function InputsDrawer({ exerciseId, bidder, factors, capital, cpr, people: ps }: { exerciseId: string; bidder: { id: string; listingNo: number; raw: Record<string, string> }; factors: Option[]; capital: boolean; cpr: boolean; people: Option[] }) {
   return (
     <RecordEditor
-      title={`Inputs for bid No. ${bidder.listingNo}`}
+      title={`Record the inputs for bid No. ${bidder.listingNo}`}
       description="What the computed criteria read: the factor option and the three monthly balances for the minimum capital, and the contractor performance percentage from its attached report. Refused once a stage reading them is submitted."
       columns={2}
       fields={[
@@ -107,7 +107,7 @@ export function InputsDrawer({ exerciseId, bidder, factors, capital, cpr, people
       values={{ exerciseId, bidderId: bidder.id, ...bidder.raw }}
       action={recordInputs}
       submitLabel="Record"
-      trigger={{ label: "Inputs", className: ghost, ariaLabel: `Inputs for bid No. ${bidder.listingNo}` }}
+      trigger={{ label: "Record inputs", className: ghost, ariaLabel: `Record the inputs for bid No. ${bidder.listingNo}` }}
       size="lg"
     />
   );

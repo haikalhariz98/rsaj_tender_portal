@@ -265,6 +265,26 @@ export function runningFaults(f: EvaluationFacts, s: StageSnap, b: BidderFacts):
   return [];
 }
 
+/// The stages that read a bidder's factor and balances (capital), or its CPR.
+export const inputStages = (f: Pick<EvaluationFacts, "model">, kind: "capital" | "cpr") =>
+  f.model.stages.filter((s) => s.criteria.some((c) => c.scale === "BANDED" && (kind === "capital" ? c.computedInput === "MIN_CAPITAL_RATIO" : c.computedInput === "CPR_PERCENT")));
+
+/// Why a stage reading a bidder's inputs takes none from it now (BD-68-11): submitted, or the bid excluded or out of the running there.
+export function inputStageFaults(f: EvaluationFacts, s: StageSnap, b: BidderFacts): Finding<AccessFault | "INPUTS_FROZEN">[] {
+  if (isSubmitted(f, s.code)) return [{ code: "INPUTS_FROZEN", level: "block" }];
+  return runningFaults(f, s, b);
+}
+
+/**
+ * Whether a bidder's inputs may be recorded at all now (6.8 review S-2): some stage that reads them
+ * still takes them. Empty: allowed; else every reason, so the screen's trigger and `recordInputs`
+ * (which runs `inputStageFaults` on the stages a change reads) give the same answer.
+ */
+export function inputsAccess(f: EvaluationFacts, b: BidderFacts): Finding<AccessFault | "INPUTS_FROZEN">[] {
+  const per = [...inputStages(f, "capital"), ...inputStages(f, "cpr")].map((s) => inputStageFaults(f, s, b));
+  return per.length === 0 || per.some((x) => x.length === 0) ? [] : per.flat();
+}
+
 /// A score on one criterion of one bidder (FR-EVL-001; E-4): its scale, its maximum, the stage open, the scorer on its side.
 export function scoreFaults(f: EvaluationFacts, s: StageSnap, criterionCode: string, b: BidderFacts, scorerId: string | null, value: { marks: Fixed } | { passed: boolean }): Finding<AccessFault | ScoreFault | PersonFault>[] {
   const c = scoredCriteria(s).find((x) => x.code === criterionCode);

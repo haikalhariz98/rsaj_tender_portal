@@ -24,7 +24,7 @@ import { incompleteStages, ranking } from "./recommend";
 import { appointmentOutcome, loadEvaluationContext } from "./repo";
 import { periodWords, reportFaults, reportFromSnapshot, reportStale } from "./report";
 import { saving } from "./saving";
-import { inRunningAt, isSubmitted, liveStanding, resultOf, runningAt, stageAccess, stageResult } from "./stages";
+import { inputsAccess, inRunningAt, isSubmitted, liveStanding, resultOf, runningAt, stageAccess, stageResult } from "./stages";
 import { startFaults } from "./start";
 import { evaluationPhase, issuedActFaults, openActFaults } from "./state";
 import { blocking, type Finding, type Side } from "./types";
@@ -99,6 +99,8 @@ export async function evaluationTabView(exerciseId: string) {
       monthlyBalances: b.balances.some((v) => v != null) ? b.balances.map((v) => money(v) ?? "—").join(" · ") : null,
       cprPercent: b.cprPercent != null ? `${formatFixed(b.cprPercent, 2)}%` : null,
       cprReports: b.cprReports,
+      // S-2: judged by the rule recordInputs runs: some stage reading them still takes them.
+      inputs: e.state === "OPEN" ? allowedOf(inputsAccess(f, b)) : ({ allowed: false, reason: "This version is not open." } as Allowed),
       raw: { factorOptionCode: b.factorOptionCode ?? "", balanceMonth1: b.balances[0] != null ? senToDecimalString(b.balances[0]) : "", balanceMonth2: b.balances[1] != null ? senToDecimalString(b.balances[1]) : "", balanceMonth3: b.balances[2] != null ? senToDecimalString(b.balances[2]) : "", cprPercent: b.cprPercent != null ? formatFixed(b.cprPercent) : "" },
     };
   });

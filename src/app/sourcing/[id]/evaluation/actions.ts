@@ -8,12 +8,12 @@ import { aspectFields, communicationFields, correctionFields, EVALUATION_ENTITY,
 import { assessFaults } from "@/lib/evaluation/aspects";
 import { ceilingExclusion } from "@/lib/evaluation/ceiling";
 import { cprEntryFaults } from "@/lib/evaluation/cpr";
-import { evaluatedPrice, scoreKey, type EvaluationFacts } from "@/lib/evaluation/facts";
+import { evaluatedPrice, scoreKey } from "@/lib/evaluation/facts";
 import { fixedToDecimalString, isFixed, parseFixed } from "@/lib/evaluation/fixed";
 import { stageOf } from "@/lib/evaluation/model";
 import { ceilingOf } from "@/lib/evaluation/repo";
 import { shortlistFaults } from "@/lib/evaluation/shortlist";
-import { inRunningAt, isSubmitted, resultRows, runningFaults, scoreFaults, submitStage as submitStageRule } from "@/lib/evaluation/stages";
+import { inputStageFaults, inputStages, inRunningAt, isSubmitted, resultRows, runningFaults, scoreFaults, submitStage as submitStageRule } from "@/lib/evaluation/stages";
 import { startFaults } from "@/lib/evaluation/start";
 import { openActFaults } from "@/lib/evaluation/state";
 import { personFaults, teamFaults, type TeamPick } from "@/lib/evaluation/team";
@@ -168,10 +168,6 @@ export async function recordScore(_prev: FormState, data: FormData): Promise<For
   });
 }
 
-/// The stages that read a bidder's factor and balances, or its CPR: submitted, the inputs stand.
-const inputStages = (f: EvaluationFacts, kind: "capital" | "cpr") =>
-  f.model.stages.filter((s) => s.criteria.some((c) => c.scale === "BANDED" && (kind === "capital" ? c.computedInput === "MIN_CAPITAL_RATIO" : c.computedInput === "CPR_PERCENT")));
-
 /**
  * The inputs the computations read for one bidder (FR-EVL-010, 012; E-6; OD-4): the factor option, the
  * three monthly balances in sen, the CPR from its attached report. Refused once the stage reading them
@@ -206,13 +202,12 @@ export async function recordInputs(_prev: FormState, data: FormData): Promise<Fo
     const capitalChanged = factor !== b.factorOptionCode || balances.some((v, i) => (v == null ? null : parseSen(v)) !== b.balances[i]);
     const cpr = cprRaw != null ? parseFixed(cprRaw) : null;
     const cprChanged = cpr !== b.cprPercent;
-    if (capitalChanged && capital.some((s) => isSubmitted(f, s.code))) fs.push({ code: "INPUTS_FROZEN", level: "block" });
-    if (cprChanged && cprStages.some((s) => isSubmitted(f, s.code))) fs.push({ code: "INPUTS_FROZEN", level: "block" });
     if (factor && !capital.some((s) => s.factors.some((x) => x.code === factor))) fs.push({ code: "FACTOR_UNKNOWN", level: "block" });
     if (cpr != null && cprChanged) fs.push(...cprEntryFaults(cpr, b.cprReports));
     const reading = [...(capitalChanged ? capital : []), ...(cprChanged ? cprStages : [])];
-    // A bid excluded or out of the running at the stage that reads them takes no inputs: they would never be read.
-    for (const s of reading) fs.push(...runningFaults(f, s, b));
+    // Submitted, the inputs stand; a bid excluded or out of the running at the stage that reads them
+    // takes none: they would never be read. The screen's trigger judges with the same rule (inputsAccess).
+    for (const s of reading) fs.push(...inputStageFaults(f, s, b));
     if (person) for (const s of reading) fs.push(...personFaults(s.side, person.id, f.team, f.submissions));
     if (fs.some((x) => x.level === "block")) return refuse(fs);
     const factorLabel = (code: string | null) => (code ? (capital.flatMap((s) => s.factors).find((x) => x.code === code)?.labelEn ?? "A factor no longer offered") : null);

@@ -28,7 +28,10 @@ export function BiddersList({ exerciseId, c, people }: { exerciseId: string; c: 
       bidder: { kind: "stack", title: b.bidder, sub: b.period },
       evaluatedPrice: { kind: "stack", title: b.evaluatedPrice, sub: b.corrected ? `Corrected; ${b.asRead} as read` : "As read" },
       running: { kind: "chip", text: b.running, tone: b.runningTone },
-      inputs: { kind: "stack", title: [b.factor, b.cprPercent ? `CPR ${b.cprPercent}` : null].filter(Boolean).join(" · ") || "None recorded", sub: b.monthlyBalances ?? undefined },
+      // S-2: an excluded bid takes no inputs, and the column says so; where none is taken now, it says why.
+      inputs: b.excluded
+        ? { kind: "stack", title: "None: an excluded bid takes no inputs" }
+        : { kind: "stack", title: [b.factor, b.cprPercent ? `CPR ${b.cprPercent}` : null].filter(Boolean).join(" · ") || "None recorded", sub: [b.monthlyBalances, c.open && !b.inputs.allowed ? b.inputs.reason : null].filter(Boolean).join(" · ") || undefined },
     },
   }));
   return (
@@ -56,7 +59,7 @@ export function BiddersList({ exerciseId, c, people }: { exerciseId: string; c: 
         return (
           <>
             {c.correct.allowed && <CorrectPriceDrawer exerciseId={exerciseId} bidder={b} people={people} />}
-            {(c.capitalInputs || c.cprInputs) && <InputsDrawer exerciseId={exerciseId} bidder={b} factors={c.factors} capital={c.capitalInputs} cpr={c.cprInputs} people={people} />}
+            {(c.capitalInputs || c.cprInputs) && b.inputs.allowed && <InputsDrawer exerciseId={exerciseId} bidder={b} factors={c.factors} capital={c.capitalInputs} cpr={c.cprInputs} people={people} />}
           </>
         );
       }}
