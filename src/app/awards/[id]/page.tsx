@@ -63,7 +63,7 @@ import { mergeFieldLabel } from "@/lib/award/fields";
 import { conditionsOutstanding, readinessGate } from "@/lib/award/readiness";
 import { loadOpeningGate } from "@/lib/opening/gate-read";
 import { awardFacts, awardHistory, exerciseMatters, latestRoute, loadAward, matterRecord, type LoadedAward } from "@/lib/award/repo";
-import { acceptancePageFaults, instrumentReturned, RETURN_SCANS, returnReadsComplete, returnState, scansAwaitingPaper, scansMissing, scansRequired, type ReturnRecord } from "@/lib/award/stage-two";
+import { acceptancePageFaults, instrumentReturned, RETURN_SCANS, returnState, scansAwaitingPaper, scansMissing, scansRequired, type ReturnRecord } from "@/lib/award/stage-two";
 import { isLive } from "@/lib/documents/evidence";
 import { cancellable, editable } from "@/lib/award/status";
 import { absentFrom } from "@/lib/award/appointment";
@@ -83,6 +83,7 @@ import { routeCoreText, stepOriginText } from "@/lib/authority/core-routing-labe
 import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import { derivedAnnualValue } from "@/lib/securities/bond";
 import { expiryAlert } from "@/lib/securities/expiry";
+import { awardReadiness } from "@/lib/award/gate-read";
 import { applicableRequirements, derivedLimit, wcSumCheck } from "@/lib/securities/insurance";
 import { db } from "@/lib/db";
 import { tablingQuery } from "@/lib/committee/table-prefill";
@@ -289,20 +290,11 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
       }
     : null;
   const requirements = applicableRequirements(f.config.requirements, ex.contractTypeCode);
+  // OD-5: before acceptance the return counts with its scans; an accepted award is not re-judged.
+  // 6.12: the one reading the award and its contract share, with the recorded uncovered-wages check.
+  const gate = awardReadiness(award, ev.requiredBond, requirements);
   const securities = award.contract?.securities ?? [];
   const policies = award.contract?.policies ?? [];
-  // OD-5: before acceptance the return counts with its scans; an accepted award is not re-judged.
-  const scanned = new Set(award.attachments.filter((a) => (RETURN_SCANS[kind] as readonly string[]).includes(a.purpose) && isLive(a)).map((a) => a.purpose as string));
-  const gate = readinessGate({
-    returned: ret ? returnReadsComplete(status, kind, ret, scanned) : false,
-    bondRequired: award.bondRequired,
-    bondNotRequiredReason: award.bondNotRequiredReason,
-    requiredBond: ev.requiredBond,
-    bonds: securities.map((s) => ({ kind: s.kind, status: s.status, value: senFromDecimal(s.value) })),
-    requirements,
-    policies: policies.map((p) => ({ kind: p.kind, substitutesFor: p.substitutesFor, status: p.status })),
-    wcBasis: award.wcBasis,
-  });
 
   const tabs = [
     { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel l={l} ev={ev} awardee={awardee} recommendation={f.facts.exercise.evaluation?.facts.issued ?? null} methodName={methodName} typeName={typeName} policyLabel={policy.regulatedActivityLabel} validityDays={policy.indentValidityDays} expiredRule={!!f.config.indentExpiredRule} unitName={f.config.unitName} /> },
@@ -1096,7 +1088,8 @@ function ConditionsPanel({ l, gate, kinds, today }: { l: LoadedAward; gate: Retu
     BASIS_NOT_SET: "The bond's basis is not set.",
     NOT_VERIFIED: "No verified performance bond covers the required amount.",
     REQUIREMENTS_NOT_SET: "No insurance requirements are configured, so what must be verified is not known.",
-    WC_NOT_CHECKED: "Workmen's compensation is calculated on uncovered wages, so its sum cannot be checked: it never counts as met.",
+    WC_NOT_CHECKED: "Workmen's compensation is calculated on uncovered wages, so its sum cannot be checked: it counts as met only once the check of the declared wages is recorded, on the contract's Formation tab.",
+    WC_RECORDED_NOT_JUDGED: "Workmen's compensation on uncovered wages: the check of the declared wages is recorded on the contract. Recorded, not judged: basis not set (D4).",
     WC_BASIS_NOT_SET: "How workmen's compensation is calculated is not set on the award.",
   };
   // Insurance detail: what is not lodged at all, and what is lodged but not verified.
@@ -1260,7 +1253,7 @@ function SecuritiesPanel({
                 <span className="min-w-0">
                   <span className="block text-[13.5px] font-semibold break-words text-ink">{`${INSURANCE_KIND_LABEL[p.kind]}${p.substitutesFor ? ` in place of the ${INSURANCE_KIND_LABEL[p.substitutesFor].toLowerCase()}` : ""} · ${money(p.sumInsured)}`}</span>
                   <span className="block text-[12.5px] break-words text-ink-3">
-                    {[p.issuer?.name ?? `${p.issuerNameAsWritten || "Insurer"} (not on the approved list)`, p.policyNo || null, `${formatDate(p.periodStart)} to ${formatDate(p.periodEnd)}`, p.kind === "WORKMENS_COMPENSATION" ? WC_CHECK_LABEL[wcSumCheck(award.wcBasis)].toLowerCase() : null, p.status === "REJECTED" ? `rejected: ${p.rejectedReason}` : p.verifiedBy ? `checked by ${p.verifiedBy.name}, ${formatDate(p.verifiedOn)}` : null].filter(Boolean).join(" · ")}
+                    {[p.issuer?.name ?? `${p.issuerNameAsWritten || "Insurer"} (not on the approved list)`, p.policyNo || null, `${formatDate(p.periodStart)} to ${formatDate(p.periodEnd)}`, p.kind === "WORKMENS_COMPENSATION" ? WC_CHECK_LABEL[wcSumCheck(award.wcBasis)].toLowerCase() : null, p.kind === "WORKMENS_COMPENSATION" && p.wcCheckedOn ? `wages check recorded ${formatDate(p.wcCheckedOn)}, not judged` : null, p.status === "REJECTED" ? `rejected: ${p.rejectedReason}` : p.verifiedBy ? `checked by ${p.verifiedBy.name}, ${formatDate(p.verifiedOn)}` : null].filter(Boolean).join(" · ")}
                   </span>
                 </span>
                 <span className="flex shrink-0 flex-wrap items-center gap-2">

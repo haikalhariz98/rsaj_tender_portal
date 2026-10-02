@@ -32,6 +32,9 @@ export function readinessGate(i: {
   /// How workmen's compensation is set on the award: on uncovered wages its sum is not
   /// checked, so a verified policy does not meet the gate (BD-15).
   wcBasis: WcBasis | null;
+  /// 6.12 (BD-20 carry): a check of the uncovered wages recorded on the verified policy. It meets the
+  /// item recorded, not judged: no configured basis compares the wages with the sum insured (D4).
+  wcCheckRecorded?: boolean;
 }): { ready: boolean; items: GateItem[] } {
   const items: GateItem[] = [];
   items.push({ key: "RETURNED", state: i.returned ? "MET" : "NOT_MET", detail: [] });
@@ -50,12 +53,14 @@ export function readinessGate(i: {
     const verified = new Set(i.policies.filter((p) => p.status === "VERIFIED").map((p) => countsAs(p)));
     const lodged = new Set(i.policies.filter((p) => p.status === "LODGED").map((p) => countsAs(p)));
     const missing = i.requirements.filter((r) => !verified.has(r.kind));
-    const wc = i.requirements.some((r) => r.kind === "WORKMENS_COMPENSATION") ? wcSumCheck(i.wcBasis) : "CHECKED";
+    const sum = i.requirements.some((r) => r.kind === "WORKMENS_COMPENSATION") ? wcSumCheck(i.wcBasis) : "CHECKED";
+    // 6.12: on uncovered wages, a recorded check stands in for the sum check it cannot be.
+    const wc = sum === "NOT_CHECKED" && i.wcCheckRecorded ? "RECORDED" : sum;
     const detail = [
       ...missing.map((r) => `${lodged.has(r.kind) ? "LODGED" : "NOT_LODGED"}:${r.nameEn}`),
-      ...(wc === "NOT_CHECKED" ? ["WC_NOT_CHECKED"] : wc === "NOT_SET" ? ["WC_BASIS_NOT_SET"] : []),
+      ...(wc === "NOT_CHECKED" ? ["WC_NOT_CHECKED"] : wc === "NOT_SET" ? ["WC_BASIS_NOT_SET"] : wc === "RECORDED" ? ["WC_RECORDED_NOT_JUDGED"] : []),
     ];
-    items.push({ key: "INSURANCE", state: missing.length ? "NOT_MET" : wc !== "CHECKED" ? "NOT_SET" : "MET", detail });
+    items.push({ key: "INSURANCE", state: missing.length ? "NOT_MET" : wc === "NOT_CHECKED" || wc === "NOT_SET" ? "NOT_SET" : "MET", detail });
   }
   return { ready: items.every((x) => x.state === "MET"), items };
 }
@@ -68,3 +73,7 @@ export function readinessGate(i: {
 export function conditionsOutstanding(gateItems: readonly { state: string }[], conditions: readonly { satisfiedOn: Date | null }[]): number {
   return gateItems.filter((i) => i.state !== "MET").length + conditions.filter((c) => !c.satisfiedOn).length;
 }
+
+/// 6.12: whether a verified workmen's compensation policy carries a recorded check of the uncovered wages.
+export const wcCheckRecordedOn = (policies: readonly { kind: string; status: string; wcCheckedOn: Date | null }[]) =>
+  policies.some((p) => p.kind === "WORKMENS_COMPENSATION" && p.status === "VERIFIED" && p.wcCheckedOn != null);
