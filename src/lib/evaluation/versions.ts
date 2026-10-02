@@ -143,3 +143,18 @@ export async function openNewVersion(
   }
   return version;
 }
+
+/**
+ * E-10: the exercise cancelled through its window-change route closes the evaluation version in force
+ * as cancelled, in the same transaction; its records are kept (an issued report stays as issued). The
+ * caller holds the evaluations' rows (after the openings'). Returns the version closed, or null.
+ */
+export async function closeOnCancellation(tx: Tx, x: { organisationId: string; exercise: { id: string; reference: string }; now: Date; reason: string }): Promise<number | null> {
+  const current = await tx.evaluation.findFirst({ where: { exerciseId: x.exercise.id, state: { in: ["OPEN", "ISSUED"] } }, select: { id: true, version: true, state: true } });
+  if (!current) return null;
+  const moved = await tx.evaluation.updateMany({ where: { id: current.id, state: current.state }, data: { state: "CANCELLED", cancelledAt: x.now } });
+  if (moved.count !== 1) throw new Error("The evaluation changed while the exercise was being cancelled.");
+  const label = evaluationLabel({ version: current.version, exercise: { reference: x.exercise.reference } });
+  await writeAudit(tx, { organisationId: x.organisationId, entity: EVALUATION_ENTITY.evaluation, entityId: current.id, entityLabel: label, reason: x.reason }, "UPDATE", diffFields({ state: current.state === "ISSUED" ? "Report issued" : "In progress" }, { state: "Closed: exercise cancelled" }));
+  return current.version;
+}

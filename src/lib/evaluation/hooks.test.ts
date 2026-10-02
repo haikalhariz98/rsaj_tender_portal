@@ -91,3 +91,19 @@ describe("E-9: the award follows the evaluation (6.11)", () => {
     expect(check).toBeLessThan(cite.indexOf("tx.approvalStep.updateMany("));
   });
 });
+
+describe("E-10: the cancellation closes the evaluation in force (6.5 applyCancellation)", () => {
+  const change = read("src", "app", "sourcing", "[id]", "window", "change-actions.ts");
+  const apply = change.slice(change.indexOf("async function applyCancellation("), change.indexOf("export async function recordWindowChangeDecision("));
+  it("after the exercise moves to Cancelled, the evaluations are locked after the openings and the one in force is closed", () => {
+    expect(apply.indexOf("lockOpeningRows(tx, l.ex.id)")).toBeLessThan(apply.indexOf("lockEvaluationRows(tx, l.ex.id)"));
+    expect(apply.indexOf('moveExercise(tx, l.ex, "CANCELLED"')).toBeLessThan(apply.indexOf("closeOnCancellation(tx,"));
+  });
+  it("closing keeps the records: one state change, stamped, audited with the cancellation's reason", () => {
+    const versions = read("src", "lib", "evaluation", "versions.ts");
+    const close = versions.slice(versions.indexOf("export async function closeOnCancellation("));
+    expect(close).toMatch(/data: \{ state: "CANCELLED", cancelledAt: x\.now \}/);
+    expect(close).not.toMatch(/\.delete(Many)?\(/);
+    expect(close).toMatch(/reason: x\.reason/);
+  });
+});

@@ -29,6 +29,8 @@ import { deliveryFaults } from "@/lib/window/addendum";
 import { changeFields, deliveryFields, ENTITY } from "@/lib/window/audit-view";
 import { lockOpeningRows } from "@/lib/opening/lock";
 import { mainOpeningAdjourned, openingInProgress } from "@/lib/opening/gate-read";
+import { lockEvaluationRows } from "@/lib/evaluation/lock";
+import { closeOnCancellation } from "@/lib/evaluation/versions";
 import { appliedChangeFaults, cancelFaults, closingChangeFaults, noticeRecipients, windowChangeRouteForRequester, type WindowChangeCond } from "@/lib/window/change";
 import { CHANGE_REFUSED_DECIDED_BY, windowChangeRejectionSnapshot } from "@/lib/window/edit";
 import { CHANGE_ROUTE_TEXT, windowFindingText } from "@/lib/window/labels";
@@ -270,6 +272,9 @@ async function applyCancellation(tx: Tx, l: LockedWindow, d: WindowData, c: NonN
   }
   await moveExercise(tx, l.ex, "CANCELLED", { today: l.org.today, via: "WINDOW_CANCELLATION", reason: c.reason }, { cancelReason: c.reason });
   await audit(tx, l.org.id, "SourcingExercise", l.ex.id, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ status: l.ex.status }, { status: "CANCELLED" }), c.reason);
+  // 6.8 (E-10, flagged): the evaluation in force is closed as cancelled, its records kept; locked after the openings.
+  await lockEvaluationRows(tx, l.ex.id);
+  await closeOnCancellation(tx, { organisationId: l.org.id, exercise: { id: l.ex.id, reference: l.ex.reference }, now, reason: c.reason });
   await tx.windowCancellation.update({ where: { id: c.id }, data: { appliedAt: now } });
   await audit(tx, l.org.id, ENTITY.cancellation, c.id, label(l, "Cancellation"), "UPDATE", diffFields({ outcome: null }, { outcome: "Applied", feesRefunded: c.feeRefund ? "Yes" : "No" }));
   await voidLivePacks(tx, l, c.reason);
