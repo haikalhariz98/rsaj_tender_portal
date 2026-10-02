@@ -13,7 +13,7 @@ import { fixedToDecimalString, isFixed, parseFixed } from "@/lib/evaluation/fixe
 import { stageOf } from "@/lib/evaluation/model";
 import { ceilingOf } from "@/lib/evaluation/repo";
 import { shortlistFaults } from "@/lib/evaluation/shortlist";
-import { inRunningAt, isSubmitted, resultRows, runningAt, scoreFaults, submitStage as submitStageRule } from "@/lib/evaluation/stages";
+import { inRunningAt, isSubmitted, resultRows, runningFaults, scoreFaults, submitStage as submitStageRule } from "@/lib/evaluation/stages";
 import { startFaults } from "@/lib/evaluation/start";
 import { openActFaults } from "@/lib/evaluation/state";
 import { personFaults, teamFaults, type TeamPick } from "@/lib/evaluation/team";
@@ -175,7 +175,7 @@ const inputStages = (f: EvaluationFacts, kind: "capital" | "cpr") =>
 /**
  * The inputs the computations read for one bidder (FR-EVL-010, 012; E-6; OD-4): the factor option, the
  * three monthly balances in sen, the CPR from its attached report. Refused once the stage reading them
- * is submitted.
+ * is submitted, and for a bid excluded or out of the running at that stage (BD-68).
  */
 export async function recordInputs(_prev: FormState, data: FormData): Promise<FormState> {
   const now = stampNow();
@@ -210,7 +210,10 @@ export async function recordInputs(_prev: FormState, data: FormData): Promise<Fo
     if (cprChanged && cprStages.some((s) => isSubmitted(f, s.code))) fs.push({ code: "INPUTS_FROZEN", level: "block" });
     if (factor && !capital.some((s) => s.factors.some((x) => x.code === factor))) fs.push({ code: "FACTOR_UNKNOWN", level: "block" });
     if (cpr != null && cprChanged) fs.push(...cprEntryFaults(cpr, b.cprReports));
-    if (person) for (const s of [...(capitalChanged ? capital : []), ...(cprChanged ? cprStages : [])]) fs.push(...personFaults(s.side, person.id, f.team, f.submissions));
+    const reading = [...(capitalChanged ? capital : []), ...(cprChanged ? cprStages : [])];
+    // A bid excluded or out of the running at the stage that reads them takes no inputs: they would never be read.
+    for (const s of reading) fs.push(...runningFaults(f, s, b));
+    if (person) for (const s of reading) fs.push(...personFaults(s.side, person.id, f.team, f.submissions));
     if (fs.some((x) => x.level === "block")) return refuse(fs);
     const factorLabel = (code: string | null) => (code ? (capital.flatMap((s) => s.factors).find((x) => x.code === code)?.labelEn ?? "A factor no longer offered") : null);
     await tx.evaluationBidder.update({ where: { id: b.id }, data: { factorOptionCode: factor, balanceMonth1: balances[0], balanceMonth2: balances[1], balanceMonth3: balances[2], cprPercent: cpr != null ? fixedToDecimalString(cpr) : null, inputsRecordedAt: now, inputsRecordedByPersonId: person!.id } });
@@ -347,8 +350,7 @@ export async function assessAspect(_prev: FormState, data: FormData): Promise<Fo
     const fs: Finding[] = [...assessFaults({ aspectInModel: !!aspect && !!stage, verdict, narrative })];
     if (stage) {
       if (isSubmitted(f, stage.code)) fs.push({ code: "STAGE_SUBMITTED", level: "block", data: { stage: stage.labelEn } });
-      const run = runningAt(f, stage, b);
-      if (run.state !== "IN") fs.push({ code: run.state === "EXCLUDED" ? "EXCLUDED_ABOVE_CEILING" : run.state === "AWAITING_STAGE_ONE" ? "STAGE_ONE_UNDECIDED" : "NOT_IN_RUNNING", level: "block", data: { listingNo: b.listingNo, stage: run.at } });
+      fs.push(...runningFaults(f, stage, b));
       fs.push(...personFaults(stage.side, personId, f.team, f.submissions));
     }
     if (fs.length) return refuse(fs);

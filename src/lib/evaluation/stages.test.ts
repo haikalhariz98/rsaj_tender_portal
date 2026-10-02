@@ -5,7 +5,7 @@ import { parseSen } from "@/lib/money";
 import { bidder, facts, result, score, submission, TEAM, techScores } from "./fixture";
 import { formatFixed, parseFixed } from "./fixed";
 import { stageOf } from "./model";
-import { inRunningAt, resultRows, runningAt, scoreFaults, stageAccess, stageResult, submitStage } from "./stages";
+import { inRunningAt, resultRows, runningAt, runningFaults, scoreFaults, stageAccess, stageResult, submitStage } from "./stages";
 import { personFaults, teamFaults } from "./team";
 import { FIVE_PHASE, stage, TA109 } from "./ta109-fixture";
 import type { ModelContent } from "./model";
@@ -73,6 +73,14 @@ describe("access to a stage (FR-EVL-002, 005)", () => {
     expect(codes(stageAccess(g, t, g.bidders[1]))).toEqual(["STAGE_ONE_UNDECIDED"]);
     expect(codes(stageAccess(g, t, g.bidders[2]))).toEqual(["NOT_IN_RUNNING"]);
     expect(runningAt(g, t, g.bidders[2]).state).toBe("OUT");
+  });
+  it("runningFaults judges the bidder alone, whatever the stage's own state (inputs and aspects, BD-68)", () => {
+    const g = facts({ submissions: [submission("COMPLIANCE", "CONTRACT_PROCUREMENT"), submission("ASPECTS"), submission("TECHNICAL")], results: [result("b1", "TECHNICAL", { outOfRunning: true, passed: false })] });
+    expect(codes(runningFaults(g, fin, g.bidders[0]))).toEqual(["NOT_IN_RUNNING"]);
+    expect(runningFaults(g, fin, g.bidders[1])).toEqual([]);
+    expect(runningFaults(g, tech, g.bidders[0])).toEqual([]);
+    const ex = facts({ bidders: [bidder(1, { excludedReason: "Above the ceiling" })] });
+    expect(codes(runningFaults(ex, fin, ex.bidders[0]))).toEqual(["EXCLUDED_ABOVE_CEILING"]);
   });
   it("a score above its maximum is refused; the scale is the model's; the scorer is on the side (E-4)", () => {
     expect(scoreFaults(f, tech, "STAFF", f.bidders[0], "pi", { marks: F("30") })).toEqual([]);

@@ -229,7 +229,11 @@ export function stageAccess(f: EvaluationFacts, s: StageSnap, b: BidderFacts | n
     const w = f.model.stages.find((x) => x.order === s.unlocksAfterOrder);
     if (w && !isSubmitted(f, w.code)) return [{ code: "STAGE_LOCKED", level: "block", data: { stage: s.labelEn, waitsFor: w.labelEn } }];
   }
-  if (!b) return [];
+  return b ? runningFaults(f, s, b) : [];
+}
+
+/// Why a bidder takes nothing at a stage: excluded above the ceiling, out of the running, or its first stage undecided.
+export function runningFaults(f: EvaluationFacts, s: StageSnap, b: BidderFacts): Finding<AccessFault>[] {
   const r = runningAt(f, s, b);
   if (r.state === "EXCLUDED") return [{ code: "EXCLUDED_ABOVE_CEILING", level: "block", data: { listingNo: b.listingNo } }];
   if (r.state === "OUT") return [{ code: "NOT_IN_RUNNING", level: "block", data: { listingNo: b.listingNo, stage: r.at } }];
