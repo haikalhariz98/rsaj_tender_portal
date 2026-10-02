@@ -3,7 +3,8 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { historyValue } from "./history-words";
+import { contractFaultWords } from "./fault-text";
+import { baselineKeyListWords, historyFieldLabel, historyValue } from "./history-words";
 
 /**
  * 6.12 review: the contract's History hid every all-capitals value as "—", so an LHDN reference or an
@@ -52,5 +53,51 @@ describe("the contract's History reads a stored value", () => {
     expect(page).toContain("historyValue(");
     expect(page).not.toMatch(/\/\^\[A-Z\]\[A-Z_\]\+\$\//);
     expect(page).toMatch(/isSulitField\(field\) && value \? <SulitValue>/);
+  });
+});
+
+/**
+ * 6.12 residual review S-1 (AGENTS.md rule 5): the baseline's `changed` and `entered` fields store value
+ * keys, and History printed them ("contractDate"; "sums, buildersWorksValue, firstInterim"; "all"). They
+ * read through the Baseline tab's labels, in both languages; an unmapped key is withheld.
+ */
+describe("the baseline's key lists read as the Baseline tab names them", () => {
+  it("a single group", () => {
+    expect(historyValue("changed", "contractDate", day, "ContractBaseline")).toBe("Contract Date");
+    expect(baselineKeyListWords("sums")).toEqual({ en: "Prime cost and provisional sums", ms: "Wang kos prima dan wang peruntukan sementara" });
+  });
+  it("a list", () => {
+    expect(historyValue("changed", "sums, buildersWorksValue, firstInterim", day, "ContractBaseline")).toBe("Prime cost and provisional sums, Builder's works value, First interim certificate minimum");
+    expect(historyValue("entered", "sums, subsequentInterim, sectional", day, "ContractBaseline")).toBe("Prime cost and provisional sums, Subsequent interim certificate minimum, Sectional completion");
+    expect(baselineKeyListWords("sums, sectional").ms).toBe("Wang kos prima dan wang peruntukan sementara, Penyiapan berperingkat");
+  });
+  it('"all" and "nothing"', () => {
+    expect(historyValue("changed", "all", day, "ContractBaseline")).toBe("Every value");
+    expect(baselineKeyListWords("all").ms).toBe("Semua nilai");
+    expect(historyValue("changed", "nothing", day, "ContractBaseline")).toBe("Nothing");
+  });
+  it("an unknown key is withheld, never shown", () => {
+    expect(historyValue("changed", "someNewKey", day, "ContractBaseline")).toBe("—");
+    expect(historyValue("changed", "sums, someNewKey", day, "ContractBaseline")).toBe("Prime cost and provisional sums, —");
+    expect(historyValue("changed", "someNewKey", day, "ContractBaseline")).not.toContain("someNewKey");
+  });
+  it("a keyed or corrected group's field reads by its label on the baseline's rows", () => {
+    expect(historyFieldLabel("honourDays", "ContractBaseline")).toBe("Days to honour a certificate");
+    expect(historyFieldLabel("sums", "ContractBaseline")).toBe("Prime cost and provisional sums");
+    expect(historyFieldLabel("changed", "ContractBaseline")).toBe("Changed");
+  });
+  it("the page reads field names through historyFieldLabel", () => {
+    const page = readFileSync(path.join(__dirname, "../../app/projects/[id]/page.tsx"), "utf8");
+    expect(page).toContain("historyFieldLabel(ch.field, e.entity)");
+  });
+});
+
+describe("the Malay refusal names the Letter of Acceptance, not 'award'", () => {
+  it("STATED_NOT_CORRECTED and its derived form", () => {
+    for (const source of ["AWARD", "APPENDIX", "BQ", "DERIVED"]) {
+      const ms = contractFaultWords({ code: "STATED_NOT_CORRECTED", level: "block", data: { group: "dlp", source } }).ms;
+      expect(ms, source).not.toMatch(/\baward\b/);
+      expect(ms, source).toMatch(/Surat Setuju Terima/);
+    }
   });
 });

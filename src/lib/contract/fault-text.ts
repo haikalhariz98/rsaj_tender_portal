@@ -273,7 +273,7 @@ export function contractFaultWords(f: Finding): Words {
       if (d.source === "DERIVED") {
         return w(
           `${f.en} ${plural ? "are" : "is"} derived under a recorded rule from values the award, the Appendix or the bill state, so ${plural ? "they change" : "it changes"} only when they do.`,
-          `${f.ms} diterbitkan di bawah peraturan yang direkodkan daripada nilai yang dinyatakan oleh award, Lampiran atau senarai kuantiti, jadi ia hanya berubah apabila nilai itu berubah.`,
+          `${f.ms} diterbitkan di bawah peraturan yang direkodkan daripada nilai yang dinyatakan oleh Surat Setuju Terima, Lampiran atau senarai kuantiti, jadi ia hanya berubah apabila nilai itu berubah.`,
         );
       }
       const by: Record<string, Words> = {
@@ -281,10 +281,10 @@ export function contractFaultWords(f: Finding): Words {
         APPENDIX: w("the frozen tender Appendix", "Lampiran tender yang dibekukan"),
         BQ: w("the bill of quantities pinned to the approved documents", "senarai kuantiti yang disematkan kepada dokumen yang diluluskan"),
       };
-      const src = by[String(d.source)] ?? w("the award, the Appendix or the bill", "award, Lampiran atau senarai kuantiti");
+      const src = by[String(d.source)] ?? w("the award, the Appendix or the bill", "Surat Setuju Terima, Lampiran atau senarai kuantiti");
       return w(
         `${f.en} ${plural ? "are" : "is"} stated by ${src.en}, so ${plural ? "they are" : "it is"} not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order. If it was recorded wrongly from the signed document, the product cannot yet correct it: correcting the award's recorded terms after issue is not built. A change to the terms themselves is a variation, not a correction.`,
-        `${f.ms} dinyatakan oleh ${src.ms}, jadi tidak diperbetulkan di sini: garis dasar mengekalkan apa yang dinyatakan oleh award, Lampiran dan senarai kuantiti, mengikut susunan itu. Jika ia direkodkan salah daripada dokumen yang ditandatangani, produk belum dapat membetulkannya: pembetulan terma award yang direkodkan selepas pengeluaran belum dibina. Perubahan kepada terma itu sendiri ialah variasi, bukan pembetulan.`,
+        `${f.ms} dinyatakan oleh ${src.ms}, jadi tidak diperbetulkan di sini: garis dasar mengekalkan apa yang dinyatakan oleh Surat Setuju Terima, Lampiran dan senarai kuantiti, mengikut susunan itu. Jika ia direkodkan salah daripada dokumen yang ditandatangani, produk belum dapat membetulkannya: pembetulan terma Surat Setuju Terima yang direkodkan selepas pengeluarannya belum dibina. Perubahan kepada terma itu sendiri ialah variasi, bukan pembetulan.`,
       );
     }
     case "DERIVED_BY_POLICY":

@@ -8,9 +8,10 @@
  * an underscore) that has no words is withheld as "—": it is a code, and a code is never shown.
  */
 
+import { fieldLabel } from "@/lib/audit/diff";
 import { INSURANCE_KIND_LABEL, REGISTER_STATUS_LABEL, SECURITY_KIND_LABEL, WC_BASIS_LABEL } from "@/lib/award/labels";
 
-import { CHECK_WORDS, COMPARISON_WORDS, CUSTODY_KIND_WORDS, DECISION_WORDS, DIRECTION_WORDS, OUTCOME_WORDS, PARTY_WORDS, PHASE_WORDS, PROVENANCE_WORDS, REASON_WORDS, SOURCE_WORDS, type Words } from "./labels";
+import { BASELINE_FIELD_WORDS, CHECK_WORDS, COMPARISON_WORDS, CUSTODY_KIND_WORDS, DECISION_WORDS, DIRECTION_WORDS, OUTCOME_WORDS, PARTY_WORDS, PHASE_WORDS, PROVENANCE_WORDS, REASON_WORDS, SOURCE_WORDS, w, type Words } from "./labels";
 
 const en = (m: Readonly<Record<string, Words>>) => Object.entries(m).map(([k, v]) => [k, v.en] as const);
 
@@ -47,10 +48,39 @@ export const isCodeField = (field: string, entity?: string) => CODE_FIELDS.has(f
 
 export function historyValue(field: string, value: string | null, formatDay: (d: string) => string, entity?: string): string {
   if (value == null || value === "") return "—";
+  if (entity === "ContractBaseline" && BASELINE_KEY_LIST_FIELDS.has(field)) return baselineKeyListWords(value).en;
   if (/^\d{4}-\d{2}-\d{2}/.test(value)) return formatDay(value);
   if (value === "true" || value === "yes") return "Yes";
   if (value === "false" || value === "no") return "No";
   if (!isCodeField(field, entity)) return value;
   if (field === "status" && STATUS_WORDS[value]) return STATUS_WORDS[value];
   return HISTORY_CODE_WORDS[value] ?? STATUS_WORDS[value] ?? "—";
+}
+
+/**
+ * The baseline's own fields that store baseline value keys (6.12 residual review S-1, AGENTS.md rule 5):
+ * a version's or the draft's `changed` (a list of keys, "all" or "nothing") and `entered` (a list of groups).
+ * They read through the same labels the Baseline tab uses, in both languages; a key with no label is
+ * withheld as "—", never shown.
+ */
+export const BASELINE_KEY_LIST_FIELDS: ReadonlySet<string> = new Set(["changed", "entered"]);
+
+const ALL = w("Every value", "Semua nilai");
+const NOTHING = w("Nothing", "Tiada");
+const WITHHELD = w("—", "—");
+
+export function baselineKeyListWords(value: string): Words {
+  const v = value.trim();
+  if (v === "all") return ALL;
+  if (v === "nothing") return NOTHING;
+  const items = v.split(",").map((k) => k.trim()).filter(Boolean).map((k) => BASELINE_FIELD_WORDS[k] ?? WITHHELD);
+  if (!items.length) return WITHHELD;
+  return w(items.map((x) => x.en).join(", "), items.map((x) => x.ms).join(", "));
+}
+
+/// A History row's field name: on the baseline's rows a group key reads by its Baseline-tab label (the
+/// trail of a keyed or corrected group is written under the group's key).
+export function historyFieldLabel(field: string, entity?: string): string {
+  if (entity === "ContractBaseline" && BASELINE_FIELD_WORDS[field]) return BASELINE_FIELD_WORDS[field].en;
+  return fieldLabel(field);
 }

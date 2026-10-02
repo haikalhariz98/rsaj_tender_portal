@@ -12,12 +12,11 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { KeyValues } from "@/components/ui/stat";
-import { fieldLabel } from "@/lib/audit/diff";
 import { INSURANCE_KIND_LABEL, REGISTER_STATUS_LABEL, REGISTER_STATUS_TONE, SECURITY_KIND_LABEL, WC_BASIS_LABEL } from "@/lib/award/labels";
 import { contractFaultText } from "@/lib/contract/fault-text";
 import { arithmeticVariance } from "@/lib/contract/formation";
 import { signingFacts } from "@/lib/contract/judge";
-import { historyValue } from "@/lib/contract/history-words";
+import { historyFieldLabel, historyValue } from "@/lib/contract/history-words";
 import { CONTRACT_YEAR_WORDS, contractYearReading } from "@/lib/contract/issue-year";
 import { PHASE_TONE, PHASE_WORDS } from "@/lib/contract/labels";
 import { contractHistory, loadContractConfig, preparationSettings } from "@/lib/contract/load";
@@ -295,7 +294,7 @@ function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<ReturnTyp
                 <ul className="text-[12.5px] break-words text-ink-3">
                   {e.changes.filter((ch) => !/(Code|Key|Id)$/.test(ch.field)).map((ch) => (
                     <li key={ch.field}>
-                      {fieldLabel(ch.field)}: {(e.action === "UPDATE" || ch.before != null) && <>{chipped(ch.field, ch.before, e.entity)} → </>}
+                      {historyFieldLabel(ch.field, e.entity)}: {(e.action === "UPDATE" || ch.before != null) && <>{chipped(ch.field, ch.before, e.entity)} → </>}
                       <span className="text-ink-2">{chipped(ch.field, e.action === "DELETE" ? ch.before : ch.after, e.entity)}</span>
                     </li>
                   ))}
