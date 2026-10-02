@@ -17,9 +17,10 @@ import type { EvaluationGateFacts } from "./award-gate";
 import type { BundleFacts } from "./bundle";
 import { consentCheck } from "./consent";
 import { reportStale } from "./report";
+import { ceilingOf } from "./repo";
 
 export async function loadEvaluationGate(exerciseId: string, client: Tx = db) {
-  const ex = await client.sourcingExercise.findUniqueOrThrow({ where: { id: exerciseId }, select: { status: true, packKindSnapshot: true, evaluationModelSnapshot: true, window: { select: { publishedAt: true } } } });
+  const ex = await client.sourcingExercise.findUniqueOrThrow({ where: { id: exerciseId }, select: { status: true, packKindSnapshot: true, evaluationModelSnapshot: true, regime: true, boundaryValue: true, boundaryOperator: true, window: { select: { publishedAt: true } } } });
   const openings = await client.opening.findMany({ where: { exerciseId }, select: { kind: true, finalisedAt: true, bids: { select: { id: true, verdict: true } } } });
   const current = await client.evaluation.findFirst({
     where: { exerciseId, state: { in: ["OPEN", "ISSUED"] } },
@@ -44,7 +45,7 @@ export async function loadEvaluationGate(exerciseId: string, client: Tx = db) {
     applies: throughWindow,
     pinned,
     exerciseStatus: ex.status,
-    issued: rec ? { stale, recommendedPartyId: rec.bidder.openedBid.party.id, price: senFromDecimal(rec.price), period: rec.completionPeriod != null && rec.completionUnit ? { value: rec.completionPeriod, unit: rec.completionUnit } : null, consentNotFromRecommended: (consent?.faults ?? []).map((f) => ({ party: String(f.data?.party ?? ""), day: String(f.data?.day ?? "") })) } : null,
+    issued: rec ? { stale, recommendedPartyId: rec.bidder.openedBid.party.id, price: senFromDecimal(rec.price), period: rec.completionPeriod != null && rec.completionUnit ? { value: rec.completionPeriod, unit: rec.completionUnit } : null, consentNotFromRecommended: (consent?.faults ?? []).map((f) => ({ party: String(f.data?.party ?? ""), day: String(f.data?.day ?? "") })), ceiling: ceilingOf(ex) } : null,
   };
   const bundle: BundleFacts = {
     applies: throughWindow && pinned,

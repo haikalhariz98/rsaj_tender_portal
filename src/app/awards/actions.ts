@@ -151,7 +151,8 @@ const tenderStates = (field: BaselineField, t: FrozenTender, value: Sen) => tend
 type AwardFigures = { value: Sen; period: { value: number; unit: "DAYS" | "WEEKS" | "MONTHS" }; reasons: { value: string | null; period: string | null } };
 
 /// The evaluation's refusal of an award's awardee, value or period, as field errors where a field can fix it; null: none.
-const FIELD: Record<string, string> = { AWARDEE_NOT_RECOMMENDED: "awardeePartyId", VALUE_DIFFERS_REASON_REQUIRED: "recValueDiffersReason", PERIOD_DIFFERS_REASON_REQUIRED: "recPeriodDiffersReason" };
+// 68-C3: a differing value above the frozen quotation ceiling (or one that cannot be judged) is the value's to fix.
+const FIELD: Record<string, string> = { AWARDEE_NOT_RECOMMENDED: "awardeePartyId", VALUE_DIFFERS_REASON_REQUIRED: "recValueDiffersReason", PERIOD_DIFFERS_REASON_REQUIRED: "recPeriodDiffersReason", VALUE_ABOVE_CEILING: "awardedValue", BOUNDARY_NOT_RECORDED: "awardedValue" };
 
 /// `fieldsOnly`: a draft's edit asks only what its fields fix (the rest is asked at submission and issue).
 function recommendationRefusal(e: EvaluationGate, awardeePartyId: string | null, award: AwardFigures, fieldsOnly = false): FormState | null {

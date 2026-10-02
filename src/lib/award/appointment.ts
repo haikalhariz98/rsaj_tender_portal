@@ -21,7 +21,7 @@ import type { WindowGate } from "@/lib/window/gate";
 
 import type { OpeningGateFacts, OpeningGateFault } from "@/lib/opening/award-gate";
 
-import type { DifferenceFault, EvaluationGateFault } from "@/lib/evaluation/award-gate";
+import type { AwardCeilingFault, DifferenceFault, EvaluationGateFault } from "@/lib/evaluation/award-gate";
 
 import { awardableStatus, bidGateFindings, evaluationFindings, exerciseOpenForAward, openingFindings, type BidGateFacts, type BidGateFault, type EvaluationForAward } from "./gate";
 import type { Finding } from "./types";
@@ -117,7 +117,8 @@ export type SubmitFault =
   | BidGateFault
   | OpeningGateFault
   | EvaluationGateFault
-  | DifferenceFault;
+  | DifferenceFault
+  | AwardCeilingFault;
 
 /**
  * Whether an award may be sent for the appointment's approval. The awarded value's own

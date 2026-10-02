@@ -9,7 +9,7 @@
  * by `checkSignatory` in the issue itself, once named.
  */
 
-import { differenceFaults, evaluationGateFaults, recommendationDifferences, type DifferenceFault, type EvaluationGateFacts, type EvaluationGateFault } from "@/lib/evaluation/award-gate";
+import { awardCeilingFault, differenceFaults, evaluationGateFaults, recommendationDifferences, type AwardCeilingFault, type DifferenceFault, type EvaluationGateFacts, type EvaluationGateFault } from "@/lib/evaluation/award-gate";
 import type { PeriodUnit } from "@/lib/evaluation/types";
 import type { Sen } from "@/lib/money";
 import type { PackKind } from "@/lib/method/types";
@@ -107,7 +107,12 @@ export interface EvaluationForAward {
 export function evaluationFindings(e: EvaluationForAward | null | undefined): Finding[] {
   if (!e) return [];
   const out: Finding[] = evaluationGateFaults(e.facts, e.awardeePartyId);
-  if (e.award && e.facts.applies && e.facts.issued) out.push(...differenceFaults(recommendationDifferences(e.award, e.facts.issued), e.award.reasons));
+  if (e.award && e.facts.applies && e.facts.issued) {
+    out.push(...differenceFaults(recommendationDifferences(e.award, e.facts.issued), e.award.reasons));
+    // 68-C3: a value differing from the recommendation is judged against the frozen quotation ceiling.
+    const c = awardCeilingFault(e.award, e.facts.issued);
+    if (c) out.push(c);
+  }
   return out;
 }
 
@@ -199,7 +204,8 @@ export type IssueFault =
   | BidGateFault
   | OpeningGateFault
   | EvaluationGateFault
-  | DifferenceFault;
+  | DifferenceFault
+  | AwardCeilingFault;
 
 export function issueFaults(i: IssueInput): Finding[] {
   const out: Finding[] = [];

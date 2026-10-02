@@ -350,6 +350,9 @@ export function awardFindingText(f: Finding): string {
     case "CONSENT_NOT_FROM_RECOMMENDED":
     case "VALUE_DIFFERS_REASON_REQUIRED":
     case "PERIOD_DIFFERS_REASON_REQUIRED":
+    // Phase 2 close-out 68-C3: a differing value above the frozen quotation ceiling.
+    case "VALUE_ABOVE_CEILING":
+    case "BOUNDARY_NOT_RECORDED":
       return evaluationFindingText(f);
     default:
       return methodFindingText(f);
