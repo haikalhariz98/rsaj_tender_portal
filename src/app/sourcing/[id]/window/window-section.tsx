@@ -20,6 +20,8 @@ import { DECISION_LABEL } from "@/lib/requisition/labels";
 import { FEE_COST_KIND_LABEL } from "@/lib/window/labels";
 import type { WindowTab } from "@/lib/window/read";
 import { FEE_COST_KINDS } from "@/lib/window/types";
+import { isPublished } from "@/lib/window/phase";
+import type { ExerciseStatus } from "@/lib/method/types";
 
 import { RouteSteps } from "../route-steps";
 import { DeliveryList, FromBadge, levelTone, SETTINGS_HREF } from "./common";
@@ -56,7 +58,7 @@ export interface WindowContext {
 }
 
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
-const published = (status: string) => status === "ADVERTISED" || status === "INVITED";
+const published = (status: string) => isPublished(status as ExerciseStatus);
 
 /**
  * The page header's share of the Window section: the act the section's state asks for (publish,

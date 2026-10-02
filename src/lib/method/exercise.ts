@@ -71,7 +71,9 @@ export type TransitionFault =
   | "NOT_BY_THIS_ACT"
   | "PACK_NOT_READY"
   | "DATES_REQUIRED"
-  | "PUBLISH_NOT_READY";
+  | "PUBLISH_NOT_READY"
+  | "UNSEAL_NOT_AUTHORISED"
+  | "OPENING_NOT_READY";
 
 export const EXERCISE_TRANSITIONS: Record<ExerciseStatus, readonly ExerciseStatus[]> = {
   DRAFT: ["DOCUMENTS_IN_PREPARATION", "CANCELLED"],
@@ -79,15 +81,20 @@ export const EXERCISE_TRANSITIONS: Record<ExerciseStatus, readonly ExerciseStatu
   PENDING_APPROVAL_FOR_TENDERING: ["APPROVED_FOR_TENDERING", "DOCUMENTS_IN_PREPARATION", "CANCELLED"],
   APPROVED_FOR_TENDERING: ["ADVERTISED", "INVITED", "CANCELLED"],
   // 6.5: once published, the exercise is cancelled only through its window_change route (FR-ADV-016).
-  ADVERTISED: ["CANCELLED"],
-  INVITED: ["CANCELLED"],
+  // 6.7: the box is opened only on the second of two authorisations (UNSEAL), and the main opening's
+  // finalising makes it Opened; cancelling stays the window_change route's (C-9).
+  ADVERTISED: ["OPENING_IN_PROGRESS", "CANCELLED"],
+  INVITED: ["OPENING_IN_PROGRESS", "CANCELLED"],
+  OPENING_IN_PROGRESS: ["OPENED", "CANCELLED"],
+  OPENED: ["CANCELLED"],
   CANCELLED: [],
 };
 
 /// The one act that makes each tendering move (§7.3.2): submitting the pack, the route's
 /// approving step, and a rejection that returns the pack for amendment; 6.5's publication (or
-/// invitation), and the approving step of a cancellation on the window_change route.
-export type TenderingAct = "SUBMISSION" | "APPROVAL" | "RETURN" | "PUBLICATION" | "WINDOW_CANCELLATION";
+/// invitation), and the approving step of a cancellation on the window_change route; 6.7's
+/// unseal (the second authorisation) and the main opening's finalising.
+export type TenderingAct = "SUBMISSION" | "APPROVAL" | "RETURN" | "PUBLICATION" | "WINDOW_CANCELLATION" | "UNSEAL" | "OPENING_FINALISED";
 
 export interface TransitionContext {
   today: string | null;
@@ -111,6 +118,10 @@ export interface TransitionContext {
   datesSet?: boolean;
   /// 6.5: blocking findings of the publication checks (`publishFaults`). Not given: not judged, refused.
   publishFaults?: number;
+  /// 6.7: distinct present panel members who authorised the unseal at this sitting. Not given: refused.
+  authorisations?: number;
+  /// 6.7: blocking findings of the main opening's finalise checks (`finaliseFaults`). Not given: refused.
+  finaliseFaults?: number;
 }
 
 /// Which act makes a move between two states, where only one may.
@@ -119,7 +130,9 @@ function actFor(from: ExerciseStatus, to: ExerciseStatus): TenderingAct | null {
   if (from === "PENDING_APPROVAL_FOR_TENDERING" && to === "APPROVED_FOR_TENDERING") return "APPROVAL";
   if (from === "PENDING_APPROVAL_FOR_TENDERING" && to === "DOCUMENTS_IN_PREPARATION") return "RETURN";
   if (from === "APPROVED_FOR_TENDERING" && (to === "ADVERTISED" || to === "INVITED")) return "PUBLICATION";
-  if ((from === "ADVERTISED" || from === "INVITED") && to === "CANCELLED") return "WINDOW_CANCELLATION";
+  if ((from === "ADVERTISED" || from === "INVITED" || from === "OPENING_IN_PROGRESS" || from === "OPENED") && to === "CANCELLED") return "WINDOW_CANCELLATION";
+  if ((from === "ADVERTISED" || from === "INVITED") && to === "OPENING_IN_PROGRESS") return "UNSEAL";
+  if (from === "OPENING_IN_PROGRESS" && to === "OPENED") return "OPENING_FINALISED";
   return null;
 }
 
@@ -137,6 +150,9 @@ export function transitionFault(from: ExerciseStatus, to: ExerciseStatus, ctx: T
     if (act === "APPROVAL" && !ctx.datesSet) return [f("DATES_REQUIRED")];
     if (act === "PUBLICATION" && ctx.publishFaults !== 0) return [f("PUBLISH_NOT_READY", { count: ctx.publishFaults ?? null })];
     if (act === "WINDOW_CANCELLATION" && !(ctx.reason ?? "").trim()) return [f("CANCEL_REASON_REQUIRED")];
+    // Two distinct present panel members (FR-OPN-003, C-2); the action counts them on locked rows.
+    if (act === "UNSEAL" && (ctx.authorisations ?? 0) < 2) return [f("UNSEAL_NOT_AUTHORISED", { count: ctx.authorisations ?? null })];
+    if (act === "OPENING_FINALISED" && ctx.finaliseFaults !== 0) return [f("OPENING_NOT_READY", { count: ctx.finaliseFaults ?? null })];
     return [];
   }
   if (to === "CANCELLED") return (ctx.reason ?? "").trim() ? [] : [f("CANCEL_REASON_REQUIRED")];

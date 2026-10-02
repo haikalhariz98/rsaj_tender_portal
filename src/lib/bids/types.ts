@@ -36,8 +36,10 @@ export const ENVELOPE_CHANNELS: readonly EnvelopeChannel[] = ["COUNTER", "POST",
 /// The channels an officer records a receipt through. A bid in the box is registered at opening (6.7, OD-4).
 export const OFFICER_CHANNELS: readonly EnvelopeChannel[] = ["COUNTER", "POST", "COURIER"];
 
-export type ReceiptSource = "SERVER" | "ENTERED";
-export type EnvelopeStatus = "RECEIVED" | "WITHDRAWN";
+/// 6.7 adds BOX_AT_OPENING: a bid found in the box at opening, timed by the box's LOCKED event (C-3).
+export type ReceiptSource = "SERVER" | "ENTERED" | "BOX_AT_OPENING";
+/// 6.7 adds OPENED: opened at an opening; its offer is on 6.7's OpenedBid, never on the envelope.
+export type EnvelopeStatus = "RECEIVED" | "WITHDRAWN" | "OPENED";
 export type BoxEventKind = "LOCKED" | "UNLOCKED_FOR_OPENING";
 
 /// An envelope as the rules read it.
@@ -72,4 +74,5 @@ export interface ExerciseForBids {
 }
 
 /// Whether the exercise is published (advertised or invited), the only states a bid is received in.
-export const isPublishedStatus = (s: ExerciseStatus) => s === "ADVERTISED" || s === "INVITED";
+/// 6.7 (X-8): the opening's two states follow publication, so they read as published here too.
+export const isPublishedStatus = (s: ExerciseStatus) => s === "ADVERTISED" || s === "INVITED" || s === "OPENING_IN_PROGRESS" || s === "OPENED";

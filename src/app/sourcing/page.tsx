@@ -8,6 +8,7 @@ import { nameRoutesOf } from "@/lib/method/approval";
 import { EXERCISE_STATUS_LABEL, EXERCISE_STATUS_ORDER, EXERCISE_STATUS_TONE, REGIME_SHORT, TERM } from "@/lib/method/labels";
 import { EXERCISES_PAGE, listExercises, loadMethodConfig } from "@/lib/method/repo";
 import type { ExerciseStatus, Regime } from "@/lib/method/types";
+import { isPublished } from "@/lib/window/phase";
 
 import { CLOSING_SOON_DAYS, closesSoon } from "@/lib/window/closing-soon";
 import { windowColumns } from "@/lib/window/read";
@@ -38,7 +39,7 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
     const nameOpen = status !== "CANCELLED" && nameRoutesOf(r.approvalInstances).some((i) => i.status === "PENDING");
     const nameApproved = status !== "CANCELLED" && nameRoutesOf(r.approvalInstances).some((i) => i.status === "APPROVED");
     const w = win.get(r.id);
-    const live = status === "ADVERTISED" || status === "INVITED";
+    const live = isPublished(status);
     return {
       id: r.id,
       views: [

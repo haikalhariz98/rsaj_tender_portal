@@ -29,7 +29,7 @@ import { attendanceCsv, isMandatory, mandatoryPermittedFor } from "./events";
 import { inviteeEditFault, inviteeListFault, regKey } from "./invitees";
 import { closingDay, judgePublish, nameRoutesWithLists, pathOf, phaseOf, proposedInvitees, renderAddendum } from "./judge";
 import { ADDENDUM_STATUS_LABEL, CLOSING_CHANGE_KIND_LABEL, DAY_RULE_LABEL, DELIVERY_METHOD_LABEL, FEE_COST_KIND_LABEL, NOTIFIED_LABEL, PARTY_SOURCE_LABEL, PATH_LABEL, PHASE_LABEL, RULE_LABEL, advertisedOnlyNote, bidNouns, PHASE_TONE, SITE_EVENT_KIND_LABEL, tableAvailabilityText, windowFindingText } from "./labels";
-import { closingHistory, sinceApprovedLines, standingEntry, tableDocumentAvailability, tablePrintRefusal, type TableAvailability, type WindowPhase } from "./phase";
+import { closingHistory, isPublished, sinceApprovedLines, standingEntry, tableDocumentAvailability, tablePrintRefusal, type TableAvailability, type WindowPhase } from "./phase";
 import { basisTotalOf, eventFactsOf, loadCalendar, loadChannels, loadFloors, loadWindowPolicy, windowData, type WindowData } from "./repo";
 import { foldUnpreparedWindow } from "./publish";
 import { annotationLines, isAnnotation, voidRefusalIsRegisterWide, voidSaleFault } from "./sale";
@@ -225,8 +225,8 @@ async function closingActions(x: Loaded) {
   return {
     closing: ex.closingAt ? formatOrgDateTime(ex.closingAt, tz) : NOT_SET,
     lastDayOfSale: w?.purchaseCloseDay ? day(w.purchaseCloseDay) : null,
-    correct: allowed(ex.status === "APPROVED_FOR_TENDERING" ? (pending ? { code: "CHANGE_PENDING", level: "block" } : null) : { code: ex.status === "ADVERTISED" || ex.status === "INVITED" ? "ALREADY_PUBLISHED" : "NOT_APPROVED_FOR_TENDERING", level: "block" }),
-    extend: closingMayMove(phase.phase) ? allowed(extendBlock) : allowed(extendBlock ?? { code: ex.status === "ADVERTISED" || ex.status === "INVITED" ? "CLOSING_PASSED" : "NOT_PUBLISHED", level: "block" }),
+    correct: allowed(ex.status === "APPROVED_FOR_TENDERING" ? (pending ? { code: "CHANGE_PENDING", level: "block" } : null) : { code: isPublished(ex.status) ? "ALREADY_PUBLISHED" : "NOT_APPROVED_FOR_TENDERING", level: "block" }),
+    extend: closingMayMove(phase.phase) ? allowed(extendBlock) : allowed(extendBlock ?? { code: isPublished(ex.status) ? "CLOSING_PASSED" : "NOT_PUBLISHED", level: "block" }),
     cancel: allowed(cancelBlock && cancelBlock.code !== "REASON_REQUIRED" ? cancelBlock : null),
   };
 }
@@ -509,7 +509,8 @@ export async function nameListTab(exerciseId: string) {
   const route = latest ? nameRoutesOf(ex.approvalInstances).find((r) => r.id === latest.id) : null;
   return {
     invited: pathOf(d).path === "INVITED",
-    frozen: ex.status === "INVITED",
+    // 6.7 (X-8): frozen once invited, and still after the opening.
+    frozen: pathOf(d).path === "INVITED" && isPublished(ex.status),
     proposed: proposed.map((p) => ({ name: p.name, registrationNo: p.registrationNo, onRoute: latest ? latest.invitees.some((a) => regKey(a.registrationNo) === regKey(p.registrationNo)) : null })),
     route: latest ? { label: nameRouteLabel(latest.status, route?.warnings), state: fault ? windowFindingText(fault) : "The list as approved is the list as proposed." } : null,
     asked: latest ? latest.invitees.map((a) => ({ name: a.name, registrationNo: a.registrationNo, stillProposed: proposed.some((p) => regKey(p.registrationNo) === regKey(a.registrationNo)) })) : [],

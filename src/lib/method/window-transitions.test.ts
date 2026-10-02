@@ -37,7 +37,8 @@ describe("publishing opens the window", () => {
 
 describe("cancelling a published exercise (FR-ADV-016)", () => {
   it.each(["ADVERTISED", "INVITED"] as const)("%s → cancelled only through the window-change route, with a reason", (from) => {
-    expect(EXERCISE_TRANSITIONS[from]).toEqual(["CANCELLED"]);
+    // 6.7 (X-8 fan-out, flagged): the opening's unseal is the one other move out of a published state.
+    expect(EXERCISE_TRANSITIONS[from]).toEqual(["OPENING_IN_PROGRESS", "CANCELLED"]);
     expect(transitionFault(from, "CANCELLED", { today, via: "WINDOW_CANCELLATION", reason: "Scope withdrawn" })).toEqual([]);
     // The plain cancel act (a reason, no route) is refused: it names where cancelling is done.
     const plain = transitionFault(from, "CANCELLED", { today, reason: "Scope withdrawn" });

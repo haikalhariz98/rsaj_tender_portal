@@ -83,7 +83,7 @@ import { bidFindingText } from "@/lib/bids/labels";
 import { bidGate } from "@/lib/bids/repo";
 import { loadBids } from "./bids/workspace";
 import { PHASE_LABEL, PHASE_TONE } from "@/lib/window/labels";
-import { closingVerb } from "@/lib/window/phase";
+import { closingVerb, isPublished } from "@/lib/window/phase";
 import { readWindowGate } from "@/lib/window/repo";
 import { nameListTab } from "@/lib/window/read";
 import { exerciseMatters } from "@/lib/award/repo";
@@ -206,7 +206,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
 
   // 6.5: the Invitation tab is read one section at a time, and only while it is the tab being looked at.
   // Its header acts (publish, extend, record a sale...) come with it, so they are never judged for another tab.
-  const published = ex.status === "ADVERTISED" || ex.status === "INVITED";
+  const published = isPublished(ex.status);
   // The name tab's own reads (the invitee list beside the approved one, the committee's matters to cite), only for that tab.
   const [nameList, nameMatters] = tab === "name" && flagsNeedName(ex.sourcingMethodCode, cfg.config.methods) ? await Promise.all([nameListTab(ex.id), exerciseMatters(ex.id)]) : [null, []];
   // 6.6: the Bids received tab, read only while it is the tab being looked at; its header acts come with it.

@@ -80,6 +80,9 @@ export function inviteeEditFault(status: ExerciseStatus): Finding<InviteeEditFau
       return null;
     case "ADVERTISED":
     case "INVITED":
+    // 6.7: frozen since publication.
+    case "OPENING_IN_PROGRESS":
+    case "OPENED":
       return { code: "LIST_FROZEN", level: "block" };
     case "CANCELLED":
       return { code: "EXERCISE_NOT_OPEN", level: "block" };

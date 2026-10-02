@@ -8,6 +8,7 @@ import { formatDate } from "@/lib/format";
 import { WITHDRAWN_ON_CHANGE, exerciseRouteMatter, nameRoutesOf } from "@/lib/method/approval";
 import { moveExercise } from "@/lib/method/move";
 import { NAME_APPROVAL_DOMAIN } from "@/lib/method/types";
+import { isPublished } from "@/lib/window/phase";
 import { parseSen, senToDecimalString } from "@/lib/money";
 import { deliveryFaults } from "@/lib/window/addendum";
 import { ENTITY, deliveryFields, feeLineFields, partyFields, windowFields } from "@/lib/window/audit-view";
@@ -215,7 +216,7 @@ export async function removePublication(_prev: FormState, data: FormData): Promi
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: windowFindingText({ code: "REASON_REQUIRED", level: "block" }) } };
   return inWindow(exerciseId, async (tx, l, d) => {
-    if (l.ex.status === "ADVERTISED" || l.ex.status === "INVITED") return refuse([{ code: "WINDOW_PUBLISHED", level: "block" }]);
+    if (isPublished(l.ex.status)) return refuse([{ code: "WINDOW_PUBLISHED", level: "block" }]);
     const p = d.window?.publications.find((x) => x.id === publicationId);
     if (!p) return { ok: false, message: "That publication is no longer recorded." };
     await tx.publicationRecord.delete({ where: { id: p.id } });

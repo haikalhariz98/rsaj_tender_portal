@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
 
+import { isPublished } from "@/lib/window/phase";
+import type { ExerciseStatus } from "@/lib/method/types";
+
 import { RequestCancellationDrawer, RequestChangeDrawer } from "./editors";
 import type { WindowContext } from "./window-section";
 
@@ -22,7 +25,7 @@ export interface TabActs {
  */
 export function tabActs(a: TabActs, c: WindowContext): { actions: ReactNode; notes: [string, string][]; cancel: ReactNode | null } {
   const pre = c.status === "APPROVED_FOR_TENDERING";
-  const live = c.status === "ADVERTISED" || c.status === "INVITED";
+  const live = isPublished(c.status as ExerciseStatus);
   if (!pre && !live) return { actions: null, notes: [], cancel: null };
   const notes: [string, string][] = [];
   const note = (label: string, x: Allowed) => !x.allowed && notes.push([label, x.reason]);

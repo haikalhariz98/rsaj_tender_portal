@@ -31,11 +31,14 @@ export const CHANNEL_LABEL: Readonly<Record<EnvelopeChannel, string>> = {
 export const SOURCE_LABEL: Readonly<Record<ReceiptSource, string>> = {
   SERVER: "Server-stamped",
   ENTERED: "Recorded after the event",
+  // 6.7 (C-3 b): a bid found in the box at opening is timed by the box's lock, never a receipt time.
+  BOX_AT_OPENING: "In the box when it was locked",
 };
 
 export const ENVELOPE_STATUS_LABEL: Readonly<Record<EnvelopeStatus, string>> = {
   RECEIVED: "Received",
   WITHDRAWN: "Withdrawn",
+  OPENED: "Opened",
 };
 
 export const ADMISSION_LABEL: Readonly<Record<AdmissionState, string>> = {

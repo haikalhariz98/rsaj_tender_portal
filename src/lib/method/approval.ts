@@ -291,7 +291,8 @@ export function nameRequestFault(
   today: string | null,
 ): Finding<NameRequestFault> | null {
   if (status === "CANCELLED") return { code: "NAME_EXERCISE_CANCELLED", level: "block" };
-  if (status === "ADVERTISED" || status === "INVITED") return { code: "NAME_LIST_FROZEN", level: "block" };
+  // 6.7 (X-8): still frozen once opened.
+  if (status === "ADVERTISED" || status === "INVITED" || status === "OPENING_IN_PROGRESS" || status === "OPENED") return { code: "NAME_LIST_FROZEN", level: "block" };
   if (!method?.requiresNameApproval) return { code: "NAME_NOT_ASKED", level: "block" };
   if (today == null) return { code: "TIME_ZONE_UNSET", level: "block" };
   if (instances.some((i) => i.status === "PENDING" || i.status === "APPROVED")) return { code: "NAME_ALREADY_REQUESTED", level: "block" };

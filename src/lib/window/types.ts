@@ -33,8 +33,9 @@ export type CertSighted = "ORIGINAL" | "CERTIFIED_COPY" | "NOT_SHOWN";
 export const CERT_SIGHTED: readonly CertSighted[] = ["ORIGINAL", "CERTIFIED_COPY", "NOT_SHOWN"];
 export type CheckState = "NOT_CHECKED" | "CLEAR" | "FAILED";
 export const CHECK_STATES: readonly CheckState[] = ["NOT_CHECKED", "CLEAR", "FAILED"];
-export type PartySource = "PROPOSED_INVITEE" | "ATTENDEE" | "PURCHASER";
-export const PARTY_SOURCES: readonly PartySource[] = ["PROPOSED_INVITEE", "ATTENDEE", "PURCHASER"];
+/// 6.7 adds BIDDER_AT_OPENING: named first from the bid itself, at opening.
+export type PartySource = "PROPOSED_INVITEE" | "ATTENDEE" | "PURCHASER" | "BIDDER_AT_OPENING";
+export const PARTY_SOURCES: readonly PartySource[] = ["PROPOSED_INVITEE", "ATTENDEE", "PURCHASER", "BIDDER_AT_OPENING"];
 export type AdvertisementDayRule = "LATEST_REQUIRED_CHANNEL" | "NAMED_CHANNEL";
 export const ADVERTISEMENT_DAY_RULES: readonly AdvertisementDayRule[] = ["LATEST_REQUIRED_CHANNEL", "NAMED_CHANNEL"];
 export type ClosingChangeKind = "CORRECTION" | "EXTENSION";

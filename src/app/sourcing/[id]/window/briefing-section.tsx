@@ -8,6 +8,8 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { CellStack, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import type { briefingTab } from "@/lib/window/read";
+import { isPublished } from "@/lib/window/phase";
+import type { ExerciseStatus } from "@/lib/method/types";
 
 import { CancelEventDrawer, MarkHeldDrawer, RecordAttendanceDrawer, ScheduleEventDrawer, SetMandatoryDrawer } from "./editors";
 import type { WindowContext } from "./window-section";
@@ -28,7 +30,7 @@ export function briefingHeader(d: Briefing, c: WindowContext): { actions: ReactN
  * The register exports as CSV, and the signed sheet is kept with the exercise's documents.
  */
 export function BriefingSection({ d, c }: { d: Briefing; c: WindowContext }) {
-  const published = c.status === "ADVERTISED" || c.status === "INVITED";
+  const published = isPublished(c.status as ExerciseStatus);
   const invited = d.pathKey === "INVITED";
   const people = c.people;
   const sheet = d.events.length > 0 && (

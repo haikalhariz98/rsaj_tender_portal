@@ -53,7 +53,7 @@ export const CHECK_STATE_LABEL: Record<CheckState, string> = {
   CLEAR: "Checked: clear",
   FAILED: "Failed",
 };
-export const PARTY_SOURCE_LABEL: Record<PartySource, string> = { PROPOSED_INVITEE: "Proposed for invitation", ATTENDEE: "Attended an event", PURCHASER: "Bought the documents" };
+export const PARTY_SOURCE_LABEL: Record<PartySource, string> = { PROPOSED_INVITEE: "Proposed for invitation", ATTENDEE: "Attended an event", PURCHASER: "Bought the documents", BIDDER_AT_OPENING: "Named at opening, from its bid" };
 export const DAY_RULE_LABEL: Record<AdvertisementDayRule, string> = {
   LATEST_REQUIRED_CHANNEL: "The latest day among the required channels",
   NAMED_CHANNEL: "The day of one named channel",

@@ -31,8 +31,9 @@ export interface PhaseInput {
   closingAt: Date | null;
 }
 
-/// Whether the exercise's status is one of the two acts that publish it.
-export const isPublished = (status: ExerciseStatus) => status === "ADVERTISED" || status === "INVITED";
+/// Whether the exercise has been published: one of the two acts that publish it, or one of 6.7's
+/// opening acts that follow (X-8), so its window still reads CLOSED after the box is opened.
+export const isPublished = (status: ExerciseStatus) => status === "ADVERTISED" || status === "INVITED" || status === "OPENING_IN_PROGRESS" || status === "OPENED";
 
 export function windowPhase(w: PhaseInput, now: Date, timeZone: string | null): { phase: WindowPhase; submissionOpen: boolean } {
   const out = (phase: WindowPhase) => ({ phase, submissionOpen: phase === "OPEN_FOR_PURCHASE" || phase === "CLOSED_FOR_PURCHASE" });

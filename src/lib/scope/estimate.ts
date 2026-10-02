@@ -67,6 +67,9 @@ export function exerciseAllowsEstimate(status: ExerciseStatus): "OPEN" | "EXERCI
     // 6.5: still open while the window runs; the closing closes it (versionFaults).
     case "ADVERTISED":
     case "INVITED":
+    // 6.7: the closing has closed it to amendment (versionFaults); disclosure is the opening's.
+    case "OPENING_IN_PROGRESS":
+    case "OPENED":
       return "OPEN";
     case "CANCELLED":
       return "EXERCISE_CANCELLED";

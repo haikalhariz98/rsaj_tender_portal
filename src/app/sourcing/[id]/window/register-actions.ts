@@ -15,6 +15,7 @@ import { regKey } from "@/lib/window/invitees";
 import { lockAddendumRows, lockSaleRows } from "@/lib/window/lock";
 import { lockEnvelopeRows } from "@/lib/bids/lock";
 import { closingDay, pathOf, phaseOf, renderAddendum } from "@/lib/window/judge";
+import { isPublished } from "@/lib/window/phase";
 import { windowFindingText } from "@/lib/window/labels";
 import { eventFactsOf, type WindowData } from "@/lib/window/repo";
 import { ATTESTABLE_CHECKS, isReceiptDuplicate, saleAnnotation, saleFaults, voidSaleFault } from "@/lib/window/sale";
@@ -269,7 +270,7 @@ export async function cancelEvent(_prev: FormState, data: FormData): Promise<For
     if (e.heldOn) return refuse([{ code: "ALREADY_HELD", level: "block" }]);
     await tx.siteEvent.update({ where: { id: e.id }, data: { cancelledAt: new Date(), cancelReason: reason } });
     await audit(tx, l.org.id, ENTITY.event, e.id, label(l, e.kind === "BRIEFING" ? "Tender briefing" : "Site visit"), "UPDATE", diffFields({ cancelled: "no" }, { cancelled: "yes" }), reason);
-    const published = l.ex.status === "ADVERTISED" || l.ex.status === "INVITED";
+    const published = isPublished(l.ex.status);
     return { ok: true, message: published ? "Cancelled. The published notice stated it: tell the purchasers by an addendum." : "Cancelled." };
   });
 }
@@ -282,7 +283,7 @@ export async function markEventHeld(_prev: FormState, data: FormData): Promise<F
   const on = r.date("heldOn", "Held on", { required: true });
   if (r.failed || !on) return { ok: false, errors: r.errors };
   return inWindow(exerciseId, async (tx, l, d) => {
-    if (l.ex.status !== "ADVERTISED" && l.ex.status !== "INVITED") return refuse([{ code: "NOT_PUBLISHED", level: "block" }]);
+    if (!isPublished(l.ex.status)) return refuse([{ code: "NOT_PUBLISHED", level: "block" }]);
     const e = d.window?.events.find((x) => x.id === eventId);
     if (!e) return { ok: false, message: "That event is not scheduled on this exercise." };
     const f = heldFault({ startsAt: e.startsAt, heldOn: e.heldOn ? storedDay(e.heldOn) : null, cancelled: e.cancelledAt != null }, storedDay(on), l.org.today, l.org.timeZone);

@@ -53,6 +53,9 @@ export function exerciseAllowsPanel(status: ExerciseStatus): "OPEN" | "PACK_FROZ
     // 6.5: published on the frozen pack; a change is an addendum.
     case "ADVERTISED":
     case "INVITED":
+    // 6.7: opened on the frozen pack.
+    case "OPENING_IN_PROGRESS":
+    case "OPENED":
       return "PACK_FROZEN";
     case "CANCELLED":
       return "EXERCISE_CANCELLED";

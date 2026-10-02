@@ -28,9 +28,11 @@ export const EXERCISE_STATUS_LABEL: Record<ExerciseStatus, string> = {
   APPROVED_FOR_TENDERING: TENDERING_STATE_LABEL.APPROVED,
   ADVERTISED: "Advertised",
   INVITED: "Invited",
+  OPENING_IN_PROGRESS: "Opening in progress",
+  OPENED: "Opened",
   CANCELLED: "Cancelled",
 };
-export const EXERCISE_STATUS_ORDER: readonly ExerciseStatus[] = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING", "APPROVED_FOR_TENDERING", "ADVERTISED", "INVITED", "CANCELLED"];
+export const EXERCISE_STATUS_ORDER: readonly ExerciseStatus[] = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING", "APPROVED_FOR_TENDERING", "ADVERTISED", "INVITED", "OPENING_IN_PROGRESS", "OPENED", "CANCELLED"];
 export const EXERCISE_STATUS_TONE: Record<ExerciseStatus, "brand" | "info" | "neutral" | "ok"> = {
   // As a requisition's draft reads (UX low).
   DRAFT: "neutral",
@@ -41,6 +43,9 @@ export const EXERCISE_STATUS_TONE: Record<ExerciseStatus, "brand" | "info" | "ne
   // 6.5: the window is under way; its phase (open for purchase, closed) is shown beside it.
   ADVERTISED: "brand",
   INVITED: "brand",
+  // 6.7: the opening under way, then done.
+  OPENING_IN_PROGRESS: "brand",
+  OPENED: "ok",
   CANCELLED: "neutral",
 };
 /// §7.3.2 gives cancellation no SOP path; the screen says so wherever it shows it.
@@ -319,13 +324,21 @@ export function findingText(f: Finding): string {
             ? "The exercise is advertised or invited only by publishing it on the Invitation tab, once every check there passes."
             : d.act === "WINDOW_CANCELLATION"
               ? "An advertised or invited exercise is cancelled only through a cancellation approved on its Invitation tab, which records the reason, the refund and who is told."
-              : "The exercise returns to preparation only when its route for tendering is rejected.";
+              : d.act === "UNSEAL"
+                ? "The tender box is opened only on the second of two authorisations by present panel members, on the Opening tab."
+                : d.act === "OPENING_FINALISED"
+                  ? "The exercise is opened only by finalising its main opening, on the Opening tab, once every check there passes."
+                  : "The exercise returns to preparation only when its route for tendering is rejected.";
     case "PACK_NOT_READY":
       return "The tender documents are not ready: see what the Tender documents tab says blocks them.";
     case "DATES_REQUIRED":
       return "Record the tendering start and closing date with the approving decision.";
     case "PUBLISH_NOT_READY":
       return "The invitation is not ready to publish: see what the Invitation tab says blocks it.";
+    case "UNSEAL_NOT_AUTHORISED":
+      return "The tender box is opened only once two different panel members present have each authorised it at this sitting.";
+    case "OPENING_NOT_READY":
+      return "The opening is not ready to finalise: see what the Opening tab says blocks it.";
     case "DETERMINATION_CHANGED":
       return `Since it was last saved, the configuration now gives a different result for ${d.changes}. Open Edit and save it again, so the change is recorded, then move it.`;
     case "NAME_EXERCISE_CANCELLED":

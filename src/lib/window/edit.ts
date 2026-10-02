@@ -7,6 +7,7 @@
  */
 
 import type { ExerciseStatus, PackKind } from "@/lib/method/types";
+import { isPublished } from "./phase";
 
 import type { Finding, WindowPath } from "./types";
 
@@ -24,6 +25,9 @@ export function windowEditFault(status: ExerciseStatus, packKind: PackKind | nul
       return null;
     case "ADVERTISED":
     case "INVITED":
+    // 6.7: published and since opened.
+    case "OPENING_IN_PROGRESS":
+    case "OPENED":
       return { code: "WINDOW_PUBLISHED", level: "block" };
     case "CANCELLED":
       return { code: "EXERCISE_CANCELLED", level: "block" };
@@ -54,7 +58,7 @@ export function publicationFault(i: {
   const out: Finding<PublicationFault>[] = [];
   const f = (code: PublicationFault, data?: Finding["data"]) => out.push({ code, level: "block", ...(data ? { data } : {}) });
   if (!i.today) return [{ code: "TIME_ZONE_UNSET", level: "block" }];
-  if (i.status === "ADVERTISED" || i.status === "INVITED") f("WINDOW_PUBLISHED");
+  if (isPublished(i.status)) f("WINDOW_PUBLISHED");
   else if (i.status !== "APPROVED_FOR_TENDERING") f("NOT_APPROVED_FOR_TENDERING");
   if (i.path === "INVITED") f("PUBLIC_CHANNEL_ON_INVITED");
   if (!i.channel || (i.channel.retiredOn != null && i.channel.retiredOn <= i.today)) f("CHANNEL_RETIRED");
