@@ -670,7 +670,8 @@ export async function loadEvaluationDemo(db: Db, organisationId: string, hooks: 
   const sx16 = `${P}sx16`;
   const [impl] = IMPLEMENTING;
   const [proc] = PROCUREMENT;
-  const close16 = (await db.sourcingExercise.findUniqueOrThrow({ where: { id: sx16 }, select: { closingAt: true } })).closingAt!;
+  // The closing as the exercise's own loader reads it (X-2: the demo never selects the column itself).
+  const close16 = (await acts.ctx(sx16)).l.ex.closingAt ?? fail("sx16 has no closing");
   if (ago(146) <= close16) fail("sx16 closed too close to now to be evaluated before the award");
   await acts.start(sx16, `${P}evl1`, { by: proc, appointedOn: L, at: ago(145) });
   // Technical: marks out of 40, and the two criteria of the 60-mark group (35 and 25).
@@ -894,7 +895,8 @@ async function loadQuotation(db: Db, organisationId: string, tz: string, W: (k: 
   for (const [i, f] of firms.entries()) await acts.sale(sx, `${P}sale${10 + i}`, { party: f, receiptNo: `FR/26/0044${10 + i}`, collectedBy: "Demo representative", paymentMethod: "Bank draft" }, T(W(15 - i), "10:00"));
 
   // ---- 6.6: three envelopes in time, the box locked at the closing
-  const close = (await db.sourcingExercise.findUniqueOrThrow({ where: { id: sx }, select: { closingAt: true } })).closingAt!;
+  const { loadExercise } = await import("../src/lib/method/repo");
+  const close = (await loadExercise(sx))?.ex.closingAt ?? fail("sx21 has no closing");
   if (dayIn(close, tz) !== W(5)) fail("sx21 does not close on its closing day");
   const marks = `Quotation ${ref}, Service reservoir roof repairs, closing ${formatDate(W(5))} 3.00 pm`;
   const r = new Receipts(db, organisationId, tz, entry, sx, ref);
@@ -1023,7 +1025,8 @@ export async function wipeEvaluationDemo(db: Db, organisationId: string, exercis
   await db.evaluationBidder.updateMany({ where: byEv, data: { carriedFromId: null } });
   await db.evaluationBidder.deleteMany({ where: byEv });
   await db.evaluationTeamMember.deleteMany({ where: byEv });
-  await db.evaluation.updateMany({ where: { id: { in: ids } }, data: { loopDecisionId: null } });
+  // Deleted outright, never unlinked first: a LOOP version's decision (and a supplementary one's opening) is
+  // tied to its trigger by a CHECK, and the decision and the opening go after, with the committees and openings.
   await db.evaluation.deleteMany({ where: { id: { in: ids } } });
   // The configuration: exercises no longer name a demo model; the policy before its templates.
   await db.sourcingExercise.updateMany({ where: { evaluationModelId: demoRef }, data: { evaluationModelId: null } });
