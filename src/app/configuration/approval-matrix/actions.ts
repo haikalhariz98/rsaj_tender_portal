@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { END_DAY_LABEL } from "@/lib/effective-text";
 import { redirect } from "next/navigation";
 
 import type { FormState } from "@/components/record-editor";
@@ -1198,7 +1199,7 @@ export async function endRejectionDestination(_prev: FormState, data: FormData):
   if (!orgId) return { ok: false, message: "No organisation is configured. Run npm run setup first." };
   const r = new FormReader(data);
   const id = r.text("id", "Destination", { required: true });
-  const on = r.date("effectiveTo", "Ends", { required: true });
+  const on = r.date("effectiveTo", END_DAY_LABEL, { required: true });
   const reason = r.text("reason", "Reason", { required: true, max: 2000 });
   if (r.failed || !on) return { ok: false, errors: r.errors };
   const row = await db.rejectionDestination.findFirst({ where: { id, organisationId: orgId } });

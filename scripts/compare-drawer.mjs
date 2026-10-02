@@ -144,6 +144,11 @@ const DECIDED_FIELDS = {
       theirs: "Active period [input]",
       why: "a budget code with no start has no period, and every figure on the screen is read against one",
     },
+    {
+      ours: "Ends on (not included) [input]",
+      theirs: "— [input]",
+      why: "65-C1: the end day is exclusive in the engine (inForceOn); a bare dash read as a last day included",
+    },
   ],
   delegation: [
     {
@@ -160,6 +165,11 @@ const DECIDED_FIELDS = {
       ours: "From [input, required]",
       theirs: "From [input]",
       why: "a delegation with no start has no period",
+    },
+    {
+      ours: "Ends on (not included) [input]",
+      theirs: "To [input]",
+      why: "65-C1: the end day is exclusive in the engine (inForceOn); a plain \"To\" read as a last day included",
     },
     {
       ours: "Delegating from [select, required]",

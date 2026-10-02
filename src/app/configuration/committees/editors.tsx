@@ -1,4 +1,5 @@
 import { PencilIcon } from "@/components/icons";
+import { END_DAY_LABEL } from "@/lib/effective-text";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 
@@ -291,7 +292,7 @@ function memberFields(
     },
     { kind: "text", name: "appointmentRef", label: "Appointment reference" },
     { kind: "date", name: "effectiveFrom", label: "Held from", required: true },
-    { kind: "date", name: "effectiveTo", label: "Held to" },
+    { kind: "date", name: "effectiveTo", label: END_DAY_LABEL, hint: "The first day the seat is no longer held. Leave empty while it is." },
     {
       kind: "select",
       name: "provenance",

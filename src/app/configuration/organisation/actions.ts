@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { END_DAY_LABEL } from "@/lib/effective-text";
 
 import type { FormState } from "@/components/record-editor";
 import { diffFields, snapshotFields } from "@/lib/audit/diff";
@@ -171,7 +172,7 @@ export async function saveCostCentre(_prev: FormState, data: FormData): Promise<
     : r.code("code", "Code", { taken: existing.map((c) => c.code) });
 
   const effectiveFrom = r.date("effectiveFrom", "In force from", { required: true });
-  const effectiveTo = r.date("effectiveTo", "Closed from");
+  const effectiveTo = r.date("effectiveTo", END_DAY_LABEL);
   checkPeriod(r, effectiveFrom, effectiveTo);
 
   const v = {
@@ -230,7 +231,7 @@ export async function saveSite(_prev: FormState, data: FormData): Promise<FormSt
     : r.code("code", "Code", { taken: existing.map((s) => s.code) });
 
   const effectiveFrom = r.date("effectiveFrom", "In force from", { required: true });
-  const effectiveTo = r.date("effectiveTo", "Closed from");
+  const effectiveTo = r.date("effectiveTo", END_DAY_LABEL);
   checkPeriod(r, effectiveFrom, effectiveTo);
 
   const v = {

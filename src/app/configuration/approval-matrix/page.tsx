@@ -1,4 +1,5 @@
 import { Accordion } from "@/components/accordion";
+import { periodText } from "@/lib/effective-text";
 import { gapMatters, gapTitle } from "@/lib/authority/gaps";
 import { AuthoritySimulator } from "@/components/authority-simulator";
 import { AlertTriangle, CheckIcon, SlidersIcon } from "@/components/icons";
@@ -340,7 +341,7 @@ export default async function ApprovalMatrixPage({
         ) : (
           <Callout tone="info" title={state.label}>
             {selected.effectiveTo
-              ? `In force from ${formatDate(selected.effectiveFrom)} until ${formatDate(selected.effectiveTo)}. Kept so decisions taken under it can be shown the rules they ran under.`
+              ? `In force ${periodText(selected)}. Kept so decisions taken under it can be shown the rules they ran under.`
               : `Issued to come into force on ${formatDate(selected.effectiveFrom)}.`}
           </Callout>
         )}

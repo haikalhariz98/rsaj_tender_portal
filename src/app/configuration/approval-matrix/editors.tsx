@@ -1,4 +1,5 @@
 import { PencilIcon, PlusIcon, XIcon } from "@/components/icons";
+import { END_DAY_LABEL } from "@/lib/effective-text";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import { CHAIN_CHOICE_LABEL } from "@/lib/authority/core-routing-labels";
@@ -739,7 +740,7 @@ export function EndRejectionDestination({ id, label }: { id: string; label: stri
       description="From that day no destination is set, and the officer chooses where a rejected matter goes. Routes already open keep theirs."
       fields={[
         { kind: "hidden", name: "id" },
-        { kind: "date", name: "effectiveTo", label: "Not set from", required: true },
+        { kind: "date", name: "effectiveTo", label: END_DAY_LABEL, required: true },
       ]}
       values={{ id }}
       action={endRejectionDestination}

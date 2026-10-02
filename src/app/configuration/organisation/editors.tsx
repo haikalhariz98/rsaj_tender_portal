@@ -1,6 +1,7 @@
 "use client";
 
 import { BuildingIcon, PencilIcon } from "@/components/icons";
+import { END_DAY_LABEL } from "@/lib/effective-text";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import type { CostCentre, OrgUnit, OrgUnitKind, Site } from "@/lib/organisation/types";
@@ -191,8 +192,8 @@ function costCentreFields(units: OrgUnit[], sites: Site[], people: Person[]): Fi
     {
       kind: "date",
       name: "effectiveTo",
-      label: "Closed from",
-      hint: "Leave empty while it is still in use.",
+      label: END_DAY_LABEL,
+      hint: "The first day it is closed. Leave empty while it is still in use.",
     },
   ];
 }
@@ -282,8 +283,8 @@ function siteFields(units: OrgUnit[]): Field[] {
     {
       kind: "date",
       name: "effectiveTo",
-      label: "Closed from",
-      hint: "Leave empty while it is still in use.",
+      label: END_DAY_LABEL,
+      hint: "The first day it is closed. Leave empty while it is still in use.",
     },
   ];
 }

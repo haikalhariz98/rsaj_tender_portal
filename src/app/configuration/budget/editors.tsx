@@ -1,4 +1,5 @@
 import { PencilIcon } from "@/components/icons";
+import { END_DAY_LABEL } from "@/lib/effective-text";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 import type { Allocation } from "@/lib/budget/availability";
@@ -42,8 +43,8 @@ function allocationFields(centres: CodeOption[], accounts: CodeOption[]): Field[
     {
       kind: "date",
       name: "effectiveTo",
-      label: "In force to",
-      hint: "Leave empty while it is still in force.",
+      label: END_DAY_LABEL,
+      hint: "The first day it is no longer in force. Leave empty while it is still in force.",
     },
     {
       kind: "select",

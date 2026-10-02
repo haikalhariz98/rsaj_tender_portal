@@ -1,4 +1,5 @@
 import { ChartIcon, ClipboardIcon, FileIcon, ShieldIcon } from "@/components/icons";
+import { periodText } from "@/lib/effective-text";
 import { HistoryButton } from "@/components/history-drawer";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -340,8 +341,7 @@ export default async function RequisitionControlsPage() {
                     </Td>
                     <Td label="Applies above" className="tabular-nums text-ink-2">{g.aboveValue ? formatMoney(parseSen(g.aboveValue.toString())) : "Any value"}</Td>
                     <Td label="In force" className="text-ink-2">
-                      {formatDate(g.effectiveFrom)}
-                      {g.effectiveTo ? ` to ${formatDate(g.effectiveTo)}` : " onwards"}
+                      {g.effectiveTo ? periodText(g) : `${formatDate(g.effectiveFrom)} onwards`}
                     </Td>
                     <Td>
                       <RowActions>

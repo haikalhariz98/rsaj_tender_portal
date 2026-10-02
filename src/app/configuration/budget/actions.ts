@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { END_DAY_LABEL } from "@/lib/effective-text";
 
 import type { FormState } from "@/components/record-editor";
 import { snapshotFields } from "@/lib/audit/diff";
@@ -44,7 +45,7 @@ export async function saveAllocation(_prev: FormState, data: FormData): Promise<
   const accountCodeCode = r.text("accountCodeCode", "Account code", { required: true });
   const amount = r.money("amount", "Amount", { required: true });
   const effectiveFrom = r.date("effectiveFrom", "In force from", { required: true });
-  const effectiveTo = r.date("effectiveTo", "In force to");
+  const effectiveTo = r.date("effectiveTo", END_DAY_LABEL);
   checkPeriod(r, effectiveFrom, effectiveTo);
 
   // Two allocations in force for one pair make the balance unanswerable, so the
@@ -237,7 +238,7 @@ export async function saveBudgetCode(_prev: FormState, data: FormData): Promise<
     : r.code("code", "Code", { taken: existing.map((c) => c.code) });
 
   const effectiveFrom = r.date("effectiveFrom", "Active period", { required: true });
-  const effectiveTo = r.date("effectiveTo", "Active period end");
+  const effectiveTo = r.date("effectiveTo", END_DAY_LABEL);
   checkPeriod(r, effectiveFrom, effectiveTo);
 
   const v = {

@@ -1,4 +1,5 @@
 import { RecordEditor } from "@/components/record-editor";
+import { END_DAY_LABEL } from "@/lib/effective-text";
 import { buttonClass } from "@/components/ui/button";
 import { SPLIT_KEY_LABEL, TIER_LABEL } from "@/lib/requisition/labels";
 import { SPLIT_KEYS, type RequisitionPolicy } from "@/lib/requisition/types";
@@ -183,7 +184,7 @@ export function GateRuleEditor({
         { kind: "text", name: "governingSource", label: "Source document" },
         { kind: "select", name: "provenance", label: "Where this comes from", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS },
         { kind: "date", name: "effectiveFrom", label: "In force from", required: true },
-        { kind: "date", name: "effectiveTo", label: "In force to", hint: "Set to end the rule. The day itself is not covered." },
+        { kind: "date", name: "effectiveTo", label: END_DAY_LABEL, hint: "Set to end the rule." },
         { kind: "number", name: "sortOrder", label: "Order", min: 0 },
       ]}
       values={

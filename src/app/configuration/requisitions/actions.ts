@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { END_DAY_LABEL } from "@/lib/effective-text";
 
 import type { FormState } from "@/components/record-editor";
 import { diffFields } from "@/lib/audit/diff";
@@ -184,7 +185,7 @@ export async function saveGateRule(_prev: FormState, data: FormData): Promise<Fo
     governingSource: r.text("governingSource", "Source", { max: 240 }),
     provenance: r.choice("provenance", "Provenance", PROVENANCE, { required: true }),
     effectiveFrom: r.date("effectiveFrom", "In force from", { required: true }),
-    effectiveTo: r.date("effectiveTo", "In force to"),
+    effectiveTo: r.date("effectiveTo", END_DAY_LABEL),
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
   };
   const reason = r.text("reason", "Reason", { max: 2000 });

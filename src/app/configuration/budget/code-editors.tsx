@@ -1,6 +1,7 @@
 "use client";
 
 import { ChartIcon, PencilIcon } from "@/components/icons";
+import { END_DAY_LABEL } from "@/lib/effective-text";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { cx } from "@/components/ui/cx";
 import { Meter } from "@/components/ui/feedback";
@@ -67,7 +68,7 @@ function budgetCodeFields(units: Unit[], people: Person[], accounts: Account[]):
       orphanLabel: "Somebody no longer on record",
     },
     { kind: "date", name: "effectiveFrom", label: "Active period", required: true },
-    { kind: "date", name: "effectiveTo", label: "—" },
+    { kind: "date", name: "effectiveTo", label: END_DAY_LABEL },
     {
       kind: "switch",
       name: "isActive",

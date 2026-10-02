@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { END_DAY_LABEL } from "@/lib/effective-text";
 
 import type { FormState } from "@/components/record-editor";
 import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
@@ -214,7 +215,7 @@ export async function saveMember(_prev: FormState, data: FormData): Promise<Form
   }
 
   const effectiveFrom = r.date("effectiveFrom", "Held from", { required: true });
-  const effectiveTo = r.date("effectiveTo", "Held to");
+  const effectiveTo = r.date("effectiveTo", END_DAY_LABEL);
   checkPeriod(r, effectiveFrom, effectiveTo);
 
   const position = r.choice("position", "Position", POSITIONS, { required: true });

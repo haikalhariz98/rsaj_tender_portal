@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { END_DAY_LABEL } from "@/lib/effective-text";
 
 import { DataList, type Row } from "@/components/data-list";
 import { CalendarIcon, CheckIcon, XIcon } from "@/components/icons";
@@ -172,7 +173,7 @@ export function PeriodsPanel({
             { key: "period", label: "Period", width: "88px", nowrap: true, sortable: true, mobile: "primary" },
             { key: "name", label: "Name", sortable: true, mobile: "meta" },
             { key: "from", label: "From", width: "128px", nowrap: true, sortable: true, mobile: "meta" },
-            { key: "to", label: "To", width: "128px", nowrap: true, sortable: true, mobile: "meta" },
+            { key: "to", label: END_DAY_LABEL, width: "176px", nowrap: true, sortable: true, mobile: "meta" },
             { key: "status", label: "Status", width: "140px", sortable: true, mobile: "meta" },
           ]}
           rows={rows}
