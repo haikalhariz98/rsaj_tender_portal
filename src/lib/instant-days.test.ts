@@ -14,7 +14,7 @@ import { formatDate, formatOrgDay } from "@/lib/format";
  * (a route's openedAt, an award's issuedAt) is a stored day and is not listed.
  */
 
-const INSTANT_FIELDS = ["submittedAt", "frozenAt", "finalisedAt", "clearedAt", "createdAt", "updatedAt", "storedAt", "startedAt", "formedAt", "closedAt", "minutedAt", "withdrawnAt", "publishedAt", "recordedAt", "verdictAt"] as const;
+const INSTANT_FIELDS = ["submittedAt", "frozenAt", "finalisedAt", "clearedAt", "createdAt", "updatedAt", "storedAt", "startedAt", "formedAt", "closedAt", "minutedAt", "withdrawnAt", "publishedAt", "recordedAt", "verdictAt", "requestedAt", "grantedAt", "verifiedAt", "erpSyncedAt"] as const;
 
 const walk = (dir: string): string[] =>
   readdirSync(join(process.cwd(), dir)).flatMap((f) => {

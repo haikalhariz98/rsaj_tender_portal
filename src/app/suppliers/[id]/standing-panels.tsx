@@ -154,7 +154,7 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
                 <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 sm:px-6">
                   <div className="flex min-w-0 flex-col gap-0.5">
                     <span className="text-[14px] font-semibold text-ink">{REQUEST_KIND_LABEL[r.kind].en}{r.reasonSnapshot ? ` · ${r.reasonSnapshot}` : ""}</span>
-                    <span className="text-[12.5px] text-ink-3">Asked by {r.requestedBy.name}, on their behalf, {formatDate(storedDay(r.requestedAt))}{r.sourceAward ? <> · from the cancelled award <Link href={`/awards/${r.sourceAward.id}`}>{r.sourceAward.reference}</Link></> : null}{r.note ? ` · “${r.note}”` : ""}</span>
+                    <span className="text-[12.5px] text-ink-3">Asked by {r.requestedBy.name}, on their behalf, {formatOrgDay(r.requestedAt, l.org.timeZone)}{r.sourceAward ? <> · from the cancelled award <Link href={`/awards/${r.sourceAward.id}`}>{r.sourceAward.reference}</Link></> : null}{r.note ? ` · “${r.note}”` : ""}</span>
                     {r.withdrawnAt && <span className="text-[12.5px] break-words text-ink-3">Withdrawn by {r.withdrawnBy?.name ?? "a person no longer on record"}, on their behalf, {formatOrgDay(r.withdrawnAt, l.org.timeZone)}: “{r.withdrawnReason}”</span>}
                   </div>
                   <span className="flex flex-wrap items-center gap-2">
