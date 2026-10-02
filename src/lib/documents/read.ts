@@ -12,10 +12,11 @@ import { detachFault, ownerState, purposeFits, reliedOn, reliedOnAttachment, rep
 import { isLive } from "./evidence";
 import { accessReasonText, ACCESS_STATEMENT, documentFaultText, DOWNLOAD_REFUSAL_TEXT, EXIT_TEXT, FINGERPRINT_STATEMENT } from "./labels";
 import { effectiveCap } from "./limits";
-import { addendumFacts, awardFacts, bqVersionFacts, delegationFacts, exerciseFacts, exerciseMethodFlags, extensionFacts, meetingFacts, openingFacts, PANEL_FACTS_SELECT, panelFacts, tenderPackPartFacts, withdrawalFacts } from "./owner-facts";
+import { addendumFacts, awardFacts, bqVersionFacts, delegationFacts, evaluationBidderFacts, evaluationFacts, evaluationMeetingFacts, exerciseFacts, exerciseMethodFlags, extensionFacts, meetingFacts, openingFacts, PANEL_FACTS_SELECT, panelFacts, tenderPackPartFacts, withdrawalFacts } from "./owner-facts";
 import { PACK_PART_FACTS_SELECT, packPartLabel } from "@/lib/tender-docs/owner";
 import { ADDENDUM_FACTS_SELECT, addendumLabel } from "@/lib/window/lock";
 import { OPENING_FACTS_SELECT, openingLabel } from "@/lib/opening/lock";
+import { EVALUATION_BIDDER_FACTS_SELECT, EVALUATION_FACTS_SELECT, EVALUATION_MEETING_FACTS_SELECT, evaluationBidderLabel, evaluationLabel, evaluationMeetingLabel } from "@/lib/evaluation/lock";
 import { EXTENSION_FACTS_SELECT, extensionLabel, WITHDRAWAL_FACTS_SELECT, withdrawalLabel } from "@/lib/bids/lock";
 import { type OwnerRef } from "./repo";
 import { attachTargets, ownerHref } from "./targets";
@@ -79,6 +80,18 @@ export async function readOwner(ref: OwnerRef): Promise<{ facts: OwnerFacts; lab
     case "opening": {
       const o = await db.opening.findFirst({ where: { id: ref.id, organisationId: org.id }, select: OPENING_FACTS_SELECT });
       return o ? { facts: openingFacts(o), label: openingLabel(o) } : null;
+    }
+    case "evaluation": {
+      const e = await db.evaluation.findFirst({ where: { id: ref.id, organisationId: org.id }, select: EVALUATION_FACTS_SELECT });
+      return e ? { facts: evaluationFacts(e), label: evaluationLabel(e) } : null;
+    }
+    case "evaluationMeeting": {
+      const m = await db.evaluationMeeting.findFirst({ where: { id: ref.id, organisationId: org.id }, select: EVALUATION_MEETING_FACTS_SELECT });
+      return m ? { facts: evaluationMeetingFacts(m), label: evaluationMeetingLabel(m) } : null;
+    }
+    case "evaluationBidder": {
+      const b = await db.evaluationBidder.findFirst({ where: { id: ref.id, organisationId: org.id }, select: EVALUATION_BIDDER_FACTS_SELECT });
+      return b ? { facts: evaluationBidderFacts(b), label: evaluationBidderLabel(b) } : null;
     }
   }
 }
@@ -158,7 +171,7 @@ export async function documentDrawer(documentId: string) {
         orderBy: { versionNo: "desc" },
         select: {
           ...versionSelect,
-          attachments: { select: { id: true, purpose: true, attachedAt: true, detachedAt: true, detachReason: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true, meeting: { select: { reference: true } }, exercise: { select: { reference: true } }, award: { select: { reference: true } }, delegation: { select: { fromPerson: { select: { name: true } }, toPerson: { select: { name: true } } } }, specificationPanel: { select: { exerciseId: true, exercise: { select: { reference: true } } } }, bqVersionId: true, bqVersion: { select: { versionNo: true, exerciseId: true, exercise: { select: { reference: true } } } }, tenderPackPartId: true, tenderPackPart: { select: PACK_PART_FACTS_SELECT }, addendumId: true, addendum: { select: ADDENDUM_FACTS_SELECT }, bidWithdrawalId: true, bidWithdrawal: { select: WITHDRAWAL_FACTS_SELECT }, validityExtensionId: true, validityExtension: { select: EXTENSION_FACTS_SELECT }, openingId: true, opening: { select: OPENING_FACTS_SELECT } } },
+          attachments: { select: { id: true, purpose: true, attachedAt: true, detachedAt: true, detachReason: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true, meeting: { select: { reference: true } }, exercise: { select: { reference: true } }, award: { select: { reference: true } }, delegation: { select: { fromPerson: { select: { name: true } }, toPerson: { select: { name: true } } } }, specificationPanel: { select: { exerciseId: true, exercise: { select: { reference: true } } } }, bqVersionId: true, bqVersion: { select: { versionNo: true, exerciseId: true, exercise: { select: { reference: true } } } }, tenderPackPartId: true, tenderPackPart: { select: PACK_PART_FACTS_SELECT }, addendumId: true, addendum: { select: ADDENDUM_FACTS_SELECT }, bidWithdrawalId: true, bidWithdrawal: { select: WITHDRAWAL_FACTS_SELECT }, validityExtensionId: true, validityExtension: { select: EXTENSION_FACTS_SELECT }, openingId: true, opening: { select: OPENING_FACTS_SELECT }, evaluationId: true, evaluation: { select: EVALUATION_FACTS_SELECT }, evaluationMeetingId: true, evaluationMeeting: { select: EVALUATION_MEETING_FACTS_SELECT }, evaluationBidderId: true, evaluationBidder: { select: EVALUATION_BIDDER_FACTS_SELECT } } },
           accessEvents: { orderBy: { at: "desc" }, take: 50, select: { id: true, kind: true, reasonCode: true, at: true } },
         },
       },
@@ -174,7 +187,7 @@ export async function documentDrawer(documentId: string) {
   const ids = [d.id, ...d.versions.map((v) => v.id), ...d.versions.flatMap((v) => v.attachments.map((a) => a.id)), ...d.holds.map((h) => h.id)];
   const history = await db.auditEntry.findMany({ where: { organisationId: org.id, entityId: { in: ids } }, orderBy: { at: "desc" }, take: 200 });
   const ownerLabel = (a: (typeof d.versions)[number]["attachments"][number]) =>
-    a.meeting?.reference ?? a.exercise?.reference ?? a.award?.reference ?? (a.delegation ? `Delegation · ${a.delegation.fromPerson.name} to ${a.delegation.toPerson.name}` : a.specificationPanel ? `${a.specificationPanel.exercise.reference} · Specification panel` : a.bqVersion ? `${a.bqVersion.exercise.reference} · Bill of quantities, version ${a.bqVersion.versionNo}` : a.tenderPackPart ? packPartLabel(a.tenderPackPart) : a.addendum ? addendumLabel(a.addendum) : a.bidWithdrawal ? withdrawalLabel(a.bidWithdrawal) : a.validityExtension ? extensionLabel(a.validityExtension) : a.opening ? openingLabel(a.opening) : "A record");
+    a.meeting?.reference ?? a.exercise?.reference ?? a.award?.reference ?? (a.delegation ? `Delegation · ${a.delegation.fromPerson.name} to ${a.delegation.toPerson.name}` : a.specificationPanel ? `${a.specificationPanel.exercise.reference} · Specification panel` : a.bqVersion ? `${a.bqVersion.exercise.reference} · Bill of quantities, version ${a.bqVersion.versionNo}` : a.tenderPackPart ? packPartLabel(a.tenderPackPart) : a.addendum ? addendumLabel(a.addendum) : a.bidWithdrawal ? withdrawalLabel(a.bidWithdrawal) : a.validityExtension ? extensionLabel(a.validityExtension) : a.opening ? openingLabel(a.opening) : a.evaluation ? evaluationLabel(a.evaluation) : a.evaluationMeeting ? evaluationMeetingLabel(a.evaluationMeeting) : a.evaluationBidder ? evaluationBidderLabel(a.evaluationBidder) : "A record");
   const hrefOf = (a: (typeof d.versions)[number]["attachments"][number]) =>
     a.meetingId ? ownerHref("meeting", a.meetingId)
       : a.exerciseId ? ownerHref("exercise", a.exerciseId)
@@ -187,6 +200,9 @@ export async function documentDrawer(documentId: string) {
       : a.bidWithdrawalId ? ownerHref("bidWithdrawal", a.bidWithdrawalId, a.bidWithdrawal?.exerciseId)
       : a.validityExtensionId ? ownerHref("validityExtension", a.validityExtensionId, a.validityExtension?.exerciseId)
       : a.openingId ? ownerHref("opening", a.openingId, a.opening?.exerciseId)
+      : a.evaluationId ? ownerHref("evaluation", a.evaluationId, a.evaluation?.exerciseId)
+      : a.evaluationMeetingId ? ownerHref("evaluationMeeting", a.evaluationMeetingId, a.evaluationMeeting?.evaluation.exerciseId)
+      : a.evaluationBidderId ? ownerHref("evaluationBidder", a.evaluationBidderId, a.evaluationBidder?.evaluation.exerciseId)
       : "/documents";
   return {
     id: d.id,
@@ -320,6 +336,33 @@ export async function attachTargetsOf(kind: OwnerRef["kind"]) {
         db.opening.count({ where }),
       ]);
       return { records: attachTargets(rows.map((o) => ({ id: o.id, label: openingLabel(o), href: ownerHref("opening", o.id, o.exerciseId), facts: openingFacts(o) }))), total };
+    }
+    case "evaluation": {
+      // 6.8: evaluation versions in force (open or issued), newest first.
+      const where = { organisationId: org.id, state: { in: ["OPEN" as const, "ISSUED" as const] } };
+      const [rows, total] = await Promise.all([
+        db.evaluation.findMany({ where, orderBy: { startedAt: "desc" }, take, select: { id: true, ...EVALUATION_FACTS_SELECT } }),
+        db.evaluation.count({ where }),
+      ]);
+      return { records: attachTargets(rows.map((e) => ({ id: e.id, label: evaluationLabel(e), href: ownerHref("evaluation", e.id, e.exerciseId), facts: evaluationFacts(e) }))), total };
+    }
+    case "evaluationMeeting": {
+      // 6.8: meetings not closed, on open evaluations, newest first.
+      const where = { organisationId: org.id, closedAt: null, evaluation: { state: "OPEN" as const } };
+      const [rows, total] = await Promise.all([
+        db.evaluationMeeting.findMany({ where, orderBy: { openedAt: "desc" }, take, select: { id: true, ...EVALUATION_MEETING_FACTS_SELECT } }),
+        db.evaluationMeeting.count({ where }),
+      ]);
+      return { records: attachTargets(rows.map((m) => ({ id: m.id, label: evaluationMeetingLabel(m), href: ownerHref("evaluationMeeting", m.id, m.evaluation.exerciseId), facts: evaluationMeetingFacts(m) }))), total };
+    }
+    case "evaluationBidder": {
+      // 6.8: bids on open evaluations, by listing number.
+      const where = { organisationId: org.id, evaluation: { state: "OPEN" as const } };
+      const [rows, total] = await Promise.all([
+        db.evaluationBidder.findMany({ where, orderBy: [{ evaluation: { startedAt: "desc" } }, { openedBid: { listingNo: "asc" } }], take, select: { id: true, ...EVALUATION_BIDDER_FACTS_SELECT } }),
+        db.evaluationBidder.count({ where }),
+      ]);
+      return { records: attachTargets(rows.map((b) => ({ id: b.id, label: evaluationBidderLabel(b), href: ownerHref("evaluationBidder", b.id, b.evaluation.exerciseId), facts: evaluationBidderFacts(b) }))), total };
     }
   }
 }

@@ -65,7 +65,18 @@ export type OwnerFacts =
   | { kind: "validityExtension"; exerciseStatus: ExerciseStatus; applied: boolean }
   /// 6.7 (FR-OPN-006): an opening, judged with its exercise's status. Its signed schedule's scan is
   /// accepted only once it is finalised: the paper carries the estimate's row (6.2 Q-2, C-5).
-  | { kind: "opening"; exerciseStatus: ExerciseStatus; finalised: boolean };
+  | { kind: "opening"; exerciseStatus: ExerciseStatus; finalised: boolean }
+  /// 6.8 (FR-EVL-017, FR-CTE-013): an evaluation version, judged with its exercise's status. Its
+  /// report's drawings are added while it is open (annex F lists them at issue); the signed report
+  /// once issued; the signed Kertas Cadangan once both its signers are recorded.
+  | { kind: "evaluation"; exerciseStatus: ExerciseStatus; state: EvaluationState; proposalSigned: boolean }
+  /// 6.8 (FR-EVL-015, 016): a clarification or negotiation meeting; closed, it is frozen.
+  | { kind: "evaluationMeeting"; exerciseStatus: ExerciseStatus; evaluationState: EvaluationState; closed: boolean }
+  /// 6.8 (FR-EVL-012, 013): a bidder under evaluation; a CPR entered stands on its report (OD-4).
+  | { kind: "evaluationBidder"; exerciseStatus: ExerciseStatus; evaluationState: EvaluationState; cprEntered: boolean };
+
+/// 6.8: where an evaluation version stands (the Prisma enum's values).
+export type EvaluationState = "OPEN" | "ISSUED" | "SUPERSEDED" | "CANCELLED";
 
 /// Whether an exercise's status freezes what it (and its panel and bill) holds. Exhaustive
 /// (X-8): a status added to ExerciseStatus fails to compile here until it is decided.
@@ -147,7 +158,12 @@ export type OwnerExit =
   | "ADDENDUM_ISSUED"
   | "ADDENDUM_VOID"
   | "EXTENSION_APPLIED"
-  | "OPENING_NOT_FINALISED";
+  | "OPENING_NOT_FINALISED"
+  | "EVALUATION_CLOSED"
+  | "REPORT_ISSUED"
+  | "REPORT_NOT_ISSUED"
+  | "PROPOSAL_NOT_SIGNED"
+  | "MEETING_CLOSED";
 
 export type AttachFault =
   | "PURPOSE_NOT_FOR_OWNER"
@@ -237,6 +253,21 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): { sta
       // only after the finalising disclosed the estimate. A cancelled exercise's opening keeps what it has.
       if (exerciseFrozen(owner.exerciseStatus)) return { state: "FROZEN", exit: "EXERCISE_CANCELLED" };
       return owner.finalised ? { state: "OPEN" } : { state: "NOT_READY", exit: "OPENING_NOT_FINALISED" };
+    case "evaluation":
+      // 6.8: a superseded or cancelled version keeps what it has (FR-CTE-009: never edited).
+      if (exerciseFrozen(owner.exerciseStatus)) return { state: "FROZEN", exit: "EXERCISE_CANCELLED" };
+      if (owner.state === "SUPERSEDED" || owner.state === "CANCELLED") return { state: "FROZEN", exit: "EVALUATION_CLOSED" };
+      if (purpose === "REPORT_DRAWINGS") return owner.state === "OPEN" ? { state: "OPEN" } : { state: "FROZEN", exit: "REPORT_ISSUED" };
+      if (owner.state !== "ISSUED") return { state: "NOT_READY", exit: "REPORT_NOT_ISSUED" };
+      if (purpose === "SIGNED_PROPOSAL_PAPER" && !owner.proposalSigned) return { state: "NOT_READY", exit: "PROPOSAL_NOT_SIGNED" };
+      return { state: "OPEN" };
+    case "evaluationMeeting":
+      if (exerciseFrozen(owner.exerciseStatus)) return { state: "FROZEN", exit: "EXERCISE_CANCELLED" };
+      if (owner.evaluationState !== "OPEN") return { state: "FROZEN", exit: "EVALUATION_CLOSED" };
+      return owner.closed ? { state: "FROZEN", exit: "MEETING_CLOSED" } : { state: "OPEN" };
+    case "evaluationBidder":
+      if (exerciseFrozen(owner.exerciseStatus)) return { state: "FROZEN", exit: "EXERCISE_CANCELLED" };
+      return owner.evaluationState === "OPEN" ? { state: "OPEN" } : { state: "FROZEN", exit: "EVALUATION_CLOSED" };
   }
 }
 
@@ -291,7 +322,9 @@ export type Reliance =
   /// 6.6 (X-11): a withdrawal recorded on this letter, its last live one.
   | "WITHDRAWN_ON_IT"
   /// 6.7 (FR-OPN-006): the finalised opening's signed schedule, its last live scan (6.8 and the award read it).
-  | "SCHEDULE_ON_IT";
+  | "SCHEDULE_ON_IT"
+  /// 6.8 (FR-EVL-012, OD-4): a CPR percentage entered from this report, its last live one.
+  | "CPR_ON_IT";
 
 export type DetachFault = "REASON_REQUIRED" | "RELIED_ON" | "OWNER_FROZEN" | "ALREADY_DETACHED";
 
@@ -345,6 +378,8 @@ export function reliedOn(purpose: AttachmentPurpose, owner: OwnerFacts, liveOfPu
   if (owner.kind === "bidWithdrawal") return purpose === "WITHDRAWAL_LETTER" ? "WITHDRAWN_ON_IT" : null;
   // 6.7: evaluation and the award stand on the signed schedule; the last live scan is replaced, never taken off.
   if (owner.kind === "opening") return purpose === "SIGNED_SCHEDULE" ? "SCHEDULE_ON_IT" : null;
+  // 6.8: a CPR entered stands on the report it was entered from; the last live one is replaced, never taken off.
+  if (owner.kind === "evaluationBidder") return purpose === "CPR_REPORT" && owner.cprEntered ? "CPR_ON_IT" : null;
   return null;
 }
 

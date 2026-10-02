@@ -174,3 +174,31 @@ describe("6.7: the opening is an owner, everywhere at once (X-6)", () => {
     expect(sql).toHaveLength(1);
   });
 });
+
+describe("6.8: the evaluation, its meetings and its bidders are owners, everywhere at once (X-6)", () => {
+  it("their keys are counted by one_owner and each purpose pairs with its owner", () => {
+    const one = latestCheck("DocumentAttachment_one_owner");
+    for (const k of ["evaluationId", "evaluationMeetingId", "evaluationBidderId"]) expect(one).toMatch(new RegExp(`"${k}"`));
+    const po = latestCheck("DocumentAttachment_purpose_owner");
+    expect(po).toMatch(/'REPORT_DRAWINGS', 'SIGNED_REPORT', 'SIGNED_PROPOSAL_PAPER'\)\s*AND\s*"evaluationId"\s+IS NOT NULL/);
+    expect(po).toMatch(/'MEETING_MINUTES', 'TENDERER_CONFIRMATION'\)\s*AND\s*"evaluationMeetingId"\s+IS NOT NULL/);
+    expect(po).toMatch(/'CPR_REPORT', 'COMMUNICATION'\)\s*AND\s*"evaluationBidderId"\s+IS NOT NULL/);
+    expect(OWNER_COLUMN.evaluation).toBe("evaluationId");
+    expect(OWNER_COLUMN.evaluationMeeting).toBe("evaluationMeetingId");
+    expect(OWNER_COLUMN.evaluationBidder).toBe("evaluationBidderId");
+  });
+
+  it.each(["CPR_REPORT", "COMMUNICATION", "MEETING_MINUTES", "TENDERER_CONFIRMATION", "REPORT_DRAWINGS", "SIGNED_REPORT", "SIGNED_PROPOSAL_PAPER"])("%s arrived alone in its own migration, before the migration that rebuilt the CHECKs with it", (purpose) => {
+    const own = migrations.filter((d) => new RegExp(`ALTER TYPE "AttachmentPurpose" ADD VALUE '${purpose}'`).test(readFileSync(join(migrationsDir, d, "migration.sql"), "utf8")));
+    const used = migrations.filter((d) => d !== own[0] && readFileSync(join(migrationsDir, d, "migration.sql"), "utf8").includes(`'${purpose}'`));
+    expect(own).toHaveLength(1);
+    expect(used.length).toBeGreaterThan(0);
+    for (const u of used) expect(own[0] < u).toBe(true);
+    const sql = readFileSync(join(migrationsDir, own[0], "migration.sql"), "utf8").split("\n").filter((l) => l.trim() && !l.trim().startsWith("--"));
+    expect(sql).toHaveLength(1);
+  });
+
+  it("an EVALUATION_STAGE matter alone names an evaluation bidder", () => {
+    expect(latestCheck("CommitteeDecision_evaluation_stage")).toMatch(/"evaluationBidderId" IS NULL OR "matterKind" = 'EVALUATION_STAGE'/);
+  });
+});

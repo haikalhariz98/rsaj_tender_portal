@@ -29,6 +29,9 @@ export const OWNER_KIND_LABEL: Readonly<Record<OwnerKind, string>> = {
   bidWithdrawal: "Bid withdrawal",
   validityExtension: "Validity extension",
   opening: "Bid opening",
+  evaluation: "Evaluation",
+  evaluationMeeting: "Evaluation meeting",
+  evaluationBidder: "Bid under evaluation",
 };
 
 /// Where an owner's own screen is, for a link from a document to the record it is on.
@@ -56,6 +59,12 @@ export function ownerHref(kind: OwnerKind, id: string, exerciseId?: string): str
       return exerciseId ? `/sourcing/${exerciseId}?tab=bids` : "/sourcing";
     case "opening":
       return exerciseId ? `/sourcing/${exerciseId}?tab=bids&section=schedule` : "/sourcing";
+    case "evaluation":
+      return exerciseId ? `/sourcing/${exerciseId}?tab=evaluation&section=report` : "/sourcing";
+    case "evaluationMeeting":
+      return exerciseId ? `/sourcing/${exerciseId}?tab=evaluation&section=meetings` : "/sourcing";
+    case "evaluationBidder":
+      return exerciseId ? `/sourcing/${exerciseId}?tab=evaluation&section=stages` : "/sourcing";
   }
 }
 

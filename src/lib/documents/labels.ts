@@ -75,6 +75,13 @@ export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
   WITHDRAWAL_LETTER: "Bidder's withdrawal letter",
   VALIDITY_CONSENT: "Tenderer's consent to extend validity",
   SIGNED_SCHEDULE: "Signed opening schedule",
+  CPR_REPORT: "Contractor performance report",
+  COMMUNICATION: "Written communication with the tenderer",
+  MEETING_MINUTES: "Signed meeting minutes",
+  TENDERER_CONFIRMATION: "Tenderer's written confirmation",
+  REPORT_DRAWINGS: "Drawings for the evaluation report",
+  SIGNED_REPORT: "Signed evaluation report",
+  SIGNED_PROPOSAL_PAPER: "Signed Kertas Cadangan",
   HOLDER_RECOMMENDATION: "Absent holder's signed recommendation",
   SIGNED_LETTER: "Signed letter of acceptance",
   DECLARATION: "Signed successful bidder declaration",
@@ -153,6 +160,11 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
   ADDENDUM_VOID: "The addendum was voided before it was issued, so nothing more is attached to it.",
   EXTENSION_APPLIED: "The extension was applied on this consent and stands as applied. A further extension is recorded as another one.",
   OPENING_NOT_FINALISED: "The signed schedule carries the company estimate's row, so its scan is attached only once the opening is finalised and the estimate disclosed.",
+  EVALUATION_CLOSED: "This evaluation version was superseded or closed, so it keeps what it has. Attach to the version in force, on the Evaluation tab.",
+  REPORT_ISSUED: "The report was issued listing the drawings attached then, and stands as issued. A change is made in a new evaluation version.",
+  REPORT_NOT_ISSUED: "The signed report is attached once the report is issued, on the Evaluation tab.",
+  PROPOSAL_NOT_SIGNED: "The signed Kertas Cadangan is attached once its checking and recommending officers are both recorded, on the Evaluation tab.",
+  MEETING_CLOSED: "The meeting was closed on its minutes and the tenderer's confirmation, and stands as closed. A further meeting is recorded as another round.",
 };
 
 const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {
@@ -162,6 +174,7 @@ const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {
   IMPORTED_FROM_IT: "Lines of the bill were imported from this file, so it is not taken off. To correct the bill, import the corrected file into the draft, replacing its lines: the new file then takes this one's place.",
   WITHDRAWN_ON_IT: "The withdrawal was recorded on this letter, so it is not taken off. To correct it, attach a new version, with the reason.",
   SCHEDULE_ON_IT: "Evaluation and the award stand on this signed schedule, so it is not taken off. To correct it, attach a new version, with the reason.",
+  CPR_ON_IT: "The contractor performance percentage was entered from this report, so it is not taken off. To correct it, attach a new version, with the reason.",
 };
 
 export const DOWNLOAD_REFUSAL_TEXT: Readonly<Record<DownloadRefusal, string>> = {

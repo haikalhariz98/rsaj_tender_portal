@@ -33,6 +33,13 @@ export type AttachmentPurpose =
   | "WITHDRAWAL_LETTER"
   | "VALIDITY_CONSENT"
   | "SIGNED_SCHEDULE"
+  | "CPR_REPORT"
+  | "COMMUNICATION"
+  | "MEETING_MINUTES"
+  | "TENDERER_CONFIRMATION"
+  | "REPORT_DRAWINGS"
+  | "SIGNED_REPORT"
+  | "SIGNED_PROPOSAL_PAPER"
   | "HOLDER_RECOMMENDATION"
   | "SIGNED_LETTER"
   | "DECLARATION"
@@ -52,6 +59,13 @@ export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
   "WITHDRAWAL_LETTER",
   "VALIDITY_CONSENT",
   "SIGNED_SCHEDULE",
+  "CPR_REPORT",
+  "COMMUNICATION",
+  "MEETING_MINUTES",
+  "TENDERER_CONFIRMATION",
+  "REPORT_DRAWINGS",
+  "SIGNED_REPORT",
+  "SIGNED_PROPOSAL_PAPER",
   "HOLDER_RECOMMENDATION",
   "SIGNED_LETTER",
   "DECLARATION",
@@ -61,8 +75,8 @@ export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
 
 /// The owners a document can be attached to. New owners arrive by migration with their
 /// module (MatterKind precedent); each is a typed key on DocumentAttachment.
-export type OwnerKind = "meeting" | "exercise" | "award" | "delegation" | "specificationPanel" | "bqVersion" | "tenderPackPart" | "addendum" | "bidWithdrawal" | "validityExtension" | "opening";
-export const OWNER_KINDS: readonly OwnerKind[] = ["meeting", "exercise", "award", "delegation", "specificationPanel", "bqVersion", "tenderPackPart", "addendum", "bidWithdrawal", "validityExtension", "opening"];
+export type OwnerKind = "meeting" | "exercise" | "award" | "delegation" | "specificationPanel" | "bqVersion" | "tenderPackPart" | "addendum" | "bidWithdrawal" | "validityExtension" | "opening" | "evaluation" | "evaluationMeeting" | "evaluationBidder";
+export const OWNER_KINDS: readonly OwnerKind[] = ["meeting", "exercise", "award", "delegation", "specificationPanel", "bqVersion", "tenderPackPart", "addendum", "bidWithdrawal", "validityExtension", "opening", "evaluation", "evaluationMeeting", "evaluationBidder"];
 
 /// Which owner each purpose belongs to. The migration's CHECK says the same.
 export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
@@ -78,6 +92,14 @@ export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
   WITHDRAWAL_LETTER: "bidWithdrawal",
   VALIDITY_CONSENT: "validityExtension",
   SIGNED_SCHEDULE: "opening",
+  // 6.8: the evaluation's own papers, its meetings', and what is kept on each bidder.
+  CPR_REPORT: "evaluationBidder",
+  COMMUNICATION: "evaluationBidder",
+  MEETING_MINUTES: "evaluationMeeting",
+  TENDERER_CONFIRMATION: "evaluationMeeting",
+  REPORT_DRAWINGS: "evaluation",
+  SIGNED_REPORT: "evaluation",
+  SIGNED_PROPOSAL_PAPER: "evaluation",
   HOLDER_RECOMMENDATION: "delegation",
   SIGNED_LETTER: "award",
   DECLARATION: "award",
@@ -86,7 +108,7 @@ export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
 };
 
 /// The column on DocumentAttachment that names each owner.
-export type OwnerColumn = "meetingId" | "exerciseId" | "awardId" | "delegationId" | "specificationPanelId" | "bqVersionId" | "tenderPackPartId" | "addendumId" | "bidWithdrawalId" | "validityExtensionId" | "openingId";
+export type OwnerColumn = "meetingId" | "exerciseId" | "awardId" | "delegationId" | "specificationPanelId" | "bqVersionId" | "tenderPackPartId" | "addendumId" | "bidWithdrawalId" | "validityExtensionId" | "openingId" | "evaluationId" | "evaluationMeetingId" | "evaluationBidderId";
 export const OWNER_COLUMN: Readonly<Record<OwnerKind, OwnerColumn>> = {
   meeting: "meetingId",
   exercise: "exerciseId",
@@ -99,6 +121,9 @@ export const OWNER_COLUMN: Readonly<Record<OwnerKind, OwnerColumn>> = {
   bidWithdrawal: "bidWithdrawalId",
   validityExtension: "validityExtensionId",
   opening: "openingId",
+  evaluation: "evaluationId",
+  evaluationMeeting: "evaluationMeetingId",
+  evaluationBidder: "evaluationBidderId",
 };
 
 /// Purposes attached only by their owner's own act, never from the shared attach choice: a
@@ -114,6 +139,14 @@ export const PURPOSE_CLASSIFICATION: Readonly<Partial<Record<AttachmentPurpose, 
   WITHDRAWAL_LETTER: "SULIT",
   // 6.7 (FR-OPN-006): the signed schedule carries the prices as read and the company estimate's row.
   SIGNED_SCHEDULE: "SULIT",
+  // 6.8 (E-3, NFR-SEC-002): every evaluation record is SULIT at upload, never lowered.
+  CPR_REPORT: "SULIT",
+  COMMUNICATION: "SULIT",
+  MEETING_MINUTES: "SULIT",
+  TENDERER_CONFIRMATION: "SULIT",
+  REPORT_DRAWINGS: "SULIT",
+  SIGNED_REPORT: "SULIT",
+  SIGNED_PROPOSAL_PAPER: "SULIT",
 };
 
 /// The types the product can tell from a file's own bytes. Office files and ZIP are not

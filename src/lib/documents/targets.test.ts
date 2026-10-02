@@ -99,6 +99,6 @@ describe("the kinds offered for a received document", () => {
     // 6.5 (faithful update, flagged): an addendum's signed copy is attached from the shared choice too.
     // 6.6 (faithful update, flagged): so are a withdrawal's letter and an extension's consent.
     // 6.7 (faithful update, flagged): and a finalised opening's signed schedule.
-    expect(ATTACHABLE_OWNER_KINDS).toEqual(["meeting", "exercise", "award", "delegation", "specificationPanel", "tenderPackPart", "addendum", "bidWithdrawal", "validityExtension", "opening"]);
+    expect(ATTACHABLE_OWNER_KINDS).toEqual(["meeting", "exercise", "award", "delegation", "specificationPanel", "tenderPackPart", "addendum", "bidWithdrawal", "validityExtension", "opening", "evaluation", "evaluationMeeting", "evaluationBidder"]);
   });
 });

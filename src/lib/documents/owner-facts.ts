@@ -11,7 +11,7 @@ import { isClassificationSnapshot } from "@/lib/method/snapshot";
 import { verifiedScanVersionIds } from "@/lib/scope/panel";
 import type { PartSource, TenderPackStatus } from "@/lib/tender-docs/types";
 
-import type { AwardStatus, ExerciseMethodFlags, ExerciseStatus, InstrumentKind, MeetingStatus, OwnerFacts } from "./attach";
+import type { AwardStatus, EvaluationState, ExerciseMethodFlags, ExerciseStatus, InstrumentKind, MeetingStatus, OwnerFacts } from "./attach";
 import { isLive } from "./evidence";
 
 export const meetingFacts = (m: { status: MeetingStatus }): OwnerFacts => ({ kind: "meeting", status: m.status });
@@ -90,6 +90,30 @@ export const withdrawalFacts = (w: { exercise: { status: ExerciseStatus } }): Ow
 
 /// 6.7 (FR-OPN-006): an opening, with its exercise's status and whether it is finalised.
 export const openingFacts = (o: { finalisedAt: Date | null; exercise: { status: ExerciseStatus } }): OwnerFacts => ({ kind: "opening", exerciseStatus: o.exercise.status, finalised: o.finalisedAt != null });
+
+/// 6.8: an evaluation version, with its exercise's status, its state and whether its Kertas Cadangan is signed by both.
+export const evaluationFacts = (e: { state: EvaluationState; exercise: { status: ExerciseStatus }; proposalPaper: { checkedByPersonId: string | null; recommendedByPersonId: string | null } | null }): OwnerFacts => ({
+  kind: "evaluation",
+  exerciseStatus: e.exercise.status,
+  state: e.state,
+  proposalSigned: !!e.proposalPaper?.checkedByPersonId && !!e.proposalPaper.recommendedByPersonId,
+});
+
+/// 6.8: a clarification or negotiation meeting, with its evaluation's state and whether it is closed.
+export const evaluationMeetingFacts = (m: { closedAt: Date | null; evaluation: { state: EvaluationState; exercise: { status: ExerciseStatus } } }): OwnerFacts => ({
+  kind: "evaluationMeeting",
+  exerciseStatus: m.evaluation.exercise.status,
+  evaluationState: m.evaluation.state,
+  closed: m.closedAt != null,
+});
+
+/// 6.8: a bidder under evaluation, with its evaluation's state and whether a CPR is entered on it.
+export const evaluationBidderFacts = (b: { cprPercent: unknown; evaluation: { state: EvaluationState; exercise: { status: ExerciseStatus } } }): OwnerFacts => ({
+  kind: "evaluationBidder",
+  exerciseStatus: b.evaluation.exercise.status,
+  evaluationState: b.evaluation.state,
+  cprEntered: b.cprPercent != null,
+});
 
 /// 6.6 (FR-BID-010): a validity extension, with its exercise's status and whether it is applied.
 export const extensionFacts = (x: { appliedAt: Date | null; exercise: { status: ExerciseStatus } }): OwnerFacts => ({ kind: "validityExtension", exerciseStatus: x.exercise.status, applied: x.appliedAt != null });

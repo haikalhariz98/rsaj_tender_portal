@@ -23,10 +23,11 @@ import { exerciseOfBqVersion, exerciseOfPanel, lockBqRows, lockPanelRow, withLoc
 import { exerciseOfPackPart, lockPackRows, PACK_PART_FACTS_SELECT, packPartLabel } from "@/lib/tender-docs/owner";
 import { ADDENDUM_FACTS_SELECT, addendumLabel, exerciseOfAddendum, lockAddendumRows, lockWindowRow } from "@/lib/window/lock";
 import { exerciseOfOpening, lockOpeningRows, OPENING_FACTS_SELECT, openingLabel } from "@/lib/opening/lock";
+import { EVALUATION_BIDDER_FACTS_SELECT, EVALUATION_FACTS_SELECT, EVALUATION_MEETING_FACTS_SELECT, evaluationBidderLabel, evaluationLabel, evaluationMeetingLabel, exerciseOfEvaluation, exerciseOfEvaluationBidder, exerciseOfEvaluationMeeting, lockEvaluationRows } from "@/lib/evaluation/lock";
 import { EXTENSION_FACTS_SELECT, exerciseOfExtension, exerciseOfWithdrawal, extensionLabel, lockEnvelopeRows, lockExtensionRows, lockWithdrawalRows, WITHDRAWAL_FACTS_SELECT, withdrawalLabel } from "@/lib/bids/lock";
 
 import { reliedOn, type OwnerFacts, type Reliance } from "./attach";
-import { addendumFacts, awardFacts, bqVersionFacts, delegationFacts, exerciseFacts, exerciseMethodFlags, extensionFacts, meetingFacts, openingFacts, PANEL_FACTS_SELECT, panelFacts, tenderPackPartFacts, withdrawalFacts } from "./owner-facts";
+import { addendumFacts, awardFacts, bqVersionFacts, delegationFacts, evaluationBidderFacts, evaluationFacts, evaluationMeetingFacts, exerciseFacts, exerciseMethodFlags, extensionFacts, meetingFacts, openingFacts, PANEL_FACTS_SELECT, panelFacts, tenderPackPartFacts, withdrawalFacts } from "./owner-facts";
 import type { OwnerRef } from "./repo";
 import { documentOrg } from "./service";
 import type { AttachmentPurpose } from "./types";
@@ -257,6 +258,42 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
         });
       });
     }
+    case "evaluation":
+    case "evaluationMeeting":
+    case "evaluationBidder": {
+      // 6.8: requisition, exercise, the window, the openings, then the evaluations, as the evaluation actions lock them.
+      const exerciseId = ref.kind === "evaluation" ? await exerciseOfEvaluation(ref.id) : ref.kind === "evaluationMeeting" ? await exerciseOfEvaluationMeeting(ref.id) : await exerciseOfEvaluationBidder(ref.id);
+      if (!exerciseId) return null;
+      return withLockedExerciseScope(exerciseId, async (tx, l) => {
+        await lockWindowRow(tx, exerciseId);
+        await lockOpeningRows(tx, exerciseId);
+        await lockEvaluationRows(tx, exerciseId);
+        const read = async (): Promise<{ facts: OwnerFacts; label: string } | null> => {
+          if (ref.kind === "evaluation") {
+            const e = await tx.evaluation.findFirst({ where: { id: ref.id, organisationId: l.org.id, exerciseId }, select: EVALUATION_FACTS_SELECT });
+            return e ? { facts: evaluationFacts(e), label: evaluationLabel(e) } : null;
+          }
+          if (ref.kind === "evaluationMeeting") {
+            const m = await tx.evaluationMeeting.findFirst({ where: { id: ref.id, organisationId: l.org.id, evaluation: { exerciseId } }, select: EVALUATION_MEETING_FACTS_SELECT });
+            return m ? { facts: evaluationMeetingFacts(m), label: evaluationMeetingLabel(m) } : null;
+          }
+          const b = await tx.evaluationBidder.findFirst({ where: { id: ref.id, organisationId: l.org.id, evaluation: { exerciseId } }, select: EVALUATION_BIDDER_FACTS_SELECT });
+          return b ? { facts: evaluationBidderFacts(b), label: evaluationBidderLabel(b) } : null;
+        };
+        const o = await read();
+        if (!o) return null;
+        const facts = o.facts;
+        return fn(tx, {
+          ref,
+          organisationId: l.org.id,
+          today: l.org.today,
+          label: o.label,
+          facts,
+          paths: [`/sourcing/${exerciseId}`],
+          reliance: (purpose, live, versionId) => reliedOn(purpose, facts, live, versionId),
+        });
+      });
+    }
     case "delegation":
       return db.$transaction(async (tx) => {
         const org = await documentOrg(tx);
@@ -281,7 +318,7 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
 }
 
 /// Which owner an attachment belongs to.
-export function ownerOf(a: { meetingId: string | null; exerciseId: string | null; awardId: string | null; delegationId: string | null; specificationPanelId?: string | null; bqVersionId?: string | null; tenderPackPartId?: string | null; addendumId?: string | null; bidWithdrawalId?: string | null; validityExtensionId?: string | null; openingId?: string | null }): OwnerRef | null {
+export function ownerOf(a: { meetingId: string | null; exerciseId: string | null; awardId: string | null; delegationId: string | null; specificationPanelId?: string | null; bqVersionId?: string | null; tenderPackPartId?: string | null; addendumId?: string | null; bidWithdrawalId?: string | null; validityExtensionId?: string | null; openingId?: string | null; evaluationId?: string | null; evaluationMeetingId?: string | null; evaluationBidderId?: string | null }): OwnerRef | null {
   if (a.meetingId) return { kind: "meeting", id: a.meetingId };
   if (a.exerciseId) return { kind: "exercise", id: a.exerciseId };
   if (a.awardId) return { kind: "award", id: a.awardId };
@@ -293,5 +330,8 @@ export function ownerOf(a: { meetingId: string | null; exerciseId: string | null
   if (a.bidWithdrawalId) return { kind: "bidWithdrawal", id: a.bidWithdrawalId };
   if (a.validityExtensionId) return { kind: "validityExtension", id: a.validityExtensionId };
   if (a.openingId) return { kind: "opening", id: a.openingId };
+  if (a.evaluationId) return { kind: "evaluation", id: a.evaluationId };
+  if (a.evaluationMeetingId) return { kind: "evaluationMeeting", id: a.evaluationMeetingId };
+  if (a.evaluationBidderId) return { kind: "evaluationBidder", id: a.evaluationBidderId };
   return null;
 }

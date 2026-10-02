@@ -102,7 +102,7 @@ export interface DemoDoc {
   classification: SecurityClass | null;
   createdAt: string;
   versions: DemoVersion[];
-  attachments: { id: string; purpose: AttachmentPurpose; owner: { meetingId?: string; exerciseId?: string; awardId?: string; delegationId?: string; specificationPanelId?: string; bqVersionId?: string; tenderPackPartId?: string; addendumId?: string; bidWithdrawalId?: string; validityExtensionId?: string; openingId?: string }; ownerLabel: string; versionId: string; at: string; detached?: { at: string; reason: string; replacedBy?: string } }[];
+  attachments: { id: string; purpose: AttachmentPurpose; owner: { meetingId?: string; exerciseId?: string; awardId?: string; delegationId?: string; specificationPanelId?: string; bqVersionId?: string; tenderPackPartId?: string; addendumId?: string; bidWithdrawalId?: string; validityExtensionId?: string; openingId?: string; evaluationId?: string; evaluationMeetingId?: string; evaluationBidderId?: string }; ownerLabel: string; versionId: string; at: string; detached?: { at: string; reason: string; replacedBy?: string } }[];
   hold?: { id: string; reason: string; at: string; personId: string; personName: string };
 }
 
@@ -311,12 +311,19 @@ export async function planDocumentWipe(db: Db, organisationId: string, removed: 
     ...(await db.validityExtension.findMany({ where: onRemovedExercise, select: { id: true } })).map((x) => x.id),
     // 6.7: an opening goes with its exercise in the same way.
     ...(await db.opening.findMany({ where: onRemovedExercise, select: { id: true } })).map((o) => o.id),
+    // 6.8: an evaluation, its meetings and its bidders go with their exercise in the same way.
+    ...(await db.evaluation.findMany({ where: onRemovedExercise, select: { id: true } })).map((e) => e.id),
+    ...(await db.evaluationMeeting.findMany({ where: { organisationId, NOT: { id: demoRef }, evaluation: { OR: [{ exerciseId: demoRef }, { exerciseId: { in: removed.exerciseIds } }] } }, select: { id: true } })).map((m) => m.id),
+    ...(await db.evaluationBidder.findMany({ where: { organisationId, NOT: { id: demoRef }, evaluation: { OR: [{ exerciseId: demoRef }, { exerciseId: { in: removed.exerciseIds } }] } }, select: { id: true } })).map((b) => b.id),
   ];
   const onDemoSideOwner = {
     OR: [
       { bidWithdrawalId: demoRef }, { bidWithdrawalId: { in: removedBidRecordIds } },
       { validityExtensionId: demoRef }, { validityExtensionId: { in: removedBidRecordIds } },
       { openingId: demoRef }, { openingId: { in: removedBidRecordIds } },
+      { evaluationId: demoRef }, { evaluationId: { in: removedBidRecordIds } },
+      { evaluationMeetingId: demoRef }, { evaluationMeetingId: { in: removedBidRecordIds } },
+      { evaluationBidderId: demoRef }, { evaluationBidderId: { in: removedBidRecordIds } },
       { tenderPackPartId: demoRef }, { tenderPackPartId: { in: removedPackPartIds } },
       { addendumId: demoRef }, { addendumId: { in: removedAddendumIds } },
       { specificationPanelId: demoRef }, { specificationPanelId: { in: removedPanelIds } },
@@ -339,7 +346,7 @@ export async function planDocumentWipe(db: Db, organisationId: string, removed: 
     orderBy: { id: "asc" },
     select: {
       id: true, title: true,
-      versions: { select: { id: true, sha256: true, recordedByPersonId: true, attachments: { select: { id: true, purpose: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true, bqVersionId: true, tenderPackPartId: true, addendumId: true, bidWithdrawalId: true, validityExtensionId: true, openingId: true } } } },
+      versions: { select: { id: true, sha256: true, recordedByPersonId: true, attachments: { select: { id: true, purpose: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true, bqVersionId: true, tenderPackPartId: true, addendumId: true, bidWithdrawalId: true, validityExtensionId: true, openingId: true, evaluationId: true, evaluationMeetingId: true, evaluationBidderId: true } } } },
       holds: { select: { id: true, placedByPersonId: true, releasedByPersonId: true } },
     },
   });
