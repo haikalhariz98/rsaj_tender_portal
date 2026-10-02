@@ -13,7 +13,7 @@ describe("the register's trail, in words", () => {
   });
   it("never a code: kinds and channels by their labels", () => {
     const f = envelopeFields({ sequence: 1, kind: "ALTERNATIVE", channel: "POST", receivedAt: CLOSING, receivedSource: "ENTERED", statedReceivedAt: CLOSING, entryReason: "late post", markings: "M", receivedBy: "A", late: false, closingAtJudged: CLOSING, parentSequence: 2 }, TZ);
-    expect([f.kind, f.channel, f.stamp, f.alternativeTo]).toEqual(["Alternative bid", "By post", "Entered, not server-stamped", "Envelope 2"]);
+    expect([f.kind, f.channel, f.stamp, f.alternativeTo]).toEqual(["Alternative bid", "By post", "Recorded after the event", "Envelope 2"]);
   });
 });
 
@@ -42,5 +42,17 @@ describe("a withdrawal letter's quote in the trail (6.6 CR-4)", () => {
     const { readFileSync } = await import("node:fs");
     expect(readFileSync("src/app/sourcing/[id]/bids/editors.tsx", "utf8")).toMatch(/hint: WITHDRAWAL_QUOTE_HINT/);
     expect(readFileSync("src/app/sourcing/[id]/bids/workspace.tsx", "utf8")).toMatch(/\{WITHDRAWAL_SULIT_LABEL\}/);
+  });
+});
+
+describe("a receipt recorded after the event, in the trail (6.6 review S-1b)", () => {
+  it("says it was recorded after the event, in the register's own words, and never that it is not server-stamped", async () => {
+    const { RECORDED_LATER_LABEL, SOURCE_LABEL } = await import("./labels");
+    expect(SOURCE_LABEL.ENTERED).toBe(RECORDED_LATER_LABEL);
+    for (const v of Object.values(SOURCE_LABEL)) expect(v).not.toMatch(/not server-stamped/i);
+    const f = envelopeFields({ sequence: 3, kind: "BID", channel: "POST", receivedAt: CLOSING, receivedSource: "ENTERED", statedReceivedAt: new Date(CLOSING.getTime() - 3600 * S), entryReason: "Post", markings: "M", receivedBy: "A", late: false, closingAtJudged: CLOSING, parentSequence: null }, TZ);
+    expect(f.stamp).toBe("Recorded after the event");
+    expect(f.received).toBe("17 Nov 2026 · 14:30:00");
+    expect(f.statedReceived).toBe("17 Nov 2026 · 13:30:00");
   });
 });

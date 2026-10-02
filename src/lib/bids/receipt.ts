@@ -4,7 +4,7 @@
  * The officer records a receipt; the server stamps it, to the second, inside the transaction, and
  * that stamp alone decides lateness against the closing on the locked exercise. Where the receipt
  * is recorded after the event, the officer also states when it was received, with a reason: the
- * stated time is shown to the committee beside the stamp, labelled "entered, not server-stamped",
+ * stated time is shown to the committee beside the stamp, as the officer's statement,
  * and never judged. Anything recorded after the closing is late; the committee decides admission.
  *
  * A late envelope is recorded, flagged, counted and segregated, never refused for being late: no

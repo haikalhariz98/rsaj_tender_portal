@@ -26,9 +26,11 @@ export const CHANNEL_LABEL: Readonly<Record<EnvelopeChannel, string>> = {
   BOX: "In the tender box",
 };
 
+/// What the trail says about a receipt's recording (S-1b): receivedAt is always the server's
+/// stamp (OD-3), so a receipt recorded after the event says only that, never "not server-stamped".
 export const SOURCE_LABEL: Readonly<Record<ReceiptSource, string>> = {
   SERVER: "Server-stamped",
-  ENTERED: "Entered, not server-stamped",
+  ENTERED: "Recorded after the event",
 };
 
 export const ENVELOPE_STATUS_LABEL: Readonly<Record<EnvelopeStatus, string>> = {
