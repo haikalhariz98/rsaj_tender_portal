@@ -57,7 +57,8 @@ export interface ScheduleSnapshot {
     title: string;
     reference: string;
     startDay: string | null;
-    closingAt: string | null;
+    /// The closing instant, ISO.
+    closes: string | null;
     invitedReading: InvitedCountReading | null;
     invitedCount: number | null;
     lateCount: number;
@@ -77,7 +78,7 @@ export function jadualTawaran(i: {
   title: string;
   reference: string;
   startDay: string | null;
-  closingAt: Date | null;
+  closing: Date | null;
   invited: { reading: InvitedCountReading | null; purchasers: number; invitees: number };
   lateCount: number;
   pages: number | null;
@@ -96,7 +97,7 @@ export function jadualTawaran(i: {
   return {
     schedule: {
       version: i.version,
-      header: { title: i.title, reference: i.reference, startDay: i.startDay, closingAt: i.closingAt?.toISOString() ?? null, invitedReading: i.invited.reading, invitedCount, lateCount: i.lateCount, pages: i.pages },
+      header: { title: i.title, reference: i.reference, startDay: i.startDay, closes: i.closing?.toISOString() ?? null, invitedReading: i.invited.reading, invitedCount, lateCount: i.lateCount, pages: i.pages },
       rows,
       benchmark,
       lockGap: i.lockGap,

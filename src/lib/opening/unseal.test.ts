@@ -9,7 +9,7 @@ import { adjournFaults, authorisationFaults, lapsedByAdjourning, opensTheBox, un
  */
 
 const notYet = open({ unsealed: false, sittingAuthorised: false });
-const base: Parameters<typeof authorisationFaults>[0] = { state: notYet, panel: PANEL, auths: [], personId: "p1", now: at(S), closingAt: CLOSING, boxLocked: true };
+const base: Parameters<typeof authorisationFaults>[0] = { state: notYet, panel: PANEL, auths: [], personId: "p1", now: at(S), closing: CLOSING, boxLocked: true };
 const codes = (x: Partial<typeof base>) => authorisationFaults({ ...base, ...x }).map((f) => f.code);
 const auth = (personId: string, sittingNo = 1, lapsed = false) => ({ id: `a-${personId}-${sittingNo}`, personId, sittingNo, recordedAt: at(2 * S), lapsedAt: lapsed ? at(3 * S) : null });
 

@@ -37,7 +37,7 @@ describe("the closing-to-lock gap (C-3 c)", () => {
 });
 
 describe("registering a box envelope", () => {
-  const base: Parameters<typeof registerBoxFaults>[0] = { state: open(), anyOpened: false, kind: "BID", markings: "Tender T/1", personActive: true, closingAt: CLOSING, lockedAt: at(730 * S) };
+  const base: Parameters<typeof registerBoxFaults>[0] = { state: open(), anyOpened: false, kind: "BID", markings: "Tender T/1", personActive: true, closing: CLOSING, lockedAt: at(730 * S) };
   const codes = (x: Partial<typeof base>) => registerBoxFaults({ ...base, ...x }).map((f) => f.code);
   it("after the box is opened and before any envelope is opened", () => {
     expect(codes({})).toEqual([]);

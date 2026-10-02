@@ -18,8 +18,8 @@ import { actFaults, type ActFault } from "./state";
 import type { Finding } from "./types";
 
 /// The closing-to-lock gap, to the second, in words ("12 min 10 s"). Null where the box was not locked after the closing.
-export function lockGap(closingAt: Date, lockedAt: Date): { seconds: number; text: string } {
-  const seconds = Math.max(0, Math.round((toSecond(lockedAt).getTime() - toSecond(closingAt).getTime()) / 1000));
+export function lockGap(closing: Date, lockedAt: Date): { seconds: number; text: string } {
+  const seconds = Math.max(0, Math.round((toSecond(lockedAt).getTime() - toSecond(closing).getTime()) / 1000));
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
@@ -28,14 +28,14 @@ export function lockGap(closingAt: Date, lockedAt: Date): { seconds: number; tex
 }
 
 /// C-3 c: the gap as a finding — always shown, never a tolerance. Zero says the box was locked at the closing second.
-export function lockGapFinding(closingAt: Date, lockedAt: Date): Finding<"LOCK_GAP" | "LOCKED_AT_CLOSING"> {
-  const g = lockGap(closingAt, lockedAt);
+export function lockGapFinding(closing: Date, lockedAt: Date): Finding<"LOCK_GAP" | "LOCKED_AT_CLOSING"> {
+  const g = lockGap(closing, lockedAt);
   return g.seconds === 0 ? { code: "LOCKED_AT_CLOSING", level: "info" } : { code: "LOCK_GAP", level: "warn", data: { gap: g.text, seconds: g.seconds } };
 }
 
 /// What a box envelope stores in 6.6's columns (C-3 b).
-export function boxEnvelopeJudgement(lockedAt: Date, closingAt: Date) {
-  return { receivedAt: toSecond(lockedAt), receivedSource: "BOX_AT_OPENING" as const, late: false, closingAtJudged: closingAt, recordedAfterClosing: true };
+export function boxEnvelopeJudgement(lockedAt: Date, closing: Date) {
+  return { receivedAt: toSecond(lockedAt), receivedSource: "BOX_AT_OPENING" as const, late: false, closingAtJudged: closing, recordedAfterClosing: true };
 }
 
 /**
@@ -59,7 +59,7 @@ export function registerBoxFaults(i: {
   kind: EnvelopeKind;
   markings: string;
   personActive: boolean;
-  closingAt: Date | null;
+  closing: Date | null;
   lockedAt: Date | null;
 }): Finding<RegisterFault>[] {
   const out: Finding<RegisterFault>[] = [...actFaults(i.state)];
@@ -69,6 +69,6 @@ export function registerBoxFaults(i: {
   if (i.kind === "COMPANY_ESTIMATE") f("NOT_A_BID");
   if (!i.markings.trim()) f("MARKINGS_REQUIRED");
   if (!i.personActive) f("PERSON_REQUIRED");
-  if (!i.closingAt || !i.lockedAt || isLate(i.closingAt, i.lockedAt)) f("NOT_LOCKED_AFTER_CLOSING");
+  if (!i.closing || !i.lockedAt || isLate(i.closing, i.lockedAt)) f("NOT_LOCKED_AFTER_CLOSING");
   return out;
 }

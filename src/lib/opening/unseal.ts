@@ -22,7 +22,7 @@ export function authorisationFaults(i: {
   personId: string;
   /// The server's stamp, read at the act's entry, to the second (6.6 CR-3).
   now: Date;
-  closingAt: Date | null;
+  closing: Date | null;
   /// MAIN: a LOCKED box event at or after the closing. A supplementary opening opens an envelope held by an officer.
   boxLocked: boolean;
 }): Finding<AuthorisationFault>[] {
@@ -36,9 +36,9 @@ export function authorisationFaults(i: {
   const done = sittingAuthorisers(i.state.sittingNo, i.auths, i.panel);
   if (i.auths.some((a) => a.sittingNo === i.state.sittingNo && a.personId === i.personId && a.lapsedAt == null)) f("ALREADY_AUTHORISED");
   else if (done.length >= 2) f("SITTING_AUTHORISED");
-  if (!i.closingAt) f("CLOSING_NOT_SET");
+  if (!i.closing) f("CLOSING_NOT_SET");
   // OD-11: refused at the closing second, allowed from the next.
-  else if (!isLate(i.now, i.closingAt)) f("AT_OR_BEFORE_CLOSING");
+  else if (!isLate(i.now, i.closing)) f("AT_OR_BEFORE_CLOSING");
   if (i.state.kind === "MAIN" && !i.boxLocked) f("BOX_NOT_LOCKED");
   return out;
 }

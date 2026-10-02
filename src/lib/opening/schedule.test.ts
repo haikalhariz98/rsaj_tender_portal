@@ -7,7 +7,7 @@ import { jadualTawaran, lateCount, scheduleFromSnapshot, type ScheduleRowInput }
 /** FR-OPN-005, 007, OD-9, OD-5: the schedule from the record, versioned, the benchmark only once disclosed. */
 
 const row = (listingNo: number, openingSequence = 1, over: Partial<ScheduleRowInput> = {}): ScheduleRowInput => ({ listingNo, bidderName: `Bidder ${listingNo}`, registrationClass: "G5", registrationStatus: "Active", price: parseSen(`${300000 + listingNo}.00`), period: { value: 12, unit: "MONTHS" }, isAlternative: false, parentListingNo: null, openingSequence, ...over });
-const base = { version: 1, title: "Reservoir inlet works", reference: "DEMO/SX/0016/2026", startDay: "2026-10-20", closingAt: new Date("2026-11-17T06:30:00Z"), invited: { reading: "PURCHASERS" as const, purchasers: 5, invitees: 0 }, lateCount: 2, pages: 3, rows: [row(2), row(1), row(3)], benchmark: { sealed: true } as const, lockGap: { seconds: 730, text: "12 min 10 s" } };
+const base = { version: 1, title: "Reservoir inlet works", reference: "DEMO/SX/0016/2026", startDay: "2026-10-20", closing: new Date("2026-11-17T06:30:00Z"), invited: { reading: "PURCHASERS" as const, purchasers: 5, invitees: 0 }, lateCount: 2, pages: 3, rows: [row(2), row(1), row(3)], benchmark: { sealed: true } as const, lockGap: { seconds: 730, text: "12 min 10 s" } };
 
 describe("the Jadual Tawaran", () => {
   it("rows in listing order with the columns; the price as a two-place decimal", () => {
