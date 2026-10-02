@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { SPEC_METHODS } from "@/lib/method/fixture";
 import { parseSen, type Sen } from "@/lib/money";
 
-import { baselineOf, baselineSnapshot, differenceFindings, differences, LAD_PER_DAY, ladOnValueChange, matchesBaseline, prefill, reasonsOnSave, worksAppendixAmount, type AwardTerms, type FrozenTender } from "./appendix-baseline";
+import { baselineOf, baselineSnapshot, formDefaults, differenceFindings, differences, LAD_PER_DAY, ladOnValueChange, matchesBaseline, prefill, reasonsOnSave, worksAppendixAmount, type AwardTerms, type FrozenTender } from "./appendix-baseline";
 import { evaluateAward, type AwardFacts } from "./evaluate";
 import { AWARD_MATRIX } from "./fixture";
 import { issueFaults } from "./gate";
@@ -314,5 +314,17 @@ describe("the words beside each term", () => {
   });
   it("a difference reads as differing from the tender Appendix (the regulated answer: from the tender)", () => {
     expect(DIFFERS_TEXT).toEqual({ lad: "Differs from the tender Appendix", dlp: "Differs from the tender Appendix", regulated: "Differs from the tender" });
+  });
+});
+
+describe("an award opened before its terms were pre-filled", () => {
+  const b = baselineOf(TENDER, AWARDED);
+  const blank = terms({ ladAmount: null, ladUnit: "", dlpMonths: null, regulatedActivity: null });
+  it("is offered the tender's terms where it states none, so its first save fills them", () => {
+    expect(formDefaults(b, blank, {})).toEqual({ ladAmount: RM("269.38"), ladUnit: "per day", dlpMonths: 12, regulatedActivity: true });
+  });
+  it("keeps what it states, and a term left unstated with a reason", () => {
+    expect(formDefaults(b, terms({ dlpMonths: 24 }), {})).toEqual({});
+    expect(formDefaults(b, blank, { dlp: "No defects liability: supply only" })).not.toHaveProperty("dlpMonths");
   });
 });

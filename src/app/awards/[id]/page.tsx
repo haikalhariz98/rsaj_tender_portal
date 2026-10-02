@@ -56,7 +56,7 @@ import {
   DIFFERS_TEXT,
   tenderTermText,
 } from "@/lib/award/labels";
-import { BASELINE_FIELDS, type BaselineField } from "@/lib/award/appendix-baseline";
+import { BASELINE_FIELDS, formDefaults, type BaselineField } from "@/lib/award/appendix-baseline";
 import { formatPct } from "@/lib/tender-docs/percent";
 import { mergeFieldLabel } from "@/lib/award/fields";
 import { conditionsOutstanding, readinessGate } from "@/lib/award/readiness";
@@ -72,7 +72,7 @@ import { formatDate, formatOrgDay } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
 import { boundarySentence, REGIME_LABEL } from "@/lib/method/labels";
 import type { Regime } from "@/lib/method/types";
-import { formatMoney, parseSen, senFromDecimal } from "@/lib/money";
+import { formatMoney, parseSen, senFromDecimal, senToDecimalString } from "@/lib/money";
 import { DECISION_LABEL } from "@/lib/requisition/labels";
 import { earlierSteps, returnTargetBeforeNext, type RejectionKind } from "@/lib/authority/rejection";
 import { routeCoreText, stepOriginText } from "@/lib/authority/core-routing-labels";
@@ -194,6 +194,13 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
     dlpDiffersReason: award.dlpDiffersReason,
     regulatedDiffersReason: award.regulatedDiffersReason,
   };
+  // 64-C4: an award opened before its terms were pre-filled is offered the tender's on its first save.
+  if (ev.appendix && editable(status).terms) {
+    const d = formDefaults(ev.appendix.baseline, { ladAmount: award.ladAmount == null ? null : senFromDecimal(award.ladAmount), ladUnit: award.ladUnit, dlpMonths: award.dlpMonths, regulatedActivity: award.regulatedActivity }, { lad: award.ladDiffersReason, dlp: award.dlpDiffersReason, regulated: award.regulatedDiffersReason });
+    if (d.ladAmount != null) Object.assign(termsValues, { ladAmount: senToDecimalString(d.ladAmount), ladUnit: d.ladUnit });
+    if (d.dlpMonths != null) termsValues.dlpMonths = String(d.dlpMonths);
+    if (d.regulatedActivity != null) termsValues.regulatedActivity = yesNo(d.regulatedActivity);
+  }
   // 64-C4: what the frozen tender states for each term, in words; null without a frozen Appendix.
   const tenderTexts = ev.appendix ? (Object.fromEntries(BASELINE_FIELDS.map((k) => [k, tenderTermText(k, ev.appendix!.baseline)])) as Record<BaselineField, string | null>) : null;
   const routePreview = ev.route?.ok ? ev.route.chain.map((s) => `${f.issue?.matrix.roles[s.roleCode]?.nameEn ?? "An office no longer configured"} — ${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"}${s.committeeCode ? ", as a committee decision" : ""}`) : [];

@@ -127,6 +127,22 @@ export function prefill(b: Baseline): Partial<AwardTerms> {
   };
 }
 
+/**
+ * What the terms form offers for an award opened before its terms were pre-filled (opened
+ * before 64-C4, on an exercise whose pack has since been approved): each term the award
+ * does not state, and has no reason for leaving unstated, is offered as the tender states
+ * it, so the first save fills it. A term the award states, or left unstated with a reason,
+ * is offered as it stands.
+ */
+export function formDefaults(b: Baseline, v: AwardTerms, reasons: Reasons): Partial<AwardTerms> {
+  const f = prefill(b);
+  const out: Partial<AwardTerms> = {};
+  if (v.ladAmount == null && !reasons.lad?.trim() && f.ladAmount != null) Object.assign(out, { ladAmount: f.ladAmount, ladUnit: f.ladUnit });
+  if (v.dlpMonths == null && !reasons.dlp?.trim() && f.dlpMonths != null) out.dlpMonths = f.dlpMonths;
+  if (v.regulatedActivity == null && !reasons.regulated?.trim() && f.regulatedActivity != null) out.regulatedActivity = f.regulatedActivity;
+  return out;
+}
+
 /// Whether the award states the field as the baseline does; null where the baseline states nothing.
 export function matchesBaseline(field: BaselineField, b: Baseline, v: AwardTerms): boolean | null {
   switch (field) {
