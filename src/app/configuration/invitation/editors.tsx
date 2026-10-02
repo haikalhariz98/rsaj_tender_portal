@@ -2,7 +2,7 @@ import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 import { RULE_LABEL } from "@/lib/window/labels";
 
-import { importHolidayYear, removeFeeFloor, removeHoliday, saveCalendar, saveCalendarYear, saveChannel, saveFeeFloor, saveHoliday, saveWindowPolicy, setCalendarRetired, setChannelRetired } from "./actions";
+import { saveMethodBidRule, importHolidayYear, removeFeeFloor, removeHoliday, saveCalendar, saveCalendarYear, saveChannel, saveFeeFloor, saveHoliday, saveWindowPolicy, setCalendarRetired, setChannelRetired } from "./actions";
 
 /**
  * Configuration › Invitation controls drawers. No field carries a default: a value left not set
@@ -272,6 +272,32 @@ export function ImportYearDrawer({ calendarId, calendar }: { calendarId: string;
       action={importHolidayYear}
       submitLabel="Import"
       trigger={{ label: "Import a year", className: secondary }}
+      size="lg"
+    />
+  );
+}
+
+// ------------------------------------------------------------------ 6.6: a method's bid-receipt rules
+
+export function EditMethodBidRule({ id, name, values, committees }: { id: string; name: string; values: Record<string, string>; committees: Option[] }) {
+  return (
+    <RecordEditor
+      title={`Bid receipt under ${name}`}
+      description="Each may be left not set: it then holds back what it governs and says so. Late admission is never read as a refusal; an unset minimum is never read as met."
+      columns={2}
+      fields={[
+        hidden("id"),
+        { kind: "select", name: "lateAdmissionCommitteeCode", label: "Committee that decides late admission", placeholder: "Not set", options: committees, hint: "Each late envelope is tabled at its sitting: carried admits it." },
+        provenance("lateAdmissionProvenance"),
+        { kind: "number", name: "minimumBids", label: "Fewest bids expected", min: 1, hint: "Fewer is shown to the committee, never refused. One bid is flagged and proceeds." },
+        provenance("minimumBidsProvenance"),
+        { kind: "select", name: "completenessEliminates", label: "An incomplete bid", required: true, placeholder: "Choose", placeholderDisabled: true, options: [{ value: "yes", label: "Is eliminated" }, { value: "no", label: "Is reported to the committee" }, { value: "unset", label: "Not set" }] },
+        provenance("completenessProvenance"),
+      ]}
+      values={{ id, ...values }}
+      action={saveMethodBidRule}
+      submitLabel="Save"
+      trigger={{ label: "Edit", className: ghost, ariaLabel: `Edit the bid receipt rules for ${name}` }}
       size="lg"
     />
   );

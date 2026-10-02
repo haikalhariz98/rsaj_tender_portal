@@ -16,6 +16,7 @@ import { configFaultText, floorFaults, parseHolidayCsv, policyFaults, weekendFau
 import { DAY_RULE_LABEL } from "@/lib/window/labels";
 import { ADVERTISEMENT_DAY_RULES, type AdvertisementDayRule } from "@/lib/window/types";
 import { FormReader } from "@/lib/validate";
+import { BID_RULE_FAULT_TEXT, bidRuleFaults, bidRuleToSave } from "@/lib/bids/config";
 
 /**
  * Configuration › Invitation controls (6.5): the window policy, publication channels, document fee
@@ -432,5 +433,42 @@ export async function importHolidayYear(_prev: FormState, data: FormData): Promi
     }
     revalidatePath(PATH);
     return { ok: true, message: `${parsed.rows.length} holiday${parsed.rows.length === 1 ? "" : "s"} imported for ${year}. Say whether ${year} is now maintained in full.` };
+  });
+}
+
+// ------------------------------------------------------------------ 6.6: a method's bid-receipt rules
+
+/**
+ * A sourcing method's bid-receipt rules (6.6 OD-5, OD-8, B7): the committee that decides late
+ * admission, the fewest bids it expects and whether an incomplete bid is eliminated. Each may be
+ * left not set (it then holds back what it governs, naming itself); a value set says where it came
+ * from. Locks the method's row, judges the draft (`bidRuleFaults`) and writes with its audit row.
+ */
+export async function saveMethodBidRule(_prev: FormState, data: FormData): Promise<FormState> {
+  const org = await organisation();
+  if (!org) return NO_ORG;
+  const id = String(data.get("id") ?? "");
+  const r = new FormReader(data);
+  const committeeCode = r.optionalText("lateAdmissionCommitteeCode");
+  const committeeProvenance = r.choice("lateAdmissionProvenance", "Where this came from", PROVENANCE);
+  const minimumBids = r.int("minimumBids", "Fewest bids expected", { min: 1 });
+  const minimumProvenance = r.choice("minimumBidsProvenance", "Where this came from", PROVENANCE);
+  const eliminates = r.choice("completenessEliminates", "An incomplete bid", ["yes", "no", "unset"] as const, { required: true });
+  const eliminatesProvenance = r.choice("completenessProvenance", "Where this came from", PROVENANCE);
+  if (r.failed) return { ok: false, errors: r.errors };
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "SourcingMethod" WHERE id = ${id} FOR UPDATE`;
+    const before = await tx.sourcingMethod.findFirst({ where: { id, organisationId: org.id }, select: { nameEn: true, lateAdmissionCommitteeCode: true, lateAdmissionProvenance: true, minimumBids: true, minimumBidsProvenance: true, completenessEliminates: true, completenessProvenance: true } });
+    if (!before) return GONE;
+    const committees = (await tx.committee.findMany({ where: { organisationId: org.id, retiredOn: null }, select: { code: true } })).map((c) => c.code);
+    const draft = { committeeCode, committeeProvenance, minimumBids, minimumProvenance, eliminates: tri(eliminates), eliminatesProvenance };
+    const faults = bidRuleFaults(draft, { committees });
+    if (faults.length) return { ok: false, errors: Object.fromEntries(faults.map((f) => [f.field, BID_RULE_FAULT_TEXT[f.code]])) };
+    const v = bidRuleToSave(draft) as { lateAdmissionCommitteeCode: string | null; lateAdmissionProvenance: Prov | null; minimumBids: number | null; minimumBidsProvenance: Prov | null; completenessEliminates: boolean | null; completenessProvenance: Prov | null };
+    await tx.sourcingMethod.update({ where: { id }, data: v });
+    const { nameEn, ...was } = before;
+    await audit(tx, org.id, "SourcingMethod", id, nameEn, "UPDATE", diffFields(was, v));
+    revalidatePath("/configuration/reference-data");
+    return done();
   });
 }

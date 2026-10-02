@@ -82,6 +82,10 @@ const NAMED_FIELDS: Record<string, string> = {
   scopeApprovalRequired: "Scope approved by a committee",
   scopeCommitteeCode: "Committee that approves the scope",
   scopeAct: "Committee's act on the scope",
+  // 6.6: a method's bid-receipt rules.
+  lateAdmissionCommitteeCode: "Committee that decides late admission",
+  minimumBids: "Fewest bids expected",
+  completenessEliminates: "An incomplete bid is eliminated",
   orgUnitCode: "Unit whose officer verifies",
   qualificationCode: "Qualification",
   deliverableKind: "What the contract delivers",

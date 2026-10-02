@@ -17,8 +17,9 @@ import { REGIME_LABEL } from "@/lib/method/labels";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { senToDecimalString, parseSen } from "@/lib/money";
 import { invitationConfig } from "@/lib/window/read";
+import { BID_RULE_UNSET } from "@/lib/bids/config";
 
-import { CalendarDrawer, ChannelDrawer, EditWindowPolicy, FloorDrawer, HolidayDrawer, ImportYearDrawer, RemoveFloorDrawer, RemoveHolidayDrawer, RetireCalendarDrawer, RetireChannelDrawer, YearDrawer } from "./editors";
+import { CalendarDrawer, ChannelDrawer, EditMethodBidRule, EditWindowPolicy, FloorDrawer, HolidayDrawer, ImportYearDrawer, RemoveFloorDrawer, RemoveHolidayDrawer, RetireCalendarDrawer, RetireChannelDrawer, YearDrawer } from "./editors";
 
 export const dynamic = "force-dynamic";
 
@@ -68,14 +69,17 @@ export default async function InvitationControlsPage() {
     );
   }
   const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true } });
-  const [row, rawChannels, rawFloors, rawCalendars] = org
+  const [row, rawChannels, rawFloors, rawCalendars, bidMethods, committees] = org
     ? await Promise.all([
         db.windowPolicy.findUnique({ where: { organisationId: org.id } }),
         db.publicationChannel.findMany({ where: { organisationId: org.id } }),
         db.documentFeeFloor.findMany({ where: { organisationId: org.id } }),
         db.holidayCalendar.findMany({ where: { organisationId: org.id }, include: { holidays: { select: { id: true, day: true } }, years: { select: { id: true } } } }),
+        // 6.6: the methods that receive bids (a tender or quotation pack), with their bid-receipt rules.
+        db.sourcingMethod.findMany({ where: { organisationId: org.id, retiredOn: null, documentPackKind: { in: ["TENDER", "QUOTATION"] } }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { id: true, nameEn: true, lateAdmissionCommitteeCode: true, lateAdmissionProvenance: true, minimumBids: true, minimumBidsProvenance: true, completenessEliminates: true, completenessProvenance: true } }),
+        db.committee.findMany({ where: { organisationId: org.id }, orderBy: { nameEn: "asc" }, select: { code: true, nameEn: true, retiredOn: true } }),
       ])
-    : [null, [], [], []];
+    : [null, [], [], [], [], []];
   const p = c.policy.values;
   const rule = (label: string) => c.policy.rules.find((r) => r.label === label)!;
   const named = <T extends { id: string }>(xs: T[], id: string | null) => xs.find((x) => x.id === id);
@@ -154,6 +158,51 @@ export default async function InvitationControlsPage() {
             {row?.notes && <p className="mt-4 text-[13px] break-words whitespace-pre-line text-ink-2">{row.notes}</p>}
             <p className="mt-4 text-[12.5px] text-ink-3">The templates&apos; wording is written under <Link href="/configuration/templates">Templates</Link>.</p>
           </CardBody>
+        </Card>
+
+        <Card id="bids" className="scroll-mt-24 overflow-hidden">
+          <CardHeader
+            icon={<SlidersIcon size={17} />}
+            title="Bid receipt, by sourcing method"
+            subtitle="Who decides whether a late envelope is admitted, the fewest bids each method expects, and what follows from an incomplete bid. The validity alerts are a notification rule."
+            divided={bidMethods.length === 0}
+          />
+          {bidMethods.length === 0 ? (
+            <EmptyState title="No method takes bids">Only a method whose tender documents are a tender or a quotation receives bids. Set a method&apos;s documents under Tender documents.</EmptyState>
+          ) : (
+            <Table minWidth={760}>
+              <colgroup>
+                <col />
+                <col style={{ width: 220 }} />
+                <col style={{ width: 150 }} />
+                <col style={{ width: 200 }} />
+                <ActionsCol icons={1} labelled={1} />
+              </colgroup>
+              <THead>
+                <Th>Method</Th>
+                <Th>Late admission decided by</Th>
+                <Th>Fewest bids</Th>
+                <Th>An incomplete bid</Th>
+                <Th className="text-right">Actions</Th>
+              </THead>
+              <tbody>
+                {bidMethods.map((m) => (
+                  <Tr key={m.id}>
+                    <Td label="Method"><CellStack title={m.nameEn} /></Td>
+                    <Td label="Late admission decided by"><Setting value={m.lateAdmissionCommitteeCode ? (committees.find((c) => c.code === m.lateAdmissionCommitteeCode)?.nameEn ?? "A committee no longer configured") : "Not set"} unset={BID_RULE_UNSET.committee} source={m.lateAdmissionProvenance} /></Td>
+                    <Td label="Fewest bids"><Setting value={m.minimumBids == null ? "Not set" : String(m.minimumBids)} unset={BID_RULE_UNSET.minimum} source={m.minimumBidsProvenance} /></Td>
+                    <Td label="An incomplete bid"><Setting value={m.completenessEliminates == null ? "Not set" : m.completenessEliminates ? "Is eliminated" : "Is reported to the committee"} unset={BID_RULE_UNSET.eliminates} source={m.completenessProvenance} /></Td>
+                    <Td>
+                      <RowActions>
+                        <HistoryButton iconOnly entity="SourcingMethod" entityId={m.id} label={m.nameEn} />
+                        <EditMethodBidRule id={m.id} name={m.nameEn} committees={committees.filter((c) => c.retiredOn == null).map((c) => ({ value: c.code, label: c.nameEn }))} values={{ lateAdmissionCommitteeCode: m.lateAdmissionCommitteeCode ?? "", lateAdmissionProvenance: m.lateAdmissionProvenance ?? "", minimumBids: m.minimumBids == null ? "" : String(m.minimumBids), minimumBidsProvenance: m.minimumBidsProvenance ?? "", completenessEliminates: tri(m.completenessEliminates), completenessProvenance: m.completenessProvenance ?? "" }} />
+                      </RowActions>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
         </Card>
 
         <Card id="channels" className="scroll-mt-24 overflow-hidden">

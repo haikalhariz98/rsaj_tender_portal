@@ -97,7 +97,7 @@ const ENTITY_VALUE_LABEL: Record<string, Record<string, Record<string, string>>>
   SourcingMethod: { scopeAct: ACT_LABEL },
 };
 /// Yes or No where a stored flag is a boolean.
-const FLAG_FIELDS = new Set(["requiresCompanyEstimate", "requiresBq", "scopeApprovalRequired"]);
+const FLAG_FIELDS = new Set(["requiresCompanyEstimate", "requiresBq", "scopeApprovalRequired", "completenessEliminates"]);
 const DELIVERABLE_VALUE: Record<string, string> = { GOODS_DELIVERED: "Goods delivered", MEASURED_CONSTRUCTION: "Measured construction", TERM_PERFORMANCE: "Performance over a term" };
 const OFFICE_FIELDS = new Set(["secretariatRoleCode", "seatRoleCode", "disposalAuthorityRoleCode"]);
 
@@ -132,7 +132,7 @@ async function valueReader(entity = ""): Promise<(field: string, value: string |
     if (FLAG_FIELDS.has(field)) return value === "true" ? "Yes" : value === "false" ? "No" : value;
     if (field === "deliverableKind" && DELIVERABLE_VALUE[value]) return DELIVERABLE_VALUE[value];
     if (field === "orgUnitCode") return units.get(value) ?? "A unit no longer in the structure";
-    if (field === "scopeCommitteeCode") return committees.find((c) => c.code === value)?.nameEn ?? "A committee no longer configured";
+    if (field === "scopeCommitteeCode" || field === "lateAdmissionCommitteeCode") return committees.find((c) => c.code === value)?.nameEn ?? "A committee no longer configured";
     if (VALUE_LABEL[field]?.[value]) return VALUE_LABEL[field][value];
     if (/Provenance$|^provenance$/.test(field)) return PROVENANCE[value] ?? value;
     if (OFFICE_FIELDS.has(field)) return office.get(value) ?? "An office no longer configured";
