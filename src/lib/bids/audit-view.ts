@@ -9,7 +9,7 @@
 import { storedDay } from "@/lib/dates";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
 
-import { CHANNEL_LABEL, ENVELOPE_KIND_LABEL, ENVELOPE_STATUS_LABEL, SOURCE_LABEL } from "./labels";
+import { CHANNEL_LABEL, ENVELOPE_KIND_LABEL, ENVELOPE_STATUS_LABEL, receiptTime, SOURCE_LABEL } from "./labels";
 import type { EnvelopeChannel, EnvelopeKind, EnvelopeStatus, ReceiptSource } from "./types";
 
 /// The entity names the register's rows are audited under.
@@ -24,6 +24,8 @@ export const BID_ENTITY = {
 export const BID_ENTITIES: readonly string[] = Object.values(BID_ENTITY);
 
 const at = (d: Date | null | undefined, tz: string | null) => (d ? formatOrgDateTime(d, tz) : null);
+/// A receipt, a letter or the box's lock, to the second (lateness is judged to the second).
+const stamp = (d: Date | null | undefined, tz: string | null) => (d ? receiptTime(d, tz) : null);
 const day = (d: Date | null | undefined) => (d ? formatDate(storedDay(d)) : null);
 
 /// An envelope as the trail records it at receipt.
@@ -45,9 +47,9 @@ export function envelopeFields(e: {
     envelope: `Envelope ${e.sequence}`,
     kind: ENVELOPE_KIND_LABEL[e.kind],
     channel: CHANNEL_LABEL[e.channel],
-    received: at(e.receivedAt, tz),
+    received: stamp(e.receivedAt, tz),
     stamp: SOURCE_LABEL[e.receivedSource],
-    statedReceived: at(e.statedReceivedAt, tz),
+    statedReceived: stamp(e.statedReceivedAt, tz),
     whyRecordedLater: e.entryReason || null,
     markings: e.markings,
     receivedBy: `${e.receivedBy} (recorded on their behalf, not signed)`,
@@ -64,7 +66,7 @@ export const statusField = (s: EnvelopeStatus) => ({ status: ENVELOPE_STATUS_LAB
 
 export function withdrawalFields(w: { receivedAt: Date; markings: string; receivedBy: string; envelopeSequence: number | null }, tz: string | null) {
   return {
-    received: at(w.receivedAt, tz),
+    received: stamp(w.receivedAt, tz),
     stamp: SOURCE_LABEL.SERVER,
     markings: w.markings,
     receivedBy: `${w.receivedBy} (recorded on their behalf, not signed)`,
@@ -74,7 +76,7 @@ export function withdrawalFields(w: { receivedAt: Date; markings: string; receiv
 
 export const returnFields = (r: { returnedUnopenedOn: Date; note: string }) => ({ returnedUnopened: day(r.returnedUnopenedOn), note: r.note || null });
 
-export const boxFields = (b: { at: Date; by: string; note: string }, tz: string | null) => ({ boxLocked: at(b.at, tz), lockedBy: `${b.by} (recorded on their behalf, not signed)`, note: b.note || null });
+export const boxFields = (b: { at: Date; by: string; note: string }, tz: string | null) => ({ boxLocked: stamp(b.at, tz), lockedBy: `${b.by} (recorded on their behalf, not signed)`, note: b.note || null });
 
 export function extensionFields(x: { fromExpiry: Date; toExpiry: Date; reason: string; consentParty: string; consentReceivedOn: Date; recordedBy: string }) {
   return {

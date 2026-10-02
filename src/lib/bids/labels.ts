@@ -4,7 +4,8 @@
  * refusal names what to do or where to set it.
  */
 
-import { formatDate } from "@/lib/format";
+import { dayIn } from "@/lib/dates";
+import { formatDate, formatOrgDateTime } from "@/lib/format";
 
 import type { AdmissionState } from "./late";
 import type { AlternativeStatus } from "./alternatives";
@@ -83,6 +84,14 @@ export const REGISTER_GAPS = [
   "No alert is sent: there is no delivery yet. Alerts are shown here.",
   "The company estimate is held plain in the database, never shown before opening; sealed storage arrives with the electronic tender box.",
 ];
+
+/// An instant on the organisation's clock, to the second: lateness is judged to the second, so a receipt is shown to it.
+export function receiptTime(at: Date | null, timeZone: string | null): string {
+  if (!at) return "—";
+  if (!timeZone) return formatOrgDateTime(at, null);
+  const time = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZone }).format(at);
+  return `${formatDate(dayIn(at, timeZone))} · ${time}`;
+}
 
 const d = (f: Finding, k: string) => f.data?.[k] ?? null;
 const day = (v: unknown) => (typeof v === "string" && v ? formatDate(v) : "a day not recorded");

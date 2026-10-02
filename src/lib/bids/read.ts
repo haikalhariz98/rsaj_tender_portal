@@ -8,7 +8,7 @@
 import { ACT_LABEL } from "@/lib/labels";
 import { checkTabling, secretariatHoldersOn } from "@/lib/committee/tabling";
 import { TABLING_FAULT_MESSAGE } from "@/lib/committee/labels";
-import { dayIn, dayPlus, storedDay } from "@/lib/dates";
+import { dayPlus, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { exerciseOrg } from "@/lib/method/repo";
@@ -22,7 +22,7 @@ import { checklistFor, completenessConsequence } from "./completeness";
 import { correctionFaults } from "./correction";
 import { bidCount, competition } from "./count";
 import { applyFaults, extensionFaults, RECOMMENDED_ATTESTED } from "./extension";
-import { ADMISSION_LABEL, ALTERNATIVE_LABEL, bidFindingText, CHANNEL_LABEL, COMPETITION_LABEL, COMPETITION_TEXT, CONSEQUENCE_LABEL, ENVELOPE_KIND_LABEL, RETURN_LABEL, SOURCE_LABEL } from "./labels";
+import { ADMISSION_LABEL, ALTERNATIVE_LABEL, bidFindingText, receiptTime, CHANNEL_LABEL, COMPETITION_LABEL, COMPETITION_TEXT, CONSEQUENCE_LABEL, ENVELOPE_KIND_LABEL, RETURN_LABEL, SOURCE_LABEL } from "./labels";
 import { admission, lateAdmissionFault, lateMatterFault, needsAdmission } from "./late";
 import { LATENESS_READING } from "./lateness";
 import { exerciseFaults } from "./receipt";
@@ -35,14 +35,6 @@ import { blocking, isPublishedStatus, type Finding } from "./types";
 type Allowed = { allowed: true } | { allowed: false; reason: string };
 const allowed = (fs: readonly Finding[]): Allowed => (blocking(fs).length ? { allowed: false, reason: blocking(fs).map(bidFindingText).join(" ") } : { allowed: true });
 const PROVENANCE_WORD = { STATED: "Stated", OBSERVED: "Observed", ASSUMED: "Assumed" } as const;
-
-/// An instant on the organisation's clock, to the second (lateness is judged to the second).
-export function receiptTime(at: Date | null, timeZone: string | null): string {
-  if (!at) return "—";
-  if (!timeZone) return formatOrgDateTime(at, null);
-  const time = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZone }).format(at);
-  return `${formatDate(dayIn(at, timeZone))} · ${time}`;
-}
 
 export async function bidsTab(exerciseId: string) {
   const org = await exerciseOrg();
