@@ -38,3 +38,13 @@ export async function mainOpeningAdjourned(exerciseId: string, client: Tx = db):
   const main = await client.opening.findFirst({ where: { exerciseId, kind: "MAIN" }, select: { sittings: { orderBy: { sittingNo: "desc" }, take: 1, select: { adjournedAt: true } } } });
   return main?.sittings[0]?.adjournedAt != null;
 }
+
+/**
+ * Review M-1: whether any opening of the exercise (the main one or a supplementary one) is started,
+ * not finalised, and sitting (its latest sitting not adjourned), read under the caller's locks. The
+ * exercise is not cancelled while one is.
+ */
+export async function openingInProgress(exerciseId: string, client: Tx = db): Promise<boolean> {
+  const openings = await client.opening.findMany({ where: { exerciseId, finalisedAt: null }, select: { sittings: { orderBy: { sittingNo: "desc" }, take: 1, select: { adjournedAt: true } } } });
+  return openings.some((o) => o.sittings[0]?.adjournedAt == null);
+}

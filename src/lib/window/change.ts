@@ -132,9 +132,12 @@ export function authorityFault(routeStatus: string | null): Finding<ChangeFault>
  * flagged): an Opened exercise may be cancelled (the exit for an empty box, or every bid not
  * carried), and one whose opening is in progress only once that opening is adjourned
  * (`openingAdjourned`; not given: not adjourned). Its opening's rows are kept, and an estimate not
- * disclosed stays sealed.
+ * disclosed stays sealed. 6.7 review M-1 (flagged): whatever the exercise's status, it is not
+ * cancelled while any of its openings, a supplementary one included, is started, not finalised and
+ * not adjourned (`openingInProgress`; the callers read it with `openingInProgress` in
+ * opening/gate-read.ts): an Opened exercise with a supplementary opening sitting is refused too.
  */
-export function cancelFaults(i: { status: ExerciseStatus; reason: string; feeRefund: boolean | null; changePending: boolean; awardStands: string | null; today: string | null; openingAdjourned?: boolean }): Finding<ChangeFault>[] {
+export function cancelFaults(i: { status: ExerciseStatus; reason: string; feeRefund: boolean | null; changePending: boolean; awardStands: string | null; today: string | null; openingAdjourned?: boolean; openingInProgress?: boolean }): Finding<ChangeFault>[] {
   const out: Finding<ChangeFault>[] = [];
   const f = (code: ChangeFault, data?: Finding["data"]) => out.push({ code, level: "block", ...(data ? { data } : {}) });
   if (!i.today) f("TIME_ZONE_UNSET");
@@ -143,7 +146,7 @@ export function cancelFaults(i: { status: ExerciseStatus; reason: string; feeRef
   if (i.feeRefund == null) f("REFUND_NOT_ANSWERED");
   if (i.changePending) f("CHANGE_PENDING");
   if (i.awardStands) f("AWARD_STANDS", { award: i.awardStands });
-  if (i.status === "OPENING_IN_PROGRESS" && !i.openingAdjourned) f("OPENING_NOT_ADJOURNED");
+  if ((i.status === "OPENING_IN_PROGRESS" && !i.openingAdjourned) || i.openingInProgress) f("OPENING_NOT_ADJOURNED");
   return out;
 }
 

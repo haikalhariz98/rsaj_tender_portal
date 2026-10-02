@@ -28,7 +28,7 @@ import { voidLivePacks } from "@/lib/tender-docs/store";
 import { deliveryFaults } from "@/lib/window/addendum";
 import { changeFields, deliveryFields, ENTITY } from "@/lib/window/audit-view";
 import { lockOpeningRows } from "@/lib/opening/lock";
-import { mainOpeningAdjourned } from "@/lib/opening/gate-read";
+import { mainOpeningAdjourned, openingInProgress } from "@/lib/opening/gate-read";
 import { appliedChangeFaults, cancelFaults, closingChangeFaults, noticeRecipients, windowChangeRouteForRequester, type WindowChangeCond } from "@/lib/window/change";
 import { CHANGE_REFUSED_DECIDED_BY, windowChangeRejectionSnapshot } from "@/lib/window/edit";
 import { CHANGE_ROUTE_TEXT, windowFindingText } from "@/lib/window/labels";
@@ -187,7 +187,7 @@ export async function requestCancellation(_prev: FormState, data: FormData): Pro
     const live = exerciseCancelBlockedBy(await tx.award.findMany({ where: { exerciseId }, select: { reference: true, status: true } }));
     // 6.7 (C-9): an opening in progress is cancelled only once adjourned; read under the openings' lock.
     await lockOpeningRows(tx, l.ex.id);
-    const fs = cancelFaults({ status: l.ex.status, reason, feeRefund: refund == null ? null : refund === "yes", changePending: windowChangeRoutesOf(l.ex.approvalInstances).some((i) => i.status === "PENDING"), awardStands: live?.reference ?? null, today: l.org.today, openingAdjourned: await mainOpeningAdjourned(l.ex.id, tx) });
+    const fs = cancelFaults({ status: l.ex.status, reason, feeRefund: refund == null ? null : refund === "yes", changePending: windowChangeRoutesOf(l.ex.approvalInstances).some((i) => i.status === "PENDING"), awardStands: live?.reference ?? null, today: l.org.today, openingAdjourned: await mainOpeningAdjourned(l.ex.id, tx), openingInProgress: await openingInProgress(l.ex.id, tx) });
     if (fs.length) {
       const field = fs.length === 1 && fs[0].code === "REASON_REQUIRED" ? "reason" : fs.length === 1 && fs[0].code === "REFUND_NOT_ANSWERED" ? "feeRefund" : null;
       return field ? { ok: false, errors: { [field]: windowFindingText(fs[0]) } } : refuse(fs, "Not asked:");
@@ -261,7 +261,7 @@ async function applyCancellation(tx: Tx, l: LockedWindow, d: WindowData, c: NonN
   const now = new Date();
   const live = exerciseCancelBlockedBy(await tx.award.findMany({ where: { exerciseId: l.ex.id }, select: { reference: true, status: true } }));
   await lockOpeningRows(tx, l.ex.id);
-  const fs = cancelFaults({ status: l.ex.status, reason: c.reason, feeRefund: c.feeRefund, changePending: false, awardStands: live?.reference ?? null, today: l.org.today, openingAdjourned: await mainOpeningAdjourned(l.ex.id, tx) });
+  const fs = cancelFaults({ status: l.ex.status, reason: c.reason, feeRefund: c.feeRefund, changePending: false, awardStands: live?.reference ?? null, today: l.org.today, openingAdjourned: await mainOpeningAdjourned(l.ex.id, tx), openingInProgress: await openingInProgress(l.ex.id, tx) });
   if (fs.length) {
     const why = fs.map(windowFindingText).join(" ");
     await tx.windowCancellation.update({ where: { id: c.id }, data: { refusedAt: now, refusedReason: why } });
