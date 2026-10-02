@@ -45,3 +45,16 @@ describe("the receipt time on the register (6.6 review S-1)", () => {
     expect(officerStatement(null, null)).toMatch(/received at a time not recorded.*: not recorded\.$/);
   });
 });
+
+describe("the checklist card's words (6.6 review S-5)", () => {
+  it("names the parts the approved documents mark mandatory, and says which a bidder returns is not set", async () => {
+    const { CHECKLIST_RETURN_NOT_SET, CHECKLIST_TITLE } = await import("./labels");
+    expect(CHECKLIST_TITLE).toBe("Parts the approved documents mark mandatory");
+    expect(CHECKLIST_RETURN_NOT_SET).toBe("Which of these a bidder returns is not set; the check at opening waits for it.");
+    const { readFileSync } = await import("node:fs");
+    const tab = readFileSync("src/app/sourcing/[id]/bids/workspace.tsx", "utf8");
+    expect(tab).toMatch(/title=\{CHECKLIST_TITLE\}/);
+    expect(tab).toMatch(/\{CHECKLIST_RETURN_NOT_SET\}/);
+    expect(tab).not.toMatch(/title="Mandatory documents"/);
+  });
+});

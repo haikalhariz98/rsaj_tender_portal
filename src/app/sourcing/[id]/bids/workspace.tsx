@@ -7,7 +7,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { KeyValues } from "@/components/ui/stat";
-import { REGISTER_GAPS, REGISTER_STATEMENT, WITHDRAWAL_SULIT_LABEL } from "@/lib/bids/labels";
+import { CHECKLIST_RETURN_NOT_SET, CHECKLIST_TITLE, REGISTER_GAPS, REGISTER_STATEMENT, WITHDRAWAL_SULIT_LABEL } from "@/lib/bids/labels";
 import { bidsTab, type BidsTab } from "@/lib/bids/read";
 
 import { EXERCISE_NOTE_ID } from "../../editors";
@@ -273,8 +273,9 @@ function ChecklistCard({ d }: { d: BidsTab }) {
   const c = d.checklist;
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<ClipboardIcon size={17} />} title="Mandatory documents" subtitle="Checked against each bid at opening, never here. A missing document is reported, never a reason to refuse an envelope." />
+      <CardHeader icon={<ClipboardIcon size={17} />} title={CHECKLIST_TITLE} subtitle="Checked against each bid at opening, never here. A missing document is reported, never a reason to refuse an envelope." />
       <CardBody className="flex flex-col gap-4 border-t border-line">
+        <Callout tone="warn">{CHECKLIST_RETURN_NOT_SET}</Callout>
         <KeyValues
           items={[
             { label: "From", value: c.pack ?? "No approved tender documents" },

@@ -98,6 +98,14 @@ export function officerStatement(stated: string | null, reason: string | null): 
   return `The officer's statement: received ${stated ?? "at a time not recorded"}. Why it was recorded after the event: ${reason ?? "not recorded"}.`;
 }
 
+/**
+ * The checklist card (6.6 review S-5): the parts the approved documents mark mandatory, plus each
+ * issued addendum. Which of them a bidder returns is not modelled yet (6.7 adds it per part, with
+ * provenance); until then the card says so rather than calling the list what a bid must contain.
+ */
+export const CHECKLIST_TITLE = "Parts the approved documents mark mandatory";
+export const CHECKLIST_RETURN_NOT_SET = "Which of these a bidder returns is not set; the check at opening waits for it.";
+
 /// The withdrawal drawer's hint (6.6 CR-4): quote what identifies the envelope, never who the bidder is.
 export const WITHDRAWAL_QUOTE_HINT = "Quote how the letter identifies the envelope (the tender's title, number and markings). Leave the company's name out; bidders are named at the opening.";
 /// What the Withdrawals card's SULIT label covers: the letter and the quote taken from it (6.6 CR-4).
