@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { dayToDate } from "@/lib/dates";
 
+import { contractFaultWords } from "./fault-text";
 import { legalOfficeKnown, preparationSettings, rowInForce, unitInForce } from "./in-force";
 
 /**
@@ -87,6 +88,12 @@ describe("the legal office's row in force on the day (M-2)", () => {
     expect(legalOfficeKnown("NEW_LEGAL", later, "2026-10-02")).toBe(false);
     expect(preparationSettings({ policy: { legalOfficeCode: "NEW_LEGAL" }, parts: [], recipients: [], units: later, bases: [] }, null, "2026-10-02")).toMatchObject({ office: null, legalOfficeKnown: false });
     expect(legalOfficeKnown("NEW_LEGAL", later, "2026-10-03")).toBe(true);
+  });
+  it("the refusal does not say 'no longer' of a unit that has not started", () => {
+    const t = contractFaultWords({ code: "LEGAL_OFFICE_UNKNOWN", level: "block" });
+    expect(t.en).toMatch(/in force today \(it has ended, or has not started yet\)/);
+    expect(t.en).not.toMatch(/no longer/);
+    expect(t.ms).toMatch(/belum bermula/);
   });
   it("the configuration reads the units with their start, and the policy act judges them in force", () => {
     const read = (p: string) => readFileSync(path.join(__dirname, "../../..", p), "utf8");

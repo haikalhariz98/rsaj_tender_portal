@@ -51,7 +51,7 @@ export function contractFaultWords(f: Finding): Words {
     case "LEGAL_OFFICE_NOT_SET":
       return w("The legal office that reviews contracts is not set. Set it under Configuration › Contract controls.", "Pejabat undang-undang yang menyemak kontrak belum ditetapkan. Tetapkan di Konfigurasi › Kawalan kontrak.");
     case "LEGAL_OFFICE_UNKNOWN":
-      return w("The legal office set under Configuration › Contract controls is no longer in the organisation's structure. Choose a current unit there.", "Pejabat undang-undang yang ditetapkan tiada lagi dalam struktur organisasi.");
+      return w("The legal office set under Configuration › Contract controls is not a unit of the organisation's structure in force today (it has ended, or has not started yet). Choose a unit in force there.", "Pejabat undang-undang yang ditetapkan bukan unit dalam struktur organisasi yang berkuat kuasa hari ini (telah tamat, atau belum bermula). Pilih unit yang berkuat kuasa.");
     case "SIGNATORY_COND_NOT_SET":
       return w("The approval matrix condition that names the contract agreement's signatory is not set. Set it under Configuration › Contract controls.", "Syarat matriks kelulusan bagi penandatangan perjanjian kontrak belum ditetapkan. Tetapkan di Konfigurasi › Kawalan kontrak.");
     case "STAMP_NOT_SET":
