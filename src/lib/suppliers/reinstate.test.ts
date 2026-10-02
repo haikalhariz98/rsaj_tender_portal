@@ -61,7 +61,7 @@ describe("reinstating (FR-VND-010)", () => {
 
   it("not suspended, or blacklisted (a blacklisting is lifted on its own route), is refused", () => {
     expect(codes(reinstatementFaults(ok, { today, reading: reading(), checklist: [] }))).toEqual(["NOT_SUSPENDED"]);
-    const blacklisted = reading([{ ...suspension, id: "b", kind: "BLACKLIST", offenceNo: 1, endsOn: "2031-09-30" }]);
+    const blacklisted = reading([{ ...suspension, id: "b", kind: "BLACKLIST", offenceNo: 1, endsOn: "2031-10-01" }]);
     expect(codes(reinstatementFaults(ok, { today, reading: blacklisted, checklist: [] }))).toEqual(["BLACKLISTED", "NOT_SUSPENDED"]);
   });
 

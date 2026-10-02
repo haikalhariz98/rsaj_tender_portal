@@ -2,9 +2,10 @@
  * A blacklisting's period (FR-TRM-017, condition (4)): a first offence lasts the configured months
  * (`SupplierPolicy.blacklistFirstOffenceMonths`), a later one until further notice. The period elapses as
  * the document store's retention does (BD-DS-10): effective on D for N months, the supplier is free from
- * D + N months, month-end clamped, so the last blacklisted day is the day before. Effective 2026-10-01
- * for 60 months: blacklisted to 2031-09-30, free from 2031-10-01. Months not set: a first offence cannot
- * be recorded, and the setting is named. Pure.
+ * D + N months, month-end clamped, so the last blacklisted day is the day before. Like every period in
+ * the project (budget/periods.ts, effective.ts), the stored end is exclusive: `endsOn` IS the free-from
+ * day (S-1). Effective 2026-10-01 for 60 months: endsOn 2031-10-01 (free from that day), last blacklisted
+ * day 2031-09-30. Months not set: a first offence cannot be recorded, and the setting is named. Pure.
  */
 
 import { addDays, addMonths } from "@/lib/securities/period";
@@ -12,7 +13,8 @@ import { addDays, addMonths } from "@/lib/securities/period";
 import type { Finding } from "./types";
 
 export type BlacklistPeriod =
-  | { kind: "ENDS"; endsOn: string; freeFrom: string; months: number }
+  /// `endsOn` is exclusive (the free-from day, stored on the event); `lastDay` is the day before, for the words.
+  | { kind: "ENDS"; endsOn: string; lastDay: string; months: number }
   | { kind: "UNTIL_FURTHER_NOTICE" };
 
 export type PeriodFault = "BLACKLIST_PERIOD_NOT_SET" | "OFFENCE_INVALID";
@@ -21,8 +23,8 @@ export function blacklistPeriod(effectiveOn: string, offenceNo: number, months: 
   if (!Number.isInteger(offenceNo) || offenceNo < 1) return { period: null, faults: [{ code: "OFFENCE_INVALID", level: "block" }] };
   if (offenceNo > 1) return { period: { kind: "UNTIL_FURTHER_NOTICE" }, faults: [] };
   if (months == null || !Number.isInteger(months) || months < 1) return { period: null, faults: [{ code: "BLACKLIST_PERIOD_NOT_SET", level: "block" }] };
-  const freeFrom = addMonths(effectiveOn, months);
-  return { period: { kind: "ENDS", endsOn: addDays(freeFrom, -1), freeFrom, months }, faults: [] };
+  const endsOn = addMonths(effectiveOn, months);
+  return { period: { kind: "ENDS", endsOn, lastDay: addDays(endsOn, -1), months }, faults: [] };
 }
 
 /// Which offence the next blacklisting is: one more than the blacklistings already recorded, lifted or not.

@@ -37,7 +37,7 @@ describe("a2's words: both languages, never a code", () => {
     ];
     for (const c of codes) {
       expect(hasFaultText(c), c).toBe(true);
-      const f = { code: c, level: "block" as const, data: { types: "Tax clearance", since: "2026-09-01", approvedOn: "2026-09-01", registeredOn: "2026-01-01", endsOn: "2031-09-30", kind: "SUSPEND", effectiveOn: "2026-10-02", standing: "SUSPENDED", recorded: "1", register: "2" } };
+      const f = { code: c, level: "block" as const, data: { types: "Tax clearance", since: "2026-09-01", approvedOn: "2026-09-01", registeredOn: "2026-01-01", endsOn: "2031-10-01", lastDay: "2031-09-30", freeFrom: "2031-10-01", kind: "SUSPEND", effectiveOn: "2026-10-02", standing: "SUSPENDED", recorded: "1", register: "2" } };
       expect(supplierFaultText(f), c).not.toMatch(CODE);
       expect(supplierFaultText(f, "ms"), c).toBeTruthy();
     }

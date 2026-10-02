@@ -15,7 +15,7 @@ describe("standing is derived, never stored (FR-VND-010, OD-7 A)", () => {
   });
 
   it("precedence: blacklisted over cancelled over suspended over suspended on lapse over active", () => {
-    const b = ev({ id: "b", kind: "BLACKLIST", offenceNo: 1, endsOn: "2031-09-30" });
+    const b = ev({ id: "b", kind: "BLACKLIST", offenceNo: 1, endsOn: "2031-10-01" });
     const c = ev({ id: "c", kind: "REGISTRATION_CANCELLED" });
     const s = ev({ id: "s", kind: "SUSPEND" });
     const p = { autoSuspendOnLapse: true };
@@ -60,11 +60,12 @@ describe("standing is derived, never stored (FR-VND-010, OD-7 A)", () => {
   });
 
   it("a first offence ends after its last day; a second has no end", () => {
-    const first = ev({ id: "b", kind: "BLACKLIST", offenceNo: 1, effectiveOn: "2021-10-01", endsOn: "2026-09-30" });
+    // S-1: endsOn is exclusive, the free-from day.
+    const first = ev({ id: "b", kind: "BLACKLIST", offenceNo: 1, effectiveOn: "2021-10-01", endsOn: "2026-10-01" });
     expect(standing(registered, [first], clean, { autoSuspendOnLapse: null }, "2026-09-30").standing).toBe("BLACKLISTED");
     const after = standing(registered, [first], clean, { autoSuspendOnLapse: null }, "2026-10-01");
     expect(after.standing).toBe("ACTIVE");
-    expect(after.notes).toContainEqual({ code: "BLACKLIST_ENDED", level: "info", data: { endsOn: "2026-09-30" } });
+    expect(after.notes).toContainEqual({ code: "BLACKLIST_ENDED", level: "info", data: { lastDay: "2026-09-30", freeFrom: "2026-10-01" } });
     const second = ev({ id: "b2", kind: "BLACKLIST", offenceNo: 2, effectiveOn: "2021-10-01" });
     expect(standing(registered, [second], clean, { autoSuspendOnLapse: null }, "2040-01-01").standing).toBe("BLACKLISTED");
   });

@@ -5,6 +5,7 @@
  */
 
 import { formatDate } from "@/lib/format";
+import { addDays } from "@/lib/securities/period";
 import type { DeciderFault } from "@/lib/requisition/holders";
 
 import type { DocumentState } from "./documents";
@@ -30,6 +31,20 @@ export interface Words {
 
 const w = (en: string, ms: string): Words => ({ en, ms });
 const day = (d: unknown) => (typeof d === "string" && d ? formatDate(d) : "—");
+
+/// A configured label written to sit inside a sentence ("the Demo Contractors Board") as a heading or a value on its own line: its first letter capitalised, nothing else changed.
+export const asHeading = (label: string) => (label ? label.charAt(0).toUpperCase() + label.slice(1) : label);
+
+/**
+ * A blacklisting's end in words (S-1). `endsOn` is exclusive, the free-from day, as every period in the
+ * project; the screens say both days so neither can be misread: "Last blacklisted day 30 Sep 2031 · Free
+ * from 1 Oct 2031". No end: until further notice.
+ */
+export function blacklistEndWords(endsOn: string | null): Words {
+  if (!endsOn) return w("Until further notice", "Sehingga notis selanjutnya");
+  const last = addDays(endsOn, -1);
+  return w(`Last blacklisted day ${formatDate(last)} · Free from ${formatDate(endsOn)}`, `Hari terakhir disenarai hitam ${formatDate(last)} · Bebas mulai ${formatDate(endsOn)}`);
+}
 
 export const VALUE_KIND_LABEL: Readonly<Record<RegistrationValueKind, Words>> = {
   GRADE: w("Grade", "Gred"),
@@ -282,7 +297,7 @@ const TEXT: Record<AnyFault, (d: Record<string, string | number | null>) => Word
   CHECKLIST_INCOMPLETE: (d) => w(`Tick every line of the checklist, having seen each verified: ${d.types}.`, `Tandakan setiap baris senarai semak, setelah melihat setiap satu disahkan: ${d.types}.`),
   LAPSE_RULE_NOT_SET: (d) => w(`Active — lapse rule not set; a mandatory document has expired${d.types ? ` (${d.types})` : ""}. Whether that suspends the supplier is set under ${SETTINGS.en}, Standing.`, `Aktif — peraturan luput belum ditetapkan; dokumen wajib telah tamat tempoh${d.types ? ` (${d.types})` : ""}. Sama ada itu menggantung pembekal ditetapkan di ${SETTINGS.ms}, Kedudukan.`),
   MANDATORY_EXPIRED: (d) => w(`A mandatory document has expired (${d.types}); the policy does not suspend on lapse.`, `Dokumen wajib telah tamat tempoh (${d.types}); polisi tidak menggantung kerana luput.`),
-  BLACKLIST_ENDED: (d) => w(`A first-offence blacklisting ended on ${day(d.endsOn)}.`, `Senarai hitam kesalahan pertama tamat pada ${day(d.endsOn)}.`),
+  BLACKLIST_ENDED: (d) => w(`A first-offence blacklisting has ended: last blacklisted day ${day(d.lastDay)} · free from ${day(d.freeFrom)}.`, `Senarai hitam kesalahan pertama telah tamat: hari terakhir disenarai hitam ${day(d.lastDay)} · bebas mulai ${day(d.freeFrom)}.`),
   SCHEDULED: (d) => w(`${STANDING_EVENT_LABEL[d.kind as StandingEventKind]?.en ?? "A change"} takes effect on ${day(d.effectiveOn)}.`, `${STANDING_EVENT_LABEL[d.kind as StandingEventKind]?.ms ?? "Satu perubahan"} berkuat kuasa pada ${day(d.effectiveOn)}.`),
   // a2: the sale (FR-ADV-010, OD-5)
   SALE_NOT_REGISTERED: () => w("Not sold: the purchaser's supplier is not registered.", "Tidak dijual: pembekal pembeli tidak berdaftar."),

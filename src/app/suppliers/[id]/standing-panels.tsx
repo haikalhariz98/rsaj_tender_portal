@@ -23,7 +23,7 @@ import { DECISION_LABEL } from "@/lib/requisition/labels";
 import { nextOffenceNo, recordFaults, requestBlacklistFaults, requestLiftFaults, routeState, type RequestFacts } from "@/lib/suppliers/blacklist";
 import { documentStates } from "@/lib/suppliers/documents";
 import { isEligibilitySnapshot } from "@/lib/suppliers/eligibility";
-import { CHECK_STATE_LABEL, CONDITION_LABEL, DOCUMENT_STATE_LABEL, conditionWords, RELAXES_LABEL, REQUEST_KIND_LABEL, RESULT_LABEL, RESULT_TONE, STANDING_EVENT_LABEL, standingTone, standingWords, supplierFaultText, VERDICT_LABEL, VERDICT_TONE } from "@/lib/suppliers/labels";
+import { blacklistEndWords, CHECK_STATE_LABEL, CONDITION_LABEL, DOCUMENT_STATE_LABEL, conditionWords, RELAXES_LABEL, REQUEST_KIND_LABEL, RESULT_LABEL, RESULT_TONE, STANDING_EVENT_LABEL, standingTone, standingWords, supplierFaultText, VERDICT_LABEL, VERDICT_TONE } from "@/lib/suppliers/labels";
 import { sameNumber } from "@/lib/suppliers/link";
 import { eligibilityFindingOf } from "@/lib/suppliers/opening-hook";
 import { grantFaults, specialPermissionFaults } from "@/lib/suppliers/permission";
@@ -131,7 +131,7 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
             items={[
               { label: "Standing", value: <Badge tone={standingTone(reading)} dot>{standingWords(reading).en}</Badge> },
               { label: "Since", value: since ? `${formatDate(since.effectiveOn)}${since.reasonLabel ? ` · ${since.reasonLabel}` : ""}` : reading.standing === "SUSPENDED_ON_LAPSE" ? `Derived: ${reading.lapsed.join(", ")} expired${cfg.policy?.lapseReasonId ? ` · ${cfg.reasons.find((x) => x.id === cfg.policy?.lapseReasonId)?.nameEn ?? ""}` : ""}` : "—" },
-              ...(reading.blacklist ? [{ label: "Until", value: reading.blacklist.endsOn ? `${formatDate(reading.blacklist.endsOn)} (first offence); free from the day after` : "Until further notice" }] : []),
+              ...(reading.blacklist ? [{ label: reading.blacklist.endsOn ? "Period (first offence)" : "Period", value: blacklistEndWords(reading.blacklist.endsOn).en }] : []),
               ...(reading.suspension && reading.standing !== "SUSPENDED" ? [{ label: "Also suspended", value: `Since ${formatDate(reading.suspension.effectiveOn)} · ${reading.suspension.reasonLabel}` }] : []),
               ...(reading.lapsed.length ? [{ label: "Mandatory documents expired", value: reading.lapsed.join(", ") }] : []),
             ]}
@@ -176,7 +176,7 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
               <li key={e.id} className="flex flex-col gap-1 px-5 py-3 text-[13px] sm:px-6">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone={e.kind === "REINSTATE" || e.kind === "BLACKLIST_LIFT" ? "ok" : "err"}>{STANDING_EVENT_LABEL[e.kind].en}</Badge>
-                  <span className="text-ink-2">from {formatDate(storedDay(e.effectiveOn))}{e.kind === "BLACKLIST" ? (e.endsOn ? ` to ${formatDate(storedDay(e.endsOn))} (${e.offenceNo === 1 ? "first offence" : `offence ${e.offenceNo}`}, ${e.periodMonths} months)` : ` until further notice (offence ${e.offenceNo})`) : ""} · {e.recordedBy.name}, recorded on their behalf, not signed</span>
+                  <span className="text-ink-2">from {formatDate(storedDay(e.effectiveOn))}{e.kind === "BLACKLIST" ? (e.endsOn ? ` (${e.offenceNo === 1 ? "first offence" : `offence ${e.offenceNo}`}, ${e.periodMonths} months) · ${blacklistEndWords(storedDay(e.endsOn)).en}` : ` until further notice (offence ${e.offenceNo})`) : ""} · {e.recordedBy.name}, recorded on their behalf, not signed</span>
                 </div>
                 {e.reasonSnapshot && <p className="text-ink-2">{e.reasonSnapshot}</p>}
                 {e.flaggedDocumentIds.length > 0 && <p className="text-[12.5px] text-ink-3">For: {e.flaggedDocumentIds.map(docLabel).join(", ")}</p>}

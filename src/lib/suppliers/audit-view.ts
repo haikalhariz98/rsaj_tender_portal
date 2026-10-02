@@ -86,7 +86,10 @@ export const SUPPLIER_FIELD_NAME: Readonly<Record<string, string>> = {
   standing: "Standing",
   reason: "Reason",
   effectiveOn: "Takes effect on",
-  endsOn: "Last blacklisted day",
+  // S-1: a blacklisting's endsOn is exclusive (the free-from day), as every period; the last day is its own field.
+  lastBlacklistedDay: "Last blacklisted day",
+  endsOn: "Free from",
+  /// Rows written before S-1 (none outside the demo, which is reloaded).
   freeFrom: "Free from",
   offence: "Offence",
   period: "Period",

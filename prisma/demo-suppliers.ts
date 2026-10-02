@@ -492,7 +492,7 @@ class Acts {
     refuse(`recording ${requestId}`, r.faults);
     const ends = r.period?.kind === "ENDS" ? r.period : null;
     await this.db.standingEvent.create({ data: { id: eventId, organisationId: this.org, supplierId: req.supplierId, kind: "BLACKLIST", reasonId: req.reasonId, reasonSnapshot: req.reasonSnapshot, effectiveOn: dayToDate(effectiveOn), endsOn: ends ? dayToDate(ends.endsOn) : null, offenceNo, periodMonths: ends?.months ?? null, requestId, note: req.note, recordedByPersonId: OFFICER.id, recordedAt: when } });
-    this.entry("StandingEvent", eventId, `${req.supplier.reference} · Blacklisting`, "CREATE", when, diffFields(null, { standing: "Blacklisted", reason: req.reasonSnapshot, effectiveOn, offence: "First offence", period: ends ? `${ends.months} months` : "Until further notice", endsOn: ends?.endsOn ?? null, freeFrom: ends?.freeFrom ?? null, recordedBy: OFFICER.name, recordedOnBehalf: "not signed" }));
+    this.entry("StandingEvent", eventId, `${req.supplier.reference} · Blacklisting`, "CREATE", when, diffFields(null, { standing: "Blacklisted", reason: req.reasonSnapshot, effectiveOn, offence: "First offence", period: ends ? `${ends.months} months` : "Until further notice", lastBlacklistedDay: ends?.lastDay ?? null, endsOn: ends?.endsOn ?? null, recordedBy: OFFICER.name, recordedOnBehalf: "not signed" }));
   }
 
   /// recordSpecialPermission (internal approval), then its route; grantSpecialPermission once approved.
@@ -688,14 +688,14 @@ export async function checkSuppliersDemo(db: Db) {
   if (unrouted !== 9) fail("a demo supplier route was routed on a value");
   // a2, read back as the product reads it.
   const { standingOf } = await import("../src/lib/suppliers/standing-repo");
-  const { addDays, addMonths } = await import("../src/lib/securities/period");
+  const { addMonths } = await import("../src/lib/securities/period");
   const org = v3.org;
   const today = org.today!;
   const st = async (k: number) => (await standingOf(`${P}vnd${k}`, org.id, today, db as never))!.reading;
   if ((await st(4)).standing !== "SUSPENDED") fail("vnd4 does not read suspended");
   const b5 = await st(5);
   const ev = await db.standingEvent.findUniqueOrThrow({ where: { id: `${P}vstd2` } });
-  if (b5.standing !== "BLACKLISTED" || b5.blacklist?.endsOn !== addDays(addMonths(ev.effectiveOn.toISOString().slice(0, 10), 60), -1)) fail("vnd5 does not read blacklisted for 60 months");
+  if (b5.standing !== "BLACKLISTED" || b5.blacklist?.endsOn !== addMonths(ev.effectiveOn.toISOString().slice(0, 10), 60)) fail("vnd5 does not read blacklisted for 60 months (endsOn exclusive: the free-from day)");
   const r3 = await st(3);
   if (r3.standing !== "ACTIVE" || !r3.notes.some((n) => n.code === "LAPSE_RULE_NOT_SET")) fail("vnd3 does not read “Active — lapse rule not set” (OD-7)");
   if ((await db.exerciseParty.findUniqueOrThrow({ where: { id: `${P}pty3` } })).vendorId !== null) fail("pty3 should stay unlinked");

@@ -3,7 +3,8 @@
  * its documents, never stored. Precedence, highest first:
  *
  * - NOT_REGISTERED: an applicant, or rejected; nothing below applies;
- * - BLACKLISTED: a blacklisting in effect (not lifted; a first offence only until its last day);
+ * - BLACKLISTED: a blacklisting in effect (not lifted; a first offence only before its `endsOn`, which is
+ *   exclusive: the free-from day, as every period in the project);
  * - CANCELLED: a registration cancellation in effect;
  * - SUSPENDED: a manual suspension in effect (not reinstated);
  * - SUSPENDED_ON_LAPSE (OD-7 A, derived on read, no scheduler): `autoSuspendOnLapse` is true and a
@@ -14,6 +15,8 @@
  *
  * An event takes effect on its effective day; one dated later is not yet in effect. Pure.
  */
+
+import { addDays } from "@/lib/securities/period";
 
 import type { DocumentState } from "./documents";
 import type { Finding } from "./types";
@@ -29,7 +32,8 @@ export interface StandingEventFacts {
   kind: StandingEventKind;
   /// YYYY-MM-DD.
   effectiveOn: string;
-  /// A first-offence blacklisting's last day, inclusive. Null: until further notice.
+  /// A first-offence blacklisting's end, exclusive: the day the supplier is free from (its last blacklisted
+  /// day is the day before). Null: until further notice.
   endsOn: string | null;
   offenceNo: number | null;
   reasonLabel: string;
@@ -71,13 +75,13 @@ export function standing(
   const latest = (xs: StandingEventFacts[]) => [...xs].sort((a, b) => b.effectiveOn.localeCompare(a.effectiveOn) || b.id.localeCompare(a.id))[0] ?? null;
 
   const blacklistings = inEffect.filter((e) => e.kind === "BLACKLIST" && !ended(e.id, "liftsEventId"));
-  const blacklist = latest(blacklistings.filter((e) => e.endsOn == null || on <= e.endsOn));
+  const blacklist = latest(blacklistings.filter((e) => e.endsOn == null || on < e.endsOn));
   const suspension = latest(inEffect.filter((e) => e.kind === "SUSPEND" && !ended(e.id, "reinstatesEventId")));
   const cancellation = latest(inEffect.filter((e) => e.kind === "REGISTRATION_CANCELLED"));
   const lapsed = mandatory.filter((m) => m.state === "EXPIRED").map((m) => m.typeLabel);
   const notes: Finding<StandingNote>[] = [];
-  const over = latest(blacklistings.filter((e) => e.endsOn != null && on > e.endsOn));
-  if (!blacklist && over) notes.push({ code: "BLACKLIST_ENDED", level: "info", data: { endsOn: over.endsOn } });
+  const over = latest(blacklistings.filter((e) => e.endsOn != null && on >= e.endsOn));
+  if (!blacklist && over) notes.push({ code: "BLACKLIST_ENDED", level: "info", data: { lastDay: addDays(over.endsOn!, -1), freeFrom: over.endsOn } });
   const scheduled = events.find((e) => e.effectiveOn > on && (e.kind === "SUSPEND" || e.kind === "BLACKLIST" || e.kind === "REGISTRATION_CANCELLED"));
   if (scheduled) notes.push({ code: "SCHEDULED", level: "info", data: { kind: scheduled.kind, effectiveOn: scheduled.effectiveOn } });
 

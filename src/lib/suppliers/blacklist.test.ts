@@ -6,12 +6,12 @@ import { FIRST_OFFENCE_MONTHS } from "./fixture";
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
 
 describe("a blacklisting's period (FR-TRM-017, condition 4)", () => {
-  it("worked example: 60 months effective 1 October 2026: last blacklisted day 30 September 2031, free from 1 October 2031", () => {
-    expect(blacklistPeriod("2026-10-01", 1, FIRST_OFFENCE_MONTHS)).toEqual({ period: { kind: "ENDS", endsOn: "2031-09-30", freeFrom: "2031-10-01", months: 60 }, faults: [] });
+  it("worked example: 60 months effective 1 October 2026: endsOn 1 October 2031 (exclusive, the free-from day), last blacklisted day 30 September 2031", () => {
+    expect(blacklistPeriod("2026-10-01", 1, FIRST_OFFENCE_MONTHS)).toEqual({ period: { kind: "ENDS", endsOn: "2031-10-01", lastDay: "2031-09-30", months: 60 }, faults: [] });
   });
 
   it("month-end clamped, as retention elapses (BD-DS-10): 31 August 2026 plus 6 months is free from 28 February 2027", () => {
-    expect(blacklistPeriod("2026-08-31", 1, 6).period).toEqual({ kind: "ENDS", endsOn: "2027-02-27", freeFrom: "2027-02-28", months: 6 });
+    expect(blacklistPeriod("2026-08-31", 1, 6).period).toEqual({ kind: "ENDS", endsOn: "2027-02-28", lastDay: "2027-02-27", months: 6 });
   });
 
   it("a second offence has no end, whatever the months", () => {
@@ -80,7 +80,7 @@ describe("recording an approved request", () => {
   const ctx = { today: "2026-10-01", request: approved, standing: "ACTIVE", offenceNo: 1, months: 60 };
 
   it("a first offence on an approved route: recorded with its period", () => {
-    expect(recordFaults({ effectiveOn: "2026-10-01", personActive: true }, ctx)).toEqual({ faults: [], period: { kind: "ENDS", endsOn: "2031-09-30", freeFrom: "2031-10-01", months: 60 } });
+    expect(recordFaults({ effectiveOn: "2026-10-01", personActive: true }, ctx)).toEqual({ faults: [], period: { kind: "ENDS", endsOn: "2031-10-01", lastDay: "2031-09-30", months: 60 } });
   });
 
   it("on the day of the approval itself: recorded; the day before, or after today: refused", () => {

@@ -7248,8 +7248,9 @@ model StandingEvent {
   reasonSnapshot     String            @default("")
   /// The organisation's day it takes effect.
   effectiveOn        DateTime
-  /// A first-offence blacklisting's last day (inclusive), from the policy's months as they stood. Null:
-  /// until further notice.
+  /// A first-offence blacklisting's end, exclusive (6.15a fix S-1, as every period in the project): the
+  /// day the supplier is free from; its last blacklisted day is the day before. From the policy's months
+  /// as they stood. Null: until further notice.
   endsOn             DateTime?
   /// Which blacklisting of this supplier it is (1 is the first offence).
   offenceNo          Int?
