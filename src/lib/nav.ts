@@ -50,7 +50,8 @@ export const STAFF_NAV: NavGroup[] = [
   {
     label: "Supply base",
     items: [
-      { href: "/suppliers", label: "Suppliers", icon: "building" },
+      // 6.15a: the staff-side register (ADR 0019). The vendor workspace below stays not built until sign-in (6.15b).
+      { href: "/suppliers", label: "Suppliers", icon: "building", built: true },
       { href: "/documents", label: "Documents", icon: "files" },
     ],
   },
@@ -226,6 +227,15 @@ export const CONFIG_SECTIONS: {
         label: "Reference data",
         description: "Sourcing methods, contract types, funding routes and code lists.",
         icon: "globe",
+        built: true,
+      },
+      // 6.15a: the prototype keeps CIDB grades and MOF codes on Reference data; here every registration
+      // body's values sit with the register, per body, never as regulator columns (FR-VND-003).
+      {
+        href: "/configuration/suppliers",
+        label: "Supplier register",
+        description: "Registration bodies' values, statutory document types, entity types and countries, and the verification notice.",
+        icon: "building",
         built: true,
       },
       {

@@ -13,6 +13,7 @@ import { ORGANISATION_CODE } from "@/lib/org";
 import { documentTypeFaults, listValueFaults, valueFaults } from "@/lib/suppliers/config";
 import { LIST_KIND_SINGULAR, supplierFaultText, VALUE_KIND_LABEL } from "@/lib/suppliers/labels";
 import { REGISTRATION_VALUE_KINDS, SUPPLIER_LIST_KINDS, type Finding, type RegistrationValueKind, type SupplierListKind } from "@/lib/suppliers/types";
+import { splitValues } from "@/lib/ui/select-logic";
 import { FormReader } from "@/lib/validate";
 
 /**
@@ -153,7 +154,10 @@ export async function saveDocumentType(_prev: FormState, data: FormData): Promis
     provenance: r.choice("provenance", "Where it comes from", PROVENANCE),
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
   };
-  const valueKinds = data.getAll("valueKinds").map(String).filter((k): k is RegistrationValueKind => (REGISTRATION_VALUE_KINDS as readonly string[]).includes(k));
+  // The shared multi-select posts its choices as one newline-joined field (splitValues).
+  const posted = splitValues(data.get("valueKinds"));
+  const valueKinds = posted.filter((k): k is RegistrationValueKind => (REGISTRATION_VALUE_KINDS as readonly string[]).includes(k));
+  if (valueKinds.length !== posted.length) return { ok: false, errors: { valueKinds: "A value kind chosen is not one of the available options." } };
   const reason = String(data.get("reason") ?? "").trim();
   if (r.failed) return { ok: false, errors: r.errors };
   return db.$transaction(async (tx): Promise<FormState> => {
