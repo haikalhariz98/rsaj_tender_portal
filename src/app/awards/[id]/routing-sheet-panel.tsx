@@ -1,0 +1,97 @@
+import { RoutingSheetView } from "@/components/certificate/routing-sheet";
+import { RouteIcon } from "@/components/icons";
+import { RecordEditor, type Field } from "@/components/record-editor";
+import { buttonClass } from "@/components/ui/button";
+import { Card, CardHeader } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/feedback";
+import type { LoadedAward } from "@/lib/award/repo";
+import { awardSheetOf, loadAwardSheetRows } from "@/lib/certificate/award-sheet";
+import { db } from "@/lib/db";
+import { ON_BEHALF_HINT } from "@/lib/documents/labels";
+import { storedDay } from "@/lib/dates";
+
+import { recordAwardRoutingCheck, recordAwardRoutingReceived, startAwardRoutingSheet } from "./routing-actions";
+
+/**
+ * The award's pre-award routing sheet (6.14 increment 1, rulings condition; flagged against accepted 6.11): a
+ * routing sheet type drawn over the appointment route, with its own checks and DATE (1). The committee and
+ * approver blocks the award already shows (FR-CTE-014) are unchanged; this tab adds the sheet around them.
+ */
+
+type Option = { value: string; label: string };
+const hidden = (name: string): Field => ({ kind: "hidden", name });
+const secondary = buttonClass("secondary", "sm");
+const ghost = buttonClass("ghost", "sm");
+const primary = buttonClass("primary", "sm");
+
+export async function AwardRoutingSheetPanel({ l, people, today }: { l: LoadedAward; people: Option[]; today: string | null }) {
+  const award = l.award;
+  const rows = await loadAwardSheetRows(award.id, db);
+  const sheet = today ? awardSheetOf(l, rows, today) : null;
+  const open = award.status !== "CANCELLED";
+  if (!rows.sheet) {
+    const types = await db.routingSheetType.findMany({ where: { organisationId: l.org.id, subject: "AWARD", OR: [{ retiredOn: null }, ...(today ? [{ retiredOn: { gt: new Date(`${today}T00:00:00.000Z`) } }] : [])] }, orderBy: [{ sortOrder: "asc" }, { labelEn: "asc" }], select: { id: true, labelEn: true } });
+    const blocker = !today ? "Set the organisation's time zone first." : !open ? "The award is cancelled." : types.length === 0 ? "No routing sheet type is drawn over an award's route: add one under Configuration › Routing sheets." : null;
+    return (
+      <Card>
+        <CardHeader
+          icon={<RouteIcon size={17} />}
+          title="Routing sheet"
+          subtitle="The pre-award routing sheet around the appointment route: DATE (1), its internal checks, the route's own steps and DATE (2), and the elapsed time against the sheet's target."
+          actions={
+            <RecordEditor
+              title="Start the routing sheet"
+              description="Freezes the chosen type, its checks and its targets on this award, as they stand today."
+              fields={[hidden("id"), { kind: "select", name: "typeId", label: "Routing sheet", required: true, placeholder: "Choose", options: types.map((t) => ({ value: t.id, label: t.labelEn })) }]}
+              values={{ id: award.id }}
+              action={startAwardRoutingSheet}
+              submitLabel="Start"
+              submitBlock={blocker}
+              trigger={{ label: "Start the routing sheet", className: primary }}
+            />
+          }
+        />
+        <EmptyState size="sm" title="Not started">No routing sheet is kept for this award yet.</EmptyState>
+      </Card>
+    );
+  }
+  if (!sheet) {
+    return (
+      <Card>
+        <CardHeader icon={<RouteIcon size={17} />} title="Routing sheet" />
+        <EmptyState size="sm" title="Not judged">Set the organisation&apos;s time zone first.</EmptyState>
+      </Card>
+    );
+  }
+  const received = rows.sheet.receivedOn ? storedDay(rows.sheet.receivedOn) : null;
+  return (
+    <RoutingSheetView
+      sheet={sheet}
+      open={open}
+      headerAction={
+        open ? (
+          <RecordEditor
+            title="DATE (1): received"
+            description="The day the document reached the routing sheet. It starts the internal clock. Not in the future, and not after the first check is recorded."
+            fields={[hidden("id"), { kind: "date", name: "receivedOn", label: "Received on", required: true }]}
+            values={{ id: award.id, receivedOn: received ?? today }}
+            action={recordAwardRoutingReceived}
+            trigger={received ? { label: "Correct DATE (1)", className: ghost } : { label: "Record DATE (1)", className: secondary }}
+          />
+        ) : undefined
+      }
+      checkAction={(def) => (
+        <RecordEditor
+          title={def.labelEn}
+          description={def.officeLabel ? `Recorded for a holder of ${def.officeLabel} on the day (or a delegate of the whole office).` : "No office is set for this check on its type: any officer may be named, and the sheet says so."}
+          fields={[hidden("id"), hidden("defOrder"), { kind: "select", name: "personId", label: "Recorded for", required: true, placeholder: "Choose", options: people, hint: ON_BEHALF_HINT }, { kind: "date", name: "on", label: "On", required: true }, { kind: "textarea", name: "note", label: "Note" }]}
+          values={{ id: award.id, defOrder: String(def.order), on: today }}
+          action={recordAwardRoutingCheck}
+          submitBlock={sheet.date1 ? null : "Record DATE (1) first."}
+          trigger={{ label: "Record", className: secondary, ariaLabel: `Record ${def.labelEn}` }}
+        />
+      )}
+      routeNote="The appointment route is not open yet: it opens when the award is sent for approval."
+    />
+  );
+}

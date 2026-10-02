@@ -87,6 +87,7 @@ import { applicableRequirements, derivedLimit, wcSumCheck } from "@/lib/securiti
 import { db } from "@/lib/db";
 import { tablingQuery } from "@/lib/committee/table-prefill";
 
+import { AwardRoutingSheetPanel } from "./routing-sheet-panel";
 import {
   AddConditionDrawer,
   AWARD_NOTE_ID,
@@ -333,6 +334,8 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
       count: securities.length + policies.length,
       panel: <SecuritiesPanel l={l} ev={ev} f={f} requirements={requirements} people={people} today={today} termsValues={termsValues} />,
     },
+    // 6.14 increment 1 (rulings condition): the pre-award routing sheet over the appointment route.
+    { id: "routing", label: "Routing sheet", icon: <SlidersIcon size={15} />, lazy: true, panel: tab === "routing" ? <AwardRoutingSheetPanel l={l} people={people} today={today} /> : null },
     { id: "history", label: "History", icon: <ClockIcon size={15} />, count: history.total, panel: <HistoryPanel entries={history.entries} total={history.total} timeZone={org.timeZone} /> },
   ];
 
@@ -1259,6 +1262,9 @@ const ENTITY_LABEL: Record<string, string> = {
   AwardCondition: "Condition",
   SecurityInstrument: "Security",
   InsurancePolicy: "Insurance policy",
+  // 6.14: the pre-award routing sheet and its checks.
+  AwardRoutingSheet: "Routing sheet",
+  RoutingCheck: "Routing check",
 };
 const ACTION_LABEL = { CREATE: "Created", UPDATE: "Changed", DELETE: "Removed" } as const;
 const FIELD_NAME: Record<string, string> = {
