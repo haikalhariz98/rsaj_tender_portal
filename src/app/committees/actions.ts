@@ -21,6 +21,7 @@ import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
 import { diffFields, type FieldChange } from "@/lib/audit/diff";
+import { formatOrgDateTime } from "@/lib/format";
 import { auditedCreate, writeAudit, type Tx } from "@/lib/audit/record";
 import {
   checkAttendanceChange,
@@ -310,7 +311,8 @@ export async function changeStatus(_prev: FormState, data: FormData): Promise<Fo
     });
     if (moved.count !== 1) return { ok: false, message: "The sitting changed while this was being saved. Reload and try again." };
     await audit(tx, s, "Meeting", m.id, m.reference, "UPDATE",
-      diffFields({ status: m.status, cancelledReason: m.cancelledReason, minutedAt: m.minutedAt }, after), reason);
+      // 68-C5: minutedAt is an instant, written on the organisation's clock (never renderValue's UTC day).
+      diffFields({ status: m.status, cancelledReason: m.cancelledReason, minutedAt: m.minutedAt ? formatOrgDateTime(m.minutedAt, s.timeZone) : null }, { ...after, ...(minutedAt ? { minutedAt: formatOrgDateTime(minutedAt, s.timeZone) } : {}) }), reason);
     return { ok: true };
   });
 }
@@ -696,7 +698,7 @@ export async function withdrawMatter(_prev: FormState, data: FormData): Promise<
     const withdrawnAt = new Date();
     const moved = await tx.committeeDecision.updateMany({ where: { id: decision.id, outcome: "PENDING", withdrawnAt: null }, data: { withdrawnAt, withdrawnReason: reason } });
     if (moved.count !== 1) return { ok: false, message: "The matter changed while this was being saved. Reload and try again." };
-    await audit(tx, s, "CommitteeDecision", decision.id, decision.subject, "UPDATE", diffFields({ withdrawnAt: null }, { withdrawnAt, withdrawn: "from the agenda, before the sitting opened" }), reason);
+    await audit(tx, s, "CommitteeDecision", decision.id, decision.subject, "UPDATE", diffFields({ withdrawnAt: null }, { withdrawnAt: formatOrgDateTime(withdrawnAt, s.timeZone), withdrawn: "from the agenda, before the sitting opened" }), reason);
     return { ok: true };
   });
 }
