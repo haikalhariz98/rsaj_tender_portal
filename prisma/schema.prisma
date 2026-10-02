@@ -886,6 +886,11 @@ model CommitteeDecision {
   evaluationBidder   EvaluationBidder? @relation(fields: [evaluationBidderId], references: [id], onDelete: SetNull)
   /// 6.8 (FR-CTE-009): the evaluation versions a NOT_CARRIED loop on this matter opened.
   evaluationsLooped  Evaluation[]      @relation("EvaluationLoopDecision")
+  /// 6.8 fix M-3 (E-8): the evaluation version in force, its bundle checked, when an appointment
+  /// matter on an exercise was tabled. The matter is cited at award, and its NOT_CARRIED loop opens a
+  /// version, only while that version is still the one in force. Null: tabled without an evaluation
+  /// bundle (an exercise not evaluated in the portal), or before the version was recorded.
+  evaluationVersion  Int?
 
   /// Withdrawn from the agenda before the sitting opened (6.10 follow-up). The row is
   /// kept, and the matter is left out of the votes, the quorum and the minuting.
