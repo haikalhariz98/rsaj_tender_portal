@@ -19,7 +19,7 @@ import { dayIn, dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { isLive } from "@/lib/documents/evidence";
 import type { ExerciseRow } from "@/lib/method/repo";
-import { pathTo } from "@/lib/organisation/structure";
+import { wholePathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster, type RosterData } from "@/lib/people/load";
@@ -165,7 +165,8 @@ export async function openingContext(l: { org: { id: string; timeZone: string | 
     mainCommittee,
     mainSeats: mainCommittee && on ? seatHolders(mainCommittee.members, roster, on) : [],
     roster,
-    unitPath: (code: string) => (on ? pathTo(units, code, on).map((u) => u.code) : []),
+    /// 67-C5: the whole path or none — a unit under one not in force on the day is not in the structure, and the independence rule blocks.
+    unitPath: (code: string) => (on ? wholePathTo(units, code, on).map((u) => u.code) : []),
     unitCodes: new Set(units.map((u) => u.code)),
     holdsOffice: (personId: string, roleCode: string | null) => !!roleCode && !!on && holdersOf(roster, roleCode, on).some((p) => p.id === personId),
   };

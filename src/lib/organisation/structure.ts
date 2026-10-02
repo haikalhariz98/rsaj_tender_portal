@@ -75,6 +75,22 @@ export function pathTo(units: readonly OrgUnit[], code: string, on: Date): OrgUn
   return chain;
 }
 
+/**
+ * The path from a unit to the top, as `pathTo`, but only where the whole way up is in force on the
+ * date; otherwise none ([]). `pathTo` stops at the first ancestor not in force, so a unit sitting
+ * under a retired (or not yet effective) unit gets a path cut short, which a rule asking "is this unit
+ * under that one?" would read as "no". Saving a unit checks its parent only when it is created, so
+ * retiring the parent later leaves exactly that shape. Where the answer must not be guessed (6.7's
+ * independence rule, FR-CTE-011), a broken path is no path: the rule says the unit is not in the
+ * structure in force and blocks, and the structure screen reports the detached unit (`buildStructure`).
+ * A loop in the parent codes is broken the same way.
+ */
+export function wholePathTo(units: readonly OrgUnit[], code: string, on: Date): OrgUnit[] {
+  const chain = pathTo(units, code, on);
+  // Root-first: a whole path starts at a unit with no parent. One that names a parent stopped short.
+  return chain.length > 0 && !chain[0].parentCode ? chain : [];
+}
+
 /// The codes that form a loop starting from `code`, or null where there is none.
 function cycleFrom(
   code: string,
