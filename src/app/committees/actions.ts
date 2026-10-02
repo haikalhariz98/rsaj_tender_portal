@@ -19,6 +19,7 @@ import {
   RECORD_TABLED_DOMAIN_TEXT,
   SITTING_TABLED_MATTER_KINDS,
   sittingTablesDomain,
+  recordTabledText,
   OUTCOME_FAULT_MESSAGE,
   TABLING_FAULT_MESSAGE,
   TRANSITION_FAULT_MESSAGE,
@@ -370,8 +371,11 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
   const r = new FormReader(data);
   const subject = r.text("subject", "Subject", { required: true, max: 400 });
   const domain = r.text("domain", "Matter", { required: true, max: 60 });
-  if (domain && !sittingTablesDomain(domain)) r.reject("domain", RECORD_TABLED_DOMAIN_TEXT);
+  if (domain && !sittingTablesDomain(domain)) r.reject("domain", recordTabledText(domain) ?? RECORD_TABLED_DOMAIN_TEXT);
   const matterKind = r.choice("matterKind", "Record kind", SITTING_TABLED_MATTER_KINDS);
+  // A kind tabled only from its record (scope, late tender admission) is refused naming where (6.6 CR-1).
+  const kindTabledElsewhere = recordTabledText(String(data.get("matterKind") ?? ""));
+  if (kindTabledElsewhere) r.reject("matterKind", kindTabledElsewhere);
   const matterRef = r.optionalText("matterRef");
   if (matterKind && !matterRef) r.reject("matterRef", "Give the reference of the record the matter concerns.");
   const amount = r.money("amount", "Amount");

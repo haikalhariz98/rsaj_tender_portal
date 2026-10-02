@@ -10,6 +10,7 @@ import type { AttendanceFault } from "./sitting";
 import type { MatterBlocker, OutcomeFault, VoteFault } from "./matter";
 import type { TablingFault } from "./tabling";
 import type { TransitionFault } from "./meeting";
+import { LATE_DOMAIN } from "@/lib/bids/late";
 import { SCOPE_DOMAIN } from "@/lib/scope/scope-matter";
 
 export const MEETING_STATUS_LABEL = {
@@ -63,16 +64,28 @@ export const MATTER_KIND_LABEL = {
 export type MatterKind = keyof typeof MATTER_KIND_LABEL;
 export const MATTER_KINDS = Object.keys(MATTER_KIND_LABEL) as MatterKind[];
 
-/// Kinds tabled from the sitting's own drawer. A SCOPE matter names the bill version it
-/// tables by a typed key, so it is tabled from the exercise's Scope section, which knows the
-/// version (6.2 OD-9); the sitting's drawer neither offers it nor accepts it.
-export const SITTING_TABLED_MATTER_KINDS = MATTER_KINDS.filter((k) => k !== "SCOPE");
+/// Kinds tabled only from their own record. A SCOPE matter names the bill version it tables by a
+/// typed key, so it is tabled from the exercise's Scope section, which knows the version (6.2
+/// OD-9). A LATE_TENDER matter names its envelope by a typed key, so it is tabled from the Bids
+/// received tab (6.6 code review CR-1): tabled from a sitting it would name no envelope, its
+/// decision would never count and the late-admission gate would hold the award for ever.
+export const RECORD_TABLED_MATTER_KINDS: readonly MatterKind[] = ["SCOPE", "LATE_TENDER"];
 
-/// Matter domains tabled only from their own record, for the same reason: a scope-approval
-/// matter tabled from the sitting would name no bill version, so its decision could never count.
-export const RECORD_TABLED_DOMAINS: readonly string[] = [SCOPE_DOMAIN];
+/// Kinds tabled from the sitting's own drawer: every kind but those tabled from their record.
+export const SITTING_TABLED_MATTER_KINDS = MATTER_KINDS.filter((k) => !RECORD_TABLED_MATTER_KINDS.includes(k));
+
+/// Matter domains tabled only from their own record, for the same reasons.
+export const RECORD_TABLED_DOMAINS: readonly string[] = [SCOPE_DOMAIN, LATE_DOMAIN];
 export const RECORD_TABLED_DOMAIN_TEXT = "Scope approval is tabled from the exercise, under Scope and estimate, Scope, which names the bill version the committee decides on.";
+export const LATE_TABLED_TEXT = "Late tender admission is tabled from the exercise, on its Bids received tab, which names the envelope the committee decides on.";
 export const sittingTablesDomain = (domain: string) => !RECORD_TABLED_DOMAINS.includes(domain);
+
+/// Where a domain or a kind tabled only from its record is tabled, said when a sitting is asked to table it.
+export function recordTabledText(domainOrKind: string): string | null {
+  if (domainOrKind === SCOPE_DOMAIN || domainOrKind === "SCOPE") return RECORD_TABLED_DOMAIN_TEXT;
+  if (domainOrKind === LATE_DOMAIN || domainOrKind === "LATE_TENDER") return LATE_TABLED_TEXT;
+  return null;
+}
 
 export const POSITION_LABEL = {
   CHAIRMAN: "Chairman",
