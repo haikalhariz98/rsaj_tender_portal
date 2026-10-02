@@ -165,7 +165,7 @@ export async function recordWithdrawal(_prev: FormState, data: FormData): Promis
       if (moved.count !== 1) return { ok: false, message: "The envelope changed while this was being saved. Reload and try again." };
       await audit(tx, l.org.id, BID_ENTITY.envelope, env.id, label(l, `Envelope ${env.sequence}`), "UPDATE", diffFields(statusField("RECEIVED"), statusField("WITHDRAWN")));
     }
-    return { ok: true, message: "Withdrawal recorded. Attach the letter to it on the Bids received tab." };
+    return { ok: true, message: "Withdrawal recorded. Attach the letter to it in the Received section of Bids and opening." };
   });
 }
 

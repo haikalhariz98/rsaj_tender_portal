@@ -33,7 +33,7 @@ describe("late tender admission is tabled only from the Bids received tab (6.6 C
   it("the refusal names Bids received, for the kind and for the domain; scope's still names Scope", async () => {
     const { LATE_DOMAIN } = await import("@/lib/bids/late");
     const { recordTabledText } = await import("./labels");
-    expect(recordTabledText("LATE_TENDER")).toMatch(/Bids received tab/);
+    expect(recordTabledText("LATE_TENDER")).toMatch(/the Received section of Bids and opening/);
     expect(recordTabledText(LATE_DOMAIN)).toBe(recordTabledText("LATE_TENDER"));
     expect(recordTabledText("SCOPE")).toBe(RECORD_TABLED_DOMAIN_TEXT);
     expect(recordTabledText(SCOPE_DOMAIN)).toBe(RECORD_TABLED_DOMAIN_TEXT);

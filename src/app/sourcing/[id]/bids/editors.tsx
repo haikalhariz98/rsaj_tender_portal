@@ -6,7 +6,7 @@ import { WITHDRAWAL_QUOTE_HINT } from "@/lib/bids/labels";
 import { applyValidityExtension, correctEnvelope, lockBox, recordReceiptAfterTheFact, recordReceiptNow, recordReturnedUnopened, recordValidityExtension, recordWithdrawal, saveBidAnswers, tableLateMatter } from "./actions";
 
 /**
- * The drawers of the Bids received tab. Fields are data; every rule sits in the action and the
+ * The drawers of the Received section of Bids and opening. Fields are data; every rule sits in the action and the
  * pure checks behind it (`src/lib/bids`). Where those checks already say an act cannot proceed,
  * the control is disabled with the reason beside it, judged by the rule the action runs. There is
  * no time field on the server-stamped receipt: the server's clock stamps it. There is no Delete and

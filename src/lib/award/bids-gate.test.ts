@@ -66,7 +66,7 @@ describe("sending it for approval", () => {
 
 describe("the words", () => {
   it("each reads in the register's words, naming where to act", () => {
-    expect(awardFindingText(late.lateFault!)).toMatch(/Bids received tab/);
+    expect(awardFindingText(late.lateFault!)).toMatch(/the Received section of Bids and opening/);
     expect(awardFindingText(expired.validityFault!)).toMatch(/expired on 17 Mar 2027/);
     expect(awardFindingText({ code: "VALIDITY_NOT_SET", level: "block" })).toMatch(/not set on the window/);
     expect(awardFindingText({ code: "VALIDITY_NOT_JUDGED", level: "block", data: { why: "TIME_ZONE_UNSET" } })).toMatch(/time zone/);

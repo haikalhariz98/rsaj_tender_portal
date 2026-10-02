@@ -26,7 +26,7 @@ export interface BidsView {
 const EARLY = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING", "APPROVED_FOR_TENDERING"];
 
 /**
- * The Bids received tab (6.6 plan §5): the register of envelopes, never offers. Read only while it
+ * The Received section of Bids and opening (6.6 plan §5): the register of envelopes, never offers. Read only while it
  * is the tab being looked at. Every act is judged by the rule its action runs; a disabled one says
  * why in the header's note. There is no Delete and no Reject anywhere.
  */

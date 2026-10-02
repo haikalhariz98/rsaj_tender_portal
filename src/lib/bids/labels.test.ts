@@ -61,13 +61,13 @@ describe("the checklist card's words (6.6 review S-5)", () => {
 
 describe("the late-admission hold, worded for where it is read (6.6 review copy nit)", () => {
   const gate = (count: number, extra: Record<string, string> = {}) => bidFindingText({ code: "LATE_UNDECIDED", level: "block", data: { count, committeeSet: "yes", ...extra } });
-  it("on the Award tab (and elsewhere) it names the Bids received tab, and one envelope reads as it", () => {
-    expect(gate(1)).toBe("1 late envelope waits for the committee's decision on admission. Table it on the Bids received tab; it is decided at the sitting, either way.");
-    expect(gate(2)).toBe("2 late envelopes wait for the committee's decision on admission. Table each on the Bids received tab; it is decided at the sitting, either way.");
+  it("on the Award tab (and elsewhere) it names the Received section of Bids and opening, and one envelope reads as it", () => {
+    expect(gate(1)).toBe("1 late envelope waits for the committee's decision on admission. Table it in the Received section of Bids and opening; it is decided at the sitting, either way.");
+    expect(gate(2)).toBe("2 late envelopes wait for the committee's decision on admission. Table each in the Received section of Bids and opening; it is decided at the sitting, either way.");
   });
-  it("on the Bids received tab itself it points below, never to the tab it is on", () => {
+  it("in the Received section itself it points below, never to the section it is in", () => {
     expect(gate(1, { here: "yes" })).toBe("1 late envelope waits for the committee's decision on admission. Table it below; it is decided at the sitting, either way.");
-    expect(gate(1, { here: "yes" })).not.toMatch(/Bids received tab/);
+    expect(gate(1, { here: "yes" })).not.toMatch(/Received section/);
     expect(bidFindingText({ code: "LATE_UNDECIDED", level: "block", data: { count: 2, committeeSet: "no", here: "yes" } })).toMatch(/then table each below\.$/);
   });
 });

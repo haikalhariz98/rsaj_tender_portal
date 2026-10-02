@@ -79,7 +79,7 @@ export const SITTING_TABLED_MATTER_KINDS = MATTER_KINDS.filter((k) => !RECORD_TA
 /// Matter domains tabled only from their own record, for the same reasons.
 export const RECORD_TABLED_DOMAINS: readonly string[] = [SCOPE_DOMAIN, LATE_DOMAIN];
 export const RECORD_TABLED_DOMAIN_TEXT = "Scope approval is tabled from the exercise, under Scope and estimate, Scope, which names the bill version the committee decides on.";
-export const LATE_TABLED_TEXT = "Late tender admission is tabled from the exercise, on its Bids received tab, which names the envelope the committee decides on.";
+export const LATE_TABLED_TEXT = "Late tender admission is tabled from the exercise, in the Received section of Bids and opening, which names the envelope the committee decides on.";
 
 /// Matter domains no sitting decides at all (6.6 review S-9): a committee decision on either would
 /// be read by nothing. A change to the invitation window is approved on its route, where a committee

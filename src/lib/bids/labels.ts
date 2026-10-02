@@ -13,6 +13,9 @@ import type { Competition } from "./count";
 import type { CompletenessConsequence } from "./completeness";
 import type { EnvelopeChannel, EnvelopeKind, EnvelopeStatus, Finding, ReceiptSource } from "./types";
 
+/// Where the register is acted on, as a screen names it (6.7 OD-8: the tab is "Bids and opening", its first section Received; review S-2).
+export const RECEIVED_SECTION = "the Received section of Bids and opening";
+
 export const ENVELOPE_KIND_LABEL: Readonly<Record<EnvelopeKind, string>> = {
   BID: "Bid",
   ALTERNATIVE: "Alternative bid",
@@ -206,8 +209,8 @@ export function bidFindingText(f: Finding): string {
     case "LATE_UNDECIDED": {
       const n = Number(d(f, "count") ?? 0);
       const lead = `${n} late ${n === 1 ? "envelope waits" : "envelopes wait"} for the committee's decision on admission.`;
-      // Said on the Bids received tab itself ("here": yes), the way to act is below, not "on the Bids received tab".
-      const where = d(f, "here") === "yes" ? "below" : "on the Bids received tab";
+      // Said on the Received section itself ("here": yes), the way to act is below, not "in the Received section" (6.7 review S-2).
+      const where = d(f, "here") === "yes" ? "below" : `in ${RECEIVED_SECTION}`;
       const which = n === 1 ? "it" : "each";
       if (d(f, "committeeSet") === "no" && d(f, "asPublished")) return `${lead} ${frozenCommitteeText(d(f, "asPublished"))}`;
       return d(f, "committeeSet") === "no"
@@ -229,9 +232,9 @@ export function bidFindingText(f: Finding): string {
       return "That sitting no longer takes matters.";
     // ---- validity
     case "VALIDITY_NOT_SET":
-      return "The bids' validity is not set on the window, so whether they are still valid cannot be judged. Record the days the tender documents state on the Bids received tab.";
+      return `The bids' validity is not set on the window, so whether they are still valid cannot be judged. Record the days the tender documents state in ${RECEIVED_SECTION}.`;
     case "BID_VALIDITY_EXPIRED":
-      return `The bids' validity expired on ${day(d(f, "expiry"))}. Record an extension, with the recommended tenderer's consent, on the Bids received tab.`;
+      return `The bids' validity expired on ${day(d(f, "expiry"))}. Record an extension, with the recommended tenderer's consent, in ${RECEIVED_SECTION}.`;
     case "VALIDITY_NOT_JUDGED":
       return d(f, "why") === "NO_CLOSING" ? "The exercise has no closing, so the bids' validity cannot be counted." : "The organisation's time zone is not set, so the bids' validity cannot be judged. Set it under Configuration › Organisation.";
     case "NOT_CLOSED":

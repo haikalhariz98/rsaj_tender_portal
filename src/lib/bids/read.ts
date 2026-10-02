@@ -1,5 +1,5 @@
 /**
- * The Bids received tab's read model (6.6 plan §5): the register, the box, the late envelopes and
+ * The Received section of Bids and opening's read model (6.6 plan §5): the register, the box, the late envelopes and
  * their admission, the validity, the count and the checklist preview — every act's availability
  * judged by the same pure rule the action re-runs under its locks, so a disabled action and a
  * refused one give the same reason. Words only: codes never reach the screen.
