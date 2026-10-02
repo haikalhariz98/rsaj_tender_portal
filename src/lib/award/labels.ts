@@ -155,6 +155,10 @@ export const FIX_AT: Record<string, { href: string; label: string }> = {
 };
 
 /// The text of a finding from `src/lib/award` (and the method findings it passes through).
+/// 68-C3 residual: a quotation's ceiling was never recorded, so an awarded value that differs from the
+/// recommendation cannot be judged against it; the recommended price was judged when it was formed.
+export const AWARD_CEILING_NOT_RECORDED = "This quotation's ceiling was never recorded when the exercise was classified, so an awarded value different from the recommendation cannot be judged against it. Award at the recommended price.";
+
 export function awardFindingText(f: Finding): string {
   const d = f.data ?? {};
   switch (f.code) {
@@ -352,8 +356,10 @@ export function awardFindingText(f: Finding): string {
     case "PERIOD_DIFFERS_REASON_REQUIRED":
     // Phase 2 close-out 68-C3: a differing value above the frozen quotation ceiling.
     case "VALUE_ABOVE_CEILING":
-    case "BOUNDARY_NOT_RECORDED":
       return evaluationFindingText(f);
+    // Residual 2: the award's own exit (the evaluation's names cancelling the exercise, which does not fit an award).
+    case "BOUNDARY_NOT_RECORDED":
+      return AWARD_CEILING_NOT_RECORDED;
     default:
       return methodFindingText(f);
   }
