@@ -6,7 +6,7 @@ decision · reason · spec ID.
 
 ## Where the build stopped
 
-Phase 1 ACCEPTED WITH CARRIES at 31c1923; document store at f60e04b; 6.2 at 716c474; 6.4 at 591d850; 6.5 ACCEPTED WITH CARRIES at 86f502a. Now: 64-C4 (award pre-fill from the frozen Appendix, in progress), then 65-C1, then 6.6, 6.7, 6.8 (docs/notes/plans/phase2-rulings.md); then 6.15a and Phases 4–6 (phase3-6-rulings.md). Founder's open questions held for the end; founder chose the full review cycle (option 1).
+Phase 1 ACCEPTED WITH CARRIES at 31c1923; document store at f60e04b; 6.2 at 716c474; 6.4 at 591d850; 6.5 ACCEPTED WITH CARRIES at 86f502a; 64-C4 accepted with carries at 564ee2c; 65-C1 closed at 1abff24. Now: 6.6 bid receipt (step 0: role-assignment end day, carry 65-C2), then 6.7, 6.8 (docs/notes/plans/phase2-rulings.md); then 6.15a and Phases 4–6 (phase3-6-rulings.md). Founder's open questions held for the end; founder chose the full review cycle (option 1).
 
 **Environment caveat for the founder.** This session ran on PostgreSQL 16 (no Docker) and
 could not download Prisma's native schema engine (binaries.prisma.sh is blocked by the
