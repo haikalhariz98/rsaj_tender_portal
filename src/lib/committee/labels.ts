@@ -15,7 +15,7 @@ import { LATE_DOMAIN } from "@/lib/bids/late";
 import { WINDOW_CHANGE_DOMAIN } from "@/lib/method/types";
 import { SCOPE_DOMAIN } from "@/lib/scope/scope-matter";
 import { EVALUATION_STAGE_DOMAIN, NEGOTIATION_DOMAIN } from "@/lib/evaluation/types";
-import { SUPPLIER_REGISTRATION_DOMAIN } from "@/lib/suppliers/types";
+import { SPECIAL_PERMISSION_DOMAIN, SUPPLIER_BLACKLIST_DOMAIN, SUPPLIER_REGISTRATION_DOMAIN } from "@/lib/suppliers/types";
 
 export const MEETING_STATUS_LABEL = {
   SCHEDULED: "Scheduled",
@@ -98,8 +98,9 @@ export const STAGE_ONE_TABLED_TEXT = "A two-stage tender's first-stage decision 
 /// step is refused (window/change.ts HAS_COMMITTEE_STEP); the award's signatory is the office the
 /// approval matrix names (award/signatory.ts).
 /// 6.8 adds the negotiation (FR-EVL-016): approved on its own route, which takes no committee step.
-/// 6.15 adds the supplier's registration (OD-2 A): approved on its own route, which takes no committee step.
-export const NEVER_TABLED_DOMAINS: readonly string[] = [WINDOW_CHANGE_DOMAIN, SIGNATORY_DOMAIN, NEGOTIATION_DOMAIN, SUPPLIER_REGISTRATION_DOMAIN];
+/// 6.15 adds the supplier's registration (OD-2 A): approved on its own route, which takes no committee step;
+/// and (a2) its blacklisting (OD-8 A) and a special permission (FR-ADV-017), likewise.
+export const NEVER_TABLED_DOMAINS: readonly string[] = [WINDOW_CHANGE_DOMAIN, SIGNATORY_DOMAIN, NEGOTIATION_DOMAIN, SUPPLIER_REGISTRATION_DOMAIN, SUPPLIER_BLACKLIST_DOMAIN, SPECIAL_PERMISSION_DOMAIN];
 export const WINDOW_CHANGE_NOT_TABLED_TEXT = "A change to the invitation window is approved on its own route, from the exercise's Invitation tab; that route takes no committee step, so no sitting decides it.";
 export const SIGNATORY_NOT_TABLED_TEXT = "The award's signatory is the office the approval matrix names for the award, shown on the award; no sitting decides it.";
 export const NEGOTIATION_NOT_TABLED_TEXT = "A negotiation is approved on its own route, from the exercise's Evaluation tab, in Meetings and letters; that route takes no committee step, so no sitting decides it.";
@@ -115,7 +116,7 @@ export function recordTabledText(domainOrKind: string): string | null {
   if (domainOrKind === SIGNATORY_DOMAIN) return SIGNATORY_NOT_TABLED_TEXT;
   if (domainOrKind === EVALUATION_STAGE_DOMAIN || domainOrKind === "EVALUATION_STAGE") return STAGE_ONE_TABLED_TEXT;
   if (domainOrKind === NEGOTIATION_DOMAIN) return NEGOTIATION_NOT_TABLED_TEXT;
-  if (domainOrKind === SUPPLIER_REGISTRATION_DOMAIN || domainOrKind === "SUPPLIER") return SUPPLIER_NOT_TABLED_TEXT;
+  if (domainOrKind === SUPPLIER_REGISTRATION_DOMAIN || domainOrKind === SUPPLIER_BLACKLIST_DOMAIN || domainOrKind === SPECIAL_PERMISSION_DOMAIN || domainOrKind === "SUPPLIER") return SUPPLIER_NOT_TABLED_TEXT;
   return null;
 }
 

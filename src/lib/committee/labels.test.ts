@@ -84,3 +84,13 @@ describe("domains no sitting decides: window change and award signatory (6.6 rev
     expect(body).toMatch(/if \(domain && !sittingTablesDomain\(domain\)\) r\.reject\("domain", recordTabledText\(domain\) \?\? RECORD_TABLED_DOMAIN_TEXT\);/);
   });
 });
+
+describe("6.15a (flagged, new test): a supplier's blacklisting and a special permission are never tabled", () => {
+  it("no sitting decides either domain, and the refusal says where each is decided", async () => {
+    const { recordTabledText, SUPPLIER_NOT_TABLED_TEXT } = await import("./labels");
+    for (const d of ["supplier_blacklist", "special_permission", "supplier_registration"]) {
+      expect(sittingTablesDomain(d), d).toBe(false);
+      expect(recordTabledText(d), d).toBe(SUPPLIER_NOT_TABLED_TEXT);
+    }
+  });
+});
