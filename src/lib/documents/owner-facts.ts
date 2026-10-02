@@ -88,6 +88,9 @@ export const addendumFacts = (a: { status: "DRAFT" | "ISSUED" | "VOID"; window: 
 /// 6.6 (X-11): a bid withdrawal, with its exercise's status.
 export const withdrawalFacts = (w: { exercise: { status: ExerciseStatus } }): OwnerFacts => ({ kind: "bidWithdrawal", exerciseStatus: w.exercise.status });
 
+/// 6.7 (FR-OPN-006): an opening, with its exercise's status and whether it is finalised.
+export const openingFacts = (o: { finalisedAt: Date | null; exercise: { status: ExerciseStatus } }): OwnerFacts => ({ kind: "opening", exerciseStatus: o.exercise.status, finalised: o.finalisedAt != null });
+
 /// 6.6 (FR-BID-010): a validity extension, with its exercise's status and whether it is applied.
 export const extensionFacts = (x: { appliedAt: Date | null; exercise: { status: ExerciseStatus } }): OwnerFacts => ({ kind: "validityExtension", exerciseStatus: x.exercise.status, applied: x.appliedAt != null });
 

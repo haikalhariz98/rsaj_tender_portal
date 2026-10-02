@@ -74,6 +74,7 @@ export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
   ATTENDANCE_SHEET: "Signed attendance sheet",
   WITHDRAWAL_LETTER: "Bidder's withdrawal letter",
   VALIDITY_CONSENT: "Tenderer's consent to extend validity",
+  SIGNED_SCHEDULE: "Signed opening schedule",
   HOLDER_RECOMMENDATION: "Absent holder's signed recommendation",
   SIGNED_LETTER: "Signed letter of acceptance",
   DECLARATION: "Signed successful bidder declaration",
@@ -151,6 +152,7 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
   ADDENDUM_ISSUED: "The addendum is issued on this signed copy and stands as issued. A further change is another addendum.",
   ADDENDUM_VOID: "The addendum was voided before it was issued, so nothing more is attached to it.",
   EXTENSION_APPLIED: "The extension was applied on this consent and stands as applied. A further extension is recorded as another one.",
+  OPENING_NOT_FINALISED: "The signed schedule carries the company estimate's row, so its scan is attached only once the opening is finalised and the estimate disclosed.",
 };
 
 const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {
@@ -159,6 +161,7 @@ const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {
   VERIFIED_ON_IT: "The specification panel was verified on this scan, so it is not taken off. To correct it, attach a new version, with the reason. Nobody verified the panel on the new version, so the panel then needs to be verified again.",
   IMPORTED_FROM_IT: "Lines of the bill were imported from this file, so it is not taken off. To correct the bill, import the corrected file into the draft, replacing its lines: the new file then takes this one's place.",
   WITHDRAWN_ON_IT: "The withdrawal was recorded on this letter, so it is not taken off. To correct it, attach a new version, with the reason.",
+  SCHEDULE_ON_IT: "Evaluation and the award stand on this signed schedule, so it is not taken off. To correct it, attach a new version, with the reason.",
 };
 
 export const DOWNLOAD_REFUSAL_TEXT: Readonly<Record<DownloadRefusal, string>> = {

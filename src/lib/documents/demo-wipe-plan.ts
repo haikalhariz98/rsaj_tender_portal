@@ -55,6 +55,8 @@ export interface PlanAttachment {
   /// 6.6: a withdrawal or a validity extension, which goes with its exercise (`removedBidRecordIds`).
   bidWithdrawalId?: string | null;
   validityExtensionId?: string | null;
+  /// 6.7: an opening, which goes with its exercise (`removedBidRecordIds`).
+  openingId?: string | null;
 }
 
 export interface PlanDocument {
@@ -125,7 +127,7 @@ export interface DocumentWipePlan {
 
 /// Whether an attachment's record is demo data or removed with it.
 export function onDemoSide(a: PlanAttachment, side: WipeSide): boolean {
-  const keys = [a.meetingId, a.exerciseId, a.awardId, a.delegationId, a.specificationPanelId ?? null, a.bqVersionId ?? null, a.tenderPackPartId ?? null, a.addendumId ?? null, a.bidWithdrawalId ?? null, a.validityExtensionId ?? null].filter((k): k is string => k != null);
+  const keys = [a.meetingId, a.exerciseId, a.awardId, a.delegationId, a.specificationPanelId ?? null, a.bqVersionId ?? null, a.tenderPackPartId ?? null, a.addendumId ?? null, a.bidWithdrawalId ?? null, a.validityExtensionId ?? null, a.openingId ?? null].filter((k): k is string => k != null);
   // An attachment has exactly one owner (a CHECK); a row with none is never the demo's.
   if (keys.length === 0) return false;
   return keys.every(
@@ -139,7 +141,7 @@ export function onDemoSide(a: PlanAttachment, side: WipeSide): boolean {
       (a.bqVersionId === k && (side.removedBqVersionIds?.has(k) ?? false)) ||
       (a.tenderPackPartId === k && (side.removedPackPartIds?.has(k) ?? false)) ||
       (a.addendumId === k && (side.removedAddendumIds?.has(k) ?? false)) ||
-      ((a.bidWithdrawalId === k || a.validityExtensionId === k) && (side.removedBidRecordIds?.has(k) ?? false)),
+      ((a.bidWithdrawalId === k || a.validityExtensionId === k || a.openingId === k) && (side.removedBidRecordIds?.has(k) ?? false)),
   );
 }
 

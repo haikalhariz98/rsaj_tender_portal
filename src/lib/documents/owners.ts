@@ -22,10 +22,11 @@ import { lockDelegation } from "@/lib/people/lock";
 import { exerciseOfBqVersion, exerciseOfPanel, lockBqRows, lockPanelRow, withLockedExerciseScope } from "@/lib/scope/lock";
 import { exerciseOfPackPart, lockPackRows, PACK_PART_FACTS_SELECT, packPartLabel } from "@/lib/tender-docs/owner";
 import { ADDENDUM_FACTS_SELECT, addendumLabel, exerciseOfAddendum, lockAddendumRows, lockWindowRow } from "@/lib/window/lock";
+import { exerciseOfOpening, lockOpeningRows, OPENING_FACTS_SELECT, openingLabel } from "@/lib/opening/lock";
 import { EXTENSION_FACTS_SELECT, exerciseOfExtension, exerciseOfWithdrawal, extensionLabel, lockEnvelopeRows, lockExtensionRows, lockWithdrawalRows, WITHDRAWAL_FACTS_SELECT, withdrawalLabel } from "@/lib/bids/lock";
 
 import { reliedOn, type OwnerFacts, type Reliance } from "./attach";
-import { addendumFacts, awardFacts, bqVersionFacts, delegationFacts, exerciseFacts, exerciseMethodFlags, extensionFacts, meetingFacts, PANEL_FACTS_SELECT, panelFacts, tenderPackPartFacts, withdrawalFacts } from "./owner-facts";
+import { addendumFacts, awardFacts, bqVersionFacts, delegationFacts, exerciseFacts, exerciseMethodFlags, extensionFacts, meetingFacts, openingFacts, PANEL_FACTS_SELECT, panelFacts, tenderPackPartFacts, withdrawalFacts } from "./owner-facts";
 import type { OwnerRef } from "./repo";
 import { documentOrg } from "./service";
 import type { AttachmentPurpose } from "./types";
@@ -235,6 +236,27 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
         });
       });
     }
+    case "opening": {
+      // 6.7: requisition, exercise, the window, then the openings, as the opening actions lock them.
+      const exerciseId = await exerciseOfOpening(ref.id);
+      if (!exerciseId) return null;
+      return withLockedExerciseScope(exerciseId, async (tx, l) => {
+        await lockWindowRow(tx, exerciseId);
+        await lockOpeningRows(tx, exerciseId);
+        const o = await tx.opening.findFirst({ where: { id: ref.id, organisationId: l.org.id, exerciseId }, select: OPENING_FACTS_SELECT });
+        if (!o) return null;
+        const facts = openingFacts(o);
+        return fn(tx, {
+          ref,
+          organisationId: l.org.id,
+          today: l.org.today,
+          label: openingLabel(o),
+          facts,
+          paths: [`/sourcing/${exerciseId}`, "/awards"],
+          reliance: (purpose, live, versionId) => reliedOn(purpose, facts, live, versionId),
+        });
+      });
+    }
     case "delegation":
       return db.$transaction(async (tx) => {
         const org = await documentOrg(tx);
@@ -259,7 +281,7 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
 }
 
 /// Which owner an attachment belongs to.
-export function ownerOf(a: { meetingId: string | null; exerciseId: string | null; awardId: string | null; delegationId: string | null; specificationPanelId?: string | null; bqVersionId?: string | null; tenderPackPartId?: string | null; addendumId?: string | null; bidWithdrawalId?: string | null; validityExtensionId?: string | null }): OwnerRef | null {
+export function ownerOf(a: { meetingId: string | null; exerciseId: string | null; awardId: string | null; delegationId: string | null; specificationPanelId?: string | null; bqVersionId?: string | null; tenderPackPartId?: string | null; addendumId?: string | null; bidWithdrawalId?: string | null; validityExtensionId?: string | null; openingId?: string | null }): OwnerRef | null {
   if (a.meetingId) return { kind: "meeting", id: a.meetingId };
   if (a.exerciseId) return { kind: "exercise", id: a.exerciseId };
   if (a.awardId) return { kind: "award", id: a.awardId };
@@ -270,5 +292,6 @@ export function ownerOf(a: { meetingId: string | null; exerciseId: string | null
   if (a.addendumId) return { kind: "addendum", id: a.addendumId };
   if (a.bidWithdrawalId) return { kind: "bidWithdrawal", id: a.bidWithdrawalId };
   if (a.validityExtensionId) return { kind: "validityExtension", id: a.validityExtensionId };
+  if (a.openingId) return { kind: "opening", id: a.openingId };
   return null;
 }

@@ -12,9 +12,10 @@ import { detachFault, ownerState, purposeFits, reliedOn, reliedOnAttachment, rep
 import { isLive } from "./evidence";
 import { accessReasonText, ACCESS_STATEMENT, documentFaultText, DOWNLOAD_REFUSAL_TEXT, EXIT_TEXT, FINGERPRINT_STATEMENT } from "./labels";
 import { effectiveCap } from "./limits";
-import { addendumFacts, awardFacts, bqVersionFacts, delegationFacts, exerciseFacts, exerciseMethodFlags, extensionFacts, meetingFacts, PANEL_FACTS_SELECT, panelFacts, tenderPackPartFacts, withdrawalFacts } from "./owner-facts";
+import { addendumFacts, awardFacts, bqVersionFacts, delegationFacts, exerciseFacts, exerciseMethodFlags, extensionFacts, meetingFacts, openingFacts, PANEL_FACTS_SELECT, panelFacts, tenderPackPartFacts, withdrawalFacts } from "./owner-facts";
 import { PACK_PART_FACTS_SELECT, packPartLabel } from "@/lib/tender-docs/owner";
 import { ADDENDUM_FACTS_SELECT, addendumLabel } from "@/lib/window/lock";
+import { OPENING_FACTS_SELECT, openingLabel } from "@/lib/opening/lock";
 import { EXTENSION_FACTS_SELECT, extensionLabel, WITHDRAWAL_FACTS_SELECT, withdrawalLabel } from "@/lib/bids/lock";
 import { type OwnerRef } from "./repo";
 import { attachTargets, ownerHref } from "./targets";
@@ -74,6 +75,10 @@ export async function readOwner(ref: OwnerRef): Promise<{ facts: OwnerFacts; lab
     case "validityExtension": {
       const x = await db.validityExtension.findFirst({ where: { id: ref.id, organisationId: org.id }, select: EXTENSION_FACTS_SELECT });
       return x ? { facts: extensionFacts(x), label: extensionLabel(x) } : null;
+    }
+    case "opening": {
+      const o = await db.opening.findFirst({ where: { id: ref.id, organisationId: org.id }, select: OPENING_FACTS_SELECT });
+      return o ? { facts: openingFacts(o), label: openingLabel(o) } : null;
     }
   }
 }
@@ -153,7 +158,7 @@ export async function documentDrawer(documentId: string) {
         orderBy: { versionNo: "desc" },
         select: {
           ...versionSelect,
-          attachments: { select: { id: true, purpose: true, attachedAt: true, detachedAt: true, detachReason: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true, meeting: { select: { reference: true } }, exercise: { select: { reference: true } }, award: { select: { reference: true } }, delegation: { select: { fromPerson: { select: { name: true } }, toPerson: { select: { name: true } } } }, specificationPanel: { select: { exerciseId: true, exercise: { select: { reference: true } } } }, bqVersionId: true, bqVersion: { select: { versionNo: true, exerciseId: true, exercise: { select: { reference: true } } } }, tenderPackPartId: true, tenderPackPart: { select: PACK_PART_FACTS_SELECT }, addendumId: true, addendum: { select: ADDENDUM_FACTS_SELECT }, bidWithdrawalId: true, bidWithdrawal: { select: WITHDRAWAL_FACTS_SELECT }, validityExtensionId: true, validityExtension: { select: EXTENSION_FACTS_SELECT } } },
+          attachments: { select: { id: true, purpose: true, attachedAt: true, detachedAt: true, detachReason: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true, meeting: { select: { reference: true } }, exercise: { select: { reference: true } }, award: { select: { reference: true } }, delegation: { select: { fromPerson: { select: { name: true } }, toPerson: { select: { name: true } } } }, specificationPanel: { select: { exerciseId: true, exercise: { select: { reference: true } } } }, bqVersionId: true, bqVersion: { select: { versionNo: true, exerciseId: true, exercise: { select: { reference: true } } } }, tenderPackPartId: true, tenderPackPart: { select: PACK_PART_FACTS_SELECT }, addendumId: true, addendum: { select: ADDENDUM_FACTS_SELECT }, bidWithdrawalId: true, bidWithdrawal: { select: WITHDRAWAL_FACTS_SELECT }, validityExtensionId: true, validityExtension: { select: EXTENSION_FACTS_SELECT }, openingId: true, opening: { select: OPENING_FACTS_SELECT } } },
           accessEvents: { orderBy: { at: "desc" }, take: 50, select: { id: true, kind: true, reasonCode: true, at: true } },
         },
       },
@@ -169,7 +174,7 @@ export async function documentDrawer(documentId: string) {
   const ids = [d.id, ...d.versions.map((v) => v.id), ...d.versions.flatMap((v) => v.attachments.map((a) => a.id)), ...d.holds.map((h) => h.id)];
   const history = await db.auditEntry.findMany({ where: { organisationId: org.id, entityId: { in: ids } }, orderBy: { at: "desc" }, take: 200 });
   const ownerLabel = (a: (typeof d.versions)[number]["attachments"][number]) =>
-    a.meeting?.reference ?? a.exercise?.reference ?? a.award?.reference ?? (a.delegation ? `Delegation · ${a.delegation.fromPerson.name} to ${a.delegation.toPerson.name}` : a.specificationPanel ? `${a.specificationPanel.exercise.reference} · Specification panel` : a.bqVersion ? `${a.bqVersion.exercise.reference} · Bill of quantities, version ${a.bqVersion.versionNo}` : a.tenderPackPart ? packPartLabel(a.tenderPackPart) : a.addendum ? addendumLabel(a.addendum) : a.bidWithdrawal ? withdrawalLabel(a.bidWithdrawal) : a.validityExtension ? extensionLabel(a.validityExtension) : "A record");
+    a.meeting?.reference ?? a.exercise?.reference ?? a.award?.reference ?? (a.delegation ? `Delegation · ${a.delegation.fromPerson.name} to ${a.delegation.toPerson.name}` : a.specificationPanel ? `${a.specificationPanel.exercise.reference} · Specification panel` : a.bqVersion ? `${a.bqVersion.exercise.reference} · Bill of quantities, version ${a.bqVersion.versionNo}` : a.tenderPackPart ? packPartLabel(a.tenderPackPart) : a.addendum ? addendumLabel(a.addendum) : a.bidWithdrawal ? withdrawalLabel(a.bidWithdrawal) : a.validityExtension ? extensionLabel(a.validityExtension) : a.opening ? openingLabel(a.opening) : "A record");
   const hrefOf = (a: (typeof d.versions)[number]["attachments"][number]) =>
     a.meetingId ? ownerHref("meeting", a.meetingId)
       : a.exerciseId ? ownerHref("exercise", a.exerciseId)
@@ -181,6 +186,7 @@ export async function documentDrawer(documentId: string) {
       : a.addendumId ? ownerHref("addendum", a.addendumId, a.addendum?.window.exerciseId)
       : a.bidWithdrawalId ? ownerHref("bidWithdrawal", a.bidWithdrawalId, a.bidWithdrawal?.exerciseId)
       : a.validityExtensionId ? ownerHref("validityExtension", a.validityExtensionId, a.validityExtension?.exerciseId)
+      : a.openingId ? ownerHref("opening", a.openingId, a.opening?.exerciseId)
       : "/documents";
   return {
     id: d.id,
@@ -305,6 +311,15 @@ export async function attachTargetsOf(kind: OwnerRef["kind"]) {
         db.validityExtension.count({ where }),
       ]);
       return { records: attachTargets(rows.map((x) => ({ id: x.id, label: extensionLabel(x), href: ownerHref("validityExtension", x.id, x.exerciseId), facts: extensionFacts(x) }))), total };
+    }
+    case "opening": {
+      // 6.7: finalised openings, newest first: a signed schedule is attached only once its opening is.
+      const where = { organisationId: org.id, finalisedAt: { not: null } };
+      const [rows, total] = await Promise.all([
+        db.opening.findMany({ where, orderBy: { finalisedAt: "desc" }, take, select: { id: true, ...OPENING_FACTS_SELECT } }),
+        db.opening.count({ where }),
+      ]);
+      return { records: attachTargets(rows.map((o) => ({ id: o.id, label: openingLabel(o), href: ownerHref("opening", o.id, o.exerciseId), facts: openingFacts(o) }))), total };
     }
   }
 }

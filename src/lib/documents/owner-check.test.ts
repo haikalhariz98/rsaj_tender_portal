@@ -155,3 +155,22 @@ describe("6.6: the bid withdrawal and the validity extension are owners, everywh
     expect(latestCheck("CommitteeDecision_bid_envelope_late")).toMatch(/"bidEnvelopeId" IS NULL OR "matterKind" = 'LATE_TENDER'/);
   });
 });
+
+describe("6.7: the opening is an owner, everywhere at once (X-6)", () => {
+  it("openingId is counted by one_owner and SIGNED_SCHEDULE pairs with it", () => {
+    expect(latestCheck("DocumentAttachment_one_owner")).toMatch(/"openingId"/);
+    expect(latestCheck("DocumentAttachment_purpose_owner")).toMatch(/\("purpose"\s*=\s*'SIGNED_SCHEDULE'\s*AND\s*"openingId"\s+IS NOT NULL\)/);
+    expect(OWNER_COLUMN.opening).toBe("openingId");
+    expect(PURPOSE_OWNER.SIGNED_SCHEDULE).toBe("opening");
+  });
+
+  it("the purpose arrived alone in its own migration, before the migration that rebuilt the CHECKs with it", () => {
+    const own = migrations.filter((d) => /ALTER TYPE "AttachmentPurpose" ADD VALUE 'SIGNED_SCHEDULE'/.test(readFileSync(join(migrationsDir, d, "migration.sql"), "utf8")));
+    const used = migrations.filter((d) => d !== own[0] && readFileSync(join(migrationsDir, d, "migration.sql"), "utf8").includes("'SIGNED_SCHEDULE'"));
+    expect(own).toHaveLength(1);
+    expect(used.length).toBeGreaterThan(0);
+    for (const u of used) expect(own[0] < u).toBe(true);
+    const sql = readFileSync(join(migrationsDir, own[0], "migration.sql"), "utf8").split("\n").filter((l) => l.trim() && !l.trim().startsWith("--"));
+    expect(sql).toHaveLength(1);
+  });
+});

@@ -62,7 +62,10 @@ export type OwnerFacts =
   /// 6.6 (X-11): a bid withdrawal, judged with its exercise's status. Its letter may follow the record.
   | { kind: "bidWithdrawal"; exerciseStatus: ExerciseStatus }
   /// 6.6 (FR-BID-010): a validity extension, judged with its exercise's status. Applied, it stands on its consent.
-  | { kind: "validityExtension"; exerciseStatus: ExerciseStatus; applied: boolean };
+  | { kind: "validityExtension"; exerciseStatus: ExerciseStatus; applied: boolean }
+  /// 6.7 (FR-OPN-006): an opening, judged with its exercise's status. Its signed schedule's scan is
+  /// accepted only once it is finalised: the paper carries the estimate's row (6.2 Q-2, C-5).
+  | { kind: "opening"; exerciseStatus: ExerciseStatus; finalised: boolean };
 
 /// Whether an exercise's status freezes what it (and its panel and bill) holds. Exhaustive
 /// (X-8): a status added to ExerciseStatus fails to compile here until it is decided.
@@ -77,6 +80,9 @@ export function exerciseFrozen(status: ExerciseStatus): boolean {
     // 6.5: published, the exercise keeps its publication proofs and attendance sheets.
     case "ADVERTISED":
     case "INVITED":
+    // 6.7: opening and opened, the exercise's own documents stay open.
+    case "OPENING_IN_PROGRESS":
+    case "OPENED":
       return false;
     case "CANCELLED":
       return true;
@@ -137,7 +143,8 @@ export type OwnerExit =
   | "WINDOW_NOT_PUBLISHED"
   | "ADDENDUM_ISSUED"
   | "ADDENDUM_VOID"
-  | "EXTENSION_APPLIED";
+  | "EXTENSION_APPLIED"
+  | "OPENING_NOT_FINALISED";
 
 export type AttachFault =
   | "PURPOSE_NOT_FOR_OWNER"
@@ -181,8 +188,9 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): { sta
         if (owner.appointmentRouteOpen) return { state: "FROZEN", exit: "ROUTE_OPEN" };
       }
       // 6.5: a publication is recorded from approval for tendering on; an event is held once published.
-      if (purpose === "PUBLICATION_PROOF" && owner.status !== "APPROVED_FOR_TENDERING" && owner.status !== "ADVERTISED") return { state: "NOT_READY", exit: "NOT_APPROVED_FOR_TENDERING" };
-      if (purpose === "ATTENDANCE_SHEET" && owner.status !== "ADVERTISED" && owner.status !== "INVITED") return { state: "NOT_READY", exit: "WINDOW_NOT_PUBLISHED" };
+      // 6.7 (X-8): opening and opened follow publication, so both stay open then.
+      if (purpose === "PUBLICATION_PROOF" && owner.status !== "APPROVED_FOR_TENDERING" && owner.status !== "ADVERTISED" && !afterOpening(owner.status)) return { state: "NOT_READY", exit: "NOT_APPROVED_FOR_TENDERING" };
+      if (purpose === "ATTENDANCE_SHEET" && owner.status !== "ADVERTISED" && owner.status !== "INVITED" && !afterOpening(owner.status)) return { state: "NOT_READY", exit: "WINDOW_NOT_PUBLISHED" };
       return { state: "OPEN" };
     case "award":
       if (owner.status === "CANCELLED") return { state: "FROZEN", exit: "AWARD_CANCELLED" };
@@ -221,8 +229,16 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): { sta
       // 6.6: an applied extension stands on the consent it was applied on.
       if (exerciseFrozen(owner.exerciseStatus)) return { state: "FROZEN", exit: "EXERCISE_CANCELLED" };
       return owner.applied ? { state: "FROZEN", exit: "EXTENSION_APPLIED" } : { state: "OPEN" };
+    case "opening":
+      // 6.7 (C-5, 6.2 Q-2): the signed paper carries the estimate's row, so its scan enters the store
+      // only after the finalising disclosed the estimate. A cancelled exercise's opening keeps what it has.
+      if (exerciseFrozen(owner.exerciseStatus)) return { state: "FROZEN", exit: "EXERCISE_CANCELLED" };
+      return owner.finalised ? { state: "OPEN" } : { state: "NOT_READY", exit: "OPENING_NOT_FINALISED" };
   }
 }
+
+/// 6.7: the two states that follow publication (an exercise opened keeps a published one's documents).
+const afterOpening = (s: ExerciseStatus) => s === "OPENING_IN_PROGRESS" || s === "OPENED";
 
 export interface AttachInput {
   purpose: AttachmentPurpose;
@@ -269,7 +285,9 @@ export type Reliance =
   /// 6.2 Q-3: a bill's lines were imported from this file.
   | "IMPORTED_FROM_IT"
   /// 6.6 (X-11): a withdrawal recorded on this letter, its last live one.
-  | "WITHDRAWN_ON_IT";
+  | "WITHDRAWN_ON_IT"
+  /// 6.7 (FR-OPN-006): the finalised opening's signed schedule, its last live scan (6.8 and the award read it).
+  | "SCHEDULE_ON_IT";
 
 export type DetachFault = "REASON_REQUIRED" | "RELIED_ON" | "OWNER_FROZEN" | "ALREADY_DETACHED";
 
@@ -321,6 +339,8 @@ export function reliedOn(purpose: AttachmentPurpose, owner: OwnerFacts, liveOfPu
   if (owner.kind === "delegation") return purpose === "HOLDER_RECOMMENDATION" ? "GRANTED_ON_IT" : null;
   // 6.6: a withdrawal is recorded on its letter; the last live one is replaced by a new version.
   if (owner.kind === "bidWithdrawal") return purpose === "WITHDRAWAL_LETTER" ? "WITHDRAWN_ON_IT" : null;
+  // 6.7: evaluation and the award stand on the signed schedule; the last live scan is replaced, never taken off.
+  if (owner.kind === "opening") return purpose === "SIGNED_SCHEDULE" ? "SCHEDULE_ON_IT" : null;
   return null;
 }
 
