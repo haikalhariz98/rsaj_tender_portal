@@ -379,7 +379,7 @@ export async function saveBidAnswers(_prev: FormState, data: FormData): Promise<
     if (exit && !person) return { ok: false, errors: { recordedByPersonId: "Name the officer recording it." } };
     const next = { bidValidityDays: days, bidValidityProvenance: days == null ? null : provenance, alternativesPermitted };
     await tx.exerciseWindow.update({ where: { id: w.id }, data: next });
-    await audit(tx, l.org.id, "ExerciseWindow", w.id, label(l, "Bids received · window answers"), "UPDATE",
+    await audit(tx, l.org.id, "ExerciseWindow", w.id, label(l, "Bids and opening, Received · window answers"), "UPDATE",
       diffFields(bidAnswerFields(w), { ...bidAnswerFields(next), ...(person ? { [EXIT_RECORDED_BY_FIELD]: `${person.name}, recorded on their behalf, not signed` } : {}) }), reason);
     return { ok: true };
   });

@@ -252,7 +252,7 @@ async function answers(db: Db, organisationId: string, entry: Add, exerciseId: s
   await db.exerciseWindow.update({ where: { id: w.id }, data: next });
   // As saveBidAnswers: recorded after publication, the trail names the officer (S-6).
   const by = published ? { [EXIT_RECORDED_BY_FIELD]: `${v.recordedBy ?? fail6("the validity recorded after publication names nobody")}, recorded on their behalf, not signed` } : {};
-  entry("ExerciseWindow", w.id, `${ref} · Bids received · window answers`, "UPDATE", at, diffFields(bidAnswerFields(w), { ...bidAnswerFields(next), ...by }), v.reason);
+  entry("ExerciseWindow", w.id, `${ref} · Bids and opening, Received · window answers`, "UPDATE", at, diffFields(bidAnswerFields(w), { ...bidAnswerFields(next), ...by }), v.reason);
 }
 
 // ------------------------------------------------------------------ the register's acts, as the actions write them

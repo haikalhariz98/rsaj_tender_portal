@@ -21,6 +21,16 @@ function files(dir: string): string[] {
   });
 }
 
+describe("no record label names a 'Bids received' tab either (6.7 re-review)", () => {
+  it("History's labels for the window's answers name the Received section, in the action and the demo", () => {
+    for (const p of [join(root, "src", "app", "sourcing", "[id]", "bids", "actions.ts"), join(root, "prisma", "demo-bids.ts")]) {
+      const src = readFileSync(p, "utf8");
+      expect(src, p).not.toMatch(/Bids received ·/);
+      expect(src, p).toMatch(/Bids and opening, Received · window answers/);
+    }
+  });
+});
+
 describe("the register is named as the Received section of Bids and opening (S-2)", () => {
   it("no source in src/app or src/lib names a 'Bids received tab'", () => {
     const hits = [...files(join(root, "src", "app")), ...files(join(root, "src", "lib")), ...files(join(root, "src", "components"))]
