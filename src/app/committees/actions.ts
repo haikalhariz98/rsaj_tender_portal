@@ -1,5 +1,8 @@
 "use server";
 
+import { bidGate } from "@/lib/bids/repo";
+import { bidFindingText } from "@/lib/bids/labels";
+import { APPOINTMENT_DOMAIN } from "@/lib/method/types";
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
@@ -416,6 +419,12 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
         exerciseId = matches[0].id;
         exerciseReference = matches[0].reference;
       } else if (matches.length === 1) r.reject("matterRef", "That exercise is cancelled, so nothing can be tabled against it.");
+      // 6.6 (OD-6, flagged): an appointment is not tabled while a late envelope on the exercise waits for
+      // the committee's decision on admission. Read inside this transaction; the sitting's lock is held.
+      if (exerciseId && domain === APPOINTMENT_DOMAIN) {
+        const bids = await bidGate(exerciseId, tx);
+        if (bids.lateFault) r.reject("matterRef", bidFindingText(bids.lateFault));
+      }
       // No exercise has that reference: tabled as a manual matter, linked to no record, as before.
     }
     if (dependsOnDecisionId) {
