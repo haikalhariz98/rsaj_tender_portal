@@ -91,7 +91,7 @@ describe("a finalised opening has no update path (FR-OPN-011)", () => {
     const starts = ["startOpening", "startSupplementaryOpening"];
     const afterFinalising = ["recordCopyExplanation"];
     const sittingDelegates = ["adjournOpening", "resumeOpening"];
-    for (const fn of acts.filter((a) => ![...starts, ...afterFinalising, ...sittingDelegates].includes(a))) expect(body(fn), fn).toMatch(/state: stateOf\(o\)|stateFaults\(o\)|stateOf\(o\)/);
+    for (const fn of acts.filter((a) => ![...starts, ...afterFinalising, ...sittingDelegates].includes(a))) expect(body(fn), fn).toMatch(/stateOf\(o, l\.ex\.status\)/);
     expect(actions).toMatch(/async function sittingAct[\s\S]*adjournFaults\(\{ state,/);
     expect(body("recordCopyExplanation")).toMatch(/explanationFaults\(\{ finalised: !!o\.finalisedAt/);
   });

@@ -322,7 +322,7 @@ class OpeningActs {
     const { authorisationFields, OPENING_ENTITY } = await import("../src/lib/opening/audit-view");
     const { moveExercise } = await import("../src/lib/method/move");
     const { l, c, o } = await this.opening(exerciseId, openingId, at);
-    const state = stateOf(o);
+    const state = stateOf(o, l.ex.status);
     refuse(`${person.name}'s authorisation of ${openingId}`, authorisationFaults({ state, panel: panelOf(o), auths: o.authorisations, personId: person.id, now: at, closing: l.ex.closingAt, boxLocked: lockedAtOrAfterClosing(c.events, l.ex.closingAt) }));
     const id = `${openingId}a${o.authorisations.length + 1}`;
     await this.db.openingAuthorisation.create({ data: { id, organisationId: this.org, openingId, personId: person.id, sittingNo: state.sittingNo, recordedAt: at } });
@@ -347,7 +347,7 @@ class OpeningActs {
     const { panelOf, stateOf } = await import("../src/lib/opening/repo");
     const { sittingFields, OPENING_ENTITY } = await import("../src/lib/opening/audit-view");
     const { l, o } = await this.opening(exerciseId, openingId, i.at);
-    const state = stateOf(o);
+    const state = stateOf(o, l.ex.status);
     refuse(`${i.resume ? "resuming" : "adjourning"} ${openingId}`, adjournFaults({ state, reason: i.reason, personActive: true, resume: i.resume }));
     const ol = this.openingLabel(l.ex.reference, o);
     if (i.resume) {
@@ -370,7 +370,7 @@ class OpeningActs {
     const { boxEnvelopeJudgement, registerBoxFaults } = await import("../src/lib/opening/box");
     const { stateOf } = await import("../src/lib/opening/repo");
     const { l, c, o } = await this.opening(exerciseId, openingId, i.at);
-    refuse(`registering ${i.id}`, registerBoxFaults({ state: stateOf(o), anyOpened: o.bids.length > 0, kind: "BID", markings: i.markings, personActive: true, closing: l.ex.closingAt, lockedAt: c.lockEvent?.occurredAt ?? null }));
+    refuse(`registering ${i.id}`, registerBoxFaults({ state: stateOf(o, l.ex.status), anyOpened: o.bids.length > 0, kind: "BID", markings: i.markings, personActive: true, closing: l.ex.closingAt, lockedAt: c.lockEvent?.occurredAt ?? null }));
     const j = boxEnvelopeJudgement(c.lockEvent!.occurredAt, l.ex.closingAt!);
     const sequence = c.envelopes.reduce((m, e) => Math.max(m, e.sequence), 0) + 1;
     const row = await this.db.bidEnvelope.create({ data: { id: i.id, organisationId: this.org, exerciseId, sequence, kind: "BID", channel: "BOX", receivedAt: j.receivedAt, receivedSource: j.receivedSource, recordedAt: i.at, receivedByPersonId: i.by.id, markings: i.markings, late: j.late, closingAtJudged: j.closingAtJudged, recordedAfterClosing: j.recordedAfterClosing, registeredAtOpeningId: openingId, createdAt: i.at } });
@@ -390,7 +390,7 @@ class OpeningActs {
     const named = "partyId" in i.bidder ? null : i.bidder;
     const price = parseSen(i.price) as Sen;
     const snap = policyOf(o.policySnapshot);
-    refuse(`opening ${i.envelopeId}`, openFaults({ state: stateOf(o), envelope: e ? { id: e.id, kind: e.kind, status: e.status, late: e.late } : null, withdrawn: !!(e && openFault(e.id, c.withdrawals)), admittedEnvelopeId: o.admissionDecision?.bidEnvelopeId ?? null, bidder: { partyId: party?.id ?? null, name: named?.name ?? "", registrationNo: named?.registrationNo ?? "", registrationTaken: !!named && c.parties.some((p) => p.registrationNo.trim().toLowerCase() === named.registrationNo.trim().toLowerCase()) }, price, period: { value: i.months, unit: "MONTHS" }, isAlternative: e?.kind === "ALTERNATIVE", alternativesPermitted: snap.alternativesPermitted, parent: null }));
+    refuse(`opening ${i.envelopeId}`, openFaults({ state: stateOf(o, l.ex.status), envelope: e ? { id: e.id, kind: e.kind, status: e.status, late: e.late } : null, withdrawn: !!(e && openFault(e.id, c.withdrawals)), admittedEnvelopeId: o.admissionDecision?.bidEnvelopeId ?? null, bidder: { partyId: party?.id ?? null, name: named?.name ?? "", registrationNo: named?.registrationNo ?? "", registrationTaken: !!named && c.parties.some((p) => p.registrationNo.trim().toLowerCase() === named.registrationNo.trim().toLowerCase()) }, price, period: { value: i.months, unit: "MONTHS" }, isAlternative: e?.kind === "ALTERNATIVE", alternativesPermitted: snap.alternativesPermitted, parent: null }));
     const ref = l.ex.reference;
     let bidder: { id: string; name: string };
     if (party) bidder = party;
@@ -432,7 +432,7 @@ class OpeningActs {
     const { panelOf, stateOf } = await import("../src/lib/opening/repo");
     const { initialFields, OPENING_ENTITY } = await import("../src/lib/opening/audit-view");
     const { l, o, b } = await this.bid(exerciseId, bidId, at);
-    refuse(`${person.name}'s initial on ${bidId}`, markFaults({ state: stateOf(o), panel: panelOf(o), personId: person.id, already: b.initials.some((x) => x.personId === person.id), sameOpening: true }));
+    refuse(`${person.name}'s initial on ${bidId}`, markFaults({ state: stateOf(o, l.ex.status), panel: panelOf(o), personId: person.id, already: b.initials.some((x) => x.personId === person.id), sameOpening: true }));
     const id = `${bidId}i_${person.id.slice(P.length)}`;
     await this.db.openedBidInitial.create({ data: { id, organisationId: this.org, openedBidId: bidId, personId: person.id, recordedAt: at } });
     this.entry(OPENING_ENTITY.initial, id, this.label(l.ex.reference, `Offer ${b.listingNo}`), "CREATE", at, diffFields(null, initialFields({ person: person.name, listingNo: b.listingNo, at }, this.tz)));
@@ -450,7 +450,7 @@ class OpeningActs {
     const roleOf = (key: string) => c.pack?.parts.find((p) => p.partCode === key)?.role ?? null;
     for (const [k, item] of checklist.items.entries()) {
       const answer = absentRoles.includes(roleOf(item.key) ?? "") ? ("ABSENT" as const) : ("PRESENT" as const);
-      refuse(`answering ${item.label} for ${bidId}`, [...actFaults(stateOf(o)), ...answerFaults(checklist.items, item.key, answer)]);
+      refuse(`answering ${item.label} for ${bidId}`, [...actFaults(stateOf(o, l.ex.status)), ...answerFaults(checklist.items, item.key, answer)]);
       const id = `${bidId}q${k + 1}`;
       const when = new Date(at.getTime() + k * 5000);
       await this.db.openingChecklistAnswer.create({ data: { id, organisationId: this.org, openedBidId: bidId, itemKey: item.key, itemLabelSnapshot: item.label, answer, recordedAt: when } });
@@ -472,7 +472,7 @@ class OpeningActs {
     const answers = new Map(b.answers.map((a) => [a.itemKey, a.answer]));
     const policy = { completenessEliminates: snap.completeness.eliminates, unpurchased: snap.unpurchased.consequence };
     const facts = { saleFinding: b.saleFinding, restrictionFinding: b.restrictionFinding, isAlternative: b.isAlternative, alternativeStatus: b.alternativeStatus };
-    refuse(`the verdict on ${bidId}`, verdictFaults({ state: stateOf(o), sameOpening: true, bid: facts, checklist, answers, policy, verdict, reason }));
+    refuse(`the verdict on ${bidId}`, verdictFaults({ state: stateOf(o, l.ex.status), sameOpening: true, bid: facts, checklist, answers, policy, verdict, reason }));
     const j = judgeBid(facts, checklist, answers, policy);
     await this.db.openedBid.update({ where: { id: bidId }, data: { verdict, verdictReason: verdict === "REJECT" ? reason : "", verdictAt: at, completeness: verdictRecord(j) as never } });
     this.entry(OPENING_ENTITY.bid, bidId, this.label(l.ex.reference, `Offer ${b.listingNo}`), "UPDATE", at, diffFields({ verdict: null }, verdictFields({ verdict, reason: verdict === "REJECT" ? reason : "", grounds: j.grounds, reported: j.reported, missing: j.missing.map((m) => m.label) })), verdict === "REJECT" ? reason : "");
@@ -484,7 +484,7 @@ class OpeningActs {
     const { panelOf, stateOf } = await import("../src/lib/opening/repo");
     const { signatureFields, OPENING_ENTITY } = await import("../src/lib/opening/audit-view");
     const { l, o } = await this.opening(exerciseId, openingId, at);
-    refuse(`${person.name}'s signature on ${openingId}`, markFaults({ state: stateOf(o), panel: panelOf(o), personId: person.id, already: o.signatures.some((s) => s.personId === person.id), sameOpening: true, signedOn: { day: signedOn, today: dayIn(at, this.tz), startDay: dayIn(o.startedAt, this.tz) } }));
+    refuse(`${person.name}'s signature on ${openingId}`, markFaults({ state: stateOf(o, l.ex.status), panel: panelOf(o), personId: person.id, already: o.signatures.some((s) => s.personId === person.id), sameOpening: true, signedOn: { day: signedOn, today: dayIn(at, this.tz), startDay: dayIn(o.startedAt, this.tz) } }));
     const id = `${openingId}sig_${person.id.slice(P.length)}`;
     await this.db.openingSignature.create({ data: { id, organisationId: this.org, openingId, personId: person.id, signedOn: dayToDate(signedOn), recordedAt: at } });
     this.entry(OPENING_ENTITY.signature, id, this.openingLabel(l.ex.reference, o), "CREATE", at, diffFields(null, signatureFields({ person: person.name, signedOn })));
@@ -496,7 +496,7 @@ class OpeningActs {
     const { stateOf } = await import("../src/lib/opening/repo");
     const { OPENING_ENTITY } = await import("../src/lib/opening/audit-view");
     const { l, o } = await this.opening(exerciseId, openingId, at);
-    refuse(`the pages of ${openingId}`, recordFaults({ state: stateOf(o), pages }));
+    refuse(`the pages of ${openingId}`, recordFaults({ state: stateOf(o, l.ex.status), pages }));
     await this.db.opening.update({ where: { id: openingId }, data: { schedulePages: pages, minutes } });
     this.entry(OPENING_ENTITY.opening, openingId, this.openingLabel(l.ex.reference, o), "UPDATE", at, diffFields({ pages: null, minutes: null }, { pages: String(pages), minutes }));
   }
@@ -513,7 +513,7 @@ class OpeningActs {
     const { finaliseFields, OPENING_ENTITY } = await import("../src/lib/opening/audit-view");
     const { moveExercise } = await import("../src/lib/method/move");
     const { l, c, o } = await this.opening(exerciseId, openingId, at);
-    const state = stateOf(o);
+    const state = stateOf(o, l.ex.status);
     const snap = policyOf(o.policySnapshot);
     const checklist = checklistFromSnapshot(o.checklistSnapshot);
     const lodged = o.kind === "MAIN" && c.estimate?.state === "LODGED";

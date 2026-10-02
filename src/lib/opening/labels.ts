@@ -125,7 +125,7 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   MEMBER_IN_EXCLUDED_UNIT: (f) => `${d(f, "person")} sits in the unit the committee's independence rule excludes from its opening panels.`,
   UNIT_NOT_RECORDED: (f) => `${d(f, "person")}'s unit is not recorded, so the independence rule cannot be checked. Record it under ${SETTING_AT.users}.`,
   // ---- starting
-  CANCELLED: () => "The exercise is cancelled, so nothing is opened.",
+  CANCELLED: () => "The exercise is cancelled, so nothing is opened, and nothing more is recorded at its opening.",
   NOT_PUBLISHED: () => "The exercise was not published through its invitation window, so it has no opening here.",
   NO_TENDER_DOCUMENTS: () => "The exercise assembles no tender or quotation documents, so it has no opening.",
   TIME_ZONE_NOT_SET: () => "The organisation's time zone is not set, so the opening cannot be dated. Set it under Configuration › Organisation.",

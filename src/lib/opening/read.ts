@@ -142,7 +142,7 @@ export async function openingSection(exerciseId: string) {
 
 function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: string | null; closing: Date | null; people: Option[] }) {
   const { tz, closing } = x;
-  const state = stateOf(o);
+  const state = stateOf(o, c.ex.status);
   const phase = openingPhase(state);
   const panel = panelOf(o);
   const present = presentOf(o);

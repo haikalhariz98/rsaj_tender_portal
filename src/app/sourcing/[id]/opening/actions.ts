@@ -29,6 +29,7 @@ import { openingFindingText } from "@/lib/opening/labels";
 import { lockOpenedBidRows, lockOpeningRows } from "@/lib/opening/lock";
 import { alternativeInsideFaults, alternativeOf, correctionFaults, nextListingNo, openFaults } from "@/lib/opening/open";
 import { panelFaults } from "@/lib/opening/panel";
+import { actFaults } from "@/lib/opening/state";
 import { invitedCounts, openingContext, panelOf, panelSnapshot, policyOf, presentOf, stateOf, type OpeningContext, type OpeningPolicySnapshot, type OpeningRow } from "@/lib/opening/repo";
 import { jadualTawaran, lateCount, type ScheduleRowInput } from "@/lib/opening/schedule";
 import { estimateLeadFaults, startFaults, supplementaryFaults } from "@/lib/opening/start";
@@ -276,7 +277,7 @@ export async function recordAuthorisation(_prev: FormState, data: FormData): Pro
   return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
-    const state = stateOf(o);
+    const state = stateOf(o, l.ex.status);
     const person = await nameOf(tx, l.org.id, personId);
     const fs = authorisationFaults({ state, panel: panelOf(o), auths: o.authorisations, personId, now, closing: l.ex.closingAt, boxLocked: lockedAtOrAfterClosing(c.events, l.ex.closingAt) });
     if (!person) fs.push({ code: "NOT_ON_PANEL", level: "block" });
@@ -316,7 +317,7 @@ async function sittingAct(data: FormData, resume: boolean): Promise<FormState> {
   return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
-    const state = stateOf(o);
+    const state = stateOf(o, l.ex.status);
     const person = await nameOf(tx, l.org.id, personId);
     const fs = adjournFaults({ state, reason, personActive: !!person, resume });
     if (fs.length) return fs.some((f) => f.code === "REASON_REQUIRED") && fs.length === 1 ? { ok: false, errors: { reason: openingFindingText(fs[0]) } } : refuse(fs);
@@ -351,7 +352,7 @@ export async function registerBoxEnvelope(_prev: FormState, data: FormData): Pro
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
     const person = await nameOf(tx, l.org.id, personId);
-    const fs = registerBoxFaults({ state: stateOf(o), anyOpened: o.bids.length > 0, kind: kind!, markings, personActive: !!person, closing: l.ex.closingAt, lockedAt: c.lockEvent?.occurredAt ?? null });
+    const fs = registerBoxFaults({ state: stateOf(o, l.ex.status), anyOpened: o.bids.length > 0, kind: kind!, markings, personActive: !!person, closing: l.ex.closingAt, lockedAt: c.lockEvent?.occurredAt ?? null });
     if (blocking(fs).length) return refuse(fs);
     const j = boxEnvelopeJudgement(c.lockEvent!.occurredAt, l.ex.closingAt!);
     const sequence = c.envelopes.reduce((n, e) => Math.max(n, e.sequence), 0) + 1;
@@ -376,7 +377,7 @@ export async function matchWithdrawal(_prev: FormState, data: FormData): Promise
     const e = c.envelopes.find((x) => x.id === envelopeId);
     if (!w || !e) return { ok: false, message: "That withdrawal or envelope is not on this exercise." };
     const facts = c.withdrawals.map((x) => ({ id: x.id, envelopeId: x.envelopeId, unmatchedFinding: x.unmatchedFinding }));
-    const fs = matchFaults({ state: stateOf(o), withdrawal: facts.find((x) => x.id === w.id)!, envelope: { id: e.id, kind: e.kind, status: e.status, late: e.late, receivedSource: e.receivedSource }, withdrawals: facts });
+    const fs = matchFaults({ state: stateOf(o, l.ex.status), withdrawal: facts.find((x) => x.id === w.id)!, envelope: { id: e.id, kind: e.kind, status: e.status, late: e.late, receivedSource: e.receivedSource }, withdrawals: facts });
     if (blocking(fs).length) return refuse(fs);
     await tx.bidWithdrawal.update({ where: { id: w.id }, data: { envelopeId: e.id } });
     await audit(tx, l.org.id, BID_ENTITY.withdrawal, w.id, label(l, "Withdrawal of an envelope in the box"), "UPDATE", diffFields({ matchedTo: null }, withdrawalMatchFields({ envelope: `Envelope ${e.sequence}` })));
@@ -402,7 +403,7 @@ export async function recordWithdrawalFinding(_prev: FormState, data: FormData):
     const w = c.withdrawals.find((x) => x.id === withdrawalId);
     if (!w) return { ok: false, message: "That withdrawal is not on this exercise." };
     const person = await nameOf(tx, l.org.id, personId);
-    const fs = findingFaults({ state: stateOf(o), withdrawal: { id: w.id, envelopeId: w.envelopeId, unmatchedFinding: w.unmatchedFinding }, finding, personActive: !!person });
+    const fs = findingFaults({ state: stateOf(o, l.ex.status), withdrawal: { id: w.id, envelopeId: w.envelopeId, unmatchedFinding: w.unmatchedFinding }, finding, personActive: !!person });
     if (blocking(fs).length) return refuse(fs);
     await tx.bidWithdrawal.update({ where: { id: w.id }, data: { unmatchedFinding: finding, findingRecordedAt: now, findingByPersonId: person!.id } });
     await audit(tx, l.org.id, BID_ENTITY.withdrawal, w.id, label(l, "Withdrawal of an envelope in the box"), "UPDATE", diffFields({ finding: null }, withdrawalMatchFields({ envelope: "", finding, by: person!.name })));
@@ -442,7 +443,7 @@ export async function openEnvelope(_prev: FormState, data: FormData): Promise<Fo
   return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
-    const state = stateOf(o);
+    const state = stateOf(o, l.ex.status);
     const e = c.envelopes.find((x) => x.id === envelopeId) ?? null;
     const party = partyId ? (c.parties.find((p) => p.id === partyId) ?? null) : null;
     if (partyId && !party) return { ok: false, errors: { partyId: "That bidder is not on this exercise." } };
@@ -501,7 +502,7 @@ export async function recordAlternative(_prev: FormState, data: FormData): Promi
     const { opening: o, bid: main } = found;
     const snap = policyOf(o.policySnapshot);
     const current = c.openings.find((x) => !x.finalisedAt && x.id === o.id);
-    const fs = alternativeInsideFaults({ state: stateOf(o), main: { openingMatches: !!current, isAlternative: main.isAlternative }, alternativesPermitted: snap.alternativesPermitted, price: offer.price, period: offer.period });
+    const fs = alternativeInsideFaults({ state: stateOf(o, l.ex.status), main: { openingMatches: !!current, isAlternative: main.isAlternative }, alternativesPermitted: snap.alternativesPermitted, price: offer.price, period: offer.period });
     if (blocking(fs).length) return refuse(fs);
     const listingNo = nextListingNo(c.openings.flatMap((x) => x.bids.map((b) => b.listingNo)));
     const alternative = alternativeOf(true, snap.alternativesPermitted);
@@ -533,7 +534,7 @@ export async function recordInitial(_prev: FormState, data: FormData): Promise<F
     const { opening: o, bid } = found;
     const existing = bid.initials.find((i) => i.personId === personId) ?? null;
     const stale = !!existing && !!bid.asReadCorrectedAt && existing.recordedAt < bid.asReadCorrectedAt;
-    const fs = markFaults({ state: stateOf(o), panel: panelOf(o), personId, already: !!existing && !stale, sameOpening: true });
+    const fs = markFaults({ state: stateOf(o, l.ex.status), panel: panelOf(o), personId, already: !!existing && !stale, sameOpening: true });
     if (blocking(fs).length) return refuse(fs);
     const name = o.panel.find((p) => p.personId === personId)!.person.name;
     if (existing) {
@@ -560,7 +561,7 @@ export async function recordChecklistAnswer(_prev: FormState, data: FormData): P
     if (!found) return GONE_BID;
     const { opening: o, bid } = found;
     const checklist = checklistFromSnapshot(o.checklistSnapshot);
-    const fs = [...stateFaults(o), ...answerFaults(checklist.items, itemKey, answer)];
+    const fs = [...actFaults(stateOf(o, l.ex.status)), ...answerFaults(checklist.items, itemKey, answer)];
     if (blocking(fs).length) return refuse(fs);
     const item = checklist.items.find((i) => i.key === itemKey)!;
     const before = bid.answers.find((a) => a.itemKey === itemKey) ?? null;
@@ -575,11 +576,6 @@ export async function recordChecklistAnswer(_prev: FormState, data: FormData): P
     return { ok: true };
   });
 }
-
-const stateFaults = (o: OpeningRow) => {
-  const s = stateOf(o);
-  return [...(s.finalised ? [{ code: "FINALISED", level: "block" as const }] : s.adjourned ? [{ code: "ADJOURNED", level: "block" as const }] : !s.unsealed ? [{ code: "NOT_UNSEALED", level: "block" as const }] : !s.sittingAuthorised ? [{ code: "SITTING_NOT_AUTHORISED", level: "block" as const }] : [])];
-};
 
 /// The unpurchased-bid rule as the opening reads it: frozen at start, or, where it was not set then, set once from the method now (BD-67).
 function unpurchasedRule(o: OpeningRow, c: OpeningContext) {
@@ -607,7 +603,7 @@ export async function recordVerdict(_prev: FormState, data: FormData): Promise<F
     const unpurchased = unpurchasedRule(o, c);
     const policy = { completenessEliminates: snap.completeness.eliminates, unpurchased: unpurchased.consequence };
     const facts = { saleFinding: bid.saleFinding, restrictionFinding: bid.restrictionFinding, isAlternative: bid.isAlternative, alternativeStatus: bid.alternativeStatus };
-    const fs = verdictFaults({ state: stateOf(o), sameOpening: true, bid: facts, checklist, answers, policy, verdict, reason });
+    const fs = verdictFaults({ state: stateOf(o, l.ex.status), sameOpening: true, bid: facts, checklist, answers, policy, verdict, reason });
     if (blocking(fs).length) return fs.length === 1 && fs[0].code === "REASON_REQUIRED" ? { ok: false, errors: { verdictReason: openingFindingText(fs[0]) } } : refuse(fs);
     const j = judgeBid(facts, checklist, answers, policy);
     // OD-4: an unset unpurchased rule, set since the opening started, is recorded on the opening once, the first time it is used.
@@ -642,7 +638,7 @@ export async function correctAsRead(_prev: FormState, data: FormData): Promise<F
     const was = { bidder: bid.bidderNameAsRead, registrationClass: bid.registrationClassAsRead, registrationStatus: bid.registrationStatusAsRead, price: parseSen(bid.priceAsRead.toString()), period: bid.completionPeriod != null && bid.completionUnit ? { value: bid.completionPeriod, unit: bid.completionUnit } : null, validityDays: bid.validityDaysStated };
     const next = { bidder: bidderName.trim(), registrationClass, registrationStatus, price: offer.price ?? (0n as Sen), period, validityDays: offer.validityDays };
     const changed = JSON.stringify(asReadFields(was)) !== JSON.stringify(asReadFields(next));
-    const fs = correctionFaults({ state: stateOf(o), sameOpening: !o.finalisedAt, reason, changed, price: offer.price, period: offer.period });
+    const fs = correctionFaults({ state: stateOf(o, l.ex.status), sameOpening: !o.finalisedAt, reason, changed, price: offer.price, period: offer.period });
     if (blocking(fs).length) return refuse(fs);
     await tx.openedBid.update({ where: { id: bid.id }, data: { bidderNameAsRead: next.bidder, registrationClassAsRead: registrationClass, registrationStatusAsRead: registrationStatus, priceAsRead: senToDecimalString(offer.price!), completionPeriod: period?.value ?? null, completionUnit: period?.unit ?? null, validityDaysStated: offer.validityDays, asReadCorrectedAt: now } });
     await audit(tx, l.org.id, OPENING_ENTITY.bid, bid.id, label(l, `Offer ${bid.listingNo}`), "UPDATE", diffFields(asReadFields(was), asReadFields(next)), reason);
@@ -662,7 +658,7 @@ export async function recordSignature(_prev: FormState, data: FormData): Promise
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
     const startDay = l.org.timeZone ? dayIn(o.startedAt, l.org.timeZone) : null;
-    const fs = markFaults({ state: stateOf(o), panel: panelOf(o), personId, already: o.signatures.some((s) => s.personId === personId), sameOpening: true, signedOn: { day: isDay(signedOn) ? signedOn : null, today: l.org.today, startDay } });
+    const fs = markFaults({ state: stateOf(o, l.ex.status), panel: panelOf(o), personId, already: o.signatures.some((s) => s.personId === personId), sameOpening: true, signedOn: { day: isDay(signedOn) ? signedOn : null, today: l.org.today, startDay } });
     if (blocking(fs).length) return refuse(fs);
     const name = o.panel.find((p) => p.personId === personId)!.person.name;
     const row = await tx.openingSignature.create({ data: { organisationId: l.org.id, openingId: o.id, personId, signedOn: dayToDate(signedOn), recordedAt: now } });
@@ -682,7 +678,7 @@ export async function recordScheduleDetails(_prev: FormState, data: FormData): P
   return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
-    const fs = recordFaults({ state: stateOf(o), pages });
+    const fs = recordFaults({ state: stateOf(o, l.ex.status), pages });
     if (blocking(fs).length) return refuse(fs);
     await tx.opening.update({ where: { id: o.id }, data: { schedulePages: pages, minutes } });
     await audit(tx, l.org.id, OPENING_ENTITY.opening, o.id, openingLabel(l, o), "UPDATE", diffFields({ pages: o.schedulePages == null ? null : String(o.schedulePages), minutes: o.minutes || null }, { pages: String(pages), minutes: minutes || null }));
@@ -709,7 +705,7 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
     const person = await nameOf(tx, l.org.id, personId);
-    const state = stateOf(o);
+    const state = stateOf(o, l.ex.status);
     const snap = policyOf(o.policySnapshot);
     const checklist = checklistFromSnapshot(o.checklistSnapshot);
     const unpurchased = unpurchasedRule(o, c);

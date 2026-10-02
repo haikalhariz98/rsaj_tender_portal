@@ -41,6 +41,8 @@ export function sittingAuthorisers(sittingNo: number, auths: readonly Authorisat
 
 export interface OpeningState {
   kind: OpeningKind;
+  /// The exercise is cancelled (6.5 FR-ADV-016, 6.7 C-9): nothing more is recorded at any of its openings (review M-1).
+  cancelled: boolean;
   finalised: boolean;
   unsealed: boolean;
   /// The current sitting is adjourned.
@@ -50,11 +52,12 @@ export interface OpeningState {
   sittingNo: number;
 }
 
-export function openingState(o: { kind: OpeningKind; unsealedAt: Date | null; finalisedAt: Date | null }, sittings: readonly SittingFacts[], auths: readonly AuthorisationFacts[], panel: readonly PanelMemberFacts[]): OpeningState {
+export function openingState(o: { kind: OpeningKind; unsealedAt: Date | null; finalisedAt: Date | null; exerciseStatus?: string }, sittings: readonly SittingFacts[], auths: readonly AuthorisationFacts[], panel: readonly PanelMemberFacts[]): OpeningState {
   const s = currentSitting(sittings);
   const sittingNo = s?.sittingNo ?? 1;
   return {
     kind: o.kind,
+    cancelled: o.exerciseStatus === "CANCELLED",
     finalised: o.finalisedAt != null,
     unsealed: o.unsealedAt != null,
     adjourned: s?.adjournedAt != null,
@@ -70,13 +73,16 @@ export function openingPhase(s: OpeningState): OpeningPhase {
   return s.unsealed ? "AWAITING_REAUTHORISATION" : "AWAITING_AUTHORISATION";
 }
 
-export type ActFault = "FINALISED" | "ADJOURNED" | "NOT_UNSEALED" | "SITTING_NOT_AUTHORISED";
+export type ActFault = "CANCELLED" | "FINALISED" | "ADJOURNED" | "NOT_UNSEALED" | "SITTING_NOT_AUTHORISED";
 
 /**
- * What every act on the opened record asks first: not finalised (FR-OPN-011: a finalised opening
- * has no update path), not adjourned, the box opened, and this sitting authorised by two members.
+ * What every act on the opened record asks first: the exercise not cancelled (review M-1: a
+ * cancelled exercise's openings are kept as they stand), not finalised (FR-OPN-011: a finalised
+ * opening has no update path), not adjourned, the box opened, and this sitting authorised by two
+ * members.
  */
 export function actFaults(s: OpeningState): Finding<ActFault>[] {
+  if (s.cancelled) return [{ code: "CANCELLED", level: "block" }];
   if (s.finalised) return [{ code: "FINALISED", level: "block" }];
   if (s.adjourned) return [{ code: "ADJOURNED", level: "block" }];
   if (!s.unsealed) return [{ code: "NOT_UNSEALED", level: "block" }];

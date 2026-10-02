@@ -13,7 +13,7 @@ import { isLate } from "@/lib/bids/lateness";
 import { sittingAuthorisers, type AuthorisationFacts, type OpeningState, type PanelMemberFacts } from "./state";
 import type { Finding } from "./types";
 
-export type AuthorisationFault = "FINALISED" | "ADJOURNED" | "ALREADY_AUTHORISED" | "SITTING_AUTHORISED" | "NOT_ON_PANEL" | "ABSENT" | "AT_OR_BEFORE_CLOSING" | "CLOSING_NOT_SET" | "BOX_NOT_LOCKED";
+export type AuthorisationFault = "CANCELLED" | "FINALISED" | "ADJOURNED" | "ALREADY_AUTHORISED" | "SITTING_AUTHORISED" | "NOT_ON_PANEL" | "ABSENT" | "AT_OR_BEFORE_CLOSING" | "CLOSING_NOT_SET" | "BOX_NOT_LOCKED";
 
 export function authorisationFaults(i: {
   state: OpeningState;
@@ -26,6 +26,7 @@ export function authorisationFaults(i: {
   /// MAIN: a LOCKED box event at or after the closing. A supplementary opening opens an envelope held by an officer.
   boxLocked: boolean;
 }): Finding<AuthorisationFault>[] {
+  if (i.state.cancelled) return [{ code: "CANCELLED", level: "block" }];
   if (i.state.finalised) return [{ code: "FINALISED", level: "block" }];
   const out: Finding<AuthorisationFault>[] = [];
   const f = (code: AuthorisationFault, data?: Finding["data"]) => out.push({ code, level: "block", ...(data ? { data } : {}) });
@@ -60,10 +61,12 @@ export function lapsedByAdjourning(sittingNo: number, auths: readonly (Authorisa
   return sittingAuthorisers(sittingNo, auths, panel).length >= 2 ? [] : live.map((a) => a.id);
 }
 
-export type AdjournFault = "FINALISED" | "ALREADY_ADJOURNED" | "NOT_ADJOURNED" | "REASON_REQUIRED" | "PERSON_REQUIRED";
+export type AdjournFault = "CANCELLED" | "FINALISED" | "ALREADY_ADJOURNED" | "NOT_ADJOURNED" | "REASON_REQUIRED" | "PERSON_REQUIRED";
 
 /// FR-OPN-011: adjourning and resuming lose nothing; each says why and who recorded it.
 export function adjournFaults(i: { state: OpeningState; reason: string; personActive: boolean; resume: boolean }): Finding<AdjournFault>[] {
+  // Review M-1: a cancelled exercise's opening is neither adjourned nor resumed; it stays as it stood.
+  if (i.state.cancelled) return [{ code: "CANCELLED", level: "block" }];
   if (i.state.finalised) return [{ code: "FINALISED", level: "block" }];
   const out: Finding<AdjournFault>[] = [];
   const f = (code: AdjournFault) => out.push({ code, level: "block" });

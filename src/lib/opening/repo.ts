@@ -61,9 +61,9 @@ export async function loadOpenings(exerciseId: string, client: Tx = db) {
 export type OpeningRow = Awaited<ReturnType<typeof loadOpenings>>[number];
 export type OpenedBidRow = OpeningRow["bids"][number];
 
-/// The rules' view of an opening row.
-export const stateOf = (o: OpeningRow): OpeningState =>
-  openingState(o, o.sittings, o.authorisations, o.panel.map((p) => ({ personId: p.personId, present: p.present })));
+/// The rules' view of an opening row, on its exercise's status (a cancelled exercise records nothing more, review M-1).
+export const stateOf = (o: OpeningRow, exerciseStatus: string): OpeningState =>
+  openingState({ ...o, exerciseStatus }, o.sittings, o.authorisations, o.panel.map((p) => ({ personId: p.personId, present: p.present })));
 export const panelOf = (o: OpeningRow) => o.panel.map((p) => ({ personId: p.personId, present: p.present }));
 export const presentOf = (o: OpeningRow) => o.panel.filter((p) => p.present).map((p) => ({ personId: p.personId, name: p.person.name }));
 export const liveScans = (o: Pick<OpeningRow, "attachments">) => o.attachments.filter(isLive).length;
