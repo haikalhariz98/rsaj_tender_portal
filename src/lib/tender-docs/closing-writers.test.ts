@@ -104,6 +104,8 @@ const CLOSING_KEY_READERS: Record<string, string> = {
   "src/lib/bids/repo.ts": "selects the exercise's closing for the register's rules and the award's validity check; writes nothing",
   "src/lib/bids/read.ts": "selects the exercise's closing for the Bids received tab; writes nothing",
   "prisma/demo-bids.ts": "reads the closings the demo's receipts, box and extension are judged against; writes nothing",
+  // 6.15a (listed, flagged): the register's window check reads the closing's day (FR-VND-009).
+  "src/lib/suppliers/standing-repo.ts": "selects the exercise's closing for the register's window check; writes nothing",
 };
 
 describe("X-2: the closing is written nowhere else, by any route (carry a)", () => {

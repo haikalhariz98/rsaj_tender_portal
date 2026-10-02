@@ -28,6 +28,8 @@ const WRITERS: readonly { file: string; openedAt: RegExp }[] = [
   { file: "src/lib/integration/requisition-intake.ts", openedAt: /openedAt: dayToDate\(p\.trail\[0\]\.decidedOn\),/ },
   // 6.15 (faithful update, flagged: the scan's own list of writers): a supplier's registration route.
   { file: "src/app/suppliers/actions.ts", openedAt: /openedAt: dayToDate\(today\),/ },
+  // 6.15a (faithful update, flagged: the scan's own list of writers): a blacklisting's and a special permission's route.
+  { file: "src/app/suppliers/routes.ts", openedAt: /openedAt: dayToDate\(today\),/ },
 ];
 
 /** The text of each `approvalInstance.create({ … })` call in a file. */
