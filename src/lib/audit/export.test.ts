@@ -103,3 +103,36 @@ describe("the export names things in words", () => {
     expect(recordTypeLabel("Requisition")).toBe("Requisition");
   });
 });
+
+describe("SULIT values never leave in the file (6.7 review M-3)", () => {
+  const sulit = row("s", "2026-11-17T08:00:00Z", {
+    entity: "OpenedBid",
+    entityLabel: "DEMO/SX/0016/2026 · Offer 1",
+    changes: [
+      { field: "openingPrice", before: null, after: "RM 612,450.30" },
+      { field: "companyEstimate", before: null, after: "RM 640,000.00" },
+      { field: "estimatePaperCopy", before: null, after: "RM 640,100.00" },
+      { field: "letterQuote", before: "", after: "Envelope marked T/16/3" },
+      { field: "status", before: "Received", after: "Opened" },
+    ],
+  });
+  const file = auditCsv([sulit], "Asia/Kuala_Lumpur");
+  it("the file's bytes hold none of the figures or the quote", () => {
+    for (const v of ["612,450.30", "640,000.00", "640,100.00", "T/16/3"]) expect(file).not.toContain(v);
+  });
+  it("each SULIT change is still listed, its values stated as withheld; other changes read as before", async () => {
+    const { SULIT_WITHHELD } = await import("./export");
+    const line = file.split("\r\n")[1];
+    const changes = JSON.parse(line.slice(line.indexOf('"['), line.lastIndexOf(']"') + 2).slice(1, -1).replace(/""/g, '"')) as { field: string; before: string | null; after: string | null }[];
+    expect(changes.slice(0, 4).map((c) => c.after)).toEqual([SULIT_WITHHELD, SULIT_WITHHELD, SULIT_WITHHELD, SULIT_WITHHELD]);
+    expect(changes[0].before).toBeNull();
+    expect(changes[3].before).toBe("");
+    expect(changes[4]).toMatchObject({ before: "Received", after: "Opened" });
+    expect(SULIT_WITHHELD).toMatch(/Withheld: SULIT/);
+  });
+  it("every registered SULIT field is withheld, by the one registry", async () => {
+    const { SULIT_FIELDS } = await import("@/lib/sulit-fields");
+    const all = auditCsv([row("t", "2026-11-17T08:00:00Z", { changes: SULIT_FIELDS.map((f) => ({ field: f.field, before: "secret-before", after: "secret-after" })) })], "Asia/Kuala_Lumpur");
+    expect(all).not.toMatch(/secret-/);
+  });
+});

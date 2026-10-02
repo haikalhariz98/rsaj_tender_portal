@@ -46,7 +46,7 @@ export default async function AuditTrailPage() {
       />
       <div className="flex flex-col gap-6">
         <Callout tone="info" title="What the digest proves, and what it does not">
-          Each export is a CSV file with a SHA-256 digest of its exact bytes, and the export is itself recorded on the trail. The digest proves that a file is the one the portal produced on that day. It does not prove the database was never altered: no screen or action edits or deletes an entry, but the database does not yet refuse one itself — that waits for sign-in.
+          Each export is a CSV file with a SHA-256 digest of its exact bytes, and the export is itself recorded on the trail. A SULIT value (a price as read, the company estimate, the figure on its paper copy, a withdrawal letter's quote) is not in the file: the change is listed with its values withheld. The digest proves that a file is the one the portal produced on that day. It does not prove the database was never altered: no screen or action edits or deletes an entry, but the database does not yet refuse one itself — that waits for sign-in.
         </Callout>
         <Card>
           <CardHeader icon={<FileIcon size={17} />} title="Export" subtitle="Every entry recorded on the organisation's days chosen, oldest first." />

@@ -12,12 +12,16 @@
  * edit at the database itself waits for sign-in and for demo tooling that does not
  * need to delete trail rows.
  *
+ * SULIT values never leave in it (6.7 review M-3): a change to a registered SULIT field is listed
+ * with its values replaced by "Withheld: SULIT, not exported".
+ *
  * Pure.
  */
 
 import { createHash } from "node:crypto";
 
 import { dayIn } from "@/lib/dates";
+import { isSulitField } from "@/lib/sulit-fields";
 
 import { CORE_ROUTING_ENTITY_NAME } from "./core-routing-trail";
 import { fieldLabel } from "./diff";
@@ -46,10 +50,26 @@ export function recordTypeLabel(entity: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
-/// The changes with field names as the History drawer reads them, not as stored.
+/// What the file holds in place of a SULIT value (6.7 review M-3): the change is listed, its figure is not.
+export const SULIT_WITHHELD = "Withheld: SULIT, not exported";
+
+/// A value of a registered SULIT field, withheld; an empty one stays empty (nothing to withhold).
+const withheld = (v: unknown) => (v == null || v === "" ? v : SULIT_WITHHELD);
+
+/**
+ * The changes with field names as the History drawer reads them, not as stored. A registered SULIT
+ * field (`sulit-fields.ts`: a price as read, the company estimate, the paper copy's figure, a
+ * withdrawal letter's quote…) is listed with its values withheld: the file leaves the portal, and
+ * nothing yet restricts who reads it (NFR-SEC-002, 6.2 OD-8).
+ */
 function labelledChanges(changes: unknown): unknown {
   if (!Array.isArray(changes)) return changes ?? [];
-  return changes.map((c) => (c && typeof c === "object" && "field" in c ? { ...c, field: fieldLabel(String((c as { field: unknown }).field)) } : c));
+  return changes.map((c) => {
+    if (!c || typeof c !== "object" || !("field" in c)) return c;
+    const raw = String((c as { field: unknown }).field);
+    const change = c as { before?: unknown; after?: unknown };
+    return { ...c, field: fieldLabel(raw), ...(isSulitField(raw) ? { before: withheld(change.before), after: withheld(change.after) } : {}) };
+  });
 }
 
 /// One CSV field: quoted where it holds a comma, a quote or a line break.
