@@ -174,14 +174,16 @@ export function lodgeFaults(i: LodgeInput, ctx: { today: string | null; type: Do
 
 // ------------------------------------------------------------------ verification (FR-VND-004)
 
-export type VerifyFault = "TIME_ZONE_UNSET" | "ALREADY_CHECKED" | "STATE_REQUIRED" | "PERSON_REQUIRED" | "DAY_REQUIRED" | "IN_FUTURE" | "BEFORE_LODGED" | "NOTE_REQUIRED";
+export type VerifyFault = "TIME_ZONE_UNSET" | "ALREADY_CHECKED" | "STATE_REQUIRED" | "PERSON_REQUIRED" | "DAY_REQUIRED" | "IN_FUTURE" | "BEFORE_LODGED" | "NOTE_REQUIRED" | "SCAN_REQUIRED";
 
 /**
  * An officer's check of one lodged document: verified, or not in order (with why), by a named active
  * Person on a day between the lodging and today. Recorded on their behalf, not signed. A checked
- * document is not checked again: a corrected one is lodged as a renewal.
+ * document is not checked again: a corrected one is lodged as a renewal. Verified needs the scan it
+ * was verified on attached (the store keeps it: a verified document stands on it); a document lodged
+ * as not applicable has nothing to scan.
  */
-export function verifyFaults(i: { state: VerificationState | null; personActive: boolean; verifiedOn: string | null; note: string }, doc: Pick<DocumentFacts, "verification" | "lodgedOn">, today: string | null): Finding<VerifyFault>[] {
+export function verifyFaults(i: { state: VerificationState | null; personActive: boolean; verifiedOn: string | null; note: string }, doc: Pick<DocumentFacts, "verification" | "lodgedOn" | "notApplicable"> & { scanned: boolean }, today: string | null): Finding<VerifyFault>[] {
   if (today == null) return [{ code: "TIME_ZONE_UNSET", level: "block" }];
   const out: Finding<VerifyFault>[] = [];
   if (doc.verification !== "NOT_CHECKED") out.push({ code: "ALREADY_CHECKED", level: "block" });
@@ -191,5 +193,6 @@ export function verifyFaults(i: { state: VerificationState | null; personActive:
   else if (i.verifiedOn > today) out.push({ code: "IN_FUTURE", level: "block" });
   else if (i.verifiedOn < doc.lodgedOn) out.push({ code: "BEFORE_LODGED", level: "block", data: { lodgedOn: doc.lodgedOn } });
   if (i.state === "NOT_IN_ORDER" && !i.note.trim()) out.push({ code: "NOTE_REQUIRED", level: "block" });
+  if (i.state === "VERIFIED" && !doc.notApplicable && !doc.scanned) out.push({ code: "SCAN_REQUIRED", level: "block" });
   return out;
 }

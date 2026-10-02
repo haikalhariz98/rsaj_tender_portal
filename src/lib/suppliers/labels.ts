@@ -5,12 +5,14 @@
  */
 
 import { formatDate } from "@/lib/format";
+import type { DeciderFault } from "@/lib/requisition/holders";
 
 import type { DocumentState } from "./documents";
 import type { IdentityFault } from "./identity";
 import type { LodgeFault, VerifyFault } from "./documents";
 import type { ConfigFault } from "./config";
 import type { ReviewFault } from "./review";
+import type { VendorCodeFault } from "@/lib/integration/vendor-master";
 import type { ApplicationChannel, ApplicationKind, ApplicationOutcome, ApplicationStatus, Finding, RegistrationValueKind, SupplierListKind, SupplierStatus, VerificationState } from "./types";
 
 export interface Words {
@@ -124,7 +126,7 @@ export const ERP_NOT_SYNCED = w("Approved, not in the finance system", "Dilulusk
 const TYPE_STATE = (s: unknown) => DOCUMENT_STATE_LABEL[s as DocumentState] ?? w("not standing", "tidak berdiri");
 const SETTINGS = w("Configuration › Supplier register", "Konfigurasi › Daftar pembekal");
 
-type AnyFault = IdentityFault | LodgeFault | VerifyFault | ReviewFault | ConfigFault;
+type AnyFault = IdentityFault | LodgeFault | VerifyFault | ReviewFault | ConfigFault | VendorCodeFault;
 
 const TEXT: Record<AnyFault, (d: Record<string, string | number | null>) => Words> = {
   // identity (FR-VND-001)
@@ -196,6 +198,8 @@ const TEXT: Record<AnyFault, (d: Record<string, string | number | null>) => Word
   MANDATORY_NOT_SET: (d) => w(`Whether ${d.type} is mandatory is not set, so the file cannot be judged complete. Set it under ${SETTINGS.en}, Document types.`, `Sama ada ${d.type} wajib belum ditetapkan. Tetapkan di ${SETTINGS.ms}, Jenis dokumen.`),
   ITEMS_REQUIRED: () => w("Name at least one item to resubmit.", "Namakan sekurang-kurangnya satu perkara untuk dihantar semula."),
   ITEM_REMARKS_REQUIRED: () => w("Every item needs its remarks, as they are to be given to the supplier.", "Setiap perkara memerlukan catatan, seperti yang akan diberikan kepada pembekal."),
+  ITEM_NAMES_NOTHING: () => w("Every item names a document on file or a configured document type.", "Setiap perkara menamakan dokumen dalam fail atau jenis dokumen yang dikonfigurasi."),
+  SCAN_REQUIRED: () => w("Attach the document's scan first: it is verified on its scan.", "Lampirkan imbasan dokumen dahulu: ia disahkan berdasarkan imbasannya."),
   ITEM_NOT_ON_FILE: () => w("An item names a document not on this supplier's file.", "Satu perkara menamakan dokumen yang tiada dalam fail pembekal ini."),
   DEADLINE_REQUIRED: () => w("Give the resubmission deadline.", "Nyatakan tarikh akhir penghantaran semula."),
   DEADLINE_NOT_AFTER_TODAY: () => w("The deadline must be after today.", "Tarikh akhir mestilah selepas hari ini."),
@@ -221,6 +225,10 @@ const TEXT: Record<AnyFault, (d: Record<string, string | number | null>) => Word
   KINDS_WITHOUT_BODY: () => w("A type records values only of a registration body it names.", "Jenis merekodkan nilai hanya bagi badan pendaftaran yang dinamakannya."),
   KIND_NOT_LISTED: () => w("That list is not one of the register's.", "Senarai itu bukan senarai daftar."),
   REASON_REQUIRED: () => w("Give the reason.", "Nyatakan sebabnya."),
+  // the finance system's vendor code (INT-03)
+  FORMAT: () => w("The code does not match the format set for the finance system's vendor codes.", "Kod tidak sepadan dengan format yang ditetapkan bagi kod vendor sistem kewangan."),
+  TAKEN: () => w("That vendor code is already recorded on another supplier.", "Kod vendor itu sudah direkodkan pada pembekal lain."),
+  NOT_REGISTERED: () => w("A vendor code is recorded once the supplier is registered.", "Kod vendor direkodkan setelah pembekal berdaftar."),
 };
 
 /// A finding of the register's rules, in words.
@@ -231,3 +239,26 @@ export function supplierFaultText(f: Finding, lang: keyof Words = "en"): string 
 
 /// Whether every code a rule can return has words (the labels test asks this of each fault list).
 export const hasFaultText = (code: string) => code in TEXT;
+
+/// A step decider's fault on a supplier route, in words (6.1's rule; the matter is the supplier's, not a requisition).
+export const SUPPLIER_DECIDER_TEXT: Readonly<Record<DeciderFault, Words>> = {
+  TIME_ZONE_UNSET: w("Set the organisation's time zone before recording decisions.", "Tetapkan zon waktu organisasi sebelum merekodkan keputusan."),
+  COMMITTEE_STEP: w("A committee step is not taken on a supplier matter.", "Langkah jawatankuasa tidak diambil bagi perkara pembekal."),
+  NOT_PENDING: w("This step is already decided.", "Langkah ini sudah diputuskan."),
+  OUT_OF_ORDER: w("An earlier step is still pending. Steps are decided in order.", "Langkah terdahulu masih belum diputuskan. Langkah diputuskan mengikut turutan."),
+  INACTIVE: w("That person is recorded as having left.", "Orang itu direkodkan telah meninggalkan organisasi."),
+  NOT_HOLDER: w("That person does not hold this office organisation-wide on that day, and holds no delegation of it without a value ceiling (a supplier matter has no value to judge a ceiling by).", "Orang itu tidak memegang jawatan ini di peringkat organisasi pada hari itu, dan tidak memegang perwakilan kuasa tanpa had nilai."),
+  DELEGATION_NOT_PERMITTED: w("This step cannot be delegated, and that person acts only under a delegation.", "Langkah ini tidak boleh diwakilkan, dan orang itu bertindak hanya di bawah perwakilan kuasa."),
+  OVER_CEILING: w("A delegation with a value ceiling cannot be judged on a supplier matter, which has no value.", "Perwakilan kuasa dengan had nilai tidak boleh dinilai bagi perkara pembekal, yang tiada nilai."),
+  SELF_APPROVAL: w("That person sent this matter for decision. Nobody decides a matter they sent.", "Orang itu menghantar perkara ini untuk keputusan. Tiada sesiapa memutuskan perkara yang dihantarnya."),
+  ENDORSED_IT: w("That person endorsed this matter.", "Orang itu telah menyokong perkara ini."),
+  ALREADY_DISCHARGED_A_STEP: w("That person has already decided another step of this route.", "Orang itu telah memutuskan langkah lain laluan ini."),
+  FUTURE_DATE: w("A decision cannot be dated after today.", "Keputusan tidak boleh bertarikh selepas hari ini."),
+  BEFORE_SUBMISSION: w("A decision cannot be dated before the matter was sent for decision.", "Keputusan tidak boleh bertarikh sebelum perkara dihantar untuk keputusan."),
+  DECLARED_CONFLICT: w("That person declared a conflict of interest on this step and recused.", "Orang itu mengisytiharkan konflik kepentingan pada langkah ini dan menarik diri."),
+};
+
+/// What a supplier's registration is called in a route refusal.
+export const REGISTRATION_MATTER = w("a supplier's registration", "pendaftaran pembekal");
+/// Where a refused registration route goes: the application stays open.
+export const REGISTRATION_REFUSED_DECIDED_BY = "the application stays open: resubmission may be requested, it may be rejected, or sent again";

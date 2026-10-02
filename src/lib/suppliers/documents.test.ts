@@ -130,7 +130,7 @@ describe("lodging a document (FR-VND-002)", () => {
 });
 
 describe("an officer's check of a document (FR-VND-004)", () => {
-  const lodged = { verification: "NOT_CHECKED" as const, lodgedOn: "2026-09-20" };
+  const lodged = { verification: "NOT_CHECKED" as const, lodgedOn: "2026-09-20", notApplicable: false, scanned: true };
   const ok = { state: "VERIFIED" as const, personActive: true, verifiedOn: "2026-09-21", note: "" };
 
   it("verified by a named active person on a day between lodging and today", () => {
@@ -138,6 +138,12 @@ describe("an officer's check of a document (FR-VND-004)", () => {
     expect(codes(verifyFaults({ ...ok, verifiedOn: "2026-09-19" }, lodged, "2026-10-01"))).toEqual(["BEFORE_LODGED"]);
     expect(codes(verifyFaults({ ...ok, verifiedOn: "2026-10-02" }, lodged, "2026-10-01"))).toEqual(["IN_FUTURE"]);
     expect(codes(verifyFaults({ ...ok, personActive: false }, lodged, "2026-10-01"))).toEqual(["PERSON_REQUIRED"]);
+  });
+
+  it("verified needs the scan it was verified on; not applicable has nothing to scan", () => {
+    expect(codes(verifyFaults(ok, { ...lodged, scanned: false }, "2026-10-01"))).toEqual(["SCAN_REQUIRED"]);
+    expect(verifyFaults(ok, { ...lodged, scanned: false, notApplicable: true }, "2026-10-01")).toEqual([]);
+    expect(verifyFaults({ ...ok, state: "NOT_IN_ORDER", note: "Copy unreadable" }, { ...lodged, scanned: false }, "2026-10-01")).toEqual([]);
   });
 
   it("not in order needs the reason", () => {

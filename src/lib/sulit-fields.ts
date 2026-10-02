@@ -46,6 +46,12 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "recommendedTenderer", what: "the tenderer an evaluation recommends, before the Board decides (6.8 Q2)" },
   // 6.8 re-review 3: why a tenderer other than the top-ranked is recommended, which names and compares tenderers.
   { field: "rankingJustification", what: "why the evaluation recommends a tenderer other than the top-ranked, before the Board decides (6.8 re-review 3)" },
+  // 6.15 condition (2): a supplier's people, as the register records them (never a Person, ADR 0019). Not
+  // restricted until sign-in; History chips them and the audit export withholds them.
+  { field: "contactName", what: "a supplier contact's name (6.15 condition 2)" },
+  { field: "contactDesignation", what: "a supplier contact's designation (6.15 condition 2)" },
+  { field: "contactEmail", what: "a supplier contact's email (6.15 condition 2)" },
+  { field: "contactPhone", what: "a supplier contact's telephone (6.15 condition 2)" },
 ];
 
 /// Whether a stored field (an audit change's field name) is a registered SULIT field: a History

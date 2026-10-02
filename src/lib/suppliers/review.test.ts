@@ -86,20 +86,22 @@ describe("the resubmission deadline (derived, no scheduler)", () => {
 });
 
 describe("an officer's outcome (FR-VND-007)", () => {
-  const ctx = { today: "2026-10-01", documentIds: ["d1", "d2"] };
-  const resubmit = { outcome: "RESUBMIT" as const, remarks: "", resubmitBy: "2026-10-20", items: [{ documentId: "d1", remarks: "Certificate copy illegible; send a certified copy." }], personActive: true };
+  const ctx = { today: "2026-10-01", documentIds: ["d1", "d2"], typeIds: ["t_clearance"] };
+  const resubmit = { outcome: "RESUBMIT" as const, remarks: "", resubmitBy: "2026-10-20", items: [{ documentId: "d1", typeId: null, remarks: "Certificate copy illegible; send a certified copy." }], personActive: true };
 
   it("resubmission needs at least one item, each with remarks, and a deadline after today", () => {
     expect(decisionFaults(resubmit, file, ctx)).toEqual([]);
     expect(codes(decisionFaults({ ...resubmit, items: [] }, file, ctx))).toEqual(["ITEMS_REQUIRED"]);
-    expect(codes(decisionFaults({ ...resubmit, items: [{ documentId: null, remarks: " " }] }, file, ctx))).toEqual(["ITEM_REMARKS_REQUIRED"]);
+    expect(codes(decisionFaults({ ...resubmit, items: [{ documentId: "d2", typeId: null, remarks: " " }] }, file, ctx))).toEqual(["ITEM_REMARKS_REQUIRED"]);
     expect(codes(decisionFaults({ ...resubmit, resubmitBy: "2026-10-01" }, file, ctx))).toEqual(["DEADLINE_NOT_AFTER_TODAY"]);
     expect(codes(decisionFaults({ ...resubmit, resubmitBy: null }, file, ctx))).toEqual(["DEADLINE_REQUIRED"]);
   });
 
-  it("an item may name a type not lodged yet (no document), never a document not on file", () => {
-    expect(decisionFaults({ ...resubmit, items: [{ documentId: null, remarks: "Lodge the tax clearance letter." }] }, file, ctx)).toEqual([]);
-    expect(codes(decisionFaults({ ...resubmit, items: [{ documentId: "zz", remarks: "x" }] }, file, ctx))).toEqual(["ITEM_NOT_ON_FILE"]);
+  it("an item may name a configured type not lodged yet, never a document not on file, and never nothing", () => {
+    expect(decisionFaults({ ...resubmit, items: [{ documentId: null, typeId: "t_clearance", remarks: "Lodge the tax clearance letter." }] }, file, ctx)).toEqual([]);
+    expect(codes(decisionFaults({ ...resubmit, items: [{ documentId: "zz", typeId: null, remarks: "x" }] }, file, ctx))).toEqual(["ITEM_NOT_ON_FILE"]);
+    expect(codes(decisionFaults({ ...resubmit, items: [{ documentId: null, typeId: null, remarks: "x" }] }, file, ctx))).toEqual(["ITEM_NAMES_NOTHING"]);
+    expect(codes(decisionFaults({ ...resubmit, items: [{ documentId: null, typeId: "t_other", remarks: "x" }] }, file, ctx))).toEqual(["ITEM_NAMES_NOTHING"]);
   });
 
   it("rejection needs its remarks", () => {
@@ -131,5 +133,20 @@ describe("opening a further application", () => {
     expect(codes(openApplicationFaults("UPGRADE", "APPLICANT", false))).toEqual(["KIND_NOT_FOR_STATUS"]);
     expect(codes(openApplicationFaults("RENEWAL", "REGISTERED", true))).toEqual(["ALREADY_OPEN"]);
     expect(codes(openApplicationFaults(null, "REGISTERED", false))).toEqual(["KIND_REQUIRED"]);
+  });
+});
+
+describe("the file as approval reads it", () => {
+  it("each live mandatory type with its state; unset switches named; retired types neither asked nor required", async () => {
+    const { fileFacts } = await import("./review");
+    const { TYPES, doc } = await import("./fixture");
+    const types = [TYPES.companies, TYPES.works, TYPES.clearance, { ...TYPES.supply, mandatoryAtRegistration: true, retiredOn: "2026-09-01" }];
+    const f = fileFacts({ status: "RECEIVED", lapsedRecordedAt: null, resubmitBy: null, routePending: false, declarationSignedOn: "2026-09-29", declarationScanned: true }, types, [doc({ id: "c", typeId: "t_companies" })], "2026-10-01");
+    expect(f.mandatory).toEqual([
+      { label: "Companies registry certificate", state: "VALID" },
+      { label: "Works board certificate", state: "MISSING" },
+    ]);
+    expect(f.mandatoryNotSet).toEqual(["Tax clearance letter"]);
+    expect(f.typesConfigured).toBe(3);
   });
 });
