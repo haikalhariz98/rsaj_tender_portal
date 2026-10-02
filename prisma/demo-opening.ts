@@ -207,7 +207,7 @@ export async function loadOpeningDemo(db: Db, organisationId: string) {
 }
 
 /// The opening's acts on one exercise, each judged as its action judges it on the rows as they stand.
-class OpeningActs {
+export class OpeningActs {
   constructor(
     private readonly db: Db,
     private readonly org: string,
