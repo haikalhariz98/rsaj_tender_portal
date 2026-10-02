@@ -52,6 +52,9 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "contactDesignation", what: "a supplier contact's designation (6.15 condition 2)" },
   { field: "contactEmail", what: "a supplier contact's email (6.15 condition 2)" },
   { field: "contactPhone", what: "a supplier contact's telephone (6.15 condition 2)" },
+  // 6.12 (FR-CON-005 b): the estimate's rate a tendered rate is tested against for front loading. Shown with
+  // the chip on the contract's checks, never in a list, and kept out of the trail.
+  { field: "estimateRate", what: "the estimate's rate a tendered rate is compared with for front loading (6.12)" },
 ];
 
 /// Whether a stored field (an audit change's field name) is a registered SULIT field: a History
