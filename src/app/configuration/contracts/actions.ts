@@ -6,6 +6,9 @@ import type { FormState } from "@/components/record-editor";
 import { diffFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { db } from "@/lib/db";
+import { rowInForce } from "@/lib/contract/in-force";
+import { storedDay } from "@/lib/dates";
+import { formatDate } from "@/lib/format";
 import { exerciseOrg } from "@/lib/method/repo";
 import { FormReader } from "@/lib/validate";
 
@@ -137,11 +140,16 @@ export async function retireContractRow(_prev: FormState, data: FormData): Promi
   if (!(entity in RETIRABLE)) return { ok: false, message: "That list cannot be changed here." };
   if (r.failed || !on) return { ok: false, errors: r.errors };
   return db.$transaction(async (tx) => {
+    // The row first (its own lock), then read it: two retirements of one row cannot both pass.
+    if (entity === "ContractDocumentPart") await tx.$queryRaw`SELECT id FROM "ContractDocumentPart" WHERE id = ${id} FOR UPDATE`;
+    else await tx.$queryRaw`SELECT id FROM "ControlledCopyRecipient" WHERE id = ${id} FOR UPDATE`;
     const model = (tx as unknown as Record<string, { findFirst: (a: object) => Promise<{ id: string; retiredOn: Date | null; labelEn?: string; nameEn?: string } | null>; update: (a: object) => Promise<unknown> }>)[RETIRABLE[entity]];
     const before = await model.findFirst({ where: { id, organisationId: o.id } });
     if (!before) return { ok: false, message: "That row no longer exists." } as FormState;
+    // R-6: the day is a "from" day, judged against the organisation's day with an exclusive end (rowInForce).
+    if (before.retiredOn) return { ok: false, message: `It is already retired from ${formatDate(storedDay(before.retiredOn))}.` } as FormState;
     await model.update({ where: { id }, data: { retiredOn: on } });
-    await writeAudit(tx, { organisationId: o.id, entity, entityId: id, entityLabel: before.labelEn ?? before.nameEn ?? "Row", reason }, "UPDATE", diffFields({ retiredOn: before.retiredOn }, { retiredOn: on }));
+    await writeAudit(tx, { organisationId: o.id, entity, entityId: id, entityLabel: before.labelEn ?? before.nameEn ?? "Row", reason }, "UPDATE", diffFields({ retiredOn: null }, { retiredOn: storedDay(on), inForceToday: o.today ? (rowInForce({ retiredOn: on }, o.today) ? "yes: retired from a later day" : "no") : null }));
     return done();
   });
 }

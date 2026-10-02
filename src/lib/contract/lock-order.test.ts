@@ -97,3 +97,159 @@ describe("single writers", () => {
     expect(writers).toEqual(["recordRsajSignature"]);
   });
 });
+
+// ------------------------------------------------------------------ 6.12 review R-7: the stricter scan
+//
+// The scans above match one written form in one file. These match every way a contract row or a baseline
+// row is written (any Prisma write on the model, the moveTo helper's extra fields, raw SQL naming the
+// column), in every non-test source file under src/app and src/lib, and name the function each write is
+// in. A write outside the allowed functions fails, wherever it is and however it is spelled.
+
+interface Source {
+  file: string;
+  src: string;
+}
+
+/// The argument list of the call whose "(" is at `open`, strings skipped, parentheses balanced.
+function callArgs(src: string, open: number): string {
+  let depth = 0;
+  for (let i = open; i < src.length; i++) {
+    const ch = src[i];
+    if (ch === '"' || ch === "'" || ch === "`") {
+      for (i++; i < src.length && src[i] !== ch; i++) if (src[i] === "\\") i++;
+      continue;
+    }
+    if (ch === "(") depth++;
+    else if (ch === ")" && --depth === 0) return src.slice(open, i + 1);
+  }
+  return src.slice(open);
+}
+
+/// The named function (declaration or const arrow) a position is inside.
+function enclosing(src: string, at: number): string {
+  let name = "(top level)";
+  let best = -1;
+  for (const re of [/(?:^|\n)(?:export[ \t]+)?(?:default[ \t]+)?(?:async[ \t]+)?function\*?[ \t]+(\w+)/g, /(?:^|\n)(?:export[ \t]+)?const[ \t]+(\w+)[ \t]*=[ \t]*(?:async[ \t]*)?(?:\(|\w+[ \t]*=>)/g]) {
+    for (const m of src.matchAll(re)) if (m.index! < at && m.index! > best) [best, name] = [m.index!, m[1]];
+  }
+  return name;
+}
+
+/// "use server" as a module directive however it is written: either quote, after a BOM, blank lines or comments.
+export function isServerModule(src: string): boolean {
+  const head = src.replace(/^﻿/, "").replace(/^(?:\s+|\/\/[^\n]*\n?|\/\*[\s\S]*?\*\/)*/, "");
+  return /^(["'])use server\1/.test(head);
+}
+
+const PRISMA_WRITE = "(?:update|updateMany|create|createMany|createManyAndReturn|upsert)";
+
+/// Every write that can set Contract.contractDate, by file and function.
+function contractDateWrites(files: readonly Source[]): string[] {
+  const out: string[] = [];
+  for (const { file, src } of files) {
+    for (const m of src.matchAll(new RegExp(`\\.contract\\.${PRISMA_WRITE}\\(`, "g"))) {
+      const args = callArgs(src, m.index! + m[0].length - 1);
+      const fn = enclosing(src, m.index!);
+      // A spread could carry the Contract Date unseen; only the status helper spreads, and its callers are scanned below.
+      if (/\bcontractDate\b\s*:|\bcontractDate\b\s*[,}]/.test(args) || (/\.\.\.\s*\w/.test(args) && fn !== "moveTo")) out.push(`${file} › ${fn}`);
+    }
+    for (const m of src.matchAll(/\bmoveTo\(/g)) {
+      if (enclosing(src, m.index!) === "moveTo") continue;
+      if (/\bcontractDate\b/.test(callArgs(src, m.index! + m[0].length - 1))) out.push(`${file} › ${enclosing(src, m.index!)}`);
+    }
+    for (const m of src.matchAll(/\$(?:executeRaw|queryRaw)(?:Unsafe)?\s*[`(]/g)) {
+      const rest = src.slice(m.index!, src.indexOf(";", m.index!) === -1 ? undefined : src.indexOf(";", m.index!));
+      if (/"Contract"/.test(rest) && /"contractDate"/.test(rest)) out.push(`${file} › ${enclosing(src, m.index!)}`);
+    }
+  }
+  return [...new Set(out)].sort();
+}
+
+/// Every write of a baseline row, and every EXECUTED version written, by file and function.
+function baselineWrites(files: readonly Source[]): { rows: string[]; executed: string[] } {
+  const rows: string[] = [];
+  const executed: string[] = [];
+  for (const { file, src } of files) {
+    for (const m of src.matchAll(new RegExp(`\\.contractBaseline\\.${PRISMA_WRITE}\\(`, "g"))) {
+      const where = `${file} › ${enclosing(src, m.index!)}`;
+      rows.push(where);
+      if (/"EXECUTED"/.test(callArgs(src, m.index! + m[0].length - 1))) executed.push(where);
+    }
+    for (const m of src.matchAll(/\bwriteVersion\(/g)) {
+      const fn = enclosing(src, m.index!);
+      if (fn === "writeVersion") continue;
+      if (/"EXECUTED"/.test(callArgs(src, m.index! + m[0].length - 1))) executed.push(`${file} › ${fn}`);
+    }
+    for (const m of src.matchAll(/\$(?:executeRaw|queryRaw)(?:Unsafe)?\s*[`(]/g)) {
+      const rest = src.slice(m.index!, src.indexOf(";", m.index!) === -1 ? undefined : src.indexOf(";", m.index!));
+      if (/"ContractBaseline"/.test(rest) && /\b(INSERT|UPDATE)\b/i.test(rest)) rows.push(`${file} › ${enclosing(src, m.index!)}`);
+    }
+  }
+  return { rows: [...new Set(rows)].sort(), executed: [...new Set(executed)].sort() };
+}
+
+/// Every write that can move a contract to ACTIVE.
+function activeWrites(files: readonly Source[]): string[] {
+  const out: string[] = [];
+  for (const { file, src } of files) {
+    for (const m of src.matchAll(new RegExp(`\\.contract\\.${PRISMA_WRITE}\\(|\\bmoveTo\\(`, "g"))) {
+      if (/"ACTIVE"/.test(callArgs(src, m.index! + m[0].length - 1))) out.push(`${file} › ${enclosing(src, m.index!)}`);
+    }
+  }
+  return out;
+}
+
+const SCANNED = [...files("src/app"), ...files("src/lib")].map((file) => ({ file, src: read(file) }));
+const A = path.normalize(ACTIONS);
+
+describe("single writers, scanned everywhere (R-7)", () => {
+  it("the scan covers every server module, the award's acts, the document store's owners and src/lib", () => {
+    const names = SCANNED.map((s) => s.file);
+    for (const f of ["src/app/awards/actions.ts", "src/lib/documents/owners.ts", ACTIONS, "src/lib/contract/repo.ts"]) expect(names).toContain(path.normalize(f));
+    expect(SCANNED.filter((s) => isServerModule(s.src)).length).toBeGreaterThan(20);
+  });
+
+  it("only the RSAJ signature and its audited correction can write the Contract Date", () => {
+    expect(contractDateWrites(SCANNED)).toEqual([`${A} › correctContractDate`, `${A} › recordRsajSignature`]);
+  });
+
+  it("baseline rows are written only by preparation, the draft's keying and writeVersion; EXECUTED only by the RSAJ signature", () => {
+    const w = baselineWrites(SCANNED);
+    expect(w.rows).toEqual([`${A} › saveBaselineEntry`, `${A} › startPreparation`, `${A} › writeVersion`]);
+    expect(w.executed).toEqual([`${A} › recordRsajSignature`]);
+  });
+
+  it("nothing anywhere moves a contract to ACTIVE (6.13's possession act will)", () => {
+    expect(activeWrites(SCANNED)).toEqual([]);
+  });
+});
+
+describe("the scan catches a third writer (self-test)", () => {
+  const legit: Source = { file: "a.ts", src: 'export async function recordRsajSignature() {\n  await moveTo(c, "EXECUTED", { contractDate: dayToDate(d) });\n  await writeVersion(c, exec, "EXECUTED", "", {});\n}\n' };
+  it("a plain update in another file", () => {
+    const third: Source = { file: "b.ts", src: "'use server';\nexport async function sneaky(tx) {\n  await tx.contract.update({ where: { id }, data: { stampingRef: \"x\", contractDate: when } });\n}\n" };
+    expect(contractDateWrites([legit, third])).toEqual(["a.ts › recordRsajSignature", "b.ts › sneaky"]);
+  });
+  it("shorthand, a spread, upsert, a const arrow and raw SQL", () => {
+    const srcs: Source[] = [
+      { file: "c.ts", src: "export const quiet = async (tx) => {\n  await tx.contract.updateMany({ where: {}, data: { contractDate } });\n};\n" },
+      { file: "d.ts", src: "async function viaSpread(tx, extra) {\n  await db.contract.upsert({ where: {}, update: { ...extra }, create: {} });\n}\n" },
+      { file: "e.ts", src: 'async function raw(tx) {\n  await tx.$executeRaw`UPDATE "Contract" SET "contractDate" = $' + "{d} WHERE id = $" + '{id}`;\n}\n' },
+      { file: "f.ts", src: 'async function moved(c) {\n  await moveTo(c, "EXECUTED", { contractDate: x });\n}\n' },
+    ];
+    expect(contractDateWrites(srcs)).toEqual(["c.ts › quiet", "d.ts › viaSpread", "e.ts › raw", "f.ts › moved"]);
+  });
+  it("a third baseline writer, and an EXECUTED version written elsewhere", () => {
+    const third: Source = { file: "g.ts", src: 'export async function backfill(tx) {\n  await tx.contractBaseline.create({ data: { version: 2, reason: "EXECUTED" } });\n}\nasync function other(c) {\n  await writeVersion(c, v, "EXECUTED", "", {});\n}\n' };
+    const w = baselineWrites([legit, third]);
+    expect(w.rows).toEqual(["g.ts › backfill"]);
+    expect(w.executed).toEqual(["a.ts › recordRsajSignature", "g.ts › backfill", "g.ts › other"]);
+  });
+  it("an ACTIVE write by either path", () => {
+    expect(activeWrites([{ file: "h.ts", src: 'async function possess(c) {\n  await moveTo(c, "ACTIVE");\n  await tx.contract.update({ data: { status: "ACTIVE" } });\n}\n' }])).toEqual(["h.ts › possess", "h.ts › possess"]);
+  });
+  it('"use server" is recognised however it is written', () => {
+    for (const s of ['"use server";\n', "'use server'\n", "﻿\n\n// note\n/* block */\n\"use server\";\n", "/** doc */\n'use server';"]) expect(isServerModule(s), JSON.stringify(s)).toBe(true);
+    for (const s of ['import x from "y";\n"use server";', '// "use server"\nexport const a = 1;']) expect(isServerModule(s), JSON.stringify(s)).toBe(false);
+  });
+});

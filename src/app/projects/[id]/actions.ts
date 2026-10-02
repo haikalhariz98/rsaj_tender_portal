@@ -8,14 +8,16 @@ import { diffFields, snapshotFields, type FieldChange } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { toSecond } from "@/lib/bids/lateness";
 import { applyEntered, baselineFaults, buildBaseline, changedFields, derive, ENTERED_GROUPS, enteredFaults, type BaselineValues, type EnteredGroup, type EnteredProvenance, type EnteredValues } from "@/lib/contract/baseline";
+import { correctableFaults, groupChange } from "@/lib/contract/baseline-entry";
 import { contractDateOf, dateCorrectionFaults } from "@/lib/contract/contract-date";
+import { executedSnapshot, frozenSigningDays } from "@/lib/contract/executed-snapshot";
 import { acknowledgeFaults, despatchFaults, issueFaults, nextCopyNo, recallFaults, reissueFaults, type CopyFacts } from "@/lib/contract/copies";
 import { custodyState, movementFaults, registerFaults } from "@/lib/contract/custody";
 import { refusalText } from "@/lib/contract/fault-text";
-import { amendmentFaults, completeFaults, type RateFacts } from "@/lib/contract/formation";
+import { amendmentFaults, arithmeticVariance, completeFaults, type RateFacts } from "@/lib/contract/formation";
 import { baselineBlocks, currentBaseline, formationOf, reviewsOf, signingFacts } from "@/lib/contract/judge";
 import { decideFaults, nextIteration, openReview, statusAfter, submitFaults } from "@/lib/contract/legal";
-import { baselineInputsOf, baselineRows, contractGate, frozenInputsOf, inputsToJson, liveOf, loadContractConfig, rowOf, sectionRows, valuesOf } from "@/lib/contract/load";
+import { baselineInputsOf, baselineRows, contractGate, frozenInputsOf, inputsToJson, liveOf, loadContractConfig, preparationSettings, rowOf, sectionRows, valuesOf } from "@/lib/contract/load";
 import { formationSnapshot, readFormationSnapshot, startFaults } from "@/lib/contract/preparation";
 import { contractLabel, withLockedContract, type LoadedContract } from "@/lib/contract/repo";
 import { briefingFaults, contractorSignFaults, stampFaults } from "@/lib/contract/sign";
@@ -124,18 +126,16 @@ export async function startPreparation(_prev: FormState, data: FormData): Promis
   return inContract(idOf(data), now, async (c) => {
     const { l, tx } = c;
     const cfg = await loadContractConfig(l.org.id, tx);
-    const basis = cfg.bases.find((b) => b.code === l.ex.contractBasisCode) ?? null;
-    const parts = cfg.parts.filter((p) => p.contractBasisCode === l.ex.contractBasisCode && p.retiredOn == null);
-    const recipients = cfg.recipients.filter((r) => r.retiredOn == null);
+    // What is in force on the organisation's day: a row retired from a later day is still taken (R-6).
+    const { basis, parts, recipients, office, legalOfficeKnown } = preparationSettings(cfg, l.ex.contractBasisCode, c.today);
     const p = cfg.policy;
-    const office = p?.legalOfficeCode ? cfg.units.find((u) => u.code === p.legalOfficeCode && u.effectiveTo == null) : null;
     const faults = startFaults({
       status: l.contract.status as ContractStatus,
       awardStatus: l.award.status,
       today: c.today,
       basis: { code: l.ex.contractBasisCode, name: basis?.nameEn ?? null, requiresBq: basis?.requiresBq ?? null },
       parts: parts.length,
-      policy: { legalOfficeCode: p?.legalOfficeCode ?? null, legalOfficeKnown: !!office, signatoryCond: p?.signatoryCond ?? null, controlledCopyStampEn: p?.controlledCopyStampEn ?? null },
+      policy: { legalOfficeCode: p?.legalOfficeCode ?? null, legalOfficeKnown, signatoryCond: p?.signatoryCond ?? null, controlledCopyStampEn: p?.controlledCopyStampEn ?? null },
       recipients: recipients.length,
     });
     if (faults.length) return refuse("Preparation not started:", faults);
@@ -264,7 +264,8 @@ export async function addCorrection(_prev: FormState, data: FormData): Promise<F
     const k = openCheck(c, checkId);
     if (k.kind !== "ARITHMETIC") return { ok: false, message: "Corrections are recorded on the arithmetic check." };
     const row = await c.tx.arithmeticCorrection.create({ data: { organisationId: c.l.org.id, checkId: k.id, itemRef, description, tendered: senToDecimalString(parseSen(tendered)), corrected: senToDecimalString(parseSen(corrected)), reason, recordedAt: now } });
-    await audit(c, "ArithmeticCorrection", row.id, `correction ${itemRef}`, "CREATE", diffFields(null, { itemRef, tendered: senToDecimalString(parseSen(tendered)), corrected: senToDecimalString(parseSen(corrected)), reason }));
+    // The priced figures are SULIT (6.8's correctedPrice precedent): kept under their registered keys, chipped in History, withheld from the export.
+    await audit(c, "ArithmeticCorrection", row.id, `correction ${itemRef}`, "CREATE", diffFields(null, { itemRef, tenderedLineAmount: senToDecimalString(parseSen(tendered)), correctedLineAmount: senToDecimalString(parseSen(corrected)), reason }));
     return { ok: true };
   });
 }
@@ -304,7 +305,7 @@ export async function removeCheckLine(_prev: FormState, data: FormData): Promise
     const rate = k.rates.find((x) => x.id === lineId);
     if (correction) {
       await c.tx.arithmeticCorrection.delete({ where: { id: correction.id } });
-      await audit(c, "ArithmeticCorrection", correction.id, `correction ${correction.itemRef}`, "DELETE", snapshotFields({ itemRef: correction.itemRef, tendered: correction.tendered.toString(), corrected: correction.corrected.toString() }), reason);
+      await audit(c, "ArithmeticCorrection", correction.id, `correction ${correction.itemRef}`, "DELETE", snapshotFields({ itemRef: correction.itemRef, tenderedLineAmount: correction.tendered.toString(), correctedLineAmount: correction.corrected.toString() }), reason);
     } else if (rate) {
       await c.tx.rateComparison.delete({ where: { id: rate.id } });
       await audit(c, "RateComparison", rate.id, `rate ${rate.itemRef}`, "DELETE", snapshotFields({ itemRef: rate.itemRef, tenderedRate: rate.tenderedRate.toString() }), reason);
@@ -333,7 +334,7 @@ export async function completeCheck(_prev: FormState, data: FormData): Promise<F
     if (!person) return { ok: false, errors: { personId: "Choose someone on record and active." } };
     const done = await c.tx.formationCheck.updateMany({ where: { id: k.id, completedOn: null }, data: { completedByPersonId: person.id, completedOn: on, completedAt: now, note } });
     if (done.count !== 1) throw new Refusal(CHANGED);
-    const variance = k.kind === "ARITHMETIC" ? k.corrections.reduce((s, x) => s + (senFromDecimal(x.corrected) - senFromDecimal(x.tendered)), 0n) : null;
+    const variance = k.kind === "ARITHMETIC" ? arithmeticVariance(k.corrections.map((x) => ({ tendered: senFromDecimal(x.tendered), corrected: senFromDecimal(x.corrected) }))) : null;
     await audit(c, "FormationCheck", k.id, `check ${k.kind.toLowerCase().replace(/_/g, " ")}`, "UPDATE", diffFields({ completedOn: null }, { completedOn: on, completedBy: person.name, lines: k.corrections.length + k.rates.length, variance: variance == null ? null : senToDecimalString(variance), recordedOnBehalf: ON_BEHALF }));
     return { ok: true };
   });
@@ -479,16 +480,18 @@ export async function recordRsajSignature(_prev: FormState, data: FormData): Pro
     if (!s.person || !s.signatory?.ok) return { ok: false, errors: { personId: "Choose someone on record and active." } };
     const sig = s.signatory;
     const row = await c.tx.contractSignature.create({ data: { organisationId: c.l.org.id, contractId: k.id, party: "RSAJ", personId: s.person.id, name: s.person.name, signedOn: dayToDate(contractDate), recordedAt: now, roleCode: sig.roleCode, roleLabel: sig.roleLabel, ruleKey: sig.ruleKey, ruleLabel: sig.ruleLabel, delegationId: s.delegationId } });
-    const snapshot = {
-      v: 1,
+    const snapshot = executedSnapshot({
       contractDate,
       readySince: s.readySince,
+      // M-1: the days the contractor and the witness signed, so no correction moves the Contract Date before them.
+      contractorSignedOn: s.inputs.contractorSignedOn,
+      witnessSignedOn: day(k.signatures.find((x) => x.party === "WITNESS")?.signedOn),
       gate: s.gate.items,
       legal: reviewsOf(k).map((x) => ({ iteration: x.iteration, decision: x.decision, decidedOn: x.decidedOn, office: x.officeLabel })),
       signatory: { rule: sig.ruleLabel, clause: sig.clause, office: sig.roleLabel, delegated: !!s.delegationId },
       checks: k.checks.map((x) => ({ kind: x.kind, completedOn: day(x.completedOn) })),
       formation: readFormationSnapshot(k.formationSnapshot),
-    };
+    });
     await moveTo(c, "EXECUTED", { contractDate: dayToDate(contractDate), contractDateRecordedAt: now, executedSnapshot: snapshot as unknown as Prisma.InputJsonValue });
     const { draft, versions } = baselineRows(k);
     const base = currentBaseline(k)!;
@@ -527,9 +530,11 @@ export async function correctContractDate(_prev: FormState, data: FormData): Pro
   if (r.failed || !proposed) return { ok: false, errors: r.errors };
   return inContract(idOf(data), now, async (c) => {
     const k = c.l.contract;
-    const snap = (k.executedSnapshot ?? {}) as { readySince?: string | null };
+    const frozen = frozenSigningDays(k.executedSnapshot);
+    // A snapshot frozen before M-1 lacks the signature days: the signature rows, never edited once recorded, give them.
+    const signedDay = (party: string, f: string | null | undefined) => (f !== undefined ? f : day(k.signatures.find((x) => x.party === party)?.signedOn));
     const current = day(k.contractDate);
-    const fs = dateCorrectionFaults({ executed: isExecuted(k.status as ContractStatus), current, proposed: storedDay(proposed), readySince: snap.readySince ?? null, reason });
+    const fs = dateCorrectionFaults({ executed: isExecuted(k.status as ContractStatus), current, proposed: storedDay(proposed), readySince: frozen.readySince, reason, signed: { contractor: signedDay("CONTRACTOR", frozen.contractorSignedOn), witness: signedDay("WITNESS", frozen.witnessSignedOn) } });
     if (fs.length) return refuse("Not corrected:", fs);
     await c.tx.contract.update({ where: { id: k.id }, data: { contractDate: proposed, contractDateCorrectedFrom: k.contractDateCorrectedFrom ?? k.contractDate, contractDateCorrectionReason: reason } });
     const base = currentBaseline(k)!;
@@ -856,7 +861,10 @@ export async function saveBaselineEntry(_prev: FormState, data: FormData): Promi
     await c.tx.contractSection.deleteMany({ where: { baselineId: draft.id } });
     await c.tx.contractBaseline.update({ where: { id: draft.id }, data: { ...rowOf(values), entered: stored as Prisma.InputJsonValue } });
     for (const s of sectionRows(values, c.l.org.id)) await c.tx.contractSection.create({ data: { ...s, baselineId: draft.id } });
-    await audit(c, "ContractBaseline", draft.id, "baseline draft", "UPDATE", diffFields({ [group]: (draft.entered as Record<string, unknown> | null)?.[group] ? "entered before" : "not set" }, { [group]: "entered at baseline, not from a tender Appendix", provenance, changed: changedFields(before, values).join(", ") }), note);
+    // R-2: the group's values before and after, where each came from and the provenance chosen, in the same transaction.
+    const was = ((draft.entered ?? {}) as Record<string, { provenance?: string } | undefined>)[group]?.provenance ?? null;
+    const change = groupChange(group, before, values, { before: was, after: provenance });
+    await audit(c, "ContractBaseline", draft.id, "baseline draft", "UPDATE", diffFields(change.before, { ...change.after, changed: changedFields(before, values).join(", ") }), note);
     return { ok: true };
   });
 }
@@ -890,14 +898,21 @@ export async function correctBaseline(_prev: FormState, data: FormData): Promise
     const { versions } = baselineRows(k);
     const latest = versions[versions.length - 1];
     const inputs = frozenInputsOf(k);
+    // R-3 (BD-612-23): a value the award, the Appendix or the bill states, or a recorded rule derives, is kept as stated.
+    const stated = inputs ? correctableFaults(group, inputs) : [];
+    if (stated.length) return refuse("Not corrected:", stated);
     const before = latest ? valuesOf(latest) : null;
     const after = before && inputs ? derive(applyEntered(before, entered), inputs.interimPolicy) : null;
     const changed = before && after ? changedFields(before, after).length : 0;
     const blocks = after ? baselineFaults(after, { defectsLiabilityApplies: inputs!.type.defectsLiabilityApplies }, inputs!.band, inputs!.award).filter((f) => f.level === "block").length : 0;
     const fs = correctionFaults({ status: k.status as ContractStatus, versions: versions.length, reason, changed, baselineBlocks: blocks });
     if (fs.length) return refuse("Not corrected:", fs);
-    const stored = { ...((latest!.entered ?? {}) as Record<string, unknown>), [group]: { value: enteredJson(entered[group]), provenance, note: reason } };
-    await writeVersion(c, after!, "CORRECTION", reason, { correctedField: group }, stored);
+    const prior = (latest!.entered ?? {}) as Record<string, { provenance?: string } | undefined>;
+    const stored = { ...prior, [group]: { value: enteredJson(entered[group]), provenance, note: reason } };
+    const row = await writeVersion(c, after!, "CORRECTION", reason, { correctedField: group }, stored);
+    // R-2/R-3: the corrected group's values before and after, beside the version's own row.
+    const change = groupChange(group, before!, after!, { before: prior[group]?.provenance ?? null, after: provenance });
+    await audit(c, "ContractBaseline", row.id, `baseline version ${row.version} · correction`, "UPDATE", diffFields(change.before, change.after), reason);
     return { ok: true };
   });
 }
