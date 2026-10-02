@@ -36,7 +36,8 @@ export function Accordion({
           open && "border-b border-line",
         )}
       >
-        <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-ink" title={title}>
+        {/* The title wraps rather than truncating: a phone has no hover to show a cut title (lead's ruling, Phase 2 close-out). */}
+        <span className="min-w-0 flex-1 break-words text-[14px] font-semibold text-ink" title={title}>
           {title}
         </span>
         {meta && <span className="shrink-0 text-[12.5px] text-ink-3">{meta}</span>}
