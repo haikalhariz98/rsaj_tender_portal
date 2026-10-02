@@ -24,6 +24,7 @@
 import { createHash } from "node:crypto";
 
 import type { PrismaClient } from "../src/generated/prisma/client";
+import { wipeCertificates } from "./demo-certificates";
 import { demoPdf, writeDemoDocs, type DemoDoc } from "./demo-documents";
 
 type Db = PrismaClient;
@@ -415,6 +416,8 @@ export async function checkContractsDemo(db: Db) {
 /// The formation records of the contracts given, children first, and the trail written under their labels.
 export async function wipeContractFormation(db: Db, organisationId: string, contracts: readonly { id: string; number: string }[]) {
   if (!contracts.length) return;
+  // 6.14: the contracts' certificates first (a certificate's copy is an IssuedCopy, and it pins a baseline version).
+  await wipeCertificates(db, contracts.map((c) => c.id));
   const byContract = { contractId: { in: contracts.map((c) => c.id) } };
   await db.custodyMovement.deleteMany({ where: { item: byContract } });
   await db.custodyItem.deleteMany({ where: byContract });
