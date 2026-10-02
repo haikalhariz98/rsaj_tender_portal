@@ -56,7 +56,8 @@ describe("the award's gates are always told the openings (R-7)", () => {
     type Submit = Parameters<typeof import("@/lib/award/appointment").submitFaults>[0];
     // A key is required when an object without it is not assignable to it.
     type Required<T, K extends keyof T> = Record<string, never> extends Pick<T, K> ? false : true;
-    const required: [Required<Issue, "opening">, Required<Submit, "opening">] = [true, true];
-    expect(required).toEqual([true, true]);
+    type Facts = Parameters<typeof import("@/lib/award/evaluate").evaluateAward>[0]["exercise"];
+    const required: [Required<Issue, "opening">, Required<Submit, "opening">, Required<Facts, "opening">] = [true, true, true];
+    expect(required).toEqual([true, true, true]);
   });
 });
