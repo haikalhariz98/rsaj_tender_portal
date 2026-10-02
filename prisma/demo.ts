@@ -12,6 +12,7 @@ import { checkWindowDemo, loadWindowDemo, windowDemoDependents, WINDOW_ENTITIES,
 import { checkAppendixAward, loadAppendixAward } from "./demo-award-appendix";
 import { checkBidsDemo, configureBidsDemo, loadBidsDemo, wipeBidsDemo } from "./demo-bids";
 import { checkOpeningDemo, configureOpeningDemo, loadOpeningDemo, wipeOpeningDemo } from "./demo-opening";
+import { checkEvaluationDemo, configureEvaluationDemo, loadEvaluationDemo, wipeEvaluationDemo } from "./demo-evaluation";
 import { removedWithDemo } from "../src/lib/documents/demo-wipe-plan";
 import { inspectLogo } from "../src/lib/organisation/logo";
 import { initialsLogo } from "../src/lib/organisation/png";
@@ -339,6 +340,8 @@ async function wipe() {
   // Nothing refused: removal starts here. Attachments pin meetings, exercises, awards and
   // delegations: the documents go before any of them (their keys refuse a delete).
   await wipeDocuments(db, org.id, documentPlan);
+  // 6.8: the evaluations, before the openings (a bidder names an opened bid) and the routes (a negotiation names its route).
+  await wipeEvaluationDemo(db, org.id, hangingExerciseIds);
   // 6.7: the openings, before the register (an offer names its envelope), the windows (and its party), the committees and the people.
   await wipeOpeningDemo(db, org.id, hangingExerciseIds);
   // 6.6: the envelope register, before the windows (an envelope may name a party), the people and the exercises (a letter or a consent went with the documents).
@@ -1177,6 +1180,8 @@ async function load() {
   // as it is written and dated relative to the load day, then each phase read back (X-10).
   // 6.6 CR-2: the method's bid-receipt rules are set first, so each publication freezes them.
   await configureBidsDemo(db, organisationId);
+  // 6.8 (E-12): the evaluation models and policy before any publication, so each publication pins a model.
+  await configureEvaluationDemo(db, organisationId);
   const windowSittings = (await loadWindowDemo(db, organisationId, { determine: determineExercises })).sittings;
   await loadSittingTrail(db, organisationId, windowSittings);
   await snapshotMinuted(windowSittings);
@@ -1190,6 +1195,9 @@ async function load() {
   // its supplementary opening) and sx20's adjourned one, every act judged as it is written (X-10).
   await configureOpeningDemo(db, organisationId);
   await loadOpeningDemo(db, organisationId);
+  // 6.8: sx16 evaluated (report issued, Kertas Cadangan checked and recommended) and its appointment
+  // tabled at the Tender Board's sitting in progress; every act judged as it is written (X-10).
+  await loadEvaluationDemo(db, organisationId);
   // 64-C4 (6.4 Q-1 B): an award on sx16, closed above, opened from its frozen Appendix with one
   // justified difference; its acts judged by the product's own rules, then read back.
   await loadAppendixAward(db);
@@ -1198,6 +1206,8 @@ async function load() {
   await checkBidsDemo(db);
   // 6.7 read back after the award (C-8: demo_aw7 names a bidder carried at sx16's opening).
   await checkOpeningDemo(db);
+  // 6.8 read back after the award (E-9: demo_aw7 names the recommended tenderer).
+  await checkEvaluationDemo(db);
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
   console.log("Remove it with: npm run demo:wipe");
