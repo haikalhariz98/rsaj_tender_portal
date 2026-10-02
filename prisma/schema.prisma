@@ -302,6 +302,26 @@ model Organisation {
   openingSignatures        OpeningSignature[]
   estimateCopyExplanations EstimateCopyExplanation[]
   openingPolicy            OpeningPolicy?
+  evaluationModels         EvaluationModel[]
+  evaluationStages         EvaluationStage[]
+  evaluationCriteria       EvaluationCriterion[]
+  evaluationFactorOptions  EvaluationFactorOption[]
+  evaluationBandSets       EvaluationBandSet[]
+  evaluationBands          EvaluationBand[]
+  evaluationAspects        EvaluationAspect[]
+  evaluationPolicy         EvaluationPolicy?
+  evaluations              Evaluation[]
+  evaluationTeamMembers    EvaluationTeamMember[]
+  evaluationBidders        EvaluationBidder[]
+  evaluationScores         EvaluationScore[]
+  stageSubmissions         StageSubmission[]
+  stageResults             StageResult[]
+  aspectAssessments        AspectAssessment[]
+  evaluationMeetings       EvaluationMeeting[]
+  tendererCommunications   TendererCommunication[]
+  recommendations          Recommendation[]
+  proposalPapers           ProposalPaper[]
+  negotiationRequests      NegotiationRequest[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -400,6 +420,24 @@ model Person {
   openedBidInitials        OpenedBidInitial[]       @relation("OpenedBidInitialBy")
   openingSignatures        OpeningSignature[]       @relation("OpeningSignedBy")
   copyExplanations         EstimateCopyExplanation[] @relation("CopyExplainedBy")
+  evaluationsStarted       Evaluation[]             @relation("EvaluationStartedBy")
+  evaluationReportsIssued  Evaluation[]             @relation("EvaluationIssuedBy")
+  evaluationTeamSeats      EvaluationTeamMember[]   @relation("EvaluationTeamPerson")
+  evaluationCorrections    EvaluationBidder[]       @relation("EvaluationCorrectedBy")
+  evaluationShortlists     EvaluationBidder[]       @relation("EvaluationShortlistedBy")
+  evaluationInputs         EvaluationBidder[]       @relation("EvaluationInputsBy")
+  evaluationScoresRecorded EvaluationScore[]        @relation("EvaluationScoredBy")
+  stageSubmissions         StageSubmission[]        @relation("StageSubmittedBy")
+  aspectAssessments        AspectAssessment[]       @relation("AspectAssessedBy")
+  evaluationMeetingsOpened EvaluationMeeting[]      @relation("EvaluationMeetingOpenedBy")
+  evaluationMeetingsClosed EvaluationMeeting[]      @relation("EvaluationMeetingClosedBy")
+  tendererCommunications   TendererCommunication[]  @relation("CommunicationRecordedBy")
+  recommendationsFormed    Recommendation[]         @relation("RecommendationFormedBy")
+  proposalPapersChecked    ProposalPaper[]          @relation("ProposalCheckedBy")
+  proposalPapersRecommended ProposalPaper[]         @relation("ProposalRecommendedBy")
+  proposalPapersRendered   ProposalPaper[]          @relation("ProposalRenderedBy")
+  negotiationRequests      NegotiationRequest[]     @relation("NegotiationRequestedBy")
+  evaluationsCancelled     Evaluation[]             @relation("EvaluationCancelledBy")
 
   @@unique([organisationId, staffNo])
   @@index([organisationId, name])
@@ -842,6 +880,12 @@ model CommitteeDecision {
   bidEnvelope   BidEnvelope?     @relation(fields: [bidEnvelopeId], references: [id], onDelete: SetNull)
   /// 6.7: the supplementary opening a carried admission opened (OD-5).
   supplementaryOpening Opening?
+  /// 6.8 (FR-EVL-005): the evaluation bidder an EVALUATION_STAGE matter decides on, a two-stage
+  /// tender's first stage (CHECK: set only on that kind). CARRIED unlocks its second stage.
+  evaluationBidderId String?
+  evaluationBidder   EvaluationBidder? @relation(fields: [evaluationBidderId], references: [id], onDelete: SetNull)
+  /// 6.8 (FR-CTE-009): the evaluation versions a NOT_CARRIED loop on this matter opened.
+  evaluationsLooped  Evaluation[]      @relation("EvaluationLoopDecision")
 
   /// Withdrawn from the agenda before the sitting opened (6.10 follow-up). The row is
   /// kept, and the matter is left out of the votes, the quorum and the minuting.
@@ -890,6 +934,7 @@ model CommitteeDecision {
   @@index([requisitionGateId])
   @@index([bqVersionId])
   @@index([bidEnvelopeId])
+  @@index([evaluationBidderId])
 }
 
 /// A member standing aside from one matter. Excluded from that matter's vote and
@@ -1139,6 +1184,9 @@ model DocumentTemplate {
   windowInvitationPolicies WindowPolicy[]     @relation("WindowInvitationTemplate")
   windowAddendumPolicies   WindowPolicy[]     @relation("WindowAddendumTemplate")
   invitationLetters        InvitationLetter[]
+  evaluationReportPolicies   EvaluationPolicy[] @relation("EvaluationReportTemplate")
+  evaluationProposalPolicies EvaluationPolicy[] @relation("EvaluationProposalTemplate")
+  proposalPapers             ProposalPaper[]
 
   @@unique([organisationId, code])
 }
@@ -1914,6 +1962,10 @@ model SourcingMethod {
   /// not set, and an opening holding such a bid cannot finalise, naming this setting.
   unpurchasedBidConsequence         UnpurchasedConsequence?
   unpurchasedProvenance             Provenance?
+  /// 6.8 (FR-EVL-006): the evaluation model (EvaluationModel.code) offered first on the Window card
+  /// for an exercise of this method. A suggestion only: the officer chooses, and nothing is pinned
+  /// without that choice.
+  defaultEvaluationModelCode        String?
   /// The numbering series (NumberingSeries.key) a dossier reference is issued from.
   dossierSeriesKey String?
 
@@ -2384,6 +2436,9 @@ model ApprovalInstance {
   invitationLetters  InvitationLetter[]  @relation("LetterNameRoute")
   closingChange      ClosingChange?      @relation("ClosingChangeRoute")
   windowCancellation WindowCancellation? @relation("WindowCancellationRoute")
+  /// 6.8 (FR-EVL-016): the negotiation a `negotiation` route authorises, and its rounds.
+  negotiationRequest  NegotiationRequest? @relation("NegotiationRoute")
+  negotiationMeetings EvaluationMeeting[] @relation("NegotiationMeetingRoute")
 
   @@index([organisationId, matterKind])
   @@index([requisitionId])
@@ -2634,6 +2689,10 @@ model ContractBasis {
   /// and packFaults blocks naming it. Its own provenance, as on the method's flag.
   requiresBq           Boolean?
   requiresBqProvenance Provenance?
+  /// 6.8 (FR-EVL-005): the evaluation route a contract on this basis takes. Null: not set, and
+  /// no evaluation model is pinned on an exercise of this basis (the publication says so).
+  evaluationRoute           EvaluationRoute?
+  evaluationRouteProvenance Provenance?
 
   governingSource String     @default("")
   provenance      Provenance @default(ASSUMED)
@@ -2855,6 +2914,15 @@ model SourcingExercise {
   validityExtensions ValidityExtension[]
   /// 6.7: the openings and the offers read at them.
   openings           Opening[]
+  /// 6.8 (FR-EVL-006, E-2): the evaluation model chosen on the Invitation › Window card while
+  /// unpublished, and the issued version's content pinned in the publish transaction. Null
+  /// snapshot: published before evaluation models existed, never backfilled (E-1).
+  evaluationModelId       String?
+  evaluationModel         EvaluationModel? @relation(fields: [evaluationModelId], references: [id], onDelete: Restrict)
+  evaluationModelSnapshot Json?
+  evaluationModelPinnedAt DateTime?
+  /// 6.8: the evaluation, one version after another.
+  evaluations             Evaluation[]
   openedBids         OpenedBid[]
 
   @@unique([organisationId, reference])
@@ -3118,6 +3186,10 @@ model Award {
   ladDiffersReason       String?
   dlpDiffersReason       String?
   regulatedDiffersReason String?
+  /// 6.8 (E-9, OD-8 A): why the awarded value or completion period differs from the evaluation's
+  /// recommendation, on an exercise evaluated through 6.8. Null: not different, or nothing to compare.
+  recValueDiffersReason  String?
+  recPeriodDiffersReason String?
 
   // Who signs, as resolved and recorded at issue.
   signatoryRoleCode     String?
@@ -3829,6 +3901,15 @@ model DocumentAttachment {
   /// 6.7 (X-6, FR-OPN-006): an opening, for its signed schedule's scan (accepted only once finalised).
   openingId            String?
   opening              Opening?            @relation(fields: [openingId], references: [id], onDelete: Restrict)
+  /// 6.8 (X-6): an evaluation (its report's drawings and signed scan, the signed Kertas Cadangan),
+  /// a clarification or negotiation meeting (its minutes, the tenderer's confirmation) and an
+  /// evaluation bidder (a CPR report, a written communication). Each SULIT at upload.
+  evaluationId         String?
+  evaluation           Evaluation?         @relation(fields: [evaluationId], references: [id], onDelete: Restrict)
+  evaluationMeetingId  String?
+  evaluationMeeting    EvaluationMeeting?  @relation(fields: [evaluationMeetingId], references: [id], onDelete: Restrict)
+  evaluationBidderId   String?
+  evaluationBidder     EvaluationBidder?   @relation(fields: [evaluationBidderId], references: [id], onDelete: Restrict)
 
   attachedAt   DateTime  @default(now())
   detachedAt   DateTime?
@@ -3845,6 +3926,9 @@ model DocumentAttachment {
   @@index([bidWithdrawalId])
   @@index([validityExtensionId])
   @@index([openingId])
+  @@index([evaluationId])
+  @@index([evaluationMeetingId])
+  @@index([evaluationBidderId])
   @@index([versionId])
 }
 
@@ -5711,6 +5795,8 @@ model Opening {
   boxEnvelopes    BidEnvelope[]          @relation("EnvelopeRegisteredAtOpening")
   copyExplanation EstimateCopyExplanation?
   attachments     DocumentAttachment[]
+  /// 6.8 (E-7): the evaluation versions its finalising opened.
+  evaluationsOpened Evaluation[] @relation("EvaluationFromSupplementary")
 
   @@unique([exerciseId, sequenceNo])
   @@index([organisationId])
@@ -5822,6 +5908,8 @@ model OpenedBid {
 
   initials OpenedBidInitial[]
   answers  OpeningChecklistAnswer[]
+  /// 6.8: the evaluation versions it was carried into (`evaluationSet`).
+  evaluationBidders EvaluationBidder[]
 
   @@unique([exerciseId, listingNo])
   @@index([openingId])
@@ -5906,4 +5994,675 @@ model OpeningPolicy {
   labelsProvenance        Provenance?
   governingSource         String   @default("")
   updatedAt               DateTime @updatedAt
+}
+
+// ------------------------------------------------------------------ 6.8 evaluation
+
+/// The evaluation route a contract basis takes (FR-EVL-005). Closed product vocabulary.
+enum EvaluationRoute {
+  /// One envelope, every stage evaluated by the joint team.
+  TRADITIONAL
+  /// A first stage the committee decides on per bidder, then the rest (FR-EVL-005).
+  TWO_STAGE
+}
+
+/// The kinds of computation a stage is (FR-EVL-008): the code knows only these; every number is
+/// the model's configuration (D1, ADR 0018).
+enum EvaluationStageKind {
+  /// Pass-or-fail items; passed when every item passes.
+  CHECKLIST
+  /// Which bidders go on, chosen under the stage's shortlist rule.
+  SHORTLIST
+  /// Entered marks against each criterion's maximum, as a percentage of the stage's total.
+  SCORED
+  /// The four aspects of FR-EVL-003, a verdict and narrative per bidder per aspect.
+  ASPECTS
+  /// A minimum-capital test (FR-EVL-010): average balances against a base and a factor, banded.
+  FINANCIAL_TEST
+  /// Variances against the estimate and the lowest, and a CPR band (FR-EVL-011, 012); display only unless it must be passed.
+  COMMERCIAL
+  /// A weighted sum of earlier stages' percentages (FR-EVL-008).
+  COMPOSITE
+  /// A two-stage tender's first stage: one committee matter per bidder (FR-EVL-005).
+  COMMITTEE_DECISION
+  /// Where the recommendation is formed.
+  RECOMMENDATION
+}
+
+/// Who acts on a stage (FR-EVL-001, 002).
+enum EvaluationSide {
+  IMPLEMENTING_DEPARTMENT
+  CONTRACT_PROCUREMENT
+  COMMITTEE
+}
+
+enum CriterionScale {
+  ENTERED_MARKS
+  PASS_FAIL
+  /// A value computed (or entered, for CPR) and placed in the criterion's band set.
+  BANDED
+}
+
+enum ComputedInput {
+  NONE
+  MIN_CAPITAL_RATIO
+  VARIANCE_VS_ESTIMATE
+  VARIANCE_VS_LOWEST
+  CPR_PERCENT
+}
+
+enum CapitalBase {
+  TENDER_AMOUNT
+  COMPANY_ESTIMATE
+}
+
+enum ShortlistRule {
+  COUNT_RANGE
+  DECIDED_BY_OFFICE
+  NONE
+}
+
+enum EvaluationModelStatus {
+  DRAFT
+  ISSUED
+  RETIRED
+}
+
+enum AspectKind {
+  COMPLETENESS
+  PRICE_VS_ESTIMATE
+  COMPLETION_PERIOD
+  CAPABILITY
+  OTHER
+}
+
+enum AspectVerdict {
+  SATISFACTORY
+  NOT_SATISFACTORY
+}
+
+enum BandOutcome {
+  PASS
+  FAIL
+  NONE
+}
+
+enum EvaluationMeetingKind {
+  CLARIFICATION
+  NEGOTIATION
+}
+
+/// Where an evaluation version stands. Clarification, negotiation and the committee stages are
+/// derived from their records (OD-3 A).
+enum EvaluationState {
+  OPEN
+  ISSUED
+  SUPERSEDED
+  CANCELLED
+}
+
+/// What opened an evaluation version (FR-CTE-009, E-7).
+enum EvaluationTrigger {
+  START
+  LOOP
+  SUPPLEMENTARY_OPENING
+}
+
+enum CommunicationDirection {
+  TO_TENDERER
+  FROM_TENDERER
+}
+
+/// The written channels a communication went by (FR-EVL-013). The portal sends nothing (INT-09).
+enum CommunicationChannel {
+  LETTER
+  EMAIL
+  FAX
+}
+
+/// A versioned evaluation model (FR-EVL-006): drafted, issued (its content frozen in
+/// `contentSnapshot`, never edited after), retired. A change is a new version. Ships with no rows:
+/// every model is the customer's (D1, rule 1).
+model EvaluationModel {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  code    String
+  version Int
+  nameEn  String
+  nameMs  String?
+  route   EvaluationRoute
+  status  EvaluationModelStatus @default(DRAFT)
+  issuedAt  DateTime?
+  retiredAt DateTime?
+  /// Stages, criteria, factor options, band sets and the aspects in force, as issued.
+  contentSnapshot Json?
+
+  provenance      Provenance @default(ASSUMED)
+  governingSource String     @default("")
+  notes           String     @default("")
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  stages    EvaluationStage[]
+  bandSets  EvaluationBandSet[]
+  exercises SourcingExercise[]
+
+  @@unique([organisationId, code, version])
+}
+
+/// One stage of a model, in order (FR-EVL-002, 008, 009).
+model EvaluationStage {
+  id             String          @id @default(cuid())
+  organisationId String
+  organisation   Organisation    @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  modelId        String
+  model          EvaluationModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  order   Int
+  code    String
+  labelEn String
+  labelMs String?
+  kind    EvaluationStageKind
+  side    EvaluationSide
+  /// Scores on this stage are refused until the stage of this order is submitted (FR-EVL-002).
+  unlocksAfterOrder Int?
+  /// SCORED: the total its top-level criteria's maximum marks sum to.
+  maxMarks        Decimal? @db.Decimal(9, 4)
+  passMark        Decimal? @db.Decimal(9, 4)
+  /// Whether a figure exactly on the pass mark passes. Null with a pass mark: not set (PASS_RULE_NOT_SET).
+  passInclusive   Boolean?
+  /// Failing this stage puts the bidder out of the running ("must pass each individually").
+  mustPass        Boolean?
+  /// The weight this stage's percentage carries in the COMPOSITE stage.
+  compositeWeight Decimal? @db.Decimal(9, 4)
+  /// COMMITTEE_DECISION: the committee (Committee.code) each bidder's matter goes to.
+  committeeCode   String?
+  shortlistRule       ShortlistRule?
+  shortlistMin        Int?
+  shortlistMax        Int?
+  /// DECIDED_BY_OFFICE: the office (AuthorityRole.code) whose holder decides the shortlist.
+  shortlistOfficeCode String?
+  /// FINANCIAL_TEST: what the minimum capital is a percentage of.
+  capitalBase         CapitalBase?
+
+  provenance      Provenance @default(ASSUMED)
+  governingSource String     @default("")
+
+  criteria      EvaluationCriterion[]
+  factorOptions EvaluationFactorOption[]
+
+  @@unique([modelId, code])
+  @@unique([modelId, order])
+}
+
+/// A criterion of a stage; a group (a 40-mark block) holds criteria as children.
+model EvaluationCriterion {
+  id             String          @id @default(cuid())
+  organisationId String
+  organisation   Organisation    @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  stageId        String
+  stage          EvaluationStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  parentId       String?
+  parent         EvaluationCriterion?  @relation("CriterionGroup", fields: [parentId], references: [id], onDelete: Cascade)
+  children       EvaluationCriterion[] @relation("CriterionGroup")
+
+  order    Int
+  code     String
+  labelEn  String
+  labelMs  String?
+  maxMarks Decimal?       @db.Decimal(9, 4)
+  scale    CriterionScale
+  computedInput ComputedInput @default(NONE)
+  /// BANDED: the model's band set (EvaluationBandSet.code) the value is placed in.
+  bandSetCode   String?
+  /// The criterion needs a named contractor (a key person, a nominated sub-contractor) to be judged.
+  needsNamedContractor Boolean @default(false)
+
+  provenance      Provenance @default(ASSUMED)
+  governingSource String     @default("")
+
+  @@unique([stageId, code])
+}
+
+/// A factor a FINANCIAL_TEST stage may apply, chosen per bidder and recorded (FR-EVL-010).
+model EvaluationFactorOption {
+  id             String          @id @default(cuid())
+  organisationId String
+  organisation   Organisation    @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  stageId        String
+  stage          EvaluationStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  code      String
+  labelEn   String
+  labelMs   String?
+  factorPct Decimal @db.Decimal(9, 4)
+
+  provenance      Provenance @default(ASSUMED)
+  governingSource String     @default("")
+
+  @@unique([stageId, code])
+}
+
+/// A model's set of bands a value is placed in (FR-EVL-010, 011, 012). A gap leaves a value
+/// NOT_BANDED, never a guess (OD-5 A).
+model EvaluationBandSet {
+  id             String          @id @default(cuid())
+  organisationId String
+  organisation   Organisation    @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  modelId        String
+  model          EvaluationModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  code   String
+  nameEn String
+
+  provenance      Provenance @default(ASSUMED)
+  governingSource String     @default("")
+
+  bands EvaluationBand[]
+
+  @@unique([modelId, code])
+}
+
+/// One band: its edges, each inclusive or not, or open; an edge may be the stage's floor (the
+/// minimum capital's factor) rather than a number.
+model EvaluationBand {
+  id             String            @id @default(cuid())
+  organisationId String
+  organisation   Organisation      @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  setId          String
+  set            EvaluationBandSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+
+  labelEn        String
+  labelMs        String?
+  lower          Decimal? @db.Decimal(9, 4)
+  lowerInclusive Boolean  @default(true)
+  lowerIsFloor   Boolean  @default(false)
+  upper          Decimal? @db.Decimal(9, 4)
+  upperInclusive Boolean  @default(false)
+  upperIsFloor   Boolean  @default(false)
+  outcome        BandOutcome
+  sortOrder      Int      @default(0)
+}
+
+/// An aspect of FR-EVL-003, assessed per bidder on an ASPECTS stage. Required on a route by
+/// configuration; frozen into a model's content when it is issued.
+model EvaluationAspect {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  code            String
+  kind            AspectKind
+  labelEn         String
+  labelMs         String?
+  requiredOnRoute EvaluationRoute?
+
+  provenance      Provenance @default(ASSUMED)
+  governingSource String     @default("")
+  sortOrder       Int        @default(0)
+  retiredOn       DateTime?
+
+  @@unique([organisationId, code])
+}
+
+/// The organisation's evaluation policy. One row, shipped absent: each null blocks the act it
+/// governs, naming it.
+model EvaluationPolicy {
+  id             String       @id @default(cuid())
+  organisationId String       @unique
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  /// The numbering series (NumberingSeries.key) the report's reference is issued from (§9.5).
+  reportSeriesKey         String?
+  /// How many decimal places a score is shown and judged at (E-5, OD-9). Frozen at the start.
+  scoreDecimals           Int?
+  scoreDecimalsProvenance Provenance?
+  /// The offices whose holders check and recommend the Kertas Cadangan (FR-CTE-013).
+  checkerRoleCode         String?
+  recommenderRoleCode     String?
+  reportTemplateId        String?
+  reportTemplate          DocumentTemplate? @relation("EvaluationReportTemplate", fields: [reportTemplateId], references: [id], onDelete: Restrict)
+  proposalTemplateId      String?
+  proposalTemplate        DocumentTemplate? @relation("EvaluationProposalTemplate", fields: [proposalTemplateId], references: [id], onDelete: Restrict)
+  /// The annexes' labels, A to F, English and Malay. Null: the product's English labels.
+  annexLabels             Json?
+  annexLabelsProvenance   Provenance?
+
+  governingSource String   @default("")
+  notes           String   @default("")
+  updatedAt       DateTime @updatedAt
+}
+
+/// One evaluation version of an exercise (FR-EVL-017, FR-CTE-009, E-7). Its report is issued
+/// once, frozen, and superseded by the next version, never edited. SULIT: not restricted until
+/// sign-in (E-3).
+model Evaluation {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId     String
+  exercise       SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  version   Int
+  state     EvaluationState
+  trigger   EvaluationTrigger
+  startedAt DateTime
+  startedByPersonId String
+  startedBy         Person @relation("EvaluationStartedBy", fields: [startedByPersonId], references: [id], onDelete: Restrict)
+  /// The organisation's rules this version is judged under, frozen when it started (E-5).
+  policySnapshot Json
+  /// LOOP: the matter not carried, and the product key it returned to (FR-CTE-009).
+  loopDecisionId String?
+  loopDecision   CommitteeDecision? @relation("EvaluationLoopDecision", fields: [loopDecisionId], references: [id], onDelete: Restrict)
+  loopStageKey   String?
+  /// SUPPLEMENTARY_OPENING: the opening whose finalising opened it (E-7).
+  supplementaryOpeningId String?
+  supplementaryOpening   Opening? @relation("EvaluationFromSupplementary", fields: [supplementaryOpeningId], references: [id], onDelete: Restrict)
+
+  reportReference    String?
+  issuedAt           DateTime?
+  issuedByPersonId   String?
+  issuedBy           Person?   @relation("EvaluationIssuedBy", fields: [issuedByPersonId], references: [id], onDelete: Restrict)
+  /// Annexes A–E rendered, F listed, the recommendation and the saving, as issued (ADR 0008).
+  reportSnapshot     Json?
+  /// FR-BID-010 (6.6 OD-7): each applied extension's consent party against the recommendation.
+  consentCheckSnapshot Json?
+  supersededAt       DateTime?
+  cancelledAt        DateTime?
+  cancelledByPersonId String?
+  cancelledBy         Person? @relation("EvaluationCancelledBy", fields: [cancelledByPersonId], references: [id], onDelete: Restrict)
+  createdAt          DateTime  @default(now())
+
+  team           EvaluationTeamMember[]
+  bidders        EvaluationBidder[]
+  submissions    StageSubmission[]
+  results        StageResult[]
+  meetings       EvaluationMeeting[]
+  communications TendererCommunication[]
+  negotiations   NegotiationRequest[]
+  recommendation Recommendation?
+  proposalPaper  ProposalPaper?
+  attachments    DocumentAttachment[]
+
+  @@unique([exerciseId, version])
+  @@unique([organisationId, reportReference])
+  @@index([organisationId])
+}
+
+/// A team member on one side (FR-EVL-001), with their unit as recorded on the day.
+model EvaluationTeamMember {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  evaluationId   String
+  evaluation     Evaluation     @relation(fields: [evaluationId], references: [id], onDelete: Restrict)
+  personId       String
+  person         Person         @relation("EvaluationTeamPerson", fields: [personId], references: [id], onDelete: Restrict)
+  side           EvaluationSide
+  orgUnitCodeSnapshot String?
+  appointedOn    DateTime
+  recordedAt     DateTime
+
+  @@unique([evaluationId, personId])
+}
+
+/// A bid carried to evaluation (`evaluationSet`), and what is recorded of it there. SULIT.
+model EvaluationBidder {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  evaluationId   String
+  evaluation     Evaluation   @relation(fields: [evaluationId], references: [id], onDelete: Restrict)
+  openedBidId    String
+  openedBid      OpenedBid    @relation(fields: [openedBidId], references: [id], onDelete: Restrict)
+
+  /// FR-EVL-019: excluded above the exercise's own ceiling, with the reason and what it was judged on.
+  excludedReason  String @default("")
+  ceilingSnapshot Json?
+  /// The price after arithmetic correction, why, and by whom.
+  correctedPrice        Decimal? @db.Decimal(18, 2)
+  correctionReason      String   @default("")
+  correctedAt           DateTime?
+  correctedByPersonId   String?
+  correctedBy           Person?  @relation("EvaluationCorrectedBy", fields: [correctedByPersonId], references: [id], onDelete: Restrict)
+  shortlisted           Boolean?
+  shortlistedAt         DateTime?
+  shortlistedByPersonId String?
+  shortlistedBy         Person?  @relation("EvaluationShortlistedBy", fields: [shortlistedByPersonId], references: [id], onDelete: Restrict)
+  /// FR-EVL-010: the factor option chosen, and three monthly balances (E-6).
+  factorOptionCode String?
+  balanceMonth1    Decimal? @db.Decimal(18, 2)
+  balanceMonth2    Decimal? @db.Decimal(18, 2)
+  balanceMonth3    Decimal? @db.Decimal(18, 2)
+  /// FR-EVL-012 (OD-4): entered from the attached performance report, not from the register.
+  cprPercent       Decimal? @db.Decimal(9, 4)
+  inputsRecordedAt       DateTime?
+  inputsRecordedByPersonId String?
+  inputsRecordedBy       Person? @relation("EvaluationInputsBy", fields: [inputsRecordedByPersonId], references: [id], onDelete: Restrict)
+  /// E-7: the bidder of the version before, where this one carried its record forward.
+  carriedFromId String?
+  carriedFrom   EvaluationBidder?  @relation("BidderCarried", fields: [carriedFromId], references: [id], onDelete: Restrict)
+  carriedTo     EvaluationBidder[] @relation("BidderCarried")
+
+  scores         EvaluationScore[]
+  results        StageResult[]
+  aspects        AspectAssessment[]
+  meetings       EvaluationMeeting[]
+  communications TendererCommunication[]
+  negotiations   NegotiationRequest[]
+  recommendations Recommendation[]
+  stageMatters   CommitteeDecision[]
+  attachments    DocumentAttachment[]
+
+  @@unique([evaluationId, openedBidId])
+}
+
+/// One score on one criterion of one bidder (FR-EVL-001): append-only, a rescore is a new row
+/// superseding the last; recorded on the scorer's behalf, not signed, stamped by the server.
+model EvaluationScore {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  bidderId       String
+  bidder         EvaluationBidder @relation(fields: [bidderId], references: [id], onDelete: Restrict)
+  stageCode      String
+  criterionCode  String
+  marks          Decimal? @db.Decimal(9, 4)
+  passed         Boolean?
+  note           String   @default("")
+  scoredByPersonId String
+  scoredBy         Person  @relation("EvaluationScoredBy", fields: [scoredByPersonId], references: [id], onDelete: Restrict)
+  recordedAt     DateTime
+  supersedesId   String?  @unique
+  supersedes     EvaluationScore? @relation("ScoreSupersedes", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy   EvaluationScore? @relation("ScoreSupersedes")
+  /// E-7: carried from the version before for an unchanged bidder, and labelled so.
+  carriedFromScoreId String?
+  carriedFromScore   EvaluationScore?  @relation("ScoreCarried", fields: [carriedFromScoreId], references: [id], onDelete: Restrict)
+  carriedTo          EvaluationScore[] @relation("ScoreCarried")
+
+  @@index([bidderId, stageCode, criterionCode])
+}
+
+/// A stage's submission by a team member on its side (FR-EVL-002), stamped by the server.
+model StageSubmission {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  evaluationId   String
+  evaluation     Evaluation     @relation(fields: [evaluationId], references: [id], onDelete: Restrict)
+  stageCode      String
+  side           EvaluationSide
+  submittedByPersonId String
+  submittedBy         Person    @relation("StageSubmittedBy", fields: [submittedByPersonId], references: [id], onDelete: Restrict)
+  submittedAt    DateTime
+
+  @@unique([evaluationId, stageCode])
+}
+
+/// A bidder's result on a submitted stage, frozen with the submission: the percentage to four
+/// places, the figure shown and judged (E-5), passed or not, the band, and whether it is out of
+/// the running.
+model StageResult {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  evaluationId   String
+  evaluation     Evaluation       @relation(fields: [evaluationId], references: [id], onDelete: Restrict)
+  bidderId       String
+  bidder         EvaluationBidder @relation(fields: [bidderId], references: [id], onDelete: Restrict)
+  stageCode      String
+  percent        Decimal? @db.Decimal(9, 4)
+  shown          Decimal? @db.Decimal(9, 4)
+  passed         Boolean?
+  bandLabel      String?
+  outOfRunning   Boolean  @default(false)
+  /// What else the stage computed for this bidder (variances, the minimum capital), as words and
+  /// fixed-point strings, never a float.
+  detail         Json?
+
+  @@unique([bidderId, stageCode])
+  @@index([evaluationId])
+}
+
+/// One aspect's verdict and narrative on one bidder (FR-EVL-003): append-only, a reassessment
+/// supersedes the last.
+model AspectAssessment {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  bidderId       String
+  bidder         EvaluationBidder @relation(fields: [bidderId], references: [id], onDelete: Restrict)
+  aspectCode     String
+  verdict        AspectVerdict
+  narrative      String @db.Text
+  assessedByPersonId String
+  assessedBy         Person @relation("AspectAssessedBy", fields: [assessedByPersonId], references: [id], onDelete: Restrict)
+  recordedAt     DateTime
+  supersedesId   String?  @unique
+  supersedes     AspectAssessment? @relation("AspectSupersedes", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy   AspectAssessment? @relation("AspectSupersedes")
+
+  @@index([bidderId, aspectCode])
+}
+
+/// A negotiation asked for on the engine's `negotiation` route (FR-EVL-016), with one bidder.
+model NegotiationRequest {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  evaluationId   String
+  evaluation     Evaluation       @relation(fields: [evaluationId], references: [id], onDelete: Restrict)
+  bidderId       String
+  bidder         EvaluationBidder @relation(fields: [bidderId], references: [id], onDelete: Restrict)
+  reason         String @db.Text
+  approvalInstanceId String           @unique
+  approvalInstance   ApprovalInstance @relation("NegotiationRoute", fields: [approvalInstanceId], references: [id], onDelete: Restrict)
+  requestedByPersonId String
+  requestedBy         Person @relation("NegotiationRequestedBy", fields: [requestedByPersonId], references: [id], onDelete: Restrict)
+  requestedAt    DateTime
+}
+
+/// A clarification or negotiation meeting with one bidder (FR-EVL-015, 016): held, then closed
+/// with its minutes and the tenderer's written confirmation; closed, it is frozen.
+model EvaluationMeeting {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  evaluationId   String
+  evaluation     Evaluation       @relation(fields: [evaluationId], references: [id], onDelete: Restrict)
+  bidderId       String
+  bidder         EvaluationBidder @relation(fields: [bidderId], references: [id], onDelete: Restrict)
+  kind           EvaluationMeetingKind
+  round          Int
+  heldOn         DateTime
+  place          String
+  minutes        String   @default("") @db.Text
+  /// NEGOTIATION: the price before and after the round. SULIT.
+  priceBefore    Decimal? @db.Decimal(18, 2)
+  priceAfter     Decimal? @db.Decimal(18, 2)
+  approvalInstanceId String?
+  approvalInstance   ApprovalInstance? @relation("NegotiationMeetingRoute", fields: [approvalInstanceId], references: [id], onDelete: Restrict)
+  openedByPersonId String
+  openedBy         Person   @relation("EvaluationMeetingOpenedBy", fields: [openedByPersonId], references: [id], onDelete: Restrict)
+  openedAt       DateTime
+  closedAt       DateTime?
+  closedByPersonId String?
+  closedBy         Person?  @relation("EvaluationMeetingClosedBy", fields: [closedByPersonId], references: [id], onDelete: Restrict)
+
+  attachments DocumentAttachment[]
+
+  @@unique([evaluationId, bidderId, kind, round])
+}
+
+/// A written communication with a tenderer during evaluation (FR-EVL-013). The portal sends
+/// nothing: the log is complete only for what is recorded.
+model TendererCommunication {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  evaluationId   String
+  evaluation     Evaluation       @relation(fields: [evaluationId], references: [id], onDelete: Restrict)
+  bidderId       String
+  bidder         EvaluationBidder @relation(fields: [bidderId], references: [id], onDelete: Restrict)
+  direction      CommunicationDirection
+  channel        CommunicationChannel
+  sentOn         DateTime?
+  receivedOn     DateTime?
+  subject        String
+  content        String @db.Text
+  recordedByPersonId String
+  recordedBy         Person @relation("CommunicationRecordedBy", fields: [recordedByPersonId], references: [id], onDelete: Restrict)
+  recordedAt     DateTime
+}
+
+/// The evaluation's recommendation (FR-EVL-004, 017, 018): one per version. SULIT.
+model Recommendation {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  evaluationId   String           @unique
+  evaluation     Evaluation       @relation(fields: [evaluationId], references: [id], onDelete: Restrict)
+  bidderId       String
+  bidder         EvaluationBidder @relation(fields: [bidderId], references: [id], onDelete: Restrict)
+  price            Decimal     @db.Decimal(18, 2)
+  completionPeriod Int?
+  completionUnit   PeriodUnit?
+  topRanked        Boolean
+  justification    String      @default("") @db.Text
+  formedByPersonId String
+  formedBy         Person      @relation("RecommendationFormedBy", fields: [formedByPersonId], references: [id], onDelete: Restrict)
+  formedAt         DateTime
+}
+
+/// The Kertas Cadangan (FR-CTE-013): rendered from the issued report through the configured
+/// template and frozen; checked and recommended by the holders of two offices, two different people.
+model ProposalPaper {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  evaluationId   String           @unique
+  evaluation     Evaluation       @relation(fields: [evaluationId], references: [id], onDelete: Restrict)
+  templateId          String
+  template            DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  templateCode        String
+  templateBodyVersion Int
+  language            DocumentLanguage
+  renderedText        String @db.Text
+  frozenAt            DateTime
+  renderedByPersonId  String
+  renderedBy          Person @relation("ProposalRenderedBy", fields: [renderedByPersonId], references: [id], onDelete: Restrict)
+  /// The offices as they stood when it was rendered (frozen).
+  checkerRoleCode     String
+  recommenderRoleCode String
+  checkedByPersonId     String?
+  checkedBy             Person?   @relation("ProposalCheckedBy", fields: [checkedByPersonId], references: [id], onDelete: Restrict)
+  checkedOn             DateTime?
+  checkedRecordedAt     DateTime?
+  recommendedByPersonId String?
+  recommendedBy         Person?   @relation("ProposalRecommendedBy", fields: [recommendedByPersonId], references: [id], onDelete: Restrict)
+  recommendedOn         DateTime?
+  recommendedRecordedAt DateTime?
 }
