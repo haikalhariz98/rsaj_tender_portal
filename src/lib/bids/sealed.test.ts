@@ -40,9 +40,9 @@ describe("the register holds no offer (ADR 0016)", () => {
   });
 });
 
-/// Each `bidEnvelope.<write>(` call with the text of its argument (to the matching parenthesis).
-function envelopeWrites(text: string): string[] {
-  const out: string[] = [];
+/// Each `bidEnvelope.<write>(` call with the text of its argument (to the matching parenthesis), and where it is.
+function envelopeWrites(text: string): { w: string; at: number }[] {
+  const out: { w: string; at: number }[] = [];
   const re = /bidEnvelope\.(create|createMany|update|updateMany|upsert)\(/g;
   for (const m of text.matchAll(re)) {
     let depth = 0;
@@ -51,22 +51,82 @@ function envelopeWrites(text: string): string[] {
       if (text[i] === "(") depth++;
       else if (text[i] === ")" && --depth === 0) break;
     }
-    out.push(text.slice(m.index!, i + 1));
+    out.push({ w: text.slice(m.index!, i + 1), at: m.index! });
   }
   return out;
 }
 
-/// The function a match sits in: the last function declared before it.
-const within = (text: string, at: number) => [...text.slice(0, at).matchAll(/export async function (\w+)|async function (\w+)|function (\w+)/g)].pop()?.slice(1).find(Boolean) ?? "(module)";
+/// Every named function declared in a file (`function f(`, `async function f(`, and `const f = (…) =>` or
+/// `async (…) =>` with a block body), with the span of its body from its opening brace to the
+/// matching closing one.
+function functionSpans(text: string): { name: string; from: number; to: number }[] {
+  const out: { name: string; from: number; to: number }[] = [];
+  const re = /(?:async\s+)?function\s+(\w+)\s*(?:<[^>]*>)?\s*\(|(?:const|let)\s+(\w+)\s*=\s*(?:async\s*)?\(/g;
+  for (const m of text.matchAll(re)) {
+    // Past the parameters (to their matching parenthesis), then to the body's opening brace.
+    let i = m.index! + m[0].length - 1;
+    let depth = 0;
+    for (; i < text.length; i++) {
+      if (text[i] === "(") depth++;
+      else if (text[i] === ")" && --depth === 0) break;
+    }
+    // The body: the first "{" that ends a line (a return-type literal stays on the signature's line), or "=> {".
+    const rest = text.slice(i + 1);
+    const arrow = /^\s*(?::[^=]*?)?=>\s*\{/.exec(rest);
+    const block = /^[^;{]*?\{\s*\n/.exec(rest);
+    const open = arrow ? i + 1 + arrow[0].lastIndexOf("{") : block ? i + 1 + block[0].lastIndexOf("{") : -1;
+    if (open < 0) continue;
+    let d = 0;
+    let j = open;
+    for (; j < text.length; j++) {
+      if (text[j] === "{") d++;
+      else if (text[j] === "}" && --d === 0) break;
+    }
+    out.push({ name: m[1] ?? m[2], from: open, to: j });
+  }
+  return out;
+}
+
+/// The function a write sits in: the innermost declared function whose body encloses it (6.7 review R-7: not the last one declared before it).
+const within = (text: string, at: number) =>
+  functionSpans(text)
+    .filter((f) => f.from < at && at < f.to)
+    .sort((a, b) => b.from - a.from)[0]?.name ?? "(module)";
 
 describe("no bidder is named before opening (OD-2)", () => {
   // 6.7 C-10 (ruled, flagged): the scan becomes "only openEnvelope writes an envelope's party" — the
   // one act that names a bidder, at its opening. Every other envelope write still names none.
   it("only 6.7's openEnvelope sets an envelope's party; no other write in the app or the lib does", () => {
-    const writes = sources.flatMap((s) => envelopeWrites(s.text).map((w) => ({ path: s.path, w, fn: within(s.text, s.text.indexOf(w)) })));
+    // Each occurrence is attributed where it is (6.7 review R-7: two identical writes in two functions are two writes).
+    const writes = sources.flatMap((s) => envelopeWrites(s.text).map(({ w, at }) => ({ path: s.path, w, fn: within(s.text, at) })));
     expect(writes.length).toBeGreaterThan(0);
     const naming = writes.filter((x) => /\bpartyId\b|\bparty\s*:/.test(x.w));
     expect(naming.map((x) => `${x.path}#${x.fn}`)).toEqual([join("src", "app", "sourcing", "[id]", "opening", "actions.ts") + "#openEnvelope"]);
+  });
+});
+
+describe("the scan attributes a write to the function that encloses it (6.7 review R-7)", () => {
+  const sample = [
+    "export async function openEnvelope(_prev: FormState, data: FormData): Promise<FormState> {",
+    "  const helper = async (tx: Tx) => {",
+    "    await tx.bidEnvelope.updateMany({ where: { id }, data: { status: \"OPENED\" } });",
+    "  };",
+    "  await tx.bidEnvelope.updateMany({ where: { id }, data: { status: \"OPENED\", partyId } });",
+    "}",
+    "function other() {",
+    "  return 1;",
+    "}",
+    "export async function sneaky(): Promise<void> {",
+    "  await tx.bidEnvelope.updateMany({ where: { id }, data: { status: \"OPENED\", partyId } });",
+    "}",
+  ].join("\n");
+  it("each occurrence by its own position: the same write text in two functions is two writes", () => {
+    const found = envelopeWrites(sample).map(({ w, at }) => ({ w, fn: within(sample, at) }));
+    expect(found.map((x) => x.fn)).toEqual(["helper", "openEnvelope", "sneaky"]);
+  });
+  it("a write after a function has closed is not that function's", () => {
+    expect(within(sample, sample.indexOf("return 1;"))).toBe("other");
+    expect(within(sample, sample.lastIndexOf("await tx.bidEnvelope"))).toBe("sneaky");
   });
 });
 
