@@ -466,6 +466,7 @@ model Person {
   @@unique([organisationId, staffNo])
   @@index([organisationId, name])
   standingRequested    StandingRequest[]   @relation("StandingRequestedBy")
+  standingWithdrawn    StandingRequest[]   @relation("StandingWithdrawnBy")
   standingRecorded     StandingEvent[]     @relation("StandingRecordedBy")
   permissionsRequested SpecialPermission[] @relation("PermissionRequestedBy")
   permissionsGranted   SpecialPermission[] @relation("PermissionGrantedBy")
@@ -7227,6 +7228,13 @@ model StandingRequest {
   requestedByPersonId String
   requestedBy         Person              @relation("StandingRequestedBy", fields: [requestedByPersonId], references: [id], onDelete: Restrict)
   requestedAt         DateTime
+  /// 6.15a fix R-7: withdrawn by an officer, with the reason, where it can no longer be recorded (its route
+  /// approved it, but the supplier's standing moved on) or is no longer wanted. A withdrawn request no
+  /// longer holds the supplier open; it is never recorded. Audited; recorded on their behalf, not signed.
+  withdrawnAt         DateTime?
+  withdrawnReason     String              @default("")
+  withdrawnByPersonId String?
+  withdrawnBy         Person?             @relation("StandingWithdrawnBy", fields: [withdrawnByPersonId], references: [id], onDelete: Restrict)
 
   routes ApprovalInstance[]
   event  StandingEvent?     @relation("RecordedFrom")

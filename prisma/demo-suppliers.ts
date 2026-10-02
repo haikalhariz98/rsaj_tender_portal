@@ -490,7 +490,7 @@ class Acts {
     const approvedOn = route.steps.map((x) => x.decidedOn!.toISOString().slice(0, 10)).sort().at(-1)!;
     const policy = await this.db.supplierPolicy.findUniqueOrThrow({ where: { organisationId: this.org } });
     const offenceNo = nextOffenceNo(req.supplier.standingEvents);
-    const r = recordFaults({ effectiveOn, personActive: true }, { today, request: { kind: "BLACKLIST", route: route.status === "APPROVED" ? "APPROVED" : "PENDING", approvedOn, recorded: false }, standing: st.reading.standing, offenceNo, months: policy.blacklistFirstOffenceMonths });
+    const r = recordFaults({ effectiveOn, personActive: true }, { today, request: { kind: "BLACKLIST", route: route.status === "APPROVED" ? "APPROVED" : "PENDING", approvedOn, recorded: false, withdrawn: false }, standing: st.reading.standing, offenceNo, months: policy.blacklistFirstOffenceMonths });
     refuse(`recording ${requestId}`, r.faults);
     const ends = r.period?.kind === "ENDS" ? r.period : null;
     await this.db.standingEvent.create({ data: { id: eventId, organisationId: this.org, supplierId: req.supplierId, kind: "BLACKLIST", reasonId: req.reasonId, reasonSnapshot: req.reasonSnapshot, effectiveOn: dayToDate(effectiveOn), endsOn: ends ? dayToDate(ends.endsOn) : null, offenceNo, periodMonths: ends?.months ?? null, requestId, note: req.note, recordedByPersonId: OFFICER.id, recordedAt: when } });

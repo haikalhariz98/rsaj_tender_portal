@@ -105,6 +105,7 @@ const supplierInclude = {
     orderBy: { requestedAt: "desc" as const },
     include: {
       requestedBy: { select: { id: true, name: true } },
+      withdrawnBy: { select: { id: true, name: true } },
       sourceAward: { select: { id: true, reference: true } },
       event: { select: { id: true } },
       routes: { orderBy: [{ createdAt: "desc" as const }], include: { steps: { orderBy: { sequence: "asc" as const }, include: { delegation: { select: { fromPerson: { select: { name: true } } } }, declaredBy: { select: { name: true } } } } } },
@@ -147,7 +148,7 @@ export async function listSuppliers(client: Tx = db) {
       applications: { orderBy: [{ receivedOn: "desc" }, { createdAt: "desc" }], select: { id: true, kind: true, status: true, receivedOn: true, resubmitBy: true, lapsedRecordedAt: true, routes: { select: { status: true } } } },
       // a2: standing is derived from these, never stored.
       standingEvents: true,
-      standingRequests: { select: { id: true, kind: true, event: { select: { id: true } }, routes: { select: { status: true, createdAt: true } } } },
+      standingRequests: { select: { id: true, kind: true, withdrawnAt: true, event: { select: { id: true } }, routes: { select: { status: true, createdAt: true } } } },
     },
   });
   return { org, suppliers };

@@ -3,7 +3,7 @@ import { buttonClass } from "@/components/ui/button";
 import { ON_BEHALF_HINT } from "@/lib/documents/labels";
 
 import { grantSpecialPermission, linkAwardToSupplier, linkPartyToSupplier, recordSpecialPermission, decidePermissionStep } from "../link-actions";
-import { decideStandingStep, liftBlacklisting, recordBlacklisting, reinstateSupplier, requestBlacklisting, requestBlacklistLift, suspendSupplier } from "../standing-actions";
+import { decideStandingStep, liftBlacklisting, recordBlacklisting, reinstateSupplier, requestBlacklisting, requestBlacklistLift, suspendSupplier, withdrawStandingRequest } from "../standing-actions";
 
 /**
  * The supplier record's a2 drawers (6.15a): standing, links and special permission. No field carries a
@@ -129,6 +129,23 @@ export function RecordStandingDrawer({ requestId, kind, people, today, approvedO
       action={kind === "BLACKLIST" ? recordBlacklisting : liftBlacklisting}
       submitLabel={label}
       trigger={{ label, className: primary }}
+    />
+  );
+}
+
+/// Withdraw a request its route approved but that can no longer be recorded, or one never sent (fix R-7).
+export function WithdrawRequestDrawer({ requestId, what, people }: { requestId: string; what: string; people: Option[] }) {
+  return (
+    <RecordEditor
+      title={`Withdraw the request: ${what}`}
+      description="It is closed and nothing is recorded from it; the supplier is no longer held open by it, so another may be asked for. The request and its route stay on the record, marked withdrawn, with why."
+      fields={[hidden("requestId"), person("Withdrawn by", people)]}
+      values={{ requestId }}
+      destructive={{ reasonLabel: "Why it is withdrawn" }}
+      cancelLabel="Keep the request"
+      action={withdrawStandingRequest}
+      submitLabel="Withdraw it"
+      trigger={{ label: "Withdraw", className: ghost }}
     />
   );
 }

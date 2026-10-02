@@ -295,6 +295,12 @@ const TEXT: Record<AnyFault, (d: Record<string, string | number | null>) => Word
   AWARD_NOT_THIS_SUPPLIER: () => w("That award is not linked to this supplier.", "Anugerah itu tidak dipautkan kepada pembekal ini."),
   ROUTE_NOT_APPROVED: () => w("Its route has not approved it: it is recorded once the route's last step approves.", "Laluannya belum meluluskannya: ia direkodkan setelah langkah terakhir laluan meluluskan."),
   ALREADY_RECORDED: () => w("This is already recorded.", "Ini sudah direkodkan."),
+  // fix R-7: withdrawing a request
+  REQUEST_WITHDRAWN: () => w("This request was withdrawn: it is not recorded. Ask again if it is still wanted.", "Permohonan ini telah ditarik balik: ia tidak direkodkan. Pohon semula jika masih dikehendaki."),
+  ALREADY_WITHDRAWN: () => w("This request is already withdrawn.", "Permohonan ini sudah ditarik balik."),
+  WITHDRAW_ROUTE_PENDING: () => w("It is still on its route: it is decided there first (a refusal closes it).", "Ia masih dalam laluannya: ia diputuskan di sana dahulu (penolakan menutupnya)."),
+  WITHDRAW_ROUTE_REFUSED: () => w("Its route refused it: it is already closed.", "Laluannya menolaknya: ia sudah ditutup."),
+  WITHDRAW_REASON_REQUIRED: () => w("Say why it is withdrawn: it is kept with the request.", "Nyatakan sebab ia ditarik balik: ia disimpan bersama permohonan."),
   EFFECTIVE_REQUIRED: () => w("Give the day it takes effect.", "Nyatakan tarikh ia berkuat kuasa."),
   EFFECTIVE_IN_FUTURE: () => w("The day it takes effect cannot be after today: record it on the day.", "Tarikh berkuat kuasa tidak boleh selepas hari ini: rekodkan pada hari itu."),
   EFFECTIVE_BEFORE_DECISION: (d) => w(`It cannot take effect before its route approved it (${day(d.approvedOn)}).`, `Ia tidak boleh berkuat kuasa sebelum laluannya meluluskan (${day(d.approvedOn)}).`),

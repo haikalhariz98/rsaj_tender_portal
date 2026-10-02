@@ -66,6 +66,11 @@ export type BlacklistFault =
   | "EFFECTIVE_REQUIRED"
   | "EFFECTIVE_IN_FUTURE"
   | "EFFECTIVE_BEFORE_DECISION"
+  | "REQUEST_WITHDRAWN"
+  | "ALREADY_WITHDRAWN"
+  | "WITHDRAW_ROUTE_PENDING"
+  | "WITHDRAW_ROUTE_REFUSED"
+  | "WITHDRAW_REASON_REQUIRED"
   | PeriodFault;
 
 export interface RequestFacts {
@@ -74,10 +79,31 @@ export interface RequestFacts {
   /// The day its route was approved, where it was.
   approvedOn: string | null;
   recorded: boolean;
+  /// Withdrawn by an officer, with a reason (fix R-7): closed, never recorded.
+  withdrawn: boolean;
 }
 
-/// Whether a supplier has a request still to be decided or recorded: one at a time.
-export const requestOpen = (rs: readonly RequestFacts[]) => rs.some((r) => !r.recorded && r.route !== "REJECTED");
+/// Whether a supplier has a request still to be decided or recorded: one at a time. A withdrawn one is closed.
+export const requestOpen = (rs: readonly RequestFacts[]) => rs.some((r) => !r.recorded && !r.withdrawn && r.route !== "REJECTED");
+
+/**
+ * Withdrawing a request (fix R-7): one approved on its route but no longer recordable (say its supplier was
+ * blacklisted meanwhile on another ground, or the blacklisting a lift asked to end has ended), or one whose
+ * route never opened. A request still on its route is decided there first (a refusal closes it); one refused,
+ * recorded or already withdrawn is closed. The officer says why; audited.
+ */
+export function withdrawRequestFaults(i: { reason: string; personActive: boolean }, ctx: { today: string | null; request: RequestFacts }): Finding<BlacklistFault>[] {
+  if (!ctx.today) return [{ code: "TIME_ZONE_UNSET", level: "block" }];
+  const out: Finding<BlacklistFault>[] = [];
+  const r = ctx.request;
+  if (r.recorded) out.push({ code: "ALREADY_RECORDED", level: "block" });
+  else if (r.withdrawn) out.push({ code: "ALREADY_WITHDRAWN", level: "block" });
+  else if (r.route === "PENDING") out.push({ code: "WITHDRAW_ROUTE_PENDING", level: "block" });
+  else if (r.route === "REJECTED") out.push({ code: "WITHDRAW_ROUTE_REFUSED", level: "block" });
+  if (!i.reason.trim()) out.push({ code: "WITHDRAW_REASON_REQUIRED", level: "block" });
+  if (!i.personActive) out.push({ code: "PERSON_REQUIRED", level: "block" });
+  return out;
+}
 
 /// Asking for a blacklisting (FR-TRM-017; from a cancelled award, FR-AWD-009).
 export function requestBlacklistFaults(
@@ -124,6 +150,7 @@ export function recordFaults(
   const out: Finding<BlacklistFault>[] = [];
   const r = ctx.request;
   if (r.recorded) out.push({ code: "ALREADY_RECORDED", level: "block" });
+  else if (r.withdrawn) out.push({ code: "REQUEST_WITHDRAWN", level: "block" });
   else if (r.route !== "APPROVED") out.push({ code: "ROUTE_NOT_APPROVED", level: "block" });
   if (r.kind === "BLACKLIST" && ctx.standing === "BLACKLISTED") out.push({ code: "ALREADY_BLACKLISTED", level: "block" });
   if (r.kind === "BLACKLIST_LIFT" && ctx.standing !== "BLACKLISTED") out.push({ code: "NOT_BLACKLISTED", level: "block" });

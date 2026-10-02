@@ -98,6 +98,8 @@ export const SUPPLIER_FIELD_NAME: Readonly<Record<string, string>> = {
   note: "Note",
   askedFor: "Asked for",
   askedBy: "Asked by",
+  withdrawn: "Withdrawn",
+  withdrawnBy: "Withdrawn by",
   fromAward: "From the award",
   lifts: "Lifts",
   supplier: "Supplier on the register",

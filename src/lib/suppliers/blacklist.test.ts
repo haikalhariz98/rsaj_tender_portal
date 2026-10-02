@@ -43,7 +43,7 @@ describe("asking for a blacklisting, or its lifting (OD-8 A)", () => {
   it("refused: not registered, already blacklisted, one already open, a suspension reason, a retired reason, nobody", () => {
     expect(codes(requestBlacklistFaults(ask, { ...ctx, status: "APPLICANT" }))).toEqual(["STANDING_NEEDS_REGISTRATION"]);
     expect(codes(requestBlacklistFaults(ask, { ...ctx, standing: "BLACKLISTED" }))).toEqual(["ALREADY_BLACKLISTED"]);
-    expect(codes(requestBlacklistFaults(ask, { ...ctx, requests: [{ kind: "BLACKLIST", route: "PENDING", approvedOn: null, recorded: false }] }))).toEqual(["REQUEST_OPEN"]);
+    expect(codes(requestBlacklistFaults(ask, { ...ctx, requests: [{ kind: "BLACKLIST", route: "PENDING", approvedOn: null, recorded: false, withdrawn: false }] }))).toEqual(["REQUEST_OPEN"]);
     expect(codes(requestBlacklistFaults(ask, { ...ctx, reason: { appliesTo: "SUSPEND", retiredOn: null } }))).toEqual(["REASON_NOT_FOR_BLACKLISTING"]);
     expect(codes(requestBlacklistFaults(ask, { ...ctx, reason: { appliesTo: "BLACKLIST", retiredOn: "2026-10-01" } }))).toEqual(["REASON_RETIRED"]);
     expect(codes(requestBlacklistFaults({ ...ask, reasonId: null, personActive: false }, ctx))).toEqual(["REASON_REQUIRED", "PERSON_REQUIRED"]);
@@ -51,10 +51,10 @@ describe("asking for a blacklisting, or its lifting (OD-8 A)", () => {
   });
 
   it("a refused or recorded request no longer holds the supplier open", () => {
-    expect(requestOpen([{ kind: "BLACKLIST", route: "REJECTED", approvedOn: null, recorded: false }])).toBe(false);
-    expect(requestOpen([{ kind: "BLACKLIST", route: "APPROVED", approvedOn: "2026-09-01", recorded: true }])).toBe(false);
-    expect(requestOpen([{ kind: "BLACKLIST", route: "APPROVED", approvedOn: "2026-09-01", recorded: false }])).toBe(true);
-    expect(requestOpen([{ kind: "BLACKLIST", route: "NONE", approvedOn: null, recorded: false }])).toBe(true);
+    expect(requestOpen([{ kind: "BLACKLIST", route: "REJECTED", approvedOn: null, recorded: false, withdrawn: false }])).toBe(false);
+    expect(requestOpen([{ kind: "BLACKLIST", route: "APPROVED", approvedOn: "2026-09-01", recorded: true, withdrawn: false }])).toBe(false);
+    expect(requestOpen([{ kind: "BLACKLIST", route: "APPROVED", approvedOn: "2026-09-01", recorded: false, withdrawn: false }])).toBe(true);
+    expect(requestOpen([{ kind: "BLACKLIST", route: "NONE", approvedOn: null, recorded: false, withdrawn: false }])).toBe(true);
   });
 
   it("from a cancelled award: only one cancelled for blacklisting, and only its own supplier's", () => {
@@ -76,7 +76,7 @@ describe("asking for a blacklisting, or its lifting (OD-8 A)", () => {
 });
 
 describe("recording an approved request", () => {
-  const approved: RequestFacts = { kind: "BLACKLIST", route: "APPROVED", approvedOn: "2026-09-25", recorded: false };
+  const approved: RequestFacts = { kind: "BLACKLIST", route: "APPROVED", approvedOn: "2026-09-25", recorded: false, withdrawn: false };
   const ctx = { today: "2026-10-01", request: approved, standing: "ACTIVE", offenceNo: 1, months: 60 };
 
   it("a first offence on an approved route: recorded with its period", () => {
@@ -91,13 +91,13 @@ describe("recording an approved request", () => {
 
   it("refused: route not approved, already recorded, months not set for a first offence", () => {
     expect(codes(recordFaults({ effectiveOn: "2026-10-01", personActive: true }, { ...ctx, request: { ...approved, route: "PENDING" } }).faults)).toEqual(["ROUTE_NOT_APPROVED"]);
-    expect(codes(recordFaults({ effectiveOn: "2026-10-01", personActive: true }, { ...ctx, request: { ...approved, recorded: true } }).faults)).toEqual(["ALREADY_RECORDED"]);
+    expect(codes(recordFaults({ effectiveOn: "2026-10-01", personActive: true }, { ...ctx, request: { ...approved, recorded: true, withdrawn: false } }).faults)).toEqual(["ALREADY_RECORDED"]);
     expect(codes(recordFaults({ effectiveOn: "2026-10-01", personActive: true }, { ...ctx, months: null }).faults)).toEqual(["BLACKLIST_PERIOD_NOT_SET"]);
     expect(recordFaults({ effectiveOn: "2026-10-01", personActive: true }, { ...ctx, months: null, offenceNo: 2 })).toEqual({ faults: [], period: { kind: "UNTIL_FURTHER_NOTICE" } });
   });
 
   it("a lift needs the blacklisting still in effect, and computes no period", () => {
-    const lift: RequestFacts = { kind: "BLACKLIST_LIFT", route: "APPROVED", approvedOn: "2026-09-25", recorded: false };
+    const lift: RequestFacts = { kind: "BLACKLIST_LIFT", route: "APPROVED", approvedOn: "2026-09-25", recorded: false, withdrawn: false };
     expect(recordFaults({ effectiveOn: "2026-10-01", personActive: true }, { ...ctx, request: lift, standing: "BLACKLISTED" })).toEqual({ faults: [], period: null });
     expect(codes(recordFaults({ effectiveOn: "2026-10-01", personActive: true }, { ...ctx, request: lift, standing: "ACTIVE" }).faults)).toEqual(["NOT_BLACKLISTED"]);
   });

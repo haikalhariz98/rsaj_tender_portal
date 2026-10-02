@@ -145,7 +145,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
   // ------------------------------------------------------------------ a2: standing (FR-VND-010)
   const standingRows: Row[] = suppliers.flatMap((s) => {
     const st = readings.get(s.id)!.standing;
-    const open = s.standingRequests.filter((r) => !r.event && routeState(r.routes.map((x) => ({ status: x.status, openedAt: x.createdAt.toISOString() }))) !== "REJECTED");
+    const open = s.standingRequests.filter((r) => !r.event && !r.withdrawnAt && routeState(r.routes.map((x) => ({ status: x.status, openedAt: x.createdAt.toISOString() }))) !== "REJECTED");
     const lapseUnset = st?.notes.some((n) => n.code === "LAPSE_RULE_NOT_SET");
     if (!st || (st.standing === "ACTIVE" && !lapseUnset && open.length === 0) || st.standing === "NOT_REGISTERED") return [];
     const since = st.blacklist ?? st.cancellation ?? st.suspension;

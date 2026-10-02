@@ -8,7 +8,7 @@ import { dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { SUPPLIER_ENTITY } from "@/lib/suppliers/audit-view";
-import { nextOffenceNo, recordFaults, requestBlacklistFaults, requestLiftFaults, routeState, type RequestFacts } from "@/lib/suppliers/blacklist";
+import { nextOffenceNo, recordFaults, requestBlacklistFaults, requestLiftFaults, routeState, withdrawRequestFaults, type RequestFacts } from "@/lib/suppliers/blacklist";
 import { documentStates } from "@/lib/suppliers/documents";
 import { BLACKLIST_MATTER, REQUEST_KIND_LABEL, STANDING_REFUSED_DECIDED_BY, standingWords } from "@/lib/suppliers/labels";
 import { reinstatementChecklist, reinstatementFaults, suspendFaults } from "@/lib/suppliers/reinstate";
@@ -19,7 +19,7 @@ import { splitValues } from "@/lib/ui/select-logic";
 import { FormReader } from "@/lib/validate";
 
 import { approvedOnOf, decideSupplierStep, openSupplierRoute } from "./routes";
-import { activePerson, audit, GONE, inSupplier, label, refuse, Refusal, stampNow, type LockedSupplier } from "./shared";
+import { activePerson, audit, CHANGED, GONE, inSupplier, label, refuse, Refusal, stampNow, type LockedSupplier } from "./shared";
 
 /**
  * A supplier's standing (FR-VND-010, FR-TRM-017, plan 6.15 §4.2, increment a2): suspended by an officer
@@ -46,7 +46,7 @@ async function lockedStanding(tx: Tx, l: LockedSupplier) {
   const requestFacts = (r: (typeof requests)[number]): RequestFacts => {
     const routes = r.routes.map((x) => ({ status: x.status, openedAt: x.createdAt.toISOString() }));
     const newest = [...r.routes].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
-    return { kind: r.kind, route: routeState(routes), approvedOn: approvedOnOf(newest), recorded: r.event != null };
+    return { kind: r.kind, route: routeState(routes), approvedOn: approvedOnOf(newest), recorded: r.event != null, withdrawn: r.withdrawnAt != null };
   };
   return { policy, reading: st.reading, status: st.status, s, requests, requestFacts };
 }
@@ -244,4 +244,39 @@ export async function recordBlacklisting(_prev: FormState, data: FormData): Prom
 /// Record the lifting of a blacklisting its route approved.
 export async function liftBlacklisting(_prev: FormState, data: FormData): Promise<FormState> {
   return recordFromRequest(data, "BLACKLIST_LIFT");
+}
+
+/**
+ * Withdraw a blacklisting request, or a lift's, with the reason (fix R-7): one its route approved but that
+ * can no longer be recorded, or one whose route never opened. It is closed, never recorded, and no longer
+ * holds the supplier open, so another may be asked for. Audited; recorded on the officer's behalf, not signed.
+ */
+export async function withdrawStandingRequest(_prev: FormState, data: FormData): Promise<FormState> {
+  const now = stampNow();
+  const requestId = String(data.get("requestId") ?? "");
+  const r = new FormReader(data);
+  const personId = r.text("personId", "Withdrawn by", { required: true });
+  const reason = String(data.get("reason") ?? "").trim();
+  if (r.failed) return { ok: false, errors: r.errors };
+  const found = await db.standingRequest.findUnique({ where: { id: requestId }, select: { supplierId: true } });
+  if (!found) return GONE;
+  return inSupplier(found.supplierId, async (tx, l) => {
+    if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
+    await tx.$queryRaw`SELECT id FROM "StandingRequest" WHERE id = ${requestId} FOR UPDATE`;
+    const { requests, requestFacts } = await lockedStanding(tx, l);
+    const req = requests.find((x) => x.id === requestId);
+    if (!req) return GONE;
+    const person = await activePerson(tx, l.org.id, personId);
+    const fs = withdrawRequestFaults({ reason, personActive: !!person }, { today: l.org.today, request: requestFacts(req) });
+    if (blocking(fs).length) {
+      const reasonFault = fs.find((f) => f.code === "WITHDRAW_REASON_REQUIRED");
+      const rest = blocking(fs).filter((f) => f !== reasonFault);
+      return rest.length ? refuse(rest, "Not withdrawn:") : { ok: false, errors: { reason: refuse([reasonFault!], "").message!.trim() } };
+    }
+    const moved = await tx.standingRequest.updateMany({ where: { id: req.id, withdrawnAt: null, event: null }, data: { withdrawnAt: now, withdrawnReason: reason, withdrawnByPersonId: person!.id } });
+    if (moved.count !== 1) throw new Refusal(CHANGED);
+    await audit(tx, l.org.id, SUPPLIER_ENTITY.standingRequest, req.id, standingLabel(l, req.kind === "BLACKLIST" ? "Blacklisting asked for" : "Lifting asked for"), "UPDATE",
+      diffFields({ withdrawn: null }, { withdrawn: "Withdrawn: not recorded", withdrawnBy: person!.name, recordedOnBehalf: "not signed" }), reason);
+    return { ok: true, message: "Withdrawn. Nothing is recorded from it; another may be asked for." };
+  });
 }

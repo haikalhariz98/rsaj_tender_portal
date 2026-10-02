@@ -15,12 +15,12 @@ import { AWARD_STATUS_LABEL } from "@/lib/award/labels";
 import { routeCoreText } from "@/lib/authority/core-routing-labels";
 import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatOrgDay } from "@/lib/format";
 import { ACT_DONE_LABEL } from "@/lib/labels";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { DECISION_LABEL } from "@/lib/requisition/labels";
-import { nextOffenceNo, recordFaults, requestBlacklistFaults, requestLiftFaults, routeState, type RequestFacts } from "@/lib/suppliers/blacklist";
+import { nextOffenceNo, recordFaults, requestBlacklistFaults, requestLiftFaults, routeState, withdrawRequestFaults, type RequestFacts } from "@/lib/suppliers/blacklist";
 import { documentStates } from "@/lib/suppliers/documents";
 import { isEligibilitySnapshot } from "@/lib/suppliers/eligibility";
 import { blacklistEndWords, CHECK_STATE_LABEL, CONDITION_LABEL, DOCUMENT_STATE_LABEL, conditionWords, RELAXES_LABEL, REQUEST_KIND_LABEL, RESULT_LABEL, RESULT_TONE, STANDING_EVENT_LABEL, standingTone, standingWords, supplierFaultText, VERDICT_LABEL, VERDICT_TONE } from "@/lib/suppliers/labels";
@@ -35,7 +35,7 @@ import { eligibilityOf, standingEventFacts } from "@/lib/suppliers/standing-repo
 import { blocking, type Finding } from "@/lib/suppliers/types";
 import { routeTone, stepTone } from "@/lib/ui/status-tone";
 
-import { DecideRouteStepDrawer, GrantPermissionDrawer, LinkAwardDrawer, LinkPartyDrawer, PermissionDrawer, ReinstateDrawer, RecordStandingDrawer, RequestBlacklistDrawer, RequestLiftDrawer, SuspendDrawer } from "./standing-editors";
+import { DecideRouteStepDrawer, GrantPermissionDrawer, LinkAwardDrawer, LinkPartyDrawer, PermissionDrawer, ReinstateDrawer, RecordStandingDrawer, RequestBlacklistDrawer, RequestLiftDrawer, SuspendDrawer, WithdrawRequestDrawer } from "./standing-editors";
 
 type Option = { value: string; label: string };
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
@@ -88,7 +88,7 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
   const today = l.org.today;
   const suggestions = await suggestionsFor(people, today);
   const reasonsFor = (use: "SUSPEND" | "BLACKLIST") => cfg.reasons.filter((x) => x.appliesTo === use && cfg.live(x, today)).map((x) => ({ value: x.id, label: x.nameEn }));
-  const requestFacts = (r: (typeof s.standingRequests)[number]): RequestFacts => ({ kind: r.kind, route: routeState(r.routes.map((x) => ({ status: x.status, openedAt: x.createdAt.toISOString() }))), approvedOn: approvedOn(r.routes[0]), recorded: !!r.event });
+  const requestFacts = (r: (typeof s.standingRequests)[number]): RequestFacts => ({ kind: r.kind, route: routeState(r.routes.map((x) => ({ status: x.status, openedAt: x.createdAt.toISOString() }))), approvedOn: approvedOn(r.routes[0]), recorded: !!r.event, withdrawn: r.withdrawnAt != null });
   const requests = s.standingRequests.map(requestFacts);
   const docs = s.documents.map(documentFacts);
   const states = today ? documentStates(cfg.typeFacts, docs, today) : [];
@@ -145,7 +145,9 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
           <CardHeader icon={<ClipboardIcon size={17} />} title="Asked for" subtitle="Each blacklisting, or its lifting, is decided on its route and recorded once the route approves it, with the day it takes effect." divided={false} />
           {s.standingRequests.map((r, i) => {
             const f = requests[i];
-            const rec = f.route === "APPROVED" && !f.recorded ? recordFaults({ effectiveOn: today, personActive: true }, { today, request: f, standing: reading.standing, offenceNo: nextOffenceNo(s.standingEvents.map(standingEventFacts)), months: policyMonths }) : null;
+            // fix R-7: a request approved but not recordable (or never sent) may be withdrawn, with why.
+            const withdrawable = withdrawRequestFaults({ reason: "x", personActive: true }, { today, request: f }).length === 0;
+            const rec = f.route === "APPROVED" && !f.recorded && !f.withdrawn ? recordFaults({ effectiveOn: today, personActive: true }, { today, request: f, standing: reading.standing, offenceNo: nextOffenceNo(s.standingEvents.map(standingEventFacts)), months: policyMonths }) : null;
             const recBlocker = rec ? first(rec.faults.filter((x) => !["EFFECTIVE_REQUIRED", "EFFECTIVE_IN_FUTURE", "EFFECTIVE_BEFORE_DECISION", "PERSON_REQUIRED"].includes(x.code))) : null;
             return (
               <section key={r.id} className="border-t border-line">
@@ -153,10 +155,12 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
                   <div className="flex min-w-0 flex-col gap-0.5">
                     <span className="text-[14px] font-semibold text-ink">{REQUEST_KIND_LABEL[r.kind].en}{r.reasonSnapshot ? ` · ${r.reasonSnapshot}` : ""}</span>
                     <span className="text-[12.5px] text-ink-3">Asked by {r.requestedBy.name}, on their behalf, {formatDate(storedDay(r.requestedAt))}{r.sourceAward ? <> · from the cancelled award <Link href={`/awards/${r.sourceAward.id}`}>{r.sourceAward.reference}</Link></> : null}{r.note ? ` · “${r.note}”` : ""}</span>
+                    {r.withdrawnAt && <span className="text-[12.5px] break-words text-ink-3">Withdrawn by {r.withdrawnBy?.name ?? "a person no longer on record"}, on their behalf, {formatOrgDay(r.withdrawnAt, l.org.timeZone)}: “{r.withdrawnReason}”</span>}
                   </div>
                   <span className="flex flex-wrap items-center gap-2">
-                    <Badge tone={f.recorded ? "ok" : f.route === "APPROVED" ? "info" : f.route === "REJECTED" ? "neutral" : "warn"}>{f.recorded ? "Recorded" : f.route === "APPROVED" ? "Approved: to record" : f.route === "REJECTED" ? "Refused: nothing recorded" : "With approval"}</Badge>
+                    <Badge tone={f.recorded ? "ok" : f.withdrawn ? "neutral" : f.route === "APPROVED" ? "info" : f.route === "REJECTED" ? "neutral" : "warn"}>{f.recorded ? "Recorded" : f.withdrawn ? "Withdrawn: nothing recorded" : f.route === "APPROVED" ? "Approved: to record" : f.route === "REJECTED" ? "Refused: nothing recorded" : "With approval"}</Badge>
                     {rec && <RecordStandingDrawer requestId={r.id} kind={r.kind} people={people} today={today} approvedOn={f.approvedOn} blocker={recBlocker} />}
+                    {withdrawable && <WithdrawRequestDrawer requestId={r.id} what={REQUEST_KIND_LABEL[r.kind].en.toLowerCase()} people={people} />}
                   </span>
                 </div>
                 {r.routes.map((route) => <RouteBlock key={route.id} r={route} suggestions={suggestions} today={today} matter={`the ${r.kind === "BLACKLIST" ? "blacklisting" : "lifting of the blacklisting"} of ${s.registeredName}`} refused="Refused: nothing is recorded" kind="standing" />)}
