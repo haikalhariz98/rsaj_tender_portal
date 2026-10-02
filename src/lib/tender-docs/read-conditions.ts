@@ -7,6 +7,7 @@
  * later configuration edit never rewrites what was judged. Reads only.
  */
 
+import { dayOf } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { loadExercise } from "@/lib/method/repo";
@@ -115,7 +116,7 @@ export async function conditionsTab(exerciseId: string) {
 
   // ---- assurance (FR-DOC-014), on the draft
   const confirmations = draft ? await loadConfirmations(draft.id) : [];
-  const startedOn = draft ? (org.timeZone ? new Intl.DateTimeFormat("en-CA", { timeZone: org.timeZone }).format(draft.createdAt) : draft.createdAt.toISOString().slice(0, 10)) : null;
+  const startedOn = draft ? dayOf(draft.createdAt, org.timeZone) : null;
   const needed = draft ? assuranceKindsFor(parts) : [];
   const assurance = {
     required: assuranceRequiredText(policy.assuranceRequired),
@@ -125,7 +126,7 @@ export async function conditionsTab(exerciseId: string) {
       const c = confirmations.find((x) => x.kind === kind) ?? null;
       const record = draft
         ? (() => {
-            const fs = confirmFaults({ packStatus: draft.status, exerciseStatus: ex.status, kind, parts, existing: confirmations, person: { isActive: true }, confirmedOn: today, today, packStartedOn: startedOn! });
+            const fs = confirmFaults({ packStatus: draft.status, exerciseStatus: ex.status, kind, parts, existing: confirmations, person: { isActive: true }, confirmedOn: today, today, packStartedOn: startedOn });
             return fs.length ? no(fs.map(confirmFaultText).join(" ")) : ok;
           })()
         : no("Start the tender documents first.");

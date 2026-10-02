@@ -55,10 +55,11 @@ export function confirmFaults(i: {
   person: { isActive: boolean } | null;
   confirmedOn: string | null;
   today: string | null;
-  packStartedOn: string;
+  /// The organisation's day the pack started (`dayOf(createdAt, timeZone)`); null while no zone is set.
+  packStartedOn: string | null;
 }): Finding<ConfirmFault>[] {
   if (i.packStatus !== "DRAFT" || i.exerciseStatus !== "DOCUMENTS_IN_PREPARATION") return [{ code: "PACK_NOT_EDITABLE", level: "block" }];
-  if (!i.today) return [{ code: "TIME_ZONE_NOT_SET", level: "block" }];
+  if (!i.today || !i.packStartedOn) return [{ code: "TIME_ZONE_NOT_SET", level: "block" }];
   const out: Finding<ConfirmFault>[] = [];
   if (!assuranceKindsFor(i.parts).includes(i.kind)) out.push({ code: "NOT_NEEDED", level: "block" });
   else if (i.existing.some((e) => e.kind === i.kind)) out.push({ code: "ALREADY_CONFIRMED", level: "block" });

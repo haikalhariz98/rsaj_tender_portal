@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/record-editor";
 import { diffFields, snapshotFields, type FieldChange } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
-import { dayToDate, storedDay } from "@/lib/dates";
+import { dayOf, dayToDate, storedDay } from "@/lib/dates";
 import { requisitionOfExercise, withLockedRequisitionForSourcing, type ExerciseOrg, type ExerciseRow } from "@/lib/method/repo";
 import { transactionTimedOut } from "@/lib/scope/tx-timeout";
 import { ASSURANCE_KINDS, confirmFaults } from "@/lib/tender-docs/assurance";
@@ -185,7 +185,7 @@ export async function recordAssurance(_prev: FormState, data: FormData): Promise
     if (!pack) return NO_DRAFT;
     const person = await tx.person.findFirst({ where: { id: personId, organisationId: l.org.id }, select: { id: true, name: true, isActive: true } });
     const existing = await loadConfirmations(pack.id, tx);
-    const startedOn = l.org.timeZone ? new Intl.DateTimeFormat("en-CA", { timeZone: l.org.timeZone }).format(pack.createdAt) : storedDay(pack.createdAt);
+    const startedOn = dayOf(pack.createdAt, l.org.timeZone);
     const faults = confirmFaults({ packStatus: pack.status, exerciseStatus: l.ex.status, kind, parts: pack.parts.map(partFactsOf), existing, person, confirmedOn: storedDay(on), today: l.org.today, packStartedOn: startedOn });
     if (faults.length) {
       const f = faults[0];
