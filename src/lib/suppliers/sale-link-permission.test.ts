@@ -43,27 +43,27 @@ describe("linking a party or an award to the register (OD-9)", () => {
   const supplier = { id: "s1", registrationNo: "201001000101 (000101-A)", status: "REGISTERED" };
 
   it("the same number, unlinked: linked with nothing to say", () => {
-    expect(linkPartyFaults({ registrationNo: "201001000101  (000101-a)", vendorId: null }, supplier, "")).toEqual([]);
+    expect(linkPartyFaults({ registrationNo: "201001000101  (000101-a)", vendorId: null }, supplier, "", [])).toEqual([]);
   });
 
   it("a number that differs needs a reason, and stays shown as differing", () => {
-    expect(codes(linkPartyFaults({ registrationNo: "999", vendorId: null }, supplier, ""))).toEqual(["NUMBER_DIFFERS_REASON_REQUIRED"]);
-    expect(linkPartyFaults({ registrationNo: "999", vendorId: null }, supplier, "The party wrote its old number.")).toEqual([{ code: "NUMBER_DIFFERS", level: "warn", data: { recorded: "999", register: supplier.registrationNo } }]);
+    expect(codes(linkPartyFaults({ registrationNo: "999", vendorId: null }, supplier, "", []))).toEqual(["NUMBER_DIFFERS_REASON_REQUIRED"]);
+    expect(linkPartyFaults({ registrationNo: "999", vendorId: null }, supplier, "The party wrote its old number.", [])).toEqual([{ code: "NUMBER_DIFFERS", level: "warn", data: { recorded: "999", register: supplier.registrationNo } }]);
   });
 
   it("an empty number never matches (C-7)", () => {
     expect(sameNumber("", "")).toBe(false);
-    expect(codes(linkPartyFaults({ registrationNo: "", vendorId: null }, { ...supplier, registrationNo: "" }, ""))).toEqual(["NUMBER_DIFFERS_REASON_REQUIRED"]);
+    expect(codes(linkPartyFaults({ registrationNo: "", vendorId: null }, { ...supplier, registrationNo: "" }, "", []))).toEqual(["NUMBER_DIFFERS_REASON_REQUIRED"]);
   });
 
   it("already linked to it, or to another, is refused; no supplier chosen is refused", () => {
-    expect(codes(linkPartyFaults({ registrationNo: supplier.registrationNo, vendorId: "s1" }, supplier, ""))).toEqual(["ALREADY_LINKED"]);
-    expect(codes(linkPartyFaults({ registrationNo: supplier.registrationNo, vendorId: "s2" }, supplier, ""))).toEqual(["LINKED_ELSEWHERE"]);
-    expect(codes(linkPartyFaults({ registrationNo: "x", vendorId: null }, null, ""))).toEqual(["SUPPLIER_REQUIRED"]);
+    expect(codes(linkPartyFaults({ registrationNo: supplier.registrationNo, vendorId: "s1" }, supplier, "", []))).toEqual(["ALREADY_LINKED"]);
+    expect(codes(linkPartyFaults({ registrationNo: supplier.registrationNo, vendorId: "s2" }, supplier, "", []))).toEqual(["LINKED_ELSEWHERE"]);
+    expect(codes(linkPartyFaults({ registrationNo: "x", vendorId: null }, null, "", []))).toEqual(["SUPPLIER_REQUIRED"]);
   });
 
   it("a supplier not registered is linked with a warning", () => {
-    expect(linkPartyFaults({ registrationNo: supplier.registrationNo, vendorId: null }, { ...supplier, status: "APPLICANT" }, "")).toEqual([{ code: "SUPPLIER_NOT_REGISTERED", level: "warn" }]);
+    expect(linkPartyFaults({ registrationNo: supplier.registrationNo, vendorId: null }, { ...supplier, status: "APPLICANT" }, "", [])).toEqual([{ code: "SUPPLIER_NOT_REGISTERED", level: "warn" }]);
   });
 
   it("an award with a party follows the party's link; only one with no party is linked on its own", () => {

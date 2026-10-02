@@ -377,9 +377,10 @@ class Acts {
   /// linkPartyToSupplier, as the action judges it: the party's awards follow its link.
   async linkParty(partyId: string, supplierId: string, reason: string, when: Date) {
     const { linkPartyFaults } = await import("../src/lib/suppliers/link");
-    const party = await this.db.exerciseParty.findUniqueOrThrow({ where: { id: partyId }, select: { id: true, name: true, registrationNo: true, vendorId: true, exercise: { select: { reference: true } }, awards: { select: { id: true, reference: true, vendorId: true } } } });
+    const party = await this.db.exerciseParty.findUniqueOrThrow({ where: { id: partyId }, select: { id: true, name: true, registrationNo: true, vendorId: true, exerciseId: true, exercise: { select: { reference: true } }, awards: { select: { id: true, reference: true, vendorId: true } } } });
     const s = await this.db.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { id: true, reference: true, registeredName: true, registrationNo: true, status: true } });
-    refuse(`linking ${partyId}`, linkPartyFaults(party, s, reason));
+    const others = await this.db.exerciseParty.findMany({ where: { exerciseId: party.exerciseId, NOT: { id: partyId } }, select: { name: true, vendorId: true } });
+    refuse(`linking ${partyId}`, linkPartyFaults(party, s, reason, others));
     await this.db.exerciseParty.update({ where: { id: partyId }, data: { vendorId: supplierId } });
     this.entry("ExerciseParty", partyId, `${party.exercise.reference} · Party ${party.name}`, "UPDATE", when, diffFields({ supplier: null }, { supplier: `${s.reference} · ${s.registeredName}`, linkReason: reason || null, linkedBy: OFFICER.name, recordedOnBehalf: "not signed" }), reason);
     for (const a of party.awards) {

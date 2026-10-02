@@ -326,6 +326,7 @@ const TEXT: Record<AnyFault, (d: Record<string, string | number | null>) => Word
   NOT_LINKED: () => w("Not checked against the register: the party is not linked to a supplier.", "Tidak disemak dengan daftar: pihak itu tidak dipautkan kepada pembekal."),
   // a2: links (OD-9)
   ALREADY_LINKED: () => w("It is already linked to that supplier.", "Ia sudah dipautkan kepada pembekal itu."),
+  SUPPLIER_ON_OTHER_PARTY: (d) => w(`${d.party} is already linked to that supplier on this exercise: one company is one party on an exercise. Use that party.`, `${d.party} sudah dipautkan kepada pembekal itu dalam latihan ini: satu syarikat ialah satu pihak dalam latihan. Gunakan pihak itu.`),
   LINKED_ELSEWHERE: () => w("It is already linked to another supplier. A link is not moved.", "Ia sudah dipautkan kepada pembekal lain. Pautan tidak dipindahkan."),
   NUMBER_DIFFERS_REASON_REQUIRED: (d) => w(`The registration number recorded (${d.recorded}) differs from the register's (${d.register}): say why they are the same company.`, `Nombor pendaftaran yang direkodkan (${d.recorded}) berbeza daripada daftar (${d.register}): nyatakan mengapa ia syarikat yang sama.`),
   NUMBER_DIFFERS: (d) => w(`Linked although the number recorded (${d.recorded}) differs from the register's (${d.register}).`, `Dipautkan walaupun nombor yang direkodkan (${d.recorded}) berbeza daripada daftar (${d.register}).`),

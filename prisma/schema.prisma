@@ -5355,6 +5355,8 @@ model ExerciseParty {
   awards           Award[]
 
   @@unique([exerciseId, registrationNo])
+  /// 6.15a fix R-12: one register supplier is one party on an exercise (unlinked parties, null, are not compared).
+  @@unique([exerciseId, vendorId])
 }
 
 /// The invitee list a name route approves, written once when the name is requested (ADR 0015).

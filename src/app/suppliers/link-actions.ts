@@ -84,7 +84,9 @@ export async function linkPartyToSupplier(_prev: FormState, data: FormData): Pro
     const supplier = await tx.supplier.findFirst({ where: { id: supplierId, organisationId: l.org.id }, select: { id: true, reference: true, registeredName: true, registrationNo: true, status: true } });
     const person = await activePerson(tx, l.org.id, personId);
     if (!person) return { ok: false, errors: { personId: "Name the officer (an active person)." } };
-    const fs = linkPartyFaults(party, supplier, reason);
+    // fix R-12: the exercise's other parties, read with the exercise locked, so two links cannot race.
+    const others = await tx.exerciseParty.findMany({ where: { exerciseId: l.ex.id, NOT: { id: party.id } }, select: { name: true, vendorId: true } });
+    const fs = linkPartyFaults(party, supplier, reason, others);
     if (blocking(fs).length) return refuseLink(fs);
     await tx.exerciseParty.update({ where: { id: party.id }, data: { vendorId: supplier!.id } });
     const differs = fs.find((f) => f.code === "NUMBER_DIFFERS");
