@@ -9,7 +9,7 @@ import type { AttachmentFact } from "@/lib/documents/types";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { AwardIcon, ClipboardIcon, ClockIcon, FileIcon, GlobeIcon, InboxIcon, RouteIcon, ShieldIcon, SlidersIcon, ToolsIcon, UsersIcon } from "@/components/icons";
+import { AwardIcon, ClipboardIcon, ClockIcon, FileIcon, GlobeIcon, InboxIcon, RouteIcon, ScaleIcon, ShieldIcon, SlidersIcon, ToolsIcon, UsersIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
@@ -80,11 +80,13 @@ import type { WindowGate } from "@/lib/window/gate";
 import { WINDOW_ENTITIES } from "@/lib/window/audit-view";
 import { BID_ENTITIES } from "@/lib/bids/audit-view";
 import { OPENING_ENTITIES, OPENING_ENTITY_LABEL } from "@/lib/opening/audit-view";
+import { EVALUATION_ENTITY_LABEL } from "@/lib/evaluation/audit-view";
 import { bidFindingText } from "@/lib/bids/labels";
 import { bidGate } from "@/lib/bids/repo";
 import { openingGateFaults } from "@/lib/opening/award-gate";
 import { loadOpeningGate } from "@/lib/opening/gate-read";
 import { loadEvaluationGate } from "@/lib/evaluation/gate-read";
+import { EVALUATION_SECTIONS, evaluationSectionOf, loadEvaluationTab } from "./evaluation/workspace";
 import { openingFindingText } from "@/lib/opening/labels";
 import { loadBids } from "./bids/workspace";
 import { BIDS_SECTIONS, bidsSectionOf, loadOpening, loadSchedule } from "./opening/workspace";
@@ -218,6 +220,9 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   // 6.6, 6.7: the Bids and opening tab, read one section at a time and only while it is the tab being looked at; its header acts come with it.
   const bidsSection = bidsSectionOf(section);
   const bids = tab !== "bids" ? null : bidsSection === "opening" ? await loadOpening(ex.id) : bidsSection === "schedule" ? await loadSchedule(ex.id) : await loadBids(ex.id, ex.status);
+  // 6.8: the Evaluation tab, read one section at a time and only while it is the tab being looked at; its header acts come with it.
+  const evaluationSection = evaluationSectionOf(section);
+  const evaluation = tab === "evaluation" ? await loadEvaluationTab(ex.id, evaluationSection) : null;
   // 6.6 (X-9): what the register asks of an award, for the Award tab (only on an exercise published through 6.5).
   const bidAward = tab === "award" ? await bidGate(ex.id) : null;
   // 6.7 (C-8): what the openings ask of an award, for the Award tab (only on an exercise published through 6.5).
@@ -276,6 +281,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
     ["Cancel exercise", ex.status !== "CANCELLED" && !(published && inv?.cancel) ? cancelBlocker : null],
     ...(inv?.notes ?? []).map(([label, why]) => [label, why] as [string, string | null]),
     ...(bids?.notes ?? []).map(([label, why]) => [label, why] as [string, string | null]),
+    ...(evaluation?.notes ?? []).map(([label, why]) => [label, why] as [string, string | null]),
   ];
   const notes = unavailable.filter((x): x is [string, string] => x[1] != null);
   const headerNote =
@@ -337,6 +343,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       )}
       {inv?.actions}
       {bids?.actions}
+      {evaluation?.actions}
       {ex.status !== "CANCELLED" && (published && inv?.cancel ? inv.cancel : <CancelExerciseDrawer id={ex.id} blocker={cancelBlocker} />)}
     </>
   );
@@ -402,6 +409,15 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       icon: <InboxIcon size={15} />,
       // Read only while it is the tab being looked at, and only for the section named.
       panel: bids?.panel ?? null,
+    },
+    {
+      id: "evaluation",
+      label: "Evaluation",
+      sections: [...EVALUATION_SECTIONS],
+      section: evaluationSection,
+      icon: <ScaleIcon size={15} />,
+      // Read only while it is the tab being looked at, and only for the section named.
+      panel: evaluation?.panel ?? null,
     },
     ...(flags?.requiresProposal
       ? [
@@ -1256,6 +1272,8 @@ const ENTITY_LABEL: Record<string, string> = {
   [TENDER_ENTITY.section]: "Appendix section",
   // 6.7: the opening; every value is already in words (a price as read and the disclosed estimate chip as SULIT).
   ...OPENING_ENTITY_LABEL,
+  // 6.8: the evaluation; every value is already in words (its figures chip as SULIT by their registered keys).
+  ...EVALUATION_ENTITY_LABEL,
   // 6.5: the invitation window; every value is already in words.
   ExerciseWindow: "Invitation window",
   WindowFeeLine: "Fee basis",

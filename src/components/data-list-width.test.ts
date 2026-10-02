@@ -43,9 +43,10 @@ describe("only the Opening's offers use them (other lists unchanged)", () => {
     });
   }
   const screens = files(join(process.cwd(), "src", "app")).map((p) => ({ p, text: readFileSync(p, "utf8") }));
-  it("stackBelow=\"2xl\" and a column minWidth appear only on the offers list", () => {
-    expect(screens.filter((s) => /stackBelow="2xl"/.test(s.text)).map((s) => s.p.slice(s.p.indexOf("src/")))).toEqual(["src/app/sourcing/[id]/opening/lists.tsx"]);
-    expect(screens.filter((s) => /\{ key: "[^"]+", label: [^}]*minWidth: "\d+px"/.test(s.text)).map((s) => s.p.slice(s.p.indexOf("src/")))).toEqual(["src/app/sourcing/[id]/opening/lists.tsx"]);
+  // 6.8 (flagged, faithful): the evaluation's lists are the second set to use them, as the build was told to.
+  it("stackBelow=\"2xl\" and a column minWidth appear only on the offers list and the evaluation's lists", () => {
+    expect(screens.filter((s) => /stackBelow="2xl"/.test(s.text)).map((s) => s.p.slice(s.p.indexOf("src/"))).sort()).toEqual(["src/app/sourcing/[id]/evaluation/lists.tsx", "src/app/sourcing/[id]/opening/lists.tsx"]);
+    expect(screens.filter((s) => /\{ key: "[^"]+", label: [^}]*minWidth: "\d+px"/.test(s.text)).map((s) => s.p.slice(s.p.indexOf("src/"))).sort()).toEqual(["src/app/sourcing/[id]/evaluation/lists.tsx", "src/app/sourcing/[id]/opening/lists.tsx"]);
   });
   it("the offers list: bidder at least 200px; the verdict column holds the badge", () => {
     const lists = readFileSync(join(process.cwd(), "src/app/sourcing/[id]/opening/lists.tsx"), "utf8");
