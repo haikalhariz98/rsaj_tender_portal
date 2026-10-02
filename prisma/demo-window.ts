@@ -619,7 +619,7 @@ export const tenderWindow = (from: string, to: string): WindowInput => ({
   inspectionPlace: "Contract & Procurement, level 3, 1 Demo Avenue", purchasePlace: "Finance counter, ground floor, 1 Demo Avenue", inspectionHours: "Monday to Friday, 9.00 am to 4.00 pm",
   purchaseFromDay: from, purchaseCloseDay: to, feeAmount: "200.00", feePaymentMethods: "Bank draft or cheque to Demo Utilities Sdn Bhd, or cash at the counter", submissionPlace: "The tender box, ground floor, 1 Demo Avenue", closingTimeReason: "",
 });
-const quotationWindow = (from: string, to: string): WindowInput => ({
+export const quotationWindow = (from: string, to: string): WindowInput => ({
   inspectionPlace: "Northern Region office, 12 Depot Road", purchasePlace: "Northern Region office, 12 Depot Road", inspectionHours: "Monday to Friday, 9.00 am to 4.00 pm",
   purchaseFromDay: from, purchaseCloseDay: to, feeAmount: "60.00", feePaymentMethods: "Bank draft or cheque to Demo Utilities Sdn Bhd", submissionPlace: "The quotation box, Northern Region office, 12 Depot Road", closingTimeReason: "",
 });
@@ -630,7 +630,7 @@ export const TENDER_FEE_BASIS: FeeLineInput[] = [
   { kind: "BINDING", description: "Two volumes, drawings folded", quantity: null, unitCost: null, lump: "30.00" },
   { kind: "ADMIN", description: "Issue and register", quantity: null, unitCost: null, lump: "50.00" },
 ];
-const QUOTATION_FEE_BASIS: FeeLineInput[] = [
+export const QUOTATION_FEE_BASIS: FeeLineInput[] = [
   { kind: "PAPER_A4", description: "Conditions, specification and forms", quantity: "150", unitCost: "0.10", lump: null },
   { kind: "PAPER_A3", description: "Drawings", quantity: "6", unitCost: "1.50", lump: null },
   { kind: "ADMIN", description: "Issue and register", quantity: null, unitCost: null, lump: "20.00" },
