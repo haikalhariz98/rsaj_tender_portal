@@ -26,7 +26,7 @@ import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster } from "@/lib/people/load";
 import { holdersOf } from "@/lib/people/roster";
 
-import type { BidderFacts, EvaluationFacts, ResultFacts, ScoreFacts, StageOneOutcome, SubmissionFacts, TeamFacts } from "./facts";
+import { latestNegotiatedPrice, type BidderFacts, type EvaluationFacts, type ResultFacts, type ScoreFacts, type StageOneOutcome, type SubmissionFacts, type TeamFacts } from "./facts";
 import { fixedOf } from "./fixed";
 import { modelFromSnapshot, type ModelSnapshot } from "./model";
 import { estimateFromSchedule } from "./saving";
@@ -128,8 +128,8 @@ const missingOf = (completeness: unknown): string[] => {
 
 /// A bidder row as the rules read it.
 export function bidderFacts(b: EvaluationBidderRow, meetings: EvaluationRow["meetings"], twoStage: boolean, rows: ReadonlyMap<string, EvaluationBidderRow> = new Map([[b.id, b]])): BidderFacts {
-  const closedNegotiations = meetings.filter((m) => m.bidderId === b.id && m.kind === "NEGOTIATION" && m.closedAt && m.priceAfter != null);
-  const last = closedNegotiations.at(-1);
+  // R-10: the latest round by its number, never by when it was recorded.
+  const negotiated = latestNegotiatedPrice(meetings, b.id);
   return {
     id: b.id,
     openedBidId: b.openedBidId,
@@ -150,7 +150,7 @@ export function bidderFacts(b: EvaluationBidderRow, meetings: EvaluationRow["mee
     aspects: currentAspects(b),
     missingAtOpening: missingOf(b.openedBid.completeness),
     stageOne: twoStage ? stageOneOf(b, rows) : null,
-    negotiatedPrice: last?.priceAfter != null ? senFromDecimal(last.priceAfter) : null,
+    negotiatedPrice: negotiated != null ? senFromDecimal(negotiated) : null,
     carried: b.carriedFromId != null,
   };
 }

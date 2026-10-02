@@ -56,6 +56,16 @@ export interface BidderFacts {
   carried: boolean;
 }
 
+/**
+ * The price after a bidder's latest closed negotiation round, by round number (6.8 fix R-10): never by
+ * when a round was recorded, which a round entered late would reorder. Null where none was closed with
+ * a price.
+ */
+export function latestNegotiatedPrice<M extends { bidderId: string; kind: string; round: number; closedAt: Date | null; priceAfter: { toString(): string } | null }>(meetings: readonly M[], bidderId: string): M["priceAfter"] | null {
+  const closed = meetings.filter((m) => m.bidderId === bidderId && m.kind === "NEGOTIATION" && m.closedAt && m.priceAfter != null);
+  return closed.reduce<M | null>((a, m) => (a == null || m.round > a.round ? m : a), null)?.priceAfter ?? null;
+}
+
 /// The price a bidder is evaluated at: corrected where corrected, else as read.
 export const evaluatedPrice = (b: Pick<BidderFacts, "priceAsRead" | "correctedPrice">): Sen => b.correctedPrice ?? b.priceAsRead;
 /// The price recommended at: after negotiation where negotiated, else evaluated.
