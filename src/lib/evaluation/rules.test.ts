@@ -82,10 +82,10 @@ describe("aspects.ts (FR-EVL-003)", () => {
 });
 
 describe("meetings.ts (FR-EVL-015, 016)", () => {
-  const open = { kind: "CLARIFICATION" as const, bidderInRunning: true, route: null, openAlready: false, heldOn: "2026-10-01", startedOn: "2026-09-30", today: "2026-10-02", place: "Room 1", personActive: true };
+  const open = { kind: "CLARIFICATION" as const, bidderEligible: true, route: null, openAlready: false, heldOn: "2026-10-01", startedOn: "2026-09-30", today: "2026-10-02", place: "Room 1", personActive: true };
   it("a clarification is open to any bidder in the running", () => {
     expect(openMeetingFaults(open)).toEqual([]);
-    expect(codes(openMeetingFaults({ ...open, bidderInRunning: false }))).toEqual(["NOT_IN_RUNNING"]);
+    expect(codes(openMeetingFaults({ ...open, bidderEligible: false }))).toEqual(["NOT_IN_RUNNING"]);
     expect(codes(openMeetingFaults({ ...open, heldOn: "2026-10-03" }))).toEqual(["HELD_IN_FUTURE"]);
   });
   it("a negotiation needs its APPROVED route on the negotiation domain", () => {

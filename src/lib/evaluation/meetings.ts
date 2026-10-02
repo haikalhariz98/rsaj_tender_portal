@@ -32,14 +32,15 @@ export type MeetingFault =
 /**
  * Whether a bidder may be met (6.8 fix R-6, OD-10 A): a clarification is available to any bidder in
  * the evaluation, excluded or out of the running included, as often as needed; a negotiation only
- * with a bid in the running. Feeds `openMeetingFaults`' `bidderInRunning`.
+ * with a bid in the running. Feeds `openMeetingFaults`' `bidderEligible`.
  */
 export const meetingEligible = (kind: MeetingKind, inRunning: boolean) => kind === "CLARIFICATION" || inRunning;
 
 /// Recording that a meeting was held with a bidder. `route`: the latest negotiation request's route for the bidder.
 export function openMeetingFaults(i: {
   kind: MeetingKind;
-  bidderInRunning: boolean;
+  /// Whether this bidder may be met for this kind of meeting (`meetingEligible`): any bidder for a clarification, a bid in the running for a negotiation.
+  bidderEligible: boolean;
   route: { status: string } | null;
   /// Another meeting of this kind with this bidder is not closed.
   openAlready: boolean;
@@ -52,7 +53,7 @@ export function openMeetingFaults(i: {
   const out: Finding<MeetingFault>[] = [];
   const f = (code: MeetingFault) => out.push({ code, level: "block" });
   if (!i.today) f("TIME_ZONE_NOT_SET");
-  if (!i.bidderInRunning) f("NOT_IN_RUNNING");
+  if (!i.bidderEligible) f("NOT_IN_RUNNING");
   if (i.kind === "NEGOTIATION") {
     if (!i.route) f("NEGOTIATION_NOT_REQUESTED");
     else if (i.route.status === "REJECTED" || i.route.status === "RECALLED") f("NEGOTIATION_REFUSED");

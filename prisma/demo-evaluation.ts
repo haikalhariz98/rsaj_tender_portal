@@ -541,7 +541,7 @@ class EvaluationActs {
     const e = c.current!;
     const b = this.bidder(c, listingNo);
     const request = e.negotiations.filter((x) => x.bidderId === b.id).at(-1) ?? null;
-    refuse(`recording the meeting with bid No. ${listingNo}`, openMeetingFaults({ kind, bidderInRunning: meetingEligible(kind, !b.excludedReason && finalRunning(c.facts!).some((x) => x.id === b.id)), route: request ? { status: request.approvalInstance.status } : null, openAlready: e.meetings.some((m) => m.bidderId === b.id && m.kind === kind && !m.closedAt), heldOn: i.heldOn, startedOn: dayIn(e.startedAt, this.tz), today: dayIn(at, this.tz), place: i.place, personActive: true }));
+    refuse(`recording the meeting with bid No. ${listingNo}`, openMeetingFaults({ kind, bidderEligible: meetingEligible(kind, !b.excludedReason && finalRunning(c.facts!).some((x) => x.id === b.id)), route: request ? { status: request.approvalInstance.status } : null, openAlready: e.meetings.some((m) => m.bidderId === b.id && m.kind === kind && !m.closedAt), heldOn: i.heldOn, startedOn: dayIn(e.startedAt, this.tz), today: dayIn(at, this.tz), place: i.place, personActive: true }));
     if (e.recommendation) fail("a meeting after the recommendation");
     const round = e.meetings.filter((m) => m.bidderId === b.id && m.kind === kind).length + 1;
     await this.db.evaluationMeeting.create({ data: { id, organisationId: this.org, evaluationId: e.id, bidderId: b.id, kind, round, heldOn: dayToDate(i.heldOn), place: i.place, openedByPersonId: by.id, openedAt: at } });

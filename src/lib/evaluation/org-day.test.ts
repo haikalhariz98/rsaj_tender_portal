@@ -23,7 +23,7 @@ describe("an instant's day is the organisation's (R-4)", () => {
     expect(dayIn(started, KL)).toBe("2026-10-02");
   });
   it("a meeting held on 1 October is before an evaluation started on 2 October, KL time; by UTC it was let through", () => {
-    const base = { kind: "CLARIFICATION" as const, bidderInRunning: true, route: null, openAlready: false, heldOn: "2026-10-01", today: "2026-10-02", place: "Room 3", personActive: true };
+    const base = { kind: "CLARIFICATION" as const, bidderEligible: true, route: null, openAlready: false, heldOn: "2026-10-01", today: "2026-10-02", place: "Room 3", personActive: true };
     expect(openMeetingFaults({ ...base, startedOn: dayIn(started, KL) }).map((f) => f.code)).toEqual(["HELD_BEFORE_EVALUATION"]);
     expect(openMeetingFaults({ ...base, startedOn: storedDay(started) })).toEqual([]);
   });

@@ -66,7 +66,7 @@ export async function openMeeting(_prev: FormState, data: FormData): Promise<For
     const fs: Finding[] = openMeetingFaults({
       kind,
       // R-6 (OD-10 A): a clarification with any bidder; a negotiation only with a bid in the running.
-      bidderInRunning: meetingEligible(kind, !b.excludedReason && finalRunning(f).some((x) => x.id === b.id)),
+      bidderEligible: meetingEligible(kind, !b.excludedReason && finalRunning(f).some((x) => x.id === b.id)),
       route: request ? { status: request.approvalInstance.status } : null,
       openAlready: e!.meetings.some((m) => m.bidderId === bidderId && m.kind === kind && !m.closedAt),
       heldOn: storedDay(heldOn),
