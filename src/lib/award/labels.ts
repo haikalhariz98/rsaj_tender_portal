@@ -9,7 +9,10 @@ import type { Regime } from "@/lib/method/types";
 
 import { formatDate } from "@/lib/format";
 
-import { BASELINE_FIELD_LABEL, type BaselineField } from "./appendix-baseline";
+import { formatMoney } from "@/lib/money";
+import { formatPct } from "@/lib/tender-docs/percent";
+
+import { BASELINE_FIELD_LABEL, type Baseline, type BaselineField } from "./appendix-baseline";
 import { mergeFieldLabel } from "./fields";
 import type { AwardStatus, DeliveryMethod, DocumentKind, DocumentLanguage, Finding, InstrumentKind, NonCommencement, PeriodUnit, QuotationContractKey } from "./types";
 
@@ -363,3 +366,20 @@ export const INSURANCE_FAULT_TEXT = {
   PERIOD_NOT_SET: "How long it must run cannot be worked out: the start date, the defects liability period or the requirement's tail is not recorded.",
   PERIOD_TOO_SHORT: "It ends before the day it must run to.",
 } as const;
+
+/**
+ * 64-C4: what the tender states for a term, in words, beside the award's own figure. Null
+ * where the tender states nothing for it (nothing is compared). A percentage reads with the
+ * figure it resolves to at the awarded sum.
+ */
+export function tenderTermText(field: BaselineField, b: Baseline): string | null {
+  if (field === "lad") {
+    if (!b.lad) return null;
+    return b.lad.kind === "AMOUNT" ? `${formatMoney(b.lad.sen)} per day` : `${formatMoney(b.lad.sen)} per day: ${formatPct(b.lad.pct)} of the awarded sum a day`;
+  }
+  if (field === "dlp") return b.dlp ? (b.dlp.applies ? periodText(b.dlp.months, "MONTHS") : "None") : null;
+  return b.regulated == null ? null : b.regulated ? "Yes" : "No";
+}
+
+/// The words beside a term the award states otherwise.
+export const DIFFERS_TEXT: Record<BaselineField, string> = { lad: "Differs from the tender Appendix", dlp: "Differs from the tender Appendix", regulated: "Differs from the tender" };

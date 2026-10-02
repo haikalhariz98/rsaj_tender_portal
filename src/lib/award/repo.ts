@@ -10,7 +10,8 @@
 
 import type { Tx } from "@/lib/audit/record";
 import type { DecisionRecord } from "@/lib/committee/record";
-import { dayToDate, storedDay } from "@/lib/dates";
+import { dayIn, dayToDate, storedDay } from "@/lib/dates";
+import { readConditionsSnapshot } from "@/lib/tender-docs/conditions";
 import { evidenceCount, isEvidenceSnapshot } from "@/lib/documents/evidence";
 import { attachmentFacts } from "@/lib/documents/repo";
 import { db } from "@/lib/db";
@@ -31,6 +32,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { alertingUpTo, longExpiredBefore } from "@/lib/securities/expiry";
 import { applicableRequirements, type Requirement } from "@/lib/securities/insurance";
 
+import type { FrozenTender } from "./appendix-baseline";
 import { absentOffices } from "./appointment";
 import { expiredIfReceivedBefore } from "./indent";
 import type { Recipient } from "./distribution";
@@ -209,6 +211,42 @@ export function routeSteps(inst: AwardRow["approvalInstances"][number]): RouteSt
   }));
 }
 
+/**
+ * 64-C4 (6.4 Q-1 B): the exercise's frozen tender, as the award compares with it: the
+ * Appendix of its latest approved pack, and the regulated-activity answer frozen with that
+ * pack (its conditions snapshot; never the exercise's live column). Null where no approved
+ * pack froze an Appendix — a Phase 1 exercise, or one whose documents were never approved —
+ * and the award behaves as before.
+ */
+export async function frozenTenderOf(exerciseId: string, timeZone: string | null, client: Tx = db): Promise<FrozenTender | null> {
+  const pack = await client.tenderPack.findFirst({
+    where: { exerciseId, status: "APPROVED", frozenAt: { not: null }, appendix: { isNot: null } },
+    orderBy: { versionNo: "desc" },
+    select: { versionNo: true, frozenAt: true, conditionsSnapshot: true, appendix: true },
+  });
+  const a = pack?.appendix;
+  if (!pack || !a) return null;
+  return {
+    packVersion: pack.versionNo,
+    frozenOn: pack.frozenAt ? dayIn(pack.frozenAt, timeZone) : null,
+    appendix: {
+      ladKind: a.ladKind,
+      ladAmount: senOrNull(a.ladAmount),
+      ladPct: dec(a.ladPct),
+      dlpApplies: a.dlpApplies,
+      dlpMonths: a.dlpMonths,
+      tplMinimum: senOrNull(a.tplMinimum),
+      wcMinimum: senOrNull(a.wcMinimum),
+      worksInsuranceUpliftKind: a.worksInsuranceUpliftKind,
+      worksInsuranceUpliftAmount: senOrNull(a.worksInsuranceUpliftAmount),
+      worksInsuranceUpliftPct: dec(a.worksInsuranceUpliftPct),
+      insuranceExcess: senOrNull(a.insuranceExcess),
+      sectionalCompletion: a.sectionalCompletion,
+    },
+    regulated: readConditionsSnapshot(pack.conditionsSnapshot)?.permit.regulated ?? null,
+  };
+}
+
 /// The award's latest appointment route.
 export const latestRoute = (award: AwardRow) => award.approvalInstances.find((i) => i.domain === "appointment") ?? null;
 
@@ -242,6 +280,7 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
   const reqSteps = reqRoute ? await client.approvalStep.findMany({ where: { instanceId: reqRoute.id }, select: { sequence: true, roleLabel: true, decision: true } }) : [];
   const approved = approvedRouteOf({ approvalInstances: req.approvalInstances.filter((i) => i.domain === "requisition") });
   const dossierEvidence = await dossierEvidenceOf(ex.id, award.dossierEvidenceSnapshot, client);
+  const tender = await frozenTenderOf(ex.id, org.timeZone, client);
 
   const facts: AwardFacts = {
     today: org.today,
@@ -277,7 +316,9 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
       signatoryName: award.signatoryName,
       issuedOn: day(award.issuedAt),
       contractNumber: award.contract?.number ?? null,
+      appendixReasons: { lad: award.ladDiffersReason, dlp: award.dlpDiffersReason, regulated: award.regulatedDiffersReason },
     },
+    tender,
     exercise: {
       reference: ex.reference,
       title: ex.title,

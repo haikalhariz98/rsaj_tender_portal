@@ -16,6 +16,7 @@ import { CHOICE_FAULT_TEXT } from "@/lib/authority/rejection-labels";
 import { APPOINTMENT_DOMAIN } from "@/lib/method/types";
 import { awardAuditCreate, awardAuditPair } from "@/lib/award/audit-view";
 import { termsUpdate } from "@/lib/award/terms";
+import { BASELINE_FIELD_LABEL, BASELINE_FIELDS, baselineOf, baselineSnapshot, ladOnValueChange, prefill, REASON_COLUMN, reasonsOnSave, worksAppendixAmount, type AwardTerms, type BaselineField, type FrozenTender } from "@/lib/award/appendix-baseline";
 import { percentAboveZero } from "@/lib/securities/money";
 import { icNumberFault } from "@/lib/award/mask";
 import { exerciseCitationFault } from "@/lib/award/citation";
@@ -24,9 +25,9 @@ import { evaluateAward } from "@/lib/award/evaluate";
 import { awardOpenRefusal, exerciseOpenForAward } from "@/lib/award/gate";
 import { readWindowGate } from "@/lib/window/repo";
 import { awardValueFaults, instrumentFor } from "@/lib/award/instrument";
-import { AWARD_STATUS_LABEL, awardFindingText, BOND_FAULT_TEXT, DESPATCH_FAULT_TEXT, INSURANCE_FAULT_TEXT, SIGNER_FAULT_TEXT } from "@/lib/award/labels";
+import { AWARD_STATUS_LABEL, awardFindingText, BOND_FAULT_TEXT, DESPATCH_FAULT_TEXT, INSURANCE_FAULT_TEXT, SIGNER_FAULT_TEXT, tenderTermText } from "@/lib/award/labels";
 import { renderedText } from "@/lib/award/merge";
-import { awardFacts, dossierEvidenceOf, exerciseMatters, loadAwardConfig, matterRecord, withLockedAward, withLockedExerciseForAward, latestRoute, type LoadedAward } from "@/lib/award/repo";
+import { awardFacts, dossierEvidenceOf, exerciseMatters, frozenTenderOf, loadAwardConfig, matterRecord, withLockedAward, withLockedExerciseForAward, latestRoute, type LoadedAward } from "@/lib/award/repo";
 import { receivedOnFault } from "@/lib/award/routing";
 import { approvedOnOf, checkSignatory } from "@/lib/award/signatory";
 import { correctionScansMissing, instrumentReturned, returnReadsComplete, type ReturnRecord } from "@/lib/award/stage-two";
@@ -39,7 +40,7 @@ import { dayToDate, storedDay } from "@/lib/dates";
 import { manualCommitment } from "@/lib/integration/award-commitment";
 import { ACT_LABEL } from "@/lib/labels";
 import { approvedRouteOf, evaluationContext } from "@/lib/method/repo";
-import { parseSen, senFromDecimal, senToDecimalString } from "@/lib/money";
+import { formatSen, parseSen, senFromDecimal, senToDecimalString, type Sen } from "@/lib/money";
 import { NumberingError, issueReference } from "@/lib/numbering/issue";
 import { committeeStepFrom } from "@/lib/requisition/committee-step";
 import { actingOffice } from "@/lib/authority/escalation";
@@ -126,6 +127,16 @@ function percent(r: FormReader, name: string, label: string): string | null {
   return v;
 }
 
+/// 64-C4: an award's terms as the tender baseline compares them.
+const termsOf = (a: { ladAmount: { toString(): string } | null; ladUnit: string; dlpMonths: number | null; regulatedActivity: boolean | null }): AwardTerms => ({
+  ladAmount: a.ladAmount == null ? null : senFromDecimal(a.ladAmount),
+  ladUnit: a.ladUnit,
+  dlpMonths: a.dlpMonths,
+  regulatedActivity: a.regulatedActivity,
+});
+/// The tender's statement of a term, in words, for a refusal.
+const tenderStates = (field: BaselineField, t: FrozenTender, value: Sen) => tenderTermText(field, baselineOf(t, value)) ?? "nothing";
+
 // ------------------------------------------------------------------ opening
 
 /**
@@ -182,6 +193,9 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
       }).filter((f) => f.level === "block");
       if (faults.length) return { ok: false, errors: { awardedValue: faults.map(awardFindingText).join(" ") } };
       const reference = await issueReference(tx, org.id, "award", dayToDate(org.today));
+      // 64-C4 (6.4 Q-1 B): on an exercise whose approved pack froze an Appendix, the terms open as the tender stated them.
+      const tender = await frozenTenderOf(ex.id, org.timeZone, tx);
+      const filled = tender ? prefill(baselineOf(tender, value)) : {};
       const row = await tx.award.create({
         data: {
           organisationId: org.id,
@@ -195,9 +209,12 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
           completionPeriod: v.completionPeriod!,
           completionUnit: v.completionUnit!,
           startDate: v.startDate,
+          ...(filled.ladAmount != null ? { ladAmount: senToDecimalString(filled.ladAmount), ladUnit: filled.ladUnit } : {}),
+          ...(filled.dlpMonths != null ? { dlpMonths: filled.dlpMonths } : {}),
+          ...(filled.regulatedActivity != null ? { regulatedActivity: filled.regulatedActivity } : {}),
         },
       });
-      await audit(tx, org.id, "Award", row.id, labelOf(row), "CREATE", awardAuditCreate(row, { exercise: ex.reference, instrument: instrument.kind }));
+      await audit(tx, org.id, "Award", row.id, labelOf(row), "CREATE", awardAuditCreate(row, { exercise: ex.reference, instrument: instrument.kind, ...(tender ? { termsFrom: `the tender Appendix, documents version ${tender.packVersion}` } : {}) }));
       id = row.id;
       return { ok: true };
     });
@@ -229,7 +246,10 @@ export async function updateAwardDetails(_prev: FormState, data: FormData): Prom
   if (r.failed) return { ok: false, errors: r.errors };
   return inAward(id, async (tx, l) => {
     if (!editable(l.award.status as AwardStatus).details) return { ok: false, message: `The awardee, value and period are fixed once the award goes for approval. This one is ${AWARD_STATUS_LABEL[l.award.status as AwardStatus].toLowerCase()}.` };
-    const after = { ...v, awardedValue: senToDecimalString(parseSen(v.awardedValue!)), completionPeriod: v.completionPeriod!, completionUnit: v.completionUnit! };
+    // 64-C4: damages the tender states as a percentage, still as resolved against the old sum, follow the new one.
+    const tender = await frozenTenderOf(l.ex.id, l.org.timeZone, tx);
+    const lad = tender ? ladOnValueChange(tender, senFromDecimal(l.award.awardedValue), parseSen(v.awardedValue!), termsOf(l.award)) : null;
+    const after = { ...v, awardedValue: senToDecimalString(parseSen(v.awardedValue!)), completionPeriod: v.completionPeriod!, completionUnit: v.completionUnit!, ...(lad != null ? { ladAmount: senToDecimalString(lad) } : {}) };
     const { facts } = await awardFacts({ ...l, award: { ...l.award, awardedValue: after.awardedValue as never } }, tx);
     const ev = evaluateAward(facts);
     const blocks = ev.valueFaults.filter((f) => f.level === "block");
@@ -275,11 +295,23 @@ export async function updateAwardTerms(_prev: FormState, data: FormData): Promis
     if (!editable(l.award.status as AwardStatus).terms) return { ok: false, message: "The terms are fixed once the instrument is issued: they are in its text." };
     // Only what the form carried is written: a field it did not show keeps its stored value.
     const present = new Set([...data.keys()]);
-    const after = termsUpdate(present, {
+    const after: Record<string, unknown> = termsUpdate(present, {
       ...v,
       bondBasisAmount: v.bondBasisAmount ? senToDecimalString(parseSen(v.bondBasisAmount)) : null,
       ladAmount: v.ladAmount ? senToDecimalString(parseSen(v.ladAmount)) : null,
     });
+    // 64-C4 (6.4 Q-1 B): where the exercise froze a tender Appendix, a term stated otherwise needs its reason.
+    const tender = await frozenTenderOf(l.ex.id, l.org.timeZone, tx);
+    if (tender) {
+      const value = senFromDecimal(l.award.awardedValue);
+      const stated = termsOf({ ...l.award, ...(after as Partial<typeof l.award>) });
+      const carried = new Set(BASELINE_FIELDS.filter((f) => (f === "lad" ? present.has("ladAmount") || present.has("ladUnit") : present.has(f === "dlp" ? "dlpMonths" : "regulatedActivity"))));
+      const given = Object.fromEntries(BASELINE_FIELDS.map((f) => [f, String(data.get(REASON_COLUMN[f]) ?? "").slice(0, 2000)]));
+      const stored = { lad: l.award.ladDiffersReason, dlp: l.award.dlpDiffersReason, regulated: l.award.regulatedDiffersReason };
+      const { reasons, missing } = reasonsOnSave(baselineOf(tender, value), stated, carried, given, stored);
+      if (missing.length) return { ok: false, errors: Object.fromEntries(missing.map((f) => [REASON_COLUMN[f], `${BASELINE_FIELD_LABEL[f]} differs from the tender${f === "regulated" ? "'s answer" : " Appendix"} (${tenderStates(f, tender, value)}): say why, or state it as the tender did.`])) };
+      for (const f of BASELINE_FIELDS) after[REASON_COLUMN[f]] = reasons[f];
+    }
     const moved = await tx.award.updateMany({ where: { id, status: l.award.status, updatedAt: l.award.updatedAt }, data: after });
     if (moved.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, l.org.id, "Award", id, labelOf(l.award), "UPDATE", awardAuditPair(l.award, { ...l.award, ...after }), String(data.get("reason") ?? ""));
@@ -672,6 +704,8 @@ export async function issueAward(_prev: FormState, data: FormData): Promise<Form
         contractNumber: { number, source: src.source, yearReading: "ASSUMED" },
         indent: ev.indent && "expiresOn" in ev.indent ? { expiresOn: ev.indent.expiresOn, validityDays: policy.indentValidityDays, reading: "ASSUMED" } : null,
         recipients: "rows" in ev.distribution ? ev.distribution.rows.map((x) => x.recipientName) : [],
+        // 64-C4: the tender baseline the terms were judged against, and each difference with its reason.
+        ...(ev.appendix ? { tenderAppendix: baselineSnapshot(ev.appendix.baseline, ev.appendix.differences) } : {}),
       };
       const after = {
         issuedAt: on, signatoryRoleCode: sig.roleCode, signatoryRoleLabel: sig.roleLabel, signatoryRuleKey: sig.ruleKey, signatoryRuleLabel: sig.ruleLabel,
@@ -996,7 +1030,12 @@ export async function lodgePolicy(_prev: FormState, data: FormData): Promise<For
     if (v.periodEnd! < v.periodStart!) return { ok: false, errors: { periodEnd: "The period cannot end before it starts." } };
     if (storedDay(v.lodgedOn!) > l.org.today) return { ok: false, errors: { lodgedOn: "Not after today." } };
     const money = (x: string | null) => (x ? senToDecimalString(parseSen(x)) : null);
-    const row = await tx.insurancePolicy.create({ data: { contractId: c.id, ...v, kind: v.kind!, sumInsured: money(v.sumInsured)!, appendixAmount: money(v.appendixAmount), requiredLimit: money(v.requiredLimit), periodStart: v.periodStart!, periodEnd: v.periodEnd!, lodgedOn: v.lodgedOn! } });
+    // 64-C4: a policy covering the works states the frozen Appendix's uplift at the awarded sum, never another figure.
+    const tender = await frozenTenderOf(l.ex.id, l.org.timeZone, tx);
+    const coversWorks = v.kind === "WORKS" || v.kind === "CAR" || v.kind === "EAR";
+    const stated = worksAppendixAmount(coversWorks, v.appendixAmount ? parseSen(v.appendixAmount) : null, tender ? baselineOf(tender, senFromDecimal(l.award.awardedValue)) : null);
+    if ("fault" in stated) return { ok: false, errors: { appendixAmount: `The tender Appendix states ${formatSen(stated.appendix)} at the awarded sum. Leave it empty to take that figure.` } };
+    const row = await tx.insurancePolicy.create({ data: { contractId: c.id, ...v, kind: v.kind!, sumInsured: money(v.sumInsured)!, appendixAmount: stated.amount == null ? null : senToDecimalString(stated.amount), requiredLimit: money(v.requiredLimit), periodStart: v.periodStart!, periodEnd: v.periodEnd!, lodgedOn: v.lodgedOn! } });
     await audit(tx, l.org.id, "InsurancePolicy", row.id, `${l.award.reference} · ${v.kind!.toLowerCase().replace(/_/g, " ")} policy`, "CREATE", awardAuditCreate(row, { contract: c.number }));
     return { ok: true };
   });

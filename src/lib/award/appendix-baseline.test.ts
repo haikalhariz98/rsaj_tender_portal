@@ -7,7 +7,7 @@ import { baselineOf, baselineSnapshot, differenceFindings, differences, LAD_PER_
 import { evaluateAward, type AwardFacts } from "./evaluate";
 import { AWARD_MATRIX } from "./fixture";
 import { issueFaults } from "./gate";
-import { awardFindingText } from "./labels";
+import { awardFindingText, DIFFERS_TEXT, tenderTermText } from "./labels";
 
 /**
  * 64-C4 (6.4 Q-1 B): the award pre-fills from the frozen tender Appendix, and a term it
@@ -294,5 +294,21 @@ describe("the award's issue gate", () => {
     expect(issueFaults(base)).toEqual([]);
     expect(issueFaults({ ...base, appendixDifferences: [] })).toEqual([]);
     expect(issueFaults({ ...base, appendixDifferences: [{ field: "lad", reason: null }, { field: "regulated", reason: "Why" }] })).toEqual([{ code: "APPENDIX_DIFFERENCE_UNEXPLAINED", level: "block", data: { field: "lad" } }]);
+  });
+});
+
+describe("the words beside each term", () => {
+  it("say what the tender states, with a percentage's figure at the awarded sum, and never a code", () => {
+    const b = baselineOf(TENDER, AWARDED);
+    expect(tenderTermText("lad", b)).toBe("RM269.38 per day: 0.025% of the awarded sum a day");
+    expect(tenderTermText("dlp", b)).toBe("12 months");
+    expect(tenderTermText("regulated", b)).toBe("Yes");
+    const none = baselineOf({ ...TENDER, regulated: null, appendix: { ...APPENDIX, ladKind: "AMOUNT_PER_DAY", ladAmount: RM("500"), ladPct: null, dlpApplies: false, dlpMonths: null } }, AWARDED);
+    expect(tenderTermText("lad", none)).toBe("RM500 per day");
+    expect(tenderTermText("dlp", none)).toBe("None");
+    expect(tenderTermText("regulated", none)).toBeNull();
+  });
+  it("a difference reads as differing from the tender Appendix (the regulated answer: from the tender)", () => {
+    expect(DIFFERS_TEXT).toEqual({ lad: "Differs from the tender Appendix", dlp: "Differs from the tender Appendix", regulated: "Differs from the tender" });
   });
 });
