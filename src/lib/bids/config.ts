@@ -50,6 +50,25 @@ export const BID_RULE_FAULT_TEXT: Readonly<Record<BidRuleFault, string>> = {
 /// When a change to a method's bid-receipt rules applies (6.6 CR-2): publication freezes them with the window.
 export const BID_RULES_APPLY_TEXT = "A change applies only to exercises published after it: an exercise already advertised or invited keeps the rules frozen with its window.";
 
+/// How many of the methods' bid-receipt rules are not set: three per method that receives bids.
+export function bidRulesNotSet(methods: readonly { lateAdmissionCommitteeCode: string | null; minimumBids: number | null; completenessEliminates: boolean | null }[]): number {
+  return methods.reduce((n, m) => n + (m.lateAdmissionCommitteeCode == null ? 1 : 0) + (m.minimumBids == null ? 1 : 0) + (m.completenessEliminates == null ? 1 : 0), 0);
+}
+
+/**
+ * Configuration › Invitation's header badge (6.6 review S-3). The window rules' count is unchanged
+ * (each unset one holds back publication); the bid-receipt rules are counted beside it, apart, since
+ * each holds back only where a late envelope or an opening needs it (BD-66-12). "Everything set" only
+ * when both are nil.
+ */
+export function invitationBadge(windowNotSet: number, bidNotSet: number): { tone: "ok" | "warn"; text: string } {
+  const rules = (n: number) => `${n} bid-receipt ${n === 1 ? "rule" : "rules"} not set`;
+  if (windowNotSet === 0 && bidNotSet === 0) return { tone: "ok", text: "Everything set" };
+  if (bidNotSet === 0) return { tone: "warn", text: `${windowNotSet} not set` };
+  if (windowNotSet === 0) return { tone: "warn", text: `Window rules set · ${rules(bidNotSet)}` };
+  return { tone: "warn", text: `${windowNotSet} window ${windowNotSet === 1 ? "rule" : "rules"} · ${rules(bidNotSet)}` };
+}
+
 /// What each setting holds back while it is not set, said beside "Not set".
 export const BID_RULE_UNSET = {
   committee: "No late envelope can be tabled for admission, and an award on an exercise with one is held back.",

@@ -17,7 +17,7 @@ import { REGIME_LABEL } from "@/lib/method/labels";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { senToDecimalString, parseSen } from "@/lib/money";
 import { invitationConfig } from "@/lib/window/read";
-import { BID_RULE_UNSET, BID_RULES_APPLY_TEXT } from "@/lib/bids/config";
+import { BID_RULE_UNSET, BID_RULES_APPLY_TEXT, bidRulesNotSet, invitationBadge } from "@/lib/bids/config";
 
 import { CalendarDrawer, ChannelDrawer, EditMethodBidRule, EditWindowPolicy, FloorDrawer, HolidayDrawer, ImportYearDrawer, RemoveFloorDrawer, RemoveHolidayDrawer, RetireCalendarDrawer, RetireChannelDrawer, YearDrawer } from "./editors";
 
@@ -114,11 +114,14 @@ export default async function InvitationControlsPage() {
     attendance: rule(RULE_LABEL.mandatoryAttendance),
   };
 
+  // S-3: the bid-receipt rules are counted beside the window rules, never hidden behind an all-set badge.
+  const badge = invitationBadge(c.notSet, bidRulesNotSet(bidMethods));
+
   return (
     <>
       <PageHeader
         title="Invitation controls"
-        badge={c.notSet > 0 ? <Badge tone="warn" dot>{`${c.notSet} not set`}</Badge> : <Badge tone="ok" dot>Everything set</Badge>}
+        badge={<Badge tone={badge.tone} dot>{badge.text}</Badge>}
         subtitle="The rules for advertising, inviting, selling the documents and closing."
         actions={
           <>
