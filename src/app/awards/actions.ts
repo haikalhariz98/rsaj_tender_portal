@@ -261,7 +261,7 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
           exerciseId: ex.id,
           instrumentKind: instrument.kind,
           // R-2: written only where the openings apply and the bidder was carried.
-          awardeePartyId: partyId,
+          awardeePartyId: awardeePartyWrite(opening, awardeePartyId) ?? null,
           vendorId: link.vendorId,
           awardeeName: v.awardeeName,
           awardeeRegistrationNo: v.awardeeRegistrationNo,
