@@ -54,6 +54,10 @@ describe("the executed snapshot freezes the signature days", () => {
     expect(frozenSigningDays({ v: 1, readySince: "2026-09-25" })).toEqual({ readySince: "2026-09-25", contractorSignedOn: undefined, witnessSignedOn: undefined });
     expect(frozenSigningDays(null).readySince).toBeNull();
   });
+  it("the days are required by the rule (S-4), and the drawer says so", () => {
+    expect(readFileSync(path.join(__dirname, "contract-date.ts"), "utf8")).toMatch(/signed: \{ contractor: string \| null; witness: string \| null \} \}/);
+    expect(readFileSync(path.join(__dirname, "../../app/projects/[id]/editors.tsx"), "utf8")).toContain("nor before the contractor signed");
+  });
   it("the signature act freezes them and the correction act passes them", () => {
     const src = readFileSync(path.join(__dirname, "../../app/projects/[id]/actions.ts"), "utf8");
     const sign = src.slice(src.indexOf("export async function recordRsajSignature("), src.indexOf("async function writeVersion("));

@@ -318,7 +318,7 @@ export function CorrectDateDrawer({ id, current }: { id: string; current: string
   return (
     <RecordEditor
       title="Correct the Contract Date"
-      description={`To an earlier day than ${current} only, and never before the day the contract was first ready to sign. Audited, with the reason; the screen says it was corrected and from what.`}
+      description={`To an earlier day than ${current} only, never before the day the contract was first ready to sign, nor before the contractor signed (or its witness). Audited, with the reason; the screen says it was corrected and from what.`}
       fields={[hidden("id"), { kind: "date", name: "contractDate", label: "The day it was signed", required: true }]}
       values={{ id }}
       reason={{ label: "Why the recorded day is not the day it was signed" }}

@@ -107,7 +107,7 @@ describe("the Contract Date (FR-CON-009, OD-1 A)", () => {
     expect(readySince([null])).toBeNull();
   });
   it("corrected only to an earlier day, never before ready-to-sign, with a reason", () => {
-    const base = { executed: true, current: "2026-10-01", proposed: "2026-09-29", readySince: "2026-09-28", reason: "Signed on paper on the 29th; recorded on the 1st." };
+    const base = { executed: true, current: "2026-10-01", proposed: "2026-09-29", readySince: "2026-09-28", reason: "Signed on paper on the 29th; recorded on the 1st.", signed: { contractor: "2026-09-26", witness: "2026-09-26" } };
     expect(dateCorrectionFaults(base)).toEqual([]);
     expect(dateCorrectionFaults({ ...base, proposed: "2026-09-28" })).toEqual([]);
     expect(codes(dateCorrectionFaults({ ...base, proposed: "2026-10-01" }))).toEqual(["NOT_EARLIER"]);
