@@ -112,6 +112,19 @@ describe("voiding a sale (X-11)", () => {
   });
 });
 
+describe("voiding is refused for a party holding a bid envelope (65-C2)", () => {
+  it("while the window is open, the envelope's holder keeps its sale", () => {
+    expect(voidSaleFault({ voidedAt: null }, "OPEN_FOR_PURCHASE", "Wrong purchaser", true)?.code).toBe("ENVELOPE_HELD");
+    expect(voidSaleFault({ voidedAt: null }, "OPEN_FOR_PURCHASE", "Wrong purchaser", false)).toBeNull();
+  });
+  it("it is the sale's own refusal, said under the sale, and named before the window's", () => {
+    const f = voidSaleFault({ voidedAt: null }, "CLOSED", "-", true)!;
+    expect(f.code).toBe("ENVELOPE_HELD");
+    expect(voidRefusalIsRegisterWide(f)).toBe(false);
+    expect(windowFindingText(f)).toMatch(/holds a bid envelope/);
+  });
+});
+
 describe("a disabled Void states its reason on screen (65-C2)", () => {
   it("a window-wide refusal is said once for the register; a refusal about one sale under that sale", () => {
     expect(voidRefusalIsRegisterWide(voidSaleFault({ voidedAt: null }, "CLOSED", "-")!)).toBe(true);

@@ -130,7 +130,7 @@ export function isReceiptDuplicate(e: unknown): boolean {
  */
 export const ATTESTABLE_CHECKS: readonly CheckState[] = ["NOT_CHECKED", "FAILED"];
 
-export type VoidFault = "REASON_REQUIRED" | "ALREADY_VOID" | "WINDOW_CLOSED" | "EXERCISE_CANCELLED";
+export type VoidFault = "REASON_REQUIRED" | "ALREADY_VOID" | "WINDOW_CLOSED" | "EXERCISE_CANCELLED" | "ENVELOPE_HELD";
 
 /**
  * Whether a refusal to void holds for every sale on the register alike (the window's state, not
@@ -142,9 +142,16 @@ export const voidRefusalIsRegisterWide = (f: Finding<VoidFault>) => f.code === "
 /// What a disabled Void says under its own sale: the act, then why.
 export const voidRefusalNote = (reason: string) => `Void is not available: ${reason}`;
 
-/// Voiding a sale (X-11): with a reason; refused once the window has closed.
-export function voidSaleFault(s: { voidedAt: Date | null }, phase: WindowPhase, reason: string): Finding<VoidFault> | null {
+/**
+ * Voiding a sale (X-11): with a reason; refused once the window has closed, and (65-C2) for a
+ * party holding a bid envelope on the register — the envelope was bought for with that sale.
+ * `holdsEnvelope` is read on the locked register: an envelope naming the party, not withdrawn.
+ * Before opening no envelope names a bidder (6.6 OD-2), so it holds from 6.7 on, where an
+ * envelope is matched to its party; the window has closed by then too, and both are said.
+ */
+export function voidSaleFault(s: { voidedAt: Date | null }, phase: WindowPhase, reason: string, holdsEnvelope = false): Finding<VoidFault> | null {
   if (s.voidedAt) return { code: "ALREADY_VOID", level: "block" };
+  if (holdsEnvelope) return { code: "ENVELOPE_HELD", level: "block" };
   if (phase === "CANCELLED") return { code: "EXERCISE_CANCELLED", level: "block" };
   if (phase === "CLOSED" || phase === "UNKNOWN") return { code: "WINDOW_CLOSED", level: "block", data: { phase } };
   if (!reason.trim()) return { code: "REASON_REQUIRED", level: "block" };

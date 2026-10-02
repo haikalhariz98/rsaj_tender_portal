@@ -13,6 +13,7 @@ import { invitedSaleFault, windowEditFault } from "@/lib/window/edit";
 import { eventFaults, heldFault, mandatoryPermittedFor } from "@/lib/window/events";
 import { regKey } from "@/lib/window/invitees";
 import { lockAddendumRows, lockSaleRows } from "@/lib/window/lock";
+import { lockEnvelopeRows } from "@/lib/bids/lock";
 import { closingDay, pathOf, phaseOf, renderAddendum } from "@/lib/window/judge";
 import { windowFindingText } from "@/lib/window/labels";
 import { eventFactsOf, type WindowData } from "@/lib/window/repo";
@@ -156,7 +157,7 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
   }), refuse([{ code: "RECEIPT_DUPLICATE", level: "block" }], "Not sold:"));
 }
 
-/// Void a sale recorded in error, with a reason; refused once the window has closed (X-11).
+/// Void a sale recorded in error, with a reason; refused once the window has closed (X-11), and for a party holding a bid envelope (65-C2).
 export async function voidSale(_prev: FormState, data: FormData): Promise<FormState> {
   const exerciseId = exerciseIdOf(data);
   const saleId = String(data.get("saleId") ?? "");
@@ -166,7 +167,10 @@ export async function voidSale(_prev: FormState, data: FormData): Promise<FormSt
     const s = w?.sales.find((x) => x.id === saleId);
     if (!w || !s) return { ok: false, message: "That sale is not on this exercise." };
     await lockSaleRows(tx, w.id);
-    const f = voidSaleFault(s, phaseOf(l.ex, w, new Date(), l.org.timeZone).phase, reason);
+    // 65-C2: on the locked register, the purchaser must not hold a bid envelope.
+    await lockEnvelopeRows(tx, l.ex.id);
+    const holds = (await tx.bidEnvelope.count({ where: { exerciseId: l.ex.id, partyId: s.partyId, status: { not: "WITHDRAWN" }, kind: { not: "COMPANY_ESTIMATE" } } })) > 0;
+    const f = voidSaleFault(s, phaseOf(l.ex, w, new Date(), l.org.timeZone).phase, reason, holds);
     if (f) return f.code === "REASON_REQUIRED" ? { ok: false, errors: { reason: windowFindingText(f) } } : refuse([f], "Not voided:");
     const moved = await tx.documentSale.updateMany({ where: { id: s.id, voidedAt: null }, data: { voidedAt: new Date(), voidReason: reason } });
     if (moved.count !== 1) throw new Refusal(CHANGED);

@@ -256,6 +256,8 @@ export async function saleRegister(exerciseId: string) {
   // single sale is said under it. Either way the reason is on screen, never only in a tooltip.
   const rowVoid = (f: ReturnType<typeof voidSaleFault>) => (f ? { allowed: false as const, reason: windowFindingText(f), registerWide: voidRefusalIsRegisterWide(f) } : { allowed: true as const });
   const registerVoid = voidSaleFault({ voidedAt: null }, phase, "-");
+  // 65-C2: a purchaser holding a bid envelope keeps its sale (an envelope names its party from 6.7's opening on).
+  const holders = new Set((await db.bidEnvelope.findMany({ where: { exerciseId, partyId: { not: null }, status: { not: "WITHDRAWN" }, kind: { not: "COMPANY_ESTIMATE" } }, select: { partyId: true } })).map((e) => e.partyId));
   return {
     voidAll: sales.some((s) => !s.voidedAt) && registerVoid && voidRefusalIsRegisterWide(registerVoid) ? windowFindingText(registerVoid) : null,
     pathKey: pathOf(d).path,
@@ -278,7 +280,7 @@ export async function saleRegister(exerciseId: string) {
         addendaAcknowledged: `${acked} of ${addenda.length}`,
         issuedBy: `${s.issuedBy.name} (recorded on their behalf, not signed)`,
         voided: s.voidedAt ? `Voided: ${s.voidReason}` : null,
-        void: s.voidedAt ? null : rowVoid(voidSaleFault(s, phase, "-")),
+        void: s.voidedAt ? null : rowVoid(voidSaleFault(s, phase, "-", holders.has(s.partyId))),
         label: isAnnotation(s.annotation) ? annotationLines(s.annotation) : [],
       };
     }),

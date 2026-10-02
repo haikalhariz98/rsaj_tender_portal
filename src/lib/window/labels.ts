@@ -355,6 +355,8 @@ export function windowFindingText(f: Finding): string {
       return "The window has closed, so the sale stands.";
     case "EXERCISE_CANCELLED":
       return "The exercise is cancelled, so its records stand.";
+    case "ENVELOPE_HELD":
+      return "This purchaser holds a bid envelope on the register, so the sale it was bought with stands.";
     case "REASON_REQUIRED":
       return "Give the reason.";
 
