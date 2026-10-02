@@ -85,6 +85,7 @@ export async function eligibilityOf(supplierId: string, exerciseId: string, org:
     policy: { expiryOnClosingDayCounts: policy.expiryOnClosingDayCounts, restrictionEvidenceTypeId: policy.restrictionEvidenceTypeId },
     restrictedTender: ex.restrictedTender,
     permissions: permissions.map((p) => ({ requirementId: p.requirementId, relaxes: p.relaxes })),
+    on: org.today,
   });
   return { eligibility: e, snapshot: { judgedOn: org.today, supplierId, supplierReference: supplier.reference, standing: st.reading.standing, verdict: e.verdict, rows: e.rows } };
 }

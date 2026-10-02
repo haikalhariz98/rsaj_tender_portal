@@ -46,11 +46,6 @@ export function chainOrder(docs: readonly DocumentFacts[]): DocumentFacts[] {
   return [...docs].sort((a, b) => depth(b) - depth(a) || b.lodgedOn.localeCompare(a.lodgedOn) || b.id.localeCompare(a.id));
 }
 
-/// The newest verified document of a type, whatever its validity. A renewal waiting for verification, or one not in order, is never it.
-export function effectiveDocument(chain: readonly DocumentFacts[]): DocumentFacts | null {
-  return chainOrder(chain).find((d) => d.verification === "VERIFIED") ?? null;
-}
-
 /// Whether a document's validity has started on a day (no "valid from" recorded: from when it was issued, so started).
 const started = (d: DocumentFacts, on: string) => d.validFrom == null || d.validFrom <= on;
 

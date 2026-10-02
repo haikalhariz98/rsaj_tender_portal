@@ -33,6 +33,7 @@ const base = (o: Partial<EligibilityInput> = {}): EligibilityInput => ({
   policy: { expiryOnClosingDayCounts: true, restrictionEvidenceTypeId: TYPES.restriction.id },
   restrictedTender: true,
   permissions: [],
+  on: "2026-10-01",
   ...o,
 });
 const row = (e: ReturnType<typeof eligibility>, kind: string) => e.rows.find((r) => r.kind === kind);

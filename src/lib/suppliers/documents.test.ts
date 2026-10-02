@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { chainOrder, documentState, documentStates, effectiveDocument, lodgeFaults, stands, verifyFaults, type LodgeInput } from "./documents";
+import { chainOrder, documentInForce, documentState, documentStates, lodgeFaults, stands, verifyFaults, type LodgeInput } from "./documents";
 import { doc, TYPES } from "./fixture";
 
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
@@ -10,7 +10,7 @@ describe("the effective document of a type (FR-VND-002, 008)", () => {
   const renewal = doc({ id: "b", typeId: "t_works", expiresOn: "2027-09-30", supersedesId: "a", lodgedOn: "2026-09-25", verification: "NOT_CHECKED", verifiedOn: null });
 
   it("a renewal lodged but not verified leaves the old one in force", () => {
-    expect(effectiveDocument([old, renewal])?.id).toBe("a");
+    expect(documentInForce([old, renewal], "2026-09-28")?.id).toBe("a");
     const s = documentState([old, renewal], "2026-09-28");
     expect(s.state).toBe("VALID");
     expect(s.pending?.id).toBe("b");
@@ -28,7 +28,7 @@ describe("the effective document of a type (FR-VND-002, 008)", () => {
 
   it("a document not in order is never in force", () => {
     const bad = { ...renewal, verification: "NOT_IN_ORDER" as const };
-    expect(effectiveDocument([old, bad])?.id).toBe("a");
+    expect(documentInForce([old, bad], "2026-09-28")?.id).toBe("a");
     expect(documentState([bad], "2026-10-01").state).toBe("NOT_IN_ORDER");
   });
 

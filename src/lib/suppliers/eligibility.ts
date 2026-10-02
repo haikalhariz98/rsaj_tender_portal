@@ -22,6 +22,7 @@
  * PASS_BY_PERMISSION. Pure.
  */
 
+import { documentInForce } from "./documents";
 import type { StandingReading } from "./standing";
 import type { DocumentFacts, RegistrationValueKind } from "./types";
 import { bestReading, windowValidity, type Assessment, type WindowDays, type WindowReading } from "./window";
@@ -108,6 +109,8 @@ export interface EligibilityInput {
   restrictedTender: boolean | null;
   /// Special permissions granted to this party, by requirement and what each relaxes.
   permissions: readonly { requirementId: string; relaxes: "GRADE" | "FIELD_CODE" }[];
+  /// The day judged (the organisation's day): the values held are the document in force's on it (residual 3).
+  on: string;
 }
 
 export interface Eligibility {
@@ -129,11 +132,12 @@ function registrationReading(typeIds: readonly string[], docs: readonly Document
   return bestReading(typeIds.map((t) => windowValidity(docs.filter((d) => d.typeId === t), w, policy)));
 }
 
-/// The values held: those the newest verified document of each of the body's types records.
-function heldValues(typeIds: readonly string[], docs: readonly DocumentFacts[], valuesOf: EligibilityInput["valuesOf"]): HeldValue[] {
+/// The values held on `on`: those the document in force of each of the body's types records (residual 3:
+/// a verified upgrade valid only from a later day does not lift a grade before that day; M-3's rule).
+function heldValues(typeIds: readonly string[], docs: readonly DocumentFacts[], valuesOf: EligibilityInput["valuesOf"], on: string): HeldValue[] {
   return typeIds.flatMap((t) => {
-    const verified = docs.filter((d) => d.typeId === t && d.verification === "VERIFIED" && !d.notApplicable).sort((a, b) => b.lodgedOn.localeCompare(a.lodgedOn));
-    return verified[0] ? (valuesOf[verified[0].id] ?? []) : [];
+    const inForce = documentInForce(docs.filter((d) => d.typeId === t), on);
+    return inForce && !inForce.notApplicable ? (valuesOf[inForce.id] ?? []) : [];
   });
 }
 
@@ -191,7 +195,7 @@ export function eligibility(i: EligibilityInput): Eligibility {
       }
       if (req.structured) {
         const permitted = (r: "GRADE" | "FIELD_CODE") => i.permissions.some((p) => p.requirementId === req.id && p.relaxes === r);
-        own.push(...structuredRows(req, heldValues(typeIds, i.docs, i.valuesOf), permitted));
+        own.push(...structuredRows(req, heldValues(typeIds, i.docs, i.valuesOf, i.on), permitted));
       } else if (req.qualifiers.trim()) {
         own.push({ kind: "QUALIFIERS", result: "NOT_ASSESSED", reason: "QUALIFIERS_IN_WORDS", requirementId: req.id, data: { body: req.bodyLabel, qualifiers: req.qualifiers.trim() } });
       }
