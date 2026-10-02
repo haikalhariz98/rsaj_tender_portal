@@ -20,7 +20,14 @@ import { AddCheck, AddTarget, EditCheck, EditRoutingType, EditTarget, RemoveChec
 
 export const dynamic = "force-dynamic";
 
-const band = (lo: string | null, hi: string | null) => (lo == null && hi == null ? "Whatever the percentage" : lo == null ? `Up to ${hi}%` : hi == null ? `From ${lo}%` : `From ${lo}% to ${hi}%`);
+/// A band in words, by the type's edge switch: upper inclusive (min, max], lower inclusive [min, max), or not decided.
+function band(lo: string | null, hi: string | null, upper: boolean | null): string {
+  if (lo == null && hi == null) return "Whatever the percentage";
+  const from = lo == null ? null : upper == null ? `from ${lo}%` : upper ? `above ${lo}%` : `from ${lo}%`;
+  const to = hi == null ? null : upper == null ? `to ${hi}%` : upper ? `up to and including ${hi}%` : `below ${hi}%`;
+  const text = [from, to].filter(Boolean).join(" and ");
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}${upper == null ? " (which side of an edge counts is not decided)" : ""}`;
+}
 
 /**
  * One routing sheet type (6.14 increment 1): its internal checks in order, with each stage's printed days, and
@@ -131,7 +138,7 @@ export default async function RoutingTypePage(props: PageProps<"/configuration/r
               <tbody>
                 {targets.map((x) => (
                   <Tr key={x.id}>
-                    <Td label="Band"><CellStack title={band(x.pctMin, x.pctMax)} sub={x.notes || undefined} /></Td>
+                    <Td label="Band"><CellStack title={band(x.pctMin, x.pctMax, t.upperEdgeInclusive)} sub={x.notes || undefined} /></Td>
                     <Td label="Target" className="tabular-nums text-ink-2">{`${x.targetDays} days`}</Td>
                     <Td label="Source"><ProvenanceBadge value={x.provenance} /></Td>
                     <Td>

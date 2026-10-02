@@ -17,14 +17,15 @@ import { formatDate } from "@/lib/format";
  */
 
 const dim = (t: string) => <span className="text-ink-4">{t}</span>;
+const days = (n: number) => `${n} day${n === 1 ? "" : "s"}`;
 
 export function targetText(sheet: Sheet): string {
   const t = sheet.target;
   if (t.state === "SET") {
-    if (!t.band) return `${t.days} days`;
+    if (!t.band) return days(t.days);
     const lo = t.band.pctMin;
     const hi = t.band.pctMax;
-    return `${t.days} days (${lo != null && hi != null ? `above ${lo}% and up to ${hi}%` : lo != null ? `above ${lo}%` : `up to ${hi}%`}, for this percentage)`;
+    return `${days(t.days)} (${lo != null && hi != null ? `above ${lo}% and up to ${hi}%` : lo != null ? `above ${lo}%` : `up to ${hi}%`}, for this percentage)`;
   }
   if (t.state === "EDGE_UNDECIDED") return CERT_WORDS.edgeUndecided.en;
   if (t.state === "NO_RATIO") return "Target not set: the type's targets are banded and no percentage was handed in with the figures";
@@ -40,13 +41,13 @@ export function verdictText(sheet: Sheet): string {
     case "NOT_STARTED":
       return `Not started: DATE (1) is not recorded. Target: ${target}.`;
     case "MET":
-      return `${v.elapsed} days against ${target}: met.`;
+      return `${days(v.elapsed)} against ${target}: met.`;
     case "OVER":
-      return `${v.elapsed} days against ${target}: ${v.by} day${v.by === 1 ? "" : "s"} over.`;
+      return `${days(v.elapsed)} against ${target}: ${days(v.by)} over.`;
     case "OPEN":
-      return `Open: ${v.soFar} days so far against ${target}${v.overBy ? `, ${v.overBy} over` : ""}.`;
+      return `Open: ${days(v.soFar)} so far against ${target}${v.overBy ? `, ${days(v.overBy)} over` : ""}.`;
     case "NOT_MEASURED":
-      return `${v.elapsed == null ? "Open" : `${v.elapsed} days`}. ${target}, so it is not judged met or over.`;
+      return `${v.elapsed == null ? "Open" : days(v.elapsed)}. ${target}, so it is not judged met or over.`;
   }
 }
 
@@ -62,7 +63,7 @@ export function RoutingSheetView({ sheet, headerAction, checkAction, open, route
               { label: "DATE (1): received", value: sheet.date1 ? formatDate(sheet.date1) : dim("Not recorded") },
               { label: "DATE (2): approved", value: sheet.date2 ? formatDate(sheet.date2) : dim(sheet.routeState === "NONE" ? "No approval route open yet" : "Not approved yet") },
               { label: "Elapsed against the target", value: verdictText(sheet) },
-              { label: "The stages' printed days", value: sheet.parts ? `${sheet.parts.sum} days${sheet.parts.differs && sheet.target.state === "SET" ? `: the form prints a total of ${sheet.target.days}, which differs from the sum of its parts (both shown)` : ""}` : dim("Not printed per stage") },
+              { label: "The stages' printed days", value: sheet.parts ? `${days(sheet.parts.sum)}${sheet.parts.differs && sheet.target.state === "SET" ? `: the form prints a total of ${sheet.target.days}, which differs from the sum of its parts (both shown)` : ""}` : dim("Not printed per stage") },
             ]}
           />
         </CardBody>
@@ -70,7 +71,7 @@ export function RoutingSheetView({ sheet, headerAction, checkAction, open, route
       <div className="grid gap-6 xl:grid-cols-2">
         {sheet.iterations.map((it) => (
           <Card key={it.n} className="overflow-hidden">
-            <CardHeader title={it.n === 1 ? "First submission" : `Resubmission ${it.n - 1}`} subtitle={`${it.receivedOn ? `Received ${formatDate(it.receivedOn)}` : "Received: not recorded"}${it.endedOn ? ` · decided ${formatDate(it.endedOn)}` : ""}${it.elapsed != null ? ` · ${it.elapsed} days` : ""}`} divided />
+            <CardHeader title={it.n === 1 ? "First submission" : `Resubmission ${it.n - 1}`} subtitle={`${it.receivedOn ? `Received ${formatDate(it.receivedOn)}` : "Received: not recorded"}${it.endedOn ? ` · decided ${formatDate(it.endedOn)}` : ""}${it.elapsed != null ? ` · ${days(it.elapsed)}` : ""}`} divided />
             <ul className="divide-y divide-line/70">
               {it.checks.map((c) => {
                 const current = open && it.n === sheet.current.n;
@@ -78,9 +79,9 @@ export function RoutingSheetView({ sheet, headerAction, checkAction, open, route
                 return (
                   <li key={c.def.order} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-start sm:justify-between sm:px-6">
                     <span className="min-w-0">
-                      <span className="block text-[13.5px] font-semibold break-words text-ink">{`${CHECK_KIND_WORDS[c.def.kind].en} · ${c.def.labelEn}`}</span>
+                      <span className="block text-[13.5px] font-semibold break-words text-ink">{c.def.labelEn}</span>
                       <span className="block text-[12.5px] break-words text-ink-3">
-                        {c.recorded ? `${c.recorded.personName}, ${formatDate(c.recorded.on)}${c.recorded.note ? ` · ${c.recorded.note}` : ""}` : [c.def.officeLabel ?? CERT_WORDS.officeNotSet.en, c.def.targetDays ? `${c.def.targetDays} days printed` : null].filter(Boolean).join(" · ")}
+                        {c.recorded ? `${CHECK_KIND_WORDS[c.def.kind].en} ${c.recorded.personName}, ${formatDate(c.recorded.on)}${c.recorded.note ? ` · ${c.recorded.note}` : ""}` : [`${CHECK_KIND_WORDS[c.def.kind].en}: ${c.def.officeLabel ?? CERT_WORDS.officeNotSet.en}`, c.def.targetDays ? `${days(c.def.targetDays)} printed` : null].filter(Boolean).join(" · ")}
                       </span>
                     </span>
                     <span className="flex shrink-0 items-center gap-2">

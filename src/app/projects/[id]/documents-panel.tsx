@@ -49,7 +49,7 @@ export async function DocumentsPanel({ contractId, page }: { contractId: string;
             cells: {
               certificate: { kind: "stack", title: `${KIND_WORDS[r.kind].en}${r.sequence ? ` ${r.sequence}` : ""}`, sub: r.number ?? CERT_WORDS.numberOnIssue.en },
               status: { kind: "badge", text: STATUS_WORDS[r.status].en, ...(tone ? { tone } : {}) },
-              date: { kind: "text", text: r.certificateDate ? formatDate(storedDay(r.certificateDate)) : "Set when signed", dim: !r.certificateDate },
+              date: { kind: "text", text: r.certificateDate ? formatDate(storedDay(r.certificateDate)) : r.status === "VOID" ? "Never dated" : "Set when signed", dim: !r.certificateDate },
               copies: { kind: "text", text: r.status !== "ISSUED" ? "Not issued" : copies.distributed ? (copies.awaitingAck ? `Sent · ${copies.awaitingAck} acknowledgement${copies.awaitingAck === 1 ? "" : "s"} awaited` : "Sent") : `${copies.undespatchedMandatory} mandatory to send`, dim: r.status !== "ISSUED" },
             },
           };

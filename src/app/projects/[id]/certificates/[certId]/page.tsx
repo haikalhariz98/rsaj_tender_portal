@@ -13,7 +13,7 @@ import { KeyValues } from "@/components/ui/stat";
 import { certificateDateOf } from "@/lib/certificate/date";
 import { distributionState } from "@/lib/certificate/distribution";
 import { refusalText } from "@/lib/certificate/fault-text";
-import { certificateFieldValues, mergeFields } from "@/lib/certificate/fields";
+import { certificateFieldLabel, certificateFieldValues, mergeFields } from "@/lib/certificate/fields";
 import { BLOCK_KIND_WORDS, CERT_WORDS, DECISION_WORDS, KIND_WORDS, METHOD_WORDS, OFFICE_RULE_WORDS, STATUS_TONE, STATUS_WORDS } from "@/lib/certificate/labels";
 import { applyOverrides, type Effective } from "@/lib/certificate/override";
 import { loadCertificate, signedOf, templateNow, type LoadedCertificate } from "@/lib/certificate/repo";
@@ -29,7 +29,7 @@ import { historyFieldLabel, historyValue } from "@/lib/contract/history-words";
 import { dayOf, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
-import { formatMoney, parseSen } from "@/lib/money";
+import { formatSen as formatMoney, parseSen } from "@/lib/money";
 import { ORGANISATION_NAME } from "@/lib/org";
 import { ratioPercentText } from "@/lib/percent-band";
 import { fieldsNamed, renderWith } from "@/lib/templates/merge";
@@ -43,6 +43,7 @@ const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err",
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const dim = (t: string) => <span className="text-ink-4">{t}</span>;
 const HISTORY_PAGE = 200;
+const NOTE_ID = "certificate-action-note";
 
 /**
  * One certificate (6.14 increment 1, ADR 0022, 0023): one shell for every kind. Figures (as computed, any
@@ -58,7 +59,11 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
   const cert = l.cert;
   const status = cert.status as CertificateStatus;
   const today = l.org.timeZone ? dayOf(new Date(), l.org.timeZone) : null;
-  const people = await db.person.findMany({ where: { organisationId: l.org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } });
+  const [people, roles] = await Promise.all([
+    db.person.findMany({ where: { organisationId: l.org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    db.authorityRole.findMany({ where: { organisationId: l.org.id }, select: { code: true, nameEn: true } }),
+  ]);
+  const officeName = (code: string | null) => roles.find((r) => r.code === code)?.nameEn ?? "An office no longer configured";
   const peopleOptions: Option[] = people.map((p) => ({ value: p.id, label: p.name }));
   const snap = readComputedSnapshot(cert.computedSnapshot);
   const figures = snap ? applyOverrides(snap, cert.overrides) : null;
@@ -76,13 +81,18 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
 
   // The header's next act, judged by the act's own rules.
   let action: React.ReactNode = null;
+  let actionNote: string | null = null;
   if (status === "DRAFT" && cert.routingTypeId) action = <SendForRoutingDrawer certId={cert.id} typeLabel={cert.routingType?.labelEn ?? "its type"} blocker={today ? null : "Set the organisation's time zone first."} />;
   else if (status === "DRAFT") action = <SendToSigningDrawer certId={cert.id} routed={false} blocker={today ? null : "Set the organisation's time zone first."} />;
-  else if (status === "IN_ROUTING" && sheet) action = <SendToSigningDrawer certId={cert.id} routed blocker={signingBlocker(sheet)} />;
+  else if (status === "IN_ROUTING" && sheet) {
+    const blocker = signingBlocker(sheet);
+    actionNote = blocker;
+    action = blocker ? <Blocked label="Send to signing" reason={blocker} primary noteId={NOTE_ID} /> : <SendToSigningDrawer certId={cert.id} routed blocker={null} />;
+  }
 
   const tabs = [
     { id: "figures", label: "Figures", icon: <FileIcon size={15} />, panel: <FiguresPanel l={l} figures={figures} people={peopleOptions} /> },
-    { id: "signatures", label: "Signatures", icon: <ToolsIcon size={15} />, count: cert.signatures.length, panel: <SignaturesPanel l={l} blocks={blocks} pinned={pinned} formName={form?.nameEn ?? null} pinBlocker={!pinned && status === "SIGNING" ? pinBlocker(form, cert.kind) : null} people={peopleOptions} today={today} /> },
+    { id: "signatures", label: "Signatures", icon: <ToolsIcon size={15} />, count: cert.signatures.length, panel: <SignaturesPanel l={l} blocks={blocks} pinned={pinned} formName={form?.nameEn ?? null} pinBlocker={!pinned && status === "SIGNING" ? pinBlocker(form, cert.kind) : null} people={peopleOptions} today={today} officeName={officeName} /> },
     { id: "routing", label: "Routing sheet", icon: <RouteIcon size={15} />, panel: <RoutingPanel l={l} sheet={sheet} people={peopleOptions} today={today} /> },
     { id: "distribution", label: "Distribution", icon: <InboxIcon size={15} />, count: cert.copies.length, panel: <DistributionPanel l={l} today={today} /> },
     { id: "print", label: "Print", icon: <PrinterIcon size={15} />, panel: <PrintPanel l={l} figures={figures} revision={pinned} formBody={form ? { en: form.bodyEn, ms: form.bodyMs, name: form.nameEn } : null} /> },
@@ -101,10 +111,12 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
         meta={[
           cert.number ? `Number ${cert.number}` : CERT_WORDS.numberOnIssue.en,
           cert.sequence ? `${kind} ${cert.sequence} on this contract` : null,
-          dateNow.state === "DATED" ? `Dated ${formatDate(day(cert.certificateDate) ?? dateNow.day)}` : dateNow.state === "NOT_YET" ? "Date set when signed" : CERT_WORDS.notDatedBySignature.en,
+          dateNow.state === "DATED" ? `Dated ${formatDate(day(cert.certificateDate) ?? dateNow.day)}` : dateNow.state === "NOT_YET" ? "Date set when signed" : cert.templateId ? CERT_WORDS.notDatedBySignature.en : "No form chosen",
           `Baseline version ${cert.baseline.version}`,
           l.award.awardeeName,
         ].filter((x): x is string => x != null)}
+        actionsNote={actionNote ?? undefined}
+        actionsNoteId={NOTE_ID}
         actions={
           <span className="flex flex-wrap items-center gap-2">
             {action}
@@ -220,7 +232,7 @@ function FiguresPanel({ l, figures, people }: { l: LoadedCertificate; figures: E
 
 // ------------------------------------------------------------------ signatures
 
-function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people, today }: { l: LoadedCertificate; blocks: Block[]; pinned: TemplateRevision | null; formName: string | null; pinBlocker: string | null; people: Option[]; today: string | null }) {
+function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people, today, officeName }: { l: LoadedCertificate; blocks: Block[]; pinned: TemplateRevision | null; formName: string | null; pinBlocker: string | null; people: Option[]; today: string | null; officeName: (code: string | null) => string }) {
   const cert = l.cert;
   const status = cert.status as CertificateStatus;
   const signed = signedOf(cert);
@@ -248,7 +260,8 @@ function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people, toda
           {blocks.map((b) => {
             const s = cert.signatures.find((x) => x.blockOrder === b.blockOrder);
             const isNext = next?.blockOrder === b.blockOrder;
-            const who = isPersonRule(b.officeRule) ? (b.officeRule === "NAMED_OFFICE" ? "The office named on the form, or a delegate of it where the block allows" : OFFICE_RULE_WORDS[b.officeRule].en) : OFFICE_RULE_WORDS[b.officeRule].en;
+            const who = b.officeRule === "NAMED_OFFICE" ? officeName(b.officeCode) : OFFICE_RULE_WORDS[b.officeRule].en;
+            const delegation = !isPersonRule(b.officeRule) ? "Recorded from the paper, on the day it was signed." : b.delegable == null ? "Whether a delegate may sign it is not decided." : b.delegable ? "Or a delegate of the whole office." : "Never a delegate.";
             return (
               <li key={b.blockOrder} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-start sm:justify-between sm:px-6">
                 <span className="min-w-0">
@@ -270,7 +283,7 @@ function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people, toda
                         .join(" · ")}
                     </span>
                   ) : (
-                    <span className="block text-[12.5px] break-words text-ink-3">{`${who}. ${b.delegable == null ? "Whether a delegate may sign it is not decided." : b.delegable ? "A delegate of the whole office may sign." : "Never a delegate."}`}</span>
+                    <span className="block text-[12.5px] break-words text-ink-3">{`${who}. ${delegation}`}</span>
                   )}
                 </span>
                 <span className="flex shrink-0 flex-wrap items-center gap-2">
@@ -364,7 +377,7 @@ function DistributionPanel({ l, today }: { l: LoadedCertificate; today: string |
                   {c.mandatory ? <Chip>Mandatory</Chip> : <Chip>Optional</Chip>}
                 </span>
                 <span className="block text-[12.5px] break-words text-ink-3">
-                  {[`To ${c.addressedTo}`, c.despatchedOn ? `${METHOD_WORDS[c.method as DeliveryMethod]?.en ?? "Sent"}, ${formatDate(day(c.despatchedOn))}` : "Not sent", c.ackRequired ? (c.acknowledgedOn ? `acknowledged ${formatDate(day(c.acknowledgedOn))}` : "acknowledgement awaited") : null].filter(Boolean).join(" · ")}
+                  {[`Addressed to ${c.addressedTo}`, c.despatchedOn ? `${METHOD_WORDS[c.method as DeliveryMethod]?.en ?? "Sent"}, ${formatDate(day(c.despatchedOn))}` : "Not sent", c.ackRequired ? (c.acknowledgedOn ? `acknowledged ${formatDate(day(c.acknowledgedOn))}` : "acknowledgement awaited") : null].filter(Boolean).join(" · ")}
                 </span>
               </span>
               <span className="flex shrink-0 flex-wrap items-center gap-2">
@@ -425,7 +438,9 @@ function PrintPanel({ l, figures, revision, formBody }: { l: LoadedCertificate; 
   return (
     <div className="flex flex-col gap-6">
       {texts.map(([lang, text]) => {
-        const r = renderWith(text!, values(lang), { has: (k) => keys.has(k), label: (k) => k.split(".").pop() ?? k });
+        // Before issue the number and the date are not yet the certificate's: said so in the text, never invented.
+        const v = { ...values(lang), "certificate.number": "(number allocated on issue)", "certificate.sequence": "(on issue)", ...(cert.certificateDate ? {} : { "certificate.date": "(the day of the authorising signature)" }) };
+        const r = renderWith(text!, v, { has: (k) => keys.has(k), label: (k) => certificateFieldLabel(k) });
         return (
           <Card key={lang}>
             <CardHeader icon={<PrinterIcon size={17} />} title={lang === "MS" ? "Malay text" : "English text"} subtitle={`${body.name}${revision ? ", as pinned" : ", as the form stands now"}`} actions={<Badge tone="warn">{CERT_WORDS.draftNotIssued.en}</Badge>} />
