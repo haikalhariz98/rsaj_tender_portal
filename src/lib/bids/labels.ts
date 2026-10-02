@@ -98,6 +98,11 @@ export function officerStatement(stated: string | null, reason: string | null): 
   return `The officer's statement: received ${stated ?? "at a time not recorded"}. Why it was recorded after the event: ${reason ?? "not recorded"}.`;
 }
 
+/// The withdrawal drawer's hint (6.6 CR-4): quote what identifies the envelope, never who the bidder is.
+export const WITHDRAWAL_QUOTE_HINT = "Quote how the letter identifies the envelope (the tender's title, number and markings). Leave the company's name out; bidders are named at the opening.";
+/// What the Withdrawals card's SULIT label covers: the letter and the quote taken from it (6.6 CR-4).
+export const WITHDRAWAL_SULIT_LABEL = "SULIT: the letter and the quote from it";
+
 /// An instant on the organisation's clock, to the second: lateness is judged to the second, so a receipt is shown to it.
 export function receiptTime(at: Date | null, timeZone: string | null): string {
   if (!at) return "—";

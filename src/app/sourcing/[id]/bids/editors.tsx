@@ -1,6 +1,7 @@
 import { Blocked } from "@/app/requisitions/editors";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { WITHDRAWAL_QUOTE_HINT } from "@/lib/bids/labels";
 
 import { applyValidityExtension, correctEnvelope, lockBox, recordReceiptAfterTheFact, recordReceiptNow, recordReturnedUnopened, recordValidityExtension, recordWithdrawal, saveBidAnswers, tableLateMatter } from "./actions";
 
@@ -95,7 +96,7 @@ export function WithdrawalDrawer({ exerciseId, allowed, people, envelopes, noteI
       fields={[
         hidden("exerciseId"),
         { kind: "select", name: "envelopeId", label: "Envelope withdrawn", placeholder: "In the tender box: matched at the opening", options: envelopes },
-        { kind: "textarea", name: "markings", label: "How the letter identifies the envelope", required: true, hint: "Quote the letter." },
+        { kind: "textarea", name: "markings", label: "How the letter identifies the envelope", required: true, hint: WITHDRAWAL_QUOTE_HINT },
         { kind: "select", name: "receivedByPersonId", label: "Received by", required: true, placeholder: "Choose", options: people, hint: ON_BEHALF },
       ]}
       values={{ exerciseId }}

@@ -68,7 +68,9 @@ export function withdrawalFields(w: { receivedAt: Date; markings: string; receiv
   return {
     received: stamp(w.receivedAt, tz),
     stamp: SOURCE_LABEL.SERVER,
-    markings: w.markings,
+    /// The letter's own words identifying the envelope: SULIT, under its own key so History chips it
+    /// (6.6 CR-4), never "markings", which envelope corrections share.
+    letterQuote: w.markings,
     receivedBy: `${w.receivedBy} (recorded on their behalf, not signed)`,
     envelope: w.envelopeSequence != null ? `Envelope ${w.envelopeSequence}` : "In the tender box: matched at opening",
   };

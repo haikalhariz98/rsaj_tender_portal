@@ -25,6 +25,7 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "scores", what: "evaluation scores" },
   { field: "totalScore", what: "an evaluation total score" },
   { field: "cprPercent", what: "a contractor performance percentage" },
+  { field: "letterQuote", what: "how a bidder's withdrawal letter identifies its envelope, quoted from the letter (6.6 CR-4)" },
 ];
 
 /// Whether a stored field (an audit change's field name) is a registered SULIT field: a History

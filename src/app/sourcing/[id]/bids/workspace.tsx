@@ -7,7 +7,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { KeyValues } from "@/components/ui/stat";
-import { REGISTER_GAPS, REGISTER_STATEMENT } from "@/lib/bids/labels";
+import { REGISTER_GAPS, REGISTER_STATEMENT, WITHDRAWAL_SULIT_LABEL } from "@/lib/bids/labels";
 import { bidsTab, type BidsTab } from "@/lib/bids/read";
 
 import { EXERCISE_NOTE_ID } from "../../editors";
@@ -197,18 +197,18 @@ function WithdrawalsCard({ d }: { d: BidsTab }) {
   if (d.withdrawals.length === 0) return null;
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<FileIcon size={17} />} title="Withdrawals" subtitle="Each letter received before the closing, stamped when recorded. A withdrawn envelope is never opened." />
+      <CardHeader icon={<FileIcon size={17} />} title="Withdrawals" subtitle="Each letter received before the closing, stamped when recorded. The letter and the words quoted from it are SULIT. A withdrawn envelope is never opened." />
       <ul className="divide-y divide-line/70 border-t border-line">
         {d.withdrawals.map((w) => (
           <li key={w.id} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div className="min-w-0">
               <div className="text-[13.5px] font-semibold break-words text-ink">{w.envelope}</div>
               <div className="text-[12.5px] break-words text-ink-3">{`Received ${w.received} · ${w.receivedBy}`}</div>
-              <div className="text-[12.5px] break-words text-ink-2">{`“${w.markings}”`}</div>
+              <div className="text-[12.5px] break-words text-ink-2">{`Quoted from the letter: “${w.markings}”`}</div>
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
               <Chip tone={w.letter === "Attached" ? "ok" : "warn"}>{`Letter: ${w.letter.toLowerCase()}`}</Chip>
-              <Chip tone="neutral">SULIT</Chip>
+              <Chip tone="neutral" title={WITHDRAWAL_SULIT_LABEL}>{WITHDRAWAL_SULIT_LABEL}</Chip>
               <OwnerDocumentsButton owner={{ kind: "bidWithdrawal", id: w.id }} label={w.label} title="Withdrawal letter" subtitle="The bidder's letter, held SULIT: listed, not opened in the portal until sign-in." options={{ only: ["WITHDRAWAL_LETTER"] }} />
             </div>
           </li>

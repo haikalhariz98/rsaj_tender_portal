@@ -100,6 +100,8 @@ const NAMED_FIELDS: Record<string, string> = {
   // A rate and the unit it is charged per read as one thing.
   ladUnit: "Liquidated damages charged",
   completionUnit: "Completion period counted in",
+  // 6.6 CR-4: a withdrawal letter's quote, held SULIT.
+  letterQuote: "How the letter identifies the envelope",
 };
 
 /// Field names are configuration-ish keys; screens render labels. A reference to a
