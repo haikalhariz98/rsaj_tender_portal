@@ -30,7 +30,7 @@ describe("every evaluation code has words", () => {
   });
   it("an unknown code never reads as itself", () => expect(evaluationFindingText({ code: "SOMETHING_ELSE", level: "block" })).not.toMatch(/SOMETHING/));
   it("a frozen rule never says 'set it': it names this exercise's exit", () => {
-    for (const code of ["MODEL_NOT_PINNED", "PASS_RULE_NOT_SET", "BOUNDARY_NOT_RECORDED", "BASE_NOT_SET", "NEVER_EVALUATED"]) {
+    for (const code of ["MODEL_NOT_PINNED", "PASS_RULE_NOT_SET", "BOUNDARY_NOT_RECORDED", "BASE_NOT_SET", "NEVER_EVALUATED", "SHORTLIST_UNSET", "RANGE_NOT_SET", "OFFICE_NOT_SET"]) {
       const t = evaluationFindingText({ code, level: "block" });
       expect(t).toMatch(/cancel it/);
       expect(t).not.toMatch(/\bSet it\b|\bset it under\b/);

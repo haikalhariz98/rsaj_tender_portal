@@ -11,7 +11,7 @@ import type { Sen } from "@/lib/money";
 
 import type { Finding, ShortlistRule } from "./types";
 
-export type ShortlistFault = "TOO_FEW" | "TOO_MANY" | "NOT_ELIGIBLE" | "FEWER_THAN_MINIMUM" | "NOT_OFFICE_HOLDER" | "OFFICE_NOT_SET" | "RULE_NOT_SET" | "RANGE_NOT_SET" | "TIE_SPLIT" | "NONE_TAKES_ALL";
+export type ShortlistFault = "TOO_FEW" | "TOO_MANY" | "NOT_ELIGIBLE" | "FEWER_THAN_MINIMUM" | "NOT_OFFICE_HOLDER" | "OFFICE_NOT_SET" | "SHORTLIST_UNSET" | "RANGE_NOT_SET" | "TIE_SPLIT" | "NONE_TAKES_ALL";
 
 /// Rank by price, lowest first; a tie shares its rank (1, 2, 2, 4).
 export function rankByPrice<T extends { id: string; price: Sen }>(xs: readonly T[]): (T & { rank: number })[] {
@@ -31,7 +31,7 @@ export function shortlistFaults(i: {
 }): Finding<ShortlistFault>[] {
   const out: Finding<ShortlistFault>[] = [];
   const f = (code: ShortlistFault, data?: Finding["data"], level: "block" | "warn" = "block") => out.push({ code, level, ...(data ? { data } : {}) });
-  if (i.rule == null) return [{ code: "RULE_NOT_SET", level: "block" }];
+  if (i.rule == null) return [{ code: "SHORTLIST_UNSET", level: "block" }];
   const eligible = new Set(i.eligible.map((e) => e.id));
   const chosen = new Set(i.chosen);
   for (const c of chosen) if (!eligible.has(c)) f("NOT_ELIGIBLE");

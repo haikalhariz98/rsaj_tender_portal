@@ -54,7 +54,7 @@ describe("shortlist.ts (FR-EVL-009)", () => {
   });
   it("only an eligible bid; the rule unset is not guessed", () => {
     expect(codes(shortlistFaults({ ...base, eligible: five, chosen: ["b1", "b2", "zz"] }))).toEqual(["NOT_ELIGIBLE", "TOO_FEW"]);
-    expect(codes(shortlistFaults({ ...base, rule: null, eligible: five, chosen: [] }))).toEqual(["RULE_NOT_SET"]);
+    expect(codes(shortlistFaults({ ...base, rule: null, eligible: five, chosen: [] }))).toEqual(["SHORTLIST_UNSET"]);
   });
 });
 
@@ -112,7 +112,7 @@ describe("meetings.ts (FR-EVL-015, 016)", () => {
 
 describe("recommend.ts (FR-EVL-004, OD-6 A)", () => {
   const all = ["COMPLIANCE", "ASPECTS", "TECHNICAL", "FINANCIAL", "COMPOSITE"];
-  const ok = { verdict: "SATISFACTORY" as const, narrative: "x" };
+  const ok: { verdict: "SATISFACTORY" | "NOT_SATISFACTORY"; narrative: string } = { verdict: "SATISFACTORY", narrative: "x" };
   const done = (b2Aspect = ok, over = {}) =>
     facts({
       submissions: all.map((s) => submission(s)),

@@ -172,7 +172,7 @@ const TEXT: Record<string, (f: Finding) => string> = {
   FEWER_THAN_MINIMUM: (f) => `Only ${f.data?.eligible} ${plural(f.data?.eligible, "bid is", "bids are")} in the running, fewer than the shortlist's minimum of ${f.data?.min}: every one goes on, and the report says so.`,
   NOT_OFFICE_HOLDER: () => "The person recording it does not hold the office the model names on the day.",
   OFFICE_NOT_SET: () => `The model as issued names no office to decide the shortlist; ${CANCEL_EXIT}.`,
-  RULE_NOT_SET: () => `The model as issued sets no shortlist rule; ${CANCEL_EXIT}.`,
+  SHORTLIST_UNSET: () => `The model as issued sets no shortlist rule; ${CANCEL_EXIT}.`,
   RANGE_NOT_SET: () => `The model as issued sets no shortlist range; ${CANCEL_EXIT}.`,
   TIE_SPLIT: (f) => `Bids sharing ${f.data?.rank != null ? `rank ${f.data.rank}` : "a rank"} on price are not all shortlisted; the report says so.`,
   NONE_TAKES_ALL: () => "This stage takes every bid in the running.",
