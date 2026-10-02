@@ -153,6 +153,21 @@ export interface RowAction {
   hrefTemplate: string;
 }
 
+/// Whether a row's rendered actions hold anything: `null`, `undefined`, `false` and an empty
+/// array are nothing. A renderer returns nothing for a row with no action, and a list in which
+/// no row has one shows no actions column at all rather than an empty one taking room.
+export function hasRowAction(node: ReactNode): boolean {
+  if (node == null || node === false || node === true || node === "") return false;
+  if (Array.isArray(node)) return node.some(hasRowAction);
+  return true;
+}
+
+/// Where a list's per-row actions go. `column` (the default) is the Actions column at the row's
+/// end. `below` puts them on a full-width line under the row, right-aligned beside its note: for
+/// a list whose action labels are wider than a column a laptop's card can spare beside the
+/// columns that matter, so the data keeps the width and no button is cut at the card's edge.
+export type ActionsPlacement = "column" | "below";
+
 function cellText(cell: Cell | undefined): string {
   if (!cell) return "";
   switch (cell.kind) {
@@ -286,6 +301,7 @@ export function DataList({
   rowAction,
   actions,
   actionsWidth,
+  actionsPlacement = "column",
   rowOpens = false,
   selectable = true,
   searchPlaceholder = "Search…",
@@ -310,6 +326,10 @@ export function DataList({
   /// Pixels for the actions column; 128 holds two icon buttons or one labelled one. Give
   /// less when a row has a single icon, so the room goes to the row's main column.
   actionsWidth?: number;
+  /// Where `actions` go: the Actions column (default) or a full-width line under the row. See
+  /// `ActionsPlacement`. Either way a row whose renderer returns nothing shows nothing, and the
+  /// column is left out when no row has an action.
+  actionsPlacement?: ActionsPlacement;
   /// Clicking anywhere in a row presses its first action. Only for a list whose
   /// first action opens the record — never one that leads with a destructive one.
   rowOpens?: boolean;
@@ -439,8 +459,22 @@ export function DataList({
     URL.revokeObjectURL(url);
   }
 
+  // Each row's actions, rendered once. The column is decided over every row, not the page, so
+  // it does not come and go as the reader pages or changes view.
+  const rendered = new Map<string, ReactNode>(actions ? rows.map((r) => [r.id, actions(r.id)] as const) : []);
+  const anyAction = actions ? [...rendered.values()].some(hasRowAction) : false;
+  const actionsBelow = !!actions && actionsPlacement === "below";
+  // The trailing column: the row link's arrow, or the actions when they sit in a column and a row has one.
+  const actionColumn = actions ? anyAction && !actionsBelow : !!rowAction;
+  const rowActionsOf = (id: string) => rendered.get(id);
+  const actionsLineOf = (id: string) => actionsBelow && hasRowAction(rendered.get(id));
+
   const openRow = (tr: HTMLElement) =>
-    tr.querySelector<HTMLElement>("[data-rowactions] button, [data-rowactions] a")?.click();
+    (
+      tr.querySelector<HTMLElement>("[data-rowactions] button, [data-rowactions] a") ??
+      // A list with its actions below the row keeps them on the next line.
+      (tr.nextElementSibling as HTMLElement | null)?.querySelector<HTMLElement>("[data-rowactions] button, [data-rowactions] a")
+    )?.click();
 
   // The stacked phone layout is opt-in: a list whose columns carry no `mobile` flag
   // keeps its scrolling table.
@@ -649,8 +683,8 @@ export function DataList({
                     </dl>
                   )}
                   {row.note && <p className="mt-2.5 text-[12.5px] leading-snug text-ink-3">{row.note}</p>}
-                  {actions && (
-                    <div className="mt-3 flex flex-wrap items-center gap-1">{actions(row.id)}</div>
+                  {actions && hasRowAction(rowActionsOf(row.id)) && (
+                    <div className="mt-3 flex flex-wrap items-center gap-1">{rowActionsOf(row.id)}</div>
                   )}
                 </div>
                 {rowAction && !actions && (
@@ -680,7 +714,7 @@ export function DataList({
                   style={c.width ? { width: c.width } : undefined}
                 />
               ))}
-              {(rowAction || actions) && <col style={{ width: actions ? (actionsWidth ?? 128) : 56 }} />}
+              {actionColumn && <col style={{ width: actions ? (actionsWidth ?? 128) : 56 }} />}
             </colgroup>
             <thead>
               <tr className="border-y border-line bg-sunken">
@@ -727,7 +761,7 @@ export function DataList({
                     )}
                   </th>
                 ))}
-                {(rowAction || actions) && (
+                {actionColumn && (
                   <th className="px-4 py-2.5 text-right text-[12px] font-semibold whitespace-nowrap text-ink-3">
                     {/* A lone row link is an arrow in a 56px column; the word would clip.
                         Screen readers still get the name of the column. */}
@@ -743,7 +777,7 @@ export function DataList({
                   tabIndex={rowOpens ? 0 : undefined}
                   className={cx(
                     "group border-b border-line/70 transition hover:bg-brand-50/40",
-                    row.note ? "border-b-0" : "last:border-b-0",
+                    row.note || actionsLineOf(row.id) ? "border-b-0" : "last:border-b-0",
                     selected.has(row.id) && "bg-brand-50/60",
                     rowOpens && "cursor-pointer",
                   )}
@@ -800,10 +834,10 @@ export function DataList({
                       <CellView cell={row.cells[c.key]} nowrap={c.nowrap} />
                     </td>
                   ))}
-                  {actions && (
+                  {actions && actionColumn && (
                     <td className={cellPad}>
                       <div data-rowactions className="flex items-center justify-end-safe gap-1 whitespace-nowrap">
-                        {actions(row.id)}
+                        {rowActionsOf(row.id)}
                       </div>
                     </td>
                   )}
@@ -826,10 +860,19 @@ export function DataList({
                     </td>
                   )}
                 </tr>
-                {row.note && (
+                {(row.note || actionsLineOf(row.id)) && (
                   <tr className="border-b border-line/70 last:border-b-0">
-                    <td colSpan={columns.length + (selectable ? 1 : 0) + (rowAction || actions ? 1 : 0)} className="px-4 pb-3 text-[12.5px] leading-snug text-ink-3">
-                      {row.note}
+                    <td colSpan={columns.length + (selectable ? 1 : 0) + (actionColumn ? 1 : 0)} className="px-4 pb-3 text-[12.5px] leading-snug text-ink-3">
+                      {actionsLineOf(row.id) ? (
+                        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                          <span className="min-w-0 flex-1">{row.note}</span>
+                          <div data-rowactions className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+                            {rowActionsOf(row.id)}
+                          </div>
+                        </div>
+                      ) : (
+                        row.note
+                      )}
                     </td>
                   </tr>
                 )}

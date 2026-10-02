@@ -15,7 +15,9 @@ type Option = { value: string; label: string };
  * envelope recorded after the event carries the officer's statement of when it was received, and
  * why, under the row, as the officer's statement. A late one shows its admission. There is
  * no Delete and no Reject: an envelope is never removed, and a late one's admission is the
- * committee's. A row's acts open drawers, so the list is a client component.
+ * committee's. A row's acts open drawers, so the list is a client component; they sit on the line
+ * under the row (the shared list's `below` placement), so the markings keep the row's width and
+ * "Table for admission" is never cut at the card's edge (6.6 review S-2).
  */
 export function EnvelopeList({ exerciseId, rows, people, late }: { exerciseId: string; rows: EnvelopeRow[]; people: Option[]; late: { committee: string | null; sittings: Option[]; holders: Option[] } }) {
   const byId = new Map(rows.map((r) => [r.id, r]));
@@ -61,17 +63,18 @@ export function EnvelopeList({ exerciseId, rows, people, late }: { exerciseId: s
         { id: "withdrawn", label: "Withdrawn" },
         { id: "estimate", label: "Company estimate" },
       ]}
-      actionsWidth={168}
+      actionsPlacement="below"
       stackBelow="xl"
       columns={[
-        { key: "sequence", label: "Envelope", width: "150px", sortable: true, mobile: "primary" },
-        { key: "received", label: "Recorded", width: "230px", mobile: "meta" },
-        { key: "state", label: "Where it stands", width: "250px", mobile: "meta" },
+        { key: "sequence", label: "Envelope", width: "140px", sortable: true, mobile: "primary" },
+        { key: "received", label: "Recorded", width: "220px", mobile: "meta" },
+        { key: "state", label: "Where it stands", width: "210px", mobile: "meta" },
         { key: "markings", label: "Markings as written", mobile: "meta" },
       ]}
       rows={list}
       actions={(id) => {
         const r = byId.get(id)!;
+        if (!r.correct?.allowed && !r.returnable && !r.table?.allowed) return null;
         return (
           <span className="flex flex-wrap items-center justify-end gap-1">
             {r.correct?.allowed && <CorrectDrawer exerciseId={exerciseId} envelope={{ id: r.id, sequence: r.sequence, markings: r.markings, channel: r.channelCode, receivedById: r.receivedById }} people={people} />}
