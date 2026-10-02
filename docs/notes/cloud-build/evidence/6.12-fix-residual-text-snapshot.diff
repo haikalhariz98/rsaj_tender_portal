@@ -1,0 +1,883 @@
+diff -rU0 before/awards__demo_aw3__tab__overview.txt after/awards__demo_aw3__tab__overview.txt
+--- before/awards__demo_aw3__tab__overview.txt	2026-10-02 21:39:50.460109335 +0000
++++ after/awards__demo_aw3__tab__overview.txt	2026-10-02 22:04:14.344075853 +0000
+@@ -70 +70 @@
+-The year in the number is the year it was issued — assumed to be the year the contract starts, to be confirmed.
++The year in the number is the year it was issued, 2026 — assumed to be the year the contract starts, to be confirmed.
+diff -rU0 before/awards__demo_aw4__tab__history.txt after/awards__demo_aw4__tab__history.txt
+--- before/awards__demo_aw4__tab__history.txt	2026-10-02 21:39:49.172109365 +0000
++++ after/awards__demo_aw4__tab__history.txt	2026-10-02 22:04:12.552075894 +0000
+@@ -105 +105 @@
+-Changed
++Created
+@@ -107 +107 @@
+-DEMO/AWD/0004/2026 · copy to Demo Meter Services Sdn Bhd
++DEMO/AWD/0004/2026 · copy to Implementing department
+@@ -109 +109 @@
+-Method
++Recipient
+@@ -111,4 +111,2 @@
+-—
+-→
+-Collected
+-Despatched on
++Implementing department
++Mandatory
+@@ -116,2 +114,4 @@
+-—
+-→
++Yes
++Created
++Copy
++DEMO/AWD/0004/2026 · copy to Demo Meter Services Sdn Bhd
+@@ -119 +119 @@
+-Acknowledged on
++Recipient
+@@ -121,2 +121,10 @@
+-—
+-→
++Demo Meter Services Sdn Bhd
++Mandatory
++:
++Yes
++Awardee
++:
++Yes
++Created
++Copy
++DEMO/AWD/0004/2026 · copy to Finance department
+@@ -123,0 +132,6 @@
++Recipient
++:
++Finance department
++Mandatory
++:
++Yes
+@@ -203,0 +218,19 @@
++DEMO/AWD/0004/2026 · copy to Demo Meter Services Sdn Bhd
++19 Sep 2026
++Method
++:
++—
++→
++Collected
++Despatched on
++:
++—
++→
++19 Sep 2026
++Acknowledged on
++:
++—
++→
++19 Sep 2026
++Changed
++Copy
+@@ -248,33 +280,0 @@
+-Created
+-Copy
+-DEMO/AWD/0004/2026 · copy to Demo Meter Services Sdn Bhd
+-19 Sep 2026
+-Recipient
+-:
+-Demo Meter Services Sdn Bhd
+-Mandatory
+-:
+-Yes
+-Awardee
+-:
+-Yes
+-Created
+-Copy
+-DEMO/AWD/0004/2026 · copy to Implementing department
+-19 Sep 2026
+-Recipient
+-:
+-Implementing department
+-Mandatory
+-:
+-Yes
+-Created
+-Copy
+-DEMO/AWD/0004/2026 · copy to Finance department
+-19 Sep 2026
+-Recipient
+-:
+-Finance department
+-Mandatory
+-:
+-Yes
+@@ -310,0 +311,9 @@
++Award
++DEMO/AWD/0004/2026 · Demo Meter Services Sdn Bhd
++14 Sep 2026
++Status
++:
++Awaiting approval
++→
++Approved, not issued
++Changed
+@@ -348,9 +356,0 @@
+-Changed
+-Award
+-DEMO/AWD/0004/2026 · Demo Meter Services Sdn Bhd
+-14 Sep 2026
+-Status
+-:
+-Awaiting approval
+-→
+-Approved, not issued
+diff -rU0 before/awards__demo_aw4__tab__overview.txt after/awards__demo_aw4__tab__overview.txt
+--- before/awards__demo_aw4__tab__overview.txt	2026-10-02 21:39:40.420109565 +0000
++++ after/awards__demo_aw4__tab__overview.txt	2026-10-02 22:04:02.616076121 +0000
+@@ -82 +81,0 @@
+-The year in the number is the year it was issued — assumed to be the year the contract starts, to be confirmed.
+diff -rU0 before/awards__demo_aw5__tab__history.txt after/awards__demo_aw5__tab__history.txt
+--- before/awards__demo_aw5__tab__history.txt	2026-10-02 21:39:39.156109594 +0000
++++ after/awards__demo_aw5__tab__history.txt	2026-10-02 22:04:01.108076156 +0000
+@@ -138 +138 @@
+-DEMO/AWD/0005/2026 · workmens compensation policy
++DEMO/AWD/0005/2026 · public liability policy
+@@ -162 +162 @@
+-DEMO/AWD/0005/2026 · public liability policy
++DEMO/AWD/0005/2026 · workmens compensation policy
+@@ -212,0 +213,11 @@
++Award
++DEMO/AWD/0005/2026 · Contoh Supplies Enterprise
++21 Sep 2026
++Status
++:
++Issued
++→
++Accepted
++Reason:
++The acceptance page is complete.
++Changed
+@@ -276,11 +286,0 @@
+-Changed
+-Award
+-DEMO/AWD/0005/2026 · Contoh Supplies Enterprise
+-21 Sep 2026
+-Status
+-:
+-Issued
+-→
+-Accepted
+-Reason:
+-The acceptance page is complete.
+@@ -370,0 +371,74 @@
++Changed
++Copy
++DEMO/AWD/0005/2026 · copy to Contoh Supplies Enterprise
++16 Sep 2026
++Method
++:
++—
++→
++Collected
++Despatched on
++:
++—
++→
++16 Sep 2026
++Acknowledged on
++:
++—
++→
++16 Sep 2026
++Created
++Contract
++DEMO/AWD/0005/2026 · contract XI202600799
++16 Sep 2026
++Number
++:
++XI202600799
++Numbered from
++:
++The indent's own number
++Numbered on
++:
++16 Sep 2026
++Contract sum
++:
++RM36,000
++Year in the number
++:
++The year of issue — an assumed reading, to be confirmed
++Created
++Handover
++DEMO/AWD/0005/2026 · case handed over
++16 Sep 2026
++From
++:
++Pre-contract Section
++To
++:
++Post-contract Section
++On
++:
++16 Sep 2026
++Created
++Copy
++DEMO/AWD/0005/2026 · copy to Contoh Supplies Enterprise
++16 Sep 2026
++Recipient
++:
++Contoh Supplies Enterprise
++Mandatory
++:
++Yes
++Awardee
++:
++Yes
++Created
++Copy
++DEMO/AWD/0005/2026 · copy to Implementing department
++16 Sep 2026
++Recipient
++:
++Implementing department
++Mandatory
++:
++Yes
+@@ -461,19 +534,0 @@
+-DEMO/AWD/0005/2026 · copy to Contoh Supplies Enterprise
+-16 Sep 2026
+-Method
+-:
+-—
+-→
+-Collected
+-Despatched on
+-:
+-—
+-→
+-16 Sep 2026
+-Acknowledged on
+-:
+-—
+-→
+-16 Sep 2026
+-Changed
+-Copy
+@@ -497,55 +551,0 @@
+-Created
+-Handover
+-DEMO/AWD/0005/2026 · case handed over
+-16 Sep 2026
+-From
+-:
+-Pre-contract Section
+-To
+-:
+-Post-contract Section
+-On
+-:
+-16 Sep 2026
+-Created
+-Contract
+-DEMO/AWD/0005/2026 · contract XI202600799
+-16 Sep 2026
+-Number
+-:
+-XI202600799
+-Numbered from
+-:
+-The indent's own number
+-Numbered on
+-:
+-16 Sep 2026
+-Contract sum
+-:
+-RM36,000
+-Year in the number
+-:
+-The year of issue — an assumed reading, to be confirmed
+-Created
+-Copy
+-DEMO/AWD/0005/2026 · copy to Implementing department
+-16 Sep 2026
+-Recipient
+-:
+-Implementing department
+-Mandatory
+-:
+-Yes
+-Created
+-Copy
+-DEMO/AWD/0005/2026 · copy to Contoh Supplies Enterprise
+-16 Sep 2026
+-Recipient
+-:
+-Contoh Supplies Enterprise
+-Mandatory
+-:
+-Yes
+-Awardee
+-:
+-Yes
+@@ -582,2 +582,2 @@
+-Approval route
+-DEMO/AWD/0005/2026 · appointment route
++Award
++DEMO/AWD/0005/2026 · Contoh Supplies Enterprise
+@@ -587 +587 @@
+-In progress
++Awaiting approval
+@@ -589 +589 @@
+-Approved
++Approved, not issued
+@@ -591,2 +591,2 @@
+-Award
+-DEMO/AWD/0005/2026 · Contoh Supplies Enterprise
++Approval route
++DEMO/AWD/0005/2026 · appointment route
+@@ -596 +596 @@
+-Awaiting approval
++In progress
+@@ -598 +598 @@
+-Approved, not issued
++Approved
+@@ -657,0 +658,22 @@
++Approval route
++DEMO/AWD/0005/2026 · appointment route
++09 Sep 2026
++Matrix
++:
++Demo limits, issue 1
++Rule
++:
++Quotation, RM15,000 to RM300,000
++Route
++:
++Quotation Committee (mandatory recommendation) → Chief Executive (approves)
++Changed
++Award
++DEMO/AWD/0005/2026 · Contoh Supplies Enterprise
++09 Sep 2026
++Status
++:
++Draft
++→
++Awaiting approval
++Created
+@@ -715,22 +736,0 @@
+-Changed
+-Award
+-DEMO/AWD/0005/2026 · Contoh Supplies Enterprise
+-09 Sep 2026
+-Status
+-:
+-Draft
+-→
+-Awaiting approval
+-Created
+-Approval route
+-DEMO/AWD/0005/2026 · appointment route
+-09 Sep 2026
+-Matrix
+-:
+-Demo limits, issue 1
+-Rule
+-:
+-Quotation, RM15,000 to RM300,000
+-Route
+-:
+-Quotation Committee (mandatory recommendation) → Chief Executive (approves)
+diff -rU0 before/awards__demo_aw5__tab__overview.txt after/awards__demo_aw5__tab__overview.txt
+--- before/awards__demo_aw5__tab__overview.txt	2026-10-02 21:39:29.096109824 +0000
++++ after/awards__demo_aw5__tab__overview.txt	2026-10-02 22:03:49.688076417 +0000
+@@ -66 +65,0 @@
+-The year in the number is the year it was issued — assumed to be the year the contract starts, to be confirmed.
+diff -rU0 before/dashboard.txt after/dashboard.txt
+--- before/dashboard.txt	2026-10-02 21:38:39.896110949 +0000
++++ after/dashboard.txt	2026-10-02 22:02:46.532077861 +0000
+@@ -35 +35 @@
+-Award of the head office cleaning contract
++Renewal of the security services contract
+@@ -42 +42 @@
+-RM412,000
++RM520,000
+@@ -47,2 +47,2 @@
+-2 of 3 voted
+-Renewal of the security services contract
++0 of 3 voted
++Award of the head office cleaning contract
+@@ -55 +55 @@
+-RM520,000
++RM412,000
+@@ -60 +60 @@
+-0 of 3 voted
++2 of 3 voted
+@@ -125 +125 @@
+-Award of the head office cleaning contract
++Renewal of the security services contract
+@@ -128 +128 @@
+-RM412,000
++RM520,000
+@@ -131,2 +131,2 @@
+-2 of 3 voted
+-Renewal of the security services contract
++0 of 3 voted
++Award of the head office cleaning contract
+@@ -135 +135 @@
+-RM520,000
++RM412,000
+@@ -138 +138 @@
+-0 of 3 voted
++2 of 3 voted
+@@ -294 +294 @@
+-@aria-label: Select Award of the head office cleaning contract DEMO/SIT/4/2026
++@aria-label: Select Renewal of the security services contract DEMO/SIT/4/2026
+@@ -299 +299 @@
+-@aria-label: Select Renewal of the security services contract DEMO/SIT/4/2026
++@aria-label: Select Award of the head office cleaning contract DEMO/SIT/4/2026
+@@ -330 +330 @@
+-@aria-label: Select Award of the head office cleaning contract DEMO/SIT/4/2026
++@aria-label: Select Renewal of the security services contract DEMO/SIT/4/2026
+@@ -334 +334 @@
+-@aria-label: Select Renewal of the security services contract DEMO/SIT/4/2026
++@aria-label: Select Award of the head office cleaning contract DEMO/SIT/4/2026
+diff -rU0 before/projects__demo_con1__tab__history.txt after/projects__demo_con1__tab__history.txt
+--- before/projects__demo_con1__tab__history.txt	2026-10-02 21:40:16.464108740 +0000
++++ after/projects__demo_con1__tab__history.txt	2026-10-02 22:04:47.520075094 +0000
+@@ -25,9 +24,0 @@
+-Contract
+-Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd
+-29 Sep 2026
+-Status
+-:
+-With the legal office
+-→
+-Returned for amendment
+-Changed
+@@ -81,11 +72,5 @@
+-Created
+-Legal review
+-Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · legal review 1
+-26 Sep 2026
+-Iteration
+-:
+-1
+-Office
+-:
+-Demo Legal Office
+-Sent by
++Changed
++Contract
++Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd
++29 Sep 2026
++Status
+@@ -93,2 +78,8 @@
+-Daniel Anak Jelani
+-Documents
++With the legal office
++→
++Returned for amendment
++Changed
++Contract
++Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd
++26 Sep 2026
++Status
+@@ -96 +87,3 @@
+-Contract Document for legal review, iteration 1, DEMO/KP/T/004/2026 v1
++In preparation
++→
++With the legal office
+@@ -116,3 +109,3 @@
+-Changed
+-Contract
+-Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd
++Created
++Legal review
++Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · legal review 1
+@@ -120 +113 @@
+-Status
++Iteration
+@@ -122,3 +115,10 @@
+-In preparation
+-→
+-With the legal office
++1
++Office
++:
++Demo Legal Office
++Sent by
++:
++Daniel Anak Jelani
++Documents
++:
++Contract Document for legal review, iteration 1, DEMO/KP/T/004/2026 v1
+@@ -140 +140 @@
+-Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · check arithmetic
++Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · check front loading
+@@ -159 +159 @@
+-Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · check front loading
++Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · check rate uniformity
+@@ -178 +178 @@
+-Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · check rate uniformity
++Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · check arithmetic
+@@ -287 +287 @@
+-Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · reconciliation drawings
++Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · reconciliation tender document
+@@ -306 +306 @@
+-Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · reconciliation tender document
++Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · reconciliation tender table document
+@@ -310 +310 @@
+-Identical
++Amended, every amendment signed by both sides
+@@ -325 +325 @@
+-Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · reconciliation tender table document
++Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · reconciliation drawings
+@@ -329 +329 @@
+-Amended, every amendment signed by both sides
++Identical
+diff -rU0 before/projects__demo_con2__tab__history.txt after/projects__demo_con2__tab__history.txt
+--- before/projects__demo_con2__tab__history.txt	2026-10-02 21:40:25.332108538 +0000
++++ after/projects__demo_con2__tab__history.txt	2026-10-02 22:04:58.128074851 +0000
+@@ -81,9 +80,0 @@
+-Changed
+-Contract
+-Contract XI202600812 · Demo Meter Services Sdn Bhd
+-25 Sep 2026
+-Status
+-:
+-In preparation
+-→
+-With the legal office
+@@ -124,0 +116,9 @@
++Changed
++Contract
++Contract XI202600812 · Demo Meter Services Sdn Bhd
++25 Sep 2026
++Status
++:
++In preparation
++→
++With the legal office
+@@ -216 +216 @@
+-Contract XI202600812 · Demo Meter Services Sdn Bhd · reconciliation tender document
++Contract XI202600812 · Demo Meter Services Sdn Bhd · reconciliation drawings
+@@ -235 +235 @@
+-Contract XI202600812 · Demo Meter Services Sdn Bhd · reconciliation drawings
++Contract XI202600812 · Demo Meter Services Sdn Bhd · reconciliation tender table document
+@@ -254 +254 @@
+-Contract XI202600812 · Demo Meter Services Sdn Bhd · reconciliation tender table document
++Contract XI202600812 · Demo Meter Services Sdn Bhd · reconciliation tender document
+diff -rU0 before/projects__demo_con3.txt after/projects__demo_con3.txt
+--- before/projects__demo_con3.txt	2026-10-02 21:40:26.556108510 +0000
++++ after/projects__demo_con3.txt	2026-10-02 22:04:59.560074819 +0000
+@@ -32 +32,3 @@
+-−RM45 against the tendered figures, shown, not applied
++−RM45
++SULIT · not restricted until sign-in
++Against the tendered figures: shown, not applied.
+diff -rU0 before/projects__demo_con3__tab__baseline.txt after/projects__demo_con3__tab__baseline.txt
+--- before/projects__demo_con3__tab__baseline.txt	2026-10-02 21:40:34.536108327 +0000
++++ after/projects__demo_con3__tab__baseline.txt	2026-10-02 22:05:08.384074617 +0000
+@@ -44 +44 @@
+-Defects liability period is stated by the Letter of Acceptance, so it is not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order, and what a recorded rule derives from them. A change to the contract's terms is recorded as a change to the contract (variations and adjustments, post-award), never keyed over the record.
++Defects liability period is stated by the Letter of Acceptance, so it is not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order. If it was recorded wrongly from the signed document, the product cannot yet correct it: correcting the award's recorded terms after issue is not built. A change to the terms themselves is a variation, not a correction.
+@@ -50 +50 @@
+-Liquidated damages are stated by the Letter of Acceptance, so they are not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order, and what a recorded rule derives from them. A change to the contract's terms is recorded as a change to the contract (variations and adjustments, post-award), never keyed over the record.
++Liquidated damages are stated by the Letter of Acceptance, so they are not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order. If it was recorded wrongly from the signed document, the product cannot yet correct it: correcting the award's recorded terms after issue is not built. A change to the terms themselves is a variation, not a correction.
+@@ -56 +56 @@
+-Retention and its cap is derived under a recorded rule, so it is not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order, and what a recorded rule derives from them. A change to the contract's terms is recorded as a change to the contract (variations and adjustments, post-award), never keyed over the record.
++Retention and its cap is derived under a recorded rule from values the award, the Appendix or the bill state, so it changes only when they do.
+@@ -71 +71 @@
+-First interim certificate minimum is derived under a recorded rule, so it is not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order, and what a recorded rule derives from them. A change to the contract's terms is recorded as a change to the contract (variations and adjustments, post-award), never keyed over the record.
++First interim certificate minimum is derived under a recorded rule from values the award, the Appendix or the bill state, so it changes only when they do.
+@@ -110 +110 @@
+-@title: Defects liability period is stated by the Letter of Acceptance, so it is not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order, and what a recorded rule derives from them. A change to the contract's terms is recorded as a change to the contract (variations and adjustments, post-award), never keyed over the record.
++@title: Defects liability period is stated by the Letter of Acceptance, so it is not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order. If it was recorded wrongly from the signed document, the product cannot yet correct it: correcting the award's recorded terms after issue is not built. A change to the terms themselves is a variation, not a correction.
+@@ -112 +112 @@
+-@title: Liquidated damages are stated by the Letter of Acceptance, so they are not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order, and what a recorded rule derives from them. A change to the contract's terms is recorded as a change to the contract (variations and adjustments, post-award), never keyed over the record.
++@title: Liquidated damages are stated by the Letter of Acceptance, so they are not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order. If it was recorded wrongly from the signed document, the product cannot yet correct it: correcting the award's recorded terms after issue is not built. A change to the terms themselves is a variation, not a correction.
+@@ -114 +114 @@
+-@title: Retention and its cap is derived under a recorded rule, so it is not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order, and what a recorded rule derives from them. A change to the contract's terms is recorded as a change to the contract (variations and adjustments, post-award), never keyed over the record.
++@title: Retention and its cap is derived under a recorded rule from values the award, the Appendix or the bill state, so it changes only when they do.
+@@ -118 +118 @@
+-@title: First interim certificate minimum is derived under a recorded rule, so it is not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order, and what a recorded rule derives from them. A change to the contract's terms is recorded as a change to the contract (variations and adjustments, post-award), never keyed over the record.
++@title: First interim certificate minimum is derived under a recorded rule from values the award, the Appendix or the bill state, so it changes only when they do.
+diff -rU0 before/projects__demo_con3__tab__formation&section__checks.txt after/projects__demo_con3__tab__formation&section__checks.txt
+--- before/projects__demo_con3__tab__formation&section__checks.txt	2026-10-02 21:40:29.028108453 +0000
++++ after/projects__demo_con3__tab__formation&section__checks.txt	2026-10-02 22:05:02.436074753 +0000
+@@ -54 +54,2 @@
+-. The accepted contract sum stands (an assumed reading, to be confirmed).
++SULIT · not restricted until sign-in
++The accepted contract sum stands (an assumed reading, to be confirmed).
+diff -rU0 before/projects__demo_con3__tab__history.txt after/projects__demo_con3__tab__history.txt
+--- before/projects__demo_con3__tab__history.txt	2026-10-02 21:40:37.204108266 +0000
++++ after/projects__demo_con3__tab__history.txt	2026-10-02 22:05:10.792074562 +0000
+@@ -54 +54 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · controlled copy 2
++Contract XI202600799 · Contoh Supplies Enterprise · controlled copy 3
+@@ -58 +58 @@
+-2
++3
+@@ -61 +61 @@
+-The contractor
++Site representative (demo)
+@@ -64 +64 @@
+-Contoh Supplies Enterprise, 5 Contoh Road, Demo North
++Site representative (demo)
+@@ -98 +98 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · controlled copy 3
++Contract XI202600799 · Contoh Supplies Enterprise · controlled copy 2
+@@ -102 +102 @@
+-3
++2
+@@ -105 +105 @@
+-Site representative (demo)
++The contractor
+@@ -108 +108 @@
+-Site representative (demo)
++Contoh Supplies Enterprise, 5 Contoh Road, Demo North
+@@ -139 +139 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · original: contract
++Contract XI202600799 · Contoh Supplies Enterprise · original: policy
+@@ -143 +143 @@
+-The signed Contract Document
++Insurance policy
+@@ -152 +152 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · original: policy
++Contract XI202600799 · Contoh Supplies Enterprise · original: contract
+@@ -156 +156 @@
+-Insurance policy
++The signed Contract Document
+@@ -172,19 +171,0 @@
+-Changed
+-Contract
+-Contract XI202600799 · Contoh Supplies Enterprise
+-01 Oct 2026
+-Status
+-:
+-Executed
+-→
+-Stamped, fully executed
+-Stamped on
+-:
+-—
+-→
+-01 Oct 2026
+-Stamping ref
+-:
+-—
+-→
+-DEMO-STAMP-2026-0001
+@@ -209,0 +191,19 @@
++Changed
++Contract
++Contract XI202600799 · Contoh Supplies Enterprise
++01 Oct 2026
++Status
++:
++Executed
++→
++Stamped, fully executed
++Stamped on
++:
++—
++→
++01 Oct 2026
++Stamping ref
++:
++—
++→
++DEMO-STAMP-2026-0001
+@@ -244,0 +245,13 @@
++Created
++Baseline
++Contract XI202600799 · Contoh Supplies Enterprise · baseline version 2
++30 Sep 2026
++Version
++:
++2
++Reason
++:
++At execution: the Contract Date added
++Changed
++:
++contractDate
+@@ -265,13 +277,0 @@
+-Baseline
+-Contract XI202600799 · Contoh Supplies Enterprise · baseline version 2
+-30 Sep 2026
+-Version
+-:
+-2
+-Reason
+-:
+-At execution: the Contract Date added
+-Changed
+-:
+-contractDate
+-Created
+@@ -301 +301 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · contractor's signature
++Contract XI202600799 · Contoh Supplies Enterprise · witness
+@@ -305 +305 @@
+-For the contractor
++Witness to the contractor's signature
+@@ -308 +308 @@
+-Lim Ah Seng
++Nur Aina binti Hassan
+@@ -311,4 +311 @@
+-••••••••1234
+-Capacity
+-:
+-Proprietor
++••••••••2345
+@@ -323 +320 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · witness
++Contract XI202600799 · Contoh Supplies Enterprise · contractor's signature
+@@ -327 +324 @@
+-Witness to the contractor's signature
++For the contractor
+@@ -330 +327 @@
+-Nur Aina binti Hassan
++Lim Ah Seng
+@@ -333 +330,4 @@
+-••••••••2345
++••••••••1234
++Capacity
++:
++Proprietor
+@@ -454,0 +455,32 @@
++Baseline
++Contract XI202600799 · Contoh Supplies Enterprise · baseline draft
++25 Sep 2026
++Entered
++:
++—
++→
++sums, subsequentInterim, sectional
++Source
++:
++—
++→
++entered at baseline, not from a tender Appendix
++Changed
++:
++—
++→
++sums, buildersWorksValue, firstInterim, subsequentInterim, sectional
++Created
++Rate compared
++Contract XI202600799 · Contoh Supplies Enterprise · rate 3.2
++25 Sep 2026
++Item ref
++:
++3.2
++Provisional
++:
++Yes
++Tendered rate
++:
++150.00
++Changed
+@@ -456 +488 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · check arithmetic
++Contract XI202600799 · Contoh Supplies Enterprise · check rate uniformity
+@@ -494 +526 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · check rate uniformity
++Contract XI202600799 · Contoh Supplies Enterprise · check arithmetic
+@@ -512,18 +543,0 @@
+-Arithmetic correction
+-Contract XI202600799 · Contoh Supplies Enterprise · correction 2.1
+-25 Sep 2026
+-Item ref
+-:
+-2.1
+-Tendered line amount
+-:
+-1250.00
+-SULIT · not restricted until sign-in
+-Corrected line amount
+-:
+-1205.00
+-SULIT · not restricted until sign-in
+-Reason
+-:
+-Quantity times rate extended wrongly on the priced schedule.
+-Created
+@@ -543,2 +557,2 @@
+-Rate compared
+-Contract XI202600799 · Contoh Supplies Enterprise · rate 3.2
++Arithmetic correction
++Contract XI202600799 · Contoh Supplies Enterprise · correction 2.1
+@@ -548,12 +562,2 @@
+-3.2
+-Provisional
+-:
+-Yes
+-Tendered rate
+-:
+-150.00
+-Changed
+-Baseline
+-Contract XI202600799 · Contoh Supplies Enterprise · baseline draft
+-25 Sep 2026
+-Entered
++2.1
++Tendered line amount
+@@ -561,4 +565,3 @@
+-—
+-→
+-sums, subsequentInterim, sectional
+-Source
++1250.00
++SULIT · not restricted until sign-in
++Corrected line amount
+@@ -566,4 +569,3 @@
+-—
+-→
+-entered at baseline, not from a tender Appendix
+-Changed
++1205.00
++SULIT · not restricted until sign-in
++Reason
+@@ -571,3 +573 @@
+-—
+-→
+-sums, buildersWorksValue, firstInterim, subsequentInterim, sectional
++Quantity times rate extended wrongly on the priced schedule.
+@@ -576 +576 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · reconciliation tender document
++Contract XI202600799 · Contoh Supplies Enterprise · reconciliation drawings
+@@ -595 +595 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · reconciliation drawings
++Contract XI202600799 · Contoh Supplies Enterprise · reconciliation tender table document
+@@ -614 +614 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · reconciliation tender table document
++Contract XI202600799 · Contoh Supplies Enterprise · reconciliation tender document
+@@ -733 +733 @@
+-DEMO/AWD/0005/2026 · workmens compensation policy
++DEMO/AWD/0005/2026 · public liability policy
+@@ -737 +737 @@
+-Workmen's compensation insurance
++Public liability insurance
+@@ -743 +743 @@
+-SIB/WC/2026/302
++SIB/PL/2026/301
+@@ -746 +746 @@
+-3600.00
++20000.00
+@@ -761 +761 @@
+-DEMO-SOCSO-0005
++—
+@@ -779 +779 @@
+-DEMO/AWD/0005/2026 · public liability policy
++DEMO/AWD/0005/2026 · workmens compensation policy
+@@ -783 +783 @@
+-Public liability insurance
++Workmen's compensation insurance
+@@ -789 +789 @@
+-SIB/PL/2026/301
++SIB/WC/2026/302
+@@ -792 +792 @@
+-20000.00
++3600.00
+@@ -807 +807 @@
+-—
++DEMO-SOCSO-0005
