@@ -13,7 +13,7 @@ import type { OpeningChecklist } from "./checklist";
  * finalising is refused, naming the offer and the change, until the panel records the verdict again.
  */
 
-const checklist: OpeningChecklist = { items: [], notJudged: [] };
+const checklist: OpeningChecklist = { items: [], notJudged: [], notReturned: [] };
 const bid: BidForVerdict = { saleFinding: "LIVE_SALE", restrictionFinding: "NOT_RESTRICTED", isAlternative: false, alternativeStatus: null, ineligible: true } as BidForVerdict;
 const judged = (c: "ELIMINATE" | "REPORT" | null) => judgeBid(bid, checklist, new Map(), { completenessEliminates: true, unpurchased: "ELIMINATE", ineligible: c });
 const recorded = (c: "ELIMINATE" | "REPORT") => verdictRecord(judged(c));
