@@ -68,7 +68,7 @@ export default async function EvaluationConfigurationPage() {
       <PageHeader
         title="Evaluation models"
         badge={holding > 0 ? <Badge tone="warn" dot>{`${holding} holding work back`}</Badge> : <Badge tone="ok" dot>Nothing holding work back</Badge>}
-        subtitle="How bids are evaluated: each model's stages, criteria, weights, pass marks and bands, the aspects assessed, and the policy the report is issued under. Every figure is your organisation's own, with where it came from."
+        subtitle="Each model's stages, criteria, weights, pass marks and bands; aspects; the policy."
         actions={<ModelDrawer />}
       />
 

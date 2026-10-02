@@ -52,7 +52,7 @@ export function recommendationFaults(f: EvaluationFacts, i: { bidderId: string; 
   if (i.alreadyFormed) out.push({ code: "ALREADY_FORMED", level: "block" });
   for (const stage of incompleteStages(f)) out.push({ code: "STAGES_NOT_COMPLETE", level: "block", data: { stage } });
   if (i.meetingsOpen > 0) out.push({ code: "NEGOTIATION_OPEN", level: "block", data: { count: i.meetingsOpen } });
-  // Formed while a negotiation is with approval, the negotiation could never be held once approved (BD-68).
+  // Formed while a negotiation is with approval, the negotiation could never be held once approved (BD-68-12).
   if (i.negotiationsPending > 0) out.push({ code: "NEGOTIATION_PENDING", level: "block", data: { count: i.negotiationsPending } });
   const ranked = ranking(f);
   const r = ranked.find((x) => x.bidder.id === i.bidderId) ?? null;

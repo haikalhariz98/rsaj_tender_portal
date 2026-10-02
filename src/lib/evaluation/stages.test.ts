@@ -74,7 +74,7 @@ describe("access to a stage (FR-EVL-002, 005)", () => {
     expect(codes(stageAccess(g, t, g.bidders[2]))).toEqual(["NOT_IN_RUNNING"]);
     expect(runningAt(g, t, g.bidders[2]).state).toBe("OUT");
   });
-  it("runningFaults judges the bidder alone, whatever the stage's own state (inputs and aspects, BD-68)", () => {
+  it("runningFaults judges the bidder alone, whatever the stage's own state (inputs and aspects, BD-68-11)", () => {
     const g = facts({ submissions: [submission("COMPLIANCE", "CONTRACT_PROCUREMENT"), submission("ASPECTS"), submission("TECHNICAL")], results: [result("b1", "TECHNICAL", { outOfRunning: true, passed: false })] });
     expect(codes(runningFaults(g, fin, g.bidders[0]))).toEqual(["NOT_IN_RUNNING"]);
     expect(runningFaults(g, fin, g.bidders[1])).toEqual([]);

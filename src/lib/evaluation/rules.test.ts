@@ -132,7 +132,7 @@ describe("recommend.ts (FR-EVL-004, OD-6 A)", () => {
   it("aspect (b) NOT_SATISFACTORY refuses; unassessed refuses", () => {
     expect(codes(rec(done({ verdict: "NOT_SATISFACTORY", narrative: "x" }), "b2", "j").faults)).toEqual(["PRICE_NOT_REASONABLE"]);
   });
-  it("a meeting open, or a negotiation still with approval, refused (BD-68)", () => {
+  it("a meeting open, or a negotiation still with approval, refused (BD-68-12)", () => {
     const f = done();
     const at = (meetingsOpen: number, negotiationsPending: number) => codes(recommendationFaults(f, { bidderId: "b1", justification: "", personActive: true, alreadyFormed: false, meetingsOpen, negotiationsPending }).faults);
     expect(at(1, 0)).toEqual(["NEGOTIATION_OPEN"]);

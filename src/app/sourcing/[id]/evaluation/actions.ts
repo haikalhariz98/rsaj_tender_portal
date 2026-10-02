@@ -175,7 +175,7 @@ const inputStages = (f: EvaluationFacts, kind: "capital" | "cpr") =>
 /**
  * The inputs the computations read for one bidder (FR-EVL-010, 012; E-6; OD-4): the factor option, the
  * three monthly balances in sen, the CPR from its attached report. Refused once the stage reading them
- * is submitted, and for a bid excluded or out of the running at that stage (BD-68).
+ * is submitted, and for a bid excluded or out of the running at that stage (BD-68-11).
  */
 export async function recordInputs(_prev: FormState, data: FormData): Promise<FormState> {
   const now = stampNow();
