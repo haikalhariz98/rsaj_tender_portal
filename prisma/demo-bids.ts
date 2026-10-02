@@ -519,8 +519,8 @@ export async function checkBidsDemo(db: Db) {
   if (g20.lateFault?.code !== "LATE_UNDECIDED") fail("sx20's late envelope does not hold its appointment back.");
   const e20 = await loadEnvelopes(NEW_EXERCISE);
   if (!e20.some((e) => e.kind === "COMPANY_ESTIMATE")) fail("sx20's estimate lodgement is not on its register.");
-  // OD-2: no envelope names a bidder before opening.
-  if (await db.bidEnvelope.count({ where: { id: demoRef, NOT: { partyId: null } } })) fail("a demo envelope names a party before opening.");
+  // OD-2: no envelope names a bidder before opening (6.7 names each as it is opened).
+  if (await db.bidEnvelope.count({ where: { id: demoRef, status: { not: "OPENED" }, NOT: { partyId: null } } })) fail("a demo envelope names a party before opening.");
   // 64-C4-d: demo_aw7 on sx16 still reads as it did, with nothing new held against it.
   const { evaluateAward } = await import("../src/lib/award/evaluate");
   const { awardFacts, loadAward } = await import("../src/lib/award/repo");

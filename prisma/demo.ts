@@ -11,6 +11,7 @@ import { checkTenderDocs, loadTenderDocs, tenderDocsDependents, wipeTenderDocs }
 import { checkWindowDemo, loadWindowDemo, windowDemoDependents, WINDOW_ENTITIES, wipeWindowDemo } from "./demo-window";
 import { checkAppendixAward, loadAppendixAward } from "./demo-award-appendix";
 import { checkBidsDemo, configureBidsDemo, loadBidsDemo, wipeBidsDemo } from "./demo-bids";
+import { checkOpeningDemo, configureOpeningDemo, loadOpeningDemo, wipeOpeningDemo } from "./demo-opening";
 import { removedWithDemo } from "../src/lib/documents/demo-wipe-plan";
 import { inspectLogo } from "../src/lib/organisation/logo";
 import { initialsLogo } from "../src/lib/organisation/png";
@@ -338,6 +339,8 @@ async function wipe() {
   // Nothing refused: removal starts here. Attachments pin meetings, exercises, awards and
   // delegations: the documents go before any of them (their keys refuse a delete).
   await wipeDocuments(db, org.id, documentPlan);
+  // 6.7: the openings, before the register (an offer names its envelope), the windows (and its party), the committees and the people.
+  await wipeOpeningDemo(db, org.id, hangingExerciseIds);
   // 6.6: the envelope register, before the windows (an envelope may name a party), the people and the exercises (a letter or a consent went with the documents).
   await wipeBidsDemo(db, org.id, hangingExerciseIds);
   // 6.5: the windows and their registers, before the routes, sittings, people and exercises they point at (an addendum's signed copy went with the documents).
@@ -1183,12 +1186,18 @@ async function load() {
   const bidSittings = (await loadBidsDemo(db, organisationId, { determine: determineExercises })).sittings;
   await loadSittingTrail(db, organisationId, bidSittings);
   await snapshotMinuted(bidSittings);
+  // 6.7: the opening's configuration, then sx16's openings (the late envelope admitted above opened at
+  // its supplementary opening) and sx20's adjourned one, every act judged as it is written (X-10).
+  await configureOpeningDemo(db, organisationId);
+  await loadOpeningDemo(db, organisationId);
   // 64-C4 (6.4 Q-1 B): an award on sx16, closed above, opened from its frozen Appendix with one
   // justified difference; its acts judged by the product's own rules, then read back.
   await loadAppendixAward(db);
   await checkAppendixAward();
   // 6.6 read back after the award (64-C4-d: demo_aw7 is not held back by the register).
   await checkBidsDemo(db);
+  // 6.7 read back after the award (C-8: demo_aw7 names a bidder carried at sx16's opening).
+  await checkOpeningDemo(db);
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
   console.log("Remove it with: npm run demo:wipe");

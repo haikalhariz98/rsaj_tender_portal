@@ -12,6 +12,10 @@
  *   Then the terms are saved with the defects liability period at 18 months and its reason, judged
  *   by `reasonsOnSave` as the terms act judges it. A draft: nothing is sent for approval.
  *
+ * 6.7 (C-7, C-8): sx16's bids are opened and its schedules finalised first (demo-opening.ts), and
+ * the award names the bidder carried to evaluation whose offer it takes, Contoh Bina (demo_pty2), at
+ * its price as read; the opening gate is judged as createAward judges it.
+ *
  * Every act is dated on the load day, before now and after sx16's closing (X-10 a). The wipe needs
  * nothing new: `wipeAwards` removes every award on a demo exercise with its trail.
  */
@@ -23,6 +27,7 @@ export const APPENDIX_AWARD = `${P}aw7`;
 const EXERCISE = `${P}sx16`;
 const VALUE = "612450.30";
 const DLP_STATED = 18;
+const AWARDEE = { partyId: `${P}pty2`, name: "Contoh Bina Sdn Bhd", registrationNo: "201001000101 (000101-A)", address: "8 Jalan Contoh, 00000 Demo City" };
 const REASON = "Invented for the demo: the tenderer offered an 18-month defects liability period at tender clarification, and the evaluation accepted it.";
 
 type Db = PrismaClient;
@@ -41,6 +46,8 @@ export async function loadAppendixAward(db: Db) {
   const { parseSen, senFromDecimal, senToDecimalString } = await import("../src/lib/money");
   const { issueReference } = await import("../src/lib/numbering/issue");
   const { readWindowGate } = await import("../src/lib/window/repo");
+  const { loadOpeningGate } = await import("../src/lib/opening/gate-read");
+  const { openingGateFaults } = await import("../src/lib/opening/award-gate");
   const fail = (what: string): never => {
     throw new Error(`Demo 64-C4: ${what}`);
   };
@@ -57,6 +64,9 @@ export async function loadAppendixAward(db: Db) {
   const gate = await readWindowGate(ex, org.timeZone);
   if (!exerciseOpenForAward(ex.status, ex.packKindSnapshot, gate)) fail("sx16 is not open for an award.");
   if (await db.award.findFirst({ where: { exerciseId: ex.id, status: { in: [...LIVE_STATUSES] } } })) fail("sx16 already has a live award.");
+  // C-7, C-8: the openings finalised, their scans attached, and the awardee a bidder carried to evaluation.
+  const og = openingGateFaults(await loadOpeningGate(ex.id), AWARDEE.partyId).filter((f) => f.level === "block");
+  if (og.length) fail(`the opening holds the award back (${og.map((f) => f.code).join(", ")}).`);
   const chosen = instrumentFor(ex.regime, await loadAwardPolicy(org.id));
   const instrument = "kind" in chosen ? chosen : fail(`no instrument for the exercise's band (${chosen.fault}).`);
   const { cfg, ctx } = await evaluationContext(org, req, ex);
@@ -86,11 +96,11 @@ export async function loadAppendixAward(db: Db) {
   if (filled.ladAmount == null || filled.dlpMonths == null || filled.regulatedActivity == null) fail("the Appendix does not state damages, defects liability and the regulated answer.");
 
   const reference = await db.$transaction((tx) => issueReference(tx, org.id, "award", dayToDate(org.today!)));
-  const label = `${reference} · Demo Network Builders Sdn Bhd`;
+  const label = `${reference} · ${AWARDEE.name}`;
   const row = await db.award.create({
     data: {
       id: APPENDIX_AWARD, organisationId: org.id, reference, exerciseId: ex.id, instrumentKind: instrument.kind,
-      awardeeName: "Demo Network Builders Sdn Bhd", awardeeRegistrationNo: "DEMO-0007-X", awardeeAddress: "7 Demo Road, Demo North",
+      awardeePartyId: AWARDEE.partyId, awardeeName: AWARDEE.name, awardeeRegistrationNo: AWARDEE.registrationNo, awardeeAddress: AWARDEE.address,
       awardedValue: senToDecimalString(value), completionPeriod: 12, completionUnit: "MONTHS",
       ladAmount: senToDecimalString(filled.ladAmount!), ladUnit: filled.ladUnit!, dlpMonths: filled.dlpMonths, regulatedActivity: filled.regulatedActivity,
       createdAt: openedAt,
