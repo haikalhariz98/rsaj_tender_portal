@@ -381,5 +381,11 @@ export function tenderTermText(field: BaselineField, b: Baseline): string | null
   return b.regulated == null ? null : b.regulated ? "Yes" : "No";
 }
 
+/// The refusal of a terms save that states a term otherwise with no reason, with what the tender states.
+export function differsRefusal(field: BaselineField, said: string): string {
+  const lead = field === "lad" ? "The liquidated damages differ from the tender Appendix" : field === "dlp" ? "The defects liability period differs from the tender Appendix" : "The regulated-activity answer differs from the tender's";
+  return `${lead} (${said}): say why, or state it as the tender did.`;
+}
+
 /// The words beside a term the award states otherwise.
 export const DIFFERS_TEXT: Record<BaselineField, string> = { lad: "Differs from the tender Appendix", dlp: "Differs from the tender Appendix", regulated: "Differs from the tender" };

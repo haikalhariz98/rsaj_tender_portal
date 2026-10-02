@@ -111,7 +111,11 @@ export function EditTermsDrawer({
   return (
     <RecordEditor
       title="The terms, the bond and the start"
-      description="Each is decided for this award, with where it came from. Nothing is filled in for you: an empty field is not set, and the instrument cannot be issued on what it needs until it is."
+      description={
+        tender
+          ? "The terms the tender Appendix states were filled in from it when the award was opened; stating one otherwise needs a reason. Everything else is decided for this award: an empty field is not set, and the instrument cannot be issued on what it needs until it is."
+          : "Each is decided for this award, with where it came from. Nothing is filled in for you: an empty field is not set, and the instrument cannot be issued on what it needs until it is."
+      }
       fields={[
         hidden("id"),
         { kind: "date", name: "startDate", label: "Stated start date", hint: "The commencement clock and the insurance period run from it." },

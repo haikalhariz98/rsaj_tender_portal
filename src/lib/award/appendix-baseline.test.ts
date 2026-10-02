@@ -7,7 +7,7 @@ import { baselineOf, baselineSnapshot, differenceFindings, differences, LAD_PER_
 import { evaluateAward, type AwardFacts } from "./evaluate";
 import { AWARD_MATRIX } from "./fixture";
 import { issueFaults } from "./gate";
-import { awardFindingText, DIFFERS_TEXT, tenderTermText } from "./labels";
+import { awardFindingText, DIFFERS_TEXT, differsRefusal, tenderTermText } from "./labels";
 
 /**
  * 64-C4 (6.4 Q-1 B): the award pre-fills from the frozen tender Appendix, and a term it
@@ -307,6 +307,10 @@ describe("the words beside each term", () => {
     expect(tenderTermText("lad", none)).toBe("RM500 per day");
     expect(tenderTermText("dlp", none)).toBe("None");
     expect(tenderTermText("regulated", none)).toBeNull();
+  });
+  it("a refused save names the term, what the tender states, and the two ways out", () => {
+    expect(differsRefusal("lad", "RM306.23 per day")).toBe("The liquidated damages differ from the tender Appendix (RM306.23 per day): say why, or state it as the tender did.");
+    expect(differsRefusal("regulated", "Yes")).toMatch(/^The regulated-activity answer differs from the tender's \(Yes\)/);
   });
   it("a difference reads as differing from the tender Appendix (the regulated answer: from the tender)", () => {
     expect(DIFFERS_TEXT).toEqual({ lad: "Differs from the tender Appendix", dlp: "Differs from the tender Appendix", regulated: "Differs from the tender" });

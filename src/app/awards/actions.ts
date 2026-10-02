@@ -16,7 +16,7 @@ import { CHOICE_FAULT_TEXT } from "@/lib/authority/rejection-labels";
 import { APPOINTMENT_DOMAIN } from "@/lib/method/types";
 import { awardAuditCreate, awardAuditPair } from "@/lib/award/audit-view";
 import { termsUpdate } from "@/lib/award/terms";
-import { BASELINE_FIELD_LABEL, BASELINE_FIELDS, baselineOf, baselineSnapshot, ladOnValueChange, prefill, REASON_COLUMN, reasonsOnSave, worksAppendixAmount, type AwardTerms, type BaselineField, type FrozenTender } from "@/lib/award/appendix-baseline";
+import { BASELINE_FIELDS, baselineOf, baselineSnapshot, ladOnValueChange, prefill, REASON_COLUMN, reasonsOnSave, worksAppendixAmount, type AwardTerms, type BaselineField, type FrozenTender } from "@/lib/award/appendix-baseline";
 import { percentAboveZero } from "@/lib/securities/money";
 import { icNumberFault } from "@/lib/award/mask";
 import { exerciseCitationFault } from "@/lib/award/citation";
@@ -25,7 +25,7 @@ import { evaluateAward } from "@/lib/award/evaluate";
 import { awardOpenRefusal, exerciseOpenForAward } from "@/lib/award/gate";
 import { readWindowGate } from "@/lib/window/repo";
 import { awardValueFaults, instrumentFor } from "@/lib/award/instrument";
-import { AWARD_STATUS_LABEL, awardFindingText, BOND_FAULT_TEXT, DESPATCH_FAULT_TEXT, INSURANCE_FAULT_TEXT, SIGNER_FAULT_TEXT, tenderTermText } from "@/lib/award/labels";
+import { AWARD_STATUS_LABEL, awardFindingText, BOND_FAULT_TEXT, DESPATCH_FAULT_TEXT, INSURANCE_FAULT_TEXT, SIGNER_FAULT_TEXT, differsRefusal, tenderTermText } from "@/lib/award/labels";
 import { renderedText } from "@/lib/award/merge";
 import { awardFacts, dossierEvidenceOf, exerciseMatters, frozenTenderOf, loadAwardConfig, matterRecord, withLockedAward, withLockedExerciseForAward, latestRoute, type LoadedAward } from "@/lib/award/repo";
 import { receivedOnFault } from "@/lib/award/routing";
@@ -309,7 +309,7 @@ export async function updateAwardTerms(_prev: FormState, data: FormData): Promis
       const given = Object.fromEntries(BASELINE_FIELDS.map((f) => [f, String(data.get(REASON_COLUMN[f]) ?? "").slice(0, 2000)]));
       const stored = { lad: l.award.ladDiffersReason, dlp: l.award.dlpDiffersReason, regulated: l.award.regulatedDiffersReason };
       const { reasons, missing } = reasonsOnSave(baselineOf(tender, value), stated, carried, given, stored);
-      if (missing.length) return { ok: false, errors: Object.fromEntries(missing.map((f) => [REASON_COLUMN[f], `${BASELINE_FIELD_LABEL[f]} differs from the tender${f === "regulated" ? "'s answer" : " Appendix"} (${tenderStates(f, tender, value)}): say why, or state it as the tender did.`])) };
+      if (missing.length) return { ok: false, errors: Object.fromEntries(missing.map((f) => [REASON_COLUMN[f], differsRefusal(f, tenderStates(f, tender, value))])) };
       for (const f of BASELINE_FIELDS) after[REASON_COLUMN[f]] = reasons[f];
     }
     const moved = await tx.award.updateMany({ where: { id, status: l.award.status, updatedAt: l.award.updatedAt }, data: after });
