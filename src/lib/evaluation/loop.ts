@@ -53,3 +53,12 @@ export function carryPlan<P extends { id: string; openedBidId: string }>(previou
   }
   return { carried, fresh };
 }
+
+/**
+ * 6.8 fix R-7: superseding a version withdraws its negotiation routes still with approval, as the
+ * window's cancellation does: a negotiation asked for on a superseded version is never held on it, and
+ * one wanted on the next version is asked for there. These are the routes to withdraw, and the note
+ * each carries (the code the routes' status words read).
+ */
+export const pendingRoutes = <N extends { approvalInstance: { status: string } }>(negotiations: readonly N[]): N[] => negotiations.filter((n) => n.approvalInstance.status === "PENDING");
+export const supersededRouteNote = (code: string, from: number, to: number) => ({ code, level: "info" as const, messageEn: `Withdrawn: evaluation version ${from} was superseded by version ${to}, so the negotiation is not held on it. Ask for it again on version ${to} if it is still wanted.` });

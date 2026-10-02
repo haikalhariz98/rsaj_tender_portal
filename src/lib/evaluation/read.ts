@@ -163,7 +163,7 @@ export async function evaluationTabView(exerciseId: string) {
     requestedBy: n.requestedBy.name,
     requestedAt: formatOrgDateTime(n.requestedAt, tz),
     status: n.approvalInstance.status,
-    statusLabel: n.approvalInstance.status === "PENDING" ? "With approval" : n.approvalInstance.status === "APPROVED" ? "Approved: may be held" : "Refused: not held",
+    statusLabel: n.approvalInstance.status === "PENDING" ? "With approval" : n.approvalInstance.status === "APPROVED" ? "Approved: may be held" : n.approvalInstance.status === "RECALLED" ? "Withdrawn: not held" : "Refused: not held",
     steps: n.approvalInstance.steps.map((s) => ({ id: s.id, sequence: s.sequence, office: s.roleLabel, decision: s.decision, pending: s.decision === "PENDING", committee: s.committeeCode != null })),
   }));
   const communications = e.communications.map((m) => ({

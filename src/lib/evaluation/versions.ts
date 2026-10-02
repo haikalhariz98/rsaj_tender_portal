@@ -7,6 +7,7 @@
  * bids carried to evaluation now (`evaluationSet`). Unchanged bidders' records are carried, each score
  * labelled so; a loop back to clarification or negotiation also carries the stages' submissions and
  * results (re-entry at the meetings), a recall or a new bid does not (every stage is submitted again).
+ * The superseded version's negotiation routes still with approval are withdrawn, audited (fix R-7).
  * The exercise, if Evaluated, is Under evaluation again. Meetings, communications, the recommendation,
  * the report and the Kertas Cadangan stay with the version they belong to. Each write is audited.
  *
@@ -18,15 +19,17 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { diffFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
+import { exerciseRouteMatter, WITHDRAWN_ON_CHANGE } from "@/lib/method/approval";
 import { moveExercise } from "@/lib/method/move";
 import type { ExerciseStatus } from "@/lib/method/types";
 import { evaluationSet } from "@/lib/opening/carry";
 
 import { EVALUATION_ENTITY, startFields } from "./audit-view";
 import { ceilingExclusion, type CeilingSnapshot } from "./ceiling";
-import { carryPlan, loopTarget, type LoopStageKey } from "./loop";
+import { carryPlan, loopTarget, pendingRoutes, supersededRouteNote, type LoopStageKey } from "./loop";
 import { evaluationLabel } from "./lock";
 import { inForce, loadEvaluations } from "./repo";
+import { NEGOTIATION_DOMAIN } from "./types";
 import { senFromDecimal, formatMoney } from "@/lib/money";
 
 export type NewVersionCause = { trigger: "LOOP"; decisionId: string; key: LoopStageKey; personId: null } | { trigger: "SUPPLEMENTARY_OPENING"; openingId: string; personId: string };
@@ -59,6 +62,13 @@ export async function openNewVersion(
   await tx.evaluation.update({ where: { id: prev.id }, data: { state: "SUPERSEDED", supersededAt: x.now } });
   const prevLabel = evaluationLabel({ version: prev.version, exercise: { reference: x.exercise.reference } });
   await writeAudit(tx, { organisationId: x.organisationId, entity: EVALUATION_ENTITY.evaluation, entityId: prev.id, entityLabel: prevLabel, reason: "" }, "UPDATE", diffFields({ state: prev.state === "ISSUED" ? "Report issued" : "In progress" }, { state: "Superseded", supersededBy: `Version ${version}` }));
+  // R-7: the superseded version's negotiation routes still with approval are withdrawn, as cancellation withdraws an exercise's routes.
+  for (const n of pendingRoutes(prev.negotiations)) {
+    const inst = n.approvalInstance;
+    const note = supersededRouteNote(WITHDRAWN_ON_CHANGE, prev.version, version);
+    const moved = await tx.approvalInstance.updateMany({ where: { id: inst.id, status: "PENDING" }, data: { status: "RECALLED", closedAt: x.now, warnings: [...((inst.warnings as object[] | null) ?? []), note] as unknown as Prisma.InputJsonValue } });
+    if (moved.count === 1) await writeAudit(tx, { organisationId: x.organisationId, entity: "ApprovalInstance", entityId: inst.id, entityLabel: `${x.exercise.reference} · ${exerciseRouteMatter(NEGOTIATION_DOMAIN).auditNoun}`, reason: note.messageEn }, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }));
+  }
 
   const next = await tx.evaluation.create({
     data: {
