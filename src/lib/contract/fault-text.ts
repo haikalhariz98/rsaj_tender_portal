@@ -146,6 +146,8 @@ export function contractFaultWords(f: Finding): Words {
       const t = SIGNER_FAULT_TEXT[d.fault as keyof typeof SIGNER_FAULT_TEXT];
       return t ? w(/^[A-Z]/.test(t) ? t : `The officer named ${t}`, "Pegawai yang dinamakan tidak boleh menandatangan.") : w("The officer named may not sign.", "Pegawai yang dinamakan tidak boleh menandatangan.");
     }
+    case "NO_ISSUE_IN_FORCE":
+      return w("No approval matrix is issued and in force today, so the contract agreement's signatory cannot be resolved and nobody may sign for the employer. Issue one under Configuration › Approval matrix.", "Tiada matriks kelulusan yang dikeluarkan dan berkuat kuasa hari ini, jadi penandatangan perjanjian kontrak tidak dapat ditentukan. Keluarkan satu di Konfigurasi › Matriks kelulusan.");
     case "SIGNATORY_NOT_RESOLVED":
       return SIGNATORY_TEXT[String(d.fault)] ?? w("The contract agreement's signatory is not resolved on the approval matrix.", "Penandatangan perjanjian kontrak tidak diselesaikan.");
     case "BASELINE_INCOMPLETE":
@@ -156,6 +158,10 @@ export function contractFaultWords(f: Finding): Words {
       return w(`A correction moves the Contract Date to an earlier day than ${day(d.current)} only.`, `Pembetulan hanya ke tarikh lebih awal daripada ${day(d.current)}.`);
     case "BEFORE_READY":
       return w(`The contract was not ready to sign before ${day(d.readySince)}.`, `Kontrak belum sedia ditandatangani sebelum ${day(d.readySince)}.`);
+    case "BEFORE_CONTRACTOR_SIGNED":
+      return d.party === "WITNESS"
+        ? w(`The contractor's signature was witnessed on ${day(d.signedOn)}: the employer signs after it, so the Contract Date cannot be before that day.`, `Tandatangan kontraktor disaksikan pada ${day(d.signedOn)}: majikan menandatangan selepasnya, jadi Tarikh Kontrak tidak boleh sebelum tarikh itu.`)
+        : w(`The contractor signed on ${day(d.signedOn)}: the employer signs after the contractor, so the Contract Date cannot be before that day.`, `Kontraktor menandatangan pada ${day(d.signedOn)}: majikan menandatangan selepas kontraktor, jadi Tarikh Kontrak tidak boleh sebelum tarikh itu.`);
     case "READY_DAY_NOT_FROZEN":
       return w("The day the contract was first ready to sign was not frozen with the signature, so no earlier day can be judged: the Contract Date stands as recorded.", "Tarikh kontrak mula sedia tidak dibekukan; Tarikh Kontrak kekal seperti direkodkan.");
     case "REASON_REQUIRED":
@@ -259,6 +265,21 @@ export function contractFaultWords(f: Finding): Words {
       return w(`${field(d.group === "sums" ? "sums" : d.group).en}: choose where it came from (stated, observed or assumed). There is no default.`, `${field(d.group).ms}: pilih sumbernya. Tiada nilai lalai.`);
     case "STATED_ELSEWHERE":
       return w(`${field(d.group).en} is stated by the award, the Appendix or the bill, so it is not keyed here.`, `${field(d.group).ms} telah dinyatakan di tempat lain.`);
+    case "STATED_NOT_CORRECTED": {
+      const by: Record<string, Words> = {
+        AWARD: w("the Letter of Acceptance", "Surat Setuju Terima"),
+        APPENDIX: w("the frozen tender Appendix", "Lampiran tender yang dibekukan"),
+        BQ: w("the bill of quantities pinned to the approved documents", "senarai kuantiti yang disematkan"),
+        DERIVED: w("a recorded rule", "peraturan yang direkodkan"),
+      };
+      const src = by[String(d.source)] ?? w("the award, the Appendix or the bill", "award, Lampiran atau senarai kuantiti");
+      const f = field(d.group);
+      const verb = /s$/.test(f.en) ? "are" : "is";
+      return w(
+        `${f.en} ${verb} stated by ${src.en}, so ${verb === "are" ? "they are" : "it is"} not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order. A change to the contract's terms is recorded as a change to the contract (variations and adjustments, post-award), never keyed over the record.`,
+        `${f.ms} dinyatakan oleh ${src.ms}, jadi tidak diperbetulkan di sini: garis dasar mengekalkan apa yang dinyatakan oleh award, Lampiran dan senarai kuantiti, mengikut susunan itu. Perubahan terma kontrak direkodkan sebagai perubahan kepada kontrak, tidak dimasukkan di atas rekod.`,
+      );
+    }
     case "DERIVED_BY_POLICY":
       return w(`${field(d.group).en} is derived from the builder's works value under the recorded rule, so it is not keyed here.`, `${field(d.group).ms} diterbitkan di bawah peraturan yang direkodkan.`);
   }

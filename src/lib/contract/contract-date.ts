@@ -24,15 +24,22 @@ export function readySince(days: readonly (string | null)[]): string | null {
   return known.length ? known[known.length - 1] : null;
 }
 
-export type DateCorrectionFault = "NOT_EXECUTED" | "NOT_EARLIER" | "BEFORE_READY" | "READY_DAY_NOT_FROZEN" | "REASON_REQUIRED";
+export type DateCorrectionFault = "NOT_EXECUTED" | "NOT_EARLIER" | "BEFORE_READY" | "READY_DAY_NOT_FROZEN" | "REASON_REQUIRED" | "BEFORE_CONTRACTOR_SIGNED";
 
-/// A correction of the Contract Date: to an earlier day only, not before the day it was ready to sign, with a reason.
-export function dateCorrectionFaults(i: { executed: boolean; current: string | null; proposed: string; readySince: string | null; reason: string }): Finding<DateCorrectionFault>[] {
+/**
+ * A correction of the Contract Date: to an earlier day only, not before the day it was ready to sign, not
+ * before the contractor signed (nor the witness, where recorded: 6.12 review M-1, as frozen with the RSAJ
+ * signature), with a reason. `signed` is the days frozen with the signature; the act always gives them.
+ */
+export function dateCorrectionFaults(i: { executed: boolean; current: string | null; proposed: string; readySince: string | null; reason: string; signed?: { contractor: string | null; witness: string | null } }): Finding<DateCorrectionFault>[] {
   if (!i.executed || !i.current) return [{ code: "NOT_EXECUTED", level: "block" }];
   const out: Finding<DateCorrectionFault>[] = [];
   if (i.proposed >= i.current) out.push({ code: "NOT_EARLIER", level: "block", data: { current: i.current } });
   if (!i.readySince) out.push({ code: "READY_DAY_NOT_FROZEN", level: "block" });
   else if (i.proposed < i.readySince) out.push({ code: "BEFORE_READY", level: "block", data: { readySince: i.readySince } });
+  // The employer signs after the contractor (FR-CON-007): never a Contract Date before the contractor's signature, or its witness's.
+  if (i.signed?.contractor && i.proposed < i.signed.contractor) out.push({ code: "BEFORE_CONTRACTOR_SIGNED", level: "block", data: { party: "CONTRACTOR", signedOn: i.signed.contractor } });
+  else if (i.signed?.witness && i.proposed < i.signed.witness) out.push({ code: "BEFORE_CONTRACTOR_SIGNED", level: "block", data: { party: "WITNESS", signedOn: i.signed.witness } });
   if (!i.reason.trim()) out.push({ code: "REASON_REQUIRED", level: "block" });
   return out;
 }

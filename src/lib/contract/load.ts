@@ -7,9 +7,9 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import type { Tx } from "@/lib/audit/record";
-import { awardReadiness } from "@/lib/award/gate-read";
+import { awardReadiness, type ReadinessAward } from "@/lib/award/gate-read";
 import { frozenTenderOf, loadAwardConfig, type LoadedAward } from "@/lib/award/repo";
-import { dayToDate, storedDay } from "@/lib/dates";
+import { dayOf, dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { isLive } from "@/lib/documents/evidence";
 import { isBandSnapshot, isClassificationSnapshot } from "@/lib/method/snapshot";
@@ -18,8 +18,10 @@ import { parseSen, senFromDecimal, senToDecimalString, type Sen } from "@/lib/mo
 import { applicableRequirements } from "@/lib/securities/insurance";
 import { requiredBond, type BondBasis } from "@/lib/securities/bond";
 
-import { buildBaseline, PER_DAY, type BaselineInputs, type BaselineValues, type SectionValue } from "./baseline";
+import { baselineFor, buildBaseline, PER_DAY, type BaselineInputs, type BaselineValues, type SectionValue } from "./baseline";
+import { preparationSettings } from "./in-force";
 import { readFormationSnapshot } from "./preparation";
+import { phaseOf } from "./status";
 import type { LoadedContract } from "./repo";
 import type { BaselineReason, BaselineSource, LadKind, PeriodUnit, Provenance } from "./types";
 
@@ -48,14 +50,58 @@ export async function loadContractConfig(organisationId: string, client: Tx = db
 }
 export type ContractConfig = Awaited<ReturnType<typeof loadContractConfig>>;
 
+export { preparationSettings };
+
 // ------------------------------------------------------------------ the gate
+
+type GateAward = ReadinessAward & { bondBasis: string | null; bondPercent: { toString(): string } | null; bondBasisAmount: { toString(): string } | null; awardedValue: Parameters<typeof senFromDecimal>[0] };
+
+/// The gate on an award's rows, the configuration's insurance requirements given (read once by the caller).
+function gateOn(a: GateAward, contractTypeCode: string | null, requirements: Awaited<ReturnType<typeof loadAwardConfig>>["requirements"]) {
+  const bond = requiredBond({ basis: a.bondBasis as BondBasis | null, percent: dec(a.bondPercent), basisAmount: senOrNull(a.bondBasisAmount), contractPrice: senFromDecimal(a.awardedValue) });
+  return awardReadiness(a, bond, applicableRequirements(requirements, contractTypeCode));
+}
 
 /// The readiness gate as the award's Conditions tab shows it (FR-CON-008), on the rows given.
 export async function contractGate(l: LoadedAward, client: Tx = db) {
-  const a = l.award;
   const config = await loadAwardConfig(l.org.id, client);
-  const bond = requiredBond({ basis: a.bondBasis as BondBasis | null, percent: dec(a.bondPercent), basisAmount: senOrNull(a.bondBasisAmount), contractPrice: senFromDecimal(a.awardedValue) });
-  return awardReadiness(a, bond, applicableRequirements(config.requirements, l.ex.contractTypeCode));
+  return gateOn(l.award, l.ex.contractTypeCode, config.requirements);
+}
+
+/**
+ * The derived phase of many legally endorsed contracts at once (/projects, BD-612-16): the configuration
+ * read once, the awards' gate rows and the contracts' company resolutions in one query, each judged by the
+ * same gate function the contract's own record uses.
+ */
+export async function endorsedPhases(organisationId: string, take: number, client: Tx = db): Promise<Map<string, "AWAITING_CONDITIONS" | "READY_TO_SIGN" | "LEGALLY_ENDORSED">> {
+  const [config, rows] = await Promise.all([
+    loadAwardConfig(organisationId, client),
+    client.contract.findMany({
+      where: { organisationId, status: "LEGALLY_ENDORSED" },
+      orderBy: [{ numberedOn: "desc" }, { number: "desc" }],
+      take,
+      select: {
+        id: true,
+        attachments: { where: { purpose: "COMPANY_RESOLUTION" }, select: { detachedAt: true, version: { select: { withdrawnAt: true } } } },
+        securities: { select: { kind: true, status: true, value: true } },
+        policies: { select: { kind: true, substitutesFor: true, status: true, wcCheckedOn: true } },
+        award: {
+          select: {
+            instrumentKind: true, status: true, bondRequired: true, bondNotRequiredReason: true, wcBasis: true, bondBasis: true, bondPercent: true, bondBasisAmount: true, awardedValue: true,
+            awardReturn: { include: { receivedBy: { select: { id: true, name: true } } } },
+            attachments: { select: { purpose: true, detachedAt: true, version: { select: { withdrawnAt: true } } } },
+            exercise: { select: { contractTypeCode: true } },
+          },
+        },
+      },
+    }),
+  ]);
+  const out = new Map<string, "AWAITING_CONDITIONS" | "READY_TO_SIGN" | "LEGALLY_ENDORSED">();
+  for (const r of rows) {
+    const gate = gateOn({ ...r.award, contract: { securities: r.securities, policies: r.policies } }, r.award.exercise.contractTypeCode, config.requirements);
+    out.set(r.id, phaseOf("LEGALLY_ENDORSED", gate, r.attachments.some(isLive)) as "AWAITING_CONDITIONS" | "READY_TO_SIGN" | "LEGALLY_ENDORSED");
+  }
+  return out;
 }
 
 /// Whether a live attachment of the purpose is on the contract.
@@ -258,9 +304,9 @@ export const CONTRACT_PAGE = 50;
 /// Contracts after award, newest number first, paged in the database.
 export async function listContracts(page = 0) {
   const org = await exerciseOrg();
-  if (!org) return { org: null, rows: [], total: 0, page: 0, counts: { preparing: 0, legal: 0, endorsed: 0, executed: 0 } };
+  if (!org) return { org: null, rows: [], total: 0, page: 0, counts: { preparing: 0, returned: 0, legal: 0, endorsed: 0, executed: 0 } };
   const where = { organisationId: org.id };
-  const [rows, total, preparing, legal, endorsed, executed] = await Promise.all([
+  const [rows, total, preparing, returned, legal, endorsed, executed] = await Promise.all([
     db.contract.findMany({
       where,
       orderBy: [{ numberedOn: "desc" }, { number: "desc" }],
@@ -269,16 +315,23 @@ export async function listContracts(page = 0) {
       select: {
         id: true, number: true, status: true, contractSum: true, contractDate: true,
         award: { select: { id: true, reference: true, awardeeName: true, exercise: { select: { title: true } } } },
-        baselines: { where: { version: { not: null } }, orderBy: { version: "desc" }, take: 1, select: { dateForCompletion: true } },
+        // Every version's day, so the version in force is read through baselineFor (ADR 0021), never the highest number.
+        baselines: { where: { version: { not: null } }, select: { version: true, reason: true, recordedOn: true, dateForCompletion: true } },
       },
     }),
     db.contract.count({ where }),
-    db.contract.count({ where: { ...where, status: { in: ["IN_PREPARATION", "RETURNED_FOR_AMENDMENT"] } } }),
+    db.contract.count({ where: { ...where, status: "IN_PREPARATION" } }),
+    db.contract.count({ where: { ...where, status: "RETURNED_FOR_AMENDMENT" } }),
     db.contract.count({ where: { ...where, status: "PENDING_LEGAL_ENDORSEMENT" } }),
     db.contract.count({ where: { ...where, status: "LEGALLY_ENDORSED" } }),
     db.contract.count({ where: { ...where, status: { in: ["EXECUTED", "STAMPED", "ACTIVE"] } } }),
   ]);
-  return { org, rows, total, page, counts: { preparing, legal, endorsed, executed } };
+  const today = org.timeZone ? dayOf(new Date(), org.timeZone) : null;
+  const listed = rows.map((r) => {
+    const inForce = today ? baselineFor(r.baselines.map((b) => ({ version: b.version, reason: b.reason as BaselineReason | null, recordedOn: day(b.recordedOn), dateForCompletion: b.dateForCompletion })), today) : null;
+    return { ...r, dateForCompletion: inForce?.dateForCompletion ?? null };
+  });
+  return { org, rows: listed, total, page, counts: { preparing, returned, legal, endorsed, executed } };
 }
 
 /// The day the contract's preparation started, as frozen.

@@ -69,6 +69,7 @@ export type SignFault =
   | "FORMATION_INCOMPLETE"
   | "COMMITMENT"
   | "SIGNATORY_COND_NOT_FROZEN"
+  | "NO_ISSUE_IN_FORCE"
   | "SIGNATORY_NOT_RESOLVED"
   | "SIGNER"
   | "BASELINE_INCOMPLETE"
@@ -85,8 +86,12 @@ export interface SignInputs {
   commitment: CommitmentFault | null;
   /// The `award_signatory` condition for the contract agreement, as frozen when preparation started (OD-4 A).
   signatoryCond: string | null;
-  /// The matrix's answer on that condition at the contract sum; null where it was not asked (no condition).
+  /// The matrix's answer on that condition at the contract sum; null where it was not asked (no condition, or no issue in force).
   signatory: { ok: true } | { ok: false; fault: SignatoryFault } | null;
+  /// Whether an approval matrix issue is in force today (6.12 review R-4): false, the signatory cannot be
+  /// resolved at all, and the signature is refused naming it, as the award's evaluation does. The act and
+  /// the screen always give it.
+  issueInForce?: boolean;
   /// 6.11's `checkSignatory` on the Person recorded as signing, on the day of the act.
   signer: readonly SignerFault[];
   /// The baseline's blocking findings (FR-CON-014): the executed version cannot be incomplete.
@@ -111,6 +116,7 @@ export function signFaults(i: SignInputs): Finding<SignFault>[] {
   if (i.formationFaults > 0) out.push({ code: "FORMATION_INCOMPLETE", level: "block", data: { count: i.formationFaults } });
   if (i.commitment) out.push({ code: "COMMITMENT", level: "block", data: { fault: i.commitment.code, outstanding: i.commitment.code === "NOT_APPROVED" ? i.commitment.outstanding : null } });
   if (!i.signatoryCond) out.push({ code: "SIGNATORY_COND_NOT_FROZEN", level: "block" });
+  else if (i.issueInForce === false) out.push({ code: "NO_ISSUE_IN_FORCE", level: "block" });
   else if (i.signatory && !i.signatory.ok) out.push({ code: "SIGNATORY_NOT_RESOLVED", level: "block", data: { fault: i.signatory.fault } });
   for (const f of i.signer) out.push({ code: "SIGNER", level: "block", data: { fault: f } });
   if (i.baselineBlocks > 0) out.push({ code: "BASELINE_INCOMPLETE", level: "block", data: { count: i.baselineBlocks } });

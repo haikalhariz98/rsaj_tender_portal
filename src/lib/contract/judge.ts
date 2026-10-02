@@ -95,6 +95,7 @@ export async function signingFacts(l: LoadedContract, personId: string | null, t
     commitment: commitmentFault({ status: f.facts.requisition.status }, f.facts.requisition.route),
     signatoryCond: cond,
     signatory: signatory ? (signatory.ok ? { ok: true } : signatory) : null,
+    issueInForce: f.facts.funder != null,
     signer,
     baselineBlocks: bl.blocks,
     today,

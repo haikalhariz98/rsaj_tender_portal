@@ -55,6 +55,10 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   // 6.12 (FR-CON-005 b): the estimate's rate a tendered rate is tested against for front loading. Shown with
   // the chip on the contract's checks, never in a list, and kept out of the trail.
   { field: "estimateRate", what: "the estimate's rate a tendered rate is compared with for front loading (6.12)" },
+  // 6.12 review (BD-612-24, 6.8's correctedPrice precedent): an arithmetical correction's priced figures, as the
+  // trail names them. Not the bare words "tendered" / "corrected", which the whole-word scan would misread.
+  { field: "tenderedLineAmount", what: "a bill line's figure as tendered, in an arithmetical correction at contract formation (6.12)" },
+  { field: "correctedLineAmount", what: "a bill line's figure as corrected, in an arithmetical correction at contract formation (6.12)" },
 ];
 
 /// Whether a stored field (an audit change's field name) is a registered SULIT field: a History
