@@ -17,7 +17,16 @@ import { returnRecordOf } from "./return-acceptance";
 import { RETURN_SCANS, returnReadsComplete } from "./stage-two";
 import type { InstrumentKind } from "./types";
 
-export function awardReadiness(award: AwardRow, requiredBond: RequiredBond, requirements: readonly Requirement[]) {
+/// What the gate reads of an award (6.12 review: the contracts list reads it for many contracts in one query).
+export type ReadinessAward = Pick<AwardRow, "instrumentKind" | "status" | "bondRequired" | "bondNotRequiredReason" | "wcBasis" | "awardReturn"> & {
+  attachments: readonly { purpose: string; detachedAt: Date | null; version: { withdrawnAt: Date | null } }[];
+  contract: {
+    securities: readonly { kind: string; status: string; value: Parameters<typeof senFromDecimal>[0] }[];
+    policies: readonly { kind: string; substitutesFor: string | null; status: string; wcCheckedOn: Date | null }[];
+  } | null;
+};
+
+export function awardReadiness(award: ReadinessAward, requiredBond: RequiredBond, requirements: readonly Requirement[]) {
   const kind = award.instrumentKind as InstrumentKind;
   const scanned = new Set(award.attachments.filter((a) => (RETURN_SCANS[kind] as readonly string[]).includes(a.purpose) && isLive(a)).map((a) => a.purpose as string));
   const securities = award.contract?.securities ?? [];

@@ -14,7 +14,7 @@ import { gateDetailText } from "./gate-words";
 describe("the readiness gate's words, shared by the award and the contract", () => {
   it("insurance lists what is not lodged and what is lodged but not verified", () => {
     expect(gateDetailText({ key: "INSURANCE", detail: ["NOT_LODGED:Works insurance", "LODGED:Public liability insurance", "WC_NOT_CHECKED"] }, "")).toBe(
-      "Not lodged: Works insurance. Lodged, not verified: Public liability insurance. Workmen's compensation is calculated on uncovered wages, so its sum cannot be checked: it counts as met only once the check of the declared wages is recorded, on the contract's Formation tab.",
+      "Not lodged: Works insurance. Lodged, not verified: Public liability insurance. Workmen's compensation is calculated on uncovered wages, so its sum cannot be checked: it counts as met only once the check of the declared wages is recorded, on the contract's Securities tab.",
     );
   });
   it("the bond's reason is quoted", () => {
