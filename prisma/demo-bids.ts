@@ -242,7 +242,7 @@ async function configure(db: Db, organisationId: string, at: Date, entry: Add) {
 
 // ------------------------------------------------------------------ the window's bid answers (saveBidAnswers)
 
-async function answers(db: Db, organisationId: string, entry: Add, exerciseId: string, ref: string, v: { days: number; provenance: "ASSUMED"; alternativesPermitted: boolean; reason: string; recordedBy?: string }, at: Date) {
+export async function answers(db: Db, organisationId: string, entry: Add, exerciseId: string, ref: string, v: { days: number; provenance: "ASSUMED"; alternativesPermitted: boolean; reason: string; recordedBy?: string }, at: Date) {
   const ex = await db.sourcingExercise.findUniqueOrThrow({ where: { id: exerciseId }, select: { status: true, packKindSnapshot: true } });
   const w = await db.exerciseWindow.findUniqueOrThrow({ where: { exerciseId }, select: { id: true, bidValidityDays: true, bidValidityProvenance: true, alternativesPermitted: true } });
   // Published, the alternatives answer is left as it stands (it changes only before publication).
@@ -275,7 +275,7 @@ async function envelope(
 }
 
 /// The register's acts on one exercise, each judged as its action judges it on the rows as they stand.
-class Receipts {
+export class Receipts {
   constructor(
     private readonly db: Db,
     private readonly org: string,
