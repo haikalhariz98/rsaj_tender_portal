@@ -9,7 +9,7 @@ import { awardOpenRefusal, exerciseOpenForAward } from "@/lib/award/gate";
 import { readWindowGate } from "@/lib/window/repo";
 import { INSTRUMENT_LABEL, awardFindingText } from "@/lib/award/labels";
 import { awardHeadroom, instrumentFor } from "@/lib/award/instrument";
-import { loadAwardPolicy } from "@/lib/award/repo";
+import { frozenTenderOf, loadAwardPolicy } from "@/lib/award/repo";
 import { LIVE_STATUSES } from "@/lib/award/status";
 import { db } from "@/lib/db";
 import { exerciseEvidence } from "@/lib/documents/evidence";
@@ -48,11 +48,12 @@ export default async function NewAwardPage(props: PageProps<"/awards/new">) {
     );
   }
   const { ex, org } = l;
-  const [policy, cfg, live, siblings] = await Promise.all([
+  const [policy, cfg, live, siblings, tender] = await Promise.all([
     loadAwardPolicy(org.id),
     loadMethodConfig(org.id),
     db.award.findFirst({ where: { exerciseId: ex.id, status: { in: [...LIVE_STATUSES] } }, select: { id: true, reference: true } }),
     db.award.findMany({ where: { exercise: { requisitionId: l.req.id }, status: { in: [...LIVE_STATUSES] } }, select: { awardedValue: true } }),
+    frozenTenderOf(ex.id, org.timeZone),
   ]);
   const headroom = awardHeadroom(approvedRouteOf(l.req)?.value ?? null, siblings.map((s) => senFromDecimal(s.awardedValue)));
   const method = cfg.config.methods.find((m) => m.code === ex.sourcingMethodCode) ?? null;
@@ -95,6 +96,8 @@ export default async function NewAwardPage(props: PageProps<"/awards/new">) {
     { label: "Contract terms band", value: bands?.terms.label ?? (ex.termsState === "NONE_IN_REGIME" ? "Not applicable" : "Not set") },
     { label: "Estimate", value: formatMoney(parseSen(ex.estimatedValue.toString())) },
     { label: "Instrument", value: "kind" in instrument ? INSTRUMENT_LABEL[instrument.kind] : "Not set" },
+    // 64-C4 (6.4 Q-1 B): the terms open as the frozen tender Appendix states them.
+    ...(tender ? [{ label: "Letter's terms", value: `Opened from the tender Appendix (documents version ${tender.packVersion}); a percentage is worked out on the awarded value` }] : []),
   ];
   return (
     <>

@@ -85,6 +85,7 @@ export function EditTermsDrawer({
   regulatedLabel,
   asked,
   label = "Edit terms",
+  tender = null,
 }: {
   id: string;
   values: Values;
@@ -93,8 +94,20 @@ export function EditTermsDrawer({
   /// period; false says so beside the field, which stays on the form.
   asked: { retention: boolean | null; dlp: boolean | null };
   label?: string;
+  /// 64-C4: what the frozen tender states for each term, in words (null: states nothing).
+  /// Not given: the exercise froze no Appendix, and the form is as before.
+  tender?: { lad: string | null; dlp: string | null; regulated: string | null } | null;
 }) {
   const bond = { name: "bondRequired", in: ["yes"] } as const;
+  const fromTender = (t: string | null | undefined, words = "The tender Appendix states") => (t ? `${words}: ${t}. Stating it otherwise needs a reason, below.` : undefined);
+  const reasons: Field[] = tender
+    ? [
+        { kind: "note", text: "Where a term differs from the tender, say why. Each reason is kept in the award's history and shown beside the term; the instrument is not issued while a difference has none." },
+        ...(tender.lad ? [{ kind: "textarea", name: "ladDiffersReason", label: "Why the liquidated damages differ from the tender Appendix", hint: "Only where they differ. Left empty where they match." } as const] : []),
+        ...(tender.dlp ? [{ kind: "textarea", name: "dlpDiffersReason", label: "Why the defects liability period differs from the tender Appendix", hint: "Only where it differs." } as const] : []),
+        ...(tender.regulated ? [{ kind: "textarea", name: "regulatedDiffersReason", label: "Why the regulated-activity answer differs from the tender's", hint: "Only where it differs." } as const] : []),
+      ]
+    : [];
   return (
     <RecordEditor
       title="The terms, the bond and the start"
@@ -108,7 +121,7 @@ export function EditTermsDrawer({
           label: regulatedLabel ? `Is this ${regulatedLabel.toLowerCase()}?` : "Are the works the regulated activity?",
           placeholder: "Not answered",
           options: YES_NO,
-          hint: "A recipient of the instrument's copies may depend on it.",
+          hint: fromTender(tender?.regulated, "The tender answered") ?? "A recipient of the instrument's copies may depend on it.",
         },
         { kind: "note", text: "The performance bond: decided for this contract, never filled in for you." },
         { kind: "select", name: "bondRequired", label: "Performance bond required", placeholder: "Not decided", options: YES_NO },
@@ -130,7 +143,7 @@ export function EditTermsDrawer({
         { kind: "select", name: "bondBasisProvenance", label: "Where the bond decision came from", placeholder: "Not recorded", options: PROVENANCE },
         { kind: "textarea", name: "bondBasisNote", label: "Bond note" },
         { kind: "note", text: "The letter's terms, quoted by the instrument." },
-        { kind: "money", name: "ladAmount", label: "Liquidated damages" },
+        { kind: "money", name: "ladAmount", label: "Liquidated damages", hint: fromTender(tender?.lad) },
         {
           kind: "select",
           name: "ladUnit",
@@ -146,7 +159,7 @@ export function EditTermsDrawer({
         // Always on the form, so a save never clears them: where the terms band does not ask, it says so.
         { kind: "text", name: "retentionPercent", label: "Retention percentage", placeholder: "e.g. 5", hint: asked.retention === false ? "Not asked by the exercise's terms band." : undefined },
         { kind: "text", name: "retentionCapPercent", label: "Retention limit, percentage of the contract sum", placeholder: "e.g. 5" },
-        { kind: "number", name: "dlpMonths", label: "Defects liability period, months", min: 0, hint: asked.dlp === false ? "Not asked by the exercise's terms band; the insurance period still counts it." : undefined },
+        { kind: "number", name: "dlpMonths", label: "Defects liability period, months", min: 0, hint: fromTender(tender?.dlp === "None" ? "none (0 months)" : tender?.dlp) ?? (asked.dlp === false ? "Not asked by the exercise's terms band; the insurance period still counts it." : undefined) },
         { kind: "select", name: "termsProvenance", label: "Where the terms came from", placeholder: "Not recorded", options: PROVENANCE },
         {
           kind: "select",
@@ -159,6 +172,7 @@ export function EditTermsDrawer({
           ],
           hint: "Chosen for this award. On uncovered wages the declared sum cannot be checked, so the policy never counts as met.",
         },
+        ...reasons,
       ]}
       showWhen={{
         bondNotRequiredReason: { name: "bondRequired", in: ["no"] },
@@ -480,7 +494,9 @@ export function ReviewDrawer({ id, targetId, kind, name, people, today }: { id: 
   );
 }
 
-export function LodgePolicyDrawer({ id, issuers, today }: { id: string; issuers: Option[]; today: string | null }) {
+/// `tenderUplift`: 64-C4, the frozen tender Appendix's works uplift at the awarded sum, in words. Null: no frozen Appendix.
+/// Not pre-filled as a value: the field means something only for a policy covering the works.
+export function LodgePolicyDrawer({ id, issuers, today, tenderUplift = null }: { id: string; issuers: Option[]; today: string | null; tenderUplift?: string | null }) {
   const KINDS: Option[] = Object.entries(INSURANCE_KIND_LABEL).map(([value, label]) => ({ value, label }));
   return (
     <RecordEditor
@@ -494,7 +510,12 @@ export function LodgePolicyDrawer({ id, issuers, today }: { id: string; issuers:
         { kind: "text", name: "issuerNameAsWritten", label: "Insurer as written on it" },
         { kind: "text", name: "policyNo", label: "Policy number", mono: true },
         { kind: "money", name: "sumInsured", label: "Sum insured", required: true },
-        { kind: "money", name: "appendixAmount", label: "Amount stated in the appendix", hint: "Works: the sum insured must cover the contract price plus this." },
+        {
+          kind: "money",
+          name: "appendixAmount",
+          label: "Amount stated in the appendix",
+          hint: tenderUplift ? `Works: the tender Appendix states ${tenderUplift} beyond the contract price. Left empty, that figure is taken; another is refused.` : "Works: the sum insured must cover the contract price plus this.",
+        },
         { kind: "money", name: "requiredLimit", label: "Public liability limit to meet", hint: "Empty takes the limit derived from the bands. Raised above it needs a justification." },
         { kind: "textarea", name: "raisedJustification", label: "Why the limit is raised" },
         { kind: "date", name: "periodStart", label: "Period from", required: true },

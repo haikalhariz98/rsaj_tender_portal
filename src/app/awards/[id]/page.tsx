@@ -53,7 +53,11 @@ import {
   WC_BASIS_LABEL,
   WAITING_FOR_PAPER,
   WC_CHECK_LABEL,
+  DIFFERS_TEXT,
+  tenderTermText,
 } from "@/lib/award/labels";
+import { BASELINE_FIELDS, type BaselineField } from "@/lib/award/appendix-baseline";
+import { formatPct } from "@/lib/tender-docs/percent";
 import { mergeFieldLabel } from "@/lib/award/fields";
 import { conditionsOutstanding, readinessGate } from "@/lib/award/readiness";
 import { awardFacts, awardHistory, exerciseMatters, latestRoute, loadAward, matterRecord, type LoadedAward } from "@/lib/award/repo";
@@ -186,7 +190,12 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
     dlpMonths: award.dlpMonths == null ? null : String(award.dlpMonths),
     termsProvenance: award.termsProvenance,
     wcBasis: award.wcBasis,
+    ladDiffersReason: award.ladDiffersReason,
+    dlpDiffersReason: award.dlpDiffersReason,
+    regulatedDiffersReason: award.regulatedDiffersReason,
   };
+  // 64-C4: what the frozen tender states for each term, in words; null without a frozen Appendix.
+  const tenderTexts = ev.appendix ? (Object.fromEntries(BASELINE_FIELDS.map((k) => [k, tenderTermText(k, ev.appendix!.baseline)])) as Record<BaselineField, string | null>) : null;
   const routePreview = ev.route?.ok ? ev.route.chain.map((s) => `${f.issue?.matrix.roles[s.roleCode]?.nameEn ?? "An office no longer configured"} — ${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"}${s.committeeCode ? ", as a committee decision" : ""}`) : [];
   const consequenceText = ev.consequence ? NON_COMMENCEMENT_LABEL[ev.consequence] : null;
 
@@ -198,7 +207,7 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
           values={{ awardeeName: award.awardeeName, awardeeRegistrationNo: award.awardeeRegistrationNo, awardeeAddress: award.awardeeAddress, awardedValue: award.awardedValue.toString(), completionPeriod: String(award.completionPeriod), completionUnit: award.completionUnit }}
         />
       )}
-      {edits.terms && <EditTermsDrawer id={award.id} values={termsValues} regulatedLabel={policy.regulatedActivityLabel} asked={{ retention: ev.terms?.retentionAsked ?? null, dlp: ev.terms?.dlpAsked ?? null }} />}
+      {edits.terms && <EditTermsDrawer id={award.id} values={termsValues} regulatedLabel={policy.regulatedActivityLabel} asked={{ retention: ev.terms?.retentionAsked ?? null, dlp: ev.terms?.dlpAsked ?? null }} tender={tenderTexts} />}
       {status === "DRAFT" && <SubmitAwardDrawer id={award.id} blocker={submitBlocker} route={routePreview} />}
       {canRecordCommitment && <RecordCommitmentDrawer id={award.id} indent={!loa} example={f.config.indentFormat?.example || null} today={today} />}
       {status === "APPROVED" && !(issueReady && ev.signatory?.ok) && (
@@ -380,6 +389,37 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
 
 // ------------------------------------------------------------------ overview
 
+/**
+ * 64-C4 (6.4 Q-1 B): a term with what the frozen tender states beside it, and, where the
+ * award states it otherwise, "differs from the tender Appendix" with the reason recorded
+ * (or that none is, and issue waits for one). Without a frozen Appendix: the term alone.
+ */
+function AgainstTender({ ev, field, children }: { ev: AwardEvaluation; field: BaselineField; children: React.ReactNode }) {
+  const said = ev.appendix ? tenderTermText(field, ev.appendix.baseline) : null;
+  if (!ev.appendix || said == null) return <>{children}</>;
+  const diff = ev.appendix.differences.find((d) => d.field === field);
+  return (
+    <span className="flex flex-col items-start gap-1">
+      <span>{children}</span>
+      <span className="text-[12.5px] break-words text-ink-3">{`${field === "regulated" ? "The tender answered" : "The tender Appendix states"}: ${said}`}</span>
+      {diff && <Chip tone={diff.reason ? "info" : "warn"}>{DIFFERS_TEXT[field]}</Chip>}
+      {diff && <span className="text-[12.5px] break-words text-ink-3">{diff.reason ? `Why: ${diff.reason}` : "No reason recorded: the instrument is not issued until one is."}</span>}
+    </span>
+  );
+}
+
+/// The insurance the tender Appendix states: carried to the contract, not restated by the award.
+function tenderInsurance(b: NonNullable<AwardEvaluation["appendix"]>["baseline"]) {
+  const m = (x: bigint | null) => (x == null ? notSet() : formatMoney(x));
+  const u = b.insurance.worksUplift;
+  return [
+    { label: "Works insurance beyond the price, from the tender Appendix", value: u ? (u.kind === "PERCENT" ? `${formatMoney(u.sen)} (${formatPct(u.pct)} of the awarded sum)` : formatMoney(u.sen)) : notSet() },
+    { label: "Third-party and workmen's compensation minimums, from the tender Appendix", value: <span>{m(b.insurance.tplMinimum)} · {m(b.insurance.wcMinimum)}</span> },
+    { label: "Permitted insurance excess, from the tender Appendix", value: m(b.insurance.insuranceExcess) },
+    ...(b.sectional ? [{ label: "Sections", value: "Each section's damages are the tender Appendix's, as frozen." }] : []),
+  ];
+}
+
 function OverviewPanel({ l, ev, methodName, typeName, policyLabel, validityDays, expiredRule, unitName }: { l: LoadedAward; ev: AwardEvaluation; methodName: string; typeName: string; policyLabel: string | null; validityDays: number | null; expiredRule: boolean; unitName: (code: string | null) => string | null }) {
   const { award, ex, req } = l;
   const kind = award.instrumentKind as InstrumentKind;
@@ -407,7 +447,7 @@ function OverviewPanel({ l, ev, methodName, typeName, policyLabel, validityDays,
               { label: "Completion period", value: periodText(award.completionPeriod, award.completionUnit) },
               { label: "Stated start date", value: award.startDate ? formatDate(award.startDate) : notSet() },
               { label: "Completion", value: ev.completion ? formatDate(ev.completion) : notSet("Not known until the start date is set") },
-              { label: policyLabel ? `${policyLabel}?` : "The regulated activity?", value: award.regulatedActivity == null ? notSet("Not answered") : award.regulatedActivity ? "Yes" : "No" },
+              { label: policyLabel ? `${policyLabel}?` : "The regulated activity?", value: <AgainstTender ev={ev} field="regulated">{award.regulatedActivity == null ? notSet("Not answered") : award.regulatedActivity ? "Yes" : "No"}</AgainstTender> },
             ]}
           />
         </CardBody>
@@ -468,18 +508,24 @@ function OverviewPanel({ l, ev, methodName, typeName, policyLabel, validityDays,
         </CardBody>
       </Card>
       <Card>
-        <CardHeader icon={<SlidersIcon size={17} />} title="The letter's terms" subtitle="Per award, with where they came from. Never defaulted." actions={award.termsProvenance ? <ProvenanceBadge value={award.termsProvenance} /> : undefined} />
+        <CardHeader
+          icon={<SlidersIcon size={17} />}
+          title="The letter's terms"
+          subtitle={ev.appendix ? `Opened from the tender Appendix (documents version ${ev.appendix.baseline.packVersion}). A term stated otherwise needs a reason.` : "Per award, with where they came from. Never defaulted."}
+          actions={award.termsProvenance ? <ProvenanceBadge value={award.termsProvenance} /> : undefined}
+        />
         <CardBody>
           <KeyValues
             columns={2}
             items={[
-              { label: "Liquidated damages", value: award.ladAmount ? `${money(award.ladAmount)}${award.ladUnit ? ` ${award.ladUnit}` : ""}` : notSet() },
+              { label: "Liquidated damages", value: <AgainstTender ev={ev} field="lad">{award.ladAmount ? `${money(award.ladAmount)}${award.ladUnit ? ` ${award.ladUnit}` : ""}` : notSet()}</AgainstTender> },
               { label: "Workmen's compensation", value: award.wcBasis ? WC_BASIS_LABEL[award.wcBasis] : notSet("How it is calculated is not set — set it in Edit terms") },
               { label: "Retention", value: award.retentionPercent ? `${pct(award.retentionPercent)}${award.retentionCapPercent ? `, limited to ${pct(award.retentionCapPercent)} of the sum` : ""}` : ev.terms?.retentionAsked === false ? "Not asked by its terms band" : notSet() },
-              { label: "Defects liability period", value: award.dlpMonths != null ? periodText(award.dlpMonths, "MONTHS") : ev.terms?.dlpAsked === false ? "Not asked by its terms band" : notSet() },
+              { label: "Defects liability period", value: <AgainstTender ev={ev} field="dlp">{award.dlpMonths != null ? (award.dlpMonths === 0 && ev.appendix ? "None" : periodText(award.dlpMonths, "MONTHS")) : ev.terms?.dlpAsked === false ? "Not asked by its terms band" : notSet()}</AgainstTender> },
               { label: "Terms band", value: ex.termsBandKey ? (l.ex.bandSnapshot as { terms?: { label?: string } } | null)?.terms?.label ?? "As recorded on the exercise" : ex.termsState === "NONE_IN_REGIME" ? "Not applicable in this band" : notSet() },
               { label: "Appointment-letter variant", value: kind === "LETTER_OF_ACCEPTANCE" ? "Not applicable" : award.variantName ?? (ev.variant?.state === "SELECTED" ? ev.variant.variant.nameEn : notSet(ev.variant ? awardFindingText({ code: ev.variant.state === "NONE" ? "VARIANT_NONE" : ev.variant.state === "AMBIGUOUS" ? "VARIANT_AMBIGUOUS" : "TERMS_NOT_SET", level: "block" }) : NOT_SET)) },
               { label: "If work does not commence", value: kind === "LETTER_OF_ACCEPTANCE" ? "Not applicable" : ev.consequence ? NON_COMMENCEMENT_LABEL[ev.consequence] : notSet() },
+              ...(ev.appendix ? tenderInsurance(ev.appendix.baseline) : []),
             ]}
           />
         </CardBody>
@@ -1074,8 +1120,9 @@ function SecuritiesPanel({
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<ShieldIcon size={17} />} title="The performance bond" subtitle="Decided for this contract: what it is a percentage of, the percentage and how long it must run. Never filled in for you." actions={editable(award.status as AwardStatus).terms ? <EditTermsDrawer id={award.id} values={termsValues} regulatedLabel={f.config.policy.regulatedActivityLabel} asked={{ retention: ev.terms?.retentionAsked ?? null, dlp: ev.terms?.dlpAsked ?? null }} label="Edit bond" /> : undefined} />
+        <CardHeader icon={<ShieldIcon size={17} />} title="The performance bond" subtitle="Decided for this contract: what it is a percentage of, the percentage and how long it must run. Never filled in for you." actions={editable(award.status as AwardStatus).terms ? <EditTermsDrawer id={award.id} values={termsValues} regulatedLabel={f.config.policy.regulatedActivityLabel} asked={{ retention: ev.terms?.retentionAsked ?? null, dlp: ev.terms?.dlpAsked ?? null }} label="Edit bond" tender={ev.appendix ? Object.fromEntries(BASELINE_FIELDS.map((k) => [k, tenderTermText(k, ev.appendix!.baseline)])) as Record<BaselineField, string | null> : null} /> : undefined} />
         <CardBody className="flex flex-col gap-5">
+          {ev.appendix && <p className="text-[13px] text-ink-2">The tender Appendix states no bond terms, so there is nothing to compare: the bond is decided for this contract.</p>}
           {award.bondRequired == null ? (
             <Callout tone="warn" title="Not decided">Whether this contract needs a performance bond is not decided. Nothing is assumed.</Callout>
           ) : award.bondRequired === false ? (
@@ -1128,7 +1175,7 @@ function SecuritiesPanel({
           icon={<ShieldIcon size={17} />}
           title="Insurance"
           subtitle={requirements.length ? `Required for this contract: ${requirements.map((r) => r.nameEn).join(", ")}.${requirements.some((r) => r.kind === "WORKMENS_COMPENSATION") ? ` How workmen's compensation is calculated: ${award.wcBasis ? WC_BASIS_LABEL[award.wcBasis].toLowerCase() : "not set — set it in Edit terms"}.` : ""}` : "No insurance requirements are configured, so what must be verified is not known."}
-          actions={open ? <LodgePolicyDrawer id={award.id} issuers={issuers} today={today} /> : undefined}
+          actions={open ? <LodgePolicyDrawer id={award.id} issuers={issuers} today={today} tenderUplift={ev.appendix?.baseline.insurance.worksUplift ? formatMoney(ev.appendix.baseline.insurance.worksUplift.sen) : null} /> : undefined}
           divided={(c?.policies.length ?? 0) > 0 || true}
         />
         <CardBody className="flex flex-col gap-2 border-b border-line">
@@ -1210,6 +1257,10 @@ const FIELD_NAME: Record<string, string> = {
   retentionCapPercent: "Retention limit",
   dlpMonths: "Defects liability, months",
   wcBasis: "Workmen's compensation basis",
+  ladDiffersReason: "Why the liquidated damages differ from the tender Appendix",
+  dlpDiffersReason: "Why the defects liability period differs from the tender Appendix",
+  regulatedDiffersReason: "Why the regulated-activity answer differs from the tender's",
+  termsFrom: "Terms opened from",
   erpCommitmentNo: "Commitment number",
   erpCommitmentKind: "It is",
   indentReceivedOn: "Indent received",
