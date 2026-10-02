@@ -20,7 +20,16 @@ export interface Effective {
  */
 export function inForceOn(entry: Effective, on: Date): boolean {
   if (entry.effectiveFrom > on) return false;
-  return entry.effectiveTo == null || entry.effectiveTo > on;
+  return !hasEnded(entry, on);
+}
+
+/**
+ * Ended by a date: its end day has come. The end half of `inForceOn`, for callers that
+ * ask only whether a period is over (a period not yet begun has not ended). On the end
+ * day itself it has ended, because that day is not included.
+ */
+export function hasEnded(entry: Pick<Effective, "effectiveTo">, on: Date): boolean {
+  return entry.effectiveTo != null && entry.effectiveTo <= on;
 }
 
 /// Whether two periods share any day at all.
