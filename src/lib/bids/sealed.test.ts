@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
  * ADR 0016 (6.6 OD-1, OD-2): the register records envelopes, never offers, and names no bidder
  * before opening. Three scans keep it so:
  * - the register's models carry no price, sum, period, score or content column;
- * - no code outside 6.7's opening writes an envelope's party (OD-2; 6.7 C-10 will name the one writer);
+ * - no code but 6.7's `openEnvelope` writes an envelope's party (OD-2; 6.7 C-10 names the one writer);
  * - no code deletes an envelope (FR-BID-003: never deleted, rejected or set aside), and the bids
  *   screens offer no Delete or Reject.
  */
@@ -56,11 +56,17 @@ function envelopeWrites(text: string): string[] {
   return out;
 }
 
+/// The function a match sits in: the last function declared before it.
+const within = (text: string, at: number) => [...text.slice(0, at).matchAll(/export async function (\w+)|async function (\w+)|function (\w+)/g)].pop()?.slice(1).find(Boolean) ?? "(module)";
+
 describe("no bidder is named before opening (OD-2)", () => {
-  it("no envelope write in the app or the lib sets its party", () => {
-    const writes = sources.flatMap((s) => envelopeWrites(s.text).map((w) => ({ path: s.path, w })));
+  // 6.7 C-10 (ruled, flagged): the scan becomes "only openEnvelope writes an envelope's party" — the
+  // one act that names a bidder, at its opening. Every other envelope write still names none.
+  it("only 6.7's openEnvelope sets an envelope's party; no other write in the app or the lib does", () => {
+    const writes = sources.flatMap((s) => envelopeWrites(s.text).map((w) => ({ path: s.path, w, fn: within(s.text, s.text.indexOf(w)) })));
     expect(writes.length).toBeGreaterThan(0);
-    expect(writes.filter((x) => /\bpartyId\b|\bparty\s*:/.test(x.w)).map((x) => x.path)).toEqual([]);
+    const naming = writes.filter((x) => /\bpartyId\b|\bparty\s*:/.test(x.w));
+    expect(naming.map((x) => `${x.path}#${x.fn}`)).toEqual([join("src", "app", "sourcing", "[id]", "opening", "actions.ts") + "#openEnvelope"]);
   });
 });
 
