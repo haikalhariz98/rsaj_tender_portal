@@ -1,6 +1,6 @@
 "use server";
 
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import type { FormState } from "@/components/record-editor";
 import { diffFields } from "@/lib/audit/diff";
 import type { Tx } from "@/lib/audit/record";
@@ -59,6 +59,7 @@ const refuse = (fs: readonly Finding[], lead = "Nothing was saved:"): FormState 
 const warnings = (fs: readonly Finding[]) => fs.filter((f) => f.level !== "block").map(openingFindingText).join(" ");
 const GONE_OPENING: FormState = { ok: false, message: "That opening is not on this exercise." };
 const GONE_BID: FormState = { ok: false, message: "That offer is not on this exercise." };
+const ENVELOPE_CHANGED: FormState = { ok: false, message: "The envelope changed while this was being saved. Nothing was saved. Reload and try again." };
 
 /// Run an opening write with every lock its order asks for, and the context read under them.
 async function inOpening(exerciseId: string, now: Date, fn: (tx: Tx, l: LockedWindow, c: OpeningContext) => Promise<FormState>, opts: { estimate?: boolean } = {}): Promise<FormState> {
@@ -385,7 +386,8 @@ export async function matchWithdrawal(_prev: FormState, data: FormData): Promise
     await tx.bidWithdrawal.update({ where: { id: w.id }, data: { envelopeId: e.id } });
     await audit(tx, l.org.id, BID_ENTITY.withdrawal, w.id, label(l, "Withdrawal of an envelope in the box"), "UPDATE", diffFields({ matchedTo: null }, withdrawalMatchFields({ envelope: `Envelope ${e.sequence}` })));
     const moved = await tx.bidEnvelope.updateMany({ where: { id: e.id, status: "RECEIVED" }, data: { status: "WITHDRAWN" } });
-    if (moved.count !== 1) return { ok: false, message: "The envelope changed while this was being saved. Reload and try again." };
+    // R-7: thrown, so the withdrawal's match written above rolls back with it.
+    if (moved.count !== 1) throw new Refusal(ENVELOPE_CHANGED);
     await audit(tx, l.org.id, BID_ENTITY.envelope, e.id, label(l, `Envelope ${e.sequence}`), "UPDATE", diffFields(statusField("RECEIVED"), statusField("WITHDRAWN")));
     return { ok: true, message: `Envelope ${e.sequence} is withdrawn and will not be opened.` };
   });
@@ -486,7 +488,8 @@ export async function openEnvelope(_prev: FormState, data: FormData): Promise<Fo
     });
     // OD-2, C-10: the one writer of an envelope's party, at its opening.
     const moved = await tx.bidEnvelope.updateMany({ where: { id: e!.id, status: "RECEIVED" }, data: { status: "OPENED", partyId: bidder.id } });
-    if (moved.count !== 1) return { ok: false, message: "The envelope changed while this was being saved. Reload and try again." };
+    // R-7: thrown, so the party and the offer written above roll back with it.
+    if (moved.count !== 1) throw new Refusal(ENVELOPE_CHANGED);
     await audit(tx, l.org.id, BID_ENTITY.envelope, e!.id, label(l, `Envelope ${e!.sequence}`), "UPDATE", diffFields({ ...statusField("RECEIVED"), bidder: null }, { ...statusField("OPENED"), bidder: bidder.name }));
     await audit(tx, l.org.id, OPENING_ENTITY.bid, bid.id, label(l, `Offer ${listingNo}`), "CREATE",
       diffFields(null, openedBidFields({ listingNo, envelope: `Envelope ${e!.sequence}`, bidder: bid.bidderNameAsRead, registrationClass, registrationStatus, price: offer.price!, period, validityDays: offer.validityDays, alternative, parentListingNo: parent?.listingNo ?? null, sale, restriction: restriction.finding, at: now }, l.org.timeZone)));
@@ -574,7 +577,8 @@ export async function recordChecklistAnswer(_prev: FormState, data: FormData): P
     const row = await tx.openingChecklistAnswer.upsert({ where: { openedBidId_itemKey: { openedBidId: bid.id, itemKey } }, create: { organisationId: l.org.id, openedBidId: bid.id, itemKey, itemLabelSnapshot: item.label, answer: answer!, recordedAt: now }, update: { answer: answer!, recordedAt: now } });
     await audit(tx, l.org.id, OPENING_ENTITY.answer, row.id, label(l, `Offer ${bid.listingNo}`), before ? "UPDATE" : "CREATE", diffFields(before ? answerFields({ item: item.label, answer: before.answer }) : null, answerFields({ item: item.label, answer: answer! })));
     if (before && bid.verdict) {
-      await tx.openedBid.update({ where: { id: bid.id }, data: { verdict: null, verdictReason: "", verdictAt: null, completeness: undefined } });
+      // R-7: the verdict's completeness record is cleared with it (database null), not left as it was.
+      await tx.openedBid.update({ where: { id: bid.id }, data: { verdict: null, verdictReason: "", verdictAt: null, completeness: Prisma.DbNull } });
       await audit(tx, l.org.id, OPENING_ENTITY.bid, bid.id, label(l, `Offer ${bid.listingNo}`), "UPDATE", diffFields(verdictFields({ verdict: bid.verdict, reason: bid.verdictReason, grounds: [], reported: [], missing: [] }), { verdict: "Cleared: a checklist answer changed; record it again", reason: null }));
       return { ok: true, message: "Recorded. The answer changed, so the offer's verdict is cleared: record it again." };
     }
@@ -765,7 +769,8 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
     const { schedule } = jadualTawaran({ version: o.sequenceNo, title: l.ex.title, reference: l.ex.reference, startDay: l.ex.tenderingStartOn ? storedDay(l.ex.tenderingStartOn) : null, closing: l.ex.closingAt, invited: { reading: snap.invited.reading, ...invitedCounts(c) }, lateCount: lateCount(c.envelopes), pages: o.schedulePages, rows, benchmark, lockGap: gap });
     const verdicts = new Map(c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => [b.id, b.verdict] as const)));
     const summary = grandSummary({ finalised: true, bids: c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, price: parseSen(b.priceAsRead.toString()), verdict: verdicts.get(b.id) ?? null }))), labels: summaryLabelsOf(snap) });
-    if (!("summary" in summary)) return refuse([summary.fault]);
+    // After the disclosure's writes: thrown, so they roll back (R-1, R-7).
+    if (!("summary" in summary)) throw new Refusal(refuse([summary.fault]));
     const lodged = disclosed?.lodged ?? null;
     // R-4: the unpurchased rule is recorded at finalising only where an offer needs it, audited with it.
     const recordRule = unpurchased.record && o.bids.some((b) => b.saleFinding !== "LIVE_SALE") ? unpurchased.record : null;
