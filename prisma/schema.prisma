@@ -6349,8 +6349,10 @@ model Evaluation {
   state     EvaluationState
   trigger   EvaluationTrigger
   startedAt DateTime
-  startedByPersonId String
-  startedBy         Person @relation("EvaluationStartedBy", fields: [startedByPersonId], references: [id], onDelete: Restrict)
+  /// Who started it (START, or the officer finalising a supplementary opening); null where a
+  /// committee's decision opened it (LOOP), which names no person (CHECK).
+  startedByPersonId String?
+  startedBy         Person? @relation("EvaluationStartedBy", fields: [startedByPersonId], references: [id], onDelete: Restrict)
   /// The organisation's rules this version is judged under, frozen when it started (E-5).
   policySnapshot Json
   /// LOOP: the matter not carried, and the product key it returned to (FR-CTE-009).
