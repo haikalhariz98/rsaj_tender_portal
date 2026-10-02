@@ -1,5 +1,5 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
-import { Button, buttonClass } from "@/components/ui/button";
+import { buttonClass } from "@/components/ui/button";
 
 import {
   cancelRequisition,
@@ -32,28 +32,8 @@ import {
 
 type Option = { value: string; label: string };
 
-/// A control the rules say cannot be used yet, with the reason beside it.
-export function Blocked({ label, reason, primary, destructive, noteId }: { label: string; reason: string; primary?: boolean; destructive?: boolean; noteId?: string }) {
-  const variant = destructive ? "destructive" : primary ? "primary" : "secondary";
-  // In a page header the reason is stated once, under the action row (PageHeader's
-  // `actionsNote`), and the button points at it rather than carrying its own copy.
-  if (noteId) {
-    return (
-      <Button size="sm" variant={variant} disabled title={reason} aria-describedby={noteId}>
-        {label}
-      </Button>
-    );
-  }
-  return (
-    // On a phone the reason goes under the button: beside it, it is squeezed into a few words a line.
-    <span className="inline-flex max-w-full flex-col items-start gap-1.5 sm:flex-row sm:items-center sm:gap-2">
-      <Button size="sm" variant={variant} disabled title={reason}>
-        {label}
-      </Button>
-      <span className="max-w-full text-[12px] leading-tight text-ink-3 sm:max-w-64">{reason}</span>
-    </span>
-  );
-}
+// The shared disabled control with its reason moved to the design system (6.15a fix S-4); re-exported for its users.
+export { Blocked } from "@/components/ui/blocked";
 
 const hidden = (name: string): Field => ({ kind: "hidden", name });
 

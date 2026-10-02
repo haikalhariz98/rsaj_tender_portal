@@ -68,7 +68,8 @@ export function CardHeader({
           </p>
         )}
       </div>
-      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+      {/* max-w-full: on a phone the actions take their own line and wrap inside it, never wider than the card (6.15a fix S-4). */}
+      {actions && <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }
