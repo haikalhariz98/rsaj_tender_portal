@@ -11,7 +11,8 @@
  * the report and the Kertas Cadangan stay with the version they belong to. Each write is audited.
  *
  * Locks: the caller holds the evaluations' rows (`lockEvaluationRows`), after the openings' (6.7's
- * finalise) or after the sitting's (6.10's outcome; see `lock.ts`).
+ * finalise), or after requisition → exercise → window → openings → sitting (6.10's outcome; 6.8 fix
+ * M-2, `lock.ts`). The clock is the act's one read, passed in as `now` (fix R-9).
  */
 
 import type { Prisma } from "@/generated/prisma/client";

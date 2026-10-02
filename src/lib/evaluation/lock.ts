@@ -8,11 +8,14 @@
  * never take the same locks in opposite orders. The document store's three evaluation owners take
  * the same path, to the evaluations.
  *
- * Two acts reach the evaluations from a committee sitting, whose row the sitting's own lock holds
- * first: the NOT_CARRIED loop (6.10 `recordOutcome`) locks sitting → evaluations, never the exercise;
- * tabling a two-stage tender's first-stage matter locks exercise … openings → sitting → evaluations.
- * Both take the sitting before the evaluations, and nothing that holds the evaluations asks for a
- * sitting, so the orders agree (BD-68-3).
+ * Two acts reach the evaluations through a committee sitting, and both take the exercise's locks
+ * before the sitting's: tabling a two-stage tender's first-stage matter, and recording the outcome of
+ * an appointment matter on an exercise (6.10 `recordOutcome`, whose NOT_CARRIED loop opens the next
+ * version and writes the exercise row). Each locks requisition → exercise → window → openings →
+ * sitting → evaluations (6.8 fix M-2, correcting BD-68-3: the loop used to lock sitting → evaluations
+ * and then write the exercise, the opposite order to every exercise act). No sitting act locks an
+ * exercise after its sitting, and nothing that holds the evaluations asks for a sitting, so the
+ * orders agree; the source scan in `lock-order.test.ts` holds it.
  */
 
 import type { Tx } from "@/lib/audit/record";

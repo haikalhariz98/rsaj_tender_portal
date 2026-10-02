@@ -11,6 +11,11 @@ import { lockEvaluationRows } from "@/lib/evaluation/lock";
 import { isLoopKey, loopFault, LOOP_KEY_LABEL } from "@/lib/evaluation/loop";
 import { ceilingOf } from "@/lib/evaluation/repo";
 import { openNewVersion } from "@/lib/evaluation/versions";
+import { requisitionOfExercise, withLockedRequisitionForSourcing } from "@/lib/method/repo";
+import { lockOpeningRows } from "@/lib/opening/lock";
+import { ORGANISATION_CODE } from "@/lib/org";
+import { loadRoster } from "@/lib/people/load";
+import { lockWindowRow } from "@/lib/window/lock";
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
@@ -36,7 +41,7 @@ import {
 import { checkOutcome, checkRecusal, liveOutcomes, withdrawFault, type MeetingStatus } from "@/lib/committee/matter";
 import { meetingTransition, sittingPermits, type SittingAct } from "@/lib/committee/meeting";
 import { registerRole } from "@/lib/committee/sitting";
-import { organisationId, withLockedSitting, type LoadedSitting } from "@/lib/committee/sittings";
+import { lockSittingIn, organisationId, withLockedSitting, type LoadedSitting } from "@/lib/committee/sittings";
 import { checkTabling, secretariatHoldersOn } from "@/lib/committee/tabling";
 import { dayToDate, organisationDay, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
@@ -106,6 +111,34 @@ async function inSitting(meetingId: string, fn: (tx: Tx, s: LoadedSitting) => Pr
 async function meetingOf(decisionId: string): Promise<string | null> {
   const found = await db.committeeDecision.findUnique({ where: { id: decisionId }, select: { meetingId: true } });
   return found?.meetingId ?? null;
+}
+
+/// An appointment matter's exercise, read without a lock, to know what to lock (6.8 fix M-2).
+async function appointmentExerciseOf(decisionId: string): Promise<string | null> {
+  const found = await db.committeeDecision.findUnique({ where: { id: decisionId }, select: { domain: true, exerciseId: true } });
+  return found?.domain === APPOINTMENT_DOMAIN ? found.exerciseId : null;
+}
+
+/**
+ * Run a sitting write that may go on to write an exercise's evaluation (6.8 fix M-2): the exercise's
+ * locks first, in the order every exercise act takes them — requisition → exercise → window →
+ * openings — then the sitting, then (in the act) the evaluations. Tabling a first-stage matter takes
+ * the same order (exercise … openings → sitting → evaluations), and no sitting act locks an exercise
+ * after its sitting, so no two acts take these locks in opposite orders.
+ */
+async function inSittingAfterExercise(meetingId: string, exerciseId: string, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>): Promise<FormState> {
+  const requisitionId = await requisitionOfExercise(exerciseId);
+  if (!requisitionId) return inSitting(meetingId, fn);
+  const roster = await loadRoster(ORGANISATION_CODE);
+  const result = await withLockedRequisitionForSourcing(requisitionId, exerciseId, async (tx, l) => {
+    if (!l.ex) return null;
+    await lockWindowRow(tx, exerciseId);
+    await lockOpeningRows(tx, exerciseId);
+    const s = await lockSittingIn(tx, meetingId, roster);
+    return s ? fn(tx, s) : null;
+  });
+  if (result?.ok) refresh(meetingId);
+  return result ?? GONE;
 }
 
 // ------------------------------------------------------------------- schedule
@@ -533,9 +566,12 @@ export async function declareRecusal(_prev: FormState, data: FormData): Promise<
  * outcome's name and kind.
  */
 export async function recordOutcome(_prev: FormState, data: FormData): Promise<FormState> {
+  // 6.8 fix R-9: the server's clock is read once, at the act's entry, truncated to the second (6.6 CR-3).
+  const now = toSecond(new Date());
   const decisionId = String(data.get("decisionId") ?? "");
   const meetingId = await meetingOf(decisionId);
   if (!meetingId) return { ok: false, message: "That matter no longer exists." };
+  const exerciseId = await appointmentExerciseOf(decisionId);
 
   const r = new FormReader(data);
   const outcome = r.choice("outcome", "Outcome", ["CARRIED", "NOT_CARRIED", "DEFERRED"] as const, { required: true });
@@ -543,13 +579,15 @@ export async function recordOutcome(_prev: FormState, data: FormData): Promise<F
   const note = r.text("outcomeNote", "Note", { max: 2000 });
   if (r.failed || !outcome) return { ok: false, errors: r.errors };
 
-  return inSitting(meetingId, async (tx, s) => {
+  const run = async (tx: Tx, s: LoadedSitting): Promise<FormState> => {
     const refusal = permit(s, "OUTCOME");
     if (refusal) return refusal;
     const decision = s.meeting.decisions.find((d) => d.id === decisionId);
     if (!decision) return { ok: false, message: "That matter no longer exists." };
     if (decision.outcome !== "PENDING") return { ok: false, message: "The matter has already been decided." };
     if (decision.withdrawnAt) return { ok: false, message: "The matter was withdrawn from the agenda: nothing is recorded on it." };
+    // M-2: the exercise locked before the sitting is the matter's own (read again under the locks).
+    if (decision.domain === APPOINTMENT_DOMAIN && decision.exerciseId !== exerciseId) return { ok: false, message: "The matter changed while this was being saved. Reload and try again." };
 
     const assessment = s.assessment.matters[decisionId];
     const check = checkOutcome(
@@ -593,15 +631,21 @@ export async function recordOutcome(_prev: FormState, data: FormData): Promise<F
     await audit(tx, s, "CommitteeDecision", decisionId, decision.subject, "UPDATE",
       diffFields({ outcome: decision.outcome, decisionDate: decision.decisionDate, outcomeNote: decision.outcomeNote, notApprovedOutcomeId: decision.notApprovedOutcomeId }, after));
     // 6.8 (E-8, flagged): an appointment not carried, with a LOOP outcome whose key is the evaluation's,
-    // opens the next evaluation version in this transaction. Locks: the sitting, then the evaluations
-    // (never the exercise; lock.ts). Only for an exercise published through its window with a pinned model.
-    const said = outcome === "NOT_CARRIED" && decision.domain === APPOINTMENT_DOMAIN && decision.exerciseId ? await loopBack(tx, s, decision.exerciseId, decisionId, chosen ?? null) : null;
+    // opens the next evaluation version in this transaction. Locks (fix M-2): the exercise's, taken before
+    // the sitting (inSittingAfterExercise), then the evaluations (lock.ts). Only for an exercise published
+    // through its window with a pinned model.
+    const said = outcome === "NOT_CARRIED" && decision.domain === APPOINTMENT_DOMAIN && decision.exerciseId ? await loopBack(tx, s, decision.exerciseId, decisionId, chosen ?? null, now) : null;
     return said ? { ok: true, message: said } : { ok: true };
-  });
+  };
+  return exerciseId ? inSittingAfterExercise(meetingId, exerciseId, run) : inSitting(meetingId, run);
 }
 
-/// 6.8 E-8: the evaluation's loop-back on a NOT_CARRIED appointment; returns what to say, or null. Never refuses.
-async function loopBack(tx: Tx, s: LoadedSitting, exerciseId: string, decisionId: string, chosen: { kind: "LOOP" | "TERMINAL"; returnsToStage: string | null } | null): Promise<string | null> {
+/**
+ * 6.8 E-8: the evaluation's loop-back on a NOT_CARRIED appointment; returns what to say, or null. Never
+ * refuses. The caller holds requisition → exercise → window → openings → sitting (fix M-2); the
+ * evaluations are locked here, last. `now` is the act's one clock read (fix R-9).
+ */
+async function loopBack(tx: Tx, s: LoadedSitting, exerciseId: string, decisionId: string, chosen: { kind: "LOOP" | "TERMINAL"; returnsToStage: string | null } | null, now: Date): Promise<string | null> {
   await lockEvaluationRows(tx, exerciseId);
   const ev = await loadEvaluationGate(exerciseId, tx);
   if (!ev.bundle.applies || ev.version == null) return null;
@@ -609,7 +653,7 @@ async function loopBack(tx: Tx, s: LoadedSitting, exerciseId: string, decisionId
   const lf = loopFault({ kind: chosen?.kind ?? null, key });
   if (lf || !isLoopKey(key)) return lf ? evaluationFindingText(lf) : null;
   const ex = await tx.sourcingExercise.findUniqueOrThrow({ where: { id: exerciseId }, select: { id: true, reference: true, title: true, status: true, regime: true, boundaryValue: true, boundaryOperator: true } });
-  const v = await openNewVersion(tx, { organisationId: s.organisationId, exercise: ex, ceiling: ceilingOf(ex), today: s.today, timeZone: s.timeZone, now: toSecond(new Date()) }, { trigger: "LOOP", decisionId, key, personId: null });
+  const v = await openNewVersion(tx, { organisationId: s.organisationId, exercise: ex, ceiling: ceilingOf(ex), today: s.today, timeZone: s.timeZone, now }, { trigger: "LOOP", decisionId, key, personId: null });
   return v ? `Evaluation version ${v} of ${ex.reference} is opened: ${LOOP_KEY_LABEL[key].toLowerCase()}.` : null;
 }
 

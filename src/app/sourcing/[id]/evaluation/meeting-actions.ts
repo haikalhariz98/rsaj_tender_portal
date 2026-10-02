@@ -209,6 +209,8 @@ export async function requestNegotiation(_prev: FormState, data: FormData): Prom
  * the holder, delegation, self-approval and date checks are 6.1's (`deciderFaults`).
  */
 export async function recordNegotiationDecision(_prev: FormState, data: FormData): Promise<FormState> {
+  // 6.8 fix R-9: the clock is read once, at the act's entry, truncated to the second (6.6 CR-3).
+  const now = stampNow();
   const r = new FormReader(data);
   const stepId = r.text("stepId", "Step", { required: true });
   const decision = r.choice("decision", "Decision", ["DONE", "REJECTED"] as const, { required: true });
@@ -248,7 +250,7 @@ export async function recordNegotiationDecision(_prev: FormState, data: FormData
       const texts = check.faults.map((f) => deciderFaultText(f, person?.name ?? null));
       return ["TIME_ZONE_UNSET", "COMMITTEE_STEP", "NOT_PENDING", "OUT_OF_ORDER"].includes(check.faults[0]) ? { ok: false, message: texts.join(" ") } : { ok: false, errors: { personId: texts.join(" ") } };
     }
-    const after = personDecisionWrite({ decision, person: { id: person!.id, name: person!.name }, decidedOn: on, delegationId: check.delegationId, reason, recordedAt: new Date() });
+    const after = personDecisionWrite({ decision, person: { id: person!.id, name: person!.name }, decidedOn: on, delegationId: check.delegationId, reason, recordedAt: now });
     const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
     if (done.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, l.org.id, "ApprovalStep", step.id, `${l.ex.reference} · ${step.roleLabel}`, "UPDATE", diffFields({ decision: step.decision }, { decision, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);
@@ -258,7 +260,7 @@ export async function recordNegotiationDecision(_prev: FormState, data: FormData
       return { ok: true, message: "Refused: the negotiation is not held. It may be asked for again." };
     }
     if (!full.steps.every((s) => s.id === step.id || s.decision === "DONE")) return { ok: true };
-    await tx.approvalInstance.update({ where: { id: full.id }, data: { status: "APPROVED", closedAt: new Date() } });
+    await tx.approvalInstance.update({ where: { id: full.id }, data: { status: "APPROVED", closedAt: now } });
     await audit(tx, l.org.id, "ApprovalInstance", full.id, routeLabel, "UPDATE", diffFields({ status: full.status }, { status: "APPROVED" }), reason);
     return { ok: true, message: "Approved: the negotiation may be held. Record each round on Meetings and letters." };
   });
