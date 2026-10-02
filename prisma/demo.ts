@@ -9,6 +9,7 @@ import { checkScope, loadScope, loadScopeExercises, loadScopeSitting, SCOPE_ENTI
 import { loadSittingTrail } from "./demo-sitting-trail";
 import { checkTenderDocs, loadTenderDocs, tenderDocsDependents, wipeTenderDocs } from "./demo-tender-docs";
 import { checkWindowDemo, loadWindowDemo, windowDemoDependents, WINDOW_ENTITIES, wipeWindowDemo } from "./demo-window";
+import { checkAppendixAward, loadAppendixAward } from "./demo-award-appendix";
 import { removedWithDemo } from "../src/lib/documents/demo-wipe-plan";
 import { inspectLogo } from "../src/lib/organisation/logo";
 import { initialsLogo } from "../src/lib/organisation/png";
@@ -1167,6 +1168,10 @@ async function load() {
   await loadSittingTrail(db, organisationId, windowSittings);
   await snapshotMinuted(windowSittings);
   await checkWindowDemo(db);
+  // 64-C4 (6.4 Q-1 B): an award on sx16, closed above, opened from its frozen Appendix with one
+  // justified difference; its acts judged by the product's own rules, then read back.
+  await loadAppendixAward(db);
+  await checkAppendixAward();
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
   console.log("Remove it with: npm run demo:wipe");
