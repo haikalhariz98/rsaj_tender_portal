@@ -67,6 +67,9 @@ export const MATTER_KIND_LABEL = {
   EVALUATION_STAGE: "Two-stage tender, first stage",
   /// 6.15 (OD-2 A): a supplier matter, approved on its own route. Never tabled at a sitting.
   SUPPLIER: "Supplier matter",
+  /// 6.14 (ADR 0022): a certificate's own route, named by ApprovalInstance.certificateId. Never tabled at a sitting
+  /// until a module gives a committee matter a typed certificate key.
+  CERTIFICATE: "Certificate",
 } as const;
 
 export type MatterKind = keyof typeof MATTER_KIND_LABEL;
@@ -82,7 +85,9 @@ export const MATTER_KINDS = Object.keys(MATTER_KIND_LABEL) as MatterKind[];
 export const RECORD_TABLED_MATTER_KINDS: readonly MatterKind[] = ["SCOPE", "LATE_TENDER", "EVALUATION_STAGE"];
 
 /// 6.15: kinds no sitting tables at all. A supplier matter is decided on its own route, which takes no committee step.
-export const NEVER_TABLED_MATTER_KINDS: readonly MatterKind[] = ["SUPPLIER"];
+/// 6.14: a certificate matter names no certificate on a committee decision (no typed key yet), so a sitting tabling
+/// one would decide nothing any certificate reads.
+export const NEVER_TABLED_MATTER_KINDS: readonly MatterKind[] = ["SUPPLIER", "CERTIFICATE"];
 
 /// Kinds tabled from the sitting's own drawer: every kind but those tabled from their record, and those never tabled.
 export const SITTING_TABLED_MATTER_KINDS = MATTER_KINDS.filter((k) => !RECORD_TABLED_MATTER_KINDS.includes(k) && !NEVER_TABLED_MATTER_KINDS.includes(k));
@@ -105,6 +110,7 @@ export const WINDOW_CHANGE_NOT_TABLED_TEXT = "A change to the invitation window 
 export const SIGNATORY_NOT_TABLED_TEXT = "The award's signatory is the office the approval matrix names for the award, shown on the award; no sitting decides it.";
 export const NEGOTIATION_NOT_TABLED_TEXT = "A negotiation is approved on its own route, from the exercise's Evaluation tab, in Meetings and letters; that route takes no committee step, so no sitting decides it.";
 export const SUPPLIER_NOT_TABLED_TEXT = "A supplier matter is approved on its own route, from the supplier's record under Suppliers; that route takes no committee step, so no sitting decides it.";
+export const CERTIFICATE_NOT_TABLED_TEXT = "A certificate is approved on its own route, opened by the module that raises it; a committee decision cannot yet name a certificate, so no sitting tables one.";
 
 export const sittingTablesDomain = (domain: string) => !RECORD_TABLED_DOMAINS.includes(domain) && !NEVER_TABLED_DOMAINS.includes(domain);
 
@@ -117,6 +123,7 @@ export function recordTabledText(domainOrKind: string): string | null {
   if (domainOrKind === EVALUATION_STAGE_DOMAIN || domainOrKind === "EVALUATION_STAGE") return STAGE_ONE_TABLED_TEXT;
   if (domainOrKind === NEGOTIATION_DOMAIN) return NEGOTIATION_NOT_TABLED_TEXT;
   if (domainOrKind === SUPPLIER_REGISTRATION_DOMAIN || domainOrKind === SUPPLIER_BLACKLIST_DOMAIN || domainOrKind === SPECIAL_PERMISSION_DOMAIN || domainOrKind === "SUPPLIER") return SUPPLIER_NOT_TABLED_TEXT;
+  if (domainOrKind === "CERTIFICATE") return CERTIFICATE_NOT_TABLED_TEXT;
   return null;
 }
 

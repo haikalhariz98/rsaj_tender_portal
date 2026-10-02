@@ -12,8 +12,8 @@ describe("matter kinds (ruling 5.3, 6.2 OD-9)", () => {
     expect(SITTING_TABLED_MATTER_KINDS).not.toContain("SCOPE");
     // 6.6 CR-1 (flagged edit to accepted 6.10): LATE_TENDER joins SCOPE as tabled only from its record.
     // 6.8 (flagged, stricter): so does EVALUATION_STAGE, tabled from the Evaluation tab.
-    // 6.15 (flagged, stricter): a SUPPLIER matter is never tabled at all.
-    expect(SITTING_TABLED_MATTER_KINDS).toEqual(MATTER_KINDS.filter((k) => k !== "SCOPE" && k !== "LATE_TENDER" && k !== "EVALUATION_STAGE" && k !== "SUPPLIER"));
+    // 6.15 (flagged, stricter): a SUPPLIER matter is never tabled at all. 6.14 (flagged, stricter): nor a CERTIFICATE matter.
+    expect(SITTING_TABLED_MATTER_KINDS).toEqual(MATTER_KINDS.filter((k) => k !== "SCOPE" && k !== "LATE_TENDER" && k !== "EVALUATION_STAGE" && k !== "SUPPLIER" && k !== "CERTIFICATE"));
   });
 });
 
@@ -92,5 +92,15 @@ describe("6.15a (flagged, new test): a supplier's blacklisting and a special per
       expect(sittingTablesDomain(d), d).toBe(false);
       expect(recordTabledText(d), d).toBe(SUPPLIER_NOT_TABLED_TEXT);
     }
+  });
+});
+
+describe("6.14 (flagged, new test): a certificate matter is never tabled", () => {
+  it("no sitting tables a CERTIFICATE matter, and the refusal says where it is decided", async () => {
+    const { recordTabledText, CERTIFICATE_NOT_TABLED_TEXT, NEVER_TABLED_MATTER_KINDS } = await import("./labels");
+    expect(NEVER_TABLED_MATTER_KINDS).toContain("CERTIFICATE");
+    expect(SITTING_TABLED_MATTER_KINDS).not.toContain("CERTIFICATE");
+    expect(MATTER_KIND_LABEL.CERTIFICATE).toBe("Certificate");
+    expect(recordTabledText("CERTIFICATE")).toBe(CERTIFICATE_NOT_TABLED_TEXT);
   });
 });

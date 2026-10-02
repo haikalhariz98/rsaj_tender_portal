@@ -28,6 +28,7 @@ export const MATTER_AMOUNT_SULIT: Readonly<Record<MatterKind, MatterAmountRule>>
   SCOPE: { sulit: false, why: "A scope matter carries no amount (tableScope writes none)." },
   EVALUATION_STAGE: { sulit: false, why: "A two-stage tender's first-stage matter carries no amount (6.8 tableStageOneMatter writes none)." },
   SUPPLIER: { sulit: false, why: "A supplier matter is never tabled (6.15 NEVER_TABLED_MATTER_KINDS) and its route is routed on no value (OD-2 A)." },
+  CERTIFICATE: { sulit: null, why: "Not decided: a certificate matter is never tabled yet (6.14 NEVER_TABLED_MATTER_KINDS); the figure its route is routed on is the owning 6.13 module's to classify." },
 };
 
 /// Whether an amount on a matter of this kind is shown with the SULIT chip. Not decided, or no kind, reads as SULIT.
