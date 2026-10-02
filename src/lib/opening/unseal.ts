@@ -1,0 +1,75 @@
+/**
+ * FR-OPN-003, 004 (C-2, OD-1 A, OD-11): authorising the opening. Each authorisation is one panel
+ * member's own act, stamped by the server, recorded on their behalf (not signed); the second distinct
+ * present member's authorisation opens the box (the unseal) — or, at a resumed sitting, lets the
+ * sitting record again. The server clock must be after the closing, to the second: at the closing
+ * second itself the box is refused (a bid recorded in that second is in time, FR-BID-002, BD-66-3,
+ * `closing-instant.test.ts`), and from the next second it may be opened. The main opening also needs
+ * the box's LOCKED event (6.6). Pure.
+ */
+
+import { isLate } from "@/lib/bids/lateness";
+
+import { sittingAuthorisers, type AuthorisationFacts, type OpeningState, type PanelMemberFacts } from "./state";
+import type { Finding } from "./types";
+
+export type AuthorisationFault = "FINALISED" | "ADJOURNED" | "ALREADY_AUTHORISED" | "SITTING_AUTHORISED" | "NOT_ON_PANEL" | "ABSENT" | "AT_OR_BEFORE_CLOSING" | "CLOSING_NOT_SET" | "BOX_NOT_LOCKED";
+
+export function authorisationFaults(i: {
+  state: OpeningState;
+  panel: readonly PanelMemberFacts[];
+  auths: readonly AuthorisationFacts[];
+  personId: string;
+  /// The server's stamp, read at the act's entry, to the second (6.6 CR-3).
+  now: Date;
+  closingAt: Date | null;
+  /// MAIN: a LOCKED box event at or after the closing. A supplementary opening opens an envelope held by an officer.
+  boxLocked: boolean;
+}): Finding<AuthorisationFault>[] {
+  if (i.state.finalised) return [{ code: "FINALISED", level: "block" }];
+  const out: Finding<AuthorisationFault>[] = [];
+  const f = (code: AuthorisationFault, data?: Finding["data"]) => out.push({ code, level: "block", ...(data ? { data } : {}) });
+  if (i.state.adjourned) f("ADJOURNED");
+  const member = i.panel.find((p) => p.personId === i.personId);
+  if (!member) f("NOT_ON_PANEL");
+  else if (!member.present) f("ABSENT");
+  const done = sittingAuthorisers(i.state.sittingNo, i.auths, i.panel);
+  if (i.auths.some((a) => a.sittingNo === i.state.sittingNo && a.personId === i.personId && a.lapsedAt == null)) f("ALREADY_AUTHORISED");
+  else if (done.length >= 2) f("SITTING_AUTHORISED");
+  if (!i.closingAt) f("CLOSING_NOT_SET");
+  // OD-11: refused at the closing second, allowed from the next.
+  else if (!isLate(i.now, i.closingAt)) f("AT_OR_BEFORE_CLOSING");
+  if (i.state.kind === "MAIN" && !i.boxLocked) f("BOX_NOT_LOCKED");
+  return out;
+}
+
+export type UnsealState = "AWAITING_FIRST" | "AWAITING_SECOND" | "AUTHORISED";
+
+/// The sitting's authorisations, counted as the box reads them: none, one (awaiting the second), or two.
+export function unsealState(sittingNo: number, auths: readonly AuthorisationFacts[], panel: readonly PanelMemberFacts[]): { state: UnsealState; count: number } {
+  const n = sittingAuthorisers(sittingNo, auths, panel).length;
+  return { state: n === 0 ? "AWAITING_FIRST" : n === 1 ? "AWAITING_SECOND" : "AUTHORISED", count: n };
+}
+
+/// Whether this authorisation is the one that opens the box: the second distinct one, before any unseal.
+export const opensTheBox = (s: OpeningState, countAfter: number) => !s.unsealed && countAfter === 2;
+
+/// C-2: adjourning lapses an unpaired authorisation of the sitting it ends (kept, marked lapsed).
+export function lapsedByAdjourning(sittingNo: number, auths: readonly (AuthorisationFacts & { id: string })[], panel: readonly PanelMemberFacts[]): string[] {
+  const live = auths.filter((a) => a.sittingNo === sittingNo && a.lapsedAt == null);
+  return sittingAuthorisers(sittingNo, auths, panel).length >= 2 ? [] : live.map((a) => a.id);
+}
+
+export type AdjournFault = "FINALISED" | "ALREADY_ADJOURNED" | "NOT_ADJOURNED" | "REASON_REQUIRED" | "PERSON_REQUIRED";
+
+/// FR-OPN-011: adjourning and resuming lose nothing; each says why and who recorded it.
+export function adjournFaults(i: { state: OpeningState; reason: string; personActive: boolean; resume: boolean }): Finding<AdjournFault>[] {
+  if (i.state.finalised) return [{ code: "FINALISED", level: "block" }];
+  const out: Finding<AdjournFault>[] = [];
+  const f = (code: AdjournFault) => out.push({ code, level: "block" });
+  if (i.resume && !i.state.adjourned) f("NOT_ADJOURNED");
+  if (!i.resume && i.state.adjourned) f("ALREADY_ADJOURNED");
+  if (!i.reason.trim()) f("REASON_REQUIRED");
+  if (!i.personActive) f("PERSON_REQUIRED");
+  return out;
+}
