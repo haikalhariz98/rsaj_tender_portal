@@ -85,7 +85,7 @@ export async function saveTemplate(_prev: FormState, data: FormData): Promise<Fo
     const awardUnknown = new Set(v[k] ? renderTemplate(v[k]!, {}).unknown : []);
     // 6.5: the window's instruments (notice, letter of invitation, addendum) fill their own fields;
     // 6.8: so do the evaluation report and the Kertas Cadangan (each re-checks its own whitelist when frozen).
-    const unknown = v[k] ? templateFieldRefusals(fieldsNamed(v[k]), (f) => !awardUnknown.has(f) || WINDOW_FIELD_KEYS.has(f) || EVALUATION_FIELD_KEYS.has(f), clauseCodes) : [];
+    const unknown = (v[k] ? templateFieldRefusals(fieldsNamed(v[k]), (f) => !awardUnknown.has(f) || WINDOW_FIELD_KEYS.has(f), clauseCodes) : []).filter((u) => !EVALUATION_FIELD_KEYS.has(u));
     if (unknown.length) r.reject(k, `The portal does not fill ${unknown.map((u) => `{{${u}}}`).join(", ")}. Use the merge fields listed below.`);
   }
   if (v.bodyMs && v.bodyEn && !v.primaryLanguage) r.reject("primaryLanguage", "With text in both languages, say which is issued first.");
