@@ -103,6 +103,7 @@ const CLOSING_KEY_READERS: Record<string, string> = {
   // 6.6 (listed, flagged): the envelope register reads the closing it judges lateness and validity against.
   "src/lib/bids/repo.ts": "selects the exercise's closing for the register's rules and the award's validity check; writes nothing",
   "src/lib/bids/read.ts": "selects the exercise's closing for the Bids received tab; writes nothing",
+  "prisma/demo-bids.ts": "reads the closings the demo's receipts, box and extension are judged against; writes nothing",
 };
 
 describe("X-2: the closing is written nowhere else, by any route (carry a)", () => {
