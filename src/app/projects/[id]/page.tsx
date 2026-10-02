@@ -272,9 +272,9 @@ const ENTITY_LABEL: Record<string, string> = {
 };
 function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<ReturnType<typeof contractHistory>>["entries"]; total: number; timeZone: string | null }) {
   // Known codes in words; real values (LHDN, PS) as they are; a code without words never shown.
-  const read = (field: string, value: string | null): string => historyValue(field, value, formatDate);
+  const read = (field: string, value: string | null, entity: string): string => historyValue(field, value, formatDate, entity);
   // A registered SULIT field's value carries the chip, as on the sibling History panels.
-  const chipped = (field: string, value: string | null) => (isSulitField(field) && value ? <SulitValue>{read(field, value)}</SulitValue> : read(field, value));
+  const chipped = (field: string, value: string | null, entity: string) => (isSulitField(field) && value ? <SulitValue>{read(field, value, entity)}</SulitValue> : read(field, value, entity));
   return (
     <Card className="overflow-hidden">
       <CardHeader icon={<ClockIcon size={17} />} title="History" subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this contract and what is under it. "}Nobody is signed in, so no change is attributed. Identity-card numbers are masked here.`} divided={entries.length === 0} />
@@ -295,8 +295,8 @@ function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<ReturnTyp
                 <ul className="text-[12.5px] break-words text-ink-3">
                   {e.changes.filter((ch) => !/(Code|Key|Id)$/.test(ch.field)).map((ch) => (
                     <li key={ch.field}>
-                      {fieldLabel(ch.field)}: {(e.action === "UPDATE" || ch.before != null) && <>{chipped(ch.field, ch.before)} → </>}
-                      <span className="text-ink-2">{chipped(ch.field, e.action === "DELETE" ? ch.before : ch.after)}</span>
+                      {fieldLabel(ch.field)}: {(e.action === "UPDATE" || ch.before != null) && <>{chipped(ch.field, ch.before, e.entity)} → </>}
+                      <span className="text-ink-2">{chipped(ch.field, e.action === "DELETE" ? ch.before : ch.after, e.entity)}</span>
                     </li>
                   ))}
                 </ul>

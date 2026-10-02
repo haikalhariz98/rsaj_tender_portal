@@ -23,7 +23,7 @@ describe("the contract's History reads a stored value", () => {
     expect(historyValue("status", "IN_PREPARATION", day)).toBe("In preparation");
     expect(historyValue("status", "AWAITING_CONDITIONS", day)).toBe("Awaiting conditions precedent");
     expect(historyValue("direction", "OUT", day)).toBe("Checked out");
-    expect(historyValue("reason", "CORRECTION", day)).toBe("Corrected");
+    expect(historyValue("reason", "CORRECTION", day, "ContractBaseline")).toBe("Corrected");
     expect(historyValue("method", "REGISTERED_POST", day)).toBe("Registered post");
     expect(historyValue("kind", "WORKMENS_COMPENSATION", day)).toBe("Workmen's compensation insurance");
   });
@@ -31,8 +31,14 @@ describe("the contract's History reads a stored value", () => {
     expect(historyValue("numberSource", "SERIES", day)).toBe("The contract type's series");
     expect(historyValue("numberSource", "INDENT_NUMBER", day)).toBe("The indent's own number");
   });
-  it("a code with no words is withheld, never shown", () => {
-    expect(historyValue("anything", "SOME_NEW_CODE", day)).toBe("—");
+  it("an unmapped code in a code field is withheld, never shown raw (6.12 re-review), one word or several", () => {
+    expect(historyValue("status", "SOME_NEW_CODE", day)).toBe("—");
+    expect(historyValue("kind", "NEWKIND", day)).toBe("—");
+    expect(historyValue("reason", "SOMETHING", day, "ContractBaseline")).toBe("—");
+  });
+  it("outside a code field, a value is the officer's or the act's words and is shown as written", () => {
+    expect(historyValue("reason", "PS RATE EXTENDED WRONGLY", day, "ArithmeticCorrection")).toBe("PS RATE EXTENDED WRONGLY");
+    expect(historyValue("description", "VALVE_CHAMBER", day)).toBe("VALVE_CHAMBER");
   });
   it("days, yes and no, and empty", () => {
     expect(historyValue("on", "2026-09-30", day)).toBe("day 2026-09-30");

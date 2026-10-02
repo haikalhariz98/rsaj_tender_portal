@@ -34,16 +34,23 @@ export const HISTORY_CODE_WORDS: Readonly<Record<string, string>> = Object.fromE
 
 const STATUS_WORDS: Readonly<Record<string, string>> = Object.fromEntries(en(PHASE_WORDS));
 
-/// A code-shaped value: capitals joined by at least one underscore (IN_PREPARATION, not LHDN or PS).
-const CODE_SHAPE = /^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+$/;
+/**
+ * The fields the contract's trail stores a code in (6.12 re-review): a value in one of these reads in words,
+ * and a code with no words is withheld as "—", never shown raw. Every other field holds what someone typed
+ * or what an act wrote in words, and is shown as it is (an LHDN reference, an item "PS"). `reason` is a code
+ * only on a baseline version's row; elsewhere it is the officer's text.
+ */
+export const CODE_FIELDS: ReadonlySet<string> = new Set(["status", "state", "outcome", "decision", "party", "comparison", "kind", "direction", "method", "numberSource", "provenance", "ladKind", "now", "wcBasis", "substitutesFor"]);
+const ENTITY_CODE_FIELDS: Readonly<Record<string, readonly string[]>> = { ContractBaseline: ["reason"] };
 
-export function historyValue(field: string, value: string | null, formatDay: (d: string) => string): string {
+export const isCodeField = (field: string, entity?: string) => CODE_FIELDS.has(field) || (entity ? (ENTITY_CODE_FIELDS[entity] ?? []).includes(field) : false);
+
+export function historyValue(field: string, value: string | null, formatDay: (d: string) => string, entity?: string): string {
   if (value == null || value === "") return "—";
-  if (field === "status" && STATUS_WORDS[value]) return STATUS_WORDS[value];
   if (/^\d{4}-\d{2}-\d{2}/.test(value)) return formatDay(value);
   if (value === "true" || value === "yes") return "Yes";
   if (value === "false" || value === "no") return "No";
-  const words = HISTORY_CODE_WORDS[value] ?? STATUS_WORDS[value];
-  if (words) return words;
-  return CODE_SHAPE.test(value) ? "—" : value;
+  if (!isCodeField(field, entity)) return value;
+  if (field === "status" && STATUS_WORDS[value]) return STATUS_WORDS[value];
+  return HISTORY_CODE_WORDS[value] ?? STATUS_WORDS[value] ?? "—";
 }
