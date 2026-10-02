@@ -20,11 +20,12 @@ import { leadTime } from "@/lib/scope/estimate";
 
 import { lockGapFinding } from "./box";
 import { checklistFromSnapshot, openingChecklist, unansweredItems } from "./checklist";
-import { copyFindingFault } from "./estimate-copy";
+import { COPY_NOT_COMPARED_LABEL, COPY_NOT_COMPARED_TEXT, copyFindingFault, copyReading, estimateCardText } from "./estimate-copy";
 import { finaliseFaults, markFaults, recordFaults, scheduleScanFault } from "./finalise";
 import { summaryFromSnapshot, type GrandSummary } from "./grand-summary";
 import { freshInitials } from "./initials";
-import { ALTERNATIVE_LABEL, CHECKLIST_ANSWER_LABEL, COPY_CHECK_LABEL, GROUND_LABEL, INVITED_READING_LABEL, OPENING_KIND_LABEL, OPENING_PHASE_LABEL, OPENING_PHASE_TONE, openingFindingText, periodText, REPORTED_LABEL, RESTRICTION_FINDING_LABEL, SALE_FINDING_LABEL, SEALED_UNTIL_FINALISED, UNPURCHASED_LABEL, VERDICT_LABEL, VERDICT_TONE } from "./labels";
+import { ALTERNATIVE_LABEL, CHECKLIST_ANSWER_LABEL, COPY_CHECK_LABEL, GROUND_LABEL, INVITED_READING_LABEL, OPENING_KIND_LABEL, OPENING_PHASE_LABEL, OPENING_PHASE_TONE, openingFindingText, periodText, REPORTED_LABEL, RESTRICTION_FINDING_LABEL, SALE_FINDING_LABEL, SEALED_UNTIL_FINALISED, VERDICT_LABEL, VERDICT_TONE } from "./labels";
+import { unpurchasedRuleText } from "./unpurchased";
 import { alternativeInsideFaults, openFaults } from "./open";
 import { supplementaryPanel } from "./panel";
 import { invitedCounts, liveScans, openingContext, panelOf, policyOf, presentOf, stateOf, type OpeningContext, type OpeningRow } from "./repo";
@@ -84,7 +85,7 @@ export async function openingSection(exerciseId: string) {
   // A late estimate is not a refusal here: the drawer asks for 6.2's override.
   const estimateLate = !est.ok && est.faults.length === 1 && est.faults[0].code === "ESTIMATE_LATE";
   // Review M-4: what the start would freeze unset, making finalising impossible.
-  const rf = frozenRuleFaults({ completenessEliminates: c.bidRule.rule?.completenessEliminates ?? null, checklist: openingChecklist({ parts: (c.pack?.parts ?? []).map((p) => ({ partCode: p.partCode, label: p.labelSnapshot, role: p.role, mandatory: p.mandatory, returnedByBidder: p.returnedByBidder, sortOrder: p.sortOrder })), addenda: c.addenda }) });
+  const rf = frozenRuleFaults({ completenessEliminates: c.bidRule.rule?.completenessEliminates ?? null, invitedReading: c.openingPolicy?.invitedCountReading ?? null, checklist: openingChecklist({ parts: (c.pack?.parts ?? []).map((p) => ({ partCode: p.partCode, label: p.labelSnapshot, role: p.role, mandatory: p.mandatory, returnedByBidder: p.returnedByBidder, sortOrder: p.sortOrder })), addenda: c.addenda }) });
   const start = {
     allowed: allowedOf([...sf, ...rf, ...config, ...(est.ok || estimateLate ? [] : est.faults)]),
     committee: c.committee?.nameEn ?? null,
@@ -118,13 +119,8 @@ export async function openingSection(exerciseId: string) {
     });
 
   // ---- the company estimate: never its figure.
-  const estimate = !c.estimate
-    ? { text: c.method?.requiresCompanyEstimate === true ? "The method needs a company estimate, and none is lodged." : "None is lodged. The method does not need one, or it is not set.", tone: c.method?.requiresCompanyEstimate === true ? ("warn" as const) : ("neutral" as const) }
-    : c.estimate.state === "LODGED"
-      ? { text: `${SEALED_UNTIL_FINALISED}. Lodged into the box; it is disclosed, and its paper copy compared, only when the opening is finalised.`, tone: "neutral" as const }
-      : c.estimate.state === "DISCLOSED"
-        ? { text: "Disclosed when the opening was finalised. Its row is on the frozen schedule.", tone: "ok" as const }
-        : { text: "Not lodged into the box yet.", tone: "warn" as const };
+  // S-5: "not needed" and "not set" read differently; a voluntary copy left unanswered says it was not compared.
+  const estimate = estimateCardText({ requires: c.main ? policyOf(c.main.policySnapshot).estimate.requires : (c.method?.requiresCompanyEstimate ?? null), state: c.estimate?.state ?? null, copyCheck: c.main?.estimateCopyCheck ?? null, sealedText: SEALED_UNTIL_FINALISED });
 
   const openings = c.openings.map((o) => openingView(o, c, { now, tz, closing, people }));
 
@@ -259,7 +255,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
     admittedOpened: admitted?.status === "OPENED",
     completenessEliminates: snap.completeness.eliminates,
     unpurchased,
-    invitedReading: c.openingPolicy?.invitedCountReading ?? null,
+    invitedReading: snap.invited.reading,
     estimate: { required: snap.estimate.requires === true, lodged: estimateLodged, paperAnswered: true },
     personActive: true,
   });
@@ -304,12 +300,15 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
     parentOptions: allBids.filter((b) => !b.isAlternative).map((b) => ({ value: b.id, label: `No. ${b.listingNo}, ${b.bidderNameAsRead}` })),
     parties: c.parties.map((p) => ({ value: p.id, label: `${p.name} (${p.registrationNo})` })),
     alternativesPermitted: snap.alternativesPermitted,
+    /// Who may be named as recording an act (the verdict's recorder, S-3).
+    people: x.people,
     withdrawals,
     matchOptions: boxEnvelopes.map((e) => ({ value: e.id, label: `Envelope ${e.sequence}: ${e.markings}` })),
     checklist: { items: checklist.items.map((i) => i.label), notJudged: checklist.notJudged, notReturned: checklist.notReturned },
     rules: [
       { label: "An incomplete bid", value: snap.completeness.eliminates == null ? "Not set when the window was published" : snap.completeness.eliminates ? "Is eliminated" : "Is reported to the committee" },
-      { label: "A bid with no live purchase", value: unpurchased ? `${UNPURCHASED_LABEL[unpurchased]}${snap.unpurchased.consequence ? "" : " (set since the opening started)"}` : "Not set" },
+      // S-3: "set since the opening started" stays, with when and by whom, read from recordedLater.
+      { label: "A bid with no live purchase", value: unpurchasedRuleText(snap, c.method?.unpurchasedBidConsequence ?? null, tz) },
       { label: "Alternatives", value: snap.alternativesPermitted == null ? "Not stated on the window" : snap.alternativesPermitted ? "Permitted" : "Not permitted: recorded, never considered" },
     ],
     signatures: o.signatures.map((s) => `${s.person.name}, signed on ${formatDate(storedDay(s.signedOn))}`),
@@ -344,6 +343,8 @@ export async function scheduleSection(exerciseId: string) {
   const counts = invitedCounts(c);
   const openings = c.openings.map((o) => {
     const frozen = scheduleFromSnapshot(o.scheduleSnapshot) as (ScheduleSnapshot & { invitedReadingProvenance?: string | null }) | null;
+    const snap = policyOf(o.policySnapshot);
+    const readingProvenance = frozen ? (frozen.invitedReadingProvenance ?? null) : snap.invited.provenance;
     const summary: GrandSummary | null = o.finalisedAt ? summaryFromSnapshot(o.grandSummarySnapshot) : null;
     let schedule: ScheduleSnapshot | null = frozen;
     if (!frozen) {
@@ -355,7 +356,8 @@ export async function scheduleSection(exerciseId: string) {
         reference: l.ex.reference,
         startDay: l.ex.tenderingStartOn ? storedDay(l.ex.tenderingStartOn) : null,
         closing: l.ex.closingAt,
-        invited: { reading: c.openingPolicy?.invitedCountReading ?? null, ...counts },
+        // R-4: the reading frozen at the start.
+        invited: { reading: snap.invited.reading, ...counts },
         lateCount: lateCount(c.envelopes),
         pages: o.schedulePages,
         rows,
@@ -366,6 +368,9 @@ export async function scheduleSection(exerciseId: string) {
     const s = schedule!;
     const scan = scheduleScanFault({ finalised: o.finalisedAt != null, liveScans: liveScans(o) });
     const copy = copyFindingFault(o.estimateCopyCheck, o.copyExplanation != null);
+    // S-5: disclosed at this (main) opening with no comparison: "Paper copy not compared".
+    const reading = copyReading(o.estimateCopyCheck, o.kind === "MAIN" && o.finalisedAt != null && !("notRequired" in s.benchmark) && !s.benchmark.sealed);
+    const copyView = !reading ? null : reading === "NOT_COMPARED" ? { check: null, text: COPY_NOT_COMPARED_LABEL, tone: "neutral" as const, fault: null, body: COPY_NOT_COMPARED_TEXT } : { check: reading, text: COPY_CHECK_LABEL[reading], tone: (reading === "MATCH" ? "ok" : "warn") as "ok" | "warn" | "neutral", fault: copy ? openingFindingText(copy) : null, body: reading === "MATCH" ? "The paper copy in the box and the lodged version agree." : null };
     return {
       id: o.id,
       title: titleOf(o),
@@ -376,19 +381,21 @@ export async function scheduleSection(exerciseId: string) {
         { label: "Reference", value: s.header.reference },
         { label: "Tendering started", value: s.header.startDay ? formatDate(s.header.startDay) : "Not recorded" },
         { label: "Closed", value: s.header.closes ? receiptTime(new Date(s.header.closes), tz) : "Not recorded" },
-        { label: "Tenderers invited", value: s.header.invitedReading ? `${s.header.invitedCount} · ${INVITED_READING_TEXT[s.header.invitedReading]}${frozen?.invitedReadingProvenance ? ` (${PROVENANCE_WORD[frozen.invitedReadingProvenance] ?? "provenance not recorded"})` : ""}` : `Not set: ${openingFindingText({ code: "READING_NOT_SET", level: "block" })}` },
+        { label: "Tenderers invited", value: s.header.invitedReading ? `${s.header.invitedCount} · ${INVITED_READING_TEXT[s.header.invitedReading]}${readingProvenance ? ` (${PROVENANCE_WORD[readingProvenance] ?? "provenance not recorded"})` : ""}` : `Not set: ${openingFindingText({ code: "READING_NOT_SET", level: "block" })}` },
         { label: "Late envelopes on the register", value: String(s.header.lateCount) },
         { label: "Pages of the signed schedule", value: s.header.pages == null ? "Not recorded yet" : String(s.header.pages) },
         ...(s.lockGap ? [{ label: "Closing to the box's lock", value: s.lockGap.text }] : []),
+        // S-3: a rule recorded on the opening after it started says so, with when and by whom.
+        ...(snap.unpurchased.recordedLater ? [{ label: "A bid with no live purchase", value: unpurchasedRuleText(snap, null, tz) }] : []),
       ],
       rows: s.rows.map((row) => ({ ...row, openingPrice: formatMoney(parseSen(row.openingPrice)), period: periodText(row.period), alternative: row.isAlternative ? `Alternative${row.parentListingNo != null ? ` to No. ${row.parentListingNo}` : ""}` : null })),
       benchmark: "notRequired" in s.benchmark ? null : s.benchmark.sealed ? { sealed: true as const, text: SEALED_UNTIL_FINALISED } : { sealed: false as const, label: s.benchmark.label ?? "Company estimate", companyEstimate: formatMoney(parseSen(s.benchmark.companyEstimate)) },
       summary: summary ? { labels: summary.labels, rows: summary.rows.map((x) => ({ ...x, openingPrice: formatMoney(parseSen(x.openingPrice)) })) } : null,
-      copy: o.estimateCopyCheck ? { check: o.estimateCopyCheck, text: COPY_CHECK_LABEL[o.estimateCopyCheck], tone: (o.estimateCopyCheck === "MATCH" ? "ok" : "warn") as "ok" | "warn", fault: copy ? openingFindingText(copy) : null } : null,
+      copy: copyView,
       explanation: o.copyExplanation ? { text: o.copyExplanation.explanation, by: o.copyExplanation.recordedBy.name, at: time(o.copyExplanation.recordedAt, tz) } : null,
       explain: copy && o.finalisedAt ? ({ allowed: true } as Allowed) : null,
       scan: scan ? openingFindingText(scan) : null,
-      reading: c.openingPolicy?.invitedCountReading ? INVITED_READING_LABEL[c.openingPolicy.invitedCountReading] : null,
+      reading: snap.invited.reading ? INVITED_READING_LABEL[snap.invited.reading] : null,
     };
   });
   return { exerciseId: l.ex.id, reference: l.ex.reference, timeZone: tz, people, openings };

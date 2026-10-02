@@ -31,7 +31,8 @@ import { lockOpenedBidRows, lockOpeningRows } from "@/lib/opening/lock";
 import { alternativeInsideFaults, alternativeOf, correctionFaults, nextListingNo, openFaults } from "@/lib/opening/open";
 import { panelFaults, supplementaryPanel } from "@/lib/opening/panel";
 import { actFaults } from "@/lib/opening/state";
-import { invitedCounts, openingContext, panelOf, panelSnapshot, policyOf, presentOf, stateOf, type OpeningContext, type OpeningPolicySnapshot, type OpeningRow } from "@/lib/opening/repo";
+import { invitedCounts, openingContext, openingPolicyFrozen, panelOf, panelSnapshot, policyOf, presentOf, stateOf, summaryLabelsOf, type OpeningContext, type OpeningPolicySnapshot, type OpeningRow } from "@/lib/opening/repo";
+import { unpurchasedRecordAudit, unpurchasedRule, type LiveUnpurchased } from "@/lib/opening/unpurchased";
 import { jadualTawaran, lateCount, type ScheduleRowInput } from "@/lib/opening/schedule";
 import { estimateLeadFaults, frozenRuleFaults, startFaults, supplementaryFaults } from "@/lib/opening/start";
 import { blocking, CHECKLIST_ANSWERS, PERIOD_UNITS, type Finding, type OpeningVerdict, type PeriodUnit } from "@/lib/opening/types";
@@ -122,7 +123,7 @@ export async function startOpening(_prev: FormState, data: FormData): Promise<Fo
     if (blocking(sf).length) return refuse(sf);
     // Review M-4: a rule frozen unset that would make finalising impossible refuses the start, naming it.
     const checklist = openingChecklist({ parts: (c.pack?.parts ?? []).map((p) => ({ partCode: p.partCode, label: p.labelSnapshot, role: p.role, mandatory: p.mandatory, returnedByBidder: p.returnedByBidder, sortOrder: p.sortOrder })), addenda: c.addenda });
-    const rf = frozenRuleFaults({ completenessEliminates: c.bidRule.rule?.completenessEliminates ?? null, checklist });
+    const rf = frozenRuleFaults({ completenessEliminates: c.bidRule.rule?.completenessEliminates ?? null, checklist, invitedReading: c.openingPolicy?.invitedCountReading ?? null });
     if (blocking(rf).length) return refuse(rf);
     const picked = await pickedPeople(tx, l.org.id, picks);
     const wantsOverride = !!(overrideAuthority.trim() || overrideReason.trim() || overridePersonId);
@@ -160,6 +161,8 @@ export async function startOpening(_prev: FormState, data: FormData): Promise<Fo
       restrictedTender: l.ex.restrictedTender,
       path: c.path,
       estimate: { requires: c.method?.requiresCompanyEstimate ?? null, provenance: (c.method?.requiresCompanyEstimateProvenance as OpeningPolicySnapshot["estimate"]["provenance"]) ?? null },
+      // R-4: the invited-count reading and the Grand Summary's words, frozen with the other rules.
+      ...openingPolicyFrozen(c.openingPolicy),
     };
     const estimateLead = { outcome: est.outcome, state: lead.state, lastPermittedDay: lead.lastPermittedDay ?? null, lastVersionDay: lead.lastVersionDay ?? null, leadDays: c.scopePolicy.estimateLeadDays, overrideBy: est.outcome === "OVERRIDDEN" ? overrider!.name : null, overrideReason: est.outcome === "OVERRIDDEN" ? lateOverrideReason : null };
     const panelOverride = pf.some((f) => f.code === "PANEL_SIZE_OVERRIDDEN") ? { authority: overrideAuthority, reason: overrideReason, by: overrideBy! } : null;
@@ -577,13 +580,8 @@ export async function recordChecklistAnswer(_prev: FormState, data: FormData): P
   });
 }
 
-/// The unpurchased-bid rule as the opening reads it: frozen at start, or, where it was not set then, set once from the method now (BD-67).
-function unpurchasedRule(o: OpeningRow, c: OpeningContext) {
-  const snap = policyOf(o.policySnapshot);
-  if (snap.unpurchased.consequence) return { consequence: snap.unpurchased.consequence, record: null };
-  const live = c.method?.unpurchasedBidConsequence ?? null;
-  return { consequence: live, record: live ? { ...snap, unpurchased: { consequence: live, provenance: (c.method?.unpurchasedProvenance as OpeningPolicySnapshot["unpurchased"]["provenance"]) ?? null, recordedLater: true } } : null };
-}
+/// The method's unpurchased-bid rule as it stands now (OD-4), for an opening that froze it unset.
+const liveUnpurchased = (c: OpeningContext): LiveUnpurchased => ({ consequence: c.method?.unpurchasedBidConsequence ?? null, provenance: (c.method?.unpurchasedProvenance as OpeningPolicySnapshot["unpurchased"]["provenance"]) ?? null });
 
 /// FR-OPN-008, 009, R12, OD-4: the verdict on one offer, on the grounds the rules make eliminatory only.
 export async function recordVerdict(_prev: FormState, data: FormData): Promise<FormState> {
@@ -592,15 +590,19 @@ export async function recordVerdict(_prev: FormState, data: FormData): Promise<F
   const bidId = r.text("openedBidId", "Offer", { required: true });
   const verdict = r.choice("verdict", "Verdict", ["PASS", "REJECT"] as const, { required: true }) as OpeningVerdict | null;
   const reason = r.text("verdictReason", "Reason", { max: 2000 });
+  const personId = r.optionalText("personId");
   if (r.failed) return { ok: false, errors: r.errors };
   return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
     const found = bidOf(c, bidId);
     if (!found) return GONE_BID;
     const { opening: o, bid } = found;
+    // S-3: who records the verdict is named, so a rule recorded with it says by whom.
+    const person = await nameOf(tx, l.org.id, personId);
+    if (!person) return { ok: false, errors: { personId: openingFindingText({ code: "PERSON_REQUIRED", level: "block" }) } };
     const snap = policyOf(o.policySnapshot);
     const checklist = checklistFromSnapshot(o.checklistSnapshot);
     const answers = new Map(bid.answers.map((a) => [a.itemKey, a.answer]));
-    const unpurchased = unpurchasedRule(o, c);
+    const unpurchased = unpurchasedRule(snap, liveUnpurchased(c), now, person.name);
     const policy = { completenessEliminates: snap.completeness.eliminates, unpurchased: unpurchased.consequence };
     const facts = { saleFinding: bid.saleFinding, restrictionFinding: bid.restrictionFinding, isAlternative: bid.isAlternative, alternativeStatus: bid.alternativeStatus };
     const fs = verdictFaults({ state: stateOf(o, l.ex.status), sameOpening: true, bid: facts, checklist, answers, policy, verdict, reason });
@@ -609,11 +611,12 @@ export async function recordVerdict(_prev: FormState, data: FormData): Promise<F
     // OD-4: an unset unpurchased rule, set since the opening started, is recorded on the opening once, the first time it is used.
     if (unpurchased.record && bid.saleFinding !== "LIVE_SALE") {
       await tx.opening.update({ where: { id: o.id }, data: { policySnapshot: unpurchased.record as unknown as Prisma.InputJsonValue } });
-      await audit(tx, l.org.id, OPENING_ENTITY.opening, o.id, openingLabel(l, o), "UPDATE", diffFields({ unpurchasedBidRule: "Not set when the opening started" }, { unpurchasedBidRule: unpurchased.consequence === "ELIMINATE" ? "Eliminated (recorded from the method, set since)" : "Reported to the committee (recorded from the method, set since)" }));
+      const a = unpurchasedRecordAudit(unpurchased.consequence!, now, person.name, l.org.timeZone);
+      await audit(tx, l.org.id, OPENING_ENTITY.opening, o.id, openingLabel(l, o), "UPDATE", diffFields(a.before, a.after));
     }
     await tx.openedBid.update({ where: { id: bid.id }, data: { verdict, verdictReason: verdict === "REJECT" ? reason.trim() : "", verdictAt: now, completeness: verdictRecord(j) as unknown as Prisma.InputJsonValue } });
     await audit(tx, l.org.id, OPENING_ENTITY.bid, bid.id, label(l, `Offer ${bid.listingNo}`), "UPDATE",
-      diffFields(bid.verdict ? verdictFields({ verdict: bid.verdict, reason: bid.verdictReason, grounds: [], reported: [], missing: [] }) : { verdict: null }, verdictFields({ verdict, reason: verdict === "REJECT" ? reason.trim() : "", grounds: j.grounds, reported: j.reported, missing: j.missing.map((m) => m.label) })),
+      diffFields(bid.verdict ? { ...verdictFields({ verdict: bid.verdict, reason: bid.verdictReason, grounds: [], reported: [], missing: [] }), recordedBy: null } : { verdict: null, recordedBy: null }, { ...verdictFields({ verdict, reason: verdict === "REJECT" ? reason.trim() : "", grounds: j.grounds, reported: j.reported, missing: j.missing.map((m) => m.label) }), recordedBy: `${person.name} (recorded on their behalf, not signed)` }),
       verdict === "REJECT" ? reason.trim() : "");
     return { ok: true };
   });
@@ -708,7 +711,7 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
     const state = stateOf(o, l.ex.status);
     const snap = policyOf(o.policySnapshot);
     const checklist = checklistFromSnapshot(o.checklistSnapshot);
-    const unpurchased = unpurchasedRule(o, c);
+    const unpurchased = unpurchasedRule(snap, liveUnpurchased(c), now, person?.name ?? "");
     const estimate = { required: snap.estimate.requires === true, lodged: o.kind === "MAIN" && c.estimate?.state === "LODGED", paperAnswered };
     const unopened = c.envelopes.filter((e) => e.kind !== "COMPANY_ESTIMATE" && !e.late && e.status === "RECEIVED").length;
     const admitted = o.admissionDecision?.bidEnvelopeId ? c.envelopes.find((e) => e.id === o.admissionDecision!.bidEnvelopeId) : null;
@@ -724,7 +727,8 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
       admittedOpened: admitted?.status === "OPENED",
       completenessEliminates: snap.completeness.eliminates,
       unpurchased: unpurchased.consequence,
-      invitedReading: c.openingPolicy?.invitedCountReading ?? null,
+      // R-4: the reading frozen at the start, never today's configuration.
+      invitedReading: snap.invited.reading,
       estimate,
       personActive: !!person,
     });
@@ -756,24 +760,30 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
     const priorBenchmark = mainSchedule && typeof mainSchedule === "object" && !Array.isArray(mainSchedule) ? ((mainSchedule as Record<string, unknown>).benchmark as { sealed: false; label: string | null; companyEstimate: string } | { notRequired: true } | undefined) : undefined;
     const benchmark = disclosed?.benchmark ? { sealed: false as const, label: disclosed.benchmark.label, value: disclosed.benchmark.value } : priorBenchmark && "companyEstimate" in priorBenchmark ? { sealed: false as const, label: priorBenchmark.label, value: parseSen(priorBenchmark.companyEstimate) } : { notRequired: true as const };
     const gap = c.main?.lockGapSeconds != null && o.kind === "MAIN" && c.main.boxLockedAt && l.ex.closingAt ? lockGap(l.ex.closingAt, c.main.boxLockedAt) : null;
-    const { schedule } = jadualTawaran({ version: o.sequenceNo, title: l.ex.title, reference: l.ex.reference, startDay: l.ex.tenderingStartOn ? storedDay(l.ex.tenderingStartOn) : null, closing: l.ex.closingAt, invited: { reading: c.openingPolicy!.invitedCountReading, ...invitedCounts(c) }, lateCount: lateCount(c.envelopes), pages: o.schedulePages, rows, benchmark, lockGap: gap });
+    const { schedule } = jadualTawaran({ version: o.sequenceNo, title: l.ex.title, reference: l.ex.reference, startDay: l.ex.tenderingStartOn ? storedDay(l.ex.tenderingStartOn) : null, closing: l.ex.closingAt, invited: { reading: snap.invited.reading, ...invitedCounts(c) }, lateCount: lateCount(c.envelopes), pages: o.schedulePages, rows, benchmark, lockGap: gap });
     const verdicts = new Map(c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => [b.id, b.verdict] as const)));
-    const summary = grandSummary({ finalised: true, bids: c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, price: parseSen(b.priceAsRead.toString()), verdict: verdicts.get(b.id) ?? null }))), labels: { qualified: c.openingPolicy?.qualifiedLabelEn ?? null, notQualified: c.openingPolicy?.notQualifiedLabelEn ?? null, lowest: c.openingPolicy?.lowestLabelEn ?? null } });
+    const summary = grandSummary({ finalised: true, bids: c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, price: parseSen(b.priceAsRead.toString()), verdict: verdicts.get(b.id) ?? null }))), labels: summaryLabelsOf(snap) });
     if (!("summary" in summary)) return refuse([summary.fault]);
     const lodged = disclosed?.lodged ?? null;
+    // R-4: the unpurchased rule is recorded at finalising only where an offer needs it, audited with it.
+    const recordRule = unpurchased.record && o.bids.some((b) => b.saleFinding !== "LIVE_SALE") ? unpurchased.record : null;
     await tx.opening.update({
       where: { id: o.id },
       data: {
         finalisedAt: now,
-        scheduleSnapshot: { ...schedule, invitedReadingProvenance: c.openingPolicy?.invitedCountProvenance ?? null } as unknown as Prisma.InputJsonValue,
+        scheduleSnapshot: { ...schedule, invitedReadingProvenance: snap.invited.provenance } as unknown as Prisma.InputJsonValue,
         grandSummarySnapshot: summary.summary as unknown as Prisma.InputJsonValue,
         faultsSnapshot: fs.filter((f) => f.level !== "block") as unknown as Prisma.InputJsonValue,
-        ...(unpurchased.record ? { policySnapshot: unpurchased.record as unknown as Prisma.InputJsonValue } : {}),
+        ...(recordRule ? { policySnapshot: recordRule as unknown as Prisma.InputJsonValue } : {}),
         estimatePaperAmount: disclosed?.paper != null ? senToDecimalString(disclosed.paper) : null,
         estimateLodgedAmount: disclosed && disclosed.check ? senToDecimalString(lodged!) : null,
         estimateCopyCheck: disclosed?.check ?? null,
       },
     });
+    if (recordRule) {
+      const a = unpurchasedRecordAudit(unpurchased.consequence!, now, person!.name, l.org.timeZone);
+      await audit(tx, l.org.id, OPENING_ENTITY.opening, o.id, openingLabel(l, o), "UPDATE", diffFields(a.before, a.after));
+    }
     await audit(tx, l.org.id, OPENING_ENTITY.opening, o.id, openingLabel(l, o), "UPDATE", diffFields({ finalised: null }, finaliseFields({ at: now, by: person!.name, pages: o.schedulePages!, rows: schedule.rows.length, copy: disclosed?.check ?? null, paper: disclosed?.paper ?? null, lodged, disclosed: !!disclosed }, l.org.timeZone)));
     if (o.kind === "MAIN") {
       await moveExercise(tx, l.ex, "OPENED", { today: l.org.today, via: "OPENING_FINALISED", finaliseFaults: 0 });

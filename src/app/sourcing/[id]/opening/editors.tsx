@@ -286,7 +286,7 @@ export function ChecklistDrawer({ exerciseId, bid, items, allowed }: { exerciseI
   ));
 }
 
-export function VerdictDrawer({ exerciseId, bid, options, grounds, reported, allowed }: { exerciseId: string; bid: { id: string; listingNo: number }; options: { value: string; label: string; disabled?: boolean }[]; grounds: string[]; reported: string[]; allowed: Allowed }) {
+export function VerdictDrawer({ exerciseId, bid, options, grounds, reported, allowed, people }: { exerciseId: string; bid: { id: string; listingNo: number }; options: { value: string; label: string; disabled?: boolean }[]; grounds: string[]; reported: string[]; allowed: Allowed; people: Option[] }) {
   return blockedOr(allowed, "Record the verdict", () => (
     <RecordEditor
       title={`Verdict on No. ${bid.listingNo}`}
@@ -296,6 +296,7 @@ export function VerdictDrawer({ exerciseId, bid, options, grounds, reported, all
         hidden("openedBidId"),
         { kind: "select", name: "verdict", label: "Verdict", required: true, placeholder: "Choose", options },
         { kind: "textarea", name: "verdictReason", label: "Why it is not carried", hint: "In words, for the committee." },
+        recorder(people),
       ]}
       showWhen={{ verdictReason: { name: "verdict", in: ["REJECT"] } }}
       values={{ exerciseId, openedBidId: bid.id }}

@@ -113,7 +113,7 @@ export function OffersRead({ exerciseId, o }: { exerciseId: string; o: OpeningVi
           <span className="flex flex-wrap items-center justify-end gap-1">
             {b.initialFor.map((p) => <InitialDrawer key={p.personId} exerciseId={exerciseId} bid={bid} person={{ id: p.personId, name: p.name }} allowed={p.allowed} />)}
             <ChecklistDrawer exerciseId={exerciseId} bid={bid} items={b.checklist} allowed={b.record} />
-            <VerdictDrawer exerciseId={exerciseId} bid={bid} options={b.verdictOptions} grounds={b.grounds} reported={b.reported} allowed={b.verdictAllowed} />
+            <VerdictDrawer exerciseId={exerciseId} bid={bid} options={b.verdictOptions} grounds={b.grounds} reported={b.reported} allowed={b.verdictAllowed} people={o.people} />
             <CorrectAsReadDrawer exerciseId={exerciseId} bid={bid} values={b.correctValues} allowed={b.record} />
             {b.alternativeInside?.allowed && <AlternativeInsideDrawer exerciseId={exerciseId} bid={bid} allowed={b.alternativeInside} />}
           </span>

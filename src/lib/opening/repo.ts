@@ -28,9 +28,10 @@ import type { Provenance } from "@/lib/reference/types";
 import { estimateFactsOf, loadEstimates, loadScopePolicy } from "@/lib/scope/repo";
 import { windowGate } from "@/lib/window/gate";
 
+import type { OpeningPolicySnapshot } from "./policy";
 import { openingState, type OpeningState } from "./state";
 import type { SeatHolder } from "./panel";
-import type { InvitedCountReading, UnpurchasedConsequence } from "./types";
+import type { InvitedCountReading } from "./types";
 
 export const OPENING_INCLUDE = {
   committee: { select: { id: true, code: true, nameEn: true } },
@@ -68,33 +69,7 @@ export const panelOf = (o: OpeningRow) => o.panel.map((p) => ({ personId: p.pers
 export const presentOf = (o: OpeningRow) => o.panel.filter((p) => p.present).map((p) => ({ personId: p.personId, name: p.person.name }));
 export const liveScans = (o: Pick<OpeningRow, "attachments">) => o.attachments.filter(isLive).length;
 
-/// The rules a policy snapshot froze at start, read back defensively (null where not recorded).
-export interface OpeningPolicySnapshot {
-  committee: { code: string | null; name: string | null; provenance: Provenance | null };
-  panel: { size: number | null; sizeProvenance: Provenance | null; exclusionRule: boolean | null; excludedUnitCode: string | null; exclusionProvenance: Provenance | null };
-  completeness: { eliminates: boolean | null; provenance: Provenance | null; source: string };
-  unpurchased: { consequence: UnpurchasedConsequence | null; provenance: Provenance | null; recordedLater?: boolean };
-  minimumBids: { value: number | null; provenance: Provenance | null };
-  alternativesPermitted: boolean | null;
-  restrictedTender: boolean | null;
-  path: "ADVERTISED" | "INVITED";
-  estimate: { requires: boolean | null; provenance: Provenance | null };
-}
-
-export function policyOf(raw: unknown): OpeningPolicySnapshot {
-  const o = (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}) as Partial<OpeningPolicySnapshot>;
-  return {
-    committee: o.committee ?? { code: null, name: null, provenance: null },
-    panel: o.panel ?? { size: null, sizeProvenance: null, exclusionRule: null, excludedUnitCode: null, exclusionProvenance: null },
-    completeness: o.completeness ?? { eliminates: null, provenance: null, source: "NOT_RECORDED" },
-    unpurchased: o.unpurchased ?? { consequence: null, provenance: null },
-    minimumBids: o.minimumBids ?? { value: null, provenance: null },
-    alternativesPermitted: o.alternativesPermitted ?? null,
-    restrictedTender: o.restrictedTender ?? null,
-    path: o.path ?? "ADVERTISED",
-    estimate: o.estimate ?? { requires: null, provenance: null },
-  };
-}
+export { openingPolicyFrozen, policyOf, summaryLabelsOf, type OpeningPolicySnapshot } from "./policy";
 
 /// The committee's panel rules as frozen on an opening (FR-OPN-002, FR-CTE-011).
 export const panelSnapshot = (c: { panelSize: number | null; panelSizeProvenance: string | null; panelExclusionRule: boolean | null; panelExcludesUnitCode: string | null; panelExclusionProvenance: string | null } | null): OpeningPolicySnapshot["panel"] => ({

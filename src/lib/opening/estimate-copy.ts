@@ -40,3 +40,34 @@ export function explanationFaults(i: { finalised: boolean; check: CopyCheck | nu
   if (!i.personActive) f("PERSON_REQUIRED");
   return out;
 }
+
+/// S-5: the paper copy as the Schedule and the print read it. NOT_COMPARED: a finalised main opening
+/// disclosed the estimate with no comparison — a voluntary estimate whose paper copy was left
+/// unanswered (BD-67-14). Null: nothing to say (not disclosed at this opening).
+export type CopyReading = CopyCheck | "NOT_COMPARED";
+export const copyReading = (check: CopyCheck | null, disclosedHere: boolean): CopyReading | null => check ?? (disclosedHere ? "NOT_COMPARED" : null);
+export const COPY_NOT_COMPARED_LABEL = "Paper copy not compared";
+export const COPY_NOT_COMPARED_TEXT = "The method does not need a company estimate; the one lodged voluntarily was disclosed at finalising, and the figure on its paper copy was not entered, so the two were not compared.";
+
+/**
+ * S-5: the Opening section's company-estimate card, never its figure. "Not needed" (the method says
+ * so) and "not set" (whether it does is not configured) read differently; a voluntary estimate says
+ * its paper copy may be left unanswered, and once disclosed whether the copy was compared.
+ */
+export function estimateCardText(i: { requires: boolean | null; state: "DRAFT" | "LODGED" | "DISCLOSED" | "VOID" | null; copyCheck: CopyCheck | null; sealedText: string }): { text: string; tone: "neutral" | "warn" | "ok" } {
+  if (!i.state || i.state === "VOID") {
+    if (i.requires === true) return { text: "The method needs a company estimate, and none is lodged.", tone: "warn" };
+    if (i.requires === false) return { text: "Not needed: the method does not need a company estimate, and none is lodged.", tone: "neutral" };
+    return { text: "None is lodged, and whether the method needs a company estimate is not set (Configuration › Scope and estimate).", tone: "warn" };
+  }
+  const voluntary = i.requires === false;
+  if (i.state === "LODGED")
+    return {
+      text: voluntary
+        ? `${i.sealedText}. Lodged voluntarily: the method does not need one. It is disclosed when the opening is finalised; its paper copy may be left unanswered then, and is then not compared.`
+        : `${i.sealedText}. Lodged into the box; it is disclosed, and its paper copy compared, only when the opening is finalised.`,
+      tone: "neutral",
+    };
+  if (i.state === "DISCLOSED") return { text: i.copyCheck ? "Disclosed when the opening was finalised. Its row is on the frozen schedule." : `Disclosed when the opening was finalised. Its row is on the frozen schedule. ${COPY_NOT_COMPARED_LABEL}.`, tone: "ok" };
+  return { text: "Not lodged into the box yet.", tone: "warn" };
+}

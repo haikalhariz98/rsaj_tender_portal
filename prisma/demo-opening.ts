@@ -160,7 +160,7 @@ export async function loadOpeningDemo(db: Db, organisationId: string) {
     await acts.initial(sx16, bid, CHAIR, sec(at, 60));
     await acts.initial(sx16, bid, MEMBER, sec(at, 75));
     await acts.answers(sx16, bid, o.absent ?? [], sec(at, 120));
-    await acts.verdict(sx16, bid, o.verdict, "", sec(at, 150));
+    await acts.verdict(sx16, bid, o.verdict, "", CHAIR, sec(at, 150));
   }
   await acts.signature(sx16, op1, CHAIR, day16, T(day16, "15:40"));
   await acts.signature(sx16, op1, MEMBER, day16, sec(T(day16, "15:40"), 30));
@@ -181,7 +181,7 @@ export async function loadOpeningDemo(db: Db, organisationId: string) {
     await acts.initial(sx16, bid, CHAIR, sec(at, 60));
     await acts.initial(sx16, bid, MEMBER, sec(at, 70));
     await acts.answers(sx16, bid, [], sec(at, 120));
-    await acts.verdict(sx16, bid, "PASS", "", sec(at, 150));
+    await acts.verdict(sx16, bid, "PASS", "", CHAIR, sec(at, 150));
   }
   await acts.signature(sx16, op2, CHAIR, day16, T(day16, "16:45"));
   await acts.signature(sx16, op2, MEMBER, day16, sec(T(day16, "16:45"), 20));
@@ -256,7 +256,8 @@ class OpeningActs {
     const outcome = est.ok ? est.outcome : "NOT_REQUIRED";
     const checklist = openingChecklist({ parts: (c.pack?.parts ?? []).map((p) => ({ partCode: p.partCode, label: p.labelSnapshot, role: p.role, mandatory: p.mandatory, returnedByBidder: p.returnedByBidder, sortOrder: p.sortOrder })), addenda: c.addenda });
     const { frozenRuleFaults } = await import("../src/lib/opening/start");
-    refuse(`starting ${id}`, frozenRuleFaults({ completenessEliminates: c.bidRule.rule?.completenessEliminates ?? null, checklist }));
+    refuse(`starting ${id}`, frozenRuleFaults({ completenessEliminates: c.bidRule.rule?.completenessEliminates ?? null, checklist, invitedReading: c.openingPolicy?.invitedCountReading ?? null }));
+    const { openingPolicyFrozen } = await import("../src/lib/opening/repo");
     const gap = c.lockEvent && l.ex.closingAt ? lockGap(l.ex.closingAt, c.lockEvent.occurredAt) : null;
     const policy = {
       committee: { code: c.method?.openingCommitteeCode ?? null, name: c.committee?.nameEn ?? null, provenance: c.method?.openingCommitteeProvenance ?? null },
@@ -268,6 +269,7 @@ class OpeningActs {
       restrictedTender: l.ex.restrictedTender,
       path: c.path,
       estimate: { requires: c.method?.requiresCompanyEstimate ?? null, provenance: c.method?.requiresCompanyEstimateProvenance ?? null },
+      ...openingPolicyFrozen(c.openingPolicy),
     };
     const estimateLead = { outcome, state: lead.state, lastPermittedDay: lead.lastPermittedDay ?? null, lastVersionDay: lead.lastVersionDay ?? null, leadDays: c.scopePolicy.estimateLeadDays, overrideBy: null, overrideReason: null };
     await this.db.opening.create({
@@ -467,7 +469,7 @@ class OpeningActs {
   }
 
   /// recordVerdict, on the grounds the rules make eliminatory only.
-  async verdict(exerciseId: string, bidId: string, verdict: "PASS" | "REJECT", reason: string, at: Date) {
+  async verdict(exerciseId: string, bidId: string, verdict: "PASS" | "REJECT", reason: string, by: { id: string; name: string }, at: Date) {
     const { checklistFromSnapshot } = await import("../src/lib/opening/checklist");
     const { judgeBid, verdictFaults, verdictRecord } = await import("../src/lib/opening/verdict");
     const { policyOf, stateOf } = await import("../src/lib/opening/repo");
@@ -481,7 +483,7 @@ class OpeningActs {
     refuse(`the verdict on ${bidId}`, verdictFaults({ state: stateOf(o, l.ex.status), sameOpening: true, bid: facts, checklist, answers, policy, verdict, reason }));
     const j = judgeBid(facts, checklist, answers, policy);
     await this.db.openedBid.update({ where: { id: bidId }, data: { verdict, verdictReason: verdict === "REJECT" ? reason : "", verdictAt: at, completeness: verdictRecord(j) as never } });
-    this.entry(OPENING_ENTITY.bid, bidId, this.label(l.ex.reference, `Offer ${b.listingNo}`), "UPDATE", at, diffFields({ verdict: null }, verdictFields({ verdict, reason: verdict === "REJECT" ? reason : "", grounds: j.grounds, reported: j.reported, missing: j.missing.map((m) => m.label) })), verdict === "REJECT" ? reason : "");
+    this.entry(OPENING_ENTITY.bid, bidId, this.label(l.ex.reference, `Offer ${b.listingNo}`), "UPDATE", at, diffFields({ verdict: null, recordedBy: null }, { ...verdictFields({ verdict, reason: verdict === "REJECT" ? reason : "", grounds: j.grounds, reported: j.reported, missing: j.missing.map((m) => m.label) }), recordedBy: `${by.name} (recorded on their behalf, not signed)` }), verdict === "REJECT" ? reason : "");
   }
 
   /// recordSignature.
@@ -514,7 +516,7 @@ class OpeningActs {
     const { discloseAtFinalising } = await import("../src/lib/opening/estimate");
     const { grandSummary } = await import("../src/lib/opening/grand-summary");
     const { freshInitials } = await import("../src/lib/opening/initials");
-    const { invitedCounts, policyOf, presentOf, stateOf } = await import("../src/lib/opening/repo");
+    const { invitedCounts, policyOf, presentOf, stateOf, summaryLabelsOf } = await import("../src/lib/opening/repo");
     const { jadualTawaran, lateCount } = await import("../src/lib/opening/schedule");
     const { lockGap } = await import("../src/lib/opening/box");
     const { finaliseFields, OPENING_ENTITY } = await import("../src/lib/opening/audit-view");
@@ -537,7 +539,7 @@ class OpeningActs {
       admittedOpened: admitted?.status === "OPENED",
       completenessEliminates: snap.completeness.eliminates,
       unpurchased: snap.unpurchased.consequence,
-      invitedReading: c.openingPolicy?.invitedCountReading ?? null,
+      invitedReading: snap.invited.reading,
       estimate: { required: snap.estimate.requires === true, lodged, paperAnswered: paper != null },
       personActive: true,
     }));
@@ -547,14 +549,14 @@ class OpeningActs {
     const prior = mainSchedule?.benchmark;
     const benchmark = disclosed?.benchmark ? { sealed: false as const, label: disclosed.benchmark.label, value: disclosed.benchmark.value } : prior && "companyEstimate" in prior ? { sealed: false as const, label: prior.label, value: parseSen(prior.companyEstimate) } : { notRequired: true as const };
     const gap = o.kind === "MAIN" && o.boxLockedAt && l.ex.closingAt ? lockGap(l.ex.closingAt, o.boxLockedAt) : null;
-    const { schedule } = jadualTawaran({ version: o.sequenceNo, title: l.ex.title, reference: l.ex.reference, startDay: l.ex.tenderingStartOn ? storedDay(l.ex.tenderingStartOn) : null, closing: l.ex.closingAt, invited: { reading: c.openingPolicy!.invitedCountReading, ...invitedCounts(c) }, lateCount: lateCount(c.envelopes), pages: o.schedulePages, rows, benchmark, lockGap: gap });
-    const summary = grandSummary({ finalised: true, bids: c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, price: parseSen(b.priceAsRead.toString()), verdict: b.verdict }))), labels: { qualified: c.openingPolicy?.qualifiedLabelEn ?? null, notQualified: c.openingPolicy?.notQualifiedLabelEn ?? null, lowest: c.openingPolicy?.lowestLabelEn ?? null } });
+    const { schedule } = jadualTawaran({ version: o.sequenceNo, title: l.ex.title, reference: l.ex.reference, startDay: l.ex.tenderingStartOn ? storedDay(l.ex.tenderingStartOn) : null, closing: l.ex.closingAt, invited: { reading: snap.invited.reading, ...invitedCounts(c) }, lateCount: lateCount(c.envelopes), pages: o.schedulePages, rows, benchmark, lockGap: gap });
+    const summary = grandSummary({ finalised: true, bids: c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, price: parseSen(b.priceAsRead.toString()), verdict: b.verdict }))), labels: summaryLabelsOf(snap) });
     if (!("summary" in summary)) throw new Error("Demo 6.7: the Grand Summary was refused.");
     await this.db.opening.update({
       where: { id: openingId },
       data: {
         finalisedAt: at,
-        scheduleSnapshot: { ...schedule, invitedReadingProvenance: c.openingPolicy?.invitedCountProvenance ?? null } as never,
+        scheduleSnapshot: { ...schedule, invitedReadingProvenance: snap.invited.provenance } as never,
         grandSummarySnapshot: summary.summary as never,
         faultsSnapshot: [] as never,
         estimatePaperAmount: disclosed?.paper != null ? senToDecimalString(disclosed.paper) : null,
