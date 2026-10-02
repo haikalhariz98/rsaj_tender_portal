@@ -8,7 +8,7 @@ import { routeCoreFields, stepOrigin } from "@/lib/authority/core-routing";
 import { personDecisionWrite } from "@/lib/authority/decided-step";
 import { actingOffice } from "@/lib/authority/escalation";
 import { boundaryOperatorFor } from "@/lib/authority/resolve";
-import { dayIn, dayToDate, storedDay } from "@/lib/dates";
+import { dayOf, dayToDate, storedDay } from "@/lib/dates";
 import { isLive } from "@/lib/documents/evidence";
 import { closeFields, EVALUATION_ENTITY, meetingFields } from "@/lib/evaluation/audit-view";
 import { closeMeetingFaults, meetingEligible, negotiationRequestFaults, openMeetingFaults } from "@/lib/evaluation/meetings";
@@ -71,7 +71,7 @@ export async function openMeeting(_prev: FormState, data: FormData): Promise<For
       openAlready: e!.meetings.some((m) => m.bidderId === bidderId && m.kind === kind && !m.closedAt),
       heldOn: storedDay(heldOn),
       // R-4: the day the evaluation started, on the organisation's clock (an instant, never its UTC day).
-      startedOn: dayIn(e!.startedAt, l.org.timeZone),
+      startedOn: dayOf(e!.startedAt, l.org.timeZone),
       today: l.org.today,
       place,
       personActive: !!person,

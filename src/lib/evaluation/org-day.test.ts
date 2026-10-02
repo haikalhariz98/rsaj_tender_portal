@@ -27,13 +27,16 @@ describe("an instant's day is the organisation's (R-4)", () => {
     expect(openMeetingFaults({ ...base, startedOn: dayIn(started, KL) }).map((f) => f.code)).toEqual(["HELD_BEFORE_EVALUATION"]);
     expect(openMeetingFaults({ ...base, startedOn: storedDay(started) })).toEqual([]);
   });
-  it("the acts read these three days with dayIn, never storedDay (source scan)", () => {
+  it("the acts read these three days with dayOf (the organisation's day, no UTC fallback), never storedDay or dayIn (source scan)", () => {
+    // Phase 2 close-out 68-C5 (stricter than R-4's dayIn, which fell back to UTC with no zone).
     const report = readFileSync(join(process.cwd(), "src/app/sourcing/[id]/evaluation/report-actions.ts"), "utf8");
-    expect(report).toMatch(/formedOn: formatDate\(dayIn\(rec\.formedAt, l\.org\.timeZone\)\)/);
-    expect(report).toMatch(/issuedOn: formatDate\(dayIn\(e!\.issuedAt!, l\.org\.timeZone\)\)/);
-    expect(report).not.toMatch(/storedDay\(rec\.formedAt\)|storedDay\(e!\.issuedAt/);
+    expect(report).toMatch(/formedOn: formatDate\(dayOf\(rec\.formedAt, l\.org\.timeZone\)\)/);
+    expect(report).toMatch(/const issuedOn = dayOf\(e!\.issuedAt!, l\.org\.timeZone\);/);
+    expect(report).toMatch(/issuedOn: formatDate\(issuedOn\),/);
+    expect(report).toMatch(/reportIssuedOn: issuedOn \}\);/);
+    expect(report).not.toMatch(/storedDay\(rec\.formedAt\)|storedDay\(e!\.issuedAt|dayIn\(rec\.formedAt|dayIn\(e!\.issuedAt/);
     const meeting = readFileSync(join(process.cwd(), "src/app/sourcing/[id]/evaluation/meeting-actions.ts"), "utf8");
-    expect(meeting).toMatch(/startedOn: dayIn\(e!\.startedAt, l\.org\.timeZone\)/);
-    expect(meeting).not.toMatch(/storedDay\(e!\.startedAt\)/);
+    expect(meeting).toMatch(/startedOn: dayOf\(e!\.startedAt, l\.org\.timeZone\)/);
+    expect(meeting).not.toMatch(/storedDay\(e!\.startedAt\)|dayIn\(e!\.startedAt/);
   });
 });

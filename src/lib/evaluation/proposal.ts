@@ -9,10 +9,13 @@
 
 import type { Finding } from "./types";
 
-export type ProposalFault = "ALREADY_RENDERED" | "CHECKER_NOT_SET" | "RECOMMENDER_NOT_SET" | "TEMPLATE_NOT_SET" | "TEMPLATE_TEXT_NOT_SET" | "TEMPLATE_LANGUAGE_NOT_SET" | "TEMPLATE_INCOMPLETE" | "TEMPLATE_UNKNOWN_FIELD" | "PERSON_REQUIRED";
+export type ProposalFault = "TIME_ZONE_NOT_SET" | "ALREADY_RENDERED" | "CHECKER_NOT_SET" | "RECOMMENDER_NOT_SET" | "TEMPLATE_NOT_SET" | "TEMPLATE_TEXT_NOT_SET" | "TEMPLATE_LANGUAGE_NOT_SET" | "TEMPLATE_INCOMPLETE" | "TEMPLATE_UNKNOWN_FIELD" | "PERSON_REQUIRED";
 
-export function renderFaults(i: { rendered: boolean; checkerRoleCode: string | null; recommenderRoleCode: string | null; template: { state: "OK" | "NOT_SET" | "NO_TEXT" | "NO_LANGUAGE"; missing: readonly string[]; unknown: readonly string[] }; personActive: boolean }): Finding<ProposalFault>[] {
+export function renderFaults(i: { rendered: boolean; checkerRoleCode: string | null; recommenderRoleCode: string | null; template: { state: "OK" | "NOT_SET" | "NO_TEXT" | "NO_LANGUAGE"; missing: readonly string[]; unknown: readonly string[] }; personActive: boolean; reportIssuedOn?: string | null }): Finding<ProposalFault>[] {
   if (i.rendered) return [{ code: "ALREADY_RENDERED", level: "block" }];
+  // 68-C5: the report's issued day is printed into the frozen paper on the organisation's day
+  // (`dayOf(issuedAt, timeZone)`); with no zone there is no day to print, never UTC's. Absent: not asked.
+  if (i.reportIssuedOn === null) return [{ code: "TIME_ZONE_NOT_SET", level: "block" }];
   const out: Finding<ProposalFault>[] = [];
   const f = (code: ProposalFault, data?: Finding["data"]) => out.push({ code, level: "block", ...(data ? { data } : {}) });
   if (!i.checkerRoleCode) f("CHECKER_NOT_SET");

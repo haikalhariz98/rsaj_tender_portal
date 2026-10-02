@@ -3,7 +3,7 @@
 import type { FormState } from "@/components/record-editor";
 import type { Prisma } from "@/generated/prisma/client";
 import { diffFields } from "@/lib/audit/diff";
-import { dayIn, dayToDate, storedDay } from "@/lib/dates";
+import { dayIn, dayOf, dayToDate, storedDay } from "@/lib/dates";
 import { isLive } from "@/lib/documents/evidence";
 import { formatDate } from "@/lib/format";
 import { EVALUATION_ENTITY, recommendationFields, signerFields } from "@/lib/evaluation/audit-view";
@@ -87,7 +87,7 @@ export async function issueReport(_prev: FormState, data: FormData): Promise<For
     const template = templateOf(c.policy?.reportTemplate);
     const today = l.org.today;
     const base = { facts: f, exercise: { reference: l.ex.reference, title: l.ex.title }, version: e!.version, issuedOn: today ? formatDate(today) : "" };
-    const recommendation = rec && rb ? { bidderId: rec.bidderId, price: recommendedPriceOf(rb), period: rb.period, topRanked: rec.topRanked, justification: rec.justification, formedBy: rec.formedBy.name, formedOn: formatDate(dayIn(rec.formedAt, l.org.timeZone)) } : null;
+    const recommendation = rec && rb ? { bidderId: rec.bidderId, price: recommendedPriceOf(rb), period: rb.period, topRanked: rec.topRanked, justification: rec.justification, formedBy: rec.formedBy.name, formedOn: formatDate(dayOf(rec.formedAt, l.org.timeZone)) } : null;
     const orgName = (lang: "EN" | "MS") => (lang === "MS" ? (org.nameMs ?? org.name) : org.name);
     // The template judged with a placeholder reference first: the series is drawn only once nothing refuses.
     const trial = recommendation ? renderEvaluationInstrument("REPORT", template, (lang) => reportFields({ ...base, reference: "(allocated on issue)", recommendation }, orgName(lang))) : { state: "OK" as const, missing: [], unknown: [], language: null, text: null };
@@ -153,10 +153,12 @@ export async function renderProposalPaper(_prev: FormState, data: FormData): Pro
     const org = await tx.organisation.findUniqueOrThrow({ where: { id: l.org.id }, select: { name: true, nameMs: true } });
     const template = templateOf(c.policy?.proposalTemplate);
     const office = (code: string | null | undefined) => (code ? (c.roster.offices.find((o) => o.code === code)?.nameEn ?? "An office no longer configured") : "");
+    // 68-C5: the report's issued day on the organisation's clock; with no zone, refused below (never UTC's day).
+    const issuedOn = dayOf(e!.issuedAt!, l.org.timeZone);
     const rendered = renderEvaluationInstrument("PROPOSAL", template, (lang) =>
-      reportFields({ facts: f, exercise: { reference: l.ex.reference, title: l.ex.title }, version: e!.version, reference: e!.reportReference!, issuedOn: formatDate(dayIn(e!.issuedAt!, l.org.timeZone)), recommendation: { bidderId: rec.bidderId, price: recommendedPriceOf(rb), period: rb.period, topRanked: rec.topRanked, justification: rec.justification } }, lang === "MS" ? (org.nameMs ?? org.name) : org.name, { "proposal.checkerOffice": office(c.policy?.checkerRoleCode), "proposal.recommenderOffice": office(c.policy?.recommenderRoleCode) }),
+      reportFields({ facts: f, exercise: { reference: l.ex.reference, title: l.ex.title }, version: e!.version, reference: e!.reportReference!, issuedOn: formatDate(issuedOn), recommendation: { bidderId: rec.bidderId, price: recommendedPriceOf(rb), period: rb.period, topRanked: rec.topRanked, justification: rec.justification } }, lang === "MS" ? (org.nameMs ?? org.name) : org.name, { "proposal.checkerOffice": office(c.policy?.checkerRoleCode), "proposal.recommenderOffice": office(c.policy?.recommenderRoleCode) }),
     );
-    const fs = renderFaults({ rendered: e!.proposalPaper != null, checkerRoleCode: c.policy?.checkerRoleCode ?? null, recommenderRoleCode: c.policy?.recommenderRoleCode ?? null, template: tFaults(rendered, "PROPOSAL"), personActive: !!person });
+    const fs = renderFaults({ rendered: e!.proposalPaper != null, checkerRoleCode: c.policy?.checkerRoleCode ?? null, recommenderRoleCode: c.policy?.recommenderRoleCode ?? null, template: tFaults(rendered, "PROPOSAL"), personActive: !!person, reportIssuedOn: issuedOn });
     if (fs.length) return refuse(fs, "Not produced:");
     const row = await tx.proposalPaper.create({ data: { organisationId: l.org.id, evaluationId: e!.id, templateId: template!.id, templateCode: template!.code, templateBodyVersion: template!.bodyVersion, language: rendered.language!, renderedText: rendered.text!, frozenAt: now, renderedByPersonId: person!.id, checkerRoleCode: c.policy!.checkerRoleCode!, recommenderRoleCode: c.policy!.recommenderRoleCode! } });
     await audit(tx, l.org.id, EVALUATION_ENTITY.proposal, row.id, evLabel(l, e!.version, "Kertas Cadangan"), "CREATE", diffFields(null, { produced: `${template!.nameEn}, text version ${template!.bodyVersion}`, language: rendered.language === "MS" ? "Malay" : "English", checkedBy: office(c.policy?.checkerRoleCode), recommendedBy: office(c.policy?.recommenderRoleCode), producedBy: `${person!.name} (recorded on their behalf, not signed)` }));

@@ -45,14 +45,15 @@ export function openMeetingFaults(i: {
   /// Another meeting of this kind with this bidder is not closed.
   openAlready: boolean;
   heldOn: string | null;
-  startedOn: string;
+  /// The organisation's day the evaluation started (`dayOf(startedAt, timeZone)`); null while no zone is set.
+  startedOn: string | null;
   today: string | null;
   place: string;
   personActive: boolean;
 }): Finding<MeetingFault>[] {
   const out: Finding<MeetingFault>[] = [];
   const f = (code: MeetingFault) => out.push({ code, level: "block" });
-  if (!i.today) f("TIME_ZONE_NOT_SET");
+  if (!i.today || i.startedOn == null) f("TIME_ZONE_NOT_SET");
   if (!i.bidderEligible) f("NOT_IN_RUNNING");
   if (i.kind === "NEGOTIATION") {
     if (!i.route) f("NEGOTIATION_NOT_REQUESTED");
@@ -61,7 +62,7 @@ export function openMeetingFaults(i: {
   }
   if (i.openAlready) f("MEETING_OPEN_ALREADY");
   if (i.heldOn && i.today && i.heldOn > i.today) f("HELD_IN_FUTURE");
-  if (i.heldOn && i.heldOn < i.startedOn) f("HELD_BEFORE_EVALUATION");
+  if (i.heldOn && i.startedOn != null && i.heldOn < i.startedOn) f("HELD_BEFORE_EVALUATION");
   if (!i.place.trim()) f("PLACE_REQUIRED");
   if (!i.personActive) f("PERSON_REQUIRED");
   return out;
