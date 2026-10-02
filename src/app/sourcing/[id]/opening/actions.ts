@@ -39,7 +39,7 @@ import { adjournFaults, authorisationFaults, lapsedByAdjourning, opensTheBox, un
 import { judgeBid, verdictFaults, verdictRecord } from "@/lib/opening/verdict";
 import { findingFaults, matchFaults, openFault } from "@/lib/opening/withdrawals";
 
-import { activePerson, audit, exerciseIdOf, inWindow, label, type LockedWindow } from "../window/shared";
+import { activePerson, audit, exerciseIdOf, inWindow, label, Refusal, type LockedWindow } from "../window/shared";
 
 /**
  * Writes for 6.7's opening (plan §4, as ruled C-1..C-13). Each runs in one transaction that locks the
@@ -749,7 +749,8 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
       try {
         disclosed = await discloseAtFinalising(tx, { organisationId: l.org.id, reference: l.ex.reference, facts: c.estimateFacts, at: now, person: person!, paper, benchmarkLabelEn: c.scopePolicy.benchmarkLabelEn });
       } catch (e) {
-        if (e instanceof DisclosureRefused) return { ok: false, message: "Nothing was saved: the company estimate could not be disclosed as it stands. Check its state on the Scope and estimate tab." };
+        // R-1: thrown as a Refusal, so anything written in this transaction rolls back with it.
+        if (e instanceof DisclosureRefused) throw new Refusal({ ok: false, message: "Nothing was saved: the company estimate could not be disclosed as it stands. Check its state on the Scope and estimate tab." });
         throw e;
       }
     }

@@ -18,6 +18,7 @@ import { readSealedFigures } from "@/lib/scope/estimate-store";
 import { ESTIMATE_STATE_LABEL } from "@/lib/scope/labels";
 import { lockEstimateRow } from "@/lib/scope/lock";
 
+import { disclosureFault } from "./disclosure";
 import { copyCheck, type PaperCopy } from "./estimate-copy";
 import type { CopyCheck } from "./types";
 
@@ -33,6 +34,10 @@ export async function discloseAtFinalising(
   i: { organisationId: string; reference: string; facts: EstimateFacts & { id: string }; at: Date; person: { id: string; name: string }; paper: PaperCopy | null; benchmarkLabelEn: string | null },
 ): Promise<{ benchmark: { label: string | null; value: Sen } | null; lodged: Sen; paper: Sen | null; check: CopyCheck | null }> {
   await lockEstimateRow(tx, i.facts.id);
+  // R-1: every refusal is decided before the first write (the version numbers carry no figure).
+  const versionNos = (await tx.companyEstimateVersion.findMany({ where: { estimateId: i.facts.id }, select: { versionNo: true } })).map((v) => v.versionNo);
+  const refused = disclosureFault(i.facts, versionNos, i.at);
+  if (refused) throw new DisclosureRefused(refused);
   const d = disclose(i.facts, i.at);
   if (!d.ok) throw new DisclosureRefused(d.fault);
   await tx.companyEstimate.update({ where: { id: i.facts.id }, data: { state: "DISCLOSED", disclosedAt: d.disclosedAt } });
@@ -44,6 +49,7 @@ export async function discloseAtFinalising(
   const row = benchmarkRow({ id: i.facts.id, state: "DISCLOSED", currentVersionNo: i.facts.currentVersionNo }, figures, { benchmarkLabelEn: i.benchmarkLabelEn });
   const lodgedNo = i.facts.lodgedVersionNo ?? i.facts.currentVersionNo;
   const lodged = figures.versions.find((v) => v.versionNo === lodgedNo)?.value;
+  // Checked before any write (disclosureFault); thrown, never returned, so the transaction rolls back.
   if (lodged === undefined) throw new DisclosureRefused("LODGED_VERSION_MISSING");
   return {
     benchmark: row.sealed ? null : { label: row.label, value: row.value },
