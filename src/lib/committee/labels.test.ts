@@ -12,7 +12,8 @@ describe("matter kinds (ruling 5.3, 6.2 OD-9)", () => {
     expect(SITTING_TABLED_MATTER_KINDS).not.toContain("SCOPE");
     // 6.6 CR-1 (flagged edit to accepted 6.10): LATE_TENDER joins SCOPE as tabled only from its record.
     // 6.8 (flagged, stricter): so does EVALUATION_STAGE, tabled from the Evaluation tab.
-    expect(SITTING_TABLED_MATTER_KINDS).toEqual(MATTER_KINDS.filter((k) => k !== "SCOPE" && k !== "LATE_TENDER" && k !== "EVALUATION_STAGE"));
+    // 6.15 (flagged, stricter): a SUPPLIER matter is never tabled at all.
+    expect(SITTING_TABLED_MATTER_KINDS).toEqual(MATTER_KINDS.filter((k) => k !== "SCOPE" && k !== "LATE_TENDER" && k !== "EVALUATION_STAGE" && k !== "SUPPLIER"));
   });
 });
 

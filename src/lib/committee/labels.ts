@@ -15,6 +15,7 @@ import { LATE_DOMAIN } from "@/lib/bids/late";
 import { WINDOW_CHANGE_DOMAIN } from "@/lib/method/types";
 import { SCOPE_DOMAIN } from "@/lib/scope/scope-matter";
 import { EVALUATION_STAGE_DOMAIN, NEGOTIATION_DOMAIN } from "@/lib/evaluation/types";
+import { SUPPLIER_REGISTRATION_DOMAIN } from "@/lib/suppliers/types";
 
 export const MEETING_STATUS_LABEL = {
   SCHEDULED: "Scheduled",
@@ -64,6 +65,8 @@ export const MATTER_KIND_LABEL = {
   SCOPE: "Scope (bill of quantities)",
   /// 6.8 (FR-EVL-005): a two-stage tender's first-stage decision on one bidder.
   EVALUATION_STAGE: "Two-stage tender, first stage",
+  /// 6.15 (OD-2 A): a supplier matter, approved on its own route. Never tabled at a sitting.
+  SUPPLIER: "Supplier matter",
 } as const;
 
 export type MatterKind = keyof typeof MATTER_KIND_LABEL;
@@ -78,8 +81,11 @@ export const MATTER_KINDS = Object.keys(MATTER_KIND_LABEL) as MatterKind[];
 /// the exercise's Evaluation tab, which knows the bidder; from a sitting its decision would unlock nothing.
 export const RECORD_TABLED_MATTER_KINDS: readonly MatterKind[] = ["SCOPE", "LATE_TENDER", "EVALUATION_STAGE"];
 
-/// Kinds tabled from the sitting's own drawer: every kind but those tabled from their record.
-export const SITTING_TABLED_MATTER_KINDS = MATTER_KINDS.filter((k) => !RECORD_TABLED_MATTER_KINDS.includes(k));
+/// 6.15: kinds no sitting tables at all. A supplier matter is decided on its own route, which takes no committee step.
+export const NEVER_TABLED_MATTER_KINDS: readonly MatterKind[] = ["SUPPLIER"];
+
+/// Kinds tabled from the sitting's own drawer: every kind but those tabled from their record, and those never tabled.
+export const SITTING_TABLED_MATTER_KINDS = MATTER_KINDS.filter((k) => !RECORD_TABLED_MATTER_KINDS.includes(k) && !NEVER_TABLED_MATTER_KINDS.includes(k));
 
 /// Matter domains tabled only from their own record, for the same reasons.
 export const RECORD_TABLED_DOMAINS: readonly string[] = [SCOPE_DOMAIN, LATE_DOMAIN, EVALUATION_STAGE_DOMAIN];
@@ -92,10 +98,12 @@ export const STAGE_ONE_TABLED_TEXT = "A two-stage tender's first-stage decision 
 /// step is refused (window/change.ts HAS_COMMITTEE_STEP); the award's signatory is the office the
 /// approval matrix names (award/signatory.ts).
 /// 6.8 adds the negotiation (FR-EVL-016): approved on its own route, which takes no committee step.
-export const NEVER_TABLED_DOMAINS: readonly string[] = [WINDOW_CHANGE_DOMAIN, SIGNATORY_DOMAIN, NEGOTIATION_DOMAIN];
+/// 6.15 adds the supplier's registration (OD-2 A): approved on its own route, which takes no committee step.
+export const NEVER_TABLED_DOMAINS: readonly string[] = [WINDOW_CHANGE_DOMAIN, SIGNATORY_DOMAIN, NEGOTIATION_DOMAIN, SUPPLIER_REGISTRATION_DOMAIN];
 export const WINDOW_CHANGE_NOT_TABLED_TEXT = "A change to the invitation window is approved on its own route, from the exercise's Invitation tab; that route takes no committee step, so no sitting decides it.";
 export const SIGNATORY_NOT_TABLED_TEXT = "The award's signatory is the office the approval matrix names for the award, shown on the award; no sitting decides it.";
 export const NEGOTIATION_NOT_TABLED_TEXT = "A negotiation is approved on its own route, from the exercise's Evaluation tab, in Meetings and letters; that route takes no committee step, so no sitting decides it.";
+export const SUPPLIER_NOT_TABLED_TEXT = "A supplier matter is approved on its own route, from the supplier's record under Suppliers; that route takes no committee step, so no sitting decides it.";
 
 export const sittingTablesDomain = (domain: string) => !RECORD_TABLED_DOMAINS.includes(domain) && !NEVER_TABLED_DOMAINS.includes(domain);
 
@@ -107,6 +115,7 @@ export function recordTabledText(domainOrKind: string): string | null {
   if (domainOrKind === SIGNATORY_DOMAIN) return SIGNATORY_NOT_TABLED_TEXT;
   if (domainOrKind === EVALUATION_STAGE_DOMAIN || domainOrKind === "EVALUATION_STAGE") return STAGE_ONE_TABLED_TEXT;
   if (domainOrKind === NEGOTIATION_DOMAIN) return NEGOTIATION_NOT_TABLED_TEXT;
+  if (domainOrKind === SUPPLIER_REGISTRATION_DOMAIN || domainOrKind === "SUPPLIER") return SUPPLIER_NOT_TABLED_TEXT;
   return null;
 }
 
