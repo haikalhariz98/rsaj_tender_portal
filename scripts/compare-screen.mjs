@@ -298,6 +298,13 @@ const ALLOWED_EXTRA = [
   // FR-APR-015: the audit trail and its export, under Configuration, Records.
   /^Audit trail$/,
   /^Export the trail$/,
+  // 6.15a: the staff-side supplier register (ADR 0019) and its configuration screen.
+  /^Supplier register$/,
+  /^Register\d*$/,
+  /^Applications\d*$/,
+  /^Lodge (a document|the document)$/,
+  /^Send for decision$/,
+  /^Request a resubmission$/,
 ];
 
 const isAllowed = (label) => ALLOWED_EXTRA.some((re) => re.test(label));
@@ -313,6 +320,32 @@ const DECIDED_ABSENT = [
     screen: /approval-matrix/,
     match: /splitting window/i,
     why: "the window was a guessed 30 on the approval matrix; it is no longer read, edited or shown there, and lives only in Requisition controls, unset until the customer sets it (B7)",
+  },
+  // 6.15a (plan §5, OD-1..OD-10): the staff-side supplier register, on the supplier screens only.
+  {
+    screen: /^\/suppliers/,
+    match: /performance/i,
+    why: "contractor performance reports and the grade they give arrive with 6.16; the register names that in its Callout rather than showing a score it does not hold (condition 3)",
+  },
+  {
+    screen: /^\/suppliers/,
+    match: /^(CIDB grade|Categories|MOF field codes|Town)$/,
+    why: "one customer's registration bodies; grades, categories and field codes are configured per registration body (Configuration › Supplier register) and shown on the supplier's Documents tab, not as fixed columns (AGENTS.md rule 1)",
+  },
+  {
+    screen: /^\/suppliers/,
+    match: /expir|^Standing$|^Directory$|^Registrations$|^Applications to verify$|^Registered suppliers$|registered$/i,
+    why: "the register's Register and Applications tabs and its head facts stand for the prototype's Directory, Registrations and tiles; expiry bands and standing are increment a2 (OD-4, OD-7)",
+  },
+  {
+    screen: /^\/suppliers/,
+    match: /tender capacity/i,
+    why: "a supplier's registration is routed on no value (OD-2 A), by the matrix's supplier_registration rule, never by a tender capacity",
+  },
+  {
+    screen: /^\/suppliers/,
+    match: /^Contact supplier$/,
+    why: "nothing is sent from the portal in this phase (INT-09); a notice is shown, not sent",
   },
   {
     // The dashboard's "{n} aged over 14 days" head fact and its "Aged over 14 days" view
@@ -334,6 +367,11 @@ const DECIDED_CONTROLS = [
     ours: "Clear these settings",
     theirs: "Restore defaults",
     why: "this product ships no defaults — a threshold or a rate baked in would be one customer's policy arriving as software — so the button says what it actually does",
+  },
+  {
+    ours: "Record a paper application",
+    theirs: "Register supplier",
+    why: "6.15a (ADR 0019): suppliers cannot sign in yet, so an officer records each from its paper application; self-registration is 6.15b",
   },
   {
     ours: "New requisition",
