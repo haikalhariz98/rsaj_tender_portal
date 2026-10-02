@@ -99,6 +99,30 @@ const supplierInclude = {
       attachments: { select: { id: true, purpose: true, detachedAt: true, version: { select: { withdrawnAt: true } } } },
     },
   },
+  // a2: standing (recorded acts and requests with their routes), and what is linked to the supplier.
+  standingEvents: { orderBy: [{ effectiveOn: "desc" as const }, { recordedAt: "desc" as const }], include: { recordedBy: { select: { id: true, name: true } } } },
+  standingRequests: {
+    orderBy: { requestedAt: "desc" as const },
+    include: {
+      requestedBy: { select: { id: true, name: true } },
+      sourceAward: { select: { id: true, reference: true } },
+      event: { select: { id: true } },
+      routes: { orderBy: [{ createdAt: "desc" as const }], include: { steps: { orderBy: { sequence: "asc" as const }, include: { delegation: { select: { fromPerson: { select: { name: true } } } }, declaredBy: { select: { name: true } } } } } },
+    },
+  },
+  parties: {
+    orderBy: { createdAt: "asc" as const },
+    include: {
+      exercise: { select: { id: true, reference: true, title: true, status: true, window: { select: { specialPermissionOffered: true } }, registrationRequirements: { orderBy: [{ alternativeGroup: "asc" as const }, { sortOrder: "asc" as const }], select: { id: true, bodyLabelSnapshot: true, qualifiers: true } } } },
+      sales: { orderBy: { soldOn: "asc" as const }, select: { id: true, soldOn: true, voidedAt: true, registrationCheck: true, suspensionCheck: true, eligibilitySnapshot: true } },
+      openedBids: { orderBy: { listingNo: "asc" as const }, select: { id: true, listingNo: true, eligibilityFinding: true, verdict: true } },
+      specialPermissions: {
+        orderBy: { requestedAt: "asc" as const },
+        include: { requestedBy: { select: { name: true } }, grantedBy: { select: { name: true } }, routes: { orderBy: [{ createdAt: "desc" as const }], include: { steps: { orderBy: { sequence: "asc" as const }, include: { delegation: { select: { fromPerson: { select: { name: true } } } }, declaredBy: { select: { name: true } } } } } } },
+      },
+    },
+  },
+  awards: { orderBy: { createdAt: "asc" as const }, select: { id: true, reference: true, status: true, awardeeName: true, awardeePartyId: true, cancelConsequence: true } },
 } satisfies Prisma.SupplierInclude;
 
 /// One supplier with everything its record shows. Null when it does not exist.
@@ -121,6 +145,9 @@ export async function listSuppliers(client: Tx = db) {
     include: {
       documents: { select: { id: true, typeId: true, typeLabelSnapshot: true, lodgedOn: true, issuedOn: true, validFrom: true, expiresOn: true, notApplicable: true, verification: true, verifiedOn: true, supersedesId: true } },
       applications: { orderBy: [{ receivedOn: "desc" }, { createdAt: "desc" }], select: { id: true, kind: true, status: true, receivedOn: true, resubmitBy: true, lapsedRecordedAt: true, routes: { select: { status: true } } } },
+      // a2: standing is derived from these, never stored.
+      standingEvents: true,
+      standingRequests: { select: { id: true, kind: true, event: { select: { id: true } }, routes: { select: { status: true, createdAt: true } } } },
     },
   });
   return { org, suppliers };
@@ -135,8 +162,13 @@ export async function supplierHistory(l: LoadedSupplier) {
     ...s.contacts.map((c) => c.id),
     ...s.applications.flatMap((a) => [a.id, ...a.decisions.map((d) => d.id), ...a.routes.flatMap((r) => [r.id, ...r.steps.map((x) => x.id)])]),
     ...s.documents.map((d) => d.id),
+    // a2: standing events, requests and their routes; linked parties, awards and special permissions.
+    ...s.standingEvents.map((e) => e.id),
+    ...s.standingRequests.flatMap((r) => [r.id, ...r.routes.flatMap((x) => [x.id, ...x.steps.map((st) => st.id)])]),
+    ...s.parties.flatMap((p) => [p.id, ...p.specialPermissions.flatMap((sp) => [sp.id, ...sp.routes.flatMap((x) => [x.id, ...x.steps.map((st) => st.id)])])]),
   ];
-  const where = { organisationId: l.org.id, OR: [{ entityId: { in: ids } }, { entityLabel: { startsWith: `${s.reference} ·` } }] };
+  // An award's own trail stays on the award: here only its link to this supplier.
+  const where = { organisationId: l.org.id, OR: [{ entityId: { in: ids } }, { entityLabel: { startsWith: `${s.reference} ·` } }, { entity: "Award", entityId: { in: s.awards.map((a) => a.id) }, entityLabel: { endsWith: "· Awardee's supplier" } }] };
   const [rows, total] = await Promise.all([db.auditEntry.findMany({ where, orderBy: { at: "desc" }, take: HISTORY_PAGE }), db.auditEntry.count({ where })]);
   return {
     total,

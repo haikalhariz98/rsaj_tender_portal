@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { EscalateDrawer } from "@/app/approvals/editors";
 import { RouteSteps } from "@/app/sourcing/[id]/route-steps";
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
-import { BuildingIcon, ClipboardIcon, ClockIcon, FileIcon, RouteIcon, UsersIcon } from "@/components/icons";
+import { BuildingIcon, ClipboardIcon, ClockIcon, FileIcon, LinkIcon, RouteIcon, ScaleIcon, ShieldIcon, UsersIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { isMandatoryAct } from "@/components/ui/act";
@@ -58,6 +58,12 @@ import { supplierHolders, supplierRoute } from "@/lib/suppliers/route";
 import { APPLICATION_CHANNELS, APPLICATION_KINDS, blocking, SUPPLIER_REGISTRATION_DOMAIN, type ApplicationKind, type Finding, type SupplierStatus } from "@/lib/suppliers/types";
 import { routeTone, stepTone } from "@/lib/ui/status-tone";
 
+import { expiryBand } from "@/lib/suppliers/expiry";
+import { EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, standingTone, standingWords } from "@/lib/suppliers/labels";
+import { standing } from "@/lib/suppliers/standing";
+import { standingEventFacts } from "@/lib/suppliers/standing-repo";
+
+import { EligibilityPanel, ParticipationPanel, StandingPanel } from "./standing-panels";
 import { ContactDrawer, DecideStepDrawer, LodgeDocumentDrawer, OpenApplicationDrawer, PaperDaysDrawer, RecordLapseDrawer, RejectApplicationDrawer, ResubmissionDrawer, SubmitApplicationDrawer, VendorCodeDrawer, VerifyDocumentDrawer } from "./editors";
 
 export const dynamic = "force-dynamic";
@@ -73,7 +79,7 @@ const first = (fs: readonly Finding[]) => (blocking(fs).length ? supplierFaultTe
  * would refuse is said beside the act's button, from the same rule the act runs.
  */
 export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) {
-  const [{ id }, { tab }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string }>]);
+  const [{ id }, { tab, exercise, fromAward }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string; exercise?: string; fromAward?: string }>]);
   const l = await loadSupplier(id);
   if (!l) notFound();
   const { supplier: s, org } = l;
@@ -84,11 +90,17 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
   const docs = s.documents.map(documentFacts);
   const states = today ? documentStates(cfg.typeFacts, docs, today) : [];
   const open = s.applications.find(isOpen) ?? null;
+  // a2: where it stands, derived on the organisation's day (OD-7 A), never stored.
+  const reading = today ? standing({ status }, s.standingEvents.map(standingEventFacts), states.filter((x) => x.mandatory).map((x) => ({ typeLabel: x.type.label, state: x.state })), { autoSuspendOnLapse: cfg.policy?.autoSuspendOnLapse ?? null }, today) : null;
+  const linkedCount = s.parties.length + s.awards.filter((a) => !a.awardeePartyId).length;
 
   const tabs = [
     { id: "profile", label: "Profile", icon: <BuildingIcon size={15} />, panel: <ProfilePanel l={l} cfg={cfg} /> },
     { id: "documents", label: "Documents", icon: <FileIcon size={15} />, count: s.documents.length, panel: <DocumentsPanel l={l} cfg={cfg} people={peopleOptions} /> },
     { id: "applications", label: "Applications", icon: <ClipboardIcon size={15} />, count: s.applications.length, panel: <ApplicationsPanel l={l} cfg={cfg} people={peopleOptions} /> },
+    { id: "standing", label: "Standing", icon: <ShieldIcon size={15} />, count: s.standingEvents.length, panel: <StandingPanel l={l} cfg={cfg} reading={reading} people={peopleOptions} fromAward={fromAward ?? null} /> },
+    { id: "eligibility", label: "Eligibility", icon: <ScaleIcon size={15} />, panel: <EligibilityPanel l={l} exerciseId={exercise ?? null} /> },
+    { id: "participation", label: "Participation", icon: <LinkIcon size={15} />, count: linkedCount, panel: <ParticipationPanel l={l} people={peopleOptions} /> },
     { id: "history", label: "History", icon: <ClockIcon size={15} />, count: history.total, panel: <HistoryPanel entries={history.entries} total={history.total} timeZone={org.timeZone} /> },
   ];
   const issues = states.filter((x) => x.mandatory && x.state !== "VALID" && x.state !== "NOT_APPLICABLE");
@@ -99,7 +111,7 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
       <PageHeader
         eyebrow={<Link href="/suppliers">Suppliers</Link>}
         title={s.registeredName}
-        badge={<Badge tone={SUPPLIER_STATUS_TONE[status]} dot>{SUPPLIER_STATUS_LABEL[status].en}</Badge>}
+        badge={reading && status === "REGISTERED" ? <Badge tone={standingTone(reading)} dot>{standingWords(reading).en}</Badge> : <Badge tone={SUPPLIER_STATUS_TONE[status]} dot>{SUPPLIER_STATUS_LABEL[status].en}</Badge>}
         subtitle={`Registration number ${s.registrationNo}${s.registeredOn ? ` · registered ${formatDate(day(s.registeredOn))}` : ""}`}
         meta={[
           <span key="ref" className="font-mono text-[12.5px]">{s.reference}</span>,
@@ -113,6 +125,12 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
         {!today && (
           <Callout tone="warn" title="The organisation's time zone is not set" action={<ButtonLink href="/configuration/organisation" size="sm">Set time zone</ButtonLink>}>
             Documents are judged on the organisation&apos;s day, and every act on the register records a day: none is assumed to be UTC.
+          </Callout>
+        )}
+        {reading && reading.standing !== "ACTIVE" && reading.standing !== "NOT_REGISTERED" && (
+          <Callout tone="err" title={standingWords(reading).en}>
+            {reading.standing === "SUSPENDED_ON_LAPSE" ? `Derived from ${reading.lapsed.join(", ")} having expired; it ends when the renewal is verified.` : `Since ${formatDate((reading.blacklist ?? reading.cancellation ?? reading.suspension)!.effectiveOn)}. `}
+            {" "}A sale to it is refused, and an envelope it lodges is judged not eligible at the opening. See the Standing tab.
           </Callout>
         )}
         {issues.length > 0 && (
@@ -254,6 +272,7 @@ function DocumentsPanel({ l, cfg, people }: { l: LoadedSupplier; cfg: SupplierCo
                       {st.mandatory && <Badge outline>Mandatory</Badge>}
                       <Badge tone={DOCUMENT_STATE_TONE[st.state]}>{DOCUMENT_STATE_LABEL[st.state].en}</Badge>
                       {st.pending && st.effective && <Chip tone="warn">Renewal lodged, not verified yet</Chip>}
+                      {today && st.effective?.expiresOn && st.state === "VALID" && (() => { const b = expiryBand(st.effective.expiresOn, today, { criticalDays: cfg.policy?.criticalDays ?? null, warningDays: cfg.policy?.warningDays ?? null, upcomingDays: cfg.policy?.upcomingDays ?? null }); return b.band === "NONE" ? null : <Chip tone={EXPIRY_BAND_TONE[b.band] === "neutral" ? undefined : EXPIRY_BAND_TONE[b.band]}>{`Expiry: ${EXPIRY_BAND_LABEL[b.band].en.toLowerCase()}${b.daysLeft != null ? `, ${b.daysLeft} days left` : ""}`}</Chip>; })()}
                     </div>
                     {st.state === "MISSING" && <LodgeDocumentDrawer supplierId={s.id} types={[{ value: st.type.id, label: st.type.label }]} values={values(typeRow.bodyId)} people={people} blocker={lodgeBlocker === null || lodgeBlocker.startsWith("Every") ? null : lodgeBlocker} trigger="Lodge" />}
                   </div>
