@@ -11,7 +11,7 @@ import { checkTabling, secretariatHoldersOn } from "@/lib/committee/tabling";
 import { dayToDate } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { lockEvaluationRows } from "@/lib/evaluation/lock";
-import { loadEvaluationContext } from "@/lib/evaluation/repo";
+import { loadEvaluationContext, stageMattersAcross } from "@/lib/evaluation/repo";
 import { stageOneSubject, stageOneTablingFaults } from "@/lib/evaluation/stage-one";
 import { openActFaults } from "@/lib/evaluation/state";
 import { EVALUATION_STAGE_DOMAIN } from "@/lib/evaluation/types";
@@ -56,7 +56,8 @@ export async function tableStageOneMatter(_prev: FormState, data: FormData): Pro
       committeeCode: first?.committeeCode ?? null,
       sitting: { committeeCode: s.meeting.committee.code, frozen: !sittingPermits(s.meeting.status, "TABLE") },
       excluded: !!b.excludedReason,
-      matters: row.stageMatters.filter((m) => !m.withdrawnAt).map((m) => m.outcome),
+      // R-1: the bidder's matters across the versions it was carried through; a new version resets nothing.
+      matters: stageMattersAcross(row, c.bidderRows).filter((m) => !m.withdrawn).map((m) => m.outcome),
     });
     if (fs.length) return refuse(fs);
     const code = s.meeting.committee.secretariatRoleCode;

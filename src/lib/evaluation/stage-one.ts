@@ -7,6 +7,7 @@
  * sitting. Pure.
  */
 
+import type { StageOneOutcome } from "./facts";
 import type { Finding } from "./types";
 
 export type StageOneFault = "NOT_TWO_STAGE" | "COMMITTEE_NOT_SET" | "OTHER_COMMITTEE" | "SITTING_CLOSED" | "EXCLUDED_ABOVE_CEILING" | "STAGE_ONE_TABLED" | "STAGE_ONE_DECIDED";
@@ -34,3 +35,38 @@ export function stageOneTablingFaults(i: {
 
 /// The matter's subject: the exercise and the bid, never a price.
 export const stageOneSubject = (title: string, listingNo: number) => `First stage of ${title}: bid No. ${listingNo}`;
+
+/// A first-stage matter as the outcome is read from it.
+export interface StageMatterFacts {
+  id: string;
+  outcome: "PENDING" | "CARRIED" | "NOT_CARRIED" | "DEFERRED";
+  withdrawn: boolean;
+  /// The day it was tabled (stored as a day), and its sitting's day, then its place on that sitting's agenda.
+  tabledAt: Date | null;
+  sittingDay: Date | null;
+  sequence: number;
+}
+
+const DECIDED = new Set(["CARRIED", "NOT_CARRIED"]);
+const t = (d: Date | null) => (d ? d.getTime() : -Infinity);
+
+/// Oldest first: tabled day, the sitting's day, the place on the agenda, then the id (never the clock of the read).
+export function byTabling(a: StageMatterFacts, b: StageMatterFacts): number {
+  return t(a.tabledAt) - t(b.tabledAt) || t(a.sittingDay) - t(b.sittingDay) || a.sequence - b.sequence || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+}
+
+/**
+ * The committee's decision on a bidder's first stage (FR-EVL-005; 6.8 fixes R-1, R-2). `matters` are
+ * the bidder's matters across its rows in every version: a bidder carried into a new version keeps the
+ * matters tabled on the row it was carried from (the caller follows `carriedFromId`), so a new version
+ * never resets a first stage the committee decided. Withdrawn matters are ignored. A decided outcome
+ * (carried or not) stands over any later undecided one; otherwise the latest tabled reads, ordered by
+ * the tabling day, the sitting's day and the place on the agenda — two matters tabled the same day are
+ * never left to the order rows were read in.
+ */
+export function stageOneOutcome(matters: readonly StageMatterFacts[]): StageOneOutcome {
+  const live = matters.filter((m) => !m.withdrawn).sort(byTabling);
+  if (live.length === 0) return "NOT_TABLED";
+  const decided = live.filter((m) => DECIDED.has(m.outcome)).at(-1);
+  return (decided ?? live.at(-1)!).outcome;
+}

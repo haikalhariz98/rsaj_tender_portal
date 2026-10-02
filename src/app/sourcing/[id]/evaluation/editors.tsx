@@ -172,16 +172,16 @@ export function ShortlistDrawer({ exerciseId, stage, bidders, people: ps }: { ex
   );
 }
 
-export function TableStageOneDrawer({ exerciseId, bidder, sittings, people: ps }: { exerciseId: string; bidder: { id: string; listingNo: number }; sittings: Option[]; people: Option[] }) {
+export function TableStageOneDrawer({ exerciseId, bidder, sittings, people: ps, again = false }: { exerciseId: string; bidder: { id: string; listingNo: number }; sittings: Option[]; people: Option[]; again?: boolean }) {
   return (
     <RecordEditor
-      title={`Table bid No. ${bidder.listingNo}'s first stage`}
-      description="The committee decides each bid's first stage at its sitting; the decision there is the act. Tabled on the Secretariat holder's behalf."
+      title={`Table bid No. ${bidder.listingNo}'s first stage${again ? " again" : ""}`}
+      description={`${again ? "The committee deferred it: table it at a later sitting. " : ""}The committee decides each bid's first stage at its sitting; the decision there is the act. Tabled on the Secretariat holder's behalf.`}
       fields={[hidden("exerciseId"), hidden("bidderId"), { kind: "select", name: "meetingId", label: "Sitting", required: true, placeholder: sittings.length ? "Choose" : "No sitting of the committee is open", options: sittings }, people(who("tabledByPersonId", "Tabled by"), ps)]}
       values={{ exerciseId, bidderId: bidder.id }}
       action={tableStageOneMatter}
       submitLabel="Table"
-      trigger={{ label: "Table", className: ghost, ariaLabel: `Table bid No. ${bidder.listingNo}'s first stage` }}
+      trigger={{ label: again ? "Table again" : "Table", className: ghost, ariaLabel: `Table bid No. ${bidder.listingNo}'s first stage${again ? " again" : ""}` }}
       size="md"
     />
   );

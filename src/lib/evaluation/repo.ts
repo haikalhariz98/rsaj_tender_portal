@@ -30,6 +30,7 @@ import type { BidderFacts, EvaluationFacts, ResultFacts, ScoreFacts, StageOneOut
 import { fixedOf } from "./fixed";
 import { modelFromSnapshot, type ModelSnapshot } from "./model";
 import { estimateFromSchedule } from "./saving";
+import { stageOneOutcome, type StageMatterFacts } from "./stage-one";
 import { policyFromSnapshot } from "./start";
 import { appointmentOutcomeOn } from "./state";
 import { EVALUATION_STAGE_DOMAIN, NEGOTIATION_DOMAIN, type AspectVerdict, type EvaluationState, type PeriodUnit, type Side } from "./types";
@@ -49,7 +50,7 @@ export const EVALUATION_INCLUDE = {
       correctedBy: { select: { name: true } },
       inputsRecordedBy: { select: { name: true } },
       shortlistedBy: { select: { name: true } },
-      stageMatters: { orderBy: { tabledAt: "asc" as const }, select: { id: true, outcome: true, withdrawnAt: true, decisionDate: true, meeting: { select: { id: true, reference: true, committee: { select: { code: true, nameEn: true } } } } } },
+      stageMatters: { orderBy: [{ tabledAt: "asc" as const }, { sequence: "asc" as const }, { id: "asc" as const }], select: { id: true, outcome: true, withdrawnAt: true, decisionDate: true, tabledAt: true, sequence: true, meeting: { select: { id: true, reference: true, meetingDate: true, committee: { select: { code: true, nameEn: true } } } } } },
     },
   },
   submissions: { orderBy: { submittedAt: "asc" as const }, include: { submittedBy: { select: { name: true } } } },
@@ -96,12 +97,29 @@ function currentAspects(b: EvaluationBidderRow): Map<string, { verdict: AspectVe
   return m;
 }
 
-/// The committee's decision on a bidder's first-stage matter: the latest not withdrawn.
-function stageOneOf(b: EvaluationBidderRow): StageOneOutcome {
-  const m = b.stageMatters.filter((x) => !x.withdrawnAt).at(-1);
-  if (!m) return "NOT_TABLED";
-  return m.outcome === "CARRIED" ? "CARRIED" : m.outcome === "NOT_CARRIED" ? "NOT_CARRIED" : m.outcome === "DEFERRED" ? "DEFERRED" : "PENDING";
+/// A row's first-stage matters as the rule reads them.
+const matterFacts = (b: Pick<EvaluationBidderRow, "stageMatters">): StageMatterFacts[] =>
+  b.stageMatters.map((m) => ({ id: m.id, outcome: m.outcome, withdrawn: m.withdrawnAt != null, tabledAt: m.tabledAt, sittingDay: m.meeting.meetingDate, sequence: m.sequence }));
+
+/**
+ * A bidder's first-stage matters across its rows in every version (fix R-1): its own, then those of
+ * the row it was carried from, and so on back. `rows` holds every version's bidder rows by id.
+ */
+export function stageMattersAcross(b: EvaluationBidderRow, rows: ReadonlyMap<string, EvaluationBidderRow>): StageMatterFacts[] {
+  const out: StageMatterFacts[] = [];
+  const seen = new Set<string>();
+  for (let r: EvaluationBidderRow | undefined = b; r && !seen.has(r.id); r = r.carriedFromId ? rows.get(r.carriedFromId) : undefined) {
+    seen.add(r.id);
+    out.push(...matterFacts(r));
+  }
+  return out;
 }
+
+/// Every version's bidder rows, by id (to follow `carriedFromId`).
+export const bidderRowsOf = (evs: readonly EvaluationRow[]) => new Map(evs.flatMap((e) => e.bidders.map((b) => [b.id, b] as const)));
+
+/// The committee's decision on a bidder's first stage, across the versions it was carried through (R-1, R-2).
+const stageOneOf = (b: EvaluationBidderRow, rows: ReadonlyMap<string, EvaluationBidderRow>): StageOneOutcome => stageOneOutcome(stageMattersAcross(b, rows));
 
 const missingOf = (completeness: unknown): string[] => {
   const c = completeness && typeof completeness === "object" ? (completeness as { missing?: { label?: unknown }[] }) : null;
@@ -109,7 +127,7 @@ const missingOf = (completeness: unknown): string[] => {
 };
 
 /// A bidder row as the rules read it.
-export function bidderFacts(b: EvaluationBidderRow, meetings: EvaluationRow["meetings"], twoStage: boolean): BidderFacts {
+export function bidderFacts(b: EvaluationBidderRow, meetings: EvaluationRow["meetings"], twoStage: boolean, rows: ReadonlyMap<string, EvaluationBidderRow> = new Map([[b.id, b]])): BidderFacts {
   const closedNegotiations = meetings.filter((m) => m.bidderId === b.id && m.kind === "NEGOTIATION" && m.closedAt && m.priceAfter != null);
   const last = closedNegotiations.at(-1);
   return {
@@ -131,14 +149,14 @@ export function bidderFacts(b: EvaluationBidderRow, meetings: EvaluationRow["mee
     scores: currentScores(b),
     aspects: currentAspects(b),
     missingAtOpening: missingOf(b.openedBid.completeness),
-    stageOne: twoStage ? stageOneOf(b) : null,
+    stageOne: twoStage ? stageOneOf(b, rows) : null,
     negotiatedPrice: last?.priceAfter != null ? senFromDecimal(last.priceAfter) : null,
     carried: b.carriedFromId != null,
   };
 }
 
 /// One version as the rules read it, on the exercise's pinned model.
-export function factsOf(e: EvaluationRow, ex: { status: string }, model: ModelSnapshot, estimate: EvaluationFacts["estimate"]): EvaluationFacts {
+export function factsOf(e: EvaluationRow, ex: { status: string }, model: ModelSnapshot, estimate: EvaluationFacts["estimate"], rows: ReadonlyMap<string, EvaluationBidderRow> = bidderRowsOf([e])): EvaluationFacts {
   const twoStage = model.route === "TWO_STAGE";
   const policy = policyFromSnapshot(e.policySnapshot);
   return {
@@ -147,7 +165,7 @@ export function factsOf(e: EvaluationRow, ex: { status: string }, model: ModelSn
     route: model.route,
     model,
     decimals: policy.scoreDecimals,
-    bidders: e.bidders.map((b) => bidderFacts(b, e.meetings, twoStage)),
+    bidders: e.bidders.map((b) => bidderFacts(b, e.meetings, twoStage, rows)),
     submissions: e.submissions.map((s): SubmissionFacts => ({ stageCode: s.stageCode, side: s.side as Side, personId: s.submittedByPersonId, person: s.submittedBy.name, at: s.submittedAt })),
     results: e.results.map((r): ResultFacts => ({ bidderId: r.bidderId, stageCode: r.stageCode, percent: fixedOf(r.percent), shown: fixedOf(r.shown), passed: r.passed, bandLabel: r.bandLabel, outOfRunning: r.outOfRunning })),
     team: e.team.map((t): TeamFacts => ({ personId: t.personId, name: t.person.name, side: t.side as Side, unitCode: t.orgUnitCodeSnapshot })),
@@ -194,7 +212,7 @@ export async function loadEvaluationContext(l: { org: { id: string; timeZone: st
   const estimate = estimateFromSchedule(latestSchedule);
   const carried = evaluationSet(openings.map((o) => ({ kind: o.kind, finalised: o.finalisedAt != null, bids: o.bids })));
   const current = inForce(evaluations);
-  const facts = current && model ? factsOf(current, ex, model, estimate) : null;
+  const facts = current && model ? factsOf(current, ex, model, estimate, bidderRowsOf(evaluations)) : null;
   const on = org.today ? dayToDate(org.today) : null;
   const openingGate: OpeningForGate[] = openings.map((o) => ({ kind: o.kind, sequenceNo: o.sequenceNo, finalised: o.finalisedAt != null, liveScans: o.attachments.filter(isLive).length, copyCheck: o.estimateCopyCheck, explained: o.copyExplanation != null, admittedEnvelopeId: o.admissionDecision?.bidEnvelopeId ?? null }));
   const admitted = late.filter((e) => lateMatters.some((m) => m.bidEnvelopeId === e.id && !m.withdrawn && m.outcome === "CARRIED")).map((e) => e.id);
@@ -213,6 +231,8 @@ export async function loadEvaluationContext(l: { org: { id: string; timeZone: st
     admittedUnopened: admitted.filter((id) => !openedAdmitted.has(id)).length,
     supplementaryInProgress: openings.some((o) => o.kind === "SUPPLEMENTARY" && !o.finalisedAt),
     evaluations,
+    /// Every version's bidder rows by id, to follow `carriedFromId` (fix R-1).
+    bidderRows: bidderRowsOf(evaluations),
     current,
     facts,
     policy,
