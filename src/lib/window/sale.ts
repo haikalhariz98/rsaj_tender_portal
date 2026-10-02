@@ -132,6 +132,16 @@ export const ATTESTABLE_CHECKS: readonly CheckState[] = ["NOT_CHECKED", "FAILED"
 
 export type VoidFault = "REASON_REQUIRED" | "ALREADY_VOID" | "WINDOW_CLOSED" | "EXERCISE_CANCELLED";
 
+/**
+ * Whether a refusal to void holds for every sale on the register alike (the window's state, not
+ * the sale's): it is said once, beside the register's acts, rather than under every row. A
+ * refusal about one sale is said under that sale (65-C2).
+ */
+export const voidRefusalIsRegisterWide = (f: Finding<VoidFault>) => f.code === "WINDOW_CLOSED" || f.code === "EXERCISE_CANCELLED";
+
+/// What a disabled Void says under its own sale: the act, then why.
+export const voidRefusalNote = (reason: string) => `Void is not available: ${reason}`;
+
 /// Voiding a sale (X-11): with a reason; refused once the window has closed.
 export function voidSaleFault(s: { voidedAt: Date | null }, phase: WindowPhase, reason: string): Finding<VoidFault> | null {
   if (s.voidedAt) return { code: "ALREADY_VOID", level: "block" };

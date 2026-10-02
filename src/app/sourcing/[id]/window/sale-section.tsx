@@ -19,7 +19,7 @@ export function saleHeader(d: Sales, c: WindowContext): { actions: ReactNode; no
   const parties: Person[] = d.parties.filter((p) => !bought.has(p.registrationNo) && (!invited || p.invited)).map((p) => ({ value: p.id, label: `${p.name} (${p.registrationNo})` }));
   return {
     actions: <RecordSaleDrawer exerciseId={c.exerciseId} allowed={d.open} parties={parties} invited={invited} restricted={d.restricted} people={c.people} fee={d.fee} />,
-    notes: d.open.allowed ? [] : [["Record a sale", d.open.reason]],
+    notes: [...(d.open.allowed ? [] : [["Record a sale", d.open.reason] as [string, string]]), ...(d.voidAll ? [["Void a sale", d.voidAll] as [string, string]] : [])],
   };
 }
 

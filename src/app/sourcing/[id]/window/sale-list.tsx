@@ -5,6 +5,8 @@ import Link from "next/link";
 import { DataList, type Row } from "@/components/data-list";
 import { Button, buttonClass } from "@/components/ui/button";
 
+import { voidRefusalNote } from "@/lib/window/sale";
+
 import { RecordReceiptDrawer, VoidSaleDrawer } from "./editors";
 
 /// A sale as the register's read model gives it (`saleRegister`, src/lib/window/read.ts), trimmed to what the list shows.
@@ -20,14 +22,16 @@ export interface SaleRow {
   addendaAcknowledged: string;
   issuedBy: string;
   voided: string | null;
-  void: { allowed: true } | { allowed: false; reason: string } | null;
+  void: { allowed: true } | { allowed: false; reason: string; registerWide: boolean } | null;
 }
 
 /**
  * The sale register on the shared DataList: each sale with its receipt, amount, day and the
  * checks as attested, the registration and suspension reading "not checked" until the supplier
  * register exists. A row's acts open drawers, so the list is a client component (its actions
- * are functions of the row). A void sale stays on the register, marked, and keeps its reason.
+ * are functions of the row). A void sale stays on the register, marked, and keeps its reason. A
+ * disabled Void states why under its sale, or once beside the register's acts where the reason is
+ * the window's (65-C2).
  */
 export function SaleList({ exerciseId, sales }: { exerciseId: string; sales: SaleRow[] }) {
   const byId = new Map(sales.map((s) => [s.id, s]));
@@ -36,7 +40,7 @@ export function SaleList({ exerciseId, sales }: { exerciseId: string; sales: Sal
     views: [...(s.voided ? ["void"] : ["live"]), ...(!s.voided && s.receipt === "Not recorded" ? ["noreceipt"] : [])],
     search: `${s.purchaser} ${s.registrationNo} ${s.receipt}`,
     sortKeys: { soldOn: s.soldOn, purchaser: s.purchaser },
-    note: s.voided ?? (s.void && !s.void.allowed ? s.void.reason : undefined),
+    note: s.voided ?? (s.void && !s.void.allowed && !s.void.registerWide ? voidRefusalNote(s.void.reason) : undefined),
     cells: {
       purchaser: { kind: "stack", title: s.purchaser, sub: s.registrationNo },
       receipt: { kind: "stack", title: s.receipt, sub: `${s.amount} · ${s.paymentMethod || "payment not recorded"}` },

@@ -32,7 +32,7 @@ import { ADDENDUM_STATUS_LABEL, CLOSING_CHANGE_KIND_LABEL, DAY_RULE_LABEL, DELIV
 import { closingHistory, sinceApprovedLines, standingEntry, tableDocumentAvailability, tablePrintRefusal, type TableAvailability, type WindowPhase } from "./phase";
 import { basisTotalOf, eventFactsOf, loadCalendar, loadChannels, loadFloors, loadWindowPolicy, windowData, type WindowData } from "./repo";
 import { foldUnpreparedWindow } from "./publish";
-import { annotationLines, isAnnotation, voidSaleFault } from "./sale";
+import { annotationLines, isAnnotation, voidRefusalIsRegisterWide, voidSaleFault } from "./sale";
 import { saleChecks } from "./sale-checks";
 import type { Finding, Provenance, WindowPath } from "./types";
 
@@ -252,7 +252,12 @@ export async function saleRegister(exerciseId: string) {
   const phase = phaseOf(ex, w, now, org.timeZone).phase;
   const sales = w?.sales ?? [];
   const addenda = (w?.addenda ?? []).filter((a) => a.status === "ISSUED");
+  // 65-C2: a refusal that holds for every sale is said once beside the register's acts; one about a
+  // single sale is said under it. Either way the reason is on screen, never only in a tooltip.
+  const rowVoid = (f: ReturnType<typeof voidSaleFault>) => (f ? { allowed: false as const, reason: windowFindingText(f), registerWide: voidRefusalIsRegisterWide(f) } : { allowed: true as const });
+  const registerVoid = voidSaleFault({ voidedAt: null }, phase, "-");
   return {
+    voidAll: sales.some((s) => !s.voidedAt) && registerVoid && voidRefusalIsRegisterWide(registerVoid) ? windowFindingText(registerVoid) : null,
     pathKey: pathOf(d).path,
     status: ex.status,
     phase: PHASE_LABEL[phase],
@@ -273,7 +278,7 @@ export async function saleRegister(exerciseId: string) {
         addendaAcknowledged: `${acked} of ${addenda.length}`,
         issuedBy: `${s.issuedBy.name} (recorded on their behalf, not signed)`,
         voided: s.voidedAt ? `Voided: ${s.voidReason}` : null,
-        void: s.voidedAt ? null : allowed(voidSaleFault(s, phase, "-")),
+        void: s.voidedAt ? null : rowVoid(voidSaleFault(s, phase, "-")),
         label: isAnnotation(s.annotation) ? annotationLines(s.annotation) : [],
       };
     }),

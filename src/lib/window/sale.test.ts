@@ -7,7 +7,7 @@ import { manualFeeReceipt, uncollectedReceipts } from "@/lib/integration/fee-rec
 
 import { event } from "./fixture";
 import { windowFindingText } from "./labels";
-import { annotationLines, certExpiresBeforeClosing, isAnnotation, isReceiptDuplicate, RECEIPT_INDEX, saleAnnotation, saleFaults, voidSaleFault, type SaleInput } from "./sale";
+import { annotationLines, certExpiresBeforeClosing, isAnnotation, isReceiptDuplicate, RECEIPT_INDEX, saleAnnotation, saleFaults, voidRefusalIsRegisterWide, voidRefusalNote, voidSaleFault, type SaleInput } from "./sale";
 
 /**
  * FR-ADV-009–012, FR-DOC-009 at sale; OD-9 (register checks read "not checked", a warning, never a
@@ -109,6 +109,23 @@ describe("voiding a sale (X-11)", () => {
     expect(voidSaleFault({ voidedAt: null }, "CLOSED", "late")?.code).toBe("WINDOW_CLOSED");
     expect(voidSaleFault({ voidedAt: null }, "CANCELLED", "late")?.code).toBe("EXERCISE_CANCELLED");
     expect(voidSaleFault({ voidedAt: new Date() }, "OPEN_FOR_PURCHASE", "again")?.code).toBe("ALREADY_VOID");
+  });
+});
+
+describe("a disabled Void states its reason on screen (65-C2)", () => {
+  it("a window-wide refusal is said once for the register; a refusal about one sale under that sale", () => {
+    expect(voidRefusalIsRegisterWide(voidSaleFault({ voidedAt: null }, "CLOSED", "-")!)).toBe(true);
+    expect(voidRefusalIsRegisterWide(voidSaleFault({ voidedAt: null }, "CANCELLED", "-")!)).toBe(true);
+    expect(voidRefusalIsRegisterWide(voidSaleFault({ voidedAt: new Date() }, "OPEN_FOR_PURCHASE", "-")!)).toBe(false);
+  });
+  it("the row note names the act before the reason", () => {
+    expect(voidRefusalNote("The sale is already voided.")).toBe("Void is not available: The sale is already voided.");
+  });
+  it("the register shows the reason as text, beside the acts or under the row, not only as a tooltip", () => {
+    const list = readFileSync(join(__dirname, "..", "..", "app", "sourcing", "[id]", "window", "sale-list.tsx"), "utf8");
+    const section = readFileSync(join(__dirname, "..", "..", "app", "sourcing", "[id]", "window", "sale-section.tsx"), "utf8");
+    expect(list).toMatch(/note:[^\n]*voidRefusalNote\(s\.void\.reason\)/);
+    expect(section).toMatch(/\["Void a sale", d\.voidAll\]/);
   });
 });
 
