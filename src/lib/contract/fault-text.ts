@@ -275,9 +275,10 @@ export function contractFaultWords(f: Finding): Words {
       const src = by[String(d.source)] ?? w("the award, the Appendix or the bill", "award, Lampiran atau senarai kuantiti");
       const f = field(d.group);
       const verb = /s$/.test(f.en) ? "are" : "is";
+      const derived = d.source === "DERIVED";
       return w(
-        `${f.en} ${verb} stated by ${src.en}, so ${verb === "are" ? "they are" : "it is"} not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order. A change to the contract's terms is recorded as a change to the contract (variations and adjustments, post-award), never keyed over the record.`,
-        `${f.ms} dinyatakan oleh ${src.ms}, jadi tidak diperbetulkan di sini: garis dasar mengekalkan apa yang dinyatakan oleh award, Lampiran dan senarai kuantiti, mengikut susunan itu. Perubahan terma kontrak direkodkan sebagai perubahan kepada kontrak, tidak dimasukkan di atas rekod.`,
+        `${f.en} ${verb} ${derived ? "derived under" : "stated by"} ${src.en}, so ${verb === "are" ? "they are" : "it is"} not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order, and what a recorded rule derives from them. A change to the contract's terms is recorded as a change to the contract (variations and adjustments, post-award), never keyed over the record.`,
+        `${f.ms} ${derived ? "diterbitkan di bawah" : "dinyatakan oleh"} ${src.ms}, jadi tidak diperbetulkan di sini: garis dasar mengekalkan apa yang dinyatakan oleh award, Lampiran dan senarai kuantiti, mengikut susunan itu, dan apa yang diterbitkan oleh peraturan yang direkodkan. Perubahan terma kontrak direkodkan sebagai perubahan kepada kontrak, tidak dimasukkan di atas rekod.`,
       );
     }
     case "DERIVED_BY_POLICY":

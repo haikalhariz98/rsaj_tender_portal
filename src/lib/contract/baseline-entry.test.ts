@@ -77,6 +77,10 @@ describe("a correction keeps what the award, the Appendix and the bill state (R-
     expect(correctableFaults("sums", inputs())[0].data).toEqual({ group: "sums", source: "BQ" });
     expect(correctableFaults("firstInterim", inputs())[0].data).toEqual({ group: "firstInterim", source: "DERIVED" });
   });
+  it("a value a recorded rule derives says so, not 'stated'", () => {
+    const t = contractFaultWords({ code: "STATED_NOT_CORRECTED", level: "block", data: { group: "retention", source: "DERIVED" } });
+    expect(t.en).toMatch(/^Retention and its cap is derived under a recorded rule, so it is not corrected here/);
+  });
   it("the words exist in both languages and say what to do instead", () => {
     for (const source of ["AWARD", "APPENDIX", "BQ", "DERIVED"]) {
       const t = contractFaultWords({ code: "STATED_NOT_CORRECTED", level: "block", data: { group: "dlp", source } });
