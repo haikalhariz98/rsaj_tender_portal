@@ -1,4 +1,5 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
+import { Blocked } from "@/components/ui/blocked";
 import { buttonClass } from "@/components/ui/button";
 import { ON_BEHALF_HINT } from "@/lib/documents/labels";
 
@@ -19,19 +20,10 @@ const primary = buttonClass("primary", "sm");
 const ghost = buttonClass("ghost", "sm");
 const person = (label: string, people: Option[]): Field => ({ kind: "select", name: "personId", label, required: true, placeholder: "Choose", options: people, hint: ON_BEHALF_HINT });
 
-function Blocked({ label, why }: { label: string; why: string }) {
-  return (
-    <span className="inline-flex flex-wrap items-center gap-2 text-[12.5px] text-ink-3">
-      <span className={`${secondary} pointer-events-none opacity-50`} aria-disabled>{label}</span>
-      <span>{why}</span>
-    </span>
-  );
-}
-
 // ------------------------------------------------------------------ suspension and reinstatement
 
 export function SuspendDrawer({ supplierId, reasons, documents, people, today, blocker }: { supplierId: string; reasons: Option[]; documents: Option[]; people: Option[]; today: string | null; blocker: string | null }) {
-  if (blocker) return <Blocked label="Suspend" why={blocker} />;
+  if (blocker) return <Blocked label="Suspend" reason={blocker} />;
   return (
     <RecordEditor
       title="Suspend the supplier"
@@ -53,7 +45,7 @@ export function SuspendDrawer({ supplierId, reasons, documents, people, today, b
 }
 
 export function ReinstateDrawer({ supplierId, checklist, people, today, blocker }: { supplierId: string; checklist: Option[]; people: Option[]; today: string | null; blocker: string | null }) {
-  if (blocker) return <Blocked label="Reinstate" why={blocker} />;
+  if (blocker) return <Blocked label="Reinstate" reason={blocker} />;
   return (
     <RecordEditor
       title="Reinstate the supplier"
@@ -78,7 +70,7 @@ export function ReinstateDrawer({ supplierId, checklist, people, today, blocker 
 // ------------------------------------------------------------------ blacklisting (OD-8 A)
 
 export function RequestBlacklistDrawer({ supplierId, reasons, awards, fromAward, people, blocker }: { supplierId: string; reasons: Option[]; awards: Option[]; fromAward: string | null; people: Option[]; blocker: string | null }) {
-  if (blocker) return <Blocked label="Ask for blacklisting" why={blocker} />;
+  if (blocker) return <Blocked label="Ask for blacklisting" reason={blocker} />;
   return (
     <RecordEditor
       title="Ask for the supplier's blacklisting"
@@ -99,7 +91,7 @@ export function RequestBlacklistDrawer({ supplierId, reasons, awards, fromAward,
 }
 
 export function RequestLiftDrawer({ supplierId, people, blocker }: { supplierId: string; people: Option[]; blocker: string | null }) {
-  if (blocker) return <Blocked label="Ask to lift the blacklisting" why={blocker} />;
+  if (blocker) return <Blocked label="Ask to lift the blacklisting" reason={blocker} />;
   return (
     <RecordEditor
       title="Ask to lift the blacklisting"
@@ -115,7 +107,7 @@ export function RequestLiftDrawer({ supplierId, people, blocker }: { supplierId:
 
 export function RecordStandingDrawer({ requestId, kind, people, today, approvedOn, blocker }: { requestId: string; kind: "BLACKLIST" | "BLACKLIST_LIFT"; people: Option[]; today: string | null; approvedOn: string | null; blocker: string | null }) {
   const label = kind === "BLACKLIST" ? "Record the blacklisting" : "Record the lifting";
-  if (blocker) return <Blocked label={label} why={blocker} />;
+  if (blocker) return <Blocked label={label} reason={blocker} />;
   return (
     <RecordEditor
       title={label}
@@ -174,7 +166,7 @@ export function DecideRouteStepDrawer({ stepId, office, done, people, today, mat
 // ------------------------------------------------------------------ links (OD-9)
 
 export function LinkPartyDrawer({ supplierId, parties, people }: { supplierId: string; parties: Option[]; people: Option[] }) {
-  if (parties.length === 0) return <Blocked label="Link a party" why="No unlinked party on any exercise." />;
+  if (parties.length === 0) return <Blocked label="Link a party" reason="No unlinked party on any exercise." />;
   return (
     <RecordEditor
       title="Link a party on an exercise to this supplier"
@@ -216,7 +208,7 @@ export function LinkAwardDrawer({ supplierId, awards, people }: { supplierId: st
 // ------------------------------------------------------------------ special permission (FR-ADV-017)
 
 export function PermissionDrawer({ partyId, partyLabel, requirements, bodies, people, today, blocker }: { partyId: string; partyLabel: string; requirements: Option[]; bodies: Option[]; people: Option[]; today: string | null; blocker: string | null }) {
-  if (blocker) return <Blocked label="Record a special permission" why={blocker} />;
+  if (blocker) return <Blocked label="Record a special permission" reason={blocker} />;
   return (
     <RecordEditor
       title={`Special permission for ${partyLabel}`}
@@ -244,7 +236,7 @@ export function PermissionDrawer({ partyId, partyLabel, requirements, bodies, pe
 }
 
 export function GrantPermissionDrawer({ permissionId, people, today, blocker }: { permissionId: string; people: Option[]; today: string | null; blocker: string | null }) {
-  if (blocker) return <Blocked label="Record it granted" why={blocker} />;
+  if (blocker) return <Blocked label="Record it granted" reason={blocker} />;
   return (
     <RecordEditor
       title="Record the permission granted"

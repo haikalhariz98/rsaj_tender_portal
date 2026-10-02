@@ -40,7 +40,8 @@ export function suspendFaults(
   if (!ctx.today) return [{ code: "TIME_ZONE_UNSET", level: "block" }];
   if (ctx.status !== "REGISTERED") out.push({ code: "STANDING_NEEDS_REGISTRATION", level: "block" });
   else if (ctx.reading.suspension) out.push({ code: "ALREADY_SUSPENDED", level: "block", data: { since: ctx.reading.suspension.effectiveOn } });
-  else if (ctx.reading.standing === "BLACKLISTED" || ctx.reading.standing === "CANCELLED") out.push({ code: "ALREADY_BARRED", level: "block" });
+  // fix S-4: the refusal names the standing in effect, and since when.
+  else if (ctx.reading.standing === "BLACKLISTED" || ctx.reading.standing === "CANCELLED") out.push({ code: "ALREADY_BARRED", level: "block", data: { standing: ctx.reading.standing, since: (ctx.reading.blacklist ?? ctx.reading.cancellation)?.effectiveOn ?? null } });
   if (!i.reasonId) out.push({ code: "REASON_REQUIRED", level: "block" });
   else if (!ctx.reason || ctx.reason.appliesTo !== "SUSPEND") out.push({ code: "REASON_NOT_FOR_SUSPENSION", level: "block" });
   else if (ctx.reason.retiredOn && ctx.reason.retiredOn <= ctx.today) out.push({ code: "REASON_RETIRED", level: "block" });
