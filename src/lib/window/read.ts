@@ -36,7 +36,7 @@ import { closingHistory, isPublished, sinceApprovedLines, standingEntry, tableDo
 import { basisTotalOf, eventFactsOf, loadCalendar, loadChannels, loadFloors, loadWindowPolicy, windowData, type WindowData } from "./repo";
 import { foldUnpreparedWindow } from "./publish";
 import { annotationLines, isAnnotation, voidRefusalIsRegisterWide, voidSaleFault } from "./sale";
-import { saleChecks } from "./sale-checks";
+import { registerReadOn, saleChecks } from "./sale-checks";
 import type { Finding, Provenance, WindowPath } from "./types";
 
 const NOT_SET = "Not set";
@@ -304,7 +304,7 @@ export async function saleRegister(exerciseId: string) {
         amount: money(s.amount),
         soldOn: day(s.soldOn),
         paymentMethod: s.paymentMethod,
-        checks: saleChecks({ authoritySighted: s.authoritySighted, certSighted: s.restrictionCertSighted, certValidUntil: s.restrictionCertValidUntil ? storedDay(s.restrictionCertValidUntil) : null, registrationCheck: s.registrationCheck, suspensionCheck: s.suspensionCheck }, closingDay(ex.closingAt, org.timeZone)),
+        checks: saleChecks({ authoritySighted: s.authoritySighted, certSighted: s.restrictionCertSighted, certValidUntil: s.restrictionCertValidUntil ? storedDay(s.restrictionCertValidUntil) : null, registrationCheck: s.registrationCheck, suspensionCheck: s.suspensionCheck, registerReadOn: registerReadOn(s.eligibilitySnapshot) }, closingDay(ex.closingAt, org.timeZone)),
         addendaAcknowledged: `${acked} of ${addenda.length}`,
         issuedBy: `${s.issuedBy.name} (recorded on their behalf, not signed)`,
         voided: s.voidedAt ? `Voided: ${s.voidReason}` : null,

@@ -6,6 +6,8 @@
 
 import { formatDate } from "@/lib/format";
 
+import { isEligibilitySnapshot } from "@/lib/suppliers/eligibility";
+
 import { CERT_SIGHTED_LABEL } from "./labels";
 import { certExpiresBeforeClosing } from "./sale";
 import type { CertSighted, CheckState } from "./types";
@@ -16,10 +18,21 @@ export interface SaleCheck {
   warn: boolean;
 }
 
-const STATE_WORDS: Record<CheckState, string> = { NOT_CHECKED: "not checked", CLEAR: "checked, clear", FAILED: "failed" };
+
+/**
+ * 6.15a fix M-4: the registration and suspension words follow what the sale itself holds. With the
+ * register's reading frozen on it (`registerReadOn`, the day of DocumentSale.eligibilitySnapshot) they say
+ * the register's result and when it was read; without one, a check "not checked" says the sale was made
+ * before the register checked it — never whether the party is linked now, which may have changed since.
+ */
+/// The day the register's reading frozen on a sale was judged, or null where the sale holds none.
+export const registerReadOn = (snapshot: unknown): string | null => (isEligibilitySnapshot(snapshot) ? snapshot.judgedOn : null);
+
+const REGISTER_WORDS: Record<CheckState, string> = { NOT_CHECKED: "not checked on the supplier register", CLEAR: "clear on the supplier register", FAILED: "failed on the supplier register" };
+const UNREAD_WORDS: Record<CheckState, string> = { NOT_CHECKED: "not checked: sold before the supplier register checked it", CLEAR: "checked, clear", FAILED: "failed" };
 
 export function saleChecks(
-  s: { authoritySighted: boolean | null; certSighted: CertSighted | null; certValidUntil: string | null; registrationCheck: CheckState; suspensionCheck: CheckState },
+  s: { authoritySighted: boolean | null; certSighted: CertSighted | null; certValidUntil: string | null; registrationCheck: CheckState; suspensionCheck: CheckState; registerReadOn: string | null },
   closingDay: string | null,
 ): SaleCheck[] {
   const out: SaleCheck[] = [{ text: `Authority: ${s.authoritySighted ? "sighted" : "not sighted"}`, warn: !s.authoritySighted }];
@@ -31,7 +44,8 @@ export function saleChecks(
       warn: early || s.certSighted === "NOT_SHOWN" || !s.certValidUntil,
     });
   }
-  out.push({ text: `Registration: ${STATE_WORDS[s.registrationCheck]}`, warn: s.registrationCheck !== "CLEAR" });
-  out.push({ text: `Suspension: ${STATE_WORDS[s.suspensionCheck]}`, warn: s.suspensionCheck !== "CLEAR" });
+  const words = (c: CheckState) => (s.registerReadOn ? `${REGISTER_WORDS[c]}, read ${formatDate(s.registerReadOn)}` : UNREAD_WORDS[c]);
+  out.push({ text: `Registration: ${words(s.registrationCheck)}`, warn: s.registrationCheck !== "CLEAR" });
+  out.push({ text: `Suspension: ${words(s.suspensionCheck)}`, warn: s.suspensionCheck !== "CLEAR" });
   return out;
 }

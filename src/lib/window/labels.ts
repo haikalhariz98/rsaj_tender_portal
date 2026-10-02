@@ -53,7 +53,8 @@ export const FEE_COST_KIND_LABEL: Record<FeeCostKind, string> = {
 export const SITE_EVENT_KIND_LABEL: Record<SiteEventKind, string> = { BRIEFING: "Tender briefing", SITE_VISIT: "Site visit" };
 export const CERT_SIGHTED_LABEL: Record<CertSighted, string> = { ORIGINAL: "Original shown", CERTIFIED_COPY: "Certified copy shown", NOT_SHOWN: "Not shown" };
 export const CHECK_STATE_LABEL: Record<CheckState, string> = {
-  NOT_CHECKED: "Not checked against the supplier register: the contractor is not linked to it",
+  // 6.15a fix M-4: worded by what the sale holds (no register reading), never by the party's link now.
+  NOT_CHECKED: "Not checked: sold before the supplier register checked it",
   CLEAR: "Checked: clear",
   FAILED: "Failed",
 };
@@ -329,9 +330,9 @@ export function windowFindingText(f: Finding): string {
     case "AUTHORITY_NOT_SIGHTED":
       return "The representative's proof of authority to receive the documents must be sighted.";
     case "REGISTRATION_NOT_CHECKED":
-      return "Registration not checked: the contractor is not linked to the supplier register. Carried with the sale to the opening and the evaluation.";
+      return "Registration not checked against the supplier register: no supplier is named for the contractor at this sale. Carried with the sale to the opening and the evaluation.";
     case "SUSPENSION_NOT_CHECKED":
-      return "Suspension not checked: the contractor is not linked to the supplier register. Carried with the sale to the opening and the evaluation.";
+      return "Suspension not checked against the supplier register: no supplier is named for the contractor at this sale. Carried with the sale to the opening and the evaluation.";
     case "REGISTRATION_FAILED":
       return "The contractor's registration is recorded as cancelled, so the documents are not sold.";
     case "SUSPENDED":

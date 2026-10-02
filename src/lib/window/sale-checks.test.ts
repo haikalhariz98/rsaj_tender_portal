@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { saleChecks } from "./sale-checks";
 
-const sale = { authoritySighted: true, certSighted: "ORIGINAL" as const, certValidUntil: "2026-10-06", registrationCheck: "NOT_CHECKED" as const, suspensionCheck: "NOT_CHECKED" as const };
+const sale = { authoritySighted: true, certSighted: "ORIGINAL" as const, certValidUntil: "2026-10-06", registrationCheck: "NOT_CHECKED" as const, suspensionCheck: "NOT_CHECKED" as const, registerReadOn: null };
 const cert = (closing: string | null, over = {}) => saleChecks({ ...sale, ...over }, closing).find((c) => c.text.startsWith("Status certificate"))!;
 
 describe("the sale register's checks", () => {
@@ -23,7 +23,7 @@ describe("the sale register's checks", () => {
   });
   it("no certificate line where none was asked; the supplier register's checks are not-checked warnings", () => {
     const cs = saleChecks({ ...sale, certSighted: null }, "2026-10-14");
-    expect(cs.map((c) => c.text)).toEqual(["Authority: sighted", "Registration: not checked", "Suspension: not checked"]);
+    expect(cs.map((c) => c.text)).toEqual(["Authority: sighted", "Registration: not checked: sold before the supplier register checked it", "Suspension: not checked: sold before the supplier register checked it"]);
     expect(cs.map((c) => c.warn)).toEqual([false, true, true]);
   });
 });
