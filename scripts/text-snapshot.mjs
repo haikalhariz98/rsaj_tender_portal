@@ -2,7 +2,10 @@
 // server, one file per screen. Run before and after a UI change and diff the two
 // directories: a restyle must not drop a field, a warning or a provenance tag.
 //
-//   node scripts/text-snapshot.mjs <out-dir> [base-url]
+//   node scripts/text-snapshot.mjs <out-dir> [base-url] [extra-route …]
+//
+// Extra routes (a record's tab or section, say "/sourcing/demo_sx16?tab=bids&section=opening")
+// are snapshotted after the standard ones.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { JSDOM } from "jsdom";
@@ -85,6 +88,8 @@ for (const [list, re] of [
   const hit = re.exec(await (await fetch(base + list)).text());
   if (hit) ROUTES.push(hit[1], ...(list === "/awards" || list === "/committees" ? [] : [`${hit[1]}/edit`]));
 }
+
+ROUTES.push(...process.argv.slice(4));
 
 mkdirSync(out, { recursive: true });
 for (const route of ROUTES) {

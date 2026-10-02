@@ -95,14 +95,16 @@ export function OffersRead({ exerciseId, o }: { exerciseId: string; o: OpeningVi
       emptyTitle="No offer read yet"
       emptyBody="Each envelope opened is listed here in opening order, with its number (Bil.)."
       actionsPlacement="below"
-      stackBelow="xl"
+      // S-1: stacked below 2xl (a 1280–1440 card cannot hold six columns and the bidder's name);
+      // from 2xl the bidder keeps 200px at least, and the verdict column holds "Carried to evaluation".
+      stackBelow="2xl"
       columns={[
         { key: "listing", label: "Bil.", width: "110px", sortable: true, mobile: "primary" },
-        { key: "bidder", label: "Bidder as read", mobile: "meta" },
+        { key: "bidder", label: "Bidder as read", minWidth: "200px", mobile: "meta" },
         { key: "openingPrice", label: "Price as read", width: "190px", sulit: true, mobile: "meta" },
         { key: "findings", label: "Findings", width: "220px", mobile: "meta" },
         { key: "marks", label: "Initials and checklist", width: "220px", mobile: "meta" },
-        { key: "verdict", label: "Verdict", width: "170px", mobile: "meta" },
+        { key: "verdict", label: "Verdict", width: "210px", mobile: "meta" },
       ]}
       rows={rows}
       actions={(id) => {

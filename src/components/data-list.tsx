@@ -58,6 +58,11 @@ export interface Column {
   /// a percentage of a narrow card is narrower than the figure it must hold.
   width?: string;
   numeric?: boolean;
+  /// The least this column may shrink to, in pixels ("200px"), for the one column a list leaves
+  /// without a width (it takes what the fixed columns leave). The table is then never narrower than
+  /// the fixed widths plus this, and scrolls inside its card rather than squeezing the column (6.7
+  /// review S-1). Only px widths are summed; give the other columns px widths.
+  minWidth?: string;
   /// Text in this column never wraps and is never cut: a date, a reference. Size the
   /// column to hold it. Without it text wraps onto a second line rather than being
   /// truncated, so the main column of a list always shows what the row is.
@@ -95,6 +100,23 @@ function SulitMark() {
     </Chip>
   );
 }
+// Written out whole for Tailwind (see HIDE_COL_BELOW): the stacked list below the breakpoint, the table from it.
+const STACKED_BELOW = { md: "md:hidden", xl: "xl:hidden", "2xl": "2xl:hidden" } as const;
+const TABLE_FROM = { md: "hidden md:block", xl: "hidden xl:block", "2xl": "hidden 2xl:block" } as const;
+
+const px = (w: string | undefined) => (w && /^\d+(\.\d+)?px$/.test(w.trim()) ? Number.parseFloat(w) : null);
+
+/**
+ * The table's least width where a column sets `minWidth` (6.7 review S-1): the fixed px widths, the
+ * column's floor, the selection and actions columns. Null where no column sets one: the list keeps
+ * its own 640px floor, so every other list is unchanged.
+ */
+export function minTableWidth(columns: readonly Pick<Column, "width" | "minWidth" | "hideBelow">[], extra: { selectable: boolean; actions: number }): string | null {
+  if (!columns.some((c) => px(c.minWidth) != null)) return null;
+  const sum = columns.reduce((n, c) => n + (px(c.width) ?? px(c.minWidth) ?? 0), 0) + (extra.selectable ? 48 : 0) + extra.actions;
+  return `${Math.max(640, sum)}px`;
+}
+
 const HIDE_BELOW = {
   md: "hidden md:table-cell",
   lg: "hidden lg:table-cell",
@@ -349,8 +371,9 @@ export function DataList({
   /// export would be chrome with nothing to act on.
   toolbar?: boolean;
   /// Where the stacked list gives way to the table. `xl` for a list whose columns need
-  /// more than a laptop's card (configuration lists beside the sidebar at 1024).
-  stackBelow?: "md" | "xl";
+  /// more than a laptop's card (configuration lists beside the sidebar at 1024); `2xl` for one
+  /// whose columns need more than a 1280–1440 laptop's card beside the sidebar (6.7 review S-1).
+  stackBelow?: "md" | "xl" | "2xl";
   /// Told when a view is picked ("" for all records), so a heading beside the list can say
   /// which list this is. The list keeps the state; this only reports it.
   onViewChange?: (id: string) => void;
@@ -466,6 +489,7 @@ export function DataList({
   const actionsBelow = !!actions && actionsPlacement === "below";
   // The trailing column: the row link's arrow, or the actions when they sit in a column and a row has one.
   const actionColumn = actions ? anyAction && !actionsBelow : !!rowAction;
+  const tableMinWidth = minTableWidth(columns, { selectable, actions: actionColumn ? (actions ? (actionsWidth ?? 128) : 56) : 0 });
   const rowActionsOf = (id: string) => rendered.get(id);
   const actionsLineOf = (id: string) => actionsBelow && hasRowAction(rendered.get(id));
 
@@ -639,7 +663,7 @@ export function DataList({
       ) : (
         <>
         {stacked && (
-          <ul className={cx("divide-y divide-line/70 border-t border-line", stackBelow === "xl" ? "xl:hidden" : "md:hidden")}>
+          <ul className={cx("divide-y divide-line/70 border-t border-line", STACKED_BELOW[stackBelow])}>
             {paged.map((row) => (
               <li
                 key={row.id}
@@ -701,10 +725,10 @@ export function DataList({
             ))}
           </ul>
         )}
-        <div className={cx("relative overflow-x-auto", stacked && (stackBelow === "xl" ? "hidden xl:block" : "hidden md:block"))}>
+        <div className={cx("relative overflow-x-auto", stacked && TABLE_FROM[stackBelow])}>
           {/* Relative so a positioned descendant is clipped here rather than by the
               page: without it a wide table scrolled the whole screen at phone width. */}
-          <table className="w-full min-w-[640px] table-fixed border-collapse text-[13.5px]">
+          <table className="w-full min-w-[640px] table-fixed border-collapse text-[13.5px]" style={tableMinWidth ? { minWidth: tableMinWidth } : undefined}>
             <colgroup>
               {selectable && <col style={{ width: 48 }} />}
               {columns.map((c) => (
