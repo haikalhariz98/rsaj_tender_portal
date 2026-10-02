@@ -614,11 +614,6 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       />
 
       <div className="mb-6 flex flex-col gap-3">
-        {ex.status !== "CANCELLED" && (
-          <Callout tone="info" title="Evaluation runs outside the portal in this phase">
-            The exercise is classified, its tender documents are prepared and approved, its window is recorded, and on Bids and opening the envelopes received are registered, the bids opened and the schedule finalised. Evaluation is recorded outside the portal until its module is built.
-          </Callout>
-        )}
         {ex.status === "CANCELLED" && (
           <Callout tone="info" title="Cancelled">
             {ex.cancelReason || "No reason recorded."} {CANCELLED_ASSUMPTION}
