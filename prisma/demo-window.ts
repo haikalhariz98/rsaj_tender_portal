@@ -103,7 +103,7 @@ const WEEKEND = [6, 7];
 // ------------------------------------------------------------------ the calendar the demo runs on
 
 /// The load day in the organisation's zone, and its working days either side.
-function calendarOf(today: string) {
+export function calendarOf(today: string) {
   const isHoliday = (d: string) => HOLIDAYS.some(([md]) => d.slice(5) === md);
   const working = (d: string) => !WEEKEND.includes(isoWeekday(d)) && !isHoliday(d);
   const step = (d: string, n: number) => {
@@ -349,7 +349,7 @@ const TEMPLATES = [
   },
 ] as const;
 
-const CHANNELS = [
+export const CHANNELS = [
   { id: `${P}pch1`, code: "demo_newspaper", nameEn: "Demo Daily (newspaper)", sortOrder: 1, reference: (sx: number) => `Demo Daily, page ${10 + sx}` },
   { id: `${P}pch2`, code: "demo_notice_board", nameEn: "Head office notice board", sortOrder: 2, reference: () => "Head office notice board, ground floor" },
   { id: `${P}pch3`, code: "demo_website", nameEn: "Organisation website", sortOrder: 3, reference: (sx: number) => `https://www.demo.invalid/tenders/${SX(sx).replace(/\//g, "-")}` },
@@ -443,7 +443,7 @@ const REQUISITIONS = [
   { id: 34, n: 40, title: "Pipe bridge repainting, Sungai Demo", value: "150000.00", justification: "The pipe bridge's coating has failed and the steel is corroding.", need: "Blast and repaint the bridge's steelwork." },
 ] as const;
 
-const BIG = { key: "demo.requisition.4", label: "Requisition, above RM250,000", clause: "DEMO 3.1(d)", chain: [["DEPT_HEAD", "Head of Department", "P", "p9", "Imran Hakim"], ["DIV_HEAD", "Head of Division", "R", "p7", "Gopal Nair"], ["FD", "Finance Director", "MR", "p2", "Bala Krishnan"], ["CEO", "Chief Executive", "A", "p1", "Aisyah Rahman"]] } as const;
+export const BIG = { key: "demo.requisition.4", label: "Requisition, above RM250,000", clause: "DEMO 3.1(d)", chain: [["DEPT_HEAD", "Head of Department", "P", "p9", "Imran Hakim"], ["DIV_HEAD", "Head of Division", "R", "p7", "Gopal Nair"], ["FD", "Finance Director", "MR", "p2", "Bala Krishnan"], ["CEO", "Chief Executive", "A", "p1", "Aisyah Rahman"]] } as const;
 const MID = { key: "demo.requisition.3", label: "Requisition, RM40,000 to RM250,000", clause: "DEMO 3.1(c)", chain: [["DEPT_HEAD", "Head of Department", "P", "p9", "Imran Hakim"], ["DIV_HEAD", "Head of Division", "R", "p7", "Gopal Nair"], ["FD", "Finance Director", "A", "p2", "Bala Krishnan"]] } as const;
 
 /// Three approved requisitions on the northern capital budget, written as 6.1's acts leave them (as 6.11's demo writes its own).
@@ -544,7 +544,7 @@ async function createExercises(db: Db, organisationId: string, ns: number[], cre
 // ------------------------------------------------------------------ 6.2: the panel and the estimate
 
 /// The panel verified on its signed form and the estimate lodged, as 6.2's acts leave them; each judged by its rule.
-async function scopeReady(db: Db, organisationId: string, tz: string, exerciseId: string, ref: string, sx: number, on: string, T: (d: string, t: string) => Date, nextDoc: () => string, docs: (ds: DemoDoc[]) => Promise<void>, entry: Add) {
+export async function scopeReady(db: Db, organisationId: string, tz: string, exerciseId: string, ref: string, sx: number, on: string, T: (d: string, t: string) => Date, nextDoc: () => string, docs: (ds: DemoDoc[]) => Promise<void>, entry: Add, value: string = EXERCISES[sx].value) {
   const repo = await import("../src/lib/scope/repo");
   const { panelFaults, panelState } = await import("../src/lib/scope/panel");
   const { versionFaults } = await import("../src/lib/scope/estimate");
@@ -592,11 +592,11 @@ async function scopeReady(db: Db, organisationId: string, tz: string, exerciseId
   const preparer = { id: `${P}p11`, name: "Nurul Izzah Kamal" };
   const custodian = { id: `${P}p3`, name: "Chen Wei Ling" };
   const prepared = T(on, "08:40");
-  fail(`estimate ${estId}`, versionFaults({ value: parseSen(EXERCISES[sx].value) - parseSen("7500.00"), personId: preparer.id, reason: "" }, null, { closingAt: null, timeZone: tz, exerciseStatus: ex.status, now: prepared }));
+  fail(`estimate ${estId}`, versionFaults({ value: parseSen(value) - parseSen("7500.00"), personId: preparer.id, reason: "" }, null, { closingAt: null, timeZone: tz, exerciseStatus: ex.status, now: prepared }));
   const lodged = T(on, "08:50");
   await db.companyEstimate.create({ data: { id: estId, organisationId, exerciseId, preparerPersonId: preparer.id, classification: "SULIT", state: "LODGED", currentVersionNo: 1, createdAt: prepared, lodgedAt: lodged, retainedPlace: "Contract & Procurement strong room, cabinet 2" } });
   entry(SCOPE_ENTITY.estimate, estId, `${ref} · Company estimate`, "CREATE", prepared, estimateCreatedAudit({ preparerName: preparer.name, classification: "SULIT" }));
-  await db.companyEstimateVersion.create({ data: { id: `${estId}v1`, organisationId, estimateId: estId, versionNo: 1, value: senToDecimalString(parseSen(EXERCISES[sx].value) - parseSen("7500.00")), preparedOn: dayToDate(on), preparerPersonId: preparer.id, bqVersionId: null, createdAt: prepared } });
+  await db.companyEstimateVersion.create({ data: { id: `${estId}v1`, organisationId, estimateId: estId, versionNo: 1, value: senToDecimalString(parseSen(value) - parseSen("7500.00")), preparedOn: dayToDate(on), preparerPersonId: preparer.id, bqVersionId: null, createdAt: prepared } });
   entry(SCOPE_ENTITY.estimateVersion, `${estId}v1`, `${ref} · Company estimate · version 1`, "CREATE", prepared, estimateVersionAudit({ versionNo: 1, preparerName: preparer.name, preparedOn: on }));
   const events: [string, "PREPARED" | "LODGED" | "RETAINED", Date, { id: string; name: string }, string, number, string][] = [
     [`${estId}e1`, "PREPARED", prepared, preparer, "Preparer", 1, ""],
@@ -612,8 +612,8 @@ async function scopeReady(db: Db, organisationId: string, tz: string, exerciseId
 
 // ------------------------------------------------------------------ the windows' inputs
 
-type WindowInput = { inspectionPlace: string; purchasePlace: string; inspectionHours: string; purchaseFromDay: string; purchaseCloseDay: string; feeAmount: string; feePaymentMethods: string; submissionPlace: string; closingTimeReason: string };
-const tenderWindow = (from: string, to: string): WindowInput => ({
+export type WindowInput = { inspectionPlace: string; purchasePlace: string; inspectionHours: string; purchaseFromDay: string; purchaseCloseDay: string; feeAmount: string; feePaymentMethods: string; submissionPlace: string; closingTimeReason: string };
+export const tenderWindow = (from: string, to: string): WindowInput => ({
   inspectionPlace: "Contract & Procurement, level 3, 1 Demo Avenue", purchasePlace: "Finance counter, ground floor, 1 Demo Avenue", inspectionHours: "Monday to Friday, 9.00 am to 4.00 pm",
   purchaseFromDay: from, purchaseCloseDay: to, feeAmount: "200.00", feePaymentMethods: "Bank draft or cheque to Demo Utilities Sdn Bhd, or cash at the counter", submissionPlace: "The tender box, ground floor, 1 Demo Avenue", closingTimeReason: "",
 });
@@ -621,8 +621,8 @@ const quotationWindow = (from: string, to: string): WindowInput => ({
   inspectionPlace: "Northern Region office, 12 Depot Road", purchasePlace: "Northern Region office, 12 Depot Road", inspectionHours: "Monday to Friday, 9.00 am to 4.00 pm",
   purchaseFromDay: from, purchaseCloseDay: to, feeAmount: "60.00", feePaymentMethods: "Bank draft or cheque to Demo Utilities Sdn Bhd", submissionPlace: "The quotation box, Northern Region office, 12 Depot Road", closingTimeReason: "",
 });
-type FeeLineInput = { kind: FeeCostKind; description: string; quantity: string | null; unitCost: string | null; lump: string | null };
-const TENDER_FEE_BASIS: FeeLineInput[] = [
+export type FeeLineInput = { kind: FeeCostKind; description: string; quantity: string | null; unitCost: string | null; lump: string | null };
+export const TENDER_FEE_BASIS: FeeLineInput[] = [
   { kind: "PAPER_A4", description: "Conditions, specification and forms", quantity: "420", unitCost: "0.10", lump: null },
   { kind: "PAPER_A1", description: "Drawings", quantity: "14", unitCost: "4.50", lump: null },
   { kind: "BINDING", description: "Two volumes, drawings folded", quantity: null, unitCost: null, lump: "30.00" },
@@ -634,8 +634,8 @@ const QUOTATION_FEE_BASIS: FeeLineInput[] = [
   { kind: "ADMIN", description: "Issue and register", quantity: null, unitCost: null, lump: "20.00" },
 ];
 
-type Firm = { name: string; registrationNo: string; address: string; phone: string; fax: string; email: string };
-const FIRMS: Record<"contoh" | "sampel" | "paip" | "teladan" | "rekaan", Firm> = {
+export type Firm = { name: string; registrationNo: string; address: string; phone: string; fax: string; email: string };
+export const FIRMS: Record<"contoh" | "sampel" | "paip" | "teladan" | "rekaan", Firm> = {
   contoh: { name: "Contoh Bina Sdn Bhd", registrationNo: "201001000101 (000101-A)", address: "8 Jalan Contoh, 00000 Demo City", phone: "+00 0-000 0101", fax: "", email: "tender@contohbina.invalid" },
   sampel: { name: "Sampel Kejuruteraan Enterprise", registrationNo: "DM0000102-X", address: "21 Lorong Sampel, 00000 Demo North", phone: "+00 0-000 0102", fax: "+00 0-000 0103", email: "" },
   paip: { name: "Demo Paip Services", registrationNo: "201501000104 (000104-D)", address: "3 Jalan Paip, 00000 Demo City", phone: "+00 0-000 0104", fax: "", email: "office@demopaip.invalid" },
@@ -643,7 +643,7 @@ const FIRMS: Record<"contoh" | "sampel" | "paip" | "teladan" | "rekaan", Firm> =
   rekaan: { name: "Rekaan Maju Construction", registrationNo: "DM0000106-K", address: "7 Jalan Rekaan, 00000 Demo North", phone: "+00 0-000 0106", fax: "", email: "" },
 };
 
-const COMPLETE_APPENDIX = { ladOfficerRoleCode: "HOD_CP", eotOfficerRoleCode: "HOD_CP", terminationOfficerRoleCode: "CEO", warRiskOfficerRoleCode: "CEO", arbitrationOfficerRoleCode: "CEO", pcSumWorksApply: false, tplMinimum: "500000.00", wcMinimum: "250000.00", worksInsuranceUpliftKind: "PERCENT" as const, worksInsuranceUpliftPct: "10", insuranceExcess: "5000.00", ladKind: "PERCENT_OF_SUM_PER_DAY" as const, ladPct: "0.05", sectionalCompletion: false, dlpApplies: true, dlpMonths: 12, firstInterimMinimum: "2500.00", subsequentInterimMinimum: "2500.00", honourCertificateDays: 30 };
+export const COMPLETE_APPENDIX = { ladOfficerRoleCode: "HOD_CP", eotOfficerRoleCode: "HOD_CP", terminationOfficerRoleCode: "CEO", warRiskOfficerRoleCode: "CEO", arbitrationOfficerRoleCode: "CEO", pcSumWorksApply: false, tplMinimum: "500000.00", wcMinimum: "250000.00", worksInsuranceUpliftKind: "PERCENT" as const, worksInsuranceUpliftPct: "10", insuranceExcess: "5000.00", ladKind: "PERCENT_OF_SUM_PER_DAY" as const, ladPct: "0.05", sectionalCompletion: false, dlpApplies: true, dlpMonths: 12, firstInterimMinimum: "2500.00", subsequentInterimMinimum: "2500.00", honourCertificateDays: 30 };
 
 // ------------------------------------------------------------------ the delegation for the joint recommendation
 
@@ -700,7 +700,7 @@ async function loadNameSitting(db: Db, on: string): Promise<string[]> {
 
 // ------------------------------------------------------------------ the window's acts, as the actions write them
 
-class Acts {
+export class Acts {
   constructor(
     private readonly db: Db,
     private readonly org: string,

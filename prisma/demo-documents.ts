@@ -102,7 +102,7 @@ export interface DemoDoc {
   classification: SecurityClass | null;
   createdAt: string;
   versions: DemoVersion[];
-  attachments: { id: string; purpose: AttachmentPurpose; owner: { meetingId?: string; exerciseId?: string; awardId?: string; delegationId?: string; specificationPanelId?: string; bqVersionId?: string; tenderPackPartId?: string; addendumId?: string }; ownerLabel: string; versionId: string; at: string; detached?: { at: string; reason: string; replacedBy?: string } }[];
+  attachments: { id: string; purpose: AttachmentPurpose; owner: { meetingId?: string; exerciseId?: string; awardId?: string; delegationId?: string; specificationPanelId?: string; bqVersionId?: string; tenderPackPartId?: string; addendumId?: string; bidWithdrawalId?: string; validityExtensionId?: string }; ownerLabel: string; versionId: string; at: string; detached?: { at: string; reason: string; replacedBy?: string } }[];
   hold?: { id: string; reason: string; at: string; personId: string; personName: string };
 }
 
