@@ -8,7 +8,8 @@
  *   is assigned under, the reason and the Person recording it, frozen on the opening.
  * - The independence rule (FR-CTE-011, C-6): null assigns the panel with the warning "Independence
  *   rule not set; panel not checked", frozen on the opening; on, a member of the excluded unit (or a
- *   unit under it) is refused, and a member whose unit is not recorded blocks; off, nothing is asked.
+ *   unit under it) is refused, and a member whose unit is not recorded, or is not in the structure in
+ *   force on the day (review R-6), blocks; off, nothing is asked.
  * - Two present members are needed to authorise the opening at all (FR-OPN-003), so a panel with
  *   fewer present cannot open the box.
  * Pure.
@@ -117,8 +118,11 @@ export function panelFaults(i: {
     if (!excluded) f("EXCLUDED_UNIT_NOT_SET");
     else
       for (const p of i.picked) {
+        // R-6: a unit not in the structure in force on the day (no path to it) is no recorded unit: it cannot be checked, so it blocks.
+        const path = p.orgUnitCode ? i.unitPath(p.orgUnitCode) : [];
         if (!p.orgUnitCode) f("UNIT_NOT_RECORDED", "block", { person: p.name });
-        else if (p.orgUnitCode === excluded || i.unitPath(p.orgUnitCode).includes(excluded)) f("MEMBER_IN_EXCLUDED_UNIT", "block", { person: p.name });
+        else if (path.length === 0) f("UNIT_NOT_RECORDED", "block", { person: p.name, notInStructure: "yes" });
+        else if (p.orgUnitCode === excluded || path.includes(excluded)) f("MEMBER_IN_EXCLUDED_UNIT", "block", { person: p.name });
       }
   }
   return out;

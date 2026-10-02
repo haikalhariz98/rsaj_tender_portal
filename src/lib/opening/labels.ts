@@ -128,7 +128,7 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   EXCLUSION_RULE_NOT_SET: () => `Independence rule not set; panel not checked. Set it under ${SETTING_AT.committee}.`,
   EXCLUDED_UNIT_NOT_SET: () => `The committee's independence rule is on but names no unit. Set the unit under ${SETTING_AT.committee}.`,
   MEMBER_IN_EXCLUDED_UNIT: (f) => `${d(f, "person")} sits in the unit the committee's independence rule excludes from its opening panels.`,
-  UNIT_NOT_RECORDED: (f) => `${d(f, "person")}'s unit is not recorded, so the independence rule cannot be checked. Record it under ${SETTING_AT.users}.`,
+  UNIT_NOT_RECORDED: (f) => (d(f, "notInStructure") === "yes" ? `${d(f, "person")}'s unit is not in the organisation's structure in force on the opening day, so the independence rule cannot be checked. Correct the person's unit under ${SETTING_AT.users}, or the structure under Configuration › Organisation.` : `${d(f, "person")}'s unit is not recorded, so the independence rule cannot be checked. Record it under ${SETTING_AT.users}.`),
   // ---- starting
   CANCELLED: () => "The exercise is cancelled, so nothing is opened, and nothing more is recorded at its opening.",
   NOT_PUBLISHED: () => "The exercise was not published through its invitation window, so it has no opening here.",
