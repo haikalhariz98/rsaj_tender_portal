@@ -13,7 +13,9 @@ import { parseSen, senToDecimalString } from "@/lib/money";
 
 import { maskIc } from "./mask";
 
-const SKIP = new Set(["id", "organisationId", "exerciseId", "createdAt", "updatedAt", "issueSnapshot", "awardId", "contractId", "recipientId", "variantId", "templateId", "kindId", "issuerId", "signatoryDelegationId", "vendorId"]);
+/// Ids are skipped: a trail reads names. The awardee's party (6.7 C-7) is written by the actions as
+/// `awardeeBidder`, the bidder's name and registration (review R-7), never its id.
+const SKIP = new Set(["id", "organisationId", "exerciseId", "createdAt", "updatedAt", "issueSnapshot", "awardId", "contractId", "recipientId", "variantId", "templateId", "kindId", "issuerId", "signatoryDelegationId", "vendorId", "awardeePartyId"]);
 const MONEY = new Set(["awardedValue", "bondBasisAmount", "ladAmount", "value", "requiredValue", "basisAmount", "sumInsured", "appendixAmount", "requiredLimit", "contractSum", "limitAmount", "minValue", "maxValue"]);
 const PCT = new Set(["bondPercent", "retentionPercent", "retentionCapPercent", "basisPercent", "percent"]);
 

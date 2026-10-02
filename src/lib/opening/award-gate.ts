@@ -65,3 +65,21 @@ export function openingGateFaults(g: OpeningGateFacts, awardeePartyId?: string |
   }
   return out;
 }
+
+/**
+ * Review R-2: the bidder's party an award records, or nothing. Only where the openings apply (X-9)
+ * and the party was carried to evaluation; otherwise `undefined`: the award's party is not written,
+ * whatever the form posted (an exercise outside 6.7 names no party; a party not carried is refused
+ * by `openingGateFaults` before this is asked).
+ */
+export function awardeePartyWrite(g: Pick<OpeningGateFacts, "applies" | "carriedPartyIds">, posted: string | null | undefined): string | undefined {
+  if (!g.applies || !posted || !g.carriedPartyIds.has(posted)) return undefined;
+  return posted;
+}
+
+/// The bidder an award names, in words for its trail (review R-7: never the party's id).
+export function awardeeBidderText(carried: readonly { id: string; name: string; registrationNo: string }[], partyId: string | null | undefined): string | null {
+  if (!partyId) return null;
+  const p = carried.find((x) => x.id === partyId);
+  return p ? `${p.name} (${p.registrationNo})` : "A bidder no longer carried to evaluation";
+}

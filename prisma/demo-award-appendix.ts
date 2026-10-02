@@ -119,7 +119,7 @@ export async function loadAppendixAward(db: Db) {
 
   await db.auditEntry.createMany({
     data: [
-      { id: `${APPENDIX_AWARD}_au1`, organisationId: org.id, entity: "Award", entityId: row.id, entityLabel: label, action: "CREATE", at: openedAt, changes: awardAuditCreate(row, { exercise: ex.reference, instrument: instrument.kind, termsFrom: `the tender Appendix, documents version ${tender.packVersion}` }) as never, reason: "", unattributed: true },
+      { id: `${APPENDIX_AWARD}_au1`, organisationId: org.id, entity: "Award", entityId: row.id, entityLabel: label, action: "CREATE", at: openedAt, changes: awardAuditCreate(row, { exercise: ex.reference, instrument: instrument.kind, awardeeBidder: `${AWARDEE.name} (${AWARDEE.registrationNo})`, termsFrom: `the tender Appendix, documents version ${tender.packVersion}` }) as never, reason: "", unattributed: true },
       { id: `${APPENDIX_AWARD}_au2`, organisationId: org.id, entity: "Award", entityId: row.id, entityLabel: label, action: "UPDATE", at: savedAt, changes: awardAuditPair(row, saved) as never, reason: "", unattributed: true },
     ],
   });
