@@ -170,6 +170,13 @@ export const CONFIG_SECTIONS: {
         built: true,
       },
       {
+        href: "/configuration/evaluation",
+        label: "Evaluation models",
+        description: "How bids are evaluated: stages, weights, pass marks, bands and aspects, and the report's policy.",
+        icon: "sliders",
+        built: true,
+      },
+      {
         href: "/configuration/requisitions",
         label: "Requisition controls",
         description: "Endorsement tiers, the splitting check, budget re-checks and registration.",

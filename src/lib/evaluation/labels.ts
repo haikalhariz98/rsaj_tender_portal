@@ -8,6 +8,7 @@
 import type { Finding, AspectKind, AspectVerdict, BandOutcome, CapitalBase, CommunicationChannel, CommunicationDirection, ComputedInput, CriterionScale, EvaluationRoute, EvaluationState, EvaluationTrigger, MeetingKind, ModelStatus, ShortlistRule, Side, StageKind } from "./types";
 import type { EvaluationPhase } from "./state";
 import type { RunningState } from "./stages";
+import { CONFIG_TEXT } from "./config";
 
 /// Where each setting an evaluation reads is kept.
 export const SETTING_AT = {
@@ -102,6 +103,8 @@ const bid = (d: Finding["data"]) => (d?.listingNo != null ? `bid No. ${d.listing
 const plural = (n: unknown, one: string, many: string) => (n === 1 ? one : many);
 
 const TEXT: Record<string, (f: Finding) => string> = {
+  // ---- Configuration's own refusals (config.ts), in its words
+  ...Object.fromEntries(Object.entries(CONFIG_TEXT).map(([k, t]) => [k, () => t])),
   // ---- acts on a version (state.ts)
   CANCELLED: () => "The exercise is cancelled, so nothing more is recorded on its evaluation.",
   NOT_STARTED: () => "The evaluation has not started. Start it on the Evaluation tab's Overview.",
@@ -303,6 +306,14 @@ const TEXT: Record<string, (f: Finding) => string> = {
 export function evaluationFindingText(f: Finding): string {
   const t = TEXT[f.code];
   return t ? t(f) : "This cannot be recorded as it stands.";
+}
+
+/// A draft's finding at issue, in Configuration's words: a rule not set there is set on the draft (never "cancel").
+export function modelFindingText(f: Finding): string {
+  if (f.code === "PASS_RULE_NOT_SET") return `${f.data?.stage ?? "A stage"}: whether a figure exactly on the pass mark passes is not set.`;
+  // The report's code of the same name means "form it"; on a draft it means the stage is missing.
+  if (f.code === "RECOMMENDATION_MISSING") return "The model has no recommendation stage: it ends with one.";
+  return evaluationFindingText(f);
 }
 
 /// Every code this module words, for the test that each has words.
