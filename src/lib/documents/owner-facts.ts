@@ -92,7 +92,8 @@ export const withdrawalFacts = (w: { exercise: { status: ExerciseStatus } }): Ow
 export const extensionFacts = (x: { appliedAt: Date | null; exercise: { status: ExerciseStatus } }): OwnerFacts => ({ kind: "validityExtension", exerciseStatus: x.exercise.status, applied: x.appliedAt != null });
 
 /// Ended once its end day has come, in the organisation's days: the end day is not
-/// included, as `inForceOn` reads it (65-C1). `hasEnded` is that rule's end half.
-export function delegationFacts(d: { effectiveTo: Date | null }, today: string): OwnerFacts {
-  return { kind: "delegation", ended: hasEnded(d, dayToDate(today)) };
+/// included, as `inForceOn` reads it (65-C1). `hasEnded` is that rule's end half. With no
+/// time zone set (`today` null) it is not judged: `ended` is null, never the UTC day's answer (66-C2).
+export function delegationFacts(d: { effectiveTo: Date | null }, today: string | null): OwnerFacts {
+  return { kind: "delegation", ended: today ? hasEnded(d, dayToDate(today)) : null };
 }

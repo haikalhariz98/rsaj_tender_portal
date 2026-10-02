@@ -5,7 +5,6 @@
  * same `owner-facts` mapping the acts use under their locks). Reads only; never bytes.
  */
 
-import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 
 import { downloadDecision } from "./access";
@@ -50,7 +49,7 @@ export async function readOwner(ref: OwnerRef): Promise<{ facts: OwnerFacts; lab
     }
     case "delegation": {
       const d = await db.delegation.findFirst({ where: { id: ref.id, organisationId: org.id }, select: { effectiveTo: true, fromPerson: { select: { name: true } }, toPerson: { select: { name: true } } } });
-      return d ? { facts: delegationFacts(d, org.today ?? storedDay(new Date())), label: `Delegation · ${d.fromPerson.name} to ${d.toPerson.name}` } : null;
+      return d ? { facts: delegationFacts(d, org.today), label: `Delegation · ${d.fromPerson.name} to ${d.toPerson.name}` } : null;
     }
     case "specificationPanel": {
       const p = await db.specificationPanel.findFirst({ where: { id: ref.id, organisationId: org.id }, select: { ...PANEL_FACTS_SELECT, exercise: { select: { status: true, reference: true } } } });
@@ -255,7 +254,7 @@ export async function attachTargetsOf(kind: OwnerRef["kind"]) {
     }
     case "delegation": {
       const where = { organisationId: org.id };
-      const today = org.today ?? storedDay(new Date());
+      const today = org.today;
       const [rows, total] = await Promise.all([db.delegation.findMany({ where, orderBy: { effectiveFrom: "desc" }, take, select: { id: true, effectiveTo: true, fromPerson: { select: { name: true } }, toPerson: { select: { name: true } } } }), db.delegation.count({ where })]);
       return { records: attachTargets(rows.map((d) => ({ id: d.id, label: `${d.fromPerson.name} to ${d.toPerson.name}`, facts: delegationFacts(d, today) }))), total };
     }

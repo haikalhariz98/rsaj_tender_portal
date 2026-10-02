@@ -46,7 +46,8 @@ export type OwnerFacts =
       /// False only for an award accepted before return scans were required (OD-5).
       scansRequired: boolean;
     }
-  | { kind: "delegation"; ended: boolean }
+  /// `ended` null: today cannot be told (no time zone set), so whether it has ended is not judged (66-C2).
+  | { kind: "delegation"; ended: boolean | null }
   /// 6.2: a specification panel, judged with its exercise's status. BD-62-26: the scan
   /// versions its `verifiedSnapshot` names, and the version of each live attachment of the
   /// signed form (one entry per attachment), so reliance falls only on a scan it was verified on.
@@ -129,6 +130,7 @@ export type OwnerExit =
   | "AWARD_NOT_ISSUED"
   | "AWARD_CANCELLED"
   | "DELEGATION_ENDED"
+  | "DELEGATION_ZONE_UNSET"
   | "BQ_FINALISED"
   | "PACK_FROZEN"
   | "NOT_APPROVED_FOR_TENDERING"
@@ -187,6 +189,9 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): { sta
       if (owner.status !== "ISSUED" && owner.status !== "ACCEPTED") return { state: "NOT_READY", exit: "AWARD_NOT_ISSUED" };
       return { state: "OPEN" };
     case "delegation":
+      // 66-C2: with no time zone, whether it has ended is not judged, and nothing is attached,
+      // taken off or re-pinned on a guess (never the UTC day).
+      if (owner.ended === null) return { state: "FROZEN", exit: "DELEGATION_ZONE_UNSET" };
       return owner.ended ? { state: "FROZEN", exit: "DELEGATION_ENDED" } : { state: "OPEN" };
     case "specificationPanel": {
       // 6.4 (BD-64-4, ADR 0013): the tender pack froze on this panel, so its signed form is

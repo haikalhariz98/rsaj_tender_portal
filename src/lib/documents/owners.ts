@@ -16,7 +16,6 @@ import type { Tx } from "@/lib/audit/record";
 import { withLockedAward } from "@/lib/award/repo";
 import { acceptOnCompleteReturn } from "@/lib/award/return-acceptance";
 import { withLockedSitting } from "@/lib/committee/sittings";
-import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { requisitionOfExercise, withLockedRequisitionForSourcing } from "@/lib/method/repo";
 import { lockDelegation } from "@/lib/people/lock";
@@ -243,8 +242,8 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
         // The Delegation row lock and the read under it, shared with saveDelegation.
         const d = await lockDelegation(tx, ref.id, org.id);
         if (!d) return null;
-        const today = org.today ?? storedDay(new Date());
-        const facts = delegationFacts(d, today);
+        // 66-C2: the organisation's today, or not judged; never the UTC day.
+        const facts = delegationFacts(d, org.today);
         return fn(tx, {
           ref,
           organisationId: org.id,
