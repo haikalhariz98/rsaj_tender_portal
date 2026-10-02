@@ -1,6 +1,6 @@
 /**
- * A draft pack's parts take their "mandatory" and "in the Tender Table Document" answers from
- * the configuration when the version is started. When the configuration did not say yet (not
+ * A draft pack's parts take their "mandatory" and "in the Tender Table Document" answers (and,
+ * since 6.7, "returned by the bidder") from the configuration when the version is started. When the configuration did not say yet (not
  * set), the draft was left with no way out: it cannot be submitted while an answer is unset,
  * and the answer is set in configuration, not on the draft (code review C2, BD-64-39).
  *
@@ -15,6 +15,9 @@ import { yesNoNotSet } from "./labels";
 export interface FlagFacts {
   mandatory: boolean | null;
   inTableDocument: boolean | null;
+  /// 6.7 (6.6 ruling): refreshed like the other two where configuration now gives it, with its provenance.
+  returnedByBidder?: boolean | null;
+  returnedByBidderProvenance?: "STATED" | "OBSERVED" | "ASSUMED" | null;
 }
 
 export interface FlagChange {
@@ -22,6 +25,7 @@ export interface FlagChange {
   part: string;
   mandatory?: { from: boolean | null; to: boolean };
   inTableDocument?: { from: boolean | null; to: boolean };
+  returnedByBidder?: { from: boolean | null; to: boolean; provenance: "STATED" | "OBSERVED" | "ASSUMED" | null };
 }
 
 /// What refreshing would change: each differing answer the configuration now gives.
@@ -33,7 +37,8 @@ export function flagChanges(parts: readonly (FlagFacts & { partCode: string; pri
     const change: FlagChange = { partCode: p.partCode, part: `${p.printedNumber}. ${p.label}` };
     if (c.mandatory != null && c.mandatory !== p.mandatory) change.mandatory = { from: p.mandatory, to: c.mandatory };
     if (c.inTableDocument != null && c.inTableDocument !== p.inTableDocument) change.inTableDocument = { from: p.inTableDocument, to: c.inTableDocument };
-    if (change.mandatory || change.inTableDocument) out.push(change);
+    if (c.returnedByBidder != null && c.returnedByBidder !== (p.returnedByBidder ?? null)) change.returnedByBidder = { from: p.returnedByBidder ?? null, to: c.returnedByBidder, provenance: c.returnedByBidderProvenance ?? null };
+    if (change.mandatory || change.inTableDocument || change.returnedByBidder) out.push(change);
   }
   return out;
 }
@@ -55,6 +60,7 @@ export function refreshView(parts: readonly (FlagFacts & { partCode: string; pri
       changes: changes.flatMap((c) => [
         ...(c.mandatory ? [`${c.part}: mandatory, ${yesNoNotSet(c.mandatory.from).toLowerCase()} to ${yesNoNotSet(c.mandatory.to).toLowerCase()}`] : []),
         ...(c.inTableDocument ? [`${c.part}: in the Tender Table Document, ${yesNoNotSet(c.inTableDocument.from).toLowerCase()} to ${yesNoNotSet(c.inTableDocument.to).toLowerCase()}`] : []),
+        ...(c.returnedByBidder ? [`${c.part}: returned by the bidder, ${yesNoNotSet(c.returnedByBidder.from).toLowerCase()} to ${yesNoNotSet(c.returnedByBidder.to).toLowerCase()}`] : []),
       ]),
     };
   }
@@ -71,7 +77,7 @@ export function refreshView(parts: readonly (FlagFacts & { partCode: string; pri
 export function changeListKey(changes: readonly FlagChange[]): string {
   const entries = [...changes]
     .sort((a, b) => (a.partCode < b.partCode ? -1 : a.partCode > b.partCode ? 1 : 0))
-    .map((c) => [c.partCode, c.mandatory ? [c.mandatory.from, c.mandatory.to] : null, c.inTableDocument ? [c.inTableDocument.from, c.inTableDocument.to] : null]);
+    .map((c) => [c.partCode, c.mandatory ? [c.mandatory.from, c.mandatory.to] : null, c.inTableDocument ? [c.inTableDocument.from, c.inTableDocument.to] : null, ...(c.returnedByBidder ? [[c.returnedByBidder.from, c.returnedByBidder.to]] : [])]);
   return JSON.stringify(entries);
 }
 

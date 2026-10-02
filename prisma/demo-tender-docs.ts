@@ -106,6 +106,11 @@ const PARTS: PartRow[] = [
   part(25, { code: "demo_q_conditions_ds", packKind: "QUOTATION", contractBasisCode: "ds", printedNumber: "3", sortOrder: 30, labelEn: "Conditions of quotation", role: "CONDITIONS", content: "STANDARD", source: "TEMPLATE", mandatory: true, inTableDocument: true, templateCode: "demo_conditions_ds" }),
 ];
 
+/// 6.7 (6.6 ruling): the parts a bidder returns with its bid, invented for the demo and ASSUMED (the
+/// customer's list is a go-live question): the form, the priced bill or schedule, the registration
+/// form and the declaration. Snapshotted onto each pack part when its pack starts.
+const RETURNED_ROLES: readonly string[] = ["FORM_OF_TENDER", "BILL_OF_QUANTITIES", "SUMMARY_AND_RATES", "REGISTRATION_BACKGROUND", "DECLARATION"];
+
 const DEMO_POLICY_ID = `${P}tdpol1`;
 const DEMO_POLICY = {
   ladDailyPct: "0.05", ladDailyPctProvenance: "ASSUMED" as const,
@@ -157,8 +162,8 @@ export async function loadTenderDocs(db: Db, organisationId: string) {
   const configured = at("2026-09-15T09:00");
   await db.documentTemplate.createMany({ data: TEMPLATES.map((t, i) => ({ ...t, organisationId, documentClassId: `${P}dc1`, revisionDate: day("2026-06-01"), bodyVersion: 1, provenance: "ASSUMED" as const, sortOrder: 8 + i, notes: "Invented demo text." })) });
   for (const t of TEMPLATES) entry("DocumentTemplate", t.id, t.nameEn, "CREATE", configured, diffFields(null, { code: t.code, nameEn: t.nameEn, formCode: t.formCode, textVersion: 1, whereItComesFrom: "Assumed" }));
-  await db.tenderDocumentPart.createMany({ data: PARTS.map((p) => ({ ...p, organisationId, role: p.role as never, governingSource: "Demo policy 6 (invented)", provenance: "ASSUMED" as const })) });
-  for (const p of PARTS) entry(ENTITY.config, p.id, `Tender document part · ${p.labelEn}`, "CREATE", configured, diffFields(null, { documentPack: PACK_KIND_LABEL[p.packKind], printedNumber: p.printedNumber, labelEn: p.labelEn, whereItComesFrom: "Assumed" }));
+  await db.tenderDocumentPart.createMany({ data: PARTS.map((p) => ({ ...p, organisationId, role: p.role as never, governingSource: "Demo policy 6 (invented)", provenance: "ASSUMED" as const, returnedByBidder: RETURNED_ROLES.includes(p.role), returnedByBidderProvenance: "ASSUMED" as const })) });
+  for (const p of PARTS) entry(ENTITY.config, p.id, `Tender document part · ${p.labelEn}`, "CREATE", configured, diffFields(null, { documentPack: PACK_KIND_LABEL[p.packKind], printedNumber: p.printedNumber, labelEn: p.labelEn, returnedByTheBidder: RETURNED_ROLES.includes(p.role) ? "Yes" : "No", whereItComesFrom: "Assumed" }));
   if (!(await db.tenderDocumentPolicy.findUnique({ where: { organisationId } }))) {
     await db.tenderDocumentPolicy.create({ data: { id: DEMO_POLICY_ID, organisationId, ...DEMO_POLICY } });
     entry(ENTITY.policy, DEMO_POLICY_ID, "Tender documents policy", "CREATE", configured, diffFields(null, { ladDailyRate: "0.05%", firstCertificateFloor: "RM2,500.00", firstCertificatePercentage: "5%", insuranceBeyondDefectsPeriod: "2 months 0 days", restrictionAskedAs: DEMO_POLICY.restrictionLabelEn, restrictionStampEn: DEMO_POLICY.restrictionStampTextEn, restrictionStampMs: DEMO_POLICY.restrictionStampTextMs, assuranceRequired: "Yes", regulatorPermitList: PERMITS.nameEn, whereItComesFrom: "Assumed" }));
@@ -335,8 +340,8 @@ export async function startPack(db: Db, organisationId: string, p: { id: string;
     const template = c.source === "TEMPLATE" && c.templateCode ? (templates.find((t) => t.code === c.templateCode) ?? null) : null;
     const id = `${p.id}_${c.code}`;
     const state = prior?.state ?? "NOT_STARTED";
-    await db.tenderPackPart.create({ data: { id, organisationId, packId: p.id, partCode: c.code, printedNumber: c.printedNumber, sortOrder: c.sortOrder, labelSnapshot: c.labelEn, labelMsSnapshot: c.labelMs, role: c.role, content: c.content, source: c.source, mandatory: c.mandatory, inTableDocument: c.inTableDocument, ownerOrgUnitCode: c.ownerOrgUnitCode, templateCode: c.templateCode, templateId: template?.id ?? null, state } });
-    entry(ENTITY.part, id, `${ex.reference} · Tender documents v${p.versionNo} · part ${c.printedNumber}`, "CREATE", p.at, partAudit(null, { printedNumber: c.printedNumber, label: c.labelEn, role: c.role, content: c.content, source: c.source, mandatory: c.mandatory, inTableDocument: c.inTableDocument, state, omittedReason: "", templateName: template?.nameEn ?? null }));
+    await db.tenderPackPart.create({ data: { id, organisationId, packId: p.id, partCode: c.code, printedNumber: c.printedNumber, sortOrder: c.sortOrder, labelSnapshot: c.labelEn, labelMsSnapshot: c.labelMs, role: c.role, content: c.content, source: c.source, mandatory: c.mandatory, inTableDocument: c.inTableDocument, returnedByBidder: c.returnedByBidder ?? null, returnedByBidderProvenance: c.returnedByBidderProvenance ?? null, ownerOrgUnitCode: c.ownerOrgUnitCode, templateCode: c.templateCode, templateId: template?.id ?? null, state } });
+    entry(ENTITY.part, id, `${ex.reference} · Tender documents v${p.versionNo} · part ${c.printedNumber}`, "CREATE", p.at, partAudit(null, { printedNumber: c.printedNumber, label: c.labelEn, role: c.role, content: c.content, source: c.source, mandatory: c.mandatory, inTableDocument: c.inTableDocument, returnedByBidder: c.returnedByBidder ?? null, state, omittedReason: "", templateName: template?.nameEn ?? null }));
     // A returned version's files go with the part (the attach judged as startPack judges it).
     for (const a of prior?.attachments.filter((x) => x.detachedAt == null) ?? []) {
       const aid = `${id}_a${a.version.versionNo}`;

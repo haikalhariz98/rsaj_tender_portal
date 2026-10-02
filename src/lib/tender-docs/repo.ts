@@ -137,6 +137,8 @@ export function partFactsOf(p: PackPartRow): PackPartFacts {
     source: p.source,
     mandatory: p.mandatory,
     inTableDocument: p.inTableDocument,
+    returnedByBidder: p.returnedByBidder,
+    returnedByBidderProvenance: p.returnedByBidderProvenance,
     templateCode: p.templateCode,
     template: p.template ? templateFactsOf(p.template) : null,
     state: p.state,

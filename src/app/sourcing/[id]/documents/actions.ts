@@ -126,7 +126,7 @@ async function officeNames(tx: Tx, organisationId: string) {
   return { codes: [...names.keys()], name: (code: string | null) => (code ? (names.get(code) ?? "An office no longer configured") : "Not set") };
 }
 
-const partAuditFacts = (p: { printedNumber: string; labelSnapshot: string; role: PartAuditFacts["role"]; content: PartAuditFacts["content"]; source: PartAuditFacts["source"]; mandatory: boolean | null; inTableDocument: boolean | null; state: PartAuditFacts["state"]; omittedReason: string }, templateName: string | null): PartAuditFacts => ({
+const partAuditFacts = (p: { printedNumber: string; labelSnapshot: string; role: PartAuditFacts["role"]; content: PartAuditFacts["content"]; source: PartAuditFacts["source"]; mandatory: boolean | null; inTableDocument: boolean | null; returnedByBidder?: boolean | null; state: PartAuditFacts["state"]; omittedReason: string }, templateName: string | null): PartAuditFacts => ({
   printedNumber: p.printedNumber,
   label: p.labelSnapshot,
   role: p.role,
@@ -134,6 +134,7 @@ const partAuditFacts = (p: { printedNumber: string; labelSnapshot: string; role:
   source: p.source,
   mandatory: p.mandatory,
   inTableDocument: p.inTableDocument,
+  returnedByBidder: p.returnedByBidder,
   state: p.state,
   omittedReason: p.omittedReason,
   templateName,
@@ -194,6 +195,9 @@ export async function startPack(_prev: FormState, data: FormData): Promise<FormS
           source: p.source,
           mandatory: p.mandatory,
           inTableDocument: p.inTableDocument,
+          // 6.7 (6.6 ruling): as configured when the pack starts, with its provenance; never refreshed onto a frozen pack.
+          returnedByBidder: p.returnedByBidder ?? null,
+          returnedByBidderProvenance: p.returnedByBidderProvenance ?? null,
           ownerOrgUnitCode: p.ownerOrgUnitCode,
           templateCode: p.templateCode,
           templateId: p.source === "TEMPLATE" && p.content !== "BESPOKE" ? (template?.id ?? null) : null,
@@ -289,7 +293,13 @@ export async function refreshPartFlags(_prev: FormState, data: FormData): Promis
     if (changes.length === 0) return { ok: false, message: `Nothing to refresh: ${CONFIG_STILL_UNSET}` };
     for (const c of changes) {
       const part = pack.parts.find((x) => x.partCode === c.partCode)!;
-      const next = { mandatory: c.mandatory?.to ?? part.mandatory, inTableDocument: c.inTableDocument?.to ?? part.inTableDocument };
+      const next = {
+        mandatory: c.mandatory?.to ?? part.mandatory,
+        inTableDocument: c.inTableDocument?.to ?? part.inTableDocument,
+        // 6.7: the return answer with the provenance configuration gives it.
+        returnedByBidder: c.returnedByBidder ? c.returnedByBidder.to : part.returnedByBidder,
+        returnedByBidderProvenance: c.returnedByBidder ? c.returnedByBidder.provenance : part.returnedByBidderProvenance,
+      };
       await tx.tenderPackPart.update({ where: { id: part.id }, data: next });
       await audit(tx, l.org.id, ENTITY.part, part.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "UPDATE", partAudit(partAuditFacts(part, part.template?.nameEn ?? null), partAuditFacts({ ...part, ...next }, part.template?.nameEn ?? null)), "Refreshed from the configuration");
     }

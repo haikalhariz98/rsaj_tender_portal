@@ -19,6 +19,7 @@ export type PartConfigFault =
   | "TEMPLATE_FOR_BESPOKE"
   | "UNIT_UNKNOWN"
   | "PROVENANCE_REQUIRED"
+  | "RETURN_PROVENANCE_REQUIRED"
   | "ROLE_TAKEN";
 
 /**
@@ -46,6 +47,8 @@ export function partConfigFaults(
   }
   if (p.ownerOrgUnitCode && !ctx.units.includes(p.ownerOrgUnitCode)) f("UNIT_UNKNOWN", "ownerOrgUnitCode");
   if (!p.provenance) f("PROVENANCE_REQUIRED", "provenance");
+  // 6.7 (6.6 ruling): an answer on whether a bidder returns the part says where it came from.
+  if (p.returnedByBidder != null && !p.returnedByBidderProvenance) f("RETURN_PROVENANCE_REQUIRED", "returnedByBidderProvenance");
   const live = (o: { retiredOn: string | null }) => o.retiredOn == null || o.retiredOn > ctx.today;
   if (p.role !== "OTHER" && ctx.others.some((o) => o.id !== p.id && live(o) && o.packKind === p.packKind && o.role === p.role && (o.contractBasisCode ?? null) === (p.contractBasisCode ?? null))) f("ROLE_TAKEN", "role");
   return out;
@@ -62,6 +65,7 @@ export const PART_CONFIG_FAULT_TEXT: Readonly<Record<PartConfigFault, string>> =
   TEMPLATE_FOR_BESPOKE: "A bespoke part is prepared for each exercise, so it is never drawn from the library.",
   UNIT_UNKNOWN: "That office is not configured. Choose one from the list.",
   PROVENANCE_REQUIRED: "Say where this comes from.",
+  RETURN_PROVENANCE_REQUIRED: "Say where the answer on whether a bidder returns this part comes from.",
   ROLE_TAKEN: "Another live part of this pack kind and basis already has this role. Retire it first, or give this one another basis.",
 };
 

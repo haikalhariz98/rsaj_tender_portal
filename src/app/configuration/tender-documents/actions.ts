@@ -72,6 +72,8 @@ async function partWords(tx: Tx, organisationId: string, p: Omit<ConfiguredPart,
     source: PART_SOURCE_LABEL[p.source],
     mandatory: yesNoNotSet(p.mandatory),
     inTenderTableDocument: yesNoNotSet(p.inTableDocument),
+    returnedByTheBidder: yesNoNotSet(p.returnedByBidder ?? null),
+    returnAnswerFrom: p.returnedByBidder == null ? null : prov(p.returnedByBidderProvenance ?? null),
     preparedBy: p.ownerOrgUnitCode ? (unit?.nameEn ?? "An office no longer configured") : NOT_SET,
     template: p.templateCode ? (template?.nameEn ?? "A template no longer configured") : null,
     governingSource: p.governingSource || null,
@@ -101,6 +103,8 @@ export async function saveTenderPart(_prev: FormState, data: FormData): Promise<
     source: r.choice("source", "Where its content comes from", PART_SOURCES, { required: true }),
     mandatory: tri(r.choice("mandatory", "Mandatory", TRI, { required: true })),
     inTableDocument: tri(r.choice("inTableDocument", "In the Tender Table Document", TRI, { required: true })),
+    returnedByBidder: tri(r.choice("returnedByBidder", "Returned by the bidder", TRI, { required: true })),
+    returnedByBidderProvenance: r.choice("returnedByBidderProvenance", "Where the return answer comes from", PROVENANCE) as Provenance | null,
     ownerOrgUnitCode: r.optionalText("ownerOrgUnitCode"),
     templateCode: r.optionalText("templateCode"),
     governingSource: r.text("governingSource", "Source", { max: 240 }),
@@ -108,7 +112,7 @@ export async function saveTenderPart(_prev: FormState, data: FormData): Promise<
     notes: r.text("notes", "Notes", { max: 2000 }),
   };
   if (r.failed || !v.packKind || !v.role || !v.content || !v.source || !v.provenance) return { ok: false, errors: r.errors };
-  const part = { ...v, packKind: v.packKind, role: v.role, content: v.content, source: v.source, provenance: v.provenance as Provenance };
+  const part = { ...v, packKind: v.packKind, role: v.role, content: v.content, source: v.source, provenance: v.provenance as Provenance, returnedByBidderProvenance: v.returnedByBidder == null ? null : v.returnedByBidderProvenance };
   const reason = String(data.get("reason") ?? "");
   return db.$transaction(async (tx): Promise<FormState> => {
     await lockOrganisation(tx, org.id);

@@ -56,6 +56,8 @@ export function resolveComposition(parts: readonly ConfiguredPart[], packKind: P
       source: p.source,
       mandatory: p.mandatory,
       inTableDocument: p.inTableDocument,
+      returnedByBidder: p.returnedByBidder ?? null,
+      returnedByBidderProvenance: p.returnedByBidder == null ? null : (p.returnedByBidderProvenance ?? null),
       ownerOrgUnitCode: p.ownerOrgUnitCode,
       templateCode: p.templateCode,
       governingSource: p.governingSource,

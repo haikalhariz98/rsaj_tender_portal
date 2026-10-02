@@ -4334,6 +4334,11 @@ model TenderDocumentPart {
   mandatory         Boolean?
   /// Whether the part is in the Tender Table Document (FR-DOC-010). Null: not set.
   inTableDocument   Boolean?
+  /// 6.7 (6.6 ruling, FR-BID-007): whether a bidder returns this part with its bid, so the opening
+  /// checks each bid for it. Null: not set, and an opening cannot finalise completeness against a
+  /// mandatory part whose answer is not set. The declaration is returned by definition (FR-DOC-008).
+  returnedByBidder           Boolean?
+  returnedByBidderProvenance Provenance?
   /// The office that prepares it (OrgUnit.code). Null: not set.
   ownerOrgUnitCode  String?
   /// The library template a STANDARD or MIXED part draws (DocumentTemplate.code).
@@ -4476,6 +4481,10 @@ model TenderPackPart {
   /// As configured when the pack started. Null: not set (blocks submission).
   mandatory        Boolean?
   inTableDocument  Boolean?
+  /// 6.7 (6.6 ruling): as configured when the pack started, with its provenance, as `mandatory` is.
+  /// Null: not set (or started before the answer existed); never backfilled.
+  returnedByBidder           Boolean?
+  returnedByBidderProvenance Provenance?
   ownerOrgUnitCode String?
   /// The configured template's code, and the template picked for this pack.
   templateCode     String?

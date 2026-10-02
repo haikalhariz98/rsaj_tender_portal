@@ -519,6 +519,8 @@ export async function tenderDocsConfig(showRetired = false) {
           source: PART_SOURCE_LABEL[r.source],
           mandatory: yesNoNotSet(r.mandatory),
           inTableDocument: yesNoNotSet(r.inTableDocument),
+          // 6.7 (6.6 ruling): asked of a mandatory part only; the declaration is returned by definition.
+          returned: r.mandatory !== true ? null : r.role === "DECLARATION" ? "Returned by the bidder (the declaration always is)" : r.returnedByBidder == null ? NOT_SET : r.returnedByBidder ? "Returned by the bidder" : "Not returned by the bidder",
           template: r.templateCode ? (templates.find((t) => t.code === r.templateCode)?.nameEn ?? "A template no longer configured") : null,
           preparedBy: r.ownerOrgUnitCode ? (units.find((u) => u.code === r.ownerOrgUnitCode)?.nameEn ?? "An office no longer configured") : NOT_SET,
           provenance: provenance(r.provenance),

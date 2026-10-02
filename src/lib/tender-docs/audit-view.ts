@@ -78,6 +78,8 @@ export interface PartAuditFacts {
   source: PartSource;
   mandatory: boolean | null;
   inTableDocument: boolean | null;
+  /// 6.7 (6.6 ruling): absent on rows written before the answer existed.
+  returnedByBidder?: boolean | null;
   state: PackPartState;
   omittedReason: string;
   templateName: string | null;
@@ -90,6 +92,7 @@ const partView = (p: PartAuditFacts) => ({
   source: PART_SOURCE_LABEL[p.source],
   mandatory: yesNoNotSet(p.mandatory),
   inTheTenderTableDocument: yesNoNotSet(p.inTableDocument),
+  ...(p.returnedByBidder !== undefined ? { returnedByTheBidder: yesNoNotSet(p.returnedByBidder) } : {}),
   state: PART_STATE_LABEL[p.state],
   omittedBecause: p.state === "OMITTED" ? p.omittedReason : null,
   template: p.templateName,

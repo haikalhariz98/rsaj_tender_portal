@@ -95,7 +95,7 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
   };
 
   const partValues = (r: { raw: Record<string, unknown> }): PartValues => {
-    const x = r.raw as Record<string, unknown> & { mandatory: boolean | null; inTableDocument: boolean | null };
+    const x = r.raw as Record<string, unknown> & { mandatory: boolean | null; inTableDocument: boolean | null; returnedByBidder?: boolean | null };
     const s = (k: string) => (x[k] == null ? "" : String(x[k]));
     return {
       code: s("code"),
@@ -111,6 +111,8 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
       templateCode: s("templateCode"),
       mandatory: tri(x.mandatory),
       inTableDocument: tri(x.inTableDocument),
+      returnedByBidder: tri(x.returnedByBidder ?? null),
+      returnedByBidderProvenance: s("returnedByBidderProvenance"),
       ownerOrgUnitCode: s("ownerOrgUnitCode"),
       governingSource: s("governingSource"),
       provenance: s("provenance"),
@@ -387,6 +389,13 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                                   <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[12.5px] text-ink-3">
                                     <Badge tone="warn" title="Submission is held back until this is set">Not set</Badge> In the Tender Table Document
                                   </span>
+                                )}
+                                {r.returned === NOT_SET ? (
+                                  <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[12.5px] text-ink-3">
+                                    <Badge tone="warn" title="An opening cannot finalise against this part until it is set">Not set</Badge> Returned by the bidder
+                                  </span>
+                                ) : (
+                                  r.returned && <span className="block text-[12.5px] text-ink-3">{r.returned}</span>
                                 )}
                               </Td>
                               <Td label="Source"><ProvenanceBadge value={r.raw.provenance} /></Td>

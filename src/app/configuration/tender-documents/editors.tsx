@@ -78,13 +78,15 @@ export function PartDrawer({
         { kind: "select", name: "templateCode", label: "Template it draws", placeholder: "Chosen on each exercise", options: options.templates, hint: "Only for a part drawn from the template library, and never a bespoke one." },
         { kind: "select", name: "mandatory", label: "Mandatory", required: true, placeholder: "Choose", placeholderDisabled: true, options: THREE, hint: "Not set holds submission back, naming this setting." },
         { kind: "select", name: "inTableDocument", label: "In the Tender Table Document", required: true, placeholder: "Choose", placeholderDisabled: true, options: THREE, hint: "Not set holds submission back, naming this setting." },
+        { kind: "select", name: "returnedByBidder", label: "Returned by the bidder", required: true, placeholder: "Choose", placeholderDisabled: true, options: THREE, hint: "Whether a bidder returns this part with its bid, so the opening checks each bid for it. Not set holds an opening's finalising back where the part is mandatory. The declaration is returned by definition." },
+        provenance("returnedByBidderProvenance", "Where the return answer came from"),
         { kind: "select", name: "ownerOrgUnitCode", label: "Prepared by", placeholder: "Not set", options: options.units },
         { kind: "text", name: "governingSource", label: "Where it is required", hint: "The document that asks for it." },
         provenance("provenance", "Where this came from", true),
         { kind: "textarea", name: "notes", label: "Notes" },
       ]}
       values={part ? { ...part.values, id: part.id } : undefined}
-      showWhen={{ templateCode: { name: "source", in: ["TEMPLATE"] } }}
+      showWhen={{ templateCode: { name: "source", in: ["TEMPLATE"] }, returnedByBidderProvenance: { name: "returnedByBidder", in: ["yes", "no"] } }}
       action={saveTenderPart}
       submitLabel={part ? "Save" : "Add the part"}
       trigger={part ? { label: "Edit", className: ghost, ariaLabel: `Edit ${part.label}` } : { label: "Add a part", icon: true, className: buttonClass("primary", "sm") }}

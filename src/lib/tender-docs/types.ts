@@ -73,6 +73,10 @@ export interface ConfiguredPart {
   source: PartSource;
   mandatory: boolean | null;
   inTableDocument: boolean | null;
+  /// 6.7 (6.6 ruling): whether a bidder returns the part with its bid, with its own provenance.
+  /// Absent or null: not set. Snapshotted onto the pack part when a pack starts, as `mandatory` is.
+  returnedByBidder?: boolean | null;
+  returnedByBidderProvenance?: Provenance | null;
   ownerOrgUnitCode: string | null;
   templateCode: string | null;
   governingSource: string;
@@ -108,6 +112,9 @@ export interface PackPartFacts {
   source: PartSource;
   mandatory: boolean | null;
   inTableDocument: boolean | null;
+  /// 6.7 (6.6 ruling): as snapshotted when the pack started. Absent or null: not set.
+  returnedByBidder?: boolean | null;
+  returnedByBidderProvenance?: Provenance | null;
   templateCode: string | null;
   /// The template picked for this pack (by default the configured one), or null.
   template: TemplateFacts | null;
