@@ -7,7 +7,7 @@ import { dayIn, dayToDate, storedDay } from "@/lib/dates";
 import { isLive } from "@/lib/documents/evidence";
 import { formatDate } from "@/lib/format";
 import { EVALUATION_ENTITY, recommendationFields, signerFields } from "@/lib/evaluation/audit-view";
-import { consentCheck } from "@/lib/evaluation/consent";
+import { CONSENT_OUTCOME_TEXT, consentCheck } from "@/lib/evaluation/consent";
 import { recommendedPriceOf } from "@/lib/evaluation/facts";
 import { renderEvaluationInstrument, evaluationFieldsInWords, type TemplateFacts } from "@/lib/evaluation/instrument";
 import { renderFaults, signerFaults } from "@/lib/evaluation/proposal";
@@ -125,13 +125,13 @@ export async function issueReport(_prev: FormState, data: FormData): Promise<For
       siteVisits: c.siteVisits,
       drawings: e!.attachments.filter((a) => a.purpose === "REPORT_DRAWINGS" && isLive(a)).map((a) => ({ title: a.version.document.title, versionNo: a.version.versionNo })),
       meetings: e!.meetings.map((m) => ({ kind: m.kind, round: m.round, listingNo: f.bidders.find((b) => b.id === m.bidderId)!.listingNo, heldOn: formatDate(storedDay(m.heldOn)), place: m.place, minutes: m.minutes, priceBefore: m.priceBefore != null ? senFromDecimal(m.priceBefore) : null, priceAfter: m.priceAfter != null ? senFromDecimal(m.priceAfter) : null })),
-      consent: consent.rows.map((x) => ({ consentPartyName: x.consentPartyName, toExpiry: formatDate(x.toExpiry), outcome: x.outcome === "CHECKED" ? "Checked: from the recommended tenderer" : "Not from the recommended tenderer" })),
+      consent: consent.rows.map((x) => ({ consentPartyName: x.consentPartyName, toExpiry: formatDate(x.toExpiry), outcome: CONSENT_OUTCOME_TEXT[x.outcome] })),
       annexLabels: c.policy?.annexLabels ?? null,
       text: { language: rendered.language!, body: rendered.text!, template: { code: template!.code, name: template!.nameEn, bodyVersion: template!.bodyVersion } },
     });
     const done = await tx.evaluation.updateMany({ where: { id: e!.id, state: "OPEN" }, data: { state: "ISSUED", issuedAt: now, issuedByPersonId: person!.id, reportReference: reference, reportSnapshot: snapshot as unknown as Prisma.InputJsonValue, consentCheckSnapshot: consent.rows as unknown as Prisma.InputJsonValue } });
     if (done.count !== 1) throw new Refusal(CHANGED_EVALUATION);
-    await audit(tx, l.org.id, EVALUATION_ENTITY.evaluation, e!.id, evLabel(l, e!.version), "UPDATE", diffFields({ state: "In progress", report: null }, { state: "Report issued", report: reference, issuedBy: `${person!.name} (recorded on their behalf, not signed)`, template: `${template!.nameEn}, text version ${template!.bodyVersion}`, consentChecked: consent.rows.length ? `${consent.rows.length} ${consent.rows.length === 1 ? "extension" : "extensions"}, from the recommended tenderer` : null }));
+    await audit(tx, l.org.id, EVALUATION_ENTITY.evaluation, e!.id, evLabel(l, e!.version), "UPDATE", diffFields({ state: "In progress", report: null }, { state: "Report issued", report: reference, issuedBy: `${person!.name} (recorded on their behalf, not signed)`, template: `${template!.nameEn}, text version ${template!.bodyVersion}`, consentChecked: consent.rows.some((x) => x.outcome === "CHECKED") ? "the extension in force, from the recommended tenderer" : null }));
     await moveExercise(tx, l.ex, "EVALUATED", { today, via: "REPORT_ISSUED", reportFaults: 0 });
     await audit(tx, l.org.id, "SourcingExercise", l.ex.id, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ status: l.ex.status }, { status: "EVALUATED" }));
     return { ok: true, message: `Report ${reference} issued. Produce the Kertas Cadangan on this section next.` };

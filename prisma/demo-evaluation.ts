@@ -440,7 +440,7 @@ class EvaluationActs {
   }
 
   async issue(exerciseId: string, by: { id: string; name: string }, at: Date) {
-    const { consentCheck } = await import("../src/lib/evaluation/consent");
+    const { CONSENT_OUTCOME_TEXT, consentCheck } = await import("../src/lib/evaluation/consent");
     const { recommendedPriceOf } = await import("../src/lib/evaluation/facts");
     const { renderEvaluationInstrument } = await import("../src/lib/evaluation/instrument");
     const { incompleteStages } = await import("../src/lib/evaluation/recommend");
@@ -472,12 +472,12 @@ class EvaluationActs {
       details: new Map(e.results.map((x) => [`${x.bidderId}/${x.stageCode}`, x.detail])),
       schedule: c.latestSchedule, siteVisits: c.siteVisits,
       drawings: e.attachments.filter((a) => a.purpose === "REPORT_DRAWINGS" && isLive(a)).map((a) => ({ title: a.version.document.title, versionNo: a.version.versionNo })),
-      meetings: [], consent: consent.rows.map((x) => ({ consentPartyName: x.consentPartyName, toExpiry: formatDate(x.toExpiry), outcome: x.outcome === "CHECKED" ? "Checked: from the recommended tenderer" : "Not from the recommended tenderer" })),
+      meetings: [], consent: consent.rows.map((x) => ({ consentPartyName: x.consentPartyName, toExpiry: formatDate(x.toExpiry), outcome: CONSENT_OUTCOME_TEXT[x.outcome] })),
       annexLabels: c.policy!.annexLabels ?? null,
       text: { language: rendered.language!, body: rendered.text!, template: { code: t.code, name: t.nameEn, bodyVersion: t.bodyVersion } },
     });
     await this.db.evaluation.update({ where: { id: e.id }, data: { state: "ISSUED", issuedAt: at, issuedByPersonId: by.id, reportReference: reference, reportSnapshot: snapshot as object, consentCheckSnapshot: consent.rows as object } });
-    this.entry(EVALUATION_ENTITY.evaluation, e.id, label(e.version), "UPDATE", at, diffFields({ state: "In progress", report: null }, { state: "Report issued", report: reference, issuedBy: `${by.name} (recorded on their behalf, not signed)`, template: `${t.nameEn}, text version ${t.bodyVersion}`, consentChecked: consent.rows.length ? `${consent.rows.length} extension(s), from the recommended tenderer` : null }));
+    this.entry(EVALUATION_ENTITY.evaluation, e.id, label(e.version), "UPDATE", at, diffFields({ state: "In progress", report: null }, { state: "Report issued", report: reference, issuedBy: `${by.name} (recorded on their behalf, not signed)`, template: `${t.nameEn}, text version ${t.bodyVersion}`, consentChecked: consent.rows.some((x) => x.outcome === "CHECKED") ? "the extension in force, from the recommended tenderer" : null }));
     await moveExercise(this.db as never, l.ex, "EVALUATED", { today, via: "REPORT_ISSUED", reportFaults: 0 });
     this.entry("SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", at, diffFields({ status: l.ex.status }, { status: "EVALUATED" }));
     return reference;

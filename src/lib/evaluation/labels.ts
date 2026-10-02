@@ -8,6 +8,8 @@
 import type { Finding, AspectKind, AspectVerdict, BandOutcome, CapitalBase, CommunicationChannel, CommunicationDirection, ComputedInput, CriterionScale, EvaluationRoute, EvaluationState, EvaluationTrigger, MeetingKind, ModelStatus, ShortlistRule, Side, StageKind } from "./types";
 import type { EvaluationPhase } from "./state";
 import type { RunningState } from "./stages";
+import { formatDate } from "@/lib/format";
+
 import { CONFIG_TEXT } from "./config";
 
 /// Where each setting an evaluation reads is kept.
@@ -226,7 +228,7 @@ const TEXT: Record<string, (f: Finding) => string> = {
   TEMPLATE_INCOMPLETE: (f) => `Its template names fields with nothing recorded: ${f.data?.fields ?? ""}.`,
   TEMPLATE_UNKNOWN_FIELD: (f) => `Its template names fields the portal does not fill: ${f.data?.fields ?? ""}. Correct it under ${SETTING_AT.templates}.`,
   ADMITTED_UNOPENED: (f) => `${f.data?.count} late ${plural(f.data?.count, "tender was", "tenders were")} admitted and not yet opened. Open each at its supplementary opening first.`,
-  CONSENT_NOT_FROM_RECOMMENDED: (f) => `The bids' validity was extended on the consent of ${f.data?.party ?? "another tenderer"}, not the recommended tenderer. Record the recommended tenderer's consent, on Bids and opening, under Received.`,
+  CONSENT_NOT_FROM_RECOMMENDED: (f) => `The bids' validity stands on an extension${f.data?.day ? ` to ${formatDate(String(f.data.day))}` : ""} consented to by ${f.data?.party ?? "another tenderer"}, not the recommended tenderer. Record an extension to a later day on the recommended tenderer's consent, attach the consent and apply it, on Bids and opening, under Received: the validity then stands on their consent.`,
   REPORT_STALE: () => "The bids evaluated are no longer the bids carried to evaluation (a late tender was admitted and opened since). A new evaluation version is evaluated and issued.",
   // ---- a two-stage tender's first stage (stage-one.ts)
   NOT_TWO_STAGE: () => "The pinned model is not a two-stage one, so no first-stage matter is tabled.",
