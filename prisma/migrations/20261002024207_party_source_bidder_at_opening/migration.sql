@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "PartySource" ADD VALUE 'BIDDER_AT_OPENING';

@@ -2462,6 +2462,11 @@ enum ExerciseStatus {
   ADVERTISED
   /// 6.5 (§7.3.2): the approved invitees' letters issued (FR-ADV-002); never published.
   INVITED
+  /// 6.7 (§7.3.2): the box opened at the opening, on the second of two authorisations by distinct
+  /// present panel members; the envelopes are being opened. Written only by that act.
+  OPENING_IN_PROGRESS
+  /// 6.7 (§7.3.2): the main opening finalised, its schedule frozen and the estimate disclosed.
+  OPENED
   CANCELLED
 }
 
@@ -3594,6 +3599,9 @@ enum AttachmentPurpose {
   WITHDRAWAL_LETTER
   /// 6.6 (FR-BID-010): the recommended tenderer's written consent to extend its bid's validity, on the extension.
   VALIDITY_CONSENT
+  /// 6.7 (FR-OPN-006): the signed paper opening schedule's scan, on its opening, accepted only after
+  /// finalising (it carries the estimate's row, 6.2 Q-2). SULIT.
+  SIGNED_SCHEDULE
   HOLDER_RECOMMENDATION
   SIGNED_LETTER
   DECLARATION
@@ -4755,6 +4763,8 @@ enum PartySource {
   PROPOSED_INVITEE
   ATTENDEE
   PURCHASER
+  /// 6.7: named for the first time at opening, from the bid itself (no sale, no letter, no attendance).
+  BIDDER_AT_OPENING
 }
 
 /// Which day is the advertisement day when channels publish on different days (6.5 OD-3).
@@ -5316,11 +5326,16 @@ enum EnvelopeChannel {
 enum ReceiptSource {
   SERVER
   ENTERED
+  /// 6.7 (OD-4, C-3): a bid found in the tender box at opening, registered then. Its time is the
+  /// box's LOCKED event (the server's stamp), an upper bound, never a receipt time.
+  BOX_AT_OPENING
 }
 
 enum EnvelopeStatus {
   RECEIVED
   WITHDRAWN
+  /// 6.7: opened at an opening (its offer is on the OpenedBid, never here).
+  OPENED
 }
 
 /// The tender box's custody acts. Append-only.

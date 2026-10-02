@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "ExerciseStatus" ADD VALUE 'OPENING_IN_PROGRESS';
