@@ -24,6 +24,8 @@ import { despatchFaults } from "@/lib/award/distribution";
 import { evaluateAward } from "@/lib/award/evaluate";
 import { awardOpenRefusal, exerciseOpenForAward } from "@/lib/award/gate";
 import { readWindowGate } from "@/lib/window/repo";
+import { bidGate } from "@/lib/bids/repo";
+import { bidFindingText } from "@/lib/bids/labels";
 import { awardValueFaults, instrumentFor } from "@/lib/award/instrument";
 import { AWARD_STATUS_LABEL, awardFindingText, BOND_FAULT_TEXT, DESPATCH_FAULT_TEXT, INSURANCE_FAULT_TEXT, SIGNER_FAULT_TEXT, differsRefusal, tenderTermText } from "@/lib/award/labels";
 import { renderedText } from "@/lib/award/merge";
@@ -576,6 +578,9 @@ export async function citeAppointmentDecision(_prev: FormState, data: FormData):
       DECIDED_BEFORE_ROUTE: "The committee decided that matter before this award went for approval.",
     } as const;
     if (fault) return { ok: false, errors: { committeeDecisionId: TEXT[fault] } };
+    // 6.6 (OD-6, flagged): no appointment decision is cited while a late envelope waits for the committee's decision on admission.
+    const bids = await bidGate(l.ex.id, tx);
+    if (bids.lateFault) return { ok: false, errors: { committeeDecisionId: bidFindingText(bids.lateFault) } };
     const s = committeeStepFrom(record);
     if (s.decision === "PENDING") return { ok: false, errors: { committeeDecisionId: record ? "The committee deferred the matter. Cite it once it is decided." : "The committee has not decided the matter yet." } };
     const after = committeeCitationWrite({ decision: s.decision, committeeName: s.citation!.committee, decidedOn: s.decidedOn, committeeDecisionId: matter.id, recordedAt: new Date() });

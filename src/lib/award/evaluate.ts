@@ -8,6 +8,7 @@
  */
 
 import type { WindowGate } from "@/lib/window/gate";
+import type { BidGateFacts } from "./gate";
 import { regimeFor } from "@/lib/authority/resolve";
 import type { DecisionRecord } from "@/lib/committee/record";
 import type { FunderContext } from "@/lib/method/approval";
@@ -112,6 +113,9 @@ export interface AwardFacts {
     packKindSnapshot: PackKind | null;
     /// 6.5 (X-9): the window's phase and pending change. Absent: not judged, so not open.
     window?: WindowGate | null;
+    /// 6.6 (X-9, flagged): the late-admission gate and the bids' validity, for an exercise
+    /// published through 6.5. Absent or null: not published through it, nothing asked.
+    bids?: BidGateFacts | null;
     regime: string | null;
     appointmentRuleKey: string | null;
     appointmentRuleLabel: string | null;
@@ -243,7 +247,7 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
   const judgedOn = f.method?.requiresDossier ? snapshotFaults(f.dossierEvidence?.snapshot ?? null, new Set(f.dossierEvidence?.withdrawnVersionIds ?? []), true) : [];
   const submit: Finding[] = [
     ...noIssue,
-    ...(route ? submitFaults({ status: a.status, today: f.today, exerciseStatus: f.exercise.status, exercisePackKind: f.exercise.packKindSnapshot, exerciseWindow: f.exercise.window ?? null, openRoute: f.appointment?.status === "PENDING", method: f.method, dossier, route, nameRoutes: f.nameRoutes ?? [] }) : []),
+    ...(route ? submitFaults({ status: a.status, today: f.today, exerciseStatus: f.exercise.status, exercisePackKind: f.exercise.packKindSnapshot, exerciseWindow: f.exercise.window ?? null, openRoute: f.appointment?.status === "PENDING", method: f.method, dossier, route, nameRoutes: f.nameRoutes ?? [], bids: f.exercise.bids ?? null }) : []),
     ...("fault" in instrument ? [{ code: instrument.fault, level: "block" as const, data: { regime: instrument.regime } }] : []),
     ...changed,
     ...valueFaults,
@@ -322,6 +326,7 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
     exerciseStatus: f.exercise.status,
     exercisePackKind: f.exercise.packKindSnapshot,
     exerciseWindow: f.exercise.window ?? null,
+    bids: f.exercise.bids ?? null,
     commitment,
     sourcingPermitted: f.requisition.sourcingPermitted,
     instrument,

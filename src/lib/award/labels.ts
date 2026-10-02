@@ -4,6 +4,7 @@
  * place it is put right, `FIX_AT` says where.
  */
 
+import { bidFindingText } from "@/lib/bids/labels";
 import { findingText as methodFindingText, REGIME_SHORT } from "@/lib/method/labels";
 import type { Regime } from "@/lib/method/types";
 
@@ -318,6 +319,12 @@ export function awardFindingText(f: Finding): string {
       return d.field === "regulated"
         ? "Whether the works are the regulated activity differs from the tender's answer, and no reason is recorded. In Edit terms, answer as the tender did, or record why it differs."
         : `${BASELINE_FIELD_LABEL[d.field as BaselineField] ?? "A term"}: differs from the tender Appendix, and no reason is recorded. In Edit terms, state it as the Appendix does, or record why it differs.`;
+    // 6.6 (X-9): the envelope register's checks, in the register's words.
+    case "LATE_UNDECIDED":
+    case "VALIDITY_NOT_SET":
+    case "BID_VALIDITY_EXPIRED":
+    case "VALIDITY_NOT_JUDGED":
+      return bidFindingText(f);
     default:
       return methodFindingText(f);
   }

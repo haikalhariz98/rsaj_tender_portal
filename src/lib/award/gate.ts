@@ -67,6 +67,18 @@ export function awardOpenRefusal(packKindSnapshot: PackKind | null, status: stri
   return "An award is opened only once the invitation window has closed.";
 }
 
+/// 6.6 (X-9): what the envelope register asks of an award on an exercise published through 6.5 (`bidGate`).
+export interface BidGateFacts {
+  /// Late envelopes waiting for the committee's decision on admission (OD-6); null where none waits.
+  lateFault: (Finding & { code: "LATE_UNDECIDED" }) | null;
+  /// The bids' validity: not set, expired without an extension, or not judged; null where valid.
+  validityFault: (Finding & { code: "VALIDITY_NOT_SET" | "BID_VALIDITY_EXPIRED" | "VALIDITY_NOT_JUDGED" }) | null;
+}
+export type BidGateFault = "LATE_UNDECIDED" | "VALIDITY_NOT_SET" | "BID_VALIDITY_EXPIRED" | "VALIDITY_NOT_JUDGED";
+
+/// The register's faults, for submission and issue alike. Null facts: not published through 6.5, nothing asked.
+export const bidGateFindings = (b: BidGateFacts | null | undefined): Finding[] => (b ? [b.lateFault, b.validityFault].filter((f): f is NonNullable<typeof f> => f != null) : []);
+
 export interface IssueInput {
   status: AwardStatus;
   today: string | null;
@@ -75,6 +87,8 @@ export interface IssueInput {
   exercisePackKind: PackKind | null;
   /// 6.5 (X-9): the window's phase and pending change. Not given: not judged, so not open.
   exerciseWindow?: WindowGate | null;
+  /// 6.6 (X-9, flagged): late admission and the bids' validity. Not given: nothing asked.
+  bids?: BidGateFacts | null;
   commitment: CommitmentFault | null;
   sourcingPermitted: boolean | null;
   instrument: { kind: InstrumentKind } | { fault: InstrumentFault };
@@ -140,7 +154,8 @@ export type IssueFault =
   | "START_DATE_REQUIRED"
   | "WC_BASIS_REQUIRED"
   | "INDENT_EXPIRES_BEFORE_START"
-  | "APPENDIX_DIFFERENCE_UNEXPLAINED";
+  | "APPENDIX_DIFFERENCE_UNEXPLAINED"
+  | BidGateFault;
 
 export function issueFaults(i: IssueInput): Finding[] {
   const out: Finding[] = [];
@@ -149,6 +164,8 @@ export function issueFaults(i: IssueInput): Finding[] {
   if (i.status !== "APPROVED") f("NOT_APPROVED_YET", { status: i.status });
   if (i.today == null) f("TIME_ZONE_UNSET");
   if (!exerciseOpenForAward(i.exerciseStatus, i.exercisePackKind, i.exerciseWindow ?? null)) f("EXERCISE_NOT_OPEN", { status: i.exerciseStatus, needs: awardableStatus(i.exercisePackKind), changePending: i.exerciseWindow?.changePending ? "yes" : null });
+  // 6.6: late envelopes decided, and the bids still valid (or extended), on an exercise published through 6.5.
+  out.push(...bidGateFindings(i.bids));
 
   // FR-REQ-016: no commitment against a requisition that has not completed its approval.
   if (i.commitment?.code === "NOT_APPROVED") f("REQUISITION_NOT_APPROVED", { step: i.commitment.outstanding });

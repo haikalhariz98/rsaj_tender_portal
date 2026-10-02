@@ -19,7 +19,7 @@ import { APPOINTMENT_DOMAIN, type Method, type PackKind } from "@/lib/method/typ
 
 import type { WindowGate } from "@/lib/window/gate";
 
-import { awardableStatus, exerciseOpenForAward } from "./gate";
+import { awardableStatus, bidGateFindings, exerciseOpenForAward, type BidGateFacts, type BidGateFault } from "./gate";
 import type { Finding } from "./types";
 
 export type RouteFault = "DEPENDS_ON_METHOD" | "NO_METHOD_KEY" | "NO_RULE" | "ROUTE_ERROR" | "REQUESTER_ONLY";
@@ -108,7 +108,8 @@ export type SubmitFault =
   | "EVIDENCE_NOT_ATTACHED"
   | "NAME_NOT_REQUESTED"
   | "NAME_NOT_APPROVED"
-  | "NAME_REJECTED";
+  | "NAME_REJECTED"
+  | BidGateFault;
 
 /**
  * Whether an award may be sent for the appointment's approval. The awarded value's own
@@ -134,6 +135,8 @@ export function submitFaults(i: {
   route: AppointmentRoute;
   /// The exercise's name-approval routes (its own, not an award's).
   nameRoutes?: readonly ({ status: "PENDING" | "APPROVED" | "REJECTED" | "RECALLED"; openedAt: Date; createdAt?: Date | null; id?: string })[];
+  /// 6.6 (X-9, flagged): late admission and the bids' validity. Not given: nothing asked.
+  bids?: BidGateFacts | null;
 }): Finding<SubmitFault>[] {
   const f = (code: SubmitFault, data?: Finding["data"]): Finding<SubmitFault> => ({ code, level: "block", ...(data ? { data } : {}) });
   if (i.status !== "DRAFT") return [f("NOT_DRAFT")];
@@ -150,6 +153,8 @@ export function submitFaults(i: {
     if (name) out.push(f(name.code));
   }
   if (!i.route.ok) out.push(f(i.route.fault, { rule: i.route.ruleLabel, messages: i.route.messages.join(" ") || null }));
+  // 6.6: an award is not sent for approval while a late envelope waits or the bids' validity has lapsed.
+  out.push(...(bidGateFindings(i.bids) as Finding<SubmitFault>[]));
   return out;
 }
 

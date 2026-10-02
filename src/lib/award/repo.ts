@@ -8,6 +8,7 @@
  * the route and the gate are judged on the rows the write changes.
  */
 
+import { bidGate } from "@/lib/bids/repo";
 import type { Tx } from "@/lib/audit/record";
 import type { DecisionRecord } from "@/lib/committee/record";
 import { dayIn, dayToDate, storedDay } from "@/lib/dates";
@@ -269,6 +270,8 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
   const method = cfg.config.methods.find((m) => m.code === ex.sourcingMethodCode) ?? null;
   // 6.5 (X-9): the window's phase now and any pending change, for the gate.
   const exerciseWindow = windowGate(ex, await client.exerciseWindow.findUnique({ where: { exerciseId: ex.id }, select: { purchaseFromDay: true, purchaseCloseDay: true } }), new Date(), org.timeZone);
+  // 6.6 (X-9): late admission and the bids' validity, only for an exercise published through 6.5.
+  const bidsNow = await bidGate(ex.id, client);
   const unitPath = pathTo(units as unknown as OrgUnit[], req.sectionUnitCode || req.requestingUnitCode, on).reverse().map((u) => u.code);
   const holdersOf = (code: string) => holdersFor(code, unitPath, roster, delegations, org.today ?? storedDay(on));
   const people = new Map(roster.people.map((p) => [p.id, p]));
@@ -325,6 +328,7 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
       status: ex.status,
       packKindSnapshot: ex.packKindSnapshot,
       window: exerciseWindow,
+      bids: bidsNow.published ? { lateFault: bidsNow.lateFault, validityFault: bidsNow.validityFault } : null,
       regime: ex.regime,
       appointmentRuleKey: ex.appointmentRuleKey,
       appointmentRuleLabel: bands?.appointment.ruleLabel ?? null,
