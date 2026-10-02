@@ -23,6 +23,7 @@ import { checklistFromSnapshot, unansweredItems } from "./checklist";
 import { copyFindingFault } from "./estimate-copy";
 import { finaliseFaults, markFaults, recordFaults, scheduleScanFault } from "./finalise";
 import { summaryFromSnapshot, type GrandSummary } from "./grand-summary";
+import { freshInitials } from "./initials";
 import { ALTERNATIVE_LABEL, CHECKLIST_ANSWER_LABEL, COPY_CHECK_LABEL, GROUND_LABEL, INVITED_READING_LABEL, OPENING_KIND_LABEL, OPENING_PHASE_LABEL, OPENING_PHASE_TONE, openingFindingText, periodText, REPORTED_LABEL, RESTRICTION_FINDING_LABEL, SALE_FINDING_LABEL, SEALED_UNTIL_FINALISED, UNPURCHASED_LABEL, VERDICT_LABEL, VERDICT_TONE } from "./labels";
 import { alternativeInsideFaults, openFaults } from "./open";
 import { invitedCounts, liveScans, openingContext, panelOf, policyOf, presentOf, stateOf, type OpeningContext, type OpeningRow } from "./repo";
@@ -175,7 +176,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
 
   // ---- the offers as read.
   const offers = o.bids.map((b) => {
-    const fresh = b.initials.filter((i) => !b.asReadCorrectedAt || i.recordedAt >= b.asReadCorrectedAt);
+    const fresh = freshInitials(b, b.initials);
     const answers = new Map(b.answers.map((a) => [a.itemKey, a.answer]));
     const j = judgeBid({ saleFinding: b.saleFinding, restrictionFinding: b.restrictionFinding, isAlternative: b.isAlternative, alternativeStatus: b.alternativeStatus }, checklist, answers, { completenessEliminates: snap.completeness.eliminates, unpurchased });
     const period = b.completionPeriod != null && b.completionUnit ? { value: b.completionPeriod, unit: b.completionUnit } : null;
@@ -240,7 +241,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
   const admitted = o.admissionDecision?.bidEnvelopeId ? c.envelopes.find((e) => e.id === o.admissionDecision!.bidEnvelopeId) : null;
   const ff = finaliseFaults({
     state,
-    bids: o.bids.map((b) => ({ listingNo: b.listingNo, initials: b.initials.filter((i) => !b.asReadCorrectedAt || i.recordedAt >= b.asReadCorrectedAt).map((i) => i.personId), unanswered: unansweredItems(checklist.items, new Map(b.answers.map((a) => [a.itemKey, a.answer]))).length, verdict: b.verdict, unpurchased: b.saleFinding !== "LIVE_SALE" })),
+    bids: o.bids.map((b) => ({ listingNo: b.listingNo, initials: freshInitials(b, b.initials).map((i) => i.personId), unanswered: unansweredItems(checklist.items, new Map(b.answers.map((a) => [a.itemKey, a.answer]))).length, verdict: b.verdict, unpurchased: b.saleFinding !== "LIVE_SALE" })),
     present,
     signed: o.signatures.map((s) => s.personId),
     pages: o.schedulePages,

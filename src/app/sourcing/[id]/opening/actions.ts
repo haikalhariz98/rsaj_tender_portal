@@ -25,6 +25,7 @@ import { explanationFaults, type PaperCopy } from "@/lib/opening/estimate-copy";
 import { finaliseFaults, markFaults, recordFaults } from "@/lib/opening/finalise";
 import { liveSaleOf, restrictionFinding, saleFinding } from "@/lib/opening/findings";
 import { grandSummary } from "@/lib/opening/grand-summary";
+import { freshInitials, initialStale } from "@/lib/opening/initials";
 import { openingFindingText } from "@/lib/opening/labels";
 import { lockOpenedBidRows, lockOpeningRows } from "@/lib/opening/lock";
 import { alternativeInsideFaults, alternativeOf, correctionFaults, nextListingNo, openFaults } from "@/lib/opening/open";
@@ -533,15 +534,15 @@ export async function recordInitial(_prev: FormState, data: FormData): Promise<F
     if (!found) return GONE_BID;
     const { opening: o, bid } = found;
     const existing = bid.initials.find((i) => i.personId === personId) ?? null;
-    const stale = !!existing && !!bid.asReadCorrectedAt && existing.recordedAt < bid.asReadCorrectedAt;
+    const stale = !!existing && initialStale(bid, existing);
     const fs = markFaults({ state: stateOf(o, l.ex.status), panel: panelOf(o), personId, already: !!existing && !stale, sameOpening: true });
     if (blocking(fs).length) return refuse(fs);
     const name = o.panel.find((p) => p.personId === personId)!.person.name;
     if (existing) {
-      await tx.openedBidInitial.update({ where: { id: existing.id }, data: { recordedAt: now } });
+      await tx.openedBidInitial.update({ where: { id: existing.id }, data: { recordedAt: now, correctionNo: bid.asReadCorrections } });
       await audit(tx, l.org.id, OPENING_ENTITY.initial, existing.id, label(l, `Offer ${bid.listingNo}`), "UPDATE", diffFields({ initialled: "Before the correction" }, { initialled: initialFields({ person: name, listingNo: bid.listingNo, at: now }, l.org.timeZone).at }));
     } else {
-      const row = await tx.openedBidInitial.create({ data: { organisationId: l.org.id, openedBidId: bid.id, personId, recordedAt: now } });
+      const row = await tx.openedBidInitial.create({ data: { organisationId: l.org.id, openedBidId: bid.id, personId, recordedAt: now, correctionNo: bid.asReadCorrections } });
       await audit(tx, l.org.id, OPENING_ENTITY.initial, row.id, label(l, `Offer ${bid.listingNo}`), "CREATE", diffFields(null, initialFields({ person: name, listingNo: bid.listingNo, at: now }, l.org.timeZone)));
     }
     return { ok: true };
@@ -640,7 +641,7 @@ export async function correctAsRead(_prev: FormState, data: FormData): Promise<F
     const changed = JSON.stringify(asReadFields(was)) !== JSON.stringify(asReadFields(next));
     const fs = correctionFaults({ state: stateOf(o, l.ex.status), sameOpening: !o.finalisedAt, reason, changed, price: offer.price, period: offer.period });
     if (blocking(fs).length) return refuse(fs);
-    await tx.openedBid.update({ where: { id: bid.id }, data: { bidderNameAsRead: next.bidder, registrationClassAsRead: registrationClass, registrationStatusAsRead: registrationStatus, priceAsRead: senToDecimalString(offer.price!), completionPeriod: period?.value ?? null, completionUnit: period?.unit ?? null, validityDaysStated: offer.validityDays, asReadCorrectedAt: now } });
+    await tx.openedBid.update({ where: { id: bid.id }, data: { bidderNameAsRead: next.bidder, registrationClassAsRead: registrationClass, registrationStatusAsRead: registrationStatus, priceAsRead: senToDecimalString(offer.price!), completionPeriod: period?.value ?? null, completionUnit: period?.unit ?? null, validityDaysStated: offer.validityDays, asReadCorrectedAt: now, asReadCorrections: bid.asReadCorrections + 1 } });
     await audit(tx, l.org.id, OPENING_ENTITY.bid, bid.id, label(l, `Offer ${bid.listingNo}`), "UPDATE", diffFields(asReadFields(was), asReadFields(next)), reason);
     return { ok: true, message: "Corrected. Each panel member present initials it again." };
   });
@@ -714,7 +715,7 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
     const admitted = o.admissionDecision?.bidEnvelopeId ? c.envelopes.find((e) => e.id === o.admissionDecision!.bidEnvelopeId) : null;
     const fs = finaliseFaults({
       state,
-      bids: o.bids.map((b) => ({ listingNo: b.listingNo, initials: b.initials.filter((i) => !b.asReadCorrectedAt || i.recordedAt >= b.asReadCorrectedAt).map((i) => i.personId), unanswered: unansweredItems(checklist.items, new Map(b.answers.map((a) => [a.itemKey, a.answer]))).length, verdict: b.verdict, unpurchased: b.saleFinding !== "LIVE_SALE" })),
+      bids: o.bids.map((b) => ({ listingNo: b.listingNo, initials: freshInitials(b, b.initials).map((i) => i.personId), unanswered: unansweredItems(checklist.items, new Map(b.answers.map((a) => [a.itemKey, a.answer]))).length, verdict: b.verdict, unpurchased: b.saleFinding !== "LIVE_SALE" })),
       present: presentOf(o),
       signed: o.signatures.map((s) => s.personId),
       pages: o.schedulePages,

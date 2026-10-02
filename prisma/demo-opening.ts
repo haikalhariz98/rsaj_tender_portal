@@ -507,6 +507,7 @@ class OpeningActs {
     const { finaliseFaults } = await import("../src/lib/opening/finalise");
     const { discloseAtFinalising } = await import("../src/lib/opening/estimate");
     const { grandSummary } = await import("../src/lib/opening/grand-summary");
+    const { freshInitials } = await import("../src/lib/opening/initials");
     const { invitedCounts, policyOf, presentOf, stateOf } = await import("../src/lib/opening/repo");
     const { jadualTawaran, lateCount } = await import("../src/lib/opening/schedule");
     const { lockGap } = await import("../src/lib/opening/box");
@@ -520,7 +521,7 @@ class OpeningActs {
     const admitted = o.admissionDecision?.bidEnvelopeId ? c.envelopes.find((e) => e.id === o.admissionDecision!.bidEnvelopeId) : null;
     refuse(`finalising ${openingId}`, finaliseFaults({
       state,
-      bids: o.bids.map((b) => ({ listingNo: b.listingNo, initials: b.initials.map((i) => i.personId), unanswered: unansweredItems(checklist.items, new Map(b.answers.map((a) => [a.itemKey, a.answer]))).length, verdict: b.verdict, unpurchased: b.saleFinding !== "LIVE_SALE" })),
+      bids: o.bids.map((b) => ({ listingNo: b.listingNo, initials: freshInitials(b, b.initials).map((i) => i.personId), unanswered: unansweredItems(checklist.items, new Map(b.answers.map((a) => [a.itemKey, a.answer]))).length, verdict: b.verdict, unpurchased: b.saleFinding !== "LIVE_SALE" })),
       present: presentOf(o),
       signed: o.signatures.map((s) => s.personId),
       pages: o.schedulePages,

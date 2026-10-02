@@ -5796,6 +5796,9 @@ model OpenedBid {
   verdictReason      String    @default("")
   verdictAt          DateTime?
   asReadCorrectedAt  DateTime?
+  /// How many times what was read has been corrected (OD-10). An initial counts only if it was
+  /// recorded on the latest reading: its correctionNo equals this (6.7 review M-2, never stamp order).
+  asReadCorrections  Int       @default(0)
 
   initials OpenedBidInitial[]
   answers  OpeningChecklistAnswer[]
@@ -5815,6 +5818,8 @@ model OpenedBidInitial {
   personId       String
   person         Person       @relation("OpenedBidInitialBy", fields: [personId], references: [id], onDelete: Restrict)
   recordedAt     DateTime
+  /// The bid's asReadCorrections when this initial was recorded: it initials that reading (review M-2).
+  correctionNo   Int          @default(0)
 
   @@unique([openedBidId, personId])
 }
