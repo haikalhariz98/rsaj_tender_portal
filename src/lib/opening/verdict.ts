@@ -133,24 +133,3 @@ export function recordedTreatment(record: unknown): IneligibleTreatment {
   const r = record as { grounds?: unknown; reported?: unknown };
   return treatmentOf(Array.isArray(r.grounds) ? r.grounds.map(String) : [], Array.isArray(r.reported) ? r.reported.map(String) : []);
 }
-
-/**
- * A verdict recorded on a bidder the register found not eligible, judged again under the consequence about
- * to be frozen at finalising (6.15a fix R-6, OD-6 A). The verdict is recorded under the register's live
- * setting, and finalising freezes whatever the setting is then; if it changed in between, the recorded
- * verdict may no longer agree with the rule it will be read under. It disagrees where it treated the
- * bidder otherwise (eliminated against reported), or where its PASS or REJECT no longer stands under the
- * grounds the frozen setting makes. Null: it agrees, or nothing to judge (no finding, no verdict, setting
- * unset — that blocks on its own).
- */
-export function verdictUnderOtherSetting(
-  bid: { listingNo: number; verdict: OpeningVerdict | null; record: unknown; ineligible: boolean },
-  judged: Pick<ReturnType<typeof judgeBid>, "grounds" | "reported" | "notSet">,
-): { listingNo: number; was: IneligibleTreatment; now: IneligibleTreatment } | null {
-  if (!bid.ineligible || !bid.verdict) return null;
-  if (judged.notSet.some((f) => f.code === "INELIGIBLE_CONSEQUENCE_NOT_SET")) return null;
-  const now = treatmentOf(judged.grounds, judged.reported);
-  const was = recordedTreatment(bid.record);
-  const stands = bid.verdict === "PASS" ? judged.grounds.length === 0 : judged.grounds.length > 0;
-  return was === now && stands ? null : { listingNo: bid.listingNo, was, now };
-}

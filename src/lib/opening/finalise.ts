@@ -34,6 +34,7 @@ export type FinaliseFault =
   | "UNPURCHASED_CONSEQUENCE_NOT_SET"
   | "INELIGIBLE_CONSEQUENCE_NOT_SET"
   | "VERDICT_UNDER_OTHER_SETTING"
+  | "VERDICT_NO_LONGER_STANDS"
   | "READING_NOT_SET"
   | "ESTIMATE_COPY_NOT_ANSWERED"
   | "PERSON_REQUIRED";
@@ -66,6 +67,8 @@ export function finaliseFaults(i: {
   /// 6.15a (OD-6 A): the register's consequence for a linked bidder found not eligible, and whether any bid holds such a finding.
   /// fix R-6: the recorded verdicts that disagree with the consequence about to be frozen (`verdictUnderOtherSetting`).
   ineligible?: { consequence: UnpurchasedConsequence | null; anyFound: boolean; disagreements?: readonly { listingNo: number; was: string; now: string }[] };
+  /// residual 5: recorded verdicts that no longer stand under the grounds the rules make now, for a reason not the register's setting (`verdictDrift`).
+  noLongerStands?: readonly { listingNo: number; verdict: OpeningVerdict; added: readonly string[]; removed: readonly string[] }[];
   invitedReading: InvitedCountReading | null;
   /// Where the method requires an estimate and one is lodged: whether the paper's figure (or "not in the box") was answered.
   estimate: { required: boolean; lodged: boolean; paperAnswered: boolean };
@@ -92,6 +95,8 @@ export function finaliseFaults(i: {
   if (i.ineligible && i.ineligible.consequence == null && i.ineligible.anyFound) f("INELIGIBLE_CONSEQUENCE_NOT_SET");
   // fix R-6: a verdict recorded under another setting is recorded again before the setting is frozen.
   for (const x of i.ineligible?.disagreements ?? []) f("VERDICT_UNDER_OTHER_SETTING", { listingNo: x.listingNo, was: x.was, now: x.now });
+  // residual 5: a verdict that no longer stands for another reason says so, naming what changed.
+  for (const x of i.noLongerStands ?? []) f("VERDICT_NO_LONGER_STANDS", { listingNo: x.listingNo, verdict: x.verdict, added: x.added.join(","), removed: x.removed.join(",") });
   if (i.invitedReading == null) f("READING_NOT_SET");
   if (i.estimate.required && i.estimate.lodged && !i.estimate.paperAnswered) f("ESTIMATE_COPY_NOT_ANSWERED");
   if (!i.personActive) f("PERSON_REQUIRED");
