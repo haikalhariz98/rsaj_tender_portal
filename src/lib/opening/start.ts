@@ -124,7 +124,7 @@ export function frozenRuleFaults(i: { completenessEliminates: boolean | null; ch
   return out;
 }
 
-export type SupplementaryFault = "MAIN_NOT_FINALISED" | "DECISION_NOT_LATE_TENDER" | "NOT_ADMITTED" | "ALREADY_OPENED_FOR" | "LATE_ENVELOPE_NOT_SEALED" | "CANCELLED" | "PERSON_REQUIRED";
+export type SupplementaryFault = "MAIN_NOT_FINALISED" | "DECISION_NOT_LATE_TENDER" | "NOT_ADMITTED" | "ALREADY_OPENED_FOR" | "LATE_ENVELOPE_NOT_SEALED" | "CANCELLED" | "PERSON_REQUIRED" | "TIME_ZONE_NOT_SET";
 
 /// FR-CTE-008 (OD-5): a supplementary opening of one envelope its committee admitted, after the main one.
 export function supplementaryFaults(i: {
@@ -135,10 +135,13 @@ export function supplementaryFaults(i: {
   alreadyOpened: boolean;
   envelope: { status: string; late: boolean } | null;
   personActive: boolean;
+  /// The organisation's time zone (review R-5): the opening is dated, its seats read on its day.
+  timeZone: string | null;
 }): Finding<SupplementaryFault>[] {
   if (i.status === "CANCELLED") return [{ code: "CANCELLED", level: "block" }];
   const out: Finding<SupplementaryFault>[] = [];
   const f = (code: SupplementaryFault) => out.push({ code, level: "block" });
+  if (!i.timeZone) f("TIME_ZONE_NOT_SET");
   if (!i.mainFinalised) f("MAIN_NOT_FINALISED");
   if (!i.decision || i.decision.matterKind !== "LATE_TENDER" || !i.decision.bidEnvelopeId) f("DECISION_NOT_LATE_TENDER");
   else if (i.decision.outcome !== "CARRIED") f("NOT_ADMITTED");

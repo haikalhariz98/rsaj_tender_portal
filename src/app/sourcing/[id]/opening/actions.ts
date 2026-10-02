@@ -223,7 +223,7 @@ export async function startSupplementaryOpening(_prev: FormState, data: FormData
     const person = await nameOf(tx, l.org.id, startedByPersonId);
     const decision = await tx.committeeDecision.findFirst({ where: { id: decisionId, bidEnvelope: { exerciseId: l.ex.id } }, select: { id: true, matterKind: true, outcome: true, bidEnvelopeId: true, withdrawnAt: true, meeting: { select: { reference: true } } } });
     const envelope = decision?.bidEnvelopeId ? (c.envelopes.find((e) => e.id === decision.bidEnvelopeId) ?? null) : null;
-    const sf = supplementaryFaults({ status: l.ex.status, mainFinalised: !!c.main?.finalisedAt, decision: decision && !decision.withdrawnAt ? { matterKind: decision.matterKind ?? "", outcome: decision.outcome, bidEnvelopeId: decision.bidEnvelopeId } : null, alreadyOpened: c.openings.some((o) => o.admissionDecisionId === decisionId), envelope: envelope ? { status: envelope.status, late: envelope.late } : null, personActive: !!person });
+    const sf = supplementaryFaults({ status: l.ex.status, mainFinalised: !!c.main?.finalisedAt, decision: decision && !decision.withdrawnAt ? { matterKind: decision.matterKind ?? "", outcome: decision.outcome, bidEnvelopeId: decision.bidEnvelopeId } : null, alreadyOpened: c.openings.some((o) => o.admissionDecisionId === decisionId), envelope: envelope ? { status: envelope.status, late: envelope.late } : null, personActive: !!person, timeZone: l.org.timeZone });
     if (blocking(sf).length) return refuse(sf);
     const picked = await pickedPeople(tx, l.org.id, picks);
     const wantsOverride = !!(overrideAuthority.trim() || overrideReason.trim() || overridePersonId);
@@ -464,13 +464,15 @@ export async function openEnvelope(_prev: FormState, data: FormData): Promise<Fo
       isAlternative,
       alternativesPermitted: snap.alternativesPermitted,
       parent: parentOpenedBidId ? { opened: !!parent && !parent.isAlternative } : null,
+      timeZone: l.org.timeZone,
     });
     if (blocking(fs).length) return refuse(fs);
     const bidder = party ?? (await tx.exerciseParty.create({ data: { organisationId: l.org.id, exerciseId: l.ex.id, source: "BIDDER_AT_OPENING", name: bidderName.trim(), registrationNo: registrationNo.trim() } }));
     if (!party) await audit(tx, l.org.id, "ExerciseParty", bidder.id, label(l, `Party · ${bidder.name}`), "CREATE", diffFields(null, { party: bidder.name, registrationNo: bidder.registrationNo, cameAs: "Named at opening, from its bid" }));
     const sale = saleFinding(bidder.id, c.sales, snap.path, c.invitedPartyIds);
-    const restriction = restrictionFinding(snap.restrictedTender, liveSaleOf(bidder.id, c.sales), c.closingDay ?? "");
-    if ("fault" in restriction) return refuse([restriction.fault]);
+    // R-5: judged on the closing day in the organisation's zone, never an empty day; a refusal after the party's write rolls back.
+    const restriction = restrictionFinding(snap.restrictedTender, liveSaleOf(bidder.id, c.sales), c.closingDay);
+    if ("fault" in restriction) throw new Refusal(refuse([restriction.fault]));
     const listingNo = nextListingNo(c.openings.flatMap((x) => x.bids.map((b) => b.listingNo)));
     const alternative = alternativeOf(isAlternative, snap.alternativesPermitted);
     const period = periodOf(offer.period);

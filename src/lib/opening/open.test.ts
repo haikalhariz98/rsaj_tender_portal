@@ -8,7 +8,7 @@ import { alternativeInsideFaults, alternativeOf, correctionFaults, nextListingNo
 /** FR-OPN-005, FR-BID-006, OD-2, OD-10: opening an envelope, its Bil., its alternatives, and a corrected keying slip. */
 
 const bidder = { partyId: "pty1", name: "", registrationNo: "", registrationTaken: false };
-const base: Parameters<typeof openFaults>[0] = { state: open(), envelope: { id: "e3", kind: "BID", status: "RECEIVED", late: false }, withdrawn: false, admittedEnvelopeId: null, bidder, price: parseSen("297000.00"), period: { value: 18, unit: "MONTHS" }, isAlternative: false, alternativesPermitted: false, parent: null };
+const base: Parameters<typeof openFaults>[0] = { state: open(), envelope: { id: "e3", kind: "BID", status: "RECEIVED", late: false }, withdrawn: false, admittedEnvelopeId: null, bidder, price: parseSen("297000.00"), period: { value: 18, unit: "MONTHS" }, isAlternative: false, alternativesPermitted: false, parent: null, timeZone: "Asia/Kuala_Lumpur" };
 const codes = (x: Partial<typeof base>) => openFaults({ ...base, ...x }).map((f) => f.code);
 
 describe("which envelopes are opened", () => {

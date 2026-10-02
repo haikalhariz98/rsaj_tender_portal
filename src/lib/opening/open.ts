@@ -35,7 +35,8 @@ export type OpenFault =
   | "BIDDER_REQUIRED"
   | "REGISTRATION_REQUIRED"
   | "PARTY_EXISTS"
-  | "PERIOD_INCOMPLETE";
+  | "PERIOD_INCOMPLETE"
+  | "TIME_ZONE_NOT_SET";
 
 export interface EnvelopeToOpen {
   id: string;
@@ -70,9 +71,12 @@ export function openFaults(i: {
   alternativesPermitted: boolean | null;
   /// An alternative's parent, where named: an opened main offer of this exercise.
   parent: { opened: boolean } | null;
+  /// The organisation's time zone (review R-5): the findings are judged on the closing day, never a UTC fallback.
+  timeZone: string | null;
 }): Finding<OpenFault>[] {
   const out: Finding<OpenFault>[] = [...actFaults(i.state)];
   const f = (code: OpenFault) => out.push({ code, level: "block" });
+  if (!i.timeZone) f("TIME_ZONE_NOT_SET");
   const e = i.envelope;
   if (!e) return [...out, { code: "ENVELOPE_NOT_FOUND", level: "block" }];
   if (e.kind === "COMPANY_ESTIMATE") return [...out, { code: "ESTIMATE_NOT_A_BID", level: "block" }];

@@ -36,9 +36,11 @@ export const RESTRICTION_READING = {
   provenance: "ASSUMED" as const,
 };
 
-export function restrictionFinding(restricted: boolean | null, sale: SaleFacts | null, closingDay: string): { finding: RestrictionFinding } | { fault: Finding<"RESTRICTION_NOT_ANSWERED"> } {
+/// `closingDay` null: the closing day cannot be told (no time zone, review R-5) — a restricted tender's certificate is then not judged, never read against an empty day.
+export function restrictionFinding(restricted: boolean | null, sale: SaleFacts | null, closingDay: string | null): { finding: RestrictionFinding } | { fault: Finding<"RESTRICTION_NOT_ANSWERED" | "TIME_ZONE_NOT_SET"> } {
   if (restricted == null) return { fault: { code: "RESTRICTION_NOT_ANSWERED", level: "block" } };
   if (!restricted) return { finding: "NOT_RESTRICTED" };
+  if (!closingDay) return { fault: { code: "TIME_ZONE_NOT_SET", level: "block" } };
   if (!sale || sale.certSighted == null || sale.certSighted === "NOT_SHOWN" || !sale.certValidUntil) return { finding: "NOT_EVIDENCED" };
   return { finding: sale.certValidUntil >= closingDay ? "EVIDENCED" : "NOT_EVIDENCED" };
 }

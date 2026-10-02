@@ -114,7 +114,7 @@ export async function openingSection(exerciseId: string) {
         state,
         tone: (opening ? "ok" : a?.outcome === "CARRIED" ? "brand" : a?.outcome == null ? "warn" : "neutral") as "ok" | "brand" | "warn" | "neutral",
         decisionId: canStart ? a!.id : null,
-        startSupplementary: canStart ? allowedOf([...supplementaryFaults({ status: l.ex.status, mainFinalised: !!c.main?.finalisedAt, decision: { matterKind: "LATE_TENDER", outcome: a!.outcome, bidEnvelopeId: e.id }, alreadyOpened: false, envelope: { status: e.status, late: e.late }, personActive: true }), ...supConfig]) : null,
+        startSupplementary: canStart ? allowedOf([...supplementaryFaults({ status: l.ex.status, mainFinalised: !!c.main?.finalisedAt, decision: { matterKind: "LATE_TENDER", outcome: a!.outcome, bidEnvelopeId: e.id }, alreadyOpened: false, envelope: { status: e.status, late: e.late }, personActive: true, timeZone: tz }), ...supConfig]) : null,
       };
     });
 
@@ -174,7 +174,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
       markings: e.markings,
       state: e.status === "OPENED" ? `Opened as No. ${bid?.listingNo ?? "—"}` : e.status === "WITHDRAWN" || withdrawnIds.has(e.id) ? "Withdrawn, not opened" : "Sealed",
       tone: (e.status === "OPENED" ? "ok" : e.status === "WITHDRAWN" ? "neutral" : "warn") as "ok" | "neutral" | "warn",
-      open: e.status === "RECEIVED" && !withdrawnIds.has(e.id) ? allowedOf(openFaults({ state, envelope: { id: e.id, kind: e.kind, status: e.status, late: e.late }, withdrawn: withdrawnIds.has(e.id), admittedEnvelopeId: o.admissionDecision?.bidEnvelopeId ?? null, bidder: { partyId: "-", name: "", registrationNo: "", registrationTaken: false }, price: 1n as Sen, period: { value: null, unit: null }, isAlternative: e.kind === "ALTERNATIVE", alternativesPermitted: snap.alternativesPermitted, parent: null })) : null,
+      open: e.status === "RECEIVED" && !withdrawnIds.has(e.id) ? allowedOf(openFaults({ state, envelope: { id: e.id, kind: e.kind, status: e.status, late: e.late }, withdrawn: withdrawnIds.has(e.id), admittedEnvelopeId: o.admissionDecision?.bidEnvelopeId ?? null, bidder: { partyId: "-", name: "", registrationNo: "", registrationTaken: false }, price: 1n as Sen, period: { value: null, unit: null }, isAlternative: e.kind === "ALTERNATIVE", alternativesPermitted: snap.alternativesPermitted, parent: null, timeZone: tz })) : null,
     };
   });
 

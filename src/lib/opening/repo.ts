@@ -126,7 +126,8 @@ export async function openingContext(l: { org: { id: string; timeZone: string | 
   const units = (await client.orgUnit.findMany({ where: { organisationId: org.id } })) as unknown as OrgUnit[];
   const roster = await loadRoster(ORGANISATION_CODE, client);
 
-  const on = org.today ? dayToDate(org.today) : now;
+  // R-5: no time zone, no day: nothing is read "on" a UTC instant instead (no seats, no unit path, no office held).
+  const on = org.today ? dayToDate(org.today) : null;
   const closingDay = ex.closingAt && org.timeZone ? dayIn(ex.closingAt, org.timeZone) : null;
   const lockEvent = events.filter((e) => e.kind === "LOCKED").at(-1) ?? null;
   const main = openings.find((o) => o.kind === "MAIN") ?? null;
@@ -159,14 +160,14 @@ export async function openingContext(l: { org: { id: string; timeZone: string | 
     scopePolicy,
     openingPolicy,
     committee,
-    seats: committee ? seatHolders(committee.members, roster, on) : [],
+    seats: committee && on ? seatHolders(committee.members, roster, on) : [],
     /// The main opening's committee (R-3), with its panel rules as they stand now (BD-67-11) and its seats on the day.
     mainCommittee,
-    mainSeats: mainCommittee ? seatHolders(mainCommittee.members, roster, on) : [],
+    mainSeats: mainCommittee && on ? seatHolders(mainCommittee.members, roster, on) : [],
     roster,
-    unitPath: (code: string) => pathTo(units, code, on).map((u) => u.code),
+    unitPath: (code: string) => (on ? pathTo(units, code, on).map((u) => u.code) : []),
     unitCodes: new Set(units.map((u) => u.code)),
-    holdsOffice: (personId: string, roleCode: string | null) => !!roleCode && holdersOf(roster, roleCode, on).some((p) => p.id === personId),
+    holdsOffice: (personId: string, roleCode: string | null) => !!roleCode && !!on && holdersOf(roster, roleCode, on).some((p) => p.id === personId),
   };
 }
 export type OpeningContext = Awaited<ReturnType<typeof openingContext>>;

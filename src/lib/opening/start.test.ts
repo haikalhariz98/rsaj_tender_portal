@@ -67,7 +67,7 @@ describe("the estimate's lead time (FR-EST-007)", () => {
 });
 
 describe("a supplementary opening (FR-CTE-008, OD-5)", () => {
-  const s: Parameters<typeof supplementaryFaults>[0] = { status: "OPENED", mainFinalised: true, decision: { matterKind: "LATE_TENDER", outcome: "CARRIED", bidEnvelopeId: "e4" }, alreadyOpened: false, envelope: { status: "RECEIVED", late: true }, personActive: true };
+  const s: Parameters<typeof supplementaryFaults>[0] = { status: "OPENED", mainFinalised: true, decision: { matterKind: "LATE_TENDER", outcome: "CARRIED", bidEnvelopeId: "e4" }, alreadyOpened: false, envelope: { status: "RECEIVED", late: true }, personActive: true, timeZone: "Asia/Kuala_Lumpur" };
   const codes = (x: Partial<typeof s>) => supplementaryFaults({ ...s, ...x }).map((f) => f.code);
   it("a carried admission, after the main opening is finalised", () => expect(codes({})).toEqual([]));
   it("NOT_CARRIED leaves the envelope sealed for 6.6's return unopened", () => expect(codes({ decision: { ...s.decision!, outcome: "NOT_CARRIED" } })).toEqual(["NOT_ADMITTED"]));

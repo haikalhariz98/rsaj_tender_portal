@@ -298,7 +298,7 @@ class OpeningActs {
     const decision = await this.db.committeeDecision.findUniqueOrThrow({ where: { id: i.decisionId }, select: { id: true, matterKind: true, outcome: true, bidEnvelopeId: true, withdrawnAt: true, decisionDate: true, meeting: { select: { reference: true } } } });
     if (decision.decisionDate && storedDay(decision.decisionDate) > dayIn(i.at, this.tz)) throw new Error("Demo 6.7: the supplementary opening is dated before its admission.");
     const envelope = c.envelopes.find((e) => e.id === decision.bidEnvelopeId) ?? null;
-    refuse(`starting ${id}`, supplementaryFaults({ status: l.ex.status, mainFinalised: !!c.main?.finalisedAt, decision: { matterKind: decision.matterKind ?? "", outcome: decision.outcome, bidEnvelopeId: decision.bidEnvelopeId }, alreadyOpened: c.openings.some((o) => o.admissionDecisionId === i.decisionId), envelope: envelope ? { status: envelope.status, late: envelope.late } : null, personActive: true }));
+    refuse(`starting ${id}`, supplementaryFaults({ status: l.ex.status, mainFinalised: !!c.main?.finalisedAt, decision: { matterKind: decision.matterKind ?? "", outcome: decision.outcome, bidEnvelopeId: decision.bidEnvelopeId }, alreadyOpened: c.openings.some((o) => o.admissionDecisionId === i.decisionId), envelope: envelope ? { status: envelope.status, late: envelope.late } : null, personActive: true, timeZone: this.tz }));
     const people = await this.db.person.findMany({ where: { id: { in: i.panel.map((p) => p.id) } }, select: { id: true, isActive: true, orgUnitCode: true } });
     const picked = i.panel.map((p) => ({ personId: p.id, name: p.name, present: true, active: people.find((x) => x.id === p.id)?.isActive ?? false, orgUnitCode: people.find((x) => x.id === p.id)?.orgUnitCode ?? null }));
     const main = c.main!;
@@ -398,7 +398,7 @@ class OpeningActs {
     const named = "partyId" in i.bidder ? null : i.bidder;
     const price = parseSen(i.price) as Sen;
     const snap = policyOf(o.policySnapshot);
-    refuse(`opening ${i.envelopeId}`, openFaults({ state: stateOf(o, l.ex.status), envelope: e ? { id: e.id, kind: e.kind, status: e.status, late: e.late } : null, withdrawn: !!(e && openFault(e.id, c.withdrawals)), admittedEnvelopeId: o.admissionDecision?.bidEnvelopeId ?? null, bidder: { partyId: party?.id ?? null, name: named?.name ?? "", registrationNo: named?.registrationNo ?? "", registrationTaken: !!named && c.parties.some((p) => p.registrationNo.trim().toLowerCase() === named.registrationNo.trim().toLowerCase()) }, price, period: { value: i.months, unit: "MONTHS" }, isAlternative: e?.kind === "ALTERNATIVE", alternativesPermitted: snap.alternativesPermitted, parent: null }));
+    refuse(`opening ${i.envelopeId}`, openFaults({ state: stateOf(o, l.ex.status), envelope: e ? { id: e.id, kind: e.kind, status: e.status, late: e.late } : null, withdrawn: !!(e && openFault(e.id, c.withdrawals)), admittedEnvelopeId: o.admissionDecision?.bidEnvelopeId ?? null, bidder: { partyId: party?.id ?? null, name: named?.name ?? "", registrationNo: named?.registrationNo ?? "", registrationTaken: !!named && c.parties.some((p) => p.registrationNo.trim().toLowerCase() === named.registrationNo.trim().toLowerCase()) }, price, period: { value: i.months, unit: "MONTHS" }, isAlternative: e?.kind === "ALTERNATIVE", alternativesPermitted: snap.alternativesPermitted, parent: null, timeZone: this.tz }));
     const ref = l.ex.reference;
     let bidder: { id: string; name: string };
     if (party) bidder = party;
@@ -408,7 +408,7 @@ class OpeningActs {
       bidder = row;
     }
     const sale = saleFinding(bidder.id, c.sales, snap.path, c.invitedPartyIds);
-    const restriction = restrictionFinding(snap.restrictedTender, liveSaleOf(bidder.id, c.sales), c.closingDay ?? "");
+    const restriction = restrictionFinding(snap.restrictedTender, liveSaleOf(bidder.id, c.sales), c.closingDay);
     if ("fault" in restriction) refuse(`the restriction of ${i.envelopeId}`, [restriction.fault]);
     const r = restriction as { finding: "NOT_RESTRICTED" | "EVIDENCED" | "NOT_EVIDENCED" };
     const listingNo = nextListingNo(c.openings.flatMap((x) => x.bids.map((b) => b.listingNo)));
