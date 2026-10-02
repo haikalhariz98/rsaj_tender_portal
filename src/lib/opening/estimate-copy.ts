@@ -41,6 +41,15 @@ export function explanationFaults(i: { finalised: boolean; check: CopyCheck | nu
   return out;
 }
 
+/**
+ * 6.7 re-review (M-1): the explanation on a cancelled exercise is refused like every other act on its
+ * openings (the document store freezes the opening's scan then too), first and alone; otherwise the
+ * explanation's own rules (`explanationFaults`, passed as a thunk).
+ */
+export function refuseIfCancelled<C extends string>(cancelled: boolean, faults: () => Finding<C>[]): Finding<C | "CANCELLED">[] {
+  return cancelled ? [{ code: "CANCELLED", level: "block" }] : faults();
+}
+
 /// S-5: the paper copy as the Schedule and the print read it. NOT_COMPARED: a finalised main opening
 /// disclosed the estimate with no comparison — a voluntary estimate whose paper copy was left
 /// unanswered (BD-67-14). Null: nothing to say (not disclosed at this opening).

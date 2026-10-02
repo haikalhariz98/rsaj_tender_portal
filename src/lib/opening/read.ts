@@ -393,7 +393,7 @@ export async function scheduleSection(exerciseId: string) {
       summary: summary ? { labels: summary.labels, rows: summary.rows.map((x) => ({ ...x, openingPrice: formatMoney(parseSen(x.openingPrice)) })) } : null,
       copy: copyView,
       explanation: o.copyExplanation ? { text: o.copyExplanation.explanation, by: o.copyExplanation.recordedBy.name, at: time(o.copyExplanation.recordedAt, tz) } : null,
-      explain: copy && o.finalisedAt ? ({ allowed: true } as Allowed) : null,
+      explain: copy && o.finalisedAt ? allowedOf(l.ex.status === "CANCELLED" ? [{ code: "CANCELLED", level: "block" }] : []) : null,
       scan: scan ? openingFindingText(scan) : null,
       reading: snap.invited.reading ? INVITED_READING_LABEL[snap.invited.reading] : null,
     };

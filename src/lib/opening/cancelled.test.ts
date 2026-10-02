@@ -59,7 +59,12 @@ describe("every act refuses CANCELLED, first and alone", () => {
   it("recordVerdict (and recordChecklistAnswer, which asks actFaults itself)", () => {
     expect(codes(verdictFaults({ state: cancelled, sameOpening: true, bid: { saleFinding: "LIVE_SALE", restrictionFinding: "NOT_RESTRICTED", isAlternative: false, alternativeStatus: null }, checklist: CHECKLIST, answers: ALL_PRESENT, policy: { completenessEliminates: false, unpurchased: "REPORT" }, verdict: "PASS", reason: "" }))).toEqual(["CANCELLED"]);
     const src = readFileSync("src/app/sourcing/[id]/opening/actions.ts", "utf8");
-    const answer = src.slice(src.indexOf("export async function recordChecklistAnswer"), src.indexOf("function unpurchasedRule"));
+    // Re-anchored (re-review): the body runs from recordChecklistAnswer to the next exported act, recordVerdict; both anchors must be found.
+    const from = src.indexOf("export async function recordChecklistAnswer(");
+    const to = src.indexOf("export async function recordVerdict(");
+    expect(from).toBeGreaterThan(0);
+    expect(to).toBeGreaterThan(from);
+    const answer = src.slice(from, to);
     expect(answer).toMatch(/actFaults\(stateOf\(o, l\.ex\.status\)\)/);
   });
   it("registerBoxEnvelope, matchWithdrawal, recordWithdrawalFinding", () => {
@@ -98,5 +103,23 @@ describe("cancelling while an opening sits (C-9 as tightened by M-1)", () => {
       expect(calls.length, p).toBeGreaterThan(0);
       for (const c of calls) expect(c, p).toMatch(/openingInProgress: await openingInProgress\(/);
     }
+  });
+});
+
+describe("the copy explanation on a cancelled exercise (re-review, M-1 gap)", () => {
+  it("refused CANCELLED, first and alone; otherwise the explanation's own rules", async () => {
+    const { explanationFaults, refuseIfCancelled } = await import("./estimate-copy");
+    const base = { finalised: true, check: "MISMATCH" as const, explained: false, text: "Copy 1 was with the HoD.", personActive: true };
+    expect(refuseIfCancelled(true, () => explanationFaults(base))).toEqual([{ code: "CANCELLED", level: "block" }]);
+    expect(refuseIfCancelled(false, () => explanationFaults(base))).toEqual([]);
+    expect(refuseIfCancelled(false, () => explanationFaults({ ...base, explained: true })).map((f) => f.code)).toEqual(["ALREADY_EXPLAINED"]);
+  });
+  it("recordCopyExplanation asks it on the exercise's status, and the Schedule offers it only when allowed", () => {
+    const src = readFileSync("src/app/sourcing/[id]/opening/actions.ts", "utf8");
+    const at = src.indexOf("export async function recordCopyExplanation");
+    expect(at).toBeGreaterThan(0);
+    expect(src.slice(at)).toMatch(/refuseIfCancelled\(l\.ex\.status === "CANCELLED", \(\) => explanationFaults\(\{ finalised: !!o\.finalisedAt/);
+    expect(readFileSync("src/lib/opening/read.ts", "utf8")).toMatch(/explain: copy && o\.finalisedAt \? allowedOf\(l\.ex\.status === "CANCELLED"/);
+    expect(readFileSync("src/app/sourcing/[id]/opening/workspace.tsx", "utf8")).toMatch(/action=\{o\.explain\?\.allowed \?/);
   });
 });

@@ -335,7 +335,7 @@ function ScheduleCard({ d, o }: { d: ScheduleSectionView; o: ScheduleSectionView
       )}
       {o.copy && (
         <CardBody className="flex flex-col gap-3 border-t border-line">
-          <Callout tone={o.copy.tone === "warn" ? "warn" : "info"} title={o.copy.text} action={o.explain ? <CopyExplanationDrawer exerciseId={d.exerciseId} openingId={o.id} people={d.people} /> : undefined}>
+          <Callout tone={o.copy.tone === "warn" ? "warn" : "info"} title={o.copy.text} action={o.explain?.allowed ? <CopyExplanationDrawer exerciseId={d.exerciseId} openingId={o.id} people={d.people} /> : undefined}>
             {o.copy.fault ?? (o.explanation ? `Explained by ${o.explanation.by}, ${o.explanation.at}: ${o.explanation.text}` : o.copy.body)}
           </Callout>
         </CardBody>

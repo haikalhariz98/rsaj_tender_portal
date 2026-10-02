@@ -21,7 +21,7 @@ import { answerFields, asReadFields, authorisationFields, finaliseFields, initia
 import { boxEnvelopeJudgement, lockGap, registerBoxFaults } from "@/lib/opening/box";
 import { answerFaults, checklistFromSnapshot, openingChecklist, unansweredItems } from "@/lib/opening/checklist";
 import { DisclosureRefused, discloseAtFinalising } from "@/lib/opening/estimate";
-import { explanationFaults, type PaperCopy } from "@/lib/opening/estimate-copy";
+import { explanationFaults, refuseIfCancelled, type PaperCopy } from "@/lib/opening/estimate-copy";
 import { finaliseFaults, markFaults, recordFaults } from "@/lib/opening/finalise";
 import { liveSaleOf, restrictionFinding, saleFinding } from "@/lib/opening/findings";
 import { grandSummary } from "@/lib/opening/grand-summary";
@@ -813,7 +813,7 @@ export async function recordCopyExplanation(_prev: FormState, data: FormData): P
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
     const person = await nameOf(tx, l.org.id, personId);
-    const fs = explanationFaults({ finalised: !!o.finalisedAt, check: o.estimateCopyCheck, explained: !!o.copyExplanation, text: explanation, personActive: !!person });
+    const fs = refuseIfCancelled(l.ex.status === "CANCELLED", () => explanationFaults({ finalised: !!o.finalisedAt, check: o.estimateCopyCheck, explained: !!o.copyExplanation, text: explanation, personActive: !!person }));
     if (blocking(fs).length) return refuse(fs);
     const row = await tx.estimateCopyExplanation.create({ data: { organisationId: l.org.id, openingId: o.id, explanation, recordedByPersonId: person!.id, recordedAt: now } });
     await audit(tx, l.org.id, OPENING_ENTITY.explanation, row.id, openingLabel(l, o), "CREATE", diffFields(null, { explanation, recordedBy: `${person!.name} (recorded on their behalf, not signed)` }));
