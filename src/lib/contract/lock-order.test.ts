@@ -98,42 +98,379 @@ describe("single writers", () => {
   });
 });
 
-// ------------------------------------------------------------------ 6.12 review R-7: the stricter scan
+// ------------------------------------------------------------------ 6.12 review R-7, re-review M-1: the write scan
 //
-// The scans above match one written form in one file. These match every way a contract row or a baseline
-// row is written (any Prisma write on the model, the moveTo helper's extra fields, raw SQL naming the
-// column), in every non-test source file under src/app and src/lib, and name the function each write is
-// in. A write outside the allowed functions fails, wherever it is and however it is spelled.
+// Every write that can reach a contract, a baseline version or its sections, in every non-test source file
+// under src/app, src/lib and prisma: a Prisma write on the model however it is spaced or broken across lines,
+// a nested write through another model, the status helper's extra fields, writeVersion's reason, and raw SQL.
+// The source is lexed first (strings, comments, regular expressions and template text blanked), each write is
+// attributed to its true enclosing named function by brace depth (declarations, object-literal methods,
+// named arrows), and each must be (a) on the allow-list for that function and operation and (b) written with
+// its data as an inline object literal, so nothing the scan cannot read (a variable, a spread, a computed
+// key) can carry the Contract Date or an EXECUTED version past it.
 
 interface Source {
   file: string;
   src: string;
 }
 
-/// The argument list of the call whose "(" is at `open`, strings skipped, parentheses balanced.
-function callArgs(src: string, open: number): string {
+/// The source with string, comment, regex and template text blanked to spaces (lengths and newlines kept).
+export function lex(src: string): string {
+  const out = src.split("");
+  const n = src.length;
+  const tpl: number[] = [];
   let depth = 0;
-  for (let i = open; i < src.length; i++) {
+  let prev = "";
+  const blank = (a: number, b: number) => {
+    for (let k = a; k < b; k++) if (out[k] !== "\n") out[k] = " ";
+  };
+  const template = (from: number): number => {
+    let j = from;
+    while (j < n) {
+      if (src[j] === "\\") {
+        blank(j, j + 2);
+        j += 2;
+        continue;
+      }
+      if (src[j] === "`") return j + 1;
+      if (src[j] === "$" && src[j + 1] === "{") {
+        tpl.push(depth);
+        depth++;
+        return j + 2;
+      }
+      if (out[j] !== "\n") out[j] = " ";
+      j++;
+    }
+    return n;
+  };
+  let i = 0;
+  while (i < n) {
     const ch = src[i];
-    if (ch === '"' || ch === "'" || ch === "`") {
-      for (i++; i < src.length && src[i] !== ch; i++) if (src[i] === "\\") i++;
+    const nx = src[i + 1];
+    if (ch === "/" && nx === "/") {
+      const e = src.indexOf("\n", i);
+      const end = e === -1 ? n : e;
+      blank(i, end);
+      i = end;
       continue;
     }
-    if (ch === "(") depth++;
-    else if (ch === ")" && --depth === 0) return src.slice(open, i + 1);
+    if (ch === "/" && nx === "*") {
+      const e = src.indexOf("*/", i + 2);
+      const end = e === -1 ? n : e + 2;
+      blank(i, end);
+      i = end;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      let j = i + 1;
+      while (j < n && src[j] !== ch && src[j] !== "\n") j += src[j] === "\\" ? 2 : 1;
+      blank(i + 1, j);
+      i = j + 1;
+      prev = ch;
+      continue;
+    }
+    if (ch === "`") {
+      i = template(i + 1);
+      prev = "`";
+      continue;
+    }
+    if (ch === "/" && (prev === "" || "(,=:[!&|?{};+-*%<>~^".includes(prev) || /\b(return|typeof|case|in|of)\s*$/.test(src.slice(Math.max(0, i - 8), i)))) {
+      let j = i + 1;
+      let cls = false;
+      while (j < n && src[j] !== "\n" && (cls || src[j] !== "/")) {
+        if (src[j] === "\\") j++;
+        else if (src[j] === "[") cls = true;
+        else if (src[j] === "]") cls = false;
+        j++;
+      }
+      if (src[j] === "/") {
+        blank(i + 1, j);
+        i = j + 1;
+        prev = "/";
+        continue;
+      }
+    }
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (tpl.length && tpl[tpl.length - 1] === depth) {
+        tpl.pop();
+        i = template(i + 1);
+        continue;
+      }
+    }
+    if (!/\s/.test(ch)) prev = ch;
+    i++;
   }
-  return src.slice(open);
+  return out.join("");
 }
 
-/// The named function (declaration or const arrow) a position is inside.
-function enclosing(src: string, at: number): string {
-  let name = "(top level)";
-  let best = -1;
-  for (const re of [/(?:^|\n)(?:export[ \t]+)?(?:default[ \t]+)?(?:async[ \t]+)?function\*?[ \t]+(\w+)/g, /(?:^|\n)(?:export[ \t]+)?const[ \t]+(\w+)[ \t]*=[ \t]*(?:async[ \t]*)?(?:\(|\w+[ \t]*=>)/g]) {
-    for (const m of src.matchAll(re)) if (m.index! < at && m.index! > best) [best, name] = [m.index!, m[1]];
+/// The index of the bracket closing the one at `open`, on lexed text.
+function closing(m: string, open: number): number {
+  const pairs: Record<string, string> = { "(": ")", "{": "}", "[": "]" };
+  const want = pairs[m[open]];
+  let depth = 0;
+  for (let i = open; i < m.length; i++) {
+    if (m[i] === m[open]) depth++;
+    else if (m[i] === want && --depth === 0) return i;
   }
-  return name;
+  return m.length - 1;
 }
+
+const KEYWORDS = new Set(["if", "for", "while", "switch", "catch", "function", "return", "with", "do", "else", "new", "typeof", "await", "yield", "super", "import"]);
+
+/// Every named function's body span: declarations, object-literal and class methods, named arrows and function expressions.
+export function spans(m: string): { name: string; from: number; to: number }[] {
+  const out: { name: string; from: number; to: number }[] = [];
+  const bodyAfter = (closeParen: number): number | null => {
+    const rest = m.slice(closeParen + 1);
+    const t = /^\s*(?::\s*[^{;=]*?)?\{/.exec(rest);
+    return t ? closeParen + 1 + t[0].length - 1 : null;
+  };
+  // Declarations, function expressions and methods: NAME( … ) [: type] {
+  for (const x of m.matchAll(/\b(\w+)\s*(?:<[^>()]*>)?\s*\(/g)) {
+    const name = x[1];
+    if (KEYWORDS.has(name)) continue;
+    const before = m.slice(Math.max(0, x.index! - 40), x.index!);
+    const open = x.index! + x[0].length - 1;
+    const close = closing(m, open);
+    const body = bodyAfter(close);
+    if (body == null) continue;
+    // A call followed by a block (`foo(x) { … }`) is not valid code, so NAME(…) { is a definition.
+    if (!/(function\s*\*?\s*|[{,;}\n]\s*(?:async\s+|static\s+|get\s+|set\s+|public\s+|private\s+)*|^\s*)$/.test(before) && !/\bfunction\s*\*?\s*$/.test(before)) continue;
+    out.push({ name, from: body, to: closing(m, body) });
+  }
+  // Anonymous function expressions and arrows assigned to a name or a property: NAME = / NAME: [async] (…) => or function (…)
+  for (const x of m.matchAll(/=>/g)) {
+    let p = x.index! - 1;
+    while (p >= 0 && /\s/.test(m[p])) p--;
+    // Skip a return type: `): T =>` is rare here; look for the parameter list or a bare parameter.
+    let start: number;
+    if (m[p] === ")") {
+      let depth = 0;
+      let q = p;
+      for (; q >= 0; q--) {
+        if (m[q] === ")") depth++;
+        else if (m[q] === "(" && --depth === 0) break;
+      }
+      start = q;
+    } else {
+      let q = p;
+      while (q >= 0 && /\w/.test(m[q])) q--;
+      start = q + 1;
+    }
+    const head = m.slice(Math.max(0, start - 60), start);
+    const named = /(\w+)\s*(?::\s*[^=:,{}()]*)?\s*[:=]\s*(?:async\s*)?$/.exec(head);
+    if (!named || KEYWORDS.has(named[1])) continue;
+    let b = x.index! + 2;
+    while (b < m.length && /\s/.test(m[b])) b++;
+    if (m[b] === "{") {
+      out.push({ name: named[1], from: b, to: closing(m, b) });
+      continue;
+    }
+    let depth = 0;
+    let e = b;
+    for (; e < m.length; e++) {
+      if ("([{".includes(m[e])) depth++;
+      else if (")]}".includes(m[e])) {
+        if (depth === 0) break;
+        depth--;
+      } else if (depth === 0 && (m[e] === "," || m[e] === ";")) break;
+    }
+    out.push({ name: named[1], from: b, to: e });
+  }
+  for (const x of m.matchAll(/(\w+)\s*[:=]\s*(?:async\s+)?function\s*\*?\s*\(/g)) {
+    const open = x.index! + x[0].length - 1;
+    const body = bodyAfter(closing(m, open));
+    if (body != null) out.push({ name: x[1], from: body, to: closing(m, body) });
+  }
+  return out;
+}
+
+/// The innermost named function a position is inside.
+export function enclosingFn(sp: readonly { name: string; from: number; to: number }[], at: number): string {
+  let best: { name: string; from: number; to: number } | null = null;
+  for (const s of sp) if (s.from <= at && at <= s.to && (!best || s.to - s.from < best.to - best.from)) best = s;
+  return best?.name ?? "(top level)";
+}
+
+/// The top-level comma-separated arguments of a call's lexed argument text "(…)", as [from, to) offsets.
+function argRanges(m: string, open: number): [number, number][] {
+  const close = closing(m, open);
+  const out: [number, number][] = [];
+  let depth = 0;
+  let from = open + 1;
+  for (let i = open + 1; i < close; i++) {
+    if ("([{".includes(m[i])) depth++;
+    else if (")]}".includes(m[i])) depth--;
+    else if (m[i] === "," && depth === 0) {
+      out.push([from, i]);
+      from = i + 1;
+    }
+  }
+  if (m.slice(from, close).trim()) out.push([from, close]);
+  return out;
+}
+
+const W = (s: string) => s.replace(/\s+/g, "");
+
+/// Each spread's expression in an object literal's text, to its top-level comma or closing bracket, spaces removed.
+function spreadExprs(raw: string, m: string): string[] {
+  const out: string[] = [];
+  for (const x of m.matchAll(/\.\.\./g)) {
+    let depth = 0;
+    let e = x.index! + 3;
+    for (; e < m.length; e++) {
+      if ("([{".includes(m[e])) depth++;
+      else if (")]}".includes(m[e])) {
+        if (depth === 0) break;
+        depth--;
+      } else if (m[e] === "," && depth === 0) break;
+    }
+    out.push(W(raw.slice(x.index!, e)));
+  }
+  return out;
+}
+
+/// Whether the property `key` of the object literal spanning [from, to) is itself an inline object literal
+/// with no spread or computed key; "absent" where the object has no such property.
+function inlineProp(raw: string, m: string, from: number, to: number, key: string): "inline" | "not inline" | "absent" {
+  let depth = 0;
+  for (let i = from; i < to; i++) {
+    if ("([{".includes(m[i])) depth++;
+    else if (")]}".includes(m[i])) depth--;
+    if (depth !== 1) continue;
+    const k = new RegExp(`^["']?${key}["']?\\s*([:,}])`).exec(raw.slice(i + 1).replace(/^\s+/, ""));
+    if (!/[{,]/.test(m[i]) || !k) continue;
+    if (k[1] !== ":") return "not inline"; // shorthand: a variable
+    const at = i + 1 + raw.slice(i + 1).search(new RegExp(`["']?${key}["']?\\s*:`)) ;
+    let v = m.indexOf(":", at) + 1;
+    while (/\s/.test(m[v])) v++;
+    if (m[v] !== "{" && m[v] !== "[") return "not inline";
+    const end = closing(m, v);
+    const body = m.slice(v, end + 1);
+    return /\.\.\./.test(body) || /[{,]\s*\[[^\]]*\]\s*:/.test(body) ? "not inline" : "inline";
+  }
+  return "absent";
+}
+
+interface Write {
+  where: string;
+  op: string;
+  problem: string | null;
+}
+
+/// Allowed writes, by "file › function": the operations each may perform. `spread` permits the spreads that
+/// helper is built on (moveTo's extra, a baseline's rowOf, a section row) and nothing else.
+type Allow = Readonly<Record<string, { ops: readonly string[]; spread?: RegExp; contractDate?: boolean; demo?: boolean }>>;
+
+const P = (f: string) => path.normalize(f);
+const ACT = P(ACTIONS);
+export const ALLOW: Allow = {
+  [`${ACT} › moveTo`]: { ops: ["contract.updateMany"], spread: /^\.\.\.extra$/ },
+  [`${ACT} › correctContractDate`]: { ops: ["contract.update"], contractDate: true },
+  [`${ACT} › answerConsultingEngineer`]: { ops: ["contract.update"] },
+  [`${ACT} › startPreparation`]: { ops: ["contractBaseline.create", "contractSection.create"], spread: /^\.\.\.(rowOf\(draft\)|s)$/ },
+  [`${ACT} › saveBaselineEntry`]: { ops: ["contractBaseline.update", "contractSection.deleteMany", "contractSection.create"], spread: /^\.\.\.(rowOf\(values\)|s)$/ },
+  [`${ACT} › writeVersion`]: { ops: ["contractBaseline.create", "contractSection.create"], spread: /^\.\.\.(rowOf\(derived\)|s|\(draft\?\.snapshotasobject\)|extra)$/ },
+  [`${P("src/app/awards/actions.ts")} › issueAward`]: { ops: ["contract.create"] },
+  [`${P("src/app/awards/actions.ts")} › cancelAward`]: { ops: ["contract.update"] },
+};
+/// The one status move by a variable: the legal decision's statusAfter, whose returns are pinned below.
+const MOVE_STATUS_FROM: Readonly<Record<string, string>> = { [`${ACT} › decideLegal`]: "to" };
+
+export function scanWrites(files: readonly Source[], allow: Allow): Write[] {
+  const writes: Write[] = [];
+  for (const { file, src } of files) {
+    const m = lex(src);
+    const sp = spans(m);
+    const fnAt = (i: number) => enclosingFn(sp, i);
+    const rule = (fn: string) => allow[`${file} › ${fn}`];
+    const push = (i: number, op: string, problem: string | null) => writes.push({ where: `${file} › ${fnAt(i)}`, op, problem });
+    // (1) A Prisma write on the model, however spaced or broken across lines.
+    for (const x of m.matchAll(/\.\s*(contract|contractBaseline|contractSection)\s*\.\s*(update|updateMany|upsert|create|createMany|createManyAndReturn|delete|deleteMany)\s*\(/g)) {
+      const op = `${x[1]}.${x[2]}`;
+      const fn = fnAt(x.index!);
+      const r = rule(fn);
+      const open = x.index! + x[0].length - 1;
+      const close = closing(m, open);
+      const raw = src.slice(open, close + 1);
+      const lexed = m.slice(open, close + 1);
+      let problem: string | null = null;
+      if (!r || !r.ops.includes(op)) problem = "not on the allow-list";
+      else if (!r.demo) {
+        const args = argRanges(m, open);
+        const first = args[0] ? m.slice(args[0][0], args[0][1]).trim() : "";
+        if (args.length !== 1 || !first.startsWith("{")) problem = "arguments not an inline object";
+        else {
+          const [a] = args;
+          const a0 = a[0] + m.slice(a[0]).search(/\{/);
+          const keys = x[2] === "upsert" ? ["create", "update"] : /^(delete|deleteMany)$/.test(x[2]) ? [] : ["data"];
+          for (const k of keys) {
+            const s = inlineProp(src, m, a0, closing(m, a0) + 1, k);
+            if (s === "absent" && k === "data") problem = "no inline data";
+            if (s === "not inline") {
+              // The allowed helper spreads, and only those.
+              const v0 = src.indexOf(":", a0 + src.slice(a0).search(new RegExp(`["']?${k}["']?\\s*:`))) + 1;
+              const body = src.slice(v0, closing(m, v0 + m.slice(v0).search(/\{/)) + 1);
+              const lexedBody = lex(body);
+              const spreads = spreadExprs(body, lexedBody);
+              const computed = /[{,]\s*\[[^\]]*\]\s*:/.test(lexedBody);
+              const shorthandVar = !/^\s*\{/.test(body);
+              if (computed || shorthandVar || !r.spread || spreads.some((s2) => !r.spread!.test(s2))) problem = `${k} not an inline object literal`;
+            }
+          }
+        }
+        if (x[1] === "contract" && /\bcontractDate\b/.test(raw) && !r.contractDate) problem = "writes the Contract Date";
+        if (x[1] === "contractBaseline" && /"EXECUTED"|'EXECUTED'|`EXECUTED`/.test(raw)) problem = "writes an EXECUTED version";
+        if (/"ACTIVE"/.test(raw)) problem = "writes ACTIVE";
+        void lexed;
+      }
+      push(x.index!, op, problem);
+    }
+    // (2) A nested write through another model's write.
+    for (const x of src.matchAll(/["']?\b(contract|contracts|baselines|baseline|sections|contractBaseline)["']?\s*:\s*\{\s*["']?(create|createMany|update|updateMany|upsert|delete|deleteMany|connectOrCreate|set)["']?\s*:/g)) {
+      if (m[x.index!] === " " && src[x.index!] !== " ") continue; // inside a string or comment
+      push(x.index!, `nested ${x[1]}.${x[2]}`, "a nested write");
+    }
+    // (3) The status helper: its status a literal, its extra an inline literal; the Contract Date only from the RSAJ signature; never ACTIVE.
+    for (const x of m.matchAll(/\bmoveTo\s*\(/g)) {
+      if (/function\s*$/.test(m.slice(Math.max(0, x.index! - 12), x.index!))) continue;
+      const open = x.index! + x[0].length - 1;
+      const args = argRanges(m, open);
+      const fn = fnAt(x.index!);
+      const status = args[1] ? src.slice(args[1][0], args[1][1]).trim() : "";
+      const extra = args[2] ? src.slice(args[2][0], args[2][1]).trim() : null;
+      let problem: string | null = null;
+      if (!/^"[A-Z_]+"$/.test(status) && MOVE_STATUS_FROM[`${file} › ${fn}`] !== status) problem = "status not a literal";
+      else if (status === '"ACTIVE"') problem = "writes ACTIVE";
+      if (extra != null && (!extra.startsWith("{") || /\.\.\./.test(lex(extra)) || /[{,]\s*\[[^\]]*\]\s*:/.test(lex(extra)))) problem = "extra not an inline object literal";
+      if (extra != null && /\bcontractDate\b/.test(extra) && !(file === ACT && fn === "recordRsajSignature")) problem = "writes the Contract Date";
+      writes.push({ where: `${file} › ${fn}`, op: `moveTo ${status}`, problem });
+    }
+    // (4) writeVersion: its reason a literal; EXECUTED only from the RSAJ signature.
+    for (const x of m.matchAll(/\bwriteVersion\s*\(/g)) {
+      if (/function\s*$/.test(m.slice(Math.max(0, x.index! - 12), x.index!))) continue;
+      const args = argRanges(m, x.index! + x[0].length - 1);
+      const fn = fnAt(x.index!);
+      const reason = args[2] ? src.slice(args[2][0], args[2][1]).trim() : "";
+      let problem: string | null = null;
+      if (!/^"(CONFIRMED|EXECUTED|CORRECTION)"$/.test(reason)) problem = "reason not a literal";
+      else if (reason === '"EXECUTED"' && !(file === ACT && fn === "recordRsajSignature")) problem = "writes an EXECUTED version";
+      writes.push({ where: `${file} › ${fn}`, op: `writeVersion ${reason}`, problem });
+    }
+    // (5) Raw SQL naming the tables in a write.
+    for (const x of m.matchAll(/\$(?:executeRaw|queryRaw)(?:Unsafe)?\s*[`(]/g)) {
+      const startIdx = x.index! + x[0].length - 1;
+      const end = src[startIdx] === "`" ? src.indexOf("`", startIdx + 1) : closing(m, startIdx);
+      const sql = src.slice(startIdx, end + 1);
+      if (/\b(UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+"?(Contract|ContractBaseline|ContractSection)"?(\s|\(|$)/i.test(sql)) push(x.index!, "raw SQL", "raw SQL writes the table");
+    }
+  }
+  return writes;
+}
+
+const SCANNED: Source[] = [...files("src/app"), ...files("src/lib"), ...files("prisma")].map((file) => ({ file, src: read(file) }));
 
 /// "use server" as a module directive however it is written: either quote, after a BOM, blank lines or comments.
 export function isServerModule(src: string): boolean {
@@ -141,112 +478,96 @@ export function isServerModule(src: string): boolean {
   return /^(["'])use server\1/.test(head);
 }
 
-const PRISMA_WRITE = "(?:update|updateMany|create|createMany|createManyAndReturn|upsert)";
+describe("every write that can reach a contract, a baseline version or its sections (R-7, M-1)", () => {
+  const product = SCANNED.filter((s) => !s.file.startsWith("prisma"));
+  const demo = SCANNED.filter((s) => s.file.startsWith("prisma"));
+  const writes = scanWrites(product, ALLOW);
 
-/// Every write that can set Contract.contractDate, by file and function.
-function contractDateWrites(files: readonly Source[]): string[] {
-  const out: string[] = [];
-  for (const { file, src } of files) {
-    for (const m of src.matchAll(new RegExp(`\\.contract\\.${PRISMA_WRITE}\\(`, "g"))) {
-      const args = callArgs(src, m.index! + m[0].length - 1);
-      const fn = enclosing(src, m.index!);
-      // A spread could carry the Contract Date unseen; only the status helper spreads, and its callers are scanned below.
-      if (/\bcontractDate\b\s*:|\bcontractDate\b\s*[,}]/.test(args) || (/\.\.\.\s*\w/.test(args) && fn !== "moveTo")) out.push(`${file} › ${fn}`);
-    }
-    for (const m of src.matchAll(/\bmoveTo\(/g)) {
-      if (enclosing(src, m.index!) === "moveTo") continue;
-      if (/\bcontractDate\b/.test(callArgs(src, m.index! + m[0].length - 1))) out.push(`${file} › ${enclosing(src, m.index!)}`);
-    }
-    for (const m of src.matchAll(/\$(?:executeRaw|queryRaw)(?:Unsafe)?\s*[`(]/g)) {
-      const rest = src.slice(m.index!, src.indexOf(";", m.index!) === -1 ? undefined : src.indexOf(";", m.index!));
-      if (/"Contract"/.test(rest) && /"contractDate"/.test(rest)) out.push(`${file} › ${enclosing(src, m.index!)}`);
-    }
-  }
-  return [...new Set(out)].sort();
-}
-
-/// Every write of a baseline row, and every EXECUTED version written, by file and function.
-function baselineWrites(files: readonly Source[]): { rows: string[]; executed: string[] } {
-  const rows: string[] = [];
-  const executed: string[] = [];
-  for (const { file, src } of files) {
-    for (const m of src.matchAll(new RegExp(`\\.contractBaseline\\.${PRISMA_WRITE}\\(`, "g"))) {
-      const where = `${file} › ${enclosing(src, m.index!)}`;
-      rows.push(where);
-      if (/"EXECUTED"/.test(callArgs(src, m.index! + m[0].length - 1))) executed.push(where);
-    }
-    for (const m of src.matchAll(/\bwriteVersion\(/g)) {
-      const fn = enclosing(src, m.index!);
-      if (fn === "writeVersion") continue;
-      if (/"EXECUTED"/.test(callArgs(src, m.index! + m[0].length - 1))) executed.push(`${file} › ${fn}`);
-    }
-    for (const m of src.matchAll(/\$(?:executeRaw|queryRaw)(?:Unsafe)?\s*[`(]/g)) {
-      const rest = src.slice(m.index!, src.indexOf(";", m.index!) === -1 ? undefined : src.indexOf(";", m.index!));
-      if (/"ContractBaseline"/.test(rest) && /\b(INSERT|UPDATE)\b/i.test(rest)) rows.push(`${file} › ${enclosing(src, m.index!)}`);
-    }
-  }
-  return { rows: [...new Set(rows)].sort(), executed: [...new Set(executed)].sort() };
-}
-
-/// Every write that can move a contract to ACTIVE.
-function activeWrites(files: readonly Source[]): string[] {
-  const out: string[] = [];
-  for (const { file, src } of files) {
-    for (const m of src.matchAll(new RegExp(`\\.contract\\.${PRISMA_WRITE}\\(|\\bmoveTo\\(`, "g"))) {
-      if (/"ACTIVE"/.test(callArgs(src, m.index! + m[0].length - 1))) out.push(`${file} › ${enclosing(src, m.index!)}`);
-    }
-  }
-  return out;
-}
-
-const SCANNED = [...files("src/app"), ...files("src/lib")].map((file) => ({ file, src: read(file) }));
-const A = path.normalize(ACTIONS);
-
-describe("single writers, scanned everywhere (R-7)", () => {
-  it("the scan covers every server module, the award's acts, the document store's owners and src/lib", () => {
+  it("the scan covers every server module, the award's acts, the document store's owners, src/lib and prisma", () => {
     const names = SCANNED.map((s) => s.file);
-    for (const f of ["src/app/awards/actions.ts", "src/lib/documents/owners.ts", ACTIONS, "src/lib/contract/repo.ts"]) expect(names).toContain(path.normalize(f));
+    for (const f of ["src/app/awards/actions.ts", "src/lib/documents/owners.ts", ACTIONS, "src/lib/contract/repo.ts", "prisma/demo-contracts.ts"]) expect(names).toContain(P(f));
     expect(SCANNED.filter((s) => isServerModule(s.src)).length).toBeGreaterThan(20);
   });
 
-  it("only the RSAJ signature and its audited correction can write the Contract Date", () => {
-    expect(contractDateWrites(SCANNED)).toEqual([`${A} › correctContractDate`, `${A} › recordRsajSignature`]);
+  it("no product write is off the allow-list or written in a form the scan cannot read", () => {
+    expect(writes.filter((w) => w.problem).map((w) => `${w.where} · ${w.op} · ${w.problem}`)).toEqual([]);
   });
 
-  it("baseline rows are written only by preparation, the draft's keying and writeVersion; EXECUTED only by the RSAJ signature", () => {
-    const w = baselineWrites(SCANNED);
-    expect(w.rows).toEqual([`${A} › saveBaselineEntry`, `${A} › startPreparation`, `${A} › writeVersion`]);
-    expect(w.executed).toEqual([`${A} › recordRsajSignature`]);
+  it("every allowed writer exists (the list cannot go stale)", () => {
+    const found = new Set(writes.filter((w) => !w.op.startsWith("moveTo") && !w.op.startsWith("writeVersion")).map((w) => `${w.where}|${w.op}`));
+    for (const [where, r] of Object.entries(ALLOW)) for (const op of r.ops) expect(found.has(`${where}|${op}`), `${where} ${op}`).toBe(true);
   });
 
-  it("nothing anywhere moves a contract to ACTIVE (6.13's possession act will)", () => {
-    expect(activeWrites(SCANNED)).toEqual([]);
+  it("the Contract Date: only correctContractDate's update and the RSAJ signature's move", () => {
+    const date = writes.filter((w) => w.op.startsWith("moveTo") && /EXECUTED/.test(w.op));
+    expect(date.map((w) => w.where)).toEqual([`${ACT} › recordRsajSignature`]);
+  });
+
+  it("the legal decision's variable status is only ever a return or an endorsement", () => {
+    const legal = read("src/lib/contract/legal.ts");
+    const body = legal.slice(legal.indexOf("export const statusAfter"), legal.indexOf("\n", legal.indexOf("export const statusAfter") + 1) + 200);
+    expect(body).toMatch(/"RETURNED_FOR_AMENDMENT"/);
+    expect(body).not.toMatch(/"ACTIVE"|"EXECUTED"|"STAMPED"/);
+  });
+
+  it("EXECUTED versions: only from the RSAJ signature", () => {
+    expect(writes.filter((w) => w.op === 'writeVersion "EXECUTED"').map((w) => w.where)).toEqual([`${ACT} › recordRsajSignature`]);
+  });
+
+  it("the demo (prisma/) writes contracts and baselines only in its own named loaders and wipe, listed here", () => {
+    const where = [...new Set(scanWrites(demo, {}).map((w) => w.where))].sort();
+    expect(where).toEqual(DEMO_WRITERS);
   });
 });
 
-describe("the scan catches a third writer (self-test)", () => {
-  const legit: Source = { file: "a.ts", src: 'export async function recordRsajSignature() {\n  await moveTo(c, "EXECUTED", { contractDate: dayToDate(d) });\n  await writeVersion(c, exec, "EXECUTED", "", {});\n}\n' };
-  it("a plain update in another file", () => {
-    const third: Source = { file: "b.ts", src: "'use server';\nexport async function sneaky(tx) {\n  await tx.contract.update({ where: { id }, data: { stampingRef: \"x\", contractDate: when } });\n}\n" };
-    expect(contractDateWrites([legit, third])).toEqual(["a.ts › recordRsajSignature", "b.ts › sneaky"]);
+/// The demo's writers, named one by one: invented data loaded and wiped, never the product's acts.
+const DEMO_WRITERS: string[] = [
+  "prisma/demo-award.ts › loadAwards",
+  "prisma/demo-award.ts › wipeAwards",
+  "prisma/demo-contracts.ts › form",
+  "prisma/demo-contracts.ts › loadContractsDemo",
+  "prisma/demo-contracts.ts › wipeContractFormation",
+  "prisma/demo-contracts.ts › writeVersion",
+].map(P);
+
+describe("the scan catches each evasion (self-tests)", () => {
+  const one = (src: string, file = ACT) => scanWrites([{ file, src }], ALLOW).filter((w) => w.problem).map((w) => `${w.where.split(" › ")[1]} · ${w.op} · ${w.problem}`);
+  const head = "export async function answerConsultingEngineer(c) {\n";
+  it("the data in a variable", () => {
+    expect(one(`${head}  const data = { contractDate: d };\n  await c.tx.contract.update({ where: { id }, data });\n}\n`)).toEqual(["answerConsultingEngineer · contract.update · data not an inline object literal"]);
+    expect(one(`${head}  const data = { consultingEngineer: true };\n  await c.tx.contract.update({ where: { id }, data });\n}\n`)).toEqual(["answerConsultingEngineer · contract.update · data not an inline object literal"]);
   });
-  it("shorthand, a spread, upsert, a const arrow and raw SQL", () => {
-    const srcs: Source[] = [
-      { file: "c.ts", src: "export const quiet = async (tx) => {\n  await tx.contract.updateMany({ where: {}, data: { contractDate } });\n};\n" },
-      { file: "d.ts", src: "async function viaSpread(tx, extra) {\n  await db.contract.upsert({ where: {}, update: { ...extra }, create: {} });\n}\n" },
-      { file: "e.ts", src: 'async function raw(tx) {\n  await tx.$executeRaw`UPDATE "Contract" SET "contractDate" = $' + "{d} WHERE id = $" + '{id}`;\n}\n' },
-      { file: "f.ts", src: 'async function moved(c) {\n  await moveTo(c, "EXECUTED", { contractDate: x });\n}\n' },
-    ];
-    expect(contractDateWrites(srcs)).toEqual(["c.ts › quiet", "d.ts › viaSpread", "e.ts › raw", "f.ts › moved"]);
+  it("a quoted key", () => {
+    expect(one(`${head}  await c.tx.contract.update({ where: { id }, data: { "contractDate": d } });\n}\n`)).toEqual(["answerConsultingEngineer · contract.update · writes the Contract Date"]);
   });
-  it("a third baseline writer, and an EXECUTED version written elsewhere", () => {
-    const third: Source = { file: "g.ts", src: 'export async function backfill(tx) {\n  await tx.contractBaseline.create({ data: { version: 2, reason: "EXECUTED" } });\n}\nasync function other(c) {\n  await writeVersion(c, v, "EXECUTED", "", {});\n}\n' };
-    const w = baselineWrites([legit, third]);
-    expect(w.rows).toEqual(["g.ts › backfill"]);
-    expect(w.executed).toEqual(["a.ts › recordRsajSignature", "g.ts › backfill", "g.ts › other"]);
+  it("a nested write through another model", () => {
+    expect(one("export async function cancelAward(tx) {\n  await tx.award.update({ where: { id }, data: { contract: { update: { contractDate } } } });\n}\n", P("src/app/awards/actions.ts"))).toEqual(["cancelAward · nested contract.update · a nested write"]);
   });
-  it("an ACTIVE write by either path", () => {
-    expect(activeWrites([{ file: "h.ts", src: 'async function possess(c) {\n  await moveTo(c, "ACTIVE");\n  await tx.contract.update({ data: { status: "ACTIVE" } });\n}\n' }])).toEqual(["h.ts › possess", "h.ts › possess"]);
+  it("moveTo's extra in a variable", () => {
+    expect(one("export async function recordRsajSignature(c) {\n  await moveTo(c, \"EXECUTED\", extra);\n}\n")).toEqual(['recordRsajSignature · moveTo "EXECUTED" · extra not an inline object literal']);
+    expect(one("export async function submitLegal(c) {\n  await moveTo(c, \"EXECUTED\", { contractDate: x });\n}\n")).toEqual(['submitLegal · moveTo "EXECUTED" · writes the Contract Date']);
+  });
+  it("the call broken across lines", () => {
+    expect(one(`${head}  await c.tx.contract\n    .update({ where: { id }, data: { contractDate: d } });\n}\n`)).toEqual(["answerConsultingEngineer · contract.update · writes the Contract Date"]);
+  });
+  it("writeVersion with a reason in a variable", () => {
+    expect(one("export async function correctBaseline(c) {\n  const reason = \"EXECUTED\";\n  await writeVersion(c, v, reason);\n}\n")).toEqual(["correctBaseline · writeVersion reason · reason not a literal"]);
+  });
+  it("a baseline deleted", () => {
+    expect(one("async function writeVersion(c) {\n  await c.tx.contractBaseline.delete({ where: { id } });\n}\n")).toEqual(["writeVersion · contractBaseline.delete · not on the allow-list"]);
+  });
+  it("a write inside an object-literal method, or a named arrow, is its own function's, not the function above it", () => {
+    const src = "export async function correctContractDate(c) {\n  await c.tx.contract.update({ where: { id }, data: { contractDate: proposed } });\n}\nconst helpers = {\n  sneaky(tx) {\n    return tx.contract.update({ where: { id }, data: { contractDate: d } });\n  },\n  quiet: async (tx) => tx.contract.update({ where: { id }, data: { contractDate: d } }),\n};\n";
+    expect(one(src)).toEqual(["sneaky · contract.update · not on the allow-list", "quiet · contract.update · not on the allow-list"]);
+  });
+  it("an EXECUTED version, ACTIVE, raw SQL and a spread in an allowed writer", () => {
+    expect(one("async function writeVersion(c) {\n  await c.tx.contractBaseline.create({ data: { reason: \"EXECUTED\" } });\n}\n")).toEqual(["writeVersion · contractBaseline.create · writes an EXECUTED version"]);
+    expect(one("export async function submitLegal(c) {\n  await moveTo(c, \"ACTIVE\");\n}\n")).toEqual(['submitLegal · moveTo "ACTIVE" · writes ACTIVE']);
+    expect(one("export async function sneaky(tx) {\n  await tx.$executeRaw`UPDATE \"Contract\" SET \"contractDate\" = NOW()`;\n}\n")).toEqual(["sneaky · raw SQL · raw SQL writes the table"]);
+    expect(one(`${head}  await c.tx.contract.update({ where: { id }, data: { ...patch } });\n}\n`)).toEqual(["answerConsultingEngineer · contract.update · data not an inline object literal"]);
+  });
+  it("nothing is flagged in strings, comments or a lock's SELECT … FOR UPDATE", () => {
+    expect(one(`${head}  // tx.contract.update({ data: { contractDate } })\n  const s = "tx.contract.update(";\n  await c.tx.$queryRaw\`SELECT id FROM "Contract" WHERE id = 1 FOR UPDATE\`;\n  await c.tx.contract.update({ where: { id }, data: { consultingEngineer: true } });\n}\n`)).toEqual([]);
   });
   it('"use server" is recognised however it is written', () => {
     for (const s of ['"use server";\n', "'use server'\n", "﻿\n\n// note\n/* block */\n\"use server\";\n", "/** doc */\n'use server';"]) expect(isServerModule(s), JSON.stringify(s)).toBe(true);
