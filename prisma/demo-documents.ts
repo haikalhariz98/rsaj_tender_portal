@@ -287,6 +287,8 @@ export interface RemovedWithDemo {
   /// Carry D4: sittings on demo committees and delegations naming demo people, made through the screens.
   meetingIds: string[];
   delegationIds: string[];
+  /// 6.15: suppliers recorded through the screens on demo people or configuration, removed with --remove-dependents.
+  supplierIds?: string[];
 }
 
 /**
@@ -317,7 +319,7 @@ export async function planDocumentWipe(db: Db, organisationId: string, removed: 
     ...(await db.evaluationBidder.findMany({ where: { organisationId, NOT: { id: demoRef }, evaluation: { OR: [{ exerciseId: demoRef }, { exerciseId: { in: removed.exerciseIds } }] } }, select: { id: true } })).map((b) => b.id),
   ];
   // 6.15: a supplier's document or application made through the screens goes with its demo supplier.
-  const onDemoSupplier = { organisationId, NOT: { id: demoRef }, supplierId: demoRef };
+  const onDemoSupplier = { organisationId, OR: [{ NOT: { id: demoRef }, supplierId: demoRef }, { supplierId: { in: removed.supplierIds ?? [] } }] };
   const removedSupplierRecordIds = [
     ...(await db.supplierDocument.findMany({ where: onDemoSupplier, select: { id: true } })).map((d) => d.id),
     ...(await db.supplierApplication.findMany({ where: onDemoSupplier, select: { id: true } })).map((a) => a.id),

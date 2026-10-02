@@ -13,6 +13,7 @@ import { checkAppendixAward, loadAppendixAward } from "./demo-award-appendix";
 import { checkBidsDemo, configureBidsDemo, loadBidsDemo, wipeBidsDemo } from "./demo-bids";
 import { checkOpeningDemo, configureOpeningDemo, loadOpeningDemo, wipeOpeningDemo } from "./demo-opening";
 import { checkEvaluationDemo, configureEvaluationDemo, loadEvaluationDemo, wipeEvaluationDemo } from "./demo-evaluation";
+import { checkSuppliersDemo, configureSuppliersDemo, loadSuppliersDemo, suppliersDemoDependents, wipeSuppliersDemo } from "./demo-suppliers";
 import { removedWithDemo } from "../src/lib/documents/demo-wipe-plan";
 import { inspectLogo } from "../src/lib/organisation/logo";
 import { initialsLogo } from "../src/lib/organisation/png";
@@ -285,6 +286,8 @@ async function wipe() {
 
   // 6.2 increment 2: bill lines priced from a demo schedule (refused outright) and matters naming a demo bill.
   const scopeDependents = await scopeWipeDependents(db, hangingExerciseIds, screenDecisionIds);
+  // 6.15a: suppliers recorded through the screens on demo people or configuration, and what was added to demo suppliers.
+  const supplierDependents = await suppliersDemoDependents(db, org.id);
   const lines = [
     ...hanging.map((r) => `  requisition ${r.reference} · ${r.title}`),
     ...hangingExercises.map((x) => `  sourcing exercise ${x.reference} · ${x.title}`),
@@ -294,6 +297,7 @@ async function wipe() {
     ...screenDelegations.map((d) => `  delegation from ${d.fromPerson.name} to ${d.toPerson.name}, which names a demo person`),
     ...screenHoldings.map((h) => `  qualification held by ${h.person.name}, a demo person`),
     ...scopeDependents.soft,
+    ...supplierDependents.lines,
   ];
 
   // 6.11: awards on demo exercises or on the exercises above, and awards that are not demo
@@ -301,7 +305,7 @@ async function wipe() {
   const awardCheck = await checkAwards(db, org.id, REMOVE_DEPENDENTS, hangingExerciseIds, { decisionIds: screenDecisionIds, delegationIds: screenDelegationIds });
   // The document store (plan §9, review must-fix 3): judged with the exercises and awards
   // removed above on the demo's side.
-  const documentPlan = await planDocumentWipe(db, org.id, { exerciseIds: hangingExerciseIds, awardIds: awardCheck.hanging.map((a) => a.id), meetingIds: screenMade.meetingIds, delegationIds: screenDelegationIds }, REMOVE_DEPENDENTS);
+  const documentPlan = await planDocumentWipe(db, org.id, { exerciseIds: hangingExerciseIds, awardIds: awardCheck.hanging.map((a) => a.id), meetingIds: screenMade.meetingIds, delegationIds: screenDelegationIds, supplierIds: supplierDependents.supplierIds }, REMOVE_DEPENDENTS);
 
   const requisitionsRefused = lines.length > 0 && !REMOVE_DEPENDENTS;
   if (requisitionsRefused) {
@@ -340,6 +344,8 @@ async function wipe() {
   // Nothing refused: removal starts here. Attachments pin meetings, exercises, awards and
   // delegations: the documents go before any of them (their keys refuse a delete).
   await wipeDocuments(db, org.id, documentPlan);
+  // 6.15a: the supplier register, after its scans and before the routes' matrix, the people and 6.4's registration bodies.
+  await wipeSuppliersDemo(db, org.id, supplierDependents);
   // 6.8: the evaluations, before the openings (a bidder names an opened bid) and the routes (a negotiation names its route).
   await wipeEvaluationDemo(db, org.id, hangingExerciseIds);
   // 6.7: the openings, before the register (an offer names its envelope), the windows (and its party), the committees and the people.
@@ -1208,6 +1214,11 @@ async function load() {
   await checkOpeningDemo(db);
   // 6.8 read back after the award (E-9: demo_aw7 names the recommended tenderer).
   await checkEvaluationDemo(db);
+  // 6.15a: the supplier register, its configuration and seven suppliers recorded from paper; every act
+  // judged by the product's own rules as it is written and dated relative to the load day (X-10).
+  await configureSuppliersDemo(db, organisationId);
+  await loadSuppliersDemo(db, organisationId);
+  await checkSuppliersDemo(db);
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
   console.log("Remove it with: npm run demo:wipe");
