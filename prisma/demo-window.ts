@@ -760,8 +760,26 @@ export class Acts {
     this.entry(ENTITY.publication, id, label(`Publication · ${channel!.nameEn}`), "CREATE", at, diffFields(null, { channel: channel!.nameEn, publishedOn: formatDate(on), reference: reference || null, recordedBy: CLERK_NAME, recordedOnBehalf: "not signed" }));
   }
 
+  /**
+   * 6.8 (E-2, E-12, flagged): chooseEvaluationModel on the Window card, as the action judges it: the
+   * demo's issued model for the exercise's pack (`demo-evaluation.ts`), while unpublished.
+   */
+  async chooseModel(exerciseId: string, at: Date) {
+    const { chooseFaults } = await import("../src/lib/evaluation/pin");
+    const { EVALUATION_MODEL_FOR } = await import("./demo-evaluation");
+    const { isPublished } = await import("../src/lib/window/phase");
+    const { l } = await this.state(exerciseId);
+    const modelId = EVALUATION_MODEL_FOR[l.ex.packKindSnapshot === "QUOTATION" ? "QUOTATION" : "TENDER"];
+    const m = await this.db.evaluationModel.findUniqueOrThrow({ where: { id: modelId }, select: { id: true, nameEn: true, version: true, status: true } });
+    this.fail(`choosing ${l.ex.reference}'s evaluation model`, chooseFaults({ published: isPublished(l.ex.status) || l.ex.evaluationModelPinnedAt != null, cancelled: l.ex.status === "CANCELLED", model: { status: m.status, name: m.nameEn } }) as Finding[]);
+    await this.db.sourcingExercise.update({ where: { id: exerciseId }, data: { evaluationModelId: m.id } });
+    this.entry("SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", at, diffFields({ evaluationModel: null }, { evaluationModel: `${m.nameEn}, version ${m.version}` }));
+  }
+
   /// publishWindow: every rule re-judged on the rows as they stand on the day; warnings said, never refused.
   async publish(exerciseId: string, at: Date) {
+    // 6.8 (E-2, flagged): the model is chosen on the Window card before the publication pins it.
+    await this.chooseModel(exerciseId, new Date(at.getTime() - 20 * 60_000));
     const { l, d, label } = await this.state(exerciseId);
     const today = this.day(at);
     const j = judgePublish(d, l.ex, { timeZone: this.tz, today });
@@ -774,6 +792,10 @@ export class Acts {
       [BID_RULES_KEY]: bidRulesSnapshot(await loadBidMethodRule(this.org, l.ex.sourcingMethodCode, this.db as never)),
     });
     const w = d.window!;
+    // 6.8 (E-2, flagged): the chosen model's issued content pinned on the exercise in the publication's act.
+    const m = d.evaluation.model!;
+    await this.db.sourcingExercise.update({ where: { id: exerciseId }, data: { evaluationModelSnapshot: m.contentSnapshot as object, evaluationModelPinnedAt: at } });
+    this.entry("SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", at, diffFields({ evaluationModelPinned: null }, { evaluationModelPinned: `${m.nameEn}, version ${m.version}` }));
     if (j.path === "ADVERTISED") {
       const t = d.templates.notice!;
       await this.db.exerciseWindow.update({ where: { id: w.id }, data: { advertisementDay: dayToDate(adDay), publishedAt: at, policySnapshot: snapshot as object, noticeText: j.notice!.text, noticeTemplateCode: t.code, noticeTemplateBodyVersion: t.bodyVersion } });
