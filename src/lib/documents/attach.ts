@@ -73,7 +73,11 @@ export type OwnerFacts =
   /// 6.8 (FR-EVL-015, 016): a clarification or negotiation meeting; closed, it is frozen.
   | { kind: "evaluationMeeting"; exerciseStatus: ExerciseStatus; evaluationState: EvaluationState; closed: boolean }
   /// 6.8 (FR-EVL-012, 013): a bidder under evaluation; a CPR entered stands on its report (OD-4).
-  | { kind: "evaluationBidder"; exerciseStatus: ExerciseStatus; evaluationState: EvaluationState; cprEntered: boolean };
+  | { kind: "evaluationBidder"; exerciseStatus: ExerciseStatus; evaluationState: EvaluationState; cprEntered: boolean }
+  /// 6.15 (FR-VND-002, 004): a supplier's document. Renewed, it keeps what it has; verified, it stands on its scan.
+  | { kind: "supplierDocument"; renewed: boolean; verified: boolean }
+  /// 6.15 (FR-VND-006, OD-3 B): a supplier's application. Decided, it keeps what it has; sent for decision, it stands on its declaration.
+  | { kind: "supplierApplication"; open: boolean; sent: boolean };
 
 /// 6.8: where an evaluation version stands (the Prisma enum's values).
 export type EvaluationState = "OPEN" | "ISSUED" | "SUPERSEDED" | "CANCELLED";
@@ -163,7 +167,9 @@ export type OwnerExit =
   | "REPORT_ISSUED"
   | "REPORT_NOT_ISSUED"
   | "PROPOSAL_NOT_SIGNED"
-  | "MEETING_CLOSED";
+  | "MEETING_CLOSED"
+  | "DOCUMENT_RENEWED"
+  | "APPLICATION_DECIDED";
 
 export type AttachFault =
   | "PURPOSE_NOT_FOR_OWNER"
@@ -268,6 +274,12 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): { sta
     case "evaluationBidder":
       if (exerciseFrozen(owner.exerciseStatus)) return { state: "FROZEN", exit: "EXERCISE_CANCELLED" };
       return owner.evaluationState === "OPEN" ? { state: "OPEN" } : { state: "FROZEN", exit: "EVALUATION_CLOSED" };
+    case "supplierDocument":
+      // 6.15: a renewed document keeps the scan it was lodged with; the renewal carries its own.
+      return owner.renewed ? { state: "FROZEN", exit: "DOCUMENT_RENEWED" } : { state: "OPEN" };
+    case "supplierApplication":
+      // 6.15: a decided application keeps what it was decided on.
+      return owner.open ? { state: "OPEN" } : { state: "FROZEN", exit: "APPLICATION_DECIDED" };
   }
 }
 
@@ -324,7 +336,11 @@ export type Reliance =
   /// 6.7 (FR-OPN-006): the finalised opening's signed schedule, its last live scan (6.8 and the award read it).
   | "SCHEDULE_ON_IT"
   /// 6.8 (FR-EVL-012, OD-4): a CPR percentage entered from this report, its last live one.
-  | "CPR_ON_IT";
+  | "CPR_ON_IT"
+  /// 6.15 (FR-VND-004): a document verified on this scan, its last live one.
+  | "DOCUMENT_VERIFIED_ON_IT"
+  /// 6.15 (FR-VND-006): an application sent for decision on this signed declaration, its last live one.
+  | "SENT_ON_IT";
 
 export type DetachFault = "REASON_REQUIRED" | "RELIED_ON" | "OWNER_FROZEN" | "ALREADY_DETACHED";
 
@@ -380,6 +396,9 @@ export function reliedOn(purpose: AttachmentPurpose, owner: OwnerFacts, liveOfPu
   if (owner.kind === "opening") return purpose === "SIGNED_SCHEDULE" ? "SCHEDULE_ON_IT" : null;
   // 6.8: a CPR entered stands on the report it was entered from; the last live one is replaced, never taken off.
   if (owner.kind === "evaluationBidder") return purpose === "CPR_REPORT" && owner.cprEntered ? "CPR_ON_IT" : null;
+  // 6.15: a verified document stands on its scan; an application sent for decision on its signed declaration.
+  if (owner.kind === "supplierDocument") return purpose === "SUPPLIER_DOCUMENT" && owner.verified ? "DOCUMENT_VERIFIED_ON_IT" : null;
+  if (owner.kind === "supplierApplication") return purpose === "SUPPLIER_DECLARATION" && owner.sent ? "SENT_ON_IT" : null;
   return null;
 }
 

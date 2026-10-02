@@ -32,6 +32,8 @@ export const OWNER_KIND_LABEL: Readonly<Record<OwnerKind, string>> = {
   evaluation: "Evaluation",
   evaluationMeeting: "Evaluation meeting",
   evaluationBidder: "Bid under evaluation",
+  supplierDocument: "Supplier's document",
+  supplierApplication: "Supplier's application",
 };
 
 /// Where an owner's own screen is, for a link from a document to the record it is on.
@@ -65,6 +67,11 @@ export function ownerHref(kind: OwnerKind, id: string, exerciseId?: string): str
       return exerciseId ? `/sourcing/${exerciseId}?tab=evaluation&section=meetings` : "/sourcing";
     case "evaluationBidder":
       return exerciseId ? `/sourcing/${exerciseId}?tab=evaluation&section=stages` : "/sourcing";
+    // 6.15: the third argument is the supplier's id.
+    case "supplierDocument":
+      return exerciseId ? `/suppliers/${exerciseId}?tab=documents` : "/suppliers";
+    case "supplierApplication":
+      return exerciseId ? `/suppliers/${exerciseId}?tab=applications` : "/suppliers";
   }
 }
 

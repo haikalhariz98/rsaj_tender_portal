@@ -202,3 +202,31 @@ describe("6.8: the evaluation, its meetings and its bidders are owners, everywhe
     expect(latestCheck("CommitteeDecision_evaluation_stage")).toMatch(/"evaluationBidderId" IS NULL OR "matterKind" = 'EVALUATION_STAGE'/);
   });
 });
+
+describe("6.15: a supplier's document and application are owners, everywhere at once (X-6)", () => {
+  it("their keys are counted by one_owner and each purpose pairs with its owner", () => {
+    const one = latestCheck("DocumentAttachment_one_owner");
+    for (const k of ["supplierDocumentId", "supplierApplicationId"]) expect(one).toMatch(new RegExp(`"${k}"`));
+    const po = latestCheck("DocumentAttachment_purpose_owner");
+    expect(po).toMatch(/\("purpose"\s*=\s*'SUPPLIER_DOCUMENT'\s*AND\s*"supplierDocumentId"\s+IS NOT NULL\)/);
+    expect(po).toMatch(/'SUPPLIER_DECLARATION', 'SUPPLIER_EPAYMENT_FORM'\)\s*AND\s*"supplierApplicationId"\s+IS NOT NULL/);
+    expect(OWNER_COLUMN.supplierDocument).toBe("supplierDocumentId");
+    expect(OWNER_COLUMN.supplierApplication).toBe("supplierApplicationId");
+  });
+
+  it.each(["SUPPLIER_DOCUMENT", "SUPPLIER_DECLARATION", "SUPPLIER_EPAYMENT_FORM"])("%s arrived alone in its own migration, before the migration that rebuilt the CHECKs with it", (purpose) => {
+    const own = migrations.filter((d) => new RegExp(`ALTER TYPE "AttachmentPurpose" ADD VALUE '${purpose}'`).test(readFileSync(join(migrationsDir, d, "migration.sql"), "utf8")));
+    const used = migrations.filter((d) => d !== own[0] && readFileSync(join(migrationsDir, d, "migration.sql"), "utf8").includes(`'${purpose}'`));
+    expect(own).toHaveLength(1);
+    expect(used.length).toBeGreaterThan(0);
+    for (const u of used) expect(own[0] < u).toBe(true);
+    const sql = readFileSync(join(migrationsDir, own[0], "migration.sql"), "utf8").split("\n").filter((l) => l.trim() && !l.trim().startsWith("--"));
+    expect(sql).toHaveLength(1);
+  });
+
+  it("the SUPPLIER matter kind arrived alone, and only a SUPPLIER route names an application (both ways)", () => {
+    const own = migrations.filter((d) => /ALTER TYPE "MatterKind" ADD VALUE 'SUPPLIER';/.test(readFileSync(join(migrationsDir, d, "migration.sql"), "utf8")));
+    expect(own).toHaveLength(1);
+    expect(latestCheck("ApprovalInstance_supplier_matter")).toMatch(/\("supplierApplicationId" IS NULL\) = \("matterKind" <> 'SUPPLIER'\)/);
+  });
+});

@@ -115,6 +115,16 @@ export const evaluationBidderFacts = (b: { cprPercent: unknown; evaluation: { st
   cprEntered: b.cprPercent != null,
 });
 
+/// 6.15: a supplier's document, renewed or not, verified or not.
+export const supplierDocumentFacts = (d: { verification: string; renewedBy: { id: string } | null }): OwnerFacts => ({ kind: "supplierDocument", renewed: d.renewedBy != null, verified: d.verification === "VERIFIED" });
+
+/// 6.15: a supplier's application, open or decided, and whether it has been sent for decision (a route open or approved).
+export const supplierApplicationFacts = (a: { status: string; lapsedRecordedAt: Date | null; routes: readonly { status: string }[] }): OwnerFacts => ({
+  kind: "supplierApplication",
+  open: (a.status === "RECEIVED" || a.status === "RESUBMISSION_REQUESTED") && a.lapsedRecordedAt == null,
+  sent: a.routes.some((r) => r.status === "PENDING" || r.status === "APPROVED"),
+});
+
 /// 6.6 (FR-BID-010): a validity extension, with its exercise's status and whether it is applied.
 export const extensionFacts = (x: { appliedAt: Date | null; exercise: { status: ExerciseStatus } }): OwnerFacts => ({ kind: "validityExtension", exerciseStatus: x.exercise.status, applied: x.appliedAt != null });
 

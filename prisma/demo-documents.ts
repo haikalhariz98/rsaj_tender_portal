@@ -102,7 +102,7 @@ export interface DemoDoc {
   classification: SecurityClass | null;
   createdAt: string;
   versions: DemoVersion[];
-  attachments: { id: string; purpose: AttachmentPurpose; owner: { meetingId?: string; exerciseId?: string; awardId?: string; delegationId?: string; specificationPanelId?: string; bqVersionId?: string; tenderPackPartId?: string; addendumId?: string; bidWithdrawalId?: string; validityExtensionId?: string; openingId?: string; evaluationId?: string; evaluationMeetingId?: string; evaluationBidderId?: string }; ownerLabel: string; versionId: string; at: string; detached?: { at: string; reason: string; replacedBy?: string } }[];
+  attachments: { id: string; purpose: AttachmentPurpose; owner: { meetingId?: string; exerciseId?: string; awardId?: string; delegationId?: string; specificationPanelId?: string; bqVersionId?: string; tenderPackPartId?: string; addendumId?: string; bidWithdrawalId?: string; validityExtensionId?: string; openingId?: string; evaluationId?: string; evaluationMeetingId?: string; evaluationBidderId?: string; supplierDocumentId?: string; supplierApplicationId?: string }; ownerLabel: string; versionId: string; at: string; detached?: { at: string; reason: string; replacedBy?: string } }[];
   hold?: { id: string; reason: string; at: string; personId: string; personName: string };
 }
 
@@ -316,8 +316,16 @@ export async function planDocumentWipe(db: Db, organisationId: string, removed: 
     ...(await db.evaluationMeeting.findMany({ where: { organisationId, NOT: { id: demoRef }, evaluation: { OR: [{ exerciseId: demoRef }, { exerciseId: { in: removed.exerciseIds } }] } }, select: { id: true } })).map((m) => m.id),
     ...(await db.evaluationBidder.findMany({ where: { organisationId, NOT: { id: demoRef }, evaluation: { OR: [{ exerciseId: demoRef }, { exerciseId: { in: removed.exerciseIds } }] } }, select: { id: true } })).map((b) => b.id),
   ];
+  // 6.15: a supplier's document or application made through the screens goes with its demo supplier.
+  const onDemoSupplier = { organisationId, NOT: { id: demoRef }, supplierId: demoRef };
+  const removedSupplierRecordIds = [
+    ...(await db.supplierDocument.findMany({ where: onDemoSupplier, select: { id: true } })).map((d) => d.id),
+    ...(await db.supplierApplication.findMany({ where: onDemoSupplier, select: { id: true } })).map((a) => a.id),
+  ];
   const onDemoSideOwner = {
     OR: [
+      { supplierDocumentId: demoRef }, { supplierDocumentId: { in: removedSupplierRecordIds } },
+      { supplierApplicationId: demoRef }, { supplierApplicationId: { in: removedSupplierRecordIds } },
       { bidWithdrawalId: demoRef }, { bidWithdrawalId: { in: removedBidRecordIds } },
       { validityExtensionId: demoRef }, { validityExtensionId: { in: removedBidRecordIds } },
       { openingId: demoRef }, { openingId: { in: removedBidRecordIds } },
@@ -346,7 +354,7 @@ export async function planDocumentWipe(db: Db, organisationId: string, removed: 
     orderBy: { id: "asc" },
     select: {
       id: true, title: true,
-      versions: { select: { id: true, sha256: true, recordedByPersonId: true, attachments: { select: { id: true, purpose: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true, bqVersionId: true, tenderPackPartId: true, addendumId: true, bidWithdrawalId: true, validityExtensionId: true, openingId: true, evaluationId: true, evaluationMeetingId: true, evaluationBidderId: true } } } },
+      versions: { select: { id: true, sha256: true, recordedByPersonId: true, attachments: { select: { id: true, purpose: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true, bqVersionId: true, tenderPackPartId: true, addendumId: true, bidWithdrawalId: true, validityExtensionId: true, openingId: true, evaluationId: true, evaluationMeetingId: true, evaluationBidderId: true, supplierDocumentId: true, supplierApplicationId: true } } } },
       holds: { select: { id: true, placedByPersonId: true, releasedByPersonId: true } },
     },
   });
@@ -358,7 +366,7 @@ export async function planDocumentWipe(db: Db, organisationId: string, removed: 
     versions: d.versions.map((v) => ({ id: v.id, sha256: v.sha256, attachments: v.attachments.map((a) => ({ ...a, purpose: a.purpose as AttachmentPurpose })) })),
     holds: d.holds.map((h) => ({ id: h.id })),
   }));
-  return documentWipePlan(docs, { isDemo: (id) => id.startsWith(P), removedExerciseIds: new Set(removed.exerciseIds), removedAwardIds: new Set(removed.awardIds), removedMeetingIds: new Set(removed.meetingIds), removedDelegationIds: new Set(removed.delegationIds), removedPanelIds: new Set(removedPanelIds), removedBqVersionIds: new Set(removedBqVersionIds), removedPackPartIds: new Set(removedPackPartIds), removedAddendumIds: new Set(removedAddendumIds), removedBidRecordIds: new Set(removedBidRecordIds) }, removeDependents);
+  return documentWipePlan(docs, { isDemo: (id) => id.startsWith(P), removedExerciseIds: new Set(removed.exerciseIds), removedAwardIds: new Set(removed.awardIds), removedMeetingIds: new Set(removed.meetingIds), removedDelegationIds: new Set(removed.delegationIds), removedPanelIds: new Set(removedPanelIds), removedBqVersionIds: new Set(removedBqVersionIds), removedPackPartIds: new Set(removedPackPartIds), removedAddendumIds: new Set(removedAddendumIds), removedBidRecordIds: new Set(removedBidRecordIds), removedSupplierRecordIds: new Set(removedSupplierRecordIds) }, removeDependents);
 }
 
 const LINE_TEXT = (l: PlanLine) => {

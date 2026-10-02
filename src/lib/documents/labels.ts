@@ -94,6 +94,9 @@ export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
   REPORT_DRAWINGS: "Drawings for the evaluation report",
   SIGNED_REPORT: "Signed evaluation report",
   SIGNED_PROPOSAL_PAPER: "Signed Kertas Cadangan",
+  SUPPLIER_DOCUMENT: "Scan of the supplier's document",
+  SUPPLIER_DECLARATION: "Supplier's signed declaration",
+  SUPPLIER_EPAYMENT_FORM: "Supplier's E-Payment form",
   HOLDER_RECOMMENDATION: "Absent holder's signed recommendation",
   SIGNED_LETTER: "Signed letter of acceptance",
   DECLARATION: "Signed successful bidder declaration",
@@ -177,6 +180,8 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
   REPORT_NOT_ISSUED: "The signed report is attached once the report is issued, on the Evaluation tab.",
   PROPOSAL_NOT_SIGNED: "The signed Kertas Cadangan is attached once its checking and recommending officers are both recorded, on the Evaluation tab.",
   MEETING_CLOSED: "The meeting was closed on its minutes and the tenderer's confirmation, and stands as closed. A further meeting is recorded as another round.",
+  DOCUMENT_RENEWED: "This document has been renewed, so it keeps the scan it was lodged with. Attach the renewal's scan to the renewal, on the supplier's Documents tab.",
+  APPLICATION_DECIDED: "The application is decided and stands on what it was decided on. A further application is opened on the supplier's Applications tab.",
 };
 
 const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {
@@ -187,6 +192,8 @@ const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {
   WITHDRAWN_ON_IT: "The withdrawal was recorded on this letter, so it is not taken off. To correct it, attach a new version, with the reason.",
   SCHEDULE_ON_IT: "Evaluation and the award stand on this signed schedule, so it is not taken off. To correct it, attach a new version, with the reason.",
   CPR_ON_IT: "The contractor performance percentage was entered from this report, so it is not taken off. To correct it, attach a new version, with the reason.",
+  DOCUMENT_VERIFIED_ON_IT: "The document was verified on this scan, so it is not taken off. To correct it, attach a new version, with the reason.",
+  SENT_ON_IT: "The application was sent for decision on this signed declaration, so it is not taken off. To correct it, attach a new version, with the reason.",
 };
 
 export const DOWNLOAD_REFUSAL_TEXT: Readonly<Record<DownloadRefusal, string>> = {

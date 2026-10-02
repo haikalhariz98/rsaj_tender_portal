@@ -40,6 +40,9 @@ export type AttachmentPurpose =
   | "REPORT_DRAWINGS"
   | "SIGNED_REPORT"
   | "SIGNED_PROPOSAL_PAPER"
+  | "SUPPLIER_DOCUMENT"
+  | "SUPPLIER_DECLARATION"
+  | "SUPPLIER_EPAYMENT_FORM"
   | "HOLDER_RECOMMENDATION"
   | "SIGNED_LETTER"
   | "DECLARATION"
@@ -66,6 +69,9 @@ export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
   "REPORT_DRAWINGS",
   "SIGNED_REPORT",
   "SIGNED_PROPOSAL_PAPER",
+  "SUPPLIER_DOCUMENT",
+  "SUPPLIER_DECLARATION",
+  "SUPPLIER_EPAYMENT_FORM",
   "HOLDER_RECOMMENDATION",
   "SIGNED_LETTER",
   "DECLARATION",
@@ -75,8 +81,8 @@ export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
 
 /// The owners a document can be attached to. New owners arrive by migration with their
 /// module (MatterKind precedent); each is a typed key on DocumentAttachment.
-export type OwnerKind = "meeting" | "exercise" | "award" | "delegation" | "specificationPanel" | "bqVersion" | "tenderPackPart" | "addendum" | "bidWithdrawal" | "validityExtension" | "opening" | "evaluation" | "evaluationMeeting" | "evaluationBidder";
-export const OWNER_KINDS: readonly OwnerKind[] = ["meeting", "exercise", "award", "delegation", "specificationPanel", "bqVersion", "tenderPackPart", "addendum", "bidWithdrawal", "validityExtension", "opening", "evaluation", "evaluationMeeting", "evaluationBidder"];
+export type OwnerKind = "meeting" | "exercise" | "award" | "delegation" | "specificationPanel" | "bqVersion" | "tenderPackPart" | "addendum" | "bidWithdrawal" | "validityExtension" | "opening" | "evaluation" | "evaluationMeeting" | "evaluationBidder" | "supplierDocument" | "supplierApplication";
+export const OWNER_KINDS: readonly OwnerKind[] = ["meeting", "exercise", "award", "delegation", "specificationPanel", "bqVersion", "tenderPackPart", "addendum", "bidWithdrawal", "validityExtension", "opening", "evaluation", "evaluationMeeting", "evaluationBidder", "supplierDocument", "supplierApplication"];
 
 /// Which owner each purpose belongs to. The migration's CHECK says the same.
 export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
@@ -100,6 +106,10 @@ export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
   REPORT_DRAWINGS: "evaluation",
   SIGNED_REPORT: "evaluation",
   SIGNED_PROPOSAL_PAPER: "evaluation",
+  // 6.15: a supplier's document's scan; its application's signed declaration and E-Payment form.
+  SUPPLIER_DOCUMENT: "supplierDocument",
+  SUPPLIER_DECLARATION: "supplierApplication",
+  SUPPLIER_EPAYMENT_FORM: "supplierApplication",
   HOLDER_RECOMMENDATION: "delegation",
   SIGNED_LETTER: "award",
   DECLARATION: "award",
@@ -108,7 +118,7 @@ export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
 };
 
 /// The column on DocumentAttachment that names each owner.
-export type OwnerColumn = "meetingId" | "exerciseId" | "awardId" | "delegationId" | "specificationPanelId" | "bqVersionId" | "tenderPackPartId" | "addendumId" | "bidWithdrawalId" | "validityExtensionId" | "openingId" | "evaluationId" | "evaluationMeetingId" | "evaluationBidderId";
+export type OwnerColumn = "meetingId" | "exerciseId" | "awardId" | "delegationId" | "specificationPanelId" | "bqVersionId" | "tenderPackPartId" | "addendumId" | "bidWithdrawalId" | "validityExtensionId" | "openingId" | "evaluationId" | "evaluationMeetingId" | "evaluationBidderId" | "supplierDocumentId" | "supplierApplicationId";
 export const OWNER_COLUMN: Readonly<Record<OwnerKind, OwnerColumn>> = {
   meeting: "meetingId",
   exercise: "exerciseId",
@@ -124,6 +134,8 @@ export const OWNER_COLUMN: Readonly<Record<OwnerKind, OwnerColumn>> = {
   evaluation: "evaluationId",
   evaluationMeeting: "evaluationMeetingId",
   evaluationBidder: "evaluationBidderId",
+  supplierDocument: "supplierDocumentId",
+  supplierApplication: "supplierApplicationId",
 };
 
 /// Purposes attached only by their owner's own act, never from the shared attach choice: a
@@ -147,6 +159,8 @@ export const PURPOSE_CLASSIFICATION: Readonly<Partial<Record<AttachmentPurpose, 
   REPORT_DRAWINGS: "SULIT",
   SIGNED_REPORT: "SULIT",
   SIGNED_PROPOSAL_PAPER: "SULIT",
+  // 6.15 OD-3 B: the paper E-Payment form carries bank details; SULIT at upload, never downloadable before sign-in.
+  SUPPLIER_EPAYMENT_FORM: "SULIT",
 };
 
 /// The types the product can tell from a file's own bytes. Office files and ZIP are not
