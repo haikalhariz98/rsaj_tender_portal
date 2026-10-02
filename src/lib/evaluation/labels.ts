@@ -320,6 +320,36 @@ export function evaluationFindingText(f: Finding): string {
   return t ? t(f) : "This cannot be recorded as it stands.";
 }
 
+const listWords = (xs: readonly string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+const capital = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+/// The findings that name one item each for a bid, gathered into one sentence per bid (6.8 re-review 8).
+const GATHERED: Readonly<Record<string, { item: string; words: (no: string | number, items: string) => string }>> = {
+  ASPECT_UNASSESSED: { item: "aspect", words: (no, items) => `No. ${no} is not assessed on ${items}.` },
+  SCORE_MISSING: { item: "criterion", words: (no, items) => `No. ${no} has no score on ${items}.` },
+};
+
+/**
+ * What still holds a stage, in words a person reads once (6.8 re-review 8): the items one bid lacks
+ * gathered into one sentence ("No. 1 is not assessed on A, B, C and D."), every other reason once,
+ * each starting with a capital. Order as found.
+ */
+export const pendingText = (fs: readonly Finding[]): string => pendingSentences(fs).join(" ");
+
+/// The sentences of `pendingText`, each once.
+export function pendingSentences(fs: readonly Finding[]): string[] {
+  const out: ({ text: string } | { code: string; no: string | number; items: string[] })[] = [];
+  for (const f of fs) {
+    const g = GATHERED[f.code];
+    const item = g ? f.data?.[g.item] : null;
+    if (g && f.data?.listingNo != null && item != null) {
+      const at = out.find((x): x is { code: string; no: string | number; items: string[] } => "code" in x && x.code === f.code && x.no === f.data!.listingNo);
+      if (at) at.items.push(String(item));
+      else out.push({ code: f.code, no: f.data.listingNo, items: [String(item)] });
+    } else out.push({ text: capital(evaluationFindingText(f)) });
+  }
+  return [...new Set(out.map((x) => ("text" in x ? x.text : GATHERED[x.code].words(x.no, listWords(x.items)))))];
+}
+
 /// A draft's finding at issue, in Configuration's words: a rule not set there is set on the draft (never "cancel").
 export function modelFindingText(f: Finding): string {
   if (f.code === "PASS_RULE_NOT_SET") return `${f.data?.stage ?? "A stage"}: whether a figure exactly on the pass mark passes is not set.`;

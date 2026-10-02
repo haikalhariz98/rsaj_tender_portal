@@ -18,7 +18,7 @@ import { recommendedCeilingFault } from "./ceiling";
 import { ceilingOf } from "./repo";
 import { evaluatedPrice, recommendedPriceOf, scoreKey, type BidderFacts, type EvaluationFacts } from "./facts";
 import { formatFixed, formatMark, parseFixed, pctText } from "./fixed";
-import { evaluationFindingText, MEETING_KIND_LABEL, PHASE_LABEL, PHASE_TONE, ROUTE_LABEL, RUNNING_LABEL, SIDE_LABEL, STAGE_KIND_LABEL, STATE_LABEL, STATE_TONE, TRIGGER_LABEL, VERDICT_LABEL, VERDICT_TONE, DIRECTION_LABEL, CHANNEL_LABEL, SCALE_LABEL } from "./labels";
+import { evaluationFindingText, pendingSentences, pendingText, MEETING_KIND_LABEL, PHASE_LABEL, PHASE_TONE, ROUTE_LABEL, RUNNING_LABEL, SIDE_LABEL, STAGE_KIND_LABEL, STATE_LABEL, STATE_TONE, TRIGGER_LABEL, VERDICT_LABEL, VERDICT_TONE, DIRECTION_LABEL, CHANNEL_LABEL, SCALE_LABEL } from "./labels";
 import { LOOP_KEY_LABEL, isLoopKey } from "./loop";
 import { scoredCriteria, type StageSnap } from "./model";
 import { incompleteStages, ranking } from "./recommend";
@@ -283,7 +283,8 @@ function stageView(f: EvaluationFacts, s: StageSnap, dp: number | null, sub: { s
     committee: s.kind === "COMMITTEE_DECISION" ? s.committeeCode : null,
     rows,
     notBanded,
-    pending: [...new Set(blockers.map(evaluationFindingText))].slice(0, 6),
+    // Re-review 8: per bid, gathered (pendingText), then each sentence once.
+    pending: [...new Set(blockers.length ? rows.flatMap((r) => pendingSentences(blocking(r.faults))) : [])].slice(0, 6),
   };
 }
 
@@ -296,7 +297,8 @@ function bidderAtStage(f: EvaluationFacts, s: StageSnap, b: BidderFacts, dp: num
   const shown = submitted ? (r?.shown ?? null) : (live?.shown ?? null);
   const passed = submitted ? (r?.passed ?? null) : (live?.passed ?? null);
   const band = submitted ? (r?.bandLabel ?? null) : (live?.bandLabel ?? null);
-  const notYet = live && live.pending.length ? [...new Set(live.pending.map(evaluationFindingText))].join(" ") : null;
+  // Re-review 8: one sentence per bid for the items it lacks, each reason once.
+  const notYet = live && live.pending.length ? pendingText(live.pending) : null;
   const scoreRows = scoredCriteria(s).map((cr) => {
     const sc = b.scores.get(scoreKey(s.code, cr.code)) ?? null;
     return { code: cr.code, label: cr.labelEn, value: sc ? (sc.marks != null ? formatMark(sc.marks, dp) : sc.passed ? "Pass" : "Fail") : null, by: sc?.scoredBy ?? null, carried: sc?.carried ?? false };
