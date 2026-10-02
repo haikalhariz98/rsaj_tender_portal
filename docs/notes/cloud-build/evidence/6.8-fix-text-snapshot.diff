@@ -1,0 +1,1349 @@
+diff -ru snap-before68fix/configuration__committees.txt snap-after68fix/configuration__committees.txt
+--- snap-before68fix/configuration__committees.txt	2026-10-02 08:59:38.621152584 +0000
++++ snap-after68fix/configuration__committees.txt	2026-10-02 09:55:57.777075295 +0000
+@@ -142,8 +142,7 @@
+ Kembali untuk penjelasan semula
+ What it does
+ Returns the matter
+-Typed before
+-A stage typed before the evaluation existed: it opens nothing. Edit it to choose one of the evaluation's stages.
++Back to evaluation, for clarification
+ Offered to
+ Every committee
+ Source
+@@ -154,8 +153,7 @@
+ Kembali untuk rundingan semula
+ What it does
+ Returns the matter
+-Typed before
+-A stage typed before the evaluation existed: it opens nothing. Edit it to choose one of the evaluation's stages.
++Back to evaluation, for negotiation
+ Offered to
+ Every committee
+ Source
+diff -ru snap-before68fix/dashboard.txt snap-after68fix/dashboard.txt
+--- snap-before68fix/dashboard.txt	2026-10-02 08:59:32.657152721 +0000
++++ snap-after68fix/dashboard.txt	2026-10-02 09:55:52.133075424 +0000
+@@ -32,32 +32,32 @@
+ Capital Works Committee
+ Quotation Committee
+ Tender Board
+-Award of the head office cleaning contract
++Renewal of the security services contract
+ DEMO/SIT/4/2026
+ Type
+ Appointment
+ Value
+ SULIT
+ SULIT · not restricted until sign-in
+-RM412,000
++RM520,000
+ Waiting
+ 3d
+ With
+ Tender Board
+-2 of 3 voted
+-Renewal of the security services contract
++0 of 3 voted
++Award of the head office cleaning contract
+ DEMO/SIT/4/2026
+ Type
+ Appointment
+ Value
+ SULIT
+ SULIT · not restricted until sign-in
+-RM520,000
++RM412,000
+ Waiting
+ 3d
+ With
+ Tender Board
+-0 of 3 voted
++2 of 3 voted
+ Award of the pumping station refurbishment
+ DEMO/SX/0010/2026
+ Type
+@@ -122,20 +122,20 @@
+ ▲
+ With
+ Actions
+-Award of the head office cleaning contract
++Renewal of the security services contract
+ DEMO/SIT/4/2026
+ Appointment
+-RM412,000
++RM520,000
+ 3d
+ Tender Board
+-2 of 3 voted
+-Renewal of the security services contract
++0 of 3 voted
++Award of the head office cleaning contract
+ DEMO/SIT/4/2026
+ Appointment
+-RM520,000
++RM412,000
+ 3d
+ Tender Board
+-0 of 3 voted
++2 of 3 voted
+ Award of the pumping station refurbishment
+ DEMO/SX/0010/2026
+ Appointment
+@@ -287,12 +287,12 @@
+ @title: Comfortable rows
+ @aria-label: Compact rows
+ @title: Compact rows
+-@aria-label: Select Award of the head office cleaning contract DEMO/SIT/4/2026
++@aria-label: Select Renewal of the security services contract DEMO/SIT/4/2026
+ @title: SULIT · not restricted until sign-in
+ @title: 3d
+ @aria-label: Open the sitting
+ @title: Open the sitting
+-@aria-label: Select Renewal of the security services contract DEMO/SIT/4/2026
++@aria-label: Select Award of the head office cleaning contract DEMO/SIT/4/2026
+ @title: SULIT · not restricted until sign-in
+ @title: 3d
+ @aria-label: Open the sitting
+@@ -323,11 +323,11 @@
+ @title: Value
+ @title: SULIT · not restricted until sign-in
+ @title: Waiting
+-@aria-label: Select Award of the head office cleaning contract DEMO/SIT/4/2026
++@aria-label: Select Renewal of the security services contract DEMO/SIT/4/2026
+ @title: 3d
+ @aria-label: Open the sitting
+ @title: Open the sitting
+-@aria-label: Select Renewal of the security services contract DEMO/SIT/4/2026
++@aria-label: Select Award of the head office cleaning contract DEMO/SIT/4/2026
+ @title: 3d
+ @aria-label: Open the sitting
+ @title: Open the sitting
+diff -ru snap-before68fix/sourcing__demo_sx16__evaluation__proposal.txt snap-after68fix/sourcing__demo_sx16__evaluation__proposal.txt
+--- snap-before68fix/sourcing__demo_sx16__evaluation__proposal.txt	2026-10-02 09:00:17.137151703 +0000
++++ snap-after68fix/sourcing__demo_sx16__evaluation__proposal.txt	2026-10-02 09:56:41.517074295 +0000
+@@ -1,7 +1,7 @@
+ # /sourcing/demo_sx16/evaluation/proposal (200)
+ Back to the report
+ Print
+-Frozen 02 Oct 2026 · 14:38 from report DEMO/EVR/001/2026.
++Frozen 02 Oct 2026 · 15:49 from report DEMO/EVR/001/2026.
+ SULIT · not restricted until sign-in
+ Demo Utilities Sdn Bhd KERTAS CADANGAN: Reservoir inlet main and inlet works, Demo Heights (DEMO/SX/0016/2026). On evaluation report DEMO/EVR/001/2026, the Board is asked to appoint Contoh Bina Sdn Bhd at RM612,450.30, completion in 12 months. Checked by the Head of Contract & Procurement. Recommended by the Finance Director. (Invented demo text.)
+ Checked by (Head of Contract & Procurement)
+diff -ru snap-before68fix/sourcing__demo_sx16__evaluation__report.txt snap-after68fix/sourcing__demo_sx16__evaluation__report.txt
+--- snap-before68fix/sourcing__demo_sx16__evaluation__report.txt	2026-10-02 09:00:16.949151708 +0000
++++ snap-after68fix/sourcing__demo_sx16__evaluation__report.txt	2026-10-02 09:56:40.525074317 +0000
+@@ -36,23 +36,23 @@
+ Figure
+ Result
+ No. 1, Contoh Bina Sdn Bhd
+-Method statement and programme: 34.0000; Similar works completed: 30.0000; Key staff: 21.0000
++Method statement and programme: 34.00; Similar works completed: 30.00; Key staff: 21.00
+ 85.00%
+ Passes
+ No. 2, Sampel Kejuruteraan Enterprise
+-Method statement and programme: 30.0000; Similar works completed: 28.0000; Key staff: 20.0000
++Method statement and programme: 30.00; Similar works completed: 28.00; Key staff: 20.00
+ 78.00%
+ Passes
+ No. 3, Rekaan Maju Construction
+-Method statement and programme: 28.0000; Similar works completed: 25.0000; Key staff: 18.0000
++Method statement and programme: 28.00; Similar works completed: 25.00; Key staff: 18.00
+ 71.00%
+ Passes
+ No. 4, Demo Network Builders Sdn Bhd
+-Method statement and programme: 26.0000; Similar works completed: 22.0000; Key staff: 15.0000
++Method statement and programme: 26.00; Similar works completed: 22.00; Key staff: 15.00
+ 63.00%
+ Fails · Out of the running
+ No. 5, Demo Paip Services
+-Method statement and programme: 32.0000; Similar works completed: 29.0000; Key staff: 19.0000
++Method statement and programme: 32.00; Similar works completed: 29.00; Key staff: 19.00
+ 80.00%
+ Passes
+ Financial capacity (Financial test)
+@@ -61,15 +61,15 @@
+ Figure
+ Result
+ No. 1, Contoh Bina Sdn Bhd
+-Financial standing: 72.0000
++Financial standing: 72.00
+ 72.00%
+ Passes · Meets the minimum capital
+ No. 2, Sampel Kejuruteraan Enterprise
+-Financial standing: 80.0000
++Financial standing: 80.00
+ 80.00%
+ Passes · Meets the minimum capital
+ No. 3, Rekaan Maju Construction
+-Financial standing: 60.0000
++Financial standing: 60.00
+ 60.00%
+ Passes · Meets the minimum capital
+ No. 4, Demo Network Builders Sdn Bhd
+@@ -77,7 +77,7 @@
+ —
+ —
+ No. 5, Demo Paip Services
+-Financial standing: 50.0000
++Financial standing: 50.00
+ 50.00%
+ Fails · Meets the minimum capital · Out of the running
+ Aspects of the bid (Aspects)
+diff -ru snap-before68fix/sourcing__demo_sx16__tab__bids&section__received.txt snap-after68fix/sourcing__demo_sx16__tab__bids&section__received.txt
+--- snap-before68fix/sourcing__demo_sx16__tab__bids&section__received.txt	2026-10-02 09:00:19.701151645 +0000
++++ snap-after68fix/sourcing__demo_sx16__tab__bids&section__received.txt	2026-10-02 09:56:44.169074234 +0000
+@@ -241,7 +241,7 @@
+ Extended from 29 Jan 2027 to 28 Feb 2027
+ Invented for the demo: the evaluation of the reservoir inlet works is expected to run past the bids' validity; the recommended tenderer consented in writing. · consent of Contoh Bina Sdn Bhd, named by the officer as the recommended tenderer, recorded on their behalf, not yet checked against an evaluation, received 02 Oct 2026 · Chen Wei Ling, recorded on their behalf, not signed
+ Consent: attached
+-Applied 02 Oct 2026 · 14:18
++Applied 02 Oct 2026 · 15:29
+ Documents
+ Parts the approved documents mark mandatory
+ Checked against each bid at opening, never here. A missing document is reported, never a reason to refuse an envelope.
+diff -ru snap-before68fix/sourcing__demo_sx16__tab__evaluation&section__recommendation.txt snap-after68fix/sourcing__demo_sx16__tab__evaluation&section__recommendation.txt
+--- snap-before68fix/sourcing__demo_sx16__tab__evaluation&section__recommendation.txt	2026-10-02 09:00:14.057151774 +0000
++++ snap-after68fix/sourcing__demo_sx16__tab__evaluation&section__recommendation.txt	2026-10-02 09:56:36.173074417 +0000
+@@ -108,7 +108,7 @@
+ 67.70%
+ RM668,000
+ The recommendation
+-Formed 02 Oct 2026 · 14:34 by Kumar Selvam, recorded on their behalf.
++Formed 02 Oct 2026 · 15:45 by Kumar Selvam, recorded on their behalf.
+ SULIT · not restricted until sign-in
+ Recommended tenderer
+ No. 1, Contoh Bina Sdn Bhd
+diff -ru snap-before68fix/sourcing__demo_sx16__tab__evaluation&section__report.txt snap-after68fix/sourcing__demo_sx16__tab__evaluation&section__report.txt
+--- snap-before68fix/sourcing__demo_sx16__tab__evaluation&section__report.txt	2026-10-02 09:00:16.429151720 +0000
++++ snap-after68fix/sourcing__demo_sx16__tab__evaluation&section__report.txt	2026-10-02 09:56:39.093074350 +0000
+@@ -45,7 +45,7 @@
+ Evaluation records are SULIT
+ Nobody signs in yet, so the portal cannot restrict who reads them; they are kept off every list, the dashboard and search. Uploaded evidence cannot be downloaded until sign-in: print the report to table it.
+ The evaluation report
+-Issued 02 Oct 2026 · 14:36 by Kumar Selvam. Frozen: a later version supersedes it, nothing edits it.
++Issued 02 Oct 2026 · 15:47 by Kumar Selvam. Frozen: a later version supersedes it, nothing edits it.
+ Print the report
+ Reference
+ DEMO/EVR/001/2026
+@@ -54,7 +54,7 @@
+ Annexes
+ A. Scores; B. Comparison of offers; C. Schedule of tenders; D. Contractor performance; E. Site visit attendance; F. Drawings
+ Kertas Cadangan
+-Produced and frozen 02 Oct 2026 · 14:38.
++Produced and frozen 02 Oct 2026 · 15:49.
+ Print the paper
+ Checked by (Head of Contract & Procurement)
+ Chen Wei Ling, 02 Oct 2026
+diff -ru snap-before68fix/sourcing__demo_sx16__tab__evaluation&section__stages.txt snap-after68fix/sourcing__demo_sx16__tab__evaluation&section__stages.txt
+--- snap-before68fix/sourcing__demo_sx16__tab__evaluation&section__stages.txt	2026-10-02 09:00:05.421151971 +0000
++++ snap-after68fix/sourcing__demo_sx16__tab__evaluation&section__stages.txt	2026-10-02 09:56:28.793074586 +0000
+@@ -46,7 +46,7 @@
+ Nobody signs in yet, so the portal cannot restrict who reads them; they are kept off every list, the dashboard and search. Uploaded evidence cannot be downloaded until sign-in: print the report to table it.
+ 1. Technical
+ Scored
+-Implementing department · pass mark 65.00% · Submitted 02 Oct 2026 · 14:18 by Mohd Rizal Ahmad
++Implementing department · pass mark 65.00% · Submitted 02 Oct 2026 · 15:29 by Mohd Rizal Ahmad
+ Submitted
+ No. 1
+ Contoh Bina Sdn Bhd
+@@ -60,7 +60,7 @@
+ SULIT
+ SULIT · not restricted until sign-in
+ Passes
+-Method statement and programme: 34.0000 (Mohd Rizal Ahmad) · Similar works completed: 30.0000 (Mohd Rizal Ahmad) · Key staff: 21.0000 (Mohd Rizal Ahmad)
++Method statement and programme: 34.00 (Mohd Rizal Ahmad) · Similar works completed: 30.00 (Mohd Rizal Ahmad) · Key staff: 21.00 (Mohd Rizal Ahmad)
+ No. 2
+ Sampel Kejuruteraan Enterprise
+ Where it stands
+@@ -73,7 +73,7 @@
+ SULIT
+ SULIT · not restricted until sign-in
+ Passes
+-Method statement and programme: 30.0000 (Mohd Rizal Ahmad) · Similar works completed: 28.0000 (Mohd Rizal Ahmad) · Key staff: 20.0000 (Mohd Rizal Ahmad)
++Method statement and programme: 30.00 (Mohd Rizal Ahmad) · Similar works completed: 28.00 (Mohd Rizal Ahmad) · Key staff: 20.00 (Mohd Rizal Ahmad)
+ No. 3
+ Rekaan Maju Construction
+ Where it stands
+@@ -86,7 +86,7 @@
+ SULIT
+ SULIT · not restricted until sign-in
+ Passes
+-Method statement and programme: 28.0000 (Mohd Rizal Ahmad) · Similar works completed: 25.0000 (Mohd Rizal Ahmad) · Key staff: 18.0000 (Mohd Rizal Ahmad)
++Method statement and programme: 28.00 (Mohd Rizal Ahmad) · Similar works completed: 25.00 (Mohd Rizal Ahmad) · Key staff: 18.00 (Mohd Rizal Ahmad)
+ No. 4
+ Demo Network Builders Sdn Bhd
+ Where it stands
+@@ -100,7 +100,7 @@
+ SULIT · not restricted until sign-in
+ Fails
+ Out of the running
+-Method statement and programme: 26.0000 (Mohd Rizal Ahmad) · Similar works completed: 22.0000 (Mohd Rizal Ahmad) · Key staff: 15.0000 (Mohd Rizal Ahmad)
++Method statement and programme: 26.00 (Mohd Rizal Ahmad) · Similar works completed: 22.00 (Mohd Rizal Ahmad) · Key staff: 15.00 (Mohd Rizal Ahmad)
+ No. 5
+ Demo Paip Services
+ Where it stands
+@@ -113,7 +113,7 @@
+ SULIT
+ SULIT · not restricted until sign-in
+ Passes
+-Method statement and programme: 32.0000 (Mohd Rizal Ahmad) · Similar works completed: 29.0000 (Mohd Rizal Ahmad) · Key staff: 19.0000 (Mohd Rizal Ahmad)
++Method statement and programme: 32.00 (Mohd Rizal Ahmad) · Similar works completed: 29.00 (Mohd Rizal Ahmad) · Key staff: 19.00 (Mohd Rizal Ahmad)
+ Bid
+ ▲
+ Where it stands
+@@ -128,35 +128,35 @@
+ In the running
+ 85.00%
+ Passes
+-Method statement and programme: 34.0000 (Mohd Rizal Ahmad) · Similar works completed: 30.0000 (Mohd Rizal Ahmad) · Key staff: 21.0000 (Mohd Rizal Ahmad)
++Method statement and programme: 34.00 (Mohd Rizal Ahmad) · Similar works completed: 30.00 (Mohd Rizal Ahmad) · Key staff: 21.00 (Mohd Rizal Ahmad)
+ No. 2
+ Sampel Kejuruteraan Enterprise
+ In the running
+ 78.00%
+ Passes
+-Method statement and programme: 30.0000 (Mohd Rizal Ahmad) · Similar works completed: 28.0000 (Mohd Rizal Ahmad) · Key staff: 20.0000 (Mohd Rizal Ahmad)
++Method statement and programme: 30.00 (Mohd Rizal Ahmad) · Similar works completed: 28.00 (Mohd Rizal Ahmad) · Key staff: 20.00 (Mohd Rizal Ahmad)
+ No. 3
+ Rekaan Maju Construction
+ In the running
+ 71.00%
+ Passes
+-Method statement and programme: 28.0000 (Mohd Rizal Ahmad) · Similar works completed: 25.0000 (Mohd Rizal Ahmad) · Key staff: 18.0000 (Mohd Rizal Ahmad)
++Method statement and programme: 28.00 (Mohd Rizal Ahmad) · Similar works completed: 25.00 (Mohd Rizal Ahmad) · Key staff: 18.00 (Mohd Rizal Ahmad)
+ No. 4
+ Demo Network Builders Sdn Bhd
+ In the running
+ 63.00%
+ Fails
+ Out of the running
+-Method statement and programme: 26.0000 (Mohd Rizal Ahmad) · Similar works completed: 22.0000 (Mohd Rizal Ahmad) · Key staff: 15.0000 (Mohd Rizal Ahmad)
++Method statement and programme: 26.00 (Mohd Rizal Ahmad) · Similar works completed: 22.00 (Mohd Rizal Ahmad) · Key staff: 15.00 (Mohd Rizal Ahmad)
+ No. 5
+ Demo Paip Services
+ In the running
+ 80.00%
+ Passes
+-Method statement and programme: 32.0000 (Mohd Rizal Ahmad) · Similar works completed: 29.0000 (Mohd Rizal Ahmad) · Key staff: 19.0000 (Mohd Rizal Ahmad)
++Method statement and programme: 32.00 (Mohd Rizal Ahmad) · Similar works completed: 29.00 (Mohd Rizal Ahmad) · Key staff: 19.00 (Mohd Rizal Ahmad)
+ 2. Financial capacity
+ Financial test
+-Contract and procurement · pass mark 55.00% · Submitted 02 Oct 2026 · 14:24 by Kumar Selvam
++Contract and procurement · pass mark 55.00% · Submitted 02 Oct 2026 · 15:35 by Kumar Selvam
+ Submitted
+ No. 1
+ Contoh Bina Sdn Bhd
+@@ -171,7 +171,7 @@
+ SULIT · not restricted until sign-in
+ Passes
+ Meets the minimum capital
+-Financial standing: 72.0000 (Kumar Selvam)
++Financial standing: 72.00 (Kumar Selvam)
+ No. 2
+ Sampel Kejuruteraan Enterprise
+ Where it stands
+@@ -185,7 +185,7 @@
+ SULIT · not restricted until sign-in
+ Passes
+ Meets the minimum capital
+-Financial standing: 80.0000 (Kumar Selvam)
++Financial standing: 80.00 (Kumar Selvam)
+ No. 3
+ Rekaan Maju Construction
+ Where it stands
+@@ -199,7 +199,7 @@
+ SULIT · not restricted until sign-in
+ Passes
+ Meets the minimum capital
+-Financial standing: 60.0000 (Kumar Selvam)
++Financial standing: 60.00 (Kumar Selvam)
+ No. 4
+ Demo Network Builders Sdn Bhd
+ Where it stands
+@@ -227,7 +227,7 @@
+ Fails
+ Meets the minimum capital
+ Out of the running
+-Financial standing: 50.0000 (Kumar Selvam)
++Financial standing: 50.00 (Kumar Selvam)
+ Bid
+ ▲
+ Where it stands
+@@ -243,21 +243,21 @@
+ 72.00%
+ Passes
+ Meets the minimum capital
+-Financial standing: 72.0000 (Kumar Selvam)
++Financial standing: 72.00 (Kumar Selvam)
+ No. 2
+ Sampel Kejuruteraan Enterprise
+ In the running
+ 80.00%
+ Passes
+ Meets the minimum capital
+-Financial standing: 80.0000 (Kumar Selvam)
++Financial standing: 80.00 (Kumar Selvam)
+ No. 3
+ Rekaan Maju Construction
+ In the running
+ 60.00%
+ Passes
+ Meets the minimum capital
+-Financial standing: 60.0000 (Kumar Selvam)
++Financial standing: 60.00 (Kumar Selvam)
+ No. 4
+ Demo Network Builders Sdn Bhd
+ Out of the running
+@@ -271,10 +271,10 @@
+ Fails
+ Meets the minimum capital
+ Out of the running
+-Financial standing: 50.0000 (Kumar Selvam)
++Financial standing: 50.00 (Kumar Selvam)
+ 3. Aspects of the bid
+ Aspects
+-Implementing department · Submitted 02 Oct 2026 · 14:30 by Mohd Rizal Ahmad
++Implementing department · Submitted 02 Oct 2026 · 15:41 by Mohd Rizal Ahmad
+ Submitted
+ No. 1
+ Contoh Bina Sdn Bhd
+@@ -344,7 +344,7 @@
+ —
+ 4. Composite
+ Composite
+-Contract and procurement · pass mark 60.00% · Submitted 02 Oct 2026 · 14:32 by Kumar Selvam
++Contract and procurement · pass mark 60.00% · Submitted 02 Oct 2026 · 15:43 by Kumar Selvam
+ Submitted
+ No. 1
+ Contoh Bina Sdn Bhd
+diff -ru snap-before68fix/sourcing__demo_sx16__tab__history.txt snap-after68fix/sourcing__demo_sx16__tab__history.txt
+--- snap-before68fix/sourcing__demo_sx16__tab__history.txt	2026-10-02 09:00:29.993151409 +0000
++++ snap-after68fix/sourcing__demo_sx16__tab__history.txt	2026-10-02 09:56:54.645073994 +0000
+@@ -149,15 +149,6 @@
+ :
+ Kumar Selvam (recorded on their behalf, not signed)
+ Changed
+-Exercise
+-DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+-02 Oct 2026
+-Status
+-:
+-Under evaluation
+-→
+-Evaluated
+-Changed
+ Evaluation
+ DEMO/SX/0016/2026 · Evaluation, version 1
+ 02 Oct 2026
+@@ -186,13 +177,23 @@
+ —
+ →
+ 1 extension(s), from the recommended tenderer
++Changed
++Exercise
++DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
++02 Oct 2026
++Status
++:
++Under evaluation
++→
++Evaluated
+ Created
+ Recommendation
+ DEMO/SX/0016/2026 · Evaluation, version 1 · Recommendation
+ 02 Oct 2026
+-Recommended
++Recommended tenderer
+ :
+ No. 1, Contoh Bina Sdn Bhd
++SULIT · not restricted until sign-in
+ Recommended price
+ :
+ RM612,450.30
+@@ -245,6 +246,7 @@
+ Narrative
+ :
+ Capable, with a smaller team than the others.
++SULIT · not restricted until sign-in
+ Assessed by
+ :
+ Mohd Rizal Ahmad (recorded on their behalf, not signed)
+@@ -261,6 +263,7 @@
+ Narrative
+ :
+ Twelve months, as the documents ask.
++SULIT · not restricted until sign-in
+ Assessed by
+ :
+ Mohd Rizal Ahmad (recorded on their behalf, not signed)
+@@ -277,6 +280,7 @@
+ Narrative
+ :
+ About 6% above the company estimate.
++SULIT · not restricted until sign-in
+ Assessed by
+ :
+ Mohd Rizal Ahmad (recorded on their behalf, not signed)
+@@ -293,6 +297,7 @@
+ Narrative
+ :
+ Every item on the checklist was found with the bid at the opening.
++SULIT · not restricted until sign-in
+ Assessed by
+ :
+ Mohd Rizal Ahmad (recorded on their behalf, not signed)
+@@ -309,6 +314,7 @@
+ Narrative
+ :
+ Capable: similar works completed for another authority.
++SULIT · not restricted until sign-in
+ Assessed by
+ :
+ Mohd Rizal Ahmad (recorded on their behalf, not signed)
+@@ -325,6 +331,7 @@
+ Narrative
+ :
+ Fourteen months: two longer than the documents ask.
++SULIT · not restricted until sign-in
+ Assessed by
+ :
+ Mohd Rizal Ahmad (recorded on their behalf, not signed)
+@@ -341,6 +348,7 @@
+ Narrative
+ :
+ About 4% above the company estimate.
++SULIT · not restricted until sign-in
+ Assessed by
+ :
+ Mohd Rizal Ahmad (recorded on their behalf, not signed)
+@@ -357,6 +365,7 @@
+ Narrative
+ :
+ The registration background form was absent at the opening and was not supplied after.
++SULIT · not restricted until sign-in
+ Assessed by
+ :
+ Mohd Rizal Ahmad (recorded on their behalf, not signed)
+@@ -373,6 +382,7 @@
+ Narrative
+ :
+ Two similar inlet mains completed in the last three years; the site agent is named.
++SULIT · not restricted until sign-in
+ Assessed by
+ :
+ Mohd Rizal Ahmad (recorded on their behalf, not signed)
+@@ -389,6 +399,7 @@
+ Narrative
+ :
+ Twelve months, as the documents ask.
++SULIT · not restricted until sign-in
+ Assessed by
+ :
+ Mohd Rizal Ahmad (recorded on their behalf, not signed)
+@@ -405,6 +416,7 @@
+ Narrative
+ :
+ About 3% below the company estimate: a reasonable price for the scope.
++SULIT · not restricted until sign-in
+ Assessed by
+ :
+ Mohd Rizal Ahmad (recorded on their behalf, not signed)
+@@ -421,6 +433,7 @@
+ Narrative
+ :
+ Every item on the checklist was found with the bid at the opening.
++SULIT · not restricted until sign-in
+ Assessed by
+ :
+ Mohd Rizal Ahmad (recorded on their behalf, not signed)
+@@ -580,7 +593,7 @@
+ :
+ —
+ →
+-02 Oct 2026 · 14:18
++02 Oct 2026 · 15:29
+ Created
+ Score
+ DEMO/SX/0016/2026 · Evaluation, version 1 · Technical · bid No. 5
+@@ -792,21 +805,39 @@
+ :
+ Mohd Rizal Ahmad (recorded on their behalf, not signed)
+ Created
+-Evaluation team
+-DEMO/SX/0016/2026 · Evaluation, version 1 · Team
++Evaluation
++DEMO/SX/0016/2026 · Evaluation, version 1
+ 02 Oct 2026
+-Member
++Version
+ :
+-Mohd Rizal Ahmad
+-Side
++1
++Opened
+ :
+-Implementing department
+-Unit
++Started after the opening
++Model
+ :
+-NTH-MNT
+-Appointed on
++Demo weighted tender model, version 1
++Started
++:
++02 Oct 2026 · 15:24:43
++Started by
+ :
++Kumar Selvam (recorded on their behalf, not signed)
++Bids carried
++:
++5
++Scores shown at
++:
++2 decimal places
++Changed
++Exercise
++DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+ 02 Oct 2026
++Status
++:
++Opened
++→
++Under evaluation
+ Created
+ Evaluation team
+ DEMO/SX/0016/2026 · Evaluation, version 1 · Team
+@@ -823,40 +854,22 @@
+ Appointed on
+ :
+ 02 Oct 2026
+-Changed
+-Exercise
+-DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+-02 Oct 2026
+-Status
+-:
+-Opened
+-→
+-Under evaluation
+ Created
+-Evaluation
+-DEMO/SX/0016/2026 · Evaluation, version 1
++Evaluation team
++DEMO/SX/0016/2026 · Evaluation, version 1 · Team
+ 02 Oct 2026
+-Version
+-:
+-1
+-Opened
+-:
+-Started after the opening
+-Model
+-:
+-Demo weighted tender model, version 1
+-Started
++Member
+ :
+-02 Oct 2026 · 14:13:44
+-Started by
++Mohd Rizal Ahmad
++Side
+ :
+-Kumar Selvam (recorded on their behalf, not signed)
+-Bids carried
++Implementing department
++Unit
+ :
+-5
+-Scores shown at
++NTH-MNT
++Appointed on
+ :
+-2 decimal places
++02 Oct 2026
+ Created
+ Attachment
+ DEMO/SX/0016/2026 · Validity extension to 28 Feb 2027 · Tenderer's consent to extend validity
+@@ -1141,6 +1154,15 @@
+ —
+ →
+ Demo Paip Services
++Changed
++Opening
++DEMO/SX/0016/2026 · Supplementary opening 1
++01 Oct 2026
++Opened
++:
++—
++→
++01 Oct 2026 · 16:31:30
+ Created
+ Authorisation to open
+ DEMO/SX/0016/2026 · Supplementary opening 1
+@@ -1157,15 +1179,6 @@
+ Result
+ :
+ Second authorisation: the box opened
+-Changed
+-Opening
+-DEMO/SX/0016/2026 · Supplementary opening 1
+-01 Oct 2026
+-Opened
+-:
+-—
+-→
+-01 Oct 2026 · 16:31:30
+ Created
+ Authorisation to open
+ DEMO/SX/0016/2026 · Supplementary opening 1
+@@ -1271,15 +1284,6 @@
+ :
+ DEMO/SX/0016/2026 · Opening
+ Changed
+-Exercise
+-DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+-01 Oct 2026
+-Status
+-:
+-Opening in progress
+-→
+-Opened
+-Changed
+ Opening
+ DEMO/SX/0016/2026 · Opening
+ 01 Oct 2026
+@@ -1326,6 +1330,15 @@
+ →
+ The paper copy was not in the box
+ Changed
++Exercise
++DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
++01 Oct 2026
++Status
++:
++Opening in progress
++→
++Opened
++Changed
+ Opening
+ DEMO/SX/0016/2026 · Opening
+ 01 Oct 2026
+@@ -1749,6 +1762,20 @@
+ At
+ :
+ 01 Oct 2026 · 15:18:00
++Changed
++Record
++DEMO/SX/0016/2026 · Envelope 2
++01 Oct 2026
++Status
++:
++Received
++→
++Opened
++Bidder
++:
++—
++→
++Sampel Kejuruteraan Enterprise
+ Created
+ Offer as read
+ DEMO/SX/0016/2026 · Offer 2
+@@ -1788,20 +1815,6 @@
+ :
+ 01 Oct 2026 · 15:17:00
+ Changed
+-Record
+-DEMO/SX/0016/2026 · Envelope 2
+-01 Oct 2026
+-Status
+-:
+-Received
+-→
+-Opened
+-Bidder
+-:
+-—
+-→
+-Sampel Kejuruteraan Enterprise
+-Changed
+ Offer as read
+ DEMO/SX/0016/2026 · Offer 1
+ 01 Oct 2026
+@@ -2087,15 +2100,6 @@
+ Attached to
+ :
+ DEMO/SX/0016/2026 · Withdrawal of envelope 5
+-Changed
+-Record
+-DEMO/SX/0016/2026 · Envelope 5
+-01 Oct 2026
+-Status
+-:
+-Received
+-→
+-Withdrawn
+ Created
+ Record
+ DEMO/SX/0016/2026 · Withdrawal of envelope 5
+@@ -2116,6 +2120,15 @@
+ Envelope
+ :
+ Envelope 5
++Changed
++Record
++DEMO/SX/0016/2026 · Envelope 5
++01 Oct 2026
++Status
++:
++Received
++→
++Withdrawn
+ Created
+ Record
+ DEMO/SX/0016/2026 · Envelope 5
+@@ -2410,6 +2423,22 @@
+ :
+ +00 0-000 0103
+ Created
++Attendance
++DEMO/SX/0016/2026 · Tender briefing · Contoh Bina Sdn Bhd
++25 Sep 2026
++Contractor
++:
++Contoh Bina Sdn Bhd
++Representative
++:
++Ahmad bin Demo
++Recorded by
++:
++Daniel Anak Jelani
++Recorded
++:
++not signed
++Created
+ Contractor
+ DEMO/SX/0016/2026 · Contractor Contoh Bina Sdn Bhd
+ 25 Sep 2026
+@@ -2431,22 +2460,6 @@
+ Email
+ :
+ tender@contohbina.invalid
+-Created
+-Attendance
+-DEMO/SX/0016/2026 · Tender briefing · Contoh Bina Sdn Bhd
+-25 Sep 2026
+-Contractor
+-:
+-Contoh Bina Sdn Bhd
+-Representative
+-:
+-Ahmad bin Demo
+-Recorded by
+-:
+-Daniel Anak Jelani
+-Recorded
+-:
+-not signed
+ Changed
+ Briefing or site visit
+ DEMO/SX/0016/2026 · Tender briefing
+@@ -2460,15 +2473,6 @@
+ Exercise
+ DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+ 24 Sep 2026
+-Evaluation model pinned
+-:
+-—
+-→
+-Demo weighted tender model, version 1
+-Changed
+-Exercise
+-DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+-24 Sep 2026
+ Status
+ :
+ Approved for tendering
+@@ -2497,6 +2501,15 @@
+ Exercise
+ DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+ 24 Sep 2026
++Evaluation model pinned
++:
++—
++→
++Demo weighted tender model, version 1
++Changed
++Exercise
++DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
++24 Sep 2026
+ Evaluation model
+ :
+ —
+@@ -2744,19 +2757,6 @@
+ —
+ →
+ on behalf of, not signed
+-Created
+-Frozen text
+-DEMO/SX/0016/2026 · Tender documents v1 · part 2
+-23 Sep 2026
+-Part
+-:
+-2. Form of tender
+-Frozen from
+-:
+-Demo form of offer, text version 1
+-Language
+-:
+-English
+ Changed
+ Exercise
+ DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+@@ -2855,6 +2855,19 @@
+ English
+ Created
+ Frozen text
++DEMO/SX/0016/2026 · Tender documents v1 · part 2
++23 Sep 2026
++Part
++:
++2. Form of tender
++Frozen from
++:
++Demo form of offer, text version 1
++Language
++:
++English
++Created
++Frozen text
+ DEMO/SX/0016/2026 · Tender documents v1 · part 1
+ 23 Sep 2026
+ Part
+@@ -2868,7 +2881,7 @@
+ English
+ Changed
+ Tender document part
+-DEMO/SX/0016/2026 · Tender documents v1 · part 9
++DEMO/SX/0016/2026 · Tender documents v1 · part 11
+ 23 Sep 2026
+ State
+ :
+@@ -2886,7 +2899,7 @@
+ Ready
+ Changed
+ Tender document part
+-DEMO/SX/0016/2026 · Tender documents v1 · part 8
++DEMO/SX/0016/2026 · Tender documents v1 · part 9
+ 23 Sep 2026
+ State
+ :
+@@ -2895,7 +2908,7 @@
+ Ready
+ Changed
+ Tender document part
+-DEMO/SX/0016/2026 · Tender documents v1 · part 1
++DEMO/SX/0016/2026 · Tender documents v1 · part 8
+ 23 Sep 2026
+ State
+ :
+@@ -2904,7 +2917,7 @@
+ Ready
+ Changed
+ Tender document part
+-DEMO/SX/0016/2026 · Tender documents v1 · part 2
++DEMO/SX/0016/2026 · Tender documents v1 · part 7b
+ 23 Sep 2026
+ State
+ :
+@@ -2913,7 +2926,7 @@
+ Ready
+ Changed
+ Tender document part
+-DEMO/SX/0016/2026 · Tender documents v1 · part 3
++DEMO/SX/0016/2026 · Tender documents v1 · part 6
+ 23 Sep 2026
+ State
+ :
+@@ -2922,7 +2935,7 @@
+ Ready
+ Changed
+ Tender document part
+-DEMO/SX/0016/2026 · Tender documents v1 · part 3a
++DEMO/SX/0016/2026 · Tender documents v1 · part 5
+ 23 Sep 2026
+ State
+ :
+@@ -2940,7 +2953,7 @@
+ Ready
+ Changed
+ Tender document part
+-DEMO/SX/0016/2026 · Tender documents v1 · part 5
++DEMO/SX/0016/2026 · Tender documents v1 · part 3a
+ 23 Sep 2026
+ State
+ :
+@@ -2949,7 +2962,7 @@
+ Ready
+ Changed
+ Tender document part
+-DEMO/SX/0016/2026 · Tender documents v1 · part 6
++DEMO/SX/0016/2026 · Tender documents v1 · part 3
+ 23 Sep 2026
+ State
+ :
+@@ -2958,7 +2971,7 @@
+ Ready
+ Changed
+ Tender document part
+-DEMO/SX/0016/2026 · Tender documents v1 · part 7b
++DEMO/SX/0016/2026 · Tender documents v1 · part 2
+ 23 Sep 2026
+ State
+ :
+@@ -2967,7 +2980,7 @@
+ Ready
+ Changed
+ Tender document part
+-DEMO/SX/0016/2026 · Tender documents v1 · part 11
++DEMO/SX/0016/2026 · Tender documents v1 · part 1
+ 23 Sep 2026
+ State
+ :
+@@ -3010,25 +3023,25 @@
+ Exercise
+ DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+ 23 Sep 2026
+-Needs regulator permit
++Restricted tender
+ :
+ Not set
+ →
+-Yes
+-Permit type
+-:
+-—
+-→
+-Demo permit class 2
++No
+ Changed
+ Exercise
+ DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+ 23 Sep 2026
+-Restricted tender
++Needs regulator permit
+ :
+ Not set
+ →
+-No
++Yes
++Permit type
++:
++—
++→
++Demo permit class 2
+ Created
+ Record
+ DEMO/SX/0016/2026 · Registration required · the Demo Companies Registry
+@@ -3276,14 +3289,14 @@
+ DEMO/SX/0016/2026 · Tender pack v1 · part 4, Specimen letter of acceptance
+ Created
+ Tender document part
+-DEMO/SX/0016/2026 · Tender documents v1 · part 9
++DEMO/SX/0016/2026 · Tender documents v1 · part 4
+ 23 Sep 2026
+ Part
+ :
+-9. Bidder's declaration and letter of authorisation
++4. Specimen letter of acceptance
+ Role
+ :
+-Tenderer's declaration
++Specimen letter of acceptance
+ Content
+ :
+ Standard
+@@ -3298,26 +3311,26 @@
+ No
+ Returned by the bidder
+ :
+-Yes
++No
+ State
+ :
+ Not ready
+ Created
+ Tender document part
+-DEMO/SX/0016/2026 · Tender documents v1 · part 3
++DEMO/SX/0016/2026 · Tender documents v1 · part 3a
+ 23 Sep 2026
+ Part
+ :
+-3. Conditions of contract
++3a. Appendix to the conditions of contract
+ Role
+ :
+-Conditions of contract
++Appendix to the conditions
+ Content
+ :
+-Standard
++Bespoke
+ Source
+ :
+-From the template library
++The Appendix entered here
+ Mandatory
+ :
+ Yes
+@@ -3330,19 +3343,16 @@
+ State
+ :
+ Not ready
+-Template
+-:
+-Demo conditions of contract (drawings and specification)
+ Created
+ Tender document part
+-DEMO/SX/0016/2026 · Tender documents v1 · part 2
++DEMO/SX/0016/2026 · Tender documents v1 · part 3
+ 23 Sep 2026
+ Part
+ :
+-2. Form of tender
++3. Conditions of contract
+ Role
+ :
+-Form of tender
++Conditions of contract
+ Content
+ :
+ Standard
+@@ -3357,12 +3367,12 @@
+ Yes
+ Returned by the bidder
+ :
+-Yes
++No
+ State
+ :
+ Not ready
+ Template
+ :
+-Demo form of offer
++Demo conditions of contract (drawings and specification)
+ @title: award DEMO/AWD/0007/2026 stands on this exercise — cancel the award first.
+ @aria-label: Exercise
+diff -ru snap-before68fix/sourcing__demo_sx21__tab__evaluation&section__stages.txt snap-after68fix/sourcing__demo_sx21__tab__evaluation&section__stages.txt
+--- snap-before68fix/sourcing__demo_sx21__tab__evaluation&section__stages.txt	2026-10-02 09:00:39.253151197 +0000
++++ snap-after68fix/sourcing__demo_sx21__tab__evaluation&section__stages.txt	2026-10-02 09:57:03.401073794 +0000
+@@ -59,7 +59,7 @@
+ SULIT
+ SULIT · not restricted until sign-in
+ Passes
+-Method and programme: 16.0000 (Mohd Rizal Ahmad) · Similar works: 24.0000 (Mohd Rizal Ahmad)
++Method and programme: 16.00 (Mohd Rizal Ahmad) · Similar works: 24.00 (Mohd Rizal Ahmad)
+ No. 2
+ Sampel Kejuruteraan Enterprise
+ Where it stands
+@@ -72,7 +72,7 @@
+ SULIT
+ SULIT · not restricted until sign-in
+ Passes
+-Method and programme: 14.0000 (Mohd Rizal Ahmad) · Similar works: 21.0000 (Mohd Rizal Ahmad)
++Method and programme: 14.00 (Mohd Rizal Ahmad) · Similar works: 21.00 (Mohd Rizal Ahmad)
+ No. 3
+ Rekaan Maju Construction
+ Where it stands
+@@ -100,13 +100,13 @@
+ In the running
+ 80.00%
+ Passes
+-Method and programme: 16.0000 (Mohd Rizal Ahmad) · Similar works: 24.0000 (Mohd Rizal Ahmad)
++Method and programme: 16.00 (Mohd Rizal Ahmad) · Similar works: 24.00 (Mohd Rizal Ahmad)
+ No. 2
+ Sampel Kejuruteraan Enterprise
+ In the running
+ 70.00%
+ Passes
+-Method and programme: 14.0000 (Mohd Rizal Ahmad) · Similar works: 21.0000 (Mohd Rizal Ahmad)
++Method and programme: 14.00 (Mohd Rizal Ahmad) · Similar works: 21.00 (Mohd Rizal Ahmad)
+ No. 3
+ Rekaan Maju Construction
+ Excluded above the ceiling
+@@ -191,7 +191,8 @@
+ Result
+ SULIT
+ SULIT · not restricted until sign-in
+-Passes
++Not yet
++Not judged yet: Which factor applies to bid No. 2 is not chosen. Record it with the bidder's inputs.
+ No. 3
+ Rekaan Maju Construction
+ Where it stands
+@@ -223,7 +224,8 @@
+ Sampel Kejuruteraan Enterprise
+ In the running
+ —
+-Passes
++Not yet
++Not judged yet: Which factor applies to bid No. 2 is not chosen. Record it with the bidder's inputs.
+ No. 3
+ Rekaan Maju Construction
+ Excluded above the ceiling
+@@ -290,7 +292,8 @@
+ Result
+ SULIT
+ SULIT · not restricted until sign-in
+-—
++Not yet
++Not judged yet: bid No. 1 is not assessed on Completeness of the bid. bid No. 1 is not assessed on Price against the company estimate. bid No. 1 is not assessed on Completion period offered. bid No. 1 is not assessed on Capability to carry out the works.
+ No. 2
+ Sampel Kejuruteraan Enterprise
+ Where it stands
+@@ -298,7 +301,8 @@
+ Result
+ SULIT
+ SULIT · not restricted until sign-in
+-—
++Not yet
++Not judged yet: bid No. 2 is not assessed on Completeness of the bid. bid No. 2 is not assessed on Price against the company estimate. bid No. 2 is not assessed on Completion period offered. bid No. 2 is not assessed on Capability to carry out the works.
+ No. 3
+ Rekaan Maju Construction
+ Where it stands
+@@ -316,11 +320,13 @@
+ No. 1
+ Teladan Mekanikal Sdn Bhd
+ In the running
+-—
++Not yet
++Not judged yet: bid No. 1 is not assessed on Completeness of the bid. bid No. 1 is not assessed on Price against the company estimate. bid No. 1 is not assessed on Completion period offered. bid No. 1 is not assessed on Capability to carry out the works.
+ No. 2
+ Sampel Kejuruteraan Enterprise
+ In the running
+-—
++Not yet
++Not judged yet: bid No. 2 is not assessed on Completeness of the bid. bid No. 2 is not assessed on Price against the company estimate. bid No. 2 is not assessed on Completion period offered. bid No. 2 is not assessed on Capability to carry out the works.
+ No. 3
+ Rekaan Maju Construction
+ Excluded above the ceiling
+@@ -377,7 +383,7 @@
+ @title: In the running
+ @title: SULIT · not restricted until sign-in
+ @title: SULIT · not restricted until sign-in
+-@title: Passes
++@title: Not yet
+ @title: Excluded above the ceiling
+ @title: SULIT · not restricted until sign-in
+ @title: SULIT · not restricted until sign-in
+@@ -388,7 +394,7 @@
+ @title: Passes
+ @title: Meets the minimum capital
+ @title: In the running
+-@title: Passes
++@title: Not yet
+ @title: Excluded above the ceiling
+ @title: In the running
+ @title: SULIT · not restricted until sign-in
+@@ -411,12 +417,16 @@
+ @title: Excluded above the ceiling
+ @title: In the running
+ @title: SULIT · not restricted until sign-in
++@title: Not yet
+ @title: In the running
+ @title: SULIT · not restricted until sign-in
++@title: Not yet
+ @title: Excluded above the ceiling
+ @title: SULIT · not restricted until sign-in
+ @title: Bid
+ @title: SULIT · not restricted until sign-in
+ @title: In the running
++@title: Not yet
+ @title: In the running
++@title: Not yet
+ @title: Excluded above the ceiling
+diff -ru snap-before68fix/sourcing__demo_sx21__tab__evaluation.txt snap-after68fix/sourcing__demo_sx21__tab__evaluation.txt
+--- snap-before68fix/sourcing__demo_sx21__tab__evaluation.txt	2026-10-02 09:00:36.689151256 +0000
++++ snap-after68fix/sourcing__demo_sx21__tab__evaluation.txt	2026-10-02 09:57:01.309073842 +0000
+@@ -80,7 +80,7 @@
+ Inputs
+ Materials supplied by the contractor
+ RM21,000 · RM19,800 · RM22,400
+-Inputs
++Record inputs
+ No. 2
+ DM0000102-X
+ Bidder
+@@ -95,7 +95,7 @@
+ In the running
+ Inputs
+ None recorded
+-Inputs
++Record inputs
+ No. 3
+ DM0000106-K
+ Bidder
+@@ -109,9 +109,8 @@
+ Where it stands
+ Excluded above the ceiling
+ Inputs
+-None recorded
++None: an excluded bid takes no inputs
+ Its price is above the exercise's quotation ceiling of RM300,000 (a price at the ceiling itself is a quotation).
+-Inputs
+ Bid
+ ▲
+ Bidder
+@@ -129,7 +128,7 @@
+ In the running
+ Materials supplied by the contractor
+ RM21,000 · RM19,800 · RM22,400
+-Inputs
++Record inputs
+ No. 2
+ DM0000102-X
+ Sampel Kejuruteraan Enterprise
+@@ -138,7 +137,7 @@
+ As read
+ In the running
+ None recorded
+-Inputs
++Record inputs
+ No. 3
+ DM0000106-K
+ Rekaan Maju Construction
+@@ -146,26 +145,23 @@
+ RM312,600
+ As read
+ Excluded above the ceiling
+-None recorded
++None: an excluded bid takes no inputs
+ Its price is above the exercise's quotation ceiling of RM300,000 (a price at the ceiling itself is a quotation).
+-Inputs
+ @title: A published exercise is cancelled from the Invitation tab: it goes to approval with a reason and an answer on the fees.
+ @aria-label: Exercise
+ @aria-label: Evaluation sections
+ @title: SULIT · not restricted until sign-in
+ @title: In the running
+-@aria-label: Inputs for bid No. 1
++@aria-label: Record the inputs for bid No. 1
+ @title: SULIT · not restricted until sign-in
+ @title: In the running
+-@aria-label: Inputs for bid No. 2
++@aria-label: Record the inputs for bid No. 2
+ @title: SULIT · not restricted until sign-in
+ @title: Excluded above the ceiling
+-@aria-label: Inputs for bid No. 3
+ @title: Bid
+ @title: SULIT · not restricted until sign-in
+ @title: In the running
+-@aria-label: Inputs for bid No. 1
++@aria-label: Record the inputs for bid No. 1
+ @title: In the running
+-@aria-label: Inputs for bid No. 2
++@aria-label: Record the inputs for bid No. 2
+ @title: Excluded above the ceiling
+-@aria-label: Inputs for bid No. 3
