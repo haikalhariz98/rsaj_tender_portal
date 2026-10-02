@@ -11,6 +11,7 @@
  */
 
 import { wipeContractFormation, wipeContractsConfig } from "./demo-contracts";
+import { wipeAwardRoutingSheets } from "./demo-certificates";
 import type { PrismaClient } from "../src/generated/prisma/client";
 
 const P = "demo_";
@@ -716,6 +717,8 @@ export async function wipeAwards(db: Db, organisationId: string, check: AwardWip
   await db.approvalInstance.updateMany({ where: { ...byAward, NOT: { supersedesInstanceId: null } }, data: { supersedesInstanceId: null } });
   await db.approvalStep.deleteMany({ where: { instance: byAward } });
   await db.approvalInstance.deleteMany({ where: byAward });
+  // 6.14: the awards' pre-award routing sheets and their checks.
+  await wipeAwardRoutingSheets(db, ids);
   // 6.12: the contracts' formation records go first (custody names their bonds and policies).
   await wipeContractFormation(db, organisationId, awards.flatMap((a) => (a.contract ? [{ id: a.contract.id, number: a.contract.number }] : [])));
   await db.securityInstrument.deleteMany({ where: { contract: byAward } });
