@@ -272,6 +272,7 @@ function DocumentsPanel({ l, cfg, people }: { l: LoadedSupplier; cfg: SupplierCo
                       {st.mandatory && <Badge outline>Mandatory</Badge>}
                       <Badge tone={DOCUMENT_STATE_TONE[st.state]}>{DOCUMENT_STATE_LABEL[st.state].en}</Badge>
                       {st.pending && st.effective && <Chip tone="warn">Renewal lodged, not verified yet</Chip>}
+                      {st.upcoming && <Chip tone="info">{renewalUpcomingWords(st.upcoming.validFrom)}</Chip>}
                       {today && st.effective?.expiresOn && st.state === "VALID" && (() => { const b = expiryBand(st.effective.expiresOn, today, { criticalDays: cfg.policy?.criticalDays ?? null, warningDays: cfg.policy?.warningDays ?? null, upcomingDays: cfg.policy?.upcomingDays ?? null }); return b.band === "NONE" ? null : <Chip tone={EXPIRY_BAND_TONE[b.band] === "neutral" ? undefined : EXPIRY_BAND_TONE[b.band]}>{`Expiry: ${EXPIRY_BAND_LABEL[b.band].en.toLowerCase()}${b.daysLeft != null ? `, ${b.daysLeft} days left` : ""}`}</Chip>; })()}
                     </div>
                     {st.state === "MISSING" && <LodgeDocumentDrawer supplierId={s.id} types={[{ value: st.type.id, label: st.type.label }]} values={values(typeRow.bodyId)} people={people} blocker={lodgeBlocker === null || lodgeBlocker.startsWith("Every") ? null : lodgeBlocker} trigger="Lodge" />}

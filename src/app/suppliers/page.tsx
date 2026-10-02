@@ -11,7 +11,7 @@ import { formatDate } from "@/lib/format";
 import { routeState } from "@/lib/suppliers/blacklist";
 import { documentStates, stateCounts } from "@/lib/suppliers/documents";
 import { expiryBand, reminderDue, startsOn, worstBand, type ExpiryBand } from "@/lib/suppliers/expiry";
-import { APPLICATION_KIND_LABEL, blacklistEndWords, DOCUMENT_STATE_LABEL, ERP_NOT_SYNCED, EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, QUEUE_STATE_LABEL, QUEUE_STATE_TONE, REMINDER_NOT_SENT, REQUEST_KIND_LABEL, standingTone, standingWords, SUPPLIER_STATUS_LABEL, SUPPLIER_STATUS_TONE } from "@/lib/suppliers/labels";
+import { APPLICATION_KIND_LABEL, blacklistEndWords, renewalUpcomingWords, DOCUMENT_STATE_LABEL, ERP_NOT_SYNCED, EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, QUEUE_STATE_LABEL, QUEUE_STATE_TONE, REMINDER_NOT_SENT, REQUEST_KIND_LABEL, standingTone, standingWords, SUPPLIER_STATUS_LABEL, SUPPLIER_STATUS_TONE } from "@/lib/suppliers/labels";
 import { documentFacts, listSuppliers, loadSupplierConfig } from "@/lib/suppliers/repo";
 import { isOpen, queueState, type QueueState } from "@/lib/suppliers/review";
 import { standing } from "@/lib/suppliers/standing";
@@ -51,7 +51,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
       const states = today ? documentStates(cfg.typeFacts, docs, today) : [];
       const st = today ? standing({ status: s.status as SupplierStatus }, s.standingEvents.map(standingEventFacts), states.filter((x) => x.mandatory).map((x) => ({ typeLabel: x.type.label, state: x.state })), { autoSuspendOnLapse: p?.autoSuspendOnLapse ?? null }, today) : null;
       // The band of each type's document in force (a renewal counts once verified).
-      const expiring = today ? states.filter((x) => x.effective && !x.effective.notApplicable && x.effective.expiresOn && typeExpires.get(x.type.id) !== false).map((x) => ({ type: x.type.label, doc: x.effective!, pending: !!x.pending, ...expiryBand(x.effective!.expiresOn, today, bands) })) : [];
+      const expiring = today ? states.filter((x) => x.effective && !x.effective.notApplicable && x.effective.expiresOn && typeExpires.get(x.type.id) !== false).map((x) => ({ type: x.type.label, doc: x.effective!, pending: !!x.pending, upcoming: x.upcoming?.validFrom ?? null, ...expiryBand(x.effective!.expiresOn, today, bands) })) : [];
       return [s.id, { states, standing: st, expiring, worst: worstBand(expiring.map((e) => e.band).filter((b) => b !== "NONE")) }] as const;
     }),
   );
@@ -134,7 +134,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
           cells: {
             supplier: { kind: "link", text: s.registeredName, href: `/suppliers/${s.id}?tab=documents`, sub: `${s.reference} · ${e.type}` },
             expires: { kind: "stack", title: formatDate(e.doc.expiresOn!), sub: e.daysLeft == null ? undefined : e.daysLeft < 0 ? `${plural(-e.daysLeft, "day", "days")} ago` : e.daysLeft === 0 ? "Today is its last day" : `In ${plural(e.daysLeft, "day", "days")}` },
-            band: { kind: "chips", items: [{ text: EXPIRY_BAND_LABEL[e.band].en, tone: TONE[EXPIRY_BAND_TONE[e.band]] }, ...(e.pending ? [{ text: "Renewal lodged, not verified yet", tone: "info" as const }] : [])] },
+            band: { kind: "chips", items: [{ text: EXPIRY_BAND_LABEL[e.band].en, tone: TONE[EXPIRY_BAND_TONE[e.band]] }, ...(e.pending ? [{ text: "Renewal lodged, not verified yet", tone: "info" as const }] : []), ...(e.upcoming ? [{ text: renewalUpcomingWords(e.upcoming), tone: "info" as const }] : [])] },
             reminder: due ? { kind: "chips", items: [{ text: `${REMINDER_NOT_SENT.en} (${due.offset} days before)`, tone: "warn" as const }] } : { kind: "text", text: cfg.reminderOffsets.length ? "None due" : "No reminder rule", dim: true },
           },
         };

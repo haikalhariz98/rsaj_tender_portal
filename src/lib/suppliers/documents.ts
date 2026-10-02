@@ -4,10 +4,14 @@
  * verified by a named officer, and renewed as a chain.
  *
  * What a document *is* on a day is derived, never stored (FR-VND-002's valid / not applicable /
- * missing): the effective document of a type is the newest one in its chain that an officer has
- * verified. A renewal lodged but not verified leaves the old one effective (FR-VND-008: a renewal does
- * not take effect until re-approved), so an old certificate that has expired under an unverified
- * renewal reads EXPIRED. A document not in order is never effective. Pure: the day is passed in.
+ * missing): the document in force of a type on a day is the newest one in its chain that an officer
+ * has verified and whose validity has started by that day (6.15a fix M-3). A renewal lodged but not
+ * verified leaves the old one in force (FR-VND-008: a renewal does not take effect until re-approved),
+ * and so does a verified renewal whose validity starts later: it is carried alongside as `upcoming`
+ * and shown. So an old certificate that has expired under an unverified renewal, or under a verified
+ * one not yet started, reads EXPIRED, and the lapse rule handles it. With nothing verified started yet,
+ * the newest verified reads NOT_YET_VALID. A document not in order is never in force. Pure: the day is
+ * passed in.
  */
 
 import { isDay } from "@/lib/dates";
@@ -42,9 +46,21 @@ export function chainOrder(docs: readonly DocumentFacts[]): DocumentFacts[] {
   return [...docs].sort((a, b) => depth(b) - depth(a) || b.lodgedOn.localeCompare(a.lodgedOn) || b.id.localeCompare(a.id));
 }
 
-/// The document in force for a type: the newest verified one. A renewal waiting for verification, or one not in order, is never it.
+/// The newest verified document of a type, whatever its validity. A renewal waiting for verification, or one not in order, is never it.
 export function effectiveDocument(chain: readonly DocumentFacts[]): DocumentFacts | null {
   return chainOrder(chain).find((d) => d.verification === "VERIFIED") ?? null;
+}
+
+/// Whether a document's validity has started on a day (no "valid from" recorded: from when it was issued, so started).
+const started = (d: DocumentFacts, on: string) => d.validFrom == null || d.validFrom <= on;
+
+/**
+ * The document in force for a type on `on` (fix M-3): the newest verified one whose validity has started.
+ * None started: the newest verified one (it then reads NOT_YET_VALID). Never one waiting for its check.
+ */
+export function documentInForce(chain: readonly DocumentFacts[], on: string): DocumentFacts | null {
+  const verified = chainOrder(chain).filter((d) => d.verification === "VERIFIED");
+  return verified.find((d) => started(d, on)) ?? verified[0] ?? null;
 }
 
 export interface TypeStanding {
@@ -53,6 +69,8 @@ export interface TypeStanding {
   effective: DocumentFacts | null;
   /// A newer lodgement waiting for verification (a renewal not yet in effect), where there is one.
   pending: DocumentFacts | null;
+  /// A newer renewal verified but not yet started on the day (fix M-3): it takes over on its "valid from".
+  upcoming: DocumentFacts | null;
 }
 
 /**
@@ -61,18 +79,19 @@ export interface TypeStanding {
  */
 export function documentState(chain: readonly DocumentFacts[], on: string): TypeStanding {
   const ordered = chainOrder(chain);
-  const effective = effectiveDocument(ordered);
+  const effective = documentInForce(ordered, on);
   const newer = effective ? ordered.slice(0, ordered.indexOf(effective)) : ordered;
   const pending = newer.find((d) => d.verification === "NOT_CHECKED") ?? null;
+  const upcoming = newer.find((d) => d.verification === "VERIFIED" && !started(d, on)) ?? null;
   if (!effective) {
-    if (ordered.length === 0) return { state: "MISSING", effective: null, pending: null };
-    return { state: pending ? "NOT_CHECKED" : "NOT_IN_ORDER", effective: null, pending };
+    if (ordered.length === 0) return { state: "MISSING", effective: null, pending: null, upcoming: null };
+    return { state: pending ? "NOT_CHECKED" : "NOT_IN_ORDER", effective: null, pending, upcoming: null };
   }
-  if (effective.notApplicable) return { state: "NOT_APPLICABLE", effective, pending };
-  if (effective.validFrom && effective.validFrom > on) return { state: "NOT_YET_VALID", effective, pending };
+  if (effective.notApplicable) return { state: "NOT_APPLICABLE", effective, pending, upcoming };
+  if (!started(effective, on)) return { state: "NOT_YET_VALID", effective, pending, upcoming };
   // The expiry day itself is still valid; the day after is not.
-  if (effective.expiresOn && effective.expiresOn < on) return { state: "EXPIRED", effective, pending };
-  return { state: "VALID", effective, pending };
+  if (effective.expiresOn && effective.expiresOn < on) return { state: "EXPIRED", effective, pending, upcoming };
+  return { state: "VALID", effective, pending, upcoming };
 }
 
 /// Every configured type a supplier holds or must hold, with its state on `on`: mandatory types first, a missing mandatory type as MISSING.
