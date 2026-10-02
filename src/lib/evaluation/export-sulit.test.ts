@@ -64,3 +64,22 @@ describe("the price variance is never prefilled into a narrative (R-5)", () => {
     expect(s.guide).toMatch(/15\.00%/);
   });
 });
+
+describe("the ranking justification in the export file (re-review 3)", () => {
+  const r = row("j1", EVALUATION_ENTITY.recommendation, "DEMO/SX/0021/2026 · Evaluation, version 1 · Recommendation", diffFields(null, recommendationFields({ bidder: "No. 2, Syarikat Bina Jaya Sdn Bhd", price: parseSen("95000.00"), period: "12 weeks", topRanked: false, justification: "No. 1, Syarikat Murah, cannot meet the programme.", by: "Chen" })));
+  const file = auditCsv([r], "Asia/Kuala_Lumpur");
+  it("is withheld under its registered key, never written bare", () => {
+    expect(file).not.toContain("Syarikat Murah");
+    expect(file).not.toContain("cannot meet the programme");
+    expect(changesOf(file, 1).find((c) => c.field === "Ranking justification")?.after).toBe(SULIT_WITHHELD);
+    expect(isSulitField("rankingJustification")).toBe(true);
+    expect(Object.keys(recommendationFields({ bidder: "x", price: 1n, period: "p", topRanked: false, justification: "j", by: "b" }))).not.toContain("justification");
+  });
+  it("formRecommendation does not copy it into the audit reason (source scan)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("src/app/sourcing/[id]/evaluation/report-actions.ts", "utf8");
+    const body = src.slice(src.indexOf("export async function formRecommendation"), src.indexOf("export async function issueReport"));
+    expect(body).toMatch(/by: person!\.name \}\)\)\);/);
+    expect(body).not.toMatch(/, rf\.topRanked \? "" : justification\);/);
+  });
+});

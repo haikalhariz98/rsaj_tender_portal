@@ -121,7 +121,8 @@ export const recommendationFields = (r: { bidder: string; price: Sen; period: st
   recommendedPrice: formatMoney(r.price),
   completionPeriod: r.period,
   topRanked: r.topRanked ? "yes" : "no",
-  justification: r.justification || null,
+  // 6.8 re-review 3: why another than the top-ranked is recommended, SULIT (Q2 reasoning) under a specific key.
+  rankingJustification: r.justification || null,
   formedBy: onBehalf(r.by),
 });
 

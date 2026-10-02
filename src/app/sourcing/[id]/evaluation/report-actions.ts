@@ -60,7 +60,7 @@ export async function formRecommendation(_prev: FormState, data: FormData): Prom
     if (rf.faults.length) return refuse(rf.faults, "Not formed:");
     const price = recommendedPriceOf(b);
     const row = await tx.recommendation.create({ data: { organisationId: l.org.id, evaluationId: e!.id, bidderId, price: senToDecimalString(price), completionPeriod: b.period?.value ?? null, completionUnit: b.period?.unit ?? null, topRanked: rf.topRanked, justification: rf.topRanked ? "" : justification, formedByPersonId: person!.id, formedAt: now } });
-    await audit(tx, l.org.id, EVALUATION_ENTITY.recommendation, row.id, evLabel(l, e!.version, "Recommendation"), "CREATE", diffFields(null, recommendationFields({ bidder: `No. ${b.listingNo}, ${b.bidderName}`, price, period: periodWords(b.period), topRanked: rf.topRanked, justification: rf.topRanked ? "" : justification, by: person!.name })), rf.topRanked ? "" : justification);
+    await audit(tx, l.org.id, EVALUATION_ENTITY.recommendation, row.id, evLabel(l, e!.version, "Recommendation"), "CREATE", diffFields(null, recommendationFields({ bidder: `No. ${b.listingNo}, ${b.bidderName}`, price, period: periodWords(b.period), topRanked: rf.topRanked, justification: rf.topRanked ? "" : justification, by: person!.name })));
     return { ok: true, message: "Recommendation formed. Issue the report on the Report section." };
   });
 }

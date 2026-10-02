@@ -44,6 +44,8 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   // 6.8 Q2 (NFR-SEC-002, FR-EVL-014): who is recommended, before the Board decides. Not the bare word
   // "recommended", a boolean key elsewhere that the whole-word scan would misread.
   { field: "recommendedTenderer", what: "the tenderer an evaluation recommends, before the Board decides (6.8 Q2)" },
+  // 6.8 re-review 3: why a tenderer other than the top-ranked is recommended, which names and compares tenderers.
+  { field: "rankingJustification", what: "why the evaluation recommends a tenderer other than the top-ranked, before the Board decides (6.8 re-review 3)" },
 ];
 
 /// Whether a stored field (an audit change's field name) is a registered SULIT field: a History
