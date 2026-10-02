@@ -111,7 +111,7 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
     // 6.15a: the register, read on the locked supplier row (taken last, after the exercise side).
     const register = await registerAtSale(tx, { id: l.org.id, timeZone: l.org.timeZone, today: l.org.today }, known?.vendorId ?? null, l.ex.id);
     const registerBlocks = register.check.findings.filter((f) => f.level === "block");
-    if (registerBlocks.length) return { ok: false, message: `Not sold: ${registerBlocks.map((f) => supplierFaultText(f)).join(" ")}` };
+    if (registerBlocks.length) return { ok: false, message: registerBlocks.map((f) => supplierFaultText(f)).join(" ") };
     const regCheck = register.linked ? register.check.registrationCheck : registrationCheck;
     const suspCheck = register.linked ? register.check.suspensionCheck : suspensionCheck;
     const taken = receiptNo ? !!(await tx.documentSale.findFirst({ where: { organisationId: l.org.id, financeReceiptNo: receiptNo }, select: { id: true } })) : false;

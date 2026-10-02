@@ -189,7 +189,7 @@ export async function recordSpecialPermission(_prev: FormState, data: FormData):
     const permLabel = `${l.ex.reference} · Special permission for ${party.name}`;
     await audit(tx, l.org.id, SUPPLIER_ENTITY.permission, perm.id, permLabel, "CREATE",
       diffFields(null, { requirement: reqLabel, relaxes: RELAXES_LABEL[relaxes!].en, grantedByBodies: grantingBodyLabels.join(", ") || null, internalApproval: internalApproval ? "Yes, on its route" : "No", existingClassConfirmed: "Confirmed", goodRecordConfirmed: "Confirmed", note: note || null, grantedOn: grantedOn, recordedBy: person!.name, recordedOnBehalf: "not signed" }), note);
-    if (!internalApproval) return { ok: true, message: `Granted on ${formatDate(grantedOn!)}: the party's ${RELAXES_LABEL[relaxes!].en.toLowerCase()} passes by special permission for this requirement.` };
+    if (!internalApproval) return { ok: true, message: `Granted on ${formatDate(grantedOn!)}. ${RELAXES_LABEL[relaxes!].en} passes by special permission for this requirement.` };
     const opened = await openSupplierRoute(tx, l.org, { domain: SPECIAL_PERMISSION_DOMAIN, cond: null, owner: { specialPermissionId: perm.id }, requester: person!, what: PERMISSION_MATTER, routeLabel: `${permLabel} · route`, matter: `Special permission for ${party.name} on ${l.ex.reference}`, ifRefused: PERMISSION_REFUSED_DECIDED_BY, now });
     if (!opened.ok) throw new Refusal(opened.state);
     return { ok: true, message: "Recorded and sent on its route. It is granted once the route approves it." };
