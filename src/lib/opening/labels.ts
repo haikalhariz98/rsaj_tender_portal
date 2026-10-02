@@ -99,6 +99,8 @@ export const SEALED_UNTIL_FINALISED = "Sealed until the schedule is finalised";
 
 const d = (f: Finding, k: string) => String(f.data?.[k] ?? "");
 const n = (f: Finding, k: string) => Number(f.data?.[k] ?? 0);
+/// fix R-6: how a verdict treated a bidder the supplier register found not eligible.
+const TREATMENT: Record<string, string> = { ELIMINATE: "eliminated at the opening", REPORT: "reported to the committee, which decides", NONE: "not judged on that finding" };
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 const day = (f: Finding, k: string) => (f.data?.[k] ? formatDate(String(f.data[k])) : "a day not recorded");
 
@@ -190,6 +192,7 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   CONSEQUENCE_NOT_SET: () => `What follows from an incomplete bid was not set when the window was published, so no verdict is recorded. Windows published later take the setting (${SETTING_AT.bidRules}); it does not reach this exercise, so ${CANCEL_EXIT}.`,
   UNPURCHASED_CONSEQUENCE_NOT_SET: () => `What follows from a bid by a bidder with no live purchase (or not invited) is not set. Set it under ${SETTING_AT.methodRules}.`,
   INELIGIBLE_CONSEQUENCE_NOT_SET: () => "A bidder linked to the supplier register was found not eligible when its envelope was opened, and what follows from that is not set. Set it under Configuration › Supplier register, Standing.",
+  VERDICT_UNDER_OTHER_SETTING: (f) => `Offer ${d(f, "listingNo")}'s verdict was recorded with its bidder, found not eligible on the supplier register, ${TREATMENT[d(f, "was")] ?? "judged otherwise"}; the register's setting has changed since, and finalising would freeze it as ${TREATMENT[d(f, "now")] ?? "otherwise"}. Record offer ${d(f, "listingNo")}'s verdict again under the setting as it stands.`,
   ALTERNATIVES_NOT_STATED: () => "The window does not say whether alternative bids are permitted, so no alternative is marked. It is answered on the window before publication.",
   // ---- opening an envelope
   ENVELOPE_NOT_FOUND: () => "That envelope is not on this exercise's register.",

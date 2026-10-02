@@ -35,7 +35,7 @@ import { estimateLeadFaults, frozenRuleFaults, startFaults, supplementaryFaults 
 import { actFaults, openingPhase, sittingAuthorisers } from "./state";
 import { blocking, type Finding } from "./types";
 import { adjournFaults, authorisationFaults } from "./unseal";
-import { judgeBid } from "./verdict";
+import { judgeBid, verdictUnderOtherSetting } from "./verdict";
 import { matchFaults } from "./withdrawals";
 
 export type Allowed = { allowed: true } | { allowed: false; reason: string };
@@ -262,7 +262,16 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
     admittedOpened: admitted?.status === "OPENED",
     completenessEliminates: snap.completeness.eliminates,
     unpurchased,
-    ineligible: { consequence: ineligibleConsequence, anyFound: o.bids.some((b) => ineligibleOf(b.eligibilityFinding)) },
+    // fix R-6: a recorded verdict that disagrees with the consequence finalising would freeze is said before it is asked.
+    ineligible: {
+      consequence: ineligibleConsequence,
+      anyFound: o.bids.some((b) => ineligibleOf(b.eligibilityFinding)),
+      disagreements: o.bids.flatMap((b) => {
+        const facts = { saleFinding: b.saleFinding, restrictionFinding: b.restrictionFinding, isAlternative: b.isAlternative, alternativeStatus: b.alternativeStatus, ineligible: ineligibleOf(b.eligibilityFinding) };
+        const x = verdictUnderOtherSetting({ listingNo: b.listingNo, verdict: b.verdict, record: b.completeness, ineligible: facts.ineligible }, judgeBid(facts, checklist, new Map(b.answers.map((a) => [a.itemKey, a.answer])), { completenessEliminates: snap.completeness.eliminates, unpurchased, ineligible: ineligibleConsequence }));
+        return x ? [x] : [];
+      }),
+    },
     invitedReading: snap.invited.reading,
     estimate: { required: snap.estimate.requires === true, lodged: estimateLodged, paperAnswered: true },
     personActive: true,

@@ -119,3 +119,38 @@ export function verdictFaults(i: { state: OpeningState; sameOpening: boolean; bi
 
 /// What is frozen on the bid with its verdict: the items missing, the grounds and what is reported, in keys.
 export const verdictRecord = (j: ReturnType<typeof judgeBid>) => ({ missing: j.missing.map((m) => ({ key: m.key, label: m.label })), grounds: j.grounds, reported: j.reported });
+
+// ------------------------------------------------------------------ 6.15a fix R-6 (OD-6): a verdict under another setting
+
+/// How a recorded verdict treated a bidder the register found not eligible: eliminated, reported, or neither.
+export type IneligibleTreatment = "ELIMINATE" | "REPORT" | "NONE";
+
+const treatmentOf = (grounds: readonly string[], reported: readonly string[]): IneligibleTreatment => (grounds.includes("NOT_ELIGIBLE") ? "ELIMINATE" : reported.includes("NOT_ELIGIBLE_REPORTED") ? "REPORT" : "NONE");
+
+/// The treatment frozen with a recorded verdict (`verdictRecord`'s grounds and reported); NONE where none was recorded.
+export function recordedTreatment(record: unknown): IneligibleTreatment {
+  if (!record || typeof record !== "object") return "NONE";
+  const r = record as { grounds?: unknown; reported?: unknown };
+  return treatmentOf(Array.isArray(r.grounds) ? r.grounds.map(String) : [], Array.isArray(r.reported) ? r.reported.map(String) : []);
+}
+
+/**
+ * A verdict recorded on a bidder the register found not eligible, judged again under the consequence about
+ * to be frozen at finalising (6.15a fix R-6, OD-6 A). The verdict is recorded under the register's live
+ * setting, and finalising freezes whatever the setting is then; if it changed in between, the recorded
+ * verdict may no longer agree with the rule it will be read under. It disagrees where it treated the
+ * bidder otherwise (eliminated against reported), or where its PASS or REJECT no longer stands under the
+ * grounds the frozen setting makes. Null: it agrees, or nothing to judge (no finding, no verdict, setting
+ * unset — that blocks on its own).
+ */
+export function verdictUnderOtherSetting(
+  bid: { listingNo: number; verdict: OpeningVerdict | null; record: unknown; ineligible: boolean },
+  judged: Pick<ReturnType<typeof judgeBid>, "grounds" | "reported" | "notSet">,
+): { listingNo: number; was: IneligibleTreatment; now: IneligibleTreatment } | null {
+  if (!bid.ineligible || !bid.verdict) return null;
+  if (judged.notSet.some((f) => f.code === "INELIGIBLE_CONSEQUENCE_NOT_SET")) return null;
+  const now = treatmentOf(judged.grounds, judged.reported);
+  const was = recordedTreatment(bid.record);
+  const stands = bid.verdict === "PASS" ? judged.grounds.length === 0 : judged.grounds.length > 0;
+  return was === now && stands ? null : { listingNo: bid.listingNo, was, now };
+}

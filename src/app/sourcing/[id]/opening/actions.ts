@@ -40,7 +40,7 @@ import { jadualTawaran, lateCount, type ScheduleRowInput } from "@/lib/opening/s
 import { estimateLeadFaults, frozenRuleFaults, startFaults, supplementaryFaults } from "@/lib/opening/start";
 import { blocking, CHECKLIST_ANSWERS, PERIOD_UNITS, type Finding, type OpeningVerdict, type PeriodUnit } from "@/lib/opening/types";
 import { adjournFaults, authorisationFaults, lapsedByAdjourning, opensTheBox, unsealState } from "@/lib/opening/unseal";
-import { judgeBid, verdictFaults, verdictRecord } from "@/lib/opening/verdict";
+import { judgeBid, verdictFaults, verdictRecord, verdictUnderOtherSetting } from "@/lib/opening/verdict";
 import { consequenceFor, ineligibleOf } from "@/lib/suppliers/opening-hook";
 import { eligibilityAtOpening } from "@/lib/suppliers/standing-repo";
 import { findingFaults, matchFaults, openFault } from "@/lib/opening/withdrawals";
@@ -730,6 +730,13 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
     const unpurchased = unpurchasedRule(snap, liveUnpurchased(c), now, person?.name ?? "");
     const ineligible = consequenceFor(o.policySnapshot, c.supplierPolicy?.ineligibleBidConsequence ?? null);
     const anyIneligible = o.bids.some((b) => ineligibleOf(b.eligibilityFinding));
+    // 6.15a fix R-6 (OD-6): each recorded verdict on a not-eligible bidder, judged again under the consequence about to be frozen.
+    const disagreements = o.bids.flatMap((b) => {
+      const facts = { saleFinding: b.saleFinding, restrictionFinding: b.restrictionFinding, isAlternative: b.isAlternative, alternativeStatus: b.alternativeStatus, ineligible: ineligibleOf(b.eligibilityFinding) };
+      const j = judgeBid(facts, checklist, new Map(b.answers.map((a) => [a.itemKey, a.answer])), { completenessEliminates: snap.completeness.eliminates, unpurchased: unpurchased.consequence, ineligible });
+      const x = verdictUnderOtherSetting({ listingNo: b.listingNo, verdict: b.verdict, record: b.completeness, ineligible: facts.ineligible }, j);
+      return x ? [x] : [];
+    });
     const estimate = { required: snap.estimate.requires === true, lodged: o.kind === "MAIN" && c.estimate?.state === "LODGED", paperAnswered };
     const unopened = c.envelopes.filter((e) => e.kind !== "COMPANY_ESTIMATE" && !e.late && e.status === "RECEIVED").length;
     const admitted = o.admissionDecision?.bidEnvelopeId ? c.envelopes.find((e) => e.id === o.admissionDecision!.bidEnvelopeId) : null;
@@ -746,7 +753,7 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
       completenessEliminates: snap.completeness.eliminates,
       unpurchased: unpurchased.consequence,
       // 6.15a (OD-6 A): unset blocks only where a linked bidder was found not eligible.
-      ineligible: { consequence: ineligible, anyFound: anyIneligible },
+      ineligible: { consequence: ineligible, anyFound: anyIneligible, disagreements },
       // R-4: the reading frozen at the start, never today's configuration.
       invitedReading: snap.invited.reading,
       estimate,
