@@ -118,24 +118,27 @@ export const evaluationBidderFacts = (b: { cprPercent: unknown; evaluation: { st
 
 /**
  * 6.12: a contract, where it stands, whether it has gone to legal review and whether the contractor has
- * signed; and (6.12 review) the versions of the legal office's comments each return was recorded on: those
- * attached from the review's sending to its decision (the decide act accepts them as the comments).
+ * signed; and (6.12 review) the legal office's comments a return stands on: the documents attached as
+ * comments from a returned review's sending to its decision (the window the decide act accepts them in),
+ * with every attachment of those documents since (a replacement by attachNewVersion is the same document).
  */
 export const contractFacts = (c: {
   status: ContractStatus;
   signatures: readonly { party: string }[];
   legalReviews: readonly { decision?: string | null; submittedAt?: Date; decidedAt?: Date | null }[];
-  attachments?: readonly { purpose: string; versionId: string; attachedAt: Date }[];
+  attachments?: readonly { purpose: string; versionId: string; attachedAt: Date; detachedAt: Date | null; version: { documentId: string; withdrawnAt: Date | null } }[];
 }): OwnerFacts => {
   const returned = c.legalReviews.filter((r) => r.decision === "RETURNED" && r.submittedAt && r.decidedAt);
-  const returnedOnVersionIds = (c.attachments ?? []).filter((a) => a.purpose === "LEGAL_COMMENTS" && returned.some((r) => a.attachedAt >= r.submittedAt! && a.attachedAt <= r.decidedAt!)).map((a) => a.versionId);
+  const comments = (c.attachments ?? []).filter((a) => a.purpose === "LEGAL_COMMENTS");
+  const docs = new Set(comments.filter((a) => returned.some((r) => a.attachedAt >= r.submittedAt! && a.attachedAt <= r.decidedAt!)).map((a) => a.version.documentId));
+  const returnComments = comments.filter((a) => docs.has(a.version.documentId)).map((a) => ({ versionId: a.versionId, documentId: a.version.documentId, live: a.detachedAt == null && a.version.withdrawnAt == null }));
   return {
     kind: "contract",
     status: c.status,
     legalSubmitted: c.legalReviews.length > 0,
     contractorSigned: c.signatures.some((s) => s.party === "CONTRACTOR"),
     // Present only where a return stands on comments, so a contract with none reads as before.
-    ...(returnedOnVersionIds.length ? { returnedOnVersionIds } : {}),
+    ...(returnComments.length ? { returnComments } : {}),
   };
 };
 
