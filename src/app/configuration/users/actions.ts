@@ -12,7 +12,7 @@ import { attached, filed } from "@/lib/documents/audit-view";
 import { documentFaultText, PURPOSE_LABEL } from "@/lib/documents/labels";
 import { lockVersion } from "@/lib/documents/service";
 import { blocking } from "@/lib/documents/types";
-import { RECOMMENDATION_NOT_ATTACHED } from "@/lib/people/labels";
+import { RECOMMENDATION_NOT_ATTACHED, RECOMMENDATION_ZONE_UNSET } from "@/lib/people/labels";
 import { endAssignment as endAssignmentDay } from "@/lib/people/end-assignment";
 import { db } from "@/lib/db";
 import { periodsOverlap } from "@/lib/effective";
@@ -702,7 +702,10 @@ async function attachRecommendation(tx: Tx, orgId: string, delegationId: string,
   const d = await lockDelegation(tx, delegationId, orgId);
   if (!d) throw new RecommendationRefused("That delegation no longer exists.");
   const already = await tx.documentAttachment.findFirst({ where: { delegationId, purpose: "HOLDER_RECOMMENDATION", detachedAt: null, version: { documentId: doc.id } }, select: { id: true } });
-  const faults = blocking(attachFault({ purpose: "HOLDER_RECOMMENDATION", owner: delegationFacts(d, todayIn(new Date(), (await tx.organisation.findUniqueOrThrow({ where: { id: orgId }, select: { timeZone: true } })).timeZone) ?? new Date().toISOString().slice(0, 10)), version: v, documentClass: doc.documentClass, documentClassification: doc.classificationSnapshot, alreadyAttached: !!already }));
+  // 66-C1 (b): the organisation's today, never the UTC day: no zone set, the attachment is refused.
+  const today = todayIn(new Date(), (await tx.organisation.findUniqueOrThrow({ where: { id: orgId }, select: { timeZone: true } })).timeZone);
+  if (!today) throw new RecommendationRefused(RECOMMENDATION_ZONE_UNSET);
+  const faults = blocking(attachFault({ purpose: "HOLDER_RECOMMENDATION", owner: delegationFacts(d, today), version: v, documentClass: doc.documentClass, documentClassification: doc.classificationSnapshot, alreadyAttached: !!already }));
   if (faults.length) throw new RecommendationRefused(faults.map(documentFaultText).join(" "));
   const owner = `Delegation · ${d.fromPerson.name} to ${d.toPerson.name}`;
   const row = await tx.documentAttachment.create({ data: { organisationId: orgId, purpose: "HOLDER_RECOMMENDATION", versionId: v.id, delegationId } });
