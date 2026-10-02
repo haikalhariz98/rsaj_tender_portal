@@ -5,6 +5,7 @@ import type { DocumentClass, DocumentTemplate } from "@/lib/records/load";
 import { MERGE_FIELDS } from "@/lib/award/fields";
 import { PACK_MERGE_FIELDS } from "@/lib/tender-docs/fields";
 import { EVALUATION_MERGE_FIELDS } from "@/lib/evaluation/instrument";
+import { CERTIFICATE_MERGE_FIELDS } from "@/lib/certificate/fields";
 
 import { saveTemplate } from "./actions";
 import { InsertClause } from "./insert-tools";
@@ -98,6 +99,7 @@ function MergeFieldList({ clauses }: { clauses: { code: string; title: string }[
           {group("Awards and agreements", null, MERGE_FIELDS)}
           {group("Evaluation report", "Filled when the report is issued, from the evaluation as it stands then.", EVALUATION_MERGE_FIELDS.REPORT)}
           {group("Kertas Cadangan", "Filled when the paper is produced; the offices are the evaluation policy's.", EVALUATION_MERGE_FIELDS.PROPOSAL.filter((f) => !EVALUATION_MERGE_FIELDS.REPORT.some((x) => x.key === f.key)))}
+          {group("Certificates", "Filled when the certificate is issued, from its frozen figures, the baseline version it read and its signatures. A certificate's own figures are named by the module that computes them.", CERTIFICATE_MERGE_FIELDS)}
         </div>
       </details>
     </div>

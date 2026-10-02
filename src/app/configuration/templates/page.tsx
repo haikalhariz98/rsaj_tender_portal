@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { HistoryButton } from "@/components/history-drawer";
 import { formatDate } from "@/lib/format";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -28,11 +29,20 @@ function textLine(t: { bodyMs: string | null; bodyEn: string | null; primaryLang
 }
 
 export default async function TemplatesPage() {
-  const [templates, classes, org] = await Promise.all([
+  const [templates, classes, org, blocks, rows] = await Promise.all([
     loadTemplates(ORGANISATION_CODE),
     loadDocumentClasses(ORGANISATION_CODE),
     db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, timeZone: true } }),
+    // 6.14 increment 1: each form's signature blocks and distribution list, counted for its row.
+    db.formSignatureBlock.groupBy({ by: ["templateId"], _count: { _all: true } }),
+    db.formDistribution.groupBy({ by: ["templateId"], _count: { _all: true } }),
   ]);
+  const countOf = (list: { templateId: string; _count: { _all: number } }[], id: string) => list.find((x) => x.templateId === id)?._count._all ?? 0;
+  const formLine = (id: string) => {
+    const b = countOf(blocks, id);
+    const r = countOf(rows, id);
+    return b || r ? `${b} signature block${b === 1 ? "" : "s"}, ${r} recipient${r === 1 ? "" : "s"}` : null;
+  };
   // The clauses a text may cite (6.4 inc 2): live today, by title. Without the organisation's day none is judged live, so none is offered.
   const today = org ? todayIn(new Date(), org.timeZone) : null;
   const clauses = org && today ? liveClauses(await loadClauses(org.id), today).map((c) => ({ code: c.code, title: c.titleEn })) : [];
@@ -82,7 +92,7 @@ export default async function TemplatesPage() {
 
       <Section
         title="Templates"
-        blurb="A generated form has to stand next to the printed one it replaces, so each carries its form code and revision."
+        blurb="A generated form has to stand next to the printed one it replaces, so each carries its form code and revision. Open a template for its signature blocks in printed order and its distribution list."
         empty="No template has been set. Nothing can be issued until one exists."
         count={templates.length}
         action={<AddTemplate classes={classes} clauses={clauses} />}
@@ -111,9 +121,9 @@ export default async function TemplatesPage() {
                 <Tr key={t.id}>
                   <Td label="Template" title={t.nameMs ? `${t.nameEn} — ${t.nameMs}` : t.nameEn}>
                     <CellStack
-                      title={t.nameEn}
+                      title={<Link href={`/configuration/templates/${t.id}`} className="font-semibold">{t.nameEn}</Link>}
                       aside={t.bilingual ? <Badge outline>bilingual</Badge> : undefined}
-                      sub={[t.nameMs, textLine(t)].filter(Boolean).join(" · ")}
+                      sub={[t.nameMs, textLine(t), formLine(t.id)].filter(Boolean).join(" · ")}
                     />
                   </Td>
                   <Td label="Form code" className="truncate font-mono text-[12.5px] text-ink-2" title={t.formCode || undefined}>
