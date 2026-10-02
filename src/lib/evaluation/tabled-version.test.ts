@@ -59,7 +59,7 @@ describe("the acts record and check it (source scan)", () => {
   const committee = read("src", "app", "committees", "actions.ts");
   const awards = read("src", "app", "awards", "actions.ts");
   it("tabling records the version in force once the bundle stands", () => {
-    expect(committee).toMatch(/if \(gate\.bundle\.applies\) evaluationVersion = gate\.version;/);
+    expect(committee).toMatch(/else if \(gate\.bundle\.applies\) evaluationVersion = gate\.version;/);
     expect(committee).toMatch(/dependsOnDecisionId, sequence, evaluationVersion \}/);
   });
   it("the loop opens nothing for a matter tabled on another version, before any version opens", () => {
@@ -70,6 +70,7 @@ describe("the acts record and check it (source scan)", () => {
   });
   it("citation at award refuses a decision on another version, after the bundle check and before the write", () => {
     const cite = awards.slice(awards.indexOf("const gate = await loadEvaluationGate(l.ex.id, tx);"));
+    expect(cite.indexOf("bundleFaults(gate.bundle)")).toBeLessThan(cite.indexOf("tabledVersionFault("));
     expect(cite.indexOf("tabledVersionFault({ applies: gate.bundle.applies, tabledOn: matter.evaluationVersion ?? null, inForce: gate.version })")).toBeGreaterThan(0);
     expect(cite.indexOf("tabledVersionFault(")).toBeLessThan(cite.indexOf("tx.approvalStep.updateMany("));
   });

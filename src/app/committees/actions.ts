@@ -473,12 +473,11 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
         if (bids.lateFault) r.reject("matterRef", bidFindingText(bids.lateFault));
         // 6.8 (E-8, flagged): an exercise published through its window with a pinned model is appointed on
         // its issued, standing report and its Kertas Cadangan, checked and recommended. Others as before.
-        const bundle = bundleFaults((await loadEvaluationGate(exerciseId, tx)).bundle);
+        // One read (6.8 re-review 1): the version recorded is the one whose bundle was checked.
+        const gate = await loadEvaluationGate(exerciseId, tx);
+        const bundle = bundleFaults(gate.bundle);
         if (bundle.length) r.reject("matterRef", bundle.map(evaluationFindingText).join(" "));
-        else {
-          const gate = await loadEvaluationGate(exerciseId, tx);
-          if (gate.bundle.applies) evaluationVersion = gate.version;
-        }
+        else if (gate.bundle.applies) evaluationVersion = gate.version;
       }
       // No exercise has that reference: tabled as a manual matter, linked to no record, as before.
     }

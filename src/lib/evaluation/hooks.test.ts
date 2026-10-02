@@ -42,16 +42,21 @@ describe("E-8: the committee's bundle and the loop-back (6.10 tableMatter, recor
   const committee = read("src", "app", "committees", "actions.ts");
   it("an appointment matter on an exercise is refused without the evaluation's bundle, before anything is written", () => {
     const table = body(committee, "tableMatter");
-    const check = table.indexOf("bundleFaults((await loadEvaluationGate(exerciseId, tx)).bundle)");
-    expect(check).toBeGreaterThan(table.indexOf("if (exerciseId && domain === APPOINTMENT_DOMAIN)"));
+    // 6.8 re-review 1 (flagged test change): one read of the gate, its bundle checked before tabling, its version recorded from the same read.
+    const read = table.indexOf("const gate = await loadEvaluationGate(exerciseId, tx);");
+    const check = table.indexOf("bundleFaults(gate.bundle)");
+    expect(read).toBeGreaterThan(table.indexOf("if (exerciseId && domain === APPOINTMENT_DOMAIN)"));
+    expect(check).toBeGreaterThan(read);
     expect(check).toBeLessThan(table.indexOf("tx.committeeDecision.create("));
+    expect(table.match(/loadEvaluationGate\(/g)?.length).toBe(1);
+    expect(table.indexOf("evaluationVersion = gate.version")).toBeGreaterThan(check);
   });
   it("only a NOT_CARRIED appointment on an exercise reaches the loop-back, after the outcome is written", () => {
     const rec = body(committee, "recordOutcome");
     const hook = rec.indexOf('outcome === "NOT_CARRIED" && decision.domain === APPOINTMENT_DOMAIN && decision.exerciseId ? await loopBack(');
     expect(hook).toBeGreaterThan(rec.indexOf("tx.committeeDecision.updateMany("));
   });
-  it("the loop-back locks the evaluations first (sitting → evaluations, never the exercise), and opens a LOOP version with no person", () => {
+  it("the loop-back locks the evaluations last and nothing of the exercise's itself (the act takes the exercise first; lock-order.test.ts)", () => {
     const loop = committee.slice(committee.indexOf("async function loopBack("), committee.indexOf("/**\n * Withdraw a tabled matter"));
     expect(loop.indexOf("lockEvaluationRows(tx, exerciseId)")).toBeLessThan(loop.indexOf("loadEvaluationGate("));
     expect(loop).not.toMatch(/withLockedRequisitionForSourcing|lockWindowRow|FOR UPDATE/);
@@ -86,9 +91,13 @@ describe("E-9: the award follows the evaluation (6.11)", () => {
   });
   it("citing the appointment's decision asks the evaluation's bundle, before the step is written", () => {
     const cite = body(awards, "citeAppointmentDecision");
-    const check = cite.indexOf("bundleFaults((await loadEvaluationGate(l.ex.id, tx)).bundle)");
-    expect(check).toBeGreaterThan(-1);
+    // 6.8 re-review 1 (flagged test change): one read of the gate, its bundle checked before the step is written.
+    const read = cite.indexOf("const gate = await loadEvaluationGate(l.ex.id, tx);");
+    const check = cite.indexOf("bundleFaults(gate.bundle)");
+    expect(read).toBeGreaterThan(-1);
+    expect(check).toBeGreaterThan(read);
     expect(check).toBeLessThan(cite.indexOf("tx.approvalStep.updateMany("));
+    expect(cite.match(/loadEvaluationGate\(/g)?.length).toBe(1);
   });
 });
 

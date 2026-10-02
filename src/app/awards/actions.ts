@@ -652,10 +652,11 @@ export async function citeAppointmentDecision(_prev: FormState, data: FormData):
     const bids = await bidGate(l.ex.id, tx);
     if (bids.lateFault) return { ok: false, errors: { committeeDecisionId: bidFindingText(bids.lateFault) } };
     // 6.8 (E-8, flagged): nor while the evaluation's bundle does not stand (its report issued and standing, the Kertas Cadangan checked and recommended).
-    const bundle = bundleFaults((await loadEvaluationGate(l.ex.id, tx)).bundle);
+    // One read (6.8 re-review 1): the version judged is the one whose bundle was checked.
+    const gate = await loadEvaluationGate(l.ex.id, tx);
+    const bundle = bundleFaults(gate.bundle);
     if (bundle.length) return { ok: false, errors: { committeeDecisionId: bundle.map(evaluationFindingText).join(" ") } };
     // 6.8 fix M-3: and only a decision on the version in force, the one the matter was tabled on.
-    const gate = await loadEvaluationGate(l.ex.id, tx);
     const tabledOn = tabledVersionFault({ applies: gate.bundle.applies, tabledOn: matter.evaluationVersion ?? null, inForce: gate.version });
     if (tabledOn) return { ok: false, errors: { committeeDecisionId: evaluationFindingText(tabledOn) } };
     const s = committeeStepFrom(record);
