@@ -79,15 +79,19 @@ describe("a correction keeps what the award, the Appendix and the bill state (R-
   });
   it("a value a recorded rule derives says so, not 'stated'", () => {
     const t = contractFaultWords({ code: "STATED_NOT_CORRECTED", level: "block", data: { group: "retention", source: "DERIVED" } });
-    expect(t.en).toMatch(/^Retention and its cap is derived under a recorded rule, so it is not corrected here/);
+    // Ruling Q1 (faithful update): derived values change only when what they derive from does.
+    expect(t.en).toBe("Retention and its cap is derived under a recorded rule from values the award, the Appendix or the bill state, so it changes only when they do.");
   });
   it("the words exist in both languages and say what to do instead", () => {
-    for (const source of ["AWARD", "APPENDIX", "BQ", "DERIVED"]) {
+    // Ruling Q1 (faithful update): a stated value recorded wrongly cannot yet be corrected (carry 612-C1),
+    // and the words no longer point to variations as the way to fix a record.
+    for (const source of ["AWARD", "APPENDIX", "BQ"]) {
       const t = contractFaultWords({ code: "STATED_NOT_CORRECTED", level: "block", data: { group: "dlp", source } });
-      expect(t.en).not.toBe("Refused.");
-      expect(t.en).toMatch(/not corrected here/);
-      expect(t.ms.length).toBeGreaterThan(20);
+      expect(t.en).toMatch(/is not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order\. If it was recorded wrongly from the signed document, the product cannot yet correct it: correcting the award's recorded terms after issue is not built\. A change to the terms themselves is a variation, not a correction\.$/);
+      expect(t.en).not.toMatch(/variations and adjustments|recorded as a change to the contract/);
+      expect(t.ms).toMatch(/belum dibina/);
     }
+    expect(contractFaultWords({ code: "STATED_NOT_CORRECTED", level: "block", data: { group: "lad", source: "AWARD" } }).en).toMatch(/^Liquidated damages are stated by the Letter of Acceptance, so they are not corrected here/);
   });
   it("applyEntered then derive is what the correction writes: the corrected group only changes", () => {
     const i = inputs();
@@ -114,5 +118,12 @@ describe("the acts use them", () => {
     expect(b).toContain("correctableFaults(");
     expect(b).toContain("groupChange(");
     expect(b.indexOf("correctableFaults(")).toBeLessThan(b.indexOf("writeVersion("));
+  });
+  it("S-3: the corrected group's before and after go in the new version's CREATE entry, never an UPDATE of it", () => {
+    const b = body("correctBaseline");
+    expect(b).toMatch(/writeVersion\(c, after!, "CORRECTION", reason, \{ correctedField: group \}, stored, change\)/);
+    expect(b).not.toMatch(/"UPDATE"/);
+    const w = src.slice(src.indexOf("async function writeVersion("), src.indexOf("/// Correct the Contract Date"));
+    expect(w).toMatch(/"CREATE", \[\.\.\.diffFields\(null, \{ version, reason, changed: [^\]]*\.\.\.\(change \? diffFields\(change\.before, change\.after\) : \[\]\)\]/);
   });
 });

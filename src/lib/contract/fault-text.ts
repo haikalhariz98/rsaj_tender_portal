@@ -266,19 +266,25 @@ export function contractFaultWords(f: Finding): Words {
     case "STATED_ELSEWHERE":
       return w(`${field(d.group).en} is stated by the award, the Appendix or the bill, so it is not keyed here.`, `${field(d.group).ms} telah dinyatakan di tempat lain.`);
     case "STATED_NOT_CORRECTED": {
+      // Ruling Q1 (BD-612-23, ADR 0021 Amendment 1): kept as stated; a wrong record cannot yet be corrected
+      // (carry 612-C1), and a variation changes the terms rather than fixing a record, so it is not pointed to.
+      const f = field(d.group);
+      const plural = /s$/.test(f.en);
+      if (d.source === "DERIVED") {
+        return w(
+          `${f.en} ${plural ? "are" : "is"} derived under a recorded rule from values the award, the Appendix or the bill state, so ${plural ? "they change" : "it changes"} only when they do.`,
+          `${f.ms} diterbitkan di bawah peraturan yang direkodkan daripada nilai yang dinyatakan oleh award, Lampiran atau senarai kuantiti, jadi ia hanya berubah apabila nilai itu berubah.`,
+        );
+      }
       const by: Record<string, Words> = {
         AWARD: w("the Letter of Acceptance", "Surat Setuju Terima"),
         APPENDIX: w("the frozen tender Appendix", "Lampiran tender yang dibekukan"),
-        BQ: w("the bill of quantities pinned to the approved documents", "senarai kuantiti yang disematkan"),
-        DERIVED: w("a recorded rule", "peraturan yang direkodkan"),
+        BQ: w("the bill of quantities pinned to the approved documents", "senarai kuantiti yang disematkan kepada dokumen yang diluluskan"),
       };
       const src = by[String(d.source)] ?? w("the award, the Appendix or the bill", "award, Lampiran atau senarai kuantiti");
-      const f = field(d.group);
-      const verb = /s$/.test(f.en) ? "are" : "is";
-      const derived = d.source === "DERIVED";
       return w(
-        `${f.en} ${verb} ${derived ? "derived under" : "stated by"} ${src.en}, so ${verb === "are" ? "they are" : "it is"} not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order, and what a recorded rule derives from them. A change to the contract's terms is recorded as a change to the contract (variations and adjustments, post-award), never keyed over the record.`,
-        `${f.ms} ${derived ? "diterbitkan di bawah" : "dinyatakan oleh"} ${src.ms}, jadi tidak diperbetulkan di sini: garis dasar mengekalkan apa yang dinyatakan oleh award, Lampiran dan senarai kuantiti, mengikut susunan itu, dan apa yang diterbitkan oleh peraturan yang direkodkan. Perubahan terma kontrak direkodkan sebagai perubahan kepada kontrak, tidak dimasukkan di atas rekod.`,
+        `${f.en} ${plural ? "are" : "is"} stated by ${src.en}, so ${plural ? "they are" : "it is"} not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order. If it was recorded wrongly from the signed document, the product cannot yet correct it: correcting the award's recorded terms after issue is not built. A change to the terms themselves is a variation, not a correction.`,
+        `${f.ms} dinyatakan oleh ${src.ms}, jadi tidak diperbetulkan di sini: garis dasar mengekalkan apa yang dinyatakan oleh award, Lampiran dan senarai kuantiti, mengikut susunan itu. Jika ia direkodkan salah daripada dokumen yang ditandatangani, produk belum dapat membetulkannya: pembetulan terma award yang direkodkan selepas pengeluaran belum dibina. Perubahan kepada terma itu sendiri ialah variasi, bukan pembetulan.`,
       );
     }
     case "DERIVED_BY_POLICY":

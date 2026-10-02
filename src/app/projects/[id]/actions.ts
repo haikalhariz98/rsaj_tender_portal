@@ -335,7 +335,7 @@ export async function completeCheck(_prev: FormState, data: FormData): Promise<F
     const done = await c.tx.formationCheck.updateMany({ where: { id: k.id, completedOn: null }, data: { completedByPersonId: person.id, completedOn: on, completedAt: now, note } });
     if (done.count !== 1) throw new Refusal(CHANGED);
     const variance = k.kind === "ARITHMETIC" ? arithmeticVariance(k.corrections.map((x) => ({ tendered: senFromDecimal(x.tendered), corrected: senFromDecimal(x.corrected) }))) : null;
-    await audit(c, "FormationCheck", k.id, `check ${k.kind.toLowerCase().replace(/_/g, " ")}`, "UPDATE", diffFields({ completedOn: null }, { completedOn: on, completedBy: person.name, lines: k.corrections.length + k.rates.length, variance: variance == null ? null : senToDecimalString(variance), recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "FormationCheck", k.id, `check ${k.kind.toLowerCase().replace(/_/g, " ")}`, "UPDATE", diffFields({ completedOn: null }, { completedOn: on, completedBy: person.name, lines: k.corrections.length + k.rates.length, arithmeticVarianceAmount: variance == null ? null : senToDecimalString(variance), recordedOnBehalf: ON_BEHALF }));
     return { ok: true };
   });
 }
@@ -505,7 +505,7 @@ export async function recordRsajSignature(_prev: FormState, data: FormData): Pro
 }
 
 /// Write a numbered baseline version (never updated afterwards), with its sections.
-async function writeVersion(c: Ctx, v: BaselineValues, reason: "CONFIRMED" | "EXECUTED" | "CORRECTION", correctionReason: string, extra: Record<string, unknown>, enteredOverride?: Record<string, unknown>) {
+async function writeVersion(c: Ctx, v: BaselineValues, reason: "CONFIRMED" | "EXECUTED" | "CORRECTION", correctionReason: string, extra: Record<string, unknown>, enteredOverride?: Record<string, unknown>, change?: { before: Record<string, unknown>; after: Record<string, unknown> }) {
   const { versions, draft } = baselineRows(c.l.contract);
   // What was keyed, with its provenance: the version before carries it forward, else the draft.
   const carried = enteredOverride ?? ((versions[versions.length - 1]?.entered ?? draft?.entered ?? {}) as Record<string, unknown>);
@@ -517,7 +517,8 @@ async function writeVersion(c: Ctx, v: BaselineValues, reason: "CONFIRMED" | "EX
   });
   for (const s of sectionRows(derived, c.l.org.id)) await c.tx.contractSection.create({ data: { ...s, baselineId: row.id } });
   const prev = versions[versions.length - 1] ? valuesOf(versions[versions.length - 1]) : draft ? valuesOf(draft) : null;
-  await audit(c, "ContractBaseline", row.id, `baseline version ${version}`, "CREATE", diffFields(null, { version, reason, changed: prev ? changedFields(prev, derived).join(", ") || "nothing" : "all" }), correctionReason);
+  // S-3: a correction's group, before and after, is recorded in the version's own CREATE entry (never an UPDATE of a row just written).
+  await audit(c, "ContractBaseline", row.id, `baseline version ${version}`, "CREATE", [...diffFields(null, { version, reason, changed: prev ? changedFields(prev, derived).join(", ") || "nothing" : "all" }), ...(change ? diffFields(change.before, change.after) : [])], correctionReason);
   return row;
 }
 
@@ -909,10 +910,9 @@ export async function correctBaseline(_prev: FormState, data: FormData): Promise
     if (fs.length) return refuse("Not corrected:", fs);
     const prior = (latest!.entered ?? {}) as Record<string, { provenance?: string } | undefined>;
     const stored = { ...prior, [group]: { value: enteredJson(entered[group]), provenance, note: reason } };
-    const row = await writeVersion(c, after!, "CORRECTION", reason, { correctedField: group }, stored);
-    // R-2/R-3: the corrected group's values before and after, beside the version's own row.
+    // R-2/R-3: the corrected group's values before and after, in the new version's own entry (S-3).
     const change = groupChange(group, before!, after!, { before: prior[group]?.provenance ?? null, after: provenance });
-    await audit(c, "ContractBaseline", row.id, `baseline version ${row.version} · correction`, "UPDATE", diffFields(change.before, change.after), reason);
+    await writeVersion(c, after!, "CORRECTION", reason, { correctedField: group }, stored, change);
     return { ok: true };
   });
 }

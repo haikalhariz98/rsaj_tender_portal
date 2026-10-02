@@ -25,6 +25,7 @@ nobody stated reads as zero.
    the FR-PAY-014 conditions hold, OD-2 A), EXECUTED (at the RSAJ signature, the confirmed version with only the Contract Date
    added; or built from the draft where none was confirmed), POSSESSION (6.13's act) and CORRECTION (anything else, with a
    reason: CHECK). Sections are copied with each version. A version records the server's instant and the organisation's day.
+   *Narrowed by Amendment 1:* a CORRECTION corrects only values ENTERED at baseline, and the Contract Date by its own act.
 2. **Every value says where it came from.** Each field that can come from more than one place carries a `…Source`: AWARD (the
    Letter of Acceptance's terms), APPENDIX (the frozen tender Appendix), BQ (the pack's pinned bill), DERIVED (computed from other
    baseline values under a policy recorded in the snapshot) or ENTERED (keyed at baseline by an officer, OD-5 A, labelled "entered
@@ -51,3 +52,7 @@ nobody stated reads as zero.
 - Nothing silently moves a running contract; a changed policy affects only contracts whose preparation starts after it.
 - Rules out: editing a baseline version in place, reading the award, the Appendix or configuration live from a post-award
   calculation, and a keyed Contract Date.
+
+## Amendments
+
+**Amendment 1 (2026-10-03, 6.12 fix review, BD-612-23).** A CORRECTION version corrects only values ENTERED at baseline (OD-5 A), with a reason and the officer's provenance, and the Contract Date by its own act (§4). A value the award, the Appendix or the bill states, or a recorded rule derives, is not corrected over its source: that would rank an officer's figure above the Letter of Acceptance and leave the baseline disagreeing with its source. A stated value recorded wrongly is to be corrected at its source: a reasoned, audited correction of the award's recorded terms after issue. It writes a CORRECTION version whose source stays AWARD and which shows "corrected from …". Earlier versions and the certificates pinned to them are unchanged. That act is not yet built (carry 612-C1). Until it is, the refusal says so and does not point to variations, which change the terms rather than fix a record. A change to the terms is 6.13's and writes its own version (§4).

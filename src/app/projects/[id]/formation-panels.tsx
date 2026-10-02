@@ -211,7 +211,7 @@ function CheckCard({ l, check: k, people, today, editable, preparationOn, applic
               </li>
             ))}
           </ul>
-          <div className="border-t border-line px-5 py-3 text-[13px] text-ink-2 sm:px-6">Variance against the tendered figures: <span className="font-semibold tabular-nums">{variance! < 0n ? `−${formatMoney(-variance!)}` : `+${formatMoney(variance!)}`}</span>. The accepted contract sum stands (an assumed reading, to be confirmed).</div>
+          <div className="border-t border-line px-5 py-3 text-[13px] text-ink-2 sm:px-6"><span className="flex flex-wrap items-center gap-x-2">Variance against the tendered figures: <SulitValue>{variance! < 0n ? `−${formatMoney(-variance!)}` : `+${formatMoney(variance!)}`}</SulitValue></span> The accepted contract sum stands (an assumed reading, to be confirmed).</div>
         </>
       )}
       {kind === "FRONT_LOADING" && (

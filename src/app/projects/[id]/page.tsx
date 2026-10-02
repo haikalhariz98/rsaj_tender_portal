@@ -156,7 +156,7 @@ async function OverviewPanel({ l, facts, today }: { l: LoadedContract; facts: Fa
               { label: "Contract number", value: <span className="flex flex-col items-start gap-1"><span className="font-mono text-[13px]">{c.number}</span>{year.seriesNumber && <span className="text-[12.5px] text-ink-3">{CONTRACT_YEAR_WORDS.series(year.issueYear).en}</span>}</span> },
               { label: "Contractor", value: l.award.awardeeName },
               { label: "Contract sum", value: <span className="flex flex-col items-start gap-1"><span className="tabular-nums">{formatMoney(senFromDecimal(c.contractSum))}</span><span className="text-[12.5px] text-ink-3">The Letter of Acceptance&apos;s sum (assumed: corrections do not change it).</span></span> },
-              { label: "Arithmetic corrections", value: variance == null ? notSet("None recorded") : <span className="tabular-nums">{`${variance < 0n ? "−" : "+"}${formatMoney(variance < 0n ? -variance : variance)} against the tendered figures, shown, not applied`}</span> },
+              { label: "Arithmetic corrections", value: variance == null ? notSet("None recorded") : <span className="flex flex-col items-start gap-1"><SulitValue>{`${variance < 0n ? "−" : "+"}${formatMoney(variance < 0n ? -variance : variance)}`}</SulitValue><span className="text-[12.5px] text-ink-3">Against the tendered figures: shown, not applied.</span></span> },
               {
                 label: "Contract Date",
                 value: c.contractDate ? (
@@ -295,7 +295,7 @@ function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<ReturnTyp
                 <ul className="text-[12.5px] break-words text-ink-3">
                   {e.changes.filter((ch) => !/(Code|Key|Id)$/.test(ch.field)).map((ch) => (
                     <li key={ch.field}>
-                      {fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{chipped(ch.field, ch.before)} → </>}
+                      {fieldLabel(ch.field)}: {(e.action === "UPDATE" || ch.before != null) && <>{chipped(ch.field, ch.before)} → </>}
                       <span className="text-ink-2">{chipped(ch.field, e.action === "DELETE" ? ch.before : ch.after)}</span>
                     </li>
                   ))}

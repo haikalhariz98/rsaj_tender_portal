@@ -59,6 +59,9 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   // trail names them. Not the bare words "tendered" / "corrected", which the whole-word scan would misread.
   { field: "tenderedLineAmount", what: "a bill line's figure as tendered, in an arithmetical correction at contract formation (6.12)" },
   { field: "correctedLineAmount", what: "a bill line's figure as corrected, in an arithmetical correction at contract formation (6.12)" },
+  // 6.12 ruling Q2 (BD-612-24): with the contract sum it gives the selected tender's corrected total (6.8's correctedPrice).
+  // Not "arithmeticVariance", the function's name, which the whole-word scan would find in every caller.
+  { field: "arithmeticVarianceAmount", what: "the arithmetic corrections' variance against the tendered figures, in a check's completion trail (6.12 Q2)" },
 ];
 
 /// Whether a stored field (an audit change's field name) is a registered SULIT field: a History
