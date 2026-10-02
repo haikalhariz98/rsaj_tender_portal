@@ -4,6 +4,7 @@ import { bidGate } from "@/lib/bids/repo";
 import { bidFindingText } from "@/lib/bids/labels";
 import { APPOINTMENT_DOMAIN } from "@/lib/method/types";
 import { toSecond } from "@/lib/bids/lateness";
+import { exerciseActFailure } from "@/lib/committee/exercise-failure";
 import { bundleFaults, tabledVersionFault } from "@/lib/evaluation/bundle";
 import { loadEvaluationGate } from "@/lib/evaluation/gate-read";
 import { evaluationFindingText } from "@/lib/evaluation/labels";
@@ -130,13 +131,21 @@ async function inSittingAfterExercise(meetingId: string, exerciseId: string, fn:
   const requisitionId = await requisitionOfExercise(exerciseId);
   if (!requisitionId) return inSitting(meetingId, fn);
   const roster = await loadRoster(ORGANISATION_CODE);
-  const result = await withLockedRequisitionForSourcing(requisitionId, exerciseId, async (tx, l) => {
-    if (!l.ex) return null;
-    await lockWindowRow(tx, exerciseId);
-    await lockOpeningRows(tx, exerciseId);
-    const s = await lockSittingIn(tx, meetingId, roster);
-    return s ? fn(tx, s) : null;
-  });
+  let result: FormState | null;
+  try {
+    result = await withLockedRequisitionForSourcing(requisitionId, exerciseId, async (tx, l) => {
+      if (!l.ex) return null;
+      await lockWindowRow(tx, exerciseId);
+      await lockOpeningRows(tx, exerciseId);
+      const s = await lockSittingIn(tx, meetingId, roster);
+      return s ? fn(tx, s) : null;
+    });
+  } catch (e) {
+    // 6.8 re-review 6: the exercise could not move, or the transaction ran out of time: said, never a 500.
+    const said = exerciseActFailure(e);
+    if (said) return said;
+    throw e;
+  }
   if (result?.ok) refresh(meetingId);
   return result ?? GONE;
 }
