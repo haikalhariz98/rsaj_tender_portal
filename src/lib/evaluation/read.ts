@@ -24,7 +24,7 @@ import { incompleteStages, ranking } from "./recommend";
 import { appointmentOutcome, loadEvaluationContext } from "./repo";
 import { periodWords, reportFaults, reportFromSnapshot, reportStale } from "./report";
 import { saving } from "./saving";
-import { inRunningAt, isSubmitted, resultOf, runningAt, stageAccess, stageResult } from "./stages";
+import { inRunningAt, isSubmitted, liveStanding, resultOf, runningAt, stageAccess, stageResult } from "./stages";
 import { startFaults } from "./start";
 import { evaluationPhase, issuedActFaults, openActFaults } from "./state";
 import { blocking, type Finding, type Side } from "./types";
@@ -286,10 +286,13 @@ function stageView(f: EvaluationFacts, s: StageSnap, dp: number | null, sub: { s
 function bidderAtStage(f: EvaluationFacts, s: StageSnap, b: BidderFacts, dp: number | null, submitted: boolean) {
   const run = runningAt(f, s, b);
   const r = resultOf(f, b.id, s.code);
-  const live = !submitted && run.state === "IN" ? stageResult(f, s, b) : null;
+  const computed = !submitted && run.state === "IN" ? stageResult(f, s, b) : null;
+  // S-1: while a blocking fault stands the stage has not judged the bid: "not yet", with the reason.
+  const live = computed ? liveStanding(computed) : null;
   const shown = submitted ? (r?.shown ?? null) : (live?.shown ?? null);
   const passed = submitted ? (r?.passed ?? null) : (live?.passed ?? null);
   const band = submitted ? (r?.bandLabel ?? null) : (live?.bandLabel ?? null);
+  const notYet = live && live.pending.length ? [...new Set(live.pending.map(evaluationFindingText))].join(" ") : null;
   const scoreRows = scoredCriteria(s).map((cr) => {
     const sc = b.scores.get(scoreKey(s.code, cr.code)) ?? null;
     return { code: cr.code, label: cr.labelEn, value: sc ? (sc.marks != null ? formatFixed(sc.marks, 4) : sc.passed ? "Pass" : "Fail") : null, by: sc?.scoredBy ?? null, carried: sc?.carried ?? false };
@@ -301,14 +304,15 @@ function bidderAtStage(f: EvaluationFacts, s: StageSnap, b: BidderFacts, dp: num
     running: RUNNING_LABEL[run.state],
     inRunning: run.state === "IN",
     stageFigure: shown != null ? `${formatFixed(shown, dp ?? 4)}%` : null,
-    outcome: passed == null ? null : passed ? "Passes" : "Fails",
+    outcome: notYet ? "Not yet" : passed == null ? null : passed ? "Passes" : "Fails",
+    notYet,
     band,
     out: submitted ? (r?.outOfRunning ?? false) : (live?.outOfRunning ?? false),
     scoreRows,
     stageOne: s.kind === "COMMITTEE_DECISION" ? (b.stageOne ?? "NOT_TABLED") : null,
     shortlisted: s.kind === "SHORTLIST" ? b.shortlisted : null,
-    notBanded: (live?.notBanded ?? []).map((code) => ({ code, label: s.criteria.find((x) => x.code === code)?.labelEn ?? "A criterion" })),
-    faults: (live?.faults ?? []) as Finding[],
+    notBanded: (computed?.notBanded ?? []).map((code) => ({ code, label: s.criteria.find((x) => x.code === code)?.labelEn ?? "A criterion" })),
+    faults: (computed?.faults ?? []) as Finding[],
   };
 }
 

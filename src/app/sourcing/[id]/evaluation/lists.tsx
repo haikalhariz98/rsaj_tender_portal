@@ -71,12 +71,12 @@ export function StageList({ exerciseId, s, open, sittings, people }: { exerciseI
     id: r.id,
     search: `${r.listingNo} ${r.bidder}`,
     sortKeys: { bid: r.listingNo },
-    note: r.scoreRows.length ? r.scoreRows.map((x) => `${x.label}: ${x.value ?? "not scored"}${x.by ? ` (${x.by}${x.carried ? ", carried" : ""})` : ""}`).join(" · ") : undefined,
+    note: [r.scoreRows.length ? r.scoreRows.map((x) => `${x.label}: ${x.value ?? "not scored"}${x.by ? ` (${x.by}${x.carried ? ", carried" : ""})` : ""}`).join(" · ") : null, r.notYet ? `Not judged yet: ${r.notYet}` : null].filter(Boolean).join(" ") || undefined,
     cells: {
       bid: { kind: "stack", title: `No. ${r.listingNo}`, sub: r.bidder },
       running: { kind: "chip", text: committee ? STAGE_ONE[r.stageOne ?? "NOT_TABLED"] : r.running, tone: committee ? (r.stageOne === "CARRIED" ? "ok" : r.stageOne === "NOT_CARRIED" ? "err" : "warn") : r.inRunning ? "ok" : "err" },
       stageFigure: { kind: "text", text: r.stageFigure ?? "—", dim: !r.stageFigure },
-      outcome: { kind: "chips", items: [...(r.outcome ? [{ text: r.outcome, tone: r.outcome === "Passes" ? ("ok" as const) : ("err" as const) }] : []), ...(r.band ? [{ text: r.band, tone: "info" as const }] : []), ...(r.shortlisted != null ? [{ text: r.shortlisted ? "Shortlisted" : "Not shortlisted", tone: r.shortlisted ? ("ok" as const) : ("err" as const) }] : []), ...(r.out ? [{ text: "Out of the running", tone: "err" as const }] : [])] },
+      outcome: { kind: "chips", items: [...(r.outcome ? [{ text: r.outcome, tone: r.notYet ? ("warn" as const) : r.outcome === "Passes" ? ("ok" as const) : ("err" as const) }] : []), ...(r.band ? [{ text: r.band, tone: "info" as const }] : []), ...(r.shortlisted != null ? [{ text: r.shortlisted ? "Shortlisted" : "Not shortlisted", tone: r.shortlisted ? ("ok" as const) : ("err" as const) }] : []), ...(r.out ? [{ text: "Out of the running", tone: "err" as const }] : [])] },
     },
   }));
   const scorable = open && !s.submitted && !s.locked && s.criteria.length > 0;

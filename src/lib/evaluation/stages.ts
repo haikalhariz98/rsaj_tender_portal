@@ -215,6 +215,30 @@ export function stageResult(f: EvaluationFacts, s: StageSnap, b: BidderFacts): S
   return out;
 }
 
+/// What an open stage shows for one bidder while it is live (not yet submitted).
+export interface LiveStanding {
+  shown: Fixed | null;
+  passed: boolean | null;
+  bandLabel: string | null;
+  outOfRunning: boolean;
+  /// The blocking reasons the stage cannot judge this bidder yet; empty once it can.
+  pending: Finding<ResultFault>[];
+}
+
+/**
+ * The live view of an open stage for one bidder (6.8 review S-1). While any blocking fault stands —
+ * an input not recorded, a criterion not scored, a rule not set — the stage has not judged the bidder:
+ * no figure (a figure from the marks present is a partial sum) and no outcome (with nothing to judge,
+ * `judge(null)` reads as a pass), only "not yet" and the reasons. A band computed from a complete input
+ * is a fact and stays shown. Submission refuses on the same faults (`submitStage`), so the live view and
+ * the act agree. Pure.
+ */
+export function liveStanding(c: StageComputation): LiveStanding {
+  const pending = c.faults.filter((x) => x.level === "block");
+  if (pending.length) return { shown: null, passed: null, bandLabel: c.bandLabel, outOfRunning: false, pending };
+  return { shown: c.shown, passed: c.passed, bandLabel: c.bandLabel, outOfRunning: c.outOfRunning, pending: [] };
+}
+
 // ------------------------------------------------------------------ scoring and submitting
 
 export type AccessFault = "STAGE_SUBMITTED" | "STAGE_LOCKED" | "NOT_IN_RUNNING" | "EXCLUDED_ABOVE_CEILING" | "STAGE_ONE_UNDECIDED" | "NOT_A_SCORED_CRITERION" | "WRONG_SCALE";
