@@ -78,7 +78,7 @@ import { ENTITY as TENDER_ENTITY } from "@/lib/tender-docs/audit-view";
 import { awardOpenRefusal, evaluationFindings, exerciseOpenForAward } from "@/lib/award/gate";
 import type { WindowGate } from "@/lib/window/gate";
 import { WINDOW_ENTITIES } from "@/lib/window/audit-view";
-import { BID_ENTITIES } from "@/lib/bids/audit-view";
+import { BID_ENTITIES, BID_ENTITY_LABEL } from "@/lib/bids/audit-view";
 import { OPENING_ENTITIES, OPENING_ENTITY_LABEL } from "@/lib/opening/audit-view";
 import { EVALUATION_ENTITY_LABEL } from "@/lib/evaluation/audit-view";
 import { bidFindingText } from "@/lib/bids/labels";
@@ -1265,6 +1265,8 @@ const ENTITY_LABEL: Record<string, string> = {
   [TENDER_ENTITY.appendix]: "Appendix",
   [TENDER_ENTITY.variationLimit]: "Variation limit",
   [TENDER_ENTITY.section]: "Appendix section",
+  // 6.6: the envelope register, withdrawals, the tender box and validity extensions (67-C2).
+  ...BID_ENTITY_LABEL,
   // 6.7: the opening; every value is already in words (a price as read and the disclosed estimate chip as SULIT).
   ...OPENING_ENTITY_LABEL,
   // 6.8: the evaluation; every value is already in words (its figures chip as SULIT by their registered keys).

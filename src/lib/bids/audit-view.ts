@@ -23,6 +23,14 @@ export const BID_ENTITY = {
 /// Every register entity, for the History's and the demo wipe's lists.
 export const BID_ENTITIES: readonly string[] = Object.values(BID_ENTITY);
 
+/// How the History names each register entity (Phase 2 close-out 67-C2: they read "Record" before).
+export const BID_ENTITY_LABEL: Readonly<Record<string, string>> = {
+  [BID_ENTITY.envelope]: "Envelope",
+  [BID_ENTITY.withdrawal]: "Withdrawal",
+  [BID_ENTITY.box]: "Tender box",
+  [BID_ENTITY.extension]: "Validity extension",
+};
+
 const at = (d: Date | null | undefined, tz: string | null) => (d ? formatOrgDateTime(d, tz) : null);
 /// A receipt, a letter or the box's lock, to the second (lateness is judged to the second).
 const stamp = (d: Date | null | undefined, tz: string | null) => (d ? receiptTime(d, tz) : null);
