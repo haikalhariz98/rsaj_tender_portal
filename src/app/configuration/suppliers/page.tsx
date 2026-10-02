@@ -195,13 +195,13 @@ export default async function SupplierRegisterConfigPage() {
           {cfg.types.length === 0 ? (
             <EmptyState title="None configured">No document can be lodged and no application decided until the document types are added.</EmptyState>
           ) : (
-            <Table minWidth={900}>
+            <Table minWidth={1060}>
               <colgroup>
                 <col />
-                <col style={{ width: 170 }} />
-                <col style={{ width: 170 }} />
-                <col style={{ width: 170 }} />
-                <col style={{ width: 110 }} />
+                <col style={{ width: 140 }} />
+                <col style={{ width: 140 }} />
+                <col style={{ width: 140 }} />
+                <col style={{ width: 100 }} />
                 <ActionsCol icons={1} labelled={2} />
               </colgroup>
               <THead>

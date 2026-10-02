@@ -71,7 +71,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
       sortKeys: { supplier: s.registeredName },
       cells: {
         supplier: { kind: "link", text: s.registeredName, href: `/suppliers/${s.id}`, sub: `${s.reference} · ${s.registrationNo}` },
-        status: rd.standing && status === "REGISTERED" ? { kind: "badge", text: standingWords(rd.standing).en, tone: TONE[standingTone(rd.standing)] } : { kind: "badge", text: SUPPLIER_STATUS_LABEL[status].en, tone: TONE[SUPPLIER_STATUS_TONE[status]] },
+        status: rd.standing && status === "REGISTERED" ? { kind: "chips", items: [{ text: standingWords(rd.standing).en, tone: TONE[standingTone(rd.standing)] }] } : { kind: "badge", text: SUPPLIER_STATUS_LABEL[status].en, tone: TONE[SUPPLIER_STATUS_TONE[status]] },
         documents: {
           kind: "chips",
           items: !today
@@ -155,7 +155,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
       search: [s.registeredName, s.reference, standingWords(st).en].join(" "),
       cells: {
         supplier: { kind: "link", text: s.registeredName, href: `/suppliers/${s.id}?tab=standing`, sub: s.reference },
-        standing: { kind: "badge", text: standingWords(st).en, tone: TONE[standingTone(st)] },
+        standing: { kind: "chips", items: [{ text: standingWords(st).en, tone: TONE[standingTone(st)] }] },
         since: since ? { kind: "stack", title: `Since ${formatDate(since.effectiveOn)}`, sub: since.kind === "BLACKLIST" ? (since.endsOn ? `To ${formatDate(since.endsOn)}` : "Until further notice") : since.reasonLabel || undefined } : st.standing === "SUSPENDED_ON_LAPSE" || lapseUnset ? { kind: "text", text: st.lapsed.join(", ") } : { kind: "text", text: "—", dim: true },
         requests: open.length ? { kind: "chips", items: open.map((r) => ({ text: `${REQUEST_KIND_LABEL[r.kind].en}: ${routeState(r.routes.map((x) => ({ status: x.status, openedAt: x.createdAt.toISOString() }))) === "APPROVED" ? "approved, to record" : "with approval"}`, tone: "brand" as const })) } : { kind: "text", text: "—", dim: true },
       },
