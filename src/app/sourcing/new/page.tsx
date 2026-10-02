@@ -39,7 +39,7 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
     <PageHeader
       eyebrow={<Link href="/sourcing">Sourcing</Link>}
       title="New sourcing exercise"
-      subtitle="Value band, method, contract type and basis. Sourcing runs outside the portal for now."
+      subtitle="Value band, method, contract type and basis; the rest follows on its record."
     />
     </>
   );
