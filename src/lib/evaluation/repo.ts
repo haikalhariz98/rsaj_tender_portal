@@ -31,6 +31,7 @@ import { fixedOf } from "./fixed";
 import { modelFromSnapshot, type ModelSnapshot } from "./model";
 import { estimateFromSchedule } from "./saving";
 import { policyFromSnapshot } from "./start";
+import { appointmentOutcomeOn } from "./state";
 import { EVALUATION_STAGE_DOMAIN, NEGOTIATION_DOMAIN, type AspectVerdict, type EvaluationState, type PeriodUnit, type Side } from "./types";
 
 export const EVALUATION_INCLUDE = {
@@ -183,7 +184,7 @@ export async function loadEvaluationContext(l: { org: { id: string; timeZone: st
   const evaluations = await loadEvaluations(ex.id, client);
   const policy = await client.evaluationPolicy.findUnique({ where: { organisationId: org.id }, include: { reportTemplate: true, proposalTemplate: true } });
   const extensions = await client.validityExtension.findMany({ where: { exerciseId: ex.id }, orderBy: { recordedAt: "asc" }, select: { id: true, consentPartyId: true, appliedAt: true, toExpiry: true, consentParty: { select: { name: true } } } });
-  const appointmentMatters = await client.committeeDecision.findMany({ where: { exerciseId: ex.id, domain: "appointment", withdrawnAt: null }, orderBy: [{ tabledAt: "asc" }, { id: "asc" }], select: { id: true, outcome: true, notApprovedOutcomeKind: true, notApprovedOutcome: { select: { returnsToStage: true } }, meeting: { select: { reference: true, committee: { select: { nameEn: true } } } } } });
+  const appointmentMatters = await client.committeeDecision.findMany({ where: { exerciseId: ex.id, domain: "appointment", withdrawnAt: null }, orderBy: [{ tabledAt: "asc" }, { id: "asc" }], select: { id: true, outcome: true, evaluationVersion: true, notApprovedOutcomeKind: true, notApprovedOutcome: { select: { returnsToStage: true } }, meeting: { select: { reference: true, committee: { select: { nameEn: true } } } } } });
   const units = (await client.orgUnit.findMany({ where: { organisationId: org.id } })) as unknown as OrgUnit[];
   const roster = await loadRoster(ORGANISATION_CODE, client);
 
@@ -226,11 +227,9 @@ export async function loadEvaluationContext(l: { org: { id: string; timeZone: st
 }
 export type EvaluationContext = Awaited<ReturnType<typeof loadEvaluationContext>>;
 
-/// The latest appointment matter's outcome, for the derived phase (OD-3 A).
-export function appointmentOutcome(c: Pick<EvaluationContext, "appointmentMatters">): "PENDING" | "DEFERRED" | "CARRIED" | "NOT_CARRIED" | null {
-  const m = c.appointmentMatters.at(-1);
-  return m ? m.outcome : null;
-}
+/// The latest appointment matter's outcome on the version in force, for the derived phase (OD-3 A;
+/// fix M-3: a decision on a superseded version's report is not this version's).
+export const appointmentOutcome = (c: Pick<EvaluationContext, "appointmentMatters"> & { current: { version: number } | null }) => appointmentOutcomeOn(c.appointmentMatters, c.current?.version ?? null);
 
 /// The negotiation route's domain, for the screens' route lists (X-5's one splitter carries it).
 export { NEGOTIATION_DOMAIN, EVALUATION_STAGE_DOMAIN };

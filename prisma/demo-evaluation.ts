@@ -946,7 +946,8 @@ async function tableAppointment(db: Db, organisationId: string, tz: string, entr
   const { APPOINTMENT_DOMAIN } = await import("../src/lib/method/types");
   const committee = await db.committee.findUniqueOrThrow({ where: { id: `${P}c1` }, select: { code: true, nameEn: true, secretariatRoleCode: true } });
   const ex = await db.sourcingExercise.findUniqueOrThrow({ where: { id: i.sx }, select: { reference: true, title: true, estimatedValue: true } });
-  refuse("tabling the appointment", bundleFaults((await loadEvaluationGate(i.sx, db as never)).bundle));
+  const gate = await loadEvaluationGate(i.sx, db as never);
+  refuse("tabling the appointment", bundleFaults(gate.bundle));
   const roster = await loadRoster(ORGANISATION_CODE);
   const tabling = checkTabling({ secretariatRoleCode: committee.secretariatRoleCode, tabledByPersonId: HOD_CP.id, holderIdsOnDate: secretariatHoldersOn(roster, committee.secretariatRoleCode, i.on).map((h) => h.id), tablingDay: i.on });
   if (!tabling.ok) fail(`the appointment could not be tabled (${tabling.fault})`);
@@ -954,9 +955,9 @@ async function tableAppointment(db: Db, organisationId: string, tz: string, entr
   await db.meeting.create({ data: { id: mt, committeeId: `${P}c1`, reference: "DEMO/SIT/5B/2026", meetingDate: dayToDate(i.on), status: "IN_PROGRESS", agenda: `Appointment: ${ex.title} (${ex.reference}), on evaluation report and Kertas Cadangan.` } });
   await db.meetingAttendance.createMany({ data: [{ id: `${P}at64`, meetingId: mt, personId: `${P}p1`, attended: true }, { id: `${P}at65`, meetingId: mt, personId: `${P}p2`, attended: true }, { id: `${P}at66`, meetingId: mt, personId: `${P}p3`, attended: true }, { id: `${P}at67`, meetingId: mt, personId: `${P}p7`, attended: true }] });
   const subject = `Appointment for ${ex.title}`;
-  await db.committeeDecision.create({ data: { id: `${P}d43`, meetingId: mt, sequence: 1, domain: APPOINTMENT_DOMAIN, matterKind: "EXERCISE", matterRef: ex.reference, exerciseId: i.sx, subject, act: "A", amount: "612450.30", tabledByPersonId: HOD_CP.id, tabledAt: dayToDate(i.on) } });
+  await db.committeeDecision.create({ data: { id: `${P}d43`, meetingId: mt, sequence: 1, domain: APPOINTMENT_DOMAIN, matterKind: "EXERCISE", matterRef: ex.reference, exerciseId: i.sx, subject, act: "A", amount: "612450.30", tabledByPersonId: HOD_CP.id, tabledAt: dayToDate(i.on), evaluationVersion: gate.version } });
   entry("Meeting", mt, `DEMO/SIT/5B/2026 · ${committee.nameEn}`, "CREATE", new Date(i.at.getTime() - 60_000), diffFields(null, { committee: committee.nameEn, reference: "DEMO/SIT/5B/2026", date: formatDate(i.on), status: "In progress" }));
-  entry("CommitteeDecision", `${P}d43`, subject, "CREATE", i.at, diffFields(null, { subject, domain: APPOINTMENT_DOMAIN, matterKind: "EXERCISE", matterRef: ex.reference, act: "A", linkedExercise: ex.reference, tabledBy: HOD_CP.name, tabledAt: formatDate(i.on) }));
+  entry("CommitteeDecision", `${P}d43`, subject, "CREATE", i.at, diffFields(null, { subject, domain: APPOINTMENT_DOMAIN, matterKind: "EXERCISE", matterRef: ex.reference, act: "A", linkedExercise: ex.reference, tabledOnEvaluationVersion: gate.version, tabledBy: HOD_CP.name, tabledAt: formatDate(i.on) }));
   void tz;
   return [mt];
 }

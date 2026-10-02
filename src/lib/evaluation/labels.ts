@@ -251,6 +251,11 @@ const TEXT: Record<string, (f: Finding) => string> = {
   AWARDEE_NOT_RECOMMENDED: () => "The awardee is the tenderer the evaluation recommends. Another tenderer is the committee's decision not to carry the appointment, and a new evaluation version.",
   VALUE_DIFFERS_REASON_REQUIRED: () => "The awarded value differs from the recommendation: give the reason.",
   PERIOD_DIFFERS_REASON_REQUIRED: () => "The completion period differs from the recommendation: give the reason.",
+  // ---- the version an appointment was tabled on (bundle.ts, fix M-3)
+  TABLED_VERSION_NOT_RECORDED: () => "This appointment matter does not record which evaluation version it was tabled on, so whether the committee decided on the report in force cannot be told. Table the appointment again, on the report in force.",
+  TABLED_ON_EARLIER_VERSION: (f) => `This appointment matter was tabled on evaluation version ${f.data?.tabled ?? "an earlier version"}${f.data?.inForce != null ? `, and version ${f.data.inForce} is in force now` : ", which is no longer in force"}: the committee decided on a report since superseded. Table the appointment again once the version in force has its report issued and its Kertas Cadangan checked and recommended.`,
+  LOOP_ON_EARLIER_VERSION: (f) => `The matter was tabled on evaluation version ${f.data?.tabled ?? "an earlier version"}, which is no longer in force, so no new evaluation version opens: the decision is recorded as made.`,
+  LOOP_VERSION_NOT_RECORDED: () => "The matter does not record which evaluation version it was tabled on, so no new evaluation version opens: the decision is recorded as made.",
   // ---- the loop
   LOOP_TARGET_UNKNOWN: () => "The outcome returns the matter to a stage the product does not know, so no new evaluation version opens. Choose one of the evaluation's stages for it under Configuration › Committees.",
   TERMINAL_NEVER_REOPENS: () => "The outcome ends the matter: the evaluation does not reopen. Cancelling the exercise is asked for on its Invitation tab.",

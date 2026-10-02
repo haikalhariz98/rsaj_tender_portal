@@ -51,3 +51,11 @@ export function evaluationPhase(i: {
   if (i.appointment === "PENDING" || i.appointment === "DEFERRED") return "PENDING_COMMITTEE";
   return "EVALUATED";
 }
+
+export type AppointmentOutcome = "PENDING" | "DEFERRED" | "CARRIED" | "NOT_CARRIED";
+
+/// The latest appointment matter's outcome on the version in force (fix M-3): a decision on a superseded version's report is not this version's. Matters oldest first.
+export function appointmentOutcomeOn(matters: readonly { outcome: AppointmentOutcome; evaluationVersion: number | null }[], version: number | null): AppointmentOutcome | null {
+  const m = matters.filter((x) => version != null && x.evaluationVersion === version).at(-1);
+  return m ? m.outcome : null;
+}

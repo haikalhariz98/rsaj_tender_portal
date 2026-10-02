@@ -33,3 +33,19 @@ export function bundleFaults(b: BundleFacts): Finding<BundleFault>[] {
   }
   return out;
 }
+
+export type TabledVersionFault = "TABLED_VERSION_NOT_RECORDED" | "TABLED_ON_EARLIER_VERSION";
+
+/**
+ * 6.8 fix M-3 (E-8): an appointment matter stands on the evaluation version it was tabled on, its
+ * bundle checked then. Its decision is cited at award, and its NOT_CARRIED loop opens the next version,
+ * only while that version is still the one in force: a decision on a superseded report is not the
+ * committee's decision on the report in force. Where the bundle is not asked (`applies` false) nothing
+ * is judged. A matter that records no version cannot be told to stand: it is refused, never assumed.
+ */
+export function tabledVersionFault(i: { applies: boolean; tabledOn: number | null; inForce: number | null }): Finding<TabledVersionFault> | null {
+  if (!i.applies) return null;
+  if (i.tabledOn == null) return { code: "TABLED_VERSION_NOT_RECORDED", level: "block" };
+  if (i.tabledOn !== i.inForce) return { code: "TABLED_ON_EARLIER_VERSION", level: "block", data: { tabled: i.tabledOn, inForce: i.inForce } };
+  return null;
+}
