@@ -367,7 +367,13 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
         {status === "CANCELLED" && (
           <Callout tone="info" title="Cancelled">
             {award.cancelReason || "No reason recorded."}
-            {award.cancelConsequence && ` Consequence recorded: ${NON_COMMENCEMENT_LABEL[award.cancelConsequence].toLowerCase()}. Blacklisting itself waits for the supplier register.`}
+            {award.cancelConsequence && ` Consequence recorded: ${NON_COMMENCEMENT_LABEL[award.cancelConsequence].toLowerCase()}.`}
+            {award.cancelConsequence === "CANCEL_AND_BLACKLIST" &&
+              (award.standingRequests.length > 0
+                ? " Blacklisting was asked for from this award, on the supplier's record."
+                : award.vendor
+                  ? <> Blacklisting is asked for on the supplier&apos;s record, where its route decides it: <Link href={`/suppliers/${award.vendor.id}?tab=standing&fromAward=${award.id}`}>ask for the blacklisting of {award.vendor.registeredName}</Link>.</>
+                  : " Blacklisting is asked for on the supplier's record once the awardee is linked to the supplier register (from the supplier's record, Participation).")}
           </Callout>
         )}
         {!today && (
@@ -390,7 +396,7 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
         ))}
         {ev.commencement?.state === "LATE" && status === "ISSUED" && (
           <Callout tone="err" title="Work has not commenced">
-            The grace period ended on {formatDate(ev.commencement.deadline)}. The variant&apos;s consequence: {consequenceText ? consequenceText.toLowerCase() : "not set on the variant"}. Cancelling records it; blacklisting itself waits for the supplier register. Nothing is sent.
+            The grace period ended on {formatDate(ev.commencement.deadline)}. The variant&apos;s consequence: {consequenceText ? consequenceText.toLowerCase() : "not set on the variant"}. Cancelling records it; a blacklisting is then asked for on the supplier&apos;s record, where its route decides it. Nothing is sent.
           </Callout>
         )}
         {ev.indent?.state === "EXPIRED" && issued && indentExpiryRaised(ev.indent, day(award.commencedOn), status) && (
@@ -473,6 +479,8 @@ function OverviewPanel({ l, ev, recommendation, methodName, typeName, policyLabe
               ...(ex.onBoundary && ex.boundaryOperator ? [{ label: "At the boundary", value: boundarySentence(ex.boundaryOperator, ex.boundaryValue?.toString() ?? null, (ex.boundaryProvenance ?? "ASSUMED") as "ASSUMED") }] : []),
               { label: "Awardee", value: <span className="flex flex-col"><span>{award.awardeeName}</span><span className="text-[12.5px] text-ink-3">{award.awardeeRegistrationNo || "Registration number not recorded"}</span></span> },
               { label: "Address", value: award.awardeeAddress || notSet("Not recorded") },
+              // 6.15a (OD-9): the link to the register, made by an explicit act on the supplier's record.
+              { label: "On the supplier register", value: award.vendor ? <Link href={`/suppliers/${award.vendor.id}`}>{`${award.vendor.reference} · ${award.vendor.registeredName}`}</Link> : notSet(award.awardeePartyId ? "Not linked: link the awardee party from the supplier's record" : "Not linked: link the award from the supplier's record") },
               { label: "Awarded value", value: <FromRecommendation differs={differs.includes("value")} reason={award.recValueDiffersReason} recommended={recommendation ? formatMoney(recommendation.price) : null}><span className="tabular-nums">{money(award.awardedValue)}</span></FromRecommendation> },
               { label: "Exercise's estimate", value: <span className="tabular-nums">{money(ex.estimatedValue)}</span> },
               { label: "Completion period", value: <FromRecommendation differs={differs.includes("period")} reason={award.recPeriodDiffersReason} recommended={recommendation?.period ? periodText(recommendation.period.value, recommendation.period.unit) : recommendation ? "No period stated" : null}>{periodText(award.completionPeriod, award.completionUnit)}</FromRecommendation> },

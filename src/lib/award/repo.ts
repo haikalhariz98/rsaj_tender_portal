@@ -51,6 +51,9 @@ const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const decisionInclude = { meeting: { include: { committee: { select: { code: true, nameEn: true } } } }, votes: { include: { person: { select: { name: true } } } } };
 
 export const awardInclude = {
+  // 6.15a (OD-9): the register's supplier the award is linked to, and any blacklisting asked for from it.
+  vendor: { select: { id: true, reference: true, registeredName: true } },
+  standingRequests: { select: { id: true, kind: true, event: { select: { id: true } } } },
   documents: { orderBy: [{ kind: "asc" as const }, { version: "desc" as const }] },
   distributions: { orderBy: { sortOrder: "asc" as const } },
   awardReturn: { include: { receivedBy: { select: { id: true, name: true } } } },
