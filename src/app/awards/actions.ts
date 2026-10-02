@@ -62,6 +62,8 @@ import { completionDay } from "@/lib/securities/period";
 import { supplierFaultText } from "@/lib/suppliers/labels";
 import { awardVendorOnParty } from "@/lib/suppliers/link";
 import { FormReader } from "@/lib/validate";
+import { contractCancellable } from "@/lib/contract/status";
+import type { ContractStatus } from "@/lib/contract/types";
 
 /**
  * Writes for awards (6.11) and the registers on their contracts.
@@ -970,6 +972,8 @@ export async function cancelAward(_prev: FormState, data: FormData): Promise<For
     if (t === "TIME_ZONE_UNSET") return NO_ZONE;
     const T = { ALREADY_RETURNED: "The instrument has come back signed: it is a contract document now, and cancelling it is not an act the portal takes. Termination arrives with the post-award modules.", ALREADY_COMMENCED: "Work has commenced under this award: it is not cancelled here. Termination arrives with the post-award modules.", ACCEPTED_NOT_CANCELLED: "An accepted award is not cancelled here: termination arrives with the post-award modules.", TERMINAL: "This award is already cancelled.", NOT_ALLOWED: "This award cannot be cancelled from where it stands." } as Record<string, string>;
     if (t) return { ok: false, message: T[t] ?? "Not cancelled." };
+    // 6.12: an executed contract is ended by termination, never by cancelling its award (BD-17).
+    if (a.contract && !contractCancellable(a.contract.status as ContractStatus)) return { ok: false, message: "The contract is executed: it is not cancelled with its award. Termination arrives with the post-award modules." };
     const consequence = ev.commencement?.state === "LATE" ? ev.consequence : null;
     await mustMove(tx, l, "CANCELLED", { cancelReason: reason, cancelConsequence: consequence });
     await audit(tx, l.org.id, "Award", id, labelOf(a), "UPDATE", diffFields({ status: a.status }, { status: "CANCELLED", consequence: consequence === "CANCEL_AND_BLACKLIST" ? "blacklisting recommended" : consequence === "WARNING_LETTER" ? "warning letter" : null }), reason);

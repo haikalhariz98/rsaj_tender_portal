@@ -36,8 +36,6 @@ import {
   DOCUMENT_LABEL,
   DOCUMENT_SLUG,
   FIX_AT,
-  GATE_LABEL,
-  GATE_STATE_LABEL,
   INSTRUMENT_LABEL,
   INSTRUMENT_SHORT,
   INSURANCE_KIND_LABEL,
@@ -84,6 +82,7 @@ import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } fr
 import { derivedAnnualValue } from "@/lib/securities/bond";
 import { expiryAlert } from "@/lib/securities/expiry";
 import { awardReadiness } from "@/lib/award/gate-read";
+import { ReadinessGateList } from "@/components/contract/readiness-gate";
 import { applicableRequirements, derivedLimit, wcSumCheck } from "@/lib/securities/insurance";
 import { db } from "@/lib/db";
 import { tablingQuery } from "@/lib/committee/table-prefill";
@@ -511,6 +510,7 @@ function OverviewPanel({ l, ev, awardee, recommendation, methodName, typeName, p
                     <span className="font-mono text-[13px]">{c.number}</span>
                     <Chip tone={c.status === "CANCELLED" ? "warn" : "ok"}>{CONTRACT_STATUS_LABEL[c.status]}</Chip>
                     <span className="text-[12.5px] text-ink-3">{CONTRACT_YEAR_READING}</span>
+                    <Link href={`/projects/${c.id}`} className="text-[13px] font-semibold">Open the contract</Link>
                   </span>
                 ) : "fault" in ev.contractNumber ? notSet(awardFindingText({ code: ev.contractNumber.fault, level: "block" })) : ev.contractNumber.source === "SERIES" ? "Drawn from its contract type's series on issue" : "The indent's own number, on issue",
               },
@@ -1081,39 +1081,11 @@ function ReturnRecordCard({ l, ret, people }: { l: LoadedAward; ret: ReturnRecor
 function ConditionsPanel({ l, gate, kinds, today }: { l: LoadedAward; gate: ReturnType<typeof readinessGate>; kinds: { value: string; label: string }[]; today: string | null }) {
   const { award } = l;
   const open = award.status !== "CANCELLED";
-  const DETAIL: Record<string, string> = {
-    BOND_NOT_DECIDED: "Whether a bond is required is not decided.",
-    REASON_NOT_RECORDED: "No bond is required, but the reason is not recorded.",
-    NOT_REQUIRED: `No bond required: ${award.bondNotRequiredReason}`,
-    BASIS_NOT_SET: "The bond's basis is not set.",
-    NOT_VERIFIED: "No verified performance bond covers the required amount.",
-    REQUIREMENTS_NOT_SET: "No insurance requirements are configured, so what must be verified is not known.",
-    WC_NOT_CHECKED: "Workmen's compensation is calculated on uncovered wages, so its sum cannot be checked: it counts as met only once the check of the declared wages is recorded, on the contract's Formation tab.",
-    WC_RECORDED_NOT_JUDGED: "Workmen's compensation on uncovered wages: the check of the declared wages is recorded on the contract. Recorded, not judged: basis not set (D4).",
-    WC_BASIS_NOT_SET: "How workmen's compensation is calculated is not set on the award.",
-  };
-  // Insurance detail: what is not lodged at all, and what is lodged but not verified.
-  const insuranceDetail = (detail: string[]) => {
-    const of = (p: string) => detail.filter((d) => d.startsWith(p)).map((d) => d.slice(p.length));
-    const notLodged = of("NOT_LODGED:");
-    const lodged = of("LODGED:");
-    return [notLodged.length ? `Not lodged: ${notLodged.join(", ")}.` : null, lodged.length ? `Lodged, not verified: ${lodged.join(", ")}.` : null, ...detail.filter((d) => !d.includes(":")).map((d) => DETAIL[d] ?? null)].filter(Boolean).join(" ");
-  };
   return (
     <div className="flex flex-col gap-6">
       <Card className="overflow-hidden">
-        <CardHeader icon={<ShieldIcon size={17} />} title="Conditions precedent to signing" subtitle="All three, cumulatively, before the contract may be signed. Preparation continues while the gate is red; the signature itself arrives with contract formation." actions={<Badge tone={gate.ready ? "ok" : "warn"}>{gate.ready ? "Ready" : "Not ready"}</Badge>} />
-        <ul className="divide-y divide-line/70">
-          {gate.items.map((i) => (
-            <li key={i.key} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 sm:px-6">
-              <span className="min-w-0">
-                <span className="block text-[13.5px] font-semibold text-ink">{GATE_LABEL[i.key]}</span>
-                {i.detail.length > 0 && <span className="block text-[12.5px] break-words text-ink-3">{i.key === "INSURANCE" ? insuranceDetail(i.detail) : i.detail.map((d) => DETAIL[d] ?? "").join(" ")}</span>}
-              </span>
-              <Chip tone={i.state === "MET" ? "ok" : i.state === "NOT_SET" ? "warn" : "err"}>{GATE_STATE_LABEL[i.state]}</Chip>
-            </li>
-          ))}
-        </ul>
+        <CardHeader icon={<ShieldIcon size={17} />} title="Conditions precedent to signing" subtitle="All three, cumulatively, before the contract may be signed. Preparation continues while the gate is red; the signatures are recorded on the contract." actions={<Badge tone={gate.ready ? "ok" : "warn"}>{gate.ready ? "Ready" : "Not ready"}</Badge>} />
+        <ReadinessGateList items={gate.items} bondNotRequiredReason={award.bondNotRequiredReason} />
       </Card>
       <Card className="overflow-hidden">
         <CardHeader icon={<CheckIcon size={17} />} title="Before work starts" subtitle="The customer's conditions precedent, each with the day it is needed by. A delay in one marked so gives no extension of time." actions={open ? <AddConditionDrawer id={award.id} kinds={kinds} /> : undefined} divided={award.conditions.length > 0} />
