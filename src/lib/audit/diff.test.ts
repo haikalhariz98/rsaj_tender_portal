@@ -84,6 +84,12 @@ describe("field labels", () => {
     expect(fieldLabel("code")).toBe("Code");
   });
 
+  it("names an effective-dated end day as the forms do: not included (65-C1)", () => {
+    expect(fieldLabel("effectiveTo")).toBe("Ends on (not included)");
+    expect(fieldLabel("endsOn")).toBe("Ends on (not included)");
+    expect(fieldLabel("effectiveFrom")).toBe("Effective from");
+  });
+
   it("reads a bilingual pair the way the forms print it", () => {
     expect(fieldLabel("nameEn")).toBe("Name (EN)");
     expect(fieldLabel("nameMs")).toBe("Name (BM)");

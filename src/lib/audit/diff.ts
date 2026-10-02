@@ -5,6 +5,8 @@
  * the whole row: a diff of forty unchanged fields buries the one that moved.
  */
 
+import { END_DAY_LABEL } from "@/lib/effective-text";
+
 export interface FieldChange {
   field: string;
   /// Rendered as text, because the trail must stay legible after the column's type
@@ -56,6 +58,9 @@ export function snapshotFields(row: Record<string, unknown>): FieldChange[] {
 
 /// Fields whose generic reading would say what is stored rather than what it means.
 const NAMED_FIELDS: Record<string, string> = {
+  // 65-C1: an effective-dated end day is exclusive (inForceOn); History says so as the forms do.
+  effectiveTo: END_DAY_LABEL,
+  endsOn: END_DAY_LABEL,
   tabledByPersonId: "Tabled by",
   standingInForSeatId: "Standing in for",
   dependsOnDecisionId: "Depends on",
