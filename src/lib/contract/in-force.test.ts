@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { dayToDate } from "@/lib/dates";
 
-import { legalOfficeKnown, preparationSettings, rowInForce } from "./in-force";
+import { legalOfficeKnown, preparationSettings, rowInForce, unitInForce } from "./in-force";
 
 /**
  * 6.12 review R-6: a document part or copy recipient "retired from" a day was treated as retired the
@@ -22,8 +22,8 @@ describe("a row retired from a day", () => {
 
 describe("the legal office", () => {
   const units = [
-    { code: "LEGAL", effectiveTo: null },
-    { code: "OLD_LEGAL", effectiveTo: dayToDate("2026-10-15") },
+    { code: "LEGAL", effectiveFrom: dayToDate("2024-01-01"), effectiveTo: null },
+    { code: "OLD_LEGAL", effectiveFrom: dayToDate("2024-01-01"), effectiveTo: dayToDate("2026-10-15") },
   ];
   it("a unit in force is known; one whose end has come is not; none set is not", () => {
     expect(legalOfficeKnown("LEGAL", units, "2026-10-02")).toBe(true);
@@ -44,7 +44,7 @@ describe("what preparation starts from, on the organisation's day", () => {
       { contractBasisCode: "SOR", retiredOn: null },
     ],
     recipients: [{ retiredOn: dayToDate("2026-10-15") }, { retiredOn: dayToDate("2026-10-02") }],
-    units: [{ code: "LEGAL", nameEn: "Legal Office", effectiveTo: null }],
+    units: [{ code: "LEGAL", nameEn: "Legal Office", effectiveFrom: dayToDate("2024-01-01"), effectiveTo: null }],
     bases: [{ code: "BQ", nameEn: "Bill of quantities", requiresBq: true }],
   };
   it("a part or recipient retired from a later day is still taken; from today or earlier it is not", () => {
@@ -63,5 +63,35 @@ describe("what preparation starts from, on the organisation's day", () => {
     for (const p of ["src/app/projects/[id]/actions.ts", "src/app/projects/[id]/page.tsx", "src/app/configuration/contracts/page.tsx"]) {
       expect(read(p), p).not.toMatch(/retiredOn == null|!\w+\.retiredOn\)/);
     }
+  });
+});
+
+/**
+ * 6.12 re-review M-2: the legal office was looked up as the first row with its code, in force or not, and
+ * its start was ignored. A unit renamed by a new row froze its old name; a unit starting tomorrow passed.
+ */
+describe("the legal office's row in force on the day (M-2)", () => {
+  const renamed = [
+    // Loaded oldest first on purpose: the lookup must not take the first row with the code.
+    { code: "LEGAL", nameEn: "Legal Unit", effectiveFrom: dayToDate("2024-01-01"), effectiveTo: dayToDate("2026-10-01") },
+    { code: "LEGAL", nameEn: "Legal Office", effectiveFrom: dayToDate("2026-10-01"), effectiveTo: null },
+  ];
+  it("a renamed unit: the name in force that day is the one frozen", () => {
+    expect(unitInForce("LEGAL", renamed, "2026-09-30")?.nameEn).toBe("Legal Unit");
+    expect(unitInForce("LEGAL", renamed, "2026-10-01")?.nameEn).toBe("Legal Office");
+    const cfg = { policy: { legalOfficeCode: "LEGAL" }, parts: [], recipients: [], units: renamed, bases: [] };
+    expect(preparationSettings(cfg, null, "2026-10-02").office?.nameEn).toBe("Legal Office");
+  });
+  it("a unit starting tomorrow is not in force today, and is from tomorrow", () => {
+    const later = [{ code: "NEW_LEGAL", nameEn: "New Legal Office", effectiveFrom: dayToDate("2026-10-03"), effectiveTo: null }];
+    expect(legalOfficeKnown("NEW_LEGAL", later, "2026-10-02")).toBe(false);
+    expect(preparationSettings({ policy: { legalOfficeCode: "NEW_LEGAL" }, parts: [], recipients: [], units: later, bases: [] }, null, "2026-10-02")).toMatchObject({ office: null, legalOfficeKnown: false });
+    expect(legalOfficeKnown("NEW_LEGAL", later, "2026-10-03")).toBe(true);
+  });
+  it("the configuration reads the units with their start, and the policy act judges them in force", () => {
+    const read = (p: string) => readFileSync(path.join(__dirname, "../../..", p), "utf8");
+    expect(read("src/lib/contract/load.ts")).toMatch(/orgUnit\.findMany\(\{ where: \{ organisationId \}, select: \{ code: true, nameEn: true, effectiveFrom: true, effectiveTo: true \}/);
+    expect(read("src/app/configuration/contracts/actions.ts")).toContain("unitInForce(v.legalOfficeCode");
+    expect(read("src/app/configuration/contracts/page.tsx")).not.toMatch(/effectiveTo == null/);
   });
 });

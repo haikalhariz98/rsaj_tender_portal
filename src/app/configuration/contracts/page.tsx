@@ -10,7 +10,7 @@ import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { SIGNATORY_DOMAIN } from "@/lib/award/types";
-import { rowInForce } from "@/lib/contract/in-force";
+import { rowInForce, unitInForce } from "@/lib/contract/in-force";
 import { loadContractConfig } from "@/lib/contract/load";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
@@ -56,7 +56,8 @@ export default async function ContractControlsPage() {
     db.authorityRule.findMany({ where: { domain: SIGNATORY_DOMAIN, cond: { not: null }, authorityMatrix: { organisationId: org.id, issuedAt: { not: null } } }, select: { cond: true, labelEn: true }, orderBy: { sortOrder: "asc" } }),
   ]);
   const p = cfg.policy;
-  const units = cfg.units.filter((u) => u.effectiveTo == null).map((u) => ({ value: u.code, label: u.nameEn }));
+  // The units in force today (M-2), each code once, by its current name.
+  const units = org.today ? [...new Set(cfg.units.map((u) => u.code))].flatMap((code) => { const u = unitInForce(code, cfg.units, org.today!); return u ? [{ value: u.code, label: u.nameEn }] : []; }) : [];
   const byCond = new Map<string, string[]>();
   for (const r of rules) if (r.cond && !INSTRUMENTS.includes(r.cond)) byCond.set(r.cond, [...(byCond.get(r.cond) ?? []), r.labelEn]);
   const conditions = [...byCond].map(([value, labels]) => ({ value, label: labels.join("; ") }));
@@ -102,7 +103,7 @@ export default async function ContractControlsPage() {
             <KeyValues
               columns={2}
               items={[
-                { label: "Legal office", value: <Setting value={cfg.unitName(p?.legalOfficeCode ?? null)} unset="Preparation does not start: nothing could go for legal review." /> },
+                { label: "Legal office", value: <Setting value={org.today ? cfg.unitName(p?.legalOfficeCode ?? null, org.today) : null} unset="Preparation does not start: nothing could go for legal review." /> },
                 { label: "The contract agreement's signatory", value: <Setting value={condLabel(p?.signatoryCond ?? null)} unset="Preparation does not start: nobody could be resolved to sign." /> },
                 { label: "Controlled-copy stamp", value: <Setting value={[p?.controlledCopyStampEn, p?.controlledCopyStampMs].filter(Boolean).join(" / ") || null} unset="Preparation does not start: no copy could be stamped." /> },
                 { label: "Front-loading ratio", value: <Setting value={values.frontLoadingRatio ? `Rates above ${values.frontLoadingRatio} times the estimate's are listed. A rate exactly at ${values.frontLoadingRatio} times is listed apart, for the officer's judgement: which side of the ratio counts is not set.` : null} unset="Allowed: the front-loading check is the officer's judgement alone, and says so." /> },

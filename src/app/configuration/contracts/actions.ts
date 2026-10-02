@@ -6,7 +6,7 @@ import type { FormState } from "@/components/record-editor";
 import { diffFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { db } from "@/lib/db";
-import { rowInForce } from "@/lib/contract/in-force";
+import { rowInForce, unitInForce } from "@/lib/contract/in-force";
 import { storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { exerciseOrg } from "@/lib/method/repo";
@@ -53,7 +53,8 @@ export async function saveContractPolicy(_prev: FormState, data: FormData): Prom
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
   return db.$transaction(async (tx) => {
-    if (v.legalOfficeCode && !(await tx.orgUnit.findFirst({ where: { organisationId: o.id, code: v.legalOfficeCode, effectiveTo: null }, select: { id: true } }))) return { ok: false, errors: { legalOfficeCode: "That unit is not in the organisation's structure." } } as FormState;
+    // In force on the organisation's day (M-2): begun, and not ended.
+    if (v.legalOfficeCode && !(o.today && unitInForce(v.legalOfficeCode, await tx.orgUnit.findMany({ where: { organisationId: o.id, code: v.legalOfficeCode }, select: { code: true, effectiveFrom: true, effectiveTo: true } }), o.today))) return { ok: false, errors: { legalOfficeCode: "That unit is not in the organisation's structure." } } as FormState;
     await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${o.id} FOR UPDATE`;
     const before = await tx.contractPolicy.findUnique({ where: { organisationId: o.id } });
     const row = await tx.contractPolicy.upsert({ where: { organisationId: o.id }, update: v, create: { organisationId: o.id, ...v } });

@@ -19,7 +19,7 @@ import { applicableRequirements } from "@/lib/securities/insurance";
 import { requiredBond, type BondBasis } from "@/lib/securities/bond";
 
 import { baselineFor, buildBaseline, PER_DAY, type BaselineInputs, type BaselineValues, type SectionValue } from "./baseline";
-import { preparationSettings } from "./in-force";
+import { preparationSettings, unitInForce } from "./in-force";
 import { readFormationSnapshot } from "./preparation";
 import { phaseOf } from "./status";
 import type { LoadedContract } from "./repo";
@@ -42,10 +42,11 @@ export async function loadContractConfig(organisationId: string, client: Tx = db
     client.contractPolicy.findUnique({ where: { organisationId } }),
     client.contractDocumentPart.findMany({ where: { organisationId }, orderBy: [{ contractBasisCode: "asc" }, { sortOrder: "asc" }, { code: "asc" }] }),
     client.controlledCopyRecipient.findMany({ where: { organisationId }, orderBy: [{ sortOrder: "asc" }, { code: "asc" }] }),
-    client.orgUnit.findMany({ where: { organisationId }, select: { code: true, nameEn: true, effectiveTo: true } }),
+    client.orgUnit.findMany({ where: { organisationId }, select: { code: true, nameEn: true, effectiveFrom: true, effectiveTo: true }, orderBy: [{ code: "asc" }, { effectiveFrom: "desc" }] }),
     client.contractBasis.findMany({ where: { organisationId }, orderBy: [{ sortOrder: "asc" }, { code: "asc" }] }),
   ]);
-  const unitName = (code: string | null) => (code ? (units.find((u) => u.code === code)?.nameEn ?? null) : null);
+  /// A unit's name on a day: the row in force then (M-2), never merely the first row with the code.
+  const unitName = (code: string | null, today: string) => unitInForce(code, units, today)?.nameEn ?? null;
   return { policy, parts, recipients, units, bases, unitName };
 }
 export type ContractConfig = Awaited<ReturnType<typeof loadContractConfig>>;

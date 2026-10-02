@@ -6,16 +6,26 @@
  */
 
 import { dayToDate } from "@/lib/dates";
-import { hasEnded } from "@/lib/effective";
+import { hasEnded, inForceOn } from "@/lib/effective";
 
 /// A row with a "retired from" day, in force on `today` (the organisation's day, YYYY-MM-DD).
 export const rowInForce = (row: { retiredOn: Date | null }, today: string): boolean => !hasEnded({ effectiveTo: row.retiredOn }, dayToDate(today));
 
-/// Whether the configured legal office is a unit of the organisation's structure in force on `today`.
-export function legalOfficeKnown(code: string | null | undefined, units: readonly { code: string; effectiveTo: Date | null }[], today: string): boolean {
-  if (!code) return false;
-  return units.some((u) => u.code === code && !hasEnded(u, dayToDate(today)));
+type UnitRow = { code: string; effectiveFrom: Date; effectiveTo: Date | null };
+
+/**
+ * The unit row of a code in force on `today` (begun, and not ended: `inForceOn`), never merely the first row
+ * with that code: a unit renamed by a new row from a day reads its new name from that day, and a unit that
+ * starts tomorrow is not in force today (6.12 re-review M-2).
+ */
+export function unitInForce<U extends UnitRow>(code: string | null | undefined, units: readonly U[], today: string): U | null {
+  if (!code) return null;
+  const on = dayToDate(today);
+  return units.find((u) => u.code === code && inForceOn(u, on)) ?? null;
 }
+
+/// Whether the configured legal office is a unit of the organisation's structure in force on `today`.
+export const legalOfficeKnown = (code: string | null | undefined, units: readonly UnitRow[], today: string): boolean => unitInForce(code, units, today) != null;
 
 /**
  * What starting preparation reads from the configuration on the organisation's day (6.12 review R-6): the
@@ -23,7 +33,7 @@ export function legalOfficeKnown(code: string | null | undefined, units: readonl
  * still in force; the end is exclusive), and whether the legal office is a unit in force. The start act and
  * the Overview's "what would refuse it" both read this, so they never differ.
  */
-export function preparationSettings<P extends { contractBasisCode: string; retiredOn: Date | null }, R extends { retiredOn: Date | null }, U extends { code: string; effectiveTo: Date | null }, B extends { code: string }>(
+export function preparationSettings<P extends { contractBasisCode: string; retiredOn: Date | null }, R extends { retiredOn: Date | null }, U extends UnitRow, B extends { code: string }>(
   cfg: { policy: { legalOfficeCode: string | null } | null; parts: readonly P[]; recipients: readonly R[]; units: readonly U[]; bases: readonly B[] },
   basisCode: string | null,
   today: string,
@@ -31,8 +41,7 @@ export function preparationSettings<P extends { contractBasisCode: string; retir
   const basis = cfg.bases.find((b) => b.code === basisCode) ?? null;
   const parts = cfg.parts.filter((p) => p.contractBasisCode === basisCode && rowInForce(p, today));
   const recipients = cfg.recipients.filter((r) => rowInForce(r, today));
-  const code = cfg.policy?.legalOfficeCode ?? null;
-  const known = legalOfficeKnown(code, cfg.units, today);
-  const office = known ? (cfg.units.find((u) => u.code === code) ?? null) : null;
-  return { basis, parts, recipients, office, legalOfficeKnown: known };
+  // One lookup for the check and the name frozen: the row in force today.
+  const office = unitInForce(cfg.policy?.legalOfficeCode ?? null, cfg.units, today);
+  return { basis, parts, recipients, office, legalOfficeKnown: office != null };
 }
