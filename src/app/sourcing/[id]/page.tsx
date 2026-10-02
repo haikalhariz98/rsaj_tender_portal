@@ -627,7 +627,7 @@ function AwardTab({ exerciseId, status, packKind, window, awards, opening, dossi
         </Callout>
       )}
       <Card>
-        <CardHeader icon={<AwardIcon size={17} />} title="The award" subtitle={live ? "Its approval, instrument, return and securities are on the award's own record." : awardOpenRefusal(packKind, status, window)} />
+        <CardHeader icon={<AwardIcon size={17} />} title="The award" subtitle={live ? "Its approval, instrument, return and securities are on the award's own record." : exerciseOpenForAward(status, packKind, window) ? "The exercise is open for an award." : awardOpenRefusal(packKind, status, window)} />
         <CardBody>
           {live ? (
             <div className="flex flex-col gap-4">
