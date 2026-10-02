@@ -26,6 +26,7 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "totalScore", what: "an evaluation total score" },
   { field: "cprPercent", what: "a contractor performance percentage" },
   { field: "estimatePaperCopy", what: "the figure on the company estimate's paper copy, entered at finalising an opening (6.7 C-1)" },
+  { field: "committedEstimate", what: "the department estimate as committed against a budget code, in a commitment's audit row (6.7 re-review: it was written as amount)" },
   { field: "letterQuote", what: "how a bidder's withdrawal letter identifies its envelope, quoted from the letter (6.6 CR-4)" },
 ];
 

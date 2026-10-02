@@ -136,3 +136,25 @@ describe("SULIT values never leave in the file (6.7 review M-3)", () => {
     expect(all).not.toMatch(/secret-/);
   });
 });
+
+describe("the budget commitment's amount is the department estimate, withheld (6.7 re-review)", () => {
+  it("a commitment's audit row: the file lists the change, never the figure", async () => {
+    const { SULIT_WITHHELD } = await import("./export");
+    const file = auditCsv([row("c", "2026-11-17T08:00:00Z", { entity: "BudgetMovement", entityLabel: "CAP26-050 · commitment for DEMO/REQ/0019", changes: [{ field: "kind", before: null, after: "COMMITMENT" }, { field: "committedEstimate", before: null, after: "640000.00" }] })], "Asia/Kuala_Lumpur");
+    expect(file).not.toContain("640000.00");
+    expect(file).toContain("Amount committed (the department estimate)");
+    expect(file).toContain(SULIT_WITHHELD);
+  });
+  it("every commitment audit writer uses the registered key, never a plain amount", async () => {
+    const { readFileSync } = await import("node:fs");
+    for (const p of ["src/app/requisitions/actions.ts", "src/lib/integration/requisition-intake.ts", "prisma/demo-award.ts"]) {
+      const src = readFileSync(p, "utf8");
+      const audits = src.split("\n").filter((l) => /kind: "COMMITMENT", budgetCode/.test(l));
+      expect(audits.length, p).toBeGreaterThan(0);
+      for (const l of audits) {
+        expect(l, p).toMatch(/committedEstimate:/);
+        expect(l, p).not.toMatch(/\bamount:/);
+      }
+    }
+  });
+});

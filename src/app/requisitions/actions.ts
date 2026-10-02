@@ -1056,7 +1056,7 @@ async function approve(tx: Tx, l: LoadedRequisition, instanceId: string, gate: E
     });
     commitmentMovementId = movement.id;
     await audit(tx, l.org.id, "BudgetMovement", movement.id, `${req.budgetCode?.code ?? "Budget code"} · commitment for ${req.reference}`, "CREATE",
-      diffFields(null, { kind: "COMMITMENT", budgetCode: req.budgetCode?.code, reference: req.reference, amount: req.estimatedValue.toString(), occurredOn: today }));
+      diffFields(null, { kind: "COMMITMENT", budgetCode: req.budgetCode?.code, reference: req.reference, committedEstimate: req.estimatedValue.toString(), occurredOn: today }));
   }
   await tx.approvalInstance.update({
     where: { id: instanceId },

@@ -174,7 +174,7 @@ export const manualIntake: RequisitionIntake = {
         commitmentMovementId = movement.id;
         await tx.requisition.update({ where: { id: req.id }, data: { commitmentMovementId } });
         await auditOf("BudgetMovement", movement.id, `${code.code} · commitment for ${reference}`, {
-          kind: "COMMITMENT", budgetCode: code.code, reference, amount: dec(p.estimatedValue), occurredOn: on,
+          kind: "COMMITMENT", budgetCode: code.code, reference, committedEstimate: dec(p.estimatedValue), occurredOn: on,
         });
       }
       await writeAudit(

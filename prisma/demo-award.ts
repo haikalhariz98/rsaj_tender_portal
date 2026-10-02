@@ -336,7 +336,7 @@ export async function loadAwardSetup(db: Db, organisationId: string, from: Date)
     entry("Requisition", reqId, label, "UPDATE", r.checked, diffFields({ status: "ENDORSED", sourcingPermitted: null }, { status: "PENDING_APPROVAL", fundingSupersedesAuthority: false, sourcingPermitted: true, fundingPosture: "PROCURES" }));
     r.rule.chain.forEach(([, roleLabel, , , name], i) => entry("ApprovalStep", `${P}rs${r.id}_${i + 1}`, `${REQ(r.n)} · ${roleLabel}`, "UPDATE", r.steps[i], diffFields({ decision: "PENDING" }, { decision: "DONE", decidedBy: name, decidedOn: day(r.steps[i]), recordedOnBehalf: "not signed", underDelegation: null })));
     const last = r.steps[r.steps.length - 1];
-    entry("BudgetMovement", `${P}bm${30 + r.id - 19}`, `CAP26-050 · commitment for ${REQ(r.n)}`, "CREATE", last, diffFields(null, { kind: "COMMITMENT", budgetCode: "CAP26-050", reference: REQ(r.n), amount: r.value, occurredOn: day(last) }));
+    entry("BudgetMovement", `${P}bm${30 + r.id - 19}`, `CAP26-050 · commitment for ${REQ(r.n)}`, "CREATE", last, diffFields(null, { kind: "COMMITMENT", budgetCode: "CAP26-050", reference: REQ(r.n), committedEstimate: r.value, occurredOn: day(last) }));
     entry("ApprovalInstance", `${P}ai${r.id + 20}`, route, "UPDATE", last, diffFields({ status: "PENDING" }, { status: "APPROVED", commitment: "written" }));
     entry("Requisition", reqId, label, "UPDATE", last, diffFields({ status: "PENDING_APPROVAL" }, { status: "APPROVED" }));
     const sx = EXERCISES.find((x) => x.rq === r.id)!;
