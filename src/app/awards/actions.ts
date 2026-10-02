@@ -318,11 +318,12 @@ export async function updateAwardDetails(_prev: FormState, data: FormData): Prom
       if (naming.length) return { ok: false, errors: { awardeePartyId: naming.map(openingFindingText).join(" ") } } as FormState;
     }
     const partyWrite = opening ? awardeePartyWrite(opening, awardeePartyId) : undefined;
+    // Residual 7: a locked award says it is fixed before anything about its awardee's link.
+    if (!editable(l.award.status as AwardStatus).details) return { ok: false, message: `The awardee, value and period are fixed once the award goes for approval. This one is ${AWARD_STATUS_LABEL[l.award.status as AwardStatus].toLowerCase()}.` };
     // 6.15a fix M-1 (flagged against 6.11): the awardee changed, the register link follows its party; an own link that disagrees is refused.
     const party = partyWrite ? await tx.exerciseParty.findUnique({ where: { id: partyWrite }, select: { vendor: { select: { id: true, reference: true, registeredName: true } } } }) : null;
     const link = partyWrite !== undefined ? awardVendorOnParty({ awardeePartyId: l.award.awardeePartyId, vendorId: l.award.vendorId }, partyWrite, party?.vendor?.id ?? null) : null;
     if (link?.fault) return { ok: false, errors: { awardeePartyId: supplierFaultText({ ...link.fault, data: { awardSupplier: l.award.vendor ? supplierWords(l.award.vendor) : null, partySupplier: party?.vendor ? supplierWords(party.vendor) : null } }) } };
-    if (!editable(l.award.status as AwardStatus).details) return { ok: false, message: `The awardee, value and period are fixed once the award goes for approval. This one is ${AWARD_STATUS_LABEL[l.award.status as AwardStatus].toLowerCase()}.` };
     // 6.8 (E-9, flagged): the recommended tenderer, and each difference with its reason (the rest of the gate at submission).
     const evaluation = await loadEvaluationGate(l.ex.id, tx);
     const period = { value: v.completionPeriod!, unit: v.completionUnit! };
