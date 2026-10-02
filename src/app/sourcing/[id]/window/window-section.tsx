@@ -558,7 +558,7 @@ function ClosingCard({ d, c, latest, earlier }: { d: WindowTab; c: WindowContext
               <li key={e.id} className="flex flex-wrap items-center gap-2 px-5 py-3 text-[13px] sm:px-6">
                 <Badge tone={routeTone(e.status)}>{changeRouteLabel(e.status, e.warnings)}</Badge>
                 <span className="text-ink-2">
-                  {routedOnLabel(e.cond)} · asked {formatDate(e.openedAt)} · {e.steps.map((s) => s.roleLabel).join(" → ")}
+                  {routedOnLabel(e.cond, "exercise")} · asked {formatDate(e.openedAt)} · {e.steps.map((s) => s.roleLabel).join(" → ")}
                   {e.rejectionReason ? ` · “${e.rejectionReason}”` : ""}
                 </span>
               </li>
@@ -581,7 +581,7 @@ function changeRouteLabel(status: string, warnings: unknown): string {
 /// The route of a change to the window, as every exercise route reads: its rule, its steps, what happens if it is refused.
 function ChangeRouteCard({ c, inst }: { c: WindowContext; inst: Route }) {
   const warnings = ((inst.warnings as { code?: string; level: string; messageEn: string }[]) ?? []).filter((w) => !(inst.checkedAgainstMatrix && w.code && (w.code === "CORE_AS_ENTERED" || w.code === "CORE_NOT_CHECKED")));
-  const what = routedOnLabel(inst.cond).toLowerCase();
+  const what = routedOnLabel(inst.cond, "exercise").toLowerCase();
   return (
     <Card className="overflow-hidden">
       <CardHeader
@@ -595,7 +595,7 @@ function ChangeRouteCard({ c, inst }: { c: WindowContext; inst: Route }) {
           columns={2}
           items={[
             { label: "Rule", value: inst.ruleLabel ? `${inst.ruleLabel}${inst.ruleClause ? ` · ${inst.ruleClause}` : ""}` : "Not recorded" },
-            { label: "Asked for", value: routedOnLabel(inst.cond) },
+            { label: "Asked for", value: routedOnLabel(inst.cond, "exercise") },
           ]}
         />
         {warnings.map((w, i) => (

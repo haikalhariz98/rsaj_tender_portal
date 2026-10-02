@@ -288,7 +288,7 @@ async function RouteCard({ exerciseId, routes, decide, proposed, today, versionL
             columns={2}
             items={[
               { label: "Rule", value: inst.ruleLabel ? `${inst.ruleLabel}${inst.ruleClause ? ` · ${inst.ruleClause}` : ""}` : "Not recorded" },
-              { label: "Routed on", value: routedOnLabel(inst.cond) },
+              { label: "Routed on", value: routedOnLabel(inst.cond, "exercise") },
             ]}
           />
           {warnings.map((w, i) => (

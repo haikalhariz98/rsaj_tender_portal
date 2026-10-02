@@ -78,10 +78,19 @@ export function condLabel(code: string): string {
   return CONDS[code] ?? code.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 }
 
-/// What a route was chosen on. A rule with no condition is chosen by the requisition's value
-/// alone, which the line below it ("Value band") then spells out.
-export function routedOnLabel(cond: string | null | undefined): string {
-  return cond ? condLabel(cond) : "The requisition's value alone";
+/// What a rule with no condition was chosen on: the value the route was resolved on, by what the route
+/// is for. A requisition's route resolves on the requisition's value; an exercise's routes (Approval for
+/// Tendering, a window change) on the exercise's estimated value, the figure their resolver reads
+/// (`l.ex.estimatedValue`, snapshotted on the route as its value). Lead's ruling, Phase 2 close-out.
+export const ROUTED_ON_VALUE_ALONE = {
+  requisition: "The requisition's value alone",
+  exercise: "The exercise's estimated value alone",
+} as const;
+
+/// What a route was chosen on: the rule's condition, or the value alone (which the line below it,
+/// where shown, spells out).
+export function routedOnLabel(cond: string | null | undefined, resolvedOn: keyof typeof ROUTED_ON_VALUE_ALONE = "requisition"): string {
+  return cond ? condLabel(cond) : ROUTED_ON_VALUE_ALONE[resolvedOn];
 }
 
 // Phase 1 carry D6: the shared components' hints, here rather than as literals in the components.
