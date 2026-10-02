@@ -11,6 +11,7 @@ import { db } from "@/lib/db";
 import { exerciseOrg } from "@/lib/method/repo";
 
 import type { DocumentFacts, DocumentTypeFacts, Provenance, RegistrationValueKind, SupplierListKind, VerificationState } from "./types";
+import { SUPPLIER_EXPIRY_EVENT } from "./expiry";
 import { REGISTRATION_NO_FORMAT_KEY } from "./types";
 
 export const supplierOrg = exerciseOrg;
@@ -42,12 +43,15 @@ export function documentFacts(d: { id: string; typeId: string; typeLabelSnapshot
 
 /// The register's configuration: bodies with their values, document types, lists, policy and the number format.
 export async function loadSupplierConfig(organisationId: string, client: Tx = db) {
-  const [bodies, types, lists, policy, format] = await Promise.all([
+  const [bodies, types, lists, policy, format, reasons, expiryRule] = await Promise.all([
     client.registrationBody.findMany({ where: { organisationId }, orderBy: [{ sortOrder: "asc" }, { labelEn: "asc" }], include: { values: { orderBy: [{ kind: "asc" }, { sortOrder: "asc" }, { code: "asc" }] } } }),
     client.supplierDocumentType.findMany({ where: { organisationId }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
     client.supplierListValue.findMany({ where: { organisationId }, orderBy: [{ list: "asc" }, { sortOrder: "asc" }, { nameEn: "asc" }] }),
     client.supplierPolicy.findUnique({ where: { organisationId } }),
     client.codeFormat.findFirst({ where: { organisationId, key: REGISTRATION_NO_FORMAT_KEY } }),
+    // a2: the maintained list of standing reasons, and the expiry reminder rule (shown, never sent).
+    client.standingReason.findMany({ where: { organisationId }, orderBy: [{ appliesTo: "asc" }, { sortOrder: "asc" }, { nameEn: "asc" }] }),
+    client.notificationRule.findFirst({ where: { organisationId, eventKey: SUPPLIER_EXPIRY_EVENT }, select: { id: true, nameEn: true, reminderOffsetDays: true, isActive: true } }),
   ]);
   const listName = (kind: SupplierListKind, code: string) => lists.find((l) => l.list === kind && l.code === code)?.nameEn ?? null;
   const live = (r: { retiredOn: Date | null }, today: string | null) => r.retiredOn == null || (today != null && storedDay(r.retiredOn) > today);
@@ -58,6 +62,10 @@ export async function loadSupplierConfig(organisationId: string, client: Tx = db
     lists,
     policy,
     format,
+    reasons,
+    /// The reminder offsets in force: none where the rule is absent or off.
+    expiryRule,
+    reminderOffsets: expiryRule?.isActive ? expiryRule.reminderOffsetDays : [],
     listName,
     /// The codes of a list in force on the day. Empty: the list is not set.
     liveCodes: (kind: SupplierListKind, today: string | null) => lists.filter((l) => l.list === kind && live(l, today)).map((l) => l.code),

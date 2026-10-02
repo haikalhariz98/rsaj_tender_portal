@@ -16,7 +16,7 @@ import { LIST_KIND_LABEL, VALUE_KIND_LABEL } from "@/lib/suppliers/labels";
 import { loadSupplierConfig, supplierOrg } from "@/lib/suppliers/repo";
 import { SUPPLIER_LIST_KINDS, type RegistrationValueKind } from "@/lib/suppliers/types";
 
-import { DocumentTypeDrawer, EditSupplierPolicy, ListValueDrawer, RetireListValueDrawer, RetireTypeDrawer, RetireValueDrawer, ValueDrawer } from "./editors";
+import { DocumentTypeDrawer, EditStandingRules, EditSupplierPolicy, ListValueDrawer, RetireListValueDrawer, RetireStandingReasonDrawer, RetireTypeDrawer, RetireValueDrawer, StandingReasonDrawer, ValueDrawer } from "./editors";
 
 export const dynamic = "force-dynamic";
 
@@ -65,12 +65,18 @@ export default async function SupplierRegisterConfigPage() {
   const switchesNotSet = cfg.types.filter((t) => live(t.retiredOn)).reduce((n, t) => n + [t.expires, t.mandatoryAtRegistration, t.notApplicableAllowed].filter((x) => x == null).length, 0);
   const listsEmpty = SUPPLIER_LIST_KINDS.filter((k) => cfg.liveCodes(k, org.today).length === 0);
   const p = cfg.policy;
+  // a2: the standing rules, each "Not set" until decided (OD-4..OD-7, condition 4).
+  const rulesNotSet = [p?.criticalDays, p?.expiryOnClosingDayCounts, p?.autoSuspendOnLapse, p?.blacklistFirstOffenceMonths, p?.registerRequiredForSale, p?.restrictionEvidenceTypeId, p?.ineligibleBidConsequence].filter((x) => x == null).length;
+  const reasonName = (id: string | null | undefined) => cfg.reasons.find((x) => x.id === id)?.nameEn ?? null;
+  const typeName = (id: string | null | undefined) => cfg.types.find((x) => x.id === id)?.nameEn ?? null;
+  const rule = (set: boolean, value: React.ReactNode, from: string | null | undefined, unset: string) =>
+    set ? <span className="flex flex-col items-start gap-1"><span className="break-words">{value}</span><ProvenanceBadge value={from ?? null} /></span> : <span className="flex flex-col items-start gap-1"><Badge tone="warn">Not set</Badge><span className="text-[12px] text-ink-3">{unset}</span></span>;
 
   return (
     <>
       <PageHeader
         title="Supplier register"
-        badge={switchesNotSet + listsEmpty.length > 0 ? <Badge tone="warn" dot>{switchesNotSet + listsEmpty.length} not set</Badge> : <Badge tone="ok" dot>Set</Badge>}
+        badge={switchesNotSet + listsEmpty.length + rulesNotSet > 0 ? <Badge tone="warn" dot>{switchesNotSet + listsEmpty.length + rulesNotSet} not set</Badge> : <Badge tone="ok" dot>Set</Badge>}
         subtitle="Registration values, statutory document types, the register's lists and its notice."
         actions={
           <>
@@ -99,6 +105,83 @@ export default async function SupplierRegisterConfigPage() {
               ]}
             />
           </CardBody>
+        </Card>
+
+        <Card id="standing" className="scroll-mt-24">
+          <CardHeader
+            icon={<SlidersIcon size={17} />}
+            title="Standing"
+            subtitle="How expiry is banded, what a lapse does, how long a first blacklisting lasts, and what the register asks at a sale and an opening. Each rule not set holds back, or is read as not assessed, and says so."
+            actions={
+              <span className="flex flex-wrap items-center gap-2">
+                {p && <HistoryButton entity="SupplierPolicy" entityId={p.id} label="the standing rules" />}
+                <EditStandingRules
+                  values={{ criticalDays: p?.criticalDays?.toString() ?? "", warningDays: p?.warningDays?.toString() ?? "", upcomingDays: p?.upcomingDays?.toString() ?? "", bandsProvenance: p?.bandsProvenance ?? "", expiryOnClosingDayCounts: tri(p?.expiryOnClosingDayCounts ?? null), closingDayProvenance: p?.closingDayProvenance ?? "", autoSuspendOnLapse: tri(p?.autoSuspendOnLapse ?? null), lapseReasonId: p?.lapseReasonId ?? "", lapseProvenance: p?.lapseProvenance ?? "", blacklistFirstOffenceMonths: p?.blacklistFirstOffenceMonths?.toString() ?? "", blacklistProvenance: p?.blacklistProvenance ?? "", registerRequiredForSale: tri(p?.registerRequiredForSale ?? null), saleProvenance: p?.saleProvenance ?? "", restrictionEvidenceTypeId: p?.restrictionEvidenceTypeId ?? "", restrictionProvenance: p?.restrictionProvenance ?? "", ineligibleBidConsequence: p?.ineligibleBidConsequence ?? "unset", ineligibleProvenance: p?.ineligibleProvenance ?? "" }}
+                  suspensionReasons={cfg.reasons.filter((x) => x.appliesTo === "SUSPEND" && live(x.retiredOn)).map((x) => ({ value: x.id, label: x.nameEn }))}
+                  documentTypes={cfg.types.filter((t) => live(t.retiredOn)).map((t) => ({ value: t.id, label: t.nameEn }))}
+                />
+              </span>
+            }
+          />
+          <CardBody>
+            <KeyValues
+              columns={2}
+              items={[
+                { label: "Expiry bands", value: rule(p?.criticalDays != null, `Critical within ${p?.criticalDays} days, warning within ${p?.warningDays}, upcoming within ${p?.upcomingDays}`, p?.bandsProvenance, "No document is banded: each reads “bands not set”, never valid.") },
+                { label: "Reminders before expiry", value: cfg.reminderOffsets.length ? <span>{cfg.reminderOffsets.join(", ")} days before, from the rule “{cfg.expiryRule!.nameEn}” (<Link href="/configuration/notifications">Notifications</Link>). Shown, not sent.</span> : <span className="flex flex-col items-start gap-1"><Badge tone="warn">Not set</Badge><span className="text-[12px] text-ink-3">No reminder is due. Add a rule for document expiry under <Link href="/configuration/notifications">Notifications</Link>.</span></span> },
+                { label: "Expiring on the closing day", value: rule(p?.expiryOnClosingDayCounts != null, p?.expiryOnClosingDayCounts ? "Counts as valid for the window" : "Does not count as valid", p?.closingDayProvenance, "That one case reads “not assessed”.") },
+                { label: "An expired mandatory document", value: rule(p?.autoSuspendOnLapse != null, p?.autoSuspendOnLapse ? `The supplier stands suspended on lapse${reasonName(p?.lapseReasonId) ? `, shown with “${reasonName(p?.lapseReasonId)}”` : ""}` : "The supplier stays active, with the expiry noted", p?.lapseProvenance, "The supplier reads “Active — lapse rule not set; a mandatory document has expired”.") },
+                { label: "A first-offence blacklisting", value: rule(p?.blacklistFirstOffenceMonths != null, `Lasts ${p?.blacklistFirstOffenceMonths} months; a later offence until further notice`, p?.blacklistProvenance, "A first offence cannot be recorded until it is set.") },
+                { label: "Selling to a purchaser not on the register", value: rule(p?.registerRequiredForSale != null, p?.registerRequiredForSale ? "Refused: documents are sold only to suppliers on the register" : "Sold, not checked against the register", p?.saleProvenance, "Sold, not checked, and the sale says the rule is not set.") },
+                { label: "The restriction's evidence", value: rule(p?.restrictionEvidenceTypeId != null, typeName(p?.restrictionEvidenceTypeId) ?? "A type no longer configured", p?.restrictionProvenance, "A restricted tender's restriction reads “not assessed”.") },
+                { label: "A linked bidder found not eligible at the opening", value: rule(p?.ineligibleBidConsequence != null, p?.ineligibleBidConsequence === "ELIMINATE" ? "Eliminated at the opening" : "Reported to the committee, which decides", p?.ineligibleProvenance, "An opening holding such a bid cannot finalise.") },
+              ]}
+            />
+          </CardBody>
+        </Card>
+
+        <Card id="reasons" className="scroll-mt-24 overflow-hidden">
+          <CardHeader
+            icon={<SlidersIcon size={17} />}
+            title={<span className="inline-flex items-center gap-2">Standing reasons{cfg.reasons.length > 0 && <Badge outline>{cfg.reasons.length}</Badge>}</span>}
+            subtitle="The maintained list an officer chooses from when suspending a supplier or asking for its blacklisting."
+            actions={<StandingReasonDrawer />}
+            divided={cfg.reasons.length === 0}
+          />
+          {cfg.reasons.length === 0 ? (
+            <EmptyState title="None configured">No supplier can be suspended, and no blacklisting asked for, until a reason is added.</EmptyState>
+          ) : (
+            <Table minWidth={640}>
+              <colgroup>
+                <col />
+                <col style={{ width: 150 }} />
+                <col style={{ width: 110 }} />
+                <ActionsCol icons={1} labelled={2} />
+              </colgroup>
+              <THead>
+                <Th>Reason</Th>
+                <Th>Given for</Th>
+                <Th>Source</Th>
+                <Th className="text-right">Actions</Th>
+              </THead>
+              <tbody>
+                {cfg.reasons.map((x) => (
+                  <Tr key={x.id}>
+                    <Td label="Reason"><CellStack title={x.nameEn} sub={[x.nameMs, x.governingSource, retiredText(x.retiredOn)].filter(Boolean).join(" · ") || undefined} /></Td>
+                    <Td label="Given for">{x.appliesTo === "SUSPEND" ? "A suspension" : "A blacklisting"}</Td>
+                    <Td label="Source"><ProvenanceBadge value={x.provenance} /></Td>
+                    <Td>
+                      <RowActions>
+                        <HistoryButton iconOnly entity="StandingReason" entityId={x.id} label={x.nameEn} />
+                        <StandingReasonDrawer reason={{ id: x.id, name: x.nameEn, values: { id: x.id, code: x.code, appliesTo: x.appliesTo, nameEn: x.nameEn, nameMs: x.nameMs, governingSource: x.governingSource, provenance: x.provenance, sortOrder: String(x.sortOrder) } }} />
+                        <RetireStandingReasonDrawer id={x.id} name={x.nameEn} retired={!live(x.retiredOn)} />
+                      </RowActions>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
         </Card>
 
         <Card id="types" className="scroll-mt-24 overflow-hidden">

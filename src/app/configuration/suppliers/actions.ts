@@ -11,6 +11,7 @@ import { formatDate } from "@/lib/format";
 import { formatMoney, parseSen } from "@/lib/money";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { documentTypeFaults, listValueFaults, valueFaults } from "@/lib/suppliers/config";
+import { bandPolicyFaults } from "@/lib/suppliers/expiry";
 import { LIST_KIND_SINGULAR, supplierFaultText, VALUE_KIND_LABEL } from "@/lib/suppliers/labels";
 import { REGISTRATION_VALUE_KINDS, SUPPLIER_LIST_KINDS, type Finding, type RegistrationValueKind, type SupplierListKind } from "@/lib/suppliers/types";
 import { splitValues } from "@/lib/ui/select-logic";
@@ -286,6 +287,128 @@ async function setRetired(data: FormData, entity: string, find: (tx: Tx, id: str
     const to = retire ? dayToDate(today) : null;
     await row.apply(to);
     await audit(tx, org.id, entity, id, row.label, "UPDATE", diffFields({ retiredOn: retiredWords(row.retiredOn) }, { retiredOn: retiredWords(to) }), reason);
+    return done();
+  });
+}
+
+// ------------------------------------------------------------------ a2: standing reasons and the standing rules
+
+/// Add or change a reason on the maintained list (FR-VND-010): for a suspension or for a blacklisting.
+export async function saveStandingReason(_prev: FormState, data: FormData): Promise<FormState> {
+  const org = await organisation();
+  if (!org) return NO_ORG;
+  const id = String(data.get("id") ?? "").trim() || null;
+  const r = new FormReader(data);
+  const v = {
+    appliesTo: r.choice("appliesTo", "Given for", ["SUSPEND", "BLACKLIST"] as const, { required: !id }),
+    code: r.code("code", "Code"),
+    nameEn: r.text("nameEn", "Reason", { required: true, max: 400 }),
+    nameMs: r.text("nameMs", "Reason (Malay)", { max: 400 }),
+    governingSource: r.text("governingSource", "Source", { max: 240 }),
+    provenance: r.choice("provenance", "Where it comes from", PROVENANCE, { required: true }),
+    sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
+  };
+  if (r.failed) return { ok: false, errors: r.errors };
+  return db.$transaction(async (tx): Promise<FormState> => {
+    await lockOrganisation(tx, org.id);
+    const before = id ? await tx.standingReason.findFirst({ where: { id, organisationId: org.id } }) : null;
+    if (id && !before) return GONE;
+    const code = before?.code ?? v.code;
+    if (!code) return { ok: false, errors: { code: supplierFaultText({ code: "CODE_REQUIRED", level: "block" }) } };
+    if (!before && (await tx.standingReason.findFirst({ where: { organisationId: org.id, code }, select: { id: true } }))) return { ok: false, errors: { code: supplierFaultText({ code: "CODE_TAKEN", level: "block" }) } };
+    const words = (x: { appliesTo: string; nameEn: string; nameMs: string; governingSource: string; provenance: string }) => ({ givenFor: x.appliesTo === "SUSPEND" ? "Suspension" : "Blacklisting", reason: x.nameEn, reasonInMalay: x.nameMs || null, governingSource: x.governingSource || null, whereItComesFrom: prov(x.provenance) });
+    if (!before) {
+      const created = await tx.standingReason.create({ data: { organisationId: org.id, code, appliesTo: v.appliesTo!, nameEn: v.nameEn, nameMs: v.nameMs, governingSource: v.governingSource, provenance: v.provenance!, sortOrder: v.sortOrder } });
+      await audit(tx, org.id, "StandingReason", created.id, `Standing reason · ${v.nameEn}`, "CREATE", diffFields(null, words(created)));
+    } else {
+      // Its use (suspension or blacklisting) is fixed once made: events recorded under it say which.
+      const after = await tx.standingReason.update({ where: { id: before.id }, data: { nameEn: v.nameEn, nameMs: v.nameMs, governingSource: v.governingSource, provenance: v.provenance!, sortOrder: v.sortOrder } });
+      await audit(tx, org.id, "StandingReason", before.id, `Standing reason · ${v.nameEn}`, "UPDATE", diffFields(words(before), words(after)), String(data.get("reason") ?? ""));
+    }
+    return done();
+  });
+}
+
+export async function setStandingReasonRetired(_prev: FormState, data: FormData): Promise<FormState> {
+  return setRetired(data, "StandingReason", async (tx, id, orgId) => {
+    const v = await tx.standingReason.findFirst({ where: { id, organisationId: orgId } });
+    return v ? { label: `Standing reason · ${v.nameEn}`, retiredOn: v.retiredOn, apply: (d: Date | null) => tx.standingReason.update({ where: { id }, data: { retiredOn: d } }) } : null;
+  });
+}
+
+/**
+ * The register's standing rules (FR-VND-008, OD-4, OD-5, OD-6, OD-7, condition 4): expiry bands, the
+ * closing-day switch, suspension on lapse (with the reason it is shown with), the first-offence period,
+ * whether a sale needs the register, the restriction's evidence and the consequence of an ineligible
+ * bidder at an opening. Each may be left not set; a value set says where it came from. Nothing is defaulted.
+ */
+export async function saveStandingRules(_prev: FormState, data: FormData): Promise<FormState> {
+  const org = await organisation();
+  if (!org) return NO_ORG;
+  const r = new FormReader(data);
+  const v = {
+    criticalDays: r.int("criticalDays", "Critical, days left", { min: 0 }),
+    warningDays: r.int("warningDays", "Warning, days left", { min: 0 }),
+    upcomingDays: r.int("upcomingDays", "Upcoming, days left", { min: 0 }),
+    bandsProvenance: r.choice("bandsProvenance", "Where the bands come from", PROVENANCE),
+    expiryOnClosingDayCounts: tri(r.choice("expiryOnClosingDayCounts", "A document expiring on the closing day", TRI)),
+    closingDayProvenance: r.choice("closingDayProvenance", "Where that comes from", PROVENANCE),
+    autoSuspendOnLapse: tri(r.choice("autoSuspendOnLapse", "Suspended when a mandatory document expires", TRI)),
+    lapseReasonId: r.optionalText("lapseReasonId"),
+    lapseProvenance: r.choice("lapseProvenance", "Where that comes from", PROVENANCE),
+    blacklistFirstOffenceMonths: r.int("blacklistFirstOffenceMonths", "A first-offence blacklisting lasts (months)", { min: 1 }),
+    blacklistProvenance: r.choice("blacklistProvenance", "Where the period comes from", PROVENANCE),
+    registerRequiredForSale: tri(r.choice("registerRequiredForSale", "Documents sold only to suppliers on the register", TRI)),
+    saleProvenance: r.choice("saleProvenance", "Where that comes from", PROVENANCE),
+    restrictionEvidenceTypeId: r.optionalText("restrictionEvidenceTypeId"),
+    restrictionProvenance: r.choice("restrictionProvenance", "Where that comes from", PROVENANCE),
+    ineligibleBidConsequence: (() => { const c = r.choice("ineligibleBidConsequence", "A bidder found not eligible at the opening", ["ELIMINATE", "REPORT", "unset"] as const); return c === "unset" ? null : c; })(),
+    ineligibleProvenance: r.choice("ineligibleProvenance", "Where that comes from", PROVENANCE),
+  };
+  const need = (set: boolean, field: string) => { if (set && !(v as Record<string, unknown>)[field]) r.reject(field, "Say where it comes from."); };
+  need(v.criticalDays != null || v.warningDays != null || v.upcomingDays != null, "bandsProvenance");
+  need(v.expiryOnClosingDayCounts != null, "closingDayProvenance");
+  need(v.autoSuspendOnLapse != null, "lapseProvenance");
+  need(v.blacklistFirstOffenceMonths != null, "blacklistProvenance");
+  need(v.registerRequiredForSale != null, "saleProvenance");
+  need(v.restrictionEvidenceTypeId != null, "restrictionProvenance");
+  need(v.ineligibleBidConsequence != null, "ineligibleProvenance");
+  const bandFaults = bandPolicyFaults(v);
+  if (bandFaults.length) r.reject("criticalDays", bandFaults.map((f) => supplierFaultText(f)).join(" "));
+  if (r.failed) return { ok: false, errors: r.errors };
+  return db.$transaction(async (tx): Promise<FormState> => {
+    await lockOrganisation(tx, org.id);
+    const before = await tx.supplierPolicy.findUnique({ where: { organisationId: org.id } });
+    const reason = v.lapseReasonId ? await tx.standingReason.findFirst({ where: { id: v.lapseReasonId, organisationId: org.id } }) : null;
+    if (v.lapseReasonId && (!reason || reason.appliesTo !== "SUSPEND")) return { ok: false, errors: { lapseReasonId: supplierFaultText({ code: "REASON_NOT_FOR_SUSPENSION", level: "block" }) } };
+    const type = v.restrictionEvidenceTypeId ? await tx.supplierDocumentType.findFirst({ where: { id: v.restrictionEvidenceTypeId, organisationId: org.id } }) : null;
+    if (v.restrictionEvidenceTypeId && !type) return { ok: false, errors: { restrictionEvidenceTypeId: supplierFaultText({ code: "TYPE_NOT_CONFIGURED", level: "block" }) } };
+    const names = { reasons: await tx.standingReason.findMany({ where: { organisationId: org.id }, select: { id: true, nameEn: true } }), types: await tx.supplierDocumentType.findMany({ where: { organisationId: org.id }, select: { id: true, nameEn: true } }) };
+    const words = (p: Partial<typeof v> | null) => ({
+      expiryBands: p?.criticalDays != null ? `critical within ${p.criticalDays} days, warning within ${p.warningDays}, upcoming within ${p.upcomingDays}` : "Not set",
+      bandsFrom: prov(p?.bandsProvenance),
+      expiringOnClosingDay: triWords(p?.expiryOnClosingDayCounts ?? null, "Counts as valid", "Does not count as valid"),
+      closingDayFrom: prov(p?.closingDayProvenance),
+      suspendedOnLapse: triWords(p?.autoSuspendOnLapse ?? null, "Yes, derived on read", "No"),
+      lapseReason: names.reasons.find((x) => x.id === p?.lapseReasonId)?.nameEn ?? null,
+      lapseFrom: prov(p?.lapseProvenance),
+      firstOffenceMonths: p?.blacklistFirstOffenceMonths ?? "Not set",
+      periodFrom: prov(p?.blacklistProvenance),
+      saleNeedsRegister: triWords(p?.registerRequiredForSale ?? null, "Yes", "No"),
+      saleFrom: prov(p?.saleProvenance),
+      restrictionEvidence: names.types.find((x) => x.id === p?.restrictionEvidenceTypeId)?.nameEn ?? "Not set",
+      restrictionFrom: prov(p?.restrictionProvenance),
+      ineligibleBidder: p?.ineligibleBidConsequence === "ELIMINATE" ? "Eliminated at the opening" : p?.ineligibleBidConsequence === "REPORT" ? "Reported to the committee" : "Not set",
+      ineligibleFrom: prov(p?.ineligibleProvenance),
+    });
+    const why = String(data.get("reason") ?? "");
+    if (!before) {
+      const created = await tx.supplierPolicy.create({ data: { organisationId: org.id, ...v } });
+      await audit(tx, org.id, "SupplierPolicy", created.id, "Supplier register · standing rules", "CREATE", diffFields(null, words(v)), why);
+    } else {
+      await tx.supplierPolicy.update({ where: { id: before.id }, data: v });
+      await audit(tx, org.id, "SupplierPolicy", before.id, "Supplier register · standing rules", "UPDATE", diffFields(words(before), words(v)), why);
+    }
     return done();
   });
 }

@@ -3,7 +3,7 @@ import { buttonClass } from "@/components/ui/button";
 import { REGISTRATION_VALUE_KINDS } from "@/lib/suppliers/types";
 import { VALUE_KIND_LABEL } from "@/lib/suppliers/labels";
 
-import { saveDocumentType, saveListValue, saveRegistrationValue, saveSupplierPolicy, setDocumentTypeRetired, setListValueRetired, setRegistrationValueRetired } from "./actions";
+import { saveDocumentType, saveListValue, saveRegistrationValue, saveStandingReason, saveStandingRules, saveSupplierPolicy, setDocumentTypeRetired, setListValueRetired, setRegistrationValueRetired, setStandingReasonRetired } from "./actions";
 
 /**
  * Configuration › Supplier register drawers. No field carries a default: a switch left not set blocks
@@ -144,9 +144,76 @@ export function EditSupplierPolicy({ values }: { values: Record<string, string> 
   );
 }
 
+// ------------------------------------------------------------------ a2: standing reasons and rules
+
+export function StandingReasonDrawer({ reason }: { reason?: { id: string; name: string; values: Record<string, string> } }) {
+  return (
+    <RecordEditor
+      title={reason ? `Edit ${reason.name}` : "Add a standing reason"}
+      description="A reason an officer gives for a suspension, or a blacklisting is asked for with. What it is given for is fixed once made; a retired reason stays on the records that used it."
+      fields={[
+        hidden("id"),
+        ...(reason
+          ? [hidden("code"), hidden("appliesTo")]
+          : ([
+              { kind: "select", name: "appliesTo", label: "Given for", required: true, placeholder: "Choose", placeholderDisabled: true, options: [{ value: "SUSPEND", label: "A suspension" }, { value: "BLACKLIST", label: "A blacklisting" }] },
+              { kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A key, not shown to officers; it cannot be changed." },
+            ] as Field[])),
+        { kind: "text", name: "nameEn", label: "Reason", required: true },
+        { kind: "text", name: "nameMs", label: "Reason (Malay)" },
+        { kind: "text", name: "governingSource", label: "Source", hint: "The clause or circular it comes from, if any." },
+        provenance("provenance", "Where it comes from", true),
+        { kind: "number", name: "sortOrder", label: "Order", min: 0 },
+      ]}
+      values={reason?.values ?? {}}
+      action={saveStandingReason}
+      {...(reason ? { reason: { label: "Why it changes" } } : {})}
+      trigger={reason ? { label: "Edit", className: ghost, ariaLabel: `Edit ${reason.name}` } : { label: "Add a reason" }}
+    />
+  );
+}
+
+export function RetireStandingReasonDrawer({ id, name, retired }: { id: string; name: string; retired: boolean }) {
+  return <Retire id={id} name={name} retired={retired} action={setStandingReasonRetired} what="reason" />;
+}
+
+export function EditStandingRules({ values, suspensionReasons, documentTypes }: { values: Record<string, string>; suspensionReasons: Option[]; documentTypes: Option[] }) {
+  return (
+    <RecordEditor
+      title="Edit the standing rules"
+      description="Each rule may be left not set: the act it governs then says so, and nothing is assumed. A rule set says where it comes from."
+      columns={2}
+      fields={[
+        { kind: "number", name: "criticalDays", label: "Critical, within (days)", min: 0, hint: "A document this many days or fewer from its expiry is critical. Set all three bands, or none." },
+        { kind: "number", name: "warningDays", label: "Warning, within (days)", min: 0 },
+        { kind: "number", name: "upcomingDays", label: "Upcoming, within (days)", min: 0 },
+        provenance("bandsProvenance", "Where the bands come from"),
+        { kind: "select", name: "expiryOnClosingDayCounts", label: "A document expiring on the closing day", options: three("Counts as valid for the window", "Does not count as valid", "Not set: read as not assessed") },
+        provenance("closingDayProvenance", "Where that comes from"),
+        { kind: "select", name: "autoSuspendOnLapse", label: "A registered supplier with an expired mandatory document", options: three("Stands suspended on lapse, until it is renewed and verified", "Stays active, with the expiry noted", "Not set: active, saying the rule is not set") },
+        { kind: "select", name: "lapseReasonId", label: "Shown with the reason", placeholder: "None", options: suspensionReasons, hint: "A suspension reason, shown beside a suspension on lapse." },
+        provenance("lapseProvenance", "Where that comes from"),
+        { kind: "number", name: "blacklistFirstOffenceMonths", label: "A first-offence blacklisting lasts (months)", min: 1, hint: "A later offence lasts until further notice. Not set: a first offence cannot be recorded." },
+        provenance("blacklistProvenance", "Where the period comes from"),
+        { kind: "select", name: "registerRequiredForSale", label: "Documents sold only to suppliers on the register", options: three("Yes: a purchaser not linked to the register is refused", "No: an unlinked purchaser is sold to, not checked", "Not set: sold to, not checked, saying the rule is not set") },
+        provenance("saleProvenance", "Where that comes from"),
+        { kind: "select", name: "restrictionEvidenceTypeId", label: "The document that evidences a restricted tender's restriction", placeholder: "Not set", options: documentTypes, hint: "Not set: a restricted tender's restriction reads not assessed." },
+        provenance("restrictionProvenance", "Where that comes from"),
+        { kind: "select", name: "ineligibleBidConsequence", label: "A linked bidder found not eligible at the opening", options: [{ value: "ELIMINATE", label: "Eliminated at the opening" }, { value: "REPORT", label: "Reported to the committee, which decides" }, { value: "unset", label: "Not set: an opening holding one cannot finalise" }] },
+        provenance("ineligibleProvenance", "Where that comes from"),
+      ]}
+      values={values}
+      reason={{ label: "Why the rules change" }}
+      action={saveStandingRules}
+      trigger={{ label: "Edit the standing rules", className: buttonClass("secondary", "sm") }}
+      size="lg"
+    />
+  );
+}
+
 // ------------------------------------------------------------------ retiring
 
-function Retire({ id, name, retired, action, what }: { id: string; name: string; retired: boolean; action: typeof setRegistrationValueRetired; what: string }) {
+function Retire({ id, name, retired, action, what }: { id: string; name: string; retired: boolean; action: typeof setRegistrationValueRetired | typeof setStandingReasonRetired; what: string }) {
   return (
     <RecordEditor
       title={retired ? `Bring back ${name}` : `Retire ${name}`}
