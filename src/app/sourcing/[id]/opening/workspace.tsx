@@ -104,6 +104,9 @@ function OpeningPanel({ d }: { d: OpeningSectionView }) {
   );
 }
 
+/// A disabled act whose only reason is what holds the whole record back is not repeated: that reason is said once, at the top.
+const shown = (o: OpeningView, a: { allowed: boolean; reason?: string } | null) => !!a && (a.allowed || a.reason !== o.held);
+
 function OpeningCard({ d, o }: { d: OpeningSectionView; o: OpeningView }) {
   const ex = d.exerciseId;
   return (
@@ -120,6 +123,7 @@ function OpeningCard({ d, o }: { d: OpeningSectionView; o: OpeningView }) {
         }
       />
       <CardBody className="flex flex-col gap-5 border-t border-line">
+        {o.held && <Callout tone="warn">{o.held}</Callout>}
         <KeyValues
           columns={2}
           items={[
@@ -147,7 +151,7 @@ function OpeningCard({ d, o }: { d: OpeningSectionView; o: OpeningView }) {
                 </span>
                 <Chip tone={p.present ? "ok" : undefined}>{p.present ? "Present" : "Absent"}</Chip>
                 {p.authorised && <Chip tone="brand">{`Authorised sitting ${o.sittingNo}`}</Chip>}
-                {p.authorise && !p.authorised && !o.finalised && <AuthoriseDrawer exerciseId={ex} openingId={o.id} personId={p.personId} name={p.name} allowed={p.authorise} />}
+                {shown(o, p.authorise) && !p.authorised && !o.finalised && p.authorise && <AuthoriseDrawer exerciseId={ex} openingId={o.id} personId={p.personId} name={p.name} allowed={p.authorise} />}
               </li>
             ))}
           </ul>
@@ -159,7 +163,7 @@ function OpeningCard({ d, o }: { d: OpeningSectionView; o: OpeningView }) {
         <CardBody className="flex flex-col gap-3 border-t border-line">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-[13.5px] font-semibold text-ink">The tender box</h3>
-            {o.registerBox && <RegisterBoxDrawer exerciseId={ex} openingId={o.id} allowed={o.registerBox} people={d.people} />}
+            {o.registerBox && shown(o, o.registerBox) && <RegisterBoxDrawer exerciseId={ex} openingId={o.id} allowed={o.registerBox} people={d.people} />}
           </div>
           <p className="text-[13px] text-ink-2">{d.box.lockedAt ? `Locked ${d.box.lockedAt}.` : "Not recorded as locked."} {d.box.gap}</p>
           {o.withdrawals.length > 0 && (
@@ -167,8 +171,8 @@ function OpeningCard({ d, o }: { d: OpeningSectionView; o: OpeningView }) {
               {o.withdrawals.map((w) => (
                 <li key={w.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5">
                   <span className="min-w-0 flex-1 text-[13px] break-words text-ink-2">{`Withdrawal received ${w.received}: ${w.state}`}</span>
-                  {w.match && <MatchWithdrawalDrawer exerciseId={ex} openingId={o.id} withdrawalId={w.id} received={w.received} envelopes={o.matchOptions} allowed={w.match} />}
-                  {w.find && <WithdrawalFindingDrawer exerciseId={ex} openingId={o.id} withdrawalId={w.id} allowed={w.find} people={d.people} />}
+                  {w.match && shown(o, w.match) && <MatchWithdrawalDrawer exerciseId={ex} openingId={o.id} withdrawalId={w.id} received={w.received} envelopes={o.matchOptions} allowed={w.match} />}
+                  {w.find && shown(o, w.find) && <WithdrawalFindingDrawer exerciseId={ex} openingId={o.id} withdrawalId={w.id} allowed={w.find} people={d.people} />}
                 </li>
               ))}
             </ul>
@@ -195,7 +199,7 @@ function OpeningCard({ d, o }: { d: OpeningSectionView; o: OpeningView }) {
       <CardBody className="flex flex-col gap-3 border-t border-line">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-[13.5px] font-semibold text-ink">The signed schedule</h3>
-          {!o.finalised && <ScheduleDetailsDrawer exerciseId={ex} openingId={o.id} pages={o.pages} minutes={o.minutes} allowed={o.details} />}
+          {!o.finalised && shown(o, o.details) && <ScheduleDetailsDrawer exerciseId={ex} openingId={o.id} pages={o.pages} minutes={o.minutes} allowed={o.details} />}
         </div>
         <KeyValues
           columns={2}

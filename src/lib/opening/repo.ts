@@ -13,6 +13,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { Tx } from "@/lib/audit/record";
 import { lockedAtOrAfterClosing } from "@/lib/bids/box";
 import { loadBidRule, loadBoxEvents, loadEnvelopes, loadLateMatters, loadWithdrawals } from "@/lib/bids/repo";
+import { POSITION_LABEL } from "@/lib/committee/labels";
 import { alternatesOn, nonVotingMembersOn, votingSeatsOn, type Seat } from "@/lib/committee/sitting";
 import { dayIn, dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
@@ -106,7 +107,11 @@ export const panelSnapshot = (c: { panelSize: number | null; panelSizeProvenance
 
 /// The seats of a committee held on a day, each resolved to its one holder (vacant and contested seats hold nobody).
 export function seatHolders(members: readonly (Seat & { seatLabel: string | null })[], roster: RosterData, on: Date): SeatHolder[] {
-  const label = (id: string) => members.find((m) => m.id === id)?.seatLabel ?? null;
+  // The seat in words: its office where held ex officio, its own label, or its position (never a code).
+  const label = (id: string) => {
+    const m = members.find((x) => x.id === id);
+    return m?.seatLabel ?? (m ? POSITION_LABEL[m.position] : null);
+  };
   const voting = votingSeatsOn(members, roster, on).filter((s) => s.personId).map((s) => ({ personId: s.personId!, committeeMemberId: s.seatId, seatLabel: s.officeLabel ?? label(s.seatId) ?? "Member" }));
   const alternates = alternatesOn(members, roster, on).filter((s) => s.personId).map((s) => ({ personId: s.personId!, committeeMemberId: s.seatId, seatLabel: `Alternate${s.officeLabel ? `, ${s.officeLabel}` : ""}` }));
   const secretaries = nonVotingMembersOn(members, roster, on).map((personId) => ({ personId, committeeMemberId: members.find((m) => m.position === "SECRETARY" && (m.personId === personId || m.seatRoleCode))?.id ?? "", seatLabel: "Secretary" }));

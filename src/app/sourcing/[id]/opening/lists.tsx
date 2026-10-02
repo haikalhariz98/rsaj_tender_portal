@@ -19,7 +19,7 @@ export function EnvelopesToOpen({ exerciseId, o }: { exerciseId: string; o: Open
     search: `${e.sequence} ${e.markings} ${e.kind}`,
     sortKeys: { envelope: e.sequence },
     views: [e.state === "Sealed" ? "sealed" : "done"],
-    note: e.open && !e.open.allowed ? `Not opened yet: ${e.open.reason}` : undefined,
+    note: e.open && !e.open.allowed && e.open.reason !== o.held ? `Not opened yet: ${e.open.reason}` : undefined,
     cells: {
       envelope: { kind: "stack", title: `Envelope ${e.sequence}`, sub: e.kind },
       source: { kind: "text", text: e.source },
@@ -107,7 +107,7 @@ export function OffersRead({ exerciseId, o }: { exerciseId: string; o: OpeningVi
       rows={rows}
       actions={(id) => {
         const b = byId.get(id)!;
-        if (o.finalised) return null;
+        if (o.finalised || o.held) return null;
         const bid = { id: b.id, listingNo: b.listingNo };
         return (
           <span className="flex flex-wrap items-center justify-end gap-1">

@@ -269,7 +269,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
     sittingNo: state.sittingNo,
     sittings: o.sittings.map((s) => ({
       no: s.sittingNo,
-      text: [`Sitting ${s.sittingNo}: from ${time(s.startedAt, tz)}`, s.resumeReason ? `resumed because ${s.resumeReason}` : null, s.adjournedAt ? `adjourned ${time(s.adjournedAt, tz)} because ${s.adjournReason}` : null, `recorded by ${s.recordedBy.name}`].filter(Boolean).join(" · "),
+      text: [`Sitting ${s.sittingNo}: from ${time(s.startedAt, tz)}`, s.resumeReason ? `resumed: ${s.resumeReason}` : null, s.adjournedAt ? `adjourned ${time(s.adjournedAt, tz)}: ${s.adjournReason}` : null, `recorded by ${s.recordedBy.name}`].filter(Boolean).join(" · "),
     })),
     panelSize: o.panelSizeRequired,
     panelOverride: o.panelOverrideAuthority ? `A panel of ${o.panel.length}, not ${o.panelSizeRequired}, under ${o.panelOverrideAuthority}: ${o.panelOverrideReason}${o.panelOverrideBy ? ` (recorded by ${o.panelOverrideBy.name})` : ""}` : null,
@@ -287,6 +287,8 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
     resume: state.adjourned && !state.finalised ? allowedOf(adjournFaults({ state, reason: "-", personActive: true, resume: true })) : null,
     registerBox: o.kind === "MAIN" && !state.finalised ? allowedOf([...actFaults(state), ...(o.bids.length ? [{ code: "BOX_EMPTIED", level: "block" as const }] : [])]) : null,
     record: act,
+    /// What holds every act on the record back while the opening is not finalised (adjourned, the box not opened, the sitting not authorised): said once.
+    held: !state.finalised && !act.allowed ? act.reason : null,
     envelopes,
     offers,
     parentOptions: allBids.filter((b) => !b.isAlternative).map((b) => ({ value: b.id, label: `No. ${b.listingNo}, ${b.bidderNameAsRead}` })),
