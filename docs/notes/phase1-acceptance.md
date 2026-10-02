@@ -233,7 +233,7 @@ For the product owner to rule or confirm:
 | NFR-AUD-006 | Partly met | Future days refused; "decided before the route or gate opened" refused. Back-dating exceptions with an authorising officer → sign-in |
 | NFR-SEC-001, 004, 005, 006 | Not met | Sign-in (access control, admin separation and maker-checker, MFA, re-authentication) |
 | NFR-SEC-002 | Not met | Classification model → document store (shared enum), automatic SULIT → 6.2, 6.6, 6.8 |
-| NFR-SEC-003 | Not applicable in Phase 1 | Sealed bids → 6.6 |
+| NFR-SEC-003 | Not applicable in Phase 1 | Sealed bids → Phase 3 electronic tender box with sign-in and D6 (re-designated by 6.6 OD-1, 2026-10-01; superseded the earlier "→ 6.6"). 6.6 builds a paper envelope register holding no bid content |
 | NFR-SEC-007 | Not met | Type, size and malware scanning → document store (scanning a go-live condition, OD-4). Phase 1's only upload is the organisation logo |
 | NFR-SEC-008 | Go-live condition | Hosting region documented and evidenced |
 
