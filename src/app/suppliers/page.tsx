@@ -2,19 +2,20 @@ import { DataList, type Row } from "@/components/data-list";
 import { BuildingIcon, ClipboardIcon, ClockIcon, ShieldIcon } from "@/components/icons";
 import { Tabs } from "@/components/tabs";
 import { ButtonLink } from "@/components/ui/button";
-import { Card, CardHeader } from "@/components/ui/card";
+import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { daysBetween } from "@/lib/requisition/types";
 import { storedDay } from "@/lib/dates";
+import { addDays } from "@/lib/securities/period";
 import { formatDate } from "@/lib/format";
 import { routeState } from "@/lib/suppliers/blacklist";
 import { documentStates, stateCounts } from "@/lib/suppliers/documents";
 import { expiryBand, reminderDue, startsOn, worstBand, type ExpiryBand } from "@/lib/suppliers/expiry";
 import { APPLICATION_KIND_LABEL, blacklistEndWords, renewalUpcomingWords, DOCUMENT_STATE_LABEL, ERP_NOT_SYNCED, EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, QUEUE_STATE_LABEL, QUEUE_STATE_TONE, REMINDER_NOT_SENT, REQUEST_KIND_LABEL, standingTone, standingWords, SUPPLIER_STATUS_LABEL, SUPPLIER_STATUS_TONE } from "@/lib/suppliers/labels";
-import { documentFacts, listSuppliers, loadSupplierConfig } from "@/lib/suppliers/repo";
-import { isOpen, queueState, type QueueState } from "@/lib/suppliers/review";
-import { standing } from "@/lib/suppliers/standing";
+import { documentFacts, listSuppliers, loadSupplierConfig, supplierOrg, SUPPLIERS_PAGE } from "@/lib/suppliers/repo";
+import { queueState, type QueueState } from "@/lib/suppliers/review";
+import { barred, standing } from "@/lib/suppliers/standing";
 import { standingEventFacts } from "@/lib/suppliers/standing-repo";
 import type { ApplicationKind, SupplierStatus } from "@/lib/suppliers/types";
 
@@ -30,23 +31,30 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  * waits for sign-in (6.15b); performance waits for 6.16 — each said in its own words, never shown as
  * if it were here (condition 3).
  */
-export default async function SuppliersPage(props: { searchParams: Promise<{ tab?: string }> }) {
-  const { tab } = await props.searchParams;
-  const data = await listSuppliers();
-  if (!data) {
+export default async function SuppliersPage(props: { searchParams: Promise<{ tab?: string; page?: string }> }) {
+  const { tab, page: raw } = await props.searchParams;
+  const requested = Math.max(0, Number.parseInt(raw ?? "0", 10) || 0);
+  const org0 = await supplierOrg();
+  if (!org0) {
     return <PageHeader title="Suppliers" subtitle="The supplier register." />;
   }
-  const { org, suppliers } = data;
-  const cfg = await loadSupplierConfig(org.id);
-  const today = org.today;
+  const cfg = await loadSupplierConfig(org0.id);
+  const today = org0.today;
   const p = cfg.policy;
   const bands = { criticalDays: p?.criticalDays ?? null, warningDays: p?.warningDays ?? null, upcomingDays: p?.upcomingDays ?? null };
   const bandsSet = bands.criticalDays != null && bands.warningDays != null && bands.upcomingDays != null;
+  // fix R-10: each list loads only what it shows; the Expiring list reaches no further than the furthest band.
+  const data = await listSuppliers(requested, today && bandsSet ? addDays(today, bands.upcomingDays!) : null);
+  if (!data) {
+    return <PageHeader title="Suppliers" subtitle="The supplier register." />;
+  }
+  const { suppliers, watched, queue: openApplications } = data;
+  const pages = Math.max(1, Math.ceil(data.total / SUPPLIERS_PAGE));
   const typeExpires = new Map(cfg.types.map((t) => [t.id, t.expires]));
 
   // a2: each supplier's standing (derived, OD-7 A) and its documents' expiry bands (FR-VND-008).
   const readings = new Map(
-    suppliers.map((s) => {
+    [...suppliers, ...watched].map((s) => {
       const docs = s.documents.map(documentFacts);
       const states = today ? documentStates(cfg.typeFacts, docs, today) : [];
       const st = today ? standing({ status: s.status as SupplierStatus }, s.standingEvents.map(standingEventFacts), states.filter((x) => x.mandatory).map((x) => ({ typeLabel: x.type.label, state: x.state })), { autoSuspendOnLapse: p?.autoSuspendOnLapse ?? null }, today) : null;
@@ -63,7 +71,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
     const states = rd.states;
     const counts = stateCounts(states);
     const issues = (["MISSING", "EXPIRED", "NOT_IN_ORDER", "NOT_CHECKED", "NOT_YET_VALID"] as const).filter((k) => counts[k]);
-    const open = s.applications.find(isOpen);
+    const open = s.applications[0];
     return {
       id: s.id,
       views: [...(status === "REGISTERED" ? ["registered"] : []), ...(status === "APPLICANT" ? ["applicants"] : []), ...(rd.standing && rd.standing.standing !== "ACTIVE" && rd.standing.standing !== "NOT_REGISTERED" ? ["barred"] : []), ...(status === "REGISTERED" && !s.erpVendorCode ? ["unsynced"] : []), ...(issues.length ? ["attention"] : [])],
@@ -95,32 +103,29 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
   });
 
   // ------------------------------------------------------------------ the applications queue
-  const queue: Row[] = suppliers.flatMap((s) =>
-    s.applications
-      .filter((a) => isOpen(a))
-      .map((a) => {
-        const st: QueueState = queueState({ ...a, resubmitBy: day(a.resubmitBy) }, today);
-        const received = storedDay(a.receivedOn);
-        const age = today ? daysBetween(received, today) : null;
-        return {
-          id: a.id,
-          views: [st === "WITH_APPROVAL" ? "approval" : st === "LAPSED" ? "lapsed" : st === "RESUBMISSION_REQUESTED" ? "resubmission" : "received"],
-          search: [s.registeredName, s.reference, APPLICATION_KIND_LABEL[a.kind as ApplicationKind].en, QUEUE_STATE_LABEL[st].en].join(" "),
-          sortKeys: { received },
-          cells: {
-            supplier: { kind: "link", text: s.registeredName, href: `/suppliers/${s.id}?tab=applications`, sub: `${s.reference} · ${APPLICATION_KIND_LABEL[a.kind as ApplicationKind].en}` },
-            received: { kind: "stack", title: formatDate(received), sub: age == null ? "Days not counted: no time zone" : age === 0 ? "Today" : `${plural(age, "day", "days")} ago` },
-            state: { kind: "badge", text: QUEUE_STATE_LABEL[st].en, tone: TONE[QUEUE_STATE_TONE[st]] },
-            deadline: { kind: "text", text: a.resubmitBy && a.status === "RESUBMISSION_REQUESTED" ? `Resubmit by ${formatDate(day(a.resubmitBy))}` : "—", dim: !a.resubmitBy },
-          },
-        };
-      }),
-  );
+  const queue: Row[] = openApplications.map((a) => {
+    const s = a.supplier;
+    const st: QueueState = queueState({ ...a, resubmitBy: day(a.resubmitBy) }, today);
+    const received = storedDay(a.receivedOn);
+    const age = today ? daysBetween(received, today) : null;
+    return {
+      id: a.id,
+      views: [st === "WITH_APPROVAL" ? "approval" : st === "LAPSED" ? "lapsed" : st === "RESUBMISSION_REQUESTED" ? "resubmission" : "received"],
+      search: [s.registeredName, s.reference, APPLICATION_KIND_LABEL[a.kind as ApplicationKind].en, QUEUE_STATE_LABEL[st].en].join(" "),
+      sortKeys: { received },
+      cells: {
+        supplier: { kind: "link", text: s.registeredName, href: `/suppliers/${s.id}?tab=applications`, sub: `${s.reference} · ${APPLICATION_KIND_LABEL[a.kind as ApplicationKind].en}` },
+        received: { kind: "stack", title: formatDate(received), sub: age == null ? "Days not counted: no time zone" : age === 0 ? "Today" : `${plural(age, "day", "days")} ago` },
+        state: { kind: "badge", text: QUEUE_STATE_LABEL[st].en, tone: TONE[QUEUE_STATE_TONE[st]] },
+        deadline: { kind: "text", text: a.resubmitBy && a.status === "RESUBMISSION_REQUESTED" ? `Resubmit by ${formatDate(day(a.resubmitBy))}` : "—", dim: !a.resubmitBy },
+      },
+    };
+  });
   // Oldest first: the order a queue is worked in.
   queue.sort((a, b) => String(a.sortKeys?.received ?? "").localeCompare(String(b.sortKeys?.received ?? "")));
   // ------------------------------------------------------------------ a2: expiring (FR-VND-008), shown and never sent
   const SHOWN: readonly ExpiryBand[] = ["EXPIRED", "CRITICAL", "WARNING", "UPCOMING", "BANDS_NOT_SET"];
-  const expiringRows: Row[] = suppliers.flatMap((s) =>
+  const expiringRows: Row[] = watched.flatMap((s) =>
     readings
       .get(s.id)!
       .expiring.filter((e) => SHOWN.includes(e.band))
@@ -143,7 +148,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
   expiringRows.sort((a, b) => String(a.sortKeys?.expires ?? "").localeCompare(String(b.sortKeys?.expires ?? "")));
 
   // ------------------------------------------------------------------ a2: standing (FR-VND-010)
-  const standingRows: Row[] = suppliers.flatMap((s) => {
+  const standingRows: Row[] = watched.flatMap((s) => {
     const st = readings.get(s.id)!.standing;
     const open = s.standingRequests.filter((r) => !r.event && !r.withdrawnAt && routeState(r.routes.map((x) => ({ status: x.status, openedAt: x.createdAt.toISOString() }))) !== "REJECTED");
     const lapseUnset = st?.notes.some((n) => n.code === "LAPSE_RULE_NOT_SET");
@@ -162,17 +167,18 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
     }];
   });
 
-  const registered = suppliers.filter((s) => s.status === "REGISTERED").length;
-  const unsynced = suppliers.filter((s) => s.status === "REGISTERED" && !s.erpVendorCode).length;
+  const { registered, unsynced } = data;
+  const paged = data.total > SUPPLIERS_PAGE;
+  // Derived from the documents, so counted on the page shown; barred is counted from the watched suppliers (every barred supplier is one).
   const attention = register.filter((r) => r.views?.includes("attention")).length;
-  const barredCount = register.filter((r) => r.views?.includes("barred")).length;
+  const barredCount = watched.filter((s) => { const st = readings.get(s.id)!.standing; return !!st && barred(st.standing); }).length;
 
   const tabs = [
     {
       id: "register",
       label: "Register",
       icon: <BuildingIcon size={15} />,
-      count: suppliers.length,
+      count: data.total,
       panel: (
         <Card className="overflow-hidden">
           <CardHeader icon={<BuildingIcon size={17} />} title="The register" subtitle="Every supplier recorded, by name. Its documents are judged on the organisation's day: a renewal counts once verified." divided={false} />
@@ -201,6 +207,17 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
             ]}
             rows={register}
           />
+          {pages > 1 && (
+            <CardFooter className="flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-ink-3">
+              <span>
+                Suppliers {data.page * SUPPLIERS_PAGE + 1}–{Math.min(data.total, (data.page + 1) * SUPPLIERS_PAGE)} of {data.total}, by name. Search and the views look within this page.
+              </span>
+              <span className="flex gap-2">
+                {data.page > 0 && <ButtonLink href={`/suppliers?tab=register&page=${data.page - 1}`} size="sm" variant="ghost">Previous</ButtonLink>}
+                {data.page + 1 < pages && <ButtonLink href={`/suppliers?tab=register&page=${data.page + 1}`} size="sm" variant="ghost">Next</ButtonLink>}
+              </span>
+            </CardFooter>
+          )}
         </Card>
       ),
     },
@@ -208,7 +225,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
       id: "applications",
       label: "Applications",
       icon: <ClipboardIcon size={15} />,
-      count: queue.length,
+      count: data.queueTotal,
       panel: (
         <Card className="overflow-hidden">
           <CardHeader icon={<ClipboardIcon size={17} />} title="Applications awaiting a decision" subtitle="Open applications, oldest first. The days since it was received are a count, not a judgement: no service level is set." divided={false} />
@@ -233,6 +250,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
             ]}
             rows={queue}
           />
+          {data.queueTotal > queue.length && <CardFooter className="text-[12.5px] text-ink-3">Showing the oldest {queue.length} of {data.queueTotal}.</CardFooter>}
         </Card>
       ),
     },
@@ -271,6 +289,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
               ]}
               rows={expiringRows}
             />
+            {data.watchedTotal > watched.length && <CardFooter className="text-[12.5px] text-ink-3">{`Read from the first ${watched.length} of ${data.watchedTotal} suppliers with a document near or past its expiry, or a standing on record, by name.`}</CardFooter>}
           </Card>
         </div>
       ),
@@ -305,6 +324,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
             ]}
             rows={standingRows}
           />
+          {data.watchedTotal > watched.length && <CardFooter className="text-[12.5px] text-ink-3">{`Read from the first ${watched.length} of ${data.watchedTotal} suppliers with a document near or past its expiry, or a standing on record, by name.`}</CardFooter>}
         </Card>
       ),
     },
@@ -315,7 +335,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
       <PageHeader
         title="Suppliers"
         subtitle="Suppliers recorded from paper applications, their documents and decisions."
-        meta={[plural(registered, "registered", "registered"), plural(queue.length, "application awaiting a decision", "applications awaiting a decision"), plural(attention, "with documents to see to", "with documents to see to"), plural(barredCount, "suspended or blacklisted", "suspended or blacklisted"), `${unsynced} ${ERP_NOT_SYNCED.en.toLowerCase()}`]}
+        meta={[plural(registered, "registered", "registered"), plural(data.queueTotal, "application awaiting a decision", "applications awaiting a decision"), paged ? `${attention} with documents to see to on this page` : plural(attention, "with documents to see to", "with documents to see to"), plural(barredCount, "suspended or blacklisted", "suspended or blacklisted"), `${unsynced} ${ERP_NOT_SYNCED.en.toLowerCase()}`]}
         actions={<ButtonLink href="/suppliers/new" size="sm" variant="primary">Record a paper application</ButtonLink>}
       />
       <div className="mb-6 flex flex-col gap-3">

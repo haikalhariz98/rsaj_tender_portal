@@ -136,22 +136,78 @@ export async function loadSupplier(id: string, client: Tx = db) {
 }
 export type LoadedSupplier = NonNullable<Awaited<ReturnType<typeof loadSupplier>>>;
 
-/// The register, every supplier with its documents and open applications (for the lists and their counts).
-export async function listSuppliers(client: Tx = db) {
+/// How many suppliers the register shows on a page, and how many the queue and the watched lists show at most (fix R-10).
+export const SUPPLIERS_PAGE = 100;
+
+/// What every list row derives its standing and document states from, and nothing more.
+const listedSupplier = {
+  id: true,
+  reference: true,
+  registeredName: true,
+  registrationNo: true,
+  status: true,
+  erpVendorCode: true,
+  documents: { select: { id: true, typeId: true, typeLabelSnapshot: true, lodgedOn: true, issuedOn: true, validFrom: true, expiresOn: true, notApplicable: true, verification: true, verifiedOn: true, supersedesId: true } },
+  // a2: standing is derived from these, never stored.
+  standingEvents: { select: { id: true, kind: true, effectiveOn: true, endsOn: true, offenceNo: true, reasonSnapshot: true, reinstatesEventId: true, liftsEventId: true, flaggedDocumentIds: true } },
+} satisfies Prisma.SupplierSelect;
+
+const OPEN_APPLICATION = { status: { in: ["RECEIVED" as const, "RESUBMISSION_REQUESTED" as const] }, lapsedRecordedAt: null };
+
+/**
+ * The /suppliers lists, each loading only what it shows (fix R-10, the requisitions' page pattern):
+ *
+ * - the register: one page of suppliers by name (`page`, from 0), with their documents, standing events and
+ *   open application only, and the total;
+ * - the queue: the open applications, oldest first, up to a page, and how many there are;
+ * - the watched suppliers, for the Expiring and Standing lists: those with a standing event or request, or a
+ *   verified document with an expiry up to `horizon` (the furthest band from today; every expiry where the
+ *   bands are not set, as the Expiring list then shows each one), by name, up to a page, and how many.
+ *
+ * Counts that are columns are counted in the database; what is derived (standing, document states, bands)
+ * is derived from the rows read, never stored.
+ */
+export async function listSuppliers(page = 0, horizon: string | null = null, client: Tx = db) {
   const org = await supplierOrg(client);
   if (!org) return null;
-  const suppliers = await client.supplier.findMany({
-    where: { organisationId: org.id },
-    orderBy: [{ registeredName: "asc" }, { id: "asc" }],
-    include: {
-      documents: { select: { id: true, typeId: true, typeLabelSnapshot: true, lodgedOn: true, issuedOn: true, validFrom: true, expiresOn: true, notApplicable: true, verification: true, verifiedOn: true, supersedesId: true } },
-      applications: { orderBy: [{ receivedOn: "desc" }, { createdAt: "desc" }], select: { id: true, kind: true, status: true, receivedOn: true, resubmitBy: true, lapsedRecordedAt: true, routes: { select: { status: true } } } },
-      // a2: standing is derived from these, never stored.
-      standingEvents: true,
-      standingRequests: { select: { id: true, kind: true, withdrawnAt: true, event: { select: { id: true } }, routes: { select: { status: true, createdAt: true } } } },
-    },
-  });
-  return { org, suppliers };
+  const where = { organisationId: org.id };
+  const watchWhere: Prisma.SupplierWhereInput = {
+    organisationId: org.id,
+    OR: [
+      { standingEvents: { some: {} } },
+      { standingRequests: { some: {} } },
+      { documents: { some: { verification: "VERIFIED", notApplicable: false, expiresOn: horizon ? { not: null, lte: dayToDate(horizon) } : { not: null } } } },
+    ],
+  };
+  // A page past the end shows the last page.
+  const total = await client.supplier.count({ where });
+  const at = Math.min(Math.max(0, page), Math.max(0, Math.ceil(total / SUPPLIERS_PAGE) - 1));
+  const [suppliers, registered, unsynced, queue, queueTotal, watched, watchedTotal] = await Promise.all([
+    client.supplier.findMany({
+      where,
+      orderBy: [{ registeredName: "asc" }, { id: "asc" }],
+      skip: at * SUPPLIERS_PAGE,
+      take: SUPPLIERS_PAGE,
+      select: { ...listedSupplier, applications: { where: OPEN_APPLICATION, orderBy: [{ receivedOn: "desc" }, { createdAt: "desc" }], take: 1, select: { id: true, kind: true, status: true, resubmitBy: true, lapsedRecordedAt: true, routes: { select: { status: true } } } } },
+    }),
+    client.supplier.count({ where: { ...where, status: "REGISTERED" } }),
+    client.supplier.count({ where: { ...where, status: "REGISTERED", erpVendorCode: null } }),
+    client.supplierApplication.findMany({
+      where: { ...where, ...OPEN_APPLICATION },
+      orderBy: [{ receivedOn: "asc" }, { createdAt: "asc" }],
+      take: SUPPLIERS_PAGE,
+      select: { id: true, kind: true, status: true, receivedOn: true, resubmitBy: true, lapsedRecordedAt: true, routes: { select: { status: true } }, supplier: { select: { id: true, reference: true, registeredName: true } } },
+    }),
+    client.supplierApplication.count({ where: { ...where, ...OPEN_APPLICATION } }),
+    client.supplier.findMany({
+      where: watchWhere,
+      orderBy: [{ registeredName: "asc" }, { id: "asc" }],
+      take: SUPPLIERS_PAGE,
+      select: { ...listedSupplier, standingRequests: { select: { id: true, kind: true, withdrawnAt: true, event: { select: { id: true } }, routes: { select: { status: true, createdAt: true } } } } },
+    }),
+    client.supplier.count({ where: watchWhere }),
+  ]);
+  return { org, page: at, suppliers, total, registered, unsynced, queue, queueTotal, watched, watchedTotal };
 }
 
 /// The supplier's History: every audit row on the supplier, its contacts, applications (and their routes and steps), decisions and documents.
