@@ -98,8 +98,9 @@ export interface IssueInput {
   exerciseWindow?: WindowGate | null;
   /// 6.6 (X-9, flagged): late admission and the bids' validity. Not given: nothing asked.
   bids?: BidGateFacts | null;
-  /// 6.7 (X-9, C-7, C-8, flagged): the openings' checks and the awardee's party. Not given: nothing asked.
-  opening?: { facts: OpeningGateFacts; awardeePartyId: string | null } | null;
+  /// 6.7 (X-9, C-7, C-8, flagged): the openings' checks and the awardee's party; null where none apply
+  /// (not published through 6.5). Required (review R-7): a caller states it, never leaves it out.
+  opening: { facts: OpeningGateFacts; awardeePartyId: string | null } | null;
   commitment: CommitmentFault | null;
   sourcingPermitted: boolean | null;
   instrument: { kind: InstrumentKind } | { fault: InstrumentFault };

@@ -188,20 +188,20 @@ describe("the appointment route at award (6.3 BD-3, FR-APR-010)", () => {
   });
   it("a dossier method cannot be submitted while its evidence cannot be attached (FR-MTD-009)", () => {
     const r = appointmentRoute(ctx, quotation, 180_000, nobody);
-    const f = submitFaults({ status: "DRAFT", today: "2026-09-30", exerciseStatus: "DOCUMENTS_IN_PREPARATION", exercisePackKind: null, openRoute: false, method: { requiresDossier: true }, dossier: { justificationReasonCode: "r", dossierReference: "DA/1", evidenceAttachments: 0 }, route: r });
+    const f = submitFaults({ opening: null, status: "DRAFT", today: "2026-09-30", exerciseStatus: "DOCUMENTS_IN_PREPARATION", exercisePackKind: null, openRoute: false, method: { requiresDossier: true }, dossier: { justificationReasonCode: "r", dossierReference: "DA/1", evidenceAttachments: 0 }, route: r });
     expect(f.map((x) => x.code)).toEqual(["EVIDENCE_NOT_ATTACHED"]);
   });
   it("an unresolved route refuses submission, naming it", () => {
-    const f = submitFaults({ status: "DRAFT", today: "2026-09-30", exerciseStatus: "DOCUMENTS_IN_PREPARATION", exercisePackKind: null, openRoute: false, method: { requiresDossier: false }, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route: appointmentRoute(ctx, tender, 100_000, nobody) });
+    const f = submitFaults({ opening: null, status: "DRAFT", today: "2026-09-30", exerciseStatus: "DOCUMENTS_IN_PREPARATION", exercisePackKind: null, openRoute: false, method: { requiresDossier: false }, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route: appointmentRoute(ctx, tender, 100_000, nobody) });
     expect(f.map((x) => x.code)).toEqual(["NO_RULE"]);
   });
   it("a second route is not opened while one is open", () => {
-    const f = submitFaults({ status: "DRAFT", today: "2026-09-30", exerciseStatus: "DOCUMENTS_IN_PREPARATION", exercisePackKind: null, openRoute: true, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route: appointmentRoute(ctx, quotation, 180_000, nobody) });
+    const f = submitFaults({ opening: null, status: "DRAFT", today: "2026-09-30", exerciseStatus: "DOCUMENTS_IN_PREPARATION", exercisePackKind: null, openRoute: true, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route: appointmentRoute(ctx, quotation, 180_000, nobody) });
     expect(f.map((x) => x.code)).toEqual(["ANOTHER_ROUTE_OPEN"]);
   });
   it("CO-8: a name-approval method is not submitted without an approved, non-withdrawn name route", () => {
     const r = appointmentRoute(ctx, quotation, 180_000, nobody);
-    const base = { status: "DRAFT", today: "2026-09-30", exerciseStatus: "DOCUMENTS_IN_PREPARATION", exercisePackKind: null, openRoute: false, method: { requiresDossier: false, requiresNameApproval: true }, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route: r };
+    const base = { opening: null, status: "DRAFT", today: "2026-09-30", exerciseStatus: "DOCUMENTS_IN_PREPARATION", exercisePackKind: null, openRoute: false, method: { requiresDossier: false, requiresNameApproval: true }, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route: r };
     const day = (d: string) => new Date(`${d}T00:00:00Z`);
     expect(submitFaults({ ...base }).map((x) => x.code)).toEqual(["NAME_NOT_REQUESTED"]);
     expect(submitFaults({ ...base, nameRoutes: [] }).map((x) => x.code)).toEqual(["NAME_NOT_REQUESTED"]);
@@ -215,7 +215,7 @@ describe("the appointment route at award (6.3 BD-3, FR-APR-010)", () => {
   });
   it("only a draft is submitted, only from an exercise in preparation", () => {
     const r = appointmentRoute(ctx, quotation, 180_000, nobody);
-    const base = { status: "DRAFT", today: "2026-09-30", exerciseStatus: "DRAFT", exercisePackKind: null, openRoute: false, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route: r };
+    const base = { opening: null, status: "DRAFT", today: "2026-09-30", exerciseStatus: "DRAFT", exercisePackKind: null, openRoute: false, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route: r };
     expect(submitFaults(base).map((x) => x.code)).toEqual(["EXERCISE_NOT_IN_PREPARATION"]);
     expect(submitFaults({ ...base, status: "APPROVED" }).map((x) => x.code)).toEqual(["NOT_DRAFT"]);
   });

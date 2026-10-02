@@ -18,6 +18,7 @@ import { awardFindingText } from "./labels";
 const facts = (over: Partial<OpeningGateFacts> = {}): OpeningGateFacts => ({ applies: true, openings: [{ kind: "MAIN", sequenceNo: 1, finalised: true, liveScans: 1, copyCheck: "MATCH", explained: false, admittedEnvelopeId: null }], admittedEnvelopeIds: [], carriedPartyIds: new Set(["p1"]), ...over });
 const clear: IssueInput = {
   status: "APPROVED",
+  opening: null,
   today: "2026-11-30",
   exerciseStatus: "OPENED",
   exercisePackKind: "TENDER",

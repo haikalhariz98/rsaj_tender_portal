@@ -49,3 +49,14 @@ describe("the trail names the bidder (R-7)", () => {
     expect(fieldLabel("awardeeBidder")).toBe("Bidder carried to evaluation");
   });
 });
+
+describe("the award's gates are always told the openings (R-7)", () => {
+  it("IssueInput and submitFaults' input require `opening` (null where none apply): leaving it out does not compile", async () => {
+    type Issue = import("@/lib/award/gate").IssueInput;
+    type Submit = Parameters<typeof import("@/lib/award/appointment").submitFaults>[0];
+    // A key is required when an object without it is not assignable to it.
+    type Required<T, K extends keyof T> = Record<string, never> extends Pick<T, K> ? false : true;
+    const required: [Required<Issue, "opening">, Required<Submit, "opening">] = [true, true];
+    expect(required).toEqual([true, true]);
+  });
+});

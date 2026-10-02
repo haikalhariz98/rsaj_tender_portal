@@ -141,8 +141,9 @@ export function submitFaults(i: {
   nameRoutes?: readonly ({ status: "PENDING" | "APPROVED" | "REJECTED" | "RECALLED"; openedAt: Date; createdAt?: Date | null; id?: string })[];
   /// 6.6 (X-9, flagged): late admission and the bids' validity. Not given: nothing asked.
   bids?: BidGateFacts | null;
-  /// 6.7 (X-9, C-7, C-8, flagged): the openings' checks and the awardee's party. Not given: nothing asked.
-  opening?: { facts: OpeningGateFacts; awardeePartyId: string | null } | null;
+  /// 6.7 (X-9, C-7, C-8, flagged): the openings' checks and the awardee's party; null where none apply.
+  /// Required (review R-7): a caller states it, never leaves it out.
+  opening: { facts: OpeningGateFacts; awardeePartyId: string | null } | null;
 }): Finding<SubmitFault>[] {
   const f = (code: SubmitFault, data?: Finding["data"]): Finding<SubmitFault> => ({ code, level: "block", ...(data ? { data } : {}) });
   if (i.status !== "DRAFT") return [f("NOT_DRAFT")];

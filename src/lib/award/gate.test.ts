@@ -12,6 +12,7 @@ const INDENT = { kind: "WORK_INDENT" as const, commitmentNo: "XI202600812", comm
 
 const clear: IssueInput = {
   status: "APPROVED",
+  opening: null,
   today: "2026-09-30",
   exerciseStatus: "DOCUMENTS_IN_PREPARATION",
   exercisePackKind: null,

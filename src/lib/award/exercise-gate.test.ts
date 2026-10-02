@@ -42,16 +42,16 @@ describe("the state an award needs, by the pack kind the exercise was prepared u
 describe("the gates read it", () => {
   const route = { ok: true as const, ruleKey: "k", ruleLabel: "l", clause: null, approverCode: "CEO", committeeCode: null, chain: [], warnings: [], source: "DAL" as const, overrideIssue: null, core: null } as unknown as Parameters<typeof submitFaults>[0]["route"];
   const sub = (exerciseStatus: string, exercisePackKind: "TENDER" | null) =>
-    submitFaults({ status: "DRAFT", today: "2026-10-01", exerciseStatus, exercisePackKind, openRoute: false, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route }).map((f) => f.code);
+    submitFaults({ opening: null, status: "DRAFT", today: "2026-10-01", exerciseStatus, exercisePackKind, openRoute: false, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route }).map((f) => f.code);
 
   it("sending the appointment for approval: a tender exercise not yet closed is refused, naming the window", () => {
     expect(sub("DOCUMENTS_IN_PREPARATION", "TENDER")).toContain("EXERCISE_WINDOW_NOT_CLOSED");
     // 6.5 (tightened, flagged): approved for tendering is refused too, until the window closes.
     expect(sub("APPROVED_FOR_TENDERING", "TENDER")).toContain("EXERCISE_WINDOW_NOT_CLOSED");
     // 6.7 C-8 (flagged, stricter): clear only once Opened; published and closed is refused, naming the opening.
-    expect(submitFaults({ status: "DRAFT", today: "2026-10-01", exerciseStatus: "OPENED", exercisePackKind: "TENDER", exerciseWindow: { phase: "CLOSED", changePending: false }, openRoute: false, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route }).map((f) => f.code)).toEqual([]);
-    expect(submitFaults({ status: "DRAFT", today: "2026-10-01", exerciseStatus: "ADVERTISED", exercisePackKind: "TENDER", exerciseWindow: { phase: "CLOSED", changePending: false }, openRoute: false, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route }).map((f) => f.code)).toEqual(["EXERCISE_NOT_OPENED"]);
-    expect(submitFaults({ status: "DRAFT", today: "2026-10-01", exerciseStatus: "ADVERTISED", exercisePackKind: "TENDER", exerciseWindow: { phase: "CLOSED", changePending: true }, openRoute: false, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route }).map((f) => f.code)).toEqual(["WINDOW_CHANGE_PENDING"]);
+    expect(submitFaults({ opening: null, status: "DRAFT", today: "2026-10-01", exerciseStatus: "OPENED", exercisePackKind: "TENDER", exerciseWindow: { phase: "CLOSED", changePending: false }, openRoute: false, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route }).map((f) => f.code)).toEqual([]);
+    expect(submitFaults({ opening: null, status: "DRAFT", today: "2026-10-01", exerciseStatus: "ADVERTISED", exercisePackKind: "TENDER", exerciseWindow: { phase: "CLOSED", changePending: false }, openRoute: false, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route }).map((f) => f.code)).toEqual(["EXERCISE_NOT_OPENED"]);
+    expect(submitFaults({ opening: null, status: "DRAFT", today: "2026-10-01", exerciseStatus: "ADVERTISED", exercisePackKind: "TENDER", exerciseWindow: { phase: "CLOSED", changePending: true }, openRoute: false, method: null, dossier: { justificationReasonCode: null, dossierReference: null, evidenceAttachments: 0 }, route }).map((f) => f.code)).toEqual(["WINDOW_CHANGE_PENDING"]);
     expect(awardFindingText({ code: "EXERCISE_WINDOW_NOT_CLOSED", level: "block" })).toMatch(/invitation window must have closed/);
     expect(sub("DOCUMENTS_IN_PREPARATION", null)).not.toContain("EXERCISE_NOT_IN_PREPARATION");
     expect(awardFindingText({ code: "EXERCISE_NOT_APPROVED_FOR_TENDERING", level: "block" })).toMatch(/approved for tendering/);
