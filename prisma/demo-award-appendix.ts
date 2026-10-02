@@ -67,6 +67,12 @@ export async function loadAppendixAward(db: Db) {
   // C-7, C-8: the openings finalised, their scans attached, and the awardee a bidder carried to evaluation.
   const og = openingGateFaults(await loadOpeningGate(ex.id), AWARDEE.partyId).filter((f) => f.level === "block");
   if (og.length) fail(`the opening holds the award back (${og.map((f) => f.code).join(", ")}).`);
+  // 6.8 (E-9, flagged): Evaluated, the report standing, the awardee the recommended tenderer, at its price and period.
+  const { loadEvaluationGate } = await import("../src/lib/evaluation/gate-read");
+  const { evaluationFindings } = await import("../src/lib/award/gate");
+  const eg = await loadEvaluationGate(ex.id);
+  const ef = evaluationFindings({ facts: eg.gate, awardeePartyId: AWARDEE.partyId, award: { value: parseSen(VALUE), period: { value: 12, unit: "MONTHS" }, reasons: { value: null, period: null } } }).filter((f) => f.level === "block");
+  if (ef.length) fail(`the evaluation holds the award back (${ef.map((f) => f.code).join(", ")}).`);
   const chosen = instrumentFor(ex.regime, await loadAwardPolicy(org.id));
   const instrument = "kind" in chosen ? chosen : fail(`no instrument for the exercise's band (${chosen.fault}).`);
   const { cfg, ctx } = await evaluationContext(org, req, ex);
