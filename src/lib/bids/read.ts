@@ -18,11 +18,13 @@ import { isLive } from "@/lib/documents/evidence";
 
 import { alternativeStatus } from "./alternatives";
 import { boxState, lockFaults } from "./box";
+import { openingChecklist } from "@/lib/opening/checklist";
+
 import { checklistFor, completenessConsequence } from "./completeness";
 import { correctionFaults } from "./correction";
 import { bidCount, competition } from "./count";
 import { applyFaults, extensionFaults, RECOMMENDED_ATTESTED } from "./extension";
-import { ADMISSION_LABEL, ALTERNATIVE_LABEL, bidFindingText, receiptTime, CHANNEL_LABEL, COMPETITION_LABEL, COMPETITION_TEXT, CONSEQUENCE_LABEL, ENVELOPE_KIND_LABEL, officerStatement, RECORDED_LATER_LABEL, RECORDING_STAMP_LABEL, RETURN_LABEL } from "./labels";
+import { ADMISSION_LABEL, ALTERNATIVE_LABEL, bidFindingText, receiptTime, CHANNEL_LABEL, COMPETITION_LABEL, COMPETITION_TEXT, CONSEQUENCE_LABEL, ENVELOPE_KIND_LABEL, officerStatement, RECORDED_LATER_LABEL, RECORDING_STAMP_LABEL, RETURN_LABEL, SOURCE_LABEL } from "./labels";
 import { admission, lateAdmissionFault, lateMatterFault, needsAdmission } from "./late";
 import { LATENESS_READING } from "./lateness";
 import { exerciseFaults } from "./receipt";
@@ -56,7 +58,7 @@ export async function bidsTab(exerciseId: string) {
     loadValidityOffsets(orgId),
     db.person.findMany({ where: { organisationId: orgId, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     db.exerciseParty.findMany({ where: { exerciseId: ex.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, registrationNo: true } }),
-    db.tenderPack.findFirst({ where: { exerciseId: ex.id, status: "APPROVED" }, orderBy: { versionNo: "desc" }, select: { versionNo: true, parts: { select: { partCode: true, labelSnapshot: true, mandatory: true, sortOrder: true } } } }),
+    db.tenderPack.findFirst({ where: { exerciseId: ex.id, status: "APPROVED" }, orderBy: { versionNo: "desc" }, select: { versionNo: true, parts: { select: { partCode: true, labelSnapshot: true, mandatory: true, sortOrder: true, role: true, returnedByBidder: true } } } }),
   ]);
   // S-6: the window's trail since publication, for the validity recorded after it (BD-66-7's exit).
   const windowTrail = window?.publishedAt ? await db.auditEntry.findMany({ where: { organisationId: orgId, entity: "ExerciseWindow", entityId: window.id, at: { gte: window.publishedAt } }, orderBy: [{ at: "asc" }, { id: "asc" }], select: { at: true, reason: true, changes: true } }) : [];
@@ -113,7 +115,9 @@ export async function bidsTab(exerciseId: string) {
       channelCode: e.channel,
       received: time(e.receivedAt),
       /// What the received time is, on every row: the server's recording stamp (S-1).
-      stampLabel: RECORDING_STAMP_LABEL,
+      stampLabel: e.receivedSource === "BOX_AT_OPENING" ? SOURCE_LABEL.BOX_AT_OPENING : RECORDING_STAMP_LABEL,
+      /// 6.7 C-10: found in the box at opening; its time is the lock's, never a receipt time.
+      fromBox: e.receivedSource === "BOX_AT_OPENING",
       entered: e.receivedSource === "ENTERED",
       enteredChip: e.receivedSource === "ENTERED" ? RECORDED_LATER_LABEL : null,
       stated: e.statedReceivedAt ? time(e.statedReceivedAt) : null,
@@ -122,6 +126,7 @@ export async function bidsTab(exerciseId: string) {
       late: e.late,
       judgedAgainst: e.closingAtJudged ? formatOrgDateTime(e.closingAtJudged, timeZone) : null,
       withdrawn: e.status === "WITHDRAWN",
+      opened: e.status === "OPENED",
       returned: back === "NOT_WITHDRAWN" ? null : RETURN_LABEL[back] + (e.returnedUnopenedOn ? ` on ${formatDate(storedDay(e.returnedUnopenedOn))}` : ""),
       markings: e.markings,
       receivedBy: `${e.receivedBy.name}, recorded on their behalf, not signed`,
@@ -165,6 +170,8 @@ export async function bidsTab(exerciseId: string) {
 
   // ---- the checklist preview (FR-BID-007)
   const checklist = checklistFor({ parts: (pack?.parts ?? []).map((p) => ({ partCode: p.partCode, label: p.labelSnapshot, mandatory: p.mandatory, sortOrder: p.sortOrder })), addenda: addenda.map((a) => ({ number: a.number!, title: a.title })) });
+  // 6.6's ruling for 6.7: which mandatory parts a bidder returns is read from the pack part's own field, as 6.7 snapshots it.
+  const returns = openingChecklist({ parts: (pack?.parts ?? []).map((p) => ({ partCode: p.partCode, label: p.labelSnapshot, role: p.role, mandatory: p.mandatory, returnedByBidder: p.returnedByBidder, sortOrder: p.sortOrder })), addenda: [] });
 
   return {
     exerciseId: ex.id,
@@ -200,6 +207,8 @@ export async function bidsTab(exerciseId: string) {
       late: count.late,
       alternatives: count.alternatives,
       withdrawn: count.withdrawn,
+      /// 6.7 C-10: bids registered from the box at opening (counted in time, by the lock).
+      fromBox: envelopes.filter((e) => e.receivedSource === "BOX_AT_OPENING" && e.kind !== "COMPANY_ESTIMATE").length,
       competition: COMPETITION_LABEL[comp],
       competitionText: COMPETITION_TEXT[comp],
       competitionTone: (comp === "MET" ? "ok" : comp === "MINIMUM_NOT_SET" ? "neutral" : "warn") as "ok" | "warn" | "neutral",
@@ -253,6 +262,10 @@ export async function bidsTab(exerciseId: string) {
       pack: pack ? `Version ${pack.versionNo} of the tender documents, as approved` : null,
       items: checklist.items.map((i) => i.label),
       notSet: checklist.notSet,
+      /// Mandatory parts whose return is not set: the check at opening waits for them.
+      returnNotSet: returns.notJudged,
+      /// Mandatory parts a bidder does not return: not checked against a bid.
+      notReturned: returns.notReturned,
       consequence: rule?.completenessEliminates == null && reading.frozen ? `${frozenUnsetText(reading.completeness)}: an opening cannot be finalised on it` : CONSEQUENCE_LABEL[completenessConsequence(rule?.completenessEliminates ?? null)],
       consequenceProvenance: rule?.completenessProvenance ? PROVENANCE_WORD[rule.completenessProvenance] : null,
     },

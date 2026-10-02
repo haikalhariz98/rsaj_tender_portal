@@ -40,7 +40,9 @@ export function EnvelopeList({ exerciseId, rows, people, late }: { exerciseId: s
         items: [
           ...(r.enteredChip ? [{ text: r.enteredChip, tone: "warn" as const }] : []),
           ...(r.isEstimate ? [] : [{ text: r.late ? "Late" : "In time", tone: r.late ? ("err" as const) : ("ok" as const) }]),
+          ...(r.fromBox ? [{ text: "Found in the box at opening", tone: "info" as const }] : []),
           ...(r.withdrawn ? [{ text: "Withdrawn" }] : []),
+          ...(r.opened ? [{ text: "Opened", tone: "brand" as const }] : []),
           ...(r.returned ? [{ text: r.returned }] : []),
           ...(r.admission ? [{ text: r.admission.sitting && r.admission.state === "PENDING" ? `${r.admission.label}: ${r.admission.sitting}` : r.admission.label, tone: r.admission.state === "ADMITTED" ? ("ok" as const) : r.admission.state === "NOT_ADMITTED" ? ("err" as const) : ("warn" as const) }] : []),
           ...(r.corrected ? [{ text: "Record corrected", tone: "info" as const }] : []),

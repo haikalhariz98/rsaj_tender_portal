@@ -108,7 +108,7 @@ function BidsPanel({ d }: { d: BidsTab }) {
         <CardHeader
           icon={<InboxIcon size={17} />}
           title="Envelope register"
-          subtitle={`${register.length} ${register.length === 1 ? "envelope" : "envelopes"} recorded by an officer: ${d.count.inTime} in time, ${d.count.late} late, ${d.count.withdrawn} withdrawn. The box is counted at opening.`}
+          subtitle={`${register.length} ${register.length === 1 ? "envelope" : "envelopes"} recorded: ${d.count.inTime} in time, ${d.count.late} late, ${d.count.withdrawn} withdrawn. ${d.count.fromBox > 0 ? `${d.count.fromBox} ${d.count.fromBox === 1 ? "was" : "were"} found in the box at opening, timed by its lock.` : "The box is counted at opening."}`}
           divided={false}
         />
         <EnvelopeList exerciseId={d.exerciseId} rows={d.rows} people={d.people} late={d.late} />
@@ -276,7 +276,11 @@ function ChecklistCard({ d }: { d: BidsTab }) {
     <Card className="overflow-hidden">
       <CardHeader icon={<ClipboardIcon size={17} />} title={CHECKLIST_TITLE} subtitle="Checked against each bid at opening, never here. A missing document is reported, never a reason to refuse an envelope." />
       <CardBody className="flex flex-col gap-4 border-t border-line">
-        <Callout tone="warn">{CHECKLIST_RETURN_NOT_SET}</Callout>
+        {c.returnNotSet.length > 0 && (
+          <Callout tone="warn">
+            {CHECKLIST_RETURN_NOT_SET} <span className="break-words">{`Not set for: ${c.returnNotSet.join(", ")}.`}</span>
+          </Callout>
+        )}
         <KeyValues
           items={[
             { label: "From", value: c.pack ?? "No approved tender documents" },
@@ -292,6 +296,7 @@ function ChecklistCard({ d }: { d: BidsTab }) {
             ))}
           </ol>
         )}
+        {c.notReturned.length > 0 && <p className="text-[12.5px] break-words text-ink-3">{`Not returned by a bidder, so not checked against a bid: ${c.notReturned.join(", ")}.`}</p>}
         {c.notSet.length > 0 && <Callout tone="warn">{`Whether these parts are mandatory is not set: ${c.notSet.join(", ")}.`}</Callout>}
       </CardBody>
     </Card>
