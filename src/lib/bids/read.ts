@@ -29,7 +29,7 @@ import { exerciseFaults } from "./receipt";
 import { bidRuleFor, frozenUnsetText } from "./rule-snapshot";
 import { envelopeFactsOf, exerciseForBids, liveConsents, loadBidMethodRule, loadBidWindow, loadBoxEvents, loadEnvelopes, loadExtensions, loadLateMatters, loadValidityOffsets, loadWithdrawals, validityOf } from "./repo";
 import { EXPIRY_READING } from "./validity";
-import { bidFieldsFaults } from "./window-fields";
+import { bidFieldsFaults, validityExitOf } from "./window-fields";
 import { returnState, withdrawFaults } from "./withdrawal";
 import { blocking, isPublishedStatus, type Finding } from "./types";
 
@@ -58,6 +58,9 @@ export async function bidsTab(exerciseId: string) {
     db.exerciseParty.findMany({ where: { exerciseId: ex.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, registrationNo: true } }),
     db.tenderPack.findFirst({ where: { exerciseId: ex.id, status: "APPROVED" }, orderBy: { versionNo: "desc" }, select: { versionNo: true, parts: { select: { partCode: true, labelSnapshot: true, mandatory: true, sortOrder: true } } } }),
   ]);
+  // S-6: the window's trail since publication, for the validity recorded after it (BD-66-7's exit).
+  const windowTrail = window?.publishedAt ? await db.auditEntry.findMany({ where: { organisationId: orgId, entity: "ExerciseWindow", entityId: window.id, at: { gte: window.publishedAt } }, orderBy: [{ at: "asc" }, { id: "asc" }], select: { at: true, reason: true, changes: true } }) : [];
+  const exit = validityExitOf(windowTrail, window?.publishedAt ?? null);
   const addenda = window ? await db.addendum.findMany({ where: { windowId: window.id, status: "ISSUED", number: { not: null } }, orderBy: { number: "asc" }, select: { number: true, title: true } }) : [];
   // CR-2: a published exercise is judged by the rules frozen with its window, never today's method.
   const reading = bidRuleFor(window, liveRule);
@@ -243,6 +246,8 @@ export async function bidsTab(exerciseId: string) {
       alternatives: ALTERNATIVE_LABEL[alternativeStatus(window?.alternativesPermitted ?? null)],
       answerValues: { bidValidityDays: window?.bidValidityDays == null ? "" : String(window.bidValidityDays), bidValidityProvenance: window?.bidValidityProvenance ?? "", alternativesPermitted: window?.alternativesPermitted == null ? "unset" : window.alternativesPermitted ? "yes" : "no" },
       answersNeedReason: isPublishedStatus(ex.status),
+      /// When, by whom and why the validity was recorded after publication (S-6), or null.
+      recordedAfterPublication: exit ? `${formatOrgDateTime(exit.at, timeZone)}, by ${exit.by ?? "an officer the record does not name"}. Why: ${exit.reason || "no reason recorded"}` : null,
     },
     checklist: {
       pack: pack ? `Version ${pack.versionNo} of the tender documents, as approved` : null,

@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
   waitEnvelopes: 0,
   created: [] as { model: string; data: Record<string, unknown> }[],
   updated: [] as { model: string; data: Record<string, unknown> }[],
+  audits: [] as { entity: string; changes: { field: string; before: string | null; after: string | null }[]; reason: string }[],
 }));
 
 const advance = (ms: number) => vi.setSystemTime(new Date(Date.now() + ms));
@@ -46,8 +47,10 @@ vi.mock("@/lib/bids/repo", async (importOriginal) => {
 vi.mock("../window/shared", () => ({
   exerciseIdOf: () => "x1",
   label: (_l: unknown, s: string) => s,
-  audit: async () => undefined,
-  activePerson: async () => ({ id: "p1", name: "Clerk" }),
+  audit: async (_tx: unknown, _org: string, entity: string, _id: string, _label: string, _action: string, changes: { field: string; before: string | null; after: string | null }[], reason = "") => {
+    h.audits.push({ entity, changes, reason });
+  },
+  activePerson: async (_tx: unknown, _org: string, id: string | null) => (id ? { id, name: "Clerk" } : null),
   // The exercise lock: waiting for it moves the clock on, and the closing is read under it.
   inWindow: async (_id: string, fn: (tx: unknown, l: unknown) => Promise<unknown>) => {
     advance(h.waitExercise);
@@ -62,12 +65,12 @@ vi.mock("../window/shared", () => ({
       },
       updateMany: async () => ({ count: 1 }),
     });
-    const tx = { bidEnvelope: model("bidEnvelope"), bidWithdrawal: model("bidWithdrawal"), boxEvent: model("boxEvent") };
-    return fn(tx, { org: { id: "o1", timeZone: "Asia/Kuala_Lumpur", today: "2026-11-17" }, req: {}, ex: { id: "x1", status: "ADVERTISED", closingAt: h.closing, reference: "T/1", title: "T", sourcingMethodCode: "open_tender" } });
+    const tx = { bidEnvelope: model("bidEnvelope"), bidWithdrawal: model("bidWithdrawal"), boxEvent: model("boxEvent"), exerciseWindow: model("exerciseWindow") };
+    return fn(tx, { org: { id: "o1", timeZone: "Asia/Kuala_Lumpur", today: "2026-11-17" }, req: {}, ex: { id: "x1", status: "ADVERTISED", packKindSnapshot: "TENDER", closingAt: h.closing, reference: "T/1", title: "T", sourcingMethodCode: "open_tender" } });
   },
 }));
 
-import { correctEnvelope, lockBox, recordReceiptAfterTheFact, recordReceiptNow, recordWithdrawal } from "./actions";
+import { correctEnvelope, lockBox, recordReceiptAfterTheFact, recordReceiptNow, recordWithdrawal, saveBidAnswers } from "./actions";
 
 const form = (o: Record<string, string>) => {
   const f = new FormData();
@@ -84,6 +87,7 @@ beforeEach(() => {
   h.waitEnvelopes = 2 * S;
   h.created.length = 0;
   h.updated.length = 0;
+  h.audits.length = 0;
 });
 afterEach(() => vi.useRealTimers());
 
@@ -148,5 +152,26 @@ describe("the server's stamp is read at the act's entry, before the locks (6.6 C
     const r = await lockBox({ ok: false }, form({ exerciseId: "x1", personId: "p1", note: "" }));
     expect(r.ok).toBe(true);
     expect(last("boxEvent")).toMatchObject({ kind: "LOCKED", occurredAt: CLOSING });
+  });
+});
+
+describe("the validity recorded after publication names who recorded it (6.6 review S-6)", () => {
+  const EXIT = { exerciseId: "x1", bidValidityDays: "120", bidValidityProvenance: "STATED", alternativesPermitted: "unset", reason: "From the instructions to tenderers." };
+  it("refused without the officer, nothing written", async () => {
+    const r = await saveBidAnswers({ ok: false }, form(EXIT));
+    expect(r.ok).toBe(false);
+    expect(r.errors?.recordedByPersonId).toBe("Name the officer recording it.");
+    expect(h.updated).toHaveLength(0);
+    expect(h.audits).toHaveLength(0);
+  });
+  it("with the officer, the trail keeps who beside the change and why, as the card reads it", async () => {
+    const r = await saveBidAnswers({ ok: false }, form({ ...EXIT, recordedByPersonId: "p1" }));
+    expect(r.ok).toBe(true);
+    const a = h.audits.at(-1)!;
+    expect(a.reason).toBe("From the instructions to tenderers.");
+    expect(a.changes).toContainEqual({ field: "bidValidity", before: "Not set", after: "120 days" });
+    expect(a.changes).toContainEqual({ field: "recordedBy", before: null, after: "Clerk, recorded on their behalf, not signed" });
+    const { validityExitOf } = await import("@/lib/bids/window-fields");
+    expect(validityExitOf([{ at: PUBLISHED, reason: a.reason, changes: a.changes }], PUBLISHED)?.by).toBe("Clerk, recorded on their behalf, not signed");
   });
 });

@@ -37,3 +37,31 @@ export function bidFieldsFaults(i: {
   f("WINDOW_NOT_EDITABLE", { why: edit.code });
   return out;
 }
+
+/// The trail's field that names who recorded the validity after publication (BD-66-7 exit).
+export const EXIT_RECORDED_BY_FIELD = "recordedBy";
+
+export interface ValidityExit {
+  at: Date;
+  /// As the trail wrote it, "<name>, recorded on their behalf, not signed"; null where the entry names nobody.
+  by: string | null;
+  reason: string;
+}
+
+/**
+ * When the bids' validity was recorded after publication (BD-66-7's exit; 6.6 review S-6): the
+ * earliest trail entry on the window, at or after its publication, that moved the validity from
+ * "Not set". Null where the validity was set before publication (or never). Pure: the caller loads
+ * the window's entries.
+ */
+export function validityExitOf(entries: readonly { at: Date; reason: string; changes: unknown }[], publishedAt: Date | null): ValidityExit | null {
+  if (!publishedAt) return null;
+  const changesOf = (c: unknown) => (Array.isArray(c) ? (c as { field?: unknown; before?: unknown; after?: unknown }[]) : []);
+  const exit = [...entries]
+    .filter((e) => e.at.getTime() >= publishedAt.getTime())
+    .sort((a, b) => a.at.getTime() - b.at.getTime())
+    .find((e) => changesOf(e.changes).some((c) => c.field === "bidValidity" && c.before === "Not set" && typeof c.after === "string" && c.after !== "Not set"));
+  if (!exit) return null;
+  const by = changesOf(exit.changes).find((c) => c.field === EXIT_RECORDED_BY_FIELD)?.after;
+  return { at: exit.at, by: typeof by === "string" && by ? by : null, reason: exit.reason };
+}

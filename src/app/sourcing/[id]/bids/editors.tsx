@@ -232,7 +232,7 @@ export function ApplyExtensionDrawer({ exerciseId, extensionId, to, allowed }: {
 }
 
 /// FR-BID-006, 009: the window's bid answers.
-export function BidAnswersDrawer({ exerciseId, allowed, values, needsReason }: { exerciseId: string; allowed: Allowed; values: Record<string, string>; needsReason: boolean }) {
+export function BidAnswersDrawer({ exerciseId, allowed, values, needsReason, people }: { exerciseId: string; allowed: Allowed; values: Record<string, string>; needsReason: boolean; people: Option[] }) {
   if (!allowed.allowed) return null;
   return (
     <RecordEditor
@@ -243,7 +243,9 @@ export function BidAnswersDrawer({ exerciseId, allowed, values, needsReason }: {
         { kind: "number", name: "bidValidityDays", label: "Bids valid for (days from the closing day)", min: 1, required: needsReason },
         { kind: "select", name: "bidValidityProvenance", label: "Where the days came from", placeholder: "Choose", options: PROVENANCE_OPTIONS },
         { kind: "select", name: "alternativesPermitted", label: "Alternative bids", required: true, placeholder: "Choose", placeholderDisabled: true, options: [{ value: "yes", label: "Permitted" }, { value: "no", label: "Not permitted" }, { value: "unset", label: "Not stated" }] },
-        ...(needsReason ? [{ kind: "textarea", name: "reason", label: "Why it is recorded now", required: true } as Field] : []),
+        ...(needsReason
+          ? [{ kind: "textarea", name: "reason", label: "Why it is recorded now", required: true } as Field, { kind: "select", name: "recordedByPersonId", label: "Recorded by", required: true, placeholder: "Choose", options: people, hint: ON_BEHALF } as Field]
+          : []),
       ]}
       values={{ exerciseId, ...values }}
       action={saveBidAnswers}

@@ -25,3 +25,29 @@ describe("the window's bid answers (FR-BID-006, 009)", () => {
     expect(codes({ status: "CANCELLED" })).toEqual(["WINDOW_NOT_EDITABLE"]);
   });
 });
+
+describe("the validity recorded after publication, shown on the card (6.6 review S-6)", () => {
+  const PUB = new Date("2026-10-20T03:00:00Z");
+  const at = (h: number) => new Date(PUB.getTime() + h * 3600_000);
+  const set = (before: string, after: string, extra: object[] = []) => [{ field: "bidValidity", before, after }, ...extra];
+  it("reads when, by whom and why from the entry that moved it from Not set after publication", async () => {
+    const { validityExitOf } = await import("./window-fields");
+    const exit = validityExitOf([{ at: at(48), reason: "From the instructions to tenderers.", changes: set("Not set", "120 days", [{ field: "recordedBy", before: null, after: "Chen Wei Ling, recorded on their behalf, not signed" }]) }], PUB);
+    expect(exit).toEqual({ at: at(48), by: "Chen Wei Ling, recorded on their behalf, not signed", reason: "From the instructions to tenderers." });
+  });
+  it("a validity set before publication is no exit; neither is an entry that did not set it", async () => {
+    const { validityExitOf } = await import("./window-fields");
+    expect(validityExitOf([{ at: at(-1), reason: "", changes: set("Not set", "120 days") }], PUB)).toBeNull();
+    expect(validityExitOf([{ at: at(2), reason: "x", changes: [{ field: "alternatives", before: "Not stated", after: "Permitted" }] }], PUB)).toBeNull();
+    expect(validityExitOf([{ at: at(2), reason: "x", changes: set("Not set", "120 days") }], null)).toBeNull();
+    expect(validityExitOf([], PUB)).toBeNull();
+  });
+  it("at the publication instant counts as after it; an entry naming nobody says so (null), never a guess", async () => {
+    const { validityExitOf } = await import("./window-fields");
+    expect(validityExitOf([{ at: PUB, reason: "r", changes: set("Not set", "90 days") }], PUB)).toEqual({ at: PUB, by: null, reason: "r" });
+  });
+  it("the earliest such entry is the exit, whatever order the trail comes in", async () => {
+    const { validityExitOf } = await import("./window-fields");
+    expect(validityExitOf([{ at: at(5), reason: "second", changes: set("Not set", "90 days") }, { at: at(3), reason: "first", changes: set("Not set", "120 days") }, { at: at(1), reason: "malformed", changes: "nonsense" }], PUB)?.reason).toBe("first");
+  });
+});

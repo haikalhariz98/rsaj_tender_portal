@@ -16,7 +16,7 @@ import { toSecond } from "@/lib/bids/lateness";
 import { judgeReceipt, receiptFaults } from "@/lib/bids/receipt";
 import { exerciseForBids, liveConsents, loadBidRule, loadBidWindow, loadBoxEvents, loadEnvelopes, loadExtensions, loadLateMatters, loadValidityOffsets, orgDay, validityOf } from "@/lib/bids/repo";
 import { blocking, OFFICER_CHANNELS, RECEIPT_KINDS, type EnvelopeChannel, type Finding } from "@/lib/bids/types";
-import { bidFieldsFaults } from "@/lib/bids/window-fields";
+import { bidFieldsFaults, EXIT_RECORDED_BY_FIELD } from "@/lib/bids/window-fields";
 import { returnFaults, withdrawFaults } from "@/lib/bids/withdrawal";
 import { TABLING_FAULT_MESSAGE } from "@/lib/committee/labels";
 import { sittingPermits } from "@/lib/committee/meeting";
@@ -364,6 +364,7 @@ export async function saveBidAnswers(_prev: FormState, data: FormData): Promise<
   const provenance = r.choice("bidValidityProvenance", "Where the days came from", PROVENANCES);
   const alt = r.choice("alternativesPermitted", "Alternative bids", ["yes", "no", "unset"] as const, { required: true });
   const reason = r.text("reason", "Reason", { max: 1000 });
+  const recordedByPersonId = r.optionalText("recordedByPersonId");
   if (r.failed) return { ok: false, errors: r.errors };
   const alternativesPermitted = alt === "yes" ? true : alt === "no" ? false : null;
   return inWindow(exerciseIdOf(data), async (tx, l) => {
@@ -371,9 +372,15 @@ export async function saveBidAnswers(_prev: FormState, data: FormData): Promise<
     if (!w) return { ok: false, message: "The window is not prepared yet. Save its notice items on the Invitation tab first." };
     const fs = bidFieldsFaults({ status: l.ex.status, packKind: l.ex.packKindSnapshot, current: { days: w.bidValidityDays, alternativesPermitted: w.alternativesPermitted }, next: { days, provenance, alternativesPermitted }, reason });
     if (fs.length) return refuse(fs);
+    // S-6: recorded after publication (BD-66-7's exit), the officer who records it is named, and the
+    // trail keeps who beside when and why, so the validity card can show all three.
+    const exit = w.publishedAt != null;
+    const person = exit ? await nameOf(tx, l.org.id, recordedByPersonId) : null;
+    if (exit && !person) return { ok: false, errors: { recordedByPersonId: "Name the officer recording it." } };
     const next = { bidValidityDays: days, bidValidityProvenance: days == null ? null : provenance, alternativesPermitted };
     await tx.exerciseWindow.update({ where: { id: w.id }, data: next });
-    await audit(tx, l.org.id, "ExerciseWindow", w.id, label(l, "Bids received · window answers"), "UPDATE", diffFields(bidAnswerFields(w), bidAnswerFields(next)), reason);
+    await audit(tx, l.org.id, "ExerciseWindow", w.id, label(l, "Bids received · window answers"), "UPDATE",
+      diffFields(bidAnswerFields(w), { ...bidAnswerFields(next), ...(person ? { [EXIT_RECORDED_BY_FIELD]: `${person.name}, recorded on their behalf, not signed` } : {}) }), reason);
     return { ok: true };
   });
 }

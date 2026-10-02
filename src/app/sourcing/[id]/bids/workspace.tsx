@@ -228,7 +228,7 @@ function ValidityCard({ d }: { d: BidsTab }) {
         subtitle={v.alertRule}
         actions={
           <span className="flex flex-wrap items-center gap-2">
-            <BidAnswersDrawer exerciseId={d.exerciseId} allowed={d.acts.answers} values={v.answerValues} needsReason={v.answersNeedReason} />
+            <BidAnswersDrawer exerciseId={d.exerciseId} allowed={d.acts.answers} values={v.answerValues} needsReason={v.answersNeedReason} people={d.people} />
             {d.publishedThroughWindow && <ExtensionDrawer exerciseId={d.exerciseId} allowed={d.acts.extend} parties={d.parties} people={d.people} expiry={v.expiry} />}
           </span>
         }
@@ -239,6 +239,7 @@ function ValidityCard({ d }: { d: BidsTab }) {
           items={[
             { label: "Valid for", value: v.days == null ? <Badge tone="warn">Not set</Badge> : <span className="flex flex-wrap items-center gap-2">{`${v.days} days from the closing day`}{v.provenance && <FromBadge text={v.provenance} />}</span> },
             { label: "Valid until", value: v.expiry ? <span className="flex flex-wrap items-center gap-2">{v.expiry}{v.state === "EXPIRED" ? <Chip tone="err">Expired</Chip> : v.state === "VALID" ? <Chip tone="ok">Valid</Chip> : null}</span> : v.state === "NOT_SET" ? "Not set" : v.state === "TIME_ZONE_UNSET" ? "Not counted: the organisation's time zone is not set" : "Not counted: no closing is recorded" },
+            ...(v.recordedAfterPublication ? [{ label: "Recorded after publication", value: <span className="break-words">{v.recordedAfterPublication}</span> }] : []),
             ...(v.baseExpiry && v.baseExpiry !== v.expiry ? [{ label: "Before extension", value: v.baseExpiry }] : []),
             { label: "How expiry is counted", value: <span className="flex flex-col items-start gap-1.5"><span className="break-words">{v.reading.text}</span><FromBadge text={v.reading.provenance} /></span> },
             { label: "Alternative bids", value: v.alternatives },

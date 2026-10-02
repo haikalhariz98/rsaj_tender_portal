@@ -36,7 +36,7 @@ import { LATE_DOMAIN, lateAdmissionFault, lateMatterFault, lateMatterSubject } f
 import { judgeReceipt, receiptFaults } from "../src/lib/bids/receipt";
 import type { Finding as BidFinding } from "../src/lib/bids/types";
 import { VALIDITY_ALERT_EVENT } from "../src/lib/bids/validity";
-import { bidFieldsFaults } from "../src/lib/bids/window-fields";
+import { bidFieldsFaults, EXIT_RECORDED_BY_FIELD } from "../src/lib/bids/window-fields";
 import { returnFaults, withdrawFaults } from "../src/lib/bids/withdrawal";
 import { ACT_LABEL } from "../src/lib/labels";
 import { dayIn, dayPlus, dayToDate, instantAt, todayIn } from "../src/lib/dates";
@@ -58,6 +58,10 @@ const CLERK = { id: `${P}p4`, name: "Daniel Anak Jelani" };
 const HOD_CP = { id: `${P}p3`, name: "Chen Wei Ling" };
 
 type Entry = { id: string; organisationId: string; entity: string; entityId: string; entityLabel: string; action: "CREATE" | "UPDATE" | "DELETE"; at: Date; changes: object[]; reason: string; unattributed: boolean };
+
+const fail6 = (what: string): never => {
+  throw new Error(`Demo 6.6: ${what}.`);
+};
 
 function refuse(what: string, fs: readonly BidFinding[]) {
   const b = fs.filter((f) => f.level === "block");
@@ -159,7 +163,7 @@ export async function loadBidsDemo(db: Db, organisationId: string, hooks: BidsDe
   const close16 = (await db.sourcingExercise.findUniqueOrThrow({ where: { id: sx16 }, select: { closingAt: true } })).closingAt!;
   if (dayIn(close16, tz) !== W(1)) throw new Error("Demo 6.6: sx16 does not close on the working day before the load day.");
   // The window was published before the register asked for the validity: recorded once, with a reason (the tab's exit).
-  await answers(db, organisationId, entry, sx16, ref16, { days: 120, provenance: "ASSUMED", alternativesPermitted: false, reason: "Recorded from the instructions to tenderers: the window was published before the register asked for the bids' validity." }, T(W(3), "09:00"));
+  await answers(db, organisationId, entry, sx16, ref16, { days: 120, provenance: "ASSUMED", alternativesPermitted: false, reason: "Recorded from the instructions to tenderers: the window was published before the register asked for the bids' validity.", recordedBy: HOD_CP.name }, T(W(3), "09:00"));
   const marks16 = `Tender ${ref16}, Reservoir inlet main and inlet works, closing ${formatDate(W(1))} 3.00 pm`;
   const r16 = new Receipts(db, organisationId, tz, entry, sx16, ref16);
   await r16.receive(`${P}env1`, { kind: "BID", channel: "COUNTER", markings: marks16, by: CLERK, at: T(W(3), "10:15") });
@@ -238,7 +242,7 @@ async function configure(db: Db, organisationId: string, at: Date, entry: Add) {
 
 // ------------------------------------------------------------------ the window's bid answers (saveBidAnswers)
 
-async function answers(db: Db, organisationId: string, entry: Add, exerciseId: string, ref: string, v: { days: number; provenance: "ASSUMED"; alternativesPermitted: boolean; reason: string }, at: Date) {
+async function answers(db: Db, organisationId: string, entry: Add, exerciseId: string, ref: string, v: { days: number; provenance: "ASSUMED"; alternativesPermitted: boolean; reason: string; recordedBy?: string }, at: Date) {
   const ex = await db.sourcingExercise.findUniqueOrThrow({ where: { id: exerciseId }, select: { status: true, packKindSnapshot: true } });
   const w = await db.exerciseWindow.findUniqueOrThrow({ where: { exerciseId }, select: { id: true, bidValidityDays: true, bidValidityProvenance: true, alternativesPermitted: true } });
   // Published, the alternatives answer is left as it stands (it changes only before publication).
@@ -246,7 +250,9 @@ async function answers(db: Db, organisationId: string, entry: Add, exerciseId: s
   const next = { bidValidityDays: v.days, bidValidityProvenance: v.provenance, alternativesPermitted: published ? w.alternativesPermitted : v.alternativesPermitted };
   refuse(`the bids' validity on ${ref}`, bidFieldsFaults({ status: ex.status, packKind: ex.packKindSnapshot, current: { days: w.bidValidityDays, alternativesPermitted: w.alternativesPermitted }, next: { days: next.bidValidityDays, provenance: next.bidValidityProvenance, alternativesPermitted: next.alternativesPermitted }, reason: v.reason }));
   await db.exerciseWindow.update({ where: { id: w.id }, data: next });
-  entry("ExerciseWindow", w.id, `${ref} · Bids received · window answers`, "UPDATE", at, diffFields(bidAnswerFields(w), bidAnswerFields(next)), v.reason);
+  // As saveBidAnswers: recorded after publication, the trail names the officer (S-6).
+  const by = published ? { [EXIT_RECORDED_BY_FIELD]: `${v.recordedBy ?? fail6("the validity recorded after publication names nobody")}, recorded on their behalf, not signed` } : {};
+  entry("ExerciseWindow", w.id, `${ref} · Bids received · window answers`, "UPDATE", at, diffFields(bidAnswerFields(w), { ...bidAnswerFields(next), ...by }), v.reason);
 }
 
 // ------------------------------------------------------------------ the register's acts, as the actions write them
@@ -490,6 +496,14 @@ export async function checkBidsDemo(db: Db) {
     const l = (await repo.loadExercise(id)) ?? fail(`${id} did not load.`);
     const r = await loadBidRule(await loadBidWindow(id), l.org.id, l.ex.sourcingMethodCode);
     if (!r.frozen || r.committee !== "AS_PUBLISHED" || r.completeness !== "AS_PUBLISHED" || !r.rule?.lateAdmissionCommitteeCode || r.rule.completenessEliminates == null) fail(`${l.ex.reference} was not published with the method's bid-receipt rules recorded.`);
+  }
+  // S-6: sx16's validity, recorded after publication, reads when, by whom and why.
+  {
+    const { validityExitOf } = await import("../src/lib/bids/window-fields");
+    const w16 = await db.exerciseWindow.findUniqueOrThrow({ where: { exerciseId: `${P}sx16` }, select: { id: true, publishedAt: true } });
+    const trail16 = await db.auditEntry.findMany({ where: { entity: "ExerciseWindow", entityId: w16.id }, select: { at: true, reason: true, changes: true } });
+    const exit = validityExitOf(trail16, w16.publishedAt);
+    if (!exit?.by || !exit.reason) fail("sx16's validity, recorded after publication, does not say by whom and why.");
   }
   // sx16: the late envelope admitted, so nothing waits; the validity extended and valid.
   const e16 = await loadEnvelopes(`${P}sx16`);
