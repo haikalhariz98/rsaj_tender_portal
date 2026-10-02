@@ -250,8 +250,10 @@ function CellView({ cell, nowrap = false }: { cell: Cell | undefined; nowrap?: b
         <span className="font-semibold tabular-nums">{formatRM(cell.value)}</span>
       );
     case "badge":
+      // One line where the column holds it; a status wider than its column wraps inside it rather than
+      // running over the next column (6.12 review S-2: "Awaiting conditions precedent" over the Dates column).
       return (
-        <Badge tone={cell.tone} title={cell.text} className="md:whitespace-nowrap">
+        <Badge tone={cell.tone} title={cell.text}>
           {cell.text}
         </Badge>
       );
