@@ -516,24 +516,155 @@ class EvaluationActs {
     const office = c.roster.offices.find((o) => o.code === roleCode)?.nameEn ?? "";
     this.entry(EVALUATION_ENTITY.proposal, p.id, label(e.version, "Kertas Cadangan"), "UPDATE", at, diffFields(null, signerFields({ role, name: who.name, office, day })));
   }
+
+  /// A scan attached to one of the evaluation's owners, as attachDocument judges it (the owner open, the purpose its own).
+  async attach(exerciseId: string, owner: { evaluationId?: string; evaluationMeetingId?: string; evaluationBidderId?: string }, docId: string, purpose: "SIGNED_REPORT" | "SIGNED_PROPOSAL_PAPER" | "TENDERER_CONFIRMATION" | "MEETING_MINUTES", title: string, at: Date) {
+    const { demoPdf, writeDemoDocs } = await import("./demo-documents");
+    const { l, c, label } = await this.ctx(exerciseId);
+    const when = at.toISOString().slice(0, 16);
+    const full = `${title}, ${l.ex.reference}`;
+    const e = await writeDemoDocs(this.db, this.org, [{
+      id: docId, title: full, classId: `${P}dc2`, className: "Certificates", classification: "SULIT", createdAt: when,
+      versions: [{ id: `${docId}v1`, n: 1, bytes: demoPdf([`${full} (demo, SULIT)`, "Signed on paper.", "Listed, never opened in the portal before sign-in."]), mediaType: "application/pdf", filename: `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`, receivedOn: dayIn(at, this.tz), storedAt: when }],
+      attachments: [{ id: `${docId}a1`, purpose, owner, ownerLabel: label(c.current!.version, title), versionId: `${docId}v1`, at: when }],
+    }], `${P}${docId.slice(P.length)}au`, HOD_CP);
+    await e.flush();
+  }
+
+  async meeting(exerciseId: string, id: string, listingNo: number, kind: "CLARIFICATION" | "NEGOTIATION", i: { place: string; heldOn: string }, by: { id: string; name: string }, at: Date) {
+    const { openMeetingFaults } = await import("../src/lib/evaluation/meetings");
+    const { finalRunning } = await import("../src/lib/evaluation/stages");
+    const { EVALUATION_ENTITY, meetingFields } = await import("../src/lib/evaluation/audit-view");
+    const { c, label } = await this.ctx(exerciseId);
+    const e = c.current!;
+    const b = this.bidder(c, listingNo);
+    const request = e.negotiations.filter((x) => x.bidderId === b.id).at(-1) ?? null;
+    refuse(`recording the meeting with bid No. ${listingNo}`, openMeetingFaults({ kind, bidderInRunning: !b.excludedReason && finalRunning(c.facts!).some((x) => x.id === b.id), route: request ? { status: request.approvalInstance.status } : null, openAlready: e.meetings.some((m) => m.bidderId === b.id && m.kind === kind && !m.closedAt), heldOn: i.heldOn, startedOn: dayIn(e.startedAt, this.tz), today: dayIn(at, this.tz), place: i.place, personActive: true }));
+    if (e.recommendation) fail("a meeting after the recommendation");
+    const round = e.meetings.filter((m) => m.bidderId === b.id && m.kind === kind).length + 1;
+    await this.db.evaluationMeeting.create({ data: { id, organisationId: this.org, evaluationId: e.id, bidderId: b.id, kind, round, heldOn: dayToDate(i.heldOn), place: i.place, openedByPersonId: by.id, openedAt: at } });
+    this.entry(EVALUATION_ENTITY.meeting, id, label(e.version, `${kind === "CLARIFICATION" ? "Clarification" : "Negotiation"} with bid No. ${listingNo}, round ${round}`), "CREATE", at, diffFields(null, meetingFields({ kind, round, heldOn: i.heldOn, place: i.place, by: by.name })));
+  }
+
+  async closeMeeting(exerciseId: string, id: string, minutes: string, by: { id: string; name: string }, at: Date) {
+    const { closeMeetingFaults } = await import("../src/lib/evaluation/meetings");
+    const { isLive } = await import("../src/lib/documents/evidence");
+    const { EVALUATION_ENTITY, closeFields } = await import("../src/lib/evaluation/audit-view");
+    const { c, label } = await this.ctx(exerciseId);
+    const e = c.current!;
+    const m = e.meetings.find((x) => x.id === id) ?? fail(`no meeting ${id}`);
+    refuse("closing the meeting", closeMeetingFaults({ kind: m.kind, closed: m.closedAt != null, minutes, liveConfirmations: m.attachments.filter((a) => a.purpose === "TENDERER_CONFIRMATION" && isLive(a)).length, priceBefore: null, priceAfter: null, personActive: true }));
+    await this.db.evaluationMeeting.update({ where: { id }, data: { minutes, closedAt: at, closedByPersonId: by.id } });
+    const listing = c.facts!.bidders.find((b) => b.id === m.bidderId)!.listingNo;
+    this.entry(EVALUATION_ENTITY.meeting, id, label(e.version, `${m.kind === "CLARIFICATION" ? "Clarification" : "Negotiation"} with bid No. ${listing}, round ${m.round}`), "UPDATE", at, diffFields({ closed: null }, closeFields({ minutes, priceBefore: null, priceAfter: null, by: by.name, at }, this.tz)));
+  }
+
+  /// requestNegotiation: the engine's route on the `negotiation` domain, resolved now from the demo's matrix rule.
+  async negotiation(exerciseId: string, id: string, routeId: string, listingNo: number, reason: string, by: { id: string; name: string }, at: Date) {
+    const { negotiationRequestFaults } = await import("../src/lib/evaluation/meetings");
+    const { negotiationRouteForRequester } = await import("../src/lib/evaluation/route");
+    const { finalRunning } = await import("../src/lib/evaluation/stages");
+    const { NEGOTIATION_DOMAIN } = await import("../src/lib/evaluation/types");
+    const { EVALUATION_ENTITY } = await import("../src/lib/evaluation/audit-view");
+    const { evaluationContext } = await import("../src/lib/method/repo");
+    const { exerciseRouteMatter, requesterHolding } = await import("../src/lib/method/approval");
+    const { loadDelegations, loadRoster } = await import("../src/lib/people/load");
+    const { ORGANISATION_CODE } = await import("../src/lib/org");
+    const { pathTo } = await import("../src/lib/organisation/structure");
+    const { holdersFor } = await import("../src/lib/requisition/holders");
+    const { boundaryOperatorFor } = await import("../src/lib/authority/resolve");
+    const { routeCoreFields, stepOrigin } = await import("../src/lib/authority/core-routing");
+    const { windowChangeRejectionSnapshot } = await import("../src/lib/window/edit");
+    const { ACT_LABEL } = await import("../src/lib/labels");
+    const { l, c, label } = await this.ctx(exerciseId);
+    const e = c.current!;
+    const b = this.bidder(c, listingNo);
+    const today = dayIn(at, this.tz);
+    const { issue, ctx, cfg } = await evaluationContext(l.org, l.req, l.ex);
+    if (!issue || !ctx) fail("no approval matrix is in force");
+    const method = cfg.config.methods.find((m) => m.code === l.ex.sourcingMethodCode)!;
+    const value = parseSen(l.ex.estimatedValue.toString());
+    const roster = await loadRoster(ORGANISATION_CODE);
+    const delegations = await loadDelegations(ORGANISATION_CODE);
+    const units = await this.db.orgUnit.findMany({ where: { organisationId: this.org } });
+    const unitPath = pathTo(units as never, l.req.sectionUnitCode || l.req.requestingUnitCode, dayToDate(today)).reverse().map((u) => u.code);
+    const res = negotiationRouteForRequester(ctx!.funder, method, Number(senToDecimalString(value)), requesterHolding((code) => holdersFor(code, unitPath, roster, delegations, today), l.req.requestingPersonId, value, (pid) => roster.people.some((p) => p.id === pid && p.isActive && p.isAvailable)));
+    refuse("asking for the negotiation", negotiationRequestFaults({ bidderInRunning: !b.excludedReason && finalRunning(c.facts!).some((x) => x.id === b.id), reason, pending: e.negotiations.some((x) => x.bidderId === b.id && x.approvalInstance.status === "PENDING"), routeState: res.routeState, personActive: true, today }));
+    if (res.refusal || res.warnings.some((w) => w.level === "err")) fail(`the negotiation's route is refused (${res.refusal ?? res.warnings.map((w) => w.messageEn).join(" ")})`);
+    const rule = issue!.matrix.rules.find((x) => x.ruleKey === res.ruleKey)!;
+    const roleLabel = (code: string) => issue!.matrix.roles[code]?.nameEn ?? "";
+    await this.db.approvalInstance.create({
+      data: {
+        id: routeId, organisationId: this.org, matterKind: "EXERCISE", exerciseId, domain: NEGOTIATION_DOMAIN, value: l.ex.estimatedValue, authorityMatrixId: issue!.id, matrixLabel: issue!.label,
+        ruleKey: rule.ruleKey, ruleLabel: rule.labelEn, ruleClause: rule.clause, boundaryValue: String(issue!.matrix.policy.boundaryValue), boundaryInclusive: issue!.matrix.policy.boundaryInclusive, ruleFollowsBoundarySwitch: rule.followsBoundarySwitch, boundaryOperator: boundaryOperatorFor(rule, issue!.matrix.policy),
+        fundingRouteCode: l.req.fundingRouteCode, fundingOverrideApplied: false, checkedAgainstMatrix: true, warnings: res.warnings as never, status: "PENDING", openedAt: dayToDate(today), createdAt: at,
+        ...windowChangeRejectionSnapshot(at), ...routeCoreFields(res.core, at),
+        steps: { create: res.chain.map((s, i) => ({ id: `${routeId}_s${i + 1}`, sequence: i + 1, roleCode: s.roleCode, roleLabel: roleLabel(s.roleCode), act: s.act, committeeCode: s.committeeCode ?? null, nonDelegable: s.nonDelegable, sourceRuleKey: s.sourceRuleKey, chainOrigin: stepOrigin(s) })) },
+      },
+    });
+    await this.db.negotiationRequest.create({ data: { id, organisationId: this.org, evaluationId: e.id, bidderId: b.id, reason, approvalInstanceId: routeId, requestedByPersonId: by.id, requestedAt: at } });
+    this.entry("ApprovalInstance", routeId, `${l.ex.reference} · ${exerciseRouteMatter(NEGOTIATION_DOMAIN).auditNoun}`, "CREATE", at, diffFields(null, { matter: `Negotiation with bid No. ${listingNo}`, matrix: issue!.label, rule: rule.labelEn, route: res.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "), ifRefused: "not held; may be asked again" }));
+    this.entry(EVALUATION_ENTITY.negotiation, id, label(e.version, `Negotiation with bid No. ${listingNo}`), "CREATE", at, diffFields(null, { negotiationWith: `Bid No. ${listingNo}`, why: reason, askedBy: `${by.name} (recorded on their behalf, not signed)` }), reason);
+  }
+
+  /// recordNegotiationDecision: a named Person's decision on the route's step, judged by 6.1's checks.
+  async decideNegotiation(exerciseId: string, routeId: string, decision: "DONE" | "REJECTED", person: { id: string; name: string }, on: string, reason: string, at: Date) {
+    const { closeRejected } = await import("../src/lib/approvals/rejection-store");
+    const { personDecisionWrite } = await import("../src/lib/authority/decided-step");
+    const { actingOffice } = await import("../src/lib/authority/escalation");
+    const { NEGOTIATION_REFUSED_DECIDED_BY } = await import("../src/lib/evaluation/route");
+    const { NEGOTIATION_DOMAIN } = await import("../src/lib/evaluation/types");
+    const { exerciseRouteMatter } = await import("../src/lib/method/approval");
+    const { loadDelegations, loadRoster } = await import("../src/lib/people/load");
+    const { ORGANISATION_CODE } = await import("../src/lib/org");
+    const { pathTo } = await import("../src/lib/organisation/structure");
+    const { deciderFaults, holdersFor } = await import("../src/lib/requisition/holders");
+    const { l } = await this.ctx(exerciseId);
+    const full = await this.db.approvalInstance.findUniqueOrThrow({ where: { id: routeId }, include: { steps: { orderBy: { sequence: "asc" } } } });
+    const step = full.steps.find((s) => s.decision === "PENDING") ?? fail("no step to decide");
+    const roster = await loadRoster(ORGANISATION_CODE);
+    const delegations = await loadDelegations(ORGANISATION_CODE);
+    const units = await this.db.orgUnit.findMany({ where: { organisationId: this.org } });
+    const unitPath = pathTo(units as never, l.req.sectionUnitCode || l.req.requestingUnitCode, dayToDate(on)).reverse().map((u) => u.code);
+    const p = await this.db.person.findUniqueOrThrow({ where: { id: person.id }, select: { id: true, name: true, isActive: true } });
+    const check = deciderFaults(step, { today: dayIn(at, this.tz), holders: actingOffice(step) ? holdersFor(actingOffice(step)!, unitPath, roster, delegations, on) : { scope: null, holderIds: [], delegates: [] }, declaredConflictIds: [], person: p, requesterId: l.req.requestingPersonId, endorserIds: [], otherDeciderIds: [], earlierDone: true, decidedOn: on, openedOn: storedDay(full.openedAt), value: parseSen(l.ex.estimatedValue.toString()) });
+    if (check.faults.length) fail(`the negotiation's decision is refused (${check.faults.join(", ")})`);
+    await this.db.approvalStep.update({ where: { id: step.id }, data: personDecisionWrite({ decision, person: { id: p.id, name: p.name }, decidedOn: dayToDate(on), delegationId: check.delegationId, reason, recordedAt: at }) });
+    this.entry("ApprovalStep", step.id, `${l.ex.reference} · ${step.roleLabel}`, "UPDATE", at, diffFields({ decision: step.decision }, { decision, decidedBy: p.name, decidedOn: dayToDate(on), recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);
+    const routeLabel = `${l.ex.reference} · ${exerciseRouteMatter(NEGOTIATION_DOMAIN).auditNoun}`;
+    if (decision === "REJECTED") await closeRejected(this.db as never, { organisationId: this.org, routeLabel }, full as never, { apply: "RETURN_TO_ORIGINATOR", source: "CONFIGURED" }, reason, NEGOTIATION_REFUSED_DECIDED_BY);
+  }
 }
 
 // ------------------------------------------------------------------ the load
 
+export interface EvaluationDemoHooks {
+  /// demo.ts's determination of draft exercises (bands, snapshot, trail), as a save writes it.
+  determine(ids: string[]): Promise<void>;
+}
+
 /**
- * Load 6.8's demo on the exercises the earlier demos opened. Returns the sitting it adds, for demo.ts
- * to give its trail (it is in progress, not minuted).
+ * Load 6.8's demo on the exercises the earlier demos opened, and on its own quotation demo_sx21 (67-C3:
+ * 6.7's claim, carried here), taken through 6.2, 6.4, 6.5, 6.6 and 6.7 by their own acts. Returns the
+ * sitting it adds (in progress, not minuted: demo.ts gives it no minuted trail).
  */
-export async function loadEvaluationDemo(db: Db, organisationId: string): Promise<{ sittings: string[] }> {
+export async function loadEvaluationDemo(db: Db, organisationId: string, hooks: EvaluationDemoHooks): Promise<{ sittings: string[] }> {
   const org = await db.organisation.findUniqueOrThrow({ where: { id: organisationId }, select: { timeZone: true } });
   const tz = org.timeZone ?? fail("the organisation's time zone is not set");
   const L = todayIn(new Date(), tz)!;
+  const { W } = calendarOf(L);
+  const T = (d: string, hhmm: string) => instantAt(d, hhmm, tz)!;
   const now = new Date();
   const ago = (m: number) => new Date(now.getTime() - m * 60_000);
   const trail: Entry[] = [];
   let n = 0;
   const entry: Add = (entity, entityId, entityLabel, action, when, changes, reason = "") => trail.push({ id: `${P}evau${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, unattributed: true });
   const acts = new EvaluationActs(db, organisationId, tz, entry);
+  let doc = 110;
+  const nextDoc = () => `${P}doc${doc++}`;
+
+  // ================================================================ sx21: a quotation to its opening (67-C3)
+  await loadQuotation(db, organisationId, tz, W, T, hooks, nextDoc);
 
   // ================================================================ sx16: evaluated, tabled
   const sx16 = `${P}sx16`;
@@ -588,11 +719,215 @@ export async function loadEvaluationDemo(db: Db, organisationId: string): Promis
   await acts.paper(sx16, proc, ago(120));
   await acts.sign(sx16, "CHECKER", HOD_CP, ago(118));
   await acts.sign(sx16, "RECOMMENDER", FD, ago(116));
+  await acts.attach(sx16, { evaluationId: `${P}evl1` }, nextDoc(), "SIGNED_REPORT", "Signed evaluation report", ago(114));
+  await acts.attach(sx16, { evaluationId: `${P}evl1` }, nextDoc(), "SIGNED_PROPOSAL_PAPER", "Signed Kertas Cadangan", ago(113));
   const sittings = await tableAppointment(db, organisationId, tz, entry, { sx: sx16, on: L, at: ago(100) });
+
+  // ================================================================ sx21: under evaluation
+  const sx21 = QUOTATION;
+  const d3 = W(3);
+  const d2 = W(2);
+  const d1 = W(1);
+  await acts.start(sx21, `${P}evl2`, { by: proc, appointedOn: d3, at: T(d3, "10:00") });
+  await acts.score(sx21, 1, "technical", "method", { marks: "16" }, impl, T(d3, "11:00"));
+  await acts.score(sx21, 1, "technical", "experience", { marks: "24" }, impl, T(d3, "11:05"));
+  await acts.score(sx21, 2, "technical", "method", { marks: "14" }, impl, T(d3, "11:10"));
+  await acts.score(sx21, 2, "technical", "experience", { marks: "21" }, impl, T(d3, "11:15"));
+  await acts.submit(sx21, "technical", impl, T(d3, "15:00"));
+  await acts.shortlist(sx21, "shortlist", [1, 2], proc, T(d2, "10:00"));
+  // A clarification with bid No. 2, held, its confirmation attached, closed on its minutes.
+  const meeting = `${P}evmt1`;
+  await acts.meeting(sx21, meeting, 2, "CLARIFICATION", { place: "Northern Region office, 12 Depot Road", heldOn: d2 }, proc, T(d2, "11:30"));
+  await acts.attach(sx21, { evaluationMeetingId: meeting }, nextDoc(), "TENDERER_CONFIRMATION", "Tenderer's written confirmation of the clarification", T(d2, "16:00"));
+  await acts.closeMeeting(sx21, meeting, "The tenderer confirmed in writing that its rate for the roof membrane includes the edge flashings and the access scaffold; nothing else changed.", proc, T(d1, "10:00"));
+  // The financial capacity in progress: bid No. 1's factor and balances recorded, bid No. 2's not yet.
+  await acts.inputs(sx21, 1, { factor: "contractor_materials", balances: ["21000.00", "19800.00", "22400.00"] }, proc, T(d2, "14:00"));
+  // A negotiation asked for with bid No. 1, refused on its route: no negotiation is held (the block shows).
+  await acts.negotiation(sx21, `${P}evng1`, EVALUATION_DEMO_IDS.negotiationRoute, 1, "Its price is the lowest in the running; the Northern Region asks whether the roof membrane's rate can come down.", proc, T(d1, "11:00"));
+  await acts.decideNegotiation(sx21, EVALUATION_DEMO_IDS.negotiationRoute, "REJECTED", { id: `${P}p7`, name: "Gopal Nair" }, d1, "The price is within the estimate: no negotiation is needed.", T(d1, "15:00"));
 
   if (trail.some((e) => e.at > now)) fail("an act is dated after now (X-10 a)");
   await db.auditEntry.createMany({ data: trail as never });
   return { sittings };
+}
+
+// ------------------------------------------------------------------ demo_sx21: a quotation to its opening (67-C3, 6.7's claim)
+
+export const QUOTATION = `${P}sx21`;
+const SX = (n: number) => `DEMO/SX/${String(n).padStart(4, "0")}/2026`;
+const REQ = (n: number) => `DEMO/REQ/${String(n).padStart(4, "0")}/2026`;
+const QUOTATION_COMMITTEE = { id: `${P}c7`, code: "QUOTE_OPENING", nameEn: "Quotation Opening Committee" };
+const Q_CHAIR = { id: `${P}p15`, name: "Mohd Rizal Ahmad" };
+const Q_MEMBER = { id: `${P}p16`, name: "Azlan Shah Demo" };
+const CLERK = { id: `${P}p4`, name: "Daniel Anak Jelani" };
+
+/**
+ * demo_sx21 "Service reservoir roof repairs, Demo Hill", an open quotation of RM280,000 (rq40, route
+ * demo_ai74), taken by the earlier modules' own acts: 6.2's panel and estimate, 6.4's documents (route
+ * demo_ai75), 6.5's window (published with demo_evm2 pinned), three sets sold, 6.6's three envelopes and
+ * the box locked, and 6.7's opening demo_op4 by the Quotation Opening Committee demo_c7 (a panel of two
+ * from outside Contract & Procurement; the open quotation's bids eliminated for an incomplete offer,
+ * ELIMINATE, ASSUMED) — three bids read, all complete and carried; one priced above the quotation ceiling.
+ */
+async function loadQuotation(db: Db, organisationId: string, tz: string, W: (k: number) => string, T: (d: string, t: string) => Date, hooks: EvaluationDemoHooks, nextDoc: () => string) {
+  const { BIG, CHANNELS, COMPLETE_APPENDIX, FIRMS, QUOTATION_FEE_BASIS, quotationWindow, scopeReady, Acts } = await import("./demo-window");
+  const { answer, conditionsFor, confirm, decide, enterAppendix, markAllReady, moveIntoPreparation, startPack, submit } = await import("./demo-tender-docs");
+  const { answers, Receipts } = await import("./demo-bids");
+  const { OpeningActs } = await import("./demo-opening");
+  const { demoPdf, writeDemoDocs } = await import("./demo-documents");
+  const { committeePanelFaults, methodOpeningFaults, personUnitFault } = await import("../src/lib/opening/config");
+  const { ACT_LABEL } = await import("../src/lib/labels");
+  const L = todayIn(new Date(), tz)!;
+  const trail: Entry[] = [];
+  let n = 0;
+  const entry: Add = (entity, entityId, entityLabel, action, when, changes, reason = "") => trail.push({ id: `${P}evqau${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, unattributed: true });
+  const iso = (at: Date) => at.toISOString().slice(0, 16);
+  const docs = async (ds: Parameters<typeof writeDemoDocs>[2]) => {
+    if (!ds.length) return;
+    const e = await writeDemoDocs(db, organisationId, ds, `${P}evqdoc${ds[0].id.slice(P.length)}au`, HOD_CP);
+    await e.flush();
+  };
+
+  // ---- configuration, dated W(16): the committee, its second member, the method's rules, the negotiation's rule
+  const cfgAt = T(W(16), "11:00");
+  const units = (await db.orgUnit.findMany({ where: { organisationId }, select: { code: true } })).map((u) => u.code);
+  if (personUnitFault("NTH", units)) fail("the Northern Region is not configured");
+  await db.person.create({ data: { id: Q_MEMBER.id, organisationId, staffNo: "D016", name: Q_MEMBER.name, email: "azlan.shah@demo.invalid", jobTitle: "Engineer, Northern Region", jobTitleMs: "Jurutera, Wilayah Utara", orgUnitCode: "NTH", department: "Northern Region" } });
+  entry("Person", Q_MEMBER.id, Q_MEMBER.name, "CREATE", cfgAt, diffFields(null, { name: Q_MEMBER.name, jobTitle: "Engineer, Northern Region", orgUnitCode: "NTH" }));
+  const panel = { panelSize: 2, panelSizeProvenance: "ASSUMED" as const, panelExclusionRule: true, panelExcludesUnitCode: "CP", panelExclusionProvenance: "ASSUMED" as const };
+  refuse("the quotation committee's opening panel", committeePanelFaults(panel, { units }, "Invented for the demo.", true));
+  await db.committee.create({ data: { id: QUOTATION_COMMITTEE.id, organisationId, code: QUOTATION_COMMITTEE.code, nameEn: QUOTATION_COMMITTEE.nameEn, nameMs: "Jawatankuasa Pembuka Sebut Harga", mandate: "Opens the quotations received and records the schedule.", governingSource: "Demo policy 7 (invented)", action: "RECOMMENDS", compositionProvenance: "ASSUMED", secretariatRoleCode: "HOD_CP", ...panel, notes: "Panel size and independence rule invented for the demo (ASSUMED)." } });
+  await db.committeeMember.createMany({ data: [{ id: `${P}m63`, committeeId: QUOTATION_COMMITTEE.id, personId: Q_CHAIR.id, position: "CHAIRMAN", provenance: "ASSUMED", effectiveFrom: dayToDate(W(30)) }, { id: `${P}m64`, committeeId: QUOTATION_COMMITTEE.id, personId: Q_MEMBER.id, position: "MEMBER", provenance: "ASSUMED", effectiveFrom: dayToDate(W(30)) }] });
+  entry("Committee", QUOTATION_COMMITTEE.id, QUOTATION_COMMITTEE.nameEn, "CREATE", cfgAt, diffFields(null, { name: QUOTATION_COMMITTEE.nameEn, seats: `${Q_CHAIR.name} (chairman), ${Q_MEMBER.name}`, openingPanelMembers: 2, openingPanelExcludes: "Contract & Procurement", from: "Assumed" }));
+  const committees = (await db.committee.findMany({ where: { organisationId, retiredOn: null }, select: { code: true } })).map((c) => c.code);
+  const method = await db.sourcingMethod.findFirstOrThrow({ where: { organisationId, code: "open_quotation" }, select: { id: true, nameEn: true } });
+  const rule = { committeeCode: QUOTATION_COMMITTEE.code, committeeProvenance: "ASSUMED" as const, unpurchased: null, unpurchasedProvenance: null };
+  refuse("the open quotation's opening rules", methodOpeningFaults(rule as never, { committees }));
+  await db.sourcingMethod.update({ where: { id: method.id }, data: { openingCommitteeCode: rule.committeeCode, openingCommitteeProvenance: "ASSUMED", lateAdmissionCommitteeCode: "QUOTE_CTTE", lateAdmissionProvenance: "ASSUMED", completenessEliminates: true, completenessProvenance: "ASSUMED" } });
+  entry("SourcingMethod", method.id, method.nameEn, "UPDATE", cfgAt, diffFields({ openingCommittee: null, lateAdmissionCommittee: null, anIncompleteBid: null }, { openingCommittee: QUOTATION_COMMITTEE.nameEn, lateAdmissionCommittee: "Quotation Committee", anIncompleteBid: "Eliminated", from: "Assumed" }), "Invented for the demo.");
+  await db.authorityRule.create({ data: { id: `${P}rule45`, authorityMatrixId: `${P}mx1`, ruleKey: "demo.negotiation.quotation", domain: "negotiation", method: "quotation", labelEn: "Negotiation with a quotation's bidder", approverCode: "DIV_HEAD", clause: "DEMO 6.4", sortOrder: 45, generateCoreChain: false, coreChainReason: "One office approves a negotiation: nothing to generate (demo)." } });
+  entry("AuthorityRule", `${P}rule45`, "Negotiation with a quotation's bidder", "CREATE", cfgAt, diffFields(null, { rule: "Negotiation with a quotation's bidder", approver: "Head of Division", act: ACT_LABEL.A ?? "Approve", clause: "DEMO 6.4" }));
+
+  // ---- the requisition, approved (demo_rq40, route demo_ai74)
+  const rq = `${P}rq40`;
+  const value = "280000.00";
+  const title = "Service reservoir roof repairs, Demo Hill";
+  {
+    const raised = W(26);
+    const endorsed = W(25);
+    const checked = W(24);
+    const steps = BIG.chain.map((_, i) => W(23 - i));
+    const approvedOn = steps[steps.length - 1];
+    const movements = await db.budgetMovement.findMany({ where: { budgetCodeId: `${P}bcode9` } });
+    const original = movements.filter((m) => m.kind === "ORIGINAL").reduce((a, m) => a + parseSen(m.amount.toString()), 0n);
+    const balance = original - movements.filter((m) => m.kind === "COMMITMENT" && !m.releasedOn).reduce((a, m) => a + parseSen(m.amount.toString()), 0n);
+    if (balance < parseSen(value)) fail("the budget code has no room for sx21's requisition");
+    const fmt = (x: bigint) => senToDecimalString(x);
+    await db.requisition.create({
+      data: {
+        id: rq, organisationId, reference: REQ(42), origin: "PORTAL", erpRequisitionNo: "XR2026000342", erpNoteNo: "RN/2026/0342", erpRefSource: "MANUAL", erpRefRecordedAt: dayToDate(raised),
+        requestingUnitCode: "NTH", sectionUnitCode: "NTH-MNT", requestingPersonId: `${P}p11`, title, justification: "The service reservoir's roof membrane has failed over the north bay and rainwater reaches the stored water.", needStatement: "Renew the roof membrane and its flashings.",
+        costCentreCode: "CC-200", accountCode: "7400400", budgetCodeId: `${P}bcode9`, siteCode: "NTH-WKS", placeOfDelivery: "Northern network", dateRequired: dayToDate(W(-120)),
+        estimatedValue: value, raisedOn: dayToDate(raised), fundingRouteCode: "capex", fundingSupersedesAuthority: false, sourcingPermitted: true, fundingPosture: "PROCURES", status: "APPROVED", commitmentMovementId: `${P}bm61`,
+        lines: { create: [{ id: `${rq}l1`, lineNo: 1, description: title, estimatedAmount: value }] },
+      },
+    });
+    await db.requisitionEndorsement.createMany({ data: [{ id: `${P}en40a`, requisitionId: rq, tier: "SECTION", unitCode: "NTH-MNT", personId: `${P}p10`, endorsedOn: dayToDate(endorsed) }, { id: `${P}en40b`, requisitionId: rq, tier: "DEPARTMENT", unitCode: "NTH", personId: `${P}p9`, endorsedOn: dayToDate(endorsed) }] });
+    await db.requisitionBudgetCheck.create({ data: { id: `${P}bk40`, requisitionId: rq, checkedAt: dayToDate(checked), asAt: dayToDate(checked), source: "PORTAL_LEDGER", budgetCodeId: `${P}bcode9`, budgetCodeCode: "CAP26-050", requestedAmount: value, actualBudget: fmt(original), balanceAsAt: fmt(balance), approvedAccount: fmt(original - balance), approvedAccountProvenance: "ASSUMED", projectedBalance: fmt(balance - parseSen(value)), verdict: "WITHIN" } });
+    await db.requisitionSplitCheck.create({ data: { id: `${P}sp40`, requisitionId: rq, checkedAt: dayToDate(checked), state: "CLEAR", windowDays: 45, matchOn: ["unit", "accountCode"], aggregateAcrossYear: false, policyProvenance: "ASSUMED", relatedRequisitionIds: [], relatedReferences: [] } });
+    await db.budgetMovement.create({ data: { id: `${P}bm61`, budgetCodeId: `${P}bcode9`, kind: "COMMITMENT", amount: value, occurredOn: dayToDate(approvedOn), reference: REQ(42), description: title } });
+    await db.approvalInstance.create({
+      data: {
+        id: `${P}ai74`, organisationId, matterKind: "REQUISITION", requisitionId: rq, domain: "requisition", value, authorityMatrixId: `${P}mx1`, matrixLabel: "Demo limits, issue 1", ruleKey: BIG.key, ruleLabel: BIG.label, ruleClause: BIG.clause,
+        boundaryValue: "300000", boundaryInclusive: true, ruleFollowsBoundarySwitch: false, boundaryOperator: null, fundingRouteCode: "capex", budgetCheckId: `${P}bk40`, budgetVerdict: "WITHIN", availabilityCheck: "blocking", splitCheckId: `${P}sp40`, splitState: "CLEAR",
+        checkedAgainstMatrix: true, status: "APPROVED", openedAt: dayToDate(checked), closedAt: T(approvedOn, "16:00"), commitOnApproval: true, routeCommitsBudget: true, createdAt: T(checked, "10:00"),
+        steps: { create: BIG.chain.map(([roleCode, roleLabel, act, pid, name], i) => ({ id: `${P}rs40_${i + 1}`, sequence: i + 1, roleCode, roleLabel, act, nonDelegable: act === "MR", sourceRuleKey: BIG.key, decision: "DONE" as const, decidedByPersonId: `${P}${pid}`, decidedByName: name, decidedOn: dayToDate(steps[i]), recordedAt: T(steps[i], "11:00") })) },
+      },
+    });
+    const label = `${REQ(42)} · ${title}`;
+    entry("Requisition", rq, label, "CREATE", T(raised, "09:00"), diffFields(null, { reference: REQ(42), title, requestingUnitCode: "NTH", estimatedValue: value, status: "DRAFT" }));
+    entry("Requisition", rq, label, "UPDATE", T(endorsed, "10:00"), diffFields({ status: "DRAFT" }, { status: "ENDORSED" }));
+    entry("ApprovalInstance", `${P}ai74`, `${REQ(42)} · approval route`, "CREATE", T(checked, "10:00"), diffFields(null, { matrix: "Demo limits, issue 1", rule: BIG.label, route: BIG.chain.map(([, roleLabel, act]) => `${roleLabel} (${ACT_LABEL[act]?.toLowerCase() ?? "acts"})`).join(" → ") }));
+    BIG.chain.forEach(([, roleLabel, , , name], i) => entry("ApprovalStep", `${P}rs40_${i + 1}`, `${REQ(42)} · ${roleLabel}`, "UPDATE", T(steps[i], "11:00"), diffFields({ decision: "PENDING" }, { decision: "DONE", decidedBy: name, decidedOn: dayToDate(steps[i]), recordedOnBehalf: "not signed" })));
+    entry("Requisition", rq, label, "UPDATE", T(approvedOn, "16:00"), diffFields({ status: "PENDING_APPROVAL" }, { status: "APPROVED" }));
+    await db.numberingSeries.update({ where: { id: `${P}n1` }, data: { nextSerial: 43 } });
+  }
+
+  // ---- the exercise, 6.2 and 6.4 by their own acts
+  const sx = QUOTATION;
+  const ref = SX(21);
+  await db.sourcingExercise.create({ data: { id: sx, organisationId, reference: ref, requisitionId: rq, title, estimatedValue: value, sourcingMethodCode: "open_quotation", methodReason: "", status: "DRAFT", contractBasisCode: "ds", createdAt: T(W(22), "10:00") } });
+  await db.exerciseScopePart.create({ data: { id: `${sx}p1`, exerciseId: sx, deliverableKind: "MEASURED_CONSTRUCTION", amount: value, description: title, sortOrder: 1 } });
+  await db.numberingSeries.update({ where: { id: `${P}n5` }, data: { nextSerial: 22 } });
+  await hooks.determine([sx]);
+  const on = W(20);
+  await scopeReady(db, organisationId, tz, sx, ref, 21, on, T, nextDoc, docs as never, entry, value);
+  await moveIntoPreparation(db, organisationId, sx, on, { report: "works" }, entry);
+  const pack = `${P}tpk21`;
+  const packOn = W(19);
+  await startPack(db, organisationId, { id: pack, exerciseId: sx, versionNo: 1, at: T(packOn, "08:30") }, entry);
+  const parts = await db.tenderPackPart.findMany({ where: { packId: pack, source: "UPLOAD" }, orderBy: { sortOrder: "asc" } });
+  await docs(parts.map((p, i) => {
+    const did = nextDoc();
+    const t = `${p.labelSnapshot}, ${ref}`;
+    const at = iso(T(packOn, `08:${String(40 + i).padStart(2, "0")}`));
+    return { id: did, title: t, classId: `${P}dc1`, className: "Contract documents", classification: "INTERNAL" as const, createdAt: at, versions: [{ id: `${did}v1`, n: 1, bytes: demoPdf([t, "Quotation document part (demo)."]), mediaType: "application/pdf", filename: `${t.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`, receivedOn: packOn, storedAt: at }], attachments: [{ id: `${did}a1`, purpose: "TENDER_PART" as const, owner: { tenderPackPartId: p.id }, ownerLabel: `${ref} · Tender pack v1 · part ${p.printedNumber}, ${p.labelSnapshot}`, versionId: `${did}v1`, at }] };
+  }));
+  await enterAppendix(db, organisationId, pack, ref, COMPLETE_APPENDIX, T(packOn, "09:00"), entry);
+  await conditionsFor(db, organisationId, sx, ref, [{ body: "demo_companies", group: 1 }, { body: "demo_contractors", qualifiers: "grade D2, category civil works", group: 2 }], T(packOn, "09:10"), entry);
+  await answer(db, organisationId, sx, ref, { restrictedTender: false, regulatedActivity: true, regulatorPermitCode: "class_1" }, T(packOn, "09:20"), entry);
+  await confirm(db, organisationId, pack, ref, "NO_AMBIGUITY", `${P}p4`, packOn, T(packOn, "09:30"), entry, L);
+  await confirm(db, organisationId, pack, ref, "DRAWINGS_COORDINATED", `${P}p10`, packOn, T(packOn, "09:35"), entry, L);
+  await markAllReady(db, organisationId, pack, ref, T(packOn, "10:00"), entry);
+  const dates = { startOn: W(17), closingDay: W(5) };
+  await submit(db, organisationId, { packId: pack, routeId: `${P}ai75`, at: T(packOn, "11:00"), startOn: dates.startOn, closingDay: dates.closingDay, closingTime: "15:00" }, entry);
+  await decide(db, organisationId, { packId: pack, decision: "DONE", personId: `${P}p3`, decidedOn: W(18), at: T(W(18), "09:00"), reason: "", dates: { ...dates, closingTime: "15:00" } }, entry);
+
+  // ---- 6.5: the window, published (demo_evm2 chosen and pinned), three sets sold
+  const acts = new Acts(db, organisationId, tz, entry);
+  await acts.saveWindow(sx, `${P}win21`, quotationWindow(W(17), W(8)), T(W(17), "09:30"));
+  await acts.feeLines(sx, 21, QUOTATION_FEE_BASIS, T(W(17), "09:40"));
+  await answers(db, organisationId, entry, sx, ref, { days: 90, provenance: "ASSUMED", alternativesPermitted: false, reason: "" }, T(W(17), "09:45"));
+  for (const [i, c] of CHANNELS.entries()) await acts.publication(sx, `${P}pub21_${i + 1}`, c.id, W(17), c.reference(21), T(W(17), `10:0${i}`));
+  await acts.publish(sx, T(W(17), "11:00"));
+  const firms = [{ id: `${P}pty15`, ...FIRMS.teladan }, { id: `${P}pty16`, ...FIRMS.sampel }, { id: `${P}pty17`, ...FIRMS.rekaan }];
+  for (const [i, f] of firms.entries()) await acts.sale(sx, `${P}sale${10 + i}`, { party: f, receiptNo: `FR/26/0044${10 + i}`, collectedBy: "Demo representative", paymentMethod: "Bank draft" }, T(W(15 - i), "10:00"));
+
+  // ---- 6.6: three envelopes in time, the box locked at the closing
+  const close = (await db.sourcingExercise.findUniqueOrThrow({ where: { id: sx }, select: { closingAt: true } })).closingAt!;
+  if (dayIn(close, tz) !== W(5)) fail("sx21 does not close on its closing day");
+  const marks = `Quotation ${ref}, Service reservoir roof repairs, closing ${formatDate(W(5))} 3.00 pm`;
+  const r = new Receipts(db, organisationId, tz, entry, sx, ref);
+  for (const [i, id] of [`${P}env11`, `${P}env12`, `${P}env13`].entries()) await r.receive(id, { kind: "BID", channel: "COUNTER", markings: marks, by: CLERK, at: T(W(7 - i), "10:30") });
+  await r.lock(`${P}box3`, HOD_CP, new Date(close.getTime() + 4 * 60_000), "Locked at the closing by the Head of Contract & Procurement.");
+
+  // ---- 6.7: the opening by the Quotation Opening Committee, the same afternoon
+  const op = new OpeningActs(db, organisationId, tz, entry);
+  const day = W(5);
+  const op4 = `${P}op4`;
+  const sec = (at: Date, s: number) => new Date(at.getTime() + s * 1000);
+  await op.start(sx, op4, { panel: [Q_CHAIR, Q_MEMBER], by: Q_CHAIR, at: T(day, "15:10") });
+  await op.authorise(sx, op4, Q_CHAIR, T(day, "15:11"));
+  await op.authorise(sx, op4, Q_MEMBER, sec(T(day, "15:11"), 30));
+  const offers: [string, string, string, number][] = [[`${P}env11`, `${P}pty15`, "268400.00", 10], [`${P}env12`, `${P}pty16`, "279950.00", 12], [`${P}env13`, `${P}pty17`, "312600.00", 9]];
+  for (const [i, [env, party, price, months]] of offers.entries()) {
+    const at = T(day, `15:${String(13 + i * 4).padStart(2, "0")}`);
+    const bid = `${P}ob${6 + i}`;
+    await op.open(sx, op4, { id: bid, envelopeId: env, bidder: { partyId: party }, price, months, validityDays: 90, cls: "Grade D2", status: "Active", at });
+    await op.initial(sx, bid, Q_CHAIR, sec(at, 60));
+    await op.initial(sx, bid, Q_MEMBER, sec(at, 75));
+    await op.answers(sx, bid, [], sec(at, 120));
+    await op.verdict(sx, bid, "PASS", "", Q_CHAIR, sec(at, 150));
+  }
+  await op.signature(sx, op4, Q_CHAIR, day, T(day, "15:35"));
+  await op.signature(sx, op4, Q_MEMBER, day, sec(T(day, "15:35"), 30));
+  await op.details(sx, op4, 1, "The box was opened at 3.11 pm on the panel's two authorisations. Three quotations in time were opened, each complete, and read aloud. The estimate's paper copy was not in the box.", T(day, "15:37"));
+  await op.finalise(sx, op4, Q_CHAIR, { notInBox: true }, T(day, "15:40"));
+  await op.scan(sx, op4, nextDoc(), "Signed schedule of quotations", T(day, "15:50"));
+  await op.explain(sx, op4, HOD_CP, "The estimate's copy was kept by the Head of Contract & Procurement when it was lodged, not placed in the box. Invented for the demo.", T(day, "15:55"));
+
+  if (trail.some((e) => e.at > new Date())) fail("an act on sx21 is dated after now (X-10 a)");
+  await db.auditEntry.createMany({ data: trail as never });
 }
 
 /**
@@ -644,6 +979,16 @@ export async function checkEvaluationDemo(db: Db) {
   const pinned = await db.sourcingExercise.count({ where: { id: demoRef, evaluationModelPinnedAt: { not: null } } });
   const published = await db.exerciseWindow.count({ where: { exerciseId: demoRef, publishedAt: { not: null } } });
   if (pinned !== published) fail(`${published} demo exercises are published but ${pinned} pinned a model`);
+  // sx21: the quotation (67-C3) mid-evaluation: open, two shortlisted, a clarification closed, a negotiation refused.
+  const q = (await evaluationTabView(QUOTATION)) ?? fail("sx21 did not load");
+  const qc = q.current ?? fail("sx21 has no evaluation");
+  if (qc.state === "Report issued") fail("sx21's report should not be issued");
+  if (qc.meetings.length !== 1 || !qc.meetings[0].closed || qc.meetings[0].confirmations !== 1) fail("sx21's clarification is not closed with its confirmation");
+  if (qc.negotiations.length !== 1 || qc.negotiations[0].status !== "REJECTED") fail("sx21's negotiation request is not refused");
+  const qx = await db.sourcingExercise.findUniqueOrThrow({ where: { id: QUOTATION }, select: { status: true } });
+  if (qx.status !== "UNDER_EVALUATION") fail("sx21 is not Under evaluation");
+  const shortlisted = await db.evaluationBidder.count({ where: { evaluationId: `${P}evl2`, shortlisted: true } });
+  if (shortlisted !== 2) fail(`sx21 shortlists ${shortlisted} bids, not 2`);
 }
 
 // ------------------------------------------------------------------ the wipe

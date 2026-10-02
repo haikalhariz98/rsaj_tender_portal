@@ -1197,7 +1197,7 @@ async function load() {
   await loadOpeningDemo(db, organisationId);
   // 6.8: sx16 evaluated (report issued, Kertas Cadangan checked and recommended) and its appointment
   // tabled at the Tender Board's sitting in progress; every act judged as it is written (X-10).
-  await loadEvaluationDemo(db, organisationId);
+  await loadEvaluationDemo(db, organisationId, { determine: determineExercises });
   // 64-C4 (6.4 Q-1 B): an award on sx16, closed above, opened from its frozen Appendix with one
   // justified difference; its acts judged by the product's own rules, then read back.
   await loadAppendixAward(db);
