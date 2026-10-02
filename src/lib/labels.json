@@ -126,5 +126,17 @@
   "scope_approval": {
     "en": "Scope approval",
     "ms": "Kelulusan skop"
+  },
+  "window_change": {
+    "en": "Change to the invitation window",
+    "ms": "Perubahan tempoh pelawaan"
+  },
+  "award_signatory": {
+    "en": "Award signatory",
+    "ms": "Penandatangan SST"
+  },
+  "late_tender_admission": {
+    "en": "Late tender admission",
+    "ms": "Kemasukan tender lewat"
   }
 }
