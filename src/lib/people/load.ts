@@ -59,6 +59,7 @@ export async function loadRoster(organisationCode: string, client: Tx = db): Pro
       jobTitleMs: p.jobTitleMs,
       department: p.department,
       telephone: p.telephone,
+      orgUnitCode: p.orgUnitCode,
       portalRoleCode: p.portalRoleCode,
       authorityLevel: p.authorityLevel,
       isAvailable: p.isAvailable,

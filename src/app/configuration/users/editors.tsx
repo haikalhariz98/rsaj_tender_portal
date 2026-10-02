@@ -46,7 +46,7 @@ const num = (n: number) => String(n);
  * here, and `savePerson` writes only the keys this form posts, so leaving them out
  * leaves them alone rather than clearing them.
  */
-function personFields(offices: Office[], authorityLevels: string[]): Field[] {
+function personFields(offices: Office[], authorityLevels: string[], units: UnitOption[]): Field[] {
   return [
     { kind: "text", name: "name", label: "Name", required: true },
     { kind: "text", name: "email", label: "Email", required: true },
@@ -72,6 +72,17 @@ function personFields(offices: Office[], authorityLevels: string[]): Field[] {
     },
     { kind: "text", name: "department", label: "Department" },
     { kind: "text", name: "telephone", label: "Telephone" },
+    {
+      kind: "select",
+      name: "orgUnitCode",
+      label: "Unit",
+      // Checked against the structure when saved. Not recorded is allowed: only an opening
+      // panel under an independence rule needs it, and says so.
+      placeholder: "Not recorded",
+      orphanLabel: "A unit no longer in the structure",
+      options: units.map((u) => ({ value: u.code, label: u.nameEn })),
+      hint: "Where a committee excludes a unit from its opening panel, this is what is checked.",
+    },
   ];
 }
 
@@ -105,19 +116,23 @@ function DrawerSection({
   );
 }
 
+export type UnitOption = { code: string; nameEn: string };
+
 export function AddPerson({
   offices,
   authorityLevels,
+  units,
 }: {
   offices: Office[];
   authorityLevels: string[];
+  units: UnitOption[];
 }) {
   return (
     <RecordEditor
       title="Add a person"
       description="Someone on record. Separate from sign-in, which does not exist yet."
       icon={<UserIcon size={18} />}
-      fields={personFields(offices, authorityLevels)}
+      fields={personFields(offices, authorityLevels, units)}
       columns={2}
       action={savePerson}
       submitLabel="Add person"
@@ -134,10 +149,12 @@ export function EditPerson({
   capabilities,
   delegations,
   nameOf,
+  units,
 }: {
   person: Person;
   offices: Office[];
   authorityLevels: string[];
+  units: UnitOption[];
   /// What this person may do, through the roles they hold. Read-only here: it is
   /// granted to the role on the Permissions tab, not to the person.
   capabilities: Capability[];
@@ -151,7 +168,7 @@ export function EditPerson({
       title={person.name}
       description={person.jobTitle ?? undefined}
       icon={<UserIcon size={18} />}
-      fields={[{ kind: "hidden", name: "id" }, ...personFields(offices, authorityLevels)]}
+      fields={[{ kind: "hidden", name: "id" }, ...personFields(offices, authorityLevels, units)]}
       columns={2}
       action={savePerson}
       trigger={{ label: `Edit ${person.name}`, iconOnly: <PencilIcon size={15} /> }}
@@ -238,6 +255,7 @@ export function EditPerson({
         authorityLevel: person.authorityLevel,
         department: person.department,
         telephone: person.telephone,
+        orgUnitCode: person.orgUnitCode ?? null,
       }}
     />
   );

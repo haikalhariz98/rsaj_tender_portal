@@ -77,6 +77,8 @@ export interface UsersData {
   delegations: Delegation[];
   /// What the delegation form needs to attach the signed recommendation.
   upload: UploadView;
+  /// 6.7: the units a person may sit in, by name.
+  units: { code: string; nameEn: string }[];
 }
 
 export function UsersTabs({ initial, ...data }: UsersData & { initial?: string }) {
@@ -95,7 +97,7 @@ export function UsersTabs({ initial, ...data }: UsersData & { initial?: string }
 
 // ------------------------------------------------------------------------ People
 
-function PeoplePanel({ people, offices, holdings, capabilities, grants, delegations }: UsersData) {
+function PeoplePanel({ people, offices, holdings, capabilities, grants, delegations, units }: UsersData) {
   const officeName = (code: string | null) =>
     code ? (offices.find((o) => o.code === code)?.nameEn ?? code) : "";
   const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? "Not on record";
@@ -129,7 +131,7 @@ function PeoplePanel({ people, offices, holdings, capabilities, grants, delegati
         icon={<UserIcon size={17} />}
         title="User register"
         subtitle="Everyone on record, and how to reach them."
-        actions={<AddPerson offices={offices} authorityLevels={authorityLevels} />}
+        actions={<AddPerson offices={offices} authorityLevels={authorityLevels} units={units} />}
         divided={false}
       />
       <DataList
@@ -174,6 +176,7 @@ function PeoplePanel({ people, offices, holdings, capabilities, grants, delegati
                   (d) => d.fromPersonId === id || d.toPersonId === id,
                 )}
                 nameOf={nameOf}
+                units={units}
               />
               <LeaverToggle person={person} />
             </>

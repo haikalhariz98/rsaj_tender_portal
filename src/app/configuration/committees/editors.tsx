@@ -6,6 +6,7 @@ import { buttonClass } from "@/components/ui/button";
 import {
   retireNotApprovedOutcome,
   saveCommittee,
+  saveCommitteePanel,
   saveMember,
   saveNotApprovedOutcome,
   vacateSeat,
@@ -530,6 +531,32 @@ export function RetireNotApprovedOutcome({ id, label }: { id: string; label: str
         className: buttonClass("destructive", "sm"),
       }}
       size="sm"
+    />
+  );
+}
+
+/// 6.7: the committee's opening panel (FR-OPN-002, FR-CTE-011, C-6). Its own drawer, and a change asks for a reason.
+export function EditOpeningPanel({ id, name, values, units }: { id: string; name: string; values: Record<string, string | null>; units: { value: string; label: string }[] }) {
+  return (
+    <RecordEditor
+      title={`Opening panel of ${name}`}
+      description="How many members open bids for this body, and whether a unit's members may not sit on the panel. Each may be left not set: an unset size holds back starting an opening; an unset rule lets the panel be assigned with the warning that it was not checked, kept on the opening. An opening keeps the rules it started under."
+      columns={2}
+      fields={[
+        { kind: "hidden", name: "id" },
+        { kind: "number", name: "panelSize", label: "Members on an opening panel", min: 1, hint: "Another size at an opening needs the authority it is assigned under, the reason and who records it." },
+        { kind: "select", name: "panelSizeProvenance", label: "Where this came from", placeholder: "Not set", options: PROVENANCE_OPTIONS },
+        { kind: "select", name: "panelExclusionRule", label: "An opening panel excludes a unit's members", placeholder: "Not set", options: [{ value: "yes", label: "Yes, one unit's members may not sit" }, { value: "no", label: "No unit is excluded" }] },
+        { kind: "select", name: "panelExcludesUnitCode", label: "The unit excluded", placeholder: "None", options: units, hint: "Its sub-units are excluded with it." },
+        { kind: "select", name: "panelExclusionProvenance", label: "Where the rule came from", placeholder: "Not set", options: PROVENANCE_OPTIONS },
+      ]}
+      showWhen={{ panelExcludesUnitCode: { name: "panelExclusionRule", in: ["yes"] } }}
+      values={{ id, ...values }}
+      reason={{ label: "Why the panel rules are changed" }}
+      action={saveCommitteePanel}
+      submitLabel="Save"
+      trigger={{ label: "Edit", className: buttonClass("ghost", "sm"), ariaLabel: `Edit the opening panel of ${name}` }}
+      size="lg"
     />
   );
 }

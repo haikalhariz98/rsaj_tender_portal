@@ -8,10 +8,12 @@ import { OPENING_FINDING_CODES, openingFindingText } from "./labels";
 /**
  * Codes never reach a screen (AGENTS.md rule 5): every code a rule in this directory can return has
  * words, read from the fault types' own declarations, and no word is a code or names a price.
+ * `config.ts` is Configuration's, not the opening's: its codes have their own words, checked whole by
+ * the type of `OPENING_CONFIG_FAULT_TEXT` and in `config.test.ts`.
  */
 
 const dir = join(process.cwd(), "src/lib/opening");
-const sources = readdirSync(dir).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && f !== "labels.ts").map((f) => readFileSync(join(dir, f), "utf8"));
+const sources = readdirSync(dir).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && f !== "labels.ts" && f !== "config.ts").map((f) => readFileSync(join(dir, f), "utf8"));
 const declared = new Set<string>();
 for (const src of sources) {
   for (const m of src.matchAll(/export type \w+Fault =([\s\S]*?);/g)) for (const c of m[1].matchAll(/"([A-Z_]+)"/g)) declared.add(c[1]);

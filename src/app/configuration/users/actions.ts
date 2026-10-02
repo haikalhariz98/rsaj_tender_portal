@@ -21,6 +21,7 @@ import { faultsIn, type Delegation, type DelegationFault } from "@/lib/people/de
 import { lockDelegation } from "@/lib/people/lock";
 import { standsOnTextBeforeAttachments } from "@/lib/people/recommendation";
 import { ORGANISATION_CODE } from "@/lib/org";
+import { OPENING_CONFIG_FAULT_TEXT, personUnitFault } from "@/lib/opening/config";
 import { checkPeriod, FormReader } from "@/lib/validate";
 import { issuedInForce } from "@/lib/authority/issue";
 import { inProgressSittingRefusal } from "@/lib/committee/sittings";
@@ -69,7 +70,15 @@ export async function savePerson(_prev: FormState, data: FormData): Promise<Form
     // The switch reads "Currently away", so it is stored inverted. Naming the input
     // after what it says beats a box whose label and value disagree.
     isAvailable: !r.bool("isAway"),
+    // 6.7 (C-6): the unit they sit in, checked against the structure. Not recorded is allowed.
+    orgUnitCode: r.optionalText("orgUnitCode"),
   };
+
+  if (v.orgUnitCode) {
+    const units = await db.orgUnit.findMany({ where: { organisationId: orgId }, select: { code: true } });
+    const fault = personUnitFault(v.orgUnitCode, units.map((u) => u.code));
+    if (fault) r.reject("orgUnitCode", OPENING_CONFIG_FAULT_TEXT[fault]);
+  }
 
   if (v.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email)) {
     r.reject("email", "That does not look like an email address.");

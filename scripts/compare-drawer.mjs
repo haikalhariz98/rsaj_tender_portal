@@ -138,6 +138,13 @@ function fingerprint(html) {
  * `theirs: null` means the sample has no such field at all.
  */
 const DECIDED_FIELDS = {
+  person: [
+    {
+      ours: "Unit [select]",
+      theirs: null,
+      why: "6.7 C-6: an opening panel's independence rule is judged by the unit a member sits in; the free-text department cannot be checked against the structure",
+    },
+  ],
   "budget-code": [
     {
       ours: "Active period [input, required]",

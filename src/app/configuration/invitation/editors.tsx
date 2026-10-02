@@ -2,8 +2,9 @@ import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 import { RULE_LABEL } from "@/lib/window/labels";
 import { BID_RULES_APPLY_TEXT } from "@/lib/bids/config";
+import { OPENING_RULES_APPLY_TEXT } from "@/lib/opening/config";
 
-import { saveMethodBidRule, importHolidayYear, removeFeeFloor, removeHoliday, saveCalendar, saveCalendarYear, saveChannel, saveFeeFloor, saveHoliday, saveWindowPolicy, setCalendarRetired, setChannelRetired } from "./actions";
+import { saveMethodBidRule, saveMethodOpeningRule, saveOpeningPolicy, importHolidayYear, removeFeeFloor, removeHoliday, saveCalendar, saveCalendarYear, saveChannel, saveFeeFloor, saveHoliday, saveWindowPolicy, setCalendarRetired, setChannelRetired } from "./actions";
 
 /**
  * Configuration › Invitation controls drawers. No field carries a default: a value left not set
@@ -299,6 +300,59 @@ export function EditMethodBidRule({ id, name, values, committees }: { id: string
       action={saveMethodBidRule}
       submitLabel="Save"
       trigger={{ label: "Edit", className: ghost, ariaLabel: `Edit the bid receipt rules for ${name}` }}
+      size="lg"
+    />
+  );
+}
+
+// ------------------------------------------------------------------ 6.7: a method's opening rules, and the opening policy
+
+export function EditMethodOpeningRule({ id, name, values, committees }: { id: string; name: string; values: Record<string, string>; committees: Option[] }) {
+  return (
+    <RecordEditor
+      title={`Opening under ${name}`}
+      description={`Each may be left not set: it then holds back what it governs and says so. ${OPENING_RULES_APPLY_TEXT}`}
+      columns={2}
+      fields={[
+        hidden("id"),
+        { kind: "select", name: "openingCommitteeCode", label: "Committee whose panel opens the bids", placeholder: "Not set", options: committees, hint: "Its opening panel size and independence rule are set under Committees." },
+        provenance("openingCommitteeProvenance"),
+        { kind: "select", name: "unpurchasedBidConsequence", label: "A bid by a bidder with no live purchase, or not invited", placeholder: "Not set", options: [{ value: "ELIMINATE", label: "Is not carried to evaluation" }, { value: "REPORT", label: "Is carried, and reported to the committee" }] },
+        provenance("unpurchasedProvenance"),
+      ]}
+      values={{ id, ...values }}
+      reason={{ label: "Why the rules are changed" }}
+      action={saveMethodOpeningRule}
+      submitLabel="Save"
+      trigger={{ label: "Edit", className: ghost, ariaLabel: `Edit the opening rules for ${name}` }}
+      size="lg"
+    />
+  );
+}
+
+export function EditOpeningPolicy({ values }: { values: Record<string, string> }) {
+  return (
+    <RecordEditor
+      title="Edit the opening policy"
+      description={`How the schedule counts the tenderers invited, and the words the Grand Summary uses. A count not set holds finalising back; words not set read the product's own. ${OPENING_RULES_APPLY_TEXT}`}
+      columns={2}
+      fields={[
+        { kind: "select", name: "invitedCountReading", label: "The tenderers invited are", placeholder: "Not set", options: [{ value: "PURCHASERS", label: "The bidders who bought the documents" }, { value: "INVITEES", label: "The bidders sent a letter of invitation" }] },
+        provenance("invitedCountProvenance"),
+        { kind: "text", name: "qualifiedLabelEn", label: "A bid that passed", hint: "The Grand Summary's word. Empty: Qualified." },
+        { kind: "text", name: "qualifiedLabelMs", label: "A bid that passed, in Malay" },
+        { kind: "text", name: "notQualifiedLabelEn", label: "A bid that did not pass", hint: "Empty: Not qualified." },
+        { kind: "text", name: "notQualifiedLabelMs", label: "A bid that did not pass, in Malay" },
+        { kind: "text", name: "lowestLabelEn", label: "The lowest qualifying offer", hint: "Empty: Lowest qualifying offer." },
+        { kind: "text", name: "lowestLabelMs", label: "The lowest qualifying offer, in Malay" },
+        provenance("labelsProvenance", "Where the words came from"),
+        { kind: "text", name: "governingSource", label: "Where it is written" },
+      ]}
+      values={values}
+      reason={{ label: "Why the policy is changed" }}
+      action={saveOpeningPolicy}
+      submitLabel="Save"
+      trigger={{ label: "Edit the opening policy", className: secondary }}
       size="lg"
     />
   );

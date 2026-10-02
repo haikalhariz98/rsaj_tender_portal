@@ -234,6 +234,7 @@ async function build(which: string, React: typeof import("react")) {
     },
     offices,
     authorityLevels: ["Level one", "Level two"],
+    units: [{ code: "ONE", nameEn: "First department" }],
     capabilities: CAPABILITIES,
     delegations: [
       {

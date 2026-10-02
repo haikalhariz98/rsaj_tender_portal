@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { END_DAY_LABEL } from "@/lib/effective-text";
 
 import type { FormState } from "@/components/record-editor";
-import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
+import { auditedCreate, auditedUpdate, writeAudit } from "@/lib/audit/record";
+import { diffFields } from "@/lib/audit/diff";
+import { committeePanelFaults, committeePanelToSave, OPENING_CONFIG_FAULT_TEXT, type CommitteePanelDraft } from "@/lib/opening/config";
 import { db } from "@/lib/db";
 import { periodsOverlap } from "@/lib/effective";
 import { ORGANISATION_CODE } from "@/lib/org";
@@ -451,4 +453,55 @@ export async function retireNotApprovedOutcome(_prev: FormState, data: FormData)
   );
   revalidatePath(PATH);
   return { ok: true };
+}
+
+const provWords = (p: string | null) => (p === "STATED" ? "Stated" : p === "OBSERVED" ? "Observed" : p === "ASSUMED" ? "Assumed" : null);
+
+/**
+ * A committee's opening panel (6.7 FR-OPN-002, FR-CTE-011, C-6): how many members an opening panel
+ * of this body has, and whether it excludes the members of one unit. Each may be left not set: an
+ * unset size blocks starting an opening with this committee; an unset independence rule lets a panel
+ * be assigned with the warning "panel not checked", frozen on the opening. Its own action and its own
+ * drawer, so a change asks for a reason without touching the committee's other settings. Locks the
+ * committee's row, judges the draft (`committeePanelFaults`) and writes with its audit row.
+ */
+export async function saveCommitteePanel(_prev: FormState, data: FormData): Promise<FormState> {
+  const orgId = await organisationId();
+  if (!orgId) return NO_ORG;
+  const id = String(data.get("id") ?? "");
+  const r = new FormReader(data);
+  const exclusion = r.choice("panelExclusionRule", "An opening panel excludes a unit", ["yes", "no"] as const);
+  const draft: CommitteePanelDraft = {
+    panelSize: r.int("panelSize", "Members on an opening panel", { min: 1 }),
+    panelSizeProvenance: r.choice("panelSizeProvenance", "Where this came from", PROVENANCE),
+    panelExclusionRule: exclusion === "yes" ? true : exclusion === "no" ? false : null,
+    panelExcludesUnitCode: r.optionalText("panelExcludesUnitCode"),
+    panelExclusionProvenance: r.choice("panelExclusionProvenance", "Where this came from", PROVENANCE),
+  };
+  if (r.failed) return { ok: false, errors: r.errors };
+  const reason = String(data.get("reason") ?? "");
+  return db.$transaction(async (tx): Promise<FormState> => {
+    await tx.$queryRaw`SELECT id FROM "Committee" WHERE id = ${id} FOR UPDATE`;
+    const before = await tx.committee.findFirst({ where: { id, organisationId: orgId }, select: { nameEn: true, panelSize: true, panelSizeProvenance: true, panelExclusionRule: true, panelExcludesUnitCode: true, panelExclusionProvenance: true } });
+    if (!before) return { ok: false, message: "That committee no longer exists." };
+    const units = await tx.orgUnit.findMany({ where: { organisationId: orgId }, select: { code: true, nameEn: true } });
+    const v = committeePanelToSave(draft);
+    const { nameEn, ...was } = before;
+    const changed = (Object.keys(v) as (keyof typeof v)[]).some((k) => v[k] !== was[k]);
+    const faults = committeePanelFaults(draft, { units: units.map((u) => u.code) }, reason, changed);
+    if (faults.length) return { ok: false, errors: Object.fromEntries(faults.map((f) => [f.field, OPENING_CONFIG_FAULT_TEXT[f.code]])) };
+    if (!changed) return { ok: true };
+    await tx.committee.update({ where: { id }, data: v });
+    // Codes never reach History: the unit by its name.
+    const words = (c: typeof v) => ({
+      openingPanelMembers: c.panelSize ?? "Not set",
+      openingPanelMembersFrom: c.panelSize == null ? null : provWords(c.panelSizeProvenance),
+      openingPanelExcludes: c.panelExclusionRule == null ? "Not set" : c.panelExclusionRule ? (units.find((u) => u.code === c.panelExcludesUnitCode)?.nameEn ?? "A unit no longer in the structure") : "No unit",
+      openingPanelExclusionFrom: c.panelExclusionRule == null ? null : provWords(c.panelExclusionProvenance),
+    });
+    await writeAudit(tx, { organisationId: orgId, entity: "Committee", entityId: id, entityLabel: nameEn, reason }, "UPDATE", diffFields(words(was), words(v)));
+    revalidatePath(PATH);
+    revalidatePath(`${PATH}/[code]`, "page");
+    return { ok: true };
+  });
 }

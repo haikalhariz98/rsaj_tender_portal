@@ -3,6 +3,7 @@ import { holdingsOn, rosterFaults } from "@/lib/people/roster";
 import { inForce } from "@/lib/people/delegation";
 import { uploadContext } from "@/lib/documents/read";
 import { uploadView } from "@/lib/documents/views";
+import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 
 import { UsersTabs } from "./panels";
@@ -27,11 +28,13 @@ export default async function UsersPage({
 }) {
   const on = new Date();
   const { tab } = await searchParams;
-  const [roster, grants, delegations, upload] = await Promise.all([
+  const [roster, grants, delegations, upload, units] = await Promise.all([
     loadRoster(ORGANISATION_CODE),
     loadGrants(ORGANISATION_CODE),
     loadDelegations(ORGANISATION_CODE),
     uploadContext(),
+    // 6.7 (C-6): the units a person may sit in, for an opening panel's independence rule.
+    db.orgUnit.findMany({ where: { organisation: { code: ORGANISATION_CODE } }, orderBy: { nameEn: "asc" }, select: { code: true, nameEn: true } }),
   ]);
 
   const holdings = holdingsOn(roster, on).map((h) => ({
@@ -68,6 +71,7 @@ export default async function UsersPage({
         grants={grants.grants}
         delegations={delegations}
         upload={uploadView(upload ?? EMPTY_UPLOAD)}
+        units={units}
       />
     </>
   );

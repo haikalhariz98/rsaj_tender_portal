@@ -18,8 +18,11 @@ import { ORGANISATION_CODE } from "@/lib/org";
 import { senToDecimalString, parseSen } from "@/lib/money";
 import { invitationConfig } from "@/lib/window/read";
 import { BID_RULE_UNSET, BID_RULES_APPLY_TEXT, bidRulesNotSet, invitationBadge } from "@/lib/bids/config";
+import { OPENING_RULE_UNSET, OPENING_RULES_APPLY_TEXT, openingPolicyNotSet, openingRulesNotSet } from "@/lib/opening/config";
+import { PRODUCT_SUMMARY_LABELS } from "@/lib/opening/grand-summary";
+import { INVITED_READING_LABEL, UNPURCHASED_LABEL } from "@/lib/opening/labels";
 
-import { CalendarDrawer, ChannelDrawer, EditMethodBidRule, EditWindowPolicy, FloorDrawer, HolidayDrawer, ImportYearDrawer, RemoveFloorDrawer, RemoveHolidayDrawer, RetireCalendarDrawer, RetireChannelDrawer, YearDrawer } from "./editors";
+import { CalendarDrawer, ChannelDrawer, EditMethodBidRule, EditMethodOpeningRule, EditOpeningPolicy, EditWindowPolicy, FloorDrawer, HolidayDrawer, ImportYearDrawer, RemoveFloorDrawer, RemoveHolidayDrawer, RetireCalendarDrawer, RetireChannelDrawer, YearDrawer } from "./editors";
 
 export const dynamic = "force-dynamic";
 
@@ -69,17 +72,19 @@ export default async function InvitationControlsPage() {
     );
   }
   const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true } });
-  const [row, rawChannels, rawFloors, rawCalendars, bidMethods, committees] = org
+  const [row, rawChannels, rawFloors, rawCalendars, bidMethods, committees, openingPolicy] = org
     ? await Promise.all([
         db.windowPolicy.findUnique({ where: { organisationId: org.id } }),
         db.publicationChannel.findMany({ where: { organisationId: org.id } }),
         db.documentFeeFloor.findMany({ where: { organisationId: org.id } }),
         db.holidayCalendar.findMany({ where: { organisationId: org.id }, include: { holidays: { select: { id: true, day: true } }, years: { select: { id: true } } } }),
         // 6.6: the methods that receive bids (a tender or quotation pack), with their bid-receipt rules.
-        db.sourcingMethod.findMany({ where: { organisationId: org.id, retiredOn: null, documentPackKind: { in: ["TENDER", "QUOTATION"] } }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { id: true, nameEn: true, lateAdmissionCommitteeCode: true, lateAdmissionProvenance: true, minimumBids: true, minimumBidsProvenance: true, completenessEliminates: true, completenessProvenance: true } }),
+        db.sourcingMethod.findMany({ where: { organisationId: org.id, retiredOn: null, documentPackKind: { in: ["TENDER", "QUOTATION"] } }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { id: true, nameEn: true, lateAdmissionCommitteeCode: true, lateAdmissionProvenance: true, minimumBids: true, minimumBidsProvenance: true, completenessEliminates: true, completenessProvenance: true, openingCommitteeCode: true, openingCommitteeProvenance: true, unpurchasedBidConsequence: true, unpurchasedProvenance: true } }),
         db.committee.findMany({ where: { organisationId: org.id }, orderBy: { nameEn: "asc" }, select: { code: true, nameEn: true, retiredOn: true } }),
+        // 6.7: the opening policy (OD-9) and the Grand Summary's words.
+        db.openingPolicy.findUnique({ where: { organisationId: org.id } }),
       ])
-    : [null, [], [], [], [], []];
+    : [null, [], [], [], [], [], null];
   const p = c.policy.values;
   const rule = (label: string) => c.policy.rules.find((r) => r.label === label)!;
   const named = <T extends { id: string }>(xs: T[], id: string | null) => xs.find((x) => x.id === id);
@@ -116,6 +121,11 @@ export default async function InvitationControlsPage() {
 
   // S-3: the bid-receipt rules are counted beside the window rules, never hidden behind an all-set badge.
   const badge = invitationBadge(c.notSet, bidRulesNotSet(bidMethods));
+  // 6.7: the opening rules are said on their own cards, counted there; they never change the window's badge.
+  const openingNotSet = openingRulesNotSet(bidMethods) + openingPolicyNotSet(openingPolicy);
+  const liveCommittees = committees.filter((x) => x.retiredOn == null).map((x) => ({ value: x.code, label: x.nameEn }));
+  const op = openingPolicy;
+  const word = (en: string | null | undefined, ms: string | null | undefined) => (en ? [en, ms].filter(Boolean).join(" · ") : "Not set");
 
   return (
     <>
@@ -199,6 +209,65 @@ export default async function InvitationControlsPage() {
                       <RowActions>
                         <HistoryButton iconOnly entity="SourcingMethod" entityId={m.id} label={m.nameEn} />
                         <EditMethodBidRule id={m.id} name={m.nameEn} committees={committees.filter((c) => c.retiredOn == null).map((c) => ({ value: c.code, label: c.nameEn }))} values={{ lateAdmissionCommitteeCode: m.lateAdmissionCommitteeCode ?? "", lateAdmissionProvenance: m.lateAdmissionProvenance ?? "", minimumBids: m.minimumBids == null ? "" : String(m.minimumBids), minimumBidsProvenance: m.minimumBidsProvenance ?? "", completenessEliminates: tri(m.completenessEliminates), completenessProvenance: m.completenessProvenance ?? "" }} />
+                      </RowActions>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Card>
+
+        <Card id="opening" className="scroll-mt-24 overflow-hidden">
+          <CardHeader
+            icon={<SlidersIcon size={17} />}
+            title={<span className="inline-flex flex-wrap items-center gap-2">Opening{openingNotSet > 0 && <Badge tone="warn">{openingNotSet} not set</Badge>}</span>}
+            subtitle={`How the schedule counts the tenderers invited, the Grand Summary's words, and, by method, the committee that opens the bids and what follows from a bid with no live purchase. ${OPENING_RULES_APPLY_TEXT}`}
+            actions={
+              <span className="flex flex-wrap items-center gap-1">
+                {op && <HistoryButton iconOnly entity="OpeningPolicy" entityId={op.id} label="the opening policy" />}
+                <EditOpeningPolicy values={{ invitedCountReading: op?.invitedCountReading ?? "", invitedCountProvenance: op?.invitedCountProvenance ?? "", qualifiedLabelEn: op?.qualifiedLabelEn ?? "", qualifiedLabelMs: op?.qualifiedLabelMs ?? "", notQualifiedLabelEn: op?.notQualifiedLabelEn ?? "", notQualifiedLabelMs: op?.notQualifiedLabelMs ?? "", lowestLabelEn: op?.lowestLabelEn ?? "", lowestLabelMs: op?.lowestLabelMs ?? "", labelsProvenance: op?.labelsProvenance ?? "", governingSource: op?.governingSource ?? "" }} />
+              </span>
+            }
+          />
+          <CardBody className="border-b border-line/70">
+            <KeyValues
+              columns={2}
+              items={[
+                setting("The tenderers invited are", <Setting value={op?.invitedCountReading ? INVITED_READING_LABEL[op.invitedCountReading] : "Not set"} unset={OPENING_RULE_UNSET.reading} source={op?.invitedCountProvenance ?? null} />),
+                setting("Where it is written", op?.governingSource || "No source is cited"),
+                setting("A bid that passed", <Setting value={word(op?.qualifiedLabelEn, op?.qualifiedLabelMs)} unset={`${OPENING_RULE_UNSET.labels} "${PRODUCT_SUMMARY_LABELS.qualified}".`} source={op?.qualifiedLabelEn ? op.labelsProvenance : undefined} />),
+                setting("A bid that did not pass", <Setting value={word(op?.notQualifiedLabelEn, op?.notQualifiedLabelMs)} unset={`${OPENING_RULE_UNSET.labels} "${PRODUCT_SUMMARY_LABELS.notQualified}".`} source={op?.notQualifiedLabelEn ? op.labelsProvenance : undefined} />),
+                setting("The lowest qualifying offer", <Setting value={word(op?.lowestLabelEn, op?.lowestLabelMs)} unset={`${OPENING_RULE_UNSET.labels} "${PRODUCT_SUMMARY_LABELS.lowest}".`} source={op?.lowestLabelEn ? op.labelsProvenance : undefined} />),
+              ]}
+            />
+          </CardBody>
+          {bidMethods.length === 0 ? (
+            <EmptyState title="No method takes bids">Only a method whose tender documents are a tender or a quotation has its bids opened.</EmptyState>
+          ) : (
+            <Table minWidth={720}>
+              <colgroup>
+                <col />
+                <col style={{ width: 240 }} />
+                <col style={{ width: 260 }} />
+                <ActionsCol icons={1} labelled={1} />
+              </colgroup>
+              <THead>
+                <Th>Method</Th>
+                <Th>Bids opened by</Th>
+                <Th>A bid with no live purchase</Th>
+                <Th className="text-right">Actions</Th>
+              </THead>
+              <tbody>
+                {bidMethods.map((m) => (
+                  <Tr key={m.id}>
+                    <Td label="Method"><CellStack title={m.nameEn} /></Td>
+                    <Td label="Bids opened by"><Setting value={m.openingCommitteeCode ? (committees.find((x) => x.code === m.openingCommitteeCode)?.nameEn ?? "A committee no longer configured") : "Not set"} unset={OPENING_RULE_UNSET.committee} source={m.openingCommitteeProvenance} /></Td>
+                    <Td label="A bid with no live purchase"><Setting value={m.unpurchasedBidConsequence ? UNPURCHASED_LABEL[m.unpurchasedBidConsequence] : "Not set"} unset={OPENING_RULE_UNSET.unpurchased} source={m.unpurchasedProvenance} /></Td>
+                    <Td>
+                      <RowActions>
+                        <HistoryButton iconOnly entity="SourcingMethod" entityId={m.id} label={m.nameEn} />
+                        <EditMethodOpeningRule id={m.id} name={m.nameEn} committees={liveCommittees} values={{ openingCommitteeCode: m.openingCommitteeCode ?? "", openingCommitteeProvenance: m.openingCommitteeProvenance ?? "", unpurchasedBidConsequence: m.unpurchasedBidConsequence ?? "", unpurchasedProvenance: m.unpurchasedProvenance ?? "" }} />
                       </RowActions>
                     </Td>
                   </Tr>

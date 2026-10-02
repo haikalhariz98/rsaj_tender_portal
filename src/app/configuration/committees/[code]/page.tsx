@@ -5,7 +5,9 @@ import { RecordCrumb } from "@/components/shell/record-crumb";
 import { CalendarIcon, RouteIcon, ScaleIcon, UsersIcon } from "@/components/icons";
 import { DataList, type Row } from "@/components/data-list";
 import { getCommittee, rulesRoutingTo } from "@/lib/committee/repo";
-import { AddMember, EditMember, VacateSeat } from "../editors";
+import { AddMember, EditMember, EditOpeningPanel, VacateSeat } from "../editors";
+import { db } from "@/lib/db";
+import { OPENING_RULE_UNSET } from "@/lib/opening/config";
 import { assessQuorum, quorumFaults } from "@/lib/committee/quorum";
 import { seatsInForce } from "@/lib/committee/seats";
 import { alternatesOn, votingSeatsOn } from "@/lib/committee/sitting";
@@ -51,6 +53,9 @@ export default async function CommitteePage({
   const today = new Date();
   const seats = seatsInForce(committee.members, today);
   const roster = await loadRoster(ORGANISATION_CODE);
+  // 6.7: the units an opening panel may exclude, by name (codes never reach the screen).
+  const units = await db.orgUnit.findMany({ where: { organisationId: committee.organisationId }, orderBy: { nameEn: "asc" }, select: { code: true, nameEn: true } });
+  const excludedUnit = committee.panelExcludesUnitCode ? (units.find((u) => u.code === committee.panelExcludesUnitCode)?.nameEn ?? "A unit no longer in the structure") : null;
   const people = roster.people.filter((p) => p.isActive).map((p) => ({ id: p.id, name: p.name }));
   const offices = roster.offices.map((o) => ({ code: o.code, nameEn: o.nameEn }));
 
@@ -256,6 +261,59 @@ export default async function CommitteePage({
             </CardBody>
           </Card>
         </div>
+
+        <Card>
+          <CardHeader
+            icon={<UsersIcon size={17} />}
+            title="Opening panel"
+            subtitle="Where a sourcing method names this body to open its bids: how many members open them, and who may not. An opening keeps the rules it started under."
+            actions={
+              <EditOpeningPanel
+                id={committee.id}
+                name={committee.nameEn}
+                units={units.map((u) => ({ value: u.code, label: u.nameEn }))}
+                values={{
+                  panelSize: committee.panelSize == null ? "" : String(committee.panelSize),
+                  panelSizeProvenance: committee.panelSizeProvenance ?? "",
+                  panelExclusionRule: committee.panelExclusionRule == null ? "" : committee.panelExclusionRule ? "yes" : "no",
+                  panelExcludesUnitCode: committee.panelExcludesUnitCode ?? "",
+                  panelExclusionProvenance: committee.panelExclusionProvenance ?? "",
+                }}
+              />
+            }
+          />
+          <CardBody>
+            <KeyValues
+              columns={2}
+              items={[
+                {
+                  label: "Members on an opening panel",
+                  value:
+                    committee.panelSize != null ? (
+                      <span className="inline-flex flex-wrap items-center gap-2">
+                        {committee.panelSize}
+                        <ProvenanceBadge value={committee.panelSizeProvenance} />
+                      </span>
+                    ) : (
+                      <GapValue text={OPENING_RULE_UNSET.panelSize} />
+                    ),
+                },
+                {
+                  label: "Excluded from the panel",
+                  value:
+                    committee.panelExclusionRule != null ? (
+                      <span className="inline-flex flex-wrap items-center gap-2">
+                        {committee.panelExclusionRule ? `Members of ${excludedUnit ?? "a unit not named"} and the units under it` : "No unit is excluded"}
+                        <ProvenanceBadge value={committee.panelExclusionProvenance} />
+                      </span>
+                    ) : (
+                      <GapValue text={OPENING_RULE_UNSET.exclusion} />
+                    ),
+                },
+              ]}
+            />
+          </CardBody>
+        </Card>
 
         <Card className="overflow-hidden">
           <CardHeader

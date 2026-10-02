@@ -17,6 +17,7 @@ import { DAY_RULE_LABEL } from "@/lib/window/labels";
 import { ADVERTISEMENT_DAY_RULES, type AdvertisementDayRule } from "@/lib/window/types";
 import { FormReader } from "@/lib/validate";
 import { BID_RULE_FAULT_TEXT, bidRuleFaults, bidRuleToSave } from "@/lib/bids/config";
+import { methodOpeningFaults, methodOpeningToSave, OPENING_CONFIG_FAULT_TEXT, openingPolicyFaults, openingPolicyToSave, type OpeningConfigFault } from "@/lib/opening/config";
 
 /**
  * Configuration › Invitation controls (6.5): the window policy, publication channels, document fee
@@ -469,6 +470,105 @@ export async function saveMethodBidRule(_prev: FormState, data: FormData): Promi
     const { nameEn, ...was } = before;
     await audit(tx, org.id, "SourcingMethod", id, nameEn, "UPDATE", diffFields(was, v));
     revalidatePath("/configuration/reference-data");
+    return done();
+  });
+}
+
+// ------------------------------------------------------------------ 6.7: a method's opening rules, and the opening policy
+
+const UNPURCHASED = ["ELIMINATE", "REPORT"] as const;
+const UNPURCHASED_WORDS: Record<(typeof UNPURCHASED)[number], string> = { ELIMINATE: "Not carried to evaluation", REPORT: "Carried, and reported to the committee" };
+const READINGS = ["PURCHASERS", "INVITEES"] as const;
+const READING_WORDS: Record<(typeof READINGS)[number], string> = { PURCHASERS: "The bidders who bought the documents", INVITEES: "The bidders sent a letter of invitation" };
+const fieldRefusal = (fs: readonly { code: OpeningConfigFault; field: string }[]): FormState => ({ ok: false, errors: Object.fromEntries(fs.map((f) => [f.field, OPENING_CONFIG_FAULT_TEXT[f.code]])) });
+
+/**
+ * A sourcing method's opening rules (6.7 C-5, OD-4): the committee whose panel opens its bids, and
+ * what follows from a bid by a bidder with no live purchase. Each may be left not set (it then holds
+ * back what it governs, naming itself). Read when an opening starts and frozen on it, so a change
+ * never reaches an opening already started. Locks the method's row and writes with its audit row.
+ */
+export async function saveMethodOpeningRule(_prev: FormState, data: FormData): Promise<FormState> {
+  const org = await organisation();
+  if (!org) return NO_ORG;
+  const id = String(data.get("id") ?? "");
+  const r = new FormReader(data);
+  const committeeCode = r.optionalText("openingCommitteeCode");
+  const committeeProvenance = r.choice("openingCommitteeProvenance", "Where this came from", PROVENANCE);
+  const unpurchased = r.choice("unpurchasedBidConsequence", "A bid with no live purchase", UNPURCHASED);
+  const unpurchasedProvenance = r.choice("unpurchasedProvenance", "Where this came from", PROVENANCE);
+  if (r.failed) return { ok: false, errors: r.errors };
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "SourcingMethod" WHERE id = ${id} FOR UPDATE`;
+    const before = await tx.sourcingMethod.findFirst({ where: { id, organisationId: org.id }, select: { nameEn: true, openingCommitteeCode: true, openingCommitteeProvenance: true, unpurchasedBidConsequence: true, unpurchasedProvenance: true } });
+    if (!before) return GONE;
+    const committees = await tx.committee.findMany({ where: { organisationId: org.id }, select: { code: true, nameEn: true, retiredOn: true } });
+    const draft = { committeeCode, committeeProvenance, unpurchased, unpurchasedProvenance };
+    const faults = methodOpeningFaults(draft, { committees: committees.filter((c) => c.retiredOn == null).map((c) => c.code) });
+    if (faults.length) return fieldRefusal(faults);
+    const v = methodOpeningToSave(draft);
+    await tx.sourcingMethod.update({ where: { id }, data: v });
+    // Codes never reach History: the committee by its name, the consequence in words.
+    const words = (m: { openingCommitteeCode: string | null; openingCommitteeProvenance: string | null; unpurchasedBidConsequence: string | null; unpurchasedProvenance: string | null }) => ({
+      openingCommittee: m.openingCommitteeCode == null ? NOT_SET : (committees.find((c) => c.code === m.openingCommitteeCode)?.nameEn ?? "A committee no longer configured"),
+      openingCommitteeFrom: m.openingCommitteeCode == null ? null : prov(m.openingCommitteeProvenance),
+      aBidWithNoLivePurchase: m.unpurchasedBidConsequence == null ? NOT_SET : UNPURCHASED_WORDS[m.unpurchasedBidConsequence as (typeof UNPURCHASED)[number]],
+      aBidWithNoLivePurchaseFrom: m.unpurchasedBidConsequence == null ? null : prov(m.unpurchasedProvenance),
+    });
+    await audit(tx, org.id, "SourcingMethod", id, before.nameEn, "UPDATE", diffFields(words(before), words(v)), String(data.get("reason") ?? ""));
+    revalidatePath("/configuration/reference-data");
+    return done();
+  });
+}
+
+/**
+ * The organisation's opening policy (6.7 OD-9, FR-OPN-008): how the schedule counts the tenderers
+ * invited (not set blocks finalising, naming it), and the Grand Summary's words in English and Malay
+ * (not set reads the product's own words, never a borrowed one). A change asks for a reason.
+ */
+export async function saveOpeningPolicy(_prev: FormState, data: FormData): Promise<FormState> {
+  const org = await organisation();
+  if (!org) return NO_ORG;
+  const r = new FormReader(data);
+  const draft = {
+    invitedCountReading: r.choice("invitedCountReading", "How the tenderers invited are counted", READINGS),
+    invitedCountProvenance: r.choice("invitedCountProvenance", "Where this came from", PROVENANCE),
+    qualifiedLabelEn: r.optionalText("qualifiedLabelEn"),
+    qualifiedLabelMs: r.optionalText("qualifiedLabelMs"),
+    notQualifiedLabelEn: r.optionalText("notQualifiedLabelEn"),
+    notQualifiedLabelMs: r.optionalText("notQualifiedLabelMs"),
+    lowestLabelEn: r.optionalText("lowestLabelEn"),
+    lowestLabelMs: r.optionalText("lowestLabelMs"),
+    labelsProvenance: r.choice("labelsProvenance", "Where the words came from", PROVENANCE),
+  };
+  const governingSource = r.text("governingSource", "Where it is written", { max: 240 });
+  if (r.failed) return { ok: false, errors: r.errors };
+  const faults = openingPolicyFaults(draft);
+  if (faults.length) return fieldRefusal(faults);
+  const reason = String(data.get("reason") ?? "");
+  return db.$transaction(async (tx): Promise<FormState> => {
+    await lockOrganisation(tx, org.id);
+    const before = await tx.openingPolicy.findUnique({ where: { organisationId: org.id } });
+    const v = { ...openingPolicyToSave(draft), governingSource };
+    const words = (p: typeof v | NonNullable<typeof before>) => ({
+      tenderersInvitedCountedAs: p.invitedCountReading ? READING_WORDS[p.invitedCountReading] : NOT_SET,
+      countFrom: p.invitedCountReading ? prov(p.invitedCountProvenance) : null,
+      qualified: p.qualifiedLabelEn,
+      qualifiedInMalay: p.qualifiedLabelMs,
+      notQualified: p.notQualifiedLabelEn,
+      notQualifiedInMalay: p.notQualifiedLabelMs,
+      lowest: p.lowestLabelEn,
+      lowestInMalay: p.lowestLabelMs,
+      wordsFrom: p.labelsProvenance ? prov(p.labelsProvenance) : null,
+      whereItIsWritten: p.governingSource || null,
+    });
+    if (!before) {
+      const created = await tx.openingPolicy.create({ data: { organisationId: org.id, ...v } });
+      await audit(tx, org.id, "OpeningPolicy", created.id, "Opening policy", "CREATE", diffFields(null, words(v)), reason);
+    } else {
+      await tx.openingPolicy.update({ where: { id: before.id }, data: v });
+      await audit(tx, org.id, "OpeningPolicy", before.id, "Opening policy", "UPDATE", diffFields(words(before), words(v)), reason);
+    }
     return done();
   });
 }

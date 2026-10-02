@@ -20,6 +20,8 @@ export interface Person {
   jobTitleMs: string | null;
   department: string | null;
   telephone: string | null;
+  /// 6.7 (C-6): the unit the person sits in (an OrgUnit code). Optional on the type: only an opening panel's independence rule reads it.
+  orgUnitCode?: string | null;
   /// The office this person is presented as holding in the portal, which is not
   /// necessarily the office the approval matrix routes to.
   portalRoleCode: string | null;
