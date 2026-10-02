@@ -28,6 +28,16 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "estimatePaperCopy", what: "the figure on the company estimate's paper copy, entered at finalising an opening (6.7 C-1)" },
   { field: "committedEstimate", what: "the department estimate as committed against a budget code, in a commitment's audit row (6.7 re-review: it was written as amount)" },
   { field: "letterQuote", what: "how a bidder's withdrawal letter identifies its envelope, quoted from the letter (6.6 CR-4)" },
+  // 6.8 (E-3): the evaluation's figures, as its screens and its audit rows name them.
+  { field: "evaluatedPrice", what: "a bid's price as evaluated (corrected where corrected) (6.8)" },
+  { field: "recommendedPrice", what: "the price the evaluation recommends (6.8)" },
+  { field: "priceBeforeRound", what: "a bid's price before a negotiation round (6.8 FR-EVL-016)" },
+  { field: "priceAfterRound", what: "a bid's price after a negotiation round (6.8 FR-EVL-016)" },
+  { field: "monthlyBalances", what: "a bidder's three monthly balances for the minimum-capital test (6.8 FR-EVL-010)" },
+  { field: "stageFigure", what: "a bidder's figure on an evaluation stage (6.8)" },
+  { field: "compositeScore", what: "a bidder's composite figure (6.8)" },
+  { field: "savingAmount", what: "the saving against the company estimate (6.8 FR-EVL-018)" },
+  { field: "communicationContent", what: "what a written communication with a tenderer says, which may quote a price (6.8 FR-EVL-013)" },
 ];
 
 /// Whether a stored field (an audit change's field name) is a registered SULIT field: a History

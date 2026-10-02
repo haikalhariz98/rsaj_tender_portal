@@ -222,6 +222,12 @@ const TEXT: Record<string, (f: Finding) => string> = {
   ADMITTED_UNOPENED: (f) => `${f.data?.count} late ${plural(f.data?.count, "tender was", "tenders were")} admitted and not yet opened. Open each at its supplementary opening first.`,
   CONSENT_NOT_FROM_RECOMMENDED: (f) => `The bids' validity was extended on the consent of ${f.data?.party ?? "another tenderer"}, not the recommended tenderer. Record the recommended tenderer's consent, on Bids and opening, under Received.`,
   REPORT_STALE: () => "The bids evaluated are no longer the bids carried to evaluation (a late tender was admitted and opened since). A new evaluation version is evaluated and issued.",
+  // ---- a two-stage tender's first stage (stage-one.ts)
+  NOT_TWO_STAGE: () => "The pinned model is not a two-stage one, so no first-stage matter is tabled.",
+  OTHER_COMMITTEE: () => "That sitting is of another committee than the one the first stage names.",
+  SITTING_CLOSED: () => "That sitting is minuted or cancelled. Choose a sitting still to be held.",
+  STAGE_ONE_TABLED: () => "This bid's first-stage matter is already tabled and waits for the committee.",
+  STAGE_ONE_DECIDED: () => "The committee has decided this bid's first stage; it stands.",
   // ---- the bundle, the Kertas Cadangan
   EVALUATION_NOT_STARTED: () => "The evaluation has not started, so the appointment has no report to stand on.",
   PROPOSAL_NOT_RENDERED: () => "The Kertas Cadangan is not produced yet. Produce it on the Evaluation tab's Report section.",

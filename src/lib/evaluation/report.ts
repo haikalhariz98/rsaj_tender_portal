@@ -231,7 +231,7 @@ export function buildReport(i: ReportInput): ReportSnapshot {
 }
 
 /// The report's merge-field values, in the template's language (words; figures formatted).
-export function reportFields(i: Pick<ReportInput, "facts" | "exercise" | "version" | "reference" | "issuedOn" | "recommendation">, organisationName: string, extra: Record<string, string> = {}): Record<string, string> {
+export function reportFields(i: Pick<ReportInput, "facts" | "exercise" | "version" | "reference" | "issuedOn"> & { recommendation: Pick<ReportInput["recommendation"], "bidderId" | "price" | "period" | "topRanked" | "justification"> }, organisationName: string, extra: Record<string, string> = {}): Record<string, string> {
   const f = i.facts;
   const rb = f.bidders.find((b) => b.id === i.recommendation.bidderId);
   const s = savingOf(f.estimate, i.recommendation.price);

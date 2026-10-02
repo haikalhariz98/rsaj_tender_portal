@@ -37,17 +37,20 @@ export function ranking(f: EvaluationFacts): Ranked[] {
   return sorted.map((r) => ({ ...r, rank: sorted.findIndex((x) => cmp(x, r) === 0) + 1 }));
 }
 
+/// The stages not complete: a committee stage until every bidder's matter is decided, any other until submitted.
+export function incompleteStages(f: EvaluationFacts): string[] {
+  return f.model.stages
+    .filter((s) => s.kind !== "RECOMMENDATION")
+    .filter((s) => (s.kind === "COMMITTEE_DECISION" ? !f.bidders.every((b) => b.excludedReason || b.stageOne === "CARRIED" || b.stageOne === "NOT_CARRIED") : !isSubmitted(f, s.code)))
+    .map((s) => s.labelEn);
+}
+
 export type RecommendFault = "STAGES_NOT_COMPLETE" | "NOT_IN_RUNNING" | "JUSTIFICATION_REQUIRED" | "PRICE_NOT_REASONABLE" | "PRICE_NOT_ASSESSED" | "ALREADY_FORMED" | "PERSON_REQUIRED" | "NEGOTIATION_OPEN";
 
 export function recommendationFaults(f: EvaluationFacts, i: { bidderId: string; justification: string; personActive: boolean; alreadyFormed: boolean; meetingsOpen: number }): { faults: Finding<RecommendFault>[]; topRanked: boolean } {
   const out: Finding<RecommendFault>[] = [];
   if (i.alreadyFormed) out.push({ code: "ALREADY_FORMED", level: "block" });
-  for (const s of f.model.stages) {
-    if (s.kind === "RECOMMENDATION") continue;
-    // A committee stage is complete once every bidder's matter is decided; any other once submitted.
-    const done = s.kind === "COMMITTEE_DECISION" ? f.bidders.every((b) => b.excludedReason || b.stageOne === "CARRIED" || b.stageOne === "NOT_CARRIED") : isSubmitted(f, s.code);
-    if (!done) out.push({ code: "STAGES_NOT_COMPLETE", level: "block", data: { stage: s.labelEn } });
-  }
+  for (const stage of incompleteStages(f)) out.push({ code: "STAGES_NOT_COMPLETE", level: "block", data: { stage } });
   if (i.meetingsOpen > 0) out.push({ code: "NEGOTIATION_OPEN", level: "block", data: { count: i.meetingsOpen } });
   const ranked = ranking(f);
   const r = ranked.find((x) => x.bidder.id === i.bidderId) ?? null;

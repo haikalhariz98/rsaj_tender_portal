@@ -274,3 +274,16 @@ describe("award-gate.ts (E-9, OD-8 A)", () => {
     expect(recommendationDifferences({ value: issued.price, period: { value: 10, unit: "MONTHS" } }, issued)).toEqual(["period"]);
   });
 });
+
+describe("stage-one.ts (FR-EVL-005)", () => {
+  it("one matter per bidder, at a sitting of the first stage's committee; decided, it stands; deferred, it is tabled again", async () => {
+    const { stageOneTablingFaults } = await import("./stage-one");
+    const ok = { twoStage: true, committeeCode: "TB", sitting: { committeeCode: "TB", frozen: false }, excluded: false, matters: [] as ("PENDING" | "CARRIED" | "NOT_CARRIED" | "DEFERRED")[] };
+    expect(stageOneTablingFaults(ok)).toEqual([]);
+    expect(codes(stageOneTablingFaults({ ...ok, twoStage: false }))).toEqual(["NOT_TWO_STAGE"]);
+    expect(codes(stageOneTablingFaults({ ...ok, sitting: { committeeCode: "QC", frozen: false } }))).toEqual(["OTHER_COMMITTEE"]);
+    expect(codes(stageOneTablingFaults({ ...ok, matters: ["PENDING"] }))).toEqual(["STAGE_ONE_TABLED"]);
+    expect(codes(stageOneTablingFaults({ ...ok, matters: ["NOT_CARRIED"] }))).toEqual(["STAGE_ONE_DECIDED"]);
+    expect(stageOneTablingFaults({ ...ok, matters: ["DEFERRED"] })).toEqual([]);
+  });
+});
