@@ -120,7 +120,7 @@ describe("recommend.ts (FR-EVL-004, OD-6 A)", () => {
       bidders: [bidder(1, { aspects: new Map([["B", ok]]) }), bidder(2, { aspects: new Map([["B", b2Aspect]]) })],
       ...over,
     });
-  const rec = (f: ReturnType<typeof facts>, bidderId: string, justification = "") => recommendationFaults(f, { bidderId, justification, personActive: true, alreadyFormed: false, meetingsOpen: 0 });
+  const rec = (f: ReturnType<typeof facts>, bidderId: string, justification = "") => recommendationFaults(f, { bidderId, justification, personActive: true, alreadyFormed: false, meetingsOpen: 0, negotiationsPending: 0 });
   it("ranked by the composite; the top-ranked is recommended without a justification", () => {
     expect(ranking(done()).map((r) => [r.bidder.id, r.rank])).toEqual([["b1", 1], ["b2", 2]]);
     expect(rec(done(), "b1")).toEqual({ faults: [], topRanked: true });
@@ -131,6 +131,13 @@ describe("recommend.ts (FR-EVL-004, OD-6 A)", () => {
   });
   it("aspect (b) NOT_SATISFACTORY refuses; unassessed refuses", () => {
     expect(codes(rec(done({ verdict: "NOT_SATISFACTORY", narrative: "x" }), "b2", "j").faults)).toEqual(["PRICE_NOT_REASONABLE"]);
+  });
+  it("a meeting open, or a negotiation still with approval, refused (BD-68)", () => {
+    const f = done();
+    const at = (meetingsOpen: number, negotiationsPending: number) => codes(recommendationFaults(f, { bidderId: "b1", justification: "", personActive: true, alreadyFormed: false, meetingsOpen, negotiationsPending }).faults);
+    expect(at(1, 0)).toEqual(["NEGOTIATION_OPEN"]);
+    expect(at(0, 1)).toEqual(["NEGOTIATION_PENDING"]);
+    expect(at(0, 0)).toEqual([]);
   });
   it("out of the running, or stages incomplete, refused", () => {
     const f = done(ok, { results: [result("b1", "COMPOSITE", { shown: parseFixed("85.01") }), result("b2", "COMPOSITE", { outOfRunning: true, passed: false })] });

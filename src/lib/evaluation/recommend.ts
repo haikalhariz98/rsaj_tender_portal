@@ -45,13 +45,15 @@ export function incompleteStages(f: EvaluationFacts): string[] {
     .map((s) => s.labelEn);
 }
 
-export type RecommendFault = "STAGES_NOT_COMPLETE" | "NOT_IN_RUNNING" | "JUSTIFICATION_REQUIRED" | "PRICE_NOT_REASONABLE" | "PRICE_NOT_ASSESSED" | "ALREADY_FORMED" | "PERSON_REQUIRED" | "NEGOTIATION_OPEN";
+export type RecommendFault = "STAGES_NOT_COMPLETE" | "NOT_IN_RUNNING" | "JUSTIFICATION_REQUIRED" | "PRICE_NOT_REASONABLE" | "PRICE_NOT_ASSESSED" | "ALREADY_FORMED" | "PERSON_REQUIRED" | "NEGOTIATION_OPEN" | "NEGOTIATION_PENDING";
 
-export function recommendationFaults(f: EvaluationFacts, i: { bidderId: string; justification: string; personActive: boolean; alreadyFormed: boolean; meetingsOpen: number }): { faults: Finding<RecommendFault>[]; topRanked: boolean } {
+export function recommendationFaults(f: EvaluationFacts, i: { bidderId: string; justification: string; personActive: boolean; alreadyFormed: boolean; meetingsOpen: number; negotiationsPending: number }): { faults: Finding<RecommendFault>[]; topRanked: boolean } {
   const out: Finding<RecommendFault>[] = [];
   if (i.alreadyFormed) out.push({ code: "ALREADY_FORMED", level: "block" });
   for (const stage of incompleteStages(f)) out.push({ code: "STAGES_NOT_COMPLETE", level: "block", data: { stage } });
   if (i.meetingsOpen > 0) out.push({ code: "NEGOTIATION_OPEN", level: "block", data: { count: i.meetingsOpen } });
+  // Formed while a negotiation is with approval, the negotiation could never be held once approved (BD-68).
+  if (i.negotiationsPending > 0) out.push({ code: "NEGOTIATION_PENDING", level: "block", data: { count: i.negotiationsPending } });
   const ranked = ranking(f);
   const r = ranked.find((x) => x.bidder.id === i.bidderId) ?? null;
   const topRanked = r?.rank === 1;

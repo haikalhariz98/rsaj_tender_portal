@@ -55,7 +55,7 @@ export async function formRecommendation(_prev: FormState, data: FormData): Prom
     const b = f.bidders.find((x) => x.id === bidderId);
     if (!b) return GONE_BIDDER;
     const person = await activePerson(tx, l.org.id, personId);
-    const rf = recommendationFaults(f, { bidderId, justification, personActive: !!person, alreadyFormed: e!.recommendation != null, meetingsOpen: e!.meetings.filter((m) => !m.closedAt).length });
+    const rf = recommendationFaults(f, { bidderId, justification, personActive: !!person, alreadyFormed: e!.recommendation != null, meetingsOpen: e!.meetings.filter((m) => !m.closedAt).length, negotiationsPending: e!.negotiations.filter((n) => n.approvalInstance.status === "PENDING").length });
     if (rf.faults.length) return refuse(rf.faults, "Not formed:");
     const price = recommendedPriceOf(b);
     const row = await tx.recommendation.create({ data: { organisationId: l.org.id, evaluationId: e!.id, bidderId, price: senToDecimalString(price), completionPeriod: b.period?.value ?? null, completionUnit: b.period?.unit ?? null, topRanked: rf.topRanked, justification: rf.topRanked ? "" : justification, formedByPersonId: person!.id, formedAt: now } });

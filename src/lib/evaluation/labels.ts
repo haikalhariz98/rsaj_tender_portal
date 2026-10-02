@@ -214,7 +214,7 @@ const TEXT: Record<string, (f: Finding) => string> = {
   // ---- report
   RECOMMENDATION_MISSING: () => "Form the recommendation first, on the Recommendation section.",
   MEETING_OPEN: (f) => `${f.data?.count} ${plural(f.data?.count, "meeting is", "meetings are")} still open. Close each on its minutes and the tenderer's confirmation.`,
-  NEGOTIATION_PENDING: () => "A negotiation is still with approval. It is decided, or withdrawn, before the report is issued.",
+  NEGOTIATION_PENDING: () => "A negotiation is still with approval. Its decision is recorded first, on Meetings and letters: the recommendation and the report stand on its outcome.",
   SERIES_NOT_SET: () => `No numbering series is named for the evaluation report. Name it under ${SETTING_AT.policy}, and configure it under ${SETTING_AT.numbering}.`,
   SERIES_INVALID: () => `The report's numbering series is missing or not valid. Correct it under ${SETTING_AT.numbering}.`,
   TEMPLATE_NOT_SET: () => `No template is chosen for it. Choose one under ${SETTING_AT.policy}.`,

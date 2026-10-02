@@ -345,7 +345,7 @@ class EvaluationActs {
 
   async inputs(exerciseId: string, listingNo: number, i: { factor: string; balances: [string, string, string] }, by: { id: string; name: string }, at: Date) {
     const { personFaults } = await import("../src/lib/evaluation/team");
-    const { isSubmitted } = await import("../src/lib/evaluation/stages");
+    const { isSubmitted, runningFaults } = await import("../src/lib/evaluation/stages");
     const { EVALUATION_ENTITY, inputFields } = await import("../src/lib/evaluation/audit-view");
     const { c, label } = await this.ctx(exerciseId);
     const f = c.facts!;
@@ -353,7 +353,7 @@ class EvaluationActs {
     const capital = f.model.stages.filter((s) => s.criteria.some((x) => x.computedInput === "MIN_CAPITAL_RATIO"));
     if (capital.some((s) => isSubmitted(f, s.code))) fail("the capital inputs are frozen");
     const factor = capital.flatMap((s) => s.factors).find((x) => x.code === i.factor) ?? fail(`no factor ${i.factor}`);
-    for (const s of capital) refuse(`bid No. ${listingNo}'s inputs`, personFaults(s.side, by.id, f.team, f.submissions));
+    for (const s of capital) refuse(`bid No. ${listingNo}'s inputs`, [...runningFaults(f, s, b), ...personFaults(s.side, by.id, f.team, f.submissions)]);
     await this.db.evaluationBidder.update({ where: { id: b.id }, data: { factorOptionCode: i.factor, balanceMonth1: i.balances[0], balanceMonth2: i.balances[1], balanceMonth3: i.balances[2], inputsRecordedAt: at, inputsRecordedByPersonId: by.id } });
     this.entry(EVALUATION_ENTITY.bidder, b.id, label(c.current!.version, `Bid No. ${listingNo}`), "UPDATE", at, diffFields(inputFields({ factor: null, balances: [null, null, null], cpr: null, by: by.name }), inputFields({ factor: factor.labelEn, balances: i.balances.map(parseSen), cpr: null, by: by.name })));
   }
@@ -430,7 +430,7 @@ class EvaluationActs {
     const { c, label } = await this.ctx(exerciseId);
     const e = c.current!;
     const b = this.bidder(c, listingNo);
-    const rf = recommendationFaults(c.facts!, { bidderId: b.id, justification: "", personActive: true, alreadyFormed: e.recommendation != null, meetingsOpen: e.meetings.filter((m) => !m.closedAt).length });
+    const rf = recommendationFaults(c.facts!, { bidderId: b.id, justification: "", personActive: true, alreadyFormed: e.recommendation != null, meetingsOpen: e.meetings.filter((m) => !m.closedAt).length, negotiationsPending: e.negotiations.filter((n) => n.approvalInstance.status === "PENDING").length });
     refuse("forming the recommendation", rf.faults);
     const price = recommendedPriceOf(b);
     const id = `${e.id}_rec`;
