@@ -100,6 +100,9 @@ const CLOSING_KEY_READERS: Record<string, string> = {
   "src/lib/window/judge.ts": "passes the closing to the phase and the instruments; writes nothing",
   "src/lib/window/read.ts": "shows the closing's history from the stored dates; writes nothing",
   "src/lib/window/gate.ts": "derives the award gate's phase from the closing; writes nothing",
+  // 6.6 (listed, flagged): the envelope register reads the closing it judges lateness and validity against.
+  "src/lib/bids/repo.ts": "selects the exercise's closing for the register's rules and the award's validity check; writes nothing",
+  "src/lib/bids/read.ts": "selects the exercise's closing for the Bids received tab; writes nothing",
 };
 
 describe("X-2: the closing is written nowhere else, by any route (carry a)", () => {

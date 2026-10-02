@@ -9,7 +9,7 @@ import type { AttachmentFact } from "@/lib/documents/types";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { AwardIcon, ClipboardIcon, ClockIcon, FileIcon, GlobeIcon, RouteIcon, ShieldIcon, SlidersIcon, ToolsIcon, UsersIcon } from "@/components/icons";
+import { AwardIcon, ClipboardIcon, ClockIcon, FileIcon, GlobeIcon, InboxIcon, RouteIcon, ShieldIcon, SlidersIcon, ToolsIcon, UsersIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
@@ -78,6 +78,10 @@ import { ENTITY as TENDER_ENTITY } from "@/lib/tender-docs/audit-view";
 import { awardOpenRefusal, exerciseOpenForAward } from "@/lib/award/gate";
 import type { WindowGate } from "@/lib/window/gate";
 import { WINDOW_ENTITIES } from "@/lib/window/audit-view";
+import { BID_ENTITIES } from "@/lib/bids/audit-view";
+import { bidFindingText } from "@/lib/bids/labels";
+import { bidGate } from "@/lib/bids/repo";
+import { loadBids } from "./bids/workspace";
 import { PHASE_LABEL, PHASE_TONE } from "@/lib/window/labels";
 import { closingVerb } from "@/lib/window/phase";
 import { readWindowGate } from "@/lib/window/repo";
@@ -205,6 +209,10 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const published = ex.status === "ADVERTISED" || ex.status === "INVITED";
   // The name tab's own reads (the invitee list beside the approved one, the committee's matters to cite), only for that tab.
   const [nameList, nameMatters] = tab === "name" && flagsNeedName(ex.sourcingMethodCode, cfg.config.methods) ? await Promise.all([nameListTab(ex.id), exerciseMatters(ex.id)]) : [null, []];
+  // 6.6: the Bids received tab, read only while it is the tab being looked at; its header acts come with it.
+  const bids = tab === "bids" ? await loadBids(ex.id, ex.status) : null;
+  // 6.6 (X-9): what the register asks of an award, for the Award tab (only on an exercise published through 6.5).
+  const bidAward = tab === "award" ? await bidGate(ex.id) : null;
   const inv =
     tab === "invitation"
       ? await loadInvitation(invitationSectionOf(section), { exerciseId: ex.id, reference: ex.reference, status: ex.status, today, timeZone: org.timeZone, routes: latestFirst(windowChangeRoutesOf(ex.approvalInstances)), people: activePeople, suggestions })
@@ -253,6 +261,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
     ["Move to preparation", draft ? prepBlocker : null],
     ["Cancel exercise", ex.status !== "CANCELLED" && !(published && inv?.cancel) ? cancelBlocker : null],
     ...(inv?.notes ?? []).map(([label, why]) => [label, why] as [string, string | null]),
+    ...(bids?.notes ?? []).map(([label, why]) => [label, why] as [string, string | null]),
   ];
   const notes = unavailable.filter((x): x is [string, string] => x[1] != null);
   const headerNote =
@@ -313,6 +322,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
         />
       )}
       {inv?.actions}
+      {bids?.actions}
       {ex.status !== "CANCELLED" && (published && inv?.cancel ? inv.cancel : <CancelExerciseDrawer id={ex.id} blocker={cancelBlocker} />)}
     </>
   );
@@ -369,6 +379,14 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       section: invitationSectionOf(section),
       // Read only while it is the tab being looked at, and only for the section named.
       panel: inv?.panel ?? null,
+    },
+    {
+      id: "bids",
+      label: "Bids received",
+      icon: <InboxIcon size={15} />,
+      // Read only while it is the tab being looked at.
+      lazy: true,
+      panel: bids?.panel ?? null,
     },
     ...(flags?.requiresProposal
       ? [
@@ -470,6 +488,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
             return "fault" in i ? awardFindingText({ code: i.fault, level: "block", data: { regime: i.regime } }) : null;
           })()}
           dossier={dossierEvidenceMissing(flags, { justificationReasonCode: ex.justificationReasonCode, dossierReference: ex.dossierReference, evidenceAttachments: evidence.dossier })}
+          bidFaults={bidAward?.published ? [bidAward.lateFault, bidAward.validityFault].filter((f) => f != null).map((f) => bidFindingText(f!)) : []}
         />
       ),
     },
@@ -563,8 +582,8 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
 
       <div className="mb-6 flex flex-col gap-3">
         {ex.status !== "CANCELLED" && (
-          <Callout tone="info" title="Bids and evaluation run outside the portal in this phase">
-            The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
+          <Callout tone="info" title="Opening and evaluation run outside the portal in this phase">
+            The exercise is classified, its tender documents are prepared and approved, its window is recorded, and the envelopes received are registered on Bids received. Opening the bids and evaluation are recorded outside the portal until those modules are built.
           </Callout>
         )}
         {ex.status === "CANCELLED" && (
@@ -596,11 +615,17 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
 
 // --------------------------------------------------------------------- award
 
-function AwardTab({ exerciseId, status, packKind, window, awards, opening, dossier }: { exerciseId: string; status: string; packKind: PackKind | null; window: WindowGate; opening: string | null; dossier: boolean; awards: { id: string; reference: string; awardeeName: string; awardedValue: { toString(): string }; status: string; instrumentKind: string; cancelReason: string; contract: { number: string } | null }[] }) {
+function AwardTab({ exerciseId, status, packKind, window, awards, opening, dossier, bidFaults }: { exerciseId: string; status: string; packKind: PackKind | null; window: WindowGate; opening: string | null; dossier: boolean; bidFaults: string[]; awards: { id: string; reference: string; awardeeName: string; awardedValue: { toString(): string }; status: string; instrumentKind: string; cancelReason: string; contract: { number: string } | null }[] }) {
   const live = awards.find((a) => a.status !== "CANCELLED") ?? null;
   const cancelled = awards.filter((a) => a.status === "CANCELLED");
   return (
     <div className="flex flex-col gap-6">
+      {/* 6.6 (X-9): what the envelope register asks before the award is sent or issued. */}
+      {bidFaults.length > 0 && (
+        <Callout tone="warn" title="The bids received hold the award back" action={<ButtonLink href={`/sourcing/${exerciseId}?tab=bids`} size="sm" variant="secondary">Open Bids received</ButtonLink>}>
+          {bidFaults.join(" ")} The award is not sent for approval or issued until then.
+        </Callout>
+      )}
       <Card>
         <CardHeader icon={<AwardIcon size={17} />} title="The award" subtitle={live ? "Its approval, instrument, return and securities are on the award's own record." : awardOpenRefusal(packKind, status, window)} />
         <CardBody>
@@ -1292,7 +1317,7 @@ function HistoryPanel({
   const read = (field: string, value: string | null, entityId: string, entity: string): string => {
     if (value == null || value === "") return "—";
     // A window row's values are written in words already (an addendum's "Draft", a sale's "yes"): never read as a stored code.
-    if (WINDOW_ENTITIES.includes(entity)) return value === "yes" ? "Yes" : value === "no" ? "No" : /^\d{4}-\d{2}-\d{2}$/.test(value) ? formatDate(value) : value;
+    if (WINDOW_ENTITIES.includes(entity) || BID_ENTITIES.includes(entity)) return value === "yes" ? "Yes" : value === "no" ? "No" : /^\d{4}-\d{2}-\d{2}$/.test(value) ? formatDate(value) : value;
     if (field === "status" && tenderingRouteIds.has(entityId)) return tenderingRouteLabel(value, null);
     if (field === "dominantSharePct") return Number(value) >= 100 ? "One deliverable" : `${pct(value)}%`;
     if (field === "contractBasisCode") return basisName(value) ?? "A basis no longer configured";

@@ -1,0 +1,254 @@
+import { Blocked } from "@/app/requisitions/editors";
+import { RecordEditor, type Field } from "@/components/record-editor";
+import { buttonClass } from "@/components/ui/button";
+
+import { applyValidityExtension, correctEnvelope, lockBox, recordReceiptAfterTheFact, recordReceiptNow, recordReturnedUnopened, recordValidityExtension, recordWithdrawal, saveBidAnswers, tableLateMatter } from "./actions";
+
+/**
+ * The drawers of the Bids received tab. Fields are data; every rule sits in the action and the
+ * pure checks behind it (`src/lib/bids`). Where those checks already say an act cannot proceed,
+ * the control is disabled with the reason beside it, judged by the rule the action runs. There is
+ * no time field on the server-stamped receipt: the server's clock stamps it. There is no Delete and
+ * no Reject anywhere: a late envelope's admission is the committee's.
+ */
+
+type Option = { value: string; label: string };
+type Allowed = { allowed: true } | { allowed: false; reason: string };
+const hidden = (name: string): Field => ({ kind: "hidden", name });
+const ghost = buttonClass("ghost", "sm");
+const secondary = buttonClass("secondary", "sm");
+const primary = buttonClass("primary", "sm");
+const ON_BEHALF = "Recorded on their behalf, not signed.";
+const KIND_OPTIONS: Option[] = [
+  { value: "BID", label: "Bid" },
+  { value: "ALTERNATIVE", label: "Alternative bid (marked as one on the envelope)" },
+];
+const CHANNEL_OPTIONS: Option[] = [
+  { value: "COUNTER", label: "Over the counter" },
+  { value: "POST", label: "By post" },
+  { value: "COURIER", label: "By courier" },
+];
+const PROVENANCE_OPTIONS: Option[] = [
+  { value: "STATED", label: "Stated: written in the tender documents" },
+  { value: "OBSERVED", label: "Observed: seen in practice" },
+  { value: "ASSUMED", label: "Assumed: a working figure, needs confirming" },
+];
+
+const receiptFields = (people: Option[], bids: Option[]): Field[] => [
+  hidden("exerciseId"),
+  { kind: "select", name: "kind", label: "Envelope", required: true, placeholder: "Choose", options: KIND_OPTIONS },
+  { kind: "select", name: "parentEnvelopeId", label: "Alternative to", placeholder: "Not named on the envelope", options: bids, hint: "Only where the envelope names the bid it goes with." },
+  { kind: "select", name: "channel", label: "How it came", required: true, placeholder: "Choose", options: CHANNEL_OPTIONS, hint: "An envelope in the tender box is registered at the opening, not here." },
+  { kind: "textarea", name: "markings", label: "Markings, as written on the envelope", required: true, hint: "The tender's title, number and closing as the envelope shows them. A bidder is not named here unless the envelope names one; bidders are named at the opening." },
+  { kind: "select", name: "receivedByPersonId", label: "Received by", required: true, placeholder: "Choose", options: people, hint: ON_BEHALF },
+];
+
+/// FR-BID-002: the server stamps the receipt when it is saved. No time is asked.
+export function ReceiveNowDrawer({ exerciseId, allowed, people, bids, noteId }: { exerciseId: string; allowed: Allowed; people: Option[]; bids: Option[]; noteId: string }) {
+  if (!allowed.allowed) return <Blocked label="Record a receipt now" reason={allowed.reason} primary noteId={noteId} />;
+  return (
+    <RecordEditor
+      title="Record a receipt now"
+      description="The portal's clock stamps the envelope, to the second, when you save. That stamp alone decides whether it is in time; a late envelope is recorded, counted apart and goes to the committee for admission, never refused."
+      fields={[...receiptFields(people, bids), { kind: "note", text: "Record it as it is handed over. An envelope recorded after the closing second is late." }]}
+      values={{ exerciseId }}
+      showWhen={{ parentEnvelopeId: { name: "kind", in: ["ALTERNATIVE"] } }}
+      action={recordReceiptNow}
+      submitLabel="Record the receipt"
+      trigger={{ label: "Record a receipt now", className: primary }}
+      size="md"
+    />
+  );
+}
+
+/// OD-3 amended: recorded after the event. The stamp still decides; the stated time is kept beside it.
+export function ReceiveLaterDrawer({ exerciseId, allowed, people, bids, noteId }: { exerciseId: string; allowed: Allowed; people: Option[]; bids: Option[]; noteId: string }) {
+  if (!allowed.allowed) return <Blocked label="Record a receipt after the event" reason={allowed.reason} noteId={noteId} />;
+  return (
+    <RecordEditor
+      title="Record a receipt after the event"
+      description="For an envelope received earlier and not recorded then. The portal still stamps it now, and that stamp decides lateness: recorded after the closing, it is late. The time you state, and why it is recorded now, are kept beside it and shown to the committee, labelled as entered, not server-stamped."
+      columns={2}
+      fields={[
+        ...receiptFields(people, bids),
+        { kind: "date", name: "statedDay", label: "Received on", required: true },
+        { kind: "text", name: "statedTime", label: "At (HH:MM)", required: true, mono: true, hint: "On the organisation's clock." },
+        { kind: "textarea", name: "entryReason", label: "Why it is recorded now", required: true },
+      ]}
+      values={{ exerciseId }}
+      showWhen={{ parentEnvelopeId: { name: "kind", in: ["ALTERNATIVE"] } }}
+      action={recordReceiptAfterTheFact}
+      submitLabel="Record the receipt"
+      trigger={{ label: "Record a receipt after the event", className: secondary }}
+      size="lg"
+    />
+  );
+}
+
+/// FR-BID-004, X-11: a withdrawal letter received before the closing.
+export function WithdrawalDrawer({ exerciseId, allowed, people, envelopes, noteId }: { exerciseId: string; allowed: Allowed; people: Option[]; envelopes: Option[]; noteId: string }) {
+  if (!allowed.allowed) return <Blocked label="Record a withdrawal" reason={allowed.reason} noteId={noteId} />;
+  return (
+    <RecordEditor
+      title="Record a withdrawal letter"
+      description="A bidder's letter withdrawing its bid, received before the closing. The portal stamps it now. Name the envelope where it was received over the counter or by post; one in the tender box is matched at the opening and is not opened. Attach the letter to the withdrawal afterwards: it is held SULIT."
+      fields={[
+        hidden("exerciseId"),
+        { kind: "select", name: "envelopeId", label: "Envelope withdrawn", placeholder: "In the tender box: matched at the opening", options: envelopes },
+        { kind: "textarea", name: "markings", label: "How the letter identifies the envelope", required: true, hint: "Quote the letter." },
+        { kind: "select", name: "receivedByPersonId", label: "Received by", required: true, placeholder: "Choose", options: people, hint: ON_BEHALF },
+      ]}
+      values={{ exerciseId }}
+      action={recordWithdrawal}
+      submitLabel="Record the withdrawal"
+      trigger={{ label: "Record a withdrawal", className: secondary }}
+      size="md"
+    />
+  );
+}
+
+/// The box locked at the closing, by a named officer, stamped now.
+export function LockBoxDrawer({ exerciseId, allowed, people, noteId }: { exerciseId: string; allowed: Allowed; people: Option[]; noteId: string }) {
+  if (!allowed.allowed) return <Blocked label="Record the box locked" reason={allowed.reason} noteId={noteId} />;
+  return (
+    <RecordEditor
+      title="Record the tender box locked"
+      description="The box, its lock and its key remain the control. The portal records that it was locked, by whom, stamped now; it does not enforce it."
+      fields={[
+        hidden("exerciseId"),
+        { kind: "select", name: "personId", label: "Locked by", required: true, placeholder: "Choose", options: people, hint: ON_BEHALF },
+        { kind: "textarea", name: "note", label: "Note" },
+      ]}
+      values={{ exerciseId }}
+      action={lockBox}
+      submitLabel="Record it"
+      trigger={{ label: "Record the box locked", className: secondary }}
+      size="sm"
+    />
+  );
+}
+
+/// FR-BID-005: the one correction — the portal's record of the envelope, never the bid.
+export function CorrectDrawer({ exerciseId, envelope, people }: { exerciseId: string; envelope: { id: string; sequence: number; markings: string; channel: string; receivedById: string }; people: Option[] }) {
+  return (
+    <RecordEditor
+      title={`Correct the record of envelope ${envelope.sequence}`}
+      description="A clerical correction of the markings, how it came or who received it, before the closing, with a reason. The received time, the sequence, the late flag and the kind are never corrected, and nothing changes after the closing."
+      fields={[
+        hidden("exerciseId"),
+        hidden("envelopeId"),
+        { kind: "select", name: "channel", label: "How it came", required: true, options: CHANNEL_OPTIONS },
+        { kind: "textarea", name: "markings", label: "Markings, as written on the envelope", required: true },
+        { kind: "select", name: "receivedByPersonId", label: "Received by", required: true, options: people, hint: ON_BEHALF },
+      ]}
+      values={{ exerciseId, envelopeId: envelope.id, channel: envelope.channel, markings: envelope.markings, receivedByPersonId: envelope.receivedById }}
+      action={correctEnvelope}
+      submitLabel="Save the correction"
+      destructive={{ reasonLabel: "Why is it corrected?" }}
+      trigger={{ label: "Correct", className: ghost, ariaLabel: `Correct the record of envelope ${envelope.sequence}` }}
+      size="md"
+    />
+  );
+}
+
+/// A withdrawn envelope handed back unopened.
+export function ReturnedDrawer({ exerciseId, envelopeId, sequence }: { exerciseId: string; envelopeId: string; sequence: number }) {
+  return (
+    <RecordEditor
+      title={`Envelope ${sequence} handed back unopened`}
+      description="The day the withdrawn envelope was handed back, unopened. Until then it is held unopened."
+      fields={[hidden("exerciseId"), hidden("envelopeId"), { kind: "date", name: "returnedOn", label: "Handed back on", required: true }, { kind: "textarea", name: "returnNote", label: "To whom, and how" }]}
+      values={{ exerciseId, envelopeId }}
+      action={recordReturnedUnopened}
+      submitLabel="Record it"
+      trigger={{ label: "Handed back", className: ghost, ariaLabel: `Record envelope ${sequence} handed back unopened` }}
+      size="sm"
+    />
+  );
+}
+
+/// FR-CTE-008: a late envelope's admission, tabled at a sitting of the method's committee.
+export function TableLateDrawer({ exerciseId, envelopeId, sequence, committee, sittings, holders, allowed }: { exerciseId: string; envelopeId: string; sequence: number; committee: string | null; sittings: Option[]; holders: Option[]; allowed: Allowed }) {
+  if (!allowed.allowed) return <Blocked label="Table for admission" reason={allowed.reason} />;
+  return (
+    <RecordEditor
+      title={`Table envelope ${sequence} for admission`}
+      description={`A matter at a sitting of the ${committee ?? "committee"}, naming this envelope. Carried, it is admitted; not carried, it is not. It is decided there; tabling is by a holder of the committee's Secretariat office, recorded on their behalf, not signed.`}
+      fields={[
+        hidden("exerciseId"),
+        hidden("envelopeId"),
+        { kind: "select", name: "meetingId", label: "Sitting", required: true, placeholder: "Choose", options: sittings, hint: "Sittings of the committee that are scheduled or in progress." },
+        { kind: "select", name: "tabledByPersonId", label: "Tabled by", required: true, placeholder: holders.length === 0 ? "Nobody holds the Secretariat office" : "Choose", options: holders },
+      ]}
+      values={{ exerciseId, envelopeId }}
+      action={tableLateMatter}
+      submitLabel="Table it"
+      trigger={{ label: "Table for admission", className: secondary }}
+      size="md"
+    />
+  );
+}
+
+/// FR-BID-010: an extension of the bids' validity on the recommended tenderer's consent (OD-7).
+export function ExtensionDrawer({ exerciseId, allowed, parties, people, expiry }: { exerciseId: string; allowed: Allowed; parties: Option[]; people: Option[]; expiry: string | null }) {
+  if (!allowed.allowed) return <Blocked label="Record an extension" reason={allowed.reason} />;
+  return (
+    <RecordEditor
+      title="Record an extension of the bids' validity"
+      description={`On the recommended tenderer's written consent. The bids are valid until ${expiry ?? "a day not set"}; the new expiry must be later. Attach the consent to the extension, then apply it. Before evaluation is recorded in the portal, the tenderer you name is not checked against an evaluation.`}
+      columns={2}
+      fields={[
+        hidden("exerciseId"),
+        { kind: "date", name: "toExpiry", label: "Valid until", required: true },
+        { kind: "date", name: "consentReceivedOn", label: "Consent received on", required: true },
+        { kind: "select", name: "consentPartyId", label: "Recommended tenderer", required: true, placeholder: "Choose", options: parties, hint: "Named by you, recorded on your behalf, not yet checked against an evaluation." },
+        { kind: "select", name: "recordedByPersonId", label: "Recorded by", required: true, placeholder: "Choose", options: people, hint: ON_BEHALF },
+        { kind: "textarea", name: "reason", label: "Why it is extended", required: true },
+      ]}
+      values={{ exerciseId }}
+      action={recordValidityExtension}
+      submitLabel="Record the extension"
+      trigger={{ label: "Record an extension", className: secondary }}
+      size="lg"
+    />
+  );
+}
+
+export function ApplyExtensionDrawer({ exerciseId, extensionId, to, allowed }: { exerciseId: string; extensionId: string; to: string; allowed: Allowed }) {
+  if (!allowed.allowed) return <Blocked label="Apply" reason={allowed.reason} />;
+  return (
+    <RecordEditor
+      title={`Apply the extension to ${to}`}
+      description="The bids are then valid until this day. It stands as applied, on the consent attached."
+      fields={[hidden("exerciseId"), hidden("extensionId")]}
+      values={{ exerciseId, extensionId }}
+      action={applyValidityExtension}
+      submitLabel="Apply it"
+      trigger={{ label: "Apply", className: secondary }}
+      size="sm"
+    />
+  );
+}
+
+/// FR-BID-006, 009: the window's bid answers.
+export function BidAnswersDrawer({ exerciseId, allowed, values, needsReason }: { exerciseId: string; allowed: Allowed; values: Record<string, string>; needsReason: boolean }) {
+  if (!allowed.allowed) return null;
+  return (
+    <RecordEditor
+      title={needsReason ? "Record the bids' validity" : "Bid validity and alternatives"}
+      description={needsReason ? "The window is published without the validity on record. Record the days the tender documents state, once, with where the figure came from and why it is recorded now." : "As the tender documents state them. Prepared with the window and frozen once it is published. There is no default: left empty, the validity is not set and an award cannot be issued."}
+      fields={[
+        hidden("exerciseId"),
+        { kind: "number", name: "bidValidityDays", label: "Bids valid for (days from the closing day)", min: 1, required: needsReason },
+        { kind: "select", name: "bidValidityProvenance", label: "Where the days came from", placeholder: "Choose", options: PROVENANCE_OPTIONS },
+        { kind: "select", name: "alternativesPermitted", label: "Alternative bids", required: true, placeholder: "Choose", placeholderDisabled: true, options: [{ value: "yes", label: "Permitted" }, { value: "no", label: "Not permitted" }, { value: "unset", label: "Not stated" }] },
+        ...(needsReason ? [{ kind: "textarea", name: "reason", label: "Why it is recorded now", required: true } as Field] : []),
+      ]}
+      values={{ exerciseId, ...values }}
+      action={saveBidAnswers}
+      submitLabel="Save"
+      trigger={{ label: needsReason ? "Record the validity" : "Edit", className: needsReason ? primary : ghost, ariaLabel: "Edit the bids' validity and alternatives" }}
+      size="md"
+    />
+  );
+}
