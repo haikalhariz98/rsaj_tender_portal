@@ -27,6 +27,10 @@ describe("the contract's History reads a stored value", () => {
     expect(historyValue("method", "REGISTERED_POST", day)).toBe("Registered post");
     expect(historyValue("kind", "WORKMENS_COMPENSATION", day)).toBe("Workmen's compensation insurance");
   });
+  it("the number's source, written by the award's issue act, reads in words (one word, but a code)", () => {
+    expect(historyValue("numberSource", "SERIES", day)).toBe("The contract type's series");
+    expect(historyValue("numberSource", "INDENT_NUMBER", day)).toBe("The indent's own number");
+  });
   it("a code with no words is withheld, never shown", () => {
     expect(historyValue("anything", "SOME_NEW_CODE", day)).toBe("—");
   });

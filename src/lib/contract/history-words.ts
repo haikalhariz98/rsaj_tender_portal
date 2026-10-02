@@ -24,6 +24,9 @@ export const HISTORY_CODE_WORDS: Readonly<Record<string, string>> = Object.fromE
     BY_HAND: "By hand",
     REGISTERED_POST: "Registered post",
     COLLECTION: "Collected",
+    // Where the contract number came from (6.11's issue act writes it on the contract's first row).
+    SERIES: "The contract type's series",
+    INDENT_NUMBER: "The indent's own number",
     AMOUNT_PER_DAY: "An amount a day",
     PERCENT_OF_SUM_PER_DAY: "A percentage of the contract sum a day",
   }),
