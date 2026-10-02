@@ -177,7 +177,7 @@ export function EndAllocation({ id, label }: { id: string; label: string }) {
   return (
     <RecordEditor
       title={`End ${label}`}
-      description="The period closes today. A requisition already checked against it keeps showing the balance it saw."
+      description="The period closes today: from today it no longer counts. Today is the organisation's day, so its time zone must be set. A requisition already checked against it keeps showing the balance it saw."
       fields={[{ kind: "hidden", name: "id" }]}
       values={{ id }}
       action={endAllocation}

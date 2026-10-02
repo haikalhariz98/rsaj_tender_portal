@@ -4,11 +4,12 @@ import { revalidatePath } from "next/cache";
 import { END_DAY_LABEL } from "@/lib/effective-text";
 
 import type { FormState } from "@/components/record-editor";
-import { snapshotFields } from "@/lib/audit/diff";
-import { auditedCreate, auditedUpdate, writeAudit } from "@/lib/audit/record";
+import { diffFields, snapshotFields } from "@/lib/audit/diff";
+import { auditedCreate, auditedUpdate, writeAudit, type Tx } from "@/lib/audit/record";
+import { endAllocationOn } from "@/lib/budget/end-allocation";
 import { allocationFor } from "@/lib/budget/availability";
 import { loadBudget } from "@/lib/budget/load";
-import { organisationDay } from "@/lib/dates";
+import { organisationDay, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { checkPeriod, FormReader } from "@/lib/validate";
@@ -177,7 +178,10 @@ export async function releaseCommitment(_prev: FormState, data: FormData): Promi
   return { ok: true };
 }
 
-/// Ending an allocation closes its period; the row stays so a past check still reads.
+/// Ending an allocation closes its period on the organisation's today, stored as a day (end day
+/// not included, `effective.ts`; `endAllocationOn`, 66-C1 a); the row stays so a past check still
+/// reads. Judged first for a quick answer, then again on the locked row, inside the transaction
+/// that writes it: an end recorded while this act waited is seen there.
 export async function endAllocation(_prev: FormState, data: FormData): Promise<FormState> {
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
@@ -186,23 +190,41 @@ export async function endAllocation(_prev: FormState, data: FormData): Promise<F
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
 
-  const before = await db.budgetAllocation.findUnique({ where: { id } });
-  if (!before) return { ok: false, message: "That allocation no longer exists." };
-  if (before.effectiveTo) return { ok: false, message: "That allocation has already ended." };
+  const judge = async (read: typeof db | Tx) => {
+    const row = await read.budgetAllocation.findFirst({ where: { id, organisationId: orgId } });
+    if (!row) return { row: null, result: null } as const;
+    const org = await read.organisation.findUniqueOrThrow({ where: { id: orgId }, select: { timeZone: true } });
+    return { row, result: endAllocationOn({ effectiveFrom: row.effectiveFrom, effectiveTo: row.effectiveTo, today: todayIn(new Date(), org.timeZone) }) } as const;
+  };
 
-  const effectiveTo = new Date();
-  await auditedUpdate(
-    {
-      organisationId: orgId,
-      entity: "BudgetAllocation",
-      entityId: id,
-      entityLabel: `${before.costCentreCode} / ${before.accountCodeCode}`,
-      reason,
-    },
-    { effectiveTo: null },
-    { effectiveTo },
-    (tx) => tx.budgetAllocation.update({ where: { id }, data: { effectiveTo } }),
-  );
+  const first = await judge(db);
+  if (!first.row) return { ok: false, message: "That allocation no longer exists." };
+  if (!first.result.ok) return { ok: false, message: first.result.message };
+
+  class Refused extends Error {
+    constructor(readonly state: FormState) {
+      super("refused");
+    }
+  }
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "BudgetAllocation" WHERE id = ${id} FOR UPDATE`;
+      const locked = await judge(tx);
+      if (!locked.row) throw new Refused({ ok: false, message: "That allocation no longer exists." });
+      if (!locked.result.ok) throw new Refused({ ok: false, message: locked.result.message });
+      const effectiveTo = locked.result.effectiveTo;
+      await tx.budgetAllocation.update({ where: { id }, data: { effectiveTo } });
+      await writeAudit(
+        tx,
+        { organisationId: orgId, entity: "BudgetAllocation", entityId: id, entityLabel: `${locked.row.costCentreCode} / ${locked.row.accountCodeCode}`, reason },
+        "UPDATE",
+        diffFields({ effectiveTo: null }, { effectiveTo }),
+      );
+    });
+  } catch (e) {
+    if (e instanceof Refused) return e.state;
+    throw e;
+  }
 
   revalidatePath(PATH);
   return { ok: true };
