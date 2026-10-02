@@ -58,6 +58,8 @@ const RECORD_LABEL: Record<string, string> = {
   committees: "Committee",
   requisitions: "Requisition",
   awards: "Award",
+  // 6.15a: a supplier on the register; the page names it (RecordCrumb).
+  suppliers: "Supplier",
 };
 
 /// Segments whose label depends on where they sit.
@@ -67,6 +69,9 @@ const NESTED_LABEL: Record<string, string> = {
   "configuration/awards": "Award controls",
   "configuration/scope": "Scope and estimate",
   "awards/new": "New award",
+  // 6.15a: the register's configuration, and recording a paper application.
+  "configuration/suppliers": "Supplier register",
+  "suppliers/new": "New application",
 };
 
 export function Topbar({

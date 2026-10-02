@@ -32,6 +32,7 @@ import { documentFacts, loadSupplierConfig, supplierOrg, typeFacts } from "@/lib
 import { approveFaults, decisionFaults, decisionSnapshot, fileFacts, isOpen, lapseFaults, openApplicationFaults, submitFaults, type FileFacts } from "@/lib/suppliers/review";
 import { supplierHolders, supplierRoute } from "@/lib/suppliers/route";
 import { APPLICATION_CHANNELS, APPLICATION_KINDS, blocking, SUPPLIER_REGISTRATION_DOMAIN, SUPPLIER_SERIES_KEY, VERIFICATION_STATES, type ApplicationKind, type Finding, type RegistrationValueKind } from "@/lib/suppliers/types";
+import { splitValues } from "@/lib/ui/select-logic";
 import { FormReader } from "@/lib/validate";
 
 import { activePerson, audit, CHANGED, GONE, inSupplier, label, NO_ORG, refuse, Refusal, stampNow, type LockedSupplier } from "./shared";
@@ -308,7 +309,8 @@ export async function lodgeDocument(_prev: FormState, data: FormData): Promise<F
     note: r.text("note", "Note", { max: 2000 }),
     personId: r.optionalText("recordedByPersonId"),
   };
-  const valueIds = data.getAll("valueIds").map(String).filter(Boolean);
+  // The shared multi-select posts its choices as one newline-joined field (splitValues).
+  const valueIds = splitValues(data.get("valueIds"));
   if (r.failed) return { ok: false, errors: r.errors };
   return inSupplier(supplierId, async (tx, l) => {
     if (renewsId) await tx.$queryRaw`SELECT id FROM "SupplierDocument" WHERE id = ${renewsId} AND "supplierId" = ${supplierId} FOR UPDATE`;
@@ -592,7 +594,8 @@ export async function decideApplication(_prev: FormState, data: FormData): Promi
   const applicationId = String(data.get("applicationId") ?? "");
   const r = new FormReader(data);
   const outcome = r.choice("outcome", "Outcome", ["RESUBMIT", "REJECT"] as const, { required: true });
-  const remarks = r.text("remarks", "Remarks", { max: 4000 });
+  // A rejection's drawer asks its reasons as the destructive act's reason; a resubmission's as remarks.
+  const remarks = r.text("remarks", "Remarks", { max: 4000 }) || String(data.get("reason") ?? "").trim();
   const resubmitBy = r.optionalText("resubmitBy");
   const personId = r.optionalText("personId");
   if (r.failed || !outcome) return { ok: false, errors: r.errors };

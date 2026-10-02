@@ -196,3 +196,10 @@ export function verifyFaults(i: { state: VerificationState | null; personActive:
   if (i.state === "VERIFIED" && !doc.notApplicable && !doc.scanned) out.push({ code: "SCAN_REQUIRED", level: "block" });
   return out;
 }
+
+/// How many of a supplier's types stand in each state on the day (the register's summary chip).
+export function stateCounts(rows: readonly { state: DocumentState }[]): Partial<Record<DocumentState, number>> {
+  const out: Partial<Record<DocumentState, number>> = {};
+  for (const r of rows) out[r.state] = (out[r.state] ?? 0) + 1;
+  return out;
+}

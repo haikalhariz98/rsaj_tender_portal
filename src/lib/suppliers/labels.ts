@@ -11,7 +11,7 @@ import type { DocumentState } from "./documents";
 import type { IdentityFault } from "./identity";
 import type { LodgeFault, VerifyFault } from "./documents";
 import type { ConfigFault } from "./config";
-import type { ReviewFault } from "./review";
+import type { QueueState, ReviewFault } from "./review";
 import type { VendorCodeFault } from "@/lib/integration/vendor-master";
 import type { ApplicationChannel, ApplicationKind, ApplicationOutcome, ApplicationStatus, Finding, RegistrationValueKind, SupplierListKind, SupplierStatus, VerificationState } from "./types";
 
@@ -63,6 +63,17 @@ export const APPLICATION_STATUS_TONE: Readonly<Record<ApplicationStatus, "ok" | 
 export const LAPSED_LABEL = w("Lapsed: deadline passed", "Luput: tarikh akhir telah berlalu");
 export const LAPSE_RECORDED_LABEL = w("Rejected on lapse", "Ditolak kerana luput");
 export const IN_DECISION_LABEL = w("With approval", "Dalam kelulusan");
+
+export const QUEUE_STATE_LABEL: Readonly<Record<QueueState, Words>> = {
+  RECEIVED: w("Received", "Diterima"),
+  WITH_APPROVAL: IN_DECISION_LABEL,
+  RESUBMISSION_REQUESTED: w("Resubmission requested", "Penghantaran semula diminta"),
+  LAPSED: LAPSED_LABEL,
+  APPROVED: w("Approved", "Diluluskan"),
+  REJECTED: w("Rejected", "Ditolak"),
+  REJECTED_ON_LAPSE: LAPSE_RECORDED_LABEL,
+};
+export const QUEUE_STATE_TONE: Readonly<Record<QueueState, "ok" | "warn" | "err" | "info" | "neutral">> = { RECEIVED: "info", WITH_APPROVAL: "info", RESUBMISSION_REQUESTED: "warn", LAPSED: "err", APPROVED: "ok", REJECTED: "neutral", REJECTED_ON_LAPSE: "neutral" };
 
 export const OUTCOME_LABEL: Readonly<Record<ApplicationOutcome, Words>> = {
   APPROVE: w("Approved", "Diluluskan"),

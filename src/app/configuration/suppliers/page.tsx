@@ -71,7 +71,7 @@ export default async function SupplierRegisterConfigPage() {
       <PageHeader
         title="Supplier register"
         badge={switchesNotSet + listsEmpty.length > 0 ? <Badge tone="warn" dot>{switchesNotSet + listsEmpty.length} not set</Badge> : <Badge tone="ok" dot>Set</Badge>}
-        subtitle="Registration bodies' values, the statutory document types, the register's lists and what the supplier is told about checking."
+        subtitle="Registration values, statutory document types, the register's lists and its notice."
         actions={
           <>
             {p && <HistoryButton entity="SupplierPolicy" entityId={p.id} label="the register's policy" />}
@@ -170,7 +170,7 @@ export default async function SupplierRegisterConfigPage() {
                       <ValueDrawer bodyId={b.id} bodyName={b.labelEn} categories={categories} />
                     </div>
                     {b.values.length === 0 ? (
-                      <p className="px-5 pb-4 text-[13px] text-ink-3 sm:px-6">No values: a document recording this body's values cannot name any.</p>
+                      <p className="px-5 pb-4 text-[13px] text-ink-3 sm:px-6">No values: a document recording this body&apos;s values cannot name any.</p>
                     ) : (
                       <Table minWidth={760}>
                         <colgroup>

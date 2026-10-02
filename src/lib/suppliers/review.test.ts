@@ -150,3 +150,18 @@ describe("the file as approval reads it", () => {
     expect(f.typesConfigured).toBe(3);
   });
 });
+
+describe("an application's place in the queue (derived)", () => {
+  it("reads with approval while a route is open, lapsed the day after its deadline, and the recorded outcomes as they are", async () => {
+    const { queueState } = await import("./review");
+    const base = { status: "RECEIVED" as const, resubmitBy: null, lapsedRecordedAt: null, routes: [] as { status: string }[] };
+    expect(queueState(base, "2026-10-01")).toBe("RECEIVED");
+    expect(queueState({ ...base, routes: [{ status: "REJECTED" }, { status: "PENDING" }] }, "2026-10-01")).toBe("WITH_APPROVAL");
+    const asked = { ...base, status: "RESUBMISSION_REQUESTED" as const, resubmitBy: "2026-10-20" };
+    expect(queueState(asked, "2026-10-20")).toBe("RESUBMISSION_REQUESTED");
+    expect(queueState(asked, "2026-10-21")).toBe("LAPSED");
+    expect(queueState(asked, null)).toBe("RESUBMISSION_REQUESTED");
+    expect(queueState({ ...asked, status: "REJECTED", lapsedRecordedAt: new Date() }, "2026-10-21")).toBe("REJECTED_ON_LAPSE");
+    expect(queueState({ ...base, status: "APPROVED" }, "2026-10-21")).toBe("APPROVED");
+  });
+});

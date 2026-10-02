@@ -193,3 +193,15 @@ export function decisionSnapshot(f: FileFacts, today: string, provenanceOf: (typ
 }
 
 export const isDecisionSnapshot = (v: unknown): v is DecisionSnapshot => !!v && typeof v === "object" && "judgedOn" in v && Array.isArray((v as DecisionSnapshot).mandatory);
+
+/// Where an application stands for the queue, derived on the organisation's day: a route open on it reads
+/// "with approval"; a request whose deadline passed reads "lapsed" before the lapse is recorded.
+export type QueueState = "RECEIVED" | "WITH_APPROVAL" | "RESUBMISSION_REQUESTED" | "LAPSED" | "APPROVED" | "REJECTED" | "REJECTED_ON_LAPSE";
+
+export function queueState(a: { status: ApplicationStatus; resubmitBy: string | null; lapsedRecordedAt: unknown; routes: readonly { status: string }[] }, today: string | null): QueueState {
+  if (a.status === "APPROVED") return "APPROVED";
+  if (a.status === "REJECTED") return a.lapsedRecordedAt != null ? "REJECTED_ON_LAPSE" : "REJECTED";
+  if (a.routes.some((r) => r.status === "PENDING")) return "WITH_APPROVAL";
+  if (a.status === "RESUBMISSION_REQUESTED") return today && lapseState(a, today) === "LAPSED" ? "LAPSED" : "RESUBMISSION_REQUESTED";
+  return "RECEIVED";
+}
