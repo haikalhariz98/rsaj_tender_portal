@@ -7,7 +7,8 @@ import { redirect } from "next/navigation";
 import type { FormState } from "@/components/record-editor";
 import { auditedCreate, auditedUpdate, writeAudit } from "@/lib/audit/record";
 import { diffFields, snapshotFields } from "@/lib/audit/diff";
-import { issueFault, onRoute, predecessorOf, startOfDay } from "@/lib/authority/issue";
+import { ISSUE_TIME_ZONE_UNSET, issueFault, onRoute, predecessorOf, startOfDay } from "@/lib/authority/issue";
+import { formatOrgDateTime } from "@/lib/format";
 import { boundaryFaultsAcross, boundaryRuleFault, rulesTiedWith } from "@/lib/authority/resolve";
 import type { AuthorityAct, CoreLevel, Rule } from "@/lib/authority/types";
 import type { Tx } from "@/lib/audit/record";
@@ -748,6 +749,9 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
     });
     if (!draft) return { ok: false, message: "That draft no longer exists." };
     if (draft.issuedAt) return { ok: false, message: "That issue has already been issued." };
+    // 68-C5 residual: issuedAt is written to the trail on the organisation's clock, never as its UTC day.
+    const { timeZone } = await tx.organisation.findUniqueOrThrow({ where: { id: orgId }, select: { timeZone: true } });
+    if (!timeZone) return { ok: false, message: ISSUE_TIME_ZONE_UNSET };
 
     // Partitioned by route: issuing a funder's rule set never ends the organisation's
     // own issue, nor is it refused for coming before it (6.1, funder rule set ruling).
@@ -818,7 +822,7 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
       "UPDATE",
       diffFields(
         decimals({ issuedAt: null, effectiveFrom: draft.effectiveFrom }),
-        { issuedAt: now, effectiveFrom: day },
+        { issuedAt: formatOrgDateTime(now, timeZone), effectiveFrom: day },
       ),
     );
     return { ok: true };

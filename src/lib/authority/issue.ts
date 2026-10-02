@@ -36,6 +36,10 @@ export function startOfDay(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
+/// Issuing writes when it was issued on the organisation's clock (formatOrgDateTime); with no zone
+/// there is no honest time to write, so the issue is refused rather than stamped as UTC (68-C5 residual).
+export const ISSUE_TIME_ZONE_UNSET = "Set the organisation's time zone first, under Configuration › Organisation: when an issue was issued is recorded on the organisation's clock, and it is not assumed to be UTC.";
+
 export type IssueFault = "IN_THE_PAST" | "NOT_AFTER_LATEST";
 
 /**
