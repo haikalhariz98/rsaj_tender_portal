@@ -1,0 +1,171 @@
+# 6.7 fix round (review S-1..S-5, M-1..M-4, R-1..R-7): text snapshot before (at 45ecc32, the demo as loaded then)
+# and after (all fixes, the demo wiped and reloaded). scripts/text-snapshot.mjs, the standard routes plus
+# demo_sx16 and demo_sx20's Received, Opening and Schedule sections and their prints.
+# Read: no field, warning or provenance tag is dropped. configuration/audit: the export callout says SULIT
+# values are withheld (M-3). sx20's Schedule and print: the invited reading now shows its provenance, frozen at
+# the start (R-4). dashboard: two sittings' rows on DEMO/SIT/4 swap places after the reload (no tie-breaker,
+# the known platform carry); sx16 Received: the window change's applied time is the reload's. The S-1 layout
+# change (offers stacked below 2xl) moves no text: both layouts are in the markup.
+Only in snap-before: committees__demo_mt13.txt
+diff -ru snap-before/configuration__audit.txt snap-after67/configuration__audit.txt
+--- snap-before/configuration__audit.txt	2026-10-02 04:32:46.891527981 +0000
++++ snap-after67/configuration__audit.txt	2026-10-02 05:07:18.491480598 +0000
+@@ -8,7 +8,7 @@
+ •
+ 0 exports
+ What the digest proves, and what it does not
+-Each export is a CSV file with a SHA-256 digest of its exact bytes, and the export is itself recorded on the trail. The digest proves that a file is the one the portal produced on that day. It does not prove the database was never altered: no screen or action edits or deletes an entry, but the database does not yet refuse one itself — that waits for sign-in.
++Each export is a CSV file with a SHA-256 digest of its exact bytes, and the export is itself recorded on the trail. A SULIT value (a price as read, the company estimate, the figure on its paper copy, a withdrawal letter’s quote) is not in the file: the change is listed with its values withheld. The digest proves that a file is the one the portal produced on that day. It does not prove the database was never altered: no screen or action edits or deletes an entry, but the database does not yet refuse one itself — that waits for sign-in.
+ Export
+ Every entry recorded on the organisation's days chosen, oldest first.
+ First day
+Only in snap-before: configuration__invitation.txt
+diff -ru snap-before/dashboard.txt snap-after67/dashboard.txt
+--- snap-before/dashboard.txt	2026-10-02 04:32:33.003528298 +0000
++++ snap-after67/dashboard.txt	2026-10-02 05:07:01.975480976 +0000
+@@ -32,32 +32,32 @@
+ Capital Works Committee
+ Quotation Committee
+ Tender Board
+-Renewal of the security services contract
++Award of the head office cleaning contract
+ DEMO/SIT/4/2026
+ Type
+ Appointment
+ Value
+ SULIT
+ SULIT · not restricted until sign-in
+-RM520,000
++RM412,000
+ Waiting
+ 3d
+ With
+ Tender Board
+-0 of 3 voted
+-Award of the head office cleaning contract
++2 of 3 voted
++Renewal of the security services contract
+ DEMO/SIT/4/2026
+ Type
+ Appointment
+ Value
+ SULIT
+ SULIT · not restricted until sign-in
+-RM412,000
++RM520,000
+ Waiting
+ 3d
+ With
+ Tender Board
+-2 of 3 voted
++0 of 3 voted
+ Award of the pumping station refurbishment
+ DEMO/SX/0010/2026
+ Type
+@@ -109,20 +109,20 @@
+ ▲
+ With
+ Actions
+-Renewal of the security services contract
++Award of the head office cleaning contract
+ DEMO/SIT/4/2026
+ Appointment
+-RM520,000
++RM412,000
+ 3d
+ Tender Board
+-0 of 3 voted
+-Award of the head office cleaning contract
++2 of 3 voted
++Renewal of the security services contract
+ DEMO/SIT/4/2026
+ Appointment
+-RM412,000
++RM520,000
+ 3d
+ Tender Board
+-2 of 3 voted
++0 of 3 voted
+ Award of the pumping station refurbishment
+ DEMO/SX/0010/2026
+ Appointment
+@@ -267,12 +267,12 @@
+ @title: Comfortable rows
+ @aria-label: Compact rows
+ @title: Compact rows
+-@aria-label: Select Renewal of the security services contract DEMO/SIT/4/2026
++@aria-label: Select Award of the head office cleaning contract DEMO/SIT/4/2026
+ @title: SULIT · not restricted until sign-in
+ @title: 3d
+ @aria-label: Open the sitting
+ @title: Open the sitting
+-@aria-label: Select Award of the head office cleaning contract DEMO/SIT/4/2026
++@aria-label: Select Renewal of the security services contract DEMO/SIT/4/2026
+ @title: SULIT · not restricted until sign-in
+ @title: 3d
+ @aria-label: Open the sitting
+@@ -298,11 +298,11 @@
+ @title: Value
+ @title: SULIT · not restricted until sign-in
+ @title: Waiting
+-@aria-label: Select Renewal of the security services contract DEMO/SIT/4/2026
++@aria-label: Select Award of the head office cleaning contract DEMO/SIT/4/2026
+ @title: 3d
+ @aria-label: Open the sitting
+ @title: Open the sitting
+-@aria-label: Select Award of the head office cleaning contract DEMO/SIT/4/2026
++@aria-label: Select Renewal of the security services contract DEMO/SIT/4/2026
+ @title: 3d
+ @aria-label: Open the sitting
+ @title: Open the sitting
+Only in snap-before: sourcing__demo_sx15__tab__bids.txt
+Only in snap-before: sourcing__demo_sx16.txt
+Only in snap-before: sourcing__demo_sx16__tab__award.txt
+diff -ru snap-before/sourcing__demo_sx16__tab__bids&section__received.txt snap-after67/sourcing__demo_sx16__tab__bids&section__received.txt
+--- snap-before/sourcing__demo_sx16__tab__bids&section__received.txt	2026-10-02 04:32:57.555527737 +0000
++++ snap-after67/sourcing__demo_sx16__tab__bids&section__received.txt	2026-10-02 05:07:31.283480306 +0000
+@@ -242,7 +242,7 @@
+ Extended from 29 Jan 2027 to 28 Feb 2027
+ Invented for the demo: the evaluation of the reservoir inlet works is expected to run past the bids' validity; the recommended tenderer consented in writing. · consent of Contoh Bina Sdn Bhd, named by the officer as the recommended tenderer, recorded on their behalf, not yet checked against an evaluation, received 02 Oct 2026 · Chen Wei Ling, recorded on their behalf, not signed
+ Consent: attached
+-Applied 02 Oct 2026 · 09:58
++Applied 02 Oct 2026 · 10:44
+ Documents
+ Parts the approved documents mark mandatory
+ Checked against each bid at opening, never here. A missing document is reported, never a reason to refuse an envelope.
+Only in snap-before: sourcing__demo_sx16__tab__bids.txt
+Only in snap-before: sourcing__demo_sx16__tab__history.txt
+Only in snap-before: sourcing__demo_sx16__tab__invitation&section__addenda.txt
+Only in snap-before: sourcing__demo_sx16__tab__invitation&section__briefing.txt
+Only in snap-before: sourcing__demo_sx16__tab__invitation&section__sales.txt
+Only in snap-before: sourcing__demo_sx16__tab__invitation&section__window.txt
+Only in snap-before: sourcing__demo_sx17__tab__invitation&section__sales.txt
+Only in snap-before: sourcing__demo_sx18__tab__bids.txt
+Only in snap-before: sourcing__demo_sx18__tab__invitation&section__sales.txt
+Only in snap-before: sourcing__demo_sx1__tab__scope&section__estimate.txt
+diff -ru snap-before/sourcing__demo_sx20__opening__print.txt snap-after67/sourcing__demo_sx20__opening__print.txt
+--- snap-before/sourcing__demo_sx20__opening__print.txt	2026-10-02 04:33:06.483527533 +0000
++++ snap-after67/sourcing__demo_sx20__opening__print.txt	2026-10-02 05:07:42.603480047 +0000
+@@ -14,7 +14,7 @@
+ Closed
+ 30 Sep 2026 · 15:00:00
+ Tenderers invited
+-2 · Counted as the bidders who bought the documents
++2 · Counted as the bidders who bought the documents (Assumed)
+ Late envelopes on the register
+ 1
+ Pages of the signed schedule
+Only in snap-before: sourcing__demo_sx20__tab__award.txt
+diff -ru snap-before/sourcing__demo_sx20__tab__bids&section__schedule.txt snap-after67/sourcing__demo_sx20__tab__bids&section__schedule.txt
+--- snap-before/sourcing__demo_sx20__tab__bids&section__schedule.txt	2026-10-02 04:33:06.107527541 +0000
++++ snap-after67/sourcing__demo_sx20__tab__bids&section__schedule.txt	2026-10-02 05:07:42.183480056 +0000
+@@ -52,7 +52,7 @@
+ Closed
+ 30 Sep 2026 · 15:00:00
+ Tenderers invited
+-2 · Counted as the bidders who bought the documents
++2 · Counted as the bidders who bought the documents (Assumed)
+ Late envelopes on the register
+ 1
+ Pages of the signed schedule
+Only in snap-before: sourcing__demo_sx20__tab__bids.txt
