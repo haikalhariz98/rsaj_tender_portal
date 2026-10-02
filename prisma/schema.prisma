@@ -127,6 +127,9 @@ enum MatterKind {
   SCOPE
   /// 6.8 (FR-EVL-005): a two-stage tender's first-stage decision on one bidder, named by CommitteeDecision.evaluationBidderId.
   EVALUATION_STAGE
+  /// 6.15 (OD-2 A, OD-8 A): a supplier matter's route (a registration; a2 a blacklisting), named by the
+  /// route's supplier keys. Never tabled at a sitting.
+  SUPPLIER
 }
 
 /// Where a rejected matter goes (FR-APR-016, ADR 0009). The product ships no
@@ -322,6 +325,17 @@ model Organisation {
   recommendations          Recommendation[]
   proposalPapers           ProposalPaper[]
   negotiationRequests      NegotiationRequest[]
+  registrationValues       RegistrationValue[]
+  supplierDocumentTypes    SupplierDocumentType[]
+  supplierListValues       SupplierListValue[]
+  supplierPolicy           SupplierPolicy?
+  suppliers                Supplier[]
+  supplierContacts         SupplierContact[]
+  supplierApplications     SupplierApplication[]
+  applicationDecisions     ApplicationDecision[]
+  resubmissionItems        ResubmissionItem[]
+  supplierDocuments        SupplierDocument[]
+  supplierDocumentValues   SupplierDocumentValue[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -438,6 +452,12 @@ model Person {
   proposalPapersRendered   ProposalPaper[]          @relation("ProposalRenderedBy")
   negotiationRequests      NegotiationRequest[]     @relation("NegotiationRequestedBy")
   evaluationsCancelled     Evaluation[]             @relation("EvaluationCancelledBy")
+  /// 6.15: acts on the supplier register, recorded on their behalf (never a supplier's own people: ADR 0019).
+  supplierApplicationsRecorded  SupplierApplication[] @relation("SupplierApplicationRecordedBy")
+  supplierApplicationsSubmitted SupplierApplication[] @relation("SupplierApplicationSubmittedBy")
+  applicationDecisions          ApplicationDecision[] @relation("ApplicationDecidedBy")
+  supplierDocumentsRecorded     SupplierDocument[]    @relation("SupplierDocumentRecordedBy")
+  supplierDocumentsVerified     SupplierDocument[]    @relation("SupplierDocumentVerifiedBy")
 
   @@unique([organisationId, staffNo])
   @@index([organisationId, name])
@@ -2346,6 +2366,10 @@ model ApprovalInstance {
   /// cancelled and another started, and only its own route may approve it.
   awardId       String?
   award         Award?            @relation(fields: [awardId], references: [id], onDelete: Restrict)
+  /// 6.15 (OD-2 A): the supplier's application this route decides (a SUPPLIER matter). An application
+  /// may carry several routes over time: a refused one is followed by a new one when it is sent again.
+  supplierApplicationId String?
+  supplierApplication   SupplierApplication? @relation(fields: [supplierApplicationId], references: [id], onDelete: Restrict)
 
   domain String
   cond   String?
@@ -2451,6 +2475,7 @@ model ApprovalInstance {
   @@index([requisitionId])
   @@index([exerciseId])
   @@index([awardId])
+  @@index([supplierApplicationId])
 }
 
 /// One step of a persisted route, and who discharged it.
@@ -3755,6 +3780,12 @@ enum AttachmentPurpose {
   SIGNED_REPORT
   /// 6.8 (FR-CTE-013): the signed Kertas Cadangan's scan, on the evaluation. SULIT.
   SIGNED_PROPOSAL_PAPER
+  /// 6.15 (FR-VND-002): a statutory document's scan, on the supplier's document. Not restricted until sign-in.
+  SUPPLIER_DOCUMENT
+  /// 6.15 (FR-VND-006): the signed paper declaration's scan, on the application. Not restricted until sign-in.
+  SUPPLIER_DECLARATION
+  /// 6.15 OD-3 B (FR-VND-005): the paper E-Payment form's scan, on the application. SULIT at upload, never downloadable before sign-in.
+  SUPPLIER_EPAYMENT_FORM
   HOLDER_RECOMMENDATION
   SIGNED_LETTER
   DECLARATION
@@ -3917,6 +3948,12 @@ model DocumentAttachment {
   evaluationMeeting    EvaluationMeeting?  @relation(fields: [evaluationMeetingId], references: [id], onDelete: Restrict)
   evaluationBidderId   String?
   evaluationBidder     EvaluationBidder?   @relation(fields: [evaluationBidderId], references: [id], onDelete: Restrict)
+  /// 6.15 (X-6): a supplier's document (its scan) and a supplier's application (the signed declaration,
+  /// the E-Payment form's scan, SULIT at upload).
+  supplierDocumentId    String?
+  supplierDocument      SupplierDocument?    @relation(fields: [supplierDocumentId], references: [id], onDelete: Restrict)
+  supplierApplicationId String?
+  supplierApplication   SupplierApplication? @relation(fields: [supplierApplicationId], references: [id], onDelete: Restrict)
 
   attachedAt   DateTime  @default(now())
   detachedAt   DateTime?
@@ -3936,6 +3973,8 @@ model DocumentAttachment {
   @@index([evaluationId])
   @@index([evaluationMeetingId])
   @@index([evaluationBidderId])
+  @@index([supplierDocumentId])
+  @@index([supplierApplicationId])
   @@index([versionId])
 }
 
@@ -4798,6 +4837,10 @@ model RegistrationBody {
   notes           String     @default("")
   sortOrder       Int        @default(0)
   retiredOn       DateTime?
+
+  /// 6.15 (FR-VND-003): the body's values (grades, categories, codes) and the document types it issues.
+  values        RegistrationValue[]
+  documentTypes SupplierDocumentType[]
 
   @@unique([organisationId, code])
 }
@@ -6674,4 +6717,360 @@ model ProposalPaper {
   recommendedBy         Person?   @relation("ProposalRecommendedBy", fields: [recommendedByPersonId], references: [id], onDelete: Restrict)
   recommendedOn         DateTime?
   recommendedRecordedAt DateTime?
+}
+
+// ------------------------------------------------------------------ 6.15 supplier register (ADR 0019)
+
+/// FR-VND-003: what a registration body's value is. Closed product vocabulary; the values are configuration.
+enum RegistrationValueKind {
+  GRADE
+  CATEGORY
+  SPECIALISATION
+  FIELD_CODE
+  CLASS
+  PERMIT_TYPE
+}
+
+/// Where a supplier stands as a registrant. Standing (suspended, blacklisted) is derived, never stored.
+enum SupplierStatus {
+  APPLICANT
+  REGISTERED
+  REJECTED
+}
+
+enum ApplicationKind {
+  NEW
+  RENEWAL
+  UPGRADE
+}
+
+/// How a paper application reached the organisation.
+enum ApplicationChannel {
+  COUNTER
+  POST
+  EMAIL
+}
+
+enum ApplicationStatus {
+  RECEIVED
+  RESUBMISSION_REQUESTED
+  APPROVED
+  REJECTED
+}
+
+/// FR-VND-007. LAPSE is the rejection a lapsed resubmission deadline records.
+enum ApplicationOutcome {
+  APPROVE
+  RESUBMIT
+  REJECT
+  LAPSE
+}
+
+enum VerificationState {
+  NOT_CHECKED
+  VERIFIED
+  NOT_IN_ORDER
+}
+
+/// The register's own lists (step 0: not classification taxonomies, which classification reads).
+enum SupplierListKind {
+  ENTITY_TYPE
+  COUNTRY
+}
+
+/// A value under a registration body (FR-VND-003): a grade, a category, a specialisation (under a
+/// category), a field code, a class or a permit type. The published lists are an RSAJ seed, never shipped.
+model RegistrationValue {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  bodyId         String
+  body           RegistrationBody @relation(fields: [bodyId], references: [id], onDelete: Restrict)
+
+  kind       RegistrationValueKind
+  code       String
+  nameEn     String
+  nameMs     String?
+  /// A specialisation's category, by its code under the same body.
+  parentCode String?
+  /// A grade's place in the body's order (the higher, the more it covers). Configuration, never inferred.
+  rank       Int?
+  /// A grade's value ceiling as the body publishes it: shown only, never compared with the sealed estimate (OD-10 A).
+  valueCeiling      Decimal?    @db.Decimal(18, 2)
+  ceilingProvenance Provenance?
+
+  governingSource String     @default("")
+  provenance      Provenance
+  sortOrder       Int        @default(0)
+  retiredOn       DateTime?
+
+  documentValues SupplierDocumentValue[]
+
+  @@unique([bodyId, kind, code])
+}
+
+/// A statutory document type (FR-VND-002): configured, never an enum or a column per regulator. Its
+/// switches are null until set, and each blocks the act it governs while unset.
+model SupplierDocumentType {
+  id             String            @id @default(cuid())
+  organisationId String
+  organisation   Organisation      @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  code   String
+  nameEn String
+  nameMs String?
+  /// The body whose values it records. Null: none.
+  bodyId     String?
+  body       RegistrationBody?       @relation(fields: [bodyId], references: [id], onDelete: Restrict)
+  valueKinds RegistrationValueKind[] @default([])
+  expires                 Boolean?
+  mandatoryAtRegistration Boolean?
+  notApplicableAllowed    Boolean?
+
+  governingSource String     @default("")
+  provenance      Provenance
+  sortOrder       Int        @default(0)
+  retiredOn       DateTime?
+
+  documents         SupplierDocument[]
+  resubmissionItems ResubmissionItem[]
+
+  @@unique([organisationId, code])
+}
+
+/// An entry on one of the register's lists: an entity type or a country.
+model SupplierListValue {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  list       SupplierListKind
+  code       String
+  nameEn     String
+  nameMs     String?
+  provenance Provenance
+  sortOrder  Int       @default(0)
+  retiredOn  DateTime?
+
+  @@unique([organisationId, list, code])
+}
+
+/// The register's policy, one per organisation. Every field nullable, nothing shipped.
+model SupplierPolicy {
+  id             String       @id @default(cuid())
+  organisationId String       @unique
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  /// FR-VND-004: what the supplier is told about verification (shown to the vendor in 6.15b). Null: not set.
+  verificationNoticeEn String?
+  verificationNoticeMs String?
+  noticeProvenance     Provenance?
+
+  governingSource String   @default("")
+  updatedAt       DateTime @updatedAt
+}
+
+/// A supplier on the register (ADR 0019): recorded by an officer from its paper application. Its
+/// standing is derived, never a column. Its people are `SupplierContact` rows, never `Person`.
+model Supplier {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  /// Issued from NumberingSeries `supplier`.
+  reference         String
+  registeredName    String
+  registrationNo    String
+  /// The number as compared for duplicates (spaces collapsed, capitals): the database's backstop.
+  registrationNoKey String
+  /// Codes on the register's lists, rendered by their names.
+  entityTypeCode    String
+  countryCode       String
+  registeredAddress String
+  companyEmail      String
+
+  status       SupplierStatus @default(APPLICANT)
+  /// The organisation's day the first registration was approved.
+  registeredOn DateTime?
+
+  /// INT-03: the finance system's vendor code, entered by an officer (manual adapter). Null: not synced.
+  erpVendorCode String?
+  erpSyncedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contacts     SupplierContact[]
+  applications SupplierApplication[]
+  documents    SupplierDocument[]
+
+  @@unique([organisationId, reference])
+  @@unique([organisationId, registrationNoKey])
+  @@unique([organisationId, erpVendorCode])
+}
+
+/// A person at a supplier, as the supplier names them. Not a `Person` (NFR-SEC-005; 6.15b attaches a
+/// vendor account to a contact, ADR 0020). Not restricted until sign-in.
+model SupplierContact {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  supplierId     String
+  supplier       Supplier     @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  name        String
+  designation String    @default("")
+  email       String    @default("")
+  phone       String    @default("")
+  isPrimary   Boolean   @default(false)
+  retiredOn   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([supplierId])
+}
+
+/// A paper application recorded by an officer (FR-VND-001, 006, 007).
+model SupplierApplication {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  supplierId     String
+  supplier       Supplier     @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  kind       ApplicationKind
+  /// The organisation's day the paper arrived, as the officer records it (never after the day recorded).
+  receivedOn DateTime
+  channel    ApplicationChannel
+  recordedByPersonId String
+  recordedBy         Person   @relation("SupplierApplicationRecordedBy", fields: [recordedByPersonId], references: [id], onDelete: Restrict)
+  recordedAt         DateTime
+  /// FR-VND-006 (paper): the day the signed declaration was signed; its scan is attached on the application.
+  declarationSignedOn    DateTime?
+  /// OD-3 B: only that the paper E-Payment form was received; no bank field before sign-in.
+  epaymentFormReceivedOn DateTime?
+
+  status           ApplicationStatus @default(RECEIVED)
+  resubmitBy       DateTime?
+  /// When the rejection a lapsed deadline means was recorded (server). The lapse itself is derived.
+  lapsedRecordedAt DateTime?
+  /// Who sent it for decision last: the route's requester (FR-APR-008).
+  submittedByPersonId String?
+  submittedBy         Person?   @relation("SupplierApplicationSubmittedBy", fields: [submittedByPersonId], references: [id], onDelete: Restrict)
+  decidedAt           DateTime?
+  createdAt           DateTime  @default(now())
+
+  routes      ApprovalInstance[]
+  decisions   ApplicationDecision[]
+  documents   SupplierDocument[]
+  attachments DocumentAttachment[]
+
+  @@index([supplierId])
+}
+
+/// An outcome recorded on an application (FR-VND-007). Append-only. `policySnapshot` holds what the
+/// outcome was judged under (the mandatory types and their states, with provenance), rendered from, never re-derived.
+model ApplicationDecision {
+  id             String              @id @default(cuid())
+  organisationId String
+  organisation   Organisation        @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  applicationId  String
+  application    SupplierApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+
+  outcome    ApplicationOutcome
+  /// As written, verbatim (FR-VND-007).
+  remarks    String    @default("")
+  resubmitBy DateTime?
+  /// Null on a lapse (derived and recorded, nobody's decision) and on an approval recorded by its route.
+  decidedByPersonId String?
+  decidedBy         Person?   @relation("ApplicationDecidedBy", fields: [decidedByPersonId], references: [id], onDelete: Restrict)
+  decidedOn         DateTime
+  decidedAt         DateTime
+  policySnapshot    Json?
+
+  items ResubmissionItem[]
+
+  @@index([applicationId])
+}
+
+/// One thing a resubmission asks for: a document on file, or a type not lodged yet, with its remarks.
+model ResubmissionItem {
+  id             String              @id @default(cuid())
+  organisationId String
+  organisation   Organisation        @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  decisionId     String
+  decision       ApplicationDecision @relation(fields: [decisionId], references: [id], onDelete: Restrict)
+
+  supplierDocumentId String?
+  supplierDocument   SupplierDocument?     @relation(fields: [supplierDocumentId], references: [id], onDelete: Restrict)
+  documentTypeId     String?
+  documentType       SupplierDocumentType? @relation(fields: [documentTypeId], references: [id], onDelete: Restrict)
+  /// What it is about, as it read when asked.
+  labelSnapshot      String
+  remarks            String
+
+  @@index([decisionId])
+}
+
+/// A lodged statutory document (FR-VND-002, 004, 008). A renewal is a new row that supersedes the
+/// one it renews; it takes effect only once verified. Its state on a day is derived.
+model SupplierDocument {
+  id             String               @id @default(cuid())
+  organisationId String
+  organisation   Organisation         @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  supplierId     String
+  supplier       Supplier             @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  typeId         String
+  type           SupplierDocumentType @relation(fields: [typeId], references: [id], onDelete: Restrict)
+  /// The type's name as it stood when lodged.
+  typeLabelSnapshot String
+  /// The application it was lodged with, where it was.
+  applicationId  String?
+  application    SupplierApplication? @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+
+  reference        String    @default("")
+  issuingAuthority String    @default("")
+  issuedOn         DateTime?
+  validFrom        DateTime?
+  expiresOn        DateTime?
+  notApplicable    Boolean   @default(false)
+  supersedesId     String?   @unique
+  supersedes       SupplierDocument? @relation("DocumentRenewal", fields: [supersedesId], references: [id], onDelete: Restrict)
+  renewedBy        SupplierDocument? @relation("DocumentRenewal")
+
+  /// The organisation's day it was lodged, and who recorded it (on their behalf, not signed).
+  lodgedOn           DateTime
+  recordedAt         DateTime
+  recordedByPersonId String
+  recordedBy         Person   @relation("SupplierDocumentRecordedBy", fields: [recordedByPersonId], references: [id], onDelete: Restrict)
+
+  verification       VerificationState @default(NOT_CHECKED)
+  verifiedByPersonId String?
+  verifiedBy         Person?           @relation("SupplierDocumentVerifiedBy", fields: [verifiedByPersonId], references: [id], onDelete: Restrict)
+  verifiedOn         DateTime?
+  verifiedAt         DateTime?
+  verificationNote   String            @default("")
+  note               String            @default("")
+
+  values            SupplierDocumentValue[]
+  attachments       DocumentAttachment[]
+  resubmissionItems ResubmissionItem[]
+
+  @@index([supplierId])
+}
+
+/// A registration value recorded on a document, with its code and name as they stood.
+model SupplierDocumentValue {
+  id                  String            @id @default(cuid())
+  organisationId      String
+  organisation        Organisation      @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  documentId          String
+  document            SupplierDocument  @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  registrationValueId String
+  registrationValue   RegistrationValue @relation(fields: [registrationValueId], references: [id], onDelete: Restrict)
+  kind                RegistrationValueKind
+  codeSnapshot        String
+  labelSnapshot       String
+
+  @@unique([documentId, registrationValueId])
 }
