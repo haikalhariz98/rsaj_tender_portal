@@ -12,7 +12,7 @@ import type { Finding } from "./types";
 
 export type CheckState = "NOT_CHECKED" | "CLEAR" | "FAILED";
 
-export type SaleFault = "SALE_NOT_REGISTERED" | "BARRED" | "NOT_LINKED_REGISTER_REQUIRED" | "REGISTER_RULE_NOT_SET" | "NOT_LINKED" | "LAPSE_RULE_NOT_SET";
+export type SaleFault = "SALE_PARTY_LINKED_ELSEWHERE" | "SALE_NOT_REGISTERED" | "BARRED" | "NOT_LINKED_REGISTER_REQUIRED" | "REGISTER_RULE_NOT_SET" | "NOT_LINKED" | "LAPSE_RULE_NOT_SET";
 
 export interface SaleCheck {
   registrationCheck: CheckState;
@@ -37,4 +37,25 @@ export function saleStandingCheck(
   if (isBarred) findings.push({ code: "BARRED", level: "block", data: { standing: supplier.standing } });
   if (registered && !isBarred && supplier.lapseRuleNotSet) findings.push({ code: "LAPSE_RULE_NOT_SET", level: "warn" });
   return { registrationCheck: registered && !cancelled ? "CLEAR" : "FAILED", suspensionCheck: !registered || cancelled ? "NOT_CHECKED" : isBarred ? "FAILED" : "CLEAR", findings };
+}
+
+/**
+ * Which supplier the register reads at a sale (6.15a fix M-2, against accepted 6.5): with
+ * `registerRequiredForSale` set, no party exists before a first sale, so the sale form may name the
+ * register's supplier, and the new (or unlinked) party is linked to it inside the sale's transaction,
+ * audited, as an explicit act (OD-9). A party already linked keeps its link: naming the same supplier
+ * changes nothing, naming another is refused (a link is never moved).
+ */
+export type SaleSupplier =
+  | { kind: "NONE"; vendorId: null }
+  | { kind: "LINKED"; vendorId: string }
+  | { kind: "LINK_AT_SALE"; vendorId: string }
+  | { kind: "REFUSED"; vendorId: null; fault: Finding<SaleFault> };
+
+export function saleSupplier(partyVendorId: string | null, chosenSupplierId: string | null): SaleSupplier {
+  if (partyVendorId) {
+    if (chosenSupplierId && chosenSupplierId !== partyVendorId) return { kind: "REFUSED", vendorId: null, fault: { code: "SALE_PARTY_LINKED_ELSEWHERE", level: "block" } };
+    return { kind: "LINKED", vendorId: partyVendorId };
+  }
+  return chosenSupplierId ? { kind: "LINK_AT_SALE", vendorId: chosenSupplierId } : { kind: "NONE", vendorId: null };
 }

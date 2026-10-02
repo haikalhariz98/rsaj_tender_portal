@@ -22,6 +22,10 @@ import { ATTESTABLE_CHECKS, isReceiptDuplicate, saleAnnotation, saleFaults, void
 import { CERT_SIGHTED, DELIVERY_METHODS, SITE_EVENT_KINDS, type CertSighted, type CheckState, type DeliveryMethod, type Finding, type PartySource, type SiteEventKind } from "@/lib/window/types";
 import { FormReader } from "@/lib/validate";
 import { supplierFaultText } from "@/lib/suppliers/labels";
+import { SUPPLIER_ENTITY } from "@/lib/suppliers/audit-view";
+import { linkPartyFaults } from "@/lib/suppliers/link";
+import { lockSupplierRow } from "@/lib/suppliers/lock";
+import { saleSupplier } from "@/lib/suppliers/sale";
 import { registerAtSale } from "@/lib/suppliers/sale-hook";
 
 import { activePerson, audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW, NO_ZONE, notes, refuse, Refusal, type LockedWindow } from "./shared";
@@ -94,6 +98,9 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
   const paymentMethod = r.text("paymentMethod", "How the fee was paid", { max: 120 });
   const receiptNo = r.optionalText("financeReceiptNo");
   const personId = r.optionalText("issuedByPersonId");
+  // 6.15a fix M-2: the register's supplier this contractor is, named on the sale (an explicit link, OD-9).
+  const chosenSupplierId = r.optionalText("supplierId");
+  const linkReason = r.text("linkReason", "Why they are the same company", { max: 1000 });
   if (r.failed) return { ok: false, errors: r.errors };
   return receiptGuarded(() => inWindow(exerciseId, async (tx, l, d) => {
     if (!l.org.today) return NO_ZONE;
@@ -108,8 +115,23 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
     if (party.partyId && !known) return { ok: false, message: "That contractor is not on this exercise." };
     const invited = invitedSaleFault(pathOf(d).path, !!known && w.letters.some((x) => x.partyId === known.id));
     if (invited) return refuse([invited], "Not sold:");
+    // 6.15a fix M-2 (flagged against 6.5): a supplier named on the form links a party not yet linked (a first
+    // sale has no party yet), judged as the link act judges it, and written below, in this transaction.
+    const choice = saleSupplier(known?.vendorId ?? null, chosenSupplierId);
+    if (choice.kind === "REFUSED") return { ok: false, errors: { supplierId: supplierFaultText(choice.fault) } };
+    let linkAtSale: { supplier: { id: string; reference: string; registeredName: string }; findings: Finding[] } | null = null;
+    if (choice.kind === "LINK_AT_SALE") {
+      if (!(await lockSupplierRow(tx, choice.vendorId))) return { ok: false, errors: { supplierId: supplierFaultText({ code: "SUPPLIER_REQUIRED", level: "block" }) } };
+      const supplier = await tx.supplier.findFirst({ where: { id: choice.vendorId, organisationId: l.org.id }, select: { id: true, reference: true, registeredName: true, registrationNo: true, status: true } });
+      const others = d.parties.filter((p) => p.id !== known?.id).map((p) => ({ name: p.name, vendorId: p.vendorId }));
+      const lf = linkPartyFaults({ registrationNo: known?.registrationNo ?? party.registrationNo, vendorId: null }, supplier, linkReason, others);
+      const reasonFault = lf.find((f) => f.code === "NUMBER_DIFFERS_REASON_REQUIRED");
+      if (reasonFault) return { ok: false, errors: { linkReason: supplierFaultText(reasonFault) } };
+      if (lf.some((f) => f.level === "block")) return { ok: false, errors: { supplierId: lf.filter((f) => f.level === "block").map((f) => supplierFaultText(f)).join(" ") } };
+      linkAtSale = { supplier: supplier!, findings: lf };
+    }
     // 6.15a: the register, read on the locked supplier row (taken last, after the exercise side).
-    const register = await registerAtSale(tx, { id: l.org.id, timeZone: l.org.timeZone, today: l.org.today }, known?.vendorId ?? null, l.ex.id);
+    const register = await registerAtSale(tx, { id: l.org.id, timeZone: l.org.timeZone, today: l.org.today }, choice.vendorId, l.ex.id);
     const registerBlocks = register.check.findings.filter((f) => f.level === "block");
     if (registerBlocks.length) return { ok: false, message: registerBlocks.map((f) => supplierFaultText(f)).join(" ") };
     const regCheck = register.linked ? register.check.registrationCheck : registrationCheck;
@@ -140,6 +162,13 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
     if (fs.some((f) => f.level === "block")) return refuse(fs, "Not sold:");
     const buyer = await partyFor(tx, l, d, party, "PURCHASER");
     if (!buyer) return { ok: false, message: "That contractor is not on this exercise." };
+    if (linkAtSale) {
+      // OD-9: the explicit link, audited as the link act audits it, recorded at the sale.
+      await tx.exerciseParty.update({ where: { id: buyer.id }, data: { vendorId: linkAtSale.supplier.id } });
+      const differs = linkAtSale.findings.find((f) => f.code === "NUMBER_DIFFERS");
+      await audit(tx, l.org.id, SUPPLIER_ENTITY.party, buyer.id, `${l.ex.reference} · Party ${buyer.name}`, "UPDATE",
+        diffFields({ supplier: null }, { supplier: `${linkAtSale.supplier.reference} · ${linkAtSale.supplier.registeredName}`, numberDiffers: differs ? `${differs.data!.recorded} recorded, ${differs.data!.register} on the register` : null, linkReason: linkReason || null, linkedBy: `${person.name}, named on the sale`, recordedOnBehalf: "not signed" }), linkReason);
+    }
     const soldOn = dayToDate(l.org.today);
     const annotation = saleAnnotation({ exerciseReference: l.ex.reference, purchaser: buyer.name, address: buyer.address, phone: buyer.phone, fax: buyer.fax, closingText: formatOrgDateTime(l.ex.closingAt, l.org.timeZone), issuedBy: person.name, soldOnText: formatDate(l.org.today), receiptNo });
     const row = {
@@ -166,7 +195,7 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
       const copy = await tx.addendumRecipient.create({ data: { organisationId: l.org.id, addendumId: a.id, partyId: buyer.id, withDocuments: true } });
       await audit(tx, l.org.id, ENTITY.addendumCopy, copy.id, label(l, `Addendum ${a.number} · ${buyer.name}`), "CREATE", diffFields(null, { recipient: buyer.name, given: "with the documents" }));
     }
-    const said = [notes(fs), ...register.check.findings.filter((f) => f.level !== "block").map((f) => supplierFaultText(f))].filter(Boolean).join(" ");
+    const said = [notes(fs), ...register.check.findings.filter((f) => f.level !== "block").map((f) => supplierFaultText(f)), ...(linkAtSale ? [`Linked to ${linkAtSale.supplier.reference} · ${linkAtSale.supplier.registeredName} on the supplier register.`, ...linkAtSale.findings.filter((f) => f.level === "warn").map((f) => supplierFaultText(f))] : [])].filter(Boolean).join(" ");
     return { ok: true, message: `Sold to ${buyer.name}.${said ? ` ${said}` : ""}` };
   }), refuse([{ code: "RECEIPT_DUPLICATE", level: "block" }], "Not sold:"));
 }

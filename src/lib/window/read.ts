@@ -314,6 +314,8 @@ export async function saleRegister(exerciseId: string) {
     }),
     reconciliation: uncollectedReceipts(sales).map((s) => ({ id: s.id, purchaser: s.party.name, soldOn: day(s.soldOn), amount: money(s.amount) })),
     parties: d.parties.map((p) => ({ id: p.id, name: p.name, registrationNo: p.registrationNo, cameAs: PARTY_SOURCE_LABEL[p.source], invited: p.source === "PROPOSED_INVITEE" })),
+    // 6.15a fix M-2: the register's registered suppliers a sale may name (the contractor is linked to it at the sale).
+    suppliers: (await db.supplier.findMany({ where: { organisationId: org.id, status: "REGISTERED" }, orderBy: [{ registeredName: "asc" }, { id: "asc" }], select: { id: true, reference: true, registeredName: true, registrationNo: true } })).map((s) => ({ value: s.id, label: `${s.registeredName} (${s.registrationNo}) · ${s.reference}` })),
   };
 }
 

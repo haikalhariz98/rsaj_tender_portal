@@ -377,6 +377,7 @@ export function RecordSaleDrawer({
   restricted,
   people,
   fee,
+  suppliers = [],
   noteId = EXERCISE_NOTE_ID,
 }: {
   exerciseId: string;
@@ -387,6 +388,8 @@ export function RecordSaleDrawer({
   restricted: { label: string; asks: string } | null;
   people: Option[];
   fee: string;
+  /// 6.15a fix M-2: the register's registered suppliers, one of which the sale may name.
+  suppliers?: Option[];
   noteId?: string;
 }) {
   if (!allowed.allowed) return <Blocked label="Record a sale" reason={allowed.reason} primary noteId={noteId} />;
@@ -408,6 +411,8 @@ export function RecordSaleDrawer({
               { kind: "text", name: "fax", label: "Fax" },
               { kind: "text", name: "email", label: "Email" },
             ] as Field[])),
+        { kind: "select", name: "supplierId", label: "Supplier on the register", placeholder: "Not named", options: suppliers, hint: "The register's supplier this contractor is. Named, a contractor not yet linked is linked to it as the sale is recorded (audited), and its registration and standing are read from the register. Needed where the register is required for a sale. A contractor already linked keeps its link." },
+        { kind: "textarea", name: "linkReason", label: "Why they are the same company", hint: "Only where the contractor's registration number differs from the register's." },
         { kind: "text", name: "collectedBy", label: "Collected by", required: true, hint: "The representative who took the set." },
         { kind: "select", name: "authoritySighted", label: "Proof of the representative's authority sighted", required: true, placeholder: "Choose", placeholderDisabled: true, options: THREE, hint: "Not answered refuses the sale." },
         ...(restricted
