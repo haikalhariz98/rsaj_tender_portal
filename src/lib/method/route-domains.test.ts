@@ -15,6 +15,7 @@ import {
 } from "./approval";
 import { SPEC_METHODS } from "./fixture";
 import { APPOINTMENT_DOMAIN, NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN, WINDOW_CHANGE_DOMAIN, type Method } from "./types";
+import { NEGOTIATION_DOMAIN } from "@/lib/evaluation/types";
 
 /**
  * Ruling X-5: an exercise's own routes are told apart by domain, never by `awardId`
@@ -55,7 +56,8 @@ describe("the by-domain splitter", () => {
 
   it("the database filter names both the award and the domains", () => {
     // 6.5 (X-5, faithful update, flagged): the window_change domain joins the exercise's own.
-    expect(EXERCISE_ROUTES_WHERE).toEqual({ awardId: null, domain: { in: [NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN, WINDOW_CHANGE_DOMAIN] } });
+    // 6.8 (X-5, faithful update, flagged): so does the negotiation's.
+    expect(EXERCISE_ROUTES_WHERE).toEqual({ awardId: null, domain: { in: [NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN, WINDOW_CHANGE_DOMAIN, NEGOTIATION_DOMAIN] } });
   });
 });
 

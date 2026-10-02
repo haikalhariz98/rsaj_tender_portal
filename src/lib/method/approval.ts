@@ -18,6 +18,7 @@ import type { Sen } from "@/lib/money";
 import { ableToAct, type Holders } from "@/lib/requisition/holders";
 
 import { APPOINTMENT_DOMAIN, NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN, WINDOW_CHANGE_DOMAIN, type ExerciseStatus, type Finding, type Method } from "./types";
+import { NEGOTIATION_DOMAIN } from "@/lib/evaluation/types";
 
 export interface FunderContext {
   dal: Matrix;
@@ -170,7 +171,8 @@ export function resolveNameApproval(ctx: FunderContext, method: Method, value: n
  * as a name route (and an approved one never satisfies `invitationFault`). A later
  * module adds its domain here and nowhere else.
  */
-export const EXERCISE_ROUTE_DOMAINS = [NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN, WINDOW_CHANGE_DOMAIN] as const;
+/// 6.8 adds the negotiation (FR-EVL-016): its route is the exercise's own, opened from the Evaluation tab.
+export const EXERCISE_ROUTE_DOMAINS = [NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN, WINDOW_CHANGE_DOMAIN, NEGOTIATION_DOMAIN] as const;
 export type ExerciseRouteDomain = (typeof EXERCISE_ROUTE_DOMAINS)[number];
 
 /// The database filter for an exercise's own routes: no award, and one of its domains.
@@ -204,6 +206,7 @@ export const EXERCISE_ROUTE_MATTER: Record<ExerciseRouteDomain, { kind: string; 
   [NAME_APPROVAL_DOMAIN]: { kind: "Approval of the name", tab: "name", auditNoun: "name approval" },
   [TENDERING_APPROVAL_DOMAIN]: { kind: "Approval for tendering", tab: "documents", auditNoun: "approval for tendering" },
   [WINDOW_CHANGE_DOMAIN]: { kind: "Change to the invitation window", tab: "invitation", auditNoun: "window change" },
+  [NEGOTIATION_DOMAIN]: { kind: "Negotiation with a tenderer", tab: "evaluation", auditNoun: "negotiation" },
 };
 
 /// The label of an exercise route of any domain. A domain the product does not know
@@ -219,6 +222,7 @@ const HISTORY_ROUTE_NAME: Record<ExerciseRouteDomain, string> = {
   [NAME_APPROVAL_DOMAIN]: "Name approval",
   [TENDERING_APPROVAL_DOMAIN]: "Approval for tendering",
   [WINDOW_CHANGE_DOMAIN]: "Approval of the change to the invitation window",
+  [NEGOTIATION_DOMAIN]: "Approval of a negotiation",
 };
 export function historyRouteLabel(domain: string, part: "route" | "step"): string {
   const name = isExerciseDomain(domain) ? HISTORY_ROUTE_NAME[domain] : "Approval on the exercise";
@@ -228,7 +232,7 @@ export function historyRouteLabel(domain: string, part: "route" | "step"): strin
 /// A field the History leaves out of a route's rows by the route's domain: a funder's rules never
 /// bear on a change to the window, so "Funding override applied" is not shown beside one (UX U3).
 export function historyFieldHidden(domain: string | undefined, field: string): boolean {
-  return domain === WINDOW_CHANGE_DOMAIN && field === "fundingOverrideApplied";
+  return (domain === WINDOW_CHANGE_DOMAIN || domain === NEGOTIATION_DOMAIN) && field === "fundingOverrideApplied";
 }
 
 export type NameFault = "NAME_NOT_REQUESTED" | "NAME_NOT_APPROVED" | "NAME_REJECTED";
