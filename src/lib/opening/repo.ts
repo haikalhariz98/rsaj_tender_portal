@@ -113,7 +113,9 @@ export async function openingContext(l: { org: { id: string; timeZone: string | 
   const withdrawals = await loadWithdrawals(ex.id, client);
   const lateMatters = await loadLateMatters(ex.id, client);
   const openings = await loadOpenings(ex.id, client);
-  const parties = await client.exerciseParty.findMany({ where: { exerciseId: ex.id }, orderBy: { name: "asc" }, select: { id: true, name: true, registrationNo: true, source: true } });
+  const parties = await client.exerciseParty.findMany({ where: { exerciseId: ex.id }, orderBy: { name: "asc" }, select: { id: true, name: true, registrationNo: true, source: true, vendorId: true } });
+  // 6.15a (OD-6 A): what follows from a linked bidder found not eligible, as the register's policy stands now.
+  const supplierPolicy = await client.supplierPolicy.findUnique({ where: { organisationId: org.id }, select: { ineligibleBidConsequence: true, ineligibleProvenance: true } });
   const pack = await client.tenderPack.findFirst({ where: { exerciseId: ex.id, status: "APPROVED" }, orderBy: { versionNo: "desc" }, select: { versionNo: true, parts: { orderBy: { sortOrder: "asc" }, select: { partCode: true, labelSnapshot: true, role: true, mandatory: true, returnedByBidder: true, sortOrder: true } } } });
   const estimates = await loadEstimates(ex.id, client);
   const estimate = estimates.find((e) => e.state !== "VOID") ?? null;
@@ -159,6 +161,7 @@ export async function openingContext(l: { org: { id: string; timeZone: string | 
     estimateFacts: estimate ? estimateFactsOf(estimate) : null,
     scopePolicy,
     openingPolicy,
+    supplierPolicy,
     committee,
     seats: committee && on ? seatHolders(committee.members, roster, on) : [],
     /// The main opening's committee (R-3), with its panel rules as they stand now (BD-67-11) and its seats on the day.

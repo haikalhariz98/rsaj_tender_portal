@@ -10,6 +10,7 @@ import { db } from "@/lib/db";
 
 import { documentStates } from "./documents";
 import { eligibility, type Eligibility, type EligibilitySnapshot, type HeldValue, type RequirementFacts } from "./eligibility";
+import { lockSupplierRow } from "./lock";
 import { documentFacts, typeFacts } from "./repo";
 import { standing, type StandingEventFacts, type StandingEventKind, type StandingReading } from "./standing";
 import type { RegistrationValueKind } from "./types";
@@ -85,4 +86,12 @@ export async function eligibilityOf(supplierId: string, exerciseId: string, org:
     permissions: permissions.map((p) => ({ requirementId: p.requirementId, relaxes: p.relaxes })),
   });
   return { eligibility: e, snapshot: { judgedOn: org.today, supplierId, supplierReference: supplier.reference, standing: st.reading.standing, verdict: e.verdict, rows: e.rows } };
+}
+
+/// Judge a linked bidder's eligibility at its envelope's opening, its supplier row locked last.
+export async function eligibilityAtOpening(tx: Tx, org: { id: string; timeZone: string | null; today: string | null }, vendorId: string, exerciseId: string): Promise<EligibilitySnapshot | null> {
+  if (!org.today) return null;
+  await lockSupplierRow(tx, vendorId);
+  const e = await eligibilityOf(vendorId, exerciseId, { id: org.id, timeZone: org.timeZone, today: org.today }, tx);
+  return e?.snapshot ?? null;
 }

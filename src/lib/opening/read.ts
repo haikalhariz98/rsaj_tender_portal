@@ -24,6 +24,7 @@ import { COPY_NOT_COMPARED_LABEL, COPY_NOT_COMPARED_TEXT, copyFindingFault, copy
 import { finaliseFaults, markFaults, recordFaults, scheduleScanFault } from "./finalise";
 import { summaryFromSnapshot, type GrandSummary } from "./grand-summary";
 import { freshInitials } from "./initials";
+import { consequenceFor, eligibilityFindingOf, ineligibleOf } from "@/lib/suppliers/opening-hook";
 import { ALTERNATIVE_LABEL, CHECKLIST_ANSWER_LABEL, COPY_CHECK_LABEL, GROUND_LABEL, INVITED_READING_LABEL, OPENING_KIND_LABEL, OPENING_PHASE_LABEL, OPENING_PHASE_TONE, openingFindingText, periodText, REPORTED_LABEL, RESTRICTION_FINDING_LABEL, SALE_FINDING_LABEL, SEALED_UNTIL_FINALISED, VERDICT_LABEL, VERDICT_TONE } from "./labels";
 import { unpurchasedRuleText } from "./unpurchased";
 import { alternativeInsideFaults, openFaults } from "./open";
@@ -157,6 +158,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
   const authorisers = sittingAuthorisers(state.sittingNo, o.authorisations, panel);
   const boxLocked = lockedAtOrAfterClosing(c.events, closing);
   const unpurchased = snap.unpurchased.consequence ?? c.method?.unpurchasedBidConsequence ?? null;
+  const ineligibleConsequence = consequenceFor(o.policySnapshot, c.supplierPolicy?.ineligibleBidConsequence ?? null);
   const allBids = c.openings.flatMap((y) => y.bids);
 
   // ---- the envelopes this opening opens.
@@ -182,7 +184,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
   const offers = o.bids.map((b) => {
     const fresh = freshInitials(b, b.initials);
     const answers = new Map(b.answers.map((a) => [a.itemKey, a.answer]));
-    const j = judgeBid({ saleFinding: b.saleFinding, restrictionFinding: b.restrictionFinding, isAlternative: b.isAlternative, alternativeStatus: b.alternativeStatus }, checklist, answers, { completenessEliminates: snap.completeness.eliminates, unpurchased });
+    const j = judgeBid({ saleFinding: b.saleFinding, restrictionFinding: b.restrictionFinding, isAlternative: b.isAlternative, alternativeStatus: b.alternativeStatus, ineligible: ineligibleOf(b.eligibilityFinding) }, checklist, answers, { completenessEliminates: snap.completeness.eliminates, unpurchased, ineligible: ineligibleConsequence });
     const period = b.completionPeriod != null && b.completionUnit ? { value: b.completionPeriod, unit: b.completionUnit } : null;
     const verdictBlock = [...actFaults(state), ...j.notSet];
     return {
@@ -199,6 +201,11 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
       sale: SALE_FINDING_LABEL[b.saleFinding],
       saleTone: (b.saleFinding === "LIVE_SALE" ? "ok" : "warn") as "ok" | "warn",
       restriction: b.restrictionFinding === "NOT_RESTRICTED" ? null : RESTRICTION_FINDING_LABEL[b.restrictionFinding],
+      /// 6.15a: the supplier register's finding, frozen when the envelope was opened. Null: the bidder was not linked.
+      eligibility: (() => {
+        const f = eligibilityFindingOf(b.eligibilityFinding);
+        return f ? { text: `Supplier register: ${f.verdict === "ELIGIBLE" ? "eligible" : f.verdict === "NOT_ELIGIBLE" ? "not eligible" : "not assessed"}`, tone: (f.verdict === "ELIGIBLE" ? "ok" : f.verdict === "NOT_ELIGIBLE" ? "err" : "warn") as "ok" | "err" | "warn" } : null;
+      })(),
       corrected: b.asReadCorrectedAt ? `Corrected ${time(b.asReadCorrectedAt, tz)}` : null,
       initialled: fresh.map((i) => i.person.name),
       initialMissing: present.filter((p) => !fresh.some((i) => i.personId === p.personId)).map((p) => p.name),
@@ -255,6 +262,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
     admittedOpened: admitted?.status === "OPENED",
     completenessEliminates: snap.completeness.eliminates,
     unpurchased,
+    ineligible: { consequence: ineligibleConsequence, anyFound: o.bids.some((b) => ineligibleOf(b.eligibilityFinding)) },
     invitedReading: snap.invited.reading,
     estimate: { required: snap.estimate.requires === true, lodged: estimateLodged, paperAnswered: true },
     personActive: true,

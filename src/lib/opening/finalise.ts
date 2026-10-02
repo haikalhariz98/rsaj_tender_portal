@@ -32,6 +32,7 @@ export type FinaliseFault =
   | "SIGNATURE_MISSING"
   | "CONSEQUENCE_NOT_SET"
   | "UNPURCHASED_CONSEQUENCE_NOT_SET"
+  | "INELIGIBLE_CONSEQUENCE_NOT_SET"
   | "READING_NOT_SET"
   | "ESTIMATE_COPY_NOT_ANSWERED"
   | "PERSON_REQUIRED";
@@ -61,6 +62,8 @@ export function finaliseFaults(i: {
   admittedOpened: boolean;
   completenessEliminates: boolean | null;
   unpurchased: UnpurchasedConsequence | null;
+  /// 6.15a (OD-6 A): the register's consequence for a linked bidder found not eligible, and whether any bid holds such a finding.
+  ineligible?: { consequence: UnpurchasedConsequence | null; anyFound: boolean };
   invitedReading: InvitedCountReading | null;
   /// Where the method requires an estimate and one is lodged: whether the paper's figure (or "not in the box") was answered.
   estimate: { required: boolean; lodged: boolean; paperAnswered: boolean };
@@ -83,6 +86,8 @@ export function finaliseFaults(i: {
   if (i.completenessEliminates == null) f("CONSEQUENCE_NOT_SET");
   // OD-4: only where such a bid exists.
   if (i.unpurchased == null && i.bids.some((b) => b.unpurchased)) f("UNPURCHASED_CONSEQUENCE_NOT_SET");
+  // 6.15a (OD-6 A): unset blocks only where a linked bidder was found not eligible.
+  if (i.ineligible && i.ineligible.consequence == null && i.ineligible.anyFound) f("INELIGIBLE_CONSEQUENCE_NOT_SET");
   if (i.invitedReading == null) f("READING_NOT_SET");
   if (i.estimate.required && i.estimate.lodged && !i.estimate.paperAnswered) f("ESTIMATE_COPY_NOT_ANSWERED");
   if (!i.personActive) f("PERSON_REQUIRED");

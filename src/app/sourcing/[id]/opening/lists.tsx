@@ -78,6 +78,7 @@ export function OffersRead({ exerciseId, o }: { exerciseId: string; o: OpeningVi
         items: [
           { text: b.sale, tone: b.saleTone },
           ...(b.restriction ? [{ text: b.restriction, tone: b.restriction.startsWith("Restriction not") ? ("err" as const) : ("ok" as const) }] : []),
+          ...(b.eligibility ? [b.eligibility] : []),
           ...(b.corrected ? [{ text: b.corrected, tone: "info" as const }] : []),
         ],
       },

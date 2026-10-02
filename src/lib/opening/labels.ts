@@ -75,12 +75,14 @@ export const GROUND_LABEL: Readonly<Record<Ground, string>> = {
   NOT_INVITED: "The bidder is not on the approved invitee list, and the method eliminates such a bid",
   NOT_EVIDENCED: "The restriction's certificate was not evidenced as valid on the closing day",
   ALTERNATIVE_NOT_CONSIDERED: "An alternative bid the documents do not permit: recorded, not considered",
+  NOT_ELIGIBLE: "The supplier register found the bidder not eligible when its envelope was opened, and the register's policy eliminates such a bid",
 };
 
 export const REPORTED_LABEL: Readonly<Record<Reported, string>> = {
   INCOMPLETE_REPORTED: "A mandatory document is missing: reported to the committee, which decides",
   NOT_PURCHASED_REPORTED: "No live purchase of the documents: reported to the committee",
   NOT_INVITED_REPORTED: "Not on the approved invitee list: reported to the committee",
+  NOT_ELIGIBLE_REPORTED: "Found not eligible on the supplier register: reported to the committee, which decides",
 };
 
 /// The statement the Opening tab makes (C-2): what is recorded, and what it is not.
@@ -187,6 +189,7 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   ANSWERS_INCOMPLETE: (f) => `${plural(n(f, "count"), "checklist item is", "checklist items are")} not answered yet.`,
   CONSEQUENCE_NOT_SET: () => `What follows from an incomplete bid was not set when the window was published, so no verdict is recorded. Windows published later take the setting (${SETTING_AT.bidRules}); it does not reach this exercise, so ${CANCEL_EXIT}.`,
   UNPURCHASED_CONSEQUENCE_NOT_SET: () => `What follows from a bid by a bidder with no live purchase (or not invited) is not set. Set it under ${SETTING_AT.methodRules}.`,
+  INELIGIBLE_CONSEQUENCE_NOT_SET: () => "A bidder linked to the supplier register was found not eligible when its envelope was opened, and what follows from that is not set. Set it under Configuration › Supplier register, Standing.",
   ALTERNATIVES_NOT_STATED: () => "The window does not say whether alternative bids are permitted, so no alternative is marked. It is answered on the window before publication.",
   // ---- opening an envelope
   ENVELOPE_NOT_FOUND: () => "That envelope is not on this exercise's register.",
@@ -209,6 +212,7 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   PASS_NOT_INVITED: () => "The bidder is not on the approved invitee list, and the method eliminates such a bid: it cannot be carried.",
   PASS_NOT_EVIDENCED: () => "The restriction's certificate was not evidenced as valid on the closing day: the bid is not eligible.",
   PASS_ALTERNATIVE_NOT_CONSIDERED: () => "The documents do not permit alternatives: this one is recorded, never considered.",
+  PASS_NOT_ELIGIBLE: () => "The supplier register found the bidder not eligible when its envelope was opened, and the register's policy eliminates such a bid: it cannot be carried.",
   REJECT_ON_COMPLETENESS_NOT_PERMITTED: () => "The method reports an incomplete bid to the committee, which decides: the opening does not reject it for that.",
   REJECT_WITHOUT_GROUND: () => "Nothing the rules make eliminatory stands against this bid: the opening carries it. Any other concern goes in the minutes for the committee.",
   // ---- the estimate's copy (C-1)

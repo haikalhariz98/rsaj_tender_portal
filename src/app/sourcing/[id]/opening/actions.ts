@@ -41,6 +41,8 @@ import { estimateLeadFaults, frozenRuleFaults, startFaults, supplementaryFaults 
 import { blocking, CHECKLIST_ANSWERS, PERIOD_UNITS, type Finding, type OpeningVerdict, type PeriodUnit } from "@/lib/opening/types";
 import { adjournFaults, authorisationFaults, lapsedByAdjourning, opensTheBox, unsealState } from "@/lib/opening/unseal";
 import { judgeBid, verdictFaults, verdictRecord } from "@/lib/opening/verdict";
+import { consequenceFor, ineligibleOf } from "@/lib/suppliers/opening-hook";
+import { eligibilityAtOpening } from "@/lib/suppliers/standing-repo";
 import { findingFaults, matchFaults, openFault } from "@/lib/opening/withdrawals";
 
 import { activePerson, audit, exerciseIdOf, inWindow, label, Refusal, type LockedWindow } from "../window/shared";
@@ -478,6 +480,8 @@ export async function openEnvelope(_prev: FormState, data: FormData): Promise<Fo
     // R-5: judged on the closing day in the organisation's zone, never an empty day; a refusal after the party's write rolls back.
     const restriction = restrictionFinding(snap.restrictedTender, liveSaleOf(bidder.id, c.sales), c.closingDay);
     if ("fault" in restriction) throw new Refusal(refuse([restriction.fault]));
+    // 6.15a (FR-BID-008 on paper, OD-6 A): a bidder linked to the register is judged on its locked row (the supplier last), frozen with the offer.
+    const eligibility = party?.vendorId ? await eligibilityAtOpening(tx, l.org, party.vendorId, l.ex.id) : null;
     const listingNo = nextListingNo(c.openings.flatMap((x) => x.bids.map((b) => b.listingNo)));
     const alternative = alternativeOf(isAlternative, snap.alternativesPermitted);
     const period = periodOf(offer.period);
@@ -487,6 +491,7 @@ export async function openEnvelope(_prev: FormState, data: FormData): Promise<Fo
         bidderNameAsRead: party ? (bidderName.trim() || party.name) : bidder.name, registrationClassAsRead: registrationClass, registrationStatusAsRead: registrationStatus,
         priceAsRead: senToDecimalString(offer.price!), completionPeriod: period?.value ?? null, completionUnit: period?.unit ?? null, validityDaysStated: offer.validityDays,
         isAlternative, parentOpenedBidId: parent?.id ?? null, alternativeStatus: alternative, saleFinding: sale, restrictionFinding: restriction.finding,
+        ...(eligibility ? { eligibilityFinding: eligibility as unknown as Prisma.InputJsonValue } : {}),
       },
     });
     // OD-2, C-10: the one writer of an envelope's party, at its opening.
@@ -495,7 +500,7 @@ export async function openEnvelope(_prev: FormState, data: FormData): Promise<Fo
     if (moved.count !== 1) throw new Refusal(ENVELOPE_CHANGED);
     await audit(tx, l.org.id, BID_ENTITY.envelope, e!.id, label(l, `Envelope ${e!.sequence}`), "UPDATE", diffFields({ ...statusField("RECEIVED"), bidder: null }, { ...statusField("OPENED"), bidder: bidder.name }));
     await audit(tx, l.org.id, OPENING_ENTITY.bid, bid.id, label(l, `Offer ${listingNo}`), "CREATE",
-      diffFields(null, openedBidFields({ listingNo, envelope: `Envelope ${e!.sequence}`, bidder: bid.bidderNameAsRead, registrationClass, registrationStatus, price: offer.price!, period, validityDays: offer.validityDays, alternative, parentListingNo: parent?.listingNo ?? null, sale, restriction: restriction.finding, at: now }, l.org.timeZone)));
+      diffFields(null, { ...openedBidFields({ listingNo, envelope: `Envelope ${e!.sequence}`, bidder: bid.bidderNameAsRead, registrationClass, registrationStatus, price: offer.price!, period, validityDays: offer.validityDays, alternative, parentListingNo: parent?.listingNo ?? null, sale, restriction: restriction.finding, at: now }, l.org.timeZone), ...(eligibility ? { supplierRegister: `${eligibility.supplierReference}: ${eligibility.verdict === "ELIGIBLE" ? "eligible" : eligibility.verdict === "NOT_ELIGIBLE" ? "not eligible" : "not assessed"}, judged ${eligibility.judgedOn}` } : {}) }));
     return { ok: true, message: `Opened as No. ${listingNo}. Each panel member present now initials it, and its checklist is answered.` };
   });
 }
@@ -524,6 +529,8 @@ export async function recordAlternative(_prev: FormState, data: FormData): Promi
         bidderNameAsRead: main.bidderNameAsRead, registrationClassAsRead: main.registrationClassAsRead, registrationStatusAsRead: main.registrationStatusAsRead,
         priceAsRead: senToDecimalString(offer.price!), completionPeriod: period?.value ?? null, completionUnit: period?.unit ?? null, validityDaysStated: offer.validityDays,
         isAlternative: true, parentOpenedBidId: main.id, alternativeStatus: alternative, saleFinding: main.saleFinding, restrictionFinding: main.restrictionFinding,
+        // 6.15a: the bidder's register finding goes with its alternative, as its sale finding does.
+        ...(main.eligibilityFinding != null ? { eligibilityFinding: main.eligibilityFinding as Prisma.InputJsonValue } : {}),
       },
     });
     await audit(tx, l.org.id, OPENING_ENTITY.bid, bid.id, label(l, `Offer ${listingNo}`), "CREATE",
@@ -612,8 +619,8 @@ export async function recordVerdict(_prev: FormState, data: FormData): Promise<F
     const checklist = checklistFromSnapshot(o.checklistSnapshot);
     const answers = new Map(bid.answers.map((a) => [a.itemKey, a.answer]));
     const unpurchased = unpurchasedRule(snap, liveUnpurchased(c), now, person.name);
-    const policy = { completenessEliminates: snap.completeness.eliminates, unpurchased: unpurchased.consequence };
-    const facts = { saleFinding: bid.saleFinding, restrictionFinding: bid.restrictionFinding, isAlternative: bid.isAlternative, alternativeStatus: bid.alternativeStatus };
+    const policy = { completenessEliminates: snap.completeness.eliminates, unpurchased: unpurchased.consequence, ineligible: consequenceFor(o.policySnapshot, c.supplierPolicy?.ineligibleBidConsequence ?? null) };
+    const facts = { saleFinding: bid.saleFinding, restrictionFinding: bid.restrictionFinding, isAlternative: bid.isAlternative, alternativeStatus: bid.alternativeStatus, ineligible: ineligibleOf(bid.eligibilityFinding) };
     const fs = verdictFaults({ state: stateOf(o, l.ex.status), sameOpening: true, bid: facts, checklist, answers, policy, verdict, reason });
     if (blocking(fs).length) return fs.length === 1 && fs[0].code === "REASON_REQUIRED" ? { ok: false, errors: { verdictReason: openingFindingText(fs[0]) } } : refuse(fs);
     const j = judgeBid(facts, checklist, answers, policy);
@@ -721,6 +728,8 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
     const snap = policyOf(o.policySnapshot);
     const checklist = checklistFromSnapshot(o.checklistSnapshot);
     const unpurchased = unpurchasedRule(snap, liveUnpurchased(c), now, person?.name ?? "");
+    const ineligible = consequenceFor(o.policySnapshot, c.supplierPolicy?.ineligibleBidConsequence ?? null);
+    const anyIneligible = o.bids.some((b) => ineligibleOf(b.eligibilityFinding));
     const estimate = { required: snap.estimate.requires === true, lodged: o.kind === "MAIN" && c.estimate?.state === "LODGED", paperAnswered };
     const unopened = c.envelopes.filter((e) => e.kind !== "COMPANY_ESTIMATE" && !e.late && e.status === "RECEIVED").length;
     const admitted = o.admissionDecision?.bidEnvelopeId ? c.envelopes.find((e) => e.id === o.admissionDecision!.bidEnvelopeId) : null;
@@ -736,6 +745,8 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
       admittedOpened: admitted?.status === "OPENED",
       completenessEliminates: snap.completeness.eliminates,
       unpurchased: unpurchased.consequence,
+      // 6.15a (OD-6 A): unset blocks only where a linked bidder was found not eligible.
+      ineligible: { consequence: ineligible, anyFound: anyIneligible },
       // R-4: the reading frozen at the start, never today's configuration.
       invitedReading: snap.invited.reading,
       estimate,
@@ -777,6 +788,9 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
     const lodged = disclosed?.lodged ?? null;
     // R-4: the unpurchased rule is recorded at finalising only where an offer needs it, audited with it.
     const recordRule = unpurchased.record && o.bids.some((b) => b.saleFinding !== "LIVE_SALE") ? unpurchased.record : null;
+    // 6.15a (OD-6 A): the register's consequence is frozen on the opening at finalising, where a bid needed it.
+    const base = (recordRule ?? o.policySnapshot) as Record<string, unknown> | null;
+    const frozenSnapshot = anyIneligible && base ? { ...base, ineligible: { consequence: ineligible, provenance: c.supplierPolicy?.ineligibleProvenance ?? null, recordedAt: now.toISOString(), recordedBy: person!.name } } : recordRule;
     await tx.opening.update({
       where: { id: o.id },
       data: {
@@ -784,7 +798,7 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
         scheduleSnapshot: { ...schedule, invitedReadingProvenance: snap.invited.provenance } as unknown as Prisma.InputJsonValue,
         grandSummarySnapshot: summary.summary as unknown as Prisma.InputJsonValue,
         faultsSnapshot: fs.filter((f) => f.level !== "block") as unknown as Prisma.InputJsonValue,
-        ...(recordRule ? { policySnapshot: recordRule as unknown as Prisma.InputJsonValue } : {}),
+        ...(frozenSnapshot ? { policySnapshot: frozenSnapshot as unknown as Prisma.InputJsonValue } : {}),
         estimatePaperAmount: disclosed?.paper != null ? senToDecimalString(disclosed.paper) : null,
         estimateLodgedAmount: disclosed && disclosed.check ? senToDecimalString(lodged!) : null,
         estimateCopyCheck: disclosed?.check ?? null,
@@ -793,6 +807,9 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
     if (recordRule) {
       const a = unpurchasedRecordAudit(unpurchased.consequence!, now, person!.name, l.org.timeZone);
       await audit(tx, l.org.id, OPENING_ENTITY.opening, o.id, openingLabel(l, o), "UPDATE", diffFields(a.before, a.after));
+    }
+    if (anyIneligible) {
+      await audit(tx, l.org.id, OPENING_ENTITY.opening, o.id, openingLabel(l, o), "UPDATE", diffFields({ ineligibleBidder: null }, { ineligibleBidder: ineligible === "ELIMINATE" ? "Eliminated at the opening (the supplier register's policy, frozen at finalising)" : "Reported to the committee (the supplier register's policy, frozen at finalising)" }));
     }
     await audit(tx, l.org.id, OPENING_ENTITY.opening, o.id, openingLabel(l, o), "UPDATE", diffFields({ finalised: null }, finaliseFields({ at: now, by: person!.name, pages: o.schedulePages!, rows: schedule.rows.length, copy: disclosed?.check ?? null, paper: disclosed?.paper ?? null, lodged, disclosed: !!disclosed }, l.org.timeZone)));
     if (o.kind === "MAIN") {

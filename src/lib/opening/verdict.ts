@@ -9,7 +9,10 @@
  * - the sale (X-11, OD-4): a bidder with no live sale, or not invited, is eliminated or reported by
  *   the method's `unpurchasedBidConsequence`; unset blocks only where such a bid exists;
  * - the restriction (FR-DOC-009, SK001 7.3.4 (a)): NOT_EVIDENCED is eliminatory;
- * - an alternative the documents do not permit is recorded, never considered: never PASS.
+ * - an alternative the documents do not permit is recorded, never considered: never PASS;
+ * - 6.15a (FR-BID-008 on paper, OD-6 A): a linked bidder the supplier register found not eligible,
+ *   frozen when its envelope was opened, is eliminated or reported by the register's
+ *   `ineligibleBidConsequence`; unset blocks only where such a bid exists. Not assessed is shown, not judged.
  *
  * A PASS is refused while any eliminatory ground stands; a REJECT is refused without one, and needs
  * the reason in words. Every item must be answered, and the checklist judged (6.6 ruling). Pure.
@@ -19,22 +22,26 @@ import { missingItems, unansweredItems, type ChecklistItem, type OpeningChecklis
 import { actFaults, type ActFault, type OpeningState } from "./state";
 import type { AlternativeConsideration, ChecklistAnswer, Finding, OpeningVerdict, RestrictionFinding, SaleFinding, UnpurchasedConsequence } from "./types";
 
-export type Ground = "INCOMPLETE" | "NOT_PURCHASED" | "NOT_INVITED" | "NOT_EVIDENCED" | "ALTERNATIVE_NOT_CONSIDERED";
-export type Reported = "INCOMPLETE_REPORTED" | "NOT_PURCHASED_REPORTED" | "NOT_INVITED_REPORTED";
+export type Ground = "INCOMPLETE" | "NOT_PURCHASED" | "NOT_INVITED" | "NOT_EVIDENCED" | "ALTERNATIVE_NOT_CONSIDERED" | "NOT_ELIGIBLE";
+export type Reported = "INCOMPLETE_REPORTED" | "NOT_PURCHASED_REPORTED" | "NOT_INVITED_REPORTED" | "NOT_ELIGIBLE_REPORTED";
 
 export interface BidForVerdict {
   saleFinding: SaleFinding;
   restrictionFinding: RestrictionFinding;
   isAlternative: boolean;
   alternativeStatus: AlternativeConsideration | null;
+  /// 6.15a: the register found the linked bidder not eligible when its envelope was opened. Absent or false: no such finding.
+  ineligible?: boolean;
 }
 
 export interface VerdictPolicy {
   completenessEliminates: boolean | null;
   unpurchased: UnpurchasedConsequence | null;
+  /// 6.15a (OD-6 A): what follows from a linked bidder found not eligible. Null: not set.
+  ineligible?: UnpurchasedConsequence | null;
 }
 
-export type NotSetFault = "CHECKLIST_NOT_JUDGED" | "ANSWERS_INCOMPLETE" | "CONSEQUENCE_NOT_SET" | "UNPURCHASED_CONSEQUENCE_NOT_SET" | "ALTERNATIVES_NOT_STATED";
+export type NotSetFault = "CHECKLIST_NOT_JUDGED" | "ANSWERS_INCOMPLETE" | "CONSEQUENCE_NOT_SET" | "UNPURCHASED_CONSEQUENCE_NOT_SET" | "ALTERNATIVES_NOT_STATED" | "INELIGIBLE_CONSEQUENCE_NOT_SET";
 
 /// What the rules make of one bid: the items missing, the eliminatory grounds, what is reported, and what is not set.
 export function judgeBid(bid: BidForVerdict, checklist: OpeningChecklist, answers: ReadonlyMap<string, ChecklistAnswer>, policy: VerdictPolicy): { missing: ChecklistItem[]; unanswered: ChecklistItem[]; grounds: Ground[]; reported: Reported[]; notSet: Finding<NotSetFault>[] } {
@@ -57,6 +64,12 @@ export function judgeBid(bid: BidForVerdict, checklist: OpeningChecklist, answer
     else reported.push(invite ? "NOT_INVITED_REPORTED" : "NOT_PURCHASED_REPORTED");
   }
   if (bid.restrictionFinding === "NOT_EVIDENCED") grounds.push("NOT_EVIDENCED");
+  if (bid.ineligible) {
+    const c = policy.ineligible ?? null;
+    if (c == null) notSet.push({ code: "INELIGIBLE_CONSEQUENCE_NOT_SET", level: "block" });
+    else if (c === "ELIMINATE") grounds.push("NOT_ELIGIBLE");
+    else reported.push("NOT_ELIGIBLE_REPORTED");
+  }
   if (bid.isAlternative) {
     if (bid.alternativeStatus == null) notSet.push({ code: "ALTERNATIVES_NOT_STATED", level: "block" });
     else if (bid.alternativeStatus === "NOT_CONSIDERED") grounds.push("ALTERNATIVE_NOT_CONSIDERED");
@@ -74,6 +87,7 @@ export type VerdictFault =
   | "PASS_NOT_INVITED"
   | "PASS_NOT_EVIDENCED"
   | "PASS_ALTERNATIVE_NOT_CONSIDERED"
+  | "PASS_NOT_ELIGIBLE"
   | "REJECT_ON_COMPLETENESS_NOT_PERMITTED"
   | "REJECT_WITHOUT_GROUND"
   | "REASON_REQUIRED";
@@ -84,6 +98,7 @@ const PASS_REFUSAL: Record<Ground, VerdictFault> = {
   NOT_INVITED: "PASS_NOT_INVITED",
   NOT_EVIDENCED: "PASS_NOT_EVIDENCED",
   ALTERNATIVE_NOT_CONSIDERED: "PASS_ALTERNATIVE_NOT_CONSIDERED",
+  NOT_ELIGIBLE: "PASS_NOT_ELIGIBLE",
 };
 
 export function verdictFaults(i: { state: OpeningState; sameOpening: boolean; bid: BidForVerdict; checklist: OpeningChecklist; answers: ReadonlyMap<string, ChecklistAnswer>; policy: VerdictPolicy; verdict: OpeningVerdict | null; reason: string }): Finding<VerdictFault>[] {
