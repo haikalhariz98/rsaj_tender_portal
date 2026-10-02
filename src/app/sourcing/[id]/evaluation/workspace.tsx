@@ -169,7 +169,7 @@ function Meetings({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }) {
   return (
     <>
       <Card className="overflow-hidden">
-        <CardHeader title="Clarifications and negotiations" subtitle={<span className="inline-flex flex-wrap items-center gap-2">Each held, then closed on its minutes and the tenderer&apos;s written confirmation. <Sulit /></span>} actions={c.open ? <OpenMeetingDrawer exerciseId={v.exerciseId} bidders={c.runningBidders} people={v.header.people} allowed={c.recommendation.formed ? { allowed: false, reason: "The recommendation is formed: no meeting after it." } : c.act} /> : undefined} />
+        <CardHeader title="Clarifications and negotiations" subtitle={<span className="inline-flex flex-wrap items-center gap-2">Each held, then closed on its minutes and the tenderer&apos;s written confirmation. <Sulit /></span>} actions={c.open ? <OpenMeetingDrawer exerciseId={v.exerciseId} bidders={c.allBidders} people={v.header.people} allowed={c.recommendation.formed ? { allowed: false, reason: "The recommendation is formed: no meeting after it." } : c.act} /> : undefined} />
         <MeetingsList exerciseId={v.exerciseId} c={c} people={v.header.people} />
       </Card>
       {c.meetings.map((m) => (

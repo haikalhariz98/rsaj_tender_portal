@@ -210,7 +210,7 @@ export function OpenMeetingDrawer({ exerciseId, bidders, people: ps, allowed }: 
   return (
     <RecordEditor
       title="Record a meeting held"
-      description="A clarification with any bid in the running, as often as needed; a negotiation only once its approval is recorded. Close it on its minutes once the tenderer's written confirmation is attached."
+      description="A clarification with any tenderer, as often as needed; a negotiation only with a bid in the running, once its approval is recorded. Close it on its minutes once the tenderer's written confirmation is attached."
       columns={2}
       fields={[hidden("exerciseId"), { kind: "select", name: "bidderId", label: "Tenderer", required: true, placeholder: "Choose", options: bidders }, { kind: "select", name: "kind", label: "Meeting", required: true, placeholder: "Choose", options: [{ value: "CLARIFICATION", label: "Clarification" }, { value: "NEGOTIATION", label: "Negotiation" }] }, { kind: "date", name: "heldOn", label: "Held on", required: true }, { kind: "text", name: "place", label: "Where", required: true }, people(who("personId"), ps)]}
       values={{ exerciseId }}

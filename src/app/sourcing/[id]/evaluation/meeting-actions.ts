@@ -11,7 +11,7 @@ import { boundaryOperatorFor } from "@/lib/authority/resolve";
 import { dayIn, dayToDate, storedDay } from "@/lib/dates";
 import { isLive } from "@/lib/documents/evidence";
 import { closeFields, EVALUATION_ENTITY, meetingFields } from "@/lib/evaluation/audit-view";
-import { closeMeetingFaults, negotiationRequestFaults, openMeetingFaults } from "@/lib/evaluation/meetings";
+import { closeMeetingFaults, meetingEligible, negotiationRequestFaults, openMeetingFaults } from "@/lib/evaluation/meetings";
 import { NEGOTIATION_REFUSED_DECIDED_BY, negotiationRouteForRequester } from "@/lib/evaluation/route";
 import { finalRunning } from "@/lib/evaluation/stages";
 import { openActFaults } from "@/lib/evaluation/state";
@@ -34,7 +34,7 @@ import { evLabel, GONE_BIDDER, inEvaluation, notes, refuse, stampNow } from "./s
 
 /**
  * Meetings and the negotiation's route (FR-EVL-015, 016; OQ-08 interim; OD-10 A). A clarification is
- * held with any bidder in the running, as often as needed, never as an entitlement; a negotiation only
+ * held with any bidder (fix R-6), as often as needed, never as an entitlement; a negotiation only
  * on an APPROVED route on the engine's `negotiation` domain, resolved from the customer's matrix rows
  * (none shipped: refused naming the Approval matrix). Each is recorded as held, then closed on its
  * minutes and the tenderer's written confirmation (attached to the meeting); a negotiation round with
@@ -64,7 +64,8 @@ export async function openMeeting(_prev: FormState, data: FormData): Promise<For
     const request = e!.negotiations.filter((n) => n.bidderId === bidderId).at(-1) ?? null;
     const fs: Finding[] = openMeetingFaults({
       kind,
-      bidderInRunning: !b.excludedReason && finalRunning(f).some((x) => x.id === b.id),
+      // R-6 (OD-10 A): a clarification with any bidder; a negotiation only with a bid in the running.
+      bidderInRunning: meetingEligible(kind, !b.excludedReason && finalRunning(f).some((x) => x.id === b.id)),
       route: request ? { status: request.approvalInstance.status } : null,
       openAlready: e!.meetings.some((m) => m.bidderId === bidderId && m.kind === kind && !m.closedAt),
       heldOn: storedDay(heldOn),

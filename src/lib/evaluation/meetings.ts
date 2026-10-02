@@ -1,6 +1,6 @@
 /**
  * Clarification and negotiation meetings (FR-EVL-015, 016; OQ-08 interim). A clarification meeting is
- * available with any bidder in the running, as many rounds as needed (OD-10 A: never an entitlement);
+ * available with any bidder, as many rounds as needed (OD-10 A: never an entitlement; fix R-6);
  * it is closed only with its minutes recorded and the tenderer's written confirmation attached and
  * live, and once closed it is frozen. A negotiation needs an APPROVED route on the engine's
  * `negotiation` domain, for that bidder (the customer's matrix rows: none shipped; with none the request
@@ -26,6 +26,13 @@ export type MeetingFault =
   | "CONFIRMATION_REQUIRED"
   | "PRICES_REQUIRED"
   | "PRICE_RAISED";
+
+/**
+ * Whether a bidder may be met (6.8 fix R-6, OD-10 A): a clarification is available to any bidder in
+ * the evaluation, excluded or out of the running included, as often as needed; a negotiation only
+ * with a bid in the running. Feeds `openMeetingFaults`' `bidderInRunning`.
+ */
+export const meetingEligible = (kind: MeetingKind, inRunning: boolean) => kind === "CLARIFICATION" || inRunning;
 
 /// Recording that a meeting was held with a bidder. `route`: the latest negotiation request's route for the bidder.
 export function openMeetingFaults(i: {
