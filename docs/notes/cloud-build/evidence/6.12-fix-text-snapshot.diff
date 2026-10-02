@@ -1,0 +1,5656 @@
+diff -rU0 before/awards__demo_aw1__tab__conditions.txt after/awards__demo_aw1__tab__conditions.txt
+--- before/awards__demo_aw1__tab__conditions.txt	2026-10-02 20:41:30.096189397 +0000
++++ after/awards__demo_aw1__tab__conditions.txt	2026-10-02 21:21:27.380134565 +0000
+@@ -43,0 +44 @@
++Sums insured are not yet compared with the tender Appendix's minimums or the award's own insurance terms: each policy is judged lodged and verified only.
+diff -rU0 before/awards__demo_aw2__tab__conditions.txt after/awards__demo_aw2__tab__conditions.txt
+--- before/awards__demo_aw2__tab__conditions.txt	2026-10-02 20:42:23.796188168 +0000
++++ after/awards__demo_aw2__tab__conditions.txt	2026-10-02 21:22:10.340133583 +0000
+@@ -50,0 +51 @@
++Sums insured are not yet compared with the tender Appendix's minimums or the award's own insurance terms: each policy is judged lodged and verified only.
+diff -rU0 before/awards__demo_aw3__tab__conditions.txt after/awards__demo_aw3__tab__conditions.txt
+--- before/awards__demo_aw3__tab__conditions.txt	2026-10-02 20:45:03.580184514 +0000
++++ after/awards__demo_aw3__tab__conditions.txt	2026-10-02 21:24:30.728130372 +0000
+@@ -40 +40,2 @@
+-Not lodged: Public liability, Workmen's compensation. Lodged, not verified: Works insurance. Workmen's compensation is calculated on uncovered wages, so its sum cannot be checked: it counts as met only once the check of the declared wages is recorded, on the contract's Formation tab.
++Not lodged: Public liability, Workmen's compensation. Lodged, not verified: Works insurance. Workmen's compensation is calculated on uncovered wages, so its sum cannot be checked: it counts as met only once the check of the declared wages is recorded, on the contract's Securities tab.
++Sums insured are not yet compared with the tender Appendix's minimums or the award's own insurance terms: each policy is judged lodged and verified only.
+diff -rU0 before/awards__demo_aw4__tab__conditions.txt after/awards__demo_aw4__tab__conditions.txt
+--- before/awards__demo_aw4__tab__conditions.txt	2026-10-02 20:45:05.116184479 +0000
++++ after/awards__demo_aw4__tab__conditions.txt	2026-10-02 21:24:32.144130339 +0000
+@@ -55,0 +56 @@
++Sums insured are not yet compared with the tender Appendix's minimums or the award's own insurance terms: each policy is judged lodged and verified only.
+diff -rU0 before/awards__demo_aw4__tab__history.txt after/awards__demo_aw4__tab__history.txt
+--- before/awards__demo_aw4__tab__history.txt	2026-10-02 20:42:05.104188596 +0000
++++ after/awards__demo_aw4__tab__history.txt	2026-10-02 21:21:55.348133926 +0000
+@@ -105,11 +105 @@
+-Created
+-Copy
+-DEMO/AWD/0004/2026 · copy to Implementing department
+-19 Sep 2026
+-Recipient
+-:
+-Implementing department
+-Mandatory
+-:
+-Yes
+-Created
++Changed
+@@ -119,4 +109 @@
+-Recipient
+-:
+-Demo Meter Services Sdn Bhd
+-Mandatory
++Method
+@@ -124,2 +111,4 @@
+-Yes
+-Awardee
++—
++→
++Collected
++Despatched on
+@@ -127,4 +116,2 @@
+-Yes
+-Created
+-Copy
+-DEMO/AWD/0004/2026 · copy to Finance department
++—
++→
+@@ -132,4 +119 @@
+-Recipient
+-:
+-Finance department
+-Mandatory
++Acknowledged on
+@@ -137 +121,3 @@
+-Yes
++—
++→
++19 Sep 2026
+@@ -218,19 +203,0 @@
+-DEMO/AWD/0004/2026 · copy to Demo Meter Services Sdn Bhd
+-19 Sep 2026
+-Method
+-:
+-—
+-→
+-Collected
+-Despatched on
+-:
+-—
+-→
+-19 Sep 2026
+-Acknowledged on
+-:
+-—
+-→
+-19 Sep 2026
+-Changed
+-Copy
+@@ -280,0 +248,33 @@
++Created
++Copy
++DEMO/AWD/0004/2026 · copy to Demo Meter Services Sdn Bhd
++19 Sep 2026
++Recipient
++:
++Demo Meter Services Sdn Bhd
++Mandatory
++:
++Yes
++Awardee
++:
++Yes
++Created
++Copy
++DEMO/AWD/0004/2026 · copy to Implementing department
++19 Sep 2026
++Recipient
++:
++Implementing department
++Mandatory
++:
++Yes
++Created
++Copy
++DEMO/AWD/0004/2026 · copy to Finance department
++19 Sep 2026
++Recipient
++:
++Finance department
++Mandatory
++:
++Yes
+@@ -311,9 +310,0 @@
+-Award
+-DEMO/AWD/0004/2026 · Demo Meter Services Sdn Bhd
+-14 Sep 2026
+-Status
+-:
+-Awaiting approval
+-→
+-Approved, not issued
+-Changed
+@@ -356,0 +348,9 @@
++Changed
++Award
++DEMO/AWD/0004/2026 · Demo Meter Services Sdn Bhd
++14 Sep 2026
++Status
++:
++Awaiting approval
++→
++Approved, not issued
+diff -rU0 before/awards__demo_aw5__tab__conditions.txt after/awards__demo_aw5__tab__conditions.txt
+--- before/awards__demo_aw5__tab__conditions.txt	2026-10-02 20:45:06.940184437 +0000
++++ after/awards__demo_aw5__tab__conditions.txt	2026-10-02 21:24:33.636130305 +0000
+@@ -38,0 +39 @@
++Sums insured are not yet compared with the tender Appendix's minimums or the award's own insurance terms: each policy is judged lodged and verified only.
+diff -rU0 before/awards__demo_aw5__tab__history.txt after/awards__demo_aw5__tab__history.txt
+--- before/awards__demo_aw5__tab__history.txt	2026-10-02 20:41:55.512188815 +0000
++++ after/awards__demo_aw5__tab__history.txt	2026-10-02 21:21:46.016134139 +0000
+@@ -138 +138 @@
+-DEMO/AWD/0005/2026 · public liability policy
++DEMO/AWD/0005/2026 · workmens compensation policy
+@@ -162 +162 @@
+-DEMO/AWD/0005/2026 · workmens compensation policy
++DEMO/AWD/0005/2026 · public liability policy
+@@ -213,11 +212,0 @@
+-Award
+-DEMO/AWD/0005/2026 · Contoh Supplies Enterprise
+-21 Sep 2026
+-Status
+-:
+-Issued
+-→
+-Accepted
+-Reason:
+-The acceptance page is complete.
+-Changed
+@@ -286,0 +276,11 @@
++Changed
++Award
++DEMO/AWD/0005/2026 · Contoh Supplies Enterprise
++21 Sep 2026
++Status
++:
++Issued
++→
++Accepted
++Reason:
++The acceptance page is complete.
+@@ -371,74 +370,0 @@
+-Changed
+-Copy
+-DEMO/AWD/0005/2026 · copy to Contoh Supplies Enterprise
+-16 Sep 2026
+-Method
+-:
+-—
+-→
+-Collected
+-Despatched on
+-:
+-—
+-→
+-16 Sep 2026
+-Acknowledged on
+-:
+-—
+-→
+-16 Sep 2026
+-Created
+-Contract
+-DEMO/AWD/0005/2026 · contract XI202600799
+-16 Sep 2026
+-Number
+-:
+-XI202600799
+-Numbered from
+-:
+-The indent's own number
+-Numbered on
+-:
+-16 Sep 2026
+-Contract sum
+-:
+-RM36,000
+-Year in the number
+-:
+-The year of issue — an assumed reading, to be confirmed
+-Created
+-Handover
+-DEMO/AWD/0005/2026 · case handed over
+-16 Sep 2026
+-From
+-:
+-Pre-contract Section
+-To
+-:
+-Post-contract Section
+-On
+-:
+-16 Sep 2026
+-Created
+-Copy
+-DEMO/AWD/0005/2026 · copy to Contoh Supplies Enterprise
+-16 Sep 2026
+-Recipient
+-:
+-Contoh Supplies Enterprise
+-Mandatory
+-:
+-Yes
+-Awardee
+-:
+-Yes
+-Created
+-Copy
+-DEMO/AWD/0005/2026 · copy to Implementing department
+-16 Sep 2026
+-Recipient
+-:
+-Implementing department
+-Mandatory
+-:
+-Yes
+@@ -534,0 +461,19 @@
++DEMO/AWD/0005/2026 · copy to Contoh Supplies Enterprise
++16 Sep 2026
++Method
++:
++—
++→
++Collected
++Despatched on
++:
++—
++→
++16 Sep 2026
++Acknowledged on
++:
++—
++→
++16 Sep 2026
++Changed
++Copy
+@@ -551,0 +497,55 @@
++Created
++Handover
++DEMO/AWD/0005/2026 · case handed over
++16 Sep 2026
++From
++:
++Pre-contract Section
++To
++:
++Post-contract Section
++On
++:
++16 Sep 2026
++Created
++Contract
++DEMO/AWD/0005/2026 · contract XI202600799
++16 Sep 2026
++Number
++:
++XI202600799
++Numbered from
++:
++The indent's own number
++Numbered on
++:
++16 Sep 2026
++Contract sum
++:
++RM36,000
++Year in the number
++:
++The year of issue — an assumed reading, to be confirmed
++Created
++Copy
++DEMO/AWD/0005/2026 · copy to Implementing department
++16 Sep 2026
++Recipient
++:
++Implementing department
++Mandatory
++:
++Yes
++Created
++Copy
++DEMO/AWD/0005/2026 · copy to Contoh Supplies Enterprise
++16 Sep 2026
++Recipient
++:
++Contoh Supplies Enterprise
++Mandatory
++:
++Yes
++Awardee
++:
++Yes
+@@ -582,2 +582,2 @@
+-Award
+-DEMO/AWD/0005/2026 · Contoh Supplies Enterprise
++Approval route
++DEMO/AWD/0005/2026 · appointment route
+@@ -587 +587 @@
+-Awaiting approval
++In progress
+@@ -589 +589 @@
+-Approved, not issued
++Approved
+@@ -591,2 +591,2 @@
+-Approval route
+-DEMO/AWD/0005/2026 · appointment route
++Award
++DEMO/AWD/0005/2026 · Contoh Supplies Enterprise
+@@ -596 +596 @@
+-In progress
++Awaiting approval
+@@ -598 +598 @@
+-Approved
++Approved, not issued
+@@ -658,22 +657,0 @@
+-Approval route
+-DEMO/AWD/0005/2026 · appointment route
+-09 Sep 2026
+-Matrix
+-:
+-Demo limits, issue 1
+-Rule
+-:
+-Quotation, RM15,000 to RM300,000
+-Route
+-:
+-Quotation Committee (mandatory recommendation) → Chief Executive (approves)
+-Changed
+-Award
+-DEMO/AWD/0005/2026 · Contoh Supplies Enterprise
+-09 Sep 2026
+-Status
+-:
+-Draft
+-→
+-Awaiting approval
+-Created
+@@ -736,0 +715,22 @@
++Changed
++Award
++DEMO/AWD/0005/2026 · Contoh Supplies Enterprise
++09 Sep 2026
++Status
++:
++Draft
++→
++Awaiting approval
++Created
++Approval route
++DEMO/AWD/0005/2026 · appointment route
++09 Sep 2026
++Matrix
++:
++Demo limits, issue 1
++Rule
++:
++Quotation, RM15,000 to RM300,000
++Route
++:
++Quotation Committee (mandatory recommendation) → Chief Executive (approves)
+diff -rU0 before/awards__demo_aw6__tab__conditions.txt after/awards__demo_aw6__tab__conditions.txt
+--- before/awards__demo_aw6__tab__conditions.txt	2026-10-02 20:41:40.136189167 +0000
++++ after/awards__demo_aw6__tab__conditions.txt	2026-10-02 21:21:34.128134411 +0000
+@@ -37,0 +38 @@
++Sums insured are not yet compared with the tender Appendix's minimums or the award's own insurance terms: each policy is judged lodged and verified only.
+diff -rU0 before/awards__demo_aw7__tab__conditions.txt after/awards__demo_aw7__tab__conditions.txt
+--- before/awards__demo_aw7__tab__conditions.txt	2026-10-02 20:41:20.676189612 +0000
++++ after/awards__demo_aw7__tab__conditions.txt	2026-10-02 21:21:18.900134759 +0000
+@@ -43,0 +44 @@
++Sums insured are not yet compared with the tender Appendix's minimums or the award's own insurance terms: each policy is judged lodged and verified only.
+diff -rU0 before/committees__demo_mt14__tab__history.txt after/committees__demo_mt14__tab__history.txt
+--- before/committees__demo_mt14__tab__history.txt	2026-10-02 20:42:30.972188004 +0000
++++ after/committees__demo_mt14__tab__history.txt	2026-10-02 21:22:17.420133421 +0000
+@@ -34 +34 @@
+-03 Oct 2026 · 02:18
++03 Oct 2026 · 03:22
+@@ -65 +65 @@
+-03 Oct 2026 · 02:17
++03 Oct 2026 · 03:21
+diff -rU0 before/configuration__contracts.txt after/configuration__contracts.txt
+--- before/configuration__contracts.txt	2026-10-02 20:45:01.908184552 +0000
++++ after/configuration__contracts.txt	2026-10-02 21:24:29.300130404 +0000
+@@ -19 +19 @@
+-Rates above 1.5 times the estimate's are listed
++Rates above 1.5 times the estimate's are listed. A rate exactly at 1.5 times is listed apart, for the officer's judgement: which side of the ratio counts is not set.
+diff -rU0 before/dashboard.txt after/dashboard.txt
+--- before/dashboard.txt	2026-10-02 20:28:29.256207256 +0000
++++ after/dashboard.txt	2026-10-02 21:07:18.524153981 +0000
+@@ -35,2 +35,2 @@
+-Award of the pumping station refurbishment
+-DEMO/SX/0010/2026
++Award of the head office cleaning contract
++DEMO/SIT/4/2026
+@@ -42 +42 @@
+-RM1,240,000
++RM412,000
+@@ -47 +47 @@
+-0 of 3 voted
++2 of 3 voted
+@@ -61,2 +61,2 @@
+-Award of the head office cleaning contract
+-DEMO/SIT/4/2026
++Award of the pumping station refurbishment
++DEMO/SX/0010/2026
+@@ -68 +68 @@
+-RM412,000
++RM1,240,000
+@@ -73 +73 @@
+-2 of 3 voted
++0 of 3 voted
+@@ -125,2 +125,2 @@
+-Award of the pumping station refurbishment
+-DEMO/SX/0010/2026
++Award of the head office cleaning contract
++DEMO/SIT/4/2026
+@@ -128 +128 @@
+-RM1,240,000
++RM412,000
+@@ -131 +131 @@
+-0 of 3 voted
++2 of 3 voted
+@@ -139,2 +139,2 @@
+-Award of the head office cleaning contract
+-DEMO/SIT/4/2026
++Award of the pumping station refurbishment
++DEMO/SX/0010/2026
+@@ -142 +142 @@
+-RM412,000
++RM1,240,000
+@@ -145 +145 @@
+-2 of 3 voted
++0 of 3 voted
+@@ -294 +294 @@
+-@aria-label: Select Award of the pumping station refurbishment DEMO/SX/0010/2026
++@aria-label: Select Award of the head office cleaning contract DEMO/SIT/4/2026
+@@ -304 +304 @@
+-@aria-label: Select Award of the head office cleaning contract DEMO/SIT/4/2026
++@aria-label: Select Award of the pumping station refurbishment DEMO/SX/0010/2026
+@@ -330 +330 @@
+-@aria-label: Select Award of the pumping station refurbishment DEMO/SX/0010/2026
++@aria-label: Select Award of the head office cleaning contract DEMO/SIT/4/2026
+@@ -338 +338 @@
+-@aria-label: Select Award of the head office cleaning contract DEMO/SIT/4/2026
++@aria-label: Select Award of the pumping station refurbishment DEMO/SX/0010/2026
+diff -rU0 before/projects.txt after/projects.txt
+--- before/projects.txt	2026-10-02 20:28:29.920207241 +0000
++++ after/projects.txt	2026-10-02 21:07:19.456153959 +0000
+@@ -5 +5,3 @@
+-1 in preparation
++0 in preparation
++•
++1 returned for amendment
+diff -rU0 before/projects__demo_con1.txt after/projects__demo_con1.txt
+--- before/projects__demo_con1.txt	2026-10-02 20:44:26.284185367 +0000
++++ after/projects__demo_con1.txt	2026-10-02 21:23:59.112131095 +0000
+@@ -26 +26 @@
+-The year in the number is the year it was issued — assumed to be the year the contract starts, to be confirmed.
++The year in the number is the year it was issued, 2026 — assumed to be the year the contract starts, to be confirmed.
+@@ -50 +50,2 @@
+-Not lodged: Public liability, Workmen's compensation. Lodged, not verified: Works insurance. Workmen's compensation is calculated on uncovered wages, so its sum cannot be checked: it counts as met only once the check of the declared wages is recorded, on the contract's Formation tab.
++Not lodged: Public liability, Workmen's compensation. Lodged, not verified: Works insurance. Workmen's compensation is calculated on uncovered wages, so its sum cannot be checked: it counts as met only once the check of the declared wages is recorded, on the contract's Securities tab.
++Sums insured are not yet compared with the tender Appendix's minimums or the award's own insurance terms: each policy is judged lodged and verified only.
+diff -rU0 before/projects__demo_con1__tab__baseline.txt after/projects__demo_con1__tab__baseline.txt
+--- before/projects__demo_con1__tab__baseline.txt	2026-10-02 20:44:34.304185183 +0000
++++ after/projects__demo_con1__tab__baseline.txt	2026-10-02 21:25:58.382214603 +0000
+@@ -65 +65 @@
+-Not set
++Not set: the module that reads it refuses its own act until it is
+diff -rU0 before/projects__demo_con1__tab__history.txt after/projects__demo_con1__tab__history.txt
+--- before/projects__demo_con1__tab__history.txt	2026-10-02 20:44:36.880185125 +0000
++++ after/projects__demo_con1__tab__history.txt	2026-10-02 21:27:07.804141393 +0000
+@@ -24,0 +25,9 @@
++Contract
++Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd
++29 Sep 2026
++Status
++:
++With the legal office
++→
++Returned for amendment
++Changed
+@@ -72,12 +81,3 @@
+-Changed
+-Contract
+-Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd
+-29 Sep 2026
+-Status
+-:
+-With the legal office
+-→
+-Returned for amendment
+-Changed
+-Contract
+-Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd
++Created
++Legal review
++Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · legal review 1
+@@ -85 +85 @@
+-Status
++Iteration
+@@ -87,3 +87,10 @@
+-In preparation
+-→
+-With the legal office
++1
++Office
++:
++Demo Legal Office
++Sent by
++:
++Daniel Anak Jelani
++Documents
++:
++Contract Document for legal review, iteration 1, DEMO/KP/T/004/2026 v1
+@@ -109,3 +116,3 @@
+-Created
+-Legal review
+-Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · legal review 1
++Changed
++Contract
++Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd
+@@ -113,10 +120 @@
+-Iteration
+-:
+-1
+-Office
+-:
+-Demo Legal Office
+-Sent by
+-:
+-Daniel Anak Jelani
+-Documents
++Status
+@@ -124 +122,3 @@
+-Contract Document for legal review, iteration 1, DEMO/KP/T/004/2026 v1
++In preparation
++→
++With the legal office
+@@ -140 +140 @@
+-Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · check front loading
++Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · check arithmetic
+@@ -159 +159 @@
+-Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · check rate uniformity
++Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · check front loading
+@@ -178 +178 @@
+-Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · check arithmetic
++Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · check rate uniformity
+@@ -220 +220 @@
+-—
++Works insurance
+@@ -250 +250 @@
+-—
++Lodged, not verified
+@@ -287 +287 @@
+-Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · reconciliation tender document
++Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · reconciliation drawings
+@@ -306 +306 @@
+-Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · reconciliation tender table document
++Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · reconciliation tender document
+@@ -310 +310 @@
+-Amended, every amendment signed by both sides
++Identical
+@@ -325 +325 @@
+-Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · reconciliation drawings
++Contract DEMO/KP/T/004/2026 · Sampel Engineering Sdn Bhd · reconciliation tender table document
+@@ -329 +329 @@
+-Identical
++Amended, every amendment signed by both sides
+@@ -403 +403 @@
+-—
++The contract type's series
+diff -rU0 before/projects__demo_con2.txt after/projects__demo_con2.txt
+--- before/projects__demo_con2.txt	2026-10-02 20:44:38.016185099 +0000
++++ after/projects__demo_con2.txt	2026-10-02 21:24:08.668130876 +0000
+@@ -26 +25,0 @@
+-The year in the number is the year it was issued — assumed to be the year the contract starts, to be confirmed.
+@@ -51,0 +51 @@
++Sums insured are not yet compared with the tender Appendix's minimums or the award's own insurance terms: each policy is judged lodged and verified only.
+diff -rU0 before/projects__demo_con2__tab__baseline.txt after/projects__demo_con2__tab__baseline.txt
+--- before/projects__demo_con2__tab__baseline.txt	2026-10-02 20:44:46.452184906 +0000
++++ after/projects__demo_con2__tab__baseline.txt	2026-10-02 21:25:58.384788840 +0000
+@@ -71 +71 @@
+-Not set
++Not set: the module that reads it refuses its own act until it is
+diff -rU0 before/projects__demo_con2__tab__history.txt after/projects__demo_con2__tab__history.txt
+--- before/projects__demo_con2__tab__history.txt	2026-10-02 20:44:48.420184861 +0000
++++ after/projects__demo_con2__tab__history.txt	2026-10-02 21:27:07.806406936 +0000
+@@ -80,0 +81,9 @@
++Changed
++Contract
++Contract XI202600812 · Demo Meter Services Sdn Bhd
++25 Sep 2026
++Status
++:
++In preparation
++→
++With the legal office
+@@ -116,9 +124,0 @@
+-Changed
+-Contract
+-Contract XI202600812 · Demo Meter Services Sdn Bhd
+-25 Sep 2026
+-Status
+-:
+-In preparation
+-→
+-With the legal office
+@@ -216 +216 @@
+-Contract XI202600812 · Demo Meter Services Sdn Bhd · reconciliation drawings
++Contract XI202600812 · Demo Meter Services Sdn Bhd · reconciliation tender document
+@@ -235 +235 @@
+-Contract XI202600812 · Demo Meter Services Sdn Bhd · reconciliation tender table document
++Contract XI202600812 · Demo Meter Services Sdn Bhd · reconciliation drawings
+@@ -254 +254 @@
+-Contract XI202600812 · Demo Meter Services Sdn Bhd · reconciliation tender document
++Contract XI202600812 · Demo Meter Services Sdn Bhd · reconciliation tender table document
+@@ -332 +332 @@
+-—
++The indent's own number
+diff -rU0 before/projects__demo_con3.txt after/projects__demo_con3.txt
+--- before/projects__demo_con3.txt	2026-10-02 20:44:49.612184833 +0000
++++ after/projects__demo_con3.txt	2026-10-02 21:24:18.620130649 +0000
+@@ -26 +25,0 @@
+-The year in the number is the year it was issued — assumed to be the year the contract starts, to be confirmed.
+@@ -36,3 +35 @@
+-The day the signature for the employer was recorded
+-; the number carries the year 0799
+-.
++The day the signature for the employer was recorded.
+@@ -53,0 +51 @@
++Sums insured are not yet compared with the tender Appendix's minimums or the award's own insurance terms: each policy is judged lodged and verified only.
+diff -rU0 before/projects__demo_con3__tab__baseline.txt after/projects__demo_con3__tab__baseline.txt
+--- before/projects__demo_con3__tab__baseline.txt	2026-10-02 20:44:57.868184645 +0000
++++ after/projects__demo_con3__tab__baseline.txt	2026-10-02 21:25:58.379038033 +0000
+@@ -43,0 +44 @@
++Defects liability period is stated by the Letter of Acceptance, so it is not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order, and what a recorded rule derives from them. A change to the contract's terms is recorded as a change to the contract (variations and adjustments, post-award), never keyed over the record.
+@@ -48,0 +50 @@
++Liquidated damages are stated by the Letter of Acceptance, so they are not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order, and what a recorded rule derives from them. A change to the contract's terms is recorded as a change to the contract (variations and adjustments, post-award), never keyed over the record.
+@@ -53,0 +56 @@
++Retention and its cap is derived under a recorded rule, so it is not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order, and what a recorded rule derives from them. A change to the contract's terms is recorded as a change to the contract (variations and adjustments, post-award), never keyed over the record.
+@@ -67,0 +71 @@
++First interim certificate minimum is derived under a recorded rule, so it is not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order, and what a recorded rule derives from them. A change to the contract's terms is recorded as a change to the contract (variations and adjustments, post-award), never keyed over the record.
+@@ -75 +79 @@
+-Not set
++Not set: the module that reads it refuses its own act until it is
+@@ -106 +110 @@
+-@aria-label: Correct Defects liability period
++@title: Defects liability period is stated by the Letter of Acceptance, so it is not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order, and what a recorded rule derives from them. A change to the contract's terms is recorded as a change to the contract (variations and adjustments, post-award), never keyed over the record.
+@@ -108 +112 @@
+-@aria-label: Correct Liquidated damages
++@title: Liquidated damages are stated by the Letter of Acceptance, so they are not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order, and what a recorded rule derives from them. A change to the contract's terms is recorded as a change to the contract (variations and adjustments, post-award), never keyed over the record.
+@@ -110 +114 @@
+-@aria-label: Correct Retention and its cap
++@title: Retention and its cap is derived under a recorded rule, so it is not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order, and what a recorded rule derives from them. A change to the contract's terms is recorded as a change to the contract (variations and adjustments, post-award), never keyed over the record.
+@@ -114 +118 @@
+-@aria-label: Correct First interim certificate minimum
++@title: First interim certificate minimum is derived under a recorded rule, so it is not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order, and what a recorded rule derives from them. A change to the contract's terms is recorded as a change to the contract (variations and adjustments, post-award), never keyed over the record.
+diff -rU0 before/projects__demo_con3__tab__formation&section__checks.txt after/projects__demo_con3__tab__formation&section__checks.txt
+--- before/projects__demo_con3__tab__formation&section__checks.txt	2026-10-02 20:44:52.296184772 +0000
++++ after/projects__demo_con3__tab__formation&section__checks.txt	2026-10-02 21:24:21.368130586 +0000
+@@ -49 +49,3 @@
+-RM1,250 as tendered → RM1,205 corrected · Quantity times rate extended wrongly on the priced schedule.
++RM1,250 as tendered → RM1,205 corrected
++SULIT · not restricted until sign-in
++Quantity times rate extended wrongly on the priced schedule.
+diff -rU0 before/projects__demo_con3__tab__history.txt after/projects__demo_con3__tab__history.txt
+--- before/projects__demo_con3__tab__history.txt	2026-10-02 20:45:00.384184587 +0000
++++ after/projects__demo_con3__tab__history.txt	2026-10-02 21:27:07.808563692 +0000
+@@ -54 +54 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · controlled copy 3
++Contract XI202600799 · Contoh Supplies Enterprise · controlled copy 2
+@@ -58 +58 @@
+-3
++2
+@@ -61 +61 @@
+-Site representative (demo)
++The contractor
+@@ -64 +64 @@
+-Site representative (demo)
++Contoh Supplies Enterprise, 5 Contoh Road, Demo North
+@@ -98 +98 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · controlled copy 2
++Contract XI202600799 · Contoh Supplies Enterprise · controlled copy 3
+@@ -102 +102 @@
+-2
++3
+@@ -105 +105 @@
+-The contractor
++Site representative (demo)
+@@ -108 +108 @@
+-Contoh Supplies Enterprise, 5 Contoh Road, Demo North
++Site representative (demo)
+@@ -139 +139 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · original: policy
++Contract XI202600799 · Contoh Supplies Enterprise · original: contract
+@@ -143 +143 @@
+-Insurance policy
++The signed Contract Document
+@@ -152 +152 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · original: contract
++Contract XI202600799 · Contoh Supplies Enterprise · original: policy
+@@ -156 +156 @@
+-The signed Contract Document
++Insurance policy
+@@ -172,19 +171,0 @@
+-Created
+-Record
+-Contract XI202600799 · Contoh Supplies Enterprise · Stamping certificate
+-01 Oct 2026
+-Purpose
+-:
+-Stamping certificate
+-Document
+-:
+-Stamping certificate, XI202600799
+-Version
+-:
+-1
+-Fingerprint
+-:
+-7750c188e4beba05b0e1fb5cf80012808dfb0467889860a1f2f0830c4011f2ee
+-Attached to
+-:
+-Contract XI202600799 · Contoh Supplies Enterprise
+@@ -211,0 +193,19 @@
++Contract XI202600799 · Contoh Supplies Enterprise · Stamping certificate
++01 Oct 2026
++Purpose
++:
++Stamping certificate
++Document
++:
++Stamping certificate, XI202600799
++Version
++:
++1
++Fingerprint
++:
++7750c188e4beba05b0e1fb5cf80012808dfb0467889860a1f2f0830c4011f2ee
++Attached to
++:
++Contract XI202600799 · Contoh Supplies Enterprise
++Created
++Record
+@@ -245,13 +244,0 @@
+-Created
+-Baseline
+-Contract XI202600799 · Contoh Supplies Enterprise · baseline version 2
+-30 Sep 2026
+-Version
+-:
+-2
+-Reason
+-:
+-At execution: the Contract Date added
+-Changed
+-:
+-contractDate
+@@ -277,0 +265,13 @@
++Baseline
++Contract XI202600799 · Contoh Supplies Enterprise · baseline version 2
++30 Sep 2026
++Version
++:
++2
++Reason
++:
++At execution: the Contract Date added
++Changed
++:
++contractDate
++Created
+@@ -301 +301 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · witness
++Contract XI202600799 · Contoh Supplies Enterprise · contractor's signature
+@@ -305 +305 @@
+-Witness to the contractor's signature
++For the contractor
+@@ -308 +308 @@
+-Nur Aina binti Hassan
++Lim Ah Seng
+@@ -311 +311,4 @@
+-••••••••2345
++••••••••1234
++Capacity
++:
++Proprietor
+@@ -320 +323 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · contractor's signature
++Contract XI202600799 · Contoh Supplies Enterprise · witness
+@@ -324 +327 @@
+-For the contractor
++Witness to the contractor's signature
+@@ -327 +330 @@
+-Lim Ah Seng
++Nur Aina binti Hassan
+@@ -330,4 +333 @@
+-••••••••1234
+-Capacity
+-:
+-Proprietor
++••••••••2345
+@@ -455,19 +454,0 @@
+-Baseline
+-Contract XI202600799 · Contoh Supplies Enterprise · baseline draft
+-25 Sep 2026
+-Entered
+-:
+-—
+-→
+-sums, subsequentInterim, sectional
+-Source
+-:
+-—
+-→
+-entered at baseline, not from a tender Appendix
+-Changed
+-:
+-—
+-→
+-sums, buildersWorksValue, firstInterim, subsequentInterim, sectional
+-Changed
+@@ -475 +456 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · check rate uniformity
++Contract XI202600799 · Contoh Supplies Enterprise · check arithmetic
+@@ -513 +494 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · check arithmetic
++Contract XI202600799 · Contoh Supplies Enterprise · check rate uniformity
+@@ -531,2 +512,2 @@
+-Rate compared
+-Contract XI202600799 · Contoh Supplies Enterprise · rate 3.2
++Arithmetic correction
++Contract XI202600799 · Contoh Supplies Enterprise · correction 2.1
+@@ -536,2 +517,2 @@
+-3.2
+-Provisional
++2.1
++Tendered line amount
+@@ -539,2 +520,3 @@
+-Yes
+-Tendered rate
++1250.00
++SULIT · not restricted until sign-in
++Corrected line amount
+@@ -542 +524,5 @@
+-150.00
++1205.00
++SULIT · not restricted until sign-in
++Reason
++:
++Quantity times rate extended wrongly on the priced schedule.
+@@ -557,2 +543,2 @@
+-Arithmetic correction
+-Contract XI202600799 · Contoh Supplies Enterprise · correction 2.1
++Rate compared
++Contract XI202600799 · Contoh Supplies Enterprise · rate 3.2
+@@ -562,2 +548,2 @@
+-2.1
+-Tendered
++3.2
++Provisional
+@@ -565,2 +551,2 @@
+-1250.00
+-Corrected
++Yes
++Tendered rate
+@@ -568,2 +554,6 @@
+-1205.00
+-Reason
++150.00
++Changed
++Baseline
++Contract XI202600799 · Contoh Supplies Enterprise · baseline draft
++25 Sep 2026
++Entered
+@@ -571 +561,13 @@
+-Quantity times rate extended wrongly on the priced schedule.
++—
++→
++sums, subsequentInterim, sectional
++Source
++:
++—
++→
++entered at baseline, not from a tender Appendix
++Changed
++:
++—
++→
++sums, buildersWorksValue, firstInterim, subsequentInterim, sectional
+@@ -574 +576 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · reconciliation tender table document
++Contract XI202600799 · Contoh Supplies Enterprise · reconciliation tender document
+@@ -612 +614 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · reconciliation tender document
++Contract XI202600799 · Contoh Supplies Enterprise · reconciliation tender table document
+@@ -628,0 +631,13 @@
++Created
++Baseline
++Contract XI202600799 · Contoh Supplies Enterprise · baseline draft
++24 Sep 2026
++Built
++:
++24 Sep 2026
++Appendix
++:
++none frozen
++Bill
++:
++none pinned
+@@ -668,13 +682,0 @@
+-Created
+-Baseline
+-Contract XI202600799 · Contoh Supplies Enterprise · baseline draft
+-24 Sep 2026
+-Built
+-:
+-24 Sep 2026
+-Appendix
+-:
+-none frozen
+-Bill
+-:
+-none pinned
+@@ -683 +685 @@
+-DEMO/AWD/0005/2026 · workmens compensation policy
++DEMO/AWD/0005/2026 · public liability policy
+@@ -687 +689 @@
+-—
++Lodged, not verified
+@@ -689 +691 @@
+-—
++Verified
+@@ -707 +709 @@
+-DEMO/AWD/0005/2026 · public liability policy
++DEMO/AWD/0005/2026 · workmens compensation policy
+@@ -711 +713 @@
+-—
++Lodged, not verified
+@@ -713 +715 @@
+-—
++Verified
+@@ -731 +733 @@
+-DEMO/AWD/0005/2026 · public liability policy
++DEMO/AWD/0005/2026 · workmens compensation policy
+@@ -735 +737 @@
+-—
++Workmen's compensation insurance
+@@ -741 +743 @@
+-SIB/PL/2026/301
++SIB/WC/2026/302
+@@ -744 +746 @@
+-20000.00
++3600.00
+@@ -759 +761 @@
+-—
++DEMO-SOCSO-0005
+@@ -762 +764 @@
+-—
++Lodged, not verified
+@@ -777 +779 @@
+-DEMO/AWD/0005/2026 · workmens compensation policy
++DEMO/AWD/0005/2026 · public liability policy
+@@ -781 +783 @@
+-—
++Public liability insurance
+@@ -787 +789 @@
+-SIB/WC/2026/302
++SIB/PL/2026/301
+@@ -790 +792 @@
+-3600.00
++20000.00
+@@ -805 +807 @@
+-DEMO-SOCSO-0005
++—
+@@ -808 +810 @@
+-—
++Lodged, not verified
+@@ -830 +832 @@
+-—
++The indent's own number
+diff -rU0 before/requisitions__demo_rq35__tab__history.txt after/requisitions__demo_rq35__tab__history.txt
+--- before/requisitions__demo_rq35__tab__history.txt	2026-10-02 20:39:53.588191604 +0000
++++ after/requisitions__demo_rq35__tab__history.txt	2026-10-02 21:20:01.064136540 +0000
+@@ -221,9 +220,0 @@
+-Changed
+-Requisition
+-DEMO/REQ/0041/2026 · Clear water tank relining, Demo Heights
+-03 Sep 2026
+-Status
+-:
+-Draft
+-→
+-Endorsed
+@@ -248,0 +240,9 @@
++Changed
++Requisition
++DEMO/REQ/0041/2026 · Clear water tank relining, Demo Heights
++03 Sep 2026
++Status
++:
++Draft
++→
++Endorsed
+diff -rU0 before/sourcing__demo_sx16__evaluation__proposal.txt after/sourcing__demo_sx16__evaluation__proposal.txt
+--- before/sourcing__demo_sx16__evaluation__proposal.txt	2026-10-02 20:42:56.696187416 +0000
++++ after/sourcing__demo_sx16__evaluation__proposal.txt	2026-10-02 21:22:45.128132787 +0000
+@@ -4 +4 @@
+-Frozen 03 Oct 2026 · 01:58 from report DEMO/EVR/001/2026.
++Frozen 03 Oct 2026 · 03:02 from report DEMO/EVR/001/2026.
+diff -rU0 before/sourcing__demo_sx16__tab__bids&section__received.txt after/sourcing__demo_sx16__tab__bids&section__received.txt
+--- before/sourcing__demo_sx16__tab__bids&section__received.txt	2026-10-02 20:29:57.864205230 +0000
++++ after/sourcing__demo_sx16__tab__bids&section__received.txt	2026-10-02 21:09:25.817162332 +0000
+@@ -244 +244 @@
+-Applied 03 Oct 2026 · 01:38
++Applied 03 Oct 2026 · 02:42
+diff -rU0 before/sourcing__demo_sx16__tab__bids.txt after/sourcing__demo_sx16__tab__bids.txt
+--- before/sourcing__demo_sx16__tab__bids.txt	2026-10-02 20:29:41.048205614 +0000
++++ after/sourcing__demo_sx16__tab__bids.txt	2026-10-02 21:09:01.608151623 +0000
+@@ -244 +244 @@
+-Applied 03 Oct 2026 · 01:38
++Applied 03 Oct 2026 · 02:42
+diff -rU0 before/sourcing__demo_sx16__tab__evaluation&section__recommendation.txt after/sourcing__demo_sx16__tab__evaluation&section__recommendation.txt
+--- before/sourcing__demo_sx16__tab__evaluation&section__recommendation.txt	2026-10-02 20:30:24.444204622 +0000
++++ after/sourcing__demo_sx16__tab__evaluation&section__recommendation.txt	2026-10-02 21:09:59.924150289 +0000
+@@ -111 +111 @@
+-Formed 03 Oct 2026 · 01:54 by Kumar Selvam, recorded on their behalf.
++Formed 03 Oct 2026 · 02:58 by Kumar Selvam, recorded on their behalf.
+diff -rU0 before/sourcing__demo_sx16__tab__evaluation&section__report.txt after/sourcing__demo_sx16__tab__evaluation&section__report.txt
+--- before/sourcing__demo_sx16__tab__evaluation&section__report.txt	2026-10-02 20:30:26.896204566 +0000
++++ after/sourcing__demo_sx16__tab__evaluation&section__report.txt	2026-10-02 21:10:02.816150223 +0000
+@@ -48 +48 @@
+-Issued 03 Oct 2026 · 01:56 by Kumar Selvam. Frozen: a later version supersedes it, nothing edits it.
++Issued 03 Oct 2026 · 03:00 by Kumar Selvam. Frozen: a later version supersedes it, nothing edits it.
+@@ -57 +57 @@
+-Produced and frozen 03 Oct 2026 · 01:58.
++Produced and frozen 03 Oct 2026 · 03:02.
+diff -rU0 before/sourcing__demo_sx16__tab__evaluation&section__stages.txt after/sourcing__demo_sx16__tab__evaluation&section__stages.txt
+--- before/sourcing__demo_sx16__tab__evaluation&section__stages.txt	2026-10-02 20:30:16.780204797 +0000
++++ after/sourcing__demo_sx16__tab__evaluation&section__stages.txt	2026-10-02 21:09:49.792150521 +0000
+@@ -49 +49 @@
+-Implementing department · pass mark 65.00% · Submitted 03 Oct 2026 · 01:38 by Mohd Rizal Ahmad
++Implementing department · pass mark 65.00% · Submitted 03 Oct 2026 · 02:42 by Mohd Rizal Ahmad
+@@ -159 +159 @@
+-Contract and procurement · pass mark 55.00% · Submitted 03 Oct 2026 · 01:44 by Kumar Selvam
++Contract and procurement · pass mark 55.00% · Submitted 03 Oct 2026 · 02:48 by Kumar Selvam
+@@ -277 +277 @@
+-Implementing department · Submitted 03 Oct 2026 · 01:50 by Mohd Rizal Ahmad
++Implementing department · Submitted 03 Oct 2026 · 02:54 by Mohd Rizal Ahmad
+@@ -347 +347 @@
+-Contract and procurement · pass mark 60.00% · Submitted 03 Oct 2026 · 01:52 by Kumar Selvam
++Contract and procurement · pass mark 60.00% · Submitted 03 Oct 2026 · 02:56 by Kumar Selvam
+diff -rU0 before/sourcing__demo_sx16__tab__history.txt after/sourcing__demo_sx16__tab__history.txt
+--- before/sourcing__demo_sx16__tab__history.txt	2026-10-02 20:29:55.368205287 +0000
++++ after/sourcing__demo_sx16__tab__history.txt	2026-10-02 21:09:22.108151154 +0000
+@@ -596 +596 @@
+-03 Oct 2026 · 01:38
++03 Oct 2026 · 02:42
+@@ -822 +822 @@
+-03 Oct 2026 · 01:33:43
++03 Oct 2026 · 02:37:14
+@@ -838 +838 @@
+-Kumar Selvam
++Mohd Rizal Ahmad
+@@ -841 +841 @@
+-Contract and procurement
++Implementing department
+@@ -844 +844 @@
+-CP-POST
++NTH-MNT
+@@ -847,0 +848,9 @@
++Changed
++Exercise
++DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
++03 Oct 2026
++Status
++:
++Opened
++→
++Under evaluation
+@@ -854 +863 @@
+-Mohd Rizal Ahmad
++Kumar Selvam
+@@ -857 +866 @@
+-Implementing department
++Contract and procurement
+@@ -860 +869 @@
+-NTH-MNT
++CP-POST
+@@ -864,9 +872,0 @@
+-Changed
+-Exercise
+-DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+-03 Oct 2026
+-Status
+-:
+-Opened
+-→
+-Under evaluation
+@@ -1092,0 +1093,27 @@
++Contractor
++DEMO/SX/0016/2026 · Party · Demo Paip Services
++02 Oct 2026
++Party
++:
++Demo Paip Services
++Registration no
++:
++201501000104 (000104-D)
++Came as
++:
++Named at opening, from its bid
++Changed
++Envelope
++DEMO/SX/0016/2026 · Envelope 6
++02 Oct 2026
++Status
++:
++Received
++→
++Opened
++Bidder
++:
++—
++→
++Demo Paip Services
++Created
+@@ -1130,27 +1156,0 @@
+-Created
+-Contractor
+-DEMO/SX/0016/2026 · Party · Demo Paip Services
+-02 Oct 2026
+-Party
+-:
+-Demo Paip Services
+-Registration no
+-:
+-201501000104 (000104-D)
+-Came as
+-:
+-Named at opening, from its bid
+-Changed
+-Envelope
+-DEMO/SX/0016/2026 · Envelope 6
+-02 Oct 2026
+-Status
+-:
+-Received
+-→
+-Opened
+-Bidder
+-:
+-—
+-→
+-Demo Paip Services
+@@ -1460,0 +1461,27 @@
++Contractor
++DEMO/SX/0016/2026 · Party · Demo Network Builders Sdn Bhd
++02 Oct 2026
++Party
++:
++Demo Network Builders Sdn Bhd
++Registration no
++:
++DEMO-0007-X
++Came as
++:
++Named at opening, from its bid
++Changed
++Envelope
++DEMO/SX/0016/2026 · Envelope 4
++02 Oct 2026
++Status
++:
++Received
++→
++Opened
++Bidder
++:
++—
++→
++Demo Network Builders Sdn Bhd
++Created
+@@ -1499,27 +1525,0 @@
+-Envelope
+-DEMO/SX/0016/2026 · Envelope 4
+-02 Oct 2026
+-Status
+-:
+-Received
+-→
+-Opened
+-Bidder
+-:
+-—
+-→
+-Demo Network Builders Sdn Bhd
+-Created
+-Contractor
+-DEMO/SX/0016/2026 · Party · Demo Network Builders Sdn Bhd
+-02 Oct 2026
+-Party
+-:
+-Demo Network Builders Sdn Bhd
+-Registration no
+-:
+-DEMO-0007-X
+-Came as
+-:
+-Named at opening, from its bid
+-Changed
+@@ -1647,0 +1648,13 @@
++Created
++Contractor
++DEMO/SX/0016/2026 · Party · Rekaan Maju Construction
++02 Oct 2026
++Party
++:
++Rekaan Maju Construction
++Registration no
++:
++DM0000106-K
++Came as
++:
++Named at opening, from its bid
+@@ -1662,13 +1674,0 @@
+-Created
+-Contractor
+-DEMO/SX/0016/2026 · Party · Rekaan Maju Construction
+-02 Oct 2026
+-Party
+-:
+-Rekaan Maju Construction
+-Registration no
+-:
+-DM0000106-K
+-Came as
+-:
+-Named at opening, from its bid
+@@ -1764,0 +1765,14 @@
++Changed
++Envelope
++DEMO/SX/0016/2026 · Envelope 2
++02 Oct 2026
++Status
++:
++Received
++→
++Opened
++Bidder
++:
++—
++→
++Sampel Kejuruteraan Enterprise
+@@ -1804,14 +1817,0 @@
+-Envelope
+-DEMO/SX/0016/2026 · Envelope 2
+-02 Oct 2026
+-Status
+-:
+-Received
+-→
+-Opened
+-Bidder
+-:
+-—
+-→
+-Sampel Kejuruteraan Enterprise
+-Changed
+@@ -1897,14 +1896,0 @@
+-Changed
+-Envelope
+-DEMO/SX/0016/2026 · Envelope 1
+-02 Oct 2026
+-Status
+-:
+-Received
+-→
+-Opened
+-Bidder
+-:
+-—
+-→
+-Contoh Bina Sdn Bhd
+@@ -1949,0 +1936,14 @@
++Envelope
++DEMO/SX/0016/2026 · Envelope 1
++02 Oct 2026
++Status
++:
++Received
++→
++Opened
++Bidder
++:
++—
++→
++Contoh Bina Sdn Bhd
++Changed
+@@ -1959,2 +1959,2 @@
+-Authorisation to open
+-DEMO/SX/0016/2026 · Opening
++Tender box
++DEMO/SX/0016/2026 · Tender box opened
+@@ -1962,4 +1962 @@
+-Authorised by
+-:
+-Kumar Selvam (recorded on their behalf, not signed)
+-At
++Box opened
+@@ -1968,4 +1965 @@
+-Sitting
+-:
+-Sitting 1
+-Result
++Opened by
+@@ -1973 +1967 @@
+-Second authorisation: the box opened
++Kumar Selvam (recorded on their behalf, not signed)
+@@ -1984,2 +1978,2 @@
+-Tender box
+-DEMO/SX/0016/2026 · Tender box opened
++Authorisation to open
++DEMO/SX/0016/2026 · Opening
+@@ -1987 +1981,4 @@
+-Box opened
++Authorised by
++:
++Kumar Selvam (recorded on their behalf, not signed)
++At
+@@ -1990 +1987 @@
+-Opened by
++Sitting
+@@ -1992 +1989,4 @@
+-Kumar Selvam (recorded on their behalf, not signed)
++Sitting 1
++Result
++:
++Second authorisation: the box opened
+@@ -2102,0 +2103,9 @@
++Changed
++Envelope
++DEMO/SX/0016/2026 · Envelope 5
++02 Oct 2026
++Status
++:
++Received
++→
++Withdrawn
+@@ -2123,9 +2131,0 @@
+-Changed
+-Envelope
+-DEMO/SX/0016/2026 · Envelope 5
+-02 Oct 2026
+-Status
+-:
+-Received
+-→
+-Withdrawn
+@@ -2495 +2495 @@
+-Evaluation model pinned
++Status
+@@ -2497 +2497 @@
+-—
++Approved for tendering
+@@ -2499 +2499 @@
+-Demo weighted tender model, version 1
++Advertised
+@@ -2504 +2504 @@
+-Status
++Evaluation model pinned
+@@ -2506 +2506 @@
+-Approved for tendering
++—
+@@ -2508 +2508 @@
+-Advertised
++Demo weighted tender model, version 1
+@@ -2690,2 +2690,2 @@
+-Exercise
+-DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
++Tender documents
++DEMO/SX/0016/2026 · Tender documents v1
+@@ -2695 +2695 @@
+-Awaiting approval for tendering
++Closed
+@@ -2697,2 +2697,2 @@
+-Approved for tendering
+-Tendering starts
++Closed
++Approved start
+@@ -2703 +2703 @@
+-Closing
++Approved closing
+@@ -2708,0 +2709,9 @@
++Approval for tendering
++DEMO/SX/0016/2026 · approval for tendering
++25 Sep 2026
++Status
++:
++Awaiting approval for tendering
++→
++Approved for tendering
++Changed
+@@ -2733,2 +2742,2 @@
+-Approval for tendering
+-DEMO/SX/0016/2026 · approval for tendering
++Exercise
++DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+@@ -2741,10 +2750 @@
+-Changed
+-Tender documents
+-DEMO/SX/0016/2026 · Tender documents v1
+-25 Sep 2026
+-Status
+-:
+-Closed
+-→
+-Closed
+-Approved start
++Tendering starts
+@@ -2755 +2755 @@
+-Approved closing
++Closing
+@@ -2762 +2762 @@
+-DEMO/SX/0016/2026 · Tender documents v1 · part 11
++DEMO/SX/0016/2026 · Tender documents v1 · part 2
+@@ -2766 +2766 @@
+-11. Instructions to tenderers
++2. Form of tender
+@@ -2769 +2769 @@
+-Demo instructions to bidders, text version 1
++Demo form of offer, text version 1
+@@ -2788,14 +2788 @@
+-DEMO/SX/0016/2026 · Tender documents v1 · part 2
+-24 Sep 2026
+-Part
+-:
+-2. Form of tender
+-Frozen from
+-:
+-Demo form of offer, text version 1
+-Language
+-:
+-English
+-Created
+-Frozen text
+-DEMO/SX/0016/2026 · Tender documents v1 · part 3
++DEMO/SX/0016/2026 · Tender documents v1 · part 3a
+@@ -2805 +2792 @@
+-3. Conditions of contract
++3a. Appendix to the conditions of contract
+@@ -2808 +2795 @@
+-Demo conditions of contract (drawings and specification), text version 1
++The Appendix as entered
+@@ -2814 +2801 @@
+-DEMO/SX/0016/2026 · Tender documents v1 · part 3a
++DEMO/SX/0016/2026 · Tender documents v1 · part 11
+@@ -2818 +2805 @@
+-3a. Appendix to the conditions of contract
++11. Instructions to tenderers
+@@ -2821 +2808 @@
+-The Appendix as entered
++Demo instructions to bidders, text version 1
+@@ -2881,0 +2869,13 @@
++Created
++Frozen text
++DEMO/SX/0016/2026 · Tender documents v1 · part 3
++24 Sep 2026
++Part
++:
++3. Conditions of contract
++Frozen from
++:
++Demo conditions of contract (drawings and specification), text version 1
++Language
++:
++English
+@@ -2884 +2884 @@
+-DEMO/SX/0016/2026 · Tender documents v1 · part 1
++DEMO/SX/0016/2026 · Tender documents v1 · part 7b
+@@ -2893 +2893 @@
+-DEMO/SX/0016/2026 · Tender documents v1 · part 2
++DEMO/SX/0016/2026 · Tender documents v1 · part 1
+@@ -2902 +2902 @@
+-DEMO/SX/0016/2026 · Tender documents v1 · part 3
++DEMO/SX/0016/2026 · Tender documents v1 · part 2
+@@ -2911 +2911 @@
+-DEMO/SX/0016/2026 · Tender documents v1 · part 3a
++DEMO/SX/0016/2026 · Tender documents v1 · part 3
+@@ -2920 +2920 @@
+-DEMO/SX/0016/2026 · Tender documents v1 · part 4
++DEMO/SX/0016/2026 · Tender documents v1 · part 8
+@@ -2929 +2929 @@
+-DEMO/SX/0016/2026 · Tender documents v1 · part 5
++DEMO/SX/0016/2026 · Tender documents v1 · part 6
+@@ -2938 +2938 @@
+-DEMO/SX/0016/2026 · Tender documents v1 · part 6
++DEMO/SX/0016/2026 · Tender documents v1 · part 5
+@@ -2947 +2947 @@
+-DEMO/SX/0016/2026 · Tender documents v1 · part 7b
++DEMO/SX/0016/2026 · Tender documents v1 · part 4
+@@ -2956 +2956 @@
+-DEMO/SX/0016/2026 · Tender documents v1 · part 8
++DEMO/SX/0016/2026 · Tender documents v1 · part 3a
+@@ -2965 +2965 @@
+-DEMO/SX/0016/2026 · Tender documents v1 · part 9
++DEMO/SX/0016/2026 · Tender documents v1 · part 11
+@@ -2983 +2983 @@
+-DEMO/SX/0016/2026 · Tender documents v1 · part 11
++DEMO/SX/0016/2026 · Tender documents v1 · part 9
+@@ -3026,9 +3025,0 @@
+-Restricted tender
+-:
+-Not set
+-→
+-No
+-Changed
+-Exercise
+-DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+-24 Sep 2026
+@@ -3045,3 +3036,3 @@
+-Created
+-Record
+-DEMO/SX/0016/2026 · Registration required · the Demo Companies Registry
++Changed
++Exercise
++DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+@@ -3049,4 +3040 @@
+-Registration body
+-:
+-the Demo Companies Registry
+-Alternative group
++Restricted tender
+@@ -3054 +3042,3 @@
+-Group 1
++Not set
++→
++No
+@@ -3067,0 +3058,10 @@
++Created
++Record
++DEMO/SX/0016/2026 · Registration required · the Demo Companies Registry
++24 Sep 2026
++Registration body
++:
++the Demo Companies Registry
++Alternative group
++:
++Group 1
+@@ -3292 +3292 @@
+-DEMO/SX/0016/2026 · Tender documents v1 · part 10
++DEMO/SX/0016/2026 · Tender documents v1 · part 3
+@@ -3296 +3296 @@
+-10. Drawings
++3. Conditions of contract
+@@ -3299 +3299 @@
+-Drawings
++Conditions of contract
+@@ -3302 +3302 @@
+-Bespoke
++Standard
+@@ -3305 +3305 @@
+-A file uploaded to the part
++From the template library
+@@ -3317,0 +3318,3 @@
++Template
++:
++Demo conditions of contract (drawings and specification)
+@@ -3320 +3323 @@
+-DEMO/SX/0016/2026 · Tender documents v1 · part 8
++DEMO/SX/0016/2026 · Tender documents v1 · part 2
+@@ -3324 +3327 @@
+-8. Bidder's registration and background form
++2. Form of tender
+@@ -3327 +3330 @@
+-Registration and background
++Form of tender
+@@ -3333 +3336 @@
+-A file uploaded to the part
++From the template library
+@@ -3339 +3342 @@
+-No
++Yes
+@@ -3345,0 +3349,3 @@
++Template
++:
++Demo form of offer
+@@ -3348 +3354 @@
+-DEMO/SX/0016/2026 · Tender documents v1 · part 7b
++DEMO/SX/0016/2026 · Tender documents v1 · part 1
+@@ -3352 +3358 @@
+-7b. Summary of tender and schedule of rates
++1. Notice of invitation to tender
+@@ -3355 +3361 @@
+-Summary of tender and schedule of rates
++Invitation
+@@ -3358 +3364 @@
+-Bespoke
++Standard
+@@ -3361 +3367 @@
+-A file uploaded to the part
++From the template library
+@@ -3367 +3373 @@
+-Yes
++No
+@@ -3370 +3376 @@
+-Yes
++No
+@@ -3373,0 +3380,3 @@
++Template
++:
++Demo notice of invitation
+diff -rU0 before/sourcing__demo_sx17__tab__history.txt after/sourcing__demo_sx17__tab__history.txt
+--- before/sourcing__demo_sx17__tab__history.txt	2026-10-02 20:33:36.376200232 +0000
++++ after/sourcing__demo_sx17__tab__history.txt	2026-10-02 21:13:35.476145359 +0000
+@@ -118 +118 @@
+-DEMO/SX/0017/2026 · Letter of invitation · Teladan Mekanikal Sdn Bhd
++DEMO/SX/0017/2026 · Letter of invitation · Demo Paip Services
+@@ -122 +122 @@
+-Teladan Mekanikal Sdn Bhd
++Demo Paip Services
+@@ -129,3 +129,3 @@
+-Created
+-Letter of invitation
+-DEMO/SX/0017/2026 · Letter of invitation · Demo Paip Services
++Changed
++Invitation window
++DEMO/SX/0017/2026 · Invitation window
+@@ -133 +133 @@
+-Invitee
++Invited on
+@@ -135,2 +135,4 @@
+-Demo Paip Services
+-Frozen from
++—
++→
++24 Sep 2026
++Letters
+@@ -138,2 +140,4 @@
+-Demo letter of invitation, text version 1
+-Language
++—
++→
++3
++Rules recorded
+@@ -141 +145,12 @@
+-English
++—
++→
++Yes
++Changed
++Exercise
++DEMO/SX/0017/2026 · Valve chamber rebuilding, Zone B
++24 Sep 2026
++Status
++:
++Approved for tendering
++→
++Invited
+@@ -144 +159 @@
+-DEMO/SX/0017/2026 · Letter of invitation · Contoh Bina Sdn Bhd
++DEMO/SX/0017/2026 · Letter of invitation · Teladan Mekanikal Sdn Bhd
+@@ -148 +163 @@
+-Contoh Bina Sdn Bhd
++Teladan Mekanikal Sdn Bhd
+@@ -164,12 +179,3 @@
+-Changed
+-Exercise
+-DEMO/SX/0017/2026 · Valve chamber rebuilding, Zone B
+-24 Sep 2026
+-Status
+-:
+-Approved for tendering
+-→
+-Invited
+-Changed
+-Invitation window
+-DEMO/SX/0017/2026 · Invitation window
++Created
++Letter of invitation
++DEMO/SX/0017/2026 · Letter of invitation · Contoh Bina Sdn Bhd
+@@ -177 +183 @@
+-Invited on
++Invitee
+@@ -179,4 +185,2 @@
+-—
+-→
+-24 Sep 2026
+-Letters
++Contoh Bina Sdn Bhd
++Frozen from
+@@ -184,4 +188,2 @@
+-—
+-→
+-3
+-Rules recorded
++Demo letter of invitation, text version 1
++Language
+@@ -189,3 +191 @@
+-—
+-→
+-Yes
++English
+@@ -284,9 +283,0 @@
+-Name approval
+-DEMO/SX/0017/2026 · name approval
+-23 Sep 2026
+-Status
+-:
+-In progress
+-→
+-Approved
+-Changed
+@@ -316,0 +308,9 @@
++Name approval
++DEMO/SX/0017/2026 · name approval
++23 Sep 2026
++Status
++:
++In progress
++→
++Approved
++Changed
+@@ -423,2 +423,2 @@
+-Record
+-DEMO/SX/0017/2026 · name approval · Teladan Mekanikal Sdn Bhd
++Name approval
++DEMO/SX/0017/2026 · name approval
+@@ -426 +426 @@
+-Invitee
++Matrix
+@@ -428,2 +428,2 @@
+-Teladan Mekanikal Sdn Bhd
+-Registration no
++Demo limits, issue 1
++Rule
+@@ -431 +431,10 @@
+-200801000105 (000105-T)
++Name approval, selective quotation
++Route
++:
++Head of Department (propose) → Head of Department (jointly recommend) → Head of Division (recommend) → Quotation Committee (recommend) → Finance Director (approve)
++Funding override applied
++:
++No
++Invitees
++:
++3
+@@ -444 +453 @@
+-DEMO/SX/0017/2026 · name approval · Contoh Bina Sdn Bhd
++DEMO/SX/0017/2026 · name approval · Teladan Mekanikal Sdn Bhd
+@@ -448 +457 @@
+-Contoh Bina Sdn Bhd
++Teladan Mekanikal Sdn Bhd
+@@ -451 +460 @@
+-201001000101 (000101-A)
++200801000105 (000105-T)
+@@ -453,2 +462,2 @@
+-Name approval
+-DEMO/SX/0017/2026 · name approval
++Record
++DEMO/SX/0017/2026 · name approval · Contoh Bina Sdn Bhd
+@@ -456,10 +465 @@
+-Matrix
+-:
+-Demo limits, issue 1
+-Rule
+-:
+-Name approval, selective quotation
+-Route
+-:
+-Head of Department (propose) → Head of Department (jointly recommend) → Head of Division (recommend) → Quotation Committee (recommend) → Finance Director (approve)
+-Funding override applied
++Invitee
+@@ -467,2 +467,2 @@
+-No
+-Invitees
++Contoh Bina Sdn Bhd
++Registration no
+@@ -470 +470 @@
+-3
++201001000101 (000101-A)
+@@ -535,2 +535,2 @@
+-Approval for tendering
+-DEMO/SX/0017/2026 · approval for tendering
++Step of the approval for tendering
++DEMO/SX/0017/2026 · Head of Contract & Procurement
+@@ -538 +538 @@
+-Status
++Decision
+@@ -540 +540 @@
+-Awaiting approval for tendering
++Pending
+@@ -542,6 +542,2 @@
+-Approved for tendering
+-Changed
+-Exercise
+-DEMO/SX/0017/2026 · Valve chamber rebuilding, Zone B
+-18 Sep 2026
+-Status
++Done
++Decided by
+@@ -549 +545 @@
+-Awaiting approval for tendering
++—
+@@ -551,2 +547,2 @@
+-Approved for tendering
+-Tendering starts
++Chen Wei Ling
++Decided on
+@@ -556,2 +552,2 @@
+-21 Sep 2026
+-Closing
++18 Sep 2026
++Recorded
+@@ -561 +557 @@
+-14 Oct 2026
++on behalf of, not signed
+@@ -582,2 +578,2 @@
+-Step of the approval for tendering
+-DEMO/SX/0017/2026 · Head of Contract & Procurement
++Exercise
++DEMO/SX/0017/2026 · Valve chamber rebuilding, Zone B
+@@ -585 +581 @@
+-Decision
++Status
+@@ -587 +583 @@
+-Pending
++Awaiting approval for tendering
+@@ -589,2 +585,2 @@
+-Done
+-Decided by
++Approved for tendering
++Tendering starts
+@@ -594,2 +590,2 @@
+-Chen Wei Ling
+-Decided on
++21 Sep 2026
++Closing
+@@ -598,0 +595,4 @@
++14 Oct 2026
++Changed
++Approval for tendering
++DEMO/SX/0017/2026 · approval for tendering
+@@ -600 +600 @@
+-Recorded
++Status
+@@ -602 +602 @@
+-—
++Awaiting approval for tendering
+@@ -604 +604 @@
+-on behalf of, not signed
++Approved for tendering
+@@ -607 +607 @@
+-DEMO/SX/0017/2026 · Tender documents v1 · part 2
++DEMO/SX/0017/2026 · Tender documents v1 · part 1
+@@ -611 +611 @@
+-2. Instructions to bidders
++1. Notice of quotation
+@@ -614 +614 @@
+-Demo instructions to bidders, text version 1
++Demo notice of invitation, text version 1
+@@ -618,3 +618,3 @@
+-Changed
+-Exercise
+-DEMO/SX/0017/2026 · Valve chamber rebuilding, Zone B
++Created
++Frozen text
++DEMO/SX/0017/2026 · Tender documents v1 · part 3
+@@ -622 +622 @@
+-Status
++Part
+@@ -624,6 +624,10 @@
+-Documents in preparation
+-→
+-Awaiting approval for tendering
+-Changed
+-Tender documents
+-DEMO/SX/0017/2026 · Tender documents v1
++3. Conditions of quotation
++Frozen from
++:
++Demo conditions of contract (drawings and specification), text version 1
++Language
++:
++English
++Created
++Frozen text
++DEMO/SX/0017/2026 · Tender documents v1 · part 3a
+@@ -631 +635 @@
+-Status
++Part
+@@ -633,4 +637,2 @@
+-Closed
+-→
+-Closed
+-Proposed start
++3a. Appendix to the conditions
++Frozen from
+@@ -638,4 +640,2 @@
+-—
+-→
+-21 Sep 2026
+-Proposed closing
++The Appendix as entered
++Language
+@@ -643,4 +643,6 @@
+-—
+-→
+-14 Oct 2026
+-Parts frozen
++English
++Created
++Frozen text
++DEMO/SX/0017/2026 · Tender documents v1 · part 5
++17 Sep 2026
++Part
+@@ -648,4 +650,2 @@
+-—
+-→
+-5
+-Files pinned
++5. Form of quotation
++Frozen from
+@@ -653,3 +653,4 @@
+-—
+-→
+-4
++Demo form of offer, text version 1
++Language
++:
++English
+@@ -675,3 +676,3 @@
+-Created
+-Frozen text
+-DEMO/SX/0017/2026 · Tender documents v1 · part 5
++Changed
++Tender documents
++DEMO/SX/0017/2026 · Tender documents v1
+@@ -679,4 +680 @@
+-Part
+-:
+-5. Form of quotation
+-Frozen from
++Status
+@@ -684,2 +682,4 @@
+-Demo form of offer, text version 1
+-Language
++Closed
++→
++Closed
++Proposed start
+@@ -687,6 +687,4 @@
+-English
+-Created
+-Frozen text
+-DEMO/SX/0017/2026 · Tender documents v1 · part 3a
+-17 Sep 2026
+-Part
++—
++→
++21 Sep 2026
++Proposed closing
+@@ -694,2 +692,4 @@
+-3a. Appendix to the conditions
+-Frozen from
++—
++→
++14 Oct 2026
++Parts frozen
+@@ -697,2 +697,4 @@
+-The Appendix as entered
+-Language
++—
++→
++5
++Files pinned
+@@ -700,4 +702,6 @@
+-English
+-Created
+-Frozen text
+-DEMO/SX/0017/2026 · Tender documents v1 · part 3
++—
++→
++4
++Changed
++Exercise
++DEMO/SX/0017/2026 · Valve chamber rebuilding, Zone B
+@@ -705,7 +709 @@
+-Part
+-:
+-3. Conditions of quotation
+-Frozen from
+-:
+-Demo conditions of contract (drawings and specification), text version 1
+-Language
++Status
+@@ -713 +711,3 @@
+-English
++Documents in preparation
++→
++Awaiting approval for tendering
+@@ -716 +716 @@
+-DEMO/SX/0017/2026 · Tender documents v1 · part 1
++DEMO/SX/0017/2026 · Tender documents v1 · part 2
+@@ -720 +720 @@
+-1. Notice of quotation
++2. Instructions to bidders
+@@ -723 +723 @@
+-Demo notice of invitation, text version 1
++Demo instructions to bidders, text version 1
+@@ -729 +729 @@
+-DEMO/SX/0017/2026 · Tender documents v1 · part 4
++DEMO/SX/0017/2026 · Tender documents v1 · part 9
+@@ -774 +774 @@
+-DEMO/SX/0017/2026 · Tender documents v1 · part 5
++DEMO/SX/0017/2026 · Tender documents v1 · part 4
+@@ -783 +783 @@
+-DEMO/SX/0017/2026 · Tender documents v1 · part 7
++DEMO/SX/0017/2026 · Tender documents v1 · part 5
+@@ -792 +792 @@
+-DEMO/SX/0017/2026 · Tender documents v1 · part 8
++DEMO/SX/0017/2026 · Tender documents v1 · part 7
+@@ -801 +801 @@
+-DEMO/SX/0017/2026 · Tender documents v1 · part 9
++DEMO/SX/0017/2026 · Tender documents v1 · part 8
+@@ -844 +844 @@
+-Needs regulator permit
++Restricted tender
+@@ -848,6 +848 @@
+-Yes
+-Permit type
+-:
+-—
+-→
+-Demo permit class 1
++No
+@@ -858 +853 @@
+-Restricted tender
++Needs regulator permit
+@@ -862 +857,6 @@
+-No
++Yes
++Permit type
++:
++—
++→
++Demo permit class 1
+@@ -1052,2 +1052,2 @@
+-Tender documents
+-DEMO/SX/0017/2026 · Tender documents v1
++Tender document part
++DEMO/SX/0017/2026 · Tender documents v1 · part 8
+@@ -1055 +1055 @@
+-Version
++Part
+@@ -1057,2 +1057,2 @@
+-1
+-Document pack
++8. Bidder's declaration and letter of authorisation
++Role
+@@ -1060,2 +1060,2 @@
+-Quotation documents
+-Contract basis
++Tenderer's declaration
++Content
+@@ -1063,2 +1063,2 @@
+-Drawings and specification
+-Standard form
++Standard
++Source
+@@ -1066,2 +1066,2 @@
+-Demo conditions of contract (drawings and specification)
+-Parts
++A file uploaded to the part
++Mandatory
+@@ -1069 +1069,10 @@
+-9
++Yes
++In the tender table document
++:
++No
++Returned by the bidder
++:
++Yes
++State
++:
++Not ready
+@@ -1100 +1109 @@
+-DEMO/SX/0017/2026 · Tender documents v1 · part 8
++DEMO/SX/0017/2026 · Tender documents v1 · part 2
+@@ -1104 +1113 @@
+-8. Bidder's declaration and letter of authorisation
++2. Instructions to bidders
+@@ -1107 +1116 @@
+-Tenderer's declaration
++Instructions to tenderers
+@@ -1113 +1122 @@
+-A file uploaded to the part
++From the template library
+@@ -1122 +1131 @@
+-Yes
++No
+@@ -1125,0 +1135,3 @@
++Template
++:
++Demo instructions to bidders
+@@ -1274 +1286 @@
+-DEMO/SX/0017/2026 · Tender documents v1 · part 2
++DEMO/SX/0017/2026 · Tender documents v1 · part 1
+@@ -1278 +1290 @@
+-2. Instructions to bidders
++1. Notice of quotation
+@@ -1281 +1293 @@
+-Instructions to tenderers
++Invitation
+@@ -1302 +1314 @@
+-Demo instructions to bidders
++Demo notice of invitation
+@@ -1304,2 +1316,2 @@
+-Tender document part
+-DEMO/SX/0017/2026 · Tender documents v1 · part 1
++Tender documents
++DEMO/SX/0017/2026 · Tender documents v1
+@@ -1307,13 +1319 @@
+-Part
+-:
+-1. Notice of quotation
+-Role
+-:
+-Invitation
+-Content
+-:
+-Standard
+-Source
+-:
+-From the template library
+-Mandatory
++Version
+@@ -1321,2 +1321,2 @@
+-Yes
+-In the tender table document
++1
++Document pack
+@@ -1324,2 +1324,2 @@
+-No
+-Returned by the bidder
++Quotation documents
++Contract basis
+@@ -1327,2 +1327,2 @@
+-No
+-State
++Drawings and specification
++Standard form
+@@ -1330,2 +1330,2 @@
+-Not ready
+-Template
++Demo conditions of contract (drawings and specification)
++Parts
+@@ -1333 +1333 @@
+-Demo notice of invitation
++9
+@@ -1379,0 +1380,9 @@
++Changed
++Company estimate
++DEMO/SX/0017/2026 · Company estimate
++16 Sep 2026
++State
++:
++Being prepared
++→
++Lodged
+@@ -1399,9 +1407,0 @@
+-Changed
+-Company estimate
+-DEMO/SX/0017/2026 · Company estimate
+-16 Sep 2026
+-State
+-:
+-Being prepared
+-→
+-Lodged
+@@ -1409,2 +1409,2 @@
+-Company estimate custody
+-DEMO/SX/0017/2026 · Company estimate · prepared
++Company estimate version
++DEMO/SX/0017/2026 · Company estimate · version 1
+@@ -1412 +1412 @@
+-Event
++Version
+@@ -1414,2 +1414,2 @@
+-Prepared
+-By
++1
++Value
+@@ -1417,2 +1417,2 @@
+-Nurul Izzah Kamal (recorded on behalf of, not signed)
+-Capacity
++Sealed (version 1)
++Prepared by
+@@ -1420,2 +1420,2 @@
+-Preparer
+-Version
++Nurul Izzah Kamal (recorded on behalf of, not signed)
++Prepared on
+@@ -1423 +1423 @@
+-1
++16 Sep 2026
+@@ -1438,2 +1438,2 @@
+-Company estimate version
+-DEMO/SX/0017/2026 · Company estimate · version 1
++Company estimate custody
++DEMO/SX/0017/2026 · Company estimate · prepared
+@@ -1441,4 +1441 @@
+-Version
+-:
+-1
+-Value
++Event
+@@ -1446,2 +1443,2 @@
+-Sealed (version 1)
+-Prepared by
++Prepared
++By
+@@ -1450 +1447 @@
+-Prepared on
++Capacity
+@@ -1452 +1449,4 @@
+-16 Sep 2026
++Preparer
++Version
++:
++1
+@@ -1528,26 +1527,0 @@
+-Scope
+-DEMO/SX/0017/2026 · scope: measured construction or installation
+-15 Sep 2026
+-Delivers
+-:
+-Measured construction or installation
+-Amount
+-:
+-RM180,000
+-Description
+-:
+-Valve chamber rebuilding, Zone B
+-Created
+-Classification
+-DEMO/SX/0017/2026 · Evaluation approach
+-15 Sep 2026
+-Classification
+-:
+-Evaluation approach
+-Value
+-:
+-Technical then price
+-How it was reached
+-:
+-Derived
+-Created
+@@ -1567,2 +1541,2 @@
+-Classification
+-DEMO/SX/0017/2026 · Specification panel type
++Scope
++DEMO/SX/0017/2026 · scope: measured construction or installation
+@@ -1570 +1544 @@
+-Classification
++Delivers
+@@ -1572,2 +1546,2 @@
+-Specification panel type
+-Value
++Measured construction or installation
++Amount
+@@ -1575,2 +1549,2 @@
+-Civil works panel
+-How it was reached
++RM180,000
++Description
+@@ -1578 +1552 @@
+-Derived
++Valve chamber rebuilding, Zone B
+@@ -1664,0 +1639,26 @@
++Created
++Classification
++DEMO/SX/0017/2026 · Specification panel type
++15 Sep 2026
++Classification
++:
++Specification panel type
++Value
++:
++Civil works panel
++How it was reached
++:
++Derived
++Created
++Classification
++DEMO/SX/0017/2026 · Evaluation approach
++15 Sep 2026
++Classification
++:
++Evaluation approach
++Value
++:
++Technical then price
++How it was reached
++:
++Derived
+diff -rU0 before/sourcing__demo_sx18__tab__history.txt after/sourcing__demo_sx18__tab__history.txt
+--- before/sourcing__demo_sx18__tab__history.txt	2026-10-02 20:32:52.096201245 +0000
++++ after/sourcing__demo_sx18__tab__history.txt	2026-10-02 21:12:50.996146376 +0000
+@@ -78,34 +77,0 @@
+-Changed
+-Step of the approval of the change to the invitation window
+-DEMO/SX/0018/2026 · Head of Division
+-01 Oct 2026
+-Decision
+-:
+-Pending
+-→
+-Done
+-Decided by
+-:
+-—
+-→
+-Gopal Nair
+-Decided on
+-:
+-—
+-→
+-01 Oct 2026
+-Recorded
+-:
+-—
+-→
+-on behalf of, not signed
+-Created
+-Notice of a change
+-DEMO/SX/0018/2026 · Closing extended · Rekaan Maju Construction
+-01 Oct 2026
+-Recipient
+-:
+-Rekaan Maju Construction
+-Notice
+-:
+-Closing extended
+@@ -124 +90 @@
+-DEMO/SX/0018/2026 · Closing extended · Demo Paip Services
++DEMO/SX/0018/2026 · Closing extended · Rekaan Maju Construction
+@@ -128 +94 @@
+-Demo Paip Services
++Rekaan Maju Construction
+@@ -133,9 +98,0 @@
+-Closing change
+-DEMO/SX/0018/2026 · Closing extension
+-01 Oct 2026
+-Outcome
+-:
+-—
+-→
+-Applied
+-Changed
+@@ -166,0 +124,43 @@
++Step of the approval of the change to the invitation window
++DEMO/SX/0018/2026 · Head of Division
++01 Oct 2026
++Decision
++:
++Pending
++→
++Done
++Decided by
++:
++—
++→
++Gopal Nair
++Decided on
++:
++—
++→
++01 Oct 2026
++Recorded
++:
++—
++→
++on behalf of, not signed
++Changed
++Closing change
++DEMO/SX/0018/2026 · Closing extension
++01 Oct 2026
++Outcome
++:
++—
++→
++Applied
++Created
++Notice of a change
++DEMO/SX/0018/2026 · Closing extended · Demo Paip Services
++01 Oct 2026
++Recipient
++:
++Demo Paip Services
++Notice
++:
++Closing extended
++Changed
+@@ -263,28 +262,0 @@
+-DEMO/SX/0018/2026 · Special permission for Teladan Mekanikal Sdn Bhd
+-29 Sep 2026
+-Requirement
+-:
+-The Demo Contractors Board (grade D2, category painting works)
+-Relaxes
+-:
+-The grade
+-Granted by bodies
+-:
+-the Demo Contractors Board
+-Internal approval
+-:
+-Yes, on its route
+-Existing class confirmed
+-:
+-Confirmed
+-Good record confirmed
+-:
+-Confirmed
+-Recorded by
+-:
+-Daniel Anak Jelani
+-Recorded
+-:
+-on behalf of, not signed
+-Created
+-Record
+@@ -316,0 +289,28 @@
++Created
++Record
++DEMO/SX/0018/2026 · Special permission for Teladan Mekanikal Sdn Bhd
++29 Sep 2026
++Requirement
++:
++The Demo Contractors Board (grade D2, category painting works)
++Relaxes
++:
++The grade
++Granted by bodies
++:
++the Demo Contractors Board
++Internal approval
++:
++Yes, on its route
++Existing class confirmed
++:
++Confirmed
++Good record confirmed
++:
++Confirmed
++Recorded by
++:
++Daniel Anak Jelani
++Recorded
++:
++on behalf of, not signed
+@@ -342,10 +341,0 @@
+-Addendum copy
+-DEMO/SX/0018/2026 · Addendum 1 · Rekaan Maju Construction
+-28 Sep 2026
+-Recipient
+-:
+-Rekaan Maju Construction
+-Given
+-:
+-with the documents
+-Created
+@@ -394,0 +385,10 @@
++Addendum copy
++DEMO/SX/0018/2026 · Addendum 1 · Rekaan Maju Construction
++28 Sep 2026
++Recipient
++:
++Rekaan Maju Construction
++Given
++:
++with the documents
++Created
+@@ -413,14 +412,0 @@
+-Created
+-Addendum copy
+-DEMO/SX/0018/2026 · Addendum 1 · Demo Paip Services
+-25 Sep 2026
+-Recipient
+-:
+-Demo Paip Services
+-Created
+-Addendum copy
+-DEMO/SX/0018/2026 · Addendum 1 · Teladan Mekanikal Sdn Bhd
+-25 Sep 2026
+-Recipient
+-:
+-Teladan Mekanikal Sdn Bhd
+@@ -456,0 +443,14 @@
++Addendum copy
++DEMO/SX/0018/2026 · Addendum 1 · Teladan Mekanikal Sdn Bhd
++25 Sep 2026
++Recipient
++:
++Teladan Mekanikal Sdn Bhd
++Created
++Addendum copy
++DEMO/SX/0018/2026 · Addendum 1 · Demo Paip Services
++25 Sep 2026
++Recipient
++:
++Demo Paip Services
++Created
+@@ -489,19 +488,0 @@
+-Contractor
+-DEMO/SX/0018/2026 · Contractor Teladan Mekanikal Sdn Bhd
+-23 Sep 2026
+-Contractor
+-:
+-Teladan Mekanikal Sdn Bhd
+-Registration no
+-:
+-200801000105 (000105-T)
+-Came as
+-:
+-Bought the documents
+-Address
+-:
+-55 Jalan Teladan, 00000 Demo South
+-Telephone
+-:
+-+00 0-000 0105
+-Created
+@@ -550,0 +532,19 @@
++Contractor
++DEMO/SX/0018/2026 · Contractor Teladan Mekanikal Sdn Bhd
++23 Sep 2026
++Contractor
++:
++Teladan Mekanikal Sdn Bhd
++Registration no
++:
++200801000105 (000105-T)
++Came as
++:
++Bought the documents
++Address
++:
++55 Jalan Teladan, 00000 Demo South
++Telephone
++:
+++00 0-000 0105
++Created
+@@ -676 +676 @@
+-Status
++Evaluation model pinned
+@@ -678 +678 @@
+-Approved for tendering
++—
+@@ -680 +680 @@
+-Advertised
++Demo phased quotation model, version 1
+@@ -704 +704 @@
+-Evaluation model pinned
++Status
+@@ -706 +706 @@
+-—
++Approved for tendering
+@@ -708 +708 @@
+-Demo phased quotation model, version 1
++Advertised
+@@ -861,2 +861,2 @@
+-Exercise
+-DEMO/SX/0018/2026 · Pipe bridge repainting, Sungai Demo
++Approval for tendering
++DEMO/SX/0018/2026 · approval for tendering
+@@ -869 +869,15 @@
+-Tendering starts
++Changed
++Step of the approval for tendering
++DEMO/SX/0018/2026 · Head of Contract & Procurement
++18 Sep 2026
++Decision
++:
++Pending
++→
++Done
++Decided by
++:
++—
++→
++Chen Wei Ling
++Decided on
+@@ -874 +888 @@
+-Closing
++Recorded
+@@ -878 +892 @@
+-07 Oct 2026
++on behalf of, not signed
+@@ -899,2 +913,2 @@
+-Approval for tendering
+-DEMO/SX/0018/2026 · approval for tendering
++Exercise
++DEMO/SX/0018/2026 · Pipe bridge repainting, Sungai Demo
+@@ -907,15 +921 @@
+-Changed
+-Step of the approval for tendering
+-DEMO/SX/0018/2026 · Head of Contract & Procurement
+-18 Sep 2026
+-Decision
+-:
+-Pending
+-→
+-Done
+-Decided by
+-:
+-—
+-→
+-Chen Wei Ling
+-Decided on
++Tendering starts
+@@ -926 +926 @@
+-Recorded
++Closing
+@@ -930,14 +930 @@
+-on behalf of, not signed
+-Created
+-Frozen text
+-DEMO/SX/0018/2026 · Tender documents v1 · part 1
+-17 Sep 2026
+-Part
+-:
+-1. Notice of quotation
+-Frozen from
+-:
+-Demo notice of invitation, text version 1
+-Language
+-:
+-English
++07 Oct 2026
+@@ -976,9 +962,0 @@
+-Changed
+-Exercise
+-DEMO/SX/0018/2026 · Pipe bridge repainting, Sungai Demo
+-17 Sep 2026
+-Status
+-:
+-Documents in preparation
+-→
+-Awaiting approval for tendering
+@@ -1023,0 +1002,22 @@
++Created
++Frozen text
++DEMO/SX/0018/2026 · Tender documents v1 · part 1
++17 Sep 2026
++Part
++:
++1. Notice of quotation
++Frozen from
++:
++Demo notice of invitation, text version 1
++Language
++:
++English
++Changed
++Exercise
++DEMO/SX/0018/2026 · Pipe bridge repainting, Sungai Demo
++17 Sep 2026
++Status
++:
++Documents in preparation
++→
++Awaiting approval for tendering
+@@ -1055 +1055 @@
+-DEMO/SX/0018/2026 · Tender documents v1 · part 3a
++DEMO/SX/0018/2026 · Tender documents v1 · part 7
+@@ -1091 +1091 @@
+-DEMO/SX/0018/2026 · Tender documents v1 · part 4
++DEMO/SX/0018/2026 · Tender documents v1 · part 3a
+@@ -1100 +1100 @@
+-DEMO/SX/0018/2026 · Tender documents v1 · part 5
++DEMO/SX/0018/2026 · Tender documents v1 · part 4
+@@ -1109 +1109 @@
+-DEMO/SX/0018/2026 · Tender documents v1 · part 7
++DEMO/SX/0018/2026 · Tender documents v1 · part 5
+@@ -1170 +1170 @@
+-Restricted tender
++Needs regulator permit
+@@ -1174,0 +1175,5 @@
++Permit type
++:
++—
++→
++Demo permit class 1
+@@ -1179 +1184 @@
+-Needs regulator permit
++Restricted tender
+@@ -1184,5 +1188,0 @@
+-Permit type
+-:
+-—
+-→
+-Demo permit class 1
+@@ -1379 +1379 @@
+-DEMO/SX/0018/2026 · Tender documents v1 · part 4
++DEMO/SX/0018/2026 · Tender documents v1 · part 3a
+@@ -1383 +1383 @@
+-4. Specification of works
++3a. Appendix to the conditions
+@@ -1386 +1386 @@
+-Specification
++Appendix to the conditions
+@@ -1389 +1389 @@
+-Standard and bespoke
++Bespoke
+@@ -1392 +1392 @@
+-A file uploaded to the part
++The Appendix entered here
+@@ -1406,2 +1406,2 @@
+-Tender document part
+-DEMO/SX/0018/2026 · Tender documents v1 · part 3a
++Tender documents
++DEMO/SX/0018/2026 · Tender documents v1
+@@ -1409,10 +1409 @@
+-Part
+-:
+-3a. Appendix to the conditions
+-Role
+-:
+-Appendix to the conditions
+-Content
+-:
+-Bespoke
+-Source
++Version
+@@ -1420,2 +1411,2 @@
+-The Appendix entered here
+-Mandatory
++1
++Document pack
+@@ -1423,2 +1414,2 @@
+-Yes
+-In the tender table document
++Quotation documents
++Contract basis
+@@ -1426,2 +1417,2 @@
+-Yes
+-Returned by the bidder
++Drawings and specification
++Standard form
+@@ -1429,2 +1420,2 @@
+-No
+-State
++Demo conditions of contract (drawings and specification)
++Parts
+@@ -1432 +1423 @@
+-Not ready
++9
+@@ -1435 +1426 @@
+-DEMO/SX/0018/2026 · Tender documents v1 · part 3
++DEMO/SX/0018/2026 · Tender documents v1 · part 1
+@@ -1439 +1430 @@
+-3. Conditions of quotation
++1. Notice of quotation
+@@ -1442 +1433 @@
+-Conditions of contract
++Invitation
+@@ -1454 +1445 @@
+-Yes
++No
+@@ -1463 +1454 @@
+-Demo conditions of contract (drawings and specification)
++Demo notice of invitation
+@@ -1497 +1488 @@
+-DEMO/SX/0018/2026 · Tender documents v1 · part 1
++DEMO/SX/0018/2026 · Tender documents v1 · part 3
+@@ -1501 +1492 @@
+-1. Notice of quotation
++3. Conditions of quotation
+@@ -1504 +1495 @@
+-Invitation
++Conditions of contract
+@@ -1516 +1507 @@
+-No
++Yes
+@@ -1525 +1516 @@
+-Demo notice of invitation
++Demo conditions of contract (drawings and specification)
+@@ -1527,2 +1518,2 @@
+-Tender documents
+-DEMO/SX/0018/2026 · Tender documents v1
++Tender document part
++DEMO/SX/0018/2026 · Tender documents v1 · part 4
+@@ -1530 +1521 @@
+-Version
++Part
+@@ -1532,2 +1523,2 @@
+-1
+-Document pack
++4. Specification of works
++Role
+@@ -1535,2 +1526,2 @@
+-Quotation documents
+-Contract basis
++Specification
++Content
+@@ -1538,2 +1529,2 @@
+-Drawings and specification
+-Standard form
++Standard and bespoke
++Source
+@@ -1541,2 +1532,2 @@
+-Demo conditions of contract (drawings and specification)
+-Parts
++A file uploaded to the part
++Mandatory
+@@ -1544 +1535,10 @@
+-9
++Yes
++In the tender table document
++:
++Yes
++Returned by the bidder
++:
++No
++State
++:
++Not ready
+@@ -1547 +1547 @@
+-DEMO/SX/0018/2026 · Tender documents v1 · part 9
++DEMO/SX/0018/2026 · Tender documents v1 · part 5
+@@ -1551 +1551 @@
+-9. Drawings
++5. Form of quotation
+@@ -1554 +1554 @@
+-Drawings
++Form of tender
+@@ -1557 +1557 @@
+-Bespoke
++Standard
+@@ -1560 +1560 @@
+-A file uploaded to the part
++From the template library
+@@ -1569 +1569 @@
+-No
++Yes
+@@ -1572,0 +1573,3 @@
++Template
++:
++Demo form of offer
+@@ -1575 +1578 @@
+-DEMO/SX/0018/2026 · Tender documents v1 · part 8
++DEMO/SX/0018/2026 · Tender documents v1 · part 7
+@@ -1579 +1582 @@
+-8. Bidder's declaration and letter of authorisation
++7. Performance bond forms
+@@ -1582 +1585 @@
+-Tenderer's declaration
++Bond and security forms
+@@ -1594 +1597 @@
+-No
++Yes
+@@ -1597 +1600 @@
+-Yes
++No
+@@ -1603 +1606 @@
+-DEMO/SX/0018/2026 · Tender documents v1 · part 5
++DEMO/SX/0018/2026 · Tender documents v1 · part 8
+@@ -1607 +1610 @@
+-5. Form of quotation
++8. Bidder's declaration and letter of authorisation
+@@ -1610 +1613 @@
+-Form of tender
++Tenderer's declaration
+@@ -1616 +1619 @@
+-From the template library
++A file uploaded to the part
+@@ -1622 +1625 @@
+-Yes
++No
+@@ -1629,3 +1631,0 @@
+-Template
+-:
+-Demo form of offer
+@@ -1634 +1634 @@
+-DEMO/SX/0018/2026 · Tender documents v1 · part 7
++DEMO/SX/0018/2026 · Tender documents v1 · part 9
+@@ -1638 +1638 @@
+-7. Performance bond forms
++9. Drawings
+@@ -1641 +1641 @@
+-Bond and security forms
++Drawings
+@@ -1644 +1644 @@
+-Standard
++Bespoke
+@@ -1866,0 +1867,13 @@
++Classification
++DEMO/SX/0018/2026 · Performance report form
++15 Sep 2026
++Classification
++:
++Performance report form
++Value
++:
++Design and build report
++How it was reached
++:
++Derived
++Created
+@@ -1879,0 +1893,13 @@
++Classification
++DEMO/SX/0018/2026 · Evaluation approach
++15 Sep 2026
++Classification
++:
++Evaluation approach
++Value
++:
++Technical then price
++How it was reached
++:
++Derived
++Created
+@@ -1962,26 +1987,0 @@
+-Created
+-Classification
+-DEMO/SX/0018/2026 · Evaluation approach
+-15 Sep 2026
+-Classification
+-:
+-Evaluation approach
+-Value
+-:
+-Technical then price
+-How it was reached
+-:
+-Derived
+-Created
+-Classification
+-DEMO/SX/0018/2026 · Performance report form
+-15 Sep 2026
+-Classification
+-:
+-Performance report form
+-Value
+-:
+-Design and build report
+-How it was reached
+-:
+-Derived
+diff -rU0 before/sourcing__demo_sx19__tab__history.txt after/sourcing__demo_sx19__tab__history.txt
+--- before/sourcing__demo_sx19__tab__history.txt	2026-10-02 20:32:10.044202206 +0000
++++ after/sourcing__demo_sx19__tab__history.txt	2026-10-02 21:12:02.472147486 +0000
+@@ -62,0 +63,11 @@
++Exercise
++DEMO/SX/0019/2026 · Reservoir inlet main renewal, Demo Heights
++22 Sep 2026
++Status
++:
++Advertised
++→
++Cancelled
++Reason:
++The scope is to be re-let with the reservoir inlet works added; the exercise is re-advertised as DEMO/SX/0016/2026.
++Changed
+@@ -85,0 +97,9 @@
++Changed
++Approval of the change to the invitation window
++DEMO/SX/0019/2026 · window change
++22 Sep 2026
++Status
++:
++In progress
++→
++Approved
+@@ -110,12 +130 @@
+-Changed
+-Exercise
+-DEMO/SX/0019/2026 · Reservoir inlet main renewal, Demo Heights
+-22 Sep 2026
+-Status
+-:
+-Advertised
+-→
+-Cancelled
+-Reason:
+-The scope is to be re-let with the reservoir inlet works added; the exercise is re-advertised as DEMO/SX/0016/2026.
+-Changed
++Created
+@@ -125 +134 @@
+-Status
++Matter
+@@ -127,3 +136,13 @@
+-In progress
+-→
+-Approved
++Cancellation of the published exercise
++Matrix
++:
++Demo limits, issue 1
++Rule
++:
++Change to the invitation window, tender
++Route
++:
++Head of Division (approve)
++If refused
++:
++not made; may be asked again
+@@ -143,4 +162,4 @@
+-Approval of the change to the invitation window
+-DEMO/SX/0019/2026 · window change
+-22 Sep 2026
+-Matter
++Contractor
++DEMO/SX/0019/2026 · Contractor Contoh Bina Sdn Bhd
++21 Sep 2026
++Contractor
+@@ -148,2 +167,2 @@
+-Cancellation of the published exercise
+-Matrix
++Contoh Bina Sdn Bhd
++Registration no
+@@ -151,2 +170,2 @@
+-Demo limits, issue 1
+-Rule
++201001000101 (000101-A)
++Came as
+@@ -154,2 +173,2 @@
+-Change to the invitation window, tender
+-Route
++Bought the documents
++Address
+@@ -157,2 +176,2 @@
+-Head of Division (approve)
+-If refused
++8 Jalan Contoh, 00000 Demo City
++Telephone
+@@ -160 +179,4 @@
+-not made; may be asked again
+++00 0-000 0101
++Email
++:
++tender@contohbina.invalid
+@@ -198,22 +219,0 @@
+-Created
+-Contractor
+-DEMO/SX/0019/2026 · Contractor Contoh Bina Sdn Bhd
+-21 Sep 2026
+-Contractor
+-:
+-Contoh Bina Sdn Bhd
+-Registration no
+-:
+-201001000101 (000101-A)
+-Came as
+-:
+-Bought the documents
+-Address
+-:
+-8 Jalan Contoh, 00000 Demo City
+-Telephone
+-:
+-+00 0-000 0101
+-Email
+-:
+-tender@contohbina.invalid
+@@ -224 +224 @@
+-Evaluation model pinned
++Status
+@@ -226 +226 @@
+-—
++Approved for tendering
+@@ -228 +228 @@
+-Demo weighted tender model, version 1
++Advertised
+@@ -233 +233 @@
+-Status
++Evaluation model pinned
+@@ -235 +235 @@
+-Approved for tendering
++—
+@@ -237 +237 @@
+-Advertised
++Demo weighted tender model, version 1
+@@ -447,19 +446,0 @@
+-Tender documents
+-DEMO/SX/0019/2026 · Tender documents v1
+-18 Sep 2026
+-Status
+-:
+-Closed
+-→
+-Closed
+-Approved start
+-:
+-—
+-→
+-18 Sep 2026
+-Approved closing
+-:
+-—
+-→
+-07 Oct 2026
+-Changed
+@@ -489,22 +469,0 @@
+-Created
+-Frozen text
+-DEMO/SX/0019/2026 · Tender documents v1 · part 2
+-17 Sep 2026
+-Part
+-:
+-2. Form of tender
+-Frozen from
+-:
+-Demo form of offer, text version 1
+-Language
+-:
+-English
+-Changed
+-Exercise
+-DEMO/SX/0019/2026 · Reservoir inlet main renewal, Demo Heights
+-17 Sep 2026
+-Status
+-:
+-Documents in preparation
+-→
+-Awaiting approval for tendering
+@@ -514 +473 @@
+-17 Sep 2026
++18 Sep 2026
+@@ -520 +479 @@
+-Proposed start
++Approved start
+@@ -525 +484 @@
+-Proposed closing
++Approved closing
+@@ -530,10 +488,0 @@
+-Parts frozen
+-:
+-—
+-→
+-5
+-Files pinned
+-:
+-—
+-→
+-7
+@@ -541,2 +490,2 @@
+-Approval for tendering
+-DEMO/SX/0019/2026 · approval for tendering
++Frozen text
++DEMO/SX/0019/2026 · Tender documents v1 · part 3a
+@@ -544,7 +493 @@
+-Matrix
+-:
+-Demo limits, issue 1
+-Rule
+-:
+-Approval for tendering, tender
+-Route
++Part
+@@ -552,2 +495,2 @@
+-Head of Contract & Procurement (approve)
+-Funding override applied
++3a. Appendix to the conditions of contract
++Frozen from
+@@ -555,2 +498,2 @@
+-No
+-If rejected
++The Appendix as entered
++Language
+@@ -558 +501 @@
+-Returned for amendment
++English
+@@ -561 +504 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 11
++DEMO/SX/0019/2026 · Tender documents v1 · part 2
+@@ -565 +508 @@
+-11. Instructions to tenderers
++2. Form of tender
+@@ -568 +511 @@
+-Demo instructions to bidders, text version 1
++Demo form of offer, text version 1
+@@ -574 +517 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 3a
++DEMO/SX/0019/2026 · Tender documents v1 · part 3
+@@ -578 +521 @@
+-3a. Appendix to the conditions of contract
++3. Conditions of contract
+@@ -581 +524 @@
+-The Appendix as entered
++Demo conditions of contract (drawings and specification), text version 1
+@@ -587 +530 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 3
++DEMO/SX/0019/2026 · Tender documents v1 · part 11
+@@ -591 +534 @@
+-3. Conditions of contract
++11. Instructions to tenderers
+@@ -594 +537 @@
+-Demo conditions of contract (drawings and specification), text version 1
++Demo instructions to bidders, text version 1
+@@ -598,0 +542,57 @@
++Approval for tendering
++DEMO/SX/0019/2026 · approval for tendering
++17 Sep 2026
++Matrix
++:
++Demo limits, issue 1
++Rule
++:
++Approval for tendering, tender
++Route
++:
++Head of Contract & Procurement (approve)
++Funding override applied
++:
++No
++If rejected
++:
++Returned for amendment
++Changed
++Tender documents
++DEMO/SX/0019/2026 · Tender documents v1
++17 Sep 2026
++Status
++:
++Closed
++→
++Closed
++Proposed start
++:
++—
++→
++18 Sep 2026
++Proposed closing
++:
++—
++→
++07 Oct 2026
++Parts frozen
++:
++—
++→
++5
++Files pinned
++:
++—
++→
++7
++Changed
++Exercise
++DEMO/SX/0019/2026 · Reservoir inlet main renewal, Demo Heights
++17 Sep 2026
++Status
++:
++Documents in preparation
++→
++Awaiting approval for tendering
++Created
+@@ -613 +613 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 11
++DEMO/SX/0019/2026 · Tender documents v1 · part 8
+@@ -622 +622 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 1
++DEMO/SX/0019/2026 · Tender documents v1 · part 7b
+@@ -631 +631 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 2
++DEMO/SX/0019/2026 · Tender documents v1 · part 6
+@@ -640 +640 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 3
++DEMO/SX/0019/2026 · Tender documents v1 · part 5
+@@ -649 +649 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 3a
++DEMO/SX/0019/2026 · Tender documents v1 · part 11
+@@ -658 +658 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 4
++DEMO/SX/0019/2026 · Tender documents v1 · part 10
+@@ -667 +667 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 5
++DEMO/SX/0019/2026 · Tender documents v1 · part 4
+@@ -676 +676 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 6
++DEMO/SX/0019/2026 · Tender documents v1 · part 9
+@@ -685 +685 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 7b
++DEMO/SX/0019/2026 · Tender documents v1 · part 3a
+@@ -694 +694 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 8
++DEMO/SX/0019/2026 · Tender documents v1 · part 3
+@@ -703 +703 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 9
++DEMO/SX/0019/2026 · Tender documents v1 · part 2
+@@ -712 +712 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 10
++DEMO/SX/0019/2026 · Tender documents v1 · part 1
+@@ -755 +755 @@
+-Needs regulator permit
++Restricted tender
+@@ -759,6 +759 @@
+-Yes
+-Permit type
+-:
+-—
+-→
+-Demo permit class 2
++No
+@@ -769 +764 @@
+-Restricted tender
++Needs regulator permit
+@@ -773 +768,6 @@
+-No
++Yes
++Permit type
++:
++—
++→
++Demo permit class 2
+@@ -1021 +1021 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 9
++DEMO/SX/0019/2026 · Tender documents v1 · part 10
+@@ -1025 +1025 @@
+-9. Bidder's declaration and letter of authorisation
++10. Drawings
+@@ -1028 +1028 @@
+-Tenderer's declaration
++Drawings
+@@ -1031 +1031 @@
+-Standard
++Bespoke
+@@ -1040 +1040 @@
+-No
++Yes
+@@ -1043 +1043 @@
+-Yes
++No
+@@ -1047,0 +1048,19 @@
++Tender documents
++DEMO/SX/0019/2026 · Tender documents v1
++17 Sep 2026
++Version
++:
++1
++Document pack
++:
++Tender documents
++Contract basis
++:
++Drawings and specification
++Standard form
++:
++Demo conditions of contract (drawings and specification)
++Parts
++:
++12
++Created
+@@ -1049 +1068 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 8
++DEMO/SX/0019/2026 · Tender documents v1 · part 1
+@@ -1053 +1072 @@
+-8. Bidder's registration and background form
++1. Notice of invitation to tender
+@@ -1056 +1075 @@
+-Registration and background
++Invitation
+@@ -1062 +1081 @@
+-A file uploaded to the part
++From the template library
+@@ -1071 +1090 @@
+-Yes
++No
+@@ -1074,0 +1094,3 @@
++Template
++:
++Demo notice of invitation
+@@ -1077 +1099 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 7b
++DEMO/SX/0019/2026 · Tender documents v1 · part 2
+@@ -1081 +1103 @@
+-7b. Summary of tender and schedule of rates
++2. Form of tender
+@@ -1084 +1106 @@
+-Summary of tender and schedule of rates
++Form of tender
+@@ -1087 +1109 @@
+-Bespoke
++Standard
+@@ -1090 +1112 @@
+-A file uploaded to the part
++From the template library
+@@ -1102,0 +1125,3 @@
++Template
++:
++Demo form of offer
+@@ -1105 +1130 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 6
++DEMO/SX/0019/2026 · Tender documents v1 · part 3
+@@ -1109 +1134 @@
+-6. Specification
++3. Conditions of contract
+@@ -1112 +1137 @@
+-Specification
++Conditions of contract
+@@ -1115 +1140 @@
+-Standard and bespoke
++Standard
+@@ -1118 +1143 @@
+-A file uploaded to the part
++From the template library
+@@ -1130,0 +1156,3 @@
++Template
++:
++Demo conditions of contract (drawings and specification)
+@@ -1133 +1161 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 5
++DEMO/SX/0019/2026 · Tender documents v1 · part 3a
+@@ -1137 +1165 @@
+-5. Performance bond forms
++3a. Appendix to the conditions of contract
+@@ -1140 +1168 @@
+-Bond and security forms
++Appendix to the conditions
+@@ -1143 +1171 @@
+-Standard
++Bespoke
+@@ -1146 +1174 @@
+-A file uploaded to the part
++The Appendix entered here
+@@ -1189 +1217 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 3a
++DEMO/SX/0019/2026 · Tender documents v1 · part 5
+@@ -1193 +1221 @@
+-3a. Appendix to the conditions of contract
++5. Performance bond forms
+@@ -1196 +1224 @@
+-Appendix to the conditions
++Bond and security forms
+@@ -1199 +1227 @@
+-Bespoke
++Standard
+@@ -1202 +1230 @@
+-The Appendix entered here
++A file uploaded to the part
+@@ -1217 +1245 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 3
++DEMO/SX/0019/2026 · Tender documents v1 · part 6
+@@ -1221 +1249 @@
+-3. Conditions of contract
++6. Specification
+@@ -1224 +1252 @@
+-Conditions of contract
++Specification
+@@ -1227 +1255 @@
+-Standard
++Standard and bespoke
+@@ -1230 +1258 @@
+-From the template library
++A file uploaded to the part
+@@ -1243,3 +1270,0 @@
+-Template
+-:
+-Demo conditions of contract (drawings and specification)
+@@ -1248 +1273 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 2
++DEMO/SX/0019/2026 · Tender documents v1 · part 7b
+@@ -1252 +1277 @@
+-2. Form of tender
++7b. Summary of tender and schedule of rates
+@@ -1255 +1280 @@
+-Form of tender
++Summary of tender and schedule of rates
+@@ -1258 +1283 @@
+-Standard
++Bespoke
+@@ -1261 +1286 @@
+-From the template library
++A file uploaded to the part
+@@ -1274,3 +1298,0 @@
+-Template
+-:
+-Demo form of offer
+@@ -1279 +1301 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 1
++DEMO/SX/0019/2026 · Tender documents v1 · part 8
+@@ -1283 +1305 @@
+-1. Notice of invitation to tender
++8. Bidder's registration and background form
+@@ -1286 +1308 @@
+-Invitation
++Registration and background
+@@ -1292 +1314 @@
+-From the template library
++A file uploaded to the part
+@@ -1301 +1323 @@
+-No
++Yes
+@@ -1305,22 +1326,0 @@
+-Template
+-:
+-Demo notice of invitation
+-Created
+-Tender documents
+-DEMO/SX/0019/2026 · Tender documents v1
+-17 Sep 2026
+-Version
+-:
+-1
+-Document pack
+-:
+-Tender documents
+-Contract basis
+-:
+-Drawings and specification
+-Standard form
+-:
+-Demo conditions of contract (drawings and specification)
+-Parts
+-:
+-12
+@@ -1329 +1329 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 11
++DEMO/SX/0019/2026 · Tender documents v1 · part 9
+@@ -1333 +1333 @@
+-11. Instructions to tenderers
++9. Bidder's declaration and letter of authorisation
+@@ -1336 +1336 @@
+-Instructions to tenderers
++Tenderer's declaration
+@@ -1342 +1342 @@
+-From the template library
++A file uploaded to the part
+@@ -1351 +1351 @@
+-No
++Yes
+@@ -1355,3 +1354,0 @@
+-Template
+-:
+-Demo instructions to bidders
+@@ -1360 +1357 @@
+-DEMO/SX/0019/2026 · Tender documents v1 · part 10
++DEMO/SX/0019/2026 · Tender documents v1 · part 11
+@@ -1364 +1361 @@
+-10. Drawings
++11. Instructions to tenderers
+@@ -1367 +1364 @@
+-Drawings
++Instructions to tenderers
+@@ -1370 +1367 @@
+-Bespoke
++Standard
+@@ -1373 +1370 @@
+-A file uploaded to the part
++From the template library
+@@ -1379 +1376 @@
+-Yes
++No
+@@ -1385,0 +1383,3 @@
++Template
++:
++Demo instructions to bidders
+@@ -1431,0 +1432,9 @@
++Changed
++Company estimate
++DEMO/SX/0019/2026 · Company estimate
++16 Sep 2026
++State
++:
++Being prepared
++→
++Lodged
+@@ -1451,25 +1459,0 @@
+-Changed
+-Company estimate
+-DEMO/SX/0019/2026 · Company estimate
+-16 Sep 2026
+-State
+-:
+-Being prepared
+-→
+-Lodged
+-Created
+-Company estimate version
+-DEMO/SX/0019/2026 · Company estimate · version 1
+-16 Sep 2026
+-Version
+-:
+-1
+-Value
+-:
+-Sealed (version 1)
+-Prepared by
+-:
+-Nurul Izzah Kamal (recorded on behalf of, not signed)
+-Prepared on
+-:
+-16 Sep 2026
+@@ -1504,0 +1489,16 @@
++Created
++Company estimate version
++DEMO/SX/0019/2026 · Company estimate · version 1
++16 Sep 2026
++Version
++:
++1
++Value
++:
++Sealed (version 1)
++Prepared by
++:
++Nurul Izzah Kamal (recorded on behalf of, not signed)
++Prepared on
++:
++16 Sep 2026
+@@ -1580,52 +1579,0 @@
+-Scope
+-DEMO/SX/0019/2026 · scope: measured construction or installation
+-15 Sep 2026
+-Delivers
+-:
+-Measured construction or installation
+-Amount
+-:
+-RM640,000
+-Description
+-:
+-Reservoir inlet main renewal, Demo Heights
+-Created
+-Classification
+-DEMO/SX/0019/2026 · Specification panel type
+-15 Sep 2026
+-Classification
+-:
+-Specification panel type
+-Value
+-:
+-Civil works panel
+-How it was reached
+-:
+-Derived
+-Created
+-Classification
+-DEMO/SX/0019/2026 · Performance report form
+-15 Sep 2026
+-Classification
+-:
+-Performance report form
+-Value
+-:
+-Design and build report
+-How it was reached
+-:
+-Derived
+-Created
+-Classification
+-DEMO/SX/0019/2026 · Evaluation approach
+-15 Sep 2026
+-Classification
+-:
+-Evaluation approach
+-Value
+-:
+-Technical then price
+-How it was reached
+-:
+-Derived
+-Created
+@@ -1710,0 +1659,52 @@
++Created
++Scope
++DEMO/SX/0019/2026 · scope: measured construction or installation
++15 Sep 2026
++Delivers
++:
++Measured construction or installation
++Amount
++:
++RM640,000
++Description
++:
++Reservoir inlet main renewal, Demo Heights
++Created
++Classification
++DEMO/SX/0019/2026 · Evaluation approach
++15 Sep 2026
++Classification
++:
++Evaluation approach
++Value
++:
++Technical then price
++How it was reached
++:
++Derived
++Created
++Classification
++DEMO/SX/0019/2026 · Performance report form
++15 Sep 2026
++Classification
++:
++Performance report form
++Value
++:
++Design and build report
++How it was reached
++:
++Derived
++Created
++Classification
++DEMO/SX/0019/2026 · Specification panel type
++15 Sep 2026
++Classification
++:
++Specification panel type
++Value
++:
++Civil works panel
++How it was reached
++:
++Derived
+diff -rU0 before/sourcing__demo_sx20__tab__history.txt after/sourcing__demo_sx20__tab__history.txt
+--- before/sourcing__demo_sx20__tab__history.txt	2026-10-02 20:30:48.400204074 +0000
++++ after/sourcing__demo_sx20__tab__history.txt	2026-10-02 21:10:28.700149631 +0000
+@@ -41,9 +40,0 @@
+-Authorisation to open
+-DEMO/SX/0020/2026 · Opening
+-02 Oct 2026
+-Lapsed
+-:
+-—
+-→
+-Unpaired when the sitting was adjourned: kept, does not count again
+-Changed
+@@ -74,0 +66,9 @@
++Changed
++Authorisation to open
++DEMO/SX/0020/2026 · Opening
++02 Oct 2026
++Lapsed
++:
++—
++→
++Unpaired when the sitting was adjourned: kept, does not count again
+@@ -165,0 +166,9 @@
++Changed
++Opening
++DEMO/SX/0020/2026 · Opening
++02 Oct 2026
++Opened
++:
++—
++→
++02 Oct 2026 · 09:31:45
+@@ -182,9 +190,0 @@
+-Changed
+-Opening
+-DEMO/SX/0020/2026 · Opening
+-02 Oct 2026
+-Opened
+-:
+-—
+-→
+-02 Oct 2026 · 09:31:45
+@@ -385,0 +386,19 @@
++Contractor
++DEMO/SX/0020/2026 · Contractor Rekaan Maju Construction
++28 Sep 2026
++Contractor
++:
++Rekaan Maju Construction
++Registration no
++:
++DM0000106-K
++Came as
++:
++Bought the documents
++Address
++:
++7 Jalan Rekaan, 00000 Demo North
++Telephone
++:
+++00 0-000 0106
++Created
+@@ -422,28 +440,0 @@
+-Created
+-Contractor
+-DEMO/SX/0020/2026 · Contractor Rekaan Maju Construction
+-28 Sep 2026
+-Contractor
+-:
+-Rekaan Maju Construction
+-Registration no
+-:
+-DM0000106-K
+-Came as
+-:
+-Bought the documents
+-Address
+-:
+-7 Jalan Rekaan, 00000 Demo North
+-Telephone
+-:
+-+00 0-000 0106
+-Changed
+-Exercise
+-DEMO/SX/0020/2026 · Clear water tank relining, Demo Heights
+-24 Sep 2026
+-Status
+-:
+-Approved for tendering
+-→
+-Advertised
+@@ -481,0 +473,9 @@
++Status
++:
++Approved for tendering
++→
++Advertised
++Changed
++Exercise
++DEMO/SX/0020/2026 · Clear water tank relining, Demo Heights
++24 Sep 2026
+@@ -659,2 +659,2 @@
+-Tender documents
+-DEMO/SX/0020/2026 · Tender documents v1
++Step of the approval for tendering
++DEMO/SX/0020/2026 · Head of Contract & Procurement
+@@ -662 +662 @@
+-Status
++Decision
+@@ -664 +664 @@
+-Closed
++Pending
+@@ -666,2 +666,7 @@
+-Closed
+-Approved start
++Done
++Decided by
++:
++—
++→
++Chen Wei Ling
++Decided on
+@@ -672 +677 @@
+-Approved closing
++Recorded
+@@ -676 +681 @@
+-01 Oct 2026
++on behalf of, not signed
+@@ -687,2 +692,2 @@
+-Step of the approval for tendering
+-DEMO/SX/0020/2026 · Head of Contract & Procurement
++Tender documents
++DEMO/SX/0020/2026 · Tender documents v1
+@@ -690,6 +695 @@
+-Decision
+-:
+-Pending
+-→
+-Done
+-Decided by
++Status
+@@ -697 +697 @@
+-—
++Closed
+@@ -699,2 +699,2 @@
+-Chen Wei Ling
+-Decided on
++Closed
++Approved start
+@@ -705 +705 @@
+-Recorded
++Approved closing
+@@ -709 +709 @@
+-on behalf of, not signed
++01 Oct 2026
+@@ -744 +744 @@
+-DEMO/SX/0020/2026 · Tender documents v1 · part 3
++DEMO/SX/0020/2026 · Tender documents v1 · part 1
+@@ -748 +748 @@
+-3. Conditions of contract
++1. Notice of invitation to tender
+@@ -751 +751 @@
+-Demo conditions of contract (drawings and specification), text version 1
++Demo notice of invitation, text version 1
+@@ -757 +757 @@
+-DEMO/SX/0020/2026 · Tender documents v1 · part 1
++DEMO/SX/0020/2026 · Tender documents v1 · part 2
+@@ -761 +761 @@
+-1. Notice of invitation to tender
++2. Form of tender
+@@ -764 +764 @@
+-Demo notice of invitation, text version 1
++Demo form of offer, text version 1
+@@ -770 +770 @@
+-DEMO/SX/0020/2026 · Tender documents v1 · part 2
++DEMO/SX/0020/2026 · Tender documents v1 · part 3
+@@ -774 +774 @@
+-2. Form of tender
++3. Conditions of contract
+@@ -777 +777 @@
+-Demo form of offer, text version 1
++Demo conditions of contract (drawings and specification), text version 1
+@@ -781,3 +781,3 @@
+-Changed
+-Exercise
+-DEMO/SX/0020/2026 · Clear water tank relining, Demo Heights
++Created
++Frozen text
++DEMO/SX/0020/2026 · Tender documents v1 · part 11
+@@ -785 +785 @@
+-Status
++Part
+@@ -787,3 +787,26 @@
+-Documents in preparation
+-→
+-Awaiting approval for tendering
++11. Instructions to tenderers
++Frozen from
++:
++Demo instructions to bidders, text version 1
++Language
++:
++English
++Created
++Approval for tendering
++DEMO/SX/0020/2026 · approval for tendering
++23 Sep 2026
++Matrix
++:
++Demo limits, issue 1
++Rule
++:
++Approval for tendering, tender
++Route
++:
++Head of Contract & Procurement (approve)
++Funding override applied
++:
++No
++If rejected
++:
++Returned for amendment
+@@ -819,22 +842,3 @@
+-Created
+-Approval for tendering
+-DEMO/SX/0020/2026 · approval for tendering
+-23 Sep 2026
+-Matrix
+-:
+-Demo limits, issue 1
+-Rule
+-:
+-Approval for tendering, tender
+-Route
+-:
+-Head of Contract & Procurement (approve)
+-Funding override applied
+-:
+-No
+-If rejected
+-:
+-Returned for amendment
+-Created
+-Frozen text
+-DEMO/SX/0020/2026 · Tender documents v1 · part 11
++Changed
++Exercise
++DEMO/SX/0020/2026 · Clear water tank relining, Demo Heights
+@@ -842,7 +846 @@
+-Part
+-:
+-11. Instructions to tenderers
+-Frozen from
+-:
+-Demo instructions to bidders, text version 1
+-Language
++Status
+@@ -850 +848,3 @@
+-English
++Documents in preparation
++→
++Awaiting approval for tendering
+@@ -880 +880 @@
+-DEMO/SX/0020/2026 · Tender documents v1 · part 9
++DEMO/SX/0020/2026 · Tender documents v1 · part 1
+@@ -889 +889 @@
+-DEMO/SX/0020/2026 · Tender documents v1 · part 8
++DEMO/SX/0020/2026 · Tender documents v1 · part 2
+@@ -898 +898 @@
+-DEMO/SX/0020/2026 · Tender documents v1 · part 7b
++DEMO/SX/0020/2026 · Tender documents v1 · part 9
+@@ -907 +907 @@
+-DEMO/SX/0020/2026 · Tender documents v1 · part 6
++DEMO/SX/0020/2026 · Tender documents v1 · part 8
+@@ -916 +916 @@
+-DEMO/SX/0020/2026 · Tender documents v1 · part 5
++DEMO/SX/0020/2026 · Tender documents v1 · part 7b
+@@ -925 +925 @@
+-DEMO/SX/0020/2026 · Tender documents v1 · part 4
++DEMO/SX/0020/2026 · Tender documents v1 · part 6
+@@ -934 +934 @@
+-DEMO/SX/0020/2026 · Tender documents v1 · part 1
++DEMO/SX/0020/2026 · Tender documents v1 · part 5
+@@ -943 +943 @@
+-DEMO/SX/0020/2026 · Tender documents v1 · part 2
++DEMO/SX/0020/2026 · Tender documents v1 · part 4
+@@ -995 +995 @@
+-Needs regulator permit
++Restricted tender
+@@ -999,6 +999 @@
+-Yes
+-Permit type
+-:
+-—
+-→
+-Demo permit class 2
++No
+@@ -1009 +1004 @@
+-Restricted tender
++Needs regulator permit
+@@ -1013 +1008,6 @@
+-No
++Yes
++Permit type
++:
++—
++→
++Demo permit class 2
+@@ -1287,0 +1288,19 @@
++Tender documents
++DEMO/SX/0020/2026 · Tender documents v1
++23 Sep 2026
++Version
++:
++1
++Document pack
++:
++Tender documents
++Contract basis
++:
++Drawings and specification
++Standard form
++:
++Demo conditions of contract (drawings and specification)
++Parts
++:
++12
++Created
+@@ -1289 +1308 @@
+-DEMO/SX/0020/2026 · Tender documents v1 · part 4
++DEMO/SX/0020/2026 · Tender documents v1 · part 6
+@@ -1293 +1312 @@
+-4. Specimen letter of acceptance
++6. Specification
+@@ -1296 +1315 @@
+-Specimen letter of acceptance
++Specification
+@@ -1299 +1318 @@
+-Standard
++Standard and bespoke
+@@ -1308 +1327 @@
+-No
++Yes
+@@ -1317 +1336 @@
+-DEMO/SX/0020/2026 · Tender documents v1 · part 3a
++DEMO/SX/0020/2026 · Tender documents v1 · part 7b
+@@ -1321 +1340 @@
+-3a. Appendix to the conditions of contract
++7b. Summary of tender and schedule of rates
+@@ -1324 +1343 @@
+-Appendix to the conditions
++Summary of tender and schedule of rates
+@@ -1330 +1349 @@
+-The Appendix entered here
++A file uploaded to the part
+@@ -1339 +1358 @@
+-No
++Yes
+@@ -1345 +1364 @@
+-DEMO/SX/0020/2026 · Tender documents v1 · part 3
++DEMO/SX/0020/2026 · Tender documents v1 · part 8
+@@ -1349 +1368 @@
+-3. Conditions of contract
++8. Bidder's registration and background form
+@@ -1352 +1371 @@
+-Conditions of contract
++Registration and background
+@@ -1358 +1377 @@
+-From the template library
++A file uploaded to the part
+@@ -1364 +1383 @@
+-Yes
++No
+@@ -1367 +1386 @@
+-No
++Yes
+@@ -1371,3 +1389,0 @@
+-Template
+-:
+-Demo conditions of contract (drawings and specification)
+@@ -1376 +1392 @@
+-DEMO/SX/0020/2026 · Tender documents v1 · part 2
++DEMO/SX/0020/2026 · Tender documents v1 · part 9
+@@ -1380 +1396 @@
+-2. Form of tender
++9. Bidder's declaration and letter of authorisation
+@@ -1383 +1399 @@
+-Form of tender
++Tenderer's declaration
+@@ -1389 +1405 @@
+-From the template library
++A file uploaded to the part
+@@ -1395 +1411 @@
+-Yes
++No
+@@ -1402,3 +1417,0 @@
+-Template
+-:
+-Demo form of offer
+@@ -1407 +1420 @@
+-DEMO/SX/0020/2026 · Tender documents v1 · part 1
++DEMO/SX/0020/2026 · Tender documents v1 · part 10
+@@ -1411 +1424 @@
+-1. Notice of invitation to tender
++10. Drawings
+@@ -1414 +1427 @@
+-Invitation
++Drawings
+@@ -1417 +1430 @@
+-Standard
++Bespoke
+@@ -1420 +1433 @@
+-From the template library
++A file uploaded to the part
+@@ -1426 +1439 @@
+-No
++Yes
+@@ -1433,22 +1445,0 @@
+-Template
+-:
+-Demo notice of invitation
+-Created
+-Tender documents
+-DEMO/SX/0020/2026 · Tender documents v1
+-23 Sep 2026
+-Version
+-:
+-1
+-Document pack
+-:
+-Tender documents
+-Contract basis
+-:
+-Drawings and specification
+-Standard form
+-:
+-Demo conditions of contract (drawings and specification)
+-Parts
+-:
+-12
+@@ -1488 +1479 @@
+-DEMO/SX/0020/2026 · Tender documents v1 · part 10
++DEMO/SX/0020/2026 · Tender documents v1 · part 3
+@@ -1492 +1483 @@
+-10. Drawings
++3. Conditions of contract
+@@ -1495 +1486 @@
+-Drawings
++Conditions of contract
+@@ -1498 +1489 @@
+-Bespoke
++Standard
+@@ -1501 +1492 @@
+-A file uploaded to the part
++From the template library
+@@ -1513,0 +1505,3 @@
++Template
++:
++Demo conditions of contract (drawings and specification)
+@@ -1516 +1510 @@
+-DEMO/SX/0020/2026 · Tender documents v1 · part 8
++DEMO/SX/0020/2026 · Tender documents v1 · part 4
+@@ -1520 +1514 @@
+-8. Bidder's registration and background form
++4. Specimen letter of acceptance
+@@ -1523 +1517 @@
+-Registration and background
++Specimen letter of acceptance
+@@ -1538 +1532 @@
+-Yes
++No
+@@ -1544 +1538 @@
+-DEMO/SX/0020/2026 · Tender documents v1 · part 7b
++DEMO/SX/0020/2026 · Tender documents v1 · part 3a
+@@ -1548 +1542 @@
+-7b. Summary of tender and schedule of rates
++3a. Appendix to the conditions of contract
+@@ -1551 +1545 @@
+-Summary of tender and schedule of rates
++Appendix to the conditions
+@@ -1557 +1551 @@
+-A file uploaded to the part
++The Appendix entered here
+@@ -1566 +1560 @@
+-Yes
++No
+@@ -1572 +1566 @@
+-DEMO/SX/0020/2026 · Tender documents v1 · part 6
++DEMO/SX/0020/2026 · Tender documents v1 · part 1
+@@ -1576 +1570 @@
+-6. Specification
++1. Notice of invitation to tender
+@@ -1579 +1573 @@
+-Specification
++Invitation
+@@ -1582 +1576 @@
+-Standard and bespoke
++Standard
+@@ -1585 +1579 @@
+-A file uploaded to the part
++From the template library
+@@ -1591 +1585 @@
+-Yes
++No
+@@ -1597,0 +1592,3 @@
++Template
++:
++Demo notice of invitation
+@@ -1600 +1597 @@
+-DEMO/SX/0020/2026 · Tender documents v1 · part 9
++DEMO/SX/0020/2026 · Tender documents v1 · part 2
+@@ -1604 +1601 @@
+-9. Bidder's declaration and letter of authorisation
++2. Form of tender
+@@ -1607 +1604 @@
+-Tenderer's declaration
++Form of tender
+@@ -1613 +1610 @@
+-A file uploaded to the part
++From the template library
+@@ -1619 +1616 @@
+-No
++Yes
+@@ -1625,0 +1623,3 @@
++Template
++:
++Demo form of offer
+@@ -1767,2 +1767,2 @@
+-Company estimate custody
+-DEMO/SX/0020/2026 · Company estimate · prepared
++Company estimate version
++DEMO/SX/0020/2026 · Company estimate · version 1
+@@ -1770 +1770 @@
+-Event
++Version
+@@ -1772,2 +1772,2 @@
+-Prepared
+-By
++1
++Value
+@@ -1775,2 +1775,2 @@
+-Nurul Izzah Kamal (recorded on behalf of, not signed)
+-Capacity
++Sealed (version 1)
++Prepared by
+@@ -1778,2 +1778,2 @@
+-Preparer
+-Version
++Nurul Izzah Kamal (recorded on behalf of, not signed)
++Prepared on
+@@ -1781 +1781 @@
+-1
++22 Sep 2026
+@@ -1796,2 +1796,2 @@
+-Company estimate version
+-DEMO/SX/0020/2026 · Company estimate · version 1
++Company estimate custody
++DEMO/SX/0020/2026 · Company estimate · prepared
+@@ -1799,4 +1799 @@
+-Version
+-:
+-1
+-Value
++Event
+@@ -1804,2 +1801,2 @@
+-Sealed (version 1)
+-Prepared by
++Prepared
++By
+@@ -1808 +1805 @@
+-Prepared on
++Capacity
+@@ -1810 +1807,4 @@
+-22 Sep 2026
++Preparer
++Version
++:
++1
+@@ -1887 +1887 @@
+-DEMO/SX/0020/2026 · Specification panel type
++DEMO/SX/0020/2026 · Evaluation approach
+@@ -1891 +1891 @@
+-Specification panel type
++Evaluation approach
+@@ -1894 +1894 @@
+-Civil works panel
++Technical then price
+@@ -1899,2 +1899,2 @@
+-Scope
+-DEMO/SX/0020/2026 · scope: measured construction or installation
++Classification
++DEMO/SX/0020/2026 · Performance report form
+@@ -1902 +1902 @@
+-Delivers
++Classification
+@@ -1904,2 +1904,2 @@
+-Measured construction or installation
+-Amount
++Performance report form
++Value
+@@ -1907,2 +1907,2 @@
+-RM420,000
+-Description
++Design and build report
++How it was reached
+@@ -1910 +1910,14 @@
+-Clear water tank relining, Demo Heights
++Derived
++Created
++Classification
++DEMO/SX/0020/2026 · Specification panel type
++21 Sep 2026
++Classification
++:
++Specification panel type
++Value
++:
++Civil works panel
++How it was reached
++:
++Derived
+@@ -1992,15 +2005,2 @@
+-Classification
+-DEMO/SX/0020/2026 · Performance report form
+-21 Sep 2026
+-Classification
+-:
+-Performance report form
+-Value
+-:
+-Design and build report
+-How it was reached
+-:
+-Derived
+-Created
+-Classification
+-DEMO/SX/0020/2026 · Evaluation approach
++Scope
++DEMO/SX/0020/2026 · scope: measured construction or installation
+@@ -2008 +2008 @@
+-Classification
++Delivers
+@@ -2010,2 +2010,2 @@
+-Evaluation approach
+-Value
++Measured construction or installation
++Amount
+@@ -2013,2 +2013,2 @@
+-Technical then price
+-How it was reached
++RM420,000
++Description
+@@ -2016 +2016 @@
+-Derived
++Clear water tank relining, Demo Heights
+diff -rU0 before/sourcing__demo_sx21__tab__history.txt after/sourcing__demo_sx21__tab__history.txt
+--- before/sourcing__demo_sx21__tab__history.txt	2026-10-02 20:36:33.176196188 +0000
++++ after/sourcing__demo_sx21__tab__history.txt	2026-10-02 21:16:44.932141026 +0000
+@@ -304 +304 @@
+-Mohd Rizal Ahmad
++Kumar Selvam
+@@ -307 +307 @@
+-Implementing department
++Contract and procurement
+@@ -310 +310 @@
+-NTH-MNT
++CP-POST
+@@ -324,26 +323,0 @@
+-Bid under evaluation
+-DEMO/SX/0021/2026 · Evaluation, version 1 · Bid No. 3
+-30 Sep 2026
+-Bid
+-:
+-No. 3
+-Excluded
+-:
+-Its price is above the exercise's quotation ceiling of RM300,000 (a price at the ceiling itself is a quotation).
+-Created
+-Evaluation team
+-DEMO/SX/0021/2026 · Evaluation, version 1 · Team
+-30 Sep 2026
+-Member
+-:
+-Kumar Selvam
+-Side
+-:
+-Contract and procurement
+-Unit
+-:
+-CP-POST
+-Appointed on
+-:
+-30 Sep 2026
+-Created
+@@ -377,0 +352,26 @@
++Bid under evaluation
++DEMO/SX/0021/2026 · Evaluation, version 1 · Bid No. 3
++30 Sep 2026
++Bid
++:
++No. 3
++Excluded
++:
++Its price is above the exercise's quotation ceiling of RM300,000 (a price at the ceiling itself is a quotation).
++Created
++Evaluation team
++DEMO/SX/0021/2026 · Evaluation, version 1 · Team
++30 Sep 2026
++Member
++:
++Mohd Rizal Ahmad
++Side
++:
++Implementing department
++Unit
++:
++NTH-MNT
++Appointed on
++:
++30 Sep 2026
++Created
+@@ -407,9 +406,0 @@
+-Exercise
+-DEMO/SX/0021/2026 · Service reservoir roof repairs, Demo Hill
+-28 Sep 2026
+-Status
+-:
+-Opening in progress
+-→
+-Opened
+-Changed
+@@ -461,0 +453,9 @@
++Exercise
++DEMO/SX/0021/2026 · Service reservoir roof repairs, Demo Hill
++28 Sep 2026
++Status
++:
++Opening in progress
++→
++Opened
++Changed
+@@ -832,9 +831,0 @@
+-Opening
+-DEMO/SX/0021/2026 · Opening
+-28 Sep 2026
+-Opened
+-:
+-—
+-→
+-28 Sep 2026 · 15:11:30
+-Changed
+@@ -850,10 +840,0 @@
+-Tender box
+-DEMO/SX/0021/2026 · Tender box opened
+-28 Sep 2026
+-Box opened
+-:
+-28 Sep 2026 · 15:11:30
+-Opened by
+-:
+-Azlan Shah Demo (recorded on their behalf, not signed)
+-Created
+@@ -874,0 +856,19 @@
++Changed
++Opening
++DEMO/SX/0021/2026 · Opening
++28 Sep 2026
++Opened
++:
++—
++→
++28 Sep 2026 · 15:11:30
++Created
++Tender box
++DEMO/SX/0021/2026 · Tender box opened
++28 Sep 2026
++Box opened
++:
++28 Sep 2026 · 15:11:30
++Opened by
++:
++Azlan Shah Demo (recorded on their behalf, not signed)
+@@ -1143,0 +1144,19 @@
++Contractor
++DEMO/SX/0021/2026 · Contractor Teladan Mekanikal Sdn Bhd
++14 Sep 2026
++Contractor
++:
++Teladan Mekanikal Sdn Bhd
++Registration no
++:
++200801000105 (000105-T)
++Came as
++:
++Bought the documents
++Address
++:
++55 Jalan Teladan, 00000 Demo South
++Telephone
++:
+++00 0-000 0105
++Created
+@@ -1180,19 +1198,0 @@
+-Created
+-Contractor
+-DEMO/SX/0021/2026 · Contractor Teladan Mekanikal Sdn Bhd
+-14 Sep 2026
+-Contractor
+-:
+-Teladan Mekanikal Sdn Bhd
+-Registration no
+-:
+-200801000105 (000105-T)
+-Came as
+-:
+-Bought the documents
+-Address
+-:
+-55 Jalan Teladan, 00000 Demo South
+-Telephone
+-:
+-+00 0-000 0105
+@@ -1404,47 +1403,0 @@
+-Approval for tendering
+-DEMO/SX/0021/2026 · approval for tendering
+-09 Sep 2026
+-Status
+-:
+-Awaiting approval for tendering
+-→
+-Approved for tendering
+-Changed
+-Exercise
+-DEMO/SX/0021/2026 · Service reservoir roof repairs, Demo Hill
+-09 Sep 2026
+-Status
+-:
+-Awaiting approval for tendering
+-→
+-Approved for tendering
+-Tendering starts
+-:
+-—
+-→
+-10 Sep 2026
+-Closing
+-:
+-—
+-→
+-28 Sep 2026
+-Changed
+-Tender documents
+-DEMO/SX/0021/2026 · Tender documents v1
+-09 Sep 2026
+-Status
+-:
+-Closed
+-→
+-Closed
+-Approved start
+-:
+-—
+-→
+-10 Sep 2026
+-Approved closing
+-:
+-—
+-→
+-28 Sep 2026
+-Changed
+@@ -1474,13 +1426,0 @@
+-Created
+-Frozen text
+-DEMO/SX/0021/2026 · Tender documents v1 · part 2
+-08 Sep 2026
+-Part
+-:
+-2. Instructions to bidders
+-Frozen from
+-:
+-Demo instructions to bidders, text version 1
+-Language
+-:
+-English
+@@ -1488,3 +1428,3 @@
+-Exercise
+-DEMO/SX/0021/2026 · Service reservoir roof repairs, Demo Hill
+-08 Sep 2026
++Approval for tendering
++DEMO/SX/0021/2026 · approval for tendering
++09 Sep 2026
+@@ -1493,2 +1432,0 @@
+-Documents in preparation
+-→
+@@ -1495,0 +1434,2 @@
++→
++Approved for tendering
+@@ -1499 +1439 @@
+-08 Sep 2026
++09 Sep 2026
+@@ -1505 +1445 @@
+-Proposed start
++Approved start
+@@ -1510 +1450 @@
+-Proposed closing
++Approved closing
+@@ -1515 +1455,10 @@
+-Parts frozen
++Changed
++Exercise
++DEMO/SX/0021/2026 · Service reservoir roof repairs, Demo Hill
++09 Sep 2026
++Status
++:
++Awaiting approval for tendering
++→
++Approved for tendering
++Tendering starts
+@@ -1519,2 +1468,2 @@
+-5
+-Files pinned
++10 Sep 2026
++Closing
+@@ -1524 +1473 @@
+-4
++28 Sep 2026
+@@ -1526,2 +1475,2 @@
+-Approval for tendering
+-DEMO/SX/0021/2026 · approval for tendering
++Frozen text
++DEMO/SX/0021/2026 · Tender documents v1 · part 1
+@@ -1529 +1478 @@
+-Matrix
++Part
+@@ -1531,2 +1480,2 @@
+-Demo limits, issue 1
+-Rule
++1. Notice of quotation
++Frozen from
+@@ -1534,2 +1483,2 @@
+-Approval for tendering, quotation
+-Route
++Demo notice of invitation, text version 1
++Language
+@@ -1537,2 +1486,6 @@
+-Head of Contract & Procurement (approve)
+-Funding override applied
++English
++Created
++Frozen text
++DEMO/SX/0021/2026 · Tender documents v1 · part 2
++08 Sep 2026
++Part
+@@ -1540,2 +1493,2 @@
+-No
+-If rejected
++2. Instructions to bidders
++Frozen from
+@@ -1543 +1496,4 @@
+-Returned for amendment
++Demo instructions to bidders, text version 1
++Language
++:
++English
+@@ -1584,2 +1540,2 @@
+-Frozen text
+-DEMO/SX/0021/2026 · Tender documents v1 · part 1
++Approval for tendering
++DEMO/SX/0021/2026 · approval for tendering
+@@ -1587 +1543 @@
+-Part
++Matrix
+@@ -1589,2 +1545,2 @@
+-1. Notice of quotation
+-Frozen from
++Demo limits, issue 1
++Rule
+@@ -1592,2 +1548,2 @@
+-Demo notice of invitation, text version 1
+-Language
++Approval for tendering, quotation
++Route
+@@ -1595 +1551,45 @@
+-English
++Head of Contract & Procurement (approve)
++Funding override applied
++:
++No
++If rejected
++:
++Returned for amendment
++Changed
++Tender documents
++DEMO/SX/0021/2026 · Tender documents v1
++08 Sep 2026
++Status
++:
++Closed
++→
++Closed
++Proposed start
++:
++—
++→
++10 Sep 2026
++Proposed closing
++:
++—
++→
++28 Sep 2026
++Parts frozen
++:
++—
++→
++5
++Files pinned
++:
++—
++→
++4
++Changed
++Exercise
++DEMO/SX/0021/2026 · Service reservoir roof repairs, Demo Hill
++08 Sep 2026
++Status
++:
++Documents in preparation
++→
++Awaiting approval for tendering
+@@ -1607 +1607 @@
+-DEMO/SX/0021/2026 · Tender documents v1 · part 9
++DEMO/SX/0021/2026 · Tender documents v1 · part 3a
+@@ -1616 +1616 @@
+-DEMO/SX/0021/2026 · Tender documents v1 · part 8
++DEMO/SX/0021/2026 · Tender documents v1 · part 4
+@@ -1625 +1625 @@
+-DEMO/SX/0021/2026 · Tender documents v1 · part 7
++DEMO/SX/0021/2026 · Tender documents v1 · part 9
+@@ -1634 +1634 @@
+-DEMO/SX/0021/2026 · Tender documents v1 · part 5
++DEMO/SX/0021/2026 · Tender documents v1 · part 8
+@@ -1643 +1643 @@
+-DEMO/SX/0021/2026 · Tender documents v1 · part 4
++DEMO/SX/0021/2026 · Tender documents v1 · part 7
+@@ -1652 +1652 @@
+-DEMO/SX/0021/2026 · Tender documents v1 · part 3a
++DEMO/SX/0021/2026 · Tender documents v1 · part 1
+@@ -1661 +1661 @@
+-DEMO/SX/0021/2026 · Tender documents v1 · part 3
++DEMO/SX/0021/2026 · Tender documents v1 · part 5
+@@ -1670 +1670 @@
+-DEMO/SX/0021/2026 · Tender documents v1 · part 1
++DEMO/SX/0021/2026 · Tender documents v1 · part 3
+@@ -1922 +1922 @@
+-DEMO/SX/0021/2026 · Tender documents v1 · part 3a
++DEMO/SX/0021/2026 · Tender documents v1 · part 3
+@@ -1926 +1926 @@
+-3a. Appendix to the conditions
++3. Conditions of quotation
+@@ -1929 +1929 @@
+-Appendix to the conditions
++Conditions of contract
+@@ -1932 +1932 @@
+-Bespoke
++Standard
+@@ -1935 +1935 @@
+-The Appendix entered here
++From the template library
+@@ -1947,0 +1948,3 @@
++Template
++:
++Demo conditions of contract (drawings and specification)
+@@ -1950 +1953 @@
+-DEMO/SX/0021/2026 · Tender documents v1 · part 3
++DEMO/SX/0021/2026 · Tender documents v1 · part 8
+@@ -1954 +1957 @@
+-3. Conditions of quotation
++8. Bidder's declaration and letter of authorisation
+@@ -1957 +1960 @@
+-Conditions of contract
++Tenderer's declaration
+@@ -1963 +1966 @@
+-From the template library
++A file uploaded to the part
+@@ -1969 +1972 @@
+-Yes
++No
+@@ -1972 +1975 @@
+-No
++Yes
+@@ -1976,3 +1978,0 @@
+-Template
+-:
+-Demo conditions of contract (drawings and specification)
+@@ -1981 +1981 @@
+-DEMO/SX/0021/2026 · Tender documents v1 · part 9
++DEMO/SX/0021/2026 · Tender documents v1 · part 7
+@@ -1985 +1985 @@
+-9. Drawings
++7. Performance bond forms
+@@ -1988 +1988 @@
+-Drawings
++Bond and security forms
+@@ -1991 +1991 @@
+-Bespoke
++Standard
+@@ -2009 +2009 @@
+-DEMO/SX/0021/2026 · Tender documents v1 · part 1
++DEMO/SX/0021/2026 · Tender documents v1 · part 5
+@@ -2013 +2013 @@
+-1. Notice of quotation
++5. Form of quotation
+@@ -2016 +2016 @@
+-Invitation
++Form of tender
+@@ -2028 +2028 @@
+-No
++Yes
+@@ -2031 +2031 @@
+-No
++Yes
+@@ -2037,20 +2037 @@
+-Demo notice of invitation
+-Created
+-Tender documents
+-DEMO/SX/0021/2026 · Tender documents v1
+-08 Sep 2026
+-Version
+-:
+-1
+-Document pack
+-:
+-Quotation documents
+-Contract basis
+-:
+-Drawings and specification
+-Standard form
+-:
+-Demo conditions of contract (drawings and specification)
+-Parts
+-:
+-9
++Demo form of offer
+@@ -2059 +2040 @@
+-DEMO/SX/0021/2026 · Tender documents v1 · part 2
++DEMO/SX/0021/2026 · Tender documents v1 · part 4
+@@ -2063 +2044 @@
+-2. Instructions to bidders
++4. Specification of works
+@@ -2066 +2047 @@
+-Instructions to tenderers
++Specification
+@@ -2069 +2050 @@
+-Standard
++Standard and bespoke
+@@ -2072 +2053 @@
+-From the template library
++A file uploaded to the part
+@@ -2078 +2059 @@
+-No
++Yes
+@@ -2085,3 +2065,0 @@
+-Template
+-:
+-Demo instructions to bidders
+@@ -2090 +2068 @@
+-DEMO/SX/0021/2026 · Tender documents v1 · part 8
++DEMO/SX/0021/2026 · Tender documents v1 · part 3a
+@@ -2094 +2072 @@
+-8. Bidder's declaration and letter of authorisation
++3a. Appendix to the conditions
+@@ -2097 +2075 @@
+-Tenderer's declaration
++Appendix to the conditions
+@@ -2100 +2078 @@
+-Standard
++Bespoke
+@@ -2103 +2081 @@
+-A file uploaded to the part
++The Appendix entered here
+@@ -2109 +2087 @@
+-No
++Yes
+@@ -2112 +2090 @@
+-Yes
++No
+@@ -2116,0 +2095,19 @@
++Tender documents
++DEMO/SX/0021/2026 · Tender documents v1
++08 Sep 2026
++Version
++:
++1
++Document pack
++:
++Quotation documents
++Contract basis
++:
++Drawings and specification
++Standard form
++:
++Demo conditions of contract (drawings and specification)
++Parts
++:
++9
++Created
+@@ -2118 +2115 @@
+-DEMO/SX/0021/2026 · Tender documents v1 · part 7
++DEMO/SX/0021/2026 · Tender documents v1 · part 1
+@@ -2122 +2119 @@
+-7. Performance bond forms
++1. Notice of quotation
+@@ -2125 +2122 @@
+-Bond and security forms
++Invitation
+@@ -2131 +2128 @@
+-A file uploaded to the part
++From the template library
+@@ -2137 +2134 @@
+-Yes
++No
+@@ -2143,0 +2141,3 @@
++Template
++:
++Demo notice of invitation
+@@ -2146 +2146 @@
+-DEMO/SX/0021/2026 · Tender documents v1 · part 5
++DEMO/SX/0021/2026 · Tender documents v1 · part 2
+@@ -2150 +2150 @@
+-5. Form of quotation
++2. Instructions to bidders
+@@ -2153 +2153 @@
+-Form of tender
++Instructions to tenderers
+@@ -2165 +2165 @@
+-Yes
++No
+@@ -2168 +2168 @@
+-Yes
++No
+@@ -2174 +2174 @@
+-Demo form of offer
++Demo instructions to bidders
+@@ -2177 +2177 @@
+-DEMO/SX/0021/2026 · Tender documents v1 · part 4
++DEMO/SX/0021/2026 · Tender documents v1 · part 9
+@@ -2181 +2181 @@
+-4. Specification of works
++9. Drawings
+@@ -2184 +2184 @@
+-Specification
++Drawings
+@@ -2187 +2187 @@
+-Standard and bespoke
++Bespoke
+@@ -2278,16 +2277,0 @@
+-Company estimate custody
+-DEMO/SX/0021/2026 · Company estimate · prepared
+-07 Sep 2026
+-Event
+-:
+-Prepared
+-By
+-:
+-Nurul Izzah Kamal (recorded on behalf of, not signed)
+-Capacity
+-:
+-Preparer
+-Version
+-:
+-1
+-Created
+@@ -2321,0 +2306,16 @@
++Created
++Company estimate custody
++DEMO/SX/0021/2026 · Company estimate · prepared
++07 Sep 2026
++Event
++:
++Prepared
++By
++:
++Nurul Izzah Kamal (recorded on behalf of, not signed)
++Capacity
++:
++Preparer
++Version
++:
++1
+@@ -2397,26 +2396,0 @@
+-Scope
+-DEMO/SX/0021/2026 · scope: measured construction or installation
+-03 Sep 2026
+-Delivers
+-:
+-Measured construction or installation
+-Amount
+-:
+-RM280,000
+-Description
+-:
+-Service reservoir roof repairs, Demo Hill
+-Created
+-Classification
+-DEMO/SX/0021/2026 · Evaluation approach
+-03 Sep 2026
+-Classification
+-:
+-Evaluation approach
+-Value
+-:
+-Technical then price
+-How it was reached
+-:
+-Derived
+-Created
+@@ -2517,0 +2492,26 @@
++Created
++Scope
++DEMO/SX/0021/2026 · scope: measured construction or installation
++03 Sep 2026
++Delivers
++:
++Measured construction or installation
++Amount
++:
++RM280,000
++Description
++:
++Service reservoir roof repairs, Demo Hill
++Created
++Classification
++DEMO/SX/0021/2026 · Evaluation approach
++03 Sep 2026
++Classification
++:
++Evaluation approach
++Value
++:
++Technical then price
++How it was reached
++:
++Derived
+diff -rU0 before/suppliers__demo_vnd1__tab__history.txt after/suppliers__demo_vnd1__tab__history.txt
+--- before/suppliers__demo_vnd1__tab__history.txt	2026-10-02 20:43:17.092186949 +0000
++++ after/suppliers__demo_vnd1__tab__history.txt	2026-10-02 21:23:02.568132388 +0000
+@@ -93,0 +94,23 @@
++Changed
++Supplier
++DEMO/SUP/0001/2026 · Contoh Bina Sdn Bhd
++13 Aug 2026
++Status
++:
++Applicant
++→
++Registered
++Registered on
++:
++—
++→
++13 Aug 2026
++Changed
++Approval route
++DEMO/SUP/0001/2026 · Registration approval route
++13 Aug 2026
++Status
++:
++With approval
++→
++Approved
+@@ -114,9 +136,0 @@
+-Application
+-DEMO/SUP/0001/2026 · Application received 07 Aug 2026
+-13 Aug 2026
+-Status
+-:
+-Received
+-→
+-Approved
+-Changed
+@@ -147,2 +161,2 @@
+-Approval route
+-DEMO/SUP/0001/2026 · Registration approval route
++Application
++DEMO/SUP/0001/2026 · Application received 07 Aug 2026
+@@ -152 +166 @@
+-With approval
++Received
+@@ -155,14 +168,0 @@
+-Changed
+-Supplier
+-DEMO/SUP/0001/2026 · Contoh Bina Sdn Bhd
+-13 Aug 2026
+-Status
+-:
+-Applicant
+-→
+-Registered
+-Registered on
+-:
+-—
+-→
+-13 Aug 2026
+@@ -527,0 +528,31 @@
++Supplier
++DEMO/SUP/0001/2026 · Contoh Bina Sdn Bhd
++07 Aug 2026
++Reference
++:
++DEMO/SUP/0001/2026
++Registered name
++:
++Contoh Bina Sdn Bhd
++Registration number
++:
++201001000101 (000101-A)
++Number format
++:
++Matches the configured format
++Entity type
++:
++Private limited company
++Country
++:
++Demo Country
++Registered address
++:
++1 Demo Industrial Park, 00000 Demo City
++Company email
++:
++tender@contohbina.invalid
++Status
++:
++Applicant
++Created
+@@ -575,31 +605,0 @@
+-Created
+-Supplier
+-DEMO/SUP/0001/2026 · Contoh Bina Sdn Bhd
+-07 Aug 2026
+-Reference
+-:
+-DEMO/SUP/0001/2026
+-Registered name
+-:
+-Contoh Bina Sdn Bhd
+-Registration number
+-:
+-201001000101 (000101-A)
+-Number format
+-:
+-Matches the configured format
+-Entity type
+-:
+-Private limited company
+-Country
+-:
+-Demo Country
+-Registered address
+-:
+-1 Demo Industrial Park, 00000 Demo City
+-Company email
+-:
+-tender@contohbina.invalid
+-Status
+-:
+-Applicant
+diff -rU0 before/suppliers__demo_vnd2__tab__history.txt after/suppliers__demo_vnd2__tab__history.txt
+--- before/suppliers__demo_vnd2__tab__history.txt	2026-10-02 20:43:27.748186706 +0000
++++ after/suppliers__demo_vnd2__tab__history.txt	2026-10-02 21:23:11.352132187 +0000
+@@ -113,2 +113,2 @@
+-Approval step
+-DEMO/SUP/0002/2026 · Registration approval route · Head of Contract & Procurement
++Approval route
++DEMO/SUP/0002/2026 · Registration approval route
+@@ -116,11 +116 @@
+-Decision
+-:
+-Pending
+-→
+-Done
+-Decided by
+-:
+-—
+-→
+-Chen Wei Ling
+-Decided on
++Status
+@@ -128 +118 @@
+-—
++With approval
+@@ -129,0 +120,4 @@
++Approved
++Changed
++Application
++DEMO/SUP/0002/2026 · Application received 13 Aug 2026
+@@ -131 +125 @@
+-Recorded on their behalf
++Status
+@@ -133 +127 @@
+-—
++Received
+@@ -135 +129 @@
+-not signed
++Approved
+@@ -150,9 +143,0 @@
+-Changed
+-Application
+-DEMO/SUP/0002/2026 · Application received 13 Aug 2026
+-19 Aug 2026
+-Status
+-:
+-Received
+-→
+-Approved
+@@ -179,2 +164,2 @@
+-Approval route
+-DEMO/SUP/0002/2026 · Registration approval route
++Approval step
++DEMO/SUP/0002/2026 · Registration approval route · Head of Contract & Procurement
+@@ -182 +167 @@
+-Status
++Decision
+@@ -184 +169 @@
+-With approval
++Pending
+@@ -186 +171,30 @@
+-Approved
++Done
++Decided by
++:
++—
++→
++Chen Wei Ling
++Decided on
++:
++—
++→
++19 Aug 2026
++Recorded on their behalf
++:
++—
++→
++not signed
++Changed
++Application
++DEMO/SUP/0002/2026 · Application received 13 Aug 2026
++18 Aug 2026
++Sent by
++:
++—
++→
++Daniel Anak Jelani
++Recorded on their behalf
++:
++—
++→
++not signed
+@@ -209,14 +222,0 @@
+-Changed
+-Application
+-DEMO/SUP/0002/2026 · Application received 13 Aug 2026
+-18 Aug 2026
+-Sent by
+-:
+-—
+-→
+-Daniel Anak Jelani
+-Recorded on their behalf
+-:
+-—
+-→
+-not signed
+diff -rU0 before/suppliers__demo_vnd3__tab__history.txt after/suppliers__demo_vnd3__tab__history.txt
+--- before/suppliers__demo_vnd3__tab__history.txt	2026-10-02 20:43:40.732186409 +0000
++++ after/suppliers__demo_vnd3__tab__history.txt	2026-10-02 21:23:20.648131975 +0000
+@@ -53,9 +52,0 @@
+-Approval route
+-DEMO/SX/0018/2026 · Special permission for Teladan Mekanikal Sdn Bhd · route
+-30 Sep 2026
+-Status
+-:
+-With approval
+-→
+-Approved
+-Changed
+@@ -84,0 +76,9 @@
++Changed
++Approval route
++DEMO/SX/0018/2026 · Special permission for Teladan Mekanikal Sdn Bhd · route
++30 Sep 2026
++Status
++:
++With approval
++→
++Approved
+diff -rU0 before/suppliers__demo_vnd4__tab__history.txt after/suppliers__demo_vnd4__tab__history.txt
+--- before/suppliers__demo_vnd4__tab__history.txt	2026-10-02 20:43:51.928186153 +0000
++++ after/suppliers__demo_vnd4__tab__history.txt	2026-10-02 21:23:29.612131770 +0000
+@@ -46,0 +47,19 @@
++Party on an exercise
++DEMO/SX/0018/2026 · Contractor Rekaan Maju Construction
++28 Sep 2026
++Contractor
++:
++Rekaan Maju Construction
++Registration number
++:
++DM0000106-K
++Came as
++:
++Bought the documents
++Address
++:
++7 Jalan Rekaan, 00000 Demo North
++Telephone
++:
+++00 0-000 0106
++Created
+@@ -75,19 +93,0 @@
+-DEMO/SX/0018/2026 · Contractor Rekaan Maju Construction
+-28 Sep 2026
+-Contractor
+-:
+-Rekaan Maju Construction
+-Registration number
+-:
+-DM0000106-K
+-Came as
+-:
+-Bought the documents
+-Address
+-:
+-7 Jalan Rekaan, 00000 Demo North
+-Telephone
+-:
+-+00 0-000 0106
+-Created
+-Party on an exercise
+@@ -167,0 +168,9 @@
++Changed
++Approval route
++DEMO/SUP/0004/2026 · Registration approval route
++01 Sep 2026
++Status
++:
++With approval
++→
++Approved
+@@ -188,23 +196,0 @@
+-Supplier
+-DEMO/SUP/0004/2026 · Rekaan Maju Construction
+-01 Sep 2026
+-Status
+-:
+-Applicant
+-→
+-Registered
+-Registered on
+-:
+-—
+-→
+-01 Sep 2026
+-Changed
+-Application
+-DEMO/SUP/0004/2026 · Application received 26 Aug 2026
+-01 Sep 2026
+-Status
+-:
+-Received
+-→
+-Approved
+-Changed
+@@ -235,2 +221,2 @@
+-Approval route
+-DEMO/SUP/0004/2026 · Registration approval route
++Supplier
++DEMO/SUP/0004/2026 · Rekaan Maju Construction
+@@ -240 +226,15 @@
+-With approval
++Applicant
++→
++Registered
++Registered on
++:
++—
++→
++01 Sep 2026
++Changed
++Application
++DEMO/SUP/0004/2026 · Application received 26 Aug 2026
++01 Sep 2026
++Status
++:
++Received
+diff -rU0 before/suppliers__demo_vnd5__tab__history.txt after/suppliers__demo_vnd5__tab__history.txt
+--- before/suppliers__demo_vnd5__tab__history.txt	2026-10-02 20:44:03.388185891 +0000
++++ after/suppliers__demo_vnd5__tab__history.txt	2026-10-02 21:23:38.320131570 +0000
+@@ -166,2 +166,2 @@
+-Approval route
+-DEMO/SUP/0005/2026 · Registration approval route
++Application
++DEMO/SUP/0005/2026 · Application received 28 Aug 2026
+@@ -171 +171 @@
+-With approval
++Received
+@@ -175,2 +175,2 @@
+-Supplier
+-DEMO/SUP/0005/2026 · Demo Civil Works Sdn Bhd
++Approval step
++DEMO/SUP/0005/2026 · Registration approval route · Head of Contract & Procurement
+@@ -178 +178 @@
+-Status
++Decision
+@@ -180 +180 @@
+-Applicant
++Pending
+@@ -182,2 +182,7 @@
+-Registered
+-Registered on
++Done
++Decided by
++:
++—
++→
++Chen Wei Ling
++Decided on
+@@ -188,5 +193 @@
+-Changed
+-Application
+-DEMO/SUP/0005/2026 · Application received 28 Aug 2026
+-03 Sep 2026
+-Status
++Recorded on their behalf
+@@ -194 +195 @@
+-Received
++—
+@@ -196 +197 @@
+-Approved
++not signed
+@@ -217,2 +218,2 @@
+-Approval step
+-DEMO/SUP/0005/2026 · Registration approval route · Head of Contract & Procurement
++Supplier
++DEMO/SUP/0005/2026 · Demo Civil Works Sdn Bhd
+@@ -220 +221 @@
+-Decision
++Status
+@@ -222 +223 @@
+-Pending
++Applicant
+@@ -224,2 +225,2 @@
+-Done
+-Decided by
++Registered
++Registered on
+@@ -229,2 +230,15 @@
+-Chen Wei Ling
+-Decided on
++03 Sep 2026
++Changed
++Approval route
++DEMO/SUP/0005/2026 · Registration approval route
++03 Sep 2026
++Status
++:
++With approval
++→
++Approved
++Changed
++Application
++DEMO/SUP/0005/2026 · Application received 28 Aug 2026
++02 Sep 2026
++Sent by
+@@ -234 +248 @@
+-03 Sep 2026
++Daniel Anak Jelani
+@@ -262,14 +275,0 @@
+-Changed
+-Application
+-DEMO/SUP/0005/2026 · Application received 28 Aug 2026
+-02 Sep 2026
+-Sent by
+-:
+-—
+-→
+-Daniel Anak Jelani
+-Recorded on their behalf
+-:
+-—
+-→
+-not signed
+diff -rU0 before/suppliers__demo_vnd7__tab__history.txt after/suppliers__demo_vnd7__tab__history.txt
+--- before/suppliers__demo_vnd7__tab__history.txt	2026-10-02 20:44:24.792185401 +0000
++++ after/suppliers__demo_vnd7__tab__history.txt	2026-10-02 21:23:57.660131128 +0000
+@@ -29,0 +30,14 @@
++Changed
++Application
++DEMO/SUP/0007/2026 · Application received 28 Sep 2026
++01 Oct 2026
++Sent by
++:
++—
++→
++Daniel Anak Jelani
++Recorded on their behalf
++:
++—
++→
++not signed
+@@ -52,14 +65,0 @@
+-Changed
+-Application
+-DEMO/SUP/0007/2026 · Application received 28 Sep 2026
+-01 Oct 2026
+-Sent by
+-:
+-—
+-→
+-Daniel Anak Jelani
+-Recorded on their behalf
+-:
+-—
+-→
+-not signed
+@@ -199,0 +200,32 @@
++Changed
++Approval route
++DEMO/SUP/0007/2026 · Registration approval route
++06 Aug 2026
++Status
++:
++With approval
++→
++Approved
++Changed
++Supplier
++DEMO/SUP/0007/2026 · Sampel Engineering Sdn Bhd
++06 Aug 2026
++Status
++:
++Applicant
++→
++Registered
++Registered on
++:
++—
++→
++06 Aug 2026
++Changed
++Application
++DEMO/SUP/0007/2026 · Application received 31 Jul 2026
++06 Aug 2026
++Status
++:
++Received
++→
++Approved
+@@ -220,14 +251,0 @@
+-Supplier
+-DEMO/SUP/0007/2026 · Sampel Engineering Sdn Bhd
+-06 Aug 2026
+-Status
+-:
+-Applicant
+-→
+-Registered
+-Registered on
+-:
+-—
+-→
+-06 Aug 2026
+-Changed
+@@ -257,18 +274,0 @@
+-Changed
+-Approval route
+-DEMO/SUP/0007/2026 · Registration approval route
+-06 Aug 2026
+-Status
+-:
+-With approval
+-→
+-Approved
+-Changed
+-Application
+-DEMO/SUP/0007/2026 · Application received 31 Jul 2026
+-06 Aug 2026
+-Status
+-:
+-Received
+-→
+-Approved
