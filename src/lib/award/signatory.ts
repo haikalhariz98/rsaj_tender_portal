@@ -23,11 +23,20 @@ export type Signatory =
   | { ok: false; fault: SignatoryFault };
 
 export function resolveSignatory(matrix: Matrix, q: { kind: InstrumentKind; value: number }): Signatory {
-  const r = resolveApproval(matrix, { domain: SIGNATORY_DOMAIN, cond: q.kind, value: q.value });
+  return resolveSignatoryFor(matrix, { cond: q.kind, value: q.value });
+}
+
+/**
+ * The one resolver for every signing on matter `award_signatory`, by the condition the rows name: an
+ * instrument kind for the award (6.11), or the customer's condition for the contract agreement (6.12
+ * OD-4 A, `ContractPolicy.signatoryCond`, frozen when preparation started). One signing band, one reading.
+ */
+export function resolveSignatoryFor(matrix: Matrix, q: { cond: string; value: number }): Signatory {
+  const r = resolveApproval(matrix, { domain: SIGNATORY_DOMAIN, cond: q.cond, value: q.value });
   if (!r.rule || !r.rule.approverCode || r.rule.domain !== SIGNATORY_DOMAIN) return { ok: false, fault: "SIGNATORY_UNRESOLVED" };
   // A signatory row names the instrument it signs. A general row (no instrument) is
   // not read as covering both: which office signs which instrument is the customer's.
-  if (r.rule.cond !== q.kind) return { ok: false, fault: "SIGNATORY_NOT_FOR_INSTRUMENT" };
+  if (r.rule.cond !== q.cond) return { ok: false, fault: "SIGNATORY_NOT_FOR_INSTRUMENT" };
   if (r.warnings.some((w) => w.code === "AMBIGUOUS")) return { ok: false, fault: "SIGNATORY_AMBIGUOUS" };
   if (r.rule.isGap) return { ok: false, fault: "SIGNATORY_GAP" };
   if (r.warnings.some((w) => w.code === "BOUNDARY_SWITCH_UNDECIDED")) return { ok: false, fault: "SIGNATORY_BOUNDARY_UNDECIDED" };
