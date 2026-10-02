@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "AttachmentPurpose" ADD VALUE 'TENDERER_CONFIRMATION';

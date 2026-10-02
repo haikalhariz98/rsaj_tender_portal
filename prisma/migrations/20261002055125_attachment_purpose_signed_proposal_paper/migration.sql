@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "AttachmentPurpose" ADD VALUE 'SIGNED_PROPOSAL_PAPER';

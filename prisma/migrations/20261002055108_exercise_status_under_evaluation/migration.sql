@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "ExerciseStatus" ADD VALUE 'UNDER_EVALUATION';

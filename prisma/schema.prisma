@@ -125,6 +125,8 @@ enum MatterKind {
   /// 6.2 OD-9, FR-REQ-014: a finalised bill of quantities tabled for scope approval,
   /// named by CommitteeDecision.bqVersionId.
   SCOPE
+  /// 6.8 (FR-EVL-005): a two-stage tender's first-stage decision on one bidder, named by CommitteeDecision.evaluationBidderId.
+  EVALUATION_STAGE
 }
 
 /// Where a rejected matter goes (FR-APR-016, ADR 0009). The product ships no
@@ -2514,6 +2516,10 @@ enum ExerciseStatus {
   OPENING_IN_PROGRESS
   /// 6.7 (§7.3.2): the main opening finalised, its schedule frozen and the estimate disclosed.
   OPENED
+  /// 6.8 (§7.3.2): the evaluation started on the pinned model; clarification and negotiation are derived from open meetings (OD-3 A).
+  UNDER_EVALUATION
+  /// 6.8 (§7.3.2): the evaluation report issued; the committee stages and validity expiry are derived (OD-3 A).
+  EVALUATED
   CANCELLED
 }
 
@@ -3656,6 +3662,20 @@ enum AttachmentPurpose {
   /// 6.7 (FR-OPN-006): the signed paper opening schedule's scan, on its opening, accepted only after
   /// finalising (it carries the estimate's row, 6.2 Q-2). SULIT.
   SIGNED_SCHEDULE
+  /// 6.8 (FR-EVL-012, OD-4): the contractor performance report a CPR percentage is entered from, on its evaluation bidder. SULIT.
+  CPR_REPORT
+  /// 6.8 (FR-EVL-013): a written communication with a tenderer, on its evaluation bidder. SULIT.
+  COMMUNICATION
+  /// 6.8 (FR-EVL-015, 016): a clarification or negotiation meeting's signed minutes, on the meeting. SULIT.
+  MEETING_MINUTES
+  /// 6.8 (FR-EVL-015, 016): the tenderer's written confirmation of a meeting's outcome, on the meeting. SULIT.
+  TENDERER_CONFIRMATION
+  /// 6.8 (FR-EVL-017 annex F): drawings attached to the evaluation report, on the evaluation. SULIT.
+  REPORT_DRAWINGS
+  /// 6.8 (FR-EVL-017): the signed evaluation report's scan, on the evaluation. SULIT.
+  SIGNED_REPORT
+  /// 6.8 (FR-CTE-013): the signed Kertas Cadangan's scan, on the evaluation. SULIT.
+  SIGNED_PROPOSAL_PAPER
   HOLDER_RECOMMENDATION
   SIGNED_LETTER
   DECLARATION

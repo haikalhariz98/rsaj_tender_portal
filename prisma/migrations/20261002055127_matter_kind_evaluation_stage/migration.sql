@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "MatterKind" ADD VALUE 'EVALUATION_STAGE';
