@@ -147,6 +147,8 @@ export type ModelFault =
   | "WEIGHTS_NOT_100"
   | "WEIGHT_ON_LATER_STAGE"
   | "COMPOSITE_HAS_NO_WEIGHTS"
+  | "WEIGHT_ON_KIND"
+  | "PASS_MARK_ON_KIND"
   | "COMMITTEE_NOT_SET"
   | "TWO_STAGE_FIRST_STAGE"
   | "COMMITTEE_STAGE_ON_TRADITIONAL"
@@ -169,6 +171,10 @@ const SCORE_SCALES: Partial<Record<StageKind, readonly CriterionScale[]>> = {
   FINANCIAL_TEST: ["BANDED", "PASS_FAIL", "ENTERED_MARKS"],
   COMMERCIAL: ["BANDED"],
 };
+/// The kinds a pass mark is judged on (fix R-3): a figure exists there to meet it.
+const JUDGES_PASS_MARK: readonly StageKind[] = ["SCORED", "FINANCIAL_TEST", "COMPOSITE"];
+/// The kinds whose figure a composite weighs (fix R-3).
+const WEIGHED: readonly StageKind[] = ["SCORED", "FINANCIAL_TEST"];
 const INPUTS_FOR: Partial<Record<StageKind, readonly ComputedInput[]>> = {
   SCORED: ["MIN_CAPITAL_RATIO", "VARIANCE_VS_ESTIMATE", "VARIANCE_VS_LOWEST", "CPR_PERCENT"],
   FINANCIAL_TEST: ["MIN_CAPITAL_RATIO"],
@@ -204,9 +210,13 @@ export function modelFaults(m: ModelContent, aspects: readonly AspectConfig[]): 
     if (MUST_DECIDE.includes(s.kind) && s.mustPass == null) add("MUST_PASS_NOT_SET", st);
     const pm = f(s.passMark);
     if (pm != null) {
+      // R-3: a pass mark on a kind that never computes a figure would never be judged.
+      if (!JUDGES_PASS_MARK.includes(s.kind)) add("PASS_MARK_ON_KIND", st);
       if (compareFixed(pm, 0n) < 0 || compareFixed(pm, HUNDRED) > 0) add("PASS_MARK_RANGE", st);
       if (s.passInclusive == null) add("PASS_RULE_NOT_SET", st);
     }
+    // R-3: a composite weighs a scored stage's or a financial test's figure, and nothing else's.
+    if (s.compositeWeight != null && !WEIGHED.includes(s.kind)) add("WEIGHT_ON_KIND", st);
     const scales = SCORE_SCALES[s.kind];
     if (scales) {
       if (s.criteria.length === 0) add("NO_CRITERIA", st);
@@ -229,9 +239,13 @@ export function modelFaults(m: ModelContent, aspects: readonly AspectConfig[]): 
         }
       }
     }
-    if (s.kind === "SCORED") {
+    // R-3: wherever a figure is formed from marks — a scored stage, or a financial test with marks
+    // entered, a pass mark or a weight — the stage's total is set (above nothing) and its criteria add
+    // up to it; else the figure could never be formed and the stage never completed.
+    const figured = s.kind === "SCORED" || (s.kind === "FINANCIAL_TEST" && (s.criteria.some((c) => c.scale === "ENTERED_MARKS") || s.passMark != null || s.compositeWeight != null));
+    if (figured) {
       const max = f(s.maxMarks);
-      if (max == null) add("MAX_MARKS_NOT_SET", st);
+      if (max == null || compareFixed(max, 0n) <= 0) add("MAX_MARKS_NOT_SET", st);
       else {
         const top = s.criteria.filter((c) => c.parentCode == null && c.maxMarks != null && (c.scale === "ENTERED_MARKS" || s.criteria.some((x) => x.parentCode === c.code)));
         if (sumFixed(...top.map((c) => parseFixed(c.maxMarks!))) !== max) add("MARKS_NOT_TOTAL", st);
