@@ -250,7 +250,7 @@ function LateCard({ d }: { d: OpeningSectionView }) {
               <span className="block text-[12px] break-words text-ink-3">{`Received ${e.received} · ${e.markings}`}</span>
             </span>
             <Chip tone={e.tone === "neutral" ? undefined : e.tone}>{e.state}</Chip>
-            {e.decisionId && e.startSupplementary && <StartSupplementaryDrawer exerciseId={d.exerciseId} decisionId={e.decisionId} sequence={e.sequence} allowed={e.startSupplementary} seats={d.start.seats} people={d.people} panelSize={d.start.panelSize} />}
+            {e.decisionId && e.startSupplementary && <StartSupplementaryDrawer exerciseId={d.exerciseId} decisionId={e.decisionId} sequence={e.sequence} allowed={e.startSupplementary} seats={d.supplementary.seats} people={d.people} panelSize={d.supplementary.panelSize} />}
           </li>
         ))}
       </ul>

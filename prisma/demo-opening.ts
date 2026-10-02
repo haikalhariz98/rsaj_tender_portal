@@ -289,7 +289,7 @@ class OpeningActs {
   /// startSupplementaryOpening: one admitted late envelope, under the main opening's checklist and rules.
   async startSupplementary(exerciseId: string, id: string, i: { decisionId: string; panel: { id: string; name: string }[]; by: { id: string; name: string }; at: Date }) {
     const { supplementaryFaults } = await import("../src/lib/opening/start");
-    const { panelFaults } = await import("../src/lib/opening/panel");
+    const { panelFaults, supplementaryPanel } = await import("../src/lib/opening/panel");
     const { panelSnapshot, policyOf } = await import("../src/lib/opening/repo");
     const { openingStartFields, OPENING_ENTITY } = await import("../src/lib/opening/audit-view");
     const { l, c } = await this.ctx(exerciseId, i.at);
@@ -299,22 +299,26 @@ class OpeningActs {
     refuse(`starting ${id}`, supplementaryFaults({ status: l.ex.status, mainFinalised: !!c.main?.finalisedAt, decision: { matterKind: decision.matterKind ?? "", outcome: decision.outcome, bidEnvelopeId: decision.bidEnvelopeId }, alreadyOpened: c.openings.some((o) => o.admissionDecisionId === i.decisionId), envelope: envelope ? { status: envelope.status, late: envelope.late } : null, personActive: true }));
     const people = await this.db.person.findMany({ where: { id: { in: i.panel.map((p) => p.id) } }, select: { id: true, isActive: true, orgUnitCode: true } });
     const picked = i.panel.map((p) => ({ personId: p.id, name: p.name, present: true, active: people.find((x) => x.id === p.id)?.isActive ?? false, orgUnitCode: people.find((x) => x.id === p.id)?.orgUnitCode ?? null }));
-    refuse(`the panel of ${id}`, panelFaults({ committeeCode: c.method?.openingCommitteeCode ?? null, committee: c.committee ? { name: c.committee.nameEn } : null, seats: c.seats, picked, policy: { panelSize: c.committee?.panelSize ?? null, exclusionRule: c.committee?.panelExclusionRule ?? null, excludedUnitCode: c.committee?.panelExcludesUnitCode ?? null }, override: null, unitPath: c.unitPath }));
     const main = c.main!;
+    // R-3: the main opening's committee, its panel rules as they stand now.
+    const sup = supplementaryPanel({ mainCommittee: c.mainCommittee, frozenCode: policyOf(main.policySnapshot).committee.code, seats: c.mainSeats, unitPath: c.unitPath });
+    if ("fault" in sup) refuse(`the panel of ${id}`, [sup.fault]);
+    else refuse(`the panel of ${id}`, panelFaults({ ...sup, picked, override: null }));
+    const committee = c.mainCommittee!;
     const sequenceNo = c.openings.reduce((m, o) => Math.max(m, o.sequenceNo), 0) + 1;
     await this.db.opening.create({
       data: {
-        id, organisationId: this.org, exerciseId, kind: "SUPPLEMENTARY", sequenceNo, committeeId: c.committee!.id, committeeNameSnapshot: c.committee!.nameEn, admissionDecisionId: i.decisionId,
-        startedAt: i.at, startedByPersonId: i.by.id, panelSizeRequired: c.committee!.panelSize,
-        checklistSnapshot: main.checklistSnapshot as never, policySnapshot: { ...policyOf(main.policySnapshot), panel: panelSnapshot(c.committee) } as never, createdAt: i.at,
+        id, organisationId: this.org, exerciseId, kind: "SUPPLEMENTARY", sequenceNo, committeeId: committee.id, committeeNameSnapshot: committee.nameEn, admissionDecisionId: i.decisionId,
+        startedAt: i.at, startedByPersonId: i.by.id, panelSizeRequired: committee.panelSize,
+        checklistSnapshot: main.checklistSnapshot as never, policySnapshot: { ...policyOf(main.policySnapshot), panel: panelSnapshot(committee) } as never, createdAt: i.at,
       },
     });
     await this.db.openingSitting.create({ data: { id: `${id}s1`, organisationId: this.org, openingId: id, sittingNo: 1, startedAt: i.at, recordedByPersonId: i.by.id } });
     for (const p of picked) {
-      const seat = c.seats.find((s) => s.personId === p.personId)!;
+      const seat = c.mainSeats.find((s) => s.personId === p.personId)!;
       await this.db.openingPanelMember.create({ data: { id: `${id}pm_${p.personId.slice(P.length)}`, organisationId: this.org, openingId: id, personId: p.personId, committeeMemberId: seat.committeeMemberId || null, seatLabelSnapshot: seat.seatLabel, orgUnitCodeSnapshot: p.orgUnitCode, present: p.present } });
     }
-    this.entry(OPENING_ENTITY.opening, id, this.label(l.ex.reference, `Supplementary opening ${sequenceNo - 1}`), "CREATE", i.at, diffFields(null, { ...openingStartFields({ kind: "SUPPLEMENTARY", committee: c.committee!.nameEn, panel: picked, startedAt: i.at, startedBy: i.by.name, panelOverride: null, independence: "As the committee's rule", estimateLead: "Not judged: the estimate was disclosed at the main opening", boxLockedAt: null, lockGap: null }, this.tz), admittedBy: decision.meeting.reference, envelope: envelope ? `Envelope ${envelope.sequence}` : null }));
+    this.entry(OPENING_ENTITY.opening, id, this.label(l.ex.reference, `Supplementary opening ${sequenceNo - 1}`), "CREATE", i.at, diffFields(null, { ...openingStartFields({ kind: "SUPPLEMENTARY", committee: committee.nameEn, panel: picked, startedAt: i.at, startedBy: i.by.name, panelOverride: null, independence: "As the committee's rule", estimateLead: "Not judged: the estimate was disclosed at the main opening", boxLockedAt: null, lockGap: null }, this.tz), admittedBy: decision.meeting.reference, envelope: envelope ? `Envelope ${envelope.sequence}` : null }));
   }
 
   /// recordAuthorisation: the second distinct present member's opens the box (the main opening) and the exercise is Opening in progress.

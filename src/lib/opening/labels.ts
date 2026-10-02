@@ -111,6 +111,7 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   REASON_REQUIRED: () => "Give the reason.",
   // ---- the panel
   COMMITTEE_NOT_SET: () => `The sourcing method does not name the committee that opens its bids. Set it under ${SETTING_AT.methodRules}.`,
+  MAIN_COMMITTEE_GONE: () => "The committee that held the main opening is retired or no longer configured. A supplementary opening is held by that committee; the method's committee today does not take its place.",
   COMMITTEE_NOT_FOUND: () => `The committee the method names is not configured or is retired. Correct it under ${SETTING_AT.methodRules}.`,
   PANEL_EMPTY: () => "Pick the panel members from the committee's seats.",
   PICKED_TWICE: (f) => `${d(f, "person")} is picked twice.`,

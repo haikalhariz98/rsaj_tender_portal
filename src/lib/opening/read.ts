@@ -26,6 +26,7 @@ import { summaryFromSnapshot, type GrandSummary } from "./grand-summary";
 import { freshInitials } from "./initials";
 import { ALTERNATIVE_LABEL, CHECKLIST_ANSWER_LABEL, COPY_CHECK_LABEL, GROUND_LABEL, INVITED_READING_LABEL, OPENING_KIND_LABEL, OPENING_PHASE_LABEL, OPENING_PHASE_TONE, openingFindingText, periodText, REPORTED_LABEL, RESTRICTION_FINDING_LABEL, SALE_FINDING_LABEL, SEALED_UNTIL_FINALISED, UNPURCHASED_LABEL, VERDICT_LABEL, VERDICT_TONE } from "./labels";
 import { alternativeInsideFaults, openFaults } from "./open";
+import { supplementaryPanel } from "./panel";
 import { invitedCounts, liveScans, openingContext, panelOf, policyOf, presentOf, stateOf, type OpeningContext, type OpeningRow } from "./repo";
 import { INVITED_READING_TEXT, jadualTawaran, lateCount, scheduleFromSnapshot, type ScheduleSnapshot } from "./schedule";
 import { estimateLeadFaults, frozenRuleFaults, startFaults, supplementaryFaults } from "./start";
@@ -94,6 +95,9 @@ export async function openingSection(exerciseId: string) {
   };
 
   // ---- the late envelopes, and the supplementary openings their admissions call for (OD-5).
+  // R-3: a supplementary opening is the main opening's committee, its panel rules as they stand now.
+  const sup = c.main ? supplementaryPanel({ mainCommittee: c.mainCommittee, frozenCode: policyOf(c.main.policySnapshot).committee.code, seats: c.mainSeats, unitPath: c.unitPath }) : null;
+  const supConfig: Finding[] = !sup ? [] : "fault" in sup ? [sup.fault] : sup.policy.panelSize == null ? [{ code: "PANEL_SIZE_NOT_SET", level: "block" }] : sup.policy.exclusionRule === true && !sup.policy.excludedUnitCode ? [{ code: "EXCLUDED_UNIT_NOT_SET", level: "block" }] : [];
   const late = c.envelopes
     .filter((e) => e.late && e.kind !== "COMPANY_ESTIMATE")
     .map((e) => {
@@ -109,7 +113,7 @@ export async function openingSection(exerciseId: string) {
         state,
         tone: (opening ? "ok" : a?.outcome === "CARRIED" ? "brand" : a?.outcome == null ? "warn" : "neutral") as "ok" | "brand" | "warn" | "neutral",
         decisionId: canStart ? a!.id : null,
-        startSupplementary: canStart ? allowedOf([...supplementaryFaults({ status: l.ex.status, mainFinalised: !!c.main?.finalisedAt, decision: { matterKind: "LATE_TENDER", outcome: a!.outcome, bidEnvelopeId: e.id }, alreadyOpened: false, envelope: { status: e.status, late: e.late }, personActive: true }), ...config]) : null,
+        startSupplementary: canStart ? allowedOf([...supplementaryFaults({ status: l.ex.status, mainFinalised: !!c.main?.finalisedAt, decision: { matterKind: "LATE_TENDER", outcome: a!.outcome, bidEnvelopeId: e.id }, alreadyOpened: false, envelope: { status: e.status, late: e.late }, personActive: true }), ...supConfig]) : null,
       };
     });
 
@@ -132,6 +136,8 @@ export async function openingSection(exerciseId: string) {
     people,
     start,
     startNeeded: c.main == null,
+    /// R-3: the supplementary opening's panel is picked from the main opening's committee.
+    supplementary: { seats: c.mainSeats.map((s) => ({ value: s.personId, label: `${people.find((p) => p.value === s.personId)?.label ?? c.roster.people.find((p) => p.id === s.personId)?.name ?? "A person not on record"} · ${s.seatLabel}` })), panelSize: c.mainCommittee?.panelSize ?? null },
     late,
     estimate,
     estimateOverride: estimateLate ? { roleConfigured: c.scopePolicy.estimateOverrideRoleCode != null } : null,

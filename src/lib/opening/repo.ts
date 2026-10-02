@@ -145,6 +145,9 @@ export async function openingContext(l: { org: { id: string; timeZone: string | 
   const scopePolicy = await loadScopePolicy(org.id, client);
   const openingPolicy = await client.openingPolicy.findUnique({ where: { organisationId: org.id } });
   const committee = method?.openingCommitteeCode ? await client.committee.findFirst({ where: { organisationId: org.id, code: method.openingCommitteeCode, retiredOn: null }, include: { members: true } }) : null;
+  // Review R-3: a supplementary opening is the main opening's committee, whatever the method names now.
+  const mainRow = openings.find((o) => o.kind === "MAIN") ?? null;
+  const mainCommittee = mainRow ? await client.committee.findFirst({ where: { organisationId: org.id, id: mainRow.committeeId }, include: { members: true } }) : null;
   const units = (await client.orgUnit.findMany({ where: { organisationId: org.id } })) as unknown as OrgUnit[];
   const roster = await loadRoster(ORGANISATION_CODE, client);
 
@@ -182,6 +185,9 @@ export async function openingContext(l: { org: { id: string; timeZone: string | 
     openingPolicy,
     committee,
     seats: committee ? seatHolders(committee.members, roster, on) : [],
+    /// The main opening's committee (R-3), with its panel rules as they stand now (BD-67-11) and its seats on the day.
+    mainCommittee,
+    mainSeats: mainCommittee ? seatHolders(mainCommittee.members, roster, on) : [],
     roster,
     unitPath: (code: string) => pathTo(units, code, on).map((u) => u.code),
     unitCodes: new Set(units.map((u) => u.code)),

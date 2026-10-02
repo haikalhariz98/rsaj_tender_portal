@@ -126,3 +126,31 @@ export function panelFaults(i: {
 
 /// Whether the panel is checked for independence, in words for the frozen snapshot (C-6).
 export const independenceState = (rule: boolean | null): "NOT_SET" | "CHECKED" | "NOT_REQUIRED" => (rule == null ? "NOT_SET" : rule ? "CHECKED" : "NOT_REQUIRED");
+
+/// The committee row a supplementary opening's panel is read from (R-3): only what the rules ask.
+export interface PanelCommittee {
+  code: string;
+  nameEn: string;
+  retiredOn: Date | null;
+  panelSize: number | null;
+  panelExclusionRule: boolean | null;
+  panelExcludesUnitCode: string | null;
+}
+
+/**
+ * Review R-3 (BD-67-11): a supplementary opening is the main opening's committee — the one frozen on
+ * it (its id; the code in its policy snapshot), never the one the method names now — with that
+ * committee's panel rules as they stand when the supplementary opening starts, and its seats on the
+ * day. A committee retired since cannot sit: MAIN_COMMITTEE_GONE. Pure.
+ */
+export function supplementaryPanel(i: { mainCommittee: PanelCommittee | null; frozenCode: string | null; seats: readonly SeatHolder[]; unitPath: (code: string) => readonly string[] }): { fault: Finding<"MAIN_COMMITTEE_GONE"> } | Omit<Parameters<typeof panelFaults>[0], "picked" | "override"> {
+  const k = i.mainCommittee;
+  if (!k || k.retiredOn) return { fault: { code: "MAIN_COMMITTEE_GONE", level: "block" } };
+  return {
+    committeeCode: i.frozenCode ?? k.code,
+    committee: { name: k.nameEn },
+    seats: i.seats,
+    policy: { panelSize: k.panelSize, exclusionRule: k.panelExclusionRule, excludedUnitCode: k.panelExcludesUnitCode },
+    unitPath: i.unitPath,
+  };
+}

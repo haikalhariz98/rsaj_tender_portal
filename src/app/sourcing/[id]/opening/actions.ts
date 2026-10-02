@@ -29,7 +29,7 @@ import { freshInitials, initialStale } from "@/lib/opening/initials";
 import { openingFindingText } from "@/lib/opening/labels";
 import { lockOpenedBidRows, lockOpeningRows } from "@/lib/opening/lock";
 import { alternativeInsideFaults, alternativeOf, correctionFaults, nextListingNo, openFaults } from "@/lib/opening/open";
-import { panelFaults } from "@/lib/opening/panel";
+import { panelFaults, supplementaryPanel } from "@/lib/opening/panel";
 import { actFaults } from "@/lib/opening/state";
 import { invitedCounts, openingContext, panelOf, panelSnapshot, policyOf, presentOf, stateOf, type OpeningContext, type OpeningPolicySnapshot, type OpeningRow } from "@/lib/opening/repo";
 import { jadualTawaran, lateCount, type ScheduleRowInput } from "@/lib/opening/schedule";
@@ -225,47 +225,43 @@ export async function startSupplementaryOpening(_prev: FormState, data: FormData
     const picked = await pickedPeople(tx, l.org.id, picks);
     const wantsOverride = !!(overrideAuthority.trim() || overrideReason.trim() || overridePersonId);
     const overrideBy = wantsOverride ? await nameOf(tx, l.org.id, overridePersonId) : null;
-    const pf = panelFaults({
-      committeeCode: c.method?.openingCommitteeCode ?? null,
-      committee: c.committee ? { name: c.committee.nameEn } : null,
-      seats: c.seats,
-      picked,
-      policy: { panelSize: c.committee?.panelSize ?? null, exclusionRule: c.committee?.panelExclusionRule ?? null, excludedUnitCode: c.committee?.panelExcludesUnitCode ?? null },
-      override: wantsOverride ? { authority: overrideAuthority, reason: overrideReason, personId: overrideBy?.id ?? null, personActive: !!overrideBy } : null,
-      unitPath: c.unitPath,
-    });
-    if (blocking(pf).length) return refuse(pf);
     const main = c.main!;
+    const mainPolicy = policyOf(main.policySnapshot);
+    // R-3: the main opening's committee (its id, as frozen), never the one the method names now; its panel rules as they stand now (BD-67-11).
+    const committee = c.mainCommittee;
+    const panelInput = supplementaryPanel({ mainCommittee: committee, frozenCode: mainPolicy.committee.code, seats: c.mainSeats, unitPath: c.unitPath });
+    if ("fault" in panelInput) return refuse([panelInput.fault]);
+    const pf = panelFaults({ ...panelInput, picked, override: wantsOverride ? { authority: overrideAuthority, reason: overrideReason, personId: overrideBy?.id ?? null, personActive: !!overrideBy } : null });
+    if (blocking(pf).length) return refuse(pf);
     const sequenceNo = c.openings.reduce((n, o) => Math.max(n, o.sequenceNo), 0) + 1;
     const panelOverride = pf.some((f) => f.code === "PANEL_SIZE_OVERRIDDEN") ? { authority: overrideAuthority, reason: overrideReason, by: overrideBy! } : null;
-    const mainPolicy = policyOf(main.policySnapshot);
     const opening = await tx.opening.create({
       data: {
         organisationId: l.org.id,
         exerciseId: l.ex.id,
         kind: "SUPPLEMENTARY",
         sequenceNo,
-        committeeId: c.committee!.id,
-        committeeNameSnapshot: c.committee!.nameEn,
+        committeeId: committee!.id,
+        committeeNameSnapshot: committee!.nameEn,
         admissionDecisionId: decisionId,
         startedAt: now,
         startedByPersonId: person!.id,
-        panelSizeRequired: c.committee!.panelSize,
+        panelSizeRequired: committee!.panelSize,
         panelOverrideAuthority: panelOverride?.authority ?? "",
         panelOverrideReason: panelOverride?.reason ?? "",
         panelOverrideByPersonId: panelOverride?.by.id ?? null,
         // The admitted bid is checked against the main opening's checklist, under its rules; the panel's rules are read now.
         checklistSnapshot: main.checklistSnapshot as Prisma.InputJsonValue,
-        policySnapshot: { ...mainPolicy, panel: panelSnapshot(c.committee) } as unknown as Prisma.InputJsonValue,
+        policySnapshot: { ...mainPolicy, panel: panelSnapshot(committee) } as unknown as Prisma.InputJsonValue,
       },
     });
     await tx.openingSitting.create({ data: { organisationId: l.org.id, openingId: opening.id, sittingNo: 1, startedAt: now, recordedByPersonId: person!.id } });
     for (const p of picked) {
-      const seat = c.seats.find((s) => s.personId === p.personId)!;
+      const seat = c.mainSeats.find((s) => s.personId === p.personId)!;
       await tx.openingPanelMember.create({ data: { organisationId: l.org.id, openingId: opening.id, personId: p.personId, committeeMemberId: seat.committeeMemberId || null, seatLabelSnapshot: seat.seatLabel, orgUnitCodeSnapshot: p.orgUnitCode, present: p.present } });
     }
     await audit(tx, l.org.id, OPENING_ENTITY.opening, opening.id, label(l, `Supplementary opening ${sequenceNo - 1}`), "CREATE",
-      diffFields(null, { ...openingStartFields({ kind: "SUPPLEMENTARY", committee: c.committee!.nameEn, panel: picked, startedAt: now, startedBy: person!.name, panelOverride: panelOverride ? { authority: panelOverride.authority, reason: panelOverride.reason, by: panelOverride.by.name } : null, independence: pf.some((f) => f.code === "EXCLUSION_RULE_NOT_SET") ? "Independence rule not set; panel not checked" : "As the committee's rule", estimateLead: "Not judged: the estimate was disclosed at the main opening", boxLockedAt: null, lockGap: null }, l.org.timeZone), admittedBy: decision!.meeting.reference, envelope: envelope ? `Envelope ${envelope.sequence}` : null }),
+      diffFields(null, { ...openingStartFields({ kind: "SUPPLEMENTARY", committee: committee!.nameEn, panel: picked, startedAt: now, startedBy: person!.name, panelOverride: panelOverride ? { authority: panelOverride.authority, reason: panelOverride.reason, by: panelOverride.by.name } : null, independence: pf.some((f) => f.code === "EXCLUSION_RULE_NOT_SET") ? "Independence rule not set; panel not checked" : "As the committee's rule", estimateLead: "Not judged: the estimate was disclosed at the main opening", boxLockedAt: null, lockGap: null }, l.org.timeZone), admittedBy: decision!.meeting.reference, envelope: envelope ? `Envelope ${envelope.sequence}` : null }),
       panelOverride?.reason ?? "");
     return { ok: true, message: `Supplementary opening started. Two panel members present now each authorise it.${warnings(pf) ? ` ${warnings(pf)}` : ""}` };
   });
