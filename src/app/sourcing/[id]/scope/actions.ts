@@ -39,6 +39,8 @@ import { scopeCitationFault, scopeMatterSubject, SCOPE_DOMAIN } from "@/lib/scop
 import { backstopCode } from "@/lib/scope/unique-violation";
 import { transactionTimedOut } from "@/lib/scope/tx-timeout";
 import { FormReader } from "@/lib/validate";
+import { bidFindingText } from "@/lib/bids/labels";
+import { recordEstimateLodgement } from "@/lib/bids/lodgement";
 
 /**
  * Writes for 6.2 increment 1: the bill of quantities, the specification panel and the
@@ -608,6 +610,9 @@ export async function lodgeEstimate(_prev: FormState, data: FormData): Promise<F
     const ev = await tx.estimateEvent.create({ data: { organisationId: l.org.id, estimateId: row.id, kind: "LODGED", personId: person!.id, capacity, versionNo: facts.currentVersionNo, copyNo: 1 } });
     if (facts.state !== "LODGED") await audit(tx, l.org.id, ENTITY.estimate, row.id, label(l, "Company estimate"), "UPDATE", estimateStateAudit(ESTIMATE_STATE_LABEL[facts.state], ESTIMATE_STATE_LABEL.LODGED));
     await audit(tx, l.org.id, ENTITY.estimateEvent, ev.id, label(l, "Company estimate · lodged"), "CREATE", estimateEventAudit({ kind: "LODGED", personName: person!.name, capacity, versionNo: facts.currentVersionNo, copyNo: 1 }));
+    // 6.6 (flagged hook): copy 1 goes into the box, recorded on the envelope register in this transaction, under these locks.
+    const box = await recordEstimateLodgement(tx, l, { personId: person!.id, personName: person!.name, versionNo: facts.currentVersionNo, now: new Date() });
+    if (!box.ok) throw new Refusal({ ok: false, message: `Nothing was saved: ${box.faults.map(bidFindingText).join(" ")}` });
     return { ok: true };
   });
 }
