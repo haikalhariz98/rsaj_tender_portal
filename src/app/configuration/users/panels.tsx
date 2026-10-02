@@ -3,6 +3,7 @@
 import { OwnerDocumentsButton } from "@/components/attachments/owner-documents-button";
 import type { UploadView } from "@/lib/documents/views";
 import { delegationCeilingText, delegationPeriodText, recommendationLabel } from "@/lib/people/labels";
+import { periodText } from "@/lib/effective-text";
 import { formatDate } from "@/lib/format";
 import { useState, useTransition } from "react";
 
@@ -56,7 +57,6 @@ import {
  * here queries.
  */
 
-const day = (d: Date) => d.toISOString().slice(0, 10);
 
 /// How each delegation status reads. Derived from the period, never stored.
 const STATUS_LABEL = {
@@ -241,7 +241,7 @@ function AssignmentsList({ assignments, people, offices }: UsersData) {
         role: { kind: "stack", title: office?.nameEn ?? "Role no longer configured", sub: a.scope ?? undefined },
         period: {
           kind: "text",
-          text: `${day(a.effectiveFrom)} — ${a.effectiveTo ? day(a.effectiveTo) : "open"}`,
+          text: periodText(a),
         },
         status:
           person && !person.isActive
@@ -653,7 +653,7 @@ function DelegationPanel({ people, offices, delegations, capabilities, upload }:
             { key: "from", label: "From", width: "132px", sortable: true, mobile: "primary" },
             { key: "to", label: "To", width: "132px", sortable: true, mobile: "meta" },
             { key: "what", label: "What is delegated", width: "148px", mobile: "meta" },
-            { key: "period", label: "Period", width: "128px", mobile: "meta" },
+            { key: "period", label: "Period", width: "152px", mobile: "meta" },
             { key: "reason", label: "Reason", mobile: "meta" },
             { key: "status", label: "Status", width: "112px", mobile: "meta" },
           ]}

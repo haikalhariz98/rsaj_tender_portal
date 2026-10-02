@@ -5,6 +5,7 @@ import { useCallback } from "react";
 import { EMPTY_FORM_STATE } from "@/components/record-editor";
 import { stage, STORED_NOT_FILED, useStagedRef } from "@/components/attachments/upload-actions";
 import type { UploadView } from "@/lib/documents/views";
+import { END_DAY_LABEL, periodText } from "@/lib/effective-text";
 import { RECOMMENDATION_HINT, recommendationNote } from "@/lib/people/labels";
 import {
   CheckIcon,
@@ -214,7 +215,7 @@ export function EditPerson({
                         {parties}
                       </span>
                       <span className="shrink-0 text-[12px] text-ink-3 tabular-nums">
-                        {day(d.effectiveFrom)} — {d.effectiveTo ? day(d.effectiveTo) : "open"}
+                        {periodText(d)}
                       </span>
                       <Chip tone={tone} icon={<Dot tone={tone} />} title={label}>
                         {label}
@@ -405,8 +406,8 @@ function assignmentFields(people: Person[], offices: Office[]): Field[] {
     {
       kind: "date",
       name: "effectiveTo",
-      label: "Held to",
-      hint: "Leave empty while they still hold it.",
+      label: END_DAY_LABEL,
+      hint: "The first day they no longer hold it. Leave empty while they still hold it.",
     },
   ];
 }
@@ -507,8 +508,8 @@ function delegationFields(
     {
       kind: "date",
       name: "effectiveTo",
-      label: "To",
-      hint: "Required unless named capabilities are chosen below: a delegation is limited in time or in task. Set an earlier date to end one early.",
+      label: END_DAY_LABEL,
+      hint: "The first day it no longer applies. Required unless named capabilities are chosen below: a delegation is limited in time or in task. Set an earlier date to end one early.",
     },
     {
       kind: "select",

@@ -3,7 +3,7 @@
  * screen.
  */
 
-import { formatDate } from "@/lib/format";
+import { NO_END_DATE, periodText } from "@/lib/effective-text";
 import { formatMoney, parseSen } from "@/lib/money";
 
 import { recommendationStanding, type RecommendationStanding } from "./recommendation";
@@ -16,7 +16,7 @@ const STANDING_TEXT: Readonly<Record<Exclude<RecommendationStanding, "NONE">, st
 };
 
 /// Said beside a legacy delegation's label where it has no end date.
-export const NO_END_DATE = "no end date";
+export { NO_END_DATE };
 
 type Shown = {
   holderRecommendation?: string | null;
@@ -73,12 +73,12 @@ export const RECOMMENDATION_NOT_ATTACHED =
   "They are recorded as away, so their authority has reverted upward. It is delegated again only on the absent holder's signed recommendation: attach it, with its date and a summary.";
 
 /**
- * A delegation's period as a list shows it: "28 Sep 2026 to 16 Oct 2026", or "from 28 Sep
- * 2026, no end date" where it is open. Its days are days as typed, stored at midnight UTC,
- * so they are read as days (`formatDate`) and no time zone shifts them.
+ * A delegation's period as a list shows it: "28 Sep 2026 until 16 Oct 2026 (not
+ * included)", or "From 28 Sep 2026, no end date" where it is open — the shared wording,
+ * since the end day is exclusive (`inForceOn`).
  */
 export function delegationPeriodText(d: { effectiveFrom: Date; effectiveTo: Date | null }): string {
-  return d.effectiveTo ? `${formatDate(d.effectiveFrom)} to ${formatDate(d.effectiveTo)}` : `From ${formatDate(d.effectiveFrom)}, ${NO_END_DATE}`;
+  return periodText(d);
 }
 
 /// A delegation's ceiling in ringgit as everywhere else, or the words for none. Null is not a ceiling of zero.

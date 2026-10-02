@@ -15,6 +15,7 @@ import { blocking } from "@/lib/documents/types";
 import { RECOMMENDATION_NOT_ATTACHED } from "@/lib/people/labels";
 import { db } from "@/lib/db";
 import { periodsOverlap } from "@/lib/effective";
+import { END_DAY_LABEL } from "@/lib/effective-text";
 import { faultsIn, type Delegation, type DelegationFault } from "@/lib/people/delegation";
 import { lockDelegation } from "@/lib/people/lock";
 import { standsOnTextBeforeAttachments } from "@/lib/people/recommendation";
@@ -324,7 +325,7 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
   const toPersonId = r.text("toPersonId", "To", { required: true });
   const roleCode = r.text("roleCode", "Delegating from", { required: true });
   const effectiveFrom = r.date("effectiveFrom", "From", { required: true });
-  const effectiveTo = r.date("effectiveTo", "To");
+  const effectiveTo = r.date("effectiveTo", END_DAY_LABEL);
   const capabilityCodes = splitValues(r.optionalText("capabilityCodes"));
 
   const v = {
@@ -536,7 +537,7 @@ export async function saveAssignment(_prev: FormState, data: FormData): Promise<
   const roleCode = r.text("roleCode", "Role", { required: true });
   const scope = r.optionalText("scope");
   const effectiveFrom = r.date("effectiveFrom", "Held from", { required: true });
-  const effectiveTo = r.date("effectiveTo", "Held to");
+  const effectiveTo = r.date("effectiveTo", END_DAY_LABEL);
   checkPeriod(r, effectiveFrom, effectiveTo);
 
   if (personId) {
