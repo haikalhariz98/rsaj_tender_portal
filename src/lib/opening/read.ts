@@ -19,7 +19,7 @@ import { formatMoney, parseSen, type Sen } from "@/lib/money";
 import { leadTime } from "@/lib/scope/estimate";
 
 import { lockGapFinding } from "./box";
-import { checklistFromSnapshot, unansweredItems } from "./checklist";
+import { checklistFromSnapshot, openingChecklist, unansweredItems } from "./checklist";
 import { copyFindingFault } from "./estimate-copy";
 import { finaliseFaults, markFaults, recordFaults, scheduleScanFault } from "./finalise";
 import { summaryFromSnapshot, type GrandSummary } from "./grand-summary";
@@ -28,7 +28,7 @@ import { ALTERNATIVE_LABEL, CHECKLIST_ANSWER_LABEL, COPY_CHECK_LABEL, GROUND_LAB
 import { alternativeInsideFaults, openFaults } from "./open";
 import { invitedCounts, liveScans, openingContext, panelOf, policyOf, presentOf, stateOf, type OpeningContext, type OpeningRow } from "./repo";
 import { INVITED_READING_TEXT, jadualTawaran, lateCount, scheduleFromSnapshot, type ScheduleSnapshot } from "./schedule";
-import { estimateLeadFaults, startFaults, supplementaryFaults } from "./start";
+import { estimateLeadFaults, frozenRuleFaults, startFaults, supplementaryFaults } from "./start";
 import { actFaults, openingPhase, sittingAuthorisers } from "./state";
 import { blocking, type Finding } from "./types";
 import { adjournFaults, authorisationFaults } from "./unseal";
@@ -82,8 +82,10 @@ export async function openingSection(exerciseId: string) {
   const est = estimateLeadFaults({ requires: c.method?.requiresCompanyEstimate ?? null, estimateState: c.estimate?.state ?? null, lead, override: null, overrideRoleCode: c.scopePolicy.estimateOverrideRoleCode });
   // A late estimate is not a refusal here: the drawer asks for 6.2's override.
   const estimateLate = !est.ok && est.faults.length === 1 && est.faults[0].code === "ESTIMATE_LATE";
+  // Review M-4: what the start would freeze unset, making finalising impossible.
+  const rf = frozenRuleFaults({ completenessEliminates: c.bidRule.rule?.completenessEliminates ?? null, checklist: openingChecklist({ parts: (c.pack?.parts ?? []).map((p) => ({ partCode: p.partCode, label: p.labelSnapshot, role: p.role, mandatory: p.mandatory, returnedByBidder: p.returnedByBidder, sortOrder: p.sortOrder })), addenda: c.addenda }) });
   const start = {
-    allowed: allowedOf([...sf, ...config, ...(est.ok || estimateLate ? [] : est.faults)]),
+    allowed: allowedOf([...sf, ...rf, ...config, ...(est.ok || estimateLate ? [] : est.faults)]),
     committee: c.committee?.nameEn ?? null,
     panelSize: c.committee?.panelSize ?? null,
     independence: c.committee?.panelExclusionRule == null ? openingFindingText({ code: "EXCLUSION_RULE_NOT_SET", level: "warn" }) : c.committee.panelExclusionRule ? "Each member is checked against the committee's independence rule." : "The committee excludes no unit from its panel.",

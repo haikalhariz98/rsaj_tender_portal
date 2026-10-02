@@ -255,6 +255,8 @@ class OpeningActs {
     if (!est.ok) refuse(`the estimate's lead time at ${id}`, est.faults);
     const outcome = est.ok ? est.outcome : "NOT_REQUIRED";
     const checklist = openingChecklist({ parts: (c.pack?.parts ?? []).map((p) => ({ partCode: p.partCode, label: p.labelSnapshot, role: p.role, mandatory: p.mandatory, returnedByBidder: p.returnedByBidder, sortOrder: p.sortOrder })), addenda: c.addenda });
+    const { frozenRuleFaults } = await import("../src/lib/opening/start");
+    refuse(`starting ${id}`, frozenRuleFaults({ completenessEliminates: c.bidRule.rule?.completenessEliminates ?? null, checklist }));
     const gap = c.lockEvent && l.ex.closingAt ? lockGap(l.ex.closingAt, c.lockEvent.occurredAt) : null;
     const policy = {
       committee: { code: c.method?.openingCommitteeCode ?? null, name: c.committee?.nameEn ?? null, provenance: c.method?.openingCommitteeProvenance ?? null },

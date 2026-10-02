@@ -17,7 +17,11 @@ export const SETTING_AT = {
   users: "Configuration › Users",
   estimate: "Configuration › Scope and estimate",
   parts: "Configuration › Tender documents",
+  bidRules: "Configuration › Invitation, under Bid receipt, by sourcing method",
 } as const;
+
+/// The exit for an exercise whose frozen rule can never be met (6.7 C-9, review S-4).
+const CANCEL_EXIT = "this exercise's exit is to cancel it, from its Invitation tab";
 
 export const OPENING_KIND_LABEL: Readonly<Record<OpeningKind, string>> = { MAIN: "Opening", SUPPLEMENTARY: "Supplementary opening" };
 
@@ -178,9 +182,9 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   RESTRICTION_NOT_ANSWERED: () => "Whether the tender is restricted is not answered on its documents.",
   NOT_ON_CHECKLIST: () => "That item is not on the opening's checklist.",
   ANSWER_REQUIRED: () => "Choose present, absent or not applicable.",
-  CHECKLIST_NOT_JUDGED: (f) => `Whether a bidder returns ${d(f, "parts")} is not set on the approved documents, so completeness cannot be judged against it. Set it under ${SETTING_AT.parts}; documents already approved keep the answer they were approved with.`,
+  CHECKLIST_NOT_JUDGED: (f) => `Whether a bidder returns ${d(f, "parts")} was not set when the tender documents were approved, so completeness cannot be judged against it. Documents approved later take the setting (${SETTING_AT.parts}); these keep the answer they were approved with, so ${CANCEL_EXIT}.`,
   ANSWERS_INCOMPLETE: (f) => `${plural(n(f, "count"), "checklist item is", "checklist items are")} not answered yet.`,
-  CONSEQUENCE_NOT_SET: () => "What follows from an incomplete bid was not set when the window was published, so no verdict is recorded; a later setting does not apply to this exercise.",
+  CONSEQUENCE_NOT_SET: () => `What follows from an incomplete bid was not set when the window was published, so no verdict is recorded. Windows published later take the setting (${SETTING_AT.bidRules}); it does not reach this exercise, so ${CANCEL_EXIT}.`,
   UNPURCHASED_CONSEQUENCE_NOT_SET: () => `What follows from a bid by a bidder with no live purchase (or not invited) is not set. Set it under ${SETTING_AT.methodRules}.`,
   ALTERNATIVES_NOT_STATED: () => "The window does not say whether alternative bids are permitted, so no alternative is marked. It is answered on the window before publication.",
   // ---- opening an envelope

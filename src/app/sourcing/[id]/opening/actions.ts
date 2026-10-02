@@ -33,7 +33,7 @@ import { panelFaults } from "@/lib/opening/panel";
 import { actFaults } from "@/lib/opening/state";
 import { invitedCounts, openingContext, panelOf, panelSnapshot, policyOf, presentOf, stateOf, type OpeningContext, type OpeningPolicySnapshot, type OpeningRow } from "@/lib/opening/repo";
 import { jadualTawaran, lateCount, type ScheduleRowInput } from "@/lib/opening/schedule";
-import { estimateLeadFaults, startFaults, supplementaryFaults } from "@/lib/opening/start";
+import { estimateLeadFaults, frozenRuleFaults, startFaults, supplementaryFaults } from "@/lib/opening/start";
 import { blocking, CHECKLIST_ANSWERS, PERIOD_UNITS, type Finding, type OpeningVerdict, type PeriodUnit } from "@/lib/opening/types";
 import { adjournFaults, authorisationFaults, lapsedByAdjourning, opensTheBox, unsealState } from "@/lib/opening/unseal";
 import { judgeBid, verdictFaults, verdictRecord } from "@/lib/opening/verdict";
@@ -120,6 +120,10 @@ export async function startOpening(_prev: FormState, data: FormData): Promise<Fo
     const person = await nameOf(tx, l.org.id, startedByPersonId);
     const sf = startFaults({ status: l.ex.status, packKind: l.ex.packKindSnapshot, publishedThroughWindow: c.window?.publishedAt != null, timeZone: l.org.timeZone, phase: c.gate.phase, boxLocked: c.boxLocked, changePending: c.gate.changePending, mainExists: c.main != null, personActive: !!person });
     if (blocking(sf).length) return refuse(sf);
+    // Review M-4: a rule frozen unset that would make finalising impossible refuses the start, naming it.
+    const checklist = openingChecklist({ parts: (c.pack?.parts ?? []).map((p) => ({ partCode: p.partCode, label: p.labelSnapshot, role: p.role, mandatory: p.mandatory, returnedByBidder: p.returnedByBidder, sortOrder: p.sortOrder })), addenda: c.addenda });
+    const rf = frozenRuleFaults({ completenessEliminates: c.bidRule.rule?.completenessEliminates ?? null, checklist });
+    if (blocking(rf).length) return refuse(rf);
     const picked = await pickedPeople(tx, l.org.id, picks);
     const wantsOverride = !!(overrideAuthority.trim() || overrideReason.trim() || overridePersonId);
     const overrideBy = wantsOverride ? await nameOf(tx, l.org.id, overridePersonId) : null;
@@ -145,7 +149,6 @@ export async function startOpening(_prev: FormState, data: FormData): Promise<Fo
       overrideRoleCode: c.scopePolicy.estimateOverrideRoleCode,
     });
     if (!est.ok) return refuse(est.faults);
-    const checklist = openingChecklist({ parts: (c.pack?.parts ?? []).map((p) => ({ partCode: p.partCode, label: p.labelSnapshot, role: p.role, mandatory: p.mandatory, returnedByBidder: p.returnedByBidder, sortOrder: p.sortOrder })), addenda: c.addenda });
     const gap = c.lockEvent && l.ex.closingAt ? lockGap(l.ex.closingAt, c.lockEvent.occurredAt) : null;
     const policy: OpeningPolicySnapshot = {
       committee: { code: c.method?.openingCommitteeCode ?? null, name: c.committee?.nameEn ?? null, provenance: (c.method?.openingCommitteeProvenance as OpeningPolicySnapshot["committee"]["provenance"]) ?? null },

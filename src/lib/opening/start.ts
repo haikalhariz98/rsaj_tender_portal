@@ -105,6 +105,22 @@ export function estimateLeadFaults(i: {
   }
 }
 
+export type FrozenRuleFault = "CONSEQUENCE_NOT_SET" | "CHECKLIST_NOT_JUDGED";
+
+/**
+ * Review M-4: the rules the main opening freezes at its start that would make finalising it
+ * impossible. What follows from an incomplete bid is frozen with the window at publication (6.6
+ * CR-2), and which parts a bidder returns with the approved documents (6.6 ruling): unset on either,
+ * no verdict can be recorded and the opening could never be finalised, so it is not started. No later
+ * setting reaches this exercise; its exit is cancellation (C-9).
+ */
+export function frozenRuleFaults(i: { completenessEliminates: boolean | null; checklist: { notJudged: readonly string[] } }): Finding<FrozenRuleFault>[] {
+  const out: Finding<FrozenRuleFault>[] = [];
+  if (i.completenessEliminates == null) out.push({ code: "CONSEQUENCE_NOT_SET", level: "block" });
+  if (i.checklist.notJudged.length) out.push({ code: "CHECKLIST_NOT_JUDGED", level: "block", data: { parts: i.checklist.notJudged.join(", ") } });
+  return out;
+}
+
 export type SupplementaryFault = "MAIN_NOT_FINALISED" | "DECISION_NOT_LATE_TENDER" | "NOT_ADMITTED" | "ALREADY_OPENED_FOR" | "LATE_ENVELOPE_NOT_SEALED" | "CANCELLED" | "PERSON_REQUIRED";
 
 /// FR-CTE-008 (OD-5): a supplementary opening of one envelope its committee admitted, after the main one.
