@@ -10,6 +10,9 @@ import { matchesFormat } from "./award-commitment";
 
 export type VendorCodeFault = "CODE_REQUIRED" | "FORMAT" | "TAKEN" | "NOT_REGISTERED";
 
+/// A vendor code as it is checked, stored and looked up (6.15a fix R-11): surrounding spaces are not part of it.
+export const normaliseVendorCode = (raw: string) => raw.trim();
+
 export interface VendorMasterGateway {
   /// Where an adapter exists, ask the finance system to create or update the vendor. Manual: nothing to ask.
   requestVendor(supplierReference: string): Promise<void>;

@@ -17,7 +17,7 @@ import { dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { isLive } from "@/lib/documents/evidence";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
-import { manualVendorMaster, VENDOR_CODE_FORMAT_KEY } from "@/lib/integration/vendor-master";
+import { manualVendorMaster, normaliseVendorCode, VENDOR_CODE_FORMAT_KEY } from "@/lib/integration/vendor-master";
 import { ACT_LABEL } from "@/lib/labels";
 import { NumberingError, issueReference } from "@/lib/numbering/issue";
 import { ORGANISATION_CODE } from "@/lib/org";
@@ -711,7 +711,8 @@ export async function setErpVendorCode(_prev: FormState, data: FormData): Promis
   const now = stampNow();
   const supplierId = String(data.get("supplierId") ?? "");
   const r = new FormReader(data);
-  const code = r.text("erpVendorCode", "Vendor code", { max: 60 });
+  // fix R-11: one normalised code is checked, looked up and stored (never the typed spacing).
+  const code = normaliseVendorCode(r.text("erpVendorCode", "Vendor code", { max: 60 }));
   const reason = String(data.get("reason") ?? "").trim();
   if (r.failed) return { ok: false, errors: r.errors };
   return inSupplier(supplierId, async (tx, l): Promise<FormState> => {
