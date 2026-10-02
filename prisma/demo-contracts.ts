@@ -107,6 +107,7 @@ export async function loadContractsDemo(db: Db, organisationId: string) {
   const { contractLabel, loadContract } = await import("../src/lib/contract/repo");
   const { baselineInputsOf, contractGate, inputsToJson, rowOf, sectionRows } = await import("../src/lib/contract/load");
   const { signingFacts } = await import("../src/lib/contract/judge");
+  const { executedSnapshot } = await import("../src/lib/contract/executed-snapshot");
   const { parseSen, senToDecimalString } = await import("../src/lib/money");
 
   const c: Ctx = { db, organisationId, audit: [] };
@@ -187,7 +188,7 @@ export async function loadContractsDemo(db: Db, organisationId: string) {
     for (const [i, x] of plan.checks.corrections.entries()) {
       const cid = `${P}kar_${k}_${i + 1}`;
       await db.arithmeticCorrection.create({ data: { id: cid, organisationId, checkId: `${P}kch_${k}_arithmetic`, itemRef: x.item, description: x.description, tendered: x.tendered, corrected: x.corrected, reason: x.reason, recordedAt: at(chOn) } });
-      audit("ArithmeticCorrection", cid, `${label} · correction ${x.item}`, "CREATE", chOn, diffFields(null, { itemRef: x.item, tendered: x.tendered, corrected: x.corrected, reason: x.reason }));
+      audit("ArithmeticCorrection", cid, `${label} · correction ${x.item}`, "CREATE", chOn, diffFields(null, { itemRef: x.item, tenderedLineAmount: x.tendered, correctedLineAmount: x.corrected, reason: x.reason }));
     }
     for (const [i, x] of plan.checks.rates.entries()) {
       const rid = `${P}krt_${k}_${i + 1}`;
@@ -306,7 +307,7 @@ export async function loadContractsDemo(db: Db, organisationId: string) {
     fail("con3 RSAJ signature", s.faults);
     if (!s.signatory?.ok || !s.person) throw new Error("con3: the signatory did not resolve");
     await db.contractSignature.create({ data: { id: `${P}ksg_con3_r`, organisationId, contractId: id, party: "RSAJ", personId: s.person.id, name: s.person.name, signedOn: day(contractDate), recordedAt: at(signedAt), roleCode: s.signatory.roleCode, roleLabel: s.signatory.roleLabel, ruleKey: s.signatory.ruleKey, ruleLabel: s.signatory.ruleLabel, delegationId: s.delegationId } });
-    const snapshot = { v: 1, contractDate, readySince: s.readySince, gate: s.gate.items, legal: [{ iteration: 1, decision: "ENDORSED", decidedOn: "2026-09-29", office: "Demo Legal Office" }], signatory: { rule: s.signatory.ruleLabel, clause: s.signatory.clause, office: s.signatory.roleLabel, delegated: !!s.delegationId }, checks: ["ARITHMETIC", "FRONT_LOADING", "RATE_UNIFORMITY"].map((kind) => ({ kind, completedOn: "2026-09-25" })), formation: (await db.contract.findUnique({ where: { id }, select: { formationSnapshot: true } }))!.formationSnapshot };
+    const snapshot = executedSnapshot({ contractDate, readySince: s.readySince, contractorSignedOn: "2026-09-29", witnessSignedOn: "2026-09-29", gate: s.gate.items, legal: [{ iteration: 1, decision: "ENDORSED", decidedOn: "2026-09-29", office: "Demo Legal Office" }], signatory: { rule: s.signatory.ruleLabel, clause: s.signatory.clause, office: s.signatory.roleLabel, delegated: !!s.delegationId }, checks: ["ARITHMETIC", "FRONT_LOADING", "RATE_UNIFORMITY"].map((kind) => ({ kind, completedOn: "2026-09-25" })), formation: (await db.contract.findUnique({ where: { id }, select: { formationSnapshot: true } }))!.formationSnapshot });
     await db.contract.update({ where: { id }, data: { status: "EXECUTED", contractDate: day(contractDate), contractDateRecordedAt: at(signedAt), executedSnapshot: snapshot as never } });
     await con3.writeVersion({ ...con3.draft, contractDate }, "EXECUTED", signedAt, "version 1");
     audit("ContractSignature", `${P}ksg_con3_r`, `${label} · signed for the employer`, "CREATE", signedAt, diffFields(null, { party: "RSAJ", signedBy: s.person.name, office: s.signatory.roleLabel, rule: s.signatory.ruleLabel, delegated: s.delegationId ? "yes" : "no", recordedOnBehalf: ON_BEHALF }));
