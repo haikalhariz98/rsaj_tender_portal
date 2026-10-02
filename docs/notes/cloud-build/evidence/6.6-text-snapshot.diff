@@ -1,0 +1,1158 @@
+diff -ru snap-before/configuration__invitation.txt snap-after/configuration__invitation.txt
+--- snap-before/configuration__invitation.txt	2026-10-02 01:34:04.275773232 +0000
++++ snap-after/configuration__invitation.txt	2026-10-02 01:34:33.463772564 +0000
+@@ -42,6 +42,73 @@
+ The templates' wording is written under
+ Templates
+ .
++Bid receipt, by sourcing method
++Who decides whether a late envelope is admitted, the fewest bids each method expects, and what follows from an incomplete bid. The validity alerts are a notification rule.
++Method
++Late admission decided by
++Fewest bids
++An incomplete bid
++Actions
++Method
++Open tender
++Late admission decided by
++Tender Board
++Assumed
++Fewest bids
++Not set
++Whether competition is adequate is not judged; never read as met.
++An incomplete bid
++Is reported to the committee
++Assumed
++Edit
++Method
++Open quotation
++Late admission decided by
++Not set
++No late envelope can be tabled for admission, and an award on an exercise with one is held back.
++Fewest bids
++Not set
++Whether competition is adequate is not judged; never read as met.
++An incomplete bid
++Not set
++An opening cannot be finalised until it is set.
++Edit
++Method
++Selected tender
++Late admission decided by
++Not set
++No late envelope can be tabled for admission, and an award on an exercise with one is held back.
++Fewest bids
++Not set
++Whether competition is adequate is not judged; never read as met.
++An incomplete bid
++Not set
++An opening cannot be finalised until it is set.
++Edit
++Method
++Selective quotation
++Late admission decided by
++Not set
++No late envelope can be tabled for admission, and an award on an exercise with one is held back.
++Fewest bids
++Not set
++Whether competition is adequate is not judged; never read as met.
++An incomplete bid
++Not set
++An opening cannot be finalised until it is set.
++Edit
++Method
++Specialist or sole source
++Late admission decided by
++Not set
++No late envelope can be tabled for admission, and an award on an exercise with one is held back.
++Fewest bids
++Not set
++Whether competition is adequate is not judged; never read as met.
++An incomplete bid
++Not set
++An opening cannot be finalised until it is set.
++Edit
+ Publication channels
+ 3
+ Where an advertised exercise's notice appears. It is advertised only once every required channel carries it.
+@@ -173,6 +240,23 @@
+ @title: A working default, awaiting sign-off
+ @title: A working default, awaiting sign-off
+ @title: A working default, awaiting sign-off
++@title: A working default, awaiting sign-off
++@aria-label: History of Open tender
++@title: History
++@aria-label: Edit the bid receipt rules for Open tender
++@aria-label: History of Open quotation
++@title: History
++@aria-label: Edit the bid receipt rules for Open quotation
++@aria-label: History of Selected tender
++@title: History
++@aria-label: Edit the bid receipt rules for Selected tender
++@aria-label: History of Selective quotation
++@title: History
++@aria-label: Edit the bid receipt rules for Selective quotation
++@aria-label: History of Specialist or sole source
++@title: History
++@aria-label: Edit the bid receipt rules for Specialist or sole source
++@title: A working default, awaiting sign-off
+ @aria-label: History of Demo Daily (newspaper)
+ @title: History
+ @aria-label: Edit Demo Daily (newspaper)
+diff -ru snap-before/sourcing__demo_sx15__tab__bids.txt snap-after/sourcing__demo_sx15__tab__bids.txt
+--- snap-before/sourcing__demo_sx15__tab__bids.txt	2026-10-02 01:33:56.327773414 +0000
++++ snap-after/sourcing__demo_sx15__tab__bids.txt	2026-10-02 01:34:30.151772640 +0000
+@@ -17,53 +17,40 @@
+ •
+ Quotation
+ Cancel exercise
+-Bids and evaluation run outside the portal in this phase
+-The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
++Opening and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, its window is recorded, and the envelopes received are registered on Bids received. Opening the bids and evaluation are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
+ Invitation
++Bids received
+ Award
+ Access
+ 0
+ History
+ 61
+-Three band families
+-Determined 02 Oct 2026 under Demo limits, issue 1.
+-Requisition band
+-Requisition, above RM250,000
+-The rule the requisition was approved under.
+-Method band
+-Quotation band
+-Proposed: Open quotation.
+-Contract terms band
+-Short-form terms
+-Retention: does not apply. Defects liability: does not apply.
+-Value
+-RM18,000
+-SULIT · not restricted until sign-in
+-Method and who approves the appointment
+-Specialist or sole source
+-Method
+-Specialist or sole source · overridden
+-Why this method
+-The sectional tank's maker alone holds its panel moulds and repair warranty.
+-Justification
+-Repairs by anyone else void the tank's warranty; the maker inspected and scoped the repair on site on 22 September 2026.
+-Approval of the appointment
+-Technical Committee
+-Recommend (R)
+-Chief Executive
+-Approve (A)
+-Specialist or sole source · DEMO 4.6
+-Chain as entered, not checked against core routing: nobody has decided whether “Specialist or sole source” takes its chain from the core routing. Decide it on the rule in the approval matrix.
+-Checks, as recorded on 02 Oct 2026
+-Recorded with the exercise.
+-This exercise's value is in a different band from the requisition's live exercises together (RM597,500). Check that the work is not being split below a threshold.
+-On its own value this exercise would be approved under “Requisition, RM1,000 to RM40,000”, not “Requisition, above RM250,000” the requisition was approved under. The requisition's approval stands; the difference is recorded.
++The portal records envelopes, not offers
++Nothing priced is held before opening: no price, sum, period or document from a bid is entered here, and the box and its key remain the control. Bids are not submitted electronically: the electronic tender box arrives in Phase 3, with sign-in.
++Nobody signs in yet, so reading the register cannot be restricted, and officers are recorded on their behalf, not signed.
++No alert is sent: there is no delivery yet. Alerts are shown here.
++The company estimate is held plain in the database, never shown before opening; sealed storage arrives with the electronic tender box.
++Envelopes are received once the exercise is published
++Bids are received after the exercise is advertised or invited. The company estimate's lodgement into the box, made earlier, is recorded here when it is lodged.
++Open the Invitation tab
++Bid validity
++Alerts at 30, 7 days before expiry
++Edit
++Valid for
++Not set
++Valid until
++Not set
++How expiry is counted
++Counted from the closing day: a bid with N days' validity is valid to the end of the closing day plus N days.
++Assumed
++Alternative bids
++Whether alternatives are permitted is not stated
++Validity is checked on the award only for an exercise published through its invitation window.
+ @aria-label: Exercise
+-@aria-label: Recommend (R)
+-@title: Recommend (R)
+-@aria-label: Approve (A)
+-@title: Approve (A)
++@aria-label: Edit the bids' validity and alternatives
++@title: A working default, awaiting sign-off
+diff -ru snap-before/sourcing__demo_sx16.txt snap-after/sourcing__demo_sx16.txt
+--- snap-before/sourcing__demo_sx16.txt	2026-10-02 01:33:39.071773808 +0000
++++ snap-after/sourcing__demo_sx16.txt	2026-10-02 01:34:09.975773101 +0000
+@@ -23,13 +23,14 @@
+ Cancel exercise
+ :
+ award DEMO/AWD/0007/2026 stands on this exercise — cancel the award first.
+-Bids and evaluation run outside the portal in this phase
+-The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
++Opening and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, its window is recorded, and the envelopes received are registered on Bids received. Opening the bids and evaluation are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
+ Invitation
++Bids received
+ Award
+ 1
+ Access
+diff -ru snap-before/sourcing__demo_sx16__tab__award.txt snap-after/sourcing__demo_sx16__tab__award.txt
+--- snap-before/sourcing__demo_sx16__tab__award.txt	2026-10-02 01:33:46.779773632 +0000
++++ snap-after/sourcing__demo_sx16__tab__award.txt	2026-10-02 01:34:18.383772909 +0000
+@@ -23,13 +23,14 @@
+ Cancel exercise
+ :
+ award DEMO/AWD/0007/2026 stands on this exercise — cancel the award first.
+-Bids and evaluation run outside the portal in this phase
+-The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
++Opening and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, its window is recorded, and the envelopes received are registered on Bids received. Opening the bids and evaluation are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
+ Invitation
++Bids received
+ Award
+ 1
+ Access
+diff -ru snap-before/sourcing__demo_sx16__tab__bids.txt snap-after/sourcing__demo_sx16__tab__bids.txt
+--- snap-before/sourcing__demo_sx16__tab__bids.txt	2026-10-02 01:33:48.055773603 +0000
++++ snap-after/sourcing__demo_sx16__tab__bids.txt	2026-10-02 01:34:20.063772871 +0000
+@@ -19,47 +19,289 @@
+ Tender
+ •
+ Closed 01 Oct 2026 · 15:00
++Record a receipt now
++Record a receipt after the event
++Record a withdrawal
++Record the box locked
+ Cancel exercise
+ Cancel exercise
+ :
+ award DEMO/AWD/0007/2026 stands on this exercise — cancel the award first.
+-Bids and evaluation run outside the portal in this phase
+-The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
++Record a withdrawal
++:
++The closing has passed: a withdrawal is accepted only before it.
++Record the box locked
++:
++The box is already recorded as locked.
++Opening and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, its window is recorded, and the envelopes received are registered on Bids received. Opening the bids and evaluation are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
+ Invitation
++Bids received
+ Award
+ 1
+ Access
+ 0
+ History
+ 103
+-Three band families
+-Determined 02 Oct 2026 under Demo limits, issue 1.
+-Requisition band
+-Requisition, above RM250,000
+-The rule the requisition was approved under.
+-Method band
+-Tender band
+-Proposed: Open tender.
+-Contract terms band
+-Not applicable
+-Not applicable: the terms bands on the approval matrix cover other bands, not this one.
+-Value
+-RM640,000
+-SULIT · not restricted until sign-in
+-Method and who approves the appointment
+-Open tender
+-Method
+-Open tender · as proposed
+-Approval of the appointment
+-Tender Board
+-Approve (A)
+-Tender, above RM300,000 · DEMO 4.2
+-Chain as entered, not checked against core routing: nobody has decided whether “Tender, above RM300,000” takes its chain from the core routing. Decide it on the rule in the approval matrix.
++The portal records envelopes, not offers
++Nothing priced is held before opening: no price, sum, period or document from a bid is entered here, and the box and its key remain the control. Bids are not submitted electronically: the electronic tender box arrives in Phase 3, with sign-in.
++Nobody signs in yet, so reading the register cannot be restricted, and officers are recorded on their behalf, not signed.
++No alert is sent: there is no delivery yet. Alerts are shown here.
++The company estimate is held plain in the database, never shown before opening; sealed storage arrives with the electronic tender box.
++Envelope register
++6 envelopes recorded by an officer: 4 in time, 1 late, 1 withdrawn. The box is counted at opening.
++All records
++All records
++In time
++Late
++Withdrawn
++Company estimate
++Envelope 1
++Bid
++Received
++29 Sep 2026 · 10:15:00
++Over the counter · Daniel Anak Jelani, recorded on their behalf, not signed
++Where it stands
++Server-stamped
++In time
++Markings as written
++Tender DEMO/SX/0016/2026, Reservoir inlet main and inlet works, closing 01 Oct 2026 3.00 pm
++Envelope 2
++Bid
++Received
++29 Sep 2026 · 11:40:00
++Over the counter · Daniel Anak Jelani, recorded on their behalf, not signed
++Where it stands
++Server-stamped
++In time
++Markings as written
++Tender DEMO/SX/0016/2026, Reservoir inlet main and inlet works, closing 01 Oct 2026 3.00 pm
++Envelope 3
++Bid
++Received
++30 Sep 2026 · 10:20:00
++By post · Daniel Anak Jelani, recorded on their behalf, not signed
++Where it stands
++Server-stamped
++In time
++Markings as written
++Tender DEMO/SX/0016/2026, Reservoir inlet main and inlet works, closing 01 Oct 2026 3.00 pm, registered post
++Envelope 4
++Bid
++Received
++30 Sep 2026 · 11:05:00
++By post · Daniel Anak Jelani, recorded on their behalf, not signed
++Where it stands
++Entered, not server-stamped
++In time
++Markings as written
++Tender DEMO/SX/0016/2026, Reservoir inlet main and inlet works, closing 01 Oct 2026 3.00 pm, by post
++Stated by the officer as received 29 Sep 2026 · 16:30:00: Arrived by the afternoon post after the registry had closed; recorded the next morning.
++Envelope 5
++Bid
++Received
++30 Sep 2026 · 14:00:00
++Over the counter · Daniel Anak Jelani, recorded on their behalf, not signed
++Where it stands
++Server-stamped
++In time
++Withdrawn
++Returned unopened on 01 Oct 2026
++Markings as written
++Tender DEMO/SX/0016/2026, Reservoir inlet main and inlet works, closing 01 Oct 2026 3.00 pm
++Envelope 6
++Bid
++Received
++01 Oct 2026 · 15:00:01
++Over the counter · Daniel Anak Jelani, recorded on their behalf, not signed
++Where it stands
++Server-stamped
++Late
++Admitted
++Markings as written
++Tender DEMO/SX/0016/2026, Reservoir inlet main and inlet works, closing 01 Oct 2026 3.00 pm
++Envelope
++▲
++Received
++Where it stands
++Markings as written
++Actions
++Envelope 1
++Bid
++29 Sep 2026 · 10:15:00
++Over the counter · Daniel Anak Jelani, recorded on their behalf, not signed
++Server-stamped
++In time
++Tender DEMO/SX/0016/2026, Reservoir inlet main and inlet works, closing 01 Oct 2026 3.00 pm
++Envelope 2
++Bid
++29 Sep 2026 · 11:40:00
++Over the counter · Daniel Anak Jelani, recorded on their behalf, not signed
++Server-stamped
++In time
++Tender DEMO/SX/0016/2026, Reservoir inlet main and inlet works, closing 01 Oct 2026 3.00 pm
++Envelope 3
++Bid
++30 Sep 2026 · 10:20:00
++By post · Daniel Anak Jelani, recorded on their behalf, not signed
++Server-stamped
++In time
++Tender DEMO/SX/0016/2026, Reservoir inlet main and inlet works, closing 01 Oct 2026 3.00 pm, registered post
++Envelope 4
++Bid
++30 Sep 2026 · 11:05:00
++By post · Daniel Anak Jelani, recorded on their behalf, not signed
++Entered, not server-stamped
++In time
++Tender DEMO/SX/0016/2026, Reservoir inlet main and inlet works, closing 01 Oct 2026 3.00 pm, by post
++Stated by the officer as received 29 Sep 2026 · 16:30:00: Arrived by the afternoon post after the registry had closed; recorded the next morning.
++Envelope 5
++Bid
++30 Sep 2026 · 14:00:00
++Over the counter · Daniel Anak Jelani, recorded on their behalf, not signed
++Server-stamped
++In time
++Withdrawn
++Returned unopened on 01 Oct 2026
++Tender DEMO/SX/0016/2026, Reservoir inlet main and inlet works, closing 01 Oct 2026 3.00 pm
++Envelope 6
++Bid
++01 Oct 2026 · 15:00:01
++Over the counter · Daniel Anak Jelani, recorded on their behalf, not signed
++Server-stamped
++Late
++Admitted
++Tender DEMO/SX/0016/2026, Reservoir inlet main and inlet works, closing 01 Oct 2026 3.00 pm
++Tender box
++The box, its lock and its key remain the control.
++Closing
++01 Oct 2026 · 15:00
++The box
++Locked
++Locked at 01 Oct 2026 · 15:05:00 by Chen Wei Ling, recorded on their behalf, not signed
++How lateness is judged
++Judged on the server's clock to the second: an envelope recorded in the closing second is in time; from the next second it is late. Fractions of a second are dropped.
++Assumed
++Bids counted so far
++Envelopes recorded by an officer. The box is counted at opening.
++In time
++4
++Late, counted apart
++1
++Alternatives
++0
++Withdrawn
++1
++Minimum the method expects
++Not set
++Competition
++Minimum not set
++The method's minimum number of bids is not set, so whether competition is adequate is not judged. Set it under Configuration › Invitation.
++Late envelopes
++Each is admitted or not by the Tender Board, as a matter at its sitting (assumed). Never deleted, rejected or set aside.
++Envelope 6
++Recorded 01 Oct 2026 · 15:00:01 (server-stamped), judged against the closing 01 Oct 2026 · 15:00
++Admitted · DEMO/SIT/5A/2026
++Withdrawals
++Each letter received before the closing, stamped when recorded. A withdrawn envelope is never opened.
++Envelope 5
++Received 01 Oct 2026 · 10:00:00 · Chen Wei Ling, recorded on their behalf, not signed
++“Our letter ref. DEMO/WD/1 of today withdraws the tender we lodged at the counter yesterday afternoon.”
++Letter: attached
++SULIT
++Documents
++Bid validity
++Alerts at 30, 7 days before expiry
++Record an extension
++Valid for
++120 days from the closing day
++Assumed
++Valid until
++28 Feb 2027
++Valid
++Before extension
++29 Jan 2027
++How expiry is counted
++Counted from the closing day: a bid with N days' validity is valid to the end of the closing day plus N days.
++Assumed
++Alternative bids
++Whether alternatives are permitted is not stated
++Extended from 29 Jan 2027 to 28 Feb 2027
++Invented for the demo: the evaluation of the reservoir inlet works is expected to run past the bids' validity; the recommended tenderer consented in writing. · consent of Contoh Bina Sdn Bhd, named by the officer as the recommended tenderer, recorded on their behalf, not yet checked against an evaluation, received 02 Oct 2026 · Chen Wei Ling, recorded on their behalf, not signed
++Consent: attached
++Applied 02 Oct 2026 · 07:04
++Documents
++Mandatory documents
++Checked against each bid at opening, never here. A missing document is reported, never a reason to refuse an envelope.
++From
++Version 1 of the tender documents, as approved
++An incomplete bid
++An incomplete bid is reported to the committee
++Assumed
++Notice of invitation to tender
++Form of tender
++Conditions of contract
++Appendix to the conditions of contract
++Specimen letter of acceptance
++Performance bond forms
++Specification
++Summary of tender and schedule of rates
++Bidder's registration and background form
++Bidder's declaration and letter of authorisation
++Drawings
++Instructions to tenderers
++@title: The closing has passed: a withdrawal is accepted only before it.
++@title: The box is already recorded as locked.
+ @title: award DEMO/AWD/0007/2026 stands on this exercise — cancel the award first.
+ @aria-label: Exercise
+-@aria-label: Approve (A)
+-@title: Approve (A)
++@aria-label: View
++@placeholder: Search by envelope or markings
++@aria-label: Search this list
++@aria-label: Row density
++@aria-label: Comfortable rows
++@title: Comfortable rows
++@aria-label: Compact rows
++@title: Compact rows
++@aria-label: Download this view as CSV
++@title: Download this view as CSV
++@title: Server-stamped
++@title: In time
++@title: Server-stamped
++@title: In time
++@title: Server-stamped
++@title: In time
++@title: Entered, not server-stamped
++@title: In time
++@title: Server-stamped
++@title: In time
++@title: Withdrawn
++@title: Returned unopened on 01 Oct 2026
++@title: Server-stamped
++@title: Late
++@title: Admitted
++@title: Envelope
++@title: Server-stamped
++@title: In time
++@title: Server-stamped
++@title: In time
++@title: Server-stamped
++@title: In time
++@title: Entered, not server-stamped
++@title: In time
++@title: Server-stamped
++@title: In time
++@title: Withdrawn
++@title: Returned unopened on 01 Oct 2026
++@title: Server-stamped
++@title: Late
++@title: Admitted
++@title: A working default, awaiting sign-off
++@aria-label: Documents of DEMO/SX/0016/2026 · Withdrawal of envelope 5
++@title: A working default, awaiting sign-off
++@title: A working default, awaiting sign-off
++@aria-label: Documents of DEMO/SX/0016/2026 · Validity extension to 28 Feb 2027
++@title: A working default, awaiting sign-off
+diff -ru snap-before/sourcing__demo_sx16__tab__history.txt snap-after/sourcing__demo_sx16__tab__history.txt
+--- snap-before/sourcing__demo_sx16__tab__history.txt	2026-10-02 01:33:49.303773574 +0000
++++ snap-after/sourcing__demo_sx16__tab__history.txt	2026-10-02 01:34:21.491772838 +0000
+@@ -23,13 +23,14 @@
+ Cancel exercise
+ :
+ award DEMO/AWD/0007/2026 stands on this exercise — cancel the award first.
+-Bids and evaluation run outside the portal in this phase
+-The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
++Opening and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, its window is recorded, and the envelopes received are registered on Bids received. Opening the bids and evaluation are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
+ Invitation
++Bids received
+ Award
+ 1
+ Access
+@@ -201,9 +202,9 @@
+ 01 Oct 2026
+ Status
+ :
+-Closed
++Received
+ →
+-Closed
++Withdrawn
+ Created
+ Record
+ DEMO/SX/0016/2026 · Withdrawal of envelope 5
+diff -ru snap-before/sourcing__demo_sx16__tab__invitation&section__addenda.txt snap-after/sourcing__demo_sx16__tab__invitation&section__addenda.txt
+--- snap-before/sourcing__demo_sx16__tab__invitation&section__addenda.txt	2026-10-02 01:33:45.611773659 +0000
++++ snap-after/sourcing__demo_sx16__tab__invitation&section__addenda.txt	2026-10-02 01:34:16.947772942 +0000
+@@ -31,13 +31,14 @@
+ Cancel exercise
+ :
+ Award DEMO/AWD/0007/2026 stands on this exercise. Cancel the award first, from its own record.
+-Bids and evaluation run outside the portal in this phase
+-The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
++Opening and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, its window is recorded, and the envelopes received are registered on Bids received. Opening the bids and evaluation are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
+ Invitation
++Bids received
+ Award
+ 1
+ Access
+diff -ru snap-before/sourcing__demo_sx16__tab__invitation&section__briefing.txt snap-after/sourcing__demo_sx16__tab__invitation&section__briefing.txt
+--- snap-before/sourcing__demo_sx16__tab__invitation&section__briefing.txt	2026-10-02 01:33:44.191773691 +0000
++++ snap-after/sourcing__demo_sx16__tab__invitation&section__briefing.txt	2026-10-02 01:34:15.311772979 +0000
+@@ -31,13 +31,14 @@
+ Cancel exercise
+ :
+ Award DEMO/AWD/0007/2026 stands on this exercise. Cancel the award first, from its own record.
+-Bids and evaluation run outside the portal in this phase
+-The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
++Opening and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, its window is recorded, and the envelopes received are registered on Bids received. Opening the bids and evaluation are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
+ Invitation
++Bids received
+ Award
+ 1
+ Access
+diff -ru snap-before/sourcing__demo_sx16__tab__invitation&section__sales.txt snap-after/sourcing__demo_sx16__tab__invitation&section__sales.txt
+--- snap-before/sourcing__demo_sx16__tab__invitation&section__sales.txt	2026-10-02 01:33:42.643773727 +0000
++++ snap-after/sourcing__demo_sx16__tab__invitation&section__sales.txt	2026-10-02 01:34:13.423773023 +0000
+@@ -25,19 +25,23 @@
+ Record a sale
+ :
+ The documents are no longer on sale.
++Void a sale
++:
++The window has closed, so the sale stands.
+ Extend the closing
+ :
+ The closing has passed, so it can no longer be moved.
+ Cancel exercise
+ :
+ Award DEMO/AWD/0007/2026 stands on this exercise. Cancel the award first, from its own record.
+-Bids and evaluation run outside the portal in this phase
+-The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
++Opening and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, its window is recorded, and the envelopes received are registered on Bids received. Opening the bids and evaluation are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
+ Invitation
++Bids received
+ Award
+ 1
+ Access
+@@ -75,7 +79,6 @@
+ Suspension: not checked
+ Addenda acknowledged
+ 0 of 0
+-The window has closed, so the sale stands.
+ Label
+ Void
+ Sampel Kejuruteraan Enterprise
+@@ -91,7 +94,6 @@
+ Suspension: not checked
+ Addenda acknowledged
+ 0 of 0
+-The window has closed, so the sale stands.
+ Label
+ Record receipt
+ Void
+@@ -114,7 +116,6 @@
+ 0 of 0
+ Label
+ Void
+-The window has closed, so the sale stands.
+ Sampel Kejuruteraan Enterprise
+ DM0000102-X
+ Not recorded
+@@ -127,7 +128,6 @@
+ Label
+ Record receipt
+ Void
+-The window has closed, so the sale stands.
+ @title: The documents are no longer on sale.
+ @title: The closing has passed, so it can no longer be moved.
+ @title: Award DEMO/AWD/0007/2026 stands on this exercise. Cancel the award first, from its own record.
+diff -ru snap-before/sourcing__demo_sx16__tab__invitation&section__window.txt snap-after/sourcing__demo_sx16__tab__invitation&section__window.txt
+--- snap-before/sourcing__demo_sx16__tab__invitation&section__window.txt	2026-10-02 01:33:41.059773763 +0000
++++ snap-after/sourcing__demo_sx16__tab__invitation&section__window.txt	2026-10-02 01:34:11.827773059 +0000
+@@ -27,13 +27,14 @@
+ Cancel exercise
+ :
+ Award DEMO/AWD/0007/2026 stands on this exercise. Cancel the award first, from its own record.
+-Bids and evaluation run outside the portal in this phase
+-The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
++Opening and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, its window is recorded, and the envelopes received are registered on Bids received. Opening the bids and evaluation are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
+ Invitation
++Bids received
+ Award
+ 1
+ Access
+diff -ru snap-before/sourcing__demo_sx17__tab__invitation&section__sales.txt snap-after/sourcing__demo_sx17__tab__invitation&section__sales.txt
+--- snap-before/sourcing__demo_sx17__tab__invitation&section__sales.txt	2026-10-02 01:33:50.855773539 +0000
++++ snap-after/sourcing__demo_sx17__tab__invitation&section__sales.txt	2026-10-02 01:34:23.211772799 +0000
+@@ -22,13 +22,14 @@
+ Record a sale
+ Extend the closing
+ Cancel exercise
+-Bids and evaluation run outside the portal in this phase
+-The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
++Opening and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, its window is recorded, and the envelopes received are registered on Bids received. Opening the bids and evaluation are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
+ Invitation
++Bids received
+ Name approval
+ Award
+ Access
+diff -ru snap-before/sourcing__demo_sx18__tab__bids.txt snap-after/sourcing__demo_sx18__tab__bids.txt
+--- snap-before/sourcing__demo_sx18__tab__bids.txt	2026-10-02 01:33:53.259773484 +0000
++++ snap-after/sourcing__demo_sx18__tab__bids.txt	2026-10-02 01:34:26.223772730 +0000
+@@ -19,50 +19,104 @@
+ Quotation
+ •
+ Closes 14 Oct 2026 · 15:00
++Record a receipt now
++Record a receipt after the event
++Record a withdrawal
++Record the box locked
+ Cancel exercise
+ Cancel exercise
+ :
+ A published exercise is cancelled from the Invitation tab: it goes to approval with a reason and an answer on the fees.
+-Bids and evaluation run outside the portal in this phase
+-The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
++Record the box locked
++:
++The box is locked at or after the closing, not before.
++Opening and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, its window is recorded, and the envelopes received are registered on Bids received. Opening the bids and evaluation are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
+ Invitation
++Bids received
+ Award
+ Access
+ 0
+ History
+ 93
+-Three band families
+-Determined 02 Oct 2026 under Demo limits, issue 1.
+-Requisition band
+-Requisition, RM40,000 to RM250,000
+-The rule the requisition was approved under.
+-Method band
+-Quotation band
+-Proposed: Open quotation.
+-Contract terms band
+-Extended terms
+-Retention: applies. Defects liability: applies.
+-Value
+-RM150,000
+-SULIT · not restricted until sign-in
+-Method and who approves the appointment
+-Open quotation
+-Method
+-Open quotation · as proposed
+-Approval of the appointment
+-Quotation Committee
+-Mandatory recommendation (MR)
+-Chief Executive
+-Approve (A)
+-Quotation, RM15,000 to RM300,000 · DEMO 4.3
+-Chain as entered, not checked against core routing: nobody has decided whether “Quotation, RM15,000 to RM300,000” takes its chain from the core routing. Decide it on the rule in the approval matrix.
++The portal records envelopes, not offers
++Nothing priced is held before opening: no price, sum, period or document from a bid is entered here, and the box and its key remain the control. Bids are not submitted electronically: the electronic tender box arrives in Phase 3, with sign-in.
++Nobody signs in yet, so reading the register cannot be restricted, and officers are recorded on their behalf, not signed.
++No alert is sent: there is no delivery yet. Alerts are shown here.
++The company estimate is held plain in the database, never shown before opening; sealed storage arrives with the electronic tender box.
++The bids' validity is not set
++The bids' validity is not set on the window, so whether they are still valid cannot be judged. Record the days the tender documents state on the Bids received tab.
++Envelope register
++0 envelopes recorded by an officer: 0 in time, 0 late, 0 withdrawn. The box is counted at opening.
++No envelope recorded
++Envelopes handed over the counter, by post or by courier are recorded here as they arrive. Envelopes in the tender box are registered at the opening.
++Tender box
++The box, its lock and its key remain the control.
++Closing
++14 Oct 2026 · 15:00
++The box
++Not locked yet
++How lateness is judged
++Judged on the server's clock to the second: an envelope recorded in the closing second is in time; from the next second it is late. Fractions of a second are dropped.
++Assumed
++Bids counted so far
++Envelopes recorded by an officer. The box is counted at opening.
++In time
++0
++Late, counted apart
++0
++Alternatives
++0
++Withdrawn
++0
++Minimum the method expects
++Not set
++Competition
++Minimum not set
++The method's minimum number of bids is not set, so whether competition is adequate is not judged. Set it under Configuration › Invitation.
++Late envelopes
++The committee that decides late admission is not set for this method.
++Set it
++No late envelope
++An envelope recorded after the closing second appears here, with its admission.
++Bid validity
++Alerts at 30, 7 days before expiry
++Record the validity
++Record an extension
++The validity runs from the closing: it is extended only after the closing. The bids' validity is not set on the window, so whether they are still valid cannot be judged. Record the days the tender documents state on the Bids received tab.
++Valid for
++Not set
++Valid until
++Not set
++How expiry is counted
++Counted from the closing day: a bid with N days' validity is valid to the end of the closing day plus N days.
++Assumed
++Alternative bids
++Whether alternatives are permitted is not stated
++Mandatory documents
++Checked against each bid at opening, never here. A missing document is reported, never a reason to refuse an envelope.
++From
++Version 1 of the tender documents, as approved
++An incomplete bid
++Not set: an opening cannot be finalised until it is
++Notice of quotation
++Instructions to bidders
++Conditions of quotation
++Appendix to the conditions
++Specification of works
++Form of quotation
++Performance bond forms
++Bidder's declaration and letter of authorisation
++Drawings
++Addendum 1: Revised access scaffold drawing
++@title: The box is locked at or after the closing, not before.
+ @title: A published exercise is cancelled from the Invitation tab: it goes to approval with a reason and an answer on the fees.
+ @aria-label: Exercise
+-@aria-label: Mandatory recommendation (MR)
+-@title: Mandatory recommendation (MR)
+-@aria-label: Approve (A)
+-@title: Approve (A)
++@title: A working default, awaiting sign-off
++@aria-label: Edit the bids' validity and alternatives
++@title: The validity runs from the closing: it is extended only after the closing. The bids' validity is not set on the window, so whether they are still valid cannot be judged. Record the days the tender documents state on the Bids received tab.
++@title: A working default, awaiting sign-off
+diff -ru snap-before/sourcing__demo_sx18__tab__invitation&section__sales.txt snap-after/sourcing__demo_sx18__tab__invitation&section__sales.txt
+--- snap-before/sourcing__demo_sx18__tab__invitation&section__sales.txt	2026-10-02 01:33:52.191773508 +0000
++++ snap-after/sourcing__demo_sx18__tab__invitation&section__sales.txt	2026-10-02 01:34:24.899772760 +0000
+@@ -22,13 +22,14 @@
+ Record a sale
+ Extend the closing
+ Cancel exercise
+-Bids and evaluation run outside the portal in this phase
+-The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
++Opening and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, its window is recorded, and the envelopes received are registered on Bids received. Opening the bids and evaluation are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
+ Invitation
++Bids received
+ Award
+ Access
+ 0
+diff -ru snap-before/sourcing__demo_sx1__tab__scope&section__estimate.txt snap-after/sourcing__demo_sx1__tab__scope&section__estimate.txt
+--- snap-before/sourcing__demo_sx1__tab__scope&section__estimate.txt	2026-10-02 01:33:57.443773388 +0000
++++ snap-after/sourcing__demo_sx1__tab__scope&section__estimate.txt	2026-10-02 01:34:31.523772609 +0000
+@@ -19,13 +19,14 @@
+ •
+ Closes 29 Oct 2026 · 14:30
+ Cancel exercise
+-Bids and evaluation run outside the portal in this phase
+-The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
++Opening and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, its window is recorded, and the envelopes received are registered on Bids received. Opening the bids and evaluation are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
+ Invitation
++Bids received
+ Award
+ Access
+ 0
+diff -ru snap-before/sourcing__demo_sx20__tab__award.txt snap-after/sourcing__demo_sx20__tab__award.txt
+--- snap-before/sourcing__demo_sx20__tab__award.txt	2026-10-02 01:33:54.295773460 +0000
++++ snap-after/sourcing__demo_sx20__tab__award.txt	2026-10-02 01:34:27.587772699 +0000
+@@ -23,20 +23,25 @@
+ Cancel exercise
+ :
+ A published exercise is cancelled from the Invitation tab: it goes to approval with a reason and an answer on the fees.
+-Bids and evaluation run outside the portal in this phase
+-The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
++Opening and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, its window is recorded, and the envelopes received are registered on Bids received. Opening the bids and evaluation are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
+ Invitation
++Bids received
+ Award
+ Access
+ 0
+ History
+ 88
++The bids received hold the award back
++1 late envelope waits for the committee's decision on admission. Table each on the Bids received tab; it is decided at the sitting, either way.
++The award is not sent for approval or issued until then.
++Open Bids received
+ The award
+-An award is opened only once the invitation window has closed.
++The exercise is open for an award.
+ Not awarded yet
+ Record the awardee and the awarded value; the award is then sent for the appointment's approval.
+ Start the award
+diff -ru snap-before/sourcing__demo_sx20__tab__bids.txt snap-after/sourcing__demo_sx20__tab__bids.txt
+--- snap-before/sourcing__demo_sx20__tab__bids.txt	2026-10-02 01:33:55.403773435 +0000
++++ snap-after/sourcing__demo_sx20__tab__bids.txt	2026-10-02 01:34:29.067772665 +0000
+@@ -19,46 +19,199 @@
+ Tender
+ •
+ Closed 30 Sep 2026 · 15:00
++Record a receipt now
++Record a receipt after the event
++Record a withdrawal
++Record the box locked
+ Cancel exercise
+ Cancel exercise
+ :
+ A published exercise is cancelled from the Invitation tab: it goes to approval with a reason and an answer on the fees.
+-Bids and evaluation run outside the portal in this phase
+-The exercise is classified, its tender documents are prepared and approved, and its window is recorded here: the advertisement or invitation, the sale of the documents, briefings and addenda. Receiving and opening bids, and evaluation, are recorded outside the portal until those modules are built.
++Record a withdrawal
++:
++The closing has passed: a withdrawal is accepted only before it.
++Record the box locked
++:
++The box is already recorded as locked.
++Opening and evaluation run outside the portal in this phase
++The exercise is classified, its tender documents are prepared and approved, its window is recorded, and the envelopes received are registered on Bids received. Opening the bids and evaluation are recorded outside the portal until those modules are built.
+ Classification
+ Contract type
+ Scope and estimate
+ Tender documents
+ Invitation
++Bids received
+ Award
+ Access
+ 0
+ History
+ 88
+-Three band families
+-Determined 02 Oct 2026 under Demo limits, issue 1.
+-Requisition band
+-Requisition, above RM250,000
+-The rule the requisition was approved under.
+-Method band
+-Tender band
+-Proposed: Open tender.
+-Contract terms band
+-Not applicable
+-Not applicable: the terms bands on the approval matrix cover other bands, not this one.
+-Value
+-RM420,000
+-SULIT · not restricted until sign-in
+-Method and who approves the appointment
+-Open tender
+-Method
+-Open tender · as proposed
+-Approval of the appointment
+-Tender Board
+-Approve (A)
+-Tender, above RM300,000 · DEMO 4.2
+-Chain as entered, not checked against core routing: nobody has decided whether “Tender, above RM300,000” takes its chain from the core routing. Decide it on the rule in the approval matrix.
++The portal records envelopes, not offers
++Nothing priced is held before opening: no price, sum, period or document from a bid is entered here, and the box and its key remain the control. Bids are not submitted electronically: the electronic tender box arrives in Phase 3, with sign-in.
++Nobody signs in yet, so reading the register cannot be restricted, and officers are recorded on their behalf, not signed.
++No alert is sent: there is no delivery yet. Alerts are shown here.
++The company estimate is held plain in the database, never shown before opening; sealed storage arrives with the electronic tender box.
++Envelope register
++2 envelopes recorded by an officer: 1 in time, 1 late, 0 withdrawn. The box is counted at opening.
++All records
++All records
++In time
++Late
++Withdrawn
++Company estimate
++Envelope 1
++Company estimate
++Received
++21 Sep 2026 · 08:50:00
++In the tender box · Chen Wei Ling, recorded on their behalf, not signed
++Where it stands
++Server-stamped
++Markings as written
++Company estimate, copy 1 (version 1), sealed
++Envelope 2
++Bid
++Received
++29 Sep 2026 · 10:00:00
++Over the counter · Daniel Anak Jelani, recorded on their behalf, not signed
++Where it stands
++Server-stamped
++In time
++Markings as written
++Tender DEMO/SX/0020/2026, Clear water tank relining, closing 30 Sep 2026 3.00 pm
++Envelope 3
++Bid
++Received
++01 Oct 2026 · 09:15:00
++By post · Daniel Anak Jelani, recorded on their behalf, not signed
++Where it stands
++Server-stamped
++Late
++Not tabled
++Markings as written
++Tender DEMO/SX/0020/2026, Clear water tank relining, closing 30 Sep 2026 3.00 pm, by post
++Table for admission
++Envelope
++▲
++Received
++Where it stands
++Markings as written
++Actions
++Envelope 1
++Company estimate
++21 Sep 2026 · 08:50:00
++In the tender box · Chen Wei Ling, recorded on their behalf, not signed
++Server-stamped
++Company estimate, copy 1 (version 1), sealed
++Envelope 2
++Bid
++29 Sep 2026 · 10:00:00
++Over the counter · Daniel Anak Jelani, recorded on their behalf, not signed
++Server-stamped
++In time
++Tender DEMO/SX/0020/2026, Clear water tank relining, closing 30 Sep 2026 3.00 pm
++Envelope 3
++Bid
++01 Oct 2026 · 09:15:00
++By post · Daniel Anak Jelani, recorded on their behalf, not signed
++Server-stamped
++Late
++Not tabled
++Tender DEMO/SX/0020/2026, Clear water tank relining, closing 30 Sep 2026 3.00 pm, by post
++Table for admission
++Tender box
++The box, its lock and its key remain the control.
++Closing
++30 Sep 2026 · 15:00
++The box
++Locked
++Locked at 30 Sep 2026 · 15:06:00 by Chen Wei Ling, recorded on their behalf, not signed
++How lateness is judged
++Judged on the server's clock to the second: an envelope recorded in the closing second is in time; from the next second it is late. Fractions of a second are dropped.
++Assumed
++Bids counted so far
++Envelopes recorded by an officer. The box is counted at opening.
++In time
++1
++Late, counted apart
++1
++Alternatives
++0
++Withdrawn
++0
++Minimum the method expects
++Not set
++Competition
++Minimum not set
++The method's minimum number of bids is not set, so whether competition is adequate is not judged. Set it under Configuration › Invitation.
++Late envelopes
++Each is admitted or not by the Tender Board, as a matter at its sitting (assumed). Never deleted, rejected or set aside.
++1 late envelope waits for the committee's decision on admission. Table each on the Bids received tab; it is decided at the sitting, either way.
++An appointment is not tabled or cited, and the award is not sent or issued, until then.
++Envelope 3
++Recorded 01 Oct 2026 · 09:15:00 (server-stamped), judged against the closing 30 Sep 2026 · 15:00
++Not tabled
++Table for admission
++Bid validity
++Alerts at 30, 7 days before expiry
++Record an extension
++Valid for
++120 days from the closing day
++Assumed
++Valid until
++28 Jan 2027
++Valid
++How expiry is counted
++Counted from the closing day: a bid with N days' validity is valid to the end of the closing day plus N days.
++Assumed
++Alternative bids
++Alternatives not permitted: recorded, not considered
++Mandatory documents
++Checked against each bid at opening, never here. A missing document is reported, never a reason to refuse an envelope.
++From
++Version 1 of the tender documents, as approved
++An incomplete bid
++An incomplete bid is reported to the committee
++Assumed
++Notice of invitation to tender
++Form of tender
++Conditions of contract
++Appendix to the conditions of contract
++Specimen letter of acceptance
++Performance bond forms
++Specification
++Summary of tender and schedule of rates
++Bidder's registration and background form
++Bidder's declaration and letter of authorisation
++Drawings
++Instructions to tenderers
++@title: The closing has passed: a withdrawal is accepted only before it.
++@title: The box is already recorded as locked.
+ @title: A published exercise is cancelled from the Invitation tab: it goes to approval with a reason and an answer on the fees.
+ @aria-label: Exercise
+-@aria-label: Approve (A)
+-@title: Approve (A)
++@aria-label: View
++@placeholder: Search by envelope or markings
++@aria-label: Search this list
++@aria-label: Row density
++@aria-label: Comfortable rows
++@title: Comfortable rows
++@aria-label: Compact rows
++@title: Compact rows
++@aria-label: Download this view as CSV
++@title: Download this view as CSV
++@title: Server-stamped
++@title: Server-stamped
++@title: In time
++@title: Server-stamped
++@title: Late
++@title: Not tabled
++@title: Envelope
++@title: Server-stamped
++@title: Server-stamped
++@title: In time
++@title: Server-stamped
++@title: Late
++@title: Not tabled
++@title: A working default, awaiting sign-off
++@title: A working default, awaiting sign-off
++@title: A working default, awaiting sign-off
++@title: A working default, awaiting sign-off
