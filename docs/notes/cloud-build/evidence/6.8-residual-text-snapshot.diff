@@ -1,0 +1,872 @@
+diff -r /tmp/claude-0/-home-user-repo/6de2343b-e9fe-5a75-a894-1839dd1c9980/scratchpad/snap-after68fix/dashboard.txt /tmp/claude-0/-home-user-repo/6de2343b-e9fe-5a75-a894-1839dd1c9980/scratchpad/snap-final68/dashboard.txt
+2c2
+< Good afternoon
+---
+> Good evening
+35c35
+< Renewal of the security services contract
+---
+> Award of the head office cleaning contract
+42c42
+< RM520,000
+---
+> RM412,000
+47,49c47,49
+< 0 of 3 voted
+< Award of the head office cleaning contract
+< DEMO/SIT/4/2026
+---
+> 2 of 3 voted
+> Award of the pumping station refurbishment
+> DEMO/SX/0010/2026
+55c55
+< RM412,000
+---
+> RM1,240,000
+60,62c60,62
+< 2 of 3 voted
+< Award of the pumping station refurbishment
+< DEMO/SX/0010/2026
+---
+> 0 of 3 voted
+> Renewal of the security services contract
+> DEMO/SIT/4/2026
+68c68
+< RM1,240,000
+---
+> RM520,000
+125,131d124
+< Renewal of the security services contract
+< DEMO/SIT/4/2026
+< Appointment
+< RM520,000
+< 3d
+< Tender Board
+< 0 of 3 voted
+145a139,145
+> Renewal of the security services contract
+> DEMO/SIT/4/2026
+> Appointment
+> RM520,000
+> 3d
+> Tender Board
+> 0 of 3 voted
+290c290
+< @aria-label: Select Renewal of the security services contract DEMO/SIT/4/2026
+---
+> @aria-label: Select Award of the head office cleaning contract DEMO/SIT/4/2026
+295c295
+< @aria-label: Select Award of the head office cleaning contract DEMO/SIT/4/2026
+---
+> @aria-label: Select Award of the pumping station refurbishment DEMO/SX/0010/2026
+300c300
+< @aria-label: Select Award of the pumping station refurbishment DEMO/SX/0010/2026
+---
+> @aria-label: Select Renewal of the security services contract DEMO/SIT/4/2026
+326c326
+< @aria-label: Select Renewal of the security services contract DEMO/SIT/4/2026
+---
+> @aria-label: Select Award of the head office cleaning contract DEMO/SIT/4/2026
+330c330
+< @aria-label: Select Award of the head office cleaning contract DEMO/SIT/4/2026
+---
+> @aria-label: Select Award of the pumping station refurbishment DEMO/SX/0010/2026
+334c334
+< @aria-label: Select Award of the pumping station refurbishment DEMO/SX/0010/2026
+---
+> @aria-label: Select Renewal of the security services contract DEMO/SIT/4/2026
+diff -r /tmp/claude-0/-home-user-repo/6de2343b-e9fe-5a75-a894-1839dd1c9980/scratchpad/snap-after68fix/sourcing__demo_sx16__evaluation__proposal.txt /tmp/claude-0/-home-user-repo/6de2343b-e9fe-5a75-a894-1839dd1c9980/scratchpad/snap-final68/sourcing__demo_sx16__evaluation__proposal.txt
+4c4
+< Frozen 02 Oct 2026 · 15:49 from report DEMO/EVR/001/2026.
+---
+> Frozen 02 Oct 2026 · 16:19 from report DEMO/EVR/001/2026.
+diff -r /tmp/claude-0/-home-user-repo/6de2343b-e9fe-5a75-a894-1839dd1c9980/scratchpad/snap-after68fix/sourcing__demo_sx16__tab__bids&section__received.txt /tmp/claude-0/-home-user-repo/6de2343b-e9fe-5a75-a894-1839dd1c9980/scratchpad/snap-final68/sourcing__demo_sx16__tab__bids&section__received.txt
+244c244
+< Applied 02 Oct 2026 · 15:29
+---
+> Applied 02 Oct 2026 · 15:59
+diff -r /tmp/claude-0/-home-user-repo/6de2343b-e9fe-5a75-a894-1839dd1c9980/scratchpad/snap-after68fix/sourcing__demo_sx16__tab__evaluation&section__recommendation.txt /tmp/claude-0/-home-user-repo/6de2343b-e9fe-5a75-a894-1839dd1c9980/scratchpad/snap-final68/sourcing__demo_sx16__tab__evaluation&section__recommendation.txt
+111c111
+< Formed 02 Oct 2026 · 15:45 by Kumar Selvam, recorded on their behalf.
+---
+> Formed 02 Oct 2026 · 16:15 by Kumar Selvam, recorded on their behalf.
+diff -r /tmp/claude-0/-home-user-repo/6de2343b-e9fe-5a75-a894-1839dd1c9980/scratchpad/snap-after68fix/sourcing__demo_sx16__tab__evaluation&section__report.txt /tmp/claude-0/-home-user-repo/6de2343b-e9fe-5a75-a894-1839dd1c9980/scratchpad/snap-final68/sourcing__demo_sx16__tab__evaluation&section__report.txt
+48c48
+< Issued 02 Oct 2026 · 15:47 by Kumar Selvam. Frozen: a later version supersedes it, nothing edits it.
+---
+> Issued 02 Oct 2026 · 16:17 by Kumar Selvam. Frozen: a later version supersedes it, nothing edits it.
+57c57
+< Produced and frozen 02 Oct 2026 · 15:49.
+---
+> Produced and frozen 02 Oct 2026 · 16:19.
+diff -r /tmp/claude-0/-home-user-repo/6de2343b-e9fe-5a75-a894-1839dd1c9980/scratchpad/snap-after68fix/sourcing__demo_sx16__tab__evaluation&section__stages.txt /tmp/claude-0/-home-user-repo/6de2343b-e9fe-5a75-a894-1839dd1c9980/scratchpad/snap-final68/sourcing__demo_sx16__tab__evaluation&section__stages.txt
+49c49
+< Implementing department · pass mark 65.00% · Submitted 02 Oct 2026 · 15:29 by Mohd Rizal Ahmad
+---
+> Implementing department · pass mark 65.00% · Submitted 02 Oct 2026 · 15:59 by Mohd Rizal Ahmad
+159c159
+< Contract and procurement · pass mark 55.00% · Submitted 02 Oct 2026 · 15:35 by Kumar Selvam
+---
+> Contract and procurement · pass mark 55.00% · Submitted 02 Oct 2026 · 16:05 by Kumar Selvam
+277c277
+< Implementing department · Submitted 02 Oct 2026 · 15:41 by Mohd Rizal Ahmad
+---
+> Implementing department · Submitted 02 Oct 2026 · 16:11 by Mohd Rizal Ahmad
+347c347
+< Contract and procurement · pass mark 60.00% · Submitted 02 Oct 2026 · 15:43 by Kumar Selvam
+---
+> Contract and procurement · pass mark 60.00% · Submitted 02 Oct 2026 · 16:13 by Kumar Selvam
+diff -r /tmp/claude-0/-home-user-repo/6de2343b-e9fe-5a75-a894-1839dd1c9980/scratchpad/snap-after68fix/sourcing__demo_sx16__tab__history.txt /tmp/claude-0/-home-user-repo/6de2343b-e9fe-5a75-a894-1839dd1c9980/scratchpad/snap-final68/sourcing__demo_sx16__tab__history.txt
+151a152,160
+> Exercise
+> DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+> 02 Oct 2026
+> Status
+> :
+> Under evaluation
+> →
+> Evaluated
+> Changed
+179,188c188
+< 1 extension(s), from the recommended tenderer
+< Changed
+< Exercise
+< DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+< 02 Oct 2026
+< Status
+< :
+< Under evaluation
+< →
+< Evaluated
+---
+> the extension in force, from the recommended tenderer
+596c596
+< 02 Oct 2026 · 15:29
+---
+> 02 Oct 2026 · 15:59
+806a807,831
+> Changed
+> Exercise
+> DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+> 02 Oct 2026
+> Status
+> :
+> Opened
+> →
+> Under evaluation
+> Created
+> Evaluation team
+> DEMO/SX/0016/2026 · Evaluation, version 1 · Team
+> 02 Oct 2026
+> Member
+> :
+> Mohd Rizal Ahmad
+> Side
+> :
+> Implementing department
+> Unit
+> :
+> NTH-MNT
+> Appointed on
+> :
+> 02 Oct 2026
+822c847
+< 02 Oct 2026 · 15:24:43
+---
+> 02 Oct 2026 · 15:54:22
+832,840d856
+< Changed
+< Exercise
+< DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+< 02 Oct 2026
+< Status
+< :
+< Opened
+< →
+< Under evaluation
+858,873d873
+< Evaluation team
+< DEMO/SX/0016/2026 · Evaluation, version 1 · Team
+< 02 Oct 2026
+< Member
+< :
+< Mohd Rizal Ahmad
+< Side
+< :
+< Implementing department
+< Unit
+< :
+< NTH-MNT
+< Appointed on
+< :
+< 02 Oct 2026
+< Created
+982a983,992
+> Created
+> Signature on the schedule
+> DEMO/SX/0016/2026 · Supplementary opening 1
+> 01 Oct 2026
+> Signed by
+> :
+> Jamilah Ismail (recorded on their behalf, not signed)
+> Signed on
+> :
+> 01 Oct 2026
+997,1006d1006
+< Created
+< Signature on the schedule
+< DEMO/SX/0016/2026 · Supplementary opening 1
+< 01 Oct 2026
+< Signed by
+< :
+< Jamilah Ismail (recorded on their behalf, not signed)
+< Signed on
+< :
+< 01 Oct 2026
+1093,1105d1092
+< Contractor
+< DEMO/SX/0016/2026 · Party · Demo Paip Services
+< 01 Oct 2026
+< Party
+< :
+< Demo Paip Services
+< Registration no
+< :
+< 201501000104 (000104-D)
+< Came as
+< :
+< Named at opening, from its bid
+< Created
+1142a1130,1142
+> Created
+> Contractor
+> DEMO/SX/0016/2026 · Party · Demo Paip Services
+> 01 Oct 2026
+> Party
+> :
+> Demo Paip Services
+> Registration no
+> :
+> 201501000104 (000104-D)
+> Came as
+> :
+> Named at opening, from its bid
+1157,1165d1156
+< Changed
+< Opening
+< DEMO/SX/0016/2026 · Supplementary opening 1
+< 01 Oct 2026
+< Opened
+< :
+< —
+< →
+< 01 Oct 2026 · 16:31:30
+1181a1173,1181
+> Changed
+> Opening
+> DEMO/SX/0016/2026 · Supplementary opening 1
+> 01 Oct 2026
+> Opened
+> :
+> —
+> →
+> 01 Oct 2026 · 16:31:30
+1286a1287,1295
+> Exercise
+> DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+> 01 Oct 2026
+> Status
+> :
+> Opening in progress
+> →
+> Opened
+> Changed
+1333,1341d1341
+< Exercise
+< DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+< 01 Oct 2026
+< Status
+< :
+< Opening in progress
+< →
+< Opened
+< Changed
+1460a1461,1487
+> Contractor
+> DEMO/SX/0016/2026 · Party · Demo Network Builders Sdn Bhd
+> 01 Oct 2026
+> Party
+> :
+> Demo Network Builders Sdn Bhd
+> Registration no
+> :
+> DEMO-0007-X
+> Came as
+> :
+> Named at opening, from its bid
+> Changed
+> Record
+> DEMO/SX/0016/2026 · Envelope 4
+> 01 Oct 2026
+> Status
+> :
+> Received
+> →
+> Opened
+> Bidder
+> :
+> —
+> →
+> Demo Network Builders Sdn Bhd
+> Created
+1498,1524d1524
+< Created
+< Contractor
+< DEMO/SX/0016/2026 · Party · Demo Network Builders Sdn Bhd
+< 01 Oct 2026
+< Party
+< :
+< Demo Network Builders Sdn Bhd
+< Registration no
+< :
+< DEMO-0007-X
+< Came as
+< :
+< Named at opening, from its bid
+< Changed
+< Record
+< DEMO/SX/0016/2026 · Envelope 4
+< 01 Oct 2026
+< Status
+< :
+< Received
+< →
+< Opened
+< Bidder
+< :
+< —
+< →
+< Demo Network Builders Sdn Bhd
+1622a1623,1636
+> Changed
+> Record
+> DEMO/SX/0016/2026 · Envelope 3
+> 01 Oct 2026
+> Status
+> :
+> Received
+> →
+> Opened
+> Bidder
+> :
+> —
+> →
+> Rekaan Maju Construction
+1662,1675d1675
+< Record
+< DEMO/SX/0016/2026 · Envelope 3
+< 01 Oct 2026
+< Status
+< :
+< Received
+< →
+< Opened
+< Bidder
+< :
+< —
+< →
+< Rekaan Maju Construction
+< Changed
+1896a1897,1910
+> Changed
+> Record
+> DEMO/SX/0016/2026 · Envelope 1
+> 01 Oct 2026
+> Status
+> :
+> Received
+> →
+> Opened
+> Bidder
+> :
+> —
+> →
+> Contoh Bina Sdn Bhd
+1936,1937c1950,1951
+< Record
+< DEMO/SX/0016/2026 · Envelope 1
+---
+> Exercise
+> DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+1941c1955
+< Received
+---
+> Advertised
+1942a1957,1961
+> Opening in progress
+> Changed
+> Opening
+> DEMO/SX/0016/2026 · Opening
+> 01 Oct 2026
+1944d1962
+< Bidder
+1948c1966,1976
+< Contoh Bina Sdn Bhd
+---
+> 01 Oct 2026 · 15:11:40
+> Created
+> Record
+> DEMO/SX/0016/2026 · Tender box opened
+> 01 Oct 2026
+> Box opened
+> :
+> 01 Oct 2026 · 15:11:40
+> Opened by
+> :
+> Kumar Selvam (recorded on their behalf, not signed)
+1965,1992d1992
+< Changed
+< Exercise
+< DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+< 01 Oct 2026
+< Status
+< :
+< Advertised
+< →
+< Opening in progress
+< Created
+< Record
+< DEMO/SX/0016/2026 · Tender box opened
+< 01 Oct 2026
+< Box opened
+< :
+< 01 Oct 2026 · 15:11:40
+< Opened by
+< :
+< Kumar Selvam (recorded on their behalf, not signed)
+< Changed
+< Opening
+< DEMO/SX/0016/2026 · Opening
+< 01 Oct 2026
+< Opened
+< :
+< —
+< →
+< 01 Oct 2026 · 15:11:40
+2388,2403d2387
+< Attendance
+< DEMO/SX/0016/2026 · Tender briefing · Sampel Kejuruteraan Enterprise
+< 25 Sep 2026
+< Contractor
+< :
+< Sampel Kejuruteraan Enterprise
+< Representative
+< :
+< Lim Contoh
+< Recorded by
+< :
+< Daniel Anak Jelani
+< Recorded
+< :
+< not signed
+< Created
+2426a2411,2426
+> DEMO/SX/0016/2026 · Tender briefing · Sampel Kejuruteraan Enterprise
+> 25 Sep 2026
+> Contractor
+> :
+> Sampel Kejuruteraan Enterprise
+> Representative
+> :
+> Lim Contoh
+> Recorded by
+> :
+> Daniel Anak Jelani
+> Recorded
+> :
+> not signed
+> Created
+> Attendance
+2708a2709,2717
+> Approval for tendering
+> DEMO/SX/0016/2026 · approval for tendering
+> 24 Sep 2026
+> Status
+> :
+> Awaiting approval for tendering
+> →
+> Approved for tendering
+> Changed
+2728,2736d2736
+< Approval for tendering
+< DEMO/SX/0016/2026 · approval for tendering
+< 24 Sep 2026
+< Status
+< :
+< Awaiting approval for tendering
+< →
+< Approved for tendering
+< Changed
+2760,2797d2759
+< Changed
+< Exercise
+< DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+< 23 Sep 2026
+< Status
+< :
+< Documents in preparation
+< →
+< Awaiting approval for tendering
+< Changed
+< Tender documents
+< DEMO/SX/0016/2026 · Tender documents v1
+< 23 Sep 2026
+< Status
+< :
+< Closed
+< →
+< Closed
+< Proposed start
+< :
+< —
+< →
+< 24 Sep 2026
+< Proposed closing
+< :
+< —
+< →
+< 01 Oct 2026
+< Parts frozen
+< :
+< —
+< →
+< 5
+< Files pinned
+< :
+< —
+< →
+< 7
+2799,2800c2761,2762
+< Approval for tendering
+< DEMO/SX/0016/2026 · approval for tendering
+---
+> Frozen text
+> DEMO/SX/0016/2026 · Tender documents v1 · part 2
+2802,2808c2764
+< Matrix
+< :
+< Demo limits, issue 1
+< Rule
+< :
+< Approval for tendering, tender
+< Route
+---
+> Part
+2810,2811c2766,2767
+< Head of Contract & Procurement (approve)
+< Funding override applied
+---
+> 2. Form of tender
+> Frozen from
+2813,2814c2769,2770
+< No
+< If rejected
+---
+> Demo form of offer, text version 1
+> Language
+2816c2772
+< Returned for amendment
+---
+> English
+2819c2775
+< DEMO/SX/0016/2026 · Tender documents v1 · part 11
+---
+> DEMO/SX/0016/2026 · Tender documents v1 · part 3
+2823c2779
+< 11. Instructions to tenderers
+---
+> 3. Conditions of contract
+2826c2782
+< Demo instructions to bidders, text version 1
+---
+> Demo conditions of contract (drawings and specification), text version 1
+2845c2801
+< DEMO/SX/0016/2026 · Tender documents v1 · part 3
+---
+> DEMO/SX/0016/2026 · Tender documents v1 · part 11
+2849c2805
+< 3. Conditions of contract
+---
+> 11. Instructions to tenderers
+2852c2808
+< Demo conditions of contract (drawings and specification), text version 1
+---
+> Demo instructions to bidders, text version 1
+2857,2858c2813,2814
+< Frozen text
+< DEMO/SX/0016/2026 · Tender documents v1 · part 2
+---
+> Approval for tendering
+> DEMO/SX/0016/2026 · approval for tendering
+2860c2816
+< Part
+---
+> Matrix
+2862,2863c2818,2819
+< 2. Form of tender
+< Frozen from
+---
+> Demo limits, issue 1
+> Rule
+2865,2866c2821,2822
+< Demo form of offer, text version 1
+< Language
+---
+> Approval for tendering, tender
+> Route
+2868c2824,2868
+< English
+---
+> Head of Contract & Procurement (approve)
+> Funding override applied
+> :
+> No
+> If rejected
+> :
+> Returned for amendment
+> Changed
+> Tender documents
+> DEMO/SX/0016/2026 · Tender documents v1
+> 23 Sep 2026
+> Status
+> :
+> Closed
+> →
+> Closed
+> Proposed start
+> :
+> —
+> →
+> 24 Sep 2026
+> Proposed closing
+> :
+> —
+> →
+> 01 Oct 2026
+> Parts frozen
+> :
+> —
+> →
+> 5
+> Files pinned
+> :
+> —
+> →
+> 7
+> Changed
+> Exercise
+> DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+> 23 Sep 2026
+> Status
+> :
+> Documents in preparation
+> →
+> Awaiting approval for tendering
+2884c2884
+< DEMO/SX/0016/2026 · Tender documents v1 · part 11
+---
+> DEMO/SX/0016/2026 · Tender documents v1 · part 1
+2893c2893
+< DEMO/SX/0016/2026 · Tender documents v1 · part 10
+---
+> DEMO/SX/0016/2026 · Tender documents v1 · part 2
+2902c2902
+< DEMO/SX/0016/2026 · Tender documents v1 · part 9
+---
+> DEMO/SX/0016/2026 · Tender documents v1 · part 3
+2911c2911
+< DEMO/SX/0016/2026 · Tender documents v1 · part 8
+---
+> DEMO/SX/0016/2026 · Tender documents v1 · part 3a
+2920c2920
+< DEMO/SX/0016/2026 · Tender documents v1 · part 7b
+---
+> DEMO/SX/0016/2026 · Tender documents v1 · part 4
+2929c2929
+< DEMO/SX/0016/2026 · Tender documents v1 · part 6
+---
+> DEMO/SX/0016/2026 · Tender documents v1 · part 5
+2938c2938
+< DEMO/SX/0016/2026 · Tender documents v1 · part 5
+---
+> DEMO/SX/0016/2026 · Tender documents v1 · part 6
+2947c2947
+< DEMO/SX/0016/2026 · Tender documents v1 · part 4
+---
+> DEMO/SX/0016/2026 · Tender documents v1 · part 7b
+2956c2956
+< DEMO/SX/0016/2026 · Tender documents v1 · part 3a
+---
+> DEMO/SX/0016/2026 · Tender documents v1 · part 8
+2965c2965
+< DEMO/SX/0016/2026 · Tender documents v1 · part 3
+---
+> DEMO/SX/0016/2026 · Tender documents v1 · part 9
+2974c2974
+< DEMO/SX/0016/2026 · Tender documents v1 · part 2
+---
+> DEMO/SX/0016/2026 · Tender documents v1 · part 10
+2983c2983
+< DEMO/SX/0016/2026 · Tender documents v1 · part 1
+---
+> DEMO/SX/0016/2026 · Tender documents v1 · part 11
+3026,3034d3025
+< Restricted tender
+< :
+< Not set
+< →
+< No
+< Changed
+< Exercise
+< DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+< 23 Sep 2026
+3045,3047c3036,3038
+< Created
+< Record
+< DEMO/SX/0016/2026 · Registration required · the Demo Companies Registry
+---
+> Changed
+> Exercise
+> DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+3049,3052c3040
+< Registration body
+< :
+< the Demo Companies Registry
+< Alternative group
+---
+> Restricted tender
+3054c3042,3044
+< Group 1
+---
+> Not set
+> →
+> No
+3067a3058,3067
+> Created
+> Record
+> DEMO/SX/0016/2026 · Registration required · the Demo Companies Registry
+> 23 Sep 2026
+> Registration body
+> :
+> the Demo Companies Registry
+> Alternative group
+> :
+> Group 1
+3292c3292
+< DEMO/SX/0016/2026 · Tender documents v1 · part 4
+---
+> DEMO/SX/0016/2026 · Tender documents v1 · part 7b
+3296c3296
+< 4. Specimen letter of acceptance
+---
+> 7b. Summary of tender and schedule of rates
+3299c3299
+< Specimen letter of acceptance
+---
+> Summary of tender and schedule of rates
+3302c3302
+< Standard
+---
+> Bespoke
+3311c3311
+< No
+---
+> Yes
+3314c3314
+< No
+---
+> Yes
+3319,3320c3319,3320
+< Tender document part
+< DEMO/SX/0016/2026 · Tender documents v1 · part 3a
+---
+> Tender documents
+> DEMO/SX/0016/2026 · Tender documents v1
+3322,3331c3322
+< Part
+< :
+< 3a. Appendix to the conditions of contract
+< Role
+< :
+< Appendix to the conditions
+< Content
+< :
+< Bespoke
+< Source
+---
+> Version
+3333,3334c3324,3325
+< The Appendix entered here
+< Mandatory
+---
+> 1
+> Document pack
+3336,3337c3327,3328
+< Yes
+< In the tender table document
+---
+> Tender documents
+> Contract basis
+3339,3340c3330,3331
+< Yes
+< Returned by the bidder
+---
+> Drawings and specification
+> Standard form
+3342,3343c3333,3334
+< No
+< State
+---
+> Demo conditions of contract (drawings and specification)
+> Parts
+3345c3336
+< Not ready
+---
+> 12
+3348c3339
+< DEMO/SX/0016/2026 · Tender documents v1 · part 3
+---
+> DEMO/SX/0016/2026 · Tender documents v1 · part 1
+3352c3343
+< 3. Conditions of contract
+---
+> 1. Notice of invitation to tender
+3355c3346
+< Conditions of contract
+---
+> Invitation
+3367c3358
+< Yes
+---
+> No
+3376c3367
+< Demo conditions of contract (drawings and specification)
+---
+> Demo notice of invitation
+diff -r /tmp/claude-0/-home-user-repo/6de2343b-e9fe-5a75-a894-1839dd1c9980/scratchpad/snap-after68fix/sourcing__demo_sx21__tab__evaluation&section__stages.txt /tmp/claude-0/-home-user-repo/6de2343b-e9fe-5a75-a894-1839dd1c9980/scratchpad/snap-final68/sourcing__demo_sx21__tab__evaluation&section__stages.txt
+296c296
+< Not judged yet: bid No. 1 is not assessed on Completeness of the bid. bid No. 1 is not assessed on Price against the company estimate. bid No. 1 is not assessed on Completion period offered. bid No. 1 is not assessed on Capability to carry out the works.
+---
+> Not judged yet: No. 1 is not assessed on Completeness of the bid, Price against the company estimate, Completion period offered and Capability to carry out the works.
+305c305
+< Not judged yet: bid No. 2 is not assessed on Completeness of the bid. bid No. 2 is not assessed on Price against the company estimate. bid No. 2 is not assessed on Completion period offered. bid No. 2 is not assessed on Capability to carry out the works.
+---
+> Not judged yet: No. 2 is not assessed on Completeness of the bid, Price against the company estimate, Completion period offered and Capability to carry out the works.
+324c324
+< Not judged yet: bid No. 1 is not assessed on Completeness of the bid. bid No. 1 is not assessed on Price against the company estimate. bid No. 1 is not assessed on Completion period offered. bid No. 1 is not assessed on Capability to carry out the works.
+---
+> Not judged yet: No. 1 is not assessed on Completeness of the bid, Price against the company estimate, Completion period offered and Capability to carry out the works.
+329c329
+< Not judged yet: bid No. 2 is not assessed on Completeness of the bid. bid No. 2 is not assessed on Price against the company estimate. bid No. 2 is not assessed on Completion period offered. bid No. 2 is not assessed on Capability to carry out the works.
+---
+> Not judged yet: No. 2 is not assessed on Completeness of the bid, Price against the company estimate, Completion period offered and Capability to carry out the works.
