@@ -5,6 +5,7 @@ import { PrismaClient } from "../src/generated/prisma/client";
 
 import { checkAwards, loadAwards, loadAwardSetup, reportAwardRefusal, wipeAwards } from "./demo-award";
 import { checkContractsDemo, configureContractsDemo, loadContractsDemo } from "./demo-contracts";
+import { checkCertificatesDemo, configureCertificatesDemo, loadCertificatesDemo, wipeCertificatesConfig } from "./demo-certificates";
 import { loadDocuments, planDocumentWipe, reportDocumentRefusal, wipeDocuments } from "./demo-documents";
 import { checkScope, loadScope, loadScopeExercises, loadScopeSitting, SCOPE_ENTITIES, scopeWipeDependents, screenHoldingsOnDemo, wipeScope } from "./demo-scope";
 import { loadSittingTrail } from "./demo-sitting-trail";
@@ -520,6 +521,8 @@ async function wipe() {
   await db.budgetAllocation.deleteMany({ where: demo });
 
   await db.notificationRule.deleteMany({ where: demo });
+  // 6.14: the routing sheet types, checks, targets, blocks and recipients, once every certificate and award sheet has gone.
+  await wipeCertificatesConfig(db);
   await db.documentTemplate.deleteMany({ where: demo });
   // A demo class that a real document was filed under stays: documents are never removed.
   const keptClasses = await db.documentClass.findMany({ where: { ...demo, documents: { some: {} } }, select: { nameEn: true } });
@@ -1225,6 +1228,11 @@ async function load() {
   if (await configureContractsDemo(db, organisationId)) {
     await loadContractsDemo(db, organisationId);
     await checkContractsDemo(db);
+    // 6.14 increment 1: forms, routing sheet types and five certificates on demo_con3, each act judged by
+    // the product's own rules as it is written (X-10); demo_aw5's pre-award routing sheet.
+    await configureCertificatesDemo(db, organisationId);
+    await loadCertificatesDemo(db, organisationId);
+    await checkCertificatesDemo(db);
   }
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
