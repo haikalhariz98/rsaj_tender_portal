@@ -52,6 +52,9 @@ export interface PlanAttachment {
   /// 6.5: an addendum, which is the demo's when it is or its exercise is (an addendum goes with
   /// its exercise's window, `removedAddendumIds`).
   addendumId?: string | null;
+  /// 6.6: a withdrawal or a validity extension, which goes with its exercise (`removedBidRecordIds`).
+  bidWithdrawalId?: string | null;
+  validityExtensionId?: string | null;
 }
 
 export interface PlanDocument {
@@ -81,6 +84,8 @@ export interface WipeSide {
   removedPackPartIds?: ReadonlySet<string>;
   /// 6.5: addenda removed with their exercise's window.
   removedAddendumIds?: ReadonlySet<string>;
+  /// 6.6: withdrawals and validity extensions removed with their exercise.
+  removedBidRecordIds?: ReadonlySet<string>;
 }
 
 /**
@@ -120,7 +125,7 @@ export interface DocumentWipePlan {
 
 /// Whether an attachment's record is demo data or removed with it.
 export function onDemoSide(a: PlanAttachment, side: WipeSide): boolean {
-  const keys = [a.meetingId, a.exerciseId, a.awardId, a.delegationId, a.specificationPanelId ?? null, a.bqVersionId ?? null, a.tenderPackPartId ?? null, a.addendumId ?? null].filter((k): k is string => k != null);
+  const keys = [a.meetingId, a.exerciseId, a.awardId, a.delegationId, a.specificationPanelId ?? null, a.bqVersionId ?? null, a.tenderPackPartId ?? null, a.addendumId ?? null, a.bidWithdrawalId ?? null, a.validityExtensionId ?? null].filter((k): k is string => k != null);
   // An attachment has exactly one owner (a CHECK); a row with none is never the demo's.
   if (keys.length === 0) return false;
   return keys.every(
@@ -133,7 +138,8 @@ export function onDemoSide(a: PlanAttachment, side: WipeSide): boolean {
       (a.specificationPanelId === k && (side.removedPanelIds?.has(k) ?? false)) ||
       (a.bqVersionId === k && (side.removedBqVersionIds?.has(k) ?? false)) ||
       (a.tenderPackPartId === k && (side.removedPackPartIds?.has(k) ?? false)) ||
-      (a.addendumId === k && (side.removedAddendumIds?.has(k) ?? false)),
+      (a.addendumId === k && (side.removedAddendumIds?.has(k) ?? false)) ||
+      ((a.bidWithdrawalId === k || a.validityExtensionId === k) && (side.removedBidRecordIds?.has(k) ?? false)),
   );
 }
 

@@ -72,6 +72,8 @@ export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
   COORDINATION_SCOPE: "Coordination meeting scope document",
   PUBLICATION_PROOF: "Proof of publication",
   ATTENDANCE_SHEET: "Signed attendance sheet",
+  WITHDRAWAL_LETTER: "Bidder's withdrawal letter",
+  VALIDITY_CONSENT: "Tenderer's consent to extend validity",
   HOLDER_RECOMMENDATION: "Absent holder's signed recommendation",
   SIGNED_LETTER: "Signed letter of acceptance",
   DECLARATION: "Signed successful bidder declaration",
@@ -147,6 +149,7 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
   WINDOW_NOT_PUBLISHED: "An attendance sheet is attached once the exercise is advertised or invited and the event is held.",
   ADDENDUM_ISSUED: "The addendum is issued on this signed copy and stands as issued. A further change is another addendum.",
   ADDENDUM_VOID: "The addendum was voided before it was issued, so nothing more is attached to it.",
+  EXTENSION_APPLIED: "The extension was applied on this consent and stands as applied. A further extension is recorded as another one.",
 };
 
 const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {
@@ -154,6 +157,7 @@ const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {
   GRANTED_ON_IT: "The delegation stands on this recommendation, so it is not taken off. To correct it, attach a new version, with the reason.",
   VERIFIED_ON_IT: "The specification panel was verified on this scan, so it is not taken off. To correct it, attach a new version, with the reason. Nobody verified the panel on the new version, so the panel then needs to be verified again.",
   IMPORTED_FROM_IT: "Lines of the bill were imported from this file, so it is not taken off. To correct the bill, import the corrected file into the draft, replacing its lines: the new file then takes this one's place.",
+  WITHDRAWN_ON_IT: "The withdrawal was recorded on this letter, so it is not taken off. To correct it, attach a new version, with the reason.",
 };
 
 export const DOWNLOAD_REFUSAL_TEXT: Readonly<Record<DownloadRefusal, string>> = {

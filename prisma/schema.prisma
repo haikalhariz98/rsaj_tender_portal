@@ -286,6 +286,10 @@ model Organisation {
   addenda               Addendum[]
   addendumRecipients    AddendumRecipient[]
   windowNotices         WindowNotice[]
+  bidEnvelopes          BidEnvelope[]
+  bidWithdrawals        BidWithdrawal[]
+  boxEvents             BoxEvent[]
+  validityExtensions    ValidityExtension[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -367,6 +371,10 @@ model Person {
   publicationsRecorded     PublicationRecord[]      @relation("PublicationRecordedBy")
   documentSalesIssued      DocumentSale[]           @relation("SaleIssuedBy")
   attendanceRecorded       SiteEventAttendance[]    @relation("AttendanceRecordedBy")
+  envelopesReceived        BidEnvelope[]            @relation("EnvelopeReceivedBy")
+  withdrawalsReceived      BidWithdrawal[]          @relation("WithdrawalReceivedBy")
+  boxEventsRecorded        BoxEvent[]               @relation("BoxEventBy")
+  extensionsRecorded       ValidityExtension[]      @relation("ExtensionRecordedBy")
 
   @@unique([organisationId, staffNo])
   @@index([organisationId, name])
@@ -789,6 +797,10 @@ model CommitteeDecision {
   /// FR-REQ-014): a typed key, set only on a SCOPE matter (CHECK in the migration).
   bqVersionId String?
   bqVersion   BqVersion?       @relation(fields: [bqVersionId], references: [id], onDelete: SetNull)
+  /// The late envelope a LATE_TENDER matter decides admission of (6.6 FR-CTE-008): a typed key,
+  /// set only on a LATE_TENDER matter (CHECK in the migration). CARRIED admits it, NOT_CARRIED does not.
+  bidEnvelopeId String?
+  bidEnvelope   BidEnvelope?     @relation(fields: [bidEnvelopeId], references: [id], onDelete: SetNull)
 
   /// Withdrawn from the agenda before the sitting opened (6.10 follow-up). The row is
   /// kept, and the matter is left out of the votes, the quorum and the minuting.
@@ -836,6 +848,7 @@ model CommitteeDecision {
   @@index([exerciseId])
   @@index([requisitionGateId])
   @@index([bqVersionId])
+  @@index([bidEnvelopeId])
 }
 
 /// A member standing aside from one matter. Excluded from that matter's vote and
@@ -1840,6 +1853,18 @@ model SourcingMethod {
   /// set, and the move into preparation blocks naming it. NONE: no pack (a direct appointment).
   documentPackKind                  PackKind?
   documentPackKindProvenance        Provenance?
+  /// 6.6 (OD-5, D9, R11): the committee (Committee.code) that decides whether a late envelope is
+  /// admitted. Null: not set, and tabling an admission, and the award where a late envelope
+  /// exists, are refused naming it. Never read as "reject".
+  lateAdmissionCommitteeCode        String?
+  lateAdmissionProvenance           Provenance?
+  /// 6.6 (FR-BID-011, B7): the fewest bids the method expects. Null: not set, never "met".
+  minimumBids                       Int?
+  minimumBidsProvenance             Provenance?
+  /// 6.6 (FR-BID-007, OD-8, R12, D10): whether an incomplete bid is eliminated (true) or reported
+  /// to the committee (false). Null: not set, and 6.7 cannot finalise an opening.
+  completenessEliminates            Boolean?
+  completenessProvenance            Provenance?
   /// The numbering series (NumberingSeries.key) a dossier reference is issued from.
   dossierSeriesKey String?
 
@@ -2765,6 +2790,11 @@ model SourcingExercise {
   /// 6.5: the invitation window and the parties on the exercise.
   window  ExerciseWindow?
   parties ExerciseParty[]
+  /// 6.6: the envelope register, its withdrawals, the box's custody acts and validity extensions.
+  bidEnvelopes       BidEnvelope[]
+  bidWithdrawals     BidWithdrawal[]
+  boxEvents          BoxEvent[]
+  validityExtensions ValidityExtension[]
 
   @@unique([organisationId, reference])
   @@unique([organisationId, dossierReference])
@@ -3560,6 +3590,10 @@ enum AttachmentPurpose {
   PUBLICATION_PROOF
   /// 6.5: a briefing's or site visit's signed attendance sheet, on the exercise (FR-ADV-013).
   ATTENDANCE_SHEET
+  /// 6.6 (FR-BID-004, X-11): a bidder's withdrawal letter, on its withdrawal record. SULIT.
+  WITHDRAWAL_LETTER
+  /// 6.6 (FR-BID-010): the recommended tenderer's written consent to extend its bid's validity, on the extension.
+  VALIDITY_CONSENT
   HOLDER_RECOMMENDATION
   SIGNED_LETTER
   DECLARATION
@@ -3704,6 +3738,12 @@ model DocumentAttachment {
   /// 6.5: an addendum, for its signed copy (FR-ADV-014).
   addendumId           String?
   addendum             Addendum?           @relation(fields: [addendumId], references: [id], onDelete: Restrict)
+  /// 6.6 (X-6, X-11): a bid withdrawal, for its letter.
+  bidWithdrawalId      String?
+  bidWithdrawal        BidWithdrawal?      @relation(fields: [bidWithdrawalId], references: [id], onDelete: Restrict)
+  /// 6.6 (X-6, FR-BID-010): a validity extension, for the tenderer's consent.
+  validityExtensionId  String?
+  validityExtension    ValidityExtension?  @relation(fields: [validityExtensionId], references: [id], onDelete: Restrict)
 
   attachedAt   DateTime  @default(now())
   detachedAt   DateTime?
@@ -3717,6 +3757,8 @@ model DocumentAttachment {
   @@index([bqVersionId])
   @@index([tenderPackPartId])
   @@index([addendumId])
+  @@index([bidWithdrawalId])
+  @@index([validityExtensionId])
   @@index([versionId])
 }
 
@@ -4898,6 +4940,12 @@ model ExerciseWindow {
   feeAmount         Decimal?  @db.Decimal(18, 2)
   feePaymentMethods String    @default("")
   submissionPlace   String    @default("")
+  /// 6.6 (FR-BID-009): the days a bid stays valid from the closing day, as the tender documents
+  /// state it. No default: null is not set, warned on the window and blocking the award.
+  bidValidityDays       Int?
+  bidValidityProvenance Provenance?
+  /// 6.6 (FR-BID-006): whether the documents permit alternative bids. Null: not stated.
+  alternativesPermitted Boolean?
 
   /// Derived at publication from the publication records (OD-3) or the invitation day, then kept.
   advertisementDay DateTime?
@@ -5040,6 +5088,9 @@ model ExerciseParty {
   attendance       SiteEventAttendance[]
   addendumCopies   AddendumRecipient[]
   notices          WindowNotice[]
+  /// 6.6: written only by 6.7's opening (OD-2): a register names no bidder before opening.
+  envelopes        BidEnvelope[]
+  consents         ValidityExtension[]
 
   @@unique([exerciseId, registrationNo])
 }
@@ -5237,4 +5288,176 @@ model WindowNotice {
 
   @@unique([closingChangeId, partyId])
   @@unique([cancellationId, partyId])
+}
+
+// ------------------------------------------------------------------ 6.6 bid receipt
+
+/// What an envelope in the register is (6.6). Closed product vocabulary.
+enum EnvelopeKind {
+  BID
+  /// Marked on the envelope as an alternative bid (FR-BID-006); may name its parent envelope.
+  ALTERNATIVE
+  /// The implementing department's company estimate, copy 1, lodged into the box (6.2). Never a bid.
+  COMPANY_ESTIMATE
+}
+
+/// How an envelope reached the organisation.
+enum EnvelopeChannel {
+  COUNTER
+  POST
+  COURIER
+  /// In the tender box. A bid's BOX envelope is registered only by 6.7 at opening (OD-4); the
+  /// company estimate's lodgement goes into the box and is recorded at lodgement.
+  BOX
+}
+
+/// Where the received instant came from (OD-3 amended): the server's clock when the officer recorded
+/// the receipt, or that stamp with the officer's stated time of an earlier receipt beside it.
+enum ReceiptSource {
+  SERVER
+  ENTERED
+}
+
+enum EnvelopeStatus {
+  RECEIVED
+  WITHDRAWN
+}
+
+/// The tender box's custody acts. Append-only.
+enum BoxEventKind {
+  LOCKED
+  /// Written by 6.7 when the box is opened at the opening.
+  UNLOCKED_FOR_OPENING
+}
+
+/// One envelope in the register (FR-BID-001 paper register, ADR 0016). It records the envelope,
+/// never the offer: there is no price, sum, period, score or document-content column, and nothing
+/// edits it but a clerical correction of its markings, channel or receiving officer before closing.
+/// `receivedAt`, `sequence`, `late` and `kind` are never corrected. A late one is never deleted,
+/// rejected or set aside: its admission is a committee's decision (LATE_TENDER).
+model BidEnvelope {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId     String
+  exercise       SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  /// Receipt order on the exercise, allocated under the exercise's lock.
+  sequence Int
+  kind     EnvelopeKind
+  channel  EnvelopeChannel
+  /// The server's clock when the receipt was recorded, to the second (FR-BID-002). It alone
+  /// decides lateness (OD-3 amended).
+  receivedAt     DateTime
+  receivedSource ReceiptSource
+  /// ENTERED: the time the officer states it was received, with the reason. Shown, never judged.
+  statedReceivedAt DateTime?
+  entryReason      String    @default("")
+  recordedAt       DateTime  @default(now())
+  receivedByPersonId String
+  receivedBy         Person   @relation("EnvelopeReceivedBy", fields: [receivedByPersonId], references: [id], onDelete: Restrict)
+  /// The markings as written on the envelope.
+  markings String
+  /// The bidder, named only by 6.7's opening (OD-2): null before it.
+  partyId String?
+  party   ExerciseParty? @relation(fields: [partyId], references: [id], onDelete: Restrict)
+  /// FR-BID-003: received after the closing, judged to the second against `closingAtJudged`.
+  late                 Boolean
+  /// The closing it was judged against, as it stood. Null only for a company estimate lodged
+  /// before any closing was set (CHECK in the migration).
+  closingAtJudged      DateTime?
+  recordedAfterClosing Boolean
+  /// An alternative's parent envelope, where its markings name one.
+  parentEnvelopeId String?
+  parentEnvelope   BidEnvelope?  @relation("EnvelopeParent", fields: [parentEnvelopeId], references: [id], onDelete: Restrict)
+  alternatives     BidEnvelope[] @relation("EnvelopeParent")
+  status           EnvelopeStatus @default(RECEIVED)
+  /// The day a withdrawn envelope was handed back unopened; null while held unopened.
+  returnedUnopenedOn DateTime?
+  returnNote         String    @default("")
+  correctedAt        DateTime?
+  createdAt          DateTime  @default(now())
+
+  withdrawal      BidWithdrawal?
+  admissionMatters CommitteeDecision[]
+
+  @@unique([exerciseId, sequence])
+  @@index([organisationId])
+}
+
+/// A bidder's withdrawal (FR-BID-004, X-11): its own record, the letter attached (SULIT), stamped by
+/// the server when recorded, and refused after the closing. `envelopeId` names the envelope where it
+/// was received over the counter or by post; one in the box is matched by 6.7 at opening, which
+/// refuses to open it.
+model BidWithdrawal {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId     String
+  exercise       SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  /// The server's clock when the letter was recorded.
+  receivedAt         DateTime
+  recordedAt         DateTime  @default(now())
+  receivedByPersonId String
+  receivedBy         Person    @relation("WithdrawalReceivedBy", fields: [receivedByPersonId], references: [id], onDelete: Restrict)
+  /// How the letter identifies the envelope, quoted.
+  markings           String
+  closingAtJudged    DateTime
+  envelopeId         String?      @unique
+  envelope           BidEnvelope? @relation(fields: [envelopeId], references: [id], onDelete: Restrict)
+  createdAt          DateTime     @default(now())
+
+  attachments DocumentAttachment[]
+
+  @@index([exerciseId])
+}
+
+/// The tender box's custody acts (6.6): locked at the closing by a named officer. Append-only. The
+/// box, its lock and its key remain the control; the portal records the acts, it does not enforce them.
+model BoxEvent {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId     String
+  exercise       SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  kind           BoxEventKind
+  /// The server's clock when it was recorded.
+  occurredAt     DateTime
+  recordedAt     DateTime         @default(now())
+  personId       String
+  person         Person           @relation("BoxEventBy", fields: [personId], references: [id], onDelete: Restrict)
+  note           String           @default("")
+
+  @@index([exerciseId])
+}
+
+/// An extension of the bids' validity (FR-BID-010), on the recommended tenderer's written consent
+/// (attached, purpose VALIDITY_CONSENT). Append-only; the latest applied extension governs. Before
+/// 6.8 the officer names the recommended tenderer, attested and not yet checked against an
+/// evaluation (OD-7).
+model ValidityExtension {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId     String
+  exercise       SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  /// The expiry it moves from and to (days).
+  fromExpiry        DateTime
+  toExpiry          DateTime
+  reason            String
+  consentPartyId    String
+  consentParty      ExerciseParty @relation(fields: [consentPartyId], references: [id], onDelete: Restrict)
+  /// The day the consent was received.
+  consentReceivedOn DateTime
+  recordedByPersonId String
+  recordedBy         Person    @relation("ExtensionRecordedBy", fields: [recordedByPersonId], references: [id], onDelete: Restrict)
+  recordedAt         DateTime  @default(now())
+  /// Set when it is applied, once the consent is attached.
+  appliedAt          DateTime?
+  createdAt          DateTime  @default(now())
+
+  attachments DocumentAttachment[]
+
+  @@index([exerciseId])
 }

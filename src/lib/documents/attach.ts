@@ -57,7 +57,11 @@ export type OwnerFacts =
   /// content is uploaded (source UPLOAD) keeps a file.
   | { kind: "tenderPackPart"; exerciseStatus: ExerciseStatus; packStatus: TenderPackStatus; source: PartSource }
   /// 6.5: an addendum, judged with its exercise's status. Its signed copy changes only while it is a draft.
-  | { kind: "addendum"; exerciseStatus: ExerciseStatus; status: "DRAFT" | "ISSUED" | "VOID" };
+  | { kind: "addendum"; exerciseStatus: ExerciseStatus; status: "DRAFT" | "ISSUED" | "VOID" }
+  /// 6.6 (X-11): a bid withdrawal, judged with its exercise's status. Its letter may follow the record.
+  | { kind: "bidWithdrawal"; exerciseStatus: ExerciseStatus }
+  /// 6.6 (FR-BID-010): a validity extension, judged with its exercise's status. Applied, it stands on its consent.
+  | { kind: "validityExtension"; exerciseStatus: ExerciseStatus; applied: boolean };
 
 /// Whether an exercise's status freezes what it (and its panel and bill) holds. Exhaustive
 /// (X-8): a status added to ExerciseStatus fails to compile here until it is decided.
@@ -130,7 +134,8 @@ export type OwnerExit =
   | "NOT_APPROVED_FOR_TENDERING"
   | "WINDOW_NOT_PUBLISHED"
   | "ADDENDUM_ISSUED"
-  | "ADDENDUM_VOID";
+  | "ADDENDUM_VOID"
+  | "EXTENSION_APPLIED";
 
 export type AttachFault =
   | "PURPOSE_NOT_FOR_OWNER"
@@ -204,6 +209,13 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): { sta
       if (exerciseFrozen(owner.exerciseStatus)) return { state: "FROZEN", exit: "EXERCISE_CANCELLED" };
       if (owner.status === "DRAFT") return { state: "OPEN" };
       return { state: "FROZEN", exit: owner.status === "ISSUED" ? "ADDENDUM_ISSUED" : "ADDENDUM_VOID" };
+    case "bidWithdrawal":
+      // 6.6: the letter is kept with the withdrawal it records, whenever its scan arrives.
+      return exerciseFrozen(owner.exerciseStatus) ? { state: "FROZEN", exit: "EXERCISE_CANCELLED" } : { state: "OPEN" };
+    case "validityExtension":
+      // 6.6: an applied extension stands on the consent it was applied on.
+      if (exerciseFrozen(owner.exerciseStatus)) return { state: "FROZEN", exit: "EXERCISE_CANCELLED" };
+      return owner.applied ? { state: "FROZEN", exit: "EXTENSION_APPLIED" } : { state: "OPEN" };
   }
 }
 
@@ -250,7 +262,9 @@ export type Reliance =
   /// 6.2 Q-1: a verified specification panel standing on its signed form's scan, its last live one.
   | "VERIFIED_ON_IT"
   /// 6.2 Q-3: a bill's lines were imported from this file.
-  | "IMPORTED_FROM_IT";
+  | "IMPORTED_FROM_IT"
+  /// 6.6 (X-11): a withdrawal recorded on this letter, its last live one.
+  | "WITHDRAWN_ON_IT";
 
 export type DetachFault = "REASON_REQUIRED" | "RELIED_ON" | "OWNER_FROZEN" | "ALREADY_DETACHED";
 
@@ -300,6 +314,8 @@ export function reliedOn(purpose: AttachmentPurpose, owner: OwnerFacts, liveOfPu
   // OD-6: a delegation stands on its attached recommendation; the last live one is
   // replaced by a new version, never simply taken off.
   if (owner.kind === "delegation") return purpose === "HOLDER_RECOMMENDATION" ? "GRANTED_ON_IT" : null;
+  // 6.6: a withdrawal is recorded on its letter; the last live one is replaced by a new version.
+  if (owner.kind === "bidWithdrawal") return purpose === "WITHDRAWAL_LETTER" ? "WITHDRAWN_ON_IT" : null;
   return null;
 }
 

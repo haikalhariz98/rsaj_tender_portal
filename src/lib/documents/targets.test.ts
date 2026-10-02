@@ -97,6 +97,7 @@ describe("attachableVersion", () => {
 describe("the kinds offered for a received document", () => {
   it("are every owner kind but the bill version, whose only purpose its import attaches", () => {
     // 6.5 (faithful update, flagged): an addendum's signed copy is attached from the shared choice too.
-    expect(ATTACHABLE_OWNER_KINDS).toEqual(["meeting", "exercise", "award", "delegation", "specificationPanel", "tenderPackPart", "addendum"]);
+    // 6.6 (faithful update, flagged): so are a withdrawal's letter and an extension's consent.
+    expect(ATTACHABLE_OWNER_KINDS).toEqual(["meeting", "exercise", "award", "delegation", "specificationPanel", "tenderPackPart", "addendum", "bidWithdrawal", "validityExtension"]);
   });
 });

@@ -304,8 +304,16 @@ export async function planDocumentWipe(db: Db, organisationId: string, removed: 
   const removedPackPartIds = (await db.tenderPackPart.findMany({ where: { organisationId, NOT: { id: demoRef }, pack: { OR: [{ exerciseId: demoRef }, { exerciseId: { in: removed.exerciseIds } }] } }, select: { id: true } })).map((p) => p.id);
   // 6.5: an addendum goes with its exercise's window in the same way.
   const removedAddendumIds = (await db.addendum.findMany({ where: { organisationId, NOT: { id: demoRef }, window: { OR: [{ exerciseId: demoRef }, { exerciseId: { in: removed.exerciseIds } }] } }, select: { id: true } })).map((a) => a.id);
+  // 6.6: a withdrawal or a validity extension goes with its exercise in the same way.
+  const onRemovedExercise = { organisationId, NOT: { id: demoRef }, OR: [{ exerciseId: demoRef }, { exerciseId: { in: removed.exerciseIds } }] };
+  const removedBidRecordIds = [
+    ...(await db.bidWithdrawal.findMany({ where: onRemovedExercise, select: { id: true } })).map((w) => w.id),
+    ...(await db.validityExtension.findMany({ where: onRemovedExercise, select: { id: true } })).map((x) => x.id),
+  ];
   const onDemoSideOwner = {
     OR: [
+      { bidWithdrawalId: demoRef }, { bidWithdrawalId: { in: removedBidRecordIds } },
+      { validityExtensionId: demoRef }, { validityExtensionId: { in: removedBidRecordIds } },
       { tenderPackPartId: demoRef }, { tenderPackPartId: { in: removedPackPartIds } },
       { addendumId: demoRef }, { addendumId: { in: removedAddendumIds } },
       { specificationPanelId: demoRef }, { specificationPanelId: { in: removedPanelIds } },
@@ -328,7 +336,7 @@ export async function planDocumentWipe(db: Db, organisationId: string, removed: 
     orderBy: { id: "asc" },
     select: {
       id: true, title: true,
-      versions: { select: { id: true, sha256: true, recordedByPersonId: true, attachments: { select: { id: true, purpose: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true, bqVersionId: true, tenderPackPartId: true, addendumId: true } } } },
+      versions: { select: { id: true, sha256: true, recordedByPersonId: true, attachments: { select: { id: true, purpose: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true, bqVersionId: true, tenderPackPartId: true, addendumId: true, bidWithdrawalId: true, validityExtensionId: true } } } },
       holds: { select: { id: true, placedByPersonId: true, releasedByPersonId: true } },
     },
   });
@@ -340,7 +348,7 @@ export async function planDocumentWipe(db: Db, organisationId: string, removed: 
     versions: d.versions.map((v) => ({ id: v.id, sha256: v.sha256, attachments: v.attachments.map((a) => ({ ...a, purpose: a.purpose as AttachmentPurpose })) })),
     holds: d.holds.map((h) => ({ id: h.id })),
   }));
-  return documentWipePlan(docs, { isDemo: (id) => id.startsWith(P), removedExerciseIds: new Set(removed.exerciseIds), removedAwardIds: new Set(removed.awardIds), removedMeetingIds: new Set(removed.meetingIds), removedDelegationIds: new Set(removed.delegationIds), removedPanelIds: new Set(removedPanelIds), removedBqVersionIds: new Set(removedBqVersionIds), removedPackPartIds: new Set(removedPackPartIds), removedAddendumIds: new Set(removedAddendumIds) }, removeDependents);
+  return documentWipePlan(docs, { isDemo: (id) => id.startsWith(P), removedExerciseIds: new Set(removed.exerciseIds), removedAwardIds: new Set(removed.awardIds), removedMeetingIds: new Set(removed.meetingIds), removedDelegationIds: new Set(removed.delegationIds), removedPanelIds: new Set(removedPanelIds), removedBqVersionIds: new Set(removedBqVersionIds), removedPackPartIds: new Set(removedPackPartIds), removedAddendumIds: new Set(removedAddendumIds), removedBidRecordIds: new Set(removedBidRecordIds) }, removeDependents);
 }
 
 const LINE_TEXT = (l: PlanLine) => {

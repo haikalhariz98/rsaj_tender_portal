@@ -30,6 +30,8 @@ export type AttachmentPurpose =
   | "COORDINATION_SCOPE"
   | "PUBLICATION_PROOF"
   | "ATTENDANCE_SHEET"
+  | "WITHDRAWAL_LETTER"
+  | "VALIDITY_CONSENT"
   | "HOLDER_RECOMMENDATION"
   | "SIGNED_LETTER"
   | "DECLARATION"
@@ -46,6 +48,8 @@ export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
   "COORDINATION_SCOPE",
   "PUBLICATION_PROOF",
   "ATTENDANCE_SHEET",
+  "WITHDRAWAL_LETTER",
+  "VALIDITY_CONSENT",
   "HOLDER_RECOMMENDATION",
   "SIGNED_LETTER",
   "DECLARATION",
@@ -55,8 +59,8 @@ export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
 
 /// The owners a document can be attached to. New owners arrive by migration with their
 /// module (MatterKind precedent); each is a typed key on DocumentAttachment.
-export type OwnerKind = "meeting" | "exercise" | "award" | "delegation" | "specificationPanel" | "bqVersion" | "tenderPackPart" | "addendum";
-export const OWNER_KINDS: readonly OwnerKind[] = ["meeting", "exercise", "award", "delegation", "specificationPanel", "bqVersion", "tenderPackPart", "addendum"];
+export type OwnerKind = "meeting" | "exercise" | "award" | "delegation" | "specificationPanel" | "bqVersion" | "tenderPackPart" | "addendum" | "bidWithdrawal" | "validityExtension";
+export const OWNER_KINDS: readonly OwnerKind[] = ["meeting", "exercise", "award", "delegation", "specificationPanel", "bqVersion", "tenderPackPart", "addendum", "bidWithdrawal", "validityExtension"];
 
 /// Which owner each purpose belongs to. The migration's CHECK says the same.
 export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
@@ -69,6 +73,8 @@ export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
   COORDINATION_SCOPE: "exercise",
   PUBLICATION_PROOF: "exercise",
   ATTENDANCE_SHEET: "exercise",
+  WITHDRAWAL_LETTER: "bidWithdrawal",
+  VALIDITY_CONSENT: "validityExtension",
   HOLDER_RECOMMENDATION: "delegation",
   SIGNED_LETTER: "award",
   DECLARATION: "award",
@@ -77,7 +83,7 @@ export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
 };
 
 /// The column on DocumentAttachment that names each owner.
-export type OwnerColumn = "meetingId" | "exerciseId" | "awardId" | "delegationId" | "specificationPanelId" | "bqVersionId" | "tenderPackPartId" | "addendumId";
+export type OwnerColumn = "meetingId" | "exerciseId" | "awardId" | "delegationId" | "specificationPanelId" | "bqVersionId" | "tenderPackPartId" | "addendumId" | "bidWithdrawalId" | "validityExtensionId";
 export const OWNER_COLUMN: Readonly<Record<OwnerKind, OwnerColumn>> = {
   meeting: "meetingId",
   exercise: "exerciseId",
@@ -87,6 +93,8 @@ export const OWNER_COLUMN: Readonly<Record<OwnerKind, OwnerColumn>> = {
   bqVersion: "bqVersionId",
   tenderPackPart: "tenderPackPartId",
   addendum: "addendumId",
+  bidWithdrawal: "bidWithdrawalId",
+  validityExtension: "validityExtensionId",
 };
 
 /// Purposes attached only by their owner's own act, never from the shared attach choice: a
@@ -98,6 +106,8 @@ export const OWNER_ACT_PURPOSES: readonly AttachmentPurpose[] = ["BQ_IMPORT_SOUR
 /// specification panel form is SULIT). A purpose not listed takes any classification.
 export const PURPOSE_CLASSIFICATION: Readonly<Partial<Record<AttachmentPurpose, SecurityClass>>> = {
   SPEC_PANEL_FORM: "SULIT",
+  // 6.6 conditions: a bidder's withdrawal letter identifies a bid before opening.
+  WITHDRAWAL_LETTER: "SULIT",
 };
 
 /// The types the product can tell from a file's own bytes. Office files and ZIP are not
