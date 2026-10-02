@@ -5,7 +5,8 @@
  *
  * The reading (ASSUMED, shown on the tab): an envelope recorded in the closing second itself
  * is in time, and from the next second it is late — closing 14:30, 14:30:00 in time, 14:30:01
- * late. Fractions of a second are dropped, never rounded up: 14:30:00.900 is 14:30:00.
+ * late. Fractions of a second are dropped, never rounded up: 14:30:00.900 is 14:30:00. The window's
+ * phase (window/phase.ts) reads CLOSED from 14:30:00 itself; closing-instant.test.ts pins both.
  */
 
 /// An instant truncated to the whole second (fractions dropped).

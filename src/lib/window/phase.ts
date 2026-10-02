@@ -8,7 +8,10 @@
  * - Published, before the first purchase day (in the organisation's zone): PUBLISHED.
  * - From the first purchase day to the end of the last: OPEN_FOR_PURCHASE.
  * - After the last purchase day, until the closing instant: CLOSED_FOR_PURCHASE.
- * - From the closing instant (14:30:00 is closed): CLOSED.
+ * - From the closing instant (14:30:00 is closed): CLOSED. A bidder's act reads the closing a
+ *   second later: an envelope recorded at 14:30:00 is in time and late only from 14:30:01, and a
+ *   withdrawal or correction is taken in the closing second (bids/lateness.ts `isLate`, BD-66-3).
+ *   Both readings are pinned together by src/lib/bids/closing-instant.test.ts; change neither alone.
  * - Cancelled wins over everything.
  * Submission is open in both purchase phases. A day-based phase cannot be told with no zone set
  * (an unset zone is not UTC): it reads UNKNOWN, and acts that depend on it are refused.
