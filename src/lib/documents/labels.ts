@@ -35,6 +35,18 @@ export const RECORDED_ON_BEHALF = "recorded on behalf of, not signed";
 /// The same phrase where it starts a line.
 export const RECORDED_ON_BEHALF_SENTENCE = "Recorded on behalf of, not signed";
 
+// Phase 1 carry D6: the attachment components' field hints, here rather than as literals in the components.
+/// Under a "Recorded by", "Placed by" or "Released by" person picker: a named Person, never a signature.
+export const ON_BEHALF_HINT = "Recorded on their behalf, not signed: nobody is signed in.";
+/// Under a new document's title.
+export const DOCUMENT_TITLE_HINT = "What this document is called in lists.";
+/// Under a new document's class.
+export const DOCUMENT_CLASS_HINT = "Decides its classification and how long it is kept. A SULIT or unclassified document is listed but never opened in the portal.";
+/// Under a new document's note.
+export const DOCUMENT_NOTE_HINT = "Optional. Anything the next reader should know about this file.";
+/// Under "Kept as" when a stored document is attached to a record.
+export const ATTACH_PURPOSE_HINT = "Where a purpose is closed, its reason is under it.";
+
 export const CLASSIFICATION_LABEL: Readonly<Record<SecurityClass, string>> = { PUBLIC: "Public", INTERNAL: "Internal", SULIT: "SULIT" };
 export const classificationLabel = (c: SecurityClass | null | undefined) => (c ? CLASSIFICATION_LABEL[c] : "Not set");
 

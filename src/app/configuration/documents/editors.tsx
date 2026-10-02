@@ -3,7 +3,7 @@ import { RecordEditor, type Field } from "@/components/record-editor";
 import type { DocumentClass } from "@/lib/records/load";
 
 import { classClassificationChoices } from "@/lib/documents/classification";
-import { CLASS_CLASSIFICATION_HINT, classificationChoiceText, DISPOSAL_METHOD_LABEL, MEDIA_LABEL, RETENTION_TRIGGER_LABEL } from "@/lib/documents/labels";
+import { CLASS_CLASSIFICATION_HINT, classificationChoiceText, DISPOSAL_METHOD_LABEL, MEDIA_LABEL, ON_BEHALF_HINT, RETENTION_TRIGGER_LABEL } from "@/lib/documents/labels";
 import { bytesToMegabytes } from "@/lib/documents/policy";
 import { DISPOSAL_METHODS, KNOWN_MEDIA_TYPES, RETENTION_TRIGGERS, type SecurityClass } from "@/lib/documents/types";
 import { buttonClass } from "@/components/ui/button";
@@ -184,7 +184,7 @@ export function ReleaseHold({ holdId, title, reason, people }: { holdId: string;
       fields={[
         { kind: "hidden", name: "holdId" },
         { kind: "note", text: `The hold was placed because: ${reason}` },
-        { kind: "select", name: "personId", label: "Released by", required: true, placeholder: "Choose who is recording it", options: people, hint: "Recorded on their behalf, not signed: nobody is signed in." },
+        { kind: "select", name: "personId", label: "Released by", required: true, placeholder: "Choose who is recording it", options: people, hint: ON_BEHALF_HINT },
       ]}
       values={{ holdId }}
       reason={{ label: "Why is the hold released?" }}

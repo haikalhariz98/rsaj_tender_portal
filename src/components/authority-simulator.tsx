@@ -9,6 +9,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { cx } from "@/components/ui/cx";
 import { EmptyState, Callout } from "@/components/ui/feedback";
 import { AffixInput, Field, Input, Select } from "@/components/ui/field";
+import { SIMULATOR_HINT } from "@/lib/labels";
 
 interface ResolvedStep {
   role: string;
@@ -158,7 +159,7 @@ export function AuthoritySimulator({
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Contract value" htmlFor={fid("contract")} hint="For variations">
+            <Field label="Contract value" htmlFor={fid("contract")} hint={SIMULATOR_HINT.contractValue}>
               <Input
                 id={fid("contract")}
                 numeric
@@ -168,7 +169,7 @@ export function AuthoritySimulator({
                 onChange={(e) => setContractValue(e.target.value)}
               />
             </Field>
-            <Field label="Percentage" htmlFor={fid("pct")} hint="Of contract sum">
+            <Field label="Percentage" htmlFor={fid("pct")} hint={SIMULATOR_HINT.percentage}>
               <Input
                 id={fid("pct")}
                 numeric
@@ -187,8 +188,8 @@ export function AuthoritySimulator({
             htmlFor={fid("funding")}
             hint={
               fundingRoutes.length === 0
-                ? "No funding route configured yet"
-                : "Whether a funder overrides these limits is set per route"
+                ? SIMULATOR_HINT.noFundingRoute
+                : SIMULATOR_HINT.fundingRoute
             }
           >
             <Select
@@ -206,7 +207,7 @@ export function AuthoritySimulator({
             </Select>
           </Field>
 
-          <Field label="Acting officer" htmlFor={fid("actor")} hint="Nobody may approve their own matter">
+          <Field label="Acting officer" htmlFor={fid("actor")} hint={SIMULATOR_HINT.actingOfficer}>
             <Select id={fid("actor")} value={actor} onChange={(e) => setActor(e.target.value)}>
               <option value="">Not specified</option>
               {roles.map((r) => (
@@ -217,7 +218,7 @@ export function AuthoritySimulator({
             </Select>
           </Field>
 
-          <Field label="Absent" htmlFor={fid("absent")} hint="Authority reverts upward, never down">
+          <Field label="Absent" htmlFor={fid("absent")} hint={SIMULATOR_HINT.absent}>
             <Select id={fid("absent")} value={absent} onChange={(e) => setAbsent(e.target.value)}>
               <option value="">Nobody</option>
               {roles.map((r) => (

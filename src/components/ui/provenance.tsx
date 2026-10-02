@@ -1,3 +1,5 @@
+import { PROVENANCE_HINT, PROVENANCE_NOT_SET_HINT } from "@/lib/labels";
+
 import { Badge, type Tone } from "./badge";
 
 /**
@@ -6,16 +8,16 @@ import { Badge, type Tone } from "./badge";
  * fact nobody has sourced is "Not set" — not any of the three.
  */
 const PROVENANCE: Record<string, { label: string; tone: Tone; hint: string }> = {
-  STATED: { label: "Stated", tone: "ok", hint: "Written in a governing document" },
-  OBSERVED: { label: "Observed", tone: "info", hint: "Seen in practice, not written down" },
-  ASSUMED: { label: "Assumed", tone: "warn", hint: "A working default, awaiting sign-off" },
+  STATED: { label: "Stated", tone: "ok", hint: PROVENANCE_HINT.STATED },
+  OBSERVED: { label: "Observed", tone: "info", hint: PROVENANCE_HINT.OBSERVED },
+  ASSUMED: { label: "Assumed", tone: "warn", hint: PROVENANCE_HINT.ASSUMED },
 };
 
 export function ProvenanceBadge({ value }: { value: string | null | undefined }) {
   const p = value ? PROVENANCE[value] : undefined;
   if (!p) {
     return (
-      <Badge outline title="Nobody has said where this came from">
+      <Badge outline title={PROVENANCE_NOT_SET_HINT}>
         Not set
       </Badge>
     );

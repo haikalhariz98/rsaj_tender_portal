@@ -7,6 +7,7 @@ import { PlusIcon, SaveIcon } from "@/components/icons";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import { Callout } from "@/components/ui/feedback";
 import { AffixInput, Field, FileInput, Input, Select, Switch, Textarea } from "@/components/ui/field";
+import { REASON_HINT } from "@/lib/labels";
 import { splitValues } from "@/lib/ui/select-logic";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 
@@ -359,7 +360,7 @@ export function RecordEditor({
                       label={asksReason.label}
                       required
                       htmlFor="record-reason"
-                      hint="Recorded in the audit trail. Nobody is signed in, so this is the only account of why the change was made."
+                      hint={REASON_HINT}
                       error={state.errors?.reason}
                     >
                       <Textarea

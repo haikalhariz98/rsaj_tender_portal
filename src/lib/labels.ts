@@ -83,3 +83,26 @@ export function condLabel(code: string): string {
 export function routedOnLabel(cond: string | null | undefined): string {
   return cond ? condLabel(cond) : "The requisition's value alone";
 }
+
+// Phase 1 carry D6: the shared components' hints, here rather than as literals in the components.
+
+/// Under the reason a record editor asks for (RecordEditor's `reason`).
+export const REASON_HINT = "Recorded in the audit trail. Nobody is signed in, so this is the only account of why the change was made.";
+
+/// What each provenance means, for its badge's tooltip; and the tooltip where nobody has sourced a fact.
+export const PROVENANCE_HINT: Readonly<Record<"STATED" | "OBSERVED" | "ASSUMED", string>> = {
+  STATED: "Written in a governing document",
+  OBSERVED: "Seen in practice, not written down",
+  ASSUMED: "A working default, awaiting sign-off",
+};
+export const PROVENANCE_NOT_SET_HINT = "Nobody has said where this came from";
+
+/// The authority simulator's field hints.
+export const SIMULATOR_HINT = {
+  contractValue: "For variations",
+  percentage: "Of contract sum",
+  actingOfficer: "Nobody may approve their own matter",
+  absent: "Authority reverts upward, never down",
+  noFundingRoute: "No funding route configured yet",
+  fundingRoute: "Whether a funder overrides these limits is set per route",
+} as const;

@@ -7,6 +7,7 @@ import { EMPTY_FORM_STATE, RecordEditor, type SaveAction } from "@/components/re
 import { Button, buttonClass } from "@/components/ui/button";
 import { Callout } from "@/components/ui/feedback";
 import { Field, Select } from "@/components/ui/field";
+import { ON_BEHALF_HINT } from "@/lib/documents/labels";
 import { formatSen } from "@/lib/money";
 import { exportToSave, importBlock, importNotices, importSummary, parseBqCsv, type ParsedBqCsv } from "@/lib/scope/csv";
 import { csvFaultText, IMPORT_BLOCK_TEXT, keyedMismatchText } from "@/lib/scope/labels";
@@ -174,7 +175,7 @@ export function ImportCsvDrawer({
         { kind: "file", name: "file", label: "The bill as a CSV file", required: true, accept: ".csv,text/csv", hint: `Columns: Section, Section title, Item, Description, Unit, Kind, Quantity, Rate, Amount, Provisional. Saved from a spreadsheet as “CSV UTF-8”.${upload.capText ? ` ${upload.capText}` : ""}` },
         { kind: "text", name: "title", label: "Title", required: true, hint: "What the kept file is called in lists." },
         { kind: "select", name: "documentClassId", label: "Class", required: true, placeholder: "Choose a class", options: upload.classes, hint: "Decides its classification and how long it is kept. A priced bill may be SULIT to the organisation; choose accordingly." },
-        { kind: "select", name: "recordedByPersonId", label: "Recorded by", required: true, placeholder: "Choose who is recording it", options: upload.people, hint: "Recorded on their behalf, not signed: nobody is signed in." },
+        { kind: "select", name: "recordedByPersonId", label: "Recorded by", required: true, placeholder: "Choose who is recording it", options: upload.people, hint: ON_BEHALF_HINT },
         { kind: "date", name: "receivedOn", label: "Received on", hint: "The day the department's bill was received. Leave it blank if it is not known." },
         ...(draft.lines === 0 && draft.sections > 0 ? [{ kind: "note" as const, text: `The draft's ${draft.sections} empty ${draft.sections === 1 ? "section is" : "sections are"} removed and the file's sections take their place. Each removal is kept in the history.` }] : []),
         ...(draft.lines > 0 ? [{ kind: "switch" as const, name: "replace", label: `Replace the draft's ${draft.lines} ${draft.lines === 1 ? "line" : "lines"}`, hint: "Each removed line is kept in the history. Without this, a draft that has lines is not imported into." }] : []),

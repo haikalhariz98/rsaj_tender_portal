@@ -5,7 +5,7 @@ import { useCallback, useRef, useTransition } from "react";
 import { attachDocument, attachNewVersion, detachDocument, verifyVersion } from "@/app/documents/actions";
 import { EMPTY_FORM_STATE, RecordEditor, type Field, type FormState, type SaveAction } from "@/components/record-editor";
 import { Button, buttonClass } from "@/components/ui/button";
-import { DETACH_NOTE, NEW_VERSION_NOTE } from "@/lib/documents/labels";
+import { DETACH_NOTE, DOCUMENT_CLASS_HINT, DOCUMENT_NOTE_HINT, DOCUMENT_TITLE_HINT, NEW_VERSION_NOTE, ON_BEHALF_HINT } from "@/lib/documents/labels";
 import type { AttachmentItemView, SlotView, UploadView } from "@/lib/documents/views";
 
 import { fieldOfRefusal, postUpload } from "./post-upload";
@@ -53,7 +53,7 @@ function uploadFields(upload: UploadView, opts: { newDocument: boolean; titleHin
     },
     ...(opts.newDocument
       ? ([
-          { kind: "text", name: "title", label: "Title", required: true, placeholder: opts.titleHint, hint: "What this document is called in lists." },
+          { kind: "text", name: "title", label: "Title", required: true, placeholder: opts.titleHint, hint: DOCUMENT_TITLE_HINT },
           {
             kind: "select",
             name: "documentClassId",
@@ -61,7 +61,7 @@ function uploadFields(upload: UploadView, opts: { newDocument: boolean; titleHin
             required: true,
             placeholder: "Choose a class",
             options: upload.classes,
-            hint: "Decides its classification and how long it is kept. A SULIT or unclassified document is listed but never opened in the portal.",
+            hint: DOCUMENT_CLASS_HINT,
           },
         ] satisfies Field[])
       : []),
@@ -72,10 +72,10 @@ function uploadFields(upload: UploadView, opts: { newDocument: boolean; titleHin
       required: true,
       placeholder: "Choose who is recording it",
       options: upload.people,
-      hint: "Recorded on their behalf, not signed: nobody is signed in.",
+      hint: ON_BEHALF_HINT,
     },
     { kind: "date", name: "receivedOn", label: "Received on", hint: upload.receivedHint },
-    { kind: "textarea", name: "note", label: "Note", hint: "Optional. Anything the next reader should know about this file." },
+    { kind: "textarea", name: "note", label: "Note", hint: DOCUMENT_NOTE_HINT },
   ];
 }
 

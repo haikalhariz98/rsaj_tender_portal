@@ -10,6 +10,7 @@ import { buttonClass } from "@/components/ui/button";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 import { Callout } from "@/components/ui/feedback";
 import { Field, Select } from "@/components/ui/field";
+import { ATTACH_PURPOSE_HINT } from "@/lib/documents/labels";
 import { ATTACHABLE_OWNER_KINDS, OWNER_KIND_LABEL, ownerHref } from "@/lib/documents/targets";
 import type { OwnerKind } from "@/lib/documents/types";
 
@@ -175,7 +176,7 @@ export function AttachToRecordButton({
                         </Select>
                       </Field>
                       {record && (
-                        <Field label="Kept as" required htmlFor="attach-purpose" hint="Where a purpose is closed, its reason is under it.">
+                        <Field label="Kept as" required htmlFor="attach-purpose" hint={ATTACH_PURPOSE_HINT}>
                           <Select id="attach-purpose" value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="Choose what it is kept as">
                             {record.purposes.map((p) => (
                               <option key={p.value} value={p.value} disabled={!p.open} data-sub={p.reason ?? undefined}>
