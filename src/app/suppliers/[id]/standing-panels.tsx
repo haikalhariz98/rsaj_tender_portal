@@ -23,7 +23,7 @@ import { DECISION_LABEL } from "@/lib/requisition/labels";
 import { nextOffenceNo, recordFaults, requestBlacklistFaults, requestLiftFaults, routeState, withdrawRequestFaults, type RequestFacts } from "@/lib/suppliers/blacklist";
 import { documentStates } from "@/lib/suppliers/documents";
 import { isEligibilitySnapshot } from "@/lib/suppliers/eligibility";
-import { blacklistEndWords, CHECK_STATE_LABEL, CONDITION_LABEL, DOCUMENT_STATE_LABEL, conditionWords, RELAXES_LABEL, REQUEST_KIND_LABEL, RESULT_LABEL, RESULT_TONE, STANDING_EVENT_LABEL, standingTone, standingWords, supplierFaultText, VERDICT_LABEL, VERDICT_TONE } from "@/lib/suppliers/labels";
+import { asHeading, blacklistEndWords, CHECK_STATE_LABEL, CONDITION_LABEL, DOCUMENT_STATE_LABEL, conditionWords, RELAXES_LABEL, REQUEST_KIND_LABEL, RESULT_LABEL, RESULT_TONE, STANDING_EVENT_LABEL, standingTone, standingWords, supplierFaultText, VERDICT_LABEL, VERDICT_TONE } from "@/lib/suppliers/labels";
 import { sameNumber } from "@/lib/suppliers/link";
 import { eligibilityFindingOf } from "@/lib/suppliers/opening-hook";
 import { grantFaults, specialPermissionFaults } from "@/lib/suppliers/permission";
@@ -209,7 +209,7 @@ export async function EligibilityPanel({ l, exerciseId }: { l: LoadedSupplier; e
   const chosen = exerciseId ? exercises.find((x) => x.id === exerciseId) ?? null : null;
   const e = chosen && today ? await eligibilityOf(s.id, chosen.id, { id: l.org.id, timeZone: l.org.timeZone, today }) : null;
   const reqLabel = new Map<string, string>();
-  if (chosen) for (const r of await db.exerciseRegistrationRequirement.findMany({ where: { exerciseId: chosen.id }, select: { id: true, bodyLabelSnapshot: true, qualifiers: true, alternativeGroup: true } })) reqLabel.set(r.id, `${r.bodyLabelSnapshot}${r.qualifiers.trim() ? ` (${r.qualifiers.trim()})` : ""} · group ${r.alternativeGroup}`);
+  if (chosen) for (const r of await db.exerciseRegistrationRequirement.findMany({ where: { exerciseId: chosen.id }, select: { id: true, bodyLabelSnapshot: true, qualifiers: true, alternativeGroup: true } })) reqLabel.set(r.id, `${asHeading(r.bodyLabelSnapshot)}${r.qualifiers.trim() ? ` (${r.qualifiers.trim()})` : ""} · group ${r.alternativeGroup}`);
   return (
     <div className="flex flex-col gap-6">
       <Card>
@@ -304,7 +304,7 @@ export async function ParticipationPanel({ l, people }: { l: LoadedSupplier; peo
                         {!sameNumber(p.registrationNo, s.registrationNo) && <Chip tone="warn">Differs from the register&apos;s number</Chip>}
                       </span>
                     </div>
-                    <PermissionDrawer partyId={p.id} partyLabel={p.name} requirements={p.exercise.registrationRequirements.map((r) => ({ value: r.id, label: `${r.bodyLabelSnapshot}${r.qualifiers.trim() ? ` (${r.qualifiers.trim()})` : ""}` }))} bodies={bodies.map((b) => ({ value: b.id, label: b.labelEn }))} people={people} today={today} blocker={permBlocker} />
+                    <PermissionDrawer partyId={p.id} partyLabel={p.name} requirements={p.exercise.registrationRequirements.map((r) => ({ value: r.id, label: `${asHeading(r.bodyLabelSnapshot)}${r.qualifiers.trim() ? ` (${r.qualifiers.trim()})` : ""}` }))} bodies={bodies.map((b) => ({ value: b.id, label: asHeading(b.labelEn) }))} people={people} today={today} blocker={permBlocker} />
                   </div>
                   <KeyValues
                     columns={2}

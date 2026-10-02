@@ -12,7 +12,7 @@ import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/c
 import { storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { formatMoney, parseSen } from "@/lib/money";
-import { LIST_KIND_LABEL, VALUE_KIND_LABEL } from "@/lib/suppliers/labels";
+import { asHeading, LIST_KIND_LABEL, VALUE_KIND_LABEL } from "@/lib/suppliers/labels";
 import { loadSupplierConfig, supplierOrg } from "@/lib/suppliers/repo";
 import { SUPPLIER_LIST_KINDS, type RegistrationValueKind } from "@/lib/suppliers/types";
 
@@ -61,7 +61,7 @@ export default async function SupplierRegisterConfigPage() {
   const cfg = await loadSupplierConfig(org.id);
   const live = (d: Date | null) => d == null || (org.today != null && storedDay(d) > org.today);
   const retiredText = (d: Date | null) => (d && !live(d) ? `Retired ${formatDate(storedDay(d))}` : null);
-  const bodyOptions = cfg.bodies.filter((b) => live(b.retiredOn)).map((b) => ({ value: b.id, label: b.labelEn }));
+  const bodyOptions = cfg.bodies.filter((b) => live(b.retiredOn)).map((b) => ({ value: b.id, label: asHeading(b.labelEn) }));
   const switchesNotSet = cfg.types.filter((t) => live(t.retiredOn)).reduce((n, t) => n + [t.expires, t.mandatoryAtRegistration, t.notApplicableAllowed].filter((x) => x == null).length, 0);
   const listsEmpty = SUPPLIER_LIST_KINDS.filter((k) => cfg.liveCodes(k, org.today).length === 0);
   const p = cfg.policy;
@@ -195,12 +195,13 @@ export default async function SupplierRegisterConfigPage() {
           {cfg.types.length === 0 ? (
             <EmptyState title="None configured">No document can be lodged and no application decided until the document types are added.</EmptyState>
           ) : (
-            <Table minWidth={1060}>
+            {/* fix S-4 (b): within the 944px content column at 1280, so Edit and Retire stay in view; the type column wraps. */}
+            <Table minWidth={900}>
               <colgroup>
                 <col />
-                <col style={{ width: 140 }} />
-                <col style={{ width: 140 }} />
-                <col style={{ width: 140 }} />
+                <col style={{ width: 128 }} />
+                <col style={{ width: 128 }} />
+                <col style={{ width: 128 }} />
                 <col style={{ width: 100 }} />
                 <ActionsCol icons={1} labelled={2} />
               </colgroup>
@@ -215,7 +216,7 @@ export default async function SupplierRegisterConfigPage() {
               <tbody>
                 {cfg.types.map((t) => {
                   const body = cfg.bodies.find((b) => b.id === t.bodyId);
-                  const sub = [t.nameMs, body ? `${body.labelEn}${t.valueKinds.length ? `: ${t.valueKinds.map((k) => VALUE_KIND_LABEL[k as RegistrationValueKind].en.toLowerCase()).join(", ")}` : ""}` : null, t.governingSource, retiredText(t.retiredOn)].filter(Boolean).join(" · ");
+                  const sub = [t.nameMs, body ? `${asHeading(body.labelEn)}${t.valueKinds.length ? `: ${t.valueKinds.map((k) => VALUE_KIND_LABEL[k as RegistrationValueKind].en.toLowerCase()).join(", ")}` : ""}` : null, t.governingSource, retiredText(t.retiredOn)].filter(Boolean).join(" · ");
                   return (
                     <Tr key={t.id}>
                       <Td label="Type"><CellStack title={t.nameEn} sub={sub || undefined} /></Td>
@@ -249,7 +250,7 @@ export default async function SupplierRegisterConfigPage() {
                 return (
                   <section key={b.id} className="flex flex-col">
                     <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 sm:px-6">
-                      <span className="text-[14px] font-semibold text-ink">{b.labelEn}{b.retiredOn && !live(b.retiredOn) ? <span className="ml-2 text-[12.5px] font-normal text-ink-3">Retired</span> : null}</span>
+                      <span className="text-[14px] font-semibold text-ink">{asHeading(b.labelEn)}{b.retiredOn && !live(b.retiredOn) ? <span className="ml-2 text-[12.5px] font-normal text-ink-3">Retired</span> : null}</span>
                       <ValueDrawer bodyId={b.id} bodyName={b.labelEn} categories={categories} />
                     </div>
                     {b.values.length === 0 ? (

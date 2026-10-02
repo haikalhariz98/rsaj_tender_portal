@@ -12,7 +12,7 @@ import { formatMoney, parseSen } from "@/lib/money";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { documentTypeFaults, listValueFaults, valueFaults } from "@/lib/suppliers/config";
 import { bandPolicyFaults } from "@/lib/suppliers/expiry";
-import { LIST_KIND_SINGULAR, supplierFaultText, VALUE_KIND_LABEL } from "@/lib/suppliers/labels";
+import { asHeading, LIST_KIND_SINGULAR, supplierFaultText, VALUE_KIND_LABEL } from "@/lib/suppliers/labels";
 import { REGISTRATION_VALUE_KINDS, SUPPLIER_LIST_KINDS, type Finding, type RegistrationValueKind, type SupplierListKind } from "@/lib/suppliers/types";
 import { splitValues } from "@/lib/ui/select-logic";
 import { FormReader } from "@/lib/validate";
@@ -102,7 +102,7 @@ export async function saveRegistrationValue(_prev: FormState, data: FormData): P
     );
     if (fs.length) return refusal(fs);
     const row = { nameEn: v.nameEn, nameMs: v.nameMs, parentCode: v.parentCode, rank: v.rank, valueCeiling: v.valueCeiling, ceilingProvenance: v.valueCeiling ? v.ceilingProvenance : null, governingSource: v.governingSource, provenance: v.provenance!, sortOrder: v.sortOrder };
-    const what = `Registration value · ${body!.labelEn} · ${v.nameEn}`;
+    const what = `Registration value · ${asHeading(body!.labelEn)} · ${v.nameEn}`;
     if (!before) {
       const created = await tx.registrationValue.create({ data: { organisationId: org.id, bodyId, kind: kind!, code, ...row } });
       await audit(tx, org.id, "RegistrationValue", created.id, what, "CREATE", diffFields(null, valueWords(created)));
@@ -118,7 +118,7 @@ export async function saveRegistrationValue(_prev: FormState, data: FormData): P
 export async function setRegistrationValueRetired(_prev: FormState, data: FormData): Promise<FormState> {
   return setRetired(data, "RegistrationValue", async (tx, id, orgId) => {
     const v = await tx.registrationValue.findFirst({ where: { id, organisationId: orgId }, include: { body: { select: { labelEn: true } } } });
-    return v ? { label: `Registration value · ${v.body.labelEn} · ${v.nameEn}`, retiredOn: v.retiredOn, apply: (d: Date | null) => tx.registrationValue.update({ where: { id }, data: { retiredOn: d } }) } : null;
+    return v ? { label: `Registration value · ${asHeading(v.body.labelEn)} · ${v.nameEn}`, retiredOn: v.retiredOn, apply: (d: Date | null) => tx.registrationValue.update({ where: { id }, data: { retiredOn: d } }) } : null;
   });
 }
 

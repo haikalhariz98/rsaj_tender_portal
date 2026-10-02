@@ -438,11 +438,11 @@ export function conditionWords(r: Pick<ConditionRow, "reason" | "data">): Words 
     case "FIELD_CODES_MISSING": return w(`Does not hold ${d.missing}.`, `Tidak memegang ${d.missing}.`);
     case "RESTRICTION_NOT_STATED": return w("Whether the exercise is restricted is not stated on it.", "Sama ada latihan terhad tidak dinyatakan padanya.");
     case "EVIDENCE_TYPE_NOT_SET": return w(`The document type that evidences the restriction is not set (${SETTINGS.en}, Standing).`, `Jenis dokumen yang membuktikan sekatan belum ditetapkan (${SETTINGS.ms}, Kedudukan).`);
-    case "COVERS_WINDOW": return d.body ? w(`${d.body}: verified and in force from the advertisement to past the closing.`, `${d.body}: disahkan dan berkuat kuasa dari iklan hingga selepas tutup.`) : w("Verified and in force from the advertisement to past the closing.", "Disahkan dan berkuat kuasa dari iklan hingga selepas tutup.");
+    case "COVERS_WINDOW": return d.body ? w(`${asHeading(String(d.body))}: verified and in force from the advertisement to past the closing.`, `${asHeading(String(d.body))}: disahkan dan berkuat kuasa dari iklan hingga selepas tutup.`) : w("Verified and in force from the advertisement to past the closing.", "Disahkan dan berkuat kuasa dari iklan hingga selepas tutup.");
     case "COVERS_TO_CLOSING_DAY": return w(`Expires on the closing day (${day(d.expiresOn)}), which the policy counts as valid.`, `Tamat pada hari tutup (${day(d.expiresOn)}), yang dikira sah oleh polisi.`);
     case "NOT_PUBLISHED": return w("The window is not published yet: there is no advertisement day to judge from.", "Tetingkap belum diterbitkan: tiada tarikh iklan untuk dinilai.");
     case "CLOSING_NOT_SET": return w("The closing is not set.", "Tarikh tutup belum ditetapkan.");
-    case "NOT_HELD": return d.body ? w(`${d.body}: no verified document on file.`, `${d.body}: tiada dokumen disahkan dalam fail.`) : w("No verified document on file.", "Tiada dokumen disahkan dalam fail.");
+    case "NOT_HELD": return d.body ? w(`${asHeading(String(d.body))}: no verified document on file.`, `${asHeading(String(d.body))}: tiada dokumen disahkan dalam fail.`) : w("No verified document on file.", "Tiada dokumen disahkan dalam fail.");
     case "RECORDED_NOT_APPLICABLE": return w("Recorded as not applicable.", "Direkodkan sebagai tidak berkenaan.");
     case "UNVERIFIED": return w("Lodged and not yet verified.", "Dikemukakan dan belum disahkan.");
     case "RENEWAL_UNVERIFIED": return w("A renewal is lodged and not yet verified: judged once it is.", "Pembaharuan dikemukakan dan belum disahkan: dinilai setelah disahkan.");

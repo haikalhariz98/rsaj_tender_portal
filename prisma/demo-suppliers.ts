@@ -510,7 +510,8 @@ class Acts {
     const req = party.exercise.registrationRequirements.find((r) => r.bodyCode === board.code) ?? fail(`${party.exercise.reference} states no requirement on that board`);
     const bodies = await this.db.registrationBody.findMany({ where: { organisationId: this.org, retiredOn: null } });
     refuse(`special permission for ${partyId}`, specialPermissionFaults({ requirementId: req.id, relaxes: "GRADE", grantingBodyIds: bodyIds, internalApproval: true, existingClassConfirmed: true, goodRecordConfirmed: true, personActive: true }, { today, offered: party.exercise.window?.specialPermissionOffered ?? null, requirementIds: party.exercise.registrationRequirements.map((r) => r.id), bodyIds: bodies.map((b) => b.id), existing: party.specialPermissions.map((p) => ({ requirementId: p.requirementId, relaxes: p.relaxes, granted: p.grantedOn != null, route: p.routes.some((r) => r.status === "PENDING") ? ("PENDING" as const) : p.routes.length ? ("APPROVED" as const) : ("NONE" as const) })) }));
-    const reqLabel = `${req.bodyLabelSnapshot}${req.qualifiers.trim() ? ` (${req.qualifiers.trim()})` : ""}`;
+    const { asHeading } = await import("../src/lib/suppliers/labels");
+    const reqLabel = `${asHeading(req.bodyLabelSnapshot)}${req.qualifiers.trim() ? ` (${req.qualifiers.trim()})` : ""}`;
     const labels = bodyIds.map((b) => bodies.find((x) => x.id === b)!.labelEn);
     await this.db.specialPermission.create({ data: { id, organisationId: this.org, exerciseId: party.exercise.id, partyId, requirementId: req.id, requirementLabelSnapshot: reqLabel, relaxes: "GRADE", grantingBodyIds: bodyIds, grantingBodyLabels: labels, internalApproval: true, existingClassConfirmed: true, goodRecordConfirmed: true, note: "The firm holds the grade below; the board's letter permits this one exercise (demo).", requestedByPersonId: OFFICER.id, requestedAt: when } });
     const permLabel = `${party.exercise.reference} · Special permission for ${party.name}`;
@@ -543,7 +544,7 @@ class Acts {
 
 // ------------------------------------------------------------------ the suppliers
 
-const COMPANY = (n: number) => ({ type: `${P}sdt1`, reference: `CR-${n}`, authority: "the Demo Companies Registry" });
+const COMPANY = (n: number) => ({ type: `${P}sdt1`, reference: `CR-${n}`, authority: "Demo Companies Registry" });
 
 export async function loadSuppliersDemo(db: Db, organisationId: string) {
   const org = await db.organisation.findUniqueOrThrow({ where: { id: organisationId }, select: { timeZone: true } });
@@ -581,18 +582,18 @@ export async function loadSuppliersDemo(db: Db, organisationId: string) {
   // vnd1: every document verified, an E-Payment form received (its scan SULIT).
   const v1 = await registered(1, { name: "Contoh Bina Sdn Bhd", no: "201001000101 (000101-A)", email: "tender@contohbina.invalid", contact: { name: "Azman Bin Hashim", designation: "Director", email: "azman@contohbina.invalid", phone: "07-000 1101" } }, 40, [
     { id: `${P}vdoc1`, ...COMPANY(101), verified: "VERIFIED" },
-    { id: `${P}vdoc2`, type: `${P}sdt2`, reference: "CB-G5-0101", authority: "the Demo Contractors Board", issuedOn: D(-200), validFrom: D(-200), expiresOn: D(530), values: [`${P}rgv5`, `${P}rgv6`, `${P}rgv8`], verified: "VERIFIED" },
-    { id: `${P}vdoc3`, type: `${P}sdt5`, reference: "TC-0101", authority: "the Demo Tax Office", issuedOn: D(-60), expiresOn: D(300), verified: "VERIFIED" },
-    { id: `${P}vdoc4`, type: `${P}sdt4`, reference: "ST-0101", authority: "the Demo Status Office", issuedOn: D(-100), expiresOn: D(400), verified: "VERIFIED" },
+    { id: `${P}vdoc2`, type: `${P}sdt2`, reference: "CB-G5-0101", authority: "Demo Contractors Board", issuedOn: D(-200), validFrom: D(-200), expiresOn: D(530), values: [`${P}rgv5`, `${P}rgv6`, `${P}rgv8`], verified: "VERIFIED" },
+    { id: `${P}vdoc3`, type: `${P}sdt5`, reference: "TC-0101", authority: "Demo Tax Office", issuedOn: D(-60), expiresOn: D(300), verified: "VERIFIED" },
+    { id: `${P}vdoc4`, type: `${P}sdt4`, reference: "ST-0101", authority: "Demo Status Office", issuedOn: D(-100), expiresOn: D(400), verified: "VERIFIED" },
   ], true);
   await decide(1, v1.app, `${P}ai120`, 40);
 
   // vnd2: its tax clearance 20 days from expiry (a2 reads it CRITICAL).
   const v2 = await registered(2, { name: "Demo Paip Services", no: "201501000104 (000104-D)", email: "office@demopaip.invalid", contact: { name: "Lim Kok Wai", designation: "Manager", email: "", phone: "07-000 1104" } }, 36, [
     { id: `${P}vdoc5`, ...COMPANY(104), verified: "VERIFIED" },
-    { id: `${P}vdoc6`, type: `${P}sdt2`, reference: "DP-G4-0104", authority: "the Demo Contractors Board", issuedOn: D(-300), expiresOn: D(420), values: [`${P}rgv4`, `${P}rgv6`, `${P}rgv8`], verified: "VERIFIED" },
-    { id: `${P}vdoc7`, type: `${P}sdt5`, reference: "TC-0104", authority: "the Demo Tax Office", issuedOn: D(-345), expiresOn: D(20), verified: "VERIFIED" },
-    { id: `${P}vdoc8`, type: `${P}sdt3`, reference: "SR-0104", authority: "the Demo Supplier Register", issuedOn: D(-100), expiresOn: D(260), values: [`${P}rgv10`], verified: "VERIFIED" },
+    { id: `${P}vdoc6`, type: `${P}sdt2`, reference: "DP-G4-0104", authority: "Demo Contractors Board", issuedOn: D(-300), expiresOn: D(420), values: [`${P}rgv4`, `${P}rgv6`, `${P}rgv8`], verified: "VERIFIED" },
+    { id: `${P}vdoc7`, type: `${P}sdt5`, reference: "TC-0104", authority: "Demo Tax Office", issuedOn: D(-345), expiresOn: D(20), verified: "VERIFIED" },
+    { id: `${P}vdoc8`, type: `${P}sdt3`, reference: "SR-0104", authority: "Demo Supplier Register", issuedOn: D(-100), expiresOn: D(260), values: [`${P}rgv10`], verified: "VERIFIED" },
   ]);
   await decide(2, v2.app, `${P}ai121`, 36);
   // vnd1 and vnd2: their vendor codes entered by hand from the finance system (the rest show "not in the finance system").
@@ -602,24 +603,24 @@ export async function loadSuppliersDemo(db: Db, organisationId: string) {
   // vnd3: the contractor certificate expired 10 days ago; its renewal lodged 3 working days ago, not yet verified.
   const v3 = await registered(3, { name: "Teladan Mekanikal Sdn Bhd", no: "200801000105 (000105-T)", email: "admin@teladan.invalid", contact: { name: "Rosnah Binti Kassim", designation: "Contracts executive", email: "rosnah@teladan.invalid", phone: "" } }, 32, [
     { id: `${P}vdoc9`, ...COMPANY(105), verified: "VERIFIED" },
-    { id: `${P}vdoc10`, type: `${P}sdt2`, reference: "TM-G3-0105", authority: "the Demo Contractors Board", issuedOn: D(-375), expiresOn: D(-10), values: [`${P}rgv3`, `${P}rgv7`, `${P}rgv9`], verified: "VERIFIED" },
-    { id: `${P}vdoc11`, type: `${P}sdt5`, reference: "TC-0105", authority: "the Demo Tax Office", issuedOn: D(-90), expiresOn: D(270), verified: "VERIFIED" },
+    { id: `${P}vdoc10`, type: `${P}sdt2`, reference: "TM-G3-0105", authority: "Demo Contractors Board", issuedOn: D(-375), expiresOn: D(-10), values: [`${P}rgv3`, `${P}rgv7`, `${P}rgv9`], verified: "VERIFIED" },
+    { id: `${P}vdoc11`, type: `${P}sdt5`, reference: "TC-0105", authority: "Demo Tax Office", issuedOn: D(-90), expiresOn: D(270), verified: "VERIFIED" },
   ]);
   await decide(3, v3.app, `${P}ai122`, 32);
-  await acts.lodge(v3.sid, `${P}vdoc12`, { type: `${P}sdt2`, reference: "TM-G3-0105-R", authority: "the Demo Contractors Board", issuedOn: W(4), expiresOn: D(355), values: [`${P}rgv3`, `${P}rgv7`, `${P}rgv9`], renews: `${P}vdoc10` }, T(W(3), "10:00"));
+  await acts.lodge(v3.sid, `${P}vdoc12`, { type: `${P}sdt2`, reference: "TM-G3-0105-R", authority: "Demo Contractors Board", issuedOn: W(4), expiresOn: D(355), values: [`${P}rgv3`, `${P}rgv7`, `${P}rgv9`], renews: `${P}vdoc10` }, T(W(3), "10:00"));
   await acts.attach({ supplierDocumentId: `${P}vdoc12` }, "SUPPLIER_DOCUMENT", "Contractor certificate TM-G3-0105-R for Teladan Mekanikal Sdn Bhd", `${v3.ref} · document`, T(W(3), "10:20"));
 
   // vnd4 and vnd5: registered in good order (a2 suspends vnd4 and blacklists vnd5).
   const v4 = await registered(4, { name: "Rekaan Maju Construction", no: "DM0000106-K", email: "tender@rekaanmaju.invalid", contact: { name: "Suresh Pillai", designation: "Partner", email: "suresh@rekaanmaju.invalid", phone: "07-000 1106" } }, 28, [
     { id: `${P}vdoc13`, ...COMPANY(106), verified: "VERIFIED" },
-    { id: `${P}vdoc14`, type: `${P}sdt2`, reference: "RM-G4-0106", authority: "the Demo Contractors Board", issuedOn: D(-150), expiresOn: D(580), values: [`${P}rgv4`, `${P}rgv6`], verified: "VERIFIED" },
-    { id: `${P}vdoc15`, type: `${P}sdt5`, reference: "TC-0106", authority: "the Demo Tax Office", issuedOn: D(-70), expiresOn: D(320), verified: "VERIFIED" },
+    { id: `${P}vdoc14`, type: `${P}sdt2`, reference: "RM-G4-0106", authority: "Demo Contractors Board", issuedOn: D(-150), expiresOn: D(580), values: [`${P}rgv4`, `${P}rgv6`], verified: "VERIFIED" },
+    { id: `${P}vdoc15`, type: `${P}sdt5`, reference: "TC-0106", authority: "Demo Tax Office", issuedOn: D(-70), expiresOn: D(320), verified: "VERIFIED" },
   ]);
   await decide(4, v4.app, `${P}ai123`, 28);
   const v5 = await registered(5, { name: "Demo Civil Works Sdn Bhd", no: "DEMO-0001-X", email: "office@democivil.invalid", contact: { name: "Farid Bin Osman", designation: "Director", email: "farid@democivil.invalid", phone: "" } }, 26, [
     { id: `${P}vdoc16`, ...COMPANY(1), verified: "VERIFIED" },
-    { id: `${P}vdoc17`, type: `${P}sdt2`, reference: "DC-G2-0001", authority: "the Demo Contractors Board", issuedOn: D(-250), expiresOn: D(480), values: [`${P}rgv2`, `${P}rgv6`], verified: "VERIFIED" },
-    { id: `${P}vdoc18`, type: `${P}sdt5`, reference: "TC-0001", authority: "the Demo Tax Office", issuedOn: D(-60), expiresOn: D(330), verified: "VERIFIED" },
+    { id: `${P}vdoc17`, type: `${P}sdt2`, reference: "DC-G2-0001", authority: "Demo Contractors Board", issuedOn: D(-250), expiresOn: D(480), values: [`${P}rgv2`, `${P}rgv6`], verified: "VERIFIED" },
+    { id: `${P}vdoc18`, type: `${P}sdt5`, reference: "TC-0001", authority: "Demo Tax Office", issuedOn: D(-60), expiresOn: D(330), verified: "VERIFIED" },
   ]);
   await decide(5, v5.app, `${P}ai124`, 26);
 
@@ -629,7 +630,7 @@ export async function loadSuppliersDemo(db: Db, organisationId: string) {
   await acts.lodge(`${P}vnd6`, `${P}vdoc19`, COMPANY(102), T(W(13), "10:00"));
   await acts.attach({ supplierDocumentId: `${P}vdoc19` }, "SUPPLIER_DOCUMENT", "Company certificate CR-102 for Sampel Kejuruteraan Enterprise", `${v6} · document`, T(W(13), "10:10"));
   await acts.verify(`${P}vdoc19`, "VERIFIED", T(W(12), "09:00"));
-  await acts.lodge(`${P}vnd6`, `${P}vdoc20`, { type: `${P}sdt5`, reference: "TC-0102", authority: "the Demo Tax Office", issuedOn: D(-500), expiresOn: D(-140) }, T(W(13), "10:20"));
+  await acts.lodge(`${P}vnd6`, `${P}vdoc20`, { type: `${P}sdt5`, reference: "TC-0102", authority: "Demo Tax Office", issuedOn: D(-500), expiresOn: D(-140) }, T(W(13), "10:20"));
   await acts.attach({ supplierDocumentId: `${P}vdoc20` }, "SUPPLIER_DOCUMENT", "Tax clearance TC-0102 for Sampel Kejuruteraan Enterprise", `${v6} · document`, T(W(13), "10:30"));
   await acts.verify(`${P}vdoc20`, "NOT_IN_ORDER", T(W(12), "09:20"), "The letter handed in expired before the application was received.");
   await acts.resubmit(`${P}vapp6`, [{ documentId: `${P}vdoc20`, remarks: "Hand in a tax clearance letter in force (the one handed in has expired)." }, { typeId: `${P}sdt2`, remarks: "Lodge the contractor registration certificate, or say it is not applicable." }], W(4), T(W(10), "15:00"));
@@ -638,12 +639,12 @@ export async function loadSuppliersDemo(db: Db, organisationId: string) {
   const v7 = await registered(7, { name: "Sampel Engineering Sdn Bhd", no: "DEMO-0003-X", email: "office@sampeleng.invalid", contact: { name: "Ganesh Raj", designation: "Director", email: "ganesh@sampeleng.invalid", phone: "07-000 1103" } }, 45, [
     { id: `${P}vdoc21`, ...COMPANY(3), verified: "VERIFIED" },
     { id: `${P}vdoc22`, type: `${P}sdt2`, notApplicable: true, verified: "VERIFIED" },
-    { id: `${P}vdoc23`, type: `${P}sdt5`, reference: "TC-0003", authority: "the Demo Tax Office", issuedOn: D(-370), expiresOn: D(15), verified: "VERIFIED" },
-    { id: `${P}vdoc24`, type: `${P}sdt3`, reference: "SR-0003", authority: "the Demo Supplier Register", issuedOn: D(-200), expiresOn: D(160), values: [`${P}rgv10`, `${P}rgv11`], verified: "VERIFIED" },
+    { id: `${P}vdoc23`, type: `${P}sdt5`, reference: "TC-0003", authority: "Demo Tax Office", issuedOn: D(-370), expiresOn: D(15), verified: "VERIFIED" },
+    { id: `${P}vdoc24`, type: `${P}sdt3`, reference: "SR-0003", authority: "Demo Supplier Register", issuedOn: D(-200), expiresOn: D(160), values: [`${P}rgv10`, `${P}rgv11`], verified: "VERIFIED" },
   ]);
   await decide(7, v7.app, `${P}ai127`, 45);
   await acts.openRenewal(v7.sid, `${P}vapp7r`, W(5), W(6), T(W(5), "09:00"));
-  await acts.lodge(v7.sid, `${P}vdoc25`, { type: `${P}sdt5`, reference: "TC-0003-R", authority: "the Demo Tax Office", issuedOn: W(6), expiresOn: D(380), renews: `${P}vdoc23` }, T(W(5), "09:30"));
+  await acts.lodge(v7.sid, `${P}vdoc25`, { type: `${P}sdt5`, reference: "TC-0003-R", authority: "Demo Tax Office", issuedOn: W(6), expiresOn: D(380), renews: `${P}vdoc23` }, T(W(5), "09:30"));
   await acts.attach({ supplierDocumentId: `${P}vdoc25` }, "SUPPLIER_DOCUMENT", "Tax clearance TC-0003-R for Sampel Engineering Sdn Bhd", `${v7.ref} · document`, T(W(5), "09:40"));
   await acts.verify(`${P}vdoc25`, "VERIFIED", T(W(4), "09:00"));
   await acts.attach({ supplierApplicationId: `${P}vapp7r` }, "SUPPLIER_DECLARATION", "Signed declaration of Sampel Engineering Sdn Bhd (renewal)", `${v7.ref} · application`, T(W(4), "09:20"));

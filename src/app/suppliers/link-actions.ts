@@ -12,7 +12,7 @@ import { exerciseOrg } from "@/lib/method/repo";
 import { transactionTimedOut } from "@/lib/scope/tx-timeout";
 import { SUPPLIER_ENTITY } from "@/lib/suppliers/audit-view";
 import { routeState } from "@/lib/suppliers/blacklist";
-import { PERMISSION_MATTER, PERMISSION_REFUSED_DECIDED_BY, RELAXES_LABEL } from "@/lib/suppliers/labels";
+import { asHeading, PERMISSION_MATTER, PERMISSION_REFUSED_DECIDED_BY, RELAXES_LABEL } from "@/lib/suppliers/labels";
 import { linkAwardFaults, linkPartyFaults } from "@/lib/suppliers/link";
 import { lockSupplierRow } from "@/lib/suppliers/lock";
 import { grantFaults, specialPermissionFaults } from "@/lib/suppliers/permission";
@@ -180,7 +180,7 @@ export async function recordSpecialPermission(_prev: FormState, data: FormData):
     const grant = internalApproval ? [] : grantFaults({ grantedOn, personActive: !!person }, { today: l.org.today, offered: w?.specialPermissionOffered ?? null, granted: false, internalApproval: false, route: "NONE", approvedOn: null }).filter((f) => f.code.startsWith("GRANTED"));
     if (blocking([...fs, ...grant]).length) return refuse([...fs, ...grant]);
     const req = reqs.find((x) => x.id === requirementId)!;
-    const reqLabel = `${req.bodyLabelSnapshot}${req.qualifiers.trim() ? ` (${req.qualifiers.trim()})` : ""}`;
+    const reqLabel = `${asHeading(req.bodyLabelSnapshot)}${req.qualifiers.trim() ? ` (${req.qualifiers.trim()})` : ""}`;
     const grantingBodyLabels = bodies.map((b) => bodyRows.find((x) => x.id === b)!.labelEn);
     const perm = await tx.specialPermission.create({
       data: {

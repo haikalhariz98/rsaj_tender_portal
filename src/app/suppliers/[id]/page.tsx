@@ -59,7 +59,7 @@ import { APPLICATION_CHANNELS, APPLICATION_KINDS, blocking, SUPPLIER_REGISTRATIO
 import { routeTone, stepTone } from "@/lib/ui/status-tone";
 
 import { expiryBand } from "@/lib/suppliers/expiry";
-import { EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, renewalUpcomingWords, standingTone, standingWords } from "@/lib/suppliers/labels";
+import { asHeading, EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, renewalUpcomingWords, standingTone, standingWords } from "@/lib/suppliers/labels";
 import { standing } from "@/lib/suppliers/standing";
 import { standingEventFacts } from "@/lib/suppliers/standing-repo";
 
@@ -238,7 +238,7 @@ function DocumentsPanel({ l, cfg, people }: { l: LoadedSupplier; cfg: SupplierCo
   const liveTypes = cfg.types.filter((t) => cfg.live(t, today));
   const held = new Set(s.documents.map((d) => d.typeId));
   const lodgeable = liveTypes.filter((t) => !held.has(t.id)).map((t) => ({ value: t.id, label: t.nameEn }));
-  const values = (bodyId: string | null) => cfg.bodies.filter((b) => !bodyId || b.id === bodyId).flatMap((b) => b.values.filter((v) => cfg.live(v, today)).map((v) => ({ value: v.id, label: `${b.labelEn}: ${v.nameEn}` })));
+  const values = (bodyId: string | null) => cfg.bodies.filter((b) => !bodyId || b.id === bodyId).flatMap((b) => b.values.filter((v) => cfg.live(v, today)).map((v) => ({ value: v.id, label: `${asHeading(b.labelEn)}: ${v.nameEn}` })));
   const open = s.applications.some(isOpen);
   const closed = s.status === "REJECTED" && !open;
   const lodgeBlocker = !today ? supplierFaultText({ code: "TIME_ZONE_UNSET", level: "block" }) : closed ? supplierFaultText({ code: "SUPPLIER_CLOSED", level: "block" }) : lodgeable.length === 0 ? (liveTypes.length ? "Every configured type is on file: lodge a later one as a renewal." : supplierFaultText({ code: "TYPE_NOT_CONFIGURED", level: "block" })) : null;
