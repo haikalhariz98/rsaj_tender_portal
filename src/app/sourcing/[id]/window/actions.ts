@@ -11,6 +11,8 @@ import { NAME_APPROVAL_DOMAIN } from "@/lib/method/types";
 import { parseSen, senToDecimalString } from "@/lib/money";
 import { deliveryFaults } from "@/lib/window/addendum";
 import { ENTITY, deliveryFields, feeLineFields, partyFields, windowFields } from "@/lib/window/audit-view";
+import { loadBidMethodRule } from "@/lib/bids/repo";
+import { BID_RULES_KEY, bidRulesSnapshot } from "@/lib/bids/rule-snapshot";
 import { policySnapshot } from "@/lib/window/dates";
 import { publicationFault, windowEditFault } from "@/lib/window/edit";
 import { lineAmount } from "@/lib/window/fee";
@@ -242,9 +244,13 @@ export async function publishWindow(_prev: FormState, data: FormData): Promise<F
     const now = new Date();
     const day = j.result.advertisementDay!;
     const floor = d.floors.find((f) => f.regime === l.ex.regime) ?? null;
+    // 6.6 CR-2: the method's three bid-receipt rules, with provenance, frozen with the window; the
+    // bids tab, its actions and the 6.10/6.11 hooks read them from here once published.
+    const bidRules = bidRulesSnapshot(await loadBidMethodRule(l.org.id, l.ex.sourcingMethodCode, tx));
     const snapshot = policySnapshot(d.policy, d.calendar, d.channels, floor ? { regime: floor.regime, minimum: senToDecimalString(floor.minimum), provenance: floor.provenance } : null, {
       path: j.path,
       advertisementDay: day,
+      [BID_RULES_KEY]: bidRules,
       warnings: j.result.findings.filter((f) => f.level !== "block").map((f) => ({ level: f.level, text: windowFindingText(f) })),
     });
     const w = d.window;
