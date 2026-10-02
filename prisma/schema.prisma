@@ -130,6 +130,9 @@ enum MatterKind {
   /// 6.15 (OD-2 A, OD-8 A): a supplier matter's route (a registration; a2 a blacklisting), named by the
   /// route's supplier keys. Never tabled at a sitting.
   SUPPLIER
+  /// 6.14 (ADR 0022): a certificate's route, named by ApprovalInstance.certificateId. Never tabled at a sitting
+  /// until a module gives a committee matter a typed certificate key.
+  CERTIFICATE
 }
 
 /// Where a rejected matter goes (FR-APR-016, ADR 0009). The product ships no
@@ -358,6 +361,16 @@ model Organisation {
   issuedCopies             IssuedCopy[]
   custodyItems             CustodyItem[]
   custodyMovements         CustodyMovement[]
+  certificates             Certificate[]
+  certificateSignatures    CertificateSignature[]
+  certificateOverrides     CertificateOverride[]
+  certificateDocuments     CertificateDocument[]
+  formSignatureBlocks      FormSignatureBlock[]
+  formDistributions        FormDistribution[]
+  routingSheetTypes        RoutingSheetType[]
+  routingCheckDefs         RoutingCheckDef[]
+  routingTargets           RoutingTarget[]
+  routingChecks            RoutingCheck[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -498,6 +511,9 @@ model Person {
   contractSignatures     ContractSignature[]       @relation("ContractSignedBy")
   custodyHeld            CustodyItem[]             @relation("CustodyHeldBy")
   custodyMoves           CustodyMovement[]         @relation("CustodyMovedBy")
+  certificateSignatures  CertificateSignature[]    @relation("CertificateSignedBy")
+  certificateOverrides   CertificateOverride[]     @relation("CertificateOverriddenBy")
+  routingChecks          RoutingCheck[]            @relation("RoutingCheckedBy")
 }
 
 /// Who holds an authority office, and when.
@@ -1249,6 +1265,12 @@ model DocumentTemplate {
   evaluationReportPolicies   EvaluationPolicy[] @relation("EvaluationReportTemplate")
   evaluationProposalPolicies EvaluationPolicy[] @relation("EvaluationProposalTemplate")
   proposalPapers             ProposalPaper[]
+  /// 6.14 (FR-CRT-001): the form's signature blocks and distribution list; certificates printed on it.
+  signatureBlocks      FormSignatureBlock[]
+  distributionRows     FormDistribution[]
+  certificates         Certificate[]
+  certificateDocuments CertificateDocument[]
+  routingSheetTypes    RoutingSheetType[]
 
   @@unique([organisationId, code])
 }
@@ -1388,6 +1410,7 @@ model Delegation {
   awardsSigned  Award[]
   /// 6.12: RSAJ contract signatures made under this delegation.
   contractSignatures ContractSignature[] @relation("ContractSignatureDelegation")
+  certificateSignatures CertificateSignature[] @relation("CertificateSignatureDelegation")
   /// The absent holder's signed recommendation (FR-APR-012, OD-6).
   attachments   DocumentAttachment[]
 
@@ -2415,6 +2438,10 @@ model ApprovalInstance {
   /// 6.15a (FR-ADV-017): a special permission granted inside the organisation.
   specialPermissionId   String?
   specialPermission     SpecialPermission? @relation(fields: [specialPermissionId], references: [id], onDelete: Restrict)
+  /// 6.14 (ADR 0022, 0023): the certificate this route approves (a CERTIFICATE matter). A refused route is
+  /// followed by a successor (ADR 0009), so a certificate may carry several.
+  certificateId         String?
+  certificate           Certificate?      @relation(fields: [certificateId], references: [id], onDelete: Restrict)
 
   domain String
   cond   String?
@@ -2521,6 +2548,7 @@ model ApprovalInstance {
   @@index([exerciseId])
   @@index([awardId])
   @@index([supplierApplicationId])
+  @@index([certificateId])
 }
 
 /// One step of a persisted route, and who discharged it.
@@ -3542,6 +3570,8 @@ model Contract {
   copies          IssuedCopy[]
   custodyItems    CustodyItem[]
   attachments     DocumentAttachment[]
+  /// 6.14: the contract's certificates.
+  certificates    Certificate[]
 
   @@unique([organisationId, number])
 }
@@ -7800,6 +7830,8 @@ model ContractBaseline {
   snapshot Json
 
   sections ContractSection[]
+  /// 6.14: the certificates that read this version (ADR 0021 §3).
+  certificates Certificate[]
 
   @@unique([contractId, version])
   @@index([contractId])
@@ -7820,6 +7852,8 @@ model ContractSection {
   ladPct      Decimal? @db.Decimal(9, 6)
   ladDaily    Decimal? @db.Decimal(18, 2)
   sortOrder   Int      @default(0)
+
+  certificates Certificate[]
 }
 
 /// Who receives a controlled copy of an executed contract (FR-CON-012). The customer's list; ships empty.
@@ -7847,14 +7881,22 @@ model ControlledCopyRecipient {
   @@unique([organisationId, code])
 }
 
-/// A numbered controlled copy and how it went (FR-CON-012). Its owner is a contract (6.14 adds the
-/// certificate): exactly one owner, a CHECK built by hand. Recalled copies stay; a reissue is a new number.
+/// A numbered controlled copy and how it went (FR-CON-012). Its owner is a contract or (6.14, FR-CRT-006) a
+/// certificate: exactly one owner, a CHECK built by hand. Recalled copies stay; a reissue is a new number.
 model IssuedCopy {
   id             String       @id @default(cuid())
   organisationId String
   organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
   contractId     String?
   contract       Contract?    @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  /// 6.14 (FR-CRT-006): a certificate's addressed copy, from its pinned distribution list. The row's code
+  /// and flags as pinned; all four null on a contract's copy (CHECK).
+  certificateId    String?
+  certificate      Certificate? @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+  distributionCode String?
+  mandatory        Boolean?
+  ackRequired      Boolean?
+  isOriginal       Boolean?
 
   copyNo         Int
   recipientId    String?
@@ -7875,6 +7917,7 @@ model IssuedCopy {
   reissuedAs     IssuedCopy?              @relation("CopyReissue")
 
   @@unique([contractId, copyNo])
+  @@unique([certificateId, copyNo])
 }
 
 /// A physical original in custody (FR-CON-013): the contract, a security or a policy. CHECK: the kind
@@ -7914,4 +7957,373 @@ model CustodyMovement {
   on         DateTime
   purpose    String           @default("")
   recordedAt DateTime
+}
+
+// ------------------------------------------------------------------ 6.14 certificates (increment 1, ADR 0022, 0023)
+
+/// 6.14 (FR-CRT, ADR 0022): what a certificate is. A closed product vocabulary (BD-DS-4 precedent), rendered by label.
+/// Increment 1 ships 6.13 Part A's kinds; each later kind arrives in its own migration before use (X-6).
+enum CertificateKind {
+  DELEGATION_LETTER
+  DELEGATION_NOTICE
+  INTERIM_PAYMENT
+  ADVANCE_PAYMENT
+  LAD_WARNING
+  NON_COMPLETION
+  VARIATION_APPLICATION
+  SO_INSTRUCTION
+  VARIATION
+  SUM_ADJUSTMENT
+}
+
+/// Where a certificate stands (ADR 0022). VOID only before ISSUED; an issued certificate is corrected by a later one.
+enum CertificateStatus {
+  DRAFT
+  IN_ROUTING
+  SIGNING
+  ISSUED
+  VOID
+}
+
+/// What a printed signature block is for (FR-CRT-004).
+enum SignatureBlockKind {
+  RECOMMENDING
+  AUTHORISING
+  CONTRACTOR
+  WITNESS
+  APPLICANT
+  SUPPORTING
+}
+
+/// Who may sign a block. SO, SO_REP and RECOMMENDING_OFFICER are resolved by the contract's supervision
+/// (6.13 FR-SUP-001); NAMED_OFFICE by an office on the roster; the rest are people outside the organisation.
+enum SignatureOfficeRule {
+  SO
+  SO_REP
+  RECOMMENDING_OFFICER
+  CONTRACTOR
+  WITNESS
+  NAMED_OFFICE
+}
+
+/// A recommending block's answer, where the block carries one (DISOKONG / TIDAK DISOKONG).
+enum SignatureDecision {
+  SUPPORTED
+  NOT_SUPPORTED
+}
+
+/// When a distribution row applies to a contract (FR-CRT-006).
+enum DistributionCondition {
+  NONE
+  GUARANTOR_EXISTS
+  CONSULTANT_ENGAGED
+}
+
+/// An internal step on a routing sheet before the approval matrix's own (FR-CRT-007).
+enum RoutingCheckKind {
+  CHECKED
+  VERIFIED
+  ENDORSED
+}
+
+/// What a routing sheet type is drawn over: a certificate's route, or an award's appointment route (the
+/// pre-award sheet, rulings 6.14 condition).
+enum RoutingSubject {
+  CERTIFICATE
+  AWARD
+}
+
+/// One certificate of a contract (ADR 0022). Domain records (6.13) own their content and point here by
+/// `certificateId @unique`; this record owns the shared life: the frozen figures, the routing sheet, the
+/// signatures in printed order, the date from the authorising signature, the number and distribution.
+model Certificate {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  kind     CertificateKind
+  /// From the `certificate` series at issue; null before. Unique per organisation.
+  number   String?
+  /// The per-contract ordinal of its kind ("interim certificate 3"), allocated at issue under the contract
+  /// lock. A voided draft never had one, so voiding consumes nothing.
+  sequence Int?
+  status   CertificateStatus @default(DRAFT)
+
+  /// Sectional completion: the section of the pinned baseline version it concerns.
+  sectionId String?
+  section   ContractSection? @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+
+  /// The form it prints on, chosen by the module that raised it; its revision (blocks and distribution)
+  /// is pinned at the first signature (OD-2 A) and never moves afterwards.
+  templateId       String?
+  template         DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  templateRevision Json?
+  pinnedAt         DateTime?
+
+  /// The baseline version it read (ADR 0021 §3), through `baselineFor`. Never re-read live.
+  baselineId String
+  baseline   ContractBaseline @relation(fields: [baselineId], references: [id], onDelete: Restrict)
+
+  /// The figures as the owning module computed them, money as decimal strings (FR-CRT-003).
+  computedSnapshot Json?
+
+  /// FR-CRT-005: the organisation's day of the authorising block's recorded act. Never a form field.
+  certificateDate              DateTime?
+  certificateDateCorrectedFrom DateTime?
+  certificateDateCorrectionReason String  @default("")
+
+  /// The routing sheet (FR-CRT-007, ADR 0023): its type, frozen when sent for routing, and DATE (1).
+  routingTypeId             String?
+  routingType               RoutingSheetType? @relation(fields: [routingTypeId], references: [id], onDelete: Restrict)
+  routingSnapshot           Json?
+  routingReceivedOn         DateTime?
+  routingReceivedRecordedAt DateTime?
+
+  /// When it was opened (the server's clock) and the organisation's day.
+  openedAt DateTime
+  openedOn DateTime
+
+  voidReason String    @default("")
+  voidedAt   DateTime?
+  issuedAt      DateTime?
+  /// Everything the issue was judged under: the pinned revision, the signatures, the figures with any
+  /// override, the baseline version and the copies resolved. Rendered from, never re-derived.
+  issueSnapshot Json?
+
+  signatures        CertificateSignature[]
+  overrides         CertificateOverride[]
+  documents         CertificateDocument[]
+  copies            IssuedCopy[]
+  approvalInstances ApprovalInstance[]
+  routingChecks     RoutingCheck[]
+
+  @@unique([organisationId, number])
+  @@unique([contractId, kind, sequence])
+  @@index([contractId])
+}
+
+/// One signature block recorded on a certificate, in printed order (FR-CRT-004). Recorded on behalf of,
+/// not signed. The office is as resolved on the day (§7.2: the historical holder is kept).
+model CertificateSignature {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  certificateId  String
+  certificate    Certificate  @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+
+  blockOrder Int
+  blockKind  SignatureBlockKind
+  /// The block's label as pinned.
+  blockLabel String
+  personId   String?
+  person     Person?            @relation("CertificateSignedBy", fields: [personId], references: [id], onDelete: Restrict)
+  name       String
+  officeCode  String?
+  officeLabel String?
+  delegationId String?
+  delegation   Delegation?      @relation("CertificateSignatureDelegation", fields: [delegationId], references: [id], onDelete: Restrict)
+  /// Only the masked number is kept (6.11 R20).
+  icMasked    String?
+  decision    SignatureDecision?
+  decisionCap Decimal?          @db.Decimal(18, 2)
+  /// The contractor refused to sign (FR-VAR-022), where the block allows it: recorded, and it does not block.
+  refused     Boolean           @default(false)
+  refusalNote String            @default("")
+  signedOn    DateTime
+  recordedAt  DateTime
+
+  @@unique([certificateId, blockOrder])
+}
+
+/// A computed figure overridden in DRAFT, with its justification and the named Person (FR-CRT-003).
+/// Append-only: the latest per field applies; both figures are kept. Totals are never overridden.
+model CertificateOverride {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  certificateId  String
+  certificate    Certificate  @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+
+  fieldKey      String
+  /// Both as written in the snapshot (money as a decimal string).
+  computed      String
+  overridden    String
+  justification String
+  personId      String
+  person        Person   @relation("CertificateOverriddenBy", fields: [personId], references: [id], onDelete: Restrict)
+  personName    String
+  recordedAt    DateTime
+
+  @@index([certificateId])
+}
+
+/// The certificate's text, frozen at issue (ADR 0008), one per language the pinned form has a text in.
+model CertificateDocument {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  certificateId  String
+  certificate    Certificate  @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+
+  templateId           String
+  template             DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  templateCode         String
+  templateName         String
+  templateFormCode     String           @default("")
+  templateRevisionDate DateTime?
+  templateBodyVersion  Int
+  language             DocumentLanguage
+  version              Int              @default(1)
+  fields               Json
+  renderedText         String           @db.Text
+  frozenAt             DateTime
+
+  @@unique([certificateId, language, version])
+}
+
+/// A form's signature block, in printed order (FR-CRT-001, 004). The customer's; ships empty.
+model FormSignatureBlock {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  templateId     String
+  template       DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  blockOrder       Int
+  blockKind        SignatureBlockKind
+  labelEn          String
+  labelMs          String?
+  /// FR-CRT-005: this block's act dates the certificate. At most one per form.
+  datesCertificate Boolean             @default(false)
+  officeRule       SignatureOfficeRule
+  /// The office, where the rule is NAMED_OFFICE.
+  officeCode       String?
+  /// Whether a delegate of the office may sign. Null: not decided, and nobody signs on it.
+  delegable        Boolean?
+  /// The block carries a supported / not supported answer.
+  carriesDecision  Boolean             @default(false)
+  /// The contractor may refuse to sign it, and the refusal is recorded (FR-VAR-022).
+  refusalAllowed   Boolean             @default(false)
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+
+  @@unique([templateId, blockOrder])
+}
+
+/// A form's distribution list (FR-CRT-006). The customer's; ships empty (OD-5 A).
+model FormDistribution {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  templateId     String
+  template       DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  recipientCode String
+  labelEn       String
+  labelMs       String?
+  mandatory     Boolean
+  ackRequired   Boolean
+  condition     DistributionCondition
+  isOriginal    Boolean
+  sortOrder     Int                   @default(0)
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+
+  @@unique([templateId, recipientCode])
+}
+
+/// A kind of routing sheet (FR-CRT-007, ADR 0023): a tenth sheet is a row. The customer's; ships empty.
+model RoutingSheetType {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code            String
+  labelEn         String
+  labelMs         String?
+  subject         RoutingSubject
+  /// The certificate kind it serves; null with subject CERTIFICATE: any kind.
+  certificateKind CertificateKind?
+  /// The printed sheet.
+  templateId      String?
+  template        DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  /// Which side of a percentage band's edge a value exactly on it falls (ADR 0024): true, the band it
+  /// closes (min, max]; false, the band it opens [min, max). Null: not decided, and a value exactly on
+  /// an edge reads "target not set".
+  upperEdgeInclusive Boolean?
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+  sortOrder  Int        @default(0)
+  retiredOn  DateTime?
+
+  checks       RoutingCheckDef[]
+  targets      RoutingTarget[]
+  certificates Certificate[]
+
+  @@unique([organisationId, code])
+}
+
+/// An internal step of a routing sheet type, in order, with its own printed days where the form prints them.
+model RoutingCheckDef {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  typeId         String
+  type           RoutingSheetType @relation(fields: [typeId], references: [id], onDelete: Cascade)
+
+  order      Int
+  kind       RoutingCheckKind
+  labelEn    String
+  labelMs    String?
+  /// The office that records it. Null: any officer, shown so.
+  officeCode String?
+  /// This stage's printed days (a part of the total), where the form prints them.
+  targetDays Int?
+
+  @@unique([typeId, order])
+}
+
+/// The ICC target of a routing sheet type, optionally banded by percentage (min, max] or [min, max) as the
+/// type's switch says (FR-CRT-008). The customer's; ships empty.
+model RoutingTarget {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  typeId         String
+  type           RoutingSheetType @relation(fields: [typeId], references: [id], onDelete: Cascade)
+
+  pctMin     Decimal? @db.Decimal(9, 4)
+  pctMax     Decimal? @db.Decimal(9, 4)
+  targetDays Int
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+}
+
+/// An internal check recorded on a routing sheet, in an iteration (FR-CRT-007, 009). The definition is
+/// read from the type as frozen when the sheet started. Recorded on behalf of, not signed.
+model RoutingCheck {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  certificateId  String?
+  certificate    Certificate? @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+
+  iteration  Int
+  defOrder   Int
+  kind       RoutingCheckKind
+  label      String
+  personId   String
+  person     Person   @relation("RoutingCheckedBy", fields: [personId], references: [id], onDelete: Restrict)
+  personName String
+  on         DateTime
+  note       String   @default("")
+  recordedAt DateTime
+
+  @@unique([certificateId, iteration, defOrder])
 }

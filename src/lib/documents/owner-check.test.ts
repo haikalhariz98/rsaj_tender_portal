@@ -252,6 +252,7 @@ describe("6.12: the contract is an owner, everywhere at once (X-6)", () => {
   });
 
   it("a controlled copy has exactly one owner, built by hand (6.14 adds the certificate to the same CHECK)", () => {
-    expect(latestCheck("IssuedCopy_one_owner")).toMatch(/num_nonnulls\("contractId"\) = 1/);
+    // 6.14 (faithful to the comment above): the certificate joins the contract in the rebuilt CHECK.
+    expect(latestCheck("IssuedCopy_one_owner")).toMatch(/num_nonnulls\("contractId", "certificateId"\) = 1/);
   });
 });
