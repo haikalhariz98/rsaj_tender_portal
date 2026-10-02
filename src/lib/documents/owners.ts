@@ -242,8 +242,9 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
         // The Delegation row lock and the read under it, shared with saveDelegation.
         const d = await lockDelegation(tx, ref.id, org.id);
         if (!d) return null;
-        // 66-C2: the organisation's today, or not judged; never the UTC day.
-        const facts = delegationFacts(d, org.today);
+        // 66-C2: the organisation's today, or null (not judged); never the UTC day.
+        const today = org.today;
+        const facts = delegationFacts(d, today);
         return fn(tx, {
           ref,
           organisationId: org.id,
