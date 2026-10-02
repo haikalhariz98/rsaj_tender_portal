@@ -13,7 +13,8 @@ import { Accordion } from "./accordion";
 
 describe("the Accordion title shows in full", () => {
   it("wraps, never truncates, and keeps its words", () => {
-    const html = renderToStaticMarkup(createElement(Accordion, { title: "Change to the invitation window", meta: "3 rules", children: null }));
+    const props: Parameters<typeof Accordion>[0] = { title: "Change to the invitation window", meta: "3 rules", children: null };
+    const html = renderToStaticMarkup(createElement(Accordion, props));
     expect(html).toContain("Change to the invitation window");
     expect(html).toMatch(/class="[^"]*\bbreak-words\b[^"]*"/);
     expect(html).not.toMatch(/\btruncate\b/);
