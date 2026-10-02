@@ -5,11 +5,34 @@ import { Badge } from "@/components/ui/badge";
 import { escalationText } from "@/lib/authority/escalation-labels";
 import { stepOriginText } from "@/lib/authority/core-routing-labels";
 import { formatDate } from "@/lib/format";
-import type { LoadedExercise } from "@/lib/method/repo";
 import type { StatusTone } from "@/lib/ui/status-tone";
 
-type Route = LoadedExercise["ex"]["approvalInstances"][number];
-type Step = Route["steps"][number];
+/// A persisted route as the list reads it: what every route carries, whichever matter it is on (an
+/// exercise's, 6.15's supplier registration), so the list is one component, never a copy.
+export interface RouteStepsStep {
+  id: string;
+  sequence: number;
+  act: string;
+  roleLabel: string;
+  actingRoleLabel: string | null;
+  chainOrigin: string | null;
+  escalation: "NO_AVAILABLE_HOLDER" | "CONFLICT_DECLARED" | null;
+  escalationReason: string | null;
+  declaredBy?: { name: string } | null;
+  nonDelegable: boolean;
+  decision: "PENDING" | "DONE" | "REJECTED";
+  decidedByName: string | null;
+  decidedOn: Date | null;
+  delegation?: { fromPerson: { name: string } } | null;
+  reason: string;
+}
+export interface RouteStepsRoute {
+  status: string;
+  coreChainFlag: boolean | null;
+  steps: RouteStepsStep[];
+}
+type Route = RouteStepsRoute;
+type Step = RouteStepsStep;
 
 /**
  * The steps of an exercise's approval route, one list for every route the exercise carries (the
@@ -18,20 +41,20 @@ type Step = Route["steps"][number];
  * What a step is called when decided, and the controls it carries, are the caller's: the route's
  * own words ("Returned for amendment", a committee step's citation) belong to the route.
  */
-export function RouteSteps({
+export function RouteSteps<S extends Step = Step>({
   inst,
   stepLabel,
   stepTone,
   action,
   decided,
 }: {
-  inst: Route;
+  inst: Omit<Route, "steps"> & { steps: S[] };
   stepLabel: (decision: "PENDING" | "DONE" | "REJECTED") => string;
   stepTone: (decision: string) => StatusTone;
   /// The controls beside a step (escalate, decide, cite). Given where the step stands in the route.
-  action: (s: Step, at: { earlierDone: boolean; isLast: boolean }) => ReactNode;
+  action: (s: S, at: { earlierDone: boolean; isLast: boolean }) => ReactNode;
   /// How a decided step reads after its label, where the route words it differently (a cited committee decision).
-  decided?: (s: Step) => ReactNode;
+  decided?: (s: S) => ReactNode;
 }) {
   return (
     <ol className="divide-y divide-line/70 border-t border-line">
