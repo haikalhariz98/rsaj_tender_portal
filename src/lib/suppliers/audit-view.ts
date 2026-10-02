@@ -4,6 +4,8 @@
  * History chips them and the audit export withholds them.
  */
 
+import { fieldLabel, LEGACY_LAST_DAY_LABEL } from "@/lib/audit/diff";
+
 import type { Words } from "./labels";
 
 /// The entity names the register's audit rows are written under.
@@ -89,7 +91,7 @@ export const SUPPLIER_FIELD_NAME: Readonly<Record<string, string>> = {
   // S-1: a blacklisting's endsOn is exclusive (the free-from day), as every period; the last day is its own field.
   lastBlacklistedDay: "Last blacklisted day",
   endsOn: "Free from",
-  /// Rows written before S-1 (none outside the demo, which is reloaded).
+  /// Rows written before S-1 carry freeFrom, and their endsOn is the last day (supplierFieldName, residual 4).
   freeFrom: "Free from",
   offence: "Offence",
   period: "Period",
@@ -115,3 +117,7 @@ export const SUPPLIER_FIELD_NAME: Readonly<Record<string, string>> = {
   grantedOn: "Granted on",
   grantedBy: "Granted by (recorded)",
 };
+
+/// A field's name in the supplier's History, read with the rest of its row (residual 4): a row written before
+/// S-1 carries freeFrom, and its endsOn is the last blacklisted day, not the free-from day.
+export const supplierFieldName = (field: string, rowFields: readonly string[]) => (field === "endsOn" && rowFields.includes("freeFrom") ? LEGACY_LAST_DAY_LABEL : SUPPLIER_FIELD_NAME[field] ?? fieldLabel(field));

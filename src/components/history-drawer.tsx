@@ -7,7 +7,7 @@ import { ClockIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
-import { fieldLabel } from "@/lib/audit/diff";
+import { rowFieldLabel } from "@/lib/audit/diff";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 
 const ACTION: Record<HistoryEntry["action"], { label: string; tone: "ok" | "info" | "err" }> = {
@@ -109,7 +109,7 @@ export function HistoryButton({
                         <dl className="mt-2 flex flex-col gap-1.5">
                           {e.changes.map((c) => (
                             <div key={c.field} className="text-[13px]">
-                              <dt className="font-semibold text-ink-2">{fieldLabel(c.field)}</dt>
+                              <dt className="font-semibold text-ink-2">{rowFieldLabel(c.field, e.changes.map((x) => x.field))}</dt>
                               <dd className="break-words text-ink-3">
                                 {e.action === "CREATE" ? (
                                   <span className="text-ink">{c.after ?? "empty"}</span>

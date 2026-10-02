@@ -16,7 +16,6 @@ import { PageHeader } from "@/components/ui/page-header";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
-import { fieldLabel } from "@/lib/audit/diff";
 import { routeCoreText } from "@/lib/authority/core-routing-labels";
 import { loadIssue } from "@/lib/authority/load";
 import { dayToDate, storedDay } from "@/lib/dates";
@@ -30,7 +29,7 @@ import { ORGANISATION_CODE } from "@/lib/org";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { DECISION_LABEL } from "@/lib/requisition/labels";
 import { isSulitField } from "@/lib/sulit-fields";
-import { SUPPLIER_ENTITY_LABEL, SUPPLIER_FIELD_NAME } from "@/lib/suppliers/audit-view";
+import { SUPPLIER_ENTITY_LABEL, supplierFieldName } from "@/lib/suppliers/audit-view";
 import { chainOrder, documentStates, lodgeFaults, verifyFaults } from "@/lib/suppliers/documents";
 import {
   APPLICATION_KIND_LABEL,
@@ -518,7 +517,7 @@ function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<ReturnTyp
                 <ul className="text-[12.5px] break-words text-ink-3">
                   {e.changes.filter((ch) => shown(ch.field, ch, e.action)).map((ch) => (
                     <li key={ch.field}>
-                      {SUPPLIER_FIELD_NAME[ch.field] ?? fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{chipped(ch.field, ch.before, e)} → </>}
+                      {supplierFieldName(ch.field, e.changes.map((x) => x.field))}: {e.action === "UPDATE" && <>{chipped(ch.field, ch.before, e)} → </>}
                       <span className="text-ink-2">{chipped(ch.field, e.action === "DELETE" ? ch.before : ch.after, e)}</span>
                     </li>
                   ))}

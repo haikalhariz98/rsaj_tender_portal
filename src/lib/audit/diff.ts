@@ -111,6 +111,18 @@ const NAMED_FIELDS: Record<string, string> = {
 /// Field names are configuration-ish keys; screens render labels. A reference to a
 /// record reads as what it points at — "Decided by person", never "… person id": the
 /// screen shows the record's name in the value, so the label never mentions an id.
+/**
+ * A field's label read with the rest of its row (6.15a residual 4). Rows written before 6.15a fix S-1
+ * stored a blacklisting's last day, included, as `endsOn` with `freeFrom` beside it; since S-1 `endsOn` is
+ * the exclusive end. Where a row carries `freeFrom`, its `endsOn` is that last day and is labelled so, in
+ * History and in the export; every other field reads as `fieldLabel` has it.
+ */
+export const LEGACY_LAST_DAY_LABEL = "Last blacklisted day";
+export function rowFieldLabel(field: string, rowFields: readonly string[]): string {
+  if (field === "endsOn" && rowFields.includes("freeFrom")) return LEGACY_LAST_DAY_LABEL;
+  return fieldLabel(field);
+}
+
 export function fieldLabel(field: string): string {
   if (NAMED_FIELDS[field]) return NAMED_FIELDS[field];
   // The bilingual pairs read as the forms print them: "Name (EN)", "Name (BM)".

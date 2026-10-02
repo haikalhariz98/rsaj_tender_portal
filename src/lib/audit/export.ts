@@ -24,7 +24,7 @@ import { dayIn } from "@/lib/dates";
 import { isSulitField } from "@/lib/sulit-fields";
 
 import { CORE_ROUTING_ENTITY_NAME } from "./core-routing-trail";
-import { fieldLabel } from "./diff";
+import { rowFieldLabel } from "./diff";
 
 export interface ExportRow {
   id: string;
@@ -64,11 +64,12 @@ const withheld = (v: unknown) => (v == null || v === "" ? v : SULIT_WITHHELD);
  */
 function labelledChanges(changes: unknown): unknown {
   if (!Array.isArray(changes)) return changes ?? [];
+  const fields = changes.map((c) => (c && typeof c === "object" && "field" in c ? String((c as { field: unknown }).field) : ""));
   return changes.map((c) => {
     if (!c || typeof c !== "object" || !("field" in c)) return c;
     const raw = String((c as { field: unknown }).field);
     const change = c as { before?: unknown; after?: unknown };
-    return { ...c, field: fieldLabel(raw), ...(isSulitField(raw) ? { before: withheld(change.before), after: withheld(change.after) } : {}) };
+    return { ...c, field: rowFieldLabel(raw, fields), ...(isSulitField(raw) ? { before: withheld(change.before), after: withheld(change.after) } : {}) };
   });
 }
 
