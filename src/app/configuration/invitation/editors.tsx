@@ -1,6 +1,7 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 import { RULE_LABEL } from "@/lib/window/labels";
+import { BID_RULES_APPLY_TEXT } from "@/lib/bids/config";
 
 import { saveMethodBidRule, importHolidayYear, removeFeeFloor, removeHoliday, saveCalendar, saveCalendarYear, saveChannel, saveFeeFloor, saveHoliday, saveWindowPolicy, setCalendarRetired, setChannelRetired } from "./actions";
 
@@ -283,7 +284,7 @@ export function EditMethodBidRule({ id, name, values, committees }: { id: string
   return (
     <RecordEditor
       title={`Bid receipt under ${name}`}
-      description="Each may be left not set: it then holds back what it governs and says so. Late admission is never read as a refusal; an unset minimum is never read as met."
+      description={`Each may be left not set: it then holds back what it governs and says so. Late admission is never read as a refusal; an unset minimum is never read as met. ${BID_RULES_APPLY_TEXT}`}
       columns={2}
       fields={[
         hidden("id"),

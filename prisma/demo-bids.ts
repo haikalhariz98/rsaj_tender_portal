@@ -94,9 +94,8 @@ export async function loadBidsDemo(db: Db, organisationId: string, hooks: BidsDe
     await e.flush();
   };
 
-  // ---- configuration, before any act it governs
-  const configured = T(W(16), "09:00");
-  await configure(db, organisationId, configured, entry);
+  // ---- configuration: set by configureBidsDemo, before 6.5's windows are published, so each
+  // publication freezes the method's bid-receipt rules with it (CR-2).
 
   // ---- sx20: a requisition, the exercise, 6.2 and 6.4 by their own acts, then the window (6.5's acts)
   await loadRequisition(db, organisationId, W, T);
@@ -208,6 +207,24 @@ export async function loadBidsDemo(db: Db, organisationId: string, hooks: BidsDe
 
 // ------------------------------------------------------------------ configuration
 
+/**
+ * The method's bid-receipt rules and the validity alert rule, dated W(16), before any window the
+ * demo publishes (6.5's and 6.6's): publication freezes the three rules with the window (CR-2), so
+ * this runs before loadWindowDemo. Its trail entries have their own ids (demo_bauc…).
+ */
+export async function configureBidsDemo(db: Db, organisationId: string) {
+  const org = await db.organisation.findUniqueOrThrow({ where: { id: organisationId }, select: { timeZone: true } });
+  const tz = org.timeZone;
+  if (!tz) throw new Error("Demo 6.6: the organisation's time zone is not set.");
+  const { W } = calendarOf(todayIn(new Date(), tz)!);
+  const trail: Entry[] = [];
+  let n = 0;
+  const entry: Add = (entity, entityId, entityLabel, action, when, changes, reason = "") =>
+    trail.push({ id: `${P}bauc${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, unattributed: true });
+  await configure(db, organisationId, instantAt(W(16), "09:00", tz)!, entry);
+  await db.auditEntry.createMany({ data: trail as never });
+}
+
 async function configure(db: Db, organisationId: string, at: Date, entry: Add) {
   const method = await db.sourcingMethod.findFirstOrThrow({ where: { organisationId, code: "open_tender" }, select: { id: true, nameEn: true, lateAdmissionCommitteeCode: true, lateAdmissionProvenance: true, minimumBids: true, minimumBidsProvenance: true, completenessEliminates: true, completenessProvenance: true } });
   const { id, nameEn, ...before } = method;
@@ -310,12 +327,13 @@ class Receipts {
 async function lateSitting(db: Db, organisationId: string, tz: string, entry: Add, i: { sx: string; ref: string; title: string; envelopeId: string; on: string; at: Date }): Promise<string[]> {
   const { checkTabling, secretariatHoldersOn } = await import("../src/lib/committee/tabling");
   const { loadRoster } = await import("../src/lib/people/load");
-  const { loadLateMatters } = await import("../src/lib/bids/repo");
+  const { loadBidRule, loadBidWindow, loadLateMatters } = await import("../src/lib/bids/repo");
   const committee = await db.committee.findUniqueOrThrow({ where: { id: `${P}c1` }, select: { code: true, nameEn: true, secretariatRoleCode: true } });
-  const method = await db.sourcingMethod.findFirstOrThrow({ where: { organisationId, code: "open_tender" }, select: { lateAdmissionCommitteeCode: true } });
   const env = await db.bidEnvelope.findUniqueOrThrow({ where: { id: i.envelopeId } });
-  const ex = await db.sourcingExercise.findUniqueOrThrow({ where: { id: i.sx }, select: { status: true } });
-  refuse("tabling the late envelope", lateMatterFault({ exerciseCancelled: ex.status === "CANCELLED", committeeCode: method.lateAdmissionCommitteeCode, envelope: env, matters: await loadLateMatters(i.sx), sitting: { committeeCode: committee.code, frozen: false } }));
+  const ex = await db.sourcingExercise.findUniqueOrThrow({ where: { id: i.sx }, select: { status: true, sourcingMethodCode: true } });
+  // CR-2: the committee frozen with the window at publication, as tableLateMatter reads it.
+  const frozen = await loadBidRule(await loadBidWindow(i.sx), organisationId, ex.sourcingMethodCode);
+  refuse("tabling the late envelope", lateMatterFault({ exerciseCancelled: ex.status === "CANCELLED", committeeCode: frozen.rule?.lateAdmissionCommitteeCode ?? null, committeeSource: frozen.committee, envelope: env, matters: await loadLateMatters(i.sx), sitting: { committeeCode: committee.code, frozen: false } }));
   const { ORGANISATION_CODE } = await import("../src/lib/org");
   const roster = await loadRoster(ORGANISATION_CODE);
   const holders = secretariatHoldersOn(roster, committee.secretariatRoleCode, i.on).map((h) => h.id);
@@ -465,6 +483,13 @@ export async function checkBidsDemo(db: Db) {
     const d = await windowData(l.org.id, l.ex);
     const got = phaseOf(l.ex, d.window, now, l.org.timeZone).phase;
     if (got !== phase) fail(`${l.ex.reference} reads ${got}, not ${phase}.`);
+  }
+  // CR-2: both registers are judged by the rules frozen at publication, recorded and set.
+  const { loadBidRule, loadBidWindow } = await import("../src/lib/bids/repo");
+  for (const id of [`${P}sx16`, NEW_EXERCISE]) {
+    const l = (await repo.loadExercise(id)) ?? fail(`${id} did not load.`);
+    const r = await loadBidRule(await loadBidWindow(id), l.org.id, l.ex.sourcingMethodCode);
+    if (!r.frozen || r.committee !== "AS_PUBLISHED" || r.completeness !== "AS_PUBLISHED" || !r.rule?.lateAdmissionCommitteeCode || r.rule.completenessEliminates == null) fail(`${l.ex.reference} was not published with the method's bid-receipt rules recorded.`);
   }
   // sx16: the late envelope admitted, so nothing waits; the validity extended and valid.
   const e16 = await loadEnvelopes(`${P}sx16`);

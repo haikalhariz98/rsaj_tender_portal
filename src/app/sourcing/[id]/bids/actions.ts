@@ -13,7 +13,7 @@ import { bidFindingText } from "@/lib/bids/labels";
 import { LATE_DOMAIN, lateMatterFault, lateMatterSubject } from "@/lib/bids/late";
 import { lockBoxRows, lockEnvelopeRows, lockExtensionRows, lockWithdrawalRows } from "@/lib/bids/lock";
 import { judgeReceipt, receiptFaults } from "@/lib/bids/receipt";
-import { exerciseForBids, liveConsents, loadBidMethodRule, loadBidWindow, loadBoxEvents, loadEnvelopes, loadExtensions, loadLateMatters, loadValidityOffsets, orgDay, validityOf } from "@/lib/bids/repo";
+import { exerciseForBids, liveConsents, loadBidRule, loadBidWindow, loadBoxEvents, loadEnvelopes, loadExtensions, loadLateMatters, loadValidityOffsets, orgDay, validityOf } from "@/lib/bids/repo";
 import { blocking, OFFICER_CHANNELS, RECEIPT_KINDS, type EnvelopeChannel, type Finding } from "@/lib/bids/types";
 import { bidFieldsFaults } from "@/lib/bids/window-fields";
 import { returnFaults, withdrawFaults } from "@/lib/bids/withdrawal";
@@ -250,9 +250,10 @@ export async function tableLateMatter(_prev: FormState, data: FormData): Promise
     if (!env) return { ok: false, message: "That envelope is not on this exercise." };
     const s = await lockSittingIn(tx, meetingId, roster);
     if (!s) return { ok: false, errors: { meetingId: "That sitting no longer exists." } };
-    const rule = await loadBidMethodRule(l.org.id, l.ex.sourcingMethodCode, tx);
+    // CR-2: the committee frozen with the window at publication, never today's method.
+    const { rule, committee } = await loadBidRule(reg.window, l.org.id, l.ex.sourcingMethodCode, tx);
     const matters = await loadLateMatters(l.ex.id, tx);
-    const fs = lateMatterFault({ exerciseCancelled: l.ex.status === "CANCELLED", committeeCode: rule?.lateAdmissionCommitteeCode ?? null, envelope: env, matters, sitting: { committeeCode: s.meeting.committee.code, frozen: !sittingPermits(s.meeting.status, "TABLE") } });
+    const fs = lateMatterFault({ exerciseCancelled: l.ex.status === "CANCELLED", committeeCode: rule?.lateAdmissionCommitteeCode ?? null, committeeSource: committee, envelope: env, matters, sitting: { committeeCode: s.meeting.committee.code, frozen: !sittingPermits(s.meeting.status, "TABLE") } });
     if (blocking(fs).length) return refuse(fs);
     const code = s.meeting.committee.secretariatRoleCode;
     const tabling = checkTabling({ secretariatRoleCode: code, tabledByPersonId, holderIdsOnDate: secretariatHoldersOn(s.roster, code, s.today).map((h) => h.id), tablingDay: s.today });

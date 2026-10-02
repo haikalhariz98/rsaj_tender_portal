@@ -17,7 +17,7 @@ import { REGIME_LABEL } from "@/lib/method/labels";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { senToDecimalString, parseSen } from "@/lib/money";
 import { invitationConfig } from "@/lib/window/read";
-import { BID_RULE_UNSET } from "@/lib/bids/config";
+import { BID_RULE_UNSET, BID_RULES_APPLY_TEXT } from "@/lib/bids/config";
 
 import { CalendarDrawer, ChannelDrawer, EditMethodBidRule, EditWindowPolicy, FloorDrawer, HolidayDrawer, ImportYearDrawer, RemoveFloorDrawer, RemoveHolidayDrawer, RetireCalendarDrawer, RetireChannelDrawer, YearDrawer } from "./editors";
 
@@ -164,7 +164,7 @@ export default async function InvitationControlsPage() {
           <CardHeader
             icon={<SlidersIcon size={17} />}
             title="Bid receipt, by sourcing method"
-            subtitle="Who decides whether a late envelope is admitted, the fewest bids each method expects, and what follows from an incomplete bid. The validity alerts are a notification rule."
+            subtitle={`Who decides whether a late envelope is admitted, the fewest bids each method expects, and what follows from an incomplete bid. ${BID_RULES_APPLY_TEXT} The validity alerts are a notification rule.`}
             divided={bidMethods.length === 0}
           />
           {bidMethods.length === 0 ? (

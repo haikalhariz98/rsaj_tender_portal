@@ -107,6 +107,11 @@ export function receiptTime(at: Date | null, timeZone: string | null): string {
 }
 
 const d = (f: Finding, k: string) => f.data?.[k] ?? null;
+/// A published exercise's committee, unset as frozen (CR-2): no "set it", since a later setting does not apply.
+const frozenCommitteeText = (source: unknown) =>
+  source === "NOT_RECORDED"
+    ? "The committee that decides late admission was not recorded when this exercise's window was published, so it reads as not set; a later setting under Configuration › Invitation does not apply to it."
+    : "The committee that decides late admission was not set for this exercise's method when its window was published; a later setting under Configuration › Invitation does not apply to it.";
 const day = (v: unknown) => (typeof v === "string" && v ? formatDate(v) : "a day not recorded");
 
 export function bidFindingText(f: Finding): string {
@@ -183,11 +188,13 @@ export function bidFindingText(f: Finding): string {
     case "LATE_UNDECIDED": {
       const n = Number(d(f, "count") ?? 0);
       const lead = `${n} late ${n === 1 ? "envelope waits" : "envelopes wait"} for the committee's decision on admission.`;
+      if (d(f, "committeeSet") === "no" && d(f, "asPublished")) return `${lead} ${frozenCommitteeText(d(f, "asPublished"))}`;
       return d(f, "committeeSet") === "no"
         ? `${lead} The committee that decides it is not set: set it on the sourcing method under Configuration › Invitation, then table each on the Bids received tab.`
         : `${lead} Table each on the Bids received tab; it is decided at the sitting, either way.`;
     }
     case "COMMITTEE_NOT_SET":
+      if (d(f, "asPublished")) return frozenCommitteeText(d(f, "asPublished"));
       return "The committee that decides late admission is not set for this method. Set it under Configuration › Invitation; it is never read as a refusal.";
     case "NOT_LATE":
       return "The envelope was received in time: only a late one goes for admission.";

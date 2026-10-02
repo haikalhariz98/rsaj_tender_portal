@@ -62,6 +62,8 @@ import { addendaForNewPurchaser, deliveryFaults, issueFaults, nextAddendumNumber
 import { addendumFields, changeFields, deliveryFields, eventFields, feeLineFields, partyFields, saleFields, windowFields, ENTITY } from "../src/lib/window/audit-view";
 import { cancelFaults, closingChangeFaults, noticeRecipients, windowChangeRouteForRequester, type WindowChangeCond } from "../src/lib/window/change";
 import { policyFaults } from "../src/lib/window/config";
+import { loadBidMethodRule } from "../src/lib/bids/repo";
+import { BID_RULES_KEY, bidRulesSnapshot } from "../src/lib/bids/rule-snapshot";
 import { policySnapshot } from "../src/lib/window/dates";
 import { invitedSaleFault, publicationFault, windowChangeRejectionSnapshot, windowEditFault } from "../src/lib/window/edit";
 import { eventFaults, heldFault, mandatoryPermittedFor } from "../src/lib/window/events";
@@ -768,6 +770,8 @@ export class Acts {
     const floor = d.floors.find((f) => f.regime === l.ex.regime) ?? null;
     const snapshot = policySnapshot(d.policy, d.calendar, d.channels, floor ? { regime: floor.regime, minimum: senToDecimalString(floor.minimum), provenance: floor.provenance } : null, {
       path: j.path, advertisementDay: adDay, warnings: j.result.findings.filter((f) => f.level !== "block").map((f) => ({ level: f.level, text: windowFindingText(f) })),
+      // 6.6 CR-2: as publishWindow, the method's bid-receipt rules frozen with the window.
+      [BID_RULES_KEY]: bidRulesSnapshot(await loadBidMethodRule(this.org, l.ex.sourcingMethodCode, this.db as never)),
     });
     const w = d.window!;
     if (j.path === "ADVERTISED") {

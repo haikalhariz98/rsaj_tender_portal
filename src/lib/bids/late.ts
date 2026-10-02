@@ -17,6 +17,7 @@
  */
 
 import type { EnvelopeFacts, Finding } from "./types";
+import type { RuleSource } from "./rule-snapshot";
 
 /// The matter domain a late-admission matter is tabled under (AuthorityRule.domain's vocabulary).
 export const LATE_DOMAIN = "late_tender_admission";
@@ -65,10 +66,13 @@ export type LateGateFault = "LATE_UNDECIDED";
  * LATE_UNDECIDED with how many wait, and whether the committee that decides them is set (an unset
  * committee is named, so the refusal says where to set it).
  */
-export function lateAdmissionFault(envelopes: readonly Pick<EnvelopeFacts, "id" | "kind" | "late" | "status">[], matters: readonly LateMatter[], committeeSet: boolean): Finding<LateGateFault> | null {
+export function lateAdmissionFault(envelopes: readonly Pick<EnvelopeFacts, "id" | "kind" | "late" | "status">[], matters: readonly LateMatter[], committeeSet: boolean, committeeSource: RuleSource = "LIVE"): Finding<LateGateFault> | null {
   const waiting = envelopes.filter(needsAdmission).filter((e) => !isDecided(admission(e.id, matters).state));
   if (waiting.length === 0) return null;
-  return { code: "LATE_UNDECIDED", level: "block", data: { count: waiting.length, committeeSet: committeeSet ? "yes" : "no" } };
+  // An unset committee frozen at publication is not "set it": a later setting does not apply (CR-2).
+  const data: Record<string, string | number | null> = { count: waiting.length, committeeSet: committeeSet ? "yes" : "no" };
+  if (!committeeSet && committeeSource !== "LIVE") data.asPublished = committeeSource;
+  return { code: "LATE_UNDECIDED", level: "block", data };
 }
 
 export type LateMatterFault = "EXERCISE_CANCELLED" | "COMMITTEE_NOT_SET" | "NOT_LATE" | "WITHDRAWN" | "ALREADY_TABLED" | "ALREADY_DECIDED" | "OTHER_COMMITTEE" | "SITTING_CLOSED" | "NOT_A_BID";
@@ -77,6 +81,8 @@ export type LateMatterFault = "EXERCISE_CANCELLED" | "COMMITTEE_NOT_SET" | "NOT_
 export function lateMatterFault(i: {
   exerciseCancelled: boolean;
   committeeCode: string | null;
+  /// Where the committee was read from (CR-2); an unset one frozen at publication says so.
+  committeeSource?: RuleSource;
   envelope: Pick<EnvelopeFacts, "id" | "kind" | "late" | "status">;
   matters: readonly LateMatter[];
   sitting: { committeeCode: string; frozen: boolean };
@@ -84,7 +90,7 @@ export function lateMatterFault(i: {
   const out: Finding<LateMatterFault>[] = [];
   const f = (code: LateMatterFault, data?: Finding["data"]) => out.push({ code, level: "block", ...(data ? { data } : {}) });
   if (i.exerciseCancelled) f("EXERCISE_CANCELLED");
-  if (!i.committeeCode) f("COMMITTEE_NOT_SET");
+  if (!i.committeeCode) f("COMMITTEE_NOT_SET", i.committeeSource && i.committeeSource !== "LIVE" ? { asPublished: i.committeeSource } : undefined);
   if (i.envelope.kind === "COMPANY_ESTIMATE") f("NOT_A_BID");
   else if (!i.envelope.late) f("NOT_LATE");
   if (i.envelope.status === "WITHDRAWN") f("WITHDRAWN");

@@ -23,3 +23,12 @@ describe("a method's bid-receipt rules", () => {
     expect(bidRuleToSave({ ...unset, eliminates: false, eliminatesProvenance: "STATED" }).completenessEliminates).toBe(false);
   });
 });
+
+describe("when a change to a method's bid-receipt rules applies (6.6 CR-2)", () => {
+  it("Configuration › Invitation says it applies only to exercises published after it", async () => {
+    const { BID_RULES_APPLY_TEXT } = await import("./config");
+    expect(BID_RULES_APPLY_TEXT).toMatch(/applies only to exercises published after it/);
+    const { readFileSync } = await import("node:fs");
+    for (const f of ["src/app/configuration/invitation/page.tsx", "src/app/configuration/invitation/editors.tsx"]) expect(readFileSync(f, "utf8")).toMatch(/\$\{BID_RULES_APPLY_TEXT\}/);
+  });
+});

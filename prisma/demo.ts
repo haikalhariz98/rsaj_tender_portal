@@ -10,7 +10,7 @@ import { loadSittingTrail } from "./demo-sitting-trail";
 import { checkTenderDocs, loadTenderDocs, tenderDocsDependents, wipeTenderDocs } from "./demo-tender-docs";
 import { checkWindowDemo, loadWindowDemo, windowDemoDependents, WINDOW_ENTITIES, wipeWindowDemo } from "./demo-window";
 import { checkAppendixAward, loadAppendixAward } from "./demo-award-appendix";
-import { checkBidsDemo, loadBidsDemo, wipeBidsDemo } from "./demo-bids";
+import { checkBidsDemo, configureBidsDemo, loadBidsDemo, wipeBidsDemo } from "./demo-bids";
 import { removedWithDemo } from "../src/lib/documents/demo-wipe-plan";
 import { inspectLogo } from "../src/lib/organisation/logo";
 import { initialsLogo } from "../src/lib/organisation/png";
@@ -1172,6 +1172,8 @@ async function load() {
   await checkTenderDocs(db);
   // 6.5: the invitation windows, on exercises taken through 6.2's and 6.4's acts; every act judged
   // as it is written and dated relative to the load day, then each phase read back (X-10).
+  // 6.6 CR-2: the method's bid-receipt rules are set first, so each publication freezes them.
+  await configureBidsDemo(db, organisationId);
   const windowSittings = (await loadWindowDemo(db, organisationId, { determine: determineExercises })).sittings;
   await loadSittingTrail(db, organisationId, windowSittings);
   await snapshotMinuted(windowSittings);

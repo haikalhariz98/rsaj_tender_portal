@@ -15,6 +15,7 @@ import { isLive } from "@/lib/documents/evidence";
 
 import type { BoxEventFacts } from "./box";
 import { lateAdmissionFault, type LateMatter } from "./late";
+import { bidRuleFor, type BidMethodRule, type BidRuleReading } from "./rule-snapshot";
 import { awardValidityFault, validityState, VALIDITY_ALERT_EVENT, type ValidityState } from "./validity";
 import type { EnvelopeFacts, ExerciseForBids, ExerciseStatus } from "./types";
 
@@ -23,17 +24,12 @@ const ENVELOPE_INCLUDE = {
   withdrawal: { select: { id: true, receivedAt: true } },
 } as const;
 
-/// What the register's rules read about the method: the late-admission committee, the minimum, the completeness consequence.
-export interface BidMethodRule {
-  nameEn: string;
-  lateAdmissionCommitteeCode: string | null;
-  lateAdmissionProvenance: Provenance | null;
-  minimumBids: number | null;
-  minimumBidsProvenance: Provenance | null;
-  completenessEliminates: boolean | null;
-  completenessProvenance: Provenance | null;
-}
+export type { BidMethodRule } from "./rule-snapshot";
 
+/**
+ * The method's three rules as they stand today. Only publication (to freeze them) and an
+ * unpublished exercise read this; a published one reads `loadBidRule` (CR-2).
+ */
 export async function loadBidMethodRule(organisationId: string, methodCode: string | null, client: Tx = db): Promise<BidMethodRule | null> {
   if (!methodCode) return null;
   const m = await client.sourcingMethod.findFirst({
@@ -41,6 +37,15 @@ export async function loadBidMethodRule(organisationId: string, methodCode: stri
     select: { nameEn: true, lateAdmissionCommitteeCode: true, lateAdmissionProvenance: true, minimumBids: true, minimumBidsProvenance: true, completenessEliminates: true, completenessProvenance: true },
   });
   return m ? { ...m, lateAdmissionProvenance: m.lateAdmissionProvenance as Provenance | null, minimumBidsProvenance: m.minimumBidsProvenance as Provenance | null, completenessProvenance: m.completenessProvenance as Provenance | null } : null;
+}
+
+/**
+ * The rules THIS exercise is judged by: today's method before publication, the window's frozen
+ * `bidRules` after it (never today's method; one not recorded reads as not set). Every reader on
+ * the bids tab, its actions and the 6.10/6.11 hooks goes through this (CR-2).
+ */
+export async function loadBidRule(window: { publishedAt: Date | null; policySnapshot: unknown } | null, organisationId: string, methodCode: string | null, client: Tx = db): Promise<BidRuleReading> {
+  return bidRuleFor(window, await loadBidMethodRule(organisationId, methodCode, client));
 }
 
 /// Every LATE_TENDER matter naming one of the exercise's envelopes, as `late.ts` reads them.
@@ -127,7 +132,7 @@ export async function loadValidityOffsets(organisationId: string, client: Tx = d
 
 /// The window's bid answers and its publication.
 export async function loadBidWindow(exerciseId: string, client: Tx = db) {
-  return client.exerciseWindow.findUnique({ where: { exerciseId }, select: { id: true, publishedAt: true, bidValidityDays: true, bidValidityProvenance: true, alternativesPermitted: true } });
+  return client.exerciseWindow.findUnique({ where: { exerciseId }, select: { id: true, publishedAt: true, policySnapshot: true, bidValidityDays: true, bidValidityProvenance: true, alternativesPermitted: true } });
 }
 
 /// The exercise as the register's rules read it.
@@ -161,13 +166,13 @@ export async function bidGate(exerciseId: string, client: Tx = db, now = new Dat
   const ex = await client.sourcingExercise.findUniqueOrThrow({ where: { id: exerciseId }, select: { organisationId: true, sourcingMethodCode: true, closingAt: true, organisation: { select: { timeZone: true } } } });
   const envelopes = await client.bidEnvelope.findMany({ where: { exerciseId }, select: { id: true, kind: true, late: true, status: true } });
   const matters = await loadLateMatters(exerciseId, client);
-  const rule = await loadBidMethodRule(ex.organisationId, ex.sourcingMethodCode, client);
+  const { rule, committee } = await loadBidRule(window, ex.organisationId, ex.sourcingMethodCode, client);
   const extensions = await client.validityExtension.findMany({ where: { exerciseId }, select: { toExpiry: true, appliedAt: true } });
   const { offsets } = await loadValidityOffsets(ex.organisationId, client);
   const validity = validityOf({ closing: ex.closingAt, timeZone: ex.organisation.timeZone, days: window!.bidValidityDays, extensions, offsets, now });
   return {
     published: true as const,
-    lateFault: lateAdmissionFault(envelopes, matters, !!rule?.lateAdmissionCommitteeCode),
+    lateFault: lateAdmissionFault(envelopes, matters, !!rule?.lateAdmissionCommitteeCode, committee),
     validityFault: awardValidityFault(true, validity),
   };
 }

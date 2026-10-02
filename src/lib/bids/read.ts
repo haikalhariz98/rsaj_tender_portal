@@ -26,6 +26,7 @@ import { ADMISSION_LABEL, ALTERNATIVE_LABEL, bidFindingText, receiptTime, CHANNE
 import { admission, lateAdmissionFault, lateMatterFault, needsAdmission } from "./late";
 import { LATENESS_READING } from "./lateness";
 import { exerciseFaults } from "./receipt";
+import { bidRuleFor, frozenUnsetText } from "./rule-snapshot";
 import { envelopeFactsOf, exerciseForBids, liveConsents, loadBidMethodRule, loadBidWindow, loadBoxEvents, loadEnvelopes, loadExtensions, loadLateMatters, loadValidityOffsets, loadWithdrawals, validityOf } from "./repo";
 import { EXPIRY_READING } from "./validity";
 import { bidFieldsFaults } from "./window-fields";
@@ -44,7 +45,7 @@ export async function bidsTab(exerciseId: string) {
   const { timeZone, today } = org;
   const orgId = ex.organisationId;
   const now = new Date();
-  const [window, events, envelopes, withdrawals, extensions, matters, rule, { offsets, ruleSet }, people, parties, pack] = await Promise.all([
+  const [window, events, envelopes, withdrawals, extensions, matters, liveRule, { offsets, ruleSet }, people, parties, pack] = await Promise.all([
     loadBidWindow(ex.id),
     loadBoxEvents(ex.id),
     loadEnvelopes(ex.id),
@@ -58,6 +59,9 @@ export async function bidsTab(exerciseId: string) {
     db.tenderPack.findFirst({ where: { exerciseId: ex.id, status: "APPROVED" }, orderBy: { versionNo: "desc" }, select: { versionNo: true, parts: { select: { partCode: true, labelSnapshot: true, mandatory: true, sortOrder: true } } } }),
   ]);
   const addenda = window ? await db.addendum.findMany({ where: { windowId: window.id, status: "ISSUED", number: { not: null } }, orderBy: { number: "asc" }, select: { number: true, title: true } }) : [];
+  // CR-2: a published exercise is judged by the rules frozen with its window, never today's method.
+  const reading = bidRuleFor(window, liveRule);
+  const rule = reading.rule;
   const x = exerciseForBids(ex, window, timeZone, events);
   const facts = envelopes.map(envelopeFactsOf);
   const cancelled = ex.status === "CANCELLED";
@@ -89,7 +93,7 @@ export async function bidsTab(exerciseId: string) {
     const correct = allowed(correctionFaults({ exercise: x, now, envelope: { kind: e.kind, status: e.status, channel: e.channel, markings: e.markings, receivedByPersonId: e.receivedByPersonId }, change: { markings: `${e.markings} ` }, reason: "-", personActive: true }));
     const table = a && !["ADMITTED", "NOT_ADMITTED", "PENDING"].includes(a.state)
       ? (() => {
-          const fs = lateMatterFault({ exerciseCancelled: cancelled, committeeCode: code, envelope: f, matters, sitting: { committeeCode: code ?? "", frozen: false } });
+          const fs = lateMatterFault({ exerciseCancelled: cancelled, committeeCode: code, committeeSource: reading.committee, envelope: f, matters, sitting: { committeeCode: code ?? "", frozen: false } });
           const r = allowed(fs);
           if (!r.allowed) return r;
           if (!committee) return { allowed: false as const, reason: "The committee the method names for late admission is no longer configured. Choose another under Configuration › Invitation." };
@@ -132,7 +136,7 @@ export async function bidsTab(exerciseId: string) {
   const count = bidCount(facts);
   const comp = competition(count.inTime, rule?.minimumBids ?? null);
   const late = rows.filter((r) => r.late && !r.withdrawn && !r.isEstimate);
-  const gate = lateAdmissionFault(facts, matters, !!code);
+  const gate = lateAdmissionFault(facts, matters, !!code, reading.committee);
 
   // ---- validity
   const v = validityOf({ closing: ex.closingAt, timeZone, days: window?.bidValidityDays ?? null, extensions, offsets, now });
@@ -168,6 +172,8 @@ export async function bidsTab(exerciseId: string) {
     windowPrepared: window != null,
     closing: ex.closingAt ? formatOrgDateTime(ex.closingAt, timeZone) : null,
     statement: { reading: LATENESS_READING.text, provenance: PROVENANCE_WORD[LATENESS_READING.provenance] },
+    /// Whose rules these are (CR-2): once published, the method's as they stood then.
+    rulesNote: reading.frozen ? "The method's late-admission committee, fewest bids and incomplete-bid rule as they stood when the window was published. A later change applies only to exercises published after it." : "The method's rules as they stand today. They are frozen with the window when it is published.",
     exerciseReason: receive.allowed ? null : receive.reason,
     acts: { receive, withdraw, lock, extend, answers },
     box: box.state === "NOT_LOCKED" ? { state: "NOT_LOCKED" as const, text: "Not locked yet" } : { state: box.state, text: `${box.state === "LOCKED" ? "Locked" : "Opened for the opening"} at ${time(box.at)} by ${box.by}, recorded on their behalf, not signed` },
@@ -195,12 +201,16 @@ export async function bidsTab(exerciseId: string) {
       competitionText: COMPETITION_TEXT[comp],
       competitionTone: (comp === "MET" ? "ok" : comp === "MINIMUM_NOT_SET" ? "neutral" : "warn") as "ok" | "warn" | "neutral",
       minimum: rule?.minimumBids == null ? null : `${rule.minimumBids}${rule.minimumBidsProvenance ? ` (${PROVENANCE_WORD[rule.minimumBidsProvenance]})` : ""}`,
+      minimumUnset: frozenUnsetText(reading.minimum) ?? "Not set",
     },
     late: {
       rows: late,
       gate: gate ? bidFindingText(gate) : null,
       committee: committee?.nameEn ?? (code ? "A committee no longer configured" : null),
       committeeProvenance: rule?.lateAdmissionProvenance ? PROVENANCE_WORD[rule.lateAdmissionProvenance] : null,
+      /// Unset: what the card says, and whether configuration can still set it (only before publication).
+      unsetText: code ? null : `The committee that decides late admission: ${(frozenUnsetText(reading.committee) ?? "not set for this method").replace(/^N/, "n")}.`,
+      settable: !reading.frozen,
       act: ACT_LABEL.A ?? "Approve",
       sittings: sittings.map((s) => ({ value: s.id, label: `${s.reference}, ${formatDate(storedDay(s.meetingDate))}` })),
       holders: holders.map((h) => ({ value: h.id, label: h.name })),
@@ -238,7 +248,7 @@ export async function bidsTab(exerciseId: string) {
       pack: pack ? `Version ${pack.versionNo} of the tender documents, as approved` : null,
       items: checklist.items.map((i) => i.label),
       notSet: checklist.notSet,
-      consequence: CONSEQUENCE_LABEL[completenessConsequence(rule?.completenessEliminates ?? null)],
+      consequence: rule?.completenessEliminates == null && reading.frozen ? `${frozenUnsetText(reading.completeness)}: an opening cannot be finalised on it` : CONSEQUENCE_LABEL[completenessConsequence(rule?.completenessEliminates ?? null)],
       consequenceProvenance: rule?.completenessProvenance ? PROVENANCE_WORD[rule.completenessProvenance] : null,
     },
     people: people.map((p) => ({ value: p.id, label: p.name })),

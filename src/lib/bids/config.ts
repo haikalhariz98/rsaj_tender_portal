@@ -47,6 +47,9 @@ export const BID_RULE_FAULT_TEXT: Readonly<Record<BidRuleFault, string>> = {
   PROVENANCE_REQUIRED: "Say where this came from.",
 };
 
+/// When a change to a method's bid-receipt rules applies (6.6 CR-2): publication freezes them with the window.
+export const BID_RULES_APPLY_TEXT = "A change applies only to exercises published after it: an exercise already advertised or invited keeps the rules frozen with its window.";
+
 /// What each setting holds back while it is not set, said beside "Not set".
 export const BID_RULE_UNSET = {
   committee: "No late envelope can be tabled for admission, and an award on an exercise with one is held back.",

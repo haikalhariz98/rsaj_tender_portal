@@ -123,6 +123,7 @@ function BidsPanel({ d }: { d: BidsTab }) {
                 { label: "Closing", value: d.closing ?? "Not set" },
                 { label: "The box", value: <span className="flex flex-wrap items-center gap-2">{d.box.state === "NOT_LOCKED" ? <Chip tone="warn">Not locked yet</Chip> : <Chip tone="ok">{d.box.state === "LOCKED" ? "Locked" : "Opened"}</Chip>}{d.box.state !== "NOT_LOCKED" && <span className="break-words">{d.box.text}</span>}</span> },
                 { label: "How lateness is judged", value: <span className="flex flex-col items-start gap-1.5"><span className="break-words">{d.statement.reading}</span><FromBadge text={d.statement.provenance} /></span> },
+                { label: "The method's rules", value: <span className="break-words">{d.rulesNote}</span> },
               ]}
             />
           </CardBody>
@@ -137,7 +138,7 @@ function BidsPanel({ d }: { d: BidsTab }) {
                 { label: "Late, counted apart", value: String(d.count.late) },
                 { label: "Alternatives", value: String(d.count.alternatives) },
                 { label: "Withdrawn", value: String(d.count.withdrawn) },
-                { label: "Minimum the method expects", value: d.count.minimum ?? "Not set" },
+                { label: "Minimum the method expects", value: d.count.minimum ?? d.count.minimumUnset },
                 { label: "Competition", value: <Badge tone={d.count.competitionTone}>{d.count.competition}</Badge> },
               ]}
             />
@@ -160,8 +161,8 @@ function LateCard({ d }: { d: BidsTab }) {
       <CardHeader
         icon={<ClockIcon size={17} />}
         title="Late envelopes"
-        subtitle={d.late.committee ? `Each is admitted or not by the ${d.late.committee}, as a matter at its sitting${d.late.committeeProvenance ? ` (${d.late.committeeProvenance.toLowerCase()})` : ""}. Never deleted, rejected or set aside.` : "The committee that decides late admission is not set for this method."}
-        actions={!d.late.committee ? <ButtonLink href={SETTINGS_HREF} size="sm" variant="ghost">Set it</ButtonLink> : undefined}
+        subtitle={d.late.committee ? `Each is admitted or not by the ${d.late.committee}, as a matter at its sitting${d.late.committeeProvenance ? ` (${d.late.committeeProvenance.toLowerCase()})` : ""}. Never deleted, rejected or set aside.` : (d.late.unsetText ?? "")}
+        actions={!d.late.committee && d.late.settable ? <ButtonLink href={SETTINGS_HREF} size="sm" variant="ghost">Set it</ButtonLink> : undefined}
       />
       {d.late.gate && (
         <CardBody className="border-t border-line">
