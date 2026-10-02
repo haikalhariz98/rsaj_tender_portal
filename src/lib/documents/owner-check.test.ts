@@ -224,9 +224,9 @@ describe("6.15: a supplier's document and application are owners, everywhere at 
     expect(sql).toHaveLength(1);
   });
 
-  it("the SUPPLIER matter kind arrived alone, and only a SUPPLIER route names an application (both ways)", () => {
+  it("the SUPPLIER matter kind arrived alone, and a SUPPLIER route names exactly one supplier record while any other route names none (a2)", () => {
     const own = migrations.filter((d) => /ALTER TYPE "MatterKind" ADD VALUE 'SUPPLIER';/.test(readFileSync(join(migrationsDir, d, "migration.sql"), "utf8")));
     expect(own).toHaveLength(1);
-    expect(latestCheck("ApprovalInstance_supplier_matter")).toMatch(/\("supplierApplicationId" IS NULL\) = \("matterKind" <> 'SUPPLIER'\)/);
+    expect(latestCheck("ApprovalInstance_supplier_matter")).toBe(`(num_nonnulls("supplierApplicationId", "standingRequestId", "specialPermissionId") = CASE WHEN "matterKind" = 'SUPPLIER' THEN 1 ELSE 0 END)`);
   });
 });

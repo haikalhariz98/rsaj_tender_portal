@@ -336,6 +336,10 @@ model Organisation {
   resubmissionItems        ResubmissionItem[]
   supplierDocuments        SupplierDocument[]
   supplierDocumentValues   SupplierDocumentValue[]
+  standingReasons    StandingReason[]
+  standingRequests   StandingRequest[]
+  standingEvents     StandingEvent[]
+  specialPermissions SpecialPermission[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -461,6 +465,10 @@ model Person {
 
   @@unique([organisationId, staffNo])
   @@index([organisationId, name])
+  standingRequested    StandingRequest[]   @relation("StandingRequestedBy")
+  standingRecorded     StandingEvent[]     @relation("StandingRecordedBy")
+  permissionsRequested SpecialPermission[] @relation("PermissionRequestedBy")
+  permissionsGranted   SpecialPermission[] @relation("PermissionGrantedBy")
 }
 
 /// Who holds an authority office, and when.
@@ -2370,6 +2378,12 @@ model ApprovalInstance {
   /// may carry several routes over time: a refused one is followed by a new one when it is sent again.
   supplierApplicationId String?
   supplierApplication   SupplierApplication? @relation(fields: [supplierApplicationId], references: [id], onDelete: Restrict)
+  /// 6.15a (OD-8 A): a blacklisting, or its lifting, asked for on the register.
+  standingRequestId     String?
+  standingRequest       StandingRequest? @relation(fields: [standingRequestId], references: [id], onDelete: Restrict)
+  /// 6.15a (FR-ADV-017): a special permission granted inside the organisation.
+  specialPermissionId   String?
+  specialPermission     SpecialPermission? @relation(fields: [specialPermissionId], references: [id], onDelete: Restrict)
 
   domain String
   cond   String?
@@ -2961,6 +2975,7 @@ model SourcingExercise {
   @@unique([organisationId, dossierReference])
   @@index([organisationId, status])
   @@index([requisitionId])
+  specialPermissions SpecialPermission[]
 }
 
 model ExerciseScopePart {
@@ -3180,7 +3195,10 @@ model Award {
   awardeeName           String
   awardeeRegistrationNo String  @default("")
   awardeeAddress        String  @default("")
+  /// 6.15a: the register's supplier. Written from the awardee party's link where there is a party;
+  /// `linkAwardToSupplier` only for an award with no party.
   vendorId              String?
+  vendor                Supplier? @relation(fields: [vendorId], references: [id], onDelete: Restrict)
   /// 6.7 (C-7): the exercise's party the award names, on an exercise published through 6.5. The gate
   /// compares parties, never free-text registration; null never matches.
   awardeePartyId        String?
@@ -3271,6 +3289,8 @@ model Award {
   @@unique([organisationId, erpCommitmentNo])
   @@index([organisationId, status])
   @@index([exerciseId])
+  /// 6.15a: blacklisting asked for from this award's cancellation (FR-AWD-009).
+  standingRequests StandingRequest[]
 }
 
 /// An issued document, frozen (ADR 0008). Never updated: a reissue is a new version.
@@ -4865,6 +4885,7 @@ model ExerciseRegistrationRequirement {
   createdAt              DateTime @default(now())
 
   @@index([exerciseId])
+  specialPermissions SpecialPermission[]
 }
 
 /// A clause every agreement must carry (FR-DOC-011), cited in a template as {{clause:code}}.
@@ -5177,6 +5198,8 @@ model ExerciseWindow {
   bidValidityProvenance Provenance?
   /// 6.6 (FR-BID-006): whether the documents permit alternative bids. Null: not stated.
   alternativesPermitted Boolean?
+  /// 6.15a (FR-ADV-017): whether the notice offers special permission. Null: not offered.
+  specialPermissionOffered Boolean?
 
   /// Derived at publication from the publication records (OD-3) or the invitation day, then kept.
   advertisementDay DateTime?
@@ -5311,10 +5334,13 @@ model ExerciseParty {
   phone          String   @default("")
   fax            String   @default("")
   email          String   @default("")
+  /// 6.15a (OD-9): the register's supplier, linked by an explicit audited act only (`linkPartyToSupplier`).
   vendorId       String?
+  vendor         Supplier? @relation(fields: [vendorId], references: [id], onDelete: Restrict)
   createdAt      DateTime @default(now())
 
   letters          InvitationLetter[]
+  specialPermissions SpecialPermission[]
   sales            DocumentSale[]
   attendance       SiteEventAttendance[]
   addendumCopies   AddendumRecipient[]
@@ -5395,6 +5421,9 @@ model DocumentSale {
   registrationCheck CheckState @default(NOT_CHECKED)
   suspensionCheck   CheckState @default(NOT_CHECKED)
   checkNote         String     @default("")
+  /// 6.15a (FR-ADV-010): the register's reading at the sale, frozen. Null: sold before the register
+  /// read sales, or to a party not linked to it. Never backfilled.
+  eligibilitySnapshot Json?
   /// The window's fee as it stood.
   amount            Decimal    @db.Decimal(18, 2)
   paymentMethod     String
@@ -5946,6 +5975,9 @@ model OpenedBid {
 
   saleFinding        SaleFinding
   restrictionFinding RestrictionFinding
+  /// 6.15a (FR-BID-008 on paper, OD-6 A): the register's eligibility of a linked bidder, frozen when the
+  /// envelope is opened. Null: the bidder was not linked to the register then.
+  eligibilityFinding Json?
   /// At the verdict: the items missing and the grounds that eliminate it, as judged.
   completeness       Json?
   verdict            OpeningVerdict?
@@ -6836,6 +6868,7 @@ model SupplierDocumentType {
   resubmissionItems ResubmissionItem[]
 
   @@unique([organisationId, code])
+  restrictionPolicies SupplierPolicy[] @relation("RestrictionEvidence")
 }
 
 /// An entry on one of the register's lists: an entity type or a country.
@@ -6865,6 +6898,39 @@ model SupplierPolicy {
   verificationNoticeEn String?
   verificationNoticeMs String?
   noticeProvenance     Provenance?
+
+  /// FR-VND-008 (a2): the expiry bands, in days left. Null: not set, and nothing is banded (never "valid").
+  /// Each band includes its own figure: with critical 30, a document 30 days from expiry is critical.
+  criticalDays      Int?
+  warningDays       Int?
+  upcomingDays      Int?
+  bandsProvenance   Provenance?
+  /// OD-4: whether a document expiring on the closing day still counts as valid for the window.
+  /// Null: not set, and that one case reads "not assessed".
+  expiryOnClosingDayCounts Boolean?
+  closingDayProvenance     Provenance?
+  /// OD-7: whether a registered supplier with an expired mandatory document stands suspended (derived
+  /// on read, never stored). Null: not set, and it reads "Active — lapse rule not set".
+  autoSuspendOnLapse Boolean?
+  /// The reason a suspension on lapse is shown with.
+  lapseReasonId      String?
+  lapseReason        StandingReason? @relation("LapseReason", fields: [lapseReasonId], references: [id], onDelete: Restrict)
+  lapseProvenance    Provenance?
+  /// Condition (4), FR-TRM-017: how long a first-offence blacklisting lasts, in months. A later offence
+  /// lasts until further notice. Null: not set, and a first-offence blacklisting cannot be recorded.
+  blacklistFirstOffenceMonths Int?
+  blacklistProvenance         Provenance?
+  /// OD-5: whether a document may be sold only to a purchaser on the register. Null: not set.
+  registerRequiredForSale Boolean?
+  saleProvenance          Provenance?
+  /// FR-DOC-009: the document type that evidences a restricted tender's restriction. Null: not set.
+  restrictionEvidenceTypeId String?
+  restrictionEvidenceType   SupplierDocumentType? @relation("RestrictionEvidence", fields: [restrictionEvidenceTypeId], references: [id], onDelete: Restrict)
+  restrictionProvenance     Provenance?
+  /// OD-6 A: what follows at an opening from a linked bidder found not eligible. Null: not set, and an
+  /// opening holding such a bid cannot finalise, naming this setting.
+  ineligibleBidConsequence IneligibleBidConsequence?
+  ineligibleProvenance     Provenance?
 
   governingSource String   @default("")
   updatedAt       DateTime @updatedAt
@@ -6903,6 +6969,12 @@ model Supplier {
   contacts     SupplierContact[]
   applications SupplierApplication[]
   documents    SupplierDocument[]
+  /// a2: its standing, as recorded acts (append-only); suspension on lapse is derived, never stored.
+  standingEvents   StandingEvent[]
+  standingRequests StandingRequest[]
+  /// a2 (OD-9): the parties and awards explicitly linked to it. Never inferred.
+  parties ExerciseParty[]
+  awards  Award[]
 
   @@unique([organisationId, reference])
   @@unique([organisationId, registrationNoKey])
@@ -7073,4 +7145,173 @@ model SupplierDocumentValue {
   labelSnapshot       String
 
   @@unique([documentId, registrationValueId])
+}
+
+/// 6.15a (FR-VND-010): what a standing event records.
+enum StandingEventKind {
+  SUSPEND
+  REINSTATE
+  BLACKLIST
+  BLACKLIST_LIFT
+  REGISTRATION_CANCELLED
+}
+
+/// 6.15a: which act a standing reason may be given for.
+enum StandingReasonUse {
+  SUSPEND
+  BLACKLIST
+}
+
+/// 6.15a (OD-8 A): what a standing request asks its route for.
+enum StandingRequestKind {
+  BLACKLIST
+  BLACKLIST_LIFT
+}
+
+/// 6.15a (OD-6 A): what follows at an opening from a linked bidder found not eligible. A customer's
+/// choice, shipped unset.
+enum IneligibleBidConsequence {
+  ELIMINATE
+  REPORT
+}
+
+/// 6.15a (FR-ADV-017): which condition a special permission relaxes.
+enum PermissionRelaxes {
+  GRADE
+  FIELD_CODE
+}
+
+/// 6.15a (FR-VND-010): the maintained list of reasons for a suspension or a blacklisting.
+model StandingReason {
+  id              String            @id @default(cuid())
+  organisationId  String
+  organisation    Organisation      @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  code            String
+  nameEn          String
+  nameMs          String            @default("")
+  appliesTo       StandingReasonUse
+  governingSource String            @default("")
+  provenance      Provenance        @default(ASSUMED)
+  sortOrder       Int               @default(0)
+  retiredOn       DateTime?
+  createdAt       DateTime          @default(now())
+
+  events        StandingEvent[]
+  requests      StandingRequest[]
+  lapsePolicies SupplierPolicy[]  @relation("LapseReason")
+
+  @@unique([organisationId, code])
+}
+
+/// 6.15a (OD-8 A): a blacklisting, or its lifting, asked for and routed on `supplier_blacklist`. The
+/// event is recorded from it once its route has approved it.
+model StandingRequest {
+  id                  String              @id @default(cuid())
+  organisationId      String
+  organisation        Organisation        @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  supplierId          String
+  supplier            Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  kind                StandingRequestKind
+  reasonId            String?
+  reason              StandingReason?     @relation(fields: [reasonId], references: [id], onDelete: Restrict)
+  reasonSnapshot      String              @default("")
+  /// What the officer wrote, verbatim.
+  note                String              @default("")
+  /// FR-AWD-009: the cancelled award it was asked for from, where it was.
+  sourceAwardId       String?
+  sourceAward         Award?              @relation(fields: [sourceAwardId], references: [id], onDelete: Restrict)
+  /// The blacklisting a lift asks to end.
+  liftsEventId        String?
+  liftsEvent          StandingEvent?      @relation("LiftRequest", fields: [liftsEventId], references: [id], onDelete: Restrict)
+  requestedByPersonId String
+  requestedBy         Person              @relation("StandingRequestedBy", fields: [requestedByPersonId], references: [id], onDelete: Restrict)
+  requestedAt         DateTime
+
+  routes ApprovalInstance[]
+  event  StandingEvent?     @relation("RecordedFrom")
+
+  @@index([supplierId])
+}
+
+/// 6.15a (FR-VND-010, FR-TRM-017): a supplier's standing, as recorded acts. Append-only. Suspension on
+/// lapse is never stored: it is derived on read (OD-7 A).
+model StandingEvent {
+  id                 String            @id @default(cuid())
+  organisationId     String
+  organisation       Organisation      @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  supplierId         String
+  supplier           Supplier          @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  kind               StandingEventKind
+  reasonId           String?
+  reason             StandingReason?   @relation(fields: [reasonId], references: [id], onDelete: Restrict)
+  reasonSnapshot     String            @default("")
+  /// The organisation's day it takes effect.
+  effectiveOn        DateTime
+  /// A first-offence blacklisting's last day (inclusive), from the policy's months as they stood. Null:
+  /// until further notice.
+  endsOn             DateTime?
+  /// Which blacklisting of this supplier it is (1 is the first offence).
+  offenceNo          Int?
+  /// The months the period was computed with, frozen.
+  periodMonths       Int?
+  /// The request (and so the route) a blacklisting or a lift was recorded from.
+  requestId          String?           @unique
+  request            StandingRequest?  @relation("RecordedFrom", fields: [requestId], references: [id], onDelete: Restrict)
+  /// A suspension's documents it was imposed for; a reinstatement needs each verified.
+  flaggedDocumentIds String[]
+  /// A reinstatement's checklist, as answered: the documents seen verified.
+  checklist          Json?
+  /// The suspension a reinstatement ends.
+  reinstatesEventId  String?           @unique
+  reinstatesEvent    StandingEvent?    @relation("Reinstates", fields: [reinstatesEventId], references: [id], onDelete: Restrict)
+  reinstatedBy       StandingEvent?    @relation("Reinstates")
+  /// The blacklisting a lift ends.
+  liftsEventId       String?           @unique
+  liftsEvent         StandingEvent?    @relation("Lifts", fields: [liftsEventId], references: [id], onDelete: Restrict)
+  liftedBy           StandingEvent?    @relation("Lifts")
+  liftRequests       StandingRequest[] @relation("LiftRequest")
+  note               String            @default("")
+  recordedByPersonId String
+  recordedBy         Person            @relation("StandingRecordedBy", fields: [recordedByPersonId], references: [id], onDelete: Restrict)
+  recordedAt         DateTime
+
+  @@index([supplierId])
+}
+
+/// 6.15a (FR-ADV-017): a special permission for one party on one exercise, relaxing one condition of one
+/// registration requirement, only where the exercise's notice offers it. Granted by bodies outside the
+/// organisation (recorded) and/or inside it (a route on `special_permission`).
+model SpecialPermission {
+  id                       String                          @id @default(cuid())
+  organisationId           String
+  organisation             Organisation                    @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId               String
+  exercise                 SourcingExercise                @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  partyId                  String
+  party                    ExerciseParty                   @relation(fields: [partyId], references: [id], onDelete: Restrict)
+  requirementId            String
+  requirement              ExerciseRegistrationRequirement @relation(fields: [requirementId], references: [id], onDelete: Restrict)
+  requirementLabelSnapshot String
+  relaxes                  PermissionRelaxes
+  /// Registration bodies outside the organisation that granted it, with their names as they stood.
+  grantingBodyIds          String[]
+  grantingBodyLabels       String[]
+  /// Whether a route inside the organisation must approve it too.
+  internalApproval         Boolean
+  existingClassConfirmed   Boolean
+  goodRecordConfirmed      Boolean
+  note                     String                          @default("")
+  requestedByPersonId      String
+  requestedBy              Person                          @relation("PermissionRequestedBy", fields: [requestedByPersonId], references: [id], onDelete: Restrict)
+  requestedAt              DateTime
+  /// The organisation's day it was granted. Null: not granted yet.
+  grantedOn                DateTime?
+  grantedByPersonId        String?
+  grantedBy                Person?                         @relation("PermissionGrantedBy", fields: [grantedByPersonId], references: [id], onDelete: Restrict)
+  grantedAt                DateTime?
+
+  routes ApprovalInstance[]
+
+  @@index([exerciseId])
+  @@index([partyId])
 }
