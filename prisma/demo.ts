@@ -4,6 +4,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 
 import { checkAwards, loadAwards, loadAwardSetup, reportAwardRefusal, wipeAwards } from "./demo-award";
+import { checkContractsDemo, configureContractsDemo, loadContractsDemo } from "./demo-contracts";
 import { loadDocuments, planDocumentWipe, reportDocumentRefusal, wipeDocuments } from "./demo-documents";
 import { checkScope, loadScope, loadScopeExercises, loadScopeSitting, SCOPE_ENTITIES, scopeWipeDependents, screenHoldingsOnDemo, wipeScope } from "./demo-scope";
 import { loadSittingTrail } from "./demo-sitting-trail";
@@ -1219,6 +1220,12 @@ async function load() {
   await configureSuppliersDemo(db, organisationId);
   await loadSuppliersDemo(db, organisationId);
   await checkSuppliersDemo(db);
+  // 6.12: the three numbered contracts formed, each act judged by the product's own rules as it is
+  // written, nothing dated after the load day (X-10); read back through the product's own readings.
+  if (await configureContractsDemo(db, organisationId)) {
+    await loadContractsDemo(db, organisationId);
+    await checkContractsDemo(db);
+  }
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
   console.log("Remove it with: npm run demo:wipe");

@@ -47,17 +47,17 @@ export function contractFaultWords(f: Finding): Words {
     case "BASIS_BQ_NOT_SET":
       return w(`Whether a contract on ${d.basis ?? "this basis"} is let on a bill of quantities is not set, so which checks apply is not known. Set it under Configuration › Scope and estimate.`, `Sama ada kontrak atas ${d.basis ?? "asas ini"} berdasarkan senarai kuantiti belum ditetapkan. Tetapkan di Konfigurasi › Skop dan anggaran.`);
     case "NO_DOCUMENT_PARTS":
-      return w(`No Contract Document parts are configured for ${d.basis ?? "this basis"}, so the document cannot be assembled in its prescribed order. Add them under Configuration › Contracts.`, `Tiada bahagian Dokumen Kontrak dikonfigurasikan bagi ${d.basis ?? "asas ini"}. Tambah di Konfigurasi › Kontrak.`);
+      return w(`No Contract Document parts are configured for ${d.basis ?? "this basis"}, so the document cannot be assembled in its prescribed order. Add them under Configuration › Contract controls.`, `Tiada bahagian Dokumen Kontrak dikonfigurasikan bagi ${d.basis ?? "asas ini"}. Tambah di Konfigurasi › Kawalan kontrak.`);
     case "LEGAL_OFFICE_NOT_SET":
-      return w("The legal office that reviews contracts is not set. Set it under Configuration › Contracts.", "Pejabat undang-undang yang menyemak kontrak belum ditetapkan. Tetapkan di Konfigurasi › Kontrak.");
+      return w("The legal office that reviews contracts is not set. Set it under Configuration › Contract controls.", "Pejabat undang-undang yang menyemak kontrak belum ditetapkan. Tetapkan di Konfigurasi › Kawalan kontrak.");
     case "LEGAL_OFFICE_UNKNOWN":
-      return w("The legal office set under Configuration › Contracts is no longer in the organisation's structure. Choose a current unit there.", "Pejabat undang-undang yang ditetapkan tiada lagi dalam struktur organisasi.");
+      return w("The legal office set under Configuration › Contract controls is no longer in the organisation's structure. Choose a current unit there.", "Pejabat undang-undang yang ditetapkan tiada lagi dalam struktur organisasi.");
     case "SIGNATORY_COND_NOT_SET":
-      return w("The approval matrix condition that names the contract agreement's signatory is not set. Set it under Configuration › Contracts.", "Syarat matriks kelulusan bagi penandatangan perjanjian kontrak belum ditetapkan. Tetapkan di Konfigurasi › Kontrak.");
+      return w("The approval matrix condition that names the contract agreement's signatory is not set. Set it under Configuration › Contract controls.", "Syarat matriks kelulusan bagi penandatangan perjanjian kontrak belum ditetapkan. Tetapkan di Konfigurasi › Kawalan kontrak.");
     case "STAMP_NOT_SET":
-      return w("The words stamped on a controlled copy are not set. Set them under Configuration › Contracts.", "Perkataan cop salinan terkawal belum ditetapkan. Tetapkan di Konfigurasi › Kontrak.");
+      return w("The words stamped on a controlled copy are not set. Set them under Configuration › Contract controls.", "Perkataan cop salinan terkawal belum ditetapkan. Tetapkan di Konfigurasi › Kawalan kontrak.");
     case "NO_COPY_RECIPIENTS":
-      return w("Nobody is set to receive a controlled copy. Add the recipients under Configuration › Contracts.", "Tiada penerima salinan terkawal ditetapkan. Tambah di Konfigurasi › Kontrak.");
+      return w("Nobody is set to receive a controlled copy. Add the recipients under Configuration › Contract controls.", "Tiada penerima salinan terkawal ditetapkan. Tambah di Konfigurasi › Kawalan kontrak.");
 
     // ------------------------------------------------ assembly, reconciliation, checks
     case "NO_PARTS":
@@ -112,7 +112,7 @@ export function contractFaultWords(f: Finding): Words {
       return w("The contract is not legally endorsed.", "Kontrak belum disahkan dari segi undang-undang.");
     case "GATE_NOT_MET":
       return d.item
-        ? w(`Not ready to sign: ${gate(d.item).en} is ${d.state === "NOT_SET" ? "not set" : "not met"}.`, `Belum sedia untuk ditandatangani: ${gate(d.item).ms} ${d.state === "NOT_SET" ? "belum ditetapkan" : "belum dipenuhi"}.`)
+        ? w(`Not ready to sign: ${gate(d.item).en} — ${d.state === "NOT_SET" ? "not set" : "not met"}.`, `Belum sedia untuk ditandatangani: ${gate(d.item).ms} — ${d.state === "NOT_SET" ? "belum ditetapkan" : "belum dipenuhi"}.`)
         : w("The readiness gate is not met (the instrument returned, the bond and the insurances verified): the conditions for an interim certificate before signature.", "Syarat kesediaan belum dipenuhi.");
     case "NO_RESOLUTION":
       return w("No company resolution or other proof of signing authority is on file. Attach it under Signing.", "Tiada resolusi syarikat atau bukti kuasa menandatangan. Lampirkan di Tandatangan.");

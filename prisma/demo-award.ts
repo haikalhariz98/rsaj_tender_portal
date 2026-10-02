@@ -10,6 +10,7 @@
  * numbers are visibly invented.
  */
 
+import { wipeContractFormation, wipeContractsConfig } from "./demo-contracts";
 import type { PrismaClient } from "../src/generated/prisma/client";
 
 const P = "demo_";
@@ -651,7 +652,20 @@ export async function checkAwards(db: Db, organisationId: string, removeDependen
         { variantId: demoRef },
         { documents: { some: { templateId: demoRef } } },
         { conditions: { some: { kindId: demoRef } } },
-        { contract: { OR: [{ securities: { some: { OR: [{ issuerId: demoRef }, { verifiedByPersonId: demoRef }] } } }, { policies: { some: { OR: [{ issuerId: demoRef }, { verifiedByPersonId: demoRef }] } } }] } },
+        { contract: { OR: [{ securities: { some: { OR: [{ issuerId: demoRef }, { verifiedByPersonId: demoRef }] } } }, { policies: { some: { OR: [{ issuerId: demoRef }, { verifiedByPersonId: demoRef }, { wcCheckedByPersonId: demoRef }] } } }] } },
+        // 6.12: a contract formed through the screens naming a demo person or a demo copy recipient.
+        {
+          contract: {
+            OR: [
+              { signatures: { some: { personId: demoRef } } },
+              { checks: { some: { completedByPersonId: demoRef } } },
+              { reconciliations: { some: { OR: [{ checkedByPersonId: demoRef }, { amendments: { some: { officerPersonId: demoRef } } }] } } },
+              { legalReviews: { some: { OR: [{ submittedByPersonId: demoRef }, { reviewerPersonId: demoRef }] } } },
+              { custodyItems: { some: { OR: [{ custodianPersonId: demoRef }, { movements: { some: { personId: demoRef } } }] } } },
+              { copies: { some: { recipientId: demoRef } } },
+            ],
+          },
+        },
         { awardReturn: { receivedByPersonId: demoRef } },
         // Close-out: a route snapshotted under a demo destination, a choice or a declaration naming a demo person.
         { approvalInstances: { some: { OR: [{ rejectionDestinationId: demoRef }, { rejectionChosenByPersonId: demoRef }, { steps: { some: { declaredByPersonId: demoRef } } }] } } },
@@ -688,7 +702,7 @@ export async function wipeAwards(db: Db, organisationId: string, check: AwardWip
   const { hanging, linked } = check;
   const awards = await db.award.findMany({
     where: { organisationId, OR: [{ id: demoRef }, { exerciseId: demoRef }, { id: { in: hanging.map((h) => h.id) } }] },
-    select: { id: true, reference: true, documents: { select: { id: true } }, distributions: { select: { id: true } }, awardReturn: { select: { id: true } }, conditions: { select: { id: true } }, approvalInstances: { select: { id: true, steps: { select: { id: true } } } }, contract: { select: { id: true, securities: { select: { id: true } }, policies: { select: { id: true } }, ownershipEvents: { select: { id: true } } } } },
+    select: { id: true, reference: true, documents: { select: { id: true } }, distributions: { select: { id: true } }, awardReturn: { select: { id: true } }, conditions: { select: { id: true } }, approvalInstances: { select: { id: true, steps: { select: { id: true } } } }, contract: { select: { id: true, number: true, securities: { select: { id: true } }, policies: { select: { id: true } }, ownershipEvents: { select: { id: true } } } } },
   });
   const ids = awards.map((a) => a.id);
   const entityIds = awards.flatMap((a) => [
@@ -702,6 +716,8 @@ export async function wipeAwards(db: Db, organisationId: string, check: AwardWip
   await db.approvalInstance.updateMany({ where: { ...byAward, NOT: { supersedesInstanceId: null } }, data: { supersedesInstanceId: null } });
   await db.approvalStep.deleteMany({ where: { instance: byAward } });
   await db.approvalInstance.deleteMany({ where: byAward });
+  // 6.12: the contracts' formation records go first (custody names their bonds and policies).
+  await wipeContractFormation(db, organisationId, awards.flatMap((a) => (a.contract ? [{ id: a.contract.id, number: a.contract.number }] : [])));
   await db.securityInstrument.deleteMany({ where: { contract: byAward } });
   await db.insurancePolicy.deleteMany({ where: { contract: byAward } });
   await db.caseOwnershipEvent.deleteMany({ where: { contract: byAward } });
@@ -716,7 +732,8 @@ export async function wipeAwards(db: Db, organisationId: string, check: AwardWip
   if (linked.length) await db.committeeDecision.updateMany({ where: { id: { in: linked.map((m) => m.id) } }, data: { exerciseId: null } });
   if (hanging.length) console.log(`Removed ${hanging.length} award(s) that pointed at demo records, with their audit entries.`);
 
-  // The award configuration the demo created.
+  // The contract configuration the demo created (6.12), then the award configuration.
+  await wipeContractsConfig(db);
   const demo = { id: demoRef };
   await db.awardPolicy.deleteMany({ where: demo });
   await db.appointmentLetterVariant.deleteMany({ where: demo });

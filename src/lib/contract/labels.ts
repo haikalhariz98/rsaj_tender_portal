@@ -115,7 +115,7 @@ export const PROVENANCE_WORDS: Readonly<Record<Provenance, Words>> = {
 };
 
 export const GATE_WORDS: Readonly<Record<string, Words>> = {
-  RETURNED: w("the Letter of Acceptance returned signed", "Surat Setuju Terima dikembalikan bertandatangan"),
+  RETURNED: w("the instrument returned signed", "surat tawaran dikembalikan bertandatangan"),
   BOND: w("the performance bond lodged and verified", "bon pelaksanaan diserahkan dan disahkan"),
   INSURANCE: w("every required insurance policy lodged and verified", "setiap polisi insurans yang diperlukan diserahkan dan disahkan"),
 };
