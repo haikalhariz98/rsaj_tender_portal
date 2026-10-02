@@ -3,6 +3,14 @@
 import { bidGate } from "@/lib/bids/repo";
 import { bidFindingText } from "@/lib/bids/labels";
 import { APPOINTMENT_DOMAIN } from "@/lib/method/types";
+import { toSecond } from "@/lib/bids/lateness";
+import { bundleFaults } from "@/lib/evaluation/bundle";
+import { loadEvaluationGate } from "@/lib/evaluation/gate-read";
+import { evaluationFindingText } from "@/lib/evaluation/labels";
+import { lockEvaluationRows } from "@/lib/evaluation/lock";
+import { isLoopKey, loopFault, LOOP_KEY_LABEL } from "@/lib/evaluation/loop";
+import { ceilingOf } from "@/lib/evaluation/repo";
+import { openNewVersion } from "@/lib/evaluation/versions";
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
@@ -428,6 +436,10 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
       if (exerciseId && domain === APPOINTMENT_DOMAIN) {
         const bids = await bidGate(exerciseId, tx);
         if (bids.lateFault) r.reject("matterRef", bidFindingText(bids.lateFault));
+        // 6.8 (E-8, flagged): an exercise published through its window with a pinned model is appointed on
+        // its issued, standing report and its Kertas Cadangan, checked and recommended. Others as before.
+        const bundle = bundleFaults((await loadEvaluationGate(exerciseId, tx)).bundle);
+        if (bundle.length) r.reject("matterRef", bundle.map(evaluationFindingText).join(" "));
       }
       // No exercise has that reference: tabled as a manual matter, linked to no record, as before.
     }
@@ -580,8 +592,25 @@ export async function recordOutcome(_prev: FormState, data: FormData): Promise<F
     if (done.count !== 1) return { ok: false, message: "The matter has already been decided." };
     await audit(tx, s, "CommitteeDecision", decisionId, decision.subject, "UPDATE",
       diffFields({ outcome: decision.outcome, decisionDate: decision.decisionDate, outcomeNote: decision.outcomeNote, notApprovedOutcomeId: decision.notApprovedOutcomeId }, after));
-    return { ok: true };
+    // 6.8 (E-8, flagged): an appointment not carried, with a LOOP outcome whose key is the evaluation's,
+    // opens the next evaluation version in this transaction. Locks: the sitting, then the evaluations
+    // (never the exercise; lock.ts). Only for an exercise published through its window with a pinned model.
+    const said = outcome === "NOT_CARRIED" && decision.domain === APPOINTMENT_DOMAIN && decision.exerciseId ? await loopBack(tx, s, decision.exerciseId, decisionId, chosen ?? null) : null;
+    return said ? { ok: true, message: said } : { ok: true };
   });
+}
+
+/// 6.8 E-8: the evaluation's loop-back on a NOT_CARRIED appointment; returns what to say, or null. Never refuses.
+async function loopBack(tx: Tx, s: LoadedSitting, exerciseId: string, decisionId: string, chosen: { kind: "LOOP" | "TERMINAL"; returnsToStage: string | null } | null): Promise<string | null> {
+  await lockEvaluationRows(tx, exerciseId);
+  const ev = await loadEvaluationGate(exerciseId, tx);
+  if (!ev.bundle.applies || ev.version == null) return null;
+  const key = chosen?.returnsToStage ?? null;
+  const lf = loopFault({ kind: chosen?.kind ?? null, key });
+  if (lf || !isLoopKey(key)) return lf ? evaluationFindingText(lf) : null;
+  const ex = await tx.sourcingExercise.findUniqueOrThrow({ where: { id: exerciseId }, select: { id: true, reference: true, title: true, status: true, regime: true, boundaryValue: true, boundaryOperator: true } });
+  const v = await openNewVersion(tx, { organisationId: s.organisationId, exercise: ex, ceiling: ceilingOf(ex), today: s.today, timeZone: s.timeZone, now: toSecond(new Date()) }, { trigger: "LOOP", decisionId, key, personId: null });
+  return v ? `Evaluation version ${v} of ${ex.reference} is opened: ${LOOP_KEY_LABEL[key].toLowerCase()}.` : null;
 }
 
 /**

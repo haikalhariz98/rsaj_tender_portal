@@ -7,7 +7,9 @@ import { describe, expect, it } from "vitest";
  * The 6.8 hooks in accepted modules, by source scan (each act is exercised against a database by the
  * build's verify run; these hold the shape so a later edit cannot quietly drop one):
  * - E-7: finalising a supplementary opening once a version exists opens the next version, in the same
- *   transaction, with the evaluations locked after the opened bids (the lock order of `lock.ts`).
+ *   transaction, with the evaluations locked after the opened bids (the lock order of `lock.ts`);
+ * - E-8: an appointment is tabled only on the evaluation's bundle, and a NOT_CARRIED LOOP outcome with an
+ *   evaluation key opens the next version (sitting → evaluations); a configured return names a stage key.
  */
 
 const read = (...p: string[]) => readFileSync(join(process.cwd(), ...p), "utf8");
@@ -33,5 +35,31 @@ describe("E-7: a supplementary opening finalised reopens the evaluation (6.7 fin
   });
   it("the ceiling the late bids are judged against is the exercise's recorded one (never a typed figure)", () => {
     expect(fin).toMatch(/ceiling: ceilingOf\(l\.ex\)/);
+  });
+});
+
+describe("E-8: the committee's bundle and the loop-back (6.10 tableMatter, recordOutcome)", () => {
+  const committee = read("src", "app", "committees", "actions.ts");
+  it("an appointment matter on an exercise is refused without the evaluation's bundle, before anything is written", () => {
+    const table = body(committee, "tableMatter");
+    const check = table.indexOf("bundleFaults((await loadEvaluationGate(exerciseId, tx)).bundle)");
+    expect(check).toBeGreaterThan(table.indexOf("if (exerciseId && domain === APPOINTMENT_DOMAIN)"));
+    expect(check).toBeLessThan(table.indexOf("tx.committeeDecision.create("));
+  });
+  it("only a NOT_CARRIED appointment on an exercise reaches the loop-back, after the outcome is written", () => {
+    const rec = body(committee, "recordOutcome");
+    const hook = rec.indexOf('outcome === "NOT_CARRIED" && decision.domain === APPOINTMENT_DOMAIN && decision.exerciseId ? await loopBack(');
+    expect(hook).toBeGreaterThan(rec.indexOf("tx.committeeDecision.updateMany("));
+  });
+  it("the loop-back locks the evaluations first (sitting → evaluations, never the exercise), and opens a LOOP version with no person", () => {
+    const loop = committee.slice(committee.indexOf("async function loopBack("), committee.indexOf("/**\n * Withdraw a tabled matter"));
+    expect(loop.indexOf("lockEvaluationRows(tx, exerciseId)")).toBeLessThan(loop.indexOf("loadEvaluationGate("));
+    expect(loop).not.toMatch(/withLockedRequisitionForSourcing|lockWindowRow|FOR UPDATE/);
+    expect(loop).toMatch(/\{ trigger: "LOOP", decisionId, key, personId: null \}/);
+    expect(loop).toMatch(/if \(!ev\.bundle\.applies \|\| ev\.version == null\) return null;/);
+  });
+  it("a configured return names one of the evaluation's stages, or keeps a stage typed before as it was", () => {
+    const config = read("src", "app", "configuration", "committees", "actions.ts");
+    expect(config).toMatch(/if \(returnsToStage && !isLoopKey\(returnsToStage\) && returnsToStage !== current\?\.returnsToStage\) r\.reject\("returnsToStage"/);
   });
 });

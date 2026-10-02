@@ -1,5 +1,6 @@
 import { PencilIcon } from "@/components/icons";
 import { END_DAY_LABEL } from "@/lib/effective-text";
+import { isLoopKey, LOOP_KEY_LABEL, LOOP_STAGE_KEYS } from "@/lib/evaluation/loop";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 
@@ -427,7 +428,13 @@ export interface OutcomeValues {
   sortOrder: number;
 }
 
-function outcomeFields(editing: boolean, committees: { id: string; nameEn: string }[]): Field[] {
+/// 6.8 (E-8): the evaluation's stages a return may name, by label; a stage typed before them is kept as it is, and opens nothing.
+function stageOptions(current: string | null) {
+  const keys = LOOP_STAGE_KEYS.map((k) => ({ value: k, label: LOOP_KEY_LABEL[k] }));
+  return current && !isLoopKey(current) ? [...keys, { value: current, label: `As typed before: ${current} (opens nothing)` }] : keys;
+}
+
+function outcomeFields(editing: boolean, committees: { id: string; nameEn: string }[], current: string | null = null): Field[] {
   return [
     ...(editing
       ? []
@@ -448,10 +455,12 @@ function outcomeFields(editing: boolean, committees: { id: string; nameEn: strin
       ],
     },
     {
-      kind: "text",
+      kind: "select",
       name: "returnsToStage",
       label: "Returns to stage",
-      hint: "For a return only. The stage the matter goes back to, once the sourcing modules exist.",
+      placeholder: "None",
+      options: stageOptions(current),
+      hint: "For a return only. On an appointment not carried, a stage of the evaluation opens its next version from there.",
     },
     {
       kind: "select",
@@ -497,7 +506,7 @@ export function EditNotApprovedOutcome({
   return (
     <RecordEditor
       title={`Edit ${outcome.nameEn}`}
-      fields={[{ kind: "hidden", name: "id" }, ...outcomeFields(true, committees)]}
+      fields={[{ kind: "hidden", name: "id" }, ...outcomeFields(true, committees, outcome.returnsToStage)]}
       action={saveNotApprovedOutcome}
       trigger={{ label: `Edit ${outcome.nameEn}`, iconOnly: <PencilIcon size={15} /> }}
       size="lg"

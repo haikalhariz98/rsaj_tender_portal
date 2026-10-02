@@ -4,6 +4,7 @@ import { COMMITTEE_ACTION_LABEL, NOT_APPROVED_KIND_LABEL } from "@/lib/committee
 import { loadRoster } from "@/lib/people/load";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { formatBand } from "@/lib/format";
+import { LOOP_KEY_LABEL, loopKeyState, type LoopStageKey } from "@/lib/evaluation/loop";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge, Chip, type Tone } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -238,6 +239,7 @@ export default async function CommitteesPage() {
                     </Td>
                     <Td label="What it does">
                       <Chip tone={o.kind === "LOOP" ? "info" : "warn"}>{NOT_APPROVED_KIND_LABEL[o.kind]}</Chip>
+                      {o.kind === "LOOP" && <ReturnsTo kind={o.kind} stage={o.returnsToStage} />}
                     </Td>
                     <Td label="Offered to" className="text-[13px] text-ink-3">{o.committee?.nameEn ?? "Every committee"}</Td>
                     <Td label="Source">
@@ -269,5 +271,18 @@ export default async function CommitteesPage() {
         )}
       </Card>
     </>
+  );
+}
+
+/// 6.8 (E-8): where a return goes, by label; a stage typed before the evaluation existed is warned of, and opens nothing.
+function ReturnsTo({ kind, stage }: { kind: "LOOP" | "TERMINAL"; stage: string | null }) {
+  const state = loopKeyState(kind, stage);
+  if (state === "KEY") return <p className="mt-1 text-[12.5px] text-ink-3">{LOOP_KEY_LABEL[stage as LoopStageKey]}</p>;
+  if (state === "NONE") return <p className="mt-1 text-[12.5px] text-ink-3">To no stage of the evaluation: it opens nothing.</p>;
+  return (
+    <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[12.5px] text-ink-3">
+      <Badge tone="warn">Typed before</Badge>
+      <span>A stage typed before the evaluation existed: it opens nothing. Edit it to choose one of the evaluation&apos;s stages.</span>
+    </p>
   );
 }

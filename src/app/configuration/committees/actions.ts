@@ -8,6 +8,7 @@ import { auditedCreate, auditedUpdate, writeAudit } from "@/lib/audit/record";
 import { diffFields } from "@/lib/audit/diff";
 import { committeePanelFaults, committeePanelToSave, OPENING_CONFIG_FAULT_TEXT, type CommitteePanelDraft } from "@/lib/opening/config";
 import { db } from "@/lib/db";
+import { isLoopKey } from "@/lib/evaluation/loop";
 import { periodsOverlap } from "@/lib/effective";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { compareAmounts } from "@/lib/money";
@@ -368,7 +369,7 @@ export async function saveNotApprovedOutcome(_prev: FormState, data: FormData): 
   const id = String(data.get("id") ?? "");
   const existing = await db.notApprovedOutcome.findMany({
     where: { organisationId: orgId },
-    select: { id: true, code: true },
+    select: { id: true, code: true, returnsToStage: true },
   });
   const current = id ? existing.find((e) => e.id === id) : undefined;
   if (id && !current) return { ok: false, message: "That outcome no longer exists." };
@@ -379,6 +380,8 @@ export async function saveNotApprovedOutcome(_prev: FormState, data: FormData): 
     : r.code("code", "Code", { taken: existing.map((e) => e.code) });
   const kind = r.choice("kind", "What it does", KINDS, { required: true });
   const returnsToStage = kind === "LOOP" ? r.optionalText("returnsToStage") : null;
+  // 6.8 (E-8): one of the evaluation's stages; a stage typed before them is kept only as it was.
+  if (returnsToStage && !isLoopKey(returnsToStage) && returnsToStage !== current?.returnsToStage) r.reject("returnsToStage", "Choose one of the evaluation's stages.");
   const committeeId = r.optionalText("committeeId");
   if (committeeId) {
     const c = await db.committee.findFirst({ where: { id: committeeId, organisationId: orgId }, select: { id: true } });
