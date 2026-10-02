@@ -118,8 +118,11 @@ export function AttachmentPanel({
       </CardBody>
 
       <div className="border-t border-line">
+        {/* Phase 1 carry D5: five columns and an actions column need more than the record's content column at
+            1024 (688px beside the sidebar), so the list stacks below xl rather than scrolling inside its card. */}
         <DataList
           flat
+          stackBelow="xl"
           selectable={false}
           searchable={items.length > 8}
           toolbar={items.length > 8}
@@ -145,7 +148,7 @@ export function AttachmentPanel({
             <h4 className="text-[13px] font-bold text-ink">Taken off or replaced</h4>
             <p className="text-[12.5px] text-ink-3">Kept for the record: what stood here before, and why it was changed.</p>
           </div>
-          <DataList flat selectable={false} searchable={false} toolbar={false} columns={pastColumns} rows={pastRows} exportName="documents-taken-off" />
+          <DataList flat stackBelow="xl" selectable={false} searchable={false} toolbar={false} columns={pastColumns} rows={pastRows} exportName="documents-taken-off" />
         </div>
       )}
     </Card>
