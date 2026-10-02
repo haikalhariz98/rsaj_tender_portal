@@ -830,8 +830,8 @@ async function load() {
   // Invented wording. The product ships none; these exist only to exercise the screens.
   await db.notApprovedOutcome.createMany({
     data: [
-      { id: `${P}nao1`, organisationId, code: "reclarify", nameEn: "Return for re-clarification", nameMs: "Kembali untuk penjelasan semula", kind: "LOOP", returnsToStage: "evaluation", governingSource: "Demo policy 7.2(a)", provenance: "ASSUMED", sortOrder: 1 },
-      { id: `${P}nao2`, organisationId, code: "renegotiate", nameEn: "Return for re-negotiation", nameMs: "Kembali untuk rundingan semula", kind: "LOOP", returnsToStage: "negotiation", governingSource: "Demo policy 7.2(b)", provenance: "ASSUMED", sortOrder: 2 },
+      { id: `${P}nao1`, organisationId, code: "reclarify", nameEn: "Return for re-clarification", nameMs: "Kembali untuk penjelasan semula", kind: "LOOP", returnsToStage: "evaluation.clarification", governingSource: "Demo policy 7.2(a)", provenance: "ASSUMED", sortOrder: 1 },
+      { id: `${P}nao2`, organisationId, code: "renegotiate", nameEn: "Return for re-negotiation", nameMs: "Kembali untuk rundingan semula", kind: "LOOP", returnsToStage: "evaluation.negotiation", governingSource: "Demo policy 7.2(b)", provenance: "ASSUMED", sortOrder: 2 },
       { id: `${P}nao3`, organisationId, code: "recall", nameEn: "Recall the exercise", nameMs: "Panggil semula pelawaan", kind: "LOOP", returnsToStage: "invitation", governingSource: "Demo policy 7.2(c)", provenance: "ASSUMED", sortOrder: 3 },
       { id: `${P}nao4`, organisationId, code: "cancel", nameEn: "Cancel the exercise", nameMs: "Batal pelawaan", kind: "TERMINAL", governingSource: "Demo policy 7.2(d)", provenance: "ASSUMED", sortOrder: 4 },
     ],
