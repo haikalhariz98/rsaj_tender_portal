@@ -158,6 +158,11 @@ export function certificateFaultWords(f: Finding): Words {
       return w(`Not before ${day(d.day)}, the day the check before it was recorded.`, `Tidak sebelum ${day(d.day)}.`);
     case "AFTER_CHECKS":
       return w(`DATE (1) is not after ${day(d.day)}, the day the first check was recorded.`, `TARIKH (1) tidak selepas ${day(d.day)}.`);
+    // ------------------------------------------------ opening
+    case "NO_BASELINE":
+      return w("The contract's baseline has no version in force today, so a certificate has nothing to read. Confirm the baseline on the contract's Baseline tab.", "Garis dasar kontrak tiada versi berkuat kuasa hari ini. Sahkan garis dasar di tab Garis dasar kontrak.");
+    case "SECTION_NOT_IN_BASELINE":
+      return w("That section is not in the baseline version this certificate reads.", "Seksyen itu tiada dalam versi garis dasar yang dibaca oleh perakuan ini.");
     // ------------------------------------------------ moving the certificate
     case "NOT_DRAFT":
       return w("Only a draft is sent on.", "Hanya draf boleh dihantar.");

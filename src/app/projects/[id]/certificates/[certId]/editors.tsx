@@ -1,0 +1,191 @@
+import { RecordEditor, type Field } from "@/components/record-editor";
+import { buttonClass } from "@/components/ui/button";
+import { DECISION_WORDS, METHOD_WORDS } from "@/lib/certificate/labels";
+import { DELIVERY_METHODS, SIGNATURE_DECISIONS, type Block } from "@/lib/certificate/types";
+import { ON_BEHALF_HINT } from "@/lib/documents/labels";
+
+import {
+  acknowledgeCertificateCopy,
+  correctCertificateDay,
+  despatchCertificateCopy,
+  overrideCertificateFigure,
+  recordCertificateCheck,
+  recordCertificateReceived,
+  recordCertificateSignature,
+  sendCertificateForRouting,
+  sendCertificateToSigning,
+  voidCertificateAct,
+} from "./actions";
+
+/**
+ * The certificate's drawers (6.14 increment 1). No field carries a default but the day an act is recorded.
+ * Every Person named is recorded on their behalf, not signed. No drawer posts a bound field: the figures as
+ * computed, the number, the sequence and the certificate's date are never inputs (FR-CRT-002). Each act is
+ * judged again by the server on locked rows; a drawer that cannot proceed says why beside its button.
+ */
+
+type Option = { value: string; label: string };
+const hidden = (name: string): Field => ({ kind: "hidden", name });
+const ghost = buttonClass("ghost", "sm");
+const secondary = buttonClass("secondary", "sm");
+const primary = buttonClass("primary", "sm");
+const person = (name: string, label: string, people: Option[]): Field => ({ kind: "select", name, label, required: true, placeholder: "Choose", options: people, hint: ON_BEHALF_HINT });
+
+export function SendForRoutingDrawer({ certId, typeLabel, blocker }: { certId: string; typeLabel: string; blocker: string | null }) {
+  return (
+    <RecordEditor
+      title="Send for routing"
+      description={`Starts its routing sheet (${typeLabel}) as the type stands today: its checks and targets are frozen on the certificate. The figures freeze too: nothing is overridden after this.`}
+      fields={[hidden("certId")]}
+      values={{ certId }}
+      action={sendCertificateForRouting}
+      submitLabel="Send for routing"
+      submitBlock={blocker}
+      trigger={{ label: "Send for routing", className: primary }}
+    />
+  );
+}
+
+export function SendToSigningDrawer({ certId, blocker, routed }: { certId: string; blocker: string | null; routed: boolean }) {
+  return (
+    <RecordEditor
+      title="Send to signing"
+      description={routed ? "Its approval route is approved and every check of this round is recorded: the signature blocks open in printed order." : "This certificate has no routing sheet: the module that raised it sends it to no approval route. The figures freeze and the signature blocks open in printed order."}
+      fields={[hidden("certId")]}
+      values={{ certId }}
+      action={sendCertificateToSigning}
+      submitLabel="Send to signing"
+      submitBlock={blocker}
+      trigger={{ label: "Send to signing", className: primary }}
+    />
+  );
+}
+
+export function ReceivedDrawer({ certId, today, current }: { certId: string; today: string | null; current: string | null }) {
+  return (
+    <RecordEditor
+      title="DATE (1): received"
+      description="The day the document reached the routing sheet. It starts the internal clock. Not in the future, and not after the first check is recorded."
+      fields={[hidden("certId"), { kind: "date", name: "receivedOn", label: "Received on", required: true }]}
+      values={{ certId, receivedOn: current ?? today }}
+      action={recordCertificateReceived}
+      trigger={current ? { label: "Correct DATE (1)", className: ghost } : { label: "Record DATE (1)", className: secondary }}
+    />
+  );
+}
+
+export function CheckDrawer({ certId, defOrder, label, office, people, today, blocker }: { certId: string; defOrder: number; label: string; office: string | null; people: Option[]; today: string | null; blocker: string | null }) {
+  return (
+    <RecordEditor
+      title={label}
+      description={office ? `Recorded for a holder of ${office} on the day (or a delegate of the whole office).` : "No office is set for this check on its type: any officer may be named, and the sheet says so."}
+      fields={[hidden("certId"), hidden("defOrder"), person("personId", "Recorded for", people), { kind: "date", name: "on", label: "On", required: true }, { kind: "textarea", name: "note", label: "Note" }]}
+      values={{ certId, defOrder: String(defOrder), on: today }}
+      action={recordCertificateCheck}
+      submitBlock={blocker}
+      trigger={{ label: "Record", className: secondary, ariaLabel: `Record ${label}` }}
+    />
+  );
+}
+
+export function SignatureDrawer({ certId, block, people, today, blocker }: { certId: string; block: Block; people: Option[]; today: string | null; blocker: string | null }) {
+  const own = ["SO", "SO_REP", "RECOMMENDING_OFFICER", "NAMED_OFFICE"].includes(block.officeRule);
+  const fields: Field[] = [hidden("certId"), hidden("blockOrder")];
+  if (own) fields.push(person("personId", "Signed by", people));
+  else {
+    fields.push({ kind: "text", name: "name", label: "Full name as signed", required: true });
+    fields.push({ kind: "text", name: "icNumber", label: "Identity-card number", hint: "Only the last four digits are kept." });
+    fields.push({ kind: "date", name: "signedOn", label: "Signed on paper on", required: true });
+    if (block.refusalAllowed) {
+      fields.push({ kind: "select", name: "refused", label: "Signed, or refused", required: true, placeholder: "Choose", options: [{ value: "no", label: "Signed" }, { value: "yes", label: "Refused to sign: recorded, and the next block follows" }] });
+      fields.push({ kind: "textarea", name: "refusalNote", label: "What the refusal was" });
+    }
+  }
+  if (block.carriesDecision) {
+    fields.push({ kind: "select", name: "decision", label: "Answer", required: true, placeholder: "Choose", options: SIGNATURE_DECISIONS.map((d) => ({ value: d, label: DECISION_WORDS[d].en })) });
+    fields.push({ kind: "money", name: "decisionCap", label: "Supported up to (where capped)" });
+  }
+  return (
+    <RecordEditor
+      title={block.labelEn}
+      description={own ? `Dated the day this is recorded${block.datesCertificate ? ", and that day is the certificate's date" : ""}. The first signature pins the form: its order and recipients do not move after it.` : `Dated the day signed on paper${block.datesCertificate ? ", which is the certificate's date" : ""}.`}
+      fields={fields}
+      values={{ certId, blockOrder: String(block.blockOrder), signedOn: own ? null : today }}
+      showWhen={block.refusalAllowed ? { refusalNote: { name: "refused", in: ["yes"] } } : undefined}
+      action={recordCertificateSignature}
+      submitLabel="Record"
+      submitBlock={blocker}
+      trigger={{ label: "Record", className: primary, ariaLabel: `Record ${block.labelEn}` }}
+    />
+  );
+}
+
+export function OverrideDrawer({ certId, fieldKey, label, computed, people }: { certId: string; fieldKey: string; label: string; computed: string; people: Option[] }) {
+  return (
+    <RecordEditor
+      title={`Override: ${label}`}
+      description={`As computed: ${computed}. An override is an exception: it needs its justification and the officer it is recorded for, and both figures stay on the certificate. Totals are recomputed from the lines.`}
+      fields={[hidden("certId"), hidden("fieldKey"), { kind: "text", name: "value", label: "Overridden to", required: true }, { kind: "textarea", name: "justification", label: "Justification", required: true }, person("personId", "Recorded for", people)]}
+      values={{ certId, fieldKey }}
+      action={overrideCertificateFigure}
+      trigger={{ label: "Override", className: ghost, ariaLabel: `Override ${label}` }}
+    />
+  );
+}
+
+export function CorrectDateDrawer({ certId, current }: { certId: string; current: string }) {
+  return (
+    <RecordEditor
+      title="Correct the certificate's date"
+      description={`Now ${current}. A correction moves it to an earlier day, never later or into the future, and never before a block signed before the dating block. The reason is kept beside it; the issued text keeps the day it was issued with.`}
+      fields={[hidden("certId"), { kind: "date", name: "correctedDay", label: "Corrected day", required: true }]}
+      values={{ certId }}
+      reason={{ label: "Why" }}
+      action={correctCertificateDay}
+      trigger={{ label: "Correct the date", className: ghost }}
+    />
+  );
+}
+
+export function DespatchDrawer({ certId, copyId, label, today }: { certId: string; copyId: string; label: string; today: string | null }) {
+  return (
+    <RecordEditor
+      title={`Send ${label}`}
+      description="How the copy went and the day it went. Not before the day the certificate was issued, not in the future."
+      fields={[hidden("certId"), hidden("copyId"), { kind: "select", name: "method", label: "How it went", required: true, placeholder: "Choose", options: DELIVERY_METHODS.map((m) => ({ value: m, label: METHOD_WORDS[m].en })) }, { kind: "date", name: "despatchedOn", label: "Sent on", required: true }]}
+      values={{ certId, copyId, despatchedOn: today }}
+      action={despatchCertificateCopy}
+      trigger={{ label: "Record sending", className: secondary, ariaLabel: `Record sending ${label}` }}
+    />
+  );
+}
+
+export function AcknowledgeDrawer({ certId, copyId, label, today }: { certId: string; copyId: string; label: string; today: string | null }) {
+  return (
+    <RecordEditor
+      title={`Acknowledged: ${label}`}
+      description="The day the recipient acknowledged the copy. Not before it went, not in the future."
+      fields={[hidden("certId"), hidden("copyId"), { kind: "date", name: "acknowledgedOn", label: "Acknowledged on", required: true }]}
+      values={{ certId, copyId, acknowledgedOn: today }}
+      action={acknowledgeCertificateCopy}
+      trigger={{ label: "Record acknowledgement", className: ghost, ariaLabel: `Record acknowledgement of ${label}` }}
+    />
+  );
+}
+
+export function VoidDrawer({ certId, blocker }: { certId: string; blocker: string | null }) {
+  return (
+    <RecordEditor
+      title="Void the certificate"
+      description="A certificate is voided only before it is issued. It keeps no number and leaves no gap; everything recorded on it is kept as it was."
+      fields={[hidden("certId")]}
+      values={{ certId }}
+      destructive={{ reasonLabel: "Why it is void" }}
+      action={voidCertificateAct}
+      submitLabel="Void the certificate"
+      cancelLabel="Keep the certificate"
+      submitBlock={blocker}
+      trigger={{ label: "Void", className: ghost }}
+    />
+  );
+}

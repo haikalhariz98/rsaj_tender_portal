@@ -12,11 +12,11 @@ import { certificateFaultWords } from "./fault-text";
  */
 
 const dir = join(process.cwd(), "src/lib/certificate");
-const sources = readdirSync(dir).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && f !== "fault-text.ts");
+const sources = readdirSync(dir).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && f !== "fault-text.ts" && f !== "config.ts");
 const codes = new Set<string>();
 for (const f of sources) {
   const s = readFileSync(join(dir, f), "utf8");
-  for (const m of s.matchAll(/(?:code: |\bf\()"([A-Z_]+)"/g)) codes.add(m[1]);
+  for (const m of s.matchAll(/(?:code: |\b(?:f|one)\()"([A-Z_]+)"/g)) codes.add(m[1]);
 }
 
 describe("every certificate refusal is worded", () => {

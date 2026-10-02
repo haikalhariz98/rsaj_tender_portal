@@ -1,0 +1,198 @@
+/**
+ * Certificates, loaded (6.14 increment 1). Reads only, apart from the one lock helper every certificate write
+ * goes through. Every rule is in the pure modules beside this.
+ *
+ * The lock order (ADR 0022, 6.12 condition): `withLockedCertificate` runs inside 6.12's `withLockedContract`
+ * (Requisition → Exercise → Award → Contract) and then locks the certificate row; a domain row (6.13) comes
+ * after it, the supplier last. A source scan (`certificate-scan.test.ts`) keeps every certificate write on
+ * this helper.
+ */
+
+import type { Tx } from "@/lib/audit/record";
+import { contractLabel, loadContract, withLockedContract, type LoadedContract } from "@/lib/contract/repo";
+import { dayToDate, storedDay } from "@/lib/dates";
+import { db } from "@/lib/db";
+import { ORGANISATION_CODE } from "@/lib/org";
+import { pathTo } from "@/lib/organisation/structure";
+import type { OrgUnit } from "@/lib/organisation/types";
+import { loadDelegations, loadRoster } from "@/lib/people/load";
+import { holdersFor } from "@/lib/requisition/holders";
+
+import { KIND_WORDS } from "./labels";
+import type { TemplateNow } from "./revision";
+import type { CheckDef, RecordedCheck, RouteRow, TypeNow } from "./routing-sheet";
+import type { OfficeHolders } from "./signature";
+import type { Block, CertificateKind, DistributionRow, SignedBlock } from "./types";
+
+export const certificateInclude = {
+  signatures: { include: { person: { select: { id: true, name: true } } }, orderBy: { blockOrder: "asc" as const } },
+  overrides: { orderBy: { recordedAt: "asc" as const } },
+  documents: { orderBy: [{ version: "asc" as const }, { language: "asc" as const }] },
+  copies: { orderBy: { copyNo: "asc" as const } },
+  approvalInstances: { include: { steps: { orderBy: { sequence: "asc" as const } } }, orderBy: [{ openedAt: "asc" as const }, { createdAt: "asc" as const }] },
+  routingChecks: { orderBy: [{ iteration: "asc" as const }, { defOrder: "asc" as const }] },
+  template: { select: { id: true, code: true, nameEn: true, nameMs: true } },
+  routingType: { select: { id: true, labelEn: true } },
+  baseline: { select: { id: true, version: true, reason: true, recordedOn: true, contractSum: true, contractDate: true, completionPeriod: true, completionUnit: true } },
+  section: { select: { id: true, ref: true, description: true } },
+};
+
+async function readCertificate(id: string, contractId: string, client: Tx) {
+  return client.certificate.findFirst({ where: { id, contractId }, include: certificateInclude });
+}
+
+export type CertificateRow = NonNullable<Awaited<ReturnType<typeof readCertificate>>>;
+export type LoadedCertificate = LoadedContract & { cert: CertificateRow };
+
+/// A certificate with its contract (6.12's loader), read on one client.
+export async function loadCertificate(id: string, client: Tx = db): Promise<LoadedCertificate | null> {
+  const c = await client.certificate.findUnique({ where: { id }, select: { contractId: true } });
+  if (!c) return null;
+  const l = await loadContract(c.contractId, client);
+  if (!l) return null;
+  const cert = await readCertificate(id, l.contract.id, client);
+  if (!cert || cert.organisationId !== l.org.id) return null;
+  return { ...l, cert };
+}
+
+/**
+ * Lock the contract's chain (6.12's helper), then the certificate, and re-read it. Null: the certificate or its
+ * contract is gone, or it is not this contract's.
+ */
+export async function withLockedCertificate<T>(certificateId: string, fn: (tx: Tx, l: LoadedCertificate) => Promise<T>): Promise<T | null> {
+  const found = await db.certificate.findUnique({ where: { id: certificateId }, select: { contractId: true } });
+  if (!found) return null;
+  return withLockedContract(found.contractId, async (tx, l) => {
+    await tx.$queryRaw`SELECT id FROM "Certificate" WHERE id = ${certificateId} FOR UPDATE`;
+    const cert = await readCertificate(certificateId, l.contract.id, tx);
+    if (!cert || cert.organisationId !== l.org.id) return null;
+    return fn(tx, { ...l, cert });
+  });
+}
+
+/// How the trail names a certificate: under its contract's label, so the contract's History shows it too.
+export function certificateLabel(l: LoadedContract, c: { kind: CertificateKind; number: string | null; id: string }): string {
+  return `${contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } })} · ${KIND_WORDS[c.kind].en}${c.number ? ` ${c.number}` : ""}`;
+}
+
+/// A form as it stands now, with its blocks in printed order and its list (FR-CRT-001).
+export async function templateNow(templateId: string | null, client: Tx = db): Promise<TemplateNow | null> {
+  if (!templateId) return null;
+  const t = await client.documentTemplate.findUnique({
+    where: { id: templateId },
+    include: { signatureBlocks: { orderBy: { blockOrder: "asc" } }, distributionRows: { orderBy: [{ sortOrder: "asc" }, { recipientCode: "asc" }] } },
+  });
+  if (!t) return null;
+  return {
+    id: t.id,
+    code: t.code,
+    nameEn: t.nameEn,
+    nameMs: t.nameMs,
+    formCode: t.formCode,
+    revisionDate: t.revisionDate ? storedDay(t.revisionDate) : null,
+    bodyVersion: t.bodyVersion,
+    bodyEn: t.bodyEn,
+    bodyMs: t.bodyMs,
+    blocks: t.signatureBlocks.map(blockOf),
+    distribution: t.distributionRows.map(rowOf),
+  };
+}
+
+export const blockOf = (b: { blockOrder: number; blockKind: Block["blockKind"]; labelEn: string; labelMs: string | null; datesCertificate: boolean; officeRule: Block["officeRule"]; officeCode: string | null; delegable: boolean | null; carriesDecision: boolean; refusalAllowed: boolean }): Block => ({
+  blockOrder: b.blockOrder,
+  blockKind: b.blockKind,
+  labelEn: b.labelEn,
+  labelMs: b.labelMs,
+  datesCertificate: b.datesCertificate,
+  officeRule: b.officeRule,
+  officeCode: b.officeCode,
+  delegable: b.delegable,
+  carriesDecision: b.carriesDecision,
+  refusalAllowed: b.refusalAllowed,
+});
+
+export const rowOf = (r: { recipientCode: string; labelEn: string; labelMs: string | null; mandatory: boolean; ackRequired: boolean; condition: DistributionRow["condition"]; isOriginal: boolean; sortOrder: number }): DistributionRow => ({
+  recipientCode: r.recipientCode,
+  labelEn: r.labelEn,
+  labelMs: r.labelMs,
+  mandatory: r.mandatory,
+  ackRequired: r.ackRequired,
+  condition: r.condition,
+  isOriginal: r.isOriginal,
+  sortOrder: r.sortOrder,
+});
+
+/// A routing sheet type as it stands now, with the office names its checks name.
+export async function routingTypeNow(typeId: string | null, client: Tx = db): Promise<TypeNow | null> {
+  if (!typeId) return null;
+  const t = await client.routingSheetType.findUnique({ where: { id: typeId }, include: { checks: { orderBy: { order: "asc" } }, targets: true } });
+  if (!t) return null;
+  const codes = t.checks.map((c) => c.officeCode).filter((c): c is string => c != null);
+  const roles = codes.length ? await client.authorityRole.findMany({ where: { organisationId: t.organisationId, code: { in: codes } }, select: { code: true, nameEn: true } }) : [];
+  return {
+    id: t.id,
+    code: t.code,
+    labelEn: t.labelEn,
+    labelMs: t.labelMs,
+    subject: t.subject,
+    certificateKind: t.certificateKind,
+    upperEdgeInclusive: t.upperEdgeInclusive,
+    provenance: t.provenance,
+    retiredOn: t.retiredOn ? storedDay(t.retiredOn) : null,
+    checks: t.checks.map((c): CheckDef => ({ order: c.order, kind: c.kind, labelEn: c.labelEn, labelMs: c.labelMs, officeCode: c.officeCode, officeLabel: roles.find((r) => r.code === c.officeCode)?.nameEn ?? null, targetDays: c.targetDays })),
+    targets: t.targets.map((x) => ({ pctMin: x.pctMin?.toString() ?? null, pctMax: x.pctMax?.toString() ?? null, targetDays: x.targetDays, provenance: x.provenance })),
+  };
+}
+
+/// The signatures as the rules read them.
+export const signedOf = (cert: Pick<CertificateRow, "signatures">): SignedBlock[] =>
+  cert.signatures.map((s) => ({ blockOrder: s.blockOrder, personId: s.personId, name: s.name, signedOn: storedDay(s.signedOn), refused: s.refused, decision: s.decision }));
+
+/// The routes as the sheet reads them (the organisation's day each opened).
+type RouteRowIn = { id: string; status: string; openedAt: Date; createdAt: Date; steps: readonly { sequence: number; roleLabel: string; actingRoleLabel: string | null; act: string; committeeCode: string | null; decision: string; decidedByName: string | null; decidedOn: Date | null; receivedOn: Date | null }[] };
+export const routesOf = (instances: readonly RouteRowIn[]): RouteRow[] =>
+  instances.map((i) => ({
+    id: i.id,
+    status: i.status,
+    openedOn: storedDay(i.openedAt),
+    createdAt: i.createdAt,
+    steps: i.steps.map((s) => ({ sequence: s.sequence, roleLabel: s.roleLabel, actingRoleLabel: s.actingRoleLabel, act: s.act, committeeCode: s.committeeCode, decision: s.decision, decidedByName: s.decidedByName, decidedOn: s.decidedOn ? storedDay(s.decidedOn) : null, receivedOn: s.receivedOn ? storedDay(s.receivedOn) : null })),
+  }));
+
+export const checksOf = (rows: readonly { iteration: number; defOrder: number; personName: string; on: Date; note: string }[]): RecordedCheck[] => rows.map((c) => ({ iteration: c.iteration, defOrder: c.defOrder, personName: c.personName, on: storedDay(c.on), note: c.note }));
+
+/**
+ * Who holds an office on a day, for the contract's requisition unit (the nearest unit with a holder, else
+ * organisation-wide), with live delegates of the whole office (holdersFor, as 6.1 and 6.11 judge it).
+ * `instructionOnly` is false: increment 1 has no delegation scope (6.13 adds it).
+ */
+export async function officeHolders(l: LoadedContract, roleCode: string, day: string, client: Tx = db): Promise<OfficeHolders> {
+  const [roster, delegations, units] = await Promise.all([loadRoster(ORGANISATION_CODE, client), loadDelegations(ORGANISATION_CODE, client), client.orgUnit.findMany({ where: { organisationId: l.org.id } })]);
+  const unitPath = pathTo(units as unknown as OrgUnit[], l.req.sectionUnitCode || l.req.requestingUnitCode, dayToDate(day)).reverse().map((u) => u.code);
+  const h = holdersFor(roleCode, unitPath, roster, delegations, day);
+  return { holderIds: h.holderIds, delegates: h.delegates.map((d) => ({ personId: d.personId, delegationId: d.delegation.id, instructionOnly: false })) };
+}
+
+/// The name of an office, as configured now.
+export async function officeName(organisationId: string, code: string | null, client: Tx = db): Promise<string | null> {
+  if (!code) return null;
+  return (await client.authorityRole.findFirst({ where: { organisationId, code }, select: { nameEn: true } }))?.nameEn ?? null;
+}
+
+/// A performance bond verified and in force on the day, with its issuer's name (the guarantor's copy, FR-CRT-006).
+export function liveBondOf(l: LoadedContract, day: string): { issuerName: string } | null {
+  const b = l.contract.securities.find((s) => s.kind === "PERFORMANCE_BOND" && s.status === "VERIFIED" && storedDay(s.effectiveFrom) <= day && (!s.expiresOn || storedDay(s.expiresOn) >= day));
+  return b ? { issuerName: b.issuer?.name ?? b.issuerNameAsWritten } : null;
+}
+
+export const CERTIFICATES_PAGE = 100;
+
+/// A contract's certificates, newest first, bounded (the contract's Documents tab).
+export async function certificatesOfContract(contractId: string, page = 0, client: Tx = db) {
+  const where = { contractId };
+  const [rows, total] = await Promise.all([
+    client.certificate.findMany({ where, orderBy: [{ openedAt: "desc" }, { id: "asc" }], skip: page * CERTIFICATES_PAGE, take: CERTIFICATES_PAGE, select: { id: true, kind: true, number: true, sequence: true, status: true, certificateDate: true, openedOn: true, issuedAt: true, copies: { select: { mandatory: true, ackRequired: true, despatchedOn: true, acknowledgedOn: true } } } }),
+    client.certificate.count({ where }),
+  ]);
+  return { rows, total };
+}
