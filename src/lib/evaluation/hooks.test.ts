@@ -107,3 +107,10 @@ describe("E-10: the cancellation closes the evaluation in force (6.5 applyCancel
     expect(close).toMatch(/reason: x\.reason/);
   });
 });
+
+describe("Configuration › Templates accepts the evaluation's merge fields (6.8 report, Kertas Cadangan)", () => {
+  it("a body naming an evaluation field is saved; each instrument re-checks its own whitelist when frozen", () => {
+    const t = read("src", "app", "configuration", "templates", "actions.ts");
+    expect(t).toMatch(/WINDOW_FIELD_KEYS\.has\(f\) \|\| EVALUATION_FIELD_KEYS\.has\(f\)/);
+  });
+});

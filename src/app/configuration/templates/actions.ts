@@ -11,6 +11,7 @@ import { renderTemplate } from "@/lib/award/merge";
 import { fieldsNamed } from "@/lib/templates/merge";
 import { templateFieldRefusals } from "@/lib/tender-docs/fields";
 import { WINDOW_FIELD_KEYS } from "@/lib/window/fields";
+import { EVALUATION_FIELD_KEYS } from "@/lib/evaluation/instrument";
 import { FormReader } from "@/lib/validate";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
@@ -82,8 +83,9 @@ export async function saveTemplate(_prev: FormState, data: FormData): Promise<Fo
   const clauseCodes = (await db.clauseText.findMany({ where: { organisationId: orgId }, select: { code: true } })).map((c) => c.code);
   for (const k of ["bodyMs", "bodyEn"] as const) {
     const awardUnknown = new Set(v[k] ? renderTemplate(v[k]!, {}).unknown : []);
-    // 6.5: the window's instruments (notice, letter of invitation, addendum) fill their own fields.
-    const unknown = v[k] ? templateFieldRefusals(fieldsNamed(v[k]), (f) => !awardUnknown.has(f) || WINDOW_FIELD_KEYS.has(f), clauseCodes) : [];
+    // 6.5: the window's instruments (notice, letter of invitation, addendum) fill their own fields;
+    // 6.8: so do the evaluation report and the Kertas Cadangan (each re-checks its own whitelist when frozen).
+    const unknown = v[k] ? templateFieldRefusals(fieldsNamed(v[k]), (f) => !awardUnknown.has(f) || WINDOW_FIELD_KEYS.has(f) || EVALUATION_FIELD_KEYS.has(f), clauseCodes) : [];
     if (unknown.length) r.reject(k, `The portal does not fill ${unknown.map((u) => `{{${u}}}`).join(", ")}. Use the merge fields listed below.`);
   }
   if (v.bodyMs && v.bodyEn && !v.primaryLanguage) r.reject("primaryLanguage", "With text in both languages, say which is issued first.");

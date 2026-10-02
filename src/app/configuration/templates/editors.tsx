@@ -4,6 +4,7 @@ import type { DocumentClass, DocumentTemplate } from "@/lib/records/load";
 
 import { MERGE_FIELDS } from "@/lib/award/fields";
 import { PACK_MERGE_FIELDS } from "@/lib/tender-docs/fields";
+import { EVALUATION_MERGE_FIELDS } from "@/lib/evaluation/instrument";
 
 import { saveTemplate } from "./actions";
 import { InsertClause } from "./insert-tools";
@@ -95,6 +96,8 @@ function MergeFieldList({ clauses }: { clauses: { code: string; title: string }[
         <div className="mt-3 flex flex-col gap-4">
           {group("Tender documents", "The registration and window fields belong in the notice, and the permit field in the instructions to tenderers. They are filled when the documents are submitted for approval.", PACK_MERGE_FIELDS)}
           {group("Awards and agreements", null, MERGE_FIELDS)}
+          {group("Evaluation report", "Filled when the report is issued, from the evaluation as it stands then.", EVALUATION_MERGE_FIELDS.REPORT)}
+          {group("Kertas Cadangan", "Filled when the paper is produced; the offices are the evaluation policy's.", EVALUATION_MERGE_FIELDS.PROPOSAL.filter((f) => !EVALUATION_MERGE_FIELDS.REPORT.some((x) => x.key === f.key)))}
         </div>
       </details>
     </div>
