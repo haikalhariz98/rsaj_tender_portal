@@ -729,6 +729,7 @@ export async function suppliersDemoDependents(db: Db, organisationId: string) {
   // a2: links made through the screens to a demo supplier (cleared, never moved), permissions made on demo exercises or parties.
   const screenLinks = await db.exerciseParty.findMany({ where: { organisationId, NOT: { id: demoRef }, vendorId: demoRef }, select: { id: true, name: true, exercise: { select: { reference: true } } } });
   const screenAwardLinks = await db.award.findMany({ where: { organisationId, NOT: { id: demoRef }, vendorId: demoRef }, select: { id: true, reference: true } });
+  const keptPolicy = await db.supplierPolicy.findFirst({ where: { organisationId, NOT: { id: demoRef }, OR: [{ restrictionEvidenceTypeId: demoRef }, { lapseReasonId: demoRef }] }, select: { id: true } });
   const screenPermissions = await db.specialPermission.findMany({ where: { organisationId, NOT: { id: demoRef }, OR: [{ exerciseId: demoRef }, { partyId: demoRef }, { party: { vendorId: demoRef } }] }, select: { id: true, party: { select: { name: true } }, exercise: { select: { reference: true } } } });
   return {
     supplierIds: hanging.map((s) => s.id),
@@ -738,6 +739,7 @@ export async function suppliersDemoDependents(db: Db, organisationId: string) {
     lines: [
       ...screenValues.map((v) => `  registration value ${v.nameEn}, added through the screens under a demo registration body`),
       ...screenTypes.map((t) => `  supplier document type ${t.nameEn}, added through the screens on a demo registration body`),
+      ...(keptPolicy ? ["  the register's policy, which names a demo document type or reason (that setting is cleared, the policy kept)"] : []),
       ...screenLinks.map((x) => `  the link of party ${x.name} on ${x.exercise.reference} to a demo supplier (cleared, the party kept)`),
       ...screenAwardLinks.map((x) => `  the link of award ${x.reference} to a demo supplier (cleared, the award kept)`),
       ...screenPermissions.map((x) => `  a special permission for ${x.party.name} on ${x.exercise.reference}, made through the screens`),
@@ -788,7 +790,10 @@ export async function wipeSuppliersDemo(db: Db, organisationId: string, dependen
   await db.supplierApplication.deleteMany({ where: { id: { in: apps } } });
   await db.supplierContact.deleteMany({ where: { supplierId: { in: ids } } });
   await db.supplier.deleteMany({ where: { id: { in: ids } } });
-  // The configuration: the matrix's rule goes with the matrix's own wipe.
+  // The configuration: the matrix's rule goes with the matrix's own wipe. The policy first: it names a type and a reason.
+  await db.supplierPolicy.deleteMany({ where: { organisationId, id: demoRef } });
+  await db.supplierPolicy.updateMany({ where: { organisationId, restrictionEvidenceTypeId: demoRef }, data: { restrictionEvidenceTypeId: null } });
+  await db.supplierPolicy.updateMany({ where: { organisationId, lapseReasonId: demoRef }, data: { lapseReasonId: null } });
   await db.supplierDocumentType.deleteMany({ where: { organisationId, OR: [{ id: demoRef }, { id: { in: [...dependents.typeIds] } }] } });
   await db.registrationValue.deleteMany({ where: { organisationId, OR: [{ id: demoRef }, { id: { in: [...dependents.valueIds] } }] } });
   await db.supplierListValue.deleteMany({ where: { organisationId, id: demoRef } });
