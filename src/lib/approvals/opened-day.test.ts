@@ -17,12 +17,12 @@ import { dayIn, dayToDate, storedDay } from "@/lib/dates";
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
 
-/** Each route writer, with the `openedAt` expression it writes and the definition that makes it a day. */
-const WRITERS: readonly { file: string; openedAt: RegExp; day?: RegExp }[] = [
-  { file: "src/app/requisitions/actions.ts", openedAt: /openedAt: today,/, day: /const today = dayToDate\(todayStr\);/ },
-  { file: "src/app/awards/actions.ts", openedAt: /openedAt: on,/, day: /const on = dayToDate\(l\.org\.today!\);/ },
-  { file: "src/app/sourcing/actions.ts", openedAt: /openedAt: on,/, day: /const on = dayToDate\(l\.org\.today!\);/ },
-  { file: "src/app/sourcing/[id]/documents/actions.ts", openedAt: /openedAt: on,/, day: /const on = dayToDate\(l\.org\.today\);/ },
+/** Each route writer, with the `openedAt` expression it writes (openedAtFaults judges where it comes from). */
+const WRITERS: readonly { file: string; openedAt: RegExp }[] = [
+  { file: "src/app/requisitions/actions.ts", openedAt: /openedAt: today,/ },
+  { file: "src/app/awards/actions.ts", openedAt: /openedAt: on,/ },
+  { file: "src/app/sourcing/actions.ts", openedAt: /openedAt: on,/ },
+  { file: "src/app/sourcing/[id]/documents/actions.ts", openedAt: /openedAt: on,/ },
   { file: "src/app/sourcing/[id]/evaluation/meeting-actions.ts", openedAt: /openedAt: dayToDate\(l\.org\.today!\),/ },
   { file: "src/app/sourcing/[id]/window/change-actions.ts", openedAt: /openedAt: dayToDate\(l\.org\.today!\),/ },
   { file: "src/lib/integration/requisition-intake.ts", openedAt: /openedAt: dayToDate\(p\.trail\[0\]\.decidedOn\),/ },
@@ -43,23 +43,51 @@ function createCalls(src: string): string[] {
   return out;
 }
 
+/**
+ * Why each create's openedAt is (not) a day, judged inside the function that creates the route: written
+ * as dayToDate(…) directly, or as a variable that function defines as `const x = dayToDate(…)` and never
+ * reassigns. A definition in another function of the same file does not count (residual 3).
+ */
+function openedAtFaults(src: string): string[] {
+  const faults: string[] = [];
+  for (let i = src.indexOf("approvalInstance.create("); i >= 0; i = src.indexOf("approvalInstance.create(", i + 1)) {
+    const call = createCalls(src.slice(i))[0];
+    const m = /openedAt: ([^,}\n]+)/.exec(call);
+    if (!m) continue;
+    const expr = m[1].trim();
+    if (/^dayToDate\(/.test(expr)) continue;
+    const fnStarts = [...src.slice(0, i).matchAll(/(?:^|\n)(?:export )?(?:async )?function \w+/g)];
+    const body = src.slice(fnStarts.length ? fnStarts[fnStarts.length - 1].index! : 0, i);
+    if (!/^[A-Za-z_]\w*$/.test(expr)) { faults.push(`openedAt: ${expr}`); continue; }
+    const defs = [...body.matchAll(new RegExp(`\\b(?:const|let|var) ${expr}\\b\\s*=\\s*([^;\\n]+)`, "g"))];
+    const reassigned = new RegExp(`(?<!(?:const|let|var) )\\b${expr}\\s*=(?!=)`).test(body);
+    if (defs.length !== 1 || !/^dayToDate\(/.test(defs[0][1].trim()) || /^(?:let|var)/.test(defs[0][0]) || reassigned) faults.push(`openedAt: ${expr} (${defs.map((d) => d[0]).join("; ") || "not defined in the creating function"})`);
+  }
+  return faults;
+}
+
 describe("a route's opened day is stored as a day (68-C5, examined)", () => {
-  it("every route writer stores the organisation's day at midnight UTC, never the server's clock", () => {
+  it("every route writer stores the organisation's day at midnight UTC, judged in the creating function", () => {
     for (const w of WRITERS) {
       const src = read(w.file);
       const calls = createCalls(src).filter((c) => /openedAt:/.test(c));
       expect(calls.length, w.file).toBeGreaterThan(0);
-      for (const c of calls) {
-        expect(c, w.file).toMatch(w.openedAt);
-        expect(c, w.file).not.toMatch(/openedAt: (now|new Date\(\))/);
-      }
-      if (w.day) {
-        // The variable written is the day, defined before the create and not reassigned.
-        const at = src.indexOf(calls[0]);
-        const defs = [...src.slice(0, at).matchAll(new RegExp(w.day.source, "g"))];
-        expect(defs.length, w.file).toBeGreaterThan(0);
-      }
+      for (const c of calls) expect(c, w.file).toMatch(w.openedAt);
+      expect(openedAtFaults(src), w.file).toEqual([]);
     }
+  });
+
+  it("the check fails a new Date() in one function even where another function defines the variable as a day (self-test)", () => {
+    const good = "export async function a() {\n  const on = dayToDate(l.org.today!);\n  await tx.approvalInstance.create({ data: { openedAt: on, status: \"PENDING\" } });\n}\n";
+    const bad = "export async function b() {\n  const on = new Date();\n  await tx.approvalInstance.create({ data: { openedAt: on, status: \"PENDING\" } });\n}\n";
+    const undefinedHere = "export async function c() {\n  await tx.approvalInstance.create({ data: { openedAt: on } });\n}\n";
+    const reassigned = "export async function d() {\n  const on = dayToDate(t);\n  on = new Date();\n  await tx.approvalInstance.create({ data: { openedAt: on } });\n}\n";
+    expect(openedAtFaults(good)).toEqual([]);
+    expect(openedAtFaults(good + bad)).toHaveLength(1);
+    expect(openedAtFaults(good + undefinedHere)).toHaveLength(1);
+    expect(openedAtFaults(reassigned)).toHaveLength(1);
+    expect(openedAtFaults("function e() {\n  tx.approvalInstance.create({ data: { openedAt: new Date() } });\n}\n")).toEqual(["openedAt: new Date()"]);
+    expect(openedAtFaults("function f() {\n  tx.approvalInstance.create({ data: { openedAt: dayToDate(x) } });\n}\n")).toEqual([]);
   });
 
   it("a successor route opens on the organisation's day too", () => {
