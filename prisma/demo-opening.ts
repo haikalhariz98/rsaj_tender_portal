@@ -610,7 +610,8 @@ export async function checkOpeningDemo(db: Db) {
     throw new Error(`Demo 6.7: ${what}`);
   };
   const ex = await db.sourcingExercise.findMany({ where: { id: { in: [...OPENING_EXERCISES] } }, select: { id: true, status: true } });
-  if (ex.find((e) => e.id === `${P}sx16`)?.status !== "OPENED") fail("sx16 is not Opened.");
+  // 6.8 (E-12, flagged): 6.8's demo evaluates sx16 after its openings: past the opening, Evaluated.
+  if (ex.find((e) => e.id === `${P}sx16`)?.status !== "EVALUATED") fail("sx16 is not past its opening (Evaluated by 6.8's demo).");
   if (ex.find((e) => e.id === `${P}sx20`)?.status !== "OPENING_IN_PROGRESS") fail("sx20 is not Opening in progress.");
   // sx16: both openings finalised, their scans attached, the copy finding explained: the award gate is open, for a carried bidder.
   const g16 = await loadOpeningGate(`${P}sx16`);
