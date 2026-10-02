@@ -11,7 +11,7 @@
 import { normaliseRegistrationNo } from "./identity";
 import type { Finding } from "./types";
 
-export type LinkFault = "ALREADY_LINKED" | "LINKED_ELSEWHERE" | "SUPPLIER_ON_OTHER_PARTY" | "NUMBER_DIFFERS_REASON_REQUIRED" | "NUMBER_DIFFERS" | "SUPPLIER_NOT_REGISTERED" | "AWARD_HAS_PARTY" | "SUPPLIER_REQUIRED";
+export type LinkFault = "AWARD_LINK_DISAGREES" | "ALREADY_LINKED" | "LINKED_ELSEWHERE" | "SUPPLIER_ON_OTHER_PARTY" | "NUMBER_DIFFERS_REASON_REQUIRED" | "NUMBER_DIFFERS" | "SUPPLIER_NOT_REGISTERED" | "AWARD_HAS_PARTY" | "SUPPLIER_REQUIRED";
 
 /// Whether two registration numbers are the same number, as the register compares them. Empty is never the same.
 export const sameNumber = (a: string, b: string) => !!a.trim() && !!b.trim() && normaliseRegistrationNo(a) === normaliseRegistrationNo(b);
@@ -42,4 +42,24 @@ export function linkAwardFaults(award: { awardeePartyId: string | null; awardeeR
 /// An award with a party must name the party's supplier (the party's link is authoritative). Null: they agree.
 export function awardLinkDisagrees(award: { awardeePartyId: string | null; vendorId: string | null }, partyVendorId: string | null): boolean {
   return award.awardeePartyId != null && award.vendorId !== partyVendorId;
+}
+
+/**
+ * What an award's register link becomes when its awardee party is written (6.15a fix M-1, against accepted
+ * 6.11): a new award to a party, or a draft's awardee changed, takes the party's link (the party is
+ * authoritative), linked or not. An award with no party keeps its own link. An award linked on its own
+ * (it had no party) that is now given a party linked elsewhere, or not at all, is refused: the two links
+ * disagree (awardLinkDisagrees), and an explicit link is never silently moved or dropped (OD-9).
+ */
+export function awardVendorOnParty(
+  before: { awardeePartyId: string | null; vendorId: string | null } | null,
+  partyId: string | null,
+  partyVendorId: string | null,
+): { vendorId: string | null; fault: null } | { vendorId: null; fault: Finding<LinkFault> } {
+  if (!partyId) return { vendorId: before?.vendorId ?? null, fault: null };
+  const ownLink = before != null && before.awardeePartyId == null && before.vendorId != null;
+  if (ownLink && awardLinkDisagrees({ awardeePartyId: partyId, vendorId: before.vendorId }, partyVendorId)) {
+    return { vendorId: null, fault: { code: "AWARD_LINK_DISAGREES", level: "block", data: { award: before.vendorId, party: partyVendorId } } };
+  }
+  return { vendorId: partyVendorId, fault: null };
 }

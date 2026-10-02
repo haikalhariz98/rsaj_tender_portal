@@ -59,6 +59,8 @@ import { deciderFaultText } from "@/lib/requisition/labels";
 import { bondFaults, bondRequiredUntil, checkedOnFault, requiredBond } from "@/lib/securities/bond";
 import { applicableRequirements, countsAs, insuranceFaults, wcSumCheck } from "@/lib/securities/insurance";
 import { completionDay } from "@/lib/securities/period";
+import { supplierFaultText } from "@/lib/suppliers/labels";
+import { awardVendorOnParty } from "@/lib/suppliers/link";
 import { FormReader } from "@/lib/validate";
 
 /**
@@ -120,6 +122,7 @@ async function mustMove(tx: Tx, l: LoadedAward, to: AwardStatus, extra: Prisma.A
 }
 
 const UNITS = ["DAYS", "WEEKS", "MONTHS"] as const;
+const supplierWords = (v: { reference: string; registeredName: string }) => `${v.reference} · ${v.registeredName}`;
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const triState = (r: FormReader, name: string, label: string) => {
   const v = r.choice(name, label, ["yes", "no"] as const);
@@ -247,6 +250,10 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
       // 64-C4 (6.4 Q-1 B): on an exercise whose approved pack froze an Appendix, the terms open as the tender stated them.
       const tender = await frozenTenderOf(ex.id, org.timeZone, tx);
       const filled = tender ? prefill(baselineOf(tender, value)) : {};
+      // 6.15a fix M-1 (flagged against 6.11): a new award takes its awardee party's register link, read with the exercise locked.
+      const partyId = awardeePartyWrite(opening, awardeePartyId) ?? null;
+      const party = partyId ? await tx.exerciseParty.findUnique({ where: { id: partyId }, select: { vendor: { select: { id: true, reference: true, registeredName: true } } } }) : null;
+      const link = awardVendorOnParty(null, partyId, party?.vendor?.id ?? null);
       const row = await tx.award.create({
         data: {
           organisationId: org.id,
@@ -254,7 +261,8 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
           exerciseId: ex.id,
           instrumentKind: instrument.kind,
           // R-2: written only where the openings apply and the bidder was carried.
-          awardeePartyId: awardeePartyWrite(opening, awardeePartyId) ?? null,
+          awardeePartyId: partyId,
+          vendorId: link.vendorId,
           awardeeName: v.awardeeName,
           awardeeRegistrationNo: v.awardeeRegistrationNo,
           awardeeAddress: v.awardeeAddress,
@@ -268,7 +276,7 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
           ...(filled.regulatedActivity != null ? { regulatedActivity: filled.regulatedActivity } : {}),
         },
       });
-      await audit(tx, org.id, "Award", row.id, labelOf(row), "CREATE", awardAuditCreate(row, { exercise: ex.reference, instrument: instrument.kind, ...(row.awardeePartyId ? { awardeeBidder: awardeeBidderText(opening.carried, row.awardeePartyId) } : {}), ...(tender ? { termsFrom: `the tender Appendix, documents version ${tender.packVersion}` } : {}) }));
+      await audit(tx, org.id, "Award", row.id, labelOf(row), "CREATE", awardAuditCreate(row, { exercise: ex.reference, instrument: instrument.kind, ...(row.awardeePartyId ? { awardeeBidder: awardeeBidderText(opening.carried, row.awardeePartyId) } : {}), ...(party?.vendor ? { supplier: supplierWords(party.vendor), supplierLink: "Follows the awardee party's link" } : {}), ...(tender ? { termsFrom: `the tender Appendix, documents version ${tender.packVersion}` } : {}) }));
       id = row.id;
       return { ok: true };
     });
@@ -310,6 +318,10 @@ export async function updateAwardDetails(_prev: FormState, data: FormData): Prom
       if (naming.length) return { ok: false, errors: { awardeePartyId: naming.map(openingFindingText).join(" ") } } as FormState;
     }
     const partyWrite = opening ? awardeePartyWrite(opening, awardeePartyId) : undefined;
+    // 6.15a fix M-1 (flagged against 6.11): the awardee changed, the register link follows its party; an own link that disagrees is refused.
+    const party = partyWrite ? await tx.exerciseParty.findUnique({ where: { id: partyWrite }, select: { vendor: { select: { id: true, reference: true, registeredName: true } } } }) : null;
+    const link = partyWrite !== undefined ? awardVendorOnParty({ awardeePartyId: l.award.awardeePartyId, vendorId: l.award.vendorId }, partyWrite, party?.vendor?.id ?? null) : null;
+    if (link?.fault) return { ok: false, errors: { awardeePartyId: supplierFaultText({ ...link.fault, data: { awardSupplier: l.award.vendor ? supplierWords(l.award.vendor) : null, partySupplier: party?.vendor ? supplierWords(party.vendor) : null } }) } };
     if (!editable(l.award.status as AwardStatus).details) return { ok: false, message: `The awardee, value and period are fixed once the award goes for approval. This one is ${AWARD_STATUS_LABEL[l.award.status as AwardStatus].toLowerCase()}.` };
     // 6.8 (E-9, flagged): the recommended tenderer, and each difference with its reason (the rest of the gate at submission).
     const evaluation = await loadEvaluationGate(l.ex.id, tx);
@@ -320,7 +332,7 @@ export async function updateAwardDetails(_prev: FormState, data: FormData): Prom
     // 64-C4: damages the tender states as a percentage, still as resolved against the old sum, follow the new one.
     const tender = await frozenTenderOf(l.ex.id, l.org.timeZone, tx);
     const lad = tender ? ladOnValueChange(tender, senFromDecimal(l.award.awardedValue), parseSen(v.awardedValue!), termsOf(l.award)) : null;
-    const after = { ...v, awardedValue: senToDecimalString(parseSen(v.awardedValue!)), completionPeriod: v.completionPeriod!, completionUnit: v.completionUnit!, ...recorded, ...(lad != null ? { ladAmount: senToDecimalString(lad) } : {}), ...(partyWrite !== undefined ? { awardeePartyId: partyWrite } : {}) };
+    const after = { ...v, awardedValue: senToDecimalString(parseSen(v.awardedValue!)), completionPeriod: v.completionPeriod!, completionUnit: v.completionUnit!, ...recorded, ...(lad != null ? { ladAmount: senToDecimalString(lad) } : {}), ...(partyWrite !== undefined ? { awardeePartyId: partyWrite } : {}), ...(link ? { vendorId: link.vendorId } : {}) };
     const { facts } = await awardFacts({ ...l, award: { ...l.award, awardedValue: after.awardedValue as never } }, tx);
     const ev = evaluateAward(facts);
     const blocks = ev.valueFaults.filter((f) => f.level === "block");
@@ -329,7 +341,8 @@ export async function updateAwardDetails(_prev: FormState, data: FormData): Prom
     if (moved.count !== 1) throw new Refusal(CHANGED);
     // R-7: the bidder named reads by name in the trail, never as the party's id.
     const bidder = opening && partyWrite !== undefined && partyWrite !== l.award.awardeePartyId ? diffFields({ awardeeBidder: awardeeBidderText(opening.carried, l.award.awardeePartyId) }, { awardeeBidder: awardeeBidderText(opening.carried, partyWrite) }) : [];
-    await audit(tx, l.org.id, "Award", id, labelOf(l.award), "UPDATE", [...awardAuditPair(l.award, { ...l.award, ...after }), ...bidder], String(data.get("reason") ?? ""));
+    const relinked = link && link.vendorId !== l.award.vendorId ? diffFields({ supplier: l.award.vendor ? supplierWords(l.award.vendor) : null }, { supplier: party?.vendor ? supplierWords(party.vendor) : null, supplierLink: "Follows the awardee party's link" }) : [];
+    await audit(tx, l.org.id, "Award", id, labelOf(l.award), "UPDATE", [...awardAuditPair(l.award, { ...l.award, ...after }), ...bidder, ...relinked], String(data.get("reason") ?? ""));
     return { ok: true };
   });
 }
