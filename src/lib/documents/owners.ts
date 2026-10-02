@@ -300,7 +300,7 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
       // 6.12: requisition → exercise → award → contract (`withLockedContract`, the canonical order).
       return withLockedContract(ref.id, (tx, l) => {
         const c = l.contract;
-        const facts = contractFacts({ status: c.status, signatures: c.signatures, legalReviews: c.legalReviews });
+        const facts = contractFacts({ status: c.status, signatures: c.signatures, legalReviews: c.legalReviews, attachments: c.attachments });
         return fn(tx, {
           ref,
           organisationId: l.org.id,

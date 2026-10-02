@@ -116,13 +116,28 @@ export const evaluationBidderFacts = (b: { cprPercent: unknown; evaluation: { st
   cprEntered: b.cprPercent != null,
 });
 
-/// 6.12: a contract, where it stands, whether it has gone to legal review and whether the contractor has signed.
-export const contractFacts = (c: { status: ContractStatus; signatures: readonly { party: string }[]; legalReviews: readonly unknown[] }): OwnerFacts => ({
-  kind: "contract",
-  status: c.status,
-  legalSubmitted: c.legalReviews.length > 0,
-  contractorSigned: c.signatures.some((s) => s.party === "CONTRACTOR"),
-});
+/**
+ * 6.12: a contract, where it stands, whether it has gone to legal review and whether the contractor has
+ * signed; and (6.12 review) the versions of the legal office's comments each return was recorded on: those
+ * attached from the review's sending to its decision (the decide act accepts them as the comments).
+ */
+export const contractFacts = (c: {
+  status: ContractStatus;
+  signatures: readonly { party: string }[];
+  legalReviews: readonly { decision?: string | null; submittedAt?: Date; decidedAt?: Date | null }[];
+  attachments?: readonly { purpose: string; versionId: string; attachedAt: Date }[];
+}): OwnerFacts => {
+  const returned = c.legalReviews.filter((r) => r.decision === "RETURNED" && r.submittedAt && r.decidedAt);
+  const returnedOnVersionIds = (c.attachments ?? []).filter((a) => a.purpose === "LEGAL_COMMENTS" && returned.some((r) => a.attachedAt >= r.submittedAt! && a.attachedAt <= r.decidedAt!)).map((a) => a.versionId);
+  return {
+    kind: "contract",
+    status: c.status,
+    legalSubmitted: c.legalReviews.length > 0,
+    contractorSigned: c.signatures.some((s) => s.party === "CONTRACTOR"),
+    // Present only where a return stands on comments, so a contract with none reads as before.
+    ...(returnedOnVersionIds.length ? { returnedOnVersionIds } : {}),
+  };
+};
 
 /// 6.15: a supplier's document, renewed or not, verified or not.
 export const supplierDocumentFacts = (d: { verification: string; renewedBy: { id: string } | null }): OwnerFacts => ({ kind: "supplierDocument", renewed: d.renewedBy != null, verified: d.verification === "VERIFIED" });

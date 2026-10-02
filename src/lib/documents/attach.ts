@@ -81,7 +81,8 @@ export type OwnerFacts =
   | { kind: "supplierApplication"; open: boolean; sent: boolean }
   /// 6.12 (FR-CON-006, 007, 009, 011): a contract, with where it stands, whether it has been sent for legal
   /// review and whether the contractor's signature is recorded (which stands on the company resolution).
-  | { kind: "contract"; status: ContractStatus; legalSubmitted: boolean; contractorSigned: boolean };
+  /// 6.12 review: and the versions of the legal office's comments a return was recorded on (attached while that review was open).
+  | { kind: "contract"; status: ContractStatus; legalSubmitted: boolean; contractorSigned: boolean; returnedOnVersionIds?: readonly string[] };
 
 /// 6.8: where an evaluation version stands (the Prisma enum's values).
 export type EvaluationState = "OPEN" | "ISSUED" | "SUPERSEDED" | "CANCELLED";
@@ -385,7 +386,9 @@ export type Reliance =
   /// 6.15 (FR-VND-006): an application sent for decision on this signed declaration, its last live one.
   | "SENT_ON_IT"
   /// 6.12 (FR-CON-007): the contractor's signature recorded on this company resolution, its last live one.
-  | "RESOLUTION_ON_IT";
+  | "RESOLUTION_ON_IT"
+  /// 6.12 review (FR-CON-006): a legal review returned on these comments (by version, not only the last live one).
+  | "RETURNED_ON_IT";
 
 export type DetachFault = "REASON_REQUIRED" | "RELIED_ON" | "OWNER_FROZEN" | "ALREADY_DETACHED";
 
@@ -429,6 +432,14 @@ export function reliedOn(purpose: AttachmentPurpose, owner: OwnerFacts, liveOfPu
     if (versionId === undefined) return liveNamed > 0 ? "VERIFIED_ON_IT" : null;
     if (!owner.verifiedScanVersionIds.includes(versionId)) return null;
     return liveNamed > 1 ? null : "VERIFIED_ON_IT";
+  }
+  // 6.12 review: a return stands on the comments attached while its review was open, by version: a duplicate
+  // copy of other comments may come off, these may not (attach a new version instead). Asked without the
+  // version, it fails safe while any such comments exist.
+  if (owner.kind === "contract" && purpose === "LEGAL_COMMENTS") {
+    const named = owner.returnedOnVersionIds ?? [];
+    if (versionId === undefined) return named.length > 0 ? "RETURNED_ON_IT" : null;
+    return named.includes(versionId) ? "RETURNED_ON_IT" : null;
   }
   if (liveOfPurpose > 1) return null;
   if (owner.kind === "award") return awardReliance(purpose, owner);

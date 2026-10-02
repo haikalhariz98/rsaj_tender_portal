@@ -86,7 +86,9 @@ export const CONTRACT_FACTS_SELECT = {
   number: true,
   award: { select: { reference: true, awardeeName: true } },
   signatures: { select: { party: true } },
-  legalReviews: { select: { id: true } },
+  legalReviews: { select: { id: true, decision: true, submittedAt: true, decidedAt: true } },
+  // 6.12 review: the legal office's comments, so a return's own comments are not detached afterwards.
+  attachments: { where: { purpose: "LEGAL_COMMENTS" as const }, select: { purpose: true, versionId: true, attachedAt: true } },
 } as const;
 
 /// A contract as the trail and the documents name it.

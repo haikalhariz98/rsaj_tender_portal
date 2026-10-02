@@ -208,6 +208,7 @@ const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {
   DOCUMENT_VERIFIED_ON_IT: "The document was verified on this scan, so it is not taken off. To correct it, attach a new version, with the reason.",
   SENT_ON_IT: "The application was sent for decision on this signed declaration, so it is not taken off. To correct it, attach a new version, with the reason.",
   RESOLUTION_ON_IT: "The contractor's signature was recorded on this company resolution, so it is not taken off. To correct it, attach a new version, with the reason.",
+  RETURNED_ON_IT: "The legal office's return was recorded on these comments, so they are not taken off. To correct them, attach a new version, with the reason.",
 };
 
 export const DOWNLOAD_REFUSAL_TEXT: Readonly<Record<DownloadRefusal, string>> = {
