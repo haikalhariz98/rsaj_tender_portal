@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { routedValue } from "@/lib/approvals/routed-value";
 import { notFound } from "next/navigation";
 
 import { AlertTriangle, ChartIcon, ClipboardIcon, ClockIcon, GlobeIcon, RouteIcon, ShieldIcon } from "@/components/icons";
@@ -171,7 +172,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   const methodNames = new Map((await db.sourcingMethod.findMany({ where: { organisationId: l.org.id }, select: { code: true, nameEn: true } })).map((m) => [m.code, m.nameEn]));
   const approvedRoute = l.req.approvalInstances.find((i) => i.status === "APPROVED") ?? null;
   const inExercises = addSen(...exercises.filter((x) => x.status !== "CANCELLED").map((x) => parseSen(x.estimatedValue.toString())));
-  const remaining = approvedRoute ? parseSen(approvedRoute.value.toString()) - inExercises : null;
+  const remaining = approvedRoute ? routedValue(approvedRoute) - inExercises : null;
   const gateView = (await gatesForRequisition(id)) ?? { gates: [], finding: { code: "GATES_NOT_DETERMINED" as const, why: "NOT_CHECKED" as const } };
   const exerciseFault = openFault({ status: l.req.status, sourcingPermitted: l.req.sourcingPermitted, approvedRoute: !!approvedRoute, remaining }, { today: l.org.today, methodsConfigured: methodCount > 0, gate: gateView.finding });
   // Sittings still open for tabling a gate matter: the earliest that has not passed.
@@ -715,7 +716,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                 <CardHeader
                   icon={<GlobeIcon size={17} />}
                   title="Sourcing exercises"
-                  subtitle={approvedRoute && remaining != null ? `Approved for ${formatMoney(parseSen(approvedRoute.value.toString()))} · ${formatMoney(inExercises)} in live exercises · ${formatMoney(remaining)} left.` : "Opened once the requisition is approved."}
+                  subtitle={approvedRoute && remaining != null ? `Approved for ${formatMoney(routedValue(approvedRoute))} · ${formatMoney(inExercises)} in live exercises · ${formatMoney(remaining)} left.` : "Opened once the requisition is approved."}
                   actions={
                     exerciseFault ? (
                       <Blocked label="New exercise" reason={findingText(exerciseFault)} />

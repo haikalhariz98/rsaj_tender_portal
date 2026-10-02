@@ -5,6 +5,7 @@
  * own transaction, so a sibling-sum check and the write it guards see the same data.
  */
 
+import { routedValue } from "@/lib/approvals/routed-value";
 import { exerciseEvidence, NO_EVIDENCE } from "@/lib/documents/evidence";
 import { attachmentFacts } from "@/lib/documents/repo";
 import type { Tx } from "@/lib/audit/record";
@@ -139,10 +140,10 @@ const requisitionInclude = {
 };
 
 /// The approved route on a requisition: the latest one approved.
-export function approvedRouteOf(req: { approvalInstances: { status: string; value: { toString(): string }; ruleKey: string | null; ruleLabel: string | null; checkedAgainstMatrix: boolean }[] }): ApprovedRoute | null {
+export function approvedRouteOf(req: { approvalInstances: { status: string; value: { toString(): string } | null; ruleKey: string | null; ruleLabel: string | null; checkedAgainstMatrix: boolean }[] }): ApprovedRoute | null {
   const i = req.approvalInstances.find((x) => x.status === "APPROVED");
   if (!i) return null;
-  return { value: parseSen(i.value.toString()), ruleKey: i.ruleKey, ruleLabel: i.ruleLabel, checkedAgainstMatrix: i.checkedAgainstMatrix };
+  return { value: routedValue(i), ruleKey: i.ruleKey, ruleLabel: i.ruleLabel, checkedAgainstMatrix: i.checkedAgainstMatrix };
 }
 
 export async function loadRequisitionForSourcing(id: string, client: Tx = db) {

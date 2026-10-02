@@ -2349,7 +2349,9 @@ model ApprovalInstance {
 
   domain String
   cond   String?
-  value  Decimal @db.Decimal(18, 2)
+  /// What the matter was routed on. Null only where the matter is not routed on a value (6.15 OD-2 A:
+  /// a supplier matter), which matches only a rule with no value band; never an invented 0.
+  value  Decimal? @db.Decimal(18, 2)
 
   /// Null for a trail received from outside.
   authorityMatrixId String?

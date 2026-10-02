@@ -1,5 +1,6 @@
 "use server";
 
+import { routedValue } from "@/lib/approvals/routed-value";
 import { routeCoreFields, stepOrigin } from "@/lib/authority/core-routing";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -1130,7 +1131,7 @@ export async function checkCommitteeGates(_prev: FormState, data: FormData): Pro
     if (!l.org.today) return NO_ZONE;
     const approved = l.req.approvalInstances.find((i) => i.status === "APPROVED");
     if (!approved) return { ok: false, message: "This requisition has no approved route on record, so there is no approved value to judge its gates by." };
-    const found = await determineGates(tx, l, parseSen(approved.value.toString()));
+    const found = await determineGates(tx, l, routedValue(approved));
     if (found.state === "NOT_SET") return { ok: false, message: GATES_NOT_SET };
     if (found.state === "RULE_MISSING") return { ok: false, message: GATE_RULE_MISSING };
     return { ok: true };
