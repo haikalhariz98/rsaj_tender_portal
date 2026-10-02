@@ -16,6 +16,9 @@ import { estimateEventAudit, ENTITY as SCOPE_ENTITY } from "@/lib/scope/audit-vi
 import { leadTime } from "@/lib/scope/estimate";
 import { lockLiveEstimateRows } from "@/lib/scope/lock";
 import { FormReader } from "@/lib/validate";
+import { lockEvaluationRows } from "@/lib/evaluation/lock";
+import { ceilingOf } from "@/lib/evaluation/repo";
+import { openNewVersion } from "@/lib/evaluation/versions";
 import { splitValues } from "@/lib/ui/select-logic";
 import { answerFields, asReadFields, authorisationFields, finaliseFields, initialFields, openedBidFields, OPENING_ENTITY, openingStartFields, signatureFields, sittingFields, verdictFields, withdrawalMatchFields } from "@/lib/opening/audit-view";
 import { boxEnvelopeJudgement, lockGap, registerBoxFaults } from "@/lib/opening/box";
@@ -796,8 +799,16 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
       await moveExercise(tx, l.ex, "OPENED", { today: l.org.today, via: "OPENING_FINALISED", finaliseFaults: 0 });
       await audit(tx, l.org.id, "SourcingExercise", l.ex.id, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ status: l.ex.status }, { status: "OPENED" }));
     }
+    // 6.8 E-7: a supplementary opening finalised once an evaluation version exists opens version n+1 in
+    // this transaction, superseding the one in force; the evaluations are locked after the opened bids.
+    let reopened: number | null = null;
+    if (o.kind === "SUPPLEMENTARY") {
+      await lockEvaluationRows(tx, l.ex.id);
+      reopened = await openNewVersion(tx, { organisationId: l.org.id, exercise: { id: l.ex.id, reference: l.ex.reference, title: l.ex.title, status: l.ex.status }, ceiling: ceilingOf(l.ex), today: l.org.today, timeZone: l.org.timeZone, now }, { trigger: "SUPPLEMENTARY_OPENING", openingId: o.id, personId: person!.id });
+    }
+    const again = reopened ? ` Evaluation version ${reopened} is opened with the late ${o.bids.length === 1 ? "offer" : "offers"}; every stage is submitted again.` : "";
     const copy = disclosed?.check === "MISMATCH" || disclosed?.check === "NOT_IN_BOX" ? " The estimate's paper copy is recorded as a finding to explain on the Schedule section." : "";
-    return { ok: true, message: `Finalised. Attach the signed schedule's scan on the Schedule section.${copy}` };
+    return { ok: true, message: `Finalised. Attach the signed schedule's scan on the Schedule section.${copy}${again}` };
   }, { estimate: true });
 }
 

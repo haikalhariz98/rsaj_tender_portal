@@ -42,7 +42,7 @@ export function exclusionReason(j: ReturnType<typeof ceilingExclusion>): string 
  */
 export async function openNewVersion(
   tx: Tx,
-  x: { organisationId: string; exercise: { id: string; reference: string; title: string; status: ExerciseStatus }; ceiling: CeilingSnapshot; today: string; timeZone: string | null; now: Date },
+  x: { organisationId: string; exercise: { id: string; reference: string; title: string; status: ExerciseStatus }; ceiling: CeilingSnapshot; today: string | null; timeZone: string | null; now: Date },
   cause: NewVersionCause,
 ): Promise<number | null> {
   const evaluations = await loadEvaluations(x.exercise.id, tx);
