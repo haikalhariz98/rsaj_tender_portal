@@ -1269,7 +1269,7 @@ function ApprovalPanel({
           title="Approval route"
           subtitle={
             inst.checkedAgainstMatrix
-              ? `Opened ${formatOrgDay(inst.openedAt, l.org.timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}.`
+              ? `Opened ${formatDate(inst.openedAt)} under ${inst.matrixLabel ?? "an issue no longer on file"}.`
               : "As received from the finance system: not checked against the approval matrix."
           }
           actions={<Badge tone={routeTone(inst.status)}>{approvalRouteLabel(inst.status, inst.warnings)}</Badge>}
@@ -1461,7 +1461,7 @@ function ApprovalPanel({
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone={returned ? "warn" : routeTone(e.status)}>{approvalRouteLabel(e.status, e.warnings)}</Badge>
                     <span className="text-ink-2">
-                      Opened {formatOrgDay(e.openedAt, l.org.timeZone)} · {e.ruleLabel ?? "as received"} · {e.steps.map((s) => s.roleLabel).join(" → ")}
+                      Opened {formatDate(e.openedAt)} · {e.ruleLabel ?? "as received"} · {e.steps.map((s) => s.roleLabel).join(" → ")}
                     </span>
                   </div>
                   {notes.map((n) => (

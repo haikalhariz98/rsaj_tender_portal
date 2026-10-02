@@ -12,7 +12,7 @@ import { isMandatoryAct } from "@/components/ui/act";
 import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { routeCoreText } from "@/lib/authority/core-routing-labels";
-import { formatOrgDay } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { ACT_DONE_LABEL, routedOnLabel } from "@/lib/labels";
 import type { LoadedExercise } from "@/lib/method/repo";
 import { routeTone, stepTone } from "@/lib/ui/status-tone";
@@ -558,7 +558,7 @@ function ClosingCard({ d, c, latest, earlier }: { d: WindowTab; c: WindowContext
               <li key={e.id} className="flex flex-wrap items-center gap-2 px-5 py-3 text-[13px] sm:px-6">
                 <Badge tone={routeTone(e.status)}>{changeRouteLabel(e.status, e.warnings)}</Badge>
                 <span className="text-ink-2">
-                  {routedOnLabel(e.cond)} · asked {formatOrgDay(e.openedAt, c.timeZone)} · {e.steps.map((s) => s.roleLabel).join(" → ")}
+                  {routedOnLabel(e.cond)} · asked {formatDate(e.openedAt)} · {e.steps.map((s) => s.roleLabel).join(" → ")}
                   {e.rejectionReason ? ` · “${e.rejectionReason}”` : ""}
                 </span>
               </li>
@@ -587,7 +587,7 @@ function ChangeRouteCard({ c, inst }: { c: WindowContext; inst: Route }) {
       <CardHeader
         icon={<RouteIcon size={17} />}
         title="Approval of the change"
-        subtitle={`Asked ${formatOrgDay(inst.openedAt, c.timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}.`}
+        subtitle={`Asked ${formatDate(inst.openedAt)} under ${inst.matrixLabel ?? "an issue no longer on file"}.`}
         actions={<Badge tone={inst.status === "REJECTED" ? "warn" : routeTone(inst.status)}>{changeRouteLabel(inst.status, inst.warnings)}</Badge>}
       />
       <CardBody className="flex flex-col gap-4">

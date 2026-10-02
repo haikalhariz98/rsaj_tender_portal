@@ -390,7 +390,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       icon: <FileIcon size={15} />,
       // Read only while it is the tab being looked at.
       lazy: true,
-      panel: tab === "documents" ? <DocumentsWorkspace exerciseId={ex.id} today={today} timeZone={org.timeZone} routes={latestFirst(tenderingRoutesOf(ex.approvalInstances))} /> : null,
+      panel: tab === "documents" ? <DocumentsWorkspace exerciseId={ex.id} today={today} routes={latestFirst(tenderingRoutesOf(ex.approvalInstances))} /> : null,
     },
     {
       id: "invitation",
@@ -1141,7 +1141,7 @@ function NamePanel({
           <CardHeader
             icon={<RouteIcon size={17} />}
             title={TERM.nameApproval}
-            subtitle={`Requested ${formatOrgDay(inst.openedAt, l.org.timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}: ${inst.ruleLabel ?? "a rule no longer on file"} · ${inst.ruleClause || "clause not recorded"}.`}
+            subtitle={`Requested ${formatDate(inst.openedAt)} under ${inst.matrixLabel ?? "an issue no longer on file"}: ${inst.ruleLabel ?? "a rule no longer on file"} · ${inst.ruleClause || "clause not recorded"}.`}
             actions={<Badge tone={routeTone(inst.status)}>{nameRouteLabel(inst.status, inst.warnings)}</Badge>}
           />
           {((inst.warnings as { level: string; messageEn: string }[]) ?? []).length > 0 && (
@@ -1240,7 +1240,7 @@ function NamePanel({
               <li key={e.id} className="flex flex-wrap items-center gap-2 px-5 py-3 text-[13px] sm:px-6">
                 <Badge tone="neutral">{nameRouteLabel(e.status, e.warnings)}</Badge>
                 <span className="text-ink-2">
-                  Requested {formatOrgDay(e.openedAt, l.org.timeZone)} · {e.steps.map((s) => s.roleLabel).join(" → ")}
+                  Requested {formatDate(e.openedAt)} · {e.steps.map((s) => s.roleLabel).join(" → ")}
                 </span>
               </li>
             ))}

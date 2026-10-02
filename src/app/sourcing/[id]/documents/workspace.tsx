@@ -9,7 +9,7 @@ import { Callout, EmptyState } from "@/components/ui/feedback";
 import { isMandatoryAct } from "@/components/ui/act";
 import { KeyValues } from "@/components/ui/stat";
 import { db } from "@/lib/db";
-import { formatOrgDay } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { ACT_DONE_LABEL, routedOnLabel } from "@/lib/labels";
 import { routeCoreText } from "@/lib/authority/core-routing-labels";
 import type { LoadedExercise } from "@/lib/method/repo";
@@ -47,7 +47,7 @@ const PACK_TONE: Record<string, "neutral" | "brand" | "ok" | "warn" | "err"> = {
  * submission, the route it goes by, and the versions kept. Only this tab's data is read; the
  * exercise's own routes arrive from the page, which already holds them.
  */
-export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }: { exerciseId: string; today: string | null; timeZone: string | null; routes: Route[] }) {
+export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerciseId: string; today: string | null; routes: Route[] }) {
   const [d, conditions, tableNote] = await Promise.all([documentsTab(exerciseId), conditionsTab(exerciseId), tableDocumentNote(exerciseId)]);
   if (!d) return GONE;
   const draft = d.pack?.status === "Draft";
@@ -193,7 +193,7 @@ export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }
 
       {conditions && (d.pack || d.exercise.status === "Draft") && <ConditionsCards c={conditions} packless={!d.pack} />}
 
-      {(d.pack || routes.length > 0) && <RouteCard versionLabel={(() => { const v = d.versions.find((x) => x.submittedOn); return v ? `Version ${v.versionNo}` : null; })()} exerciseId={exerciseId} routes={routes} decide={d.route?.decide ?? null} proposed={d.proposed} today={today} timeZone={timeZone} />}
+      {(d.pack || routes.length > 0) && <RouteCard versionLabel={(() => { const v = d.versions.find((x) => x.submittedOn); return v ? `Version ${v.versionNo}` : null; })()} exerciseId={exerciseId} routes={routes} decide={d.route?.decide ?? null} proposed={d.proposed} today={today} />}
 
       {d.pack && <Card>
         <CardHeader icon={<ScaleIcon size={17} />} title="What the contract type asks of these documents" subtitle="Checked here: six. The other six are checked after award." />
@@ -253,7 +253,7 @@ export async function DocumentsWorkspace({ exerciseId, today, timeZone, routes }
 
 // ------------------------------------------------------------------ the route
 
-async function RouteCard({ exerciseId, routes, decide, proposed, today, timeZone, versionLabel }: { versionLabel: string | null; exerciseId: string; routes: Route[]; decide: NonNullable<Data["route"]>["decide"] | null; proposed: Data["proposed"]; today: string | null; timeZone: string | null }) {
+async function RouteCard({ exerciseId, routes, decide, proposed, today, versionLabel }: { versionLabel: string | null; exerciseId: string; routes: Route[]; decide: NonNullable<Data["route"]>["decide"] | null; proposed: Data["proposed"]; today: string | null }) {
   const inst = routes[0] ?? null;
   const earlier = routes.slice(1);
   const officeName = (code: string | null) => (code ? "an office no longer configured" : null);
@@ -280,7 +280,7 @@ async function RouteCard({ exerciseId, routes, decide, proposed, today, timeZone
         <CardHeader
           icon={<RouteIcon size={17} />}
           title="Approval for tendering"
-          subtitle={`${versionLabel ? `${versionLabel}, submitted` : "Submitted"} ${formatOrgDay(inst.openedAt, timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}.`}
+          subtitle={`${versionLabel ? `${versionLabel}, submitted` : "Submitted"} ${formatDate(inst.openedAt)} under ${inst.matrixLabel ?? "an issue no longer on file"}.`}
           actions={<Badge tone={tenderingRouteTone(inst.status)}>{tenderingRouteLabel(inst.status, inst.warnings)}</Badge>}
         />
         <CardBody className="flex flex-col gap-4">
@@ -336,7 +336,7 @@ async function RouteCard({ exerciseId, routes, decide, proposed, today, timeZone
               <li key={e.id} className="flex flex-wrap items-center gap-2 px-5 py-3 text-[13px] sm:px-6">
                 <Badge tone="neutral">{tenderingRouteLabel(e.status, e.warnings)}</Badge>
                 <span className="text-ink-2">
-                  Submitted {formatOrgDay(e.openedAt, timeZone)} · {e.steps.map((s) => s.roleLabel).join(" → ")}
+                  Submitted {formatDate(e.openedAt)} · {e.steps.map((s) => s.roleLabel).join(" → ")}
                   {e.rejectionReason ? ` · “${e.rejectionReason}”` : ""}
                 </span>
               </li>

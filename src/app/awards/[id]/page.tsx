@@ -640,7 +640,7 @@ function ApprovalPanel({
           <CardHeader
             icon={<RouteIcon size={17} />}
             title="Approval of the appointment"
-            subtitle={`Sent ${formatOrgDay(inst.openedAt, l.org.timeZone)} under ${inst.matrixLabel ?? "an issue no longer on file"}: ${inst.ruleLabel ?? "a rule no longer on file"} · ${inst.ruleClause || "clause not recorded"}.`}
+            subtitle={`Sent ${formatDate(inst.openedAt)} under ${inst.matrixLabel ?? "an issue no longer on file"}: ${inst.ruleLabel ?? "a rule no longer on file"} · ${inst.ruleClause || "clause not recorded"}.`}
             actions={<Badge tone={routeTone(inst.status)}>{inst.status === "APPROVED" ? "Approved" : inst.status === "PENDING" ? "In progress" : inst.status === "REJECTED" ? "Refused" : "Withdrawn"}</Badge>}
           />
           {(absentLine || ((inst.warnings as { level: string; messageEn: string }[]) ?? []).length > 0) && (
@@ -843,7 +843,7 @@ function ApprovalPanel({
               <li key={e.id} className="flex flex-wrap items-center gap-2 px-5 py-3 text-[13px] sm:px-6">
                 <Badge tone={routeTone(e.status)}>{e.status === "REJECTED" ? "Refused" : e.status === "RECALLED" ? "Withdrawn" : e.status === "APPROVED" ? "Approved" : "In progress"}</Badge>
                 <span className="min-w-0 break-words text-ink-2">
-                  Sent {formatOrgDay(e.openedAt, l.org.timeZone)} · {e.steps.map((s) => s.roleLabel).join(" → ")}
+                  Sent {formatDate(e.openedAt)} · {e.steps.map((s) => s.roleLabel).join(" → ")}
                 </span>
               </li>
             ))}
