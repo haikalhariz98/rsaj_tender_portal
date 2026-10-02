@@ -31,6 +31,17 @@ export function todayIn(instant: Date, timeZone: string | null): string | null {
 }
 
 /**
+ * The organisation's day an instant falls on — when a bill was finalised, an evaluation started, a
+ * report issued — as YYYY-MM-DD. Null while no zone is set: never UTC's day (ruling §9.5), so an act
+ * comparing it with a typed day refuses in the time-zone-not-set wording instead. An instant is not a
+ * stored day: `storedDay` reads 07:30 in Kuala Lumpur as the day before. (A column written as a day at
+ * midnight UTC, such as a route's `openedAt`, is a stored day and is read with `storedDay`.)
+ */
+export function dayOf(instant: Date, timeZone: string | null): string | null {
+  return timeZone ? dayIn(instant, timeZone) : null;
+}
+
+/**
  * The organisation's day for an instant, in the form days are stored and compared in
  * (midnight UTC of that day). Null while no zone is set: the day is not assumed to be
  * UTC's. Numbering periods and budget periods are judged on this, never on the

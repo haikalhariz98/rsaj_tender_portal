@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { dayIn, dayToDate, isDay, isTimeZone, storedDay } from "./dates";
+import { dayIn, dayOf, dayToDate, isDay, isTimeZone, storedDay } from "./dates";
 
 describe("dayIn", () => {
   it("between 00:00 and 08:00 in UTC+8 the local day is already tomorrow's UTC day", () => {
@@ -59,5 +59,23 @@ describe("isDay: a real calendar day, by the round trip", () => {
   });
   it("refuses what is not YYYY-MM-DD", () => {
     for (const d of ["2026-13-01", "2026-00-10", "2026-1-1", "29/10/2026", "", "2026-10-01T00:00"]) expect(isDay(d), d).toBe(false);
+  });
+});
+
+describe("dayOf: the organisation's day of an instant, never UTC's (Phase 2 close-out, 68-C5)", () => {
+  it("an instant at 07:30 in Kuala Lumpur reads as that local day, where storedDay reads the day before", () => {
+    const at = new Date("2026-09-19T23:30:00Z"); // 07:30 on 20 September in Kuala Lumpur
+    expect(dayOf(at, "Asia/Kuala_Lumpur")).toBe("2026-09-20");
+    expect(storedDay(at)).toBe("2026-09-19");
+  });
+
+  it("turns at local midnight, not UTC's", () => {
+    expect(dayOf(new Date("2026-09-20T15:59:59Z"), "Asia/Kuala_Lumpur")).toBe("2026-09-20");
+    expect(dayOf(new Date("2026-09-20T16:00:00Z"), "Asia/Kuala_Lumpur")).toBe("2026-09-21");
+  });
+
+  it("gives no day while no zone is set: never UTC's", () => {
+    expect(dayOf(new Date("2026-09-19T23:30:00Z"), null)).toBeNull();
+    expect(dayOf(new Date("2026-09-19T12:00:00Z"), "")).toBeNull();
   });
 });
