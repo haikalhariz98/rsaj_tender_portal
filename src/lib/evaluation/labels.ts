@@ -204,6 +204,9 @@ const TEXT: Record<string, (f: Finding) => string> = {
   HAS_COMMITTEE_STEP: () => `The approval matrix routes a negotiation through a committee step, which this route cannot take: a committee decides an exercise's appointment, not its negotiation. Change the rule under ${SETTING_AT.matrix}.`,
   NO_ISSUE: () => `No approval matrix is in force. Issue one under ${SETTING_AT.matrix}.`,
   RECOMMENDATION_FORMED: () => "The recommendation is formed, so no further meeting is held in this version.",
+  // ---- the quotation ceiling on the price recommended (ceiling.ts, Q1)
+  PRICE_ABOVE_CEILING: (f) => `The price this bid would be recommended at is above this quotation's ceiling of ${f.data?.boundary ?? "the boundary recorded on the exercise"} (${f.data?.operator === "GTE" ? "a price exactly on it is a tender" : "a price exactly on it is still a quotation"}): this bid cannot be recommended on that price.`,
+  PRICE_ABOVE_CEILING_AT_ROUND: (f) => `The price after the round is above this quotation's ceiling of ${f.data?.boundary ?? "the boundary recorded on the exercise"} (${f.data?.operator === "GTE" ? "a price exactly on it is a tender" : "a price exactly on it is still a quotation"}): this bid cannot be recommended on this price. The round is closed as recorded.`,
   // ---- recommendation
   STAGES_NOT_COMPLETE: (f) => `${f.data?.stage ?? "A stage"} is not complete.`,
   JUSTIFICATION_REQUIRED: (f) => `This bid ranks ${f.data?.rank ?? "below the first"}: state why it is recommended over the top-ranked bid.`,

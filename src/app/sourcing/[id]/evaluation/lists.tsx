@@ -263,6 +263,8 @@ export function RankingList({ c }: { c: EvaluationCurrent }) {
     id: x.id,
     search: `${x.listingNo} ${x.bidder}`,
     sortKeys: { rank: x.rank },
+    // Q1: a price above the quotation's ceiling is said before the recommendation is formed on it.
+    note: x.ceiling ?? undefined,
     cells: {
       rank: { kind: "text", text: String(x.rank) },
       bid: { kind: "stack", title: `No. ${x.listingNo}, ${x.bidder}`, sub: x.period },

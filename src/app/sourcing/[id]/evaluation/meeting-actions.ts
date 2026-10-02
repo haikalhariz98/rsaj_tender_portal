@@ -13,6 +13,7 @@ import { isLive } from "@/lib/documents/evidence";
 import { closeFields, EVALUATION_ENTITY, meetingFields } from "@/lib/evaluation/audit-view";
 import { closeMeetingFaults, meetingEligible, negotiationRequestFaults, openMeetingFaults } from "@/lib/evaluation/meetings";
 import { NEGOTIATION_REFUSED_DECIDED_BY, negotiationRouteForRequester } from "@/lib/evaluation/route";
+import { ceilingOf } from "@/lib/evaluation/repo";
 import { finalRunning } from "@/lib/evaluation/stages";
 import { openActFaults } from "@/lib/evaluation/state";
 import { NEGOTIATION_DOMAIN, type Finding } from "@/lib/evaluation/types";
@@ -106,7 +107,7 @@ export async function closeMeeting(_prev: FormState, data: FormData): Promise<Fo
     const person = await activePerson(tx, l.org.id, personId);
     const priceBefore = before ? parseSen(before) : null;
     const priceAfter = after ? parseSen(after) : null;
-    const fs = closeMeetingFaults({ kind: m.kind, closed: m.closedAt != null, minutes, liveConfirmations: m.attachments.filter((a) => a.purpose === "TENDERER_CONFIRMATION" && isLive(a)).length, priceBefore, priceAfter, personActive: !!person });
+    const fs = closeMeetingFaults({ kind: m.kind, closed: m.closedAt != null, minutes, liveConfirmations: m.attachments.filter((a) => a.purpose === "TENDERER_CONFIRMATION" && isLive(a)).length, priceBefore, priceAfter, personActive: !!person, ceiling: ceilingOf(l.ex) });
     if (fs.some((x) => x.level === "block")) return refuse(fs, "Not closed:");
     const done = await tx.evaluationMeeting.updateMany({ where: { id: m.id, closedAt: null }, data: { minutes, priceBefore: m.kind === "NEGOTIATION" ? before : null, priceAfter: m.kind === "NEGOTIATION" ? after : null, closedAt: now, closedByPersonId: person!.id } });
     if (done.count !== 1) throw new Refusal(CHANGED);

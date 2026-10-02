@@ -14,6 +14,7 @@ import { loadExercise } from "@/lib/method/repo";
 import { formatMoney, senFromDecimal, senToDecimalString } from "@/lib/money";
 
 import { aspectPrefill } from "./aspects";
+import { recommendedCeilingFault } from "./ceiling";
 import { ceilingOf } from "./repo";
 import { evaluatedPrice, recommendedPriceOf, scoreKey, type BidderFacts, type EvaluationFacts } from "./facts";
 import { formatFixed, formatMark, parseFixed, pctText } from "./fixed";
@@ -188,7 +189,7 @@ export async function evaluationTabView(exerciseId: string) {
   const incomplete = incompleteStages(f);
   const recommendation = {
     composite: comp ? comp.labelEn : null,
-    ranked: ranked.map((r) => ({ id: r.bidder.id, rank: r.rank, listingNo: r.bidder.listingNo, bidder: r.bidder.bidderName, compositeScore: r.composite != null ? fig(r.composite, dp) : null, evaluatedPrice: formatMoney(r.price), recommendedPrice: formatMoney(recommendedPriceOf(r.bidder)), negotiated: r.bidder.negotiatedPrice != null, period: periodWords(r.bidder.period) })),
+    ranked: ranked.map((r) => ({ id: r.bidder.id, rank: r.rank, listingNo: r.bidder.listingNo, bidder: r.bidder.bidderName, compositeScore: r.composite != null ? fig(r.composite, dp) : null, evaluatedPrice: formatMoney(r.price), recommendedPrice: formatMoney(recommendedPriceOf(r.bidder)), negotiated: r.bidder.negotiatedPrice != null, period: periodWords(r.bidder.period), ceiling: ((x) => (x ? evaluationFindingText(x) : null))(recommendedCeilingFault(recommendedPriceOf(r.bidder), ceiling)) })),
     incomplete,
     formed: rec && rb ? { listingNo: rb.listingNo, bidder: rb.bidderName, recommendedPrice: formatMoney(senFromDecimal(rec.price)), period: rec.completionPeriod != null && rec.completionUnit ? periodWords({ value: rec.completionPeriod, unit: rec.completionUnit }) : "Not stated", topRanked: rec.topRanked, justification: rec.justification || null, formedBy: rec.formedBy.name, formedAt: formatOrgDateTime(rec.formedAt, tz) } : null,
     savingAmount: sv == null ? null : "sealed" in sv ? "The company estimate is still sealed" : "noEstimate" in sv ? "No company estimate" : `${formatMoney(sv.amount)}${sv.pct != null ? ` (${pctText(sv.pct, 2)})` : ""}`,
@@ -212,6 +213,7 @@ export async function evaluationTabView(exerciseId: string) {
     stale: reportStale(e.bidders.map((b) => b.openedBidId), c.carried.map((b) => b.id)),
     personActive: true,
     today: org.today,
+    ceiling: rec ? { price: senFromDecimal(rec.price), snapshot: ceiling } : null,
   });
   const p = e.proposalPaper;
   const office = (code: string | null | undefined) => (code ? (c.roster.offices.find((o) => o.code === code)?.nameEn ?? "An office no longer configured") : null);

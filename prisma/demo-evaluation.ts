@@ -27,7 +27,7 @@ import type { PrismaClient } from "../src/generated/prisma/client";
 import { diffFields } from "../src/lib/audit/diff";
 import { dayIn, dayToDate, instantAt, storedDay, todayIn } from "../src/lib/dates";
 import { formatDate } from "../src/lib/format";
-import { parseSen, senToDecimalString } from "../src/lib/money";
+import { parseSen, senFromDecimal, senToDecimalString } from "../src/lib/money";
 import { calendarOf } from "./demo-window";
 
 type Db = PrismaClient;
@@ -427,10 +427,11 @@ class EvaluationActs {
     const { recommendedPriceOf } = await import("../src/lib/evaluation/facts");
     const { periodWords } = await import("../src/lib/evaluation/report");
     const { EVALUATION_ENTITY, recommendationFields } = await import("../src/lib/evaluation/audit-view");
-    const { c, label } = await this.ctx(exerciseId);
+    const { ceilingOf } = await import("../src/lib/evaluation/repo");
+    const { l, c, label } = await this.ctx(exerciseId);
     const e = c.current!;
     const b = this.bidder(c, listingNo);
-    const rf = recommendationFaults(c.facts!, { bidderId: b.id, justification: "", personActive: true, alreadyFormed: e.recommendation != null, meetingsOpen: e.meetings.filter((m) => !m.closedAt).length, negotiationsPending: e.negotiations.filter((n) => n.approvalInstance.status === "PENDING").length });
+    const rf = recommendationFaults(c.facts!, { bidderId: b.id, justification: "", personActive: true, alreadyFormed: e.recommendation != null, meetingsOpen: e.meetings.filter((m) => !m.closedAt).length, negotiationsPending: e.negotiations.filter((n) => n.approvalInstance.status === "PENDING").length, ceiling: ceilingOf(l.ex) });
     refuse("forming the recommendation", rf.faults);
     const price = recommendedPriceOf(b);
     const id = `${e.id}_rec`;
@@ -444,6 +445,7 @@ class EvaluationActs {
     const { renderEvaluationInstrument } = await import("../src/lib/evaluation/instrument");
     const { incompleteStages } = await import("../src/lib/evaluation/recommend");
     const { buildReport, reportFaults, reportFields, reportStale } = await import("../src/lib/evaluation/report");
+    const { ceilingOf } = await import("../src/lib/evaluation/repo");
     const { EVALUATION_ENTITY } = await import("../src/lib/evaluation/audit-view");
     const { issueReference } = await import("../src/lib/numbering/issue");
     const { moveExercise } = await import("../src/lib/method/move");
@@ -461,7 +463,7 @@ class EvaluationActs {
     const base = { facts: f, exercise: { reference: l.ex.reference, title: l.ex.title }, version: e.version, issuedOn: formatDate(today) };
     const recommendation = { bidderId: rec.bidderId, price: recommendedPriceOf(rb), period: rb.period, topRanked: rec.topRanked, justification: rec.justification, formedBy: rec.formedBy.name, formedOn: formatDate(dayIn(rec.formedAt, this.tz)) };
     const trial = renderEvaluationInstrument("REPORT", template, () => reportFields({ ...base, reference: "(allocated on issue)", recommendation }, org.name));
-    refuse("issuing the report", reportFaults({ stagesIncomplete: incompleteStages(f), recommended: true, openMeetings: e.meetings.filter((m) => !m.closedAt).length, pendingNegotiations: e.negotiations.filter((n) => n.approvalInstance.status === "PENDING").length, seriesKey: c.policy!.reportSeriesKey, template: trial, admittedUnopened: c.admittedUnopened, supplementaryInProgress: c.supplementaryInProgress, consent: consent.faults, stale: reportStale(e.bidders.map((b) => b.openedBidId), c.carried.map((b) => b.id)), personActive: true, today }));
+    refuse("issuing the report", reportFaults({ stagesIncomplete: incompleteStages(f), recommended: true, openMeetings: e.meetings.filter((m) => !m.closedAt).length, pendingNegotiations: e.negotiations.filter((n) => n.approvalInstance.status === "PENDING").length, seriesKey: c.policy!.reportSeriesKey, template: trial, admittedUnopened: c.admittedUnopened, supplementaryInProgress: c.supplementaryInProgress, consent: consent.faults, stale: reportStale(e.bidders.map((b) => b.openedBidId), c.carried.map((b) => b.id)), personActive: true, ceiling: { price: senFromDecimal(rec.price), snapshot: ceilingOf(l.ex) }, today }));
     const reference = await this.db.$transaction((tx) => issueReference(tx, this.org, c.policy!.reportSeriesKey!, dayToDate(today)));
     const rendered = renderEvaluationInstrument("REPORT", template, () => reportFields({ ...base, reference, recommendation }, org.name));
     if (rendered.state !== "OK" || rendered.missing.length || rendered.unknown.length) fail("the report's text did not render whole");
@@ -550,10 +552,11 @@ class EvaluationActs {
     const { closeMeetingFaults } = await import("../src/lib/evaluation/meetings");
     const { isLive } = await import("../src/lib/documents/evidence");
     const { EVALUATION_ENTITY, closeFields } = await import("../src/lib/evaluation/audit-view");
-    const { c, label } = await this.ctx(exerciseId);
+    const { ceilingOf } = await import("../src/lib/evaluation/repo");
+    const { l, c, label } = await this.ctx(exerciseId);
     const e = c.current!;
     const m = e.meetings.find((x) => x.id === id) ?? fail(`no meeting ${id}`);
-    refuse("closing the meeting", closeMeetingFaults({ kind: m.kind, closed: m.closedAt != null, minutes, liveConfirmations: m.attachments.filter((a) => a.purpose === "TENDERER_CONFIRMATION" && isLive(a)).length, priceBefore: null, priceAfter: null, personActive: true }));
+    refuse("closing the meeting", closeMeetingFaults({ kind: m.kind, closed: m.closedAt != null, minutes, liveConfirmations: m.attachments.filter((a) => a.purpose === "TENDERER_CONFIRMATION" && isLive(a)).length, priceBefore: null, priceAfter: null, personActive: true, ceiling: ceilingOf(l.ex) }));
     await this.db.evaluationMeeting.update({ where: { id }, data: { minutes, closedAt: at, closedByPersonId: by.id } });
     const listing = c.facts!.bidders.find((b) => b.id === m.bidderId)!.listingNo;
     this.entry(EVALUATION_ENTITY.meeting, id, label(e.version, `${m.kind === "CLARIFICATION" ? "Clarification" : "Negotiation"} with bid No. ${listing}, round ${m.round}`), "UPDATE", at, diffFields({ closed: null }, closeFields({ minutes, priceBefore: null, priceAfter: null, by: by.name, at }, this.tz)));

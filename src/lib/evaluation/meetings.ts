@@ -8,6 +8,7 @@
  * after, and closes like a clarification. No automated guardrail on the price agreed. Pure.
  */
 
+import { roundCeilingWarning, type CeilingSnapshot } from "./ceiling";
 import type { Finding, MeetingKind } from "./types";
 
 export type MeetingFault =
@@ -25,7 +26,8 @@ export type MeetingFault =
   | "MINUTES_REQUIRED"
   | "CONFIRMATION_REQUIRED"
   | "PRICES_REQUIRED"
-  | "PRICE_RAISED";
+  | "PRICE_RAISED"
+  | "PRICE_ABOVE_CEILING_AT_ROUND";
 
 /**
  * Whether a bidder may be met (6.8 fix R-6, OD-10 A): a clarification is available to any bidder in
@@ -65,7 +67,8 @@ export function openMeetingFaults(i: {
 }
 
 /// Closing a meeting: its minutes and a live confirmation from the tenderer; a negotiation round's two prices.
-export function closeMeetingFaults(i: { kind: MeetingKind; closed: boolean; minutes: string; liveConfirmations: number; priceBefore: bigint | null; priceAfter: bigint | null; personActive: boolean }): Finding<MeetingFault>[] {
+/// `ceiling` (Q1): the exercise's frozen quotation ceiling; a price after the round above it is warned of, never refused. Absent: not judged.
+export function closeMeetingFaults(i: { kind: MeetingKind; closed: boolean; minutes: string; liveConfirmations: number; priceBefore: bigint | null; priceAfter: bigint | null; personActive: boolean; ceiling?: CeilingSnapshot }): Finding<MeetingFault>[] {
   if (i.closed) return [{ code: "MEETING_CLOSED", level: "block" }];
   const out: Finding<MeetingFault>[] = [];
   const f = (code: MeetingFault, level: "block" | "warn" = "block") => out.push({ code, level });
@@ -75,6 +78,10 @@ export function closeMeetingFaults(i: { kind: MeetingKind; closed: boolean; minu
     if (i.priceBefore == null || i.priceAfter == null) f("PRICES_REQUIRED");
     // No guardrail (OQ-08 interim), but a negotiation that raises the price is said.
     else if (i.priceAfter > i.priceBefore) f("PRICE_RAISED", "warn");
+    if (i.priceAfter != null && i.ceiling) {
+      const w = roundCeilingWarning(i.priceAfter, i.ceiling);
+      if (w) out.push(w);
+    }
   }
   if (!i.personActive) f("PERSON_REQUIRED");
   return out;

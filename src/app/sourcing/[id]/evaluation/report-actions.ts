@@ -12,6 +12,7 @@ import { recommendedPriceOf } from "@/lib/evaluation/facts";
 import { renderEvaluationInstrument, evaluationFieldsInWords, type TemplateFacts } from "@/lib/evaluation/instrument";
 import { renderFaults, signerFaults } from "@/lib/evaluation/proposal";
 import { incompleteStages, recommendationFaults } from "@/lib/evaluation/recommend";
+import { ceilingOf } from "@/lib/evaluation/repo";
 import { buildReport, periodWords, reportFaults, reportFields, reportStale } from "@/lib/evaluation/report";
 import { issuedActFaults, openActFaults } from "@/lib/evaluation/state";
 import type { Finding } from "@/lib/evaluation/types";
@@ -55,7 +56,7 @@ export async function formRecommendation(_prev: FormState, data: FormData): Prom
     const b = f.bidders.find((x) => x.id === bidderId);
     if (!b) return GONE_BIDDER;
     const person = await activePerson(tx, l.org.id, personId);
-    const rf = recommendationFaults(f, { bidderId, justification, personActive: !!person, alreadyFormed: e!.recommendation != null, meetingsOpen: e!.meetings.filter((m) => !m.closedAt).length, negotiationsPending: e!.negotiations.filter((n) => n.approvalInstance.status === "PENDING").length });
+    const rf = recommendationFaults(f, { bidderId, justification, personActive: !!person, alreadyFormed: e!.recommendation != null, meetingsOpen: e!.meetings.filter((m) => !m.closedAt).length, negotiationsPending: e!.negotiations.filter((n) => n.approvalInstance.status === "PENDING").length, ceiling: ceilingOf(l.ex) });
     if (rf.faults.length) return refuse(rf.faults, "Not formed:");
     const price = recommendedPriceOf(b);
     const row = await tx.recommendation.create({ data: { organisationId: l.org.id, evaluationId: e!.id, bidderId, price: senToDecimalString(price), completionPeriod: b.period?.value ?? null, completionUnit: b.period?.unit ?? null, topRanked: rf.topRanked, justification: rf.topRanked ? "" : justification, formedByPersonId: person!.id, formedAt: now } });
@@ -103,6 +104,8 @@ export async function issueReport(_prev: FormState, data: FormData): Promise<For
       stale: reportStale(e!.bidders.map((b) => b.openedBidId), c.carried.map((b) => b.id)),
       personActive: !!person,
       today,
+      // Q1: the price recommended at, as recorded, within the quotation's frozen ceiling.
+      ceiling: rec ? { price: senFromDecimal(rec.price), snapshot: ceilingOf(l.ex) } : null,
     });
     if (fs.length) return refuse(fs, "Not issued:");
     // From here a refusal is thrown, so the transaction rolls back and the number drawn is not consumed.

@@ -10,6 +10,7 @@
 
 import { formatMoney, type Sen } from "@/lib/money";
 
+import { recommendedCeilingFault, type CeilingSnapshot, type RecommendedCeilingFault } from "./ceiling";
 import { evaluatedPrice, recommendedPriceOf, type BidderFacts, type EvaluationFacts } from "./facts";
 import { formatFixed, formatMark, pctText } from "./fixed";
 import { variance, lowestPrice } from "./commercial";
@@ -62,7 +63,8 @@ export type ReportFault =
   | "CONSENT_NOT_FROM_RECOMMENDED"
   | "REPORT_STALE"
   | "PERSON_REQUIRED"
-  | "TIME_ZONE_NOT_SET";
+  | "TIME_ZONE_NOT_SET"
+  | RecommendedCeilingFault;
 
 export function reportFaults(i: {
   stagesIncomplete: readonly string[];
@@ -78,6 +80,8 @@ export function reportFaults(i: {
   stale: boolean;
   personActive: boolean;
   today: string | null;
+  /// Q1: the price recommended at and the exercise's frozen ceiling. Absent: not judged (fixtures from before Q1); every producer states it.
+  ceiling?: { price: Sen; snapshot: CeilingSnapshot } | null;
 }): Finding<ReportFault>[] {
   const out: Finding<ReportFault>[] = [];
   const f = (code: ReportFault, data?: Finding["data"]) => out.push({ code, level: "block", ...(data ? { data } : {}) });
@@ -98,6 +102,10 @@ export function reportFaults(i: {
   if (i.supplementaryInProgress) f("SUPPLEMENTARY_IN_PROGRESS");
   for (const c of i.consent) out.push({ ...(c as Finding<ReportFault>), code: "CONSENT_NOT_FROM_RECOMMENDED" });
   if (i.stale) f("REPORT_STALE");
+  if (i.ceiling) {
+    const c = recommendedCeilingFault(i.ceiling.price, i.ceiling.snapshot);
+    if (c) out.push(c);
+  }
   if (!i.personActive) f("PERSON_REQUIRED");
   return out;
 }

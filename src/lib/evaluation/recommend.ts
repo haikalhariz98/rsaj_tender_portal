@@ -9,6 +9,7 @@
 
 import type { Sen } from "@/lib/money";
 
+import { recommendedCeilingFault, type CeilingSnapshot, type RecommendedCeilingFault } from "./ceiling";
 import { evaluatedPrice, recommendedPriceOf, type BidderFacts, type EvaluationFacts } from "./facts";
 import { compareFixed, type Fixed } from "./fixed";
 import { finalRunning, isSubmitted, resultOf } from "./stages";
@@ -45,9 +46,13 @@ export function incompleteStages(f: EvaluationFacts): string[] {
     .map((s) => s.labelEn);
 }
 
-export type RecommendFault = "STAGES_NOT_COMPLETE" | "NOT_IN_RUNNING" | "JUSTIFICATION_REQUIRED" | "PRICE_NOT_REASONABLE" | "PRICE_NOT_ASSESSED" | "ALREADY_FORMED" | "PERSON_REQUIRED" | "NEGOTIATION_OPEN" | "NEGOTIATION_PENDING";
+export type RecommendFault = "STAGES_NOT_COMPLETE" | "NOT_IN_RUNNING" | "JUSTIFICATION_REQUIRED" | "PRICE_NOT_REASONABLE" | "PRICE_NOT_ASSESSED" | "ALREADY_FORMED" | "PERSON_REQUIRED" | "NEGOTIATION_OPEN" | "NEGOTIATION_PENDING" | RecommendedCeilingFault;
 
-export function recommendationFaults(f: EvaluationFacts, i: { bidderId: string; justification: string; personActive: boolean; alreadyFormed: boolean; meetingsOpen: number; negotiationsPending: number }): { faults: Finding<RecommendFault>[]; topRanked: boolean } {
+/**
+ * `ceiling`: the exercise's frozen quotation ceiling (Q1), against which the price recommended at is
+ * judged. Absent: not judged (fixtures from before Q1); every producer states it, held by a source scan.
+ */
+export function recommendationFaults(f: EvaluationFacts, i: { bidderId: string; justification: string; personActive: boolean; alreadyFormed: boolean; meetingsOpen: number; negotiationsPending: number; ceiling?: CeilingSnapshot }): { faults: Finding<RecommendFault>[]; topRanked: boolean } {
   const out: Finding<RecommendFault>[] = [];
   if (i.alreadyFormed) out.push({ code: "ALREADY_FORMED", level: "block" });
   for (const stage of incompleteStages(f)) out.push({ code: "STAGES_NOT_COMPLETE", level: "block", data: { stage } });
@@ -65,6 +70,11 @@ export function recommendationFaults(f: EvaluationFacts, i: { bidderId: string; 
     const v = r.bidder.aspects.get(b.code);
     if (!v) out.push({ code: "PRICE_NOT_ASSESSED", level: "block", data: { aspect: b.labelEn } });
     else if (v.verdict !== "SATISFACTORY") out.push({ code: "PRICE_NOT_REASONABLE", level: "block", data: { aspect: b.labelEn } });
+  }
+  // Q1: the price recommended at — after negotiation where negotiated — within the quotation's ceiling.
+  if (r && i.ceiling) {
+    const c = recommendedCeilingFault(recommendedPriceOf(r.bidder), i.ceiling);
+    if (c) out.push(c);
   }
   if (!i.personActive) out.push({ code: "PERSON_REQUIRED", level: "block" });
   return { faults: out, topRanked };
