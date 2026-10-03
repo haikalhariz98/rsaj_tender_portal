@@ -32,7 +32,7 @@ import { routeCoreFields, stepOrigin } from "@/lib/authority/core-routing";
 import { committeeCitationWrite, personDecisionWrite } from "@/lib/authority/decided-step";
 import { actingOffice } from "@/lib/authority/escalation";
 import { loadIssue, loadOverrideMatrix } from "@/lib/authority/load";
-import { choiceFault, rejectionOutcome, rejectionSnapshot, type RejectionKind } from "@/lib/authority/rejection";
+import { choiceFault, rejectionSnapshot, type RejectionKind } from "@/lib/authority/rejection";
 import { CHOICE_FAULT_TEXT, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import { boundaryOperatorFor } from "@/lib/authority/resolve";
 import { receivedOnFault } from "@/lib/award/routing";
@@ -52,7 +52,7 @@ import { deciderFaults, holdersFor } from "@/lib/requisition/holders";
 import { methodKeyOf } from "@/lib/supervision/load";
 
 import { EVENT_WORDS, variationRefusal } from "./labels";
-import { refusalKinds } from "./application";
+import { refusalKinds, variationRefusalOutcome } from "./application";
 import { factsOf, matterRecordOf, type VariationRow } from "./load";
 import { ratioOf, type Reading } from "./percent";
 import { regimeOf, resolveVariationRoute, routeDomainOf, routePercentLabel } from "./route";
@@ -279,10 +279,9 @@ async function afterStep(c: VariationCtx, v: VariationRow, a: VariationRow["appr
   if (decision === "REJECTED") {
     const step = inst.steps.find((s) => s.id === stepId)!;
     // MUST 1: a refused increase, agreed-rate or re-measurement route on a variation that stands approved ends the
-    // route only; a committee's terminal "not carried" there returns it rather than ending the variation.
-    const supports = refusalKinds(factsOf(v), a.event as VariationEvent);
-    const protectedRoute = !supports.includes("TERMINATE");
-    const outcome = rejectionOutcome({ snapshot: snapshotOf(inst), committee: protectedRoute && committee?.kind === "TERMINAL" ? { kind: "LOOP" } : committee, steps: inst.steps, rejectingSeq: step.sequence, supports });
+    // route only. Residual S1: the committee's outcome goes in as decided; a terminal one there is not supported, so
+    // the officer chooses among the returns, never recorded as the committee's.
+    const outcome = variationRefusalOutcome({ v: factsOf(v), event: a.event as VariationEvent, snapshot: snapshotOf(inst), committee, steps: inst.steps, rejectingSeq: step.sequence });
     await closeRejected(c.tx, { organisationId: c.l.org.id, routeLabel: routeLabel(c, v) }, inst, outcome, reason, undefined, c.now);
     if ("apply" in outcome) await sendRefused(c, v, a, outcome.apply, outcome.returnToSeq ?? null, reason);
     return;

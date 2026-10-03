@@ -1,9 +1,12 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { rejectionOutcome } from "@/lib/authority/rejection";
 import { parseSen } from "@/lib/money";
 
-import { approvedValue, cumulativeApproved, refusalKinds, standsApproved, type RouteFact, type VariationFacts } from "./application";
+import { approvedValue, cumulativeApproved, refusalKinds, standsApproved, variationRefusalOutcome, type RouteFact, type VariationFacts } from "./application";
 import { percentLabel, percentLabelText, variationReading } from "./percent";
 
 /**
@@ -34,9 +37,24 @@ describe("a refused route on a variation that stands approved ends the route onl
     const o = rejectionOutcome({ snapshot: { kind: "TERMINATE", returnToRoleCode: null } as never, committee: null, steps, rejectingSeq: 2, supports: refusalKinds(A, "INCREASE") });
     expect(o).toMatchObject({ choose: ["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP"] });
   });
-  it("a committee's terminal 'not carried', read as a loop there, returns it to whoever sent it", () => {
+  it("a committee's looping 'not carried' returns it to whoever sent it, on the committee's say", () => {
     const o = rejectionOutcome({ snapshot: { kind: null, returnToRoleCode: null } as never, committee: { kind: "LOOP" }, steps, rejectingSeq: 1, supports: refusalKinds(A, "INCREASE") });
-    expect(o).toMatchObject({ apply: "RETURN_TO_ORIGINATOR" });
+    expect(o).toEqual({ apply: "RETURN_TO_ORIGINATOR", source: "COMMITTEE_OUTCOME" });
+  });
+  it("residual S1: a committee's terminal 'not carried' is passed through as decided; with TERMINATE not supported the officer chooses among the returns, never on the committee's say", () => {
+    const snapshot = { snapshotAt: null, kind: null, returnToRoleCode: null };
+    const o = variationRefusalOutcome({ v: A, event: "INCREASE", snapshot, committee: { kind: "TERMINAL" }, steps, rejectingSeq: 1 });
+    expect(o).toEqual({ choose: ["RETURN_TO_ORIGINATOR"], why: "NOT_SUPPORTED" });
+    expect("source" in o).toBe(false);
+    // Rejected at step 2 (after the committee), an earlier step is offered too.
+    expect(variationRefusalOutcome({ v: A, event: "INCREASE", snapshot, committee: { kind: "TERMINAL" }, steps, rejectingSeq: 2 })).toEqual({ choose: ["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP"], why: "NOT_SUPPORTED" });
+    // Where the variation does not stand approved (its prior approval's route), the committee's terminal outcome ends it.
+    expect(variationRefusalOutcome({ v: v(), event: "PRIOR", snapshot, committee: { kind: "TERMINAL" }, steps, rejectingSeq: 1 })).toEqual({ apply: "TERMINATE", source: "COMMITTEE_OUTCOME" });
+  });
+  it("the act passes the committee's outcome through unchanged (no rewrite of TERMINAL to LOOP)", () => {
+    const src = readFileSync(path.join(__dirname, "route-write.ts"), "utf8");
+    expect(src).toContain("variationRefusalOutcome({ v: factsOf(v), event: a.event as VariationEvent, snapshot: snapshotOf(inst), committee, steps: inst.steps, rejectingSeq: step.sequence })");
+    expect(src).not.toMatch(/kind: "LOOP" \}/);
   });
   it("A keeps RM90,000 in the cumulative, and the next RM10,000 variation reads 13.33% of RM750,000", () => {
     expect(approvedValue(A)).toBe(S("90000.00"));

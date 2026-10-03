@@ -20,6 +20,7 @@
  * Pure: sen as bigint, days as strings, no clock.
  */
 
+import { rejectionOutcome, type RejectionOutcome, type RouteSnapshot, type RouteStep } from "@/lib/authority/rejection";
 import type { Sen } from "@/lib/money";
 
 import type { DelegateKind } from "@/lib/supervision/types";
@@ -98,6 +99,23 @@ export const standsApproved = (v: Pick<VariationFacts, "routes" | "exemption" | 
 export type RefusalKind = "RETURN_TO_ORIGINATOR" | "RETURN_TO_STEP" | "TERMINATE";
 export function refusalKinds(v: Pick<VariationFacts, "routes" | "exemption" | "instructions">, event: VariationEvent): RefusalKind[] {
   return event !== "PRIOR" && standsApproved(v) ? ["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP"] : ["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP", "TERMINATE"];
+}
+
+/**
+ * Where a refused route of a variation goes (FR-APR-016 as 6.9 decides it), with what the variation supports
+ * (`refusalKinds`). The committee's outcome is passed through as it was decided, never rewritten (run 3 residual S1):
+ * where it is terminal and the variation stands approved, TERMINATE is not supported there, so nothing is applied on
+ * the committee's say and the officer chooses among the returns (CO-5), the choice recorded as theirs. Pure.
+ */
+export function variationRefusalOutcome(i: {
+  v: Pick<VariationFacts, "routes" | "exemption" | "instructions">;
+  event: VariationEvent;
+  snapshot: RouteSnapshot;
+  committee: { kind: "LOOP" | "TERMINAL" } | null;
+  steps: readonly RouteStep[];
+  rejectingSeq: number;
+}): RejectionOutcome {
+  return rejectionOutcome({ snapshot: i.snapshot, committee: i.committee, steps: i.steps, rejectingSeq: i.rejectingSeq, supports: refusalKinds(i.v, i.event) });
 }
 
 export type Stage = "DRAFT" | "WITH_SO" | "TO_SEND" | "AWAITING_APPROVAL" | "REFUSED_AWAITING_CHOICE" | "APPROVED" | "EXEMPT" | "INSTRUCTED" | "CERTIFIED" | "CLOSED";
