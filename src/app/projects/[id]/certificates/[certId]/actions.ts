@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
+import { AdjustmentNetMissing } from "@/lib/adjustment/ppjhk";
 import { toSecond } from "@/lib/bids/lateness";
 import { withLockedCertificate } from "@/lib/certificate/repo";
 import { DELIVERY_METHODS, SIGNATURE_DECISIONS } from "@/lib/certificate/types";
@@ -43,6 +44,7 @@ async function inCertificate(certId: string, now: Date, fn: (c: CertCtx) => Prom
     });
   } catch (e) {
     if (e instanceof CertificateRefusal) return { ok: false, message: e.message, errors: e.errors };
+    if (e instanceof AdjustmentNetMissing) return { ok: false, message: e.message };
     throw e;
   }
   if (result?.ok && contractId) {
