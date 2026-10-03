@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { decimalText } from "@/lib/format";
 import { FileIcon, InboxIcon, ScaleIcon } from "@/components/icons";
 import { HistoryButton } from "@/components/history-drawer";
 import { Badge } from "@/components/ui/badge";
@@ -73,7 +74,7 @@ export default async function ContractControlsPage() {
     signatoryCond: p?.signatoryCond ?? null,
     controlledCopyStampEn: p?.controlledCopyStampEn ?? null,
     controlledCopyStampMs: p?.controlledCopyStampMs ?? null,
-    frontLoadingRatio: p?.frontLoadingRatio == null ? null : p.frontLoadingRatio.toString().replace(/\.?0+$/, ""),
+    frontLoadingRatio: decimalText(p?.frontLoadingRatio),
     provenance: p?.provenance ?? null,
     notes: p?.notes ?? "",
   };
