@@ -320,6 +320,9 @@ const RAW_ALLOW: Readonly<Record<string, RegExp>> = {
   // each is exactly this text over the \`entries\` fragment (whose SQL the write scan reads with the rest of the file).
   [`${P("src/lib/certificate/register.ts")} › libraryCount`]: /^\$queryRaw<\{ n: number \}\[\]>`WITH entries AS \(\$\{list\}\) SELECT count\(\*\)::int AS n FROM entries`$/,
   [`${P("src/lib/certificate/register.ts")} › libraryEntries`]: /^\$queryRaw<Entry\[\]>`WITH entries AS \(\$\{list\}\) SELECT src, id, at FROM entries ORDER BY at DESC, id COLLATE "C" ASC LIMIT \$\{limit\} OFFSET \$\{offset\}`$/,
+  // 6.14 increment 2 residual (consider): which issued certificates still say an alias being removed, matched by whole
+  // words in the database so only their numbers are read. A read only: exactly this text.
+  [`${P("src/lib/certificate/term-use.ts")} › aliasInUse`]: /^\$queryRaw<\{ number: string \| null; total: number \}\[\]>`SELECT x\."number", count\(\*\) OVER \(\)::int AS total FROM \(SELECT DISTINCT c\."id", c\."number" FROM "CertificateDocument" d JOIN "Certificate" c ON c\."id" = d\."certificateId" WHERE d\."organisationId" = \$\{organisationId\} AND c\."status" = 'ISSUED' AND d\."renderedText" ~\* \$\{pattern\}\) x ORDER BY x\."number" COLLATE "C" ASC NULLS LAST, x\."id" COLLATE "C" ASC LIMIT \$\{ALIAS_USE_SHOWN\}`$/,
   [`${P("src/app/approvals/actions.ts")} › escalateStep`]: /^\$queryRaw`SELECT id FROM "(Requisition|SourcingExercise|Award|Contract|Certificate|Variation|Supplier|SupplierApplication|StandingRequest|SpecialPermission)" WHERE id = \$\{[\w.]+\} FOR UPDATE`$/,
 };
 const TABLE_ALT = CERT_TABLES.join("|");
@@ -461,7 +464,8 @@ export function scanCertificateWrites(files: readonly { file: string; src: strin
     for (const x of m.matchAll(/\bPrisma\s*\.\s*raw\s*\(/g)) push(x.index!, "Prisma.raw", "raw SQL the scan cannot read");
     const namesTable = namesTableIn(text, m);
     // 6.14 inc 2 fix (stricter): a raw call with a type argument (`$queryRaw<T>\`…\``) is read too, never skipped.
-    for (const x of m.matchAll(/\$(executeRaw|queryRaw)(Unsafe)?\s*(?:<[^>`(]*>)?\s*([`(])/g)) {
+    // Residual consider: a nested type argument (`$queryRaw<Array<Entry>>\`…\``) too: the argument runs up to the backtick or parenthesis.
+    for (const x of m.matchAll(/\$(executeRaw|queryRaw)(Unsafe)?\s*(?:<[^`(]*>)?\s*([`(])/g)) {
       if (x[3] === "(" || x[2]) {
         push(x.index!, `$${x[1]}${x[2] ?? ""}(…)`, "raw SQL the scan cannot read");
         continue;
@@ -634,6 +638,12 @@ describe("the re-review's evasions are each caught (R-8 residual)", () => {
   it("6.14 inc 2 fix (stricter): a raw call with a type argument is read, not skipped", () => {
     const flags = (src: string) => scanCertificateWrites([{ file: W_, src }], CERT_ALLOW).filter((w) => w.problem).map((w) => w.problem);
     expect(flags(`${h("x")}  await c.tx.$queryRaw<{ id: string }[]>\`SELECT id FROM "Certificate"\`;\n}\n`)).toContain("raw SQL in a file naming a certificate table, not allow-listed");
+  });
+  it("6.14 inc 2 residual (stricter): a raw call with a nested type argument is read too, not skipped", () => {
+    const flags = (src: string) => scanCertificateWrites([{ file: W_, src }], CERT_ALLOW).filter((w) => w.problem).map((w) => w.problem);
+    expect(flags(`${h("x")}  await c.tx.$queryRaw<Array<Entry>>\`SELECT id FROM "Certificate"\`;\n}\n`)).toContain("raw SQL in a file naming a certificate table, not allow-listed");
+    expect(flags(`${h("x")}  await c.tx.$queryRaw<Map<string, Array<{ id: string }>>>\`SELECT id FROM "Certificate"\`;\n}\n`)).toContain("raw SQL in a file naming a certificate table, not allow-listed");
+    expect(flags(`${h("x")}  await c.tx.$queryRawUnsafe<Array<Entry>>(q);\n}\n`)).toContain("raw SQL the scan cannot read");
   });
   it("more of the same: the other write ops, a handle passed on, exported or bound moveTo, other relations, a quoted relation, TRUNCATE", () => {
     const flags = (src: string, file = W_) => scanCertificateWrites([{ file, src }], CERT_ALLOW).filter((w) => w.problem).map((w) => `${w.op} · ${w.problem}`);
