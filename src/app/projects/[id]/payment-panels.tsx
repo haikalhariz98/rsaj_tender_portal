@@ -24,7 +24,7 @@ import { firstReleaseShare, releaseOf, retentionReading } from "@/lib/payment/re
 import { ADVANCE_PARTIES, CONTRACTOR_ANSWERS, KEYED_DEDUCTION_KINDS, NON_COMPLETION_OUTCOMES, NON_COMPLETION_SCOPES, PACK_ITEMS, VALUATION_TRIGGERS, type Finding } from "@/lib/payment/types";
 import { issueClockFrom, openFaults } from "@/lib/payment/valuation";
 import { pendingAdvanceFaults } from "@/lib/payment/advance";
-import { OPENING_GROUPS, openingClosed, openingReconciles } from "@/lib/payment/opening";
+import { OPENING_GROUPS, openingClosed, openingReconciles, openingReleaseLine } from "@/lib/payment/opening";
 import { PARTY_KIND_WORDS } from "@/lib/supervision/labels";
 
 import { AdjustmentRefusedCallout } from "./adjustment-refused";
@@ -465,6 +465,8 @@ function RetentionSection({ l, v, people, today }: { l: LoadedContract; v: Payme
   const held = heldOnLatest(v.issued);
   const balance = v.p.retentionReleases.find((x) => x.kind === "RELEASED_BALANCE") ?? null;
   const rs = releaseStateOf(v.p);
+  const op = v.p.openingPosition;
+  const openingRelease = openingReleaseLine(op ? { released: openingOf(op).released, provenance: op.releasedProvenance as "STATED" | "ASSUMED", note: op.releasedNote, lastCertificateNumber: op.lastCertificateNumber, lastSequence: op.lastSequence } : null);
   const pct = firstReleaseShare(v.cfg.policy?.firstReleasePct);
   const handed = v.p.siteRecordsHandovers.length > 0;
   const releaseBlock = (kind: "RELEASED_FIRST" | "RELEASED_BALANCE") => {
@@ -506,12 +508,21 @@ function RetentionSection({ l, v, people, today }: { l: LoadedContract; v: Payme
               {!balance && <ReleaseDrawer id={c.id} release="RELEASED_BALANCE" label={RELEASE_WORDS.RELEASED_BALANCE.en} people={people} today={today} blocker={releaseBlock("RELEASED_BALANCE")} />}
             </span>
           }
-          divided={v.p.retentionReleases.length > 0}
+          divided={v.p.retentionReleases.length > 0 || !!openingRelease}
         />
-        {v.p.retentionReleases.length === 0 ? (
+        {v.p.retentionReleases.length === 0 && !openingRelease ? (
           <EmptyState size="sm" title="Nothing released">No retention has been released.</EmptyState>
         ) : (
           <ul className="divide-y divide-line/70">
+            {openingRelease && (
+              // Acceptance S-4 (BD-613-51's condition): released before the system, read as the first release.
+              <li className={row}>
+                <span className="min-w-0">
+                  <span className={head}>{openingRelease.head.en}<ProvenanceBadge value={openingRelease.provenance} /></span>
+                  <span className={sub}>{openingRelease.sub.en}</span>
+                </span>
+              </li>
+            )}
             {v.p.retentionReleases.map((r) => (
               <li key={r.id} className={row}>
                 <span className="min-w-0">

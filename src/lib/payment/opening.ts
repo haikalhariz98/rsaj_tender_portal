@@ -15,7 +15,7 @@
  * here, so its remaining recoupment is not continued automatically (said on the screen, BD-613-49).
  */
 
-import type { Sen } from "@/lib/money";
+import { formatMoney, type Sen } from "@/lib/money";
 
 import type { IssuedInterim, JudgedUnder } from "./assemble";
 import type { Day, Finding } from "./types";
@@ -144,3 +144,20 @@ export function releaseState(rows: readonly { kind: string; main: Sen; nsc: Sen;
 /// closes once a certificate not void has been raised from a valuation after it; a draft that was voided rests on
 /// nothing and does not close it.
 export const openingClosed = (valuations: readonly { certificateStatus: string | null }[]): boolean => valuations.some((v) => v.certificateStatus != null && v.certificateStatus !== "VOID");
+
+/**
+ * Acceptance S-4 (the condition of BD-613-51): the retention released before the system, as the Releases card lists it,
+ * read as the first release, with its figures and where it came from. Null where the opening position released
+ * nothing (then, and only then with no release recorded here, the card says nothing has been released). Pure.
+ */
+export function openingReleaseLine(o: { released: T3; provenance: OpeningProvenance; note: string; lastCertificateNumber: string; lastSequence: number } | null): { head: { en: string; ms: string }; sub: { en: string; ms: string }; provenance: OpeningProvenance } | null {
+  if (!o || !anyOf(o.released)) return null;
+  const total = formatMoney(o.released.MAIN + o.released.NSC + o.released.NS);
+  const parts = { en: `main contractor ${formatMoney(o.released.MAIN)}, nominated sub-contractors ${formatMoney(o.released.NSC)}, nominated suppliers ${formatMoney(o.released.NS)}`, ms: `kontraktor utama ${formatMoney(o.released.MAIN)}, subkontraktor dinamakan ${formatMoney(o.released.NSC)}, pembekal dinamakan ${formatMoney(o.released.NS)}` };
+  const source = o.provenance === "STATED" ? { en: `stated on ${o.note}`, ms: `dinyatakan pada ${o.note}` } : { en: `assumed: ${o.note}`, ms: `diandaikan: ${o.note}` };
+  return {
+    head: { en: `Released before the system (opening position, entered), read as the first release · ${total}`, ms: `Dilepaskan sebelum sistem (kedudukan pembukaan, dimasukkan), dibaca sebagai pelepasan pertama · ${total}` },
+    sub: { en: `${parts.en[0].toUpperCase()}${parts.en.slice(1)}; up to interim certificate ${o.lastSequence} (${o.lastCertificateNumber}); ${source.en}.`, ms: `${parts.ms[0].toUpperCase()}${parts.ms.slice(1)}; sehingga perakuan interim ${o.lastSequence} (${o.lastCertificateNumber}); ${source.ms}.` },
+    provenance: o.provenance,
+  };
+}
