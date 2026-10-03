@@ -267,15 +267,17 @@ function FiguresPanel({ l, figures, people, today }: { l: LoadedCertificate; fig
       />
       <ul className="divide-y divide-line/70">
         {figures.lines.map((f) => (
-          <li key={f.key} className="flex flex-col gap-1.5 px-5 py-3 sm:flex-row sm:items-start sm:justify-between sm:px-6">
+          // A text line (a description, a reason, an amount in words) stacks its value under its label, wrapping;
+          // a figure sits beside its label.
+          <li key={f.key} className={f.type === "TEXT" ? "flex flex-col gap-1 px-5 py-3 sm:px-6" : "flex flex-col gap-1.5 px-5 py-3 sm:flex-row sm:items-start sm:justify-between sm:px-6"}>
             <span className="min-w-0">
               <span className="block text-[13.5px] font-semibold break-words text-ink">{f.labelEn}</span>
               {f.override && (
                 <span className="block text-[12.5px] break-words text-ink-3">{`${CERT_WORDS.computed.en}: ${figureText(f.type, f.computed)}. Overridden for ${f.override.personName}: ${f.override.justification}`}</span>
               )}
             </span>
-            <span className="flex shrink-0 flex-wrap items-center gap-2">
-              <span className="tabular-nums text-[13.5px] text-ink">{figureText(f.type, f.value)}</span>
+            <span className={f.type === "TEXT" ? "flex min-w-0 max-w-prose flex-wrap items-center gap-2" : "flex shrink-0 flex-wrap items-center gap-2"}>
+              <span className={f.type === "TEXT" ? "min-w-0 text-[13.5px] break-words whitespace-pre-line text-ink-2" : "tabular-nums text-[13.5px] text-ink"}>{figureText(f.type, f.value)}</span>
               {f.override && <Chip tone="warn">{CERT_WORDS.overridden.en}</Chip>}
               {draft && f.overridable && (routeOpen ? <Blocked label="Override" reason={certificateFaultText({ code: "OVERRIDE_ROUTE_OPEN", level: "block" })} /> : <OverrideDrawer certId={cert.id} fieldKey={f.key} label={f.labelEn} computed={figureText(f.type, f.computed)} people={people} />)}
             </span>
