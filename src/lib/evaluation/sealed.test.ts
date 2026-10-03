@@ -44,7 +44,9 @@ describe("the configured model is the model executed (FR-EVL-007, §13.4)", () =
 });
 
 describe("evaluation records never reach a broadcast surface (E-3, FR-EVL-014)", () => {
-  const BROADCAST = /^src\/(app\/page\.tsx|app\/sourcing\/page\.tsx|app\/awards\/page\.tsx|app\/requisitions\/|app\/approvals\/|app\/reports\/|app\/configuration\/audit\/|lib\/dashboard|lib\/search)/;
+  // 6.14 inc 2 code review S-6 (stricter): the documents register is a broadcast surface too. app/reports/ stays (inert since
+  // 6.17 was removed; kept, not weakened).
+  const BROADCAST = /^src\/(app\/page\.tsx|app\/sourcing\/page\.tsx|app\/awards\/page\.tsx|app\/requisitions\/|app\/approvals\/|app\/reports\/|app\/documents\/|lib\/certificate\/register\.ts|app\/configuration\/audit\/|lib\/dashboard|lib\/search)/;
   it("no loader of the dashboard, the lists, the activity feed or the audit export's screen reads a score, a result, a recommendation or the Kertas Cadangan", () => {
     const hits = sources.filter((s) => BROADCAST.test(s.path) && /evaluationScore|stageResult|recommendation\b|Recommendation\b|proposalPaper|ProposalPaper|correctedPrice|cprPercent|evaluatedPrice|recommendedPrice|reportSnapshot/.test(s.text)).map((s) => s.path);
     expect(hits).toEqual([]);

@@ -58,7 +58,9 @@ describe("the offer is written only by the opening's acts (ADR 0017)", () => {
 });
 
 describe("a price as read never reaches a broadcast surface (C-4)", () => {
-  const BROADCAST = /^src\/(app\/page\.tsx|app\/sourcing\/page\.tsx|app\/awards\/page\.tsx|app\/requisitions\/|app\/approvals\/|app\/reports\/|app\/configuration\/audit\/|lib\/dashboard)/;
+  // 6.14 inc 2 code review S-6 (stricter): the documents register is a broadcast surface too. app/reports/ stays (inert since
+  // 6.17 was removed; kept, not weakened).
+  const BROADCAST = /^src\/(app\/page\.tsx|app\/sourcing\/page\.tsx|app\/awards\/page\.tsx|app\/requisitions\/|app\/approvals\/|app\/reports\/|app\/documents\/|lib\/certificate\/register\.ts|app\/configuration\/audit\/|lib\/dashboard)/;
   it("no loader of the dashboard, the lists, the activity feed or the audit export's screen reads an offer", () => {
     const hits = sources.filter((s) => BROADCAST.test(s.path) && /openedBid|priceAsRead|openingPrice|OpenedBid/.test(s.text)).map((s) => s.path);
     expect(hits).toEqual([]);
