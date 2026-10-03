@@ -68,7 +68,7 @@ describe("page count and the fidelity line", () => {
   });
   it("names the form it stands next to, says what is not recorded, and the corrections applied with the code and revision unchanged", () => {
     const f = { name: "Demo interim certificate", formCode: "DEMO-IPC-01", revisionDate: "2026-09-01", pageCount: 2, bodyVersion: 3 };
-    expect(fidelityLine(f, 0)).toEqual({ en: "Demo interim certificate · DEMO-IPC-01 · revision 1 September 2026 · 2 pages · form version 3", ms: "Demo interim certificate · DEMO-IPC-01 · semakan 1 September 2026 · 2 muka surat · versi borang 3" });
+    expect(fidelityLine(f, 0)).toEqual({ en: "Demo interim certificate · DEMO-IPC-01 · revision 01 Sep 2026 · 2 pages · form version 3", ms: "Demo interim certificate · DEMO-IPC-01 · semakan 1 September 2026 · 2 muka surat · versi borang 3" });
     expect(fidelityLine({ ...f, formCode: "", revisionDate: null, pageCount: null }, 1).en).toBe("Demo interim certificate · no form code · no revision date · page count not recorded · form version 3 · 1 typing correction applied, form code and revision unchanged");
     expect(fidelityLine({ ...f, pageCount: 1 }, 2).en).toContain("1 page · form version 3 · 2 typing corrections applied");
   });

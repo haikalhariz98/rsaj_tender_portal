@@ -77,7 +77,7 @@ describe("worked example (FR-CRT-010): CERTICATE reads CERTIFICATE, the form cod
       { language: "EN", text: "INTERIM CERTIFICATE DEMO/KP/T/005/2026. Defects Liability Period applies." },
     ]);
     expect(r.corrected).toBe(1);
-    expect(fidelityLine({ name: rev.nameEn, formCode: rev.formCode, revisionDate: rev.revisionDate, pageCount: rev.pageCount ?? null, bodyVersion: rev.bodyVersion }, r.corrected).en).toBe("Interim certificate (fixture) · FX-1 · revision 1 June 2025 · 2 pages · form version 3 · 1 typing correction applied, form code and revision unchanged");
+    expect(fidelityLine({ name: rev.nameEn, formCode: rev.formCode, revisionDate: rev.revisionDate, pageCount: rev.pageCount ?? null, bodyVersion: rev.bodyVersion }, r.corrected).en).toBe("Interim certificate (fixture) · FX-1 · revision 01 Jun 2025 · 2 pages · form version 3 · 1 typing correction applied, form code and revision unchanged");
   });
   it("the page's preview renders through the same function, so the screen and the issue never word a text apart", () => {
     const rev = pinRevision(FORM, "2026-10-03");

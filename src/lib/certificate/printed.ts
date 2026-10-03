@@ -13,6 +13,7 @@
  */
 
 import { formatDay } from "@/lib/award/fields";
+import { formatDate } from "@/lib/format";
 
 import { ANY_CERTIFICATE_FIELD, CERTIFICATE_MERGE_FIELDS } from "./fields";
 import { w, type Words } from "./labels";
@@ -138,7 +139,8 @@ export function fidelityLine(f: FormIdentity, correctionsApplied: number): Words
   const en = [
     f.name,
     f.formCode || "no form code",
-    f.revisionDate ? `revision ${formatDay(f.revisionDate, "EN")}` : "no revision date",
+    // The screens' day format in English (as every other day on screen); the Malay line spells the month.
+    f.revisionDate ? `revision ${formatDate(f.revisionDate)}` : "no revision date",
     f.pageCount == null ? "page count not recorded" : `${f.pageCount} ${f.pageCount === 1 ? "page" : "pages"}`,
     `form version ${f.bodyVersion}`,
     correctionsApplied ? `${correctionsApplied} ${correctionsApplied === 1 ? "typing correction" : "typing corrections"} applied, form code and revision unchanged` : null,
