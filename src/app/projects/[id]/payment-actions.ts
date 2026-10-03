@@ -17,7 +17,7 @@ import { parseSen, senFromDecimal, senToDecimalString, type Sen } from "@/lib/mo
 import { applicationFaults } from "@/lib/payment/advance";
 import { assembleInterim, heldOnLatest } from "@/lib/payment/assemble";
 import { ANSWER_WORDS, DEDUCTION_WORDS, OUTCOME_WORDS, PACK_WORDS, paymentRefusal, RELEASE_WORDS, SCOPE_WORDS, TRIGGER_WORDS } from "@/lib/payment/labels";
-import { assembleInputOf, baselineOn, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, kindSettingOf, loadPayment, nextInterimSequence, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
+import { assembleInputOf, baselineOn, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, kindSettingOf, loadPayment, nextInterimSequence, releaseStateOf, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
 import { afterCutOff } from "@/lib/payment/materials";
 import { ladRoundingFaults } from "@/lib/payment/interim";
 import { OPENING_GROUPS, openingFaults, type OpeningGroup, type OpeningProvenance } from "@/lib/payment/opening";
@@ -430,12 +430,11 @@ export async function releaseRetention(_prev: FormState, data: FormData): Promis
     const p = await paymentOf(c);
     const held = heldOnLatest(issuedInterims(p));
     if (!held) refuse("Not released:", [{ code: "NO_ISSUED_INTERIM", level: "block" }]);
-    const first = p.retentionReleases.find((x) => x.kind === "RELEASED_FIRST") ?? null;
-    const balance = p.retentionReleases.find((x) => x.kind === "RELEASED_BALANCE") ?? null;
+    const rs = releaseStateOf(p);
     const policy = (await configOf(c)).policy;
     const pct = firstReleaseShare(policy?.firstReleasePct);
     const handover = p.siteRecordsHandovers.at(-1) ?? null;
-    const rel = releaseOf({ kind: release, held: held!.held, already: { first: !!first, balance: !!balance }, firstReleasePct: pct, asBuiltHandedOver: !!handover, makingGoodIssued: false, firstReleased: first ? { MAIN: senFromDecimal(first.main), NSC: senFromDecimal(first.nsc), NS: senFromDecimal(first.ns) } : { MAIN: 0n, NSC: 0n, NS: 0n } });
+    const rel = releaseOf({ kind: release, held: held!.held, already: rs.already, firstReleasePct: pct, asBuiltHandedOver: !!handover, makingGoodIssued: false, firstReleased: rs.firstReleased });
     if (rel.faults.length) refuse("Not released:", rel.faults);
     const who = await recordedFor(c, personId, { principalOrSo: true }, storedDay(releasedOn));
     const a = rel.amounts!;

@@ -20,7 +20,7 @@ import type { ContractPartyKind } from "@/lib/supervision/types";
 import { readJudgedUnder, type AssembleInput, type IssuedInterim, type ValuationIn } from "./assemble";
 import { EXECUTED_STATUSES } from "./eligibility";
 import { OPENING_GROUP_WORDS } from "./labels";
-import { assumedGroups, openingAsIssued, type OpeningProvenance } from "./opening";
+import { assumedGroups, openingAsIssued, openingReleaseRow, releaseState, type OpeningProvenance } from "./opening";
 import type { KeyedDeductionKind, PackItem, Provenance, ValuationTrigger, WaterfallRemainder } from "./types";
 
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
@@ -208,7 +208,8 @@ export function assembleInputOf(l: LoadedContract, p: PaymentRows, cfg: PaymentC
     openingAssumed: p.openingPosition ? assumedGroups({ gross: { provenance: p.openingPosition.grossProvenance as OpeningProvenance }, previous: { provenance: p.openingPosition.previousProvenance as OpeningProvenance }, retention: { provenance: p.openingPosition.retentionProvenance as OpeningProvenance }, released: { provenance: p.openingPosition.releasedProvenance as OpeningProvenance }, advance: { provenance: p.openingPosition.advanceProvenance as OpeningProvenance }, damages: { provenance: p.openingPosition.damagesProvenance as OpeningProvenance } }).map((g) => OPENING_GROUP_WORDS[g].en) : [],
     // Step 4 (FR-PAD-003) adds the issued adjustments of the contract sum: none can be issued before it.
     adjustments: [],
-    releases: p.retentionReleases.map((r) => ({ main: senFromDecimal(r.main), nsc: senFromDecimal(r.nsc), ns: senFromDecimal(r.ns), releasedOn: storedDay(r.releasedOn) })),
+    // The opening position's release first (MUST 1: never clawed back), then the system's.
+    releases: [...openingReleaseRow(p.openingPosition ? openingOf(p.openingPosition).released : null), ...p.retentionReleases.map((r) => ({ main: senFromDecimal(r.main), nsc: senFromDecimal(r.nsc), ns: senFromDecimal(r.ns), releasedOn: storedDay(r.releasedOn) }))],
     advances: issuedAdvances(p),
     decision: decisionOf(p, baseline),
     baselineDamages: baselineDamagesOf(p, baseline),
@@ -219,3 +220,7 @@ export function assembleInputOf(l: LoadedContract, p: PaymentRows, cfg: PaymentC
 
 /// The four pack items as stored.
 export const packOf = (json: unknown): { item: PackItem; text: string; notRequired: boolean }[] => (Array.isArray(json) ? (json as { item: PackItem; text: string; notRequired: boolean }[]) : []);
+
+/// What has been released already (the system's records and the opening position's), for the release act and its preview.
+export const releaseStateOf = (p: PaymentRows) =>
+  releaseState(p.retentionReleases.map((r) => ({ kind: r.kind, main: senFromDecimal(r.main), nsc: senFromDecimal(r.nsc), ns: senFromDecimal(r.ns) })), p.openingPosition ? openingOf(p.openingPosition).released : null);

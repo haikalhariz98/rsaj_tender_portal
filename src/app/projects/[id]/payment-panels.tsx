@@ -17,7 +17,7 @@ import { decisionFaults, replacementFaults, warningFaults } from "@/lib/lad/non-
 import { formatMoney, parseSen, senFromDecimal, type Sen } from "@/lib/money";
 import { assembleInterim, chargedUntilOf, heldOnLatest, readJudgedUnder, type Assembled } from "@/lib/payment/assemble";
 import { OPENING_GROUP_WORDS, ADVANCE_PARTY_WORDS, ANSWER_WORDS, DEDUCTION_WORDS, MATERIAL_VERDICT_WORDS, OUTCOME_WORDS, PACK_WORDS, REMAINDER_WORDS, paymentFaultText, RELEASE_WORDS, SCOPE_WORDS, TIER_WORDS, TRIGGER_WORDS, VALUATION_STATUS_WORDS } from "@/lib/payment/labels";
-import { assembleInputOf, baselineOn, decisionOf, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, baselineDamagesOf, kindSettingOf, uncoveredForeign, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
+import { assembleInputOf, baselineOn, decisionOf, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, baselineDamagesOf, kindSettingOf, uncoveredForeign, releaseStateOf, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
 import { materialVerdict } from "@/lib/payment/materials";
 import { firstReleaseShare, releaseOf, retentionReading } from "@/lib/payment/retention";
 import { ADVANCE_PARTIES, CONTRACTOR_ANSWERS, KEYED_DEDUCTION_KINDS, NON_COMPLETION_OUTCOMES, NON_COMPLETION_SCOPES, PACK_ITEMS, VALUATION_TRIGGERS, type Finding } from "@/lib/payment/types";
@@ -449,13 +449,13 @@ function RetentionSection({ l, v, people, today }: { l: LoadedContract; v: Payme
   const b = v.baseline?.values ?? null;
   const reading = b ? retentionReading({ applies: b.retentionApplies, percent: b.retentionPercent, capPercent: b.retentionCapPercent, source: b.retentionSource }) : null;
   const held = heldOnLatest(v.issued);
-  const first = v.p.retentionReleases.find((x) => x.kind === "RELEASED_FIRST") ?? null;
   const balance = v.p.retentionReleases.find((x) => x.kind === "RELEASED_BALANCE") ?? null;
+  const rs = releaseStateOf(v.p);
   const pct = firstReleaseShare(v.cfg.policy?.firstReleasePct);
   const handed = v.p.siteRecordsHandovers.length > 0;
   const releaseBlock = (kind: "RELEASED_FIRST" | "RELEASED_BALANCE") => {
     if (!held) return paymentFaultText({ code: "NO_ISSUED_INTERIM", level: "block" });
-    const r = releaseOf({ kind, held: held.held, already: { first: !!first, balance: !!balance }, firstReleasePct: pct, asBuiltHandedOver: handed, makingGoodIssued: false, firstReleased: first ? { MAIN: senFromDecimal(first.main), NSC: senFromDecimal(first.nsc), NS: senFromDecimal(first.ns) } : { MAIN: 0n, NSC: 0n, NS: 0n } });
+    const r = releaseOf({ kind, held: held.held, already: rs.already, firstReleasePct: pct, asBuiltHandedOver: handed, makingGoodIssued: false, firstReleased: rs.firstReleased });
     return zone(today) ?? say(r.faults);
   };
   const terms =
@@ -488,7 +488,7 @@ function RetentionSection({ l, v, people, today }: { l: LoadedContract; v: Payme
           subtitle="Once each. The balance waits for the Certificate of Making Good Defects, which arrives with completion and defects (Part B): the contract carries on meanwhile."
           actions={
             <span className="flex flex-wrap items-center gap-2">
-              {!first && <ReleaseDrawer id={c.id} release="RELEASED_FIRST" label={RELEASE_WORDS.RELEASED_FIRST.en} people={people} today={today} blocker={releaseBlock("RELEASED_FIRST")} />}
+              {!rs.already.first && <ReleaseDrawer id={c.id} release="RELEASED_FIRST" label={RELEASE_WORDS.RELEASED_FIRST.en} people={people} today={today} blocker={releaseBlock("RELEASED_FIRST")} />}
               {!balance && <ReleaseDrawer id={c.id} release="RELEASED_BALANCE" label={RELEASE_WORDS.RELEASED_BALANCE.en} people={people} today={today} blocker={releaseBlock("RELEASED_BALANCE")} />}
             </span>
           }

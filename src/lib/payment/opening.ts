@@ -114,3 +114,28 @@ export function openingAsIssued(o: { id: string; lastSequence: number; grossToDa
     judgedUnder,
   };
 }
+
+type T3 = { MAIN: Sen; NSC: Sen; NS: Sen };
+const anyOf = (t: T3) => t.MAIN > 0n || t.NSC > 0n || t.NS > 0n;
+
+/**
+ * Retention released before the system (the opening position's) is a release like any other (code review run 2
+ * residual, MUST 1): it is taken off what is held on every later certificate, so it is never clawed back, and it is
+ * the first release (BD-613-51: the balance waits for the Certificate of Making Good Defects, which no contract
+ * before the system can have had here), so a first release here is refused.
+ */
+export function openingReleaseRow(released: T3 | null): { main: Sen; nsc: Sen; ns: Sen; releasedOn: Day }[] {
+  return released && anyOf(released) ? [{ main: released.MAIN, nsc: released.NSC, ns: released.NS, releasedOn: "0001-01-01" }] : [];
+}
+
+/// What the release act and the Retention card read as already released: the system's records and the opening's.
+export function releaseState(rows: readonly { kind: string; main: Sen; nsc: Sen; ns: Sen }[], openingReleased: T3 | null): { already: { first: boolean; balance: boolean }; firstReleased: T3 } {
+  const first = rows.find((r) => r.kind === "RELEASED_FIRST") ?? null;
+  const fromOpening = openingReleased && anyOf(openingReleased) ? openingReleased : null;
+  const firstReleased: T3 = {
+    MAIN: (first?.main ?? 0n) + (fromOpening?.MAIN ?? 0n),
+    NSC: (first?.nsc ?? 0n) + (fromOpening?.NSC ?? 0n),
+    NS: (first?.ns ?? 0n) + (fromOpening?.NS ?? 0n),
+  };
+  return { already: { first: !!first || !!fromOpening, balance: rows.some((r) => r.kind === "RELEASED_BALANCE") }, firstReleased };
+}
