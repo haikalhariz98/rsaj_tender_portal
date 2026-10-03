@@ -253,6 +253,9 @@ export async function recordSignature(c: CertCtx, input: SignatureInput) {
   let rev = readRevision(cert.templateRevision);
   const pinning = !rev;
   if (!rev) {
+    // BD-614-21 residual (c): the form is read under a shared lock, after the certificate's, so an edit to its text,
+    // blocks or list (which locks it FOR UPDATE) cannot land between reads: a pin never mixes two versions.
+    if (cert.templateId) await c.tx.$queryRaw`SELECT id FROM "DocumentTemplate" WHERE id = ${cert.templateId} FOR SHARE`;
     const t = await templateNow(cert.templateId, c.tx);
     // M-2: nothing is pinned that could never issue: a field the text prints must have its value at issue.
     const fs = pinRefusals(t, mergeFields(cert.kind), fieldsNamed, pinContextOf(cert));
