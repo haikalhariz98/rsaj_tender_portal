@@ -26,3 +26,11 @@ describe("an override against a line's floor", () => {
     expect(at("260.00")).toEqual([]);
   });
 });
+
+describe("the refusal prints the floor as money", () => {
+  it("RM250.00, never a bare decimal string", async () => {
+    const { certificateFaultWords } = await import("./fault-text");
+    const t = certificateFaultWords({ code: "OVERRIDE_BELOW_FLOOR", level: "block", data: { floor: "1250.00", why: "the part recorded elsewhere" } }).en;
+    expect(t).toMatch(/^Not below RM1,250\.00: the part recorded elsewhere\./);
+  });
+});

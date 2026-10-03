@@ -6,12 +6,15 @@
  */
 
 import { formatDate } from "@/lib/format";
+import { formatSen, parseSen } from "@/lib/money";
 
 import { kindFaultWords } from "./kinds";
 import { OFFICE_RULE_WORDS, STATUS_WORDS, w, type Words } from "./labels";
 import type { CertificateStatus, Finding, SignatureOfficeRule } from "./types";
 
 const day = (v: unknown) => (typeof v === "string" ? formatDate(v) : "that day");
+/// A floor's decimal string as money ("1000.00" → "RM1,000.00").
+const floorMoney = (v: unknown) => (typeof v === "string" && /^-?\d+(\.\d{1,2})?$/.test(v) ? formatSen(parseSen(v)) : "its floor");
 const s = (v: unknown, fallback: string) => (v == null || v === "" ? fallback : String(v));
 
 export function certificateFaultWords(f: Finding): Words {
@@ -31,7 +34,7 @@ export function certificateFaultWords(f: Finding): Words {
     case "OVERRIDE_NOT_IN_DRAFT":
       return w(`A computed figure is overridden only while the certificate is a draft. This one is ${STATUS_WORDS[d.status as CertificateStatus]?.en.toLowerCase() ?? "past its draft"}: its figures are frozen as they were sent on. If a figure is wrong, void it and raise it again.`, `Angka yang dikira hanya boleh diganti semasa perakuan masih draf. Angkanya kini dibekukan. Jika angka salah, batalkan dan bangkitkan semula.`);
     case "OVERRIDE_BELOW_FLOOR":
-      return w(`Not below RM${s(d.floor, "its floor")}: ${s(d.why, "that part is not corrected here")}. Only the part above it may be overridden.`, `Tidak di bawah RM${s(d.floor, "had")}: bahagian itu tidak boleh diganti di sini.`);
+      return w(`Not below ${floorMoney(d.floor)}: ${s(d.why, "that part is not corrected here")}. Only the part above it may be overridden.`, `Tidak di bawah ${floorMoney(d.floor)}: bahagian itu tidak boleh diganti di sini.`);
     case "OVERRIDE_ROUTE_OPEN":
       return w("Its figures went for approval on a route that is waiting for a decision or approved: they are frozen as they were sent. If a figure is wrong, refuse the route (or void the certificate) and raise it again.", "Angkanya telah dihantar untuk kelulusan: ia dibekukan seperti dihantar. Jika angka salah, tolak laluan itu (atau batalkan perakuan) dan bangkitkan semula.");
     case "NO_FIGURES":

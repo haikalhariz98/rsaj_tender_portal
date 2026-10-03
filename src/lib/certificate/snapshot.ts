@@ -27,6 +27,9 @@ export interface FigureLine {
   value: string | null;
   /// Whether the owning module allows an officer to override it (with a justification) in DRAFT.
   overridable: boolean;
+  /// A TEXT line's value in Malay, beside `value` in English (6.13 Part A: a sentence the owning module writes is
+  /// stored in both languages, as its labels are). Absent: the value is not a sentence (a reference, a clause).
+  valueMs?: string;
   /// The lowest an override may set it to, and why (a money line only): the part of the figure the owning module
   /// does not let an officer correct (6.13 Part A, code review run 2 item 3: the premiums the employer paid that
   /// this certificate recovers). Absent: no floor.
@@ -74,6 +77,8 @@ export function snapshotFaults(s: ComputedSnapshot): Finding[] {
     seen.add(k);
   }
   for (const l of s.lines) if (l.value != null && valueFault(l.type, l.value)) f("FIELD_VALUE", { key: l.key, type: l.type });
+  // Malay words beside a value only on a TEXT line.
+  for (const l of s.lines) if (l.valueMs !== undefined && l.type !== "TEXT") f("FIELD_VALUE", { key: l.key, type: l.type });
   // A floor is on an overridable money line, a money string, never above the line itself.
   for (const l of s.lines) if (l.floor && (l.type !== "MONEY" || !l.overridable || valueFault("MONEY", l.floor.value) || l.value == null || parseSen(l.floor.value) > parseSen(l.value))) f("FIELD_VALUE", { key: l.key, type: l.type });
   const money = new Set(s.lines.filter((l) => l.type === "MONEY").map((l) => l.key));
