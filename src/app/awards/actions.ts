@@ -34,7 +34,8 @@ import { loadEvaluationGate, type EvaluationGate } from "@/lib/evaluation/gate-r
 import { openingFindingText } from "@/lib/opening/labels";
 import { bidFindingText } from "@/lib/bids/labels";
 import { awardValueFaults, instrumentFor } from "@/lib/award/instrument";
-import { AWARD_STATUS_LABEL, awardFindingText, BOND_FAULT_TEXT, DESPATCH_FAULT_TEXT, INSURANCE_FAULT_TEXT, SIGNER_FAULT_TEXT, differsRefusal, tenderTermText } from "@/lib/award/labels";
+import { AWARD_STATUS_LABEL, awardFindingText, BOND_FAULT_TEXT, DESPATCH_FAULT_TEXT, INSURANCE_FAULT_TEXT, INSURANCE_KIND_LABEL, SECURITY_KIND_LABEL, SIGNER_FAULT_TEXT, differsRefusal, tenderTermText } from "@/lib/award/labels";
+import { policyLabel, securityLabel } from "@/lib/audit/entity-labels";
 import { renderedText } from "@/lib/award/merge";
 import { awardFacts, dossierEvidenceOf, exerciseMatters, frozenTenderOf, loadAwardConfig, matterRecord, withLockedAward, withLockedExerciseForAward, latestRoute, type LoadedAward } from "@/lib/award/repo";
 import { receivedOnFault } from "@/lib/award/routing";
@@ -1069,7 +1070,7 @@ export async function lodgeSecurity(_prev: FormState, data: FormData): Promise<F
     if (v.expiresOn && v.expiresOn < v.effectiveFrom!) return { ok: false, errors: { expiresOn: "It cannot expire before it takes effect." } };
     if (v.issuerId && !(await tx.approvedIssuer.findFirst({ where: { id: v.issuerId, organisationId: l.org.id } }))) return { ok: false, errors: { issuerId: "That issuer is not on the list." } };
     const row = await tx.securityInstrument.create({ data: { contractId: c.id, ...v, kind: v.kind!, form: v.form!, value: senToDecimalString(parseSen(v.value!)), effectiveFrom: v.effectiveFrom!, lodgedOn: v.lodgedOn! } });
-    await audit(tx, l.org.id, "SecurityInstrument", row.id, `${l.award.reference} · ${v.kind!.toLowerCase().replace(/_/g, " ")}`, "CREATE", awardAuditCreate(row, { contract: c.number }));
+    await audit(tx, l.org.id, "SecurityInstrument", row.id, securityLabel(l.award.reference, v.kind!), "CREATE", awardAuditCreate(row, { contract: c.number }));
     return { ok: true };
   });
 }
@@ -1109,7 +1110,7 @@ export async function reviewSecurity(_prev: FormState, data: FormData): Promise<
       ? { status: "VERIFIED" as const, verifiedOn: on, verifiedByPersonId: person.id, requiredValue: req.state === "SET" ? senToDecimalString(req.amount) : null, basis: a.bondBasis, basisPercent: a.bondPercent, basisAmount: a.bondBasisAmount, basisProvenance: a.bondBasisProvenance, requiredUntil: completion && a.bondValidityExtraMonths != null ? dayToDate(bondRequiredUntil(completion, a.bondValidityExtraMonths)!) : null }
       : { status: "REJECTED" as const, verifiedOn: on, verifiedByPersonId: person.id, rejectedReason: reason };
     await tx.securityInstrument.update({ where: { id: s.id }, data: after });
-    await audit(tx, l.org.id, "SecurityInstrument", s.id, `${a.reference} · ${s.kind.toLowerCase().replace(/_/g, " ")}`, "UPDATE", diffFields({ status: s.status }, { status: after.status, checkedBy: person.name, checkedOn: on, recordedOnBehalf: "not signed", requiredValue: "requiredValue" in after ? after.requiredValue : undefined }), reason);
+    await audit(tx, l.org.id, "SecurityInstrument", s.id, securityLabel(a.reference, s.kind as keyof typeof SECURITY_KIND_LABEL), "UPDATE", diffFields({ status: s.status }, { status: after.status, checkedBy: person.name, checkedOn: on, recordedOnBehalf: "not signed", requiredValue: "requiredValue" in after ? after.requiredValue : undefined }), reason);
     return { ok: true };
   });
 }
@@ -1149,7 +1150,7 @@ export async function lodgePolicy(_prev: FormState, data: FormData): Promise<For
     const stated = worksAppendixAmount(coversWorks, v.appendixAmount ? parseSen(v.appendixAmount) : null, tender ? baselineOf(tender, senFromDecimal(l.award.awardedValue)) : null);
     if ("fault" in stated) return { ok: false, errors: { appendixAmount: `The tender Appendix states ${formatSen(stated.appendix)} at the awarded sum. Leave it empty to take that figure.` } };
     const row = await tx.insurancePolicy.create({ data: { contractId: c.id, ...v, kind: v.kind!, sumInsured: money(v.sumInsured)!, appendixAmount: stated.amount == null ? null : senToDecimalString(stated.amount), requiredLimit: money(v.requiredLimit), periodStart: v.periodStart!, periodEnd: v.periodEnd!, lodgedOn: v.lodgedOn! } });
-    await audit(tx, l.org.id, "InsurancePolicy", row.id, `${l.award.reference} · ${v.kind!.toLowerCase().replace(/_/g, " ")} policy`, "CREATE", awardAuditCreate(row, { contract: c.number }));
+    await audit(tx, l.org.id, "InsurancePolicy", row.id, policyLabel(l.award.reference, v.kind!), "CREATE", awardAuditCreate(row, { contract: c.number }));
     return { ok: true };
   });
 }
@@ -1191,7 +1192,7 @@ export async function reviewPolicy(_prev: FormState, data: FormData): Promise<Fo
       ? { status: "VERIFIED" as const, verifiedOn: on, verifiedByPersonId: person.id, requirementSnapshot: (requirement ? { name: requirement.nameEn, tailMonths: requirement.tailMonths, tailDays: requirement.tailDays, percent: requirement.percent, dlpMonths: a.dlpMonths, wcBasis: a.wcBasis, sumChecked: p.kind === "WORKMENS_COMPENSATION" ? wcSumCheck(a.wcBasis) === "CHECKED" : true } : null) as Prisma.InputJsonValue }
       : { status: "REJECTED" as const, verifiedOn: on, verifiedByPersonId: person.id, rejectedReason: reason };
     await tx.insurancePolicy.update({ where: { id: p.id }, data: after });
-    await audit(tx, l.org.id, "InsurancePolicy", p.id, `${a.reference} · ${p.kind.toLowerCase().replace(/_/g, " ")} policy`, "UPDATE", diffFields({ status: p.status }, { status: after.status, checkedBy: person.name, checkedOn: on, recordedOnBehalf: "not signed" }), reason);
+    await audit(tx, l.org.id, "InsurancePolicy", p.id, policyLabel(a.reference, p.kind as keyof typeof INSURANCE_KIND_LABEL), "UPDATE", diffFields({ status: p.status }, { status: after.status, checkedBy: person.name, checkedOn: on, recordedOnBehalf: "not signed" }), reason);
     return { ok: true };
   });
 }

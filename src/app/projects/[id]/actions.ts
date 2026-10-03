@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/record-editor";
 import type { Prisma } from "@/generated/prisma/client";
 import { diffFields, snapshotFields, type FieldChange } from "@/lib/audit/diff";
+import { custodyItemLabel, formationCheckLabel, reconciliationLabel } from "@/lib/audit/entity-labels";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { toSecond } from "@/lib/bids/lateness";
 import { applyTerm, AWARD_TERM_WORDS, AWARD_TERMS, awardCorrectionFaults, correctedColumns, TERM_FIELD, termSource, termText, type AwardTermColumns, type TermInput } from "@/lib/contract/award-correction";
@@ -209,7 +210,7 @@ export async function recordReconciliation(_prev: FormState, data: FormData): Pr
     const row = existing
       ? await c.tx.contractReconciliation.update({ where: { id: existing.id }, data: { outcome, checkedByPersonId: person.id, checkedOn, note, addendaSnapshot: snapshot, recordedAt: now } })
       : await c.tx.contractReconciliation.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, comparison, outcome, checkedByPersonId: person.id, checkedOn, note, addendaSnapshot: snapshot, recordedAt: now } });
-    await audit(c, "ContractReconciliation", row.id, `reconciliation ${comparison.toLowerCase().replace(/_/g, " ")}`, existing ? "UPDATE" : "CREATE", diffFields(existing ? { outcome: existing.outcome } : null, { outcome, checkedBy: person.name, checkedOn, addendaListed: snapshot.length, recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "ContractReconciliation", row.id, reconciliationLabel(comparison), existing ? "UPDATE" : "CREATE", diffFields(existing ? { outcome: existing.outcome } : null, { outcome, checkedBy: person.name, checkedOn, addendaListed: snapshot.length, recordedOnBehalf: ON_BEHALF }));
     return { ok: true };
   });
 }
@@ -336,7 +337,7 @@ export async function completeCheck(_prev: FormState, data: FormData): Promise<F
     const done = await c.tx.formationCheck.updateMany({ where: { id: k.id, completedOn: null }, data: { completedByPersonId: person.id, completedOn: on, completedAt: now, note } });
     if (done.count !== 1) throw new Refusal(CHANGED);
     const variance = k.kind === "ARITHMETIC" ? arithmeticVariance(k.corrections.map((x) => ({ tendered: senFromDecimal(x.tendered), corrected: senFromDecimal(x.corrected) }))) : null;
-    await audit(c, "FormationCheck", k.id, `check ${k.kind.toLowerCase().replace(/_/g, " ")}`, "UPDATE", diffFields({ completedOn: null }, { completedOn: on, completedBy: person.name, lines: k.corrections.length + k.rates.length, arithmeticVarianceAmount: variance == null ? null : senToDecimalString(variance), recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "FormationCheck", k.id, formationCheckLabel(k.kind as FormationCheckKind), "UPDATE", diffFields({ completedOn: null }, { completedOn: on, completedBy: person.name, lines: k.corrections.length + k.rates.length, arithmeticVarianceAmount: variance == null ? null : senToDecimalString(variance), recordedOnBehalf: ON_BEHALF }));
     return { ok: true };
   });
 }
@@ -733,7 +734,7 @@ export async function registerOriginal(_prev: FormState, data: FormData): Promis
     const custodian = await personOf(c, custodianId);
     if (!custodian) return { ok: false, errors: { custodianPersonId: "Choose someone on record and active." } };
     const row = await c.tx.custodyItem.create({ data: { organisationId: c.l.org.id, contractId: k.id, kind, securityId: kind === "SECURITY" ? refId : null, policyId: kind === "POLICY" ? refId : null, location, custodianPersonId: custodian.id, recordedAt: now } });
-    await audit(c, "CustodyItem", row.id, `original: ${kind.toLowerCase()}`, "CREATE", diffFields(null, { kind, location, custodian: custodian.name }));
+    await audit(c, "CustodyItem", row.id, custodyItemLabel(kind), "CREATE", diffFields(null, { kind, location, custodian: custodian.name }));
     return { ok: true };
   });
 }

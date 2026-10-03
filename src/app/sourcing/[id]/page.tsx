@@ -1,4 +1,5 @@
 import { exerciseEvidence, type ExerciseEvidence } from "@/lib/documents/evidence";
+import { historyEntityLabel } from "@/lib/audit/entity-labels";
 import { DOCUMENT_ENTITY_LABEL } from "@/lib/documents/audit-view";
 import { SCOPE_ENTITY_LABEL } from "@/lib/scope/audit-view";
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
@@ -1417,7 +1418,7 @@ function HistoryPanel({
               <div className="flex flex-wrap items-center gap-2 text-[13px]">
                 <Badge tone={e.action === "CREATE" ? "ok" : e.action === "DELETE" ? "err" : "info"}>{ACTION_LABEL[e.action]}</Badge>
                 <span className="font-semibold text-ink">{routeDomains.has(e.entityId) ? historyRouteLabel(routeDomains.get(e.entityId)!, e.entity === "ApprovalStep" ? "step" : "route") : (ENTITY_LABEL[e.entity] ?? "Record")}</span>
-                <span className="min-w-0 break-words text-ink-2">{trailLabel(e.entityLabel)}</span>
+                <span className="min-w-0 break-words text-ink-2">{trailLabel(historyEntityLabel(e.entity, e.entityLabel))}</span>
                 <span className="flex-1" />
                 <span className="text-[12px] text-ink-3">{formatOrgDay(e.at, timeZone)}</span>
               </div>

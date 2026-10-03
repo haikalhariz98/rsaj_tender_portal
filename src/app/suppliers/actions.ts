@@ -26,7 +26,8 @@ import { ableToAct, deciderFaults } from "@/lib/requisition/holders";
 import { SUPPLIER_ENTITY } from "@/lib/suppliers/audit-view";
 import { lodgeFaults, verifyFaults } from "@/lib/suppliers/documents";
 import { applicationFaults, contactFaults, normaliseRegistrationNo, receiptFaults } from "@/lib/suppliers/identity";
-import { APPLICATION_KIND_LABEL, CHANNEL_LABEL, OUTCOME_LABEL, REGISTRATION_MATTER, REGISTRATION_REFUSED_DECIDED_BY, SUPPLIER_DECIDER_TEXT, supplierFaultText, VERIFICATION_LABEL } from "@/lib/suppliers/labels";
+import type { DocumentState } from "@/lib/suppliers/documents";
+import { APPLICATION_KIND_LABEL, CHANNEL_LABEL, DOCUMENT_STATE_LABEL, OUTCOME_LABEL, REGISTRATION_MATTER, REGISTRATION_REFUSED_DECIDED_BY, SUPPLIER_DECIDER_TEXT, supplierFaultText, VERIFICATION_LABEL } from "@/lib/suppliers/labels";
 import { supplierApplicationLabel, supplierDocumentLabel, supplierOfApplication, supplierOfDocument } from "@/lib/suppliers/lock";
 import { documentFacts, loadSupplierConfig, supplierOrg, typeFacts } from "@/lib/suppliers/repo";
 import { approveFaults, decisionFaults, decisionSnapshot, fileFacts, isOpen, lapseFaults, openApplicationFaults, submitFaults, type FileFacts } from "@/lib/suppliers/review";
@@ -583,7 +584,7 @@ export async function decideRegistrationStep(_prev: FormState, data: FormData): 
     if (moved.count !== 1) throw new Refusal(CHANGED);
     const snap = decisionSnapshot(f, today, provenanceOf);
     const dec = await tx.applicationDecision.create({ data: { organisationId: l.org.id, applicationId: a.id, outcome: "APPROVE", decidedByPersonId: person!.id, decidedOn: on, decidedAt: now, policySnapshot: snap as unknown as Prisma.InputJsonValue } });
-    await audit(tx, l.org.id, SUPPLIER_ENTITY.decision, dec.id, supplierApplicationLabel(a), "CREATE", diffFields(null, { outcome: OUTCOME_LABEL.APPROVE.en, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", judgedUnder: snap.mandatory.map((m) => `${m.type}: ${m.state.toLowerCase().replace(/_/g, " ")}`).join("; ") || "No mandatory document type" }));
+    await audit(tx, l.org.id, SUPPLIER_ENTITY.decision, dec.id, supplierApplicationLabel(a), "CREATE", diffFields(null, { outcome: OUTCOME_LABEL.APPROVE.en, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", judgedUnder: snap.mandatory.map((m) => `${m.type}: ${DOCUMENT_STATE_LABEL[m.state as DocumentState].en}`).join("; ") || "No mandatory document type" }));
     await audit(tx, l.org.id, SUPPLIER_ENTITY.application, a.id, supplierApplicationLabel(a), "UPDATE", diffFields({ status: a.status }, { status: "APPROVED" }));
     if (a.kind === "NEW" && l.supplier.status !== "REGISTERED") {
       await tx.supplier.update({ where: { id: supplierId }, data: { status: "REGISTERED", registeredOn: dayToDate(today) } });

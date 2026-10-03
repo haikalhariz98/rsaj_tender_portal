@@ -387,6 +387,7 @@ const EXERCISES = [
 export async function loadAwards(db: Db, organisationId: string) {
   const { diffFields } = await import("../src/lib/audit/diff");
   const { awardAuditCreate, awardAuditPair } = await import("../src/lib/award/audit-view");
+  const { policyLabel, securityLabel } = await import("../src/lib/audit/entity-labels");
   const { renderedText } = await import("../src/lib/award/merge");
   const { evaluateAward } = await import("../src/lib/award/evaluate");
   const { awardFacts, loadAward } = await import("../src/lib/award/repo");
@@ -604,12 +605,12 @@ export async function loadAwards(db: Db, organisationId: string) {
     }
     if (a.commencedOn) entry("Award", a.id, label, "UPDATE", a.commencedOn, diffFields({ commencedOn: null }, { commencedOn: a.commencedOn }));
     for (const s of c.securities) {
-      const lbl = `${a.reference} · ${s.kind.toLowerCase().replace(/_/g, " ")}`;
+      const lbl = securityLabel(a.reference, s.kind);
       entry("SecurityInstrument", s.id, lbl, "CREATE", s.lodgedOn, awardAuditCreate({ ...s, status: "LODGED", verifiedOn: null, verifiedByPersonId: null, rejectedReason: "", requiredValue: null, basis: null, basisPercent: null, basisAmount: null, basisProvenance: null, requiredUntil: null }, { contract: c.number }));
       if (s.verifiedOn) entry("SecurityInstrument", s.id, lbl, "UPDATE", s.verifiedOn, diffFields({ status: "LODGED" }, { status: s.status, checkedBy: "Chen Wei Ling", checkedOn: s.verifiedOn, recordedOnBehalf: "not signed", requiredValue: s.requiredValue?.toString() }), s.rejectedReason);
     }
     for (const p of c.policies) {
-      const lbl = `${a.reference} · ${p.kind.toLowerCase().replace(/_/g, " ")} policy`;
+      const lbl = policyLabel(a.reference, p.kind);
       entry("InsurancePolicy", p.id, lbl, "CREATE", p.lodgedOn, awardAuditCreate({ ...p, status: "LODGED", verifiedOn: null, verifiedByPersonId: null, requirementSnapshot: undefined }, { contract: c.number }));
       if (p.verifiedOn) entry("InsurancePolicy", p.id, lbl, "UPDATE", p.verifiedOn, diffFields({ status: "LODGED" }, { status: p.status, checkedBy: "Chen Wei Ling", checkedOn: p.verifiedOn, recordedOnBehalf: "not signed" }));
     }

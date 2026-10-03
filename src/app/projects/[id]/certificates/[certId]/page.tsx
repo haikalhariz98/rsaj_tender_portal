@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { historyEntityLabel } from "@/lib/audit/entity-labels";
 import { notFound } from "next/navigation";
 
 import { CheckIcon, ClockIcon, FileIcon, InboxIcon, PrinterIcon, RouteIcon, ToolsIcon } from "@/components/icons";
@@ -485,7 +486,7 @@ function HistoryPanel({ entries, total, timeZone }: { entries: { id: string; ent
               <div className="flex flex-wrap items-center gap-2 text-[13px]">
                 <Badge tone={e.action === "CREATE" ? "ok" : e.action === "DELETE" ? "err" : "info"}>{ACTION_LABEL[e.action]}</Badge>
                 <span className="font-semibold text-ink">{ENTITY_LABEL[e.entity] ?? "Record"}</span>
-                <span className="min-w-0 break-words text-ink-2">{e.entityLabel}</span>
+                <span className="min-w-0 break-words text-ink-2">{historyEntityLabel(e.entity, e.entityLabel)}</span>
                 <span className="flex-1" />
                 <span className="text-[12px] text-ink-3">{formatOrgDay(e.at, timeZone)}</span>
               </div>

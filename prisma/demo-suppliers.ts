@@ -326,11 +326,12 @@ class Acts {
     await this.db.approvalInstance.update({ where: { id: routeId }, data: { status: "APPROVED", closedAt: when } });
     this.entry("ApprovalInstance", routeId, `${a.supplier.reference} · Registration approval route`, "UPDATE", when, diffFields({ status: "PENDING" }, { status: "APPROVED" }));
     await this.db.supplierApplication.update({ where: { id: appId }, data: { status: "APPROVED", decidedAt: when } });
+    const { DOCUMENT_STATE_LABEL } = await import("../src/lib/suppliers/labels");
     const snap = decisionSnapshot(f, today, (label) => types.find((t) => t.nameEn === label)?.provenance ?? null);
     const decId = `${P}vdec${++this.n}`;
     await this.db.applicationDecision.create({ data: { id: decId, organisationId: this.org, applicationId: appId, outcome: "APPROVE", decidedByPersonId: APPROVER.id, decidedOn: dayToDate(today), decidedAt: when, policySnapshot: snap as never } });
     const label = `${a.supplier.reference} · Application received ${formatDate(a.receivedOn.toISOString().slice(0, 10))}`;
-    this.entry("ApplicationDecision", decId, label, "CREATE", when, diffFields(null, { outcome: "Approved", decidedBy: APPROVER.name, decidedOn: today, recordedOnBehalf: "not signed", judgedUnder: snap.mandatory.map((m) => `${m.type}: ${m.state.toLowerCase().replace(/_/g, " ")}`).join("; ") }));
+    this.entry("ApplicationDecision", decId, label, "CREATE", when, diffFields(null, { outcome: "Approved", decidedBy: APPROVER.name, decidedOn: today, recordedOnBehalf: "not signed", judgedUnder: snap.mandatory.map((m) => `${m.type}: ${DOCUMENT_STATE_LABEL[m.state].en}`).join("; ") }));
     this.entry("SupplierApplication", appId, label, "UPDATE", when, diffFields({ status: "RECEIVED" }, { status: "APPROVED" }));
     if (a.kind === "NEW") {
       await this.db.supplier.update({ where: { id: a.supplierId }, data: { status: "REGISTERED", registeredOn: dayToDate(today) } });

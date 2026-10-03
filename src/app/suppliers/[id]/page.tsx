@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { historyEntityLabel, historyValueWords } from "@/lib/audit/entity-labels";
 import { notFound } from "next/navigation";
 
 import { EscalateDrawer } from "@/app/approvals/editors";
@@ -478,7 +479,9 @@ const ACTION_LABEL = { CREATE: "Created", UPDATE: "Changed", DELETE: "Removed" }
 
 function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<ReturnType<typeof supplierHistory>>["entries"]; total: number; timeZone: string | null }) {
   type Entry = (typeof entries)[number];
-  const read = (field: string, value: string | null, e: Entry): string => {
+  const read = (field: string, stored: string | null, e: Entry): string => {
+    // 612-C2: a value an older writer built from a code reads through the label map.
+    const value = historyValueWords(e.entity, field, stored);
     if (value == null || value === "") return "—";
     if (e.entity === "ApprovalInstance" && field === "status") return value === "PENDING" ? "With approval" : value === "APPROVED" ? "Approved" : value === "REJECTED" ? "Refused" : "Closed";
     if (e.entity === "SupplierApplication" && field === "status") return { RECEIVED: "Received", RESUBMISSION_REQUESTED: "Resubmission requested", APPROVED: "Approved", REJECTED: "Rejected" }[value] ?? "—";
@@ -509,7 +512,7 @@ function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<ReturnTyp
               <div className="flex flex-wrap items-center gap-2 text-[13px]">
                 <Badge tone={e.action === "CREATE" ? "ok" : e.action === "DELETE" ? "err" : "info"}>{ACTION_LABEL[e.action]}</Badge>
                 <span className="font-semibold text-ink">{SUPPLIER_ENTITY_LABEL[e.entity]?.en ?? "Record"}</span>
-                <span className="min-w-0 break-words text-ink-2">{e.entityLabel}</span>
+                <span className="min-w-0 break-words text-ink-2">{historyEntityLabel(e.entity, e.entityLabel)}</span>
                 <span className="flex-1" />
                 <span className="text-[12px] text-ink-3">{formatOrgDay(e.at, timeZone)}</span>
               </div>

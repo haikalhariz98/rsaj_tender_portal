@@ -96,6 +96,7 @@ interface Ctx {
 
 export async function loadContractsDemo(db: Db, organisationId: string) {
   const { diffFields } = await import("../src/lib/audit/diff");
+  const { formationCheckLabel, reconciliationLabel } = await import("../src/lib/audit/entity-labels");
   const { maskIc } = await import("../src/lib/award/mask");
   const { buildBaseline, baselineFaults, changedFields, derive, enteredFaults } = await import("../src/lib/contract/baseline");
   const { applicableChecks, completeFaults, formationFaults, reconciliationFaults, amendmentFaults } = await import("../src/lib/contract/formation");
@@ -173,7 +174,7 @@ export async function loadContractsDemo(db: Db, organisationId: string) {
       const outcome = plan.reconciled.outcomes[i];
       const rid = `${P}kro_${k}_${i + 1}`;
       await db.contractReconciliation.create({ data: { id: rid, organisationId, contractId: id, comparison: cmp, outcome, addendaSnapshot: [], checkedByPersonId: people.daniel.id, checkedOn: day(reconOn.slice(0, 10)), recordedAt: at(reconOn) } });
-      audit("ContractReconciliation", rid, `${label} · reconciliation ${cmp.toLowerCase().replace(/_/g, " ")}`, "CREATE", reconOn, diffFields(null, { outcome, checkedBy: people.daniel.name, checkedOn: day(reconOn.slice(0, 10)), addendaListed: 0, recordedOnBehalf: ON_BEHALF }));
+      audit("ContractReconciliation", rid, `${label} · ${reconciliationLabel(cmp)}`, "CREATE", reconOn, diffFields(null, { outcome, checkedBy: people.daniel.name, checkedOn: day(reconOn.slice(0, 10)), addendaListed: 0, recordedOnBehalf: ON_BEHALF }));
       if (outcome === "AMENDED" && plan.reconciled.amendment) {
         const a = plan.reconciled.amendment;
         fail(`${id} amendment`, amendmentFaults({ description: a.description, contractorSignatoryName: a.contractor, contractorSignedOn: reconOn.slice(0, 10), officerSignedOn: reconOn.slice(0, 10) }, reconOn.slice(0, 10)));
@@ -202,7 +203,7 @@ export async function loadContractsDemo(db: Db, organisationId: string) {
       fail(`${id} check ${kind}`, completeFaults({ kind, applicable: checks, completedOn: null, on: chOn.slice(0, 10), today: chOn.slice(0, 10), preparationOn: startedOn, note, rates, ratio: snap.policy.frontLoadingRatio }));
       const cid = `${P}kch_${k}_${kind.toLowerCase()}`;
       await db.formationCheck.update({ where: { id: cid }, data: { completedByPersonId: people.daniel.id, completedOn: day(chOn.slice(0, 10)), completedAt: at(chOn), note } });
-      audit("FormationCheck", cid, `${label} · check ${kind.toLowerCase().replace(/_/g, " ")}`, "UPDATE", chOn, diffFields({ completedOn: null }, { completedOn: day(chOn.slice(0, 10)), completedBy: people.daniel.name, recordedOnBehalf: ON_BEHALF }));
+      audit("FormationCheck", cid, `${label} · ${formationCheckLabel(kind)}`, "UPDATE", chOn, diffFields({ completedOn: null }, { completedOn: day(chOn.slice(0, 10)), completedBy: people.daniel.name, recordedOnBehalf: ON_BEHALF }));
     }
     fail(`${id} formation`, formationFaults({ parts: parts.map((p) => ({ label: p.labelEn, state: "READY", cancelledStatement: "" })), reconciliations: recFacts, applicable: checks, checks: checks.map((kind) => ({ kind, completedOn: chOn.slice(0, 10) })) }));
 

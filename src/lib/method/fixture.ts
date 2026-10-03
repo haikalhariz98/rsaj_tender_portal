@@ -9,6 +9,26 @@ import type { ChecklistItem, ContractBasis, ContractTypeRow, JustificationReason
  * do in the examples, not for any organisation's role codes.
  */
 
+/// Each fixture rule's label, worded (612-C2: a label is taken from a map, never made from its key).
+const RULE_LABEL: Readonly<Record<string, string>> = {
+  APP_QUOTATION: "Appointment, quotation band",
+  APP_SPECIALIST: "Appointment, specialist",
+  APP_TENDER: "Appointment, tender band",
+  DA_500: "Direct appointment, up to the first band",
+  DA_5K: "Direct appointment, second band",
+  DA_15K: "Direct appointment, third band",
+  DA_300K: "Direct appointment, fourth band",
+  DA_3M: "Direct appointment, fifth band",
+  DA_5M: "Direct appointment, sixth band",
+  DA_OVER: "Direct appointment, above the bands",
+  NAME_QUOTATION: "Name approval, quotation",
+  NAME_TENDER: "Name approval, tender",
+  REQ_500: "Requisition, first band",
+  REQ_50K: "Requisition, second band",
+  REQ_300K: "Requisition, third band",
+  REQ_OVER: "Requisition, above the bands",
+};
+
 const rule = (r: Partial<Rule> & Pick<Rule, "ruleKey" | "domain">): Rule => ({
   method: null,
   cond: null,
@@ -20,7 +40,7 @@ const rule = (r: Partial<Rule> & Pick<Rule, "ruleKey" | "domain">): Rule => ({
   contractValueMax: null,
   followsBoundarySwitch: null,
   // Worded, as a customer's rule labels are: a label is shown, a key never.
-  labelEn: `Rule ${r.ruleKey.toLowerCase().replace(/_/g, " ")}`,
+  labelEn: RULE_LABEL[r.ruleKey] ?? "Fixture rule",
   labelMs: null,
   proposerCode: null,
   approverCode: null,

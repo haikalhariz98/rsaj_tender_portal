@@ -607,9 +607,10 @@ export async function scopeReady(db: Db, organisationId: string, tz: string, exe
     [`${estId}e3`, "RETAINED", T(on, "08:55"), custodian, "Custodian, Head of Contract & Procurement", 2, "Contract & Procurement strong room, cabinet 2"],
   ];
   entry(SCOPE_ENTITY.estimate, estId, `${ref} · Company estimate`, "UPDATE", lodged, estimateStateAudit("Being prepared", "Lodged"));
+  const { estimateEventLabel } = await import("../src/lib/audit/entity-labels");
   for (const [id, kind, when, person, capacity, copyNo, note] of events) {
     await db.estimateEvent.create({ data: { id, organisationId, estimateId: estId, kind, personId: person.id, capacity, note, versionNo: 1, copyNo: kind === "PREPARED" ? null : copyNo, at: when } });
-    entry(SCOPE_ENTITY.estimateEvent, id, `${ref} · Company estimate · ${kind.toLowerCase()}`, "CREATE", when, estimateEventAudit({ kind, personName: person.name, capacity, versionNo: 1, copyNo: kind === "PREPARED" ? undefined : copyNo, place: kind === "RETAINED" ? note : undefined }));
+    entry(SCOPE_ENTITY.estimateEvent, id, `${ref} · ${estimateEventLabel(kind)}`, "CREATE", when, estimateEventAudit({ kind, personName: person.name, capacity, versionNo: 1, copyNo: kind === "PREPARED" ? undefined : copyNo, place: kind === "RETAINED" ? note : undefined }));
   }
 }
 

@@ -18,6 +18,7 @@
  * Pure.
  */
 
+import { historyEntityLabel, historyValueWords } from "./entity-labels";
 import { createHash } from "node:crypto";
 
 import { dayIn } from "@/lib/dates";
@@ -62,14 +63,16 @@ const withheld = (v: unknown) => (v == null || v === "" ? v : SULIT_WITHHELD);
  * withdrawal letter's quote…) is listed with its values withheld: the file leaves the portal, and
  * nothing yet restricts who reads it (NFR-SEC-002, 6.2 OD-8).
  */
-function labelledChanges(changes: unknown): unknown {
+function labelledChanges(changes: unknown, entity = ""): unknown {
   if (!Array.isArray(changes)) return changes ?? [];
   const fields = changes.map((c) => (c && typeof c === "object" && "field" in c ? String((c as { field: unknown }).field) : ""));
+  // 612-C2: a value an older writer built from a code reads through the label map, as History reads it.
+  const words = (raw: string, v: unknown) => (typeof v === "string" ? historyValueWords(entity, raw, v) : v);
   return changes.map((c) => {
     if (!c || typeof c !== "object" || !("field" in c)) return c;
     const raw = String((c as { field: unknown }).field);
     const change = c as { before?: unknown; after?: unknown };
-    return { ...c, field: rowFieldLabel(raw, fields), ...(isSulitField(raw) ? { before: withheld(change.before), after: withheld(change.after) } : {}) };
+    return { ...c, field: rowFieldLabel(raw, fields), ...(isSulitField(raw) ? { before: withheld(change.before), after: withheld(change.after) } : { before: words(raw, change.before), after: words(raw, change.after) }) };
   });
 }
 
@@ -92,10 +95,10 @@ export function auditCsv(rows: readonly ExportRow[], timeZone: string): string {
         r.at.toISOString(),
         dayIn(r.at, timeZone),
         recordTypeLabel(r.entity),
-        r.entityLabel,
+        historyEntityLabel(r.entity, r.entityLabel),
         r.entityId,
         r.action,
-        JSON.stringify(labelledChanges(r.changes)),
+        JSON.stringify(labelledChanges(r.changes, r.entity)),
         r.reason,
         r.unattributed ? "Not attributed: no sign-in" : (r.actorName ?? "A person no longer on record"),
       ]

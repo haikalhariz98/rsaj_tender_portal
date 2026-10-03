@@ -339,10 +339,11 @@ export async function loadScope(db: Db, organisationId: string) {
     });
     const label = `${e.reference} · Company estimate`;
     entry(ENTITY.estimate, e.id, label, "CREATE", created, estimateCreatedAudit({ preparerName: e.preparer.name, classification: "SULIT" }));
+    const { estimateEventLabel } = await import("../src/lib/audit/entity-labels");
     const event = async (kind: "PREPARED" | "AMENDED" | "LODGED" | "RETAINED" | "VOIDED", when: Date, x: { person?: { id: string; name: string } | null; capacity?: string; versionNo?: number; copyNo?: number; note?: string } = {}) => {
       const id = `${P}esev${++ev}`;
       await db.estimateEvent.create({ data: { id, organisationId, estimateId: e.id, kind, personId: x.person?.id ?? null, capacity: x.capacity ?? "", note: x.note ?? "", versionNo: x.versionNo ?? null, copyNo: x.copyNo ?? null, at: when } });
-      entry(ENTITY.estimateEvent, id, `${label} · ${kind.toLowerCase().replace("voided", "voided")}`, "CREATE", when, estimateEventAudit({ kind, personName: x.person?.name ?? null, capacity: x.capacity, versionNo: x.versionNo, copyNo: x.copyNo, place: kind === "RETAINED" ? x.note : undefined, reason: kind === "VOIDED" ? x.note : undefined }), kind === "VOIDED" ? x.note ?? "" : "");
+      entry(ENTITY.estimateEvent, id, `${e.reference} · ${estimateEventLabel(kind)}`, "CREATE", when, estimateEventAudit({ kind, personName: x.person?.name ?? null, capacity: x.capacity, versionNo: x.versionNo, copyNo: x.copyNo, place: kind === "RETAINED" ? x.note : undefined, reason: kind === "VOIDED" ? x.note : undefined }), kind === "VOIDED" ? x.note ?? "" : "");
     };
     for (const v of e.versions) {
       const id = `${e.id}v${v.n}`;
