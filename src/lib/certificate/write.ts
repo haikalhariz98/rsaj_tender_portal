@@ -36,7 +36,7 @@ import { certificateLabel, checksOf, liveBondOf, officeHolders, officeName, rout
 import { pinRefusals, pinRevision, readRevision, type PinContext, type TemplateRevision } from "./revision";
 import { checkFaults, freezeRoutingType, readRoutingSnapshot, receivedFaults, routeBounds, routingSheet, typeFaults, type Sheet } from "./routing-sheet";
 import { nextSequence } from "./sequence";
-import { issueRefusal } from "@/lib/payment/at-issue";
+import { issueRefusal, sequenceFloor } from "@/lib/payment/at-issue";
 import { draftSigningFaults } from "./kinds";
 import { allSigned, maskedIc, signFaults, type SignInput } from "./signature";
 import { readComputedSnapshot, snapshotFaults, type ComputedSnapshot } from "./snapshot";
@@ -350,7 +350,8 @@ async function issue(c: CertCtx, rev: TemplateRevision, certificateDate: string 
     throw e;
   }
   const issued = await c.tx.certificate.findMany({ where: { contractId: c.l.contract.id, status: "ISSUED" }, select: { kind: true, sequence: true } });
-  const sequence = nextSequence(issued, cert.kind);
+  // BD-613-41: an interim certificate follows the contract's opening position, where one is recorded.
+  const sequence = Math.max(nextSequence(issued, cert.kind), (await sequenceFloor(c.tx, c.l, cert.kind)) + 1);
   // 6.13 Part A step 3 (FR-PAY-014 as ruled): the raising module judges the certificate on the sequence allocated
   // here, under the contract's lock (an interim certificate before the contract is signed; the sequence its figures
   // were worked out for). A refusal rolls the whole signature back.
