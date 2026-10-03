@@ -49,6 +49,12 @@ describe("breadcrumbs of the certificate core's pages (S-1)", () => {
     for (const x of c) expect(hasPage(x.href), x.href).toBe(true);
     expect(labels(trail("/configuration/committees/TENDER_BOARD", "Tender Board"))).toEqual(["Configuration", "Committees", "Tender Board"]);
   });
+  it("6.13 Part A step 4, a variation: Projects › its contract › Variations (the contract's tab) › the variation", () => {
+    const c = trail("/projects/demo_con3/variations/demo_vvo1", "Variation VO/1", "XI202600799");
+    expect(labels(c)).toEqual(["Projects", "XI202600799", "Variations", "Variation VO/1"]);
+    expect(c[2].href).toBe("/projects/demo_con3?tab=variations");
+    expect(labels(trail("/projects/demo_con3/variations/demo_vvo1", null))).toEqual(["Projects", "Contract", "Variations", "Variation"]);
+  });
   it("the contract itself is unchanged: Projects › its number", () => {
     expect(labels(trail("/projects/demo_con3", "XI202600799"))).toEqual(["Projects", "XI202600799"]);
   });

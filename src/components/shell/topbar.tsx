@@ -64,6 +64,8 @@ const RECORD_LABEL: Record<string, string> = {
   // 6.14: a contract, a certificate under it, a form and a routing sheet type; each page names its record.
   projects: "Contract",
   certificates: "Certificate",
+  // 6.13 Part A step 4: a variation under its contract.
+  variations: "Variation",
   templates: "Template",
   "routing-sheets": "Routing sheet type",
   sourcing: "Exercise",
@@ -166,6 +168,12 @@ export function crumbTrail(segments: readonly string[], recordName: string | nul
     if (parentName) crumbs[1].label = parentName;
     crumbs[2].label = "Documents";
     crumbs[2].href = `/projects/${segments[1]}?tab=documents`;
+  }
+  // 6.13 Part A step 4: a variation sits on its contract's Variations tab: "Projects › <contract> › Variations › <variation>".
+  if (segments[0] === "projects" && segments[2] === "variations" && crumbs.length >= 3) {
+    if (parentName) crumbs[1].label = parentName;
+    crumbs[2].label = "Variations";
+    crumbs[2].href = `/projects/${segments[1]}?tab=variations`;
   }
 
   return crumbs;
