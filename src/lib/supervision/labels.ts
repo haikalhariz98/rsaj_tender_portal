@@ -210,6 +210,8 @@ export function supervisionFaultWords(f: Finding): Words {
       return w("The baseline has no version: possession writes a new one, so confirm the baseline first.", "Garis dasar belum mempunyai versi.");
     case "BEFORE_CONTRACT_DATE":
       return w(`Not before the Contract Date (${day(d.day)}).`, `Tidak sebelum Tarikh Kontrak.`);
+    case "BEFORE_LATEST_ACT":
+      return w(`The representative was recorded for an act or signed on ${day(d.day)}: the delegation can be revoked from the day after, not earlier.`, `Wakil direkodkan bagi sesuatu tindakan atau menandatangani pada ${day(d.day)}: perwakilan boleh dibatalkan mulai hari berikutnya, bukan lebih awal.`);
     case "BEFORE_SO":
       return w(`Nobody supervises the site before ${day(d.day)}, the day this contract's S.O. takes effect: possession is not recorded before it.`, `Tiada penyeliaan tapak sebelum ${day(d.day)}, tarikh P.P. kontrak ini berkuat kuasa: milik tapak tidak direkodkan sebelumnya.`);
     case "START_RULE_NOT_SET":

@@ -22,10 +22,10 @@ import { amountOf, parseSen, senToDecimalString } from "@/lib/money";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { parsePercent } from "@/lib/securities/money";
 import { capacityFor, capacityText, type ActNeed, type Capacity } from "@/lib/supervision/authority";
-import { delegationFaults, revokeFaults } from "@/lib/supervision/delegation";
+import { delegationFaults, latestActDay, revokeFaults } from "@/lib/supervision/delegation";
 import { attestFaults, disputeFaults, endorseFaults, entryFaults } from "@/lib/supervision/diary";
 import { ACT_WORDS, AREA_WORDS, BRANCH_WORDS, CAUSE_WORDS, DELEGATE_KIND_WORDS, ENDORSER_WORDS, PARTY_KIND_WORDS, PROGRAMME_DECISION_WORDS, PROGRAMME_KIND_WORDS, RECORDS_SET_WORDS, supervisionRefusal, VARIANT_WORDS } from "@/lib/supervision/labels";
-import { delayOn, delegationFactsOf, loadPostAwardPolicy, loadSupervision, methodKeyOf, revisionsOf, soOfficeOn, type SupervisionRows } from "@/lib/supervision/load";
+import { actsByPerson, delayOn, delegationFactsOf, loadPostAwardPolicy, loadSupervision, methodKeyOf, revisionsOf, soOfficeOn, type SupervisionRows } from "@/lib/supervision/load";
 import { possessionFaults, startRuleReading } from "@/lib/supervision/possession";
 import { decideFaults, openRevision, pointFaults, scrutinyFaults, submitFaults, type PointIn } from "@/lib/supervision/programme";
 import { earlyActionFaults, handoverFaults, meetingFaults, onSiteFaults, partyFaults, progressFaults, retirePartyFaults, selfHelpFaults } from "@/lib/supervision/records";
@@ -216,7 +216,9 @@ export async function revokeDelegation(_prev: FormState, data: FormData): Promis
     await c.tx.$queryRaw`SELECT id FROM "SoDelegation" WHERE id = ${delegationId} FOR UPDATE`;
     const d = await c.tx.soDelegation.findFirst({ where: { id: delegationId, contractId: c.l.contract.id } });
     if (!d) return { ok: false, message: "That delegation is not on this contract." };
-    const fs = revokeFaults({ revokedOn: day(d.revokedOn), recordedOn: storedDay(d.recordedOn), on: storedDay(on), today: c.today, reason });
+    // Review 6: never on or before the representative's latest recorded act or signature on this contract.
+    const latestAct = latestActDay(await actsByPerson(await supervisionOf(c), c.l.contract.id, c.tx), d.delegatePersonId);
+    const fs = revokeFaults({ revokedOn: day(d.revokedOn), recordedOn: storedDay(d.recordedOn), on: storedDay(on), today: c.today, reason, latestAct });
     if (fs.length) refuse("Not revoked:", fs);
     const moved = await c.tx.soDelegation.updateMany({ where: { id: d.id, revokedOn: null }, data: { revokedOn: on, revokeReason: reason.trim(), revokedAt: c.now } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
@@ -495,8 +497,10 @@ export async function endorseDiary(_prev: FormState, data: FormData): Promise<Fo
   return inContract(idOf(data), now, async (c) => {
     const s = await supervisionOf(c);
     // The S.O.'s endorsement is the S.O.'s; the superior officer's is recorded as named (no reporting lines yet).
-    const person = role === "SUPERINTENDING_OFFICER" ? (await recordedFor(c, s, personId, { soOnly: true }, storedDay(visitedOn))).person : await personOf(c, personId);
-    if (!person) return { ok: false, errors: { personId: "Choose someone on record." } };
+    // Review 8: the superior officer is someone on record and active, as every other person named (recordedFor checks the S.O.).
+    const named = role === "SUPERINTENDING_OFFICER" ? null : await personOf(c, personId);
+    if (role !== "SUPERINTENDING_OFFICER" && (!named || !named.isActive)) return { ok: false, errors: { personId: "Choose someone on record and active." } };
+    const person = role === "SUPERINTENDING_OFFICER" ? (await recordedFor(c, s, personId, { soOnly: true }, storedDay(visitedOn))).person : named!;
     const from = storedDay(coversFrom);
     const to = storedDay(coversTo);
     const fs = endorseFaults({ possessionOn: day(s.possession?.possessionOn), visitedOn: storedDay(visitedOn), coversFrom: from, coversTo: to, today: c.today, entriesInCover: s.siteDiaryEntries.filter((x) => storedDay(x.day) >= from && storedDay(x.day) <= to).length });

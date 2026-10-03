@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { capacityFor, inForce, type DelegationFacts } from "./authority";
-import { delegationFaults, delegationState, revokeFaults } from "./delegation";
+import { delegationFaults, delegationState, latestActDay, revokeFaults } from "./delegation";
 import { supervisionFaultWords } from "./labels";
 
 /**
@@ -71,6 +71,20 @@ describe("making a delegation", () => {
     const r = { revokedOn: null, recordedOn: "2026-10-01", on: "2026-10-03", today: "2026-10-03", reason: "Transferred." };
     expect(revokeFaults(r)).toEqual([]);
     expect(codes(revokeFaults({ ...r, revokedOn: "2026-10-02", reason: "", on: "2026-09-30" }))).toEqual(["ALREADY_REVOKED", "REASON_REQUIRED", "BEFORE_RECORDED"]);
+  });
+  it("review 6: never on or before the representative's latest recorded act or signature", () => {
+    const r = { revokedOn: null, recordedOn: "2026-10-01", on: "2026-10-03", today: "2026-10-05", reason: "Transferred." };
+    expect(codes(revokeFaults({ ...r, latestAct: "2026-10-03" }))).toEqual(["BEFORE_LATEST_ACT"]);
+    expect(revokeFaults({ ...r, latestAct: "2026-10-03" })[0].data).toEqual({ day: "2026-10-03" });
+    expect(codes(revokeFaults({ ...r, latestAct: "2026-10-04" }))).toEqual(["BEFORE_LATEST_ACT"]);
+    expect(revokeFaults({ ...r, latestAct: "2026-10-02" })).toEqual([]);
+    expect(revokeFaults({ ...r, latestAct: null })).toEqual([]);
+    expect(supervisionFaultWords(revokeFaults({ ...r, latestAct: "2026-10-03" })[0]).en).toMatch(/revoked from the day after/);
+  });
+  it("the latest day a person was recorded for anything", () => {
+    const acts = [{ personId: "a", day: "2026-10-02" }, { personId: "a", day: "2026-10-04" }, { personId: "b", day: "2026-10-09" }, { personId: "a", day: null }, { personId: null, day: "2026-10-10" }];
+    expect(latestActDay(acts, "a")).toBe("2026-10-04");
+    expect(latestActDay(acts, "c")).toBeNull();
   });
   it("its state reads from its letter and its revocation", () => {
     expect(delegationState({ letterStatus: "DRAFT", revokedOn: null }, "2026-10-03")).toBe("LETTER_NOT_ISSUED");

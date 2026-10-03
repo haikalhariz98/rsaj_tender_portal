@@ -54,14 +54,24 @@ export function delegationFaults(i: DelegationInput, ctx: { so: SoOffice | null;
   return out;
 }
 
-export type RevokeFault = "ALREADY_REVOKED" | "REASON_REQUIRED" | "FUTURE_DATE" | "BEFORE_RECORDED";
+export type RevokeFault = "ALREADY_REVOKED" | "REASON_REQUIRED" | "FUTURE_DATE" | "BEFORE_RECORDED" | "BEFORE_LATEST_ACT";
 
-export function revokeFaults(i: { revokedOn: Day | null; recordedOn: Day; on: Day; today: Day; reason: string }): Finding<RevokeFault>[] {
+/// The latest day the person was recorded for anything on the contract (an act, a representative's signature). Pure.
+export function latestActDay(acts: readonly { personId: string | null; day: Day | null }[], personId: string): Day | null {
+  return acts.filter((a) => a.personId === personId && a.day).map((a) => a.day!).sort().at(-1) ?? null;
+}
+
+/**
+ * Revoke from a day (the first day it no longer holds). Review 6: never on or before the delegate's latest recorded
+ * act or representative signature, which would leave a record made under a delegation no longer in force that day.
+ */
+export function revokeFaults(i: { revokedOn: Day | null; recordedOn: Day; on: Day; today: Day; reason: string; latestAct?: Day | null }): Finding<RevokeFault>[] {
   const out: Finding<RevokeFault>[] = [];
   if (i.revokedOn) out.push({ code: "ALREADY_REVOKED", level: "block" });
   if (!i.reason.trim()) out.push({ code: "REASON_REQUIRED", level: "block" });
   if (i.on > i.today) out.push({ code: "FUTURE_DATE", level: "block", data: { day: i.on } });
   if (i.on < i.recordedOn) out.push({ code: "BEFORE_RECORDED", level: "block", data: { day: i.recordedOn } });
+  if (i.latestAct && i.on <= i.latestAct) out.push({ code: "BEFORE_LATEST_ACT", level: "block", data: { day: i.latestAct } });
   return out;
 }
 

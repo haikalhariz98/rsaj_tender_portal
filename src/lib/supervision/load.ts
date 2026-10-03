@@ -145,6 +145,26 @@ export async function delayReadingsOf(organisationId: string, rows: readonly { i
   return out;
 }
 
+/// Everything a person was recorded for on the contract, by day (review 6): the supervision's rows and the
+/// certificate signatures on the contract's certificates.
+export async function actsByPerson(s: SupervisionRows, contractId: string, client: Tx = db): Promise<{ personId: string | null; day: string | null }[]> {
+  const sigs = await client.certificateSignature.findMany({ where: { certificate: { contractId } }, select: { personId: true, signedOn: true } });
+  return [
+    ...(s.possession ? [{ personId: s.possession.recordedBy.id, day: storedDay(s.possession.possessionOn) }] : []),
+    ...s.workProgrammes.flatMap((p) => [{ personId: p.scrutinisedByPersonId, day: day(p.scrutinisedOn) }, { personId: p.decidedByPersonId, day: day(p.decidedOn) }]),
+    ...s.progressRecords.map((p) => ({ personId: p.recordedByPersonId, day: storedDay(p.day) })),
+    ...s.siteDiaryEntries.map((e) => ({ personId: e.officerPersonId, day: storedDay(e.day) })),
+    ...s.diaryEndorsements.map((e) => ({ personId: e.personId, day: storedDay(e.visitedOn) })),
+    ...s.siteMeetings.map((m) => ({ personId: m.chairPersonId, day: storedDay(m.heldOn) })),
+    ...s.complianceObservations.map((o) => ({ personId: o.personId, day: storedDay(o.observedOn) })),
+    ...s.programmeDirections.map((o) => ({ personId: o.personId, day: storedDay(o.directedOn) })),
+    ...s.pendingDeductions.map((o) => ({ personId: o.personId, day: storedDay(o.paidOn) })),
+    ...s.earlyActionDecisions.map((o) => ({ personId: o.personId, day: storedDay(o.decidedOn) })),
+    ...s.siteRecordsHandovers.map((o) => ({ personId: o.personId, day: storedDay(o.handedOverOn) })),
+    ...sigs.map((g) => ({ personId: g.personId, day: storedDay(g.signedOn) })),
+  ];
+}
+
 /// The exercise's sourcing method's authority key (review 4): what the S.O.'s rows are confined by, as every engine caller reads it.
 export async function methodKeyOf(l: LoadedContract, client: Tx = db): Promise<string | null> {
   return (await client.sourcingMethod.findFirst({ where: { organisationId: l.org.id, code: l.ex.sourcingMethodCode }, select: { authorityMethodKey: true } }))?.authorityMethodKey ?? null;
