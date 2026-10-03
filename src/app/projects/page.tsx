@@ -45,7 +45,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
   const commencedView = view === "commenced";
   const commenced = org0 ? await commencedPendingAll(org0.id) : [];
   const exposure = commenced.reduce((a, v) => a + senFromDecimal(v.estimate), 0n);
-  const data = await listContracts(commencedView ? 0 : page, delayView ? delayIds : null);
+  const data = await listContracts(page, delayView ? delayIds : null);
   const derived: Map<string, ContractPhase> = data.org ? await endorsedPhases(data.org.id, DERIVE_CAP) : new Map();
   const ready = [...derived.values()].filter((x) => x === "READY_TO_SIGN").length;
   const awaiting = [...derived.values()].filter((x) => x === "AWAITING_CONDITIONS").length;

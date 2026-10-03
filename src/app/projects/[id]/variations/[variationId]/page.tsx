@@ -18,6 +18,8 @@ import { historyEntityLabel, RECORD_TYPE_WORDS, VARIATION_ENTITIES } from "@/lib
 import { REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import type { RejectionKind } from "@/lib/authority/rejection";
 import { STATUS_WORDS as CERT_WORDS } from "@/lib/certificate/labels";
+import { applyOverrides } from "@/lib/certificate/override";
+import { readComputedSnapshot } from "@/lib/certificate/snapshot";
 import type { CertificateStatus } from "@/lib/certificate/types";
 import { secretariatHoldersOn } from "@/lib/committee/tabling";
 import { historyFieldLabel, historyValue } from "@/lib/contract/history-words";
@@ -26,7 +28,7 @@ import { dayOf, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
-import { formatMoney, senFromDecimal } from "@/lib/money";
+import { formatMoney, parseSen, senFromDecimal } from "@/lib/money";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { EXECUTED_STATUSES } from "@/lib/payment/eligibility";
 import { loadRoster } from "@/lib/people/load";
@@ -185,6 +187,24 @@ function ApplicationPanel({ l, v, f, vv, people, priorReading, editBlocker, edit
   const value = priorValueOf(f);
   const appCert = v.applicationCertificate;
   const frozen = v.applicationReading != null;
+  // Once sent, the figures shown are the ones frozen with the route (the application is opened from them), never re-read.
+  const snap = frozen ? readComputedSnapshot(v.applicationReading) : null;
+  const fig = snap ? applyOverrides(snap, []) : null;
+  const shown = (k: string) => {
+    const x = fig ? [...fig.lines, ...fig.totals].find((y) => y.key === k) : null;
+    if (!x || x.value == null) return null;
+    return "type" in x && x.type === "TEXT" ? x.value : formatMoney(parseSen(x.value));
+  };
+  const frozenFigures = fig
+    ? [
+        { label: "This variation, as sent for approval", value: shown("thisVariation") },
+        { label: "Its percentage", value: shown("thisPct") },
+        { label: "Cumulative approved variations then", value: shown("cumulative") },
+        { label: "Cumulative percentage, with this variation", value: shown("cumulativePct") },
+        { label: "New contract sum including this variation", value: shown("newSum") },
+        { label: "The percentage's basis", value: shown("basis") },
+      ].filter((x) => x.value != null)
+    : null;
   return (
     <div className="flex flex-col gap-6">
       <Card>
@@ -199,7 +219,8 @@ function ApplicationPanel({ l, v, f, vv, people, priorReading, editBlocker, edit
             columns={2}
             items={[
               { label: "Number", value: v.reference ?? dim("Given when it is submitted") },
-              { label: "Originated by", value: `${v.originatorName}: ${ORIGIN_WORDS[v.origin as "DEPARTMENT"].en.toLowerCase()} (recorded on their behalf, not signed)` },
+              { label: "Originated by", value: `${v.originatorName} (recorded on their behalf, not signed)` },
+              { label: "Its path", value: ORIGIN_WORDS[v.origin as "DEPARTMENT"].en },
               ...(v.origin === "DEPARTMENT" ? [{ label: "Reviewed by an S.O.'s Representative", value: v.reviewedBy ? `${v.reviewedBy.name}, ${formatDate(day(v.reviewedOn))}${v.reviewNote ? `: ${v.reviewNote}` : ""}` : dim("Not reviewed yet") }] : []),
               { label: "Allocation confirmed (a Specialist representative)", value: v.allocationConfirmed == null ? dim("Not answered") : `${v.allocationConfirmed ? "Yes" : "No"}${v.allocationNote ? `: ${v.allocationNote}` : ""}` },
               { label: "Passed through a Principal Representative", value: v.principal ? `${v.principal.name}, ${formatDate(day(v.principalOn))}` : dim("Not recorded") },
@@ -217,7 +238,9 @@ function ApplicationPanel({ l, v, f, vv, people, priorReading, editBlocker, edit
         <Card>
           <CardHeader icon={<ScaleIcon size={17} />} title="Its percentage and the new contract sum" subtitle={frozen ? "As frozen when it was sent for prior approval: the application is opened from these figures when its approval is approved." : "As they would be read now. They are frozen with its route when it is sent for prior approval."} />
           <CardBody>
-            {!priorReading || !priorReading.ok ? (
+            {frozenFigures ? (
+              <KeyValues columns={2} items={frozenFigures.map((x) => ({ label: x.label, value: x.value }))} />
+            ) : !priorReading || !priorReading.ok ? (
               <p className="text-[13px] text-amber-800">{priorReading ? say(priorReading.faults) : "No baseline is in force today."}</p>
             ) : (
               <KeyValues

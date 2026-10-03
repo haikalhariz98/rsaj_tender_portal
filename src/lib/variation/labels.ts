@@ -20,6 +20,9 @@ export interface Words {
   en: string;
   ms: string;
 }
+/// A label set inside a sentence: only its first letter lowered, so an office's or a form's own capitals stay.
+export const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+
 export const w = (en: string, ms: string): Words => ({ en, ms });
 
 export const STATUS_WORDS: Readonly<Record<VariationStatus, Words>> = {
@@ -333,7 +336,7 @@ export function variationFaultWords(f: Finding): Words {
     case "SO_UNRESOLVED":
       return supervisionFaultWords(f);
     case "FORM_NOT_SET":
-      return w(`The form a ${(KIND_WORDS[d.kind as CertificateKind] ?? w("certificate", "")).en.toLowerCase()} prints on is not set: set it under Configuration › Post-award controls.`, `Borang ${(KIND_WORDS[d.kind as CertificateKind] ?? w("perakuan", "perakuan")).ms.toLowerCase()} belum ditetapkan: tetapkan di Konfigurasi › Kawalan selepas setuju terima.`);
+      return w(`The form a ${lowerFirst((KIND_WORDS[d.kind as CertificateKind] ?? w("certificate", "")).en)} prints on is not set: set it under Configuration › Post-award controls.`, `Borang ${lowerFirst((KIND_WORDS[d.kind as CertificateKind] ?? w("perakuan", "perakuan")).ms)} belum ditetapkan: tetapkan di Konfigurasi › Kawalan selepas setuju terima.`);
     case "NO_BASELINE":
       return w("No baseline version of the contract is in force today: confirm the baseline on the contract's Baseline tab first.", "Tiada versi garis dasar kontrak berkuat kuasa hari ini.");
     case "NOT_EXECUTED":

@@ -31,7 +31,7 @@ import { supervisionRefusal } from "@/lib/supervision/labels";
 import type { DelegateKind } from "@/lib/supervision/types";
 import { approvedValue, closeFaults, commenceFaults, cumulativeApproved, fieldFaults, pendingValueRoutes, routeValue, scheduleFormOf, sendFaults, soDecisionFaults, submitFaults, type ApplicationFields, type RepCapacity } from "@/lib/variation/application";
 import { dueOn, instructionFaults, oralLoopFaults, type ClockRule } from "@/lib/variation/instruction";
-import { BASE_WORDS, BASIS_WORDS, DIRECTION_WORDS, EVENT_WORDS, EXEMPTION_WORDS, ORIGIN_WORDS, RATE_SOURCE_WORDS, SCHEDULE_FORM_WORDS, SO_DECISION_WORDS, TRIGGER_WORDS, variationRefusal } from "@/lib/variation/labels";
+import { BASE_WORDS, BASIS_WORDS, DIRECTION_WORDS, EVENT_WORDS, EXEMPTION_WORDS, lowerFirst, ORIGIN_WORDS, RATE_SOURCE_WORDS, SCHEDULE_FORM_WORDS, SO_DECISION_WORDS, TRIGGER_WORDS, variationRefusal } from "@/lib/variation/labels";
 import { adjustmentInProgress, CONSENT_DOMAIN, consentOf, factsOf, issuedAdjustments, liveInstructionRow, liveOrderRow, loadAdjustments, loadVariations, orderNetOf, ordersAdjusted, standingMeasurements, type VariationRow } from "@/lib/variation/load";
 import { dayworkFaults, measuredAmount, measurementFaults, parseQuantity, parseSignedPercent, removeMeasurementFaults } from "@/lib/variation/measure";
 import { applicationFigures, orderFaults, orderFigures } from "@/lib/variation/order";
@@ -211,7 +211,7 @@ function readFields(r: FormReader) {
 
 /// The answers' words in the trail, never codes.
 const recordWords = (x: { origin: string; description: string; reason: string; estimate: Sen | string; exemption: string | null; periodImplication: boolean | null; agreedRateExists: boolean | null; funderConsentRequired: boolean | null; originatorName: string; reviewer: string | null; reviewedOn: string | null; allocationConfirmed: boolean | null; principal: string | null; principalOn: string | null }) => ({
-  originatedBy: `${x.originatorName} (${ORIGIN_WORDS[x.origin as keyof typeof ORIGIN_WORDS].en.toLowerCase()})`,
+  originatedBy: `${x.originatorName} (${lowerFirst(ORIGIN_WORDS[x.origin as keyof typeof ORIGIN_WORDS].en)})`,
   description: x.description,
   reason: x.reason,
   estimate: typeof x.estimate === "string" ? x.estimate : money(x.estimate),
