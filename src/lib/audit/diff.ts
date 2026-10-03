@@ -57,7 +57,16 @@ export function snapshotFields(row: Record<string, unknown>): FieldChange[] {
 }
 
 /// Fields whose generic reading would say what is stored rather than what it means.
+/// 6.14 inc 1 residual: a certificate's SULIT figures as the trail stores them (sulit-fields.ts), in both
+/// languages; History and the export read the English line, the Malay is kept for the bilingual pass.
+export const CERTIFICATE_FIGURE_FIELD_WORDS: Readonly<Record<string, { en: string; ms: string }>> = {
+  certificateComputedAmount: { en: "As computed", ms: "Seperti dikira" },
+  certificateOverrideAmount: { en: "Overridden to", ms: "Diganti kepada" },
+  signatureSupportedUpTo: { en: "Supported up to", ms: "Disokong sehingga" },
+};
+
 const NAMED_FIELDS: Record<string, string> = {
+  ...Object.fromEntries(Object.entries(CERTIFICATE_FIGURE_FIELD_WORDS).map(([k, v]) => [k, v.en])),
   // 65-C1: an effective-dated end day is exclusive (inForceOn); History says so as the forms do.
   effectiveTo: END_DAY_LABEL,
   endsOn: END_DAY_LABEL,

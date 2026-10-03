@@ -56,3 +56,15 @@ describe("a certificate's figures are SULIT (R-7)", () => {
     expect(page).toMatch(/isSulitField\(field\) && value \? <SulitValue>/);
   });
 });
+
+describe("their History labels (6.14 residual)", () => {
+  it("read as the figures they are, in English and Malay, in History and in the export", async () => {
+    const { CERTIFICATE_FIGURE_FIELD_WORDS, fieldLabel } = await import("@/lib/audit/diff");
+    expect(fieldLabel("certificateComputedAmount")).toBe("As computed");
+    expect(fieldLabel("certificateOverrideAmount")).toBe("Overridden to");
+    expect(fieldLabel("signatureSupportedUpTo")).toBe("Supported up to");
+    for (const k of KEYS) expect(CERTIFICATE_FIGURE_FIELD_WORDS[k]?.ms, k).toBeTruthy();
+    const csv = auditCsv([row({ changes: diffFields(null, { certificateComputedAmount: "RM1.00" }) })], "Asia/Kuala_Lumpur");
+    expect(csv).toContain("As computed");
+  });
+});
