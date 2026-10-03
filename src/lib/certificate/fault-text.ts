@@ -110,7 +110,7 @@ export function certificateFaultWords(f: Finding): Words {
     case "BEFORE_OPENED":
       return w(`Not before ${day(d.day)}, the day the certificate was opened.`, `Tidak sebelum ${day(d.day)}, hari perakuan dibuka.`);
     case "BEFORE_APPROVED":
-      return w(`Not before ${day(d.day)}, the day its approval route was approved: nobody signs it before it may be signed.`, `Tidak sebelum ${day(d.day)}, hari laluan kelulusannya diluluskan.`);
+      return w(`Not before ${day(d.day)}, the day its approval route was approved.`, `Tidak sebelum ${day(d.day)}, hari laluan kelulusannya diluluskan.`);
     case "NAME_REQUIRED":
       return w(`"${s(d.block, "This block")}" needs the full name of who signed it.`, `"${s(d.block, "Blok ini")}" memerlukan nama penuh penandatangan.`);
     case "IC_FORMAT":
