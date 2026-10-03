@@ -7,6 +7,7 @@ import { checkAwards, loadAwards, loadAwardSetup, reportAwardRefusal, wipeAwards
 import { checkContractsDemo, configureContractsDemo, loadContractsDemo } from "./demo-contracts";
 import { checkCertificatesDemo, configureCertificatesDemo, loadCertificatesDemo, wipeCertificatesConfig } from "./demo-certificates";
 import { checkSupervisionDemo, configureSupervisionDemo, loadSupervisionDemo, wipeSupervisionConfig } from "./demo-supervision";
+import { checkPaymentDemo, configurePaymentDemo, loadPaymentDemo, wipePaymentConfig } from "./demo-payment";
 import { loadDocuments, planDocumentWipe, reportDocumentRefusal, wipeDocuments } from "./demo-documents";
 import { checkScope, loadScope, loadScopeExercises, loadScopeSitting, SCOPE_ENTITIES, scopeWipeDependents, screenHoldingsOnDemo, wipeScope } from "./demo-scope";
 import { loadSittingTrail } from "./demo-sitting-trail";
@@ -523,6 +524,8 @@ async function wipe() {
 
   await db.notificationRule.deleteMany({ where: demo });
   // 6.14: the routing sheet types, checks, targets, blocks and recipients, once every certificate and award sheet has gone.
+  // 6.13 Part A step 3: the payment certificates' forms and the clocks, before the forms and sheets they name.
+  await wipePaymentConfig(db);
   await wipeCertificatesConfig(db);
   // 6.13 Part A: the delegation forms' blocks and recipients, and the post-award controls.
   await wipeSupervisionConfig(db);
@@ -1236,11 +1239,17 @@ async function load() {
     // 6.14 increment 1: forms, routing sheet types and five certificates on demo_con3, each act judged by
     // the product's own rules as it is written (X-10); demo_aw5's pre-award routing sheet.
     await configureCertificatesDemo(db, organisationId);
+    // 6.13 Part A step 3: the payment rows on the matrix, the payment certificates' forms, the clocks and the
+    // controls (demo_hct1 is raised from interim valuation 1, so these come first).
+    await configurePaymentDemo(db, organisationId);
     await loadCertificatesDemo(db, organisationId);
     await checkCertificatesDemo(db);
     // 6.13 Part A run 1: demo_con3's supervision, possessed and In Delay (after the certificates, which read it stamped).
     await loadSupervisionDemo(db, organisationId);
     await checkSupervisionDemo(db);
+    // 6.13 Part A step 3: interim valuation 2 on the contractor's claim, raised and sent for approval on the matrix.
+    await loadPaymentDemo(db, organisationId);
+    await checkPaymentDemo(db);
   }
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
