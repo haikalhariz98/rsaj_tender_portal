@@ -14,7 +14,7 @@ import { recordAwardRoutingCheck, recordAwardRoutingReceived, startAwardRoutingS
 
 /**
  * The award's pre-award routing sheet (6.14 increment 1, rulings condition; flagged against accepted 6.11): a
- * routing sheet type drawn over the appointment route, with its own checks and DATE (1). The committee and
+ * routing sheet type drawn over the appointment route, with its own checks and received day. The committee and
  * approver blocks the award already shows (FR-CTE-014) are unchanged; this tab adds the sheet around them.
  */
 
@@ -37,7 +37,7 @@ export async function AwardRoutingSheetPanel({ l, people, today }: { l: LoadedAw
         <CardHeader
           icon={<RouteIcon size={17} />}
           title="Routing sheet"
-          subtitle="The pre-award routing sheet around the appointment route: DATE (1), its internal checks, the route's own steps and DATE (2), and the elapsed time against the sheet's target."
+          subtitle="The pre-award routing sheet around the appointment route: the day received, its internal checks, the route's own steps and the day approved, and the elapsed time against the sheet's target."
           actions={
             <RecordEditor
               title="Start the routing sheet"
@@ -71,12 +71,12 @@ export async function AwardRoutingSheetPanel({ l, people, today }: { l: LoadedAw
       headerAction={
         open ? (
           <RecordEditor
-            title="DATE (1): received"
-            description="The day the document reached the routing sheet. It starts the internal clock. Not in the future, and not after the first check is recorded."
+            title="The day received"
+            description="The day the document reached the routing sheet. It starts the internal clock. Not in the future, not after the first check is recorded, and not after the appointment route opened or anyone on it decided."
             fields={[hidden("id"), { kind: "date", name: "receivedOn", label: "Received on", required: true }]}
             values={{ id: award.id, receivedOn: received ?? today }}
             action={recordAwardRoutingReceived}
-            trigger={received ? { label: "Correct DATE (1)", className: ghost } : { label: "Record DATE (1)", className: secondary }}
+            trigger={received ? { label: "Correct the received day", className: ghost } : { label: "Record the received day", className: secondary }}
           />
         ) : undefined
       }
@@ -87,7 +87,7 @@ export async function AwardRoutingSheetPanel({ l, people, today }: { l: LoadedAw
           fields={[hidden("id"), hidden("defOrder"), { kind: "select", name: "personId", label: "Recorded for", required: true, placeholder: "Choose", options: people, hint: ON_BEHALF_HINT }, { kind: "date", name: "on", label: "On", required: true }, { kind: "textarea", name: "note", label: "Note" }]}
           values={{ id: award.id, defOrder: String(def.order), on: today }}
           action={recordAwardRoutingCheck}
-          submitBlock={sheet.date1 ? null : "Record DATE (1) first."}
+          submitBlock={sheet.date1 ? null : "Record the day it was received first."}
           trigger={{ label: "Record", className: secondary, ariaLabel: `Record ${def.labelEn}` }}
         />
       )}

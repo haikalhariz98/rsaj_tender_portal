@@ -50,7 +50,7 @@ export async function startAwardRoutingSheet(_prev: FormState, data: FormData): 
 export async function recordAwardRoutingReceived(_prev: FormState, data: FormData): Promise<FormState> {
   const now = toSecond(new Date());
   const r = new FormReader(data);
-  const received = r.date("receivedOn", "Received on (DATE 1)", { required: true });
+  const received = r.date("receivedOn", "Received on", { required: true });
   if (r.failed || !received) return { ok: false, errors: r.errors };
   return inAwardSheet(idOf(data), now, (tx, l, today) => recordAwardReceived(tx, l, storedDay(received), now, today));
 }
