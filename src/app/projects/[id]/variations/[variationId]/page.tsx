@@ -289,7 +289,7 @@ async function ApprovalPanel({ l, v, f, vv, people, today, blockedBy }: PanelPro
   // Each approval, judged by the send act's own rule (the amount at agreed rates is keyed in the drawer).
   const judged = VARIATION_EVENTS.map((e) => {
     const value = routeValue(f, e, e === "AGREED_RATE" ? 1n : null, orderNet);
-    const fs = sendFaults({ v: f, event: e, value, cumulativeBlockedBy: blocking, adjustmentInProgress: adj ? `The adjustment of the contract sum${adj.certificate.number ? ` ${adj.certificate.number}` : ""} in progress` : null, orderNet });
+    const fs = sendFaults({ v: f, event: e, value, cumulativeBlockedBy: blocking, adjustmentInProgress: adj ? `The adjustment of the contract sum${adj.certificate.number ? ` ${adj.certificate.number}` : ""}` : null, orderNet });
     return { e, fs };
   });
   const open = judged.filter((x) => x.fs.length === 0);
@@ -355,7 +355,7 @@ async function ApprovalPanel({ l, v, f, vv, people, today, blockedBy }: PanelPro
         <CardHeader
           icon={<RouteIcon size={17} />}
           title="Its approvals"
-          subtitle={v.exemption ? `Exempt from prior approval (${EXEMPTION_WORDS[v.exemption as VariationExemption].en.toLowerCase()}): no committee and no approval tiers${v.exemption === "REMEASUREMENT" ? "; the re-measurement itself is approved on its own route at its certificate's value" : ""}.` : "Each approval on its own route on the approval matrix: prior approval to instruct it, an increase of its approved value, the use of rates not in the contract. The Variation Orders Committee's recommendation is a committee's step, cited from its decision."}
+          subtitle={v.exemption ? `Exempt from prior approval (${EXEMPTION_WORDS[v.exemption as VariationExemption].en.toLowerCase()}): no committee and no approval tiers${v.exemption === "REMEASUREMENT" ? "; the re-measurement itself is approved on its own route at its certificate's value" : ""}.` : "Each approval on its own route on the approval matrix: prior approval to instruct it, an increase of its approved value, the use of rates not in the contract. A committee's recommendation or approval on a route is a committee's step: tabled from here and cited from its decision."}
           actions={<SendVariationDrawer id={l.contract.id} variationId={v.id} events={open.map((x) => ({ value: x.e, label: EVENT_WORDS[x.e].en }))} people={people} blocker={sendBlocker} label="Send for approval" />}
         />
         <CardBody>

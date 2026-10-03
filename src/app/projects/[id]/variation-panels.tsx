@@ -180,7 +180,7 @@ function AdjustmentsSection({ l, v, people, today }: { l: LoadedContract; v: Var
   const free = issuedOrders.filter(({ o }) => !adjusted.has(o.id));
   const inProg = adjustmentInProgress(v.adjustments);
   // The act's own rule on what does not depend on the drawer's answers: one at a time, the form set.
-  const pre = adjustmentFaults({ triggers: ["VARIATION"], lines: [], ordersAdjusted: [], ordersIssued: [], inProgress: inProg ? `The adjustment${inProg.certificate.number ? ` ${inProg.certificate.number}` : ""} in progress` : null, original: v.original ?? 1n, prior: [] }).filter((f) => f.code === "ADJUSTMENT_IN_PROGRESS");
+  const pre = adjustmentFaults({ triggers: ["VARIATION"], lines: [], ordersAdjusted: [], ordersIssued: [], inProgress: inProg ? `The adjustment${inProg.certificate.number ? ` ${inProg.certificate.number}` : ""}` : null, original: v.original ?? 1n, prior: [] }).filter((f) => f.code === "ADJUSTMENT_IN_PROGRESS");
   const blocker = !today ? "Set the organisation's time zone first." : l.contract.status === "CANCELLED" ? "The contract is cancelled: it is kept as it was." : pre.length ? pre.map(variationFaultText).join(" ") : !v.formSet("SUM_ADJUSTMENT") ? variationFaultText({ code: "FORM_NOT_SET", level: "block", data: { kind: "SUM_ADJUSTMENT" } }) : null;
   const issued = issuedAdjustments(v.adjustments);
   return (

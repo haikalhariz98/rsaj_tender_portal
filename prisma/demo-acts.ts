@@ -261,16 +261,16 @@ type Action = (prev: FormState, data: FormData) => Promise<FormState>;
 
 /**
  * Run one act at its instant (Kuala Lumpur local time), with the form its drawer posts. A refusal stops the load
- * naming the act and what refused it.
+ * naming the act and what refused it. `ids: false` leaves the act's own generated ids (a throwaway database).
  */
-export async function act(when: string, what: string, action: Action, fields: Record<string, string | string[] | null | undefined>): Promise<FormState> {
+export async function act(when: string, what: string, action: Action, fields: Record<string, string | string[] | null | undefined>, opts: { ids?: boolean } = {}): Promise<FormState> {
   const form = new FormData();
   for (const [k, v] of Object.entries(fields)) {
     if (v == null) continue;
     for (const x of Array.isArray(v) ? v : [v]) form.append(k, x);
   }
   fixed = kl(when).getTime();
-  idsOn = true;
+  idsOn = opts.ids ?? true;
   try {
     const r = await action({ ok: false }, form);
     if (!r.ok) throw new Error(`Demo act refused (${what}, ${when}): ${r.message ?? ""} ${r.errors ? JSON.stringify(r.errors) : ""}`.trim());

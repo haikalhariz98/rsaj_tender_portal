@@ -422,7 +422,7 @@ export async function sendVariationForApproval(_prev: FormState, data: FormData)
     const blocking = policy?.variationPctBasis === "CUMULATIVE" && others.length ? (all.find((x) => x.id === others[0].variationId)?.reference ?? "another variation") : null;
     const adj = policy?.variationBase === "REVISED" ? adjustmentInProgress(await loadAdjustments(c.l.contract.id, c.tx)) : null;
     const value = routeValue(facts, event, keyed ? parseSen(keyed) : null, orderNet);
-    const fs = sendFaults({ v: facts, event, value, cumulativeBlockedBy: blocking ? `Variation ${blocking}` : null, adjustmentInProgress: adj ? `The adjustment of the contract sum${adj.certificate.number ? ` ${adj.certificate.number}` : ""} in progress` : null, orderNet });
+    const fs = sendFaults({ v: facts, event, value, cumulativeBlockedBy: blocking ? `Variation ${blocking}` : null, adjustmentInProgress: adj ? `The adjustment of the contract sum${adj.certificate.number ? ` ${adj.certificate.number}` : ""}` : null, orderNet });
     if (fs.length) refuse("Not sent for approval:", fs);
     const now2 = await readingNow(c, all, v, event, value!);
     if (!now2.r.ok) return refuse("Not sent for approval:", now2.r.faults);
@@ -889,7 +889,7 @@ export async function raiseSumAdjustment(_prev: FormState, data: FormData): Prom
     ];
     const issued = issuedAdjustments(rows);
     const inProg = adjustmentInProgress(rows);
-    const fs = adjustmentFaults({ triggers: (type?.sumAdjustmentTriggers ?? []) as AdjustmentTrigger[], lines, ordersAdjusted: ordersAdjusted(rows), ordersIssued: orders.filter((x) => x.o.certificate.status === "ISSUED").map((x) => x.o.id), inProgress: inProg ? `The adjustment${inProg.certificate.number ? ` ${inProg.certificate.number}` : ""} in progress` : null, original: baseline.values.contractSum, prior: issued.map((a) => a.net) });
+    const fs = adjustmentFaults({ triggers: (type?.sumAdjustmentTriggers ?? []) as AdjustmentTrigger[], lines, ordersAdjusted: ordersAdjusted(rows), ordersIssued: orders.filter((x) => x.o.certificate.status === "ISSUED").map((x) => x.o.id), inProgress: inProg ? `The adjustment${inProg.certificate.number ? ` ${inProg.certificate.number}` : ""}` : null, original: baseline.values.contractSum, prior: issued.map((a) => a.net) });
     if (fs.length) refuse("Not raised:", fs);
     const kind = await formOf(c, "SUM_ADJUSTMENT");
     const { snapshot, figures } = adjustmentSnapshot(c.today, baseline.values.contractSum, issued.map((a) => a.net), lines);
