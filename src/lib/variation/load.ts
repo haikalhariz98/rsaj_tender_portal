@@ -13,6 +13,7 @@ import { recordOf } from "@/lib/requisition/repo";
 
 import type { RouteFact, VariationFacts } from "./application";
 import type { ConsentState } from "./instruction";
+import { VARIATION_DOMAINS } from "./domains";
 import type { SoDecision, VariationEvent, VariationExemption, VariationStatus } from "./types";
 
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
@@ -94,7 +95,7 @@ export const latestApproval = (v: VariationRow, e: VariationEvent) => [...v.appr
 export const openApproval = (v: VariationRow) => v.approvals.find((a) => a.approvalInstance.status === "PENDING") ?? null;
 
 /// The funder's consent: the latest matter tabled for it (on the consent domain), as its committee decided it.
-export const CONSENT_DOMAIN = "vo_funder_consent";
+export const CONSENT_DOMAIN = VARIATION_DOMAINS[4];
 export function consentOf(v: VariationRow): { state: ConsentState; matter: VariationRow["matters"][number] | null } {
   const m = [...v.matters].filter((x) => x.domain === CONSENT_DOMAIN && !x.withdrawnAt).at(-1) ?? null;
   if (!m) return { state: "NONE", matter: null };

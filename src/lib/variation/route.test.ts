@@ -93,3 +93,10 @@ describe("the reading feeds the route, and the label names the matrix's edges", 
     expect(route("vo", "tender", String(900 * K) + ".00", String(3 * M + 1) + ".00")).toEqual(["VOC:MR", "CEO:A"]);
   });
 });
+
+describe("the domains a variation's matters are on", () => {
+  it("every event's domain, and the funder's consent, and nothing else", async () => {
+    const { VARIATION_DOMAINS } = await import("./domains");
+    expect([...VARIATION_DOMAINS].sort()).toEqual([...new Set([...Object.values((await import("./route")).EVENT_DOMAIN), "vo_funder_consent"])].sort());
+  });
+});

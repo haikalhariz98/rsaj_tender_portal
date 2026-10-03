@@ -16,6 +16,7 @@ import { WINDOW_CHANGE_DOMAIN } from "@/lib/method/types";
 import { SCOPE_DOMAIN } from "@/lib/scope/scope-matter";
 import { EVALUATION_STAGE_DOMAIN, NEGOTIATION_DOMAIN } from "@/lib/evaluation/types";
 import { SPECIAL_PERMISSION_DOMAIN, SUPPLIER_BLACKLIST_DOMAIN, SUPPLIER_REGISTRATION_DOMAIN } from "@/lib/suppliers/types";
+import { VARIATION_DOMAINS } from "@/lib/variation/domains";
 
 export const MEETING_STATUS_LABEL = {
   SCHEDULED: "Scheduled",
@@ -82,7 +83,10 @@ export const MATTER_KINDS = Object.keys(MATTER_KIND_LABEL) as MatterKind[];
 /// decision would never count and the late-admission gate would hold the award for ever.
 /// 6.8 (FR-EVL-005): an EVALUATION_STAGE matter names its bidder by a typed key, so it is tabled from
 /// the exercise's Evaluation tab, which knows the bidder; from a sitting its decision would unlock nothing.
-export const RECORD_TABLED_MATTER_KINDS: readonly MatterKind[] = ["SCOPE", "LATE_TENDER", "EVALUATION_STAGE"];
+/// 6.13 Part A step 4 (FR-VAR-009, 010; FR-PAD-004): a VARIATION matter names its variation by a typed key, so it is
+/// tabled from the variation, which knows the approval the committee decides on (its route's step, or the funder's
+/// consent); from a sitting it would name no variation and its decision could discharge nothing.
+export const RECORD_TABLED_MATTER_KINDS: readonly MatterKind[] = ["SCOPE", "LATE_TENDER", "EVALUATION_STAGE", "VARIATION"];
 
 /// 6.15: kinds no sitting tables at all. A supplier matter is decided on its own route, which takes no committee step.
 /// 6.14: a certificate matter names no certificate on a committee decision (no typed key yet), so a sitting tabling
@@ -93,9 +97,10 @@ export const NEVER_TABLED_MATTER_KINDS: readonly MatterKind[] = ["SUPPLIER", "CE
 export const SITTING_TABLED_MATTER_KINDS = MATTER_KINDS.filter((k) => !RECORD_TABLED_MATTER_KINDS.includes(k) && !NEVER_TABLED_MATTER_KINDS.includes(k));
 
 /// Matter domains tabled only from their own record, for the same reasons.
-export const RECORD_TABLED_DOMAINS: readonly string[] = [SCOPE_DOMAIN, LATE_DOMAIN, EVALUATION_STAGE_DOMAIN];
+export const RECORD_TABLED_DOMAINS: readonly string[] = [SCOPE_DOMAIN, LATE_DOMAIN, EVALUATION_STAGE_DOMAIN, ...VARIATION_DOMAINS];
 export const RECORD_TABLED_DOMAIN_TEXT = "Scope approval is tabled from the exercise, under Scope and estimate, Scope, which names the bill version the committee decides on.";
 export const LATE_TABLED_TEXT = "Late tender admission is tabled from the exercise, in the Received section of Bids and opening, which names the envelope the committee decides on.";
+export const VARIATION_TABLED_TEXT = "A variation's matter is tabled from the variation, on its contract's Variations tab, which names the variation and the approval the committee decides on.";
 export const STAGE_ONE_TABLED_TEXT = "A two-stage tender's first-stage decision is tabled from the exercise, in the Stages section of Evaluation, which names the bidder the committee decides on.";
 
 /// Matter domains no sitting decides at all (6.6 review S-9): a committee decision on either would
@@ -121,6 +126,7 @@ export function recordTabledText(domainOrKind: string): string | null {
   if (domainOrKind === WINDOW_CHANGE_DOMAIN) return WINDOW_CHANGE_NOT_TABLED_TEXT;
   if (domainOrKind === SIGNATORY_DOMAIN) return SIGNATORY_NOT_TABLED_TEXT;
   if (domainOrKind === EVALUATION_STAGE_DOMAIN || domainOrKind === "EVALUATION_STAGE") return STAGE_ONE_TABLED_TEXT;
+  if (VARIATION_DOMAINS.includes(domainOrKind) || domainOrKind === "VARIATION") return VARIATION_TABLED_TEXT;
   if (domainOrKind === NEGOTIATION_DOMAIN) return NEGOTIATION_NOT_TABLED_TEXT;
   if (domainOrKind === SUPPLIER_REGISTRATION_DOMAIN || domainOrKind === SUPPLIER_BLACKLIST_DOMAIN || domainOrKind === SPECIAL_PERMISSION_DOMAIN || domainOrKind === "SUPPLIER") return SUPPLIER_NOT_TABLED_TEXT;
   if (domainOrKind === "CERTIFICATE") return CERTIFICATE_NOT_TABLED_TEXT;
