@@ -70,7 +70,7 @@ function matrixFields(routes: { code: string; nameEn: string }[]): Field[] {
     kind: "switch",
     name: "boundaryInclusive",
     label: "A value exactly on the tender floor falls in the quotation band",
-    hint: "Where governing documents disagree, this is the switch. It decides which side of every amount and percentage band edge counts on this matrix: a value exactly on an edge falls in the band the edge closes when on, the band it opens when off.",
+    hint: "Where governing documents disagree, this is the switch. Amounts: it decides only a value exactly on the tender floor, for the quotation and tender bands and for a rule whose edge sits on the tender floor and that is set to follow the switch; every other amount edge counts in the band it closes. Percentages: it decides every band edge on this matrix. On, a value exactly on an edge it decides falls in the band the edge closes; off, in the band it opens.",
   },
   {
     kind: "select",
