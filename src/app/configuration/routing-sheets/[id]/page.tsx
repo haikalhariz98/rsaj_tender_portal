@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { HistoryButton } from "@/components/history-drawer";
+import { RecordCrumb } from "@/components/shell/record-crumb";
 import { ClockIcon, RouteIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -44,6 +45,7 @@ export default async function RoutingTypePage(props: PageProps<"/configuration/r
 
   return (
     <>
+      <RecordCrumb label={t.labelEn} />
       <PageHeader
         eyebrow={<Link href="/configuration/routing-sheets">Routing sheets</Link>}
         title={t.labelEn}

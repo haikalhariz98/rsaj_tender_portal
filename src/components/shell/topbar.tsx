@@ -17,7 +17,7 @@ import { iconButtonClass } from "@/components/ui/button";
 import { workspaceFor } from "@/lib/nav";
 import type { ShellUser } from "@/lib/shell";
 
-import { useRecordCrumb } from "./record-crumb";
+import { useRecordCrumb, useRecordParentCrumb } from "./record-crumb";
 
 /// Path segment to the label the breadcrumb should read.
 const SEGMENT_LABEL: Record<string, string> = {
@@ -29,6 +29,7 @@ const SEGMENT_LABEL: Record<string, string> = {
   budget: "Budget",
   numbering: "Numbering",
   templates: "Templates",
+  "routing-sheets": "Routing sheets",
   "reference-data": "Reference data",
   "tender-documents": "Tender documents",
   invitation: "Invitation controls",
@@ -60,6 +61,11 @@ const RECORD_LABEL: Record<string, string> = {
   awards: "Award",
   // 6.15a: a supplier on the register; the page names it (RecordCrumb).
   suppliers: "Supplier",
+  // 6.14: a contract, a certificate under it, a form and a routing sheet type; each page names its record.
+  projects: "Contract",
+  certificates: "Certificate",
+  templates: "Template",
+  "routing-sheets": "Routing sheet type",
 };
 
 /// Segments whose label depends on where they sit.
@@ -74,24 +80,11 @@ const NESTED_LABEL: Record<string, string> = {
   "suppliers/new": "New application",
 };
 
-export function Topbar({
-  organisation,
-  user,
-  hasAlerts,
-  onMenu,
-}: {
-  organisation: string;
-  /// Null until authentication exists. Rendered as "not signed in", never as a person.
-  user: ShellUser | null;
-  /// Whether anything is waiting. The bell's dot claims there is; it must not lie.
-  hasAlerts: boolean;
-  onMenu: () => void;
-}) {
-  const pathname = usePathname();
-  const workspace = workspaceFor(pathname);
-
-  const segments = pathname.split("/").filter(Boolean);
-  const recordName = useRecordCrumb();
+/**
+ * The breadcrumb's crumbs for a path, given the names the page gave its record (and the record it sits
+ * under). Pure, so a test can hold every crumb to a page that exists.
+ */
+export function crumbTrail(segments: readonly string[], recordName: string | null, parentName: string | null): { label: string; href: string }[] {
   // A printable document sits under its record: "Awards › AW/1 › Print", the document's
   // own slug left off (the page names it).
   const printAt = segments.indexOf("print");
@@ -141,6 +134,38 @@ export function Topbar({
       }
     });
   }
+
+  // A certificate sits on its contract's Documents tab: "Projects › <contract> › Documents › <certificate>"; no page
+  // of its own sits at …/certificates, so that crumb is the tab.
+  if (segments[0] === "projects" && segments[2] === "certificates" && crumbs.length >= 3) {
+    if (parentName) crumbs[1].label = parentName;
+    crumbs[2].label = "Documents";
+    crumbs[2].href = `/projects/${segments[1]}?tab=documents`;
+  }
+
+  return crumbs;
+}
+
+export function Topbar({
+  organisation,
+  user,
+  hasAlerts,
+  onMenu,
+}: {
+  organisation: string;
+  /// Null until authentication exists. Rendered as "not signed in", never as a person.
+  user: ShellUser | null;
+  /// Whether anything is waiting. The bell's dot claims there is; it must not lie.
+  hasAlerts: boolean;
+  onMenu: () => void;
+}) {
+  const pathname = usePathname();
+  const workspace = workspaceFor(pathname);
+
+  const segments = pathname.split("/").filter(Boolean);
+  const recordName = useRecordCrumb();
+  const parentName = useRecordParentCrumb();
+  const crumbs = crumbTrail(segments, recordName, parentName);
 
   const rootLabel = workspace === "supplier" ? "Supplier portal" : organisation;
   const rootHref = workspace === "supplier" ? "/supplier" : "/";

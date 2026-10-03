@@ -102,7 +102,7 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
   const voidBlocker = cert.approvalInstances.some((i) => i.status === "PENDING") ? "Its approval route is still waiting for a decision: refuse it on the route first (Approvals)." : null;
   return (
     <>
-      <RecordCrumb label={cert.number ?? kind} />
+      <RecordCrumb label={cert.number ?? kind} parent={l.contract.number} />
       <PageHeader
         eyebrow={<Link href={`/projects/${l.contract.id}?tab=documents`}>{`Contract ${l.contract.number}`}</Link>}
         title={cert.number ? `${kind} ${cert.number}` : kind}
