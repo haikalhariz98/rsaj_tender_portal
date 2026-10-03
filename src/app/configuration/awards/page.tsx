@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { decimalText } from "@/lib/format";
 import { ButtonLink } from "@/components/ui/button";
 import type { ReactNode } from "react";
 
@@ -278,7 +279,7 @@ export default async function AwardControlsPage() {
             <tbody>
               {c.requirementRows.map((q) => (
                 <Tr key={q.id}>
-                  <Td label="Requirement"><CellStack title={q.nameEn} sub={`${INSURANCE_KIND_LABEL[q.kind]} · ${q.contractTypeCode ? typeName(q.contractTypeCode) : "every type"}${q.required ? "" : " · not required"}${q.percent ? ` · ${q.percent.toString().replace(/\.?0+$/, "")}% of the sum` : ""}`} /></Td>
+                  <Td label="Requirement"><CellStack title={q.nameEn} sub={`${INSURANCE_KIND_LABEL[q.kind]} · ${q.contractTypeCode ? typeName(q.contractTypeCode) : "every type"}${q.required ? "" : " · not required"}${q.percent ? ` · ${decimalText(q.percent)}% of the sum` : ""}`} /></Td>
                   <Td label="Runs past completion" className="text-ink-2">{q.tailMonths == null && q.tailDays == null ? "Not set" : `Defects liability, then ${q.tailMonths ?? 0} months ${q.tailDays ?? 0} days`}</Td>
                   <Td label="Source"><ProvenanceBadge value={q.provenance} /></Td>
                   <Td>
