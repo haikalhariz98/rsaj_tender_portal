@@ -8,6 +8,7 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import { checkAwards, loadAwards, loadAwardSetup, reportAwardRefusal, wipeAwards } from "./demo-award";
 import { checkContractsDemo, configureContractsDemo, loadContractsDemo } from "./demo-contracts";
 import { checkCertificatesDemo, configureCertificatesDemo, loadCertificatesDemo, wipeCertificatesConfig } from "./demo-certificates";
+import { checkFidelityDemo, configureFidelityDemo, wipeFidelityConfig } from "./demo-fidelity";
 import { checkSupervisionDemo, configureSupervisionDemo, loadSupervisionDemo, wipeSupervisionConfig } from "./demo-supervision";
 import { checkPaymentDemo, configurePaymentDemo, loadPaymentDemo, wipePaymentConfig } from "./demo-payment";
 import { checkLifecycleDemo, configureLifecycleDemo, LIFECYCLE_PREPARED, loadLifecycleAward, loadLifecycleCon3, loadLifecycleDemo, loadLifecycleSetup, wipeLifecycleConfig, wipeVariations } from "./demo-lifecycle";
@@ -533,6 +534,8 @@ async function wipe() {
   await wipePaymentConfig(db);
   // 6.13 Part A step 5: the lifecycle's kind settings, clocks and the blocks and recipients of its forms.
   await wipeLifecycleConfig(db);
+  // 6.14 increment 2: printed fields, typing corrections and terms, before the forms they name.
+  await wipeFidelityConfig(db);
   await wipeCertificatesConfig(db);
   // 6.13 Part A: the delegation forms' blocks and recipients, and the post-award controls.
   await wipeSupervisionConfig(db);
@@ -1250,6 +1253,9 @@ async function load() {
     // 6.14 increment 1: forms, routing sheet types and five certificates on demo_con3, each act judged by
     // the product's own rules as it is written (X-10); demo_aw5's pre-award routing sheet.
     await configureCertificatesDemo(db, organisationId);
+    // 6.14 increment 2: the printed form, a typing correction and a term, through Configuration's own acts, before
+    // demo_con13's story begins, so the certificates it raises pin and freeze them (prisma/demo-fidelity.ts).
+    await configureFidelityDemo(db);
     // 6.13 Part A step 3: the payment rows on the matrix, the payment certificates' forms, the clocks and the
     // controls (demo_hct1 is raised from interim valuation 1, so these come first).
     await configurePaymentDemo(db, organisationId);
@@ -1269,6 +1275,7 @@ async function load() {
     // 6.13 Part A step 5: a variation on demo_con3 waiting at a person's step; the whole of Part A read back.
     await loadLifecycleCon3(db);
     await checkLifecycleDemo(db);
+    await checkFidelityDemo(db);
   }
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");

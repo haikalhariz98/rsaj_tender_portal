@@ -616,7 +616,7 @@ function PrintPanel({ l, figures, revision, form, sheet }: { l: LoadedCertificat
             </CardBody>
           </Card>
         ))}
-        <PrintedFieldsCard title="Printed fields, as issued" rows={snap.printed === undefined ? null : snap.printed.map((p) => ({ key: p.key, label: labelPair(p), value: p.valueEn, bound: p.bound }))} none={snap.printed === undefined ? "Issued before printed fields were recorded with a certificate." : "Its form has no printed fields."} />
+        <PrintedFieldsCard title="Printed fields, as issued" rows={snap.printed === undefined ? null : snap.printed.map((p) => ({ key: p.key, label: labelPair(p), value: p.valueEn, bound: p.bound }))} none={snap.printed === undefined ? "No printed fields were recorded with its issue." : "Its form has no printed fields."} />
       </div>
     );
   }
@@ -657,7 +657,7 @@ function PrintPanel({ l, figures, revision, form, sheet }: { l: LoadedCertificat
     <div className="flex flex-col gap-6">
       {rendered.map(({ lang, r }) => (
         <Card key={lang}>
-          <CardHeader icon={<PrinterIcon size={17} />} title={lang === "MS" ? "Malay text" : "English text"} subtitle={`${fidelityLine(body.identity, corrected).en}${revision ? ", as pinned" : ", as the form stands now"}`} actions={<Badge tone="warn">{CERT_WORDS.draftNotIssued.en}</Badge>} />
+          <CardHeader icon={<PrinterIcon size={17} />} title={lang === "MS" ? "Malay text" : "English text"} subtitle={`${fidelityLine(body.identity, corrected).en} · ${revision ? "as pinned" : "as the form stands now"}`} actions={<Badge tone="warn">{CERT_WORDS.draftNotIssued.en}</Badge>} />
           <CardBody>
             <div className="flex flex-col gap-3 text-[13.5px] whitespace-pre-line text-ink-2">{r.paragraphs.map((p, i) => <p key={i}>{p}</p>)}</div>
           </CardBody>

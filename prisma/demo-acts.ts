@@ -118,6 +118,12 @@ export const ACT_PREFIX: Readonly<Record<string, string>> = {
   VariationCertificate: "vvc",
   SumAdjustment: "vpj",
   SumAdjustmentLine: "vpl",
+  // 6.14 increment 2: printed fields, typing corrections (and the forms each names), terms and their aliases.
+  FormField: "hff",
+  TextCorrection: "htc",
+  TextCorrectionForm: "htf",
+  Term: "htm",
+  TermAlias: "hta",
   // Sittings.
   MeetingAttendance: "lat",
   Vote: "lvt",
