@@ -130,7 +130,25 @@ export async function delayReadingsOf(organisationId: string, rows: readonly { i
 /// certificate signatures on the contract's certificates.
 export async function actsByPerson(s: SupervisionRows, contractId: string, client: Tx = db): Promise<{ personId: string | null; day: string | null }[]> {
   const sigs = await client.certificateSignature.findMany({ where: { certificate: { contractId } }, select: { personId: true, signedOn: true } });
+  // 6.13 Part A steps 3 and 4: the acts recorded for a representative under their delegation (a valuation; a
+  // variation's origination, review, commencement support, instruction, measurement, daywork, order and adjustment).
+  const [valuations, variations, instructions, measurements, dayworks, orders, adjustments] = await Promise.all([
+    client.interimValuation.findMany({ where: { contractId }, select: { personId: true, valuationDate: true } }),
+    client.variation.findMany({ where: { contractId }, select: { originatorPersonId: true, recordedOn: true, reviewedByPersonId: true, reviewedOn: true, commencedSupportPersonId: true, commencedOn: true } }),
+    client.variationInstruction.findMany({ where: { variation: { contractId } }, select: { personId: true, certificate: { select: { openedOn: true } } } }),
+    client.variationMeasurement.findMany({ where: { variation: { contractId } }, select: { personId: true, measuredOn: true } }),
+    client.dayworkRecord.findMany({ where: { variation: { contractId } }, select: { personId: true, workedOn: true } }),
+    client.variationCertificate.findMany({ where: { variation: { contractId } }, select: { personId: true, certificate: { select: { openedOn: true } } } }),
+    client.sumAdjustment.findMany({ where: { contractId }, select: { personId: true, certificate: { select: { openedOn: true } } } }),
+  ]);
   return [
+    ...valuations.map((x) => ({ personId: x.personId, day: storedDay(x.valuationDate) })),
+    ...variations.flatMap((x) => [{ personId: x.originatorPersonId, day: storedDay(x.recordedOn) }, { personId: x.reviewedByPersonId, day: day(x.reviewedOn) }, { personId: x.commencedSupportPersonId, day: day(x.commencedOn) }]),
+    ...instructions.map((x) => ({ personId: x.personId, day: storedDay(x.certificate.openedOn) })),
+    ...measurements.map((x) => ({ personId: x.personId, day: storedDay(x.measuredOn) })),
+    ...dayworks.map((x) => ({ personId: x.personId, day: storedDay(x.workedOn) })),
+    ...orders.map((x) => ({ personId: x.personId, day: storedDay(x.certificate.openedOn) })),
+    ...adjustments.map((x) => ({ personId: x.personId, day: storedDay(x.certificate.openedOn) })),
     ...(s.possession ? [{ personId: s.possession.recordedBy.id, day: storedDay(s.possession.possessionOn) }] : []),
     ...s.workProgrammes.flatMap((p) => [{ personId: p.scrutinisedByPersonId, day: day(p.scrutinisedOn) }, { personId: p.decidedByPersonId, day: day(p.decidedOn) }]),
     ...s.progressRecords.map((p) => ({ personId: p.recordedByPersonId, day: storedDay(p.day) })),
