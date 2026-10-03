@@ -15,6 +15,9 @@ import { closing, enclosingFn, lex, spans } from "@/lib/scan/source";
 const ROOT = path.join(__dirname, "../../..");
 const read = (p: string) => readFileSync(path.join(ROOT, p), "utf8");
 const ACTIONS = "src/app/projects/[id]/actions.ts";
+/// 6.13 Part A: supervising the contract, its own module of acts under the same lock order.
+const SUPERVISION = "src/app/projects/[id]/supervision-actions.ts";
+const CONTRACT_ACT_FILES = [ACTIONS, SUPERVISION];
 
 /// Each exported action's body, by name.
 function actions(src: string): Map<string, string> {
@@ -49,26 +52,36 @@ describe("one lock order (withLockedContract)", () => {
   });
 
   it("every contract act runs inside inContract, which is withLockedContract, and reads the clock once on entry", () => {
-    const src = read(ACTIONS);
-    const helper = src.slice(src.indexOf("async function inContract"), src.indexOf("async function audit("));
-    expect(helper).toContain("withLockedContract(");
-    const acts = actions(src);
-    expect(acts.size).toBeGreaterThan(20);
-    for (const [name, body] of acts) {
-      expect(body, name).toMatch(/return inContract\(/);
-      expect(body.indexOf("const now = toSecond(new Date());"), name).toBeGreaterThan(-1);
-      expect(body.indexOf("const now = toSecond(new Date());"), name).toBeLessThan(body.indexOf("inContract("));
-      expect((body.match(/new Date\(\)/g) ?? []).length, name).toBe(1);
+    for (const file of CONTRACT_ACT_FILES) {
+      const src = read(file);
+      const helper = src.slice(src.indexOf("async function inContract"), src.indexOf("async function audit("));
+      expect(helper, file).toContain("withLockedContract(");
+      const acts = actions(src);
+      expect(acts.size, file).toBeGreaterThan(file === ACTIONS ? 20 : 15);
+      for (const [name, body] of acts) {
+        expect(body, name).toMatch(/return inContract\(/);
+        expect(body.indexOf("const now = toSecond(new Date());"), name).toBeGreaterThan(-1);
+        expect(body.indexOf("const now = toSecond(new Date());"), name).toBeLessThan(body.indexOf("inContract("));
+        expect((body.match(/new Date\(\)/g) ?? []).length, name).toBe(1);
+      }
+      // No helper of the module reads the clock again.
+      expect((src.match(/new Date\(\)/g) ?? []).length, file).toBe(acts.size);
     }
   });
 
   it("an act locks only domain rows itself, after the contract; never a parent, and never the supplier", () => {
-    const src = read(ACTIONS);
-    const locked = [...src.matchAll(/FROM "(\w+)" WHERE id = \$\{\w+\} FOR UPDATE/g)].map((m) => m[1]);
-    expect(locked.length).toBeGreaterThan(0);
-    for (const t of locked) expect(["InsurancePolicy", "IssuedCopy", "CustodyItem"]).toContain(t);
-    expect(src).not.toMatch(/FROM "(Requisition|SourcingExercise|Award|Contract|Supplier)"/);
-    expect(src).not.toMatch(/db\.\$transaction|\bdb\./);
+    const DOMAIN: Record<string, readonly string[]> = {
+      [ACTIONS]: ["InsurancePolicy", "IssuedCopy", "CustodyItem"],
+      [SUPERVISION]: ["SoDelegation", "WorkProgramme", "SiteDiaryEntry", "ContractParty"],
+    };
+    for (const file of CONTRACT_ACT_FILES) {
+      const src = read(file);
+      const locked = [...src.matchAll(/FROM "(\w+)" WHERE id = \$\{\w+\} FOR UPDATE/g)].map((m) => m[1]);
+      expect(locked.length, file).toBeGreaterThan(0);
+      for (const t of locked) expect(DOMAIN[file], file).toContain(t);
+      expect(src, file).not.toMatch(/FROM "(Requisition|SourcingExercise|Award|Contract|Certificate|Supplier)"/);
+      expect(src, file).not.toMatch(/db\.\$transaction|\bdb\./);
+    }
   });
 });
 
@@ -86,12 +99,19 @@ describe("single writers", () => {
     }
   });
 
+  // As ruled (6.12 condition, changed at 6.13 Part A step 2): the possession act now exists, so the scan names it.
   it("nothing in 6.12 writes ACTIVE: only 6.13's possession act does", () => {
     expect(read(ACTIONS)).not.toMatch(/"ACTIVE"/);
+    const writers: string[] = [];
     for (const f of files("src/app")) {
       const s = read(f);
-      if (s.startsWith('"use server"')) expect(s, f).not.toMatch(/status: "ACTIVE"/);
+      if (!s.startsWith('"use server"')) continue;
+      for (const [name, body] of actions(s)) if (/status: "ACTIVE"/.test(body)) writers.push(`${f} › ${name}`);
     }
+    expect(writers).toEqual([`${P(SUPERVISION)} › recordPossession`]);
+    const body = actions(read(SUPERVISION)).get("recordPossession")!;
+    expect(body).toMatch(/contractTransition\(k\.status as ContractStatus, "ACTIVE", \{ act: "POSSESSION" \}\)/);
+    expect(body).toMatch(/contract\.updateMany\(\{ where: \{ id: k\.id, status: "STAMPED" \}, data: \{ status: "ACTIVE" \} \}\)/);
   });
 
   it("the EXECUTED baseline version is written only by the RSAJ signature", () => {
@@ -185,10 +205,12 @@ interface Write {
 
 /// Allowed writes, by "file › function": the operations each may perform. `spread` permits the spreads that
 /// helper is built on (moveTo's extra, a baseline's rowOf, a section row) and nothing else.
-type Allow = Readonly<Record<string, { ops: readonly string[]; spread?: RegExp; contractDate?: boolean; demo?: boolean }>>;
+/// `active` permits the one ACTIVE write (the possession act's); `reason` pins a baseline version's reason literal.
+type Allow = Readonly<Record<string, { ops: readonly string[]; spread?: RegExp; contractDate?: boolean; demo?: boolean; active?: boolean; reason?: string }>>;
 
 const P = (f: string) => path.normalize(f);
 const ACT = P(ACTIONS);
+const SUP = P(SUPERVISION);
 export const ALLOW: Allow = {
   [`${ACT} › moveTo`]: { ops: ["contract.updateMany"], spread: /^\.\.\.extra$/ },
   [`${ACT} › correctContractDate`]: { ops: ["contract.update"], contractDate: true },
@@ -196,6 +218,9 @@ export const ALLOW: Allow = {
   [`${ACT} › startPreparation`]: { ops: ["contractBaseline.create", "contractSection.create"], spread: /^\.\.\.(rowOf\(draft\)|s)$/ },
   [`${ACT} › saveBaselineEntry`]: { ops: ["contractBaseline.update", "contractSection.deleteMany", "contractSection.create"], spread: /^\.\.\.(rowOf\(values\)|s)$/ },
   [`${ACT} › writeVersion`]: { ops: ["contractBaseline.create", "contractSection.create"], spread: /^\.\.\.(rowOf\(derived\)|s|\(draft\?\.snapshotasobject\)|extra)$/ },
+  // 6.13 Part A: possession writes its POSSESSION version (with its sections) and moves STAMPED → ACTIVE, and nothing else does.
+  [`${SUP} › writePossessionVersion`]: { ops: ["contractBaseline.create", "contractSection.create"], spread: /^\.\.\.(rowOf\(v\)|s|\(draft\?\.snapshotasobject\))$/, reason: "POSSESSION" },
+  [`${SUP} › recordPossession`]: { ops: ["contract.updateMany"], active: true },
   [`${P("src/app/awards/actions.ts")} › issueAward`]: { ops: ["contract.create"] },
   [`${P("src/app/awards/actions.ts")} › cancelAward`]: { ops: ["contract.update"] },
 };
@@ -246,7 +271,8 @@ export function scanWrites(files: readonly Source[], allow: Allow): Write[] {
         }
         if (x[1] === "contract" && /\bcontractDate\b/.test(raw) && !r.contractDate) problem = "writes the Contract Date";
         if (x[1] === "contractBaseline" && /"EXECUTED"|'EXECUTED'|`EXECUTED`/.test(raw)) problem = "writes an EXECUTED version";
-        if (/"ACTIVE"/.test(raw)) problem = "writes ACTIVE";
+        if (/"ACTIVE"/.test(raw) && !r.active) problem = "writes ACTIVE";
+        if (r.reason && x[1] === "contractBaseline" && !new RegExp(`reason: "${r.reason}"`).test(raw)) problem = `reason not "${r.reason}"`;
         void lexed;
       }
       push(x.index!, op, problem);

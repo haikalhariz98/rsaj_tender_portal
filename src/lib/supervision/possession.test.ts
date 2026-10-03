@@ -14,7 +14,7 @@ const met = [
   { key: "BOND", state: "MET", detail: [] },
   { key: "INSURANCE", state: "MET", detail: [] },
 ];
-const ok = { status: "STAMPED", possessed: false, versions: 2, on: "2026-10-01", today: "2026-10-03", contractDate: "2026-09-30", startRequiresSecurities: true as boolean | null, typeName: "Works", gate: met };
+const ok = { status: "STAMPED", possessed: false, versions: 2, on: "2026-10-01", today: "2026-10-03", datedOn: "2026-09-30", startRequiresSecurities: true as boolean | null, typeName: "Works", gate: met };
 const codes = (x: Parameters<typeof possessionFaults>[0]) => possessionFaults(x).map((f) => f.code);
 
 describe("the start-of-work behaviour", () => {

@@ -28,7 +28,8 @@ export function possessionFaults(i: {
   versions: number;
   on: Day;
   today: Day;
-  contractDate: Day | null;
+  /// The Contract Date (named apart so the single-writer scan reads only its writers).
+  datedOn: Day | null;
   startRequiresSecurities: boolean | null;
   typeName: string | null;
   gate: readonly GateItemFacts[];
@@ -39,7 +40,7 @@ export function possessionFaults(i: {
   else if (i.status !== "STAMPED") f("NOT_STAMPED", { status: i.status });
   if (i.versions === 0) f("NO_BASELINE_VERSION");
   if (i.on > i.today) f("FUTURE_DATE", { day: i.on });
-  if (i.contractDate && i.on < i.contractDate) f("BEFORE_CONTRACT_DATE", { day: i.contractDate });
+  if (i.datedOn && i.on < i.datedOn) f("BEFORE_CONTRACT_DATE", { day: i.datedOn });
   if (i.startRequiresSecurities == null) f("START_RULE_NOT_SET", { type: i.typeName });
   else if (i.startRequiresSecurities) {
     for (const key of ["BOND", "INSURANCE"]) {
