@@ -32,6 +32,9 @@ describe("a form's version moves with its blocks and its list", () => {
   });
   it("the certificate names the form's version, not its text's", () => {
     expect(read("src/lib/certificate/write.ts")).toMatch(/, form version \$\{rev\.bodyVersion\}/);
-    expect(read("src/app/projects/[id]/certificates/[certId]/page.tsx")).toMatch(/ · form version \$\{d\.templateBodyVersion\}/);
+    // 6.14 increment 2 (faithful, as the facts changed): the issued text's line is the fidelity line, which names the
+    // form's version from the document's own bodyVersion.
+    expect(read("src/app/projects/[id]/certificates/[certId]/page.tsx")).toMatch(/fidelityLine\(\{ name: d\.templateName, [^}]*bodyVersion: d\.templateBodyVersion \}/);
+    expect(read("src/lib/certificate/printed.ts")).toMatch(/`form version \$\{f\.bodyVersion\}`/);
   });
 });
