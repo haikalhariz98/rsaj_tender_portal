@@ -47,7 +47,7 @@ export function AddRoutingType({ templates }: { templates: Option[] }) {
   return (
     <RecordEditor
       title="Add a routing sheet type"
-      description="One kind of CPD/DFA routing sheet. A sheet starts on a certificate when it is sent for routing, or on an award, and freezes the type as it stands then."
+      description="One kind of routing sheet. A sheet starts on a certificate when it is sent for routing, or on an award, and freezes the type as it stands then."
       fields={typeFields(false, templates)}
       showWhen={{ certificateKind: { name: "subject", in: ["CERTIFICATE"] } }}
       action={saveRoutingType}
@@ -134,7 +134,7 @@ function targetFields(): Field[] {
 }
 
 export function AddTarget({ typeId }: { typeId: string }) {
-  return <RecordEditor title="Add a target" description="The ICC target the elapsed days are judged against, for every percentage or for one band." fields={targetFields()} values={{ typeId }} action={saveTarget} submitLabel="Add target" trigger={{ label: "Add target", icon: true }} />;
+  return <RecordEditor title="Add a target" description="The target the elapsed days are judged against, for every percentage or for one band." fields={targetFields()} values={{ typeId }} action={saveTarget} submitLabel="Add target" trigger={{ label: "Add target", icon: true }} />;
 }
 
 export function EditTarget({ typeId, row }: { typeId: string; row: { id: string; pctMin: string | null; pctMax: string | null; targetDays: number; provenance: string; notes: string } }) {

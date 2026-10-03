@@ -64,12 +64,12 @@ export function SendToSigningDrawer({ certId, blocker, routed }: { certId: strin
 export function ReceivedDrawer({ certId, today, current }: { certId: string; today: string | null; current: string | null }) {
   return (
     <RecordEditor
-      title="DATE (1): received"
-      description="The day the document reached the routing sheet. It starts the internal clock. Not in the future, and not after the first check is recorded."
+      title="The day received"
+      description="The day the document reached the routing sheet. It starts the internal clock. Not in the future, not after the first check is recorded, and not after its approval route opened or anyone on it decided."
       fields={[hidden("certId"), { kind: "date", name: "receivedOn", label: "Received on", required: true }]}
       values={{ certId, receivedOn: current ?? today }}
       action={recordCertificateReceived}
-      trigger={current ? { label: "Correct DATE (1)", className: ghost } : { label: "Record DATE (1)", className: secondary }}
+      trigger={current ? { label: "Correct the received day", className: ghost } : { label: "Record the received day", className: secondary }}
     />
   );
 }
@@ -137,7 +137,7 @@ export function CorrectDateDrawer({ certId, current }: { certId: string; current
   return (
     <RecordEditor
       title="Correct the certificate's date"
-      description={`Now ${current}. A correction moves it to an earlier day, never later or into the future, and never before a block signed before the dating block. The reason is kept beside it; the issued text keeps the day it was issued with.`}
+      description={`Now ${current}. Corrected while the certificate is being signed, so the day it is issued with is the corrected one; once issued it is final. A correction moves it to an earlier day, never later or into the future, never before a block signed before the dating block, and never before the certificate was opened or its route approved. The reason is kept beside it.`}
       fields={[hidden("certId"), { kind: "date", name: "correctedDay", label: "Corrected day", required: true }]}
       values={{ certId }}
       reason={{ label: "Why" }}

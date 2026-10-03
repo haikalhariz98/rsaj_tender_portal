@@ -61,7 +61,7 @@ export function certificateFaultWords(f: Finding): Words {
     case "MISSING_FIELDS":
       return w(`Not issued: the text needs ${s(d.fields, "a value")}, and this certificate has none for it. A certificate never goes out with a blank where a figure belongs: void it and raise it again with the figure.`, `Tidak dikeluarkan: teks memerlukan ${s(d.fields, "nilai")} yang tiada pada perakuan ini.`);
     case "SERIES_MISSING":
-      return w("No certificate numbering series is configured, so no number can be given. Add the series with the key \"certificate\" under Configuration › Numbering.", "Tiada siri penomboran perakuan dikonfigurasikan. Tambah siri dengan kunci \"certificate\" di Konfigurasi › Penomboran.");
+      return w("No numbering series for certificates is configured, so no number can be given. Add the Certificates series under Configuration › Numbering.", "Tiada siri penomboran bagi perakuan dikonfigurasikan. Tambah siri Perakuan di Konfigurasi › Penomboran.");
     case "SERIES_INVALID":
       return w("The certificate numbering series is not valid. Correct it under Configuration › Numbering.", "Siri penomboran perakuan tidak sah. Betulkan di Konfigurasi › Penomboran.");
     // ------------------------------------------------ signatures
@@ -143,9 +143,9 @@ export function certificateFaultWords(f: Finding): Words {
     case "TYPE_OTHER_KIND":
       return w(`The routing sheet type ${s(d.type, "")} is for another kind of certificate.`, `Jenis helaian ${s(d.type, "")} bagi perakuan jenis lain.`);
     case "SHEET_CLOSED":
-      return w("The routing sheet is closed: its checks and DATE (1) are recorded only while the document is on it.", "Helaian penghalaan ditutup.");
+      return w("The routing sheet is closed: its checks and the day received are recorded only while the document is on it.", "Helaian penghalaan ditutup: semakan dan hari diterima direkodkan hanya semasa dokumen berada padanya.");
     case "RECEIVED_NOT_RECORDED":
-      return w("Record DATE (1), the day the document was received, before its checks.", "Rekodkan TARIKH (1) dahulu.");
+      return w("Record the day the document was received before its checks.", "Rekodkan hari dokumen diterima sebelum semakannya.");
     case "UNKNOWN_CHECK":
       return w("That check is not on this routing sheet.", "Semakan itu tiada pada helaian ini.");
     case "ALREADY_CHECKED":
@@ -157,7 +157,7 @@ export function certificateFaultWords(f: Finding): Words {
     case "BEFORE_EARLIER_CHECK":
       return w(`Not before ${day(d.day)}, the day the check before it was recorded.`, `Tidak sebelum ${day(d.day)}.`);
     case "AFTER_CHECKS":
-      return w(`DATE (1) is not after ${day(d.day)}, the day the first check was recorded.`, `TARIKH (1) tidak selepas ${day(d.day)}.`);
+      return w(`The day received is not after ${day(d.day)}, the day the first check was recorded.`, `Hari diterima tidak selepas ${day(d.day)}, hari semakan pertama direkodkan.`);
     // ------------------------------------------------ opening
     case "NO_BASELINE":
       return w("The contract's baseline has no version in force today, so a certificate has nothing to read. Confirm the baseline on the contract's Baseline tab.", "Garis dasar kontrak tiada versi berkuat kuasa hari ini. Sahkan garis dasar di tab Garis dasar kontrak.");

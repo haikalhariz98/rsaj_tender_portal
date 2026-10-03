@@ -58,7 +58,7 @@ export async function sendCertificateForRouting(_prev: FormState, data: FormData
 export async function recordCertificateReceived(_prev: FormState, data: FormData): Promise<FormState> {
   const now = toSecond(new Date());
   const r = new FormReader(data);
-  const received = r.date("receivedOn", "Received on (DATE 1)", { required: true });
+  const received = r.date("receivedOn", "Received on", { required: true });
   if (r.failed || !received) return { ok: false, errors: r.errors };
   return inCertificate(certOf(data), now, (c) => recordRoutingReceived(c, storedDay(received)));
 }

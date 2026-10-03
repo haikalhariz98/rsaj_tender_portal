@@ -48,7 +48,7 @@ const NOTE_ID = "certificate-action-note";
 /**
  * One certificate (6.14 increment 1, ADR 0022, 0023): one shell for every kind. Figures (as computed, any
  * override marked with both figures), Signatures (blocks in printed order, the next one open, the others
- * disabled with the reason), Routing sheet (checks, the approval route's steps, DATE (1) and (2), elapsed
+ * disabled with the reason), Routing sheet (checks, the approval route's steps, the days received and approved, elapsed
  * against the target, iterations side by side), Distribution, Print (live with "Draft — not issued" before
  * issue; the frozen text and its form after) and History. Every refusal shown is the act's own rule.
  */
@@ -149,7 +149,7 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
 
 function signingBlocker(sheet: Sheet): string | null {
   const reasons: string[] = [];
-  if (!sheet.date1) reasons.push("Record DATE (1) first.");
+  if (!sheet.date1) reasons.push("Record the day it was received first.");
   if (sheet.routeState === "NONE") reasons.push("No approval route is open for it: the module that raised it opens one.");
   if (sheet.routeState === "PENDING") reasons.push("Its approval route is waiting for a decision.");
   if (sheet.routeState === "REJECTED") reasons.push("Its approval route was refused: it goes on only on a resubmitted route.");
@@ -342,7 +342,7 @@ function RoutingPanel({ l, sheet, people, today }: { l: LoadedCertificate; sheet
       sheet={sheet}
       open={open}
       headerAction={open ? <ReceivedDrawer certId={cert.id} today={today} current={sheet.date1} /> : undefined}
-      checkAction={(def) => <CheckDrawer certId={cert.id} defOrder={def.order} label={def.labelEn} office={def.officeLabel} people={people} today={today} blocker={sheet.date1 ? null : "Record DATE (1) first."} />}
+      checkAction={(def) => <CheckDrawer certId={cert.id} defOrder={def.order} label={def.labelEn} office={def.officeLabel} people={people} today={today} blocker={sheet.date1 ? null : "Record the day it was received first."} />}
       routeNote="No approval route opened for this round: the module that raised the certificate opens it on the approval matrix."
     />
   );

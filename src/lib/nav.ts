@@ -228,7 +228,7 @@ export const CONFIG_SECTIONS: {
       {
         href: "/configuration/routing-sheets",
         label: "Routing sheets",
-        description: "The CPD/DFA routing sheets: their checks and the targets elapsed days are judged against.",
+        description: "Routing sheets: their checks and the targets elapsed days are judged against.",
         icon: "clock",
         built: true,
       },

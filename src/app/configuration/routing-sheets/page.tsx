@@ -34,7 +34,7 @@ export default async function RoutingSheetsPage() {
   const edgeUndecided = live.filter((t) => t.upperEdgeInclusive == null).length;
   return (
     <>
-      <PageHeader title="Routing sheets" badge={untargeted ? <Badge tone="warn" dot>{`${untargeted} without a target`}</Badge> : undefined} subtitle="Each CPD/DFA sheet's checks, and the targets elapsed days are judged against." />
+      <PageHeader title="Routing sheets" badge={untargeted ? <Badge tone="warn" dot>{`${untargeted} without a target`}</Badge> : undefined} subtitle="Each routing sheet's checks, and the targets elapsed days are judged against." />
       <Stats>
         <Stat label="Types in use" value={live.length || null} hint={live.length ? "Each starts a sheet on a certificate or an award" : "No sheet can start"} />
         <Stat label="Without a target" value={live.length ? untargeted : null} warn={untargeted > 0} hint={untargeted ? "Their sheets read \"Target not set\", never met" : "Every type has a target"} />
