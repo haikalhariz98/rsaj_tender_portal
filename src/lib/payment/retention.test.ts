@@ -46,11 +46,11 @@ describe("held to date, under the cap", () => {
     expect(over.capped).toBe(true);
     expect(money(over.held.MAIN)).toBe("50000.00");
   });
-  it("the cap shared pro rata, the main tier taking the rounding, summing to the cap", () => {
+  it("the cap shared pro rata, the leftover sen by the waterfall's rule (BD-613-28 as amended), summing to the cap", () => {
     const h = retentionHeld(terms, s("100000.00"), { MAIN: s("60000.00"), NSC: s("30000.00"), NS: s("10000.00") });
     // computed 6,000 / 3,000 / 1,000 = 10,000 > cap 5,000 → 3,000 / 1,500 / 500.
     expect([h.held.MAIN, h.held.NSC, h.held.NS].map(money)).toEqual(["3000.00", "1500.00", "500.00"]);
-    const odd = retentionHeld(terms, s("100000.00"), { MAIN: s("33333.33"), NSC: s("33333.33"), NS: s("33333.34") });
+    const odd = retentionHeld(terms, s("100000.00"), { MAIN: s("33333.33"), NSC: s("33333.33"), NS: s("33333.34") }, ZERO_TIERS, "LARGEST_REMAINDER");
     expect(odd.held.MAIN + odd.held.NSC + odd.held.NS).toBe(s("5000.00"));
   });
 });

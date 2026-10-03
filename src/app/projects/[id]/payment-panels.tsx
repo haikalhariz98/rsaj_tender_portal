@@ -16,7 +16,7 @@ import { ladLine } from "@/lib/lad/charge";
 import { decisionFaults, replacementFaults, warningFaults } from "@/lib/lad/non-completion";
 import { formatMoney, parseSen, senFromDecimal, type Sen } from "@/lib/money";
 import { assembleInterim, chargedUntilOf, heldOnLatest, readJudgedUnder, type Assembled } from "@/lib/payment/assemble";
-import { ADVANCE_PARTY_WORDS, ANSWER_WORDS, DEDUCTION_WORDS, MATERIAL_VERDICT_WORDS, OUTCOME_WORDS, PACK_WORDS, paymentFaultText, RELEASE_WORDS, SCOPE_WORDS, TIER_WORDS, TRIGGER_WORDS, VALUATION_STATUS_WORDS } from "@/lib/payment/labels";
+import { ADVANCE_PARTY_WORDS, ANSWER_WORDS, DEDUCTION_WORDS, MATERIAL_VERDICT_WORDS, OUTCOME_WORDS, PACK_WORDS, REMAINDER_WORDS, paymentFaultText, RELEASE_WORDS, SCOPE_WORDS, TIER_WORDS, TRIGGER_WORDS, VALUATION_STATUS_WORDS } from "@/lib/payment/labels";
 import { assembleInputOf, baselineOn, decisionOf, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, kindSettingOf, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
 import { materialVerdict } from "@/lib/payment/materials";
 import { firstReleaseShare, releaseOf, retentionReading } from "@/lib/payment/retention";
@@ -403,6 +403,7 @@ function RetentionSection({ l, v, people, today }: { l: LoadedContract; v: Payme
               { label: "Terms", value: <span className="flex flex-col items-start gap-1"><span>{terms}</span>{b?.retentionSource && <span className={sub}>{`From the baseline: ${SOURCE_WORDS[b.retentionSource]?.en.toLowerCase() ?? "recorded"}`}</span>}</span> },
               { label: "Held on the latest issued certificate", value: held ? `${formatMoney(held.held.MAIN + held.held.NSC + held.held.NS)} (${(["MAIN", "NSC", "NS"] as const).map((t) => `${TIER_WORDS[t].en.toLowerCase()} ${formatMoney(held.held[t])}`).join(", ")})` : dim("None held: no interim certificate is issued") },
               { label: "The first release's share", value: pct ? <span className="flex flex-col items-start gap-1"><span>{`${pct}% of what is held`}</span><ProvenanceBadge value={v.cfg.policy?.firstReleaseProvenance ?? null} /></span> : <span className="flex flex-col items-start gap-1"><Badge tone="warn">Not set</Badge><span className={sub}>The first release is refused until Configuration › Post-award sets it.</span></span> },
+              { label: "At the cap", value: <span className="flex flex-col items-start gap-1"><span>Where the three together pass the cap, the cap is shared pro rata to what each would hold; the leftover sen go by the payment waterfall's rule ({v.cfg.policy?.waterfallRemainder ? REMAINDER_WORDS[v.cfg.policy.waterfallRemainder].en.toLowerCase() : "not set: refused when sen are left over"}).</span><ProvenanceBadge value="ASSUMED" /></span> },
               { label: "As-built drawings", value: handed ? `Handed over ${formatDate(day(v.p.siteRecordsHandovers.at(-1)!.handedOverOn))}` : dim("Not handed over (Site › Site records)") },
             ]}
           />

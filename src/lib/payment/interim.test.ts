@@ -56,6 +56,8 @@ const WORKED: InterimInput = {
   wages: 0n,
   nonCompliance: 0n,
   others: [],
+  // BD-613-28 as amended: a capped retention's leftover sen follow the waterfall's configured rule.
+  remainder: "LARGEST_REMAINDER",
 };
 
 describe("the worked example (§8.3, plan A3)", () => {

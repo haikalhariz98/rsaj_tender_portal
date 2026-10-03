@@ -174,6 +174,10 @@ export function paymentFaultWords(f: Finding): Words {
     // ------------------------------------------------ the waterfall
     case "REMAINDER_RULE_NOT_SET":
       return w(`The payment recommended does not cover what is due to the nominated parties, and splitting it pro rata leaves ${s(d.sen, "some")} sen over: where they go is not set under Configuration › Post-award. Nothing is split on a guess.`, "Pembahagian pro rata meninggalkan baki sen: peraturannya belum ditetapkan di Konfigurasi › Selepas setuju terima.");
+    case "RETENTION_REMAINDER_RULE_NOT_SET":
+      return w(`Retention reaches its cap, and sharing the cap pro rata between the main contractor and the nominated parties leaves ${s(d.sen, "some")} sen over: where they go is the payment waterfall's rule, not set under Configuration › Post-award. Nothing is split on a guess.`, "Pembahagian had wang tahanan pro rata meninggalkan baki sen: peraturannya belum ditetapkan.");
+    case "RETENTION_SPLIT_INVALID":
+      return w("Sharing the retention cap would leave a tier below nothing or above what it would hold uncapped: the certificate is not worked out on a wrong figure. Report it.", "Pembahagian had wang tahanan tidak sah.");
     case "NOTHING_TO_PAY":
       return w("The payment recommended is below nothing: there is nothing to share.", "Bayaran yang disyorkan di bawah sifar.");
     case "DUE_NEGATIVE":

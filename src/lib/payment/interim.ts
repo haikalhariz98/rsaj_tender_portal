@@ -26,7 +26,7 @@ import type { LadLine } from "@/lib/lad/charge";
 
 import { type MaterialsPct } from "./materials";
 import { overReleased, retentionHeld, retentionFaults, type Held, type RetentionReading, type Tiers } from "./retention";
-import type { Day, Finding } from "./types";
+import type { Day, Finding, WaterfallRemainder } from "./types";
 
 export interface InterimInput {
   computedOn: Day;
@@ -51,6 +51,8 @@ export interface InterimInput {
   advance: { main: Sen; nsc: Sen };
   /// Keyed (or recorded elsewhere and read): premiums and social security, wages, non-compliance, the others (≤ 3).
   premiums: Sen;
+  /// Where a capped retention's leftover sen go: the payment waterfall's configured rule (OD-A4, BD-613-28 as amended).
+  remainder?: WaterfallRemainder | null;
   /// Of `premiums`, what the employer paid and this certificate recovers (tied to it at raising): an override of the
   /// premiums line may correct only the keyed part, never below this (code review run 2, item 3).
   premiumsPending?: Sen;
@@ -94,7 +96,8 @@ export function interimCertificate(i: InterimInput): InterimResult {
   const allowance = i.materials.allowance!;
   const newSum = i.adjustments.reduce((a, x) => a + x, i.originalSum);
   const gross = i.mainWorks + allowance + i.nominated.NSC + i.nominated.NS;
-  const held = retentionHeld(i.retention, i.originalSum, { MAIN: i.mainWorks + allowance, NSC: i.nominated.NSC, NS: i.nominated.NS }, i.released);
+  const held = retentionHeld(i.retention, i.originalSum, { MAIN: i.mainWorks + allowance, NSC: i.nominated.NSC, NS: i.nominated.NS }, i.released, i.remainder ?? null);
+  if (held.faults.length) return { figures: null, snapshot: null, faults: held.faults };
   const over = overReleased(held);
   if (over.length) return { figures: null, snapshot: null, faults: [{ code: "RELEASED_MORE_THAN_HELD", level: "block", data: { tiers: over.join(",") } }] };
   const less = held.net.MAIN + held.net.NSC + held.net.NS + i.previous;

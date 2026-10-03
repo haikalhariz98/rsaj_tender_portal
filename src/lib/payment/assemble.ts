@@ -207,6 +207,7 @@ export function assembleInterim(i: AssembleInput): Assembled {
     advance: { main: rec.main, nsc: rec.nsc },
     premiums: sumOf("PREMIUMS_PERKESO") + pending.reduce((a, p) => a + p.amount, 0n),
     premiumsPending: pending.reduce((a, p) => a + p.amount, 0n),
+    remainder: i.policy.remainder,
     wages: sumOf("WAGES"),
     nonCompliance: sumOf("NON_COMPLIANCE"),
     others: v.deductions.filter((d) => d.kind === "OTHER").map((d) => ({ label: d.label, amount: d.amount })),

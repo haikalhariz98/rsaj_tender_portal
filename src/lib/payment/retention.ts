@@ -9,8 +9,10 @@
  * Held: each tier's percentage of its value to date (the main contractor's works with the materials allowance, the
  * nominated sub-contractors', the nominated suppliers'), half up to the sen. The cap is a percentage of the contract
  * sum the certificate pinned. Where the three together pass it, the cap is held and shared pro rata to what each
- * tier would hold (half up), the main contractor's tier taking the sen the rounding leaves, so the three always sum
- * to the cap exactly (an assumed reading: the sources state no split, BD-613-28). What is released (the first
+ * tier would hold (an assumed reading: the sources state no split, BD-613-28 as amended): each tier its exact share
+ * rounded down, then the sen left over by the same configured rule as the payment waterfall (OD-A4: largest
+ * remainder, or the first tier holding retention, as far as it would hold uncapped); unset refuses only when sen are left over. No tier is ever
+ * below nothing or above what it would hold uncapped (an invariant: broken, the certificate is refused). What is released (the first
  * release on as-built drawings, the balance on the Certificate of Making Good Defects) comes off what is held.
  *
  * Pure: sen as bigint, percentages as decimal strings, no float anywhere.
@@ -20,7 +22,7 @@ import { decimalText } from "@/lib/format";
 import type { Sen } from "@/lib/money";
 import { pctOfSen, ratioOfSen } from "@/lib/securities/money";
 
-import type { Finding, RetentionTier } from "./types";
+import type { Finding, RetentionTier, WaterfallRemainder } from "./types";
 
 export interface RetentionTerms {
   applies: boolean | null;
@@ -69,24 +71,62 @@ export interface Held {
   released: Tiers;
   /// What the certificate deducts: held less released.
   net: Tiers;
+  /// The cap's leftover sen with no rule to place them (RETENTION_REMAINDER_RULE_NOT_SET), or a broken invariant.
+  faults: Finding[];
 }
 
 /**
  * Retention held to date on a certificate. `values` is each tier's value to date (the main tier with the
  * materials allowance). `released` is what has been released, per tier, on or before the valuation day.
  */
-export function retentionHeld(reading: RetentionReading, contractSum: Sen, values: Tiers, released: Tiers = ZERO_TIERS): Held {
-  if (reading.state !== "APPLIES") return { computed: ZERO_TIERS, cap: null, capped: false, held: ZERO_TIERS, released, net: { MAIN: -released.MAIN, NSC: -released.NSC, NS: -released.NS } };
+export function retentionHeld(reading: RetentionReading, contractSum: Sen, values: Tiers, released: Tiers = ZERO_TIERS, rule: WaterfallRemainder | null = null): Held {
+  if (reading.state !== "APPLIES") return { computed: ZERO_TIERS, cap: null, capped: false, held: ZERO_TIERS, released, net: { MAIN: -released.MAIN, NSC: -released.NSC, NS: -released.NS }, faults: [] };
   const computed: Tiers = { MAIN: pctOfSen(values.MAIN, reading.percent), NSC: pctOfSen(values.NSC, reading.percent), NS: pctOfSen(values.NS, reading.percent) };
   const cap = pctOfSen(contractSum, reading.capPercent);
   const total = sum(computed);
+  const faults: Finding[] = [];
   let held = computed;
   if (total > cap) {
-    const nsc = ratioOfSen(computed.NSC, cap, total);
-    const ns = ratioOfSen(computed.NS, cap, total);
-    held = { MAIN: cap - nsc - ns, NSC: nsc, NS: ns };
+    const shared = capShare(computed, cap, rule);
+    held = shared.held;
+    faults.push(...shared.faults);
   }
-  return { computed, cap, capped: total > cap, held, released, net: { MAIN: held.MAIN - released.MAIN, NSC: held.NSC - released.NSC, NS: held.NS - released.NS } };
+  return { computed, cap, capped: total > cap, held, released, net: { MAIN: held.MAIN - released.MAIN, NSC: held.NSC - released.NSC, NS: held.NS - released.NS }, faults };
+}
+
+const TIERS = ["MAIN", "NSC", "NS"] as const;
+
+/**
+ * The cap shared pro rata to what each tier would hold (BD-613-28 as amended): each its exact share rounded down,
+ * then the sen left over (fewer than the tiers with a fraction) by the configured rule: LARGEST_REMAINDER, a sen
+ * each to the largest fractions (ties in tier order); FIRST_PARTY, to the first tier holding retention as far as it would hold uncapped, then the next. Unset
+ * with sen left over refuses (RETENTION_REMAINDER_RULE_NOT_SET). Invariant: 0 ≤ held ≤ computed per tier, and the tiers sum
+ * to the cap where a rule placed the sen; broken, RETENTION_SPLIT_INVALID refuses.
+ */
+export function capShare(computed: Tiers, cap: Sen, rule: WaterfallRemainder | null): { held: Tiers; faults: Finding[] } {
+  const total = sum(computed);
+  const shares = TIERS.map((t, order) => ({ t, order, floor: (cap * computed[t]) / total, rem: (cap * computed[t]) % total }));
+  const left = cap - shares.reduce((a, x) => a + x.floor, 0n);
+  const held: Record<RetentionTier, Sen> = { MAIN: shares[0].floor, NSC: shares[1].floor, NS: shares[2].floor };
+  const faults: Finding[] = [];
+  if (left > 0n && rule == null) faults.push({ code: "RETENTION_REMAINDER_RULE_NOT_SET", level: "block", data: { sen: left.toString() } });
+  if (left > 0n && rule === "FIRST_PARTY") {
+    // To the first tier holding retention, as far as it would hold uncapped, then the next.
+    let rest = left;
+    for (const t of TIERS) {
+      const room = computed[t] - held[t];
+      const give = rest < room ? rest : room;
+      held[t] += give;
+      rest -= give;
+    }
+  }
+  if (left > 0n && rule === "LARGEST_REMAINDER") {
+    const byRem = [...shares].sort((a, b) => (a.rem === b.rem ? a.order - b.order : a.rem > b.rem ? -1 : 1));
+    for (let k = 0; k < Number(left); k++) held[byRem[k].t] += 1n;
+  }
+  const broken = TIERS.some((t) => held[t] < 0n || held[t] > computed[t]) || (rule != null && sum(held) !== cap);
+  if (broken) faults.push({ code: "RETENTION_SPLIT_INVALID", level: "block" });
+  return { held, faults };
 }
 
 /// Whether more has been released than is held (a release recorded against a figure later reduced): refused.
