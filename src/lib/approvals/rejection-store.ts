@@ -79,6 +79,8 @@ export async function openSuccessor(tx: Tx, who: Who, rejectedId: string, return
       awardId: r.awardId,
       // 6.13 Part A step 3 (614-C4): a certificate's route continues on its certificate, sent by the same person.
       certificateId: r.certificateId,
+      // 6.13 Part A step 4 (614-C4): a variation's route continues on its variation.
+      variationId: r.variationId,
       submittedByPersonId: r.submittedByPersonId,
       domain: r.domain,
       cond: r.cond,
