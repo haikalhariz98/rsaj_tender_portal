@@ -11,10 +11,13 @@ import { KIND_WORDS } from "@/lib/certificate/labels";
 import { CLOCK_WORDS, REMAINDER_WORDS, ROUTE_FIGURE_WORDS } from "@/lib/payment/labels";
 import { CONTRACT_CLOCKS, PAYMENT_ROUTE_FIGURES, WATERFALL_REMAINDERS } from "@/lib/payment/types";
 import { parsePercent, percentAboveZero } from "@/lib/securities/money";
+import { BASE_WORDS, BASIS_WORDS, SCHEDULE_FORM_WORDS } from "@/lib/variation/labels";
+import { SCHEDULE_FORMS, VARIATION_BASES, VARIATION_PCT_BASES } from "@/lib/variation/types";
 import { FormReader } from "@/lib/validate";
 
-/// The certificate kinds the payment and damages chain raises (each needs its form; a routing sheet is optional).
-const PAYMENT_KINDS = ["INTERIM_PAYMENT", "ADVANCE_PAYMENT", "LAD_WARNING", "NON_COMPLETION"] as const;
+/// The certificate kinds the payment and damages chain, and the variations and adjustments, raise (each needs its
+/// form; a routing sheet is optional).
+const PAYMENT_KINDS = ["INTERIM_PAYMENT", "ADVANCE_PAYMENT", "LAD_WARNING", "NON_COMPLETION", "VARIATION_APPLICATION", "SO_INSTRUCTION", "VARIATION", "SUM_ADJUSTMENT"] as const;
 
 /**
  * Post-award controls (6.13 Part A): the In Delay percentage, whether the S.O. follows the contract sum across a
@@ -197,6 +200,54 @@ export async function saveClockRule(_prev: FormState, data: FormData): Promise<F
       if (!before || changes.length) await writeAudit(tx, { organisationId: o.id, entity: "ContractClockRule", entityId: row.id, entityLabel: label, reason }, before ? "UPDATE" : "CREATE", changes);
     }
     revalidatePath(PATH);
+    return { ok: true };
+  });
+}
+
+// ------------------------------------------------------------------ 6.13 Part A step 4: variations
+
+/**
+ * The variation controls (OD-A2, OD-A5, FR-VAR-009): what a variation's percentage is of and the sum it is taken over;
+ * which schedule form a variation produces where an agreed rate exists and where none does; which committee decides a
+ * funder's consent. Each ships unset and is saved with where it came from; an empty field clears it back to unset,
+ * recorded. Audited with before and after in the same transaction.
+ */
+export async function saveVariationPolicy(_prev: FormState, data: FormData): Promise<FormState> {
+  const o = await exerciseOrg();
+  if (!o) return NO_ORG;
+  const r = new FormReader(data);
+  const v = {
+    variationPctBasis: r.choice("variationPctBasis", "What a variation's percentage is of", VARIATION_PCT_BASES),
+    variationBase: r.choice("variationBase", "The sum it is taken over", VARIATION_BASES),
+    variationProvenance: r.choice("variationProvenance", "Where that came from", PROVENANCE),
+    scheduleFormAgreedRate: r.choice("scheduleFormAgreedRate", "The schedule form where an agreed rate exists", SCHEDULE_FORMS),
+    scheduleFormNoAgreedRate: r.choice("scheduleFormNoAgreedRate", "The schedule form where none does", SCHEDULE_FORMS),
+    scheduleFormProvenance: r.choice("scheduleFormProvenance", "Where that came from", PROVENANCE),
+    funderConsentCommitteeId: r.optionalText("funderConsentCommitteeId"),
+    funderConsentProvenance: r.choice("funderConsentProvenance", "Where that came from", PROVENANCE),
+  };
+  const reason = r.text("reason", "Reason", { max: 2000 });
+  if (r.failed) return { ok: false, errors: r.errors };
+  return db.$transaction(async (tx) => {
+    const committee = v.funderConsentCommitteeId ? await tx.committee.findFirst({ where: { id: v.funderConsentCommitteeId, organisationId: o.id }, select: { id: true, nameEn: true } }) : null;
+    if (v.funderConsentCommitteeId && !committee) return { ok: false, errors: { funderConsentCommitteeId: "Choose a committee configured under Committees." } } as FormState;
+    await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${o.id} FOR UPDATE`;
+    const before = await tx.postAwardPolicy.findUnique({ where: { organisationId: o.id }, include: { funderConsentCommittee: { select: { nameEn: true } } } });
+    const row = await tx.postAwardPolicy.upsert({ where: { organisationId: o.id }, update: v, create: { organisationId: o.id, ...v } });
+    const words = (x: { variationPctBasis: string | null; variationBase: string | null; variationProvenance: string | null; scheduleFormAgreedRate: string | null; scheduleFormNoAgreedRate: string | null; scheduleFormProvenance: string | null; funderConsentProvenance: string | null }, committeeName: string | null) => ({
+      percentageOf: x.variationPctBasis ? BASIS_WORDS[x.variationPctBasis as keyof typeof BASIS_WORDS].en : null,
+      takenOver: x.variationBase ? BASE_WORDS[x.variationBase as keyof typeof BASE_WORDS].en : null,
+      percentageProvenance: x.variationProvenance,
+      scheduleWithAgreedRate: x.scheduleFormAgreedRate ? SCHEDULE_FORM_WORDS[x.scheduleFormAgreedRate as keyof typeof SCHEDULE_FORM_WORDS].en : null,
+      scheduleWithoutAgreedRate: x.scheduleFormNoAgreedRate ? SCHEDULE_FORM_WORDS[x.scheduleFormNoAgreedRate as keyof typeof SCHEDULE_FORM_WORDS].en : null,
+      scheduleProvenance: x.scheduleFormProvenance,
+      fundersConsentBy: committeeName,
+      consentProvenance: x.funderConsentProvenance,
+    });
+    const changes = diffFields(before ? words(before, before.funderConsentCommittee?.nameEn ?? null) : null, words(v, committee?.nameEn ?? null));
+    if (!before || changes.length) await writeAudit(tx, { organisationId: o.id, entity: "PostAwardPolicy", entityId: row.id, entityLabel: "Post-award controls", reason }, before ? "UPDATE" : "CREATE", changes);
+    revalidatePath(PATH);
+    revalidatePath("/projects");
     return { ok: true };
   });
 }

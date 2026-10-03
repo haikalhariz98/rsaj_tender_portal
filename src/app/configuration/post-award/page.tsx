@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { decimalText } from "@/lib/format";
-import { BuildingIcon, ClockIcon, FileIcon, WalletIcon } from "@/components/icons";
+import { BuildingIcon, ClockIcon, FileIcon, ScaleIcon, WalletIcon } from "@/components/icons";
 import { HistoryButton } from "@/components/history-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -16,16 +16,20 @@ import { MINIMUM_MEASURE_WORDS } from "@/lib/payment/minimum";
 import { CONTRACT_CLOCKS, PAYMENT_ROUTE_FIGURES, WATERFALL_REMAINDERS, type ContractClock } from "@/lib/payment/types";
 import { exerciseOrg } from "@/lib/method/repo";
 import { loadPostAwardPolicy } from "@/lib/supervision/load";
+import { BASE_WORDS, BASIS_WORDS, SCHEDULE_FORM_WORDS } from "@/lib/variation/labels";
+import { SCHEDULE_FORMS, VARIATION_BASES, VARIATION_PCT_BASES } from "@/lib/variation/types";
 
-import { EditClockRule, EditKindSetting, EditPaymentPolicy, EditPostAwardPolicy } from "./editors";
+import { EditClockRule, EditKindSetting, EditPaymentPolicy, EditPostAwardPolicy, EditVariationPolicy } from "./editors";
 
 /// The certificates the payment and damages chain raises, each on its configured form (the acts' own list).
 const PAYMENT_KINDS = ["INTERIM_PAYMENT", "ADVANCE_PAYMENT", "LAD_WARNING", "NON_COMPLETION"] as const;
+/// The certificates the variations and the adjustment of the contract sum raise (6.13 Part A step 4).
+const VARIATION_KINDS = ["VARIATION_APPLICATION", "SO_INSTRUCTION", "VARIATION", "SUM_ADJUSTMENT"] as const;
 /// What an unset clock does, in words.
 const CLOCK_UNSET: Readonly<Record<ContractClock, string>> = {
-  ORAL_CONFIRM: "Not read until variations are built.",
-  ORAL_OBJECTION: "Not read until variations are built.",
-  DAYWORK_SUBSTANTIATION: "Not read until variations are built.",
+  ORAL_CONFIRM: "An instruction first given orally shows no day the contractor's confirmation is due by: the screen says the clock is not set (advisory).",
+  ORAL_OBJECTION: "A confirmed oral instruction shows no day an objection is due by: the screen says the clock is not set (advisory).",
+  DAYWORK_SUBSTANTIATION: "A daywork record shows no day its substantiation is due by, and lateness is not judged: the screen says the clock is not set.",
   LAD_WARNING_RESPONSE: "A damages warning gives no date for the contractor's reasons: the screen says the clock is not set.",
   CERT_ISSUE: "A valuation shows no date its certificate is due by: the screen says the clock is not set.",
 };
@@ -66,13 +70,25 @@ export default async function PostAwardControlsPage() {
       </>
     );
   }
-  const [p, templates, kinds, clocks, sheets] = await Promise.all([
+  const [p, templates, kinds, clocks, sheets, committees] = await Promise.all([
     loadPostAwardPolicy(org.id),
     db.documentTemplate.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { id: true, nameEn: true, formCode: true } }),
     db.certificateKindSetting.findMany({ where: { organisationId: org.id }, include: { routingType: { select: { labelEn: true, retiredOn: true } } } }),
     db.contractClockRule.findMany({ where: { organisationId: org.id } }),
     db.routingSheetType.findMany({ where: { organisationId: org.id, subject: "CERTIFICATE", retiredOn: null }, orderBy: [{ sortOrder: "asc" }, { labelEn: "asc" }], select: { id: true, labelEn: true, certificateKind: true } }),
+    db.committee.findMany({ where: { organisationId: org.id, retiredOn: null }, orderBy: { nameEn: "asc" }, select: { id: true, nameEn: true } }),
   ]);
+  const committeeName = (id: string | null | undefined) => (id ? (committees.find((x) => x.id === id)?.nameEn ?? "A committee no longer configured") : null);
+  const variationValues = {
+    variationPctBasis: p?.variationPctBasis ?? null,
+    variationBase: p?.variationBase ?? null,
+    variationProvenance: p?.variationProvenance ?? null,
+    scheduleFormAgreedRate: p?.scheduleFormAgreedRate ?? null,
+    scheduleFormNoAgreedRate: p?.scheduleFormNoAgreedRate ?? null,
+    scheduleFormProvenance: p?.scheduleFormProvenance ?? null,
+    funderConsentCommitteeId: p?.funderConsentCommitteeId ?? null,
+    funderConsentProvenance: p?.funderConsentProvenance ?? null,
+  };
   const formName = (id: string | null | undefined) => (id ? (templates.find((t) => t.id === id)?.nameEn ?? "A form no longer configured") : null);
   const pct = decimalText(p?.inDelayProgressPct);
   const materials = decimalText(p?.unfixedMaterialsDefaultPct);
@@ -81,8 +97,9 @@ export default async function PostAwardControlsPage() {
   const clockOf = (k: string) => clocks.find((x) => x.clock === k) ?? null;
   const unset =
     [pct, p?.soReResolve ?? null, p?.delegationLetterConventionalId, p?.delegationNoticeConventionalId, p?.delegationLetterDesignBuildId, p?.delegationNoticeDesignBuildId, materials, firstRelease, p?.paymentRouteFigure, p?.waterfallRemainder, p?.preExecutionInterimLimit].filter((x) => x == null).length +
-    PAYMENT_KINDS.filter((k) => !kindOf(k)?.templateId).length +
-    (["CERT_ISSUE", "LAD_WARNING_RESPONSE"] as const).filter((k) => !clockOf(k)).length;
+    [p?.variationPctBasis, p?.variationBase, p?.scheduleFormAgreedRate, p?.scheduleFormNoAgreedRate, p?.funderConsentCommitteeId].filter((x) => x == null).length +
+    [...PAYMENT_KINDS, ...VARIATION_KINDS].filter((k) => !kindOf(k)?.templateId).length +
+    CONTRACT_CLOCKS.filter((k) => !clockOf(k)).length;
   const paymentValues = {
     unfixedMaterialsDefaultPct: materials,
     unfixedMaterialsProvenance: p?.unfixedMaterialsProvenance ?? null,
@@ -114,7 +131,7 @@ export default async function PostAwardControlsPage() {
       <PageHeader
         title="Post-award controls"
         badge={unset > 0 ? <Badge tone="warn" dot>{`${unset} not set`}</Badge> : <Badge tone="ok" dot>All set</Badge>}
-        subtitle="Supervision, the delegation letters, and how interim payments and damages are certified."
+        subtitle="Supervision, the delegation letters, interim payments and damages, and variations."
         actions={
           <>
             {p?.id && <HistoryButton entity="PostAwardPolicy" entityId={p.id} label="Post-award controls" />}
@@ -171,6 +188,44 @@ export default async function PostAwardControlsPage() {
             <KeyValues
               columns={2}
               items={PAYMENT_KINDS.map((k) => {
+                const x = kindOf(k);
+                const sheetsFor = sheets.filter((t) => t.certificateKind == null || t.certificateKind === k).map((t) => ({ value: t.id, label: t.labelEn }));
+                const sheet = x?.routingType ? `${x.routingType.labelEn}${x.routingType.retiredOn ? " (retired: choose one in use)" : ""}` : "No routing sheet";
+                return {
+                  label: (
+                    <span className="flex flex-wrap items-center justify-between gap-2">
+                      <span>{KIND_WORDS[k].en}</span>
+                      <EditKindSetting kind={k} label={KIND_WORDS[k].en} values={{ templateId: x?.templateId ?? null, routingTypeId: x?.routingTypeId ?? null, provenance: x?.provenance ?? null, notes: x?.notes ?? "" }} forms={forms} sheets={sheetsFor} />
+                    </span>
+                  ),
+                  value: <Setting value={x?.templateId ? `${formName(x.templateId)} · ${sheet}` : null} provenance={x?.provenance} unset="It cannot be raised: the refusal names this setting." />,
+                };
+              })}
+            />
+          </CardBody>
+        </Card>
+        <Card>
+          <CardHeader icon={<ScaleIcon size={17} />} title="Variations" subtitle="Read when a variation is submitted, sent for approval and instructed. A setting changed later moves nothing already sent: each route keeps the reading it was sent on." actions={<EditVariationPolicy values={variationValues} bases={VARIATION_PCT_BASES.map((b) => ({ value: b, label: BASIS_WORDS[b].en }))} sums={VARIATION_BASES.map((b) => ({ value: b, label: BASE_WORDS[b].en }))} forms={SCHEDULE_FORMS.map((f) => ({ value: f, label: SCHEDULE_FORM_WORDS[f].en }))} committees={committees.map((x) => ({ value: x.id, label: x.nameEn }))} />} />
+          <CardBody>
+            <KeyValues
+              columns={2}
+              items={[
+                { label: "A variation's percentage is of", value: <Setting value={p?.variationPctBasis ? BASIS_WORDS[p.variationPctBasis].en : null} provenance={p?.variationProvenance} unset="A variation cannot be submitted or sent for approval: the refusal names this setting. Nothing is assumed." /> },
+                { label: "Taken over (and the contract value its band is read at)", value: <Setting value={p?.variationBase ? BASE_WORDS[p.variationBase].en : null} provenance={p?.variationProvenance} unset="A variation cannot be submitted or sent for approval: the refusal names this setting. Nothing is assumed." /> },
+                { label: "The schedule form where an agreed rate exists", value: <Setting value={p?.scheduleFormAgreedRate ? SCHEDULE_FORM_WORDS[p.scheduleFormAgreedRate].en : null} provenance={p?.scheduleFormProvenance} unset="The instruction of a variation with an agreed rate is refused, naming this setting." /> },
+                { label: "The schedule form where none does", value: <Setting value={p?.scheduleFormNoAgreedRate ? SCHEDULE_FORM_WORDS[p.scheduleFormNoAgreedRate].en : null} provenance={p?.scheduleFormProvenance} unset="The instruction of a variation without an agreed rate is refused, naming this setting." /> },
+                { label: "The committee that decides a funder's consent", value: <Setting value={committeeName(p?.funderConsentCommitteeId)} provenance={p?.funderConsentProvenance} unset="A variation affecting a funder's assets cannot be tabled for consent, so it is not instructed." /> },
+                { label: "Where a variation the S.O. does not support goes", value: <span className="text-[13px] text-ink-2">As the rejection destinations under Configuration › Approval matrix say for a variation; where none is set, the officer says where (back to its originator, or it ends) when recording the decision.</span> },
+              ]}
+            />
+          </CardBody>
+        </Card>
+        <Card>
+          <CardHeader icon={<FileIcon size={17} />} title="Variation and adjustment certificates" subtitle="The form each prints on, and the routing sheet it goes on. The application is opened when its prior approval is approved, on its form where set." />
+          <CardBody>
+            <KeyValues
+              columns={2}
+              items={VARIATION_KINDS.map((k) => {
                 const x = kindOf(k);
                 const sheetsFor = sheets.filter((t) => t.certificateKind == null || t.certificateKind === k).map((t) => ({ value: t.id, label: t.labelEn }));
                 const sheet = x?.routingType ? `${x.routingType.labelEn}${x.routingType.retiredOn ? " (retired: choose one in use)" : ""}` : "No routing sheet";

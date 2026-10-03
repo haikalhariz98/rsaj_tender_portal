@@ -3,7 +3,7 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 
-import { saveClockRule, saveKindSetting, savePaymentPolicy, savePostAwardPolicy } from "./actions";
+import { saveClockRule, saveKindSetting, savePaymentPolicy, savePostAwardPolicy, saveVariationPolicy } from "./actions";
 
 /**
  * The Post-award controls drawer. No field carries a default: an unset field is not set, and the screen says
@@ -119,6 +119,33 @@ export function EditClockRule({ clock, label, values }: { clock: string; label: 
       reason={{ label: "Why it is changed" }}
       submitLabel="Save"
       trigger={{ label: "Edit", className: buttonClass("ghost", "sm") }}
+    />
+  );
+}
+
+/// The variation controls (6.13 Part A step 4: OD-A2, OD-A5, FR-VAR-009). Each ships unset.
+export function EditVariationPolicy({ values, bases, sums, forms, committees }: { values: Record<string, string | null>; bases: Option[]; sums: Option[]; forms: Option[]; committees: Option[] }) {
+  return (
+    <RecordEditor
+      title="Variation controls"
+      description="How a variation's percentage is read, which schedule form it produces, and who decides a funder's consent. Each setting starts unset, and the screens say what an unset one stops."
+      size="lg"
+      columns={2}
+      fields={[
+        { kind: "select", name: "variationPctBasis", label: "A variation's percentage is of", placeholder: "Not set", options: bases, hint: "Unset: a variation cannot be submitted or sent for approval." },
+        { kind: "select", name: "variationBase", label: "Taken over", placeholder: "Not set", options: sums, hint: "Also the contract value its band is read at." },
+        provenance("variationProvenance", "Where that came from"),
+        { kind: "select", name: "scheduleFormAgreedRate", label: "The schedule form where an agreed rate exists", placeholder: "Not set", options: forms },
+        { kind: "select", name: "scheduleFormNoAgreedRate", label: "The schedule form where none does", placeholder: "Not set", options: forms, hint: "Unset: the instruction is refused, naming this setting." },
+        provenance("scheduleFormProvenance", "Where those came from"),
+        { kind: "select", name: "funderConsentCommitteeId", label: "The committee that decides a funder's consent", placeholder: committees.length ? "Not set" : "No committees configured", options: committees, hint: "Unset: a variation affecting a funder's assets cannot be tabled for consent." },
+        provenance("funderConsentProvenance", "Where that came from"),
+      ]}
+      values={values}
+      action={saveVariationPolicy}
+      reason={{ label: "Why the controls are changed" }}
+      submitLabel="Save controls"
+      trigger={{ label: "Edit", className: buttonClass("secondary", "sm") }}
     />
   );
 }
