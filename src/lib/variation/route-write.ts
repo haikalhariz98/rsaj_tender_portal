@@ -52,7 +52,8 @@ import { deciderFaults, holdersFor } from "@/lib/requisition/holders";
 import { methodKeyOf } from "@/lib/supervision/load";
 
 import { EVENT_WORDS, variationRefusal } from "./labels";
-import { matterRecordOf, type VariationRow } from "./load";
+import { refusalKinds } from "./application";
+import { factsOf, matterRecordOf, type VariationRow } from "./load";
 import { ratioOf, type Reading } from "./percent";
 import { regimeOf, resolveVariationRoute, routeDomainOf } from "./route";
 import type { Finding, VariationEvent } from "./types";
@@ -77,8 +78,6 @@ export interface VariationCtx {
   today: string;
 }
 
-/// Where a variation's refused route may go (FR-APR-016): every kind the engine knows.
-export const VARIATION_SUPPORTS: readonly RejectionKind[] = ["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP", "TERMINATE"];
 
 const refuse = (lead: string, fs: readonly Finding[]): never => {
   throw new VariationRefusal(variationRefusal(lead, fs));
@@ -275,7 +274,11 @@ async function afterStep(c: VariationCtx, v: VariationRow, a: VariationRow["appr
   const inst = a.approvalInstance;
   if (decision === "REJECTED") {
     const step = inst.steps.find((s) => s.id === stepId)!;
-    const outcome = rejectionOutcome({ snapshot: snapshotOf(inst), committee, steps: inst.steps, rejectingSeq: step.sequence, supports: VARIATION_SUPPORTS });
+    // MUST 1: a refused increase, agreed-rate or re-measurement route on a variation that stands approved ends the
+    // route only; a committee's terminal "not carried" there returns it rather than ending the variation.
+    const supports = refusalKinds(factsOf(v), a.event as VariationEvent);
+    const protectedRoute = !supports.includes("TERMINATE");
+    const outcome = rejectionOutcome({ snapshot: snapshotOf(inst), committee: protectedRoute && committee?.kind === "TERMINAL" ? { kind: "LOOP" } : committee, steps: inst.steps, rejectingSeq: step.sequence, supports });
     await closeRejected(c.tx, { organisationId: c.l.org.id, routeLabel: routeLabel(c, v) }, inst, outcome, reason, undefined, c.now);
     if ("apply" in outcome) await sendRefused(c, v, a, outcome.apply, outcome.returnToSeq ?? null, reason);
     return;
@@ -308,6 +311,7 @@ async function sendRefused(c: VariationCtx, v: VariationRow, a: VariationRow["ap
     return;
   }
   if (kind === "TERMINATE") {
+    if (!refusalKinds(factsOf(v), a.event as VariationEvent).includes("TERMINATE")) throw new VariationRefusal("Not recorded: the variation stands approved, so a refused route for its increase, agreed rates or re-measurement ends that route only: send it back instead.");
     const moved = await c.tx.variation.updateMany({ where: { id: v.id, status: { not: "CLOSED" } }, data: { status: "CLOSED", closedOn: dayToDate(c.today), closedReason: `Its approval route was refused and the variation ends: ${reason}` } });
     if (moved.count !== 1) throw new VariationRefusal("The variation changed while this was being saved. Reload and try again.");
     await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "Variation", entityId: v.id, entityLabel: variationLabel(c.l, v), reason }, "UPDATE", diffFields({ stage: "open" }, { stage: "closed", closedOn: c.today }));

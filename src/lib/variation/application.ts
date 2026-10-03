@@ -87,6 +87,19 @@ export const issuedInstruction = (v: Pick<VariationFacts, "instructions">) => v.
 export const liveOrder = (v: Pick<VariationFacts, "orders">) => v.orders.find((o) => live(o.certificateStatus)) ?? null;
 export const issuedOrder = (v: Pick<VariationFacts, "orders">) => v.orders.find((o) => o.certificateStatus === "ISSUED") ?? null;
 
+/**
+ * Run 3 review MUST 1: a variation that stands approved (its prior approval approved, or exempt with a live
+ * instruction) is not ended by a refused increase, agreed-rate or re-measurement route: that refusal ends the route
+ * only (back to whoever sent it, or to an earlier step). Ending the variation then would take its approved value out
+ * of the cumulative, move every later variation's band and strand its order. Its prior approval's refusal may end it.
+ */
+export const standsApproved = (v: Pick<VariationFacts, "routes" | "exemption" | "instructions">): boolean => priorApproved(v) || (v.exemption != null && liveInstruction(v) != null);
+
+export type RefusalKind = "RETURN_TO_ORIGINATOR" | "RETURN_TO_STEP" | "TERMINATE";
+export function refusalKinds(v: Pick<VariationFacts, "routes" | "exemption" | "instructions">, event: VariationEvent): RefusalKind[] {
+  return event !== "PRIOR" && standsApproved(v) ? ["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP"] : ["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP", "TERMINATE"];
+}
+
 export type Stage = "DRAFT" | "WITH_SO" | "TO_SEND" | "AWAITING_APPROVAL" | "REFUSED_AWAITING_CHOICE" | "APPROVED" | "EXEMPT" | "INSTRUCTED" | "CERTIFIED" | "CLOSED";
 
 /// Where it stands, read from its records (never stored twice).
