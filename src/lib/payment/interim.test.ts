@@ -216,3 +216,14 @@ describe("the premiums line: an override never undoes the premiums the employer 
     expect(snapshotFaults(notOver).map((f) => f.code)).toContain("FIELD_VALUE");
   });
 });
+
+describe("the retention lines say they are held after release (run 3 review)", () => {
+  it("each tier's line, in both languages, is the retention still held once releases are taken off", () => {
+    const r = interimCertificate(WORKED);
+    const line = (k: string) => r.snapshot!.lines.find((x) => x.key === k)!;
+    expect(line("retentionMain").labelEn).toBe("Retention held after release: main contractor");
+    expect(line("retentionNsc").labelEn).toBe("Retention held after release: nominated sub-contractors");
+    expect(line("retentionNs").labelEn).toBe("Retention held after release: nominated suppliers");
+    expect(line("retentionMain").labelMs).toBe("Wang tahanan dipegang selepas pelepasan: kontraktor utama");
+  });
+});

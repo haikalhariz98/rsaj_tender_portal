@@ -424,9 +424,9 @@ function PreviewFigures({ a }: { a: Assembled | null }) {
       <CardHeader title="The certificate as it stands" subtitle={`${snap.rule.en}. Every total is worked out from its lines, never keyed; nothing here is saved until the certificate is raised.${a.minimum.state === "BELOW" ? ` Below the ${a.minimum.first ? "first certificate's" : "certificate's"} minimum (${formatMoney(a.minimum.minimum)}): hold it to the next cycle.` : ""}`} divided className="border-t border-line/70" />
       <ul className="divide-y divide-line/70">
         {e.lines.map((f) => (
-          <li key={f.key} className="flex flex-col gap-1 px-5 py-2.5 sm:flex-row sm:items-start sm:justify-between sm:px-6">
+          <li key={f.key} className={f.type === "TEXT" ? "flex flex-col gap-1 px-5 py-2.5 sm:px-6" : "flex flex-col gap-1 px-5 py-2.5 sm:flex-row sm:items-start sm:justify-between sm:px-6"}>
             <span className="min-w-0 text-[13px] break-words text-ink-2">{f.labelEn}</span>
-            <span className="shrink-0 text-[13px] text-ink tabular-nums">{text(f.type, f.value)}</span>
+            <span className={f.type === "TEXT" ? "min-w-0 max-w-prose text-[13px] break-words text-ink" : "shrink-0 text-[13px] text-ink tabular-nums"}>{text(f.type, f.value)}</span>
           </li>
         ))}
         {e.totals.map((t) => (
