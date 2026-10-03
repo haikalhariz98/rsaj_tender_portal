@@ -294,9 +294,9 @@ export async function recordSignature(c: CertCtx, input: SignatureInput) {
   });
   // FR-CRT-005: the dating block's act dates the certificate. Written here and by its correction only.
   const dates = block!.datesCertificate;
-  const pinned = pinning ? { templateRevision: rev as unknown as Prisma.InputJsonValue, pinnedAt: c.now } : {};
   if (dates || pinning) {
-    const moved = await c.tx.certificate.updateMany({ where: { id: cert.id, status: "SIGNING" }, data: { ...pinned, ...(dates ? { certificateDate: dayToDate(r.signedOn!) } : {}) } });
+    // Written as one inline literal (undefined leaves a column as it is), so the source scan reads every key.
+    const moved = await c.tx.certificate.updateMany({ where: { id: cert.id, status: "SIGNING" }, data: { templateRevision: pinning ? (rev as unknown as Prisma.InputJsonValue) : undefined, pinnedAt: pinning ? c.now : undefined, certificateDate: dates ? dayToDate(r.signedOn!) : undefined } });
     if (moved.count !== 1) throw new CertificateRefusal(CHANGED);
   }
   await audit(c, "CertificateSignature", sig.id, `${labelOf(c)} · ${block!.labelEn}`, "CREATE", diffFields(null, {
