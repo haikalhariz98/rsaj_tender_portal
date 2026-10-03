@@ -19,6 +19,7 @@ import { assembleInterim, heldOnLatest } from "@/lib/payment/assemble";
 import { ANSWER_WORDS, DEDUCTION_WORDS, OUTCOME_WORDS, PACK_WORDS, paymentRefusal, RELEASE_WORDS, SCOPE_WORDS, TRIGGER_WORDS } from "@/lib/payment/labels";
 import { assembleInputOf, baselineOn, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, kindSettingOf, loadPayment, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
 import { afterCutOff } from "@/lib/payment/materials";
+import { ladRoundingFaults } from "@/lib/payment/interim";
 import { firstReleaseShare, releaseOf } from "@/lib/payment/retention";
 import { ADVANCE_PARTIES, CONTRACTOR_ANSWERS, KEYED_DEDUCTION_KINDS, NON_COMPLETION_OUTCOMES, NON_COMPLETION_SCOPES, PACK_ITEMS, RETENTION_RELEASES, VALUATION_TRIGGERS, type Finding, type PackItem } from "@/lib/payment/types";
 import { calendarFaults, jointFaults, openFaults } from "@/lib/payment/valuation";
@@ -312,6 +313,11 @@ export async function addValuationDeduction(_prev: FormState, data: FormData): P
     const v0 = await openValuationOf(c, valuationId);
     const fs: Finding[] = [];
     if (deduction === "OTHER" && v0.v.deductions.filter((d) => d.kind === "OTHER").length >= 3) fs.push({ code: "TOO_MANY_OTHER_DEDUCTIONS", level: "block", data: { max: 3 } });
+    // BD-613-47: the rounding keyed so far plus this one stays a rounding to the ringgit.
+    if (deduction === "LAD_ROUNDING") {
+      const total = v0.v.deductions.filter((d) => d.kind === "LAD_ROUNDING").reduce((a, d) => a + senFromDecimal(d.amount), parseSen(amount));
+      fs.push(...ladRoundingFaults(0n, total).filter((f) => f.code === "LAD_ROUNDING_OUT_OF_RANGE"));
+    }
     if (fs.length) refuse("Not recorded:", fs);
     const value = senToDecimalString(parseSen(amount));
     const row = await c.tx.valuationDeduction.create({ data: { organisationId: c.l.org.id, valuationId: v0.v.id, kind: deduction, label: label.trim(), amount: value, note: note.trim(), recordedAt: c.now } });

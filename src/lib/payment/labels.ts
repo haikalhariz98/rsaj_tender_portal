@@ -161,6 +161,10 @@ export function paymentFaultWords(f: Finding): Words {
       return w(`${d.first === "yes" ? "The value of work executed and materials delivered" : "The amount this certificate carries forward"} (${money(d.value)}) is below the ${d.first === "yes" ? "first certificate's" : "certificate's"} minimum (${money(d.minimum)}). Hold the valuation to the next cycle.`, `Nilai (${money(d.value)}) di bawah minimum (${money(d.minimum)}). Tangguhkan penilaian ke kitaran berikutnya.`);
     case "RECOMMENDED_NEGATIVE":
       return w(`The deductions are more than the certificate carries forward (the payment would be ${money(d.recommended)}): a certificate does not certify a negative payment. Review the keyed deductions; what cannot be deducted now waits for a later certificate.`, "Potongan melebihi amaun yang dibawa ke hadapan: perakuan tidak memperakui bayaran negatif. Semak potongan yang dimasukkan.");
+    case "LAD_ROUNDING_OUT_OF_RANGE":
+      return w(`The rounding on the damages line (${money(d.rounding)}) is RM1.00 or more either way: a rounding brings the damages to the ringgit, it does not waive them (a waiver has its own approval).`, `Pembundaran baris ganti rugi (${money(d.rounding)}) RM1.00 atau lebih: pembundaran bukan pengecualian.`);
+    case "LAD_ROUNDING_BELOW_NOTHING":
+      return w(`The rounding (${money(d.rounding)}) would take the damages (${money(d.damages)}) below nothing.`, `Pembundaran akan menjadikan ganti rugi di bawah sifar.`);
     case "ROUNDING_WITHOUT_LAD":
       return w("A rounding on the damages line is keyed, but this certificate has no damages line: remove the rounding.", "Pelarasan pembundaran ganti rugi dimasukkan, tetapi perakuan ini tiada baris ganti rugi.");
     case "TOO_MANY_OTHER_DEDUCTIONS":

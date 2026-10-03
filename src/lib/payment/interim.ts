@@ -109,6 +109,8 @@ export function interimCertificate(i: InterimInput): InterimResult {
   const recommended = carryForward - deductions;
   const grossThisPeriod = gross - i.previousGross;
   if (!lad && i.ladRounding !== 0n) faults.push({ code: "ROUNDING_WITHOUT_LAD", level: "block" });
+  // BD-613-47: a rounding to the ringgit, never a waiver: −RM1.00 < rounding < RM1.00, and damages + rounding ≥ 0.
+  faults.push(...ladRoundingFaults(ladAmount, lad ? i.ladRounding : 0n));
   if (recommended < 0n) faults.push({ code: "RECOMMENDED_NEGATIVE", level: "block", data: { recommended: recommended.toString() } });
   const figures: InterimFigures = { newSum, gross, held, less, carryForward, ladAmount, deductions, recommended, grossThisPeriod };
   if (faults.some((f) => f.level === "block")) return { figures, snapshot: null, faults };
@@ -178,4 +180,15 @@ export function interimCertificate(i: InterimInput): InterimResult {
     routingRatio: null,
   };
   return { figures, snapshot, faults };
+}
+
+/// BD-613-47: the signed rounding on the damages line is a rounding to the ringgit (the worked example's +0.20
+/// brings 2,693.80 to 2,694.00), never a waiver: strictly between −RM1.00 and RM1.00, and never taking the damages
+/// below nothing. RM1.00 is the definition of the rounding, not a customer threshold.
+export const LAD_ROUNDING_LIMIT: Sen = 100n;
+export function ladRoundingFaults(damages: Sen, rounding: Sen): Finding[] {
+  const out: Finding[] = [];
+  if (rounding <= -LAD_ROUNDING_LIMIT || rounding >= LAD_ROUNDING_LIMIT) out.push({ code: "LAD_ROUNDING_OUT_OF_RANGE", level: "block", data: { rounding: rounding.toString() } });
+  if (damages + rounding < 0n) out.push({ code: "LAD_ROUNDING_BELOW_NOTHING", level: "block", data: { damages: damages.toString(), rounding: rounding.toString() } });
+  return out;
 }
