@@ -17,7 +17,7 @@ import { CONTRACT_STATUS_WORDS } from "@/lib/contract/labels";
 import type { ContractStatus } from "@/lib/contract/types";
 import { formatPct } from "@/lib/tender-docs/percent";
 
-import { BASELINE_FIELD_LABEL, type Baseline, type BaselineField } from "./appendix-baseline";
+import { appendixInsured, BASELINE_FIELD_LABEL, type Baseline, type BaselineField } from "./appendix-baseline";
 import { mergeFieldLabel } from "./fields";
 import type { AwardStatus, DeliveryMethod, DocumentKind, DocumentLanguage, Finding, InstrumentKind, NonCommencement, PeriodUnit, QuotationContractKey } from "./types";
 
@@ -423,14 +423,26 @@ export function tenderTermText(field: BaselineField, b: Baseline): string | null
     return b.lad.kind === "AMOUNT" ? `${formatMoney(b.lad.sen)} per day` : `${formatMoney(b.lad.sen)} per day: ${formatPct(b.lad.pct)} of the awarded sum a day`;
   }
   if (field === "dlp") return b.dlp ? (b.dlp.applies ? periodText(b.dlp.months, "MONTHS") : "None") : null;
-  return b.regulated == null ? null : b.regulated ? "Yes" : "No";
+  if (field === "regulated") return b.regulated == null ? null : b.regulated ? "Yes" : "No";
+  // BD-613-2 ruling: the figure the Appendix governs for a sum insured.
+  const g = appendixInsured(field, b);
+  if (g == null) return null;
+  return field === "worksInsured" ? `${formatMoney(g)}: the awarded sum plus the Appendix's uplift` : `${formatMoney(g)}: the Appendix's minimum`;
 }
 
 /// The refusal of a terms save that states a term otherwise with no reason, with what the tender states.
 export function differsRefusal(field: BaselineField, said: string): string {
-  const lead = field === "lad" ? "The liquidated damages differ from the tender Appendix" : field === "dlp" ? "The defects liability period differs from the tender Appendix" : "The regulated-activity answer differs from the tender's";
+  const LEAD: Record<BaselineField, string> = {
+    lad: "The liquidated damages differ from the tender Appendix",
+    dlp: "The defects liability period differs from the tender Appendix",
+    regulated: "The regulated-activity answer differs from the tender's",
+    worksInsured: "The works sum insured differs from the figure the tender Appendix governs",
+    liabilityInsured: "The public liability sum insured differs from the tender Appendix's minimum",
+    wcInsured: "The workmen's compensation sum insured differs from the tender Appendix's minimum",
+  };
+  const lead = LEAD[field];
   return `${lead} (${said}): say why, or state it as the tender did.`;
 }
 
 /// The words beside a term the award states otherwise.
-export const DIFFERS_TEXT: Record<BaselineField, string> = { lad: "Differs from the tender Appendix", dlp: "Differs from the tender Appendix", regulated: "Differs from the tender" };
+export const DIFFERS_TEXT: Record<BaselineField, string> = { lad: "Differs from the tender Appendix", dlp: "Differs from the tender Appendix", regulated: "Differs from the tender", worksInsured: "Differs from the tender Appendix", liabilityInsured: "Differs from the tender Appendix", wcInsured: "Differs from the tender Appendix" };

@@ -170,7 +170,7 @@ describe("reasons on a save of the terms", () => {
   it("the reason given is kept, trimmed; a stored one stands when none is given", () => {
     expect(reasonsOnSave(b, terms({ dlpMonths: 24 }), all, { dlp: " Negotiated " }, {}).reasons.dlp).toBe("Negotiated");
     const r = reasonsOnSave(b, terms({ dlpMonths: 24 }), all, {}, { dlp: "Earlier reason" });
-    expect(r).toEqual({ reasons: { lad: null, dlp: "Earlier reason", regulated: null }, missing: [] });
+    expect(r).toEqual({ reasons: { lad: null, dlp: "Earlier reason", regulated: null, worksInsured: null, liabilityInsured: null, wcInsured: null }, missing: [] });
   });
 
   it("set back to the Appendix, the reason is cleared: nothing differs", () => {
@@ -179,7 +179,7 @@ describe("reasons on a save of the terms", () => {
 
   it("a field the save did not carry keeps its stored reason and is not judged", () => {
     const r = reasonsOnSave(b, terms({ dlpMonths: 24, ladAmount: RM("1") }), new Set(["dlp"] as const), { dlp: "x" }, { lad: "Kept" });
-    expect(r).toEqual({ reasons: { lad: "Kept", dlp: "x", regulated: null }, missing: [] });
+    expect(r).toEqual({ reasons: { lad: "Kept", dlp: "x", regulated: null, worksInsured: null, liabilityInsured: null, wcInsured: null }, missing: [] });
   });
 });
 
@@ -314,7 +314,7 @@ describe("the words beside each term", () => {
     expect(differsRefusal("regulated", "Yes")).toMatch(/^The regulated-activity answer differs from the tender's \(Yes\)/);
   });
   it("a difference reads as differing from the tender Appendix (the regulated answer: from the tender)", () => {
-    expect(DIFFERS_TEXT).toEqual({ lad: "Differs from the tender Appendix", dlp: "Differs from the tender Appendix", regulated: "Differs from the tender" });
+    expect(DIFFERS_TEXT).toEqual({ lad: "Differs from the tender Appendix", dlp: "Differs from the tender Appendix", regulated: "Differs from the tender", worksInsured: "Differs from the tender Appendix", liabilityInsured: "Differs from the tender Appendix", wcInsured: "Differs from the tender Appendix" });
   });
 });
 

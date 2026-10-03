@@ -16,7 +16,7 @@ import { CHOICE_FAULT_TEXT } from "@/lib/authority/rejection-labels";
 import { APPOINTMENT_DOMAIN } from "@/lib/method/types";
 import { awardAuditCreate, awardAuditPair } from "@/lib/award/audit-view";
 import { termsUpdate } from "@/lib/award/terms";
-import { BASELINE_FIELDS, baselineOf, baselineSnapshot, ladOnValueChange, prefill, REASON_COLUMN, reasonsOnSave, worksAppendixAmount, type AwardTerms, type BaselineField, type FrozenTender } from "@/lib/award/appendix-baseline";
+import { BASELINE_FIELDS, baselineOf, baselineSnapshot, isSumField, ladOnValueChange, prefill, REASON_COLUMN, reasonsOnSave, SUM_FIELD_COLUMN, worksAppendixAmount, type AwardTerms, type BaselineField, type FrozenTender } from "@/lib/award/appendix-baseline";
 import { percentAboveZero } from "@/lib/securities/money";
 import { icNumberFault } from "@/lib/award/mask";
 import { exerciseCitationFault } from "@/lib/award/citation";
@@ -144,11 +144,16 @@ function percent(r: FormReader, name: string, label: string): string | null {
 }
 
 /// 64-C4: an award's terms as the tender baseline compares them.
-const termsOf = (a: { ladAmount: { toString(): string } | null; ladUnit: string; dlpMonths: number | null; regulatedActivity: boolean | null }): AwardTerms => ({
+type Dec = { toString(): string } | null;
+const termsOf = (a: { ladAmount: Dec; ladUnit: string; dlpMonths: number | null; regulatedActivity: boolean | null; worksSumInsured?: Dec; liabilitySumInsured?: Dec; wcSumInsured?: Dec }): AwardTerms => ({
   ladAmount: a.ladAmount == null ? null : senFromDecimal(a.ladAmount),
   ladUnit: a.ladUnit,
   dlpMonths: a.dlpMonths,
   regulatedActivity: a.regulatedActivity,
+  // BD-613-2 ruling: the award's own sums insured join the comparison.
+  worksSumInsured: a.worksSumInsured == null ? null : senFromDecimal(a.worksSumInsured),
+  liabilitySumInsured: a.liabilitySumInsured == null ? null : senFromDecimal(a.liabilitySumInsured),
+  wcSumInsured: a.wcSumInsured == null ? null : senFromDecimal(a.wcSumInsured),
 });
 /// The tender's statement of a term, in words, for a refusal.
 const tenderStates = (field: BaselineField, t: FrozenTender, value: Sen) => tenderTermText(field, baselineOf(t, value)) ?? "nothing";
@@ -403,9 +408,9 @@ export async function updateAwardTerms(_prev: FormState, data: FormData): Promis
     if (tender) {
       const value = senFromDecimal(l.award.awardedValue);
       const stated = termsOf({ ...l.award, ...(after as Partial<typeof l.award>) });
-      const carried = new Set(BASELINE_FIELDS.filter((f) => (f === "lad" ? present.has("ladAmount") || present.has("ladUnit") : present.has(f === "dlp" ? "dlpMonths" : "regulatedActivity"))));
+      const carried = new Set(BASELINE_FIELDS.filter((f) => (f === "lad" ? present.has("ladAmount") || present.has("ladUnit") : isSumField(f) ? present.has(SUM_FIELD_COLUMN[f]) : present.has(f === "dlp" ? "dlpMonths" : "regulatedActivity"))));
       const given = Object.fromEntries(BASELINE_FIELDS.map((f) => [f, String(data.get(REASON_COLUMN[f]) ?? "").slice(0, 2000)]));
-      const stored = { lad: l.award.ladDiffersReason, dlp: l.award.dlpDiffersReason, regulated: l.award.regulatedDiffersReason };
+      const stored = { lad: l.award.ladDiffersReason, dlp: l.award.dlpDiffersReason, regulated: l.award.regulatedDiffersReason, worksInsured: l.award.worksInsuredDiffersReason, liabilityInsured: l.award.liabilityInsuredDiffersReason, wcInsured: l.award.wcInsuredDiffersReason };
       const { reasons, missing } = reasonsOnSave(baselineOf(tender, value), stated, carried, given, stored);
       if (missing.length) return { ok: false, errors: Object.fromEntries(missing.map((f) => [REASON_COLUMN[f], differsRefusal(f, tenderStates(f, tender, value))])) };
       for (const f of BASELINE_FIELDS) after[REASON_COLUMN[f]] = reasons[f];

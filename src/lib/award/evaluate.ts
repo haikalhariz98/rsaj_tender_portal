@@ -103,6 +103,10 @@ export interface AwardFacts {
     wcBasis: "UNCOVERED_WAGES" | "PERCENT_OF_CONTRACT" | null;
     /// 64-C4: the reason recorded for each term stated differently from the tender Appendix.
     appendixReasons?: Reasons;
+    /// 64-C4-b's own sums insured, compared with the figures the Appendix governs (BD-613-2 ruling).
+    worksSumInsured?: Sen | null;
+    liabilitySumInsured?: Sen | null;
+    wcSumInsured?: Sen | null;
   };
   /// 64-C4 (6.4 Q-1 B): the exercise's approved pack's frozen Appendix and regulated-activity
   /// answer. Not given or null: no frozen Appendix, nothing compared, the award as before.

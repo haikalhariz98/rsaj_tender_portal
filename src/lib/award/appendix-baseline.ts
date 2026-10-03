@@ -14,9 +14,12 @@
  *   award states it as an amount and the unit "per day".
  * - defects liability: the Appendix's months, or none (stated on the award as 0 months).
  * - the regulated activity: the exercise's answer as frozen at submission.
- * - insurance: the Appendix's minimums, uplift and excess are carried, not restated: the
- *   award has no columns of its own for them, so they cannot differ. The works uplift
- *   resolved against the awarded sum is what a works policy must cover beyond the price.
+ * - insurance (6.13 Part A ruling on BD-613-2): a sum insured the award states (works, public
+ *   liability, workmen's compensation) differs where the Appendix states the figure it governs
+ *   (the works: the awarded sum plus the uplift; the others: its minimums) and the award's is
+ *   another figure, above or below; it needs a reason like any other term. The award stating
+ *   none, or the Appendix silent, is no difference (the Appendix governs, or nothing is compared).
+ *   The excess is carried, not restated.
  * - the performance bond: the Appendix states none (D4: decided per contract), so there
  *   is no baseline to compare it with.
  *
@@ -35,17 +38,32 @@ import type { Finding } from "./types";
 export const LAD_PER_DAY = "per day";
 
 /// The terms compared, in the order the screens list them.
-export const BASELINE_FIELDS = ["lad", "dlp", "regulated"] as const;
+export const BASELINE_FIELDS = ["lad", "dlp", "regulated", "worksInsured", "liabilityInsured", "wcInsured"] as const;
 export type BaselineField = (typeof BASELINE_FIELDS)[number];
 
 export const BASELINE_FIELD_LABEL: Record<BaselineField, string> = {
   lad: "Liquidated damages",
   dlp: "Defects liability period",
   regulated: "The regulated activity",
+  worksInsured: "Works insurance sum insured",
+  liabilityInsured: "Public liability sum insured",
+  wcInsured: "Workmen's compensation sum insured",
 };
 
 /// The award's column that keeps each field's reason.
-export const REASON_COLUMN = { lad: "ladDiffersReason", dlp: "dlpDiffersReason", regulated: "regulatedDiffersReason" } as const satisfies Record<BaselineField, string>;
+export const REASON_COLUMN = {
+  lad: "ladDiffersReason",
+  dlp: "dlpDiffersReason",
+  regulated: "regulatedDiffersReason",
+  worksInsured: "worksInsuredDiffersReason",
+  liabilityInsured: "liabilityInsuredDiffersReason",
+  wcInsured: "wcInsuredDiffersReason",
+} as const satisfies Record<BaselineField, string>;
+
+/// The award's own sum column each insurance field compares (64-C4-b's columns).
+export const SUM_FIELD_COLUMN = { worksInsured: "worksSumInsured", liabilityInsured: "liabilitySumInsured", wcInsured: "wcSumInsured" } as const;
+export type SumField = keyof typeof SUM_FIELD_COLUMN;
+export const isSumField = (f: BaselineField): f is SumField => f in SUM_FIELD_COLUMN;
 
 /// The approved pack's frozen record, as the award reads it.
 export interface FrozenTender {
@@ -74,6 +92,8 @@ export interface Baseline {
     insuranceExcess: Sen | null;
     /// What a works policy must cover beyond the awarded sum: the uplift, resolved.
     worksUplift: { kind: "AMOUNT"; sen: Sen } | { kind: "PERCENT"; pct: string; sen: Sen } | null;
+    /// The works figure the Appendix governs: the awarded sum plus the uplift; null without an uplift.
+    worksMinimum?: Sen | null;
   };
   /// Sectional completion carries its own damages per section, which the award's single
   /// figure cannot state: they stay the Appendix's.
@@ -99,6 +119,7 @@ export function baselineOf(t: FrozenTender, awardedValue: Sen): Baseline {
       wcMinimum: a.wcMinimum,
       insuranceExcess: a.insuranceExcess,
       worksUplift: insured === "NOT_SET" ? null : a.worksInsuranceUpliftKind === "PERCENT" ? { kind: "PERCENT", pct: a.worksInsuranceUpliftPct!, sen: insured - awardedValue } : { kind: "AMOUNT", sen: insured - awardedValue },
+      worksMinimum: insured === "NOT_SET" ? null : insured,
     },
     sectional: a.sectionalCompletion === true,
   };
@@ -110,6 +131,15 @@ export interface AwardTerms {
   ladUnit: string;
   dlpMonths: number | null;
   regulatedActivity: boolean | null;
+  /// The sums insured the award states (64-C4-b); absent or null: the award states none.
+  worksSumInsured?: Sen | null;
+  liabilitySumInsured?: Sen | null;
+  wcSumInsured?: Sen | null;
+}
+
+/// The figure the Appendix governs for an insurance field; null where it states none.
+export function appendixInsured(field: SumField, b: Baseline): Sen | null {
+  return field === "worksInsured" ? (b.insurance.worksMinimum ?? null) : field === "liabilityInsured" ? b.insurance.tplMinimum : b.insurance.wcMinimum;
 }
 
 /// The months a DLP baseline states: none is 0.
@@ -152,6 +182,14 @@ export function matchesBaseline(field: BaselineField, b: Baseline, v: AwardTerms
       return b.dlp ? v.dlpMonths === dlpMonthsOf(b.dlp) : null;
     case "regulated":
       return b.regulated != null ? v.regulatedActivity === b.regulated : null;
+    case "worksInsured":
+    case "liabilityInsured":
+    case "wcInsured": {
+      // The award stating none lets the Appendix govern; the Appendix silent has nothing to differ from.
+      const stated = v[SUM_FIELD_COLUMN[field]] ?? null;
+      const governed = appendixInsured(field, b);
+      return stated == null || governed == null ? null : stated === governed;
+    }
   }
 }
 

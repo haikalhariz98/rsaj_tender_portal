@@ -5,7 +5,9 @@
  * The Letter of Acceptance may state a sum insured for each kind of policy the contract carries: the works
  * (a CAR or EAR policy accepted for the works counts as works), public liability and workmen's compensation.
  * Which figure governs a kind, in ADR 0021's precedence (the award over the Appendix):
- * - the award states one: it governs, even below the Appendix's minimum; then both figures are shown;
+ * - the award states one: it governs, even below the Appendix's minimum; then both figures are shown, and a
+ *   figure other than the one the Appendix governs, above or below, needs its reason before issue (6.13 Part A
+ *   ruling on BD-613-2, through 64-C4's difference path in appendix-baseline.ts);
  * - the award states none: the frozen tender Appendix's minimum governs, shown with its source "Appendix"
  *   (the works: the awarded sum plus the Appendix's uplift, resolved half up; public liability: the
  *   third-party minimum; workmen's compensation: its minimum);

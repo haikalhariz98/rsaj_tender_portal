@@ -356,7 +356,10 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
       signatoryName: award.signatoryName,
       issuedOn: day(award.issuedAt),
       contractNumber: award.contract?.number ?? null,
-      appendixReasons: { lad: award.ladDiffersReason, dlp: award.dlpDiffersReason, regulated: award.regulatedDiffersReason },
+      appendixReasons: { lad: award.ladDiffersReason, dlp: award.dlpDiffersReason, regulated: award.regulatedDiffersReason, worksInsured: award.worksInsuredDiffersReason, liabilityInsured: award.liabilityInsuredDiffersReason, wcInsured: award.wcInsuredDiffersReason },
+      worksSumInsured: senOrNull(award.worksSumInsured),
+      liabilitySumInsured: senOrNull(award.liabilitySumInsured),
+      wcSumInsured: senOrNull(award.wcSumInsured),
     },
     tender,
     exercise: {

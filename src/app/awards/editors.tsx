@@ -106,20 +106,24 @@ export function EditTermsDrawer({
   label?: string;
   /// 64-C4: what the frozen tender states for each term, in words (null: states nothing).
   /// Not given: the exercise froze no Appendix, and the form is as before.
-  tender?: { lad: string | null; dlp: string | null; regulated: string | null } | null;
+  tender?: { lad: string | null; dlp: string | null; regulated: string | null; worksInsured?: string | null; liabilityInsured?: string | null; wcInsured?: string | null } | null;
   /// 64-C4-b: the tender Appendix's insurance minimum for each kind, in words (null: it states none).
   insuranceMinimums?: { works: string | null; liability: string | null; wc: string | null } | null;
 }) {
   const bond = { name: "bondRequired", in: ["yes"] } as const;
   const fromTender = (t: string | null | undefined, words = "The tender Appendix states") => (t ? `${words}: ${t}. Stating it otherwise needs a reason, below.` : undefined);
   const minimum = (t: string | null | undefined) =>
-    !insuranceMinimums ? "Empty: the award states none, and the tender Appendix's minimum governs where it states one." : t ? `The tender Appendix's minimum: ${t}. A figure stated here governs instead, even below it; both are then shown.` : "The tender Appendix states no minimum. Empty: not stated, and the policy's sum is not compared.";
+    !insuranceMinimums ? "Empty: the award states none, and the tender Appendix's minimum governs where it states one." : t ? `The tender Appendix governs ${t}. Empty: that figure governs. A different figure stated here, above or below, governs instead and needs a reason, below; both are then shown.` : "The tender Appendix states no minimum. Empty: not stated, and the policy's sum is not compared.";
   const reasons: Field[] = tender
     ? [
         { kind: "note", text: "Where a term differs from the tender, say why. Each reason is kept in the award's history and shown beside the term; the instrument is not issued while a difference has none." },
         ...(tender.lad ? [{ kind: "textarea", name: "ladDiffersReason", label: "Why the liquidated damages differ from the tender Appendix", hint: "Only where they differ. Left empty where they match." } as const] : []),
         ...(tender.dlp ? [{ kind: "textarea", name: "dlpDiffersReason", label: "Why the defects liability period differs from the tender Appendix", hint: "Only where it differs." } as const] : []),
         ...(tender.regulated ? [{ kind: "textarea", name: "regulatedDiffersReason", label: "Why the regulated-activity answer differs from the tender's", hint: "Only where it differs." } as const] : []),
+        // BD-613-2 ruling: a sum insured stated otherwise than the figure the Appendix governs needs its reason.
+        ...(tender.worksInsured ? [{ kind: "textarea", name: "worksInsuredDiffersReason", label: "Why the works sum insured differs from the tender Appendix", hint: "Only where the award states a figure other than the one the Appendix governs." } as const] : []),
+        ...(tender.liabilityInsured ? [{ kind: "textarea", name: "liabilityInsuredDiffersReason", label: "Why the public liability sum insured differs from the tender Appendix", hint: "Only where it differs." } as const] : []),
+        ...(tender.wcInsured ? [{ kind: "textarea", name: "wcInsuredDiffersReason", label: "Why the workmen's compensation sum insured differs from the tender Appendix", hint: "Only where it differs." } as const] : []),
       ]
     : [];
   return (

@@ -207,6 +207,9 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
     ladDiffersReason: award.ladDiffersReason,
     dlpDiffersReason: award.dlpDiffersReason,
     regulatedDiffersReason: award.regulatedDiffersReason,
+    worksInsuredDiffersReason: award.worksInsuredDiffersReason,
+    liabilityInsuredDiffersReason: award.liabilityInsuredDiffersReason,
+    wcInsuredDiffersReason: award.wcInsuredDiffersReason,
   };
   // 64-C4: an award opened before its terms were pre-filled is offered the tender's on its first save.
   if (ev.appendix && editable(status).terms) {
@@ -464,13 +467,16 @@ function FromRecommendation({ differs, reason, recommended, children }: { differ
 
 /// The insurance the tender Appendix states: carried to the contract, not restated by the award.
 /// 64-C4-b: the sum insured that governs a kind, with its source; the award's figure below the Appendix's shows both.
-function GoverningSum({ g }: { g: Governing }) {
+function GoverningSum({ g, reason }: { g: Governing; reason: string | null }) {
   if (g.state === "NOT_STATED") return notSet("Not stated by the award or a tender Appendix: not compared");
   if (g.state === "APPENDIX") return <span>{formatMoney(g.sen)} <span className="text-ink-3">· from the tender Appendix (the award states none)</span></span>;
+  // BD-613-2 ruling: a figure other than the one the Appendix governs, above or below, is a difference: both figures, and its reason.
+  const differs = g.appendix != null && g.sen !== g.appendix;
   return (
     <span className="flex flex-col items-start gap-1">
       <span>{formatMoney(g.sen)} <span className="text-ink-3">· the award&apos;s own figure, which governs</span></span>
-      {g.belowAppendix && g.appendix != null && <Chip tone="warn">{`Below the tender Appendix's minimum of ${formatMoney(g.appendix)}`}</Chip>}
+      {differs && <Chip tone={reason ? "info" : "warn"}>{`Differs from the tender Appendix's ${formatMoney(g.appendix!)}${g.belowAppendix ? " (below it)" : " (above it)"}`}</Chip>}
+      {differs && <span className="text-[12.5px] text-ink-3">{reason ? `Why: ${reason}` : "No reason recorded: the instrument is not issued until there is one."}</span>}
     </span>
   );
 }
@@ -604,7 +610,7 @@ function OverviewPanel({ l, ev, awardee, recommendation, methodName, typeName, p
               { label: "Terms band", value: ex.termsBandKey ? (l.ex.bandSnapshot as { terms?: { label?: string } } | null)?.terms?.label ?? "As recorded on the exercise" : ex.termsState === "NONE_IN_REGIME" ? "Not applicable in this band" : notSet() },
               { label: "Appointment-letter variant", value: kind === "LETTER_OF_ACCEPTANCE" ? "Not applicable" : award.variantName ?? (ev.variant?.state === "SELECTED" ? ev.variant.variant.nameEn : notSet(ev.variant ? awardFindingText({ code: ev.variant.state === "NONE" ? "VARIANT_NONE" : ev.variant.state === "AMBIGUOUS" ? "VARIANT_AMBIGUOUS" : "TERMS_NOT_SET", level: "block" }) : NOT_SET)) },
               { label: "If work does not commence", value: kind === "LETTER_OF_ACCEPTANCE" ? "Not applicable" : ev.consequence ? NON_COMMENCEMENT_LABEL[ev.consequence] : notSet() },
-              ...INSURED_KINDS.map((k) => ({ label: `${INSURANCE_KIND_LABEL[k]}, sum insured`, value: <GoverningSum g={governingSum(k, awardSumsOf(award)[k], ev.appendix?.baseline ?? null, senFromDecimal(award.awardedValue))} /> })),
+              ...INSURED_KINDS.map((k) => ({ label: `${INSURANCE_KIND_LABEL[k]}, sum insured`, value: <GoverningSum g={governingSum(k, awardSumsOf(award)[k], ev.appendix?.baseline ?? null, senFromDecimal(award.awardedValue))} reason={{ WORKS: award.worksInsuredDiffersReason, PUBLIC_LIABILITY: award.liabilityInsuredDiffersReason, WORKMENS_COMPENSATION: award.wcInsuredDiffersReason }[k]} /> })),
               ...(ev.appendix ? tenderInsurance(ev.appendix.baseline) : []),
             ]}
           />
@@ -1326,6 +1332,9 @@ const FIELD_NAME: Record<string, string> = {
   ladDiffersReason: "Why the liquidated damages differ from the tender Appendix",
   dlpDiffersReason: "Why the defects liability period differs from the tender Appendix",
   regulatedDiffersReason: "Why the regulated-activity answer differs from the tender's",
+  worksInsuredDiffersReason: "Why the works sum insured differs from the tender Appendix",
+  liabilityInsuredDiffersReason: "Why the public liability sum insured differs from the tender Appendix",
+  wcInsuredDiffersReason: "Why the workmen's compensation sum insured differs from the tender Appendix",
   termsFrom: "Terms opened from",
   erpCommitmentNo: "Commitment number",
   erpCommitmentKind: "It is",

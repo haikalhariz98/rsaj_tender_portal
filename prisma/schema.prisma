@@ -3377,6 +3377,12 @@ model Award {
   ladDiffersReason       String?
   dlpDiffersReason       String?
   regulatedDiffersReason String?
+  /// 6.13 Part A ruling on BD-613-2: why a sum insured the award states differs from the figure the frozen
+  /// Appendix governs (the works: the awarded value plus its uplift; public liability and workmen's
+  /// compensation: its minimums). Null: it does not differ, the award states none, or the Appendix is silent.
+  worksInsuredDiffersReason     String?
+  liabilityInsuredDiffersReason String?
+  wcInsuredDiffersReason        String?
   /// 6.8 (E-9, OD-8 A): why the awarded value or completion period differs from the evaluation's
   /// recommendation, on an exercise evaluated through 6.8. Null: not different, or nothing to compare.
   recValueDiffersReason  String?
