@@ -31,3 +31,20 @@ export function minimumFaults(r: MinimumReading): Finding[] {
   if (r.state === "BELOW") return [{ code: "BELOW_MINIMUM", level: "block", data: { minimum: r.minimum.toString(), value: r.value.toString(), first: r.first ? "yes" : "no" } }];
   return [];
 }
+
+/// BD-613-29 (approved with condition): which measure the minimum is judged on, said with the certificate and on
+/// Configuration › Post-award, as an assumed reading (the sources state no measure).
+export const MINIMUM_MEASURE_WORDS = {
+  first: { en: "the first interim certificate is judged on its gross value to date", ms: "perakuan interim pertama dinilai pada nilai kasar setakat ini" },
+  subsequent: { en: "a later one on the amount it carries forward", ms: "perakuan berikutnya pada amaun yang dibawa ke hadapan" },
+  assumed: { en: "an assumed reading: the sources state no measure", ms: "bacaan andaian: sumber tidak menyatakan ukuran" },
+} as const;
+
+/// The line the certificate carries: which minimum, on which measure, and that the measure is assumed.
+export function minimumMeasureText(first: boolean, minimum: Sen | null, fmt: (v: Sen) => string): { en: string; ms: string } {
+  const w = MINIMUM_MEASURE_WORDS;
+  const amount = minimum == null ? "not set" : fmt(minimum);
+  return first
+    ? { en: `Minimum ${amount}: ${w.first.en} (${w.assumed.en}).`, ms: `Minimum ${amount}: ${w.first.ms} (${w.assumed.ms}).` }
+    : { en: `Minimum ${amount}: ${w.subsequent.en.replace(/^a later one/, "a later interim certificate is judged")} (${w.assumed.en}).`, ms: `Minimum ${amount}: ${w.subsequent.ms} (${w.assumed.ms}).` };
+}

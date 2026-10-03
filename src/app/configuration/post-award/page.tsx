@@ -12,6 +12,7 @@ import { KeyValues } from "@/components/ui/stat";
 import { KIND_WORDS } from "@/lib/certificate/labels";
 import { db } from "@/lib/db";
 import { CLOCK_WORDS, REMAINDER_WORDS, ROUTE_FIGURE_WORDS } from "@/lib/payment/labels";
+import { MINIMUM_MEASURE_WORDS } from "@/lib/payment/minimum";
 import { CONTRACT_CLOCKS, PAYMENT_ROUTE_FIGURES, WATERFALL_REMAINDERS, type ContractClock } from "@/lib/payment/types";
 import { exerciseOrg } from "@/lib/method/repo";
 import { loadPostAwardPolicy } from "@/lib/supervision/load";
@@ -158,6 +159,7 @@ export default async function PostAwardControlsPage() {
                 { label: "First release of retention", value: <Setting value={firstRelease ? `${firstRelease}% of what is held, at practical completion` : null} provenance={p?.firstReleaseProvenance} unset="The first release of retention is refused, naming this setting." /> },
                 { label: "The figure an interim certificate is routed on", value: <Setting value={p?.paymentRouteFigure ? ROUTE_FIGURE_WORDS[p.paymentRouteFigure].en : null} provenance={p?.paymentRouteProvenance} unset="An interim certificate cannot be sent for approval: the refusal names this setting." /> },
                 { label: "Where the sen of a pro-rata split go", value: <Setting value={p?.waterfallRemainder ? REMAINDER_WORDS[p.waterfallRemainder].en : null} provenance={p?.waterfallProvenance} unset="A certificate that cannot pay every nominated party and assignee in full, and leaves sen over, is refused." /> },
+                { label: "The certificate's minimum", value: <span className="flex flex-col items-start gap-1.5"><span>{`From each contract's baseline: ${MINIMUM_MEASURE_WORDS.first.en}, ${MINIMUM_MEASURE_WORDS.subsequent.en}.`}</span><ProvenanceBadge value="ASSUMED" /><span className="text-[12.5px] text-ink-3">{`The measure is ${MINIMUM_MEASURE_WORDS.assumed.en}.`}</span></span> },
                 { label: "Interim certificates before the contract is signed", value: <Setting value={p?.preExecutionInterimLimit == null ? null : p.preExecutionInterimLimit === 0 ? "None" : `Up to ${p.preExecutionInterimLimit}, with the securities, insurances and social security registration in place`} provenance={p?.preExecutionProvenance} unset="None issues before the contract is executed; one raised says so." /> },
               ]}
             />

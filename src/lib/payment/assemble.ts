@@ -18,14 +18,14 @@
 
 import type { BaselineValues } from "@/lib/contract/baseline";
 import { ladFaults, ladLine, type Decision, type LadLine } from "@/lib/lad/charge";
-import { parseSen, senToDecimalString, type Sen } from "@/lib/money";
+import { formatMoney, parseSen, senToDecimalString, type Sen } from "@/lib/money";
 import type { ContractPartyKind } from "@/lib/supervision/types";
 
 import { recoupments, type LiveAdvance } from "./advance";
 import { preExecutionFaults, type PreExecutionFacts } from "./eligibility";
 import { interimCertificate, type InterimResult } from "./interim";
 import { afterCutOff, materialsAllowance, materialsPct, type MaterialLine, type MaterialsPct } from "./materials";
-import { minimumFaults, minimumReading, type MinimumReading } from "./minimum";
+import { minimumFaults, minimumMeasureText, minimumReading, type MinimumReading } from "./minimum";
 import { retentionReading, type RetentionReading, type Tiers } from "./retention";
 import type { Day, Finding, KeyedDeductionKind, Provenance, ValuationTrigger, WaterfallRemainder } from "./types";
 import { issueClockFrom } from "./valuation";
@@ -216,6 +216,11 @@ export function assembleInterim(i: AssembleInput): Assembled {
 
   const minimum = result.figures ? minimumReading({ first: sequence === 1, firstMinimum: b.firstInterimMinimum, subsequentMinimum: b.subsequentInterimMinimum, gross: result.figures.gross, carryForward: result.figures.carryForward }) : ({ state: "NOT_SET", field: sequence === 1 ? "firstInterimMinimum" : "subsequentInterimMinimum" } as MinimumReading);
   if (result.figures) faults.push(...minimumFaults(minimum));
+  // BD-613-29: the certificate says which measure its minimum is judged on, and that the measure is assumed.
+  if (result.snapshot) {
+    const t = minimumMeasureText(sequence === 1, sequence === 1 ? b.firstInterimMinimum : b.subsequentInterimMinimum, (x) => formatMoney(x));
+    result.snapshot.lines.push({ key: "minimumMeasure", labelEn: "The certificate's minimum (assumed measure)", labelMs: "Minimum perakuan (ukuran andaian)", type: "TEXT", value: t.en, overridable: false });
+  }
   // FR-PAY-008: the value to date beyond the revised contract sum needs a Variation Order Certificate first.
   if (result.figures) faults.push(...variationFaults({ valuedTotal: result.figures.gross, revisedSum: result.figures.newSum, unapproved: 0 }));
 
