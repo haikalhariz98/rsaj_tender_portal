@@ -1,0 +1,36 @@
+diff -r -U0 snapfix-before/configuration__awards.txt snapfix-after/configuration__awards.txt
+--- snapfix-before/configuration__awards.txt	2026-10-03 09:13:50.611084971 +0000
++++ snapfix-after/configuration__awards.txt	2026-10-03 09:14:39.047087850 +0000
+@@ -178 +178 @@
+-Workmen's compensation insurance · every type · 1% of the sum
++Workmen's compensation insurance · every type · 10% of the sum
+diff -r -U0 snapfix-before/configuration__post-award.txt snapfix-after/configuration__post-award.txt
+--- snapfix-before/configuration__post-award.txt	2026-10-03 09:13:49.235084889 +0000
++++ snapfix-after/configuration__post-award.txt	2026-10-03 09:14:38.167087797 +0000
+@@ -43,0 +44,4 @@
++The certificate's minimum
++From each contract's baseline: the first interim certificate is judged on its gross value to date, a later one on the amount it carries forward.
++Assumed
++The measure is an assumed reading: the sources state no measure.
+@@ -88,0 +93 @@
++@title: A working default, awaiting sign-off
+diff -r -U0 snapfix-before/projects__demo_con3__tab__payments&section__damages.txt snapfix-after/projects__demo_con3__tab__payments&section__damages.txt
+--- snapfix-before/projects__demo_con3__tab__payments&section__damages.txt	2026-10-03 09:13:39.735084324 +0000
++++ snapfix-after/projects__demo_con3__tab__payments&section__damages.txt	2026-10-03 09:14:30.699087353 +0000
+@@ -34 +34 @@
+-The rate is the baseline's, never typed. No damages line exists before the Certificate of Non-Completion is issued; a certificate past the date for completion with no decision is refused, never issued without its damages.
++The rate is the baseline's, never typed, frozen with the decision and its Certificate of Non-Completion. No damages line exists before the Certificate of Non-Completion is issued; a certificate past the date for completion with no decision is refused, never issued without its damages.
+@@ -38 +38 @@
+-RM100
++RM100 (the baseline's; frozen with the decision)
+diff -r -U0 snapfix-before/projects__demo_con3__tab__payments&section__retention.txt snapfix-after/projects__demo_con3__tab__payments&section__retention.txt
+--- snapfix-before/projects__demo_con3__tab__payments&section__retention.txt	2026-10-03 09:13:36.279084119 +0000
++++ snapfix-after/projects__demo_con3__tab__payments&section__retention.txt	2026-10-03 09:14:27.967087191 +0000
+@@ -42,0 +43,5 @@
++At the cap
++Where the three together pass the cap, the cap is shared pro rata to what each would hold; the leftover sen go by the payment waterfall's rule (
++to the largest remainders, a sen each
++).
++Assumed
+@@ -52,0 +58 @@
++@title: A working default, awaiting sign-off

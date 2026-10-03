@@ -1,0 +1,154 @@
+--- snap613-fix/projects__demo_con3__certificates__demo_hct1__tab__figures.txt	2026-10-03 04:52:09.904606936 +0000
++++ snapfix-after/projects__demo_con3__certificates__demo_hct1__tab__figures.txt	2026-10-03 09:14:34.267087566 +0000
+@@ -24 +24 @@
+-18
++20
+@@ -26 +26 @@
+-Demo valuation: retention on work executed only (invented), computed 30 Sep 2026. Frozen: nothing is overridden after the draft.
++Interim valuation: gross value less retention and previous payments, less the deductions, computed 30 Sep 2026. Frozen: nothing is overridden after the draft.
+@@ -28 +28,5 @@
+-Work executed
++Original contract sum
++RM36,000.00
++Net adjustment of the contract sum (issued adjustments)
++RM0.00
++Work executed by the main contractor, to date
+@@ -30,5 +34,31 @@
+-Less retention (5% of work executed)
+-RM600.00
+-Materials on site
+-Computed: RM1,500.00. Overridden for Chen Wei Ling: Two deliveries were not yet on site at the valuation (demo)
+-RM1,350.00
++Unfixed materials and goods on site, eligible
++RM0.00
++Allowance on unfixed materials (per cent)
++80%
++Allowance on unfixed materials
++RM0.00
++Nominated sub-contractors, to date
++RM0.00
++Nominated suppliers, to date
++RM0.00
++Retention: main contractor
++RM0.00
++Retention: nominated sub-contractors
++RM0.00
++Retention: nominated suppliers
++RM0.00
++Retention
++Does not apply: the contract's terms band holds none
++Retention released to date (paid through this and earlier certificates)
++RM0.00
++Previously certified
++RM0.00
++Advance recouped: main contractor
++RM0.00
++Advance recouped: nominated sub-contractors
++RM0.00
++Insurance premiums and social security paid by the employer
++RM0.00
++Workers' wages paid by the employer
++Computed: RM500.00. Overridden for Chen Wei Ling: One worker's wages were settled by the contractor before the valuation (demo)
++RM250.00
+@@ -36 +66,3 @@
+-Less previously certified
++Costs of the contractor's failure to comply with instructions
++RM0.00
++Gross value on the previous certificate
+@@ -38,9 +70,26 @@
+-Gross valuation
+-Recomputed from the lines as they stand; as computed: RM13,500.00.
+-RM13,350.00
+-Net valuation
+-Recomputed from the lines as they stand; as computed: RM12,900.00.
+-RM12,750.00
+-Amount due
+-Recomputed from the lines as they stand; as computed: RM12,900.00.
+-RM12,750.00
++The certificate's minimum (assumed measure)
++Minimum RM1,700: the first interim certificate is judged on its gross value to date (an assumed reading: the sources state no measure).
++New contract sum
++Recomputed from its lines: never overridden.
++RM36,000.00
++Gross value of work to date
++Recomputed from its lines: never overridden.
++RM12,000.00
++Less retention and previously certified
++Recomputed from its lines: never overridden.
++RM0.00
++Carried forward
++Recomputed from its lines: never overridden.
++RM12,000.00
++Total deductions
++Recomputed from the lines as they stand; as computed: RM500.00.
++RM250.00
++Payment recommended
++Recomputed from the lines as they stand; as computed: RM11,500.00.
++RM11,750.00
++Gross value this period
++Recomputed from its lines: never overridden.
++RM12,000.00
++Paid by Finance
++Not recorded yet: Finance returns its batch number and the day paid.
++Record Finance's payment
+--- snap613-fix/projects__demo_con3__certificates__demo_hct1__tab__signatures.txt	2026-10-03 04:52:10.436606967 +0000
++++ snapfix-after/projects__demo_con3__certificates__demo_hct1__tab__signatures.txt	2026-10-03 09:14:34.879087602 +0000
+@@ -24 +24 @@
+-18
++20
+--- snap613-fix/projects__demo_con3__certificates__demo_hct1__tab__routing.txt	2026-10-03 04:52:10.920606996 +0000
++++ snapfix-after/projects__demo_con3__certificates__demo_hct1__tab__routing.txt	2026-10-03 09:14:35.363087631 +0000
+@@ -24 +24 @@
+-18
++20
+@@ -52 +52 @@
+-Checked by Eng Siew Mei, 01 Oct 2026 · Resubmitted with the delivery orders
++Checked by Eng Siew Mei, 01 Oct 2026 · Resubmitted with the payroll
+--- snap613-fix/projects__demo_con3__certificates__demo_hct1__tab__history.txt	2026-10-03 04:52:11.452607028 +0000
++++ snapfix-after/projects__demo_con3__certificates__demo_hct1__tab__history.txt	2026-10-03 09:14:35.995087668 +0000
+@@ -24 +24 @@
+-18
++20
+@@ -246 +246 @@
+-Resubmitted with the delivery orders
++Resubmitted with the payroll
+@@ -250,0 +251,10 @@
++Approval route
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · approval route
++01 Oct 2026
++Route
++:
++Head of Contract & Procurement → Finance Director
++Routed on
++:
++An invented demo trail, not routed by the approval matrix
++Created
+@@ -287,0 +298,10 @@
++Created
++Approval route
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · approval route
++30 Sep 2026
++Route
++:
++Head of Contract & Procurement → Finance Director
++Routed on
++:
++An invented demo trail, not routed by the approval matrix
+@@ -323 +343 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · Materials on site
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · Workers' wages paid by the employer
+@@ -327 +347 @@
+-Materials on site
++Workers' wages paid by the employer
+@@ -330 +350 @@
+-RM1,500.00
++RM500.00
+@@ -334 +354 @@
+-RM1,350.00
++RM250.00
+@@ -343 +363 @@
+-Two deliveries were not yet on site at the valuation (demo)
++One worker's wages were settled by the contractor before the valuation (demo)
+@@ -359 +379 @@
+-Demo valuation: retention on work executed only (invented)
++Interim valuation: gross value less retention and previous payments, less the deductions
