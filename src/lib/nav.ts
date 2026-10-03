@@ -55,7 +55,8 @@ export const STAFF_NAV: NavGroup[] = [
     items: [
       // 6.15a: the staff-side register (ADR 0019). The vendor workspace below stays not built until sign-in (6.15b).
       { href: "/suppliers", label: "Suppliers", icon: "building", built: true },
-      { href: "/documents", label: "Documents", icon: "files" },
+      // 6.14 increment 2: the documents register (Library, Distribution, Routing sheets; the review queue waits for sign-in).
+      { href: "/documents", label: "Documents", icon: "files", built: true },
     ],
   },
   {
