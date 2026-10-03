@@ -79,3 +79,18 @@ describe("a list's per-row actions (6.6 review S-2)", () => {
     expect(out).toContain('aria-label="Open"');
   });
 });
+
+describe("a chip's provenance tag (6.13A residual: the shared badge, never '(assumed reading)')", () => {
+  const cols: Column[] = [{ key: "phase", label: "Where it stands" }];
+  const row = (provenance?: "ASSUMED"): Row => ({ id: "1", search: "a", cells: { phase: { kind: "chips", items: [{ text: "Active" }, { text: "In Delay", tone: "err", ...(provenance ? { provenance } : {}) }] } } });
+  const render = (r: Row) => renderToStaticMarkup(createElement(DataList, { columns: cols, rows: [r] }));
+  it("a chip with provenance carries the shared Assumed badge beside it", () => {
+    const out = render(row("ASSUMED"));
+    expect(out).toContain(">In Delay<");
+    expect(out).toContain(">Assumed<");
+    expect(out).not.toContain("assumed reading");
+  });
+  it("without it, no badge", () => {
+    expect(render(row())).not.toContain(">Assumed<");
+  });
+});

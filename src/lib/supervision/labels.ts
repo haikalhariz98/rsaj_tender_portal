@@ -5,7 +5,7 @@
 
 import { formatDate } from "@/lib/format";
 
-import type { DelayReading } from "./delay";
+import { restsOnStraightLine, type DelayReading } from "./delay";
 import type { DelegationState } from "./delegation";
 import type { EntryState } from "./diary";
 import type { startRuleReading } from "./possession";
@@ -135,8 +135,13 @@ const pct = (v: string | null) => (v == null ? "none recorded" : `${v}%`);
 /// BD-613-12 ruling: the In Delay reading is tagged ASSUMED wherever shown, as it rests on this reading no source states.
 export const DELAY_BASIS = "Planned progress between the approved programme's points is read on a straight line.";
 
-/// The In Delay reading in words, with what it was judged on.
-export function delayWords(r: DelayReading): { title: Words; detail: Words; tone: "err" | "ok" | "warn" | "neutral" } {
+/// The In Delay reading in words, with what it was judged on, and whether it rests on the straight-line assumption
+/// (tagged ASSUMED only then).
+export function delayWords(r: DelayReading): { title: Words; detail: Words; tone: "err" | "ok" | "warn" | "neutral"; assumed: boolean } {
+  return { ...delayText(r), assumed: restsOnStraightLine(r) };
+}
+
+function delayText(r: DelayReading): { title: Words; detail: Words; tone: "err" | "ok" | "warn" | "neutral" } {
   switch (r.state) {
     case "IN_DELAY":
       return r.why === "LAPSED"

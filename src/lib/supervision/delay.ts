@@ -60,3 +60,14 @@ export const isInDelay = (r: DelayReading): boolean => r.state === "IN_DELAY";
 
 /// The ids whose reading is In Delay (review 14: the Projects list's view over the whole set).
 export const inDelayIds = (readings: ReadonlyMap<string, DelayReading>): string[] => [...readings].filter(([, r]) => r.state === "IN_DELAY").map(([id]) => id);
+
+/**
+ * Whether a reading rests on the straight-line assumption (BD-613-12, narrowed by the 6.13A residual review): only
+ * a reading judged against the approved programme's planned progress (behind it, or not), which is read on a
+ * straight line between its points. Not possessed, not set, not judged, and a lapsed date for completion do not:
+ * they are tagged nothing.
+ */
+export const restsOnStraightLine = (r: DelayReading): boolean => r.state === "ON_TRACK" || (r.state === "IN_DELAY" && r.why === "BEHIND");
+
+/// The In Delay ids whose reading rests on the straight-line assumption (the Projects list tags only these).
+export const assumedDelayIds = (readings: ReadonlyMap<string, DelayReading>): string[] => [...readings].filter(([, r]) => r.state === "IN_DELAY" && restsOnStraightLine(r)).map(([id]) => id);

@@ -13,6 +13,9 @@ const PROVENANCE: Record<string, { label: string; tone: Tone; hint: string }> = 
   ASSUMED: { label: "Assumed", tone: "warn", hint: PROVENANCE_HINT.ASSUMED },
 };
 
+/// The badge's word for a provenance, for text that cannot hold the badge (a list's search and CSV export).
+export const provenanceLabel = (value: string | null | undefined): string => (value ? PROVENANCE[value]?.label : undefined) ?? "Not set";
+
 export function ProvenanceBadge({ value }: { value: string | null | undefined }) {
   const p = value ? PROVENANCE[value] : undefined;
   if (!p) {

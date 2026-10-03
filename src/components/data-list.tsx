@@ -15,6 +15,7 @@ import { Badge, Chip } from "@/components/ui/badge";
 import { Button, iconButtonClass } from "@/components/ui/button";
 import { cx } from "@/components/ui/cx";
 import { EmptyState, Meter } from "@/components/ui/feedback";
+import { provenanceLabel, ProvenanceBadge } from "@/components/ui/provenance";
 import { Select } from "@/components/ui/select";
 import { VALUE_SULIT_LABEL } from "@/lib/documents/labels";
 import { formatRM } from "@/lib/format";
@@ -45,7 +46,9 @@ export type Cell =
   /// ("Within budget" over "No split found") rather than spending a column on each.
   /// A chip with `nowrap` keeps to one line from `md` up (its column must be sized to hold
   /// it); on a phone it still wraps.
-  | { kind: "chips"; items: { text: string; tone?: "ok" | "warn" | "err" | "info" | "brand"; nowrap?: boolean }[] }
+  /// A chip with `provenance` carries the shared provenance tag beside it (a reading that rests on an assumption,
+  /// say), so a list never writes "(assumed)" in its own words.
+  | { kind: "chips"; items: { text: string; tone?: "ok" | "warn" | "err" | "info" | "brand"; nowrap?: boolean; provenance?: "STATED" | "OBSERVED" | "ASSUMED" }[] }
   /// A filled bar with the figure beside it, and a marker at the configured warning
   /// threshold. Null percent renders as not set — a code with no allocation has not
   /// used none of its budget, and a bar drawn at zero says it has.
@@ -210,7 +213,7 @@ function cellText(cell: Cell | undefined): string {
     case "badges":
       return cell.items.join(" ");
     case "chips":
-      return cell.items.map((i) => i.text).join(" · ");
+      return cell.items.map((i) => (i.provenance ? `${i.text} (${provenanceLabel(i.provenance)})` : i.text)).join(" · ");
     case "meter":
       return cell.percent == null ? "" : `${cell.percent}%`;
   }
@@ -291,11 +294,21 @@ function CellView({ cell, nowrap = false }: { cell: Cell | undefined; nowrap?: b
         dash
       ) : (
         <span className="flex flex-col items-start gap-1">
-          {cell.items.map((item) => (
-            <Chip key={item.text} tone={item.tone} title={item.text} className={item.nowrap ? "md:whitespace-nowrap" : undefined}>
-              {item.text}
-            </Chip>
-          ))}
+          {cell.items.map((item) => {
+            const chip = (
+              <Chip key={item.text} tone={item.tone} title={item.text} className={item.nowrap ? "md:whitespace-nowrap" : undefined}>
+                {item.text}
+              </Chip>
+            );
+            return item.provenance ? (
+              <span key={item.text} className="flex flex-wrap items-center gap-1.5">
+                {chip}
+                <ProvenanceBadge value={item.provenance} />
+              </span>
+            ) : (
+              chip
+            );
+          })}
         </span>
       );
     case "badges": {

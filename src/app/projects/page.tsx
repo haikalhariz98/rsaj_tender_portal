@@ -4,6 +4,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
+import { ProvenanceBadge } from "@/components/ui/provenance";
 import { PHASE_TONE, PHASE_WORDS } from "@/lib/contract/labels";
 import { CONTRACT_PAGE, endorsedPhases, listContracts } from "@/lib/contract/load";
 import { CONTRACT_PHASES, type ContractPhase } from "@/lib/contract/status";
@@ -32,14 +33,17 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
   // 6.13 Part A review 14: In Delay is a view over the whole set, judged across every possessed contract, then paged.
   const org0 = await exerciseOrg();
   const today = org0?.timeZone ? dayOf(new Date(), org0.timeZone) : null;
-  const delayIds = org0 && today ? await inDelayContractIds(org0.id, today) : [];
+  const delay = org0 && today ? await inDelayContractIds(org0.id, today) : { ids: [], assumed: new Set<string>() };
+  const delayIds = delay.ids;
   const delayView = view === "delay";
   const data = await listContracts(page, delayView ? delayIds : null);
   const derived: Map<string, ContractPhase> = data.org ? await endorsedPhases(data.org.id, DERIVE_CAP) : new Map();
   const ready = [...derived.values()].filter((x) => x === "READY_TO_SIGN").length;
   const awaiting = [...derived.values()].filter((x) => x === "AWAITING_CONDITIONS").length;
   const pages = Math.ceil(data.total / CONTRACT_PAGE);
-  // 6.13 Part A (FR-SUP-010): In Delay, derived, never stored; the reading rests on an assumption (BD-613-12).
+  // 6.13 Part A (FR-SUP-010): In Delay, derived, never stored. Tagged ASSUMED (the shared badge) only where the
+  // reading rests on the straight-line assumption (BD-613-12, narrowed by the residual review); a lapsed date for
+  // completion does not.
   const inDelay = new Set(delayIds);
 
   const rows: Row[] = data.rows.map((r) => {
@@ -61,7 +65,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
         contract: { kind: "link", text: r.award.exercise.title, href: `/projects/${r.id}`, sub: `Contract ${r.number}` },
         contractor: { kind: "text", text: r.award.awardeeName },
         sum: { kind: "money", value: Number(r.contractSum.toString()) },
-        phase: inDelay.has(r.id) ? { kind: "chips", items: [{ text: PHASE_WORDS[phase].en, ...(TONE[PHASE_TONE[phase]] ? { tone: TONE[PHASE_TONE[phase]] } : {}) }, { text: "In Delay (assumed reading)", tone: "err" }] } : { kind: "badge", text: PHASE_WORDS[phase].en, tone: TONE[PHASE_TONE[phase]] },
+        phase: inDelay.has(r.id) ? { kind: "chips", items: [{ text: PHASE_WORDS[phase].en, ...(TONE[PHASE_TONE[phase]] ? { tone: TONE[PHASE_TONE[phase]] } : {}) }, { text: "In Delay", tone: "err", ...(delay.assumed.has(r.id) ? { provenance: "ASSUMED" as const } : {}) }] } : { kind: "badge", text: PHASE_WORDS[phase].en, tone: TONE[PHASE_TONE[phase]] },
         dates: { kind: "stack", title: r.contractDate ? `Contract Date ${formatDate(storedDay(r.contractDate))}` : "Not signed", sub: completion ? `Completion ${formatDate(storedDay(completion))}` : "Completion date not set until possession" },
       },
     };
@@ -72,7 +76,16 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
       <PageHeader
         title="Projects"
         subtitle="Contracts after award: formed, signed, stamped and distributed, on a fixed baseline."
-        meta={[`${data.counts.preparing} in preparation`, `${data.counts.returned} returned for amendment`, `${data.counts.legal} with the legal office`, `${awaiting} awaiting conditions`, `${ready} ready to sign`, `${data.counts.executed} executed`, `${delayIds.length} In Delay (assumed reading)`]}
+        meta={[`${data.counts.preparing} in preparation`, `${data.counts.returned} returned for amendment`, `${data.counts.legal} with the legal office`, `${awaiting} awaiting conditions`, `${ready} ready to sign`, `${data.counts.executed} executed`, <span key="delay" className="inline-flex flex-wrap items-center gap-1.5">
+            {`${delayIds.length} In Delay`}
+            {delay.assumed.size > 0 && (
+              <>
+                {`, ${delay.assumed.size} on the straight-line reading`}
+                <ProvenanceBadge value="ASSUMED" />
+              </>
+            )}
+          </span>,
+        ]}
       />
       <Callout tone="info" className="mb-6" title="Still to come here">
         Possession of site, supervision and site records are recorded on each contract&apos;s Team and Site tabs. Still to come: variations, extensions of time and liquidated damages; valuations, interim certificates, retention and the payment waterfall; completion, defects and the final account. Each contract&apos;s baseline here is what they will read.
@@ -81,7 +94,16 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
         <CardHeader
           icon={<FileIcon size={17} />}
           title={delayView ? "Contracts In Delay" : "Contracts"}
-          subtitle={delayView ? `Every contract In Delay today, judged across all of them, newest number first. ${DELAY_BASIS} (assumed)` : "Newest number first. A contract appears here when its award's instrument is issued."}
+          subtitle={
+            delayView ? (
+              <span className="inline-flex flex-wrap items-center gap-1.5">
+                {`Every contract In Delay today, judged across all of them, newest number first.${delay.assumed.size > 0 ? ` ${DELAY_BASIS}` : ""}`}
+                {delay.assumed.size > 0 && <ProvenanceBadge value="ASSUMED" />}
+              </span>
+            ) : (
+              "Newest number first. A contract appears here when its award's instrument is issued."
+            )
+          }
           actions={delayView ? <ButtonLink href="/projects" size="sm" variant="secondary">All contracts</ButtonLink> : <ButtonLink href="/projects?view=delay" size="sm" variant="secondary">{`In Delay (${delayIds.length})`}</ButtonLink>}
           divided={false}
         />

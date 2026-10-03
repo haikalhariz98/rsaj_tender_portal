@@ -16,7 +16,7 @@ import { db } from "@/lib/db";
 import type { DelegationFacts, SoOffice } from "./authority";
 import { supervisedHolders, type SupervisedRule } from "./blocks";
 import { delayReadingsOf as delayReadingsBatch } from "./delay-batch";
-import { inDelay, inDelayIds, type DelayReading } from "./delay";
+import { assumedDelayIds, inDelay, inDelayIds, type DelayReading } from "./delay";
 import { programmeInForce, type PointIn, type RevisionFacts } from "./programme";
 import { soOn } from "./so";
 import type { DelegateKind, ProgrammeDecision, SupervisionAct } from "./types";
@@ -154,7 +154,7 @@ export async function methodKeyOf(l: LoadedContract, client: Tx = db): Promise<s
  * Review 14: the organisation's contracts In Delay today, over the whole set (every possessed contract, read in
  * batched queries), so the Projects list's In Delay view pages within them rather than filtering one page.
  */
-export async function inDelayContractIds(organisationId: string, today: string, client: Tx = db): Promise<string[]> {
+export async function inDelayContractIds(organisationId: string, today: string, client: Tx = db): Promise<{ ids: string[]; assumed: Set<string> }> {
   const possessed = await client.contract.findMany({
     where: { organisationId, possession: { isNot: null } },
     select: { id: true, baselines: { where: { version: { not: null } }, select: { id: true, version: true, reason: true, recordedOn: true, dateForCompletion: true } } },
@@ -163,7 +163,9 @@ export async function inDelayContractIds(organisationId: string, today: string, 
     const inForce = baselineFor(c.baselines.map((b) => ({ ...b, reason: b.reason as BaselineReason | null, recordedOn: day(b.recordedOn) })), today);
     return { id: c.id, dateForCompletion: inForce?.dateForCompletion ?? null };
   });
-  return inDelayIds(await delayReadingsOf(organisationId, rows, today, client));
+  const readings = await delayReadingsOf(organisationId, rows, today, client);
+  // The 6.13A residual review: which of them rest on the straight-line assumption (tagged ASSUMED only those).
+  return { ids: inDelayIds(readings), assumed: new Set(assumedDelayIds(readings)) };
 }
 
 

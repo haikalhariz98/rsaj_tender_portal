@@ -122,11 +122,12 @@ export type SupervisionView = Awaited<ReturnType<typeof supervisionView>>;
 // ------------------------------------------------------------------ the In Delay reading, tagged ASSUMED (BD-613-12 ruling)
 
 
+/// The 6.13A residual review: the tag and the basis only on a reading that rests on the straight line.
 function DelayTag({ d }: { d: ReturnType<typeof delayWords> }) {
   return (
     <span className="flex flex-wrap items-center gap-2">
       <Badge tone={d.tone === "neutral" ? undefined : d.tone}>{d.title.en}</Badge>
-      <ProvenanceBadge value="ASSUMED" />
+      {d.assumed && <ProvenanceBadge value="ASSUMED" />}
     </span>
   );
 }
@@ -135,10 +136,12 @@ function DelayDetail({ d, lead = false }: { d: ReturnType<typeof delayWords>; le
   return (
     <span className="flex flex-col items-start gap-1">
       <span>{lead ? `${d.title.en}. ${d.detail.en}` : d.detail.en}</span>
-      <span className="flex flex-wrap items-center gap-2 text-[12.5px] text-ink-3">
-        <ProvenanceBadge value="ASSUMED" />
-        {DELAY_BASIS}
-      </span>
+      {d.assumed && (
+        <span className="flex flex-wrap items-center gap-2 text-[12.5px] text-ink-3">
+          <ProvenanceBadge value="ASSUMED" />
+          {DELAY_BASIS}
+        </span>
+      )}
     </span>
   );
 }
