@@ -83,6 +83,7 @@ import { derivedAnnualValue } from "@/lib/securities/bond";
 import { expiryAlert } from "@/lib/securities/expiry";
 import { awardReadiness, awardSumsOf } from "@/lib/award/gate-read";
 import { appendixMinimum, governingSum, INSURED_KINDS, type Governing, type InsuredKind } from "@/lib/award/insurance-terms";
+import { AWARD_TERM_WORDS, type AwardTerm } from "@/lib/contract/award-correction";
 import { ReadinessGateList } from "@/components/contract/readiness-gate";
 import { applicableRequirements, derivedLimit, wcSumCheck } from "@/lib/securities/insurance";
 import { db } from "@/lib/db";
@@ -587,6 +588,11 @@ function OverviewPanel({ l, ev, awardee, recommendation, methodName, typeName, p
           actions={award.termsProvenance ? <ProvenanceBadge value={award.termsProvenance} /> : undefined}
         />
         <CardBody>
+          {award.termCorrections.length > 0 && (
+            <Callout tone="info" title="Recorded terms corrected after issue" className="mb-4">
+              {`${award.termCorrections.map((x) => `${AWARD_TERM_WORDS[x.term as AwardTerm].en} corrected from ${x.beforeText} to ${x.afterText} on ${formatDate(x.recordedOn)} (${x.reason})`).join("; ")}. Each was recorded wrongly from the signed letter and corrected on the contract's Baseline tab, which wrote a new baseline version; the issued letter is unchanged and shows the terms as issued.`}
+            </Callout>
+          )}
           <KeyValues
             columns={2}
             items={[

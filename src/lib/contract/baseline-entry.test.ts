@@ -83,14 +83,19 @@ describe("a correction keeps what the award, the Appendix and the bill state (R-
     expect(t.en).toBe("Retention and its cap is derived under a recorded rule from values the award, the Appendix or the bill state, so it changes only when they do.");
   });
   it("the words exist in both languages and say what to do instead", () => {
-    // Ruling Q1 (faithful update): a stated value recorded wrongly cannot yet be corrected (carry 612-C1),
-    // and the words no longer point to variations as the way to fix a record.
+    // Ruling Q1 (faithful update): the words never point to variations as the way to fix a record.
+    // 612-C1 (6.13 Part A step 0, a faithful change as ruled: "the STATED_NOT_CORRECTED refusal now points to
+    // this act"): a value the Letter of Acceptance states points to correcting the award's recorded term; a value
+    // the Appendix or the bill states is kept as frozen, only the award's terms being correctable after issue.
     for (const source of ["AWARD", "APPENDIX", "BQ"]) {
       const t = contractFaultWords({ code: "STATED_NOT_CORRECTED", level: "block", data: { group: "dlp", source } });
-      expect(t.en).toMatch(/is not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order\. If it was recorded wrongly from the signed document, the product cannot yet correct it: correcting the award's recorded terms after issue is not built\. A change to the terms themselves is a variation, not a correction\.$/);
-      expect(t.en).not.toMatch(/variations and adjustments|recorded as a change to the contract/);
-      expect(t.ms).toMatch(/belum dibina/);
+      expect(t.en).toMatch(/is not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order\. /);
+      expect(t.en).toMatch(/A change to the terms themselves is a variation, not a correction\.$/);
+      expect(t.en).not.toMatch(/variations and adjustments|recorded as a change to the contract|is not built/);
+      expect(t.ms).not.toMatch(/belum dibina/);
     }
+    expect(contractFaultWords({ code: "STATED_NOT_CORRECTED", level: "block", data: { group: "dlp", source: "AWARD" } }).en).toMatch(/If it was recorded wrongly from the signed letter, correct the award's recorded term \(Correct the award's term, beside it\): a reasoned correction writes a new version, still from the Letter of Acceptance\./);
+    expect(contractFaultWords({ code: "STATED_NOT_CORRECTED", level: "block", data: { group: "dlp", source: "APPENDIX" } }).en).toMatch(/Only the award's recorded terms are corrected after issue; the frozen tender Appendix is kept as frozen\./);
     expect(contractFaultWords({ code: "STATED_NOT_CORRECTED", level: "block", data: { group: "lad", source: "AWARD" } }).en).toMatch(/^Liquidated damages are stated by the Letter of Acceptance, so they are not corrected here/);
   });
   it("applyEntered then derive is what the correction writes: the corrected group only changes", () => {

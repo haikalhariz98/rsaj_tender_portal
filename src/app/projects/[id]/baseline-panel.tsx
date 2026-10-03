@@ -6,6 +6,7 @@ import { Blocked } from "@/components/ui/blocked";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { ProvenanceBadge } from "@/components/ui/provenance";
+import { AWARD_TERMS, awardCorrectionFaults, readCorrectionMark, TERM_FIELD, termSource, type AwardTerm } from "@/lib/contract/award-correction";
 import { enterFault, latestVersion, type BaselineValues, type EnteredGroup } from "@/lib/contract/baseline";
 import { correctableFaults } from "@/lib/contract/baseline-entry";
 import { contractFaultText } from "@/lib/contract/fault-text";
@@ -20,7 +21,7 @@ import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { formatMoney, type Sen } from "@/lib/money";
 import { formatPct } from "@/lib/tender-docs/percent";
 
-import { BaselineEntryDrawer, ConfirmBaselineDrawer } from "./editors";
+import { AwardTermDrawer, BaselineEntryDrawer, ConfirmBaselineDrawer } from "./editors";
 
 type Facts = Awaited<ReturnType<typeof signingFacts>>;
 const rm = (s: Sen | null) => (s == null ? null : formatMoney(s));
@@ -102,6 +103,11 @@ export function BaselinePanel({ l, facts, timeZone }: { l: LoadedContract; facts
     return null;
   };
   const findings = facts.baseline.findings;
+  // 612-C1: which baseline row is which of the award's terms, and whether its correction is open (the act's own rule).
+  const termOf = (key: string): AwardTerm | null => AWARD_TERMS.find((t) => TERM_FIELD[t] === key) ?? null;
+  const termBlockers = (t: AwardTerm) =>
+    awardCorrectionFaults({ awardStatus: l.award.status, awardIssued: l.award.issuedAt != null, versions: versions.length, source: latest ? termSource(t, values) : null, term: t, input: { term: "DLP", months: 0 }, reason: "-", changed: true, blocks: 0 }).filter((f) => f.code !== "VALUE_NOT_VALID");
+  const corrections = c.awardTermCorrections;
   return (
     <div className="flex flex-col gap-6">
       {findings.some((f) => f.level !== "info") && (
@@ -138,13 +144,26 @@ export function BaselinePanel({ l, facts, timeZone }: { l: LoadedContract; facts
                       {r.source === "ENTERED" && r.group && entered[r.group]?.note ? <span className="break-words">{entered[r.group]!.note}</span> : null}
                     </span>
                   )}
+                  {corrections
+                    .filter((x) => TERM_FIELD[x.term as AwardTerm] === r.key)
+                    .map((x) => (
+                      <span key={x.id} className="mt-1 block text-[12px] break-words text-ink-3">{`Corrected from ${x.beforeText} to ${x.afterText} after issue (version ${x.baseline.version}, ${formatDate(x.recordedOn)}): ${x.reason}`}</span>
+                    ))}
                 </span>
                 <span className="flex shrink-0 flex-wrap items-center gap-2">
                   {canEnter && <BaselineEntryDrawer id={c.id} group={r.group!} label={BASELINE_FIELD_WORDS[r.key].en} mode="draft" />}
                   {correcting && r.group && inputs && (() => {
                     // R-3: the act's own rule; a value something states is not corrected here, and says why.
                     const stated = correctableFaults(r.group, inputs);
+                    // 612-C1: a value the Letter of Acceptance states is corrected at its source, the award's recorded term.
+                    if (stated.length && r.source === "AWARD" && termOf(r.key)) return null;
                     return stated.length ? <Blocked label="Correct" reason={stated.map(contractFaultText).join(" ")} /> : <BaselineEntryDrawer id={c.id} group={r.group} label={BASELINE_FIELD_WORDS[r.key].en} mode="correct" />;
+                  })()}
+                  {latest && r.source === "AWARD" && termOf(r.key) && (() => {
+                    const t = termOf(r.key)!;
+                    const fs = termBlockers(t);
+                    const label = BASELINE_FIELD_WORDS[r.key].en;
+                    return fs.length ? <Blocked label="Correct the award's term" reason={fs.map(contractFaultText).join(" ")} /> : <AwardTermDrawer id={c.id} term={t} label={label} current={typeof r.value === "string" ? r.value : "recorded"} />;
                   })()}
                 </span>
               </li>
@@ -175,7 +194,11 @@ export function BaselinePanel({ l, facts, timeZone }: { l: LoadedContract; facts
                   <span className="text-[13.5px] font-semibold text-ink">{`Version ${v.version}`}</span>
                   <Chip tone={v.reason === "CORRECTION" ? "warn" : "ok"}>{REASON_WORDS[v.reason!].en}</Chip>
                 </span>
-                <span className="text-[12.5px] break-words text-ink-3">{[`recorded ${formatOrgDateTime(v.recordedAt, timeZone)}`, v.correctionReason ? `reason: ${v.correctionReason}` : null].filter(Boolean).join(" · ")}</span>
+                <span className="text-[12.5px] break-words text-ink-3">{[`recorded ${formatOrgDateTime(v.recordedAt, timeZone)}`, (() => {
+                  // 612-C1: a version the award's corrected term wrote says what it corrected, from and to.
+                  const m = readCorrectionMark(v.snapshot);
+                  return m ? `the award's recorded ${BASELINE_FIELD_WORDS[TERM_FIELD[m.term]].en.toLowerCase()} corrected after issue, from ${m.from} to ${m.to}` : null;
+                })(), v.correctionReason ? `reason: ${v.correctionReason}` : null].filter(Boolean).join(" · ")}</span>
               </li>
             ))}
           </ul>

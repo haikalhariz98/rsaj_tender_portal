@@ -1,5 +1,6 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import type { AwardTerm } from "@/lib/contract/award-correction";
 import type { EnteredGroup } from "@/lib/contract/baseline";
 import { ON_BEHALF_HINT } from "@/lib/documents/labels";
 
@@ -11,6 +12,7 @@ import {
   answerConsultingEngineer,
   completeCheck,
   confirmBaseline,
+  correctAwardTerm,
   correctBaseline,
   correctContractDate,
   decideLegal,
@@ -527,6 +529,40 @@ export function ConfirmBaselineDrawer({ id, blocker }: { id: string; blocker: st
       submitLabel="Confirm"
       submitBlock={blocker}
       trigger={{ label: "Confirm the baseline", className: primary }}
+    />
+  );
+}
+
+/// 612-C1: the fields for each of the award's terms, as the corrected value is given.
+const TERM_FIELDS: Readonly<Record<AwardTerm, Field[]>> = {
+  LAD: [{ kind: "money", name: "ladAmount", label: "Liquidated damages a day, as the signed letter states", required: true }],
+  DLP: [{ kind: "number", name: "dlpMonths", label: "Defects liability period, months, as the signed letter states (0 for none)", min: 0, required: true }],
+  RETENTION: [
+    { kind: "text", name: "retentionPercent", label: "Retention percentage of each certificate", placeholder: "e.g. 10", required: true },
+    { kind: "text", name: "retentionCapPercent", label: "Capped at, percentage of the contract sum", placeholder: "e.g. 5", required: true },
+  ],
+  COMPLETION: [
+    { kind: "number", name: "completionPeriod", label: "Completion period, as the signed letter states", min: 1, required: true },
+    { kind: "select", name: "completionUnit", label: "In", placeholder: "Choose", required: true, options: [{ value: "DAYS", label: "Days" }, { value: "WEEKS", label: "Weeks" }, { value: "MONTHS", label: "Months" }] },
+  ],
+};
+
+/**
+ * 612-C1: correct one of the award's recorded terms after issue, where it was recorded wrongly from the signed
+ * letter. Says plainly what it does not do: it never changes the issued letter or a certificate already issued,
+ * and a change to the terms themselves is a variation.
+ */
+export function AwardTermDrawer({ id, term, label, current }: { id: string; term: AwardTerm; label: string; current: string }) {
+  return (
+    <RecordEditor
+      title={`Correct the award's term: ${label}`}
+      description={`Recorded as ${current}. Use this only where the award recorded the term wrongly from the signed letter: the award's record is corrected and a new baseline version written, still from the Letter of Acceptance and shown "corrected from". The issued letter, earlier versions and any certificate that read one stay as they were. A change to the terms themselves is a variation, not a correction. Recorded without a second approver until sign-in.`}
+      fields={[hidden("id"), hidden("term"), ...TERM_FIELDS[term]]}
+      values={{ id, term }}
+      reason={{ label: "Why it was recorded wrongly" }}
+      action={correctAwardTerm}
+      submitLabel="Correct the term"
+      trigger={{ label: "Correct the award's term", className: ghost, ariaLabel: `Correct the award's term: ${label}` }}
     />
   );
 }

@@ -38,6 +38,8 @@ export const contractInclude = {
   attachments: { select: { id: true, purpose: true, attachedAt: true, detachedAt: true, versionId: true, version: { select: { id: true, documentId: true, versionNo: true, sha256: true, withdrawnAt: true, document: { select: { title: true } } } } }, orderBy: { attachedAt: "asc" as const } },
   securities: { include: { issuer: { select: { id: true, name: true } }, verifiedBy: { select: { name: true } } }, orderBy: { lodgedOn: "asc" as const } },
   policies: { include: { issuer: { select: { id: true, name: true } }, verifiedBy: { select: { name: true } }, wcCheckedBy: { select: { id: true, name: true } } }, orderBy: { lodgedOn: "asc" as const } },
+  /// 612-C1: the award's recorded terms corrected after issue, with the version each wrote.
+  awardTermCorrections: { include: { baseline: { select: { version: true } } }, orderBy: [{ recordedAt: "asc" as const }, { id: "asc" as const }] },
 };
 
 async function readContract(id: string, organisationId: string, client: Tx) {

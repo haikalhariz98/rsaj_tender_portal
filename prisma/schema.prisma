@@ -372,6 +372,7 @@ model Organisation {
   routingTargets           RoutingTarget[]
   routingChecks            RoutingCheck[]
   awardRoutingSheets       AwardRoutingSheet[]
+  awardTermCorrections     AwardTermCorrection[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -3369,6 +3370,8 @@ model Award {
   /// 6.14 (rulings condition, ADR 0023): the pre-award routing sheet over the appointment route, and its checks.
   routingSheet     AwardRoutingSheet?
   routingChecks    RoutingCheck[]
+  /// 612-C1: its recorded terms corrected after issue.
+  termCorrections  AwardTermCorrection[]
 }
 
 /// An issued document, frozen (ADR 0008). Never updated: a reissue is a new version.
@@ -3583,6 +3586,8 @@ model Contract {
   attachments     DocumentAttachment[]
   /// 6.14: the contract's certificates.
   certificates    Certificate[]
+  /// 612-C1: the award's recorded terms corrected after issue.
+  awardTermCorrections AwardTermCorrection[]
 
   @@unique([organisationId, number])
 }
@@ -7843,6 +7848,8 @@ model ContractBaseline {
   sections ContractSection[]
   /// 6.14: the certificates that read this version (ADR 0021 §3).
   certificates Certificate[]
+  /// 612-C1: the correction of the award's recorded terms that wrote this version.
+  awardTermCorrection AwardTermCorrection?
 
   @@unique([contractId, version])
   @@index([contractId])
@@ -7865,6 +7872,45 @@ model ContractSection {
   sortOrder   Int      @default(0)
 
   certificates Certificate[]
+}
+
+/// A term of the Letter of Acceptance a baseline reads, as the award records it (612-C1).
+enum AwardTerm {
+  LAD
+  DLP
+  RETENTION
+  COMPLETION
+}
+
+/// 612-C1 (6.13 Part A step 0, flagged against 6.11; ADR 0021 Amendment 1): the award's recorded terms corrected
+/// after issue, where one was recorded wrongly from the signed letter. Append-only. The issued letter, earlier
+/// baseline versions and the certificates pinned to them are never touched: the correction writes a CORRECTION
+/// version whose source stays AWARD, shown "corrected from …". A change to the terms themselves is a variation.
+model AwardTermCorrection {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  awardId        String
+  award          Award        @relation(fields: [awardId], references: [id], onDelete: Restrict)
+  contractId     String
+  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  term       AwardTerm
+  /// The term's columns on the award before and after, money and percentages as decimal strings.
+  before     Json
+  after      Json
+  /// Both in words, as recorded (the screen and the trail read these).
+  beforeText String
+  afterText  String
+  reason     String
+  /// The CORRECTION version it wrote.
+  baselineId String           @unique
+  baseline   ContractBaseline @relation(fields: [baselineId], references: [id], onDelete: Restrict)
+  recordedAt DateTime
+  recordedOn DateTime
+
+  @@index([awardId])
+  @@index([contractId])
 }
 
 /// Who receives a controlled copy of an executed contract (FR-CON-012). The customer's list; ships empty.

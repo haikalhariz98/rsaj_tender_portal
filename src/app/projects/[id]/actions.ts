@@ -7,6 +7,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { diffFields, snapshotFields, type FieldChange } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { toSecond } from "@/lib/bids/lateness";
+import { applyTerm, AWARD_TERM_WORDS, AWARD_TERMS, awardCorrectionFaults, correctedColumns, TERM_FIELD, termSource, termText, type AwardTermColumns, type TermInput } from "@/lib/contract/award-correction";
 import { applyEntered, baselineFaults, buildBaseline, changedFields, derive, ENTERED_GROUPS, enteredFaults, latestVersion, type BaselineValues, type EnteredGroup, type EnteredProvenance, type EnteredValues } from "@/lib/contract/baseline";
 import { correctableFaults, groupChange } from "@/lib/contract/baseline-entry";
 import { contractDateOf, dateCorrectionFaults } from "@/lib/contract/contract-date";
@@ -913,6 +914,71 @@ export async function correctBaseline(_prev: FormState, data: FormData): Promise
     // R-2/R-3: the corrected group's values before and after, in the new version's own entry (S-3).
     const change = groupChange(group, before!, after!, { before: prior[group]?.provenance ?? null, after: provenance });
     await writeVersion(c, after!, "CORRECTION", reason, { correctedField: group }, stored, change);
+    return { ok: true };
+  });
+}
+
+// ------------------------------------------------------------------ 612-C1: the award's recorded terms
+
+/**
+ * Correct a term of the award as recorded, after issue, where it was recorded wrongly from the signed letter
+ * (612-C1, ADR 0021 Amendment 1): under the award's lock and then the contract's (Award → Contract), with a
+ * reason; the award's term is corrected and a CORRECTION version written whose source stays the Letter of
+ * Acceptance, shown "corrected from …". The issued letter, earlier versions and the certificates pinned to them
+ * are never touched. No second approver (maker-checker waits for sign-in). A change to the terms themselves is a
+ * variation, not this.
+ */
+export async function correctAwardTerm(_prev: FormState, data: FormData): Promise<FormState> {
+  const now = toSecond(new Date());
+  const r = new FormReader(data);
+  const term = r.choice("term", "Term", AWARD_TERMS, { required: true });
+  const reason = r.text("reason", "Reason", { required: true, max: 2000 });
+  let input: TermInput | null = null;
+  if (term === "LAD") {
+    const amount = r.money("ladAmount", "Liquidated damages a day", { required: true });
+    input = amount ? { term, amount: parseSen(amount) } : null;
+  } else if (term === "DLP") {
+    const months = r.int("dlpMonths", "Defects liability period, months (0 for none)", { required: true, min: 0 });
+    input = months == null ? null : { term, months };
+  } else if (term === "RETENTION") {
+    const pctOf = (name: string, label: string) => {
+      const v = r.optionalText(name)?.replace(/%$/, "").trim() ?? "";
+      if (!/^\d{1,3}(\.\d{1,4})?$/.test(v)) r.reject(name, `${label}: a percentage to at most four places.`);
+      return v;
+    };
+    const percent = pctOf("retentionPercent", "Retention");
+    const cap = pctOf("retentionCapPercent", "Cap");
+    input = { term, percent, cap };
+  } else if (term === "COMPLETION") {
+    const n = r.int("completionPeriod", "Completion period", { required: true, min: 1 });
+    const unit = r.choice("completionUnit", "Unit", ["DAYS", "WEEKS", "MONTHS"] as const, { required: true });
+    input = n != null && unit ? { term, period: n, unit } : null;
+  }
+  if (r.failed || !term || !input) return { ok: false, errors: r.errors };
+  return inContract(idOf(data), now, async (c) => {
+    const k = c.l.contract;
+    const a = c.l.award;
+    const { versions } = baselineRows(k);
+    const latest = latestVersion(versions);
+    const inputs = frozenInputsOf(k);
+    const before = latest ? valuesOf(latest) : null;
+    const after = before && inputs ? derive(applyTerm(before, input!), inputs.interimPolicy) : null;
+    const blocks = after ? baselineFaults(after, { defectsLiabilityApplies: inputs!.type.defectsLiabilityApplies }, inputs!.band, inputs!.award).filter((f) => f.level === "block").length : 0;
+    const cols: AwardTermColumns = { ladAmount: a.ladAmount?.toString() ?? null, ladUnit: a.ladUnit, dlpMonths: a.dlpMonths, retentionPercent: a.retentionPercent?.toString() ?? null, retentionCapPercent: a.retentionCapPercent?.toString() ?? null, completionPeriod: a.completionPeriod, completionUnit: a.completionUnit as AwardTermColumns["completionUnit"] };
+    const next = correctedColumns(cols, input!, senToDecimalString);
+    const sen = (v: string) => parseSen(v);
+    const fromText = termText(term, cols, sen);
+    const toText = termText(term, next, sen);
+    const fs = awardCorrectionFaults({ awardStatus: a.status, awardIssued: a.issuedAt != null, versions: versions.length, source: before ? termSource(term, before) : null, term, input: input!, reason, changed: fromText !== toText || (before != null && after != null && changedFields(before, after).length > 0), blocks });
+    if (fs.length) return refuse("Not corrected:", fs);
+    // The award row is already locked (inContract takes Award before Contract); written only if unchanged since read.
+    const moved = await c.tx.award.updateMany({ where: { id: a.id, updatedAt: a.updatedAt }, data: { ladAmount: next.ladAmount, ladUnit: next.ladUnit, dlpMonths: next.dlpMonths, retentionPercent: next.retentionPercent, retentionCapPercent: next.retentionCapPercent, completionPeriod: next.completionPeriod, completionUnit: next.completionUnit } });
+    if (moved.count !== 1) throw new Refusal(CHANGED);
+    const words = AWARD_TERM_WORDS[term].en;
+    const version = await writeVersion(c, after!, "CORRECTION", reason, { correctedField: TERM_FIELD[term], awardCorrection: { term, from: fromText, to: toText } }, undefined, { before: { [TERM_FIELD[term]]: fromText, source: "the Letter of Acceptance, as recorded" }, after: { [TERM_FIELD[term]]: toText, source: "the Letter of Acceptance, corrected after issue" } });
+    const row = await c.tx.awardTermCorrection.create({ data: { organisationId: c.l.org.id, awardId: a.id, contractId: k.id, term, before: { ...cols }, after: { ...next }, beforeText: fromText, afterText: toText, reason, baselineId: version.id, recordedAt: now, recordedOn: dayToDate(c.today) } });
+    await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "Award", entityId: a.id, entityLabel: `${a.reference} · ${a.awardeeName}`, reason }, "UPDATE", diffFields({ [TERM_FIELD[term]]: fromText }, { [TERM_FIELD[term]]: toText, correctedAfterIssue: "yes", issuedLetter: "unchanged" }));
+    await audit(c, "AwardTermCorrection", row.id, `the award's recorded terms corrected after issue · ${words}`, "CREATE", diffFields(null, { term: words, correctedFrom: fromText, correctedTo: toText, baselineVersion: `version ${version.version}`, issuedLetter: "unchanged" }), reason);
     return { ok: true };
   });
 }

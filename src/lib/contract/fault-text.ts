@@ -8,6 +8,7 @@
 import { formatDate } from "@/lib/format";
 import { SIGNER_FAULT_TEXT } from "@/lib/award/labels";
 
+import { AWARD_TERM_WORDS, type AwardTerm } from "./award-correction";
 import { BASELINE_FIELD_WORDS, CHECK_WORDS, COMPARISON_WORDS, GATE_WORDS, w, type Words } from "./labels";
 import type { Finding, FormationCheckKind, ReconciliationComparison } from "./types";
 
@@ -265,9 +266,23 @@ export function contractFaultWords(f: Finding): Words {
       return w(`${field(d.group === "sums" ? "sums" : d.group).en}: choose where it came from (stated, observed or assumed). There is no default.`, `${field(d.group).ms}: pilih sumbernya. Tiada nilai lalai.`);
     case "STATED_ELSEWHERE":
       return w(`${field(d.group).en} is stated by the award, the Appendix or the bill, so it is not keyed here.`, `${field(d.group).ms} telah dinyatakan di tempat lain.`);
+    // ------------------------------------------------ 612-C1: the award's recorded terms corrected after issue
+    case "AWARD_NOT_ISSUED":
+      return w("The award is not issued yet: its terms are edited on the award itself until the instrument is issued.", "Surat belum dikeluarkan: termanya disunting pada rekod itu sendiri sehingga surat dikeluarkan.");
+    case "AWARD_CANCELLED":
+      return w("The award is cancelled: its record is kept as it was.", "Pemberian dibatalkan: rekodnya dikekalkan seperti asal.");
+    case "NO_BASELINE_VERSION":
+      return w("The baseline has no version yet: the correction writes a new version, so confirm the baseline first.", "Garis dasar belum mempunyai versi: pembetulan menulis versi baharu, jadi sahkan garis dasar dahulu.");
+    case "NOT_AWARD_SOURCED": {
+      const t = AWARD_TERM_WORDS[d.term as AwardTerm] ?? w("That term", "Terma itu");
+      return w(`${t.en} in the baseline is not taken from the Letter of Acceptance, so it is not the award's to correct: an entered value is corrected on the Baseline tab, and one the Appendix or the bill states is kept as stated.`, `${t.ms} dalam garis dasar tidak diambil daripada Surat Setuju Terima, jadi ia tidak diperbetulkan di sini.`);
+    }
+    case "VALUE_NOT_VALID":
+      return w("The corrected value is not a valid figure: an amount above zero, whole months (0 for none), percentages up to 100, or a period of at least one.", "Nilai yang diperbetulkan tidak sah.");
     case "STATED_NOT_CORRECTED": {
-      // Ruling Q1 (BD-612-23, ADR 0021 Amendment 1): kept as stated; a wrong record cannot yet be corrected
-      // (carry 612-C1), and a variation changes the terms rather than fixing a record, so it is not pointed to.
+      // Ruling Q1 (BD-612-23, ADR 0021 Amendment 1): kept as stated. 612-C1 (6.13 Part A step 0, a faithful
+      // change as ruled): a value the Letter of Acceptance states, recorded wrongly, is corrected at its source by
+      // correcting the award's recorded terms; a variation changes the terms rather than fixing a record.
       const f = field(d.group);
       const plural = /s$/.test(f.en);
       if (d.source === "DERIVED") {
@@ -282,9 +297,15 @@ export function contractFaultWords(f: Finding): Words {
         BQ: w("the bill of quantities pinned to the approved documents", "senarai kuantiti yang disematkan kepada dokumen yang diluluskan"),
       };
       const src = by[String(d.source)] ?? w("the award, the Appendix or the bill", "Surat Setuju Terima, Lampiran atau senarai kuantiti");
+      if (d.source === "AWARD") {
+        return w(
+          `${f.en} ${plural ? "are" : "is"} stated by ${src.en}, so ${plural ? "they are" : "it is"} not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order. If it was recorded wrongly from the signed letter, correct the award's recorded term (Correct the award's term, beside it): a reasoned correction writes a new version, still from the Letter of Acceptance. A change to the terms themselves is a variation, not a correction.`,
+          `${f.ms} dinyatakan oleh ${src.ms}, jadi tidak diperbetulkan di sini: garis dasar mengekalkan apa yang dinyatakan oleh Surat Setuju Terima, Lampiran dan senarai kuantiti, mengikut susunan itu. Jika ia direkodkan salah daripada surat yang ditandatangani, betulkan terma Surat Setuju Terima yang direkodkan (Betulkan terma yang direkodkan, di sebelahnya): pembetulan bersebab menulis versi baharu. Perubahan kepada terma itu sendiri ialah variasi, bukan pembetulan.`,
+        );
+      }
       return w(
-        `${f.en} ${plural ? "are" : "is"} stated by ${src.en}, so ${plural ? "they are" : "it is"} not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order. If it was recorded wrongly from the signed document, the product cannot yet correct it: correcting the award's recorded terms after issue is not built. A change to the terms themselves is a variation, not a correction.`,
-        `${f.ms} dinyatakan oleh ${src.ms}, jadi tidak diperbetulkan di sini: garis dasar mengekalkan apa yang dinyatakan oleh Surat Setuju Terima, Lampiran dan senarai kuantiti, mengikut susunan itu. Jika ia direkodkan salah daripada dokumen yang ditandatangani, produk belum dapat membetulkannya: pembetulan terma Surat Setuju Terima yang direkodkan selepas pengeluarannya belum dibina. Perubahan kepada terma itu sendiri ialah variasi, bukan pembetulan.`,
+        `${f.en} ${plural ? "are" : "is"} stated by ${src.en}, so ${plural ? "they are" : "it is"} not corrected here: the baseline keeps what the award, the Appendix and the bill state, in that order. Only the award's recorded terms are corrected after issue; ${src.en} is kept as frozen. A change to the terms themselves is a variation, not a correction.`,
+        `${f.ms} dinyatakan oleh ${src.ms}, jadi tidak diperbetulkan di sini: garis dasar mengekalkan apa yang dinyatakan oleh Surat Setuju Terima, Lampiran dan senarai kuantiti, mengikut susunan itu. Hanya terma Surat Setuju Terima yang direkodkan boleh diperbetulkan selepas pengeluarannya; ${src.ms} dikekalkan seperti dibekukan. Perubahan kepada terma itu sendiri ialah variasi, bukan pembetulan.`,
       );
     }
     case "DERIVED_BY_POLICY":

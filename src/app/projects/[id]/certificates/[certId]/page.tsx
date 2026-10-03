@@ -8,6 +8,8 @@ import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { Blocked } from "@/components/ui/blocked";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
+import { correctedAfter, TERM_FIELD } from "@/lib/contract/award-correction";
+import { BASELINE_FIELD_WORDS } from "@/lib/contract/labels";
 import { PageHeader } from "@/components/ui/page-header";
 import { KeyValues } from "@/components/ui/stat";
 import { certificateDateOf } from "@/lib/certificate/date";
@@ -137,11 +139,17 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
             {cert.voidReason} It was never numbered, so it leaves no gap.
           </Callout>
         )}
-        {cert.baseline.reason !== "EXECUTED" && cert.baseline.reason !== "POSSESSION" && (
+        {/* 612-C1: a correction version written after execution carries the Contract Date, so it is not "before execution". */}
+        {cert.baseline.contractDate == null && (
           <Callout tone="info" title="Read from a baseline before execution">
             {`This certificate reads baseline version ${cert.baseline.version}, recorded ${formatDate(day(cert.baseline.recordedOn))}, before the contract was executed (the first certificates may be raised before it is). A later version never changes it.`}
           </Callout>
         )}
+        {correctedAfter(cert.baseline.version ?? 0, l.contract.baselines).map((m) => (
+          <Callout key={m.version} tone="info" title="Its baseline was corrected after issue">
+            {`The award's recorded ${BASELINE_FIELD_WORDS[TERM_FIELD[m.term]].en.toLowerCase()} was corrected from ${m.from} to ${m.to} in baseline version ${m.version}, after this certificate read version ${cert.baseline.version}. It keeps the version it read.`}
+          </Callout>
+        ))}
       </div>
       <Tabs initial={tab} label="Certificate" tabs={tabs} />
     </>

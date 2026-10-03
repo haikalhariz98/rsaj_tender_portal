@@ -79,6 +79,8 @@ export const awardInclude = {
   variant: { select: { id: true, nameEn: true } },
   // Return scans (OD-5), live and past; "attached" is `isLive`.
   attachments: { select: { id: true, purpose: true, detachedAt: true, version: { select: { withdrawnAt: true } } }, orderBy: { attachedAt: "asc" as const } },
+  /// 612-C1: its recorded terms corrected after issue (on the contract's Baseline tab).
+  termCorrections: { orderBy: [{ recordedAt: "asc" as const }, { id: "asc" as const }] },
 };
 
 /// A committee matter as the routing sheet may cite it: only through `decisionRecord()`,
