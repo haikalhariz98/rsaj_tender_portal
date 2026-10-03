@@ -47,7 +47,7 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
         title={t.nameEn}
         badge={undecided ? <Badge tone="warn" dot>{`${undecided} block${undecided === 1 ? "" : "s"} undecided`}</Badge> : undefined}
         subtitle="Signature order and distribution list, pinned at a certificate's first signature."
-        meta={[t.formCode || "No form code", t.revisionDate ? `Revision ${formatDate(t.revisionDate)}` : "No revision date", `Text version ${t.bodyVersion}`, `${t._count.certificates} certificate${t._count.certificates === 1 ? "" : "s"} printed on it`]}
+        meta={[t.formCode || "No form code", t.revisionDate ? `Revision ${formatDate(t.revisionDate)}` : "No revision date", `Version ${t.bodyVersion} (its text, signature blocks and distribution list)`, `${t._count.certificates} certificate${t._count.certificates === 1 ? "" : "s"} printed on it`]}
       />
       <div className="flex flex-col gap-6">
         <Card className="overflow-hidden">

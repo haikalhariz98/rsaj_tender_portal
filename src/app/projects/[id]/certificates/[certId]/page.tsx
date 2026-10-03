@@ -406,7 +406,7 @@ function PrintPanel({ l, figures, revision, formBody }: { l: LoadedCertificate; 
       <div className="flex flex-col gap-6">
         {cert.documents.map((d) => (
           <Card key={d.id}>
-            <CardHeader icon={<PrinterIcon size={17} />} title={d.language === "MS" ? "Malay text, as issued" : "English text, as issued"} subtitle={`${d.templateName}${d.templateFormCode ? ` · ${d.templateFormCode}` : ""}${d.templateRevisionDate ? ` · revision ${formatDate(day(d.templateRevisionDate))}` : ""} · text version ${d.templateBodyVersion} · frozen ${formatOrgDateTime(d.frozenAt, l.org.timeZone)}`} />
+            <CardHeader icon={<PrinterIcon size={17} />} title={d.language === "MS" ? "Malay text, as issued" : "English text, as issued"} subtitle={`${d.templateName}${d.templateFormCode ? ` · ${d.templateFormCode}` : ""}${d.templateRevisionDate ? ` · revision ${formatDate(day(d.templateRevisionDate))}` : ""} · form version ${d.templateBodyVersion} · frozen ${formatOrgDateTime(d.frozenAt, l.org.timeZone)}`} />
             <CardBody>
               <div className="flex flex-col gap-3 text-[13.5px] whitespace-pre-line text-ink">{d.renderedText.split("\n\n").map((p, i) => <p key={i}>{p}</p>)}</div>
             </CardBody>

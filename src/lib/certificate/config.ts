@@ -114,3 +114,12 @@ export const CONFIG_FAULT_TEXT: Readonly<Record<string, { en: string; ms: string
 };
 
 export const configFaultText = (fs: readonly Finding[]) => fs.map((x) => CONFIG_FAULT_TEXT[x.code]?.en ?? "Refused.").join(" ");
+
+/**
+ * A form's version after a change to its signature blocks or its distribution list (6.14 inc 1 fix round). A
+ * certificate pins the form's text, blocks and list together at its first signature and names the version it
+ * pinned, so a change to the blocks or the list is a new version of the form, as a change to its text is: two
+ * certificates "pinned at version N" always pinned the same blocks and recipients. A form with no text yet
+ * (version 0) can pin nothing, and keeps 0 until its text is written.
+ */
+export const nextFormVersion = (current: number): number => (current === 0 ? 0 : current + 1);

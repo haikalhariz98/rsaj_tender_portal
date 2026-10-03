@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/record-editor";
 import { diffFields, snapshotFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
-import { blockFaults, configFaultText, distributionFaultsOf } from "@/lib/certificate/config";
+import { blockFaults, configFaultText, distributionFaultsOf, nextFormVersion } from "@/lib/certificate/config";
 import { BLOCK_KIND_WORDS, CONDITION_WORDS, OFFICE_RULE_WORDS } from "@/lib/certificate/labels";
 import { blockOf, rowOf } from "@/lib/certificate/repo";
 import { DISTRIBUTION_CONDITIONS, SIGNATURE_BLOCK_KINDS, SIGNATURE_OFFICE_RULES, type Block, type DistributionRow } from "@/lib/certificate/types";
@@ -18,7 +18,8 @@ import { FormReader } from "@/lib/validate";
  * (OD-5 A): the customer's printed order and recipients are configuration. Each write locks the template,
  * re-reads its rows, judges the row against the others and is audited with its before and after in the same
  * transaction; a removal asks for a reason. A certificate pins the form at its first signature, so nothing
- * here moves a certificate already signing.
+ * here moves a certificate already signing; and every change here is a new version of the form
+ * (`bumpFormVersion`), so the version a certificate names always means one set of blocks and recipients.
  */
 
 const NO_ORG: FormState = { ok: false, message: "No organisation is configured. Run npm run setup first." };
@@ -43,6 +44,16 @@ async function onTemplate(templateId: string, fn: (tx: Tx, t: { id: string; orga
     revalidatePath(`/configuration/templates/${templateId}`);
   }
   return res;
+}
+
+/// A change to the form's blocks or list is a new version of the form (nextFormVersion), audited on the form. The template is locked.
+async function bumpFormVersion(tx: Tx, t: { id: string; organisationId: string; nameEn: string }, what: string) {
+  const cur = await tx.documentTemplate.findUnique({ where: { id: t.id }, select: { bodyVersion: true } });
+  if (!cur) return;
+  const next = nextFormVersion(cur.bodyVersion);
+  if (next === cur.bodyVersion) return;
+  await tx.documentTemplate.update({ where: { id: t.id }, data: { bodyVersion: next } });
+  await writeAudit(tx, { organisationId: t.organisationId, entity: "DocumentTemplate", entityId: t.id, entityLabel: t.nameEn, reason: what }, "UPDATE", diffFields({ formVersion: cur.bodyVersion }, { formVersion: next }));
 }
 
 const blockWords = (b: Block) => ({ order: b.blockOrder, label: b.labelEn, labelMalay: b.labelMs, signs: `${BLOCK_KIND_WORDS[b.blockKind].en}, by ${OFFICE_RULE_WORDS[b.officeRule].en.toLowerCase()}`, datesTheCertificate: b.datesCertificate ? "yes" : "no", delegateMaySign: yes(b.delegable), carriesAnAnswer: b.carriesDecision ? "yes" : "no", refusalRecorded: b.refusalAllowed ? "yes" : "no" });
@@ -77,7 +88,10 @@ export async function saveSignatureBlock(_prev: FormState, data: FormData): Prom
     const write = { ...v, provenance, notes };
     const row = before ? await tx.formSignatureBlock.update({ where: { id: before.id }, data: write }) : await tx.formSignatureBlock.create({ data: { organisationId: t.organisationId, templateId: t.id, ...write } });
     const changes = diffFields(before ? { ...blockWords(blockOf(before)), provenance: before.provenance } : null, { ...blockWords(v), provenance });
-    if (changes.length) await writeAudit(tx, { organisationId: t.organisationId, entity: "FormSignatureBlock", entityId: row.id, entityLabel: `${t.nameEn} · ${v.labelEn}`, reason: String(data.get("reason") ?? "") }, before ? "UPDATE" : "CREATE", changes);
+    if (changes.length) {
+      await writeAudit(tx, { organisationId: t.organisationId, entity: "FormSignatureBlock", entityId: row.id, entityLabel: `${t.nameEn} · ${v.labelEn}`, reason: String(data.get("reason") ?? "") }, before ? "UPDATE" : "CREATE", changes);
+      await bumpFormVersion(tx, t, `Signature block ${before ? "changed" : "added"}: ${v.labelEn}`);
+    }
     return { ok: true };
   });
 }
@@ -92,6 +106,7 @@ export async function removeSignatureBlock(_prev: FormState, data: FormData): Pr
     if (!row) return { ok: false, message: "That block is no longer on this form." };
     await tx.formSignatureBlock.delete({ where: { id: row.id } });
     await writeAudit(tx, { organisationId: t.organisationId, entity: "FormSignatureBlock", entityId: row.id, entityLabel: `${t.nameEn} · ${row.labelEn}`, reason }, "DELETE", snapshotFields(blockWords(blockOf(row))));
+    await bumpFormVersion(tx, t, `Signature block removed: ${row.labelEn}`);
     return { ok: true };
   });
 }
@@ -128,7 +143,10 @@ export async function saveDistributionRow(_prev: FormState, data: FormData): Pro
     const write = { ...row, provenance, notes };
     const saved = before ? await tx.formDistribution.update({ where: { id: before.id }, data: write }) : await tx.formDistribution.create({ data: { organisationId: t.organisationId, templateId: t.id, ...write } });
     const changes = diffFields(before ? { ...rowWords(rowOf(before)), provenance: before.provenance } : null, { ...rowWords(row), provenance });
-    if (changes.length) await writeAudit(tx, { organisationId: t.organisationId, entity: "FormDistribution", entityId: saved.id, entityLabel: `${t.nameEn} · ${row.labelEn}`, reason: String(data.get("reason") ?? "") }, before ? "UPDATE" : "CREATE", changes);
+    if (changes.length) {
+      await writeAudit(tx, { organisationId: t.organisationId, entity: "FormDistribution", entityId: saved.id, entityLabel: `${t.nameEn} · ${row.labelEn}`, reason: String(data.get("reason") ?? "") }, before ? "UPDATE" : "CREATE", changes);
+      await bumpFormVersion(tx, t, `Recipient ${before ? "changed" : "added"}: ${row.labelEn}`);
+    }
     return { ok: true };
   });
 }
@@ -143,6 +161,7 @@ export async function removeDistributionRow(_prev: FormState, data: FormData): P
     if (!row) return { ok: false, message: "That recipient is no longer on this form." };
     await tx.formDistribution.delete({ where: { id: row.id } });
     await writeAudit(tx, { organisationId: t.organisationId, entity: "FormDistribution", entityId: row.id, entityLabel: `${t.nameEn} · ${row.labelEn}`, reason }, "DELETE", snapshotFields(rowWords(rowOf(row))));
+    await bumpFormVersion(tx, t, `Recipient removed: ${row.labelEn}`);
     return { ok: true };
   });
 }

@@ -311,7 +311,7 @@ export async function recordSignature(c: CertCtx, input: SignatureInput) {
     icNumber: sig.icMasked,
     signedOn: r.signedOn,
     datesTheCertificate: dates ? "yes" : null,
-    formPinned: pinning ? `${rev.nameEn}${rev.formCode ? ` (${rev.formCode})` : ""}, text version ${rev.bodyVersion}` : null,
+    formPinned: pinning ? `${rev.nameEn}${rev.formCode ? ` (${rev.formCode})` : ""}, form version ${rev.bodyVersion}` : null,
     recordedOnBehalf: ON_BEHALF,
   }));
   const after = [...signed, { blockOrder: block!.blockOrder, personId: sig.personId, name: sig.name, signedOn: r.signedOn!, refused: sig.refused, decision: sig.decision }];
