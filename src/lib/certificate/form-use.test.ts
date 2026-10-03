@@ -69,7 +69,7 @@ describe("(c) the pin reads the form under a shared lock", () => {
   it("recordSignature locks the form FOR SHARE before it reads it, and the edits lock it FOR UPDATE", () => {
     const w = read("src/lib/certificate/write.ts");
     const body = w.slice(w.indexOf("export async function recordSignature"));
-    const share = body.indexOf('$queryRaw`SELECT id FROM "DocumentTemplate" WHERE id = ${cert.templateId} FOR SHARE`');
+    const share = body.indexOf(`$queryRaw\`SELECT id FROM "DocumentTemplate" WHERE id = \${cert.templateId} FOR SHARE\``);
     expect(share).toBeGreaterThan(-1);
     expect(share).toBeLessThan(body.indexOf("templateNow(cert.templateId, c.tx)"));
     expect(read("src/app/configuration/templates/form-actions.ts")).toMatch(/SELECT id FROM "DocumentTemplate" WHERE id = \$\{templateId\} FOR UPDATE/);

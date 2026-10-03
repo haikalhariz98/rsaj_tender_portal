@@ -588,7 +588,7 @@ describe("the write scan catches each evasion (self-tests)", () => {
     const src = `${fnHead("recordRoutingReceived")}  // tx.certificate.updateMany({ data: { certificateDate } })\n  // UPDATE "Certificate" SET x = 1\n  const s = "tx.certificate.updateMany(";\n  await c.tx.certificate.updateMany({ where: { id, status: "IN_ROUTING", certificateDate: null }, data: { routingReceivedOn: d, routingReceivedRecordedAt: c.now } });\n}\n`;
     expect(one(src)).toEqual([]);
     // The certificate's own lock, in the one function and with the one text allowed; the same lock anywhere else is flagged.
-    const lock = "export async function withLockedCertificate(certificateId, fn) {\n  await tx.$queryRaw`SELECT id FROM \"Certificate\" WHERE id = ${certificateId} FOR UPDATE`;\n}\n";
+    const lock = `export async function withLockedCertificate(certificateId, fn) {\n  await tx.$queryRaw\`SELECT id FROM "Certificate" WHERE id = \${certificateId} FOR UPDATE\`;\n}\n`;
     expect(one(lock, P(REPO))).toEqual([]);
     expect(one(lock.replace("withLockedCertificate", "lockAgain"), P(REPO))).toEqual(["lockAgain · $queryRaw · raw SQL in a file naming a certificate table, not allow-listed"]);
   });
