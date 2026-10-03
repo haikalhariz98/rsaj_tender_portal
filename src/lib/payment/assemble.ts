@@ -82,6 +82,10 @@ export interface AssembleInput {
     remainderProvenance: Provenance | null;
   };
   issued: readonly IssuedInterim[];
+  /// Interim certificates issued on this contract that no valuation raised (none the product makes; an import's or an
+  /// earlier build's). Their figures are not in this layout, so "previously certified" cannot be read from them: a
+  /// valuation refuses while one stands, and the sequence still counts them as the issue does.
+  foreign: readonly { number: string | null; sequence: number | null }[];
   /// The net of each issued adjustment of the contract sum (step 4 adds them; none before).
   adjustments: readonly Sen[];
   releases: readonly ReleaseRow[];
@@ -158,9 +162,10 @@ export function heldOnLatest(issued: readonly IssuedInterim[]): { certificateId:
 export function assembleInterim(i: AssembleInput): Assembled {
   const v = i.valuation;
   const b = i.baseline.values;
-  const sequence = i.issued.length + 1;
+  const sequence = i.issued.length + i.foreign.length + 1;
   const faults: Finding[] = [];
   const f = (code: string, data: Record<string, string | number | null> = {}) => faults.push({ code, level: "block", data });
+  for (const x of i.foreign) f("INTERIM_NOT_FROM_VALUATION", { number: x.number ?? (x.sequence == null ? null : String(x.sequence)) });
   if (!v.jointRecorded) f("JOINT_NOT_RECORDED");
   if (v.mainWorks == null) f("MAIN_WORKS_NOT_RECORDED");
   // FR-PAY-005: the cut-off is hard.

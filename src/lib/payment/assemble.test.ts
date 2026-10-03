@@ -70,6 +70,7 @@ const INPUT: AssembleInput = {
   baseline: { version: 3, values: BASE },
   policy: { materialsPct: "75", materialsProvenance: "STATED", preExecutionLimit: 3, preExecutionProvenance: "STATED", remainder: "LARGEST_REMAINDER", remainderProvenance: "ASSUMED" },
   issued: [PRIOR],
+  foreign: [],
   adjustments: [s("57800.00"), s("-20000.00")],
   releases: [],
   advances: [{ id: "a1", party: "MAIN", amount: s("10000.00"), schedule: [{ sequence: 2, amount: s("5000.00") }, { sequence: 3, amount: s("5000.00") }] }],
@@ -143,5 +144,11 @@ describe("refusals before raising, each naming its rule", () => {
     const a = assembleInterim({ ...INPUT, preExecution: { executed: false, gate: [], withoutReceipt: [], perkesoRecorded: false }, policy: { ...INPUT.policy, preExecutionLimit: 1 } });
     expect(a.warnings.map((x) => [x.code, x.level])).toEqual([["CONTRACT_NOT_SIGNED", "warn"]]);
     expect(a.faults).toEqual([]);
+  });
+  it("an interim certificate issued without a valuation: refused by name, and the sequence still counts it", () => {
+    const a = assembleInterim({ ...INPUT, foreign: [{ number: "IPC/2026/0007", sequence: 2 }] });
+    expect(a.faults.map((f) => [f.code, f.data])).toContainEqual(["INTERIM_NOT_FROM_VALUATION", { number: "IPC/2026/0007" }]);
+    expect(a.sequence).toBe(3);
+    expect(assembleInterim(INPUT).sequence).toBe(2);
   });
 });

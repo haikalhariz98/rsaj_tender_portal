@@ -241,6 +241,8 @@ export function paymentFaultWords(f: Finding): Words {
       return w("Before the contract is signed, the certificate carries the contractor's social security (PERKESO) registration number: record it on a verified policy.", "Sebelum kontrak ditandatangani, perakuan membawa nombor pendaftaran PERKESO kontraktor.");
     case "SEQUENCE_MOVED":
       return w(`This certificate's figures were worked out as interim certificate ${s(d.expected, "its number")}, but it would issue as ${s(d.allocated, "another")}: another was issued meanwhile. Void it and raise the valuation again.`, "Perakuan lain telah dikeluarkan sementara itu. Batalkan dan bangkitkan semula.");
+    case "INTERIM_NOT_FROM_VALUATION":
+      return w(`Interim certificate ${s(d.number, "already issued")} was not raised from a valuation here, so what it certified cannot be carried into this one as previously certified. Its figures are not in the valuation's layout; record the earlier interim payments through valuations, or certify this one outside the system.`, `Perakuan interim ${s(d.number, "terdahulu")} tidak dibangkitkan daripada penilaian di sini, jadi amaun yang diperakui tidak boleh dibawa ke hadapan.`);
     // ------------------------------------------------ the valuation
     case "NO_BASELINE":
       return w("No baseline version is in force today: a valuation reads the contract's baseline (confirm it under Baseline).", "Tiada versi garis dasar berkuat kuasa hari ini.");

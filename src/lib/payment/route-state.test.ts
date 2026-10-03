@@ -38,6 +38,7 @@ describe("the figure it is routed on, from the figures as they stand (overrides 
     baseline: { version: 1, values: { contractSum: parseSen("1000000.00"), dateForCompletion: null, retentionApplies: false, retentionPercent: null, retentionCapPercent: null, retentionSource: "DERIVED", unfixedMaterialsPct: null, firstInterimMinimum: parseSen("1000.00"), subsequentInterimMinimum: parseSen("1000.00"), ladDaily: null, sections: [] } as never },
     policy: { materialsPct: null, materialsProvenance: null, preExecutionLimit: null, preExecutionProvenance: null, remainder: null, remainderProvenance: null },
     issued: [],
+    foreign: [],
     adjustments: [],
     releases: [],
     advances: [],

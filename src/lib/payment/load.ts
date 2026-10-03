@@ -47,6 +47,7 @@ export const paymentInclude = {
   ladWarnings: { include: { person: { select: { name: true } }, certificate: { select: certSelect } }, orderBy: { recordedAt: "asc" as const } },
   nonCompletions: { include: { person: { select: { name: true } }, certificate: { select: certSelect } }, orderBy: [{ decidedOn: "asc" as const }, { recordedAt: "asc" as const }] },
   pendingDeductions: { include: { valuation: { select: { id: true, certificate: { select: { status: true } } } }, person: { select: { name: true } } }, orderBy: { paidOn: "asc" as const } },
+  certificates: { where: { kind: "INTERIM_PAYMENT" as const, status: "ISSUED" as const, interimValuation: { is: null } }, select: { number: true, sequence: true }, orderBy: { sequence: "asc" as const } },
   contractParties: { orderBy: [{ kind: "asc" as const }, { recordedAt: "asc" as const }] as { kind?: "asc"; recordedAt?: "asc" }[] },
   siteRecordsHandovers: { where: { recordsSet: "AS_BUILT" as const }, orderBy: { handedOverOn: "asc" as const } },
 };
@@ -161,6 +162,7 @@ export function assembleInputOf(l: LoadedContract, p: PaymentRows, cfg: PaymentC
       remainderProvenance: (pol?.waterfallProvenance ?? null) as Provenance | null,
     },
     issued: issuedInterims(p),
+    foreign: p.certificates,
     // Step 4 (FR-PAD-003) adds the issued adjustments of the contract sum: none can be issued before it.
     adjustments: [],
     releases: p.retentionReleases.map((r) => ({ main: senFromDecimal(r.main), nsc: senFromDecimal(r.nsc), ns: senFromDecimal(r.ns), releasedOn: storedDay(r.releasedOn) })),
