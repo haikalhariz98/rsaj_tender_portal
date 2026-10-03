@@ -217,7 +217,7 @@ export async function loadCertificatesDemo(db: Db, organisationId: string) {
   // Sent for routing: the type frozen; DATE (1) the same day.
   const t1 = freezeRoutingType((await routingTypeNow(`${P}hrt1`))!, "2026-09-30");
   await move(c1, "INTERIM_PAYMENT", "DRAFT", "IN_ROUTING", "2026-09-30T05:00", { routingSnapshot: t1 as never }, { routingSheet: t1.labelEn, checks: t1.checks.map((x) => x.labelEn).join(", "), figures: "frozen as computed" });
-  fail("hct1 DATE (1)", receivedFaults(true, "2026-09-30", "2026-09-30", null));
+  fail("hct1 DATE (1)", receivedFaults(true, "2026-09-30", "2026-09-30", null, { firstOpenedOn: null, firstDecidedOn: null }));
   await db.certificate.update({ where: { id: c1 }, data: { routingReceivedOn: day("2026-09-30"), routingReceivedRecordedAt: at("2026-09-30T05:05") } });
   audit("Certificate", c1, label("INTERIM_PAYMENT"), "UPDATE", "2026-09-30T05:05", diffFields({ receivedOn: null }, { receivedOn: "2026-09-30" }));
 
@@ -372,10 +372,16 @@ export async function loadCertificatesDemo(db: Db, organisationId: string) {
     const type = freezeRoutingType((await routingTypeNow(`${P}hrt3`))!, "2026-08-24");
     fail("aw5 sheet type", typeFaults(await routingTypeNow(`${P}hrt3`), "AWARD", null, "2026-08-24"));
     await db.awardRoutingSheet.create({ data: { id: `${P}hrw1`, organisationId, awardId: aw.award.id, typeId: `${P}hrt3`, typeSnapshot: type as never, startedAt: at("2026-08-24T02:00"), receivedOn: day("2026-08-24"), receivedRecordedAt: at("2026-08-24T02:00") } });
+    {
+      // The received day is judged as the act judges it: not after the appointment route opened or decided (R-5).
+      const { routeBounds } = await import("../src/lib/certificate/routing-sheet");
+      const { routesOf } = await import("../src/lib/certificate/repo");
+      fail("aw5 received", receivedFaults(true, "2026-08-24", "2026-08-24", null, routeBounds(routesOf(aw.award.approvalInstances.filter((i) => i.domain === "appointment")))));
+    }
     const awLabel = `${aw.award.reference} · routing sheet`;
     audit("AwardRoutingSheet", `${P}hrw1`, awLabel, "CREATE", "2026-08-24T02:00", diffFields(null, { routingSheet: type.labelEn, checks: type.checks.map((c) => c.labelEn).join(", "), frozenOn: "2026-08-24", receivedOn: "2026-08-24" }));
     for (const [i, c] of [{ order: 1, person: people.eng, on: "2026-09-07" }, { order: 2, person: people.chen, on: "2026-09-08" }].entries()) {
-      const rows = { sheet: { typeSnapshot: type, receivedOn: day("2026-08-24") }, checks: await db.routingCheck.findMany({ where: { awardId: aw.award.id } }) };
+      const rows = { sheet: { id: `${P}hrw1`, typeSnapshot: type, receivedOn: day("2026-08-24") }, checks: await db.routingCheck.findMany({ where: { awardId: aw.award.id } }) };
       const sheet = awardSheetOf(aw, rows, c.on)!;
       const def = sheet.current.checks.find((x) => x.def.order === c.order)!.def;
       const h = await officeHolders(l, def.officeCode!, c.on);

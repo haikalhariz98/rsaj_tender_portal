@@ -27,6 +27,9 @@ const route = (id: string, openedOn: string, status: string, decidedOn: string |
 const sheet = (over: Partial<SheetInput> = {}) => routingSheet({ type: type(), receivedOn: "2026-09-01", routes: [], checks: [], ratio: null, today: "2026-10-02", ...over });
 const ratio = (num: string, den: string) => ({ num: parseSen(num), den: parseSen(den) });
 
+/// No approval route yet: nothing on the route bounds the received day (6.14 inc 1 fix R-5).
+const NO_ROUTE = { firstOpenedOn: null, firstDecidedOn: null };
+
 describe("elapsed against the target (FR-CRT-008, OD-3 A calendar days)", () => {
   const four = type({ targets: [target(28)] });
   it("4 weeks for non-completion: DATE (1) 2026-09-01, DATE (2) 2026-09-29 → 28 days, met", () => {
@@ -141,9 +144,9 @@ describe("recording a check", () => {
     expect(codes(checkFaults(base({ sheet: office, holders: { holderIds: ["q"], delegateIds: ["p"] } })))).toEqual([]);
   });
   it("DATE (1): not in the future, not after the first check", () => {
-    expect(receivedFaults(true, "2026-10-03", "2026-10-02", null).map((f) => f.code)).toEqual(["FUTURE_DATE"]);
-    expect(receivedFaults(true, "2026-09-05", "2026-10-02", "2026-09-02").map((f) => f.code)).toEqual(["AFTER_CHECKS"]);
-    expect(receivedFaults(false, "2026-09-01", "2026-10-02", null).map((f) => f.code)).toEqual(["SHEET_CLOSED"]);
+    expect(receivedFaults(true, "2026-10-03", "2026-10-02", null, NO_ROUTE).map((f) => f.code)).toEqual(["FUTURE_DATE"]);
+    expect(receivedFaults(true, "2026-09-05", "2026-10-02", "2026-09-02", NO_ROUTE).map((f) => f.code)).toEqual(["AFTER_CHECKS"]);
+    expect(receivedFaults(false, "2026-09-01", "2026-10-02", null, NO_ROUTE).map((f) => f.code)).toEqual(["SHEET_CLOSED"]);
   });
 });
 

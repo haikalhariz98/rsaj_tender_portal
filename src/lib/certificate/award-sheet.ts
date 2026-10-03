@@ -23,7 +23,7 @@ import { holdersFor } from "@/lib/requisition/holders";
 import { refusalText } from "./fault-text";
 import { CHECK_KIND_WORDS, ON_BEHALF } from "./labels";
 import { checksOf, routesOf, routingTypeNow } from "./repo";
-import { checkFaults, freezeRoutingType, readRoutingSnapshot, receivedFaults, routingSheet, typeFaults, type Sheet } from "./routing-sheet";
+import { awardSheetFaults, checkFaults, freezeRoutingType, latestRouteState, readRoutingSnapshot, receivedFaults, routeBounds, routingSheet, typeFaults, type Sheet } from "./routing-sheet";
 import type { Finding } from "./types";
 import { CertificateRefusal } from "./write";
 
@@ -34,7 +34,7 @@ const refuse = (lead: string, fs: readonly Finding[]): never => {
 export const awardSheetInclude = { type: { select: { id: true, labelEn: true } } } as const;
 
 export interface AwardSheetRows {
-  sheet: { typeSnapshot: unknown; receivedOn: Date | null } | null;
+  sheet: { id: string; typeSnapshot: unknown; receivedOn: Date | null } | null;
   checks: readonly { iteration: number; defOrder: number; personName: string; on: Date; note: string }[];
 }
 
@@ -42,12 +42,14 @@ export interface AwardSheetRows {
 export function awardSheetOf(l: LoadedAward, rows: AwardSheetRows, today: string): Sheet | null {
   const type = rows.sheet ? readRoutingSnapshot(rows.sheet.typeSnapshot) : null;
   if (!type) return null;
-  const routes = l.award.approvalInstances.filter((i) => i.domain === "appointment");
-  return routingSheet({ type, receivedOn: rows.sheet!.receivedOn ? storedDay(rows.sheet!.receivedOn) : null, routes: routesOf(routes), checks: checksOf(rows.checks), ratio: null, today });
+  return routingSheet({ type, receivedOn: rows.sheet!.receivedOn ? storedDay(rows.sheet!.receivedOn) : null, routes: appointmentRoutes(l), checks: checksOf(rows.checks), ratio: null, today });
 }
 
-/// Whether the sheet takes checks: the award is not cancelled.
-const sheetOpen = (l: LoadedAward) => l.award.status !== "CANCELLED";
+/// The award's appointment routes (the first and any successor), as the sheet reads them.
+const appointmentRoutes = (l: LoadedAward) => routesOf(l.award.approvalInstances.filter((i) => i.domain === "appointment"));
+
+/// Why the sheet starts on nothing and takes no check or received day (R-6): the award is cancelled, or its latest appointment route is decided.
+export const awardSheetClosed = (l: LoadedAward): Finding[] => awardSheetFaults(l.award.status === "CANCELLED", latestRouteState(appointmentRoutes(l)));
 const label = (l: LoadedAward) => `${l.award.reference} · routing sheet`;
 
 async function audit(tx: Tx, l: LoadedAward, entity: string, entityId: string, suffix: string, action: "CREATE" | "UPDATE", changes: ReturnType<typeof diffFields>) {
@@ -62,7 +64,9 @@ export async function loadAwardSheetRows(awardId: string, client: Tx): Promise<A
 
 /// Start the award's routing sheet on a type with subject AWARD, frozen as it stands today.
 export async function startAwardSheet(tx: Tx, l: LoadedAward, typeId: string, now: Date, today: string) {
-  if (!sheetOpen(l)) refuse("Not started:", [{ code: "SHEET_CLOSED", level: "block" }]);
+  // Not on a cancelled award, nor once its appointment route is decided: the sheet would have nothing to record.
+  const closed = awardSheetClosed(l);
+  if (closed.length) refuse("Not started:", closed);
   if (await tx.awardRoutingSheet.findUnique({ where: { awardId: l.award.id }, select: { id: true } })) throw new CertificateRefusal("This award's routing sheet has already started: its type was frozen then.");
   const owned = await tx.routingSheetType.findFirst({ where: { id: typeId, organisationId: l.org.id }, select: { id: true } });
   const t = owned ? await routingTypeNow(typeId, tx) : null;
@@ -73,17 +77,20 @@ export async function startAwardSheet(tx: Tx, l: LoadedAward, typeId: string, no
   await audit(tx, l, "AwardRoutingSheet", row.id, "", "CREATE", diffFields(null, { routingSheet: frozen.labelEn, checks: frozen.checks.map((c) => c.labelEn).join(", ") || "none", frozenOn: today }));
 }
 
-/// DATE (1) on the award's sheet: entered, never in the future, never after its first check.
+/// DATE (1) on the award's sheet: entered, never in the future, never after its first check, never after the route opened or decided (R-5), and not once the route is decided (R-6).
 export async function recordAwardReceived(tx: Tx, l: LoadedAward, received: string, now: Date, today: string) {
   const rows = await loadAwardSheetRows(l.award.id, tx);
   if (!rows.sheet) throw new CertificateRefusal("Start the routing sheet first: choose its type.");
   const sheet = awardSheetOf(l, rows, today)!;
+  const closed = awardSheetClosed(l);
+  if (closed.length) refuse("Not recorded:", closed);
   const first = sheet.iterations[0].checks.map((x) => x.recorded?.on).filter((d): d is string => !!d).sort()[0] ?? null;
-  const fs = receivedFaults(sheetOpen(l), received, today, first);
+  const fs = receivedFaults(true, received, today, first, routeBounds(appointmentRoutes(l)));
   if (fs.length) refuse("Not recorded:", fs);
   const before = rows.sheet.receivedOn ? storedDay(rows.sheet.receivedOn) : null;
   await tx.awardRoutingSheet.update({ where: { awardId: l.award.id }, data: { receivedOn: dayToDate(received), receivedRecordedAt: now } });
-  await audit(tx, l, "AwardRoutingSheet", l.award.id, "", "UPDATE", diffFields({ receivedOn: before }, { receivedOn: received }));
+  // The sheet's own row, as its start was audited under (one entity id for the sheet's trail).
+  await audit(tx, l, "AwardRoutingSheet", rows.sheet.id, "", "UPDATE", diffFields({ receivedOn: before }, { receivedOn: received }));
 }
 
 /// An internal check on the award's sheet, in the sheet's order.
@@ -101,7 +108,9 @@ export async function recordAwardCheck(tx: Tx, l: LoadedAward, defOrder: number,
     const h = holdersFor(slot.def.officeCode, path, roster, delegations, asOf);
     holders = { holderIds: h.holderIds, delegateIds: h.delegates.map((d) => d.personId) };
   }
-  const fs = checkFaults({ open: sheetOpen(l), sheet, defOrder, person, holders, on, today });
+  const closed = awardSheetClosed(l);
+  if (closed.length) refuse("Not recorded:", closed);
+  const fs = checkFaults({ open: true, sheet, defOrder, person, holders, on, today });
   if (fs.length) refuse("Not recorded:", fs);
   const row = await tx.routingCheck.create({ data: { organisationId: l.org.id, awardId: l.award.id, iteration: sheet.current.n, defOrder, kind: slot!.def.kind, label: slot!.def.labelEn, personId: person!.id, personName: person!.name, on: dayToDate(on), note, recordedAt: now } });
   await audit(tx, l, "RoutingCheck", row.id, slot!.def.labelEn, "CREATE", diffFields(null, { check: `${CHECK_KIND_WORDS[slot!.def.kind].en} (${slot!.def.labelEn})`, round: sheet.current.n, by: person!.name, on, note: note || null, recordedOnBehalf: ON_BEHALF }));

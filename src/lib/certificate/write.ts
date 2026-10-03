@@ -32,7 +32,7 @@ import { CERT_WORDS, CHECK_KIND_WORDS, DECISION_WORDS, KIND_WORDS, METHOD_WORDS,
 import { applyOverrides, overrideFaults } from "./override";
 import { certificateLabel, checksOf, liveBondOf, officeHolders, officeName, routesOf, routingTypeNow, signedOf, templateNow, type LoadedCertificate } from "./repo";
 import { pinFaults, pinRevision, readRevision, type TemplateRevision } from "./revision";
-import { checkFaults, freezeRoutingType, readRoutingSnapshot, receivedFaults, routingSheet, typeFaults, type Sheet } from "./routing-sheet";
+import { checkFaults, freezeRoutingType, readRoutingSnapshot, receivedFaults, routeBounds, routingSheet, typeFaults, type Sheet } from "./routing-sheet";
 import { nextSequence } from "./sequence";
 import { allSigned, maskedIc, signFaults, type SignInput } from "./signature";
 import { readComputedSnapshot, snapshotFaults, type ComputedSnapshot } from "./snapshot";
@@ -180,12 +180,12 @@ export async function sendForRouting(c: CertCtx) {
   await audit(c, "Certificate", cert.id, labelOf(c), "UPDATE", diffFields({ stage: STATUS_WORDS.DRAFT.en }, { stage: STATUS_WORDS.IN_ROUTING.en, routingSheet: frozen.labelEn, checks: frozen.checks.map((x) => x.labelEn).join(", ") || "none", figures: "frozen as computed" }));
 }
 
-/// DATE (1): the day the document was received (entered, never in the future, audited).
+/// DATE (1): the day the document was received (entered, never in the future, never after its route opened or decided, audited).
 export async function recordRoutingReceived(c: CertCtx, received: string) {
   const cert = c.l.cert;
   const sheet = sheetOf(cert, c.today);
   const first = sheet?.iterations[0].checks.map((x) => x.recorded?.on).filter((d): d is string => !!d).sort()[0] ?? null;
-  const fs = receivedFaults(statusOf(c) === "IN_ROUTING" && !!sheet, received, c.today, first);
+  const fs = receivedFaults(statusOf(c) === "IN_ROUTING" && !!sheet, received, c.today, first, routeBounds(routesOf(cert.approvalInstances)));
   if (fs.length) refuse("Not recorded:", fs);
   const before = day(cert.routingReceivedOn);
   const moved = await c.tx.certificate.updateMany({ where: { id: cert.id, status: "IN_ROUTING" }, data: { routingReceivedOn: dayToDate(received), routingReceivedRecordedAt: c.now } });

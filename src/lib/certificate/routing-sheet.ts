@@ -228,8 +228,17 @@ function endOf(r: RouteRow): string | null {
   return null;
 }
 
+/// The routes in the order they were opened (two on one day by when they were created).
+const inOrder = (routes: readonly RouteRow[]) => [...routes].sort((a, b) => (a.openedOn === b.openedOn ? a.createdAt.getTime() - b.createdAt.getTime() : a.openedOn < b.openedOn ? -1 : 1));
+
+/// Where the latest route stands: none, pending, approved or refused.
+export function latestRouteState(routes: readonly RouteRow[]): Sheet["routeState"] {
+  const last = inOrder(routes).at(-1);
+  return !last ? "NONE" : last.status === "APPROVED" ? "APPROVED" : last.status === "REJECTED" ? "REJECTED" : "PENDING";
+}
+
 export function routingSheet(i: SheetInput): Sheet {
-  const routes = [...i.routes].sort((a, b) => (a.openedOn === b.openedOn ? a.createdAt.getTime() - b.createdAt.getTime() : a.openedOn < b.openedOn ? -1 : 1));
+  const routes = inOrder(i.routes);
   const count = Math.max(1, routes.length);
   const iterations: Iteration[] = [];
   for (let n = 1; n <= count; n++) {
@@ -247,7 +256,7 @@ export function routingSheet(i: SheetInput): Sheet {
   }
   const current = iterations[iterations.length - 1];
   const last = current.route;
-  const routeState: Sheet["routeState"] = !last ? "NONE" : last.status === "APPROVED" ? "APPROVED" : last.status === "REJECTED" ? "REJECTED" : "PENDING";
+  const routeState = latestRouteState(routes);
   const date2 = last && last.status === "APPROVED" ? endOf(last) : null;
   const target = targetFor(i.type, i.ratio);
   const stageDays = i.type.checks.map((c) => c.targetDays);
@@ -308,11 +317,43 @@ export function checkFaults(c: CheckInput): Finding[] {
   return out;
 }
 
-/// DATE (1): entered, never in the future, never after a check already recorded in the first iteration.
-export function receivedFaults(open: boolean, day: string, today: string, firstCheckOn: string | null): Finding[] {
+/// What bounds DATE (1) on the route: the first route's opening day and the earliest decision on any route.
+export interface RouteBounds {
+  firstOpenedOn: string | null;
+  firstDecidedOn: string | null;
+}
+
+/// The bounds a sheet's routes put on DATE (1). No route: none.
+export function routeBounds(routes: readonly RouteRow[]): RouteBounds {
+  const opened = routes.map((r) => r.openedOn).sort()[0] ?? null;
+  const decided = routes.flatMap((r) => r.steps.map((s) => s.decidedOn)).filter((d): d is string => d != null).sort()[0] ?? null;
+  return { firstOpenedOn: opened, firstDecidedOn: decided };
+}
+
+/**
+ * DATE (1): entered, never in the future, never after a check already recorded in the first iteration, and
+ * (6.14 inc 1 fix R-5) never after the first route opened or after anyone on any route decided: the document
+ * is received before it is routed, so the elapsed time can never run backwards and read "met". The same day
+ * as either is allowed.
+ */
+export function receivedFaults(open: boolean, day: string, today: string, firstCheckOn: string | null, route: RouteBounds): Finding[] {
   const out: Finding[] = [];
   if (!open) out.push({ code: "SHEET_CLOSED", level: "block" });
   if (day > today) out.push({ code: "FUTURE_DATE", level: "block", data: { day } });
   if (firstCheckOn && day > firstCheckOn) out.push({ code: "AFTER_CHECKS", level: "block", data: { day: firstCheckOn } });
+  if (route.firstOpenedOn && day > route.firstOpenedOn) out.push({ code: "AFTER_ROUTE_OPENED", level: "block", data: { day: route.firstOpenedOn } });
+  if (route.firstDecidedOn && day > route.firstDecidedOn) out.push({ code: "AFTER_DECISION", level: "block", data: { day: route.firstDecidedOn } });
   return out;
+}
+
+/**
+ * Whether an award's pre-award sheet takes a check or a received day (6.14 inc 1 fix R-6): not on a cancelled
+ * award, and not once its current appointment route is decided (approved or refused). The sheet records the
+ * paper's way to the decision; after the decision there is nothing left for it to record. A resubmitted route
+ * opens a new round, and the sheet takes its checks again.
+ */
+export function awardSheetFaults(cancelled: boolean, routeState: Sheet["routeState"] | null): Finding[] {
+  if (cancelled) return [{ code: "SHEET_CLOSED", level: "block" }];
+  if (routeState === "APPROVED" || routeState === "REJECTED") return [{ code: "AWARD_ROUTE_DECIDED", level: "block", data: { state: routeState } }];
+  return [];
 }
