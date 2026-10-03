@@ -37,6 +37,8 @@ import { pinRefusals, pinRevision, readRevision, type PinContext, type TemplateR
 import { checkFaults, freezeRoutingType, readRoutingSnapshot, receivedFaults, routeBounds, routingSheet, typeFaults, type Sheet } from "./routing-sheet";
 import { nextSequence } from "./sequence";
 import { issueRefusal, sequenceFloor } from "@/lib/payment/at-issue";
+import { afterCertificateIssue, approvalOfRecordFaults, variationIssueRefusal } from "@/lib/variation/at-certificate";
+import { variationRefusal } from "@/lib/variation/labels";
 import { draftSigningFaults } from "./kinds";
 import { allSigned, maskedIc, signFaults, type SignInput } from "./signature";
 import { readComputedSnapshot, snapshotFaults, type ComputedSnapshot } from "./snapshot";
@@ -228,10 +230,17 @@ export async function proceedToSigning(c: CertCtx) {
   const s = statusOf(c);
   if (s === "DRAFT") {
     if (cert.routingTypeId) refuse("Not sent to signing:", one("ROUTED"));
-    // 614-C1: a money-bearing kind needs its latest approval route approved, whatever its routing type.
-    const routes = routesOf(cert.approvalInstances);
-    const fs = draftSigningFaults(cert.kind as CertificateKind, routes.length ? routes[routes.length - 1].status : null);
-    if (fs.length) refuse("Not sent to signing:", fs);
+    // 614-C1: a money-bearing kind needs its latest approval route approved, whatever its routing type. 6.13 Part A
+    // step 4: the variation's application and order are approved on the variation's own routes, which the variation
+    // module reads (its approval of record); every other kind, its own latest route.
+    const own = await approvalOfRecordFaults(c.tx, c.l, cert);
+    if (own) {
+      if (own.length) throw new CertificateRefusal(variationRefusal("Not sent to signing:", own));
+    } else {
+      const routes = routesOf(cert.approvalInstances);
+      const fs = draftSigningFaults(cert.kind as CertificateKind, routes.length ? routes[routes.length - 1].status : null);
+      if (fs.length) refuse("Not sent to signing:", fs);
+    }
   } else if (s === "IN_ROUTING") {
     const sheet = sheetOf(cert, c.today)!;
     const fs: Finding[] = [];
@@ -355,7 +364,9 @@ async function issue(c: CertCtx, rev: TemplateRevision, certificateDate: string 
   // 6.13 Part A step 3 (FR-PAY-014 as ruled): the raising module judges the certificate on the sequence allocated
   // here, under the contract's lock (an interim certificate before the contract is signed; the sequence its figures
   // were worked out for). A refusal rolls the whole signature back.
-  const refusal = await issueRefusal(c.tx, c.l, cert, sequence);
+  // 6.13 Part A step 4: the variation module judges its own kinds at issue the same way (the instruction still
+  // approved and consented, the order still covered, an adjustment still on the issued adjustments it was worked out on).
+  const refusal = (await issueRefusal(c.tx, c.l, cert, sequence)) ?? (await variationIssueRefusal(c.tx, c.l, cert));
   if (refusal) throw new CertificateRefusal(refusal);
   const snap = readComputedSnapshot(cert.computedSnapshot);
   const figures = snap ? applyOverrides(snap, cert.overrides) : { lines: [], totals: [], overridden: false };
@@ -394,6 +405,10 @@ async function issue(c: CertCtx, rev: TemplateRevision, certificateDate: string 
   };
   await moveTo(c, "ISSUED", { number, sequence, issuedAt: c.now, issueSnapshot: snapshot as unknown as Prisma.InputJsonValue });
   await audit(c, "Certificate", cert.id, `${labelOf(c)} ${number}`, "UPDATE", diffFields({ stage: STATUS_WORDS.SIGNING.en, number: null }, { stage: STATUS_WORDS.ISSUED.en, number, ordinal: `${KIND_WORDS[cert.kind].en} ${sequence} on this contract`, certificateDate, copies: plan.copies.length, notSent: plan.skipped.map((s) => s.recipientName).join(", ") || null }));
+  // 6.13 Part A step 4 (OD-A7 A): an issued adjustment of the contract sum re-resolves the S.O. where the switch says so,
+  // in this transaction; a refusal rolls the issue back.
+  const after = await afterCertificateIssue(c.tx, c.l, cert, c.now, c.today);
+  if (after) throw new CertificateRefusal(after);
 }
 
 /**
