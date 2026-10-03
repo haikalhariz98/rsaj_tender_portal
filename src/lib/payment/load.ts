@@ -11,6 +11,7 @@ import { baselineRows, contractGate, valuesOf } from "@/lib/contract/load";
 import type { LoadedContract } from "@/lib/contract/repo";
 import type { BaselineReason } from "@/lib/contract/types";
 import { storedDay } from "@/lib/dates";
+import { decimalText } from "@/lib/format";
 import { db } from "@/lib/db";
 import type { Decision } from "@/lib/lad/charge";
 import { liveDecision } from "@/lib/lad/non-completion";
@@ -24,11 +25,7 @@ import { assumedGroups, openingAsIssued, openingReconciles, openingReleaseRow, r
 import type { Finding, KeyedDeductionKind, PackItem, Provenance, ValuationTrigger, WaterfallRemainder } from "./types";
 
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
-const pct = (v: { toString(): string } | null | undefined) => {
-  if (v == null) return null;
-  const x = v.toString();
-  return x.includes(".") ? x.replace(/0+$/, "").replace(/\.$/, "") : x;
-};
+const pct = (v: { toString(): string } | null | undefined) => decimalText(v);
 const senOrNull = (v: { toString(): string } | null | undefined): Sen | null => (v == null ? null : parseSen(v.toString()));
 
 const certSelect = { id: true, kind: true, status: true, number: true, sequence: true, certificateDate: true, issuedAt: true, issueSnapshot: true, openedOn: true, financePayment: { include: { person: { select: { name: true } } } } } as const;
