@@ -1,0 +1,402 @@
+diff -rU0 before/awards__demo_aw1__tab__routing.txt after/awards__demo_aw1__tab__routing.txt
+--- before/awards__demo_aw1__tab__routing.txt	2026-10-03 00:55:08.542623308 +0000
++++ after/awards__demo_aw1__tab__routing.txt	2026-10-03 00:55:08.547191625 +0000
+@@ -36 +36 @@
+-The pre-award routing sheet around the appointment route: DATE (1), its internal checks, the route's own steps and DATE (2), and the elapsed time against the sheet's target.
++The pre-award routing sheet around the appointment route: the day received, its internal checks, the route's own steps and the day approved, and the elapsed time against the sheet's target.
+diff -rU0 before/awards__demo_aw5__tab__routing.txt after/awards__demo_aw5__tab__routing.txt
+--- before/awards__demo_aw5__tab__routing.txt	2026-10-03 00:55:08.542661497 +0000
++++ after/awards__demo_aw5__tab__routing.txt	2026-10-03 00:55:08.547243733 +0000
+@@ -33,2 +33,3 @@
+-Correct DATE (1)
+-DATE (1): received
++Correct the received day
++Closed: The appointment route is approved: the routing sheet records the paper's way to that decision, so nothing more is recorded on it. A resubmitted route opens a new round.
++Received
+@@ -36 +37 @@
+-DATE (2): approved
++Approved
+@@ -56,0 +58 @@
++@title: Closed: The appointment route is approved: the routing sheet records the paper's way to that decision, so nothing more is recorded on it. A resubmitted route opens a new round.
+diff -rU0 before/configuration__routing-sheets.txt after/configuration__routing-sheets.txt
+--- before/configuration__routing-sheets.txt	2026-10-03 00:55:08.543428500 +0000
++++ after/configuration__routing-sheets.txt	2026-10-03 00:55:08.548019393 +0000
+@@ -3 +3 @@
+-Each CPD/DFA sheet's checks, and the targets elapsed days are judged against.
++Each routing sheet's checks, and the targets elapsed days are judged against.
+diff -rU0 before/configuration__routing-sheets__demo_hrt1.txt after/configuration__routing-sheets__demo_hrt1.txt
+--- before/configuration__routing-sheets__demo_hrt1.txt	2026-10-03 00:55:08.543452000 +0000
++++ after/configuration__routing-sheets__demo_hrt1.txt	2026-10-03 00:55:08.548037595 +0000
+@@ -12 +12 @@
+-Calendar days from DATE (1), the day received, to DATE (2), the day the approving step decided (assumed; a question to the customer).
++Calendar days from the day received to the day the approving step decided (assumed; a question to the customer).
+@@ -40 +40 @@
+-The ICC target, in calendar days: one for every percentage, or one per band of the exact percentage handed in with a certificate's figures.
++The target, in calendar days: one for every percentage, or one per band of the exact percentage handed in with a certificate's figures.
+diff -rU0 before/configuration__routing-sheets__demo_hrt2.txt after/configuration__routing-sheets__demo_hrt2.txt
+--- before/configuration__routing-sheets__demo_hrt2.txt	2026-10-03 00:55:08.543481760 +0000
++++ after/configuration__routing-sheets__demo_hrt2.txt	2026-10-03 00:55:08.548058081 +0000
+@@ -12 +12 @@
+-Calendar days from DATE (1), the day received, to DATE (2), the day the approving step decided (assumed; a question to the customer).
++Calendar days from the day received to the day the approving step decided (assumed; a question to the customer).
+@@ -40 +40 @@
+-The ICC target, in calendar days: one for every percentage, or one per band of the exact percentage handed in with a certificate's figures.
++The target, in calendar days: one for every percentage, or one per band of the exact percentage handed in with a certificate's figures.
+diff -rU0 before/configuration__routing-sheets__demo_hrt3.txt after/configuration__routing-sheets__demo_hrt3.txt
+--- before/configuration__routing-sheets__demo_hrt3.txt	2026-10-03 00:55:08.543502926 +0000
++++ after/configuration__routing-sheets__demo_hrt3.txt	2026-10-03 00:55:08.548076875 +0000
+@@ -12 +12 @@
+-Calendar days from DATE (1), the day received, to DATE (2), the day the approving step decided (assumed; a question to the customer).
++Calendar days from the day received to the day the approving step decided (assumed; a question to the customer).
+@@ -40 +40 @@
+-The ICC target, in calendar days: one for every percentage, or one per band of the exact percentage handed in with a certificate's figures.
++The target, in calendar days: one for every percentage, or one per band of the exact percentage handed in with a certificate's figures.
+diff -rU0 before/configuration__templates__demo_dt30.txt after/configuration__templates__demo_dt30.txt
+--- before/configuration__templates__demo_dt30.txt	2026-10-03 00:55:08.543575252 +0000
++++ after/configuration__templates__demo_dt30.txt	2026-10-03 00:55:08.548182733 +0000
+@@ -10 +10 @@
+-Text version 1
++Version 1 (its text, signature blocks and distribution list)
+diff -rU0 before/configuration__templates__demo_dt31.txt after/configuration__templates__demo_dt31.txt
+--- before/configuration__templates__demo_dt31.txt	2026-10-03 00:55:08.543595902 +0000
++++ after/configuration__templates__demo_dt31.txt	2026-10-03 00:55:08.548214338 +0000
+@@ -10 +10 @@
+-Text version 1
++Version 1 (its text, signature blocks and distribution list)
+diff -rU0 before/configuration__templates__demo_dt32.txt after/configuration__templates__demo_dt32.txt
+--- before/configuration__templates__demo_dt32.txt	2026-10-03 00:55:08.543616176 +0000
++++ after/configuration__templates__demo_dt32.txt	2026-10-03 00:55:08.548237555 +0000
+@@ -10 +10 @@
+-Text version 1
++Version 1 (its text, signature blocks and distribution list)
+diff -rU0 before/dashboard.txt after/dashboard.txt
+--- before/dashboard.txt	2026-10-03 00:55:08.543749709 +0000
++++ after/dashboard.txt	2026-10-03 00:55:08.548416531 +0000
+@@ -35,2 +35,2 @@
+-Renewal of the security services contract
+-DEMO/SIT/4/2026
++Award of the pumping station refurbishment
++DEMO/SX/0010/2026
+@@ -42 +42 @@
+-RM520,000
++RM1,240,000
+@@ -61,2 +61,2 @@
+-Award of the pumping station refurbishment
+-DEMO/SX/0010/2026
++Renewal of the security services contract
++DEMO/SIT/4/2026
+@@ -68 +68 @@
+-RM1,240,000
++RM520,000
+@@ -125,2 +125,2 @@
+-Renewal of the security services contract
+-DEMO/SIT/4/2026
++Award of the pumping station refurbishment
++DEMO/SX/0010/2026
+@@ -128 +128 @@
+-RM520,000
++RM1,240,000
+@@ -139,2 +139,2 @@
+-Award of the pumping station refurbishment
+-DEMO/SX/0010/2026
++Renewal of the security services contract
++DEMO/SIT/4/2026
+@@ -142 +142 @@
+-RM1,240,000
++RM520,000
+@@ -290 +290 @@
+-@aria-label: Select Renewal of the security services contract DEMO/SIT/4/2026
++@aria-label: Select Award of the pumping station refurbishment DEMO/SX/0010/2026
+@@ -300 +300 @@
+-@aria-label: Select Award of the pumping station refurbishment DEMO/SX/0010/2026
++@aria-label: Select Renewal of the security services contract DEMO/SIT/4/2026
+@@ -326 +326 @@
+-@aria-label: Select Renewal of the security services contract DEMO/SIT/4/2026
++@aria-label: Select Award of the pumping station refurbishment DEMO/SX/0010/2026
+@@ -334 +334 @@
+-@aria-label: Select Award of the pumping station refurbishment DEMO/SX/0010/2026
++@aria-label: Select Renewal of the security services contract DEMO/SIT/4/2026
+diff -rU0 before/projects__demo_con3__certificates__demo_hct1__tab__history.txt after/projects__demo_con3__certificates__demo_hct1__tab__history.txt
+--- before/projects__demo_con3__certificates__demo_hct1__tab__history.txt	2026-10-03 00:55:08.543885300 +0000
++++ after/projects__demo_con3__certificates__demo_hct1__tab__history.txt	2026-10-03 00:55:08.548592857 +0000
+@@ -187 +187 @@
+-Demo interim certificate (DEMO-C-01), text version 1
++Demo interim certificate (DEMO-C-01), form version 1
+@@ -328 +328 @@
+-As computed
++Certificate computed amount
+@@ -331 +331,2 @@
+-Overridden to
++SULIT · not restricted until sign-in
++Certificate override amount
+@@ -333,0 +335 @@
++SULIT · not restricted until sign-in
+diff -rU0 before/projects__demo_con3__certificates__demo_hct1__tab__print.txt after/projects__demo_con3__certificates__demo_hct1__tab__print.txt
+--- before/projects__demo_con3__certificates__demo_hct1__tab__print.txt	2026-10-03 00:55:08.543908341 +0000
++++ after/projects__demo_con3__certificates__demo_hct1__tab__print.txt	2026-10-03 00:55:08.548615824 +0000
+@@ -26 +26 @@
+-Demo interim certificate · DEMO-C-01 · revision 01 Jun 2025 · text version 1 · frozen 02 Oct 2026 · 17:00
++Demo interim certificate · DEMO-C-01 · revision 01 Jun 2025 · form version 1 · frozen 02 Oct 2026 · 17:00
+@@ -33 +33 @@
+-Demo interim certificate · DEMO-C-01 · revision 01 Jun 2025 · text version 1 · frozen 02 Oct 2026 · 17:00
++Demo interim certificate · DEMO-C-01 · revision 01 Jun 2025 · form version 1 · frozen 02 Oct 2026 · 17:00
+diff -rU0 before/projects__demo_con3__certificates__demo_hct1__tab__routing.txt after/projects__demo_con3__certificates__demo_hct1__tab__routing.txt
+--- before/projects__demo_con3__certificates__demo_hct1__tab__routing.txt	2026-10-03 00:55:08.543935567 +0000
++++ after/projects__demo_con3__certificates__demo_hct1__tab__routing.txt	2026-10-03 00:55:08.548637221 +0000
+@@ -27 +27 @@
+-DATE (1): received
++Received
+@@ -29 +29 @@
+-DATE (2): approved
++Approved
+diff -rU0 before/projects__demo_con3__certificates__demo_hct1__tab__signatures.txt after/projects__demo_con3__certificates__demo_hct1__tab__signatures.txt
+--- before/projects__demo_con3__certificates__demo_hct1__tab__signatures.txt	2026-10-03 00:55:08.543957740 +0000
++++ after/projects__demo_con3__certificates__demo_hct1__tab__signatures.txt	2026-10-03 00:55:08.548659304 +0000
+@@ -27 +26,0 @@
+-Correct the date
+diff -rU0 before/projects__demo_con3__certificates__demo_hct2__tab__routing.txt after/projects__demo_con3__certificates__demo_hct2__tab__routing.txt
+--- before/projects__demo_con3__certificates__demo_hct2__tab__routing.txt	2026-10-03 00:55:08.544063778 +0000
++++ after/projects__demo_con3__certificates__demo_hct2__tab__routing.txt	2026-10-03 00:55:08.548763613 +0000
+@@ -28,2 +28,2 @@
+-Correct DATE (1)
+-DATE (1): received
++Correct the received day
++Received
+@@ -31 +31 @@
+-DATE (2): approved
++Approved
+@@ -34 +34 @@
+-Open: 1 day so far against 14 days (up to 20%, for this percentage).
++Open: 1 day so far against 14 days (up to and including 20%, for this percentage).
+diff -rU0 before/projects__demo_con3__certificates__demo_hct4__tab__history.txt after/projects__demo_con3__certificates__demo_hct4__tab__history.txt
+--- before/projects__demo_con3__certificates__demo_hct4__tab__history.txt	2026-10-03 00:55:08.544312722 +0000
++++ after/projects__demo_con3__certificates__demo_hct4__tab__history.txt	2026-10-03 00:55:08.549031279 +0000
+@@ -44 +44 @@
+-Demo interim certificate (DEMO-C-01), text version 1
++Demo interim certificate (DEMO-C-01), form version 1
+diff -rU0 before/projects__demo_con3__tab__documents.txt after/projects__demo_con3__tab__documents.txt
+--- before/projects__demo_con3__tab__documents.txt	2026-10-03 00:55:08.544525184 +0000
++++ after/projects__demo_con3__tab__documents.txt	2026-10-03 00:55:08.549284215 +0000
+@@ -25 +25 @@
+-Every certificate of this contract, newest first. Each is raised by the post-award module it belongs to (supervision, payment, variations), and signed, numbered and distributed on its own page.
++Every certificate of this contract, newest first; each is signed, numbered and distributed on its own page. Nothing in the system raises a certificate yet: the valuations, variations and delegations that raise them are not built.
+diff -rU0 before/projects__demo_con3__tab__history.txt after/projects__demo_con3__tab__history.txt
+--- before/projects__demo_con3__tab__history.txt	2026-10-03 00:55:08.544576366 +0000
++++ after/projects__demo_con3__tab__history.txt	2026-10-03 00:55:08.549334719 +0000
+@@ -28 +28 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate DEMO/CERT/00231 · copy 1
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate DEMO/CERT/00231 · copy 3
+@@ -44 +44 @@
+-The contractor (original)
++Contract file (demo)
+@@ -47 +47 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate DEMO/CERT/00231 · copy 2
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate DEMO/CERT/00231 · copy 1
+@@ -63 +63 @@
+-Accounts and finance (demo)
++The contractor (original)
+@@ -66 +66 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate DEMO/CERT/00231 · copy 3
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate DEMO/CERT/00231 · copy 2
+@@ -82 +82 @@
+-Contract file (demo)
++Accounts and finance (demo)
+@@ -170 +170 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · Recommended by
++Contract XI202600799 · Contoh Supplies Enterprise · Advance payment certificate · Recommended by
+@@ -186 +186 @@
+-Demo interim certificate (DEMO-C-01), text version 1
++Demo interim certificate (DEMO-C-01), form version 1
+@@ -211 +211 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · Advance payment certificate · Recommended by
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · Recommended by
+@@ -227 +227 @@
+-Demo interim certificate (DEMO-C-01), text version 1
++Demo interim certificate (DEMO-C-01), form version 1
+@@ -230,0 +231,9 @@
++Changed
++Certificate
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate
++02 Oct 2026
++Stage
++:
++On its routing sheet
++→
++Being signed
+@@ -252,9 +260,0 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate
+-02 Oct 2026
+-Stage
+-:
+-On its routing sheet
+-→
+-Being signed
+-Changed
+-Certificate
+@@ -291,0 +292,9 @@
++Changed
++Controlled copy
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate DEMO/CERT/00231 · copy 1
++02 Oct 2026
++Acknowledged on
++:
++—
++→
++02 Oct 2026
+@@ -313,9 +321,0 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate DEMO/CERT/00231 · copy 1
+-02 Oct 2026
+-Acknowledged on
+-:
+-—
+-→
+-02 Oct 2026
+-Changed
+-Controlled copy
+@@ -408,0 +409,19 @@
++Certificate
++Contract XI202600799 · Contoh Supplies Enterprise · Contract sum adjustment
++01 Oct 2026
++Certificate
++:
++Contract sum adjustment
++Stage
++:
++Draft
++Baseline version
++:
++version 2
++Figures
++:
++none
++Routed
++:
++No
++Created
+@@ -410 +429 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · controlled copy 1
++Contract XI202600799 · Contoh Supplies Enterprise · controlled copy 3
+@@ -414 +433 @@
+-1
++3
+@@ -417 +436 @@
+-Contracts office (demo)
++Site representative (demo)
+@@ -420 +439 @@
+-Contracts office (demo)
++Site representative (demo)
+@@ -454 +473 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · controlled copy 3
++Contract XI202600799 · Contoh Supplies Enterprise · controlled copy 1
+@@ -458 +477 @@
+-3
++1
+@@ -461 +480 @@
+-Site representative (demo)
++Contracts office (demo)
+@@ -464 +483 @@
+-Site representative (demo)
++Contracts office (demo)
+@@ -475,19 +493,0 @@
+-Certificate
+-Contract XI202600799 · Contoh Supplies Enterprise · Contract sum adjustment
+-01 Oct 2026
+-Certificate
+-:
+-Contract sum adjustment
+-Stage
+-:
+-Draft
+-Baseline version
+-:
+-version 2
+-Figures
+-:
+-none
+-Routed
+-:
+-No
+-Created
+@@ -652,0 +653,10 @@
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · approval route
++30 Sep 2026
++Route
++:
++Head of Contract & Procurement → Finance Director
++Routed on
++:
++An invented demo trail, not routed by the approval matrix
++Created
++Record
+@@ -670,10 +679,0 @@
+-Created
+-Record
+-Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · approval route
+-30 Sep 2026
+-Route
+-:
+-Head of Contract & Procurement → Finance Director
+-Routed on
+-:
+-An invented demo trail, not routed by the approval matrix
+@@ -720 +720 @@
+-As computed
++Certificate computed amount
+@@ -723 +723,2 @@
+-Overridden to
++SULIT · not restricted until sign-in
++Certificate override amount
+@@ -725,0 +727 @@
++SULIT · not restricted until sign-in
+@@ -769,19 +770,0 @@
+-Changed
+-Contract
+-Contract XI202600799 · Contoh Supplies Enterprise
+-30 Sep 2026
+-Status
+-:
+-Legally endorsed
+-→
+-Executed
+-Contract date
+-:
+-—
+-→
+-30 Sep 2026
+-Contract date source
+-:
+-—
+-→
+-the day of the recorded signature act
+@@ -822,0 +806,19 @@
++Changed
++Contract
++Contract XI202600799 · Contoh Supplies Enterprise
++30 Sep 2026
++Status
++:
++Legally endorsed
++→
++Executed
++Contract date
++:
++—
++→
++30 Sep 2026
++Contract date source
++:
++—
++→
++the day of the recorded signature act
+@@ -980 +982 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · check rate uniformity
++Contract XI202600799 · Contoh Supplies Enterprise · check front loading
+@@ -1018 +1020 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · check front loading
++Contract XI202600799 · Contoh Supplies Enterprise · check rate uniformity
+@@ -1209 +1211 @@
+-DEMO/AWD/0005/2026 · public liability policy
++DEMO/AWD/0005/2026 · workmens compensation policy
+@@ -1233 +1235 @@
+-DEMO/AWD/0005/2026 · workmens compensation policy
++DEMO/AWD/0005/2026 · public liability policy
