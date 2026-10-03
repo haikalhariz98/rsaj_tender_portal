@@ -20,7 +20,7 @@ import { resolveUnderFunder, type FunderContext } from "@/lib/method/approval";
 import { amountOf, senToDecimalString, type Sen } from "@/lib/money";
 import type { ExactRatio } from "@/lib/percent-band";
 
-import { percentLabel, percentLabelText } from "./percent";
+import { percentLabel, percentLabelText, ratioOf, type Reading } from "./percent";
 import type { Finding, VariationEvent } from "./types";
 
 /// The matrix domain each event routes on (an exhaustive map), in the tender regime; a re-measurement in the
@@ -92,4 +92,14 @@ export function applicationPercents(i: {
   const edges = edgesOf(i.rules, i.domain);
   const read = (num: Sen) => percentLabelText(percentLabel({ num, den: i.den }, edges));
   return i.cumulative ? { thisPct: read(i.value), cumPct: i.label } : { thisPct: i.label, cumPct: read(i.cumulativeApproved + i.value) };
+}
+
+/**
+ * Run 3 residual C1: a sent route's percentage as shown. Frozen with the route (sent since run 3's MUST 2): that label.
+ * Sent before labels were frozen: read now against the given rows (the issued matrix's, without any funding override)
+ * and said to be so (`frozen: false`), never presented as the label the route was sent on. Pure.
+ */
+export function sentLabelOf(r: Reading, rules: readonly Pick<Rule, "domain" | "pctMin" | "pctMax">[], domain: string): { en: string; ms: string; frozen: boolean } {
+  if (r.label) return { ...r.label, frozen: true };
+  return { ...routePercentLabel(rules, r.domain ?? domain, ratioOf(r)), frozen: false };
 }

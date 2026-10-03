@@ -8,7 +8,7 @@ import type { Matrix, Rule } from "@/lib/authority/types";
 import { parseSen } from "@/lib/money";
 
 import { variationReading } from "./percent";
-import { applicationPercents, edgesOf, regimeOf, resolveVariationRoute, routeDomainOf, routePercentLabel } from "./route";
+import { applicationPercents, edgesOf, regimeOf, resolveVariationRoute, routeDomainOf, routePercentLabel, sentLabelOf } from "./route";
 
 /**
  * A variation's route on the matrix (FR-VAR-011, 012, 010, FR-PAD-004; ADR 0024 Amendment 1), on the spec's worked
@@ -150,5 +150,16 @@ describe("run 3 residual S2: the application's percentages read the rows its rou
     expect(src).toContain("applicationPercents({ rules: sent.rules, domain: sent.domain");
     expect(src.indexOf("const sent = await sendVariationRoute(")).toBeLessThan(src.indexOf("applicationPercents({"));
     expect(readFileSync(path.join(__dirname, "route-write.ts"), "utf8")).toContain("return { id: inst.id, label, domain, rules: src.matrix.rules };");
+  });
+});
+
+describe("run 3 residual C1: a route sent before its label was frozen says so", () => {
+  const rows = [{ domain: "vo", pctMin: null, pctMax: "10" }, { domain: "vo", pctMin: "10", pctMax: null }];
+  const reading = { basis: "THIS_VARIATION" as const, base: "ORIGINAL" as const, baseAmount: "75000000", num: "7500001", den: "75000000", cumulative: false, cumulativeApproved: "0", value: "7500001" };
+  it("frozen: the label the route was sent on, whatever the rows say now", () => {
+    expect(sentLabelOf({ ...reading, domain: "vo", label: { en: "10.00%", ms: "10.00%" } }, rows, "vo")).toEqual({ en: "10.00%", ms: "10.00%", frozen: true });
+  });
+  it("not frozen: read now on the rows given, and marked not frozen", () => {
+    expect(sentLabelOf(reading, rows, "vo")).toEqual({ en: "more than 10.00%", ms: "lebih daripada 10.00%", frozen: false });
   });
 });

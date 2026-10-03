@@ -14,9 +14,9 @@ import { loadPostAwardPolicy } from "@/lib/supervision/load";
 
 import { cumulativeApproved } from "./application";
 import { factsOf, loadAdjustments, loadVariations } from "./load";
-import { ratioOf, type Reading } from "./percent";
+import type { Reading } from "./percent";
 import { positionOf } from "./position";
-import { edgesOf, routePercentLabel } from "./route";
+import { edgesOf, sentLabelOf } from "./route";
 
 export async function variationView(l: LoadedContract, today: string | null) {
   const [all, adjustments, policy, kinds, issue] = await Promise.all([
@@ -37,7 +37,7 @@ export async function variationView(l: LoadedContract, today: string | null) {
   // domain's edges (`labelOf`), never vo's for an increase, agreed rates or a re-measurement.
   const edges = issue ? edgesOf(issue.matrix.rules, "vo") : [];
   const rules = issue?.matrix.rules ?? [];
-  const labelOf = (r: Reading, domain: string) => r.label ?? routePercentLabel(rules, r.domain ?? domain, ratioOf(r));
+  const labelOf = (r: Reading, domain: string) => sentLabelOf(r, rules, domain);
   const formSet = (k: string) => !!kinds.find((x) => x.kind === k)?.templateId;
   return { all, facts, adjustments, issued, refused, policy, baseline, original, revised, cumulative, base, edges, labelOf, formSet, matrixLabel: issue?.label ?? null };
 }
