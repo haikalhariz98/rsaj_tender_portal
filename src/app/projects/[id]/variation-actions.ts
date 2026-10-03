@@ -35,7 +35,7 @@ import { BASE_WORDS, BASIS_WORDS, DIRECTION_WORDS, EVENT_WORDS, EXEMPTION_WORDS,
 import { adjustmentInProgress, CONSENT_DOMAIN, consentOf, factsOf, issuedAdjustments, liveInstructionRow, liveOrderRow, loadAdjustments, loadVariations, matterFactsOf, orderNetOf, ordersAdjusted, standingMeasurements, type VariationRow } from "@/lib/variation/load";
 import { dayworkFaults, measuredAmount, measurementFaults, parseQuantity, parseSignedPercent, removeMeasurementFaults } from "@/lib/variation/measure";
 import { applicationFigures, orderFaults, orderFigures } from "@/lib/variation/order";
-import { edgesOf, routeDomainOf, regimeOf } from "@/lib/variation/route";
+import { applicationPercents, edgesOf } from "@/lib/variation/route";
 import { tableStepFaults } from "@/lib/variation/tabling";
 import { chooseVariationRejection, citeVariationDecision, decideVariationStep, matrixToday, sendVariationRoute, VariationRefusal, variationLabel, type VariationCtx } from "@/lib/variation/route-write";
 import { ADJUSTMENT_DIRECTIONS, ADJUSTMENT_TRIGGERS, RATE_SOURCES, SO_DECISIONS, VARIATION_EVENTS, VARIATION_EXEMPTIONS, VARIATION_ORIGINS, type AdjustmentTrigger, type Finding, type VariationEvent, type VariationExemption } from "@/lib/variation/types";
@@ -428,14 +428,12 @@ export async function sendVariationForApproval(_prev: FormState, data: FormData)
     const now2 = await readingNow(c, all, v, event, value!);
     if (!now2.r.ok) return refuse("Not sent for approval:", now2.r.faults);
     const reading = now2.r.reading;
+    // The route first: its matrix (the override's under a funding override), domain and label are resolved once there.
+    const sent = await sendVariationRoute(c, v, { event, value: value!, reading, submittedBy: sender });
     if (event === "PRIOR") {
-      // The application's figures, frozen now with the route (the application is opened from them on approval).
-      const m = await matrixToday(c);
-      if (!m) return refuse("Not sent for approval:", [{ code: "NO_MATRIX", level: "block", data: { day: c.today } }]);
-      const domain = routeDomainOf("PRIOR", regimeOf(m.issue.matrix, BigInt(reading.den)));
-      const edges = edgesOf(m.issue.matrix.rules, domain);
-      const thisPct = percentLabelText(percentLabel({ num: value!, den: BigInt(reading.den) }, edges));
-      const cumPct = percentLabelText(percentLabel({ num: now2.cumulative + value!, den: BigInt(reading.den) }, edges));
+      // The application's figures, frozen now with the route (the application is opened from them on approval), its
+      // percentages read on the rows the route was resolved on, the route's own label among them (residual S2).
+      const { thisPct, cumPct } = applicationPercents({ rules: sent.rules, domain: sent.domain, value: value!, cumulativeApproved: now2.cumulative, den: BigInt(reading.den), cumulative: reading.cumulative, label: sent.label });
       const s = await loadSupervision(c.l.contract.id, c.tx);
       const progress = [...s.progressRecords].reverse().find((p) => storedDay(p.day) <= c.today) ?? null;
       const snap = applicationFigures({
@@ -450,7 +448,6 @@ export async function sendVariationForApproval(_prev: FormState, data: FormData)
       const moved = await c.tx.variation.updateMany({ where: { id: v.id, status: "SUPPORTED" }, data: { applicationReading: snap as unknown as Prisma.InputJsonValue } });
       if (moved.count !== 1) return CHANGED;
     }
-    const sent = await sendVariationRoute(c, v, { event, value: value!, reading, submittedBy: sender });
     await audit(c, "Variation", v.id, vLabel(c, v), "UPDATE", diffFields({ sentFor: null }, { sentFor: EVENT_WORDS[event].en, value: money(value!), readAs: sent.label.en, readOver: money(BigInt(reading.den)), basis: BASIS_WORDS[reading.basis].en, base: BASE_WORDS[reading.base].en, sentBy: sender.name, recordedOnBehalf: ON_BEHALF }));
     return { ok: true };
   });

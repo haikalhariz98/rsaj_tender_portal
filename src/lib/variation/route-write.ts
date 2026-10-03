@@ -35,6 +35,7 @@ import { loadIssue, loadOverrideMatrix } from "@/lib/authority/load";
 import { choiceFault, rejectionSnapshot, type RejectionKind } from "@/lib/authority/rejection";
 import { CHOICE_FAULT_TEXT, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import { boundaryOperatorFor } from "@/lib/authority/resolve";
+import type { Matrix } from "@/lib/authority/types";
 import { receivedOnFault } from "@/lib/award/routing";
 import { openCertificate } from "@/lib/certificate/write";
 import { readComputedSnapshot } from "@/lib/certificate/snapshot";
@@ -112,7 +113,9 @@ export interface SendInput {
 }
 
 /// Resolve and open the route (the act has judged `sendFaults` and the reading on the locked rows).
-export async function sendVariationRoute(c: VariationCtx, v: VariationRow, i: SendInput): Promise<{ id: string; label: { en: string; ms: string } }> {
+/// Returns the route, its frozen label, and the domain and rows it was resolved on (the override's under a funding
+/// override), so what is frozen beside it (the application's percentages) reads the same source (residual S2).
+export async function sendVariationRoute(c: VariationCtx, v: VariationRow, i: SendInput): Promise<{ id: string; label: { en: string; ms: string }; domain: string; rules: Matrix["rules"] }> {
   const m = await matrixToday(c);
   if (!m) return refuse("Not sent for approval:", [{ code: "NO_MATRIX", level: "block", data: { day: c.today } }]);
   const contractValue = BigInt(i.reading.den);
@@ -180,7 +183,7 @@ export async function sendVariationRoute(c: VariationCtx, v: VariationRow, i: Se
       recordedOnBehalf: "not signed",
     }));
   void appr;
-  return { id: inst.id, label };
+  return { id: inst.id, label, domain, rules: src.matrix.rules };
 }
 
 export interface DecideInput {

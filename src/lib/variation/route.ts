@@ -73,3 +73,23 @@ export const edgesOf = (rules: readonly Pick<Rule, "domain" | "pctMin" | "pctMax
 /// OD-A3 A, as frozen with a route (run 3 review MUST 2): the percentage labelled against the band edges of the domain
 /// the route is actually resolved on (an increase, agreed rates and a re-measurement have their own rows).
 export const routePercentLabel = (rules: readonly Pick<Rule, "domain" | "pctMin" | "pctMax">[], domain: string, ratio: ExactRatio): { en: string; ms: string } => percentLabelText(percentLabel(ratio, edgesOf(rules, domain)));
+
+/**
+ * Run 3 residual S2: the application's two percentages, this variation's and the cumulative with it, labelled against
+ * the band edges of the matrix the prior approval's route was actually resolved on (the override's rows under a
+ * funding override, never the issued matrix's), the one the route was read on being the route's own frozen label.
+ * `cumulative`: whether the route's reading carried the cumulative (the basis). Pure.
+ */
+export function applicationPercents(i: {
+  rules: readonly Pick<Rule, "domain" | "pctMin" | "pctMax">[];
+  domain: string;
+  value: Sen;
+  cumulativeApproved: Sen;
+  den: Sen;
+  cumulative: boolean;
+  label: { en: string; ms: string };
+}): { thisPct: { en: string; ms: string }; cumPct: { en: string; ms: string } } {
+  const edges = edgesOf(i.rules, i.domain);
+  const read = (num: Sen) => percentLabelText(percentLabel({ num, den: i.den }, edges));
+  return i.cumulative ? { thisPct: read(i.value), cumPct: i.label } : { thisPct: i.label, cumPct: read(i.cumulativeApproved + i.value) };
+}

@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { DAL_FIXTURE } from "@/lib/authority/dal-fixture";
@@ -5,7 +8,7 @@ import type { Matrix, Rule } from "@/lib/authority/types";
 import { parseSen } from "@/lib/money";
 
 import { variationReading } from "./percent";
-import { edgesOf, regimeOf, resolveVariationRoute, routeDomainOf, routePercentLabel } from "./route";
+import { applicationPercents, edgesOf, regimeOf, resolveVariationRoute, routeDomainOf, routePercentLabel } from "./route";
 
 /**
  * A variation's route on the matrix (FR-VAR-011, 012, 010, FR-PAD-004; ADR 0024 Amendment 1), on the spec's worked
@@ -111,5 +114,41 @@ describe("run 3 review MUST 2: the label frozen with a route reads its own domai
   });
   it("75,000.01 of 750,000.00 on the variation rows reads \"more than 10.00%\", never \"10.00%\"", () => {
     expect(routePercentLabel(MATRIX.rules, "vo", { num: S("75000.01"), den: S("750000.00") }).en).toBe("more than 10.00%");
+  });
+});
+
+describe("run 3 residual S2: the application's percentages read the rows its route was resolved on", () => {
+  // The issued matrix's `vo` rows have an edge at 10%; a funding override's `vo` rows have theirs at 15%. RM75,000.01
+  // of RM750,000.00 is 10.000001%: against the issued rows it reads "more than 10.00%", against the override's (no
+  // edge at 10%) plainly "10.00%". Routed under the override, the application says what its route says.
+  const row = (domain: string, pctMin: string | null, pctMax: string | null) => ({ domain, pctMin, pctMax });
+  const issued = [row("vo", null, "10"), row("vo", "10", null)];
+  const override = [row("vo", null, "15"), row("vo", "15", null)];
+  const den = S("750000.00");
+  const value = S("75000.01");
+
+  it("this variation's basis: thisPct is the route's frozen label, the cumulative read on the override's edges", () => {
+    const label = routePercentLabel(override, "vo", { num: value, den });
+    expect(label.en).toBe("10.00%");
+    const p = applicationPercents({ rules: override, domain: "vo", value, cumulativeApproved: S("0.00"), den, cumulative: false, label });
+    expect(p.thisPct).toEqual(label);
+    expect(p.cumPct.en).toBe("10.00%");
+    // On the issued matrix's rows the same figure would read differently: the application must not.
+    expect(routePercentLabel(issued, "vo", { num: value, den }).en).toBe("more than 10.00%");
+  });
+
+  it("the cumulative basis: cumPct is the route's frozen label, this variation's read on the same edges", () => {
+    const label = routePercentLabel(override, "vo", { num: S("112500.01"), den });
+    expect(label.en).toBe("more than 15.00%");
+    const p = applicationPercents({ rules: override, domain: "vo", value: S("37500.01"), cumulativeApproved: S("75000.00"), den, cumulative: true, label });
+    expect(p.cumPct).toEqual(label);
+    expect(p.thisPct.en).toBe("5.00%");
+  });
+
+  it("the act freezes them from the route it sent, never from the issued matrix's rows", () => {
+    const src = readFileSync(path.join(__dirname, "../../app/projects/[id]/variation-actions.ts"), "utf8");
+    expect(src).toContain("applicationPercents({ rules: sent.rules, domain: sent.domain");
+    expect(src.indexOf("const sent = await sendVariationRoute(")).toBeLessThan(src.indexOf("applicationPercents({"));
+    expect(readFileSync(path.join(__dirname, "route-write.ts"), "utf8")).toContain("return { id: inst.id, label, domain, rules: src.matrix.rules };");
   });
 });
