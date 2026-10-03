@@ -25,7 +25,7 @@ export async function savePostAwardPolicy(_prev: FormState, data: FormData): Pro
   if (!o) return NO_ORG;
   const r = new FormReader(data);
   const pct = r.optionalText("inDelayProgressPct")?.trim().replace(/%$/, "") ?? null;
-  if (pct && (!/^\d{1,3}(\.\d{1,4})?$/.test(pct) || Number(pct) <= 0 || Number(pct) > 100)) r.reject("inDelayProgressPct", "A percentage above nothing and at most 100, to at most four places (70 judges a contract In Delay below 70% of the planned progress).");
+  if (pct && (!/^\d{1,3}(\.\d{1,4})?$/.test(pct) || Number(pct) <= 0 || Number(pct) > 100)) r.reject("inDelayProgressPct", "A percentage above nothing and at most 100, to at most four places: a contract is In Delay below that share of its planned progress.");
   const follow = r.choice("soReResolve", "Whether the S.O. follows the contract sum", ["yes", "no"] as const);
   const forms = Object.fromEntries(FORM_FIELDS.map((f) => [f, r.optionalText(f)])) as Record<(typeof FORM_FIELDS)[number], string | null>;
   const v = {

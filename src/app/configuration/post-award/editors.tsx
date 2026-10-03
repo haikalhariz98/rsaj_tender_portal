@@ -27,7 +27,7 @@ export function EditPostAwardPolicy({ values, forms }: { values: Record<string, 
       size="lg"
       columns={2}
       fields={[
-        { kind: "text", name: "inDelayProgressPct", label: "In Delay below this share of planned progress (%)", placeholder: "e.g. 70", hint: "Unset: In Delay is not judged on progress (a lapsed completion date still is)." },
+        { kind: "text", name: "inDelayProgressPct", label: "In Delay below this share of planned progress (%)", hint: "Unset: In Delay is not judged on progress (a lapsed completion date still is)." },
         provenance("inDelayProvenance", "Where the percentage came from"),
         { kind: "select", name: "soReResolve", label: "The S.O. changes when an adjustment moves the contract sum across a band", placeholder: "Not decided", options: [{ value: "yes", label: "Yes: resolved again at the new sum" }, { value: "no", label: "No: the S.O. stays as resolved" }] },
         provenance("soReResolveProvenance", "Where that came from"),
