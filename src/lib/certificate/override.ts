@@ -8,6 +8,7 @@
  */
 
 import { parseSen, senToDecimalString } from "@/lib/money";
+import type { ExactRatio } from "@/lib/percent-band";
 
 import { isTotal, totalsFrom, valueFault, type ComputedSnapshot, type FigureLine, type FigureType } from "./snapshot";
 import type { CertificateStatus, Finding } from "./types";
@@ -66,6 +67,28 @@ export function applyOverrides(s: ComputedSnapshot, rows: readonly OverrideRow[]
   const before = totalsFrom(s, new Map(s.lines.map((l) => [l.key, l.value])));
   const totals = s.totals.map((t) => ({ key: t.key, labelEn: t.labelEn, labelMs: t.labelMs, value: now.get(t.key) ?? null, computed: before.get(t.key) ?? null }));
   return { lines, totals, overridden: lines.some((l) => l.override != null) };
+}
+
+/**
+ * The ratio a banded routing target is judged on (614-C5, ADR 0024): where the snapshot's ratio names its lines
+ * (or totals), from the figures as they stand, overrides included; otherwise as handed in. Null: no ratio, or a
+ * denominator not above zero as the figures stand (the target then reads "no ratio", never a band).
+ */
+export function routingRatioOf(s: ComputedSnapshot, e: Effective | null): ExactRatio | null {
+  const r = s.routingRatio;
+  if (!r) return null;
+  const now = (key: string | undefined, handedIn: string): string | null => {
+    if (key === undefined) return handedIn;
+    const line = e?.lines.find((l) => l.key === key);
+    if (line) return line.value;
+    const total = e?.totals.find((t) => t.key === key);
+    return total ? total.value : null;
+  };
+  const num = now(r.numKey, r.num);
+  const den = now(r.denKey, r.den);
+  if (num == null || den == null) return null;
+  const ratio = { num: parseSen(num), den: parseSen(den) };
+  return ratio.den > 0n ? ratio : null;
 }
 
 /// A value as typed, in the form the snapshot holds it ("1,234.5" → "1234.50"). Null where it is not one.

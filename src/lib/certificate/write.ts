@@ -31,7 +31,7 @@ import { refusalText } from "./fault-text";
 import { certificateFieldValues, figureField, mergeFields, type Lang } from "./fields";
 import { renderIssue } from "./issue";
 import { CERT_WORDS, CHECK_KIND_WORDS, DECISION_WORDS, KIND_WORDS, METHOD_WORDS, ON_BEHALF, STATUS_WORDS } from "./labels";
-import { applyOverrides, overrideFaults } from "./override";
+import { applyOverrides, overrideFaults, routingRatioOf } from "./override";
 import { certificateLabel, checksOf, liveBondOf, officeHolders, officeName, routesOf, routingTypeNow, signedOf, templateNow, type LoadedCertificate } from "./repo";
 import { pinRefusals, pinRevision, readRevision, type PinContext, type TemplateRevision } from "./revision";
 import { checkFaults, freezeRoutingType, readRoutingSnapshot, receivedFaults, routeBounds, routingSheet, typeFaults, type Sheet } from "./routing-sheet";
@@ -93,8 +93,9 @@ export function sheetOf(cert: LoadedCertificate["cert"], today: string): Sheet |
   const type = readRoutingSnapshot(cert.routingSnapshot);
   if (!type) return null;
   const snap = readComputedSnapshot(cert.computedSnapshot);
-  const r = snap?.routingRatio;
-  return routingSheet({ type, receivedOn: day(cert.routingReceivedOn), routes: routesOf(cert.approvalInstances), checks: checksOf(cert.routingChecks), ratio: r ? { num: parseSen(r.num), den: parseSen(r.den) } : null, today });
+  // 614-C5: the ratio from the figures as they were sent for routing, overrides included (none is made after).
+  const ratio = snap ? routingRatioOf(snap, applyOverrides(snap, cert.overrides)) : null;
+  return routingSheet({ type, receivedOn: day(cert.routingReceivedOn), routes: routesOf(cert.approvalInstances), checks: checksOf(cert.routingChecks), ratio, today });
 }
 
 /// What the certificate brings to the pin (M-2): its pinned baseline version's Contract Date and its frozen figures.

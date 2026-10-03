@@ -47,7 +47,12 @@ export interface ComputedSnapshot {
   totals: FigureTotal[];
   /// The ratio a banded routing target is judged on (a variation's sum over the contract sum), as two money
   /// strings, where the owning module states one (ADR 0024). Null: none.
-  routingRatio: { num: string; den: string; labelEn: string; labelMs: string } | null;
+  ///
+  /// 614-C5 (6.13 Part A step 3): where `numKey` (and `denKey`) name a money line or a total of these figures,
+  /// the ratio is worked out from the figures as they stand, overrides included, never from the strings handed
+  /// in; so a draft override that moves the figure moves the target it is judged against. The strings are the
+  /// ratio as computed. A ratio with no keys is read as handed in (a figure no line carries).
+  routingRatio: { num: string; den: string; labelEn: string; labelMs: string; numKey?: string; denKey?: string } | null;
 }
 
 const KEY = /^[a-z][A-Za-z0-9]*$/;
@@ -73,7 +78,22 @@ export function snapshotFaults(s: ComputedSnapshot): Finding[] {
     before.add(t.key);
   }
   if (s.routingRatio) {
-    if (valueFault("MONEY", s.routingRatio.num) || valueFault("MONEY", s.routingRatio.den) || parseSen(s.routingRatio.den) <= 0n) f("RATIO");
+    const r = s.routingRatio;
+    if (valueFault("MONEY", r.num) || valueFault("MONEY", r.den) || parseSen(r.den) <= 0n) f("RATIO");
+    // 614-C5: a key names a money line or a total of these figures, and the strings are that figure as computed.
+    else {
+      const computed = totalsFrom(s, new Map(s.lines.map((l) => [l.key, l.value])));
+      const as = (key: string) => {
+        const line = s.lines.find((l) => l.key === key);
+        if (line) return line.type === "MONEY" ? line.value : undefined;
+        return computed.has(key) ? computed.get(key)! : undefined;
+      };
+      for (const [key, value] of [[r.numKey, r.num], [r.denKey, r.den]] as const) {
+        if (key === undefined) continue;
+        const v = as(key);
+        if (v === undefined || v == null || parseSen(v) !== parseSen(value)) f("RATIO");
+      }
+    }
   }
   return out;
 }

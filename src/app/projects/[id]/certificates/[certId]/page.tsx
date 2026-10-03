@@ -19,7 +19,7 @@ import { distributionState } from "@/lib/certificate/distribution";
 import { certificateFaultText, refusalText } from "@/lib/certificate/fault-text";
 import { certificateFieldLabel, certificateFieldValues, mergeFields } from "@/lib/certificate/fields";
 import { BLOCK_KIND_WORDS, CERT_WORDS, DECISION_WORDS, KIND_WORDS, METHOD_WORDS, OFFICE_RULE_WORDS, STATUS_TONE, STATUS_WORDS } from "@/lib/certificate/labels";
-import { applyOverrides, type Effective } from "@/lib/certificate/override";
+import { applyOverrides, routingRatioOf, type Effective } from "@/lib/certificate/override";
 import { loadCertificate, routesOf, signedOf, templateNow, type LoadedCertificate } from "@/lib/certificate/repo";
 import { pinRefusals, readRevision, type TemplateRevision } from "@/lib/certificate/revision";
 import { type Sheet } from "@/lib/certificate/routing-sheet";
@@ -211,6 +211,7 @@ function FiguresPanel({ l, figures, people }: { l: LoadedCertificate; figures: E
   const cert = l.cert;
   const draft = cert.status === "DRAFT";
   const snap = readComputedSnapshot(cert.computedSnapshot);
+  const ratio = snap ? routingRatioOf(snap, figures) : null;
   if (!figures || !snap) {
     return (
       <Card>
@@ -256,7 +257,8 @@ function FiguresPanel({ l, figures, people }: { l: LoadedCertificate; figures: E
       </ul>
       {snap.routingRatio && (
         <CardBody className="border-t border-line/70">
-          <p className="text-[12.5px] text-ink-3">{`${snap.routingRatio.labelEn}: ${ratioPercentText({ num: parseSen(snap.routingRatio.num), den: parseSen(snap.routingRatio.den) })}% (${formatMoney(parseSen(snap.routingRatio.num))} of ${formatMoney(parseSen(snap.routingRatio.den))}; judged on the exact amounts, never the rounded figure).`}</p>
+          {/* 614-C5: the ratio from the figures as they stand, overrides included: the one the routing target is judged on. */}
+          <p className="text-[12.5px] text-ink-3">{ratio ? `${snap.routingRatio.labelEn}: ${ratioPercentText(ratio)}% (${formatMoney(ratio.num)} of ${formatMoney(ratio.den)}; judged on the exact amounts as they stand, overrides included, never the rounded figure).` : `${snap.routingRatio.labelEn}: not worked out, as the figures stand (a figure it needs is not computed).`}</p>
         </CardBody>
       )}
     </Card>
