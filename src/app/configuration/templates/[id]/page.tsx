@@ -58,7 +58,7 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
         eyebrow={<Link href="/configuration/templates">Templates</Link>}
         title={t.nameEn}
         badge={undecided ? <Badge tone="warn" dot>{`${undecided} block${undecided === 1 ? "" : "s"} undecided`}</Badge> : undefined}
-        subtitle="Signature order, distribution list and printed form, pinned at a certificate's first signature."
+        subtitle="Signature order, recipients and printed form, pinned at a certificate's first signature."
         meta={[t.formCode || "No form code", t.revisionDate ? `Revision ${formatDate(t.revisionDate)}` : "No revision date", notAForm ? `Version ${t.bodyVersion} (its text)` : `Version ${t.bodyVersion} (its text, signature blocks, distribution list and printed form)`, t.pageCount == null ? "Printed pages not recorded" : `${t.pageCount} printed page${t.pageCount === 1 ? "" : "s"}`, `${t._count.certificates} certificate${t._count.certificates === 1 ? "" : "s"} printed on it`]}
       />
       <div className="flex flex-col gap-6">
