@@ -404,7 +404,13 @@ export default async function ApprovalMatrixPage({
                 {
                   // ADR 0024 Amendment 1 (6.13 Part A step 1): percentage band edges follow the same switch.
                   label: "A percentage exactly on a band edge",
-                  value: <span>{matrix.policy.boundaryInclusive ? "Falls in the band the edge closes: up to and including it (a variation of exactly 10.00% sits in the band ending at 10%)." : "Falls in the band the edge opens: from it upwards (a variation of exactly 10.00% sits in the band starting at 10%)."} Judged on the exact ratio of the two amounts, never a rounded figure.</span>,
+                  // BD-613-5 ruling: the line carries the boundary ruling's provenance, as the side it reads is that ruling's.
+                  value: (
+                    <span className="flex flex-col items-start gap-1">
+                      <span>{matrix.policy.boundaryInclusive ? "Falls in the band the edge closes: up to and including it (a variation of exactly 10.00% sits in the band ending at 10%)." : "Falls in the band the edge opens: from it upwards (a variation of exactly 10.00% sits in the band starting at 10%)."} Judged on the exact ratio of the two amounts, never a rounded figure.</span>
+                      <ProvenanceBadge value={boundaryMeta.boundaryProvenance} />
+                    </span>
+                  ),
                 },
                 {
                   label: "Boundary ruling",
