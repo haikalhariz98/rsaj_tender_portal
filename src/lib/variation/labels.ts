@@ -6,7 +6,11 @@
  */
 
 import { formatDate } from "@/lib/format";
+import { kindFaultWords } from "@/lib/certificate/kinds";
+import { KIND_WORDS } from "@/lib/certificate/labels";
+import type { CertificateKind } from "@/lib/certificate/types";
 import { formatSen } from "@/lib/money";
+import { supervisionFaultWords } from "@/lib/supervision/labels";
 
 import type { Stage } from "./application";
 import type { ConsentState } from "./instruction";
@@ -324,6 +328,14 @@ export function variationFaultWords(f: Finding): Words {
       return w("Another adjustment of the contract sum was issued after this one was raised, so its earlier adjustments and revised sum no longer stand: void it and raise it again.", "Pelarasan lain telah dikeluarkan selepas ini dibangkitkan: batalkan dan bangkitkan semula.");
     case "VARIATION_ROUTE_ON_BASE":
       return w(`${d.variation ?? "A variation"} has a route waiting whose percentage was read over the revised contract sum: decide it before this adjustment moves that sum.`, "Laluan perubahan kerja yang dibaca atas harga disemak masih menunggu: putuskannya dahulu.");
+    case "MONEY_NEEDS_APPROVED_ROUTE":
+      return kindFaultWords(f);
+    case "SO_UNRESOLVED":
+      return supervisionFaultWords(f);
+    case "FORM_NOT_SET":
+      return w(`The form a ${(KIND_WORDS[d.kind as CertificateKind] ?? w("certificate", "")).en.toLowerCase()} prints on is not set: set it under Configuration › Post-award controls.`, `Borang ${(KIND_WORDS[d.kind as CertificateKind] ?? w("perakuan", "perakuan")).ms.toLowerCase()} belum ditetapkan: tetapkan di Konfigurasi › Kawalan selepas setuju terima.`);
+    case "NOT_EXECUTED":
+      return w("The contract is not executed: a variation is recorded on an executed contract.", "Kontrak belum dilaksanakan.");
     // ------------------------------------------------ tabling and citing
     case "NOT_COMMITTEE_STEP":
       return w("That is not a committee's step on the variation's open route.", "Itu bukan langkah jawatankuasa pada laluan terbuka.");

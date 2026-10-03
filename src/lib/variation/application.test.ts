@@ -173,3 +173,16 @@ describe("closing, and the schedule form (OD-A5)", () => {
     expect(approvedValue(v({ exemption: "REMEASUREMENT", routes: [route("REMEASUREMENT", "APPROVED", "35000.00")] }))).toBe(0n);
   });
 });
+
+describe("OD-A7 A: the S.O. after an issued adjustment", () => {
+  const resolved = { state: "RESOLVED" as const, roleCode: "CEO", roleLabel: "Chief Executive", ruleKey: "k", ruleLabel: "Above RM3M", clause: "c", notes: [] };
+  it("off and unset move nothing; on: the same office stays, another takes effect, none refuses naming the matrix", async () => {
+    const { soAfterAdjustment } = await import("./so-after");
+    expect(soAfterAdjustment(false, { roleCode: "FD" }, resolved, "M").state).toBe("OFF");
+    expect(soAfterAdjustment(null, { roleCode: "FD" }, resolved, "M").state).toBe("NOT_SET");
+    expect(soAfterAdjustment(true, { roleCode: "CEO" }, resolved, "M").state).toBe("SAME");
+    expect(soAfterAdjustment(true, { roleCode: "FD" }, resolved, "M")).toMatchObject({ state: "MOVE", resolution: { roleCode: "CEO" } });
+    expect(soAfterAdjustment(true, { roleCode: "FD" }, null, "M")).toMatchObject({ state: "REFUSE", faults: [{ code: "SO_UNRESOLVED" }] });
+    expect(soAfterAdjustment(true, { roleCode: "FD" }, { state: "SO_UNRESOLVED", errors: [] }, "M")).toMatchObject({ state: "REFUSE" });
+  });
+});

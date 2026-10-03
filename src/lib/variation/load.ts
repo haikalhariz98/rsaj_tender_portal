@@ -1,0 +1,154 @@
+/**
+ * A contract's variations and its adjustments of the contract sum, loaded (6.13 Part A step 4). Reads only; every rule
+ * is in the pure modules beside this. Server-only: called by the contract's Variations tab, the variation's page and
+ * the acts inside their own locked transaction (`client` the transaction), so a decision reads the rows it locked.
+ */
+
+import type { Tx } from "@/lib/audit/record";
+import { issuedNet } from "@/lib/adjustment/ppjhk";
+import { storedDay } from "@/lib/dates";
+import { db } from "@/lib/db";
+import { parseSen, senFromDecimal, type Sen } from "@/lib/money";
+import { recordOf } from "@/lib/requisition/repo";
+
+import type { RouteFact, VariationFacts } from "./application";
+import type { ConsentState } from "./instruction";
+import type { SoDecision, VariationEvent, VariationExemption, VariationStatus } from "./types";
+
+const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
+const certSelect = { id: true, kind: true, status: true, number: true, sequence: true, certificateDate: true, issuedAt: true, issueSnapshot: true, computedSnapshot: true, openedOn: true, signatures: { select: { blockKind: true, refused: true, refusalNote: true, name: true, signedOn: true } } } as const;
+const name = { select: { id: true, name: true } } as const;
+
+/// A committee matter tabled from a variation, as its decision record is built.
+export const matterInclude = { meeting: { include: { committee: { select: { id: true, code: true, nameEn: true } } } }, votes: { include: { person: { select: { name: true } } } } } as const;
+
+export const variationInclude = {
+  originator: name,
+  reviewedBy: name,
+  principal: name,
+  soDecidedBy: name,
+  commencedSupport: name,
+  closedBy: name,
+  applicationCertificate: { select: certSelect },
+  approvals: {
+    include: { sentBy: name, approvalInstance: { include: { steps: { orderBy: { sequence: "asc" as const } } } } },
+    orderBy: [{ sentAt: "asc" as const }],
+  },
+  matters: { include: matterInclude, orderBy: { tabledAt: "asc" as const } },
+  instructions: { include: { certificate: { select: certSelect }, person: name }, orderBy: { recordedAt: "asc" as const } },
+  measurements: { include: { person: name }, orderBy: [{ recordedAt: "asc" as const }] },
+  dayworkRecords: { include: { person: name }, orderBy: [{ workedOn: "asc" as const }, { recordedAt: "asc" as const }] },
+  orders: { include: { certificate: { select: certSelect }, person: name, adjustmentLines: { select: { sumAdjustment: { select: { certificate: { select: { status: true, number: true } } } } } } }, orderBy: { recordedAt: "asc" as const } },
+};
+
+export type VariationRow = Awaited<ReturnType<typeof readVariations>>[number];
+
+function readVariations(contractId: string, client: Tx) {
+  return client.variation.findMany({ where: { contractId }, include: variationInclude, orderBy: [{ recordedAt: "asc" }, { id: "asc" }] });
+}
+
+export async function loadVariations(contractId: string, client: Tx = db): Promise<VariationRow[]> {
+  return readVariations(contractId, client);
+}
+
+/// The order's net as worked out with it (its frozen figures, totals recomputed by the core from the lines).
+export function orderNetOf(o: { certificate: { computedSnapshot: unknown } }): Sen {
+  const s = o.certificate.computedSnapshot as { lines?: { key: string; value: string | null }[] } | null;
+  const v = (k: string) => {
+    const x = s?.lines?.find((l) => l.key === k)?.value;
+    return x == null ? 0n : parseSen(x);
+  };
+  return v("additions") - v("omissions");
+}
+
+/// A variation as the rules read it.
+export function factsOf(v: VariationRow): VariationFacts {
+  const routes: RouteFact[] = v.approvals.map((a) => ({
+    id: a.approvalInstance.id,
+    event: a.event as VariationEvent,
+    status: a.approvalInstance.status,
+    value: senFromDecimal(a.value),
+    applied: a.approvalInstance.rejectionApplied,
+    choices: a.approvalInstance.rejectionChoices,
+    // Oldest first as sent (the sort that reads the latest is stable, so two sent on one day keep their order).
+    openedOn: storedDay(a.approvalInstance.openedAt),
+  }));
+  return {
+    id: v.id,
+    status: v.status as VariationStatus,
+    exemption: v.exemption as VariationExemption | null,
+    estimate: senFromDecimal(v.estimate),
+    soDecision: v.soDecision as SoDecision | null,
+    soDecisionCap: v.soDecisionCap == null ? null : senFromDecimal(v.soDecisionCap),
+    routes,
+    instructions: v.instructions.map((i) => ({ id: i.id, certificateStatus: i.certificate.status })),
+    orders: v.orders.map((o) => ({ id: o.id, certificateStatus: o.certificate.status, net: orderNetOf(o) })),
+    commencedOn: day(v.commencedOn),
+  };
+}
+
+/// The latest route of an event, as loaded.
+export const latestApproval = (v: VariationRow, e: VariationEvent) => [...v.approvals].filter((a) => a.event === e).at(-1) ?? null;
+
+/// The open route (one at a time).
+export const openApproval = (v: VariationRow) => v.approvals.find((a) => a.approvalInstance.status === "PENDING") ?? null;
+
+/// The funder's consent: the latest matter tabled for it (on the consent domain), as its committee decided it.
+export const CONSENT_DOMAIN = "vo_funder_consent";
+export function consentOf(v: VariationRow): { state: ConsentState; matter: VariationRow["matters"][number] | null } {
+  const m = [...v.matters].filter((x) => x.domain === CONSENT_DOMAIN && !x.withdrawnAt).at(-1) ?? null;
+  if (!m) return { state: "NONE", matter: null };
+  return { state: m.outcome === "CARRIED" ? "CARRIED" : m.outcome === "NOT_CARRIED" ? "NOT_CARRIED" : "PENDING", matter: m };
+}
+
+/// A matter's decision record (6.10's builder), or null while pending.
+export const matterRecordOf = (m: VariationRow["matters"][number]) => recordOf(m);
+
+/// The live instruction (not void) and the live order.
+export const liveInstructionRow = (v: VariationRow) => v.instructions.find((i) => i.certificate.status !== "VOID") ?? null;
+export const liveOrderRow = (v: VariationRow) => v.orders.find((o) => o.certificate.status !== "VOID") ?? null;
+
+/// The measured items standing (not removed) under an instruction.
+export const standingMeasurements = (v: VariationRow, instructionId: string) => v.measurements.filter((m) => m.instructionId === instructionId && !m.removedAt);
+
+/// The contract refusal: the contractor refused to sign the order (FR-VAR-022), recorded as a dispute.
+export function disputeOf(o: { certificate: { signatures: { blockKind: string; refused: boolean; refusalNote: string; name: string; signedOn: Date }[] } }): { note: string; on: string; name: string } | null {
+  const s = o.certificate.signatures.find((x) => x.blockKind === "CONTRACTOR" && x.refused);
+  return s ? { note: s.refusalNote, on: storedDay(s.signedOn), name: s.name } : null;
+}
+
+// ------------------------------------------------------------------ the adjustments of the contract sum
+
+export const adjustmentInclude = {
+  certificate: { select: certSelect },
+  person: name,
+  lines: { include: { variationCertificate: { select: { id: true, variationId: true } } }, orderBy: { sortOrder: "asc" as const } },
+};
+
+export type AdjustmentRow = Awaited<ReturnType<typeof readAdjustments>>[number];
+function readAdjustments(contractId: string, client: Tx) {
+  return client.sumAdjustment.findMany({ where: { contractId }, include: adjustmentInclude, orderBy: [{ recordedAt: "asc" }, { id: "asc" }] });
+}
+
+export async function loadAdjustments(contractId: string, client: Tx = db): Promise<AdjustmentRow[]> {
+  return readAdjustments(contractId, client);
+}
+
+/// The issued adjustments, oldest first, with the net each moved the sum by (FR-PAD-003: the only source of the revised sum).
+export function issuedAdjustments(rows: readonly AdjustmentRow[]): { id: string; certificateId: string; number: string | null; net: Sen; issuedAt: Date | null }[] {
+  return rows
+    .filter((a) => a.certificate.status === "ISSUED")
+    .map((a) => ({ id: a.id, certificateId: a.certificate.id, number: a.certificate.number, net: issuedNet(a.certificate.issueSnapshot) ?? 0n, issuedAt: a.certificate.issuedAt }))
+    .sort((a, b) => (a.issuedAt?.getTime() ?? 0) - (b.issuedAt?.getTime() ?? 0));
+}
+
+/// An adjustment in progress (raised, neither issued nor void): one at a time per contract.
+export const adjustmentInProgress = (rows: readonly AdjustmentRow[]) => rows.find((a) => a.certificate.status !== "ISSUED" && a.certificate.status !== "VOID") ?? null;
+
+/// The orders already on an adjustment that is not void.
+export const ordersAdjusted = (rows: readonly AdjustmentRow[]): string[] => rows.filter((a) => a.certificate.status !== "VOID").flatMap((a) => a.lines.map((l) => l.variationCertificateId).filter((x): x is string => !!x));
+
+/// The issued adjustments' nets, by the contract's id, for the interim certificate and the variation base (FR-PAD-003).
+export async function issuedAdjustmentNets(contractId: string, client: Tx = db): Promise<{ id: string; net: Sen }[]> {
+  return issuedAdjustments(await loadAdjustments(contractId, client)).map((a) => ({ id: a.id, net: a.net }));
+}
