@@ -8,7 +8,7 @@ import { writeAudit, type Tx } from "@/lib/audit/record";
 import { otherUsesOf, TEMPLATE_OTHER_USES } from "@/lib/certificate/config";
 import { correctionFaults } from "@/lib/certificate/corrections";
 import { certificateFaultWords } from "@/lib/certificate/fault-text";
-import { termSaveFaults, type Term } from "@/lib/certificate/terms";
+import { aliasesKeeping, removedAliasesInUse, termSaveFaults, type Term } from "@/lib/certificate/terms";
 import type { Finding } from "@/lib/certificate/types";
 import { db } from "@/lib/db";
 import { exerciseOrg } from "@/lib/method/repo";
@@ -123,20 +123,29 @@ export async function saveTerm(_prev: FormState, data: FormData): Promise<FormSt
     if (id && !before) return { ok: false, message: "That term no longer exists." };
     // The code is set once: a form's text cites the term by it.
     const code = before ? before.code : (codeIn ?? "");
-    const term: Term = { code, canonicalEn, canonicalMs, aliases };
+    // BD-614-33 as ruled: a replaced wording stays as an alias of the same term (refused below if another term has it).
+    const term: Term = { code, canonicalEn, canonicalMs, aliases: aliasesKeeping(before ? { canonicalEn: before.canonicalEn, canonicalMs: before.canonicalMs } : null, { code, canonicalEn, canonicalMs, aliases }) };
     const others = all.filter((t) => t.id !== id).map((t): Term => ({ code: t.code, canonicalEn: t.canonicalEn, canonicalMs: t.canonicalMs, aliases: t.aliases.map((a) => a.alias) }));
     const fs = termSaveFaults(term, others);
     if (fs.length) return { ok: false, message: words(fs) };
+    // BD-614-33 as ruled: removing an alias an issued certificate's frozen text still says warns, and asks for a reason.
+    const reason = String(data.get("reason") ?? "").trim();
+    const removed = (before?.aliases.map((a) => a.alias) ?? []).filter((a) => !term.aliases.includes(a));
+    if (removed.length && !reason) {
+      const docs = await tx.certificateDocument.findMany({ where: { organisationId: orgId, certificate: { status: "ISSUED" }, OR: removed.map((a) => ({ renderedText: { contains: a, mode: "insensitive" as const } })) }, select: { renderedText: true, certificate: { select: { number: true } } } });
+      const inUse = removedAliasesInUse(removed, docs.map((d) => ({ label: d.certificate.number ?? "a certificate", text: d.renderedText })));
+      if (inUse.length) return { ok: false, errors: { reason: `${inUse.map((u) => `"${u.alias}" is still in the text of ${[...new Set(u.certificates)].join(", ")}`).join("; ")}: without it a search by the term's other wordings no longer finds ${inUse.length === 1 && new Set(inUse[0].certificates).size === 1 ? "it" : "them"}. Say why it is removed.` } };
+    }
     const row = before
       ? await tx.term.update({ where: { id: before.id }, data: { canonicalEn, canonicalMs, provenance, notes } })
       : await tx.term.create({ data: { organisationId: orgId, code, canonicalEn, canonicalMs, provenance, notes } });
     const had = before?.aliases.map((a) => a.alias) ?? [];
-    const gone = had.filter((a) => !aliases.includes(a));
+    const gone = had.filter((a) => !term.aliases.includes(a));
     if (gone.length) await tx.termAlias.deleteMany({ where: { termId: row.id, alias: { in: gone } } });
-    for (const a of aliases.filter((x) => !had.includes(x))) await tx.termAlias.create({ data: { organisationId: orgId, termId: row.id, alias: a } });
+    for (const a of term.aliases.filter((x) => !had.includes(x))) await tx.termAlias.create({ data: { organisationId: orgId, termId: row.id, alias: a } });
     const prior: Term | null = before ? { code: before.code, canonicalEn: before.canonicalEn, canonicalMs: before.canonicalMs, aliases: had } : null;
     const changes = diffFields(prior ? { ...termWords(prior), provenance: before!.provenance } : null, { ...termWords(term), provenance });
-    if (changes.length) await writeAudit(tx, { organisationId: orgId, entity: "Term", entityId: row.id, entityLabel: `Term: ${canonicalEn ?? canonicalMs}`, reason: String(data.get("reason") ?? "") }, before ? "UPDATE" : "CREATE", changes);
+    if (changes.length) await writeAudit(tx, { organisationId: orgId, entity: "Term", entityId: row.id, entityLabel: `Term: ${canonicalEn ?? canonicalMs}`, reason }, before ? "UPDATE" : "CREATE", changes);
     return { ok: true };
   });
 }

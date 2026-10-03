@@ -79,3 +79,44 @@ describe("BD-614-26 as ruled: a pin and an issue record which corrections applie
     expect(readFileSync("src/lib/certificate/write.ts", "utf8")).toMatch(/typingCorrectionsPinned: pinning && rev\.corrections\?\.length \? correctionsWords\(rev\.corrections\)\.en : null/);
   });
 });
+
+describe("S-2: a term is found in a query only as whole words", () => {
+  it("\"approval\" does not contain the alias \"P.P.\"-style fragment \"pp\": no swap inside a word", async () => {
+    const { searchVariants, wordAt } = await import("./terms");
+    const pp = { code: "pp", canonicalEn: null, canonicalMs: "Pegawai Penguasa", aliases: ["pp"] };
+    expect(searchVariants("approval", [pp])).toEqual(["approval"]);
+    expect(searchVariants("PP approval", [pp])).toEqual(["PP approval", "Pegawai Penguasa approval"]);
+    expect(wordAt("Fasal 43", "fasal")).toBe(0);
+    expect(wordAt("Fasalnya 43", "fasal")).toBe(-1);
+    // Unicode-aware: a letter with a diacritic is part of the word.
+    expect(wordAt("kecacatané", "kecacatan")).toBe(-1);
+    expect(wordAt("S.O. delegates", "s.o.")).toBe(0);
+  });
+});
+
+describe("BD-614-33 as ruled: a replaced wording stays as an alias", () => {
+  it("worked example: an issued certificate frozen in the old wording is still found after the wording changes", async () => {
+    const { aliasesKeeping, searchVariants, termSaveFaults } = await import("./terms");
+    const before = { code: "so", canonicalEn: "Superintending Officer", canonicalMs: "Pegawai Penguasa", aliases: ["S.O."] };
+    const edited = { ...before, canonicalEn: "Superintending Officer (S.O.)" };
+    const after = { ...edited, aliases: aliasesKeeping(before, edited) };
+    expect(after.aliases).toEqual(["S.O.", "Superintending Officer"]);
+    // A search by any other wording also searches the old one, which the frozen text says.
+    expect(searchVariants("S.O.", [after])).toContain("Superintending Officer");
+    expect(termSaveFaults(after, [])).toEqual([]);
+  });
+  it("the old wording already another term's: the edit is refused naming that term; an unchanged wording adds nothing", async () => {
+    const { aliasesKeeping, termSaveFaults } = await import("./terms");
+    const before = { code: "so", canonicalEn: "Officer", canonicalMs: null, aliases: [] };
+    const edited = { ...before, canonicalEn: "Superintending Officer" };
+    const other = { code: "off", canonicalEn: null, canonicalMs: "Pegawai", aliases: ["officer"] };
+    const fs = termSaveFaults({ ...edited, aliases: aliasesKeeping(before, edited) }, [other]);
+    expect(fs.map((f) => f.code)).toEqual(["TERM_WORDING_TAKEN"]);
+    expect(fs[0].data).toEqual({ term: "off" });
+    expect(aliasesKeeping(before, { ...before })).toEqual([]);
+  });
+  it("removing an alias an issued certificate's text still says is found, by whole words", async () => {
+    const { removedAliasesInUse } = await import("./terms");
+    expect(removedAliasesInUse(["S.O.", "P.P."], [{ label: "DEMO/CERT/1", text: "The S.O. delegates." }, { label: "DEMO/CERT/2", text: "Approval." }])).toEqual([{ alias: "S.O.", certificates: ["DEMO/CERT/1"] }]);
+  });
+});

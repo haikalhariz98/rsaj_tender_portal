@@ -98,23 +98,37 @@ export function termSaveFaults(t: Term, others: readonly Term[]): Finding[] {
 
 export const SEARCH_VARIANTS_MAX = 12;
 
+/// Text as compared: Unicode-normalised (NFC), whitespace collapsed.
+const normText = (s: string) => s.normalize("NFC").trim().replace(/\s+/g, " ");
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 /**
- * The searches a query stands for: the query as typed, then, for each term with a wording found in the query (any
- * letter case), the query with that wording swapped for each of the term's other wordings. Terms are taken in code
- * order and the list is capped at SEARCH_VARIANTS_MAX, the query as typed always first. With no term the query
+ * Where a wording stands in a text as whole words (code review S-2): not inside a longer word, on Unicode letter and
+ * digit boundaries, letter case ignored. -1: not there.
+ */
+export function wordAt(text: string, wording: string): number {
+  const v = normText(wording);
+  if (!v) return -1;
+  const m = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(v)}(?![\\p{L}\\p{N}])`, "iu").exec(text);
+  return m ? m.index : -1;
+}
+
+/**
+ * The searches a query stands for: the query as typed, then, for each term with a wording found in the query as whole
+ * words (any letter case), the query with that wording swapped for each of the term's other wordings. Terms are taken
+ * in code order and the list is capped at SEARCH_VARIANTS_MAX, the query as typed always first. With no term the query
  * stands alone.
  */
 export function searchVariants(query: string, terms: readonly Term[]): string[] {
-  const q = query.trim().replace(/\s+/g, " ");
+  const q = normText(query);
   if (!q) return [];
   const out: string[] = [q];
-  const lower = q.toLocaleLowerCase("en");
   for (const t of [...terms].sort((a, b) => (a.code < b.code ? -1 : a.code > b.code ? 1 : 0))) {
-    const vs = variantsOf(t).map((v) => v.trim().replace(/\s+/g, " "));
+    const vs = variantsOf(t).map(normText);
     // The longest wording found wins, so "Tempoh Liabiliti Kecacatan" is swapped whole, not a shorter alias inside it.
-    const found = [...vs].sort((a, b) => b.length - a.length).find((v) => lower.includes(v.toLocaleLowerCase("en")));
+    const found = [...vs].sort((a, b) => b.length - a.length).find((v) => wordAt(q, v) >= 0);
     if (!found) continue;
-    const at = lower.indexOf(found.toLocaleLowerCase("en"));
+    const at = wordAt(q, found);
     for (const v of vs) {
       if (v.toLocaleLowerCase("en") === found.toLocaleLowerCase("en")) continue;
       const swapped = q.slice(0, at) + v + q.slice(at + found.length);
@@ -123,4 +137,22 @@ export function searchVariants(query: string, terms: readonly Term[]): string[] 
     }
   }
   return out;
+}
+
+/**
+ * BD-614-33 as ruled: a term's wording changed keeps each replaced wording (per language) as an alias of the same
+ * term, so frozen text in the old wording is still found by the term's other wordings (FR-CRT-011, ADR 0008). The
+ * aliases after the edit: those given, plus each replaced canonical wording not already a wording of the term.
+ */
+export function aliasesKeeping(before: Pick<Term, "canonicalEn" | "canonicalMs"> | null, after: Term): string[] {
+  const out = [...after.aliases];
+  if (!before) return out;
+  const has = (v: string) => [after.canonicalEn, after.canonicalMs, ...out].some((x) => x != null && norm(x) === norm(v));
+  for (const old of [before.canonicalEn, before.canonicalMs]) if (old?.trim() && !has(old)) out.push(old.trim());
+  return out;
+}
+
+/// Code review BD-614-33: of the aliases an edit removes, those an issued certificate's frozen text still says (whole words).
+export function removedAliasesInUse(removed: readonly string[], texts: readonly { label: string; text: string }[]): { alias: string; certificates: string[] }[] {
+  return removed.map((alias) => ({ alias, certificates: texts.filter((t) => wordAt(normText(t.text), alias) >= 0).map((t) => t.label) })).filter((x) => x.certificates.length > 0);
 }
