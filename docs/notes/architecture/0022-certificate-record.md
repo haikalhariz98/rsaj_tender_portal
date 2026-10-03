@@ -39,7 +39,8 @@ The workbooks also show what goes wrong with figures nobody freezes: two broken 
    Superintending Officer's blocks, or a named outsider on the day they signed the paper. Recorded on behalf of, not
    signed (no sign-in).
 6. **The date is the authorising block's act (FR-CRT-005).** The day of the act of the block marked
-   `datesCertificate`; never a form field. A correction (as 6.12 OD-1 A) moves it to an earlier day with a reason.
+   `datesCertificate`; never a form field. A correction (as 6.12 OD-1 A) moves it to an earlier day with a reason,
+   only while the certificate is being signed (Amendment 1).
 7. **The last signature issues it.** Under the contract's lock it allocates the number from the `certificate` series
    and the per-contract `sequence` of its kind, freezes the text in each language (`CertificateDocument`, ADR 0008),
    resolves the pinned distribution list into addressed copies (`IssuedCopy`, owner the certificate) and freezes what
@@ -59,3 +60,13 @@ The workbooks also show what goes wrong with figures nobody freezes: two broken 
   rather than freezing into a certificate with no exit.
 - Rules out: a certificate table per kind, a keyed certificate date, a total stored as a figure of its own, and an
   override after the draft.
+
+## Amendment 1 (2026-10-03, 6.14 increment 1 fix round, BD-614-20 for ruling)
+
+A certificate's date is corrected only while it is SIGNING. The last signature issues it with the date as it then
+stands, read under the certificate's lock, so a correction made before issue is the date in its frozen text, its
+fields and its issue snapshot alike. Once ISSUED the date is final, as decision 3 says of an issued certificate
+(corrected only by a later certificate); a VOID certificate stays as it was. A correction never goes before a block
+signed before the dating block, before the day the certificate was opened, or before the day its route was
+approved. This supersedes BD-614-13's clause that the issued text keeps the day it was issued with, which applied
+only while a correction after issue was possible.
