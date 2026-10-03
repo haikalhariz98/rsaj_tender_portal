@@ -10,6 +10,8 @@ import { escalationFaultText, ESCALATION_KIND_LABEL } from "@/lib/authority/esca
 import { actingOffice, stepEscalation } from "@/lib/authority/escalation";
 import { dayToDate, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { KIND_WORDS } from "@/lib/certificate/labels";
+import { contractLabel } from "@/lib/contract/repo";
 import { exerciseRouteMatter } from "@/lib/method/approval";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
@@ -43,11 +45,16 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
 
   const found = await db.approvalStep.findUnique({
     where: { id: stepId },
-    select: { instance: { select: { id: true, requisitionId: true, exerciseId: true, awardId: true, exercise: { select: { requisitionId: true } }, supplierApplicationId: true, supplierApplication: { select: { supplierId: true } }, standingRequestId: true, standingRequest: { select: { supplierId: true } }, specialPermissionId: true, specialPermission: { select: { party: { select: { vendorId: true } } } } } } },
+    select: { instance: { select: { id: true, requisitionId: true, exerciseId: true, awardId: true, exercise: { select: { requisitionId: true } }, supplierApplicationId: true, supplierApplication: { select: { supplierId: true } }, standingRequestId: true, standingRequest: { select: { supplierId: true } }, specialPermissionId: true, specialPermission: { select: { party: { select: { vendorId: true } } } }, certificateId: true, certificate: { select: { contractId: true, contract: { select: { awardId: true, award: { select: { exerciseId: true, exercise: { select: { requisitionId: true } } } } } } } } } } },
   });
   if (!found) return { ok: false, message: "That step no longer exists." };
   const route = found.instance;
-  const requisitionId = route.requisitionId ?? route.exercise?.requisitionId ?? null;
+  // 6.13 Part A step 3 (614-C4): a certificate's route locks its chain as every certificate act does: the requisition,
+  // the exercise and the award behind its contract, then the contract, then the certificate.
+  const cert = route.certificate?.contractId ? { id: route.certificateId!, contractId: route.certificate.contractId, awardId: route.certificate.contract.awardId, exerciseId: route.certificate.contract.award.exerciseId } : null;
+  const requisitionId = route.requisitionId ?? route.exercise?.requisitionId ?? route.certificate?.contract.award.exercise.requisitionId ?? null;
+  const exerciseId = route.exerciseId ?? cert?.exerciseId ?? null;
+  const awardId = route.awardId ?? cert?.awardId ?? null;
   // 6.15 (OD-2 A): a supplier matter's route, locked as the register's acts lock it (the supplier row, then the application).
   // 6.15a: a blacklisting's route locks as the register's standing acts do (the supplier row, then the request);
   // a special permission's locks its permission row (it belongs to an exercise, and touches no supplier row).
@@ -58,8 +65,12 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
   const result = await db.$transaction(
     async (tx): Promise<FormState & { paths?: string[] }> => {
       if (requisitionId) await tx.$queryRaw`SELECT id FROM "Requisition" WHERE id = ${requisitionId} FOR UPDATE`;
-      if (route.exerciseId) await tx.$queryRaw`SELECT id FROM "SourcingExercise" WHERE id = ${route.exerciseId} FOR UPDATE`;
-      if (route.awardId) await tx.$queryRaw`SELECT id FROM "Award" WHERE id = ${route.awardId} FOR UPDATE`;
+      if (exerciseId) await tx.$queryRaw`SELECT id FROM "SourcingExercise" WHERE id = ${exerciseId} FOR UPDATE`;
+      if (awardId) await tx.$queryRaw`SELECT id FROM "Award" WHERE id = ${awardId} FOR UPDATE`;
+      if (cert) {
+        await tx.$queryRaw`SELECT id FROM "Contract" WHERE id = ${cert.contractId} FOR UPDATE`;
+        await tx.$queryRaw`SELECT id FROM "Certificate" WHERE id = ${cert.id} FOR UPDATE`;
+      }
       if (supplierId) {
         await tx.$queryRaw`SELECT id FROM "Supplier" WHERE id = ${supplierId} FOR UPDATE`;
         if (route.supplierApplicationId) await tx.$queryRaw`SELECT id FROM "SupplierApplication" WHERE id = ${route.supplierApplicationId} FOR UPDATE`;
@@ -77,10 +88,13 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
           supplierApplication: { select: { supplier: { select: { id: true, reference: true } } } },
           standingRequest: { select: { kind: true, supplier: { select: { id: true, reference: true } } } },
           specialPermission: { select: { exercise: { select: { id: true, reference: true } } } },
+          certificate: { select: { id: true, kind: true, number: true, status: true, contract: { select: { id: true, number: true, award: { select: { awardeeName: true } } } } } },
         },
       });
       const step = inst?.steps.find((s) => s.id === stepId);
       if (!inst || !step) return { ok: false, message: "That step no longer exists." };
+      // A certificate past its approval (being signed, issued or void) is not escalated: its route is closed with it.
+      if (inst.certificate?.status != null && inst.certificate.status !== "DRAFT" && inst.certificate.status !== "IN_ROUTING") return { ok: false, message: "That certificate is past its approval route." };
       // A supplier matter belongs to no unit: no requisition, and its offices are held organisation-wide.
       const req = requisitionId
         ? await tx.requisition.findUniqueOrThrow({ where: { id: requisitionId }, select: { organisationId: true, sectionUnitCode: true, requestingUnitCode: true, organisation: { select: { timeZone: true } } } })
@@ -125,7 +139,7 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
       };
       const moved = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
       if (moved.count !== 1) return { ok: false, message: "The step changed while this was being saved. Reload and try again." };
-      const matter = inst.award ? `${inst.award.reference} · appointment` : inst.exercise ? `${inst.exercise.reference} · ${exerciseRouteMatter(inst.domain).auditNoun}` : inst.supplierApplication ? `${inst.supplierApplication.supplier.reference} · Registration approval route` : inst.standingRequest ? `${inst.standingRequest.supplier.reference} · ${inst.standingRequest.kind === "BLACKLIST" ? "Blacklisting route" : "Blacklisting lift route"}` : inst.specialPermission ? `${inst.specialPermission.exercise.reference} · Special permission route` : `${inst.requisition?.reference ?? "Matter"}`;
+      const matter = inst.certificate?.id ? `${contractLabel({ number: inst.certificate.contract.number, award: { awardeeName: inst.certificate.contract.award.awardeeName } })} · ${KIND_WORDS[inst.certificate.kind].en}${inst.certificate.number ? ` ${inst.certificate.number}` : ""}` : inst.award ? `${inst.award.reference} · appointment` : inst.exercise ? `${inst.exercise.reference} · ${exerciseRouteMatter(inst.domain).auditNoun}` : inst.supplierApplication ? `${inst.supplierApplication.supplier.reference} · Registration approval route` : inst.standingRequest ? `${inst.standingRequest.supplier.reference} · ${inst.standingRequest.kind === "BLACKLIST" ? "Blacklisting route" : "Blacklisting lift route"}` : inst.specialPermission ? `${inst.specialPermission.exercise.reference} · Special permission route` : `${inst.requisition?.reference ?? "Matter"}`;
       await writeAudit(tx, { organisationId: req.organisationId, entity: "ApprovalStep", entityId: step.id, entityLabel: `${matter} · ${step.roleLabel}`, reason }, "UPDATE",
         diffFields(
           { actingOffice: step.actingRoleLabel ?? step.roleLabel },
@@ -137,7 +151,7 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
             escalatedOn: after.escalatedOn,
           },
         ));
-      const paths = ["/approvals", ...(requisitionId ? [`/requisitions/${requisitionId}`] : []), ...(inst.exercise ? [`/sourcing/${inst.exercise.id}`] : []), ...(inst.award ? [`/awards/${inst.award.id}`] : []), ...(supplierId ? [`/suppliers/${supplierId}`] : []), ...(route.specialPermission?.party.vendorId ? [`/suppliers/${route.specialPermission.party.vendorId}`] : [])];
+      const paths = ["/approvals", ...(requisitionId ? [`/requisitions/${requisitionId}`] : []), ...(inst.exercise ? [`/sourcing/${inst.exercise.id}`] : []), ...(inst.award ? [`/awards/${inst.award.id}`] : []), ...(supplierId ? [`/suppliers/${supplierId}`] : []), ...(route.specialPermission?.party.vendorId ? [`/suppliers/${route.specialPermission.party.vendorId}`] : []), ...(cert ? [`/projects/${cert.contractId}`, `/projects/${cert.contractId}/certificates/${cert.id}`] : [])];
       return { ok: true, paths };
     },
     { timeout: 20_000, maxWait: 10_000 },

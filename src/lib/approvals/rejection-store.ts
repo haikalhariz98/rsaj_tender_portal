@@ -33,11 +33,13 @@ interface Who {
  * names the say where it is neither a configured destination nor a committee's outcome
  * (6.4: the procedure returns the documents for amendment, Q-3).
  */
-export async function closeRejected(tx: Tx, who: Who, inst: { id: string; status: string }, outcome: RejectionOutcome, reason: string, decidedBy?: string) {
+/// `at`: the act's server stamp, read once at its entry (6.13 Part A step 3: a certificate's route passes it; the
+/// earlier callers keep reading the clock here, as they did).
+export async function closeRejected(tx: Tx, who: Who, inst: { id: string; status: string }, outcome: RejectionOutcome, reason: string, decidedBy?: string, at: Date = new Date()) {
   const data: Prisma.ApprovalInstanceUpdateInput =
     "apply" in outcome
-      ? { status: "REJECTED", closedAt: new Date(), rejectionApplied: outcome.apply, rejectionSource: outcome.source, rejectionReason: reason }
-      : { status: "REJECTED", closedAt: new Date(), rejectionChoices: outcome.choose, rejectionChoiceWhy: outcome.why, rejectionReason: reason };
+      ? { status: "REJECTED", closedAt: at, rejectionApplied: outcome.apply, rejectionSource: outcome.source, rejectionReason: reason }
+      : { status: "REJECTED", closedAt: at, rejectionChoices: outcome.choose, rejectionChoiceWhy: outcome.why, rejectionReason: reason };
   const moved = await tx.approvalInstance.updateMany({ where: { id: inst.id, status: "PENDING" }, data: data as Prisma.ApprovalInstanceUpdateManyMutationInput });
   if (moved.count !== 1) throw new Error("The route changed while the rejection was being recorded.");
   await writeAudit(tx, { organisationId: who.organisationId, entity: "ApprovalInstance", entityId: inst.id, entityLabel: who.routeLabel, reason }, "UPDATE",
@@ -75,6 +77,9 @@ export async function openSuccessor(tx: Tx, who: Who, rejectedId: string, return
       requisitionId: r.requisitionId,
       exerciseId: r.exerciseId,
       awardId: r.awardId,
+      // 6.13 Part A step 3 (614-C4): a certificate's route continues on its certificate, sent by the same person.
+      certificateId: r.certificateId,
+      submittedByPersonId: r.submittedByPersonId,
       domain: r.domain,
       cond: r.cond,
       value: r.value,
