@@ -111,6 +111,9 @@ export interface ContractBehaviours {
   /// 6.13 Part A step 1: the typed twin of `sumAdjustmentDrivers` (not one of the twelve; read by the
   /// adjustment certificate). Absent on rows built before it.
   sumAdjustmentTriggers?: string[];
+  /// 6.13 Part A step 2 (FR-SUP-003): which delegation letters the type's contracts use. Null: not set, and a
+  /// delegation is refused naming it. Absent on rows built before it.
+  delegationVariant?: string | null;
 }
 
 export interface ContractTypeRow extends ContractBehaviours {

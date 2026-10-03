@@ -84,6 +84,7 @@ const NESTED_LABEL: Record<string, string> = {
   // 6.14 residual: every page names its crumbs (crumbs.test.ts walks every page).
   "sourcing/new": "New exercise",
   "configuration/contracts": "Contract controls",
+  "configuration/post-award": "Post-award controls",
   "configuration/evaluation": "Evaluation models",
   "evaluation/report": "Evaluation report",
   "evaluation/proposal": "Kertas Cadangan",

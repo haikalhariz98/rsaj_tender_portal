@@ -7,6 +7,7 @@ import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 import type { FormState } from "@/components/record-editor";
+import { DELEGATION_VARIANTS } from "@/lib/supervision/types";
 import { FormReader } from "@/lib/validate";
 import { writeAudit } from "@/lib/audit/record";
 import { diffFields, snapshotFields } from "@/lib/audit/diff";
@@ -364,6 +365,8 @@ export async function saveContractBehaviours(_prev: FormState, data: FormData): 
     claimsApprovalCommitteeCode: r.optionalText("claimsApprovalCommitteeCode"),
     // 6.13 Part A step 1 (A7): the typed twin; a field the form never sent is kept as stored.
     sumAdjustmentTriggers: data.has("sumAdjustmentTriggers") ? list(String(data.get("sumAdjustmentTriggers") ?? "")).filter(isSumAdjustmentTrigger) : before.sumAdjustmentTriggers,
+    // 6.13 Part A step 2 (FR-SUP-003): the delegation letters; a field the form never sent is kept as stored.
+    delegationVariant: data.has("delegationVariant") ? r.choice("delegationVariant", "Delegation letters", DELEGATION_VARIANTS) : before.delegationVariant,
   };
   const known = new Set((await db.authorityRole.findMany({ where: { organisationId: orgId }, select: { code: true } })).map((x) => x.code));
   const unknown = v.administratorRoleCodes.filter((c) => !known.has(c));

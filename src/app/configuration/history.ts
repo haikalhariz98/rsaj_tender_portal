@@ -1,6 +1,8 @@
 "use server";
 
 import { CORE_ROUTING_ENTITIES, CORE_ROUTING_ENTITY_NAME, coreRoutingEntryName, coreRoutingTrailPrefix } from "@/lib/audit/core-routing-trail";
+import { isSumAdjustmentTrigger, SUM_ADJUSTMENT_TRIGGER_WORDS } from "@/lib/method/behaviour-twins";
+import { VARIANT_WORDS } from "@/lib/supervision/labels";
 import { loadAudit } from "@/lib/audit/record";
 import {
   MATTER_KIND_LABEL,
@@ -33,6 +35,7 @@ const ENTITIES = new Set([
   "FundingRoute",
   "Meeting",
   "NotApprovedOutcome",
+  "PostAwardPolicy",
   "NotificationRule",
   "NumberingSeries",
   "SourcingMethod",
@@ -85,6 +88,8 @@ const VALUE_LABEL: Record<string, Record<string, string>> = {
   position: POSITION_LABEL,
   choice: CHOICE_LABEL,
   action: { APPROVES: "Approves", RECOMMENDS: "Recommends", CONSENTS: "Consents", DECIDES: "Decides" },
+  // 6.13 Part A: a contract type's delegation letters.
+  delegationVariant: Object.fromEntries(Object.entries(VARIANT_WORDS).map(([k, v]) => [k, v.en])),
 };
 const PROVENANCE: Record<string, string> = { STATED: "Stated", OBSERVED: "Observed", ASSUMED: "Assumed" };
 
@@ -128,6 +133,10 @@ async function valueReader(entity = ""): Promise<(field: string, value: string |
     }
     if (entity === "RequisitionPolicy" && field === "splittingMatchOn") {
       return value ? value.split(", ").map((k) => SPLIT_KEY_LABEL[k as keyof typeof SPLIT_KEY_LABEL] ?? k).join(", ") : "Not set";
+    }
+    // 6.13 Part A step 1: a contract type's typed adjustment triggers, a list of codes, in words.
+    if (entity === "ContractType" && field === "sumAdjustmentTriggers") {
+      return value ? value.split(",").map((t) => t.trim()).map((t) => (isSumAdjustmentTrigger(t) ? SUM_ADJUSTMENT_TRIGGER_WORDS[t].en : "—")).join(", ") : "Not set";
     }
     if (FLAG_FIELDS.has(field)) return value === "true" ? "Yes" : value === "false" ? "No" : value;
     if (field === "deliverableKind" && DELIVERABLE_VALUE[value]) return DELIVERABLE_VALUE[value];

@@ -1,5 +1,7 @@
 import { PencilIcon } from "@/components/icons";
 import type { BehaviourKey } from "@/lib/method/profile";
+import { VARIANT_WORDS } from "@/lib/supervision/labels";
+import { DELEGATION_VARIANTS } from "@/lib/supervision/types";
 import { SUM_ADJUSTMENT_TRIGGER_WORDS, SUM_ADJUSTMENT_TRIGGERS } from "@/lib/method/behaviour-twins";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import type { ContractType, FundingRoute, SourcingMethod } from "@/lib/reference/types";
@@ -457,6 +459,8 @@ export function ContractBehavioursDrawer({ id, name, values, offices }: { id: st
         // 6.13 Part A step 1 (A7): the typed twin of the drivers. Empty: not set.
         { kind: "tokens", name: "sumAdjustmentTriggers", label: "Contract-sum adjustment triggers", options: SUM_ADJUSTMENT_TRIGGERS.map((k) => ({ value: k, label: SUM_ADJUSTMENT_TRIGGER_WORDS[k].en })), placeholder: "Add a trigger", hint: "Which adjustments of the contract sum this type allows. Empty: not set, and an adjustment certificate is refused until it is." },
         { kind: "select", name: "claimsApprovalCommitteeCode", label: BEHAVIOUR_LABEL.claimsApprovalCommitteeCode, placeholder: "Not set", options: offices },
+        // 6.13 Part A step 2 (FR-SUP-003): not one of the twelve; which letters a delegation on this type's contracts uses.
+        { kind: "select", name: "delegationVariant", label: "Delegation letters", placeholder: "Not set", options: DELEGATION_VARIANTS.map((k) => ({ value: k, label: VARIANT_WORDS[k].en })), hint: "Unset: a delegation to a representative on this type's contracts is refused until it is." },
       ]}
       values={{
         id,
@@ -473,6 +477,7 @@ export function ContractBehavioursDrawer({ id, name, values, offices }: { id: st
         sumAdjustmentDrivers: values.sumAdjustmentDrivers.join(", "),
         sumAdjustmentTriggers: (values.sumAdjustmentTriggers ?? []).join("\n"),
         claimsApprovalCommitteeCode: values.claimsApprovalCommitteeCode,
+        delegationVariant: values.delegationVariant ?? null,
       }}
       action={saveContractBehaviours}
       submitLabel="Save behaviours"

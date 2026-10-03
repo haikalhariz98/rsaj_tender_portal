@@ -1,0 +1,113 @@
+import type { ReactNode } from "react";
+
+import { BuildingIcon, FileIcon } from "@/components/icons";
+import { HistoryButton } from "@/components/history-drawer";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/feedback";
+import { PageHeader } from "@/components/ui/page-header";
+import { ProvenanceBadge } from "@/components/ui/provenance";
+import { KeyValues } from "@/components/ui/stat";
+import { db } from "@/lib/db";
+import { exerciseOrg } from "@/lib/method/repo";
+import { loadPostAwardPolicy } from "@/lib/supervision/load";
+
+import { EditPostAwardPolicy } from "./editors";
+
+export const dynamic = "force-dynamic";
+
+/// A setting's value, or "Not set" and what that stops.
+function Setting({ value, unset, provenance }: { value: ReactNode | null; unset: string; provenance?: string | null }) {
+  if (value != null && value !== "")
+    return (
+      <span className="flex flex-col items-start gap-1.5">
+        <span>{value}</span>
+        <ProvenanceBadge value={provenance ?? null} />
+      </span>
+    );
+  return (
+    <span className="flex flex-col items-start gap-1.5">
+      <Badge tone="warn">Not set</Badge>
+      <span className="text-[12.5px] text-ink-3">{unset}</span>
+    </span>
+  );
+}
+
+/**
+ * Post-award controls (6.13 Part A): when a contract is In Delay, whether its S.O. follows the contract sum across
+ * a band (OD-A7), and the forms the delegation letters print on. Everything ships unset; nothing is assumed.
+ */
+export default async function PostAwardControlsPage() {
+  const org = await exerciseOrg();
+  if (!org) {
+    return (
+      <>
+        <PageHeader title="Post-award controls" subtitle="How a contract is supervised after it is executed." />
+        <Card>
+          <EmptyState title="No organisation is configured">Run the setup first.</EmptyState>
+        </Card>
+      </>
+    );
+  }
+  const [p, templates] = await Promise.all([loadPostAwardPolicy(org.id), db.documentTemplate.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { id: true, nameEn: true, formCode: true } })]);
+  const formName = (id: string | null | undefined) => (id ? (templates.find((t) => t.id === id)?.nameEn ?? "A form no longer configured") : null);
+  const pct = p?.inDelayProgressPct == null ? null : p.inDelayProgressPct.toString().replace(/\.?0+$/, "");
+  const unset = [pct, p?.soReResolve ?? null, p?.delegationLetterConventionalId, p?.delegationNoticeConventionalId, p?.delegationLetterDesignBuildId, p?.delegationNoticeDesignBuildId].filter((x) => x == null).length;
+  const values = {
+    inDelayProgressPct: pct,
+    inDelayProvenance: p?.inDelayProvenance ?? null,
+    soReResolve: p?.soReResolve == null ? null : p.soReResolve ? "yes" : "no",
+    soReResolveProvenance: p?.soReResolveProvenance ?? null,
+    delegationLetterConventionalId: p?.delegationLetterConventionalId ?? null,
+    delegationNoticeConventionalId: p?.delegationNoticeConventionalId ?? null,
+    delegationLetterDesignBuildId: p?.delegationLetterDesignBuildId ?? null,
+    delegationNoticeDesignBuildId: p?.delegationNoticeDesignBuildId ?? null,
+    delegationFormsProvenance: p?.delegationFormsProvenance ?? null,
+    notes: p?.notes ?? "",
+  };
+  const forms = templates.map((t) => ({ value: t.id, label: t.formCode ? `${t.nameEn} (${t.formCode})` : t.nameEn }));
+  const formUnset = "A delegation on a contract of this kind is refused, naming this setting.";
+  return (
+    <>
+      <PageHeader
+        title="Post-award controls"
+        badge={unset > 0 ? <Badge tone="warn" dot>{`${unset} not set`}</Badge> : <Badge tone="ok" dot>All set</Badge>}
+        subtitle="When a contract is In Delay, whether its Superintending Officer follows the contract sum, and the delegation letters' forms."
+        actions={
+          <>
+            {p?.id && <HistoryButton entity="PostAwardPolicy" entityId={p.id} label="Post-award controls" />}
+            <EditPostAwardPolicy values={values} forms={forms} />
+          </>
+        }
+      />
+      <div className="flex flex-col gap-6">
+        <Card>
+          <CardHeader icon={<BuildingIcon size={17} />} title="Supervising a contract" subtitle="Read on every contract each time it is judged." />
+          <CardBody>
+            <KeyValues
+              columns={2}
+              items={[
+                { label: "In Delay", value: <Setting value={pct ? `Below ${pct}% of the approved programme's planned progress. Exactly on it is not below it.` : null} provenance={p?.inDelayProvenance} unset="Progress is not judged against the plan: each contract says In Delay is not judged. A lapsed completion date with the work incomplete is In Delay all the same." /> },
+                { label: "The S.O. and the contract sum", value: <Setting value={p?.soReResolve == null ? null : p.soReResolve ? "Resolved again when an adjustment moves the sum across a band." : "Stays as resolved when the sum moves."} provenance={p?.soReResolveProvenance} unset="Not decided: each contract and each S.O. signature block warns that the office shown is the one resolved for it." /> },
+              ]}
+            />
+          </CardBody>
+        </Card>
+        <Card>
+          <CardHeader icon={<FileIcon size={17} />} title="Delegation letters" subtitle="The letter of delegation and its notification, by the contract type's kind of letters. Each delegation opens both as certificates on these forms." />
+          <CardBody>
+            <KeyValues
+              columns={2}
+              items={[
+                { label: "Letter, conventional contracts", value: <Setting value={formName(p?.delegationLetterConventionalId)} provenance={p?.delegationFormsProvenance} unset={formUnset} /> },
+                { label: "Notification, conventional contracts", value: <Setting value={formName(p?.delegationNoticeConventionalId)} provenance={p?.delegationFormsProvenance} unset={formUnset} /> },
+                { label: "Letter, design and build and turnkey", value: <Setting value={formName(p?.delegationLetterDesignBuildId)} provenance={p?.delegationFormsProvenance} unset={formUnset} /> },
+                { label: "Notification, design and build and turnkey", value: <Setting value={formName(p?.delegationNoticeDesignBuildId)} provenance={p?.delegationFormsProvenance} unset={formUnset} /> },
+              ]}
+            />
+          </CardBody>
+        </Card>
+      </div>
+    </>
+  );
+}

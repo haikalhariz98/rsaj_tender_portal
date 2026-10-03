@@ -158,6 +158,13 @@ export const CONFIG_SECTIONS: {
         built: true,
       },
       {
+        href: "/configuration/post-award",
+        label: "Post-award controls",
+        description: "When a contract is In Delay, whether its Superintending Officer follows the contract sum, and the delegation letters' forms.",
+        icon: "tools",
+        built: true,
+      },
+      {
         href: "/configuration/scope",
         label: "Scope and estimate",
         description: "The standard bills follow, who may prepare them, specification panels and the company estimate's lead time.",

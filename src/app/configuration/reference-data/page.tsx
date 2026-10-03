@@ -1,5 +1,7 @@
 import { AlertTriangle } from "@/components/icons";
 import { isSumAdjustmentTrigger, SUM_ADJUSTMENT_TRIGGER_WORDS } from "@/lib/method/behaviour-twins";
+import { VARIANT_WORDS } from "@/lib/supervision/labels";
+import { isDelegationVariant } from "@/lib/supervision/types";
 import {
   AddContractType,
   AddFundingRoute,
@@ -320,6 +322,11 @@ export default async function ReferenceDataPage() {
                   <div className="break-words text-[12.5px] text-ink-3">{(() => {
                     const tr = (typeRow(c.code)?.sumAdjustmentTriggers ?? []).filter(isSumAdjustmentTrigger);
                     return tr.length ? `Contract-sum adjustments: ${tr.map((k) => SUM_ADJUSTMENT_TRIGGER_WORDS[k].en.toLowerCase()).join("; ")}` : "Contract-sum adjustment triggers: not set";
+                  })()}</div>
+                  {/* 6.13 Part A step 2 (FR-SUP-003): the delegation letters its contracts use. */}
+                  <div className="break-words text-[12.5px] text-ink-3">{(() => {
+                    const v = typeRow(c.code)?.delegationVariant;
+                    return v && isDelegationVariant(v) ? `Delegation letters: ${VARIANT_WORDS[v].en.toLowerCase()}` : "Delegation letters: not set — a delegation on its contracts is refused";
                   })()}</div>
                   {c.notes && <div className="break-words text-[12.5px] text-ink-3">{c.notes}</div>}
                 </Td>

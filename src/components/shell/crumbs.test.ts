@@ -96,6 +96,7 @@ describe("breadcrumbs on every page (6.14 residual)", () => {
     expect(labels(c)).toEqual(["Awards", "AW/1", "Print"]);
     expect(c[2].href).toBe("/awards/aw1/print/loa");
     expect(labels(trail("/configuration/contracts", null))).toEqual(["Configuration", "Contract controls"]);
+    expect(labels(trail("/configuration/post-award", null))).toEqual(["Configuration", "Post-award controls"]);
     expect(labels(trail("/configuration/evaluation", null))).toEqual(["Configuration", "Evaluation models"]);
     expect(labels(trail("/configuration/evaluation/m1", null))).toEqual(["Configuration", "Evaluation models", "Evaluation model"]);
     expect(labels(trail("/configuration/evaluation/m1", "Two-envelope model"))).toEqual(["Configuration", "Evaluation models", "Two-envelope model"]);

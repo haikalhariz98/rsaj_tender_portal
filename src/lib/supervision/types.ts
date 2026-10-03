@@ -45,6 +45,7 @@ export type SiteRecordsSet = (typeof SITE_RECORDS_SETS)[number];
 
 export const DELEGATION_VARIANTS = ["CONVENTIONAL", "DESIGN_AND_BUILD"] as const;
 export type DelegationVariant = (typeof DELEGATION_VARIANTS)[number];
+export const isDelegationVariant = (v: string): v is DelegationVariant => (DELEGATION_VARIANTS as readonly string[]).includes(v);
 
 /// A day, YYYY-MM-DD (the organisation's).
 export type Day = string;
