@@ -83,7 +83,10 @@ export type OwnerFacts =
   /// review and whether the contractor's signature is recorded (which stands on the company resolution).
   /// 6.12 review: and the legal office's comments a return stands on: every attachment of a comments document
   /// attached while a returned review was open, its later versions included (attachNewVersion keeps the document).
-  | { kind: "contract"; status: ContractStatus; legalSubmitted: boolean; contractorSigned: boolean; returnComments?: readonly { versionId: string; documentId: string; live: boolean }[] };
+  | { kind: "contract"; status: ContractStatus; legalSubmitted: boolean; contractorSigned: boolean; returnComments?: readonly { versionId: string; documentId: string; live: boolean }[] }
+  /// 6.13 Part A acceptance S-2 (FR-VAR-015): the S.O.'s Instruction of a variation, with its contract's status, its
+  /// certificate's and whether its variation is closed. Its plans or sketches may follow its issue (not required at it).
+  | { kind: "variationInstruction"; contractStatus: ContractStatus; certificateStatus: string; variationClosed: boolean };
 
 /// 6.8: where an evaluation version stands (the Prisma enum's values).
 export type EvaluationState = "OPEN" | "ISSUED" | "SUPERSEDED" | "CANCELLED";
@@ -183,7 +186,9 @@ export type OwnerExit =
   | "LEGAL_NOT_SUBMITTED"
   | "CONTRACT_NOT_EXECUTED"
   | "CONTRACT_NOT_ACTIVE"
-  | "CONTRACT_EXECUTED";
+  | "CONTRACT_EXECUTED"
+  | "INSTRUCTION_VOID"
+  | "VARIATION_CLOSED";
 
 export type AttachFault =
   | "PURPOSE_NOT_FOR_OWNER"
@@ -296,6 +301,12 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): { sta
       return owner.open ? { state: "OPEN" } : { state: "FROZEN", exit: "APPLICATION_DECIDED" };
     case "contract":
       return contractOwnerState(purpose, owner);
+    case "variationInstruction":
+      // 6.13 (FR-VAR-015): open while the instruction stands, drafted, at signing or issued (the plans may follow
+      // its issue); a void instruction, a closed variation and a cancelled contract keep what they have.
+      if (owner.contractStatus === "CANCELLED") return { state: "FROZEN", exit: "CONTRACT_CANCELLED" };
+      if (owner.certificateStatus === "VOID") return { state: "FROZEN", exit: "INSTRUCTION_VOID" };
+      return owner.variationClosed ? { state: "FROZEN", exit: "VARIATION_CLOSED" } : { state: "OPEN" };
   }
 }
 

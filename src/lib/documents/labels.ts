@@ -107,6 +107,7 @@ export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
   AS_BUILT: "As-built drawings",
   PROGRAMME: "Work programme as submitted",
   DIARY_PHOTO: "Site diary photograph",
+  INSTRUCTION_SKETCH: "Plan or sketch for the S.O.'s instruction",
   HOLDER_RECOMMENDATION: "Absent holder's signed recommendation",
   SIGNED_LETTER: "Signed letter of acceptance",
   DECLARATION: "Signed successful bidder declaration",
@@ -200,6 +201,8 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
   CONTRACT_NOT_EXECUTED: "This is kept once the contract is executed, by the RSAJ signature on the Formation tab.",
   CONTRACT_NOT_ACTIVE: "This is kept from possession of site, recorded on the contract's Site tab.",
   CONTRACT_EXECUTED: "The contract is executed and keeps what it was executed on.",
+  INSTRUCTION_VOID: "The instruction is void and keeps what it has.",
+  VARIATION_CLOSED: "The variation is closed and its instruction keeps what it has.",
 };
 
 const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {

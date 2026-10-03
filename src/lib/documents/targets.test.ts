@@ -101,6 +101,7 @@ describe("the kinds offered for a received document", () => {
     // 6.7 (faithful update, flagged): and a finalised opening's signed schedule.
     // 6.15 (faithful update, flagged): and a supplier's document and application.
     // 6.12 (faithful update, flagged): and a contract's formation papers.
-    expect(ATTACHABLE_OWNER_KINDS).toEqual(["meeting", "exercise", "award", "delegation", "specificationPanel", "tenderPackPart", "addendum", "bidWithdrawal", "validityExtension", "opening", "evaluation", "evaluationMeeting", "evaluationBidder", "supplierDocument", "supplierApplication", "contract"]);
+    // 6.13 Part A acceptance S-2 (faithful update, flagged): and an S.O.'s Instruction's plans or sketches.
+    expect(ATTACHABLE_OWNER_KINDS).toEqual(["meeting", "exercise", "award", "delegation", "specificationPanel", "tenderPackPart", "addendum", "bidWithdrawal", "validityExtension", "opening", "evaluation", "evaluationMeeting", "evaluationBidder", "supplierDocument", "supplierApplication", "contract", "variationInstruction"]);
   });
 });

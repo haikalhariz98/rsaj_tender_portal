@@ -326,9 +326,12 @@ export async function planDocumentWipe(db: Db, organisationId: string, removed: 
   ];
   // 6.12: a contract goes with its award (a demo award's, or one --remove-dependents removes).
   const removedContractIds = (await db.contract.findMany({ where: { organisationId, NOT: { id: demoRef }, OR: [{ awardId: demoRef }, { awardId: { in: removed.awardIds } }] }, select: { id: true } })).map((c) => c.id);
+  // 6.13 (FR-VAR-015): an S.O.'s Instruction made through the screens goes with its contract (a demo one, or one removed).
+  const removedInstructionIds = (await db.variationInstruction.findMany({ where: { organisationId, NOT: { id: demoRef }, variation: { OR: [{ contractId: demoRef }, { contractId: { in: removedContractIds } }] } }, select: { id: true } })).map((i) => i.id);
   const onDemoSideOwner = {
     OR: [
       { contractId: demoRef }, { contractId: { in: removedContractIds } },
+      { variationInstructionId: demoRef }, { variationInstructionId: { in: removedInstructionIds } },
       { supplierDocumentId: demoRef }, { supplierDocumentId: { in: removedSupplierRecordIds } },
       { supplierApplicationId: demoRef }, { supplierApplicationId: { in: removedSupplierRecordIds } },
       { bidWithdrawalId: demoRef }, { bidWithdrawalId: { in: removedBidRecordIds } },
@@ -359,7 +362,7 @@ export async function planDocumentWipe(db: Db, organisationId: string, removed: 
     orderBy: { id: "asc" },
     select: {
       id: true, title: true,
-      versions: { select: { id: true, sha256: true, recordedByPersonId: true, attachments: { select: { id: true, purpose: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true, bqVersionId: true, tenderPackPartId: true, addendumId: true, bidWithdrawalId: true, validityExtensionId: true, openingId: true, evaluationId: true, evaluationMeetingId: true, evaluationBidderId: true, supplierDocumentId: true, supplierApplicationId: true, contractId: true } } } },
+      versions: { select: { id: true, sha256: true, recordedByPersonId: true, attachments: { select: { id: true, purpose: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true, bqVersionId: true, tenderPackPartId: true, addendumId: true, bidWithdrawalId: true, validityExtensionId: true, openingId: true, evaluationId: true, evaluationMeetingId: true, evaluationBidderId: true, supplierDocumentId: true, supplierApplicationId: true, contractId: true, variationInstructionId: true } } } },
       holds: { select: { id: true, placedByPersonId: true, releasedByPersonId: true } },
     },
   });
@@ -371,7 +374,7 @@ export async function planDocumentWipe(db: Db, organisationId: string, removed: 
     versions: d.versions.map((v) => ({ id: v.id, sha256: v.sha256, attachments: v.attachments.map((a) => ({ ...a, purpose: a.purpose as AttachmentPurpose })) })),
     holds: d.holds.map((h) => ({ id: h.id })),
   }));
-  return documentWipePlan(docs, { isDemo: (id) => id.startsWith(P), removedExerciseIds: new Set(removed.exerciseIds), removedAwardIds: new Set(removed.awardIds), removedMeetingIds: new Set(removed.meetingIds), removedDelegationIds: new Set(removed.delegationIds), removedPanelIds: new Set(removedPanelIds), removedBqVersionIds: new Set(removedBqVersionIds), removedPackPartIds: new Set(removedPackPartIds), removedAddendumIds: new Set(removedAddendumIds), removedBidRecordIds: new Set(removedBidRecordIds), removedSupplierRecordIds: new Set(removedSupplierRecordIds), removedContractIds: new Set(removedContractIds) }, removeDependents);
+  return documentWipePlan(docs, { isDemo: (id) => id.startsWith(P), removedExerciseIds: new Set(removed.exerciseIds), removedAwardIds: new Set(removed.awardIds), removedMeetingIds: new Set(removed.meetingIds), removedDelegationIds: new Set(removed.delegationIds), removedPanelIds: new Set(removedPanelIds), removedBqVersionIds: new Set(removedBqVersionIds), removedPackPartIds: new Set(removedPackPartIds), removedAddendumIds: new Set(removedAddendumIds), removedBidRecordIds: new Set(removedBidRecordIds), removedSupplierRecordIds: new Set(removedSupplierRecordIds), removedContractIds: new Set(removedContractIds), removedInstructionIds: new Set(removedInstructionIds) }, removeDependents);
 }
 
 const LINE_TEXT = (l: PlanLine) => {

@@ -39,7 +39,8 @@ export const variationInclude = {
     orderBy: [{ approvalInstance: { openedAt: "asc" as const } }, { sentAt: "asc" as const }, { id: "asc" as const }],
   },
   matters: { include: matterInclude, orderBy: { tabledAt: "asc" as const } },
-  instructions: { include: { certificate: { select: certSelect }, person: name }, orderBy: { recordedAt: "asc" as const } },
+  // Acceptance S-2 (FR-VAR-015): its plans or sketches attached now (the document store's own panel lists them in full).
+  instructions: { include: { certificate: { select: certSelect }, person: name, attachments: { where: { purpose: "INSTRUCTION_SKETCH" as const, detachedAt: null }, select: { id: true, version: { select: { versionNo: true, document: { select: { title: true } } } } }, orderBy: { attachedAt: "asc" as const } } }, orderBy: { recordedAt: "asc" as const } },
   measurements: { include: { person: name }, orderBy: [{ recordedAt: "asc" as const }] },
   dayworkRecords: { include: { person: name }, orderBy: [{ workedOn: "asc" as const }, { recordedAt: "asc" as const }] },
   orders: { include: { certificate: { select: certSelect }, person: name, adjustmentLines: { select: { sumAdjustment: { select: { certificate: { select: { status: true, number: true } } } } } } }, orderBy: { recordedAt: "asc" as const } },

@@ -4127,6 +4127,8 @@ enum AttachmentPurpose {
   PROGRAMME
   /// 6.13 (FR-SUP-007): a photograph supporting a site diary day, on the contract.
   DIARY_PHOTO
+  /// 6.13 (FR-VAR-015): a plan or sketch accompanying the S.O.'s Instruction, on the instruction. Not required at issue.
+  INSTRUCTION_SKETCH
 }
 
 enum DocumentAccessKind {
@@ -4294,6 +4296,9 @@ model DocumentAttachment {
   /// reconciliation's scan, the signed contract, the stamping certificate).
   contractId            String?
   contract              Contract?            @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  /// 6.13 Part A acceptance S-2 (FR-VAR-015): the S.O.'s Instruction of a variation (its plans or sketches).
+  variationInstructionId String?
+  variationInstruction   VariationInstruction? @relation(fields: [variationInstructionId], references: [id], onDelete: Restrict)
 
   attachedAt   DateTime  @default(now())
   detachedAt   DateTime?
@@ -4316,6 +4321,7 @@ model DocumentAttachment {
   @@index([supplierDocumentId])
   @@index([supplierApplicationId])
   @@index([contractId])
+  @@index([variationInstructionId])
   @@index([versionId])
 }
 
@@ -9753,6 +9759,8 @@ model VariationInstruction {
 
   measurements   VariationMeasurement[]
   orders         VariationCertificate[]
+  /// Its plans or sketches (FR-VAR-015), through the document store.
+  attachments    DocumentAttachment[]
 
   @@index([variationId])
 }

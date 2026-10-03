@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { parseSen } from "@/lib/money";
 
 import type { VariationFacts } from "./application";
-import { addMonths, clockReading, consentFaults, dueOn, instructionFaults, instructionIssueFaults, oralLoopFaults, type InstructionInput } from "./instruction";
+import { addMonths, clockReading, consentFaults, dueOn, instructionFaults, instructionIssueFaults, oralLoopFaults, sketchesLine, type InstructionInput } from "./instruction";
 
 /** The S.O.'s instruction and the oral loop (FR-VAR-009, 015, 016; OD-A5). Invented fixtures. */
 
@@ -64,5 +64,12 @@ describe("FR-VAR-016: the oral loop and its two clocks", () => {
     expect(codes(oralLoopFaults({ ...o, oralIssuedOn: null }))).toEqual(["NOT_ORAL"]);
     expect(codes(oralLoopFaults({ ...o, contractorConfirmedOn: "2026-04-30", objectedOn: null }))).toEqual(["CONFIRMED_BEFORE_ORAL"]);
     expect(codes(oralLoopFaults({ ...o, objectedOn: "2026-05-08" }))).toEqual(["FUTURE_DATE"]);
+  });
+});
+
+describe("acceptance S-2: the instruction says what plans or sketches are attached", () => {
+  it("none, plainly (not required at issue), or each by its title and version", () => {
+    expect(sketchesLine([])).toEqual({ en: "No plans or sketches attached", ms: "Tiada pelan atau lakaran dilampirkan" });
+    expect(sketchesLine([{ title: "Air valve chamber, sketch", versionNo: 2 }, { title: "Chainage 2+100 plan", versionNo: 1 }]).en).toBe("2 attached: Air valve chamber, sketch (version 2); Chainage 2+100 plan (version 1)");
   });
 });

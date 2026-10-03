@@ -124,3 +124,14 @@ export function clockReading(due: Day | null, on: Day | null): ClockReading {
 }
 
 export { issuedInstruction };
+
+/**
+ * Acceptance S-2 (FR-VAR-015): what the S.O.'s Instruction says of its plans or sketches, attached through the
+ * document store. Not required at issue, so none attached is said plainly, never as outstanding. Pure.
+ */
+export function sketchesLine(attached: readonly { title: string; versionNo: number }[]): { en: string; ms: string } {
+  if (attached.length === 0) return { en: "No plans or sketches attached", ms: "Tiada pelan atau lakaran dilampirkan" };
+  const list = attached.map((a) => `${a.title} (version ${a.versionNo})`).join("; ");
+  const listMs = attached.map((a) => `${a.title} (versi ${a.versionNo})`).join("; ");
+  return { en: `${attached.length} attached: ${list}`, ms: `${attached.length} dilampirkan: ${listMs}` };
+}

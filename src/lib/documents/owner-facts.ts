@@ -161,3 +161,13 @@ export const extensionFacts = (x: { appliedAt: Date | null; exercise: { status: 
 export function delegationFacts(d: { effectiveTo: Date | null }, today: string | null): OwnerFacts {
   return { kind: "delegation", ended: today ? hasEnded(d, dayToDate(today)) : null };
 }
+
+/// 6.13 Part A acceptance S-2 (FR-VAR-015): what an S.O.'s Instruction is judged and named by.
+export const VARIATION_INSTRUCTION_FACTS_SELECT = {
+  certificate: { select: { status: true, number: true } },
+  variation: { select: { id: true, status: true, reference: true, contractId: true, contract: { select: { status: true, number: true, award: { select: { awardeeName: true } } } } } },
+} as const;
+type InstructionRow = { certificate: { status: string; number: string | null }; variation: { status: string; reference: string | null; contract: { status: ContractStatus; number: string; award: { awardeeName: string } } } };
+export const variationInstructionFacts = (i: InstructionRow): OwnerFacts => ({ kind: "variationInstruction", contractStatus: i.variation.contract.status, certificateStatus: i.certificate.status, variationClosed: i.variation.status === "CLOSED" });
+export const variationInstructionLabel = (i: InstructionRow) =>
+  `Contract ${i.variation.contract.number} · variation ${i.variation.reference ?? "(not yet numbered)"} · the S.O.'s instruction ${i.certificate.number ?? "(not yet numbered)"}`;

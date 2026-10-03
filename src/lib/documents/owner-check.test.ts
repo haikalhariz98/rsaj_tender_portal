@@ -256,3 +256,23 @@ describe("6.12: the contract is an owner, everywhere at once (X-6)", () => {
     expect(latestCheck("IssuedCopy_one_owner")).toMatch(/num_nonnulls\("contractId", "certificateId"\) = 1/);
   });
 });
+
+describe("6.13 Part A acceptance S-2: the S.O.'s Instruction is an owner, everywhere at once (X-6)", () => {
+  it("its key is counted by one_owner and its purpose pairs with it", () => {
+    expect(latestCheck("DocumentAttachment_one_owner")).toMatch(/"contractId", "variationInstructionId"\) = 1/);
+    expect(latestCheck("DocumentAttachment_purpose_owner")).toMatch(/\("purpose" = 'INSTRUCTION_SKETCH' AND "variationInstructionId" IS NOT NULL\)/);
+    // The contract's purposes still pair with the contract.
+    expect(latestCheck("DocumentAttachment_purpose_owner")).toMatch(/\('PIPE_LOG', 'AS_BUILT', 'PROGRAMME', 'DIARY_PHOTO'\)\s*AND\s*"contractId"\s+IS NOT NULL/);
+    expect(OWNER_COLUMN.variationInstruction).toBe("variationInstructionId");
+    expect(PURPOSE_OWNER.INSTRUCTION_SKETCH).toBe("variationInstruction");
+  });
+
+  it("INSTRUCTION_SKETCH arrived alone in its own migration, before the migration that rebuilt the CHECKs with it", () => {
+    const own = migrations.filter((d) => /ALTER TYPE "AttachmentPurpose" ADD VALUE 'INSTRUCTION_SKETCH'/.test(readFileSync(join(migrationsDir, d, "migration.sql"), "utf8")));
+    const used = migrations.filter((d) => d !== own[0] && readFileSync(join(migrationsDir, d, "migration.sql"), "utf8").includes("'INSTRUCTION_SKETCH'"));
+    expect(own).toEqual(["20261003400201_attachment_purpose_instruction_sketch"]);
+    expect(used).toEqual(["20261003400202_attachment_owner_variation_instruction"]);
+    const sql = readFileSync(join(migrationsDir, own[0], "migration.sql"), "utf8").split("\n").filter((l) => l.trim() && !l.trim().startsWith("--"));
+    expect(sql).toHaveLength(1);
+  });
+});

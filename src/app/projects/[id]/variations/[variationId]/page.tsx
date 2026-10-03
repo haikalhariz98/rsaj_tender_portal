@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { EscalateDrawer } from "@/app/approvals/editors";
+import { OwnerAttachments } from "@/components/attachments/owner-attachments";
 import { ApprovalRouteCard } from "@/components/approval-route-card";
 import { ClockIcon, FileIcon, RouteIcon, ScaleIcon, ToolsIcon, WalletIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
@@ -35,7 +36,7 @@ import { loadRoster } from "@/lib/people/load";
 import { capacityFor } from "@/lib/supervision/authority";
 import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 import { approvedValue, awaitingChoice, closeFaults, commenceFaults, commencedPending, cumulativeApproved, newSumOf, pendingRoute, pendingValueRoutes, priorValueOf, routeValue, scheduleFormOf, sendFaults, soDecisionFaults, stageOf, submitFaults, type VariationFacts } from "@/lib/variation/application";
-import { clockReading, instructionFaults } from "@/lib/variation/instruction";
+import { clockReading, instructionFaults, sketchesLine } from "@/lib/variation/instruction";
 import { BASE_WORDS, BASIS_WORDS, CONSENT_WORDS, DIRECTION_WORDS, EVENT_WORDS, EXEMPTION_WORDS, ORIGIN_WORDS, RATE_SOURCE_WORDS, SCHEDULE_FORM_WORDS, SO_DECISION_WORDS, STAGE_TONE, STAGE_WORDS, variationFaultText } from "@/lib/variation/labels";
 import { adjustmentInProgress, consentOf, disputeOf, factsOf, liveInstructionRow, liveOrderRow, matterFactsOf, orderNetOf, standingMeasurements, type VariationRow } from "@/lib/variation/load";
 import { citeStepFaults, matterLineOf, tableStepFaults } from "@/lib/variation/tabling";
@@ -407,6 +408,8 @@ function InstructionPanel({ l, v, f, vv, people, today, blockedBy }: PanelProps 
                 { label: "Dated", value: ins.certificate.certificateDate ? formatDate(day(ins.certificate.certificateDate)) : dim("When the S.O. signs") },
                 { label: "Description (the heading every item is measured under)", value: ins.description },
                 { label: "Schedule form", value: SCHEDULE_FORM_WORDS[ins.scheduleForm].en },
+                // Acceptance S-2 (FR-VAR-015): its plans or sketches, attached below through the document store; not required at issue.
+                { label: "Plans or sketches", value: ins.attachments.length ? sketchesLine(ins.attachments.map((a) => ({ title: a.version.document.title, versionNo: a.version.versionNo }))).en : dim(sketchesLine([]).en) },
                 { label: "First given orally", value: ins.oralIssuedOn ? formatDate(day(ins.oralIssuedOn)) : "No: written" },
                 ...(ins.oralIssuedOn ? [{ label: "The contractor's written confirmation", value: `${clockText(confirm)}${ins.confirmationMatches == null ? "" : ins.confirmationMatches ? "; it matches the instruction intended" : "; it does not match"}` }, { label: "An objection", value: ins.objectedOn ? `${clockText(objection)}: ${ins.objectionNote}` : ins.contractorConfirmedOn ? (clockText(objection) ?? dim("None")) : dim("Not before the confirmation") }] : []),
               ]}
@@ -417,6 +420,16 @@ function InstructionPanel({ l, v, f, vv, people, today, blockedBy }: PanelProps 
           {ins?.oralIssuedOn && <div className="mt-3"><OralLoopDrawer id={l.contract.id} variationId={v.id} values={{ contractorConfirmedOn: day(ins.contractorConfirmedOn), confirmationMatches: ins.confirmationMatches == null ? null : ins.confirmationMatches ? "yes" : "no", objectedOn: day(ins.objectedOn), objectionNote: ins.objectionNote }} /></div>}
         </CardBody>
       </Card>
+      {ins && (
+        <OwnerAttachments
+          owner={{ kind: "variationInstruction", id: ins.id }}
+          title="Plans and sketches"
+          subtitle="Attached to the S.O.'s instruction through the document store, when it is issued or after. Not required at issue."
+          only={["INSTRUCTION_SKETCH"]}
+          required={{ INSTRUCTION_SKETCH: false }}
+          statuses={{ INSTRUCTION_SKETCH: { text: sketchesLine([]).en, tone: "neutral" } }}
+        />
+      )}
       {v.exemption == null && v.status === "SUPPORTED" && !v.commencedOn && stageOf(f) !== "APPROVED" && (
         <Card>
           <CardHeader icon={<ClockIcon size={17} />} title="Commenced pending approval" subtitle="Work may proceed on the support of the S.O. or an S.O.'s Representative while the approval is obtained; it is listed with its estimate and age until approved." actions={<CommenceDrawer id={l.contract.id} variationId={v.id} people={people} today={today} blocker={commenceBlocker} />} />
