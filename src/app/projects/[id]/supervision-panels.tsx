@@ -449,7 +449,7 @@ function DiarySection({ l, v, people, today, page }: { l: LoadedContract; v: Sup
         )}
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader icon={<ClipboardIcon size={17} />} title="Endorsements" subtitle="The superior officer's or the S.O.'s endorsement of the diary at a site visit, over the days it covers." actions={<EndorseDrawer id={c.id} people={people} roles={opts(DIARY_ENDORSERS, ENDORSER_WORDS)} today={today} blocker={possessed(v, today)} />} divided={v.s.diaryEndorsements.length > 0} />
+        <CardHeader icon={<ClipboardIcon size={17} />} title="Endorsements" subtitle="The superior officer's or the S.O.'s endorsement of the diary at a site visit, over the days it covers. A superior officer is recorded as named: the reporting line is not checked." actions={<EndorseDrawer id={c.id} people={people} roles={opts(DIARY_ENDORSERS, ENDORSER_WORDS)} today={today} blocker={possessed(v, today)} />} divided={v.s.diaryEndorsements.length > 0} />
         {v.s.diaryEndorsements.length === 0 ? (
           <EmptyState size="sm" title="None recorded">No visit has endorsed the diary.</EmptyState>
         ) : (

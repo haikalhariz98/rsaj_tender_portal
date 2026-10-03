@@ -244,7 +244,7 @@ export function EndorseDrawer({ id, people, roles, today, blocker }: { id: strin
   return (
     <RecordEditor
       title="Endorse the diary at a site visit"
-      description="The superior officer or the S.O. endorses the diary over the days the visit covers."
+      description="The superior officer or the S.O. endorses the diary over the days the visit covers. A superior officer is recorded as named: the reporting line is not checked (there are no reporting lines in the system yet)."
       columns={2}
       fields={[hidden("id"), choose("role", "Endorsed as", roles), person("personId", "Endorsed by", people), { kind: "date", name: "visitedOn", label: "Visited on", required: true }, { kind: "date", name: "coversFrom", label: "Covers from", required: true }, { kind: "date", name: "coversTo", label: "Covers to", required: true }, { kind: "textarea", name: "note", label: "Note" }]}
       values={{ id, visitedOn: today, coversTo: today }}
