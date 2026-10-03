@@ -47,7 +47,7 @@ describe("a certificate's figures are SULIT (R-7)", () => {
 
   it("the demo writes its trail the same way", () => {
     const demo = read("prisma/demo-certificates.ts");
-    expect(demo).toMatch(/certificateComputedAmount: "RM1,500\.00", certificateOverrideAmount: "RM1,350\.00"/);
+    expect(demo).toMatch(/certificateComputedAmount: "RM500\.00", certificateOverrideAmount: "RM250\.00"/);
     expect(demo).not.toMatch(/\b(asComputed|overriddenTo)\s*:/);
   });
 

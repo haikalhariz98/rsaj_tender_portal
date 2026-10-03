@@ -11,7 +11,8 @@
  * - Routing sheet types: demo_hrt1 (interim, 21 days printed, its two stages printing 10 and 7: both shown),
  *   demo_hrt2 (variation by quotation, 14 days up to 20% and 42 above, the edge in the band it closes),
  *   demo_hrt3 (the pre-award sheet over an award's route, 21 days). Checks demo_hrc*, targets demo_htg*.
- * - Certificates on demo_con3: demo_hct1 issued (an override in draft, a refused route and its resubmission
+ * - Certificates on demo_con3: demo_hct1 issued (6.13 Part A step 3: raised from interim valuation 1, demo_qiv1,
+ *   its figures the valuation's; an override in draft on the wages paid direct, a refused route and its resubmission
  *   side by side, four signatures, copies with one acknowledgement outstanding and the guarantor's left out
  *   for want of a bond); demo_hct2 on its routing sheet at exactly 20.00% (two weeks); demo_hct3 a draft
  *   letter going straight to signing; demo_hct4 being signed (first block recorded, form pinned);
@@ -26,6 +27,8 @@
  */
 
 import type { PrismaClient } from "../src/generated/prisma/client";
+
+import { linkFirstInterimDemo, raiseFirstInterimDemo } from "./demo-payment";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -188,32 +191,25 @@ export async function loadCertificatesDemo(db: Db, organisationId: string) {
   };
 
   // ------------------------------------------------ demo_hct1: an interim certificate, issued
-  const interim = {
-    version: 1 as const,
-    computedOn: "2026-09-30",
-    rule: { en: "Demo valuation: retention on work executed only (invented)", ms: "Penilaian demo: wang tahanan atas kerja sahaja (rekaan)" },
-    lines: [
-      { key: "workExecuted", labelEn: "Work executed", labelMs: "Kerja yang dilaksanakan", type: "MONEY" as const, value: "12000.00", overridable: true },
-      { key: "retention", labelEn: "Less retention (5% of work executed)", labelMs: "Tolak wang tahanan (5% kerja)", type: "MONEY" as const, value: "600.00", overridable: false },
-      { key: "materialsOnSite", labelEn: "Materials on site", labelMs: "Bahan di tapak", type: "MONEY" as const, value: "1500.00", overridable: true },
-      { key: "previouslyCertified", labelEn: "Less previously certified", labelMs: "Tolak yang telah diperakui", type: "MONEY" as const, value: "0.00", overridable: false },
-    ],
-    totals: [
-      { key: "grossValuation", labelEn: "Gross valuation", labelMs: "Nilai kasar", terms: [{ key: "workExecuted", sign: 1 as const }, { key: "materialsOnSite", sign: 1 as const }] },
-      { key: "netValuation", labelEn: "Net valuation", labelMs: "Nilai bersih", terms: [{ key: "grossValuation", sign: 1 as const }, { key: "retention", sign: -1 as const }] },
-      { key: "amountDue", labelEn: "Amount due", labelMs: "Amaun kena dibayar", terms: [{ key: "netValuation", sign: 1 as const }, { key: "previouslyCertified", sign: -1 as const }] },
-    ],
-    routingRatio: null,
-  };
+  // 6.13 Part A step 3: raised from interim valuation 1 (demo_qiv1), its figures the valuation's as the raising act
+  // assembles them; the override is on the one deduction an officer may correct (the wages paid direct).
+  const raised = await raiseFirstInterimDemo(db, organisationId);
+  const interim = raised.snapshot;
   const c1 = `${P}hct1`;
   await open({ id: c1, kind: "INTERIM_PAYMENT", templateId: `${P}dt30`, routingTypeId: `${P}hrt1`, openedAt: "2026-09-30T03:00", computed: interim });
+  await linkFirstInterimDemo(db, organisationId, c1, raised, "2026-09-30T03:00");
   // An override in draft, with its justification and the officer it is recorded for.
+  const WAGES_NOTE = "One worker's wages were settled by the contractor before the valuation (demo)";
   {
-    const r = overrideFaults({ status: "DRAFT", snapshot: interim, current: applyOverrides(interim, []), fieldKey: "materialsOnSite", value: "1350.00", justification: "Two deliveries were not yet on site at the valuation (demo)", personKnown: true });
+    const line = interim.lines.find((x) => x.key === "wages")!;
+    const r = overrideFaults({ status: "DRAFT", snapshot: interim, current: applyOverrides(interim, []), fieldKey: "wages", value: "250.00", justification: WAGES_NOTE, personKnown: true });
     fail("hct1 override", r.faults);
-    await db.certificateOverride.create({ data: { id: `${P}hov1`, organisationId, certificateId: c1, fieldKey: "materialsOnSite", computed: r.computed!, overridden: r.normalised!, justification: "Two deliveries were not yet on site at the valuation (demo)", personId: people.chen.id, personName: people.chen.name, recordedAt: at("2026-09-30T04:00") } });
-    audit("CertificateOverride", `${P}hov1`, `${label("INTERIM_PAYMENT")} · Materials on site`, "CREATE", "2026-09-30T04:00", diffFields(null, { figure: "Materials on site", certificateComputedAmount: "RM1,500.00", certificateOverrideAmount: "RM1,350.00", recordedFor: people.chen.name, recordedOnBehalf: ON_BEHALF }), "Two deliveries were not yet on site at the valuation (demo)");
+    if (r.computed !== "500.00") throw new Error(`demo hct1: the wages line reads ${r.computed}, not 500.00`);
+    await db.certificateOverride.create({ data: { id: `${P}hov1`, organisationId, certificateId: c1, fieldKey: "wages", computed: r.computed!, overridden: r.normalised!, justification: WAGES_NOTE, personId: people.chen.id, personName: people.chen.name, recordedAt: at("2026-09-30T04:00") } });
+    audit("CertificateOverride", `${P}hov1`, `${label("INTERIM_PAYMENT")} · ${line.labelEn}`, "CREATE", "2026-09-30T04:00", diffFields(null, { figure: line.labelEn, certificateComputedAmount: "RM500.00", certificateOverrideAmount: "RM250.00", recordedFor: people.chen.name, recordedOnBehalf: ON_BEHALF }), WAGES_NOTE);
   }
+  // What the route is judged on: the payment recommended, the override included.
+  const routedOn = applyOverrides(interim, await db.certificateOverride.findMany({ where: { certificateId: c1 } })).totals.find((x) => x.key === "recommended")!.value!;
   // Sent for routing: the type frozen; DATE (1) the same day.
   const t1 = freezeRoutingType((await routingTypeNow(`${P}hrt1`))!, "2026-09-30");
   await move(c1, "INTERIM_PAYMENT", "DRAFT", "IN_ROUTING", "2026-09-30T05:00", { routingSnapshot: t1 as never }, { routingSheet: t1.labelEn, checks: t1.checks.map((x) => x.labelEn).join(", "), figures: "frozen as computed" });
@@ -256,10 +252,10 @@ export async function loadCertificatesDemo(db: Db, organisationId: string) {
   // The first round: checked and verified, then refused by the certifying officer for re-measurement.
   await check(c1, "INTERIM_PAYMENT", 1, people.eng, "2026-09-30");
   await check(c1, "INTERIM_PAYMENT", 2, people.chen, "2026-09-30");
-  await route(c1, "INTERIM_PAYMENT", { id: `${P}hri1`, openedOn: "2026-09-30", createdAt: "2026-09-30T06:00", status: "REJECTED", supersedes: null, steps: [{ seq: 1, roleCode: "HOD_CP", roleLabel: "Head of Contract & Procurement", act: "R", person: people.chen, decision: "DONE", on: "2026-10-01" }, { seq: 2, roleCode: "FD", roleLabel: "Finance Director", act: "A", person: people.bala, decision: "REJECTED", on: "2026-10-01", reason: "Materials to be re-checked against the delivery orders (demo)." }] }, "12750.00");
+  await route(c1, "INTERIM_PAYMENT", { id: `${P}hri1`, openedOn: "2026-09-30", createdAt: "2026-09-30T06:00", status: "REJECTED", supersedes: null, steps: [{ seq: 1, roleCode: "HOD_CP", roleLabel: "Head of Contract & Procurement", act: "R", person: people.chen, decision: "DONE", on: "2026-10-01" }, { seq: 2, roleCode: "FD", roleLabel: "Finance Director", act: "A", person: people.bala, decision: "REJECTED", on: "2026-10-01", reason: "The wages paid direct to be re-checked against the payroll (demo)." }] }, routedOn);
   // Resubmitted: a successor route (ADR 0009), the checks recorded again, then approved.
-  await route(c1, "INTERIM_PAYMENT", { id: `${P}hri2`, openedOn: "2026-10-01", createdAt: "2026-10-01T06:00", status: "APPROVED", supersedes: `${P}hri1`, steps: [{ seq: 1, roleCode: "HOD_CP", roleLabel: "Head of Contract & Procurement", act: "R", person: people.chen, decision: "DONE", on: "2026-10-02" }, { seq: 2, roleCode: "FD", roleLabel: "Finance Director", act: "A", person: people.bala, decision: "DONE", on: "2026-10-02" }] }, "12750.00");
-  await check(c1, "INTERIM_PAYMENT", 1, people.eng, "2026-10-01", "Resubmitted with the delivery orders");
+  await route(c1, "INTERIM_PAYMENT", { id: `${P}hri2`, openedOn: "2026-10-01", createdAt: "2026-10-01T06:00", status: "APPROVED", supersedes: `${P}hri1`, steps: [{ seq: 1, roleCode: "HOD_CP", roleLabel: "Head of Contract & Procurement", act: "R", person: people.chen, decision: "DONE", on: "2026-10-02" }, { seq: 2, roleCode: "FD", roleLabel: "Finance Director", act: "A", person: people.bala, decision: "DONE", on: "2026-10-02" }] }, routedOn);
+  await check(c1, "INTERIM_PAYMENT", 1, people.eng, "2026-10-01", "Resubmitted with the payroll");
   await check(c1, "INTERIM_PAYMENT", 2, people.chen, "2026-10-01");
   {
     const s = await sheetOf1();
@@ -367,7 +363,7 @@ export async function loadCertificatesDemo(db: Db, organisationId: string) {
 
   // ------------------------------------------------ demo_hct4: an advance payment certificate being signed
   const c4 = `${P}hct4`;
-  const advance = { ...interim, computedOn: "2026-10-01", rule: { en: "Demo advance (invented; no advance procedure is documented)", ms: "Pendahuluan demo (rekaan)" }, lines: [{ key: "advance", labelEn: "Advance", labelMs: "Pendahuluan", type: "MONEY" as const, value: "3600.00", overridable: false }], totals: [] };
+  const advance = { version: 1 as const, routingRatio: null, computedOn: "2026-10-01", rule: { en: "Demo advance (invented; no advance procedure is documented)", ms: "Pendahuluan demo (rekaan)" }, lines: [{ key: "advance", labelEn: "Advance", labelMs: "Pendahuluan", type: "MONEY" as const, value: "3600.00", overridable: false }], totals: [] };
   await open({ id: c4, kind: "ADVANCE_PAYMENT", templateId: `${P}dt30`, routingTypeId: null, openedAt: "2026-10-01T02:00", computed: advance as never });
   // 614-C1 (6.13 Part A step 1): a money-bearing kind is signed only on an approved route, whatever its routing
   // type; this one has no routing sheet, so its route is approved before it goes to signing.
