@@ -35,9 +35,9 @@ import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { deciderFaults, holdersFor } from "@/lib/requisition/holders";
-import { deciderFaultText } from "@/lib/requisition/labels";
 
 import { certificateLabel, loadCertificate } from "./repo";
+import { certificateDeciderText } from "./route-words";
 import { CertificateRefusal, voidCertificate, type CertCtx } from "./write";
 
 /// Where a certificate's refused route may go (FR-APR-016): every kind the engine knows.
@@ -163,7 +163,7 @@ export async function decideCertificateStep(c: CertCtx, i: DecideInput) {
   });
   if (check.faults.length) {
     if (check.faults[0] === "COMMITTEE_STEP") throw new CertificateRefusal("Not decided: a committee's step is discharged by its decision, and a certificate is not tabled at a sitting.");
-    const texts = check.faults.map((x) => deciderFaultText(x, person?.name ?? null)).join(" ");
+    const texts = check.faults.map((x) => certificateDeciderText(x, person?.name ?? null)).join(" ");
     throw new CertificateRefusal(`Not decided: ${texts}`, ["TIME_ZONE_UNSET", "NOT_PENDING", "OUT_OF_ORDER"].includes(check.faults[0]) ? undefined : { personId: texts });
   }
   const rf = receivedOnFault(i.receivedOn, i.decidedOn, c.today, storedDay(inst.openedAt));
