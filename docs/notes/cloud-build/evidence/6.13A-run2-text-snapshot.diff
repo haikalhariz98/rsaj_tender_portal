@@ -1,0 +1,1002 @@
+diff -r -U0 snap613r2-before/approvals.txt snap613r2-after/approvals.txt
+--- snap613r2-before/approvals.txt	2026-10-03 07:36:59.910739565 +0000
++++ snap613r2-after/approvals.txt	2026-10-03 07:53:58.506800114 +0000
+@@ -5 +5 @@
+-8 steps waiting
++9 steps waiting
+@@ -73,0 +74,9 @@
++XI202600799 · Contoh Supplies Enterprise
++Interim payment certificate
++Office
++Head of Contract & Procurement
++Waiting
++1 day
++since 02 Oct 2026
++Where it stands
++With the office
+@@ -144,0 +154,7 @@
++XI202600799 · Contoh Supplies Enterprise
++Interim payment certificate
++Head of Contract & Procurement
++Recommend (R)
++1 day
++since 02 Oct 2026
++With the office
+@@ -184,0 +201 @@
++@title: With the office
+@@ -189,0 +207 @@
++@title: With the office
+diff -r -U0 snap613r2-before/configuration__post-award.txt snap613r2-after/configuration__post-award.txt
+--- snap613r2-before/configuration__post-award.txt	2026-10-03 07:38:15.042744031 +0000
++++ snap613r2-after/configuration__post-award.txt	2026-10-03 07:55:16.318804739 +0000
+@@ -3,2 +3,2 @@
+-3 not set
+-When a contract is In Delay, whether its S.O. follows the sum, and the delegation letters.
++7 not set
++Supervision, the delegation letters, and how interim payments and damages are certified.
+@@ -28,0 +29,58 @@
++Interim payment
++Read when a valuation is worked out, sent for approval and issued. A contract's own figure, from its baseline, wins where it has one.
++Edit
++Allowance on unfixed materials
++80% of their value, where the contract states none
++Assumed
++First release of retention
++Not set
++The first release of retention is refused, naming this setting.
++The figure an interim certificate is routed on
++The payment recommended on the certificate
++Assumed
++Where the sen of a pro-rata split go
++To the largest remainders, a sen each
++Assumed
++Interim certificates before the contract is signed
++Not set
++None issues before the contract is executed; one raised says so.
++Payment and damages certificates
++The form each prints on, and the routing sheet it goes on before it is signed.
++Interim payment certificate
++Edit
++Demo interim certificate · Demo interim certificate routing sheet
++Assumed
++Advance payment certificate
++Edit
++Demo interim certificate · No routing sheet
++Assumed
++Warning of liquidated damages
++Edit
++Not set
++It cannot be raised: the refusal names this setting.
++Certificate of non-completion
++Edit
++Not set
++It cannot be raised: the refusal names this setting.
++Contract clocks
++How long each period under the contract runs. A screen with an unset clock says so rather than counting from a guess.
++Confirming an oral instruction in writing
++Edit
++Not set
++Not read until variations are built.
++Objecting to a confirmed oral instruction
++Edit
++Not set
++Not read until variations are built.
++Substantiating daywork
++Edit
++Not set
++Not read until variations are built.
++The contractor's reasons after a damages warning
++Edit
++10 calendar days
++Assumed
++Issuing a certificate after its valuation or claim
++Edit
++20 calendar days
++Assumed
+@@ -30,0 +89,7 @@
++@title: A working default, awaiting sign-off
++@title: A working default, awaiting sign-off
++@title: A working default, awaiting sign-off
++@title: A working default, awaiting sign-off
++@title: A working default, awaiting sign-off
++@title: A working default, awaiting sign-off
++@title: A working default, awaiting sign-off
+diff -r -U0 snap613r2-before/projects__demo_con1__tab__baseline.txt snap613r2-after/projects__demo_con1__tab__baseline.txt
+--- snap613r2-before/projects__demo_con1__tab__baseline.txt	2026-10-03 07:35:26.258733998 +0000
++++ snap613r2-after/projects__demo_con1__tab__baseline.txt	2026-10-03 07:52:20.810794306 +0000
+@@ -20,0 +21,2 @@
++Payments
++0
+diff -r -U0 snap613r2-before/projects__demo_con1__tab__documents.txt snap613r2-after/projects__demo_con1__tab__documents.txt
+--- snap613r2-before/projects__demo_con1__tab__documents.txt	2026-10-03 07:35:27.742734087 +0000
++++ snap613r2-after/projects__demo_con1__tab__documents.txt	2026-10-03 07:52:22.686794418 +0000
+@@ -20,0 +21,2 @@
++Payments
++0
+diff -r -U0 snap613r2-before/projects__demo_con1__tab__formation&section__assembly.txt snap613r2-after/projects__demo_con1__tab__formation&section__assembly.txt
+--- snap613r2-before/projects__demo_con1__tab__formation&section__assembly.txt	2026-10-03 07:35:29.174734172 +0000
++++ snap613r2-after/projects__demo_con1__tab__formation&section__assembly.txt	2026-10-03 07:52:24.502794526 +0000
+@@ -20,0 +21,2 @@
++Payments
++0
+diff -r -U0 snap613r2-before/projects__demo_con1__tab__formation&section__copies.txt snap613r2-after/projects__demo_con1__tab__formation&section__copies.txt
+--- snap613r2-before/projects__demo_con1__tab__formation&section__copies.txt	2026-10-03 07:35:33.358734420 +0000
++++ snap613r2-after/projects__demo_con1__tab__formation&section__copies.txt	2026-10-03 07:52:28.374794756 +0000
+@@ -20,0 +21,2 @@
++Payments
++0
+diff -r -U0 snap613r2-before/projects__demo_con1__tab__formation&section__legal.txt snap613r2-after/projects__demo_con1__tab__formation&section__legal.txt
+--- snap613r2-before/projects__demo_con1__tab__formation&section__legal.txt	2026-10-03 07:35:31.218734293 +0000
++++ snap613r2-after/projects__demo_con1__tab__formation&section__legal.txt	2026-10-03 07:52:26.426794640 +0000
+@@ -20,0 +21,2 @@
++Payments
++0
+diff -r -U0 snap613r2-before/projects__demo_con1__tab__formation&section__reconciliation.txt snap613r2-after/projects__demo_con1__tab__formation&section__reconciliation.txt
+--- snap613r2-before/projects__demo_con1__tab__formation&section__reconciliation.txt	2026-10-03 07:35:29.890734214 +0000
++++ snap613r2-after/projects__demo_con1__tab__formation&section__reconciliation.txt	2026-10-03 07:52:25.478794584 +0000
+@@ -20,0 +21,2 @@
++Payments
++0
+diff -r -U0 snap613r2-before/projects__demo_con1__tab__formation&section__signing.txt snap613r2-after/projects__demo_con1__tab__formation&section__signing.txt
+--- snap613r2-before/projects__demo_con1__tab__formation&section__signing.txt	2026-10-03 07:35:32.490734369 +0000
++++ snap613r2-after/projects__demo_con1__tab__formation&section__signing.txt	2026-10-03 07:52:27.346794695 +0000
+@@ -20,0 +21,2 @@
++Payments
++0
+diff -r -U0 snap613r2-before/projects__demo_con1__tab__history.txt snap613r2-after/projects__demo_con1__tab__history.txt
+--- snap613r2-before/projects__demo_con1__tab__history.txt	2026-10-03 07:35:28.346734122 +0000
++++ snap613r2-after/projects__demo_con1__tab__history.txt	2026-10-03 07:52:23.614794473 +0000
+@@ -20,0 +21,2 @@
++Payments
++0
+diff -r -U0 snap613r2-before/projects__demo_con1__tab__overview.txt snap613r2-after/projects__demo_con1__tab__overview.txt
+--- snap613r2-before/projects__demo_con1__tab__overview.txt	2026-10-03 07:35:25.386733946 +0000
++++ snap613r2-after/projects__demo_con1__tab__overview.txt	2026-10-03 07:52:19.830794248 +0000
+@@ -20,0 +21,2 @@
++Payments
++0
+diff -r -U0 snap613r2-before/projects__demo_con1__tab__payments.txt snap613r2-after/projects__demo_con1__tab__payments.txt
+--- snap613r2-before/projects__demo_con1__tab__payments.txt	2026-10-03 07:38:16.586744123 +0000
++++ snap613r2-after/projects__demo_con1__tab__payments.txt	2026-10-03 07:55:17.598804815 +0000
+@@ -20,0 +21,2 @@
++Payments
++0
+@@ -27,37 +29,13 @@
+-The contract
+-As awarded, numbered at issue, and as it is being formed.
+-Contract number
+-DEMO/KP/T/004/2026
+-The year in the number is the year it was issued, 2026 — assumed to be the year the contract starts, to be confirmed.
+-Contractor
+-Sampel Engineering Sdn Bhd
+-Contract sum
+-RM2,700,000
+-The Letter of Acceptance's sum (assumed: corrections do not change it).
+-Arithmetic corrections
+-None recorded
+-Contract Date
+-Not signed: the day of the signature act, never typed
+-Stamped
+-Not recorded
+-Formed under
+-Bill of quantities; legal review by Demo Legal Office; frozen 25 Sep 2026
+-Award
+-DEMO/AWD/0003/2026
+-Ready to sign?
+-The readiness gate, as the award shows it. Preparation continues while it is red.
+-Gate not met
+-Instrument returned signed
+-Not met
+-Performance bond lodged and verified
+-Met
+-Every required policy lodged and verified
+-Not lodged: Public liability, Workmen's compensation. Lodged, not verified: Works insurance. Works insurance: neither the award nor a tender Appendix states a sum insured, so it is not compared. Public liability insurance: neither the award nor a tender Appendix states a sum insured, so it is not compared. Workmen's compensation insurance: neither the award nor a tender Appendix states a sum insured, so it is not compared. Workmen's compensation is calculated on uncovered wages, so its sum cannot be checked: it counts as met only once the check of the declared wages is recorded, on the contract's Securities tab.
+-Each required policy's sum insured is compared with the award's own figure for its kind, or the tender Appendix's minimum where the award states none.
+-Not met
+-The award's conditions
+-Before work starts, each with the day it is needed by. Recorded on the award.
+-Safe method statement approved
+-needed by 10 Oct 2026 · not met · a delay gives no extension of time
+-Regulator's works permit
+-DEMO/PERMIT/2026/41 · needed by 12 Oct 2026 · met 28 Sep 2026
++Valuations
++Retention
++Advance payment
++Liquidated damages
++Valuation calendar
++The day of each month agreed with the contractor for the joint site valuation. A valuation on another day is started by a claim.
++Record the valuation day
++Not agreed yet: a valuation on the monthly day waits for it, and a claim may still start one.
++Valuations and their certificates
++Newest first. A valuation raises its interim payment certificate, which goes for approval, is signed and issued from the certificate.
++Open a valuation
++None yet
++No valuation has been opened on this contract.
+@@ -64,0 +43 @@
++@aria-label: Payments sections
+diff -r -U0 snap613r2-before/projects__demo_con1__tab__securities.txt snap613r2-after/projects__demo_con1__tab__securities.txt
+--- snap613r2-before/projects__demo_con1__tab__securities.txt	2026-10-03 07:35:26.930734038 +0000
++++ snap613r2-after/projects__demo_con1__tab__securities.txt	2026-10-03 07:52:21.770794363 +0000
+@@ -20,0 +21,2 @@
++Payments
++0
+diff -r -U0 snap613r2-before/projects__demo_con2__tab__baseline.txt snap613r2-after/projects__demo_con2__tab__baseline.txt
+--- snap613r2-before/projects__demo_con2__tab__baseline.txt	2026-10-03 07:35:34.886734511 +0000
++++ snap613r2-after/projects__demo_con2__tab__baseline.txt	2026-10-03 07:52:30.654794891 +0000
+@@ -20,0 +21,2 @@
++Payments
++0
+diff -r -U0 snap613r2-before/projects__demo_con2__tab__documents.txt snap613r2-after/projects__demo_con2__tab__documents.txt
+--- snap613r2-before/projects__demo_con2__tab__documents.txt	2026-10-03 07:35:36.294734595 +0000
++++ snap613r2-after/projects__demo_con2__tab__documents.txt	2026-10-03 07:52:32.382794994 +0000
+@@ -20,0 +21,2 @@
++Payments
++0
+diff -r -U0 snap613r2-before/projects__demo_con2__tab__formation&section__assembly.txt snap613r2-after/projects__demo_con2__tab__formation&section__assembly.txt
+--- snap613r2-before/projects__demo_con2__tab__formation&section__assembly.txt	2026-10-03 07:35:37.766734682 +0000
++++ snap613r2-after/projects__demo_con2__tab__formation&section__assembly.txt	2026-10-03 07:52:34.046795093 +0000
+@@ -20,0 +21,2 @@
++Payments
++0
+diff -r -U0 snap613r2-before/projects__demo_con2__tab__formation&section__copies.txt snap613r2-after/projects__demo_con2__tab__formation&section__copies.txt
+--- snap613r2-before/projects__demo_con2__tab__formation&section__copies.txt	2026-10-03 07:35:40.986734874 +0000
++++ snap613r2-after/projects__demo_con2__tab__formation&section__copies.txt	2026-10-03 07:52:37.626795306 +0000
+@@ -20,0 +21,2 @@
++Payments
++0
+diff -r -U0 snap613r2-before/projects__demo_con2__tab__formation&section__legal.txt snap613r2-after/projects__demo_con2__tab__formation&section__legal.txt
+--- snap613r2-before/projects__demo_con2__tab__formation&section__legal.txt	2026-10-03 07:35:39.314734774 +0000
++++ snap613r2-after/projects__demo_con2__tab__formation&section__legal.txt	2026-10-03 07:52:35.858795201 +0000
+@@ -20,0 +21,2 @@
++Payments
++0
+diff -r -U0 snap613r2-before/projects__demo_con2__tab__formation&section__reconciliation.txt snap613r2-after/projects__demo_con2__tab__formation&section__reconciliation.txt
+--- snap613r2-before/projects__demo_con2__tab__formation&section__reconciliation.txt	2026-10-03 07:35:38.498734726 +0000
++++ snap613r2-after/projects__demo_con2__tab__formation&section__reconciliation.txt	2026-10-03 07:52:34.950795147 +0000
+@@ -20,0 +21,2 @@
++Payments
++0
+diff -r -U0 snap613r2-before/projects__demo_con2__tab__formation&section__signing.txt snap613r2-after/projects__demo_con2__tab__formation&section__signing.txt
+--- snap613r2-before/projects__demo_con2__tab__formation&section__signing.txt	2026-10-03 07:35:40.142734824 +0000
++++ snap613r2-after/projects__demo_con2__tab__formation&section__signing.txt	2026-10-03 07:52:36.734795253 +0000
+@@ -20,0 +21,2 @@
++Payments
++0
+diff -r -U0 snap613r2-before/projects__demo_con2__tab__history.txt snap613r2-after/projects__demo_con2__tab__history.txt
+--- snap613r2-before/projects__demo_con2__tab__history.txt	2026-10-03 07:35:36.970734635 +0000
++++ snap613r2-after/projects__demo_con2__tab__history.txt	2026-10-03 07:52:33.258795046 +0000
+@@ -20,0 +21,2 @@
++Payments
++0
+diff -r -U0 snap613r2-before/projects__demo_con2__tab__overview.txt snap613r2-after/projects__demo_con2__tab__overview.txt
+--- snap613r2-before/projects__demo_con2__tab__overview.txt	2026-10-03 07:35:34.042734461 +0000
++++ snap613r2-after/projects__demo_con2__tab__overview.txt	2026-10-03 07:52:29.530794825 +0000
+@@ -20,0 +21,2 @@
++Payments
++0
+diff -r -U0 snap613r2-before/projects__demo_con2__tab__securities.txt snap613r2-after/projects__demo_con2__tab__securities.txt
+--- snap613r2-before/projects__demo_con2__tab__securities.txt	2026-10-03 07:35:35.502734548 +0000
++++ snap613r2-after/projects__demo_con2__tab__securities.txt	2026-10-03 07:52:31.522794943 +0000
+@@ -20,0 +21,2 @@
++Payments
++0
+diff -r -U0 snap613r2-before/projects__demo_con3__certificates__demo_hct1__tab__figures.txt snap613r2-after/projects__demo_con3__certificates__demo_hct1__tab__figures.txt
+--- snap613r2-before/projects__demo_con3__certificates__demo_hct1__tab__figures.txt	2026-10-03 07:36:48.558738890 +0000
++++ snap613r2-after/projects__demo_con3__certificates__demo_hct1__tab__figures.txt	2026-10-03 07:53:45.614799347 +0000
+@@ -24 +24 @@
+-18
++20
+@@ -90,0 +91,3 @@
++Paid by Finance
++Not recorded yet: Finance returns its batch number and the day paid.
++Record Finance's payment
+diff -r -U0 snap613r2-before/projects__demo_con3__certificates__demo_hct1__tab__history.txt snap613r2-after/projects__demo_con3__certificates__demo_hct1__tab__history.txt
+--- snap613r2-before/projects__demo_con3__certificates__demo_hct1__tab__history.txt	2026-10-03 07:36:50.494739006 +0000
++++ snap613r2-after/projects__demo_con3__certificates__demo_hct1__tab__history.txt	2026-10-03 07:53:48.050799492 +0000
+@@ -24 +24 @@
+-18
++20
+@@ -29 +29 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate DEMO/CERT/00231 · copy 3
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate DEMO/CERT/00231 · copy 1
+@@ -45 +45 @@
+-Contract file (demo)
++The contractor (original)
+@@ -48 +48 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate DEMO/CERT/00231 · copy 1
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate DEMO/CERT/00231 · copy 3
+@@ -64 +64 @@
+-The contractor (original)
++Contract file (demo)
+@@ -211 +211 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · Checked by the section
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · Verified by contracts
+@@ -215 +215 @@
+-Checked by the section
++Verified by contracts
+@@ -221 +221 @@
+-Eng Siew Mei
++Chen Wei Ling
+@@ -225,3 +224,0 @@
+-Note
+-:
+-Resubmitted with the payroll
+@@ -233 +230 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · Verified by contracts
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · Checked by the section
+@@ -237 +234 @@
+-Verified by contracts
++Checked by the section
+@@ -243 +240 @@
+-Chen Wei Ling
++Eng Siew Mei
+@@ -246,0 +244,3 @@
++Note
++:
++Resubmitted with the payroll
+@@ -250,0 +251,10 @@
++Approval route
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · approval route
++01 Oct 2026
++Route
++:
++Head of Contract & Procurement → Finance Director
++Routed on
++:
++An invented demo trail, not routed by the approval matrix
++Created
+@@ -287,0 +298,10 @@
++Created
++Approval route
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · approval route
++30 Sep 2026
++Route
++:
++Head of Contract & Procurement → Finance Director
++Routed on
++:
++An invented demo trail, not routed by the approval matrix
+diff -r -U0 snap613r2-before/projects__demo_con3__certificates__demo_hct1__tab__routing.txt snap613r2-after/projects__demo_con3__certificates__demo_hct1__tab__routing.txt
+--- snap613r2-before/projects__demo_con3__certificates__demo_hct1__tab__routing.txt	2026-10-03 07:36:49.830738966 +0000
++++ snap613r2-after/projects__demo_con3__certificates__demo_hct1__tab__routing.txt	2026-10-03 07:53:47.234799444 +0000
+@@ -24 +24 @@
+-18
++20
+diff -r -U0 snap613r2-before/projects__demo_con3__certificates__demo_hct1__tab__signatures.txt snap613r2-after/projects__demo_con3__certificates__demo_hct1__tab__signatures.txt
+--- snap613r2-before/projects__demo_con3__certificates__demo_hct1__tab__signatures.txt	2026-10-03 07:36:49.238738931 +0000
++++ snap613r2-after/projects__demo_con3__certificates__demo_hct1__tab__signatures.txt	2026-10-03 07:53:46.194799382 +0000
+@@ -24 +24 @@
+-18
++20
+diff -r -U0 snap613r2-before/projects__demo_con3__certificates__demo_hct2__tab__figures.txt snap613r2-after/projects__demo_con3__certificates__demo_hct2__tab__figures.txt
+--- snap613r2-before/projects__demo_con3__certificates__demo_hct2__tab__figures.txt	2026-10-03 07:36:50.910739030 +0000
++++ snap613r2-after/projects__demo_con3__certificates__demo_hct2__tab__figures.txt	2026-10-03 07:53:48.694799530 +0000
+@@ -30 +30 @@
+-The variation against the contract sum: 20.00% (RM7,200.00 of RM36,000.00; judged on the exact amounts, never the rounded figure).
++The variation against the contract sum: 20.00% (RM7,200.00 of RM36,000.00; judged on the exact amounts as they stand, overrides included, never the rounded figure).
+diff -r -U0 snap613r2-before/projects__demo_con3__certificates__demo_hct3__tab__routing.txt snap613r2-after/projects__demo_con3__certificates__demo_hct3__tab__routing.txt
+--- snap613r2-before/projects__demo_con3__certificates__demo_hct3__tab__routing.txt	2026-10-03 07:36:53.478739183 +0000
++++ snap613r2-after/projects__demo_con3__certificates__demo_hct3__tab__routing.txt	2026-10-03 07:53:51.442799694 +0000
+@@ -27,2 +27 @@
+-No approval route: this certificate is not routed through the approval matrix
+-. It goes from its draft straight to signing.
++No approval route: this certificate is not routed through the approval matrix. It goes from its draft straight to signing.
+diff -r -U0 snap613r2-before/projects__demo_con3__certificates__demo_hct4__tab__figures.txt snap613r2-after/projects__demo_con3__certificates__demo_hct4__tab__figures.txt
+--- snap613r2-before/projects__demo_con3__certificates__demo_hct4__tab__figures.txt	2026-10-03 07:36:54.350739235 +0000
++++ snap613r2-after/projects__demo_con3__certificates__demo_hct4__tab__figures.txt	2026-10-03 07:53:52.410799751 +0000
+@@ -23 +23 @@
+-3
++4
+@@ -27,0 +28,2 @@
++Paid by Finance
++Once issued, it goes to Accounts and Finance; the payment is recorded here.
+diff -r -U0 snap613r2-before/projects__demo_con3__certificates__demo_hct4__tab__history.txt snap613r2-after/projects__demo_con3__certificates__demo_hct4__tab__history.txt
+--- snap613r2-before/projects__demo_con3__certificates__demo_hct4__tab__history.txt	2026-10-03 07:36:55.638739311 +0000
++++ snap613r2-after/projects__demo_con3__certificates__demo_hct4__tab__history.txt	2026-10-03 07:53:53.910799840 +0000
+@@ -23 +23 @@
+-3
++4
+@@ -47,0 +48,10 @@
++Created
++Approval route
++Contract XI202600799 · Contoh Supplies Enterprise · Advance payment certificate · approval route
++01 Oct 2026
++Route
++:
++Head of Contract & Procurement → Finance Director
++Routed on
++:
++An invented demo trail, not routed by the approval matrix
+diff -r -U0 snap613r2-before/projects__demo_con3__certificates__demo_hct4__tab__routing.txt snap613r2-after/projects__demo_con3__certificates__demo_hct4__tab__routing.txt
+--- snap613r2-before/projects__demo_con3__certificates__demo_hct4__tab__routing.txt	2026-10-03 07:36:55.122739281 +0000
++++ snap613r2-after/projects__demo_con3__certificates__demo_hct4__tab__routing.txt	2026-10-03 07:53:53.390799810 +0000
+@@ -23,5 +23,12 @@
+-3
+-Routing sheet
+-No routing sheet
+-No approval route: this certificate is not routed through the approval matrix
+-. It goes from its draft straight to signing.
++4
++Approval route
++Not routed by the approval matrix (recorded as given, not checked against it); routed on RM3,600.00; opened 01 Oct 2026.
++Approved
++1. Head of Contract & Procurement
++· Recommend (R)
++Done · Chen Wei Ling · 01 Oct 2026 · recorded on their behalf, not signed
++Done
++2. Finance Director
++· Approve (A)
++Done · Bala Krishnan · 01 Oct 2026 · recorded on their behalf, not signed
++Done
+diff -r -U0 snap613r2-before/projects__demo_con3__certificates__demo_hct4__tab__signatures.txt snap613r2-after/projects__demo_con3__certificates__demo_hct4__tab__signatures.txt
+--- snap613r2-before/projects__demo_con3__certificates__demo_hct4__tab__signatures.txt	2026-10-03 07:36:54.738739258 +0000
++++ snap613r2-after/projects__demo_con3__certificates__demo_hct4__tab__signatures.txt	2026-10-03 07:53:52.946799783 +0000
+@@ -23 +23 @@
+-3
++4
+diff -r -U0 snap613r2-before/projects__demo_con3__certificates__demo_hct5__tab__routing.txt snap613r2-after/projects__demo_con3__certificates__demo_hct5__tab__routing.txt
+--- snap613r2-before/projects__demo_con3__certificates__demo_hct5__tab__routing.txt	2026-10-03 07:36:56.730739376 +0000
++++ snap613r2-after/projects__demo_con3__certificates__demo_hct5__tab__routing.txt	2026-10-03 07:53:55.070799909 +0000
+@@ -28,2 +28 @@
+-No approval route: this certificate is not routed through the approval matrix
+-. It goes from its draft straight to signing.
++No approval route: this certificate is not routed through the approval matrix. It goes from its draft straight to signing.
+diff -r -U0 snap613r2-before/projects__demo_con3__certificates__demo_qct1__tab__figures.txt snap613r2-after/projects__demo_con3__certificates__demo_qct1__tab__figures.txt
+--- snap613r2-before/projects__demo_con3__certificates__demo_qct1__tab__figures.txt	2026-10-03 07:38:10.586743766 +0000
++++ snap613r2-after/projects__demo_con3__certificates__demo_qct1__tab__figures.txt	2026-10-03 07:55:12.462804510 +0000
+@@ -25 +25 @@
+-2
++3
+@@ -88,0 +89,2 @@
++Paid by Finance
++Once issued, it goes to Accounts and Finance; the payment is recorded here.
+diff -r -U0 snap613r2-before/projects__demo_con3__certificates__demo_qct1__tab__history.txt snap613r2-after/projects__demo_con3__certificates__demo_qct1__tab__history.txt
+--- snap613r2-before/projects__demo_con3__certificates__demo_qct1__tab__history.txt	2026-10-03 07:38:13.622743947 +0000
++++ snap613r2-after/projects__demo_con3__certificates__demo_qct1__tab__history.txt	2026-10-03 07:55:15.582804695 +0000
+@@ -25 +25 @@
+-2
++3
+@@ -51,0 +52,25 @@
++Created
++Approval route
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · approval route
++02 Oct 2026
++Matrix
++:
++Demo limits, issue 1
++Rule
++:
++Interim payment, up to RM50,000
++Routed on
++:
++the payment recommended on the certificate, 12600.00
++Route
++:
++Head of Contract & Procurement (recommend) → Finance Director (approve)
++Funding override applied
++:
++No
++Sent by
++:
++Eng Siew Mei
++Recorded on behalf
++:
++not signed
+diff -r -U0 snap613r2-before/projects__demo_con3__certificates__demo_qct1__tab__routing.txt snap613r2-after/projects__demo_con3__certificates__demo_qct1__tab__routing.txt
+--- snap613r2-before/projects__demo_con3__certificates__demo_qct1__tab__routing.txt	2026-10-03 07:38:12.626743888 +0000
++++ snap613r2-after/projects__demo_con3__certificates__demo_qct1__tab__routing.txt	2026-10-03 07:55:14.590804636 +0000
+@@ -25 +25 @@
+-2
++3
+@@ -47,0 +48,2 @@
++Escalate
++Record decision
+@@ -50,0 +53,3 @@
++Escalate
++Record decision
++Steps are decided in order: the step before is not done.
+@@ -55,0 +61,2 @@
++@aria-label: Record Head of Contract & Procurement's decision
++@title: Steps are decided in order: the step before is not done.
+diff -r -U0 snap613r2-before/projects__demo_con3__certificates__demo_qct1__tab__signatures.txt snap613r2-after/projects__demo_con3__certificates__demo_qct1__tab__signatures.txt
+--- snap613r2-before/projects__demo_con3__certificates__demo_qct1__tab__signatures.txt	2026-10-03 07:38:11.546743824 +0000
++++ snap613r2-after/projects__demo_con3__certificates__demo_qct1__tab__signatures.txt	2026-10-03 07:55:13.490804571 +0000
+@@ -25 +25 @@
+-2
++3
+diff -r -U0 snap613r2-before/projects__demo_con3__certificates__demo_wlt1__tab__routing.txt snap613r2-after/projects__demo_con3__certificates__demo_wlt1__tab__routing.txt
+--- snap613r2-before/projects__demo_con3__certificates__demo_wlt1__tab__routing.txt	2026-10-03 07:38:13.066743914 +0000
++++ snap613r2-after/projects__demo_con3__certificates__demo_wlt1__tab__routing.txt	2026-10-03 07:55:15.074804665 +0000
+@@ -27,2 +27 @@
+-No approval route: this certificate is not routed through the approval matrix
+-. It goes from its draft straight to signing.
++No approval route: this certificate is not routed through the approval matrix. It goes from its draft straight to signing.
+diff -r -U0 snap613r2-before/projects__demo_con3__tab__baseline.txt snap613r2-after/projects__demo_con3__tab__baseline.txt
+--- snap613r2-before/projects__demo_con3__tab__baseline.txt	2026-10-03 07:35:43.998735053 +0000
++++ snap613r2-after/projects__demo_con3__tab__baseline.txt	2026-10-03 07:52:41.146795515 +0000
+@@ -20,0 +21,2 @@
++Payments
++2
+diff -r -U0 snap613r2-before/projects__demo_con3__tab__documents.txt snap613r2-after/projects__demo_con3__tab__documents.txt
+--- snap613r2-before/projects__demo_con3__tab__documents.txt	2026-10-03 07:35:46.810735220 +0000
++++ snap613r2-after/projects__demo_con3__tab__documents.txt	2026-10-03 07:52:44.374795707 +0000
+@@ -20,0 +21,2 @@
++Payments
++2
+diff -r -U0 snap613r2-before/projects__demo_con3__tab__formation&section__assembly.txt snap613r2-after/projects__demo_con3__tab__formation&section__assembly.txt
+--- snap613r2-before/projects__demo_con3__tab__formation&section__assembly.txt	2026-10-03 07:35:50.326735429 +0000
++++ snap613r2-after/projects__demo_con3__tab__formation&section__assembly.txt	2026-10-03 07:52:47.694795904 +0000
+@@ -20,0 +21,2 @@
++Payments
++2
+diff -r -U0 snap613r2-before/projects__demo_con3__tab__formation&section__copies.txt snap613r2-after/projects__demo_con3__tab__formation&section__copies.txt
+--- snap613r2-before/projects__demo_con3__tab__formation&section__copies.txt	2026-10-03 07:35:55.982735765 +0000
++++ snap613r2-after/projects__demo_con3__tab__formation&section__copies.txt	2026-10-03 07:52:54.770796325 +0000
+@@ -20,0 +21,2 @@
++Payments
++2
+diff -r -U0 snap613r2-before/projects__demo_con3__tab__formation&section__legal.txt snap613r2-after/projects__demo_con3__tab__formation&section__legal.txt
+--- snap613r2-before/projects__demo_con3__tab__formation&section__legal.txt	2026-10-03 07:35:53.254735603 +0000
++++ snap613r2-after/projects__demo_con3__tab__formation&section__legal.txt	2026-10-03 07:52:51.474796129 +0000
+@@ -20,0 +21,2 @@
++Payments
++2
+diff -r -U0 snap613r2-before/projects__demo_con3__tab__formation&section__reconciliation.txt snap613r2-after/projects__demo_con3__tab__formation&section__reconciliation.txt
+--- snap613r2-before/projects__demo_con3__tab__formation&section__reconciliation.txt	2026-10-03 07:35:51.826735518 +0000
++++ snap613r2-after/projects__demo_con3__tab__formation&section__reconciliation.txt	2026-10-03 07:52:49.762796027 +0000
+@@ -20,0 +21,2 @@
++Payments
++2
+diff -r -U0 snap613r2-before/projects__demo_con3__tab__formation&section__signing.txt snap613r2-after/projects__demo_con3__tab__formation&section__signing.txt
+--- snap613r2-before/projects__demo_con3__tab__formation&section__signing.txt	2026-10-03 07:35:54.654735686 +0000
++++ snap613r2-after/projects__demo_con3__tab__formation&section__signing.txt	2026-10-03 07:52:53.234796234 +0000
+@@ -20,0 +21,2 @@
++Payments
++2
+diff -r -U0 snap613r2-before/projects__demo_con3__tab__history.txt snap613r2-after/projects__demo_con3__tab__history.txt
+--- snap613r2-before/projects__demo_con3__tab__history.txt	2026-10-03 07:35:48.762735336 +0000
++++ snap613r2-after/projects__demo_con3__tab__history.txt	2026-10-03 07:52:46.078795808 +0000
+@@ -20,0 +21,2 @@
++Payments
++2
+@@ -418 +420 @@
+-Record
++Approval route
+@@ -514 +516 @@
+-Record
++Interim valuation
+@@ -591 +593 @@
+-Record
++Nominated party or assignee on a valuation
+@@ -606 +608 @@
+-Record
++Materials on site
+@@ -646 +648 @@
+-Record
++Materials on site
+@@ -712 +714 @@
+-Record
++Interim valuation
+@@ -736 +738 @@
+-Record
++Interim valuation
+@@ -747 +749 @@
+-Record
++Interim valuation
+@@ -881 +883 @@
+-Record
++Approval route
+@@ -900 +902 @@
+-Record
++Approval route
+@@ -1240 +1242 @@
+-Record
++Approval route
+@@ -1325 +1327 @@
+-Record
++Interim valuation
+@@ -1399 +1401 @@
+-Record
++Deduction on a valuation
+@@ -1411 +1413 @@
+-Record
++Interim valuation
+@@ -1435 +1437 @@
+-Record
++Interim valuation
+@@ -1446 +1448 @@
+-Record
++Interim valuation
+@@ -1465 +1467 @@
+-Record
++Valuation calendar
+diff -r -U0 snap613r2-before/projects__demo_con3__tab__overview.txt snap613r2-after/projects__demo_con3__tab__overview.txt
+--- snap613r2-before/projects__demo_con3__tab__overview.txt	2026-10-03 07:35:42.466734962 +0000
++++ snap613r2-after/projects__demo_con3__tab__overview.txt	2026-10-03 07:52:39.134795396 +0000
+@@ -20,0 +21,2 @@
++Payments
++2
+@@ -40,0 +43,15 @@
++Payments
++From the issued certificates only, as issued. Each is on the Payments tab.
++Open payments
++Interim certificates issued
++1, the latest 02 Oct 2026
++Certified to date, before deductions
++RM12,000
++Retention held on the latest
++RM0
++Liquidated damages deducted
++RM0
++Paid by Finance
++0 of 1
++Valuation in progress
++02 Oct 2026, certificate raised
+diff -r -U0 snap613r2-before/projects__demo_con3__tab__payments&section__advance.txt snap613r2-after/projects__demo_con3__tab__payments&section__advance.txt
+--- snap613r2-before/projects__demo_con3__tab__payments&section__advance.txt	2026-10-03 07:38:08.554743646 +0000
++++ snap613r2-after/projects__demo_con3__tab__payments&section__advance.txt	2026-10-03 07:55:10.258804379 +0000
+@@ -20,0 +21,2 @@
++Payments
++2
+@@ -27,52 +29,11 @@
+-On site
+-Possession, the date for completion and whether the contract is In Delay, judged today.
+-In Delay
+-Assumed
+-Superintending Officer
+-Head of Contract & Procurement
+-Possession of site
+-02 Oct 2026
+-Date for completion
+-27 Nov 2026
+-In Delay
+-On 02 Oct 2026 actual progress was 0.5% against 1% planned: below 75% of the plan.
+-Assumed
+-Planned progress between the approved programme's points is read on a straight line.
+-The contract
+-As awarded, numbered at issue, and as it is being formed.
+-Contract number
+-XI202600799
+-Contractor
+-Contoh Supplies Enterprise
+-Contract sum
+-RM36,000
+-The Letter of Acceptance's sum (assumed: corrections do not change it).
+-Arithmetic corrections
+-−RM45
+-SULIT · not restricted until sign-in
+-Against the tendered figures: shown, not applied.
+-Contract Date
+-30 Sep 2026
+-The day the signature for the employer was recorded.
+-Stamped
+-01 Oct 2026 · reference DEMO-STAMP-2026-0001
+-Formed under
+-Bill of quantities; legal review by Demo Legal Office; frozen 24 Sep 2026
+-Award
+-DEMO/AWD/0005/2026
+-Ready to sign?
+-The readiness gate, as the award shows it. Preparation continues while it is red.
+-Gate met
+-Instrument returned signed
+-Met
+-Performance bond lodged and verified
+-No bond required: Short-form terms: no performance bond is asked below the extended terms band (demo policy).
+-Met
+-Every required policy lodged and verified
+-Public liability insurance: neither the award nor a tender Appendix states a sum insured, so it is not compared. Workmen's compensation insurance: neither the award nor a tender Appendix states a sum insured, so it is not compared.
+-Each required policy's sum insured is compared with the award's own figure for its kind, or the tender Appendix's minimum where the award states none.
+-Met
+-The award's conditions
+-Before work starts, each with the day it is needed by. Recorded on the award.
+-None recorded
+-The award records none.
++Valuations
++Retention
++Advance payment
++Liquidated damages
++No documented advance payment procedure (B2)
++Eligibility and the percentage are not checked: no rule states them. An advance rests on an Advance Payment Guarantee verified in the register and on a recoupment schedule entered for the contract; it goes for approval on the approval matrix.
++Advance payments
++Each with its schedule: what each interim certificate recoups, and what is still to recoup.
++Apply for an advance
++None
++No advance payment is recorded on this contract.
+@@ -80,2 +41 @@
+-@title: A working default, awaiting sign-off
+-@title: A working default, awaiting sign-off
++@aria-label: Payments sections
+diff -r -U0 snap613r2-before/projects__demo_con3__tab__payments&section__damages.txt snap613r2-after/projects__demo_con3__tab__payments&section__damages.txt
+--- snap613r2-before/projects__demo_con3__tab__payments&section__damages.txt	2026-10-03 07:38:09.978743730 +0000
++++ snap613r2-after/projects__demo_con3__tab__payments&section__damages.txt	2026-10-03 07:55:11.918804477 +0000
+@@ -20,0 +21,2 @@
++Payments
++2
+@@ -27,8 +29,6 @@
+-On site
+-Possession, the date for completion and whether the contract is In Delay, judged today.
+-In Delay
+-Assumed
+-Superintending Officer
+-Head of Contract & Procurement
+-Possession of site
+-02 Oct 2026
++Valuations
++Retention
++Advance payment
++Liquidated damages
++Liquidated damages
++The rate is the baseline's, never typed. No damages line exists before the Certificate of Non-Completion is issued; a certificate past the date for completion with no decision is refused, never issued without its damages.
+@@ -37,40 +37,5 @@
+-In Delay
+-On 02 Oct 2026 actual progress was 0.5% against 1% planned: below 75% of the plan.
+-Assumed
+-Planned progress between the approved programme's points is read on a straight line.
+-The contract
+-As awarded, numbered at issue, and as it is being formed.
+-Contract number
+-XI202600799
+-Contractor
+-Contoh Supplies Enterprise
+-Contract sum
+-RM36,000
+-The Letter of Acceptance's sum (assumed: corrections do not change it).
+-Arithmetic corrections
+-−RM45
+-SULIT · not restricted until sign-in
+-Against the tendered figures: shown, not applied.
+-Contract Date
+-30 Sep 2026
+-The day the signature for the employer was recorded.
+-Stamped
+-01 Oct 2026 · reference DEMO-STAMP-2026-0001
+-Formed under
+-Bill of quantities; legal review by Demo Legal Office; frozen 24 Sep 2026
+-Award
+-DEMO/AWD/0005/2026
+-Ready to sign?
+-The readiness gate, as the award shows it. Preparation continues while it is red.
+-Gate met
+-Instrument returned signed
+-Met
+-Performance bond lodged and verified
+-No bond required: Short-form terms: no performance bond is asked below the extended terms band (demo policy).
+-Met
+-Every required policy lodged and verified
+-Public liability insurance: neither the award nor a tender Appendix states a sum insured, so it is not compared. Workmen's compensation insurance: neither the award nor a tender Appendix states a sum insured, so it is not compared.
+-Each required policy's sum insured is compared with the award's own figure for its kind, or the tender Appendix's minimum where the award states none.
+-Met
+-The award's conditions
+-Before work starts, each with the day it is needed by. Recorded on the award.
++Rate a day
++RM100
++Today
++Not due: the date for completion is 27 Nov 2026.
++Decision in force
+@@ -78 +43,10 @@
+-The award records none.
++Warning letters
++The letter of intention to impose damages, before they are imposed; sent by registered post. The response window is the organisation's clock (advisory).
++Raise the warning letter
++None
++No warning letter has been raised.
++Non-completion decisions
++The latest decision governs. Until the extension-of-time module, the decision records the entitlement itself; that module's record replaces it and never rewrites an issued certificate.
++Record the non-completion decision
++None
++No non-completion decision is recorded.
+@@ -80,2 +54 @@
+-@title: A working default, awaiting sign-off
+-@title: A working default, awaiting sign-off
++@aria-label: Payments sections
+diff -r -U0 snap613r2-before/projects__demo_con3__tab__payments&section__retention.txt snap613r2-after/projects__demo_con3__tab__payments&section__retention.txt
+--- snap613r2-before/projects__demo_con3__tab__payments&section__retention.txt	2026-10-03 07:38:07.170743563 +0000
++++ snap613r2-after/projects__demo_con3__tab__payments&section__retention.txt	2026-10-03 07:55:08.690804286 +0000
+@@ -20,0 +21,2 @@
++Payments
++2
+@@ -27,52 +29,22 @@
+-On site
+-Possession, the date for completion and whether the contract is In Delay, judged today.
+-In Delay
+-Assumed
+-Superintending Officer
+-Head of Contract & Procurement
+-Possession of site
+-02 Oct 2026
+-Date for completion
+-27 Nov 2026
+-In Delay
+-On 02 Oct 2026 actual progress was 0.5% against 1% planned: below 75% of the plan.
+-Assumed
+-Planned progress between the approved programme's points is read on a straight line.
+-The contract
+-As awarded, numbered at issue, and as it is being formed.
+-Contract number
+-XI202600799
+-Contractor
+-Contoh Supplies Enterprise
+-Contract sum
+-RM36,000
+-The Letter of Acceptance's sum (assumed: corrections do not change it).
+-Arithmetic corrections
+-−RM45
+-SULIT · not restricted until sign-in
+-Against the tendered figures: shown, not applied.
+-Contract Date
+-30 Sep 2026
+-The day the signature for the employer was recorded.
+-Stamped
+-01 Oct 2026 · reference DEMO-STAMP-2026-0001
+-Formed under
+-Bill of quantities; legal review by Demo Legal Office; frozen 24 Sep 2026
+-Award
+-DEMO/AWD/0005/2026
+-Ready to sign?
+-The readiness gate, as the award shows it. Preparation continues while it is red.
+-Gate met
+-Instrument returned signed
+-Met
+-Performance bond lodged and verified
+-No bond required: Short-form terms: no performance bond is asked below the extended terms band (demo policy).
+-Met
+-Every required policy lodged and verified
+-Public liability insurance: neither the award nor a tender Appendix states a sum insured, so it is not compared. Workmen's compensation insurance: neither the award nor a tender Appendix states a sum insured, so it is not compared.
+-Each required policy's sum insured is compared with the award's own figure for its kind, or the tender Appendix's minimum where the award states none.
+-Met
+-The award's conditions
+-Before work starts, each with the day it is needed by. Recorded on the award.
+-None recorded
+-The award records none.
++Valuations
++Retention
++Advance payment
++Liquidated damages
++Retention
++Held three ways on every interim certificate, from the contract's baseline; released first on the as-built drawings and the balance on the Certificate of Making Good Defects. A release is paid through the next interim certificate.
++Terms
++Does not apply: the contract's terms band holds none
++From the baseline: derived under a recorded rule
++Held on the latest issued certificate
++RM0 (main contractor RM0, nominated sub-contractors RM0, nominated suppliers RM0)
++The first release's share
++Not set
++The first release is refused until Configuration › Post-award sets it.
++As-built drawings
++Not handed over (Site › Site records)
++Releases
++Once each. The balance waits for the Certificate of Making Good Defects, which arrives with completion and defects (Part B): the contract carries on meanwhile.
++Release the first share
++Release the balance
++Nothing released
++No retention has been released.
+@@ -80,2 +52 @@
+-@title: A working default, awaiting sign-off
+-@title: A working default, awaiting sign-off
++@aria-label: Payments sections
+diff -r -U0 snap613r2-before/projects__demo_con3__tab__payments&section__valuations.txt snap613r2-after/projects__demo_con3__tab__payments&section__valuations.txt
+--- snap613r2-before/projects__demo_con3__tab__payments&section__valuations.txt	2026-10-03 07:38:05.706743476 +0000
++++ snap613r2-after/projects__demo_con3__tab__payments&section__valuations.txt	2026-10-03 07:55:06.630804163 +0000
+@@ -20,0 +21,2 @@
++Payments
++2
+@@ -27,52 +29,24 @@
+-On site
+-Possession, the date for completion and whether the contract is In Delay, judged today.
+-In Delay
+-Assumed
+-Superintending Officer
+-Head of Contract & Procurement
+-Possession of site
+-02 Oct 2026
+-Date for completion
+-27 Nov 2026
+-In Delay
+-On 02 Oct 2026 actual progress was 0.5% against 1% planned: below 75% of the plan.
+-Assumed
+-Planned progress between the approved programme's points is read on a straight line.
+-The contract
+-As awarded, numbered at issue, and as it is being formed.
+-Contract number
+-XI202600799
+-Contractor
+-Contoh Supplies Enterprise
+-Contract sum
+-RM36,000
+-The Letter of Acceptance's sum (assumed: corrections do not change it).
+-Arithmetic corrections
+-−RM45
+-SULIT · not restricted until sign-in
+-Against the tendered figures: shown, not applied.
+-Contract Date
+-30 Sep 2026
+-The day the signature for the employer was recorded.
+-Stamped
+-01 Oct 2026 · reference DEMO-STAMP-2026-0001
+-Formed under
+-Bill of quantities; legal review by Demo Legal Office; frozen 24 Sep 2026
+-Award
+-DEMO/AWD/0005/2026
+-Ready to sign?
+-The readiness gate, as the award shows it. Preparation continues while it is red.
+-Gate met
+-Instrument returned signed
+-Met
+-Performance bond lodged and verified
+-No bond required: Short-form terms: no performance bond is asked below the extended terms band (demo policy).
+-Met
+-Every required policy lodged and verified
+-Public liability insurance: neither the award nor a tender Appendix states a sum insured, so it is not compared. Workmen's compensation insurance: neither the award nor a tender Appendix states a sum insured, so it is not compared.
+-Each required policy's sum insured is compared with the award's own figure for its kind, or the tender Appendix's minimum where the award states none.
+-Met
+-The award's conditions
+-Before work starts, each with the day it is needed by. Recorded on the award.
+-None recorded
+-The award records none.
++Valuations
++Retention
++Advance payment
++Liquidated damages
++Valuation calendar
++The day of each month agreed with the contractor for the joint site valuation. A valuation on another day is started by a claim.
++Change
++Valuation day
++Day 30 of each month (the last day of a shorter month)
++Agreed
++30 Sep 2026 with Demo Contractor's site agent, recorded for Chen Wei Ling
++The parties notified
++Computed by the notification rules; nothing is sent yet.
++Valuations and their certificates
++Newest first. A valuation raises its interim payment certificate, which goes for approval, is signed and issued from the certificate.
++Open a valuation
++Valuation of 02 Oct 2026
++On its routing sheet
++A claim from the contractor · claim received 02 Oct 2026 · interim certificate 2
++Interim payment certificate
++Valuation of 30 Sep 2026
++Issued
++The agreed monthly valuation day · interim certificate 1, DEMO/CERT/00231 · payment recommended RM11,750
++Interim payment certificate
+@@ -80,2 +54 @@
+-@title: A working default, awaiting sign-off
+-@title: A working default, awaiting sign-off
++@aria-label: Payments sections
+diff -r -U0 snap613r2-before/projects__demo_con3__tab__securities.txt snap613r2-after/projects__demo_con3__tab__securities.txt
+--- snap613r2-before/projects__demo_con3__tab__securities.txt	2026-10-03 07:35:45.350735133 +0000
++++ snap613r2-after/projects__demo_con3__tab__securities.txt	2026-10-03 07:52:42.790795613 +0000
+@@ -20,0 +21,2 @@
++Payments
++2
+diff -r -U0 snap613r2-before/projects__demo_con3__tab__site&section__diary.txt snap613r2-after/projects__demo_con3__tab__site&section__diary.txt
+--- snap613r2-before/projects__demo_con3__tab__site&section__diary.txt	2026-10-03 07:38:01.414743221 +0000
++++ snap613r2-after/projects__demo_con3__tab__site&section__diary.txt	2026-10-03 07:55:01.590803864 +0000
+@@ -20,0 +21,2 @@
++Payments
++2
+diff -r -U0 snap613r2-before/projects__demo_con3__tab__site&section__oversight.txt snap613r2-after/projects__demo_con3__tab__site&section__oversight.txt
+--- snap613r2-before/projects__demo_con3__tab__site&section__oversight.txt	2026-10-03 07:38:00.002743137 +0000
++++ snap613r2-after/projects__demo_con3__tab__site&section__oversight.txt	2026-10-03 07:54:59.910803764 +0000
+@@ -20,0 +21,2 @@
++Payments
++2
+@@ -55 +57 @@
+-Each waits as a deduction for the next interim certificate.
++Each is deducted on the next interim certificate raised.
+diff -r -U0 snap613r2-before/projects__demo_con3__tab__site&section__records.txt snap613r2-after/projects__demo_con3__tab__site&section__records.txt
+--- snap613r2-before/projects__demo_con3__tab__site&section__records.txt	2026-10-03 07:38:02.998743315 +0000
++++ snap613r2-after/projects__demo_con3__tab__site&section__records.txt	2026-10-03 07:55:03.282803964 +0000
+@@ -20,0 +21,2 @@
++Payments
++2
+diff -r -U0 snap613r2-before/projects__demo_con3__tab__site&section__start.txt snap613r2-after/projects__demo_con3__tab__site&section__start.txt
+--- snap613r2-before/projects__demo_con3__tab__site&section__start.txt	2026-10-03 07:37:58.154743027 +0000
++++ snap613r2-after/projects__demo_con3__tab__site&section__start.txt	2026-10-03 07:54:58.074803655 +0000
+@@ -20,0 +21,2 @@
++Payments
++2
+diff -r -U0 snap613r2-before/projects__demo_con3__tab__team.txt snap613r2-after/projects__demo_con3__tab__team.txt
+--- snap613r2-before/projects__demo_con3__tab__team.txt	2026-10-03 07:38:04.382743398 +0000
++++ snap613r2-after/projects__demo_con3__tab__team.txt	2026-10-03 07:55:04.926804062 +0000
+@@ -20,0 +21,2 @@
++Payments
++2
