@@ -7,13 +7,15 @@
 import type { Tx } from "@/lib/audit/record";
 import { officeHolders } from "@/lib/certificate/repo";
 import type { OfficeHolders } from "@/lib/certificate/signature";
+import { baselineFor } from "@/lib/contract/baseline";
 import type { LoadedContract } from "@/lib/contract/repo";
+import type { BaselineReason } from "@/lib/contract/types";
 import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 
 import type { DelegationFacts, SoOffice } from "./authority";
 import { supervisedHolders, type SupervisedRule } from "./blocks";
-import { inDelay, type DelayReading } from "./delay";
+import { inDelay, inDelayIds, type DelayReading } from "./delay";
 import { programmeInForce, type PointIn, type RevisionFacts } from "./programme";
 import { soOn } from "./so";
 import type { DelegateKind, ProgrammeDecision, SupervisionAct } from "./types";
@@ -169,6 +171,23 @@ export async function actsByPerson(s: SupervisionRows, contractId: string, clien
 export async function methodKeyOf(l: LoadedContract, client: Tx = db): Promise<string | null> {
   return (await client.sourcingMethod.findFirst({ where: { organisationId: l.org.id, code: l.ex.sourcingMethodCode }, select: { authorityMethodKey: true } }))?.authorityMethodKey ?? null;
 }
+
+/**
+ * Review 14: the organisation's contracts In Delay today, over the whole set (every possessed contract, read in
+ * batched queries), so the Projects list's In Delay view pages within them rather than filtering one page.
+ */
+export async function inDelayContractIds(organisationId: string, today: string, client: Tx = db): Promise<string[]> {
+  const possessed = await client.contract.findMany({
+    where: { organisationId, possession: { isNot: null } },
+    select: { id: true, baselines: { where: { version: { not: null } }, select: { id: true, version: true, reason: true, recordedOn: true, dateForCompletion: true } } },
+  });
+  const rows = possessed.map((c) => {
+    const inForce = baselineFor(c.baselines.map((b) => ({ ...b, reason: b.reason as BaselineReason | null, recordedOn: day(b.recordedOn) })), today);
+    return { id: c.id, dateForCompletion: inForce?.dateForCompletion ?? null };
+  });
+  return inDelayIds(await delayReadingsOf(organisationId, rows, today, client));
+}
+
 
 /// The organisation's post-award policy (one row; unset where none).
 export async function loadPostAwardPolicy(organisationId: string, client: Tx = db) {

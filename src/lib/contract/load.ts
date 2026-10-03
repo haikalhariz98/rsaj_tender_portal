@@ -309,13 +309,15 @@ export { PER_DAY };
 export const CONTRACT_PAGE = 50;
 
 /// Contracts after award, newest number first, paged in the database.
-export async function listContracts(page = 0) {
+export async function listContracts(page = 0, only: readonly string[] | null = null) {
   const org = await exerciseOrg();
   if (!org) return { org: null, rows: [], total: 0, page: 0, counts: { preparing: 0, returned: 0, legal: 0, endorsed: 0, executed: 0 } };
   const where = { organisationId: org.id };
+  // 6.13 Part A review 14: a view over the whole set (the In Delay contracts, say) pages within it, never within a page.
+  const listed = only ? { ...where, id: { in: [...only] } } : where;
   const [rows, total, preparing, returned, legal, endorsed, executed] = await Promise.all([
     db.contract.findMany({
-      where,
+      where: listed,
       orderBy: [{ numberedOn: "desc" }, { number: "desc" }],
       skip: page * CONTRACT_PAGE,
       take: CONTRACT_PAGE,
@@ -326,7 +328,7 @@ export async function listContracts(page = 0) {
         baselines: { where: { version: { not: null } }, select: { version: true, reason: true, recordedOn: true, dateForCompletion: true } },
       },
     }),
-    db.contract.count({ where }),
+    db.contract.count({ where: listed }),
     db.contract.count({ where: { ...where, status: "IN_PREPARATION" } }),
     db.contract.count({ where: { ...where, status: "RETURNED_FOR_AMENDMENT" } }),
     db.contract.count({ where: { ...where, status: "PENDING_LEGAL_ENDORSEMENT" } }),
@@ -334,11 +336,11 @@ export async function listContracts(page = 0) {
     db.contract.count({ where: { ...where, status: { in: ["EXECUTED", "STAMPED", "ACTIVE"] } } }),
   ]);
   const today = org.timeZone ? dayOf(new Date(), org.timeZone) : null;
-  const listed = rows.map((r) => {
+  const out = rows.map((r) => {
     const inForce = today ? baselineFor(r.baselines.map((b) => ({ version: b.version, reason: b.reason as BaselineReason | null, recordedOn: day(b.recordedOn), dateForCompletion: b.dateForCompletion })), today) : null;
     return { ...r, dateForCompletion: inForce?.dateForCompletion ?? null };
   });
-  return { org, rows: listed, total, page, counts: { preparing, returned, legal, endorsed, executed } };
+  return { org, rows: out, total, page, counts: { preparing, returned, legal, endorsed, executed } };
 }
 
 /// The day the contract's preparation started, as frozen.

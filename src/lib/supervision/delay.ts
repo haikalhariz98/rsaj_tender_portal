@@ -57,3 +57,6 @@ export function inDelay(i: {
 }
 
 export const isInDelay = (r: DelayReading): boolean => r.state === "IN_DELAY";
+
+/// The ids whose reading is In Delay (review 14: the Projects list's view over the whole set).
+export const inDelayIds = (readings: ReadonlyMap<string, DelayReading>): string[] => [...readings].filter(([, r]) => r.state === "IN_DELAY").map(([id]) => id);
