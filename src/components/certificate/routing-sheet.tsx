@@ -7,49 +7,19 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { KeyValues } from "@/components/ui/stat";
 import { CERT_WORDS, CHECK_KIND_WORDS } from "@/lib/certificate/labels";
 import type { CheckDef, Sheet } from "@/lib/certificate/routing-sheet";
+import { verdictText } from "@/lib/certificate/sheet-words";
 import { formatDate } from "@/lib/format";
 
 /**
  * One routing sheet, drawn the same way wherever it is (ADR 0023): a certificate's and an award's pre-award
- * sheet. The header (DATE (1), DATE (2), elapsed against the target, the stages' printed days) and one card
- * per iteration side by side (FR-CRT-009), each with its checks and its approval route's steps. The caller
- * supplies the acts: the DATE (1) drawer and, for the current round's next check, its drawer.
+ * sheet. The header (the day received, the day approved, elapsed against the target, the stages' printed days)
+ * and one card per iteration side by side (FR-CRT-009), each with its checks and its approval route's steps.
+ * The caller supplies the acts: the received day's drawer and, for the current round's next check, its drawer.
+ * The target and verdict are worded in src/lib/certificate/sheet-words.ts.
  */
 
 const dim = (t: string) => <span className="text-ink-4">{t}</span>;
 const days = (n: number) => `${n} day${n === 1 ? "" : "s"}`;
-
-export function targetText(sheet: Sheet): string {
-  const t = sheet.target;
-  if (t.state === "SET") {
-    if (!t.band) return days(t.days);
-    const lo = t.band.pctMin;
-    const hi = t.band.pctMax;
-    return `${days(t.days)} (${lo != null && hi != null ? `above ${lo}% and up to ${hi}%` : lo != null ? `above ${lo}%` : `up to ${hi}%`}, for this percentage)`;
-  }
-  if (t.state === "EDGE_UNDECIDED") return CERT_WORDS.edgeUndecided.en;
-  if (t.state === "NO_RATIO") return "Target not set: the type's targets are banded and no percentage was handed in with the figures";
-  if (t.state === "NO_BAND") return "Target not set: no band of the type covers this percentage";
-  if (t.state === "OVERLAP") return "Target not set: two of the type's targets overlap";
-  return CERT_WORDS.targetNotSet.en;
-}
-
-export function verdictText(sheet: Sheet): string {
-  const v = sheet.verdict;
-  const target = targetText(sheet);
-  switch (v.state) {
-    case "NOT_STARTED":
-      return `Not started: DATE (1) is not recorded. Target: ${target}.`;
-    case "MET":
-      return `${days(v.elapsed)} against ${target}: met.`;
-    case "OVER":
-      return `${days(v.elapsed)} against ${target}: ${days(v.by)} over.`;
-    case "OPEN":
-      return `Open: ${days(v.soFar)} so far against ${target}${v.overBy ? `, ${days(v.overBy)} over` : ""}.`;
-    case "NOT_MEASURED":
-      return `${v.elapsed == null ? "Open" : days(v.elapsed)}. ${target}, so it is not judged met or over.`;
-  }
-}
 
 export function RoutingSheetView({ sheet, headerAction, checkAction, open, routeNote }: { sheet: Sheet; headerAction?: ReactNode; checkAction: (def: CheckDef) => ReactNode; open: boolean; routeNote: string }) {
   return (
@@ -60,8 +30,8 @@ export function RoutingSheetView({ sheet, headerAction, checkAction, open, route
           <KeyValues
             columns={2}
             items={[
-              { label: "DATE (1): received", value: sheet.date1 ? formatDate(sheet.date1) : dim("Not recorded") },
-              { label: "DATE (2): approved", value: sheet.date2 ? formatDate(sheet.date2) : dim(sheet.routeState === "NONE" ? "No approval route open yet" : "Not approved yet") },
+              { label: "Received", value: sheet.date1 ? formatDate(sheet.date1) : dim("Not recorded") },
+              { label: "Approved", value: sheet.date2 ? formatDate(sheet.date2) : dim(sheet.routeState === "NONE" ? "No approval route open yet" : "Not approved yet") },
               { label: "Elapsed against the target", value: verdictText(sheet) },
               { label: "The stages' printed days", value: sheet.parts ? `${days(sheet.parts.sum)}${sheet.parts.differs && sheet.target.state === "SET" ? `: the form prints a total of ${sheet.target.days}, which differs from the sum of its parts (both shown)` : ""}` : dim("Not printed per stage") },
             ]}

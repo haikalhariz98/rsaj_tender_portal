@@ -11,6 +11,7 @@ import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { CHECK_KIND_WORDS, KIND_WORDS, SUBJECT_WORDS } from "@/lib/certificate/labels";
+import { bandWords } from "@/lib/certificate/sheet-words";
 import { db } from "@/lib/db";
 import { storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
@@ -20,18 +21,9 @@ import { AddCheck, AddTarget, EditCheck, EditRoutingType, EditTarget, RemoveChec
 
 export const dynamic = "force-dynamic";
 
-/// A band in words, by the type's edge switch: upper inclusive (min, max], lower inclusive [min, max), or not decided.
-function band(lo: string | null, hi: string | null, upper: boolean | null): string {
-  if (lo == null && hi == null) return "Whatever the percentage";
-  const from = lo == null ? null : upper == null ? `from ${lo}%` : upper ? `above ${lo}%` : `from ${lo}%`;
-  const to = hi == null ? null : upper == null ? `to ${hi}%` : upper ? `up to and including ${hi}%` : `below ${hi}%`;
-  const text = [from, to].filter(Boolean).join(" and ");
-  return `${text.charAt(0).toUpperCase()}${text.slice(1)}${upper == null ? " (which side of an edge counts is not decided)" : ""}`;
-}
-
 /**
  * One routing sheet type (6.14 increment 1): its internal checks in order, with each stage's printed days, and
- * its ICC targets, banded by an exact percentage where the sheet bands them (ADR 0024).
+ * its targets, banded by an exact percentage where the sheet bands them (ADR 0024).
  */
 export default async function RoutingTypePage(props: PageProps<"/configuration/routing-sheets/[id]">) {
   const { id } = await props.params;
@@ -68,7 +60,7 @@ export default async function RoutingTypePage(props: PageProps<"/configuration/r
       />
       <div className="flex flex-col gap-6">
         <Card>
-          <CardHeader icon={<ClockIcon size={17} />} title="How elapsed time is judged" subtitle="Calendar days from DATE (1), the day received, to DATE (2), the day the approving step decided (assumed; a question to the customer)." />
+          <CardHeader icon={<ClockIcon size={17} />} title="How elapsed time is judged" subtitle="Calendar days from the day received to the day the approving step decided (assumed; a question to the customer)." />
           <CardBody>
             <KeyValues
               columns={2}
@@ -118,7 +110,7 @@ export default async function RoutingTypePage(props: PageProps<"/configuration/r
         </Card>
 
         <Card className="overflow-hidden">
-          <CardHeader icon={<ClockIcon size={17} />} title="Targets" subtitle="The ICC target, in calendar days: one for every percentage, or one per band of the exact percentage handed in with a certificate's figures." actions={<AddTarget typeId={t.id} />} divided={targets.length === 0} />
+          <CardHeader icon={<ClockIcon size={17} />} title="Targets" subtitle="The target, in calendar days: one for every percentage, or one per band of the exact percentage handed in with a certificate's figures." actions={<AddTarget typeId={t.id} />} divided={targets.length === 0} />
           {targets.length === 0 ? (
             <EmptyState size="sm" title="Not set">No target: every sheet on this type reads &quot;Target not set&quot;, never met.</EmptyState>
           ) : (
@@ -138,7 +130,7 @@ export default async function RoutingTypePage(props: PageProps<"/configuration/r
               <tbody>
                 {targets.map((x) => (
                   <Tr key={x.id}>
-                    <Td label="Band"><CellStack title={band(x.pctMin, x.pctMax, t.upperEdgeInclusive)} sub={x.notes || undefined} /></Td>
+                    <Td label="Band"><CellStack title={bandWords(x.pctMin, x.pctMax, t.upperEdgeInclusive).en} sub={x.notes || undefined} /></Td>
                     <Td label="Target" className="tabular-nums text-ink-2">{`${x.targetDays} days`}</Td>
                     <Td label="Source"><ProvenanceBadge value={x.provenance} /></Td>
                     <Td>
