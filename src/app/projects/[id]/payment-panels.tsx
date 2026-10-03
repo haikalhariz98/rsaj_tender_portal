@@ -12,12 +12,12 @@ import { SOURCE_WORDS } from "@/lib/contract/labels";
 import type { LoadedContract } from "@/lib/contract/repo";
 import { dayPlus, storedDay } from "@/lib/dates";
 import { decimalText, formatDate } from "@/lib/format";
-import { ladLine } from "@/lib/lad/charge";
+import { frozenRateWarnings, ladLine } from "@/lib/lad/charge";
 import { decisionFaults, replacementFaults, warningFaults } from "@/lib/lad/non-completion";
 import { formatMoney, parseSen, senFromDecimal, type Sen } from "@/lib/money";
 import { assembleInterim, chargedUntilOf, heldOnLatest, readJudgedUnder, type Assembled } from "@/lib/payment/assemble";
 import { ADVANCE_PARTY_WORDS, ANSWER_WORDS, DEDUCTION_WORDS, MATERIAL_VERDICT_WORDS, OUTCOME_WORDS, PACK_WORDS, REMAINDER_WORDS, paymentFaultText, RELEASE_WORDS, SCOPE_WORDS, TIER_WORDS, TRIGGER_WORDS, VALUATION_STATUS_WORDS } from "@/lib/payment/labels";
-import { assembleInputOf, baselineOn, decisionOf, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, kindSettingOf, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
+import { assembleInputOf, baselineOn, decisionOf, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, baselineDamagesOf, kindSettingOf, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
 import { materialVerdict } from "@/lib/payment/materials";
 import { firstReleaseShare, releaseOf, retentionReading } from "@/lib/payment/retention";
 import { ADVANCE_PARTIES, CONTRACTOR_ANSWERS, KEYED_DEDUCTION_KINDS, NON_COMPLETION_OUTCOMES, NON_COMPLETION_SCOPES, PACK_ITEMS, VALUATION_TRIGGERS, type Finding } from "@/lib/payment/types";
@@ -244,7 +244,7 @@ function CurrentValuation({ l, v, today, formSet }: { l: LoadedContract; v: Paym
       />
       {a && a.warnings.length > 0 && (
         <CardBody className="border-b border-line/70">
-          <Callout tone="warn" title="Before the contract is signed">{say(a.warnings)}</Callout>
+          <Callout tone="warn" title="Said, not refused">{say(a.warnings)}</Callout>
         </CardBody>
       )}
       <CardBody>
@@ -496,6 +496,7 @@ function DamagesSection({ l, v, people, today }: { l: LoadedContract; v: Payment
   const decision = decisionOf(v.p, v.baseline);
   const liveRow = liveDecisionOf(v.p);
   const reading = today ? ladLine({ dateForCompletion: completion, valuationDate: today, decision, chargedUntil: chargedUntilOf(v.issued) }) : null;
+  const revised = frozenRateWarnings(decision, baselineDamagesOf(v.p, v.baseline));
   const liveWarning = v.p.ladWarnings.find((w) => w.certificate.status !== "VOID" && !v.p.nonCompletions.some((d) => d.warningId === w.id)) ?? null;
   const warningBlock = zone(today) ?? say(warningFaults({ dateForCompletion: completion, rate: b?.ladDaily ?? null, eotClause: "x", ladClause: "x", extendedCompletion: completion, liveWarning: !!liveWarning, formSet: !!kindSettingOf(v.cfg, "LAD_WARNING")?.templateId }));
   const latestWarning = [...v.p.ladWarnings].reverse().find((w) => w.certificate.status !== "VOID") ?? null;
@@ -513,13 +514,13 @@ function DamagesSection({ l, v, people, today }: { l: LoadedContract; v: Payment
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<GavelIcon size={17} />} title="Liquidated damages" subtitle="The rate is the baseline's, never typed. No damages line exists before the Certificate of Non-Completion is issued; a certificate past the date for completion with no decision is refused, never issued without its damages." actions={reading && reading.state !== "NOT_DUE" ? <Badge tone={reading.state === "EXCUSED" || reading.state === "NOTHING_TO_CHARGE" ? "info" : "warn"}>{reading.state === "CHARGED" ? "Damages running" : reading.state === "EXCUSED" ? "Excused or pending" : "Decision needed"}</Badge> : undefined} />
+        <CardHeader icon={<GavelIcon size={17} />} title="Liquidated damages" subtitle="The rate is the baseline's, never typed, frozen with the decision and its Certificate of Non-Completion. No damages line exists before the Certificate of Non-Completion is issued; a certificate past the date for completion with no decision is refused, never issued without its damages." actions={reading && reading.state !== "NOT_DUE" ? <Badge tone={reading.state === "EXCUSED" || reading.state === "NOTHING_TO_CHARGE" ? "info" : "warn"}>{reading.state === "CHARGED" ? "Damages running" : reading.state === "EXCUSED" ? "Excused or pending" : "Decision needed"}</Badge> : undefined} />
         <CardBody>
           <KeyValues
             columns={2}
             items={[
               { label: "Date for completion", value: completion ? formatDate(completion) : dim("From possession") },
-              { label: "Rate a day", value: b?.ladDaily != null ? formatMoney(b.ladDaily) : dim("Not stated by the baseline") },
+              { label: "Rate a day", value: decision?.outcome === "LAD_APPLIES" && decision.rate != null ? <span className="flex flex-col items-start gap-1"><span>{`${formatMoney(decision.rate)}, as on the Certificate of Non-Completion`}</span>{revised.length > 0 && <span className="text-[12.5px] text-amber-800">{say(revised)}</span>}</span> : b?.ladDaily != null ? `${formatMoney(b.ladDaily)} (the baseline's; frozen with the decision)` : dim("Not stated by the baseline") },
               { label: "Today", value: readingText },
               { label: "Decision in force", value: decision ? `${OUTCOME_WORDS[decision.outcome].en}${decision.from ? `; damages from ${formatDate(decision.from)}${decision.until ? ` to completion on ${formatDate(decision.until)}` : ", still running"}` : ""}` : dim("None recorded") },
             ]}

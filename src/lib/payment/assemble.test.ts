@@ -152,3 +152,28 @@ describe("refusals before raising, each naming its rule", () => {
     expect(assembleInterim(INPUT).sequence).toBe(2);
   });
 });
+
+describe("BD-613-48 (FREEZE): the damages rate and date are the decision's and its CNC's, never today's baseline", () => {
+  // The CNC was issued at 269.38 a day on a date for completion of 30 Jun 2026. The baseline is then revised: the
+  // rate to 300.00 and the date for completion to 10 Jul (an extension). The next interim still charges 269.38 from
+  // the window entered with the decision, and says why.
+  const frozen = { ...INPUT.decision!, rate: s("269.38"), dateForCompletion: "2026-06-30" };
+  const revisedBase = { ...BASE, ladDaily: s("300.00"), dateForCompletion: "2026-07-10" };
+  const a = assembleInterim({ ...INPUT, baseline: { version: 4, values: revisedBase }, decision: frozen, baselineDamages: { rate: s("300.00"), dateForCompletion: "2026-07-10" } });
+  it("charges the CNC's rate over the frozen window", () => {
+    expect(a.lad.state).toBe("CHARGED");
+    if (a.lad.state === "CHARGED") expect(senToDecimalString(a.lad.rate)).toBe("269.38");
+    expect(a.result.snapshot!.lines.find((l) => l.key === "ladRate")?.value).toBe("269.38");
+  });
+  it("warns, on the certificate and with the valuation, that the CNC's rate applies until a new decision", () => {
+    expect(a.warnings.map((w) => [w.code, w.level])).toContainEqual(["LAD_BASELINE_REVISED", "warn"]);
+    expect(a.result.snapshot!.lines.find((l) => l.key === "ladRateNote")?.value).toMatch(/certificate's rate applies until a new decision/);
+    expect(a.faults).toEqual([]);
+  });
+  it("no revision, no warning; a decision applying damages with no rate refuses (RATE_NOT_SET)", () => {
+    const same = assembleInterim({ ...INPUT, decision: frozen, baselineDamages: { rate: s("269.38"), dateForCompletion: "2026-06-30" } });
+    expect(same.warnings.map((w) => w.code)).not.toContain("LAD_BASELINE_REVISED");
+    const none = assembleInterim({ ...INPUT, decision: { ...frozen, rate: null } });
+    expect(none.faults.map((f) => f.code)).toContain("LAD_RATE_NOT_SET");
+  });
+});

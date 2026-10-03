@@ -7,8 +7,11 @@
  * damages line exists, FR-LAD-007) or records the delay as excusable or its entitlement pending (the certificate
  * proceeds without a damages line, the reasons shown on it).
  *
- * The rate is the pinned baseline's (the whole works', or the section's), never keyed (FR-LAD-002); a rate not
- * stated refuses. Damages accrue over the window entered with the decision (FR-LAD-008, ASSUMED: from the first day
+ * The rate and the date for completion are those frozen on the non-completion decision and its Certificate of
+ * Non-Completion (BD-613-48, FREEZE), never the baseline read today: an interim certificate never charges a rate the
+ * issued certificate does not state. A decision applying damages with no rate refuses (RATE_NOT_SET); where the
+ * baseline has since been revised, the certificate warns that the CNC's rate applies until a new decision and CNC are
+ * recorded (`frozenRateWarnings`). Damages accrue over the window entered with the decision (FR-LAD-008, ASSUMED: from the first day
  * after the date for completion to actual completion, shown as such): `from` is the first day charged, `until` the
  * first day not charged (the day of completion; null while it runs). Each certificate charges the window's days not
  * charged before, up to and including its valuation day. Amount = rate × days − waived (Part B's waiver; none
@@ -28,8 +31,10 @@ export interface Decision {
   /// The accrual window: first day charged, and the first day not charged (null: still running).
   from: Day | null;
   until: Day | null;
-  /// The rate the decision charges at: the pinned baseline's whole-works or section rate. Null: not stated.
+  /// The rate the decision charges at, as recorded with it (and printed on its CNC). Null: not recorded.
   rate: Sen | null;
+  /// The date for completion as recorded with the decision (BD-613-48). Absent: read from the baseline.
+  dateForCompletion?: Day | null;
 }
 
 export type LadLine =
@@ -53,9 +58,11 @@ export interface LadInput {
 }
 
 export function ladLine(i: LadInput): LadLine {
-  if (!i.dateForCompletion || i.valuationDate <= i.dateForCompletion) return { state: "NOT_DUE" };
+  // A decision freezes the date for completion it was taken on (BD-613-48).
+  const due = i.decision?.dateForCompletion ?? i.dateForCompletion;
+  if (!due || i.valuationDate <= due) return { state: "NOT_DUE" };
   const d = i.decision;
-  if (!d) return { state: "DECISION_REQUIRED", dateForCompletion: i.dateForCompletion };
+  if (!d) return { state: "DECISION_REQUIRED", dateForCompletion: due };
   if (d.outcome === "EXCUSED_OR_PENDING") return { state: "EXCUSED", reason: d.reason };
   if (!d.certificateIssued) return { state: "CNC_NOT_ISSUED" };
   if (d.rate == null) return { state: "RATE_NOT_SET" };
@@ -86,3 +93,14 @@ export function ladFaults(l: LadLine): Finding[] {
 
 /// The daily rate × days, for the figure the spec prints (§8.6: 269.38 × 30 = 8,081.40).
 export const ladAmountOf = (rate: Sen, days: number): Sen => rate * BigInt(days);
+
+/// BD-613-48: where the baseline the certificate pins now states another rate or date for completion than the
+/// decision in force recorded, the certificate says the CNC's rate still applies until a new decision and CNC are
+/// recorded; it never re-rates silently.
+export function frozenRateWarnings(d: Decision | null, baseline: { rate: Sen | null; dateForCompletion: Day | null }): Finding[] {
+  if (!d || d.outcome !== "LAD_APPLIES") return [];
+  const rateMoved = d.rate != null && baseline.rate != null && baseline.rate !== d.rate;
+  const dateMoved = d.dateForCompletion != null && baseline.dateForCompletion != null && baseline.dateForCompletion !== d.dateForCompletion;
+  if (!rateMoved && !dateMoved) return [];
+  return [{ code: "LAD_BASELINE_REVISED", level: "warn", data: { rate: d.rate?.toString() ?? null, baselineRate: rateMoved ? baseline.rate!.toString() : null, date: d.dateForCompletion ?? null, baselineDate: dateMoved ? baseline.dateForCompletion : null } }];
+}

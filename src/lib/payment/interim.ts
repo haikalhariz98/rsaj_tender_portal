@@ -120,7 +120,7 @@ export function interimCertificate(i: InterimInput): InterimResult {
     i.retention.state === "NONE" ? [{ key: "retentionNote", labelEn: "Retention", labelMs: "Wang tahanan", type: "TEXT", value: i.retention.source === "DERIVED" ? "Does not apply: the contract's terms band holds none" : "Does not apply: as recorded at baseline, with its provenance", overridable: false }] : [];
   const ladLines: FigureLine[] = lad
     ? [
-        m("ladRate", "Liquidated damages: rate a day (from the baseline)", "Ganti rugi tertentu: kadar sehari (daripada garis dasar)", lad.rate),
+        m("ladRate", "Liquidated damages: rate a day (as on the Certificate of Non-Completion)", "Ganti rugi tertentu: kadar sehari (seperti pada Perakuan Kerja Tidak Siap)", lad.rate),
         { key: "ladFrom", labelEn: "Liquidated damages: from", labelMs: "Ganti rugi tertentu: dari", type: "DATE", value: lad.from, overridable: false },
         { key: "ladTo", labelEn: "Liquidated damages: to", labelMs: "Ganti rugi tertentu: hingga", type: "DATE", value: lad.to, overridable: false },
         { key: "ladDays", labelEn: "Liquidated damages: days charged", labelMs: "Ganti rugi tertentu: hari dikenakan", type: "DAYS", value: String(lad.days), overridable: false },

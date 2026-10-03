@@ -105,16 +105,24 @@ export const inProgress = (p: PaymentRows) => p.interimValuations.find((v) => v.
 /// contract, from a valuation or not, plus one; null where none is in progress.
 export const inProgressSequenceOf = (p: PaymentRows): number | null => (inProgress(p) ? issuedInterims(p).length + p.certificates.length + 1 : null);
 
-/// The non-completion decision in force (the latest recorded), as the damages line reads it, the rate from the
-/// baseline the certificate pins (the whole works', or the section's).
 /// The non-completion decision in force (code review run 2 item 6: one live at a time; a replaced or void one is not).
 export const liveDecisionOf = (p: PaymentRows) => liveDecision(p.nonCompletions.map((d) => ({ ...d, certificateStatus: d.certificate?.status ?? null })));
 
 export function decisionOf(p: PaymentRows, baseline: ReturnType<typeof baselineOn>): (Decision & { id: string }) | null {
   const d = liveDecisionOf(p);
   if (!d) return null;
-  const rate = !baseline ? null : d.scope === "SECTION" ? (baseline.values.sections.find((x) => x.ref === d.sectionRef)?.ladDaily ?? null) : baseline.values.ladDaily;
-  return { id: d.id, outcome: d.outcome, reason: d.reason, certificateIssued: d.certificate?.status === "ISSUED", from: day(d.windowFrom), until: day(d.windowUntil), rate };
+  void baseline;
+  // BD-613-48 (FREEZE): the rate and the date for completion as recorded with the decision and its CNC.
+  return { id: d.id, outcome: d.outcome, reason: d.reason, certificateIssued: d.certificate?.status === "ISSUED", from: day(d.windowFrom), until: day(d.windowUntil), rate: d.rate == null ? null : senFromDecimal(d.rate), dateForCompletion: day(d.dateForCompletion) };
+}
+
+/// What the pinned baseline states now for what the decision in force covers (the whole works', or the section's),
+/// to compare with the frozen figures (BD-613-48).
+export function baselineDamagesOf(p: PaymentRows, baseline: ReturnType<typeof baselineOn>): { rate: Sen | null; dateForCompletion: string | null } {
+  const d = liveDecisionOf(p);
+  if (!baseline) return { rate: null, dateForCompletion: null };
+  const rate = d?.scope === "SECTION" ? (baseline.values.sections.find((x) => x.ref === d.sectionRef)?.ladDaily ?? null) : baseline.values.ladDaily;
+  return { rate, dateForCompletion: baseline.values.dateForCompletion };
 }
 
 /// Premiums the employer paid that no live certificate deducts.
@@ -176,6 +184,7 @@ export function assembleInputOf(l: LoadedContract, p: PaymentRows, cfg: PaymentC
     releases: p.retentionReleases.map((r) => ({ main: senFromDecimal(r.main), nsc: senFromDecimal(r.nsc), ns: senFromDecimal(r.ns), releasedOn: storedDay(r.releasedOn) })),
     advances: issuedAdvances(p),
     decision: decisionOf(p, baseline),
+    baselineDamages: baselineDamagesOf(p, baseline),
     pending: freePending(p),
     preExecution,
   };

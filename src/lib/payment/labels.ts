@@ -337,7 +337,9 @@ export function paymentFaultWords(f: Finding): Words {
     case "CNC_NOT_ISSUED":
       return w("Damages apply, but the Certificate of Non-Completion is not issued yet: no damages line exists before it is, so the certificate waits for it.", "Ganti rugi dikenakan, tetapi Perakuan Kerja Tidak Siap belum dikeluarkan.");
     case "LAD_RATE_NOT_SET":
-      return w("The baseline states no rate of damages for the works (or the section): the rate is the baseline's, never keyed. Correct it at baseline.", "Garis dasar tidak menyatakan kadar ganti rugi: kadarnya daripada garis dasar, tidak dimasukkan.");
+      return w("The non-completion decision in force records no rate of damages: the rate is frozen with the decision and its Certificate of Non-Completion from the baseline, never keyed. Correct the baseline, then replace the decision.", "Keputusan kerja tidak siap tidak merekodkan kadar ganti rugi: kadarnya dibekukan bersama keputusan, tidak dimasukkan.");
+    case "LAD_BASELINE_REVISED":
+      return w(`The baseline has been revised since the Certificate of Non-Completion${d.baselineRate ? ` (rate now ${money(d.baselineRate)} a day, the certificate's ${money(d.rate)})` : ""}${d.baselineDate ? ` (date for completion now ${day(d.baselineDate)}, the certificate's ${day(d.date)})` : ""}: the certificate's rate applies until a new decision and Certificate of Non-Completion are recorded. Nothing is re-rated silently.`, "Garis dasar telah disemak sejak Perakuan Kerja Tidak Siap: kadar perakuan itu terpakai sehingga keputusan dan perakuan baharu direkodkan.");
     case "DECISION_ALREADY_LIVE":
       return w("A non-completion decision is already in force on this contract: one at a time. To change it, replace it, saying why (the earlier is kept and linked).", "Keputusan kerja tidak siap telah berkuat kuasa: gantikannya dengan sebab.");
     case "REPLACES_NOT_LIVE":

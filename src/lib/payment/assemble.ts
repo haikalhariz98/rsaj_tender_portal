@@ -17,7 +17,7 @@
  */
 
 import type { BaselineValues } from "@/lib/contract/baseline";
-import { ladFaults, ladLine, type Decision, type LadLine } from "@/lib/lad/charge";
+import { frozenRateWarnings, ladFaults, ladLine, type Decision, type LadLine } from "@/lib/lad/charge";
 import { formatMoney, parseSen, senToDecimalString, type Sen } from "@/lib/money";
 import type { ContractPartyKind } from "@/lib/supervision/types";
 
@@ -25,6 +25,7 @@ import { recoupments, type LiveAdvance } from "./advance";
 import { preExecutionFaults, type PreExecutionFacts } from "./eligibility";
 import { interimCertificate, type InterimResult } from "./interim";
 import { afterCutOff, materialsAllowance, materialsPct, type MaterialLine, type MaterialsPct } from "./materials";
+import { paymentFaultText } from "./labels";
 import { minimumFaults, minimumMeasureText, minimumReading, type MinimumReading } from "./minimum";
 import { retentionReading, type RetentionReading, type Tiers } from "./retention";
 import type { Day, Finding, KeyedDeductionKind, Provenance, ValuationTrigger, WaterfallRemainder } from "./types";
@@ -91,8 +92,10 @@ export interface AssembleInput {
   releases: readonly ReleaseRow[];
   /// Advances whose certificate is issued, with their schedules (recouped is read from `issued` here).
   advances: readonly Omit<LiveAdvance, "recouped">[];
-  /// The non-completion decision in force (the latest), with its certificate's state.
+  /// The non-completion decision in force, with its certificate's state (its rate and date frozen with it).
   decision: Decision | null;
+  /// What the pinned baseline states now for what the decision covers (BD-613-48: compared, never charged).
+  baselineDamages?: { rate: Sen | null; dateForCompletion: Day | null };
   /// Premiums the employer paid that no live certificate deducts yet.
   pending: readonly { id: string; amount: Sen; paidOn: Day }[];
   /// FR-PAY-014's facts as they stand (for the warning at open; the refusal is the issue's).
@@ -224,7 +227,10 @@ export function assembleInterim(i: AssembleInput): Assembled {
   // FR-PAY-008: the value to date beyond the revised contract sum needs a Variation Order Certificate first.
   if (result.figures) faults.push(...variationFaults({ valuedTotal: result.figures.gross, revisedSum: result.figures.newSum, unapproved: 0 }));
 
-  const warnings = preExecutionFaults(sequence, { ...i.preExecution, limit: i.policy.preExecutionLimit }, "warn");
+  const revised = i.baselineDamages ? frozenRateWarnings(i.decision, i.baselineDamages) : [];
+  const warnings = [...preExecutionFaults(sequence, { ...i.preExecution, limit: i.policy.preExecutionLimit }, "warn"), ...revised];
+  // BD-613-48: the certificate itself says the CNC's rate still applies where the baseline has since moved.
+  if (result.snapshot && revised.length) result.snapshot.lines.push({ key: "ladRateNote", labelEn: "Damages rate", labelMs: "Kadar ganti rugi", type: "TEXT", value: paymentFaultText(revised[0]), overridable: false });
   const parties = v.parties.map((p) => ({ id: p.partyId, tier: (p.kind === "ASSIGNEE" ? "ASSIGNEE" : "NOMINATED") as "ASSIGNEE" | "NOMINATED", due: p.due }));
   const wf = result.figures ? waterfall(result.figures.recommended, parties, i.policy.remainder) : null;
   if (wf) faults.push(...wf.faults);
