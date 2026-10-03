@@ -21,6 +21,8 @@ import { dayToDate, storedDay } from "@/lib/dates";
 import { formatSen, parseSen } from "@/lib/money";
 import { issueReference, NumberingError } from "@/lib/numbering/issue";
 import { ORGANISATION_NAME } from "@/lib/org";
+import { isSupervisedRule } from "@/lib/supervision/blocks";
+import { supervisedHoldersOn } from "@/lib/supervision/load";
 import { fieldsNamed } from "@/lib/templates/merge";
 
 import { certificateDateOf, dateAtIssue, dateCorrectionFaults, earliestCorrectionDay } from "./date";
@@ -270,15 +272,17 @@ export async function recordSignature(c: CertCtx, input: SignatureInput) {
   }
   const block = rev.blocks.find((b) => b.blockOrder === input.blockOrder);
   const person = block && isPersonRule(block.officeRule) && input.personId ? await c.tx.person.findFirst({ where: { id: input.personId, organisationId: c.l.org.id }, select: { id: true, name: true, isActive: true } }) : null;
-  // A named office's holders on the day; the S.O.'s blocks read the contract's supervision, which 6.13 records (none yet).
-  const holders = block?.officeRule === "NAMED_OFFICE" && block.officeCode ? await officeHolders(c.l, block.officeCode, c.today, c.tx) : null;
+  // A named office's holders on the day; the S.O.'s blocks read the contract's supervision (6.13 Part A, BD-613-13).
+  const supervised = block && isSupervisedRule(block.officeRule) ? await supervisedHoldersOn(c.l, block.officeRule, c.today, c.tx) : null;
+  const holders = block?.officeRule === "NAMED_OFFICE" && block.officeCode ? await officeHolders(c.l, block.officeCode, c.today, c.tx) : (supervised?.holders ?? null);
   const signed = signedOf(cert);
   const snap = readComputedSnapshot(cert.computedSnapshot);
   // R-10: no block is signed before the certificate was opened, or before its route was approved where it has one.
   const approvedOn = sheetOf(cert, c.today)?.date2 ?? null;
   const r = signFaults(rev.blocks, signed, input, { status: "SIGNING", today: c.today, person, holders, valueBearing: certifiesMoney(snap), openedOn: storedDay(cert.openedOn), approvedOn });
   if (r.faults.length) refuse("Not recorded:", r.faults);
-  const office = block!.officeRule === "NAMED_OFFICE" ? await officeName(c.l.org.id, block!.officeCode, c.tx) : null;
+  // The S.O.'s block keeps the office the contract's supervision gave it that day.
+  const office = block!.officeRule === "NAMED_OFFICE" ? await officeName(c.l.org.id, block!.officeCode, c.tx) : block!.officeRule === "SO" ? (supervised?.soLabel ?? null) : null;
   const personBlock = isPersonRule(block!.officeRule);
   const sig = await c.tx.certificateSignature.create({
     data: {

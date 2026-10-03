@@ -96,8 +96,20 @@ export function certificateFaultWords(f: Finding): Words {
       return w(`${s(d.name, "That person")} is not active on record.`, `${s(d.name, "Orang itu")} tidak aktif.`);
     case "SAME_PERSON":
       return w(`${s(d.name, "That person")} has already signed "${s(d.block, "another block")}" on this certificate: one person signs one block.`, `${s(d.name, "Orang itu")} telah menandatangani "${s(d.block, "blok lain")}": seorang menandatangani satu blok.`);
-    case "SUPERVISION_NOT_RECORDED":
-      return w(`"${s(d.block, "This block")}" is signed by ${OFFICE_RULE_WORDS[d.rule as SignatureOfficeRule]?.en.toLowerCase() ?? "the contract's supervising officer"}, and nobody is recorded in that role on this contract. The contract's supervision is recorded with the Superintending Officer's appointment, which this version of the system does not record yet.`, `"${s(d.block, "Blok ini")}" ditandatangani oleh ${OFFICE_RULE_WORDS[d.rule as SignatureOfficeRule]?.ms.toLowerCase() ?? "pegawai penyelia kontrak"}, dan tiada sesiapa direkodkan bagi peranan itu pada kontrak ini. Penyeliaan kontrak direkodkan bersama pelantikan Pegawai Penguasa, yang belum direkodkan oleh versi sistem ini.`);
+    case "SUPERVISION_NOT_RECORDED": {
+      // 6.13 Part A (BD-613-13): the S.O.'s blocks now read the contract's supervision; say which part is missing.
+      const who = OFFICE_RULE_WORDS[d.rule as SignatureOfficeRule] ?? w("The contract's supervising officer", "Pegawai penyelia kontrak");
+      const how =
+        d.rule === "SO_REP"
+          ? w("A Principal S.O. Representative signs it once their delegation letter is issued and while it is not revoked: record the delegation under Team.", "Wakil Pegawai Penguasa Utama menandatanganinya setelah surat perwakilannya dikeluarkan dan selagi tidak dibatalkan: rekodkan perwakilan di Pasukan.")
+          : d.rule === "RECOMMENDING_OFFICER"
+            ? w("Who recommends depends on what the certificate certifies, and this version does not resolve it yet: nobody is assumed.", "Siapa yang mengesyorkan bergantung pada apa yang diperakukan, dan versi ini belum menentukannya: tiada sesiapa diandaikan.")
+            : w("The Superintending Officer's appointment is resolved when the contract is executed, or under Team for a contract executed before then.", "Penentuan pelantikan Pegawai Penguasa dibuat semasa kontrak dilaksanakan, atau di Pasukan bagi kontrak yang dilaksanakan sebelum itu.");
+      return w(
+        `"${s(d.block, "This block")}" is signed by ${who.en.toLowerCase()}, and nobody holds that role on this contract today. ${how.en}`,
+        `"${s(d.block, "Blok ini")}" ditandatangani oleh ${who.ms.toLowerCase()}, dan tiada sesiapa memegang peranan itu pada kontrak ini hari ini. ${how.ms}`,
+      );
+    }
     case "NOT_HOLDER":
       return d.block != null
         ? w(`${s(d.name, "That person")} does not hold the office that signs "${s(d.block, "this block")}" today, nor a delegation of the whole office from someone who does.`, `${s(d.name, "Orang itu")} tidak memegang jawatan yang menandatangani "${s(d.block, "blok ini")}" hari ini, atau perwakilan penuh jawatan itu.`)

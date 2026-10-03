@@ -37,6 +37,8 @@ import { formatSen as formatMoney, parseSen } from "@/lib/money";
 import { ORGANISATION_NAME } from "@/lib/org";
 import { ratioPercentText } from "@/lib/percent-band";
 import { isSulitField } from "@/lib/sulit-fields";
+import { isSupervisedRule, type SupervisedRule } from "@/lib/supervision/blocks";
+import { loadPostAwardPolicy, supervisedHoldersOn } from "@/lib/supervision/load";
 import { fieldsNamed, renderWith } from "@/lib/templates/merge";
 
 import { AcknowledgeDrawer, CheckDrawer, CorrectDateDrawer, DespatchDrawer, OverrideDrawer, ReceivedDrawer, SendForRoutingDrawer, SendToSigningDrawer, SignatureDrawer, VoidDrawer } from "./editors";
@@ -76,6 +78,19 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
   const form = pinned ? null : await templateNow(cert.templateId);
   const blocks: Block[] = pinned ? pinned.blocks : (form?.blocks ?? []).slice().sort((a, b) => a.blockOrder - b.blockOrder);
   const sheet = today ? sheetOf(cert, today) : null;
+  // 6.13 Part A: who holds the S.O.'s blocks today, from the contract's supervision; and whether the S.O. follows the sum (OD-A7).
+  const supervisedRules = [...new Set(blocks.map((b) => b.officeRule).filter(isSupervisedRule))];
+  const supervised: Partial<Record<SupervisedRule, SupervisedToday>> = today
+    ? Object.fromEntries(
+        await Promise.all(
+          supervisedRules.map(async (r) => {
+            const h = await supervisedHoldersOn(l, r, today);
+            return [r, { soLabel: h.soLabel, names: h.holders ? h.holders.holderIds.map((id) => people.find((p) => p.id === id)?.name ?? "someone not active on record") : null }] as const;
+          }),
+        ),
+      )
+    : {};
+  const reResolveUnset = supervisedRules.includes("SO") && ((await loadPostAwardPolicy(l.org.id))?.soReResolve ?? null) == null;
   const dateNow = certificateDateOf(blocks, signedOf(cert));
   const ids = [cert.id, ...cert.signatures.map((s) => s.id), ...cert.overrides.map((o) => o.id), ...cert.routingChecks.map((r) => r.id), ...cert.copies.map((c) => c.id)];
   const [history, historyTotal] = await Promise.all([
@@ -103,7 +118,7 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
 
   const tabs = [
     { id: "figures", label: "Figures", icon: <FileIcon size={15} />, panel: <FiguresPanel l={l} figures={figures} people={peopleOptions} /> },
-    { id: "signatures", label: "Signatures", icon: <ToolsIcon size={15} />, count: cert.signatures.length, panel: <SignaturesPanel l={l} blocks={blocks} pinned={pinned} formName={form?.nameEn ?? null} pinBlocker={!pinned && status === "SIGNING" ? pinBlocker(form, cert) : null} people={peopleOptions} today={today} officeName={officeName} /> },
+    { id: "signatures", label: "Signatures", icon: <ToolsIcon size={15} />, count: cert.signatures.length, panel: <SignaturesPanel l={l} blocks={blocks} pinned={pinned} formName={form?.nameEn ?? null} pinBlocker={!pinned && status === "SIGNING" ? pinBlocker(form, cert) : null} people={peopleOptions} today={today} officeName={officeName} supervised={supervised} reResolveUnset={reResolveUnset} /> },
     { id: "routing", label: "Routing sheet", icon: <RouteIcon size={15} />, panel: <RoutingPanel l={l} sheet={sheet} people={peopleOptions} today={today} /> },
     { id: "distribution", label: "Distribution", icon: <InboxIcon size={15} />, count: cert.copies.length, panel: <DistributionPanel l={l} today={today} /> },
     { id: "print", label: "Print", icon: <PrinterIcon size={15} />, panel: <PrintPanel l={l} figures={figures} revision={pinned} formBody={form ? { en: form.bodyEn, ms: form.bodyMs, name: form.nameEn } : null} /> },
@@ -250,7 +265,22 @@ function FiguresPanel({ l, figures, people }: { l: LoadedCertificate; figures: E
 
 // ------------------------------------------------------------------ signatures
 
-function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people, today, officeName }: { l: LoadedCertificate; blocks: Block[]; pinned: TemplateRevision | null; formName: string | null; pinBlocker: string | null; people: Option[]; today: string | null; officeName: (code: string | null) => string }) {
+interface SupervisedToday {
+  soLabel: string | null;
+  /// Who holds the block today; null: nobody can.
+  names: string[] | null;
+}
+
+/// Who holds a supervised block today, in words (the S.O.'s office is shown by its name, never its code).
+function supervisedText(rule: SupervisedRule, t: SupervisedToday | undefined): string {
+  if (!t) return "";
+  if (rule === "RECOMMENDING_OFFICER") return " Who recommends is not resolved by this version: nobody is assumed.";
+  if (!t.soLabel) return " No Superintending Officer is recorded for this contract today: see Team.";
+  if (!t.names?.length) return rule === "SO_REP" ? " No Principal S.O. Representative's delegation is in force today: see Team." : ` Nobody holds the office (${t.soLabel}) today.`;
+  return rule === "SO" ? ` Today: ${t.soLabel}, held by ${t.names.join(", ")}.` : ` Today: ${t.names.join(", ")}.`;
+}
+
+function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people, today, officeName, supervised, reResolveUnset }: { l: LoadedCertificate; blocks: Block[]; pinned: TemplateRevision | null; formName: string | null; pinBlocker: string | null; people: Option[]; today: string | null; officeName: (code: string | null) => string; supervised: Partial<Record<SupervisedRule, SupervisedToday>>; reResolveUnset: boolean }) {
   const cert = l.cert;
   const status = cert.status as CertificateStatus;
   const signed = signedOf(cert);
@@ -301,7 +331,12 @@ function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people, toda
                         .join(" · ")}
                     </span>
                   ) : (
-                    <span className="block text-[12.5px] break-words text-ink-3">{`${who}. ${delegation}`}</span>
+                    <span className="block text-[12.5px] break-words text-ink-3">
+                      {`${who}. ${delegation}${isSupervisedRule(b.officeRule) ? supervisedText(b.officeRule, supervised[b.officeRule]) : ""}`}
+                      {b.officeRule === "SO" && reResolveUnset && (
+                        <span className="mt-1 block text-amber-800">Whether the Superintending Officer changes when an adjustment moves the contract sum across a band is not set under Configuration › Post-award: the office shown is the one resolved for this contract.</span>
+                      )}
+                    </span>
                   )}
                 </span>
                 <span className="flex shrink-0 flex-wrap items-center gap-2">

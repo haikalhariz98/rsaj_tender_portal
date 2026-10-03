@@ -6,11 +6,13 @@
 
 import type { Tx } from "@/lib/audit/record";
 import { officeHolders } from "@/lib/certificate/repo";
+import type { OfficeHolders } from "@/lib/certificate/signature";
 import type { LoadedContract } from "@/lib/contract/repo";
 import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 
 import type { DelegationFacts, SoOffice } from "./authority";
+import { supervisedHolders, type SupervisedRule } from "./blocks";
 import { inDelay, type DelayReading } from "./delay";
 import { programmeInForce, type PointIn, type RevisionFacts } from "./programme";
 import { soOn } from "./so";
@@ -72,6 +74,18 @@ export async function soOfficeOn(l: LoadedContract, s: SupervisionRows, on: stri
   const h = await officeHolders(l, a.roleCode, on, client);
   const row = s.soAssignments.find((x) => x.id === a.id)!;
   return { office: { roleLabel: a.roleLabel, holderIds: h.holderIds, actingIds: h.delegates.map((d) => d.personId) }, assignment: row };
+}
+
+/**
+ * Who holds a certificate's supervised block on a day (6.14's SO / SO_REP / RECOMMENDING_OFFICER rules), from the
+ * contract's supervision: the S.O. office's holders (and those acting in it), or its Principal Representatives
+ * in force. Null: nobody can (no S.O. on the day, or a rule not yet resolved).
+ */
+export async function supervisedHoldersOn(l: LoadedContract, rule: SupervisedRule, on: string, client: Tx = db): Promise<{ holders: OfficeHolders | null; soLabel: string | null }> {
+  const s = await loadSupervision(l.contract.id, client);
+  const a = soOn(s.soAssignments.map((x) => ({ ...x, effectiveOn: storedDay(x.effectiveOn) })), on);
+  if (!a) return { holders: null, soLabel: null };
+  return { holders: supervisedHolders(rule, await officeHolders(l, a.roleCode, on, client), delegationFactsOf(s), on), soLabel: a.roleLabel };
 }
 
 /// The programme revisions as the rules read them.
