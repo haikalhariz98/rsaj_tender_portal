@@ -1,0 +1,175 @@
+/**
+ * A contract's interim payments and damages chain, loaded (6.13 Part A step 3). Reads only; every rule is in the
+ * pure modules beside this. Server-only: called by the contract's Payments tab and by the acts inside their own
+ * locked transaction (`client` the transaction), so a decision reads the rows it locked.
+ */
+
+import type { Tx } from "@/lib/audit/record";
+import { INSURANCE_KIND_LABEL } from "@/lib/award/labels";
+import { baselineFor } from "@/lib/contract/baseline";
+import { baselineRows, contractGate, valuesOf } from "@/lib/contract/load";
+import type { LoadedContract } from "@/lib/contract/repo";
+import type { BaselineReason } from "@/lib/contract/types";
+import { storedDay } from "@/lib/dates";
+import { db } from "@/lib/db";
+import type { Decision } from "@/lib/lad/charge";
+import { parseSen, senFromDecimal, type Sen } from "@/lib/money";
+import type { ContractPartyKind } from "@/lib/supervision/types";
+
+import { readJudgedUnder, type AssembleInput, type IssuedInterim, type ValuationIn } from "./assemble";
+import { EXECUTED_STATUSES } from "./eligibility";
+import type { KeyedDeductionKind, PackItem, Provenance, ValuationTrigger, WaterfallRemainder } from "./types";
+
+const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
+const pct = (v: { toString(): string } | null | undefined) => {
+  if (v == null) return null;
+  const x = v.toString();
+  return x.includes(".") ? x.replace(/0+$/, "").replace(/\.$/, "") : x;
+};
+const senOrNull = (v: { toString(): string } | null | undefined): Sen | null => (v == null ? null : parseSen(v.toString()));
+
+const certSelect = { id: true, kind: true, status: true, number: true, sequence: true, certificateDate: true, issuedAt: true, issueSnapshot: true, openedOn: true, financePayment: { include: { person: { select: { name: true } } } } } as const;
+
+export const paymentInclude = {
+  paymentCalendar: { include: { person: { select: { name: true } } } },
+  interimValuations: {
+    include: {
+      person: { select: { id: true, name: true } },
+      materialLines: { orderBy: { recordedAt: "asc" as const } },
+      partyLines: { include: { party: { select: { id: true, name: true, kind: true, directPayment: true } } }, orderBy: { recordedAt: "asc" as const } },
+      deductions: { orderBy: { recordedAt: "asc" as const } },
+      certificate: { select: certSelect },
+    },
+    orderBy: [{ valuationDate: "asc" as const }, { recordedAt: "asc" as const }],
+  },
+  retentionReleases: { include: { person: { select: { name: true } }, basisCertificate: { select: { number: true, sequence: true } } }, orderBy: { releasedOn: "asc" as const } },
+  advancePayments: { include: { person: { select: { name: true } }, schedule: { orderBy: { sequence: "asc" as const } }, security: { select: { id: true, kind: true, instrumentRef: true, status: true, value: true } }, contractParty: { select: { name: true } }, certificate: { select: certSelect } }, orderBy: { recordedAt: "asc" as const } },
+  ladWarnings: { include: { person: { select: { name: true } }, certificate: { select: certSelect } }, orderBy: { recordedAt: "asc" as const } },
+  nonCompletions: { include: { person: { select: { name: true } }, certificate: { select: certSelect } }, orderBy: [{ decidedOn: "asc" as const }, { recordedAt: "asc" as const }] },
+  pendingDeductions: { include: { valuation: { select: { id: true, certificate: { select: { status: true } } } }, person: { select: { name: true } } }, orderBy: { paidOn: "asc" as const } },
+  contractParties: { orderBy: [{ kind: "asc" as const }, { recordedAt: "asc" as const }] as { kind?: "asc"; recordedAt?: "asc" }[] },
+  siteRecordsHandovers: { where: { recordsSet: "AS_BUILT" as const }, orderBy: { handedOverOn: "asc" as const } },
+};
+
+export type PaymentRows = Awaited<ReturnType<typeof readRows>>;
+function readRows(contractId: string, client: Tx) {
+  return client.contract.findUniqueOrThrow({ where: { id: contractId }, select: { id: true, ...paymentInclude } });
+}
+
+export async function loadPayment(contractId: string, client: Tx = db): Promise<PaymentRows> {
+  return readRows(contractId, client);
+}
+
+/// The organisation's settings the payment acts read: the policy, the forms and routing sheets per kind, the clocks.
+export async function loadPaymentConfig(organisationId: string, client: Tx = db) {
+  const [policy, kinds, clocks] = await Promise.all([
+    client.postAwardPolicy.findUnique({ where: { organisationId } }),
+    client.certificateKindSetting.findMany({ where: { organisationId }, include: { template: { select: { id: true, nameEn: true } }, routingType: { select: { id: true, labelEn: true, retiredOn: true } } } }),
+    client.contractClockRule.findMany({ where: { organisationId } }),
+  ]);
+  return { policy, kinds, clocks };
+}
+export type PaymentConfig = Awaited<ReturnType<typeof loadPaymentConfig>>;
+
+/// The kind's form and routing sheet (null each where not set).
+export const kindSettingOf = (cfg: PaymentConfig, kind: string) => cfg.kinds.find((k) => k.kind === kind) ?? null;
+
+/// The baseline version in force on a day (what a certificate opened that day pins), with its values.
+export function baselineOn(l: LoadedContract, on: string) {
+  const versions = baselineRows(l.contract).versions.map((b) => ({ ...b, reason: b.reason as BaselineReason | null, recordedOn: day(b.recordedOn) }));
+  const b = baselineFor(versions, on);
+  return b ? { id: b.id, version: b.version!, values: valuesOf(l.contract.baselines.find((x) => x.id === b.id)!) } : null;
+}
+
+/// Whether a certificate's status lets it still count (not void).
+export const live = (c: { status: string } | null | undefined) => !!c && c.status !== "VOID";
+
+/// The interim certificates issued, as issued, oldest first.
+export function issuedInterims(p: PaymentRows): IssuedInterim[] {
+  return p.interimValuations
+    .filter((v) => v.certificate?.status === "ISSUED")
+    .map((v) => {
+      const snap = v.certificate?.issueSnapshot as { figures?: { lines?: { key: string; value: string | null }[]; totals?: { key: string; value: string | null }[] } } | null;
+      const figures = new Map<string, string | null>([...(snap?.figures?.lines ?? []), ...(snap?.figures?.totals ?? [])].map((x) => [x.key, x.value]));
+      return { certificateId: v.certificate?.id ?? "", sequence: v.certificate?.sequence ?? 0, figures, judgedUnder: readJudgedUnder(v.judgedUnder) };
+    })
+    .sort((a, b) => a.sequence - b.sequence);
+}
+
+/// A valuation of this contract still in progress (being valued, or raised with its certificate neither issued nor void).
+export const inProgress = (p: PaymentRows) => p.interimValuations.find((v) => v.status === "OPEN" || (v.status === "RAISED" && v.certificate?.status != null && v.certificate.status !== "ISSUED" && v.certificate.status !== "VOID")) ?? null;
+
+/// The non-completion decision in force (the latest recorded), as the damages line reads it, the rate from the
+/// baseline the certificate pins (the whole works', or the section's).
+export function decisionOf(p: PaymentRows, baseline: ReturnType<typeof baselineOn>): (Decision & { id: string }) | null {
+  const d = p.nonCompletions.at(-1);
+  if (!d) return null;
+  const rate = !baseline ? null : d.scope === "SECTION" ? (baseline.values.sections.find((x) => x.ref === d.sectionRef)?.ladDaily ?? null) : baseline.values.ladDaily;
+  return { id: d.id, outcome: d.outcome, reason: d.reason, certificateIssued: d.certificate?.status === "ISSUED", from: day(d.windowFrom), until: day(d.windowUntil), rate };
+}
+
+/// Premiums the employer paid that no live certificate deducts.
+export const freePending = (p: PaymentRows) =>
+  p.pendingDeductions.filter((d) => !d.valuation || d.valuation.certificate?.status === "VOID").map((d) => ({ id: d.id, amount: senFromDecimal(d.amount), paidOn: storedDay(d.paidOn) }));
+
+/// Issued advances, with their schedules.
+export const issuedAdvances = (p: PaymentRows) =>
+  p.advancePayments.filter((a) => a.certificate.status === "ISSUED").map((a) => ({ id: a.id, party: a.party, amount: senFromDecimal(a.amount), schedule: a.schedule.map((r) => ({ sequence: r.sequence, amount: senFromDecimal(r.amount) })) }));
+
+/// FR-PAY-014's facts, as the contract's registers stand.
+export async function preExecutionFacts(l: LoadedContract, client: Tx = db) {
+  const gate = await contractGate(l, client);
+  const verified = l.contract.policies.filter((x) => x.status === "VERIFIED");
+  return {
+    executed: EXECUTED_STATUSES.includes(l.contract.status),
+    gate: gate.items.map((g) => ({ key: g.key, state: g.state })),
+    withoutReceipt: verified.filter((x) => !x.premiumReceiptRef.trim()).map((x) => `${INSURANCE_KIND_LABEL[x.kind]}${x.policyNo ? ` ${x.policyNo}` : ""}`),
+    perkesoRecorded: verified.some((x) => x.perkesoRegistrationNo.trim() !== ""),
+  };
+}
+
+/// A valuation as the assembler reads it.
+export function valuationIn(v: PaymentRows["interimValuations"][number]): ValuationIn {
+  return {
+    id: v.id,
+    trigger: v.trigger as ValuationTrigger,
+    triggerDate: day(v.triggerDate),
+    valuationDate: storedDay(v.valuationDate),
+    mainWorks: senOrNull(v.mainWorks),
+    jointRecorded: v.jointOn != null && v.contractorAnswer != null,
+    materials: v.materialLines.map((m) => ({ id: m.id, value: senFromDecimal(m.value), protectedOnSite: m.protectedOnSite, notTooEarly: m.notTooEarly, formsPartOfWorks: m.formsPartOfWorks, temporary: m.temporary, submittedOn: storedDay(m.submittedOn) })),
+    parties: v.partyLines.map((x) => ({ partyId: x.partyId, name: x.party.name, kind: x.party.kind as ContractPartyKind, value: senOrNull(x.value), due: senFromDecimal(x.due), submittedOn: storedDay(x.submittedOn) })),
+    deductions: v.deductions.map((x) => ({ kind: x.kind as KeyedDeductionKind, label: x.label, amount: senFromDecimal(x.amount) })),
+  };
+}
+
+/// Everything `assembleInterim` reads for a valuation, from the contract's rows and settings, on a day.
+export function assembleInputOf(l: LoadedContract, p: PaymentRows, cfg: PaymentConfig, v: PaymentRows["interimValuations"][number], today: string, preExecution: Awaited<ReturnType<typeof preExecutionFacts>>): AssembleInput | null {
+  const baseline = baselineOn(l, today);
+  if (!baseline) return null;
+  const pol = cfg.policy;
+  return {
+    valuation: valuationIn(v),
+    computedOn: today,
+    baseline: { version: baseline.version, values: baseline.values },
+    policy: {
+      materialsPct: pct(pol?.unfixedMaterialsDefaultPct),
+      materialsProvenance: (pol?.unfixedMaterialsProvenance ?? null) as Provenance | null,
+      preExecutionLimit: pol?.preExecutionInterimLimit ?? null,
+      preExecutionProvenance: (pol?.preExecutionProvenance ?? null) as Provenance | null,
+      remainder: (pol?.waterfallRemainder ?? null) as WaterfallRemainder | null,
+      remainderProvenance: (pol?.waterfallProvenance ?? null) as Provenance | null,
+    },
+    issued: issuedInterims(p),
+    // Step 4 (FR-PAD-003) adds the issued adjustments of the contract sum: none can be issued before it.
+    adjustments: [],
+    releases: p.retentionReleases.map((r) => ({ main: senFromDecimal(r.main), nsc: senFromDecimal(r.nsc), ns: senFromDecimal(r.ns), releasedOn: storedDay(r.releasedOn) })),
+    advances: issuedAdvances(p),
+    decision: decisionOf(p, baseline),
+    pending: freePending(p),
+    preExecution,
+  };
+}
+
+/// The four pack items as stored.
+export const packOf = (json: unknown): { item: PackItem; text: string; notRequired: boolean }[] => (Array.isArray(json) ? (json as { item: PackItem; text: string; notRequired: boolean }[]) : []);
