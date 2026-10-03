@@ -5,6 +5,7 @@
  * rows as values, and the contracts list.
  */
 
+import { decimalText } from "@/lib/format";
 import type { Prisma } from "@/generated/prisma/client";
 import type { Tx } from "@/lib/audit/record";
 import { awardReadiness, type ReadinessAward } from "@/lib/award/gate-read";
@@ -30,11 +31,7 @@ const dec = (v: { toString(): string } | null | undefined) => (v == null ? null 
 const senOrNull = (v: { toString(): string } | null | undefined) => (v == null ? null : parseSen(v.toString()));
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 /// A Decimal percentage as the exact string the pure code reads ("10.0000" → "10", "0.025000" → "0.025").
-export const pctString = (v: { toString(): string } | null | undefined) => {
-  if (v == null) return null;
-  const s = v.toString();
-  return s.includes(".") ? s.replace(/0+$/, "").replace(/\.$/, "") : s;
-};
+export const pctString = (v: { toString(): string } | null | undefined) => decimalText(v);
 
 // ------------------------------------------------------------------ configuration
 
