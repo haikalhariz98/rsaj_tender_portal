@@ -27,6 +27,7 @@ import type { PrismaClient } from "../src/generated/prisma/client";
 import { wipeCertificates } from "./demo-certificates";
 import { wipeSupervision } from "./demo-supervision";
 import { wipePayments } from "./demo-payment";
+import { wipeVariations } from "./demo-lifecycle";
 import { demoPdf, writeDemoDocs, type DemoDoc } from "./demo-documents";
 
 type Db = PrismaClient;
@@ -423,6 +424,8 @@ export async function checkContractsDemo(db: Db) {
 /// The formation records of the contracts given, children first, and the trail written under their labels.
 export async function wipeContractFormation(db: Db, organisationId: string, contracts: readonly { id: string; number: string }[]) {
   if (!contracts.length) return;
+  // 6.13 Part A step 5: the contracts' variations and adjustments first (each names its certificates).
+  await wipeVariations(db, contracts.map((c) => c.id));
   // 6.13 Part A step 3: the contracts' payments first (a party line names a party, a valuation its certificate).
   await wipePayments(db, contracts.map((c) => c.id));
   // 6.13 Part A: the contracts' supervision first (a delegation names its letters, possession its baseline version).

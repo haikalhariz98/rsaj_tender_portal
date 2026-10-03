@@ -1,4 +1,6 @@
 import "dotenv/config";
+// 6.13 Part A step 5: first, so the product's client is the one the demo's acts run through (prisma/demo-acts.ts).
+import "./demo-acts";
 
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
@@ -8,6 +10,7 @@ import { checkContractsDemo, configureContractsDemo, loadContractsDemo } from ".
 import { checkCertificatesDemo, configureCertificatesDemo, loadCertificatesDemo, wipeCertificatesConfig } from "./demo-certificates";
 import { checkSupervisionDemo, configureSupervisionDemo, loadSupervisionDemo, wipeSupervisionConfig } from "./demo-supervision";
 import { checkPaymentDemo, configurePaymentDemo, loadPaymentDemo, wipePaymentConfig } from "./demo-payment";
+import { checkLifecycleDemo, configureLifecycleDemo, LIFECYCLE_PREPARED, loadLifecycleAward, loadLifecycleCon3, loadLifecycleDemo, loadLifecycleSetup, wipeLifecycleConfig, wipeVariations } from "./demo-lifecycle";
 import { loadDocuments, planDocumentWipe, reportDocumentRefusal, wipeDocuments } from "./demo-documents";
 import { checkScope, loadScope, loadScopeExercises, loadScopeSitting, SCOPE_ENTITIES, scopeWipeDependents, screenHoldingsOnDemo, wipeScope } from "./demo-scope";
 import { loadSittingTrail } from "./demo-sitting-trail";
@@ -359,6 +362,8 @@ async function wipe() {
   // 6.5: the windows and their registers, before the routes, sittings, people and exercises they point at (an addendum's signed copy went with the documents).
   await wipeWindowDemo(db, org.id, hangingExerciseIds);
   // 6.4: packs before the bills, templates and routes they point at (their parts' files went with the documents).
+  // 6.13 Part A step 5: the variations on the demo's contracts before the clause texts their orders were valued under.
+  await wipeVariations(db, (await db.contract.findMany({ where: { award: { id: { startsWith: P } } }, select: { id: true } })).map((c) => c.id));
   await wipeTenderDocs(db, org.id, hangingExerciseIds);
   await wipeAwards(db, org.id, awardCheck);
   // 6.2: bills, panels and estimates on the demo's exercises and those removed with it (their scans went with the documents).
@@ -526,6 +531,8 @@ async function wipe() {
   // 6.14: the routing sheet types, checks, targets, blocks and recipients, once every certificate and award sheet has gone.
   // 6.13 Part A step 3: the payment certificates' forms and the clocks, before the forms and sheets they name.
   await wipePaymentConfig(db);
+  // 6.13 Part A step 5: the lifecycle's kind settings, clocks and the blocks and recipients of its forms.
+  await wipeLifecycleConfig(db);
   await wipeCertificatesConfig(db);
   // 6.13 Part A: the delegation forms' blocks and recipients, and the post-award controls.
   await wipeSupervisionConfig(db);
@@ -1167,13 +1174,17 @@ async function load() {
   await loadRequisitions(organisationId, from);
   await loadMethodSelection(organisationId, from);
   const awardExercises = await loadAwardSetup(db, organisationId, from);
+  // 6.13 Part A step 5: demo_con13's requisition and exercise, determined with the others.
+  const lifecycleExercises = await loadLifecycleSetup(db, organisationId);
   const scopeExercises = await loadScopeExercises(db, organisationId);
 
-  await determineExercises([`${P}sx1`, `${P}sx2`, `${P}sx3`, `${P}sx4`, `${P}sx5`, `${P}sx6`, `${P}sx7`, ...awardExercises, ...scopeExercises]);
+  await determineExercises([`${P}sx1`, `${P}sx2`, `${P}sx3`, `${P}sx4`, `${P}sx5`, `${P}sx6`, `${P}sx7`, ...awardExercises, ...lifecycleExercises, ...scopeExercises], LIFECYCLE_PREPARED);
   await loadAwards(db, organisationId);
+  // 6.13 Part A step 5: demo_aw13 on its Tender Board sitting, issued and returned; demo_con13 numbered.
+  const lifecycleSittings = await loadLifecycleAward(db, organisationId);
   await nameRouteTrail(organisationId);
   await loadCloseout(organisationId);
-  const minuted = [`${P}mt2`, `${P}mt5`, `${P}mt6`, `${P}mt7`, `${P}mt8`, `${P}mt9`];
+  const minuted = [`${P}mt2`, `${P}mt5`, `${P}mt6`, `${P}mt7`, `${P}mt8`, `${P}mt9`, ...lifecycleSittings];
   // Their History: the trail the sitting actions would have written (6.10 local review 4).
   await loadSittingTrail(db, organisationId, minuted);
   await snapshotMinuted(minuted);
@@ -1242,6 +1253,11 @@ async function load() {
     // 6.13 Part A step 3: the payment rows on the matrix, the payment certificates' forms, the clocks and the
     // controls (demo_hct1 is raised from interim valuation 1, so these come first).
     await configurePaymentDemo(db, organisationId);
+    // 6.13 Part A step 5: demo_con13's life from formation to its third interim certificate (June to October), every
+    // step the product's own act at the instant the story says (prisma/demo-acts.ts); before con3's certificates, so
+    // the series numbers them in the order they were issued.
+    await configureLifecycleDemo(db, organisationId);
+    await loadLifecycleDemo(db, organisationId);
     await loadCertificatesDemo(db, organisationId);
     await checkCertificatesDemo(db);
     // 6.13 Part A run 1: demo_con3's supervision, possessed and In Delay (after the certificates, which read it stamped).
@@ -1250,6 +1266,9 @@ async function load() {
     // 6.13 Part A step 3: interim valuation 2 on the contractor's claim, raised and sent for approval on the matrix.
     await loadPaymentDemo(db, organisationId);
     await checkPaymentDemo(db);
+    // 6.13 Part A step 5: a variation on demo_con3 waiting at a person's step; the whole of Part A read back.
+    await loadLifecycleCon3(db);
+    await checkLifecycleDemo(db);
   }
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
@@ -2403,7 +2422,7 @@ async function nameRouteTrail(organisationId: string) {
  * record, all through `src/lib/method`. Refuses loudly if a demo exercise would not
  * pass its own save checks.
  */
-async function determineExercises(ids: string[]) {
+async function determineExercises(ids: string[], preparedDates: Readonly<Record<string, string>> = {}) {
   const repo = await import("../src/lib/method/repo");
   const { evaluateExercise, saveBlockers } = await import("../src/lib/method/evaluate");
   const snap = await import("../src/lib/method/snapshot");
@@ -2425,6 +2444,8 @@ async function determineExercises(ids: string[]) {
       const on = day(l.org.today ?? "2026-09-30");
       const cols = snap.determinationColumns(ev, issue, (c) => cfg.config.methods.find((x) => x.code === c)?.nameEn ?? "", on);
       const prepared = l.ex.status === "DOCUMENTS_IN_PREPARATION";
+      // The day it moved into preparation: 2026-09-08 for the exercises of 6.3–6.11, or as its module says.
+      const preparedOn = preparedDates[id] ?? "2026-09-08";
       const decided = prepared
         ? snap.classificationSnapshotOf(ev, cfg.config, l.ex.contractBasisCode, (c) => issue.matrix.roles[c]?.nameEn ?? "", behaviourProfile, {
             reasonName: cfg.config.reasons.find((r) => r.code === l.ex.justificationReasonCode)?.nameEn ?? null,
@@ -2444,7 +2465,7 @@ async function determineExercises(ids: string[]) {
           methodReason: cols.proposedMethodCode === l.ex.sourcingMethodCode ? "" : l.ex.methodReason,
           ...(record ? { proposalRecord: record as object } : {}),
           // Loaded as decided on the day it moved into preparation.
-          ...(prepared ? { classificationSnapshot: decided as object, preparedAt: day("2026-09-08"), determinedAt: day("2026-09-08") } : {}),
+          ...(prepared ? { classificationSnapshot: decided as object, preparedAt: day(preparedOn), determinedAt: day(preparedOn) } : {}),
         },
       });
       // The trail in the shape the actions write it (UX 5; ruling on the demo trail), built
@@ -2482,7 +2503,7 @@ async function determineExercises(ids: string[]) {
       }
       if (prepared) {
         // The move, as moveToPreparation audits it: the dossier numbered, the record written.
-        const movedOn = day("2026-09-08");
+        const movedOn = day(preparedOn);
         trail.push({ entity: "SourcingExercise", entityId: id, entityLabel: label, at: movedOn, action: "UPDATE", changes: auditPair(asCreated, { ...asCreated, status: "DOCUMENTS_IN_PREPARATION", preparedAt: movedOn, dossierReference: l.ex.dossierReference, classificationRecorded: "yes" }) });
       }
       if (l.ex.status === "CANCELLED") trail.push({ entity: "SourcingExercise", entityId: id, entityLabel: label, at: day("2026-09-06"), action: "UPDATE", changes: diffFields({ status: "DRAFT" }, { status: "CANCELLED" }), reason: l.ex.cancelReason });

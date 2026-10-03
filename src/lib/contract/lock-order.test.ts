@@ -386,6 +386,8 @@ const DEMO_WRITERS: string[] = [
   "prisma/demo-contracts.ts › loadContractsDemo",
   "prisma/demo-contracts.ts › wipeContractFormation",
   "prisma/demo-contracts.ts › writeVersion",
+  // 6.13 Part A step 5: demo_con13 numbered at its award's issue (its formation on is the product's own acts).
+  "prisma/demo-lifecycle.ts › loadLifecycleAward",
   // 6.13 Part A: demo_con3's possession (its POSSESSION version and the move to active).
   "prisma/demo-supervision.ts › loadSupervisionDemo",
 ].map(P);
