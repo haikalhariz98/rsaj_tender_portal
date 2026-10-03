@@ -16,6 +16,28 @@ import { KIND_WORDS, w, type Words } from "./labels";
 import type { CertificateKind, Finding } from "./types";
 import { CERTIFICATE_KINDS } from "./types";
 
+/// Where a need's form is chosen: a certificate kind's (or the delegation pair's) under Post-award controls, a routing
+/// sheet type's printed sheet under Routing sheets (614b-C6).
+export type SetAt = "POST_AWARD" | "ROUTING_SHEETS";
+
+/// 614b-C6 (BD-613-95): the screens' own words for where each is set, in English and Malay.
+export const SET_AT_WORDS: Readonly<Record<SetAt, Words>> = {
+  POST_AWARD: w("Configuration › Post-award controls", "Konfigurasi › Kawalan selepas setuju terima"),
+  ROUTING_SHEETS: w("Configuration › Routing sheets", "Konfigurasi › Helaian penghalaan"),
+};
+
+/**
+ * 614b-C6 (BD-613-95): TEMPLATE_NOT_SET in words, naming the need and where its form is chosen, in English and Malay:
+ * "No form is chosen for “{need}”. Choose it under Configuration › Post-award controls." The finding carries the need in
+ * both languages and where it is set; a finding without them (none is raised so) names "this certificate's form".
+ */
+export function templateNotSetWords(d: Record<string, string | number | null | undefined>): Words {
+  const en = typeof d.need === "string" && d.need ? d.need : "this certificate's form";
+  const ms = typeof d.needMs === "string" && d.needMs ? d.needMs : typeof d.need === "string" && d.need ? d.need : "borang perakuan ini";
+  const at = SET_AT_WORDS[d.setAt === "ROUTING_SHEETS" ? "ROUTING_SHEETS" : "POST_AWARD"];
+  return w(`No form is chosen for “${en}”. Choose it under ${at.en}.`, `Tiada borang dipilih bagi “${ms}”. Pilih di ${at.ms}.`);
+}
+
 export interface FormOf {
   id: string;
   nameEn: string;
@@ -23,9 +45,10 @@ export interface FormOf {
   bodyMs: string | null;
 }
 
-/// The refusal a module raises where it needs a form: none chosen (naming the need), or chosen with no text (naming the form).
-export function formNeedFault(t: FormOf | null, need: Words): Finding | null {
-  if (!t) return { code: "TEMPLATE_NOT_SET", level: "block", data: { need: need.en } };
+/// The refusal a module raises where it needs a form: none chosen (naming the need, in both languages, and where it is
+/// chosen: 614b-C6), or chosen with no text (naming the form).
+export function formNeedFault(t: FormOf | null, need: Words, setAt: SetAt = "POST_AWARD"): Finding | null {
+  if (!t) return { code: "TEMPLATE_NOT_SET", level: "block", data: { need: need.en, needMs: need.ms, setAt } };
   if (!(t.bodyEn?.trim() || t.bodyMs?.trim())) return { code: "TEMPLATE_BODY_EMPTY", level: "block", data: { form: t.nameEn } };
   return null;
 }
@@ -36,7 +59,7 @@ export interface FormNeed {
   key: string;
   need: Words;
   /// Where the form is chosen.
-  setAt: "POST_AWARD" | "ROUTING_SHEETS";
+  setAt: SetAt;
   form: { id: string; nameEn: string } | null;
   state: NeedState;
 }

@@ -9,7 +9,8 @@ const none = { letter: null, notice: null };
 
 describe("a form a module needs (FR-CRT-012)", () => {
   it("none chosen refuses TEMPLATE_NOT_SET naming the need; chosen with no text, TEMPLATE_BODY_EMPTY naming the form", () => {
-    expect(formNeedFault(null, { en: "Notice of termination", ms: "Notis penamatan" })).toEqual({ code: "TEMPLATE_NOT_SET", level: "block", data: { need: "Notice of termination" } });
+    // 614b-C6 (stricter): the finding carries the need in both languages and where it is set.
+    expect(formNeedFault(null, { en: "Notice of termination", ms: "Notis penamatan" })).toEqual({ code: "TEMPLATE_NOT_SET", level: "block", data: { need: "Notice of termination", needMs: "Notis penamatan", setAt: "POST_AWARD" } });
     expect(formNeedFault(empty, { en: "Notice of termination", ms: "Notis penamatan" })).toEqual({ code: "TEMPLATE_BODY_EMPTY", level: "block", data: { form: "Demo notice of termination" } });
     expect(formNeedFault(written, { en: "x", ms: "x" })).toBeNull();
   });

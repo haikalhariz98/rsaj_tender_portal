@@ -8,6 +8,7 @@
 import { formatDate } from "@/lib/format";
 import { formatSen, parseSen } from "@/lib/money";
 
+import { templateNotSetWords } from "./form-needs";
 import { kindFaultWords } from "./kinds";
 import { OFFICE_RULE_WORDS, STATUS_WORDS, w, type Words } from "./labels";
 import type { CertificateStatus, Finding, SignatureOfficeRule } from "./types";
@@ -64,7 +65,8 @@ export function certificateFaultWords(f: Finding): Words {
       return w("Name the officer it is recorded for: someone on record and active.", "Namakan pegawai yang direkodkan: seseorang yang berdaftar dan aktif.");
     // ------------------------------------------------ the form, at the first signature
     case "TEMPLATE_NOT_SET":
-      return w("No form is chosen for this certificate, so it has no signature blocks to sign. The module that raised it chooses the form.", "Tiada borang dipilih bagi perakuan ini.");
+      // 614b-C6 (BD-613-95): the need and where its form is chosen, in both languages.
+      return templateNotSetWords(d);
     case "NO_BLOCKS":
       return w(`The form ${s(d.form, "")} has no signature blocks, so nobody can sign it. Add its blocks in printed order under Configuration › Templates.`, `Borang ${s(d.form, "")} tiada blok tandatangan. Tambah di Konfigurasi › Templat.`);
     case "DELEGABLE_UNDECIDED":

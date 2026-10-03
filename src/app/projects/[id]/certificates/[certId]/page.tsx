@@ -17,6 +17,7 @@ import { KeyValues } from "@/components/ui/stat";
 import { certificateDateOf } from "@/lib/certificate/date";
 import { distributionState } from "@/lib/certificate/distribution";
 import { certificateFaultText, refusalText } from "@/lib/certificate/fault-text";
+import { templateNotSetWords } from "@/lib/certificate/form-needs";
 import { certificateFieldValues } from "@/lib/certificate/fields";
 import { BLOCK_KIND_WORDS, CERT_WORDS, DECISION_WORDS, KIND_WORDS, METHOD_WORDS, OFFICE_RULE_WORDS, STATUS_TONE, STATUS_WORDS } from "@/lib/certificate/labels";
 import { applyOverrides, routingRatioOf, type Effective } from "@/lib/certificate/override";
@@ -377,7 +378,7 @@ function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people, toda
     ? `In the printed order of ${pinned.nameEn}${pinned.formCode ? ` (${pinned.formCode})` : ""}, as pinned at the first signature on ${formatDate(pinned.pinnedOn)}. A later revision of the form does not move it.`
     : formName
       ? `In the printed order of ${formName} as it stands now. The first signature pins the form: its order and recipients do not move after it.`
-      : "No form is chosen for this certificate: the module that raised it chooses one.";
+      : templateNotSetWords({ need: "this certificate", needMs: "perakuan ini", setAt: "POST_AWARD" }).en;
   const notOpen = status === "DRAFT" || status === "IN_ROUTING" ? "Signatures open once the certificate is sent to signing." : status === "VOID" ? "The certificate is void." : null;
   const dateNow = certificateDateOf(blocks, signed);
   return (
