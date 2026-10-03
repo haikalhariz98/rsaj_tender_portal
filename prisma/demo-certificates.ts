@@ -268,6 +268,14 @@ export async function loadCertificatesDemo(db: Db, organisationId: string) {
   }
   await move(c1, "INTERIM_PAYMENT", "IN_ROUTING", "SIGNING", "2026-10-02T03:00");
 
+  /// The day a certificate's route was approved, read as the act reads it (its frozen sheet over its routes); null without a sheet.
+  async function approvedOnOf(certId: string, on: string): Promise<string | null> {
+    const c = await db.certificate.findUniqueOrThrow({ where: { id: certId }, include: { approvalInstances: { include: { steps: true } }, routingChecks: true } });
+    const { readRoutingSnapshot } = await import("../src/lib/certificate/routing-sheet");
+    const { routesOf, checksOf } = await import("../src/lib/certificate/repo");
+    const type = readRoutingSnapshot(c.routingSnapshot);
+    return type ? routingSheet({ type, receivedOn: c.routingReceivedOn ? storedDay(c.routingReceivedOn) : null, routes: routesOf(c.approvalInstances), checks: checksOf(c.routingChecks), ratio: null, today: on }).date2 : null;
+  }
   /// Record the blocks of a form in order, each judged as the signature act judges it; the last issues.
   async function sign(certId: string, kind: Kind, templateId: string, plan: { order: number; person?: { id: string; name: string; isActive: boolean }; name?: string; ic?: string; on: string; decision?: "SUPPORTED" | "NOT_SUPPORTED"; refused?: string }[], computed: typeof interim | null, issue: { despatch: { code: string; method: "BY_HAND" | "REGISTERED_POST" | "COLLECTION"; on: string; ack?: string }[] } | null) {
     const form = (await templateNow(templateId))!;
@@ -281,7 +289,7 @@ export async function loadCertificatesDemo(db: Db, organisationId: string) {
     for (const [i, s] of plan.entries()) {
       const b = rev.blocks.find((x) => x.blockOrder === s.order)!;
       const holders = b.officeRule === "NAMED_OFFICE" ? await officeHolders(l, b.officeCode!, s.on) : null;
-      const r = signFaults(rev.blocks, signed, { blockOrder: s.order, name: s.name ?? "", icNumber: s.ic ?? "", signedOn: s.person ? null : s.on, refused: !!s.refused, refusalNote: s.refused ?? "", decision: s.decision ?? null, decisionCap: null }, { status: "SIGNING", today: s.on, person: s.person ?? null, holders, valueBearing: !!computed, openedOn: storedDay((await db.certificate.findUniqueOrThrow({ where: { id: certId }, select: { openedOn: true } })).openedOn), approvedOn: certId === c1 ? (await sheetOf1()).date2 : null });
+      const r = signFaults(rev.blocks, signed, { blockOrder: s.order, name: s.name ?? "", icNumber: s.ic ?? "", signedOn: s.person ? null : s.on, refused: !!s.refused, refusalNote: s.refused ?? "", decision: s.decision ?? null, decisionCap: null }, { status: "SIGNING", today: s.on, person: s.person ?? null, holders, valueBearing: !!computed, openedOn: storedDay((await db.certificate.findUniqueOrThrow({ where: { id: certId }, select: { openedOn: true } })).openedOn), approvedOn: await approvedOnOf(certId, s.on) });
       fail(`${certId} block ${s.order}`, r.faults);
       const id = `${certId.replace("hct", "hsg")}_${s.order}`;
       const { maskIc } = await import("../src/lib/award/mask");
@@ -373,13 +381,13 @@ export async function loadCertificatesDemo(db: Db, organisationId: string) {
     const aw = (await loadAward(`${P}aw5`))!;
     const type = freezeRoutingType((await routingTypeNow(`${P}hrt3`))!, "2026-08-24");
     fail("aw5 sheet type", typeFaults(await routingTypeNow(`${P}hrt3`), "AWARD", null, "2026-08-24"));
-    await db.awardRoutingSheet.create({ data: { id: `${P}hrw1`, organisationId, awardId: aw.award.id, typeId: `${P}hrt3`, typeSnapshot: type as never, startedAt: at("2026-08-24T02:00"), receivedOn: day("2026-08-24"), receivedRecordedAt: at("2026-08-24T02:00") } });
     {
       // The received day is judged as the act judges it: not after the appointment route opened or decided (R-5).
       const { routeBounds } = await import("../src/lib/certificate/routing-sheet");
       const { routesOf } = await import("../src/lib/certificate/repo");
       fail("aw5 received", receivedFaults(true, "2026-08-24", "2026-08-24", null, routeBounds(routesOf(aw.award.approvalInstances.filter((i) => i.domain === "appointment")))));
     }
+    await db.awardRoutingSheet.create({ data: { id: `${P}hrw1`, organisationId, awardId: aw.award.id, typeId: `${P}hrt3`, typeSnapshot: type as never, startedAt: at("2026-08-24T02:00"), receivedOn: day("2026-08-24"), receivedRecordedAt: at("2026-08-24T02:00") } });
     const awLabel = `${aw.award.reference} · routing sheet`;
     audit("AwardRoutingSheet", `${P}hrw1`, awLabel, "CREATE", "2026-08-24T02:00", diffFields(null, { routingSheet: type.labelEn, checks: type.checks.map((c) => c.labelEn).join(", "), frozenOn: "2026-08-24", receivedOn: "2026-08-24" }));
     for (const [i, c] of [{ order: 1, person: people.eng, on: "2026-09-07" }, { order: 2, person: people.chen, on: "2026-09-08" }].entries()) {
