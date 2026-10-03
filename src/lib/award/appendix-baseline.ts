@@ -215,8 +215,9 @@ export function differenceFindings(diffs: readonly Difference[]): Finding[] {
  * The reasons a save of the terms writes, and the fields still needing one. For each field
  * the save carried: where it now matches the baseline its reason is cleared (nothing
  * differs); where it differs, the reason given is kept, or the one stored if none was
- * given; with neither, the field is named as missing and the save is refused. A field the
- * save did not carry keeps its stored reason.
+ * given; with neither, the field is named as missing and the save is refused. A sum insured
+ * the save clears has its reason cleared too (it states nothing). A field the save did not
+ * carry keeps its stored reason.
  */
 export function reasonsOnSave(b: Baseline, after: AwardTerms, carried: ReadonlySet<BaselineField>, given: Reasons, stored: Reasons): { reasons: Record<BaselineField, string | null>; missing: BaselineField[] } {
   const reasons = {} as Record<BaselineField, string | null>;
@@ -224,6 +225,12 @@ export function reasonsOnSave(b: Baseline, after: AwardTerms, carried: ReadonlyS
   for (const f of BASELINE_FIELDS) {
     const kept = stored[f]?.trim() || null;
     const m = matchesBaseline(f, b, after);
+    // 6.13A residual: a sum insured the save clears states nothing, so nothing differs and its reason goes with it;
+    // a later figure other than the Appendix's then needs a reason of its own.
+    if (carried.has(f) && isSumField(f) && (after[SUM_FIELD_COLUMN[f]] ?? null) == null) {
+      reasons[f] = null;
+      continue;
+    }
     if (!carried.has(f) || m == null) {
       reasons[f] = kept;
       continue;

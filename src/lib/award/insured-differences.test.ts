@@ -58,3 +58,23 @@ describe("through the 64-C4 reason path", () => {
     expect(reasonsOnSave(B, terms({ wcSumInsured: RM("500000") }), new Set(["wcInsured"] as const), { wcInsured: "old" }, { wcInsured: "old" }).reasons.wcInsured).toBeNull();
   });
 });
+
+describe("6.13A residual: a cleared sum insured clears its stored reason", () => {
+  const WC = new Set(["wcInsured"] as const);
+  it("cleared: its reason goes, whatever was stored or given", () => {
+    expect(reasonsOnSave(B, terms({ wcSumInsured: null }), WC, {}, { wcInsured: "Insurer's limit" }).reasons.wcInsured).toBeNull();
+    expect(reasonsOnSave(B, terms(), WC, { wcInsured: "typed anyway" }, { wcInsured: "Insurer's limit" })).toEqual({ reasons: { lad: null, dlp: null, regulated: null, worksInsured: null, liabilityInsured: null, wcInsured: null }, missing: [] });
+  });
+  it("a later figure other than the Appendix's then needs a new reason (the old one is not revived)", () => {
+    const first = reasonsOnSave(B, terms({ wcSumInsured: null }), WC, {}, { wcInsured: "Insurer's limit" }).reasons;
+    const later = reasonsOnSave(B, terms({ wcSumInsured: RM("450000") }), WC, {}, first);
+    expect(later.missing).toEqual(["wcInsured"]);
+    expect(reasonsOnSave(B, terms({ wcSumInsured: RM("450000") }), WC, { wcInsured: "New insurer" }, first).reasons.wcInsured).toBe("New insurer");
+  });
+  it("the Appendix silent: cleared, its reason goes too", () => {
+    expect(reasonsOnSave(SILENT, terms(), new Set(["liabilityInsured"] as const), {}, { liabilityInsured: "old" }).reasons.liabilityInsured).toBeNull();
+  });
+  it("a save that did not carry the sum keeps its stored reason", () => {
+    expect(reasonsOnSave(B, terms(), new Set(["dlp"] as const), {}, { wcInsured: "Insurer's limit" }).reasons.wcInsured).toBe("Insurer's limit");
+  });
+});
