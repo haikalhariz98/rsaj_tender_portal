@@ -26,9 +26,12 @@ describe("M-1: a printed field bound to a routing sheet's value", () => {
     expect(codes(pinRefusals(FORM, mergeFields("DELEGATION_LETTER"), fieldsNamed, CTX))).toEqual(["PRINTED_FIELD_NOT_FILLED"]);
   });
   it("on a routed certificate: accepted before its sheet starts; once started, refused while the value is empty, accepted when there", () => {
+    // Residual M-1: the sheet carries whether its route is approved and its values in both languages; the day received
+    // is due once approved, and its refusal is the sheet value's own (SHEET_VALUE_EMPTY), not FIELD_NO_VALUE.
+    const started = (received: string) => ({ state: "STARTED" as const, decided: true, typeLabel: "Interim sheet", target: "SET", values: { EN: { "sheet.received": received }, MS: { "sheet.received": received } } });
     expect(pinRefusals(FORM, mergeFields("INTERIM_PAYMENT"), fieldsNamed, { ...CTX, routed: true })).toEqual([]);
-    expect(codes(pinRefusals(FORM, mergeFields("INTERIM_PAYMENT"), fieldsNamed, { ...CTX, routed: true, sheet: { "sheet.received": "" } }))).toEqual(["FIELD_NO_VALUE"]);
-    expect(pinRefusals(FORM, mergeFields("INTERIM_PAYMENT"), fieldsNamed, { ...CTX, routed: true, sheet: { "sheet.received": "1 September 2026" } })).toEqual([]);
+    expect(codes(pinRefusals(FORM, mergeFields("INTERIM_PAYMENT"), fieldsNamed, { ...CTX, routed: true, sheet: started("") }))).toEqual(["SHEET_VALUE_EMPTY"]);
+    expect(pinRefusals(FORM, mergeFields("INTERIM_PAYMENT"), fieldsNamed, { ...CTX, routed: true, sheet: started("1 September 2026") })).toEqual([]);
   });
   it("a printed field bound to a value the kind does not fill (a figure no kind lists) is refused too", () => {
     const form = { ...FORM, fields: [{ ...RECEIVED, key: "due", computedKey: "figure.amountDue" }] };

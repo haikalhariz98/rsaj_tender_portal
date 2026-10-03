@@ -176,6 +176,7 @@ export const PRINT_WORDS = {
   pinnedSuffix: w("as pinned", "seperti disematkan"),
   nowSuffix: w("as the form stands now", "seperti borang kini"),
   notReadyTitle: w("Its form is not ready to be signed on", "Borangnya belum sedia untuk ditandatangani"),
+  notJudgedTitle: w("Whether its form can be signed on is not judged yet", "Sama ada borangnya boleh ditandatangani belum dinilai"),
   notReadyTail: w("It may still be routed; nothing is signed on it until this is put right.", "Ia masih boleh dihalakan; tiada apa ditandatangani padanya sehingga ini dibetulkan."),
 } as const;
 

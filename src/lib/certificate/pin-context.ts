@@ -9,7 +9,7 @@ import { fieldsNamed } from "@/lib/templates/merge";
 
 import { mergeFields } from "./fields";
 import { applyOverrides, routingRatioOf, type OverrideRow } from "./override";
-import { pinRefusals, type PinContext, type TemplateNow } from "./revision";
+import { pinRefusals, type PinContext, type PinSheet, type TemplateNow } from "./revision";
 import { readRoutingSnapshot, routingSheet, type Sheet } from "./routing-sheet";
 import { sheetFieldValues } from "./sheet-words";
 import { checksOf, routesOf, type CheckRowIn, type RouteRowIn } from "./sheet-rows";
@@ -45,13 +45,28 @@ export function sheetOf(cert: SheetSource, today: string): Sheet | null {
   return routingSheet({ type, receivedOn: day(cert.routingReceivedOn), routes: routesOf(cert.approvalInstances), checks: checksOf(cert.routingChecks), ratio, today });
 }
 
-/// What the certificate brings to the pin (M-2): its pinned baseline version's Contract Date and its frozen figures.
+/// A drawn sheet as the pin judges it: its values in both languages, exactly as the issue prints them.
+export function pinSheetOf(sheet: Sheet): PinSheet {
+  return {
+    state: "STARTED",
+    decided: sheet.date2 != null || sheet.routeState === "APPROVED",
+    typeLabel: sheet.type.labelEn,
+    target: sheet.target.state,
+    values: { EN: sheetFieldValues(sheet, "EN"), MS: sheetFieldValues(sheet, "MS") },
+  };
+}
+
+/**
+ * What the certificate brings to the pin (M-2): its pinned baseline version's Contract Date, its frozen figures, and its
+ * routing sheet once started. `today` null (the organisation's time zone not set): a started sheet is UNJUDGED, said
+ * so rather than skipped; the act never runs without the day.
+ */
 export function pinContextOf(cert: PinSource, today: string | null = null): PinContext {
   const snap = readComputedSnapshot(cert.computedSnapshot);
   const f = snap ? applyOverrides(snap, cert.overrides) : null;
-  // Code review M-1: a sheet value is filled only on a certificate with a routing type, from its sheet once it starts.
-  const sheet = today ? sheetOf(cert, today) : null;
-  return { contractDate: day(cert.baseline.contractDate), figures: f ? [...f.lines, ...f.totals].map((x) => ({ key: x.key, value: x.value })) : null, routed: cert.routingTypeId != null, sheet: sheet ? sheetFieldValues(sheet, "EN") : null };
+  const started = readRoutingSnapshot(cert.routingSnapshot) != null;
+  const sheet = started ? (today ? pinSheetOf(sheetOf(cert, today)!) : ({ state: "UNJUDGED" } as const)) : null;
+  return { contractDate: day(cert.baseline.contractDate), figures: f ? [...f.lines, ...f.totals].map((x) => ({ key: x.key, value: x.value })) : null, routed: cert.routingTypeId != null, sheet };
 }
 
 /// Everything the first signature refuses a form for on this certificate: the act's rule and the page's preview.

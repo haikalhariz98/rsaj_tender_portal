@@ -17,6 +17,15 @@ const day = (v: unknown) => (typeof v === "string" ? formatDate(v) : "that day")
 const floorMoney = (v: unknown) => (typeof v === "string" && /^-?\d+(\.\d{1,2})?$/.test(v) ? formatSen(parseSen(v)) : "its floor");
 const s = (v: unknown, fallback: string) => (v == null || v === "" ? fallback : String(v));
 
+/// Why a routing sheet has no target, by its target's state (routing-sheet.ts `Target`), in words.
+const SHEET_TARGET_WHY: Readonly<Record<string, Words>> = {
+  NOT_SET: w("the type has no target", "jenis itu tiada sasaran"),
+  NO_RATIO: w("its targets are banded by percentage and no percentage came with this certificate's figures", "sasarannya mengikut jalur peratusan dan tiada peratusan bersama angka perakuan ini"),
+  NO_BAND: w("no band of its targets covers this certificate's percentage", "tiada jalur sasarannya meliputi peratusan perakuan ini"),
+  OVERLAP: w("two of its targets overlap", "dua sasarannya bertindih"),
+  EDGE_UNDECIDED: w("which side of a band's edge counts is not decided, and this certificate's percentage is on an edge", "pihak sempadan jalur yang dikira belum diputuskan, dan peratusan perakuan ini berada pada sempadan"),
+};
+
 export function certificateFaultWords(f: Finding): Words {
   const d = f.data ?? {};
   switch (f.code) {
@@ -239,6 +248,24 @@ export function certificateFaultWords(f: Finding): Words {
     // ------------------------------------------------ increment 2 (code review M-1): a printed field the portal fills
     case "PRINTED_FIELD_NOT_FILLED":
       return w(`The form ${s(d.form, "")} prints ${s(d.fields, "a field")} filled by the portal from a value this certificate never has (a routing sheet's value on a certificate with no routing sheet, or a value its kind does not fill), so it would print blank. Bind the field to another value, or mark it completed by hand, under Configuration › Templates.`, `Borang ${s(d.form, "")} mencetak ${s(d.fields, "medan")} yang diisi oleh portal daripada nilai yang tiada pada perakuan ini, jadi ia akan dicetak kosong. Ikat medan itu kepada nilai lain, atau tandakan diisi dengan tangan, di Konfigurasi › Templat.`);
+    // ------------------------------------------------ increment 2 residual M-1: a printed field filled from the routing sheet
+    case "SHEET_VALUE_EMPTY":
+      return w(
+        `The form ${s(d.form, "")} prints ${s(d.fields, "a field")} from this certificate's routing sheet, and its route is approved but the sheet holds nothing for it. Nothing is pinned until it does: record the day it was received on the Routing sheet tab (the day approved is the day its route's approving step was decided), or mark the field completed by hand under Configuration › Templates.`,
+        `Borang ${s(d.form, "")} mencetak ${s(d.fields, "medan")} daripada helaian penghalaan perakuan ini, dan laluannya telah diluluskan tetapi helaian itu tiada nilai untuknya. Tiada yang disematkan sehingga ada: rekodkan hari ia diterima di tab Helaian penghalaan (hari diluluskan ialah hari langkah kelulusan laluannya diputuskan), atau tandakan medan itu diisi dengan tangan di Konfigurasi › Templat.`,
+      );
+    case "SHEET_TARGET_NOT_SET": {
+      const why = SHEET_TARGET_WHY[String(d.why)] ?? SHEET_TARGET_WHY.NOT_SET;
+      return w(
+        `The form ${s(d.form, "")} prints ${s(d.fields, "a field")}, the routing sheet's target, and the routing sheet type ${s(d.type, "")} sets no target for this certificate: ${why.en}. A type's targets are set on it under Configuration › Routing sheets; this certificate's sheet keeps the type as it stood when it was sent for routing, so for it, bind the field to another value or mark it completed by hand under Configuration › Templates before the first signature.`,
+        `Borang ${s(d.form, "")} mencetak ${s(d.fields, "medan")}, sasaran helaian penghalaan, dan jenis helaian ${s(d.type, "")} tidak menetapkan sasaran bagi perakuan ini: ${why.ms}. Sasaran sesuatu jenis ditetapkan di Konfigurasi › Helaian penghalaan; helaian perakuan ini mengekalkan jenis itu seperti semasa ia dihantar untuk penghalaan, jadi baginya, ikat medan itu kepada nilai lain atau tandakan diisi dengan tangan di Konfigurasi › Templat sebelum tandatangan pertama.`,
+      );
+    }
+    case "SHEET_NOT_JUDGED":
+      return w(
+        `Whether the form ${s(d.form, "")} can print ${s(d.fields, "a field")} from this certificate's routing sheet is not judged: the organisation's time zone is not set, so the sheet is not drawn. Set it under Configuration › Organisation.`,
+        `Sama ada borang ${s(d.form, "")} boleh mencetak ${s(d.fields, "medan")} daripada helaian penghalaan perakuan ini tidak dinilai: zon waktu organisasi belum ditetapkan, jadi helaian itu tidak dilukis. Tetapkan di Konfigurasi › Organisasi.`,
+      );
     case "PRINTED_VALUE_EMPTY":
       return w(`Not issued: the form ${s(d.form, "")} prints ${s(d.fields, "a field")} filled by the portal, and this certificate has nothing to print there. A certificate never goes out blank where the portal fills it: its form was pinned at the first signature, so void it and raise it again.`, `Tidak dikeluarkan: borang ${s(d.form, "")} mencetak ${s(d.fields, "medan")} yang diisi oleh portal, dan perakuan ini tiada nilai untuknya. Batalkan dan bangkitkan semula.`);
     // ------------------------------------------------ increment 2: saving a printed field, a correction, a term

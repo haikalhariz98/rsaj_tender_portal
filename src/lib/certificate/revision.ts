@@ -121,9 +121,56 @@ export interface PinContext {
   /// Increment 2 (code review M-1): whether the certificate has a routing type, so a sheet value can ever be filled.
   /// Absent: none (a printed field bound to a sheet value is then refused).
   routed?: boolean;
-  /// The sheet's own values as they stand (printed.ts SHEET_FIELDS), once its sheet has started. Null or absent:
-  /// not started yet, judged again at the pin and the issue.
-  sheet?: Readonly<Record<string, string>> | null;
+  /// Its routing sheet as it stands (`pinSheetOf`). Null or absent: not started yet, judged again at the pin and the issue.
+  sheet?: PinSheet | null;
+}
+
+/**
+ * A routing sheet as the pin judges it (6.14 inc 2 residual M-1). UNJUDGED: started, but the organisation's day is not
+ * known (its time zone is not set), so the sheet is not drawn and nothing is said either way. STARTED: its type, its
+ * target's state, whether its route is approved, and its own values in each language, exactly as the issue prints
+ * them (`sheetFieldValues`), so the pin never passes a value the issue would refuse as blank.
+ */
+export type PinSheet =
+  | { state: "UNJUDGED" }
+  | {
+      state: "STARTED";
+      /// Its latest route approved (the approved day set, or the route approved): the days and the elapsed time are due.
+      decided: boolean;
+      typeLabel: string;
+      /// Its target's state ("SET", or why there is none), from the type frozen when it started.
+      target: string;
+      values: { EN: Readonly<Record<string, string>>; MS: Readonly<Record<string, string>> };
+    };
+
+/// The sheet values a sheet holds only once its route is approved; the type and target are there from the start.
+const DUE_WHEN_DECIDED: ReadonlySet<string> = new Set(["sheet.received", "sheet.approved", "sheet.elapsed"]);
+
+/**
+ * Why a form's printed fields bound to a routing sheet's values could not be printed from this certificate's sheet
+ * (6.14 inc 2 residual M-1). The type and the target are judged once the sheet has started; the days and the elapsed
+ * time only once its route is approved (before that they are not there yet, and not a fault: the sheet is still
+ * running). Each value is held in both languages, as the issue's `printedBlankFaults` holds it.
+ */
+export function sheetValueFaults(fields: readonly PrintedField[], ctx: Pick<PinContext, "routed" | "sheet">, form: string): Finding[] {
+  const s = ctx.sheet;
+  if (!ctx.routed || !s) return [];
+  const bound = inPrintedOrder(fields).filter((f) => f.bound && f.computedKey && isSheetField(f.computedKey));
+  if (!bound.length) return [];
+  if (s.state === "UNJUDGED") return [{ code: "SHEET_NOT_JUDGED", level: "block", data: { form, fields: bound.map(labelPair).join(", ") } }];
+  const empty: string[] = [];
+  const noTarget: string[] = [];
+  for (const f of bound) {
+    const k = f.computedKey!;
+    if (k === "sheet.target" && s.target !== "SET") noTarget.push(labelPair(f));
+    else if (!DUE_WHEN_DECIDED.has(k) || s.decided) {
+      if (!s.values.EN[k]?.trim() || !s.values.MS[k]?.trim()) empty.push(labelPair(f));
+    }
+  }
+  const out: Finding[] = [];
+  if (noTarget.length) out.push({ code: "SHEET_TARGET_NOT_SET", level: "block", data: { form, fields: noTarget.join(", "), type: s.typeLabel, why: s.target } });
+  if (empty.length) out.push({ code: "SHEET_VALUE_EMPTY", level: "block", data: { form, fields: empty.join(", ") } });
+  return out;
 }
 
 /**
@@ -143,19 +190,16 @@ export function unfillableFaults(t: TemplateNow, ctx: PinContext, allowed: Reado
   const form = t.nameEn;
   const noValue: string[] = [];
   // Code review M-1: every bound printed field is held to a value the certificate fills (its kind's fields) or its
-  // routing sheet's own values, and a sheet value only on a certificate with a routing type; once the sheet has
-  // started, the value must be there. Never pinned to print blank.
+  // routing sheet's own values, and a sheet value only on a certificate with a routing type; its sheet's values are
+  // judged by `sheetValueFaults` (residual M-1), with words of their own. Never pinned to print blank.
   const unbindable: string[] = [];
   for (const f of t.fields ?? []) {
     if (!f.bound || !f.computedKey) continue;
     const k = f.computedKey;
-    const label = labelPair(f);
-    if (isSheetField(k)) {
-      if (!ctx.routed) unbindable.push(label);
-      else if (ctx.sheet && !ctx.sheet[k]?.trim()) noValue.push(label);
-    } else if (!allowed.has(k)) unbindable.push(label);
+    if (isSheetField(k) ? !ctx.routed : !allowed.has(k)) unbindable.push(labelPair(f));
   }
   if (unbindable.length) out.push({ code: "PRINTED_FIELD_NOT_FILLED", level: "block", data: { form, fields: unbindable.join(", ") } });
+  out.push(...sheetValueFaults(t.fields ?? [], ctx, form));
   for (const k of named) {
     const n = fieldNeed(k);
     if (n.need === "DATING_BLOCK" && !t.blocks.some((b) => b.datesCertificate)) out.push({ code: "DATE_FIELD_NO_DATING_BLOCK", level: "block", data: { form } });

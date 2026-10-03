@@ -154,9 +154,10 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
     action = blocker ? <Blocked label="Send to signing" reason={blocker} primary noteId={NOTE_ID} /> : <SendToSigningDrawer certId={cert.id} routed blocker={null} />;
   }
 
+  const preview = pinned ? null : pinBlocker(form, cert, today);
   const tabs = [
     { id: "figures", label: "Figures", icon: <FileIcon size={15} />, panel: <FiguresPanel l={l} figures={figures} people={peopleOptions} today={today} /> },
-    { id: "signatures", label: "Signatures", icon: <ToolsIcon size={15} />, count: cert.signatures.length, panel: <SignaturesPanel l={l} blocks={blocks} pinned={pinned} formName={form?.nameEn ?? null} pinBlocker={!pinned && status === "SIGNING" ? pinBlocker(form, cert, today) : null} people={peopleOptions} today={today} officeName={officeName} supervised={supervised} reResolveUnset={reResolveUnset} /> },
+    { id: "signatures", label: "Signatures", icon: <ToolsIcon size={15} />, count: cert.signatures.length, panel: <SignaturesPanel l={l} blocks={blocks} pinned={pinned} formName={form?.nameEn ?? null} pinBlocker={!pinned && status === "SIGNING" ? (preview?.text ?? null) : null} people={peopleOptions} today={today} officeName={officeName} supervised={supervised} reResolveUnset={reResolveUnset} /> },
     { id: "routing", label: "Routing sheet", icon: <RouteIcon size={15} />, panel: <RoutingPanel l={l} sheet={sheet} people={peopleOptions} today={today} roles={roles} /> },
     { id: "distribution", label: "Distribution", icon: <InboxIcon size={15} />, count: cert.copies.length, panel: <DistributionPanel l={l} today={today} /> },
     { id: "print", label: "Print", icon: <PrinterIcon size={15} />, panel: <PrintPanel l={l} figures={figures} revision={pinned} form={form} sheet={sheet} /> },
@@ -196,9 +197,10 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
         )}
         {l.contract.status === "CANCELLED" && <Callout tone="warn" title="The contract is cancelled">Its certificates are kept as they were; nothing more is recorded on them.</Callout>}
         {/* 6.14 increment 2 (FR-CRT-012): a draft whose form could not be signed on yet says so from the start, by the first signature's own rule. */}
-        {(status === "DRAFT" || status === "IN_ROUTING") && pinBlocker(form, cert, today) && (
-          <Callout tone="warn" title={PRINT_WORDS.notReadyTitle.en}>
-            {`${pinBlocker(form, cert, today)} ${PRINT_WORDS.notReadyTail.en}`}
+        {/* Residual M-1: the act's own function (pinCheck); with the time zone not set, a started sheet's values say "not judged". */}
+        {(status === "DRAFT" || status === "IN_ROUTING") && preview && (
+          <Callout tone="warn" title={preview.judged ? PRINT_WORDS.notReadyTitle.en : PRINT_WORDS.notJudgedTitle.en}>
+            {`${preview.text} ${PRINT_WORDS.notReadyTail.en}`}
           </Callout>
         )}
         {status === "VOID" && (
@@ -235,9 +237,12 @@ function signingBlocker(sheet: Sheet): string | null {
   return reasons.length ? reasons.join(" ") : null;
 }
 
-function pinBlocker(form: Awaited<ReturnType<typeof templateNow>>, cert: LoadedCertificate["cert"], today: string | null): string | null {
+/// The first signature's refusal, by the act's own function; `judged` false where the only finding is "not judged".
+function pinBlocker(form: Awaited<ReturnType<typeof templateNow>>, cert: LoadedCertificate["cert"], today: string | null): { text: string; judged: boolean } | null {
   const fs = pinCheck(form, cert, today);
-  return fs.length ? refusalText("The first signature is refused:", fs) : null;
+  if (!fs.length) return null;
+  const judged = fs.some((f) => f.code !== "SHEET_NOT_JUDGED");
+  return { text: refusalText(judged ? "The first signature is refused:" : "Not judged yet:", fs), judged };
 }
 
 // ------------------------------------------------------------------ figures
