@@ -34,7 +34,9 @@ export type SoResolution =
   | { state: "SO_UNRESOLVED"; errors: ResolutionWarning[] };
 
 export function resolveSo(matrix: Matrix, q: SoQuery): SoResolution {
-  const r = resolveApproval(matrix, { domain: SO_DOMAIN, method: q.method, contractTypeCode: q.contractTypeCode, contractValue: q.contractValue });
+  // The contract's value both as the contract value and as the matter's value, so an S.O. row banded either way
+  // (the rule editor sets the matter's value) is read.
+  const r = resolveApproval(matrix, { domain: SO_DOMAIN, method: q.method, contractTypeCode: q.contractTypeCode, contractValue: q.contractValue, value: q.contractValue });
   const errors = r.warnings.filter((w) => w.level === "err");
   if (!r.rule || !r.approverCode || errors.length) return { state: "SO_UNRESOLVED", errors };
   const role = matrix.roles[r.approverCode];

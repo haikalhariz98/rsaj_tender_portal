@@ -152,7 +152,8 @@ export interface ResolutionWarning {
     | "CORE_NOT_CHECKED"
     | "CORE_CHAIN_FAULT"
     | "CORE_AS_ENTERED"
-    | "EDGE_UNDECIDED";
+    | "EDGE_UNDECIDED"
+    | "TYPE_ROW_SKIPPED";
   level: WarningLevel;
   messageEn: string;
   messageMs: string;

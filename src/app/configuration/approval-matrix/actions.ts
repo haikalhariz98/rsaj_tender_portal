@@ -25,6 +25,7 @@ import { findingText } from "@/lib/method/labels";
 import { overlappingBands } from "@/lib/method/bands";
 import { matrixPolicyFaults, termsBandBoundaryFault } from "@/lib/method/boundary";
 import { ORGANISATION_CODE } from "@/lib/org";
+import { contractTypeDomainWords, takesContractType } from "@/lib/authority/contract-type-domains";
 import { FormReader } from "@/lib/validate";
 
 /// A recommender proposes or recommends. Approving is the approver's act, set on
@@ -435,6 +436,8 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
       return { generateCoreChain, coreChainReason: generateCoreChain === false ? why : null };
     })(),
   };
+  // BD-613-6 ruling: only a matter whose routing passes a contract type takes a row confined to one.
+  if (v.contractTypeCode && !takesContractType(v.domain)) r.reject("contractTypeCode", `Only these matters are routed with a contract type: ${contractTypeDomainWords()}. On any other, a row for one type would never be read: leave it for any type.`);
 
   // Two rules that tie for some matter leave its route to row order. Refused here, as
   // the resolver flags it on a matter; gap rows are exempt, overlapping is their job.

@@ -123,3 +123,12 @@ describe("review 1: correcting the Contract Date moves the assignment that took 
     expect(assignmentToMove(rows, null, "2026-09-30")).toBeNull();
   });
 });
+
+describe("an S.O. row banded on the matter's value (as the rule editor sets it) is read too", () => {
+  it("the contract's value is passed as both the contract value and the matter's value", () => {
+    const banded = so({ ruleKey: "SO_VALUE_BAND", method: null, cond: null, pctMin: null, pctMax: null, maxValue: 50_000, approverCode: "FD", clause: "test" });
+    const m: Matrix = { ...DAL_FIXTURE, rules: [...DAL_FIXTURE.rules, banded] };
+    expect(resolveSo(m, { contractValue: 36_000, method: null, contractTypeCode: null })).toMatchObject({ state: "RESOLVED", ruleKey: "SO_VALUE_BAND" });
+    expect(resolveSo(m, { contractValue: 60_000, method: null, contractTypeCode: null }).state).toBe("SO_UNRESOLVED");
+  });
+});

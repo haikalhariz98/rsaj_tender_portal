@@ -1,5 +1,6 @@
 import { PencilIcon, PlusIcon, XIcon } from "@/components/icons";
 import { END_DAY_LABEL } from "@/lib/effective-text";
+import { contractTypeDomainWords } from "@/lib/authority/contract-type-domains";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import { CHAIN_CHOICE_LABEL } from "@/lib/authority/core-routing-labels";
@@ -244,7 +245,7 @@ function ruleFields(offices: { code: string; nameEn: string }[], contractTypes: 
       placeholder: "Any contract type",
       options: contractTypes.map((t) => ({ value: t.code, label: t.nameEn })),
       orphanLabel: "A contract type no longer configured",
-      hint: "Empty: the rule applies whatever the contract type. A rule for one type is preferred to one for any type.",
+      hint: `Only for matters routed with a contract type (${contractTypeDomainWords()}); on any other the save refuses it. Empty: the rule applies whatever the contract type. A rule for one type is preferred to one for any type.`,
     },
     { kind: "money", name: "minValue", label: "From value" },
     { kind: "money", name: "maxValue", label: "To value" },

@@ -260,13 +260,15 @@ export function approverAct(rule: Pick<Rule, "approverMandatory">): AuthorityAct
 }
 
 /// The rules that match a matter, and the percentage edges a ratio sat exactly on with the side undecided.
-function candidateRules(matrix: Matrix, q: ResolveQuery): { rules: Rule[]; undecidedEdges: string[] } {
+function candidateRules(matrix: Matrix, q: ResolveQuery): { rules: Rule[]; undecidedEdges: string[]; typeSkipped: Rule[] } {
   const { policy, rules } = matrix;
   const method = q.method ?? null;
   const cond = q.cond ?? null;
   const undecidedEdges = new Set<string>();
+  /// BD-613-6 ruling: a row confined to a contract type that a caller asking without one would otherwise match.
+  const typeSkipped: Rule[] = [];
 
-  const matched = rules.filter((r) => {
+  const fits = (r: Rule, ignoreType: boolean): boolean => {
     if (r.domain !== q.domain) return false;
 
     // A row confined to a method applies only when that method is asked for; a row
@@ -275,7 +277,7 @@ function candidateRules(matrix: Matrix, q: ResolveQuery): { rules: Rule[]; undec
 
     // FR-APR-002: a row confined to a contract type applies only to that type; a row with
     // none applies whatever the type (and ranks below one that names it).
-    if (r.contractTypeCode != null && (q.contractTypeCode == null || r.contractTypeCode !== q.contractTypeCode)) return false;
+    if (!ignoreType && r.contractTypeCode != null && (q.contractTypeCode == null || r.contractTypeCode !== q.contractTypeCode)) return false;
 
     // A conditional row applies only to its condition. A general row is suppressed
     // when a conditional sibling exists for the condition actually asked about.
@@ -296,7 +298,7 @@ function candidateRules(matrix: Matrix, q: ResolveQuery): { rules: Rule[]; undec
     }
     const pct = pctBandMatch(q.pctRatio, r.pctMin, r.pctMax, policy.boundaryInclusive);
     if (pct === "EDGE_UNDECIDED") {
-      for (const e of [r.pctMin, r.pctMax]) if (e != null && q.pctRatio && comparePercent(q.pctRatio, e) === 0) undecidedEdges.add(e);
+      if (!ignoreType) for (const e of [r.pctMin, r.pctMax]) if (e != null && q.pctRatio && comparePercent(q.pctRatio, e) === 0) undecidedEdges.add(e);
       return false;
     }
     if (pct === "OUT") return false;
@@ -308,8 +310,10 @@ function candidateRules(matrix: Matrix, q: ResolveQuery): { rules: Rule[]; undec
     }
 
     return true;
-  });
-  return { rules: matched, undecidedEdges: [...undecidedEdges] };
+  };
+  const matched = rules.filter((r) => fits(r, false));
+  if (q.contractTypeCode == null) for (const r of rules) if (r.contractTypeCode != null && fits(r, true)) typeSkipped.push(r);
+  return { rules: matched, undecidedEdges: [...undecidedEdges], typeSkipped };
 }
 
 function roleName(matrix: Matrix, code: string): { en: string; ms: string } {
@@ -341,6 +345,17 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
       level: "err",
       messageEn: `The percentage is exactly ${shown}%, a band edge, and the approval matrix has not decided which side of an edge such a value falls. Decide it on the issue before relying on this route.`,
       messageMs: `Peratusan tepat ${shown}%, iaitu had jalur, dan matriks kelulusan belum menetapkan di sebelah mana nilai sedemikian jatuh. Tetapkannya pada keluaran sebelum bergantung pada laluan ini.`,
+    });
+  }
+
+  // BD-613-6 ruling: a type-confined row skipped because this caller passes no contract type is said, never quietly.
+  for (const r of candidates.typeSkipped) {
+    warnings.push({
+      code: "TYPE_ROW_SKIPPED",
+      level: "warn",
+      messageEn: `“${r.labelEn}” is confined to one contract type, and this matter was routed without its contract type, so the row was not considered.`,
+      messageMs: `“${r.labelMs || r.labelEn}” terhad kepada satu jenis kontrak, dan perkara ini dihalakan tanpa jenis kontraknya, jadi baris itu tidak dipertimbangkan.`,
+      clause: r.clause,
     });
   }
 
