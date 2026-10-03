@@ -354,6 +354,8 @@ export async function wipePayments(db: Db, contractIds: readonly string[]) {
   await db.valuationDeduction.deleteMany({ where: { valuation: byContract } });
   await db.pendingDeduction.updateMany({ where: { ...byContract, NOT: { valuationId: null } }, data: { valuationId: null } });
   await db.interimValuation.deleteMany({ where: byContract });
+  // A replacement points at the decision it replaced.
+  await db.nonCompletion.updateMany({ where: { ...byContract, NOT: { replacesId: null } }, data: { replacesId: null, replaceReason: "" } });
   await db.nonCompletion.deleteMany({ where: byContract });
   await db.ladWarning.deleteMany({ where: byContract });
   await db.paymentCalendar.deleteMany({ where: byContract });

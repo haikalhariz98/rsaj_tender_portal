@@ -9418,4 +9418,10 @@ model NonCompletion {
   personId           String
   person             Person               @relation("NonCompletionBy", fields: [personId], references: [id], onDelete: Restrict)
   recordedAt         DateTime
+  /// Code review run 2 item 6: one live decision a contract. A later decision replaces the live one explicitly, with
+  /// its reason (audited, linking the earlier); never while the earlier's Certificate of Non-Completion is open.
+  replacesId         String?              @unique
+  replaces           NonCompletion?       @relation("NonCompletionReplaces", fields: [replacesId], references: [id], onDelete: Restrict)
+  replacedBy         NonCompletion?       @relation("NonCompletionReplaces")
+  replaceReason      String               @default("")
 }

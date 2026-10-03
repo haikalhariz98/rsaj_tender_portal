@@ -134,3 +134,35 @@ export function decisionFaults(i: DecisionInput): Finding[] {
   if (!i.formSet) f("FORM_NOT_SET", { form: "nonCompletion" });
   return out;
 }
+
+// ------------------------------------------------------------------ one live decision (code review run 2, item 6)
+
+export interface DecisionRow {
+  id: string;
+  replacesId: string | null;
+  /// Its Certificate of Non-Completion's status, or null where the decision opened none (excusable or pending).
+  certificateStatus: string | null;
+}
+
+/// The decision in force: the latest one no later decision replaced, whose certificate (if it has one) is not void.
+/// Rows oldest first.
+export function liveDecision<T extends DecisionRow>(rows: readonly T[]): T | null {
+  const replaced = new Set(rows.map((r) => r.replacesId).filter((x): x is string => !!x));
+  return [...rows].reverse().find((r) => !replaced.has(r.id) && r.certificateStatus !== "VOID") ?? null;
+}
+
+/// A further decision: only as an explicit replacement of the live one, with its reason, and never while the live
+/// one's Certificate of Non-Completion is still open (not issued, not void).
+export function replacementFaults(i: { live: DecisionRow | null; replacesId: string | null; reason: string }): Finding[] {
+  const out: Finding[] = [];
+  const f = (code: string, data: Record<string, string | number | null> = {}) => out.push({ code, level: "block", data });
+  if (!i.live) {
+    if (i.replacesId) f("REPLACES_NOT_LIVE");
+    return out;
+  }
+  if (i.live.certificateStatus != null && i.live.certificateStatus !== "ISSUED" && i.live.certificateStatus !== "VOID") f("EARLIER_CNC_OPEN");
+  if (!i.replacesId) f("DECISION_ALREADY_LIVE");
+  else if (i.replacesId !== i.live.id) f("REPLACES_NOT_LIVE");
+  else if (!i.reason.trim()) f("REPLACE_REASON_REQUIRED");
+  return out;
+}

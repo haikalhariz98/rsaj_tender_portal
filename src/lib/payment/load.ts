@@ -13,6 +13,7 @@ import type { BaselineReason } from "@/lib/contract/types";
 import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import type { Decision } from "@/lib/lad/charge";
+import { liveDecision } from "@/lib/lad/non-completion";
 import { parseSen, senFromDecimal, type Sen } from "@/lib/money";
 import type { ContractPartyKind } from "@/lib/supervision/types";
 
@@ -106,8 +107,11 @@ export const inProgressSequenceOf = (p: PaymentRows): number | null => (inProgre
 
 /// The non-completion decision in force (the latest recorded), as the damages line reads it, the rate from the
 /// baseline the certificate pins (the whole works', or the section's).
+/// The non-completion decision in force (code review run 2 item 6: one live at a time; a replaced or void one is not).
+export const liveDecisionOf = (p: PaymentRows) => liveDecision(p.nonCompletions.map((d) => ({ ...d, certificateStatus: d.certificate?.status ?? null })));
+
 export function decisionOf(p: PaymentRows, baseline: ReturnType<typeof baselineOn>): (Decision & { id: string }) | null {
-  const d = p.nonCompletions.at(-1);
+  const d = liveDecisionOf(p);
   if (!d) return null;
   const rate = !baseline ? null : d.scope === "SECTION" ? (baseline.values.sections.find((x) => x.ref === d.sectionRef)?.ladDaily ?? null) : baseline.values.ladDaily;
   return { id: d.id, outcome: d.outcome, reason: d.reason, certificateIssued: d.certificate?.status === "ISSUED", from: day(d.windowFrom), until: day(d.windowUntil), rate };

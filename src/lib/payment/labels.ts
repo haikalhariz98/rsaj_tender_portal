@@ -330,6 +330,14 @@ export function paymentFaultWords(f: Finding): Words {
       return w("Damages apply, but the Certificate of Non-Completion is not issued yet: no damages line exists before it is, so the certificate waits for it.", "Ganti rugi dikenakan, tetapi Perakuan Kerja Tidak Siap belum dikeluarkan.");
     case "LAD_RATE_NOT_SET":
       return w("The baseline states no rate of damages for the works (or the section): the rate is the baseline's, never keyed. Correct it at baseline.", "Garis dasar tidak menyatakan kadar ganti rugi: kadarnya daripada garis dasar, tidak dimasukkan.");
+    case "DECISION_ALREADY_LIVE":
+      return w("A non-completion decision is already in force on this contract: one at a time. To change it, replace it, saying why (the earlier is kept and linked).", "Keputusan kerja tidak siap telah berkuat kuasa: gantikannya dengan sebab.");
+    case "REPLACES_NOT_LIVE":
+      return w("The decision named is not the one in force: only the decision in force is replaced.", "Keputusan yang dinamakan bukan yang berkuat kuasa.");
+    case "REPLACE_REASON_REQUIRED":
+      return w("Say why the decision in force is replaced.", "Nyatakan sebab keputusan itu diganti.");
+    case "EARLIER_CNC_OPEN":
+      return w("The decision in force has a Certificate of Non-Completion still open (not issued, not void): issue or void it before deciding again.", "Perakuan Kerja Tidak Siap bagi keputusan berkuat kuasa masih terbuka: keluarkan atau batalkannya dahulu.");
     case "NO_DATE_FOR_COMPLETION":
       return w("The baseline has no date for completion yet (it comes with possession of site).", "Garis dasar belum ada tarikh siap (datang dengan milik tapak).");
     case "NOT_PAST_COMPLETION":

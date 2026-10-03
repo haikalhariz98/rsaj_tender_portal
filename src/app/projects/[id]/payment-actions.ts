@@ -12,12 +12,12 @@ import type { ComputedSnapshot } from "@/lib/certificate/snapshot";
 import { CertificateRefusal, openCertificate } from "@/lib/certificate/write";
 import { contractLabel, withLockedContract, type LoadedContract } from "@/lib/contract/repo";
 import { dayOf, dayToDate, storedDay } from "@/lib/dates";
-import { decisionFaults, postFaults, warningFaults, type PackAnswer } from "@/lib/lad/non-completion";
+import { decisionFaults, postFaults, replacementFaults, warningFaults, type PackAnswer } from "@/lib/lad/non-completion";
 import { parseSen, senFromDecimal, senToDecimalString, type Sen } from "@/lib/money";
 import { applicationFaults } from "@/lib/payment/advance";
 import { assembleInterim, heldOnLatest } from "@/lib/payment/assemble";
 import { ANSWER_WORDS, DEDUCTION_WORDS, OUTCOME_WORDS, PACK_WORDS, paymentRefusal, RELEASE_WORDS, SCOPE_WORDS, TRIGGER_WORDS } from "@/lib/payment/labels";
-import { assembleInputOf, baselineOn, inProgress, inProgressSequenceOf, issuedInterims, kindSettingOf, loadPayment, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
+import { assembleInputOf, baselineOn, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, kindSettingOf, loadPayment, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
 import { afterCutOff } from "@/lib/payment/materials";
 import { firstReleaseShare, releaseOf } from "@/lib/payment/retention";
 import { ADVANCE_PARTIES, CONTRACTOR_ANSWERS, KEYED_DEDUCTION_KINDS, NON_COMPLETION_OUTCOMES, NON_COMPLETION_SCOPES, PACK_ITEMS, RETENTION_RELEASES, VALUATION_TRIGGERS, type Finding, type PackItem } from "@/lib/payment/types";
@@ -597,12 +597,19 @@ export async function recordNonCompletion(_prev: FormState, data: FormData): Pro
   const windowFrom = r.date("windowFrom", "Damages run from");
   const windowUntil = r.date("windowUntil", "Completed on");
   const personId = r.text("personId", "Decided by (the S.O.)", { required: true });
+  const replacesId = r.optionalText("replacesId");
+  const replaceReason = r.text("replaceReason", "Why the decision in force is replaced", { max: 2000 });
   const pack = readPack(data);
   if (r.failed || !outcome) return { ok: false, errors: r.errors };
   return inContract(idOf(data), now, async (c) => {
     const p = await paymentOf(c);
     const cfg = await configOf(c);
     const b = baselineOn(c.l, c.today);
+    // One live decision a contract: a further one replaces it explicitly, with its reason (code review run 2 item 6).
+    const live = liveDecisionOf(p);
+    const rf = replacementFaults({ live, replacesId, reason: replaceReason });
+    if (rf.length) refuse("Not recorded:", rf);
+    if (live) await c.tx.$queryRaw`SELECT id FROM "NonCompletion" WHERE id = ${live.id} FOR UPDATE`;
     const warning = [...p.ladWarnings].reverse().find((x) => x.certificate.status !== "VOID") ?? null;
     const section = scope === "SECTION" ? (b?.values.sections.find((x) => x.ref === sectionRef) ?? null) : null;
     const lad = outcome === "LAD_APPLIES";
@@ -650,7 +657,7 @@ export async function recordNonCompletion(_prev: FormState, data: FormData): Pro
       certId = await openCertificate(c.tx, c.l, { kind: "NON_COMPLETION", templateId: form.templateId, routingTypeId: form.routingTypeId, sectionId: null, computed }, c.now, c.today);
     }
     const row = await c.tx.nonCompletion.create({
-      data: { organisationId: c.l.org.id, contractId: c.l.contract.id, outcome, reason: reason.trim(), scope: lad ? scope : null, sectionRef: lad && scope === "SECTION" ? sectionRef : null, certificateId: certId, warningId: lad ? warning!.id : null, eotClause: eotClause.trim(), ladClause: ladClause.trim(), dateForCompletion: dayToDate(b!.values.dateForCompletion!), rate: rate == null ? null : money(rate), insuranceExpiry: lad ? insuranceExpiry : null, expectedCompletion: lad ? expectedCompletion : null, windowFrom: lad ? windowFrom : null, windowUntil: lad ? windowUntil : null, pack: (lad ? pack : []) as unknown as Prisma.InputJsonValue, decidedOn: dayToDate(c.today), personId: who.person.id, recordedAt: c.now },
+      data: { organisationId: c.l.org.id, contractId: c.l.contract.id, outcome, reason: reason.trim(), scope: lad ? scope : null, sectionRef: lad && scope === "SECTION" ? sectionRef : null, certificateId: certId, warningId: lad ? warning!.id : null, eotClause: eotClause.trim(), ladClause: ladClause.trim(), dateForCompletion: dayToDate(b!.values.dateForCompletion!), rate: rate == null ? null : money(rate), insuranceExpiry: lad ? insuranceExpiry : null, expectedCompletion: lad ? expectedCompletion : null, windowFrom: lad ? windowFrom : null, windowUntil: lad ? windowUntil : null, pack: (lad ? pack : []) as unknown as Prisma.InputJsonValue, decidedOn: dayToDate(c.today), personId: who.person.id, recordedAt: c.now, replacesId: live ? live.id : null, replaceReason: live ? replaceReason.trim() : "" },
     });
     await audit(c, "NonCompletion", row.id, "non-completion decision", "CREATE", diffFields(null, {
       nonCompletionDecision: OUTCOME_WORDS[outcome].en,
@@ -665,8 +672,10 @@ export async function recordNonCompletion(_prev: FormState, data: FormData): Pro
       accrualWindow: lad ? "entered with the decision (assumed reading: from the day after the date for completion to completion)" : null,
       submissionPack: lad ? pack.map((x) => `${PACK_WORDS[x.item].en}: ${x.notRequired ? `not required (${x.text})` : "written"}`).join("; ") : null,
       decidedBy: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`,
+      replacesTheDecisionOf: live ? `${storedDay(live.decidedOn)} (${OUTCOME_WORDS[live.outcome].en})` : null,
       recordedOnBehalf: ON_BEHALF,
-    }));
+    }), live ? replaceReason.trim() : "");
+    if (live) await audit(c, "NonCompletion", live.id, "non-completion decision", "UPDATE", diffFields({ inForce: "yes" }, { inForce: "no", replacedOn: c.today, replacedBy: OUTCOME_WORDS[outcome].en }), replaceReason.trim());
     return { ok: true };
   });
 }

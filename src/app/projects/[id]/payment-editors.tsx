@@ -312,7 +312,7 @@ export function PostDrawer({ id, warningId, today }: { id: string; warningId: st
   );
 }
 
-export function NonCompletionDrawer({ id, people, outcomes, scopes, sections, pack, blocker, windowFrom }: { id: string; people: Option[]; outcomes: Option[]; scopes: Option[]; sections: Option[]; pack: { item: string; label: string }[]; blocker: string | null; windowFrom: string | null }) {
+export function NonCompletionDrawer({ id, people, outcomes, scopes, sections, pack, blocker, windowFrom, replaces }: { id: string; people: Option[]; outcomes: Option[]; scopes: Option[]; sections: Option[]; pack: { item: string; label: string }[]; blocker: string | null; windowFrom: string | null; replaces: { id: string; text: string } | null }) {
   const lad = ["LAD_APPLIES"];
   const packFields: Field[] = pack.flatMap((p) => [{ kind: "textarea", name: `pack_${p.item}`, label: p.label, hint: "Write it; or mark it not required and say why here." } as Field, { kind: "switch", name: `pack_${p.item}_notRequired`, label: "Not required (the text above says why)" } as Field]);
   const show = Object.fromEntries(["scope", "sectionRef", "eotClause", "ladClause", "insuranceExpiry", "expectedCompletion", "windowFrom", "windowUntil", ...pack.flatMap((p) => [`pack_${p.item}`, `pack_${p.item}_notRequired`])].map((n) => [n, { name: "decisionOutcome", in: lad }]));
@@ -324,6 +324,7 @@ export function NonCompletionDrawer({ id, people, outcomes, scopes, sections, pa
       columns={2}
       fields={[
         hidden("id"),
+        ...(replaces ? ([hidden("replacesId"), { kind: "readonly", name: "replacing", label: "Replaces the decision in force", text: replaces.text }, { kind: "textarea", name: "replaceReason", label: "Why it is replaced", required: true, hint: "Kept with both decisions; the earlier is kept and linked." }] as Field[]) : []),
         choose("decisionOutcome", "Decision", outcomes),
         person("personId", "Decided by (the S.O.)", people),
         { kind: "textarea", name: "decisionReason", label: "Reasons", required: true, hint: "Shown on the certificates it governs." },
@@ -337,12 +338,12 @@ export function NonCompletionDrawer({ id, people, outcomes, scopes, sections, pa
         { kind: "date", name: "windowUntil", label: "Completed on", hint: "Leave empty while the works are not complete." },
         ...packFields,
       ]}
-      values={{ id, windowFrom }}
+      values={{ id, windowFrom, replacesId: replaces?.id ?? null }}
       showWhen={show}
       action={recordNonCompletion}
-      submitLabel="Record the decision"
+      submitLabel={replaces ? "Replace the decision" : "Record the decision"}
       submitBlock={blocker}
-      trigger={{ label: "Record the non-completion decision", className: primary }}
+      trigger={{ label: replaces ? "Replace the non-completion decision" : "Record the non-completion decision", className: replaces ? secondary : primary }}
     />
   );
 }
