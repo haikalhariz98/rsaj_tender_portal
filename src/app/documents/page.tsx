@@ -215,7 +215,7 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
       {judged && judged.counts.overTarget > 0 && (
         <div className="mb-6">
           <Callout tone="warn" title={plural(judged.counts.overTarget, "routing sheet is past its target", "routing sheets are past their target")}>
-            Received and not yet approved, they have run longer than the target their type sets. They are listed first on Routing sheets.
+            Received and not yet approved, they have run longer than the target their type sets. They are on Routing sheets, longest open first.
           </Callout>
         </div>
       )}
