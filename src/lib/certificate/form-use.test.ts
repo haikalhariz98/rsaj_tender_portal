@@ -30,7 +30,9 @@ describe("(a) only a certificate form takes blocks and recipients", () => {
     const relations = [...model.matchAll(/^\s+(\w+)\s+([A-Z]\w+)\[\]/gm)].map((m) => m[1]);
     // 6.13 Part A step 2 (faithful): the post-award policy's delegation letter forms are certificate forms (the
     // DELEGATION_LETTER and DELEGATION_NOTICE kinds), so they are a certificate form's own use, not another module's.
-    const certificateOwn = ["signatureBlocks", "distributionRows", "certificates", "certificateDocuments", "routingSheetTypes", "policiesDelegationLetterConventional", "policiesDelegationNoticeConventional", "policiesDelegationLetterDesignBuild", "policiesDelegationNoticeDesignBuild"];
+    // 6.13 Part A step 3 (faithful, the same reading): the form each certificate kind prints on (CertificateKindSetting)
+    // is a certificate form's own use too.
+    const certificateOwn = ["signatureBlocks", "distributionRows", "certificates", "certificateDocuments", "routingSheetTypes", "policiesDelegationLetterConventional", "policiesDelegationNoticeConventional", "policiesDelegationLetterDesignBuild", "policiesDelegationNoticeDesignBuild", "kindSettings"];
     expect(relations.filter((r) => !certificateOwn.includes(r)).sort()).toEqual(Object.keys(TEMPLATE_OTHER_USES).sort());
   });
   it("the acts refuse a block or a recipient on such a template, and never move its version", () => {

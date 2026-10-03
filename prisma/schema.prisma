@@ -390,6 +390,20 @@ model Organisation {
   earlyActionDecisions     EarlyActionDecision[]
   contractParties          ContractParty[]
   siteRecordsHandovers     SiteRecordsHandover[]
+  // 6.13 Part A step 3 (4c): interim payment and the damages chain.
+  certificateKindSettings  CertificateKindSetting[]
+  contractClockRules       ContractClockRule[]
+  paymentCalendars         PaymentCalendar[]
+  interimValuations        InterimValuation[]
+  materialLines            MaterialLine[]
+  partyLines               PartyLine[]
+  valuationDeductions      ValuationDeduction[]
+  retentionReleases        RetentionRelease[]
+  advancePayments          AdvancePayment[]
+  advanceRecoupmentRows    AdvanceRecoupmentRow[]
+  financePayments          FinancePayment[]
+  ladWarnings              LadWarning[]
+  nonCompletions           NonCompletion[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -548,6 +562,15 @@ model Person {
   deductionsRecorded     PendingDeduction[]        @relation("PendingDeductionBy")
   earlyActionsDecided    EarlyActionDecision[]     @relation("EarlyActionBy")
   recordsHandedOver      SiteRecordsHandover[]     @relation("RecordsHandedOverBy")
+  // 6.13 Part A step 3 (4c): payment and the damages chain, recorded on their behalf.
+  calendarsAgreed        PaymentCalendar[]         @relation("CalendarRecordedBy")
+  valuationsRecorded     InterimValuation[]        @relation("ValuationRecordedFor")
+  retentionReleased      RetentionRelease[]        @relation("RetentionReleasedBy")
+  advancesApplied        AdvancePayment[]          @relation("AdvanceAppliedBy")
+  financePaymentsRecorded FinancePayment[]         @relation("FinancePaymentBy")
+  ladWarningsRecorded    LadWarning[]              @relation("LadWarningBy")
+  nonCompletionsDecided  NonCompletion[]           @relation("NonCompletionBy")
+  routesSubmitted        ApprovalInstance[]        @relation("RouteSubmittedBy")
 }
 
 /// Who holds an authority office, and when.
@@ -1315,6 +1338,8 @@ model DocumentTemplate {
   policiesDelegationNoticeConventional PostAwardPolicy[] @relation("PolicyDelegationNoticeConventional")
   policiesDelegationLetterDesignBuild  PostAwardPolicy[] @relation("PolicyDelegationLetterDesignBuild")
   policiesDelegationNoticeDesignBuild  PostAwardPolicy[] @relation("PolicyDelegationNoticeDesignBuild")
+  /// 6.13 Part A step 3: the form each certificate kind prints on (certificate forms).
+  kindSettings                         CertificateKindSetting[]
 
   @@unique([organisationId, code])
 }
@@ -2509,6 +2534,10 @@ model ApprovalInstance {
   /// followed by a successor (ADR 0009), so a certificate may carry several.
   certificateId         String?
   certificate           Certificate?      @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+  /// 6.13 Part A step 3: who sent a certificate's route (recorded on their behalf, not signed); the self-approval
+  /// check bars them from deciding it. Null on every other route.
+  submittedByPersonId   String?
+  submittedBy           Person?           @relation("RouteSubmittedBy", fields: [submittedByPersonId], references: [id], onDelete: Restrict)
 
   domain String
   cond   String?
@@ -3674,6 +3703,13 @@ model Contract {
   earlyActionDecisions   EarlyActionDecision[]
   contractParties        ContractParty[]
   siteRecordsHandovers   SiteRecordsHandover[]
+  /// 6.13 Part A step 3 (4c): interim payment and the damages chain.
+  paymentCalendar        PaymentCalendar?
+  interimValuations      InterimValuation[]
+  retentionReleases      RetentionRelease[]
+  advancePayments        AdvancePayment[]
+  ladWarnings            LadWarning[]
+  nonCompletions         NonCompletion[]
 
   @@unique([organisationId, number])
 }
@@ -3746,6 +3782,8 @@ model SecurityInstrument {
   createdAt DateTime @default(now())
 
   custodyItem CustodyItem?
+  /// 6.13 Part A step 3 (B2): the advance payments this guarantee is lodged for.
+  advancePayments AdvancePayment[]
 }
 
 /// Which policies a contract must carry (FR-AWD-013). The customer's list; ships empty.
@@ -8256,6 +8294,13 @@ model Certificate {
   /// 6.13 (FR-SUP-003): the delegation this certificate is the letter, or the notification, of.
   delegationAsLetter SoDelegation? @relation("DelegationLetter")
   delegationAsNotice SoDelegation? @relation("DelegationNotice")
+  /// 6.13 Part A step 3 (4c): the record this certificate is the certificate of.
+  interimValuation   InterimValuation?
+  advancePayment     AdvancePayment?
+  ladWarning         LadWarning?
+  nonCompletion      NonCompletion?
+  financePayment     FinancePayment?
+  retentionReleasesRead RetentionRelease[]
 
   @@unique([organisationId, number])
   @@unique([contractId, kind, sequence])
@@ -8423,6 +8468,8 @@ model RoutingSheetType {
   targets      RoutingTarget[]
   certificates Certificate[]
   awardSheets  AwardRoutingSheet[]
+  /// 6.13 Part A step 3: the certificate kinds sent on it.
+  kindSettings CertificateKindSetting[]
 
   @@unique([organisationId, code])
 }
@@ -8628,6 +8675,25 @@ model PostAwardPolicy {
   delegationNoticeDesignBuildId  String?
   delegationNoticeDesignBuild    DocumentTemplate? @relation("PolicyDelegationNoticeDesignBuild", fields: [delegationNoticeDesignBuildId], references: [id], onDelete: SetNull)
   delegationFormsProvenance      Provenance?
+
+  /// 6.13 Part A step 3 (4c). FR-PAY-007 and the 75% ruling: the organisation's default allowance on unfixed
+  /// materials, where a contract's baseline states none. The product ships none (the spec's 75% is a customer seed);
+  /// unset refuses a materials line, never 0%.
+  unfixedMaterialsDefaultPct  Decimal?            @db.Decimal(9, 4)
+  unfixedMaterialsProvenance  Provenance?
+  /// FR-PAY-021: the share of the retention released on as-built drawings. Unset refuses the first release.
+  firstReleasePct             Decimal?            @db.Decimal(9, 4)
+  firstReleaseProvenance      Provenance?
+  /// OD-A6: the figure an interim certificate is routed on. Unset refuses its submission.
+  paymentRouteFigure          PaymentRouteFigure?
+  paymentRouteProvenance      Provenance?
+  /// OD-A4: where the sen a pro-rata split leaves over go. Unset refuses a split that leaves any.
+  waterfallRemainder          WaterfallRemainder?
+  waterfallProvenance         Provenance?
+  /// FR-PAY-014: how many interim certificates may issue before the contract is signed (the spec's "1 to 3").
+  /// Unset refuses every certificate before execution.
+  preExecutionInterimLimit    Int?
+  preExecutionProvenance      Provenance?
 
   notes String @default("")
 }
@@ -8915,6 +8981,10 @@ model PendingDeduction {
   person         Person               @relation("PendingDeductionBy", fields: [personId], references: [id], onDelete: Restrict)
   note           String
   recordedAt     DateTime
+  /// 6.13 Part A step 3: the valuation whose certificate deducts it (null: still waiting). A valuation whose
+  /// certificate is void gives it back to the next.
+  valuationId    String?
+  valuation      InterimValuation? @relation(fields: [valuationId], references: [id], onDelete: Restrict)
 }
 
 /// The S.O.'s early-action decision (FR-SUP-015): one or more branches, each opening its module.
@@ -8951,6 +9021,10 @@ model ContractParty {
   recordedAt     DateTime
   retiredOn      DateTime?
   retireReason   String            @default("")
+
+  /// 6.13 Part A step 3: its lines on valuations, and the advances paid to it.
+  partyLines      PartyLine[]
+  advancePayments AdvancePayment[]
 }
 
 /// A controlled set of site records handed to the Implementing Department (FR-SUP-009), the versions pinned.
@@ -8970,4 +9044,378 @@ model SiteRecordsHandover {
   pinnedVersions Json
   note           String         @default("")
   recordedAt     DateTime
+
+  /// 6.13 Part A step 3: a retention release that rests on this handover of the as-built drawings.
+  retentionReleases RetentionRelease[]
+}
+
+// ------------------------------------------------------------------ 6.13 Part A step 3 (4c): interim payment and the damages chain
+
+/// FR-PAY-004: what started a valuation cycle.
+enum ValuationTrigger {
+  VALUATION_DATE
+  CLAIM
+}
+
+/// FR-PAY-006: the contractor's answer to the joint valuation.
+enum ContractorAnswer {
+  AGREED
+  DISSENT
+}
+
+/// Where a valuation stands. HELD: below the minimum, held to the next cycle (FR-PAY-013).
+enum ValuationStatus {
+  OPEN
+  RAISED
+  HELD
+  WITHDRAWN
+}
+
+/// FR-PAY-011: the deductions an officer keys (the rest are computed).
+enum KeyedDeductionKind {
+  PREMIUMS_PERKESO
+  WAGES
+  NON_COMPLIANCE
+  OTHER
+  LAD_ROUNDING
+}
+
+/// FR-PAY-021: a release of retention money.
+enum RetentionReleaseKind {
+  RELEASED_FIRST
+  RELEASED_BALANCE
+}
+
+/// FR-PAY-002: whose advance.
+enum AdvanceParty {
+  MAIN
+  NSC
+}
+
+/// OD-A6: the figure an interim certificate is routed on.
+enum PaymentRouteFigure {
+  RECOMMENDED
+  GROSS_THIS_PERIOD
+}
+
+/// OD-A4: the remainder rule of a pro-rata split.
+enum WaterfallRemainder {
+  LARGEST_REMAINDER
+  FIRST_PARTY
+}
+
+/// FR-LAD-001, OD-A1 A: the non-completion decision.
+enum NonCompletionOutcome {
+  LAD_APPLIES
+  EXCUSED_OR_PENDING
+}
+
+/// FR-LAD-004: whole works or a section.
+enum NonCompletionScope {
+  WHOLE
+  SECTION
+}
+
+/// The contract clocks Part A reads (plan A2). Part B adds its own, each in its own migration.
+enum ContractClock {
+  ORAL_CONFIRM
+  ORAL_OBJECTION
+  DAYWORK_SUBSTANTIATION
+  LAD_WARNING_RESPONSE
+  CERT_ISSUE
+}
+
+/// The form a certificate kind prints on, and the routing sheet it is sent on (6.13 Part A step 3). One per kind
+/// per organisation; the product ships none. No form: the kind's certificate is not raised, naming this setting.
+/// No routing sheet: it goes without one (its approval route, where its kind has one, is still required).
+model CertificateKindSetting {
+  id             String            @id @default(cuid())
+  organisationId String
+  organisation   Organisation      @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  kind           CertificateKind
+  templateId     String?
+  template       DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  routingTypeId  String?
+  routingType    RoutingSheetType? @relation(fields: [routingTypeId], references: [id], onDelete: Restrict)
+  provenance     Provenance
+  notes          String            @default("")
+
+  @@unique([organisationId, kind])
+}
+
+/// A contract clock (plan A2): its length and unit, with where the figure came from. Unset reads "Not set"; the act
+/// it governs refuses unless the clock is advisory.
+model ContractClockRule {
+  id             String        @id @default(cuid())
+  organisationId String
+  organisation   Organisation  @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  clock          ContractClock
+  length         Int
+  unit           PeriodUnit
+  provenance     Provenance
+  notes          String        @default("")
+
+  @@unique([organisationId, clock])
+}
+
+/// FR-PAY-003: the day of the month agreed with the contractor as the site valuation day.
+model PaymentCalendar {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String       @unique
+  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  dayOfMonth     Int
+  agreedOn       DateTime
+  agreedWith     String
+  personId       String
+  person         Person       @relation("CalendarRecordedBy", fields: [personId], references: [id], onDelete: Restrict)
+  note           String       @default("")
+  recordedAt     DateTime
+}
+
+/// One interim valuation (FR-PAY-004–013): its trigger, the joint valuation, the work valued and its lines, until its
+/// certificate is raised (then frozen) or it is held to the next cycle. What the certificate was judged under is
+/// frozen in `judgedUnder` when it is raised, and never read live again.
+model InterimValuation {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract         @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  trigger        ValuationTrigger
+  /// The claim's day (CLAIM); the issue period runs from it. Null for a calendar valuation.
+  triggerDate    DateTime?
+  valuationDate  DateTime
+  status         ValuationStatus  @default(OPEN)
+  /// The main contractor's work executed, to date. Null: not yet valued.
+  mainWorks      Decimal?         @db.Decimal(18, 2)
+  mainWorksNote  String           @default("")
+  /// FR-PAY-006: the joint valuation.
+  jointOn          DateTime?
+  participants     String[]
+  method           String           @default("")
+  contractorAnswer ContractorAnswer?
+  dissent          String           @default("")
+  /// Who it is recorded for (the S.O., or a representative whose delegation covers valuation).
+  personId       String
+  person         Person           @relation("ValuationRecordedFor", fields: [personId], references: [id], onDelete: Restrict)
+  certificateId  String?          @unique
+  certificate    Certificate?     @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+  judgedUnder    Json?
+  closeReason    String           @default("")
+  closedAt       DateTime?
+  recordedAt     DateTime
+  recordedOn     DateTime
+
+  materialLines      MaterialLine[]
+  partyLines         PartyLine[]
+  deductions         ValuationDeduction[]
+  pendingDeductions  PendingDeduction[]
+
+  @@index([contractId])
+}
+
+/// FR-PAY-005, 007: a line of the contractor's materials-on-site list, with the three answers.
+model MaterialLine {
+  id               String           @id @default(cuid())
+  organisationId   String
+  organisation     Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  valuationId      String
+  valuation        InterimValuation @relation(fields: [valuationId], references: [id], onDelete: Restrict)
+  description      String
+  quantity         String
+  location         String
+  value            Decimal          @db.Decimal(18, 2)
+  protectedOnSite  Boolean?
+  notTooEarly      Boolean?
+  formsPartOfWorks Boolean?
+  temporary        Boolean
+  submittedOn      DateTime
+  recordedAt       DateTime
+}
+
+/// FR-PAY-010 (B1, ADR 0025): a nominated party's or an assignee's totals on a valuation: its value to date (the
+/// nominated tiers' gross) and what is due to it on this certificate (the waterfall's). Totals only.
+model PartyLine {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  valuationId    String
+  valuation      InterimValuation @relation(fields: [valuationId], references: [id], onDelete: Restrict)
+  partyId        String
+  party          ContractParty    @relation(fields: [partyId], references: [id], onDelete: Restrict)
+  /// The party's work or supply valued to date (nominated parties). Null for an assignee.
+  value          Decimal?         @db.Decimal(18, 2)
+  due            Decimal          @db.Decimal(18, 2)
+  submittedOn    DateTime
+  note           String           @default("")
+  recordedAt     DateTime
+
+  @@unique([valuationId, partyId])
+}
+
+/// FR-PAY-011: a deduction an officer keys on a valuation (premiums and social security, wages, non-compliance,
+/// up to three others, the damages line's signed rounding).
+model ValuationDeduction {
+  id             String             @id @default(cuid())
+  organisationId String
+  organisation   Organisation       @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  valuationId    String
+  valuation      InterimValuation   @relation(fields: [valuationId], references: [id], onDelete: Restrict)
+  kind           KeyedDeductionKind
+  label          String             @default("")
+  amount         Decimal            @db.Decimal(18, 2)
+  note           String             @default("")
+  recordedAt     DateTime
+}
+
+/// FR-PAY-021: a release of retention, per tier, read from what the latest issued interim certificate held. Paid
+/// through the next interim certificate (it comes off the retention held). Once each.
+model RetentionRelease {
+  id                 String               @id @default(cuid())
+  organisationId     String
+  organisation       Organisation         @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId         String
+  contract           Contract             @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  kind               RetentionReleaseKind
+  main               Decimal              @db.Decimal(18, 2)
+  nsc                Decimal              @db.Decimal(18, 2)
+  ns                 Decimal              @db.Decimal(18, 2)
+  /// What was held, as read from that certificate, and the percentage applied (frozen).
+  heldMain           Decimal              @db.Decimal(18, 2)
+  heldNsc            Decimal              @db.Decimal(18, 2)
+  heldNs             Decimal              @db.Decimal(18, 2)
+  pct                Decimal?             @db.Decimal(9, 4)
+  pctProvenance      Provenance?
+  basisCertificateId String
+  basisCertificate   Certificate          @relation(fields: [basisCertificateId], references: [id], onDelete: Restrict)
+  handoverId         String?
+  handover           SiteRecordsHandover? @relation(fields: [handoverId], references: [id], onDelete: Restrict)
+  releasedOn         DateTime
+  personId           String
+  person             Person               @relation("RetentionReleasedBy", fields: [personId], references: [id], onDelete: Restrict)
+  note               String               @default("")
+  recordedAt         DateTime
+
+  @@unique([contractId, kind])
+}
+
+/// FR-PAY-001 (B2, OD-A9 A): an advance payment, a mechanism only: its amount, the guarantee it rests on, and the
+/// recoupment schedule entered for the contract. The advance payment certificate is its certificate.
+model AdvancePayment {
+  id             String             @id @default(cuid())
+  organisationId String
+  organisation   Organisation       @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract           @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  party          AdvanceParty
+  partyId        String?
+  contractParty  ContractParty?     @relation(fields: [partyId], references: [id], onDelete: Restrict)
+  amount         Decimal            @db.Decimal(18, 2)
+  securityId     String
+  security       SecurityInstrument @relation(fields: [securityId], references: [id], onDelete: Restrict)
+  certificateId  String             @unique
+  certificate    Certificate        @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+  appliedOn      DateTime
+  personId       String
+  person         Person             @relation("AdvanceAppliedBy", fields: [personId], references: [id], onDelete: Restrict)
+  note           String             @default("")
+  judgedUnder    Json
+  recordedAt     DateTime
+
+  schedule AdvanceRecoupmentRow[]
+}
+
+/// FR-PAY-002: on interim certificate `sequence`, recoup this much of the advance.
+model AdvanceRecoupmentRow {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  advanceId      String
+  advance        AdvancePayment @relation(fields: [advanceId], references: [id], onDelete: Restrict)
+  sequence       Int
+  amount         Decimal        @db.Decimal(18, 2)
+
+  @@unique([advanceId, sequence])
+}
+
+/// FR-PAY-019 (INT-07, manual adapter): Finance's payment of an issued payment certificate.
+model FinancePayment {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  certificateId  String       @unique
+  certificate    Certificate  @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+  batchNo        String
+  paidOn         DateTime
+  amount         Decimal      @db.Decimal(18, 2)
+  personId       String
+  person         Person       @relation("FinancePaymentBy", fields: [personId], references: [id], onDelete: Restrict)
+  note           String       @default("")
+  recordedAt     DateTime
+}
+
+/// FR-LAD-003: the warning letter of intention to impose damages (its certificate), with the registered post.
+model LadWarning {
+  id                 String       @id @default(cuid())
+  organisationId     String
+  organisation       Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId         String
+  contract           Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  certificateId      String       @unique
+  certificate        Certificate  @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+  eotClause          String
+  ladClause          String
+  extendedCompletion DateTime
+  /// The rate a day as read from the pinned baseline (never keyed).
+  rate               Decimal      @db.Decimal(18, 2)
+  /// The response clock as it stood (null: not set; advisory).
+  responseClock      Json?
+  consignmentRef     String       @default("")
+  postedOn           DateTime?
+  postedAt           DateTime?
+  personId           String
+  person             Person       @relation("LadWarningBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt         DateTime
+  recordedOn         DateTime
+
+  nonCompletions NonCompletion[]
+}
+
+/// FR-LAD-001, 004, 005, 008 (OD-A1 A): the non-completion decision. LAD_APPLIES raises the Certificate of
+/// Non-Completion (its certificate) and carries the accrual window (ASSUMED reading, shown); EXCUSED_OR_PENDING
+/// lets interim certificates proceed without a damages line, its reasons shown on them. The latest decision governs;
+/// Part B's extension-of-time record replaces it, never rewriting an issued certificate.
+model NonCompletion {
+  id                 String               @id @default(cuid())
+  organisationId     String
+  organisation       Organisation         @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId         String
+  contract           Contract             @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  outcome            NonCompletionOutcome
+  reason             String
+  scope              NonCompletionScope?
+  /// A section of the pinned baseline (its reference), for SECTION.
+  sectionRef         String?
+  certificateId      String?              @unique
+  certificate        Certificate?         @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+  warningId          String?
+  warning            LadWarning?          @relation(fields: [warningId], references: [id], onDelete: Restrict)
+  eotClause          String               @default("")
+  ladClause          String               @default("")
+  /// The date for completion as read (the pinned baseline's), and the rate a day it charges at (never keyed).
+  dateForCompletion  DateTime
+  rate               Decimal?             @db.Decimal(18, 2)
+  insuranceExpiry    DateTime?
+  expectedCompletion DateTime?
+  windowFrom         DateTime?
+  windowUntil        DateTime?
+  windowClosedAt     DateTime?
+  /// FR-LAD-005: the four pack items, each answered or not required with its reason.
+  pack               Json
+  decidedOn          DateTime
+  personId           String
+  person             Person               @relation("NonCompletionBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt         DateTime
 }
