@@ -14,6 +14,7 @@ import { recordOf } from "@/lib/requisition/repo";
 import type { RouteFact, VariationFacts } from "./application";
 import type { ConsentState } from "./instruction";
 import { VARIATION_DOMAINS } from "./domains";
+import type { MatterFact } from "./tabling";
 import type { SoDecision, VariationEvent, VariationExemption, VariationStatus } from "./types";
 
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
@@ -153,3 +154,7 @@ export const ordersAdjusted = (rows: readonly AdjustmentRow[]): string[] => rows
 export async function issuedAdjustmentNets(contractId: string, client: Tx = db): Promise<{ id: string; net: Sen }[]> {
   return issuedAdjustments(await loadAdjustments(contractId, client)).map((a) => ({ id: a.id, net: a.net }));
 }
+
+/// The matters tabled from a variation, as the tabling rule reads them (tabling.ts).
+export const matterFactsOf = (v: Pick<VariationRow, "matters">): MatterFact[] =>
+  v.matters.map((m) => ({ withdrawn: !!m.withdrawnAt, domain: m.domain, committeeCode: m.meeting.committee.code, outcome: m.outcome as MatterFact["outcome"] }));

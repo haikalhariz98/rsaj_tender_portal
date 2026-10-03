@@ -355,7 +355,11 @@ export function variationFaultWords(f: Finding): Words {
     case "SITTING_FROZEN":
       return w("That sitting no longer takes matters (it is minuted or cancelled).", "Persidangan itu tidak lagi menerima perkara.");
     case "ALREADY_TABLED":
-      return w("This step's matter is tabled already and not decided against: cite its decision once it is decided.", "Perkara langkah ini telah dibentangkan.");
+      return w("This step's matter is tabled already and waits for the committee: cite its decision once it is decided.", "Perkara langkah ini telah dibentangkan dan menunggu jawatankuasa.");
+    case "NOT_TABLED_YET":
+      return w("Nothing is tabled from this variation for this step's committee yet: table it first.", "Belum ada perkara dibentangkan bagi langkah ini.");
+    case "NOT_DECIDED_YET":
+      return w("The committee has not decided the matter tabled for this step yet: cite it once it is decided.", "Jawatankuasa belum memutuskan perkara ini.");
     default:
       return w("It cannot be done as things stand.", "Ia tidak boleh dilakukan.");
   }

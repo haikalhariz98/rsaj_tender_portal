@@ -23,7 +23,7 @@ import { readComputedSnapshot } from "@/lib/certificate/snapshot";
 import type { CertificateStatus } from "@/lib/certificate/types";
 import { secretariatHoldersOn } from "@/lib/committee/tabling";
 import { historyFieldLabel, historyValue } from "@/lib/contract/history-words";
-import { loadContract, type LoadedContract } from "@/lib/contract/repo";
+import { contractLabel, loadContract, type LoadedContract } from "@/lib/contract/repo";
 import { dayOf, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
@@ -37,7 +37,8 @@ import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervisio
 import { approvedValue, awaitingChoice, closeFaults, commenceFaults, commencedPending, cumulativeApproved, newSumOf, pendingRoute, pendingValueRoutes, priorValueOf, routeValue, scheduleFormOf, sendFaults, soDecisionFaults, stageOf, submitFaults, type VariationFacts } from "@/lib/variation/application";
 import { clockReading, instructionFaults } from "@/lib/variation/instruction";
 import { BASE_WORDS, BASIS_WORDS, CONSENT_WORDS, DIRECTION_WORDS, EVENT_WORDS, EXEMPTION_WORDS, ORIGIN_WORDS, RATE_SOURCE_WORDS, SCHEDULE_FORM_WORDS, SO_DECISION_WORDS, STAGE_TONE, STAGE_WORDS, variationFaultText } from "@/lib/variation/labels";
-import { adjustmentInProgress, consentOf, disputeOf, factsOf, liveInstructionRow, liveOrderRow, matterRecordOf, orderNetOf, standingMeasurements, type VariationRow } from "@/lib/variation/load";
+import { adjustmentInProgress, consentOf, disputeOf, factsOf, liveInstructionRow, liveOrderRow, matterFactsOf, matterRecordOf, orderNetOf, standingMeasurements, type VariationRow } from "@/lib/variation/load";
+import { citeStepFaults, tableStepFaults } from "@/lib/variation/tabling";
 import { dayworkFlags, measurementFaults } from "@/lib/variation/measure";
 import { orderApprovalFaults, orderFaults } from "@/lib/variation/order";
 import { percentLabel, percentLabelText, ratioOf, variationReading, type Reading } from "@/lib/variation/percent";
@@ -126,10 +127,13 @@ export default async function VariationPage(props: PageProps<"/projects/[id]/var
   const editValues = { variationId: v.id, origin: v.origin, originatorPersonId: v.originatorPersonId, description: v.description, reason: v.reason, estimate: v.estimate.toString(), exemption: v.exemption, periodImplication: v.periodImplication == null ? null : v.periodImplication ? "yes" : "no", agreedRateExists: v.agreedRateExists == null ? null : v.agreedRateExists ? "yes" : "no", funderConsentRequired: v.funderConsentRequired == null ? null : v.funderConsentRequired ? "yes" : "no", reviewedByPersonId: v.reviewedByPersonId, reviewedOn: day(v.reviewedOn), reviewNote: v.reviewNote, allocationConfirmed: v.allocationConfirmed == null ? null : v.allocationConfirmed ? "yes" : "no", allocationNote: v.allocationNote, principalPersonId: v.principalPersonId, principalOn: day(v.principalOn) };
 
   // History: the variation's own rows and everything under it.
-  const ids = [v.id, ...v.approvals.flatMap((a) => [a.approvalInstance.id, ...a.approvalInstance.steps.map((x) => x.id)]), ...v.matters.map((m) => m.id), ...v.instructions.map((x) => x.id), ...v.measurements.map((x) => x.id), ...v.dayworkRecords.map((x) => x.id), ...v.orders.map((x) => x.id)];
+  const ids = [v.id, ...v.approvals.flatMap((a) => [a.approvalInstance.id, ...a.approvalInstance.steps.map((x) => x.id)]), ...v.instructions.map((x) => x.id), ...v.measurements.map((x) => x.id), ...v.dayworkRecords.map((x) => x.id), ...v.orders.map((x) => x.id)];
+  // A matter tabled from it: its tabling, as the variation's act wrote it (under the contract's label). What the sitting
+  // then did with it (votes, outcome) is the committee's History, read on the sitting's own page.
+  const historyWhere = { organisationId: l.org.id, OR: [{ entityId: { in: ids } }, { entityId: { in: v.matters.map((m) => m.id) }, entityLabel: { startsWith: `${contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } })} ·` } }] };
   const [history, historyTotal] = await Promise.all([
-    db.auditEntry.findMany({ where: { organisationId: l.org.id, entityId: { in: ids } }, orderBy: { at: "desc" }, take: HISTORY_PAGE }),
-    db.auditEntry.count({ where: { organisationId: l.org.id, entityId: { in: ids } } }),
+    db.auditEntry.findMany({ where: historyWhere, orderBy: { at: "desc" }, take: HISTORY_PAGE }),
+    db.auditEntry.count({ where: historyWhere }),
   ]);
 
   const tabs = [
@@ -319,8 +323,8 @@ async function ApprovalPanel({ l, v, f, vv, people, today, blockedBy }: PanelPro
           const ms = matters(st.committeeCode);
           return (
             <span className="flex flex-wrap items-center gap-2">
-              {t && <TableVariationDrawer id={l.contract.id} variationId={v.id} purpose="STEP" sittings={t.sittings} tablers={t.tablers} label="Table it" blocker={t.sittings.length ? null : "No sitting of the committee takes matters now: schedule one under Committees."} />}
-              {ms.length ? <CiteCommitteeDrawer id={l.contract.id} variationId={v.id} stepId={st.id} committee={st.actingRoleLabel ?? st.roleLabel} matters={ms} /> : <Blocked label="Cite the decision" reason="Nothing is tabled from this variation for this committee yet: table it first." />}
+              {t && <TableVariationDrawer id={l.contract.id} variationId={v.id} purpose="STEP" sittings={t.sittings} tablers={t.tablers} label="Table it" blocker={say(tableStepFaults(matterFactsOf(v), inst.domain, st.committeeCode)) ?? (t.sittings.length ? null : "No sitting of the committee takes matters now: schedule one under Committees.")} />}
+              {citeStepFaults(matterFactsOf(v), inst.domain, st.committeeCode).length ? <Blocked label="Cite the decision" reason={say(citeStepFaults(matterFactsOf(v), inst.domain, st.committeeCode))!} /> : <CiteCommitteeDrawer id={l.contract.id} variationId={v.id} stepId={st.id} committee={st.actingRoleLabel ?? st.roleLabel} matters={ms} />}
             </span>
           );
         }
