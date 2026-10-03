@@ -56,3 +56,48 @@ describe("breadcrumbs of the certificate core's pages (S-1)", () => {
     expect(hasPage("/projects/demo_con3/certificates")).toBe(false);
   });
 });
+
+/// Every page under src/app, as its path segments (route groups and private folders left out).
+function pages(dir: string = APP, rel: string[] = []): string[][] {
+  const out: string[][] = [];
+  if (existsSync(path.join(dir, "page.tsx"))) out.push(rel);
+  for (const d of readdirSync(dir, { withFileTypes: true })) if (d.isDirectory() && !d.name.startsWith("(") && !d.name.startsWith("_") && d.name !== "api") out.push(...pages(path.join(dir, d.name), [...rel, d.name]));
+  return out;
+}
+
+describe("breadcrumbs on every page (6.14 residual)", () => {
+  const all = pages().map((p) => p.map((s) => (s.startsWith("[") ? `x_${s.slice(1, -1)}` : s)));
+  it("the walk finds the app's pages", () => {
+    expect(all.length).toBeGreaterThan(60);
+  });
+  it.each(all.map((p) => [`/${p.join("/")}`, p] as const))("%s: every crumb links to a page, and none reads Details, named or not", (_route, segs) => {
+    for (const [name, parent] of [[null, null], ["REC", "PAR"]] as const) {
+      const c = crumbTrail(segs, name, parent);
+      expect(c.filter((x) => !hasPage(x.href)).map((x) => x.href), `${name ?? "unnamed"}: dead`).toEqual([]);
+      expect(c.filter((x) => x.label === "Details").map((x) => x.href), `${name ?? "unnamed"}: Details`).toEqual([]);
+    }
+  });
+  it("a page under an exercise names the exercise at the exercise's crumb, and its own section and page in words", () => {
+    expect(labels(trail("/sourcing/sx1/evaluation/report", "EX/1"))).toEqual(["Sourcing", "EX/1", "Evaluation", "Evaluation report"]);
+    expect(labels(trail("/sourcing/sx1/evaluation/proposal", "EX/1"))).toEqual(["Sourcing", "EX/1", "Evaluation", "Kertas Cadangan"]);
+    expect(labels(trail("/sourcing/sx1/label/s1", "EX/1"))).toEqual(["Sourcing", "EX/1", "Sales", "Sale label"]);
+    expect(labels(trail("/sourcing/sx1/opening/print", "EX/1"))).toEqual(["Sourcing", "EX/1", "Bid opening", "Print"]);
+    expect(labels(trail("/sourcing/sx1/documents/print", "EX/1"))).toEqual(["Sourcing", "EX/1", "Tender documents", "Print"]);
+    expect(labels(trail("/sourcing/sx1/appendix", "EX/1"))).toEqual(["Sourcing", "EX/1", "Appendix"]);
+    expect(labels(trail("/sourcing/sx1/edit", "EX/1"))).toEqual(["Sourcing", "EX/1", "Edit"]);
+    expect(labels(trail("/sourcing/sx1", null))).toEqual(["Sourcing", "Exercise"]);
+    expect(labels(trail("/sourcing/new", null))).toEqual(["Sourcing", "New exercise"]);
+    expect(trail("/sourcing/sx1/evaluation/report", "EX/1")[2].href).toBe("/sourcing/sx1?tab=evaluation&section=report");
+    expect(trail("/sourcing/sx1/label/s1", "EX/1")[2].href).toBe("/sourcing/sx1?tab=invitation&section=sales");
+    expect(trail("/sourcing/sx1/opening/print", "EX/1")[2].href).toBe("/sourcing/sx1?tab=bids&section=schedule");
+  });
+  it("a printed award document's crumb is the page itself; configuration's sections are named", () => {
+    const c = trail("/awards/aw1/print/loa", "AW/1");
+    expect(labels(c)).toEqual(["Awards", "AW/1", "Print"]);
+    expect(c[2].href).toBe("/awards/aw1/print/loa");
+    expect(labels(trail("/configuration/contracts", null))).toEqual(["Configuration", "Contract controls"]);
+    expect(labels(trail("/configuration/evaluation", null))).toEqual(["Configuration", "Evaluation models"]);
+    expect(labels(trail("/configuration/evaluation/m1", null))).toEqual(["Configuration", "Evaluation models", "Evaluation model"]);
+    expect(labels(trail("/configuration/evaluation/m1", "Two-envelope model"))).toEqual(["Configuration", "Evaluation models", "Two-envelope model"]);
+  });
+});

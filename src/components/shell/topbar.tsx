@@ -66,6 +66,9 @@ const RECORD_LABEL: Record<string, string> = {
   certificates: "Certificate",
   templates: "Template",
   "routing-sheets": "Routing sheet type",
+  sourcing: "Exercise",
+  evaluation: "Evaluation model",
+  label: "Sale label",
 };
 
 /// Segments whose label depends on where they sit.
@@ -78,6 +81,12 @@ const NESTED_LABEL: Record<string, string> = {
   // 6.15a: the register's configuration, and recording a paper application.
   "configuration/suppliers": "Supplier register",
   "suppliers/new": "New application",
+  // 6.14 residual: every page names its crumbs (crumbs.test.ts walks every page).
+  "sourcing/new": "New exercise",
+  "configuration/contracts": "Contract controls",
+  "configuration/evaluation": "Evaluation models",
+  "evaluation/report": "Evaluation report",
+  "evaluation/proposal": "Kertas Cadangan",
 };
 
 /**
@@ -124,6 +133,8 @@ export function crumbTrail(segments: readonly string[], recordName: string | nul
     crumbs[keyAt > 0 && keyAt < printAt ? keyAt : printAt - 1].label = recordName;
     crumbs[printAt].label = "Print";
   }
+  // The print crumb is the page itself (the document's own slug left off): it links to the page, never to a bare …/print.
+  if (printAt > 0) crumbs[printAt].href = "/" + segments.join("/");
 
   // An exercise's documents are the Tender documents tab, not the register of documents: named so, and linked to the tab (no page of its own sits at that path).
   if (segments[0] === "sourcing") {
@@ -133,6 +144,19 @@ export function crumbTrail(segments: readonly string[], recordName: string | nul
         crumbs[i].href = `/sourcing/${segments[1]}?tab=documents`;
       }
     });
+  }
+
+  // A page under an exercise names the exercise (its reference, from the page) at the exercise's crumb, never at its
+  // own; a section with no page of its own is the exercise's tab that holds it.
+  if (segments[0] === "sourcing" && segments.length >= 3 && segments[1] !== "new") {
+    const id = segments[1];
+    crumbs[1].label = recordName ?? "Exercise";
+    const SECTION: Record<string, [string, string]> = { evaluation: ["Evaluation", "?tab=evaluation&section=report"], label: ["Sales", "?tab=invitation&section=sales"], opening: ["Bid opening", "?tab=bids&section=schedule"] };
+    const section = SECTION[segments[2]];
+    if (section) crumbs[2] = { label: section[0], href: `/sourcing/${id}${section[1]}` };
+    const last = crumbs.length - 1;
+    if (last >= 3) crumbs[last].label = segments[2] === "label" ? "Sale label" : printAt > 0 ? "Print" : (NESTED_LABEL[`${segments[last - 1]}/${segments[last]}`] ?? SEGMENT_LABEL[segments[last]] ?? crumbs[last].label);
+    if (last === 2 && recordName && crumbs[2].label === recordName) crumbs[2].label = SEGMENT_LABEL[segments[2]] ?? (segments[2] === "edit" ? "Edit" : crumbs[2].label);
   }
 
   // A certificate sits on its contract's Documents tab: "Projects › <contract> › Documents › <certificate>"; no page
