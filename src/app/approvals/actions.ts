@@ -88,11 +88,13 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
           supplierApplication: { select: { supplier: { select: { id: true, reference: true } } } },
           standingRequest: { select: { kind: true, supplier: { select: { id: true, reference: true } } } },
           specialPermission: { select: { exercise: { select: { id: true, reference: true } } } },
-          certificate: { select: { id: true, kind: true, number: true, status: true, contract: { select: { id: true, number: true, award: { select: { awardeeName: true } } } } } },
+          certificate: { select: { id: true, kind: true, number: true, status: true, contract: { select: { id: true, number: true, status: true, award: { select: { awardeeName: true } } } } } },
         },
       });
       const step = inst?.steps.find((s) => s.id === stepId);
       if (!inst || !step) return { ok: false, message: "That step no longer exists." };
+      // A cancelled contract's certificates are kept as they were (read under the contract's lock, code review run 2 item 5).
+      if (inst.certificate?.contract.status === "CANCELLED") return { ok: false, message: "The contract is cancelled: its certificates are kept as they were, and their routes are not escalated." };
       // A certificate past its approval (being signed, issued or void) is not escalated: its route is closed with it.
       if (inst.certificate?.status != null && inst.certificate.status !== "DRAFT" && inst.certificate.status !== "IN_ROUTING") return { ok: false, message: "That certificate is past its approval route." };
       // A supplier matter belongs to no unit: no requisition, and its offices are held organisation-wide.
