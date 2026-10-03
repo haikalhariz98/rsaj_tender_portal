@@ -100,6 +100,10 @@ export function issuedInterims(p: PaymentRows): IssuedInterim[] {
 /// A valuation of this contract still in progress (being valued, or raised with its certificate neither issued nor void).
 export const inProgress = (p: PaymentRows) => p.interimValuations.find((v) => v.status === "OPEN" || (v.status === "RAISED" && v.certificate?.status != null && v.certificate.status !== "ISSUED" && v.certificate.status !== "VOID")) ?? null;
 
+/// The sequence the valuation in progress was (or will be) assembled as: every interim certificate issued on the
+/// contract, from a valuation or not, plus one; null where none is in progress.
+export const inProgressSequenceOf = (p: PaymentRows): number | null => (inProgress(p) ? issuedInterims(p).length + p.certificates.length + 1 : null);
+
 /// The non-completion decision in force (the latest recorded), as the damages line reads it, the rate from the
 /// baseline the certificate pins (the whole works', or the section's).
 export function decisionOf(p: PaymentRows, baseline: ReturnType<typeof baselineOn>): (Decision & { id: string }) | null {

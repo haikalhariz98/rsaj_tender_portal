@@ -113,6 +113,8 @@ export interface JudgedUnder {
   minimum: { state: MinimumReading["state"]; minimum: string | null; value: string | null; first: boolean };
   lad: { state: LadLine["state"]; from: Day | null; to: Day | null; until: Day | null; days: number | null; rate: string | null; amount: string | null; reason: string | null };
   recoupments: { advanceId: string; party: "MAIN" | "NSC"; recoup: string; balanceAfter: string }[];
+  /// The issued advances read at raising (the issue refuses if that set has moved: ADVANCES_MOVED).
+  advancesRead?: string[];
   parties: { partyId: string; name: string; kind: ContractPartyKind; value: string | null; due: string }[];
   pendingDeductionIds: string[];
   preExecution: { limit: number | null; provenance: Provenance | null };
@@ -235,6 +237,7 @@ export function assembleInterim(i: AssembleInput): Assembled {
         minimum: minimum.state === "NOT_SET" ? { state: minimum.state, minimum: null, value: null, first: sequence === 1 } : { state: minimum.state, minimum: str(minimum.minimum), value: str(minimum.value), first: minimum.first },
         lad: lad.state === "CHARGED" ? { state: lad.state, from: lad.from, to: lad.to, until: lad.until, days: lad.days, rate: str(lad.rate), amount: str(lad.amount), reason: null } : { state: lad.state, from: null, to: null, until: null, days: null, rate: null, amount: null, reason: lad.state === "EXCUSED" ? lad.reason : null },
         recoupments: rec.lines.filter((l) => l.recoup > 0n).map((l) => ({ advanceId: l.id, party: l.party, recoup: str(l.recoup), balanceAfter: str(l.balanceAfter) })),
+        advancesRead: i.advances.map((a) => a.id),
         parties: v.parties.map((p) => ({ partyId: p.partyId, name: p.name, kind: p.kind, value: p.value == null ? null : str(p.value), due: str(p.due) })),
         pendingDeductionIds: pending.map((p) => p.id),
         preExecution: { limit: i.policy.preExecutionLimit, provenance: i.policy.preExecutionProvenance },

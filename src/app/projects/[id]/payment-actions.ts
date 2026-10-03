@@ -17,7 +17,7 @@ import { parseSen, senFromDecimal, senToDecimalString, type Sen } from "@/lib/mo
 import { applicationFaults } from "@/lib/payment/advance";
 import { assembleInterim, heldOnLatest } from "@/lib/payment/assemble";
 import { ANSWER_WORDS, DEDUCTION_WORDS, OUTCOME_WORDS, PACK_WORDS, paymentRefusal, RELEASE_WORDS, SCOPE_WORDS, TRIGGER_WORDS } from "@/lib/payment/labels";
-import { assembleInputOf, baselineOn, inProgress, issuedInterims, kindSettingOf, loadPayment, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
+import { assembleInputOf, baselineOn, inProgress, inProgressSequenceOf, issuedInterims, kindSettingOf, loadPayment, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
 import { afterCutOff } from "@/lib/payment/materials";
 import { firstReleaseShare, releaseOf } from "@/lib/payment/retention";
 import { ADVANCE_PARTIES, CONTRACTOR_ANSWERS, KEYED_DEDUCTION_KINDS, NON_COMPLETION_OUTCOMES, NON_COMPLETION_SCOPES, PACK_ITEMS, RETENTION_RELEASES, VALUATION_TRIGGERS, type Finding, type PackItem } from "@/lib/payment/types";
@@ -479,6 +479,7 @@ export async function applyAdvancePayment(_prev: FormState, data: FormData): Pro
       schedule,
       issuedInterims: issuedInterims(p).length,
       liveForParty: p.advancePayments.some((a) => a.party === party && (party === "MAIN" || a.partyId === partyId) && a.certificate.status !== "VOID"),
+      inProgressSequence: inProgressSequenceOf(p),
       today: c.today,
     });
     if (fs.some((f) => f.level === "block")) refuse("Not applied for:", fs.filter((f) => f.level === "block"));

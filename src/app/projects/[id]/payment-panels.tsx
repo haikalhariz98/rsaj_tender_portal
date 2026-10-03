@@ -17,7 +17,7 @@ import { decisionFaults, warningFaults } from "@/lib/lad/non-completion";
 import { formatMoney, parseSen, senFromDecimal, type Sen } from "@/lib/money";
 import { assembleInterim, chargedUntilOf, heldOnLatest, readJudgedUnder, type Assembled } from "@/lib/payment/assemble";
 import { ADVANCE_PARTY_WORDS, ANSWER_WORDS, DEDUCTION_WORDS, MATERIAL_VERDICT_WORDS, OUTCOME_WORDS, PACK_WORDS, paymentFaultText, RELEASE_WORDS, SCOPE_WORDS, TIER_WORDS, TRIGGER_WORDS, VALUATION_STATUS_WORDS } from "@/lib/payment/labels";
-import { assembleInputOf, baselineOn, decisionOf, inProgress, issuedInterims, kindSettingOf, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
+import { assembleInputOf, baselineOn, decisionOf, inProgress, inProgressSequenceOf, issuedInterims, kindSettingOf, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
 import { materialVerdict } from "@/lib/payment/materials";
 import { firstReleaseShare, releaseOf, retentionReading } from "@/lib/payment/retention";
 import { ADVANCE_PARTIES, CONTRACTOR_ANSWERS, KEYED_DEDUCTION_KINDS, NON_COMPLETION_OUTCOMES, NON_COMPLETION_SCOPES, PACK_ITEMS, VALUATION_TRIGGERS, type Finding } from "@/lib/payment/types";
@@ -447,7 +447,8 @@ function AdvanceSection({ l, v, people }: { l: LoadedContract; v: PaymentView; p
   const guarantees = c.securities.filter((s) => s.kind === "ADVANCE_PAYMENT_GUARANTEE").map((s) => ({ value: s.id, label: `${s.instrumentRef || "Guarantee"} · ${formatMoney(senFromDecimal(s.value))}${s.status === "VERIFIED" ? "" : " (not verified)"}` }));
   const nscs = v.p.contractParties.filter((pt) => pt.kind === "NOMINATED_SUBCONTRACTOR" && !pt.retiredOn).map((pt) => ({ value: pt.id, label: pt.name }));
   const formSet = !!kindSettingOf(v.cfg, "ADVANCE_PAYMENT")?.templateId;
-  const blocker = !formSet ? paymentFaultText({ code: "FORM_NOT_SET", level: "block", data: { kind: "ADVANCE_PAYMENT" } }) : guarantees.length === 0 ? "No Advance Payment Guarantee is lodged: lodge and verify it on the award's Securities tab first." : null;
+  const inProg = inProgressSequenceOf(v.p);
+  const blocker = !formSet ? paymentFaultText({ code: "FORM_NOT_SET", level: "block", data: { kind: "ADVANCE_PAYMENT" } }) : inProg != null ? paymentFaultText({ code: "ADVANCE_VALUATION_IN_PROGRESS", level: "block", data: { sequence: inProg } }) : guarantees.length === 0 ? "No Advance Payment Guarantee is lodged: lodge and verify it on the award's Securities tab first." : null;
   return (
     <div className="flex flex-col gap-6">
       <Callout tone="info" title="No documented advance payment procedure (B2)">

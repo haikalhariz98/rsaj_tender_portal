@@ -203,6 +203,12 @@ export function paymentFaultWords(f: Finding): Words {
       return w("Each schedule row is a certificate number from 1 and an amount above nothing.", "Setiap baris jadual ialah nombor perakuan dan amaun melebihi sifar.");
     case "SCHEDULE_PAST":
       return w(`The schedule names a certificate already issued (${s(d.issued, "some")} are): recoupment starts with the next one.`, "Jadual menamakan perakuan yang telah dikeluarkan.");
+    case "ADVANCE_VALUATION_IN_PROGRESS":
+      return w(`Interim valuation ${s(d.sequence, "in progress")} is being valued or its certificate is not yet issued, and its recoupment was fixed from the advances issued when it was worked out: apply for the advance once its certificate is issued or void.`, `Penilaian interim ${s(d.sequence, "semasa")} masih dalam proses: mohon pendahuluan selepas perakuannya dikeluarkan atau dibatalkan.`);
+    case "SCHEDULE_ON_VALUATION_IN_PROGRESS":
+      return w(`The schedule names interim certificate ${s(d.sequence, "in progress")} or an earlier one, already worked out without this advance: recoupment starts after it.`, `Jadual menamakan perakuan interim ${s(d.sequence, "semasa")} atau lebih awal.`);
+    case "ADVANCES_MOVED":
+      return w(`The advances this certificate's recoupment was worked out from are no longer the ones issued${d.added ? ` (issued since: ${String(d.added)})` : ""}${Number(d.gone) ? ` (${String(d.gone)} no longer issued)` : ""}: a scheduled recoupment would be skipped for good. Void it and raise the valuation again.`, "Pendahuluan yang dikeluarkan telah berubah sejak perakuan ini dibangkitkan. Batalkan dan bangkitkan semula penilaian.");
     case "SCHEDULE_NOT_BALANCED":
       return w(`The schedule adds up to ${money(d.total)}, not the advance's ${money(d.amount)}: it must recoup the whole advance.`, `Jadual berjumlah ${money(d.total)}, bukan ${money(d.amount)}.`);
     // ------------------------------------------------ routing

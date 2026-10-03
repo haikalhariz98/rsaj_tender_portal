@@ -13,7 +13,9 @@
 
 import type { Tx } from "@/lib/audit/record";
 import type { LoadedContract } from "@/lib/contract/repo";
+import { formatMoney, senFromDecimal } from "@/lib/money";
 
+import { advancesMovedFaults } from "./advance";
 import { readJudgedUnder } from "./assemble";
 import { preExecutionFaults } from "./eligibility";
 import { paymentRefusal } from "./labels";
@@ -28,6 +30,11 @@ export async function issueRefusal(tx: Tx, l: LoadedContract, cert: { id: string
   const fs: Finding[] = [];
   if (!j) fs.push({ code: "SEQUENCE_MOVED", level: "block", data: { expected: null, allocated: sequence } });
   else if (j.sequence !== sequence) fs.push({ code: "SEQUENCE_MOVED", level: "block", data: { expected: j.sequence, allocated: sequence } });
-  else fs.push(...preExecutionFaults(sequence, { ...(await preExecutionFacts(l, tx)), limit: j.preExecution.limit }, "block"));
+  else {
+    fs.push(...preExecutionFaults(sequence, { ...(await preExecutionFacts(l, tx)), limit: j.preExecution.limit }, "block"));
+    // The advances its recoupment was worked out from must still be the issued set (code review run 2, item 2).
+    const issued = await tx.advancePayment.findMany({ where: { contractId: l.contract.id, certificate: { is: { status: "ISSUED" } } }, select: { id: true, party: true, amount: true, contractParty: { select: { name: true } } } });
+    fs.push(...advancesMovedFaults(j.advancesRead ?? [], issued.map((a) => ({ id: a.id, label: `the advance to ${a.party === "MAIN" ? "the main contractor" : (a.contractParty?.name ?? "a nominated sub-contractor")} of ${formatMoney(senFromDecimal(a.amount))}` }))));
+  }
   return fs.length ? paymentRefusal("Not issued:", fs) : null;
 }

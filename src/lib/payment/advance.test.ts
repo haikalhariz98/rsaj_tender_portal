@@ -9,7 +9,7 @@ import { resolveCertificateRoute } from "./route";
 /// FR-PAY-001, 002; B2 as ruled (OD-A9 A): a mechanism only. FIXTURE figures (invented); the DAL rows are test-only.
 const s = parseSen;
 const APG = { kind: "ADVANCE_PAYMENT_GUARANTEE", status: "VERIFIED", effectiveFrom: "2026-01-01", expiresOn: "2027-01-01", value: s("100000.00") };
-const base: ApplicationInput = { party: "MAIN", partyKnown: true, amount: s("100000.00"), guarantee: APG, schedule: [{ sequence: 2, amount: s("50000.00") }, { sequence: 3, amount: s("50000.00") }], issuedInterims: 1, liveForParty: false, today: "2026-07-01" };
+const base: ApplicationInput = { party: "MAIN", partyKnown: true, amount: s("100000.00"), guarantee: APG, schedule: [{ sequence: 2, amount: s("50000.00") }, { sequence: 3, amount: s("50000.00") }], issuedInterims: 1, liveForParty: false, inProgressSequence: null, today: "2026-07-01" };
 const codes = (i: ApplicationInput) => applicationFaults(i).map((f) => f.code);
 
 describe("the advance application (B2)", () => {

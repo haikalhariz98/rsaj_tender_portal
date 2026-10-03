@@ -31,6 +31,10 @@ export interface ApplicationInput {
   issuedInterims: number;
   /// A live advance for the same party (not void): one at a time.
   liveForParty: boolean;
+  /// The sequence of the interim valuation in progress (being valued, or its certificate raised and neither issued
+  /// nor void), or null. Its recoupment was fixed when it was assembled from the advances issued then, so an advance
+  /// is not applied for while it is in progress, and no row may fall on it or before it (code review run 2, item 2).
+  inProgressSequence: number | null;
   today: Day;
 }
 
@@ -40,6 +44,7 @@ export function applicationFaults(i: ApplicationInput): Finding[] {
   if (i.amount == null || i.amount <= 0n) f("ADVANCE_AMOUNT_REQUIRED");
   if (i.party === "NSC" && !i.partyKnown) f("ADVANCE_PARTY_REQUIRED");
   if (i.liveForParty) f("ADVANCE_ALREADY_LIVE", { party: i.party });
+  if (i.inProgressSequence != null) f("ADVANCE_VALUATION_IN_PROGRESS", { sequence: i.inProgressSequence });
   const g = i.guarantee;
   if (!g) f("APG_REQUIRED");
   else {
@@ -54,6 +59,7 @@ export function applicationFaults(i: ApplicationInput): Finding[] {
     if (new Set(seqs).size !== seqs.length) f("SCHEDULE_REPEATED");
     if (i.schedule.some((r) => r.amount <= 0n || !Number.isInteger(r.sequence) || r.sequence < 1)) f("SCHEDULE_ROW_INVALID");
     if (i.schedule.some((r) => r.sequence <= i.issuedInterims)) f("SCHEDULE_PAST", { issued: i.issuedInterims });
+    else if (i.inProgressSequence != null && i.schedule.some((r) => r.sequence <= i.inProgressSequence!)) f("SCHEDULE_ON_VALUATION_IN_PROGRESS", { sequence: i.inProgressSequence });
     const total = i.schedule.reduce((a, r) => a + r.amount, 0n);
     if (i.amount != null && total !== i.amount) f("SCHEDULE_NOT_BALANCED", { total: total.toString(), amount: i.amount.toString() });
   }
@@ -87,4 +93,16 @@ export function recoupments(advances: readonly LiveAdvance[], sequence: number):
     return { id: a.id, party: a.party, scheduled, recoup, balanceAfter: unrecouped - recoup };
   });
   return { main: lines.filter((l) => l.party === "MAIN").reduce((x, l) => x + l.recoup, 0n), nsc: lines.filter((l) => l.party === "NSC").reduce((x, l) => x + l.recoup, 0n), lines };
+}
+
+/// At the interim certificate's issue: the advances it was assembled from must still be the issued set. One issued
+/// since it was raised (or one void since) would leave its schedule row for this sequence unrecouped for good, or
+/// recoup an advance no longer paid; the certificate is refused, naming each (void it and raise the valuation again).
+export function advancesMovedFaults(readAtRaising: readonly string[], issuedNow: readonly { id: string; label: string }[]): Finding[] {
+  const was = new Set(readAtRaising);
+  const now = new Set(issuedNow.map((a) => a.id));
+  const added = issuedNow.filter((a) => !was.has(a.id)).map((a) => a.label);
+  const gone = readAtRaising.filter((id) => !now.has(id));
+  if (!added.length && !gone.length) return [];
+  return [{ code: "ADVANCES_MOVED", level: "block", data: { added: added.join("; ") || null, gone: gone.length } }];
 }
