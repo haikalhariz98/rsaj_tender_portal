@@ -25,7 +25,7 @@ const kindName = (k: string) => (INSURANCE_KIND_LABEL as Readonly<Record<string,
 export function sumDetailText(d: string): string | null {
   const [tag, kind, a, src, b] = d.split(":");
   if (tag === "SHORT" && a && b && /^-?\d+$/.test(a) && /^-?\d+$/.test(b)) return `${kindName(kind)}: the verified policy insures ${formatMoney(BigInt(b))}, below ${formatMoney(BigInt(a))} (${SOURCE_WORDS[src] ?? "the governing sum"}).`;
-  if (tag === "SUM_NOT_STATED") return `${kindName(kind)}: neither the award nor a tender Appendix states a sum insured, so it is not compared.`;
+  if (tag === "SUM_NOT_STATED") return `${kindName(kind)}: neither the award nor a tender Appendix states a sum insured${kind === "CAR" || kind === "EAR" ? " for the works it insures" : ""}, so it is not compared.`;
   return null;
 }
 

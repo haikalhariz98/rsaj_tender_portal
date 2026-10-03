@@ -70,20 +70,30 @@ export interface PolicySum {
 
 export type SumFinding =
   /// A verified policy of the kind is below the governing figure (blocks).
-  | { kind: InsuredKind; state: "SHORT"; governing: Governing & { sen: Sen }; insured: Sen }
+  | { kind: InsuranceKind; state: "SHORT"; governing: Governing & { sen: Sen }; insured: Sen }
   /// Nothing states a figure for a required kind: not compared (does not block).
-  | { kind: InsuredKind; state: "NOT_STATED" };
+  | { kind: InsuranceKind; state: "NOT_STATED" };
+
+/**
+ * The figure a required kind is judged against (review 13): its own, or for a contractor's or erection all risks
+ * policy required in its own right, the works' figure (it insures the works). Never skipped.
+ */
+export const governedAs = (kind: InsuranceKind): InsuredKind => (isInsuredKind(kind) ? kind : "WORKS");
+
+/// The required kinds in the order judged: the award's three, then any all-risks policy required in its own right.
+const JUDGED_ORDER: readonly InsuranceKind[] = [...INSURED_KINDS, "CAR", "EAR"];
 
 /**
  * Each required kind's comparison, in order. A kind is judged on its best verified policy (one that counts
  * as it); a kind with no verified policy is the gate's "not verified", not a shortfall. Only required kinds
- * are compared.
+ * are compared, and every required kind is: a CAR or EAR policy required in its own right is compared with the
+ * works' governing figure, or said not compared (review 13).
  */
 export function sumFindings(required: readonly InsuranceKind[], gov: Readonly<Record<InsuredKind, Governing>>, policies: readonly PolicySum[]): SumFinding[] {
   const out: SumFinding[] = [];
-  for (const kind of INSURED_KINDS) {
+  for (const kind of JUDGED_ORDER) {
     if (!required.includes(kind)) continue;
-    const g = gov[kind];
+    const g = gov[governedAs(kind)];
     if (g.state === "NOT_STATED") {
       out.push({ kind, state: "NOT_STATED" });
       continue;
