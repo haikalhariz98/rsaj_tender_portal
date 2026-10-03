@@ -14,21 +14,23 @@ const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err",
 /**
  * The contract's Documents tab (6.14 increment 1, plan §5): every certificate of the contract, by kind and
  * where it stands, newest first, paged. Each opens on its own page. Certificates are raised by the
- * post-award modules (6.13: a delegation's letters so far), and the tab says what raises them (gaps stay honest); none is raised from here.
+ * post-award modules (a delegation's letters under Team; the advance, interim, warning and non-completion certificates
+ * under Payments; a variation's application, instruction and order, and the adjustments of the contract sum, under
+ * Variations), and the tab says what raises them; none is raised from here.
  */
 export async function DocumentsPanel({ contractId, page }: { contractId: string; page: number }) {
   const { rows, total } = await certificatesOfContract(contractId, page);
   const pages = Math.ceil(total / CERTIFICATES_PAGE);
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<FilesIcon size={17} />} title="Certificates" subtitle="Every certificate of this contract, newest first; each is signed, numbered and distributed on its own page. A delegation to a representative raises its letters under Team; the valuations and variations that raise the others are not built yet." divided={false} />
+      <CardHeader icon={<FilesIcon size={17} />} title="Certificates" subtitle="Every certificate of this contract, newest first; each is signed, numbered and distributed on its own page. A delegation to a representative raises its letters under Team; the advance payment, the interim payment certificates, the warning letter and the Certificate of Non-Completion are raised under Payments; a variation's application, the S.O.'s instruction, the Variation Order Certificate and the adjustments of the contract sum under Variations." divided={false} />
       <DataList
         flat
         selectable={false}
         exportName="certificates"
         searchPlaceholder="Search by kind or number"
         emptyTitle="No certificates yet"
-        emptyBody="None is raised on this contract. A delegation under Team raises its letters."
+        emptyBody="None is raised on this contract. A delegation under Team raises its letters; Payments raises the advance, interim, warning and non-completion certificates; Variations raises a variation's application, instruction and order, and the adjustments of the contract sum."
         filters={[{ key: "status", label: "Where it stands", order: CERTIFICATE_STATUSES.map((s) => STATUS_WORDS[s].en) }]}
         rowAction={{ label: "Open", hrefTemplate: `/projects/${contractId}/certificates/{id}` }}
         rowOpens
