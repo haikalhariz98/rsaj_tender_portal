@@ -1,5 +1,6 @@
 "use server";
 
+import { isSumAdjustmentTrigger } from "@/lib/method/behaviour-twins";
 import { revalidatePath } from "next/cache";
 
 import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
@@ -361,6 +362,8 @@ export async function saveContractBehaviours(_prev: FormState, data: FormData): 
     interimPaymentRule: r.optionalText("interimPaymentRule"),
     sumAdjustmentDrivers: list(String(data.get("sumAdjustmentDrivers") ?? "")),
     claimsApprovalCommitteeCode: r.optionalText("claimsApprovalCommitteeCode"),
+    // 6.13 Part A step 1 (A7): the typed twin; a field the form never sent is kept as stored.
+    sumAdjustmentTriggers: data.has("sumAdjustmentTriggers") ? list(String(data.get("sumAdjustmentTriggers") ?? "")).filter(isSumAdjustmentTrigger) : before.sumAdjustmentTriggers,
   };
   const known = new Set((await db.authorityRole.findMany({ where: { organisationId: orgId }, select: { code: true } })).map((x) => x.code));
   const unknown = v.administratorRoleCodes.filter((c) => !known.has(c));

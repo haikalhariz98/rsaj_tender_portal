@@ -108,6 +108,9 @@ export interface ContractBehaviours {
   interimPaymentRule: string | null;
   sumAdjustmentDrivers: string[];
   claimsApprovalCommitteeCode: string | null;
+  /// 6.13 Part A step 1: the typed twin of `sumAdjustmentDrivers` (not one of the twelve; read by the
+  /// adjustment certificate). Absent on rows built before it.
+  sumAdjustmentTriggers?: string[];
 }
 
 export interface ContractTypeRow extends ContractBehaviours {

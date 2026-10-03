@@ -1,4 +1,5 @@
 import { AlertTriangle } from "@/components/icons";
+import { isSumAdjustmentTrigger, SUM_ADJUSTMENT_TRIGGER_WORDS } from "@/lib/method/behaviour-twins";
 import {
   AddContractType,
   AddFundingRoute,
@@ -315,6 +316,11 @@ export default async function ReferenceDataPage() {
                     return `${set} of 12 behaviours set${set < 12 ? " · the rest not set" : ""}`;
                   })()}
                   <div className="text-[12.5px] text-ink-3">{(typeRow(c.code) as { contractSeriesKey?: string | null } | undefined)?.contractSeriesKey ? "Contract numbers: from its series" : "Contract numbers: series not set — its awards cannot be issued"}</div>
+                  {/* 6.13 Part A step 1 (A7): the typed twin of the adjustment drivers. */}
+                  <div className="break-words text-[12.5px] text-ink-3">{(() => {
+                    const tr = (typeRow(c.code)?.sumAdjustmentTriggers ?? []).filter(isSumAdjustmentTrigger);
+                    return tr.length ? `Contract-sum adjustments: ${tr.map((k) => SUM_ADJUSTMENT_TRIGGER_WORDS[k].en.toLowerCase()).join("; ")}` : "Contract-sum adjustment triggers: not set";
+                  })()}</div>
                   {c.notes && <div className="break-words text-[12.5px] text-ink-3">{c.notes}</div>}
                 </Td>
                 <Td label="Source">

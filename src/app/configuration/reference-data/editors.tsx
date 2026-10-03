@@ -1,4 +1,6 @@
 import { PencilIcon } from "@/components/icons";
+import type { BehaviourKey } from "@/lib/method/profile";
+import { SUM_ADJUSTMENT_TRIGGER_WORDS, SUM_ADJUSTMENT_TRIGGERS } from "@/lib/method/behaviour-twins";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import type { ContractType, FundingRoute, SourcingMethod } from "@/lib/reference/types";
 
@@ -433,8 +435,8 @@ const tri = (b: boolean | null) => (b == null ? null : b ? "yes" : "no");
 /// The twelve behaviours of a contract type (FR-MTD-012). Each may stay unset.
 export function ContractBehavioursDrawer({ id, name, values, offices }: { id: string; name: string; values: ContractBehaviours; offices: Option[] }) {
   // The same words as the exercise record shows (UX 11).
-  const t = (n: keyof ContractBehaviours, hint?: string): Field => ({ kind: "text", name: n, label: BEHAVIOUR_LABEL[n], hint });
-  const b = (n: keyof ContractBehaviours): Field => ({ kind: "select", name: n, label: BEHAVIOUR_LABEL[n], placeholder: "Not set", options: TRI });
+  const t = (n: BehaviourKey, hint?: string): Field => ({ kind: "text", name: n, label: BEHAVIOUR_LABEL[n], hint });
+  const b = (n: BehaviourKey): Field => ({ kind: "select", name: n, label: BEHAVIOUR_LABEL[n], placeholder: "Not set", options: TRI });
   return (
     <RecordEditor
       title={`What ${name} drives`}
@@ -451,7 +453,9 @@ export function ContractBehavioursDrawer({ id, name, values, offices }: { id: st
         b("makingGoodCertificate"),
         b("nominationAllowed"),
         t("interimPaymentRule"),
-        t("sumAdjustmentDrivers", "Separate them with commas."),
+        t("sumAdjustmentDrivers", "Separate them with commas. Kept as the type's own words; the typed list below is what the adjustment certificate reads."),
+        // 6.13 Part A step 1 (A7): the typed twin of the drivers. Empty: not set.
+        { kind: "tokens", name: "sumAdjustmentTriggers", label: "Contract-sum adjustment triggers", options: SUM_ADJUSTMENT_TRIGGERS.map((k) => ({ value: k, label: SUM_ADJUSTMENT_TRIGGER_WORDS[k].en })), placeholder: "Add a trigger", hint: "Which adjustments of the contract sum this type allows. Empty: not set, and an adjustment certificate is refused until it is." },
         { kind: "select", name: "claimsApprovalCommitteeCode", label: BEHAVIOUR_LABEL.claimsApprovalCommitteeCode, placeholder: "Not set", options: offices },
       ]}
       values={{
@@ -467,6 +471,7 @@ export function ContractBehavioursDrawer({ id, name, values, offices }: { id: st
         nominationAllowed: tri(values.nominationAllowed),
         interimPaymentRule: values.interimPaymentRule,
         sumAdjustmentDrivers: values.sumAdjustmentDrivers.join(", "),
+        sumAdjustmentTriggers: (values.sumAdjustmentTriggers ?? []).join("\n"),
         claimsApprovalCommitteeCode: values.claimsApprovalCommitteeCode,
       }}
       action={saveContractBehaviours}

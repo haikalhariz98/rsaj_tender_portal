@@ -2108,6 +2108,10 @@ model ContractType {
   interimPaymentRule          String?
   sumAdjustmentDrivers        String[] @default([])
   claimsApprovalCommitteeCode String?
+  /// 6.13 Part A step 1 (A7, FR-MTD-012): the typed twin of `sumAdjustmentDrivers`, which stays as its label:
+  /// which of FR-PAD-001's five triggers a contract of this type may adjust its sum by. Empty: not set, and the
+  /// adjustment certificate refuses naming the setting (6.13 step 4).
+  sumAdjustmentTriggers       SumAdjustmentTrigger[] @default([])
 
   /// The numbering series (NumberingSeries.key) a contract of this type is numbered
   /// from when its award is issued (FR-CON-002, 6.11). Null: not set, and issue refuses.
@@ -2122,6 +2126,15 @@ model ContractType {
 
   @@unique([organisationId, code])
   @@index([organisationId, sortOrder])
+}
+
+/// FR-PAD-001's five triggers of a contract-sum adjustment (SK013): a closed product vocabulary, rendered by label.
+enum SumAdjustmentTrigger {
+  VARIATION
+  LOSS_AND_EXPENSE
+  REMEASUREMENT
+  PC_AND_PROVISIONAL_SUMS
+  PRICE_FLUCTUATION
 }
 
 // ------------------------------------------------------------------ 6.1 requisitions
