@@ -42,6 +42,7 @@ import {
   INSURANCE_KIND_LABEL,
   LANGUAGE_LABEL,
   NON_COMMENCEMENT_LABEL,
+  noReasonText,
   periodText,
   REGISTER_STATUS_LABEL,
   REGISTER_STATUS_TONE,
@@ -440,7 +441,7 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
  * award states it otherwise, "differs from the tender Appendix" with the reason recorded
  * (or that none is, and issue waits for one). Without a frozen Appendix: the term alone.
  */
-function AgainstTender({ ev, field, children }: { ev: AwardEvaluation; field: BaselineField; children: React.ReactNode }) {
+function AgainstTender({ ev, field, issued, children }: { ev: AwardEvaluation; field: BaselineField; issued: boolean; children: React.ReactNode }) {
   const said = ev.appendix ? tenderTermText(field, ev.appendix.baseline) : null;
   if (!ev.appendix || said == null) return <>{children}</>;
   const diff = ev.appendix.differences.find((d) => d.field === field);
@@ -449,7 +450,7 @@ function AgainstTender({ ev, field, children }: { ev: AwardEvaluation; field: Ba
       <span>{children}</span>
       <span className="text-[12.5px] break-words text-ink-3">{`${field === "regulated" ? "The tender answered" : "The tender Appendix states"}: ${said}`}</span>
       {diff && <Chip tone={diff.reason ? "info" : "warn"}>{DIFFERS_TEXT[field]}</Chip>}
-      {diff && <span className="text-[12.5px] break-words text-ink-3">{diff.reason ? `Why: ${diff.reason}` : "No reason recorded: the instrument is not issued until one is."}</span>}
+      {diff && <span className="text-[12.5px] break-words text-ink-3">{diff.reason ? `Why: ${diff.reason}` : noReasonText(issued)}</span>}
     </span>
   );
 }
@@ -467,7 +468,7 @@ function FromRecommendation({ differs, reason, recommended, children }: { differ
 
 /// The insurance the tender Appendix states: carried to the contract, not restated by the award.
 /// 64-C4-b: the sum insured that governs a kind, with its source; the award's figure below the Appendix's shows both.
-function GoverningSum({ g, reason }: { g: Governing; reason: string | null }) {
+function GoverningSum({ g, reason, issued }: { g: Governing; reason: string | null; issued: boolean }) {
   if (g.state === "NOT_STATED") return notSet("Not stated by the award or a tender Appendix: not compared");
   if (g.state === "APPENDIX") return <span>{formatMoney(g.sen)} <span className="text-ink-3">· from the tender Appendix (the award states none)</span></span>;
   // BD-613-2 ruling: a figure other than the one the Appendix governs, above or below, is a difference: both figures, and its reason.
@@ -476,7 +477,7 @@ function GoverningSum({ g, reason }: { g: Governing; reason: string | null }) {
     <span className="flex flex-col items-start gap-1">
       <span>{formatMoney(g.sen)} <span className="text-ink-3">· the award&apos;s own figure, which governs</span></span>
       {differs && <Chip tone={reason ? "info" : "warn"}>{`Differs from the tender Appendix's ${formatMoney(g.appendix!)}${g.belowAppendix ? " (below it)" : " (above it)"}`}</Chip>}
-      {differs && <span className="text-[12.5px] text-ink-3">{reason ? `Why: ${reason}` : "No reason recorded: the instrument is not issued until there is one."}</span>}
+      {differs && <span className="text-[12.5px] text-ink-3">{reason ? `Why: ${reason}` : noReasonText(issued)}</span>}
     </span>
   );
 }
@@ -525,7 +526,7 @@ function OverviewPanel({ l, ev, awardee, recommendation, methodName, typeName, p
               { label: "Completion period", value: <FromRecommendation differs={differs.includes("period")} reason={award.recPeriodDiffersReason} recommended={recommendation?.period ? periodText(recommendation.period.value, recommendation.period.unit) : recommendation ? "No period stated" : null}>{periodText(award.completionPeriod, award.completionUnit)}</FromRecommendation> },
               { label: "Stated start date", value: award.startDate ? formatDate(award.startDate) : notSet() },
               { label: "Completion", value: ev.completion ? formatDate(ev.completion) : notSet("Not known until the start date is set") },
-              { label: policyLabel ? `${policyLabel}?` : "The regulated activity?", value: <AgainstTender ev={ev} field="regulated">{award.regulatedActivity == null ? notSet("Not answered") : award.regulatedActivity ? "Yes" : "No"}</AgainstTender> },
+              { label: policyLabel ? `${policyLabel}?` : "The regulated activity?", value: <AgainstTender ev={ev} field="regulated" issued={award.issuedAt != null}>{award.regulatedActivity == null ? notSet("Not answered") : award.regulatedActivity ? "Yes" : "No"}</AgainstTender> },
             ]}
           />
         </CardBody>
@@ -603,14 +604,14 @@ function OverviewPanel({ l, ev, awardee, recommendation, methodName, typeName, p
           <KeyValues
             columns={2}
             items={[
-              { label: "Liquidated damages", value: <AgainstTender ev={ev} field="lad">{award.ladAmount ? `${money(award.ladAmount)}${award.ladUnit ? ` ${award.ladUnit}` : ""}` : notSet()}</AgainstTender> },
+              { label: "Liquidated damages", value: <AgainstTender ev={ev} field="lad" issued={award.issuedAt != null}>{award.ladAmount ? `${money(award.ladAmount)}${award.ladUnit ? ` ${award.ladUnit}` : ""}` : notSet()}</AgainstTender> },
               { label: "Workmen's compensation", value: award.wcBasis ? WC_BASIS_LABEL[award.wcBasis] : notSet("How it is calculated is not set — set it in Edit terms") },
               { label: "Retention", value: award.retentionPercent ? `${pct(award.retentionPercent)}${award.retentionCapPercent ? `, limited to ${pct(award.retentionCapPercent)} of the sum` : ""}` : ev.terms?.retentionAsked === false ? "Not asked by its terms band" : notSet() },
-              { label: "Defects liability period", value: <AgainstTender ev={ev} field="dlp">{award.dlpMonths != null ? (award.dlpMonths === 0 && ev.appendix ? "None" : periodText(award.dlpMonths, "MONTHS")) : ev.terms?.dlpAsked === false ? "Not asked by its terms band" : notSet()}</AgainstTender> },
+              { label: "Defects liability period", value: <AgainstTender ev={ev} field="dlp" issued={award.issuedAt != null}>{award.dlpMonths != null ? (award.dlpMonths === 0 && ev.appendix ? "None" : periodText(award.dlpMonths, "MONTHS")) : ev.terms?.dlpAsked === false ? "Not asked by its terms band" : notSet()}</AgainstTender> },
               { label: "Terms band", value: ex.termsBandKey ? (l.ex.bandSnapshot as { terms?: { label?: string } } | null)?.terms?.label ?? "As recorded on the exercise" : ex.termsState === "NONE_IN_REGIME" ? "Not applicable in this band" : notSet() },
               { label: "Appointment-letter variant", value: kind === "LETTER_OF_ACCEPTANCE" ? "Not applicable" : award.variantName ?? (ev.variant?.state === "SELECTED" ? ev.variant.variant.nameEn : notSet(ev.variant ? awardFindingText({ code: ev.variant.state === "NONE" ? "VARIANT_NONE" : ev.variant.state === "AMBIGUOUS" ? "VARIANT_AMBIGUOUS" : "TERMS_NOT_SET", level: "block" }) : NOT_SET)) },
               { label: "If work does not commence", value: kind === "LETTER_OF_ACCEPTANCE" ? "Not applicable" : ev.consequence ? NON_COMMENCEMENT_LABEL[ev.consequence] : notSet() },
-              ...INSURED_KINDS.map((k) => ({ label: `${INSURANCE_KIND_LABEL[k]}, sum insured`, value: <GoverningSum g={governingSum(k, awardSumsOf(award)[k], ev.appendix?.baseline ?? null, senFromDecimal(award.awardedValue))} reason={{ WORKS: award.worksInsuredDiffersReason, PUBLIC_LIABILITY: award.liabilityInsuredDiffersReason, WORKMENS_COMPENSATION: award.wcInsuredDiffersReason }[k]} /> })),
+              ...INSURED_KINDS.map((k) => ({ label: `${INSURANCE_KIND_LABEL[k]}, sum insured`, value: <GoverningSum g={governingSum(k, awardSumsOf(award)[k], ev.appendix?.baseline ?? null, senFromDecimal(award.awardedValue))} reason={{ WORKS: award.worksInsuredDiffersReason, PUBLIC_LIABILITY: award.liabilityInsuredDiffersReason, WORKMENS_COMPENSATION: award.wcInsuredDiffersReason }[k]} issued={award.issuedAt != null} /> })),
               ...(ev.appendix ? tenderInsurance(ev.appendix.baseline) : []),
             ]}
           />

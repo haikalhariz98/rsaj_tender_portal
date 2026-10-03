@@ -444,5 +444,13 @@ export function differsRefusal(field: BaselineField, said: string): string {
   return `${lead} (${said}): say why, or state it as the tender did.`;
 }
 
+/**
+ * The words beside a difference with no reason (64-C4, BD-613-2). Before issue, issue waits for one. An award
+ * already issued (`issuedAt` set) was issued before the rule asked for one: it is never told it "is not issued".
+ */
+export function noReasonText(issued: boolean): string {
+  return issued ? "No reason recorded: the instrument was issued before a reason was required for this difference." : "No reason recorded: the instrument is not issued until there is one.";
+}
+
 /// The words beside a term the award states otherwise.
 export const DIFFERS_TEXT: Record<BaselineField, string> = { lad: "Differs from the tender Appendix", dlp: "Differs from the tender Appendix", regulated: "Differs from the tender", worksInsured: "Differs from the tender Appendix", liabilityInsured: "Differs from the tender Appendix", wcInsured: "Differs from the tender Appendix" };

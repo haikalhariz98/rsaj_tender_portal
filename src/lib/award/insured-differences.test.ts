@@ -1,9 +1,12 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { parseSen } from "@/lib/money";
 
 import { baselineOf, differenceFindings, differences, matchesBaseline, reasonsOnSave, type AwardTerms, type FrozenTender } from "./appendix-baseline";
-import { differsRefusal, tenderTermText } from "./labels";
+import { differsRefusal, noReasonText, tenderTermText } from "./labels";
 
 /**
  * 6.13 Part A ruling on BD-613-2 (a flagged step of 6.11): an award sum insured stated otherwise than the figure
@@ -76,5 +79,19 @@ describe("6.13A residual: a cleared sum insured clears its stored reason", () =>
   });
   it("a save that did not carry the sum keeps its stored reason", () => {
     expect(reasonsOnSave(B, terms(), new Set(["dlp"] as const), {}, { wcInsured: "Insurer's limit" }).reasons.wcInsured).toBe("Insurer's limit");
+  });
+});
+
+describe("6.13A residual: a difference with no reason on an award already issued", () => {
+  it("before issue: issue waits for one; issued: it was issued before a reason was required, never 'is not issued'", () => {
+    expect(noReasonText(false)).toBe("No reason recorded: the instrument is not issued until there is one.");
+    expect(noReasonText(true)).toBe("No reason recorded: the instrument was issued before a reason was required for this difference.");
+    expect(noReasonText(true)).not.toMatch(/is not issued/);
+  });
+  it("the award page words both places through it, from the award's issuedAt", () => {
+    const page = readFileSync(path.join(__dirname, "../../../src/app/awards/[id]/page.tsx"), "utf8");
+    expect(page).not.toMatch(/No reason recorded: the instrument is not issued/);
+    expect(page.match(/noReasonText\(issued\)/g)?.length).toBe(2);
+    expect(page.match(/issued=\{award\.issuedAt != null\}/g)?.length).toBe(4);
   });
 });
