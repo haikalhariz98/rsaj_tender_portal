@@ -27,6 +27,7 @@ export const REGISTER_WORDS = {
   sheetsEmpty: w("No sheet open", "Tiada helaian terbuka"),
   sheetsEmptyBody: w("No certificate is on its routing sheet.", "Tiada perakuan pada helaian penghalaannya."),
   sheetsNoZone: w("The organisation's time zone is not set, so no sheet's elapsed time is judged: set it under Configuration › Organisation.", "Zon waktu organisasi belum ditetapkan, jadi tempoh berlalu tidak dinilai."),
+  onCancelled: w("kept as they were and not listed here.", "dikekalkan seperti sedia ada dan tidak disenaraikan di sini."),
   review: w("Review queue", "Barisan semakan"),
   reviewTitle: w("Submissions from contractors arrive with the vendor portal", "Penyerahan daripada kontraktor tiba bersama portal vendor"),
   reviewBody: w("A contractor's submission routed to an officer against a service level needs the contractor to sign in, which arrives with the vendor portal (sign-in). Until then nothing is submitted here: a document received on paper is recorded on its record, and one received and not yet filed is listed under", "Penyerahan kontraktor yang dihalakan kepada pegawai berdasarkan tahap perkhidmatan memerlukan kontraktor log masuk, yang tiba bersama portal vendor. Sehingga itu tiada penyerahan di sini: dokumen yang diterima di atas kertas direkodkan pada rekodnya, dan yang belum difailkan disenaraikan di"),

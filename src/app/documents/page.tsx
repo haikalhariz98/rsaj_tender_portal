@@ -11,7 +11,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { KIND_WORDS } from "@/lib/certificate/labels";
 import { copyState, DISTRIBUTION_PAGE, LIBRARY_PAGE, SHEETS_PAGE } from "@/lib/certificate/library";
 import { fidelityLine } from "@/lib/certificate/printed";
-import { distributionPage, libraryPage, routingSheetsPage } from "@/lib/certificate/register";
+import { distributionCounts, distributionPage, libraryCount, libraryPage, routingSheetsPage, sheetsCounted } from "@/lib/certificate/register";
 import { COPY_STATE_WORDS, REGISTER_WORDS as W, SOURCE_WORDS } from "@/lib/certificate/register-words";
 import { verdictText } from "@/lib/certificate/sheet-words";
 import { dayOf } from "@/lib/dates";
@@ -45,11 +45,14 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
     );
   }
   const today = dayOf(new Date(), org.timeZone);
-  // Each tab's list is read only when it is the one asked for; its count is read for the strip.
-  const [library, distribution, sheets] = await Promise.all([
-    libraryPage(org.id, tab === "library" ? query : "", tab === "library" ? sp.page : undefined, org.timeZone),
-    distributionPage(org.id, tab === "distribution" ? sp.page : undefined),
-    today ? routingSheetsPage(org.id, tab === "routing" ? sp.page : undefined, today) : Promise.resolve(null),
+  // Code review M-3: only the tab asked for reads its list; the strip's and the header's counts are count queries.
+  const [libraryTotal, dist, sheetCount, library, distribution, sheets] = await Promise.all([
+    libraryCount(org.id),
+    distributionCounts(org.id),
+    sheetsCounted(org.id),
+    tab === "library" ? libraryPage(org.id, query, sp.page, org.timeZone) : Promise.resolve(null),
+    tab === "distribution" ? distributionPage(org.id, sp.page) : Promise.resolve(null),
+    tab === "routing" && today ? routingSheetsPage(org.id, sp.page, today) : Promise.resolve(null),
   ]);
   const pager = (t: string, page: number, total: number, size: number, extra = "") => {
     const pages = Math.ceil(total / size);
@@ -66,7 +69,7 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
   };
   const q = query.trim() ? `&q=${encodeURIComponent(query.trim())}` : "";
 
-  const libraryPanel = (
+  const libraryPanel = library && (
     <Card className="overflow-hidden">
       <CardHeader icon={<FilesIcon size={17} />} title={W.library.en} subtitle={W.libraryBlurb.en} divided />
       <CardBody>
@@ -96,11 +99,11 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
         emptyBody={query.trim() ? `Nothing in the register matches "${query.trim()}".` : W.libraryEmptyBody.en}
         stackBelow="xl"
         columns={[
-          { key: "document", label: "Document", mobile: "primary" },
-          { key: "of", label: "Of", width: "230px", mobile: "meta" },
-          { key: "form", label: "Form", width: "260px", mobile: "meta" },
-          { key: "issued", label: "Issued", width: "130px", mobile: "meta" },
-          { key: "copies", label: "Copies", width: "190px", mobile: "meta" },
+          { key: "document", label: "Document", mobile: "primary", minWidth: "260px" },
+          { key: "of", label: "Of", width: "200px", mobile: "meta" },
+          { key: "form", label: "Form", width: "200px", mobile: "meta" },
+          { key: "issued", label: "Issued", width: "120px", mobile: "meta" },
+          { key: "copies", label: "Copies", width: "170px", mobile: "meta", hideBelow: "2xl" },
         ]}
         rows={library.rows.map((r) => ({
           id: r.id,
@@ -118,9 +121,9 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
     </Card>
   );
 
-  const distributionPanel = (
+  const distributionPanel = distribution && (
     <Card className="overflow-hidden">
-      <CardHeader icon={<InboxIcon size={17} />} title={W.distribution.en} subtitle={W.distributionBlurb.en} divided={distribution.total === 0} />
+      <CardHeader icon={<InboxIcon size={17} />} title={W.distribution.en} subtitle={`${W.distributionBlurb.en}${distribution.counts.onCancelled ? ` ${plural(distribution.counts.onCancelled, "copy", "copies")} on cancelled contracts ${distribution.counts.onCancelled === 1 ? "is" : "are"} ${W.onCancelled.en}` : ""}`} divided={distribution.total === 0} />
       <DataList
         flat
         selectable={false}
@@ -151,11 +154,11 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
     </Card>
   );
 
-  const routingPanel = !sheets ? (
+  const routingPanel = tab !== "routing" ? null : !sheets ? (
     <Callout tone="warn" title="The organisation's time zone is not set">{W.sheetsNoZone.en}</Callout>
   ) : (
     <Card className="overflow-hidden">
-      <CardHeader icon={<RouteIcon size={17} />} title={W.sheets.en} subtitle={W.sheetsBlurb.en} divided={sheets.total === 0} />
+      <CardHeader icon={<RouteIcon size={17} />} title={W.sheets.en} subtitle={`${W.sheetsBlurb.en}${sheetCount.onCancelled ? ` ${plural(sheetCount.onCancelled, "sheet", "sheets")} on cancelled contracts ${sheetCount.onCancelled === 1 ? "is" : "are"} ${W.onCancelled.en}` : ""} ${sheets.counts.overTarget} past the target, ${sheets.counts.notJudged} not judged.`} divided={sheets.total === 0} />
       <DataList
         flat
         selectable={false}
@@ -165,10 +168,10 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
         emptyBody={W.sheetsEmptyBody.en}
         stackBelow="xl"
         columns={[
-          { key: "certificate", label: "Certificate", mobile: "primary" },
-          { key: "sheet", label: "Sheet", width: "220px", mobile: "meta" },
+          { key: "certificate", label: "Certificate", mobile: "primary", minWidth: "240px" },
+          { key: "sheet", label: "Sheet", width: "200px", mobile: "meta" },
           { key: "received", label: "Received", width: "130px", mobile: "meta" },
-          { key: "verdict", label: "Elapsed against the target", width: "320px", mobile: "meta" },
+          { key: "verdict", label: "Elapsed against the target", width: "300px", mobile: "meta" },
         ]}
         rows={sheets.rows.map(({ c, sheet }) => ({
           id: c.id,
@@ -198,13 +201,13 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
         title={W.title.en}
         subtitle={W.subtitle.en}
         meta={[
-          query.trim() && tab === "library" ? plural(library.total, "document matches the search", "documents match the search") : plural(library.total, "document in the library", "documents in the library"),
-          `${plural(distribution.counts.notSent, "copy not sent", "copies not sent")} (${distribution.counts.notSentMandatory} mandatory)`,
-          plural(distribution.counts.ackAwaited, "acknowledgement awaited", "acknowledgements awaited"),
-          sheets ? `${plural(sheets.counts.open, "routing sheet open", "routing sheets open")} (${sheets.counts.overTarget} past the target, ${sheets.counts.notJudged} not judged)` : "Routing sheets not judged: the time zone is not set",
+          plural(libraryTotal, "document in the library", "documents in the library"),
+          `${plural(dist.notSent, "copy not sent", "copies not sent")} (${dist.notSentMandatory} mandatory)`,
+          plural(dist.ackAwaited, "acknowledgement awaited", "acknowledgements awaited"),
+          plural(sheetCount.open, "routing sheet open", "routing sheets open"),
         ]}
       />
-      {sheets && sheets.counts.overTarget > 0 && (
+      {sheets && sheets.counts.overTarget > 0 && tab === "routing" && (
         <div className="mb-6">
           <Callout tone="warn" title={plural(sheets.counts.overTarget, "routing sheet is past its target", "routing sheets are past their target")}>
             Received and not yet approved, they have run longer than the target their type sets. They are listed first on Routing sheets.
@@ -215,10 +218,10 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
         initial={tab}
         label={W.title.en}
         tabs={[
-          { id: "library", label: W.library.en, icon: <FilesIcon size={15} />, count: library.total, panel: libraryPanel },
-          { id: "distribution", label: W.distribution.en, icon: <InboxIcon size={15} />, count: distribution.total, panel: distributionPanel },
-          { id: "routing", label: W.sheets.en, icon: <RouteIcon size={15} />, count: sheets?.total, panel: routingPanel },
-          { id: "review", label: W.review.en, icon: <ClockIcon size={15} />, panel: reviewPanel },
+          { id: "library", label: W.library.en, icon: <FilesIcon size={15} />, count: libraryTotal, panel: libraryPanel, lazy: true },
+          { id: "distribution", label: W.distribution.en, icon: <InboxIcon size={15} />, count: dist.total, panel: distributionPanel, lazy: true },
+          { id: "routing", label: W.sheets.en, icon: <RouteIcon size={15} />, count: sheetCount.open, panel: routingPanel, lazy: true },
+          { id: "review", label: W.review.en, icon: <ClockIcon size={15} />, panel: tab === "review" ? reviewPanel : null, lazy: true },
         ]}
       />
     </>

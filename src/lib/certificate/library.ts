@@ -1,32 +1,37 @@
 /**
  * The documents register (6.14 increment 2, `/documents`): the Library of generated documents, the copies still to
  * go out or to be acknowledged, and the routing sheets still open with their elapsed time against the target. Pure:
- * the page loads the rows; the ordering, the merge of two sources into one page, every row's state and every count
- * shown above a list are worked out here, over the whole set, never over the page on screen.
+ * the page loads the rows (the Library's page and count in the database, code review M-3); every row's state, the
+ * where-clauses of the lists and their counts, and the open sheets' order and counts are worked out here, over the
+ * whole set, never over the page on screen.
  */
 
 import type { Sheet } from "./routing-sheet";
 
+/**
+ * Code review M-2: a cancelled contract's copies and open sheets are kept as they were and never chased: they are
+ * out of the outstanding lists and counts, and counted apart. The where-clauses the register reads with (one rule
+ * for the lists and their counts).
+ */
+export function issuedCopiesWhere(organisationId: string, onCancelled: boolean) {
+  return { organisationId, certificate: { status: "ISSUED" as const, contract: onCancelled ? { status: "CANCELLED" as const } : { status: { not: "CANCELLED" as const } } }, recalledOn: null };
+}
+
+/// The copies still to go out or to be acknowledged: not sent, or sent and its acknowledgement awaited.
+export function outstandingCopiesWhere(organisationId: string, onCancelled: boolean) {
+  return { ...issuedCopiesWhere(organisationId, onCancelled), OR: [{ despatchedOn: null }, { ackRequired: true, acknowledgedOn: null }] };
+}
+
+export function openSheetsWhere(organisationId: string, onCancelled: boolean) {
+  return { organisationId, status: "IN_ROUTING" as const, contract: onCancelled ? { status: "CANCELLED" as const } : { status: { not: "CANCELLED" as const } } };
+}
+
+/// LIKE patterns for a search's variants, wildcards in the words taken literally (backslash is ILIKE's escape).
+export const likePatterns = (variants: readonly string[]): string[] => variants.map((v) => `%${v.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
+
 export const LIBRARY_PAGE = 50;
 export const DISTRIBUTION_PAGE = 50;
 export const SHEETS_PAGE = 50;
-
-/// One generated document as the Library lists it: when it was frozen (a certificate's issue, an award document's freezing) and its id.
-export interface Dated {
-  at: Date;
-  id: string;
-}
-
-/// Newest first; two frozen in one instant by their id, so the order never rests on the load order.
-export const newestFirst = (a: Dated, b: Dated): number => b.at.getTime() - a.at.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-
-/**
- * One page of two sources listed as one, newest first. Each source is handed in already sorted newest first and
- * holding at least its first `skip + take` rows, so the page is exact whatever the two sources' sizes.
- */
-export function mergedPage<A extends Dated, B extends Dated>(a: readonly A[], b: readonly B[], skip: number, take: number): (A | B)[] {
-  return [...a, ...b].sort(newestFirst).slice(skip, skip + take);
-}
 
 /// The page asked for, clamped to the pages there are (a page past the end shows the last).
 export function pageOf(asked: string | undefined, total: number, size: number): number {

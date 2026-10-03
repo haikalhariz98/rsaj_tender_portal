@@ -316,6 +316,10 @@ const RAW_ALLOW: Readonly<Record<string, RegExp>> = {
   [`${W_} › onCopy`]: /^\$queryRaw`SELECT id FROM "IssuedCopy" WHERE id = \$\{copyId\} FOR UPDATE`$/,
   // 6.13 Part A step 3 (614-C4): escalating a certificate's route takes its chain's locks, in the one order (each a lock, never a write).
   // 6.13 Part A step 4 (614-C4, the allow-list extended as designed): and a variation's route, Contract then Variation.
+  // 6.14 increment 2 fix (code review M-3): the documents register's Library, counted and paged in the database. Reads only:
+  // each is exactly this text over the \`entries\` fragment (whose SQL the write scan reads with the rest of the file).
+  [`${P("src/lib/certificate/register.ts")} › libraryCount`]: /^\$queryRaw<\{ n: number \}\[\]>`WITH entries AS \(\$\{list\}\) SELECT count\(\*\)::int AS n FROM entries`$/,
+  [`${P("src/lib/certificate/register.ts")} › libraryEntries`]: /^\$queryRaw<Entry\[\]>`WITH entries AS \(\$\{list\}\) SELECT src, id, at FROM entries ORDER BY at DESC, id COLLATE "C" ASC LIMIT \$\{limit\} OFFSET \$\{offset\}`$/,
   [`${P("src/app/approvals/actions.ts")} › escalateStep`]: /^\$queryRaw`SELECT id FROM "(Requisition|SourcingExercise|Award|Contract|Certificate|Variation|Supplier|SupplierApplication|StandingRequest|SpecialPermission)" WHERE id = \$\{[\w.]+\} FOR UPDATE`$/,
 };
 const TABLE_ALT = CERT_TABLES.join("|");
@@ -456,7 +460,8 @@ export function scanCertificateWrites(files: readonly { file: string; src: strin
     for (const w of text.matchAll(SQL_VAR_TABLE)) push(w.index!, "raw SQL", "raw SQL with an interpolated table");
     for (const x of m.matchAll(/\bPrisma\s*\.\s*raw\s*\(/g)) push(x.index!, "Prisma.raw", "raw SQL the scan cannot read");
     const namesTable = namesTableIn(text, m);
-    for (const x of m.matchAll(/\$(executeRaw|queryRaw)(Unsafe)?\s*([`(])/g)) {
+    // 6.14 inc 2 fix (stricter): a raw call with a type argument (`$queryRaw<T>\`…\``) is read too, never skipped.
+    for (const x of m.matchAll(/\$(executeRaw|queryRaw)(Unsafe)?\s*(?:<[^>`(]*>)?\s*([`(])/g)) {
       if (x[3] === "(" || x[2]) {
         push(x.index!, `$${x[1]}${x[2] ?? ""}(…)`, "raw SQL the scan cannot read");
         continue;
@@ -625,6 +630,10 @@ describe("the re-review's evasions are each caught (R-8 residual)", () => {
   it.each(Object.entries(CASES))("%s", (_name, [src, problem]) => {
     const found = scanCertificateWrites([{ file: W_, src }], CERT_ALLOW).filter((w) => w.problem).map((w) => `${w.op} · ${w.problem}`);
     expect(found.some((f) => problem.test(f)), found.join(" | ") || "nothing flagged").toBe(true);
+  });
+  it("6.14 inc 2 fix (stricter): a raw call with a type argument is read, not skipped", () => {
+    const flags = (src: string) => scanCertificateWrites([{ file: W_, src }], CERT_ALLOW).filter((w) => w.problem).map((w) => w.problem);
+    expect(flags(`${h("x")}  await c.tx.$queryRaw<{ id: string }[]>\`SELECT id FROM "Certificate"\`;\n}\n`)).toContain("raw SQL in a file naming a certificate table, not allow-listed");
   });
   it("more of the same: the other write ops, a handle passed on, exported or bound moveTo, other relations, a quoted relation, TRUNCATE", () => {
     const flags = (src: string, file = W_) => scanCertificateWrites([{ file, src }], CERT_ALLOW).filter((w) => w.problem).map((w) => `${w.op} · ${w.problem}`);
