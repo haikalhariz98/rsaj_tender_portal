@@ -8,7 +8,9 @@ import { diffFields, snapshotFields, type FieldChange } from "@/lib/audit/diff";
 import { custodyItemLabel, formationCheckLabel, reconciliationLabel } from "@/lib/audit/entity-labels";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { toSecond } from "@/lib/bids/lateness";
-import { assignmentToMove } from "@/lib/supervision/so";
+import { loadIssue } from "@/lib/authority/load";
+import { methodKeyOf } from "@/lib/supervision/load";
+import { assignmentToMove, resolveSo, soOnCorrectedDate, type SoResolution } from "@/lib/supervision/so";
 import { applyTerm, AWARD_TERM_WORDS, AWARD_TERMS, awardCorrectionFaults, correctedColumns, TERM_FIELD, termSource, termText, type AwardTermColumns, type TermInput } from "@/lib/contract/award-correction";
 import { applyEntered, baselineFaults, buildBaseline, changedFields, derive, ENTERED_GROUPS, enteredFaults, latestVersion, type BaselineValues, type EnteredGroup, type EnteredProvenance, type EnteredValues } from "@/lib/contract/baseline";
 import { correctableFaults, groupChange } from "@/lib/contract/baseline-entry";
@@ -30,7 +32,8 @@ import { confirmFaults, correctionFaults, draftFaults } from "@/lib/contract/ver
 import { dayOf, dayToDate, storedDay } from "@/lib/dates";
 import { isLive } from "@/lib/documents/evidence";
 import { maskIc } from "@/lib/award/mask";
-import { parseSen, senFromDecimal, senToDecimalString } from "@/lib/money";
+import { amountOf, parseSen, senFromDecimal, senToDecimalString } from "@/lib/money";
+import { ORGANISATION_CODE } from "@/lib/org";
 import { FormReader } from "@/lib/validate";
 
 /**
@@ -547,16 +550,41 @@ export async function correctContractDate(_prev: FormState, data: FormData): Pro
     const current = day(k.contractDate);
     const fs = dateCorrectionFaults({ executed: isExecuted(k.status as ContractStatus), current, proposed: storedDay(proposed), readySince: frozen.readySince, reason, signed: { contractor: signedDay("CONTRACTOR", frozen.contractorSignedOn), witness: signedDay("WITNESS", frozen.witnessSignedOn) } });
     if (fs.length) return refuse("Not corrected:", fs);
+    // 6.13 Part A review 1: the S.O. assignment that took effect on the Contract Date moves with it, in this transaction.
+    // Residual review: resolved again on the new date, on the matrix in force that day, at the value it was resolved
+    // at; refused before anything is written where that gives no S.O. or another office.
+    const newDay = storedDay(proposed);
+    const assignments = await c.tx.contractSoAssignment.findMany({ where: { contractId: k.id }, select: { id: true, reason: true, effectiveOn: true, roleCode: true, roleLabel: true, matrixLabel: true, ruleKey: true, ruleLabel: true, clause: true, contractValue: true, warnings: true } });
+    const moving = assignmentToMove(assignments.map((a) => ({ ...a, effectiveOn: storedDay(a.effectiveOn) })), current, newDay);
+    let again: Extract<SoResolution, { state: "RESOLVED" }> | null = null;
+    let againMatrix: string | null = null;
+    if (moving) {
+      const issue = await loadIssue(ORGANISATION_CODE, dayToDate(newDay), undefined, null, c.tx);
+      const res = issue ? resolveSo(issue.matrix, { contractValue: amountOf(moving.contractValue), method: await methodKeyOf(c.l, c.tx), contractTypeCode: c.l.ex.contractTypeCode }) : null;
+      const judged = soOnCorrectedDate(moving, res, issue?.label ?? null, newDay);
+      if (!judged.ok) return refuse("Not corrected:", judged.faults);
+      again = judged.resolution;
+      againMatrix = issue!.label;
+    }
     await c.tx.contract.update({ where: { id: k.id }, data: { contractDate: proposed, contractDateCorrectedFrom: k.contractDateCorrectedFrom ?? k.contractDate, contractDateCorrectionReason: reason } });
     const base = currentBaseline(k)!;
-    await writeVersion(c, { ...base, contractDate: storedDay(proposed) }, "CORRECTION", reason, { correctedField: "contractDate" });
+    await writeVersion(c, { ...base, contractDate: newDay }, "CORRECTION", reason, { correctedField: "contractDate" });
     await audit(c, "Contract", k.id, "", "UPDATE", diffFields({ contractDate: current }, { contractDate: proposed, correctedFrom: day(k.contractDateCorrectedFrom ?? k.contractDate) }), reason);
-    // 6.13 Part A review 1: the S.O. assignment that took effect on the Contract Date moves with it, in this transaction.
-    const assignments = await c.tx.contractSoAssignment.findMany({ where: { contractId: k.id }, select: { id: true, reason: true, effectiveOn: true, roleLabel: true } });
-    const moving = assignmentToMove(assignments.map((a) => ({ ...a, effectiveOn: storedDay(a.effectiveOn) })), current, storedDay(proposed));
-    if (moving) {
-      await c.tx.contractSoAssignment.update({ where: { id: moving.id }, data: { effectiveOn: proposed } });
-      await audit(c, "ContractSoAssignment", moving.id, "Superintending Officer resolved", "UPDATE", diffFields({ effectiveOn: moving.effectiveOn }, { effectiveOn: storedDay(proposed), movedWith: "the corrected Contract Date" }), reason);
+    if (moving && again && againMatrix) {
+      const notes = again.notes.map((n) => n.messageEn);
+      await c.tx.contractSoAssignment.update({ where: { id: moving.id }, data: { effectiveOn: proposed, matrixLabel: againMatrix, ruleKey: again.ruleKey, ruleLabel: again.ruleLabel, clause: again.clause, warnings: notes as Prisma.InputJsonValue } });
+      await audit(
+        c,
+        "ContractSoAssignment",
+        moving.id,
+        "Superintending Officer resolved",
+        "UPDATE",
+        diffFields(
+          { effectiveOn: moving.effectiveOn, resolvedFrom: `${moving.matrixLabel}: ${moving.ruleLabel} (${moving.clause})`, assumption: (Array.isArray(moving.warnings) ? moving.warnings.map(String).join(" ") : "") || null },
+          { effectiveOn: newDay, resolvedFrom: `${againMatrix}: ${again.ruleLabel} (${again.clause})`, assumption: notes.join(" ") || null, movedWith: "the corrected Contract Date", resolvedAgainOn: `the matrix in force on ${newDay}, at ${senToDecimalString(senFromDecimal(moving.contractValue))}: the same office, ${again.roleLabel}` },
+        ),
+        reason,
+      );
     }
     return { ok: true };
   });

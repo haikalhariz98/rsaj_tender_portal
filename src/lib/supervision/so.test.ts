@@ -1,10 +1,14 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { DAL_FIXTURE } from "@/lib/authority/dal-fixture";
 import type { Matrix, Rule } from "@/lib/authority/types";
+import { contractFaultWords } from "@/lib/contract/fault-text";
 
 import { supervisionFaultWords } from "./labels";
-import { assignmentToMove, reResolveReading, resolveActFaults, resolveSo, SO_DOMAIN, soFaults, soOn } from "./so";
+import { assignmentToMove, reResolveReading, resolveActFaults, resolveSo, SO_DOMAIN, soFaults, soOn, soOnCorrectedDate } from "./so";
 
 /**
  * FOR TESTS ONLY (never seeded, never imported by the product): the specification's FR-SUP-001 bands as
@@ -130,5 +134,59 @@ describe("an S.O. row banded on the matter's value (as the rule editor sets it) 
     const m: Matrix = { ...DAL_FIXTURE, rules: [...DAL_FIXTURE.rules, banded] };
     expect(resolveSo(m, { contractValue: 36_000, method: null, contractTypeCode: null })).toMatchObject({ state: "RESOLVED", ruleKey: "SO_VALUE_BAND" });
     expect(resolveSo(m, { contractValue: 60_000, method: null, contractTypeCode: null }).state).toBe("SO_UNRESOLVED");
+  });
+});
+
+/**
+ * 6.13A residual (flagged 6.12): the assignment moved with a corrected Contract Date is resolved again on the new
+ * date, on the matrix in force that day, at the value it was resolved at. Worked example: RSAJ/KP/T/02/2026 at
+ * RM1,077,508.60, its S.O. the Functional Director from 3 Oct; the Contract Date corrected to 1 Oct.
+ * - The matrix in force on 1 Oct gives the Functional Director (another clause): it moves, recording that rule.
+ * - It gives the CEO for that band: refused, naming both offices.
+ * - It has no S.O. rows: refused, no single S.O.
+ * - No matrix was in force on 1 Oct: refused, naming the day.
+ */
+describe("residual: the S.O. moved with a corrected Contract Date is resolved again on the new date", () => {
+  const FD = { roleCode: "FD", roleLabel: "Functional Director" };
+  const VALUE = 1_077_508.6;
+  const q = { contractValue: VALUE, method: "tender", contractTypeCode: null };
+  const withRules = (rules: Rule[]): Matrix => ({ ...DAL_FIXTURE, rules: [...DAL_FIXTURE.rules, ...rules] });
+
+  it("the same office on the new date's matrix: moves, and carries the rule it now rests on", () => {
+    const m = withRules(SO_RULES.map((r) => (r.ruleKey === "SO_T_1M_TO_3M" ? { ...r, clause: "§3.1.4.4 item 5b (reissued)" } : r)));
+    const j = soOnCorrectedDate(FD, resolveSo(m, q), "Matrix in force 1 Oct", "2026-10-01");
+    expect(j).toMatchObject({ ok: true, resolution: { state: "RESOLVED", roleCode: "FD", ruleKey: "SO_T_1M_TO_3M", clause: "§3.1.4.4 item 5b (reissued)" } });
+  });
+  it("another office: refused, naming both", () => {
+    const m = withRules(SO_RULES.map((r) => (r.ruleKey === "SO_T_1M_TO_3M" ? { ...r, approverCode: "CEO" } : r)));
+    const j = soOnCorrectedDate(FD, resolveSo(m, q), "Matrix in force 1 Oct", "2026-10-01");
+    if (j.ok) throw new Error("moved");
+    expect(j.faults.map((f) => f.code)).toEqual(["SO_MOVE_OTHER_OFFICE"]);
+    const words = contractFaultWords(j.faults[0]).en;
+    expect(words).toMatch(/On 01 Oct 2026 the approval matrix \(Matrix in force 1 Oct\) gives this contract another S\.O\., .+, not Functional Director/);
+    expect(words).toMatch(/the Contract Date is not corrected/);
+    expect(words).not.toMatch(/SO_MOVE|CEO\b/);
+  });
+  it("no single S.O. on the new date: refused", () => {
+    const j = soOnCorrectedDate(FD, resolveSo(DAL_FIXTURE, q), "Matrix in force 1 Oct", "2026-10-01");
+    if (j.ok) throw new Error("moved");
+    expect(j.faults.map((f) => f.code)).toEqual(["SO_MOVE_UNRESOLVED"]);
+    expect(contractFaultWords(j.faults[0]).en).toMatch(/gives this contract no single S\.O\. at the value its S\.O\. \(Functional Director\) was resolved at/);
+  });
+  it("no matrix in force on the new date: refused, naming the day", () => {
+    const j = soOnCorrectedDate(FD, null, null, "2026-10-01");
+    if (j.ok) throw new Error("moved");
+    expect(j.faults.map((f) => f.code)).toEqual(["SO_MOVE_NO_MATRIX"]);
+    expect(contractFaultWords(j.faults[0]).en).toMatch(/^No approval matrix was in force on 01 Oct 2026/);
+  });
+  it("the act judges it before writing anything, and audits the re-resolution with the move", () => {
+    const src = readFileSync(path.join(__dirname, "../../../src/app/projects/[id]/actions.ts"), "utf8");
+    const body = src.slice(src.indexOf("export async function correctContractDate"), src.indexOf("export async function recordStamping"));
+    const refusal = body.indexOf('if (!judged.ok) return refuse("Not corrected:", judged.faults);');
+    expect(refusal).toBeGreaterThan(-1);
+    expect(refusal).toBeLessThan(body.indexOf("c.tx.contract.update"));
+    expect(body).toMatch(/loadIssue\(ORGANISATION_CODE, dayToDate\(newDay\)/);
+    expect(body).toMatch(/contractValue: amountOf\(moving\.contractValue\)/);
+    expect(body).toMatch(/resolvedAgainOn: /);
   });
 });

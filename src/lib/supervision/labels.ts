@@ -167,6 +167,22 @@ export function supervisionFaultWords(f: Finding): Words {
     // ------------------------------------------------ the S.O.
     case "SO_UNRESOLVED":
       return w(`No superintending-officer rule on the approval matrix${d.matrix ? ` (${String(d.matrix)})` : ""} gives this contract an S.O. at its value and method, or the rules that match disagree. Record the rule on the approval matrix; the S.O. is never keyed.`, `Tiada peraturan Pegawai Penguasa pada matriks kelulusan yang menentukan P.P. bagi kontrak ini. Rekodkan peraturan itu pada matriks kelulusan.`);
+    // ------------------------------------------------ the S.O. moved with a corrected Contract Date (6.13A residual)
+    case "SO_MOVE_NO_MATRIX":
+      return w(
+        `No approval matrix was in force on ${day(d.day)}, so the S.O. (${String(d.office ?? "the office")}) that took effect on the Contract Date cannot be resolved again from the corrected date. The Contract Date is not corrected. Issue a matrix in force that day under Configuration › Approval matrix first.`,
+        `Tiada matriks kelulusan berkuat kuasa pada ${day(d.day)}, jadi P.P. (${String(d.office ?? "pejabat itu")}) yang berkuat kuasa pada Tarikh Kontrak tidak dapat ditentukan semula dari tarikh yang diperbetulkan. Tarikh Kontrak tidak diperbetulkan.`,
+      );
+    case "SO_MOVE_UNRESOLVED":
+      return w(
+        `On ${day(d.day)} the approval matrix${d.matrix ? ` (${String(d.matrix)})` : ""} gives this contract no single S.O. at the value its S.O. (${String(d.office ?? "the office")}) was resolved at: no superintending-officer rule matches, or the rules that match disagree. The Contract Date is not corrected, because the S.O. would not hold from it. Record the rule on that matrix first.`,
+        `Pada ${day(d.day)} matriks kelulusan tidak menentukan satu P.P. bagi kontrak ini. Tarikh Kontrak tidak diperbetulkan, kerana P.P. tidak akan berkuat kuasa daripadanya.`,
+      );
+    case "SO_MOVE_OTHER_OFFICE":
+      return w(
+        `On ${day(d.day)} the approval matrix${d.matrix ? ` (${String(d.matrix)})` : ""} gives this contract another S.O., ${String(d.other ?? "another office")}, not ${String(d.office ?? "the office")}, which was resolved from the Contract Date. A date correction does not change who supervises, so the Contract Date is not corrected.`,
+        `Pada ${day(d.day)} matriks kelulusan menentukan P.P. lain bagi kontrak ini, ${String(d.other ?? "pejabat lain")}, bukan ${String(d.office ?? "pejabat itu")}. Pembetulan tarikh tidak mengubah siapa yang menyelia, jadi Tarikh Kontrak tidak diperbetulkan.`,
+      );
     case "NOT_EXECUTED":
       return w("The contract is not executed yet: its S.O. is resolved at the employer's signature.", "Kontrak belum dilaksanakan: P.P. ditentukan semasa tandatangan majikan.");
     case "ALREADY_RESOLVED":

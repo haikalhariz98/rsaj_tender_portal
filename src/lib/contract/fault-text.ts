@@ -7,6 +7,7 @@
 
 import { formatDate } from "@/lib/format";
 import { SIGNER_FAULT_TEXT } from "@/lib/award/labels";
+import { supervisionFaultWords } from "@/lib/supervision/labels";
 
 import { AWARD_TERM_WORDS, type AwardTerm } from "./award-correction";
 import { BASELINE_FIELD_WORDS, CHECK_WORDS, COMPARISON_WORDS, GATE_WORDS, w, type Words } from "./labels";
@@ -183,6 +184,11 @@ export function contractFaultWords(f: Finding): Words {
       return w("Record the stamping reference LHDN gave: the contract is not fully executed without it.", "Rekodkan rujukan setem LHDN.");
     case "BEFORE_CONTRACT_DATE":
       return w("The day cannot be before the Contract Date.", "Tarikh tidak boleh sebelum Tarikh Kontrak.");
+    // ------------------------------------------------ the S.O. moved with a corrected Contract Date (6.13A residual): worded once, in supervision
+    case "SO_MOVE_NO_MATRIX":
+    case "SO_MOVE_UNRESOLVED":
+    case "SO_MOVE_OTHER_OFFICE":
+      return supervisionFaultWords(f);
     case "NOT_YET_ENDORSED":
       return w("The briefing is recorded at signing, once the contract is legally endorsed.", "Taklimat direkodkan semasa tandatangan.");
     case "ALREADY_RECORDED":

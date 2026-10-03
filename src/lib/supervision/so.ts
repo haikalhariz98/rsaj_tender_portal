@@ -106,3 +106,24 @@ export function assignmentToMove<T extends { id: string; reason: string; effecti
 export function reResolveReading(switchValue: boolean | null): { state: "ON" | "OFF" | "NOT_SET" } {
   return { state: switchValue == null ? "NOT_SET" : switchValue ? "ON" : "OFF" };
 }
+
+export type SoMoveFault = "SO_MOVE_NO_MATRIX" | "SO_MOVE_UNRESOLVED" | "SO_MOVE_OTHER_OFFICE";
+
+/**
+ * 6.13A residual (against accepted 6.12): an S.O. assignment moved with a corrected Contract Date is resolved again
+ * on the new date, on the matrix in force that day, at the value it was resolved at. It moves only where that gives
+ * the same office: then the move records the rule it now rests on. No matrix that day, no single S.O., or another
+ * office: the correction is refused, naming why (moving it would change who supervised from the new date, which a
+ * date correction may not do quietly). `resolution` null: no matrix was in force that day. Pure.
+ */
+export function soOnCorrectedDate(
+  moving: { roleCode: string; roleLabel: string },
+  resolution: SoResolution | null,
+  matrixLabel: string | null,
+  on: Day,
+): { ok: true; resolution: Extract<SoResolution, { state: "RESOLVED" }> } | { ok: false; faults: Finding<SoMoveFault>[] } {
+  if (!resolution) return { ok: false, faults: [{ code: "SO_MOVE_NO_MATRIX", level: "block", data: { day: on, office: moving.roleLabel } }] };
+  if (resolution.state !== "RESOLVED") return { ok: false, faults: [{ code: "SO_MOVE_UNRESOLVED", level: "block", data: { day: on, matrix: matrixLabel, office: moving.roleLabel, why: resolution.errors.map((e) => e.code).join(",") || "NO_RULE" } }] };
+  if (resolution.roleCode !== moving.roleCode) return { ok: false, faults: [{ code: "SO_MOVE_OTHER_OFFICE", level: "block", data: { day: on, matrix: matrixLabel, office: moving.roleLabel, other: resolution.roleLabel } }] };
+  return { ok: true, resolution };
+}
