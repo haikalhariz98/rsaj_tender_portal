@@ -1,0 +1,75 @@
+diff -rU0 snap-before2/documents.txt snap-after/documents.txt
+--- snap-before2/documents.txt	2026-10-03 21:23:05.977685919 +0000
++++ snap-after/documents.txt	2026-10-03 20:59:41.881602456 +0000
+@@ -13 +13 @@
+-2 routing sheets open
++2 routing sheets open (0 past the target, 1 not judged)
+diff -rU0 snap-before2/documents__tab__distribution.txt snap-after/documents__tab__distribution.txt
+--- snap-before2/documents__tab__distribution.txt	2026-10-03 21:23:06.173685931 +0000
++++ snap-after/documents__tab__distribution.txt	2026-10-03 20:59:42.105602469 +0000
+@@ -13 +13 @@
+-2 routing sheets open
++2 routing sheets open (0 past the target, 1 not judged)
+diff -rU0 snap-before2/documents__tab__library&q__P.P..txt snap-after/documents__tab__library&q__P.P..txt
+--- snap-before2/documents__tab__library&q__P.P..txt	2026-10-03 21:42:15.153754230 +0000
++++ snap-after/documents__tab__library&q__P.P..txt	2026-10-03 21:18:43.345670308 +0000
+@@ -13 +13 @@
+-2 routing sheets open
++2 routing sheets open (0 past the target, 1 not judged)
+@@ -15 +15 @@
+-21
++2
+diff -rU0 snap-before2/documents__tab__library&q__S.O..txt snap-after/documents__tab__library&q__S.O..txt
+--- snap-before2/documents__tab__library&q__S.O..txt	2026-10-03 21:42:14.973754219 +0000
++++ snap-after/documents__tab__library&q__S.O..txt	2026-10-03 21:18:43.157670296 +0000
+@@ -13 +13 @@
+-2 routing sheets open
++2 routing sheets open (0 past the target, 1 not judged)
+@@ -15 +15 @@
+-21
++2
+diff -rU0 snap-before2/documents__tab__library&q__Superintending%20Officer.txt snap-after/documents__tab__library&q__Superintending%20Officer.txt
+--- snap-before2/documents__tab__library&q__Superintending%20Officer.txt	2026-10-03 21:42:15.317754239 +0000
++++ snap-after/documents__tab__library&q__Superintending%20Officer.txt	2026-10-03 21:18:43.521670318 +0000
+@@ -13 +13 @@
+-2 routing sheets open
++2 routing sheets open (0 past the target, 1 not judged)
+@@ -15 +15 @@
+-21
++2
+diff -rU0 snap-before2/documents__tab__library&q__office.txt snap-after/documents__tab__library&q__office.txt
+--- snap-before2/documents__tab__library&q__office.txt	2026-10-03 21:42:15.649754259 +0000
++++ snap-after/documents__tab__library&q__office.txt	2026-10-03 21:18:43.881670339 +0000
+@@ -13 +13 @@
+-2 routing sheets open
++2 routing sheets open (0 past the target, 1 not judged)
+@@ -15 +15 @@
+-21
++2
+diff -rU0 snap-before2/documents__tab__library&q__officer.txt snap-after/documents__tab__library&q__officer.txt
+--- snap-before2/documents__tab__library&q__officer.txt	2026-10-03 21:42:15.477754249 +0000
++++ snap-after/documents__tab__library&q__officer.txt	2026-10-03 21:18:43.725670330 +0000
+@@ -13 +13 @@
+-2 routing sheets open
++2 routing sheets open (0 past the target, 1 not judged)
+@@ -15 +15 @@
+-21
++2
+diff -rU0 snap-before2/documents__tab__library.txt snap-after/documents__tab__library.txt
+--- snap-before2/documents__tab__library.txt	2026-10-03 21:23:06.409685945 +0000
++++ snap-after/documents__tab__library.txt	2026-10-03 20:59:42.369602485 +0000
+@@ -13 +13 @@
+-2 routing sheets open
++2 routing sheets open (0 past the target, 1 not judged)
+diff -rU0 snap-before2/documents__tab__review.txt snap-after/documents__tab__review.txt
+--- snap-before2/documents__tab__review.txt	2026-10-03 21:23:06.557685954 +0000
++++ snap-after/documents__tab__review.txt	2026-10-03 20:59:42.533602494 +0000
+@@ -13 +13 @@
+-2 routing sheets open
++2 routing sheets open (0 past the target, 1 not judged)
+diff -rU0 snap-before2/documents__tab__routing.txt snap-after/documents__tab__routing.txt
+--- snap-before2/documents__tab__routing.txt	2026-10-03 21:23:06.721685963 +0000
++++ snap-after/documents__tab__routing.txt	2026-10-03 20:59:42.693602504 +0000
+@@ -13 +13 @@
+-2 routing sheets open
++2 routing sheets open (0 past the target, 1 not judged)
