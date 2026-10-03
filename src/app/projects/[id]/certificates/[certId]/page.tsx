@@ -51,6 +51,11 @@ import { PAID_FIGURE } from "@/lib/payment/finance";
 import { KIND_ROUTE_DOMAIN } from "@/lib/payment/route";
 import { routeValueOf, submitStateFaults } from "@/lib/payment/route-state";
 import { RECOMMENDING_ACT } from "@/lib/supervision/blocks";
+import { approvalOfRecordFaults } from "@/lib/variation/at-certificate";
+import { variationRefusal } from "@/lib/variation/labels";
+
+/// 6.13 Part A step 4: the kinds approved on their variation's own routes.
+const VARIATION_APPROVED_KINDS: readonly string[] = ["VARIATION_APPLICATION", "VARIATION"];
 
 import { AcknowledgeDrawer, CheckDrawer, ChooseRejectionDrawer, CorrectDateDrawer, DecideRouteStepDrawer, DespatchDrawer, FinancePaymentDrawer, OverrideDrawer, ReceivedDrawer, SendForApprovalDrawer, SendForRoutingDrawer, SendToSigningDrawer, SignatureDrawer, VoidDrawer } from "./editors";
 
@@ -130,10 +135,12 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
     action = <SendForApprovalDrawer certId={cert.id} figure={Array.isArray(v) ? "its figure" : `${v.figure} (${formatMoney(v.value)})`} people={peopleOptions} blocker={blocker} again={!!latest} />;
   } else if (status === "DRAFT" && cert.routingTypeId) action = <SendForRoutingDrawer certId={cert.id} typeLabel={cert.routingType?.labelEn ?? "its type"} blocker={today ? null : "Set the organisation's time zone first."} />;
   else if (status === "DRAFT") {
-    // 614-C1: the act's own rule: a money-bearing kind needs its latest approval route approved.
+    // 614-C1: the act's own rule: a money-bearing kind needs its latest approval route approved. 6.13 Part A step 4:
+    // the variation's application and order, its approval of record (the act calls the same function).
+    const own = await approvalOfRecordFaults(db, l, cert);
     const routes = routesOf(cert.approvalInstances);
-    const money = draftSigningFaults(cert.kind, routes.length ? routes[routes.length - 1].status : null);
-    actionNote = money.length ? money.map(certificateFaultText).join(" ") : null;
+    const money = own ?? draftSigningFaults(cert.kind, routes.length ? routes[routes.length - 1].status : null);
+    actionNote = money.length ? (own ? variationRefusal("", money) : money.map(certificateFaultText).join(" ")) : null;
     action = money.length ? <Blocked label="Send to signing" reason={actionNote!} primary noteId={NOTE_ID} /> : <SendToSigningDrawer certId={cert.id} routed={false} blocker={today ? null : "Set the organisation's time zone first."} />;
   }
   else if (status === "IN_ROUTING" && sheet) {
@@ -463,12 +470,25 @@ async function RoutingPanel({ l, sheet, people, today, roles }: { l: LoadedCerti
       {`Refused${choice.rejectionReason ? `: ${choice.rejectionReason}` : ""}. Nothing configured decides where a refused certificate goes, so the officer chooses.`}
     </Callout>
   ) : null;
+  // 6.13 Part A step 4: the variation a variation's certificate belongs to (its approval is on the variation's page).
+  const variationId = VARIATION_APPROVED_KINDS.includes(cert.kind) ? ((await db.variation.findFirst({ where: { OR: [{ applicationCertificateId: cert.id }, { orders: { some: { certificateId: cert.id } } }] }, select: { id: true } }))?.id ?? null) : null;
   if (!cert.routingTypeId) {
     if (routes.length === 0) {
       return (
         <Card>
           <CardHeader icon={<RouteIcon size={17} />} title="Routing sheet" />
-          <EmptyState size="sm" title="No routing sheet">{KIND_ROUTE_DOMAIN[cert.kind] ? "This certificate has no routing sheet. Its approval route opens on the approval matrix when it is sent for approval (the header's button); its steps are decided here." : `${CERT_WORDS.noRoute.en}. It goes from its draft straight to signing.`}</EmptyState>
+          <EmptyState size="sm" title="No routing sheet">
+            {KIND_ROUTE_DOMAIN[cert.kind] ? (
+              "This certificate has no routing sheet. Its approval route opens on the approval matrix when it is sent for approval (the header's button); its steps are decided here."
+            ) : VARIATION_APPROVED_KINDS.includes(cert.kind) ? (
+              <>
+                {"Its approval is the variation's own routes, decided on the variation's Approval tab; it is signed once they cover it. "}
+                {variationId && <Link className="font-medium text-brand-700 underline" href={`/projects/${l.contract.id}/variations/${variationId}?tab=approval`}>Open the variation</Link>}
+              </>
+            ) : (
+              `${CERT_WORDS.noRoute.en}. It goes from its draft straight to signing.`
+            )}
+          </EmptyState>
         </Card>
       );
     }
