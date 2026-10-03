@@ -72,7 +72,7 @@ export default async function PostAwardControlsPage() {
       <PageHeader
         title="Post-award controls"
         badge={unset > 0 ? <Badge tone="warn" dot>{`${unset} not set`}</Badge> : <Badge tone="ok" dot>All set</Badge>}
-        subtitle="When a contract is In Delay, whether its Superintending Officer follows the contract sum, and the delegation letters' forms."
+        subtitle="When a contract is In Delay, whether its S.O. follows the sum, and the delegation letters."
         actions={
           <>
             {p?.id && <HistoryButton entity="PostAwardPolicy" entityId={p.id} label="Post-award controls" />}
