@@ -34,6 +34,7 @@ import { dayOf, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 import { formatSen as formatMoney, parseSen, senFromDecimal } from "@/lib/money";
+import { paymentFaultWords } from "@/lib/payment/labels";
 import { ORGANISATION_NAME } from "@/lib/org";
 import { ratioPercentText } from "@/lib/percent-band";
 import { isSulitField } from "@/lib/sulit-fields";
@@ -449,13 +450,13 @@ async function RoutingPanel({ l, sheet, people, today, roles }: { l: LoadedCerti
     const earlierDone = inst.steps.filter((x) => x.sequence < step.sequence).every((x) => x.decision === "DONE");
     return (
       <span className="flex flex-wrap items-center gap-2">
-        {apgShort && step.act === "A" && <Chip tone="warn">{apgShort}</Chip>}
+        {apgShort && step.act === "A" && <Chip tone="warn">{apgShort.en}</Chip>}
         {step.roleCode && <EscalateDrawer stepId={step.id} office={step.actingRoleLabel ?? step.roleLabel} mandatory={isMandatoryAct(step.act)} people={people} />}
         {earlierDone ? <DecideRouteStepDrawer certId={cert.id} stepId={step.id} roleLabel={step.actingRoleLabel ?? step.roleLabel} act={ACT_LABEL[step.act] ?? "Acts"} done={ACT_DONE_LABEL[step.act] ?? "Done"} people={people} today={today} /> : <Blocked label="Record decision" reason="Steps are decided in order: the step before is not done." />}
       </span>
     );
   };
-  const apgCard = apgShort ? <Callout tone="warn" title="The guarantee is below the advance">{`${apgShort}. No rule states the cover required, so it is said, not refused; the approving office decides with it in view.`}</Callout> : null;
+  const apgCard = apgShort ? <Callout tone="warn" title="The guarantee is below the advance">{`${apgShort.en} The approving office decides with it in view.`}</Callout> : null;
   const choice = latest && latest.status === "REJECTED" && !latest.rejectionApplied && latest.rejectionChoices.length > 0 && live ? latest : null;
   const choiceCard = choice ? (
     <Callout tone="warn" title="Refused: where it goes is the officer's choice" action={<ChooseRejectionDrawer certId={cert.id} offered={choice.rejectionChoices.map((k) => ({ value: k, label: refusalKindText(k) }))} steps={choice.steps.filter((x) => x.sequence < (choice.steps.find((y) => y.decision === "REJECTED")?.sequence ?? 0)).map((x) => ({ value: String(x.sequence), label: `${x.sequence}. ${x.roleLabel}` }))} people={people} />}>
@@ -506,13 +507,14 @@ async function RoutingPanel({ l, sheet, people, today, roles }: { l: LoadedCerti
   );
 }
 
-/// An advance certificate's guarantee shortfall, in words (null where the guarantee covers it or none is read).
-async function advanceGuaranteeShortfall(certId: string): Promise<string | null> {
-  const a = await db.advancePayment.findUnique({ where: { certificateId: certId }, select: { amount: true, security: { select: { value: true, instrumentRef: true } } } });
+/// An advance certificate's guarantee shortfall, in the payment module's words (EN and MS), or null where the
+/// guarantee covers it or none is read.
+async function advanceGuaranteeShortfall(certId: string): Promise<{ en: string; ms: string } | null> {
+  const a = await db.advancePayment.findUnique({ where: { certificateId: certId }, select: { amount: true, security: { select: { value: true } } } });
   if (!a) return null;
   const amount = senFromDecimal(a.amount);
   const cover = senFromDecimal(a.security.value);
-  return cover < amount ? `Guarantee ${a.security.instrumentRef || ""} ${formatMoney(cover)} is below the advance ${formatMoney(amount)}`.replace("  ", " ") : null;
+  return cover < amount ? paymentFaultWords({ code: "APG_BELOW_ADVANCE", level: "warn", data: { value: cover.toString(), amount: amount.toString() } }) : null;
 }
 
 /// One approval route of a certificate with no routing sheet: its rule, its steps in order, each decided here.

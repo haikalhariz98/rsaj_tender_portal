@@ -117,7 +117,7 @@ export function interimCertificate(i: InterimInput): InterimResult {
 
   const pctLine: FigureLine = { key: "materialsPct", labelEn: "Allowance on unfixed materials (per cent)", labelMs: "Elaun bahan tidak terpasang (peratus)", type: "PERCENT", value: i.materials.pct.state === "SET" ? i.materials.pct.pct : null, overridable: false };
   const retentionNote: FigureLine[] =
-    i.retention.state === "NONE" ? [{ key: "retentionNote", labelEn: "Retention", labelMs: "Wang tahanan", type: "TEXT", value: i.retention.source === "DERIVED" ? "Does not apply: the contract's terms band holds none" : "Does not apply: as recorded at baseline, with its provenance", overridable: false }] : [];
+    i.retention.state === "NONE" ? [{ key: "retentionNote", labelEn: "Retention", labelMs: "Wang tahanan", type: "TEXT", value: i.retention.source === "DERIVED" ? "Does not apply: the contract's terms band holds none" : "Does not apply: as recorded at baseline, with its provenance", valueMs: i.retention.source === "DERIVED" ? "Tidak dikenakan: jalur terma kontrak tidak mengenakannya" : "Tidak dikenakan: seperti direkodkan dalam garis dasar, dengan sumbernya", overridable: false }] : [];
   const ladLines: FigureLine[] = lad
     ? [
         m("ladRate", "Liquidated damages: rate a day (as on the Certificate of Non-Completion)", "Ganti rugi tertentu: kadar sehari (seperti pada Perakuan Kerja Tidak Siap)", lad.rate),
@@ -129,9 +129,9 @@ export function interimCertificate(i: InterimInput): InterimResult {
         m("ladRounding", "Liquidated damages: rounding", "Ganti rugi tertentu: pelarasan pembundaran", i.ladRounding),
       ]
     : i.lad.state === "EXCUSED"
-      ? [{ key: "ladNote", labelEn: "Liquidated damages", labelMs: "Ganti rugi tertentu", type: "TEXT", value: `None: the delay is excusable or its entitlement pending (${i.lad.reason.trim() || "reason recorded with the decision"})`, overridable: false }]
+      ? [{ key: "ladNote", labelEn: "Liquidated damages", labelMs: "Ganti rugi tertentu", type: "TEXT", value: `None: the delay is excusable or its entitlement pending (${i.lad.reason.trim() || "reason recorded with the decision"})`, valueMs: `Tiada: kelewatan boleh dimaafkan atau haknya belum diputuskan (${i.lad.reason.trim() || "sebab direkodkan bersama keputusan"})`, overridable: false }]
       : i.lad.state === "NOTHING_TO_CHARGE"
-        ? [{ key: "ladNote", labelEn: "Liquidated damages", labelMs: "Ganti rugi tertentu", type: "TEXT", value: "None this certificate: every day of the window to its valuation day is charged already, or the window has not begun", overridable: false }]
+        ? [{ key: "ladNote", labelEn: "Liquidated damages", labelMs: "Ganti rugi tertentu", type: "TEXT", value: "None this certificate: every day of the window to its valuation day is charged already, or the window has not begun", valueMs: "Tiada bagi perakuan ini: setiap hari tempoh hingga hari penilaiannya telah dikenakan, atau tempoh belum bermula", overridable: false }]
         : [];
   const others = i.others.map((o, n) => m(`other${n + 1}`, `Other deduction: ${o.label}`, `Potongan lain: ${o.label}`, o.amount, true));
   const lines: FigureLine[] = [

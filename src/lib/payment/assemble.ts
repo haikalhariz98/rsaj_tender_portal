@@ -25,7 +25,7 @@ import { recoupments, type LiveAdvance } from "./advance";
 import { preExecutionFaults, type PreExecutionFacts } from "./eligibility";
 import { interimCertificate, type InterimResult } from "./interim";
 import { afterCutOff, materialsAllowance, materialsPct, type MaterialLine, type MaterialsPct } from "./materials";
-import { paymentFaultText } from "./labels";
+import { paymentFaultWords } from "./labels";
 import { minimumFaults, minimumMeasureText, minimumReading, type MinimumReading } from "./minimum";
 import { retentionReading, type RetentionReading, type Tiers } from "./retention";
 import type { Day, Finding, KeyedDeductionKind, Provenance, ValuationTrigger, WaterfallRemainder } from "./types";
@@ -228,7 +228,7 @@ export function assembleInterim(i: AssembleInput): Assembled {
   // BD-613-29: the certificate says which measure its minimum is judged on, and that the measure is assumed.
   if (result.snapshot) {
     const t = minimumMeasureText(sequence === 1, sequence === 1 ? b.firstInterimMinimum : b.subsequentInterimMinimum, (x) => formatMoney(x));
-    result.snapshot.lines.push({ key: "minimumMeasure", labelEn: "The certificate's minimum (assumed measure)", labelMs: "Minimum perakuan (ukuran andaian)", type: "TEXT", value: t.en, overridable: false });
+    result.snapshot.lines.push({ key: "minimumMeasure", labelEn: "The certificate's minimum (assumed measure)", labelMs: "Minimum perakuan (ukuran andaian)", type: "TEXT", value: t.en, valueMs: t.ms, overridable: false });
   }
   // FR-PAY-008: the value to date beyond the revised contract sum needs a Variation Order Certificate first.
   if (result.figures) faults.push(...variationFaults({ valuedTotal: result.figures.gross, revisedSum: result.figures.newSum, unapproved: 0 }));
@@ -239,9 +239,9 @@ export function assembleInterim(i: AssembleInput): Assembled {
   const warnings = [...preExecutionFaults(sequence, { ...i.preExecution, limit: i.policy.preExecutionLimit }, "warn"), ...revised];
   // BD-613-48: the certificate itself says the CNC's rate still applies where the baseline has since moved.
   const rateNote = revised.find((x) => x.code === "LAD_BASELINE_REVISED");
-  if (result.snapshot && rateNote) result.snapshot.lines.push({ key: "ladRateNote", labelEn: "Damages rate", labelMs: "Kadar ganti rugi", type: "TEXT", value: paymentFaultText(rateNote), overridable: false });
+  if (result.snapshot && rateNote) result.snapshot.lines.push({ key: "ladRateNote", labelEn: "Damages rate", labelMs: "Kadar ganti rugi", type: "TEXT", value: paymentFaultWords(rateNote).en, valueMs: paymentFaultWords(rateNote).ms, overridable: false });
   const openingNotes = revised.filter((x) => x.code === "OPENING_ASSUMED" || x.code === "OPENING_NOT_RECONCILED_ASSUMED");
-  if (result.snapshot && openingNotes.length) result.snapshot.lines.push({ key: "openingNote", labelEn: "Opening position", labelMs: "Kedudukan pembukaan", type: "TEXT", value: openingNotes.map((x) => paymentFaultText(x)).join(" "), overridable: false });
+  if (result.snapshot && openingNotes.length) result.snapshot.lines.push({ key: "openingNote", labelEn: "Opening position", labelMs: "Kedudukan pembukaan", type: "TEXT", value: openingNotes.map((x) => paymentFaultWords(x).en).join(" "), valueMs: openingNotes.map((x) => paymentFaultWords(x).ms).join(" "), overridable: false });
   const parties = v.parties.map((p) => ({ id: p.partyId, tier: (p.kind === "ASSIGNEE" ? "ASSIGNEE" : "NOMINATED") as "ASSIGNEE" | "NOMINATED", due: p.due }));
   const wf = result.figures ? waterfall(result.figures.recommended, parties, i.policy.remainder) : null;
   if (wf) faults.push(...wf.faults);
