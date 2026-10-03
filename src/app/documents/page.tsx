@@ -11,7 +11,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { KIND_WORDS } from "@/lib/certificate/labels";
 import { copyState, DISTRIBUTION_PAGE, LIBRARY_PAGE, SHEETS_PAGE } from "@/lib/certificate/library";
 import { fidelityLine } from "@/lib/certificate/printed";
-import { distributionCounts, distributionPage, libraryCount, libraryPage, routingSheetsPage, sheetsCounted } from "@/lib/certificate/register";
+import { distributionCounts, distributionPage, libraryCount, libraryPage, openSheetsJudged, routingSheetsPage, sheetsCounted } from "@/lib/certificate/register";
 import { COPY_STATE_WORDS, REGISTER_WORDS as W, SOURCE_WORDS } from "@/lib/certificate/register-words";
 import { verdictText } from "@/lib/certificate/sheet-words";
 import { dayOf } from "@/lib/dates";
@@ -46,14 +46,19 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
   }
   const today = dayOf(new Date(), org.timeZone);
   // Code review M-3: only the tab asked for reads its list; the strip's and the header's counts are count queries.
-  const [libraryTotal, dist, sheetCount, library, distribution, sheets] = await Promise.all([
-    libraryCount(org.id),
+  // Residual S-1: the open sheets are judged whole on every tab (a slim select), for the header and the warning;
+  // the Routing sheets tab pages that same set. Residual consider: with no search the Library's page reuses its count.
+  const whole = libraryCount(org.id);
+  const [libraryTotal, dist, sheetCount, judged, library, distribution] = await Promise.all([
+    whole,
     distributionCounts(org.id),
     sheetsCounted(org.id),
-    tab === "library" ? libraryPage(org.id, query, sp.page, org.timeZone) : Promise.resolve(null),
+    today ? openSheetsJudged(org.id, today) : Promise.resolve(null),
+    tab === "library" ? whole.then((t) => libraryPage(org.id, query, sp.page, org.timeZone, t)) : Promise.resolve(null),
     tab === "distribution" ? distributionPage(org.id, sp.page) : Promise.resolve(null),
-    tab === "routing" && today ? routingSheetsPage(org.id, sp.page, today) : Promise.resolve(null),
   ]);
+  const sheets = tab === "routing" && judged ? routingSheetsPage(judged, sp.page) : null;
+  const searching = tab === "library" && !!library && query.trim() !== "";
   const pager = (t: string, page: number, total: number, size: number, extra = "") => {
     const pages = Math.ceil(total / size);
     if (pages <= 1) return null;
@@ -204,12 +209,12 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
           plural(libraryTotal, "document in the library", "documents in the library"),
           `${plural(dist.notSent, "copy not sent", "copies not sent")} (${dist.notSentMandatory} mandatory)`,
           plural(dist.ackAwaited, "acknowledgement awaited", "acknowledgements awaited"),
-          plural(sheetCount.open, "routing sheet open", "routing sheets open"),
+          judged ? `${plural(judged.counts.open, "routing sheet open", "routing sheets open")} (${judged.counts.overTarget} past the target, ${judged.counts.notJudged} not judged)` : `${plural(sheetCount.open, "routing sheet open", "routing sheets open")} (not judged: the time zone is not set)`,
         ]}
       />
-      {sheets && sheets.counts.overTarget > 0 && tab === "routing" && (
+      {judged && judged.counts.overTarget > 0 && (
         <div className="mb-6">
-          <Callout tone="warn" title={plural(sheets.counts.overTarget, "routing sheet is past its target", "routing sheets are past their target")}>
+          <Callout tone="warn" title={plural(judged.counts.overTarget, "routing sheet is past its target", "routing sheets are past their target")}>
             Received and not yet approved, they have run longer than the target their type sets. They are listed first on Routing sheets.
           </Callout>
         </div>
@@ -218,9 +223,9 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
         initial={tab}
         label={W.title.en}
         tabs={[
-          { id: "library", label: W.library.en, icon: <FilesIcon size={15} />, count: libraryTotal, panel: libraryPanel, lazy: true },
+          { id: "library", label: W.library.en, icon: <FilesIcon size={15} />, count: searching ? library!.total : libraryTotal, panel: libraryPanel, lazy: true },
           { id: "distribution", label: W.distribution.en, icon: <InboxIcon size={15} />, count: dist.total, panel: distributionPanel, lazy: true },
-          { id: "routing", label: W.sheets.en, icon: <RouteIcon size={15} />, count: sheetCount.open, panel: routingPanel, lazy: true },
+          { id: "routing", label: W.sheets.en, icon: <RouteIcon size={15} />, count: judged?.counts.open ?? sheetCount.open, panel: routingPanel, lazy: true },
           { id: "review", label: W.review.en, icon: <ClockIcon size={15} />, panel: tab === "review" ? reviewPanel : null, lazy: true },
         ]}
       />

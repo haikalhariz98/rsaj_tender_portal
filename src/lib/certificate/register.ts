@@ -9,8 +9,9 @@
  * - Distribution: every addressed copy of an issued certificate not yet sent, or sent and its acknowledgement
  *   awaited, oldest issue first, on contracts not cancelled; the counts are the database's, and a cancelled contract's
  *   outstanding copies are counted apart, kept as they were (code review M-2).
- * - Routing sheets: every certificate on its routing sheet on a contract not cancelled, drawn by the certificate page's
- *   own projection, judged over all of them, then paged; a cancelled contract's are counted apart.
+ * - Routing sheets: every certificate on its routing sheet on a contract not cancelled, read through a slim select and
+ *   drawn by the certificate page's own projection, judged over all of them (the counts every tab shows), then paged;
+ *   a cancelled contract's are counted apart.
  */
 
 import { Prisma } from "@/generated/prisma/client";
@@ -20,10 +21,10 @@ import { db } from "@/lib/db";
 
 import { KIND_WORDS } from "./labels";
 import { DISTRIBUTION_PAGE, issuedCopiesWhere, LIBRARY_PAGE, likePatterns, openSheetsWhere, outstandingCopiesWhere, pageOf, sheetCounts, sheetOrder, SHEETS_PAGE } from "./library";
-import { certificateInclude, termOf } from "./repo";
+import { sheetOf } from "./pin-context";
+import { termOf } from "./repo";
 import { searchVariants } from "./terms";
 import { CERTIFICATE_KINDS } from "./types";
-import { sheetOf } from "./write";
 
 const kindsMatching = (vs: readonly string[]) => CERTIFICATE_KINDS.filter((k) => vs.some((v) => [KIND_WORDS[k].en, KIND_WORDS[k].ms].some((x) => x.toLowerCase().includes(v.toLowerCase()))));
 const awardKindsMatching = (vs: readonly string[]) => (Object.keys(DOCUMENT_LABEL) as (keyof typeof DOCUMENT_LABEL)[]).filter((k) => vs.some((v) => DOCUMENT_LABEL[k].toLowerCase().includes(v.toLowerCase())));
@@ -78,10 +79,11 @@ async function libraryEntries(organisationId: string, variants: readonly string[
   return db.$queryRaw<Entry[]>`WITH entries AS (${list}) SELECT src, id, at FROM entries ORDER BY at DESC, id COLLATE "C" ASC LIMIT ${limit} OFFSET ${offset}`;
 }
 
-export async function libraryPage(organisationId: string, query: string, askedPage: string | undefined, timeZone: string | null) {
+/// `wholeTotal`: the whole Library's count where the caller has it, used when there is no search (never counted twice).
+export async function libraryPage(organisationId: string, query: string, askedPage: string | undefined, timeZone: string | null, wholeTotal?: number) {
   const terms = (await db.term.findMany({ where: { organisationId }, orderBy: { code: "asc" }, include: { aliases: true } })).map(termOf);
   const variants = searchVariants(query, terms);
-  const total = await libraryCount(organisationId, variants);
+  const total = variants.length === 0 && wholeTotal != null ? wholeTotal : await libraryCount(organisationId, variants);
   const page = pageOf(askedPage, total, LIBRARY_PAGE);
   const list = await libraryEntries(organisationId, variants, page * LIBRARY_PAGE, LIBRARY_PAGE);
   const certIds = list.filter((e) => e.src === "C").map((e) => e.id);
@@ -174,13 +176,36 @@ export async function sheetsCounted(organisationId: string) {
   return { open, onCancelled };
 }
 
-export async function routingSheetsPage(organisationId: string, askedPage: string | undefined, today: string) {
-  const certs = await db.certificate.findMany({ where: openSheetsWhere(organisationId, false), include: { ...certificateInclude, contract: { select: { id: true, number: true } } } });
+/// Code review S-1 (residual): only the columns a routing sheet is drawn from (pin-context.ts `SheetSource`), and the
+/// list's own, never the certificate page's whole include.
+const sheetSelect = {
+  id: true,
+  kind: true,
+  routingSnapshot: true,
+  computedSnapshot: true,
+  routingReceivedOn: true,
+  overrides: { select: { fieldKey: true, computed: true, overridden: true, justification: true, personName: true, recordedAt: true }, orderBy: { recordedAt: "asc" as const } },
+  approvalInstances: { select: { id: true, status: true, openedAt: true, createdAt: true, steps: { select: { sequence: true, roleLabel: true, actingRoleLabel: true, act: true, committeeCode: true, decision: true, decidedByName: true, decidedOn: true, receivedOn: true }, orderBy: { sequence: "asc" as const } } }, orderBy: [{ openedAt: "asc" as const }, { createdAt: "asc" as const }] },
+  routingChecks: { select: { iteration: true, defOrder: true, personName: true, on: true, note: true }, orderBy: [{ iteration: "asc" as const }, { defOrder: "asc" as const }] },
+  contract: { select: { id: true, number: true } },
+} satisfies Prisma.CertificateSelect;
+
+/**
+ * Every open sheet on a contract not cancelled, drawn and judged over the whole set, in the register's order (code
+ * review S-1, residual): the counts every tab's header and warning read, and the list the Routing sheets tab pages.
+ */
+export async function openSheetsJudged(organisationId: string, today: string) {
+  const certs = await db.certificate.findMany({ where: openSheetsWhere(organisationId, false), select: sheetSelect });
   const sheets = certs
     .map((c) => ({ c, sheet: sheetOf(c, today) }))
     .filter((x): x is { c: (typeof certs)[number]; sheet: NonNullable<ReturnType<typeof sheetOf>> } => x.sheet != null)
     .sort((a, b) => sheetOrder({ date1: a.sheet.date1, id: a.c.id }, { date1: b.sheet.date1, id: b.c.id }));
-  const counts = sheetCounts(sheets.map((x) => x.sheet));
+  return { sheets, counts: sheetCounts(sheets.map((x) => x.sheet)) };
+}
+
+/// One page of the open sheets, from the set judged whole.
+export function routingSheetsPage(judged: Awaited<ReturnType<typeof openSheetsJudged>>, askedPage: string | undefined) {
+  const { sheets, counts } = judged;
   const page = pageOf(askedPage, sheets.length, SHEETS_PAGE);
   return { rows: sheets.slice(page * SHEETS_PAGE, (page + 1) * SHEETS_PAGE), total: sheets.length, page, counts };
 }
