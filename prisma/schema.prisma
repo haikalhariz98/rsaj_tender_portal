@@ -3298,6 +3298,13 @@ model Award {
   dlpMonths           Int?
   termsProvenance     Provenance?
   wcBasis             WcBasis?
+  /// 64-C4-b (6.13 Part A step 0, flagged against 6.11): the award's own sums insured, per policy kind (a CAR
+  /// or EAR policy accepted for the works counts as works). Null: the award states none, and the tender
+  /// Appendix's minimum governs, shown with its source, never 0. Stated, it governs even below the Appendix's
+  /// minimum (ADR 0021 precedence), shown with both figures. The readiness gate compares each policy with it.
+  worksSumInsured     Decimal?    @db.Decimal(18, 2)
+  liabilitySumInsured Decimal?    @db.Decimal(18, 2)
+  wcSumInsured        Decimal?    @db.Decimal(18, 2)
   /// 64-C4 (6.4 Q-1 B): why a term differs from the exercise's frozen tender Appendix (the
   /// regulated activity: from the tender's answer). Null: it does not differ, or the
   /// exercise froze no Appendix. Never backfilled.

@@ -374,6 +374,10 @@ export async function updateAwardTerms(_prev: FormState, data: FormData): Promis
     retentionCapPercent: percent(r, "retentionCapPercent", "Retention limit"),
     dlpMonths: r.int("dlpMonths", "Defects liability period", { min: 0 }),
     termsProvenance: r.choice("termsProvenance", "Where the terms came from", PROVENANCE),
+    // 64-C4-b: the award's own sums insured; empty is "not stated", never 0.
+    worksSumInsured: r.money("worksSumInsured", "Works insurance, sum insured"),
+    liabilitySumInsured: r.money("liabilitySumInsured", "Public liability insurance, sum insured"),
+    wcSumInsured: r.money("wcSumInsured", "Workmen's compensation insurance, sum insured"),
     wcBasis: r.choice("wcBasis", "Workmen's compensation basis", ["UNCOVERED_WAGES", "PERCENT_OF_CONTRACT"] as const),
   };
   if (bondRequired === false && !v.bondNotRequiredReason) r.reject("bondNotRequiredReason", "Say why no performance bond is required.");
@@ -389,6 +393,9 @@ export async function updateAwardTerms(_prev: FormState, data: FormData): Promis
       ...v,
       bondBasisAmount: v.bondBasisAmount ? senToDecimalString(parseSen(v.bondBasisAmount)) : null,
       ladAmount: v.ladAmount ? senToDecimalString(parseSen(v.ladAmount)) : null,
+      worksSumInsured: v.worksSumInsured ? senToDecimalString(parseSen(v.worksSumInsured)) : null,
+      liabilitySumInsured: v.liabilitySumInsured ? senToDecimalString(parseSen(v.liabilitySumInsured)) : null,
+      wcSumInsured: v.wcSumInsured ? senToDecimalString(parseSen(v.wcSumInsured)) : null,
     });
     // 64-C4 (6.4 Q-1 B): where the exercise froze a tender Appendix, a term stated otherwise needs its reason.
     const tender = await frozenTenderOf(l.ex.id, l.org.timeZone, tx);

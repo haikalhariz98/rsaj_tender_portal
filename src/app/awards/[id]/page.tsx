@@ -81,7 +81,8 @@ import { routeCoreText, stepOriginText } from "@/lib/authority/core-routing-labe
 import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import { derivedAnnualValue } from "@/lib/securities/bond";
 import { expiryAlert } from "@/lib/securities/expiry";
-import { awardReadiness } from "@/lib/award/gate-read";
+import { awardReadiness, awardSumsOf } from "@/lib/award/gate-read";
+import { appendixMinimum, governingSum, INSURED_KINDS, type Governing, type InsuredKind } from "@/lib/award/insurance-terms";
 import { ReadinessGateList } from "@/components/contract/readiness-gate";
 import { applicableRequirements, derivedLimit, wcSumCheck } from "@/lib/securities/insurance";
 import { db } from "@/lib/db";
@@ -198,6 +199,9 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
     dlpMonths: award.dlpMonths == null ? null : String(award.dlpMonths),
     termsProvenance: award.termsProvenance,
     wcBasis: award.wcBasis,
+    worksSumInsured: award.worksSumInsured?.toString() ?? null,
+    liabilitySumInsured: award.liabilitySumInsured?.toString() ?? null,
+    wcSumInsured: award.wcSumInsured?.toString() ?? null,
     ladDiffersReason: award.ladDiffersReason,
     dlpDiffersReason: award.dlpDiffersReason,
     regulatedDiffersReason: award.regulatedDiffersReason,
@@ -211,6 +215,12 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
   }
   // 64-C4: what the frozen tender states for each term, in words; null without a frozen Appendix.
   const tenderTexts = ev.appendix ? (Object.fromEntries(BASELINE_FIELDS.map((k) => [k, tenderTermText(k, ev.appendix!.baseline)])) as Record<BaselineField, string | null>) : null;
+  // 64-C4-b: the tender Appendix's insurance minimum for each kind, in words, for the form's hints.
+  const minimumText = (k: InsuredKind) => {
+    const m = appendixMinimum(k, ev.appendix?.baseline ?? null, senFromDecimal(award.awardedValue));
+    return m == null ? null : formatMoney(m);
+  };
+  const insuranceMinimums = ev.appendix ? { works: minimumText("WORKS"), liability: minimumText("PUBLIC_LIABILITY"), wc: minimumText("WORKMENS_COMPENSATION") } : null;
   const routePreview = ev.route?.ok ? ev.route.chain.map((s) => `${f.issue?.matrix.roles[s.roleCode]?.nameEn ?? "An office no longer configured"} — ${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"}${s.committeeCode ? ", as a committee decision" : ""}`) : [];
   const consequenceText = ev.consequence ? NON_COMMENCEMENT_LABEL[ev.consequence] : null;
 
@@ -234,7 +244,7 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
           recommended={recommendedText}
         />
       )}
-      {edits.terms && <EditTermsDrawer id={award.id} values={termsValues} regulatedLabel={policy.regulatedActivityLabel} asked={{ retention: ev.terms?.retentionAsked ?? null, dlp: ev.terms?.dlpAsked ?? null }} tender={tenderTexts} />}
+      {edits.terms && <EditTermsDrawer id={award.id} values={termsValues} regulatedLabel={policy.regulatedActivityLabel} asked={{ retention: ev.terms?.retentionAsked ?? null, dlp: ev.terms?.dlpAsked ?? null }} tender={tenderTexts} insuranceMinimums={insuranceMinimums} />}
       {status === "DRAFT" && <SubmitAwardDrawer id={award.id} blocker={submitBlocker} route={routePreview} />}
       {canRecordCommitment && <RecordCommitmentDrawer id={award.id} indent={!loa} example={f.config.indentFormat?.example || null} today={today} />}
       {status === "APPROVED" && !(issueReady && ev.signatory?.ok) && (
@@ -292,7 +302,7 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
   const requirements = applicableRequirements(f.config.requirements, ex.contractTypeCode);
   // OD-5: before acceptance the return counts with its scans; an accepted award is not re-judged.
   // 6.12: the one reading the award and its contract share, with the recorded uncovered-wages check.
-  const gate = awardReadiness(award, ev.requiredBond, requirements);
+  const gate = awardReadiness(award, ev.requiredBond, requirements, ev.appendix?.baseline ?? null);
   const securities = award.contract?.securities ?? [];
   const policies = award.contract?.policies ?? [];
 
@@ -451,6 +461,18 @@ function FromRecommendation({ differs, reason, recommended, children }: { differ
 }
 
 /// The insurance the tender Appendix states: carried to the contract, not restated by the award.
+/// 64-C4-b: the sum insured that governs a kind, with its source; the award's figure below the Appendix's shows both.
+function GoverningSum({ g }: { g: Governing }) {
+  if (g.state === "NOT_STATED") return notSet("Not stated by the award or a tender Appendix: not compared");
+  if (g.state === "APPENDIX") return <span>{formatMoney(g.sen)} <span className="text-ink-3">· from the tender Appendix (the award states none)</span></span>;
+  return (
+    <span className="flex flex-col items-start gap-1">
+      <span>{formatMoney(g.sen)} <span className="text-ink-3">· the award&apos;s own figure, which governs</span></span>
+      {g.belowAppendix && g.appendix != null && <Chip tone="warn">{`Below the tender Appendix's minimum of ${formatMoney(g.appendix)}`}</Chip>}
+    </span>
+  );
+}
+
 function tenderInsurance(b: NonNullable<AwardEvaluation["appendix"]>["baseline"]) {
   const m = (x: bigint | null) => (x == null ? notSet() : formatMoney(x));
   const u = b.insurance.worksUplift;
@@ -575,6 +597,7 @@ function OverviewPanel({ l, ev, awardee, recommendation, methodName, typeName, p
               { label: "Terms band", value: ex.termsBandKey ? (l.ex.bandSnapshot as { terms?: { label?: string } } | null)?.terms?.label ?? "As recorded on the exercise" : ex.termsState === "NONE_IN_REGIME" ? "Not applicable in this band" : notSet() },
               { label: "Appointment-letter variant", value: kind === "LETTER_OF_ACCEPTANCE" ? "Not applicable" : award.variantName ?? (ev.variant?.state === "SELECTED" ? ev.variant.variant.nameEn : notSet(ev.variant ? awardFindingText({ code: ev.variant.state === "NONE" ? "VARIANT_NONE" : ev.variant.state === "AMBIGUOUS" ? "VARIANT_AMBIGUOUS" : "TERMS_NOT_SET", level: "block" }) : NOT_SET)) },
               { label: "If work does not commence", value: kind === "LETTER_OF_ACCEPTANCE" ? "Not applicable" : ev.consequence ? NON_COMMENCEMENT_LABEL[ev.consequence] : notSet() },
+              ...INSURED_KINDS.map((k) => ({ label: `${INSURANCE_KIND_LABEL[k]}, sum insured`, value: <GoverningSum g={governingSum(k, awardSumsOf(award)[k], ev.appendix?.baseline ?? null, senFromDecimal(award.awardedValue))} /> })),
               ...(ev.appendix ? tenderInsurance(ev.appendix.baseline) : []),
             ]}
           />
@@ -1290,6 +1313,9 @@ const FIELD_NAME: Record<string, string> = {
   retentionCapPercent: "Retention limit",
   dlpMonths: "Defects liability, months",
   wcBasis: "Workmen's compensation basis",
+  worksSumInsured: "Works insurance, sum insured",
+  liabilitySumInsured: "Public liability insurance, sum insured",
+  wcSumInsured: "Workmen's compensation insurance, sum insured",
   ladDiffersReason: "Why the liquidated damages differ from the tender Appendix",
   dlpDiffersReason: "Why the defects liability period differs from the tender Appendix",
   regulatedDiffersReason: "Why the regulated-activity answer differs from the tender's",
@@ -1310,7 +1336,7 @@ const FIELD_NAME: Record<string, string> = {
   recordedOnBehalf: "Recorded",
   classificationLockedAt: "Classification locked",
 };
-const MONEY_FIELDS = new Set(["awardedValue", "bondBasisAmount", "ladAmount", "value", "sumInsured", "contractSum", "requiredValue", "appendixAmount", "requiredLimit"]);
+const MONEY_FIELDS = new Set(["awardedValue", "bondBasisAmount", "ladAmount", "value", "sumInsured", "contractSum", "requiredValue", "appendixAmount", "requiredLimit", "worksSumInsured", "liabilitySumInsured", "wcSumInsured"]);
 /// A status reads by what it is the status of: a route is "Approved", an award "Approved, not issued".
 const STATUS_TEXT: Record<string, Record<string, string>> = {
   Award: AWARD_STATUS_LABEL,

@@ -8,7 +8,8 @@
 import type { Prisma } from "@/generated/prisma/client";
 import type { Tx } from "@/lib/audit/record";
 import { awardReadiness, type ReadinessAward } from "@/lib/award/gate-read";
-import { frozenTenderOf, loadAwardConfig, type LoadedAward } from "@/lib/award/repo";
+import { baselineOf, type FrozenTender } from "@/lib/award/appendix-baseline";
+import { frozenTenderOf, frozenTendersOf, loadAwardConfig, type LoadedAward } from "@/lib/award/repo";
 import { dayOf, dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { isLive } from "@/lib/documents/evidence";
@@ -57,16 +58,18 @@ export { preparationSettings };
 
 type GateAward = ReadinessAward & { bondBasis: string | null; bondPercent: { toString(): string } | null; bondBasisAmount: { toString(): string } | null; awardedValue: Parameters<typeof senFromDecimal>[0] };
 
-/// The gate on an award's rows, the configuration's insurance requirements given (read once by the caller).
-function gateOn(a: GateAward, contractTypeCode: string | null, requirements: Awaited<ReturnType<typeof loadAwardConfig>>["requirements"]) {
-  const bond = requiredBond({ basis: a.bondBasis as BondBasis | null, percent: dec(a.bondPercent), basisAmount: senOrNull(a.bondBasisAmount), contractPrice: senFromDecimal(a.awardedValue) });
-  return awardReadiness(a, bond, applicableRequirements(requirements, contractTypeCode));
+/// The gate on an award's rows, the configuration's insurance requirements given (read once by the caller), and
+/// the exercise's frozen tender (64-C4-b: its Appendix's insurance minimums govern where the award states none).
+function gateOn(a: GateAward, contractTypeCode: string | null, requirements: Awaited<ReturnType<typeof loadAwardConfig>>["requirements"], tender: FrozenTender | null) {
+  const value = senFromDecimal(a.awardedValue);
+  const bond = requiredBond({ basis: a.bondBasis as BondBasis | null, percent: dec(a.bondPercent), basisAmount: senOrNull(a.bondBasisAmount), contractPrice: value });
+  return awardReadiness(a, bond, applicableRequirements(requirements, contractTypeCode), tender ? baselineOf(tender, value) : null);
 }
 
 /// The readiness gate as the award's Conditions tab shows it (FR-CON-008), on the rows given.
 export async function contractGate(l: LoadedAward, client: Tx = db) {
-  const config = await loadAwardConfig(l.org.id, client);
-  return gateOn(l.award, l.ex.contractTypeCode, config.requirements);
+  const [config, tender] = await Promise.all([loadAwardConfig(l.org.id, client), frozenTenderOf(l.ex.id, l.org.timeZone, client)]);
+  return gateOn(l.award, l.ex.contractTypeCode, config.requirements, tender);
 }
 
 /**
@@ -85,10 +88,11 @@ export async function endorsedPhases(organisationId: string, take: number, clien
         id: true,
         attachments: { where: { purpose: "COMPANY_RESOLUTION" }, select: { detachedAt: true, version: { select: { withdrawnAt: true } } } },
         securities: { select: { kind: true, status: true, value: true } },
-        policies: { select: { kind: true, substitutesFor: true, status: true, wcCheckedOn: true } },
+        policies: { select: { kind: true, substitutesFor: true, status: true, wcCheckedOn: true, sumInsured: true } },
         award: {
           select: {
             instrumentKind: true, status: true, bondRequired: true, bondNotRequiredReason: true, wcBasis: true, bondBasis: true, bondPercent: true, bondBasisAmount: true, awardedValue: true,
+            worksSumInsured: true, liabilitySumInsured: true, wcSumInsured: true, exerciseId: true,
             awardReturn: { include: { receivedBy: { select: { id: true, name: true } } } },
             attachments: { select: { purpose: true, detachedAt: true, version: { select: { withdrawnAt: true } } } },
             exercise: { select: { contractTypeCode: true } },
@@ -98,8 +102,10 @@ export async function endorsedPhases(organisationId: string, take: number, clien
     }),
   ]);
   const out = new Map<string, "AWAITING_CONDITIONS" | "READY_TO_SIGN" | "LEGALLY_ENDORSED">();
+  const org = await client.organisation.findUnique({ where: { id: organisationId }, select: { timeZone: true } });
+  const tenders = await frozenTendersOf(rows.map((r) => r.award.exerciseId), org?.timeZone ?? null, client);
   for (const r of rows) {
-    const gate = gateOn({ ...r.award, contract: { securities: r.securities, policies: r.policies } }, r.award.exercise.contractTypeCode, config.requirements);
+    const gate = gateOn({ ...r.award, contract: { securities: r.securities, policies: r.policies } }, r.award.exercise.contractTypeCode, config.requirements, tenders.get(r.award.exerciseId) ?? null);
     out.set(r.id, phaseOf("LEGALLY_ENDORSED", gate, r.attachments.some(isLive)) as "AWAITING_CONDITIONS" | "READY_TO_SIGN" | "LEGALLY_ENDORSED");
   }
   return out;

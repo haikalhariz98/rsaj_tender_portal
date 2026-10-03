@@ -95,6 +95,7 @@ export function EditTermsDrawer({
   asked,
   label = "Edit terms",
   tender = null,
+  insuranceMinimums = null,
 }: {
   id: string;
   values: Values;
@@ -106,9 +107,13 @@ export function EditTermsDrawer({
   /// 64-C4: what the frozen tender states for each term, in words (null: states nothing).
   /// Not given: the exercise froze no Appendix, and the form is as before.
   tender?: { lad: string | null; dlp: string | null; regulated: string | null } | null;
+  /// 64-C4-b: the tender Appendix's insurance minimum for each kind, in words (null: it states none).
+  insuranceMinimums?: { works: string | null; liability: string | null; wc: string | null } | null;
 }) {
   const bond = { name: "bondRequired", in: ["yes"] } as const;
   const fromTender = (t: string | null | undefined, words = "The tender Appendix states") => (t ? `${words}: ${t}. Stating it otherwise needs a reason, below.` : undefined);
+  const minimum = (t: string | null | undefined) =>
+    !insuranceMinimums ? "Empty: the award states none, and the tender Appendix's minimum governs where it states one." : t ? `The tender Appendix's minimum: ${t}. A figure stated here governs instead, even below it; both are then shown.` : "The tender Appendix states no minimum. Empty: not stated, and the policy's sum is not compared.";
   const reasons: Field[] = tender
     ? [
         { kind: "note", text: "Where a term differs from the tender, say why. Each reason is kept in the award's history and shown beside the term; the instrument is not issued while a difference has none." },
@@ -173,6 +178,10 @@ export function EditTermsDrawer({
         { kind: "text", name: "retentionPercent", label: "Retention percentage", placeholder: "e.g. 5", hint: asked.retention === false ? "Not asked by the exercise's terms band." : undefined },
         { kind: "text", name: "retentionCapPercent", label: "Retention limit, percentage of the contract sum", placeholder: "e.g. 5" },
         { kind: "number", name: "dlpMonths", label: "Defects liability period, months", min: 0, hint: fromTender(tender?.dlp === "None" ? "none (0 months)" : tender?.dlp) ?? (asked.dlp === false ? "Not asked by the exercise's terms band; the insurance period still counts it." : undefined) },
+        { kind: "note", text: "Sums insured, as the letter states them for this award. Empty: the award states none, and the tender Appendix's minimum governs where it states one. Each verified policy is compared with the figure that governs its kind before signing." },
+        { kind: "money", name: "worksSumInsured", label: "Works insurance, sum insured", hint: minimum(insuranceMinimums?.works) },
+        { kind: "money", name: "liabilitySumInsured", label: "Public liability insurance, sum insured", hint: minimum(insuranceMinimums?.liability) },
+        { kind: "money", name: "wcSumInsured", label: "Workmen's compensation insurance, sum insured", hint: minimum(insuranceMinimums?.wc) },
         { kind: "select", name: "termsProvenance", label: "Where the terms came from", placeholder: "Not recorded", options: PROVENANCE },
         {
           kind: "select",

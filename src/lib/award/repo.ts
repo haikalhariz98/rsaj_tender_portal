@@ -228,10 +228,17 @@ export async function frozenTenderOf(exerciseId: string, timeZone: string | null
   const pack = await client.tenderPack.findFirst({
     where: { exerciseId, status: "APPROVED", frozenAt: { not: null }, appendix: { isNot: null } },
     orderBy: { versionNo: "desc" },
-    select: { versionNo: true, frozenAt: true, conditionsSnapshot: true, appendix: true },
+    select: FROZEN_PACK_SELECT,
   });
-  const a = pack?.appendix;
-  if (!pack || !a) return null;
+  return pack ? frozenTenderFrom(pack, timeZone) : null;
+}
+
+const FROZEN_PACK_SELECT = { exerciseId: true, versionNo: true, frozenAt: true, conditionsSnapshot: true, appendix: true } as const;
+type FrozenPackRow = { versionNo: number; frozenAt: Date | null; conditionsSnapshot: Prisma.JsonValue; appendix: Prisma.ConditionsAppendixGetPayload<object> | null };
+
+function frozenTenderFrom(pack: FrozenPackRow, timeZone: string | null): FrozenTender | null {
+  const a = pack.appendix;
+  if (!a) return null;
   return {
     packVersion: pack.versionNo,
     // 68-C5 residual 4: the organisation's day the pack froze; with no zone, none (never UTC's day).
@@ -252,6 +259,24 @@ export async function frozenTenderOf(exerciseId: string, timeZone: string | null
     },
     regulated: readConditionsSnapshot(pack.conditionsSnapshot)?.permit.regulated ?? null,
   };
+}
+
+/// 64-C4-b: the frozen tender of many exercises at once (the contracts list's gates), by exercise id: each
+/// exercise's latest approved pack that froze an Appendix, as `frozenTenderOf` reads one.
+export async function frozenTendersOf(exerciseIds: readonly string[], timeZone: string | null, client: Tx = db): Promise<Map<string, FrozenTender>> {
+  const out = new Map<string, FrozenTender>();
+  if (exerciseIds.length === 0) return out;
+  const packs = await client.tenderPack.findMany({
+    where: { exerciseId: { in: [...exerciseIds] }, status: "APPROVED", frozenAt: { not: null }, appendix: { isNot: null } },
+    orderBy: [{ exerciseId: "asc" }, { versionNo: "desc" }],
+    select: FROZEN_PACK_SELECT,
+  });
+  for (const p of packs) {
+    if (out.has(p.exerciseId)) continue;
+    const t = frozenTenderFrom(p, timeZone);
+    if (t) out.set(p.exerciseId, t);
+  }
+  return out;
 }
 
 /// The award's latest appointment route.
