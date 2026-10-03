@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/record-editor";
 import { diffFields, snapshotFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
-import { blockFaults, configFaultText, distributionFaultsOf, nextFormVersion } from "@/lib/certificate/config";
+import { blockFaults, blockPinChanged, configFaultText, distributionFaultsOf, nextFormVersion, notACertificateFormText, otherUsesOf, rowPinChanged, TEMPLATE_OTHER_USES } from "@/lib/certificate/config";
 import { BLOCK_KIND_WORDS, CONDITION_WORDS, OFFICE_RULE_WORDS } from "@/lib/certificate/labels";
 import { blockOf, rowOf } from "@/lib/certificate/repo";
 import { DISTRIBUTION_CONDITIONS, SIGNATURE_BLOCK_KINDS, SIGNATURE_OFFICE_RULES, type Block, type DistributionRow } from "@/lib/certificate/types";
@@ -30,14 +30,19 @@ const triState = (r: FormReader, name: string, label: string) => {
 };
 const yes = (b: boolean | null) => (b == null ? "not decided" : b ? "yes" : "no");
 
-async function onTemplate(templateId: string, fn: (tx: Tx, t: { id: string; organisationId: string; nameEn: string }) => Promise<FormState>): Promise<FormState> {
+type LockedTemplate = { id: string; organisationId: string; nameEn: string; uses: string[] };
+const USE_COUNTS = Object.fromEntries(Object.keys(TEMPLATE_OTHER_USES).map((k) => [k, true])) as Record<keyof typeof TEMPLATE_OTHER_USES, true>;
+
+async function onTemplate(templateId: string, fn: (tx: Tx, t: LockedTemplate) => Promise<FormState>): Promise<FormState> {
   const o = await exerciseOrg();
   if (!o) return NO_ORG;
   const res = await db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "DocumentTemplate" WHERE id = ${templateId} FOR UPDATE`;
-    const t = await tx.documentTemplate.findFirst({ where: { id: templateId, organisationId: o.id }, select: { id: true, organisationId: true, nameEn: true } });
+    const t = await tx.documentTemplate.findFirst({ where: { id: templateId, organisationId: o.id }, select: { id: true, organisationId: true, nameEn: true, _count: { select: USE_COUNTS } } });
     if (!t) return { ok: false, message: "That template no longer exists." } as FormState;
-    return fn(tx, t);
+    // BD-614-21 residual (a): a template used elsewhere is not a certificate form; where it is, other modules'
+    // documents name its version as their text's, so its blocks and list are never edited and it never moves.
+    return fn(tx, { id: t.id, organisationId: t.organisationId, nameEn: t.nameEn, uses: otherUsesOf(t._count as Record<string, number>) });
   });
   if (res.ok) {
     revalidatePath("/configuration/templates");
@@ -47,7 +52,8 @@ async function onTemplate(templateId: string, fn: (tx: Tx, t: { id: string; orga
 }
 
 /// A change to the form's blocks or list is a new version of the form (nextFormVersion), audited on the form. The template is locked.
-async function bumpFormVersion(tx: Tx, t: { id: string; organisationId: string; nameEn: string }, what: string) {
+async function bumpFormVersion(tx: Tx, t: LockedTemplate, what: string) {
+  if (t.uses.length) return;
   const cur = await tx.documentTemplate.findUnique({ where: { id: t.id }, select: { bodyVersion: true } });
   if (!cur) return;
   const next = nextFormVersion(cur.bodyVersion);
@@ -79,6 +85,7 @@ export async function saveSignatureBlock(_prev: FormState, data: FormData): Prom
   if (v.officeRule !== "NAMED_OFFICE") v.officeCode = null;
   if (r.failed || !provenance) return { ok: false, errors: r.errors };
   return onTemplate(templateId, async (tx, t) => {
+    if (t.uses.length) return { ok: false, message: notACertificateFormText(t.uses).en };
     const rows = await tx.formSignatureBlock.findMany({ where: { templateId: t.id } });
     const before = id ? rows.find((x) => x.id === id) : null;
     if (id && !before) return { ok: false, message: "That block is no longer on this form." };
@@ -90,7 +97,8 @@ export async function saveSignatureBlock(_prev: FormState, data: FormData): Prom
     const changes = diffFields(before ? { ...blockWords(blockOf(before)), provenance: before.provenance } : null, { ...blockWords(v), provenance });
     if (changes.length) {
       await writeAudit(tx, { organisationId: t.organisationId, entity: "FormSignatureBlock", entityId: row.id, entityLabel: `${t.nameEn} · ${v.labelEn}`, reason: String(data.get("reason") ?? "") }, before ? "UPDATE" : "CREATE", changes);
-      await bumpFormVersion(tx, t, `Signature block ${before ? "changed" : "added"}: ${v.labelEn}`);
+      // A provenance or a note alone is not what a certificate pins: the version moves only when the block does.
+      if (blockPinChanged(before ? blockOf(before) : null, v)) await bumpFormVersion(tx, t, `Signature block ${before ? "changed" : "added"}: ${v.labelEn}`);
     }
     return { ok: true };
   });
@@ -135,6 +143,7 @@ export async function saveDistributionRow(_prev: FormState, data: FormData): Pro
   if (r.failed || !provenance) return { ok: false, errors: r.errors };
   const row: DistributionRow = { ...v, mandatory: mandatory!, ackRequired: ack!, isOriginal: original! };
   return onTemplate(templateId, async (tx, t) => {
+    if (t.uses.length) return { ok: false, message: notACertificateFormText(t.uses).en };
     const rows = await tx.formDistribution.findMany({ where: { templateId: t.id } });
     const before = id ? rows.find((x) => x.id === id) : null;
     if (id && !before) return { ok: false, message: "That recipient is no longer on this form." };
@@ -145,7 +154,7 @@ export async function saveDistributionRow(_prev: FormState, data: FormData): Pro
     const changes = diffFields(before ? { ...rowWords(rowOf(before)), provenance: before.provenance } : null, { ...rowWords(row), provenance });
     if (changes.length) {
       await writeAudit(tx, { organisationId: t.organisationId, entity: "FormDistribution", entityId: saved.id, entityLabel: `${t.nameEn} · ${row.labelEn}`, reason: String(data.get("reason") ?? "") }, before ? "UPDATE" : "CREATE", changes);
-      await bumpFormVersion(tx, t, `Recipient ${before ? "changed" : "added"}: ${row.labelEn}`);
+      if (rowPinChanged(before ? rowOf(before) : null, row)) await bumpFormVersion(tx, t, `Recipient ${before ? "changed" : "added"}: ${row.labelEn}`);
     }
     return { ok: true };
   });

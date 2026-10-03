@@ -123,3 +123,51 @@ export const configFaultText = (fs: readonly Finding[]) => fs.map((x) => CONFIG_
  * (version 0) can pin nothing, and keeps 0 until its text is written.
  */
 export const nextFormVersion = (current: number): number => (current === 0 ? 0 : current + 1);
+
+/**
+ * Where else a template is used (6.14 inc 1 residual, BD-614-21). A template that prints an award's letters, a
+ * tender pack, an invitation, an addendum or an evaluation paper is not a certificate form: what it issues names
+ * its version as the version of its text, so it carries no signature blocks or distribution list, and its
+ * version never moves without a text change. The relation names are DocumentTemplate's, each with its words.
+ */
+export const TEMPLATE_OTHER_USES: Readonly<Record<string, { en: string; ms: string }>> = {
+  policiesLoa: { en: "the letter of acceptance", ms: "surat setuju terima" },
+  policiesDeclaration: { en: "the award's declaration", ms: "akuan award" },
+  policiesCoveringMemo: { en: "the award's covering memo", ms: "memo iringan award" },
+  letterVariants: { en: "an appointment letter", ms: "surat pelantikan" },
+  awardDocuments: { en: "award documents already issued", ms: "dokumen award yang telah dikeluarkan" },
+  tenderPackParts: { en: "a tender pack", ms: "pakej tender" },
+  tenderPackDocuments: { en: "tender documents already made", ms: "dokumen tender yang telah dibuat" },
+  windowNoticePolicies: { en: "the advertisement notice", ms: "notis iklan" },
+  windowInvitationPolicies: { en: "the letter of invitation", ms: "surat jemputan" },
+  windowAddendumPolicies: { en: "the addendum", ms: "adendum" },
+  invitationLetters: { en: "invitation letters already sent", ms: "surat jemputan yang telah dihantar" },
+  evaluationReportPolicies: { en: "the evaluation report", ms: "laporan penilaian" },
+  evaluationProposalPolicies: { en: "the Kertas Cadangan", ms: "Kertas Cadangan" },
+  proposalPapers: { en: "Kertas Cadangan already produced", ms: "Kertas Cadangan yang telah dihasilkan" },
+};
+
+/// The other uses a template has, from its relation counts, in order.
+export const otherUsesOf = (counts: Readonly<Record<string, number>>): string[] => Object.keys(TEMPLATE_OTHER_USES).filter((k) => (counts[k] ?? 0) > 0);
+
+/// A template used elsewhere takes no signature block or recipient: refused, naming the uses.
+export function notACertificateFormText(uses: readonly string[]): { en: string; ms: string } {
+  const en = uses.map((u) => TEMPLATE_OTHER_USES[u]?.en ?? "another document").join(", ");
+  const ms = uses.map((u) => TEMPLATE_OTHER_USES[u]?.ms ?? "dokumen lain").join(", ");
+  return {
+    en: `This template prints ${en}, which name its version as the version of its text, so it takes no signature blocks or distribution list. Make a separate template for the certificate form.`,
+    ms: `Templat ini mencetak ${ms}, yang menamakan versinya sebagai versi teksnya, jadi ia tidak mengambil blok tandatangan atau senarai edaran. Buat templat berasingan bagi borang perakuan.`,
+  };
+}
+
+/// Whether a block's change moves what a certificate pins (a provenance or a note alone does not).
+export function blockPinChanged(before: Block | null, after: Block | null): boolean {
+  const pin = (b: Block | null) => (b ? JSON.stringify([b.blockOrder, b.blockKind, b.labelEn, b.labelMs, b.datesCertificate, b.officeRule, b.officeCode, b.delegable, b.carriesDecision, b.refusalAllowed]) : null);
+  return pin(before) !== pin(after);
+}
+
+/// Whether a recipient's change moves what a certificate pins (a provenance or a note alone does not).
+export function rowPinChanged(before: DistributionRow | null, after: DistributionRow | null): boolean {
+  const pin = (r: DistributionRow | null) => (r ? JSON.stringify([r.recipientCode, r.labelEn, r.labelMs, r.mandatory, r.ackRequired, r.condition, r.isOriginal, r.sortOrder]) : null);
+  return pin(before) !== pin(after);
+}

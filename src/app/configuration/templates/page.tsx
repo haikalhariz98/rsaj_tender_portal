@@ -20,12 +20,15 @@ const day = (d: Date | null) => (d ? formatDate(d) : "—");
 const LANG = { MS: "Malay", EN: "English" } as const;
 /// What a template's text is, and which language an issued document takes — a template
 /// with both texts issues in one of them, never both.
-function textLine(t: { bodyMs: string | null; bodyEn: string | null; primaryLanguage: "MS" | "EN" | null; bodyVersion: number }): string {
+/// The version counts the text, and on a certificate form (one with signature blocks or recipients) its blocks
+/// and list too (BD-614-21), so the line says which.
+function textLine(t: { bodyMs: string | null; bodyEn: string | null; primaryLanguage: "MS" | "EN" | null; bodyVersion: number }, form: boolean): string {
   const ms = !!t.bodyMs?.trim();
   const en = !!t.bodyEn?.trim();
   if (!ms && !en) return "Text not configured";
-  if (ms && en) return `Text in Malay and English, version ${t.bodyVersion} · ${t.primaryLanguage ? `issued in ${LANG[t.primaryLanguage]}` : "language to issue in not set"}`;
-  return `Text in ${ms ? "Malay" : "English"}, version ${t.bodyVersion}`;
+  const version = `version ${t.bodyVersion} (${form ? "its text, signature blocks and distribution list" : "its text"})`;
+  if (ms && en) return `Text in Malay and English, ${version} · ${t.primaryLanguage ? `issued in ${LANG[t.primaryLanguage]}` : "language to issue in not set"}`;
+  return `Text in ${ms ? "Malay" : "English"}, ${version}`;
 }
 
 export default async function TemplatesPage() {
@@ -123,7 +126,7 @@ export default async function TemplatesPage() {
                     <CellStack
                       title={<Link href={`/configuration/templates/${t.id}`} className="font-semibold">{t.nameEn}</Link>}
                       aside={t.bilingual ? <Badge outline>bilingual</Badge> : undefined}
-                      sub={[t.nameMs, textLine(t), formLine(t.id)].filter(Boolean).join(" · ")}
+                      sub={[t.nameMs, textLine(t, formLine(t.id) != null), formLine(t.id)].filter(Boolean).join(" · ")}
                     />
                   </Td>
                   <Td label="Form code" className="truncate font-mono text-[12.5px] text-ink-2" title={t.formCode || undefined}>
