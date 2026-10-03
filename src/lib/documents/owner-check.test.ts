@@ -259,7 +259,9 @@ describe("6.12: the contract is an owner, everywhere at once (X-6)", () => {
 
 describe("6.13 Part A acceptance S-2: the S.O.'s Instruction is an owner, everywhere at once (X-6)", () => {
   it("its key is counted by one_owner and its purpose pairs with it", () => {
-    expect(latestCheck("DocumentAttachment_one_owner")).toMatch(/"contractId", "variationInstructionId"\) = 1/);
+    // Faithful (6.13 Part B run 0, flagged against accepted Part A): the key is counted, whatever owner columns a later
+    // owner's migration appends after it (615-C2's standingEventId is the first).
+    expect(latestCheck("DocumentAttachment_one_owner")).toMatch(/"contractId", "variationInstructionId"(, "\w+")*\) = 1/);
     expect(latestCheck("DocumentAttachment_purpose_owner")).toMatch(/\("purpose" = 'INSTRUCTION_SKETCH' AND "variationInstructionId" IS NOT NULL\)/);
     // The contract's purposes still pair with the contract.
     expect(latestCheck("DocumentAttachment_purpose_owner")).toMatch(/\('PIPE_LOG', 'AS_BUILT', 'PROGRAMME', 'DIARY_PHOTO'\)\s*AND\s*"contractId"\s+IS NOT NULL/);
@@ -271,7 +273,10 @@ describe("6.13 Part A acceptance S-2: the S.O.'s Instruction is an owner, everyw
     const own = migrations.filter((d) => /ALTER TYPE "AttachmentPurpose" ADD VALUE 'INSTRUCTION_SKETCH'/.test(readFileSync(join(migrationsDir, d, "migration.sql"), "utf8")));
     const used = migrations.filter((d) => d !== own[0] && readFileSync(join(migrationsDir, d, "migration.sql"), "utf8").includes("'INSTRUCTION_SKETCH'"));
     expect(own).toEqual(["20261003400201_attachment_purpose_instruction_sketch"]);
-    expect(used).toEqual(["20261003400202_attachment_owner_variation_instruction"]);
+    // Faithful (6.13 Part B run 0, flagged against accepted Part A): the first use is the S-2 rebuild; any later mention is a
+    // later owner's rebuild of the owner CHECKs from the full owner list, never a use of the purpose elsewhere.
+    expect(used[0]).toBe("20261003400202_attachment_owner_variation_instruction");
+    for (const u of used.slice(1)) expect(readFileSync(join(migrationsDir, u, "migration.sql"), "utf8"), u).toMatch(/ADD CONSTRAINT "DocumentAttachment_purpose_owner"/);
     const sql = readFileSync(join(migrationsDir, own[0], "migration.sql"), "utf8").split("\n").filter((l) => l.trim() && !l.trim().startsWith("--"));
     expect(sql).toHaveLength(1);
   });
