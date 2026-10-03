@@ -220,7 +220,7 @@ export function paymentFaultWords(f: Finding): Words {
     case "SCHEDULE_ROW_INVALID":
       return w("Each schedule row is a certificate number from 1 and an amount above nothing.", "Setiap baris jadual ialah nombor perakuan dan amaun melebihi sifar.");
     case "SCHEDULE_PAST":
-      return w(`The schedule names a certificate already issued (${s(d.issued, "some")} are): recoupment starts with the next one.`, "Jadual menamakan perakuan yang telah dikeluarkan.");
+      return w(`The schedule names a certificate already issued (up to interim certificate ${s(d.issued, "the last")}): recoupment starts with the next one.`, "Jadual menamakan perakuan yang telah dikeluarkan.");
     case "ADVANCE_VALUATION_IN_PROGRESS":
       return w(`Interim valuation ${s(d.sequence, "in progress")} is being valued or its certificate is not yet issued, and its recoupment was fixed from the advances issued when it was worked out: apply for the advance once its certificate is issued or void.`, `Penilaian interim ${s(d.sequence, "semasa")} masih dalam proses: mohon pendahuluan selepas perakuannya dikeluarkan atau dibatalkan.`);
     case "SCHEDULE_ON_VALUATION_IN_PROGRESS":
@@ -268,7 +268,7 @@ export function paymentFaultWords(f: Finding): Words {
     case "PERKESO_NOT_RECORDED":
       return w("Before the contract is signed, the certificate carries the contractor's social security (PERKESO) registration number: record it on a verified policy.", "Sebelum kontrak ditandatangani, perakuan membawa nombor pendaftaran PERKESO kontraktor.");
     case "OPENING_CLOSED":
-      return w("A valuation has been raised after the opening position: it is not entered or corrected now (the certificates since rest on it).", "Penilaian telah dibangkitkan selepas kedudukan pembukaan: ia tidak boleh diubah lagi.");
+      return w("An interim certificate raised after the opening position stands (not void): the position is not corrected now (the certificates since rest on it). A certificate voided before issue does not hold it.", "Penilaian telah dibangkitkan selepas kedudukan pembukaan: ia tidak boleh diubah lagi.");
     case "OPENING_REASON_REQUIRED":
       return w("Say why the opening position is corrected.", "Nyatakan sebab kedudukan pembukaan dibetulkan.");
     case "OPENING_NUMBER_REQUIRED":
