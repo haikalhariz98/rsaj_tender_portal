@@ -23,6 +23,7 @@ import type { ComputedSnapshot, FigureLine, FigureTotal } from "@/lib/certificat
 import { senToDecimalString, type Sen } from "@/lib/money";
 
 import type { LadLine } from "@/lib/lad/charge";
+import { ladRoundingFaults } from "@/lib/lad/rounding";
 
 import { type MaterialsPct } from "./materials";
 import { overReleased, retentionHeld, retentionFaults, type Held, type RetentionReading, type Tiers } from "./retention";
@@ -182,13 +183,7 @@ export function interimCertificate(i: InterimInput): InterimResult {
   return { figures, snapshot, faults };
 }
 
-/// BD-613-47: the signed rounding on the damages line is a rounding to the ringgit (the worked example's +0.20
-/// brings 2,693.80 to 2,694.00), never a waiver: strictly between −RM1.00 and RM1.00, and never taking the damages
-/// below nothing. RM1.00 is the definition of the rounding, not a customer threshold.
-export const LAD_ROUNDING_LIMIT: Sen = 100n;
-export function ladRoundingFaults(damages: Sen, rounding: Sen): Finding[] {
-  const out: Finding[] = [];
-  if (rounding <= -LAD_ROUNDING_LIMIT || rounding >= LAD_ROUNDING_LIMIT) out.push({ code: "LAD_ROUNDING_OUT_OF_RANGE", level: "block", data: { rounding: rounding.toString() } });
-  if (damages + rounding < 0n) out.push({ code: "LAD_ROUNDING_BELOW_NOTHING", level: "block", data: { damages: damages.toString(), rounding: rounding.toString() } });
-  return out;
-}
+/// BD-613-47: the signed rounding on the damages line (a rounding to the ringgit, never a waiver). The rule moved to
+/// lad/rounding.ts at 6.13 Part B run 0 (BD-613-92: §8.9 and the final account read the same rule); re-exported here so
+/// Part A's callers and tests are unchanged.
+export { LAD_ROUNDING_LIMIT, ladRoundingFaults } from "@/lib/lad/rounding";
