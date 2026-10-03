@@ -1,11 +1,13 @@
 import { RoutingSheetView } from "@/components/certificate/routing-sheet";
 import { RouteIcon } from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
+import { Blocked } from "@/components/ui/blocked";
 import { buttonClass } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import type { LoadedAward } from "@/lib/award/repo";
-import { awardSheetOf, loadAwardSheetRows } from "@/lib/certificate/award-sheet";
+import { awardSheetClosed, awardSheetOf, loadAwardSheetRows } from "@/lib/certificate/award-sheet";
+import { refusalText } from "@/lib/certificate/fault-text";
 import { db } from "@/lib/db";
 import { ON_BEHALF_HINT } from "@/lib/documents/labels";
 import { storedDay } from "@/lib/dates";
@@ -28,10 +30,12 @@ export async function AwardRoutingSheetPanel({ l, people, today }: { l: LoadedAw
   const award = l.award;
   const rows = await loadAwardSheetRows(award.id, db);
   const sheet = today ? awardSheetOf(l, rows, today) : null;
-  const open = award.status !== "CANCELLED";
+  // Closed on a cancelled award, and once the appointment route is decided (the act refuses then too).
+  const closed = awardSheetClosed(l);
+  const open = closed.length === 0;
   if (!rows.sheet) {
     const types = await db.routingSheetType.findMany({ where: { organisationId: l.org.id, subject: "AWARD", OR: [{ retiredOn: null }, ...(today ? [{ retiredOn: { gt: new Date(`${today}T00:00:00.000Z`) } }] : [])] }, orderBy: [{ sortOrder: "asc" }, { labelEn: "asc" }], select: { id: true, labelEn: true } });
-    const blocker = !today ? "Set the organisation's time zone first." : !open ? "The award is cancelled." : types.length === 0 ? "No routing sheet type is drawn over an award's route: add one under Configuration › Routing sheets." : null;
+    const blocker = !today ? "Set the organisation's time zone first." : !open ? refusalText("Not started:", closed) : types.length === 0 ? "No routing sheet type is drawn over an award's route: add one under Configuration › Routing sheets." : null;
     return (
       <Card>
         <CardHeader
@@ -78,7 +82,9 @@ export async function AwardRoutingSheetPanel({ l, people, today }: { l: LoadedAw
             action={recordAwardRoutingReceived}
             trigger={received ? { label: "Correct the received day", className: ghost } : { label: "Record the received day", className: secondary }}
           />
-        ) : undefined
+        ) : (
+          <Blocked label="Record the received day" reason={refusalText("Closed:", closed)} />
+        )
       }
       checkAction={(def) => (
         <RecordEditor
