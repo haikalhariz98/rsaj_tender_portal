@@ -43,9 +43,10 @@ import { loadPostAwardPolicy, supervisedHoldersOn } from "@/lib/supervision/load
 import { fieldsNamed, renderWith } from "@/lib/templates/merge";
 
 import { EscalateDrawer } from "@/app/approvals/editors";
-import { actLabel, isMandatoryAct } from "@/components/ui/act";
+import { isMandatoryAct } from "@/components/ui/act";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
 import { latestCertificateRoute, refusalKindText } from "@/lib/certificate/route-write";
+import { ApprovalRouteCard } from "@/components/approval-route-card";
 import { paymentFaultText } from "@/lib/payment/labels";
 import { PAID_FIGURE } from "@/lib/payment/finance";
 import { KIND_ROUTE_DOMAIN } from "@/lib/payment/route";
@@ -538,34 +539,6 @@ async function advanceGuaranteeShortfall(certId: string): Promise<{ en: string; 
 }
 
 /// One approval route of a certificate with no routing sheet: its rule, its steps in order, each decided here.
-function ApprovalRouteCard({ route, title, stepAction, officeName }: { route: LoadedCertificate["cert"]["approvalInstances"][number]; title: string; stepAction: (routeId: string, sequence: number) => React.ReactNode; officeName: (code: string) => string | null }) {
-  const state = route.status === "APPROVED" ? { text: "Approved", tone: "ok" as const } : route.status === "REJECTED" ? { text: "Refused", tone: "err" as const } : route.status === "RECALLED" ? { text: "Recalled", tone: "warn" as const } : { text: "Waiting for a decision", tone: "info" as const };
-  return (
-    <Card className="overflow-hidden">
-      <CardHeader icon={<RouteIcon size={17} />} title={title} subtitle={`${route.checkedAgainstMatrix ? `${route.ruleLabel ?? "Its rule"}${route.ruleClause ? ` (${route.ruleClause})` : ""}, ${route.matrixLabel ?? "the approval matrix"}` : "Not routed by the approval matrix (recorded as given, not checked against it)"}; routed on ${route.value == null ? "no value" : formatMoney(parseSen(route.value.toString()))}; opened ${formatDate(day(route.openedAt))}.`} actions={<Badge tone={state.tone}>{state.text}</Badge>} divided />
-      <ul className="divide-y divide-line/70">
-        {route.steps.map((st) => (
-          <li key={st.id} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-start sm:justify-between sm:px-6">
-            <span className="min-w-0">
-              <span className="block text-[13.5px] font-semibold break-words text-ink">{`${st.sequence}. ${st.actingRoleLabel ?? st.roleLabel}`} <span className="font-normal text-ink-3">{`· ${actLabel(st.act)}`}</span></span>
-              <span className="block text-[12.5px] break-words text-ink-3">
-                {st.decision === "PENDING" ? (route.status === "PENDING" ? "Waiting" : "Not decided: the route closed.") : `${st.decision === "DONE" ? "Done" : "Refused"} · ${st.decidedByName ?? "Not recorded"} · ${formatDate(day(st.decidedOn))}${st.receivedOn ? ` · received ${formatDate(day(st.receivedOn))}` : ""}${st.reason ? ` · “${st.reason}”` : ""} · recorded on their behalf, not signed`}
-              </span>
-              {st.escalation && <span className="block text-[12.5px] break-words text-amber-800">{`Escalated from ${officeName(st.roleCode ?? "") ?? st.roleLabel}: ${st.escalationReason ?? ""}`}</span>}
-            </span>
-            <span className="flex shrink-0 flex-wrap items-center gap-2">{st.decision !== "PENDING" ? <Chip tone={st.decision === "DONE" ? "ok" : "err"}>{st.decision === "DONE" ? "Done" : "Refused"}</Chip> : stepAction(route.id, st.sequence)}</span>
-          </li>
-        ))}
-      </ul>
-      {route.status === "REJECTED" && route.rejectionApplied && (
-        <CardBody className="border-t border-line/70">
-          <p className="text-[12.5px] text-ink-3">{`Refused: ${refusalKindText(route.rejectionApplied)}.`}</p>
-        </CardBody>
-      )}
-    </Card>
-  );
-}
-
 // ------------------------------------------------------------------ distribution
 
 function DistributionPanel({ l, today }: { l: LoadedCertificate; today: string | null }) {
