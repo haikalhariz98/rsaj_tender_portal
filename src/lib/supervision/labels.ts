@@ -132,6 +132,9 @@ export const BRANCH_OPENS_WORDS: Readonly<Record<(typeof BRANCH_OPENS)[EarlyActi
 
 const pct = (v: string | null) => (v == null ? "none recorded" : `${v}%`);
 
+/// BD-613-12 ruling: the In Delay reading is tagged ASSUMED wherever shown, as it rests on this reading no source states.
+export const DELAY_BASIS = "Planned progress between the approved programme's points is read on a straight line.";
+
 /// The In Delay reading in words, with what it was judged on.
 export function delayWords(r: DelayReading): { title: Words; detail: Words; tone: "err" | "ok" | "warn" | "neutral" } {
   switch (r.state) {

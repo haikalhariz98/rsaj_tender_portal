@@ -7,6 +7,7 @@ import { Blocked } from "@/components/ui/blocked";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardFooter, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
+import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues } from "@/components/ui/stat";
 import { INSURANCE_KIND_LABEL } from "@/lib/award/labels";
 import { loadIssue } from "@/lib/authority/load";
@@ -38,6 +39,7 @@ import {
   DELEGATE_KIND_WORDS,
   DELEGATION_STATE_TONE,
   DELEGATION_STATE_WORDS,
+  DELAY_BASIS,
   delayWords,
   ENDORSER_WORDS,
   ENTRY_STATE_TONE,
@@ -117,6 +119,30 @@ export async function supervisionView(l: LoadedContract, today: string | null) {
 }
 export type SupervisionView = Awaited<ReturnType<typeof supervisionView>>;
 
+// ------------------------------------------------------------------ the In Delay reading, tagged ASSUMED (BD-613-12 ruling)
+
+
+function DelayTag({ d }: { d: ReturnType<typeof delayWords> }) {
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      <Badge tone={d.tone === "neutral" ? undefined : d.tone}>{d.title.en}</Badge>
+      <ProvenanceBadge value="ASSUMED" />
+    </span>
+  );
+}
+
+function DelayDetail({ d, lead = false }: { d: ReturnType<typeof delayWords>; lead?: boolean }) {
+  return (
+    <span className="flex flex-col items-start gap-1">
+      <span>{lead ? `${d.title.en}. ${d.detail.en}` : d.detail.en}</span>
+      <span className="flex flex-wrap items-center gap-2 text-[12.5px] text-ink-3">
+        <ProvenanceBadge value="ASSUMED" />
+        {DELAY_BASIS}
+      </span>
+    </span>
+  );
+}
+
 // ------------------------------------------------------------------ overview: on site
 
 export function OnSiteCard({ l, v }: { l: LoadedContract; v: SupervisionView }) {
@@ -125,7 +151,7 @@ export function OnSiteCard({ l, v }: { l: LoadedContract; v: SupervisionView }) 
   const d = v.delay ? delayWords(v.delay) : null;
   return (
     <Card>
-      <CardHeader icon={<BuildingIcon size={17} />} title="On site" subtitle="Possession, the date for completion and whether the contract is In Delay, judged today." actions={d ? <Badge tone={d.tone === "neutral" ? undefined : d.tone}>{d.title.en}</Badge> : undefined} />
+      <CardHeader icon={<BuildingIcon size={17} />} title="On site" subtitle="Possession, the date for completion and whether the contract is In Delay, judged today." actions={d ? <DelayTag d={d} /> : undefined} />
       <CardBody>
         <KeyValues
           columns={2}
@@ -133,7 +159,7 @@ export function OnSiteCard({ l, v }: { l: LoadedContract; v: SupervisionView }) 
             { label: "Superintending Officer", value: v.so ? v.so.office.roleLabel : dim("Not resolved") },
             { label: "Possession of site", value: v.s.possession ? formatDate(day(v.s.possession.possessionOn)) : dim("Not recorded") },
             { label: "Date for completion", value: v.values?.dateForCompletion ? formatDate(v.values.dateForCompletion) : dim("From possession") },
-            { label: "In Delay", value: d ? d.detail.en : dim("Set the organisation's time zone first") },
+            { label: "In Delay", value: d ? <DelayDetail d={d} /> : dim("Set the organisation's time zone first") },
           ]}
         />
       </CardBody>
@@ -371,7 +397,7 @@ async function StartSection({ l, v, people, today }: { l: LoadedContract; v: Sup
       </Card>
 
       <Card className="overflow-hidden">
-        <CardHeader icon={<ChartIcon size={17} />} title="Progress" subtitle={d ? `${d.title.en}. ${d.detail.en}` : "Not judged without the organisation's time zone."} actions={<ProgressDrawer id={c.id} people={people} today={today} blocker={possessed(v, today)} />} divided={v.s.progressRecords.length > 0} />
+        <CardHeader icon={<ChartIcon size={17} />} title="Progress" subtitle={d ? <DelayDetail d={d} lead /> : "Not judged without the organisation's time zone."} actions={<ProgressDrawer id={c.id} people={people} today={today} blocker={possessed(v, today)} />} divided={v.s.progressRecords.length > 0} />
         {v.s.progressRecords.length === 0 ? (
           <EmptyState size="sm" title="None recorded">Actual progress is recorded here, a day at a time.</EmptyState>
         ) : (
