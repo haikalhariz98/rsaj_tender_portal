@@ -504,7 +504,7 @@ function ApprovalRouteCard({ route, title, stepAction, officeName }: { route: Lo
   const state = route.status === "APPROVED" ? { text: "Approved", tone: "ok" as const } : route.status === "REJECTED" ? { text: "Refused", tone: "err" as const } : route.status === "RECALLED" ? { text: "Recalled", tone: "warn" as const } : { text: "Waiting for a decision", tone: "info" as const };
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<RouteIcon size={17} />} title={title} subtitle={`${route.ruleLabel ?? "Its rule"}${route.ruleClause ? ` (${route.ruleClause})` : ""}, ${route.matrixLabel ?? "the approval matrix"}; routed on ${route.value == null ? "no value" : formatMoney(parseSen(route.value.toString()))}; opened ${formatDate(day(route.openedAt))}.`} actions={<Badge tone={state.tone}>{state.text}</Badge>} divided />
+      <CardHeader icon={<RouteIcon size={17} />} title={title} subtitle={`${route.checkedAgainstMatrix ? `${route.ruleLabel ?? "Its rule"}${route.ruleClause ? ` (${route.ruleClause})` : ""}, ${route.matrixLabel ?? "the approval matrix"}` : "Not routed by the approval matrix (recorded as given, not checked against it)"}; routed on ${route.value == null ? "no value" : formatMoney(parseSen(route.value.toString()))}; opened ${formatDate(day(route.openedAt))}.`} actions={<Badge tone={state.tone}>{state.text}</Badge>} divided />
       <ul className="divide-y divide-line/70">
         {route.steps.map((st) => (
           <li key={st.id} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-start sm:justify-between sm:px-6">
