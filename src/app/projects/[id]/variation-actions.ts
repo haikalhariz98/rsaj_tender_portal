@@ -853,7 +853,8 @@ const OTHER_LINES = 3;
 export async function raiseSumAdjustment(_prev: FormState, data: FormData): Promise<FormState> {
   const now = toSecond(new Date());
   const r = new FormReader(data);
-  const orderIds = data.getAll("orderIds").map(String).filter(Boolean);
+  // The tokens field rides out as one newline-joined value (the shared Select).
+  const orderIds = [...new Set(data.getAll("orderIds").flatMap((v) => String(v).split("\n")).map((v) => v.trim()).filter(Boolean))];
   const personId = r.text("personId", "Recorded for", { required: true });
   const others: AdjustmentLineIn[] = [];
   for (let n = 1; n <= OTHER_LINES; n++) {

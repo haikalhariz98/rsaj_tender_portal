@@ -350,7 +350,7 @@ export function variationFaultWords(f: Finding): Words {
     case "OTHER_COMMITTEE":
       return w("That sitting is of another committee than the one the step (or the consent) needs.", "Persidangan itu bagi jawatankuasa lain.");
     case "SITTING_FROZEN":
-      return w("That sitting no longer takes matters (it is in progress, minuted or cancelled).", "Persidangan itu tidak lagi menerima perkara.");
+      return w("That sitting no longer takes matters (it is minuted or cancelled).", "Persidangan itu tidak lagi menerima perkara.");
     case "ALREADY_TABLED":
       return w("This step's matter is tabled already and not decided against: cite its decision once it is decided.", "Perkara langkah ini telah dibentangkan.");
     default:

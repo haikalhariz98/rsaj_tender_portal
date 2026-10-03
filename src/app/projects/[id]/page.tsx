@@ -3,7 +3,7 @@ import { historyEntityLabel, PAYMENT_ENTITIES, RECORD_TYPE_WORDS, SUPERVISION_EN
 import { notFound } from "next/navigation";
 
 import { ReadinessGateList } from "@/components/contract/readiness-gate";
-import { AwardIcon, BuildingIcon, CheckIcon, ClockIcon, FileIcon, FilesIcon, ShieldIcon, ToolsIcon, UsersIcon, WalletIcon } from "@/components/icons";
+import { AwardIcon, BuildingIcon, CheckIcon, ClockIcon, FileIcon, FilesIcon, ScaleIcon, ShieldIcon, ToolsIcon, UsersIcon, WalletIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
@@ -37,6 +37,8 @@ import { StartPreparationDrawer, WcCheckDrawer } from "./editors";
 import { FormationPanel, FORMATION_SECTIONS, type FormationSection } from "./formation-panels";
 import { PAYMENT_SECTIONS, PaymentsPanel, PaymentSummaryCard, paymentView, type PaymentSection, type PaymentView } from "./payment-panels";
 import { OnSiteCard, SITE_SECTIONS, SitePanel, supervisionView, TeamPanel, type SiteSection, type SupervisionView } from "./supervision-panels";
+import { VARIATION_SECTIONS, VariationsPanel, VariationSummaryCard, type VariationSection } from "./variation-panels";
+import { variationView, type VariationView } from "@/lib/variation/view";
 
 export const dynamic = "force-dynamic";
 
@@ -67,16 +69,18 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
     supervisionView(l, today),
   ]);
   // 6.13 Part A step 3: interim payment and the damages chain, for the Overview and the Payments tab.
-  const payments = await paymentView(l, today);
+  // Step 4: variations and the adjustments of the contract sum, for the Overview and the Variations tab.
+  const [payments, variations] = await Promise.all([paymentView(l, today), variationView(l, today)]);
   const peopleOptions: Option[] = people.map((p) => ({ value: p.id, label: p.name }));
   const phase = facts?.phase ?? status;
   const formationSection = (FORMATION_SECTIONS.find((s) => s.id === section)?.id ?? "assembly") as FormationSection;
   const siteSection = (SITE_SECTIONS.find((s) => s.id === section)?.id ?? "start") as SiteSection;
   const paymentSection = (PAYMENT_SECTIONS.find((s) => s.id === section)?.id ?? "valuations") as PaymentSection;
+  const variationSection = (VARIATION_SECTIONS.find((s) => s.id === section)?.id ?? "variations") as VariationSection;
   const pageNo = Math.max(0, Number.parseInt(page ?? "0", 10) || 0);
 
   const tabs = [
-    { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel l={l} facts={facts} today={today} supervision={supervision} payments={payments} /> },
+    { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel l={l} facts={facts} today={today} supervision={supervision} payments={payments} variations={variations} /> },
     {
       id: "formation",
       label: "Formation",
@@ -107,6 +111,17 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
       section: paymentSection,
       lazy: true,
       panel: tab === "payments" ? <PaymentsPanel l={l} v={payments} people={peopleOptions} today={today} section={paymentSection} page={pageNo} /> : null,
+    },
+    // 6.13 Part A step 4: variations, from application to certificate, and the adjustments of the contract sum.
+    {
+      id: "variations",
+      label: "Variations",
+      icon: <ScaleIcon size={15} />,
+      count: variations.all.length,
+      sections: [...VARIATION_SECTIONS],
+      section: variationSection,
+      lazy: true,
+      panel: tab === "variations" ? <VariationsPanel l={l} v={variations} people={peopleOptions} today={today} section={variationSection} page={pageNo} /> : null,
     },
     { id: "securities", label: "Securities", icon: <ShieldIcon size={15} />, count: c.securities.length + c.policies.length, panel: <SecuritiesPanel l={l} people={peopleOptions} today={today} /> },
     // 6.14 increment 1 (plan §5): every certificate of the contract, by kind and status.
@@ -150,7 +165,7 @@ type Facts = NonNullable<Awaited<ReturnType<typeof signingFacts>>>;
 
 // ------------------------------------------------------------------ overview
 
-async function OverviewPanel({ l, facts, today, supervision, payments }: { l: LoadedContract; facts: Facts | null; today: string | null; supervision: SupervisionView; payments: PaymentView }) {
+async function OverviewPanel({ l, facts, today, supervision, payments, variations }: { l: LoadedContract; facts: Facts | null; today: string | null; supervision: SupervisionView; payments: PaymentView; variations: VariationView }) {
   const c = l.contract;
   const status = c.status as ContractStatus;
   const snap = readFormationSnapshot(c.formationSnapshot);
@@ -185,6 +200,7 @@ async function OverviewPanel({ l, facts, today, supervision, payments }: { l: Lo
       )}
       <OnSiteCard l={l} v={supervision} />
       <PaymentSummaryCard l={l} v={payments} />
+      <VariationSummaryCard l={l} v={variations} />
       <Card>
         <CardHeader icon={<FileIcon size={17} />} title="The contract" subtitle="As awarded, numbered at issue, and as it is being formed." />
         <CardBody>
