@@ -1,0 +1,190 @@
+diff -ru -U0 before/documents.txt after/documents.txt
+--- before/documents.txt	2026-10-03 18:51:07.457143887 +0000
++++ after/documents.txt	2026-10-03 18:50:40.945142311 +0000
+@@ -10,7 +10,7 @@
+ •
+ 9 acknowledgements awaited
+ •
+-2 routing sheets open (0 past the target, 1 not judged)
++2 routing sheets open
+ Library
+ 21
+ Distribution
+diff -ru -U0 before/documents__tab__distribution.txt after/documents__tab__distribution.txt
+--- before/documents__tab__distribution.txt	2026-10-03 18:51:07.689143901 +0000
++++ after/documents__tab__distribution.txt	2026-10-03 18:50:41.213142327 +0000
+@@ -10,7 +10,7 @@
+ •
+ 9 acknowledgements awaited
+ •
+-2 routing sheets open (0 past the target, 1 not judged)
++2 routing sheets open
+ Library
+ 21
+ Distribution
+diff -ru -U0 before/documents__tab__library&q__P.P..txt after/documents__tab__library&q__P.P..txt
+--- before/documents__tab__library&q__P.P..txt	2026-10-03 19:19:09.691199620 +0000
++++ after/documents__tab__library&q__P.P..txt	2026-10-03 19:19:09.695778990 +0000
+@@ -4,15 +4,15 @@
+ The generated documents register, the copies still to go out, and the routing sheets still
+ …
+ •
+-2 documents match the search
++21 documents in the library
+ •
+ 7 copies not sent (2 mandatory)
+ •
+ 9 acknowledgements awaited
+ •
+-2 routing sheets open (0 past the target, 1 not judged)
++2 routing sheets open
+ Library
+-2
++21
+ Distribution
+ 16
+ Routing sheets
+diff -ru -U0 before/documents__tab__library&q__S.O..txt after/documents__tab__library&q__S.O..txt
+--- before/documents__tab__library&q__S.O..txt	2026-10-03 19:19:09.691226621 +0000
++++ after/documents__tab__library&q__S.O..txt	2026-10-03 19:19:09.695813136 +0000
+@@ -4,15 +4,15 @@
+ The generated documents register, the copies still to go out, and the routing sheets still
+ …
+ •
+-2 documents match the search
++21 documents in the library
+ •
+ 7 copies not sent (2 mandatory)
+ •
+ 9 acknowledgements awaited
+ •
+-2 routing sheets open (0 past the target, 1 not judged)
++2 routing sheets open
+ Library
+-2
++21
+ Distribution
+ 16
+ Routing sheets
+diff -ru -U0 before/documents__tab__library&q__Superintending%20Officer.txt after/documents__tab__library&q__Superintending%20Officer.txt
+--- before/documents__tab__library&q__Superintending%20Officer.txt	2026-10-03 19:19:09.691248251 +0000
++++ after/documents__tab__library&q__Superintending%20Officer.txt	2026-10-03 19:19:09.695839518 +0000
+@@ -4,15 +4,15 @@
+ The generated documents register, the copies still to go out, and the routing sheets still
+ …
+ •
+-2 documents match the search
++21 documents in the library
+ •
+ 7 copies not sent (2 mandatory)
+ •
+ 9 acknowledgements awaited
+ •
+-2 routing sheets open (0 past the target, 1 not judged)
++2 routing sheets open
+ Library
+-2
++21
+ Distribution
+ 16
+ Routing sheets
+diff -ru -U0 before/documents__tab__library&q__office.txt after/documents__tab__library&q__office.txt
+--- before/documents__tab__library&q__office.txt	2026-10-03 19:19:09.691264320 +0000
++++ after/documents__tab__library&q__office.txt	2026-10-03 19:19:09.695859013 +0000
+@@ -4,15 +4,15 @@
+ The generated documents register, the copies still to go out, and the routing sheets still
+ …
+ •
+-2 documents match the search
++21 documents in the library
+ •
+ 7 copies not sent (2 mandatory)
+ •
+ 9 acknowledgements awaited
+ •
+-2 routing sheets open (0 past the target, 1 not judged)
++2 routing sheets open
+ Library
+-2
++21
+ Distribution
+ 16
+ Routing sheets
+diff -ru -U0 before/documents__tab__library&q__officer.txt after/documents__tab__library&q__officer.txt
+--- before/documents__tab__library&q__officer.txt	2026-10-03 19:19:09.691282650 +0000
++++ after/documents__tab__library&q__officer.txt	2026-10-03 19:19:09.695876211 +0000
+@@ -4,15 +4,15 @@
+ The generated documents register, the copies still to go out, and the routing sheets still
+ …
+ •
+-2 documents match the search
++21 documents in the library
+ •
+ 7 copies not sent (2 mandatory)
+ •
+ 9 acknowledgements awaited
+ •
+-2 routing sheets open (0 past the target, 1 not judged)
++2 routing sheets open
+ Library
+-2
++21
+ Distribution
+ 16
+ Routing sheets
+diff -ru -U0 before/documents__tab__library.txt after/documents__tab__library.txt
+--- before/documents__tab__library.txt	2026-10-03 18:51:08.077143924 +0000
++++ after/documents__tab__library.txt	2026-10-03 18:50:41.585142349 +0000
+@@ -10,7 +10,7 @@
+ •
+ 9 acknowledgements awaited
+ •
+-2 routing sheets open (0 past the target, 1 not judged)
++2 routing sheets open
+ Library
+ 21
+ Distribution
+diff -ru -U0 before/documents__tab__review.txt after/documents__tab__review.txt
+--- before/documents__tab__review.txt	2026-10-03 18:51:08.361143941 +0000
++++ after/documents__tab__review.txt	2026-10-03 18:50:41.773142361 +0000
+@@ -10,7 +10,7 @@
+ •
+ 9 acknowledgements awaited
+ •
+-2 routing sheets open (0 past the target, 1 not judged)
++2 routing sheets open
+ Library
+ 21
+ Distribution
+diff -ru -U0 before/documents__tab__routing.txt after/documents__tab__routing.txt
+--- before/documents__tab__routing.txt	2026-10-03 18:51:08.641143958 +0000
++++ after/documents__tab__routing.txt	2026-10-03 18:50:41.993142374 +0000
+@@ -10,7 +10,7 @@
+ •
+ 9 acknowledgements awaited
+ •
+-2 routing sheets open (0 past the target, 1 not judged)
++2 routing sheets open
+ Library
+ 21
+ Distribution
+@@ -19,7 +19,7 @@
+ 2
+ Review queue
+ Routing sheets
+-Every certificate on its routing sheet, the longest open first, with its elapsed time against its target in calendar days (assumed, a question to the customer). A sheet with no target, or not yet received, is shown and never judged. An award's pre-award sheet is on the award's Routing sheet tab.
++Every certificate on its routing sheet, the longest open first, with its elapsed time against its target in calendar days (assumed, a question to the customer). A sheet with no target, or not yet received, is shown and never judged. An award's pre-award sheet is on the award's Routing sheet tab. 0 past the target, 1 not judged.
+ Variation order
+ Contract XI202600799
+ Sheet
+diff -ru -U0 before/projects__demo_con3__certificates__demo_hct3__tab__print.txt after/projects__demo_con3__certificates__demo_hct3__tab__print.txt
+--- before/projects__demo_con3__certificates__demo_hct3__tab__print.txt	2026-10-03 18:56:13.185162061 +0000
++++ after/projects__demo_con3__certificates__demo_hct3__tab__print.txt	2026-10-03 18:55:18.309158799 +0000
+@@ -30,6 +30,7 @@
+ Letter of delegation under contract XI202600799 (Valve keys and chamber covers) with Contoh Supplies Enterprise.
+ The powers named in the schedule are delegated by the Superintending Officer as it states (demo text, invented).
+ Dated (the day of the authorising signature).
++Typing corrections applied (the form code and revision unchanged): DELEGATON → DELEGATION
+ Printed fields, as the form stands now
+ Under the printed form's own labels.
+ Its form has no printed fields.
